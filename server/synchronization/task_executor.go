@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/spf13/viper"
 	"io"
 	"io/ioutil"
 	"runtime/debug"
@@ -461,14 +462,24 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 				taskLogger.INFO("No objects were loaded.")
 			}
 			rowsCount := len(objects)
-			needCopyEvent := len(destinationStorages) > 1
+			storeAttempts := viper.GetInt("sync-tasks.store_attempts")
+			needCopyEvent := len(destinationStorages) > 1 || storeAttempts > 1
 			deleteConditions := &driversbase.DeleteConditions{}
 			if pos == 0 {
 				//first chunk deletes full data from previous  load
 				deleteConditions = driversbase.DeleteByTimeChunkCondition(intervalToSync)
 			}
 			for _, storage := range destinationStorages {
-				err := storage.SyncStore(&schema.BatchHeader{TableName: reformattedTableName}, objects, deleteConditions, false, needCopyEvent)
+				var err error
+				for i := 0; i < storeAttempts; i++ {
+					taskLogger.INFO("Flushing batch - adding %d objects to [%s]. Storage=[%s] Attempt: %d of %d", rowsCount, reformattedTableName, storage.ID(), i+1, storeAttempts)
+					err = storage.SyncStore(&schema.BatchHeader{TableName: reformattedTableName}, objects, deleteConditions, false, needCopyEvent)
+					if err == nil {
+						break
+					} else if i < storeAttempts-1 {
+						taskLogger.ERROR("Error storing %d source objects in [%s] destination (%d attempts left): %v", rowsCount, storage.ID(), storeAttempts-i-1, err)
+					}
+				}
 				if err != nil {
 					metrics.ErrorSourceEvents(task.SourceType, metrics.EmptySourceTap, task.Source, storage.Type(), storage.ID(), rowsCount)
 					metrics.ErrorObjects(task.SourceType, metrics.EmptySourceTap, task.Source, rowsCount)

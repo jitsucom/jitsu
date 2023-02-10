@@ -20,6 +20,7 @@ import (
 	"github.com/jitsucom/jitsu/server/utils"
 	"github.com/jitsucom/jitsu/server/uuid"
 	"github.com/joomcode/errorx"
+	"github.com/spf13/viper"
 	"strings"
 	"time"
 )
@@ -128,13 +129,22 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 			}
 		}
 
-		needCopyEvent := len(rs.destinations) > 1
+		storeAttempts := viper.GetInt("sync-tasks.store_attempts")
+		needCopyEvent := len(rs.destinations) > 1 || storeAttempts > 1
 		rowsCount := len(stream.Objects)
 		//Sync stream
 		for _, storage := range rs.destinations {
 			batchStart := timestamp.Now()
-			rs.taskLogger.INFO("Stream [%s] Flushing batch - adding %d objects to [%s]. Key fields=[%s] Storage=[%s]", streamName, len(stream.Objects), tableName, strings.Join(keyFields, ","), storage.ID())
-			err := storage.SyncStore(stream.BatchHeader, stream.Objects, stream.DeleteConditions, false, needCopyEvent)
+			var err error
+			for i := 0; i < storeAttempts; i++ {
+				rs.taskLogger.INFO("Stream [%s] Flushing batch - adding %d objects to [%s]. Key fields=[%s] Storage=[%s] Attempt: %d of %d", streamName, rowsCount, tableName, strings.Join(keyFields, ","), storage.ID(), i+1, storeAttempts)
+				err = storage.SyncStore(stream.BatchHeader, stream.Objects, stream.DeleteConditions, false, needCopyEvent)
+				if err == nil {
+					break
+				} else if i < storeAttempts-1 {
+					rs.taskLogger.ERROR("Stream [%s] Error storing %d source objects in [%s] destination (%d attempts left): %v", streamName, rowsCount, storage.ID(), storeAttempts-i-1, err)
+				}
+			}
 			batchLoadTime := timestamp.Now().Sub(batchStart)
 			var replaceTableTime time.Duration
 			if err == nil {

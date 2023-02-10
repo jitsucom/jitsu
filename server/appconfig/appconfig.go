@@ -138,6 +138,7 @@ func setDefaultParams(containerized bool) {
 
 	viper.SetDefault("sync-tasks.log.enabled", true)
 	viper.SetDefault("sync-tasks.log.path", logging.GlobalType)
+	viper.SetDefault("sync-tasks.store_attempts", 3)
 
 	//User Recognition anonymous events default TTL 10080 min - 7 days
 	viper.SetDefault("meta.storage.redis.ttl_minutes.anonymous_events", 10080)
