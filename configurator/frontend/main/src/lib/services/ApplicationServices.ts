@@ -16,7 +16,6 @@ import { Project, ProjectPermission, ProjectWithPermissions } from "../../genera
 import { createProjectService, ProjectService } from "./ProjectService"
 import { FirebaseUserService } from "./UserServiceFirebase"
 import { UserSettingsService, UserSettingsLocalService, Settings } from "./UserSettingsService"
-import laxy  from "laxy";
 
 export interface IApplicationServices {
   init(): Promise<void>
@@ -157,7 +156,7 @@ export default class ApplicationServices implements IApplicationServices {
   }
 
   static get(): ApplicationServices {
-    return laxy.obj(_get)()
+    return _get()
   }
 
   public async isAppVersionOutdated(): Promise<boolean> {

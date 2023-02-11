@@ -1,5 +1,5 @@
 // @Libs
-import React, { ComponentType, ExoticComponent, useEffect, useState } from "react"
+import React, {ComponentType, ExoticComponent, PropsWithChildren, useEffect, useState} from "react"
 import { Redirect, Route, Switch, useLocation, NavLink } from "react-router-dom"
 import { Button, Card, Typography } from "antd"
 import { useParams } from "react-router"
@@ -120,6 +120,19 @@ const initializeProject = async (
   return project
 }
 
+export const JitsuWrapper: React.FC<PropsWithChildren<{host?: string, identifyHook?: any}>> = ({host, identifyHook, children}) => {
+  if (!host) {
+    return <>{children}</>
+  } else {
+    return (
+        <JitsuProvider options={{ host, autoPageTracking: { reactRouter: useLocation() }, before: identifyHook }}>
+          {children}
+        </JitsuProvider>
+    )
+  }
+
+}
+
 export const Application: React.FC = function () {
   const [services, setServices] = useState<ApplicationServices>(null)
   const [projects, setProjects] = useState<Project[]>(null)
@@ -234,9 +247,7 @@ export const Application: React.FC = function () {
   if (!services.userService.hasUser()) {
     return (
       <React.Suspense fallback={<CenteredSpin />}>
-        <JitsuProvider
-          options={{ host: jitsuHost, autoPageTracking: { reactRouter: useLocation() }, before: identifyHook }}
-        >
+        <JitsuWrapper host={jitsuHost} identifyHook={identifyHook}>
           {services.showSelfHostedSignUp() && <SetupForm />}
           {!services.showSelfHostedSignUp() && (
             <Switch>
@@ -273,17 +284,15 @@ export const Application: React.FC = function () {
               <Redirect to="/" />
             </Switch>
           )}
-        </JitsuProvider>
+        </JitsuWrapper>
       </React.Suspense>
     )
   }
 
   return (
     <>
-      <JitsuProvider
-        options={{ host: jitsuHost, autoPageTracking: { reactRouter: useLocation() }, before: identifyHook }}
-      >
-        <Switch>
+      <JitsuWrapper host={jitsuHost} identifyHook={identifyHook}>
+      <Switch>
           <Route
             path={"/user/settings"}
             exact={true}
@@ -308,7 +317,7 @@ export const Application: React.FC = function () {
             <ProjectRedirect projects={projects} />
           </Route>
         </Switch>
-      </JitsuProvider>
+      </JitsuWrapper>
     </>
   )
 }
