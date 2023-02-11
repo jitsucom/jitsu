@@ -34,7 +34,7 @@ importers:
       '@craco/craco': ^6.1.1
       '@firebase/auth': ^0.20.3
       '@jitsu/catalog': workspace:*
-      '@jitsu/jitsu-react': ^0.0.1-alpha.183
+      '@jitsu/jitsu-react': ^0.0.1-alpha.192
       '@jitsu/sdk-js': ^3.0.3
       '@sentry/react': ^6.19.6
       '@sentry/tracing': ^6.19.6
@@ -94,7 +94,7 @@ importers:
     dependencies:
       '@firebase/auth': 0.20.3
       '@jitsu/catalog': link:../catalog
-      '@jitsu/jitsu-react': 0.0.1-alpha.183_prkrmintvdj3nxtntxrialvha4
+      '@jitsu/jitsu-react': 0.0.1-alpha.192_prkrmintvdj3nxtntxrialvha4
       '@jitsu/sdk-js': 3.1.3
       '@sentry/react': 6.19.7_react@17.0.2
       '@sentry/tracing': 6.19.7
@@ -2457,8 +2457,8 @@ packages:
       chalk: 4.1.2
     dev: true
 
-  /@jitsu/jitsu-react/0.0.1-alpha.183_prkrmintvdj3nxtntxrialvha4:
-    resolution: {integrity: sha512-WhpOm2mYLuRBRT3rcZGLgz+6WB3mAUolnHu00sg9gxnrjF+/ANpzISBmfgszuVyFq6sGmMuqadxOwce76zE9AQ==}
+  /@jitsu/jitsu-react/0.0.1-alpha.192_prkrmintvdj3nxtntxrialvha4:
+    resolution: {integrity: sha512-agB6L4vqH2PSnL83C4EUh/C/zWGFQ4DHODDFx/99bVvnqW1vFAY4UUiW9KJ3b8Nd1u0EZXb+xPyiJ1cR9qwEeA==}
     engines: {node: '>=10'}
     peerDependencies:
       '@types/react': 15.x || 16.x || 17.x || 18.x
@@ -2471,24 +2471,24 @@ packages:
       react-router-dom:
         optional: true
     dependencies:
-      '@jitsu/js': 0.0.1-alpha.183
+      '@jitsu/js': 0.0.1-alpha.192
       react: 17.0.2
       react-router-dom: 5.3.3_react@17.0.2
     transitivePeerDependencies:
       - '@types/dlv'
     dev: false
 
-  /@jitsu/js/0.0.1-alpha.183:
-    resolution: {integrity: sha512-gffMlVEBA6qWyKuIDCxsG7SUrJaU1jx7FoWFtzWtyE4BT0mxRQkXyLS9xsJGGvnkT0cOtGEB5Za1xUbB3dbXIA==}
+  /@jitsu/js/0.0.1-alpha.192:
+    resolution: {integrity: sha512-dPKsbcWhblsZYEL8QnOTdPyQ05+Kd1w1OdaP6wSDnb0GiC1vH9DdKDUNYrlmS1LIH8wFpHiMthBGeNCQFl6urg==}
     dependencies:
-      '@jitsu/protocols': 0.0.1-alpha.183
+      '@jitsu/protocols': 0.0.1-alpha.192
       analytics: 0.8.1
     transitivePeerDependencies:
       - '@types/dlv'
     dev: false
 
-  /@jitsu/protocols/0.0.1-alpha.183:
-    resolution: {integrity: sha512-hipIRYih92786VtKOiiCRnKux3pASrzoowHi3D56kwaOk7NMucz1ugLnalD0NV/0iB40Xve3WbaB/WNTIzDOsg==}
+  /@jitsu/protocols/0.0.1-alpha.192:
+    resolution: {integrity: sha512-C/BG4r+C+rsEeVDJpbM2RqVEFhwTS83e0CFFbxMOSu+swWJ9V7YVzpvlpEh0KAVghUbsdyA7bJYyQHrUqikg7w==}
     dev: false
 
   /@jitsu/sdk-js/3.1.3:
