@@ -27,7 +27,7 @@ const elasticsearchDestination: Destination = {
         },
         {
             id: "_package",
-            constant: "@tangible/jitsu-elasticsearch-destination@^0.0.2",
+            constant: "@tangible/jitsu-elasticsearch-destination@latest",
         },
         {
             id: "_formData.meta_package",
@@ -39,7 +39,7 @@ const elasticsearchDestination: Destination = {
                     <a target={"_blank"} href={"https://www.npmjs.com/package/@tangible/jitsu-elasticsearch-destination"}>
                         @tangible/jitsu-elasticsearch-destination
                     </a>{" "}
-                    (version: ^0.0.2)
+                    (version: latest)
                     <br />
                     Developed by{" "}
                     <a target={"_blank"} href={"https://teamtangible.com"}>
@@ -69,7 +69,7 @@ const elasticsearchDestination: Destination = {
         {
             id: "_formData.elasticsearch_port",
             displayName: "Elasticsearch server port",
-            required: true,
+            required: false,
             type: stringType,
         },
         {
