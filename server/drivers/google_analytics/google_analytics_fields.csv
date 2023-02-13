@@ -1,0 +1,706 @@
+Id,Name,Type,DataType
+ga:viewId,View Id,dimension,string
+ga:viewName,View Name,dimension,string
+ga:webPropertyId,Web Property Id,dimension,string
+ga:webPropertyName,Web Property Name,dimension,string
+ga:accountId,Account Id,dimension,string
+ga:accountName,Account Name,dimension,string
+ga:userType,User Type,dimension,string
+ga:sessionCount,Count of Sessions,dimension,string
+ga:daysSinceLastSession,Days Since Last Session,dimension,string
+ga:userDefinedValue,User Defined Value,dimension,string
+ga:userBucket,User Bucket,dimension,string
+ga:users,Users,metric,integer
+ga:newUsers,New Users,metric,integer
+ga:percentNewSessions,% New Sessions,metric,percent
+ga:1dayUsers,1 Day Active Users,metric,integer
+ga:7dayUsers,7 Day Active Users,metric,integer
+ga:14dayUsers,14 Day Active Users,metric,integer
+ga:28dayUsers,28 Day Active Users,metric,integer
+ga:30dayUsers,30 Day Active Users,metric,integer
+ga:sessionDurationBucket,Session Duration,dimension,string
+ga:sessions,Sessions,metric,integer
+ga:bounces,Bounces,metric,integer
+ga:bounceRate,Bounce Rate,metric,percent
+ga:sessionDuration,Session Duration,metric,time
+ga:avgSessionDuration,Avg. Session Duration,metric,time
+ga:referralPath,Referral Path,dimension,string
+ga:fullReferrer,Full Referrer,dimension,string
+ga:campaign,Campaign,dimension,string
+ga:source,Source,dimension,string
+ga:medium,Medium,dimension,string
+ga:sourceMedium,Source / Medium,dimension,string
+ga:keyword,Keyword,dimension,string
+ga:adContent,Ad Content,dimension,string
+ga:socialNetwork,Social Network,dimension,string
+ga:hasSocialSourceReferral,Social Source Referral,dimension,string
+ga:organicSearches,Organic Searches,metric,integer
+ga:adGroup,Google Ads: Ad Group,dimension,string
+ga:adSlot,Google Ads: Ad Slot,dimension,string
+ga:adDistributionNetwork,Ad Distribution Network,dimension,string
+ga:adMatchType,Query Match Type,dimension,string
+ga:adKeywordMatchType,Keyword Match Type,dimension,string
+ga:adMatchedQuery,Search Query,dimension,string
+ga:adPlacementDomain,Placement Domain,dimension,string
+ga:adPlacementUrl,Placement URL,dimension,string
+ga:adFormat,Ad Format,dimension,string
+ga:adTargetingType,Targeting Type,dimension,string
+ga:adTargetingOption,Placement Type,dimension,string
+ga:adDisplayUrl,Display URL,dimension,string
+ga:adDestinationUrl,Destination URL,dimension,string
+ga:adwordsCustomerID,Google Ads Customer ID,dimension,string
+ga:adwordsCampaignID,Google Ads Campaign ID,dimension,string
+ga:adwordsAdGroupID,Google Ads Ad Group ID,dimension,string
+ga:adwordsCreativeID,Google Ads Creative ID,dimension,string
+ga:adwordsCriteriaID,Google Ads Criteria ID,dimension,string
+ga:impressions,Impressions,metric,integer
+ga:adClicks,Clicks,metric,integer
+ga:adCost,Cost,metric,currency
+ga:CPM,CPM,metric,currency
+ga:CPC,CPC,metric,currency
+ga:CTR,CTR,metric,percent
+ga:costPerTransaction,Cost per Transaction,metric,currency
+ga:costPerGoalConversion,Cost per Goal Conversion,metric,currency
+ga:costPerConversion,Cost per Conversion,metric,currency
+ga:RPC,RPC,metric,currency
+ga:ROAS,ROAS,metric,percent
+ga:adQueryWordCount,Query Word Count,dimension,string
+ga:goalCompletionLocation,Goal Completion Location,dimension,string
+ga:goalPreviousStep1,Goal Previous Step – 1,dimension,string
+ga:goalPreviousStep2,Goal Previous Step – 2,dimension,string
+ga:goalPreviousStep3,Goal Previous Step – 3,dimension,string
+ga:goalStartsAll,Goal Starts,metric,integer
+ga:goalCompletionsAll,Goal Completions,metric,integer
+ga:goalValueAll,Goal Value,metric,currency
+ga:goalValuePerSession,Per Session Goal Value,metric,currency
+ga:goalConversionRateAll,Goal Conversion Rate,metric,percent
+ga:goalAbandonsAll,Abandoned Funnels,metric,integer
+ga:goalAbandonRateAll,Total Abandonment Rate,metric,percent
+ga:browser,Browser,dimension,string
+ga:browserVersion,Browser Version,dimension,string
+ga:operatingSystem,Operating System,dimension,string
+ga:operatingSystemVersion,Operating System Version,dimension,string
+ga:mobileDeviceBranding,Mobile Device Branding,dimension,string
+ga:mobileDeviceModel,Mobile Device Model,dimension,string
+ga:mobileInputSelector,Mobile Input Selector,dimension,string
+ga:mobileDeviceInfo,Mobile Device Info,dimension,string
+ga:mobileDeviceMarketingName,Mobile Device Marketing Name,dimension,string
+ga:deviceCategory,Device Category,dimension,string
+ga:continent,Continent,dimension,string
+ga:subContinent,Sub Continent,dimension,string
+ga:country,Country,dimension,string
+ga:region,Region,dimension,string
+ga:metro,Metro,dimension,string
+ga:city,City,dimension,string
+ga:latitude,Latitude,dimension,string
+ga:longitude,Longitude,dimension,string
+ga:networkDomain,Network Domain,dimension,string
+ga:networkLocation,Service Provider,dimension,string
+ga:flashVersion,Flash Version,dimension,string
+ga:javaEnabled,Java Support,dimension,string
+ga:language,Language,dimension,string
+ga:screenColors,Screen Colors,dimension,string
+ga:sourcePropertyDisplayName,Source Property Display Name,dimension,string
+ga:sourcePropertyTrackingId,Source Property Tracking ID,dimension,string
+ga:screenResolution,Screen Resolution,dimension,string
+ga:hostname,Hostname,dimension,string
+ga:pagePath,Page,dimension,string
+ga:pagePathLevel1,Page path level 1,dimension,string
+ga:pagePathLevel2,Page path level 2,dimension,string
+ga:pagePathLevel3,Page path level 3,dimension,string
+ga:pagePathLevel4,Page path level 4,dimension,string
+ga:pageTitle,Page Title,dimension,string
+ga:landingPagePath,Landing Page,dimension,string
+ga:secondPagePath,Second Page,dimension,string
+ga:exitPagePath,Exit Page,dimension,string
+ga:previousPagePath,Previous Page Path,dimension,string
+ga:pageDepth,Page Depth,dimension,string
+ga:pageValue,Page Value,metric,currency
+ga:entrances,Entrances,metric,integer
+ga:entranceRate,Entrances / Pageviews,metric,percent
+ga:pageviews,Pageviews,metric,integer
+ga:pageviewsPerSession,Pages / Session,metric,float
+ga:uniquePageviews,Unique Pageviews,metric,integer
+ga:timeOnPage,Time on Page,metric,time
+ga:avgTimeOnPage,Avg. Time on Page,metric,time
+ga:exits,Exits,metric,integer
+ga:exitRate,% Exit,metric,percent
+ga:searchUsed,Site Search Status,dimension,string
+ga:searchKeyword,Search Term,dimension,string
+ga:searchKeywordRefinement,Refined Keyword,dimension,string
+ga:searchCategory,Site Search Category,dimension,string
+ga:searchStartPage,Start Page,dimension,string
+ga:searchDestinationPage,Destination Page,dimension,string
+ga:searchAfterDestinationPage,Search Destination Page,dimension,string
+ga:searchResultViews,Results Pageviews,metric,integer
+ga:searchUniques,Total Unique Searches,metric,integer
+ga:avgSearchResultViews,Results Pageviews / Search,metric,float
+ga:searchSessions,Sessions with Search,metric,integer
+ga:percentSessionsWithSearch,% Sessions with Search,metric,percent
+ga:searchDepth,Search Depth,metric,integer
+ga:avgSearchDepth,Avg. Search Depth,metric,float
+ga:searchRefinements,Search Refinements,metric,integer
+ga:percentSearchRefinements,% Search Refinements,metric,percent
+ga:searchDuration,Time after Search,metric,time
+ga:avgSearchDuration,Time after Search,metric,time
+ga:searchExits,Search Exits,metric,integer
+ga:searchExitRate,% Search Exits,metric,percent
+ga:searchGoalConversionRateAll,Site Search Goal Conversion Rate,metric,percent
+ga:goalValueAllPerSearch,Per Search Goal Value,metric,currency
+ga:pageLoadTime,Page Load Time (ms),metric,integer
+ga:pageLoadSample,Page Load Sample,metric,integer
+ga:avgPageLoadTime,Avg. Page Load Time (sec),metric,float
+ga:domainLookupTime,Domain Lookup Time (ms),metric,integer
+ga:avgDomainLookupTime,Avg. Domain Lookup Time (sec),metric,float
+ga:pageDownloadTime,Page Download Time (ms),metric,integer
+ga:avgPageDownloadTime,Avg. Page Download Time (sec),metric,float
+ga:redirectionTime,Redirection Time (ms),metric,integer
+ga:avgRedirectionTime,Avg. Redirection Time (sec),metric,float
+ga:serverConnectionTime,Server Connection Time (ms),metric,integer
+ga:avgServerConnectionTime,Avg. Server Connection Time (sec),metric,float
+ga:serverResponseTime,Server Response Time (ms),metric,integer
+ga:avgServerResponseTime,Avg. Server Response Time (sec),metric,float
+ga:speedMetricsSample,Speed Metrics Sample,metric,integer
+ga:domInteractiveTime,Document Interactive Time (ms),metric,integer
+ga:avgDomInteractiveTime,Avg. Document Interactive Time (sec),metric,float
+ga:domContentLoadedTime,Document Content Loaded Time (ms),metric,integer
+ga:avgDomContentLoadedTime,Avg. Document Content Loaded Time (sec),metric,float
+ga:domLatencyMetricsSample,DOM Latency Metrics Sample,metric,integer
+ga:appInstallerId,App Installer ID,dimension,string
+ga:appVersion,App Version,dimension,string
+ga:appName,App Name,dimension,string
+ga:appId,App ID,dimension,string
+ga:screenName,Screen Name,dimension,string
+ga:screenDepth,Screen Depth,dimension,string
+ga:landingScreenName,Landing Screen,dimension,string
+ga:exitScreenName,Exit Screen,dimension,string
+ga:screenviews,Screen Views,metric,integer
+ga:uniqueScreenviews,Unique Screen Views,metric,integer
+ga:screenviewsPerSession,Screens / Session,metric,float
+ga:timeOnScreen,Time on Screen,metric,time
+ga:avgScreenviewDuration,Avg. Time on Screen,metric,time
+ga:eventCategory,Event Category,dimension,string
+ga:eventAction,Event Action,dimension,string
+ga:eventLabel,Event Label,dimension,string
+ga:totalEvents,Total Events,metric,integer
+ga:uniqueDimensionCombinations,Unique Dimension Combinations,metric,integer
+ga:uniqueEvents,Unique Events,metric,integer
+ga:eventValue,Event Value,metric,integer
+ga:avgEventValue,Avg. Value,metric,float
+ga:sessionsWithEvent,Sessions with Event,metric,integer
+ga:eventsPerSessionWithEvent,Events / Session with Event,metric,float
+ga:transactionId,Transaction ID,dimension,string
+ga:affiliation,Affiliation,dimension,string
+ga:sessionsToTransaction,Sessions to Transaction,dimension,string
+ga:daysToTransaction,Days to Transaction,dimension,string
+ga:productSku,Product SKU,dimension,string
+ga:productName,Product,dimension,string
+ga:productCategory,Product Category,dimension,string
+ga:currencyCode,Currency Code,dimension,string
+ga:transactions,Transactions,metric,integer
+ga:transactionsPerSession,Ecommerce Conversion Rate,metric,percent
+ga:transactionRevenue,Revenue,metric,currency
+ga:revenuePerTransaction,Avg. Order Value,metric,currency
+ga:transactionRevenuePerSession,Per Session Value,metric,currency
+ga:transactionShipping,Shipping,metric,currency
+ga:transactionTax,Tax,metric,currency
+ga:totalValue,Total Value,metric,currency
+ga:itemQuantity,Quantity,metric,integer
+ga:uniquePurchases,Unique Purchases,metric,integer
+ga:revenuePerItem,Avg. Price,metric,currency
+ga:itemRevenue,Product Revenue,metric,currency
+ga:itemsPerPurchase,Avg. QTY,metric,float
+ga:localTransactionRevenue,Local Revenue,metric,currency
+ga:localTransactionShipping,Local Shipping,metric,currency
+ga:localTransactionTax,Local Tax,metric,currency
+ga:localItemRevenue,Local Product Revenue,metric,currency
+ga:socialInteractionNetwork,Social Network,dimension,string
+ga:socialInteractionAction,Social Action,dimension,string
+ga:socialInteractionNetworkAction,Social Network and Action (Hit),dimension,string
+ga:socialInteractionTarget,Social Entity,dimension,string
+ga:socialEngagementType,Social Type,dimension,string
+ga:socialInteractions,Social Actions,metric,integer
+ga:uniqueSocialInteractions,Unique Social Actions,metric,integer
+ga:socialInteractionsPerSession,Actions Per Social Session,metric,float
+ga:userTimingCategory,Timing Category,dimension,string
+ga:userTimingLabel,Timing Label,dimension,string
+ga:userTimingVariable,Timing Variable,dimension,string
+ga:userTimingValue,User Timing (ms),metric,integer
+ga:userTimingSample,User Timing Sample,metric,integer
+ga:avgUserTimingValue,Avg. User Timing (sec),metric,float
+ga:exceptionDescription,Exception Description,dimension,string
+ga:exceptions,Exceptions,metric,integer
+ga:exceptionsPerScreenview,Exceptions / Screen,metric,percent
+ga:fatalExceptions,Crashes,metric,integer
+ga:fatalExceptionsPerScreenview,Crashes / Screen,metric,percent
+ga:experimentId,Experiment ID,dimension,string
+ga:experimentVariant,Variant,dimension,string
+ga:date,Date,dimension,string
+ga:year,Year,dimension,string
+ga:month,Month of the year,dimension,string
+ga:week,Week of the Year,dimension,string
+ga:day,Day of the month,dimension,string
+ga:hour,Hour,dimension,string
+ga:minute,Minute,dimension,string
+ga:nthMonth,Month Index,dimension,string
+ga:nthWeek,Week Index,dimension,string
+ga:nthDay,Day Index,dimension,string
+ga:nthMinute,Minute Index,dimension,string
+ga:dayOfWeek,Day of Week,dimension,string
+ga:dayOfWeekName,Day of Week Name,dimension,string
+ga:dateHour,Hour of Day,dimension,string
+ga:dateHourMinute,Date Hour and Minute,dimension,string
+ga:yearMonth,Month of Year,dimension,string
+ga:yearWeek,Week of Year,dimension,string
+ga:isoWeek,ISO Week of the Year,dimension,string
+ga:isoYear,ISO Year,dimension,string
+ga:isoYearIsoWeek,ISO Week of ISO Year,dimension,string
+ga:dcmClickAd,CM Ad (GA Model),dimension,string
+ga:dcmClickAdId,CM Ad ID (GA Model),dimension,string
+ga:dcmClickAdType,CM Ad Type (GA Model),dimension,string
+ga:dcmClickAdTypeId,CM Ad Type ID,dimension,string
+ga:dcmClickAdvertiser,CM Advertiser (GA Model),dimension,string
+ga:dcmClickAdvertiserId,CM Advertiser ID (GA Model),dimension,string
+ga:dcmClickCampaign,CM Campaign (GA Model),dimension,string
+ga:dcmClickCampaignId,CM Campaign ID (GA Model),dimension,string
+ga:dcmClickCreativeId,CM Creative ID (GA Model),dimension,string
+ga:dcmClickCreative,CM Creative (GA Model),dimension,string
+ga:dcmClickRenderingId,CM Rendering ID (GA Model),dimension,string
+ga:dcmClickCreativeType,CM Creative Type (GA Model),dimension,string
+ga:dcmClickCreativeTypeId,CM Creative Type ID (GA Model),dimension,string
+ga:dcmClickCreativeVersion,CM Creative Version (GA Model),dimension,string
+ga:dcmClickSite,CM Site (GA Model),dimension,string
+ga:dcmClickSiteId,CM Site ID (GA Model),dimension,string
+ga:dcmClickSitePlacement,CM Placement (GA Model),dimension,string
+ga:dcmClickSitePlacementId,CM Placement ID (GA Model),dimension,string
+ga:dcmClickSpotId,CM Floodlight Configuration ID (GA Model),dimension,string
+ga:dcmFloodlightActivity,CM Activity,dimension,string
+ga:dcmFloodlightActivityAndGroup,CM Activity and Group,dimension,string
+ga:dcmFloodlightActivityGroup,CM Activity Group,dimension,string
+ga:dcmFloodlightActivityGroupId,CM Activity Group ID,dimension,string
+ga:dcmFloodlightActivityId,CM Activity ID,dimension,string
+ga:dcmFloodlightAdvertiserId,CM Advertiser ID,dimension,string
+ga:dcmFloodlightSpotId,CM Floodlight Configuration ID,dimension,string
+ga:dcmLastEventAd,CM Ad,dimension,string
+ga:dcmLastEventAdId,CM Ad ID (CM Model),dimension,string
+ga:dcmLastEventAdType,CM Ad Type (CM Model),dimension,string
+ga:dcmLastEventAdTypeId,CM Ad Type ID (CM Model),dimension,string
+ga:dcmLastEventAdvertiser,CM Advertiser (CM Model),dimension,string
+ga:dcmLastEventAdvertiserId,CM Advertiser ID (CM Model),dimension,string
+ga:dcmLastEventAttributionType,CM Attribution Type (CM Model),dimension,string
+ga:dcmLastEventCampaign,CM Campaign (CM Model),dimension,string
+ga:dcmLastEventCampaignId,CM Campaign ID (CM Model),dimension,string
+ga:dcmLastEventCreativeId,CM Creative ID (CM Model),dimension,string
+ga:dcmLastEventCreative,CM Creative (CM Model),dimension,string
+ga:dcmLastEventRenderingId,CM Rendering ID (CM Model),dimension,string
+ga:dcmLastEventCreativeType,CM Creative Type (CM Model),dimension,string
+ga:dcmLastEventCreativeTypeId,CM Creative Type ID (CM Model),dimension,string
+ga:dcmLastEventCreativeVersion,CM Creative Version (CM Model),dimension,string
+ga:dcmLastEventSite,CM Site (CM Model),dimension,string
+ga:dcmLastEventSiteId,CM Site ID (CM Model),dimension,string
+ga:dcmLastEventSitePlacement,CM Placement (CM Model),dimension,string
+ga:dcmLastEventSitePlacementId,CM Placement ID (CM Model),dimension,string
+ga:dcmLastEventSpotId,CM Floodlight Configuration ID (CM Model),dimension,string
+ga:dcmFloodlightQuantity,CM Conversions,metric,integer
+ga:dcmFloodlightRevenue,CM Revenue,metric,currency
+ga:userAgeBracket,Age,dimension,string
+ga:userGender,Gender,dimension,string
+ga:interestOtherCategory,Other Category,dimension,string
+ga:interestAffinityCategory,Affinity Category (reach),dimension,string
+ga:interestInMarketCategory,In-Market Segment,dimension,string
+ga:adsenseRevenue,AdSense Revenue,metric,currency
+ga:adsenseAdUnitsViewed,AdSense Ad Units Viewed,metric,integer
+ga:adsenseAdsViewed,AdSense Impressions,metric,integer
+ga:adsenseAdsClicks,AdSense Ads Clicked,metric,integer
+ga:adsensePageImpressions,AdSense Page Impressions,metric,integer
+ga:adsenseCTR,AdSense CTR,metric,percent
+ga:adsenseECPM,AdSense eCPM,metric,currency
+ga:adsenseExits,AdSense Exits,metric,integer
+ga:adsenseViewableImpressionPercent,AdSense Viewable Impression %,metric,percent
+ga:adsenseCoverage,AdSense Coverage,metric,percent
+ga:totalPublisherImpressions,Publisher Impressions,metric,integer
+ga:totalPublisherCoverage,Publisher Coverage,metric,percent
+ga:totalPublisherMonetizedPageviews,Publisher Monetized Pageviews,metric,integer
+ga:totalPublisherImpressionsPerSession,Publisher Impressions / Session,metric,float
+ga:totalPublisherViewableImpressionsPercent,Publisher Viewable Impressions %,metric,percent
+ga:totalPublisherClicks,Publisher Clicks,metric,integer
+ga:totalPublisherCTR,Publisher CTR,metric,percent
+ga:totalPublisherRevenue,Publisher Revenue,metric,currency
+ga:totalPublisherRevenuePer1000Sessions,Publisher Revenue / 1000 Sessions,metric,currency
+ga:totalPublisherECPM,Publisher eCPM,metric,currency
+ga:adxImpressions,AdX Impressions,metric,integer
+ga:adxCoverage,AdX Coverage,metric,percent
+ga:adxMonetizedPageviews,AdX Monetized Pageviews,metric,integer
+ga:adxImpressionsPerSession,AdX Impressions / Session,metric,float
+ga:adxViewableImpressionsPercent,AdX Viewable Impressions %,metric,percent
+ga:adxClicks,AdX Clicks,metric,integer
+ga:adxCTR,AdX CTR,metric,percent
+ga:adxRevenue,AdX Revenue,metric,currency
+ga:adxRevenuePer1000Sessions,AdX Revenue / 1000 Sessions,metric,currency
+ga:adxECPM,AdX eCPM,metric,currency
+ga:dfpLineItemId,GAM Line Item Id,dimension,string
+ga:dfpLineItemName,GAM Line Item Name,dimension,string
+ga:dfpImpressions,GAM Impressions,metric,integer
+ga:dfpCoverage,GAM Coverage,metric,percent
+ga:dfpMonetizedPageviews,GAM Monetized Pageviews,metric,integer
+ga:dfpImpressionsPerSession,GAM Impressions / Session,metric,float
+ga:dfpViewableImpressionsPercent,GAM Viewable Impressions %,metric,percent
+ga:dfpClicks,GAM Clicks,metric,integer
+ga:dfpCTR,GAM CTR,metric,percent
+ga:dfpRevenue,GAM Revenue,metric,currency
+ga:dfpRevenuePer1000Sessions,GAM Revenue / 1000 Sessions,metric,currency
+ga:dfpECPM,GAM eCPM,metric,currency
+ga:backfillImpressions,GAM Backfill Impressions,metric,integer
+ga:backfillCoverage,GAM Backfill Coverage,metric,percent
+ga:backfillMonetizedPageviews,GAM Backfill Monetized Pageviews,metric,integer
+ga:backfillImpressionsPerSession,GAM Backfill Impressions / Session,metric,float
+ga:backfillViewableImpressionsPercent,GAM Backfill Viewable Impressions %,metric,percent
+ga:backfillClicks,GAM Backfill Clicks,metric,integer
+ga:backfillCTR,GAM Backfill CTR,metric,percent
+ga:backfillRevenue,GAM Backfill Revenue,metric,currency
+ga:backfillRevenuePer1000Sessions,GAM Backfill Revenue / 1000 Sessions,metric,currency
+ga:backfillECPM,GAM Backfill eCPM,metric,currency
+ga:acquisitionCampaign,Acquisition Campaign,dimension,string
+ga:acquisitionMedium,Acquisition Medium,dimension,string
+ga:acquisitionSource,Acquisition Source,dimension,string
+ga:acquisitionSourceMedium,Acquisition Source / Medium,dimension,string
+ga:acquisitionTrafficChannel,Acquisition Channel,dimension,string
+ga:browserSize,Browser Size,dimension,string
+ga:campaignCode,Campaign Code,dimension,string
+ga:channelGrouping,Default Channel Grouping,dimension,string
+ga:checkoutOptions,Checkout Options,dimension,string
+ga:cityId,City ID,dimension,string
+ga:cohort,Cohort,dimension,string
+ga:cohortNthDay,Day (Cohort),dimension,string
+ga:cohortNthMonth,Month (Cohort),dimension,string
+ga:cohortNthWeek,Week (Cohort),dimension,string
+ga:continentId,Continent ID,dimension,string
+ga:countryIsoCode,Country ISO Code,dimension,string
+ga:dataSource,Data Source,dimension,string
+ga:dbmClickAdvertiser,DV360 Advertiser (GA Model),dimension,string
+ga:dbmClickAdvertiserId,DV360 Advertiser ID (GA Model),dimension,string
+ga:dbmClickCreativeId,DV360 Creative ID (GA Model),dimension,string
+ga:dbmClickExchange,DV360 Exchange (GA Model),dimension,string
+ga:dbmClickExchangeId,DV360 Exchange ID (GA Model),dimension,string
+ga:dbmClickInsertionOrder,DV360 Insertion Order (GA Model),dimension,string
+ga:dbmClickInsertionOrderId,DV360 Insertion Order ID (GA Model),dimension,string
+ga:dbmClickLineItem,DV360 Line Item NAME (GA Model),dimension,string
+ga:dbmClickLineItemId,DV360 Line Item ID (GA Model),dimension,string
+ga:dbmClickSite,DV360 Site (GA Model),dimension,string
+ga:dbmClickSiteId,DV360 Site ID (GA Model),dimension,string
+ga:dbmLastEventAdvertiser,DV360 Advertiser (CM Model),dimension,string
+ga:dbmLastEventAdvertiserId,DV360 Advertiser ID (CM Model),dimension,string
+ga:dbmLastEventCreativeId,DV360 Creative ID (CM Model),dimension,string
+ga:dbmLastEventExchange,DV360 Exchange (CM Model),dimension,string
+ga:dbmLastEventExchangeId,DV360 Exchange ID (CM Model),dimension,string
+ga:dbmLastEventInsertionOrder,DV360 Insertion Order (CM Model),dimension,string
+ga:dbmLastEventInsertionOrderId,DV360 Insertion Order ID (CM Model),dimension,string
+ga:dbmLastEventLineItem,DV360 Line Item (CM Model),dimension,string
+ga:dbmLastEventLineItemId,DV360 Line Item ID (CM Model),dimension,string
+ga:dbmLastEventSite,DV360 Site (CM Model),dimension,string
+ga:dbmLastEventSiteId,DV360 Site ID (CM Model),dimension,string
+ga:dsAdGroup,SA360 Ad Group,dimension,string
+ga:dsAdGroupId,SA360 Ad Group ID,dimension,string
+ga:dsAdvertiser,SA360 Advertiser,dimension,string
+ga:dsAdvertiserId,SA360 Advertiser ID,dimension,string
+ga:dsAgency,SA360 Agency,dimension,string
+ga:dsAgencyId,SA360 Agency ID,dimension,string
+ga:dsCampaign,SA360 Campaign,dimension,string
+ga:dsCampaignId,SA360 Campaign ID,dimension,string
+ga:dsEngineAccount,SA360 Engine Account,dimension,string
+ga:dsEngineAccountId,SA360 Engine Account ID,dimension,string
+ga:dsKeyword,SA360 Keyword,dimension,string
+ga:dsKeywordId,SA360 Keyword ID,dimension,string
+ga:experimentCombination,Experiment ID with Variant,dimension,string
+ga:internalPromotionCreative,Internal Promotion Creative,dimension,string
+ga:internalPromotionId,Internal Promotion ID,dimension,string
+ga:internalPromotionName,Internal Promotion Name,dimension,string
+ga:internalPromotionPosition,Internal Promotion Position,dimension,string
+ga:isTrueViewVideoAd,TrueView Video Ad,dimension,string
+ga:metroId,Metro Id,dimension,string
+ga:nthHour,Hour Index,dimension,string
+ga:orderCouponCode,Order Coupon Code,dimension,string
+ga:productBrand,Product Brand,dimension,string
+ga:productCategoryHierarchy,Product Category (Enhanced Ecommerce),dimension,string
+ga:productCouponCode,Product Coupon Code,dimension,string
+ga:productListName,Product List Name,dimension,string
+ga:productListPosition,Product List Position,dimension,string
+ga:productVariant,Product Variant,dimension,string
+ga:regionId,Region ID,dimension,string
+ga:regionIsoCode,Region ISO Code,dimension,string
+ga:shoppingStage,Shopping Stage,dimension,string
+ga:subContinentCode,Sub Continent Code,dimension,string
+ga:buyToDetailRate,Buy-to-Detail Rate,metric,percent
+ga:calcMetric_,Calculated Metric,metric,integer
+ga:cartToDetailRate,Cart-to-Detail Rate,metric,percent
+ga:cohortActiveUsers,Active Users (Cohort),metric,integer
+ga:cohortAppviewsPerUser,Appviews per User (Cohort),metric,float
+ga:cohortAppviewsPerUserWithLifetimeCriteria,Appviews Per User (LTV),metric,float
+ga:cohortGoalCompletionsPerUser,Goal Completions per User (Cohort),metric,float
+ga:cohortGoalCompletionsPerUserWithLifetimeCriteria,Goal Completions Per User (LTV),metric,float
+ga:cohortPageviewsPerUser,Pageviews per User (Cohort),metric,float
+ga:cohortPageviewsPerUserWithLifetimeCriteria,Pageviews Per User (LTV),metric,float
+ga:cohortRetentionRate,User Retention (Cohort),metric,percent
+ga:cohortRevenuePerUser,Revenue per User (Cohort),metric,currency
+ga:cohortRevenuePerUserWithLifetimeCriteria,Revenue Per User (LTV),metric,currency
+ga:cohortSessionDurationPerUser,Session Duration per User (Cohort),metric,time
+ga:cohortSessionDurationPerUserWithLifetimeCriteria,Session Duration Per User (LTV),metric,time
+ga:cohortSessionsPerUser,Sessions per User (Cohort),metric,float
+ga:cohortSessionsPerUserWithLifetimeCriteria,Sessions Per User (LTV),metric,float
+ga:cohortTotalUsers,Total Users (Cohort),metric,integer
+ga:cohortTotalUsersWithLifetimeCriteria,Cohort Total Users,metric,integer
+ga:dbmCPA,DV360 eCPA,metric,currency
+ga:dbmCPC,DV360 eCPC,metric,currency
+ga:dbmCPM,DV360 eCPM,metric,currency
+ga:dbmCTR,DV360 CTR,metric,percent
+ga:dbmClicks,DV360 Clicks,metric,integer
+ga:dbmConversions,DV360 Conversions,metric,integer
+ga:dbmCost,DV360 Cost,metric,currency
+ga:dbmImpressions,DV360 Impressions,metric,integer
+ga:dbmROAS,DV360 ROAS,metric,percent
+ga:dcmCPC,CM CPC,metric,currency
+ga:dcmCTR,CM CTR,metric,percent
+ga:dcmClicks,CM Clicks,metric,integer
+ga:dcmCost,CM Cost,metric,currency
+ga:dcmImpressions,CM Impressions,metric,integer
+ga:dcmROAS,CM ROAS,metric,percent
+ga:dcmRPC,CM RPC,metric,currency
+ga:dsCPC,SA360 CPC,metric,currency
+ga:dsCTR,SA360 CTR,metric,percent
+ga:dsClicks,SA360 Clicks,metric,integer
+ga:dsCost,SA360 Cost,metric,currency
+ga:dsImpressions,SA360 Impressions,metric,integer
+ga:dsProfit,SA360 Profit,metric,currency
+ga:dsReturnOnAdSpend,SA360 ROAS,metric,percent
+ga:dsRevenuePerClick,SA360 RPC,metric,currency
+ga:hits,Hits,metric,integer
+ga:internalPromotionCTR,Internal Promotion CTR,metric,percent
+ga:internalPromotionClicks,Internal Promotion Clicks,metric,integer
+ga:internalPromotionViews,Internal Promotion Views,metric,integer
+ga:localProductRefundAmount,Local Product Refund Amount,metric,currency
+ga:localRefundAmount,Local Refund Amount,metric,currency
+ga:productAddsToCart,Product Adds To Cart,metric,integer
+ga:productCheckouts,Product Checkouts,metric,integer
+ga:productDetailViews,Product Detail Views,metric,integer
+ga:productListCTR,Product List CTR,metric,percent
+ga:productListClicks,Product List Clicks,metric,integer
+ga:productListViews,Product List Views,metric,integer
+ga:productRefundAmount,Product Refund Amount,metric,currency
+ga:productRefunds,Product Refunds,metric,integer
+ga:productRemovesFromCart,Product Removes From Cart,metric,integer
+ga:productRevenuePerPurchase,Product Revenue per Purchase,metric,currency
+ga:quantityAddedToCart,Quantity Added To Cart,metric,integer
+ga:quantityCheckedOut,Quantity Checked Out,metric,integer
+ga:quantityRefunded,Quantity Refunded,metric,integer
+ga:quantityRemovedFromCart,Quantity Removed From Cart,metric,integer
+ga:refundAmount,Refund Amount,metric,currency
+ga:revenuePerUser,Revenue per User,metric,currency
+ga:sessionsPerUser,Number of Sessions per User,metric,float
+ga:totalRefunds,Refunds,metric,integer
+ga:transactionsPerUser,Transactions per User,metric,float
+ga:goal1Completions,Goal 1 Completions,metric,integer
+ga:goal1Starts,Goal 1 Starts,metric,integer
+ga:goal1Value,Goal 1 Value,metric,currency
+ga:goal1ConversionRate,Goal 1 Conversion Rate,metric,percent
+ga:goal1Abandons,Goal 1 Abandoned Funnels,metric,integer
+ga:goal1AbandonRate,Goal 1 Abandonment Rate,metric,percent
+ga:searchGoal1ConversionRate,Site Search Goal 1 Conversion Rate,metric,percent
+ga:goal2Completions,Goal 2 Completions,metric,integer
+ga:goal2Starts,Goal 2 Starts,metric,integer
+ga:goal2Value,Goal 2 Value,metric,currency
+ga:goal2ConversionRate,Goal 2 Conversion Rate,metric,percent
+ga:goal2Abandons,Goal 2 Abandoned Funnels,metric,integer
+ga:goal2AbandonRate,Goal 2 Abandonment Rate,metric,percent
+ga:searchGoal2ConversionRate,Site Search Goal 2 Conversion Rate,metric,percent
+ga:goal3Completions,Goal 3 Completions,metric,integer
+ga:goal3Starts,Goal 3 Starts,metric,integer
+ga:goal3Value,Goal 3 Value,metric,currency
+ga:goal3ConversionRate,Goal 3 Conversion Rate,metric,percent
+ga:goal3Abandons,Goal 3 Abandoned Funnels,metric,integer
+ga:goal3AbandonRate,Goal 3 Abandonment Rate,metric,percent
+ga:searchGoal3ConversionRate,Site Search Goal 3 Conversion Rate,metric,percent
+ga:goal4Completions,Goal 4 Completions,metric,integer
+ga:goal4Starts,Goal 4 Starts,metric,integer
+ga:goal4Value,Goal 4 Value,metric,currency
+ga:goal4ConversionRate,Goal 4 Conversion Rate,metric,percent
+ga:goal4Abandons,Goal 4 Abandoned Funnels,metric,integer
+ga:goal4AbandonRate,Goal 4 Abandonment Rate,metric,percent
+ga:searchGoal4ConversionRate,Site Search Goal 4 Conversion Rate,metric,percent
+ga:goal5Completions,Goal 5 Completions,metric,integer
+ga:goal5Starts,Goal 5 Starts,metric,integer
+ga:goal5Value,Goal 5 Value,metric,currency
+ga:goal5ConversionRate,Goal 5 Conversion Rate,metric,percent
+ga:goal5Abandons,Goal 5 Abandoned Funnels,metric,integer
+ga:goal5AbandonRate,Goal 5 Abandonment Rate,metric,percent
+ga:searchGoal5ConversionRate,Site Search Goal 5 Conversion Rate,metric,percent
+ga:goal6Completions,Goal 6 Completions,metric,integer
+ga:goal6Starts,Goal 6 Starts,metric,integer
+ga:goal6Value,Goal 6 Value,metric,currency
+ga:goal6ConversionRate,Goal 6 Conversion Rate,metric,percent
+ga:goal6Abandons,Goal 6 Abandoned Funnels,metric,integer
+ga:goal6AbandonRate,Goal 6 Abandonment Rate,metric,percent
+ga:searchGoal6ConversionRate,Site Search Goal 6 Conversion Rate,metric,percent
+ga:goal7Completions,Goal 7 Completions,metric,integer
+ga:goal7Starts,Goal 7 Starts,metric,integer
+ga:goal7Value,Goal 7 Value,metric,currency
+ga:goal7ConversionRate,Goal 7 Conversion Rate,metric,percent
+ga:goal7Abandons,Goal 7 Abandoned Funnels,metric,integer
+ga:goal7AbandonRate,Goal 7 Abandonment Rate,metric,percent
+ga:searchGoal7ConversionRate,Site Search Goal 7 Conversion Rate,metric,percent
+ga:goal8Completions,Goal 8 Completions,metric,integer
+ga:goal8Starts,Goal 8 Starts,metric,integer
+ga:goal8Value,Goal 8 Value,metric,currency
+ga:goal8ConversionRate,Goal 8 Conversion Rate,metric,percent
+ga:goal8Abandons,Goal 8 Abandoned Funnels,metric,integer
+ga:goal8AbandonRate,Goal 8 Abandonment Rate,metric,percent
+ga:searchGoal8ConversionRate,Site Search Goal 8 Conversion Rate,metric,percent
+ga:goal9Completions,Goal 9 Completions,metric,integer
+ga:goal9Starts,Goal 9 Starts,metric,integer
+ga:goal9Value,Goal 9 Value,metric,currency
+ga:goal9ConversionRate,Goal 9 Conversion Rate,metric,percent
+ga:goal9Abandons,Goal 9 Abandoned Funnels,metric,integer
+ga:goal9AbandonRate,Goal 9 Abandonment Rate,metric,percent
+ga:searchGoal9ConversionRate,Site Search Goal 9 Conversion Rate,metric,percent
+ga:goal10Completions,Goal 10 Completions,metric,integer
+ga:goal10Starts,Goal 10 Starts,metric,integer
+ga:goal10Value,Goal 10 Value,metric,currency
+ga:goal10ConversionRate,Goal 10 Conversion Rate,metric,percent
+ga:goal10Abandons,Goal 10 Abandoned Funnels,metric,integer
+ga:goal10AbandonRate,Goal 10 Abandonment Rate,metric,percent
+ga:searchGoal10ConversionRate,Site Search Goal 10 Conversion Rate,metric,percent
+ga:goal11Completions,Goal 11 Completions,metric,integer
+ga:goal11Starts,Goal 11 Starts,metric,integer
+ga:goal11Value,Goal 11 Value,metric,currency
+ga:goal11ConversionRate,Goal 11 Conversion Rate,metric,percent
+ga:goal11Abandons,Goal 11 Abandoned Funnels,metric,integer
+ga:goal11AbandonRate,Goal 11 Abandonment Rate,metric,percent
+ga:searchGoal11ConversionRate,Site Search Goal 11 Conversion Rate,metric,percent
+ga:goal12Completions,Goal 12 Completions,metric,integer
+ga:goal12Starts,Goal 12 Starts,metric,integer
+ga:goal12Value,Goal 12 Value,metric,currency
+ga:goal12ConversionRate,Goal 12 Conversion Rate,metric,percent
+ga:goal12Abandons,Goal 12 Abandoned Funnels,metric,integer
+ga:goal12AbandonRate,Goal 12 Abandonment Rate,metric,percent
+ga:searchGoal12ConversionRate,Site Search Goal 12 Conversion Rate,metric,percent
+ga:goal13Completions,Goal 13 Completions,metric,integer
+ga:goal13Starts,Goal 13 Starts,metric,integer
+ga:goal13Value,Goal 13 Value,metric,currency
+ga:goal13ConversionRate,Goal 13 Conversion Rate,metric,percent
+ga:goal13Abandons,Goal 13 Abandoned Funnels,metric,integer
+ga:goal13AbandonRate,Goal 13 Abandonment Rate,metric,percent
+ga:searchGoal13ConversionRate,Site Search Goal 13 Conversion Rate,metric,percent
+ga:goal14Completions,Goal 14 Completions,metric,integer
+ga:goal14Starts,Goal 14 Starts,metric,integer
+ga:goal14Value,Goal 14 Value,metric,currency
+ga:goal14ConversionRate,Goal 14 Conversion Rate,metric,percent
+ga:goal14Abandons,Goal 14 Abandoned Funnels,metric,integer
+ga:goal14AbandonRate,Goal 14 Abandonment Rate,metric,percent
+ga:searchGoal14ConversionRate,Site Search Goal 14 Conversion Rate,metric,percent
+ga:goal15Completions,Goal 15 Completions,metric,integer
+ga:goal15Starts,Goal 15 Starts,metric,integer
+ga:goal15Value,Goal 15 Value,metric,currency
+ga:goal15ConversionRate,Goal 15 Conversion Rate,metric,percent
+ga:goal15Abandons,Goal 15 Abandoned Funnels,metric,integer
+ga:goal15AbandonRate,Goal 15 Abandonment Rate,metric,percent
+ga:searchGoal15ConversionRate,Site Search Goal 15 Conversion Rate,metric,percent
+ga:goal16Completions,Goal 16 Completions,metric,integer
+ga:goal16Starts,Goal 16 Starts,metric,integer
+ga:goal16Value,Goal 16 Value,metric,currency
+ga:goal16ConversionRate,Goal 16 Conversion Rate,metric,percent
+ga:goal16Abandons,Goal 16 Abandoned Funnels,metric,integer
+ga:goal16AbandonRate,Goal 16 Abandonment Rate,metric,percent
+ga:searchGoal16ConversionRate,Site Search Goal 16 Conversion Rate,metric,percent
+ga:goal17Completions,Goal 17 Completions,metric,integer
+ga:goal17Starts,Goal 17 Starts,metric,integer
+ga:goal17Value,Goal 17 Value,metric,currency
+ga:goal17ConversionRate,Goal 17 Conversion Rate,metric,percent
+ga:goal17Abandons,Goal 17 Abandoned Funnels,metric,integer
+ga:goal17AbandonRate,Goal 17 Abandonment Rate,metric,percent
+ga:searchGoal17ConversionRate,Site Search Goal 17 Conversion Rate,metric,percent
+ga:goal18Completions,Goal 18 Completions,metric,integer
+ga:goal18Starts,Goal 18 Starts,metric,integer
+ga:goal18Value,Goal 18 Value,metric,currency
+ga:goal18ConversionRate,Goal 18 Conversion Rate,metric,percent
+ga:goal18Abandons,Goal 18 Abandoned Funnels,metric,integer
+ga:goal18AbandonRate,Goal 18 Abandonment Rate,metric,percent
+ga:searchGoal18ConversionRate,Site Search Goal 18 Conversion Rate,metric,percent
+ga:goal19Completions,Goal 19 Completions,metric,integer
+ga:goal19Starts,Goal 19 Starts,metric,integer
+ga:goal19Value,Goal 19 Value,metric,currency
+ga:goal19ConversionRate,Goal 19 Conversion Rate,metric,percent
+ga:goal19Abandons,Goal 19 Abandoned Funnels,metric,integer
+ga:goal19AbandonRate,Goal 19 Abandonment Rate,metric,percent
+ga:searchGoal19ConversionRate,Site Search Goal 19 Conversion Rate,metric,percent
+ga:goal20Completions,Goal 20 Completions,metric,integer
+ga:goal20Starts,Goal 20 Starts,metric,integer
+ga:goal20Value,Goal 20 Value,metric,currency
+ga:goal20ConversionRate,Goal 20 Conversion Rate,metric,percent
+ga:goal20Abandons,Goal 20 Abandoned Funnels,metric,integer
+ga:goal20AbandonRate,Goal 20 Abandonment Rate,metric,percent
+ga:searchGoal20ConversionRate,Site Search Goal 20 Conversion Rate,metric,percent
+ga:dimension1,Custom Dimension 1,dimension,string
+ga:dimension2,Custom Dimension 2,dimension,string
+ga:dimension3,Custom Dimension 3,dimension,string
+ga:dimension4,Custom Dimension 4,dimension,string
+ga:dimension5,Custom Dimension 5,dimension,string
+ga:dimension6,Custom Dimension 6,dimension,string
+ga:dimension7,Custom Dimension 7,dimension,string
+ga:dimension8,Custom Dimension 8,dimension,string
+ga:dimension9,Custom Dimension 9,dimension,string
+ga:dimension10,Custom Dimension 10,dimension,string
+ga:dimension11,Custom Dimension 11,dimension,string
+ga:dimension12,Custom Dimension 12,dimension,string
+ga:dimension13,Custom Dimension 13,dimension,string
+ga:dimension14,Custom Dimension 14,dimension,string
+ga:dimension15,Custom Dimension 15,dimension,string
+ga:dimension16,Custom Dimension 16,dimension,string
+ga:dimension17,Custom Dimension 17,dimension,string
+ga:dimension18,Custom Dimension 18,dimension,string
+ga:dimension19,Custom Dimension 19,dimension,string
+ga:dimension20,Custom Dimension 20,dimension,string
+ga:metric1,Custom Metric 1 Value,metric,integer
+ga:metric2,Custom Metric 2 Value,metric,integer
+ga:metric3,Custom Metric 3 Value,metric,integer
+ga:metric4,Custom Metric 4 Value,metric,integer
+ga:metric5,Custom Metric 5 Value,metric,integer
+ga:metric6,Custom Metric 6 Value,metric,integer
+ga:metric7,Custom Metric 7 Value,metric,integer
+ga:metric8,Custom Metric 8 Value,metric,integer
+ga:metric9,Custom Metric 9 Value,metric,integer
+ga:metric10,Custom Metric 10 Value,metric,integer
+ga:metric11,Custom Metric 11 Value,metric,integer
+ga:metric12,Custom Metric 12 Value,metric,integer
+ga:metric13,Custom Metric 13 Value,metric,integer
+ga:metric14,Custom Metric 14 Value,metric,integer
+ga:metric15,Custom Metric 15 Value,metric,integer
+ga:metric16,Custom Metric 16 Value,metric,integer
+ga:metric17,Custom Metric 17 Value,metric,integer
+ga:metric18,Custom Metric 18 Value,metric,integer
+ga:metric19,Custom Metric 19 Value,metric,integer
+ga:metric20,Custom Metric 20 Value,metric,integer
+ga:contentGroupUniqueViews1,Unique Views 1,metric,integer
+ga:landingContentGroup1,Landing Page Group 1,dimension,string
+ga:previousContentGroup1,Previous Page Group 1,dimension,string
+ga:contentGroup1,Page Group 1,dimension,string
+ga:productCategoryLevel1,Product Category Level 1,dimension,string
+ga:contentGroupUniqueViews2,Unique Views 2,metric,integer
+ga:landingContentGroup2,Landing Page Group 2,dimension,string
+ga:previousContentGroup2,Previous Page Group 2,dimension,string
+ga:contentGroup2,Page Group 2,dimension,string
+ga:productCategoryLevel2,Product Category Level 2,dimension,string
+ga:contentGroupUniqueViews3,Unique Views 3,metric,integer
+ga:landingContentGroup3,Landing Page Group 3,dimension,string
+ga:previousContentGroup3,Previous Page Group 3,dimension,string
+ga:contentGroup3,Page Group 3,dimension,string
+ga:productCategoryLevel3,Product Category Level 3,dimension,string
+ga:contentGroupUniqueViews4,Unique Views 4,metric,integer
+ga:landingContentGroup4,Landing Page Group 4,dimension,string
+ga:previousContentGroup4,Previous Page Group 4,dimension,string
+ga:contentGroup4,Page Group 4,dimension,string
+ga:productCategoryLevel4,Product Category Level 4,dimension,string
+ga:contentGroupUniqueViews5,Unique Views 5,metric,integer
+ga:landingContentGroup5,Landing Page Group 5,dimension,string
+ga:previousContentGroup5,Previous Page Group 5,dimension,string
+ga:contentGroup5,Page Group 5,dimension,string
+ga:productCategoryLevel5,Product Category Level 5,dimension,string
+ga:segment,Segment,dimension,string
