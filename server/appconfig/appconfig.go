@@ -274,10 +274,11 @@ func Init(containerized bool, dockerHubID string) error {
 
 	serverName := viper.GetString("server.name")
 	globalLoggerConfig := logging.Config{
-		FileName:    serverName + "-main",
-		FileDir:     viper.GetString("server.log.path"),
-		RotationMin: viper.GetInt64("server.log.rotation_min"),
-		MaxBackups:  viper.GetInt("server.log.max_backups")}
+		FileName:      serverName + "-main",
+		FileDir:       viper.GetString("server.log.path"),
+		RotationMin:   viper.GetInt64("server.log.rotation_min"),
+		MaxFileSizeMb: viper.GetInt("server.log.max_file_size_mb"),
+		MaxBackups:    viper.GetInt("server.log.max_backups")}
 
 	//Global logger writes logs and sends system error notifications
 	//
@@ -329,19 +330,21 @@ func Init(containerized bool, dockerHubID string) error {
 	// SQL DDL debug writer
 	if viper.GetBool("sql_debug_log.ddl.enabled") {
 		appConfig.GlobalDDLLogsWriter = logging.CreateLogWriter(&logging.Config{
-			FileName:    serverName + "-" + logging.DDLLogerType,
-			FileDir:     viper.GetString("sql_debug_log.ddl.path"),
-			RotationMin: viper.GetInt64("sql_debug_log.ddl.rotation_min"),
-			MaxBackups:  viper.GetInt("sql_debug_log.ddl.max_backups")})
+			FileName:      serverName + "-" + logging.DDLLogerType,
+			FileDir:       viper.GetString("sql_debug_log.ddl.path"),
+			RotationMin:   viper.GetInt64("sql_debug_log.ddl.rotation_min"),
+			MaxFileSizeMb: viper.GetInt("sql_debug_log.ddl.max_file_size_mb"),
+			MaxBackups:    viper.GetInt("sql_debug_log.ddl.max_backups")})
 	}
 
 	// SQL queries debug writer
 	if viper.GetBool("sql_debug_log.queries.enabled") {
 		appConfig.GlobalQueryLogsWriter = logging.CreateLogWriter(&logging.Config{
-			FileName:    serverName + "-" + logging.QueriesLoggerType,
-			FileDir:     viper.GetString("sql_debug_log.queries.path"),
-			RotationMin: viper.GetInt64("sql_debug_log.queries.rotation_min"),
-			MaxBackups:  viper.GetInt("sql_debug_log.queries.max_backups")})
+			FileName:      serverName + "-" + logging.QueriesLoggerType,
+			FileDir:       viper.GetString("sql_debug_log.queries.path"),
+			RotationMin:   viper.GetInt64("sql_debug_log.queries.rotation_min"),
+			MaxFileSizeMb: viper.GetInt("sql_debug_log.queries.max_file_size_mb"),
+			MaxBackups:    viper.GetInt("sql_debug_log.queries.max_backups")})
 	}
 
 	// Singer logger
@@ -350,10 +353,11 @@ func Init(containerized bool, dockerHubID string) error {
 			appConfig.SingerLogsWriter = logging.CreateLogWriter(&logging.Config{FileDir: logging.GlobalType})
 		} else {
 			appConfig.SingerLogsWriter = logging.CreateLogWriter(&logging.Config{
-				FileName:    serverName + "-" + "singer",
-				FileDir:     viper.GetString("singer-bridge.log.path"),
-				RotationMin: viper.GetInt64("singer-bridge.log.rotation_min"),
-				MaxBackups:  viper.GetInt("singer-bridge.log.max_backups")})
+				FileName:      serverName + "-" + "singer",
+				FileDir:       viper.GetString("singer-bridge.log.path"),
+				RotationMin:   viper.GetInt64("singer-bridge.log.rotation_min"),
+				MaxFileSizeMb: viper.GetInt("singer-bridge.log.max_file_size_mb"),
+				MaxBackups:    viper.GetInt("singer-bridge.log.max_backups")})
 		}
 	}
 
@@ -364,10 +368,11 @@ func Init(containerized bool, dockerHubID string) error {
 		} else {
 
 			appConfig.AirbyteLogsWriter = logging.CreateLogWriter(&logging.Config{
-				FileName:    serverName + "-" + "airbyte",
-				FileDir:     viper.GetString("airbyte-bridge.log.path"),
-				RotationMin: viper.GetInt64("airbyte-bridge.log.rotation_min"),
-				MaxBackups:  viper.GetInt("airbyte-bridge.log.max_backups")})
+				FileName:      serverName + "-" + "airbyte",
+				FileDir:       viper.GetString("airbyte-bridge.log.path"),
+				RotationMin:   viper.GetInt64("airbyte-bridge.log.rotation_min"),
+				MaxFileSizeMb: viper.GetInt("airbyte-bridge.log.max_file_size_mb"),
+				MaxBackups:    viper.GetInt("airbyte-bridge.log.max_backups")})
 		}
 	}
 
@@ -377,10 +382,11 @@ func Init(containerized bool, dockerHubID string) error {
 			appConfig.SourcesLogsWriter = logging.CreateLogWriter(&logging.Config{FileDir: logging.GlobalType})
 		} else {
 			appConfig.SourcesLogsWriter = logging.CreateLogWriter(&logging.Config{
-				FileName:    serverName + "-" + "sync-tasks",
-				FileDir:     viper.GetString("sync-tasks.log.path"),
-				RotationMin: viper.GetInt64("sync-tasks.log.rotation_min"),
-				MaxBackups:  viper.GetInt("sync-tasks.log.max_backups")})
+				FileName:      serverName + "-" + "sync-tasks",
+				FileDir:       viper.GetString("sync-tasks.log.path"),
+				RotationMin:   viper.GetInt64("sync-tasks.log.rotation_min"),
+				MaxFileSizeMb: viper.GetInt("sync-tasks.log.max_file_size_mb"),
+				MaxBackups:    viper.GetInt("sync-tasks.log.max_backups")})
 		}
 	} else {
 		appConfig.SourcesLogsWriter = ioutil.Discard
