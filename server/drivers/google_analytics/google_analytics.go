@@ -1,9 +1,7 @@
 package google_analytics
 
 import (
-	"bufio"
 	"context"
-	_ "embed"
 	"errors"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/drivers/base"
@@ -28,44 +26,34 @@ const (
 )
 
 var (
-	//go:embed google_analytics_fields.csv
-	googleAnalyticsFields string
-	metricsCast           = make(map[string]func(interface{}) (interface{}, error))
+	metricsCast = map[string]func(interface{}) (interface{}, error){
+		"ga:1dayUsers":        typing.StringToInt,
+		"ga:7dayUsers":        typing.StringToInt,
+		"ga:14dayUsers":       typing.StringToInt,
+		"ga:28dayUsers":       typing.StringToInt,
+		"ga:30dayUsers":       typing.StringToInt,
+		"ga:sessions":         typing.StringToInt,
+		"ga:users":            typing.StringToInt,
+		"ga:hits":             typing.StringToInt,
+		"ga:visitors":         typing.StringToInt,
+		"ga:bounces":          typing.StringToInt,
+		"ga:goal1Completions": typing.StringToInt,
+		"ga:goal2Completions": typing.StringToInt,
+		"ga:goal3Completions": typing.StringToInt,
+		"ga:goal4Completions": typing.StringToInt,
+		"ga:adClicks":         typing.StringToInt,
+		"ga:newUsers":         typing.StringToInt,
+		"ga:pageviews":        typing.StringToInt,
+		"ga:uniquePageviews":  typing.StringToInt,
+		"ga:transactions":     typing.StringToInt,
+
+		"ga:adCost":             typing.StringToFloat,
+		"ga:avgSessionDuration": typing.StringToFloat,
+		"ga:timeOnPage":         typing.StringToFloat,
+		"ga:avgTimeOnPage":      typing.StringToFloat,
+		"ga:transactionRevenue": typing.StringToFloat,
+	}
 )
-
-// read CSV file with GA fields and their types by line
-// and fill metricsCast map
-func init() {
-	scanner := bufio.NewScanner(strings.NewReader(googleAnalyticsFields))
-	//skip header
-	scanner.Scan()
-	for scanner.Scan() {
-		line := scanner.Text()
-		fields := strings.Split(line, ",")
-		if len(fields) != 4 {
-			logging.Fatalf("Error init google analytics fields types. Wrong csv live: %s", line)
-		}
-		if fields[2] != "metric" {
-			continue
-		}
-		metricsName := fields[0]
-		dataType := fields[3]
-		switch dataType {
-		case "integer":
-			metricsCast[metricsName] = typing.StringToInt
-		case "float", "currency", "percent", "time":
-			metricsCast[metricsName] = typing.StringToFloat
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		logging.Fatalf("Error init google analytics fields types: %v", err)
-	}
-	if len(metricsCast) == 0 {
-		logging.Fatal("Error init google analytics fields types. No metrics found")
-	}
-	logging.Debugf("Google Analytics fields types initialized. %d metrics found", len(metricsCast))
-}
 
 type GoogleAnalytics struct {
 	base.IntervalDriver
@@ -82,7 +70,7 @@ func init() {
 	base.RegisterTestConnectionFunc(base.GoogleAnalyticsType, TestGoogleAnalytics)
 }
 
-// NewGoogleAnalytics returns configured Google Analytics driver instance
+//NewGoogleAnalytics returns configured Google Analytics driver instance
 func NewGoogleAnalytics(ctx context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
 	config := &GoogleAnalyticsConfig{}
 	err := jsonutils.UnmarshalConfig(sourceConfig.Config, config)
@@ -121,7 +109,7 @@ func NewGoogleAnalytics(ctx context.Context, sourceConfig *base.SourceConfig, co
 	}, nil
 }
 
-// TestGoogleAnalytics tests connection to Google Analytics without creating Driver instance
+//TestGoogleAnalytics tests connection to Google Analytics without creating Driver instance
 func TestGoogleAnalytics(sourceConfig *base.SourceConfig) error {
 	config := &GoogleAnalyticsConfig{}
 	err := jsonutils.UnmarshalConfig(sourceConfig.Config, config)
