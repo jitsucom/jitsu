@@ -43,7 +43,7 @@ func init() {
 		line := scanner.Text()
 		fields := strings.Split(line, ",")
 		if len(fields) != 4 {
-			logging.Fatalf("Error init google analytics fields types. Wrong csv live:", line)
+			logging.Fatalf("Error init google analytics fields types. Wrong csv live: %s", line)
 		}
 		if fields[2] != "metric" {
 			continue
@@ -62,7 +62,7 @@ func init() {
 		logging.Fatalf("Error init google analytics fields types: %v", err)
 	}
 	if len(metricsCast) == 0 {
-		logging.Fatalf("Error init google analytics fields types. No metrics found")
+		logging.Fatal("Error init google analytics fields types. No metrics found")
 	}
 	logging.Debugf("Google Analytics fields types initialized. %d metrics found", len(metricsCast))
 }
