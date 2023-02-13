@@ -27,11 +27,12 @@ var ConfigWarn string
 var LogLevel = UNKNOWN
 
 type Config struct {
-	FileName    string
-	FileDir     string
-	RotationMin int64
-	MaxBackups  int
-	Compress    bool
+	FileName      string
+	FileDir       string
+	RotationMin   int64
+	MaxBackups    int
+	MaxFileSizeMb int
+	Compress      bool
 
 	RotateOnClose bool
 }
@@ -47,7 +48,7 @@ func (c Config) Validate() error {
 	return nil
 }
 
-//InitGlobalLogger initializes main logger
+// InitGlobalLogger initializes main logger
 func InitGlobalLogger(writer io.Writer, levelStr string) error {
 	dateTimeWriter := DateTimeWriterProxy{
 		writer: writer,

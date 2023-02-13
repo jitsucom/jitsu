@@ -17,11 +17,11 @@ const (
 	twentyFourHoursInMinutes = 1440
 )
 
-//TokenIDExtractRegexp is a regex for reading already rotated and closed log files
+// TokenIDExtractRegexp is a regex for reading already rotated and closed log files
 var TokenIDExtractRegexp = regexp.MustCompile("incoming.tok=(.*)-\\d\\d\\d\\d-\\d\\d-\\d\\dT")
 
-//RollingWriterProxy for lumberjack.Logger
-//Rotate() only if file isn't empty
+// RollingWriterProxy for lumberjack.Logger
+// Rotate() only if file isn't empty
 type RollingWriterProxy struct {
 	lWriter       *lumberjack.Logger
 	rotateOnClose bool
@@ -39,9 +39,13 @@ func CreateLogWriter(config *Config) io.Writer {
 
 func NewRollingWriter(config *Config) io.WriteCloser {
 	fileNamePath := filepath.Join(config.FileDir, config.FileName+".log")
+	maxSize := config.MaxFileSizeMb
+	if maxSize == 0 {
+		maxSize = logFileMaxSizeMB
+	}
 	lWriter := &lumberjack.Logger{
 		Filename: fileNamePath,
-		MaxSize:  logFileMaxSizeMB,
+		MaxSize:  maxSize,
 		Compress: config.Compress,
 	}
 	if config.MaxBackups > 0 {

@@ -52,10 +52,11 @@ func Init(containerized bool) error {
 	appConfig.Authority = "0.0.0.0:" + port
 
 	globalLoggerConfig := &logging.Config{
-		FileName:    serverName + "-main",
-		FileDir:     viper.GetString("server.log.path"),
-		RotationMin: viper.GetInt64("server.log.rotation_min"),
-		MaxBackups:  viper.GetInt("server.log.max_backups")}
+		FileName:      serverName + "-main",
+		FileDir:       viper.GetString("server.log.path"),
+		RotationMin:   viper.GetInt64("server.log.rotation_min"),
+		MaxFileSizeMb: viper.GetInt("server.log.max_file_size_mb"),
+		MaxBackups:    viper.GetInt("server.log.max_backups")}
 	var globalLogsWriter io.Writer
 	if globalLoggerConfig.FileDir != "" {
 		fileWriter := logging.NewRollingWriter(globalLoggerConfig)
@@ -94,12 +95,12 @@ func (a *AppConfig) Close() {
 	}
 }
 
-//ScheduleLastClosing adds meta.Storage, coordinationService closers
+// ScheduleLastClosing adds meta.Storage, coordinationService closers
 func (a *AppConfig) ScheduleLastClosing(c io.Closer) {
 	a.lastCloseMe = append(a.lastCloseMe, c)
 }
 
-//CloseLast closes meta.Storage, coordinationService closers in the last call
+// CloseLast closes meta.Storage, coordinationService closers in the last call
 func (a *AppConfig) CloseLast() {
 	for _, cl := range a.lastCloseMe {
 		if err := cl.Close(); err != nil {
