@@ -27,11 +27,6 @@ const (
 
 var (
 	metricsCast = map[string]func(interface{}) (interface{}, error){
-		"ga:1dayUsers":        typing.StringToInt,
-		"ga:7dayUsers":        typing.StringToInt,
-		"ga:14dayUsers":       typing.StringToInt,
-		"ga:28dayUsers":       typing.StringToInt,
-		"ga:30dayUsers":       typing.StringToInt,
 		"ga:sessions":         typing.StringToInt,
 		"ga:users":            typing.StringToInt,
 		"ga:hits":             typing.StringToInt,
