@@ -1,10 +1,10 @@
 // @Libs
-import React, {ComponentType, ExoticComponent, PropsWithChildren, useEffect, useState} from "react"
-import { Redirect, Route, Switch, useLocation, NavLink } from "react-router-dom"
+import React, { ComponentType, ExoticComponent, useEffect, useState } from "react"
+import { NavLink, Redirect, Route, Switch, useLocation } from "react-router-dom"
 import { Button, Card, Typography } from "antd"
 import { useParams } from "react-router"
 import moment from "moment"
-import { JitsuProvider } from "@jitsu/jitsu-react"
+import { JitsuProvider, useJitsu } from "@jitsu/jitsu-react"
 // @Services
 import ApplicationServices from "./lib/services/ApplicationServices"
 import { CurrentSubscription, getCurrentSubscription, paymentPlans } from "lib/services/billing"
@@ -120,17 +120,14 @@ const initializeProject = async (
   return project
 }
 
-export const JitsuWrapper: React.FC<PropsWithChildren<{host?: string, identifyHook?: any}>> = ({host, identifyHook, children}) => {
-  if (!host) {
-    return <>{children}</>
-  } else {
-    return (
-        <JitsuProvider options={{ host, autoPageTracking: { reactRouter: useLocation() }, before: identifyHook }}>
-          {children}
-        </JitsuProvider>
-    )
-  }
 
+const JitsuPageViewTracker: React.FC<{}> = () => {
+  const { analytics } = useJitsu()
+  const location = useLocation()
+  useEffect(() => {
+    analytics.page()
+  }, [location.pathname, location.search, location.hash])
+  return <></>
 }
 
 export const Application: React.FC = function () {
@@ -236,18 +233,11 @@ export const Application: React.FC = function () {
   }
   const user = services.userService.hasUser() ? services.userService.getUser() : undefined
   const jitsuHost = services.applicationConfiguration.rawConfig.keys.jitsu
-  const identifyHook = {
-    effect: function (analytics) {
-      if (user && user.id) {
-        analytics.identify(user.id, { name: user.name, email: user.email })
-      }
-    },
-    deps: [user],
-  }
   if (!services.userService.hasUser()) {
     return (
       <React.Suspense fallback={<CenteredSpin />}>
-        <JitsuWrapper host={jitsuHost} identifyHook={identifyHook}>
+        <JitsuProvider options={{ host: jitsuHost || undefined, disabled: !jitsuHost }}>
+          <JitsuPageViewTracker />
           {services.showSelfHostedSignUp() && <SetupForm />}
           {!services.showSelfHostedSignUp() && (
             <Switch>
@@ -284,15 +274,15 @@ export const Application: React.FC = function () {
               <Redirect to="/" />
             </Switch>
           )}
-        </JitsuWrapper>
+        </JitsuProvider>
       </React.Suspense>
     )
   }
 
   return (
     <>
-      <JitsuWrapper host={jitsuHost} identifyHook={identifyHook}>
-      <Switch>
+      <JitsuProvider options={{ host: jitsuHost || undefined, disabled: !jitsuHost }}>
+        <Switch>
           <Route
             path={"/user/settings"}
             exact={true}
@@ -317,7 +307,7 @@ export const Application: React.FC = function () {
             <ProjectRedirect projects={projects} />
           </Route>
         </Switch>
-      </JitsuWrapper>
+      </JitsuProvider>
     </>
   )
 }
