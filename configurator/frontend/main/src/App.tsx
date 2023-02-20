@@ -282,6 +282,7 @@ export const Application: React.FC = function () {
   return (
     <>
       <JitsuProvider options={{ host: jitsuHost || undefined, disabled: !jitsuHost }}>
+        <JitsuPageViewTracker />
         <Switch>
           <Route
             path={"/user/settings"}
