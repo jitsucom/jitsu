@@ -367,12 +367,22 @@ func mapClickhouse(chDestinations *entities.Destination) (*enconfig.DestinationC
 			}
 		}
 	}
+	var engineConfig *enadapters.EngineConfig
+	if len(chFormData.Engine) > 0 {
+		var ec enadapters.EngineConfig
+		err = mapstructure.Decode(chFormData.Engine, &ec)
+		if err != nil {
+			return nil, fmt.Errorf("Error unmarshaling clickhouse engine form data: %v", err)
+		}
+		engineConfig = &ec
+	}
 
 	cfg := &enadapters.ClickHouseConfig{
 		Dsns:     dsns,
 		Database: chFormData.ChDb,
 		Cluster:  chFormData.ChCluster,
 		TLS:      tlss,
+		Engine:   engineConfig,
 	}
 	cfgMap := map[string]interface{}{}
 	err = mapstructure.Decode(cfg, &cfgMap)
