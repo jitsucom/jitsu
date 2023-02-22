@@ -95,15 +95,7 @@ func (a *Auth0) GetSSOSession(ctx *gin.Context, code string) (*handlers.SSOSessi
 			Cause:       err,
 		}
 	}
-
-	session.Set("access_token", token.AccessToken)
-	session.Set("profile", profile)
-	if err := session.Save(); err != nil {
-		return nil, middleware.ReadableError{
-			Description: "Failed to save session with profile.",
-			Cause:       err,
-		}
-	}
+	
 	logging.Infof("Auth0 profile: %+v", profile)
 	email := utils.MapNVLKeys(profile, "", "email").(string)
 	if email == "" {
