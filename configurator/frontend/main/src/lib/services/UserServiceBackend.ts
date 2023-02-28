@@ -31,7 +31,9 @@ export class BackendUserService implements UserService {
     this.smtpConfigured = smtpConfigured
     if (ssoProvider !== "") {
       this.ssoProvider = ssoProvider
-      this.ssoAuthLink = `${backendApiBase}/v1/sso-login?redirect_uri=${encodeURIComponent(`${backendApiBase}/v1/sso-auth-callback`)}`
+      this.ssoAuthLink = `${backendApiBase}/v1/sso-login?redirect_uri=${encodeURIComponent(
+        `${backendApiBase}/v1/sso-auth-callback`
+      )}`
     }
   }
 
@@ -117,11 +119,14 @@ export class BackendUserService implements UserService {
       callback()
     }
 
-    this.backendApi.post("/users/signout", {}).then(res => {
-      if (res.sso_logout_url) {
-         return fetch(res.sso_logout_url, {mode: "cors", credentials: "include"})
-      }
-    }).finally(cleaningCallback)
+    this.backendApi
+      .post("/users/signout", {})
+      .then(res => {
+        if (res.sso_logout_url) {
+          return fetch(res.sso_logout_url, { mode: "cors", credentials: "include" })
+        }
+      })
+      .finally(cleaningCallback)
   }
 
   getUser(): User {

@@ -12,9 +12,25 @@ export const BillingGlobalGuard: React.FC = React.memo(() => {
 
   if (!services.currentSubscription) return null
 
+  if (services.currentSubscription.hasUnpaidInvoices) {
+    return (
+      <BillingBlockingModal
+        subscription={services.currentSubscription}
+        blockingReason={<></>}
+        hasUpdateInvoices={true}
+      />
+    )
+  }
+
   const quotaLimitMsg = checkQuotas(services.currentSubscription)
   if (quotaLimitMsg) {
-    return <BillingBlockingModal subscription={services.currentSubscription} blockingReason={quotaLimitMsg} />
+    return (
+      <BillingBlockingModal
+        subscription={services.currentSubscription}
+        blockingReason={quotaLimitMsg}
+        hasUpdateInvoices={false}
+      />
+    )
   } else if (window.location.search.indexOf("upgradeDialog=true") >= 0) {
     return <BillingPlanOptionsModal planStatus={services.currentSubscription} />
   }
