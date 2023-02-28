@@ -32,7 +32,6 @@ type OnboardingTourProps = { project: Project }
 
 const USER_EVENT_EXPIRATION_THRESHOLD = moment.duration(1, "months")
 
-
 const OnboardingTourComponent: React.FC<OnboardingTourProps> = ({ project }) => {
   const services = ApplicationServices.get()
 

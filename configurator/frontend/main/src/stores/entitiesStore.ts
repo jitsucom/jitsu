@@ -22,7 +22,6 @@ type EntitySchema<T extends EntityData> = {
 // (!) TO DO: move type to this file
 const { IDLE, GLOBAL_LOADING, BACKGROUND_LOADING, GLOBAL_ERROR } = EntitiesStoreStatus
 
-
 /**
  * Generic entities store class for manipulating objects.
  *

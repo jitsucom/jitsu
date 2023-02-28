@@ -92,6 +92,7 @@ const initializeBilling = async (services: ApplicationServices, projectId: strin
     )
   } else {
     currentSubscription = {
+      hasUnpaidInvoices: false,
       subscriptionIsManagedByStripe: false,
       autorenew: false,
       expiration: moment().add(1, "M"),
@@ -119,7 +120,6 @@ const initializeProject = async (
   }
   return project
 }
-
 
 const JitsuPageViewTracker: React.FC<{}> = () => {
   const { analytics } = useJitsu()
@@ -150,7 +150,7 @@ export const Application: React.FC = function () {
             const projects = await application.projectService.getAvailableProjects()
             if (projects.length === 0) {
               const newProject = await application.projectService.createProject(
-                  application.userService.getUser().suggestedCompanyName
+                application.userService.getUser().suggestedCompanyName
               )
               setProjects([newProject])
             } else {
@@ -161,7 +161,7 @@ export const Application: React.FC = function () {
           setInitialized(true)
         } catch (e) {
           const msg = `Can't initialize application with backend ${
-              process.env.BACKEND_API_BASE || " (BACKEND_API_BASE is not set)"
+            process.env.BACKEND_API_BASE || " (BACKEND_API_BASE is not set)"
           }: ${e?.message || "unknown error"}`
           console.log(msg, e)
           setError(createError(msg, e))
@@ -178,20 +178,20 @@ export const Application: React.FC = function () {
         const isAppOutdated = await services?.isAppVersionOutdated()
         if (isAppOutdated) {
           actionNotification.warn(
-              <>
-                New version of Jitsu available! Please reload the page to get the latest update.
-                <br/>
-                <Button
-                    className="mt-5 mb-2"
-                    size="large"
-                    type="primary"
-                    icon={<ReloadOutlined/>}
-                    onClick={() => window.location.reload()}
-                >
-                  Reload
-                </Button>{" "}
-              </>,
-              {duration: 0, className: "app-update-notice box-shadow-base"}
+            <>
+              New version of Jitsu available! Please reload the page to get the latest update.
+              <br />
+              <Button
+                className="mt-5 mb-2"
+                size="large"
+                type="primary"
+                icon={<ReloadOutlined />}
+                onClick={() => window.location.reload()}
+              >
+                Reload
+              </Button>{" "}
+            </>,
+            { duration: 0, className: "app-update-notice box-shadow-base" }
           )
         }
       })()
@@ -201,21 +201,13 @@ export const Application: React.FC = function () {
   }, [location, services])
 
   if (!error && !initialized) {
-    return <Switch>
-      <Route
-          key="sso_callback"
-          path={["/sso_callback"]}
-          exact
-          component={SSOCallback}
-      />
-      <Route
-          key="preloader"
-          path={"*"}
-          exact
-          component={Preloader}
-      />
-      <Redirect to="/" />
-    </Switch>
+    return (
+      <Switch>
+        <Route key="sso_callback" path={["/sso_callback"]} exact component={SSOCallback} />
+        <Route key="preloader" path={"*"} exact component={Preloader} />
+        <Redirect to="/" />
+      </Switch>
+    )
   } else if (error) {
     console.error("Initialization error", error)
     if (services?.analyticsService) {
@@ -265,12 +257,7 @@ export const Application: React.FC = function () {
                 exact
                 render={pageOf(ChangePasswordOnResetForm, { pageTitle: "Jitsu: Reset Password" })}
               />
-              <Route
-                  key="sso_callback"
-                  path={["/sso_callback"]}
-                  exact
-                  component={SSOCallback}
-              />
+              <Route key="sso_callback" path={["/sso_callback"]} exact component={SSOCallback} />
               <Redirect to="/" />
             </Switch>
           )}

@@ -129,6 +129,11 @@ export type CurrentSubscription = {
   doNotBlock: boolean
 
   /**
+   * Unpaid invoices
+   */
+  hasUnpaidInvoices: boolean
+
+  /**
    * If subscription is managed by stripe
    */
   subscriptionIsManagedByStripe: boolean
@@ -155,6 +160,8 @@ export type FirebaseSubscriptionEntry = {
    * If UI shouldn't be blocked
    */
   doNotBlock?: boolean
+
+  hasUnpaidInvoices?: boolean
 
   /**
    * Stripe subscription data
@@ -304,6 +311,7 @@ export async function getCurrentSubscription(
     autorenew: !subscription.stripeSubscriptionObject?.cancel_at_period_end,
     expiration: subscriptionEnd,
     doNotBlock: !!subscription.doNotBlock,
+    hasUnpaidInvoices: !!subscription.hasUnpaidInvoices,
   }
 }
 

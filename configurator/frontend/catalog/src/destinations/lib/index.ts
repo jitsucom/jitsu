@@ -44,7 +44,7 @@ export {
   tagDestination,
   bentoDestination,
   plausibleDestination,
-    elasticsearchDestination
+  elasticsearchDestination,
 }
 
 export const destinationsReferenceMap: { [key: string]: Destination } = {
