@@ -1,127 +1,158 @@
-accessible_bidding_strategy,Accessible Bidding Strategy
-account_budget,Account Budget
-account_budget_proposal,Account Budget Proposal
-account_link,Account Link
-ad_group,Ad Group
-ad_group_ad,Ad Group Ad
-ad_group_ad_asset_view,Ad Group Ad Asset View
-ad_group_ad_label,Ad Group Ad Label
-ad_group_asset,Ad Group Asset
-ad_group_audience_view,Ad Group Audience View
-ad_group_bid_modifier,Ad Group Bid Modifier
-ad_group_criterion,Ad Group Criterion
-ad_group_criterion_label,Ad Group Criterion Label
-ad_group_criterion_simulation,Ad Group Criterion Simulation
-ad_group_extension_setting,Ad Group Extension Setting
-ad_group_feed,Ad Group Feed
-ad_group_label,Ad Group Label
-ad_group_simulation,Ad Group Simulation
-ad_parameter,Ad Parameter
-ad_schedule_view,Ad Schedule View
-age_range_view,Age Range View
-asset,Asset
-asset_field_type_view,Asset Field Type View
-batch_job,Batch Job
-bidding_data_exclusion,Bidding Data Exclusion
-bidding_seasonality_adjustment,Bidding Seasonality Adjustment
-bidding_strategy,Bidding Strategy
-bidding_strategy_simulation,Bidding Strategy Simulation
-billing_setup,Billing Setup
-call_view,Call View
-campaign,Campaign
-campaign_asset,Campaign Asset
-campaign_audience_view,Campaign Audience View
-campaign_bid_modifier,Campaign Bid Modifier
-campaign_budget,Campaign Budget
-campaign_criterion,Campaign Criterion
-campaign_criterion_simulation,Campaign Criterion Simulation
-campaign_draft,Campaign Draft
-campaign_experiment,Campaign Experiment
-campaign_extension_setting,Campaign Extension Setting
-campaign_feed,Campaign Feed
-campaign_label,Campaign Label
-campaign_shared_set,Campaign Shared Set
-campaign_simulation,Campaign Simulation
-carrier_constant,Carrier Constant
-change_event,Change Event
-change_status,Change Status
-click_view,Click View
-combined_audience,Combined Audience
-conversion_action,Conversion Action
-conversion_custom_variable,Conversion Custom Variable
-conversion_value_rule,Conversion Value Rule
-conversion_value_rule_set,Conversion Value Rule Set
-currency_constant,Currency Constant
-custom_audience,Custom Audience
-custom_interest,Custom Interest
-customer,Customer
-customer_asset,Customer Asset
-customer_client,Customer Client
-customer_client_link,Customer Client Link
-customer_extension_setting,Customer Extension Setting
-customer_feed,Customer Feed
-customer_label,Customer Label
-customer_manager_link,Customer Manager Link
-customer_negative_criterion,Customer Negative Criterion
-customer_user_access,Customer User Access
-customer_user_access_invitation,Customer User Access Invitation
-detail_placement_view,Detail Placement View
-detailed_demographic,Detailed Demographic
-display_keyword_view,Display Keyword View
-distance_view,Distance View
-domain_category,Domain Category
-dynamic_search_ads_search_term_view,Dynamic Search Ads Search Term View
-expanded_landing_page_view,Expanded Landing Page View
-extension_feed_item,Extension Feed Item
-feed,Feed
-feed_item,Feed Item
-feed_item_set,Feed Item Set
-feed_item_set_link,Feed Item Set Link
-feed_item_target,Feed Item Target
-feed_mapping,Feed Mapping
-feed_placeholder_view,Feed Placeholder View
-gender_view,Gender View
-geo_target_constant,Geo Target Constant
-geographic_view,Geographic View
-group_placement_view,Group Placement View
-hotel_group_view,Hotel Group View
-hotel_performance_view,Hotel Performance View
-income_range_view,Income Range View
-keyword_plan,Keyword Plan
-keyword_plan_ad_group,Keyword Plan Ad Group
-keyword_plan_ad_group_keyword,Keyword Plan Ad Group Keyword
-keyword_plan_campaign,Keyword Plan Campaign
-keyword_plan_campaign_keyword,Keyword Plan Campaign Keyword
-keyword_theme_constant,Keyword Theme Constant
-keyword_view,Keyword View
-label,Label
-landing_page_view,Landing Page View
-language_constant,Language Constant
-life_event,Life Event
-location_view,Location View
-managed_placement_view,Managed Placement View
-media_file,Media File
-mobile_app_category_constant,Mobile App Category Constant
-mobile_device_constant,Mobile Device Constant
-offline_user_data_job,Offline User Data Job
-operating_system_version_constant,Operating System Version Constant
-paid_organic_search_term_view,Paid Organic Search Term View
-parental_status_view,Parental Status View
-product_bidding_category_constant,Product Bidding Category Constant
-product_group_view,Product Group View
-recommendation,Recommendation
-remarketing_action,Remarketing Action
-search_term_view,Search Term View
-shared_criterion,Shared Criterion
-shared_set,Shared Set
-shopping_performance_view,Shopping Performance View
-smart_campaign_search_term_view,Smart Campaign Search Term View
-smart_campaign_setting,Smart Campaign Setting
-third_party_app_analytics_link,Third Party App Analytics Link
-topic_constant,Topic Constant
-topic_view,Topic View
-user_interest,User Interest
-user_list,User List
-user_location_view,User Location View
-video,Video
-webpage_view,Webpage View
+accessible_bidding_strategy
+account_budget
+account_budget_proposal
+account_link
+ad_group
+ad_group_ad
+ad_group_ad_asset_combination_view
+ad_group_ad_asset_view
+ad_group_ad_label
+ad_group_asset
+ad_group_asset_set
+ad_group_audience_view
+ad_group_bid_modifier
+ad_group_criterion
+ad_group_criterion_customizer
+ad_group_criterion_label
+ad_group_criterion_simulation
+ad_group_customizer
+ad_group_extension_setting
+ad_group_feed
+ad_group_label
+ad_group_simulation
+ad_parameter
+ad_schedule_view
+age_range_view
+asset
+asset_field_type_view
+asset_group
+asset_group_asset
+asset_group_listing_group_filter
+asset_group_product_group_view
+asset_group_signal
+asset_set
+asset_set_asset
+asset_set_type_view
+audience
+batch_job
+bidding_data_exclusion
+bidding_seasonality_adjustment
+bidding_strategy
+bidding_strategy_simulation
+billing_setup
+call_view
+campaign
+campaign_asset
+campaign_asset_set
+campaign_audience_view
+campaign_bid_modifier
+campaign_budget
+campaign_conversion_goal
+campaign_criterion
+campaign_criterion_simulation
+campaign_customizer
+campaign_draft
+campaign_extension_setting
+campaign_feed
+campaign_group
+campaign_label
+campaign_shared_set
+campaign_simulation
+carrier_constant
+change_event
+change_status
+click_view
+combined_audience
+conversion_action
+conversion_custom_variable
+conversion_goal_campaign_config
+conversion_value_rule
+conversion_value_rule_set
+currency_constant
+custom_audience
+custom_conversion_goal
+custom_interest
+customer
+customer_asset
+customer_asset_set
+customer_client
+customer_client_link
+customer_conversion_goal
+customer_customizer
+customer_extension_setting
+customer_feed
+customer_label
+customer_manager_link
+customer_negative_criterion
+customer_user_access
+customer_user_access_invitation
+customizer_attribute
+detail_placement_view
+detailed_demographic
+display_keyword_view
+distance_view
+domain_category
+dynamic_search_ads_search_term_view
+expanded_landing_page_view
+experiment
+experiment_arm
+extension_feed_item
+feed
+feed_item
+feed_item_set
+feed_item_set_link
+feed_item_target
+feed_mapping
+feed_placeholder_view
+gender_view
+geo_target_constant
+geographic_view
+group_placement_view
+hotel_group_view
+hotel_performance_view
+hotel_reconciliation
+income_range_view
+keyword_plan
+keyword_plan_ad_group
+keyword_plan_ad_group_keyword
+keyword_plan_campaign
+keyword_plan_campaign_keyword
+keyword_theme_constant
+keyword_view
+label
+landing_page_view
+language_constant
+lead_form_submission_data
+life_event
+location_view
+managed_placement_view
+media_file
+mobile_app_category_constant
+mobile_device_constant
+offline_user_data_job
+operating_system_version_constant
+paid_organic_search_term_view
+parental_status_view
+per_store_view
+product_bidding_category_constant
+product_group_view
+product_link
+qualifying_question
+recommendation
+remarketing_action
+search_term_view
+shared_criterion
+shared_set
+shopping_performance_view
+smart_campaign_search_term_view
+smart_campaign_setting
+third_party_app_analytics_link
+topic_constant
+topic_view
+travel_activity_group_view
+travel_activity_performance_view
+user_interest
+user_list
+user_location_view
+video
+webpage_view

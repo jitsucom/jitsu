@@ -9,38 +9,38 @@ import (
 
 const SqlTypeKeyword = "__sql_type_"
 
-//TypeResolver resolves schema.Fields from input object
+// TypeResolver resolves schema.Fields from input object
 type TypeResolver interface {
 	Resolve(map[string]interface{}) (Fields, error)
 }
 
-//DummyTypeResolver doesn't do anything
+// DummyTypeResolver doesn't do anything
 type DummyTypeResolver struct {
 }
 
-//NewDummyTypeResolver return DummyTypeResolver
+// NewDummyTypeResolver return DummyTypeResolver
 func NewDummyTypeResolver() *DummyTypeResolver {
 	return &DummyTypeResolver{}
 }
 
-//Resolve return one dummy field and Fields becomes not empty. (it is used in Facebook destination)
+// Resolve return one dummy field and Fields becomes not empty. (it is used in Facebook destination)
 func (dtr *DummyTypeResolver) Resolve(object map[string]interface{}) (Fields, error) {
 	return Fields{"dummy": NewField(typing.UNKNOWN)}, nil
 }
 
-//TypeResolverImpl resolves types based on converter.go rules
+// TypeResolverImpl resolves types based on converter.go rules
 type TypeResolverImpl struct {
 }
 
-//NewTypeResolver returns TypeResolverImpl
+// NewTypeResolver returns TypeResolverImpl
 func NewTypeResolver() *TypeResolverImpl {
 	return &TypeResolverImpl{}
 }
 
-//Resolve return Fields representation of input object
-//apply default typecast and define column types
-//reformat from json.Number into int64 or float64 and put back
-//reformat from string with timestamp into time.Time and put back
+// Resolve return Fields representation of input object
+// apply default typecast and define column types
+// reformat from json.Number into int64 or float64 and put back
+// reformat from string with timestamp into time.Time and put back
 func (tr *TypeResolverImpl) Resolve(object map[string]interface{}) (Fields, error) {
 	mappedTypes := make(map[string]typing.SQLColumn)
 	for k, v := range object {
