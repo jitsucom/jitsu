@@ -11,6 +11,19 @@ import { googleServiceAuthDocumentation } from "./documentation"
 
 import { googleAuthConfigParameters } from "./commonParams"
 
+function expandGACustom(metricsOrDimensions: string[]) {
+  return metricsOrDimensions.flatMap(f => {
+    if (f.endsWith('XX')) {
+      const arr = []
+      for (let i = 1; i <= 20; i++) {
+        arr.push(f.replace('XX', i.toString()))
+      }
+      return arr
+    }
+    return f
+  })
+}
+
 export const facebook: SourceConnector = {
   pic: (
     <svg height="100%" width="100%" viewBox="0 0 36 36" fill="url(#gradient)">
@@ -630,7 +643,7 @@ export const googleAnalytics: SourceConnector = {
       ),
       id: "dimensions",
       // prettier-ignore
-      type: selectionType(['ga:userType', 'ga:visitorType', 'ga:sessionCount', 'ga:visitCount', 'ga:daysSinceLastSession',
+      type: selectionType(expandGACustom(['ga:userType', 'ga:visitorType', 'ga:sessionCount', 'ga:visitCount', 'ga:daysSinceLastSession',
         'ga:userDefinedValue', 'ga:userBucket', 'ga:sessionDurationBucket', 'ga:visitLength', 'ga:referralPath',
         'ga:fullReferrer', 'ga:campaign', 'ga:source', 'ga:medium', 'ga:sourceMedium', 'ga:keyword',
         'ga:adContent', 'ga:socialNetwork', 'ga:hasSocialSourceReferral', 'ga:adGroup', 'ga:adSlot',
@@ -653,7 +666,9 @@ export const googleAnalytics: SourceConnector = {
         'ga:daysToTransaction', 'ga:productSku', 'ga:productName', 'ga:productCategory', 'ga:currencyCode',
         'ga:socialInteractionNetwork', 'ga:socialInteractionAction', 'ga:socialInteractionNetworkAction', 'ga:socialInteractionTarget',
         'ga:socialEngagementType', 'ga:userTimingCategory', 'ga:userTimingLabel', 'ga:userTimingVariable', 'ga:exceptionDescription',
-        'ga:experimentId', 'ga:experimentVariant', 'ga:dimensionXX', 'ga:customVarNameXX', 'ga:customVarValueXX', 'ga:date', 'ga:year',
+        'ga:experimentId', 'ga:experimentVariant', 'ga:dimension1', 'ga:dimension2', 'ga:dimension3', 'ga:dimension4', 'ga:dimension5', 'ga:dimension6'
+        , 'ga:dimension7', 'ga:dimension8', 'ga:dimension9', 'ga:dimension10', 'ga:dimension11', 'ga:dimension12', 'ga:dimension13', 'ga:dimension14', 'ga:dimension15'
+        , 'ga:dimension16', 'ga:dimension17', 'ga:dimension18', 'ga:dimension19', 'ga:dimension20', 'ga:customVarNameXX', 'ga:customVarValueXX', 'ga:date', 'ga:year',
         'ga:month', 'ga:week', 'ga:day', 'ga:hour', 'ga:minute', 'ga:nthMonth', 'ga:nthWeek', 'ga:nthDay', 'ga:nthMinute',
         'ga:dayOfWeek', 'ga:dayOfWeekName', 'ga:dateHour', 'ga:dateHourMinute', 'ga:yearMonth', 'ga:yearWeek', 'ga:isoWeek',
         'ga:isoYear', 'ga:isoYearIsoWeek', 'ga:dcmClickAd', 'ga:dcmClickAdId', 'ga:dcmClickAdType', 'ga:dcmClickAdTypeId',
@@ -681,7 +696,7 @@ export const googleAnalytics: SourceConnector = {
         'ga:dsKeywordId', 'ga:experimentCombination', 'ga:experimentName', 'ga:internalPromotionCreative', 'ga:internalPromotionId',
         'ga:internalPromotionName', 'ga:internalPromotionPosition', 'ga:isTrueViewVideoAd', 'ga:metroId', 'ga:nthHour', 'ga:orderCouponCode',
         'ga:productBrand', 'ga:productCategoryHierarchy', 'ga:productCategoryLevelXX', 'ga:productCouponCode', 'ga:productListName',
-        'ga:productListPosition', 'ga:productVariant', 'ga:regionId', 'ga:regionIsoCode', 'ga:shoppingStage', 'ga:subContinentCode'], 7),
+        'ga:productListPosition', 'ga:productVariant', 'ga:regionId', 'ga:regionIsoCode', 'ga:shoppingStage', 'ga:subContinentCode']), 7),
     },
     {
       displayName: "Metrics",
@@ -694,7 +709,7 @@ export const googleAnalytics: SourceConnector = {
       ),
       id: "metrics",
       // prettier-ignore
-      type: selectionType([
+      type: selectionType(expandGACustom([
         'ga:users', 'ga:visitors', 'ga:newUsers', 'ga:newVisits', 'ga:percentNewSessions',
         'ga:percentNewVisits', 'ga:1dayUsers', 'ga:7dayUsers', 'ga:14dayUsers', 'ga:28dayUsers',
         'ga:30dayUsers', 'ga:sessions', 'ga:visits', 'ga:bounces', 'ga:bounceRate', 'ga:visitBounceRate',
@@ -747,7 +762,7 @@ export const googleAnalytics: SourceConnector = {
         'ga:productDetailViews', 'ga:productListCTR', 'ga:productListClicks', 'ga:productListViews', 'ga:productRefundAmount', 'ga:productRefunds',
         'ga:productRemovesFromCart', 'ga:productRevenuePerPurchase', 'ga:quantityAddedToCart', 'ga:quantityCheckedOut', 'ga:quantityRefunded',
         'ga:quantityRemovedFromCart', 'ga:refundAmount', 'ga:revenuePerUser', 'ga:sessionsPerUser', 'ga:totalRefunds', 'ga:transactionsPerUser'
-      ], 10),
+      ]), 10),
     },
   ],
   collectionTemplates: [
