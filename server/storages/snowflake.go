@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/spf13/viper"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
@@ -165,7 +166,7 @@ func (s *Snowflake) storeTable(fdata *schema.ProcessedFile) (*adapters.Table, er
 	} else {
 		_, tableHelper := s.getAdapters()
 		table := tableHelper.MapTableSchema(fdata.BatchHeader)
-		dbTable, err := tableHelper.EnsureTableWithoutCaching(s.ID(), table)
+		dbTable, err := tableHelper.EnsureTable(s.ID(), table, viper.GetBool("snowflake.always_cache_schema"))
 		if err != nil {
 			return table, err
 		}

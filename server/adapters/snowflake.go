@@ -54,7 +54,7 @@ var (
 	}
 )
 
-//SnowflakeConfig dto for deserialized datasource config for Snowflake
+// SnowflakeConfig dto for deserialized datasource config for Snowflake
 type SnowflakeConfig struct {
 	Account    string             `mapstructure:"account,omitempty" json:"account,omitempty" yaml:"account,omitempty"`
 	Port       int                `mapstructure:"port,omitempty" json:"port,omitempty" yaml:"port,omitempty"`
@@ -69,7 +69,7 @@ type SnowflakeConfig struct {
 	Google     *GoogleConfig      `mapstructure:"google,omitempty" json:"google,omitempty" yaml:"google,omitempty"`
 }
 
-//Validate required fields in SnowflakeConfig
+// Validate required fields in SnowflakeConfig
 func (sc *SnowflakeConfig) Validate() error {
 	if sc == nil {
 		return errors.New("Snowflake config is required")
@@ -95,7 +95,7 @@ func (sc *SnowflakeConfig) Validate() error {
 	return nil
 }
 
-//Snowflake is adapter for creating,patching (schema or table), inserting data to snowflake
+// Snowflake is adapter for creating,patching (schema or table), inserting data to snowflake
 type Snowflake struct {
 	ctx         context.Context
 	config      *SnowflakeConfig
@@ -105,7 +105,7 @@ type Snowflake struct {
 	sqlTypes    typing.SQLTypes
 }
 
-//NewSnowflake returns configured Snowflake adapter instance
+// NewSnowflake returns configured Snowflake adapter instance
 func NewSnowflake(ctx context.Context, config *SnowflakeConfig, s3Config *S3Config,
 	queryLogger *logging.QueryLogger, sqlTypes typing.SQLTypes) (*Snowflake, error) {
 	cfg := &sf.Config{
@@ -140,7 +140,7 @@ func (Snowflake) Type() string {
 	return "Snowflake"
 }
 
-//OpenTx open underline sql transaction and return wrapped instance
+// OpenTx open underline sql transaction and return wrapped instance
 func (s *Snowflake) OpenTx() (*Transaction, error) {
 	tx, err := s.dataSource.BeginTx(s.ctx, nil)
 	if err != nil {
@@ -154,7 +154,7 @@ func (s *Snowflake) OpenTx() (*Transaction, error) {
 	return &Transaction{tx: tx, dbType: s.Type()}, nil
 }
 
-//CreateDbSchema create database schema instance if doesn't exist
+// CreateDbSchema create database schema instance if doesn't exist
 func (s *Snowflake) CreateDbSchema(dbSchemaName string) error {
 	query := fmt.Sprintf(createSFDbSchemaIfNotExistsTemplate, dbSchemaName)
 	s.queryLogger.LogDDL(query)
@@ -172,7 +172,7 @@ func (s *Snowflake) CreateDbSchema(dbSchemaName string) error {
 	return nil
 }
 
-//CreateTable runs createTableInTransaction
+// CreateTable runs createTableInTransaction
 func (s *Snowflake) CreateTable(table *Table) (err error) {
 	wrappedTx, err := s.OpenTx()
 	if err != nil {
@@ -193,7 +193,7 @@ func (s *Snowflake) CreateTable(table *Table) (err error) {
 	return s.createTableInTransaction(wrappedTx, table)
 }
 
-//PatchTableSchema add new columns(from provided Table) to existing table
+// PatchTableSchema add new columns(from provided Table) to existing table
 func (s *Snowflake) PatchTableSchema(patchTable *Table) (err error) {
 	wrappedTx, err := s.OpenTx()
 	if err != nil {
@@ -232,41 +232,16 @@ func (s *Snowflake) PatchTableSchema(patchTable *Table) (err error) {
 	return nil
 }
 
-//GetTableSchema returns table (name,columns with name and types) representation wrapped in Table struct
+// GetTableSchema returns table (name,columns with name and types) representation wrapped in Table struct
 func (s *Snowflake) GetTableSchema(tableName string) (*Table, error) {
 	table := &Table{Schema: s.config.Schema, Name: tableName, Columns: Columns{}}
-
-	countReqRows, err := s.dataSource.QueryContext(s.ctx, tableExistenceSFQuery, reformatToParam(s.config.Schema), reformatToParam(reformatValue(tableName)))
-	if err != nil {
-		return nil, errorj.GetTableError.Wrap(err, "failed to get table existence").
-			WithProperty(errorj.DBInfo, &ErrorPayload{
-				Schema:    s.config.Schema,
-				Table:     table.Name,
-				Statement: tableExistenceSFQuery,
-				Values:    []interface{}{reformatToParam(s.config.Schema), reformatToParam(reformatValue(tableName))},
-			})
-	}
-	defer countReqRows.Close()
-	countReqRows.Next()
-	var count int
-	if err = countReqRows.Scan(&count); err != nil {
-		return nil, errorj.GetTableError.Wrap(err, "failed to scan existence result").
-			WithProperty(errorj.DBInfo, &ErrorPayload{
-				Schema:    s.config.Schema,
-				Table:     table.Name,
-				Statement: tableExistenceSFQuery,
-				Values:    []interface{}{reformatToParam(s.config.Schema), reformatToParam(reformatValue(tableName))},
-			})
-	}
-
-	//table doesn't exist
-	if count == 0 {
-		return table, nil
-	}
 
 	query := fmt.Sprintf(descSchemaSFQuery, reformatToParam(s.config.Schema), reformatToParam(reformatValue(tableName)))
 	rows, err := s.dataSource.QueryContext(s.ctx, query)
 	if err != nil {
+		if strings.Contains(err.Error(), "does not exist") {
+			return table, nil
+		}
 		return nil, errorj.GetTableError.Wrap(err, "failed to get table columns").
 			WithProperty(errorj.DBInfo, &ErrorPayload{
 				Schema:    s.config.Schema,
@@ -320,7 +295,7 @@ func (s *Snowflake) GetTableSchema(tableName string) (*Table, error) {
 	return table, nil
 }
 
-//Copy transfer data from s3 to Snowflake by passing COPY request to Snowflake
+// Copy transfer data from s3 to Snowflake by passing COPY request to Snowflake
 func (s *Snowflake) Copy(fileName, tableName string, header []string) error {
 	var reformattedHeader []string
 	for _, v := range header {
@@ -354,7 +329,7 @@ func (s *Snowflake) Copy(fileName, tableName string, header []string) error {
 	return nil
 }
 
-//Insert inserts data with InsertContext as a single object or a batch into Snowflake
+// Insert inserts data with InsertContext as a single object or a batch into Snowflake
 func (s *Snowflake) Insert(insertContext *InsertContext) error {
 	if insertContext.eventContext != nil {
 		return s.insertSingle(insertContext.eventContext)
@@ -402,7 +377,7 @@ func (s *Snowflake) insertSingle(eventContext *EventContext) error {
 	return nil
 }
 
-//insertBatch deletes with deleteConditions and runs bulkMergeInTransaction
+// insertBatch deletes with deleteConditions and runs bulkMergeInTransaction
 func (s *Snowflake) insertBatch(table *Table, objects []map[string]interface{}, deleteConditions *base.DeleteConditions) (err error) {
 	wrappedTx, err := s.OpenTx()
 	if err != nil {
@@ -442,7 +417,7 @@ func (s *Snowflake) insertBatch(table *Table, objects []map[string]interface{}, 
 	return nil
 }
 
-//DropTable drops table in transaction
+// DropTable drops table in transaction
 func (s *Snowflake) DropTable(table *Table) (err error) {
 	wrappedTx, err := s.OpenTx()
 	if err != nil {
@@ -488,7 +463,7 @@ func (s *Snowflake) ReplaceTable(originalTable, replacementTable string, dropOld
 	return
 }
 
-//Truncate deletes all records in tableName table
+// Truncate deletes all records in tableName table
 func (s *Snowflake) Truncate(tableName string) error {
 	sqlParams := SqlParams{
 		dataSource:  s.dataSource,
@@ -508,7 +483,7 @@ func (s *Snowflake) Truncate(tableName string) error {
 	return nil
 }
 
-//Update one record in Snowflake
+// Update one record in Snowflake
 func (s *Snowflake) Update(table *Table, object map[string]interface{}, whereKey string, whereValue interface{}) error {
 	columnNames := make([]string, len(object), len(object))
 	values := make([]interface{}, len(object)+1, len(object)+1)
@@ -540,7 +515,7 @@ func (s *Snowflake) Update(table *Table, object map[string]interface{}, whereKey
 	return nil
 }
 
-//createTableInTransaction creates database table with name,columns provided in Table representation
+// createTableInTransaction creates database table with name,columns provided in Table representation
 func (s *Snowflake) createTableInTransaction(wrappedTx *Transaction, table *Table) error {
 	var columnsDDL []string
 	for _, columnName := range table.SortedColumnNames() {
@@ -562,7 +537,7 @@ func (s *Snowflake) createTableInTransaction(wrappedTx *Transaction, table *Tabl
 	return nil
 }
 
-//bulkInsertInTransaction inserts events in batches (insert into values (),(),())
+// bulkInsertInTransaction inserts events in batches (insert into values (),(),())
 func (s *Snowflake) bulkInsertInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
 	var placeholdersBuilder strings.Builder
 	var unformattedColumnNames []string
@@ -615,7 +590,7 @@ func (s *Snowflake) bulkInsertInTransaction(wrappedTx *Transaction, table *Table
 	return nil
 }
 
-//bulkMergeInTransaction uses temporary table and insert from select statement
+// bulkMergeInTransaction uses temporary table and insert from select statement
 func (s *Snowflake) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
 	tmpTable := &Table{
 		Name:           fmt.Sprintf("jitsu_tmp_%s", uuid.NewLettersNumbers()[:5]),
@@ -700,7 +675,7 @@ func (o dbObjects) String() string {
 	return b.String()
 }
 
-//dropTableInTransaction drops a table in transaction
+// dropTableInTransaction drops a table in transaction
 func (s *Snowflake) dropTableInTransaction(wrappedTx *Transaction, table *Table, ifExists bool) error {
 	ifExs := ""
 	if ifExists {
@@ -741,7 +716,7 @@ func (s *Snowflake) renameTableInTransaction(wrappedTx *Transaction, ifExists bo
 	return nil
 }
 
-//executeInsertInTransaction execute insert with insertTemplate
+// executeInsertInTransaction execute insert with insertTemplate
 func (s *Snowflake) executeInsertInTransaction(wrappedTx *Transaction, table *Table, headerWithoutQuotes []string, placeholders string, valueArgs []interface{}) error {
 	var quotedHeader []string
 	for _, columnName := range headerWithoutQuotes {
@@ -797,13 +772,13 @@ func (s *Snowflake) toDeleteQuery(conditions *base.DeleteConditions) (string, []
 	return strings.Join(queryConditions, " "+conditions.JoinCondition+" "), values
 }
 
-//Close underlying sql.DB
+// Close underlying sql.DB
 func (s *Snowflake) Close() (multiErr error) {
 	return s.dataSource.Close()
 }
 
-//getCastClause returns ::SQL_TYPE clause or empty string
-//$1::type, $2::type, $3, etc
+// getCastClause returns ::SQL_TYPE clause or empty string
+// $1::type, $2::type, $3, etc
 func (s *Snowflake) getCastClause(name string, column typing.SQLColumn) string {
 	castType, ok := s.sqlTypes[name]
 	if !ok && column.Override {
@@ -817,7 +792,7 @@ func (s *Snowflake) getCastClause(name string, column typing.SQLColumn) string {
 	return "::" + column.Type
 }
 
-//columnDDL returns column DDL (column name, mapped sql type)
+// columnDDL returns column DDL (column name, mapped sql type)
 func (s *Snowflake) columnDDL(name string, column typing.SQLColumn) string {
 	sqlColumnTypeDDL := column.DDLType()
 	overriddenSQLType, ok := s.sqlTypes[name]
@@ -828,9 +803,9 @@ func (s *Snowflake) columnDDL(name string, column typing.SQLColumn) string {
 	return fmt.Sprintf(`%s %s`, reformatValue(name), sqlColumnTypeDDL)
 }
 
-//Snowflake has table with schema, table names and there
-//quoted identifiers = without quotes
-//unquoted identifiers = uppercased
+// Snowflake has table with schema, table names and there
+// quoted identifiers = without quotes
+// unquoted identifiers = uppercased
 func reformatToParam(value string) string {
 	if strings.Contains(value, `"`) {
 		return strings.ReplaceAll(value, `"`, ``)
@@ -839,10 +814,10 @@ func reformatToParam(value string) string {
 	}
 }
 
-//Snowflake accepts names (identifiers) started with '_' or letter
-//also names can contain only '_', letters, numbers, '$'
-//otherwise double quote them
-//https://docs.snowflake.com/en/sql-reference/identifiers-syntax.html#unquoted-identifiers
+// Snowflake accepts names (identifiers) started with '_' or letter
+// also names can contain only '_', letters, numbers, '$'
+// otherwise double quote them
+// https://docs.snowflake.com/en/sql-reference/identifiers-syntax.html#unquoted-identifiers
 func reformatValue(value string) string {
 	if len(value) > 0 {
 		//must begin with a letter or underscore, or enclose in double quotes
@@ -863,8 +838,8 @@ func reformatValue(value string) string {
 	return value
 }
 
-//Snowflake doesn't accept names (identifiers) like: default
-//it should be reformatted to "DEFAULT"
+// Snowflake doesn't accept names (identifiers) like: default
+// it should be reformatted to "DEFAULT"
 func reformatDefault(value string) string {
 	if value == "default" {
 		return `"DEFAULT"`
@@ -873,14 +848,14 @@ func reformatDefault(value string) string {
 	return value
 }
 
-//_: 95
-//A - Z: 65-90
-//a - z: 97-122
+// _: 95
+// A - Z: 65-90
+// a - z: 97-122
 func isNotLetterOrUnderscore(symbol int32) bool {
 	return symbol < 65 || (symbol != 95 && symbol > 90 && symbol < 97) || symbol > 122
 }
 
-//$: 36
+// $: 36
 // 0 - 9: 48-57
 func isNotNumberOrDollar(symbol int32) bool {
 	return symbol != 36 && (symbol < 48 || symbol > 57)
