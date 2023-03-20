@@ -11,6 +11,7 @@ import (
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/timestamp"
+	"github.com/jitsucom/jitsu/server/utils"
 	"golang.org/x/oauth2/google"
 	"io"
 	"net/http"
@@ -23,16 +24,12 @@ import (
 const (
 	dayLayout       = "2006-01-02"
 	dateLayoutFull  = "2006-01-02 15:04:05"
-	serviceEndpoint = "https://googleads.googleapis.com"
+	serviceEndpoint = "https://googleads.googleapis.com/v13"
 )
 
 //go:embed reports.csv
 var availableReportsCsv string
 var availableReports = make(map[string]bool)
-
-//go:embed fields.csv
-var fieldsCsv string
-var fieldTypes = make(map[string]string)
 
 var intervalFields = [...]GoogleAdsFieldGranularity{
 	{"segments.hour", schema.DAY}, //intended
@@ -49,11 +46,7 @@ func init() {
 	base.RegisterDriver(base.GoogleAdsType, NewGoogleAds)
 	base.RegisterTestConnectionFunc(base.GoogleAdsType, TestGoogleAds)
 	for _, str := range strings.Split(availableReportsCsv, "\n") {
-		availableReports[strings.Split(str, ",")[0]] = true
-	}
-	for _, str := range strings.Split(fieldsCsv, "\n") {
-		split := strings.Split(str, ",")
-		fieldTypes[split[0]] = split[2]
+		availableReports[str] = true
 	}
 }
 
@@ -71,7 +64,13 @@ type GoogleAds struct {
 	granularity schema.Granularity
 }
 
-//NewGoogleAds returns configured Google Ads driver instance
+type PagedResponse struct {
+	NextPageToken     string
+	TotalResultsCount int
+	Results           []map[string]interface{}
+}
+
+// NewGoogleAds returns configured Google Ads driver instance
 func NewGoogleAds(ctx context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
 	httpClient := &http.Client{
 		Timeout: googleAdsHTTPConfiguration.GlobalClientTimeout,
@@ -163,14 +162,26 @@ func (g *GoogleAds) GetObjectsFor(interval *base.TimeInterval, objectsLoader bas
 	if !interval.IsAll() {
 		gaql += fmt.Sprintf(" WHERE segments.date BETWEEN '%s' AND '%s'", interval.LowerEndpoint().Format(dayLayout), interval.UpperEndpoint().Format(dayLayout))
 	}
-	array, err := query(g.config, g.httpClient, gaql)
-	if err != nil {
-		return err
+	loaded := 0
+	pageToken := ""
+	for {
+		pagedResponse, err := query(g.config, g.httpClient, gaql, pageToken)
+		if err != nil {
+			return err
+		}
+		err = objectsLoader(pagedResponse.Results, loaded, pagedResponse.TotalResultsCount, -1)
+		if err != nil {
+			return err
+		}
+		loaded += len(pagedResponse.Results)
+		if pagedResponse.NextPageToken == "" {
+			return nil
+		}
+		pageToken = pagedResponse.NextPageToken
 	}
-	return objectsLoader(array, 0, len(array), 0)
 }
 
-//TestGoogleAds tests connection to Google Ads without creating Driver instance
+// TestGoogleAds tests connection to Google Ads without creating Driver instance
 func TestGoogleAds(sourceConfig *base.SourceConfig) error {
 	config := &GoogleAdsConfig{}
 	if err := jsonutils.UnmarshalConfig(sourceConfig.Config, config); err != nil {
@@ -181,14 +192,14 @@ func TestGoogleAds(sourceConfig *base.SourceConfig) error {
 		return err
 	}
 	gaql := "SELECT customer.id, customer.descriptive_name FROM customer WHERE customer.id = " + config.CustomerId
-	obj, err := query(config, &http.Client{}, gaql)
+	obj, err := query(config, &http.Client{}, gaql, "")
 	if err != nil {
 		return fmt.Errorf("failed to get customer report: %v", err)
 	}
-	if len(obj) == 0 {
+	if len(obj.Results) == 0 {
 		return fmt.Errorf("no customer report data for customer_id: %s", config.CustomerId)
 	}
-	row := obj[0]
+	row := obj.Results[0]
 	customerId, ok := row["customer.id"]
 	if !ok {
 		return fmt.Errorf("unexpected customer report data: %v", row)
@@ -220,7 +231,7 @@ func (g *GoogleAds) GetCollectionMetaKey() string {
 	return g.collection.Name + "_" + g.GetCollectionTable()
 }
 
-func query(config *GoogleAdsConfig, httpClient *http.Client, query string) ([]map[string]interface{}, error) {
+func query(config *GoogleAdsConfig, httpClient *http.Client, query string, pageToken string) (*PagedResponse, error) {
 	developerToken := config.DeveloperToken
 	if developerToken == "" {
 		return nil, fmt.Errorf("Google Ads developer token was not provided")
@@ -230,13 +241,16 @@ func query(config *GoogleAdsConfig, httpClient *http.Client, query string) ([]ma
 	if err != nil {
 		return nil, err
 	}
-
-	reqBody, err := json.Marshal(map[string]string{"query": query})
+	bodyObj := map[string]interface{}{"query": query, "returnTotalResultsCount": true, "pageSize": 10000}
+	if pageToken != "" {
+		bodyObj["pageToken"] = pageToken
+	}
+	reqBody, err := json.Marshal(bodyObj)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal query request body: %s", err)
 	}
 
-	urlStr := serviceEndpoint + "/v11/customers/" + config.CustomerId + "/googleAds:searchStream"
+	urlStr := serviceEndpoint + "/customers/" + config.CustomerId + "/googleAds:search"
 	headers := map[string]string{
 		"Content-Type":    "application/json",
 		"Authorization":   "Bearer " + accessToken,
@@ -247,17 +261,22 @@ func query(config *GoogleAdsConfig, httpClient *http.Client, query string) ([]ma
 
 	parseResponse := func(status int, body io.Reader, header http.Header) (interface{}, error) {
 		jsonDecoder := json.NewDecoder(body)
-		var bodyObject = make([]map[string]interface{}, 0, 1)
+		jsonDecoder.UseNumber()
+		var bodyObject = make(map[string]interface{})
 		if err := jsonDecoder.Decode(&bodyObject); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal response: %s", err)
 		}
+		totalResultsCount, _ := strconv.Atoi(utils.MapNVLKeys(bodyObject, "-1", "totalResultsCount").(string))
+		nextPageToken := utils.MapNVLKeys(bodyObject, "", "nextPageToken").(string)
+
 		if len(bodyObject) == 0 {
 			//no data
-			return []map[string]interface{}{}, nil
+			return &PagedResponse{nextPageToken, totalResultsCount, []map[string]interface{}{}}, nil
 		}
-		results, ok := bodyObject[0]["results"]
+		results, ok := bodyObject["results"]
 		if !ok {
-			return nil, fmt.Errorf("no valid results found")
+			//no data
+			return &PagedResponse{nextPageToken, totalResultsCount, []map[string]interface{}{}}, nil
 		}
 		resultArray, ok := results.([]interface{})
 		if !ok {
@@ -275,7 +294,7 @@ func query(config *GoogleAdsConfig, httpClient *http.Client, query string) ([]ma
 			}
 			transformedArray[i] = transformed
 		}
-		return transformedArray, nil
+		return &PagedResponse{nextPageToken, totalResultsCount, transformedArray}, nil
 	}
 
 	req := httputils.Request{URL: urlStr, Method: http.MethodPost,
@@ -286,7 +305,7 @@ func query(config *GoogleAdsConfig, httpClient *http.Client, query string) ([]ma
 	if err != nil {
 		return nil, err
 	}
-	return obj.([]map[string]interface{}), nil
+	return obj.(*PagedResponse), nil
 }
 
 func acquireAccessToken(config *GoogleAdsConfig, httpClient *http.Client) (string, error) {
@@ -308,8 +327,8 @@ func acquireAccessToken(config *GoogleAdsConfig, httpClient *http.Client) (strin
 	return token.AccessToken, nil
 }
 
-//transformResult fills a flat map with field names converted from camelCase to snake_case and integer and date
-//fields that Google Ads API returns as strings converted to appropriate types.
+// transformResult fills a flat map with field names converted from camelCase to snake_case and integer and date
+// fields that Google Ads API returns as strings converted to appropriate types.
 func transformResult(input map[string]interface{}, prefix string, res map[string]interface{}) error {
 	for name, field := range input {
 		fullSnakeName := strcase.ToSnakeWithIgnore(strings.TrimLeft(prefix+"."+name, "."), ".")
@@ -319,11 +338,22 @@ func transformResult(input map[string]interface{}, prefix string, res map[string
 			field = nil //remove embed objects. Write its fields to a flat map `res`:
 			err = transformResult(f, fullSnakeName, res)
 		case string:
-			switch fieldTypes[fullSnakeName] {
+			must := fieldTypes[fullSnakeName]
+			switch must {
 			case "INT64", "INT32":
 				field, err = strconv.Atoi(f)
+			case "FLOAT", "DOUBLE":
+				field, err = strconv.ParseFloat(f, 64)
 			case "DATE":
 				field, err = parseDate(f)
+			}
+		case json.Number:
+			must := fieldTypes[fullSnakeName]
+			switch must {
+			case "INT64", "INT32":
+				field, err = f.Int64()
+			case "FLOAT", "DOUBLE":
+				field, err = f.Float64()
 			}
 		}
 		if err != nil {
