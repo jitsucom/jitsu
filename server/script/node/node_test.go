@@ -228,16 +228,6 @@ func TestAsync(t *testing.T) {
 	assert.Equal(t, 10, resp)
 }
 
-func TestFetchUnavailableInExpressions(t *testing.T) {
-	tt := &testingT{T: t, exec: script.Expression("typeof fetch")}
-	defer tt.load().close()
-
-	var resp string
-	err := tt.Execute("", nil, &resp, nil)
-	assert.NoError(t, err)
-	assert.Equal(t, "undefined", resp)
-}
-
 func TestDescribeModule(t *testing.T) {
 	tt := &testingT{T: t, exec: script.File("testdata/js/describe_test.js")}
 	defer tt.load().close()
@@ -254,7 +244,7 @@ func TestDescribeModule(t *testing.T) {
 	}, symbols)
 }
 
-func TestFetchIsAvailableOnlyInValidatorModuleFunction(t *testing.T) {
+func TestFetchIsAvailable(t *testing.T) {
 	tt := &testingT{T: t, exec: script.File("testdata/js/fetch_test.js")}
 	defer tt.load().close()
 
@@ -265,7 +255,7 @@ func TestFetchIsAvailableOnlyInValidatorModuleFunction(t *testing.T) {
 
 	err = tt.Execute("destination", nil, &resp, nil)
 	assert.NoError(t, err)
-	assert.Equal(t, "undefined", resp)
+	assert.Equal(t, "function", resp)
 }
 
 func TestHeaders(t *testing.T) {
