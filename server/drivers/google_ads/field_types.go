@@ -7,10 +7,11 @@ import (
 	"github.com/jitsucom/jitsu/server/httputils"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 )
 
-// Use ExampleLoadFieldTypes to refresh fields.csv with actual types from Google Ads API
+// Use ExampleLoadFieldTypes from field_types_test.go to refresh fields.csv with the latest types from Google Ads API
 //
 //go:embed fields.csv
 var fieldsCsv string
@@ -60,9 +61,16 @@ func LoadFieldTypes() error {
 			totalRes[k] = v
 		}
 	}
-	fmt.Printf("Loaded %d field types:\n", len(totalRes))
+	f, err := os.OpenFile("fields.csv", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer func() { f.Close() }()
 	for k, v := range totalRes {
-		fmt.Printf("%s,%s\n", k, v.FieldDetails.DataType)
+		_, err = f.WriteString(fmt.Sprintf("%s,%s\n", k, v.FieldDetails.DataType))
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
