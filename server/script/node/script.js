@@ -121,6 +121,7 @@ const load = async (id, executable, variables, includes) => {
       queueMicrotask: queueMicrotask,
       self: {},
       process: processOverloads,
+      fetch
     },
     require: {
       context: "sandbox",
@@ -320,16 +321,7 @@ readline
               throw new Error(`function ${func} does not exist`);
             }
           }
-
-          if (func === "validator") {
-            entry.sandbox.fetch = fetch;
-          }
-
-          try {
-            result = await (func ? exec[func](...args) : exec(...args));
-          } finally {
-            entry.sandbox.fetch = undefined;
-          }
+          result = await (func ? exec[func](...args) : exec(...args));
 
           break;
         case "unload":
