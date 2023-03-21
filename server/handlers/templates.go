@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"text/template"
 	"time"
 
@@ -32,12 +33,12 @@ type EvaluateTemplateRequest struct {
 
 // EvaluateTemplateResponse is a response dto for testing text/template expressions
 type EvaluateTemplateResponse struct {
-	Result     string       `json:"result"`
-	Logs       EvaluateLogs `json:"logs,omitempty"`
-	Error      string       `json:"error"`
-	UserResult string       `json:"user_result"`
-	UserError  string       `json:"user_error"`
-	Format     string       `json:"format"`
+	Result     string        `json:"result"`
+	Logs       []EvaluateLog `json:"logs,omitempty"`
+	Error      string        `json:"error"`
+	UserResult string        `json:"user_result"`
+	UserError  string        `json:"user_error"`
+	Format     string        `json:"format"`
 }
 
 // Validate returns err if invalid
@@ -123,8 +124,9 @@ func (h *EventTemplateHandler) evaluate(req *EvaluateTemplateRequest) (response 
 		tmpl := storage.Processor().GetTransformer()
 		if tmpl != nil {
 			response.Format = tmpl.Format()
-			response.Logs = make(EvaluateLogs, 0)
-			resultObject, err := tmpl.ProcessEvent(req.Object, &response.Logs)
+			logLstnr := NewLogListener(req.Uid)
+			resultObject, err := tmpl.ProcessEvent(req.Object, logLstnr)
+			response.Logs = logLstnr.logs
 			if err != nil {
 				response.UserError = fmt.Errorf("error executing template: %v", err).Error()
 				return
@@ -170,8 +172,9 @@ func (h *EventTemplateHandler) evaluate(req *EvaluateTemplateRequest) (response 
 			return
 		}
 		response.Format = tmpl.Format()
-		response.Logs = make(EvaluateLogs, 0)
-		resultObject, err := tmpl.ProcessEvent(req.Object, &response.Logs)
+		logLstnr := NewLogListener(req.Uid)
+		resultObject, err := tmpl.ProcessEvent(req.Object, logLstnr)
+		response.Logs = logLstnr.logs
 		if err != nil {
 			response.Error = fmt.Errorf("error executing template: %v", err).Error()
 			return
@@ -208,22 +211,33 @@ type EvaluateLog struct {
 	Message string `json:"message"`
 }
 
-type EvaluateLogs []EvaluateLog
+type logListener struct {
+	destinationId string
+	logs          []EvaluateLog
+}
 
-func (l *EvaluateLogs) Data(data []byte) {
-	*l = append(*l, EvaluateLog{
+func NewLogListener(destinationId string) *logListener {
+	return &logListener{
+		destinationId: destinationId,
+		logs:          make([]EvaluateLog, 0),
+	}
+}
+
+func (l *logListener) Data(data []byte) {
+	l.logs = append(l.logs, EvaluateLog{
 		Level:   "debug",
 		Message: string(data),
 	})
 }
 
-func (l *EvaluateLogs) Log(level, message string) {
-	*l = append(*l, EvaluateLog{
+func (l *logListener) Log(level, message string) {
+	logging.Infof("[%s][js:%s] %s", l.destinationId, strings.ToUpper(level), message)
+	l.logs = append(l.logs, EvaluateLog{
 		Level:   level,
 		Message: message,
 	})
 }
 
-func (l *EvaluateLogs) Timeout() time.Duration {
+func (l *logListener) Timeout() time.Duration {
 	return 0
 }
