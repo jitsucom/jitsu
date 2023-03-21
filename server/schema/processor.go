@@ -8,6 +8,7 @@ import (
 	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/spf13/viper"
 	"strings"
+	"time"
 
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/config"
@@ -272,7 +273,8 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 	}
 	var transformed interface{}
 	if p.transformer != nil {
-		transformed, err = p.transformer.ProcessEvent(mappedObject, nil)
+		logLstnr := &JSLogListener{destinationId: p.identifier}
+		transformed, err = p.transformer.ProcessEvent(mappedObject, logLstnr)
 		if err != nil {
 			metrics.TransformErrors(p.identifier)
 			return nil, fmt.Errorf("failed to apply javascript transform: %v", err)
@@ -580,4 +582,25 @@ func ClearTypeMetaFields(object map[string]interface{}) {
 			}
 		}
 	}
+}
+
+type JSLogListener struct {
+	destinationId string
+}
+
+func (j *JSLogListener) Data(data []byte) {
+}
+
+func (j *JSLogListener) Log(level, message string) {
+	enabledLevel := strings.ToLower(viper.GetString("transform.log.level"))
+	switch enabledLevel {
+	case "info":
+		logging.Infof("[%s][js:%s] %s", j.destinationId, strings.ToUpper(level), message)
+	case "debug":
+		logging.Debugf("[%s][js:%s] %s", j.destinationId, strings.ToUpper(level), message)
+	}
+}
+
+func (j *JSLogListener) Timeout() time.Duration {
+	return 0
 }
