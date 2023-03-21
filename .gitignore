@@ -28,3 +28,4 @@ configurator/backend/openapi/*
 
 configurator/build/*
 server/venv
+server/airbyte_config

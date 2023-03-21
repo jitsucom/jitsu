@@ -200,6 +200,7 @@ func (p *Processor) ProcessPulledEvents(tableName string, objects []map[string]i
 		}
 		var transformed map[string]interface{}
 		if p.transformer != nil && (p.transformSourcesAllowed || viper.GetBool("experimental.source_transform_enabled")) {
+			processedObject[templates.TableNameParameter] = tableName
 			rawTransformed, err := p.transformer.ProcessEvent(processedObject, nil)
 			if err != nil {
 				metrics.TransformErrors(p.identifier)
@@ -210,6 +211,7 @@ func (p *Processor) ProcessPulledEvents(tableName string, objects []map[string]i
 			if !ok {
 				return nil, fmt.Errorf("failed to apply javascript transform: result type %T is not an object.", rawTransformed)
 			}
+			delete(transformed, templates.TableNameParameter)
 		} else {
 			transformed = processedObject
 		}
