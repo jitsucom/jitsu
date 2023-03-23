@@ -110,7 +110,7 @@ func (a *Auth0) GetSSOSession(ctx *gin.Context, code string) (*handlers.SSOSessi
 		}
 	}
 	return &handlers.SSOSession{
-		UserID:      utils.MapNVLKeys(profile, uuid.New(), "sub", "email").(string),
+		UserID:      utils.MapNVLKeys(profile, "sub", "email", uuid.New()).(string),
 		Email:       email,
 		AccessToken: token.AccessToken,
 	}, nil
