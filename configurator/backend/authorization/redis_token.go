@@ -72,10 +72,3 @@ func newRedisToken(now time.Time, userID string, tokenType redisTokenType, ttl t
 	tokenType.set(token, uuid.NewV4().String())
 	return token
 }
-
-type ssoRedisToken struct {
-	Provider     string `json:"provider"`
-	UserID       string `json:"user_id"`
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token,omitempty"`
-}

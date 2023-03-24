@@ -23,6 +23,15 @@ type SSOSession struct {
 	UserID      string
 	Email       string
 	AccessToken string
+	Profile     map[string]interface{}
+}
+
+type SSOProfile struct {
+	Provider     string                 `json:"provider"`
+	UserID       string                 `json:"user_id"`
+	AccessToken  string                 `json:"access_token"`
+	RefreshToken string                 `json:"refresh_token,omitempty"`
+	Profile      map[string]interface{} `json:"profile,omitempty"`
 }
 
 type Authorizator interface {
@@ -38,6 +47,7 @@ type LocalAuthorizator interface {
 	SignUp(ctx context.Context, email, password string) (*openapi.TokensResponse, error)
 	SignIn(ctx context.Context, email, password string) (*openapi.TokensResponse, error)
 	SignInSSO(ctx context.Context, provider string, session *SSOSession, ttl time.Duration) (*openapi.TokensResponse, error)
+	GetSSOProfile(ctx context.Context, userID string) (*SSOProfile, error)
 	SignOut(ctx context.Context, accessToken string) error
 	RefreshToken(ctx context.Context, refreshToken string) (*openapi.TokensResponse, error)
 	SendResetPasswordLink(ctx context.Context, email, callback string) error
