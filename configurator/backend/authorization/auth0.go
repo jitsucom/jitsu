@@ -37,7 +37,14 @@ func NewAuth0(ssoConfig *SSOConfig) (*Auth0, error) {
 	)
 
 	if err != nil {
-		return nil, err
+		provider, err = oidc.NewProvider(
+			context.Background(),
+			"https://"+ssoConfig.Domain,
+		)
+
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	conf := oauth2.Config{
