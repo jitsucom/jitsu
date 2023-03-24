@@ -102,7 +102,7 @@ func (a *Auth0) GetSSOSession(ctx *gin.Context, code string) (*handlers.SSOSessi
 			Cause:       err,
 		}
 	}
-	
+
 	logging.Infof("Auth0 profile: %+v", profile)
 	email := utils.MapNVLKeys(profile, "", "email").(string)
 	if email == "" {
@@ -120,6 +120,7 @@ func (a *Auth0) GetSSOSession(ctx *gin.Context, code string) (*handlers.SSOSessi
 		UserID:      utils.MapNVLKeys(profile, uuid.New(), "sub", "email").(string),
 		Email:       email,
 		AccessToken: token.AccessToken,
+		Profile:     profile,
 	}, nil
 }
 

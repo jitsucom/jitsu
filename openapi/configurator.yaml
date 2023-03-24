@@ -276,6 +276,9 @@ components:
         _forcePasswordChange: { type: boolean }
         _onboarded: { type: boolean }
         _platformAdmin: { type: boolean }
+        _sso_subject: { type: string }
+        _sso_profile: { type: object }
+        _sso_profile_error: { type: string }
         _suggestedInfo:
           $ref: '#/components/schemas/SuggestedInfo'
         _project:

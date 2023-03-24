@@ -20,6 +20,7 @@ import (
 
 var (
 	errUnknownToken             = errors.New("unknown token")
+	errUnknownUserId            = errors.New("unknown userId")
 	errExpiredToken             = errors.New("expired token")
 	errMailServiceNotConfigured = errors.New("SMTP service is not configured")
 )
@@ -394,10 +395,11 @@ func (r *Redis) SignInSSO(ctx context.Context, provider string, sso *handlers.SS
 		}
 	}
 
-	if ssoToken, err := json.Marshal(ssoRedisToken{
+	if ssoToken, err := json.Marshal(handlers.SSOProfile{
 		Provider:    provider,
 		UserID:      sso.UserID,
 		AccessToken: sso.AccessToken,
+		Profile:     sso.Profile,
 	}); err != nil {
 		return nil, errors.Wrap(err, "marshal sso token")
 	} else if _, err := conn.Do("HSET", ssoTokensKey, userID, ssoToken); err != nil {
@@ -405,6 +407,34 @@ func (r *Redis) SignInSSO(ctx context.Context, provider string, sso *handlers.SS
 	}
 
 	return tokenPair, nil
+}
+
+func (r *Redis) GetSSOProfile(ctx context.Context, userID string) (*handlers.SSOProfile, error) {
+	conn, err := r.redisPool.GetContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	defer closeQuietly(conn)
+
+	ssoToken, err := redis.Bytes(conn.Do("HGET", ssoTokensKey, userID))
+	switch {
+	case errors.Is(err, redis.ErrNil):
+		return nil, errUnknownUserId
+	case err != nil:
+		return nil, errors.Wrap(err, "get sso token")
+	}
+
+	if len(ssoToken) == 0 {
+		return nil, errUnknownUserId
+	}
+
+	var sso handlers.SSOProfile
+	if err := json.Unmarshal(ssoToken, &sso); err != nil {
+		return nil, errors.Wrap(err, "unmarshal sso token")
+	}
+
+	return &sso, nil
 }
 
 func (r *Redis) SignUp(ctx context.Context, email, password string) (*openapi.TokensResponse, error) {

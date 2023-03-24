@@ -535,6 +535,21 @@ func (oa *OpenAPI) GetUserInfo(ctx *gin.Context) {
 	} else if err != nil {
 		mw.BadRequest(ctx, "load user info", err)
 	} else {
+		//enrich result with SSO profile
+		if local, err2 := oa.Authorizator.Local(); oa.SSOProvider != nil && err2 == nil {
+			ssoProfile, err2 := local.GetSSOProfile(ctx, user.Id)
+			if err2 != nil {
+				eString := err2.Error()
+				result.SsoProfileError = &eString
+			} else {
+				if len(ssoProfile.Profile) > 0 {
+					p := ssoProfile.Profile
+					result.SsoProfile = &p
+				}
+				sub := ssoProfile.UserID
+				result.SsoSubject = &sub
+			}
+		}
 		ctx.JSON(http.StatusOK, result)
 	}
 }
