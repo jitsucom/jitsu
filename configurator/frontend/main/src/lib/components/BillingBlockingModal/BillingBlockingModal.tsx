@@ -24,6 +24,7 @@ function QuotaExceeded(props: { blockingReason: React.ReactElement; planStatus: 
       <p>
         Your account is paused due to usage about the quota: <>{props.blockingReason} </>
       </p>
+      <pre>{JSON.stringify(props.planStatus, null, 2)}</pre>
       <p>
         You can't edit the configuration. As a courtesy we kept you data flowing through Jitsu. However, we reserve the
         right to pause it at any moment
