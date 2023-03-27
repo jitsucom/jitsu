@@ -172,22 +172,8 @@ export type FirebaseSubscriptionEntry = {
     cancel_at_period_end: boolean
     cancel_at?: number
     cancelled_at: number
+    status: string
   }
-}
-
-/**
- * Returns the start of current quota period
- * @param subscriptionStart - can be undefined
- */
-function getQuotaPeriodStart(subscriptionStart?: Moment): Moment {
-  let quotaPeriodStart
-  if (!subscriptionStart) {
-    quotaPeriodStart = moment().startOf("month") //first
-  } else {
-    quotaPeriodStart = moment(subscriptionStart)
-    //TODO: if subscription way in the past (annual billing - rewind forward to current month)
-  }
-  return quotaPeriodStart
 }
 
 async function fetchCurrentSubscription(): Promise<FirebaseSubscriptionEntry> {
@@ -262,16 +248,11 @@ export async function getCurrentSubscription(
     subscriptionIsManagedByStripe = false
   }
 
-  const subscriptionExpired = subscriptionEnd && subscriptionEnd.isBefore(moment())
-  let quotaPeriodStart = getQuotaPeriodStart(subscriptionExpired ? subscriptionStart : undefined)
-  console.log(`Raw subscription object`, subscription)
+  const subscriptionExpired =
+    subscription.stripeSubscriptionObject?.status === "canceled" && subscriptionEnd.isBefore(moment.utc())
 
-  console.log("Current subscription", {
-    subscriptionStart: subscriptionStart?.toISOString(),
-    subscriptionEnd: subscriptionEnd?.toISOString(),
-    subscriptionExpired,
-    quotaPeriodStart: quotaPeriodStart?.toISOString(),
-  })
+  const quotaPeriodStart = subscriptionExpired ? moment.utc().startOf("month") : subscriptionStart
+
   let stat: DatePoint[]
   try {
     stat = await statService.get(
