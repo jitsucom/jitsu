@@ -40,6 +40,9 @@ const (
 	dropSFTableTemplate                 = `DROP TABLE %s%s.%s`
 	truncateSFTableTemplate             = `TRUNCATE TABLE IF EXISTS %s.%s`
 	updateSFTemplate                    = `UPDATE %s.%s SET %s WHERE %s = ?`
+
+	sfMaxQueryLength = 1024 * 1024
+	sfMaxPayloadSize = 16 * 1024 * 1024
 )
 
 var (
@@ -559,21 +562,29 @@ func (s *Snowflake) bulkInsertInTransaction(wrappedTx *Transaction, table *Table
 	valueArgs := make([]interface{}, 0, maxValues)
 	operation := 0
 	operations := int(math.Max(1, float64(valuesAmount)/float64(PostgresValuesLimit)))
+	queryBaseLength := len(fmt.Sprintf(insertSFTemplate, s.config.Schema, table.Name, strings.Join(unformattedColumnNames, "','"), ""))
+	estimatedPayloadSize := 0
 	for _, row := range objects {
 		// if number of values exceeds limit, we have to execute insert query on processed rows
-		if len(valueArgs)+len(unformattedColumnNames) > PostgresValuesLimit {
+		if len(valueArgs)+len(unformattedColumnNames) > PostgresValuesLimit ||
+			placeholdersBuilder.Len()+queryBaseLength >= sfMaxQueryLength ||
+			estimatedPayloadSize >= sfMaxPayloadSize {
 			operation++
 			if err := s.executeInsertInTransaction(wrappedTx, table, unformattedColumnNames, removeLastComma(placeholdersBuilder.String()), valueArgs); err != nil {
 				return errorj.Decorate(err, "middle insert %d of %d in batch", operation, operations)
 			}
 
 			placeholdersBuilder.Reset()
+			estimatedPayloadSize = 0
 			valueArgs = make([]interface{}, 0, maxValues)
 		}
 		_, _ = placeholdersBuilder.WriteString("(")
 
 		for i, column := range unformattedColumnNames {
 			value, _ := row[column]
+			//trying to estimate payload size to avoid exceeding max payload size 16Mb: https://docs.snowflake.com/en/developer-guide/node-js/nodejs-driver-execute
+			//adding 4 bytes to each parameter size just in case (e.g.: to account for the length of the parameters or other extra unfi)
+			estimatedPayloadSize += 4 + len(fmt.Sprint(value))
 			valueArgs = append(valueArgs, value)
 			castClause := s.getCastClause(column, table.Columns[column])
 
@@ -585,7 +596,6 @@ func (s *Snowflake) bulkInsertInTransaction(wrappedTx *Transaction, table *Table
 		}
 		_, _ = placeholdersBuilder.WriteString("),")
 	}
-
 	if len(valueArgs) > 0 {
 		operation++
 		err := s.executeInsertInTransaction(wrappedTx, table, unformattedColumnNames, removeLastComma(placeholdersBuilder.String()), valueArgs)
@@ -730,7 +740,7 @@ func (s *Snowflake) executeInsertInTransaction(wrappedTx *Transaction, table *Ta
 		quotedHeader = append(quotedHeader, reformatValue(columnName))
 	}
 
-	statement := fmt.Sprintf(insertSFTemplate, s.config.Schema, table.Name, strings.Join(quotedHeader, ", "), placeholders)
+	statement := fmt.Sprintf(insertSFTemplate, s.config.Schema, table.Name, strings.Join(quotedHeader, ","), placeholders)
 
 	s.queryLogger.LogQueryWithValues(statement, valueArgs)
 
