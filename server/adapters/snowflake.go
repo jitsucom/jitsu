@@ -7,16 +7,15 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/drivers/base"
-	"github.com/jitsucom/jitsu/server/timestamp"
-	"math"
-	"sort"
-	"strings"
-
 	"github.com/jitsucom/jitsu/server/errorj"
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/typing"
 	"github.com/jitsucom/jitsu/server/uuid"
 	sf "github.com/snowflakedb/gosnowflake"
+	"math"
+	"sort"
+	"strings"
 )
 
 const (
@@ -44,7 +43,9 @@ const (
 )
 
 var (
-	SchemaToSnowflake = map[typing.DataType]string{
+	sfReservedWords    = []string{"all", "alter", "and", "any", "as", "between", "by", "case", "cast", "check", "column", "connect", "constraint", "create", "cross", "current", "current_date", "current_time", "current_timestamp", "current_user", "delete", "distinct", "drop", "else", "exists", "false", "following", "for", "from", "full", "grant", "group", "having", "ilike", "in", "increment", "inner", "insert", "intersect", "into", "is", "join", "lateral", "left", "like", "localtime", "localtimestamp", "minus", "natural", "not", "null", "of", "on", "or", "order", "qualify", "regexp", "revoke", "right", "rlike", "row", "rows", "sample", "select", "set", "some", "start", "table", "tablesample", "then", "to", "trigger", "true", "try_cast", "union", "unique", "update", "using", "values", "when", "whenever", "where", "with"}
+	sfReservedWordsSet = map[string]struct{}{}
+	SchemaToSnowflake  = map[typing.DataType]string{
 		typing.STRING:    "text",
 		typing.INT64:     "bigint",
 		typing.FLOAT64:   "double precision",
@@ -53,6 +54,12 @@ var (
 		typing.UNKNOWN:   "text",
 	}
 )
+
+func init() {
+	for _, word := range sfReservedWords {
+		sfReservedWordsSet[strings.ToUpper(word)] = struct{}{}
+	}
+}
 
 // SnowflakeConfig dto for deserialized datasource config for Snowflake
 type SnowflakeConfig struct {
@@ -831,6 +838,11 @@ func reformatValue(value string) string {
 			if isNotLetterOrUnderscore(symbol) && isNotNumberOrDollar(symbol) {
 				return `"` + value + `"`
 			}
+		}
+
+		upper := strings.ToUpper(value)
+		if _, ok := sfReservedWordsSet[upper]; ok {
+			return `"` + upper + `"`
 		}
 
 	}
