@@ -26,7 +26,6 @@ assemble_backend:
 backend: go_generate deps_backend build_backend
 
 go_generate:
-	go get github.com/deepmap/oapi-codegen/cmd/oapi-codegen@v1.10.1
 	go generate
 
 deps_backend:

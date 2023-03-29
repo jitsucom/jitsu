@@ -72,8 +72,8 @@ type Authorizator interface {
 	handlers.Authorizator
 }
 
-//go:generate oapi-codegen -templates ../../openapi/templates -generate gin -package openapi -o openapi/routers-gen.go ../../openapi/configurator.yaml
-//go:generate oapi-codegen -templates ../../openapi/templates -generate types -package openapi -o openapi/types-gen.go ../../openapi/configurator.yaml
+//go:generate go run github.com/deepmap/oapi-codegen/cmd/oapi-codegen@v1.10.1 -templates ../../openapi/templates -generate gin -package openapi -o openapi/routers-gen.go ../../openapi/configurator.yaml
+//go:generate go run github.com/deepmap/oapi-codegen/cmd/oapi-codegen@v1.10.1 -templates ../../openapi/templates -generate types -package openapi -o openapi/types-gen.go ../../openapi/configurator.yaml
 func main() {
 	flag.Parse()
 
