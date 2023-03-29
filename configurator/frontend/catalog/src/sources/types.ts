@@ -198,7 +198,7 @@ export const singleSelectionType = (options: string[]): ParameterType<SelectOpti
 
 export const selectionType = (options: string[], maxOptions?: number): ParameterType<SelectOptionCollection> => {
   return selectionTypeWithOptions(
-    options.map(id => ({ displayName: id, id: id })),
+    options.filter(id => id !== "CDC").map(id => ({ displayName: id, id: id })),
     maxOptions
   )
 }
