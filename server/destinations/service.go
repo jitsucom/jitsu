@@ -256,13 +256,6 @@ func (s *Service) init(dc map[string]config.DestinationConfig) {
 			toDelete[unitID] = unit
 		}
 	}
-	if len(toDelete) > 0 {
-		s.mutex.Lock()
-		for unitID, unit := range toDelete {
-			s.removeAndClose(unitID, unit)
-		}
-		s.mutex.Unlock()
-	}
 
 	// create or recreate
 	newConsumers := TokenizedConsumers{}
@@ -297,9 +290,7 @@ func (s *Service) init(dc map[string]config.DestinationConfig) {
 				continue
 			}
 			//remove old (for recreation)
-			s.mutex.Lock()
-			s.removeAndClose(id, unit)
-			s.mutex.Unlock()
+			toDelete[id] = unit
 		}
 
 		if !s.strictAuth && len(destinationConfig.OnlyTokens) == 0 {
@@ -378,6 +369,11 @@ func (s *Service) init(dc map[string]config.DestinationConfig) {
 	}
 
 	s.mutex.Lock()
+	if len(toDelete) > 0 {
+		for unitID, unit := range toDelete {
+			s.removeAndClose(unitID, unit)
+		}
+	}
 	s.consumersByTokenID.AddAll(newConsumers)
 	s.batchStoragesByTokenID.AddAll(newStorages)
 	s.synchronousStoragesByTokenID.AddAll(newSynchronousStorages)
