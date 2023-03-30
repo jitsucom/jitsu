@@ -250,6 +250,7 @@ func (s *Service) init(dc map[string]config.DestinationConfig) {
 
 	//close and remove non-existent (in new config)
 	toDelete := map[string]*Unit{}
+	toReplace := map[string]*Unit{}
 	for unitID, unit := range s.unitsByID {
 		_, ok := dc[unitID]
 		if !ok {
@@ -290,7 +291,7 @@ func (s *Service) init(dc map[string]config.DestinationConfig) {
 				continue
 			}
 			//remove old (for recreation)
-			toDelete[id] = unit
+			toReplace[id] = unit
 		}
 
 		if !s.strictAuth && len(destinationConfig.OnlyTokens) == 0 {
@@ -372,6 +373,12 @@ func (s *Service) init(dc map[string]config.DestinationConfig) {
 	if len(toDelete) > 0 {
 		for unitID, unit := range toDelete {
 			s.removeAndClose(unitID, unit)
+			delete(s.unitsByID, unitID)
+		}
+	}
+	if len(toReplace) > 0 {
+		for unitID, unit := range toReplace {
+			s.removeAndClose(unitID, unit)
 		}
 	}
 	s.consumersByTokenID.AddAll(newConsumers)
@@ -450,7 +457,6 @@ func (s *Service) removeAndClose(destinationID string, unit *Unit) {
 		logging.Errorf("[%s] Error closing unit: %v", destinationID, err)
 	}
 
-	delete(s.unitsByID, destinationID)
 	logging.Infof("[%s] destination has been removed!", destinationID)
 }
 

@@ -34,15 +34,19 @@ func TestServiceInit(t *testing.T) {
 	initialAuth := `{
   "tokens": [
     {
+      "id": "token1",
       "client_secret": "token1"
     },
     {
+      "id": "token2",
       "client_secret": "token2"
     },
     {
+      "id": "token3",
       "client_secret": "token3"
     },
     {
+      "id": "token4",
       "client_secret": "token4"
     }
   ]
@@ -173,18 +177,23 @@ func TestServiceInit(t *testing.T) {
 	fullAuth := `{
   "tokens": [
     {
+      "id": "token1",
       "client_secret": "token1"
     },
     {
+      "id": "token2",
       "client_secret": "token2"
     },
     {
+      "id": "token3",
       "client_secret": "token3"
     },
     {
+      "id": "token4",
       "client_secret": "token4"
     },
     {
+      "id": "token5",
       "client_secret": "token5"
     }
   ]
