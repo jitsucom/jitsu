@@ -36,6 +36,10 @@ var (
 			"client_id":     "google_sheets.client_id",
 			"client_secret": "google_sheets.client_secret",
 		},
+		"source-google-sheets": {
+			"client_id":     "google_sheets.client_id",
+			"client_secret": "google_sheets.client_secret",
+		},
 		"firebase": {
 			"client_id":     "firebase.client_id",
 			"client_secret": "firebase.client_secret",
