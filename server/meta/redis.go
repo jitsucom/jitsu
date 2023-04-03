@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/uuid"
+	"github.com/spf13/viper"
 	"strconv"
 	"strings"
 	"time"
@@ -59,8 +60,10 @@ var (
 )
 
 type Redis struct {
-	pool         *RedisPool
-	errorMetrics *ErrorMetrics
+	pool           *RedisPool
+	errorMetrics   *ErrorMetrics
+	taskLogsTTL    time.Duration
+	eventsCacheTTL time.Duration
 }
 
 //redis key [variables] - description
@@ -103,8 +106,14 @@ type Redis struct {
 //sync_tasks#taskID hash with fields [id, source, collection, priority, created_at, started_at, finished_at, status]
 
 // NewRedis returns configured Redis struct with connection pool
-func NewRedis(pool *RedisPool) *Redis {
-	return &Redis{pool: pool, errorMetrics: NewErrorMetrics(metrics.MetaRedisErrors)}
+func NewRedis(pool *RedisPool, ttlsMinutes *viper.Viper) *Redis {
+	var taskLogsTTL time.Duration
+	var eventsCacheTTL time.Duration
+	if ttlsMinutes != nil {
+		taskLogsTTL = ttlsMinutes.GetDuration("task_logs") * time.Minute
+		eventsCacheTTL = ttlsMinutes.GetDuration("events_cache") * time.Minute
+	}
+	return &Redis{pool: pool, errorMetrics: NewErrorMetrics(metrics.MetaRedisErrors), taskLogsTTL: taskLogsTTL, eventsCacheTTL: eventsCacheTTL}
 }
 
 // GetSignature returns sync interval signature from Redis
@@ -224,7 +233,12 @@ func (r *Redis) TrimEvents(namespace, id, status string, capacity int) error {
 		r.errorMetrics.NoticeError(err)
 		return err
 	}
-
+	if r.eventsCacheTTL > 0 {
+		_, err = conn.Do("EXPIRE", eventsKey, int(r.eventsCacheTTL.Seconds()))
+		if err != nil && err != redis.ErrNil {
+			logging.Errorf("Error setting expiration for events cache [%s]: %v", eventsKey, err)
+		}
+	}
 	return nil
 }
 
@@ -687,6 +701,12 @@ func (r *Redis) AppendTaskLog(taskID string, now time.Time, system, message, lev
 	if err != nil && err != redis.ErrNil {
 		r.errorMetrics.NoticeError(err)
 		return err
+	}
+	if r.taskLogsTTL > 0 {
+		_, err = conn.Do("EXPIRE", taskLogsKey, int(r.taskLogsTTL.Seconds()))
+		if err != nil && err != redis.ErrNil {
+			logging.Errorf("Error setting expiration for task [%s] logs: %v", taskID, err)
+		}
 	}
 
 	return nil
