@@ -132,17 +132,32 @@ func (ah *AirbyteHandler) SpecHandler(c *gin.Context) {
 	})
 }
 
+func findDeep(obj interface{}, path string) (interface{}, bool) {
+	switch m := obj.(type) {
+	case map[string]interface{}:
+		for k, v := range m {
+			if k == path {
+				return v, true
+			}
+			if res, ok := findDeep(v, path); ok {
+				return res, ok
+			}
+		}
+	case []interface{}:
+		for _, v := range m {
+			if res, ok := findDeep(v, path); ok {
+				return res, ok
+			}
+		}
+	}
+	return nil, false
+}
 func enrichOathFields(dockerImage string, spec interface{}) {
 	oathFields, ok := oauth.Fields[dockerImage]
 	if ok {
 		props, err := utils.ExtractObject(spec, "connectionSpecification", "properties")
 		if err != nil {
 			logging.Errorf("failed to extract properties from spec for %s : %v", dockerImage, err)
-			return
-		}
-		propsMap, ok := props.(map[string]interface{})
-		if !ok {
-			logging.Errorf("cannot convert properties to map[string]interface{} from: %T", props)
 			return
 		}
 		specsRaw, _ := utils.ExtractObject(spec, "connectionSpecification")
@@ -154,7 +169,7 @@ func enrichOathFields(dockerImage string, spec interface{}) {
 		}
 		provided := make(map[string]bool)
 		for k, v := range oathFields {
-			pr, ok := propsMap[k]
+			pr, ok := findDeep(props, k)
 			if !ok {
 				continue
 			}

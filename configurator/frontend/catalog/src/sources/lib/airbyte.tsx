@@ -4816,7 +4816,7 @@ export const allAirbyteSources: AirbyteSource[] = [
     },
   },
   {
-    hasNativeEquivalent: true,
+    hasNativeEquivalent: false,
     pic: logos.tap_google_sheets,
     docker_image_name: "airbyte/source-google-sheets",
     displayName: "Google Sheets",

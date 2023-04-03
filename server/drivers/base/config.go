@@ -13,7 +13,7 @@ import (
 
 const ConfigSignatureSuffix = "_JITSU_config"
 
-//StreamConfiguration is a dto for serialization selected streams configuration
+// StreamConfiguration is a dto for serialization selected streams configuration
 type StreamConfiguration struct {
 	Name        string   `mapstructure:"name" json:"name,omitempty" yaml:"name,omitempty"`
 	Namespace   string   `mapstructure:"namespace" json:"namespace,omitempty" yaml:"namespace,omitempty"`
@@ -21,7 +21,7 @@ type StreamConfiguration struct {
 	CursorField []string `mapstructure:"cursor_field" json:"cursor_field,omitempty" yaml:"cursor_field,omitempty"`
 }
 
-//SourceConfig is a dto for api connector source config serialization
+// SourceConfig is a dto for api connector source config serialization
 type SourceConfig struct {
 	SourceID string `json:"source_id" yaml:"-"`
 
@@ -37,7 +37,7 @@ type SourceConfig struct {
 	ProjectName   string                 `mapstructure:"project_name" json:"project_name,omitempty" yaml:"project_name,omitempty"`
 }
 
-//Collection is a dto for report unit serialization
+// Collection is a dto for report unit serialization
 type Collection struct {
 	DaysBackToLoad int    `json:"-" yaml:"-"` //without serialization
 	SourceID       string `json:"-" yaml:"-"` //without serialization
@@ -65,7 +65,7 @@ func (c *Collection) Init() error {
 	return nil
 }
 
-//Validate returns err if collection invalid
+// Validate returns err if collection invalid
 func (c *Collection) Validate() error {
 	if c.Name == "" {
 		return errors.New("name is required collection field")
@@ -78,8 +78,8 @@ func (c *Collection) Validate() error {
 	return nil
 }
 
-//GetTableName returns TableName if it's set
-//otherwise SourceID_CollectionName
+// GetTableName returns TableName if it's set
+// otherwise SourceID_CollectionName
 func (c *Collection) GetTableName() string {
 	if c.TableName != "" {
 		return c.TableName
@@ -87,8 +87,8 @@ func (c *Collection) GetTableName() string {
 	return c.SourceID + "_" + c.Name
 }
 
-//return difference between now and t in DAYS + 1 (current day)
-//e.g. 2021-03-01 - 2021-03-01 = 0, but we should load current date as well
+// return difference between now and t in DAYS + 1 (current day)
+// e.g. 2021-03-01 - 2021-03-01 = 0, but we should load current date as well
 func getDaysBackToLoad(t *time.Time) int {
 	now := timestamp.Now().UTC()
 	currentDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
@@ -102,14 +102,27 @@ func StreamIdentifier(namespace, name string) string {
 func FillPreconfiguredOauth(sourceType string, config interface{}) {
 	oathFields, ok := oauth.Fields[sourceType]
 	if ok {
-		sourceConnectorConfig, ok := config.(map[string]interface{})
-		if ok {
-			for k, v := range oathFields {
-				cf, ok := sourceConnectorConfig[k]
-				if (!ok || cf == "") && viper.GetString(v) != "" {
-					sourceConnectorConfig[k] = viper.GetString(v)
-				}
+		for k, v := range oathFields {
+			value := viper.GetString(v)
+			if value != "" {
+				fillDeep(config, k, value)
+			}
+		}
+
+	}
+}
+func fillDeep(obj interface{}, path string, value string) bool {
+	switch m := obj.(type) {
+	case map[string]interface{}:
+		for k, v := range m {
+			if k == path && v == "" {
+				m[k] = value
+				return true
+			}
+			if ok := fillDeep(v, path, value); ok {
+				return ok
 			}
 		}
 	}
+	return false
 }

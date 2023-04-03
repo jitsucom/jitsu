@@ -473,6 +473,7 @@ export const allSingerTaps: SingerTap[] = [
   },
   {
     pic: logos.tap_google_sheets,
+    deprecated: true,
     displayName: "Google Sheets",
     tap: "tap-google-sheets",
     stable: true,
