@@ -8,6 +8,7 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/runner"
 	"github.com/jitsucom/jitsu/server/safego"
+	"github.com/spf13/viper"
 	"io"
 	"io/ioutil"
 	"os"
@@ -73,7 +74,15 @@ func Init(ctx context.Context, containerizedRun bool, configDir, workspaceVolume
 	defer cli.Close()
 
 	logging.Infof("[airbyte] Loading local airbyte docker images..")
-	images, err := cli.ImageList(ctx, types.ImageListOptions{})
+	var images []types.ImageSummary
+	retryAttempts := viper.GetInt("airbyte-bridge.init_attempts")
+	for i := 0; i <= retryAttempts; i++ {
+		time.Sleep(time.Duration(i) * time.Second)
+		images, err = cli.ImageList(ctx, types.ImageListOptions{})
+		if err == nil {
+			break
+		}
+	}
 	if err != nil {
 		InstanceError = fmt.Errorf("error executing docker image ls: %v. %s", err, mountDockerSockMsg)
 		return InstanceError
