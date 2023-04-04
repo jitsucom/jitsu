@@ -836,7 +836,20 @@ export const allAirbyteSources: AirbyteSource[] = [
     stable: false,
     documentation: shopifyDocumentation,
   },
-  {
+    {
+        pic: logos.facebook,
+        docker_image_name: "airbyte/source-facebook-marketing",
+        displayName: "Facebook Marketing",
+        deprecated: true,
+        stable: false,
+    },
+    {
+        pic: logos.facebook,
+        docker_image_name: "airbyte/source-facebook-pages",
+        displayName: "Facebook Pages",
+        stable: false,
+    },
+    {
     pic: logos.google_adwords,
     docker_image_name: "airbyte/source-google-adwords-singer",
     displayName: "Google AdWords",
