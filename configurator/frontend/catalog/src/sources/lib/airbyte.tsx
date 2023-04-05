@@ -837,6 +837,18 @@ export const allAirbyteSources: AirbyteSource[] = [
     documentation: shopifyDocumentation,
   },
     {
+        pic: logos.tap_sftp,
+        docker_image_name: "airbyte/source-sftp",
+        displayName: "SFTP",
+        stable: false,
+    },
+    {
+        pic: logos.tap_sftp,
+        docker_image_name: "airbyte/source-sftp-bulk",
+        displayName: "SFTP Bulk",
+        stable: false,
+    },
+    {
         pic: logos.facebook,
         docker_image_name: "airbyte/source-facebook-marketing",
         displayName: "Facebook Marketing",
