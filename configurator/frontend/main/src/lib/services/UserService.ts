@@ -56,7 +56,7 @@ export interface UserService {
   /**
    * Get (wait for) logged in user (or null if user is not logged in).
    */
-  waitForUser(): Promise<void>
+  waitForUser(token?: string): Promise<void>
 
   /**
    * Get current logged in user. Throws exception if user is not available

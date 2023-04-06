@@ -68,12 +68,12 @@ const DownloadConfig = React.lazy(
   () => import(/* webpackPrefetch: true */ "./lib/components/DownloadConfig/DownloadConfig")
 )
 
-export const initializeApplication = async (setDescription: (d: string) => void): Promise<ApplicationServices> => {
+export const initializeApplication = async (setDescription: (d: string) => void, location: any): Promise<ApplicationServices> => {
   const services = ApplicationServices.get()
   await services.init()
   await services.loadPluginScript()
   setDescription("Authenticating...")
-  await services.userService.waitForUser()
+  await services.userService.waitForUser(new URLSearchParams(location.search).get("token"))
   if (services.userService.hasUser()) {
     setDebugInfo("user", services.userService.getUser())
     services.analyticsService.onUserKnown(services.userService.getUser())
@@ -145,7 +145,7 @@ export const Application: React.FC = function () {
         try {
           const application = await initializeApplication(description => {
             setPreloader(description)
-          })
+          }, location)
           if (application.userService.hasUser()) {
             const projects = await application.projectService.getAvailableProjects()
             if (projects.length === 0) {
