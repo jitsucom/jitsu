@@ -75,7 +75,7 @@ export class BackendUserService implements UserService {
     await this.storageService.saveUserInfo(userToDTO(this.user))
   }
 
-  public async waitForUser(): Promise<void> {
+  public async waitForUser(token?: string): Promise<void> {
     if (this.user) {
       return
     }

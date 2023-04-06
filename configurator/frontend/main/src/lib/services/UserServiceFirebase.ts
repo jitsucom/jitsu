@@ -98,7 +98,10 @@ export class FirebaseUserService implements UserService {
     this._apiAccess = new ApiAccess(await fbLogin.user.getIdToken(false), null, () => {})
   }
 
-  public async waitForUser(): Promise<void> {
+  public async waitForUser(token?: string): Promise<void> {
+    if (token) {
+      await signInWithCustomToken(getAuth(), token)
+    }
     let fbUserPromise = new Promise<FirebaseUser>((resolve, reject) => {
       let unregister = onAuthStateChanged(
         getAuth(),
