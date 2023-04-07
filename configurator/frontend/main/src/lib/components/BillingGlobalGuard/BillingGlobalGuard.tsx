@@ -12,7 +12,7 @@ export const BillingGlobalGuard: React.FC = React.memo(() => {
 
   if (!services.currentSubscription) return null
 
-  if (services.currentSubscription.hasUnpaidInvoices) {
+  if (services.currentSubscription.hasUnpaidInvoices && !services.currentSubscription.doNotBlock) {
     return (
       <BillingBlockingModal
         subscription={services.currentSubscription}
@@ -23,7 +23,7 @@ export const BillingGlobalGuard: React.FC = React.memo(() => {
   }
 
   const quotaLimitMsg = checkQuotas(services.currentSubscription)
-  if (quotaLimitMsg) {
+  if (quotaLimitMsg && !services.currentSubscription.doNotBlock) {
     return (
       <BillingBlockingModal
         subscription={services.currentSubscription}
