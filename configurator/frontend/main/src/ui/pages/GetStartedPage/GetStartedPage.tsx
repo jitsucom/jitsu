@@ -48,11 +48,16 @@ function WelcomeBackHero({ signupEnabled }) {
     <div className="flex flex-col justify-center items-center text-xl mt-12">
       <h1 className="text-center text-textPale font-heading font-bold tracking-wider">Welcome back!</h1>
       {signupEnabled && (
-        <div className="mt-6">
+        <div className="mt-6 text-center">
           New to Jitsu?{" "}
+          {!process.env.JITSU_NEXT_URL ? (
           <a className={`text-textPale font-bold ${styles.heroLink}`} onClick={() => history.push("/signup")}>
             Sign up
-          </a>
+          </a>) : (
+              <><br/><a className={`text-textPale font-bold ${styles.heroLink}`} href={`${process.env.JITSU_NEXT_URL}/signup`}>
+                Sign up to Jitsu Next
+              </a></>
+          )}
         </div>
       )}
     </div>

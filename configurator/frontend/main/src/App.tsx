@@ -1,6 +1,6 @@
 // @Libs
-import React, { ComponentType, ExoticComponent, useEffect, useState } from "react"
-import { NavLink, Redirect, Route, Switch, useLocation } from "react-router-dom"
+import React, {ComponentType, ExoticComponent, useEffect, useMemo, useState} from "react"
+import {NavLink, Redirect, Route, Switch, useHistory, useLocation} from "react-router-dom"
 import { Button, Card, Typography } from "antd"
 import { useParams } from "react-router"
 import moment from "moment"
@@ -40,6 +40,7 @@ import { Settings } from "./lib/services/UserSettingsService"
 
 // @Styles
 import "./App.less"
+import {getJitsuNextEeClient} from "./lib/services/jitsu-next-ee-client";
 // @Unsorted
 
 const ApiKeysRouter = React.lazy(() => import(/* webpackPrefetch: true */ "./lib/components/ApiKeys/ApiKeysRouter"))
@@ -133,11 +134,43 @@ const JitsuPageViewTracker: React.FC<{}> = () => {
 export const Application: React.FC = function () {
   const [services, setServices] = useState<ApplicationServices>(null)
   const [projects, setProjects] = useState<Project[]>(null)
+  const [isActive, setActive] = useState(false)
   const [initialized, setInitialized] = useState(false)
   const [error, setError] = useState<Error>()
   const { projectId } = useParams<{ projectId: string }>()
   const location = useLocation()
+
   const [preloaderText, setPreloader] = useState("Loading application, please be patient...")
+
+  const jitsuNextUrl = process.env.JITSU_NEXT_URL
+  const jitsuNextEeUrl = process.env.JITSU_NEXT_EE_URL
+  const eeClient = useMemo(() => jitsuNextEeUrl ? getJitsuNextEeClient(jitsuNextEeUrl) : undefined,
+      [jitsuNextEeUrl]);
+  const user = services && services.userService.hasUser() ? services.userService.getUser() : undefined
+
+  useEffect(() => {
+    if (process.env.FIREBASE_CONFIG && jitsuNextUrl && eeClient && user) {
+      (async () => {
+        try {
+          const classicProject = await eeClient.checkClassicProject();
+          console.log("Classic project", classicProject);
+          if (!classicProject.active) {
+            const customToken = await eeClient.createCustomToken();
+            window.location.href = jitsuNextUrl + "?token=" + customToken;
+            return;
+          } else {
+            setActive(true);
+            setInitialized(true)
+          }
+        } catch (e) {
+          console.error("Can't check for classic project", e);
+          setInitialized(true)
+        }
+      })()
+    } else if (services) {
+      setInitialized(true)
+    }
+  },[jitsuNextUrl, eeClient, user, services])
 
   useEffect(() => {
     if (location.pathname !== "/sso_callback") {
@@ -149,16 +182,20 @@ export const Application: React.FC = function () {
           if (application.userService.hasUser()) {
             const projects = await application.projectService.getAvailableProjects()
             if (projects.length === 0) {
-              const newProject = await application.projectService.createProject(
-                application.userService.getUser().suggestedCompanyName
-              )
-              setProjects([newProject])
+              if (jitsuNextUrl) {
+                window.location.href = jitsuNextUrl
+                return <></>
+              } else {
+                const newProject = await application.projectService.createProject(
+                    application.userService.getUser().suggestedCompanyName
+                )
+                setProjects([newProject])
+              }
             } else {
               setProjects(projects)
             }
           }
           setServices(application)
-          setInitialized(true)
         } catch (e) {
           const msg = `Can't initialize application with backend ${
             process.env.BACKEND_API_BASE || " (BACKEND_API_BASE is not set)"
@@ -223,7 +260,7 @@ export const Application: React.FC = function () {
       </div>
     )
   }
-  const user = services.userService.hasUser() ? services.userService.getUser() : undefined
+
   const jitsuHost = services.applicationConfiguration.rawConfig.keys.jitsu
   if (!services.userService.hasUser()) {
     return (
@@ -289,7 +326,7 @@ export const Application: React.FC = function () {
             )}
           />
           <Route path={"/prj-:projectId"} exact={false}>
-            <ProjectRoute projects={projects} />
+            <ProjectRoute isActive={isActive} projects={projects} />
           </Route>
           <Route>
             <ProjectRedirect projects={projects} />
@@ -388,7 +425,7 @@ const PageWrapper: React.FC<{ pageTitle: string; component: ComponentType; pageP
   )
 }
 
-const ProjectRoute: React.FC<{ projects: Project[] }> = ({ projects }) => {
+const ProjectRoute: React.FC<{ projects: Project[], isActive: boolean }> = ({ projects, isActive }) => {
   const services = useServices()
   const [initialized, setInitialized] = useState(false)
   const [error, setError] = useState<Error | undefined>(undefined)
@@ -451,7 +488,7 @@ const ProjectRoute: React.FC<{ projects: Project[] }> = ({ projects }) => {
 
   return (
     <>
-      <ApplicationPage>
+      <ApplicationPage isActive={isActive}>
         <Switch>
           {projectRoutes.map(({ component, pageTitle, path, isPrefix }) => (
             <Route
