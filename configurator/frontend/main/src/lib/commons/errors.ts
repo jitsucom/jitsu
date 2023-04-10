@@ -23,3 +23,7 @@ export class ErrorDetailed<P = any> extends Error {
     return this._payload
   }
 }
+
+export function getErrorMessage(e: any): string {
+  return e?.message || "unknown error";
+}

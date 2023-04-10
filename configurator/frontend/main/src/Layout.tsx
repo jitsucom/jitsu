@@ -10,7 +10,7 @@ import { handleError } from "lib/components/components"
 // @Icons
 import Icon, {
   ApiFilled,
-  AreaChartOutlined,
+  AreaChartOutlined, CheckCircleFilled, CloseCircleFilled,
   CloudFilled,
   HomeFilled,
   LogoutOutlined,
@@ -26,6 +26,9 @@ import { ReactComponent as DbtCloudIcon } from "icons/dbtCloud.svg"
 import { ReactComponent as KeyIcon } from "icons/key.svg"
 import { ReactComponent as DownloadIcon } from "icons/download.svg"
 import { ReactComponent as GlobeIcon } from "icons/globe.svg"
+import logoNext from "icons/logo-next.svg"
+import externalLinkIcon from "icons/externalLink.svg"
+
 import classNames from "classnames"
 // @Utils
 import { reloadPage } from "lib/commons/utils"
@@ -49,6 +52,7 @@ import { BillingPlanOptionsModal } from "lib/components/BillingPlanOptions/Billi
 import EditOutlined from "@ant-design/icons/lib/icons/EditOutlined"
 import useProject from "./hooks/useProject"
 import { allPermissions } from "./lib/services/permissions"
+import logo from "./icons/logo.svg";
 
 type MenuItem = {
   icon: React.ReactNode
@@ -189,6 +193,7 @@ export const ApplicationSidebar: React.FC<{}> = () => {
 export type PageHeaderProps = {
   user: User
   plan: CurrentSubscription
+  isActive: boolean
 }
 
 function abbr(user: User) {
@@ -200,12 +205,15 @@ function abbr(user: User) {
     .toUpperCase()
 }
 
-export const PageHeader: React.FC<PageHeaderProps> = ({ plan, user, children }) => {
+export const PageHeader: React.FC<PageHeaderProps> = ({ plan, user, isActive, children }) => {
   const [dropdownVisible, setDropdownVisible] = useState(false)
   return (
     <div className="border-b border-splitBorder mb-0 h-14 flex flex-nowrap">
       <div className="flex-grow">
         <div className="h-14 flex items-center">{children}</div>
+      </div>
+      <div className={`flex-shrink flex justify-center items-center mx-1`}>
+         {isActive && <span onClick={e => {window.location.href=process.env.JITSU_NEXT_URL}} className={"cursor-pointer"}><img className="anticon w-4 h-4 mr-1" src={logoNext} /><b>Jitsu Next</b>&nbsp;early access is available. Try it out now!<img className="anticon w-4 h-4 ml-1" src={externalLinkIcon} /></span>}
       </div>
       <div className={`flex-shrink flex justify-center items-center mx-1`}>
         <NotificationsWidget />
@@ -309,7 +317,7 @@ function handleBillingMessage(params) {
   })
 }
 
-export const ApplicationPage: React.FC = ({ children }) => {
+export const ApplicationPage: React.FC<{isActive: boolean}> = ({ isActive, children }) => {
   const services = useServices()
   handleBillingMessage(new URLSearchParams(useLocation().search))
   return (
@@ -318,7 +326,7 @@ export const ApplicationPage: React.FC = ({ children }) => {
         <ApplicationSidebar />
       </div>
       <div className={classNames(styles.rightbar)}>
-        <PageHeader user={services.userService.getUser()} plan={services.currentSubscription}>
+        <PageHeader isActive={isActive} user={services.userService.getUser()} plan={services.currentSubscription}>
           <Breadcrumbs />
         </PageHeader>
         <div className={styles.applicationPageComponent}>{children}</div>
