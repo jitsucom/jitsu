@@ -10,15 +10,16 @@ import { handleError } from "lib/components/components"
 // @Icons
 import Icon, {
   ApiFilled,
-  AreaChartOutlined, CheckCircleFilled, CloseCircleFilled,
+  AreaChartOutlined,
   CloudFilled,
   HomeFilled,
   LogoutOutlined,
+  InfoCircleOutlined,
+
   NotificationFilled,
   SettingOutlined,
   ThunderboltFilled,
   UserOutlined,
-  UserSwitchOutlined,
 } from "@ant-design/icons"
 import { ReactComponent as JitsuLogo } from "icons/logo-responsive.svg"
 import { ReactComponent as Cross } from "icons/cross.svg"
@@ -26,8 +27,7 @@ import { ReactComponent as DbtCloudIcon } from "icons/dbtCloud.svg"
 import { ReactComponent as KeyIcon } from "icons/key.svg"
 import { ReactComponent as DownloadIcon } from "icons/download.svg"
 import { ReactComponent as GlobeIcon } from "icons/globe.svg"
-import logoNext from "icons/logo-next.svg"
-import externalLinkIcon from "icons/externalLink.svg"
+import { ReactComponent as logoNext } from "icons/logo-next.svg"
 
 import classNames from "classnames"
 // @Utils
@@ -53,6 +53,7 @@ import EditOutlined from "@ant-design/icons/lib/icons/EditOutlined"
 import useProject from "./hooks/useProject"
 import { allPermissions } from "./lib/services/permissions"
 import logo from "./icons/logo.svg";
+import {ClassicProjectStatus} from "./lib/services/jitsu-next-ee-client";
 
 type MenuItem = {
   icon: React.ReactNode
@@ -193,7 +194,7 @@ export const ApplicationSidebar: React.FC<{}> = () => {
 export type PageHeaderProps = {
   user: User
   plan: CurrentSubscription
-  isActive: boolean
+  classicProject: ClassicProjectStatus
 }
 
 function abbr(user: User) {
@@ -205,7 +206,7 @@ function abbr(user: User) {
     .toUpperCase()
 }
 
-export const PageHeader: React.FC<PageHeaderProps> = ({ plan, user, isActive, children }) => {
+export const PageHeader: React.FC<PageHeaderProps> = ({ plan, user, classicProject, children }) => {
   const [dropdownVisible, setDropdownVisible] = useState(false)
   return (
     <div className="border-b border-splitBorder mb-0 h-14 flex flex-nowrap">
@@ -213,7 +214,19 @@ export const PageHeader: React.FC<PageHeaderProps> = ({ plan, user, isActive, ch
         <div className="h-14 flex items-center">{children}</div>
       </div>
       <div className={`flex-shrink flex justify-center items-center mx-1`}>
-         {isActive && <span onClick={e => {window.location.href=process.env.JITSU_NEXT_URL}} className={"cursor-pointer"}><img className="anticon w-4 h-4 mr-1" src={logoNext} /><b>Jitsu Next</b>&nbsp;early access is available. Try it out now!<img className="anticon w-4 h-4 ml-1" src={externalLinkIcon} /></span>}
+        {/*{nextJitsu && <span onClick={e => {window.location.href=`${process.env.JITSU_NEXT_URL}?token=${nextJitsu}`}} className={"cursor-pointer"}><img className="anticon w-4 h-4 mr-1" src={logoNext} /><b>Jitsu Next</b>&nbsp; is available. Try it out now!<img className="anticon w-4 h-4 ml-1" src={externalLinkIcon} /></span>}*/}
+        {classicProject &&   <Popover placement={"bottomRight"} content={<div className={"w-96"}>
+          What is <b>Jitsu Next</b>?
+          <br /><br />
+          <b>Jitsu Next</b> is a new version of Jitsu with new user interface and faster,
+          better scalable backend.
+          <br /><br />
+          <a target={"_blank"} rel={"noreferrer noopener"} href={"https://docs.jitsu.com/next-vs-classic"}>Learn more</a>
+        </div>} >
+          <span onClick={e => {window.location.href=`${process.env.JITSU_NEXT_URL}?token=${classicProject.token}&projectName=${encodeURIComponent(classicProject.name)}`}} className={"cursor-pointer"}>
+            <Icon className={"mr-1"} component={logoNext} />Switch to <b>Jitsu Next</b> (beta), a new version of Jitsu Platform<InfoCircleOutlined className={"ml-1"} />
+          </span>
+        </Popover>}
       </div>
       <div className={`flex-shrink flex justify-center items-center mx-1`}>
         <NotificationsWidget />
@@ -317,7 +330,7 @@ function handleBillingMessage(params) {
   })
 }
 
-export const ApplicationPage: React.FC<{isActive: boolean}> = ({ isActive, children }) => {
+export const ApplicationPage: React.FC<{classicProject: ClassicProjectStatus}> = ({ classicProject, children }) => {
   const services = useServices()
   handleBillingMessage(new URLSearchParams(useLocation().search))
   return (
@@ -326,7 +339,7 @@ export const ApplicationPage: React.FC<{isActive: boolean}> = ({ isActive, child
         <ApplicationSidebar />
       </div>
       <div className={classNames(styles.rightbar)}>
-        <PageHeader isActive={isActive} user={services.userService.getUser()} plan={services.currentSubscription}>
+        <PageHeader classicProject={classicProject} user={services.userService.getUser()} plan={services.currentSubscription}>
           <Breadcrumbs />
         </PageHeader>
         <div className={styles.applicationPageComponent}>{children}</div>
