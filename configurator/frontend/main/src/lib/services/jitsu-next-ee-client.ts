@@ -5,7 +5,9 @@ export type ClassicProjectStatus = {
   ok: boolean;
   uid: string | null;
   project: string | null;
-  active: boolean;
+  name: string | null;
+  active: boolean | null;
+  token?: string;
 };
 
 export interface JitsuNextEeClient {

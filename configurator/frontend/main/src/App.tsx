@@ -40,7 +40,7 @@ import { Settings } from "./lib/services/UserSettingsService"
 
 // @Styles
 import "./App.less"
-import {getJitsuNextEeClient} from "./lib/services/jitsu-next-ee-client";
+import {ClassicProjectStatus, getJitsuNextEeClient} from "./lib/services/jitsu-next-ee-client";
 // @Unsorted
 
 const ApiKeysRouter = React.lazy(() => import(/* webpackPrefetch: true */ "./lib/components/ApiKeys/ApiKeysRouter"))
@@ -134,7 +134,7 @@ const JitsuPageViewTracker: React.FC<{}> = () => {
 export const Application: React.FC = function () {
   const [services, setServices] = useState<ApplicationServices>(null)
   const [projects, setProjects] = useState<Project[]>(null)
-  const [isActive, setActive] = useState(false)
+  const [classicProject, setClassicProject] = useState<ClassicProjectStatus>()
   const [initialized, setInitialized] = useState(false)
   const [error, setError] = useState<Error>()
   const { projectId } = useParams<{ projectId: string }>()
@@ -153,13 +153,18 @@ export const Application: React.FC = function () {
       (async () => {
         try {
           const classicProject = await eeClient.checkClassicProject();
+          if (!classicProject.ok) {
+            console.error("Classic project check error", classicProject);
+            return;
+          }
           console.log("Classic project", classicProject);
+          const customToken = await eeClient.createCustomToken();
+          classicProject.token = customToken;
           if (!classicProject.active) {
-            const customToken = await eeClient.createCustomToken();
-            window.location.href = jitsuNextUrl + "?token=" + customToken;
+            window.location.href = jitsuNextUrl + "?token=" + customToken + "&projectName=" + encodeURIComponent(classicProject.name);
             return;
           } else {
-            setActive(true);
+            setClassicProject(classicProject);
             setInitialized(true)
           }
         } catch (e) {
@@ -326,7 +331,7 @@ export const Application: React.FC = function () {
             )}
           />
           <Route path={"/prj-:projectId"} exact={false}>
-            <ProjectRoute isActive={isActive} projects={projects} />
+            <ProjectRoute classicProject={classicProject} projects={projects} />
           </Route>
           <Route>
             <ProjectRedirect projects={projects} />
@@ -425,7 +430,7 @@ const PageWrapper: React.FC<{ pageTitle: string; component: ComponentType; pageP
   )
 }
 
-const ProjectRoute: React.FC<{ projects: Project[], isActive: boolean }> = ({ projects, isActive }) => {
+const ProjectRoute: React.FC<{ projects: Project[], classicProject: ClassicProjectStatus }> = ({ projects, classicProject }) => {
   const services = useServices()
   const [initialized, setInitialized] = useState(false)
   const [error, setError] = useState<Error | undefined>(undefined)
@@ -488,7 +493,7 @@ const ProjectRoute: React.FC<{ projects: Project[], isActive: boolean }> = ({ pr
 
   return (
     <>
-      <ApplicationPage isActive={isActive}>
+      <ApplicationPage classicProject={classicProject}>
         <Switch>
           {projectRoutes.map(({ component, pageTitle, path, isPrefix }) => (
             <Route
