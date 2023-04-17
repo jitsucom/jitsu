@@ -89,6 +89,8 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("server.cache.events.trim_interval_ms", 500)
 	viper.SetDefault("server.cache.events.max_malformed_event_size_bytes", 10_000)
 	viper.SetDefault("server.cache.pool.size", 10)
+	viper.SetDefault("server.metrics.prometheus.auth", true)
+	viper.SetDefault("server.metrics.prometheus.endpoint", "prometheus")
 	viper.SetDefault("server.strict_auth_tokens", false)
 	viper.SetDefault("server.max_columns", 100)
 	viper.SetDefault("server.max_event_size", 51200)
