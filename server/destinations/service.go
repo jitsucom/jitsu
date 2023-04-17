@@ -59,7 +59,8 @@ type Service struct {
 	//events queues by destination ID
 	queueConsumerByDestinationID map[string]events.Consumer
 
-	strictAuth bool
+	strictAuth            bool
+	globalDestinationsIds map[string]struct{}
 }
 
 // NewTestService returns test instance. It is used only for tests
@@ -94,6 +95,31 @@ func NewService(destinations *viper.Viper, destinationsSource string, storageFac
 			logging.Infof("Clickhouse tls config %s registered", tlsName)
 		}
 	}
+	globalDestinationsIds := make(map[string]struct{})
+
+	rawGd := viper.Get("global_destinations")
+	switch gd := rawGd.(type) {
+	case []interface{}:
+		for _, v := range gd {
+			globalDestinationsIds[fmt.Sprint(v)] = struct{}{}
+		}
+	case []string:
+		for _, v := range gd {
+			globalDestinationsIds[v] = struct{}{}
+		}
+	case string:
+		if gd == "" {
+			break
+		}
+		split := strings.Split(gd, ",")
+		for _, v := range split {
+			globalDestinationsIds[v] = struct{}{}
+		}
+	case nil:
+	default:
+		return nil, fmt.Errorf("global_destinations must be a string or array of strings")
+	}
+
 	service := &Service{
 		mutex: &sync.RWMutex{},
 
@@ -110,7 +136,8 @@ func NewService(destinations *viper.Viper, destinationsSource string, storageFac
 
 		queueConsumerByDestinationID: map[string]events.Consumer{},
 
-		strictAuth: strictAuth,
+		strictAuth:            strictAuth,
+		globalDestinationsIds: globalDestinationsIds,
 	}
 
 	reloadSec := viper.GetInt("server.destinations_reload_sec")
@@ -275,6 +302,9 @@ func (s *Service) init(dc map[string]config.DestinationConfig) {
 			destinationConfig.OnlyTokens = appconfig.Instance.AuthorizationService.GetAllIDsByToken(destinationConfig.OnlyTokens)
 		} else if !s.strictAuth {
 			logging.Warnf("[%s] only_tokens aren't provided. All tokens will be stored.", id)
+			destinationConfig.OnlyTokens = appconfig.Instance.AuthorizationService.GetAllTokenIDs()
+		} else if _, global := s.globalDestinationsIds[id]; global {
+			logging.Infof("[%s] Global destination – mapped to all tokens.", id)
 			destinationConfig.OnlyTokens = appconfig.Instance.AuthorizationService.GetAllTokenIDs()
 		}
 
