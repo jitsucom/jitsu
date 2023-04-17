@@ -44,15 +44,15 @@ var DefaultOptions = Options{
 	DefaultDialReadTimeout:    10 * time.Second,
 	DefaultDialWriteTimeout:   10 * time.Second,
 
-	MaxIdle:     100,
+	MaxIdle:     10,
 	MaxActive:   600,
 	IdleTimeout: 240 * time.Second,
 	PingTimeout: 30 * time.Second,
 }
 
-//RedisPoolFactory is a factory for creating RedisPool
-//supports creating RedisPool from URLs: redis://, rediss://, sentinel://
-//and from config parameters like host,port, etc
+// RedisPoolFactory is a factory for creating RedisPool
+// supports creating RedisPool from URLs: redis://, rediss://, sentinel://
+// and from config parameters like host,port, etc
 type RedisPoolFactory struct {
 	host               string
 	port               int
@@ -64,7 +64,7 @@ type RedisPoolFactory struct {
 	options Options
 }
 
-//NewRedisPoolFactory returns filled RedisPoolFactory and removes quotes in host
+// NewRedisPoolFactory returns filled RedisPoolFactory and removes quotes in host
 func NewRedisPoolFactory(host string, port int, password string, database int, tlsSkipVerify bool, sentinelMasterMame string) *RedisPoolFactory {
 	host = strings.TrimPrefix(host, `"`)
 	host = strings.TrimPrefix(host, `'`)
@@ -82,7 +82,7 @@ func NewRedisPoolFactory(host string, port int, password string, database int, t
 	}
 }
 
-//WithOptions overrides options
+// WithOptions overrides options
 func (rpf *RedisPoolFactory) WithOptions(options Options) *RedisPoolFactory {
 	rpf.options = options
 	return rpf
@@ -92,12 +92,12 @@ func (rpf *RedisPoolFactory) GetOptions() Options {
 	return rpf.options
 }
 
-//Create returns configured RedisPool or err if ping failed
-//host might be URLS:
-//1. redis://:password@host:port
-//2. rediss://:password@host:port
-//3. sentinel://master_name:password@node1:port,node2:port
-//4. plain host
+// Create returns configured RedisPool or err if ping failed
+// host might be URLS:
+// 1. redis://:password@host:port
+// 2. rediss://:password@host:port
+// 3. sentinel://master_name:password@node1:port,node2:port
+// 4. plain host
 func (rpf *RedisPoolFactory) Create() (*RedisPool, error) {
 	redisSentinel, dialFunc, err := rpf.getSentinelAndDialFunc()
 	if err != nil {
@@ -226,7 +226,7 @@ func (rpf *RedisPoolFactory) getSentinelAndDialFunc() (*sentinel.Sentinel, func(
 	return nil, dialFunc, nil
 }
 
-//CheckAndSetDefaultPort checks if port isn't set - put defaultRedisPort, if sentinel mode put defaultSentinelPort
+// CheckAndSetDefaultPort checks if port isn't set - put defaultRedisPort, if sentinel mode put defaultSentinelPort
 func (rpf *RedisPoolFactory) CheckAndSetDefaultPort() (int, bool) {
 	if rpf.port == 0 && !rpf.isURL() && !rpf.isSecuredURL() && !rpf.isSentinelURL() {
 		if strings.Contains(rpf.host, ",") {
@@ -254,22 +254,22 @@ func (rpf *RedisPoolFactory) CheckAndSetDefaultPort() (int, bool) {
 	return 0, false
 }
 
-//isURL returns true if RedisPoolFactory contains connection credentials via URL
+// isURL returns true if RedisPoolFactory contains connection credentials via URL
 func (rpf *RedisPoolFactory) isURL() bool {
 	return strings.HasPrefix(rpf.host, redisPrefix)
 }
 
-//isSecuredURL returns true if RedisPoolFactory contains connection credentials via secured(SSL) URL
+// isSecuredURL returns true if RedisPoolFactory contains connection credentials via secured(SSL) URL
 func (rpf *RedisPoolFactory) isSecuredURL() bool {
 	return strings.HasPrefix(rpf.host, redissPrefix)
 }
 
-//isSentinelURL returns true if RedisPoolFactory contains connection credentials via sentinel URL
+// isSentinelURL returns true if RedisPoolFactory contains connection credentials via sentinel URL
 func (rpf *RedisPoolFactory) isSentinelURL() bool {
 	return strings.HasPrefix(rpf.host, sentinelPrefix)
 }
 
-//Details returns host:port or host if host is a URL with sentinel information
+// Details returns host:port or host if host is a URL with sentinel information
 func (rpf *RedisPoolFactory) Details() string {
 	if rpf.isURL() || rpf.isSecuredURL() || rpf.isSentinelURL() {
 		return rpf.host
@@ -312,8 +312,8 @@ func newSentinelDialFunc(sntnl *sentinel.Sentinel, options []redis.DialOption) f
 	}
 }
 
-//returns master name, password and nodes array
-//url should be in format - sentinel://master_name:password@node1:port,node2:port
+// returns master name, password and nodes array
+// url should be in format - sentinel://master_name:password@node1:port,node2:port
 func extractFromSentinelURL(url string) (string, string, []string, error) {
 	var masterName, password string
 	var nodes []string
