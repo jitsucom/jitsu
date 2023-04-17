@@ -17,6 +17,8 @@ server:
 geo:
   maxmind_path: '${env.MAX_MIND_PATH|}'
 
+global_destinations: '${env.JITSU_GLOBAL_DESTINATIONS|}'
+
 configurator:
   base_url: '${env.JITSU_CONFIGURATOR_URL|}'
   admin_token: '${env.CLUSTER_ADMIN_TOKEN|env.CONFIGURATOR_ADMIN_TOKEN|demo___please_provide_value_in_production___}'
