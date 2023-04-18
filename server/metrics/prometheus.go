@@ -19,6 +19,10 @@ const (
 
 var Exported bool
 
+var Auth bool
+
+var Endpoint string
+
 var Registry *prometheus.Registry
 
 func Enabled() bool {
@@ -45,8 +49,10 @@ func NewHistogramVec(opts prometheus.HistogramOpts, labels []string) *prometheus
 
 const Unknown = "unknown"
 
-func Init(exported bool) {
+func Init(exported bool, auth bool, endpoint string) {
 	Exported = exported
+	Auth = auth
+	Endpoint = endpoint
 	if Exported {
 		logging.Info("✅ Initializing Prometheus metrics..")
 	}
