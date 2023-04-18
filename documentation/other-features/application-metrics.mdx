@@ -15,7 +15,10 @@ By default metrics collection is disabled. For enabling it put the following key
 server:
   admin_token: your_admin_token
   metrics:
-    prometheus.enabled: true
+    prometheus:
+      enabled: true
+      auth: true
+      endpoint: prometheus
     
 destinations:
 ...    
