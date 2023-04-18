@@ -162,7 +162,11 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 	router.POST("/api.:ignored", middleware.TokenFuncAuth(jsEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
 
 	if metrics.Exported {
-		router.GET("/prometheus", middleware.TokenAuth(gin.WrapH(metrics.Handler()), adminToken))
+		handler := gin.WrapH(metrics.Handler())
+		if metrics.Auth {
+			handler = middleware.TokenAuth(handler, adminToken)
+		}
+		router.GET("/" + metrics.Endpoint, handler)
 	}
 
 	//Setup profiler
