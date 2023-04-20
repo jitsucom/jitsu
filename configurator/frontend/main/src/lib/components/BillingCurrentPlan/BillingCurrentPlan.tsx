@@ -92,7 +92,7 @@ export const BillingCurrentPlanComponent: React.FC<CurrentPlanProps> = ({ planSt
               className="cursor-pointer"
               title={
                 <>
-                  Your subscription is managed by a custom contact. Email <code>support@jitsu.com</code> to maka any
+                  Your subscription is managed by a custom contact. Email <code>support@jitsu.com</code> to make any
                   changes
                 </>
               }
