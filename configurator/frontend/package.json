@@ -31,7 +31,7 @@
   "bugs": {
     "url": "https://github.com/jitsucom/jitsu/issues"
   },
-  "packageManager": "pnpm",
+  "packageManager": "pnpm@8.2.0",
   "engines": {
     "pnpm": ">=3",
     "node": ">=14 <18"
