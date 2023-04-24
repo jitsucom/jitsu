@@ -32,6 +32,10 @@ func init() {
 		split := strings.Split(str, ",")
 		fieldTypes[split[0]] = split[1]
 	}
+	fieldTypes["metrics.video_quartile_p_50_rate"] = "DOUBLE"
+	fieldTypes["metrics.video_quartile_p_75_rate"] = "DOUBLE"
+	fieldTypes["metrics.video_quartile_p_100_rate"] = "DOUBLE"
+	fieldTypes["metrics.video_quartile_p_25_rate"] = "DOUBLE"
 }
 
 func LoadFieldTypes() error {

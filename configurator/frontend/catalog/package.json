@@ -30,7 +30,7 @@
   "devDependencies": {
     "@types/lodash": "^4.14.182"
   },
-  "packageManager": "pnpm",
+  "packageManager": "pnpm@8.2.0",
   "engines": {
     "pnpm": ">=3",
     "node": ">=14 <18"

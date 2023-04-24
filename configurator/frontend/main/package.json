@@ -89,7 +89,7 @@
     "test": "craco test --watchAll=false",
     "version:update": "echo \\\"$(date +\"%s\")\\\" > ./public/app-version.json"
   },
-  "packageManager": "pnpm",
+  "packageManager": "pnpm@8.2.0",
   "engines": {
     "pnpm": ">=3",
     "node": ">=14 <18"
