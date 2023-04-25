@@ -24,7 +24,7 @@ import (
 	"time"
 )
 
-const syncTimeout = time.Hour * 24
+const syncTimeout = time.Hour * 48
 
 var (
 	blacklistStreamsByTap = map[string]map[string]bool{
@@ -34,7 +34,7 @@ var (
 	}
 )
 
-//Singer is a Singer CLI driver
+// Singer is a Singer CLI driver
 type Singer struct {
 	base.AbstractCLIDriver
 
@@ -55,11 +55,11 @@ func init() {
 	base.RegisterTestConnectionFunc(base.SingerType, TestSinger)
 }
 
-//NewSinger returns Singer driver and
-//1. writes json files (config, catalog, properties, state) if string/raw json was provided
-//2. runs discover and collects catalog.json
-//2. creates venv
-//3. in another goroutine: updates pip, install singer tap
+// NewSinger returns Singer driver and
+// 1. writes json files (config, catalog, properties, state) if string/raw json was provided
+// 2. runs discover and collects catalog.json
+// 2. creates venv
+// 3. in another goroutine: updates pip, install singer tap
 func NewSinger(ctx context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
 	config := &Config{}
 	err := jsonutils.UnmarshalConfig(sourceConfig.Config, config)
@@ -161,7 +161,7 @@ func NewSinger(ctx context.Context, sourceConfig *base.SourceConfig, collection 
 	return s, nil
 }
 
-//TestSinger tests singer connection (runs discover) if tap has been installed otherwise returns nil
+// TestSinger tests singer connection (runs discover) if tap has been installed otherwise returns nil
 func TestSinger(sourceConfig *base.SourceConfig) error {
 	config := &Config{}
 	err := jsonutils.UnmarshalConfig(sourceConfig.Config, config)
@@ -215,7 +215,7 @@ func TestSinger(sourceConfig *base.SourceConfig) error {
 	return nil
 }
 
-//EnsureTapAndCatalog ensures Singer tap via singer.Instance
+// EnsureTapAndCatalog ensures Singer tap via singer.Instance
 // and does discover if catalog wasn't provided
 func (s *Singer) EnsureTapAndCatalog() error {
 	if s.IsClosed() {
@@ -248,7 +248,7 @@ func (s *Singer) Delete() error {
 	return singer.Instance.Cleanup(s.ID(), s.GetTap())
 }
 
-//Ready returns true if catalog is discovered and tap is installed
+// Ready returns true if catalog is discovered and tap is installed
 func (s *Singer) Ready() (bool, error) {
 	ready, err := singer.Instance.IsTapReady(s.GetTap())
 	if !ready {
@@ -465,7 +465,7 @@ func (s *Singer) loadAndParse(taskLogger logging.TaskLogger, cliParser base.CLIP
 	return nil
 }
 
-//GetDriversInfo returns telemetry information about the driver
+// GetDriversInfo returns telemetry information about the driver
 func (s *Singer) GetDriversInfo() *base.DriversInfo {
 	return &base.DriversInfo{
 		SourceType:      s.GetTap(),
@@ -478,7 +478,7 @@ func (s *Singer) Type() string {
 	return base.SingerType
 }
 
-//Close kills all commands and returns errors if occurred
+// Close kills all commands and returns errors if occurred
 func (s *Singer) Close() (multiErr error) {
 	if s.IsClosed() {
 		return nil
@@ -506,8 +506,8 @@ func (s *Singer) IsClosed() bool {
 	}
 }
 
-//doDiscover discovers tap catalog and returns catalog and properties paths
-//applies blacklist streams to taps and make other streams {"selected": true}
+// doDiscover discovers tap catalog and returns catalog and properties paths
+// applies blacklist streams to taps and make other streams {"selected": true}
 func (s *Singer) doDiscover(tap, pathToConfigs string) (string, string, []string, error) {
 	catalog, err := singer.Instance.Discover(s.ID(), tap, s.config)
 	if err != nil {
