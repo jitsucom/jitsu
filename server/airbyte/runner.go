@@ -20,6 +20,7 @@ import (
 )
 
 const (
+	syncTimeout             = time.Hour * 48
 	connectionStatusSucceed = "SUCCEEDED"
 	connectionStatusFailed  = "FAILED"
 )
@@ -198,7 +199,7 @@ func (r *Runner) Read(dataConsumer base.CLIDataConsumer, streamsRepresentation m
 	}
 
 	taskLogger.INFO("ID [%s] exec: %s %s", r.identifier, DockerCommand, strings.Join(args, " "))
-	return r.run(stdoutHandler, copyTo(dualStdErrWriter), time.Hour*24, args...)
+	return r.run(stdoutHandler, copyTo(dualStdErrWriter), syncTimeout, args...)
 }
 
 func (r *Runner) Close() error {
