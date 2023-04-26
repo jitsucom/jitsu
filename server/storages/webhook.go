@@ -2,6 +2,7 @@ package storages
 
 import (
 	"fmt"
+	"math"
 	"net/http"
 	"time"
 
@@ -68,7 +69,7 @@ func NewWebHook(config *Config) (storage Storage, err error) {
 		Dir:            config.logEventPath,
 		HTTPConfig:     DefaultHTTPConfiguration,
 		QueueFactory:   config.queueFactory,
-		PoolWorkers:    defaultWorkersPoolSize,
+		PoolWorkers:    int(math.Max(defaultWorkersPoolSize, float64(config.streamingThreadsCount))),
 		DebugLogger:    requestDebugLogger,
 		ErrorHandler:   wh.ErrorEvent,
 		SuccessHandler: wh.SuccessEvent,

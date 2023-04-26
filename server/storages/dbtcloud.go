@@ -3,6 +3,7 @@ package storages
 import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/adapters"
+	"math"
 )
 
 const (
@@ -54,7 +55,7 @@ func NewDbtCloud(config *Config) (storage Storage, err error) {
 		Dir:            config.logEventPath,
 		HTTPConfig:     DefaultHTTPConfiguration,
 		QueueFactory:   config.queueFactory,
-		PoolWorkers:    defaultWorkersPoolSize,
+		PoolWorkers:    int(math.Max(defaultWorkersPoolSize, float64(config.streamingThreadsCount))),
 		DebugLogger:    requestDebugLogger,
 		ErrorHandler:   dbt.ErrorEvent,
 		SuccessHandler: dbt.SuccessEvent,
