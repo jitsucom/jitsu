@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/adapters"
+	"math"
 )
 
 //go:embed transform/google_analytics.js
@@ -48,7 +49,7 @@ func NewGoogleAnalytics(config *Config) (storage Storage, err error) {
 		Dir:            config.logEventPath,
 		HTTPConfig:     DefaultHTTPConfiguration,
 		QueueFactory:   config.queueFactory,
-		PoolWorkers:    defaultWorkersPoolSize,
+		PoolWorkers:    int(math.Max(defaultWorkersPoolSize, float64(config.streamingThreadsCount))),
 		DebugLogger:    requestDebugLogger,
 		ErrorHandler:   ga.ErrorEvent,
 		SuccessHandler: ga.SuccessEvent,

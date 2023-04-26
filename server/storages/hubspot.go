@@ -3,6 +3,7 @@ package storages
 import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/adapters"
+	"math"
 )
 
 // HubSpot is a destination that can send data into HubSpot
@@ -44,7 +45,7 @@ func NewHubSpot(config *Config) (storage Storage, err error) {
 		Dir:            config.logEventPath,
 		HTTPConfig:     DefaultHTTPConfiguration,
 		QueueFactory:   config.queueFactory,
-		PoolWorkers:    defaultWorkersPoolSize,
+		PoolWorkers:    int(math.Max(defaultWorkersPoolSize, float64(config.streamingThreadsCount))),
 		DebugLogger:    requestDebugLogger,
 		ErrorHandler:   h.ErrorEvent,
 		SuccessHandler: h.SuccessEvent,
