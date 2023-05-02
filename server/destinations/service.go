@@ -297,14 +297,14 @@ func (s *Service) init(dc map[string]config.DestinationConfig) {
 		destinationConfig := d
 		id := destinationID
 
-		//map token -> id
-		if len(destinationConfig.OnlyTokens) > 0 {
+		if _, global := s.globalDestinationsIds[id]; global {
+			logging.Infof("[%s] Global destination – mapped to all tokens.", id)
+			destinationConfig.OnlyTokens = appconfig.Instance.AuthorizationService.GetAllTokenIDs()
+		} else if len(destinationConfig.OnlyTokens) > 0 {
+			//map token -> id
 			destinationConfig.OnlyTokens = appconfig.Instance.AuthorizationService.GetAllIDsByToken(destinationConfig.OnlyTokens)
 		} else if !s.strictAuth {
 			logging.Warnf("[%s] only_tokens aren't provided. All tokens will be stored.", id)
-			destinationConfig.OnlyTokens = appconfig.Instance.AuthorizationService.GetAllTokenIDs()
-		} else if _, global := s.globalDestinationsIds[id]; global {
-			logging.Infof("[%s] Global destination – mapped to all tokens.", id)
 			destinationConfig.OnlyTokens = appconfig.Instance.AuthorizationService.GetAllTokenIDs()
 		}
 
