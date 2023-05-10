@@ -106,8 +106,8 @@ rpc.useFetch = impl => {
 function getFetch() {
   if (rpcFetchImpl) {
     return rpcFetchImpl;
-  } else if (global.fetch) {
-    return global.fetch;
+  } else if (global['fetch']) {
+    return global['fetch'];
   } else {
     throw new Error("No fetch implementation found. Use rpc.useFetch() to set one.");
   }
