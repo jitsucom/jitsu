@@ -5043,4 +5043,10 @@ export const allAirbyteSources: AirbyteSource[] = [
       connection: <></>,
     },
   },
+    {
+        pic: logos.woocommerce,
+        docker_image_name: "airbyte/source-woocommerce",
+        displayName: "WooCommerce",
+        stable: false
+    },
 ]

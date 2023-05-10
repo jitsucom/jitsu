@@ -18,8 +18,7 @@ if (process.env.FIREBASE_CONFIG) {
   localStorage.setItem(LS_REFRESH_KEY, "dummy_refresh_token")
 }
 
-global.matchMedia =
-  global.matchMedia ||
+global['matchMedia'] = global['matchMedia'] ||
   function (query) {
     return {
       matches: false,

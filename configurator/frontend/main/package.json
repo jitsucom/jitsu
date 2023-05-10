@@ -65,7 +65,8 @@
     "tailwindcss": "npm:@tailwindcss/postcss7-compat",
     "terser-webpack-plugin": "^5.1.1",
     "web-vitals": "^1.0.1",
-    "webpack-bundle-analyzer": "^4.4.0"
+    "webpack-bundle-analyzer": "^4.4.0",
+    "webpack": "4.44.2"
   },
   "jest": {
     "transform": {
