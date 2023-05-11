@@ -147,3 +147,5 @@ export const tap_zuora = require("./tap-zuora").default()
 export const tap_ilevel = require("./tap-ilevel").default()
 export const mailchimp = require("./mailchimp").default()
 export const woocommerce = require("./woocommerce").default()
+export const google_analytics = require("./google_analytics").default()
+

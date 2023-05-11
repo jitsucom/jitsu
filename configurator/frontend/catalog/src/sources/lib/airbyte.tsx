@@ -1,14 +1,14 @@
 import * as logos from "./logos"
 import { AirbyteSource } from "../types"
 import {
-  githubDocumentation,
-  googleSheetsDocumentation,
-  intercomDocumentation,
-  mixpanelDocumentation,
-  mySqlDocumentation,
-  shopifyDocumentation,
-  slackDocumentation,
-  stripeDocumentation,
+    githubDocumentation, googleServiceAuthDocumentation,
+    googleSheetsDocumentation,
+    intercomDocumentation,
+    mixpanelDocumentation,
+    mySqlDocumentation,
+    shopifyDocumentation,
+    slackDocumentation,
+    stripeDocumentation,
 } from "./documentation"
 import * as React from "react"
 
@@ -5048,5 +5048,25 @@ export const allAirbyteSources: AirbyteSource[] = [
         docker_image_name: "airbyte/source-woocommerce",
         displayName: "WooCommerce",
         stable: false
+    },
+    {
+        pic: logos.google_analytics,
+        docker_image_name: "airbyte/source-google-analytics-data-api",
+        displayName: "Google Analytics (GA4)",
+        stable: false,
+        documentation: {
+            overview: (
+                <>
+                    Google Analytics 4 (GA4) connector is the latest version of Google Analytics, which was introduced in 2020. It offers a new data model that emphasizes events and user properties, rather than pageviews and sessions. This new model allows for more flexible and customizable reporting, as well as more accurate measurement of user behavior across devices and platforms.
+                </>
+            ),
+            connection: googleServiceAuthDocumentation({
+                oauthEnabled: true,
+                serviceAccountEnabled: true,
+                scopes: ["https://www.googleapis.com/auth/analytics.readonly"],
+                serviceName: "Google Analytics (GA4)",
+                apis: ["Google Analytics Data API"],
+            }),
+        },
     },
 ]
