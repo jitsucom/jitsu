@@ -915,7 +915,7 @@ export const googleAnalytics: SourceConnector = {
     },
   ],
 
-  displayName: "Google Analytics",
+  displayName: "Google Analytics (UA)",
   id: "google_analytics",
   collectionTypes: ["report"],
   configParameters: [
