@@ -26,6 +26,9 @@ const GolangLayout = "2006-01-02T15:04:05+0000"
 // DBLayout is a time layout that usually comes from Airbyte database sources
 const DBLayout = "2006-01-02T15:04:05.000000"
 
+// DBLayout2 is a time layout that usually comes from Airbyte database sources
+const DBLayout2 = "2006-01-02T15:04:05.000"
+
 // NowUTC returns ISO string representation of current UTC time
 func NowUTC() string {
 	return Now().UTC().Format(Layout)
