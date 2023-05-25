@@ -295,6 +295,9 @@ func (ah *AirbyteHandler) getAvailableDockerVersions(dockerImageName string) ([]
 		if ver.Name == "latest" {
 			continue
 		}
+		if strings.Contains(ver.Name, "dev") {
+			continue
+		}
 
 		versions = append(versions, ver.Name)
 	}
