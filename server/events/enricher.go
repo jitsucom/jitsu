@@ -29,6 +29,10 @@ func EnrichWithSourceId(object map[string]interface{}, sourceId string) {
 // EnrichWithTimeInterval puts interval representation to object
 func EnrichWithTimeInterval(object map[string]interface{}, interval string, lower, upper time.Time) {
 	object[TimeChunkKey] = interval
-	object[TimeIntervalStart] = timestamp.ToISOFormat(lower)
-	object[TimeIntervalEnd] = timestamp.ToISOFormat(upper)
+	if !lower.IsZero() {
+		object[TimeIntervalStart] = timestamp.ToISOFormat(lower)
+	}
+	if !upper.IsZero() {
+		object[TimeIntervalEnd] = timestamp.ToISOFormat(upper)
+	}
 }
