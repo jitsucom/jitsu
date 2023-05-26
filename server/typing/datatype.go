@@ -136,7 +136,9 @@ func ReformatTimeValue(value interface{}) interface{} {
 		return value
 	}
 
-	if len(stringValue) == 0 {
+	l := len(stringValue)
+	if l < len("2006-01-02T15:04:05") || l > len(time.RFC3339Nano) {
+		//strings shorter than shortest of layouts or longer then longest of layouts are obviously not dates
 		return value
 	}
 
@@ -150,17 +152,14 @@ func ReformatTimeValue(value interface{}) interface{} {
 		return timeValue
 	}
 
-	timeValue, err = time.Parse(timestamp.GolangLayout, stringValue)
-	if err == nil {
-		return timeValue
+	if l == len(timestamp.GolangLayout) {
+		timeValue, err = time.Parse(timestamp.GolangLayout, stringValue)
+		if err == nil {
+			return timeValue
+		}
 	}
 
 	timeValue, err = time.Parse(timestamp.DBLayout, stringValue)
-	if err == nil {
-		return timeValue
-	}
-
-	timeValue, err = time.Parse(timestamp.DBLayout2, stringValue)
 	if err == nil {
 		return timeValue
 	}

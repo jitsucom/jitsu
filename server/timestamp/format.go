@@ -21,13 +21,10 @@ const DashDayLayout = "2006-01-02"
 const LogsLayout = "2006-01-02 15:04:05"
 
 // GolangLayout is a default golang layout that is returned on String() without formatting
-const GolangLayout = "2006-01-02T15:04:05+0000"
+const GolangLayout = "2006-01-02T15:04:05-0700"
 
 // DBLayout is a time layout that usually comes from Airbyte database sources
-const DBLayout = "2006-01-02T15:04:05.000000"
-
-// DBLayout2 is a time layout that usually comes from Airbyte database sources
-const DBLayout2 = "2006-01-02T15:04:05.000"
+const DBLayout = "2006-01-02T15:04:05.999999999"
 
 // NowUTC returns ISO string representation of current UTC time
 func NowUTC() string {

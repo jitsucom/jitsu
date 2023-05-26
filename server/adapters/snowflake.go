@@ -480,7 +480,7 @@ func (s *Snowflake) Truncate(tableName string) error {
 		queryLogger: s.queryLogger,
 		ctx:         s.ctx,
 	}
-	statement := fmt.Sprintf(truncateSFTableTemplate, s.config.Db, tableName)
+	statement := fmt.Sprintf(truncateSFTableTemplate, s.config.Schema, tableName)
 	if err := sqlParams.commonTruncate(statement); err != nil {
 		return errorj.TruncateError.Wrap(err, "failed to truncate table").
 			WithProperty(errorj.DBInfo, &ErrorPayload{
@@ -805,6 +805,9 @@ func (s *Snowflake) getCastClause(name string, column typing.SQLColumn) string {
 	if ok {
 		return "::" + castType.Type
 	}
+	//if strings.Contains(strings.ToLower(column.Type), "timestamp") {
+	//	return "::" + column.Type
+	//}
 
 	return ""
 }
