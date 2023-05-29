@@ -33,7 +33,7 @@ type subCollectionResult struct {
 	objectsChunk []map[string]interface{}
 }
 
-//Firebase is a Firebase/Firestore driver. It used in syncing data from Firebase/Firestore
+// Firebase is a Firebase/Firestore driver. It used in syncing data from Firebase/Firestore
 type Firebase struct {
 	base.IntervalDriver
 
@@ -50,7 +50,7 @@ func init() {
 	base.RegisterTestConnectionFunc(base.FirebaseType, TestFirebase)
 }
 
-//NewFirebase returns configured Firebase driver instance
+// NewFirebase returns configured Firebase driver instance
 func NewFirebase(ctx context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
 	config := &FirebaseConfig{}
 	if err := jsonutils.UnmarshalConfig(sourceConfig.Config, config); err != nil {
@@ -109,7 +109,7 @@ func NewFirebase(ctx context.Context, sourceConfig *base.SourceConfig, collectio
 	}, nil
 }
 
-//TestFirebase tests connection to Firebase without creating Driver instance
+// TestFirebase tests connection to Firebase without creating Driver instance
 func TestFirebase(sourceConfig *base.SourceConfig) error {
 	ctx := context.Background()
 	config := &FirebaseConfig{}
@@ -174,8 +174,9 @@ func (f *Firebase) GetObjectsFor(interval *base.TimeInterval, objectsLoader base
 	return fmt.Errorf("Unknown stream type: %s", f.collection.Type)
 }
 
-//loadCollection gets the exact firestore key or by path with wildcard:
-//  collection/*/sub_collection/*/sub_sub_collection
+// loadCollection gets the exact firestore key or by path with wildcard:
+//
+//	collection/*/sub_collection/*/sub_sub_collection
 func (f *Firebase) loadCollection(objectsLoader base.ObjectsLoader) error {
 	collectionPaths := strings.Split(f.firestoreCollectionKey, "/*/")
 	firstPathPart := collectionPaths[0]
@@ -186,7 +187,7 @@ func (f *Firebase) loadCollection(objectsLoader base.ObjectsLoader) error {
 	}
 
 	result := &subCollectionResult{}
-	err := f.diveAndFetch(firebaseCollection, map[string]interface{}{}, firestoreDocumentIDField, collectionPaths, objectsLoader, result)
+	err := f.diveAndFetch(firebaseCollection, map[string]interface{}{}, firestoreDocumentIDField, collectionPaths, objectsLoader, result, true)
 	if err != nil {
 		return err
 	}
@@ -194,9 +195,9 @@ func (f *Firebase) loadCollection(objectsLoader base.ObjectsLoader) error {
 	return nil
 }
 
-//diveAndFetch depth-first dives into collections tree if not empty or
-//fetches batches of data and puts into the result
-func (f *Firebase) diveAndFetch(collection *firestore.CollectionRef, parentIDs map[string]interface{}, idFieldName string, paths []string, objectsLoader base.ObjectsLoader, result *subCollectionResult) error {
+// diveAndFetch depth-first dives into collections tree if not empty or
+// fetches batches of data and puts into the result
+func (f *Firebase) diveAndFetch(collection *firestore.CollectionRef, parentIDs map[string]interface{}, idFieldName string, paths []string, objectsLoader base.ObjectsLoader, result *subCollectionResult, flush bool) error {
 	//firebase doesn't respect big requests
 	iter := collection.Limit(batchSize).Documents(f.ctx)
 	batchesCount := 0
@@ -220,7 +221,7 @@ func (f *Firebase) diveAndFetch(collection *firestore.CollectionRef, parentIDs m
 
 				subCollectionIDField := idFieldName + "_" + subCollectionName
 
-				err := f.diveAndFetch(subCollection, parentIDs, subCollectionIDField, paths[1:], objectsLoader, result)
+				err := f.diveAndFetch(subCollection, parentIDs, subCollectionIDField, paths[1:], objectsLoader, result, false)
 				if err != nil {
 					return err
 				}
@@ -257,7 +258,7 @@ func (f *Firebase) diveAndFetch(collection *firestore.CollectionRef, parentIDs m
 			break
 		}
 	}
-	if len(result.objectsChunk) > 0 {
+	if len(result.objectsChunk) > 0 && flush {
 		err := objectsLoader(result.objectsChunk, result.counter, -1, -1)
 		if err != nil {
 			return err
