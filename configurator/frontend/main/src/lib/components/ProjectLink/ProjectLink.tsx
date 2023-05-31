@@ -18,7 +18,9 @@ const ProjectLink: React.FC<ProjectLinkProps> = ({ to, children, stripLink, ...r
   return stripLink ? (
     <>{children}</>
   ) : (
-    <NavLink to={`/prj-${projectId}${to}`} children={children} {...rest} />
+    <NavLink to={`/prj-${projectId}${to}`} {...rest}>
+      {children}
+    </NavLink>
   )
 }
 
