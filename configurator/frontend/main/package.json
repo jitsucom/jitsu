@@ -10,7 +10,7 @@
     "@sentry/react": "^6.19.6",
     "@sentry/tracing": "^6.19.6",
     "@svgr/webpack": "^5.5.0",
-    "antd": "^4.13.1",
+    "antd": "~4.24.10",
     "axios": "^0.21.4",
     "classnames": "^2.2.6",
     "firebase": "^9.4.1",
@@ -38,6 +38,8 @@
     "laxy": "^1.0.0"
   },
   "devDependencies": {
+    "eslint": "^7.11.0",
+    "eslint-config-react-app": "~7.0.1",
     "@ant-design/icons": "^4.5.0",
     "@craco/craco": "^6.1.1",
     "@tailwindcss/postcss7-compat": "^2.0.3",
@@ -53,7 +55,7 @@
     "babel-plugin-import": "^1.13.5",
     "babel-plugin-lodash": "^3.3.4",
     "babel-preset-react-app": "^10.0.1",
-    "craco-antd": "^1.19.0",
+    "craco-antd": "~2.0.0",
     "craco-babel-loader": "^1.0.3",
     "craco-less": "^1.17.1",
     "monaco-editor-webpack-plugin": "^4.2.0",

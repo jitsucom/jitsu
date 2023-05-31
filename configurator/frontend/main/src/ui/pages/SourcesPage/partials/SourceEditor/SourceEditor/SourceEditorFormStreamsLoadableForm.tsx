@@ -214,7 +214,7 @@ const StreamPanel: React.FC<StreamPanelProps> = ({
 
   const [streamData, setStreamData] = useState<StreamData>(initialStreamData)
 
-  const toggle = (checked: boolean, event: MouseEvent) => {
+  const toggle = (checked: boolean, event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation() // hack to prevent collapse triggers
     setChecked(checked)
     handleToggleStream(checked, streamData)
