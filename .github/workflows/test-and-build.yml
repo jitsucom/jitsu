@@ -1,9 +1,9 @@
 name: Build and Test
 on:
   push:
-    branches: [main]
+    branches: [newjitsu]
   pull_request:
-    branches: [main]
+    branches: [newjitsu]
 
 env:
   #container jitsucom/node16builder:latest has playwright browsers binaries preinstalled on this path:
