@@ -8,6 +8,4 @@ if [[ "$VERCEL_GIT_COMMIT_REF" != *"newjitsu"*  ]]; then
     exit 0
 fi
 
-cd webapps/console
-
 npx turbo-ignore
