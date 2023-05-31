@@ -4,7 +4,6 @@
 # see https://vercel.com/support/articles/how-do-i-use-the-ignored-build-step-field-on-vercel
  
 # Deployment rules are: (./configurator/frontend folder changed) AND (branch == beta or commit contains [vercel-preview] string)
-cd configurator/frontend
 
 git diff HEAD^ HEAD --quiet ./
 
