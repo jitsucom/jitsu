@@ -101,9 +101,6 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 		for _, object := range stream.Objects {
 			//enrich with system fields values
 			object[events.SrcKey] = srcSource
-			if _, ok := object[timestamp.Key]; !ok {
-				object[timestamp.Key] = timestamp.NowUTC()
-			}
 			events.EnrichWithSourceId(object, rs.task.Source)
 
 			//calculate eventID from key fields or whole object
@@ -121,6 +118,9 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 			if err := uniqueIDField.Set(object, eventID); err != nil {
 				b, _ := json.Marshal(object)
 				return fmt.Errorf("Error setting unique ID field into %s: %v", string(b), err)
+			}
+			if _, ok := object[timestamp.Key]; !ok {
+				object[timestamp.Key] = timestamp.NowUTC()
 			}
 			if stream.RemoveSourceKeyFields {
 				for _, kf := range keyFields {

@@ -16,6 +16,7 @@ import (
 	"math"
 	"sort"
 	"strings"
+	"time"
 )
 
 const (
@@ -358,10 +359,10 @@ func (s *Snowflake) insertSingle(eventContext *EventContext) error {
 	}
 	sort.Strings(columns)
 	for _, name := range columns {
-		value := eventContext.ProcessedEvent[name]
+		column := eventContext.Table.Columns[name]
+		value := s.adaptValue(eventContext.ProcessedEvent[name], column)
 		columnNames = append(columnNames, reformatValue(name))
-
-		castClause := s.getCastClause(name, eventContext.Table.Columns[name])
+		castClause := s.getCastClause(name, column)
 		placeholders = append(placeholders, "?"+castClause)
 		values = append(values, value)
 	}
@@ -505,8 +506,9 @@ func (s *Snowflake) Update(table *Table, object map[string]interface{}, whereKey
 	sort.Strings(columns)
 
 	for i, name := range columns {
-		value := object[name]
-		castClause := s.getCastClause(name, table.Columns[name])
+		column := table.Columns[name]
+		value := s.adaptValue(object[name], column)
+		castClause := s.getCastClause(name, column)
 		columnNames[i] = reformatValue(name) + "= ?" + castClause
 		values[i] = value
 	}
@@ -537,6 +539,7 @@ func (s *Snowflake) createTableInTransaction(wrappedTx *Transaction, table *Tabl
 	//sorting columns asc
 	sort.Strings(columnsDDL)
 	query := fmt.Sprintf(createSFTableTemplate, s.config.Schema, reformatValue(table.Name), strings.Join(columnsDDL, ","))
+	fmt.Println(query)
 	s.queryLogger.LogDDL(query)
 
 	_, err := wrappedTx.tx.ExecContext(s.ctx, query)
@@ -580,13 +583,14 @@ func (s *Snowflake) bulkInsertInTransaction(wrappedTx *Transaction, table *Table
 		}
 		_, _ = placeholdersBuilder.WriteString("(")
 
-		for i, column := range unformattedColumnNames {
-			value, _ := row[column]
+		for i, name := range unformattedColumnNames {
+			column := table.Columns[name]
+			value := s.adaptValue(row[name], column)
 			//trying to estimate payload size to avoid exceeding max payload size 16Mb: https://docs.snowflake.com/en/developer-guide/node-js/nodejs-driver-execute
 			//adding 4 bytes to each parameter size just in case (e.g.: to account for the length of the parameters or other extra unfi)
 			estimatedPayloadSize += 4 + len(fmt.Sprint(value))
 			valueArgs = append(valueArgs, value)
-			castClause := s.getCastClause(column, table.Columns[column])
+			castClause := s.getCastClause(name, column)
 
 			_, _ = placeholdersBuilder.WriteString("?" + castClause)
 
@@ -630,8 +634,7 @@ func (s *Snowflake) bulkMergeInTransaction(wrappedTx *Transaction, table *Table,
 
 	err = s.bulkInsertInTransaction(wrappedTx, tmpTable, objects)
 	if err != nil {
-		return errorj.Decorate(err, "failed to insert into temporary table").
-			WithProperty(errorj.DBObjects, dbObjects(objects))
+		return errorj.Decorate(err, "failed to insert into temporary table")
 	}
 
 	//insert from select
@@ -810,6 +813,20 @@ func (s *Snowflake) getCastClause(name string, column typing.SQLColumn) string {
 	//}
 
 	return ""
+}
+
+func (s *Snowflake) adaptValue(value interface{}, column typing.SQLColumn) interface{} {
+	l := strings.ToLower(column.Type)
+	if strings.Contains(l, "text") || strings.Contains(l, "varchar") {
+		switch v := value.(type) {
+		case time.Time:
+			return v.Format(time.RFC3339)
+		default:
+			return fmt.Sprint(v)
+		}
+	}
+
+	return value
 }
 
 // columnDDL returns column DDL (column name, mapped sql type)

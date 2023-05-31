@@ -1,5 +1,5 @@
 import ApplicationServices from "lib/services/ApplicationServices"
-import { Component } from "react"
+import {Component, PropsWithChildren} from "react"
 import { ErrorCard } from "../ErrorCard/ErrorCard"
 
 type Props = {
@@ -10,7 +10,7 @@ type State = {
   error?: Error
 }
 
-export class ErrorBoundary extends Component<Props, State> {
+export class ErrorBoundary extends Component<PropsWithChildren<Props>, State> {
   constructor(props) {
     super(props)
     this.state = {}
@@ -41,7 +41,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   render() {
-    if (this.state.error && this.props.hideError) return null
+    if (this.state.error && this.props.hideError) return (<></>)
 
     if (this.state.error) {
       return (
@@ -57,6 +57,6 @@ export class ErrorBoundary extends Component<Props, State> {
       )
     }
 
-    return this.props.children
+    return (<>{this.props.children}</>)
   }
 }
