@@ -4,6 +4,8 @@
 # see https://vercel.com/support/articles/how-do-i-use-the-ignored-build-step-field-on-vercel
  
 # Deployment rules are: (./configurator/frontend folder changed) AND (branch == beta or commit contains [vercel-preview] string)
+cd configurator/frontend
+
 git diff HEAD^ HEAD --quiet ./
 
 if [[ $? == 0 ]]; then
@@ -14,6 +16,11 @@ fi
 if [[ "$VERCEL_GIT_COMMIT_REF" == "beta" ]]; then
     echo "✅ Branch is beta, deploying"
     exit 1
+fi
+
+if [[ $VERCEL_GIT_COMMIT_REF == *"newjitsu"* ]]; then
+    echo "❌ Newjitsu branch, skipping deploy"
+    exit 0
 fi
 
 if [[ $VERCEL_GIT_COMMIT_MESSAGE == *"[vercel-preview]"* ]]; then
