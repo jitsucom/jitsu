@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "declaration": true,
+    "esModuleInterop": true,
+    "module": "commonjs",
+    "lib": ["ES2019", "dom"],
+    "noEmit": true
+  },
+  "exclude": [
+    "__tests__",
+    "node_modules",
+    "dist",
+    "test_projects",
+    "test",
+    "templates"
+  ]
+}

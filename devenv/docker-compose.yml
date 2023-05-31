@@ -1,0 +1,107 @@
+version: "3.8"
+services:
+  jitsu-dev-redis:
+    tty: true
+    image: redis:6.2-alpine
+    restart: always
+    ports:
+      - "${REDIS_PORT:-6380}:6379"
+    command: redis-server --save 20 1 --loglevel warning --requirepass redis-mqf3nzx
+    volumes:
+      - ./data/redis:/var/lib/redis
+
+  jitsu-dev-redisinsight:
+    tty: true
+    image: redislabs/redisinsight:latest
+    ports:
+      - "${RI_PORT:-3011}:8001"
+    volumes:
+      - ./data/redis-insights:/db
+
+  jitsu-dev-postgres:
+    tty: true
+    image: postgres:14
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres-mqf3nzx
+    logging:
+      options:
+        max-size: 10m
+        max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready", "-d", "postgres"]
+      interval: 1s
+      timeout: 10s
+      retries: 10
+    ports:
+      - "${PG_PORT:-5438}:5432"
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+  jitsu-dev-zookeeper:
+    tty: true
+    image: wurstmeister/zookeeper:latest
+    expose:
+      - 2181
+  jitsu-dev-kafka:
+    tty: true
+    image: wurstmeister/kafka:latest
+    depends_on:
+      - jitsu-dev-zookeeper
+    #    ports:
+    #      - "19092:19092"
+    #      - "19093:19093"
+    environment:
+      TERM: "xterm-256color"
+      KAFKA_ZOOKEEPER_CONNECT: jitsu-dev-zookeeper:2181
+
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:19093,OUTSIDE://0.0.0.0:19092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://jitsu-dev-kafka:19093,OUTSIDE://localhost:19092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,OUTSIDE:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+
+  jitsu-dev-kafka-console:
+    tty: true
+    image: docker.redpanda.com/vectorized/console:master-173596f
+    links:
+      - "jitsu-dev-kafka:localhost"
+    restart: on-failure
+    entrypoint: /bin/sh
+    command: -c "echo \"$$CONSOLE_CONFIG_FILE\" > /tmp/config.yml; /app/console"
+    environment:
+      TERM: "xterm-256color"
+      CONFIG_FILEPATH: /tmp/config.yml
+      CONSOLE_CONFIG_FILE: |
+        kafka:
+          brokers: ["jitsu-dev-kafka:19093"]
+    ports:
+      - "${KAFKA_CONSOLE_PORT:-3032}:8080"
+    depends_on:
+      - jitsu-dev-kafka
+
+  bulker-dev:
+    tty: true
+    image: jitsucom/bulker:latest
+    restart: on-failure
+    ports:
+      - "${BULKER_PORT:-3042}:3042"
+    volumes:
+      - ./utils:/utils
+    environment:
+      TERM: "xterm-256color"
+      BULKER_KAFKA_BOOTSTRAP_SERVERS: "jitsu-dev-kafka:19093"
+      BULKER_DESTINATION_POSTGRES: "{id: 'postgres', type: 'postgres', mode: 'stream', credentials: {host: 'jitsu-dev-postgres', username: 'postgres', password: 'postgres-mqf3nzx', port: 5432, database: 'postgres', parameters: {sslmode: 'disable'}}}"
+      BULKER_AUTH_TOKENS: "4ba41958f341469993fd8ea1c0c932f0"
+    command: [
+        #'chmod', '755', '/utils/wait-for-it.sh', '&&',
+        "/utils/wait-for-it.sh",
+        "jitsu-dev-kafka:19093",
+        "--",
+        "/utils/wait-for-it.sh",
+        "jitsu-dev-postgres:5432",
+        "--",
+        "/app/bulkerapp",
+      ]
+    depends_on:
+      - jitsu-dev-postgres
+      - jitsu-dev-kafka

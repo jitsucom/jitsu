@@ -1,0 +1,51 @@
+name: Build and Test
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  #container jitsucom/node16builder:latest has playwright browsers binaries preinstalled on this path:
+  PLAYWRIGHT_BROWSERS_PATH: /root/.cache/ms-playwright
+
+jobs:
+  test:
+    name: Test and Build project
+    container: jitsucom/node16builder:latest
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+
+      - uses: actions/cache@v3
+        name: Setup pnpm cache
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies with pnpm
+        run: pnpm install --no-frozen-lockfile
+      - name: Check code format
+        run: pnpm format:check
+      - name: Run linter
+        run: pnpm lint
+      - name: Build project
+        run: pnpm build
+      #      - name: Publish canary versions
+      #        run: pnpm build
+      - name: Run Tests
+        run: pnpm test
+      - uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          path: libs/jitsu-js/playwright/artifacts
+          name: artifacts/@jitsu/js
+          retention-days: 30

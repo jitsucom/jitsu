@@ -1,0 +1,123 @@
+version: "3.8"
+services:
+  redis:
+    tty: true
+    image: redis:6.2-alpine
+    restart: "unless-stopped"
+    ports:
+      - "${REDIS_PORT:-6378}:6379"
+    command: "redis-server --save 20 1 --loglevel warning --requirepass ${REDIS_PASSWORD:-redis}"
+    volumes:
+      - ./data/redis:/var/lib/redis
+
+  postgres:
+    tty: true
+    image: postgres:14
+    restart: "unless-stopped"
+    user: postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+    logging:
+      options:
+        max-size: 10m
+        max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready", "-d", "postgres"]
+      interval: 1s
+      timeout: 10s
+      retries: 10
+    ports:
+      - "${PG_PORT:-5437}:5432"
+  #    volumes:
+  #      - ./data/postgres:/var/lib/postgresql/data
+  zookeeper:
+    tty: true
+    image: wurstmeister/zookeeper:latest
+    expose:
+      - 2181
+  kafka:
+    tty: true
+    image: wurstmeister/kafka:latest
+    depends_on:
+      - zookeeper
+    #    ports:
+    #      - "19092:19092"
+    #      - "19093:19093"
+    environment:
+      TERM: "xterm-256color"
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:19093,OUTSIDE://0.0.0.0:19092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:19093,OUTSIDE://localhost:19092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,OUTSIDE:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server 127.0.0.1:19092 --describe"]
+      interval: 5s
+      timeout: 2s
+      retries: 15
+
+  bulker:
+    tty: true
+    image: jitsucom/bulker:latest
+    restart: "unless-stopped"
+    ports:
+      - "${BULKER_PORT:-3045}:3042"
+    environment:
+      BULKER_HTTP_PORT: "3042"
+      TERM: "xterm-256color"
+      BULKER_KAFKA_BOOTSTRAP_SERVERS: "kafka:19093"
+      BULKER_AUTH_TOKENS: "${BULKER_PASSWORD:-4ba41958f341469993fd8ea1c0c932f0}"
+      BULKER_CONFIG_SOURCE: "redis"
+      REDIS_URL: "redis://default:${REDIS_PASSWORD:-redis}@redis:6379"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3042/ready"]
+      interval: 2s
+      timeout: 10s
+      retries: 15
+    depends_on:
+      redis:
+        condition: service_started
+      kafka:
+        condition: service_healthy
+  rotor:
+    tty: true
+    image: jitsucom/rotor:latest
+    restart: "unless-stopped"
+    environment:
+      DISABLE_SERVICE_prisma: "true"
+      DISABLE_SERVICE_pg: "true"
+      BULKER_URL: "http://bulker:3042"
+      BULKER_AUTH_KEY: "${BULKER_PASSWORD:-4ba41958f341469993fd8ea1c0c932f0}"
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:19093"
+      REDIS_URL: "redis://default:${REDIS_PASSWORD:-redis}@redis:6379"
+    depends_on:
+      bulker:
+        condition: service_started
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
+  console:
+    tty: true
+    image: jitsucom/console:latest
+    restart: "unless-stopped"
+    environment:
+      ROTOR_URL: "http://rotor:3401"
+      BULKER_URL: "http://bulker:3042"
+      BULKER_AUTH_KEY: "${BULKER_PASSWORD:-4ba41958f341469993fd8ea1c0c932f0}"
+      DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/postgres"
+      REDIS_URL: "redis://default:${REDIS_PASSWORD:-redis}@redis:6379"
+      TEST_CREDENTIALS: ${TEST_CREDENTIALS}
+      TEST_CREDENTIALS_SHOW_LOGIN: "true"
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
+      NEXTAUTH_URL: "http://localhost:${JITSU_PORT:-3216}/"
+      UPDATE_DB: "true"
+    depends_on:
+      redis:
+        condition: service_started
+      bulker:
+        condition: service_started
+    ports:
+      - "${JITSU_PORT:-3216}:3000"

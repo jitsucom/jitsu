@@ -1,0 +1,154 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@500");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+@tailwind variants;
+@tailwind ty;
+
+:root {
+  --font-main: "Inter";
+  --font-header: "Inter";
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+}
+
+button {
+  display: inline-flex;
+  align-items: center;
+}
+
+body {
+  font-family: var(--font-main), sans-serif;
+  font-size: 14px;
+}
+
+body {
+  overflow: hidden;
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+.font-main {
+  font-family: var(--font-main);
+}
+
+.global-wrapper {
+  background-color: white;
+
+  height: 100vh;
+  width: 100vw;
+  overflow-x: auto;
+  overflow-y: auto;
+}
+
+.debug-border {
+  border: 1px solid red;
+}
+
+/*
+See https://github.com/ant-design/ant-design/issues/13074
+*/
+svg {
+  vertical-align: baseline;
+}
+
+code {
+  font-family: var(--font-mono);
+  line-height: normal;
+  background: rgba(135, 131, 120, 0.15);
+  //color: #EB5757;
+  font-weight: bold;
+  white-space: nowrap;
+  border-radius: 3px;
+  font-size: 85%;
+  padding: 0.1em 0.3em;
+  border: 1px solid #e8e8e8;
+}
+
+.underline-magical {
+  background-image: linear-gradient(120deg, #4f46e5 0%, #a5b4fc 100%);
+  background-repeat: no-repeat;
+  background-size: 100% 0.2em;
+  background-position: 0 88%;
+  transition: background-size 0.25s ease-in;
+}
+
+.underline-magical:hover {
+  background-size: 100% 88%;
+}
+
+.headers-table .ant-table {
+  margin-left: -16px !important;
+}
+
+.headers-table .ant-table-cell {
+  padding-left: 16px !important;
+}
+
+.headers-collapse .ant-collapse-header {
+  padding-left: 0px !important;
+  padding-top: 0px !important;
+  padding-bottom: 0px !important;
+}
+
+.react-json-view * {
+  font-family: var(--font-mono);
+  word-break: break-all;
+}
+
+.link {
+  @apply text-primary hover:underline;
+}
+
+.jitsu-label {
+  background-color: rgba(0, 0, 0, 0.02);
+  color: rgba(0, 0, 0, 0.65);
+  padding: 8px 16px;
+  width: 100%;
+  border-bottom: 1px solid rgba(5, 5, 5, 0.06);
+  margin-bottom: 8px;
+  border-top-color: rgba(5, 5, 5, 0.06);
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+  border-top-style: solid;
+  border-top-width: 1px;
+  border-left-color: rgba(5, 5, 5, 0.06);
+  border-left-style: solid;
+  border-left-width: 1px;
+  border-right-color: rgba(5, 5, 5, 0.06);
+  border-right-style: solid;
+  border-right-width: 1px;
+  box-sizing: border-box;
+}
+
+.jitsu-label-borderless {
+  background-color: rgba(0, 0, 0, 0.02);
+  color: rgba(0, 0, 0, 0.65);
+  padding: 8px 16px;
+  width: 100%;
+  border-bottom: 1px solid rgba(5, 5, 5, 0.06);
+  margin-bottom: 8px;
+  box-sizing: border-box;
+}
+
+.table-footer {
+  background-color: rgba(0, 0, 0, 0.02);
+  color: rgba(0, 0, 0, 0.65);
+  padding: 8px 16px;
+  width: 100%;
+  border-bottom: 1px solid rgba(5, 5, 5, 0.04);
+  border-top-color: rgba(5, 5, 5, 0.06);
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+  border-top-style: solid;
+  border-top-width: 1px;
+  border-left-color: rgba(5, 5, 5, 0.04);
+  border-left-style: solid;
+  border-left-width: 1px;
+  border-right-color: rgba(5, 5, 5, 0.04);
+  border-right-style: solid;
+  border-right-width: 1px;
+  box-sizing: border-box;
+}

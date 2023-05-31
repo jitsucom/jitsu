@@ -1,0 +1,12 @@
+.contentWidth {
+  max-width: 1400px;
+  min-width: 600px;
+  flex-grow: 1;
+}
+
+.rootWrapper {
+  margin: auto;
+  max-width: 1400px;
+  min-width: 700px;
+  min-height: 80vh;
+}

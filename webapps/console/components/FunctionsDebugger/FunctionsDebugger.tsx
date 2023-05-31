@@ -1,0 +1,644 @@
+import React, { useCallback, useEffect, useReducer, useState } from "react";
+import { EditorComponentProps } from "../ConfigObjectEditor/ConfigEditor";
+import FieldListEditorLayout from "../FieldListEditorLayout/FieldListEditorLayout";
+import { TextEditor } from "../ConnectionEditorPage/ConnectionEditorPage";
+import { Badge, Button, Drawer, Dropdown, MenuProps, Select, Table } from "antd";
+import { PlayCircleOutlined } from "@ant-design/icons";
+import { CodeEditor } from "../CodeEditor/CodeEditor";
+import styles from "./FunctionsDebugger.module.css";
+import { Settings } from "lucide-react";
+import Link from "antd/lib/typography/Link";
+import { getConfigApi, useEventsLogApi } from "../../lib/useApi";
+import { EventsLogRecord } from "../../lib/server/events-log";
+import { useWorkspace } from "../../lib/context";
+import { arrayToMap } from "../../lib/shared/arrays";
+import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
+import { ColumnsType } from "antd/es/table";
+import { UTCDate, UTCHeader } from "../DataView/EventsBrowser";
+import { examplePageEvent, exampleTrackEvents, exportIdentifyEvent } from "./example_events";
+import { rpc } from "juava";
+import { logType } from "../../pages/api/[workspaceId]/function/run";
+import dayjs from "dayjs";
+import { defaultFunctionTemplate } from "./code_templates";
+import { FunctionConfig } from "../../lib/schema";
+import { useRouter } from "next/router";
+import { feedbackError } from "../../lib/ui";
+
+const localDate = (date: string | Date) => dayjs(date).format("YYYY-MM-DD HH:mm:ss");
+
+type FunctionsDebuggerProps = {} & EditorComponentProps;
+
+export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
+  const { push } = useRouter();
+
+  const workspace = useWorkspace();
+  const [showLogs, setShowLogs] = useState(false);
+  const [showConfig, setShowConfig] = useState(false);
+  const [showEvents, setShowEvents] = useState(false);
+  const [event, setEvent] = useState<any>(JSON.stringify(examplePageEvent(), undefined, 2));
+  const [obj, setObj] = useState<Partial<FunctionConfig>>({
+    ...props.object,
+    code: props.isNew ? defaultFunctionTemplate() : props.object.code ?? "",
+  });
+
+  const [config, setConfig] = useState<any>("{}");
+  const [store, setStore] = useState<any>({});
+  const [result, setResult] = useState<any>({});
+  const [logs, setLogs] = useState<logType[]>([]);
+  const [unreadErrorLogs, setUnreadErrorLogs] = useState(0);
+  const [unreadLogs, setUnreadLogs] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [running, setRunning] = useState(false);
+
+  const save = useCallback(async () => {
+    setLoading(true);
+    try {
+      if (props.isNew) {
+        await getConfigApi(workspace.id, "function").create(obj);
+      } else if (obj.id) {
+        await getConfigApi(workspace.id, "function").update(obj.id, obj);
+      } else {
+        feedbackError(`Can't save function without id`);
+      }
+      push(`/${workspace.id}/functions`);
+    } catch (error) {
+      feedbackError(`Can't save function`, { error });
+    } finally {
+      setLoading(false);
+    }
+  }, [props.isNew, obj, workspace.id, push]);
+
+  const runFunction = useCallback(async () => {
+    setRunning(true);
+    let body = {};
+    try {
+      body = {
+        functionId: obj.id,
+        functionName: obj.name,
+        code: obj.code,
+        event: JSON.parse(event),
+        config: JSON.parse(config),
+        store,
+        workspaceId: workspace.id,
+      };
+    } catch (e) {
+      feedbackError("Invalid JSON", { error: e });
+      setRunning(false);
+      return;
+    }
+    try {
+      const res = await rpc(`/api/${workspace.id}/function/run`, {
+        method: "POST",
+        body,
+      });
+      if (res.error) {
+        setResult(res.error);
+        setLogs([
+          ...res.logs,
+          {
+            level: "error",
+            type: "log",
+            message: res.error,
+            timestamp: new Date(),
+          },
+        ]);
+      } else {
+        setResult(res.result);
+        setLogs(res.logs);
+      }
+
+      if (!showLogs) {
+        setUnreadLogs(res.logs.length);
+        setUnreadErrorLogs(res.logs.filter(l => l.level === "error").length);
+      }
+      setStore(res.store);
+    } catch (e: any) {
+      const errorText = "Error while calling Function API. Please contact support.";
+      setLogs([
+        {
+          level: "error",
+          type: "log",
+          message: errorText,
+          timestamp: new Date(),
+        },
+      ]);
+      setResult(errorText);
+    } finally {
+      setRunning(false);
+    }
+  }, [workspace.id, obj.code, event, config, store, obj.id, obj.name, showLogs]);
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="w-full flex-auto  overflow-auto">
+        <div className={"w-full h-full flex flex-col overflow-auto relative rounded-lg"}>
+          <div className={"shrink basis-3/5 overflow-auto"}>
+            <FieldListEditorLayout
+              groups={{
+                Name: {
+                  expandable: true,
+                  hideArrow: true,
+                  initiallyExpanded: props.isNew,
+                  title: expanded => (
+                    <div className="flex mt-2 mb-2 items-baseline">
+                      <h1 className="text-2xl mr-2">{props.isNew ? "Add new function" : `Edit ${obj.name}`}</h1>
+                      <Link>{expanded ? "(hide)" : "(edit name)"}</Link>
+                    </div>
+                  ),
+                },
+                Code: {
+                  expandable: false,
+                  className: "overflow-hidden",
+                  title: (
+                    <div className={"flex flex-row items-end justify-between mt-2 mb-2"}>
+                      <div>
+                        <h2 className="text-lg pl-2">Code:</h2>
+                      </div>
+                      <div className={"space-x-4"}>
+                        <Button
+                          type="primary"
+                          ghost
+                          loading={loading}
+                          onClick={() => push(`/${workspace.id}/functions`)}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          type="default"
+                          loading={loading}
+                          onClick={() => setShowConfig(!showConfig)}
+                          icon={<Settings className={"inline-block anticon"} size={"1em"} />}
+                        >
+                          Config
+                        </Button>
+                        <Button
+                          type="default"
+                          loading={running || loading}
+                          icon={<PlayCircleOutlined />}
+                          onClick={runFunction}
+                        >
+                          Run
+                        </Button>
+                        <Button type="primary" loading={loading} onClick={save}>
+                          Save
+                        </Button>
+                      </div>
+                    </div>
+                  ),
+                },
+              }}
+              items={[
+                {
+                  group: "Name",
+                  name: "Name",
+                  component: (
+                    <TextEditor
+                      className="max-w-xl"
+                      value={obj.name}
+                      onChange={name => {
+                        setObj({ ...obj, name });
+                      }}
+                    />
+                  ),
+                },
+                {
+                  group: "Name",
+                  name: "Description",
+                  component: (
+                    <TextEditor
+                      className="max-w-xl"
+                      value={obj.description}
+                      onChange={description => {
+                        setObj({ ...obj, description });
+                      }}
+                    />
+                  ),
+                },
+                {
+                  group: "Code",
+                  key: "code",
+                  itemClassName: "flex-auto",
+                  component: (
+                    <div className={"flex-auto flex flex-row h-full gap-x-4 overflow-auto"}>
+                      <div className={`${styles.editor} flex-auto pl-2 bg-backgroundLight`}>
+                        <CodeEditor
+                          width={"99.9%"}
+                          language={"javascript"}
+                          value={obj.code ?? ""}
+                          ctrlEnterCallback={runFunction}
+                          ctrlSCallback={save}
+                          onChange={value => setObj({ ...obj, code: value })}
+                          monacoOptions={{ renderLineHighlight: "none" }}
+                        />
+                      </div>
+                      <div
+                        className={`${styles.editor} ${
+                          showConfig ? "block" : "hidden"
+                        } flex-auto w-1/3 bg-backgroundLight`}
+                      >
+                        <div className={"jitsu-label-borderless"}>Config</div>
+                        <CodeEditor
+                          width={"99.9%"}
+                          language={"json"}
+                          value={config}
+                          onChange={setConfig}
+                          monacoOptions={{ lineNumbers: "off" }}
+                        />
+                      </div>
+                    </div>
+                  ),
+                },
+              ]}
+            />
+          </div>
+          <div className={`flex-auto basis-2/5 overflow-auto`}>
+            <div className={"flex flex-row h-full gap-x-4"}>
+              <div className={"flex-auto h-full w-1/2 flex flex-col"}>
+                <div className={"flex-auto w-full flex flex-row justify-between mt-2 mb-2 items-end"}>
+                  <div>
+                    <h2 className="text-lg pl-2">Event:</h2>
+                  </div>
+                  <div className={"space-x-2"}>
+                    <ExamplesDropdown selectEvent={e => setEvent(JSON.stringify(e, undefined, 2))} />
+                    <Button type={"primary"} ghost onClick={() => setShowEvents(!showEvents)}>
+                      Get Live Event
+                    </Button>
+                  </div>
+                </div>
+                <div className={`${styles.editor} flex-auto bg-backgroundLight w-full pl-2`}>
+                  <CodeEditor
+                    width={"99.9%"}
+                    language={"json"}
+                    value={event}
+                    onChange={setEvent}
+                    monacoOptions={{
+                      renderLineHighlight: "none",
+                      lineDecorationsWidth: 8,
+                      lineNumbers: "off",
+                      folding: false,
+                    }}
+                  />
+                </div>
+              </div>
+              <div className={`flex-auto h-full w-1/2 flex flex-col ${showLogs ? "hidden" : "block"}`}>
+                <div className={"flex-auto w-full flex flex-row justify-between mt-2 mb-2 items-end"}>
+                  <div>
+                    <h2 className="text-lg pl-2">Result:</h2>
+                  </div>
+                  <Badge
+                    offset={[-11, 3]}
+                    count={unreadErrorLogs ? unreadErrorLogs : unreadLogs}
+                    color={unreadErrorLogs ? "#ff0000" : "#4f46e5"}
+                  >
+                    <Button
+                      type={"default"}
+                      onClick={() => {
+                        setShowLogs(true);
+                        setUnreadErrorLogs(0);
+                        setUnreadLogs(0);
+                      }}
+                    >
+                      Show Logs
+                    </Button>
+                  </Badge>
+                </div>
+                <div className={`${styles.editor} flex-auto bg-backgroundLight w-full pl-2`}>
+                  <CodeEditor
+                    width={"99.9%"}
+                    language={typeof result !== "string" ? "json" : "text"}
+                    value={typeof result !== "string" ? JSON.stringify(result, null, 2) : result}
+                    onChange={s => {}}
+                    monacoOptions={{
+                      renderLineHighlight: "none",
+                      lineDecorationsWidth: 8,
+                      lineNumbers: "off",
+                      readOnly: true,
+                      folding: false,
+                    }}
+                  />
+                </div>
+              </div>
+              <div className={`flex-auto h-full w-1/2 flex flex-col ${showLogs ? "block" : "hidden"}`}>
+                <div className={"flex-auto w-full flex flex-row justify-between mt-2 mb-2 items-end"}>
+                  <div>
+                    <h2 className="text-lg pl-2">Logs:</h2>
+                  </div>
+                  <Button type={"default"} onClick={() => setShowLogs(false)}>
+                    Show Results
+                  </Button>
+                </div>
+                <div
+                  className={`${styles.logs} flex-auto flex flex-column place-content-start flex-wrap pb-4 bg-backgroundLight w-full h-full`}
+                >
+                  {logs.map((log, index) => {
+                    const colors = (() => {
+                      switch (log.level) {
+                        case "error":
+                          return { text: "#A4000F", bg: "#FDF3F5", border: "#F8D6DB" };
+                        case "debug":
+                          return { text: "#646464", bg: "#FBF3F5", border: "#FBF3F5" };
+                        case "warn":
+                          return { text: "#705100", bg: "#FFFBD6", border: "#F4E89A" };
+                        default:
+                          return { text: "black", bg: "white", border: "#eaeaea" };
+                      }
+                    })();
+                    return (
+                      <div
+                        key={index}
+                        style={{ borderColor: colors.border, backgroundColor: colors.bg }}
+                        className={"font-mono text-xs shrink-0 gap-x-6 w-full flex flex-row border-b py-0.5 px-3"}
+                      >
+                        {/*<div className={"text-textLight whitespace-nowrap"}>{localDate(log.timestamp)}</div>*/}
+                        <div
+                          style={{ color: colors.text }}
+                          className={"w-10 flex-grow-0 flex-shrink-0 whitespace-nowrap"}
+                        >
+                          {log.level.toUpperCase()}
+                        </div>
+                        <div style={{ color: colors.text }} className={"flex-auto whitespace-pre-wrap break-all"}>
+                          {log.message}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+          <Drawer
+            title="Choose Event from Live Stream"
+            placement="right"
+            width={"50%"}
+            mask={false}
+            headerStyle={{ padding: "1em" }}
+            bodyStyle={{ padding: "1em" }}
+            className={"border rounded-r-lg"}
+            style={{ borderColor: "#d9d9d9" }}
+            maskClosable={false}
+            closable={true}
+            onClose={() => setShowEvents(false)}
+            open={showEvents}
+            getContainer={false}
+          >
+            <EventsSelector selectEvent={e => setEvent(JSON.stringify(e, undefined, 2))} />
+          </Drawer>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+type EventsSelectorState = {
+  entitiesLoading: boolean;
+  entitiesMap: Record<string, any> | undefined;
+  eventsLoading: boolean;
+  events: EventsLogRecord[];
+  actorId: string;
+  refreshTime: Date;
+  error: any;
+};
+
+const defaultState: EventsSelectorState = {
+  entitiesLoading: false,
+  entitiesMap: undefined,
+  eventsLoading: false,
+  events: [],
+  actorId: "",
+  refreshTime: new Date(),
+  error: undefined,
+};
+
+type EventsSelectorAction = {
+  [K in keyof EventsSelectorState]: {
+    type: K;
+    value: EventsSelectorState[K];
+  };
+}[keyof EventsSelectorState];
+
+function eventSelectorReducer(state: EventsSelectorState, action: EventsSelectorAction) {
+  return {
+    ...state,
+    [action.type]: action?.value,
+  };
+}
+
+const EventsSelector = ({ selectEvent }: { selectEvent: (e: any) => void }) => {
+  const workspace = useWorkspace();
+  const [{ entitiesMap, entitiesLoading, events, eventsLoading, actorId, refreshTime, error }, dispatch] = useReducer(
+    eventSelectorReducer,
+    defaultState
+  );
+  const eventsLogApi = useEventsLogApi();
+
+  const loadEvents = useCallback(
+    async (entitiesMap: any, actorId: string) => {
+      try {
+        if (actorId && entitiesMap && entitiesMap[actorId]) {
+          dispatch({ type: "eventsLoading", value: true });
+          const data = await eventsLogApi.get(`incoming.all`, actorId, {}, 100);
+          dispatch({ type: "events", value: data });
+          dispatch({ type: "error", value: "" });
+        }
+      } catch (e) {
+        console.error("Error while loading events", e);
+        dispatch({ type: "error", value: "Error while loading events" });
+      } finally {
+        dispatch({ type: "eventsLoading", value: false });
+      }
+    },
+    [eventsLogApi]
+  );
+  //load entities
+  useEffect(() => {
+    (async () => {
+      if (typeof entitiesMap !== "undefined" || entitiesLoading) {
+        return;
+      }
+      try {
+        let query = () => getConfigApi(workspace.id, "stream").list();
+        dispatch({ type: "entitiesLoading", value: true });
+
+        const data = await query();
+        if (data.length > 0) {
+          const mp = arrayToMap(data);
+          dispatch({ type: "entitiesMap", value: mp });
+          if (!actorId || !mp[actorId]) {
+            dispatch({ type: "actorId", value: data[0].id });
+          }
+        } else {
+          dispatch({ type: "entitiesMap", value: {} });
+        }
+        dispatch({ type: "error", value: "" });
+      } catch (e) {
+        console.error("Error while loading entities objects", e);
+        dispatch({ type: "error", value: "Error while loading entities objects" });
+      } finally {
+        dispatch({ type: "entitiesLoading", value: false });
+      }
+    })();
+  }, [entitiesMap, actorId, workspace.id, entitiesLoading]);
+
+  useEffect(() => {
+    loadEvents(entitiesMap, actorId);
+  }, [loadEvents, entitiesMap, actorId, refreshTime]);
+
+  return (
+    <div className={"flex-auto w-full flex flex-col"}>
+      <div className={"flex-auto w-full flex flex-row justify-between gap-x-2"}>
+        <div className={"flex flex-row flex-auto items-baseline gap-x-2 mb-2"}>
+          <span>Select Stream: </span>
+          <Select
+            notFoundContent={<div>Project doesn't have Sites</div>}
+            className={"flex-auto"}
+            loading={entitiesLoading}
+            onChange={e => {
+              dispatch({ type: "events", value: [] });
+              dispatch({ type: "actorId", value: e });
+            }}
+            value={actorId}
+            options={Object.entries(entitiesMap || {}).map(entity => ({
+              value: entity[0],
+              label: entity[1].name,
+            }))}
+          />
+        </div>
+        <Button
+          type="primary"
+          ghost
+          onClick={e => {
+            dispatch({ type: "events", value: [] });
+            dispatch({ type: "refreshTime", value: new Date() });
+          }}
+        >
+          Refresh
+        </Button>
+      </div>
+      <IncomingEventsTable loading={eventsLoading} events={events} selectEvent={selectEvent} />
+    </div>
+  );
+};
+
+const IncomingEventsTable = ({
+  loading,
+  events,
+  selectEvent,
+}: {
+  events: EventsLogRecord[];
+  loading: boolean;
+  selectEvent: (e: any) => void;
+}) => {
+  const mapEvents = events
+    ? events.map(ev => {
+        let ingestPayload: any = {};
+        if (typeof ev.content.body === "string") {
+          try {
+            ingestPayload = JSON.parse(ev.content.body);
+          } catch (e) {
+            console.error(ev.content.body, e);
+          }
+        }
+        const event = ingestPayload.httpPayload as AnalyticsServerEvent;
+        const context = event?.context;
+
+        return {
+          id: ev.id,
+          date: ev.date,
+          messageId: ingestPayload.messageId,
+          type: ingestPayload.type,
+          event: event,
+          host: context?.page?.host,
+          pageURL: context?.page?.url,
+          pagePath: context?.page?.path,
+        };
+      })
+    : [];
+  const columns: ColumnsType<(typeof mapEvents)[number]> = [
+    {
+      title: <UTCHeader />,
+      dataIndex: "date",
+      render: d => <UTCDate date={d} />,
+      width: "12em",
+    },
+    {
+      title: "Type",
+      width: "6em",
+      dataIndex: "type",
+    },
+    // {
+    //   title: "Host",
+    //   ellipsis: true,
+    //   key: "host",
+    //   render: (d: typeof mapEvents[number]) => {
+    //     return d.host ? (
+    //       <Tooltip title={d.host}>
+    //         <Tag color={"geekblue"} icon={<GlobalOutlined />} className={"whitespace-nowrap"}>
+    //           {d.host}
+    //         </Tag>
+    //       </Tooltip>
+    //     ) : (
+    //       <></>
+    //     );
+    //   },
+    // },
+    {
+      title: "Page URL",
+      ellipsis: true,
+      key: "pageURL",
+      render: (d: (typeof mapEvents)[number]) => <div className={"whitespace-nowrap"}>{d.pageURL}</div>,
+    },
+  ];
+
+  return (
+    <Table
+      loading={loading}
+      size={"small"}
+      pagination={{ position: [], defaultPageSize: Number.MAX_SAFE_INTEGER }}
+      rowKey={"id"}
+      rootClassName={"cursor-pointer"}
+      columns={columns}
+      dataSource={mapEvents}
+      onRow={(record, rowIndex) => {
+        return {
+          onClick: e => {
+            selectEvent(record.event);
+          }, // click row
+        };
+      }}
+    />
+  );
+};
+
+const ExamplesDropdown = ({ selectEvent }: { selectEvent: (e: any) => void }) => {
+  const items: MenuProps["items"] = [
+    {
+      key: "identify",
+      onClick: () => {
+        selectEvent(exportIdentifyEvent());
+      },
+      label: "Identify",
+    },
+    {
+      key: "page",
+      onClick: () => {
+        selectEvent(examplePageEvent());
+      },
+      label: "Page",
+    },
+    {
+      key: "track",
+      onClick: () => {
+        selectEvent(exampleTrackEvents());
+      },
+      label: "Track",
+    },
+  ];
+
+  return (
+    <Dropdown menu={{ items }} trigger={["click"]} placement="top" arrow={false}>
+      <Button type={"primary"} ghost>
+        Sample Event
+      </Button>
+    </Dropdown>
+  );
+};

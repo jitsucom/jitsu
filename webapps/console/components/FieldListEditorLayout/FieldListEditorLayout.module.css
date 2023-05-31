@@ -1,0 +1,22 @@
+.editorItemTable {
+  @apply border-textLight border border-textDisabled rounded-lg overflow-hidden;
+}
+
+.editorItemRow {
+  @apply border-t border-textDisabled border-collapse flex;
+}
+
+.editorItemRow .name {
+  @apply py-4 pl-4 font-bold flex items-center;
+  width: 18rem;
+  align-items: start;
+  min-width: 18rem;
+}
+
+.editorItemRow .component {
+  @apply py-4 flex-auto pr-2 py-4;
+}
+
+.editorItemRow:first-child {
+  border-top: 0 !important;
+}

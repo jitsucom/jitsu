@@ -1,0 +1,15 @@
+.comparisonSection {
+  @apply mt-4;
+}
+
+.comparisonSection h5 {
+  @apply flex items-center space-x-0;
+}
+
+.comparisonSection ul li {
+  @apply flex items-center space-x-1 my-2;
+}
+
+.comparisonSection ul li > span {
+  @apply text-textLight;
+}

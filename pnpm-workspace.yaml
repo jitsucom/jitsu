@@ -1,0 +1,8 @@
+packages:
+  - "e2e"
+  - "examples/*"
+  - "types/*"
+  - "webapps/*"
+  - "services/*"
+  - "cli/*"
+  - "libs/*"

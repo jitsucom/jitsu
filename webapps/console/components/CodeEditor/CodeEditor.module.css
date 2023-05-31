@@ -1,0 +1,12 @@
+.editor {
+  @apply rounded-lg;
+  background-color: transparent;
+}
+
+.editor :global(.monaco-editor) {
+  background-color: unset !important;
+}
+
+.editor :global(.monaco-editor-background) {
+  background-color: unset !important;
+}

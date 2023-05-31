@@ -1,0 +1,38 @@
+{
+  "name": "@jitsu/react-example",
+  "version": "0.0.0",
+  "private": true,
+  "dependencies": {
+    "@jitsu/jitsu-react": "workspace:*",
+    "@types/node": "^16.18.3",
+    "lodash": "^4.17.21",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.4.3",
+    "react-scripts": "^5.1.0-next.14",
+    "web-vitals": "^2.1.4"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "devDependencies": {
+    "typescript": "^4.9.3",
+    "@types/react-dom": "18.0.11",
+    "@types/react": "18.0.28",
+    "@types/lodash": "^4.14.185",
+    "tailwindcss": "^3.0.24"
+  }
+}

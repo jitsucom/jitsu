@@ -1,0 +1,45 @@
+{
+  "pipeline": {
+    "console:dev": {
+      "dependsOn": ["^console:dev"],
+      "cache": false
+    },
+    "console:start": {
+      "dependsOn": ["^console:start"],
+      "cache": false
+    },
+    "ee-api:dev": {
+      "dependsOn": ["^ee-api:dev"],
+      "cache": false
+    },
+    "rotor:dev": {
+      "dependsOn": ["^rotor:dev"],
+      "cache": false
+    },
+    "tool:hash": {
+      "dependsOn": ["^tool:hash"],
+      "cache": false
+    },
+    "compile": {
+      "dependsOn": ["^compile"],
+      "cache": false
+    },
+    "dev": {
+      "dependsOn": ["console:dev", "rotor:dev"],
+      "cache": false
+    },
+    "test": {
+      "dependsOn": ["^test"]
+    },
+    "clean": {
+      "dependsOn": ["^clean"]
+    },
+    "lint": {
+      "dependsOn": ["^lint"]
+    },
+    "build": {
+      "dependsOn": ["clean", "^build"],
+      "outputs": ["dist/**", "compiled/**", "build/**", ".next/**", "!.next/cache/**"]
+    }
+  }
+}

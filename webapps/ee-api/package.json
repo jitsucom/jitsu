@@ -1,0 +1,41 @@
+{
+  "name": "@jitsu-ee/api",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "ee-api:dev": "next dev -p 3001",
+    "build": "next build",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@clickhouse/client": "^0.0.11",
+    "@aws-sdk/client-s3": "~3.341.0",
+    "@types/node": "18.11.12",
+    "@types/react": "18.0.28",
+    "@types/react-dom": "18.0.11",
+    "crypto-js": "^4.1.1",
+    "eslint": "8.29.0",
+    "eslint-config-next": "13.0.0",
+    "firebase-admin": "^11.5.0",
+    "json5": "^2.2.3",
+    "jsonwebtoken": "^8.5.1",
+    "juava": "workspace:*",
+    "lodash": "^4.17.21",
+    "next": "13.0.0",
+    "node-fetch-commonjs": "^3.2.4",
+    "pg": "^8.7.3",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "stripe": "^11.15.0",
+    "tslib": "^2.4.0"
+  },
+  "devDependencies": {
+    "typescript": "4.9.4",
+    "@types/crypto-js": "^4.1.1",
+    "@types/jsonwebtoken": "^8.5.9",
+    "@types/lodash": "^4.14.185",
+    "@types/pg": "^8.6.5",
+    "@types/stripe": "^8.0.417",
+    "next-transpile-modules": "^10.0.0"
+  }
+}

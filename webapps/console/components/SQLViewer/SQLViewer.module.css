@@ -1,0 +1,36 @@
+.editor {
+  @apply border rounded-lg overflow-hidden;
+  border-color: #d9d9d9;
+  flex-shrink: 0;
+}
+.container {
+  background-color: transparent !important;
+}
+
+.container :global(.ant-layout-sider-light) {
+  background-color: transparent !important;
+}
+
+.container :global(.ant-tree) {
+  background-color: transparent !important;
+}
+
+.container :global(.ant-layout) {
+  background-color: transparent !important;
+}
+
+.tableTree :global(.ant-tree-indent) {
+  display: none;
+}
+
+/*.tableTree :global(.ant-tree-switcher_open) {*/
+/*  display: none !important;*/
+/*}*/
+
+/*.tableTree :global(.ant-tree-switcher_close) {*/
+/*  display: none !important;*/
+/*}*/
+
+/*.tableTree :global(.ant-tree-switcher-noop) {*/
+/*  width: 22px !important;*/
+/*}*/

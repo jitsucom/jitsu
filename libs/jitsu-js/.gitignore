@@ -1,0 +1,3 @@
+/dist/
+/compiled/
+/__tests__/playwright/artifacts/

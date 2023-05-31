@@ -1,0 +1,12 @@
+.blockWrapper {
+}
+
+.blockWrapper pre {
+  @apply text-background !important;
+  font-family: var(--font-mono) !important;
+}
+
+/* this does not work*/
+.codeBlockLight :global(.hljs) {
+  background: transparent !important;
+}

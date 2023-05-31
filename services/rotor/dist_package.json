@@ -1,0 +1,7 @@
+{
+  "name": "rotor",
+  "version": "0.0.0",
+  "dependencies": {
+    "vm2": "^3.9.14"
+  }
+}

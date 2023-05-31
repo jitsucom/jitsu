@@ -1,0 +1,30 @@
+.expandableButton {
+  @apply bg-primaryLight text-white text-sm font-bold pl-3.5 py-2 rounded-full shadow-lg h-10 w-10;
+}
+
+.expandableButton:hover {
+  @apply pr-3.5;
+  width: 100%;
+
+  transition: all 0.4s;
+}
+
+.expandableButton .icon {
+  @apply w-4 h-4;
+  min-height: 1rem;
+  min-width: 1rem;
+}
+
+.expandableButton .icon > svg {
+  @apply w-full h-full;
+}
+
+.expandableButton .title {
+  display: none;
+}
+.expandableButton:hover > .title {
+  @apply ml-2;
+  display: block;
+  overflow-x: clip;
+  white-space: nowrap;
+}

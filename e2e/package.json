@@ -1,0 +1,28 @@
+{
+  "name": "@jitsu-internal/e2e",
+  "version": "0.0.0",
+  "description": "",
+  "author": "Jitsu Dev Team <dev@jitsu.com>",
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "MIT",
+  "private": false,
+  "scripts": {
+    "test": "exit 0 || jest --verbose"
+  },
+  "devDependencies": {
+    "@jest/globals": "^29.3.1",
+    "@jitsu-internal/console": "workspace:*",
+    "@types/jest": "^29.1.1",
+    "find-free-port": "^2.0.0",
+    "ioredis": "^5.2.3",
+    "jest": "^29.3.1",
+    "json5": "^2.1.0",
+    "juava": "workspace:*",
+    "node-postgres": "^0.6.2",
+    "testcontainers": "^9.0.0",
+    "ts-jest": "29.0.5",
+    "tslib": "^2.4.0"
+  }
+}

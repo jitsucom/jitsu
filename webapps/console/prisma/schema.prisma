@@ -1,0 +1,141 @@
+generator zod {
+  provider = "zod-prisma"
+  output   = "./schema"
+
+  relationModel         = false
+  modelCase             = "PascalCase"
+  modelSuffix           = "DbModel"
+  imports               = "../lib/schema"
+  useDecimalJs          = true
+  prismaJsonNullability = true
+}
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["filterJson", "interactiveTransactions"]
+  extendedIndexes = true
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model EmailLog {
+  id         String   @id @default("cuid()")
+  time       DateTime @default(now())
+  email      Json
+  error      String?
+  previewUrl String?
+  messageId  String?
+  status     String
+}
+
+model UserPreferences {
+  id        String      @id @default(cuid())
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @default(now()) @updatedAt
+  userId    String
+  user      UserProfile @relation(fields: [userId], references: [id])
+
+  //If preferences relates to workspace,
+  workspaceId String?
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id])
+  //empty or 'server-only'. Server-only means that preferences can't be changed from JS. NOT USED so far
+  scope       String?
+  preferences Json
+}
+
+model UserProfile {
+  id               String            @id @default(cuid())
+  name             String
+  email            String
+  admin            Boolean?          @default(false)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @default(now()) @updatedAt
+  loginProvider    String
+  externalUsername String?
+  externalId       String
+  tokens           UserApiToken[]
+  workspaceAccess  WorkspaceAccess[]
+  userPreferences  UserPreferences[]
+}
+
+model Workspace {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  name      String
+  deleted   Boolean  @default(false)
+
+  slug                    String?
+  workspaceAccess         WorkspaceAccess[]
+  configurationObject     ConfigurationObject[]
+  configurationObjectLink ConfigurationObjectLink[]
+  preferences             UserPreferences[]
+
+  @@unique(slug)
+}
+
+model WorkspaceAccess {
+  workspaceId String
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @default(now()) @updatedAt
+  userId      String
+  workspace   Workspace   @relation(fields: [workspaceId], references: [id])
+  user        UserProfile @relation(fields: [userId], references: [id])
+
+  @@id([userId, workspaceId])
+}
+
+model UserApiToken {
+  id        String      @id @default(cuid())
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @default(now()) @updatedAt
+  hint      String
+  hash      String
+  userId    String
+  user      UserProfile @relation(fields: [userId], references: [id])
+}
+
+model InvitationToken {
+  id          String @id @default(cuid())
+  workspaceId String
+
+  email     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  token     String
+  usedBy    String?
+}
+
+model ConfigurationObject {
+  id          String    @id @default(cuid())
+  deleted     Boolean?  @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @default(now()) @updatedAt
+  type        String
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  config      Json?
+
+  fromLinks ConfigurationObjectLink[] @relation("from")
+  toLinks   ConfigurationObjectLink[] @relation("to")
+}
+
+model ConfigurationObjectLink {
+  id        String   @id @default(cuid())
+  deleted   Boolean? @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  data      Json?
+
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+
+  fromId String
+  from   ConfigurationObject @relation(fields: [fromId], references: [id], name: "to")
+
+  toId String
+  to   ConfigurationObject @relation(fields: [toId], references: [id], name: "from")
+}

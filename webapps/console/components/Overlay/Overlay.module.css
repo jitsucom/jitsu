@@ -1,0 +1,19 @@
+.overlay {
+  @apply fixed  inset-0 w-full h-full flex justify-center;
+  z-index: 1000;
+  backdrop-filter: blur(8px);
+}
+
+.overlayInternal {
+  @apply rounded-xl relative bg-backgroundLight shadow;
+  margin-top: 5vh;
+  margin-bottom: 5vh;
+  height: 90vh;
+  min-height: 500px;
+  width: 90vw;
+}
+
+.overlayContent {
+  @apply overflow-auto;
+  height: 100%;
+}

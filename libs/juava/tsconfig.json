@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "lib": ["es2015", "dom", "es2017"],
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "declaration": true,
+    "esModuleInterop": true,
+    "noEmit": true
+  },
+  "exclude": [
+    "__tests__",
+    "node_modules",
+    "dist",
+    "test_projects",
+    "test",
+    "templates"
+  ]
+}

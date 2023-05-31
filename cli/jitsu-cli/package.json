@@ -1,0 +1,22 @@
+{
+  "name": "jitsu-cli",
+  "version": "0.0.0",
+  "description": "",
+  "author": "Jitsu Dev Team <dev@jitsu.com>",
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "MIT",
+  "private": false,
+  "scripts": {},
+  "dependencies": {
+    "chalk": "^5.0.1",
+    "minimist": "^1.2.6",
+    "tslib": "^2.4.0",
+    "juava": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/chalk": "^2.2.0",
+    "@types/minimist": "^1.2.2"
+  }
+}

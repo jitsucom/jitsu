@@ -1,0 +1,10 @@
+node_modules
+.idea
+.env.local
+.turbo
+.pnpm-debug.log
+
+.vercel
+
+/libs/jitsu-react/dist/
+/examples/nextjs-app/.next/

@@ -1,0 +1,41 @@
+/*@tailwind base;*/
+@tailwind components;
+@tailwind utilities;
+
+/* add css module styles here (optional) */
+html,
+body {
+  padding: 0;
+  margin: 0;
+
+  font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen, Ubuntu, Cantarell, Fira Sans, Droid Sans,
+    Helvetica Neue, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+code {
+  font-family: "SFMono-Regular", Menlo, Consolas, "PT Mono", "Liberation Mono", Courier, monospace;
+  line-height: normal;
+  background: rgba(135, 131, 120, 0.15);
+  color: #eb5757;
+  border-radius: 3px;
+  font-size: 85%;
+  padding: 0.2em 0.4em;
+}
+
+pre {
+  background-color: #f6f8fa;
+  font-family: "SFMono-Regular", Menlo, Consolas, "PT Mono", "Liberation Mono", Courier, monospace;
+  font-size: 85%;
+  border-radius: 3px;
+  padding: 10px;
+  margin: 10px 0;
+}
+
+.configTitle {
+  width: 120px;
+  min-width: 120px;
+}

@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "./compiled",
+    "declaration": false,
+    "esModuleInterop": true,
+    "moduleResolution": "Node",
+    "target": "ES2015",
+    "lib": ["es2017", "dom"]
+    //this makes typescript igore @types/node during compilation
+    //    "types": []
+  },
+  "include": ["./src", "./__tests__"],
+  "exclude": ["__tests__", "node_modules", "dist", "test_projects", "test", "templates"]
+}

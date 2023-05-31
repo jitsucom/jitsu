@@ -1,0 +1,27 @@
+**/*.js
+# dependencies
+/node_modules
+.next
+.run
+# bundle stats
+*.mdx
+*.md
+jitsu
+# configs -- will keep multi-line json arrays
+.eslintrc.json
+package.json
+tsconfig.json
+tsconfig.paths.json
+core/jitsu-cli/lib
+core/node-bridge/bin
+core/jitsu-types/lib
+core/jlib/lib
+core/test-destination/dist
+pnpm-lock.yaml
+.pnpm-store
+/examples/react-app/build
+/libs/jitsu-react/dist
+/webapps/console/prisma/schema
+/libs/jitsu-js/__tests__/playwright/artifacts
+/libs/jitsu-js/compiled/
+libs/jitsu-js/dist/
