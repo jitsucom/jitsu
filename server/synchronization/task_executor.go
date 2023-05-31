@@ -449,11 +449,11 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 				for _, object := range objects {
 					//enrich with values
 					object[events.SrcKey] = srcSource
-					object[timestamp.Key] = timestamp.NowUTC()
 					if err := uniqueIDField.Set(object, uuid.GetHash(object)); err != nil {
 						b, _ := json.Marshal(object)
 						return fmt.Errorf("Error setting unique ID field into %s: %v", string(b), err)
 					}
+					object[timestamp.Key] = timestamp.NowUTC()
 					events.EnrichWithSourceId(object, task.Source)
 					events.EnrichWithCollection(object, task.Collection)
 					events.EnrichWithTimeInterval(object, intervalToSync.String(), intervalToSync.LowerEndpoint(), intervalToSync.UpperEndpoint())
