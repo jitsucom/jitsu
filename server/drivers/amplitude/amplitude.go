@@ -13,7 +13,7 @@ import (
 	"github.com/jitsucom/jitsu/server/storages"
 )
 
-//amplitudeHTTPConfiguration contains default amplitude HTTP timeouts/retry/delays,etc
+// amplitudeHTTPConfiguration contains default amplitude HTTP timeouts/retry/delays,etc
 var amplitudeHTTPConfiguration = &adapters.HTTPConfiguration{
 	GlobalClientTimeout:       10 * time.Minute,
 	RetryDelay:                10 * time.Second,
@@ -154,6 +154,10 @@ func (a *Amplitude) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
 	}
 
 	return intervals, nil
+}
+
+func (a *Amplitude) ReplaceTables() bool {
+	return false
 }
 
 func (a *Amplitude) GetCollectionMetaKey() string {

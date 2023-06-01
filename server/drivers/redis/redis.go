@@ -22,7 +22,7 @@ const (
 	valueField = "value"
 )
 
-//Redis is a Redis driver. It is used in syncing data from Redis.
+// Redis is a Redis driver. It is used in syncing data from Redis.
 type Redis struct {
 	base.IntervalDriver
 
@@ -36,7 +36,7 @@ func init() {
 	//base.RegisterTestConnectionFunc(base.RedisType, TestRedis)
 }
 
-//NewRedis returns configured Redis driver instance
+// NewRedis returns configured Redis driver instance
 func NewRedis(_ context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
 	config := &RedisConfig{}
 	err := jsonutils.UnmarshalConfig(sourceConfig.Config, config)
@@ -80,7 +80,7 @@ func NewRedis(_ context.Context, sourceConfig *base.SourceConfig, collection *ba
 	}, nil
 }
 
-//TestRedis tests connection to Redis without creating Driver instance
+// TestRedis tests connection to Redis without creating Driver instance
 func TestRedis(sourceConfig *base.SourceConfig) error {
 	config := &RedisConfig{}
 	err := jsonutils.UnmarshalConfig(sourceConfig.Config, config)
@@ -122,13 +122,17 @@ func (r *Redis) GetRefreshWindow() (time.Duration, error) {
 	return time.Hour * 24, nil
 }
 
-//GetAllAvailableIntervals returns ALL constant
+// GetAllAvailableIntervals returns ALL constant
 func (r *Redis) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
 	return []*base.TimeInterval{base.NewTimeInterval(schema.ALL, time.Time{})}, nil
 }
 
-//GetObjectsFor iterates over keys by mask and parses hash,string,list,set,zset types
-//returns all parsed object or err if occurred
+func (r *Redis) ReplaceTables() bool {
+	return false
+}
+
+// GetObjectsFor iterates over keys by mask and parses hash,string,list,set,zset types
+// returns all parsed object or err if occurred
 func (r *Redis) GetObjectsFor(interval *base.TimeInterval, objectsLoader base.ObjectsLoader) error {
 	conn := r.connectionPool.Get()
 	defer conn.Close()
@@ -172,27 +176,27 @@ func (r *Redis) GetObjectsFor(interval *base.TimeInterval, objectsLoader base.Ob
 	return nil
 }
 
-//Type returns Redis type
+// Type returns Redis type
 func (r *Redis) Type() string {
 	return base.RedisType
 }
 
-//GetCollectionTable returns collection table
+// GetCollectionTable returns collection table
 func (r *Redis) GetCollectionTable() string {
 	return r.collection.GetTableName()
 }
 
-//GetCollectionMetaKey returns collection meta key (key is used in meta storage)
+// GetCollectionMetaKey returns collection meta key (key is used in meta storage)
 func (r *Redis) GetCollectionMetaKey() string {
 	return r.collection.Name + "_" + r.GetCollectionTable()
 }
 
-//Close closes redis pool
+// Close closes redis pool
 func (r *Redis) Close() error {
 	return r.connectionPool.Close()
 }
 
-//scanKeys returns keys that fit the keyMask
+// scanKeys returns keys that fit the keyMask
 func (r *Redis) scanKeys(conn redis.Conn, keyMask string) ([]key, error) {
 	//plain key
 	if !strings.HasSuffix(keyMask, "*") {
@@ -239,7 +243,7 @@ func (r *Redis) scanKeys(conn redis.Conn, keyMask string) ([]key, error) {
 	return redisKeys, nil
 }
 
-//exploreKey returns key instance or err if unsupported key type
+// exploreKey returns key instance or err if unsupported key type
 func (r *Redis) exploreKey(conn redis.Conn, key string) (key, error) {
 	redisType, err := redis.String(conn.Do("TYPE", key))
 	if err != nil {
@@ -254,7 +258,7 @@ func (r *Redis) exploreKey(conn redis.Conn, key string) (key, error) {
 	return keyConstructor(key), nil
 }
 
-//parseJSON parses input string as
+// parseJSON parses input string as
 // 1. JSON object string - "{1: 2}"
 // 2. JSON objects array string - "[{}, {}]"
 // 3. JSON array string - "[1,2]"

@@ -276,6 +276,10 @@ func (s *Singer) Ready() (bool, error) {
 	//return false, runner.NewCompositeNotReadyError(msg)
 }
 
+func (s *Singer) ReplaceTables() bool {
+	return false
+}
+
 func (s *Singer) Load(config string, state string, taskLogger logging.TaskLogger, dataConsumer base.CLIDataConsumer, taskCloser base.CLITaskCloser) error {
 	if s.IsClosed() {
 		return fmt.Errorf("%s has already been closed", s.Type())

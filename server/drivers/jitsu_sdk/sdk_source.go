@@ -29,7 +29,7 @@ const IdField = "$id"
 const RecordTimestampSrc = "$recordTimestamp"
 const RecordTimestampDst = "_record_timestamp"
 
-//SdkSource is an SdkSource CLI driver
+// SdkSource is an SdkSource CLI driver
 type SdkSource struct {
 	mutex *sync.RWMutex
 	base.AbstractCLIDriver
@@ -70,9 +70,9 @@ func init() {
 	})
 }
 
-//NewSdkSource returns SdkSource driver and
-//1. writes json files (config, catalog, state) if string/raw json was provided
-//2. runs discover and collects catalog.json
+// NewSdkSource returns SdkSource driver and
+// 1. writes json files (config, catalog, state) if string/raw json was provided
+// 2. runs discover and collects catalog.json
 func NewSdkSource(ctx context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
 	config := sourceConfig.Config
 	packageName, ok := config["package_name"].(string)
@@ -103,7 +103,7 @@ func NewSdkSource(ctx context.Context, sourceConfig *base.SourceConfig, collecti
 	return s, nil
 }
 
-//TestSdkSource tests sdk source connection (runs validator) if docker has been ready otherwise returns errNotReady
+// TestSdkSource tests sdk source connection (runs validator) if docker has been ready otherwise returns errNotReady
 func TestSdkSource(sourceConfig *base.SourceConfig) error {
 	config := sourceConfig.Config
 	packageName, ok := config["package_name"].(string)
@@ -131,7 +131,7 @@ func TestSdkSource(sourceConfig *base.SourceConfig) error {
 	return sourceExecutor.Validate()
 }
 
-//Ready returns true if catalog is discovered
+// Ready returns true if catalog is discovered
 func (s *SdkSource) Ready() (bool, error) {
 	return true, nil
 }
@@ -197,7 +197,7 @@ func (s *SdkSource) Load(config string, state string, taskLogger logging.TaskLog
 	return sdkSourceRunner.Load(taskLogger, dataConsumer, state)
 }
 
-//GetDriversInfo returns telemetry information about the driver
+// GetDriversInfo returns telemetry information about the driver
 func (s *SdkSource) GetDriversInfo() *base.DriversInfo {
 	return &base.DriversInfo{
 		SourceType:       s.packageName,
@@ -211,7 +211,11 @@ func (s *SdkSource) Type() string {
 	return base.SdkSourceType
 }
 
-//Close kills all runners and returns errors if occurred
+func (s *SdkSource) ReplaceTables() bool {
+	return true
+}
+
+// Close kills all runners and returns errors if occurred
 func (s *SdkSource) Close() (multiErr error) {
 	if s.IsClosed() {
 		return nil
@@ -498,7 +502,7 @@ func (s *SdkSourceRunner) Close() error {
 	return nil
 }
 
-//Row is a dto for sdk source output row representation
+// Row is a dto for sdk source output row representation
 type Row struct {
 	Type    string      `json:"type"`
 	Message interface{} `json:"message,omitempty"`

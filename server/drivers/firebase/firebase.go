@@ -165,6 +165,10 @@ func (f *Firebase) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
 	return []*base.TimeInterval{base.NewTimeInterval(schema.ALL, time.Time{})}, nil
 }
 
+func (f *Firebase) ReplaceTables() bool {
+	return f.config.ReplaceTables
+}
+
 func (f *Firebase) GetObjectsFor(interval *base.TimeInterval, objectsLoader base.ObjectsLoader) error {
 	if f.collection.Type == FirestoreCollection {
 		return f.loadCollection(objectsLoader)

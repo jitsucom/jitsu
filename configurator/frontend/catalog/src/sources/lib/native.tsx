@@ -1,4 +1,5 @@
 import {
+  booleanType,
   intType,
   isoUtcDateType,
   oauthSecretType,
@@ -1082,6 +1083,13 @@ export const firebase: SourceConnector = {
       type: stringType,
       required: true,
       documentation: <>Firebase Project ID from the Project Settings page.</>,
+    },
+    {
+      displayName: "Replace Tables",
+      id: "config.replace_tables",
+      type: booleanType,
+      required: false,
+      documentation: <>On sync collect new data into temporary table and than swap with destination table instead of clearing destination table and filling it with data again. Avoid states where only partial data present in destination table.</>,
     },
   ],
 }

@@ -214,6 +214,10 @@ func (a *Airbyte) EnsureCatalog() error {
 	return nil
 }
 
+func (a *Airbyte) ReplaceTables() bool {
+	return false
+}
+
 // Ready returns true if catalog is discovered
 func (a *Airbyte) Ready() (bool, error) {
 	//check if docker image isn't pulled

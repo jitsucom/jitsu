@@ -58,7 +58,7 @@ func init() {
 	base.RegisterTestConnectionFunc(base.GooglePlayType, TestGooglePlay)
 }
 
-//NewGooglePlay returns configured Google Play driver instance
+// NewGooglePlay returns configured Google Play driver instance
 func NewGooglePlay(ctx context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
 	config := &GooglePlayConfig{}
 	err := jsonutils.UnmarshalConfig(sourceConfig.Config, config)
@@ -89,7 +89,7 @@ func NewGooglePlay(ctx context.Context, sourceConfig *base.SourceConfig, collect
 	}, nil
 }
 
-//TestGooglePlay tests connection to Google Play without creating Driver instance
+// TestGooglePlay tests connection to Google Play without creating Driver instance
 func TestGooglePlay(sourceConfig *base.SourceConfig) error {
 	config := &GooglePlayConfig{}
 	err := jsonutils.UnmarshalConfig(sourceConfig.Config, config)
@@ -134,6 +134,10 @@ func (gp *GooglePlay) GetCollectionMetaKey() string {
 
 func (gp *GooglePlay) GetRefreshWindow() (time.Duration, error) {
 	return time.Hour * 24 * 31, nil
+}
+
+func (gp *GooglePlay) ReplaceTables() bool {
+	return false
 }
 
 func (gp *GooglePlay) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {

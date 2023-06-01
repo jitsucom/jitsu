@@ -539,7 +539,7 @@ func (s *Snowflake) createTableInTransaction(wrappedTx *Transaction, table *Tabl
 	//sorting columns asc
 	sort.Strings(columnsDDL)
 	query := fmt.Sprintf(createSFTableTemplate, s.config.Schema, reformatValue(table.Name), strings.Join(columnsDDL, ","))
-	fmt.Println(query)
+
 	s.queryLogger.LogDDL(query)
 
 	_, err := wrappedTx.tx.ExecContext(s.ctx, query)
