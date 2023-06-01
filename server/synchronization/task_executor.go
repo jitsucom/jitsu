@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/adapters"
+	"github.com/jitsucom/jitsu/server/errorj"
+	"github.com/joomcode/errorx"
 	"github.com/spf13/viper"
 	"io"
 	"io/ioutil"
@@ -427,11 +430,36 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 	collectionTableName := driver.GetCollectionTable()
 	reformattedTableName := schema.Reformat(collectionTableName)
 	for _, intervalToSync := range intervalsToSync {
-		if err := taskCloser.HandleCanceling(); err != nil {
+		var err error
+		if err = taskCloser.HandleCanceling(); err != nil {
 			return err
 		}
 
 		taskLogger.INFO("Running [%s] synchronization", intervalToSync.String())
+		intermediateTableName := reformattedTableName
+		replaceTable := driver.ReplaceTables() && intervalToSync.IsAll()
+		if replaceTable {
+			intermediateTableName = fmt.Sprintf("%s_tmp_%s", reformattedTableName, now.Format("060102_150405"))
+			defer func() {
+				if err != nil {
+					for _, storage := range destinationStorages {
+						taskLogger.INFO("Deleting intermediate table [%s] in storage [%s] after error", intermediateTableName, storage.ID())
+						_ = storage.DropTable(intermediateTableName)
+					}
+				}
+			}()
+			for _, storage := range destinationStorages {
+				taskLogger.INFO("Clearing table [%s] in storage [%s] before adding new data", intermediateTableName, storage.ID())
+				err = storage.Clean(intermediateTableName)
+				if err != nil {
+					if strings.Contains(err.Error(), adapters.ErrTableNotExist.Error()) {
+						taskLogger.INFO("Table [%s] doesn't exist in storage [%s]", intermediateTableName, storage.ID())
+					} else {
+						return fmt.Errorf("[%s] storage table %s cleaning failed: %v", storage.ID(), intermediateTableName, err)
+					}
+				}
+			}
+		}
 
 		objectsLoader := func(objects []map[string]interface{}, pos, total, percent int) error {
 			totalString := ""
@@ -449,7 +477,7 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 				for _, object := range objects {
 					//enrich with values
 					object[events.SrcKey] = srcSource
-					if err := uniqueIDField.Set(object, uuid.GetHash(object)); err != nil {
+					if err = uniqueIDField.Set(object, uuid.GetHash(object)); err != nil {
 						b, _ := json.Marshal(object)
 						return fmt.Errorf("Error setting unique ID field into %s: %v", string(b), err)
 					}
@@ -470,10 +498,9 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 				deleteConditions = driversbase.DeleteByTimeChunkCondition(intervalToSync)
 			}
 			for _, storage := range destinationStorages {
-				var err error
 				for i := 0; i < storeAttempts; i++ {
-					taskLogger.INFO("Flushing batch - adding %d objects to [%s]. Storage=[%s] Attempt: %d of %d", rowsCount, reformattedTableName, storage.ID(), i+1, storeAttempts)
-					err = storage.SyncStore(&schema.BatchHeader{TableName: reformattedTableName}, objects, deleteConditions, false, needCopyEvent)
+					taskLogger.INFO("Flushing batch - adding %d objects to [%s]. Storage=[%s] Attempt: %d of %d", rowsCount, intermediateTableName, storage.ID(), i+1, storeAttempts)
+					err = storage.SyncStore(&schema.BatchHeader{TableName: intermediateTableName}, objects, deleteConditions, false, needCopyEvent)
 					if err == nil {
 						break
 					} else if i < storeAttempts-1 {
@@ -500,10 +527,21 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 
 			return nil
 		}
-
-		err := driver.GetObjectsFor(intervalToSync, objectsLoader)
+		err = driver.GetObjectsFor(intervalToSync, objectsLoader)
 		if err != nil {
 			return fmt.Errorf("Error [%s] synchronization: %v", intervalToSync.String(), err)
+		}
+		if replaceTable {
+			for _, storage := range destinationStorages {
+				taskLogger.INFO("Replacing final table: [%s] with content of: [%s] in storage [%s]", reformattedTableName, intermediateTableName, storage.ID())
+				err = storage.ReplaceTable(reformattedTableName, intermediateTableName, true)
+				if errorx.IsOfType(err, errorj.DropError) {
+					err = storage.ReplaceTable(reformattedTableName, intermediateTableName, false)
+					if err != nil {
+						return fmt.Errorf("Error replacing table [%s] with [%s] in storage [%s]: %v", reformattedTableName, intermediateTableName, storage.ID(), err)
+					}
+				}
+			}
 		}
 
 		if err := te.MetaStorage.SaveSignature(task.Source, collectionMetaKey, intervalToSync.String(), intervalToSync.CalculateSignatureFrom(now, refreshWindow)); err != nil {

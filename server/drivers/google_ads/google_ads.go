@@ -137,6 +137,10 @@ func (g *GoogleAds) GetRefreshWindow() (time.Duration, error) {
 	}
 }
 
+func (g *GoogleAds) ReplaceTables() bool {
+	return false
+}
+
 func (g *GoogleAds) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
 	if g.granularity == schema.ALL {
 		return []*base.TimeInterval{base.NewTimeInterval(schema.ALL, time.Time{})}, nil

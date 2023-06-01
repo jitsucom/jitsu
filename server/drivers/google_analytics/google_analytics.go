@@ -166,6 +166,10 @@ func (a *GoogleAnalytics) GetRefreshWindow() (time.Duration, error) {
 	return time.Hour * 24 * 31, nil
 }
 
+func (a *GoogleAnalytics) ReplaceTables() bool {
+	return false
+}
+
 func (g *GoogleAnalytics) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
 	var intervals []*base.TimeInterval
 	daysBackToLoad := base.DefaultDaysBackToLoad

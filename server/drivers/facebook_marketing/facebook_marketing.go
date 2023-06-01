@@ -127,6 +127,10 @@ func (fm *FacebookMarketing) GetAllAvailableIntervals() ([]*base.TimeInterval, e
 	return intervals, nil
 }
 
+func (fm *FacebookMarketing) ReplaceTables() bool {
+	return false
+}
+
 func (fm *FacebookMarketing) GetObjectsFor(interval *base.TimeInterval, objectsLoader base.ObjectsLoader) error {
 	switch fm.collection.Type {
 	case AdsCollection:

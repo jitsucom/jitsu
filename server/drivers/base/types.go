@@ -89,8 +89,8 @@ func (gac *GoogleAuthConfig) FillPreconfiguredOauth(sourceType string) {
 	}
 }
 
-//Validate checks service account JSON or OAuth fields
-//returns err if both authorization parameters are empty
+// Validate checks service account JSON or OAuth fields
+// returns err if both authorization parameters are empty
 func (gac *GoogleAuthConfig) Validate() error {
 	if gac.Type == GoogleOAuthAuthorizationType {
 		//validate OAuth field
@@ -114,7 +114,7 @@ func (gac *GoogleAuthConfig) Validate() error {
 	return nil
 }
 
-//GoogleAuthorizedUserJSON is a Google dto for authorization
+// GoogleAuthorizedUserJSON is a Google dto for authorization
 type GoogleAuthorizedUserJSON struct {
 	ClientID     string `mapstructure:"client_id" json:"client_id,omitempty" yaml:"client_id,omitempty"`
 	ClientSecret string `mapstructure:"client_secret" json:"client_secret,omitempty" yaml:"client_secret,omitempty"`
@@ -122,7 +122,7 @@ type GoogleAuthorizedUserJSON struct {
 	AuthType     string `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
 }
 
-//ToGoogleAuthJSON returns configured GoogleAuthorizedUserJSON structure for Google authorization
+// ToGoogleAuthJSON returns configured GoogleAuthorizedUserJSON structure for Google authorization
 func (gac *GoogleAuthConfig) ToGoogleAuthJSON() GoogleAuthorizedUserJSON {
 	return GoogleAuthorizedUserJSON{
 		ClientID:     gac.ClientID,
@@ -132,7 +132,7 @@ func (gac *GoogleAuthConfig) ToGoogleAuthJSON() GoogleAuthorizedUserJSON {
 	}
 }
 
-//Driver interface must be implemented by every source type
+// Driver interface must be implemented by every source type
 type Driver interface {
 	io.Closer
 	//GetAllAvailableIntervals return all the available time intervals for data loading. It means, that if you want
@@ -150,6 +150,9 @@ type Driver interface {
 	percent - percent of total object processed [0..100]. estimated value when there is no way to know exact number in advance*/
 	GetObjectsFor(interval *TimeInterval, objectsLoader ObjectsLoader) error
 
+	// On full syncs whether to replace tables with or clear and append to them
+	ReplaceTables() bool
+
 	//Type returns string type of driver. Should be unique among drivers
 	Type() string
 
@@ -165,7 +168,7 @@ type Driver interface {
 	Delete() error
 }
 
-//CLIDriver interface must be implemented by every CLI source type (Singer or Airbyte)
+// CLIDriver interface must be implemented by every CLI source type (Singer or Airbyte)
 type CLIDriver interface {
 	Driver
 
@@ -185,20 +188,20 @@ type CLIDriver interface {
 	GetConfigPath() string
 }
 
-//CLIDataConsumer is used for consuming CLI drivers output
+// CLIDataConsumer is used for consuming CLI drivers output
 type CLIDataConsumer interface {
 	Consume(representation *CLIOutputRepresentation) error
 	CleanupAfterError(representation *CLIOutputRepresentation)
 }
 
-//CLITaskCloser is used for closing tasks
+// CLITaskCloser is used for closing tasks
 type CLITaskCloser interface {
 	TaskID() string
 	CloseWithError(msg string, systemErr bool)
 	HandleCanceling() error
 }
 
-//CLIOutputRepresentation is a singer/airbyte output representation
+// CLIOutputRepresentation is a singer/airbyte output representation
 type CLIOutputRepresentation struct {
 	State interface{}
 	//[some key for convenience of grouping.] - {}
@@ -238,7 +241,7 @@ func (c *CLIOutputRepresentation) CurrentStream() *StreamRepresentation {
 	}
 }
 
-//StreamRepresentation is a singer/airbyte stream representation
+// StreamRepresentation is a singer/airbyte stream representation
 type StreamRepresentation struct {
 	Namespace             string
 	ChunkNumber           int
@@ -255,7 +258,7 @@ type StreamRepresentation struct {
 	DeleteConditions          *DeleteConditions
 }
 
-//DriversInfo is a dto for sharing information about the driver into telemetry
+// DriversInfo is a dto for sharing information about the driver into telemetry
 type DriversInfo struct {
 	SourceType       string
 	ConnectorOrigin  string
@@ -263,18 +266,18 @@ type DriversInfo struct {
 	Streams          int
 }
 
-//RegisterDriver registers function to create new driver instance
+// RegisterDriver registers function to create new driver instance
 func RegisterDriver(driverType string,
 	createDriverFunc func(ctx context.Context, config *SourceConfig, collection *Collection) (Driver, error)) {
 	DriverConstructors[driverType] = createDriverFunc
 }
 
-//RegisterTestConnectionFunc registers function to test driver connection
+// RegisterTestConnectionFunc registers function to test driver connection
 func RegisterTestConnectionFunc(driverType string, testConnectionFunc func(config *SourceConfig) error) {
 	DriverTestConnectionFuncs[driverType] = testConnectionFunc
 }
 
-//WaitReadiness waits 90 sec until driver is ready or returns false and notReadyError
+// WaitReadiness waits 90 sec until driver is ready or returns false and notReadyError
 func WaitReadiness(driver CLIDriver, taskLogger logging.TaskLogger) (bool, error) {
 	ready, _ := driver.Ready()
 
