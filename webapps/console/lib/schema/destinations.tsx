@@ -110,10 +110,12 @@ export type BatchModeOptions = z.infer<typeof BatchModeOptions>;
 /**
  * Common settings for device destination connections
  */
-export const DeviceDestinationsConnectionOptions = z.object({
-  events: z.string().optional().default("*"),
-  hosts: z.string().optional().default("*"),
-});
+export const DeviceDestinationsConnectionOptions = z
+  .object({
+    events: z.string().optional().default("*"),
+    hosts: z.string().optional().default("*"),
+  })
+  .merge(ConnectionOptions);
 
 export type DeviceDestinationsConnectionOptions = z.infer<typeof DeviceDestinationsConnectionOptions>;
 
