@@ -7,7 +7,7 @@ import { QueryResponse } from "../../../components/QueryResponse/QueryResponse";
 import { z } from "zod";
 import { Table, Tooltip } from "antd";
 import { confirmOp, feedbackError, feedbackSuccess } from "../../../lib/ui";
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { FaExternalLinkAlt, FaPlus, FaTrash } from "react-icons/fa";
 import { index } from "juava";
@@ -47,13 +47,14 @@ type RemoteEntitiesProps = {
   streams: StreamConfig[];
   destinations: DestinationConfig[];
   links: Omit<ConfigurationLinkDbModel, "data">[];
+  reloadCallback: () => void;
 };
 
 type SortingSettings = {
   columns: { order: SortOrder; field: string }[];
 };
 
-function ConnectionsTable({ links, streams, destinations }: RemoteEntitiesProps) {
+function ConnectionsTable({ links, streams, destinations, reloadCallback }: RemoteEntitiesProps) {
   const streamsById = index(streams, "id");
   const destinationsById = index(destinations, "id");
   const workspace = useWorkspace();
@@ -72,7 +73,7 @@ function ConnectionsTable({ links, streams, destinations }: RemoteEntitiesProps)
           query: { fromId: link.fromId, toId: link.toId },
         });
         feedbackSuccess("Successfully unliked");
-        router.reload();
+        reloadCallback();
       } catch (e) {
         feedbackError("Failed to unlink site and destination", { error: e });
       } finally {
@@ -236,32 +237,51 @@ function Connections(props: RemoteEntitiesProps) {
       </div>
       <div>
         {links.length === 0 && <EmptyLinks />}
-        {links.length > 0 && <ConnectionsTable links={links} streams={streams} destinations={destinations} />}
+        {links.length > 0 && (
+          <ConnectionsTable
+            links={links}
+            streams={streams}
+            destinations={destinations}
+            reloadCallback={props.reloadCallback}
+          />
+        )}
       </div>
     </div>
   );
 }
 
-function ConnectionsLoader() {
+function ConnectionsLoader(props: { reloadCallback: () => void }) {
   const workspace = useWorkspace();
   const data = useStreamDestinationLinksQuery(workspace.id, {
     cacheTime: 0,
     retry: false,
   });
+
   return (
     <QueryResponse
       result={data}
       render={([streams, destinations, links]) => (
-        <Connections streams={streams} destinations={destinations} links={links} />
+        <Connections
+          streams={streams}
+          destinations={destinations}
+          links={links}
+          reloadCallback={props.reloadCallback}
+        />
       )}
     />
   );
 }
 
 const ConnectionsPage = () => {
+  const [refresh, setRefresh] = useState(new Date());
   return (
     <WorkspacePageLayout>
-      <ConnectionsLoader />
+      <ConnectionsLoader
+        key={refresh.toISOString()}
+        reloadCallback={() => {
+          setRefresh(new Date());
+        }}
+      />
     </WorkspacePageLayout>
   );
 };

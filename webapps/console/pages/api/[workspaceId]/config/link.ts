@@ -75,7 +75,7 @@ export const api: Api = {
     handle: async ({ user, query: { workspaceId, fromId, toId } }) => {
       await verifyAccess(user, workspaceId);
       const existingLink = await db.prisma().configurationObjectLink.findFirst({
-        where: { workspaceId: workspaceId, toId, fromId },
+        where: { workspaceId: workspaceId, toId, fromId, deleted: false },
       });
       if (!existingLink) {
         return { deleted: false };
