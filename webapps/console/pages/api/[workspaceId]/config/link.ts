@@ -56,6 +56,7 @@ export const api: Api = {
       }
       const created = await db.prisma().configurationObjectLink.create({
         data: {
+          id: `${workspaceId}_${fromId.substring(fromId.length - 8)}_${toId.substring(toId.length - 8)}`,
           workspaceId,
           fromId,
           toId,
