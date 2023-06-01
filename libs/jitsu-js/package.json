@@ -21,7 +21,7 @@
   },
   "devDependencies": {
     "@jitsu/protocols": "workspace:*",
-    "@playwright/test": "1.30.0",
+    "@playwright/test": "1.31.2",
     "@rollup/plugin-commonjs": "^23.0.2",
     "@rollup/plugin-json": "^5.0.1",
     "@rollup/plugin-multi-entry": "^6.0.0",
