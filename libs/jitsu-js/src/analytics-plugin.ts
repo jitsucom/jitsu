@@ -8,7 +8,7 @@ import { loadScript } from "./script-loader";
 import { internalDestinationPlugins } from "./destination-plugins";
 import { jitsuLibraryName, jitsuVersion } from "./version";
 
-const config: Required<JitsuOptions> = {
+const defaultConfig: Required<JitsuOptions> = {
   /* Your segment writeKey */
   writeKey: null,
   /* Disable anonymous MTU */
@@ -424,7 +424,9 @@ function send(
   //   console.log(`[JITSU] Sending event to ${url}: `, JSON.stringify(payload, null, 2));
   // }
   const adjustedPayload = adjustPayload(payload, jitsuConfig, store);
-  const authHeader = config.writeKey ? { "X-Write-Key": validateWriteKey(config.writeKey) } : {};
+
+  const authHeader = jitsuConfig.writeKey ? { "X-Write-Key": validateWriteKey(jitsuConfig.writeKey) } : {};
+
   return fetch(url, {
     method: "POST",
     headers: {
@@ -488,7 +490,7 @@ const jitsuAnalyticsPlugin = (pluginConfig: JitsuOptions = {}): AnalyticsPlugin 
     },
   });
   const instanceConfig = {
-    ...config,
+    ...defaultConfig,
     ...pluginConfig,
   };
   return {

@@ -431,8 +431,8 @@ const WorkspaceLoader: React.FC<PropsWithChildren<{ workspaceId: string }>> = ({
             query: { workspaceId: workspace.id },
           });
           console.log("s3-init", res);
-        } catch (e) {
-          console.error("Failed to init S3 bucket", e);
+        } catch (e: any) {
+          console.error("Failed to init S3 bucket", e.message);
         }
       }
     })();

@@ -5,7 +5,11 @@ import type { Event as JitsuLegacyEvent } from "@jitsu/sdk-js";
 import { omit } from "lodash";
 
 const TableNameParameter = "JITSU_TABLE_NAME";
-export type DataLayoutImpl<T> = (event: AnalyticsServerEvent) => [T, string[] | string];
+type MappedEvent = {
+  event: any;
+  table: string;
+};
+export type DataLayoutImpl<T> = (event: AnalyticsServerEvent) => MappedEvent[] | MappedEvent;
 
 function anonymizeIp(ip: string | undefined) {
   if (!ip) {
@@ -45,7 +49,7 @@ export function removeUndefined(param: any): any {
   }
 }
 
-export function jitsuLegacy(event: AnalyticsServerEvent): [JitsuLegacyEvent, string] {
+export function jitsuLegacy(event: AnalyticsServerEvent): MappedEvent {
   let url: URL | undefined = undefined;
   const urlStr = event.context.page?.url || event.properties?.url;
   try {
@@ -54,7 +58,7 @@ export function jitsuLegacy(event: AnalyticsServerEvent): [JitsuLegacyEvent, str
     }
   } catch (e) {}
 
-  return removeUndefined(
+  const flat = removeUndefined(
     toSnakeCase({
       anon_ip: event.context?.ip ? anonymizeIp(event.context?.ip) : undefined,
       api_key: event.writeKey || "",
@@ -91,37 +95,65 @@ export function jitsuLegacy(event: AnalyticsServerEvent): [JitsuLegacyEvent, str
       vp_size: "",
     })
   );
+  return { event: flat, table: event[TableNameParameter] ?? "events" };
 }
 
-export function segmentLayout(
-  event: AnalyticsServerEvent,
-  singleTable: boolean
-): [Record<string, any>, string[] | string] {
-  const flat: Record<string, any> = toSnakeCase(
-    event.type === "identify"
-      ? {
-          ...{
-            context: event?.context ? { ...omit(event.context, "traits") } : undefined,
-            ...omit(event, ["context", "properties", TableNameParameter]),
-          },
-          ...(event.properties || {}),
-          ...(event.context?.traits || {}),
-          ...(event.traits || {}),
-        }
-      : {
-          ...omit(event, ["properties", TableNameParameter]),
-          ...(event.properties || {}),
-        }
-  );
+export function segmentLayout(event: AnalyticsServerEvent, singleTable: boolean): MappedEvent[] | MappedEvent {
+  let transformed: any;
+  //track without properties for segment multi-table layout, because full track event is stored in the table with event name
+  let baseTrackFlat: any;
+  switch (event.type) {
+    case "identify":
+      transformed = {
+        ...(event.context ? { context: omit(event.context, "traits") } : {}),
+        ...event.properties,
+        ...event.context?.traits,
+        ...event.traits,
+        ...omit(event, ["context", "properties", "traits", "type", TableNameParameter]),
+      };
+      break;
+    case "group":
+      transformed = {
+        ...(event.context ? { context: omit(event.context, "traits") } : {}),
+        ...event.properties,
+        ...event.traits,
+        ...omit(event, ["context", "properties", "traits", "type", TableNameParameter]),
+      };
+      break;
+    case "track":
+      if (!singleTable) {
+        baseTrackFlat = toSnakeCase({
+          ...omit(event, ["properties", "type", TableNameParameter]),
+        });
+      }
+      transformed = {
+        ...(event.properties || {}),
+        ...omit(event, ["properties", "type", TableNameParameter]),
+      };
+      break;
+    default:
+      transformed = {
+        ...(event.properties || {}),
+        ...omit(event, ["properties", TableNameParameter]),
+      };
+  }
+  const flat: Record<string, any> = toSnakeCase(transformed);
   if (event[TableNameParameter]) {
-    return [flat, event[TableNameParameter]];
+    flat.type = event.type;
+    return { event: flat, table: event[TableNameParameter] };
   }
   if (singleTable) {
-    return [flat, "events"];
-  } else if (event.type === "track" && event.event) {
-    return [flat, ["tracks", event.event]];
+    flat.type = event.type;
+    return { event: flat, table: "events" };
   } else {
-    return [flat, plural(event.type)];
+    if (event.type === "track" && event.event) {
+      return [
+        { event: baseTrackFlat, table: "tracks" },
+        { event: flat, table: event.event },
+      ];
+    } else {
+      return { event: flat, table: plural(event.type) };
+    }
   }
 }
 
@@ -143,7 +175,7 @@ export function plural(s: string) {
 export const dataLayouts: Record<DataLayoutType, DataLayoutImpl<any>> = {
   segment: event => segmentLayout(event, false),
   "segment-single-table": event => segmentLayout(event, true),
-  "jitsu-legacy": event => [jitsuLegacy(event), event[TableNameParameter] ?? "events"],
+  "jitsu-legacy": event => jitsuLegacy(event),
 };
 
 export type BulkerDestinationConfig = {
@@ -155,15 +187,15 @@ export type BulkerDestinationConfig = {
 
 const BulkerDestination: JitsuFunction<AnalyticsServerEvent, BulkerDestinationConfig> = async (event, ctx) => {
   const { bulkerEndpoint, destinationId, authToken, dataLayout = "segment-single-table" } = ctx.props;
-  const [data, tables] = dataLayouts[dataLayout](event);
+  const events = dataLayouts[dataLayout](event);
 
-  for (const table of Array.isArray(tables) ? tables : [tables]) {
+  for (const { event, table } of Array.isArray(events) ? events : [events]) {
     await ctx.fetch(
       `${bulkerEndpoint}/post/${destinationId}?tableName=${table}`,
       {
         method: "POST",
         headers: { Authorization: `Bearer ${authToken}` },
-        body: JSON.stringify(data),
+        body: JSON.stringify(event),
       },
       false
     );
