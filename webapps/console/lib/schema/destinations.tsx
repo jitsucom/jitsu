@@ -90,10 +90,10 @@ export type PropertyUI = {
 export type SchemaUI = Record<string, PropertyUI>;
 
 //Options of any source -> destination connection that are not specific to any particular destination
-export const ConnectionOptions = z.object({
+export const CloudDestinationsConnectionOptions = z.object({
   functions: z.array(z.object({ functionId: z.string(), functionOptions: z.any() })).optional(),
 });
-export type ConnectionOptions = z.infer<typeof ConnectionOptions>;
+export type CloudDestinationsConnectionOptions = z.infer<typeof CloudDestinationsConnectionOptions>;
 
 //Auxiliary type for batch mode options
 export const BatchModeOptions = z.object({
@@ -110,12 +110,10 @@ export type BatchModeOptions = z.infer<typeof BatchModeOptions>;
 /**
  * Common settings for device destination connections
  */
-export const DeviceDestinationsConnectionOptions = z
-  .object({
-    events: z.string().optional().default("*"),
-    hosts: z.string().optional().default("*"),
-  })
-  .merge(ConnectionOptions);
+export const DeviceDestinationsConnectionOptions = z.object({
+  events: z.string().optional().default("*"),
+  hosts: z.string().optional().default("*"),
+});
 
 export type DeviceDestinationsConnectionOptions = z.infer<typeof DeviceDestinationsConnectionOptions>;
 
@@ -129,7 +127,7 @@ export const BaseBulkerConnectionOptions = z
     dataLayout: z.enum(["segment", "jitsu-legacy", "segment-single-table"]).default("segment-single-table"),
   })
   .merge(BatchModeOptions)
-  .merge(ConnectionOptions);
+  .merge(CloudDestinationsConnectionOptions);
 
 export type BaseBulkerConnectionOptions = z.infer<typeof BaseBulkerConnectionOptions>;
 
@@ -171,7 +169,7 @@ export type DestinationType<T = any> = {
 };
 
 export const blockStorageSettings = z.object({
-  folder: z.string().optional(),
+  folder: z.string().optional().describe("Folder in the block storage bucket where files will be stored"),
   format: z
     .enum(["ndjson", "ndjson_flat", "csv"])
     .default("ndjson")
@@ -182,7 +180,7 @@ export const blockStorageSettings = z.object({
     .enum(["gzip", "none"])
     .default("none")
     .describe(
-      "Compression algorithm used for the files stored in the block storage: <code>gzip</code> - GZIP, <code>none</code> - no compression. Compression value is also used to set <code>Content-Encoding</code> property of stored object"
+      "Compression algorithm used for the files stored in the block storage: <code>gzip</code> - GZIP, <code>none</code> - no compression."
     ),
 });
 
@@ -518,7 +516,7 @@ export const coreDestinations: DestinationType<any>[] = [
         secretAccessKey: z.string().describe("S3 Secret Access Key::S3 Secret Access Key"),
         bucket: z.string().describe("S3 Bucket Name::S3 Bucket Name"),
         region: z.enum(s3Regions).default(s3Regions[0]).describe("S3 Region::S3 Region"),
-        endpoint: z.string().optional(),
+        endpoint: z.string().optional().describe("Custom endpoint of S3-compatible server"),
       })
       .merge(blockStorageSettings),
   },
@@ -549,7 +547,7 @@ export const coreDestinations: DestinationType<any>[] = [
     icon: mixpanelIcon,
     title: "Mixpanel",
     tags: "Product Analytics",
-    connectionOptions: ConnectionOptions,
+    connectionOptions: CloudDestinationsConnectionOptions,
     credentials: meta.MixpanelCredentials,
     credentialsUi: meta.MixpanelCredentialsUi,
     description: "Mixpanel is a product analytics platform that provides insights into user behavior.",
@@ -559,7 +557,7 @@ export const coreDestinations: DestinationType<any>[] = [
     icon: juneIcon,
     title: "June.so",
     tags: "Product Analytics",
-    connectionOptions: ConnectionOptions,
+    connectionOptions: CloudDestinationsConnectionOptions,
     credentials: meta.JuneCredentials,
     description: "June.so is a product analytics platform that provides insights into user behavior.",
   },
@@ -568,7 +566,7 @@ export const coreDestinations: DestinationType<any>[] = [
     icon: mongodbIcon,
     title: "MongoDB",
     tags: "Datawarehouse",
-    connectionOptions: ConnectionOptions,
+    connectionOptions: CloudDestinationsConnectionOptions,
     credentials: meta.MongodbDestinationConfig,
     credentialsUi: meta.MongodbDestinationConfigUi,
     description:
@@ -579,7 +577,7 @@ export const coreDestinations: DestinationType<any>[] = [
     icon: ga4Icon,
     title: "Google Analytics 4",
     tags: "Product Analytics",
-    connectionOptions: ConnectionOptions,
+    connectionOptions: CloudDestinationsConnectionOptions,
     credentials: meta.Ga4Credentials,
     description:
       "Google Analytics 4 is a service offered by Google that reports website traffic data and marketing trends.",
@@ -589,7 +587,7 @@ export const coreDestinations: DestinationType<any>[] = [
     icon: posthogIcon,
     title: "Posthog",
     tags: "Product Analytics",
-    connectionOptions: ConnectionOptions,
+    connectionOptions: CloudDestinationsConnectionOptions,
     credentials: meta.PosthogDestinationConfig,
     description:
       "Posthog is an open-source product analytics tool. Jitsu supports both self-hosted Posthog and Posthog Cloud.",
@@ -597,7 +595,7 @@ export const coreDestinations: DestinationType<any>[] = [
   {
     id: "amplitude",
     icon: amplitudeIcon,
-    connectionOptions: ConnectionOptions,
+    connectionOptions: CloudDestinationsConnectionOptions,
     title: "Amplitude",
     tags: "Product Analytics",
     comingSoon: true,
@@ -610,7 +608,7 @@ export const coreDestinations: DestinationType<any>[] = [
     id: "hubspot",
     icon: hubspotIcon,
     comingSoon: true,
-    connectionOptions: ConnectionOptions,
+    connectionOptions: CloudDestinationsConnectionOptions,
     title: "Hubspot",
     tags: "CRM",
     credentials: z.object({
@@ -622,7 +620,7 @@ export const coreDestinations: DestinationType<any>[] = [
   {
     id: "devnull",
     icon: devnullIcon,
-    connectionOptions: ConnectionOptions,
+    connectionOptions: CloudDestinationsConnectionOptions,
     title: "/dev/null",
     tags: "Special",
     credentials: z.object({}),
@@ -631,7 +629,7 @@ export const coreDestinations: DestinationType<any>[] = [
   },
   {
     id: "segment-proxy",
-    connectionOptions: ConnectionOptions,
+    connectionOptions: CloudDestinationsConnectionOptions,
     icon: segmentIcon,
     title: "Segment",
     tags: "Special",
@@ -645,7 +643,7 @@ export const coreDestinations: DestinationType<any>[] = [
   },
   {
     id: "webhook",
-    connectionOptions: ConnectionOptions,
+    connectionOptions: CloudDestinationsConnectionOptions,
     icon: webhookIcon,
     title: "Webhook",
     tags: "Special",

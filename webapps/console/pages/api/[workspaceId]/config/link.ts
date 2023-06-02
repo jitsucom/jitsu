@@ -2,6 +2,7 @@ import { z } from "zod";
 import { Api, inferUrl, nextJsApiHandler, verifyAccess } from "../../../../lib/api";
 import { db } from "../../../../lib/server/db";
 import { fastStore } from "../../../../lib/server/fast-store";
+import { randomId } from "juava";
 
 export const api: Api = {
   url: inferUrl(__filename),
@@ -56,7 +57,7 @@ export const api: Api = {
       }
       const created = await db.prisma().configurationObjectLink.create({
         data: {
-          id: `${workspaceId}_${fromId.substring(fromId.length - 8)}_${toId.substring(toId.length - 8)}`,
+          id: `${workspaceId}-${fromId.substring(fromId.length - 4)}-${toId.substring(toId.length - 4)}-${randomId(6)}`,
           workspaceId,
           fromId,
           toId,

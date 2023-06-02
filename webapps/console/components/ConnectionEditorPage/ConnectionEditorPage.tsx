@@ -536,31 +536,32 @@ function ConnectionEditor({
       ),
     });
   }
-  for (const func of functions) {
-    const functionId = "udf." + func.id;
-    configItems.push({
-      group: "Functions",
-      documentation: func.description,
-      name: func.name,
-      link: `/functions?id=${func.id}`,
-      component: (
-        <SwitchComponent
-          className="max-w-xs"
-          value={typeof (connectionOptions.functions ?? []).find(f => f.functionId === functionId) !== "undefined"}
-          onChange={enabled => {
-            const f = (connectionOptions.functions ?? []).filter(f => f.functionId !== functionId);
-            if (enabled) {
-              f.push({
-                functionId: functionId,
-              });
-            }
-            updateOptions({ functions: f });
-          }}
-        />
-      ),
-    });
+  if (hasZodFields(connectionOptionsZodType, "functions")) {
+    for (const func of functions) {
+      const functionId = "udf." + func.id;
+      configItems.push({
+        group: "Functions",
+        documentation: func.description,
+        name: func.name,
+        link: `/functions?id=${func.id}`,
+        component: (
+          <SwitchComponent
+            className="max-w-xs"
+            value={typeof (connectionOptions.functions ?? []).find(f => f.functionId === functionId) !== "undefined"}
+            onChange={enabled => {
+              const f = (connectionOptions.functions ?? []).filter(f => f.functionId !== functionId);
+              if (enabled) {
+                f.push({
+                  functionId: functionId,
+                });
+              }
+              updateOptions({ functions: f });
+            }}
+          />
+        ),
+      });
+    }
   }
-
   return (
     <div className="max-w-5xl grow">
       <div className="flex justify-between pt-6 pb-0 mb-0 items-center">
