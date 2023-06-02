@@ -387,10 +387,14 @@ async function processDestinations(
   }
 }
 
+function looksLikeCuid(id: string) {
+  return id.length === 25 && id.charAt(0) === "c";
+}
+
 function validateWriteKey(writeKey?: string): string | undefined {
   if (writeKey) {
     const [, secret] = writeKey.split(":", 2);
-    if (!secret) {
+    if (!secret && !looksLikeCuid(writeKey)) {
       throw new Error(
         `Legacy write key detected - ${writeKey}! This format doesn't work anymore, it should be 'key:secret'. Please download a new key from Jitsu UI`
       );
@@ -398,7 +402,6 @@ function validateWriteKey(writeKey?: string): string | undefined {
   }
   return writeKey;
 }
-
 function send(
   method,
   payload,
