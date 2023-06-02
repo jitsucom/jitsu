@@ -1,4 +1,4 @@
-import { getErrorMessage, getLog } from "juava";
+import { assertDefined, getErrorMessage, getLog } from "juava";
 import * as PG from "pg";
 
 const log = getLog("store");
@@ -7,6 +7,13 @@ const log = getLog("store");
  * Key value table with hash-map interface
  */
 export interface KeyValueTable {
+  /**
+   * List all keys in the table. If keyPattern is specified, only keys matching the pattern are returned.
+   * @param keyPattern
+   */
+  listKeys(keyPattern?: string): Promise<string[]>;
+  list(keyPattern?: string): Promise<{ id: string; obj: any }[]>;
+
   get(key: string): Promise<any | undefined>;
 
   put(key: string, obj: any, opts?: { ttlMs?: number }): Promise<void>;
@@ -22,22 +29,22 @@ declare interface KeyValueStore {
 }
 
 const schema = table => `
-    CREATE TABLE IF NOT EXISTS ${table}
-    (
-      id TEXT NOT NULL,
-      namespace TEXT NOT NULL,
-      obj JSONB NOT NULL default '{}'::jsonb,
-      expire TIMESTAMP WITH TIME ZONE,
-      primary key (id, namespace)
+  CREATE TABLE IF NOT EXISTS ${table}
+  (
+    id TEXT NOT NULL,
+    namespace TEXT NOT NULL,
+    obj JSONB NOT NULL default '{}'::jsonb,
+    expire TIMESTAMP WITH TIME ZONE,
+    primary key (id, namespace)
     );
-    ALTER TABLE ${table}
-        ADD COLUMN IF NOT EXISTS id TEXT NOT NULL;
-    ALTER TABLE ${table}
-        ADD COLUMN IF NOT EXISTS namespace TEXT NOT NULL;
-    ALTER TABLE ${table}
-        ADD COLUMN IF NOT EXISTS obj JSONB NOT NULL default '{}'::jsonb;
-    ALTER TABLE ${table}
-        ADD COLUMN IF NOT EXISTS expire TIMESTAMP WITH TIME ZONE;
+  ALTER TABLE ${table}
+    ADD COLUMN IF NOT EXISTS id TEXT NOT NULL;
+  ALTER TABLE ${table}
+    ADD COLUMN IF NOT EXISTS namespace TEXT NOT NULL;
+  ALTER TABLE ${table}
+    ADD COLUMN IF NOT EXISTS obj JSONB NOT NULL default '{}'::jsonb;
+  ALTER TABLE ${table}
+    ADD COLUMN IF NOT EXISTS expire TIMESTAMP WITH TIME ZONE;
 `;
 
 const pl = table => `ALTER TABLE ${table} ADD PRIMARY KEY (id, namespace)`;
@@ -132,6 +139,30 @@ export async function getPostgresStore(
   return {
     getTable(tableName: string): KeyValueTable {
       return {
+        async list(keyPattern?: string) {
+          maybeDeleteExpiredObjects(pgPool, table);
+          assertDefined(!keyPattern, "keyPattern is not supported yet");
+          const result = await pgPool.query({
+            text: `SELECT id, obj
+                   FROM ${table}
+                   WHERE namespace = $1 and expire is null or expire > NOW()`,
+            values: [tableName],
+          });
+
+          return result.rows.map(({ id, obj }) => ({ id: id as string, obj }));
+        },
+        async listKeys(keyPattern?: string): Promise<string[]> {
+          maybeDeleteExpiredObjects(pgPool, table);
+          assertDefined(!keyPattern, "keyPattern is not supported yet");
+          const result = await pgPool.query({
+            text: `SELECT id
+                   FROM ${table}
+                   WHERE namespace = $1 and expire is null or expire > NOW()`,
+            values: [tableName],
+          });
+
+          return result.rows.map(({ id }) => id);
+        },
         async del(key: string) {
           maybeDeleteExpiredObjects(pgPool, table);
           await pgPool.query(deleteQuery(table, tableName, key));

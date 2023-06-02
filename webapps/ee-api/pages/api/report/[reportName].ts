@@ -7,13 +7,13 @@ import * as PG from "pg";
 
 const log = getLog("/api/report");
 
-const queries: Record<string, (opts: { metricsTable: string }) => string> = {
+export const queries: Record<string, (opts: { metricsTable: string }) => string> = {
   //newjitsu schema is hardcoded here, should be fixed
   //newjitsu schema is hardcoded here, should be fixed
   "destination-stat": () => `
-      select
-          date (m.timestamp) as day, case when length (obj.data->> 'mode') > 0 then 'warehouse' else 'service'
-      end as destination_type,
+    select
+      date (m.timestamp) as day, case when length (obj.data->> 'mode') > 0 then 'warehouse' else 'service'
+    end as destination_type,
             sum(m.value) as events
         from newjitsuee.bulker_metrics m
         left join newjitsu."ConfigurationObjectLink" obj on obj."id"=m."destinationId"
@@ -32,7 +32,7 @@ function getDate(param: string | undefined, defaultVal?: string): Date {
   return param ? new Date(param) : defaultVal ? new Date(defaultVal) : new Date();
 }
 
-async function query(pg: PG.Pool, sql: string, params: SqlQueryParameters = []): Promise<Record<string, any>[]> {
+export async function query(pg: PG.Pool, sql: string, params: SqlQueryParameters = []): Promise<Record<string, any>[]> {
   const { query, values } = namedParameters(sql, params);
   log.atInfo().log(`Querying: ${unrollParams(query, values)}`);
   return await pg.query({ text: query, values }).then(res => {
