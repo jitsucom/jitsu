@@ -39,6 +39,15 @@ func NvlInt(args ...int) int {
 	return 0
 }
 
+func NvlFloat(args ...float64) float64 {
+	for _, n := range args {
+		if n != 0 {
+			return n
+		}
+	}
+	return 0
+}
+
 // NvlMap returns first not empty map from varargs
 //
 // return nil if all passed maps are empty

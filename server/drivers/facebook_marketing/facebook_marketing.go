@@ -11,6 +11,8 @@ import (
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/typing"
+	"github.com/jitsucom/jitsu/server/utils"
+	"github.com/spf13/viper"
 	"strings"
 	"time"
 )
@@ -43,8 +45,8 @@ const (
 	AdsCollection      = "ads"
 	fbMaxAttempts      = 2
 
-	fbMarketingAPIVersion      = "v16.0"
-	defaultFacebookReportLevel = "ad"
+	defaultFacebookMarketingAPIVersion = 17.0
+	defaultFacebookReportLevel         = "ad"
 )
 
 func init() {
@@ -79,6 +81,7 @@ func NewFacebookMarketing(ctx context.Context, sourceConfig *base.SourceConfig, 
 		collection:     collection,
 		config:         config,
 		reportConfig:   reportConfig,
+		version:        fmt.Sprintf("v%.1f", utils.NvlFloat(viper.GetFloat64("facebook_marketing.api_version"), defaultFacebookMarketingAPIVersion)),
 	}, nil
 }
 
@@ -92,9 +95,10 @@ func TestFacebookMarketingConnection(sourceConfig *base.SourceConfig) error {
 		return err
 	}
 
-	fm := &FacebookMarketing{config: config, reportConfig: &FacebookReportConfig{Level: defaultFacebookReportLevel}}
-
-	_, err := fm.loadReportWithRetry(fmt.Sprintf("/%s/act_%s/insights", fbMarketingAPIVersion, fm.config.AccountID), []string{}, nil, 10, true)
+	fm := &FacebookMarketing{config: config, reportConfig: &FacebookReportConfig{Level: defaultFacebookReportLevel},
+		version: fmt.Sprintf("v%.1f", utils.NvlFloat(viper.GetFloat64("facebook_marketing.api_version"), defaultFacebookMarketingAPIVersion)),
+	}
+	_, err := fm.loadReportWithRetry(fmt.Sprintf("/%s/act_%s/insights", fm.version, fm.config.AccountID), []string{}, nil, 10, true)
 	if err != nil {
 		return err
 	}
@@ -152,7 +156,7 @@ func (fm *FacebookMarketing) GetObjectsFor(interval *base.TimeInterval, objectsL
 }
 
 func (fm *FacebookMarketing) syncInsightsReport(interval *base.TimeInterval) ([]map[string]interface{}, error) {
-	rows, err := fm.loadReportWithRetry(fmt.Sprintf("/%s/act_%s/insights", fbMarketingAPIVersion, fm.config.AccountID), fm.reportConfig.Fields, interval, 0, false)
+	rows, err := fm.loadReportWithRetry(fmt.Sprintf("/%s/act_%s/insights", fm.version, fm.config.AccountID), fm.reportConfig.Fields, interval, 0, false)
 	if err != nil {
 		return nil, err
 	}
@@ -162,7 +166,7 @@ func (fm *FacebookMarketing) syncInsightsReport(interval *base.TimeInterval) ([]
 }
 
 func (fm *FacebookMarketing) syncAdsReport(interval *base.TimeInterval) ([]map[string]interface{}, error) {
-	rows, err := fm.loadReportWithRetry(fmt.Sprintf("/%s/act_%s/ads", fbMarketingAPIVersion, fm.config.AccountID), fm.reportConfig.Fields, nil, 200, false)
+	rows, err := fm.loadReportWithRetry(fmt.Sprintf("/%s/act_%s/ads", fm.version, fm.config.AccountID), fm.reportConfig.Fields, nil, 200, false)
 	if err != nil {
 		return nil, err
 	}

@@ -11,6 +11,7 @@ type FacebookMarketing struct {
 	collection   *base.Collection
 	config       *FacebookMarketingConfig
 	reportConfig *FacebookReportConfig
+	version      string
 }
 
 type FacebookReportConfig struct {
