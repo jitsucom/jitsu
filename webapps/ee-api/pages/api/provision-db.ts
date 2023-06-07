@@ -131,4 +131,5 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
     hosts: chHosts,
   };
 };
+
 export default withErrorHandler(handler);
