@@ -90,7 +90,14 @@ async function createAccount(credentials: Credentials): Promise<Credentials> {
 }
 
 const handler = async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const chURL = new URL(requireDefined(process.env.CLICKHOUSE_URL, `CLICKHOUSE_URL is not defined`));
+  let chHosts: string[] = [];
+  if (process.env.CLICKHOUSE_HOSTS) {
+    chHosts = process.env.CLICKHOUSE_HOSTS.split(",");
+  } else {
+    chHosts.push(
+      new URL(requireDefined(process.env.CLICKHOUSE_URL, `CLICKHOUSE_URL or CLICKHOUSE_HOSTS must be defined`)).hostname
+    );
+  }
   await store.waitInit();
   const claims = await auth(req, res);
   if (!claims) {
@@ -108,7 +115,7 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
     return res.status(200).json({
       ...credentials,
       protocol: "clickhouse-secure",
-      hosts: [chURL.hostname],
+      hosts: chHosts,
     });
   }
   const dbCredentials = await createAccount({
@@ -121,7 +128,7 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
   return {
     ...dbCredentials,
     protocol: "clickhouse-secure",
-    hosts: [chURL.hostname],
+    hosts: chHosts,
   };
 };
 export default withErrorHandler(handler);
