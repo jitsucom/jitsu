@@ -5,7 +5,7 @@ import type { Event as JitsuLegacyEvent } from "@jitsu/sdk-js";
 import { omit } from "lodash";
 
 const TableNameParameter = "JITSU_TABLE_NAME";
-type MappedEvent = {
+export type MappedEvent = {
   event: any;
   table: string;
 };

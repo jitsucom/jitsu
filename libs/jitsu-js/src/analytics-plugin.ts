@@ -282,7 +282,7 @@ function adjustPayload(payload: any, config: JitsuOptions, storage: PersistentSt
     timestamp: new Date().toISOString(),
     sentAt: new Date().toISOString(),
     messageId: randomId(properties.path || (parsedUrl && parsedUrl.pathname)),
-    writeKey: validateWriteKey(config.writeKey),
+    writeKey: maskWriteKey(config.writeKey),
     context: deepMerge(context, customContext),
   };
   delete withContext.meta;
@@ -402,6 +402,19 @@ function validateWriteKey(writeKey?: string): string | undefined {
   }
   return writeKey;
 }
+
+function maskWriteKey(writeKey?: string): string | undefined {
+  if (writeKey) {
+    const [id, secret] = writeKey.split(":", 2);
+    if (secret) {
+      return `${id}:***`;
+    } else {
+      return id;
+    }
+  }
+  return writeKey;
+}
+
 function send(
   method,
   payload,
@@ -428,7 +441,7 @@ function send(
   // }
   const adjustedPayload = adjustPayload(payload, jitsuConfig, store);
 
-  const authHeader = jitsuConfig.writeKey ? { "X-Write-Key": validateWriteKey(jitsuConfig.writeKey) } : {};
+  const authHeader = jitsuConfig.writeKey ? { "X-Write-Key": jitsuConfig.writeKey } : {};
 
   return fetch(url, {
     method: "POST",
@@ -507,6 +520,7 @@ const jitsuAnalyticsPlugin = (pluginConfig: JitsuOptions = {}): AnalyticsPlugin 
       if (!config.host && !config.echoEvents) {
         throw new Error("Please specify host variable in jitsu plugin initialization, or set echoEvents to true");
       }
+      validateWriteKey(config.writeKey);
     },
     page: args => {
       const { payload, config, instance } = args;

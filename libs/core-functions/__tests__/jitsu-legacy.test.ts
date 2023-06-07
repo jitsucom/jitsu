@@ -1,4 +1,4 @@
-import { jitsuLegacy, segmentLayout } from "../src/functions/bulker-destination";
+import { jitsuLegacy, MappedEvent, segmentLayout } from "../src/functions/bulker-destination";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import type { Event as JitsuLegacyEvent } from "@jitsu/sdk-js";
 
@@ -163,8 +163,8 @@ const legacyPageExpected = {
 };
 
 test("legacy event", () => {
-  const identifyLegacyResult = jitsuLegacy(identify);
-  const pageLegacyResult = jitsuLegacy(page);
+  const identifyLegacyResult = jitsuLegacy(identify).event;
+  const pageLegacyResult = jitsuLegacy(page).event;
   // console.log(JSON.stringify(identifyLegacyResult, null, 2));
   // expect(identifyLegacyResult).toStrictEqual(legacyIdentifyExpected);
 
@@ -225,7 +225,9 @@ const pageSegmentExpected = {
 };
 
 test("segment event", () => {
-  const pageSegmentResult = segmentLayout(page, false)[0];
-  console.log(JSON.stringify(pageSegmentResult, null, 2));
-  expect(pageSegmentResult).toStrictEqual(pageSegmentExpected);
+  const pageSegmentResult = segmentLayout(page, false);
+  expect(Array.isArray(pageSegmentResult)).toBe(false);
+  const pageSegment = (pageSegmentResult as MappedEvent).event;
+  console.log(JSON.stringify(pageSegment, null, 2));
+  expect(pageSegment).toStrictEqual(pageSegmentExpected);
 });
