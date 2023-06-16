@@ -25,7 +25,7 @@ function shuffle<T>(arr: T[]) {
 }
 
 export default createRoute()
-  .GET({ auth: true, query: z.object({ limit: z.number().optional() }) })
+  .GET({ auth: true, query: z.object({ limit: z.string().optional() }) })
   .handler(async ({ user, req, query }) => {
     const userProfile = await db.prisma().userProfile.findFirst({ where: { id: user.internalId } });
 
@@ -39,7 +39,8 @@ export default createRoute()
     shuffle(sources);
 
     log.atInfo().log(`Found ${sources.length} sources`);
-    const max = query.limit ? Math.min(query.limit, sources.length) : sources.length;
+    const max = query.limit ? Math.min(parseInt(query.limit), sources.length) : sources.length;
+    const statuses = {};
     for (let i = 0; i < max; i++) {
       const src = sources[i];
       const metadataUrl = `https://raw.githubusercontent.com/${repo}/master/${basePath}/${src}/metadata.yaml`;
@@ -75,7 +76,6 @@ export default createRoute()
         meta: metadata?.data || {},
         logoSvg: icon,
       };
-      const statuses = {};
       if (currentId) {
         statuses[`${packageId}`] = "updated";
         log.atInfo().log(`Updating ${packageId} info. Has icon: ${!!icon}, has metadata: ${!!metadata}`);
@@ -85,11 +85,11 @@ export default createRoute()
         log.atInfo().log(`Created ${packageId} info. Has icon: ${!!icon}, has metadata: ${!!metadata}`);
         await db.prisma().connectorPackage.create({ data: data });
       }
-      return {
-        total: sources.length,
-        processed: query.limit || sources.length,
-        statuses,
-      };
     }
+    return {
+      total: sources.length,
+      processed: query.limit || sources.length,
+      statuses,
+    };
   })
   .toNextApiHandler();
