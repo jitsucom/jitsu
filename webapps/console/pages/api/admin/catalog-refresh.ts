@@ -39,7 +39,8 @@ export default createRoute()
     shuffle(sources);
 
     log.atInfo().log(`Found ${sources.length} sources`);
-    for (let i = 0; i < sources.length && (!query.limit || i < query.limit); i++) {
+    const max = query.limit ? Math.min(query.limit, sources.length) : sources.length;
+    for (let i = 0; i < max; i++) {
       const src = sources[i];
       const metadataUrl = `https://raw.githubusercontent.com/${repo}/master/${basePath}/${src}/metadata.yaml`;
       const res = await fetch(metadataUrl);
