@@ -139,3 +139,13 @@ model ConfigurationObjectLink {
   toId String
   to   ConfigurationObject @relation(fields: [toId], references: [id], name: "from")
 }
+
+model ConnectorPackage {
+  id        String   @id @default(cuid())
+  packageId String
+  packageType String @default("airbyte")
+  meta      Json?
+  logoSvg   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+}

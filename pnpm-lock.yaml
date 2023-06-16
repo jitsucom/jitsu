@@ -562,6 +562,9 @@ importers:
       ioredis:
         specifier: ^5.2.3
         version: 5.3.1
+      js-yaml:
+        specifier: ^4.1.0
+        version: 4.1.0
       json5:
         specifier: ^2.2.3
         version: 2.2.3
@@ -665,6 +668,9 @@ importers:
       '@types/firebase':
         specifier: ^3.2.1
         version: 3.2.1
+      '@types/js-yaml':
+        specifier: ^4.0.5
+        version: 4.0.5
       '@types/lodash':
         specifier: ^4.14.185
         version: 4.14.192
@@ -8023,6 +8029,10 @@ packages:
   /@types/js-cookie@2.2.7:
     resolution: {integrity: sha512-aLkWa0C0vO5b4Sr798E26QgOkss68Un0bLjs7u9qxzPT5CG+8DuNTffWES58YzJs3hrVAOs1wonycqEBqNJubA==}
     dev: false
+
+  /@types/js-yaml@4.0.5:
+    resolution: {integrity: sha512-FhpRzf927MNQdRZP0J5DLIdTXhjLYzeUTmLAu69mnVksLH9CJY3IuSeEgbKUki7GQZm0WqDkGzyxju2EZGD2wA==}
+    dev: true
 
   /@types/json-schema@7.0.11:
     resolution: {integrity: sha512-wOuvG1SN4Us4rez+tylwwwCV1psiNVOkJeM3AUWUNWg/jDQY2+HE/444y5gc+jBmRqASOm2Oeh5c1axHobwRKQ==}
