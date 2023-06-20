@@ -15,7 +15,7 @@ export default createRoute()
     if (type !== "airbyte") {
       throw new Error(`Only airbyte is supported, not ${type}`);
     }
-    const tags = (await rpc(`https://hub.docker.com/v2/repositories/${query.package}/tags`)).results.map(
+    const tags = (await rpc(`https://hub.docker.com/v2/repositories/${query.package}/tags?page_size=100`)).results.map(
       ({ name }) => ({ name, isRelease: name.match(/^[0-9.]+$/) !== null })
     );
     return {

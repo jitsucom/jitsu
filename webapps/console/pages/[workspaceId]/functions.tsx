@@ -65,7 +65,7 @@ const FunctionsList: React.FC<{}> = () => {
         render: (c: FunctionConfig) => <>{c.description ?? ""}</>,
       },
     ],
-    editorComponent: FunctionsDebugger,
+    editorComponent: () => FunctionsDebugger,
     objectType: FunctionConfig,
     fields: {
       type: { constant: "function" },

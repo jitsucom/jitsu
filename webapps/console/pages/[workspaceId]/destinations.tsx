@@ -4,7 +4,6 @@ import {
   ConfigEditor,
   ConfigEditorProps,
   CustomWidgetProps,
-  EditorComponentFactory,
   FieldDisplay,
 } from "../../components/ConfigObjectEditor/ConfigEditor";
 import { DestinationConfig } from "../../lib/schema";
@@ -56,7 +55,7 @@ const Loader: React.FC<{}> = () => {
         return null;
       }
       const destination = await getConfigApi<DestinationConfig>(workspace.id, "destination").get(
-        router.query.id as string
+        (router.query.clone || router.query.id) as string
       );
       return requireDefined(
         getCoreDestinationType(destination.destinationType),
@@ -89,7 +88,7 @@ const Destinations: React.FC<any> = () => {
   );
 };
 
-const customEditors: Record<(typeof coreDestinations)[number]["id"], EditorComponentFactory> = {
+const customEditors: Record<(typeof coreDestinations)[number]["id"], React.FC> = {
   // tag: props => {
   //   return <SnippetEditor {...props} />;
   // },
@@ -596,7 +595,26 @@ const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
     newObject: () => {
       return { destinationType: router.query["destinationType"] as string };
     },
-
+    testConnectionEnabled: (obj: DestinationConfig) => {
+      const destinationType = coreDestinationsMap[obj.destinationType];
+      assertDefined(destinationType, `Destination ${obj.destinationType} is not found: ${JSON.stringify(obj)}`);
+      return !!destinationType.usesBulker;
+    },
+    onTest: async obj => {
+      try {
+        const res = await getConfigApi(workspace.id, obj.type).test(obj);
+        return res.ok ? { ok: true } : { ok: false, error: res?.error || res?.message || "unknown error" };
+      } catch (error) {
+        log
+          .atWarn()
+          .log(
+            `Failed to test destination ${workspace.id} / ${type}. This is not expected since destination tester should return 200 even in credentials are wrong`,
+            error
+          );
+        return { ok: false, error: "Internal error, see logs for details" };
+        //feedbackError("Failed to test object", { error });
+      }
+    },
     objectType: (obj: DestinationConfig) => {
       const destinationType = coreDestinationsMap[obj.destinationType];
       assertDefined(destinationType, `Destination ${obj.destinationType} is not found: ${JSON.stringify(obj)}`);
@@ -656,9 +674,7 @@ const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
         listTitle="Destinations"
         {...(config as any)}
         editorComponent={props => {
-          if (customEditors[props.object.destinationType]) {
-            return customEditors[props.object.destinationType](props);
-          }
+          return customEditors[props.object.destinationType];
         }}
       />
     </>

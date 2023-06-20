@@ -1,7 +1,7 @@
 import { coreDestinationsMap } from "./destinations";
 import { safeParseWithDate } from "../zod";
 import { ApiError } from "../shared/errors";
-import { ApiKey, ConfigObjectType, DestinationConfig, FunctionConfig, StreamConfig } from "./index";
+import { ApiKey, ConfigObjectType, DestinationConfig, FunctionConfig, ServiceConfig, StreamConfig } from "./index";
 import { assertDefined, createHash, requireDefined } from "juava";
 import { isDomainAvailable } from "../server/custom-domains";
 import { ZodType, ZodTypeDef } from "zod";
@@ -144,5 +144,8 @@ const configObjectTypes: Record<string, ConfigObjectType> = {
   },
   function: {
     schema: FunctionConfig,
+  },
+  service: {
+    schema: ServiceConfig,
   },
 } as const;

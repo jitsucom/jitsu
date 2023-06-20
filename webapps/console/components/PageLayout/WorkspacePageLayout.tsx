@@ -18,6 +18,7 @@ import {
   LayoutDashboard,
   Loader2,
   Server,
+  ServerCog,
   Settings,
   Share2,
   ShieldAlert,
@@ -349,6 +350,7 @@ function PageHeader() {
     { title: "Destinations", path: "/destinations", icon: <Server className="w-full h-full" /> },
     { title: "Connections", path: "/connections", icon: <Share2 className="w-full h-full" /> },
     { title: "Functions", path: "/functions", icon: <FunctionSquare className="w-full h-full" /> },
+    { title: "Services", path: "/services", icon: <ServerCog className="w-full h-full" /> },
     { title: "Live Events", path: "/data", icon: <Activity className="w-full h-full" /> },
     { title: "Query Data", path: "/sql", icon: <BarChart3 className="w-full h-full" />, hidden: !appConfig?.ee },
     {
