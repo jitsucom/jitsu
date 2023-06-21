@@ -2,12 +2,25 @@ import { db } from "../../../../lib/server/db";
 import { z } from "zod";
 import { createRoute, verifyAccess } from "../../../../lib/api";
 import { randomId, requireDefined, rpc } from "juava";
+import { JSONSchemaFaker } from "json-schema-faker";
+import { JsonObject } from "type-fest";
+
+JSONSchemaFaker.option("alwaysFakeOptionals", true);
+JSONSchemaFaker.option("useDefaultValue", true);
+JSONSchemaFaker.option("useExamplesValue", true);
+JSONSchemaFaker.option("sortProperties", true);
+JSONSchemaFaker.option("fillProperties", false);
+JSONSchemaFaker.option("maxItems", 2);
+JSONSchemaFaker.option("minLength", 2);
+JSONSchemaFaker.option("replaceEmptyByRandomValue", true);
+JSONSchemaFaker.option("ignoreProperties", ["replication_method", "tunnel_method"]);
 
 const resultType = z.object({
   ok: z.boolean(),
   pending: z.boolean().optional(),
   error: z.string().optional(),
   specs: z.object({}).passthrough().optional(),
+  fakeJson: z.object({}).passthrough().optional(),
   startedAt: z.number().optional(),
 });
 
@@ -50,10 +63,12 @@ export default createRoute()
       let error;
       if (res.rowCount === 1) {
         const specs = res.rows[0].specs;
+        const fakeJson = await JSONSchemaFaker.resolve(specs.connectionSpecification);
         if (!error && specs) {
           return {
             ok: true,
             specs,
+            fakeJson: fakeJson as JsonObject,
           };
         } else {
           error = res.rows[0].error ?? "unknown error";

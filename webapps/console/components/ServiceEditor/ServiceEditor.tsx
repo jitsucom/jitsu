@@ -7,7 +7,7 @@ import { LoadingAnimation } from "../GlobalLoader/GlobalLoader";
 import { EditorField } from "../ConfigObjectEditor/EditorField";
 import { TextEditor } from "../ConnectionEditorPage/ConnectionEditorPage";
 import { ServiceConfig } from "../../lib/schema";
-import { Select } from "antd";
+import { Button, Select } from "antd";
 import { SnippedEditor } from "../CodeEditor/SnippedEditor";
 import { EditorButtons } from "../ConfigObjectEditor/EditorButtons";
 import { getConfigApi } from "../../lib/useApi";
@@ -35,22 +35,25 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
   const [obj, setObj] = useState<Partial<ServiceConfig>>({
     ...props.object,
   });
+  const [credUserProvided, setCredUserProvided] = useState(!!obj.credentials && obj.credentials !== "{}");
   const [formState, setFormState] = useState<any | undefined>(undefined);
-  const hasErrors = formState?.errors?.length > 0;
   const isTouched = formState !== undefined || !!createNew;
   const [loading, setLoading] = useState<boolean>(false);
   const [loadingSpecs, setLoadingSpecs] = useState<boolean>(false);
   const [specs, setSpecs] = useState<any>(undefined);
 
-  const change = (key: string, value: any) => {
-    setObj({
-      ...obj,
-      [key]: value,
-    });
-  };
+  const change = useCallback(
+    (key: string, value: any) => {
+      setObj({
+        ...obj,
+        [key]: value,
+      });
+    },
+    [obj]
+  );
 
   useEffect(() => {
-    if (obj.credentials && obj.credentials !== "{}") {
+    if (credUserProvided || specs) {
       console.log("No need to load specs. Credentials are already filled.");
       return;
     }
@@ -62,10 +65,9 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
         if (firstRes.error) {
           feedbackError(`Cannot load specs for ${obj.package}:${obj.version} error: ${firstRes.error}`);
         } else if (firstRes.ok) {
-          console.log("Loaded cached specs:", firstRes.specs);
+          console.log("Loaded cached specs:", JSON.stringify(firstRes, null, 2));
           setSpecs(firstRes.specs);
-          const fake = firstRes.specs.connectionSpecification;
-          change("credentials", JSON.stringify(fake, null, 2));
+          change("credentials", JSON.stringify(firstRes.fakeJson, null, 2));
         } else {
           for (let i = 0; i < 60; i++) {
             const resp = await rpc(
@@ -76,10 +78,9 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
                 feedbackError(`Cannot load specs for ${obj.package}:${obj.version} error: ${resp.error}`);
                 return;
               } else {
-                console.log("Loaded specs:", resp.specs);
+                console.log("Loaded specs:", JSON.stringify(resp, null, 2));
                 setSpecs(resp.specs);
-                const fake = resp.specs.connectionSpecification;
-                change("credentials", JSON.stringify(fake, null, 2));
+                change("credentials", JSON.stringify(resp.fakeJson, null, 2));
                 return;
               }
             }
@@ -93,7 +94,7 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
         setLoadingSpecs(false);
       }
     })();
-  }, [workspace.id, obj.credentials, obj.package, obj.version, setSpecs, setLoadingSpecs]);
+  }, [workspace.id, credUserProvided, obj.package, obj.version, change, specs]);
 
   const save = useCallback(async () => {
     setLoading(true);
@@ -134,18 +135,43 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
           label={"Version"}
           required={true}
         >
-          <VersionSelector value={obj.version ?? ""} onChange={change.bind(null, "version")} versions={meta.versions} />
+          <VersionSelector
+            value={obj.version ?? ""}
+            onChange={v => {
+              change.bind(null, "version")(v);
+              setSpecs(undefined);
+            }}
+            versions={meta.versions}
+          />
         </EditorField>
         <EditorField key={"credentials"} id={"credentials"} label={"Credentials"} required={true}>
           {loadingSpecs ? (
-            <LoadingAnimation />
+            <LoadingAnimation className={"h-52"} title={"Loading connector specifications..."} />
           ) : (
-            <SnippedEditor
-              value={obj.credentials ?? "{}"}
-              onChange={change.bind(null, "credentials")}
-              languages={["json"]}
-              height={200}
-            />
+            <div className={"relative"}>
+              <div className={"absolute top-2 right-2 z-50"}>
+                <Button
+                  type={"primary"}
+                  ghost={true}
+                  size={"small"}
+                  onClick={() => {
+                    setSpecs(undefined);
+                    setCredUserProvided(false);
+                  }}
+                >
+                  Generate example
+                </Button>
+              </div>
+              <SnippedEditor
+                value={obj.credentials ?? "{}"}
+                onChange={v => {
+                  change.bind(null, "credentials")(v);
+                  setCredUserProvided(true);
+                }}
+                languages={["json"]}
+                height={206}
+              />
+            </div>
           )}
         </EditorField>
         <EditorButtons

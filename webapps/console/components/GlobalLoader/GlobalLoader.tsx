@@ -34,7 +34,7 @@ export function LoadingAnimation({
   hideTitle?: boolean;
 }) {
   return (
-    <div className={classNames("flex flex-col items-center", className)}>
+    <div className={classNames("flex flex-col items-center justify-center", className)}>
       <div className="w-12 h-12">
         <Spinner />
       </div>

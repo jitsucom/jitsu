@@ -18,6 +18,9 @@ function groupByType(sources: SourceType[]): Record<string, SourceType[]> {
     if (s.meta.license !== "MIT") {
       return;
     }
+    if (s.packageId.endsWith("strict-encrypt")) {
+      return;
+    }
     const groupName = s.meta.connectorSubtype || otherGroup;
     groups[groupName] = groups[groupName] || [];
     groups[groupName].push(s);
@@ -84,7 +87,7 @@ export const ServicesCatalog: React.FC<{ onClick: (packageType, packageId: strin
               return (
                 <div
                   key={source.id}
-                  className={`cursor-pointer relative w-72 border border-textDisabled ${"hover:scale-105 hover:border-primary"} transition ease-in-out flex rounded-lg px-4 py-4 space-x-4 m-4`}
+                  className={`flex items-center cursor-pointer relative w-72 border border-textDisabled ${"hover:scale-105 hover:border-primary"} transition ease-in-out rounded-lg px-4 py-4 space-x-4 m-4`}
                   onClick={() => onClick(source.packageType, source.packageId)}
                 >
                   <div className={`${styles.icon} flex`}>{getDestinationIcon(source)}</div>
