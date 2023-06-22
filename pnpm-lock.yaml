@@ -505,6 +505,9 @@ importers:
       '@monaco-editor/react':
         specifier: 4.5.0
         version: 4.5.0(monaco-editor@0.37.1)(react-dom@18.2.0)(react@18.2.0)
+      '@nangohq/frontend':
+        specifier: ^0.21.11
+        version: 0.21.11
       '@prisma/client':
         specifier: ^4.12.0
         version: 4.12.0(prisma@4.12.0)
@@ -5151,6 +5154,10 @@ packages:
       monaco-editor: 0.37.1
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
+    dev: false
+
+  /@nangohq/frontend@0.21.11:
+    resolution: {integrity: sha512-oNOqM8gZhRaaHt63zyaWxsWi3pip4a78S9IzstEBVvUUzEFOU3+ys0r3TmyQCbA1veaAZjzeMyq+LtZem/Nt9g==}
     dev: false
 
   /@next/env@13.0.0:

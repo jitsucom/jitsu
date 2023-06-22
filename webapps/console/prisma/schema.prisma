@@ -149,3 +149,11 @@ model ConnectorPackage {
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 }
+
+//model OauthSecrets {
+//  id        String   @id @default(cuid())
+//  createdAt DateTime @default(now())
+//  updatedAt DateTime @default(now()) @updatedAt
+//  nangoIntegrationId String
+//  secrets      Json?
+//}

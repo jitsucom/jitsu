@@ -69,6 +69,12 @@ export const AppConfig = z.object({
     writeKey: z.string().optional(),
   }),
   logLevel: z.enum(["debug", "info", "warn", "error"]),
+  nango: z
+    .object({
+      publicKey: z.string(),
+      host: z.string(),
+    })
+    .optional(),
 });
 export type AppConfig = z.infer<typeof AppConfig>;
 

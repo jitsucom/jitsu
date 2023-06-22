@@ -32,12 +32,24 @@ export function satisfyDomainFilter(filter: string, subject: string | undefined)
 
 export function applyFilters(event: AnalyticsClientEvent, creds: CommonDestinationCredentials): boolean {
   const { hosts = "*", events = "*" } = creds;
-  const eventsArray = events.split("\n");
-  return (
-    !!hosts.split("\n").find(hostFilter => satisfyDomainFilter(hostFilter, event.context?.host)) &&
-    (!!eventsArray.find(eventFilter => satisfyFilter(eventFilter, event.type)) ||
-      !!eventsArray.find(eventFilter => satisfyFilter(eventFilter, event.event)))
-  );
+  try {
+    const eventsArray = Array.isArray(events) ? events : events.split("\n");
+    const hostsArray = Array.isArray(hosts) ? hosts : hosts.split("\n");
+    return (
+      !!hostsArray.find(hostFilter => satisfyDomainFilter(hostFilter, event.context?.host)) &&
+      (!!eventsArray.find(eventFilter => satisfyFilter(eventFilter, event.type)) ||
+        !!eventsArray.find(eventFilter => satisfyFilter(eventFilter, event.event)))
+    );
+  } catch (e) {
+    console.warn(
+      `Failed to apply filters: ${e.message}. Typeof events: ${typeof events}, typeof hosts: ${typeof hosts}. Values`,
+      events,
+      hosts
+    );
+    throw new Error(
+      `Failed to apply filters: ${e.message}. Typeof events: ${typeof events}, typeof hosts: ${typeof hosts}`
+    );
+  }
 }
 
 export const internalDestinationPlugins: Record<string, InternalPlugin<any>> = {
