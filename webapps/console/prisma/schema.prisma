@@ -128,6 +128,7 @@ model ConfigurationObjectLink {
   deleted   Boolean? @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
+  type      String?  @default("connection")
   data      Json?
 
   workspaceId String
@@ -149,6 +150,61 @@ model ConnectorPackage {
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 }
+
+model source_spec {
+    package        String
+    version String
+    specs     Json?
+    timestamp DateTime @default(now())
+    error    String?
+
+    @@id([package, version])
+}
+
+model source_check {
+    package        String
+    version String
+    key String @id
+    status String
+    description String?
+    timestamp DateTime @default(now())
+}
+
+model source_catalog {
+    package        String
+    version String
+    key String
+    catalog     Json?
+    timestamp DateTime @default(now())
+    status String
+    description String?
+
+    @@id([package, version, key])
+}
+
+model source_state {
+    sync_id       String @id
+    state         Json
+    timestamp DateTime @default(now())
+}
+
+model source_task {
+    sync_id       String
+    task_id        String @id
+    package        String
+    version String
+    started_at DateTime @default(now())
+    updated_at DateTime @default(now())
+    status String
+    description String?
+
+    @@index([sync_id])
+    @@index(started_at)
+}
+
+
+
+//
 
 //model OauthSecrets {
 //  id        String   @id @default(cuid())

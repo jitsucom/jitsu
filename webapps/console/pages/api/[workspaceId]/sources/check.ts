@@ -78,7 +78,7 @@ export default createRoute()
       if (res.rowCount === 1) {
         const status = res.rows[0].status;
         const description = res.rows[0].description;
-        if (status === "SUCCEEDED") {
+        if (status === "SUCCESS") {
           return {
             ok: true,
           };

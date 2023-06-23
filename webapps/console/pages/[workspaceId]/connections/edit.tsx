@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import { LoadingAnimation } from "../../../components/GlobalLoader/GlobalLoader";
 import { GlobalError } from "../../../components/GlobalError/GlobalError";
 import ConnectionEditorPage from "../../../components/ConnectionEditorPage/ConnectionEditorPage";
-import { useStreamDestinationLinksQuery } from "../../../lib/queries";
+import { useLinksQuery } from "../../../lib/queries";
 import { useConfigApi } from "../../../lib/useApi";
 import { FunctionConfig } from "../../../lib/schema";
 
@@ -21,7 +21,7 @@ const Loader = () => {
     isLoading: true,
     error: null,
   });
-  const result = useStreamDestinationLinksQuery(workspace.id, {
+  const result = useLinksQuery(workspace.id, "push", {
     cacheTime: 0,
     retry: false,
   });

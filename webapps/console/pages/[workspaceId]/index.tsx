@@ -12,7 +12,7 @@ import { coreDestinationsMap } from "../../lib/schema/destinations";
 import { PropsWithChildrenClassname, useTitle } from "../../lib/ui";
 import { z } from "zod";
 import { ConfigurationObjectLinkDbModel } from "../../prisma/schema";
-import { useStreamDestinationLinksQuery } from "../../lib/queries";
+import { useLinksQuery } from "../../lib/queries";
 import { QuestionCircleOutlined } from "@ant-design/icons";
 import { ButtonProps } from "antd/es/button/button";
 import { Simplify } from "type-fest";
@@ -256,7 +256,7 @@ function WorkspaceOverview(props: {
 
 function WorkspaceOverviewLoader() {
   const workspace = useWorkspace();
-  const data = useStreamDestinationLinksQuery(workspace.id, {
+  const data = useLinksQuery(workspace.id, "push", {
     cacheTime: 0,
     retry: false,
   });

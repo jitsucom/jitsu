@@ -35,10 +35,10 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
   const [obj, setObj] = useState<Partial<ServiceConfig>>({
     ...props.object,
   });
-  const [credUserProvided, setCredUserProvided] = useState(!!obj.credentials && obj.credentials !== "{}");
   const [formState, setFormState] = useState<any | undefined>(undefined);
   const isTouched = formState !== undefined || !!createNew;
   const [loading, setLoading] = useState<boolean>(false);
+  const [credUserProvided, setCredUserProvided] = useState(!!obj.credentials && obj.credentials !== "{}");
   const [loadingSpecs, setLoadingSpecs] = useState<boolean>(false);
   const [specs, setSpecs] = useState<any>(undefined);
 
@@ -70,6 +70,7 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
           change("credentials", JSON.stringify(firstRes.fakeJson, null, 2));
         } else {
           for (let i = 0; i < 60; i++) {
+            await new Promise(resolve => setTimeout(resolve, 2000));
             const resp = await rpc(
               `/api/${workspace.id}/sources/spec?package=${obj.package}&version=${obj.version}&after=${firstRes.startedAt}`
             );
@@ -84,7 +85,6 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
                 return;
               }
             }
-            await new Promise(resolve => setTimeout(resolve, 2000));
           }
           feedbackError(`Cannot load specs for ${obj.package}:${obj.version} error: Timeout`);
         }

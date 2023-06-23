@@ -1,6 +1,7 @@
 import Editor from "@monaco-editor/react";
 import React from "react";
 import { Radio } from "antd";
+import { editor } from "monaco-editor";
 
 /**
  * See tagDestination comments, due to limitations of the react-jsonschema-form we can't use
@@ -19,6 +20,9 @@ export type SnippedEditorProps = {
   languages?: SupportedLanguages[];
   height?: number;
   onChange: (value: SnippedEditorValue) => void;
+  options?: editor.IStandaloneEditorConstructionOptions;
+  //automatically fold code on provided level of indentation on editor mount
+  foldLevel?: number;
 };
 
 /**
@@ -75,6 +79,13 @@ export const SnippedEditor: React.FC<SnippedEditorProps> = props => {
           }}
           language={valueParsed.lang?.toLowerCase() || "html"}
           height={props.height ? `${props.height}px` : "500px"}
+          onMount={
+            props.foldLevel
+              ? editor => {
+                  editor.getAction(`editor.foldLevel${props.foldLevel}`)?.run();
+                }
+              : undefined
+          }
           className="rounded-lg"
           options={{
             renderLineHighlight: "none",
@@ -98,6 +109,7 @@ export const SnippedEditor: React.FC<SnippedEditorProps> = props => {
             },
             hideCursorInOverviewRuler: true,
             overviewRulerLanes: 0,
+            ...props.options,
           }}
         />
       </div>

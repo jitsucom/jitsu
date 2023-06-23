@@ -8,7 +8,7 @@ import { TableWithDrawer } from "./TableWithDrawer";
 import { JSONView } from "./JSONView";
 import { useAppConfig, useWorkspace } from "../../lib/context";
 import React, { ReactNode, useCallback, useEffect, useMemo, useReducer, useState } from "react";
-import { streamDestinationLinkQuery } from "../../lib/queries";
+import { linksQuery } from "../../lib/queries";
 import { WLink } from "../Workspace/WLink";
 import { DestinationTitle } from "../../pages/[workspaceId]/destinations";
 import ExternalLink from "../Icons/ExternalLink";
@@ -184,7 +184,7 @@ export const EventsBrowser = ({
           query = () => getConfigApi(workspace.id, "stream").list();
         } else {
           query = async () => {
-            const data = await streamDestinationLinkQuery(workspace.id)();
+            const data = await linksQuery(workspace.id)();
             const streamsMap = arrayToMap(data[0]);
             const dstMap = arrayToMap(data[1]);
             return data[2]
@@ -666,7 +666,7 @@ const IncomingEventDrawer = ({ event }: { event: IncomingEvent }) => {
   const hasEvent = typeof event !== "undefined";
   useEffect(() => {
     if (!event) return;
-    streamDestinationLinkQuery(workspace.id)()
+    linksQuery(workspace.id)()
       .then(data => {
         const streamsMap = arrayToMap(data[0]);
         const dstMap = arrayToMap(data[1]);

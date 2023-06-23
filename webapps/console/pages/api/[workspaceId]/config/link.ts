@@ -24,21 +24,23 @@ export const api: Api = {
     auth: true,
     types: {
       query: z.object({ workspaceId: z.string() }),
-      body: z.object({ data: z.any().optional(), toId: z.string(), fromId: z.string() }),
+      body: z.object({ data: z.any().optional(), toId: z.string(), fromId: z.string(), type: z.string().optional() }),
     },
     handle: async ({ body, user, query: { workspaceId } }) => {
-      const { toId, fromId, data = undefined } = body;
+      const { toId, fromId, data = undefined, type = "push" } = body;
       await verifyAccess(user, workspaceId);
       const existingLink = await db.prisma().configurationObjectLink.findFirst({
         where: { workspaceId: workspaceId, toId, fromId, deleted: false },
       });
+      const fromType = type === "sync" ? "service" : "stream";
+
       const co = db.prisma().configurationObject;
       if (
         !(await co.findFirst({
-          where: { workspaceId: workspaceId, type: "stream", id: fromId, deleted: false },
+          where: { workspaceId: workspaceId, type: fromType, id: fromId, deleted: false },
         }))
       ) {
-        throw new Error(`Stream object with id '${fromId}' not found in the workspace '${workspaceId}'`);
+        throw new Error(`${fromType} object with id '${fromId}' not found in the workspace '${workspaceId}'`);
       }
       if (
         !(await co.findFirst({
@@ -62,6 +64,7 @@ export const api: Api = {
           fromId,
           toId,
           data,
+          type,
         },
       });
       await fastStore.fullRefresh();
