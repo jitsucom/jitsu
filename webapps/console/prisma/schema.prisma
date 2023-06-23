@@ -128,7 +128,7 @@ model ConfigurationObjectLink {
   deleted   Boolean? @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
-  type      String?  @default("connection")
+  type      String?  @default("push")
   data      Json?
 
   workspaceId String
