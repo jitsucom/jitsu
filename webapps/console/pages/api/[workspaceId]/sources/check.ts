@@ -28,6 +28,11 @@ export default createRoute()
       process.env.SYNCCTL_URL,
       `env SYNCCTL_URL is not set. Sync Controller is required to run sources`
     );
+    const syncAuthKey = process.env.SYNCCTL_AUTH_KEY ?? "";
+    const authHeaders: any = {};
+    if (syncAuthKey) {
+      authHeaders["Authorization"] = `Bearer ${syncAuthKey}`;
+    }
 
     try {
       const checkRes = await rpc(syncURL + "/check", {
@@ -37,6 +42,7 @@ export default createRoute()
         },
         headers: {
           "Content-Type": "application/json",
+          ...authHeaders,
         },
         query: {
           package: body.package,

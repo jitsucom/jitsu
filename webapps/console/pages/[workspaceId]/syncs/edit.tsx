@@ -2,7 +2,7 @@ import { WorkspacePageLayout } from "../../../components/PageLayout/WorkspacePag
 import { useWorkspace } from "../../../lib/context";
 import React from "react";
 import { LoadingAnimation } from "../../../components/GlobalLoader/GlobalLoader";
-import { GlobalError } from "../../../components/GlobalError/GlobalError";
+import { ErrorCard, GlobalError } from "../../../components/GlobalError/GlobalError";
 import { useLinksQuery } from "../../../lib/queries";
 import SyncEditorPage from "../../../components/SyncEditorPage/SyncEditorPage";
 
@@ -13,6 +13,15 @@ const Loader = () => {
     cacheTime: 0,
     retry: false,
   });
+  if (!workspace.featuresEnabled || !workspace.featuresEnabled.includes("syncs")) {
+    return (
+      <ErrorCard
+        title={"Feature is not enabled"}
+        error={{ message: "'Sources Sync' feature is not enabled for current project." }}
+        hideActions={true}
+      />
+    );
+  }
 
   if (result.isLoading) {
     return <LoadingAnimation />;

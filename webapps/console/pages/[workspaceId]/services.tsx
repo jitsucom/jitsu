@@ -12,6 +12,7 @@ import { ServicesCatalog } from "../../components/ServicesCatalog/ServicesCatalo
 import { SourceType } from "../api/sources";
 import hash from "stable-hash";
 import { ServiceEditor } from "../../components/ServiceEditor/ServiceEditor";
+import { ErrorCard } from "../../components/GlobalError/GlobalError";
 
 const log = getLog("services");
 
@@ -53,12 +54,23 @@ export const ServiceTitle: React.FC<{
 };
 
 const ServicesList: React.FC<{}> = () => {
+  const workspace = useWorkspace();
+
   const [showCatalog, setShowCatalog] = useURLPersistedState<boolean>("showCatalog", {
     defaultVal: false,
     type: serialization.bool,
   });
   const router = useRouter();
-  const workspace = useWorkspace();
+
+  if (!workspace.featuresEnabled || !workspace.featuresEnabled.includes("syncs")) {
+    return (
+      <ErrorCard
+        title={"Feature is not enabled"}
+        error={{ message: "'Sources Sync' feature is not enabled for current project." }}
+        hideActions={true}
+      />
+    );
+  }
 
   const config: ConfigEditorProps<ServiceConfig, SourceType> = {
     listColumns: [

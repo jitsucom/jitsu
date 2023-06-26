@@ -73,6 +73,7 @@ model Workspace {
   configurationObject     ConfigurationObject[]
   configurationObjectLink ConfigurationObjectLink[]
   preferences             UserPreferences[]
+  featuresEnabled         String[]
 
   @@unique(slug)
 }
@@ -198,7 +199,7 @@ model source_task {
     status String
     description String?
 
-    @@index([sync_id])
+    @@index(sync_id)
     @@index(started_at)
 }
 

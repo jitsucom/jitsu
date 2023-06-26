@@ -26,6 +26,11 @@ export default createRoute()
       process.env.SYNCCTL_URL,
       `env SYNCCTL_URL is not set. Sync Controller is required to run sources`
     );
+    const syncAuthKey = process.env.SYNCCTL_AUTH_KEY ?? "";
+    const authHeaders: any = {};
+    if (syncAuthKey) {
+      authHeaders["Authorization"] = `Bearer ${syncAuthKey}`;
+    }
     try {
       const sync = await db.prisma().configurationObjectLink.findUnique({
         where: {
@@ -54,6 +59,7 @@ export default createRoute()
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          ...authHeaders,
         },
         query: {
           package: (service.config as any).package,

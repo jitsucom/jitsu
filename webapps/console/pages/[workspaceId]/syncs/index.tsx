@@ -21,6 +21,7 @@ import { ColumnType, SortOrder } from "antd/es/table/interface";
 import { Inbox } from "lucide-react";
 import { PlusOutlined } from "@ant-design/icons";
 import { JitsuButton, WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
+import { ErrorCard } from "../../../components/GlobalError/GlobalError";
 
 function EmptyLinks() {
   const workspace = useWorkspace();
@@ -272,6 +273,15 @@ function SyncsLoader(props: { reloadCallback: () => void }) {
     cacheTime: 0,
     retry: false,
   });
+  if (!workspace.featuresEnabled || !workspace.featuresEnabled.includes("syncs")) {
+    return (
+      <ErrorCard
+        title={"Feature is not enabled"}
+        error={{ message: "'Sources Sync' feature is not enabled for current project." }}
+        hideActions={true}
+      />
+    );
+  }
 
   return (
     <QueryResponse

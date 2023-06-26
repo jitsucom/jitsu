@@ -42,6 +42,11 @@ export default createRoute()
       process.env.SYNCCTL_URL,
       `env SYNCCTL_URL is not set. Sync Controller is required to run sources`
     );
+    const syncAuthKey = process.env.SYNCCTL_AUTH_KEY ?? "";
+    const authHeaders: any = {};
+    if (syncAuthKey) {
+      authHeaders["Authorization"] = `Bearer ${syncAuthKey}`;
+    }
     try {
       let res;
       if (query.after) {
@@ -79,6 +84,7 @@ export default createRoute()
           method: "GET",
           headers: {
             "Content-Type": "application/json",
+            ...authHeaders,
           },
           query: {
             package: query.package,
