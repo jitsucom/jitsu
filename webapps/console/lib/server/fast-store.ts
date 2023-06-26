@@ -253,7 +253,7 @@ async function saveConnectionsToRedis(db: DatabaseConnection) {
     join "ConfigurationObject" dst on link."toId" = dst.id
     join "Workspace" ws on link."workspaceId" = ws.id
     where link.deleted = false and 
-          src."type" = 'stream' and 
+        src."type" in ('stream', 'service') and 
           src."deleted" = false and 
           dst.type='destination' and
           dst."deleted" = false and 

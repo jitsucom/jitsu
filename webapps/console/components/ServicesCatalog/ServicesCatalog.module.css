@@ -1,0 +1,11 @@
+.icon {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+}
+
+.icon svg {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+}

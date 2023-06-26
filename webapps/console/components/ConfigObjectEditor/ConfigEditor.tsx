@@ -1,19 +1,6 @@
-import React, { createContext, PropsWithChildren, ReactNode, useContext, useEffect, useRef, useState } from "react";
-import {
-  Alert,
-  Button,
-  Col,
-  Dropdown,
-  Form as AntdForm,
-  Input,
-  MenuProps,
-  Popover,
-  Row,
-  Skeleton,
-  Switch,
-  Table,
-} from "antd";
-import { FaCaretDown, FaCaretRight, FaClone, FaExclamationCircle, FaPlus } from "react-icons/fa";
+import React, { createContext, PropsWithChildren, ReactNode, useContext, useEffect, useState } from "react";
+import { Button, Col, Dropdown, Form as AntdForm, Input, MenuProps, Row, Skeleton, Switch, Table } from "antd";
+import { FaCaretDown, FaCaretRight, FaClone, FaPlus } from "react-icons/fa";
 import { ZodType } from "zod";
 import { getConfigApi, useApi } from "../../lib/useApi";
 import { useRouter } from "next/router";
@@ -41,17 +28,20 @@ import {
 import { ConfigEntityBase } from "../../lib/schema";
 import { useWorkspace } from "../../lib/context";
 import omitBy from "lodash/omitBy";
-import { GlobalLoader } from "../GlobalLoader/GlobalLoader";
+import { GlobalLoader, LoadingAnimation } from "../GlobalLoader/GlobalLoader";
 import { WLink } from "../Workspace/WLink";
-import { CheckOutlined, DeleteOutlined, EditOutlined, LoadingOutlined } from "@ant-design/icons";
+import { DeleteOutlined, EditOutlined } from "@ant-design/icons";
 import { ErrorCard, GlobalError } from "../GlobalError/GlobalError";
-import { Action, confirmOp, doAction, feedbackError, feedbackSuccess, useKeyboard, useTitle } from "../../lib/ui";
+import { Action, confirmOp, doAction, feedbackError, feedbackSuccess, useTitle } from "../../lib/ui";
 import { branding } from "../../lib/branding";
 import { useAntdModal } from "../../lib/modal";
-import { getCoreDestinationType } from "../../lib/schema/destinations";
-import { ChevronLeft, Inbox } from "lucide-react";
+import { Inbox } from "lucide-react";
 import { createDisplayName, prepareZodObjectForSerialization } from "../../lib/zod";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
+import { EditorTitle } from "./EditorTitle";
+import { EditorBase } from "./EditorBase";
+import { EditorField } from "./EditorField";
+import { EditorButtons } from "./EditorButtons";
 
 const log = getLog("ConfigEditor");
 
@@ -67,9 +57,9 @@ export type FieldDisplay = {
   password?: boolean;
 };
 
-export type EditorComponentFactory = (props: EditorComponentProps) => ReactNode | undefined;
+export type EditorComponentFactory = (props: EditorComponentProps) => React.FC<EditorComponentProps> | undefined;
 
-export type ConfigEditorProps<T extends { id: string } = { id: string }> = {
+export type ConfigEditorProps<T extends { id: string } = { id: string }, M = {}> = {
   listTitle?: ReactNode;
   type: string;
   listColumns?: { title: ReactNode; render: (o: T) => ReactNode }[];
@@ -80,8 +70,8 @@ export type ConfigEditorProps<T extends { id: string } = { id: string }> = {
   noun: string;
   nounPlural?: string;
   addAction?: Action;
-  editorTitle?: (o: T, isNew: boolean) => ReactNode;
-  subtitle?: (o: T, isNew: boolean) => ReactNode;
+  editorTitle?: (o: T, isNew: boolean, meta?: M) => ReactNode;
+  subtitle?: (o: T, isNew: boolean, meta?: M) => ReactNode;
   createKeyword?: string;
   //allows to hide certain objects in the list view
   filter?: (o: T) => boolean;
@@ -93,9 +83,12 @@ export type ConfigEditorProps<T extends { id: string } = { id: string }> = {
     link?: (o: T) => string;
     disabled?: (o: T) => string | boolean;
   }[];
-  newObject?: () => Partial<T>;
+  loadMeta?: (o: T | undefined) => Promise<M>;
+  newObject?: (meta?: M) => Partial<T>;
   //for providing custom editor component
   editorComponent?: EditorComponentFactory;
+  testConnectionEnabled?: (o: any) => boolean;
+  onTest?: (o: T) => Promise<ConfigTestResult>;
 };
 
 export type CustomWidgetProps<T> = {
@@ -198,7 +191,7 @@ const CustomCheckbox = function (props) {
   return <Switch checked={props.value} onClick={() => props.onChange(!props.value)} />;
 };
 
-type ConfigTestResult = { ok: true } | { ok: false; error: string };
+export type ConfigTestResult = { ok: true } | { ok: false; error: string };
 
 export type ConfigEditorActions = {
   onSave: (o: any) => Promise<void>;
@@ -210,6 +203,8 @@ export type ConfigEditorActions = {
 export type EditorComponentProps = SingleObjectEditorProps &
   ConfigEditorActions & {
     isNew: boolean;
+    meta: any;
+    testConnectionEnabled: (o: any) => boolean;
     object: ConfigEntityBase & Record<string, any>;
   };
 
@@ -229,23 +224,34 @@ function AddButton(props: IconButtonProps) {
 }
 
 const EditorComponent: React.FC<EditorComponentProps> = props => {
-  const { noun, createNew, objectType, fields, onCancel, onSave, onDelete, onTest, object, isNew, subtitle } = props;
+  const {
+    noun,
+    createNew,
+    objectType,
+    meta,
+    fields,
+    onCancel,
+    onSave,
+    onDelete,
+    testConnectionEnabled,
+    onTest,
+    object,
+    isNew,
+    subtitle,
+  } = props;
   useTitle(`${branding.productName} : ${createNew ? `Create new ${noun}` : `Edit ${noun}`}`);
   const [loading, setLoading] = useState<boolean>(false);
-  const [testStatus, setTestStatus] = useState<string>("");
-  const buttonDivRef = useRef<HTMLDivElement>(null);
   const objectTypeFactory = asFunction<ZodType, any>(objectType);
   const schema = zodToJsonSchema(objectTypeFactory(object));
   const [formState, setFormState] = useState<any | undefined>(undefined);
   const hasErrors = formState?.errors?.length > 0;
   const isTouched = formState !== undefined || !!createNew;
   const uiSchema = getUiSchema(schema, fields);
-  log.atDebug().log("Rendring <EditorComponent /> with schema and props", schema, props);
+  log.atInfo().log("Rendering <EditorComponent /> with schema and props", schema, props);
 
   const [submitCount, setSubmitCount] = useState(0);
   const modal = useAntdModal();
   const onFormChange = state => {
-    setTestStatus("");
     setFormState(state);
     log.atDebug().log(`Updating editor form state`, state);
   };
@@ -257,172 +263,72 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
       setLoading(false);
     }
   };
-  useKeyboard("Escape", () => {
-    onCancel(isTouched);
-  });
 
-  const doTest = async (obj: any) => {
-    if (onTest) {
-      setTestStatus("pending");
-      try {
-        const testRes = await onTest(obj);
-        log.atDebug().log("Test result", testRes);
-        if (testRes.ok) {
-          setTestStatus("success");
-        } else {
-          setTestStatus(testRes?.error || "unknown error");
-        }
-      } catch (e) {
-        setTestStatus("failed to test connection: " + e);
-      } finally {
-        setTimeout(() => {
-          buttonDivRef.current?.scrollIntoView({ behavior: "smooth" });
-        }, 50);
-      }
-    }
-  };
-
-  useEffect(() => {
-    const handler = async event => {
-      if (isTouched) {
-        event.preventDefault();
-        return (event.returnValue = "Are you sure you want to exit? You have unsaved changes");
-      }
-    };
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
-  }, [isTouched]);
-
-  const title = props.editorTitle ? props.editorTitle(object, isNew) : isNew ? `Create new ${noun}` : `Edit ${noun}`;
-  const subtitleComponent = subtitle && subtitle(object, isNew);
+  const title = props.editorTitle
+    ? props.editorTitle(object, isNew, meta)
+    : isNew
+    ? `Create new ${noun}`
+    : `Edit ${noun}`;
+  const subtitleComponent = subtitle && subtitle(object, isNew, meta);
   return (
-    <div className="flex justify-center">
-      <div key={"header"} className="max-w-4xl grow">
-        <div className="flex justify-between pt-6 pb-0 mb-0 items-center ">
-          <h1 className="text-3xl">{title}</h1>
-          <div>
-            <JitsuButton
-              icon={<ChevronLeft className="w-6 h-6" />}
-              type="link"
-              size="small"
-              onClick={withLoading(() => onCancel(isTouched))}
-            >
-              Back
-            </JitsuButton>
-          </div>
-        </div>
-        {subtitleComponent && <div>{subtitleComponent}</div>}
-        <div key={"form"} className="pt-6">
-          <EditorComponentContext.Provider value={{ displayInlineErrors: !isNew || submitCount > 0 }}>
-            <Form
-              formContext={props}
-              templates={{ ObjectFieldTemplate: FormList, ButtonTemplates: { AddButton } }}
-              widgets={{ CheckboxWidget: CustomCheckbox }}
-              omitExtraData={true}
-              liveOmit={true}
-              showErrorList={false}
-              onChange={onFormChange}
-              className={styles.editForm}
-              schema={schema as any}
-              liveValidate={true}
-              validator={validator}
-              onSubmit={({ formData }) => withLoading(() => onSave(formData))()}
-              formData={formState?.formData || object}
-              uiSchema={uiSchema}
-            >
-              {testStatus && testStatus !== "success" && testStatus !== "pending" && (
-                <Alert message="Connection test failed" description={testStatus} type="error" showIcon closable />
-              )}
-              <div className="flex justify-between mt-4">
-                <div>
-                  {!isNew && (
-                    <Button disabled={loading} type="primary" ghost danger size="large" onClick={withLoading(onDelete)}>
-                      Delete
-                    </Button>
-                  )}
-                </div>
-                <div className="flex justify-end space-x-5" ref={buttonDivRef}>
-                  {onTest &&
-                    (testStatus === "success" ? (
-                      <Popover content={"Connection test passed"} color={"lime"} trigger={"hover"}>
-                        <Button
-                          type="link"
-                          disabled={loading}
-                          size="large"
-                          onClick={() => {
-                            doTest(formState?.formData || object);
-                          }}
-                        >
-                          <CheckOutlined /> Test Connection
-                        </Button>
-                      </Popover>
-                    ) : (
-                      <Button
-                        type="link"
-                        disabled={loading}
-                        size="large"
-                        onClick={() => {
-                          log.atDebug().log(`Testing connection with`, formState?.formData || object);
-                          doTest(formState?.formData || object);
-                        }}
-                      >
-                        {testStatus === "pending" ? (
-                          <>
-                            <LoadingOutlined /> Test Connection
-                          </>
-                        ) : (
-                          "Test Connection"
-                        )}
-                      </Button>
-                    ))}
-                  <Button
-                    type="primary"
-                    ghost
-                    size="large"
-                    onClick={withLoading(() => onCancel(isTouched))}
-                    disabled={loading}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="primary"
-                    size="large"
-                    loading={loading}
-                    disabled={!isTouched}
-                    htmlType={isTouched && !hasErrors ? "submit" : "button"}
-                    onClick={() => {
-                      setSubmitCount(submitCount + 1);
-                      if (hasErrors) {
-                        modal.error({
-                          title: "There are errors in the configuration",
-                          content: (
-                            <>
-                              Please fix following errors. Fields with errors are marked with red{" "}
-                              <ul className="block mt-2 ml-5">
-                                {formState.errors.map((e: any) => {
-                                  const fieldId = e.property.replace(".", "");
-                                  return (
-                                    <li className="list-disc" key={e.message}>
-                                      <strong>{fieldId}</strong> {e.message}
-                                    </li>
-                                  );
-                                })}
-                              </ul>
-                            </>
-                          ),
-                        });
-                      }
-                    }}
-                  >
-                    Save
-                  </Button>
-                </div>
-              </div>
-            </Form>
-          </EditorComponentContext.Provider>
-        </div>
-      </div>
-    </div>
+    <EditorBase onCancel={onCancel} isTouched={isTouched}>
+      <EditorTitle title={title} subtitle={subtitleComponent} onBack={withLoading(() => onCancel(isTouched))} />
+      <EditorComponentContext.Provider value={{ displayInlineErrors: !isNew || submitCount > 0 }}>
+        <Form
+          formContext={props}
+          templates={{ ObjectFieldTemplate: FormList, ButtonTemplates: { AddButton } }}
+          widgets={{ CheckboxWidget: CustomCheckbox }}
+          omitExtraData={true}
+          liveOmit={true}
+          showErrorList={false}
+          onChange={onFormChange}
+          className={styles.editForm}
+          schema={schema as any}
+          liveValidate={true}
+          validator={validator}
+          onSubmit={({ formData }) => withLoading(() => onSave(formData))()}
+          formData={formState?.formData || object}
+          uiSchema={uiSchema}
+        >
+          <EditorButtons
+            loading={loading}
+            isNew={isNew}
+            isTouched={isTouched}
+            hasErrors={hasErrors}
+            onTest={
+              onTest && testConnectionEnabled && testConnectionEnabled(formState?.formData || object)
+                ? () => onTest(formState?.formData || object)
+                : undefined
+            }
+            onDelete={withLoading(onDelete)}
+            onCancel={withLoading(() => onCancel(isTouched))}
+            onSave={() => {
+              setSubmitCount(submitCount + 1);
+              if (hasErrors) {
+                modal.error({
+                  title: "There are errors in the configuration",
+                  content: (
+                    <>
+                      Please fix following errors. Fields with errors are marked with red{" "}
+                      <ul className="block mt-2 ml-5">
+                        {formState.errors.map((e: any) => {
+                          const fieldId = e.property.replace(".", "");
+                          return (
+                            <li className="list-disc" key={e.message}>
+                              <strong>{fieldId}</strong> {e.message}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </>
+                  ),
+                });
+              }
+            }}
+          />
+        </Form>
+      </EditorComponentContext.Provider>
+    </EditorBase>
   );
 };
 
@@ -435,18 +341,32 @@ const SingleObjectEditor: React.FC<SingleObjectEditorProps> = props => {
     type,
     fields,
     newObject = () => ({}),
+    loadMeta,
+    onTest,
     ...otherProps
   } = props;
+  const [meta, setMeta] = useState<any>(undefined);
   const isNew = !!(!otherProps.object || createNew);
   const workspace = useWorkspace();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (loadMeta) {
+      loadMeta(otherProps.object).then(setMeta);
+    } else {
+      setMeta({});
+    }
+  }, [loadMeta, otherProps.object]);
+
+  if (meta === undefined) {
+    return <LoadingAnimation />;
+  }
   const object = otherProps.object || {
     id: randomId(),
     workspaceId: workspace.id,
     type: type,
-    ...newObject(),
+    ...newObject(meta),
   };
-
-  const router = useRouter();
 
   const onCancel = async (confirm: boolean) => {
     if (!confirm) {
@@ -485,6 +405,7 @@ const SingleObjectEditor: React.FC<SingleObjectEditorProps> = props => {
   };
   const editorComponentProps = {
     ...props,
+    meta,
     onCancel,
     onSave,
     onDelete,
@@ -493,34 +414,15 @@ const SingleObjectEditor: React.FC<SingleObjectEditorProps> = props => {
     noun,
   } as EditorComponentProps;
 
-  if (type === "destination") {
-    const destinationType = requireDefined(
-      getCoreDestinationType(object.destinationType),
-      `Unknown destination type ${object.destinationType}`
-    );
-    if (destinationType.usesBulker) {
-      editorComponentProps.onTest = async obj => {
-        try {
-          const res = await getConfigApi(workspace.id, type).test(obj);
-          return res.ok ? { ok: true } : { ok: false, error: res?.error || res?.message || "uknown error" };
-        } catch (error) {
-          log
-            .atWarn()
-            .log(
-              `Failed to test destination ${workspace.id} / ${type}. This is not expected since destination tester should return 200 even in credentials are wrong`,
-              error
-            );
-          return { ok: false, error: "Internal error, see logs for details" };
-          //feedbackError("Failed to test object", { error });
-        }
-      };
-    }
-  }
   if (!props.editorComponent) {
     return <EditorComponent {...editorComponentProps} />;
   } else {
-    const editorComponent = props.editorComponent(editorComponentProps);
-    return <>{editorComponent || <EditorComponent {...editorComponentProps} />}</>;
+    const CustomEditorComponent = props.editorComponent(editorComponentProps);
+    if (CustomEditorComponent) {
+      return <CustomEditorComponent {...editorComponentProps} />;
+    } else {
+      return <EditorComponent {...editorComponentProps} />;
+    }
   }
 };
 
@@ -593,8 +495,9 @@ const NestedObjectFieldTemplate = props => {
   } = props;
   const { readonlyAsDisabled = true } = registry.formContext;
   const { RemoveButton } = registry.templates.ButtonTemplates;
-  const hasHelp = !!help?.props?.help;
   const hasErrors = !!errors?.props?.errors && formCtx.displayInlineErrors;
+  const helpProp = !!help?.props?.help ? help : undefined;
+  const errorsProp = !!errors?.props?.errors && formCtx.displayInlineErrors ? errors : undefined;
   const additional = ADDITIONAL_PROPERTY_FLAG in schema;
   const handleBlur = ({ target }: React.FocusEvent<HTMLInputElement>) => onKeyChange(target.value);
 
@@ -606,35 +509,9 @@ const NestedObjectFieldTemplate = props => {
   };
 
   return !additional ? (
-    <div className={`${classNames}`}>
-      <div className={`${!hasHelp && "pb-3"}`}>
-        <div className="flex items-center justify-between">
-          <label className="flex items-center" htmlFor={id}>
-            {label}
-            {required && <span className={styles.required}>(required)</span>}:
-          </label>
-          <div>
-            <div
-              className={`text-error px-2 py-1 mt-1   flex items-center space-x-1 ${
-                hasErrors ? "visible" : "invisible"
-              }`}
-            >
-              <div>
-                <FaExclamationCircle />
-              </div>
-              <div className="font-bold">{label}</div>
-              {errors}
-            </div>
-          </div>
-        </div>
-        <div className={`${hasErrors && styles.invalidInput}`}>{children}</div>
-      </div>
-      {hasHelp && (
-        <div className={`border-t text-textDisabled border-backgroundDark bg-background ${styles.help}`}>
-          <div className="">{help}</div>
-        </div>
-      )}
-    </div>
+    <EditorField id={id} className={classNames} required={required} label={label} help={helpProp} errors={errorsProp}>
+      {children}
+    </EditorField>
   ) : (
     <Row gutter={12}>
       <Col span={8}>
@@ -669,38 +546,12 @@ const NestedObjectFieldTemplate = props => {
 const FieldTemplate = props => {
   const formCtx = requireDefined(useContext(EditorComponentContext), "Not in <EditorComponentContext.Provider />");
   const { id, classNames, label, help, required, errors, children } = props;
-  const hasHelp = !!help?.props?.help;
-  const hasErrors = !!errors?.props?.errors && formCtx.displayInlineErrors;
+  const helpProp = !!help?.props?.help ? help : undefined;
+  const errorsProp = !!errors?.props?.errors && formCtx.displayInlineErrors ? errors : undefined;
   return (
-    <div className={`${classNames} border rounded-lg border-backgroundDark mb-4`}>
-      <div className={`px-6 py-4 ${!hasHelp && "pb-8"}`}>
-        <div className="flex items-center mb-4 justify-between">
-          <label className="text-xl flex items-center" htmlFor={id}>
-            {label}
-            {required && <span className={styles.required}>(required)</span>}
-          </label>
-          <div>
-            <div
-              className={`text-error px-2 py-1 mt-1   flex items-center space-x-1 ${
-                hasErrors ? "visible" : "invisible"
-              }`}
-            >
-              <div>
-                <FaExclamationCircle />
-              </div>
-              <div className="font-bold">{label}</div>
-              {errors}
-            </div>
-          </div>
-        </div>
-        <div className={`${hasErrors && styles.invalidInput}`}>{children}</div>
-      </div>
-      {hasHelp && (
-        <div className={`px-6 py-4 border-t bg-background text-textLight font-thin  rounded-b-lg ${styles.help}`}>
-          <div className="">{help}</div>
-        </div>
-      )}
-    </div>
+    <EditorField id={id} className={classNames} required={required} label={label} help={helpProp} errors={errorsProp}>
+      {children}
+    </EditorField>
   );
 };
 

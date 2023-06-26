@@ -4,12 +4,14 @@ import { getAppEndpoint, getDataDomain } from "../../lib/domains";
 import { getEeConnection } from "../../lib/server/ee";
 import { isEEAvailable } from "./ee/jwt";
 import { isFirebaseEnabled, requireFirebaseOptions } from "../../lib/server/firebase-server";
+import { nangoConfig } from "../../lib/server/oauth/nango-config";
 
 export default createRoute()
   .GET({ result: AppConfig, auth: false })
   .handler(async ({ req }) => {
     const publicEndpoints = getAppEndpoint(req);
     const dataHost = getDataDomain(publicEndpoints);
+
     return {
       docsUrl: process.env.JITSU_DOCUMENTATION_URL || "https://docs-jitsu-com.staging.jitsu.com/",
       websiteUrl: process.env.JITSU_WEBSITE_URL || "https://next.jitsu.com",
@@ -39,6 +41,12 @@ export default createRoute()
         port: publicEndpoints.isDefaultPort ? undefined : publicEndpoints.port,
       },
       logLevel: (process.env.FRONTEND_LOG_LEVEL || process.env.LOG_LEVEL || "info") as any,
+      nango: nangoConfig.enabled
+        ? {
+            publicKey: nangoConfig.publicKey,
+            host: nangoConfig.nangoApiHost,
+          }
+        : undefined,
     };
   })
   .toNextApiHandler();

@@ -18,6 +18,7 @@ import {
   LayoutDashboard,
   Loader2,
   Server,
+  ServerCog,
   Settings,
   Share2,
   ShieldAlert,
@@ -343,20 +344,29 @@ const UserProfileButton: React.FC<{}> = () => {
 
 function PageHeader() {
   const appConfig = useAppConfig();
+  const workspace = useWorkspace();
   const items: TabsMenuItem[] = [
     { title: "Overview", path: "/", aliases: "/overview", icon: <LayoutDashboard className="w-full h-full" /> },
     { title: "Sites", path: "/streams", icon: <Globe className="w-full h-full" /> },
     { title: "Destinations", path: "/destinations", icon: <Server className="w-full h-full" /> },
     { title: "Connections", path: "/connections", icon: <Share2 className="w-full h-full" /> },
     { title: "Functions", path: "/functions", icon: <FunctionSquare className="w-full h-full" /> },
+  ];
+  if (workspace.featuresEnabled && workspace.featuresEnabled.includes("syncs")) {
+    items.push(
+      { title: "Services", path: "/services", icon: <ServerCog className="w-full h-full" /> },
+      { title: "Syncs", path: "/syncs", icon: <Share2 className="w-full h-full" /> }
+    );
+  }
+  items.push(
     { title: "Live Events", path: "/data", icon: <Activity className="w-full h-full" /> },
     { title: "Query Data", path: "/sql", icon: <BarChart3 className="w-full h-full" />, hidden: !appConfig?.ee },
     {
       title: "Settings",
       path: "/settings",
       icon: <Settings className="w-full h-full" />,
-    },
-  ];
+    }
+  );
   return (
     <div>
       <div className="w-full">

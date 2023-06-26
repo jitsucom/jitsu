@@ -14,6 +14,7 @@ export default async function handler(req, res) {
       res.status(404).json({ status: 404, message: msg });
     } else {
       res.setHeader("Content-Type", "image/svg+xml");
+      res.setHeader("Cache-Control", "public, max-age=2592000, immutable");
       res.status(200).send(data.logoSvg);
     }
   } catch (e) {

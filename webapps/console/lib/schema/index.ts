@@ -69,6 +69,12 @@ export const AppConfig = z.object({
     writeKey: z.string().optional(),
   }),
   logLevel: z.enum(["debug", "info", "warn", "error"]),
+  nango: z
+    .object({
+      publicKey: z.string(),
+      host: z.string(),
+    })
+    .optional(),
 });
 export type AppConfig = z.infer<typeof AppConfig>;
 
@@ -117,6 +123,17 @@ export const FunctionConfig = ConfigEntityBase.merge(
   })
 );
 export type FunctionConfig = z.infer<typeof FunctionConfig>;
+
+export const ServiceConfig = ConfigEntityBase.merge(
+  z.object({
+    name: z.string().min(5),
+    protocol: z.enum(["airbyte"]).default("airbyte"),
+    package: z.string(),
+    version: z.string(),
+    credentials: z.string(),
+  })
+);
+export type ServiceConfig = z.infer<typeof ServiceConfig>;
 
 /**
  * What happens to an object before it is saved to DB.

@@ -5,9 +5,13 @@ const defaultSeed = "dea42a58-acf4-45af-85bb-e77e94bd5025";
 const globalSeed: string[] = (process.env.GLOBAL_HASH_SECRET || defaultSeed).split(",").map(s => s.trim());
 
 function hashInternal(secret: string, randomSeed: string, globalSeed: string) {
-  const hash = crypto.createHash("sha512");
-  hash.update(secret + randomSeed + globalSeed);
-  return `${randomSeed}.${hash.digest("hex")}`;
+  return `${randomSeed}.${hash("sha512", secret + randomSeed + globalSeed)}`;
+}
+
+export function hash(algorithm: string, value: string): string {
+  const hash = crypto.createHash(algorithm);
+  hash.update(value);
+  return hash.digest("hex");
 }
 
 export function hint(key: string) {

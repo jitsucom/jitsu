@@ -623,7 +623,7 @@ function ConnectionEditor({
               setLoading(true);
               try {
                 await get(`/api/${workspace.id}/config/link`, {
-                  body: { fromId: srcId, toId: dstId, data: connectionOptions },
+                  body: { fromId: srcId, toId: dstId, type: "push", data: connectionOptions },
                 });
                 router.back();
               } catch (error) {
