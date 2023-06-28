@@ -158,6 +158,7 @@ async function selectConfigObjectRows(type: string, db: DatabaseConnection, hand
             obj."updatedAt" as "obj_updatedAt",
             workspace.id as "workspace_id",
             workspace.name as "workspace_name",
+            workspace."featuresEnabled" as "workspace_featuresEnabled",
             workspace."slug" as "workspace_slug",
             workspace."createdAt" as "workspace_createdAt",
             workspace."updatedAt" as "workspace_updatedAt",
