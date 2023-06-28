@@ -186,14 +186,11 @@ function getEditorComponent(editor: string, editorProps?: any) {
 }
 
 export const DestinationTitle: React.FC<{
-  destination: DestinationConfig;
+  destination?: DestinationConfig;
   size?: "small" | "default" | "large";
   title?: (d: DestinationConfig, t: DestinationType) => string;
-}> = ({ destination, title = (d, t) => t.title, size = "default" }) => {
-  const destinationType = requireDefined(
-    coreDestinationsMap[destination.destinationType],
-    `Destination type ${destination.destinationType} is not found`
-  );
+}> = ({ destination, title = (d, t) => d.name, size = "default" }) => {
+  const destinationType = coreDestinationsMap[destination?.destinationType ?? ""];
   const iconClassName = (() => {
     switch (size) {
       case "small":
@@ -207,7 +204,7 @@ export const DestinationTitle: React.FC<{
   return (
     <div className="flex items-center space-x-2">
       <div className={iconClassName}>{getDestinationIcon(destinationType)}</div>
-      <div>{title(destination, destinationType)}</div>
+      <div>{destination ? title(destination, destinationType) : "Unknown destination"}</div>
     </div>
   );
 };
@@ -520,7 +517,7 @@ const ProvisionedDestinations = () => {
         className={styles.listTable}
         dataSource={provisionedDestinations}
         columns={[
-          { title: "Name", render: (d: DestinationConfig) => <DestinationTitle destination={d} title={d => d.name} /> },
+          { title: "Name", render: (d: DestinationConfig) => <DestinationTitle destination={d} /> },
           {
             title: "",
             render: (d: DestinationConfig) => (
@@ -589,7 +586,7 @@ const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
     listColumns: [
       {
         title: "Type",
-        render: (c: DestinationConfig) => <DestinationTitle destination={c} />,
+        render: (c: DestinationConfig) => <DestinationTitle destination={c} title={(d, t) => t.title} />,
       },
     ],
     newObject: () => {

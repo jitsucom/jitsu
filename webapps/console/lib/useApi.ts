@@ -29,9 +29,9 @@ export function getEventsLogApi(workspaceId: string): EventsLogApi {
   return {
     get(eventType: string, actorId: string, filter: EventsLogFilter, limit: number): Promise<EventsLogRecord[]> {
       return rpc(
-        `/api/${workspaceId}/log/${eventType}/${actorId}?start=${filter.start?.getTime() ?? ""}&end=${
-          filter.end?.getTime() ?? ""
-        }&beforeId=${filter.beforeId ?? ""}&limit=${limit}`
+        `/api/${workspaceId}/log/${eventType}/${actorId}?start=${filter.start ?? ""}&end=${filter.end ?? ""}&beforeId=${
+          filter.beforeId ?? ""
+        }&limit=${limit}`
       );
     },
   };

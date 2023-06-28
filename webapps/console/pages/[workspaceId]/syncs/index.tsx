@@ -5,11 +5,11 @@ import { DestinationConfig, ServiceConfig } from "../../../lib/schema";
 import { ConfigurationObjectLinkDbModel } from "../../../prisma/schema";
 import { QueryResponse } from "../../../components/QueryResponse/QueryResponse";
 import { z } from "zod";
-import { Table, Tooltip } from "antd";
+import { Dropdown, MenuProps, Table, Tag } from "antd";
 import { confirmOp, feedbackError, feedbackSuccess } from "../../../lib/ui";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { FaExternalLinkAlt, FaPlus, FaRunning, FaTrash } from "react-icons/fa";
+import { FaExternalLinkAlt, FaPlus, FaRegPlayCircle, FaThList, FaTrash } from "react-icons/fa";
 import { index, rpc } from "juava";
 import { getCoreDestinationType } from "../../../lib/schema/destinations";
 import { useRouter } from "next/router";
@@ -22,6 +22,18 @@ import { Inbox } from "lucide-react";
 import { PlusOutlined } from "@ant-design/icons";
 import { JitsuButton, WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
 import { ErrorCard } from "../../../components/GlobalError/GlobalError";
+import { Spinner } from "../../../components/GlobalLoader/GlobalLoader";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import relativeTime from "dayjs/plugin/relativeTime";
+import { WLink } from "../../../components/Workspace/WLink";
+import { ServiceTitle } from "../services";
+import { DestinationTitle } from "../destinations";
+import JSON5 from "json5";
+dayjs.extend(utc);
+dayjs.extend(relativeTime);
+
+const formatDate = (date: string | Date) => dayjs(date, "YYYY-MM-DDTHH:mm:ss.SSSZ").utc().format("YYYY-MM-DD HH:mm:ss");
 
 function EmptyLinks() {
   const workspace = useWorkspace();
@@ -65,6 +77,23 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
     defaultValue: { columns: [] },
     ...jsonSerializationBase64,
   });
+  const [tasks, setTasks] = useState<{ loading: boolean; data?: any; error?: any }>({ loading: true });
+
+  //useEffect update tasksData every 5 seconds
+  useEffect(() => {
+    const fetchTasks = async () => {
+      try {
+        const data = await rpc(`/api/${workspace.id}/sources/tasks`, { body: links.map(l => l.id) });
+        setTasks({ loading: false, data });
+      } catch (e) {
+        setTasks({ loading: false, data: {}, error: e });
+      }
+    };
+    fetchTasks();
+    const interval = setInterval(fetchTasks, 10000);
+    return () => clearInterval(interval);
+  }, [links, workspace.id]);
+
   const deleteSync = async (link: Omit<SyncDbModel, "data">) => {
     if (await confirmOp("Are you sure you want to unlink this service from this destination?")) {
       setLoading(true);
@@ -96,7 +125,7 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
   const columns: ColumnType<any>[] = [
     {
       title: "Service",
-      width: "60%",
+      width: "40%",
       sortOrder: sorting.columns?.find(s => s.field === "Service")?.order,
       sorter: (a, b) => {
         const serviceA = servicesById[a.fromId];
@@ -110,24 +139,14 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
         }
         return (
           <div className="flex items-center">
-            <div className="h-8 w-8">
-              <Tooltip title={service.package}>
-                <img
-                  alt={service.package}
-                  src={`/api/sources/logo?type=${service.protocol}&package=${encodeURIComponent(service.package)}`}
-                />
-              </Tooltip>
-            </div>
-            <div>{service.name}</div>
-            <div>
-              <WJitsuButton
-                href={`/services?id=${link.fromId}`}
-                type="link"
-                className="link"
-                size="small"
-                icon={<FaExternalLinkAlt className="w-3 h-3" />}
-              />
-            </div>
+            <ServiceTitle service={service} />
+            <WJitsuButton
+              href={`/services?id=${link.fromId}`}
+              type="link"
+              className="link"
+              size="small"
+              icon={<FaExternalLinkAlt className="w-3 h-3" />}
+            />
           </div>
         );
       },
@@ -149,49 +168,99 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
         }
         const coreDestinationType = getCoreDestinationType(destination.destinationType);
         return (
-          <div>
-            <div className="flex items-center">
-              <div className="h-8 w-8">
-                <Tooltip title={coreDestinationType.title}>{coreDestinationType.icon}</Tooltip>
-              </div>
-              <div className="ml-2">{destination.name}</div>
-              <div>
-                <JitsuButton
-                  type="link"
-                  icon={<FaExternalLinkAlt className="w-3 h-3" />}
-                  className="link"
-                  size="small"
-                  href={`/${workspace.id}/destinations?id=${link.toId}`}
-                />
-              </div>
-            </div>
+          <div className="flex items-center">
+            <DestinationTitle destination={destination} />
+            <JitsuButton
+              type="link"
+              icon={<FaExternalLinkAlt className="w-3 h-3" />}
+              className="link"
+              size="small"
+              href={`/${workspace.id}/destinations?id=${link.toId}`}
+            />
           </div>
         );
       },
     },
     {
-      title: "Actions",
-      render: (text, link) => (
-        <div className="flex justify-end items-center">
-          <JitsuButton
-            type="text"
-            size="large"
-            icon={<FaRunning />}
-            onClick={async () => {
+      title: <div className={"whitespace-nowrap"}>Sync Status</div>,
+      width: "5%",
+      render: (text, link) => {
+        if (tasks.error) {
+          return <div>error obtaining status</div>;
+        }
+        if (tasks.loading) {
+          return (
+            <div className="w-5 h-5">
+              <Spinner />
+            </div>
+          );
+        }
+        const t = tasks.data.tasks?.[link.id];
+        const color = (status: string) => {
+          switch (status) {
+            case "RUNNING":
+              return "blue";
+            case "FAILED":
+              return "red";
+            case "SUCCESS":
+              return "green";
+            default:
+              return undefined;
+          }
+        };
+        return <Tag color={t ? color(t.status) : undefined}>{t?.status ?? "NO RUNS"}</Tag>;
+      },
+    },
+    {
+      title: <div className={"whitespace-nowrap"}>Status Updated (UTC)</div>,
+      width: "12%",
+      render: (text, link) => {
+        if (tasks.error || tasks.loading) {
+          return undefined;
+        }
+        const t = tasks.data.tasks?.[link.id];
+        return <div>{t ? formatDate(t.updatedAt) : ""}</div>;
+      },
+    },
+    {
+      title: "",
+      render: (text, link) => {
+        const items: MenuProps["items"] = [
+          {
+            label: "Run Sync",
+            onClick: async () => {
               rpc(`/api/${workspace.id}/sources/run?syncId=${link.id}`);
-            }}
-          />
-          <WJitsuButton href={`/syncs/edit?id=${link.id}`} type="text" size="large" icon={<FiEdit2 />} />
-          <JitsuButton
-            type="text"
-            size="large"
-            icon={<FaTrash />}
-            onClick={() => {
+            },
+            key: "run",
+            icon: <FaRegPlayCircle />,
+          },
+          {
+            label: <WLink href={`/syncs/tasks?query=${JSON5.stringify({ syncId: link.id })}`}>Sync Logs</WLink>,
+            key: "tasks",
+            icon: <FaThList />,
+          },
+          {
+            label: <WLink href={`/syncs/edit?id=${link.id}`}>Edit</WLink>,
+            key: "edit",
+            icon: <FiEdit2 />,
+          },
+          {
+            label: "Delete",
+            onClick: async () => {
               deleteSync(link);
-            }}
-          />
-        </div>
-      ),
+            },
+            key: "delete",
+            icon: <FaTrash />,
+          },
+        ].filter(i => !!i);
+        return (
+          <div className="flex items-center justify-end">
+            <Dropdown trigger={["click"]} menu={{ items }}>
+              <div className="text-lg px-3 hover:bg-splitBorder cursor-pointer rounded-full text-center">⋮</div>
+            </Dropdown>
+          </div>
+        );
+      },
     },
   ];
   return (

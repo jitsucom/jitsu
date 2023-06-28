@@ -19,7 +19,7 @@ export default createRoute()
     }),
     result: resultType,
   })
-  .handler(async ({ user, query, body }) => {
+  .handler(async ({ user, query }) => {
     const { workspaceId } = query;
     await verifyAccess(user, workspaceId);
     const syncURL = requireDefined(

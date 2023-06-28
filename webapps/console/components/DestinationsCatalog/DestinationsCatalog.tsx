@@ -35,7 +35,10 @@ function groupDestinationTypes(): Record<string, DestinationType[]> {
     .reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {});
 }
 
-export function getDestinationIcon(destination: DestinationType) {
+export function getDestinationIcon(destination?: DestinationType) {
+  if (!destination) {
+    return <FaCloud />;
+  }
   const tags = (
     destination.tags ? (typeof destination.tags === "string" ? [destination.tags] : destination.tags) : []
   ).map(t => t.toLowerCase());

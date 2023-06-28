@@ -26,7 +26,7 @@ const formatDate = (date: string | Date) => dayjs(date).utc().format("YYYY-MM-DD
 
 type StreamType = "incoming" | "functions" | "bulker";
 type EventType = "all" | "error";
-type DatesRange = [number | null, number | null];
+type DatesRange = [string | null, string | null];
 
 type EventsBrowserProps = {
   streamType: StreamType;
@@ -147,8 +147,8 @@ export const EventsBrowser = ({
             actorId,
             {
               beforeId: beforeId,
-              start: dates && dates[0] ? dayjs.unix(dates[0]).toDate() : undefined,
-              end: dates && dates[1] ? dayjs.unix(dates[1]).endOf("day").toDate() : undefined,
+              start: dates && dates[0] ? dates[0] : undefined,
+              end: dates && dates[1] ? dates[1] : undefined,
             },
             100
           );
@@ -269,7 +269,7 @@ export const EventsBrowser = ({
             <Space>
               {entity[1].stream.name}
               {"→"}
-              <DestinationTitle size={"small"} destination={entity[1].destination} title={d => d.name} />
+              <DestinationTitle size={"small"} destination={entity[1].destination} />
             </Space>
           ),
       }));
@@ -340,15 +340,19 @@ export const EventsBrowser = ({
           <span>Date range: </span>
           <DatePicker.RangePicker
             value={
-              (dates ?? [null, null]).map(d => (d ? dayjs.unix(d) : null)).slice(0, 2) as [Dayjs | null, Dayjs | null]
+              (dates ?? [null, null]).map(d => (d ? dayjs(d, "YYYY-MM-DD") : null)).slice(0, 2) as [
+                Dayjs | null,
+                Dayjs | null
+              ]
             }
+            disabledDate={d => false}
             allowEmpty={[true, true]}
             onChange={d => {
               if (d) {
-                patchQueryStringState(
-                  "dates",
-                  d.map(d => (d ? d.unix() : null))
-                );
+                patchQueryStringState("dates", [
+                  d[0] ? d[0].format("YYYY-MM-DD") : null,
+                  d[1] ? d[1].format("YYYY-MM-DD") : null,
+                ]);
               } else {
                 patchQueryStringState("dates", [null, null]);
               }
@@ -716,7 +720,7 @@ const IncomingEventDrawer = ({ event }: { event: IncomingEvent }) => {
               .filter(d => typeof d !== "undefined")
               .map((d, i) => (
                 <WLink key={i} href={`/destinations?id=${d.id}`}>
-                  <DestinationTitle size={"small"} destination={d} title={d => d.name} />
+                  <DestinationTitle size={"small"} destination={d} />
                 </WLink>
               ))}
           </Space>

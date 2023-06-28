@@ -5,6 +5,7 @@ import { ApiError } from "../../../../../lib/shared/errors";
 import { httpAgent, httpsAgent } from "../../../../../lib/server/http-agent";
 import { getErrorMessage, requireDefined } from "juava";
 import nodeFetch from "node-fetch-commonjs";
+import dayjs from "dayjs";
 
 const log = getServerLog("test-connection");
 
@@ -32,11 +33,15 @@ export const api: Api = {
       if (bulkerAuthKey) {
         options.headers["Authorization"] = `Bearer ${bulkerAuthKey}`;
       }
+      const start = req.query.start as string;
+      const end = req.query.end as string;
       try {
         const response = await nodeFetch(
-          `${bulkerURLEnv}/log/${type}/${actorId}?limit=${req.query.limit ?? 50}&start=${req.query.start ?? ""}&end=${
-            req.query.end ?? ""
-          }&beforeId=${req.query.beforeId ?? ""}`,
+          `${bulkerURLEnv}/log/${type}/${actorId}?limit=${req.query.limit ?? 50}&start=${
+            start ? dayjs(start, "YYYY-MM-DD").utc(true).unix() * 1000 : ""
+          }&end=${end ? dayjs(end, "YYYY-MM-DD").utc(true).add(1, "d").unix() * 1000 : ""}&beforeId=${
+            req.query.beforeId ?? ""
+          }`,
           options
         );
         const json = await response.json();

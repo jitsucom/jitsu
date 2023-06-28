@@ -1,6 +1,6 @@
 import { getErrorMessage, getLog, newError, requireDefined } from "./index";
-import { debounce } from "lodash";
 import * as process from "process";
+import { debounce } from "./debounce";
 const log = getLog("singleton");
 
 export type CachedValue<T> = (

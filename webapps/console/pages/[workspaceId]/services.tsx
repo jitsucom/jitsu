@@ -5,7 +5,6 @@ import { useWorkspace } from "../../lib/context";
 import { useRouter } from "next/router";
 import { getLog, hash as jhash, randomId, rpc } from "juava";
 import React from "react";
-import { ServerCog } from "lucide-react";
 import { Modal, Space, Tooltip } from "antd";
 import { serialization, useURLPersistedState } from "../../lib/ui";
 import { ServicesCatalog } from "../../components/ServicesCatalog/ServicesCatalog";
@@ -27,10 +26,10 @@ const Services: React.FC<any> = () => {
 };
 
 export const ServiceTitle: React.FC<{
-  f?: ServiceConfig;
+  service?: ServiceConfig;
   size?: "small" | "default" | "large";
-  title?: (d?: ServiceConfig) => string;
-}> = ({ f, title = d => d?.name ?? "service", size = "default" }) => {
+  title?: (d: ServiceConfig) => string;
+}> = ({ service, title = d => d.name, size = "default" }) => {
   const iconClassName = (() => {
     switch (size) {
       case "small":
@@ -44,10 +43,15 @@ export const ServiceTitle: React.FC<{
   return (
     <Space size={"small"}>
       <div className={iconClassName}>
-        <ServerCog size={18} />
+        <img
+          alt={service?.package}
+          src={`/api/sources/logo?type=${service?.protocol}&package=${encodeURIComponent(service?.package ?? "")}`}
+        />
       </div>
       <div>
-        <Tooltip title={`${f?.package}:${f?.version}`}>{title(f)}</Tooltip>
+        <Tooltip title={`${service?.package}:${service?.version}`}>
+          {service ? title(service) : "Unknown service"}
+        </Tooltip>
       </div>
     </Space>
   );
@@ -76,7 +80,7 @@ const ServicesList: React.FC<{}> = () => {
     listColumns: [
       {
         title: "Package",
-        render: (c: ServiceConfig) => <>{`${c.package}:${c.version}`}</>,
+        render: (c: ServiceConfig) => <ServiceTitle service={c} title={c => `${c?.package}:${c?.version}`} />,
       },
     ],
     objectType: ServiceConfig,

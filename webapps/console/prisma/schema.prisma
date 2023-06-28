@@ -156,7 +156,7 @@ model source_spec {
     package        String
     version String
     specs     Json?
-    timestamp DateTime @default(now())
+    timestamp DateTime @default(now()) @db.Timestamptz(3)
     error    String?
 
     @@id([package, version])
@@ -168,7 +168,7 @@ model source_check {
     key String @id
     status String
     description String?
-    timestamp DateTime @default(now())
+    timestamp DateTime @default(now()) @db.Timestamptz(3)
 }
 
 model source_catalog {
@@ -176,7 +176,7 @@ model source_catalog {
     version String
     key String
     catalog     Json?
-    timestamp DateTime @default(now())
+    timestamp DateTime @default(now()) @db.Timestamptz(3)
     status String
     description String?
 
@@ -186,7 +186,7 @@ model source_catalog {
 model source_state {
     sync_id       String @id
     state         Json
-    timestamp DateTime @default(now())
+    timestamp DateTime @default(now()) @db.Timestamptz(3)
 }
 
 model source_task {
@@ -194,8 +194,8 @@ model source_task {
     task_id        String @id
     package        String
     version String
-    started_at DateTime @default(now())
-    updated_at DateTime @default(now())
+    started_at DateTime @default(now()) @db.Timestamptz(3)
+    updated_at DateTime @default(now()) @db.Timestamptz(3)
     status String
     description String?
 
@@ -210,7 +210,7 @@ model task_log {
     message String
     sync_id String
     task_id String
-    timestamp DateTime @default(now())
+    timestamp DateTime @default(now()) @db.Timestamptz(3)
 
     @@index(sync_id)
     @@index(task_id)

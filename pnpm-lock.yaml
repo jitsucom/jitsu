@@ -620,11 +620,11 @@ importers:
         specifier: ^3.0.0
         version: 3.0.0
       pg:
-        specifier: ^8.7.3
-        version: 8.10.0
-      pg-query-stream:
-        specifier: ^4.2.4
-        version: 4.4.0(pg@8.10.0)
+        specifier: ~8.11.1
+        version: 8.11.1
+      pg-cursor:
+        specifier: ~2.10.1
+        version: 2.10.1(pg@8.11.1)
       prisma:
         specifier: ^4.12.0
         version: 4.12.0
@@ -694,7 +694,7 @@ importers:
         version: 8.6.6
       '@types/pg-query-stream':
         specifier: ^3.4.0
-        version: 3.4.0(pg@8.10.0)
+        version: 3.4.0(pg@8.11.1)
       '@types/react':
         specifier: 18.0.28
         version: 18.0.28
@@ -8158,11 +8158,11 @@ packages:
       - pg-native
     dev: false
 
-  /@types/pg-query-stream@3.4.0(pg@8.10.0):
+  /@types/pg-query-stream@3.4.0(pg@8.11.1):
     resolution: {integrity: sha512-oqGAu+5CMPAVNqemN9xYT3LBDy2qXBke15cstEuVYIvJL6lcKSNKeG61fONlVrxTYIFi9sPuGVtIweanrEZcJw==}
     deprecated: This is a stub types definition. pg-query-stream provides its own type definitions, so you do not need this installed.
     dependencies:
-      pg-query-stream: 4.4.0(pg@8.10.0)
+      pg-query-stream: 4.4.0(pg@8.11.1)
     transitivePeerDependencies:
       - pg
     dev: true
@@ -19684,15 +19684,24 @@ packages:
       is-reference: 3.0.1
     dev: true
 
+  /pg-cloudflare@1.1.1:
+    resolution: {integrity: sha512-xWPagP/4B6BgFO+EKz3JONXv3YDgvkbVrGw2mTo3D6tVDQRh1e7cqVGvyR3BE+eQgAvx1XhW/iEASj4/jCWl3Q==}
+    requiresBuild: true
+    optional: true
+
   /pg-connection-string@2.5.0:
     resolution: {integrity: sha512-r5o/V/ORTA6TmUnyWZR9nCj1klXCO2CEKNRlVuJptZe85QuhFayC7WeMic7ndayT5IRIR0S0xFxFi2ousartlQ==}
+    dev: false
 
-  /pg-cursor@2.9.0(pg@8.10.0):
-    resolution: {integrity: sha512-tNX0FbHX6+hlhZVNbxhSQPDMNMFF6mOWQvwDobPROAFpilmXrZo3FozawqaBQKonFKpBloZZyWUL3Kkf5rLn6A==}
+  /pg-connection-string@2.6.1:
+    resolution: {integrity: sha512-w6ZzNu6oMmIzEAYVw+RLK0+nqHPt8K3ZnknKi+g48Ak2pr3dtljJW3o+D/n2zzCG07Zoe9VOX3aiKpj+BN0pjg==}
+
+  /pg-cursor@2.10.1(pg@8.11.1):
+    resolution: {integrity: sha512-t4bjqL/gtohsNoByFcD4EKjHVppOuJipBYVhunVUm25TnaS2xEEr2jy3vumOX2z44SHROaf4K7QWPY9xnKT3HA==}
     peerDependencies:
       pg: ^8
     dependencies:
-      pg: 8.10.0
+      pg: 8.11.1
 
   /pg-int8@1.0.1:
     resolution: {integrity: sha512-WCtabS6t3c8SkpDBUlb1kjOs7l66xsGdKpIPZsg4wR+B3+u9UAum2odSsF9tnvxg80h4ZxLWMy4pRjOsFIqQpw==}
@@ -19709,6 +19718,14 @@ packages:
       pg: '>=8.0'
     dependencies:
       pg: 8.10.0
+    dev: false
+
+  /pg-pool@3.6.1(pg@8.11.1):
+    resolution: {integrity: sha512-jizsIzhkIitxCGfPRzJn1ZdcosIt3pz9Sh3V01fm1vZnbnCMgmGl5wvGGdNN2EL9Rmb0EcFoCkixH4Pu+sP9Og==}
+    peerDependencies:
+      pg: '>=8.0'
+    dependencies:
+      pg: 8.11.1
 
   /pg-promise@11.4.3:
     resolution: {integrity: sha512-b4wuukB+pkrLRZ53Z+3L9IONlIhOUSM/VlLQV2SnQzNJPJmDZj6ticgcMtZMDanAUEj+zX1FJOBrSpSR9TumXg==}
@@ -19725,13 +19742,14 @@ packages:
   /pg-protocol@1.6.0:
     resolution: {integrity: sha512-M+PDm637OY5WM307051+bsDia5Xej6d9IR4GwJse1qA1DIhiKlksvrneZOYQq42OM+spubpcNYEo2FcKQrDk+Q==}
 
-  /pg-query-stream@4.4.0(pg@8.10.0):
+  /pg-query-stream@4.4.0(pg@8.11.1):
     resolution: {integrity: sha512-shmP973/ruBw3exSmIEBW9iubWvyyZMzp6oWfcHgvlqAe4LtaRyVqPGxgnuorbRqksK03mjOC9PU+Ohz3b0GkQ==}
     peerDependencies:
       pg: ^8
     dependencies:
-      pg: 8.10.0
-      pg-cursor: 2.9.0(pg@8.10.0)
+      pg: 8.11.1
+      pg-cursor: 2.10.1(pg@8.11.1)
+    dev: true
 
   /pg-types@2.2.0:
     resolution: {integrity: sha512-qTAAlrEsl8s4OiEQY69wDvcMIdQN6wdz5ojQiOy6YRMuynxenON0O5oCpJI6lshc6scgAY8qvJ2On/p+CXY0GA==}
@@ -19759,6 +19777,26 @@ packages:
       pg-protocol: 1.6.0
       pg-types: 2.2.0
       pgpass: 1.0.5
+    dev: false
+
+  /pg@8.11.1:
+    resolution: {integrity: sha512-utdq2obft07MxaDg0zBJI+l/M3mBRfIpEN3iSemsz0G5F2/VXx+XzqF4oxrbIZXQxt2AZzIUzyVg/YM6xOP/WQ==}
+    engines: {node: '>= 8.0.0'}
+    peerDependencies:
+      pg-native: '>=3.0.1'
+    peerDependenciesMeta:
+      pg-native:
+        optional: true
+    dependencies:
+      buffer-writer: 2.0.0
+      packet-reader: 1.0.0
+      pg-connection-string: 2.6.1
+      pg-pool: 3.6.1(pg@8.11.1)
+      pg-protocol: 1.6.0
+      pg-types: 2.2.0
+      pgpass: 1.0.5
+    optionalDependencies:
+      pg-cloudflare: 1.1.1
 
   /pgpass@1.0.5:
     resolution: {integrity: sha512-FdW9r/jQZhSeohs1Z3sI1yxFQNFvMcnmfuj4WBMUTxOrAyLMaTcE1aAMBiTlbMNaXvBCQuVi0R7hd8udDSP7ug==}

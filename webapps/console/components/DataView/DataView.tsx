@@ -34,10 +34,16 @@ export function DataView() {
 
   const patchQueryStringState = (key: string, value: any) => {
     if (state.viewState[state.activeView][key] === value) return;
-    setState({
-      ...state,
-      viewState: { ...state.viewState, [state.activeView]: { ...state.viewState[state.activeView], [key]: value } },
-    });
+    if (value === null) {
+      const newState = { ...state };
+      delete newState[key];
+      setState(newState);
+    } else {
+      setState({
+        ...state,
+        viewState: { ...state.viewState, [state.activeView]: { ...state.viewState[state.activeView], [key]: value } },
+      });
+    }
   };
 
   const items: TabsProps["items"] = [

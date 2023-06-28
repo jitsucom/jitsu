@@ -96,7 +96,11 @@ export const rpc: RpcFunc = async (url, { body, ...rest } = {}) => {
           body: body || undefined,
         });
   }
-  return await parseJsonResponse(result, method, url);
+  if ((result.headers.get("Content-Type") ?? "").startsWith("application/json")) {
+    return await parseJsonResponse(result, method, url);
+  } else {
+    return await result.text();
+  }
 };
 let rpcFetchImpl: FetchType | undefined;
 

@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
-import { Pool } from "pg";
+import { Pool, PoolClient } from "pg";
+import Cursor from "pg-cursor";
 import { namedParameters, newError, requireDefined, stopwatch } from "juava";
 import { getSingleton } from "juava";
 import { getServerLog } from "./log";
@@ -30,8 +31,21 @@ const pgHelper: PgHelper = {
           );
     const { query: processedQuery, values: processedParams } = namedParameters(query, values || []);
     const sw = stopwatch();
-    let queryResult;
+    let totalRows = 0;
+    let cursor: Cursor = undefined;
+    const client: PoolClient = await db.pgPool().connect();
     try {
+      cursor = client.query(new Cursor(processedQuery, processedParams));
+      let rows = await cursor.read(100);
+      while (rows.length > 0) {
+        for (let i = 0; i < rows.length; i++) {
+          await handler(rows[i]);
+          totalRows++;
+        }
+        rows = await cursor.read(100);
+      }
+      let queryResult;
+
       queryResult = await db.pgPool().query(processedQuery, processedParams);
     } catch (e) {
       log
@@ -39,35 +53,19 @@ const pgHelper: PgHelper = {
         .withCause(e)
         .log("Error executing query: \n" + processedQuery + "\n with params: " + JSON.stringify(processedParams));
       throw newError("Error executing the query. See query in logs", e);
+    } finally {
+      if (cursor) {
+        await cursor.close(() => {
+          client.release();
+        });
+      } else if (client) {
+        client.release();
+      }
     }
 
-    for (let i = 0; i < queryResult.rows.length; i++) {
-      const row = queryResult.rows[i];
-      await handler(row);
-    }
     log.atDebug().log(`Query executed in ${sw.elapsedMs()}ms: ${processedQuery}${processedParams}`);
 
-    return { rows: queryResult.rowCount };
-
-    // const queryStream = new QueryStream(processedQuery, processedParams);
-    //
-    // const stream = await db.pg().query(queryStream);
-    //
-    // let rows = 0;
-    // console.log('Start streaming')
-    // return new Promise((resolve, reject) => {
-    //   stream.on("error", err => {
-    //     reject(err);
-    //   });
-    //   stream.on("end", () => {
-    //     resolve({ rows });
-    //   });
-    //   stream.on("data", async row => {
-    //     rows++;
-    //     console.log('Got row', row)
-    //     await handler(row);
-    //   });
-    // });
+    return { rows: totalRows };
   },
 };
 

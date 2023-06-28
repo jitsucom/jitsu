@@ -5,7 +5,7 @@ import { DestinationConfig, StreamConfig } from "../../../lib/schema";
 import { ConfigurationObjectLinkDbModel } from "../../../prisma/schema";
 import { QueryResponse } from "../../../components/QueryResponse/QueryResponse";
 import { z } from "zod";
-import { Table, Tooltip } from "antd";
+import { Table } from "antd";
 import { confirmOp, feedbackError, feedbackSuccess } from "../../../lib/ui";
 import React, { useState } from "react";
 import Link from "next/link";
@@ -21,6 +21,7 @@ import { ColumnType, SortOrder } from "antd/es/table/interface";
 import { Inbox } from "lucide-react";
 import { PlusOutlined } from "@ant-design/icons";
 import { JitsuButton, WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
+import { DestinationTitle } from "../destinations";
 
 function EmptyLinks() {
   const workspace = useWorkspace();
@@ -95,7 +96,7 @@ function ConnectionsTable({ links, streams, destinations, reloadCallback }: Remo
   const columns: ColumnType<any>[] = [
     {
       title: "Source",
-      width: "60%",
+      width: "50%",
       sortOrder: sorting.columns?.find(s => s.field === "Source")?.order,
       sorter: (a, b) => {
         const streamA = streamsById[a.fromId];
@@ -110,22 +111,20 @@ function ConnectionsTable({ links, streams, destinations, reloadCallback }: Remo
         return (
           <div className="flex items-center">
             <div>{stream.name}</div>
-            <div>
-              <WJitsuButton
-                href={`/streams?id=${link.fromId}`}
-                type="link"
-                className="link"
-                size="small"
-                icon={<FaExternalLinkAlt className="w-3 h-3" />}
-              />
-            </div>
+            <WJitsuButton
+              href={`/streams?id=${link.fromId}`}
+              type="link"
+              className="link"
+              size="small"
+              icon={<FaExternalLinkAlt className="w-3 h-3" />}
+            />
           </div>
         );
       },
     },
     {
       title: "Destination",
-      width: "40%",
+      width: "50%",
       sortOrder: sorting.columns?.find(s => s.field === "Destination")?.order,
 
       sorter: (a, b) => {
@@ -140,22 +139,15 @@ function ConnectionsTable({ links, streams, destinations, reloadCallback }: Remo
         }
         const coreDestinationType = getCoreDestinationType(destination.destinationType);
         return (
-          <div>
-            <div className="flex items-center">
-              <div className="h-8 w-8">
-                <Tooltip title={coreDestinationType.title}>{coreDestinationType.icon}</Tooltip>
-              </div>
-              <div className="ml-2">{destination.name}</div>
-              <div>
-                <JitsuButton
-                  type="link"
-                  icon={<FaExternalLinkAlt className="w-3 h-3" />}
-                  className="link"
-                  size="small"
-                  href={`/${workspace.id}/destinations?id=${link.toId}`}
-                />
-              </div>
-            </div>
+          <div className="flex items-center">
+            <DestinationTitle destination={destination} />
+            <JitsuButton
+              type="link"
+              icon={<FaExternalLinkAlt className="w-3 h-3" />}
+              className="link"
+              size="small"
+              href={`/${workspace.id}/destinations?id=${link.toId}`}
+            />
           </div>
         );
       },
