@@ -73,7 +73,7 @@ model Workspace {
   configurationObject     ConfigurationObject[]
   configurationObjectLink ConfigurationObjectLink[]
   preferences             UserPreferences[]
-  featuresEnabled         String[]
+  featuresEnabled         String[] @default([])
 
   @@unique(slug)
 }
@@ -203,7 +203,19 @@ model source_task {
     @@index(started_at)
 }
 
+model task_log {
+    id String @id @default(uuid()) @db.Uuid
+    level String
+    logger String
+    message String
+    sync_id String
+    task_id String
+    timestamp DateTime @default(now())
 
+    @@index(sync_id)
+    @@index(task_id)
+    @@index(timestamp)
+}
 
 //
 
