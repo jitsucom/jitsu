@@ -1,4 +1,4 @@
-@import "./src/theme";
+@import "../../../theme";
 
 .darkenBackground {
   background-color: @primary-background !important;
@@ -12,6 +12,10 @@
     .ant-form-item-control-input,
     .ant-form-item-control-input-content {
       height: 100%;
+    }
+
+    .ant-row {
+      @apply h-full;
     }
 
     .react-monaco-editor-container {

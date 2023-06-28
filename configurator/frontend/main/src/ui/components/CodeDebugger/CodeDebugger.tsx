@@ -218,7 +218,7 @@ const CodeDebugger = ({
   const onTabKeyChange = key => setActiveTabKey(key)
 
   return (
-    <div className={cn(className, "flex flex-col items-stretch h-screen max-h-full pt-4;")}>
+    <div className={cn(className, "flex flex-col h-screen max-h-full pt-4;")}>
       <div className="w-full mb-2">
         <Controls
           codeSaved={codeSaved}
@@ -228,11 +228,9 @@ const CodeDebugger = ({
           isLoading={runIsLoading}
         />
       </div>
-      <Form form={form} className="flex-auto relative" id="inputs" onFinish={handleRun}>
-        <ReflexContainer orientation="horizontal">
-          <ReflexElement flex={0.6} minSize={300}>
-            <ReflexContainer orientation="vertical">
-              <ReflexElement flex={0.4} minSize={300}>
+      <Form form={form} className="flex-auto relative overflow-auto" id="inputs" onFinish={handleRun}>
+        <div className="flex flex-col h-full overflow-auto">
+          <div className="flex-grow-0  flex flex-row h-3/5">
                 <SectionWithLabel label="Event JSON" htmlFor="code">
                   <Form.Item className={`${styles.field} w-full h-full`} name="object">
                     <CodeEditor
@@ -264,10 +262,8 @@ const CodeDebugger = ({
                     </Button>
                   </Dropdown>
                 </SectionWithLabel>
-              </ReflexElement>
-              <ReflexSplitter propagate className={`${styles.splitter}`} />
-              <ReflexElement minSize={300}>
-                <SectionWithLabel label={`${codeFieldLabel}`} htmlFor="code">
+            <div className="w-4"></div>
+            <SectionWithLabel label={`${codeFieldLabel}`} htmlFor="code">
                   <Form.Item className={`${styles.field} pl-2 break-normal`} colon={false} name="code">
                     <CodeEditor
                       initialValue={codeValue}
@@ -285,25 +281,21 @@ const CodeDebugger = ({
                     />
                   </Form.Item>
                 </SectionWithLabel>
-              </ReflexElement>
-            </ReflexContainer>
-          </ReflexElement>
-
-          <ReflexSplitter propagate className={`${styles.splitterHorizontal}`} />
-
-          <ReflexElement propagateDimensions={true} minSize={200}>
+          </div>
+          <div className="h-2 flex-shrink-0"></div>
+          <div className={"flex-grow-0 flex-shrink-0 h-2/5 overflow-auto"}>
             <Tabs
               defaultActiveKey="console"
               type="card"
               tabPosition="top"
               size="small"
-              className={styles.eventTabs}
+              className={`${styles.eventTabs} overflow-auto`}
               activeKey={activeTabKey}
               onChange={onTabKeyChange}
             >
               <Tabs.TabPane tab="Console Debugger" key="console">
                 <div
-                  className={`h-full box-border font-mono list-none m-0 ${styles.darkenBackground} ${styles.consoleOutput}`}
+                  className={`h-full box-border overflow-auto font-mono list-none m-0 ${styles.darkenBackground} ${styles.consoleOutput}`}
                 >
                   {(calcResult?.logs ?? []).map((log, idx) => (
                     <div key={log.level + idx} className={`w-full log-line log-${log.level}`}>
@@ -313,7 +305,7 @@ const CodeDebugger = ({
                 </div>
               </Tabs.TabPane>
               <Tabs.TabPane tab="Full Data Transformation" key="full-data">
-                <div className={`h-full box-border font-mono list-none px-2 pt-1 m-0 ${styles.darkenBackground}`}>
+                <div className={`h-full box-border  overflow-auto font-mono list-none px-2 pt-1 m-0 ${styles.darkenBackground}`}>
                   <div
                     className={cn("flex flex-col w-full h-full overflow-auto m-0", {
                       [styles.itemError]: calcResult?.code === "error",
@@ -343,7 +335,7 @@ const CodeDebugger = ({
               {((calcResult?.userResult && calcResult?.userResult !== calcResult?.result) ||
                 (calcResult?.userError && calcResult?.userError !== calcResult?.error)) && (
                 <Tabs.TabPane tab="User Transformation Result" key="user-transform">
-                  <div className={`h-full box-border font-mono list-none px-2 pt-1 m-0 ${styles.darkenBackground}`}>
+                  <div className={`h-full overflow-auto box-border font-mono list-none px-2 pt-1 m-0 ${styles.darkenBackground}`}>
                     <div
                       className={cn("flex h-full overflow-auto flex-col w-full m-0", {
                         [styles.itemError]: !!calcResult?.userError,
@@ -372,9 +364,8 @@ const CodeDebugger = ({
                 </Tabs.TabPane>
               )}
             </Tabs>
-          </ReflexElement>
-        </ReflexContainer>
-
+          </div>
+        </div>
         {/**
          * Elements below are invisible and serve for keeping the editors values when the editor components are unmounted (hidden).
          * This hack is needed because ReactReflex won't allow us to hide sections without completely unmounting them.
@@ -523,7 +514,7 @@ type SectionProps = {
 
 const SectionWithLabel: React.FC<SectionProps> = ({ label, labelClassName, htmlFor, children }) => {
   return (
-    <div className={`relative w-full h-full overflow-hidden pt-7 rounded-md ${styles.darkenBackground}`}>
+    <div className={`relative w-full h-full flex flex-col overflow-hidden pt-7 rounded-md ${styles.darkenBackground}`}>
       <label className={`absolute top-1 left-2 z-10 ${styles.label} ${labelClassName ?? ""}`} htmlFor={htmlFor}>
         {label}
       </label>
