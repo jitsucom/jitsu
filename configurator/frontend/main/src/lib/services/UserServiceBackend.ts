@@ -143,7 +143,7 @@ export class BackendUserService implements UserService {
   sendPasswordReset(email?: string): Promise<void> {
     if (!this.smtpConfigured) {
       throw new Error(
-        "SMTP isn't configured on the server. However you could change password by executing 'change_password.sh' from git repository!"
+        "SMTP isn't configured on the server."
       )
     }
 
