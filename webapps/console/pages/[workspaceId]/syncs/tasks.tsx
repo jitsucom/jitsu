@@ -130,12 +130,14 @@ function TasksTable({ tasks, loading, linksMap, servicesMap, destinationsMap }: 
                 icon={<ExclamationCircleOutlined style={{ color: "red" }} />}
                 showCancel={false}
               >
-                <Space direction={"vertical"} size={0} className={"cursor-pointer"}>
-                  <Tag color={"red"} style={{ marginRight: 0 }}>
-                    FAILED
-                  </Tag>
-                  <span className={"text-xxs text-gray-500"}>Show error</span>
-                </Space>
+                <button>
+                  <Space direction={"vertical"} size={0} className={"cursor-pointer"}>
+                    <Tag color={"red"} style={{ marginRight: 0 }}>
+                      FAILED
+                    </Tag>
+                    <span className={"text-xxs text-gray-500"}>Show error</span>
+                  </Space>
+                </button>
               </Popconfirm>
             );
           case "RUNNING":
