@@ -4,8 +4,8 @@
 > <b>Looking for Jitsu Classic? Switch to 
 > <a href="https://github.com/jitsucom/jitsu/tree/master">classic branch</a>, and read about <a href="https://docs.jitsu.com/jitsu-classic">Jitsu Classic and Jitsu Next differences</a></b>
 <p align="center">
-<img src="placeholder#gh-light-mode-only">
-<img src="placeholder#gh-dark-mode-only">
+<img src="https://github.com/jitsucom/jitsu/blob/feat/newjitsu_README/.readme-assets/github-hero-light-mode.png?raw=true#gh-light-mode-only" />
+<img src="https://github.com/jitsucom/jitsu/blob/feat/newjitsu_README/.readme-assets/github-hero-dark-mode.png?raw=true#gh-dark-mode-only" />
 </p>
 <p align="center">
 <b><a href="https://jitsu.com">Learn more »</a></b> 
@@ -33,7 +33,7 @@ Jitsu is a tool for collecting event data from your websites, apps and stream th
 It is a self-hosted, open-source alternative to Segment.
 
 <p align="center">
-<img src="screenshot#gh-light-mode-only">
+<img src="https://github.com/jitsucom/jitsu/blob/feat/newjitsu_README/.readme-assets/screenshot.png?raw=true">
 </p>
 
 # Quick start
