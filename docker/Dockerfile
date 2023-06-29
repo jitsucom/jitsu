@@ -1,6 +1,6 @@
 ARG SRC_VERSION=latest
 
-FROM nginx:latest as main
+FROM nginx:stable-bullseye as main
 
 # Install dependencies
 RUN apt-get update
