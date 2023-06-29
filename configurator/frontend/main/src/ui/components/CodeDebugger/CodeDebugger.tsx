@@ -1,7 +1,6 @@
 // @Libs
 import React, { memo, MutableRefObject, useCallback, useEffect, useRef, useState } from "react"
-import { ReflexContainer, ReflexSplitter, ReflexElement } from "react-reflex"
-import { Button, Checkbox, Dropdown, Form, Spin, Tooltip, Popconfirm } from "antd"
+import { Button, Dropdown, Form, Spin, Tooltip, Popconfirm } from "antd"
 import hotkeys from "hotkeys-js"
 import cn from "classnames"
 // @Components
@@ -10,8 +9,6 @@ import { CodeEditor } from "ui/components/CodeEditor/CodeEditor"
 // @Icons
 import CaretRightOutlined from "@ant-design/icons/lib/icons/CaretRightOutlined"
 import UnorderedListOutlined from "@ant-design/icons/lib/icons/UnorderedListOutlined"
-// @Styles
-import "react-reflex/styles.css"
 import styles from "./CodeDebugger.module.less"
 import { Event as RecentEvent } from "../../../lib/services/events"
 import { SyntaxHighlighterAsync } from "lib/components/SyntaxHighlighter/SyntaxHighlighter"
@@ -293,7 +290,7 @@ const CodeDebugger = ({
               activeKey={activeTabKey}
               onChange={onTabKeyChange}
             >
-              <Tabs.TabPane tab="Console Debugger" key="console">
+              <Tabs.TabPane tab="Console Debugger" key="console" className={"overflow-auto"}>
                 <div
                   className={`h-full box-border overflow-auto font-mono list-none m-0 ${styles.darkenBackground} ${styles.consoleOutput}`}
                 >
@@ -304,7 +301,7 @@ const CodeDebugger = ({
                   ))}
                 </div>
               </Tabs.TabPane>
-              <Tabs.TabPane tab="Full Data Transformation" key="full-data">
+              <Tabs.TabPane tab="Full Data Transformation" key="full-data" className={"overflow-auto"}>
                 <div className={`h-full box-border  overflow-auto font-mono list-none px-2 pt-1 m-0 ${styles.darkenBackground}`}>
                   <div
                     className={cn("flex flex-col w-full h-full overflow-auto m-0", {
@@ -334,7 +331,7 @@ const CodeDebugger = ({
               </Tabs.TabPane>
               {((calcResult?.userResult && calcResult?.userResult !== calcResult?.result) ||
                 (calcResult?.userError && calcResult?.userError !== calcResult?.error)) && (
-                <Tabs.TabPane tab="User Transformation Result" key="user-transform">
+                <Tabs.TabPane tab="User Transformation Result" key="user-transform" className={"overflow-auto"}>
                   <div className={`h-full overflow-auto box-border font-mono list-none px-2 pt-1 m-0 ${styles.darkenBackground}`}>
                     <div
                       className={cn("flex h-full overflow-auto flex-col w-full m-0", {
