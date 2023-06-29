@@ -229,7 +229,15 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
           {
             label: "Run Sync",
             onClick: async () => {
-              rpc(`/api/${workspace.id}/sources/run?syncId=${link.id}`);
+              await rpc(`/api/${workspace.id}/sources/run?syncId=${link.id}`);
+              router.push(
+                `/${workspace.slug || workspace.id}/syncs/tasks?query=${encodeURIComponent(
+                  JSON5.stringify({
+                    syncId: link.id,
+                    notification: "Sync Started",
+                  })
+                )}`
+              );
             },
             key: "run",
             icon: <FaRegPlayCircle />,

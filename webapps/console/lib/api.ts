@@ -44,6 +44,8 @@ export type ApiMethod<RequireAuth extends boolean = boolean, Res = any, Body = a
     result?: ZodType<Res>;
     query?: ZodType<Query>;
   };
+  // indicates that handler uses write method for outputting response content. This is useful for streaming responses.
+  streaming?: boolean;
   handle: (ctx: HandlerOpts<Body, Query, RequireAuth>) => Promise<Res>;
 };
 
@@ -170,6 +172,10 @@ export function nextJsApiHandler(api: Api): NextApiHandler {
       }
 
       const result = await handler.handle({ body, req, res, query, user: currentUser as any });
+      if (handler.streaming) {
+        //we cannot do anything with the result, it is the responsibility of the handler to write the response
+        return;
+      }
       if (handler.types?.result) {
         const parseResult = handler.types?.result.safeParse(result);
         if (!parseResult.success) {
@@ -253,6 +259,7 @@ export type RouteBuilderBase = {
     body?: BodyZodType;
     result?: ResultZodType;
     auth?: RequireAuth;
+    streaming?: boolean;
   }) => {
     handler: (
       handler: (params: {
@@ -272,13 +279,14 @@ export function createRoute(): RouteBuilder {
   const legacyApiInstance: Api = {};
   const builder: any = {};
   for (const method of httpMethods) {
-    builder[method] = ({ query, body, result, auth }) => {
+    builder[method] = ({ query, body, result, auth, streaming }) => {
       return {
         handler: handler => {
           legacyApiInstance[method] = {
             auth: !!auth,
             types: { query, body, result },
             handle: handler,
+            streaming: streaming,
           };
           return builder;
         },

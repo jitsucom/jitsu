@@ -3,7 +3,7 @@ import { useWorkspace } from "../../../lib/context";
 import { useApi } from "../../../lib/useApi";
 import { source_taskDbModel } from "../../../prisma/schema";
 import { z } from "zod";
-import { Button, Col, DatePicker, Row, Select, Space, Table, Tag } from "antd";
+import { Button, Col, DatePicker, notification, Popover, Row, Select, Space, Table, Tag } from "antd";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useQueryStringState } from "../../../lib/useQueryStringState";
 import { ColumnType } from "antd/es/table/interface";
@@ -12,13 +12,14 @@ import utc from "dayjs/plugin/utc";
 import relativeTime from "dayjs/plugin/relativeTime";
 import JSON5 from "json5";
 import { ErrorCard } from "../../../components/GlobalError/GlobalError";
-import { LabelEllipsis } from "../../../components/LabelEllipsis/LabelEllipsis";
 import { useLinksQuery } from "../../../lib/queries";
 import { DestinationTitle } from "../destinations";
 import { arrayToMap } from "../../../lib/shared/arrays";
 import { ServiceTitle } from "../services";
-import { WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
+import { JitsuButton, WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
 import { FileText } from "lucide-react";
+import { FaExternalLinkAlt, FaRegPlayCircle } from "react-icons/fa";
+import { useRouter } from "next/router";
 
 dayjs.extend(utc);
 dayjs.extend(relativeTime);
@@ -31,10 +32,14 @@ type TasksDbModel = z.infer<typeof source_taskDbModel>;
 type TasksTableProps = {
   tasks: TasksDbModel[];
   loading: boolean;
-  reloadCallback: () => void;
+  linksMap?: Record<string, { id: string; fromId: string; toId: string }>;
+  servicesMap?: Record<string, any>;
+  destinationsMap?: Record<string, any>;
 };
 
-function TasksTable({ tasks, loading, reloadCallback }: TasksTableProps) {
+function TasksTable({ tasks, loading, linksMap, servicesMap, destinationsMap }: TasksTableProps) {
+  const router = useRouter();
+  const workspace = useWorkspace();
   const columns: ColumnType<TasksDbModel>[] = [
     {
       title: <div className={"whitespace-nowrap"}>Started (UTC)</div>,
@@ -42,6 +47,33 @@ function TasksTable({ tasks, loading, reloadCallback }: TasksTableProps) {
       width: "12%",
       render: (text, task) => {
         return <div className={"whitespace-nowrap"}>{formatDate(task.started_at)}</div>;
+      },
+    },
+    {
+      title: <div className={"whitespace-nowrap"}>Sync</div>,
+      key: "link",
+      className: "w-full",
+      render: (text, task) => {
+        if (linksMap && servicesMap && destinationsMap) {
+          const link = linksMap[task.sync_id];
+          if (link) {
+            return (
+              <Space className={"whitespace-nowrap"}>
+                <ServiceTitle size={"small"} service={servicesMap[link.fromId]} />
+                {"→"}
+                <DestinationTitle size={"small"} destination={destinationsMap[link.toId]} />
+                <WJitsuButton
+                  href={`/syncs/edit?id=${link.id}`}
+                  type="link"
+                  className="link"
+                  size="small"
+                  icon={<FaExternalLinkAlt className="w-3 h-3" />}
+                />
+              </Space>
+            );
+          }
+        }
+        return <div className={"whitespace-nowrap"}>{task.sync_id}</div>;
       },
     },
     {
@@ -72,16 +104,46 @@ function TasksTable({ tasks, loading, reloadCallback }: TasksTableProps) {
       },
     },
     {
-      title: "Description",
-      key: "description",
+      title: <div className={"whitespace-nowrap"}>Rows Processed</div>,
+      key: "rows",
+      className: "text-right",
+      width: "10%",
       render: (text, task) => {
-        return (
-          <LabelEllipsis trim={"end"} maxLen={100}>
-            {task.description ?? ""}
-          </LabelEllipsis>
-        );
+        if (task.status === "SUCCESS") {
+          try {
+            const des = JSON.parse(task.description || "{}");
+            //sum des values
+            let processed_rows = 0;
+            for (const key in des) {
+              processed_rows += des[key];
+            }
+            return <Tag>{processed_rows}</Tag>;
+          } catch (e) {}
+        }
+        return <></>;
       },
-      width: "70%",
+    },
+    {
+      title: "Errors",
+      key: "errors",
+      width: "5%",
+      render: (text, task) => {
+        if (task.status === "FAILED") {
+          const popoverContent = (
+            <div className={"max-h-96 overflow-y-auto"}>
+              <div className={"whitespace-pre-wrap font-mono text-xs"}>{task.description}</div>
+            </div>
+          );
+          return (
+            <Popover content={popoverContent} overlayClassName={"w-1/2"} title={"Error"} trigger={"click"}>
+              <JitsuButton danger onClick={e => e.stopPropagation()}>
+                Show error
+              </JitsuButton>
+            </Popover>
+          );
+        }
+        return <></>;
+      },
     },
     {
       title: "",
@@ -90,10 +152,12 @@ function TasksTable({ tasks, loading, reloadCallback }: TasksTableProps) {
         return (
           <WJitsuButton
             icon={<FileText />}
-            type={"text"}
+            type={"link"}
             title={"View logs"}
             href={`/syncs/logs?taskId=${task.task_id}&syncId=${task.sync_id}`}
-          />
+          >
+            View Logs
+          </WJitsuButton>
         );
       },
     },
@@ -103,6 +167,15 @@ function TasksTable({ tasks, loading, reloadCallback }: TasksTableProps) {
       <Table
         rowKey={"task_id"}
         size={"small"}
+        onRow={record => {
+          return {
+            onClick: () => {
+              router.push(
+                `/${workspace.slug || workspace.id}/syncs/logs?taskId=${record.task_id}&syncId=${record.sync_id}`
+              );
+            },
+          };
+        }}
         dataSource={tasks}
         sortDirections={["ascend", "descend"]}
         columns={columns}
@@ -118,10 +191,12 @@ export type TasksViewState = {
   dates?: DatesRange;
   syncId?: string;
   status?: "all" | "SUCCESS" | "FAILED" | "RUNNING";
+  notification?: string;
 };
 
 function Tasks() {
   const workspace = useWorkspace();
+  const [api, contextHolder] = notification.useNotification();
 
   const defaultState: TasksViewState = {
     status: "all",
@@ -136,6 +211,11 @@ function Tasks() {
       return JSON5.stringify(value);
     },
   });
+  const [linksMap, setLinksMap] = useState<Record<string, { fromId: string; toId: string; id: string }> | undefined>(
+    undefined
+  );
+  const [servicesMap, setServicesMap] = useState<Record<string, any> | undefined>(undefined);
+  const [destinationsMap, setDestinationsMap] = useState<Record<string, any> | undefined>(undefined);
 
   const {
     data: linksData,
@@ -164,6 +244,26 @@ function Tasks() {
   );
 
   useEffect(() => {
+    if (state.notification) {
+      api.info({
+        message: state.notification,
+        description: "",
+        icon: <FaRegPlayCircle />,
+        placement: "topRight",
+      });
+      patchQueryStringState("notification", null);
+    }
+  }, [state, api, patchQueryStringState]);
+
+  useEffect(() => {
+    if (linksData) {
+      setServicesMap(arrayToMap(linksData[0]));
+      setDestinationsMap(arrayToMap(linksData[1]));
+      setLinksMap(arrayToMap(linksData[2]));
+    }
+  }, [linksData]);
+
+  useEffect(() => {
     if (linksData) {
       if (!state.syncId) {
         patchQueryStringState("syncId", linksData[2][0]?.id);
@@ -172,18 +272,15 @@ function Tasks() {
   }, [linksData, patchQueryStringState, state.syncId]);
 
   const entitiesSelectOptions = useMemo(() => {
-    if (linksData) {
-      const services = arrayToMap(linksData[0]);
-      const destinations = arrayToMap(linksData[1]);
-      const links = arrayToMap(linksData[2]) as Record<string, { fromId: string; toId: string }>;
-      let syncs = Object.entries(links).map(entity => ({
-        value: entity[0],
-        key: entity[0],
+    if (linksMap && servicesMap && destinationsMap) {
+      let syncs = Object.entries(linksMap).map(([linkId, link]) => ({
+        value: linkId,
+        key: linkId,
         label: (
-          <Space key={entity[0]}>
-            <ServiceTitle size={"small"} service={services[entity[1].fromId]} />
+          <Space>
+            <ServiceTitle size={"small"} service={servicesMap[link.fromId]} />
             {"→"}
-            <DestinationTitle size={"small"} destination={destinations[entity[1].toId]} />
+            <DestinationTitle size={"small"} destination={destinationsMap[link.toId]} />
           </Space>
         ),
       }));
@@ -199,7 +296,7 @@ function Tasks() {
     } else {
       return [];
     }
-  }, [linksData]);
+  }, [linksMap, servicesMap, destinationsMap]);
 
   let tasksUrl = `/api/${workspace.id}/sources/tasks?syncId=${state.syncId}&r=${refresh}`;
   if (state.status !== "all") {
@@ -218,6 +315,7 @@ function Tasks() {
 
   return (
     <>
+      {contextHolder}
       <Row justify={"space-around"} wrap className={"pb-3.5"}>
         <Col key={"syncs"}>
           <span>Syncs: </span>
@@ -308,7 +406,13 @@ function Tasks() {
       {error ? (
         <ErrorCard error={error}></ErrorCard>
       ) : (
-        <TasksTable tasks={data ? data.tasks : []} loading={isLoading} reloadCallback={() => {}} />
+        <TasksTable
+          tasks={data ? data.tasks : []}
+          loading={isLoading}
+          linksMap={linksMap}
+          servicesMap={servicesMap}
+          destinationsMap={destinationsMap}
+        />
       )}
     </>
   );

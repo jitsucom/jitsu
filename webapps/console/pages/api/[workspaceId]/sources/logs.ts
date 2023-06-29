@@ -15,6 +15,7 @@ export default createRoute()
       syncId: z.string(),
       download: z.string().optional(),
     }),
+    streaming: true,
   })
   .handler(async ({ user, query, res }) => {
     const { workspaceId } = query;
@@ -36,16 +37,16 @@ export default createRoute()
           );
         }
       );
-      res.end();
     } catch (e: any) {
       const errorId = randomId();
       console.error(
         `Error loading logs for task id ${query.taskId} in workspace ${workspaceId}. Error ID: ${errorId}. Error: ${e}`
       );
-      return {
-        ok: false,
-        error: `couldn't load tasks due to internal server error. Please contact support. Error ID: ${errorId}`,
-      };
+      res.write(
+        `ERROR: couldn't load task logs due to internal server error. Please contact support. Error ID: ${errorId}`
+      );
+    } finally {
+      res.end();
     }
   })
   .toNextApiHandler();
