@@ -3,7 +3,7 @@ import { useWorkspace } from "../../../lib/context";
 import { useApi } from "../../../lib/useApi";
 import { source_taskDbModel } from "../../../prisma/schema";
 import { z } from "zod";
-import { Button, Col, DatePicker, notification, Popover, Row, Select, Space, Table, Tag } from "antd";
+import { Button, Col, DatePicker, notification, Popconfirm, Row, Select, Space, Table, Tag } from "antd";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useQueryStringState } from "../../../lib/useQueryStringState";
 import { ColumnType } from "antd/es/table/interface";
@@ -16,10 +16,11 @@ import { useLinksQuery } from "../../../lib/queries";
 import { DestinationTitle } from "../destinations";
 import { arrayToMap } from "../../../lib/shared/arrays";
 import { ServiceTitle } from "../services";
-import { JitsuButton, WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
+import { WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
 import { FileText } from "lucide-react";
 import { FaExternalLinkAlt, FaRegPlayCircle } from "react-icons/fa";
 import { useRouter } from "next/router";
+import { ExclamationCircleOutlined } from "@ant-design/icons";
 
 dayjs.extend(utc);
 dayjs.extend(relativeTime);
@@ -77,72 +78,73 @@ function TasksTable({ tasks, loading, linksMap, servicesMap, destinationsMap }: 
       },
     },
     {
-      title: <div className={"whitespace-nowrap"}>Sync Status</div>,
-      key: "status",
-      width: "5%",
-      render: (text, task) => {
-        const color = (status: string) => {
-          switch (status) {
-            case "RUNNING":
-              return "blue";
-            case "FAILED":
-              return "red";
-            case "SUCCESS":
-              return "green";
-            default:
-              return undefined;
-          }
-        };
-        return <Tag color={color(task.status)}>{task.status}</Tag>;
-      },
-    },
-    {
       title: <div className={"whitespace-nowrap"}>Duration</div>,
       key: "updated_at",
+      width: "12%",
       render: (text, task) => {
         return <div className={"whitespace-nowrap"}>{dayjs(task.updated_at).from(dayjs(task.started_at), true)}</div>;
       },
     },
     {
-      title: <div className={"whitespace-nowrap"}>Rows Processed</div>,
-      key: "rows",
+      title: <div className={"whitespace-nowrap"}>Sync Status</div>,
+      key: "status",
       className: "text-right",
-      width: "10%",
-      render: (text, task) => {
-        if (task.status === "SUCCESS") {
-          try {
-            const des = JSON.parse(task.description || "{}");
-            //sum des values
-            let processed_rows = 0;
-            for (const key in des) {
-              processed_rows += des[key];
-            }
-            return <Tag>{processed_rows}</Tag>;
-          } catch (e) {}
-        }
-        return <></>;
-      },
-    },
-    {
-      title: "Errors",
-      key: "errors",
       width: "5%",
       render: (text, task) => {
-        if (task.status === "FAILED") {
-          const popoverContent = (
-            <div className={"max-h-96 overflow-y-auto"}>
-              <div className={"whitespace-pre-wrap font-mono text-xs"}>{task.description}</div>
-            </div>
-          );
-          return (
-            <Popover content={popoverContent} overlayClassName={"w-1/2"} title={"Error"} trigger={"click"}>
-              <JitsuButton danger onClick={e => e.stopPropagation()}>
-                Show error
-              </JitsuButton>
-            </Popover>
-          );
+        switch (task.status) {
+          case "SUCCESS":
+            try {
+              const des = JSON.parse(task.description || "{}");
+              //sum des values
+              let processed_rows = 0;
+              for (const key in des) {
+                processed_rows += des[key];
+              }
+              return (
+                <Space direction={"vertical"} size={0}>
+                  <Tag color={"green"} style={{ marginRight: 0 }}>
+                    SUCCESS
+                  </Tag>
+                  <span className={"text-xxs text-gray-500"}>{processed_rows} rows</span>
+                </Space>
+              );
+            } catch (e) {}
+            return (
+              <Tag color={"green"} style={{ marginRight: 0 }}>
+                SUCCESS
+              </Tag>
+            );
+          case "FAILED":
+            const popoverContent = (
+              <div className={"max-h-96 overflow-y-auto"}>
+                <div className={"whitespace-pre-wrap font-mono text-xs"}>{task.description}</div>
+              </div>
+            );
+            return (
+              <Popconfirm
+                description={popoverContent}
+                overlayClassName={"w-1/2"}
+                placement={"topRight"}
+                title={"Error"}
+                trigger={"click"}
+                icon={<ExclamationCircleOutlined style={{ color: "red" }} />}
+                showCancel={false}
+              >
+                <Space direction={"vertical"} size={0} className={"cursor-pointer"}>
+                  <Tag color={"red"} style={{ marginRight: 0 }}>
+                    FAILED
+                  </Tag>
+                  <span className={"text-xxs text-gray-500"}>Show error</span>
+                </Space>
+              </Popconfirm>
+            );
+          case "RUNNING":
+            return (
+              <Tag color={"blue"} style={{ marginRight: 0 }}>
+                RUNNING
+              </Tag>
+            );
         }
-        return <></>;
       },
     },
     {
@@ -167,15 +169,15 @@ function TasksTable({ tasks, loading, linksMap, servicesMap, destinationsMap }: 
       <Table
         rowKey={"task_id"}
         size={"small"}
-        onRow={record => {
-          return {
-            onClick: () => {
-              router.push(
-                `/${workspace.slug || workspace.id}/syncs/logs?taskId=${record.task_id}&syncId=${record.sync_id}`
-              );
-            },
-          };
-        }}
+        // onRow={record => {
+        //   return {
+        //     onClick: () => {
+        //       router.push(
+        //         `/${workspace.slug || workspace.id}/syncs/logs?taskId=${record.task_id}&syncId=${record.sync_id}`
+        //       );
+        //     },
+        //   };
+        // }}
         dataSource={tasks}
         sortDirections={["ascend", "descend"]}
         columns={columns}
