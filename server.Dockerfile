@@ -15,7 +15,6 @@ RUN apt-get install -y docker-ce docker-ce-cli containerd.io
 
 # Install node
 RUN curl -o- -sL https://deb.nodesource.com/setup_16.x | bash
-RUN apt-get install -y npm
 RUN npm install -g node-fetch@2.6.7 vm2@3.9.9
 
 ARG TARGETARCH
