@@ -107,6 +107,9 @@ importers:
       murmurhash:
         specifier: ^2.0.0
         version: 2.0.1
+      prop-types:
+        specifier: 15.8.1
+        version: 15.8.1
       query-string:
         specifier: ^7.1.1
         version: 7.1.1
@@ -119,9 +122,6 @@ importers:
       react-monaco-editor:
         specifier: ^0.46.0
         version: 0.46.0(@types/react@17.0.47)(monaco-editor@0.28.1)(react@17.0.2)
-      react-reflex:
-        specifier: ^4.0.3
-        version: 4.0.9(react-dom@17.0.2)(react@17.0.2)
       react-router:
         specifier: ^5.2.0
         version: 5.3.3(react@17.0.2)
@@ -8009,10 +8009,6 @@ packages:
       has: 1.0.3
       has-symbols: 1.0.3
 
-  /get-node-dimensions@1.2.1:
-    resolution: {integrity: sha512-2MSPMu7S1iOTL+BOa6K1S62hB2zUAYNF/lV0gSVlOaacd087lc6nR1H1r0e3B1CerTo+RceOmi1iJW+vp21xcQ==}
-    dev: false
-
   /get-own-enumerable-property-symbols@3.0.2:
     resolution: {integrity: sha512-I0UBV/XOz1XkIJHEUDMZAbzCThU/H8DxmSfmdGcKPnVhu2VfFqr34jr9777IyaTYvxjedWhqVIilEDsCdP5G6g==}
     dev: true
@@ -10571,10 +10567,6 @@ packages:
     dependencies:
       lodash._reinterpolate: 3.0.0
     dev: true
-
-  /lodash.throttle@4.1.1:
-    resolution: {integrity: sha512-wIkUCfVKpVsWo3JSZlc+8MB5it+2AN5W8J7YVMST30UrvcQNZ1Okbj+rbVniijTWE6FGYy4XJq/rHkas8qJMLQ==}
-    dev: false
 
   /lodash.topath@4.5.2:
     resolution: {integrity: sha512-1/W4dM+35DwvE/iEd1M9ekewOSTlpFekhw9mhAtrwjVqUr83/ilQiyAvmg4tVX7Unkcfl1KC+i9WdaT4B6aQcg==}
@@ -13491,20 +13483,6 @@ packages:
     resolution: {integrity: sha512-fBASbA6LnOU9dOU2eW7aQ8xmYBSXUIWr+UmF9b1efZBazGNO+rcXT/icdKnYm2pTwcRylVUYwW7H1PHfLekVzA==}
     dev: false
 
-  /react-measure@2.5.2(react-dom@17.0.2)(react@17.0.2):
-    resolution: {integrity: sha512-M+rpbTLWJ3FD6FXvYV6YEGvQ5tMayQ3fGrZhRPHrE9bVlBYfDCLuDcgNttYfk8IqfOI03jz6cbpqMRTUclQnaA==}
-    peerDependencies:
-      react: '>0.13.0'
-      react-dom: '>0.13.0'
-    dependencies:
-      '@babel/runtime': 7.18.3
-      get-node-dimensions: 1.2.1
-      prop-types: 15.8.1
-      react: 17.0.2
-      react-dom: 17.0.2(react@17.0.2)
-      resize-observer-polyfill: 1.5.1
-    dev: false
-
   /react-monaco-editor@0.46.0(@types/react@17.0.47)(monaco-editor@0.28.1)(react@17.0.2):
     resolution: {integrity: sha512-/GyQ0tQLbjHAuMUNRfKecBYN68o8TwA4fnwH9P+lHbF80ayMAo0PQ60joTQH6R6j839kMn6o9Kk/cbzOxK5DzA==}
     peerDependencies:
@@ -13516,20 +13494,6 @@ packages:
       monaco-editor: 0.28.1
       prop-types: 15.8.1
       react: 17.0.2
-    dev: false
-
-  /react-reflex@4.0.9(react-dom@17.0.2)(react@17.0.2):
-    resolution: {integrity: sha512-XFTNRekFK4ul8mzVd1lniKT/SI0FvNYhXyLNl5gagS1i3iW9QKlpFYcRfVhZlxxaYHb8UyLOs3+H4Ay5cjtbxQ==}
-    peerDependencies:
-      react: ^16.0.0 || ^17.0.0 || ^18.0.0
-    dependencies:
-      '@babel/runtime': 7.18.3
-      lodash.throttle: 4.1.1
-      prop-types: 15.8.1
-      react: 17.0.2
-      react-measure: 2.5.2(react-dom@17.0.2)(react@17.0.2)
-    transitivePeerDependencies:
-      - react-dom
     dev: false
 
   /react-refresh@0.8.3:
