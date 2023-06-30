@@ -40,16 +40,32 @@ It is a self-hosted, open-source alternative to Segment.
 
 ## 1. Install Jitsu
 
-The fastest way to install jitsu is [docker compose](https://docs.jitsu.com/self-hosting/quick-start). For productions deployments,
-[read this guide](https://docs.jitsu.com/self-hosting/production-deployment)
+### Docker Compose
 
-> :cloud: **Cloud version** is available at [use.jitsu.com](https://use.jitsu.com). It's free up to 200k events per month, and
-> comes with a [FREE ClickHouse instance](https://next.jitsu.com/features/clickhouse)
+The fastest way to install jitsu is [docker compose](https://docs.jitsu.com/self-hosting/quick-start):
+
+```bash
+# Clone the repository
+git clone --depth 1 https://github.com/jitsucom/jitsu
+cd jitsu/docker
+# Copy .env.example to .env, see instructions at https://docs.jitsu.com/self-hosting/quick-start#edit-env-file
+cp .env.example .env
+```
+
+### Deploy at scale
+
+For productions deployments, [read this guide](https://docs.jitsu.com/self-hosting/production-deployment)
+
+### Jitsu Cloud
+
+**Cloud version is available at [use.jitsu.com](https://use.jitsu.com). It's free up to 200k events per month, and
+comes with a [FREE ClickHouse instance](https://next.jitsu.com/features/clickhouse)**
 
 ## 2. Configure Jitsu
 
-Add one of the [destinations](https://next.jitsu.com/integrations/destinations) we support. Read
-[core concepts](https://docs.jitsu.com/core-concepts/).
+* Follow [Quick Start Guide](https://docs.jitsu.com/)
+* Get yourself familiar with [Jitsu Concepts](https://docs.jitsu.com/concepts)
+* Browse [Destination Catalog](https://next.jitsu.com/integrations/destinations)
 
 ## 3. Send events
 
@@ -61,8 +77,14 @@ Add one of the [destinations](https://next.jitsu.com/integrations/destinations) 
 * [HTTP API](https://docs.jitsu.com/sending-data/http)
 * [Segment Compatible API](https://docs.jitsu.com/sending-data/segment)
 
+# 🚚 Bulker
+
+Jitsu is based on [Bulker](https://github.com/jitsucom/bulker), an open-source data warehouse ingestion engine. 
+Bulker can be used as a standalone tool, if you're comfortable working with low-level APIs.
+
 # Contributing
 
+Please see our [contributing guidelines](CONTRIBUTING.md).
 
 
 
