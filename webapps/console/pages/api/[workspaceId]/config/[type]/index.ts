@@ -18,6 +18,7 @@ export const api: Api = {
       assertDefined(configObjectType, `Invalid config object type: ${type}`);
       const objects = await db.prisma().configurationObject.findMany({
         where: { workspaceId: workspaceId, type, deleted: false },
+        orderBy: { createdAt: "asc" },
       });
       return {
         objects: objects

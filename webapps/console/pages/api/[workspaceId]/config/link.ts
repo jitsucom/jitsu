@@ -16,6 +16,7 @@ export const api: Api = {
       return {
         links: await db.prisma().configurationObjectLink.findMany({
           where: { workspaceId: workspaceId, deleted: false },
+          orderBy: { createdAt: "asc" },
         }),
       };
     },

@@ -3,7 +3,7 @@ import { useWorkspace } from "../../../lib/context";
 import { useApi } from "../../../lib/useApi";
 import { source_taskDbModel } from "../../../prisma/schema";
 import { z } from "zod";
-import { Button, Col, DatePicker, notification, Popconfirm, Row, Select, Space, Table, Tag } from "antd";
+import { Col, DatePicker, notification, Popconfirm, Row, Select, Space, Table, Tag } from "antd";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useQueryStringState } from "../../../lib/useQueryStringState";
 import { ColumnType } from "antd/es/table/interface";
@@ -16,8 +16,8 @@ import { useLinksQuery } from "../../../lib/queries";
 import { DestinationTitle } from "../destinations";
 import { arrayToMap } from "../../../lib/shared/arrays";
 import { ServiceTitle } from "../services";
-import { WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
-import { FileText } from "lucide-react";
+import { JitsuButton, WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
+import { ChevronLeft, FileText, RefreshCw } from "lucide-react";
 import { FaExternalLinkAlt, FaRegPlayCircle } from "react-icons/fa";
 import { useRouter } from "next/router";
 import { ExclamationCircleOutlined } from "@ant-design/icons";
@@ -200,6 +200,7 @@ export type TasksViewState = {
 
 function Tasks() {
   const workspace = useWorkspace();
+  const router = useRouter();
   const [api, contextHolder] = notification.useNotification();
 
   const defaultState: TasksViewState = {
@@ -396,15 +397,24 @@ function Tasks() {
           />
         </Col>
         <Col key={"actions"}>
-          <Button
-            type="primary"
-            ghost
-            onClick={e => {
+          <JitsuButton
+            icon={<RefreshCw className="w-6 h-6" />}
+            type="link"
+            size="small"
+            onClick={() => {
               setRefresh(refresh + 1);
             }}
           >
             Refresh
-          </Button>
+          </JitsuButton>
+          <JitsuButton
+            icon={<ChevronLeft className="w-6 h-6" />}
+            type="link"
+            size="small"
+            onClick={() => router.push(`/${workspace.slug || workspace.id}/syncs`)}
+          >
+            Back
+          </JitsuButton>
         </Col>
       </Row>
       {error ? (

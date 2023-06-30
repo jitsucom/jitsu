@@ -32,6 +32,19 @@ export default createRoute()
       authHeaders["Authorization"] = `Bearer ${syncAuthKey}`;
     }
     try {
+      const running = await db.prisma().source_task.findFirst({
+        where: {
+          sync_id: query.syncId as string,
+          status: "RUNNING",
+        },
+      });
+      if (running) {
+        return {
+          ok: false,
+          error: `Sync is already running`,
+        };
+      }
+
       const sync = await db.prisma().configurationObjectLink.findUnique({
         where: {
           id: query.syncId as string,
@@ -43,17 +56,23 @@ export default createRoute()
       if (!sync) {
         return {
           ok: false,
-          error: `syncId ${query.syncId} not found`,
+          error: `Sync ${query.syncId} not found`,
         };
       }
-      console.log("sync", sync);
       const service = sync.from;
       if (!service) {
         return {
           ok: false,
-          error: `service ${sync.from} not found`,
+          error: `Service ${sync.from} not found`,
         };
       }
+      //load state from db
+      const stateObj = await db.prisma().source_state.findUnique({
+        where: {
+          sync_id: query.syncId as string,
+        },
+      });
+
       const taskId = randomUUID();
       const res = await rpc(syncURL + "/read", {
         method: "POST",
@@ -70,6 +89,7 @@ export default createRoute()
         body: {
           config: JSON.parse((service.config as any).credentials),
           catalog: JSON.parse((sync.data as any).streams),
+          ...(stateObj ? { state: stateObj.state } : {}),
         },
       });
       if (!res.ok) {
@@ -84,7 +104,7 @@ export default createRoute()
       );
       return {
         ok: false,
-        error: `couldn't run sync due to internal server error. Please contact support. Error ID: ${errorId}`,
+        error: `Couldn't run sync due to internal server error. Please contact support. Error ID: ${errorId}`,
       };
     }
   })

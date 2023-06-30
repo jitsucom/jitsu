@@ -5,7 +5,7 @@ import { DestinationConfig, ServiceConfig } from "../../../lib/schema";
 import { ConfigurationObjectLinkDbModel } from "../../../prisma/schema";
 import { QueryResponse } from "../../../components/QueryResponse/QueryResponse";
 import { z } from "zod";
-import { Dropdown, MenuProps, Table, Tag } from "antd";
+import { Space, Table, Tag } from "antd";
 import { confirmOp, feedbackError, feedbackSuccess } from "../../../lib/ui";
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
@@ -26,7 +26,6 @@ import { Spinner } from "../../../components/GlobalLoader/GlobalLoader";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import relativeTime from "dayjs/plugin/relativeTime";
-import { WLink } from "../../../components/Workspace/WLink";
 import { ServiceTitle } from "../services";
 import { DestinationTitle } from "../destinations";
 import JSON5 from "json5";
@@ -183,7 +182,7 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
     },
     {
       title: <div className={"whitespace-nowrap"}>Sync Status</div>,
-      width: "5%",
+      width: "4%",
       render: (text, link) => {
         if (tasks.error) {
           return <div>error obtaining status</div>;
@@ -223,50 +222,49 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
       },
     },
     {
-      title: "",
+      title: <div className={"text-right"}>Actions</div>,
       render: (text, link) => {
-        const items: MenuProps["items"] = [
-          {
-            label: "Run Sync",
-            onClick: async () => {
-              await rpc(`/api/${workspace.id}/sources/run?syncId=${link.id}`);
-              router.push(
-                `/${workspace.slug || workspace.id}/syncs/tasks?query=${encodeURIComponent(
-                  JSON5.stringify({
-                    syncId: link.id,
-                    notification: "Sync Started",
-                  })
-                )}`
-              );
-            },
-            key: "run",
-            icon: <FaRegPlayCircle />,
-          },
-          {
-            label: <WLink href={`/syncs/tasks?query=${JSON5.stringify({ syncId: link.id })}`}>Sync Logs</WLink>,
-            key: "tasks",
-            icon: <FaThList />,
-          },
-          {
-            label: <WLink href={`/syncs/edit?id=${link.id}`}>Edit</WLink>,
-            key: "edit",
-            icon: <FiEdit2 />,
-          },
-          {
-            label: "Delete",
-            onClick: async () => {
-              deleteSync(link);
-            },
-            key: "delete",
-            icon: <FaTrash />,
-          },
-        ].filter(i => !!i);
+        const t = tasks?.data?.tasks?.[link.id];
         return (
-          <div className="flex items-center justify-end">
-            <Dropdown trigger={["click"]} menu={{ items }}>
-              <div className="text-lg px-3 hover:bg-splitBorder cursor-pointer rounded-full text-center">⋮</div>
-            </Dropdown>
-          </div>
+          <Space>
+            <JitsuButton
+              type={"primary"}
+              disabled={t?.status === "RUNNING"}
+              title={t?.status === "RUNNING" ? "Sync is already running" : undefined}
+              ghost={true}
+              icon={<FaRegPlayCircle />}
+              onClick={async () => {
+                const runStatus = await rpc(`/api/${workspace.id}/sources/run?syncId=${link.id}`);
+                if (runStatus?.error) {
+                  feedbackError(`Failed to run sync: ${runStatus.error}`);
+                } else {
+                  router.push(
+                    `/${workspace.slug || workspace.id}/syncs/tasks?query=${encodeURIComponent(
+                      JSON5.stringify({
+                        syncId: link.id,
+                        notification: "Sync Started",
+                      })
+                    )}`
+                  );
+                }
+              }}
+            >
+              Run
+            </JitsuButton>
+            <WJitsuButton icon={<FaThList />} href={`/syncs/tasks?query=${JSON5.stringify({ syncId: link.id })}`}>
+              Logs
+            </WJitsuButton>
+            <WJitsuButton icon={<FiEdit2 />} href={`/syncs/edit?id=${link.id}`}>
+              Edit
+            </WJitsuButton>
+            <JitsuButton
+              icon={<FaTrash />}
+              onClick={async () => {
+                deleteSync(link);
+              }}
+              danger
+            ></JitsuButton>
+          </Space>
         );
       },
     },
