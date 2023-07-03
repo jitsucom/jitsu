@@ -178,7 +178,7 @@ const api: Api = {
           .reduce((acc, [k, v]) => ({ ...acc, [k]: v }), {}),
         httpPayload: body,
       };
-      log.atWarn().log(`Sending to bulker: ${JSON.stringify(message, null, 2)}`);
+      log.atDebug().log(`Sending to bulker: ${JSON.stringify(message, null, 2)}`);
       const payload = JSON.stringify(message);
       // Options object
       const options = {
@@ -344,7 +344,7 @@ function httpRequest(
             .text()
             .then(json => {
               log
-                .atInfo()
+                .atDebug()
                 .log(
                   `ID: ${messageId} StatusCode: ${response.status} Response Body: ${json}  (Attempt ${attemptN} of ${retries._totalAttempts})`
                 );

@@ -9,7 +9,7 @@
 .editorItemRow .name {
   @apply py-4 pl-4 font-bold flex items-center;
   width: 18rem;
-  align-items: start;
+  align-items: flex-start;
   min-width: 18rem;
 }
 

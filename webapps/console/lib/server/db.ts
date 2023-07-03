@@ -169,7 +169,7 @@ export function createPrisma(): PrismaClient {
   // })
   prisma.$on("query", e => {
     log
-      .atInfo()
+      .atDebug()
       .log(
         `SQL executed ${queryCounter++}. Duration: ${e.duration}ms: ${e.query.replaceAll("\n", " ").trim()}${
           e.params !== "[]" ? " " + e.params : ""

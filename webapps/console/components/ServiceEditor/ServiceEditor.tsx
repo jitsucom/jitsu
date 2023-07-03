@@ -62,15 +62,17 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
       setLoadingSpecs(true);
       try {
         const firstRes = await rpc(`/api/${workspace.id}/sources/spec?package=${obj.package}&version=${obj.version}`);
-        if (firstRes.error) {
-          feedbackError(`Cannot load specs for ${obj.package}:${obj.version} error: ${firstRes.error}`);
-        } else if (firstRes.ok) {
+        if (firstRes.ok) {
           console.log("Loaded cached specs:", JSON.stringify(firstRes, null, 2));
           setSpecs(firstRes.specs);
           change("credentials", JSON.stringify(firstRes.fakeJson, null, 2));
         } else {
           for (let i = 0; i < 60; i++) {
             await new Promise(resolve => setTimeout(resolve, 2000));
+            console.log(
+              "Loading specs attempt",
+              `/api/${workspace.id}/sources/spec?package=${obj.package}&version=${obj.version}&after=${firstRes.startedAt}`
+            );
             const resp = await rpc(
               `/api/${workspace.id}/sources/spec?package=${obj.package}&version=${obj.version}&after=${firstRes.startedAt}`
             );

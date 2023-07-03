@@ -68,8 +68,8 @@ export default createRoute()
       let error;
       if (res.rowCount === 1) {
         const specs = res.rows[0].specs;
-        const fakeJson = await JSONSchemaFaker.resolve(specs.connectionSpecification);
         if (!error && specs) {
+          const fakeJson = await JSONSchemaFaker.resolve(specs.connectionSpecification);
           return {
             ok: true,
             specs,
