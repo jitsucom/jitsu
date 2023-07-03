@@ -27,7 +27,7 @@ const HJitsuButton: React.FC<JitsuButtonProps & Required<Pick<ButtonProps, "href
 
 function Button0(props: JitsuButtonProps) {
   return (
-    <Button {...omit(props, "href", "children", "icon", "iconPosition")}>
+    <Button {...omit(props, "href", "children", "icon", "iconPosition")} className={"pr-1"}>
       {props.icon ? (
         <ButtonLabel icon={props.icon} iconPosition={props.iconPosition} loading={!!props.loading}>
           {props.children}

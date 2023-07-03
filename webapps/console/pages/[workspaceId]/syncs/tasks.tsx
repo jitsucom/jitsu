@@ -105,9 +105,7 @@ function TasksTable({ tasks, loading, linksMap, servicesMap, destinationsMap }: 
                   <Tag color={"green"} style={{ marginRight: 0 }}>
                     SUCCESS
                   </Tag>
-                  <span className={"text-xxs text-gray-500"}>
-                    {processed_rows.toLocaleString("FR", { useGrouping: true })} rows
-                  </span>
+                  <span className={"text-xxs text-gray-500"}>{processed_rows.toLocaleString()} rows</span>
                 </Space>
               );
             } catch (e) {}

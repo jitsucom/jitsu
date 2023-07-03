@@ -324,7 +324,7 @@ const StreamsList: React.FC<{}> = () => {
       {
         icon: <Wrench className="w-full h-full" />,
         title: "Setup Instructions",
-        collapsed: true,
+        collapsed: false,
         action: stream => {
           router.replace({
             pathname: router.pathname,

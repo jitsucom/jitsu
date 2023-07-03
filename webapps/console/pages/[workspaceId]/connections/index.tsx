@@ -13,12 +13,11 @@ import { FaExternalLinkAlt, FaPlus, FaTrash } from "react-icons/fa";
 import { index } from "juava";
 import { getCoreDestinationType } from "../../../lib/schema/destinations";
 import { useRouter } from "next/router";
-import { FiEdit2 } from "react-icons/fi";
 import { useLinksQuery } from "../../../lib/queries";
 import { jsonSerializationBase64, useQueryStringState } from "../../../lib/useQueryStringState";
 import { TableProps } from "antd/es/table/InternalTable";
 import { ColumnType, SortOrder } from "antd/es/table/interface";
-import { Inbox } from "lucide-react";
+import { Edit3, Inbox } from "lucide-react";
 import { PlusOutlined } from "@ant-design/icons";
 import { JitsuButton, WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
 import { DestinationTitle } from "../destinations";
@@ -158,7 +157,7 @@ function ConnectionsTable({ links, streams, destinations, reloadCallback }: Remo
       render: (text, link) => {
         const items: ButtonProps[] = [
           {
-            icon: <FiEdit2 />,
+            icon: <Edit3 className={"w-4 h-4"} />,
             label: "Edit",
             href: `/connections/edit?id=${link.id}`,
           },

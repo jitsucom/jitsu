@@ -1,17 +1,18 @@
-import { Button, Dropdown, MenuProps } from "antd";
+import { Button, Dropdown, MenuProps, Tooltip } from "antd";
 import React from "react";
 import { JitsuButton, WJitsuButton } from "../JitsuButton/JitsuButton";
 import { BaseButtonProps } from "antd/lib/button/button";
 import styles from "./ButtonGroup.module.css";
 import { useRouter } from "next/router";
 import { useWorkspace } from "../../lib/context";
+import { MoreVertical } from "lucide-react";
 
 const AntButtonGroup = Button.Group;
 
-export type ButtonProps = Omit<BaseButtonProps, "children"> & {
+export type ButtonProps = Omit<BaseButtonProps, "children" | "type"> & {
   href?: string;
   label?: React.ReactNode;
-  hideLabel?: boolean;
+  showLabel?: boolean;
   collapsed?: boolean;
   title?: string;
   onClick?: () => void;
@@ -48,31 +49,24 @@ export const ButtonGroup: React.FC<ButtonGroupProps> = ({ items, collapseLast })
       {expandedItems.map((item, i) => {
         if (item.href) {
           return (
-            <WJitsuButton
-              {...item}
-              key={i}
-              href={item.href}
-              title={item.hideLabel && typeof item.label === "string" ? item.label : undefined}
-            >
-              {!item.hideLabel && item.label ? item.label : <></>}
-            </WJitsuButton>
+            <Tooltip title={!item.showLabel && typeof item.label === "string" ? item.label : undefined} key={i}>
+              <WJitsuButton {...item} key={i} href={item.href}>
+                {item.showLabel && item.label ? item.label : undefined}
+              </WJitsuButton>
+            </Tooltip>
           );
         }
         return (
-          <JitsuButton
-            {...item}
-            key={i}
-            title={item.hideLabel && typeof item.label === "string" ? item.label : undefined}
-          >
-            {!item.hideLabel && item.label ? item.label : <></>}
-          </JitsuButton>
+          <Tooltip title={!item.showLabel && typeof item.label === "string" ? item.label : undefined} key={i}>
+            <JitsuButton {...item} key={i}>
+              {item.showLabel && item.label ? item.label : undefined}
+            </JitsuButton>
+          </Tooltip>
         );
       })}
       {collapsedItems.length > 0 && (
         <Dropdown trigger={["click"]} menu={{ items: collapsedItems }}>
-          <Button className="text-lg font-bold p-0">
-            <b>⋮</b>
-          </Button>
+          <JitsuButton className="text-lg font-bold p-0" icon={<MoreVertical className={"w-4 h-4"} />} />
         </Dropdown>
       )}
     </AntButtonGroup>

@@ -30,12 +30,12 @@ import { useWorkspace } from "../../lib/context";
 import omitBy from "lodash/omitBy";
 import { GlobalLoader, LoadingAnimation } from "../GlobalLoader/GlobalLoader";
 import { WLink } from "../Workspace/WLink";
-import { DeleteOutlined, EditOutlined } from "@ant-design/icons";
+import { DeleteOutlined } from "@ant-design/icons";
 import { ErrorCard, GlobalError } from "../GlobalError/GlobalError";
 import { Action, confirmOp, doAction, feedbackError, feedbackSuccess, useTitle } from "../../lib/ui";
 import { branding } from "../../lib/branding";
 import { useAntdModal } from "../../lib/modal";
-import { Inbox } from "lucide-react";
+import { Edit3, Inbox } from "lucide-react";
 import { createDisplayName, prepareZodObjectForSerialization } from "../../lib/zod";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
 import { EditorTitle } from "./EditorTitle";
@@ -650,7 +650,7 @@ const ObjectsList: React.FC<{ objects: any[]; onDelete: (id: string) => Promise<
           {
             label: "Edit",
             href: `/${type}s?id=${record.id}`,
-            icon: <EditOutlined />,
+            icon: <Edit3 className={"w-4 h-4"} />,
           },
           ...actions.map(action => ({
             disabled: !!(action.disabled && action.disabled(record)),

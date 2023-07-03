@@ -9,16 +9,15 @@ import { Table, Tag } from "antd";
 import { confirmOp, feedbackError, feedbackSuccess } from "../../../lib/ui";
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { FaExternalLinkAlt, FaPlus, FaRegPlayCircle, FaThList, FaTrash } from "react-icons/fa";
+import { FaExternalLinkAlt, FaPlay, FaPlus, FaTrash } from "react-icons/fa";
 import { index, rpc } from "juava";
 import { getCoreDestinationType } from "../../../lib/schema/destinations";
 import { useRouter } from "next/router";
-import { FiEdit2 } from "react-icons/fi";
 import { useLinksQuery } from "../../../lib/queries";
 import { jsonSerializationBase64, useQueryStringState } from "../../../lib/useQueryStringState";
 import { TableProps } from "antd/es/table/InternalTable";
 import { ColumnType, SortOrder } from "antd/es/table/interface";
-import { Inbox } from "lucide-react";
+import { Edit3, Inbox, ListMinusIcon } from "lucide-react";
 import { PlusOutlined } from "@ant-design/icons";
 import { JitsuButton, WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
 import { ErrorCard } from "../../../components/GlobalError/GlobalError";
@@ -228,11 +227,9 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
         const t = tasks?.data?.tasks?.[link.id];
         const items: ButtonProps[] = [
           {
-            type: "primary",
             disabled: t?.status === "RUNNING",
             title: t?.status === "RUNNING" ? "Sync is already running" : undefined,
-            ghost: true,
-            icon: <FaRegPlayCircle />,
+            icon: <FaPlay />,
             onClick: async () => {
               const runStatus = await rpc(`/api/${workspace.id}/sources/run?syncId=${link.id}`);
               if (runStatus?.error) {
@@ -251,12 +248,12 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
             label: "Run",
           },
           {
-            icon: <FaThList />,
+            icon: <ListMinusIcon className={"w-5 h-5"} />,
             label: "Logs",
             href: `/syncs/tasks?query=${JSON5.stringify({ syncId: link.id })}`,
           },
           {
-            icon: <FiEdit2 />,
+            icon: <Edit3 className={"w-4 h-4"} />,
             label: "Edit",
             href: `/syncs/edit?id=${link.id}`,
           },
