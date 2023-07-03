@@ -3,7 +3,7 @@ import utc from "dayjs/plugin/utc";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { EventsLogRecord } from "../../lib/server/events-log";
 import { ColumnsType } from "antd/es/table";
-import { Alert, Button, Col, Collapse, DatePicker, Row, Select, Space, Spin, Table, Tag, Tooltip } from "antd";
+import { Alert, Col, Collapse, DatePicker, Row, Select, Space, Spin, Table, Tag, Tooltip } from "antd";
 import { TableWithDrawer } from "./TableWithDrawer";
 import { JSONView } from "./JSONView";
 import { useAppConfig, useWorkspace } from "../../lib/context";
@@ -18,6 +18,8 @@ import { getConfigApi, useEventsLogApi } from "../../lib/useApi";
 import { FunctionTitle } from "../../pages/[workspaceId]/functions";
 import { FunctionConfig } from "../../lib/schema";
 import { arrayToMap } from "../../lib/shared/arrays";
+import { RefreshCw } from "lucide-react";
+import { JitsuButton } from "../JitsuButton/JitsuButton";
 
 dayjs.extend(utc);
 dayjs.extend(relativeTime);
@@ -296,76 +298,81 @@ export const EventsBrowser = ({
   })();
   return (
     <>
-      <Row justify={"space-around"} wrap className={"pb-3.5"}>
-        <Col>
-          <span>{entityType == "stream" ? "Sites: " : "Connection: "}</span>
-          <Select
-            notFoundContent={
-              entityType === "stream" ? (
-                <div>Project doesn't have Sites</div>
-              ) : streamType === "functions" ? (
-                <div>Project doesn't have Connections using Functions</div>
-              ) : (
-                <div>Project doesn't have data warehouse Connections</div>
-              )
-            }
-            style={{ width: 300 }}
-            loading={entitiesLoading}
-            onChange={e => {
-              dispatch({ type: "events", value: [] });
-              dispatch({ type: "beforeId", value: "" });
-              patchQueryStringState("actorId", e);
-            }}
-            value={actorId}
-            options={entitiesSelectOptions}
-          />
+      <Row justify={"space-between"} wrap className={"pb-3.5"}>
+        <Col key={"left"}>
+          <Space size={"middle"}>
+            <div>
+              <span>{entityType == "stream" ? "Sites: " : "Connection: "}</span>
+              <Select
+                notFoundContent={
+                  entityType === "stream" ? (
+                    <div>Project doesn't have Sites</div>
+                  ) : streamType === "functions" ? (
+                    <div>Project doesn't have Connections using Functions</div>
+                  ) : (
+                    <div>Project doesn't have data warehouse Connections</div>
+                  )
+                }
+                style={{ width: 300 }}
+                loading={entitiesLoading}
+                onChange={e => {
+                  dispatch({ type: "events", value: [] });
+                  dispatch({ type: "beforeId", value: "" });
+                  patchQueryStringState("actorId", e);
+                }}
+                value={actorId}
+                options={entitiesSelectOptions}
+              />
+            </div>
+            <div>
+              <span>Statuses: </span>
+              <Select
+                style={{ width: 120 }}
+                value={eventType}
+                onChange={e => {
+                  dispatch({ type: "events", value: [] });
+                  dispatch({ type: "beforeId", value: "" });
+                  patchQueryStringState("eventType", e);
+                }}
+                options={[
+                  { value: "all", label: "All" },
+                  { value: "error", label: "Errors only" },
+                ]}
+              />
+            </div>
+            <div>
+              <span>Date range: </span>
+              <DatePicker.RangePicker
+                value={
+                  (dates ?? [null, null]).map(d => (d ? dayjs(d, "YYYY-MM-DD") : null)).slice(0, 2) as [
+                    Dayjs | null,
+                    Dayjs | null
+                  ]
+                }
+                disabledDate={d => false}
+                allowEmpty={[true, true]}
+                onChange={d => {
+                  if (d) {
+                    patchQueryStringState("dates", [
+                      d[0] ? d[0].format("YYYY-MM-DD") : null,
+                      d[1] ? d[1].format("YYYY-MM-DD") : null,
+                    ]);
+                  } else {
+                    patchQueryStringState("dates", [null, null]);
+                  }
+                  dispatch({ type: "events", value: [] });
+                  dispatch({ type: "beforeId", value: "" });
+                }}
+                // onOpenChange={onOpenChange}
+              />
+            </div>
+          </Space>
         </Col>
-        <Col>
-          <span>Statuses: </span>
-          <Select
-            style={{ width: 120 }}
-            value={eventType}
-            onChange={e => {
-              dispatch({ type: "events", value: [] });
-              dispatch({ type: "beforeId", value: "" });
-              patchQueryStringState("eventType", e);
-            }}
-            options={[
-              { value: "all", label: "All" },
-              { value: "error", label: "Errors only" },
-            ]}
-          />
-        </Col>
-        <Col>
-          <span>Date range: </span>
-          <DatePicker.RangePicker
-            value={
-              (dates ?? [null, null]).map(d => (d ? dayjs(d, "YYYY-MM-DD") : null)).slice(0, 2) as [
-                Dayjs | null,
-                Dayjs | null
-              ]
-            }
-            disabledDate={d => false}
-            allowEmpty={[true, true]}
-            onChange={d => {
-              if (d) {
-                patchQueryStringState("dates", [
-                  d[0] ? d[0].format("YYYY-MM-DD") : null,
-                  d[1] ? d[1].format("YYYY-MM-DD") : null,
-                ]);
-              } else {
-                patchQueryStringState("dates", [null, null]);
-              }
-              dispatch({ type: "events", value: [] });
-              dispatch({ type: "beforeId", value: "" });
-            }}
-            // onOpenChange={onOpenChange}
-          />
-        </Col>
-        <Col>
-          <Button
-            type="primary"
-            ghost
+        <Col key={"right"}>
+          <JitsuButton
+            icon={<RefreshCw className="w-6 h-6" />}
+            type="link"
+            size="small"
             onClick={e => {
               dispatch({ type: "events", value: [] });
               dispatch({ type: "beforeId", value: "" });
@@ -373,7 +380,7 @@ export const EventsBrowser = ({
             }}
           >
             Refresh
-          </Button>
+          </JitsuButton>
         </Col>
       </Row>
       {!error ? (

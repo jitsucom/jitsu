@@ -321,80 +321,84 @@ function Tasks() {
   return (
     <>
       {contextHolder}
-      <Row justify={"space-around"} wrap className={"pb-3.5"}>
-        <Col key={"syncs"}>
-          <span>Syncs: </span>
-          <Select
-            notFoundContent={<div>Project doesn't have configured Syncs</div>}
-            style={{ width: 300 }}
-            loading={linksLoading}
-            onChange={e => {
-              patchQueryStringState("syncId", e);
-            }}
-            value={state.syncId}
-            options={entitiesSelectOptions}
-          />
-        </Col>
-        <Col key={"statuses"}>
-          <span>Statuses: </span>
-          <Select
-            style={{ width: 120 }}
-            value={state.status}
-            onChange={e => {
-              patchQueryStringState("status", e);
-            }}
-            options={[
-              { value: "all", label: "All" },
-              {
-                value: "FAILED",
-                label: (
-                  <div>
-                    <Tag color={"red"}>FAILED</Tag>
-                  </div>
-                ),
-              },
-              {
-                value: "SUCCESS",
-                label: (
-                  <div>
-                    <Tag color={"green"}>SUCCESS</Tag>
-                  </div>
-                ),
-              },
-              {
-                value: "RUNNING",
-                label: (
-                  <div>
-                    <Tag color={"blue"}>RUNNING</Tag>
-                  </div>
-                ),
-              },
-            ]}
-          />
-        </Col>
-        <Col key={"dates"}>
-          <span>Date range: </span>
-          <DatePicker.RangePicker
-            value={
-              (state.dates ?? [null, null]).map(d => (d ? dayjs(d, "YYYY-MM-DD") : null)).slice(0, 2) as [
-                Dayjs | null,
-                Dayjs | null
-              ]
-            }
-            allowEmpty={[true, true]}
-            onChange={d => {
-              if (d) {
-                const dates = [d[0] ? d[0].format("YYYY-MM-DD") : null, d[1] ? d[1].format("YYYY-MM-DD") : null];
-                if (dates[0] === null && dates[1] === null) {
-                  patchQueryStringState("dates", null);
-                } else {
-                  patchQueryStringState("dates", dates);
+      <Row justify={"space-between"} wrap className={"pb-3.5"}>
+        <Col key={"left"}>
+          <Space size={"middle"}>
+            <div>
+              <span>Syncs: </span>
+              <Select
+                notFoundContent={<div>Project doesn't have configured Syncs</div>}
+                style={{ width: 300 }}
+                loading={linksLoading}
+                onChange={e => {
+                  patchQueryStringState("syncId", e);
+                }}
+                value={state.syncId}
+                options={entitiesSelectOptions}
+              />
+            </div>
+            <div>
+              <span>Statuses: </span>
+              <Select
+                style={{ width: 120 }}
+                value={state.status}
+                onChange={e => {
+                  patchQueryStringState("status", e);
+                }}
+                options={[
+                  { value: "all", label: "All" },
+                  {
+                    value: "FAILED",
+                    label: (
+                      <div>
+                        <Tag color={"red"}>FAILED</Tag>
+                      </div>
+                    ),
+                  },
+                  {
+                    value: "SUCCESS",
+                    label: (
+                      <div>
+                        <Tag color={"green"}>SUCCESS</Tag>
+                      </div>
+                    ),
+                  },
+                  {
+                    value: "RUNNING",
+                    label: (
+                      <div>
+                        <Tag color={"blue"}>RUNNING</Tag>
+                      </div>
+                    ),
+                  },
+                ]}
+              />
+            </div>
+            <div>
+              <span>Date range: </span>
+              <DatePicker.RangePicker
+                value={
+                  (state.dates ?? [null, null]).map(d => (d ? dayjs(d, "YYYY-MM-DD") : null)).slice(0, 2) as [
+                    Dayjs | null,
+                    Dayjs | null
+                  ]
                 }
-              } else {
-                patchQueryStringState("dates", null);
-              }
-            }}
-          />
+                allowEmpty={[true, true]}
+                onChange={d => {
+                  if (d) {
+                    const dates = [d[0] ? d[0].format("YYYY-MM-DD") : null, d[1] ? d[1].format("YYYY-MM-DD") : null];
+                    if (dates[0] === null && dates[1] === null) {
+                      patchQueryStringState("dates", null);
+                    } else {
+                      patchQueryStringState("dates", dates);
+                    }
+                  } else {
+                    patchQueryStringState("dates", null);
+                  }
+                }}
+              />
+            </div>
+          </Space>
         </Col>
         <Col key={"actions"}>
           <JitsuButton

@@ -570,18 +570,18 @@ const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
   log.atInfo().log("extraFields", extraFields);
   const config: ConfigEditorProps<DestinationConfig> = {
     actions: [
-      {
-        title: "Run SQL query editor",
-        collapsed: true,
-        icon: <TerminalSquare className="h-4 w-4" />,
-        key: "sql",
-        link: (d: DestinationConfig) => `/sql?destinationId=${d.id}`,
-        disabled: (d: DestinationConfig) => {
-          return d.provisioned || (d.destinationType === "clickhouse" && d.protocol === "https")
-            ? false
-            : "Jitsu can query either provisioned ClickHouse, or ClickHouse connected via HTTPS protocol";
-        },
-      },
+      // {
+      //   title: "Run SQL query editor",
+      //   collapsed: true,
+      //   icon: <TerminalSquare className="h-4 w-4" />,
+      //   key: "sql",
+      //   link: (d: DestinationConfig) => `/sql?destinationId=${d.id}`,
+      //   disabled: (d: DestinationConfig) => {
+      //     return d.provisioned || (d.destinationType === "clickhouse" && d.protocol === "https")
+      //       ? false
+      //       : "Jitsu can query either provisioned ClickHouse, or ClickHouse connected via HTTPS protocol";
+      //   },
+      // },
     ],
     filter: (obj: DestinationConfig) => !obj.provisioned,
     listColumns: [
