@@ -572,6 +572,7 @@ const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
     actions: [
       {
         title: "Run SQL query editor",
+        collapsed: true,
         icon: <TerminalSquare className="h-4 w-4" />,
         key: "sql",
         link: (d: DestinationConfig) => `/sql?destinationId=${d.id}`,

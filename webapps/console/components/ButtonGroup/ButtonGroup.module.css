@@ -1,0 +1,3 @@
+.buttonGroup > :global(.ant-btn) {
+  margin-inline-start: 0 !important;
+}

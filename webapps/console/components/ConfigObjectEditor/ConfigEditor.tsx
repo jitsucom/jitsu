@@ -1,5 +1,5 @@
 import React, { createContext, PropsWithChildren, ReactNode, useContext, useEffect, useState } from "react";
-import { Button, Col, Dropdown, Form as AntdForm, Input, MenuProps, Row, Skeleton, Switch, Table } from "antd";
+import { Button, Col, Form as AntdForm, Input, Row, Skeleton, Switch, Table } from "antd";
 import { FaCaretDown, FaCaretRight, FaClone, FaPlus } from "react-icons/fa";
 import { ZodType } from "zod";
 import { getConfigApi, useApi } from "../../lib/useApi";
@@ -42,6 +42,7 @@ import { EditorTitle } from "./EditorTitle";
 import { EditorBase } from "./EditorBase";
 import { EditorField } from "./EditorField";
 import { EditorButtons } from "./EditorButtons";
+import { ButtonGroup, ButtonProps } from "../ButtonGroup/ButtonGroup";
 
 const log = getLog("ConfigEditor");
 
@@ -78,6 +79,8 @@ export type ConfigEditorProps<T extends { id: string } = { id: string }, M = {}>
   actions?: {
     title: ReactNode;
     icon?: ReactNode;
+    hideLabel?: boolean;
+    collapsed?: boolean;
     key?: string;
     action?: (o: T) => void;
     link?: (o: T) => string;
@@ -641,52 +644,40 @@ const ObjectsList: React.FC<{ objects: any[]; onDelete: (id: string) => Promise<
     })),
     {
       title: "",
+      className: "text-right",
       render: (text, record) => {
-        const items: MenuProps["items"] = [
+        const items: ButtonProps[] = [
           {
-            label: <WLink href={`/${type}s?id=${record.id}`}>Edit</WLink>,
-            key: "edit",
+            label: "Edit",
+            href: `/${type}s?id=${record.id}`,
             icon: <EditOutlined />,
-          },
-          {
-            label: <WLink href={`/${type}s?id=new&clone=${record.id}`}>Clone</WLink>,
-            key: "clone",
-            icon: <FaClone />,
-          },
-          {
-            label: <a onClick={() => deleteObject(record.id)}>Delete</a>,
-            key: "del",
-            icon: <DeleteOutlined />,
           },
           ...actions.map(action => ({
             disabled: !!(action.disabled && action.disabled(record)),
-            label: action.link ? (
-              <WLink href={action.link(record)}>{action.title}</WLink>
-            ) : (
-              <a
-                onClick={
-                  action.action
-                    ? () => {
-                        (action.action as any)(record);
-                      }
-                    : undefined
+            href: action.link ? action.link(record) : undefined,
+            label: action.title,
+            hideLabel: action.hideLabel,
+            collapsed: action.collapsed,
+            onClick: action.action
+              ? () => {
+                  (action.action as any)(record);
                 }
-              >
-                {action.title}
-              </a>
-            ),
-            key:
-              (typeof action.title === "string" ? action.title : action.link ? action.link(record) : action.key) ?? "",
+              : undefined,
             icon: <div className="w-4 h-4">{action.icon}</div>,
           })),
+          {
+            label: "Clone",
+            href: `/${type}s?id=new&clone=${record.id}`,
+            icon: <FaClone />,
+          },
+          {
+            label: "Delete",
+            danger: true,
+            onClick: () => deleteObject(record.id),
+            icon: <DeleteOutlined />,
+          },
         ].filter(i => !!i);
-        return (
-          <div className="flex items-center justify-end">
-            <Dropdown trigger={["click"]} menu={{ items }}>
-              <div className="text-lg px-3 hover:bg-splitBorder cursor-pointer rounded-full text-center">⋮</div>
-            </Dropdown>
-          </div>
-        );
+        return <ButtonGroup collapseLast={2} items={items} />;
       },
     },
   ];

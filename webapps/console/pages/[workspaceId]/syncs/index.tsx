@@ -5,7 +5,7 @@ import { DestinationConfig, ServiceConfig } from "../../../lib/schema";
 import { ConfigurationObjectLinkDbModel } from "../../../prisma/schema";
 import { QueryResponse } from "../../../components/QueryResponse/QueryResponse";
 import { z } from "zod";
-import { Space, Table, Tag } from "antd";
+import { Table, Tag } from "antd";
 import { confirmOp, feedbackError, feedbackSuccess } from "../../../lib/ui";
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
@@ -29,6 +29,7 @@ import relativeTime from "dayjs/plugin/relativeTime";
 import { ServiceTitle } from "../services";
 import { DestinationTitle } from "../destinations";
 import JSON5 from "json5";
+import { ButtonGroup, ButtonProps } from "../../../components/ButtonGroup/ButtonGroup";
 dayjs.extend(utc);
 dayjs.extend(relativeTime);
 
@@ -225,47 +226,50 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
       title: <div className={"text-right"}>Actions</div>,
       render: (text, link) => {
         const t = tasks?.data?.tasks?.[link.id];
-        return (
-          <Space>
-            <JitsuButton
-              type={"primary"}
-              disabled={t?.status === "RUNNING"}
-              title={t?.status === "RUNNING" ? "Sync is already running" : undefined}
-              ghost={true}
-              icon={<FaRegPlayCircle />}
-              onClick={async () => {
-                const runStatus = await rpc(`/api/${workspace.id}/sources/run?syncId=${link.id}`);
-                if (runStatus?.error) {
-                  feedbackError(`Failed to run sync: ${runStatus.error}`);
-                } else {
-                  router.push(
-                    `/${workspace.slug || workspace.id}/syncs/tasks?query=${encodeURIComponent(
-                      JSON5.stringify({
-                        syncId: link.id,
-                        notification: "Sync Started",
-                      })
-                    )}`
-                  );
-                }
-              }}
-            >
-              Run
-            </JitsuButton>
-            <WJitsuButton icon={<FaThList />} href={`/syncs/tasks?query=${JSON5.stringify({ syncId: link.id })}`}>
-              Logs
-            </WJitsuButton>
-            <WJitsuButton icon={<FiEdit2 />} href={`/syncs/edit?id=${link.id}`}>
-              Edit
-            </WJitsuButton>
-            <JitsuButton
-              icon={<FaTrash />}
-              onClick={async () => {
-                deleteSync(link);
-              }}
-              danger
-            ></JitsuButton>
-          </Space>
-        );
+        const items: ButtonProps[] = [
+          {
+            type: "primary",
+            disabled: t?.status === "RUNNING",
+            title: t?.status === "RUNNING" ? "Sync is already running" : undefined,
+            ghost: true,
+            icon: <FaRegPlayCircle />,
+            onClick: async () => {
+              const runStatus = await rpc(`/api/${workspace.id}/sources/run?syncId=${link.id}`);
+              if (runStatus?.error) {
+                feedbackError(`Failed to run sync: ${runStatus.error}`);
+              } else {
+                router.push(
+                  `/${workspace.slug || workspace.id}/syncs/tasks?query=${encodeURIComponent(
+                    JSON5.stringify({
+                      syncId: link.id,
+                      notification: "Sync Started",
+                    })
+                  )}`
+                );
+              }
+            },
+            label: "Run",
+          },
+          {
+            icon: <FaThList />,
+            label: "Logs",
+            href: `/syncs/tasks?query=${JSON5.stringify({ syncId: link.id })}`,
+          },
+          {
+            icon: <FiEdit2 />,
+            label: "Edit",
+            href: `/syncs/edit?id=${link.id}`,
+          },
+          {
+            icon: <FaTrash />,
+            onClick: async () => {
+              deleteSync(link);
+            },
+            danger: true,
+            label: "Delete",
+          },
+        ];
+        return <ButtonGroup collapseLast={2} items={items} />;
       },
     },
   ];

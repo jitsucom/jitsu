@@ -101,7 +101,7 @@ function TasksTable({ tasks, loading, linksMap, servicesMap, destinationsMap }: 
                 processed_rows += des[key];
               }
               return (
-                <Space direction={"vertical"} size={0}>
+                <Space direction={"vertical"} className={"text-right"} size={0}>
                   <Tag color={"green"} style={{ marginRight: 0 }}>
                     SUCCESS
                   </Tag>
@@ -133,7 +133,7 @@ function TasksTable({ tasks, loading, linksMap, servicesMap, destinationsMap }: 
                 showCancel={false}
               >
                 <button className={"outline-0"}>
-                  <Space direction={"vertical"} size={0} className={"cursor-pointer"}>
+                  <Space direction={"vertical"} size={0} className={"cursor-pointer text-right"}>
                     <Tag color={"red"} style={{ marginRight: 0 }}>
                       FAILED <FaExternalLinkAlt className={"inline ml-0.5 w-2.5 h-2.5"} />
                     </Tag>

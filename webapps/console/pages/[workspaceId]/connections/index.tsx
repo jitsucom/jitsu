@@ -22,6 +22,7 @@ import { Inbox } from "lucide-react";
 import { PlusOutlined } from "@ant-design/icons";
 import { JitsuButton, WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
 import { DestinationTitle } from "../destinations";
+import { ButtonGroup, ButtonProps } from "../../../components/ButtonGroup/ButtonGroup";
 
 function EmptyLinks() {
   const workspace = useWorkspace();
@@ -154,19 +155,24 @@ function ConnectionsTable({ links, streams, destinations, reloadCallback }: Remo
     },
     {
       title: "Actions",
-      render: (text, link) => (
-        <div className="flex justify-end items-center">
-          <WJitsuButton href={`/connections/edit?id=${link.id}`} type="text" size="large" icon={<FiEdit2 />} />
-          <JitsuButton
-            type="text"
-            size="large"
-            icon={<FaTrash />}
-            onClick={() => {
+      render: (text, link) => {
+        const items: ButtonProps[] = [
+          {
+            icon: <FiEdit2 />,
+            label: "Edit",
+            href: `/connections/edit?id=${link.id}`,
+          },
+          {
+            icon: <FaTrash />,
+            onClick: async () => {
               deleteConnection(link);
-            }}
-          />
-        </div>
-      ),
+            },
+            danger: true,
+            label: "Delete",
+          },
+        ];
+        return <ButtonGroup collapseLast={1} items={items} />;
+      },
     },
   ];
   return (

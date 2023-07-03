@@ -1,11 +1,11 @@
 import type { ButtonProps } from "antd/es/button/button";
-import Link from "next/link";
 import { Button } from "antd";
 import omit from "lodash/omit";
 
 import React from "react";
-import { WLink } from "../Workspace/WLink";
 import { ButtonLabel } from "../ButtonLabel/ButtonLabel";
+import { useRouter } from "next/router";
+import { useWorkspace } from "../../lib/context";
 
 export type JitsuButtonProps = ButtonProps & {
   iconPosition?: "left" | "right";
@@ -14,11 +14,15 @@ export type JitsuButtonProps = ButtonProps & {
 };
 
 export const WJitsuButton: React.FC<JitsuButtonProps & Required<Pick<ButtonProps, "href">>> = p => {
-  return (
-    <WLink href={p.href}>
-      <Button0 {...p} />
-    </WLink>
-  );
+  const workspace = useWorkspace();
+  const router = useRouter();
+  return <Button0 {...p} onClick={() => router.push(`/${workspace.slug || workspace.id}${p.href}`)} />;
+};
+
+//href button
+const HJitsuButton: React.FC<JitsuButtonProps & Required<Pick<ButtonProps, "href">>> = p => {
+  const router = useRouter();
+  return <Button0 {...p} onClick={() => router.push(p.href)} />;
 };
 
 function Button0(props: JitsuButtonProps) {
@@ -42,9 +46,5 @@ export const JitsuButton: React.FC<JitsuButtonProps> = p => {
   if (p.ws) {
     return <WJitsuButton {...p} href={p.href} />;
   }
-  return (
-    <Link href={p.href} target={p.target}>
-      <Button0 {...p} />
-    </Link>
-  );
+  return <HJitsuButton {...p} href={p.href} />;
 };
