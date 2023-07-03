@@ -5,6 +5,7 @@ import { Modal } from "antd";
 import { upgradeRequired } from "./copy";
 import { AlertTriangle, ArrowRight } from "lucide-react";
 import { WJitsuButton } from "../JitsuButton/JitsuButton";
+import { useWorkspace } from "../../lib/context";
 
 const log = getLog("billing");
 
@@ -57,7 +58,13 @@ function LoadAndBlockIfNeed() {
 
 export const BillingBlockingDialog = () => {
   const billing = useBilling();
-  if (!billing.enabled || billing.loading || billing.settings.planId !== "free") {
+  const workspace = useWorkspace();
+  if (
+    !billing.enabled ||
+    billing.loading ||
+    billing.settings.planId !== "free" ||
+    workspace.featuresEnabled.includes("noblock")
+  ) {
     return <></>;
   } else {
     return <LoadAndBlockIfNeed />;

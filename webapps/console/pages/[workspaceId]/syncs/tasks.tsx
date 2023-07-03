@@ -105,7 +105,9 @@ function TasksTable({ tasks, loading, linksMap, servicesMap, destinationsMap }: 
                   <Tag color={"green"} style={{ marginRight: 0 }}>
                     SUCCESS
                   </Tag>
-                  <span className={"text-xxs text-gray-500"}>{processed_rows} rows</span>
+                  <span className={"text-xxs text-gray-500"}>
+                    {processed_rows.toLocaleString("FR", { useGrouping: true })} rows
+                  </span>
                 </Space>
               );
             } catch (e) {}
@@ -130,12 +132,12 @@ function TasksTable({ tasks, loading, linksMap, servicesMap, destinationsMap }: 
                 icon={<ExclamationCircleOutlined style={{ color: "red" }} />}
                 showCancel={false}
               >
-                <button>
+                <button className={"outline-0"}>
                   <Space direction={"vertical"} size={0} className={"cursor-pointer"}>
                     <Tag color={"red"} style={{ marginRight: 0 }}>
-                      FAILED
+                      FAILED <FaExternalLinkAlt className={"inline ml-0.5 w-2.5 h-2.5"} />
                     </Tag>
-                    <span className={"text-xxs text-gray-500"}>Show error</span>
+                    <span className={"text-xxs text-gray-500"}>show error</span>
                   </Space>
                 </button>
               </Popconfirm>
