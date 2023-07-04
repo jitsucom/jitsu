@@ -204,7 +204,7 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
                     {nangoError ? (
                       <span className={"text-red-600"}>OAuth2 error: ${nangoError}</span>
                     ) : obj?.authorized ? (
-                      ""
+                      "Authorized."
                     ) : (
                       `Click "Authorize" to open OAuth2.0 authorization popup`
                     )}

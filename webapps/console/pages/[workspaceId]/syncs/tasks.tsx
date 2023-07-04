@@ -3,7 +3,7 @@ import { useWorkspace } from "../../../lib/context";
 import { useApi } from "../../../lib/useApi";
 import { source_taskDbModel } from "../../../prisma/schema";
 import { z } from "zod";
-import { Col, DatePicker, notification, Popconfirm, Row, Select, Space, Table, Tag } from "antd";
+import { DatePicker, notification, Popconfirm, Select, Space, Table, Tag } from "antd";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useQueryStringState } from "../../../lib/useQueryStringState";
 import { ColumnType } from "antd/es/table/interface";
@@ -321,9 +321,9 @@ function Tasks() {
   return (
     <>
       {contextHolder}
-      <Row justify={"space-between"} wrap className={"pb-3.5"}>
-        <Col key={"left"}>
-          <Space size={"middle"}>
+      <div className={"flex flex-row justify-between pb-3.5"}>
+        <div key={"left"}>
+          <div className={"flex flex-row gap-4"}>
             <div>
               <span>Syncs: </span>
               <Select
@@ -398,9 +398,9 @@ function Tasks() {
                 }}
               />
             </div>
-          </Space>
-        </Col>
-        <Col key={"actions"}>
+          </div>
+        </div>
+        <div key={"actions"}>
           <JitsuButton
             icon={<RefreshCw className="w-6 h-6" />}
             type="link"
@@ -419,8 +419,8 @@ function Tasks() {
           >
             Back
           </JitsuButton>
-        </Col>
-      </Row>
+        </div>
+      </div>
       {error ? (
         <ErrorCard error={error}></ErrorCard>
       ) : (

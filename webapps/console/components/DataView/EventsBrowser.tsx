@@ -3,7 +3,7 @@ import utc from "dayjs/plugin/utc";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { EventsLogRecord } from "../../lib/server/events-log";
 import { ColumnsType } from "antd/es/table";
-import { Alert, Col, Collapse, DatePicker, Row, Select, Space, Spin, Table, Tag, Tooltip } from "antd";
+import { Alert, Collapse, DatePicker, Select, Space, Spin, Table, Tag, Tooltip } from "antd";
 import { TableWithDrawer } from "./TableWithDrawer";
 import { JSONView } from "./JSONView";
 import { useAppConfig, useWorkspace } from "../../lib/context";
@@ -298,9 +298,9 @@ export const EventsBrowser = ({
   })();
   return (
     <>
-      <Row justify={"space-between"} wrap className={"pb-3.5"}>
-        <Col key={"left"}>
-          <Space size={"middle"}>
+      <div className={"flex flex-row justify-between pb-3.5"}>
+        <div key={"left"}>
+          <div className={"flex flex-row gap-4"}>
             <div>
               <span>{entityType == "stream" ? "Sites: " : "Connection: "}</span>
               <Select
@@ -366,9 +366,9 @@ export const EventsBrowser = ({
                 // onOpenChange={onOpenChange}
               />
             </div>
-          </Space>
-        </Col>
-        <Col key={"right"}>
+          </div>
+        </div>
+        <div key={"right"}>
           <JitsuButton
             icon={<RefreshCw className="w-6 h-6" />}
             type="link"
@@ -381,8 +381,8 @@ export const EventsBrowser = ({
           >
             Refresh
           </JitsuButton>
-        </Col>
-      </Row>
+        </div>
+      </div>
       {!error ? (
         <TableElement
           loading={eventsLoading || entitiesLoading}
