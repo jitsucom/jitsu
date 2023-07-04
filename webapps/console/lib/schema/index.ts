@@ -128,6 +128,7 @@ export const ServiceConfig = ConfigEntityBase.merge(
   z.object({
     name: z.string().min(5),
     protocol: z.enum(["airbyte"]).default("airbyte"),
+    authorized: z.boolean().optional(),
     package: z.string(),
     version: z.string(),
     credentials: z.string(),

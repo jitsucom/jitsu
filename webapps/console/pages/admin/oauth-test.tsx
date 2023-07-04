@@ -80,7 +80,9 @@ const CatalogView: React.FC<{ connectors: OauthService[]; appConfig: AppConfig }
               setRetrieving(true);
               try {
                 const result = await rpc(
-                  `/api/oauth/${retrievedForService}` + (integrationId ? `?integrationId=${integrationId}` : "")
+                  `/api/oauth/service?serviceId=${retrievedForService}` +
+                    (integrationId ? `&integrationId=${integrationId}` : ""),
+                  { method: "POST" }
                 );
                 setCredentials(result);
                 setRetrievingError(undefined);

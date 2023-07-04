@@ -1,6 +1,6 @@
 import { EditorComponentProps } from "../ConfigObjectEditor/ConfigEditor";
 import React, { useCallback, useEffect, useState } from "react";
-import { getLog, rpc } from "juava";
+import { getErrorMessage, getLog, rpc } from "juava";
 import { EditorTitle } from "../ConfigObjectEditor/EditorTitle";
 import { EditorBase } from "../ConfigObjectEditor/EditorBase";
 import { LoadingAnimation } from "../GlobalLoader/GlobalLoader";
@@ -8,12 +8,15 @@ import { EditorField } from "../ConfigObjectEditor/EditorField";
 import { TextEditor } from "../ConnectionEditorPage/ConnectionEditorPage";
 import { ServiceConfig } from "../../lib/schema";
 import { Button, Select } from "antd";
-import { SnippedEditor } from "../CodeEditor/SnippedEditor";
 import { EditorButtons } from "../ConfigObjectEditor/EditorButtons";
 import { getConfigApi } from "../../lib/useApi";
 import { feedbackError } from "../../lib/ui";
-import { useWorkspace } from "../../lib/context";
+import { useAppConfig, useWorkspace } from "../../lib/context";
 import { useRouter } from "next/router";
+import { JitsuButton } from "../JitsuButton/JitsuButton";
+import Nango from "@nangohq/frontend";
+import { oauthDecorators } from "../../lib/server/oauth/services";
+import { CodeEditor } from "../CodeEditor/CodeEditor";
 
 const log = getLog("ServiceEditor");
 
@@ -30,6 +33,7 @@ const VersionSelector: React.FC<{ versions: string[]; onChange: (v: string) => v
 
 export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
   const { object, meta, createNew, onCancel, onDelete, onTest, isNew, noun, loadMeta } = props;
+  const appConfig = useAppConfig();
   const workspace = useWorkspace();
   const { push } = useRouter();
   const [obj, setObj] = useState<Partial<ServiceConfig>>({
@@ -38,9 +42,13 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
   const [formState, setFormState] = useState<any | undefined>(undefined);
   const isTouched = formState !== undefined || !!createNew;
   const [loading, setLoading] = useState<boolean>(false);
+  const [nangoLoading, setNangoLoading] = useState<boolean>(false);
+  const [nangoError, setNangoError] = useState<string | undefined>(undefined);
   const [credUserProvided, setCredUserProvided] = useState(!!obj.credentials && obj.credentials !== "{}");
   const [loadingSpecs, setLoadingSpecs] = useState<boolean>(false);
   const [specs, setSpecs] = useState<any>(undefined);
+
+  const oauthConnector = oauthDecorators.find(d => d.packageId === obj.package);
 
   const change = useCallback(
     (key: string, value: any) => {
@@ -150,29 +158,85 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
           {loadingSpecs ? (
             <LoadingAnimation className={"h-52"} title={"Loading connector specifications..."} />
           ) : (
-            <div className={"relative"}>
-              <div className={"absolute top-2 right-2 z-50"}>
-                <Button
-                  type={"primary"}
-                  ghost={true}
-                  size={"small"}
-                  onClick={() => {
-                    setSpecs(undefined);
-                    setCredUserProvided(false);
-                  }}
-                >
-                  Generate example
-                </Button>
+            <div>
+              {oauthConnector && (
+                <div className={"flex flex-row items-end gap-3 mb-2"}>
+                  <div>
+                    <JitsuButton
+                      type={"primary"}
+                      ghost={true}
+                      loading={nangoLoading}
+                      onClick={() => {
+                        const nango = new Nango({ publicKey: appConfig.nango!.publicKey, host: appConfig.nango!.host });
+                        setNangoLoading(true);
+                        nango
+                          .auth(oauthConnector.nangoIntegrationId ?? "", `sync-source.${obj?.id}`)
+                          .then(result => {
+                            const strippedSchema = JSON.stringify(
+                              oauthConnector.stripSchema(JSON.parse(obj?.credentials ?? "{}")),
+                              null,
+                              4
+                            );
+                            setObj({ ...obj, credentials: strippedSchema, authorized: true });
+                            setNangoError(undefined);
+                          })
+                          .catch(err => {
+                            setNangoError(getErrorMessage(err));
+                            getLog().atError().log("Failed to add oauth connection", err);
+                            change.bind(null, "authorized")(false);
+                          })
+                          .finally(() => setNangoLoading(false));
+                      }}
+                      icon={
+                        <img
+                          className={"w-4 h-4"}
+                          alt={obj?.package}
+                          src={`/api/sources/logo?type=${obj?.protocol}&package=${encodeURIComponent(
+                            obj?.package ?? ""
+                          )}`}
+                        />
+                      }
+                    >
+                      {obj?.authorized ? "Re-Sign In" : "Authorize"}
+                    </JitsuButton>
+                  </div>
+                  <span>
+                    {nangoError ? (
+                      <span className={"text-red-600"}>OAuth2 error: ${nangoError}</span>
+                    ) : obj?.authorized ? (
+                      ""
+                    ) : (
+                      `Click "Authorize" to open OAuth2.0 authorization popup`
+                    )}
+                  </span>
+                </div>
+              )}
+              <div className={"relative"}>
+                <div className={"absolute top-2 right-2 z-50"}>
+                  <Button
+                    type={"primary"}
+                    ghost={true}
+                    size={"small"}
+                    onClick={() => {
+                      setSpecs(undefined);
+                      setCredUserProvided(false);
+                    }}
+                  >
+                    Generate example
+                  </Button>
+                </div>
+                <div className={`border border-textDisabled`}>
+                  <CodeEditor
+                    value={obj.credentials ?? "{}"}
+                    onChange={v => {
+                      change.bind(null, "credentials")(v);
+                      setCredUserProvided(true);
+                    }}
+                    language={"json"}
+                    height={"206px"}
+                  />
+                </div>
               </div>
-              <SnippedEditor
-                value={obj.credentials ?? "{}"}
-                onChange={v => {
-                  change.bind(null, "credentials")(v);
-                  setCredUserProvided(true);
-                }}
-                languages={["json"]}
-                height={206}
-              />
             </div>
           )}
         </EditorField>

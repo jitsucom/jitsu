@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createRoute, verifyAccess } from "../../../../lib/api";
 import { ServiceConfig } from "../../../../lib/schema";
 import { randomId, requireDefined, rpc } from "juava";
+import { tryManageOauthCreds } from "../../../../lib/server/oauth/services";
 
 const resultType = z.object({
   ok: z.boolean(),
@@ -31,7 +32,7 @@ export default createRoute()
     body: ServiceConfig,
     result: resultType,
   })
-  .handler(async ({ user, query, body }) => {
+  .handler(async ({ user, query, body, req }) => {
     const { workspaceId } = query;
     await verifyAccess(user, workspaceId);
 
@@ -55,7 +56,7 @@ export default createRoute()
       const checkRes = await rpc(syncURL + "/discover", {
         method: "POST",
         body: {
-          config: JSON.parse(body.credentials),
+          config: await tryManageOauthCreds(body as ServiceConfig, req),
         },
         headers: {
           "Content-Type": "application/json",
