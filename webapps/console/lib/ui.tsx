@@ -6,6 +6,7 @@ import { ErrorDetails } from "../components/GlobalError/GlobalError";
 import { getAntdModal } from "./modal";
 
 import * as _useTitle from "react-use/lib/useTitle";
+import { NotificationPlacement } from "antd/es/notification/interface";
 
 export type KeyboardKey = "Escape" | "Enter";
 
@@ -113,10 +114,10 @@ export function feedbackSuccess(message: ReactNode) {
   });
 }
 
-export function feedbackError(message: ReactNode, opts?: { error?: any }) {
+export function feedbackError(message: ReactNode, opts?: { error?: any; placement?: NotificationPlacement }) {
   notification.error({
     message: message,
-    placement: "bottomRight",
+    placement: opts?.placement || "bottomRight",
     description: opts?.error ? (
       <>
         <div

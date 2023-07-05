@@ -1,26 +1,14 @@
 import { WorkspacePageLayout } from "../../../components/PageLayout/WorkspacePageLayout";
 import { useWorkspace } from "../../../lib/context";
-import React, { useEffect, useState } from "react";
-import { useApi } from "../../../lib/useApi";
+import React, { ReactNode, useEffect, useState } from "react";
 import { useRouter } from "next/router";
-import { LoadingAnimation } from "../../../components/GlobalLoader/GlobalLoader";
-import { ErrorCard } from "../../../components/GlobalError/GlobalError";
 import { JitsuButton } from "../../../components/JitsuButton/JitsuButton";
 import { ChevronLeft, FileDown, RefreshCw } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { LoadingAnimation } from "../../../components/GlobalLoader/GlobalLoader";
 
-function TaskLogs() {
-  const router = useRouter();
-  const workspace = useWorkspace();
-  const divRef = React.useRef<HTMLDivElement>(null);
-
-  const [refresh, setRefresh] = useState(0);
-
-  let logsUrl = `/api/${workspace.id}/sources/logs?syncId=${router.query.syncId}&taskId=${router.query.taskId}&refresh=${refresh}`;
-
-  const { isLoading, data, error } = useApi(logsUrl);
-
-  // Paint lines with ERROR in red
-  const coloredData = data?.split("\n").map((line, i) => {
+function colorLogs(data: string): ReactNode {
+  return data.split("\n").map((line, i) => {
     if (line.includes(" ERROR [")) {
       return (
         <span key={i} className="text-red-600">
@@ -46,10 +34,36 @@ function TaskLogs() {
       );
     }
   });
+}
+
+function TaskLogs() {
+  const router = useRouter();
+  const workspace = useWorkspace();
+  const divRef = React.useRef<HTMLDivElement>(null);
+  const origialRefresh = Math.round(Math.random() * 100000);
+  const [refresh, setRefresh] = React.useState(origialRefresh);
+
+  let logsUrl = `/api/${workspace.id}/sources/logs?syncId=${router.query.syncId}&taskId=${router.query.taskId}`;
+  const { isLoading, data, error } = useQuery(
+    ["taskLog", router.query.taskId, refresh],
+    async () => {
+      const res = await fetch(logsUrl);
+      return res.text();
+    },
+    { cacheTime: 0, retry: false }
+  );
+
+  const [displayText, setDisplayText] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     if (divRef.current) {
       divRef.current.scrollTop = divRef.current.scrollHeight;
+    }
+  }, [displayText]);
+
+  useEffect(() => {
+    if (data) {
+      setDisplayText(data);
     }
   }, [data]);
 
@@ -68,10 +82,10 @@ function TaskLogs() {
             Download
           </JitsuButton>
           <JitsuButton
-            icon={<RefreshCw className="w-6 h-6" />}
+            icon={<RefreshCw className={`w-6 h-6 ${isLoading && origialRefresh != refresh && "animate-spin"}`} />}
             type="link"
             size="small"
-            onClick={() => {
+            onClick={async () => {
               setRefresh(refresh + 1);
             }}
           >
@@ -87,24 +101,22 @@ function TaskLogs() {
           </JitsuButton>
         </div>
       </div>
-      {(function () {
-        if (isLoading) {
-          return <LoadingAnimation className={"h-full"} />;
-        } else if (error) {
-          return <ErrorCard error={error} />;
-        } else {
-          return (
-            <div
-              ref={divRef}
-              className={
-                "bg-background border text-sm rounded-lg p-3 overflow-y-auto w-full whitespace-pre-wrap break-words font-mono"
-              }
-            >
-              {coloredData}
+      <div
+        ref={divRef}
+        className={`bg-background border text-sm rounded-lg p-3 overflow-y-auto w-full grow whitespace-pre-wrap break-words font-mono ${
+          isLoading && origialRefresh != refresh && "opacity-50"
+        }`}
+      >
+        <>
+          {isLoading && origialRefresh == refresh && (
+            <div className="flex justify-center items-center w-full h-full">
+              <LoadingAnimation />
             </div>
-          );
-        }
-      })()}
+          )}
+          {error && <div>Error: {JSON.stringify(error)}</div>}
+          {displayText && colorLogs(displayText)}
+        </>
+      </div>
     </div>
   );
 }
