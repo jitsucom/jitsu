@@ -4,7 +4,7 @@ import { FaCaretDown, FaCaretRight, FaClone, FaPlus } from "react-icons/fa";
 import { ZodType } from "zod";
 import { getConfigApi, useApi } from "../../lib/useApi";
 import { useRouter } from "next/router";
-import { asFunction, FunctionLike, getErrorMessage, getLog, randomId, requireDefined } from "juava";
+import { asFunction, FunctionLike, getErrorMessage, getLog, requireDefined } from "juava";
 
 import zodToJsonSchema from "zod-to-json-schema";
 
@@ -43,6 +43,7 @@ import { EditorBase } from "./EditorBase";
 import { EditorField } from "./EditorField";
 import { EditorButtons } from "./EditorButtons";
 import { ButtonGroup, ButtonProps } from "../ButtonGroup/ButtonGroup";
+import cuid from "cuid";
 
 const log = getLog("ConfigEditor");
 
@@ -365,7 +366,7 @@ const SingleObjectEditor: React.FC<SingleObjectEditorProps> = props => {
     return <LoadingAnimation />;
   }
   const object = otherProps.object || {
-    id: randomId(),
+    id: cuid(),
     workspaceId: workspace.id,
     type: type,
     ...newObject(meta),

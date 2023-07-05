@@ -327,6 +327,7 @@ function Tasks() {
             <div>
               <span>Syncs: </span>
               <Select
+                dropdownMatchSelectWidth={false}
                 notFoundContent={<div>Project doesn't have configured Syncs</div>}
                 style={{ width: 300 }}
                 loading={linksLoading}

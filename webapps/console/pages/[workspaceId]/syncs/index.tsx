@@ -266,7 +266,7 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
             label: "Delete",
           },
         ];
-        return <ButtonGroup collapseLast={2} items={items} />;
+        return <ButtonGroup collapseLast={1} items={items} />;
       },
     },
   ];

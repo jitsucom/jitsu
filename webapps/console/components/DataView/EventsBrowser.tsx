@@ -304,6 +304,7 @@ export const EventsBrowser = ({
             <div>
               <span>{entityType == "stream" ? "Sites: " : "Connection: "}</span>
               <Select
+                dropdownMatchSelectWidth={false}
                 notFoundContent={
                   entityType === "stream" ? (
                     <div>Project doesn't have Sites</div>

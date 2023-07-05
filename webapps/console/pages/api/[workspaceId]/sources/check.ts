@@ -34,11 +34,13 @@ export default createRoute()
       authHeaders["Authorization"] = `Bearer ${syncAuthKey}`;
     }
 
+    const config = await tryManageOauthCreds(body as ServiceConfig, req);
+
     try {
       const checkRes = await rpc(syncURL + "/check", {
         method: "POST",
         body: {
-          config: await tryManageOauthCreds(body as ServiceConfig, req),
+          config: config,
         },
         headers: {
           "Content-Type": "application/json",

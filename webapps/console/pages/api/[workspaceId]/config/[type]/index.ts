@@ -42,10 +42,11 @@ export const api: Api = {
       await verifyAccess(user, workspaceId);
       const configObjectTypes = getConfigObjectType(type);
       const object = await configObjectTypes.inputFilter(parseObject(type, body), "create");
+      const id = object.id;
       delete object.id;
       delete object.workspaceId;
       const created = await db.prisma().configurationObject.create({
-        data: { workspaceId: workspaceId, config: object, type },
+        data: { id, workspaceId: workspaceId, config: object, type },
       });
       await fastStore.fullRefresh();
       return { id: created.id };

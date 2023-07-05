@@ -62,12 +62,12 @@ export default createRoute()
       headers: { Authorization: `Bearer ${nangoConfig.secretKey}` },
     });
     const nangoConnectionObject = await rpc(
-      `${nangoConfig.nangoApiHost}/connection/sync-source.${query.serviceId}?provider_config_key=${integrationId}`,
+      `${nangoConfig.nangoApiHost}/connection/sync-source.${query.serviceId}?provider_config_key=${integrationId}&refresh_token=true`,
       { headers: { Authorization: `Bearer ${nangoConfig.secretKey}` } }
     );
 
-    getLog().atDebug().log("Integration settings", JSON.stringify(integrationSettings, null, 2));
-    getLog().atDebug().log("Configuration object", JSON.stringify(nangoConnectionObject, null, 2));
+    getLog().atInfo().log("Integration settings", JSON.stringify(integrationSettings, null, 2));
+    getLog().atInfo().log("Configuration object", JSON.stringify(nangoConnectionObject, null, 2));
 
     return oauthDecorator.merge(credentials, integrationSettings.config?.configRes, nangoConnectionObject.credentials);
   })

@@ -201,29 +201,24 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
                       {obj?.authorized ? "Re-Sign In" : "Authorize"}
                     </JitsuButton>
                   </div>
-                  <span>
+                  <div
+                    className={"rounded-lg flex flex-row items-center border border-gray-200 py-1 px-3.5 text-text"}
+                    style={{ minHeight: 32 }}
+                  >
                     {nangoError ? (
-                      <span className={"text-red-600"}>OAuth2 error: ${nangoError}</span>
+                      <span className={"text-red-600"}>OAuth2 error: {nangoError}</span>
                     ) : obj?.authorized ? (
-                      <div
-                        className={
-                          "rounded-lg flex flex-row items-center border border-gray-200 py-1 px-3.5 h-8 text-text"
-                        }
-                      >
+                      <>
                         <CheckCircleTwoTone twoToneColor={"#1fcc00"} className={"mr-2"} />
                         Authorized
-                      </div>
+                      </>
                     ) : (
-                      <div
-                        className={
-                          "rounded-lg flex flex-row items-center border border-gray-200 py-1 px-3.5 h-8 text-text"
-                        }
-                      >
+                      <>
                         <InfoCircleTwoTone className={"mr-2"} />
                         Click "Authorize" to open OAuth2.0 authorization popup
-                      </div>
+                      </>
                     )}
-                  </span>
+                  </div>
                 </div>
               )}
               <div className={"relative"}>

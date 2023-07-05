@@ -38,7 +38,7 @@ function DestinationSelector(props: SelectorProps<DestinationConfig>) {
   return (
     <div className="flex items-center justify-between">
       <Disable disabled={!props.enabled} disabledReason="Create a new sync if you want to change the source">
-        <Select className="w-80" value={props.selected} onSelect={props.onSelect}>
+        <Select dropdownMatchSelectWidth={false} className="w-80" value={props.selected} onSelect={props.onSelect}>
           {props.items.map(destination => {
             const destinationType = getCoreDestinationType(destination.destinationType);
             return (
