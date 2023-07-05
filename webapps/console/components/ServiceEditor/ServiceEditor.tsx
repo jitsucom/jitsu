@@ -17,6 +17,7 @@ import { JitsuButton } from "../JitsuButton/JitsuButton";
 import Nango from "@nangohq/frontend";
 import { oauthDecorators } from "../../lib/server/oauth/services";
 import { CodeEditor } from "../CodeEditor/CodeEditor";
+import { CheckCircleTwoTone, InfoCircleTwoTone } from "@ant-design/icons";
 
 const log = getLog("ServiceEditor");
 
@@ -160,7 +161,7 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
           ) : (
             <div>
               {oauthConnector && (
-                <div className={"flex flex-row items-end gap-3 mb-2"}>
+                <div className={"flex flex-row items-center gap-3 mb-2"}>
                   <div>
                     <JitsuButton
                       type={"primary"}
@@ -204,9 +205,23 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
                     {nangoError ? (
                       <span className={"text-red-600"}>OAuth2 error: ${nangoError}</span>
                     ) : obj?.authorized ? (
-                      "Authorized."
+                      <div
+                        className={
+                          "rounded-lg flex flex-row items-center border border-gray-200 py-1 px-3.5 h-8 text-text"
+                        }
+                      >
+                        <CheckCircleTwoTone twoToneColor={"#1fcc00"} className={"mr-2"} />
+                        Authorized
+                      </div>
                     ) : (
-                      `Click "Authorize" to open OAuth2.0 authorization popup`
+                      <div
+                        className={
+                          "rounded-lg flex flex-row items-center border border-gray-200 py-1 px-3.5 h-8 text-text"
+                        }
+                      >
+                        <InfoCircleTwoTone className={"mr-2"} />
+                        Click "Authorize" to open OAuth2.0 authorization popup
+                      </div>
                     )}
                   </span>
                 </div>

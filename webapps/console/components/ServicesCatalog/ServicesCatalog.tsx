@@ -76,30 +76,33 @@ export const ServicesCatalog: React.FC<{ onClick: (packageType, packageId: strin
           className="w-full border border-textDisabled rounded-lg px-4 py-4"
         />
       </div>
-      {Object.entries(groups).map(([group, sources]) => (
-        <div key={group} className="">
-          <div className="text-3xl text-textLight px-4 pb-0 pt-3">{group === "api" ? "API" : capitalize(group)}</div>
-          <div className="flex flex-wrap">
-            {sources.map(source => {
-              if (!source.meta.name.toLowerCase().includes(filter.toLowerCase())) {
-                return null;
-              }
-              return (
-                <div
-                  key={source.id}
-                  className={`flex items-center cursor-pointer relative w-72 border border-textDisabled ${"hover:scale-105 hover:border-primary"} transition ease-in-out rounded-lg px-4 py-4 space-x-4 m-4`}
-                  onClick={() => onClick(source.packageType, source.packageId)}
-                >
-                  <div className={`${styles.icon} flex`}>{getDestinationIcon(source)}</div>
-                  <div>
-                    <div className={`text-xl`}>{source.meta.name}</div>
+      {Object.entries(groups).map(([group, sources]) => {
+        const filtered = sources.filter(source => source.meta.name.toLowerCase().includes(filter.toLowerCase()));
+        if (filtered.length === 0) {
+          return null;
+        }
+        return (
+          <div key={group} className="">
+            <div className="text-3xl text-textLight px-4 pb-0 pt-3">{group === "api" ? "API" : capitalize(group)}</div>
+            <div className="flex flex-wrap">
+              {filtered.map(source => {
+                return (
+                  <div
+                    key={source.id}
+                    className={`flex items-center cursor-pointer relative w-72 border border-textDisabled ${"hover:scale-105 hover:border-primary"} transition ease-in-out rounded-lg px-4 py-4 space-x-4 m-4`}
+                    onClick={() => onClick(source.packageType, source.packageId)}
+                  >
+                    <div className={`${styles.icon} flex`}>{getDestinationIcon(source)}</div>
+                    <div>
+                      <div className={`text-xl`}>{source.meta.name}</div>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 };
