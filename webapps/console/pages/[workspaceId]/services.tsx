@@ -5,13 +5,14 @@ import { useWorkspace } from "../../lib/context";
 import { useRouter } from "next/router";
 import { getLog, hash as jhash, randomId, rpc } from "juava";
 import React from "react";
-import { Modal, Space, Tooltip } from "antd";
+import { Modal, Tooltip } from "antd";
 import { serialization, useURLPersistedState } from "../../lib/ui";
 import { ServicesCatalog } from "../../components/ServicesCatalog/ServicesCatalog";
 import { SourceType } from "../api/sources";
 import hash from "stable-hash";
 import { ServiceEditor } from "../../components/ServiceEditor/ServiceEditor";
 import { ErrorCard } from "../../components/GlobalError/GlobalError";
+import { syncError } from "../../lib/shared/errors";
 
 const log = getLog("services");
 
@@ -41,7 +42,7 @@ export const ServiceTitle: React.FC<{
     }
   })();
   return (
-    <Space size={"small"}>
+    <div className={"flex flex-row items-center gap-2"}>
       <div className={iconClassName}>
         <img
           alt={service?.package}
@@ -53,7 +54,7 @@ export const ServiceTitle: React.FC<{
           {service ? title(service) : "Unknown service"}
         </Tooltip>
       </div>
-    </Space>
+    </div>
   );
 };
 
@@ -153,14 +154,7 @@ const ServicesList: React.FC<{}> = () => {
         }
         return { ok: false, error: "Connection test timeout." };
       } catch (error) {
-        log
-          .atWarn()
-          .log(
-            `Failed to test service ${workspace.id} / ${obj.package}. This is not expected since service tester should return 200 even in credentials are wrong`,
-            error
-          );
-        return { ok: false, error: "Internal error, see logs for details" };
-        //feedbackError("Failed to test object", { error });
+        return syncError(log, "Failed to test service", error);
       }
     },
     addAction: () => {

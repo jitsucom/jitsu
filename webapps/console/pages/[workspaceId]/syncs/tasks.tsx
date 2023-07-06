@@ -3,7 +3,7 @@ import { useWorkspace } from "../../../lib/context";
 import { useApi } from "../../../lib/useApi";
 import { source_taskDbModel } from "../../../prisma/schema";
 import { z } from "zod";
-import { DatePicker, notification, Popconfirm, Select, Space, Table, Tag } from "antd";
+import { DatePicker, notification, Popconfirm, Select, Table, Tag } from "antd";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useQueryStringState } from "../../../lib/useQueryStringState";
 import { ColumnType } from "antd/es/table/interface";
@@ -13,14 +13,13 @@ import relativeTime from "dayjs/plugin/relativeTime";
 import JSON5 from "json5";
 import { ErrorCard } from "../../../components/GlobalError/GlobalError";
 import { useLinksQuery } from "../../../lib/queries";
-import { DestinationTitle } from "../destinations";
 import { arrayToMap } from "../../../lib/shared/arrays";
-import { ServiceTitle } from "../services";
 import { JitsuButton, WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
 import { ChevronLeft, FileText, RefreshCw } from "lucide-react";
 import { FaExternalLinkAlt, FaRegPlayCircle } from "react-icons/fa";
 import { useRouter } from "next/router";
 import { ExclamationCircleOutlined } from "@ant-design/icons";
+import { SyncTitle } from "./index";
 
 dayjs.extend(utc);
 dayjs.extend(relativeTime);
@@ -59,18 +58,12 @@ function TasksTable({ tasks, loading, linksMap, servicesMap, destinationsMap }: 
           const link = linksMap[task.sync_id];
           if (link) {
             return (
-              <Space className={"whitespace-nowrap"}>
-                <ServiceTitle size={"small"} service={servicesMap[link.fromId]} />
-                {"→"}
-                <DestinationTitle size={"small"} destination={destinationsMap[link.toId]} />
-                <WJitsuButton
-                  href={`/syncs/edit?id=${link.id}`}
-                  type="link"
-                  className="link"
-                  size="small"
-                  icon={<FaExternalLinkAlt className="w-3 h-3" />}
-                />
-              </Space>
+              <SyncTitle
+                syncId={link.id}
+                service={servicesMap[link.fromId]}
+                destination={destinationsMap[link.toId]}
+                showLink={true}
+              />
             );
           }
         }
@@ -101,12 +94,12 @@ function TasksTable({ tasks, loading, linksMap, servicesMap, destinationsMap }: 
                 processed_rows += des[key];
               }
               return (
-                <Space direction={"vertical"} className={"text-right"} size={0}>
+                <div className={"flex flex-col items-end text-right"}>
                   <Tag color={"green"} style={{ marginRight: 0 }}>
                     SUCCESS
                   </Tag>
                   <span className={"text-xxs text-gray-500"}>{processed_rows.toLocaleString()} rows</span>
-                </Space>
+                </div>
               );
             } catch (e) {}
             return (
@@ -131,12 +124,12 @@ function TasksTable({ tasks, loading, linksMap, servicesMap, destinationsMap }: 
                 showCancel={false}
               >
                 <button className={"outline-0"}>
-                  <Space direction={"vertical"} size={0} className={"cursor-pointer text-right"}>
+                  <div className={"flex flex-col items-end text-right cursor-pointer"}>
                     <Tag color={"red"} style={{ marginRight: 0 }}>
                       FAILED <FaExternalLinkAlt className={"inline ml-0.5 w-2.5 h-2.5"} />
                     </Tag>
                     <span className={"text-xxs text-gray-500"}>show error</span>
-                  </Space>
+                  </div>
                 </button>
               </Popconfirm>
             );
@@ -282,11 +275,12 @@ function Tasks() {
         value: linkId,
         key: linkId,
         label: (
-          <Space>
-            <ServiceTitle size={"small"} service={servicesMap[link.fromId]} />
-            {"→"}
-            <DestinationTitle size={"small"} destination={destinationsMap[link.toId]} />
-          </Space>
+          <SyncTitle
+            syncId={link.id}
+            service={servicesMap[link.fromId]}
+            destination={destinationsMap[link.toId]}
+            showLink={false}
+          />
         ),
       }));
       syncs = [

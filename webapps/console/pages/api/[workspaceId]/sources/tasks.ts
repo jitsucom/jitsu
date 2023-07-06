@@ -1,11 +1,14 @@
 import { db } from "../../../../lib/server/db";
 import { z } from "zod";
 import { createRoute, verifyAccess } from "../../../../lib/api";
-import { randomId } from "juava";
 import { source_taskDbModel } from "../../../../prisma/schema";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
+import { syncError } from "../../../../lib/shared/errors";
+import { getServerLog } from "../../../../lib/server/log";
 dayjs.extend(utc);
+
+const log = getServerLog("sync-tasks");
 
 const aggregatedResultType = z.object({
   ok: z.boolean(),
@@ -24,6 +27,7 @@ const aggregatedResultType = z.object({
 });
 
 type aggregatedResultType = z.infer<typeof aggregatedResultType>;
+type source_task = z.infer<typeof source_taskDbModel>;
 
 const tasksResultType = z.object({
   ok: z.boolean(),
@@ -69,14 +73,7 @@ from source_task where sync_id = ANY($1::text[])`,
         tasks: tasksRecord,
       };
     } catch (e: any) {
-      const errorId = randomId();
-      console.error(
-        `Error loading tasks for sync ids ${body} in workspace ${workspaceId}. Error ID: ${errorId}. Error: ${e}`
-      );
-      return {
-        ok: false,
-        error: `couldn't load tasks due to internal server error. Please contact support. Error ID: ${errorId}`,
-      };
+      return syncError(log, `Error loading tasks`, e, false, `sync ids: ${body} workspace: ${workspaceId}`);
     }
   })
   .GET({
@@ -95,48 +92,35 @@ from source_task where sync_id = ANY($1::text[])`,
     await verifyAccess(user, workspaceId);
 
     try {
-      const tasks = await db.prisma().source_task.findMany({
-        where: {
-          ...(query.syncId !== "all" && {
-            sync_id: {
-              equals: query.syncId,
-            },
-          }),
-          ...(query.status && {
-            status: {
-              equals: query.status,
-            },
-          }),
-          ...((query.from || query.to) && {
-            started_at: {
-              ...(query.from && {
-                gte: dayjs(query.from, "YYYY-MM-DD").utc(true).toDate(),
-              }),
-              ...(query.to && {
-                lt: dayjs(query.to, "YYYY-MM-DD").utc(true).add(1, "d").toDate(),
-              }),
-            },
-          }),
-        },
-        orderBy: {
-          started_at: "desc",
-        },
-        take: 50,
-      });
-
+      let i = 1;
+      let sql: string =
+        'select st.* from source_task st join "ConfigurationObjectLink" link on st.sync_id = link.id where link."workspaceId" = $1';
+      sql += query.syncId !== "all" ? ` and st.sync_id = $${++i}` : "";
+      sql += query.status ? ` and st.status = $${++i}` : "";
+      sql += query.from ? ` and st.started_at >= $${++i}` : "";
+      sql += query.to ? ` and st.started_at < $${++i}` : "";
+      sql += " order by st.started_at desc limit 50";
+      log.atDebug().log(`sql: ${sql}`);
+      const args: any[] = [workspaceId];
+      if (query.syncId !== "all") {
+        args.push(query.syncId);
+      }
+      if (query.status) {
+        args.push(query.status);
+      }
+      if (query.from) {
+        args.push(dayjs(query.from, "YYYY-MM-DD").utc(true).toDate());
+      }
+      if (query.to) {
+        args.push(dayjs(query.to, "YYYY-MM-DD").utc(true).add(1, "d").toDate());
+      }
+      const tasks = await db.prisma().$queryRawUnsafe<source_task[]>(sql, ...args);
       return {
         ok: true,
         tasks: tasks,
       };
     } catch (e: any) {
-      const errorId = randomId();
-      console.error(
-        `Error loading tasks for sync ids ${query.syncId} in workspace ${workspaceId}. Error ID: ${errorId}. Error: ${e}`
-      );
-      return {
-        ok: false,
-        error: `couldn't load tasks due to internal server error. Please contact support. Error ID: ${errorId}`,
-      };
+      return syncError(log, `Error loading tasks`, e, false, `sync ids: ${query.syncId} workspace: ${workspaceId}`);
     }
   })
   .toNextApiHandler();

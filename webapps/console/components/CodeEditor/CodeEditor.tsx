@@ -14,6 +14,7 @@ type CodeEditorProps = {
   changePosition?: (position: number) => void;
   ctrlEnterCallback?: (value: string) => void;
   ctrlSCallback?: (value: string) => void;
+  foldLevel?: number;
   monacoOptions?: Partial<monaco.editor.IStandaloneEditorConstructionOptions>;
 };
 
@@ -27,6 +28,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   ctrlSCallback,
   changePosition,
   monacoOptions,
+  foldLevel,
 }) => {
   const editorRef = useRef<any>(null);
   const [mounted, setMounted] = React.useState(false);
@@ -35,6 +37,9 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
 
   const handleEditorDidMount = useCallback(
     (editor, monaco) => {
+      if (foldLevel) {
+        editor.getAction(`editor.foldLevel${foldLevel}`)?.run();
+      }
       editorRef.current = editor;
       editor.setValue(value);
       editor.onDidChangeCursorPosition(e => {

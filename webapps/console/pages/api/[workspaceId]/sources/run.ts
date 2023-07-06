@@ -1,10 +1,14 @@
 import { db } from "../../../../lib/server/db";
 import { z } from "zod";
 import { createRoute, verifyAccess } from "../../../../lib/api";
-import { randomId, requireDefined, rpc } from "juava";
+import { requireDefined, rpc } from "juava";
 import { randomUUID } from "crypto";
 import { tryManageOauthCreds } from "../../../../lib/server/oauth/services";
 import { ServiceConfig } from "../../../../lib/schema";
+import { syncError } from "../../../../lib/shared/errors";
+import { getServerLog } from "../../../../lib/server/log";
+
+const log = getServerLog("sync-run");
 
 const resultType = z.object({
   ok: z.boolean(),
@@ -34,6 +38,23 @@ export default createRoute()
       authHeaders["Authorization"] = `Bearer ${syncAuthKey}`;
     }
     try {
+      const sync = await db.prisma().configurationObjectLink.findFirst({
+        where: {
+          id: query.syncId as string,
+          workspaceId: workspaceId,
+          deleted: false,
+          type: "sync",
+        },
+        include: {
+          from: true,
+        },
+      });
+      if (!sync) {
+        return {
+          ok: false,
+          error: `Sync ${query.syncId} not found`,
+        };
+      }
       const running = await db.prisma().source_task.findFirst({
         where: {
           sync_id: query.syncId as string,
@@ -44,21 +65,6 @@ export default createRoute()
         return {
           ok: false,
           error: `Sync is already running`,
-        };
-      }
-
-      const sync = await db.prisma().configurationObjectLink.findUnique({
-        where: {
-          id: query.syncId as string,
-        },
-        include: {
-          from: true,
-        },
-      });
-      if (!sync) {
-        return {
-          ok: false,
-          error: `Sync ${query.syncId} not found`,
         };
       }
       const service = sync.from;
@@ -100,14 +106,7 @@ export default createRoute()
         return { ok: true, taskId };
       }
     } catch (e: any) {
-      const errorId = randomId();
-      console.error(
-        `Error running sync ${query.syncId} in workspace ${workspaceId}. Error ID: ${errorId}. Error: ${e}`
-      );
-      return {
-        ok: false,
-        error: `Couldn't run sync due to internal server error. Please contact support. Error ID: ${errorId}`,
-      };
+      return syncError(log, `Error running sync`, e, false, `sync: ${query.syncId} workspace: ${workspaceId}`);
     }
   })
   .toNextApiHandler();

@@ -1,7 +1,7 @@
 import { useWorkspace } from "../../lib/context";
 import { get } from "../../lib/useApi";
 import { DestinationConfig, ServiceConfig } from "../../lib/schema";
-import React, { PropsWithChildren, useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { z } from "zod";
 import { ConfigurationObjectLinkDbModel } from "../../prisma/schema";
 import { useRouter } from "next/router";
@@ -16,8 +16,8 @@ import FieldListEditorLayout, { EditorItem } from "../FieldListEditorLayout/Fiel
 import { ChevronLeft } from "lucide-react";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
 import { LoadingAnimation } from "../GlobalLoader/GlobalLoader";
-import { SnippedEditor } from "../CodeEditor/SnippedEditor";
 import hash from "stable-hash";
+import { CodeEditor } from "../CodeEditor/CodeEditor";
 
 const log = getLog("SyncEditorPage");
 
@@ -26,10 +26,6 @@ type SelectorProps<T> = {
   selected: string;
   items: T[];
   onSelect: (value: string) => void;
-};
-
-const Htmlizer: React.FC<PropsWithChildren<{}>> = ({ children }) => {
-  return typeof children === "string" ? <span dangerouslySetInnerHTML={{ __html: children }} /> : <>{children}</>;
 };
 
 type SyncOptionsType = any;
@@ -41,6 +37,9 @@ function DestinationSelector(props: SelectorProps<DestinationConfig>) {
         <Select dropdownMatchSelectWidth={false} className="w-80" value={props.selected} onSelect={props.onSelect}>
           {props.items.map(destination => {
             const destinationType = getCoreDestinationType(destination.destinationType);
+            if (!destinationType.usesBulker) {
+              return null;
+            }
             return (
               <Select.Option dropdownMatchSelectWidth={false} value={destination.id} key={destination.id}>
                 <div className="flex items-center">
@@ -89,7 +88,7 @@ function ServiceSelector(props: SelectorProps<ServiceConfig>) {
       </Disable>
       {!props.enabled && (
         <div className="text-lg px-6">
-          <WLink href={`/service?id=${props.selected}`}>
+          <WLink href={`/services?id=${props.selected}`}>
             <FaExternalLinkAlt />
           </WLink>
         </div>
@@ -97,12 +96,6 @@ function ServiceSelector(props: SelectorProps<ServiceConfig>) {
     </div>
   );
 }
-
-type EditorProps<T> = {
-  value?: T;
-  disabled?: boolean;
-  onChange: (value: T) => void;
-};
 
 function SyncEditor({
   services,
@@ -140,10 +133,12 @@ function SyncEditor({
 
   const updateCatalog: (catalog: any) => void = useCallback(
     catalog => {
-      updateOptions({ streams: catalog });
-      setStreamsProvided(true);
+      if (!streamsProvided) {
+        updateOptions({ streams: catalog });
+        setStreamsProvided(true);
+      }
     },
-    [updateOptions]
+    [updateOptions, streamsProvided]
   );
 
   useEffect(() => {
@@ -155,6 +150,7 @@ function SyncEditor({
       console.log("No need to load catalog. Specs are already filled.");
       return;
     }
+    let cancelled = false;
     (async () => {
       console.log("Loading catalog");
       setLoadingCatalog(true);
@@ -167,6 +163,9 @@ function SyncEditor({
             body: service,
           }
         );
+        if (cancelled) {
+          return;
+        }
         if (firstRes.error) {
           updateCatalog(firstRes.error);
         } else if (firstRes.ok) {
@@ -174,6 +173,9 @@ function SyncEditor({
           updateCatalog(JSON.stringify(firstRes.catalog, null, 2));
         } else {
           for (let i = 0; i < 60; i++) {
+            if (cancelled) {
+              return;
+            }
             await new Promise(resolve => setTimeout(resolve, 2000));
             const resp = await rpc(
               `/api/${workspace.id}/sources/discover?package=${service.package}&version=${service.version}&storageKey=${storageKey}`
@@ -189,7 +191,7 @@ function SyncEditor({
               }
             }
           }
-          updateCatalog(`Cannot load specs for ${service.package}:${service.version} error: Timeout`);
+          updateCatalog(`Cannot load catalog for ${service.package}:${service.version} error: Timeout`);
         }
       } catch (error) {
         updateCatalog(error);
@@ -197,7 +199,10 @@ function SyncEditor({
         setLoadingCatalog(false);
       }
     })();
-  }, [workspace.id, service, updateOptions, streamsProvided]);
+    return () => {
+      cancelled = true;
+    };
+  }, [workspace.id, service, updateOptions, updateCatalog, streamsProvided]);
 
   const configItems: EditorItem[] = [
     {
@@ -239,7 +244,14 @@ function SyncEditor({
       component: (
         <>
           {loadingCatalog ? (
-            <LoadingAnimation className={"h-96"} title={"Loading connector catalog..."} />
+            <LoadingAnimation
+              className={"h-96"}
+              title={"Loading connector catalog..."}
+              longLoadingThresholdSeconds={4}
+              longLoadingTitle={
+                "Loading connector catalog may take a little longer if it happens for the first time and catalog is huge."
+              }
+            />
           ) : (
             <div className={"flex flex-col items-end"}>
               <Button
@@ -253,16 +265,16 @@ function SyncEditor({
               >
                 Refresh
               </Button>
-              <div className={"w-full"}>
-                <SnippedEditor
+              <div className={"w-full border border-textDisabled"}>
+                <CodeEditor
                   value={syncOptions.streams ?? "{}"}
                   onChange={streams => {
                     updateOptions({ streams });
                   }}
-                  languages={["json"]}
-                  height={382}
+                  height={"382px"}
+                  language={"json"}
                   foldLevel={5}
-                  options={{
+                  monacoOptions={{
                     folding: true,
                     foldingHighlight: false,
                     showFoldingControls: "always",

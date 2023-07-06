@@ -7,7 +7,7 @@ import { ConfigurationObjectLinkDbModel } from "../../prisma/schema";
 import { useRouter } from "next/router";
 import { assertTrue, getLog, requireDefined } from "juava";
 import { Disable } from "../Disable/Disable";
-import { Button, Input, InputNumber, Radio, Select, Space, Switch } from "antd";
+import { Button, Input, InputNumber, Radio, Select, Switch } from "antd";
 import { WLink } from "../Workspace/WLink";
 import { FaExternalLinkAlt } from "react-icons/fa";
 import { BaseBulkerConnectionOptions, getCoreDestinationType } from "../../lib/schema/destinations";
@@ -77,7 +77,7 @@ function SourceSelector(props: SelectorProps<StreamConfig>) {
       </Disable>
       {!props.enabled && (
         <div className="text-lg px-6">
-          <WLink href={`/stream?id=${props.selected}`}>
+          <WLink href={`/streams?id=${props.selected}`}>
             <FaExternalLinkAlt />
           </WLink>
         </div>
@@ -96,7 +96,7 @@ type EditorComponent<T, P = {}> = React.FC<EditorProps<T> & P>;
 
 const DataLayoutEditor: EditorComponent<DataLayoutType> = props => (
   <Radio.Group className={styles.radioGroup} value={props.value} onChange={val => props.onChange(val.target.value)}>
-    <Space direction="vertical" size="small">
+    <div className={"flex flex-col gap-2"}>
       <Radio value="segment-single-table">
         <div>
           <div className={``}>
@@ -124,7 +124,7 @@ const DataLayoutEditor: EditorComponent<DataLayoutType> = props => (
           </div>
         </div>
       </Radio>
-    </Space>
+    </div>
   </Radio.Group>
 );
 
@@ -157,7 +157,7 @@ export const BatchOrStreamEditor: EditorComponent<ConnectionOptionsType["mode"],
       disabled={disabled}
       onChange={e => onChange(e.target.value)}
     >
-      <Space direction="vertical" size="small">
+      <div className={"flex flex-col gap-2"}>
         <Radio value="stream" disabled={streamModeLocked || streamModeDisabled}>
           <div>
             <div className={``}>
@@ -181,7 +181,7 @@ export const BatchOrStreamEditor: EditorComponent<ConnectionOptionsType["mode"],
           </div>
         </Radio>
         <Radio value="batch">Batch</Radio>
-      </Space>
+      </div>
     </Radio.Group>
   );
 };

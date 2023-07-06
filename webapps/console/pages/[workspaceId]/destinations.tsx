@@ -202,7 +202,7 @@ export const DestinationTitle: React.FC<{
     }
   })();
   return (
-    <div className="flex items-center space-x-2">
+    <div className="flex items-center gap-2">
       <div className={iconClassName}>{getDestinationIcon(destinationType)}</div>
       <div>{destination ? title(destination, destinationType) : "Unknown destination"}</div>
     </div>

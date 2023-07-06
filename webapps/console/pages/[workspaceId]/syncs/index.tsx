@@ -1,23 +1,22 @@
 import { WorkspacePageLayout } from "../../../components/PageLayout/WorkspacePageLayout";
-import { useWorkspace } from "../../../lib/context";
+import { useAppConfig, useWorkspace } from "../../../lib/context";
 import { get } from "../../../lib/useApi";
 import { DestinationConfig, ServiceConfig } from "../../../lib/schema";
 import { ConfigurationObjectLinkDbModel } from "../../../prisma/schema";
 import { QueryResponse } from "../../../components/QueryResponse/QueryResponse";
 import { z } from "zod";
-import { Table, Tag } from "antd";
+import { Alert, Table, Tag } from "antd";
 import { confirmOp, feedbackError, feedbackSuccess } from "../../../lib/ui";
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { FaExternalLinkAlt, FaPlay, FaPlus, FaTrash } from "react-icons/fa";
 import { index, rpc } from "juava";
-import { getCoreDestinationType } from "../../../lib/schema/destinations";
 import { useRouter } from "next/router";
 import { useLinksQuery } from "../../../lib/queries";
 import { jsonSerializationBase64, useQueryStringState } from "../../../lib/useQueryStringState";
 import { TableProps } from "antd/es/table/InternalTable";
 import { ColumnType, SortOrder } from "antd/es/table/interface";
-import { Edit3, Inbox, ListMinusIcon, Loader2 } from "lucide-react";
+import { CalendarCheckIcon, Edit3, Inbox, ListMinusIcon, Loader2 } from "lucide-react";
 import { PlusOutlined } from "@ant-design/icons";
 import { JitsuButton, WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
 import { ErrorCard } from "../../../components/GlobalError/GlobalError";
@@ -29,6 +28,9 @@ import { ServiceTitle } from "../services";
 import { DestinationTitle } from "../destinations";
 import JSON5 from "json5";
 import { ButtonGroup, ButtonProps } from "../../../components/ButtonGroup/ButtonGroup";
+import { Overlay } from "../../../components/Overlay/Overlay";
+import { CodeBlock } from "../../../components/CodeBlock/CodeBlock";
+
 dayjs.extend(utc);
 dayjs.extend(relativeTime);
 
@@ -69,6 +71,7 @@ type SortingSettings = {
 function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEntitiesProps) {
   const servicesById = index(services, "id");
   const destinationsById = index(destinations, "id");
+  const linksById = index(links, "id");
   const workspace = useWorkspace();
   const router = useRouter();
   const [loading, setLoading] = React.useState(false);
@@ -79,6 +82,7 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
   const [tasks, setTasks] = useState<{ loading: boolean; data?: any; error?: any }>({ loading: true });
   const [running, setRunning] = useState<string | undefined>(undefined);
 
+  const [showScheduling, setShowScheduling] = useQueryStringState<string | undefined>("schedule");
   //useEffect update tasksData every 5 seconds
   useEffect(() => {
     const fetchTasks = async () => {
@@ -166,7 +170,6 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
         if (!destination) {
           return <div>Destination not found</div>;
         }
-        const coreDestinationType = getCoreDestinationType(destination.destinationType);
         return (
           <div className="flex items-center">
             <DestinationTitle destination={destination} />
@@ -183,6 +186,7 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
     },
     {
       title: <div className={"whitespace-nowrap"}>Sync Status</div>,
+      className: "text-right",
       width: "4%",
       render: (text, link) => {
         if (tasks.error) {
@@ -208,7 +212,25 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
               return undefined;
           }
         };
-        return <Tag color={t ? color(t.status) : undefined}>{t?.status ?? "NO RUNS"}</Tag>;
+        if (!t?.status) {
+          return <Tag>NO RUNS</Tag>;
+        }
+        return (
+          //<div className={"flex flex-col items-end text-right"}>
+          <Tag
+            className={"cursor-pointer"}
+            title={"Show logs"}
+            onClick={() => {
+              router.push(`/${workspace.slug || workspace.id}/syncs/logs?taskId=${t.taskId}&syncId=${t.syncId}`);
+            }}
+            color={color(t.status)}
+            style={{ marginRight: 0 }}
+          >
+            {t.status} <FaExternalLinkAlt className={"inline ml-0.5 w-2.5 h-2.5"} />
+          </Tag>
+          //  <span className={"text-xxs text-gray-500"}>show logs</span>
+          //</div>
+        );
       },
     },
     {
@@ -241,7 +263,7 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
               try {
                 const runStatus = await rpc(`/api/${workspace.id}/sources/run?syncId=${link.id}`);
                 if (runStatus?.error) {
-                  feedbackError(`Failed to run sync: ${runStatus.error}`);
+                  feedbackError(runStatus.error, { placement: "top" });
                 } else {
                   router.push(
                     `/${workspace.slug || workspace.id}/syncs/tasks?query=${encodeURIComponent(
@@ -271,6 +293,13 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
             href: `/syncs/edit?id=${link.id}`,
           },
           {
+            icon: <CalendarCheckIcon className={"w-4 h-4"} />,
+            onClick: async () => {
+              setShowScheduling(link.id);
+            },
+            label: "Schedule (beta)",
+          },
+          {
             icon: <FaTrash />,
             onClick: async () => {
               deleteSync(link);
@@ -279,7 +308,7 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
             label: "Delete",
           },
         ];
-        return <ButtonGroup collapseLast={1} items={items} />;
+        return <ButtonGroup collapseLast={2} items={items} />;
       },
     },
   ];
@@ -295,6 +324,16 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
         loading={loading}
         onChange={onChange}
       />
+      {showScheduling && (
+        <ScheduleDocumentation
+          syncId={showScheduling}
+          service={servicesById[linksById[showScheduling].fromId]}
+          destination={destinationsById[linksById[showScheduling].toId]}
+          onCancel={() => {
+            setShowScheduling(undefined);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -382,6 +421,81 @@ function SyncsLoader(props: { reloadCallback: () => void }) {
   );
 }
 
+export const SyncTitle: React.FC<{
+  syncId: string;
+  service: ServiceConfig;
+  destination: DestinationConfig;
+  showLink?: boolean;
+}> = ({ syncId, service, destination, showLink = false }) => {
+  return (
+    <div className={"flex flex-row whitespace-nowrap gap-1.5"}>
+      <ServiceTitle size={"small"} service={service} />
+      {"→"}
+      <DestinationTitle size={"small"} destination={destination} />
+      {showLink && (
+        <WJitsuButton
+          href={`/syncs/edit?id=${syncId}`}
+          type="link"
+          className="link"
+          size="small"
+          icon={<FaExternalLinkAlt className="w-3 h-3" />}
+        />
+      )}
+    </div>
+  );
+};
+
+const ScheduleDocumentation: React.FC<{
+  syncId: string;
+  service: ServiceConfig;
+  destination: DestinationConfig;
+  onCancel: () => void;
+}> = ({ syncId, service, destination, onCancel }) => {
+  const appConfig = useAppConfig();
+
+  const displayDomain = appConfig.websiteUrl;
+  return (
+    <Overlay onClose={onCancel} className="px-6 py-6 flex flex-col items-center">
+      <SyncTitle syncId={syncId} service={service} destination={destination} />
+      <div className={"prose max-w-full"}>
+        <h2>Scheduling Sync</h2>
+        <Alert
+          type="warning"
+          showIcon
+          message={<b>Service Sync Beta</b>}
+          description={
+            <>
+              Jitsu Next Service Sync is currently in Beta. Scheduling of sync tasks is not yet implemented.
+              <br />
+              But you can use API endpoint that trigger sync together with third-party scheduling tools like{" "}
+              <a target={"_blank"} rel={"noreferrer noopener"} href={"https://cloud.google.com/scheduler"}>
+                Google Cloud Scheduler
+              </a>
+              , cron, Airflow, ...
+            </>
+          }
+        />
+        <h2>Trigger sync</h2>
+        <h3>Endpoint</h3>
+        <CodeBlock>{`${displayDomain}/api/cl9y5kgth0002ccfn3vtqz64g/sources/run?syncId=cl9y5kgth0002ccfn3vtqz64g-ab23-x2ib-W0UtFw`}</CodeBlock>
+        <h3>Authorization</h3>
+        Use <b>Authorization</b> header with <b>Bearer</b> token. You can obtain token in{" "}
+        <Link href={"/user"}>Settings</Link> page.
+        <h3>Example</h3>
+        <CodeBlock lang={"bash"}>
+          {`curl -H "Authorization: bearer abc:123" \\
+"${displayDomain}/api/cl9y5kgth0002ccfn3vtqz64g/sources/run?syncId=cl9y5kgth0002ccfn3vtqz64g-ab23-x2ib-W0UtFw"`}
+        </CodeBlock>
+        <h3>Response</h3>
+        Successful response:
+        <CodeBlock lang={"json"}>{`{"ok": true}`}</CodeBlock>
+        Error response:
+        <CodeBlock lang={"json"}>{`{"ok":false,"error":"Sync is already running"}`}</CodeBlock>
+      </div>
+    </Overlay>
+  );
+};
+
 const SyncsPage = () => {
   const [refresh, setRefresh] = useState(new Date());
   return (
@@ -395,4 +509,5 @@ const SyncsPage = () => {
     </WorkspacePageLayout>
   );
 };
+
 export default SyncsPage;

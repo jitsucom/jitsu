@@ -2,8 +2,12 @@ import { db } from "../../../../lib/server/db";
 import { z } from "zod";
 import { createRoute, verifyAccess } from "../../../../lib/api";
 import { ServiceConfig } from "../../../../lib/schema";
-import { randomId, requireDefined, rpc } from "juava";
+import { requireDefined, rpc } from "juava";
 import { tryManageOauthCreds } from "../../../../lib/server/oauth/services";
+import { getServerLog } from "../../../../lib/server/log";
+import { syncError } from "../../../../lib/shared/errors";
+
+const log = getServerLog("sync-discover");
 
 const resultType = z.object({
   ok: z.boolean(),
@@ -40,6 +44,9 @@ export default createRoute()
       process.env.SYNCCTL_URL,
       `env SYNCCTL_URL is not set. Sync Controller is required to run sources`
     );
+    if (!query.storageKey.startsWith(workspaceId)) {
+      return { ok: false, error: "storageKey doesn't belong to the current workspace" };
+    }
     const syncAuthKey = process.env.SYNCCTL_AUTH_KEY ?? "";
     const authHeaders: any = {};
     if (syncAuthKey) {
@@ -74,14 +81,13 @@ export default createRoute()
         return { ok: false, pending: true };
       }
     } catch (e: any) {
-      const errorId = randomId();
-      console.error(
-        `Error running discover for source ${query.storageKey} in workspace ${workspaceId}. Error ID: ${errorId}. Error: ${e}`
+      return syncError(
+        log,
+        `Error running discover`,
+        e,
+        false,
+        `source: ${query.storageKey} workspace: ${workspaceId}`
       );
-      return {
-        ok: false,
-        error: `couldn't run discover due to internal server error. Please contact support. Error ID: ${errorId}`,
-      };
     }
   })
   .GET({
@@ -92,6 +98,9 @@ export default createRoute()
   .handler(async ({ user, query, body }) => {
     const { workspaceId } = query;
     await verifyAccess(user, workspaceId);
+    if (!query.storageKey.startsWith(workspaceId)) {
+      return { ok: false, error: "storageKey doesn't belong to the current workspace" };
+    }
     try {
       const res = await checkInDb(query);
       if (res) {
@@ -100,14 +109,13 @@ export default createRoute()
         throw new Error("catalog not found in the database");
       }
     } catch (e: any) {
-      const errorId = randomId();
-      console.error(
-        `Error running discover check for source ${query.storageKey} in workspace ${workspaceId}. Error ID: ${errorId}. Error: ${e}`
+      return syncError(
+        log,
+        `Error running discover`,
+        e,
+        false,
+        `source: ${query.storageKey} workspace: ${workspaceId}`
       );
-      return {
-        ok: false,
-        error: `couldn't run discover check due to internal server error. Please contact support. Error ID: ${errorId}`,
-      };
     }
   })
   .toNextApiHandler();

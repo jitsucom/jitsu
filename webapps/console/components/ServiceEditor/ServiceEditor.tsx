@@ -157,7 +157,14 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
         </EditorField>
         <EditorField key={"credentials"} id={"credentials"} label={"Credentials"} required={true}>
           {loadingSpecs ? (
-            <LoadingAnimation className={"h-52"} title={"Loading connector specifications..."} />
+            <LoadingAnimation
+              className={"h-52"}
+              title={"Loading connector specifications..."}
+              longLoadingThresholdSeconds={4}
+              longLoadingTitle={
+                "Loading connector specifications may take a little longer if it happens for the first time..."
+              }
+            />
           ) : (
             <div>
               {oauthConnector && (
@@ -202,7 +209,7 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
                     </JitsuButton>
                   </div>
                   <div
-                    className={"rounded-lg flex flex-row items-center border border-gray-200 py-1 px-3.5 text-text"}
+                    className={"rounded-lg flex flex-row items-center py-1 px-2 text-text"}
                     style={{ minHeight: 32 }}
                   >
                     {nangoError ? (

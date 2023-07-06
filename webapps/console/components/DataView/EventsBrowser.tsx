@@ -3,7 +3,7 @@ import utc from "dayjs/plugin/utc";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { EventsLogRecord } from "../../lib/server/events-log";
 import { ColumnsType } from "antd/es/table";
-import { Alert, Collapse, DatePicker, Select, Space, Spin, Table, Tag, Tooltip } from "antd";
+import { Alert, Collapse, DatePicker, Select, Spin, Table, Tag, Tooltip } from "antd";
 import { TableWithDrawer } from "./TableWithDrawer";
 import { JSONView } from "./JSONView";
 import { useAppConfig, useWorkspace } from "../../lib/context";
@@ -268,11 +268,11 @@ export const EventsBrowser = ({
           entity[1].type === "stream" ? (
             entity[1].name
           ) : (
-            <Space>
-              {entity[1].stream.name}
-              {"→"}
+            <div className={"flex flex-row gap-1.5"}>
+              <span>{entity[1].stream.name}</span>
+              <span>{"→"}</span>
               <DestinationTitle size={"small"} destination={entity[1].destination} />
-            </Space>
+            </div>
           ),
       }));
     } else {
@@ -722,7 +722,7 @@ const IncomingEventDrawer = ({ event }: { event: IncomingEvent }) => {
         return props.loading ? (
           <Spin />
         ) : (
-          <Space wrap size={"large"}>
+          <div className={"flex flex-row flex-wrap gap-4"}>
             {props.destinationIds
               .map(d => props.destinationsMap[d]?.destination)
               .filter(d => typeof d !== "undefined")
@@ -731,7 +731,7 @@ const IncomingEventDrawer = ({ event }: { event: IncomingEvent }) => {
                   <DestinationTitle size={"small"} destination={d} />
                 </WLink>
               ))}
-          </Space>
+          </div>
         );
       };
 
@@ -967,7 +967,7 @@ const IncomingEventsTable = ({ loadEvents, loading, streamType, entityType, acto
       key: "summary",
       render: (d: IncomingEvent) => {
         return (
-          <Space>
+          <div className={"flex flex-row"}>
             {d.host && (
               <Tooltip title={"Host"}>
                 <Tag color={"geekblue"} icon={<GlobalOutlined />} className={"whitespace-nowrap"}>
@@ -1010,7 +1010,7 @@ const IncomingEventsTable = ({ loadEvents, loading, streamType, entityType, acto
                 </Tag>
               </Tooltip>
             )}
-          </Space>
+          </div>
         );
       },
     },

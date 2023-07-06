@@ -1,9 +1,13 @@
 import { db } from "../../../../lib/server/db";
 import { z } from "zod";
 import { createRoute, verifyAccess } from "../../../../lib/api";
-import { randomId, requireDefined, rpc } from "juava";
+import { requireDefined, rpc } from "juava";
 import { JSONSchemaFaker } from "json-schema-faker";
 import { JsonObject } from "type-fest";
+import { getServerLog } from "../../../../lib/server/log";
+import { syncError } from "../../../../lib/shared/errors";
+
+const log = getServerLog("sync-spec");
 
 JSONSchemaFaker.option("alwaysFakeOptionals", true);
 JSONSchemaFaker.option("useDefaultValue", true);
@@ -104,14 +108,13 @@ export default createRoute()
         }
       }
     } catch (e: any) {
-      const errorId = randomId();
-      console.error(
-        `Error loading specs for source ${query.package}:${query.version} in workspace ${workspaceId}. Error ID: ${errorId}. Error: ${e}`
+      return syncError(
+        log,
+        `Error loading specs`,
+        e,
+        false,
+        `source: ${query.package}:${query.version} workspace: ${workspaceId}`
       );
-      return {
-        ok: false,
-        error: `couldn't load specs due to internal server error. Please contact support. Error ID: ${errorId}`,
-      };
     }
   })
   .toNextApiHandler();

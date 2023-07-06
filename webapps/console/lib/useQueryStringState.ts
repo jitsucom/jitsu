@@ -1,5 +1,6 @@
 import { useRouter } from "next/router";
 import { useCallback, useState } from "react";
+import { omit } from "lodash";
 
 export type Serde<T> = {
   parser: (val: string) => T;
@@ -36,8 +37,12 @@ export function useQueryStringState<T = string | undefined>(
   const updateState = useCallback(
     (val: T) => {
       setState(val);
-      const newQuery = { ...query, [param]: opt.serializer ? opt.serializer(val) : (val as string) };
-      return push({ query: newQuery }, undefined, { shallow: true });
+      if (val) {
+        const newQuery = { ...query, [param]: opt.serializer ? opt.serializer(val) : (val as string) };
+        return push({ query: newQuery }, undefined, { shallow: true });
+      } else {
+        return push({ query: omit(query, param) }, undefined, { shallow: true });
+      }
     },
     [opt, param, query, push]
   );

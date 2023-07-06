@@ -40,8 +40,8 @@ function TaskLogs() {
   const router = useRouter();
   const workspace = useWorkspace();
   const divRef = React.useRef<HTMLDivElement>(null);
-  const origialRefresh = Math.round(Math.random() * 100000);
-  const [refresh, setRefresh] = React.useState(origialRefresh);
+  const originalRefresh = new Date().getTime();
+  const [refresh, setRefresh] = React.useState(originalRefresh);
 
   let logsUrl = `/api/${workspace.id}/sources/logs?syncId=${router.query.syncId}&taskId=${router.query.taskId}`;
   const { isLoading, data, error } = useQuery(
@@ -82,11 +82,11 @@ function TaskLogs() {
             Download
           </JitsuButton>
           <JitsuButton
-            icon={<RefreshCw className={`w-6 h-6 ${isLoading && origialRefresh != refresh && "animate-spin"}`} />}
+            icon={<RefreshCw className={`w-6 h-6 ${isLoading && originalRefresh != refresh && "animate-spin"}`} />}
             type="link"
             size="small"
             onClick={async () => {
-              setRefresh(refresh + 1);
+              setRefresh(new Date().getTime());
             }}
           >
             Refresh
@@ -104,11 +104,11 @@ function TaskLogs() {
       <div
         ref={divRef}
         className={`bg-background border text-sm rounded-lg p-3 overflow-y-auto w-full grow whitespace-pre-wrap break-words font-mono ${
-          isLoading && origialRefresh != refresh && "opacity-50"
+          isLoading && originalRefresh != refresh && "opacity-50"
         }`}
       >
         <>
-          {isLoading && origialRefresh == refresh && (
+          {isLoading && originalRefresh == refresh && (
             <div className="flex justify-center items-center w-full h-full">
               <LoadingAnimation />
             </div>

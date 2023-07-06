@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Button, Space } from "antd";
+import { Button } from "antd";
 import { CopyOutlined, FileTextOutlined } from "@ant-design/icons";
 import loadable from "@loadable/component";
 import { CodeBlockLight } from "../CodeBlock/CodeBlockLight";
@@ -24,7 +24,7 @@ export const JSONView = (props: { data: any; rawData?: string }) => {
   return (
     <div className={"relative"}>
       <div className={"absolute right-0 top-0 z-50"}>
-        <Space>
+        <div className={"flex flex-row gap-2"}>
           {!raw ? (
             <Button icon={<FileTextOutlined />} onClick={toggleRaw}>
               Raw data
@@ -37,7 +37,7 @@ export const JSONView = (props: { data: any; rawData?: string }) => {
           <Button icon={<CopyOutlined />} onClick={copyToClipboard}>
             Copy
           </Button>
-        </Space>
+        </div>
       </div>
       {!raw ? (
         <ReactJson enableClipboard={false} displayObjectSize={false} displayDataTypes={false} src={props.data} />

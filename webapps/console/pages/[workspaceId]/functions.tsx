@@ -4,9 +4,9 @@ import { FunctionConfig } from "../../lib/schema";
 import { useWorkspace } from "../../lib/context";
 import { useRouter } from "next/router";
 import { getLog } from "juava";
-import React, { PropsWithChildren } from "react";
+import React from "react";
 import { FunctionSquare } from "lucide-react";
-import { Space, Tooltip } from "antd";
+import { Tooltip } from "antd";
 import { FunctionsDebugger } from "../../components/FunctionsDebugger/FunctionsDebugger";
 
 const log = getLog("functions");
@@ -22,10 +22,6 @@ const Functions: React.FC<any> = () => {
       <FunctionsList />
     </WorkspacePageLayout>
   );
-};
-
-const Htmlizer: React.FC<PropsWithChildren<{}>> = ({ children }) => {
-  return typeof children === "string" ? <span dangerouslySetInnerHTML={{ __html: children }} /> : <>{children}</>;
 };
 
 export const FunctionTitle: React.FC<{
@@ -44,14 +40,14 @@ export const FunctionTitle: React.FC<{
     }
   })();
   return (
-    <Space size={"small"}>
+    <div className={"flex flex-row items-center gap-2"}>
       <div className={iconClassName}>
         <FunctionSquare size={18} />
       </div>
       <div>
         <Tooltip title={f?.description}>{title(f)}</Tooltip>
       </div>
-    </Space>
+    </div>
   );
 };
 

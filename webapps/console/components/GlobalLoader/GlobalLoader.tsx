@@ -1,5 +1,6 @@
 import React, { ReactNode, useEffect, useState } from "react";
 import classNames from "classnames";
+import dayjs from "dayjs";
 
 export function Spinner(props: { className?: string }) {
   return (
@@ -24,21 +25,40 @@ export function Spinner(props: { className?: string }) {
 
 export function LoadingAnimation({
   title,
+  longLoadingTitle,
+  longLoadingThresholdSeconds = 3,
   className,
   hideTitle,
 }: {
   title?: ReactNode;
+  longLoadingTitle?: ReactNode;
+  longLoadingThresholdSeconds?: number;
   iconSize?: number;
   fontSize?: string;
   className?: string;
   hideTitle?: boolean;
 }) {
+  const startTime = dayjs();
+  const [shownTitle, setShownTitle] = useState<ReactNode>(title || "Loading...");
+
+  useEffect(() => {
+    if (longLoadingTitle) {
+      const id = setInterval(() => {
+        if (dayjs().diff(startTime, "second") > longLoadingThresholdSeconds) {
+          setShownTitle(longLoadingTitle);
+        }
+      }, 1000);
+
+      return () => clearInterval(id);
+    }
+  }, [startTime, longLoadingTitle, longLoadingThresholdSeconds]);
+
   return (
-    <div className={classNames("flex flex-col items-center justify-center", className)}>
+    <div className={classNames("flex flex-col items-center justify-center text-center", className)}>
       <div className="w-12 h-12">
         <Spinner />
       </div>
-      {!hideTitle && <div className={`text-text text-lg mt-4`}>{title || "Loading..."}</div>}
+      {!hideTitle && <div className={`text-text text-lg mt-4`}>{shownTitle}</div>}
     </div>
   );
 }

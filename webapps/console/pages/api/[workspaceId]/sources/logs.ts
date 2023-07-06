@@ -4,7 +4,10 @@ import { createRoute, verifyAccess } from "../../../../lib/api";
 import { randomId } from "juava";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
+import { getServerLog } from "../../../../lib/server/log";
 dayjs.extend(utc);
+
+const log = getServerLog("sync-logs");
 
 export default createRoute()
   .GET({
@@ -26,11 +29,11 @@ export default createRoute()
     }
     try {
       await db.pgHelper().streamQuery(
-        `select *
-                                from task_log
-                                where task_id = :task_id
+        `select tl.*
+                                from task_log tl join "ConfigurationObjectLink" link on tl.sync_id = link.id
+                                where task_id = :task_id and link."workspaceId" = :workspace_id
                                 order by timestamp`,
-        { task_id: query.taskId },
+        { task_id: query.taskId, workspace_id: workspaceId },
         r => {
           res.write(
             `${dayjs(r.timestamp).utc().format("YYYY-MM-DD HH:mm:ss.SSS")} ${r.level} [${r.logger}] ${r.message}\n`
@@ -39,9 +42,12 @@ export default createRoute()
       );
     } catch (e: any) {
       const errorId = randomId();
-      console.error(
-        `Error loading logs for task id ${query.taskId} in workspace ${workspaceId}. Error ID: ${errorId}. Error: ${e}`
-      );
+      log
+        .atError()
+        .withCause(e)
+        .log(
+          `Error loading logs for task id ${query.taskId} in workspace ${workspaceId}. Error ID: ${errorId}. Error: ${e}`
+        );
       res.write(
         `ERROR: couldn't load task logs due to internal server error. Please contact support. Error ID: ${errorId}`
       );
