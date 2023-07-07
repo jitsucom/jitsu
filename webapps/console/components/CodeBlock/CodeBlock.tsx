@@ -8,10 +8,20 @@ import yaml from "highlight.js/lib/languages/yaml";
 import htmlLang from "highlight.js/lib/languages/xml";
 import typescript from "highlight.js/lib/languages/typescript";
 import bash from "highlight.js/lib/languages/bash";
+import plaintext from "highlight.js/lib/languages/plaintext";
 
 import styles from "./CodeBlock.module.css";
 
-export type SupportedLang = "html" | "javascript" | "json" | "yaml" | "typescript" | "tsx" | "jsx" | "bash";
+export type SupportedLang =
+  | "html"
+  | "javascript"
+  | "json"
+  | "yaml"
+  | "typescript"
+  | "tsx"
+  | "jsx"
+  | "bash"
+  | "plaintext";
 const langMap: Record<SupportedLang, any> = {
   html: htmlLang,
   javascript: javascript,
@@ -21,6 +31,7 @@ const langMap: Record<SupportedLang, any> = {
   typescript: typescript,
   yaml: yaml,
   bash: bash,
+  plaintext: plaintext,
 };
 
 Object.entries(langMap).map(([lang, module]) => hljs.registerLanguage(lang, module));

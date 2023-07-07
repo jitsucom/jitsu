@@ -6,6 +6,7 @@ import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import { syncError } from "../../../../lib/shared/errors";
 import { getServerLog } from "../../../../lib/server/log";
+import { getAppEndpoint } from "../../../../lib/domains";
 dayjs.extend(utc);
 
 const log = getServerLog("sync-tasks");
@@ -33,6 +34,8 @@ const tasksResultType = z.object({
   ok: z.boolean(),
   error: z.string().optional(),
   tasks: z.array(source_taskDbModel).optional(),
+  task: source_taskDbModel.optional(),
+  logs: z.string().optional(),
 });
 
 export default createRoute()
@@ -80,14 +83,15 @@ from source_task where sync_id = ANY($1::text[])`,
     auth: true,
     query: z.object({
       workspaceId: z.string(),
-      syncId: z.string(),
+      syncId: z.string().optional(),
+      taskId: z.string().optional(),
       from: z.string().optional(),
       to: z.string().optional(),
       status: z.string().optional(),
     }),
     result: tasksResultType,
   })
-  .handler(async ({ user, query }) => {
+  .handler(async ({ user, query, req }) => {
     const { workspaceId } = query;
     await verifyAccess(user, workspaceId);
 
@@ -95,15 +99,19 @@ from source_task where sync_id = ANY($1::text[])`,
       let i = 1;
       let sql: string =
         'select st.* from source_task st join "ConfigurationObjectLink" link on st.sync_id = link.id where link."workspaceId" = $1';
-      sql += query.syncId !== "all" ? ` and st.sync_id = $${++i}` : "";
+      sql += query.syncId ? ` and st.sync_id = $${++i}` : "";
+      sql += query.taskId ? ` and st.task_id = $${++i}` : "";
       sql += query.status ? ` and st.status = $${++i}` : "";
       sql += query.from ? ` and st.started_at >= $${++i}` : "";
       sql += query.to ? ` and st.started_at < $${++i}` : "";
       sql += " order by st.started_at desc limit 50";
       log.atDebug().log(`sql: ${sql}`);
       const args: any[] = [workspaceId];
-      if (query.syncId !== "all") {
+      if (query.syncId) {
         args.push(query.syncId);
+      }
+      if (query.taskId) {
+        args.push(query.taskId);
       }
       if (query.status) {
         args.push(query.status);
@@ -115,10 +123,27 @@ from source_task where sync_id = ANY($1::text[])`,
         args.push(dayjs(query.to, "YYYY-MM-DD").utc(true).add(1, "d").toDate());
       }
       const tasks = await db.prisma().$queryRawUnsafe<source_task[]>(sql, ...args);
-      return {
-        ok: true,
-        tasks: tasks,
-      };
+      if (query.taskId) {
+        if (tasks.length == 0) {
+          return {
+            ok: false,
+            error: `Task ${query.taskId} not found`,
+          };
+        } else {
+          return {
+            ok: true,
+            task: tasks[0],
+            logs: `${getAppEndpoint(req).baseUrl}/api/${workspaceId}/sources/logs?taskId=${query.taskId}&syncId=${
+              query.syncId
+            }`,
+          };
+        }
+      } else {
+        return {
+          ok: true,
+          tasks: tasks,
+        };
+      }
     } catch (e: any) {
       return syncError(log, `Error loading tasks`, e, false, `sync ids: ${query.syncId} workspace: ${workspaceId}`);
     }

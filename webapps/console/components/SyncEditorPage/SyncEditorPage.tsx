@@ -248,9 +248,7 @@ function SyncEditor({
               className={"h-96"}
               title={"Loading connector catalog..."}
               longLoadingThresholdSeconds={4}
-              longLoadingTitle={
-                "Loading connector catalog may take a little longer if it happens for the first time and catalog is huge."
-              }
+              longLoadingTitle={"It may take a little longer if it happens for the first time or catalog is too big."}
             />
           ) : (
             <div className={"flex flex-col items-end"}>

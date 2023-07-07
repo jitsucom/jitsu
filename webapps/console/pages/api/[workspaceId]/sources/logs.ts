@@ -48,9 +48,7 @@ export default createRoute()
         .log(
           `Error loading logs for task id ${query.taskId} in workspace ${workspaceId}. Error ID: ${errorId}. Error: ${e}`
         );
-      res.write(
-        `ERROR: couldn't load task logs due to internal server error. Please contact support. Error ID: ${errorId}`
-      );
+      res.write(`Error loading logs for task id ${query.taskId} Error ID: ${errorId}. Error: ${e}`);
     } finally {
       res.end();
     }

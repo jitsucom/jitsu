@@ -297,7 +297,7 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
             onClick: async () => {
               setShowScheduling(link.id);
             },
-            label: "Schedule (beta)",
+            label: "Schedule (API)",
           },
           {
             icon: <FaTrash />,
@@ -452,45 +452,151 @@ const ScheduleDocumentation: React.FC<{
   onCancel: () => void;
 }> = ({ syncId, service, destination, onCancel }) => {
   const appConfig = useAppConfig();
+  const workspace = useWorkspace();
 
   const displayDomain = appConfig.websiteUrl;
   return (
-    <Overlay onClose={onCancel} className="px-6 py-6 flex flex-col items-center">
-      <SyncTitle syncId={syncId} service={service} destination={destination} />
-      <div className={"prose max-w-full"}>
-        <h2>Scheduling Sync</h2>
-        <Alert
-          type="warning"
-          showIcon
-          message={<b>Service Sync Beta</b>}
-          description={
-            <>
-              Jitsu Next Service Sync is currently in Beta. Scheduling of sync tasks is not yet implemented.
-              <br />
-              But you can use API endpoint that trigger sync together with third-party scheduling tools like{" "}
-              <a target={"_blank"} rel={"noreferrer noopener"} href={"https://cloud.google.com/scheduler"}>
-                Google Cloud Scheduler
-              </a>
-              , cron, Airflow, ...
-            </>
-          }
-        />
-        <h2>Trigger sync</h2>
-        <h3>Endpoint</h3>
-        <CodeBlock>{`${displayDomain}/api/cl9y5kgth0002ccfn3vtqz64g/sources/run?syncId=cl9y5kgth0002ccfn3vtqz64g-ab23-x2ib-W0UtFw`}</CodeBlock>
-        <h3>Authorization</h3>
-        Use <b>Authorization</b> header with <b>Bearer</b> token. You can obtain token in{" "}
-        <Link href={"/user"}>Settings</Link> page.
-        <h3>Example</h3>
-        <CodeBlock lang={"bash"}>
-          {`curl -H "Authorization: bearer abc:123" \\
-"${displayDomain}/api/cl9y5kgth0002ccfn3vtqz64g/sources/run?syncId=cl9y5kgth0002ccfn3vtqz64g-ab23-x2ib-W0UtFw"`}
-        </CodeBlock>
-        <h3>Response</h3>
-        Successful response:
-        <CodeBlock lang={"json"}>{`{"ok": true}`}</CodeBlock>
-        Error response:
-        <CodeBlock lang={"json"}>{`{"ok":false,"error":"Sync is already running"}`}</CodeBlock>
+    <Overlay onClose={onCancel} className="px-6 py-6">
+      <div className={"flex flex-row gap-2 border-b pb-2 mb-4"}>
+        <SyncTitle syncId={syncId} service={service} destination={destination} />
+      </div>
+      <div className="flex flex-row">
+        <div className={"flex-shrink prose-sm max-w-none overflow-auto"}>
+          <h2 id={"scheduling"}>Scheduling Sync</h2>
+          <Alert
+            type="warning"
+            showIcon
+            message={<b>Service Sync Beta</b>}
+            description={
+              <>
+                Jitsu Next Service Sync is currently in Beta. Scheduling of sync tasks is not yet implemented.
+                <br />
+                But you can use API endpoint that trigger sync together with third-party scheduling tools like{" "}
+                <a target={"_blank"} rel={"noreferrer noopener"} href={"https://cloud.google.com/scheduler"}>
+                  Google Cloud Scheduler
+                </a>
+                , cron, Airflow, ...
+              </>
+            }
+          />
+          <h2 id={"trigger"}>Trigger Sync</h2>
+          <h3>Endpoint</h3>
+          <CodeBlock>{`${displayDomain}/api/${workspace.id}/sources/run?syncId=${syncId}`}</CodeBlock>
+          <ul>
+            <li>
+              <b>syncId</b> - id of Sync object
+            </li>
+          </ul>
+          <h3>Authorization</h3>
+          Use <b>Authorization</b> header with <b>Bearer</b> token. You can obtain token in{" "}
+          <Link href={"/user"}>Settings</Link> page.
+          <h3>Example</h3>
+          <CodeBlock lang={"bash"}>
+            {`curl -H "Authorization: bearer abc:123" \\
+"${displayDomain}/api/${workspace.id}/sources/run?syncId=${syncId}"`}
+          </CodeBlock>
+          <h3>Response</h3>
+          Successful response:
+          <CodeBlock lang={"json"}>{`{
+    "ok": true,
+    "taskId": "358877ad-7ad5-431f-bd7b-05badd29c6aa",
+    "status": "${displayDomain}/api/${workspace.id}/sources/tasks?taskId=358877ad-7ad5-431f-bd7b-05badd29c6aa&syncId=${syncId}",
+    "logs": "${displayDomain}/api/${workspace.id}/sources/logs?taskId=358877ad-7ad5-431f-bd7b-05badd29c6aa&syncId=${syncId}"
+}`}</CodeBlock>
+          * You can use <b>status</b> and <b>logs</b> links to check sync status and logs.
+          <br />
+          <br /> Error response:
+          <CodeBlock lang={"json"}>{`{
+    "ok": false,
+    "error": "Sync is already running",
+    "runningTask": {
+        "taskId":"452110c3-26fc-43f0-b079-406af0c90047",
+        "status":"${displayDomain}/api/${workspace.id}/sources/tasks?taskId=452110c3-26fc-43f0-b079-406af0c90047&syncId=${syncId}",
+        "logs":"${displayDomain}/api/${workspace.id}/sources/logs?taskId=452110c3-26fc-43f0-b079-406af0c90047&syncId=${syncId}"
+    }
+}`}</CodeBlock>
+          <h2 id={"status"}>Sync Status</h2>
+          <h3>Endpoint</h3>
+          <CodeBlock>{`${displayDomain}/api/${workspace.id}/sources/tasks?taskId={task id}&syncId=${syncId}`}</CodeBlock>
+          <ul>
+            <li>
+              <b>syncId</b> - id of Sync object
+            </li>
+            <li>
+              <b>taskId</b> - id of task returned in response of <b>Trigger sync</b> endpoint
+            </li>
+          </ul>
+          <h3>Authorization</h3>
+          Use <b>Authorization</b> header with <b>Bearer</b> token. You can obtain token in{" "}
+          <Link href={"/user"}>Settings</Link> page.
+          <h3>Example</h3>
+          <CodeBlock lang={"bash"}>
+            {`curl -H "Authorization: bearer abc:123" \\
+"${displayDomain}/api/${workspace.id}/sources/tasks?taskId=452110c3-26fc-43f0-b079-406af0c90047&syncId=${syncId}"`}
+          </CodeBlock>
+          <h3>Response</h3>
+          Successful response:
+          <CodeBlock lang={"json"}>{`{
+    "ok": true,
+    "task": {
+        "sync_id":"${syncId}",
+        "task_id":"452110c3-26fc-43f0-b079-406af0c90047",
+        "package":"${service.package}",
+        "version":"${service.version}",
+        "started_at":"2023-07-07T08:20:59.000Z",
+        "updated_at":"2023-07-07T08:21:07.706Z",
+        "status":"RUNNING",
+        "description":"CREATED: "
+    },
+    "logs":"${displayDomain}/api/${workspace.id}/sources/logs?taskId=358877ad-7ad5-431f-bd7b-05badd29c6aa&syncId=${syncId}"
+}`}</CodeBlock>
+          * You can use <b>logs</b> link to check sync logs.
+          <br />
+          <br /> Error response:
+          <CodeBlock lang={"json"}>{`{
+    "ok":false,
+    "error":"Task 452110c3-26fc-43f0-b079-406af0c90047 not found"
+}`}</CodeBlock>
+          <h2 id={"logs"}>Sync Logs</h2>
+          <h3>Endpoint</h3>
+          <CodeBlock>{`${displayDomain}/api/${workspace.id}/sources/logs?taskId={task id}&syncId=${syncId}`}</CodeBlock>
+          <ul>
+            <li>
+              <b>syncId</b> - id of Sync object
+            </li>
+            <li>
+              <b>taskId</b> - id of task returned in response of <b>Trigger sync</b> endpoint
+            </li>
+          </ul>
+          <h3>Authorization</h3>
+          Use <b>Authorization</b> header with <b>Bearer</b> token. You can obtain token in{" "}
+          <Link href={"/user"}>Settings</Link> page.
+          <h3>Example</h3>
+          <CodeBlock lang={"bash"}>
+            {`curl -H "Authorization: bearer abc:123" \\
+"${displayDomain}/api/${workspace.id}/sources/logs?taskId=452110c3-26fc-43f0-b079-406af0c90047&syncId=${syncId}"`}
+          </CodeBlock>
+          <h3>Response</h3>
+          Successful response:
+          <CodeBlock
+            lang={"plaintext"}
+          >{`2023-07-07 08:21:05.737 INFO [jitsu] Sidecar. syncId: ${syncId}, taskId: 452110c3-26fc-43f0-b079-406af0c90047, package: ${service.package}:${service.version} startedAt: 2023-07-07T12:20:59+04:00
+2023-07-07 08:21:05.832 INFO [jitsu] Catalog loaded. 36 streams selected
+2023-07-07 08:21:05.833 INFO [jitsu] State loaded: {}
+2023-07-07 08:21:06.573 INFO [${service.package}] Starting syncing...`}</CodeBlock>
+          <br /> Error response:
+          <CodeBlock
+            lang={"plaintext"}
+          >{`Error loading logs for task id 452110c3-26fc-43f0-b079-406af0c90047...`}</CodeBlock>
+        </div>
+        <div className={"ml-6 pt-2 px-6 hidden lg:block w-60 border-l flex-shrink-0"}>
+          <div className="flex whitespace-nowrap fixed   flex-col space-y-3  ">
+            <Link href="#scheduling">Scheduling Sync</Link>
+            <Link href="#trigger">Trigger Sync</Link>
+            <Link href="#status">Sync Status</Link>
+            <Link href="#logs">Sync Logs</Link>
+          </div>
+        </div>
       </div>
     </Overlay>
   );

@@ -198,6 +198,7 @@ function Tasks() {
 
   const defaultState: TasksViewState = {
     status: "all",
+    syncId: "all",
   };
   const [refresh, setRefresh] = useState(0);
   const [state, setState] = useQueryStringState<TasksViewState>(`query`, {
@@ -297,7 +298,10 @@ function Tasks() {
     }
   }, [linksMap, servicesMap, destinationsMap]);
 
-  let tasksUrl = `/api/${workspace.id}/sources/tasks?syncId=${state.syncId}&r=${refresh}`;
+  let tasksUrl = `/api/${workspace.id}/sources/tasks?r=${refresh}`;
+  if (state.syncId !== "all") {
+    tasksUrl += `&syncId=${state.syncId}`;
+  }
   if (state.status !== "all") {
     tasksUrl += `&status=${state.status}`;
   }

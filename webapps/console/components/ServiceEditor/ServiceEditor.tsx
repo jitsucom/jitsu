@@ -161,9 +161,7 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
               className={"h-52"}
               title={"Loading connector specifications..."}
               longLoadingThresholdSeconds={4}
-              longLoadingTitle={
-                "Loading connector specifications may take a little longer if it happens for the first time..."
-              }
+              longLoadingTitle={"It may take a little longer if it happens for the first time"}
             />
           ) : (
             <div>

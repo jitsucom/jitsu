@@ -39,13 +39,13 @@ export function LoadingAnimation({
   hideTitle?: boolean;
 }) {
   const startTime = dayjs();
-  const [shownTitle, setShownTitle] = useState<ReactNode>(title || "Loading...");
+  const [longLoading, setLongLoading] = useState<boolean>(false);
 
   useEffect(() => {
     if (longLoadingTitle) {
       const id = setInterval(() => {
         if (dayjs().diff(startTime, "second") > longLoadingThresholdSeconds) {
-          setShownTitle(longLoadingTitle);
+          setLongLoading(true);
         }
       }, 1000);
 
@@ -58,7 +58,8 @@ export function LoadingAnimation({
       <div className="w-12 h-12">
         <Spinner />
       </div>
-      {!hideTitle && <div className={`text-text text-lg mt-4`}>{shownTitle}</div>}
+      {!hideTitle && <div className={`text-text text-lg mt-4`}>{title || "Loading..."}</div>}
+      {longLoading && <div className={`text-text mt-2`}>{longLoadingTitle}</div>}
     </div>
   );
 }

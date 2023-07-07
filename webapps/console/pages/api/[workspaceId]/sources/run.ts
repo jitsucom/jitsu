@@ -7,13 +7,23 @@ import { tryManageOauthCreds } from "../../../../lib/server/oauth/services";
 import { ServiceConfig } from "../../../../lib/schema";
 import { syncError } from "../../../../lib/shared/errors";
 import { getServerLog } from "../../../../lib/server/log";
+import { getAppEndpoint } from "../../../../lib/domains";
 
 const log = getServerLog("sync-run");
 
 const resultType = z.object({
   ok: z.boolean(),
-  taskID: z.string().optional(),
   error: z.string().optional(),
+  taskId: z.string().optional(),
+  status: z.string().optional(),
+  logs: z.string().optional(),
+  runningTask: z
+    .object({
+      taskId: z.string(),
+      status: z.string(),
+      logs: z.string(),
+    })
+    .optional(),
 });
 
 export default createRoute()
@@ -65,6 +75,15 @@ export default createRoute()
         return {
           ok: false,
           error: `Sync is already running`,
+          runningTask: {
+            taskId: running.task_id,
+            status: `${getAppEndpoint(req).baseUrl}/api/${workspaceId}/sources/tasks?taskId=${running.task_id}&syncId=${
+              query.syncId
+            }`,
+            logs: `${getAppEndpoint(req).baseUrl}/api/${workspaceId}/sources/logs?taskId=${running.task_id}&syncId=${
+              query.syncId
+            }`,
+          },
         };
       }
       const service = sync.from;
@@ -103,7 +122,16 @@ export default createRoute()
       if (!res.ok) {
         return { ok: false, error: res.error ?? "unknown error", taskId };
       } else {
-        return { ok: true, taskId };
+        return {
+          ok: true,
+          taskId,
+          status: `${getAppEndpoint(req).baseUrl}/api/${workspaceId}/sources/tasks?taskId=${taskId}&syncId=${
+            query.syncId
+          }`,
+          logs: `${getAppEndpoint(req).baseUrl}/api/${workspaceId}/sources/logs?taskId=${taskId}&syncId=${
+            query.syncId
+          }`,
+        };
       }
     } catch (e: any) {
       return syncError(log, `Error running sync`, e, false, `sync: ${query.syncId} workspace: ${workspaceId}`);
