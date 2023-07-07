@@ -32,6 +32,7 @@ export default createRoute()
     query: z.object({
       workspaceId: z.string(),
       syncId: z.string(),
+      fullSync: z.string().optional(),
     }),
     result: resultType,
   })
@@ -93,12 +94,21 @@ export default createRoute()
           error: `Service ${sync.from} not found`,
         };
       }
-      //load state from db
-      const stateObj = await db.prisma().source_state.findUnique({
-        where: {
-          sync_id: query.syncId as string,
-        },
-      });
+      let stateObj: any = null;
+      if (query.fullSync === "true" || query.fullSync === "1") {
+        await db.prisma().source_state.deleteMany({
+          where: {
+            sync_id: query.syncId as string,
+          },
+        });
+      } else {
+        //load state from db
+        stateObj = await db.prisma().source_state.findUnique({
+          where: {
+            sync_id: query.syncId as string,
+          },
+        });
+      }
 
       const taskId = randomUUID();
       const res = await rpc(syncURL + "/read", {

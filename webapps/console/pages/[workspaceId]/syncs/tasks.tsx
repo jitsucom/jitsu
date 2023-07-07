@@ -314,7 +314,15 @@ function Tasks() {
     }
   }
 
+  const [shownData, setShownData] = useState<any | undefined>();
+
   const { isLoading, data, error } = useApi(tasksUrl);
+
+  useEffect(() => {
+    if (data) {
+      setShownData(data);
+    }
+  }, [data]);
 
   return (
     <>
@@ -401,7 +409,7 @@ function Tasks() {
         </div>
         <div key={"actions"}>
           <JitsuButton
-            icon={<RefreshCw className="w-6 h-6" />}
+            icon={<RefreshCw className={`w-6 h-6 ${isLoading && refresh > 0 && "animate-spin"}`} />}
             type="link"
             size="small"
             onClick={() => {
@@ -424,7 +432,7 @@ function Tasks() {
         <ErrorCard error={error}></ErrorCard>
       ) : (
         <TasksTable
-          tasks={data ? data.tasks : []}
+          tasks={shownData ? shownData.tasks : []}
           loading={isLoading}
           linksMap={linksMap}
           servicesMap={servicesMap}

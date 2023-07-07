@@ -16,7 +16,7 @@ import { useLinksQuery } from "../../../lib/queries";
 import { jsonSerializationBase64, useQueryStringState } from "../../../lib/useQueryStringState";
 import { TableProps } from "antd/es/table/InternalTable";
 import { ColumnType, SortOrder } from "antd/es/table/interface";
-import { CalendarCheckIcon, Edit3, Inbox, ListMinusIcon, Loader2 } from "lucide-react";
+import { CalendarCheckIcon, Edit3, Inbox, ListMinusIcon, Loader2, RefreshCw } from "lucide-react";
 import { PlusOutlined } from "@ant-design/icons";
 import { JitsuButton, WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
 import { ErrorCard } from "../../../components/GlobalError/GlobalError";
@@ -293,6 +293,39 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
             href: `/syncs/edit?id=${link.id}`,
           },
           {
+            disabled: t?.status === "RUNNING" || !!running,
+            title: t?.status === "RUNNING" ? "Sync is already running" : undefined,
+            icon:
+              running == link.id ? (
+                <Loader2 className="animate-spin w-3.5 h-3.5" />
+              ) : (
+                <RefreshCw className="w-3.5 h-3.5" />
+              ),
+            onClick: async () => {
+              setRunning(link.id);
+              try {
+                const runStatus = await rpc(`/api/${workspace.id}/sources/run?syncId=${link.id}&fullSync=true`);
+                if (runStatus?.error) {
+                  feedbackError(runStatus.error, { placement: "top" });
+                } else {
+                  router.push(
+                    `/${workspace.slug || workspace.id}/syncs/tasks?query=${encodeURIComponent(
+                      JSON5.stringify({
+                        syncId: link.id,
+                        notification: "Sync Started",
+                      })
+                    )}`
+                  );
+                }
+              } catch (e) {
+                feedbackError("Failed to run sync", { error: e, placement: "top" });
+              } finally {
+                setRunning(undefined);
+              }
+            },
+            label: "Full Sync",
+          },
+          {
             icon: <CalendarCheckIcon className={"w-4 h-4"} />,
             onClick: async () => {
               setShowScheduling(link.id);
@@ -308,7 +341,7 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
             label: "Delete",
           },
         ];
-        return <ButtonGroup collapseLast={2} items={items} />;
+        return <ButtonGroup collapseLast={3} items={items} />;
       },
     },
   ];
@@ -485,6 +518,10 @@ const ScheduleDocumentation: React.FC<{
           <ul>
             <li>
               <b>syncId</b> - id of Sync object
+            </li>
+            <li>
+              <b>fullSync</b> - optional, boolean, if true - saved state will be deleted and full sync will be performed
+              replacing all source data in destination
             </li>
           </ul>
           <h3>Authorization</h3>
