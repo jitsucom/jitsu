@@ -1,6 +1,6 @@
 import { WorkspacePageLayout } from "../../../components/PageLayout/WorkspacePageLayout";
 import { useWorkspace } from "../../../lib/context";
-import React, { ReactNode, useEffect, useState } from "react";
+import React, { ReactNode, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import { JitsuButton } from "../../../components/JitsuButton/JitsuButton";
 import { ChevronLeft, FileDown, RefreshCw } from "lucide-react";
@@ -40,7 +40,7 @@ function TaskLogs() {
   const router = useRouter();
   const workspace = useWorkspace();
   const divRef = React.useRef<HTMLDivElement>(null);
-  const originalRefresh = new Date().getTime();
+  const originalRefresh = useMemo(() => new Date(), []);
   const [refresh, setRefresh] = React.useState(originalRefresh);
 
   let logsUrl = `/api/${workspace.id}/sources/logs?syncId=${router.query.syncId}&taskId=${router.query.taskId}`;
@@ -82,11 +82,11 @@ function TaskLogs() {
             Download
           </JitsuButton>
           <JitsuButton
-            icon={<RefreshCw className={`w-6 h-6 ${isLoading && originalRefresh != refresh && "animate-spin"}`} />}
+            icon={<RefreshCw className={`w-6 h-6 ${isLoading && originalRefresh !== refresh && "animate-spin"}`} />}
             type="link"
             size="small"
             onClick={async () => {
-              setRefresh(new Date().getTime());
+              setRefresh(new Date());
             }}
           >
             Refresh
