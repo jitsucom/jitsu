@@ -43,7 +43,7 @@ type EventsBrowserState = {
   entitiesLoading: boolean;
   entitiesMap?: Record<string, any>;
   eventsLoading: boolean;
-  events: EventsLogRecord[];
+  events?: EventsLogRecord[];
   beforeId: string;
   refreshTime: Date;
   error?: string;
@@ -98,7 +98,7 @@ export const EventsBrowser = ({
     entitiesLoading: false,
     entitiesMap: undefined,
     eventsLoading: false,
-    events: [],
+    events: undefined,
     beforeId: "",
     refreshTime: new Date(),
   };
@@ -107,7 +107,7 @@ export const EventsBrowser = ({
     if (action.type === "addEvents") {
       return {
         ...state,
-        events: [...state.events, ...action.value],
+        events: [...(state.events ?? []), ...action.value],
       };
     }
     return {
@@ -116,8 +116,20 @@ export const EventsBrowser = ({
     };
   }
 
+  const initDate = useMemo(() => {
+    return new Date();
+  }, []);
+
   const [{ bulkerMode, entitiesLoading, entitiesMap, eventsLoading, events, beforeId, refreshTime, error }, dispatch] =
-    useReducer(eventStreamReducer, defaultState);
+    useReducer(eventStreamReducer, { ...defaultState, refreshTime: initDate });
+
+  const [shownEvents, setShownEvents] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (events) {
+      setShownEvents(events);
+    }
+  }, [events]);
 
   const eventsLogApi = useEventsLogApi();
 
@@ -331,7 +343,7 @@ export const EventsBrowser = ({
                 style={{ width: 120 }}
                 value={eventType}
                 onChange={e => {
-                  dispatch({ type: "events", value: [] });
+                  dispatch({ type: "events", value: undefined });
                   dispatch({ type: "beforeId", value: "" });
                   patchQueryStringState("eventType", e);
                 }}
@@ -361,7 +373,7 @@ export const EventsBrowser = ({
                   } else {
                     patchQueryStringState("dates", [null, null]);
                   }
-                  dispatch({ type: "events", value: [] });
+                  dispatch({ type: "events", value: undefined });
                   dispatch({ type: "beforeId", value: "" });
                 }}
                 // onOpenChange={onOpenChange}
@@ -371,11 +383,11 @@ export const EventsBrowser = ({
         </div>
         <div key={"right"}>
           <JitsuButton
-            icon={<RefreshCw className="w-6 h-6" />}
+            icon={<RefreshCw className={`w-6 h-6 ${eventsLoading && refreshTime !== initDate && "animate-spin"}`} />}
             type="link"
             size="small"
             onClick={e => {
-              dispatch({ type: "events", value: [] });
+              dispatch({ type: "events", value: undefined });
               dispatch({ type: "beforeId", value: "" });
               dispatch({ type: "refreshTime", value: new Date() });
             }}
@@ -390,7 +402,7 @@ export const EventsBrowser = ({
           streamType={streamType}
           entityType={entityType}
           actorId={actorId}
-          events={events}
+          events={shownEvents}
           loadEvents={() => loadEvents(streamType, entitiesMap, eventType, actorId, beforeId, dates)}
         />
       ) : (
