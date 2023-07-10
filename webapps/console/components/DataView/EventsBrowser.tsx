@@ -281,7 +281,7 @@ export const EventsBrowser = ({
             entity[1].name
           ) : (
             <div className={"flex flex-row gap-1.5"}>
-              <span>{entity[1].stream.name}</span>
+              <span>{entity[1].stream?.name || "unknown"}</span>
               <span>{"→"}</span>
               <DestinationTitle size={"small"} destination={entity[1].destination} />
             </div>
