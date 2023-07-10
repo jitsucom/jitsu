@@ -1,6 +1,6 @@
 import React, { ReactNode, RefObject, useEffect } from "react";
 import { branding } from "../../lib/branding";
-import { getLog, requireDefined } from "juava";
+import { requireDefined } from "juava";
 import Link from "next/link";
 import { useWorkspace } from "../../lib/context";
 import { ExternalLink } from "lucide-react";

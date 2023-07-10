@@ -14,8 +14,6 @@ import { z } from "zod";
 import { ConfigurationObjectLinkDbModel } from "../../prisma/schema";
 import { useLinksQuery } from "../../lib/queries";
 import { QuestionCircleOutlined } from "@ant-design/icons";
-import { ButtonProps } from "antd/es/button/button";
-import { Simplify } from "type-fest";
 import { ProvisionDatabaseButton } from "../../components/ProvisionDatabaseButton/ProvisionDatabaseButton";
 import { ConnectionsDiagram } from "../../components/ConnectionsDiagram/ConnectionsDiagram";
 import { getLog } from "juava";
