@@ -1,6 +1,6 @@
 import React, { ReactNode, RefObject, useEffect } from "react";
 import { branding } from "../../lib/branding";
-import { requireDefined } from "juava";
+import { getLog, requireDefined } from "juava";
 import Link from "next/link";
 import { useWorkspace } from "../../lib/context";
 import { ExternalLink } from "lucide-react";
@@ -75,8 +75,8 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({ connectio
   const [mouseOverSrc, setMouseOverSrc] = React.useState<string | undefined>();
   const [mouseOverDst, setMouseOverDst] = React.useState<string | undefined>();
   const workspaces = useWorkspace();
-  const [forceSelectDestination, setForceSelectDestination] = React.useState<string | undefined>();
-  const [forceSelectSource, setForceSelectSource] = React.useState<string | undefined>();
+  const [forceSelectDestination, setForceSelectDestination] = React.useState<string[]>([]);
+  const [forceSelectSource, setForceSelectSource] = React.useState<string[]>([]);
   useEffect(() => {
     const resizeListener = () => setWindowSize({ width: window.innerWidth, height: window.innerHeight });
     window.addEventListener("resize", resizeListener);
@@ -94,8 +94,6 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({ connectio
     );
     const logoBounds = logoRef.current.getBoundingClientRect();
     const newLines: ConnectorLine[] = [];
-    setForceSelectDestination(undefined);
-    setForceSelectSource(undefined);
     srcRefs.current
       .map(r => r.current)
       .filter(r => !!r)
@@ -105,9 +103,6 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({ connectio
         const selected =
           mouseOverSrc === sources[idx].id ||
           (!!mouseOverDst && !!connections.find(c => c.from === sources[idx].id && c.to === mouseOverDst));
-        if (selected) {
-          setForceSelectSource(sources[idx].id);
-        }
         newLines.push({
           from: { top: rel.top + bounds.height / 2, left: rel.left + bounds.width },
           to: { left: logoPosition.left, top: logoPosition.top + logoBounds.height / 2 },
@@ -121,11 +116,13 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({ connectio
       .forEach((r, idx) => {
         const rel = getRelativePosition(canvasRef.current!, r!);
         const bounds = r!.getBoundingClientRect();
+        const destination = destinations[idx];
         const selected =
-          mouseOverDst === destinations[idx].id ||
-          (!!mouseOverSrc && !!connections.find(c => c.to === destinations[idx].id && c.from === mouseOverSrc));
+          mouseOverDst === destination.id ||
+          (!!mouseOverSrc && !!connections.find(c => c.to === destination.id && c.from === mouseOverSrc));
         if (selected) {
-          setForceSelectDestination(destinations[idx].id);
+          setForceSelectDestination([destination.id]);
+          setForceSelectSource(connections.filter(c => c.to === destination.id).map(c => c.from));
         }
         newLines.push({
           to: { top: rel.top + bounds.height / 2, left: rel.left },
@@ -134,6 +131,17 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({ connectio
         });
       });
     setLines(newLines);
+
+    if (mouseOverSrc) {
+      setForceSelectSource([mouseOverSrc]);
+      setForceSelectDestination(connections.filter(c => c.from === mouseOverSrc).map(c => c.to));
+    } else if (mouseOverDst) {
+      setForceSelectDestination([mouseOverDst]);
+      setForceSelectSource(connections.filter(c => c.to === mouseOverDst).map(c => c.from));
+    } else {
+      setForceSelectDestination([]);
+      setForceSelectSource([]);
+    }
   }, [connections, sources, destinations, windowSize, mouseOverSrc, mouseOverDst]);
 
   srcRefs.current = sources.map((_, i) => srcRefs.current[i] ?? React.createRef());
@@ -155,7 +163,7 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({ connectio
               }}
               onMouseLeave={() => setMouseOverSrc(undefined)}
             >
-              {s.card(forceSelectSource === s.id)}
+              {s.card(forceSelectSource.includes(s.id))}
             </div>
           ))}
         </div>
@@ -178,17 +186,17 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({ connectio
         </div>
         <div className="flex flex-col grow">
           <Header {...p.dstActions} className="mb-4" />
-          {destinations.map((d, idx) => (
+          {destinations.map((dest, idx) => (
             <div
               className="cursor-pointer mb-4"
-              key={d.id}
+              key={dest.id}
               ref={dstRefs.current[idx] as any}
               onMouseOver={() => {
-                setMouseOverDst(d.id);
+                setMouseOverDst(dest.id);
               }}
               onMouseLeave={() => setMouseOverDst(undefined)}
             >
-              {d.card(forceSelectDestination === d.id)}
+              {dest.card(forceSelectDestination.includes(dest.id))}
             </div>
           ))}
         </div>

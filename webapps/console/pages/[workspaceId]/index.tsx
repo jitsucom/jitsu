@@ -141,7 +141,7 @@ function HoverBorder({ children, forceHover }: { children: ReactNode; forceHover
       )}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
-      style={hover ? { padding: "0px", borderWidth: "2px" } : { padding: "1px", borderWidth: "1px" }}
+      style={hover ? { padding: "0px", borderWidth: "3px" } : { padding: "2px", borderWidth: "1px" }}
     >
       {children}
     </div>
@@ -173,8 +173,6 @@ function Card({
   );
   return configLink ? <a href={configLink}>{card}</a> : card;
 }
-
-type ButtonAction = Simplify<Pick<ButtonProps, "href"> | Pick<ButtonProps, "onClick">>;
 
 type ConfigurationLinkDbModel = Omit<z.infer<typeof ConfigurationObjectLinkDbModel>, "data">;
 
