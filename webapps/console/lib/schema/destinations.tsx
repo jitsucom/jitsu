@@ -400,8 +400,8 @@ export const coreDestinations: DestinationType<any>[] = [
     }),
     credentialsUi: {
       keyFile: {
-        editor: "SnippedEditor",
-        editorProps: { languages: ["json"], height: 250 },
+        editor: "CodeEditor",
+        editorProps: { language: "json", height: "250px", monacoOptions: { lineNumbers: "off" } },
       },
     },
   },

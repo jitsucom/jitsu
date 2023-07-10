@@ -327,7 +327,7 @@ function Tasks() {
   return (
     <>
       {contextHolder}
-      <div className={"flex flex-row justify-between pb-3.5"}>
+      <div className={"flex flex-row justify-between items-center gap-4 pb-3.5"}>
         <div key={"left"}>
           <div className={"flex flex-row gap-4"}>
             <div>
@@ -408,24 +408,26 @@ function Tasks() {
           </div>
         </div>
         <div key={"actions"}>
-          <JitsuButton
-            icon={<RefreshCw className={`w-6 h-6 ${isLoading && refresh > 0 && "animate-spin"}`} />}
-            type="link"
-            size="small"
-            onClick={() => {
-              setRefresh(refresh + 1);
-            }}
-          >
-            Refresh
-          </JitsuButton>
-          <JitsuButton
-            icon={<ChevronLeft className="w-6 h-6" />}
-            type="link"
-            size="small"
-            onClick={() => router.push(`/${workspace.slug || workspace.id}/syncs`)}
-          >
-            Back
-          </JitsuButton>
+          <div className={"flex flex-row"}>
+            <JitsuButton
+              icon={<RefreshCw className={`w-6 h-6 ${isLoading && refresh > 0 && "animate-spin"}`} />}
+              type="link"
+              size="small"
+              onClick={() => {
+                setRefresh(refresh + 1);
+              }}
+            >
+              Refresh
+            </JitsuButton>
+            <JitsuButton
+              icon={<ChevronLeft className="w-6 h-6" />}
+              type="link"
+              size="small"
+              onClick={() => router.push(`/${workspace.slug || workspace.id}/syncs`)}
+            >
+              Back
+            </JitsuButton>
+          </div>
         </div>
       </div>
       {error ? (

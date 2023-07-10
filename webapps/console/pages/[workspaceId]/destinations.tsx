@@ -37,6 +37,7 @@ import { useBilling } from "../../components/Billing/BillingProvider";
 import { UpgradeDialog } from "../../components/Billing/UpgradeDialog";
 import { ProvisionDatabaseButton } from "../../components/ProvisionDatabaseButton/ProvisionDatabaseButton";
 import Link from "next/link";
+import { CodeEditor } from "../../components/CodeEditor/CodeEditor";
 
 const log = getLog("destinations");
 const Loader: React.FC<{}> = () => {
@@ -170,6 +171,15 @@ export const KeyValueArrayEditor: React.FC<CustomWidgetProps<KeyValueArray>> = p
 function getEditorComponent(editor: string, editorProps?: any) {
   if (editor === "ArrayTextarea" || editor === "StringArrayEditor") {
     return ArrayTextareaEditor;
+  } else if (editor === "CodeEditor") {
+    //eslint-disable-next-line react/display-name
+    return props => {
+      return (
+        <div className={"border border-textDisabled"}>
+          <CodeEditor {...props} {...editorProps} />
+        </div>
+      );
+    };
   } else if (editor === "SnippedEditor") {
     //eslint-disable-next-line react/display-name
     return props => {

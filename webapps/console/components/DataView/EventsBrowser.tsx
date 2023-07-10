@@ -13,7 +13,7 @@ import { WLink } from "../Workspace/WLink";
 import { DestinationTitle } from "../../pages/[workspaceId]/destinations";
 import ExternalLink from "../Icons/ExternalLink";
 import { AnalyticsContext, AnalyticsServerEvent } from "@jitsu/protocols/analytics";
-import { GlobalOutlined, LinkOutlined, NumberOutlined, QuestionCircleOutlined, UserOutlined } from "@ant-design/icons";
+import { GlobalOutlined, LinkOutlined, QuestionCircleOutlined, UserOutlined } from "@ant-design/icons";
 import { getConfigApi, useEventsLogApi } from "../../lib/useApi";
 import { FunctionTitle } from "../../pages/[workspaceId]/functions";
 import { FunctionConfig } from "../../lib/schema";
@@ -310,7 +310,7 @@ export const EventsBrowser = ({
   })();
   return (
     <>
-      <div className={"flex flex-row justify-between pb-3.5"}>
+      <div className={"flex flex-row justify-between items-center pb-3.5"}>
         <div key={"left"}>
           <div className={"flex flex-row gap-4"}>
             <div>
@@ -796,7 +796,7 @@ const IncomingEventDrawer = ({ event }: { event: IncomingEvent }) => {
         name: "Jitsu Domain",
         value: event.originDomain,
       });
-      drawerData.push({ name: "Write Key", value: event.writeKey });
+      drawerData.push({ name: "Write Key", value: <span className={"break-all"}>{event.writeKey}</span> });
       drawerData.push({
         name: "HTTP Headers",
         value: (
@@ -1015,13 +1015,13 @@ const IncomingEventsTable = ({ loadEvents, loading, streamType, entityType, acto
                 </Tag>
               </Tooltip>
             )}
-            {d.messageId && (
-              <Tooltip title={"Message ID"}>
-                <Tag icon={<NumberOutlined />} className={"whitespace-nowrap"}>
-                  {d.messageId}
-                </Tag>
-              </Tooltip>
-            )}
+            {/*{d.messageId && (*/}
+            {/*  <Tooltip title={"Message ID"}>*/}
+            {/*    <Tag icon={<NumberOutlined />} className={"whitespace-nowrap"}>*/}
+            {/*      {d.messageId}*/}
+            {/*    </Tag>*/}
+            {/*  </Tooltip>*/}
+            {/*)}*/}
           </div>
         );
       },

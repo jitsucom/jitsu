@@ -1,7 +1,7 @@
-import Editor from "@monaco-editor/react";
 import React from "react";
 import { Radio } from "antd";
 import { editor } from "monaco-editor";
+import { CodeEditor } from "./CodeEditor";
 
 /**
  * See tagDestination comments, due to limitations of the react-jsonschema-form we can't use
@@ -20,7 +20,7 @@ export type SnippedEditorProps = {
   languages?: SupportedLanguages[];
   height?: number;
   onChange: (value: SnippedEditorValue) => void;
-  options?: editor.IStandaloneEditorConstructionOptions;
+  monacoOptions?: editor.IStandaloneEditorConstructionOptions;
   //automatically fold code on provided level of indentation on editor mount
   foldLevel?: number;
 };
@@ -32,7 +32,7 @@ export type SnippedEditorProps = {
 function parse(val: string) {
   try {
     const j = JSON.parse(val);
-    if (j.lang && j.code) {
+    if (j.lang) {
       return j;
     } else {
       return { code: val, lang: "json" };
@@ -66,7 +66,9 @@ export const SnippedEditor: React.FC<SnippedEditorProps> = props => {
         </div>
       )}
       <div className={`border border-textDisabled`}>
-        <Editor
+        <CodeEditor
+          language={valueParsed.lang?.toLowerCase() || "html"}
+          height={props.height ? `${props.height}px` : "500px"}
           value={valueParsed.code || ""}
           onChange={code => {
             if (singleLanguage) {
@@ -77,39 +79,10 @@ export const SnippedEditor: React.FC<SnippedEditorProps> = props => {
               props.onChange(newValue);
             }
           }}
-          language={valueParsed.lang?.toLowerCase() || "html"}
-          height={props.height ? `${props.height}px` : "500px"}
-          onMount={
-            props.foldLevel
-              ? editor => {
-                  editor.getAction(`editor.foldLevel${props.foldLevel}`)?.run();
-                }
-              : undefined
-          }
-          className="rounded-lg"
-          options={{
-            renderLineHighlight: "none",
-            //readOnly: readonly,
-            automaticLayout: true,
-            glyphMargin: false,
-            folding: false,
+          foldLevel={props.foldLevel}
+          monacoOptions={{
             lineNumbers: "off",
-            lineDecorationsWidth: 11,
-            lineNumbersMinChars: 0,
-            minimap: {
-              enabled: false,
-            },
-            scrollbar: {
-              verticalScrollbarSize: 5,
-              horizontalScrollbarSize: 5,
-            },
-            padding: {
-              top: 4,
-              bottom: 4,
-            },
-            hideCursorInOverviewRuler: true,
-            overviewRulerLanes: 0,
-            ...props.options,
+            ...(props.monacoOptions || {}),
           }}
         />
       </div>

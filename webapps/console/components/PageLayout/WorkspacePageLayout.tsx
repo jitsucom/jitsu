@@ -6,6 +6,7 @@ import { FiSettings } from "react-icons/fi";
 import { Button, Drawer, Dropdown, Menu } from "antd";
 import MenuItem from "antd/lib/menu/MenuItem";
 import { ButtonLabel } from "../ButtonLabel/ButtonLabel";
+import styles from "./WorkspacePageLayout.module.css";
 import {
   Activity,
   ArrowLeftRight,
@@ -240,34 +241,31 @@ export const TopTabsMenu: React.FC<TopTabsMenuProps> = props => {
   const router = useRouter();
 
   return (
-    <div className="flex justify-between">
-      <div className="flex">
-        {props.items
-          .filter(i => !i.hidden)
-          .map(item => {
-            const selected = isSelected(item, router);
-            return (
-              <div key={item.path} className="pr-0 cursor-pointer ">
-                <div
-                  className={`py-1.5 px-3 lg:py-2 lg:px-4 mb-2 ${
-                    selected ? "bg-neutral-200 rounded-lg lg:rounded-xl" : ""
+    <div className="flex sm:gap-0 lg:gap-0 gap-1.5 xl:gap-2.5">
+      {props.items
+        .filter(i => !i.hidden)
+        .map(item => {
+          const selected = isSelected(item, router);
+          return (
+            <div
+              key={item.path}
+              className={`cursor-pointer py-1.5 sm:px-2 lg:px-2 xl:px-3 px-3 lg:py-2 mb-2 ${
+                selected ? "bg-neutral-200 rounded-lg lg:rounded-xl" : ""
+              }`}
+            >
+              <WLink href={item.path}>
+                <span
+                  className={`flex flex-nowrap items-center whitespace-nowrap hover:text-neutral-800 ${
+                    selected ? "text-neutral-800" : "text-neutral-500"
                   }`}
                 >
-                  <WLink href={item.path}>
-                    <span
-                      className={`flex flex-nowrap items-center hover:text-neutral-800 ${
-                        selected ? "text-neutral-800" : "text-neutral-500"
-                      }`}
-                    >
-                      <div className="mr-1 h-4 w-4">{item.icon}</div>
-                      {item.title}
-                    </span>
-                  </WLink>
-                </div>
-              </div>
-            );
-          })}
-      </div>
+                  <div className="mr-1 h-4 w-4">{item.icon}</div>
+                  {item.title}
+                </span>
+              </WLink>
+            </div>
+          );
+        })}
     </div>
   );
 };
@@ -371,7 +369,7 @@ function PageHeader() {
   return (
     <div>
       <div className="w-full">
-        <div className="flex justify-between items-center pl-3">
+        <div className="flex justify-between items-center px-4">
           <Breadcrumbs />
           <UserProfileButton />
         </div>
@@ -449,11 +447,7 @@ export const VerticalSection: React.FC<PropsWithChildren<{ className?: string }>
 };
 
 export const WidthControl: React.FC<PropsWithChildren<{ className?: string }>> = ({ children, className }) => {
-  return (
-    <div className={classNames("px-8", className)} style={{ maxWidth: "1500px", minWidth: "900px", flexGrow: 1 }}>
-      {children}
-    </div>
-  );
+  return <div className={classNames(className, "flex-grow", styles.widthControl)}>{children}</div>;
 };
 
 export const WorkspacePageLayout: React.FC<PropsWithChildren<PageLayoutProps>> = ({
@@ -477,17 +471,15 @@ export const WorkspacePageLayout: React.FC<PropsWithChildren<PageLayoutProps>> =
 
   const pHeader = (
     <VerticalSection className="header border-b border-neutral-300 bg-neutral-50" key="header">
-      <WidthControl>
-        <div className="-ml-4 ">
-          <PageHeader />
-        </div>
+      <WidthControl className={"px-0 lg:px-4"}>
+        <PageHeader />
       </WidthControl>
     </VerticalSection>
   );
   return (
-    <div className={`flex flex-col  ${className}`}>
+    <div className={`flex flex-col ${className}`}>
       {!doNotBlockIfUsageExceeded && <BillingBlockingDialog />}
-      <div className="flex-auto overflow-auto flex flex-col" style={{ minWidth: "1024px" }}>
+      <div className="flex-auto overflow-auto flex flex-col">
         {!workspace.slug && (
           <WorkspaceSettingsModal
             onSuccess={() => {
@@ -523,16 +515,14 @@ export const WorkspacePageLayout: React.FC<PropsWithChildren<PageLayoutProps>> =
         )}
         <VerticalSection className={`flex-auto overflow-auto ${fullscreen ? "py-2" : "py-12"}`}>
           {fullscreen && (
-            <div className="absolute right-0 top-0 mt-1 mr-2">
-              <button
-                className="hover:bg-neutral-100 p-1.5 rounded-lg flex justify-center items-center"
-                onClick={() => (onClose ? onClose() : router.back())}
-              >
-                <X className="w-8 h-8" />
-              </button>
-            </div>
+            <button
+              className="absolute right-0 top-0 mt-1 mr-2 hover:bg-neutral-100 p-1.5 rounded-lg flex justify-center items-center z-50"
+              onClick={() => (onClose ? onClose() : router.back())}
+            >
+              <X className="w-8 h-8" />
+            </button>
           )}
-          <WidthControl>{children}</WidthControl>
+          <WidthControl className={"px-4 lg:px-8"}>{children}</WidthControl>
         </VerticalSection>
       </div>
     </div>

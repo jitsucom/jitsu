@@ -16,7 +16,9 @@ const Functions: React.FC<any> = () => {
   console.log("router", router.pathname);
   return (
     <WorkspacePageLayout
-      className={"h-screen"}
+      className={`${
+        router.pathname === "/[workspaceId]/functions" && typeof router.query["id"] !== "undefined" ? "h-screen" : ""
+      }`}
       fullscreen={router.pathname === "/[workspaceId]/functions" && typeof router.query["id"] !== "undefined"}
     >
       <FunctionsList />

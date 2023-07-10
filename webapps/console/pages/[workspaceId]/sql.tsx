@@ -96,7 +96,7 @@ const DataViewPage: React.FC<any> = () => {
   return (
     <WorkspacePageLayout className={"h-screen"} fullscreen={true}>
       <div className="flex flex-col h-full pt-12">
-        <div className="w-full flex-auto overflow-auto" style={{ minWidth: "1100px" }}>
+        <div className="w-full flex-auto overflow-auto">
           <SQLViewer destinationId={destinationId} />
         </div>
       </div>

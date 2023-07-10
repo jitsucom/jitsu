@@ -41,7 +41,9 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
         editor.getAction(`editor.foldLevel${foldLevel}`)?.run();
       }
       editorRef.current = editor;
-      editor.setValue(value);
+      if (typeof value !== "undefined") {
+        editor.setValue(value);
+      }
       editor.onDidChangeCursorPosition(e => {
         handleChangePosition(editor.getModel().getOffsetAt(e.position));
       });

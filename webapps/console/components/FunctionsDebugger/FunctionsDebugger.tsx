@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useReducer, useState } from "react";
 import { EditorComponentProps } from "../ConfigObjectEditor/ConfigEditor";
-import FieldListEditorLayout from "../FieldListEditorLayout/FieldListEditorLayout";
 import { Badge, Button, Drawer, Dropdown, Input, MenuProps, Select, Table } from "antd";
 import { PlayCircleOutlined } from "@ant-design/icons";
 import { CodeEditor } from "../CodeEditor/CodeEditor";
@@ -34,9 +33,9 @@ export const EditableTitle: React.FC<{ children: string; onUpdate: (str: string)
   const [value, setValue] = useState(children);
   const [rollbackValue, setRollbackValue] = useState(children);
   return (
-    <div className="group flex items-center space-x-2 cursor-pointer">
+    <div className={"h-12"}>
       {editing ? (
-        <>
+        <div className={"flex space-x-2"}>
           <div className="shrink">
             <Input
               value={value}
@@ -73,11 +72,11 @@ export const EditableTitle: React.FC<{ children: string; onUpdate: (str: string)
           >
             <X className="w-5 h-5" />
           </button>
-        </>
+        </div>
       ) : (
-        <>
+        <div className={"group flex space-x-2"}>
           <h1
-            className="text-2xl my-2"
+            className="text-2xl my-2 cursor-pointer"
             onDoubleClick={() => {
               setRollbackValue(value);
               setEditing(true);
@@ -86,7 +85,7 @@ export const EditableTitle: React.FC<{ children: string; onUpdate: (str: string)
             {value}
           </h1>
           <button
-            className="hover:bg-neutral-100 py-1.5 px-2 rounded invisible group-hover:visible"
+            className="hover:bg-neutral-100 py-1.5 px-2 rounded invisible group-hover:visible flex-grow-0 cursor-pointer"
             onClick={() => {
               setRollbackValue(value);
               setEditing(true);
@@ -94,7 +93,7 @@ export const EditableTitle: React.FC<{ children: string; onUpdate: (str: string)
           >
             <Pencil className="w-5 h-5" />
           </button>
-        </>
+        </div>
       )}
     </div>
   );
@@ -119,11 +118,11 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
   const [logs, setLogs] = useState<logType[]>([]);
   const [unreadErrorLogs, setUnreadErrorLogs] = useState(0);
   const [unreadLogs, setUnreadLogs] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
 
   const save = useCallback(async () => {
-    setLoading(true);
+    setSaving(true);
     try {
       if (props.isNew) {
         await getConfigApi(workspace.id, "function").create(obj);
@@ -136,7 +135,7 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
     } catch (error) {
       feedbackError(`Can't save function`, { error });
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   }, [props.isNew, obj, workspace.id, push]);
 
@@ -204,7 +203,7 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
     <div className="flex flex-col h-full">
       <div className="w-full flex-auto  overflow-auto">
         <div className={"w-full h-full flex flex-col overflow-auto relative rounded-lg"}>
-          <div className={"shrink basis-3/5 overflow-auto"}>
+          <div className={"shrink basis-3/5 overflow-auto flex flex-col"}>
             <div className="pl-2">
               <EditableTitle
                 onUpdate={name => {
@@ -214,86 +213,59 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
                 {obj.name || "New function"}
               </EditableTitle>
             </div>
-            <FieldListEditorLayout
-              groups={{
-                Code: {
-                  expandable: false,
-                  className: "overflow-hidden",
-                  title: (
-                    <div className={"flex flex-row items-end justify-between mt-2 mb-2"}>
-                      <div>
-                        <h2 className="text-lg pl-2">Code:</h2>
-                      </div>
-                      <div className={"space-x-4"}>
-                        <Button
-                          type="primary"
-                          ghost
-                          loading={loading}
-                          onClick={() => push(`/${workspace.id}/functions`)}
-                        >
-                          Cancel
-                        </Button>
-                        <Button
-                          type="default"
-                          loading={loading}
-                          onClick={() => setShowConfig(!showConfig)}
-                          icon={<Settings className={"inline-block anticon"} size={"1em"} />}
-                        >
-                          Config
-                        </Button>
-                        <Button
-                          type="default"
-                          loading={running || loading}
-                          icon={<PlayCircleOutlined />}
-                          onClick={runFunction}
-                        >
-                          Run
-                        </Button>
-                        <Button type="primary" loading={loading} onClick={save}>
-                          Save
-                        </Button>
-                      </div>
-                    </div>
-                  ),
-                },
-              }}
-              items={[
-                {
-                  group: "Code",
-                  key: "code",
-                  itemClassName: "flex-auto",
-                  component: (
-                    <div className={"flex-auto flex flex-row h-full gap-x-4 overflow-auto"}>
-                      <div className={`${styles.editor} flex-auto pl-2 bg-backgroundLight`}>
-                        <CodeEditor
-                          width={"99.9%"}
-                          language={"javascript"}
-                          value={obj.code ?? ""}
-                          ctrlEnterCallback={runFunction}
-                          ctrlSCallback={save}
-                          onChange={value => setObj({ ...obj, code: value })}
-                          monacoOptions={{ renderLineHighlight: "none" }}
-                        />
-                      </div>
-                      <div
-                        className={`${styles.editor} ${
-                          showConfig ? "block" : "hidden"
-                        } flex-auto w-1/3 bg-backgroundLight`}
-                      >
-                        <div className={"jitsu-label-borderless"}>Config</div>
-                        <CodeEditor
-                          width={"99.9%"}
-                          language={"json"}
-                          value={config}
-                          onChange={setConfig}
-                          monacoOptions={{ lineNumbers: "off" }}
-                        />
-                      </div>
-                    </div>
-                  ),
-                },
-              ]}
-            />
+            <div className={"flex flex-row items-end justify-between mt-2 mb-2"}>
+              <div>
+                <h2 className="text-lg pl-2">Code:</h2>
+              </div>
+              <div className={"space-x-4"}>
+                <Button type="primary" ghost disabled={saving} onClick={() => push(`/${workspace.id}/functions`)}>
+                  Cancel
+                </Button>
+                <Button
+                  type="default"
+                  disabled={saving}
+                  onClick={() => setShowConfig(!showConfig)}
+                  icon={<Settings className={"inline-block anticon"} size={"1em"} />}
+                >
+                  Config
+                </Button>
+                <Button
+                  type="default"
+                  loading={running}
+                  disabled={saving}
+                  icon={<PlayCircleOutlined />}
+                  onClick={runFunction}
+                >
+                  Run
+                </Button>
+                <Button type="primary" disabled={saving} onClick={save}>
+                  Save
+                </Button>
+              </div>
+            </div>
+            <div className={"flex-auto flex flex-row h-full gap-x-4 overflow-auto"}>
+              <div className={`${styles.editor} flex-auto pl-2 bg-backgroundLight`}>
+                <CodeEditor
+                  width={"99.9%"}
+                  language={"javascript"}
+                  value={obj.code ?? ""}
+                  ctrlEnterCallback={runFunction}
+                  ctrlSCallback={save}
+                  onChange={value => setObj({ ...obj, code: value })}
+                  monacoOptions={{ renderLineHighlight: "none" }}
+                />
+              </div>
+              <div className={`${styles.editor} ${showConfig ? "block" : "hidden"} flex-auto w-1/3 bg-backgroundLight`}>
+                <div className={"jitsu-label-borderless"}>Config</div>
+                <CodeEditor
+                  width={"99.9%"}
+                  language={"json"}
+                  value={config}
+                  onChange={setConfig}
+                  monacoOptions={{ lineNumbers: "off" }}
+                />
+              </div>
+            </div>
           </div>
           <div className={`flex-auto basis-2/5 overflow-auto`}>
             <div className={"flex flex-row h-full gap-x-4"}>

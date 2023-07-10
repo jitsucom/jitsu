@@ -13,7 +13,7 @@ const DataViewPage: React.FC<any> = () => {
         <div className="flex mt-4 mb-4">
           <h1 className="text-3xl">Live Events</h1>
         </div>
-        <div className="w-full" style={{ minWidth: "1100px" }}>
+        <div className="w-full">
           <DataView />
         </div>
       </div>
