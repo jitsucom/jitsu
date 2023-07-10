@@ -1,13 +1,11 @@
 import React, { useCallback, useEffect, useReducer, useState } from "react";
 import { EditorComponentProps } from "../ConfigObjectEditor/ConfigEditor";
 import FieldListEditorLayout from "../FieldListEditorLayout/FieldListEditorLayout";
-import { TextEditor } from "../ConnectionEditorPage/ConnectionEditorPage";
-import { Badge, Button, Drawer, Dropdown, MenuProps, Select, Table } from "antd";
+import { Badge, Button, Drawer, Dropdown, Input, MenuProps, Select, Table } from "antd";
 import { PlayCircleOutlined } from "@ant-design/icons";
 import { CodeEditor } from "../CodeEditor/CodeEditor";
 import styles from "./FunctionsDebugger.module.css";
-import { Settings } from "lucide-react";
-import Link from "antd/lib/typography/Link";
+import { Check, Pencil, Settings, X } from "lucide-react";
 import { getConfigApi, useEventsLogApi } from "../../lib/useApi";
 import { EventsLogRecord } from "../../lib/server/events-log";
 import { useWorkspace } from "../../lib/context";
@@ -27,6 +25,80 @@ import { feedbackError } from "../../lib/ui";
 const localDate = (date: string | Date) => dayjs(date).format("YYYY-MM-DD HH:mm:ss");
 
 type FunctionsDebuggerProps = {} & EditorComponentProps;
+
+export const EditableTitle: React.FC<{ children: string; onUpdate: (str: string) => void }> = ({
+  children,
+  onUpdate,
+}) => {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(children);
+  const [rollbackValue, setRollbackValue] = useState(children);
+  return (
+    <div className="group flex items-center space-x-2 cursor-pointer">
+      {editing ? (
+        <>
+          <div className="shrink">
+            <Input
+              value={value}
+              className="text-2xl"
+              size="large"
+              onChange={e => setValue(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === "Enter") {
+                  setEditing(false);
+                  onUpdate(value);
+                } else if (e.key == "Escape") {
+                  setEditing(false);
+                  setValue(rollbackValue);
+                }
+                console.log(e.key);
+              }}
+            />
+          </div>
+          <button
+            className="hover:bg-neutral-100 py-1.5 px-2 rounded"
+            onClick={() => {
+              setEditing(false);
+              onUpdate(value);
+            }}
+          >
+            <Check className="w-5 h-5" />
+          </button>
+          <button
+            className="hover:bg-neutral-100 py-1.5 px-2 rounded"
+            onClick={() => {
+              setEditing(false);
+              setValue(rollbackValue);
+            }}
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </>
+      ) : (
+        <>
+          <h1
+            className="text-2xl my-2"
+            onDoubleClick={() => {
+              setRollbackValue(value);
+              setEditing(true);
+            }}
+          >
+            {value}
+          </h1>
+          <button
+            className="hover:bg-neutral-100 py-1.5 px-2 rounded invisible group-hover:visible"
+            onClick={() => {
+              setRollbackValue(value);
+              setEditing(true);
+            }}
+          >
+            <Pencil className="w-5 h-5" />
+          </button>
+        </>
+      )}
+    </div>
+  );
+};
 
 export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
   const { push } = useRouter();
@@ -133,19 +205,17 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
       <div className="w-full flex-auto  overflow-auto">
         <div className={"w-full h-full flex flex-col overflow-auto relative rounded-lg"}>
           <div className={"shrink basis-3/5 overflow-auto"}>
+            <div className="pl-2">
+              <EditableTitle
+                onUpdate={name => {
+                  setObj({ ...obj, name });
+                }}
+              >
+                {obj.name || "New function"}
+              </EditableTitle>
+            </div>
             <FieldListEditorLayout
               groups={{
-                Name: {
-                  expandable: true,
-                  hideArrow: true,
-                  initiallyExpanded: props.isNew,
-                  title: expanded => (
-                    <div className="flex mt-2 mb-2 items-baseline">
-                      <h1 className="text-2xl mr-2">{props.isNew ? "Add new function" : `Edit ${obj.name}`}</h1>
-                      <Link>{expanded ? "(hide)" : "(edit name)"}</Link>
-                    </div>
-                  ),
-                },
                 Code: {
                   expandable: false,
                   className: "overflow-hidden",
@@ -188,32 +258,6 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
                 },
               }}
               items={[
-                {
-                  group: "Name",
-                  name: "Name",
-                  component: (
-                    <TextEditor
-                      className="max-w-xl"
-                      value={obj.name}
-                      onChange={name => {
-                        setObj({ ...obj, name });
-                      }}
-                    />
-                  ),
-                },
-                {
-                  group: "Name",
-                  name: "Description",
-                  component: (
-                    <TextEditor
-                      className="max-w-xl"
-                      value={obj.description}
-                      onChange={description => {
-                        setObj({ ...obj, description });
-                      }}
-                    />
-                  ),
-                },
                 {
                   group: "Code",
                   key: "code",

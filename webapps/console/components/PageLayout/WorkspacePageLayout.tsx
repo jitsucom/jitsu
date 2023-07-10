@@ -22,6 +22,7 @@ import {
   Settings,
   Share2,
   ShieldAlert,
+  X,
 } from "lucide-react";
 
 import { NextRouter, useRouter } from "next/router";
@@ -522,9 +523,14 @@ export const WorkspacePageLayout: React.FC<PropsWithChildren<PageLayoutProps>> =
         )}
         <VerticalSection className={`flex-auto overflow-auto ${fullscreen ? "py-2" : "py-12"}`}>
           {fullscreen && (
-            <button className="absolute right-0 top-0 pr-4 pt-0" onClick={() => (onClose ? onClose() : router.back())}>
-              <div className="font-light text-6xl rotate-45 z-50">+</div>
-            </button>
+            <div className="absolute right-0 top-0 mt-1 mr-2">
+              <button
+                className="hover:bg-neutral-100 p-1.5 rounded-lg flex justify-center items-center"
+                onClick={() => (onClose ? onClose() : router.back())}
+              >
+                <X className="w-8 h-8" />
+              </button>
+            </div>
           )}
           <WidthControl>{children}</WidthControl>
         </VerticalSection>

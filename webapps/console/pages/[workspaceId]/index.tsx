@@ -5,11 +5,11 @@ import { QueryResponse } from "../../components/QueryResponse/QueryResponse";
 import { branding } from "../../lib/branding";
 import { Badge, Steps, Tooltip } from "antd";
 import { WLink } from "../../components/Workspace/WLink";
-import React, { ReactNode } from "react";
-import { FaGlobe, FaPlus } from "react-icons/fa";
+import React, { ReactNode, useEffect, useState } from "react";
+import { FaGlobe } from "react-icons/fa";
 import { LabelEllipsis } from "../../components/LabelEllipsis/LabelEllipsis";
 import { coreDestinationsMap } from "../../lib/schema/destinations";
-import { PropsWithChildrenClassname, useTitle } from "../../lib/ui";
+import { useTitle } from "../../lib/ui";
 import { z } from "zod";
 import { ConfigurationObjectLinkDbModel } from "../../prisma/schema";
 import { useLinksQuery } from "../../lib/queries";
@@ -17,8 +17,10 @@ import { QuestionCircleOutlined } from "@ant-design/icons";
 import { ButtonProps } from "antd/es/button/button";
 import { Simplify } from "type-fest";
 import { ProvisionDatabaseButton } from "../../components/ProvisionDatabaseButton/ProvisionDatabaseButton";
-import { JitsuButton } from "../../components/JitsuButton/JitsuButton";
 import { ConnectionsDiagram } from "../../components/ConnectionsDiagram/ConnectionsDiagram";
+import { getLog } from "juava";
+import { Chrome } from "lucide-react";
+import classNames from "classnames";
 
 function Welcome({
   destinations,
@@ -128,50 +130,59 @@ function Welcome({
   );
 }
 
-function Card({ title, configLink, icon }: { title: string; configLink?: string; icon: ReactNode }) {
+function HoverBorder({ children, forceHover }: { children: ReactNode; forceHover?: boolean }) {
+  const [_hover, setHover] = useState(false);
+  const hover = forceHover || _hover;
+  return (
+    <div
+      className={classNames(
+        "border border-transparent transition duration-150 rounded-lg",
+        hover ? "border-primary" : "border-primaryLighter"
+      )}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={hover ? { padding: "0px", borderWidth: "2px" } : { padding: "1px", borderWidth: "1px" }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function Card({
+  title,
+  configLink,
+  icon,
+  selected,
+}: {
+  title: string;
+  configLink?: string;
+  icon: ReactNode;
+  selected?: boolean;
+}) {
   const card = (
-    <div className="w-full p-3 rounded text-primary shadow transition duration-150 hover:shadow-md">
-      <div className="flex flex-start space-x-4">
-        <div className="w-6 h-6 mt-1">{icon}</div>
-        <div className="text-lg  mb-4 py-0 text-neutral-600">
-          <LabelEllipsis maxLen={20}>{title}</LabelEllipsis>
+    <HoverBorder forceHover={selected}>
+      <div className={classNames(`w-full px-4 py-5 rounded-lg text-primary`)}>
+        <div className="flex flex-start space-x-4">
+          <div className="w-6 h-6 mt-1">{icon}</div>
+          <div className="text-lg py-0 text-neutral-600">
+            <LabelEllipsis maxLen={20}>{title}</LabelEllipsis>
+          </div>
         </div>
       </div>
-    </div>
+    </HoverBorder>
   );
   return configLink ? <a href={configLink}>{card}</a> : card;
 }
 
 type ButtonAction = Simplify<Pick<ButtonProps, "href"> | Pick<ButtonProps, "onClick">>;
 
-function Section({
-  title,
-  children,
-  noun,
-  className,
-  addAction,
-}: PropsWithChildrenClassname<{ title: string; noun: string; addAction: ButtonAction }>) {
-  return (
-    <div className={className}>
-      <div className="text-2xl pb-4 border-b border-primaryLighter flex justify-between">
-        <div>{title}</div>
-        <div>
-          <JitsuButton icon={<FaPlus />} type="primary" size="large" {...addAction}>
-            Add {noun}
-          </JitsuButton>
-        </div>
-      </div>
-      <section>{children}</section>
-    </div>
-  );
-}
-
 type ConfigurationLinkDbModel = Omit<z.infer<typeof ConfigurationObjectLinkDbModel>, "data">;
 
-function DestinationCard({ dest }: { dest: DestinationConfig }) {
+function DestinationCard({ dest, selected }: { dest: DestinationConfig; selected?: boolean }) {
   const workspace = useWorkspace();
   const card = (
     <Card
+      selected={selected}
       icon={coreDestinationsMap[dest.destinationType]?.icon || <FaGlobe className="w-full h-full" />}
       title={dest.name}
       configLink={!dest.provisioned ? `/${workspace.id}/destinations?id=${dest.id}` : undefined}
@@ -205,6 +216,37 @@ function DestinationCard({ dest }: { dest: DestinationConfig }) {
   );
 }
 
+const FaviconLoader: React.FC<{ potentialUrl?: string }> = ({ potentialUrl }) => {
+  const [faviconUrl, setFaviconUrl] = useState<string | null>(null);
+  useEffect(() => {
+    (async () => {
+      if (potentialUrl) {
+        let url;
+        let fullUrl =
+          potentialUrl.indexOf("http") === 0 ? potentialUrl + "/favicon.ico" : `https://${potentialUrl}/favicon.ico`;
+        try {
+          url = new URL(fullUrl);
+        } catch (e) {
+          getLog().atDebug().withCause(e).log(`Failed to parse url ${fullUrl}`);
+        }
+        let response;
+        try {
+          response = await fetch(fullUrl);
+        } catch (e) {
+          getLog().atDebug().withCause(e).log(`Failed to parse url ${fullUrl}`);
+          return;
+        }
+        if (response.ok) {
+          setFaviconUrl(fullUrl);
+        } else {
+          getLog().atDebug().log(`Failed to load favicon for ${fullUrl}`);
+        }
+      }
+    })();
+  }, [potentialUrl]);
+  return faviconUrl ? <img src={faviconUrl} className="w-full h-full" /> : <Chrome className="w-full h-full" />;
+};
+
 function WorkspaceOverview(props: {
   streams: StreamConfig[];
   destinations: DestinationConfig[];
@@ -231,9 +273,10 @@ function WorkspaceOverview(props: {
           }}
           sources={streams.map(({ id, name }) => ({
             id: id,
-            card: (
+            card: (forceSelect: boolean) => (
               <Card
-                icon={<FaGlobe className="w-full h-full" />}
+                selected={forceSelect}
+                icon={<FaviconLoader potentialUrl={name} />}
                 title={name || id}
                 configLink={`/${workspace.id}/streams?id=${id}`}
               />
@@ -241,7 +284,7 @@ function WorkspaceOverview(props: {
           }))}
           destinations={destinations.map(d => ({
             id: d.id,
-            card: <DestinationCard dest={d} />,
+            card: (forceSelect: boolean) => <DestinationCard selected={forceSelect} dest={d} />,
           }))}
           connections={links.map(l => ({
             from: l.fromId,

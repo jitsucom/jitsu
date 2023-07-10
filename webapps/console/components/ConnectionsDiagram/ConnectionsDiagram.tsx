@@ -5,12 +5,12 @@ import Link from "next/link";
 import { useWorkspace } from "../../lib/context";
 import { ExternalLink } from "lucide-react";
 import { Button } from "antd";
-import { EditOutlined, PlusOutlined } from "@ant-design/icons";
+import { PlusOutlined } from "@ant-design/icons";
 import classNames from "classnames";
 
 export type ConnectorNode = {
   id: string;
-  card: ReactNode;
+  card: (forceSelect: boolean) => ReactNode;
 };
 export type Actions = {
   title: ReactNode;
@@ -54,7 +54,7 @@ const Header: React.FC<Actions & { className?: string }> = p => {
     <div className={classNames(`flex items-center justify-between`, p.className)}>
       <h1 className="text-2xl">{p.title}</h1>
       <div className="space-x-2 flex items-center">
-        <Button type="ghost" icon={<EditOutlined />} href={p.editLink}>
+        <Button type="ghost" href={p.editLink}>
           View All
         </Button>
         <Button type="primary" ghost={true} icon={<PlusOutlined />} href={p.newLink}>
@@ -75,6 +75,8 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({ connectio
   const [mouseOverSrc, setMouseOverSrc] = React.useState<string | undefined>();
   const [mouseOverDst, setMouseOverDst] = React.useState<string | undefined>();
   const workspaces = useWorkspace();
+  const [forceSelectDestination, setForceSelectDestination] = React.useState<string | undefined>();
+  const [forceSelectSource, setForceSelectSource] = React.useState<string | undefined>();
   useEffect(() => {
     const resizeListener = () => setWindowSize({ width: window.innerWidth, height: window.innerHeight });
     window.addEventListener("resize", resizeListener);
@@ -92,18 +94,24 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({ connectio
     );
     const logoBounds = logoRef.current.getBoundingClientRect();
     const newLines: ConnectorLine[] = [];
+    setForceSelectDestination(undefined);
+    setForceSelectSource(undefined);
     srcRefs.current
       .map(r => r.current)
       .filter(r => !!r)
       .forEach((r, idx) => {
         const rel = getRelativePosition(canvasRef.current!, r!);
         const bounds = r!.getBoundingClientRect();
+        const selected =
+          mouseOverSrc === sources[idx].id ||
+          (!!mouseOverDst && !!connections.find(c => c.from === sources[idx].id && c.to === mouseOverDst));
+        if (selected) {
+          setForceSelectSource(sources[idx].id);
+        }
         newLines.push({
           from: { top: rel.top + bounds.height / 2, left: rel.left + bounds.width },
           to: { left: logoPosition.left, top: logoPosition.top + logoBounds.height / 2 },
-          selected:
-            mouseOverSrc === sources[idx].id ||
-            (!!mouseOverDst && !!connections.find(c => c.from === sources[idx].id && c.to === mouseOverDst)),
+          selected,
         });
       });
 
@@ -113,12 +121,16 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({ connectio
       .forEach((r, idx) => {
         const rel = getRelativePosition(canvasRef.current!, r!);
         const bounds = r!.getBoundingClientRect();
+        const selected =
+          mouseOverDst === destinations[idx].id ||
+          (!!mouseOverSrc && !!connections.find(c => c.to === destinations[idx].id && c.from === mouseOverSrc));
+        if (selected) {
+          setForceSelectDestination(destinations[idx].id);
+        }
         newLines.push({
           to: { top: rel.top + bounds.height / 2, left: rel.left },
           from: { left: logoPosition.left + logoBounds.width, top: logoPosition.top + logoBounds.height / 2 },
-          selected:
-            mouseOverDst === destinations[idx].id ||
-            (!!mouseOverSrc && !!connections.find(c => c.to === destinations[idx].id && c.from === mouseOverSrc)),
+          selected,
         });
       });
     setLines(newLines);
@@ -143,7 +155,7 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({ connectio
               }}
               onMouseLeave={() => setMouseOverSrc(undefined)}
             >
-              {s.card}
+              {s.card(forceSelectSource === s.id)}
             </div>
           ))}
         </div>
@@ -176,7 +188,7 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({ connectio
               }}
               onMouseLeave={() => setMouseOverDst(undefined)}
             >
-              {d.card}
+              {d.card(forceSelectDestination === d.id)}
             </div>
           ))}
         </div>
