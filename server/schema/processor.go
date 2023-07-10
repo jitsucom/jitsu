@@ -249,6 +249,41 @@ func (p *Processor) ProcessPulledEvents(tableName string, objects []map[string]i
 	return map[string]*ProcessedFile{tableName: pf}, nil
 }
 
+func parseTransformed(transformed interface{}) ([]map[string]interface{}, error) {
+	if transformed == nil {
+		//transform that returns null causes skipped event
+		return nil, ErrSkipObject
+	}
+	parsed := make([]map[string]interface{}, 0, 1)
+	switch obj := transformed.(type) {
+	case map[string]interface{}:
+		parsed = append(parsed, obj)
+	case []interface{}:
+		for _, o := range obj {
+			switch value := o.(type) {
+			case map[string]interface{}:
+				parsed = append(parsed, value)
+			case bool:
+				if value {
+					//#872 react-style pattern: we ignore 'false' but it is not clear how to interpret 'true' value
+					return nil, fmt.Errorf("javascript transform result of incorrect type: %T Expected map[string]interface{}.", o)
+				}
+			case nil:
+				//#872 react-style pattern: undefined-s and null-s get ignored
+			default:
+				return nil, fmt.Errorf("javascript transform result of incorrect type: %T Expected map[string]interface{}.", o)
+			}
+		}
+	default:
+		return nil, fmt.Errorf("javascript transform result of incorrect type: %T Expected map[string]interface{}.", transformed)
+	}
+	if len(parsed) == 0 {
+		//transform that returns no events causes skipped event
+		return nil, ErrSkipObject
+	}
+	return parsed, nil
+}
+
 // processObject checks if table name in skipTables => return empty Table for skipping or
 // skips object if tableNameExtractor returns empty string, 'null' or 'false'
 // returns table representation of object and flatten, mapped object
@@ -284,50 +319,30 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 	} else {
 		transformed = mappedObject
 	}
-	if transformed == nil {
-		//transform that returns null causes skipped event
-		return nil, ErrSkipObject
+	toProcess, err := parseTransformed(transformed)
+	if err != nil {
+		return nil, err
 	}
 	if p.builtinTransformer != nil {
-		transformedObj, ok := transformed.(map[string]interface{})
-		if !ok {
-			return nil, fmt.Errorf("builtin javascript transform requires object. Got: %T", transformed)
-		}
-		transformed, err = p.builtinTransformer.ProcessEvent(transformedObj, nil)
-		if err != nil {
-			return nil, fmt.Errorf("failed to apply builtin javascript transform: %v", err)
-		}
-	}
-	if transformed == nil {
-		//transform that returns null causes skipped event
-		return nil, ErrSkipObject
-	}
-	toProcess := make([]map[string]interface{}, 0, 1)
-	switch obj := transformed.(type) {
-	case map[string]interface{}:
-		toProcess = append(toProcess, obj)
-	case []interface{}:
-		for _, o := range obj {
-			switch value := o.(type) {
-			case map[string]interface{}:
-				toProcess = append(toProcess, value)
-			case bool:
-				if value {
-					//#872 react-style pattern: we ignore 'false' but it is not clear how to interpret 'true' value
-					return nil, fmt.Errorf("javascript transform result of incorrect type: %T Expected map[string]interface{}.", o)
-				}
-			case nil:
-				//#872 react-style pattern: undefined-s and null-s get ignored
-			default:
-				return nil, fmt.Errorf("javascript transform result of incorrect type: %T Expected map[string]interface{}.", o)
+		toProcess2 := make([]map[string]interface{}, 0, len(toProcess))
+		for _, obj := range toProcess {
+			bto, err := p.builtinTransformer.ProcessEvent(obj, nil)
+			if err != nil {
+				return nil, fmt.Errorf("failed to apply builtin javascript transform: %v", err)
 			}
+			btarr, err := parseTransformed(bto)
+			if err == ErrSkipObject {
+				continue
+			}
+			if err != nil {
+				return nil, err
+			}
+			toProcess2 = append(toProcess2, btarr...)
 		}
-	default:
-		return nil, fmt.Errorf("javascript transform result of incorrect type: %T Expected map[string]interface{}.", transformed)
-	}
-	if len(toProcess) == 0 {
-		//transform that returns no events causes skipped event
-		return nil, ErrSkipObject
+		if len(toProcess2) == 0 {
+			return nil, ErrSkipObject
+		}
+		toProcess = toProcess2
 	}
 	envelops := make([]Envelope, 0, len(toProcess))
 	originalEvent, _ := json.Marshal(object)
