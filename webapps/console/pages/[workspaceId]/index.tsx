@@ -18,6 +18,7 @@ import { ButtonProps } from "antd/es/button/button";
 import { Simplify } from "type-fest";
 import { ProvisionDatabaseButton } from "../../components/ProvisionDatabaseButton/ProvisionDatabaseButton";
 import { JitsuButton } from "../../components/JitsuButton/JitsuButton";
+import { ConnectionsDiagram } from "../../components/ConnectionsDiagram/ConnectionsDiagram";
 
 function Welcome({
   destinations,
@@ -129,7 +130,7 @@ function Welcome({
 
 function Card({ title, configLink, icon }: { title: string; configLink?: string; icon: ReactNode }) {
   const card = (
-    <div className="w-72 p-3 rounded text-primary shadow transition duration-150 hover:shadow-md">
+    <div className="w-full p-3 rounded text-primary shadow transition duration-150 hover:shadow-md">
       <div className="flex flex-start space-x-4">
         <div className="w-6 h-6 mt-1">{icon}</div>
         <div className="text-lg  mb-4 py-0 text-neutral-600">
@@ -167,6 +168,43 @@ function Section({
 
 type ConfigurationLinkDbModel = Omit<z.infer<typeof ConfigurationObjectLinkDbModel>, "data">;
 
+function DestinationCard({ dest }: { dest: DestinationConfig }) {
+  const workspace = useWorkspace();
+  const card = (
+    <Card
+      icon={coreDestinationsMap[dest.destinationType]?.icon || <FaGlobe className="w-full h-full" />}
+      title={dest.name}
+      configLink={!dest.provisioned ? `/${workspace.id}/destinations?id=${dest.id}` : undefined}
+    />
+  );
+  return (
+    <div className="" key={dest.id}>
+      {dest.provisioned ? (
+        <Badge.Ribbon
+          text={
+            <>
+              <Tooltip
+                title={
+                  <>
+                    This destination is <b>provisioned</b>. It's hosted and managed by Jitsu, so you can't edit
+                    connection details. But you can use it as destination and query the data
+                  </>
+                }
+              >
+                Provisioned <QuestionCircleOutlined />
+              </Tooltip>
+            </>
+          }
+        >
+          {card}
+        </Badge.Ribbon>
+      ) : (
+        card
+      )}
+    </div>
+  );
+}
+
 function WorkspaceOverview(props: {
   streams: StreamConfig[];
   destinations: DestinationConfig[];
@@ -179,71 +217,37 @@ function WorkspaceOverview(props: {
   return (
     <div>
       {!configurationFinished && <Welcome streams={streams} destinations={destinations} links={links} />}
-      {configurationFinished && destinations.length && (
-        <Section
-          className="mt-12"
-          title="My sites"
-          noun="site"
-          addAction={{ href: `/${workspace.slug}/streams?id=new` }}
-        >
-          <div className="flex flex-wrap">
-            {streams.map(stream => (
-              <div className="pr-4 py-4" key={stream.id}>
-                <Card
-                  icon={<FaGlobe className="w-full h-full" />}
-                  title={stream.name || stream.id}
-                  configLink={`/${workspace.id}/streams?id=${stream.id}`}
-                />
-              </div>
-            ))}
-          </div>
-        </Section>
-      )}
       {configurationFinished && (
-        <Section
-          title="My destinations"
-          className="mt-16"
-          noun="destination"
-          addAction={{ href: `/${workspace.slug}/destinations?showCatalog=true` }}
-        >
-          <div className="flex flex-wrap">
-            {destinations.map(dest => {
-              const card = (
-                <Card
-                  icon={coreDestinationsMap[dest.destinationType]?.icon || <FaGlobe className="w-full h-full" />}
-                  title={dest.name}
-                  configLink={!dest.provisioned ? `/${workspace.id}/destinations?id=${dest.id}` : undefined}
-                />
-              );
-              return (
-                <div className="pr-4 py-4" key={dest.id}>
-                  {dest.provisioned ? (
-                    <Badge.Ribbon
-                      text={
-                        <>
-                          <Tooltip
-                            title={
-                              <>
-                                This destination is <b>provisioned</b>. It's hosted and managed by Jitsu, so you can't
-                                edit connection details. But you can use it as destination and query the data
-                              </>
-                            }
-                          >
-                            Provisioned <QuestionCircleOutlined />
-                          </Tooltip>
-                        </>
-                      }
-                    >
-                      {card}
-                    </Badge.Ribbon>
-                  ) : (
-                    card
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </Section>
+        <ConnectionsDiagram
+          srcActions={{
+            title: "Sites",
+            newLink: `/${workspace.id}/streams?id=new`,
+            editLink: `/${workspace.id}/streams`,
+          }}
+          dstActions={{
+            title: "Destinations",
+            newLink: `/${workspace.id}/destinations?id=new`,
+            editLink: `/${workspace.id}/destinations`,
+          }}
+          sources={streams.map(({ id, name }) => ({
+            id: id,
+            card: (
+              <Card
+                icon={<FaGlobe className="w-full h-full" />}
+                title={name || id}
+                configLink={`/${workspace.id}/streams?id=${id}`}
+              />
+            ),
+          }))}
+          destinations={destinations.map(d => ({
+            id: d.id,
+            card: <DestinationCard dest={d} />,
+          }))}
+          connections={links.map(l => ({
+            from: l.fromId,
+            to: l.toId,
+          }))}
+        />
       )}
       {configurationFinished && (
         <div className="flex justify-center">
