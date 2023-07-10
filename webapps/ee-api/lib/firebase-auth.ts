@@ -6,7 +6,7 @@ import * as JSON5 from "json5";
 
 const bearerPrefix = "bearer ";
 
-export const firebaseAuthCookieName = "fb-auth";
+export const firebaseAuthCookieName = "fb-auth2";
 
 export type FirebaseToken = { idToken: string; cookieToken?: never } | { idToken?: never; cookieToken: string };
 
