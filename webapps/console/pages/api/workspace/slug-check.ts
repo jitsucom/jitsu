@@ -30,9 +30,12 @@ const api: Api = {
       const { slug } = query;
       if (slug.length < 5) {
         return { valid: false, reason: "Slug must be at least 5 characters long" };
-      } else if (/[^a-z0-9\\-]/.test(slug)) {
-        return { valid: false, reason: "Slug must only contain lowercase letters and numbers" };
-      } else if (slug.charAt(0) >= "0" && slug.charAt(0) <= "9") {
+      } else if (/[^a-z0-9-]/.test(slug)) {
+        return {
+          valid: false,
+          reason: "Slug must only contain lowercase letters, numbers or hyphen and start with a letter",
+        };
+      } else if ((slug.charAt(0) >= "0" && slug.charAt(0) <= "9") || slug.charAt(0) === "-") {
         return { valid: false, reason: "Slug can't start with a digit" };
       }
       const currentSlug = await db.prisma().workspace.findFirst({ where: { slug } });

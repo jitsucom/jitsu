@@ -17,6 +17,8 @@ import { DataLayoutType } from "@jitsu/protocols/analytics";
 import { ChevronLeft } from "lucide-react";
 import styles from "./ConnectionEditorPage.module.css";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
+import { StreamTitle } from "../../pages/[workspaceId]/streams";
+import { DestinationTitle } from "../../pages/[workspaceId]/destinations";
 
 const log = getLog("ConnectionEditorPage");
 
@@ -42,11 +44,18 @@ function DestinationSelector(props: SelectorProps<DestinationConfig>) {
             const destinationType = getCoreDestinationType(destination.destinationType);
             return (
               <Select.Option dropdownMatchSelectWidth={false} value={destination.id} key={destination.id}>
-                <div className="flex items-center">
-                  <div className="w-5 h-5 mr-2 shrink-0">{destinationType.icon}</div>
-                  <div className="whitespace-nowrap">{destination.name}</div>
-                  <div className="text-xxs text-gray-500 ml-1">({destinationType.title})</div>
-                </div>
+                <DestinationTitle
+                  destination={destination}
+                  size={"small"}
+                  title={(d, t) => {
+                    return (
+                      <div className={"flex flex-row items-center"}>
+                        <div className="whitespace-nowrap">{destination.name}</div>
+                        <div className="text-xxs text-gray-500 ml-1">({destinationType.title})</div>
+                      </div>
+                    );
+                  }}
+                />
               </Select.Option>
             );
           })}
@@ -70,7 +79,7 @@ function SourceSelector(props: SelectorProps<StreamConfig>) {
         <Select dropdownMatchSelectWidth={false} className="w-80" value={props.selected} onSelect={props.onSelect}>
           {props.items.map(stream => (
             <Select.Option key={stream.id} value={stream.id}>
-              {stream.name}
+              <StreamTitle stream={stream} size={"small"} />
             </Select.Option>
           ))}
         </Select>
@@ -541,7 +550,6 @@ function ConnectionEditor({
       const functionId = "udf." + func.id;
       configItems.push({
         group: "Functions",
-        documentation: func.description,
         name: func.name,
         link: `/functions?id=${func.id}`,
         component: (
@@ -625,7 +633,11 @@ function ConnectionEditor({
                 await get(`/api/${workspace.id}/config/link`, {
                   body: { fromId: srcId, toId: dstId, type: "push", data: connectionOptions },
                 });
-                router.back();
+                if (router.query.backTo) {
+                  router.push(`/${workspace.id}${router.query.backTo}`);
+                } else {
+                  router.back();
+                }
               } catch (error) {
                 feedbackError(`Can't link destinations`, { error });
               } finally {

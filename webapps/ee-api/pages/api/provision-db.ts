@@ -119,8 +119,8 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
     });
   }
   const dbCredentials = await createAccount({
-    username: slug.replace("-", "_"),
-    database: slug.replace("-", "_"),
+    username: slug.replaceAll("-", "_"),
+    database: slug.replaceAll("-", "_"),
     password: randomId(24),
     cluster: clickhouseClusterName,
   });

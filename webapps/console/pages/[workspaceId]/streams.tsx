@@ -21,6 +21,8 @@ import type { DomainStatus } from "../../lib/server/ee";
 import { getAntdModal, useAntdModal } from "../../lib/modal";
 import { get } from "../../lib/useApi";
 import { Wrench } from "lucide-react";
+import { FaviconLoader } from "./index";
+import { ObjectTitle } from "../../components/ObjectTitle/ObjectTitle";
 
 const Streams: React.FC<any> = () => {
   return (
@@ -295,6 +297,20 @@ const DomainsEditor: React.FC<CustomWidgetProps<string[]>> = props => {
   );
 };
 
+export const StreamTitle: React.FC<{
+  stream?: StreamConfig;
+  size?: "small" | "default" | "large";
+  title?: (s: StreamConfig) => string | React.ReactNode;
+}> = ({ stream, title = s => s.name, size = "default" }) => {
+  return (
+    <ObjectTitle
+      icon={<FaviconLoader potentialUrl={stream?.name} />}
+      size={size}
+      title={stream ? title(stream) : "Unknown stream"}
+    />
+  );
+};
+
 const StreamsList: React.FC<{}> = () => {
   const workspace = useWorkspace();
   const noun = "site";
@@ -320,6 +336,7 @@ const StreamsList: React.FC<{}> = () => {
         </Link>
       ),
     objectType: StreamConfig,
+    icon: s => <FaviconLoader potentialUrl={s.name} />,
     actions: [
       {
         icon: <Wrench className="w-full h-full" />,
@@ -346,7 +363,7 @@ const StreamsList: React.FC<{}> = () => {
                       <div className="font-mono">{domain}</div>
                       <Link href={`https://${domain}`} legacyBehavior>
                         <a className="cursor-pointer">
-                          <FaExternalLinkAlt />
+                          <FaExternalLinkAlt className={"ml-0.5 w-2.5 h-2.5"} />
                         </a>
                       </Link>
                     </div>

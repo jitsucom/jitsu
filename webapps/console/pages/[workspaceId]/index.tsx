@@ -19,20 +19,26 @@ import { ConnectionsDiagram } from "../../components/ConnectionsDiagram/Connecti
 import { getLog } from "juava";
 import { Chrome } from "lucide-react";
 import classNames from "classnames";
+import { useRouter } from "next/router";
 
 function Welcome({
   destinations,
   streams,
+  links,
 }: {
   streams: StreamConfig[];
   destinations: DestinationConfig[];
   links: any[];
 }) {
   let step = -1;
-  if (streams.length > 0 && destinations.length > 0) {
+  if (streams.length > 0 && destinations.length > 0 && links.length > 0) {
+    step = 3;
+  } else if (streams.length > 0 && destinations.length > 0) {
     step = 2;
   } else if (streams.length > 0) {
     step = 1;
+  } else {
+    step = 0;
   }
   return (
     <div className="flex flex-col items-center">
@@ -57,7 +63,7 @@ function Welcome({
             description={
               streams.length === 0 ? (
                 <>
-                  <WLink href={`/streams?id=new`}>Click here to add it!</WLink>
+                  <WLink href={`/streams?id=new&backTo=%2F%3Fwelcome%3D1`}>Click here to add it!</WLink>
                 </>
               ) : (
                 <>
@@ -87,22 +93,47 @@ function Welcome({
             description={
               destinations.length === 0 ? (
                 <>
-                  <WLink href={`/destinations?showCatalog=true`}>Click here to add it!</WLink>
+                  <WLink href={`/destinations?showCatalog=true&backTo=%2F%3Fwelcome%3D1`}>Click here to add it!</WLink>
                 </>
               ) : (
                 <>
-                  Congratulations! You have {destinations.length} destinations configured. You can always change{" "}
-                  <WLink href={`/destinations`}>settings here</WLink>
+                  Congratulations! You have{" "}
+                  <WLink href={`/destinations`} passHref>
+                    {destinations.length} {destinations.length > 1 ? "destinations" : "destination"}
+                  </WLink>{" "}
+                  configured.
                 </>
               )
             }
           />
           <Steps.Step
-            title="Link your site with destination"
+            title={
+              <>
+                Link your site with destination{" "}
+                {links.length > 0 ? (
+                  <>
+                    {" "}
+                    - <b>done</b>!
+                  </>
+                ) : (
+                  ""
+                )}
+              </>
+            }
             description={
-              <WLink href={`/connections`} passHref>
-                Edit site & destination connections
-              </WLink>
+              links.length === 0 ? (
+                <>
+                  <WLink href={`/connections/edit?backTo=%2F%3Fwelcome%3D1`}>Click here to add it!</WLink>
+                </>
+              ) : (
+                <>
+                  Congratulations! You have{" "}
+                  <WLink href={`/connections`} passHref>
+                    {links.length} {links.length > 1 ? "connections" : "connection"}
+                  </WLink>{" "}
+                  configured.
+                </>
+              )
             }
           />
           <Steps.Step
@@ -110,7 +141,7 @@ function Welcome({
             description={
               streams.length === 0 ? (
                 <>
-                  Fist, <WLink href={`/streams?id=new`}>add at list one site</WLink>
+                  Fist, <WLink href={`/streams?id=new&backTo=%2F%3Fwelcome%3D1`}>add at list one site</WLink>
                 </>
               ) : (
                 <>
@@ -160,8 +191,8 @@ function Card({
   const card = (
     <HoverBorder forceHover={selected}>
       <div className={classNames(`w-full px-4 py-5 rounded-lg text-primary`)}>
-        <div className="flex flex-start space-x-4">
-          <div className="w-6 h-6 mt-1">{icon}</div>
+        <div className="flex flex-start items-center space-x-4">
+          <div className="w-6 h-6">{icon}</div>
           <div className="text-lg py-0 text-neutral-600">
             <LabelEllipsis maxLen={20}>{title}</LabelEllipsis>
           </div>
@@ -212,7 +243,7 @@ function DestinationCard({ dest, selected }: { dest: DestinationConfig; selected
   );
 }
 
-const FaviconLoader: React.FC<{ potentialUrl?: string }> = ({ potentialUrl }) => {
+export const FaviconLoader: React.FC<{ potentialUrl?: string }> = ({ potentialUrl }) => {
   const [faviconUrl, setFaviconUrl] = useState<string | null>(null);
   useEffect(() => {
     (async () => {
@@ -240,7 +271,11 @@ const FaviconLoader: React.FC<{ potentialUrl?: string }> = ({ potentialUrl }) =>
       }
     })();
   }, [potentialUrl]);
-  return faviconUrl ? <img src={faviconUrl} className="w-full h-full" /> : <Chrome className="w-full h-full" />;
+  return faviconUrl ? (
+    <img src={faviconUrl} className="w-full h-full" />
+  ) : (
+    <Chrome className="w-full h-full text-blue-600" />
+  );
 };
 
 function WorkspaceOverview(props: {
@@ -248,10 +283,12 @@ function WorkspaceOverview(props: {
   destinations: DestinationConfig[];
   links: ConfigurationLinkDbModel[];
 }) {
+  const router = useRouter();
   const workspace = useWorkspace();
   const { destinations, streams, links } = props;
   useTitle(`${branding.productName} : ${workspace.name}`);
-  const configurationFinished = streams.length > 0 && destinations.length > 0;
+  const configurationFinished =
+    !router.query.welcome && streams.length > 0 && destinations.length > 0 && links.length > 0;
   return (
     <div>
       {!configurationFinished && <Welcome streams={streams} destinations={destinations} links={links} />}

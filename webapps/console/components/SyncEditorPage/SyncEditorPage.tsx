@@ -18,6 +18,8 @@ import { JitsuButton } from "../JitsuButton/JitsuButton";
 import { LoadingAnimation } from "../GlobalLoader/GlobalLoader";
 import hash from "stable-hash";
 import { CodeEditor } from "../CodeEditor/CodeEditor";
+import { DestinationTitle } from "../../pages/[workspaceId]/destinations";
+import { ServiceTitle } from "../../pages/[workspaceId]/services";
 
 const log = getLog("SyncEditorPage");
 
@@ -42,11 +44,18 @@ function DestinationSelector(props: SelectorProps<DestinationConfig>) {
             }
             return (
               <Select.Option dropdownMatchSelectWidth={false} value={destination.id} key={destination.id}>
-                <div className="flex items-center">
-                  <div className="w-5 h-5 mr-2 shrink-0">{destinationType.icon}</div>
-                  <div className="whitespace-nowrap">{destination.name}</div>
-                  <div className="text-xxs text-gray-500 ml-1">({destinationType.title})</div>
-                </div>
+                <DestinationTitle
+                  destination={destination}
+                  size={"small"}
+                  title={(d, t) => {
+                    return (
+                      <div className={"flex flex-row items-center"}>
+                        <div className="whitespace-nowrap">{destination.name}</div>
+                        <div className="text-xxs text-gray-500 ml-1">({destinationType.title})</div>
+                      </div>
+                    );
+                  }}
+                />
               </Select.Option>
             );
           })}
@@ -70,18 +79,18 @@ function ServiceSelector(props: SelectorProps<ServiceConfig>) {
         <Select dropdownMatchSelectWidth={false} className="w-80" value={props.selected} onSelect={props.onSelect}>
           {props.items.map(service => (
             <Select.Option dropdownMatchSelectWidth={false} key={service.id} value={service.id}>
-              <div className="flex items-center">
-                <div className="w-5 h-5 mr-2 shrink-0">
-                  <img
-                    alt={service.package}
-                    src={`/api/sources/logo?type=${service.protocol}&package=${encodeURIComponent(service.package)}`}
-                  />
-                </div>
-                <div className="whitespace-nowrap">{service.name}</div>
-                <div className="text-xxs text-gray-500 ml-1">
-                  ({service.package.replaceAll(service.protocol + "/", "")})
-                </div>
-              </div>
+              <ServiceTitle
+                service={service}
+                size={"small"}
+                title={s => {
+                  return (
+                    <div className={"flex flex-row items-center"}>
+                      <div className="whitespace-nowrap">{s.name}</div>
+                      <div className="text-xxs text-gray-500 ml-1">({s.package.replaceAll(s.protocol + "/", "")})</div>
+                    </div>
+                  );
+                }}
+              />
             </Select.Option>
           ))}
         </Select>

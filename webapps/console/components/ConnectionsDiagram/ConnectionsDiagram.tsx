@@ -100,14 +100,17 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({ connectio
       .forEach((r, idx) => {
         const rel = getRelativePosition(canvasRef.current!, r!);
         const bounds = r!.getBoundingClientRect();
+        const source = sources[idx];
         const selected =
-          mouseOverSrc === sources[idx].id ||
-          (!!mouseOverDst && !!connections.find(c => c.from === sources[idx].id && c.to === mouseOverDst));
-        newLines.push({
-          from: { top: rel.top + bounds.height / 2, left: rel.left + bounds.width },
-          to: { left: logoPosition.left, top: logoPosition.top + logoBounds.height / 2 },
-          selected,
-        });
+          mouseOverSrc === source.id ||
+          (!!mouseOverDst && !!connections.find(c => c.from === source.id && c.to === mouseOverDst));
+        if (connections.find(c => c.from === source.id)) {
+          newLines.push({
+            from: { top: rel.top + bounds.height / 2, left: rel.left + bounds.width },
+            to: { left: logoPosition.left, top: logoPosition.top + logoBounds.height / 2 },
+            selected,
+          });
+        }
       });
 
     dstRefs.current
@@ -124,11 +127,13 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({ connectio
           setForceSelectDestination([destination.id]);
           setForceSelectSource(connections.filter(c => c.to === destination.id).map(c => c.from));
         }
-        newLines.push({
-          to: { top: rel.top + bounds.height / 2, left: rel.left },
-          from: { left: logoPosition.left + logoBounds.width, top: logoPosition.top + logoBounds.height / 2 },
-          selected,
-        });
+        if (connections.find(c => c.to === destination.id)) {
+          newLines.push({
+            to: { top: rel.top + bounds.height / 2, left: rel.left },
+            from: { left: logoPosition.left + logoBounds.width, top: logoPosition.top + logoBounds.height / 2 },
+            selected,
+          });
+        }
       });
     setLines(newLines);
 

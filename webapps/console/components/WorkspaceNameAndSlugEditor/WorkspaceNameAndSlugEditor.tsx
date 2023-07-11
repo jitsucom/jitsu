@@ -53,10 +53,12 @@ export function WorkspaceNameAndSlugEditor({
         value={slug}
         size="large"
         onChange={e => {
+          //setSlug(e.target.value ? e.target.value.toLowerCase().replaceAll(/[^a-z0-9-]/g, "") : "");
           setSlug(e.target.value);
           setChanged(true);
         }}
       />
+      <div className={"text-sm text-red-600 p-0.5"}>{slugError}</div>
       {displayId && (
         <>
           <div className="text-lg text-textLight font-bold pt-4 pb-2">Workspace Id</div>

@@ -44,6 +44,7 @@ import { EditorField } from "./EditorField";
 import { EditorButtons } from "./EditorButtons";
 import { ButtonGroup, ButtonProps } from "../ButtonGroup/ButtonGroup";
 import cuid from "cuid";
+import { ObjectTitle } from "../ObjectTitle/ObjectTitle";
 
 const log = getLog("ConfigEditor");
 
@@ -65,6 +66,7 @@ export type ConfigEditorProps<T extends { id: string } = { id: string }, M = {}>
   listTitle?: ReactNode;
   type: string;
   listColumns?: { title: ReactNode; render: (o: T) => ReactNode }[];
+  icon?: (o: T) => ReactNode;
   name?: (o: T) => string;
   objectType: FunctionLike<ZodType<T>, T>;
   fields: Record<string, FieldDisplay>;
@@ -93,6 +95,7 @@ export type ConfigEditorProps<T extends { id: string } = { id: string }, M = {}>
   editorComponent?: EditorComponentFactory;
   testConnectionEnabled?: (o: any) => boolean;
   onTest?: (o: T) => Promise<ConfigTestResult>;
+  backTo?: string;
 };
 
 export type CustomWidgetProps<T> = {
@@ -347,6 +350,7 @@ const SingleObjectEditor: React.FC<SingleObjectEditorProps> = props => {
     newObject = () => ({}),
     loadMeta,
     onTest,
+    backTo,
     ...otherProps
   } = props;
   const [meta, setMeta] = useState<any>(undefined);
@@ -402,7 +406,11 @@ const SingleObjectEditor: React.FC<SingleObjectEditorProps> = props => {
         await getConfigApi(workspace.id, type).update(object.id, newObject);
         //await new Promise(resolve => setTimeout(resolve, 10000000));
       }
-      router.push(`/${workspace.id}/${type}s`);
+      if (backTo) {
+        router.push(`/${workspace.id}${backTo}`);
+      } else {
+        router.push(`/${workspace.id}/${type}s`);
+      }
     } catch (error) {
       feedbackError("Failed to save object", { error });
     }
@@ -591,15 +599,16 @@ const ConfigEditor: React.FC<ConfigEditorProps> = props => {
   const router = useRouter();
   const id = router.query.id as string;
   const clone = router.query.clone as string;
+  const backTo = router.query.backTo as string;
   if (id) {
     if (id === "new") {
       if (clone) {
-        return <SingleObjectEditorLoader {...props} id={clone} clone={true} />;
+        return <SingleObjectEditorLoader {...props} id={clone} backTo={backTo} clone={true} />;
       } else {
-        return <SingleObjectEditor {...props} />;
+        return <SingleObjectEditor {...props} backTo={backTo} />;
       }
     } else {
-      return <SingleObjectEditorLoader {...props} id={id} />;
+      return <SingleObjectEditorLoader {...props} id={id} backTo={backTo} />;
     }
   } else {
     return <ObjectListEditor {...props} />;
@@ -617,6 +626,7 @@ const ObjectsList: React.FC<{ objects: any[]; onDelete: (id: string) => Promise<
   listColumns = [],
   actions = [],
   noun,
+  icon,
   name = (o: any) => o.name,
 }) => {
   const modal = useAntdModal();
@@ -635,7 +645,7 @@ const ObjectsList: React.FC<{ objects: any[]; onDelete: (id: string) => Promise<
       title: "Name",
       render: (text, record) => (
         <WLink href={`/${type}s?id=${record.id}`}>
-          <span className="text-text font-bold">{name(record)}</span>
+          <ObjectTitle title={name(record)} icon={icon ? icon(record) : undefined} />
         </WLink>
       ),
     },

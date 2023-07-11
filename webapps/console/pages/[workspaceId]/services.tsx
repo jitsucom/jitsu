@@ -5,7 +5,7 @@ import { useWorkspace } from "../../lib/context";
 import { useRouter } from "next/router";
 import { getLog, hash as jhash, randomId, rpc } from "juava";
 import React from "react";
-import { Modal, Tooltip } from "antd";
+import { Modal } from "antd";
 import { serialization, useURLPersistedState } from "../../lib/ui";
 import { ServicesCatalog } from "../../components/ServicesCatalog/ServicesCatalog";
 import { SourceType } from "../api/sources";
@@ -13,6 +13,7 @@ import hash from "stable-hash";
 import { ServiceEditor } from "../../components/ServiceEditor/ServiceEditor";
 import { ErrorCard } from "../../components/GlobalError/GlobalError";
 import { syncError } from "../../lib/shared/errors";
+import { ObjectTitle } from "../../components/ObjectTitle/ObjectTitle";
 
 const log = getLog("services");
 
@@ -29,32 +30,19 @@ const Services: React.FC<any> = () => {
 export const ServiceTitle: React.FC<{
   service?: ServiceConfig;
   size?: "small" | "default" | "large";
-  title?: (d: ServiceConfig) => string;
+  title?: (d: ServiceConfig) => string | React.ReactNode;
 }> = ({ service, title = d => d.name, size = "default" }) => {
-  const iconClassName = (() => {
-    switch (size) {
-      case "small":
-        return "h-4 w-4";
-      case "large":
-        return "h-16 w-16";
-      default:
-        return "h-8 w-8";
-    }
-  })();
   return (
-    <div className={"flex flex-row items-center gap-2"}>
-      <div className={iconClassName}>
+    <ObjectTitle
+      icon={
         <img
           alt={service?.package}
           src={`/api/sources/logo?type=${service?.protocol}&package=${encodeURIComponent(service?.package ?? "")}`}
         />
-      </div>
-      <div>
-        <Tooltip title={`${service?.package}:${service?.version}`}>
-          {service ? title(service) : "Unknown service"}
-        </Tooltip>
-      </div>
-    </div>
+      }
+      size={size}
+      title={service ? title(service) : "Unknown service"}
+    />
   );
 };
 
@@ -81,7 +69,7 @@ const ServicesList: React.FC<{}> = () => {
     listColumns: [
       {
         title: "Package",
-        render: (c: ServiceConfig) => <ServiceTitle service={c} title={c => `${c?.package}:${c?.version}`} />,
+        render: (s: ServiceConfig) => <span className={"font-semibold"}>{`${s?.package}:${s?.version}`}</span>,
       },
     ],
     objectType: ServiceConfig,
@@ -94,6 +82,12 @@ const ServicesList: React.FC<{}> = () => {
     noun: "service",
     type: "service",
     explanation: "Services are used to connect to external systems",
+    icon: s => (
+      <img
+        alt={s?.package}
+        src={`/api/sources/logo?type=${s?.protocol}&package=${encodeURIComponent(s?.package ?? "")}`}
+      />
+    ),
     editorComponent: () => ServiceEditor,
     loadMeta: async (obj?: ServiceConfig) => {
       let packageType = "";
@@ -179,7 +173,12 @@ const ServicesList: React.FC<{}> = () => {
   return (
     <>
       <Modal
-        bodyStyle={{ overflowY: "auto", maxHeight: "calc(100vh - 200px)" }}
+        bodyStyle={{
+          overflowY: "auto",
+          maxHeight: "calc(100vh - 200px)",
+          display: "flex",
+          flexDirection: "column",
+        }}
         open={showCatalog}
         width="90vw"
         onCancel={() => setShowCatalog(false)}
@@ -187,7 +186,6 @@ const ServicesList: React.FC<{}> = () => {
       >
         <ServicesCatalog
           onClick={(packageType, packageId) => {
-            setShowCatalog(false);
             router.push(
               `/${workspace.id}/services?id=new&packageType=${packageType}&packageId=${encodeURIComponent(packageId)}`
             );

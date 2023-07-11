@@ -20,6 +20,8 @@ import { FunctionConfig } from "../../lib/schema";
 import { arrayToMap } from "../../lib/shared/arrays";
 import { RefreshCw } from "lucide-react";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
+import { ConnectionTitle } from "../../pages/[workspaceId]/connections";
+import { StreamTitle } from "../../pages/[workspaceId]/streams";
 
 dayjs.extend(utc);
 dayjs.extend(relativeTime);
@@ -278,13 +280,9 @@ export const EventsBrowser = ({
         value: entity[0],
         label:
           entity[1].type === "stream" ? (
-            entity[1].name
+            <StreamTitle stream={entity[1]} size={"small"} />
           ) : (
-            <div className={"flex flex-row gap-1.5"}>
-              <span>{entity[1].stream?.name || "unknown"}</span>
-              <span>{"→"}</span>
-              <DestinationTitle size={"small"} destination={entity[1].destination} />
-            </div>
+            <ConnectionTitle connectionId={entity[0]} stream={entity[1].stream} destination={entity[1].destination} />
           ),
       }));
     } else {

@@ -85,12 +85,14 @@ const EditorItemTable: React.FC<{ items: Omit<EditorItem, "group">[]; className?
         <div className={`${styles.editorItemRow} h-full`} key={getKey(item)}>
           {item.name && (
             <div className={styles.name}>
-              <DocumentedLabel name={item.name} doc={item.documentation} />
-              {item.link && (
-                <WLink href={item.link} target={"_blank"} rel={"noreferrer noopener"}>
-                  <FaExternalLinkAlt className={"anticon ml-2"} />
-                </WLink>
-              )}
+              <div className={`flex flex-row items-center gap-2`}>
+                <DocumentedLabel name={item.name} doc={item.documentation} />
+                {item.link && (
+                  <WLink href={item.link} target={"_blank"} rel={"noreferrer noopener"}>
+                    <FaExternalLinkAlt className={"w-2.5 h-2.5"} />
+                  </WLink>
+                )}
+              </div>
             </div>
           )}
           <div className={item.itemClassName ?? styles.component}> {item.component}</div>

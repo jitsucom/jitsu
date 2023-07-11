@@ -149,7 +149,7 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
               type="link"
               className="link"
               size="small"
-              icon={<FaExternalLinkAlt className="w-3 h-3" />}
+              icon={<FaExternalLinkAlt className="w-2.5 h-2.5" />}
             />
           </div>
         );
@@ -175,7 +175,7 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
             <DestinationTitle destination={destination} />
             <JitsuButton
               type="link"
-              icon={<FaExternalLinkAlt className="w-3 h-3" />}
+              icon={<FaExternalLinkAlt className="w-2.5 h-2.5" />}
               className="link"
               size="small"
               href={`/${workspace.id}/destinations?id=${link.toId}`}
@@ -471,7 +471,7 @@ export const SyncTitle: React.FC<{
           type="link"
           className="link"
           size="small"
-          icon={<FaExternalLinkAlt className="w-3 h-3" />}
+          icon={<FaExternalLinkAlt className="w-2.5 h-2.5" />}
         />
       )}
     </div>

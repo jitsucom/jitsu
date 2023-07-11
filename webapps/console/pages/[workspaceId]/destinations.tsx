@@ -16,7 +16,7 @@ import {
   PropertyUI,
 } from "../../lib/schema/destinations";
 import { DestinationCatalog, getDestinationIcon } from "../../components/DestinationsCatalog/DestinationsCatalog";
-import { useWorkspace } from "../../lib/context";
+import { useAppConfig, useWorkspace } from "../../lib/context";
 import { useRouter } from "next/router";
 import { assertDefined, getLog, requireDefined, rpc } from "juava";
 import React, { PropsWithChildren, useState } from "react";
@@ -38,6 +38,7 @@ import { UpgradeDialog } from "../../components/Billing/UpgradeDialog";
 import { ProvisionDatabaseButton } from "../../components/ProvisionDatabaseButton/ProvisionDatabaseButton";
 import Link from "next/link";
 import { CodeEditor } from "../../components/CodeEditor/CodeEditor";
+import { ObjectTitle } from "../../components/ObjectTitle/ObjectTitle";
 
 const log = getLog("destinations");
 const Loader: React.FC<{}> = () => {
@@ -198,24 +199,15 @@ function getEditorComponent(editor: string, editorProps?: any) {
 export const DestinationTitle: React.FC<{
   destination?: DestinationConfig;
   size?: "small" | "default" | "large";
-  title?: (d: DestinationConfig, t: DestinationType) => string;
+  title?: (d: DestinationConfig, t: DestinationType) => string | React.ReactNode;
 }> = ({ destination, title = (d, t) => d.name, size = "default" }) => {
   const destinationType = coreDestinationsMap[destination?.destinationType ?? ""];
-  const iconClassName = (() => {
-    switch (size) {
-      case "small":
-        return "h-4 w-4";
-      case "large":
-        return "h-16 w-16";
-      default:
-        return "h-8 w-8";
-    }
-  })();
   return (
-    <div className="flex items-center gap-2">
-      <div className={iconClassName}>{getDestinationIcon(destinationType)}</div>
-      <div>{destination ? title(destination, destinationType) : "Unknown destination"}</div>
-    </div>
+    <ObjectTitle
+      icon={getDestinationIcon(destinationType)}
+      size={size}
+      title={destination ? title(destination, destinationType) : "Unknown destination"}
+    />
   );
 };
 
@@ -520,7 +512,7 @@ const ProvisionedDestinations = () => {
     <div>
       <div className="text-3xl">Provisioned Destinations</div>
       <div className="my-5 text-textLight">
-        Provisioned destinations are manager by <b>{branding.productName}</b>
+        Provisioned destinations are managed by <b>{branding.productName}</b>
       </div>
       <Table
         rowKey="id"
@@ -564,6 +556,7 @@ const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
     defaultVal: false,
     type: serialization.bool,
   });
+  const appConfig = useAppConfig();
   const router = useRouter();
   const workspace = useWorkspace();
   const extraFields: Record<string, FieldDisplay> = Object.entries(getAllDestinationFields(type)).reduce(
@@ -577,7 +570,7 @@ const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
     },
     {}
   );
-  log.atInfo().log("extraFields", extraFields);
+  log.atDebug().log("extraFields", extraFields);
   const config: ConfigEditorProps<DestinationConfig> = {
     actions: [
       // {
@@ -594,10 +587,17 @@ const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
       // },
     ],
     filter: (obj: DestinationConfig) => !obj.provisioned,
+    icon: (d: DestinationConfig) => {
+      const destinationType = coreDestinationsMap[d.destinationType];
+      return getDestinationIcon(destinationType);
+    },
     listColumns: [
       {
         title: "Type",
-        render: (c: DestinationConfig) => <DestinationTitle destination={c} title={(d, t) => t.title} />,
+        render: (d: DestinationConfig) => {
+          const destinationType = coreDestinationsMap[d.destinationType];
+          return <span className={"font-semibold"}>{destinationType.title}</span>;
+        },
       },
     ],
     newObject: () => {
@@ -660,7 +660,12 @@ const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
   return (
     <>
       <Modal
-        bodyStyle={{ overflowY: "auto", maxHeight: "calc(100vh - 200px)" }}
+        bodyStyle={{
+          overflowY: "auto",
+          maxHeight: "calc(100vh - 200px)",
+          display: "flex",
+          flexDirection: "column",
+        }}
         open={showCatalog}
         width="90vw"
         onCancel={() => setShowCatalog(false)}
@@ -668,12 +673,16 @@ const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
       >
         <DestinationCatalog
           onClick={destination => {
-            setShowCatalog(false);
-            router.push(`/${workspace.id}/destinations?id=new&destinationType=${destination}`);
+            const url = `/${
+              workspace.id
+            }/destinations?id=new&destinationType=${destination}&backTo=${encodeURIComponent(
+              (router.query.backTo ?? "") as string
+            )}`;
+            router.push(url);
           }}
         />
       </Modal>
-      {!router.query.id && (
+      {!router.query.id && appConfig.ee?.available && (
         <div className="my-6">
           <ProvisionedDestinations />
         </div>

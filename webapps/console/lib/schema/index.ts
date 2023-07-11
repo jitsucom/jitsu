@@ -95,7 +95,7 @@ export type ApiKey = z.infer<typeof ApiKey>;
 
 export const StreamConfig = ConfigEntityBase.merge(
   z.object({
-    name: z.string().min(5).optional(),
+    name: z.string(),
     domains: z.array(z.string()).optional(),
     authorizedJavaScriptDomains: z.string().optional(),
     publicKeys: z.array(ApiKey).optional(),
@@ -109,7 +109,7 @@ export const DestinationConfig = ConfigEntityBase.merge(
     .object({
       destinationType: z.string(),
       provisioned: z.boolean().optional(),
-      name: z.string().min(5),
+      name: z.string(),
     })
     .passthrough()
 );
@@ -117,8 +117,7 @@ export type DestinationConfig = z.infer<typeof DestinationConfig>;
 
 export const FunctionConfig = ConfigEntityBase.merge(
   z.object({
-    name: z.string().min(5),
-    description: z.string().optional(),
+    name: z.string(),
     code: z.string(),
   })
 );
@@ -126,7 +125,7 @@ export type FunctionConfig = z.infer<typeof FunctionConfig>;
 
 export const ServiceConfig = ConfigEntityBase.merge(
   z.object({
-    name: z.string().min(5),
+    name: z.string(),
     protocol: z.enum(["airbyte"]).default("airbyte"),
     authorized: z.boolean().optional(),
     package: z.string(),

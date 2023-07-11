@@ -22,6 +22,7 @@ import { PlusOutlined } from "@ant-design/icons";
 import { JitsuButton, WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
 import { DestinationTitle } from "../destinations";
 import { ButtonGroup, ButtonProps } from "../../../components/ButtonGroup/ButtonGroup";
+import { StreamTitle } from "../streams";
 
 function EmptyLinks() {
   const workspace = useWorkspace();
@@ -41,6 +42,30 @@ function EmptyLinks() {
     </div>
   );
 }
+
+export const ConnectionTitle: React.FC<{
+  connectionId: string;
+  stream: StreamConfig;
+  destination: DestinationConfig;
+  showLink?: boolean;
+}> = ({ connectionId, stream, destination, showLink = false }) => {
+  return (
+    <div className={"flex flex-row whitespace-nowrap gap-1.5"}>
+      <StreamTitle size={"small"} stream={stream} />
+      {"→"}
+      <DestinationTitle size={"small"} destination={destination} />
+      {showLink && (
+        <WJitsuButton
+          href={`/connection/edit?id=${connectionId}`}
+          type="link"
+          className="link"
+          size="small"
+          icon={<FaExternalLinkAlt className="w-2.5 h-2.5" />}
+        />
+      )}
+    </div>
+  );
+};
 
 type ConfigurationLinkDbModel = z.infer<typeof ConfigurationObjectLinkDbModel>;
 
@@ -110,13 +135,13 @@ function ConnectionsTable({ links, streams, destinations, reloadCallback }: Remo
         }
         return (
           <div className="flex items-center">
-            <div>{stream.name}</div>
+            <StreamTitle stream={stream} />
             <WJitsuButton
               href={`/streams?id=${link.fromId}`}
               type="link"
               className="link"
               size="small"
-              icon={<FaExternalLinkAlt className="w-3 h-3" />}
+              icon={<FaExternalLinkAlt className="w-2.5 h-2.5" />}
             />
           </div>
         );
@@ -143,7 +168,7 @@ function ConnectionsTable({ links, streams, destinations, reloadCallback }: Remo
             <DestinationTitle destination={destination} />
             <JitsuButton
               type="link"
-              icon={<FaExternalLinkAlt className="w-3 h-3" />}
+              icon={<FaExternalLinkAlt className="w-2.5 h-2.5" />}
               className="link"
               size="small"
               href={`/${workspace.id}/destinations?id=${link.toId}`}
