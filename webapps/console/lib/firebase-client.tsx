@@ -106,6 +106,7 @@ async function getUserFromFirebase(currentUser: auth.User): Promise<ContextApiRe
 export async function firebaseSignOut() {
   try {
     await auth.signOut(auth.getAuth());
+    await rpc(`/api/fb-auth/revoke-session`);
   } catch (e) {
     log.atWarn().withCause(e).log(`Can't sign out`);
   }
@@ -161,7 +162,7 @@ export function useFirebaseSession(): FirebaseSession {
       };
     },
     async signOut(): Promise<void> {
-      await a.signOut(a.getAuth());
+      await firebaseSignOut();
     },
     //user: () => (currentUser ? getUserFromFirebase(currentUser) : undefined),
     async signIn(username: string, password): Promise<boolean> {

@@ -81,7 +81,11 @@ export function getAuthBearerToken(req: NextApiRequest): string | undefined {
   return undefined;
 }
 
-export async function getUser(res: NextApiResponse, req: NextApiRequest): Promise<SessionUser | undefined> {
+export async function getUser(
+  res: NextApiResponse,
+  req: NextApiRequest,
+  checkRevoked?: boolean
+): Promise<SessionUser | undefined> {
   const bearerToken = getAuthBearerToken(req);
   if (bearerToken) {
     const [keyId, secret] = bearerToken.split(":");
@@ -110,7 +114,7 @@ export async function getUser(res: NextApiResponse, req: NextApiRequest): Promis
   }
 
   if (isFirebaseEnabled()) {
-    return await getFirebaseUser(req);
+    return await getFirebaseUser(req, checkRevoked);
   }
   const session = await getServerSession(req, res, nextAuthConfig);
   return session ? getUserFromSession(session) : undefined;

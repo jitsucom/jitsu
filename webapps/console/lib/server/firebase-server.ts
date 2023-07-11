@@ -3,7 +3,7 @@ import { NextApiRequest } from "next";
 
 import * as admin from "firebase-admin";
 import * as JSON5 from "json5";
-import { getErrorMessage, getSingleton, requireDefined, Singleton } from "juava";
+import { getErrorMessage, getLog, getSingleton, requireDefined, Singleton } from "juava";
 
 export type FirebaseOptions = {
   admin: any;
@@ -82,7 +82,11 @@ export async function createSessionCookie(idToken: string): Promise<{ cookie; ex
   return { cookie, expiresIn };
 }
 
-export async function getFirebaseUser(req: NextApiRequest): Promise<SessionUser | undefined> {
+export async function signOut(firebaseUserId: string): Promise<void> {
+  await firebase().auth().revokeRefreshTokens(firebaseUserId);
+}
+
+export async function getFirebaseUser(req: NextApiRequest, checkRevoked?: boolean): Promise<SessionUser | undefined> {
   const authToken = getFirebaseToken(req);
   if (!authToken) {
     return undefined;
@@ -90,11 +94,24 @@ export async function getFirebaseUser(req: NextApiRequest): Promise<SessionUser 
   //make sure service is initialized
   await firebaseService.waitInit();
 
-  const decodedIdToken = authToken.idToken
-    ? await firebase().auth().verifyIdToken(authToken.idToken)
-    : await firebase()
-        .auth()
-        .verifySessionCookie(authToken.cookieToken as string);
+  getLog()
+    .atDebug()
+    .log(`authToken (${checkRevoked}): ${JSON.stringify(authToken)}`);
+
+  let decodedIdToken;
+  try {
+    decodedIdToken = authToken.idToken
+      ? await firebase().auth().verifyIdToken(authToken.idToken)
+      : await firebase()
+          .auth()
+          .verifySessionCookie(authToken.cookieToken as string, !!checkRevoked);
+  } catch (e) {
+    getLog()
+      .atWarn()
+      .withCause(e)
+      .log(`Failed to verify firebase token: ${getErrorMessage(e)}`);
+    return;
+  }
 
   const user = await firebase().auth().getUser(decodedIdToken.uid);
 

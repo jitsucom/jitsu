@@ -31,8 +31,7 @@ export const api: Api = {
       const { cookie, expiresIn } = await createSessionCookie(idToken);
       const domain = "." + getTopLevelDomain(getRequestHost(req)).split(":")[0];
       console.log("Setting cookie", cookie, domain);
-      let options: CookieSerializeOptions;
-      options = {
+      const options: CookieSerializeOptions = {
         maxAge: expiresIn,
         httpOnly: true,
         secure,

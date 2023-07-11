@@ -1,7 +1,8 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { getUser } from "../../lib/api";
-import { getLog } from "juava";
+import { getLog, requireDefined } from "juava";
 import { getRequestHost, getTopLevelDomain } from "../../lib/server/origin";
+import { db } from "../../lib/server/db";
 
 const allowedOrigins = process.env.ALLOWED_API_ORIGINS || "*.[originTopLevelDomain],[originTopLevelDomain]";
 
@@ -45,13 +46,32 @@ function handleCors(requestDomain: string, origin: string | undefined, res: Next
   }
 }
 
+async function getWorkspaces(internalUserId: string) {
+  const userModel = requireDefined(
+    await db.prisma().userProfile.findUnique({ where: { id: internalUserId } }),
+    `User ${internalUserId} does not exist`
+  );
+  if (userModel.admin) {
+    return await db.prisma().workspace.findMany({ where: { deleted: false } });
+  }
+  return (
+    await db.prisma().workspaceAccess.findMany({ where: { userId: internalUserId }, include: { workspace: true } })
+  )
+    .map(res => res.workspace)
+    .filter(w => !w.deleted);
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const [hostname] = getRequestHost(req).split(":");
   handleCors(hostname, req.headers.origin, res);
-  const user = await getUser(res, req);
+  const user = await getUser(res, req, true);
   if (!user) {
     res.send({ auth: false });
   } else {
-    res.send({ auth: true, user: user });
+    res.send({
+      auth: true,
+      user: user,
+      workspaces: req.query.workspaces === "true" ? await getWorkspaces(user.internalId) : undefined,
+    });
   }
 }
