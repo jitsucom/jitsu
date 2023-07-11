@@ -241,7 +241,7 @@ export const TopTabsMenu: React.FC<TopTabsMenuProps> = props => {
   const router = useRouter();
 
   return (
-    <div className="flex sm:gap-0 lg:gap-0 gap-1.5 xl:gap-2.5">
+    <div className="flex pl-1.5 gap-0 xl:gap-5">
       {props.items
         .filter(i => !i.hidden)
         .map(item => {
@@ -249,9 +249,7 @@ export const TopTabsMenu: React.FC<TopTabsMenuProps> = props => {
           return (
             <div
               key={item.path}
-              className={`cursor-pointer py-1.5 sm:px-2 lg:px-2 xl:px-3 px-3 lg:py-2 mb-2 ${
-                selected ? "bg-neutral-200 rounded-lg lg:rounded-xl" : ""
-              }`}
+              className={`cursor-pointer py-2 px-2 mb-2 ${selected ? "bg-neutral-200 rounded-xl" : ""}`}
             >
               <WLink href={item.path}>
                 <span
@@ -259,7 +257,7 @@ export const TopTabsMenu: React.FC<TopTabsMenuProps> = props => {
                     selected ? "text-neutral-800" : "text-neutral-500"
                   }`}
                 >
-                  <div className="mr-1 h-4 w-4">{item.icon}</div>
+                  <div className="mr-0.5 xl:mr-1 h-4 w-4">{item.icon}</div>
                   {item.title}
                 </span>
               </WLink>
@@ -443,7 +441,11 @@ const WorkspaceSettingsModal: React.FC<{ onSuccess: () => void }> = ({ onSuccess
 const log = getLog("WorkspacePageLayout");
 
 export const VerticalSection: React.FC<PropsWithChildren<{ className?: string }>> = ({ children, className }) => {
-  return <div className={classNames("w-full flex justify-center", className)}>{children}</div>;
+  return (
+    <div style={{ minWidth: 1024 }} className={classNames("w-full flex lg:justify-center", className)}>
+      {children}
+    </div>
+  );
 };
 
 export const WidthControl: React.FC<PropsWithChildren<{ className?: string }>> = ({ children, className }) => {
@@ -471,7 +473,7 @@ export const WorkspacePageLayout: React.FC<PropsWithChildren<PageLayoutProps>> =
 
   const pHeader = (
     <VerticalSection className="header border-b border-neutral-300 bg-neutral-50" key="header">
-      <WidthControl className={"px-0 lg:px-4"}>
+      <WidthControl className={"px-4"}>
         <PageHeader />
       </WidthControl>
     </VerticalSection>
@@ -501,7 +503,7 @@ export const WorkspacePageLayout: React.FC<PropsWithChildren<PageLayoutProps>> =
             </div>
             <Drawer
               height={"auto"}
-              bodyStyle={{ padding: 0 }}
+              bodyStyle={{ padding: 0, minWidth: 1024 }}
               open={showDrawer}
               placement={"top"}
               closable={false}
@@ -522,7 +524,7 @@ export const WorkspacePageLayout: React.FC<PropsWithChildren<PageLayoutProps>> =
               <X className="w-8 h-8" />
             </button>
           )}
-          <WidthControl className={"px-4 lg:px-8"}>{children}</WidthControl>
+          <WidthControl className={"px-8"}>{children}</WidthControl>
         </VerticalSection>
       </div>
     </div>
