@@ -272,7 +272,7 @@ export const Application: React.FC = function () {
   if (!services.userService.hasUser()) {
     return (
       <React.Suspense fallback={<CenteredSpin />}>
-        <JitsuProvider options={{ host: jitsuHost || undefined, disabled: !jitsuHost }}>
+        <JitsuProvider options={jitsuHost ? { host: jitsuHost } : { disabled: true }}>
           <JitsuPageViewTracker />
           {services.showSelfHostedSignUp() && <SetupForm />}
           {!services.showSelfHostedSignUp() && (
@@ -312,7 +312,7 @@ export const Application: React.FC = function () {
 
   return (
     <>
-      <JitsuProvider options={{ host: jitsuHost || undefined, disabled: !jitsuHost }}>
+      <JitsuProvider options={jitsuHost ? { host: jitsuHost } : { disabled: true }}>
         <JitsuPageViewTracker />
         <Switch>
           <Route
