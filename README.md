@@ -34,7 +34,7 @@ Jitsu is a tool for collecting event data from your websites, apps and stream th
 It is a self-hosted, open-source alternative to Segment.
 
 <p align="center">
-<img src="https://github.com/jitsucom/jitsu/blob/feat/newjitsu_README/.readme-assets/screenshot.png?raw=true">
+<img src="https://github.com/jitsucom/jitsu/blob/newjitsu/.readme-assets/screenshot.png?raw=true">
 </p>
 
 # Quick start
