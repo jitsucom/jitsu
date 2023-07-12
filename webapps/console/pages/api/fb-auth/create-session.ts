@@ -22,10 +22,11 @@ export const api: Api = {
     handle: async ({ req, body, res }) => {
       const { csrfToken, idToken } = body;
       const secure = getAppEndpoint(req).protocol === "https";
-
       const csrfCookie = req.cookies["fb-csrfToken"];
       if (csrfToken !== csrfCookie) {
-        log.atError().log(`CSRF cookie (${csrfCookie}) doesn't match provided token ${csrfToken}`);
+        log
+          .atError()
+          .log(`CSRF cookie (${csrfCookie}) doesn't match provided token ${csrfToken}`, JSON.stringify(req.cookies));
         throw new ApiError("CSRF error", {}, { status: 401 });
       }
       const { cookie, expiresIn } = await createSessionCookie(idToken);
