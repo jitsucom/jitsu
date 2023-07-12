@@ -2,6 +2,8 @@
 const withTM = require("next-transpile-modules")(["juava", "@jitsu/protocols", "@jitsu/core-functions"]);
 const nextConfig = withTM({});
 const path = require("path");
+const { withSentryConfig } = require("@sentry/nextjs");
+
 module.exports = nextConfig;
 
 const prevWebpack = module.exports.webpack;
@@ -51,3 +53,38 @@ module.exports = {
     return config;
   },
 };
+
+// Injected content via Sentry wizard below
+
+module.exports = withSentryConfig(
+  module.exports,
+  {
+    // For all available options, see:
+    // https://github.com/getsentry/sentry-webpack-plugin#options
+
+    // Suppresses source map uploading logs during build
+    silent: true,
+    authToken: process.env.SENTRY_AUTH_TOKEN,
+    org: "jitsu-labs-inc",
+    project: "new-jitsu",
+  },
+  {
+    // For all available options, see:
+    // https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/
+
+    // Upload a larger set of source maps for prettier stack traces (increases build time)
+    widenClientFileUpload: true,
+
+    // Transpiles SDK to be compatible with IE11 (increases bundle size)
+    transpileClientSDK: true,
+
+    // Routes browser requests to Sentry through a Next.js rewrite to circumvent ad-blockers (increases server load)
+    tunnelRoute: "/monitoring",
+
+    // Hides source maps from generated client bundles
+    hideSourceMaps: true,
+
+    // Automatically tree-shake Sentry logger statements to reduce bundle size
+    disableLogger: true,
+  }
+);
