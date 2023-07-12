@@ -12,7 +12,7 @@
 <b><a href="https://jitsu.com">Learn more »</a></b> 
 </p>
 <p align="center">
-<a href="https://jitsu.com/slack">Slack</a> · <a href="https://jitsu.com/slack">Website</a> · <a href="https://docs.jitsu.com">Docs</a> · <a href="https://github.com/jitsucom/jitsu/blob/newjitsu/LICENSE">MIT License</a>
+<a href="https://jitsu.com/slack">Slack</a> · <a href="https://jitsu.com/">Website</a> · <a href="https://docs.jitsu.com">Docs</a> · <a href="https://github.com/jitsucom/jitsu/blob/newjitsu/LICENSE">MIT License</a> · <b><a href="https://docs.jitsu.com/self-hosting">Self-hosting</a></b>
 </p>
 
 ---
