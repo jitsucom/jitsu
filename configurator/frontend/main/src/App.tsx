@@ -161,13 +161,13 @@ export const Application: React.FC = function () {
           console.log("Classic project", classicProject);
           const customToken = await eeClient.createCustomToken();
           classicProject.token = customToken;
-          if (!classicProject.active) {
-            window.location.href = jitsuNextUrl + "?token=" + customToken + "&projectName=" + encodeURIComponent(classicProject.name);
-            initialized = false;
-            return;
-          } else {
+          // if (!classicProject.active) {
+          //   window.location.href = jitsuNextUrl + "?token=" + customToken + "&projectName=" + encodeURIComponent(classicProject.name) + "&utm_source=classic&utm_campaign=auto-migration"
+          //   initialized = false;
+          //   return;
+          // } else {
             setClassicProject(classicProject);
-          }
+          //}
         } catch (e) {
           console.error("Can't check for classic project", e);
         } finally {
