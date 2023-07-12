@@ -377,11 +377,11 @@ const SingleObjectEditor: React.FC<SingleObjectEditorProps> = props => {
   };
 
   const onCancel = async (confirm: boolean) => {
-    if (!confirm) {
-      await router.push(`/${workspace.id}/${type}s`);
-    } else {
-      if (await confirmOp("Are you sure you want to close this page? All unsaved changes will be lost.")) {
-        await router.push(`/${workspace.id}/${type}s`);
+    if (!confirm || (await confirmOp("Are you sure you want to close this page? All unsaved changes will be lost."))) {
+      if (backTo) {
+        router.push(`/${workspace.id}${backTo}`);
+      } else {
+        router.push(`/${workspace.id}/${type}s`);
       }
     }
   };

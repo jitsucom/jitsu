@@ -20,6 +20,9 @@ import { getLog } from "juava";
 import { Chrome } from "lucide-react";
 import classNames from "classnames";
 import { useRouter } from "next/router";
+import { TrackingIntegrationDocumentation } from "../../components/TrackingIntegrationDocumentation/TrackingIntegrationDocumentation";
+import omit from "lodash/omit";
+import Link from "next/link";
 
 function Welcome({
   destinations,
@@ -30,6 +33,11 @@ function Welcome({
   destinations: DestinationConfig[];
   links: any[];
 }) {
+  const router = useRouter();
+  const [implementationDocumentationId, setImplementationDocumentationId] = useState<string | undefined>(
+    router.query.implementationFor as string | undefined
+  );
+
   let step = -1;
   if (streams.length > 0 && destinations.length > 0 && links.length > 0) {
     step = 3;
@@ -41,121 +49,136 @@ function Welcome({
     step = 0;
   }
   return (
-    <div className="flex flex-col items-center">
-      <h1 className="text-center text-4xl mt-6">✨ Welcome to {branding.productName}!</h1>
-      <div className="text-2xl text-textLight mb-10 mt-6">Implement {branding.productName} in 4 simple steps</div>
-      <div>
-        <Steps direction="vertical" current={step}>
-          <Steps.Step
-            title={
-              <>
-                Add your website or application
-                {streams.length > 0 ? (
+    <>
+      {implementationDocumentationId && (
+        <TrackingIntegrationDocumentation
+          streamId={implementationDocumentationId}
+          onCancel={() => {
+            setImplementationDocumentationId(undefined);
+            router.push({ pathname: router.pathname, query: omit(router.query, "implementationFor") }, undefined, {
+              shallow: true,
+            });
+          }}
+        />
+      )}
+      <div className="flex flex-col items-center">
+        <h1 className="text-center text-4xl mt-6">✨ Welcome to {branding.productName}!</h1>
+        <div className="text-2xl text-textLight mb-10 mt-6">Implement {branding.productName} in 4 simple steps</div>
+        <div>
+          <Steps direction="vertical" current={step}>
+            <Steps.Step
+              title={
+                <>
+                  Add your website or application
+                  {streams.length > 0 ? (
+                    <>
+                      {" "}
+                      - <b>done</b>!
+                    </>
+                  ) : (
+                    ""
+                  )}
+                </>
+              }
+              description={
+                streams.length === 0 ? (
                   <>
-                    {" "}
-                    - <b>done</b>!
+                    <WLink href={`/streams?id=new&backTo=%2F%3Fwelcome%3D1`}>Click here to add it!</WLink>
                   </>
                 ) : (
-                  ""
-                )}
-              </>
-            }
-            description={
-              streams.length === 0 ? (
-                <>
-                  <WLink href={`/streams?id=new&backTo=%2F%3Fwelcome%3D1`}>Click here to add it!</WLink>
-                </>
-              ) : (
-                <>
-                  Congratulations! You have{" "}
-                  <WLink href={`/streams`} passHref>
-                    {streams.length} {streams.length > 1 ? "sites" : "site"}
-                  </WLink>{" "}
-                  configured.
-                </>
-              )
-            }
-          />
-          <Steps.Step
-            title={
-              <>
-                Add the destination of your data{" "}
-                {destinations.length > 0 ? (
                   <>
-                    {" "}
-                    - <b>done</b>!
+                    Congratulations! You have{" "}
+                    <WLink href={`/streams`} passHref>
+                      {streams.length} {streams.length > 1 ? "sites" : "site"}
+                    </WLink>{" "}
+                    configured.
+                  </>
+                )
+              }
+            />
+            <Steps.Step
+              title={
+                <>
+                  Add the destination of your data{" "}
+                  {destinations.length > 0 ? (
+                    <>
+                      {" "}
+                      - <b>done</b>!
+                    </>
+                  ) : (
+                    ""
+                  )}
+                </>
+              }
+              description={
+                destinations.length === 0 ? (
+                  <>
+                    <WLink href={`/destinations?showCatalog=true&backTo=%2F%3Fwelcome%3D1`}>
+                      Click here to add it!
+                    </WLink>
                   </>
                 ) : (
-                  ""
-                )}
-              </>
-            }
-            description={
-              destinations.length === 0 ? (
-                <>
-                  <WLink href={`/destinations?showCatalog=true&backTo=%2F%3Fwelcome%3D1`}>Click here to add it!</WLink>
-                </>
-              ) : (
-                <>
-                  Congratulations! You have{" "}
-                  <WLink href={`/destinations`} passHref>
-                    {destinations.length} {destinations.length > 1 ? "destinations" : "destination"}
-                  </WLink>{" "}
-                  configured.
-                </>
-              )
-            }
-          />
-          <Steps.Step
-            title={
-              <>
-                Link your site with destination{" "}
-                {links.length > 0 ? (
                   <>
-                    {" "}
-                    - <b>done</b>!
+                    Congratulations! You have{" "}
+                    <WLink href={`/destinations`} passHref>
+                      {destinations.length} {destinations.length > 1 ? "destinations" : "destination"}
+                    </WLink>{" "}
+                    configured.
+                  </>
+                )
+              }
+            />
+            <Steps.Step
+              title={
+                <>
+                  Link your site with destination{" "}
+                  {links.length > 0 ? (
+                    <>
+                      {" "}
+                      - <b>done</b>!
+                    </>
+                  ) : (
+                    ""
+                  )}
+                </>
+              }
+              description={
+                links.length === 0 ? (
+                  <>
+                    <WLink href={`/connections/edit?backTo=%2F%3Fwelcome%3D1`}>Click here to add it!</WLink>
                   </>
                 ) : (
-                  ""
-                )}
-              </>
-            }
-            description={
-              links.length === 0 ? (
-                <>
-                  <WLink href={`/connections/edit?backTo=%2F%3Fwelcome%3D1`}>Click here to add it!</WLink>
-                </>
-              ) : (
-                <>
-                  Congratulations! You have{" "}
-                  <WLink href={`/connections`} passHref>
-                    {links.length} {links.length > 1 ? "connections" : "connection"}
-                  </WLink>{" "}
-                  configured.
-                </>
-              )
-            }
-          />
-          <Steps.Step
-            title="Start capturing data"
-            description={
-              streams.length === 0 ? (
-                <>
-                  Fist, <WLink href={`/streams?id=new&backTo=%2F%3Fwelcome%3D1`}>add at list one site</WLink>
-                </>
-              ) : (
-                <>
-                  Read{" "}
-                  <WLink href={`/streams?id=${streams[0].id}&implementationFor=${streams[0].id}`} passHref>
-                    {branding.productName} implementation documentation
-                  </WLink>
-                </>
-              )
-            }
-          />
-        </Steps>
+                  <>
+                    Congratulations! You have{" "}
+                    <WLink href={`/connections`} passHref>
+                      {links.length} {links.length > 1 ? "connections" : "connection"}
+                    </WLink>{" "}
+                    configured.
+                  </>
+                )
+              }
+            />
+            <Steps.Step
+              title="Start capturing data"
+              description={
+                streams.length === 0 ? (
+                  <>
+                    Fist, <WLink href={`/streams?id=new&backTo=%2F%3Fwelcome%3D1`}>add at list one site</WLink>
+                  </>
+                ) : (
+                  <>
+                    Read{" "}
+                    <Link href={"#"} onClick={() => setImplementationDocumentationId(streams[0].id)}>
+                      {branding.productName} implementation documentation
+                    </Link>
+                  </>
+                )
+              }
+            />
+          </Steps>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 

@@ -619,7 +619,19 @@ function ConnectionEditor({
           )}
         </div>
         <div className="flex justify-end space-x-5">
-          <Button type="primary" ghost size="large" disabled={loading} onClick={() => router.back()}>
+          <Button
+            type="primary"
+            ghost
+            size="large"
+            disabled={loading}
+            onClick={() => {
+              if (router.query.backTo) {
+                router.push(`/${workspace.id}${router.query.backTo}`);
+              } else {
+                router.back();
+              }
+            }}
+          >
             Cancel
           </Button>
           <Button
