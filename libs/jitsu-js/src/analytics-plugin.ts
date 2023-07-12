@@ -116,7 +116,7 @@ const defaultCookie2Key = {
 const cookieStorage: StorageFactory = (cookieDomain, key2cookie) => {
   return {
     setItem(key: string, val: any) {
-      const strVal = typeof val === "object" && val !== null ? JSON.stringify(val) : val;
+      const strVal = typeof val === "object" && val !== null ? encodeURIComponent(JSON.stringify(val)) : val;
       const cookieName = key2cookie[key] || key;
       setCookie(cookieName, strVal, {
         domain: cookieDomain,
