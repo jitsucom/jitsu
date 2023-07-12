@@ -221,7 +221,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({ plan, user, classicProje
           <b>Jitsu Next</b> is a new version of Jitsu with new user interface and faster,
           better scalable backend.
           <br /><br />
-          <a target={"_blank"} rel={"noreferrer noopener"} href={"https://next.jitsu.com/blog/jitsu-next"}>Learn more</a>
+          <a target={"_blank"} rel={"noreferrer noopener"} href={"https://next.jitsu.com/blog/jitsu-next?utm_source=classic&utm_campaign=click"}>Learn more</a>
         </div>} >
           <span onClick={e => {window.location.href=`${process.env.JITSU_NEXT_URL}?token=${classicProject.token}&projectName=${encodeURIComponent(classicProject.name)}&utm_source=classic&utm_campaign=click`}} className={"cursor-pointer"}>
             <Icon className={"mr-1"} component={logoNext} />Switch to <b>Jitsu Next</b>, a new version of Jitsu Platform<InfoCircleOutlined className={"ml-1"} />
