@@ -296,8 +296,10 @@ func (f *Firebase) loadUsers(objectsLoader base.ObjectsLoader) error {
 		}
 		user := make(map[string]interface{})
 		user["email"] = authUser.Email
+		user["name"] = authUser.DisplayName
 		user[userIDField] = authUser.UID
 		user["phone"] = authUser.PhoneNumber
+		user["photo_url"] = authUser.PhotoURL
 		var signInMethods []string
 		for _, info := range authUser.ProviderUserInfo {
 			signInMethods = append(signInMethods, info.ProviderID)
