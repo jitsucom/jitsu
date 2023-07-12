@@ -48,8 +48,8 @@ importers:
         specifier: workspace:*
         version: link:../catalog
       '@jitsu/jitsu-react':
-        specifier: 1.1.0-canary.212.20230220173912
-        version: 1.1.0-canary.212.20230220173912(@types/dlv@1.1.2)(@types/react@17.0.47)(react-router-dom@5.3.3)(react@17.0.2)
+        specifier: 1.2.0
+        version: 1.2.0(@types/dlv@1.1.2)(@types/react@17.0.47)(react-router-dom@5.3.3)(react@17.0.2)
       '@jitsu/sdk-js':
         specifier: ^3.0.3
         version: 3.1.3
@@ -2735,21 +2735,18 @@ packages:
       chalk: 4.1.2
     dev: true
 
-  /@jitsu/jitsu-react@1.1.0-canary.212.20230220173912(@types/dlv@1.1.2)(@types/react@17.0.47)(react-router-dom@5.3.3)(react@17.0.2):
-    resolution: {integrity: sha512-difSLsxFqs+ksJBy/pr4KI+RbB25UI6DkTGHeTLyHNxTYN4LZrWteNADz9pq0XmjxvkYSFiv5HNNZ9uxFD9uxQ==}
+  /@jitsu/jitsu-react@1.2.0(@types/dlv@1.1.2)(@types/react@17.0.47)(react-router-dom@5.3.3)(react@17.0.2):
+    resolution: {integrity: sha512-38PrzRb9HmapW48QnfXFrWaJk/tLWGLyy5eWvZN/qWnVXInxdzz4jIdYTsqoamDpQm1bpvJgi5OEKRc9lLolvA==}
     engines: {node: '>=10'}
     peerDependencies:
       '@types/react': 15.x || 16.x || 17.x || 18.x
-      next: 12.x || 13.x
       react: 15.x || 16.x || 17.x || 18.x
       react-router-dom: 5.x || 6.x
     peerDependenciesMeta:
-      next:
-        optional: true
       react-router-dom:
         optional: true
     dependencies:
-      '@jitsu/js': 1.1.0-canary.212.20230220173912(@types/dlv@1.1.2)
+      '@jitsu/js': 1.2.0(@types/dlv@1.1.2)
       '@types/react': 17.0.47
       react: 17.0.2
       react-router-dom: 5.3.3(react@17.0.2)
@@ -2757,8 +2754,8 @@ packages:
       - '@types/dlv'
     dev: false
 
-  /@jitsu/js@1.1.0-canary.212.20230220173912(@types/dlv@1.1.2):
-    resolution: {integrity: sha512-FlDtnhlJTM64GZYjNVmMwyDJdK1TXiij++7+HM18v5cHCMbnn5lETcuFh5Jv+Q2u+no1tQmivIwxqwpgRJuhXw==}
+  /@jitsu/js@1.2.0(@types/dlv@1.1.2):
+    resolution: {integrity: sha512-6wRdfiW39Bstsn/co2yjvfRuqmdLoMfbzLTOW0Vi6MN20/oEZSdSnDkLfhAQuYfRAitPEgOksHckDeON9j5+Ag==}
     dependencies:
       analytics: 0.8.1(@types/dlv@1.1.2)
     transitivePeerDependencies:
