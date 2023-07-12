@@ -42,7 +42,7 @@ export const BecomeUser: React.FC<{ externalId?: string; internalId?: string }> 
       onClick={async () => {
         setLoading(true);
         try {
-          const { token } = await get(`/api/admin/users`, { method: "POST", body: { externalId: props.externalId } });
+          const { token } = await get(`/api/admin/become`, { method: "POST", body: { externalId: props.externalId } });
           await fb.resolveUser(token).user;
           //we need to a full reload, so the top level components catch up on the new user
           window.location.assign("/");
