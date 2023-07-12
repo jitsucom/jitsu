@@ -151,6 +151,7 @@ export const Application: React.FC = function () {
   useEffect(() => {
     if (process.env.FIREBASE_CONFIG && jitsuNextUrl && eeClient && user) {
       (async () => {
+        let initialized = !!services;
         try {
           const classicProject = await eeClient.checkClassicProject();
           if (!classicProject.ok) {
@@ -162,14 +163,15 @@ export const Application: React.FC = function () {
           classicProject.token = customToken;
           if (!classicProject.active) {
             window.location.href = jitsuNextUrl + "?token=" + customToken + "&projectName=" + encodeURIComponent(classicProject.name);
+            initialized = false;
             return;
           } else {
             setClassicProject(classicProject);
-            setInitialized(true)
           }
         } catch (e) {
           console.error("Can't check for classic project", e);
-          setInitialized(true)
+        } finally {
+          setInitialized(initialized)
         }
       })()
     } else if (services) {
