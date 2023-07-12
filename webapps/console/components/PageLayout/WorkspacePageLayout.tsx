@@ -198,13 +198,11 @@ function WorkspacesMenu(props: { jitsuClassicAvailable: boolean }) {
 
 export const WorkspaceSelector: React.FC<WorkspaceSelectorProps> = props => {
   const [open, setOpen] = useState(false);
-  const classicProject = useClassicProject();
+  //const classicProject = useClassicProject();
 
   return (
     <Dropdown
-      dropdownRender={() => (
-        <WorkspacesMenu jitsuClassicAvailable={classicProject.active && !!classicProject.project} />
-      )}
+      dropdownRender={() => <WorkspacesMenu jitsuClassicAvailable={false} />}
       trigger={["click"]}
       open={open}
       onOpenChange={open => setOpen(open)}
@@ -270,6 +268,9 @@ export const TopTabsMenu: React.FC<TopTabsMenuProps> = props => {
 
 function Breadcrumbs() {
   const workspace = useWorkspace();
+  const appConfig = useAppConfig();
+  const classicProject = useClassicProject();
+
   return (
     <div className="flex py-4 items-center">
       <div className="w-8 h-8">{branding.logo}</div>
@@ -281,6 +282,36 @@ function Breadcrumbs() {
       <div>
         <WorkspaceSelector currentTitle={workspace.name} />
       </div>
+      {classicProject.active && !!classicProject.project && (
+        <>
+          <div className="pl-2 w-8 h-8 text-textLight">
+            <svg fill="none" height="100%" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" width="100%">
+              <path d="M16.88 3.549L7.12 20.451" />
+            </svg>
+          </div>
+          <div>
+            <button
+              className={"h-8 ml-3.5 mr-1.5 outline-0"}
+              onClick={async () => {
+                try {
+                  const eeClient = getEeClient(requireDefined(appConfig.ee.host, `EE is not available`), workspace.id);
+                  const customToken = await eeClient.createCustomToken();
+                  window.location.href = `${appConfig.jitsuClassicUrl}/?token=${customToken}`;
+                } catch (e) {
+                  feedbackError(`Can't navigate to Jitsu.Classic`, { error: e });
+                }
+              }}
+            >
+              <img src="/logo-classic-gray.svg" className="h-5 w-5 mr-2" /> Switch to Jitsu Classic
+            </button>
+          </div>
+          <div className={""}>
+            <a target={"_blank"} rel={"noreferrer noopener"} href="https://jitsu.com/blog/jitsu-next#migration-faq">
+              ( <u>Read about migration</u> )
+            </a>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -378,8 +409,8 @@ function PageHeader() {
 }
 
 const WorkspaceSettingsModal: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
-  const cfg = useAppConfig();
-  const domains = getDomains(cfg);
+  const appConfig = useAppConfig();
+  const domains = getDomains(appConfig);
   const { analytics } = useJitsu();
   const { push, query } = useRouter();
   const searchParams = useSearchParams();
@@ -394,14 +425,15 @@ const WorkspaceSettingsModal: React.FC<{ onSuccess: () => void }> = ({ onSuccess
 
   const dataIngestion = (
     <>
-      {cfg.publicEndpoints.protocol}://<span className="text-textDark">yourslug</span>.{cfg.publicEndpoints.dataHost}
-      {cfg.publicEndpoints.port ? `:${cfg.publicEndpoints.port}` : ""}
+      {appConfig.publicEndpoints.protocol}://<span className="text-textDark">yourslug</span>.
+      {appConfig.publicEndpoints.dataHost}
+      {appConfig.publicEndpoints.port ? `:${appConfig.publicEndpoints.port}` : ""}
     </>
   );
   return (
     <Overlay closable={false}>
-      <div className="flex justify-center">
-        <div className="px-6 py-8 max-w-6xl grow">
+      <div className="flex justify-center" style={{ minWidth: 900 }}>
+        <div className="px-6 py-8 max-w-6xl grow relative">
           <h1 className="text-4xl text-center">👋 Let's get started!</h1>
           <div className="text-xl text-textLight py-6">
             Pick a name a slug for your {branding.productName} workspace. Slug will be used in the URLs{" "}
@@ -409,7 +441,7 @@ const WorkspaceSettingsModal: React.FC<{ onSuccess: () => void }> = ({ onSuccess
               {domains.appBase}/<span className="text-textDark">your-slug</span>
             </code>{" "}
           </div>
-          <WorkspaceNameAndSlugEditor onSuccess={onSuccess} />
+          <WorkspaceNameAndSlugEditor onSuccess={onSuccess} offerClassic={true} />
           <div className="text-center my-4">
             Got here by mistake?{" "}
             <a
