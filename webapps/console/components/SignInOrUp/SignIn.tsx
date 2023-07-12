@@ -6,6 +6,8 @@ import { useModalPrompt } from "../../lib/modal";
 import { getLog } from "juava";
 import Link from "next/link";
 import { useQueryStringCopy } from "./use-query-string-copy";
+import { useRouter } from "next/router";
+import { BaseRouter } from "next/dist/shared/lib/router/router";
 
 const theme = require("../../theme.config");
 
@@ -68,6 +70,12 @@ function handleFirebaseError(error: any): ReactNode {
   return (error?.message || "Unknown auth error").replace("Firebase: ", "");
 }
 
+function redirectIfNeeded(router: BaseRouter) {
+  if (router.query.redir) {
+    window.location.href = router.query.redir as string;
+  }
+}
+
 export const SocialLogin: React.FC<{ onSocialLogin: (type: string) => Promise<void>; prefix?: string }> = ({
   onSocialLogin,
   ...props
@@ -75,6 +83,7 @@ export const SocialLogin: React.FC<{ onSocialLogin: (type: string) => Promise<vo
   const [loading, setLoading] = useState<"google.com" | "github.com" | undefined>();
   const prefix = props.prefix || "Sign in";
   const [error, setError] = useState<ReactNode | undefined>();
+  const router = useRouter();
   return (
     <div className="flex flex-col items-center">
       <div className="pt-6 flex justify-between space-x-2">
@@ -87,6 +96,7 @@ export const SocialLogin: React.FC<{ onSocialLogin: (type: string) => Promise<vo
             try {
               setLoading("google.com");
               await onSocialLogin("google.com");
+              redirectIfNeeded(router);
             } catch (error: any) {
               setError(handleFirebaseError(error));
             } finally {
@@ -105,6 +115,7 @@ export const SocialLogin: React.FC<{ onSocialLogin: (type: string) => Promise<vo
             try {
               setLoading("github.com");
               await onSocialLogin("github.com");
+              redirectIfNeeded(router);
             } catch (error: any) {
               console.log(JSON.stringify(error, null, 2));
               setError(handleFirebaseError(error));
@@ -138,6 +149,7 @@ const PasswordForm: React.FC<Pick<SigninProps, "onPasswordLogin">> = ({ onPasswo
   const [password, setPassword] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<ReactNode | undefined>();
+  const router = useRouter();
   return (
     <div>
       <div className="font-bold text-textLight  tracking-wide pb-2">Email</div>
@@ -183,6 +195,7 @@ const PasswordForm: React.FC<Pick<SigninProps, "onPasswordLogin">> = ({ onPasswo
             setLoading(true);
             setError(undefined);
             await onPasswordLogin(email, password);
+            redirectIfNeeded(router);
           } catch (e: any) {
             const message = e?.message || "Unknown error";
             log
