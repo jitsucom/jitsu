@@ -1,16 +1,16 @@
-import { createRoute } from "../../../lib/api";
+import { getUser } from "../../../lib/api";
 import { z } from "zod";
-import { assertDefined, assertTrue, requireDefined } from "juava";
+import { assertDefined, assertTrue, getErrorMessage, getLog, requireDefined } from "juava";
 import { firebase, isFirebaseEnabled } from "../../../lib/server/firebase-server";
 import { db } from "../../../lib/server/db";
 import { SessionUser } from "../../../lib/schema";
-import { auth } from "firebase-admin";
-import UserRecord = auth.UserRecord;
+import { NextApiRequest, NextApiResponse } from "next";
 
 const ResultUser = z.object({
   internalId: z.string().optional(),
   externalId: z.string().optional(),
   email: z.string().optional(),
+  created: z.string().optional(),
   name: z.string().optional(),
   userInfo: z.object({}).passthrough().optional(),
 });
@@ -31,55 +31,51 @@ function usr(u: any, extended?: boolean) {
     externalId: u.uid,
     email: u.email,
     name: u.displayName,
+    created: new Date(u.metadata.creationTime).toISOString(),
     userInfo: extended ? u : undefined,
   };
 }
 
-export default createRoute()
-  .GET({
-    auth: true,
-    query: z.object({
-      extended: z.boolean().optional(),
-      internalId: z.string().optional(),
-      externalId: z.string().optional(),
-    }),
-    result: z.object({
-      users: z.array(ResultUser),
-    }),
-  })
-  .handler(async ({ user, query: { extended, externalId } }) => {
+function isTrueish(v: any) {
+  return v === "true" || v === true || v === 1 || v === "1";
+}
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  try {
+    const user = requireDefined(await getUser(res, req, true), `User is not authenticated`);
     await check(user);
-    const users: ResultUser[] = [];
+    const { externalId, extended, format } = req.query;
+    const users: any[] = [];
+
     if (externalId) {
-      const u = requireDefined(await firebase().auth().getUser(externalId), `User ${externalId} does not exist`);
+      const u = requireDefined(
+        await firebase()
+          .auth()
+          .getUser(externalId as string),
+        `User ${externalId} does not exist`
+      );
       users.push(usr(u, true));
     } else {
       let nextPageToken: string | undefined = undefined;
       do {
         const usersPage = await firebase().auth().listUsers(1000, nextPageToken);
         nextPageToken = usersPage.pageToken;
-        usersPage.users.forEach(u => users.push(usr(u, extended)));
+        usersPage.users.forEach(u => users.push(usr(u, isTrueish(extended))));
       } while (nextPageToken);
     }
 
-    return { users };
-  })
-  .POST({
-    auth: true,
-    body: z.object({
-      externalId: z.string(),
-    }),
-    result: z.object({
-      token: z.string(),
-    }),
-  })
-  .handler(async ({ req, user, body }) => {
-    await check(user);
+    if (format === "tsv") {
+      const lines = users.map(u => [u.internalId, u.externalId, u.email, u.name, u.created].join("\t"));
+      const header = ["internalId", "externalId", "email", "name", "created"].join("\t");
+      const tsv = [header, ...lines].join("\n");
 
-    const firebaseUser = await firebase().auth().getUser(body.externalId);
-    const token = await firebase()
-      .auth()
-      .createCustomToken(firebaseUser.uid, { internalId: firebaseUser.customClaims?.internalId });
-    return { token };
-  })
-  .toNextApiHandler();
+      res.setHeader("Content-Type", "text/plain");
+      res.status(200).send(tsv);
+      return tsv;
+    }
+    res.status(200).send({ users });
+  } catch (e) {
+    res.status(500).send(getErrorMessage(e));
+    getLog().atError().withCause(e).log("Error obtaining list of platform users");
+  }
+}

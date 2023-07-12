@@ -57,7 +57,7 @@ export function firebase(): admin.app.App {
   return requireDefined(firebaseService(), `Something went wrong, firebaseService is not initialized`);
 }
 
-export const firebaseAuthCookieName = "fb-auth";
+export const firebaseAuthCookieName = "fb-auth2";
 
 export type FirebaseToken = { idToken: string; cookieToken?: never } | { idToken?: never; cookieToken: string };
 
@@ -96,7 +96,7 @@ export async function getFirebaseUser(req: NextApiRequest, checkRevoked?: boolea
 
   getLog()
     .atDebug()
-    .log(`authToken (${checkRevoked}): ${JSON.stringify(authToken)}`);
+    .log(`authToken (${(checkRevoked = !!checkRevoked)}): ${JSON.stringify(authToken)}`);
 
   let decodedIdToken;
   try {
@@ -104,7 +104,7 @@ export async function getFirebaseUser(req: NextApiRequest, checkRevoked?: boolea
       ? await firebase().auth().verifyIdToken(authToken.idToken)
       : await firebase()
           .auth()
-          .verifySessionCookie(authToken.cookieToken as string, !!checkRevoked);
+          .verifySessionCookie(authToken.cookieToken as string, checkRevoked);
   } catch (e) {
     getLog()
       .atWarn()
