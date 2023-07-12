@@ -62,6 +62,7 @@ module.exports = withSentryConfig(
     // For all available options, see:
     // https://github.com/getsentry/sentry-webpack-plugin#options
 
+    dryRun: !process.env.SENTRY_AUTH_TOKEN,
     // Suppresses source map uploading logs during build
     silent: true,
     authToken: process.env.SENTRY_AUTH_TOKEN,
