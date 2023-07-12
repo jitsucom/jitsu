@@ -134,7 +134,7 @@ const JitsuPageViewTracker: React.FC<{}> = () => {
 export const Application: React.FC = function () {
   const [services, setServices] = useState<ApplicationServices>(null)
   const [projects, setProjects] = useState<Project[]>(null)
-  const [classicProject, setClassicProject] = useState<ClassicProjectStatus>()
+  const [classicProject, setClassicProject] = useState<ClassicProjectStatus | undefined>(undefined)
   const [initialized, setInitialized] = useState(false)
   const [error, setError] = useState<Error>()
   const { projectId } = useParams<{ projectId: string }>()
