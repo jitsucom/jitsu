@@ -148,9 +148,13 @@ function Welcome({
               }
               description={
                 links.length === 0 ? (
-                  <>
-                    <WLink href={`/connections/edit?backTo=%2F%3Fwelcome%3D1`}>Click here to add it!</WLink>
-                  </>
+                  streams.length > 0 && destinations.length > 0 ? (
+                    <>
+                      <WLink href={`/connections/edit?backTo=%2F%3Fwelcome%3D1`}>Click here to add it!</WLink>
+                    </>
+                  ) : (
+                    <>First, add at least one site and destination</>
+                  )
                 ) : (
                   <>
                     Congratulations! You have{" "}
@@ -167,7 +171,7 @@ function Welcome({
               description={
                 streams.length === 0 ? (
                   <>
-                    Fist, <WLink href={`/streams?id=new&backTo=%2F%3Fwelcome%3D1`}>add at list one site</WLink>
+                    First, <WLink href={`/streams?id=new&backTo=%2F%3Fwelcome%3D1`}>add at least one site</WLink>
                   </>
                 ) : (
                   <>
