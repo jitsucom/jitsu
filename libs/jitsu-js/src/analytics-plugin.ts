@@ -409,7 +409,7 @@ function maskWriteKey(writeKey?: string): string | undefined {
     if (secret) {
       return `${id}:***`;
     } else {
-      return id;
+      return "***";
     }
   }
   return writeKey;

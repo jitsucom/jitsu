@@ -174,6 +174,13 @@ const api: Api = {
         },
         httpHeaders: Object.entries(req.headers)
           .filter(([k, v]) => v !== undefined && v !== null && !isInternalHeader(k))
+          .map(
+            ([k, v]) =>
+              (k.toLowerCase() === "x-write-key" ? [k, maskWriteKey(`${v}`)] : [k, v]) as [
+                string,
+                string | string[] | undefined
+              ]
+          )
           .map(([k, v]) => [k, typeof v === "string" ? v : (v as string[]).join(",")])
           .reduce((acc, [k, v]) => ({ ...acc, [k]: v }), {}),
         httpPayload: body,
@@ -366,6 +373,18 @@ function httpRequest(
       })
       .catch(retryRequest);
   });
+}
+
+function maskWriteKey(writeKey?: string): string | undefined {
+  if (writeKey) {
+    const [id, secret] = writeKey.split(":", 2);
+    if (secret) {
+      return `${id}:***`;
+    } else {
+      return "***";
+    }
+  }
+  return writeKey;
 }
 
 export default nextJsApiHandler(api);
