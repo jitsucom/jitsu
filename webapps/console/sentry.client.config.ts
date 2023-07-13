@@ -23,7 +23,7 @@ Sentry.init({
   integrations: [
     new Sentry.Replay({
       // Additional Replay configuration goes in here, for example:
-      maskAllText: true,
+      maskAllText: false,
       blockAllMedia: true,
     }),
   ],
