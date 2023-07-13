@@ -96,7 +96,7 @@ const CustomDomain: React.FC<{ domain: string; deleteDomain: () => Promise<void>
       <div className="flex items-center text-lg py-2 pl-4 pr-2 rounded-lg hover:bg-backgroundDark">
         <div className="font-bold">{domain}</div>
         <div className="ml-2">
-          <Link href={domain} legacyBehavior>
+          <Link href={`https://${domain}`} legacyBehavior>
             <FaExternalLinkAlt />
           </Link>
         </div>

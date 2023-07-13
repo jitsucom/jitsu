@@ -373,7 +373,8 @@ function AppLoader({ children, pageProps }: PropsWithChildren<any>) {
         options={
           trackingHost
             ? {
-                debug: data?.logLevel === "debug",
+                //debug: data?.logLevel === "debug",
+                debug: false,
                 host: trackingHost,
                 echoEvents: !data!.telemetry.host,
                 writeKey: data!.telemetry.writeKey,
