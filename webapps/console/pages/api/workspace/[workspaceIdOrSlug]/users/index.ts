@@ -6,7 +6,7 @@ import { db } from "../../../../../lib/server/db";
 import { whoamiUrl } from "../../../../../lib/server/whoami";
 import { isMailAvailable, sendEmail } from "../../../../../lib/server/mail";
 import { ApiError } from "../../../../../lib/shared/errors";
-import { pick } from "lodash";
+import pick from "lodash/pick";
 import { branding } from "../../../../../lib/branding";
 
 async function sendInvitationEmail<Req>(

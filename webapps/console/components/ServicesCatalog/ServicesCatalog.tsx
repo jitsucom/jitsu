@@ -3,7 +3,7 @@ import styles from "./ServicesCatalog.module.css";
 import { FaCloud, FaDatabase } from "react-icons/fa";
 import { useApi } from "../../lib/useApi";
 import { SourceType } from "../../pages/api/sources";
-import { capitalize } from "lodash";
+import capitalize from "lodash/capitalize";
 import { LoadingAnimation } from "../GlobalLoader/GlobalLoader";
 import React from "react";
 import { ErrorCard } from "../GlobalError/GlobalError";

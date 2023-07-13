@@ -1,6 +1,6 @@
 import { createRoute } from "../../lib/api";
 import { coreDestinations, PropertyUI } from "../../lib/schema/destinations";
-import { omit } from "lodash";
+import omit from "lodash/omit";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createDisplayName } from "../../lib/zod";
 import { z } from "zod";

@@ -1,7 +1,7 @@
 import Editor from "@monaco-editor/react";
 import React, { useCallback, useEffect, useRef } from "react";
 import { LoadingAnimation } from "../GlobalLoader/GlobalLoader";
-import { debounce } from "lodash";
+import debounce from "lodash/debounce";
 import * as monaco from "monaco-editor";
 import styles from "./CodeEditor.module.css";
 

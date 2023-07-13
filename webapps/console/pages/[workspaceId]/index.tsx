@@ -55,9 +55,13 @@ function Welcome({
           streamId={implementationDocumentationId}
           onCancel={() => {
             setImplementationDocumentationId(undefined);
-            router.push({ pathname: router.pathname, query: omit(router.query, "implementationFor") }, undefined, {
-              shallow: true,
-            });
+            router.push(
+              { pathname: router.pathname, query: omit(router.query, "implementationFor", "framework") },
+              undefined,
+              {
+                shallow: true,
+              }
+            );
           }}
         />
       )}

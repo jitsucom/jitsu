@@ -1,6 +1,6 @@
 import { useRouter } from "next/router";
 import { useCallback, useState } from "react";
-import { omit } from "lodash";
+import omit from "lodash/omit";
 
 export type Serde<T> = {
   parser: (val: string) => T;

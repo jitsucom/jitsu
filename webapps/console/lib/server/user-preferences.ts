@@ -1,5 +1,5 @@
 import { PrismaClient } from "@prisma/client";
-import { merge } from "lodash";
+import merge from "lodash/merge";
 
 export type PreferencesObj = Record<string, any>;
 

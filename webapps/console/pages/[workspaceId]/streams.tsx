@@ -10,7 +10,6 @@ import { branding } from "../../lib/branding";
 import { useRouter } from "next/router";
 import { TrackingIntegrationDocumentation } from "../../components/TrackingIntegrationDocumentation/TrackingIntegrationDocumentation";
 import { ApiKeysEditor } from "../../components/ApiKeyEditor/ApiKeyEditor";
-import omit from "lodash/omit";
 import { useQuery } from "@tanstack/react-query";
 import { getEeClient } from "../../lib/ee-client";
 import { requireDefined } from "juava";
@@ -23,6 +22,7 @@ import { get } from "../../lib/useApi";
 import { Wrench } from "lucide-react";
 import { FaviconLoader } from "./index";
 import { ObjectTitle } from "../../components/ObjectTitle/ObjectTitle";
+import omit from "lodash/omit";
 
 const Streams: React.FC<any> = () => {
   return (
@@ -96,9 +96,9 @@ const CustomDomain: React.FC<{ domain: string; deleteDomain: () => Promise<void>
       <div className="flex items-center text-lg py-2 pl-4 pr-2 rounded-lg hover:bg-backgroundDark">
         <div className="font-bold">{domain}</div>
         <div className="ml-2">
-          <Link href={`https://${domain}`} legacyBehavior>
+          <a href={`https://${domain}`} target={"_blank"} rel={"noreferrer noopener"}>
             <FaExternalLinkAlt />
-          </Link>
+          </a>
         </div>
         <div className="ml-2">
           {(() => {
@@ -361,11 +361,9 @@ const StreamsList: React.FC<{}> = () => {
                   {[`${s.id}.${appConfig.publicEndpoints.dataHost}`, ...(s.domains || [])].map(domain => (
                     <div key={domain} className="flex items-center space-x-1">
                       <div className="font-mono">{domain}</div>
-                      <Link href={`https://${domain}`} legacyBehavior>
-                        <a className="cursor-pointer">
-                          <FaExternalLinkAlt className={"ml-0.5 w-2.5 h-2.5"} />
-                        </a>
-                      </Link>
+                      <a href={`https://${domain}`} target={"_blank"} rel={"noreferrer noopener"}>
+                        <FaExternalLinkAlt className={"ml-0.5 w-2.5 h-2.5"} />
+                      </a>
                     </div>
                   ))}
                 </div>
@@ -443,9 +441,13 @@ const StreamsList: React.FC<{}> = () => {
           streamId={implementationDocumentationId}
           onCancel={() => {
             setImplementationDocumentationId(undefined);
-            router.push({ pathname: router.pathname, query: omit(router.query, "implementationFor") }, undefined, {
-              shallow: true,
-            });
+            router.push(
+              { pathname: router.pathname, query: omit(router.query, "implementationFor", "framework") },
+              undefined,
+              {
+                shallow: true,
+              }
+            );
           }}
         />
       )}

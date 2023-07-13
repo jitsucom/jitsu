@@ -2,7 +2,7 @@ import { JitsuFunction } from "@jitsu/protocols/functions";
 import { AnalyticsServerEvent, DataLayoutType } from "@jitsu/protocols/analytics";
 import type { Event as JitsuLegacyEvent } from "@jitsu/sdk-js";
 
-import { omit } from "lodash";
+import omit from "lodash/omit";
 
 const TableNameParameter = "JITSU_TABLE_NAME";
 export type MappedEvent = {

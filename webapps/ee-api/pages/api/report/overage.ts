@@ -6,7 +6,7 @@ import { pg, store } from "../../../lib/services";
 import { getAvailableProducts, stripe, stripeDataTable } from "../../../lib/stripe";
 import Stripe from "stripe";
 import { queries, query } from "./[reportName]";
-import { pick } from "lodash";
+import pick from "lodash/pick";
 
 const log = getLog("/api/report");
 

@@ -4,7 +4,7 @@ import { Link, Outlet, Route, Routes, useLocation } from "react-router-dom";
 import { useJitsu } from "@jitsu/jitsu-react";
 import { useUser } from "./ConfigurationProvider";
 import "./Page.css";
-import { omit } from "lodash";
+import omit from "lodash/omit";
 
 export default function Page() {
   const user = useUser();

@@ -2,7 +2,7 @@ import { createContext, PropsWithChildren, useContext } from "react";
 import { z } from "zod";
 import { AppConfig, ContextApiResponse } from "./schema";
 import { WorkspaceDbModel } from "../prisma/schema";
-import { omit } from "lodash";
+import omit from "lodash/omit";
 
 export type WorkspaceContext = z.infer<typeof WorkspaceDbModel> & {
   slugOrId: string;

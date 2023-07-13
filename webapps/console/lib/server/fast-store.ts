@@ -1,7 +1,8 @@
 import Redis from "ioredis";
 import { StreamConfig } from "../schema";
 import { DatabaseConnection, db, Handler } from "./db";
-import { omit, pick } from "lodash";
+import omit from "lodash/omit";
+import pick from "lodash/pick";
 import { randomId, requireDefined, stopwatch } from "juava";
 import { z } from "zod";
 import { ConfigurationObjectDbModel, ConfigurationObjectLinkDbModel, WorkspaceDbModel } from "../../prisma/schema";
