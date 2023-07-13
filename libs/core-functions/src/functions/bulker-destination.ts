@@ -67,7 +67,7 @@ export function jitsuLegacy(event: AnalyticsServerEvent): MappedEvent {
       doc_host: url?.hostname,
       doc_path: url?.pathname,
       doc_search: url?.search,
-      event_id: event.messageId,
+      eventn_ctx_event_id: event.messageId,
       event_type: event.type,
       local_tz_offset: event.context?.page?.timezoneOffset || event.properties?.timezoneOffset,
       page_title: event.context?.page?.title,
