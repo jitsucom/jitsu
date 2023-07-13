@@ -8,7 +8,7 @@ import { Database, Loader2, Plus } from "lucide-react";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
 
 export function ProvisionDatabaseButton(props) {
-  const { loader = undefined } = props;
+  const { loader = undefined, createdCallback = undefined } = props;
   const workspace = useWorkspace();
   const url = `/api/${workspace.id}/ee/provision-db`;
   const { data, isLoading, error } = useApi(url);
@@ -19,7 +19,11 @@ export function ProvisionDatabaseButton(props) {
     try {
       await rpc(url, { method: "POST", query: { workspaceId: workspace.id } });
       feedbackSuccess("Database created");
-      router.reload();
+      if (createdCallback) {
+        createdCallback();
+      } else {
+        router.reload();
+      }
     } catch (e) {
       feedbackError("Error creating database", { error: e });
     } finally {

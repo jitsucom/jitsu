@@ -7,7 +7,7 @@ import {
   FieldDisplay,
 } from "../../components/ConfigObjectEditor/ConfigEditor";
 import { DestinationConfig } from "../../lib/schema";
-import { confirmOp, feedbackError, serialization, useURLPersistedState } from "../../lib/ui";
+import { confirmOp, feedbackError, serialization } from "../../lib/ui";
 import {
   coreDestinations,
   coreDestinationsMap,
@@ -39,6 +39,7 @@ import { ProvisionDatabaseButton } from "../../components/ProvisionDatabaseButto
 import Link from "next/link";
 import { CodeEditor } from "../../components/CodeEditor/CodeEditor";
 import { ObjectTitle } from "../../components/ObjectTitle/ObjectTitle";
+import { useQueryStringState } from "../../lib/useQueryStringState";
 
 const log = getLog("destinations");
 const Loader: React.FC<{}> = () => {
@@ -478,11 +479,12 @@ function ProvisionedDestinationDeleteButton(props: {
   );
 }
 
-const ProvisionedDestinations = () => {
+const ProvisionedDestinations = (props: any) => {
   const workspace = useWorkspace();
+  const refresh = props.refresh;
 
   const { isLoading, data, error, refetch } = useApi<{ objects: DestinationConfig[] }>(
-    `/api/${workspace.id}/config/destination`
+    `/api/${workspace.id}/config/destination?r=${refresh.getTime()}`
   );
   const loader = (
     <div className="flex flex-col justify-center mt-4" style={{ height: "200px" }}>
@@ -552,9 +554,9 @@ const Htmlizer: React.FC<PropsWithChildren<{}>> = ({ children }) => {
 };
 
 const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
-  const [showCatalog, setShowCatalog] = useURLPersistedState<boolean>("showCatalog", {
-    defaultVal: false,
-    type: serialization.bool,
+  const [showCatalog, setShowCatalog] = useQueryStringState<boolean>("showCatalog", {
+    defaultValue: false,
+    ...serialization.bool,
   });
   const appConfig = useAppConfig();
   const router = useRouter();
@@ -570,6 +572,7 @@ const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
     },
     {}
   );
+  const [refresh, setRefresh] = useState(new Date());
   log.atDebug().log("extraFields", extraFields);
   const config: ConfigEditorProps<DestinationConfig> = {
     actions: [
@@ -668,6 +671,7 @@ const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
         }}
         open={showCatalog}
         width="90vw"
+        destroyOnClose={true}
         onCancel={() => setShowCatalog(false)}
         footer={null}
       >
@@ -680,11 +684,16 @@ const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
             )}`;
             router.push(url);
           }}
+          dismiss={() => {
+            setShowCatalog(false);
+            router.push(`/${workspace.slugOrId}${router.query.backTo || "/destinations"}`);
+            setRefresh(new Date());
+          }}
         />
       </Modal>
       {!router.query.id && appConfig.ee?.available && (
         <div className="my-6">
-          <ProvisionedDestinations />
+          <ProvisionedDestinations refresh={refresh} />
         </div>
       )}
       <ConfigEditor

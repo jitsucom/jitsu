@@ -3,6 +3,12 @@ import styles from "./DestinationsCatalog.module.css";
 
 import { coreDestinations, DestinationType } from "../../lib/schema/destinations";
 import { FaCloud, FaDatabase } from "react-icons/fa";
+import { useAppConfig, useWorkspace } from "../../lib/context";
+import { useApi } from "../../lib/useApi";
+import { DestinationConfig } from "../../lib/schema";
+import { Skeleton } from "antd";
+import { ProvisionDatabaseButton } from "../ProvisionDatabaseButton/ProvisionDatabaseButton";
+import { useRouter } from "next/router";
 
 function groupDestinationTypes(): Record<string, DestinationType[]> {
   const groups: Record<string, DestinationType[]> = {};
@@ -45,7 +51,23 @@ export function getDestinationIcon(destination?: DestinationType) {
   return destination.icon || (tags.includes("datawarehouse") ? <FaDatabase /> : <FaCloud />);
 }
 
-export const DestinationCatalog: React.FC<{ onClick: (destinationType: string) => void }> = ({ onClick }) => {
+export const DestinationCatalog: React.FC<{ onClick: (destinationType: string) => void; dismiss: () => any }> = ({
+  onClick,
+  dismiss,
+}) => {
+  const workspace = useWorkspace();
+  const router = useRouter();
+  const appConfig = useAppConfig();
+  const { isLoading, data, error, refetch } = useApi<{ objects: DestinationConfig[] }>(
+    `/api/${workspace.id}/config/destination`
+  );
+  const provisionedDestinations = data?.objects.filter(d => d.provisioned) || [];
+
+  const loader = (
+    <div className="flex flex-col justify-center mt-4" style={{ height: "200px" }}>
+      <Skeleton paragraph={{ rows: 4, width: "100%" }} title={false} active />
+    </div>
+  );
   const groups = useMemo(() => groupDestinationTypes(), []);
   return (
     <div className="p-12 flex flex-col flex-shrink w-full h-full overflow-y-auto">
@@ -53,6 +75,19 @@ export const DestinationCatalog: React.FC<{ onClick: (destinationType: string) =
         {Object.entries(groups).map(([tag, destinations]) => (
           <div key={tag} className="">
             <div className="text-3xl text-textLight px-4 pb-0 pt-3">{tag}</div>
+            {tag === "Datawarehouse" &&
+              appConfig.ee.available &&
+              provisionedDestinations &&
+              provisionedDestinations.length === 0 && (
+                <div className={"px-4 mb-4"}>
+                  <ProvisionDatabaseButton
+                    loader={loader}
+                    createdCallback={() => {
+                      dismiss();
+                    }}
+                  />
+                </div>
+              )}
             <div className="flex flex-wrap">
               {destinations.map(destination => (
                 <div

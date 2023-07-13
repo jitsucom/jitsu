@@ -312,34 +312,6 @@ export const coreDestinations: DestinationType<any>[] = [
   gaDeviceDestination,
   gtmDeviceDestination,
   logRocketDestination,
-
-  {
-    id: "postgres",
-    usesBulker: true,
-    icon: postgresIcon,
-    title: "Postgres",
-    tags: "Datawarehouse",
-    connectionOptions: BaseBulkerConnectionOptions,
-    credentials: z.object({
-      host: z.string().describe("Postgres host"),
-      port: z.number().default(5432).describe("Postgres port"),
-      sslMode: z
-        .enum(["disable", "require"])
-        .default("require")
-        .describe("SSL Mode::SSL mode for Postgres connection: <code>disable</code> or <code>require</code>"),
-      database: z.string().describe("Postgres database name"),
-      username: z.string().describe("Postgres username"),
-      password: z.string().describe("Postgres password"),
-      defaultSchema: z.string().default("public").describe("Schema::Postgres schema"),
-    }),
-    credentialsUi: {
-      password: {
-        password: true,
-      },
-    },
-    description: "Postgres is a powerful, open source object-relational database system.",
-  },
-
   {
     id: "clickhouse",
     usesBulker: true,
@@ -365,6 +337,32 @@ export const coreDestinations: DestinationType<any>[] = [
         password: true,
       },
     },
+  },
+  {
+    id: "postgres",
+    usesBulker: true,
+    icon: postgresIcon,
+    title: "Postgres",
+    tags: "Datawarehouse",
+    connectionOptions: BaseBulkerConnectionOptions,
+    credentials: z.object({
+      host: z.string().describe("Postgres host"),
+      port: z.number().default(5432).describe("Postgres port"),
+      sslMode: z
+        .enum(["disable", "require"])
+        .default("require")
+        .describe("SSL Mode::SSL mode for Postgres connection: <code>disable</code> or <code>require</code>"),
+      database: z.string().describe("Postgres database name"),
+      username: z.string().describe("Postgres username"),
+      password: z.string().describe("Postgres password"),
+      defaultSchema: z.string().default("public").describe("Schema::Postgres schema"),
+    }),
+    credentialsUi: {
+      password: {
+        password: true,
+      },
+    },
+    description: "Postgres is a powerful, open source object-relational database system.",
   },
   {
     id: "bigquery",
