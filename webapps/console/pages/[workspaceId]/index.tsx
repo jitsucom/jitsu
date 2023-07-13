@@ -319,13 +319,13 @@ function WorkspaceOverview(props: {
         <ConnectionsDiagram
           srcActions={{
             title: "Sites",
-            newLink: `/${workspace.id}/streams?id=new`,
-            editLink: `/${workspace.id}/streams`,
+            newLink: `/${workspace.slugOrId}/streams?id=new`,
+            editLink: `/${workspace.slugOrId}/streams`,
           }}
           dstActions={{
             title: "Destinations",
-            newLink: `/${workspace.id}/destinations?id=new`,
-            editLink: `/${workspace.id}/destinations`,
+            newLink: `/${workspace.slugOrId}/destinations?showCatalog=true`,
+            editLink: `/${workspace.slugOrId}/destinations`,
           }}
           sources={streams.map(({ id, name }) => ({
             id: id,

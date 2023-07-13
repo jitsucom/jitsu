@@ -501,7 +501,7 @@ const WorkspaceLoader: React.FC<PropsWithChildren<{ workspaceId: string }>> = ({
     return <GlobalLoader title={isLoading ? "Loading workspace data..." : "Loading user data..."} />;
   } else {
     return (
-      <WorkspaceContextProvider workspace={workspace}>
+      <WorkspaceContextProvider workspace={{ ...workspace, slugOrId: workspace?.slug || workspace?.id }}>
         <BillingProvider sendAnalytics={true} enabled={appConfig.billingEnabled}>
           <ClassicProjectProvider>{children}</ClassicProjectProvider>
         </BillingProvider>

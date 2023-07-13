@@ -4,7 +4,9 @@ import { AppConfig, ContextApiResponse } from "./schema";
 import { WorkspaceDbModel } from "../prisma/schema";
 import { omit } from "lodash";
 
-export type WorkspaceContext = z.infer<typeof WorkspaceDbModel>;
+export type WorkspaceContext = z.infer<typeof WorkspaceDbModel> & {
+  slugOrId: string;
+};
 
 const WorkspaceContext0 = createContext<WorkspaceContext | null>(null);
 
