@@ -254,7 +254,6 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
   const hasErrors = formState?.errors?.length > 0;
   const isTouched = formState !== undefined || !!createNew;
   const uiSchema = getUiSchema(schema, fields);
-  log.atInfo().log("Rendering <EditorComponent /> with schema and props", schema, props);
 
   const [submitCount, setSubmitCount] = useState(0);
   const modal = useAntdModal();

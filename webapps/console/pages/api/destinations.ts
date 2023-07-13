@@ -11,7 +11,7 @@ export default createRoute()
     //set cors headers
     res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
     res.setHeader("Access-Control-Allow-Methods", "*");
-    res.setHeader("Access-Control-Allow-Headers", "*");
+    res.setHeader("Access-Control-Allow-Headers", "authorization, content-type, baggage, sentry-trace");
     res.setHeader("Access-Control-Allow-Credentials", "true");
     return {
       destinations: coreDestinations.map(d => ({

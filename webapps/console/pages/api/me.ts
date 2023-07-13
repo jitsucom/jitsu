@@ -41,7 +41,7 @@ function handleCors(requestDomain: string, origin: string | undefined, res: Next
   } else {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Access-Control-Allow-Methods", "GET");
-    res.setHeader("Access-Control-Allow-Headers", "*");
+    res.setHeader("Access-Control-Allow-Headers", "authorization, content-type, baggage, sentry-trace");
     res.setHeader("Access-Control-Allow-Credentials", "true");
   }
 }

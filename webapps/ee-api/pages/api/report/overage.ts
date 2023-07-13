@@ -21,9 +21,9 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
       `User doesn't have access to workspace ${workspaceId}`
     );
   }
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
   res.setHeader("Access-Control-Allow-Methods", "*");
-  res.setHeader("Access-Control-Allow-Headers", "*");
+  res.setHeader("Access-Control-Allow-Headers", "authorization, content-type, baggage, sentry-trace");
   if (req.method === "OPTIONS") {
     //allowing requests from everywhere since our tokens are short-lived
     //and can't be hijacked

@@ -84,10 +84,10 @@ const api: Api = {
     types: {
       body: z.any(),
     },
-    handle: async ({ res }) => {
-      res.setHeader("Access-Control-Allow-Origin", "*");
+    handle: async ({ res, req }) => {
+      res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
       res.setHeader("Access-Control-Allow-Methods", "*");
-      res.setHeader("Access-Control-Allow-Headers", "*");
+      res.setHeader("Access-Control-Allow-Headers", "x-enable-debug, x-write-key, authorization, content-type");
       res.setHeader("Access-Control-Allow-Credentials", "true");
       //res.setHeader("Vary", "Origin");
       return;
@@ -191,9 +191,9 @@ const api: Api = {
       if (bulkerAuthKey) {
         options.headers["Authorization"] = `Bearer ${bulkerAuthKey}`;
       }
-      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
       res.setHeader("Access-Control-Allow-Methods", "*");
-      res.setHeader("Access-Control-Allow-Headers", "*");
+      res.setHeader("Access-Control-Allow-Headers", "x-enable-debug, x-write-key, authorization, content-type");
       res.setHeader("Access-Control-Allow-Credentials", "true");
       try {
         let bulkerPromise;
