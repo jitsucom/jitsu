@@ -671,6 +671,7 @@ const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
         }}
         open={showCatalog}
         width="90vw"
+        style={{ minWidth: 1000 }}
         destroyOnClose={true}
         onCancel={() => setShowCatalog(false)}
         footer={null}

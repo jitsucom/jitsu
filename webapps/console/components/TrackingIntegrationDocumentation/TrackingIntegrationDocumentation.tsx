@@ -128,64 +128,66 @@ export const TrackingIntegrationDocumentation: React.FC<{ streamId: string; onCa
   return (
     <>
       <Overlay onClose={onCancel} className="px-6 py-6">
-        <>
-          {isLoading && (
-            <Center vertical={true} horizontal={true}>
-              <LoadingAnimation />
-            </Center>
-          )}
-          {error && (
-            <Center vertical={true} horizontal={true}>
-              <ErrorCard error={error} />
-            </Center>
-          )}
-          {stream && (
-            <Tabs
-              defaultActiveKey={framework}
-              onChange={setFramework}
-              items={[
-                {
-                  label: (
-                    <ButtonLabel className="text-lg" icon={<FiMonitor />}>
-                      HTML
-                    </ButtonLabel>
-                  ),
-                  key: "html",
-                  children: wrap(<HtmlManual domain={displayDomain} writeKey={writeKey || undefined} />),
-                },
-                {
-                  label: (
-                    <ButtonLabel className="text-lg" icon={<FaReact />}>
-                      React
-                    </ButtonLabel>
-                  ),
-                  key: "react",
-                  children: wrap(<ReactManual domain={displayDomain} writeKey={writeKey || undefined} />),
-                },
-                {
-                  label: <ButtonLabel icon={<IoLogoJavascript className="text-lg" />}>JavaScript</ButtonLabel>,
-                  key: "js",
-                  children: wrap(<JavaScriptManual domain={displayDomain} writeKey={writeKey || undefined} />),
-                },
-                {
-                  label: (
-                    <ButtonLabel
-                      icon={
-                        <div className="h-4 w-4">
-                          <SegmentLogo />
-                        </div>
-                      }
-                    >
-                      Segment Proxy
-                    </ButtonLabel>
-                  ),
-                  key: "segment",
-                  children: wrap(<Segment domain={displayDomain} />),
-                },
-              ]}
-            />
-          )}
-        </>
+        <div style={{ minWidth: 900 }}>
+          <>
+            {isLoading && (
+              <Center vertical={true} horizontal={true}>
+                <LoadingAnimation />
+              </Center>
+            )}
+            {error && (
+              <Center vertical={true} horizontal={true}>
+                <ErrorCard error={error} />
+              </Center>
+            )}
+            {stream && (
+              <Tabs
+                defaultActiveKey={framework}
+                onChange={setFramework}
+                items={[
+                  {
+                    label: (
+                      <ButtonLabel className="text-lg" icon={<FiMonitor />}>
+                        HTML
+                      </ButtonLabel>
+                    ),
+                    key: "html",
+                    children: wrap(<HtmlManual domain={displayDomain} writeKey={writeKey || undefined} />),
+                  },
+                  {
+                    label: (
+                      <ButtonLabel className="text-lg" icon={<FaReact />}>
+                        React
+                      </ButtonLabel>
+                    ),
+                    key: "react",
+                    children: wrap(<ReactManual domain={displayDomain} writeKey={writeKey || undefined} />),
+                  },
+                  {
+                    label: <ButtonLabel icon={<IoLogoJavascript className="text-lg" />}>JavaScript</ButtonLabel>,
+                    key: "js",
+                    children: wrap(<JavaScriptManual domain={displayDomain} writeKey={writeKey || undefined} />),
+                  },
+                  {
+                    label: (
+                      <ButtonLabel
+                        icon={
+                          <div className="h-4 w-4">
+                            <SegmentLogo />
+                          </div>
+                        }
+                      >
+                        Segment Proxy
+                      </ButtonLabel>
+                    ),
+                    key: "segment",
+                    children: wrap(<Segment domain={displayDomain} />),
+                  },
+                ]}
+              />
+            )}
+          </>
+        </div>
       </Overlay>
     </>
   );

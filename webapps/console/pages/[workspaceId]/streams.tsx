@@ -106,6 +106,8 @@ const CustomDomain: React.FC<{ domain: string; deleteDomain: () => Promise<void>
               return <StatusBadge status="loading">Checking Domain Status</StatusBadge>;
             } else if (error) {
               return <StatusBadge status="error">Internal error</StatusBadge>;
+            } else if (data && data.error) {
+              return <StatusBadge status="error">{data.error}</StatusBadge>;
             } else if (data && data.needsConfiguration) {
               return (
                 <div onClick={() => setReloadTrigger(reloadTrigger + 1)}>

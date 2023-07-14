@@ -180,6 +180,7 @@ const ServicesList: React.FC<{}> = () => {
           flexDirection: "column",
         }}
         open={showCatalog}
+        style={{ minWidth: 1000 }}
         width="90vw"
         onCancel={() => setShowCatalog(false)}
         footer={null}

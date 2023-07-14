@@ -26,6 +26,7 @@ function LoadAndBlockIfNeed() {
   if (usage.usagePercentage > 1) {
     return (
       <Modal
+        style={{ minWidth: 1000 }}
         open={true}
         title={
           <div className="flex items-center space-x-4">

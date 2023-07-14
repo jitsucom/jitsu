@@ -490,7 +490,7 @@ const ScheduleDocumentation: React.FC<{
   const displayDomain = appConfig.websiteUrl;
   return (
     <Overlay onClose={onCancel} className="px-6 py-6">
-      <div className={"flex flex-row gap-2 border-b pb-2 mb-4"}>
+      <div className={"flex flex-row gap-2 border-b pb-2 mb-4"} style={{ minWidth: 900 }}>
         <SyncTitle syncId={syncId} service={service} destination={destination} />
       </div>
       <div className="flex flex-row">

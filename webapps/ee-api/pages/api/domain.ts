@@ -4,6 +4,7 @@ import { getErrorMessage, getLog, requireDefined } from "juava";
 
 import fetch from "node-fetch-commonjs";
 import { withErrorHandler } from "../../lib/error-handler";
+import isValidDomain from "is-valid-domain";
 
 const log = getLog("/api/domain");
 
@@ -24,11 +25,11 @@ async function rpc(url: string, body?: any): Promise<any> {
       "Content-Type": "application/json",
     },
   });
+  const txt = await res.text();
   if (!res.ok) {
-    log.atError().log(`Rpc failed: ${res.status} ${res.statusText}. Response: ${await res.text()}`);
-    throw new Error(`Rpc failed: ${res.status} ${res.statusText}`);
+    log.atError().log(`Rpc failed: ${res.status} ${res.statusText}. Response: ${txt}`);
   }
-  return await res.json();
+  return JSON.parse(txt);
 }
 
 export type DomainInfo = Record<string, any>;
@@ -63,13 +64,18 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
   }
   try {
     const domain = requireDefined(req.query.domain as string, `query param domain is not set`);
-
+    if (!isValidDomain(domain, { subdomain: true, wildcard: false })) {
+      throw new Error(`Not a valid domain name`);
+    }
     let domainInfo = await getExistingDomain(domain);
     if (!domainInfo) {
       domainInfo = await rpc(`/v9/projects/${vercelProjectId}/domains?teamId=${vercelTeamId}`, { name: domain });
     }
     if (!domainInfo) {
       throw new Error(`Can't get domainInfo for ${domain}`);
+    }
+    if (domainInfo.error) {
+      return res.status(200).json({ ok: false, error: domainInfo.error.message || domainInfo.error });
     }
     const status = await rpc(`/v6/domains/${domain}/config?teamId=${vercelTeamId}`);
     log.atDebug().log(`Checking status of domain ${domain}: ${JSON.stringify({ status, domainInfo }, null, 2)}`);
@@ -81,7 +87,7 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
       res.status(200).json({ ok: true, needsConfiguration: true, configurationType: "cname", cnameValue: cname });
     } else if (!verified) {
       if (!domainInfo.verification) {
-        throw new Error(`Domain ${domain} is not verified, but there is no verification info`);
+        throw new Error(`Domain ${domain} is not verified, and there is no verification info`);
       }
       res.status(200).json({
         ok: true,
@@ -94,7 +100,7 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
     }
   } catch (e) {
     log.atError().withCause(e).log(`${req.url} failed`);
-    return res.status(500).json({ ok: false, error: getErrorMessage(e) });
+    return res.status(200).json({ ok: false, error: getErrorMessage(e) });
   }
 };
 export default withErrorHandler(handler);
