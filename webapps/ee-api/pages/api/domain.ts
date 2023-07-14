@@ -35,16 +35,11 @@ async function rpc(url: string, body?: any): Promise<any> {
 export type DomainInfo = Record<string, any>;
 
 async function getExistingDomain(domain: string): Promise<DomainInfo | undefined> {
-  while (true) {
-    const result = await rpc(`/v12/projects/${vercelProjectId}/domains?teamId=${vercelTeamId}`);
-    const info = result.domains.find((d: DomainInfo) => d.name === domain);
-    if (info) {
-      return info;
-    } else if (result.pagination) {
-      return undefined;
-    } else {
-      return undefined;
-    }
+  const result = await rpc(`/v9/projects/${vercelProjectId}/domains/${domain}?teamId=${vercelTeamId}`);
+  if (result.ok) {
+    return result;
+  } else {
+    return undefined;
   }
 }
 
