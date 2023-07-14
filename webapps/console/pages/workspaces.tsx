@@ -9,14 +9,17 @@ import { getLog } from "juava";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { firebaseSignOut } from "../lib/firebase-client";
-import { useState } from "react";
+import React, { useState } from "react";
 import { feedbackError } from "../lib/ui";
 import { JitsuButton } from "../components/JitsuButton/JitsuButton";
+import { Input, Tag } from "antd";
 
 const log = getLog("worspaces");
 
 const WorkspacesList = () => {
+  const { data: userData } = useApi(`/api/user/properties`);
   const { data, isLoading, error } = useApi<z.infer<typeof WorkspaceDbModel>[]>(`/api/workspace`);
+  const [filter, setFilter] = React.useState("");
 
   if (isLoading) {
     return (
@@ -35,21 +38,41 @@ const WorkspacesList = () => {
   } else if (data) {
     return (
       <div className="flex flex-col space-y-4 w-full mx-auto">
-        {data.map(workspace => (
-          <Link
-            className="border border-textDisabled rounded px-4 py-4 shadow hover:border-primaryDark hover:shadow-primaryLighter flex justify-between items-center hover:text-textPrimary group"
-            key={workspace.slug || workspace.id}
-            href={`/${workspace.slug || workspace.id}`}
-          >
-            <div className="flex items-center justify-start">
-              <div>{workspace.name || workspace.slug || workspace.id}</div>
-              <div className="text-xs text-textLight ml-2">/{workspace.slug || workspace.id}</div>
-            </div>
-            <div className="invisible group-hover:visible">
-              <ArrowRight className="text-primary" />
-            </div>
-          </Link>
-        ))}
+        {data.length > 5 && (
+          <div key={"filter"}>
+            <Input
+              allowClear
+              placeholder="Search"
+              onChange={e => {
+                setFilter(e.target.value);
+              }}
+              className="w-full border border-textDisabled rounded-lg px-4 py-4"
+            />
+          </div>
+        )}
+        {data
+          .filter(
+            w =>
+              w.id.toLowerCase().includes(filter.toLowerCase()) ||
+              w.name?.toLowerCase().includes(filter.toLowerCase()) ||
+              w.slug?.toLowerCase().includes(filter.toLowerCase())
+          )
+          .map(workspace => (
+            <Link
+              className="border border-textDisabled rounded px-4 py-4 shadow hover:border-primaryDark hover:shadow-primaryLighter flex justify-between items-center hover:text-textPrimary group"
+              key={workspace.slug || workspace.id}
+              href={`/${workspace.slug || workspace.id}`}
+            >
+              <div className="flex items-center justify-start gap-2">
+                <div>{workspace.name || workspace.slug || workspace.id}</div>
+                <div className="text-textLight">/{workspace.slug || workspace.id}</div>
+                {userData?.admin && <Tag className="text-xs text-textLight">{workspace.id}</Tag>}
+              </div>
+              <div className="invisible group-hover:visible">
+                <ArrowRight className="text-primary" />
+              </div>
+            </Link>
+          ))}
       </div>
     );
   }

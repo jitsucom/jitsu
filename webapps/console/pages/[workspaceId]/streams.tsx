@@ -126,6 +126,7 @@ const CustomDomain: React.FC<{ domain: string; deleteDomain: () => Promise<void>
             <Tooltip title="See configuration instructions">
               <Button
                 type="text"
+                danger
                 disabled={isLoading || deleting}
                 onClick={() => {
                   DomainConfigurationInstructions.show({ domain, status: data });
