@@ -13,10 +13,14 @@ const api: Api = {
         `User ${user.internalId} does not exist`
       );
       if (userModel.admin) {
-        return await db.prisma().workspace.findMany({ where: { deleted: false } });
+        return await db.prisma().workspace.findMany({ where: { deleted: false }, orderBy: { createdAt: "asc" } });
       }
       return (
-        await db.prisma().workspaceAccess.findMany({ where: { userId: user.internalId }, include: { workspace: true } })
+        await db.prisma().workspaceAccess.findMany({
+          where: { userId: user.internalId },
+          include: { workspace: true },
+          orderBy: { createdAt: "asc" },
+        })
       )
         .map(res => res.workspace)
         .filter(w => !w.deleted);
