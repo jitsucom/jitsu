@@ -202,7 +202,7 @@ test("basic", async ({ browser }) => {
   expect(anonymousId).toBeDefined();
   expect(cookies["__eventn_uid"]).toBe("user1");
   expect(cookies["__eventn_id_usr"]).toBeDefined();
-  expect(JSON.parse(cookies["__eventn_id_usr"]).email).toEqual("john.doe@gmail.com");
+  expect(JSON.parse(decodeURIComponent(cookies["__eventn_id_usr"])).email).toEqual("john.doe@gmail.com");
   let identifies = requestLog.filter(x => x.type === "identify");
   let pages = requestLog.filter(x => x.type === "page");
   let tracks = requestLog.filter(x => x.type === "track");
