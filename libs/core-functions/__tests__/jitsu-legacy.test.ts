@@ -56,7 +56,7 @@ const legacyIdentifyExpected: Omit<JitsuLegacyEvent, "local_tz_offset"> & { loca
 
   click_id: {},
   doc_host: "localhost",
-  event_id: "a6c09b16-c2bc-4193-990f-5e2b694ae610",
+  eventn_ctx_event_id: "a6c09b16-c2bc-4193-990f-5e2b694ae610",
   event_type: "identify",
   page_title: "Tracking page",
   referer: "https://referrer.com",
@@ -139,7 +139,7 @@ const legacyPageExpected = {
   doc_host: "localhost",
   doc_path: "/basic.html",
   doc_search: "?utm_source=source&utm_medium=medium&utm_campaign=campaign",
-  event_id: "d0c6abf6-97f7-487a-a197-8f236c728fa8",
+  eventn_ctx_event_id: "d0c6abf6-97f7-487a-a197-8f236c728fa8",
   event_type: "page",
   page_title: "Tracking page",
   referer: "https://referrer.com",
