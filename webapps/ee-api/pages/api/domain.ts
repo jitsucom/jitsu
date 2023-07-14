@@ -36,7 +36,7 @@ export type DomainInfo = Record<string, any>;
 
 async function getExistingDomain(domain: string): Promise<DomainInfo | undefined> {
   const result = await rpc(`/v9/projects/${vercelProjectId}/domains/${domain}?teamId=${vercelTeamId}`);
-  if (result.ok) {
+  if (result.name) {
     return result;
   } else {
     return undefined;
