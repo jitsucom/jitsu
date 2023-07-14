@@ -907,7 +907,10 @@ const IncomingEventsTable = ({ loadEvents, loading, streamType, entityType, acto
             messageId: ingestPayload.messageId,
             type: ingestPayload.type,
             originDomain:
-              ingestPayload.origin?.domain || `${ingestPayload.origin?.slug}.${appConfig.publicEndpoints.dataHost}`,
+              ingestPayload.origin?.domain ||
+              (ingestPayload.origin?.slug
+                ? `${ingestPayload.origin?.slug}.${appConfig.publicEndpoints.dataHost}`
+                : ingestPayload.httpHeaders["x-forwarded-host"] || appConfig.publicEndpoints.dataHost),
             writeKey: ingestPayload.writeKey,
             httpHeaders: ingestPayload.httpHeaders,
 
