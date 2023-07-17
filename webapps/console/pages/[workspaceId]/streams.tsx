@@ -1,11 +1,11 @@
 import { WorkspacePageLayout } from "../../components/PageLayout/WorkspacePageLayout";
-import { Button, Input, notification, Tooltip } from "antd";
+import { Button, Input, notification, Tag, Tooltip } from "antd";
 import { ConfigEditor, ConfigEditorProps, CustomWidgetProps } from "../../components/ConfigObjectEditor/ConfigEditor";
 import { StreamConfig } from "../../lib/schema";
 import { useAppConfig, useWorkspace } from "../../lib/context";
 import React, { PropsWithChildren, useMemo, useState } from "react";
 import Link from "next/link";
-import { FaCheckCircle, FaExternalLinkAlt, FaSpinner, FaTrash, FaWrench } from "react-icons/fa";
+import { FaExternalLinkAlt, FaSpinner, FaTrash, FaWrench } from "react-icons/fa";
 import { branding } from "../../lib/branding";
 import { useRouter } from "next/router";
 import { TrackingIntegrationDocumentation } from "../../components/TrackingIntegrationDocumentation/TrackingIntegrationDocumentation";
@@ -13,13 +13,12 @@ import { ApiKeysEditor } from "../../components/ApiKeyEditor/ApiKeyEditor";
 import { useQuery } from "@tanstack/react-query";
 import { getEeClient } from "../../lib/ee-client";
 import { requireDefined } from "juava";
-import { BsXCircleFill } from "react-icons/bs";
 import { ReloadOutlined } from "@ant-design/icons";
 import { confirmOp, feedbackError } from "../../lib/ui";
 import type { DomainStatus } from "../../lib/server/ee";
 import { getAntdModal, useAntdModal } from "../../lib/modal";
 import { get } from "../../lib/useApi";
-import { Wrench } from "lucide-react";
+import { Globe, Wrench } from "lucide-react";
 import { FaviconLoader } from "./index";
 import { ObjectTitle } from "../../components/ObjectTitle/ObjectTitle";
 import omit from "lodash/omit";
@@ -32,35 +31,25 @@ const Streams: React.FC<any> = () => {
   );
 };
 
-const StatusBadge: React.FC<PropsWithChildren<{ status: "error" | "success" | "loading"; className?: string }>> = ({
-  status,
-  children,
-  className,
-}) => {
-  let color: string;
+const StatusBadge: React.FC<
+  PropsWithChildren<{ status: "error" | "warning" | "success" | "loading"; className?: string }>
+> = ({ status, children, className }) => {
+  let color: string | undefined;
   let defaultDescription: string;
   if (status === "error") {
-    color = "error";
+    color = "red";
     defaultDescription = "Error";
   } else if (status === "success") {
-    color = "primary";
+    color = "cyan";
     defaultDescription = "Success";
+  } else if (status === "warning") {
+    color = "orange";
+    defaultDescription = "Warning";
   } else {
-    color = "textLight";
+    color = undefined;
     defaultDescription = "Loading";
   }
-  return (
-    <div
-      className={`rounded-full px-3 text-sm py-0.25 border border-${color} text-${color} flex items-center ${
-        className || ""
-      }`}
-    >
-      <div>{status === "loading" && <FaSpinner className="animate-spin" />}</div>
-      <div>{status === "error" && <BsXCircleFill />}</div>
-      <div>{status === "success" && <FaCheckCircle />}</div>
-      <span className={`pl-2 text-${color}`}>{children || defaultDescription}</span>
-    </div>
-  );
+  return <Tag color={color}>{children || defaultDescription}</Tag>;
 };
 
 function displayErrorFeedback(opts?: { message?: string; error?: any }) {
@@ -92,85 +81,124 @@ const CustomDomain: React.FC<{ domain: string; deleteDomain: () => Promise<void>
   );
   const m = useAntdModal();
   return (
-    <div>
-      <div className="flex items-center text-lg py-2 pl-4 pr-2 rounded-lg hover:bg-backgroundDark">
-        <div className="font-bold">{domain}</div>
-        <div className="ml-2">
-          <a href={`https://${domain}`} target={"_blank"} rel={"noreferrer noopener"}>
-            <FaExternalLinkAlt />
-          </a>
-        </div>
-        <div className="ml-2">
-          {(() => {
-            if (isLoading) {
-              return <StatusBadge status="loading">Checking Domain Status</StatusBadge>;
-            } else if (error) {
-              return <StatusBadge status="error">Internal error</StatusBadge>;
-            } else if (data && data.error) {
-              return <StatusBadge status="error">{data.error}</StatusBadge>;
-            } else if (data && data.needsConfiguration) {
-              return (
-                <div onClick={() => setReloadTrigger(reloadTrigger + 1)}>
-                  <StatusBadge status="error" className="cursor-pointer">
-                    Invalid Configuration
-                  </StatusBadge>
-                </div>
-              );
-            } else {
-              return <StatusBadge status="success">Ok</StatusBadge>;
-            }
-          })()}
-        </div>
-        <div className="flex-grow  flex justify-end">
-          {data && data.needsConfiguration && (
-            <Tooltip title="See configuration instructions">
+    <div className={"rounded-lg border py-2 pl-4 hover:bg-backgroundDark"}>
+      <>
+        <div className="flex items-center">
+          {/*<div>*/}
+          {/*  <FaCaretRight />*/}
+          {/*</div>*/}
+          <div className={"text-blue-600 w-4 h-4 mr-1.5"}>
+            <Globe
+              className={`w-full h-full ${
+                error || data?.error ? "text-red-600" : data?.needsConfiguration ? "text-orange-600" : "text-blue-600"
+              }`}
+            />
+          </div>
+          <div className="font-bold  text-lg">{domain}</div>
+          <div className="flex-grow flex items-center justify-end">
+            <Tooltip title={`Open ${domain} site in a new tab`}>
               <Button
                 type="text"
-                danger
+                onClick={() => {
+                  window.open(`https://${domain}`, "_blank");
+                }}
+                disabled={deleting}
+                className="border-0"
+              >
+                <FaExternalLinkAlt />
+              </Button>
+            </Tooltip>
+            {data?.needsConfiguration && (
+              <Tooltip title="See configuration instructions">
+                <Button
+                  type="text"
+                  danger
+                  disabled={isLoading || deleting}
+                  onClick={() => {
+                    DomainConfigurationInstructions.show({ domain, status: data });
+                  }}
+                  className="border-0"
+                >
+                  <FaWrench />
+                </Button>
+              </Tooltip>
+            )}
+            <Tooltip title="Re-check domain status">
+              <Button
+                type="text"
                 disabled={isLoading || deleting}
                 onClick={() => {
-                  DomainConfigurationInstructions.show({ domain, status: data });
+                  setReloadTrigger(reloadTrigger + 1);
                 }}
                 className="border-0"
               >
-                <FaWrench />
+                <ReloadOutlined />
               </Button>
             </Tooltip>
-          )}
-          <Tooltip title="Re-check domain status">
             <Button
               type="text"
-              disabled={isLoading || deleting}
-              onClick={() => {
-                setReloadTrigger(reloadTrigger + 1);
+              disabled={deleting}
+              loading={deleting}
+              onClick={async () => {
+                if (await confirmOp(`Are you sure you want to remove domain ${domain}?`)) {
+                  try {
+                    setDeleting(true);
+                    await deleteDomain();
+                  } catch (e) {
+                    displayErrorFeedback({ message: `Can't remove domain ${domain}`, error: e });
+                  } finally {
+                    setDeleting(false);
+                  }
+                }
               }}
               className="border-0"
             >
-              <ReloadOutlined />
+              {!deleting && <FaTrash />}
             </Button>
-          </Tooltip>
-          <Button
-            type="text"
-            disabled={deleting}
-            loading={deleting}
-            onClick={async () => {
-              if (await confirmOp(`Are you sure you want to remove domain ${domain}?`)) {
-                try {
-                  setDeleting(true);
-                  await deleteDomain();
-                } catch (e) {
-                  displayErrorFeedback({ message: `Can't remove domain ${domain}`, error: e });
-                } finally {
-                  setDeleting(false);
-                }
-              }
-            }}
-            className="border-0"
-          >
-            {!deleting && <FaTrash />}
-          </Button>
+          </div>
         </div>
-      </div>
+        <div className="flex items-center mt-1">
+          <div className={"w-24"}>Status:</div>
+          {(() => {
+            if (isLoading) {
+              return (
+                <StatusBadge status="loading">
+                  <span className={"flex items-center"}>
+                    <FaSpinner className="animate-spin mr-1" />
+                    Checking Domain Status
+                  </span>
+                </StatusBadge>
+              );
+            } else if (error || data?.error) {
+              return <StatusBadge status="error">ERROR</StatusBadge>;
+            } else if (data?.needsConfiguration) {
+              return <StatusBadge status="warning">Configuration Required</StatusBadge>;
+            } else {
+              return <StatusBadge status="success">OK</StatusBadge>;
+            }
+          })()}
+        </div>
+        {(error || data?.error) && (
+          <div className="flex items-start mt-1">
+            <div className={"w-24 shrink-0"}>Description:</div>
+            <div className="">{`${data?.error || "Internal error"}`}</div>
+          </div>
+        )}
+        {data?.needsConfiguration && (
+          <div className="flex items-start mt-1">
+            <div className={"w-24 shrink-0"}>Description:</div>
+            <div className="">
+              See{" "}
+              <a
+                className={"cursor-pointer"}
+                onClick={() => DomainConfigurationInstructions.show({ domain, status: data })}
+              >
+                <u>configuration instructions</u>
+              </a>
+            </div>
+          </div>
+        )}
+      </>
     </div>
   );
 };
