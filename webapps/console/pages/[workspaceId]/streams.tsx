@@ -158,7 +158,7 @@ const CustomDomain: React.FC<{ domain: string; deleteDomain: () => Promise<void>
           </div>
         </div>
         <div className="flex items-center mt-1">
-          <div className={"w-24"}>Status:</div>
+          <div className={"mr-2"}>Status:</div>
           {(() => {
             if (isLoading) {
               return (
@@ -180,13 +180,13 @@ const CustomDomain: React.FC<{ domain: string; deleteDomain: () => Promise<void>
         </div>
         {(error || data?.error) && (
           <div className="flex items-start mt-1">
-            <div className={"w-24 shrink-0"}>Description:</div>
+            <div className={"mr-2"}>Description:</div>
             <div className="">{`${data?.error || "Internal error"}`}</div>
           </div>
         )}
         {data?.needsConfiguration && (
           <div className="flex items-start mt-1">
-            <div className={"w-24 shrink-0"}>Description:</div>
+            <div className={"mr-2"}>Description:</div>
             <div className="">
               See{" "}
               <a
