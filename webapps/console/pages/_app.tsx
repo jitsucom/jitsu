@@ -17,11 +17,11 @@ import {
   useUser,
   WorkspaceContextProvider,
 } from "../lib/context";
-import { AppConfig, ContextApiResponse, SessionUser } from "../lib/schema";
+import { AppConfig, ContextApiResponse, SessionUser, StreamConfig } from "../lib/schema";
 import Link from "next/link";
 import { ErrorBoundary, GlobalError, GlobalOverlay } from "../components/GlobalError/GlobalError";
 import { feedbackError, useTitle } from "../lib/ui";
-import { useApi } from "../lib/useApi";
+import { getConfigApi, useApi } from "../lib/useApi";
 import { AntdTheme } from "../components/AntdTheme/AntdTheme";
 import { AntdModalProvider } from "../lib/modal";
 import Head from "next/head";
@@ -414,6 +414,7 @@ const WorkspaceLoader: React.FC<PropsWithChildren<{ workspaceId: string }>> = ({
   const appConfig = useAppConfig();
   const user = useUser();
   const router = useRouter();
+  const [streams, setStreams] = useState<StreamConfig[]>([]);
 
   const {
     data: workspace,
@@ -426,18 +427,26 @@ const WorkspaceLoader: React.FC<PropsWithChildren<{ workspaceId: string }>> = ({
   useEffect(() => {
     (async () => {
       if (workspace?.id) {
+        const streams = await getConfigApi<StreamConfig>(workspace.id, "stream").list();
+        setStreams(streams);
+      }
+    })();
+  }, [workspace?.id]);
+
+  useEffect(() => {
+    (async () => {
+      if (workspace?.id && streams.length > 0) {
         try {
-          const res = await rpc(`/api/${workspace.id}/ee/s3-init`, {
+          await rpc(`/api/${workspace.id}/ee/s3-init`, {
             method: "POST",
             query: { workspaceId: workspace.id },
           });
-          console.log("s3-init", res);
         } catch (e: any) {
           console.error("Failed to init S3 bucket", e.message);
         }
       }
     })();
-  }, [workspace?.id]);
+  }, [workspace?.id, streams]);
 
   useEffect(() => {
     if (workspace?.id) {

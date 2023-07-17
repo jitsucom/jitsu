@@ -4,7 +4,7 @@ import { FaCaretDown, FaCaretRight, FaClone, FaPlus } from "react-icons/fa";
 import { ZodType } from "zod";
 import { getConfigApi, useApi } from "../../lib/useApi";
 import { useRouter } from "next/router";
-import { asFunction, FunctionLike, getErrorMessage, getLog, requireDefined } from "juava";
+import { asFunction, FunctionLike, getErrorMessage, getLog, requireDefined, rpc } from "juava";
 
 import zodToJsonSchema from "zod-to-json-schema";
 
@@ -401,6 +401,16 @@ const SingleObjectEditor: React.FC<SingleObjectEditorProps> = props => {
     try {
       if (isNew) {
         await getConfigApi(workspace.id, type).create(newObject);
+        if (type === "stream") {
+          try {
+            await rpc(`/api/${workspace.id}/ee/s3-init`, {
+              method: "POST",
+              query: { workspaceId: workspace.id },
+            });
+          } catch (e: any) {
+            console.error("Failed to init S3 bucket", e.message);
+          }
+        }
       } else {
         await getConfigApi(workspace.id, type).update(object.id, newObject);
         //await new Promise(resolve => setTimeout(resolve, 10000000));
@@ -586,6 +596,7 @@ const SingleObjectEditorLoader: React.FC<ConfigEditorProps & { id: string; clone
         clone
           ? {
               ...data,
+              id: cuid(),
               name: `${data.name} (copy)`,
             }
           : data
