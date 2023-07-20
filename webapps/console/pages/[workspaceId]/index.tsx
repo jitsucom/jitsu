@@ -1,5 +1,5 @@
 import { WorkspacePageLayout } from "../../components/PageLayout/WorkspacePageLayout";
-import { useWorkspace } from "../../lib/context";
+import { useAppConfig, useWorkspace } from "../../lib/context";
 import { DestinationConfig, StreamConfig } from "../../lib/schema";
 import { QueryResponse } from "../../components/QueryResponse/QueryResponse";
 import { branding } from "../../lib/branding";
@@ -225,7 +225,7 @@ function Card({
         <div className="flex flex-start items-center space-x-4">
           <div className="w-6 h-6">{icon}</div>
           <div className="text-lg py-0 text-neutral-600">
-            <LabelEllipsis maxLen={20}>{title}</LabelEllipsis>
+            <LabelEllipsis maxLen={29}>{title}</LabelEllipsis>
           </div>
         </div>
       </div>
@@ -315,6 +315,7 @@ function WorkspaceOverview(props: {
   links: ConfigurationLinkDbModel[];
 }) {
   const router = useRouter();
+  const appConfig = useAppConfig();
   const workspace = useWorkspace();
   const { destinations, streams, links } = props;
   useTitle(`${branding.productName} : ${workspace.name}`);
@@ -356,7 +357,7 @@ function WorkspaceOverview(props: {
           }))}
         />
       )}
-      {configurationFinished && (
+      {configurationFinished && appConfig.ee?.available && (
         <div className="flex justify-center">
           <ProvisionDatabaseButton />
         </div>

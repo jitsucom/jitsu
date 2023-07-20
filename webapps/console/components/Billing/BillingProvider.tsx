@@ -87,7 +87,7 @@ export const BillingProvider: React.FC<PropsWithChildren<{ enabled: boolean; sen
   if (!enabled) {
     return <BillingContext.Provider value={"disabled"}>{children}</BillingContext.Provider>;
   } else if (error) {
-    log.atError().withCause(error).log("Can't connect to billing server. Billing is disabled");
+    log.atDebug().withCause(error).log("Can't connect to billing server. Billing is disabled");
     return <BillingContext.Provider value={"disabled"}>{children}</BillingContext.Provider>;
   } else if (billingSettings) {
     return <BillingContext.Provider value={billingSettings}>{children}</BillingContext.Provider>;

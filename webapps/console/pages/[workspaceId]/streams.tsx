@@ -90,7 +90,7 @@ const CustomDomain: React.FC<{ domain: string; deleteDomain: () => Promise<void>
           <div className={"text-blue-600 w-4 h-4 mr-1.5"}>
             <Globe
               className={`w-full h-full ${
-                error || data?.error ? "text-red-600" : data?.needsConfiguration ? "text-orange-600" : "text-blue-600"
+                error || data?.error ? "text-red-600" : data?.needsConfiguration ? "text-yellow-600" : "text-blue-600"
               }`}
             />
           </div>

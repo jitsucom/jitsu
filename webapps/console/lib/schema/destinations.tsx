@@ -210,7 +210,7 @@ export const ClickhouseCredentials = z.object({
   password: z.string().describe("Password for ClickHouse connection"),
   cluster: z
     .string()
-    .default("default")
+    .optional()
     .describe("Name of cluster to use. If clickhouse works in single node mode, leave this field empty"),
   database: z.string().default("default").describe("Name of the database to use"),
   parameters: z

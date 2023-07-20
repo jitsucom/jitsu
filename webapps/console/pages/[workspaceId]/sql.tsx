@@ -72,7 +72,7 @@ const AvailableDestinationsList: React.FC<any> = () => {
               </Link>
             ))}
         </div>
-        <ProvisionDatabaseButton />
+        {appConfig.ee?.available && <ProvisionDatabaseButton />}
       </div>
     );
   } else if (error) {

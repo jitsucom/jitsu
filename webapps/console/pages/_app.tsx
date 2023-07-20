@@ -435,7 +435,7 @@ const WorkspaceLoader: React.FC<PropsWithChildren<{ workspaceId: string }>> = ({
 
   useEffect(() => {
     (async () => {
-      if (workspace?.id && streams.length > 0) {
+      if (appConfig.ee.available && workspace?.id && streams.length > 0) {
         try {
           await rpc(`/api/${workspace.id}/ee/s3-init`, {
             method: "POST",
@@ -446,7 +446,7 @@ const WorkspaceLoader: React.FC<PropsWithChildren<{ workspaceId: string }>> = ({
         }
       }
     })();
-  }, [workspace?.id, streams]);
+  }, [workspace?.id, streams, appConfig]);
 
   useEffect(() => {
     if (workspace?.id) {
