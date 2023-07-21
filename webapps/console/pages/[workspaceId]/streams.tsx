@@ -1,6 +1,6 @@
 import { WorkspacePageLayout } from "../../components/PageLayout/WorkspacePageLayout";
 import { Button, Input, notification, Tag, Tooltip } from "antd";
-import { ConfigEditor, ConfigEditorProps, CustomWidgetProps } from "../../components/ConfigObjectEditor/ConfigEditor";
+import { ConfigEditor, ConfigEditorProps } from "../../components/ConfigObjectEditor/ConfigEditor";
 import { StreamConfig } from "../../lib/schema";
 import { useAppConfig, useWorkspace } from "../../lib/context";
 import React, { PropsWithChildren, useMemo, useState } from "react";
@@ -22,6 +22,7 @@ import { Globe, Wrench } from "lucide-react";
 import { FaviconLoader } from "./index";
 import { ObjectTitle } from "../../components/ObjectTitle/ObjectTitle";
 import omit from "lodash/omit";
+import { CustomWidgetProps } from "../../components/ConfigObjectEditor/Editors";
 
 const Streams: React.FC<any> = () => {
   return (

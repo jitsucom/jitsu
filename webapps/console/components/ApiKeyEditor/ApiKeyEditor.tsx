@@ -1,4 +1,3 @@
-import { CustomWidgetProps } from "../ConfigObjectEditor/ConfigEditor";
 import { ApiKey } from "../../lib/schema";
 import { useState } from "react";
 import { Button, Tooltip } from "antd";
@@ -6,6 +5,7 @@ import { branding } from "../../lib/branding";
 import { confirmOp, copyTextToClipboard } from "../../lib/ui";
 import { FaCopy, FaPlus, FaTrash } from "react-icons/fa";
 import { randomId } from "juava";
+import { CustomWidgetProps } from "../ConfigObjectEditor/Editors";
 
 const CopyToClipboard: React.FC<{ text: string }> = ({ text }) => {
   const [copied, setCopied] = useState(false);

@@ -1,11 +1,6 @@
 import { WorkspacePageLayout } from "../../components/PageLayout/WorkspacePageLayout";
 import { Button, Modal, Popover, Skeleton, Table, Tabs, Tooltip } from "antd";
-import {
-  ConfigEditor,
-  ConfigEditorProps,
-  CustomWidgetProps,
-  FieldDisplay,
-} from "../../components/ConfigObjectEditor/ConfigEditor";
+import { ConfigEditor, ConfigEditorProps, FieldDisplay } from "../../components/ConfigObjectEditor/ConfigEditor";
 import { DestinationConfig } from "../../lib/schema";
 import { confirmOp, feedbackError, serialization } from "../../lib/ui";
 import {
@@ -40,6 +35,8 @@ import Link from "next/link";
 import { CodeEditor } from "../../components/CodeEditor/CodeEditor";
 import { ObjectTitle } from "../../components/ObjectTitle/ObjectTitle";
 import { useQueryStringState } from "../../lib/useQueryStringState";
+import { CustomWidgetProps } from "../../components/ConfigObjectEditor/Editors";
+import { Htmlizer } from "../../components/Htmlizer/Htmlizer";
 
 const log = getLog("destinations");
 const Loader: React.FC<{}> = () => {
@@ -549,10 +546,6 @@ const ProvisionedDestinations = (props: any) => {
   );
 };
 
-const Htmlizer: React.FC<PropsWithChildren<{}>> = ({ children }) => {
-  return typeof children === "string" ? <span dangerouslySetInnerHTML={{ __html: children }} /> : <>{children}</>;
-};
-
 const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
   const [showCatalog, setShowCatalog] = useQueryStringState<boolean>("showCatalog", {
     defaultValue: false,
@@ -684,6 +677,7 @@ const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
               (router.query.backTo ?? "") as string
             )}`;
             router.push(url);
+            setShowCatalog(false);
           }}
           dismiss={() => {
             setShowCatalog(false);

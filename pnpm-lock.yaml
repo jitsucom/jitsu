@@ -467,9 +467,6 @@ importers:
       webpack-cli:
         specifier: ^5.0.0
         version: 5.0.1(@webpack-cli/generators@3.0.1)(webpack@5.78.0)
-      wepack-cli:
-        specifier: 0.0.1-security
-        version: 0.0.1-security
 
   types/protocols: {}
 
@@ -512,17 +509,17 @@ importers:
         specifier: ^4.12.0
         version: 4.12.0(prisma@4.12.0)
       '@rjsf/antd':
-        specifier: 5.3.1
-        version: 5.3.1(@ant-design/icons@5.0.1)(@rjsf/core@5.3.1)(@rjsf/utils@5.3.1)(antd@5.4.2)(dayjs@1.11.7)(react-dom@18.2.0)(react@18.2.0)
+        specifier: 5.10.0
+        version: 5.10.0(@ant-design/icons@5.0.1)(@rjsf/core@5.10.0)(@rjsf/utils@5.10.0)(antd@5.4.2)(dayjs@1.11.7)(react-dom@18.2.0)(react@18.2.0)
       '@rjsf/core':
-        specifier: 5.3.1
-        version: 5.3.1(@rjsf/utils@5.3.1)(react@18.2.0)
+        specifier: 5.10.0
+        version: 5.10.0(@rjsf/utils@5.10.0)(react@18.2.0)
       '@rjsf/utils':
-        specifier: 5.3.1
-        version: 5.3.1(react@18.2.0)
+        specifier: 5.10.0
+        version: 5.10.0(react@18.2.0)
       '@rjsf/validator-ajv6':
-        specifier: 5.3.1
-        version: 5.3.1(@rjsf/utils@5.3.1)
+        specifier: 5.10.0
+        version: 5.10.0(@rjsf/utils@5.10.0)
       '@sensejs/kafkajs-zstd-support':
         specifier: ^0.9.2
         version: 0.9.2(kafkajs@2.2.4)
@@ -541,6 +538,9 @@ importers:
       agentkeepalive:
         specifier: ^4.2.1
         version: 4.3.0
+      ajv:
+        specifier: ~8.12.0
+        version: 8.12.0
       classnames:
         specifier: ^2.3.1
         version: 2.3.2
@@ -5881,49 +5881,49 @@ packages:
       source-map: 0.7.4
     dev: true
 
-  /@rjsf/antd@5.3.1(@ant-design/icons@5.0.1)(@rjsf/core@5.3.1)(@rjsf/utils@5.3.1)(antd@5.4.2)(dayjs@1.11.7)(react-dom@18.2.0)(react@18.2.0):
-    resolution: {integrity: sha512-Cu2n6XMeNQUpYLqWwzSFwHeaPclzueeV3Wqf2zQcvG5UlOBZP5FhLMNlkY1PG/AeshK7rsMiTJa0AN60k0AsKg==}
+  /@rjsf/antd@5.10.0(@ant-design/icons@5.0.1)(@rjsf/core@5.10.0)(@rjsf/utils@5.10.0)(antd@5.4.2)(dayjs@1.11.7)(react-dom@18.2.0)(react@18.2.0):
+    resolution: {integrity: sha512-dj0BVL/g2wtrvNxnlya069H8M9hoserMTEWtRtutLf99nsmiargCei34OhM+MxkKkk+c8SsSv5DlEqPiUa+Low==}
     engines: {node: '>=14'}
     peerDependencies:
       '@ant-design/icons': ^4.0.0
-      '@rjsf/core': ^5.0.0
-      '@rjsf/utils': ^5.0.0
+      '@rjsf/core': ^5.8.x
+      '@rjsf/utils': ^5.8.x
       antd: ^4.0.0
       dayjs: ^1.8.0
       react: ^16.14.0 || >=17
     dependencies:
       '@ant-design/icons': 5.0.1(react-dom@18.2.0)(react@18.2.0)
-      '@rjsf/core': 5.3.1(@rjsf/utils@5.3.1)(react@18.2.0)
-      '@rjsf/utils': 5.3.1(react@18.2.0)
+      '@rjsf/core': 5.10.0(@rjsf/utils@5.10.0)(react@18.2.0)
+      '@rjsf/utils': 5.10.0(react@18.2.0)
       antd: 5.4.2(react-dom@18.2.0)(react@18.2.0)
       classnames: 2.3.2
       dayjs: 1.11.7
       lodash: 4.17.21
       lodash-es: 4.17.21
-      rc-picker: 2.7.0(react-dom@18.2.0)(react@18.2.0)
+      rc-picker: 2.7.2(react-dom@18.2.0)(react@18.2.0)
       react: 18.2.0
     transitivePeerDependencies:
       - react-dom
     dev: false
 
-  /@rjsf/core@5.3.1(@rjsf/utils@5.3.1)(react@18.2.0):
-    resolution: {integrity: sha512-AejBNI5XBmfirubZ2L/f7Hx9hga4E3w777UB4ZvzAPwNygxKS3p/4nUKuP4Ho53aktsArdva0mdmgdBNn8phCw==}
+  /@rjsf/core@5.10.0(@rjsf/utils@5.10.0)(react@18.2.0):
+    resolution: {integrity: sha512-G9KapNurCpP9l/CK4rR3/pQ1rKuaD1BxdzHjaWUWrpUbEqbDTeNu+5630ymUf0y8A04JuSN1guQRVyYl0Dlfxw==}
     engines: {node: '>=14'}
     peerDependencies:
-      '@rjsf/utils': ^5.0.0
+      '@rjsf/utils': ^5.8.x
       react: ^16.14.0 || >=17
     dependencies:
-      '@rjsf/utils': 5.3.1(react@18.2.0)
+      '@rjsf/utils': 5.10.0(react@18.2.0)
       lodash: 4.17.21
       lodash-es: 4.17.21
-      markdown-to-jsx: 7.2.0(react@18.2.0)
+      markdown-to-jsx: 7.2.1(react@18.2.0)
       nanoid: 3.3.6
       prop-types: 15.8.1
       react: 18.2.0
     dev: false
 
-  /@rjsf/utils@5.3.1(react@18.2.0):
-    resolution: {integrity: sha512-bpqq1c8nivNaynGgQa/ZOTxZaD8RYo1YYF/cHpmTqGGO+qwNhimJdFCxu6uOJ5dRP59nsJ3nYbhzK1cLtxFXfQ==}
+  /@rjsf/utils@5.10.0(react@18.2.0):
+    resolution: {integrity: sha512-HGytUxCGtV6OCOw4PbjFcksxrPIxUt0y3T9oqCTsP4xiqnLfve4ZfY9FkbHzPSGOXVp57yCNNEZTWiK6tcV9uA==}
     engines: {node: '>=14'}
     peerDependencies:
       react: ^16.14.0 || >=17
@@ -5936,13 +5936,13 @@ packages:
       react-is: 18.2.0
     dev: false
 
-  /@rjsf/validator-ajv6@5.3.1(@rjsf/utils@5.3.1):
-    resolution: {integrity: sha512-HzlBZlrZKx+3tgzBT0cZALfblzBUFZCbWZtBLBH13DTIZ/6fj1CrnBs2JqtnrSpoWFRSGPyRm9g6+G/BJkFJcQ==}
+  /@rjsf/validator-ajv6@5.10.0(@rjsf/utils@5.10.0):
+    resolution: {integrity: sha512-XywXT7Gs8V0mx5xZ5cc95HH73B7kpWma1qozQJC7DeTHoYhbLpfOrZdsYuFYAO4xmGD+hS7zNarsHlOWPUiW2w==}
     engines: {node: '>=14'}
     peerDependencies:
-      '@rjsf/utils': ^5.0.0
+      '@rjsf/utils': ^5.8.x
     dependencies:
-      '@rjsf/utils': 5.3.1(react@18.2.0)
+      '@rjsf/utils': 5.10.0(react@18.2.0)
       ajv: 6.12.6
       lodash: 4.17.21
       lodash-es: 4.17.21
@@ -17679,8 +17679,8 @@ packages:
     dev: false
     optional: true
 
-  /markdown-to-jsx@7.2.0(react@18.2.0):
-    resolution: {integrity: sha512-3l4/Bigjm4bEqjCR6Xr+d4DtM1X6vvtGsMGSjJYyep8RjjIvcWtrXBS8Wbfe1/P+atKNMccpsraESIaWVplzVg==}
+  /markdown-to-jsx@7.2.1(react@18.2.0):
+    resolution: {integrity: sha512-9HrdzBAo0+sFz9ZYAGT5fB8ilzTW+q6lPocRxrIesMO+aB40V9MgFfbfMXxlGjf22OpRy+IXlvVaQenicdpgbg==}
     engines: {node: '>= 10'}
     peerDependencies:
       react: '>= 0.14.0'
@@ -21998,8 +21998,8 @@ packages:
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
 
-  /rc-picker@2.7.0(react-dom@18.2.0)(react@18.2.0):
-    resolution: {integrity: sha512-oZH6FZ3j4iuBxHB4NvQ6ABRsS2If/Kpty1YFFsji7/aej6ruGmfM7WnJWQ88AoPfpJ++ya5z+nVEA8yCRYGKyw==}
+  /rc-picker@2.7.2(react-dom@18.2.0)(react@18.2.0):
+    resolution: {integrity: sha512-KbUKgbzgWVN5L+V9xhZDKSmseHIyFneBlmuMtMrZ9fU7Oypw6D+owS5kuUicIEV08Y17oXt8dUqauMeC5IFBPg==}
     engines: {node: '>=8.x'}
     peerDependencies:
       react: '>=16.9.0'
@@ -25971,10 +25971,6 @@ packages:
   /websocket-extensions@0.1.4:
     resolution: {integrity: sha512-OqedPIGOfsDlo31UNwYbCFMSaO9m9G/0faIHj5/dZFDMFqPTcx6UwqyOy3COEaEOg/9VsGIpdqn62W5KhoKSpg==}
     engines: {node: '>=0.8.0'}
-
-  /wepack-cli@0.0.1-security:
-    resolution: {integrity: sha512-10l/6mMWz+LWQO+Pic8ZZRZtEHvs0JIiyZsnbWVVm8SHA3dOkxl2nu8EyCag4W/lSDXoWHcVgFCImkHkAw1aVQ==}
-    dev: true
 
   /whatwg-encoding@1.0.5:
     resolution: {integrity: sha512-b5lim54JOPN9HtzvK9HFXvBma/rnfFeqsic0hSpjtDbVxR3dJKLc+KB4V6GgiGOvl7CY/KNh8rxSo9DKQrnUEw==}

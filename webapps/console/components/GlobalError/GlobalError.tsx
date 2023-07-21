@@ -42,18 +42,21 @@ export class ErrorBoundary extends React.Component<
 }
 
 export function ErrorDetails(props: { error: any }) {
-  const details = [
-    props.error?.message && `Message: ${props.error.message}`,
-    props.error?.stack && `Stack: ${props.error.stack}`,
-  ]
-    .filter(x => !!x)
-    .join("\n");
+  const message = props.error?.message && `${props.error.message}`;
+  const stack = props.error?.stack && `${props.error.stack}`;
+
   return (
     <>
-      {details.length > 0 && (
+      {message && (
         <>
-          <div className="font-bold text-sm my-2">Error</div>
-          <CodeBlock>{details}</CodeBlock>
+          <div className="font-bold text-sm my-2">Error:</div>
+          <CodeBlock>{message}</CodeBlock>
+        </>
+      )}
+      {stack && (
+        <>
+          <div className="font-bold text-sm my-2">Stack:</div>
+          <CodeBlock>{stack}</CodeBlock>
         </>
       )}
       {props.error.response && (

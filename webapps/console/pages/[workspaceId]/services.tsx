@@ -190,6 +190,7 @@ const ServicesList: React.FC<{}> = () => {
             router.push(
               `/${workspace.id}/services?id=new&packageType=${packageType}&packageId=${encodeURIComponent(packageId)}`
             );
+            setShowCatalog(false);
           }}
         />
       </Modal>

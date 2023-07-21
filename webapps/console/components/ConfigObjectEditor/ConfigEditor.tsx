@@ -11,7 +11,8 @@ import zodToJsonSchema from "zod-to-json-schema";
 import styles from "./ConfigEditor.module.css";
 
 import validator from "@rjsf/validator-ajv6";
-import { Form } from "@rjsf/antd/dist/antd.cjs.development";
+import { Form } from "@rjsf/antd";
+
 import {
   ADDITIONAL_PROPERTY_FLAG,
   canExpand,
@@ -26,8 +27,7 @@ import {
 } from "@rjsf/utils";
 
 import { ConfigEntityBase } from "../../lib/schema";
-import { useWorkspace } from "../../lib/context";
-import omitBy from "lodash/omitBy";
+import { useAppConfig, useWorkspace } from "../../lib/context";
 import { GlobalLoader, LoadingAnimation } from "../GlobalLoader/GlobalLoader";
 import { WLink } from "../Workspace/WLink";
 import { DeleteOutlined } from "@ant-design/icons";
@@ -45,6 +45,7 @@ import { EditorButtons } from "./EditorButtons";
 import { ButtonGroup, ButtonProps } from "../ButtonGroup/ButtonGroup";
 import cuid from "cuid";
 import { ObjectTitle } from "../ObjectTitle/ObjectTitle";
+import omitBy from "lodash/omitBy";
 
 const log = getLog("ConfigEditor");
 
@@ -96,11 +97,6 @@ export type ConfigEditorProps<T extends { id: string } = { id: string }, M = {}>
   testConnectionEnabled?: (o: any) => boolean;
   onTest?: (o: T) => Promise<ConfigTestResult>;
   backTo?: string;
-};
-
-export type CustomWidgetProps<T> = {
-  value: T | undefined;
-  onChange: (value: T) => void;
 };
 
 type JsonSchema = any;
@@ -355,6 +351,7 @@ const SingleObjectEditor: React.FC<SingleObjectEditorProps> = props => {
   const [meta, setMeta] = useState<any>(undefined);
   const isNew = !!(!otherProps.object || createNew);
   const workspace = useWorkspace();
+  const appConfig = useAppConfig();
   const router = useRouter();
 
   useEffect(() => {
@@ -401,7 +398,7 @@ const SingleObjectEditor: React.FC<SingleObjectEditorProps> = props => {
     try {
       if (isNew) {
         await getConfigApi(workspace.id, type).create(newObject);
-        if (type === "stream") {
+        if (type === "stream" && appConfig.ee.available) {
           try {
             await rpc(`/api/${workspace.id}/ee/s3-init`, {
               method: "POST",

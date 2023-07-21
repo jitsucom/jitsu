@@ -1,7 +1,7 @@
 import { useWorkspace } from "../../lib/context";
 import { get } from "../../lib/useApi";
 import { DestinationConfig, FunctionConfig, StreamConfig } from "../../lib/schema";
-import React, { PropsWithChildren, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { SomeZodObject, z } from "zod";
 import { ConfigurationObjectLinkDbModel } from "../../prisma/schema";
 import { useRouter } from "next/router";
@@ -19,6 +19,7 @@ import styles from "./ConnectionEditorPage.module.css";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
 import { StreamTitle } from "../../pages/[workspaceId]/streams";
 import { DestinationTitle } from "../../pages/[workspaceId]/destinations";
+import { Htmlizer } from "../Htmlizer/Htmlizer";
 
 const log = getLog("ConnectionEditorPage");
 
@@ -27,10 +28,6 @@ type SelectorProps<T> = {
   selected: string;
   items: T[];
   onSelect: (value: string) => void;
-};
-
-const Htmlizer: React.FC<PropsWithChildren<{}>> = ({ children }) => {
-  return typeof children === "string" ? <span dangerouslySetInnerHTML={{ __html: children }} /> : <>{children}</>;
 };
 
 type ConnectionOptionsType = Partial<BaseBulkerConnectionOptions> & { [key: string]: any };
@@ -216,8 +213,8 @@ export const SyncFrequencyEditor: EditorComponent<ConnectionOptionsType["frequen
 type TextEditorComponent = EditorComponent<string, { className?: string; rows?: number }>;
 type SwitchComponentType = EditorComponent<boolean, { className?: string }>;
 
-export const TextEditor: TextEditorComponent = ({ rows, value, onChange, disabled, className }) => {
-  if (rows) {
+const TextEditor: TextEditorComponent = ({ rows, value, onChange, disabled, className }) => {
+  if (rows && rows > 1) {
     return (
       <Input.TextArea
         rows={rows}
