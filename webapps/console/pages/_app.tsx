@@ -523,13 +523,13 @@ export const App = ({ Component, pageProps }: AppProps) => {
   useTitle(branding.productName);
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const startLoader = (url: string, { shallow }: { shallow?: boolean }) => {
-    if (!shallow) {
+  const startLoader = (url: string, en?: { shallow?: boolean }) => {
+    if (!en?.shallow) {
       setLoading(true);
     }
   };
-  const hideLoader = (url: string, { shallow }: { shallow?: boolean }) => {
-    if (!shallow) {
+  const hideLoader = (url: string, en?: { shallow?: boolean }) => {
+    if (!en?.shallow) {
       setLoading(false);
     }
   };

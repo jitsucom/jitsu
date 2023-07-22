@@ -7,7 +7,7 @@ import { getLog, hash as jhash, randomId, rpc } from "juava";
 import React from "react";
 import { Modal } from "antd";
 import { serialization, useURLPersistedState } from "../../lib/ui";
-import { ServicesCatalog } from "../../components/ServicesCatalog/ServicesCatalog";
+import { getServiceIcon, ServicesCatalog } from "../../components/ServicesCatalog/ServicesCatalog";
 import { SourceType } from "../api/sources";
 import hash from "stable-hash";
 import { ServiceEditor } from "../../components/ServiceEditor/ServiceEditor";
@@ -161,7 +161,7 @@ const ServicesList: React.FC<{}> = () => {
       const verb = isNew ? "New" : "Edit";
       return (
         <div className="flex items-center">
-          <div className="h-12 w-12 mr-4">{<img src={meta.logo} alt={meta.packageId} />}</div>
+          <div className="h-12 w-12 mr-4">{getServiceIcon(meta)}</div>
           {verb} service: {meta.meta.name}
         </div>
       );

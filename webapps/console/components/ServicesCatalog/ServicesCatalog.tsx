@@ -43,14 +43,14 @@ function groupByType(sources: SourceType[]): Record<string, SourceType[]> {
     .reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {});
 }
 
-export function getDestinationIcon(source: SourceType) {
+export function getServiceIcon(source: SourceType) {
   const connectorSubtype = source.meta.connectorSubtype;
   return source.logo ? (
     <img src={source.logo} alt={source.meta.name} />
   ) : connectorSubtype === "database" ? (
-    <FaDatabase />
+    <FaDatabase className={"w-full h-full"} />
   ) : (
-    <FaCloud />
+    <FaCloud className={"w-full h-full"} />
   );
 }
 
@@ -95,7 +95,7 @@ export const ServicesCatalog: React.FC<{ onClick: (packageType, packageId: strin
                       className={`flex items-center cursor-pointer relative w-72 border border-textDisabled ${"hover:scale-105 hover:border-primary"} transition ease-in-out rounded-lg px-4 py-4 space-x-4 m-4`}
                       onClick={() => onClick(source.packageType, source.packageId)}
                     >
-                      <div className={`${styles.icon} flex`}>{getDestinationIcon(source)}</div>
+                      <div className={`${styles.icon} flex`}>{getServiceIcon(source)}</div>
                       <div>
                         <div className={`text-xl`}>{source.meta.name}</div>
                       </div>

@@ -403,6 +403,10 @@ function ConnectionEditor({
           The unique field that should present in any event. In case of duplicated values, the new event will either
           replace the old one or be dropped as 'failed' event depending on 'Deduplicate' option. Don't change this field
           unless you know what you are doing.
+          <br />
+          <br />
+          Keep in mind that for data warehouses, all field names get translated to <b>snake_case</b>. For example,{" "}
+          <code>messageId</code> get translated to <code>message_id</code>.
         </>
       ),
       component: (

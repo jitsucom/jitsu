@@ -8,11 +8,11 @@ export const ObjectTitle: React.FC<{
   const iconClassName = (() => {
     switch (size) {
       case "small":
-        return "h-4 w-4";
+        return "h-4 w-4 flex-shrink-0";
       case "large":
-        return "h-10 w-10";
+        return "h-10 w-10 flex-shrink-0";
       default:
-        return "h-6 w-6";
+        return "h-6 w-6 flex-shrink-0";
     }
   })();
   return (
