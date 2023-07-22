@@ -53,6 +53,7 @@ const FunctionsList: React.FC<{}> = () => {
     },
     noun: "function",
     type: "function",
+    newObject: () => ({ name: "New function" }),
     icon: f => <FunctionSquare className={"text-text"} />,
     explanation: (
       <div>
