@@ -9,6 +9,7 @@ type Props = {
   isQuotaExceeded: (subscription: CurrentSubscription | null | undefined) => boolean
 }
 
+
 export const BillingCheckRedirect: React.FC<Props> = ({
   quotaExceededRedirectTo,
   quotaExceedeMessage,
