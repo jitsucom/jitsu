@@ -27,6 +27,26 @@ type DatesRange = [string | null, string | null];
 
 const formatDate = (date: string | Date) => dayjs(date, "YYYY-MM-DDTHH:mm:ss.SSSZ").utc().format("YYYY-MM-DD HH:mm:ss");
 
+const formatBytes = bytes => {
+  const dp = 1;
+  const thresh = 1024;
+
+  if (Math.abs(bytes) < thresh) {
+    return bytes + " bytes";
+  }
+
+  const units = ["KiB", "MiB", "GiB", "TiB", "PiB", "EiB", "ZiB", "YiB"];
+  let u = -1;
+  const r = 10 ** dp;
+
+  do {
+    bytes /= thresh;
+    ++u;
+  } while (Math.round(Math.abs(bytes) * r) / r >= thresh && u < units.length - 1);
+
+  return bytes.toFixed(dp) + " " + units[u];
+};
+
 type TasksDbModel = z.infer<typeof source_taskDbModel>;
 
 type TasksTableProps = {
@@ -90,8 +110,15 @@ function TasksTable({ tasks, loading, linksMap, servicesMap, destinationsMap }: 
               const des = JSON.parse(task.description || "{}");
               //sum des values
               let processed_rows = 0;
+              let processed_bytes = 0;
               for (const key in des) {
-                processed_rows += des[key];
+                const stat = des[key];
+                if (typeof stat === "number") {
+                  processed_rows += des[key];
+                } else if (typeof stat === "object") {
+                  processed_rows += des[key].events;
+                  processed_bytes += des[key].bytes;
+                }
               }
               return (
                 <div className={"flex flex-col items-end text-right"}>
@@ -99,6 +126,7 @@ function TasksTable({ tasks, loading, linksMap, servicesMap, destinationsMap }: 
                     SUCCESS
                   </Tag>
                   <span className={"text-xxs text-gray-500"}>{processed_rows.toLocaleString()} rows</span>
+                  <span className={"text-xxs text-gray-500"}>{formatBytes(processed_bytes)}</span>
                 </div>
               );
             } catch (e) {}

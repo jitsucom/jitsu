@@ -459,6 +459,14 @@ export const coreDestinations: DestinationType<any>[] = [
       region: z.enum(s3Regions).describe("S3 Region::S3 Region"),
       bucket: z.string().describe("S3 Bucket Name::S3 Bucket Name"),
     }),
+    credentialsUi: {
+      password: {
+        password: true,
+      },
+      secretAccessKey: {
+        password: true,
+      },
+    },
     description:
       "Amazon Redshift is a cloud data warehouse that is optimized for the analytical workloads of business intelligence (BI) and data warehousing (DWH). Jitsu supports both Serverless and Classic Redshift",
   },
@@ -517,6 +525,11 @@ export const coreDestinations: DestinationType<any>[] = [
         endpoint: z.string().optional().describe("Custom endpoint of S3-compatible server"),
       })
       .merge(blockStorageSettings),
+    credentialsUi: {
+      secretAccessKey: {
+        password: true,
+      },
+    },
   },
   {
     id: "gcs",
