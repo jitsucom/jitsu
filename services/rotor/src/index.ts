@@ -69,7 +69,7 @@ export async function rotorMessageHandler(_message: string | undefined) {
   );
 
   log
-    .atInfo()
+    .atDebug()
     .log(
       `Processing ${message.type} Message ID: ${message.messageId} for: ${connection.id} (${connection.streamId} → ${connection.destinationId}(${connection.type}))`
     );
