@@ -159,7 +159,7 @@ const legacyPageExpected = {
     name: "campaign",
     source: "source",
   },
-  vp_size: "",
+  vp_size: "1280x720",
 };
 
 test("legacy event", () => {

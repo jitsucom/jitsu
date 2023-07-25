@@ -69,6 +69,6 @@ export default createRoute()
     getLog().atInfo().log("Integration settings", JSON.stringify(integrationSettings, null, 2));
     getLog().atInfo().log("Configuration object", JSON.stringify(nangoConnectionObject, null, 2));
 
-    return oauthDecorator.merge(credentials, integrationSettings.config?.configRes, nangoConnectionObject.credentials);
+    return oauthDecorator.merge(credentials, integrationSettings.config, nangoConnectionObject.credentials);
   })
   .toNextApiHandler();
