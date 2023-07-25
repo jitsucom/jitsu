@@ -569,8 +569,14 @@ const StreamEventsTable = ({ loadEvents, loading, streamType, entityType, actorI
     },
     {
       title: "Type",
-      width: "8em",
-      dataIndex: ["content", "original", "type"],
+      width: "11em",
+      ellipsis: true,
+      key: "type",
+      className: "whitespace-nowrap",
+      dataIndex: ["content", "original"],
+      render: (o: any) => {
+        return o.type || o.event;
+      },
     },
     {
       title: "Page Host",
@@ -674,7 +680,7 @@ const BatchTable = ({ loadEvents, loading, streamType, entityType, actorId, even
       loading={loading}
       loadEvents={loadEvents}
       events={events}
-      drawerNode={event => <JSONView data={event} />}
+      drawerNode={event => <JSONView data={event.event.content} />}
       columns={columns}
     />
   );
@@ -748,6 +754,9 @@ const IncomingEventDrawer = ({ event }: { event: IncomingEvent }) => {
       drawerData.push({ name: <UTCHeader />, value: <UTCDate date={event.date} /> });
       drawerData.push({ name: "Message ID", value: event.messageId });
       drawerData.push({ name: "Type", value: event.type });
+      if (event.event?.event) {
+        drawerData.push({ name: "Track Event Name", value: event.event.event });
+      }
       drawerData.push({
         name: "Status",
         value: (st => {

@@ -68,7 +68,7 @@ export function jitsuLegacy(event: AnalyticsServerEvent): MappedEvent {
       doc_path: url?.pathname,
       doc_search: url?.search,
       eventn_ctx_event_id: event.messageId,
-      event_type: event.type,
+      event_type: event.event || event.type,
       local_tz_offset: event.context?.page?.timezoneOffset || event.properties?.timezoneOffset,
       page_title: event.context?.page?.title,
       referer: event.context?.page?.referrer,
@@ -92,7 +92,9 @@ export function jitsuLegacy(event: AnalyticsServerEvent): MappedEvent {
       user_language: event.context?.locale,
       utc_time: event.timestamp,
       utm: event.context?.campaign,
-      vp_size: "",
+      vp_size:
+        Math.max(event.context?.screen?.innerWidth || 0) + "x" + Math.max(event.context?.screen?.innerHeight || 0),
+      ...(event.type === "track" ? event.properties : {}),
     })
   );
   return { event: flat, table: event[TableNameParameter] ?? "events" };
