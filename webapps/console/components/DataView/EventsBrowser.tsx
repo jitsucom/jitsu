@@ -18,7 +18,7 @@ import { getConfigApi, useEventsLogApi } from "../../lib/useApi";
 import { FunctionTitle } from "../../pages/[workspaceId]/functions";
 import { FunctionConfig } from "../../lib/schema";
 import { arrayToMap } from "../../lib/shared/arrays";
-import { RefreshCw } from "lucide-react";
+import { BadgeCheck, RefreshCw } from "lucide-react";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
 import { ConnectionTitle } from "../../pages/[workspaceId]/connections";
 import { StreamTitle } from "../../pages/[workspaceId]/streams";
@@ -981,6 +981,17 @@ const IncomingEventsTable = ({ loadEvents, loading, streamType, entityType, acto
       render: (d: IncomingEvent) => {
         return (
           <div className={"flex flex-row"}>
+            {d.event?.event && (
+              <Tooltip title={"Track Event Name"}>
+                <Tag
+                  color={"cyan"}
+                  icon={<BadgeCheck className={"anticon"} style={{ width: 13, height: 13 }} />}
+                  className={"whitespace-nowrap"}
+                >
+                  {d.event?.event}
+                </Tag>
+              </Tooltip>
+            )}
             {d.host && (
               <Tooltip title={"Host"}>
                 <Tag color={"geekblue"} icon={<GlobalOutlined />} className={"whitespace-nowrap"}>

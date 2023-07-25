@@ -62,7 +62,7 @@
     "kafkajs": "^2.2.4",
     "kafkajs-snappy": "^1.1.0",
     "lodash": "^4.17.21",
-    "lucide-react": "^0.125.0",
+    "lucide-react": "^0.263.1",
     "mjml": "^4.13.0",
     "mjml-react": "^2.0.8",
     "monaco-editor": "0.37.1",
