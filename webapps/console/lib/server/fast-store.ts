@@ -79,7 +79,7 @@ export type StreamWithDestinations = {
 export type EnrichedConnectionConfig = {
   id: string;
   workspaceId: string;
-  updatedAt: Date;
+  updatedAt?: Date;
   destinationId: string;
   streamId: string;
   metricsKeyPrefix: string;
@@ -337,7 +337,6 @@ async function saveConnectionsToRedis(db: DatabaseConnection) {
           batchSize: 1_000_000,
           mode: "batch",
         },
-        updatedAt: new Date(),
         credentials: {
           region: process.env.S3_REGION,
           accessKeyId: process.env.S3_ACCESS_KEY_ID,

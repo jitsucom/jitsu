@@ -51,5 +51,7 @@ export function prepareZodObjectForDeserialization(obj: any) {
 }
 
 export function createDisplayName(name: string) {
-  return name.replace(/([-_][a-z]|^[a-z])/g, group => group.toUpperCase().replace("-", " ").replace("_", " "));
+  return name
+    .replace(/([A-Z])/g, " $1")
+    .replace(/([-_][a-z]|^[a-z])/g, group => group.toUpperCase().replace("-", " ").replace("_", " "));
 }
