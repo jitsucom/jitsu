@@ -2,6 +2,7 @@ import { JitsuOptions } from "./jitsu";
 import { jitsuAnalytics } from "./index";
 
 export type JitsuBrowserOptions = {
+  id?: string;
   userId?: string;
   onload?: string;
   initOnly?: boolean;
@@ -40,9 +41,6 @@ function getScriptAttributes(scriptElement: HTMLScriptElement) {
 }
 
 (function () {
-  if (window["jitsu"]) {
-    console.log("Jitsu is already initialized");
-  }
   function readJitsuOptions(): JitsuBrowserOptions {
     const scriptElement = window.document.currentScript as HTMLScriptElement;
     if (!scriptElement) {
@@ -54,6 +52,11 @@ function getScriptAttributes(scriptElement: HTMLScriptElement) {
   }
 
   const options = readJitsuOptions();
+  const JITSU_V2_ID: string = options.id || "jitsu";
+
+  if (window[JITSU_V2_ID]) {
+    console.log("Jitsu is already initialized");
+  }
   if (options.debug) {
     console.log(`Jitsu options: `, JSON.stringify(options));
   }
@@ -70,7 +73,7 @@ function getScriptAttributes(scriptElement: HTMLScriptElement) {
       console.warn(`onload function ${options.onload} is not callable: ${typeof onloadFunction}`);
     }
   }
-  window["jitsu"] = jitsu;
+  window[JITSU_V2_ID] = jitsu;
 
   if (!options.initOnly) {
     jitsu.page();

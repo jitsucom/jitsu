@@ -432,6 +432,7 @@ const StreamsList: React.FC<{}> = () => {
         ),
       },
       authorizedJavaScriptDomains: {
+        displayName: "Authorized JavaScript Domains",
         documentation: (
           <>
             If this setting is not empty, JavaScript code from the specified domains will be able to post data to
