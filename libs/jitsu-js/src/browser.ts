@@ -2,7 +2,7 @@ import { JitsuOptions } from "./jitsu";
 import { jitsuAnalytics } from "./index";
 
 export type JitsuBrowserOptions = {
-  id?: string;
+  namespace?: string;
   userId?: string;
   onload?: string;
   initOnly?: boolean;
@@ -52,7 +52,7 @@ function getScriptAttributes(scriptElement: HTMLScriptElement) {
   }
 
   const options = readJitsuOptions();
-  const JITSU_V2_ID: string = options.id || "jitsu";
+  const JITSU_V2_ID: string = options.namespace || "jitsu";
 
   if (window[JITSU_V2_ID]) {
     console.log("Jitsu is already initialized");
