@@ -1,4 +1,4 @@
-import { PropsWithChildren, ReactNode, useEffect, useState } from "react";
+import React, { PropsWithChildren, ReactNode, useEffect, useState } from "react";
 import { branding } from "../../lib/branding";
 import { HiSelector } from "react-icons/hi";
 import { FaSignOutAlt, FaUserCircle } from "react-icons/fa";
@@ -357,7 +357,7 @@ const UserProfileButton: React.FC<{}> = () => {
   );
 };
 
-function PageHeader() {
+function PageHeader0() {
   const appConfig = useAppConfig();
   const workspace = useWorkspace();
   const items: TabsMenuItem[] = [
@@ -408,6 +408,7 @@ function PageHeader() {
     </div>
   );
 }
+const PageHeader = React.memo(PageHeader0);
 
 const WorkspaceSettingsModal: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
   const appConfig = useAppConfig();
