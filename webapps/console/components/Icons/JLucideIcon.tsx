@@ -1,5 +1,4 @@
-import dynamic from "next/dynamic";
-import dynamicIconImports from "lucide-react/dynamicIconImports";
+import { icons } from "lucide-react";
 import React, { RefAttributes, SVGAttributes } from "react";
 
 type ComponentAttributes = RefAttributes<SVGSVGElement> & SVGAttributes<SVGSVGElement>;
@@ -9,14 +8,16 @@ interface LucideProps extends ComponentAttributes {
 }
 
 interface IconProps extends LucideProps {
-  name: keyof typeof dynamicIconImports;
+  name: string;
 }
 
 const JLucideIcon = ({ name, ...props }: IconProps) => {
-  const LI = dynamic(dynamicIconImports[name], {
-    loading: () => <div style={props.style} className={`anticon ${props.className}`}></div>,
-  });
-  return <LI {...props} />;
+  const n = name.replace(/-(.)/g, x => x.substring(1).toUpperCase()).replace(/^(.)/g, c => c.toUpperCase());
+  const LucideIcon = icons[n];
+  if (!LucideIcon) {
+    return <div style={props.style} className={`anticon ${props.className}`}></div>;
+  }
+  return <LucideIcon {...props} />;
 };
 
 export default React.memo(JLucideIcon);

@@ -12,10 +12,10 @@ const packageRoot = path.join(__dirname, "../../");
 console.log("packageRoot", packageRoot);
 module.exports = {
   modularizeImports: {
-    "lucide-react": {
-      transform: "Use <JLucideIcon name=\"{{ kebabCase member }}\" /> instead of importing from 'lucide-react'",
-      preventFullImport: true,
-    },
+    // "lucide-react": {
+    //   transform: "Use <JLucideIcon name=\"{{ kebabCase member }}\" /> instead of importing from 'lucide-react'",
+    //   preventFullImport: true,
+    // },
     lodash: {
       transform: "lodash/{{member}}",
       preventFullImport: true,
