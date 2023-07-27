@@ -89,6 +89,7 @@ function ConnectionsTable({ links, streams, destinations, functions, reloadCallb
 
   const workspace = useWorkspace();
   const router = useRouter();
+  const [showId, setShowId] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [sorting, setSorting] = useQueryStringState<SortingSettings>("sorting", {
     defaultValue: { columns: [] },
@@ -123,6 +124,15 @@ function ConnectionsTable({ links, streams, destinations, functions, reloadCallb
     console.log("sorter", newVal);
   };
   const columns: ColumnType<any>[] = [
+    {
+      title: "ID",
+      dataIndex: "id",
+      width: "33%",
+      className: showId ? "" : "hidden",
+      render: (text, link) => {
+        return <div className="flex items-center text-text text-xs whitespace-nowrap">{link.id}</div>;
+      },
+    },
     {
       title: "Source",
       width: "33%",
@@ -211,7 +221,8 @@ function ConnectionsTable({ links, streams, destinations, functions, reloadCallb
       },
     },
     {
-      title: "Actions",
+      title: <span onClick={() => setShowId(!showId)}>Actions</span>,
+      key: "actions",
       render: (text, link) => {
         const items: ButtonProps[] = [
           {

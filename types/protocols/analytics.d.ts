@@ -2,7 +2,7 @@ import { ISO8601Date } from "./iso8601.d";
 
 export type ID = string | null | undefined;
 
-export type DataLayoutType = "segment" | "jitsu-legacy" | "segment-single-table";
+export type DataLayoutType = "segment" | "jitsu-legacy" | "segment-single-table" | "passthrough";
 
 /**
  * Event coming from client library

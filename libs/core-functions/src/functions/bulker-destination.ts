@@ -1,6 +1,5 @@
 import { JitsuFunction } from "@jitsu/protocols/functions";
 import { AnalyticsServerEvent, DataLayoutType } from "@jitsu/protocols/analytics";
-import type { Event as JitsuLegacyEvent } from "@jitsu/sdk-js";
 
 import omit from "lodash/omit";
 
@@ -178,6 +177,7 @@ export const dataLayouts: Record<DataLayoutType, DataLayoutImpl<any>> = {
   segment: event => segmentLayout(event, false),
   "segment-single-table": event => segmentLayout(event, true),
   "jitsu-legacy": event => jitsuLegacy(event),
+  passthrough: event => ({ event: omit(event, TableNameParameter), table: event[TableNameParameter] ?? "events" }),
 };
 
 export type BulkerDestinationConfig = {

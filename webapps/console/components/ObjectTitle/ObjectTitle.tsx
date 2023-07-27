@@ -18,7 +18,7 @@ export const ObjectTitle: React.FC<{
   return (
     <div className={`flex items-center ${size !== "small" ? "gap-3" : "gap-2"}`}>
       {icon && <div className={iconClassName}>{icon}</div>}
-      <div className={`text-text ${size !== "small" ? "font-semibold" : ""}`}>{title}</div>
+      <div className={`text-text whitespace-nowrap ${size !== "small" ? "font-semibold" : ""}`}>{title}</div>
     </div>
   );
 };

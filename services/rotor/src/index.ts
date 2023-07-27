@@ -18,8 +18,8 @@ import minimist from "minimist";
 import { glob } from "glob";
 import fs from "fs";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
-import { createRedisLogger, FuncChain, runChain } from "./lib/functions-chain";
-import { getBuiltinFunction, mongoAnonymousEventsStore, UDFWrapper } from "@jitsu/core-functions";
+import { createRedisLogger, Func, FuncChain, runChain } from "./lib/functions-chain";
+import { createFullContext, getBuiltinFunction, mongoAnonymousEventsStore, UDFWrapper } from "@jitsu/core-functions";
 import { EventContext, JitsuFunction, Store, SystemContext } from "@jitsu/protocols/functions";
 import { redis } from "@jitsu-internal/console/lib/server/redis";
 import express from "express";
@@ -47,6 +47,21 @@ udfCache.on("del", (key, value) => {
 const rotorHttpPort = process.env.ROTOR_HTTP_PORT || process.env.PORT || 3401;
 const bulkerBase = requireDefined(process.env.BULKER_URL, "env BULKER_URL is not defined");
 const bulkerAuthKey = requireDefined(process.env.BULKER_AUTH_KEY, "env BULKER_AUTH_KEY is not defined");
+
+const metricsFunction: Func = {
+  id: "builtin.destination.bulker",
+  config: {
+    bulkerEndpoint: bulkerBase,
+    destinationId: "metrics",
+    authToken: bulkerAuthKey,
+    dataLayout: "passthrough",
+  },
+  exec: requireDefined(
+    getBuiltinFunction("builtin.destination.bulker"),
+    `Unknown function builtin.destination.bulker`
+  ) as JitsuFunction,
+  context: {},
+};
 
 const getCachedOrLoad = async (cache: NodeCache, key: string, loader: (key: string) => Promise<any>) => {
   const cached = cache.get(key);
@@ -189,7 +204,35 @@ export async function rotorMessageHandler(_message: string | undefined) {
       await redisClient.hdel(`store:${connection.id}`, key);
     },
   };
-  await runChain(funcChain, event, connection, redisLogger, store, ctx);
+  const execLog = await runChain(funcChain, event, connection, redisLogger, store, ctx);
+  const processedIdx = execLog.findIndex(l => !l.dropped && l.functionId.startsWith("builtin.destination."));
+
+  if (processedIdx >= 0) {
+    const d = new Date(message.messageCreated);
+    d.setMilliseconds(0);
+    d.setSeconds(0);
+    const event = {
+      timestamp: d.toISOString(),
+      workspaceId: connection.workspaceId,
+      messageId: message.messageId,
+      JITSU_TABLE_NAME: "active_incoming",
+    };
+    try {
+      await metricsFunction.exec(
+        event,
+        createFullContext(
+          metricsFunction.id,
+          redisLogger,
+          store,
+          { headers: message.httpHeaders },
+          {},
+          metricsFunction.config
+        )
+      );
+    } catch (e) {
+      log.atError().withCause(e).log("Failed to send metrics");
+    }
+  }
 }
 
 const retrySettings = {

@@ -30,6 +30,7 @@ export type FunctionExecLog = {
   eventIndex: number;
   functionId: string;
   error?: string;
+  dropped?: boolean;
   ms: number;
 }[];
 
@@ -67,6 +68,7 @@ export async function runChain(
         eventIndex: i,
         functionId: f.id,
         ms: sw.elapsedMs(),
+        dropped: result === "drop",
       });
       if (result === "drop") {
         return execLog;
