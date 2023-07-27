@@ -5,9 +5,9 @@ import { requireDefined } from "juava";
 import { createClient } from "@clickhouse/client";
 import { ClickhouseCredentials } from "../../../../lib/schema/destinations";
 import { Parser } from "node-sql-parser";
-import { SQLQueryDefaultLimit } from "../../../../components/SQLViewer/SQLViewer";
 import { db } from "../../../../lib/server/db";
 
+const SQLQueryDefaultLimit = 50;
 const log = getServerLog("sql-query");
 
 export const getClickhouseClient = (workspaceId: string, cred: ClickhouseCredentials) => {
