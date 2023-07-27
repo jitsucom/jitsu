@@ -3,9 +3,9 @@ import { assertDefined, assertFalse, assertTrue, getLog } from "juava";
 import { useUsage } from "./use-usage";
 import { Modal } from "antd";
 import { upgradeRequired } from "./copy";
-import { AlertTriangle, ArrowRight } from "lucide-react";
 import { WJitsuButton } from "../JitsuButton/JitsuButton";
 import { useWorkspace } from "../../lib/context";
+import LucideIcon from "../Icons/LucideIcon";
 
 const log = getLog("billing");
 
@@ -30,7 +30,7 @@ function LoadAndBlockIfNeed() {
         open={true}
         title={
           <div className="flex items-center space-x-4">
-            <AlertTriangle className="w-8 h-8 text-error" />
+            <LucideIcon name={"alert-triangle"} className="w-8 h-8 text-error" />
             <h2 className="text-4xl">Upgrade required</h2>
           </div>
         }
@@ -42,7 +42,7 @@ function LoadAndBlockIfNeed() {
               className="w-full"
               size="large"
               type="primary"
-              icon={<ArrowRight className="-rotate-45 w-4 h-4" />}
+              icon={<LucideIcon name={"arrow-right"} className="-rotate-45 w-4 h-4" />}
             >
               Manage Billing {"&"} Plan
             </WJitsuButton>

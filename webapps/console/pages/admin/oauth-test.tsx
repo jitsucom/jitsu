@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { getErrorMessage, getLog, rpc } from "juava";
 import type { OauthDecorator } from "../../lib/server/oauth/services";
-import { Loader2 } from "lucide-react";
 import { ErrorCard } from "../../components/GlobalError/GlobalError";
 import { useState } from "react";
 import { Button, Input, Select } from "antd";
@@ -9,6 +8,7 @@ import { Button, Input, Select } from "antd";
 import { AppConfig } from "../../lib/schema";
 import Nango from "@nangohq/frontend";
 import { CodeBlock } from "../../components/CodeBlock/CodeBlock";
+import LucideIcon from "../../components/Icons/LucideIcon";
 
 type OauthService = Omit<Required<OauthDecorator>, "merge">;
 
@@ -119,7 +119,7 @@ const OauthTest: React.FC<{}> = () => {
   if (isLoading) {
     return (
       <div className="w-screen h-screen flex justify-center items-center">
-        <Loader2 className="h-16 w-16 animate-spin" />
+        <LucideIcon name={"loader-2"} className="h-16 w-16 animate-spin" />
       </div>
     );
   } else if (error) {

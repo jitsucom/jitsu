@@ -18,11 +18,11 @@ import { confirmOp, feedbackError } from "../../lib/ui";
 import type { DomainStatus } from "../../lib/server/ee";
 import { getAntdModal, useAntdModal } from "../../lib/modal";
 import { get } from "../../lib/useApi";
-import { Globe, Wrench } from "lucide-react";
 import { FaviconLoader } from "./index";
 import { ObjectTitle } from "../../components/ObjectTitle/ObjectTitle";
 import omit from "lodash/omit";
 import { CustomWidgetProps } from "../../components/ConfigObjectEditor/Editors";
+import LucideIcon from "../../components/Icons/LucideIcon";
 
 const Streams: React.FC<any> = () => {
   return (
@@ -89,7 +89,8 @@ const CustomDomain: React.FC<{ domain: string; deleteDomain: () => Promise<void>
           {/*  <FaCaretRight />*/}
           {/*</div>*/}
           <div className={"text-blue-600 w-4 h-4 mr-1.5"}>
-            <Globe
+            <LucideIcon
+              name={"globe"}
               className={`w-full h-full ${
                 error || data?.error ? "text-red-600" : data?.needsConfiguration ? "text-yellow-600" : "text-blue-600"
               }`}
@@ -363,7 +364,7 @@ const StreamsList: React.FC<{}> = () => {
           }}
           className="flex items-center space-x-2 text-primary"
         >
-          <Wrench className="h-4 w-4" />
+          <LucideIcon name={"wrench"} className="h-4 w-4" />
           <span>Setup Instructions</span>
         </Link>
       ),
@@ -371,7 +372,7 @@ const StreamsList: React.FC<{}> = () => {
     icon: s => <FaviconLoader potentialUrl={s.name} />,
     actions: [
       {
-        icon: <Wrench className="w-full h-full" />,
+        icon: <LucideIcon name={"wrench"} className="w-full h-full" />,
         title: "Setup Instructions",
         collapsed: false,
         action: stream => {

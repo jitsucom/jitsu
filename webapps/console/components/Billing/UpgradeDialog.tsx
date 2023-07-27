@@ -2,8 +2,8 @@ import { Alert } from "antd";
 import React from "react";
 import { useBilling } from "./BillingProvider";
 import { assertFalse, assertTrue } from "juava";
-import { AlertCircle, Lock, Unlock } from "lucide-react";
 import { WJitsuButton } from "../JitsuButton/JitsuButton";
+import LucideIcon from "../Icons/LucideIcon";
 
 function arrayJoin<T, S>(arr: T[], sep: S): (T | S)[] {
   const result: (T | S)[] = [];
@@ -29,10 +29,10 @@ export const UpgradeDialog: React.FC<{ featureDescription: string; availableInPl
       <Alert
         message={
           <h3 className="text-2xl flex items-center space-x-2">
-            <Lock className="w-6 h-6" /> <span>Upgrade required</span>
+            <LucideIcon name={"lock"} className="w-6 h-6" /> <span>Upgrade required</span>
           </h3>
         }
-        icon={<AlertCircle />}
+        icon={<LucideIcon name={"alert-circle"} />}
         description={
           <div>
             <div className="text">
@@ -51,7 +51,11 @@ export const UpgradeDialog: React.FC<{ featureDescription: string; availableInPl
               plan.
             </div>
             <div className="mt-4">
-              <WJitsuButton icon={<Unlock className="w-4 h-4" />} type="primary" href={`/settings/billing`}>
+              <WJitsuButton
+                icon={<LucideIcon name={"unlock"} className="w-4 h-4" />}
+                type="primary"
+                href={`/settings/billing`}
+              >
                 Upgrade to a plan with {featureDescription}
               </WJitsuButton>
             </div>

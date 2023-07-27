@@ -16,7 +16,6 @@ import { useLinksQuery } from "../../../lib/queries";
 import { jsonSerializationBase64, useQueryStringState } from "../../../lib/useQueryStringState";
 import { TableProps } from "antd/es/table/InternalTable";
 import { ColumnType, SortOrder } from "antd/es/table/interface";
-import { CalendarCheckIcon, Edit3, Inbox, ListMinusIcon, Loader2, RefreshCw } from "lucide-react";
 import { PlusOutlined } from "@ant-design/icons";
 import { JitsuButton, WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
 import { ErrorCard } from "../../../components/GlobalError/GlobalError";
@@ -30,6 +29,8 @@ import JSON5 from "json5";
 import { ButtonGroup, ButtonProps } from "../../../components/ButtonGroup/ButtonGroup";
 import { Overlay } from "../../../components/Overlay/Overlay";
 import { CodeBlock } from "../../../components/CodeBlock/CodeBlock";
+import LucideIcon from "../../../components/Icons/LucideIcon";
+import RefreshCw from "../../../components/Icons/RefreshCw";
 
 dayjs.extend(utc);
 dayjs.extend(relativeTime);
@@ -254,7 +255,7 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
             title: t?.status === "RUNNING" ? "Sync is already running" : undefined,
             icon:
               running == link.id ? (
-                <Loader2 className="animate-spin w-3.5 h-3.5" />
+                <LucideIcon name={"loader-2"} className="animate-spin w-3.5 h-3.5" />
               ) : (
                 <FaPlay className="w-3.5 h-3.5" />
               ),
@@ -283,12 +284,12 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
             label: "Run",
           },
           {
-            icon: <ListMinusIcon className={"w-5 h-5"} />,
+            icon: <LucideIcon name={"list-minus"} className={"w-5 h-5"} />,
             label: "Logs",
             href: `/syncs/tasks?query=${JSON5.stringify({ syncId: link.id })}`,
           },
           {
-            icon: <Edit3 className={"w-4 h-4"} />,
+            icon: <LucideIcon name={"pencil-line"} className={"w-4 h-4"} />,
             label: "Edit",
             href: `/syncs/edit?id=${link.id}`,
           },
@@ -297,7 +298,7 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
             title: t?.status === "RUNNING" ? "Sync is already running" : undefined,
             icon:
               running == link.id ? (
-                <Loader2 className="animate-spin w-3.5 h-3.5" />
+                <LucideIcon name={"loader-2"} className="animate-spin w-3.5 h-3.5" />
               ) : (
                 <RefreshCw className="w-3.5 h-3.5" />
               ),
@@ -326,7 +327,7 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
             label: "Full Sync",
           },
           {
-            icon: <CalendarCheckIcon className={"w-4 h-4"} />,
+            icon: <LucideIcon name={"calendar-check"} className={"w-4 h-4"} />,
             onClick: async () => {
               setShowScheduling(link.id);
             },
@@ -377,7 +378,7 @@ function Syncs(props: RemoteEntitiesProps) {
   if (props.services.length == 0 || props.destinations.length == 0) {
     return (
       <div className="flex flex-col justify-center items-center ">
-        <Inbox className="w-16 h-16 text-textDisabled" />
+        <LucideIcon name={"inbox"} className="w-16 h-16 text-textDisabled" />
         <div className="text-center mt-12 text text-textLight max-w-4xl">
           In order to connect service to destination please create at least one destination and one service. Currently,
           you have{" "}

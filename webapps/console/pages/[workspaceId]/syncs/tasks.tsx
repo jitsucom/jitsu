@@ -15,11 +15,12 @@ import { ErrorCard } from "../../../components/GlobalError/GlobalError";
 import { useLinksQuery } from "../../../lib/queries";
 import { arrayToMap } from "../../../lib/shared/arrays";
 import { JitsuButton, WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
-import { ChevronLeft, FileText, RefreshCw } from "lucide-react";
 import { FaExternalLinkAlt, FaRegPlayCircle } from "react-icons/fa";
 import { useRouter } from "next/router";
 import { ExclamationCircleOutlined } from "@ant-design/icons";
 import { SyncTitle } from "./index";
+import LucideIcon from "../../../components/Icons/LucideIcon";
+import RefreshCw from "../../../components/Icons/RefreshCw";
 
 dayjs.extend(utc);
 dayjs.extend(relativeTime);
@@ -176,7 +177,7 @@ function TasksTable({ tasks, loading, linksMap, servicesMap, destinationsMap }: 
       render: (text, task) => {
         return (
           <WJitsuButton
-            icon={<FileText />}
+            icon={<LucideIcon name={"file-text"} />}
             type={"link"}
             title={"View logs"}
             href={`/syncs/logs?taskId=${task.task_id}&syncId=${task.sync_id}`}
@@ -448,7 +449,7 @@ function Tasks() {
               Refresh
             </JitsuButton>
             <JitsuButton
-              icon={<ChevronLeft className="w-6 h-6" />}
+              icon={<LucideIcon name={"chevron-left"} className="w-6 h-6" />}
               type="link"
               size="small"
               onClick={() => router.push(`/${workspace.slug || workspace.id}/syncs`)}

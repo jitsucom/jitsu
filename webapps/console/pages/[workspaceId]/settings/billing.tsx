@@ -1,10 +1,10 @@
 import { WorkspacePageLayout } from "../../../components/PageLayout/WorkspacePageLayout";
 import { useBilling } from "../../../components/Billing/BillingProvider";
 import { Alert, Skeleton } from "antd";
-import { ChevronLeft } from "lucide-react";
 import React from "react";
 import { BillingManager } from "../../../components/Billing/BillingManager";
 import { WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
+import LucideIcon from "../../../components/Icons/LucideIcon";
 
 const BillingPage: React.FC<{}> = () => {
   return (
@@ -12,7 +12,12 @@ const BillingPage: React.FC<{}> = () => {
       <div>
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-4xl">Plan & Billing</h1>
-          <WJitsuButton href={`/settings`} size="large" type="primary" icon={<ChevronLeft className="w-5 h-5" />}>
+          <WJitsuButton
+            href={`/settings`}
+            size="large"
+            type="primary"
+            icon={<LucideIcon name={"chevron-right"} className="w-5 h-5" />}
+          >
             Back to settings
           </WJitsuButton>
         </div>

@@ -7,24 +7,6 @@ import { Button, Drawer, Dropdown, Menu } from "antd";
 import MenuItem from "antd/lib/menu/MenuItem";
 import { ButtonLabel } from "../ButtonLabel/ButtonLabel";
 import styles from "./WorkspacePageLayout.module.css";
-import {
-  Activity,
-  ArrowLeftRight,
-  BarChart3,
-  ChevronUp,
-  FilePlus,
-  Folders,
-  FunctionSquare,
-  Globe,
-  LayoutDashboard,
-  Loader2,
-  Server,
-  ServerCog,
-  Settings,
-  Share2,
-  ShieldAlert,
-  X,
-} from "lucide-react";
 
 import { NextRouter, useRouter } from "next/router";
 import Link from "next/link";
@@ -46,6 +28,7 @@ import { useClassicProject } from "./ClassicProjectProvider";
 import { useJitsu } from "@jitsu/jitsu-react";
 import { useSearchParams } from "next/navigation";
 import omit from "lodash/omit";
+import LucideIcon from "../Icons/LucideIcon";
 
 export type PageLayoutProps = {
   fullscreen?: boolean;
@@ -93,7 +76,7 @@ function AdminMenuItems() {
     log.atWarn().log("Failed to load user properties", error);
   } else if (data) {
     return (
-      <MenuItem icon={<ShieldAlert className="h-4 w-4 mr-2" />}>
+      <MenuItem icon={<LucideIcon name={"shield-alert"} className="h-4 w-4 mr-2" />}>
         <Link href="/admin/users">Admin Users</Link>
       </MenuItem>
     );
@@ -118,7 +101,7 @@ function WorkspacesMenu(props: { jitsuClassicAvailable: boolean }) {
       {
         key: "admin-users",
         label: "Admin Users",
-        icon: <ShieldAlert className="h-4 w-4 mr-2" />,
+        icon: <LucideIcon name={"shield-alert"} className="h-4 w-4 mr-2" />,
         onClick: async () => {
           await router.push("/admin/users");
         },
@@ -133,9 +116,9 @@ function WorkspacesMenu(props: { jitsuClassicAvailable: boolean }) {
           key: "all-workspaces",
           label: "View all workspaces",
           icon: workspacesLoading ? (
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            <LucideIcon name={"loader-2"} className="h-4 w-4 mr-2 animate-spin" />
           ) : (
-            <Folders className="h-4 w-4 mr-2" />
+            <LucideIcon name={"folder"} className="h-4 w-4 mr-2" />
           ),
           onClick: async () => {
             setWorkspacesLoading(true);
@@ -149,7 +132,11 @@ function WorkspacesMenu(props: { jitsuClassicAvailable: boolean }) {
         {
           key: "new-workspace",
           label: "Create new workspace",
-          icon: adding ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FilePlus className="h-4 w-4 mr-2" />,
+          icon: adding ? (
+            <LucideIcon name={"loader-2"} className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <LucideIcon name={"file-plus"} className="h-4 w-4 mr-2" />
+          ),
           onClick: async () => {
             setAdding(true);
             try {
@@ -168,9 +155,9 @@ function WorkspacesMenu(props: { jitsuClassicAvailable: boolean }) {
                 key: "switch",
                 label: "Switch to Jitsu Classic",
                 icon: classicLoading ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <LucideIcon name={"loader-2"} className="h-4 w-4 mr-2 animate-spin" />
                 ) : (
-                  <ArrowLeftRight className="h-4 w-4 mr-2" />
+                  <LucideIcon name={"arrow-left-right"} className="h-4 w-4 mr-2" />
                 ),
                 onClick: async () => {
                   setClassicLoading(true);
@@ -374,25 +361,35 @@ function PageHeader() {
   const appConfig = useAppConfig();
   const workspace = useWorkspace();
   const items: TabsMenuItem[] = [
-    { title: "Overview", path: "/", aliases: "/overview", icon: <LayoutDashboard className="w-full h-full" /> },
-    { title: "Sites", path: "/streams", icon: <Globe className="w-full h-full" /> },
-    { title: "Destinations", path: "/destinations", icon: <Server className="w-full h-full" /> },
-    { title: "Connections", path: "/connections", icon: <Share2 className="w-full h-full" /> },
-    { title: "Functions", path: "/functions", icon: <FunctionSquare className="w-full h-full" /> },
+    {
+      title: "Overview",
+      path: "/",
+      aliases: "/overview",
+      icon: <LucideIcon name={"layout-dashboard"} className="w-full h-full" />,
+    },
+    { title: "Sites", path: "/streams", icon: <LucideIcon name={"globe"} className="w-full h-full" /> },
+    { title: "Destinations", path: "/destinations", icon: <LucideIcon name={"server"} className="w-full h-full" /> },
+    { title: "Connections", path: "/connections", icon: <LucideIcon name={"share-2"} className="w-full h-full" /> },
+    { title: "Functions", path: "/functions", icon: <LucideIcon name={"function-square"} className="w-full h-full" /> },
   ];
   if (workspace.featuresEnabled && workspace.featuresEnabled.includes("syncs")) {
     items.push(
-      { title: "Services", path: "/services", icon: <ServerCog className="w-full h-full" /> },
-      { title: "Syncs", path: "/syncs", icon: <Share2 className="w-full h-full" /> }
+      { title: "Services", path: "/services", icon: <LucideIcon name={"server-cog"} className="w-full h-full" /> },
+      { title: "Syncs", path: "/syncs", icon: <LucideIcon name={"share-2"} className="w-full h-full" /> }
     );
   }
   items.push(
-    { title: "Live Events", path: "/data", icon: <Activity className="w-full h-full" /> },
-    { title: "Query Data", path: "/sql", icon: <BarChart3 className="w-full h-full" />, hidden: !appConfig?.ee },
+    { title: "Live Events", path: "/data", icon: <LucideIcon name={"activity"} className="w-full h-full" /> },
+    {
+      title: "Query Data",
+      path: "/sql",
+      icon: <LucideIcon name={"bar-chart-3"} className="w-full h-full" />,
+      hidden: !appConfig?.ee,
+    },
     {
       title: "Settings",
       path: "/settings",
-      icon: <Settings className="w-full h-full" />,
+      icon: <LucideIcon name={"settings"} className="w-full h-full" />,
     }
   );
   return (
@@ -529,7 +526,7 @@ export const WorkspacePageLayout: React.FC<PropsWithChildren<PageLayoutProps>> =
                   className="border-l border-b border-r rounded-b-md px-8 py-0 shadow"
                   onClick={() => setShowDrawer(!showDrawer)}
                 >
-                  <ChevronUp className={"w-6 h-6 block rotate-180"} />
+                  <LucideIcon name={"chevron-up"} className={"w-6 h-6 block rotate-180"} />
                 </button>
               </div>
             </div>
@@ -553,7 +550,7 @@ export const WorkspacePageLayout: React.FC<PropsWithChildren<PageLayoutProps>> =
               className="absolute right-0 top-0 mt-1 mr-2 hover:bg-neutral-100 p-1.5 rounded-lg flex justify-center items-center z-50"
               onClick={() => (onClose ? onClose() : router.back())}
             >
-              <X className="w-8 h-8" />
+              <LucideIcon name={"x"} className="w-8 h-8" />
             </button>
           )}
           <WidthControl className={"px-8"}>{children}</WidthControl>

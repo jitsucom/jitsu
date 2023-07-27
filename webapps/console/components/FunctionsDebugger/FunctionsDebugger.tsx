@@ -4,7 +4,6 @@ import { Badge, Button, Drawer, Dropdown, Input, MenuProps, Select, Table } from
 import { PlayCircleOutlined } from "@ant-design/icons";
 import { CodeEditor } from "../CodeEditor/CodeEditor";
 import styles from "./FunctionsDebugger.module.css";
-import { Check, Pencil, Settings, X } from "lucide-react";
 import { getConfigApi, useEventsLogApi } from "../../lib/useApi";
 import { EventsLogRecord } from "../../lib/server/events-log";
 import { useWorkspace } from "../../lib/context";
@@ -20,6 +19,7 @@ import { defaultFunctionTemplate } from "./code_templates";
 import { FunctionConfig } from "../../lib/schema";
 import { useRouter } from "next/router";
 import { feedbackError } from "../../lib/ui";
+import LucideIcon from "../Icons/LucideIcon";
 
 const localDate = (date: string | Date) => dayjs(date).format("YYYY-MM-DD HH:mm:ss");
 
@@ -61,7 +61,7 @@ export const EditableTitle: React.FC<{ children: string; onUpdate: (str: string)
               onUpdate(value);
             }}
           >
-            <Check className="w-5 h-5" />
+            <LucideIcon name={"check"} className="w-5 h-5" />
           </button>
           <button
             className="hover:bg-neutral-100 py-1.5 px-2 rounded"
@@ -70,7 +70,7 @@ export const EditableTitle: React.FC<{ children: string; onUpdate: (str: string)
               setValue(rollbackValue);
             }}
           >
-            <X className="w-5 h-5" />
+            <LucideIcon name={"x"} className="w-5 h-5" />
           </button>
         </div>
       ) : (
@@ -91,7 +91,7 @@ export const EditableTitle: React.FC<{ children: string; onUpdate: (str: string)
               setEditing(true);
             }}
           >
-            <Pencil className="w-5 h-5" />
+            <LucideIcon name={"pencil"} className="w-5 h-5" />
           </button>
         </div>
       )}
@@ -225,7 +225,7 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
                   type="default"
                   disabled={saving}
                   onClick={() => setShowConfig(!showConfig)}
-                  icon={<Settings className={"inline-block anticon"} size={"1em"} />}
+                  icon={<LucideIcon name={"settings"} className={"inline-block anticon"} size={"1em"} />}
                 >
                   Config
                 </Button>

@@ -13,13 +13,13 @@ import { FaExternalLinkAlt } from "react-icons/fa";
 import { getCoreDestinationType } from "../../lib/schema/destinations";
 import { confirmOp, feedbackError, feedbackSuccess } from "../../lib/ui";
 import FieldListEditorLayout, { EditorItem } from "../FieldListEditorLayout/FieldListEditorLayout";
-import { ChevronLeft } from "lucide-react";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
 import { LoadingAnimation } from "../GlobalLoader/GlobalLoader";
 import hash from "stable-hash";
 import { CodeEditor } from "../CodeEditor/CodeEditor";
 import { DestinationTitle } from "../../pages/[workspaceId]/destinations";
 import { ServiceTitle } from "../../pages/[workspaceId]/services";
+import LucideIcon from "../Icons/LucideIcon";
 
 const log = getLog("SyncEditorPage");
 
@@ -298,7 +298,12 @@ function SyncEditor({
     <div className="max-w-5xl grow">
       <div className="flex justify-between pt-6 pb-0 mb-0 items-center">
         <h1 className="text-3xl">{(existingLink ? "Edit" : "Create") + " sync"}</h1>
-        <JitsuButton icon={<ChevronLeft className="w-6 h-6" />} type="link" size="small" onClick={() => router.back()}>
+        <JitsuButton
+          icon={<LucideIcon name={"chevron-left"} className="w-6 h-6" />}
+          type="link"
+          size="small"
+          onClick={() => router.back()}
+        >
           Back
         </JitsuButton>
       </div>

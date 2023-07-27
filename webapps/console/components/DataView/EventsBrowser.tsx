@@ -18,10 +18,11 @@ import { getConfigApi, useEventsLogApi } from "../../lib/useApi";
 import { FunctionTitle } from "../../pages/[workspaceId]/functions";
 import { FunctionConfig } from "../../lib/schema";
 import { arrayToMap } from "../../lib/shared/arrays";
-import { BadgeCheck, RefreshCw } from "lucide-react";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
 import { ConnectionTitle } from "../../pages/[workspaceId]/connections";
 import { StreamTitle } from "../../pages/[workspaceId]/streams";
+import LucideIcon from "../Icons/LucideIcon";
+import RefreshCw from "../Icons/RefreshCw";
 
 dayjs.extend(utc);
 dayjs.extend(relativeTime);
@@ -994,7 +995,7 @@ const IncomingEventsTable = ({ loadEvents, loading, streamType, entityType, acto
               <Tooltip title={"Track Event Name"}>
                 <Tag
                   color={"cyan"}
-                  icon={<BadgeCheck className={"anticon"} style={{ width: 13, height: 13 }} />}
+                  icon={<LucideIcon name={"badge-check"} className={"anticon"} style={{ width: 13, height: 13 }} />}
                   className={"whitespace-nowrap"}
                 >
                   {d.event?.event}

@@ -3,10 +3,10 @@ import { branding } from "../../lib/branding";
 import { requireDefined } from "juava";
 import Link from "next/link";
 import { useWorkspace } from "../../lib/context";
-import { ExternalLink } from "lucide-react";
 import { Button } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
 import classNames from "classnames";
+import LucideIcon from "../Icons/LucideIcon";
 
 export type ConnectorNode = {
   id: string;
@@ -185,7 +185,7 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({ connectio
               href={`/${workspaces.id}/connections`}
               className="flex items-center text-xs mt-2 opacity-0 group-hover:opacity-100 transition-all duration-500"
             >
-              Connections <ExternalLink className="w-4 h-4" />
+              Connections <LucideIcon name={"external-link"} className="w-4 h-4" />
             </Link>
           </div>
         </div>

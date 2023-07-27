@@ -4,8 +4,8 @@ import React, { useState } from "react";
 import { useRouter } from "next/router";
 import { rpc } from "juava";
 import { feedbackError, feedbackSuccess } from "../../lib/ui";
-import { Database, Loader2, Plus } from "lucide-react";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
+import LucideIcon from "../Icons/LucideIcon";
 
 export function ProvisionDatabaseButton(props) {
   const { loader = undefined, createdCallback = undefined } = props;
@@ -44,7 +44,7 @@ export function ProvisionDatabaseButton(props) {
   return (
     <div className="mt-8 border-textDisabled rounded-lg bg-backgroundLight px-4 py-5 flex items-center bg-neutral-50 border border-neutral-200 ">
       <div className="w-8 h-8 mr-4">
-        <Database />
+        <LucideIcon name={"database"} />
       </div>
       <div>
         <div className="text-xl text pb-2">Create FREE ClickHouse Warehouse</div>
@@ -55,7 +55,13 @@ export function ProvisionDatabaseButton(props) {
         </div>
 
         <JitsuButton
-          icon={dbCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+          icon={
+            dbCreating ? (
+              <LucideIcon name={"loader-2"} className="w-4 h-4 animate-spin" />
+            ) : (
+              <LucideIcon name={"plus"} className="w-4 h-4" />
+            )
+          }
           type="default"
           onClick={createDbHandler}
           disabled={dbCreating}

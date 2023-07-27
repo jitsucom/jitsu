@@ -10,11 +10,11 @@ import { trimMiddle } from "../../lib/shared/strings";
 import { LabelEllipsis } from "../LabelEllipsis/LabelEllipsis";
 import { SortOrder } from "antd/es/table/interface";
 import { ExpandableButton } from "../ExpandableButton/ExpandableButton";
-import { FolderTree, Play } from "lucide-react";
 import styles from "./SQLViewer.module.css";
 
 import { CodeEditor } from "../CodeEditor/CodeEditor";
 import ClickhouseIcon from "../../lib/schema/icons/clickhouse";
+import LucideIcon from "../Icons/LucideIcon";
 
 const { Sider, Content } = Layout;
 
@@ -215,10 +215,13 @@ const SQLViewer: React.FC<SQLViewerProps> = ({ destinationId }) => {
         </div>
         <div className="relative h-52 px-3 py-1 z-0 border-b border-l border-r border-backgroundDark rounded-b">
           <div className="absolute top-0.5 right-0 z-10 pt-2 pr-4  flex flex-col items-end space-y-4">
-            <ExpandableButton icon={<Play />} onClick={() => runNewQuery(sql, SQLQueryDefaultLimit)}>
+            <ExpandableButton
+              icon={<LucideIcon name={"play"} />}
+              onClick={() => runNewQuery(sql, SQLQueryDefaultLimit)}
+            >
               Run Query
             </ExpandableButton>
-            <ExpandableButton icon={<FolderTree />} onClick={() => setShowSider(!showSider)}>
+            <ExpandableButton icon={<LucideIcon name={"folder-tree"} />} onClick={() => setShowSider(!showSider)}>
               {showSider ? "Hide" : "Show"} tables
             </ExpandableButton>
           </div>
