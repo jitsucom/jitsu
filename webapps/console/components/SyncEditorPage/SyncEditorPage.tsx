@@ -19,7 +19,7 @@ import hash from "stable-hash";
 import { CodeEditor } from "../CodeEditor/CodeEditor";
 import { DestinationTitle } from "../../pages/[workspaceId]/destinations";
 import { ServiceTitle } from "../../pages/[workspaceId]/services";
-import LucideIcon from "../Icons/LucideIcon";
+import JLucideIcon from "../Icons/JLucideIcon";
 
 const log = getLog("SyncEditorPage");
 
@@ -299,7 +299,7 @@ function SyncEditor({
       <div className="flex justify-between pt-6 pb-0 mb-0 items-center">
         <h1 className="text-3xl">{(existingLink ? "Edit" : "Create") + " sync"}</h1>
         <JitsuButton
-          icon={<LucideIcon name={"chevron-left"} className="w-6 h-6" />}
+          icon={<JLucideIcon name={"chevron-left"} className="w-6 h-6" />}
           type="link"
           size="small"
           onClick={() => router.back()}

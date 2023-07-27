@@ -3,7 +3,7 @@ import React from "react";
 import { useBilling } from "./BillingProvider";
 import { assertFalse, assertTrue } from "juava";
 import { WJitsuButton } from "../JitsuButton/JitsuButton";
-import LucideIcon from "../Icons/LucideIcon";
+import JLucideIcon from "../Icons/JLucideIcon";
 
 function arrayJoin<T, S>(arr: T[], sep: S): (T | S)[] {
   const result: (T | S)[] = [];
@@ -29,10 +29,10 @@ export const UpgradeDialog: React.FC<{ featureDescription: string; availableInPl
       <Alert
         message={
           <h3 className="text-2xl flex items-center space-x-2">
-            <LucideIcon name={"lock"} className="w-6 h-6" /> <span>Upgrade required</span>
+            <JLucideIcon name={"lock"} className="w-6 h-6" /> <span>Upgrade required</span>
           </h3>
         }
-        icon={<LucideIcon name={"alert-circle"} />}
+        icon={<JLucideIcon name={"alert-circle"} />}
         description={
           <div>
             <div className="text">
@@ -52,7 +52,7 @@ export const UpgradeDialog: React.FC<{ featureDescription: string; availableInPl
             </div>
             <div className="mt-4">
               <WJitsuButton
-                icon={<LucideIcon name={"unlock"} className="w-4 h-4" />}
+                icon={<JLucideIcon name={"unlock"} className="w-4 h-4" />}
                 type="primary"
                 href={`/settings/billing`}
               >

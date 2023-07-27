@@ -14,7 +14,7 @@ import styles from "./SQLViewer.module.css";
 
 import { CodeEditor } from "../CodeEditor/CodeEditor";
 import ClickhouseIcon from "../../lib/schema/icons/clickhouse";
-import LucideIcon from "../Icons/LucideIcon";
+import JLucideIcon from "../Icons/JLucideIcon";
 
 const { Sider, Content } = Layout;
 
@@ -216,12 +216,12 @@ const SQLViewer: React.FC<SQLViewerProps> = ({ destinationId }) => {
         <div className="relative h-52 px-3 py-1 z-0 border-b border-l border-r border-backgroundDark rounded-b">
           <div className="absolute top-0.5 right-0 z-10 pt-2 pr-4  flex flex-col items-end space-y-4">
             <ExpandableButton
-              icon={<LucideIcon name={"play"} />}
+              icon={<JLucideIcon name={"play"} />}
               onClick={() => runNewQuery(sql, SQLQueryDefaultLimit)}
             >
               Run Query
             </ExpandableButton>
-            <ExpandableButton icon={<LucideIcon name={"folder-tree"} />} onClick={() => setShowSider(!showSider)}>
+            <ExpandableButton icon={<JLucideIcon name={"folder-tree"} />} onClick={() => setShowSider(!showSider)}>
               {showSider ? "Hide" : "Show"} tables
             </ExpandableButton>
           </div>

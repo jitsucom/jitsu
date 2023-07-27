@@ -156,7 +156,7 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
       return false;
     }
     return true;
-  }, [ajv, credentials, obj.name, specs]);
+  }, [ajv, credentials, modal, obj.name, specs.connectionSpecification]);
 
   const save = useCallback(async () => {
     setLoading(true);

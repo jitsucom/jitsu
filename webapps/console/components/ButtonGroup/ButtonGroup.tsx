@@ -5,7 +5,7 @@ import { BaseButtonProps } from "antd/lib/button/button";
 import styles from "./ButtonGroup.module.css";
 import { useRouter } from "next/router";
 import { useWorkspace } from "../../lib/context";
-import LucideIcon from "../Icons/LucideIcon";
+import JLucideIcon from "../Icons/JLucideIcon";
 
 const AntButtonGroup = Button.Group;
 
@@ -68,7 +68,7 @@ export const ButtonGroup: React.FC<ButtonGroupProps> = ({ items, collapseLast })
         <Dropdown trigger={["click"]} menu={{ items: collapsedItems }}>
           <JitsuButton
             className="text-lg font-bold p-0"
-            icon={<LucideIcon name={"more-vertical"} className={"w-4 h-4"} />}
+            icon={<JLucideIcon name={"more-vertical"} className={"w-4 h-4"} />}
           />
         </Dropdown>
       )}

@@ -5,7 +5,7 @@ import { Modal } from "antd";
 import { upgradeRequired } from "./copy";
 import { WJitsuButton } from "../JitsuButton/JitsuButton";
 import { useWorkspace } from "../../lib/context";
-import LucideIcon from "../Icons/LucideIcon";
+import JLucideIcon from "../Icons/JLucideIcon";
 
 const log = getLog("billing");
 
@@ -30,7 +30,7 @@ function LoadAndBlockIfNeed() {
         open={true}
         title={
           <div className="flex items-center space-x-4">
-            <LucideIcon name={"alert-triangle"} className="w-8 h-8 text-error" />
+            <JLucideIcon name={"alert-triangle"} className="w-8 h-8 text-error" />
             <h2 className="text-4xl">Upgrade required</h2>
           </div>
         }
@@ -42,7 +42,7 @@ function LoadAndBlockIfNeed() {
               className="w-full"
               size="large"
               type="primary"
-              icon={<LucideIcon name={"arrow-right"} className="-rotate-45 w-4 h-4" />}
+              icon={<JLucideIcon name={"arrow-right"} className="-rotate-45 w-4 h-4" />}
             >
               Manage Billing {"&"} Plan
             </WJitsuButton>

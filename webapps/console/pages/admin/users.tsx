@@ -10,14 +10,14 @@ import { useQueryStringState } from "../../lib/useQueryStringState";
 import { feedbackError } from "../../lib/ui";
 import { useFirebaseSession } from "../../lib/firebase-client";
 import { JitsuButton } from "../../components/JitsuButton/JitsuButton";
-import LucideIcon from "../../components/Icons/LucideIcon";
+import JLucideIcon from "../../components/Icons/JLucideIcon";
 
 export const UserDetails: React.FC<{ externalId?: string; internalId?: string }> = props => {
   const { data, isLoading, error } = useApi(urlWithQueryString(`/api/admin/users`, props, { filterUndefined: true }));
   if (isLoading) {
     return (
       <div className="flex justify-center items-center">
-        <LucideIcon name={"loader-2"} className="h-5 w-5 animate-spin" />
+        <JLucideIcon name={"loader-2"} className="h-5 w-5 animate-spin" />
       </div>
     );
   } else if (error) {
@@ -40,9 +40,9 @@ export const BecomeUser: React.FC<{ externalId?: string; internalId?: string }> 
       disabled={loading}
       icon={
         loading ? (
-          <LucideIcon name={"loader-2"} className="w-3 h-3 animate-spin" />
+          <JLucideIcon name={"loader-2"} className="w-3 h-3 animate-spin" />
         ) : (
-          <LucideIcon name={"user-check"} className="w-3 h-3" />
+          <JLucideIcon name={"user-check"} className="w-3 h-3" />
         )
       }
       onClick={async () => {
@@ -71,7 +71,7 @@ export const UsersAdminPage = () => {
   if (isLoading) {
     return (
       <div className="w-screen h-screen flex justify-center items-center">
-        <LucideIcon name={"loader-2"} className="h-16 w-16 animate-spin" />
+        <JLucideIcon name={"loader-2"} className="h-16 w-16 animate-spin" />
       </div>
     );
   } else if (error) {

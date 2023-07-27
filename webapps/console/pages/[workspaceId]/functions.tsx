@@ -7,7 +7,7 @@ import { getLog } from "juava";
 import React from "react";
 import { FunctionsDebugger } from "../../components/FunctionsDebugger/FunctionsDebugger";
 import { ObjectTitle } from "../../components/ObjectTitle/ObjectTitle";
-import LucideIcon from "../../components/Icons/LucideIcon";
+import JLucideIcon from "../../components/Icons/JLucideIcon";
 
 const log = getLog("functions");
 
@@ -33,7 +33,7 @@ export const FunctionTitle: React.FC<{
 }> = ({ f, title = d => d?.name ?? "function", size = "default" }) => {
   return (
     <ObjectTitle
-      icon={<LucideIcon name={"function-square"} className={"text-text w-full h-full"} />}
+      icon={<JLucideIcon name={"function-square"} className={"text-text w-full h-full"} />}
       size={size}
       title={title ? title(f) : "Unknown function"}
     />
@@ -54,7 +54,7 @@ const FunctionsList: React.FC<{}> = () => {
     noun: "function",
     type: "function",
     newObject: () => ({ name: "New function" }),
-    icon: f => <LucideIcon name={"function-square"} className={"text-text"} />,
+    icon: f => <JLucideIcon name={"function-square"} className={"text-text"} />,
     explanation: (
       <div>
         <strong>Functions</strong> let you apply transformations to incoming events. Examples of such transformations
@@ -80,7 +80,7 @@ const FunctionsList: React.FC<{}> = () => {
       const verb = isNew ? "Create" : "Edit";
       return (
         <div className="flex items-center">
-          <div className="h-12 mr-4">{<LucideIcon name={"function-square"} size={42} />}</div>
+          <div className="h-12 mr-4">{<JLucideIcon name={"function-square"} size={42} />}</div>
           {verb} function
         </div>
       );

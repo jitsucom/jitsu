@@ -45,7 +45,7 @@ import { ButtonGroup, ButtonProps } from "../ButtonGroup/ButtonGroup";
 import cuid from "cuid";
 import { ObjectTitle } from "../ObjectTitle/ObjectTitle";
 import omitBy from "lodash/omitBy";
-import LucideIcon from "../Icons/LucideIcon";
+import JLucideIcon from "../Icons/JLucideIcon";
 
 const log = getLog("ConfigEditor");
 
@@ -668,7 +668,7 @@ const ObjectsList: React.FC<{ objects: any[]; onDelete: (id: string) => Promise<
           {
             label: "Edit",
             href: `/${type}s?id=${record.id}`,
-            icon: <LucideIcon name={"pencil-line"} className={"w-4 h-4"} />,
+            icon: <JLucideIcon name={"pencil-line"} className={"w-4 h-4"} />,
           },
           ...actions.map(action => ({
             disabled: !!(action.disabled && action.disabled(record)),
@@ -752,7 +752,7 @@ const ObjectListEditor: React.FC<ConfigEditorProps> = props => {
         {list.length === 0 && !isLoading && !error && (
           <div>
             <div className="flex flex-col items-center">
-              <LucideIcon name={"inbox"} className="h-16 w-16 my-6 text-neutral-200" />
+              <JLucideIcon name={"inbox"} className="h-16 w-16 my-6 text-neutral-200" />
               <div className="text text-textLight mb-6">You don't any have {props.noun}s configured.</div>
 
               <Button type="default" onClick={() => doAction(router, addAction)}>

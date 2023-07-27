@@ -11,7 +11,7 @@ import { ErrorCard } from "../../components/GlobalError/GlobalError";
 import Link from "next/link";
 import ClickhouseIcon from "../../lib/schema/icons/clickhouse";
 import { ProvisionDatabaseButton } from "../../components/ProvisionDatabaseButton/ProvisionDatabaseButton";
-import LucideIcon from "../../components/Icons/LucideIcon";
+import JLucideIcon from "../../components/Icons/JLucideIcon";
 
 function removeDoubleSlashes(url: string) {}
 
@@ -46,7 +46,7 @@ const AvailableDestinationsList: React.FC<any> = () => {
         {Object.entries(data).length == 0 && (
           <>
             <div className="flex flex-col items-center">
-              <LucideIcon name={"inbox"} className="h-16 w-16 my-6 text-neutral-200" />
+              <JLucideIcon name={"inbox"} className="h-16 w-16 my-6 text-neutral-200" />
               <div className="text text-textLight mb-6">You don't any destinations available for SQL</div>
             </div>
           </>
@@ -67,7 +67,7 @@ const AvailableDestinationsList: React.FC<any> = () => {
                   <div>{(destination as any).name}</div>
                 </div>
                 <div className="invisible group-hover:visible">
-                  <LucideIcon name={"arrow-right"} className="text-primary" />
+                  <JLucideIcon name={"arrow-right"} className="text-primary" />
                 </div>
               </Link>
             ))}

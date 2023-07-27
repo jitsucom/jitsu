@@ -8,7 +8,7 @@ import { Button, Input, Select } from "antd";
 import { AppConfig } from "../../lib/schema";
 import Nango from "@nangohq/frontend";
 import { CodeBlock } from "../../components/CodeBlock/CodeBlock";
-import LucideIcon from "../../components/Icons/LucideIcon";
+import JLucideIcon from "../../components/Icons/JLucideIcon";
 
 type OauthService = Omit<Required<OauthDecorator>, "merge">;
 
@@ -119,7 +119,7 @@ const OauthTest: React.FC<{}> = () => {
   if (isLoading) {
     return (
       <div className="w-screen h-screen flex justify-center items-center">
-        <LucideIcon name={"loader-2"} className="h-16 w-16 animate-spin" />
+        <JLucideIcon name={"loader-2"} className="h-16 w-16 animate-spin" />
       </div>
     );
   } else if (error) {

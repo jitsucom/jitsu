@@ -40,7 +40,7 @@ import "highlight.js/styles/github-dark.css";
 
 import hljs from "highlight.js/lib/common";
 import { CopyButton } from "../CopyButton/CopyButton";
-import LucideIcon from "../Icons/LucideIcon";
+import JLucideIcon from "../Icons/JLucideIcon";
 
 export const CodeBlock: React.FC<PropsWithChildrenClassname<{ lang?: string }>> = ({ lang, children, className }) => {
   assertDefined(children, "CodeBlock children must be defined");
@@ -54,7 +54,7 @@ export const CodeBlock: React.FC<PropsWithChildrenClassname<{ lang?: string }>> 
     <div className={`relative group ${styles.blockWrapper} ${className}`}>
       <div className="absolute top-0 right-0 hidden group-hover:block a mr-1 mt-1">
         <CopyButton text={children.toString()} className="text-primary">
-          <LucideIcon name={"copy"} className="mt-2 w-5 h-5 text-textInverted" />
+          <JLucideIcon name={"copy"} className="mt-2 w-5 h-5 text-textInverted" />
         </CopyButton>
       </div>
       <pre ref={codeRef} className={`bg-textDark px-4 py-3 overflow-auto rounded-lg text-bgLight language-${lang}`}>

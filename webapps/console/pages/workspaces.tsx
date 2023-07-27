@@ -12,7 +12,7 @@ import React, { useState } from "react";
 import { feedbackError } from "../lib/ui";
 import { JitsuButton } from "../components/JitsuButton/JitsuButton";
 import { Input, Tag } from "antd";
-import LucideIcon from "../components/Icons/LucideIcon";
+import JLucideIcon from "../components/Icons/JLucideIcon";
 
 const log = getLog("worspaces");
 
@@ -24,7 +24,7 @@ const WorkspacesList = () => {
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-fit">
-        <LucideIcon name={"loader-2"} className="h-16 w-16 animate-spin" />
+        <JLucideIcon name={"loader-2"} className="h-16 w-16 animate-spin" />
       </div>
     );
   } else if (error) {
@@ -69,7 +69,7 @@ const WorkspacesList = () => {
                 {userData?.admin && <Tag className="text-xs text-textLight">{workspace.id}</Tag>}
               </div>
               <div className="invisible group-hover:visible">
-                <LucideIcon name={"arrow-right"} className="text-primary" />
+                <JLucideIcon name={"arrow-right"} className="text-primary" />
               </div>
             </Link>
           ))}

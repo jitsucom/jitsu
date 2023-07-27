@@ -96,7 +96,7 @@ export function WorkspaceNameAndSlugEditor({
                 <JitsuButton
                   type={"primary"}
                   ghost={true}
-                  icon={<img src="/logo-classic.svg" className="h-5 w-5 mr-2" />}
+                  icon={<img alt={""} src="/logo-classic.svg" className="h-5 w-5 mr-2" />}
                   onClick={async () => {
                     try {
                       const eeClient = getEeClient(

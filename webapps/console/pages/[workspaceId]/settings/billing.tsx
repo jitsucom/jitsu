@@ -4,7 +4,7 @@ import { Alert, Skeleton } from "antd";
 import React from "react";
 import { BillingManager } from "../../../components/Billing/BillingManager";
 import { WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
-import LucideIcon from "../../../components/Icons/LucideIcon";
+import JLucideIcon from "../../../components/Icons/JLucideIcon";
 
 const BillingPage: React.FC<{}> = () => {
   return (
@@ -16,7 +16,7 @@ const BillingPage: React.FC<{}> = () => {
             href={`/settings`}
             size="large"
             type="primary"
-            icon={<LucideIcon name={"chevron-right"} className="w-5 h-5" />}
+            icon={<JLucideIcon name={"chevron-right"} className="w-5 h-5" />}
           >
             Back to settings
           </WJitsuButton>

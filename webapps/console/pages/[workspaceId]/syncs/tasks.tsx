@@ -19,7 +19,7 @@ import { FaExternalLinkAlt, FaRegPlayCircle } from "react-icons/fa";
 import { useRouter } from "next/router";
 import { ExclamationCircleOutlined } from "@ant-design/icons";
 import { SyncTitle } from "./index";
-import LucideIcon from "../../../components/Icons/LucideIcon";
+import JLucideIcon from "../../../components/Icons/JLucideIcon";
 import RefreshCw from "../../../components/Icons/RefreshCw";
 
 dayjs.extend(utc);
@@ -177,7 +177,7 @@ function TasksTable({ tasks, loading, linksMap, servicesMap, destinationsMap }: 
       render: (text, task) => {
         return (
           <WJitsuButton
-            icon={<LucideIcon name={"file-text"} />}
+            icon={<JLucideIcon name={"file-text"} />}
             type={"link"}
             title={"View logs"}
             href={`/syncs/logs?taskId=${task.task_id}&syncId=${task.sync_id}`}
@@ -449,7 +449,7 @@ function Tasks() {
               Refresh
             </JitsuButton>
             <JitsuButton
-              icon={<LucideIcon name={"chevron-left"} className="w-6 h-6" />}
+              icon={<JLucideIcon name={"chevron-left"} className="w-6 h-6" />}
               type="link"
               size="small"
               onClick={() => router.push(`/${workspace.slug || workspace.id}/syncs`)}

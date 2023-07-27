@@ -49,7 +49,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       });
       setMounted(true);
     },
-    [handleChangePosition, value]
+    [foldLevel, handleChangePosition, value]
   );
 
   useEffect(() => {

@@ -12,7 +12,7 @@ import { ErrorCard } from "../GlobalError/GlobalError";
 import { useUsage } from "./use-usage";
 import { upgradeRequired } from "./copy";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
-import LucideIcon from "../Icons/LucideIcon";
+import JLucideIcon from "../Icons/JLucideIcon";
 
 function formatNumber(n: number) {
   return n.toLocaleString("en-US", { maximumFractionDigits: 0 });
@@ -41,7 +41,7 @@ const ComparisonSection: React.FC<{
         <span>{header}</span>
         {info && (
           <Tooltip title={info}>
-            <LucideIcon name={"info"} className="h-3 2-3" />
+            <JLucideIcon name={"info"} className="h-3 2-3" />
           </Tooltip>
         )}
       </h5>
@@ -49,9 +49,9 @@ const ComparisonSection: React.FC<{
         {items.map(item => (
           <li key={typeof item === "string" ? item : item.header}>
             {typeof item === "string" || item.enabled ? (
-              <LucideIcon name={"check"} className="h-4 w-4" />
+              <JLucideIcon name={"check"} className="h-4 w-4" />
             ) : (
-              <LucideIcon name={"x-circle"} className="h-4 w-4" />
+              <JLucideIcon name={"x-circle"} className="h-4 w-4" />
             )}
             <span>{typeof item === "string" ? item : item.header}</span>
           </li>
@@ -154,7 +154,7 @@ const CurrentSubscription: React.FC<{}> = () => {
                 href={`/api/${workspace.id}/ee/billing/manage?returnUrl=${encodeURIComponent(window.location.href)}`}
               >
                 <span>Manage subscription</span>
-                <LucideIcon name={"pen"} className="ml-1 h-3 w-3" />
+                <JLucideIcon name={"pen"} className="ml-1 h-3 w-3" />
               </Link>
             )}
           </div>
@@ -285,7 +285,7 @@ const AvailablePlans: React.FC<{}> = () => {
           <div className="my-6">
             {planId === billing.settings.planId ? (
               <JitsuButton
-                icon={<LucideIcon name={"check"} />}
+                icon={<JLucideIcon name={"check"} />}
                 className="w-full"
                 size="large"
                 type="ghost"

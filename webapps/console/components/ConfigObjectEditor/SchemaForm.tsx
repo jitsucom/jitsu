@@ -9,7 +9,7 @@ import Ajv from "ajv";
 import { getLog } from "juava";
 import { DateEditor, NumberEditor, PasswordEditor, SelectEditor, StringArray, TextEditor } from "./Editors";
 import { Htmlizer } from "../Htmlizer/Htmlizer";
-import LucideIcon from "../Icons/LucideIcon";
+import JLucideIcon from "../Icons/JLucideIcon";
 
 const log = getLog("SchemaForm");
 const ajv = new Ajv({ allErrors: false, strictSchema: false, useDefaults: true, allowUnionTypes: true });
@@ -245,7 +245,7 @@ const EditableTabs: React.FC<{ items; onAdd: () => void; onDelete: (k) => void }
       type="editable-card"
       activeKey={activeKey}
       onChange={onChange}
-      addIcon={<LucideIcon name={"plus"} />}
+      addIcon={<JLucideIcon name={"plus"} />}
       onEdit={onEdit}
       items={props.items}
     />

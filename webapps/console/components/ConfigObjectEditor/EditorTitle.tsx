@@ -1,6 +1,6 @@
 import React, { ReactNode } from "react";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
-import LucideIcon from "../Icons/LucideIcon";
+import JLucideIcon from "../Icons/JLucideIcon";
 
 export type EditorTitleProps<T extends { id: string } = { id: string }> = {
   title: ReactNode;
@@ -15,7 +15,7 @@ export const EditorTitle: React.FC<EditorTitleProps> = ({ title, subtitle, onBac
         <h1 className="text-3xl">{title}</h1>
         <div>
           <JitsuButton
-            icon={<LucideIcon name={"chevron-left"} className="w-6 h-6" />}
+            icon={<JLucideIcon name={"chevron-left"} className="w-6 h-6" />}
             type="link"
             size="small"
             onClick={onBack}

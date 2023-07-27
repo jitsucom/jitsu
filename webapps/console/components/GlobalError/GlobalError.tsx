@@ -8,7 +8,7 @@ import { getErrorMessage, getLog } from "juava";
 import { firebaseSignOut } from "../../lib/firebase-client";
 import { PropsWithChildrenClassname } from "../../lib/ui";
 import classNames from "classnames";
-import LucideIcon from "../Icons/LucideIcon";
+import JLucideIcon from "../Icons/JLucideIcon";
 
 export type GlobalErrorProps = {
   error: any;
@@ -88,7 +88,7 @@ export const EmbeddedErrorMessage: React.FC<PropsWithChildrenClassname<{ actions
       className
     )}
   >
-    <LucideIcon name={"alert-circle"} className="h-4 w-4 mr-4 p-0 m-0" />
+    <JLucideIcon name={"alert-circle"} className="h-4 w-4 mr-4 p-0 m-0" />
     <div>
       {children}
       {actions && <div className="ml-auto mt-4">{actions}</div>}

@@ -5,7 +5,7 @@ import { useRouter } from "next/router";
 import { JitsuButton } from "../../../components/JitsuButton/JitsuButton";
 import { useQuery } from "@tanstack/react-query";
 import { LoadingAnimation } from "../../../components/GlobalLoader/GlobalLoader";
-import LucideIcon from "../../../components/Icons/LucideIcon";
+import JLucideIcon from "../../../components/Icons/JLucideIcon";
 import RefreshCw from "../../../components/Icons/RefreshCw";
 
 function colorLogs(data: string): ReactNode {
@@ -74,7 +74,7 @@ function TaskLogs() {
         <h1 className="text-3xl">Sync Tasks</h1>
         <div>
           <JitsuButton
-            icon={<LucideIcon name={"file-down"} className="w-6 h-6" />}
+            icon={<JLucideIcon name={"file-down"} className="w-6 h-6" />}
             type="link"
             size="small"
             target="_blank"
@@ -93,7 +93,7 @@ function TaskLogs() {
             Refresh
           </JitsuButton>
           <JitsuButton
-            icon={<LucideIcon name={"chevron-left"} className="w-6 h-6" />}
+            icon={<JLucideIcon name={"chevron-left"} className="w-6 h-6" />}
             type="link"
             size="small"
             onClick={() => router.back()}

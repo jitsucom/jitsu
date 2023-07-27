@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useReducer, useState } from "react";
 import { EditorComponentProps } from "../ConfigObjectEditor/ConfigEditor";
 import { Badge, Button, Drawer, Dropdown, Input, MenuProps, Select, Table } from "antd";
-import { PlayCircleOutlined } from "@ant-design/icons";
+import PlayCircleOutlined from "@ant-design/icons/PlayCircleOutlined";
 import { CodeEditor } from "../CodeEditor/CodeEditor";
 import styles from "./FunctionsDebugger.module.css";
 import { getConfigApi, useEventsLogApi } from "../../lib/useApi";
@@ -19,7 +19,7 @@ import { defaultFunctionTemplate } from "./code_templates";
 import { FunctionConfig } from "../../lib/schema";
 import { useRouter } from "next/router";
 import { feedbackError } from "../../lib/ui";
-import LucideIcon from "../Icons/LucideIcon";
+import JLucideIcon from "../Icons/JLucideIcon";
 
 const localDate = (date: string | Date) => dayjs(date).format("YYYY-MM-DD HH:mm:ss");
 
@@ -61,7 +61,7 @@ export const EditableTitle: React.FC<{ children: string; onUpdate: (str: string)
               onUpdate(value);
             }}
           >
-            <LucideIcon name={"check"} className="w-5 h-5" />
+            <JLucideIcon name={"check"} className="w-5 h-5" />
           </button>
           <button
             className="hover:bg-neutral-100 py-1.5 px-2 rounded"
@@ -70,7 +70,7 @@ export const EditableTitle: React.FC<{ children: string; onUpdate: (str: string)
               setValue(rollbackValue);
             }}
           >
-            <LucideIcon name={"x"} className="w-5 h-5" />
+            <JLucideIcon name={"x"} className="w-5 h-5" />
           </button>
         </div>
       ) : (
@@ -91,7 +91,7 @@ export const EditableTitle: React.FC<{ children: string; onUpdate: (str: string)
               setEditing(true);
             }}
           >
-            <LucideIcon name={"pencil"} className="w-5 h-5" />
+            <JLucideIcon name={"pencil"} className="w-5 h-5" />
           </button>
         </div>
       )}
@@ -225,7 +225,7 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
                   type="default"
                   disabled={saving}
                   onClick={() => setShowConfig(!showConfig)}
-                  icon={<LucideIcon name={"settings"} className={"inline-block anticon"} size={"1em"} />}
+                  icon={<JLucideIcon name={"settings"} className={"inline-block anticon"} size={"1em"} />}
                 >
                   Config
                 </Button>

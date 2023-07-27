@@ -21,7 +21,7 @@ import { arrayToMap } from "../../lib/shared/arrays";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
 import { ConnectionTitle } from "../../pages/[workspaceId]/connections";
 import { StreamTitle } from "../../pages/[workspaceId]/streams";
-import LucideIcon from "../Icons/LucideIcon";
+import JLucideIcon from "../Icons/JLucideIcon";
 import RefreshCw from "../Icons/RefreshCw";
 
 dayjs.extend(utc);
@@ -995,7 +995,7 @@ const IncomingEventsTable = ({ loadEvents, loading, streamType, entityType, acto
               <Tooltip title={"Track Event Name"}>
                 <Tag
                   color={"cyan"}
-                  icon={<LucideIcon name={"badge-check"} className={"anticon"} style={{ width: 13, height: 13 }} />}
+                  icon={<JLucideIcon name={"badge-check"} className={"anticon"} style={{ width: 13, height: 13 }} />}
                   className={"whitespace-nowrap"}
                 >
                   {d.event?.event}

@@ -22,7 +22,7 @@ import { useRouter } from "next/router";
 import { TrackingIntegrationDocumentation } from "../../components/TrackingIntegrationDocumentation/TrackingIntegrationDocumentation";
 import omit from "lodash/omit";
 import Link from "next/link";
-import LucideIcon from "../../components/Icons/LucideIcon";
+import JLucideIcon from "../../components/Icons/JLucideIcon";
 
 function Welcome({
   destinations,
@@ -303,9 +303,9 @@ export const FaviconLoader: React.FC<{ potentialUrl?: string }> = ({ potentialUr
     })();
   }, [potentialUrl]);
   return faviconUrl ? (
-    <img src={faviconUrl} className="w-full h-full" />
+    <img alt={""} src={faviconUrl} className="w-full h-full" />
   ) : (
-    <LucideIcon name={"chrome"} className="w-full h-full text-blue-600" />
+    <JLucideIcon name={"chrome"} className="w-full h-full text-blue-600" />
   );
 };
 
