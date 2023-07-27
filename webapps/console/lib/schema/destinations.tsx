@@ -124,7 +124,9 @@ export const BaseBulkerConnectionOptions = z
     primaryKey: z.string().default("message_id"),
     deduplicate: z.boolean().default(true),
     timestampColumn: z.string().default("timestamp"),
-    dataLayout: z.enum(["segment", "jitsu-legacy", "segment-single-table"]).default("segment-single-table"),
+    dataLayout: z
+      .enum(["segment", "jitsu-legacy", "segment-single-table", "passthrough"])
+      .default("segment-single-table"),
   })
   .merge(BatchModeOptions)
   .merge(CloudDestinationsConnectionOptions);
