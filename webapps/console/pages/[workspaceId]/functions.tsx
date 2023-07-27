@@ -33,7 +33,7 @@ export const FunctionTitle: React.FC<{
 }> = ({ f, title = d => d?.name ?? "function", size = "default" }) => {
   return (
     <ObjectTitle
-      icon={<JLucideIcon name={"function-square"} className={"text-text w-full h-full"} />}
+      icon={f ? <JLucideIcon name={"function-square"} className={"text-text w-full h-full"} /> : undefined}
       size={size}
       title={title ? title(f) : "Unknown function"}
     />

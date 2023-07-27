@@ -1,7 +1,7 @@
 import { WorkspacePageLayout } from "../../../components/PageLayout/WorkspacePageLayout";
 import { useWorkspace } from "../../../lib/context";
 import { get } from "../../../lib/useApi";
-import { DestinationConfig, StreamConfig } from "../../../lib/schema";
+import { DestinationConfig, FunctionConfig, StreamConfig } from "../../../lib/schema";
 import { ConfigurationObjectLinkDbModel } from "../../../prisma/schema";
 import { QueryResponse } from "../../../components/QueryResponse/QueryResponse";
 import { z } from "zod";
@@ -23,6 +23,7 @@ import { DestinationTitle } from "../destinations";
 import { ButtonGroup, ButtonProps } from "../../../components/ButtonGroup/ButtonGroup";
 import { StreamTitle } from "../streams";
 import JLucideIcon from "../../../components/Icons/JLucideIcon";
+import { FunctionTitle } from "../functions";
 
 function EmptyLinks() {
   const workspace = useWorkspace();
@@ -73,6 +74,7 @@ type RemoteEntitiesProps = {
   streams: StreamConfig[];
   destinations: DestinationConfig[];
   links: Omit<ConfigurationLinkDbModel, "data">[];
+  functions: FunctionConfig[];
   reloadCallback: () => void;
 };
 
@@ -80,9 +82,11 @@ type SortingSettings = {
   columns: { order: SortOrder; field: string }[];
 };
 
-function ConnectionsTable({ links, streams, destinations, reloadCallback }: RemoteEntitiesProps) {
+function ConnectionsTable({ links, streams, destinations, functions, reloadCallback }: RemoteEntitiesProps) {
   const streamsById = index(streams, "id");
   const destinationsById = index(destinations, "id");
+  const functionsById = index(functions, "id");
+
   const workspace = useWorkspace();
   const router = useRouter();
   const [loading, setLoading] = React.useState(false);
@@ -121,7 +125,7 @@ function ConnectionsTable({ links, streams, destinations, reloadCallback }: Remo
   const columns: ColumnType<any>[] = [
     {
       title: "Source",
-      width: "50%",
+      width: "33%",
       sortOrder: sorting.columns?.find(s => s.field === "Source")?.order,
       sorter: (a, b) => {
         const streamA = streamsById[a.fromId];
@@ -149,7 +153,7 @@ function ConnectionsTable({ links, streams, destinations, reloadCallback }: Remo
     },
     {
       title: "Destination",
-      width: "50%",
+      width: "33%",
       sortOrder: sorting.columns?.find(s => s.field === "Destination")?.order,
 
       sorter: (a, b) => {
@@ -173,6 +177,35 @@ function ConnectionsTable({ links, streams, destinations, reloadCallback }: Remo
               size="small"
               href={`/${workspace.id}/destinations?id=${link.toId}`}
             />
+          </div>
+        );
+      },
+    },
+    {
+      title: "Functions",
+      width: "33%",
+      render: (text, link) => {
+        return (
+          <div className="flex flex-row flex-wrap items-center gap-1 gap-x-2.5">
+            {functions &&
+              (link.data?.functions || [])
+                .filter(f => f.functionId.startsWith("udf."))
+                .map((f, i) => {
+                  const id = f.functionId.replace("udf.", "");
+                  const func = functionsById[id];
+                  if (!func) {
+                    return <FunctionTitle size={"small"} key={i} title={() => f.functionId} />;
+                  }
+                  return (
+                    <div
+                      className="cursor-pointer"
+                      onClick={e => router.push(`/${workspace.id}/functions?id=${id}`)}
+                      key={i}
+                    >
+                      <FunctionTitle size={"small"} f={func} />
+                    </div>
+                  );
+                })}
           </div>
         );
       },
@@ -216,7 +249,7 @@ function ConnectionsTable({ links, streams, destinations, reloadCallback }: Remo
 }
 
 function Connections(props: RemoteEntitiesProps) {
-  const { streams, destinations, links } = props;
+  const { streams, destinations, links, functions } = props;
   const workspace = useWorkspace();
   if (props.streams.length == 0 || props.destinations.length == 0) {
     return (
@@ -262,6 +295,7 @@ function Connections(props: RemoteEntitiesProps) {
         {links.length > 0 && (
           <ConnectionsTable
             links={links}
+            functions={functions}
             streams={streams}
             destinations={destinations}
             reloadCallback={props.reloadCallback}
@@ -277,13 +311,15 @@ function ConnectionsLoader(props: { reloadCallback: () => void }) {
   const data = useLinksQuery(workspace.id, "push", {
     cacheTime: 0,
     retry: false,
+    withFunctions: true,
   });
 
   return (
     <QueryResponse
       result={data}
-      render={([streams, destinations, links]) => (
+      render={([streams, destinations, links, functions]) => (
         <Connections
+          functions={functions}
           streams={streams}
           destinations={destinations}
           links={links}
