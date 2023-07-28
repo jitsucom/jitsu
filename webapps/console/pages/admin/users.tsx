@@ -1,4 +1,5 @@
 import { get, useApi } from "../../lib/useApi";
+import { Loader2, UserCheck } from "lucide-react";
 import { ErrorCard, ErrorDetails } from "../../components/GlobalError/GlobalError";
 import { Input, Table } from "antd";
 import { CodeBlock } from "../../components/CodeBlock/CodeBlock";
@@ -10,14 +11,13 @@ import { useQueryStringState } from "../../lib/useQueryStringState";
 import { feedbackError } from "../../lib/ui";
 import { useFirebaseSession } from "../../lib/firebase-client";
 import { JitsuButton } from "../../components/JitsuButton/JitsuButton";
-import JLucideIcon from "../../components/Icons/JLucideIcon";
 
 export const UserDetails: React.FC<{ externalId?: string; internalId?: string }> = props => {
   const { data, isLoading, error } = useApi(urlWithQueryString(`/api/admin/users`, props, { filterUndefined: true }));
   if (isLoading) {
     return (
       <div className="flex justify-center items-center">
-        <JLucideIcon name={"loader-2"} className="h-5 w-5 animate-spin" />
+        <Loader2 className="h-5 w-5 animate-spin" />
       </div>
     );
   } else if (error) {
@@ -38,13 +38,7 @@ export const BecomeUser: React.FC<{ externalId?: string; internalId?: string }> 
   return (
     <JitsuButton
       disabled={loading}
-      icon={
-        loading ? (
-          <JLucideIcon name={"loader-2"} className="w-3 h-3 animate-spin" />
-        ) : (
-          <JLucideIcon name={"user-check"} className="w-3 h-3" />
-        )
-      }
+      icon={loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <UserCheck className="w-3 h-3" />}
       onClick={async () => {
         setLoading(true);
         try {
@@ -71,7 +65,7 @@ export const UsersAdminPage = () => {
   if (isLoading) {
     return (
       <div className="w-screen h-screen flex justify-center items-center">
-        <JLucideIcon name={"loader-2"} className="h-16 w-16 animate-spin" />
+        <Loader2 className="h-16 w-16 animate-spin" />
       </div>
     );
   } else if (error) {

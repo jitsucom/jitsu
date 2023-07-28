@@ -17,12 +17,12 @@ import { useLinksQuery } from "../../../lib/queries";
 import { jsonSerializationBase64, useQueryStringState } from "../../../lib/useQueryStringState";
 import { TableProps } from "antd/es/table/InternalTable";
 import { ColumnType, SortOrder } from "antd/es/table/interface";
+import { Edit3, Inbox } from "lucide-react";
 import { PlusOutlined } from "@ant-design/icons";
 import { JitsuButton, WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
 import { DestinationTitle } from "../destinations";
 import { ButtonGroup, ButtonProps } from "../../../components/ButtonGroup/ButtonGroup";
 import { StreamTitle } from "../streams";
-import JLucideIcon from "../../../components/Icons/JLucideIcon";
 import { FunctionTitle } from "../functions";
 
 function EmptyLinks() {
@@ -226,7 +226,7 @@ function ConnectionsTable({ links, streams, destinations, functions, reloadCallb
       render: (text, link) => {
         const items: ButtonProps[] = [
           {
-            icon: <JLucideIcon name={"pencil-line"} className={"w-4 h-4"} />,
+            icon: <Edit3 className={"w-4 h-4"} />,
             label: "Edit",
             href: `/connections/edit?id=${link.id}`,
           },
@@ -265,7 +265,7 @@ function Connections(props: RemoteEntitiesProps) {
   if (props.streams.length == 0 || props.destinations.length == 0) {
     return (
       <div className="flex flex-col justify-center items-center ">
-        <JLucideIcon name={"inbox"} className="w-16 h-16 text-textDisabled" />
+        <Inbox className="w-16 h-16 text-textDisabled" />
         <div className="text-center mt-12 text text-textLight max-w-4xl">
           In order to connect site to destination please create at least one destination and one stream. Currently, you
           have{" "}

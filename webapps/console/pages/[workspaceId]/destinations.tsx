@@ -25,6 +25,7 @@ import { SnippedEditor } from "../../components/CodeEditor/SnippedEditor";
 import { MultiSelectWithCustomOptions } from "../../components/MultiSelectWithCustomOptions/MultiSelectWithCustomOptions";
 import { LoadingAnimation } from "../../components/GlobalLoader/GlobalLoader";
 import { useQuery } from "@tanstack/react-query";
+import { Copy, Eye, FileKey, Loader2, TerminalSquare, XCircle } from "lucide-react";
 import { ClickhouseConnectionCredentials } from "../../lib/schema/clickhouse-connection-credentials";
 import { CodeBlock } from "../../components/CodeBlock/CodeBlock";
 import { useBilling } from "../../components/Billing/BillingProvider";
@@ -36,7 +37,6 @@ import { ObjectTitle } from "../../components/ObjectTitle/ObjectTitle";
 import { useQueryStringState } from "../../lib/useQueryStringState";
 import { CustomWidgetProps } from "../../components/ConfigObjectEditor/Editors";
 import { Htmlizer } from "../../components/Htmlizer/Htmlizer";
-import JLucideIcon from "../../components/Icons/JLucideIcon";
 
 const log = getLog("destinations");
 const Loader: React.FC<{}> = () => {
@@ -215,7 +215,7 @@ const Password: React.FC<PropsWithChildren> = ({ children }) => {
     <div className="flex items-center">
       <div>{show ? children : "********"}</div>
       <button onClick={() => setShow(!show)}>
-        <JLucideIcon name={"eye"} className="h-3 w-3" />
+        <Eye className="h-3 w-3" />
       </button>
     </div>
   );
@@ -245,11 +245,7 @@ export const CredentialValue: React.FC<{ children: string; password?: boolean }>
             onClick={onClick}
             className="border shadow-sm rounded h-full bg-backgroundLight mr-1 mt-1 px-2 py-1 flex items-center font-main"
           >
-            {displayMask ? (
-              <JLucideIcon name={"eye"} className="h-3 w-3" />
-            ) : (
-              <JLucideIcon name={"copy"} className="h-4 w-4" />
-            )}
+            {displayMask ? <Eye className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
             <div className="text-xs pl-1">{displayMask ? "Reveal" : justCopied ? "Copied" : "Copy"}</div>
           </button>
         </div>
@@ -373,7 +369,7 @@ function ProvisionedDestinationShowCredentials(props: { destination: Destination
     return <></>;
   }
   if (billing.loading) {
-    return <JLucideIcon name={"loader-2"} className="h-5 w-5 animate-spin" />;
+    return <Loader2 className="h-5 w-5 animate-spin" />;
   }
 
   return (
@@ -411,7 +407,7 @@ function ProvisionedDestinationShowCredentials(props: { destination: Destination
           <div className={"w-full flex justify-between"}>
             <div>{error ? "Error loading credentials" : "Clickhouse Credentials"}</div>
             <button onClick={() => setPopover(false)}>
-              <JLucideIcon name={"x-circle"} />
+              <XCircle />
             </button>
           </div>
         }
@@ -441,11 +437,7 @@ function ProvisionedDestinationShowCredentials(props: { destination: Destination
             }
           }}
         >
-          {loading ? (
-            <JLucideIcon name={"loader-2"} className="h-5 w-5 animate-spin" />
-          ) : (
-            <JLucideIcon name={"file-key"} className="h-5 w-5" />
-          )}
+          {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <FileKey className="h-5 w-5" />}
         </button>
       </Popover>
     </Tooltip>
@@ -534,7 +526,7 @@ const ProvisionedDestinations = (props: any) => {
                 <ProvisionedDestinationShowCredentials destination={d} />
                 <Tooltip title={"Run SQL query editor"}>
                   <Link className="ml-4" href={`/${workspace.slug || workspace.id}/sql?destinationId=${d.id}`}>
-                    <JLucideIcon name={"terminal-square"} className="h-5 w-5 text-text" />
+                    <TerminalSquare className="h-5 w-5 text-text" />
                   </Link>
                 </Tooltip>
 

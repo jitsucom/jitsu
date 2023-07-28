@@ -14,8 +14,8 @@ import { FaExternalLinkAlt, FaGithub, FaGoogle, FaUser } from "react-icons/fa";
 import Link from "next/link";
 import { AntdModal, useAntdModal } from "../../../lib/modal";
 import { FiMail } from "react-icons/fi";
+import { ArrowRight, Copy } from "lucide-react";
 import { JitsuButton, WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
-import JLucideIcon from "../../../components/Icons/JLucideIcon";
 
 const InviteUserForm: React.FC<{ invite: (email: string) => Promise<void> }> = ({ invite }) => {
   const [inputVisible, setInputVisible] = useState(false);
@@ -73,7 +73,7 @@ function showInvitationLink(m: AntdModal, link: string) {
         <div className="mt-4 flex items-center">
           <code>{link}</code>
           <CopyButton text={link}>
-            <JLucideIcon name={"copy"} className="w-3 h-3" />
+            <Copy className="w-3 h-3" />
           </CopyButton>
         </div>
       </div>
@@ -241,7 +241,7 @@ const WorkspaceSettingsComponent: React.FC<any> = () => {
             <div className="flex justify-center">
               <WJitsuButton
                 iconPosition="right"
-                icon={<JLucideIcon name={"arrow-right"} className="-rotate-45 w-4 h-4" />}
+                icon={<ArrowRight className="-rotate-45 w-4 h-4" />}
                 href={"/settings/billing"}
                 size="large"
                 type="primary"
@@ -262,7 +262,7 @@ const WorkspaceSettingsComponent: React.FC<any> = () => {
           <div className="flex justify-center">
             <JitsuButton
               iconPosition="right"
-              icon={<JLucideIcon name={"arrow-right"} className="-rotate-45 w-4 h-4" />}
+              icon={<ArrowRight className="-rotate-45 w-4 h-4" />}
               href={"/user"}
               size="large"
               type="primary"

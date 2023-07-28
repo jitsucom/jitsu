@@ -7,8 +7,8 @@ import { signOut } from "next-auth/react";
 import { getErrorMessage, getLog } from "juava";
 import { firebaseSignOut } from "../../lib/firebase-client";
 import { PropsWithChildrenClassname } from "../../lib/ui";
+import { AlertCircle } from "lucide-react";
 import classNames from "classnames";
-import JLucideIcon from "../Icons/JLucideIcon";
 
 export type GlobalErrorProps = {
   error: any;
@@ -88,7 +88,7 @@ export const EmbeddedErrorMessage: React.FC<PropsWithChildrenClassname<{ actions
       className
     )}
   >
-    <JLucideIcon name={"alert-circle"} className="h-4 w-4 mr-4 p-0 m-0" />
+    <AlertCircle className="h-4 w-4 mr-4 p-0 m-0" />
     <div>
       {children}
       {actions && <div className="ml-auto mt-4">{actions}</div>}

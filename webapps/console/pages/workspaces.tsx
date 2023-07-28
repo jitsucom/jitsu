@@ -3,6 +3,7 @@ import { FaArrowLeft, FaPlus } from "react-icons/fa";
 import { get, useApi } from "../lib/useApi";
 import { z } from "zod";
 import { WorkspaceDbModel } from "../prisma/schema";
+import { ArrowRight, Loader2 } from "lucide-react";
 import { EmbeddedErrorMessage } from "../components/GlobalError/GlobalError";
 import { getLog } from "juava";
 import Link from "next/link";
@@ -12,7 +13,6 @@ import React, { useState } from "react";
 import { feedbackError } from "../lib/ui";
 import { JitsuButton } from "../components/JitsuButton/JitsuButton";
 import { Input, Tag } from "antd";
-import JLucideIcon from "../components/Icons/JLucideIcon";
 
 const log = getLog("worspaces");
 
@@ -24,7 +24,7 @@ const WorkspacesList = () => {
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-fit">
-        <JLucideIcon name={"loader-2"} className="h-16 w-16 animate-spin" />
+        <Loader2 className="h-16 w-16 animate-spin" />
       </div>
     );
   } else if (error) {
@@ -69,7 +69,7 @@ const WorkspacesList = () => {
                 {userData?.admin && <Tag className="text-xs text-textLight">{workspace.id}</Tag>}
               </div>
               <div className="invisible group-hover:visible">
-                <JLucideIcon name={"arrow-right"} className="text-primary" />
+                <ArrowRight className="text-primary" />
               </div>
             </Link>
           ))}

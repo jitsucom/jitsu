@@ -6,10 +6,10 @@ import { EditorField } from "./EditorField";
 import { Switch, Tabs } from "antd";
 import { createDisplayName } from "../../lib/zod";
 import Ajv from "ajv";
+import { PlusIcon } from "lucide-react";
 import { getLog } from "juava";
 import { DateEditor, NumberEditor, PasswordEditor, SelectEditor, StringArray, TextEditor } from "./Editors";
 import { Htmlizer } from "../Htmlizer/Htmlizer";
-import JLucideIcon from "../Icons/JLucideIcon";
 
 const log = getLog("SchemaForm");
 const ajv = new Ajv({ allErrors: false, strictSchema: false, useDefaults: true, allowUnionTypes: true });
@@ -245,7 +245,7 @@ const EditableTabs: React.FC<{ items; onAdd: () => void; onDelete: (k) => void }
       type="editable-card"
       activeKey={activeKey}
       onChange={onChange}
-      addIcon={<JLucideIcon name={"plus"} />}
+      addIcon={<PlusIcon />}
       onEdit={onEdit}
       items={props.items}
     />

@@ -5,9 +5,9 @@ import { useWorkspace } from "../../lib/context";
 import { useRouter } from "next/router";
 import { getLog } from "juava";
 import React from "react";
+import { FunctionSquare } from "lucide-react";
 import { FunctionsDebugger } from "../../components/FunctionsDebugger/FunctionsDebugger";
 import { ObjectTitle } from "../../components/ObjectTitle/ObjectTitle";
-import JLucideIcon from "../../components/Icons/JLucideIcon";
 
 const log = getLog("functions");
 
@@ -30,12 +30,12 @@ export const FunctionTitle: React.FC<{
   f?: FunctionConfig;
   size?: "small" | "default" | "large";
   title?: (d?: FunctionConfig) => string | React.ReactNode;
-}> = ({ f, title = d => d?.name ?? "function", size = "default" }) => {
+}> = ({ f, title = d => d?.name ?? "unknown function", size = "default" }) => {
   return (
     <ObjectTitle
-      icon={f ? <JLucideIcon name={"function-square"} className={"text-text w-full h-full"} /> : undefined}
+      icon={f ? <FunctionSquare className={"text-text w-full h-full"} /> : undefined}
       size={size}
-      title={title ? title(f) : "Unknown function"}
+      title={title ? title(f) : "unknown function"}
     />
   );
 };
@@ -54,7 +54,7 @@ const FunctionsList: React.FC<{}> = () => {
     noun: "function",
     type: "function",
     newObject: () => ({ name: "New function" }),
-    icon: f => <JLucideIcon name={"function-square"} className={"text-text"} />,
+    icon: f => <FunctionSquare className={"text-text"} />,
     explanation: (
       <div>
         <strong>Functions</strong> let you apply transformations to incoming events. Examples of such transformations
@@ -80,7 +80,7 @@ const FunctionsList: React.FC<{}> = () => {
       const verb = isNew ? "Create" : "Edit";
       return (
         <div className="flex items-center">
-          <div className="h-12 mr-4">{<JLucideIcon name={"function-square"} size={42} />}</div>
+          <div className="h-12 mr-4">{<FunctionSquare size={42} />}</div>
           {verb} function
         </div>
       );

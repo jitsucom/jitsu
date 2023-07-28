@@ -17,12 +17,12 @@ import { QuestionCircleOutlined } from "@ant-design/icons";
 import { ProvisionDatabaseButton } from "../../components/ProvisionDatabaseButton/ProvisionDatabaseButton";
 import { ConnectionsDiagram } from "../../components/ConnectionsDiagram/ConnectionsDiagram";
 import { getLog } from "juava";
+import { Chrome } from "lucide-react";
 import classNames from "classnames";
 import { useRouter } from "next/router";
 import { TrackingIntegrationDocumentation } from "../../components/TrackingIntegrationDocumentation/TrackingIntegrationDocumentation";
 import omit from "lodash/omit";
 import Link from "next/link";
-import JLucideIcon from "../../components/Icons/JLucideIcon";
 
 function Welcome({
   destinations,
@@ -305,7 +305,7 @@ export const FaviconLoader: React.FC<{ potentialUrl?: string }> = ({ potentialUr
   return faviconUrl ? (
     <img alt={""} src={faviconUrl} className="w-full h-full" />
   ) : (
-    <JLucideIcon name={"chrome"} className="w-full h-full text-blue-600" />
+    <Chrome className="w-full h-full text-blue-600" />
   );
 };
 

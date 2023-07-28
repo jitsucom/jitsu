@@ -5,6 +5,7 @@ import { assertDefined, assertFalse, assertTrue, requireDefined, rpc } from "jua
 import { BillingSettings } from "../../lib/schema";
 import { Alert, Button, Progress, Skeleton, Tooltip } from "antd";
 import Link from "next/link";
+import { Check, Edit2, Info, XCircle } from "lucide-react";
 
 import styles from "./BillingManager.module.css";
 import { useQuery } from "@tanstack/react-query";
@@ -12,7 +13,6 @@ import { ErrorCard } from "../GlobalError/GlobalError";
 import { useUsage } from "./use-usage";
 import { upgradeRequired } from "./copy";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
-import JLucideIcon from "../Icons/JLucideIcon";
 
 function formatNumber(n: number) {
   return n.toLocaleString("en-US", { maximumFractionDigits: 0 });
@@ -41,18 +41,14 @@ const ComparisonSection: React.FC<{
         <span>{header}</span>
         {info && (
           <Tooltip title={info}>
-            <JLucideIcon name={"info"} className="h-3 2-3" />
+            <Info className="h-3 2-3"></Info>
           </Tooltip>
         )}
       </h5>
       <ul>
         {items.map(item => (
           <li key={typeof item === "string" ? item : item.header}>
-            {typeof item === "string" || item.enabled ? (
-              <JLucideIcon name={"check"} className="h-4 w-4" />
-            ) : (
-              <JLucideIcon name={"x-circle"} className="h-4 w-4" />
-            )}
+            {typeof item === "string" || item.enabled ? <Check className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
             <span>{typeof item === "string" ? item : item.header}</span>
           </li>
         ))}
@@ -154,7 +150,7 @@ const CurrentSubscription: React.FC<{}> = () => {
                 href={`/api/${workspace.id}/ee/billing/manage?returnUrl=${encodeURIComponent(window.location.href)}`}
               >
                 <span>Manage subscription</span>
-                <JLucideIcon name={"pen"} className="ml-1 h-3 w-3" />
+                <Edit2 className="ml-1 h-3 w-3" />
               </Link>
             )}
           </div>
@@ -284,13 +280,7 @@ const AvailablePlans: React.FC<{}> = () => {
           />
           <div className="my-6">
             {planId === billing.settings.planId ? (
-              <JitsuButton
-                icon={<JLucideIcon name={"check"} />}
-                className="w-full"
-                size="large"
-                type="ghost"
-                disabled={true}
-              >
+              <JitsuButton icon={<Check />} className="w-full" size="large" type="ghost" disabled={true}>
                 Current plan
               </JitsuButton>
             ) : planId === "free" ? (

@@ -14,12 +14,12 @@ import { BaseBulkerConnectionOptions, getCoreDestinationType } from "../../lib/s
 import { confirmOp, feedbackError, feedbackSuccess } from "../../lib/ui";
 import FieldListEditorLayout, { EditorItem } from "../FieldListEditorLayout/FieldListEditorLayout";
 import { DataLayoutType } from "@jitsu/protocols/analytics";
+import { ChevronLeft } from "lucide-react";
 import styles from "./ConnectionEditorPage.module.css";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
 import { StreamTitle } from "../../pages/[workspaceId]/streams";
 import { DestinationTitle } from "../../pages/[workspaceId]/destinations";
 import { Htmlizer } from "../Htmlizer/Htmlizer";
-import JLucideIcon from "../Icons/JLucideIcon";
 
 const log = getLog("ConnectionEditorPage");
 
@@ -575,12 +575,7 @@ function ConnectionEditor({
     <div className="max-w-5xl grow">
       <div className="flex justify-between pt-6 pb-0 mb-0 items-center">
         <h1 className="text-3xl">{(existingLink ? "Edit" : "Create") + " connection"}</h1>
-        <JitsuButton
-          icon={<JLucideIcon name={"chevron-left"} className="w-6 h-6" />}
-          type="link"
-          size="small"
-          onClick={() => router.back()}
-        >
+        <JitsuButton icon={<ChevronLeft className="w-6 h-6" />} type="link" size="small" onClick={() => router.back()}>
           Back
         </JitsuButton>
       </div>
