@@ -11,7 +11,8 @@ export function createFullContext(
   store: Store,
   eventContext: EventContext,
   systemContext: SystemContext | {} = {},
-  props: Record<string, any> = {}
+  props: Record<string, any> = {},
+  event?: any
 ): FullContext {
   const ar = functionId.split(".");
   const id = ar.pop();
@@ -28,6 +29,7 @@ export function createFullContext(
         method: init?.method || "GET",
         body: init?.body,
         headers: init?.headers ? hideSensitiveHeaders(init.headers) : undefined,
+        event: event,
       };
       if (!init?.agent) {
         init = { ...init, agent: (url.startsWith("https://") ? httpsAgent : httpAgent)() };

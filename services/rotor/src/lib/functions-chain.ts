@@ -50,7 +50,7 @@ export async function runChain(
       const event = events[i];
       let result: FuncReturn;
       const sw = stopwatch();
-      const funcCtx = createFullContext(f.id, eventsStore, store, eventContext, f.context, f.config);
+      const funcCtx = createFullContext(f.id, eventsStore, store, eventContext, f.context, f.config, event);
       try {
         result = await f.exec(event, funcCtx);
       } catch (err) {
