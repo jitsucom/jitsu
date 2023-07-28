@@ -1,4 +1,5 @@
 import { Api, inferUrl, nextJsApiHandler, verifyAccess } from "../../../../../lib/api";
+import { db } from "../../../../../lib/server/db";
 import { z } from "zod";
 import { getServerLog } from "../../../../../lib/server/log";
 import { ApiError } from "../../../../../lib/shared/errors";
@@ -23,6 +24,21 @@ export const api: Api = {
       const bulkerAuthKey = process.env.BULKER_AUTH_KEY ?? "";
       const isHttps = bulkerURLEnv.startsWith("https://");
       await verifyAccess(user, workspaceId);
+      if (type.startsWith("incoming.")) {
+        const source = await db
+          .prisma()
+          .configurationObject.findFirst({ where: { id: actorId, workspaceId: workspaceId } });
+        if (!source) {
+          throw new ApiError(`site doesn't belong to the current workspace`, {}, { status: 403 });
+        }
+      } else {
+        const link = await db
+          .prisma()
+          .configurationObjectLink.findFirst({ where: { id: actorId, workspaceId: workspaceId } });
+        if (!link) {
+          throw new ApiError(`connection doesn't belong to the current workspace`, {}, { status: 403 });
+        }
+      }
 
       // Options object
       const options = {
