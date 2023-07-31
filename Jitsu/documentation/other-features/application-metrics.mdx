@@ -1,0 +1,42 @@
+# Application Metrics
+
+**Jitsu** supports [Prometheus](https://prometheus.io/) as a metrics destination.
+It uses the official [Go client library](https://github.com/prometheus/client_golang). Metrics are available
+under `/prometheus?token=$admin_token` endpoint with admin token authorization
+(see [how to configure admin_token](/docs/other-features/admin-endpoints)). In addition, this library collects system
+metrics. It's suitable to use the official [Grafana dashboard](https://grafana.com/grafana/dashboards/6671) template for
+monitoring them.
+
+### Configuration
+
+By default metrics collection is disabled. For enabling it put the following keys in **Jitsu** YAML configuration:
+
+```yaml
+server:
+  admin_token: your_admin_token
+  metrics:
+    prometheus:
+      enabled: true
+      auth: true
+      endpoint: prometheus
+    
+destinations:
+...    
+```
+
+### Application metrics
+
+| Name | Type | Labels | Description |
+| :--- | :--- | :--- | :--- |
+| `eventnative.destinations.events` | Counter | **source\_id**, **destination\_id** | Amount of successful written events |
+| `eventnative.destinations.errors` | Counter | **source\_id**, **destination\_id** | Amount of failed events |
+
+#### Labels
+
+| Label | Description |
+| :--- | :--- |
+| **source\_id** | Source identifier. For events, it's API key identifier from `server.auth[].id` from config with `token_` prefix. |
+| **destination\_id** | Destination id from `destinations` map |
+
+
+

@@ -1,0 +1,280 @@
+/**
+ * Main colors. Keep in sync with tailwind.config.js
+ */
+@bgPrimary: rgb(17, 24, 39); //#22313a;
+@bgSecondary: rgb(31, 41, 55); //#1e2a31;
+@bgComponent: rgb(26, 35, 50); //#1A2332FF;
+
+@bgTableHeader: @bgComponent;
+@splitBorder: #394e5a;
+@primary: rgb(91, 20, 250);
+@link: rgb(135, 138, 252); //add to tailwind
+@success: rgb(11, 173, 81);
+@successHover: #0aa14b;
+@successActive: #2cc56f;
+@warning: #ffc021;
+@error: #e53935;
+@heading: #c1c9d2;
+@text: #e5e7eb;
+@textPale: #ffffff;
+@secondaryText: #7996a9;
+@disabled: #415969;
+@secondaryBorder: #415969;
+@secondaryBorderHover: #878afc;
+@secondaryBorderFocus: #5b14fa;
+
+/**
+ * Antd theme customization
+ */
+@background-color-light: @bgComponent;
+@primary-background: @bgPrimary; // main bg color
+@secondary-background: @bgSecondary; // secondary bg color
+@component-background: @bgComponent; // widget or card bg color
+@popover-background: @bgComponent; // widget or card bg color
+@link-background: @link;
+
+@table-header-bg: @bgTableHeader;
+@table-row-hover-bg: @bgPrimary; // table tbody tr hover bg color
+@table-header-sort-active-bg: @bgComponent;
+@table-header-sort-bg: @bgTableHeader;
+@table-header-sort-active-bg: @bgTableHeader;
+
+@border-color-split: @splitBorder; // simple border color
+@primary-color: @primary; // primary color for all components
+@primary-5: @link;
+@link-color: @link;
+@success-color: @success; // success state color
+@warning-color: @warning; // warning state color
+@error-color: @error; // error state color
+@heading-color: @heading; // heading text color
+@text-color: @text; // major text color
+@text-color-secondary: @secondaryText; // secondary text color
+@disabled-color: @disabled; // disable state color
+@border-color-base: @secondaryBorder; // major border color
+@border-hover-color-base: @secondaryBorderHover; // major border color
+@border-focus-color-base: @secondaryBorderFocus; // major border color
+@divider-color: @secondaryBorder;
+
+@alert-success-bg-color: @success-color;
+@alert-warning-bg-color: @warning-color;
+@alert-error-bg-color: @error-color;
+@alert-text-color: @bgPrimary;
+@alert-message-color: @bgPrimary;
+
+@border-radius-base: 6px;
+
+@font-size-base: 14px; // major text font size
+@box-shadow-base: 0 3px 6px -4px rgba(0, 0, 0, 0.12), 0 6px 16px 0 rgba(0, 0, 0, 0.08),
+  0 9px 28px 8px rgba(0, 0, 0, 0.05); // major shadow for layers
+
+@large-border-radius: 12px;
+@small-border-radius: 6px;
+
+@font-main: "system-ui", sans-serif;
+@font-monospace: "Source Code Pro", monospace;
+@font-heading: "Nunito Sans", sans-serif;
+
+// Animated transitions
+@default-transition-duration: 200ms;
+@default-transition-delay: 0ms;
+@default-transition-animation: linear;
+@default-transiton: @default-transition-duration @default-transition-animation @default-transition-delay;
+
+.box-shadow-base {
+  box-shadow: @box-shadow-base;
+}
+
+.border-debug {
+  border: 1px solid red;
+}
+
+.font-heading {
+  font-family: @font-heading;
+}
+
+.font-monospace {
+  font-family: @font-monospace;
+}
+
+.ant-select-disabled.ant-select:not(.ant-select-customize-input) .ant-select-selector {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.ant-input-number-disabled {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.ant-select-item-option-selected {
+  background-color: transparent !important;
+
+  &::before {
+    content: "✓\00a0";
+  }
+}
+
+.ant-select-item-option-active,
+.ant-dropdown-menu-submenu-active .ant-dropdown-menu-submenu-title {
+  background-color: @bgSecondary !important;
+}
+
+.ant-collapse-content-box {
+  background-color: @primary-background !important;
+}
+
+.ant-card,
+.ant-modal-content {
+  border-radius: @large-border-radius;
+}
+
+.ant-table-tbody {
+  border-bottom-left-radius: @large-border-radius;
+  border-bottom-right-radius: @large-border-radius;
+}
+
+.ant-table-thead {
+  border-top-left-radius: @large-border-radius;
+  border-top-right-radius: @large-border-radius;
+}
+
+.ant-checkbox-inner {
+  background-color: transparent;
+}
+
+.ant-input,
+.ant-btn {
+  //border-radius: @small-border-radius;
+}
+
+.ant-radio-group {
+  //border-radius: @small-border-radius !important;
+}
+
+.ant-radio-group .ant-radio-button-wrapper:first-child {
+  //border-top-left-radius: @small-border-radius !important;
+  //border-bottom-left-radius: @small-border-radius !important;
+}
+
+.ant-radio-group .ant-radio-button-wrapper:last-child {
+  //border-top-right-radius: @small-border-radius !important;
+  //border-bottom-right-radius: @small-border-radius !important;
+}
+
+.ant-input-affix-wrapper {
+  //border-radius: @small-border-radius;
+}
+
+.ant-modal-header {
+  border-top-left-radius: @large-border-radius;
+  border-top-right-radius: @large-border-radius;
+}
+
+.ant-radio-group {
+  //border-radius: @small-border-radius;
+}
+
+.ant-card,
+.ant-table {
+  box-shadow: 0 3px 3px rgba(0, 0, 0, 0.05);
+}
+
+.ant-list-split .ant-list-header {
+  border-bottom: 0 !important;
+}
+
+.ant-tag {
+  //border-radius: @small-border-radius;
+  background: transparent !important;
+}
+
+.ant-tooltip-inner a {
+  @apply text-link;
+}
+.ant-tooltip-inner a:hover {
+  //color: lightblue !important;
+  text-decoration: underline;
+}
+
+// Antd Badge "processing" colors override
+
+.ant-badge-status-processing {
+  background-color: @link-color;
+}
+
+.ant-badge-status-processing::after {
+  border: 1px solid @link-color;
+}
+
+.ant-dropdown-menu-item-active {
+  background-color: @bgSecondary !important;
+}
+
+.ant-dropdown {
+  @apply rounded-lg;
+  background-color: @popover-background !important;
+  border: 1px solid @splitBorder !important;
+}
+
+.ant-popover-inner {
+  //@apply border-2;
+  border: 1px solid @border-color-base;
+}
+
+.ant-popover-arrow {
+  width: 12px !important;
+  height: 12px !important;
+  border-left: 1px solid @border-color-base !important;
+  border-top: 1px solid @border-color-base !important;
+  z-index: 10000 !important;
+  background: @popover-background !important;
+}
+
+.ant-popover-placement-rightTop > .ant-popover-content > .ant-popover-arrow {
+  transform: rotate(-45deg) !important;
+}
+
+.ant-popover-placement-leftBottom > .ant-popover-content > .ant-popover-arrow {
+  transform: rotate(135deg) !important;
+}
+
+.ant-popover-placement-bottomRight > .ant-popover-content > .ant-popover-arrow {
+  transform: rotate(45deg) !important;
+  //position: relative !important;
+    top: -12px !important;
+  transform-origin: bottom left !important;
+}
+
+.ant-popover-placement-top > .ant-popover-content > .ant-popover-arrow {
+  transform: rotate(225deg) !important;
+}
+
+.icon-size-base svg {
+  @apply w-4 h-4;
+}
+
+.icon-size-base img {
+  @apply w-4 h-4;
+}
+
+.icon-size-lg svg {
+  @apply w-5 h-5;
+}
+
+.icon-size-lg img {
+  @apply w-5 h-5;
+}
+
+.ant-tabs-card .ant-tabs-tab-active {
+  border-bottom-color: @bgPrimary !important;
+  background: linear-gradient(
+    to bottom,
+    @splitBorder 10%,
+    @splitBorder 10%,
+    transparent 10%,
+    transparent 100%
+  ) !important;
+}
+
+.ant-skeleton .ant-skeleton-paragraph li {
+  background-color: @textPale !important;
+  opacity: 0.2;
+}

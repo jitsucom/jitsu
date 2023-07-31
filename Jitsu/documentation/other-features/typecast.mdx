@@ -1,0 +1,62 @@
+# Typecast
+
+**Jitsu** doesn't require you to configure data schema for destination database. Data types will be determined
+from input data unless [explicit data types are configured in mapping section](/docs/configuration/schema-and-mappings).
+
+#### Default types
+
+At present there are two default typecast rules:
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| _\_timestamp_ | timestamp | System field inserting by **Jitsu Server** |
+| _\_utc\_time_ | timestamp | Default field inserting by **Jitsu JS SDK** |
+
+#### Configurable mappings
+
+You can configure field SQL type in the mapping config section - see
+[Schema and Mappings](/docs/configuration/schema-and-mappings#step-3-mapping).
+All fields with explicit SQL types from mapping rules will be explicitly cast with DWH typecast operators in SQL statements. For example, Postgres SQL insert with explicit SQL types:
+
+```sql
+INSERT INTO schema.table (id, name, salary, currency)
+VALUES ('1'::bigint, 'John', '20000'::numeric(38,18), 'USD')
+```
+
+#### From input data
+
+**Jitsu** detects data types from values within one batch before creating a table or patching a table with a new column. In case when one field has several value types the result type will be calculated by finding the lowest common ancestor in the following typecast tree:
+
+```java
+        Typecast tree
+
+          STRING(4)
+          /       \
+     FLOAT64(3)  TIMESTAMP(5)
+        /
+    INT64(2)
+      /
+    BOOL(1)
+```
+
+
+For example, in the following JSON batch field **salary** will have FLOAT64 type and field **id** will have STRING type.
+
+```yaml
+{"id": "1", "name": "John","salary": 20000, "currency": "USD"}
+{"id": 2, "name": "Sarah","salary": 20000.5, "currency": "USD"}
+```
+
+**BOOL**, **INT64**, **FLOAT64**, **STRING**, **TIMESTAMP** - are inner data types that will be mapped into DWH SQL types according to the following table:
+
+| Data Warehouse | BOOL | INT64 | FLOAT64 | STRING | TIMESTAMP |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Postgres** | boolean | bigint | numeric\(38,18\) | text | timestamp |
+| **Redshift** | boolean | bigint | numeric\(38,18\) | character varying\(65535\) | timestamp |
+| **BigQuery** | boolean | integer | float | string | timestamp |
+| **ClickHouse** | UInt8 | Int64 | Float64 | String | DateTime |
+| **Snowflake** | boolean | bigint | numeric\(38,18\) | text | timestamp\(6\) |
+| **MySQL** | boolean | bigint | decimal\(38,18\) | text | datetime |
+
+
+

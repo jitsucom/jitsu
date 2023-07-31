@@ -1,0 +1,104 @@
+---
+sort: '0006'
+title: 'React Guide'
+---
+
+# React Guide
+
+## Installation
+
+To use Jitsu SDK, install npm package
+
+```bash
+npm install @jitsu/react
+```
+
+Import and configure Jitsu SDK Provider
+
+```typescript jsx
+//...
+import { createClient, JitsuProvider } from "@jitsu/react";
+
+// initialize Jitsu client
+const jitsuClient = createClient({
+  tracking_host: "__JITSU_HOST__",
+  key: "__API_KET__",
+  // See Jitsu SDK parameters section for more options
+});
+
+// wrap our app with Jitsu provider
+ReactDOM.render(
+  <React.StrictMode>
+    <JitsuProvider client={jitsuClient}>
+      <App />
+    </JitsuProvider>
+  </React.StrictMode>,
+  document.getElementById('root')
+);
+```
+See [parameters list](https://jitsu.com/docs/sending-data/js-sdk/parameters-reference) for `createClient()` call.
+
+## Usage
+
+```typescript jsx
+import { useJitsu } from "@jitsu/react";
+
+const App = () => {
+  const {id, track, trackPageView} = useJitsu(); // import methods from useJitsu hook
+
+  useEffect(() => {
+    id({id: '__USER_ID__', email: '__USER_EMAIL__'}); // identify current user for all track events
+    trackPageView() // send page_view event
+  }, [])
+
+  const onClick = (btnName: string) => {
+    track('btn_click', {btn: btnName}); // send btn_click event with button name payload on click
+  }
+
+  return (
+    <button onClick="() => onClick('test_btn')">Test button</button>
+  )
+}
+```
+\
+To enable automatic pageview tracking, add `usePageView()` hook. This hook will send pageview each time
+user loads a new page (including internal SPA pages). This hook relies on [React Router](https://reactrouter.com/) and
+requires `react-router` (>=5.x) package to be present
+```typescript jsx
+const App = () => {
+  usePageView() //this hook will send pageview track event on router change
+
+  return (
+    <Routes>
+      <Route path="/" element={<Main />} />
+      <Route path="page" element={<Page />} />
+    </Routes>
+  );
+}
+```
+\
+If you need to pre-configure jitsu event - for example, identify a user, it's possible to do via `before` callback:
+```typescript
+usePageView({before: (jitsu) => jitsu.id({id: '__USER_ID__', email: '__USER_EMAIL__'})})
+```
+
+## Hooks
+
+### useJitsu
+
+Returns object with `id`, `trackEvent`, `trackPageView`, `rawTrack`, `set`, `unset` and `interceptAnalytics` [methods of Jitsu SDK](https://jitsu.com/docs/sending-data/js-sdk/methods-reference).
+
+### usePageView
+
+Can be used only with react-router. Sends `pageview` event on every route change.
+
+## Jitsu SDK parameters and methods
+
+Read about all SDK parameters and methods in our [documentation](https://jitsu.com/docs/sending-data/js-sdk):
+
+* [Parameters](https://jitsu.com/docs/sending-data/js-sdk/parameters-reference) - parameters reference for `createClient()` call
+* [Methods](https://jitsu.com/docs/sending-data/js-sdk/methods-reference) - all these methods can be called on a return value of `useJitsu()`
+
+## Example app
+
+You can find example app [here](https://github.com/jitsucom/jitsu-js/tree/master/examples/react-app).

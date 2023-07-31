@@ -1,0 +1,31 @@
+@import "theme.less";
+
+.icon {
+  & > svg {
+    fill: @error-color;
+  }
+}
+
+.stackTraceCard {
+  background-color: @secondary-background;
+  box-shadow: @box-shadow-base;
+
+  && > div {
+    border-bottom: none;
+  }
+}
+
+.errorStackContainer {
+  position: relative;
+
+  && > div {
+    position: absolute;
+    top: 1em;
+    right: 1em;
+  }
+
+  && > pre {
+    margin-top: 0;
+    padding-right: 3em;
+  }
+}

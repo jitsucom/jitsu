@@ -1,0 +1,81 @@
+@import "../../../theme";
+
+.dropdown {
+  background: @secondary-background;
+  width: 320px;
+  position: relative;
+
+  .filter {
+    padding: 20px;
+  }
+
+  .list {
+    list-style: none;
+    padding: 0 20px 5px;
+    margin: 0;
+    overflow: auto;
+    max-height: 480px;
+
+    overflow-y: auto;
+
+    .item {
+      .link {
+        width: 100%;
+        box-sizing: border-box;
+        display: inline-flex;
+        align-items: center;
+        padding: 7px 0;
+        transition: color 200ms 0ms linear, background-color 200ms 0ms linear;
+
+        .icon {
+          width: 30px;
+          height: 30px;
+          margin-right: 4px;
+          border-radius: 50%;
+          padding: 3px;
+          overflow: hidden;
+
+          svg {
+            display: block;
+            width: 24px;
+          }
+          img {
+            display: block;
+            width: 24px;
+          }
+        }
+
+        .name {
+        }
+      }
+    }
+  }
+}
+
+.clickableItemContainer {
+  width: 100%;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 0;
+  cursor: pointer;
+  transition: color 200ms 0ms linear, background-color 200ms 0ms linear;
+
+  .icon {
+    width: 30px;
+    height: 30px;
+    margin-right: 4px;
+    border-radius: 50%;
+    padding: 3px;
+    overflow: hidden;
+
+    svg {
+      display: block;
+      width: 24px;
+    }
+    img {
+      display: block;
+      width: 24px;
+    }
+  }
+}

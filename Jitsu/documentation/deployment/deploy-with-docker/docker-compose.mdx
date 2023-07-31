@@ -1,0 +1,35 @@
+---
+sort: 1
+---
+
+# Docker compose
+
+The easiest way to start Jitsu locally is docker-compose. Just few clicks
+
+```bash
+git clone https://github.com/jitsucom/jitsu.git
+cd jitsu
+```
+
+Add permission for writing log files:
+
+```bash
+#Ubuntu/Mac OS
+chmod -R 777 compose-data/
+```
+
+For running `latest` version use:
+
+```bash
+docker-compose up
+```
+
+Visit `http://localhost:8000/configurator` after the build is complete.
+
+
+**Jitsu** provides docker-compose that contains `@jitsucom/jitsu` docker image and Redis.
+
+<Hint>
+    Docker compose should not be used in production. Please, take a look at{' '}
+    <a href="/docs/deployment">deployment architecture page</a> and a <a href="/docs/deployment/scale">Jitsu scaling manual</a>
+</Hint>

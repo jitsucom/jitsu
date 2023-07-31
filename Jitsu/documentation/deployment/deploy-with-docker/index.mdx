@@ -1,0 +1,52 @@
+---
+sort: 2
+coverImage: "/img/docs/cover-docker-deployment.png"
+---
+
+# Deploying with Docker
+
+## Which Docker Image do I need?
+
+![Jitsu Docker Images](/img/docs/jitsu-docker-images.png)
+
+Jitsu consists from two services: Configurator (aka Control Plan, optional) and Server (aka Data Plane). With each release,
+we build 3 docker images:
+
+* `@jitsucom/server` contains only Server (see the image [on docker hub](https://hub.docker.com/r/jitsucom/server))
+* `@jitsucom/configurator` contains only Configurator (see the image [on docker hub](https://hub.docker.com/r/jitsucom/configurator))
+* `@jitsucom/jitsu` (aka Joint Image) contains both Server and Configurator (see the image [on docker hub](https://hub.docker.com/r/jitsucom/jitsu))
+
+`@jitsu/configurator` is an optional component. Jitsu Server can be configured with [YML file](/docs/configuration).
+
+[Heroku deployment](/docs/deployment/deploy-on-heroku) users `@jitsucom/jitsu` under the hood. [Docker compose](/docs/deployment/deploy-with-docker#run-dockercompose)
+uses Jitsu joint image as well. If you're getting started with Jitsu, or operate Jitsu under moderate (`<10 RPS`) load, use `@jitsucom/jitsu` image,
+otherwise consider deploying `@jitsucom/server` and `@jitsucom/configurator` separately.
+
+Also, Jitsu requires Redis. Configurator uses Redis for storing Jitsu configuration, user accounts and so on. Server uses Redis for
+coordination, synchronization and caching. [Docker compose](/docs/deployment/deploy-with-docker#run-dockercompose) already
+includes Redis
+
+You can try Configurator UI at [Jitsu.Cloud](https://cloud.jitsu.com). Jitsu.Cloud will allow you to download configuration YML file that
+could be used for standalone Jitsu Server deployment.
+
+See overview of deployment options below
+
+## Docker Compose
+
+<LargeLink title="Deploy with Docker Compose" href="/docs/deployment/deploy-with-docker/docker-compose" />
+
+The fastest option (one-click deploy). Perfect, to test Jitsu locally. Won't scale for production usage
+
+## Joint Image
+
+<LargeLink title="@jitsucom/jitsu Joint Image" href="/docs/deployment/deploy-with-docker/docker-compose" />
+
+`@jitsucom/jitsu` docker image (see below). Can scale, however for high loaded system Configurator and Server separation
+is advised
+
+## Deploying Jitsu Server and Configurator separately
+
+This method requires a separate deployment of `@jitsucom/configurator` and `@jitsucom/server`:
+
+<LargeLink title="Configurator Deployment" href="/docs/deployment/deploy-with-docker/jitsu-configurator" />
+<LargeLink title="Server Deployment" href="/docs/deployment/deploy-with-docker/jitsu-server" />

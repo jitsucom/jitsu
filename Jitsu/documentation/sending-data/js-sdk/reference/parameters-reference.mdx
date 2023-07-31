@@ -1,0 +1,179 @@
+---
+sort: "0004"
+---
+
+# Parameters Reference
+
+Both in [npm based](/docs/sending-data/js-sdk/package) and [snippet](/docs/sending-data/js-sdk/snippet) version Jitsu
+accepts the same set of paratemers. The only difference is naming: `param_name` in npm package should be referenced
+as `data-param-name` in HTML snippet
+EventNative accepts the following parameters.
+
+<table>
+  <thead>
+    <tr>
+      <th>
+        Parameter<br />(data-parameter)
+      </th>
+      <th>Value</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>
+        key *<br />
+        (data-key)
+      </td>
+      <td>
+        <b>Required.</b> API key{" "}
+        <a href="/docs/configuration/authorization">How to get API key</a>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        tracking_host
+        <br />(<span style={{ whiteSpace: "nowrap" }}>data-tracking-host</span>)
+      </td>
+      <td>
+        If not set, Jitsu will do the best attempt to detect it automatically.
+        For HTML snippet - script location host will be used. For npm package,
+        t.jitsu.com is a default host
+      </td>
+    </tr>
+    <tr>
+      <td>
+        cookie_name
+        <br />(<span style={{ whiteSpace: "nowrap" }}>data-cookie-name</span>)
+      </td>
+      <td>
+        Name of tracking cookie (`__eventn_id` by
+        default)
+      </td>
+    </tr>
+    <tr>
+      <td>
+        cookie_domain
+        <br />(<span style={{ whiteSpace: "nowrap" }}>data-cookie-domain</span>)
+      </td>
+      <td>
+        Domain of the tracking cookie (by default this is{" "}
+        `location.hostname` with any{" "}
+        `www.` subdomain removed)
+      </td>
+    </tr>
+    <tr>
+      <td>
+        segment_hook
+        <br />(<span style={{ whiteSpace: "nowrap" }}>data-tracking-host</span>)
+      </td>
+      <td>
+        If set to true, Jitsu will automatically listen to Segment's
+        analytics.js events and collect them.
+      </td>
+    </tr>
+    <tr>
+      <td>
+        randomize_url
+        <br />(<span style={{ whiteSpace: "nowrap" }}>data-randomize-url</span>)
+      </td>
+      <td>
+        If set to true, Jitsu will send events on a dynamic endpoint. It allows
+        avoiding ad blockers.
+      </td>
+    </tr>
+    <tr>
+      <td>
+        compat_mode
+        <br />(<span style={{ whiteSpace: "nowrap" }}>data-compat-mode</span>)
+      </td>
+      <td>
+        If event JSON should have a structure compatible with an old version.
+        Read more about compat mode in{" "}
+        <a href="/docs/sending-data/js-sdk/migrating">Migration Guide</a>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        ip_policy
+        <br />(<span style={{ whiteSpace: "nowrap" }}>data-ip-policy</span>)
+      </td>
+      <td>
+        `['keep', 'comply', 'strict']` values are
+        supported. `keep` value is default.
+        `keep` - Jitsu extracts client IP address and stores
+        it in every analytics event in 'source_ip' field.
+        `strict` - Jitsu replaces last octet in client
+        IP address with '1' on the backend side. like{" "}
+        `10.10.10.10 -> 10.10.10.1`
+        `comply` - Jitsu detects client country with <a href="/docs/other-features/geo-data-resolution#maxmind">
+          MaxMind
+        </a> (if MaxMind isn't provided the behavior will be like in `
+          strict
+        ` mode) if client is from EU or UK then the behavior will be like in{" "}
+        `strict` mode. Otherwise like in `
+          keep
+        ` mode. Read more about <a href="/docs/sending-data/privacy-policy">Privacy Policy</a>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        cookie_policy
+        <br />(<span style={{ whiteSpace: "nowrap" }}>data-cookie-policy</span>)
+      </td>
+      <td>
+        `['keep', 'comply', 'strict']` values are
+        supported. `keep` value is default.
+        `keep` - Jitsu writes identification cookies and
+        recognizes users with it.
+        `strict` - Jitsu doesn't write any cookies
+        (including identification cookies and persistent properties). Instead of
+        cookies, Jitsu will use fingerprinting (
+        `hash(client ip + user agent)` function).
+        `comply` - Jitsu detects client country with <a href="/docs/other-features/geo-data-resolution#maxmind">
+          MaxMind
+        </a> (if MaxMind isn't provided the behavior will be like in `
+          strict
+        ` mode) if client is from EU or UK then the behavior will be like in{" "}
+        `strict` mode. Otherwise like in `
+          keep
+        ` mode. Read more about <a href="/docs/sending-data/privacy-policy">Privacy Policy</a>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        privacy_policy
+        <br />(<span style={{ whiteSpace: "nowrap" }}>data-privacy-policy</span>)
+      </td>
+      <td>
+        This parameter is just shortcut for `strict`{" "}
+        configuration of `cookie_policy` and{" "}
+        `ip_policy`. If set to{" "}
+        `strict` value,{" "}
+        `cookie_policy` and{" "}
+        `ip_policy` will be set{" "}
+        `strict`. Read more about{" "}
+        <a href="/docs/sending-data/privacy-mode">Privacy Mode</a>
+      </td>
+    </tr>
+    <tr>
+        <td>
+            force_use_fetch
+            <br />(<span style={{ whiteSpace: "nowrap" }}>data-force-use-fetch</span>)
+        </td>
+        <td>
+            This parameter forces SDK to use the fetch implementation (custom or default) even in browser
+        </td>
+    </tr>
+    <tr>
+      <td>
+        custom_headers
+      </td>
+      <td>
+        *(Not available as `data-` parameter in embedded environment; available only in npm lib)*
+
+        This parameter adds custom headers to each request. Can be either a static object (`Record<string, string>`) or
+        a function that returns an object
+      </td>
+    </tr>
+  </tbody>
+</table>

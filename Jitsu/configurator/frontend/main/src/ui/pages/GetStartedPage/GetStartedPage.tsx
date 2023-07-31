@@ -1,0 +1,161 @@
+import styles from "./GetStartedPage.module.less"
+import logo from "icons/logo.svg"
+import { useHistory } from "react-router-dom"
+import { LoginForm } from "./LoginForm"
+import { SignupForm } from "./SignupForm"
+
+/**
+ * This component <GetStartedPage /> is used for both login and signup purposes. Since layout is very similar
+ * pu
+ */
+export type GetStartedPageProps = {
+  /**
+   * If login / signup supports oauth
+   */
+  oauthSupport: boolean
+  /**
+   * Link for SSO Authorization
+   */
+  ssoAuthLink: string
+  /**
+   * Is this a login page or signup page?
+   */
+  login: boolean
+
+  /**
+   * What should we display on a right side (aka Hero?)
+   * true - Cloud Copy (aka try Jitsu.Cloud)
+   * false - Self-Hosted
+   */
+  useCloudHero: boolean
+}
+
+function GitHubLogo() {
+  return (
+    <svg className="h-12 fill-current" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fillRule="evenodd"
+        d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
+        clipRule="evenodd"
+      ></path>
+    </svg>
+  )
+}
+
+function WelcomeBackHero({ signupEnabled }) {
+  let history = useHistory()
+  return (
+    <div className="flex flex-col justify-center items-center text-xl mt-12">
+      <h1 className="text-center text-textPale font-heading font-bold tracking-wider">Welcome back!</h1>
+      {signupEnabled && (
+        <div className="mt-6 text-center">
+          New to Jitsu?{" "}
+          {!process.env.JITSU_NEXT_URL ? (
+          <a className={`text-textPale font-bold ${styles.heroLink}`} onClick={() => history.push("/signup")}>
+            Sign up
+          </a>) : (
+              <><br/><a className={`text-textPale font-bold ${styles.heroLink}`} href={`${process.env.JITSU_NEXT_URL}/signup`}>
+                Sign up to Jitsu Next
+              </a></>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function JitsuCloudHero() {
+  return (
+    <>
+      <h1 className="text-center lg:text-left text-textPale font-heading font-bold tracking-wider">Try Jitsu.Cloud</h1>
+      <div>
+        <div className="mt-6">
+          Jitsu.Cloud is a hosted version of our open-source project. Start collecting data in as little as 2 minutes
+        </div>
+        <div className="mt-6">
+          <ul className={`list-inside list-none ${styles.featureList}`}>
+            <li>
+              First{" "}
+              <a target="_blank" href="https://jitsu.com/pricing" className={styles.heroLink}>
+                250k
+              </a>{" "}
+              events per month are tracked for free
+            </li>
+            <li>
+              Use your own tracking domain (<b className={`${styles.underline} font-monospace`}>track.myapp.com</b>)
+            </li>
+            <li>
+              Community support via Jitsu Public Slack (
+              <a target="_blank" href="https://jitsu.com/slack" className={styles.heroLink}>
+                join now!
+              </a>
+              )
+            </li>
+            <li>
+              See all{" "}
+              <a target="_blank" href="https://jitsu.com/pricing" className={styles.heroLink}>
+                pricing options
+              </a>
+            </li>
+          </ul>
+        </div>
+        <h2 className="text-center lg:text-left text-textPale font-heading font-bold tracking-wider mt-12">
+          Interested in self-hosting?
+        </h2>
+        <a
+          target="_blank"
+          href="https://jitsu.com/docs/deployment"
+          className="text-text hover:text-text flex flex-row items-center"
+        >
+          <div className="text-text pr-4">
+            <GitHubLogo />
+          </div>
+          <div>
+            Deploy Jitsu on your own infrastructure in <b className={styles.underline}>2 minutes</b>. Free forever!
+          </div>
+        </a>
+      </div>
+    </>
+  )
+}
+
+function JitsuSelfHostingHero() {
+  return (
+    <>
+      <h1 className="text-center lg:text-left text-textPale font-heading font-bold tracking-wider">Welcome</h1>
+    </>
+  )
+}
+
+export default function GetStartedPage(props: GetStartedPageProps) {
+  return (
+    <div className="flex flex-col lg:flex-row w-full min-h-screen">
+      <div
+        className={`bg-primary ${
+          props.login && "hidden"
+        } lg:block bg-gradient-to-br to-success from-primaryHover md:w-full lg:w-1/2 min-h-screen order-last lg:order-first`}
+      >
+        <a target="_blank" href="https://jitsu.com" className="hidden lg:block">
+          <img className="mt-12 ml-12 h-8" src={logo} />
+        </a>
+        <div className={`flex justify-around ${styles.hero}`}>
+          <div className="w-3/5 mt-12 font-family">
+            {props.login ? (
+              <WelcomeBackHero signupEnabled={props.useCloudHero} />
+            ) : props.useCloudHero ? (
+              <JitsuCloudHero />
+            ) : (
+              <JitsuSelfHostingHero />
+            )}
+          </div>
+        </div>
+      </div>
+      <div className="flex flex-col items-center lg:pt-36 ml-auto mr-auto pr-2 pl-2 pb-12">
+        <a target="_blank" href="https://jitsu.com" className="block mb-6 lg:hidden">
+          <img className="mt-8 h-8" src={logo} />
+        </a>
+        {props.login ? <LoginForm supportOauth={props.oauthSupport} ssoAuthLink={props.ssoAuthLink} /> : <SignupForm />}
+      </div>
+    </div>
+  )
+}

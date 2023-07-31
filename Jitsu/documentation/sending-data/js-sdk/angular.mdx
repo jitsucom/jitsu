@@ -1,0 +1,74 @@
+---
+sort: '0007'
+title: 'Angular Guide'
+---
+
+# Angular Guide
+
+## Installation
+
+To use Jitsu SDK, install npm package
+
+```bash
+npm install @jitsu/angular
+```
+
+and import Jitsu SDK module to your Angular application.
+
+```typescript
+import { NgxJitsuModule } from '@jitsu/angular';
+
+@NgModule({
+  // ...
+  imports: [
+    NgxJitsuModule.forRoot({
+      tracking_host: "__JITSU_HOST__",
+      key: "__API_KET__",
+          // See Jitsu SDK parameters section for more options
+    }),
+  ],
+  // ...
+})
+export class AppModule {}
+```
+List of all parameters available in the [SDK Reference](https://jitsu.com/docs/sending-data/js-sdk/parameters-reference)
+
+## Usage
+
+```typescript
+@Component({
+  selector: 'app-root',
+  template: '<button (click)="onBtnClick(\'test_btn\')">Test button</button>',
+})
+export class AppComponent implements OnInit {
+  constructor(private jitsuTracker: NgxJitsuService, private someUserService: SomeUserService) {
+    // subscribe on router navigation end event and track page view
+    router.events
+      .filter(event => event instanceof NavigationEnd)
+      .subscribe((event: NavigationEnd) => {
+        this.jitsuTracker.trackPageView()
+      });
+  }
+
+  onBtnClick(btnName:string) {
+    // send btn_click_event with button name payload on button click
+    this.jitsuTracker.track('btn_click_event', {btn: btnName})
+  }
+
+  ngOnInit() {
+    // identify current user for all track events
+    this.someUserService.currentUser.subscribe((user: User) => {
+      this.jitsuTracker.id({id: user.ID, email: user.EMAIL})
+    });
+  }
+}
+```
+
+## Jitsu SDK parameters and methods
+
+* [Parameters](/docs/sending-data/js-sdk/parameters-reference)
+* [Methods](/docs/sending-data/js-sdk/methods-reference) - you can call all SDK methods from `NgxJitsuService` too
+
+## Example app
+
+You can find example app [here](https://github.com/jitsucom/jitsu-js/tree/master/examples/angular-app).

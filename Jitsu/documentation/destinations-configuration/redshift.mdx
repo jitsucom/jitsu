@@ -1,0 +1,77 @@
+# Redshift
+
+**Jitsu** supports [Redshift](https://aws.amazon.com/redshift) as a destination. For more information about Redshift [see docs](https://docs.aws.amazon.com/redshift/index.html).
+Redshift destination can work in stream and batch modes. In stream mode Jitsu uses plain insert statements for storing data.
+In batch mode Jitsu writes incoming events in formatted file on the AWS S3 and uses [COPY command](https://docs.aws.amazon.com/redshift/latest/dg/r_COPY.html) to store data from AWS S3 files into Redshift.
+
+## Configuration
+
+Redshift destination config consists of the following schema:
+
+```yaml
+destinations:
+  my_redshift:
+    type: redshift
+    datasource:
+      host: redshift.amazonaws.com
+      db: my-db
+      port: 5439
+      schema: myschema
+      username: user
+      password: pass
+      parameters:
+        connect_timeout: 300
+    s3:
+      access_key_id: abc123
+      secret_access_key: secretabc123
+      bucket: my-bucket
+      region: us-west-1
+      folder: my_redshift
+```
+
+### 'datasource' field
+
+| Field \(\*required\) | Type | Description | Default value |
+| :--- | :--- | :--- | :--- |
+| **host\*** | string | Host of destination. | - |
+| **port** | int | Port of destination. | `5439` |
+| **db\*** | string | Database of destination. | - |
+| **schema** | string | Schema of destination. | `public` |
+| **username\*** | string | Username for authorization in a destination. | - |
+| **password** | string | Password for authorization in a destination. | - |
+| **parameters** | object | Connection parameters. | `connect_timeout=600` |
+
+### 's3' section
+
+<LargeLink href="/docs/destinations-configuration/s3" title="S3 configuration" />
+
+### AWS S3
+
+Create AWS S3 bucket and add IAM permissions for using Redshift in batch mode:
+
+- [Create](https://docs.aws.amazon.com/AmazonS3/latest/userguide/create-bucket-overview.html) your AWS S3 bucket.
+- [Create](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_users_create.html) your AWS IAM User and save its credentials: `Access key ID` and `Secret Access Key`.
+- [Create](https://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-create-and-attach-iam-policy.html) IAM Policy with clear name (e.g. `jitsu-redshift-policy`) and attach it to created user with the following JSON:
+
+Replace `YOUR_BUCKET_ARN` with your bucket ARN:
+```yaml
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "VisualEditor0",
+      "Effect": "Allow",
+      "Action": [
+        "s3:PutObject",
+        "s3:GetObject",
+        "s3:ListBucket",
+        "s3:DeleteObject"
+      ],
+      "Resource": [
+        "arn:aws:s3:::YOUR_BUCKET_ARN",
+        "arn:aws:s3:::YOUR_BUCKET_ARN/*"
+      ]
+    }
+  ]
+}
+```

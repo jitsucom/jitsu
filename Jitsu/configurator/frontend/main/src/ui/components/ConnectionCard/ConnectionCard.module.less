@@ -1,0 +1,21 @@
+@import "../../../theme.less";
+.connectionCard {
+  @apply w-96 mx-3 my-4 overflow-hidden px-4 py-6 rounded-xl  bg-bgSecondary border-splitBorder border;
+  color: unset !important;
+}
+
+.connectionCard:hover {
+  @apply border-secondaryText border block;
+}
+
+.connectionCardLoading {
+  opacity: 0.33;
+}
+
+.connectionCard :global .ant-btn-link {
+  @apply text-text !important;
+}
+
+.connectionCard :global .ant-btn-link:hover {
+  @apply text-primary !important;
+}

@@ -1,0 +1,105 @@
+---
+sort: 4
+title: Configurator
+---
+
+# Jitsu Configurator
+
+`@jitsucom/configurator` image should be used for Jitsu Configurator deployment
+
+## Exposed ports
+
+`@jitsucom/configurator` image exposes `7000` port
+
+## Environment Variable
+
+<APIParam
+  small={true}
+  name="CLUSTER_ADMIN_TOKEN"
+  dataType="string"
+  required={true}
+  type="Docker Env Var"
+>
+  Auth token for authorizing requests from Jitsu Server. Should match one
+  configured in{" "}
+  <a href="/docs/deployment/deploy-with-docker/jitsu-server">Jitsu Server</a>
+</APIParam>
+<APIParam
+  small={true}
+  name="JITSU_SERVER_URL"
+  dataType="string"
+  required={true}
+  type="Docker Env Var"
+>
+  URL of Jitsu Server
+</APIParam>
+<APIParam
+  small={true}
+  name="REDIS_URL"
+  dataType="string"
+  required={true}
+  type="Docker Env Var"
+>
+  Redis connection string:{" "}
+  <code inline={true}>redis://:password@host:port</code> or{" "}
+  <code inline={true}>redis://host:port</code>
+</APIParam>
+<APIParam
+  small={true}
+  name="TLS_SKIP_VERIFY"
+  dataType="boolean"
+  required={false}
+  type="Docker Env Var"
+>
+  Redis: skip client certificate verification
+</APIParam>
+<APIParam
+    small={true}
+    name="JITSU_SSO_CONFIG"
+    dataType="string"
+    required={false}
+    type="Docker Env Var">
+    Read more about this configuration <a href="/docs/configurator-configuration/sso-authentication">here</a>
+</APIParam>
+<APIParam
+    small={true}
+    name="JITSU_SMTP_CONFIG"
+    dataType="string"
+    required={false}
+    type="Docker Env Var">
+    SMTP configuration in JSON format. Read more about this configuration <a href="/docs/configurator-configuration">here</a>
+</APIParam>
+
+## Volumes
+
+Jitsu Configurator do not require any volumes to be mounted. Some volumes could be mounted optionally.
+
+<table>
+  <thead>
+    <tr>
+      <th>Path (inside docker image)</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>
+        <b>
+          <code inline={true}>/home/configurator/data/logs/</code>
+        </b>
+        <br />
+        <i>(optional)</i>
+      </td>
+      <td>
+        Configurator application logs <br />
+        <br />
+        Example:{" "}
+        <code inline={true}>
+          -v $PWD/configurator_logs/:/home/configurator/data/logs/
+        </code>
+        , make sure that the volume is writable with:{" "}
+        <code inline={true}>chmod 777 $PWD/configurator_logs/</code>
+      </td>
+    </tr>
+  </tbody>
+</table>

@@ -1,0 +1,32 @@
+{
+  "AWSEBDockerrunVersion": "1",
+  "Image": {
+    "Name": "jitsucom/jitsu:beta",
+    "Update": "true"
+  },
+  "Ports": [
+    {
+      "ContainerPort": "8000",
+      "HostPort": "80"
+    }
+  ],
+  "Volumes": [
+    {
+      "HostDirectory": "jitsu_eventnative",
+      "ContainerDirectory": "/home/eventnative/data"
+    },
+    {
+      "HostDirectory": "jitsu_configurator",
+      "ContainerDirectory": "/home/configurator/data"
+    },
+    {
+      "HostDirectory": "/var/run/docker.sock",
+      "ContainerDirectory": "/var/run/docker.sock"
+    },
+    {
+      "HostDirectory": "jitsu_workspace",
+      "ContainerDirectory": "/home/eventnative/data/airbyte"
+    }
+  ],
+  "Entrypoint": "/home/eventnative/entrypoint.sh"
+}

@@ -1,0 +1,68 @@
+# Destination Tags
+
+Destination Tag is a type of destination that installs configured HTML/Javascript tag to the website page
+on receiving an event from Javascript SDK.
+
+The required version of Jitsu Server >= 1.41.0<br/>
+The required version of Javascript SDK >= 2.5.0
+
+## How it works
+
+You need to provide **HTML/Javascript code** of your tag
+and link the destination to an API key.
+
+When Javascript SDK sends an event to the Jitsu Server, and a Destination Tag is linked to the API key,
+Jitsu Server synchronously processes **HTML/Javascript code** template and returns the resulting code block to the Javascript SDK.
+
+Javascript SDK parses code block:
+- All `<script>` tags from the code will be appended to the `<head>` block of you website and javascript code will be executed by browser.
+- Other html tags will be appended to the end of `<body>` of you website.
+
+## Configuration
+
+| Parameter              | Description                                                                                                                                                              |
+|:-----------------------|:-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `tagid` (optional)     | Unique ID of Tag. Can be used for debugging.<br/>By default tagid = destinationId                                                                                        |
+| `filter` (optional)    | JavaScript expression to filter events so tag will be triggered for certain events only. E.g.:<br/>`$.event_type == "pageview"`                                               |
+| `template`  (required) | HTML/Javascript code of your tag. Be sure to wrap Javascript snippets with `<script></script>`<br/>You can use variables from incoming event. E.g.:<br/>`{{ .user.id }}` |
+
+Example:
+```yaml
+destinations:
+  my_tag:
+    only_tokens:
+      - abc.123
+    type: tag
+    config:
+      filter: $.event_type == "pageview"
+      tagid: "tag123"
+      template: |-
+        <script>
+        console.log("Hello {{ .user.id }} from Jitsu!")
+        </script>
+```
+
+## Filtering
+
+You can use JavaScript expressions to filter events so tags will be triggered for certain events only.
+Here are few example of such JavaScript expressions for typical cases:
+
+Only for "pageview" events
+```javascript
+$.event_type == "pageview"
+```
+
+For "pageview" or "conversions" events
+```javascript
+$.event_type == "pageview" || $.event_type == "conversions"
+```
+
+For authorized users only:
+```javascript
+$.user.email
+```
+
+For "pageview" events from authorized users:
+```javascript
+$.event_type == "pageview" && $.user.email
+```

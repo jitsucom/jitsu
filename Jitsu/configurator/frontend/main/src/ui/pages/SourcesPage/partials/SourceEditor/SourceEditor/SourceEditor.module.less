@@ -1,0 +1,86 @@
+@import "./src/theme";
+
+.collection {
+  .item {
+    border-bottom: 1px dashed @border-color-base;
+    margin-bottom: 20px;
+  }
+}
+
+.delete {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: block;
+  padding: 16px;
+}
+
+.templates {
+  max-width: 540px;
+  overflow: auto;
+  .template {
+    //width: 100px;
+    display: flex;
+    //flex-flow: row wrap;
+    justify-content: space-between;
+    border-bottom: 1px solid @border-color-base;
+    padding: 10px 10px;
+
+    .comment {
+      color: @text-color-secondary;
+      font-size: 14px;
+      line-height: 1.5715;
+    }
+
+    .button {
+      margin-left: 40px;
+      margin-right: 8px;
+    }
+
+    &:last-child {
+      border-bottom: none;
+    }
+  }
+}
+.tabCard {
+  height: calc(100vh - 150px);
+
+  :global .ant-tabs-content {
+    overflow: auto;
+    height: 98%;
+  }
+}
+
+.documentation,
+.documentation p,
+.documentation ul,
+.documentation ul li {
+  @apply text-sm;
+}
+
+.documentation h1 {
+  @apply text-lg my-2 border-b text-heading;
+}
+
+.documentation pre {
+  padding-bottom: 14px !important;
+  background-color: @bgPrimary !important;
+}
+
+.documentation :global .ant-collapse-content-box {
+  background-color: unset !important;
+}
+
+.documentation code {
+  @apply bg-bgTableHeader rounded px-1;
+  padding-bottom: 0.125rem;
+  padding-top: 0.125rem;
+}
+
+.documentation h2 {
+  @apply text-base text-secondaryText;
+}
+
+.documentation ul {
+  @apply list-disc list-outside my-2 ml-6 text-sm leading-7;
+}

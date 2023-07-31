@@ -1,0 +1,148 @@
+---
+title: Scaling Tips
+---
+
+# Jitsu at Scale
+
+**Jitsu** is designed to be scalable at heart. Since in the most production cases Jitsu is used for real-time mission critical data collection,
+and handles a pretty heavy load (millions events per minute), it requires a distributed setup. Jitsu consist of 3 services: Jitsu Server — the
+core of the platform, Jitsu Configurator — an optional UI for configuring Jitsu and Redis which serves as coordination, storage and caching layer.
+
+![Jitsu at Scale](/img/docs/scaling.png)
+
+The schema above outlines a typical production Jitsu setup with interaction between services. Please see a detailed description of services and
+their configuration below.
+
+## Services
+
+Production deploy should consist from 2 mandatory logical services (**Jitsu Server** and Redis) and one optional
+service (**Jitsu Configurator** - if you need a configuration UI).
+
+
+### Jitsu Server
+
+Jitsu Server accepts incoming traffic from [JS SDK](/docs/sending-data/js-sdk) or [HTTP API](/docs/sending-data/api), queues data, applies
+mappings and transformations. Also, it runs connectors synchronization tasks in background.
+
+We recommend to set up at least two nodes of Jitsu Server to be up at the same time. Traffic can be distributed using any load balancer. Jitsu Server
+are completely stateless and doesn't require advances balancing technics such as sticky sessions/ips.
+
+
+#### Interaction with other services
+
+**Interaction with Redis**. If two or more Jitsu Servers is deployed within the cluster, they require a connection to Redis. Redis is used for coordination (make sure,
+two task isn't being executed at same time or two nodes aren't making DB schema changes simultaneously), caching (task log, events cache for
+[user recognition](/docs/other-features/retroactive-user-recognition)) and other monitor tasks.
+
+**Interaction with Jitsu Configurator**. If Jitsu Server is configured to work with a configurator, it will pull destinations / sources configuration
+every 3 seconds through HTTP. Both HTTP client and Jitsu Configurator supports `Last-Modified`/`If-Modified-Since` caching optimization.
+
+Jitsu Configurator is optional. The Server can read all configuration parameter from local files.
+
+### Jitsu Configurator
+
+Jitsu Configurator is an HTTP application that allows to configure certain parts of Jitsu Server. It exposes HTTP API and serves
+React-based UI. Jitsu Server pulls configuration through HTTP end-points
+
+Though Jitsu Configurator typically doesn't experience heavy load, we recommend having at least 2 nodes running it
+(in case one of the node fails).
+
+
+**Interaction with Redis**. Jitsu Configurator uses Redis as a storage layer. It stores configuration, user settings, auth data there
+
+**Interaction with Jitsu Configurator**. Jitsu Server pulls the data from Configurator once in a few seconds
+
+### Redis
+
+Jitsu Configurator and Jitsu Server shares the same instance of Redis (though it's used for different purposes). The Server interacts
+with Redis frequently, and it makes sense to put them as close as possible (same rack or same availability zone).
+
+We recommend to set up Redis with 2 nodes and master-slave replication.
+
+## Configuration
+
+
+### Coordination
+
+At present **Jitsu** supports only [redis](https://redis.io/) as a coordination service. It used in creating/patching tables phase, for heart beating and for sync tasks scheduling. For
+using two or more **Jitsu Server** instances please make additional configuration:
+
+```yaml
+server:
+  ...
+  name: #use unique name for each instance (e.g. hostname: en-node1-us.domain.com)
+  admin_token: your_admin_token #is used in cluster information requests
+
+destinations:
+...
+coordination:
+  redis:
+    host: your_redis_host
+    port: 6379
+    password: secret_password
+    database: 0
+
+```
+
+If you use meta storage you can just write redis shortcut:
+```yaml
+server:
+  ...
+  name: #use unique name for each instance (e.g. hostname: en-node1-us.domain.com)
+  admin_token: your_admin_token #is used in cluster information requests
+
+destinations:
+...
+
+meta.storage:
+  redis:
+    host: your_redis_host
+    port: 6379
+    password: secret_password
+    database: 0
+
+coordination:
+  type: redis
+```
+
+### redis sentinel support
+
+requires adding 'sentinel_master_name' key to the configuration.
+If port isn't specified, default 23679 will be used.
+on successful connection to one sentinel, all other sentinels will be discovered.
+
+```yaml
+# eventnative.yaml
+meta:
+  storage:
+    redis:
+      host: your_sentinel_host # eg: localhost, redis-headless.redis.svc.cluster.local
+      port: 26379
+      sentinel_master_name: redis_dev_master
+      database: 0
+
+## or configuration via sentinel URL
+meta:
+  storage:
+    redis:
+      host: 'sentinel://redis_dev_master:redis_password@sentinel_host:sentinel_port'
+
+# configurator.yaml
+storage:
+  redis:
+    host: '${env.REDIS_URL}'
+    sentinel_master_name: 'redis_dev_master'
+    port: 26379
+    tls_skip_verify: '${env.TLS_SKIP_VERIFY|false}'
+    database: 0
+
+auth:
+  redis:
+    host: '${env.REDIS_URL}'
+    port: 26379
+    sentinel_master_name: 'redis_dev_master'
+    database: 0
+```
+
+Every **Jitsu Server** instance with configured coordination sends heartbeat requests every 90 seconds.
+For getting cluster information see [cluster information](/docs/other-features/admin-endpoints#apiv1cluster) section

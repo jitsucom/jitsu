@@ -1,0 +1,53 @@
+@import "./src/theme";
+
+.floating-label {
+  @transition-duration: 150ms;
+  position: absolute;
+  top: 0;
+  left: 11px;
+  height: 100%;
+  padding: 0 2px;
+  display: inline-flex;
+  align-items: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: font-size @transition-duration 0ms linear, top @transition-duration 0ms linear,
+    height @transition-duration 0ms linear, color @transition-duration 0ms linear;
+
+  &_active {
+    font-size: 11px !important;
+    top: -8px;
+    height: auto;
+    background: @component-background;
+    color: @text-color-secondary;
+  }
+}
+
+.floating-label.with-prefix {
+  left: 30px;
+}
+
+.floating-label.floating-label-large {
+  font-size: 16px; //as in ant-input-lg
+  left: 32px;
+}
+
+.with-floating-label {
+  .ant-input-suffix {
+    margin: 0;
+  }
+
+  .ant-input:focus + .ant-input-suffix .floating-label {
+    font-size: 11px;
+    top: -8px;
+    height: auto;
+    background: @component-background;
+    padding: 0 2px;
+    color: @text-color-secondary;
+  }
+}
+
+.ant-form-item-has-error .floating-label {
+  color: @error-color;
+}

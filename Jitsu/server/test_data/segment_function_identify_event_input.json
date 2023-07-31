@@ -1,0 +1,44 @@
+{
+  "_metadata": {
+    "bundled": [
+      "Segment.io"
+    ],
+    "bundledIds": [],
+    "unbundled": [
+      "Facebook Pixel Server Side"
+    ]
+  },
+  "anonymousId": "e10d0b70-0a3e-44b5-82ea-43f1372904ee",
+  "channel": "client",
+  "context": {
+    "ip": "83.220.56.2",
+    "library": {
+      "name": "analytics.js",
+      "version": "next-1.28.1"
+    },
+    "locale": "ru-RU",
+    "page": {
+      "path": "/overview",
+      "referrer": "google.com",
+      "search": "utm_source=tt",
+      "title": "",
+      "url": "https://jitsu.com/overview?utm_source=tt"
+    },
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.164 Safari/537.36"
+  },
+  "integrations": {},
+  "messageId": "ajs-next-fe7b77d9477cd8220b2e7a7c80df3ca4",
+  "originalTimestamp": "2021-07-28T08:58:19.471Z",
+  "projectId": "xjPi6XBhLh7KBALcBH8Qtq",
+  "receivedAt": "2021-07-28T08:58:19.660Z",
+  "sentAt": "2021-07-28T08:58:19.471Z",
+  "timestamp": "2021-07-28T08:58:19.660Z",
+  "traits": {
+    "email": "mbrown@example.com",
+    "name": "Michael Brown"
+  },
+  "type": "identify",
+  "userId": "f4ca124298",
+  "version": 2,
+  "apiKey": ""
+}

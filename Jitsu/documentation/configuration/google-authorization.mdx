@@ -1,0 +1,65 @@
+# Google Authorization
+
+This page about Google Authorization configuration.
+Jitsu works with a number of services provided by Google. They all have the same authorization mechanics.
+
+* **Service Account** is a special account with id that look like [NAME@PROJECT.iam.gserviceaccount.com](https://console.cloud.google.com/iam-admin/serviceaccounts/details/107095565645971338726?project=exalted-cogency-279115).
+  The account can have a key \(or several keys\) which is represented by JSON. Please note, to use Service Account as an authorization mechanism, the resource \(google doc, analytics account, add account etc\) should be shared with that account
+
+### Service account configuration
+
+The easiest way to create Service Account is through [**Google Cloud Console**](https://console.cloud.google.com/)**:** go to Navigation ("burger" at top right corner) → IAM & Admin → Service account. Create service account and download key JSON.
+
+There a few other ways (including console utils), please see [documentation](https://cloud.google.com/iam/docs/creating-managing-service-account-keys)
+
+Service Account key can be referred in a few ways in Jitsu configuration:
+
+<CodeInTabs>
+    <CodeTab title="As a JSON object" lang="yaml">
+        {`
+        auth:
+  service_account_key: {
+    "type": "service_account",
+    "project_id": "<PROJECT_ID>",
+    "private_key_id": "<PK_ID>",
+    "private_key": "<PRIVATE_KEY>",
+    "client_email": "<EMAIL>",
+    "client_id": "CID",
+    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+    "token_uri": "https://oauth2.googleapis.com/token",
+    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+    "client_x509_cert_url": "<CERT_URL>"
+  }
+        `}
+    </CodeTab>
+    <CodeTab title="As a JSON string" lang="yaml">
+        {`
+        auth:
+          service_account_key: '{"type":"service_account","project_id":"<PROJECT_ID>","private_key_id":"<PK_ID>","private_key":"<PRIVATE_KEY>","client_email":"<EMAIL>","client_id":"CID","auth_uri":"https://accounts.google.com/o/oauth2/auth","token_uri":"https://oauth2.googleapis.com/token","auth_provider_x509_cert_url":"https://www.googleapis.com/oauth2/v1/certs","client_x509_cert_url":"<CERT_URL>"}'
+        `}
+    </CodeTab>
+    <CodeTab title="As a path to file" lang="yaml">
+        {`
+        auth:
+          service_account_key: '/path/to/file.json'
+        `}
+    </CodeTab>
+</CodeInTabs>
+
+
+### GKE Workload Identity Configuration
+Supported since jitsu v1.35.5
+
+For Improved security and operability, Google developed a mechanism called Workload Identity that eliminates the need to pass around Service account JSON keys.
+- [official docs](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity)
+
+To configure Jitsu to use workload identity,
+provide the following magic string instead of the Service account JSON :
+`workload_identity`
+No quotes.
+
+Like this:
+![image](https://user-images.githubusercontent.com/6231756/135107450-6ba685d6-222f-4af3-b027-a0e2315afa43.png)
+
+It will cause google SDK to use the default k8s service account associated with the pod running Jitsu.
+This service account should be mapped to a Google Service Account that was assigned the required IAM roles. And workload identity should be enabled in the cluster.

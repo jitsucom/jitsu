@@ -1,0 +1,47 @@
+# Global destinations
+
+<PageNotice type="version" version="1.44.4" />
+
+In multi-project mode, you can define a 'global destination' that will capture events from all API keys in all projects.
+
+That may be useful for logging purpose or to install the same javascript tag on all managed websites using Tag destination.
+It helps to avoid repeating the same configurations for each project.
+
+Any destination can be converted to global one. 
+
+To do that you need to start Jitsu with environment variable `JITSU_GLOBAL_DESTINATIONS` set to the comma separated list of [destination ids](#how-to-objain-destination-id):
+
+`JITSU_GLOBAL_DESTINATIONS=ovjq2zh2uldg14c2k23fk7.8od3gkpm63mvi7ul8tqcr`
+
+After starting Jitsu with provided list of global destination ids, you still can change settings of these destinations in the UI
+and modify their transformation code.
+
+<Hint>
+    It may be useful to created separate project for global destinations to avoid mixing them together with normal destinations.
+</Hint>
+
+## Filtering
+
+Global destinations is applied for all API keys in all projects.
+But JavaScript transformation code can be used to filter out events based on the site url or any other event property:
+```javascript
+if ($.doc_host === "site1.com") {
+    //skip applying global destination on site1.com
+    return null
+}
+return $
+```
+
+## How to obtain Destination Id
+
+Destination Id consists of two parts: project id and destination id joined by dot, e.g.:
+
+`ovjq2zh2uldg14c2k23fk7.8od3gkpm63mvi7ul8tqcr`
+
+Project Id part can be obtained from the jitsu URL, while destination id can be obtained from the **Download Config** section of UI:
+
+<img alt="Jitsu processing pipeline" src="/img/docs/project-id.png" />
+
+
+
+

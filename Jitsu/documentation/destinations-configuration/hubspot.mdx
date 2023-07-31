@@ -1,0 +1,165 @@
+# HubSpot
+
+**Jitsu** supports [HubSpot](https://www.hubspot.com/) as a destination.
+
+<Hint>
+  HubSpot destination supports only <code inline="true">stream</code>
+</Hint>
+
+All incoming events are divided into 2 groups and sent to different HubSpot APIs:
+
+- Identification events (`event_type` field equal `user_identify`)
+- Other events
+
+## Identification events
+
+Jitsu uses [HubSpot Contacts API](https://legacydocs.hubspot.com/docs/methods/contacts/create_or_update) and sends
+createOrUpdate contact request to HubSpot with data (user properties) from `/user` or `/eventn_ctx/user` event JSON node depend on version of JS SDK.
+HubSpot supports default user properties like `firstname`, `lastname`, `email`, `address`, etc as well as custom user properties that are configured in HubSpot User Interface (`About [contact]` > `View` > `View All Properties`).
+You can manually set user properties in JS SDK `id()` call:
+
+```javascript
+var user = loadUser() //load user from your application
+jitsu.id({
+  'firstname': user.firstname,
+  'lastname': user.lastname,
+  'email': user.email,
+  'address': user.address,
+  'company': user.company,
+  'phone': user.phone,
+  ...
+})
+```
+
+or if you are using [Jitsu Events API](/docs/sending-data/api) you should send `event_type` field with `user_identify` value and `user` JSON node that contains user properties:
+
+```json
+{
+  ...
+  "event_type": "user_identify",
+  "user": {
+    "email": "customer@company.com",
+    "firstname": "John",
+    ...
+  },
+  ...
+}
+```
+
+or you, also, could use [JavaScript Transformations](/docs/other-features/javascript-transform) for deliver all user properties into `user` JSON node.
+
+<Hint>
+  All fields that aren't in default HubSpot properties or that aren't configured
+  in HubSpot User Interface will be deleted from request. You can find all user
+  properties in <code inline="true">Contacts</code> >{" "}
+  <code inline="true">Contact Settings</code>. HubSpot does not accept
+  properties that contain spaces or uppercases. All properties will be converted
+  to lowercase and all not alphanumeric symbols are replaced with underscores.
+</Hint>
+
+## Other events
+
+If you have a HubSpot Enterprise account you can track all other events like page views, conversions, etc. Jitsu sends them via [HubSpot Events HTTP API](https://legacydocs.hubspot.com/docs/methods/enterprise_events/http_api).
+You can configure your own [custom behavioral events](https://knowledge.hubspot.com/events-user-guide-v2/using-custom-events) in HubSpot User Interface or HubSpot will auto-create them for you based on `event_type`.
+
+For using a certain custom behavioral event - specify its name in `event_type` field:
+
+```javascript
+jitsu.track("custom_event_type", {
+  conversion: {
+    revenue: 2000.0,
+    currency: "USD",
+  },
+});
+```
+
+Jitsu sends custom events to HubSpot with the following fields:
+
+- `event_type` from input event JSON `/` path
+- `revenue` from input event JSON `/` or `/conversion/revenue` path
+- all configured user properties from `/user` or `/eventn_ctx/user` path depend on version of JS SDK.
+
+<Hint>
+  Other events are supported only on HubSpot Enterprise plan.
+  <code inline="true">/user/email</code> is required.
+</Hint>
+
+## Filtering events
+
+For filtering events stream to prevent sending all events to HubSpot `table_name_template` is used.
+For more information see [Table Names and Filters](/docs/configuration/table-names-and-filters).
+
+## Configuration
+
+HubSpot destination config consists of the following schema:
+
+```yaml
+destinations:
+  my_hubspot:
+    type: hubspot
+    mode: stream
+    hubspot:
+      access_token: "pat-abc-b7bc95dc-abcd-abcd-abcd-406aaa56c3cc" #Your HubSpot API Key - see below
+      hub_id: "20546336" #Your Hub ID - see below
+    data_layout:
+      table_name_template: "{{text template}}" #Optional. It is used for filtering events.
+```
+
+## HubSpot credentials
+
+<table>
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Type</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>
+        <b>access_token</b>
+        <br />
+        <em>(required)</em>
+      </td>
+      <td>string</td>
+      <td>
+        HubSpot Private App Access Token. Read{" "}
+        <a
+          target="_blank"
+          href="https://developers.hubspot.com/docs/api/private-apps#make-api-calls-with-your-app-s-access-token"
+        >How to obtain Access Token</a>. You need to enable following scopes for you private app: <code>crm.objects.contacts.write</code> <code>crm.schemas.contacts.read</code>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <b>api_key</b>
+        <br />
+        <em>(deprecated)</em>
+      </td>
+      <td>string</td>
+      <td>
+        Your HubSpot API Key. Deprecated in favor of <b>Private App Access Token</b>. Read{" "}
+        <a
+          target="_blank"
+          href="https://developers.hubspot.com/docs/api/migrate-an-api-key-integration-to-a-private-app"
+        >How to migrate to Private App Access Token </a>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <b>hub_id</b>
+        <br />
+        <em>(required)</em>
+      </td>
+      <td>string</td>
+      <td>
+        Your HubSpot Hub ID (in number format, like 453283). Read{" "}
+        <a
+          target="_blank"
+          href="http://help.hubspot.com/articles/KCS_Article/Account/Where-can-I-find-my-HUB-ID"
+        >How to obtain HubSpot Hub ID</a>
+      </td>
+    </tr>
+  </tbody>
+</table>

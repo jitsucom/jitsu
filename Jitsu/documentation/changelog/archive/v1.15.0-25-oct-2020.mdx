@@ -1,0 +1,18 @@
+---
+sort: 100
+---
+
+# 1.15.0 - 25 Oct 2020
+
+We're are pleased to announce a `1.15.0`. Here's the list of most exciting features:
+
+* **Admin Endpoints**. Is my EventNative doing well? What is the status of connections to destinations, how many nodes are live, and what's the structure of the latest events? Now you can get all those answers through admin end-points, a secured HTTP diagnostic interface.  Read more about [**Admin Endpoints »**](/docs/other-features/admin-endpoints)
+* **Reloadable Configs**. Can I change the EventNative configuration and apply it without restart. Yes, you can! If you change destinations or API keys. Those sections can be downloaded from an external resource — file or HTTP end-point. The configuration will be refreshed automatically.  [**Read more about reloadable configuration sections »**](/docs/configuration/#destinations)
+* **System Metrics with Prometheus**. We choose Prometheus over Graphite and other metric collection platforms as a first integration because. We think Prometheus is the most reliable, efficient, and modern monitoring system. Also, it's written in Go :\) Yay, Golang mafia! [**Read more about metrics »**](/docs/other-features/application-metrics)
+* **Mapping Improvements**. Boring, but very important feature! Now mapping can be 'strict' — only fields listed in mapping rules will remain in the resulting object, all other fields will be removed. [Read more about mapping & schemas  »](/docs/configuration/schema-and-mappings#step-3-mapping)
+* **Docker Optimization**. ❤️Great thanks to our contributors! Our [docker image](/docs/deployment/deploy-with-docker) became 3 times smaller!
+
+<Hint>
+    See more detailed changelog <a href="https://github.com/jitsucom/eventnative/releases"><b>on GitHub</b></a>
+</Hint>
+

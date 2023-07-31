@@ -1,0 +1,106 @@
+# Directories Structure
+
+**Jitsu** keeps all events data in a single directory.
+Directory is configurable via `log.path` in `eventnative.yaml`. Default value is: `./logs/events` or `/home/eventnative/data/logs/events` for docker images.
+Here's the layout of sub-directories. File naming convention. Files usually named as `${file_type}.${var1}=${val1}|${var2}=${val2}.${extention}`. The structure is very similar to the URL query string, but instead of \`?\` parameters are delimited by \`\|\` and \`.\` is used instead of \`?\` \(dots can't be a part of `${file_type}`\)
+
+<table>
+  <thead>
+    <tr>
+      <th>Sub-dir</th>
+      <th>Purpose</th>
+      <th>Data format</th>
+      <th>Filename pattern</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>
+        <code inline={true}>events/incoming</code>
+      </td>
+      <td>Incoming events (batch mode only)</td>
+      <td>Original JSON after ContextEnrichment step</td>
+      <td>
+        <p>
+          <code inline={true}>{"incoming.tok=${" + "tok}.log"}</code>
+        </p>
+        <p>
+          where <code inline={true}>{"${" + "tok}"}</code> is used API token id
+        </p>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <p>
+          <code inline={true}>events/incoming</code>
+        </p>
+        <p>(status files)</p>
+      </td>
+      <td>
+        Status of each batch: to which destinations and tables data has been
+        sent successfully
+      </td>
+      <td>DestinationStatus JSON</td>
+      <td>
+        <code inline={true}>{"incoming.tok=${" + "tok}.log.status"}</code>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <code inline={true}>events/archive</code>
+      </td>
+      <td>Events that have been already processed</td>
+      <td>Original JSON after ContextEnrichment step</td>
+      <td>
+        <p>
+          <code inline={true}>
+            {"yyyy-mm-dd/incoming.tok=${" +
+              "tok}-yyyy-mm-ddTHH-mm-ss.SSS.log.gz"}{" "}
+          </code>
+        </p>
+        <p>or</p>
+        <p>
+          <code inline={true}>
+            {"yyyy-mm-dd/streaming-archive.dst=${" +
+              "destination_id}-yyyy-mm-ddTHH-mm-ss.SSS.log.gz"}{" "}
+          </code>
+        </p>
+        <p>or</p>
+        <p>
+          <code inline={true}>
+            {"yyyy-mm-dd/failed.dst=${" +
+              "destination_id}-yyyy-mm-ddTHH-mm-ss.SSS.log.gz"}{" "}
+          </code>
+        </p>
+        <p>
+          depend on events from batch destination or stream destination or
+          replaying failed events. Where {"${" + "tok}"} is used API token id
+        </p>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <code inline={true}>events/failed</code>
+      </td>
+      <td>Events that haven&apos;t been saved to a destination due to error</td>
+      <td>
+        Collection of EventError: original JSON (after ContextEnrichment step)
+        wrapped with EventError structure
+      </td>
+      <td>
+        <code inline={true}>{"failed.dst=${" + "destination_id}.log"}</code>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <code inline={true}>{"events/queue.dst=${" + "dest_id}"}</code>
+      </td>
+      <td>Stream mode only: persistence for event queue</td>
+      <td>Binary</td>
+      <td>
+        <code inline={true}>{"${" + "partition_number}.dque"}</code> and{" "}
+        <code inline={true}>lock.lock</code>
+      </td>
+    </tr>
+  </tbody>
+</table>

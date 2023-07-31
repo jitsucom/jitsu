@@ -1,0 +1,69 @@
+{
+  "__HTTP_CONTEXT__": {
+    "headers": {
+      "accept-encoding": [
+        "gzip"
+      ],
+      "content-length": [
+        "1314"
+      ],
+      "user-agent": [
+        "Go-http-client/1.1"
+      ],
+      "x-forwarded-for": [
+        "95.82.232.185"
+      ]
+    }
+  },
+  "_metadata": {
+    "bundled": [
+      "Segment.io"
+    ],
+    "bundledIds": [],
+    "unbundled": [
+      "Facebook Pixel Server Side"
+    ]
+  },
+  "_timestamp": "2020-06-16T23:00:00.000000Z",
+  "apiKey": "",
+  "api_key": "s2stoken",
+  "channel": "client",
+  "doc": {
+    "path": "/overview",
+    "referrer": "google.com",
+    "search": "utm_source=tt",
+    "url": "https://jitsu.com/overview?utm_source=tt"
+  },
+  "event_type": "page",
+  "eventn_ctx_event_id": "mockeduuid",
+  "ids": {
+    "ajs_anonymous_id": "e10d0b70-0a3e-44b5-82ea-43f1372904ee",
+    "ajs_user_id": "f4ca124298"
+  },
+  "integrations": {},
+  "library": {
+    "name": "analytics.js",
+    "version": "next-1.28.1"
+  },
+  "originalTimestamp": "2021-07-28T10:33:07.392Z",
+  "page_title": "",
+  "path": "/overview",
+  "projectId": "xjPi6XBhLh7KBALcBH8Qtq",
+  "receivedAt": "2021-07-28T10:33:07.580Z",
+  "referrer": "google.com",
+  "search": "utm_source=tt",
+  "sentAt": "2021-07-28T10:33:07.392Z",
+  "source_ip": "83.220.56.2",
+  "src": "segment_api",
+  "timestamp": "2021-07-28T10:33:07.580Z",
+  "title": "",
+  "url": "https://jitsu.com/overview?utm_source=tt",
+  "user": {
+    "anonymous_id": "e10d0b70-0a3e-44b5-82ea-43f1372904ee",
+    "hashed_anonymous_id": "f56dca73ba080f5ac7a401a7b2c4d3d5",
+    "internal_id": "f4ca124298"
+  },
+  "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.164 Safari/537.36",
+  "user_language": "ru-RU",
+  "version": 2
+}

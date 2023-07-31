@@ -1,0 +1,48 @@
+{
+  "app": "jitsu_cloud",
+  "buildId": "b=619b77b29752c000081ec961;sc=beta/97136adfce8bdeee9861a182f0d43b8e75a8757d;t=2021-11-22T10:59:03.653Z",
+  "sysFeatures": {
+    "authorization": "firebase",
+    "users": true,
+    "smtp": false,
+    "selfhosted": false,
+    "support_widget": true,
+    "default_s3_bucket": true,
+    "support_tracking_domains": true,
+    "telemetry_usage_disabled": false,
+    "docker_hub_id": "jitsu",
+    "createDemoDatabase": true,
+    "enableCustomDomains": true,
+    "anonymizeUsers": false,
+    "chatSupportType": "chat",
+    "billingEnabled": true,
+    "environment": "jitsu_cloud"
+  },
+  "event_id": "",
+  "user": {
+    "anonymous_id": "dasbi2b32131231",
+    "email": "benchmark@jitsu.com",
+    "internal_id": "712211323017"
+  },
+  "ids": {
+    "ga": "GA1.2.513110752.1633552302",
+    "ajs_user_id": "%22zTlREG0KHIbdys723aApE7avfAvq9q2%22"
+  },
+  "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/95.0.4638.69 Safari/537.36",
+  "utc_time": "2021-11-23T14:08:05.438000Z",
+  "local_tz_offset": -180,
+  "referer": "https://cloud.jitsu.com/",
+  "url": "https://cloud.jitsu.com/",
+  "page_title": "Jitsu",
+  "doc_path": "/",
+  "doc_host": "cloud.jitsu.com",
+  "doc_search": "",
+  "screen_resolution": "1680x1050",
+  "vp_size": "1680x545",
+  "user_language": "ru-RU",
+  "doc_encoding": "UTF-8",
+  "utm": {},
+  "click_id": {},
+  "src": "jitsu",
+  "event_type": "pageview"
+}

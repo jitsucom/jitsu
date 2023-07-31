@@ -1,0 +1,220 @@
+@import "../../../theme";
+
+.darkenBackground {
+  background-color: @primary-background !important;
+}
+
+:global .ant-tabs-content-holder {
+  overflow: auto;
+}
+
+.field {
+  @apply flex flex-col h-full;
+  @apply border-0 mb-0 !important;
+
+  :global {
+    .ant-form-item-control-input,
+    .ant-form-item-control-input-content {
+      height: 100%;
+    }
+
+    .ant-row {
+      @apply h-full;
+    }
+
+    .react-monaco-editor-container {
+      @apply absolute top-0 left-0 w-full h-full max-h-full m-0 p-0 overflow-hidden;
+    }
+  }
+}
+
+.buttonGreen {
+  // color: @success !important;
+  border-color: @success !important;
+  background-color: @success !important;
+}
+
+.buttonGreen:hover,
+.buttonGreen:focus {
+  // color: @successHover !important;
+  border-color: @successHover !important;
+  background-color: @successHover !important;
+}
+
+.buttonGreen:active {
+  // color: @successActive !important;
+  border-color: @successActive !important;
+  background-color: @successActive !important;
+}
+
+.checkbox {
+  color: @disabled;
+
+  &:hover {
+    color: @link;
+  }
+}
+
+.checkboxChecked {
+  color: @text-color-secondary;
+
+  &:hover {
+    color: @link;
+  }
+}
+
+.hideAntdCheckbox {
+  :global {
+    .ant-checkbox {
+      @apply invisible;
+    }
+
+    .ant-checkbox::after {
+      border: none;
+    }
+  }
+}
+
+.checkboxLabel {
+  :global {
+    .ant-checkbox + span {
+      @apply px-1 text-xs;
+    }
+  }
+}
+
+.itemError {
+  color: @error-color;
+}
+
+.itemSuccess {
+  color: @success-color;
+}
+
+.withSmallScrollbar::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.syntaxHighlighter {
+  @apply pt-0 !important;
+}
+
+.buttonsSuperlabel {
+  @apply font-medium;
+  font-size: 8px;
+  line-height: 8px;
+  color: @text-color-secondary;
+}
+
+.label {
+  font-size: 8px;
+  color: @text-color-secondary;
+}
+
+.adaptiveIcon {
+  @apply md:hidden inline mr-0 !important;
+}
+
+.adaptiveLabel {
+  @apply md:inline hidden !important;
+}
+
+.noMargins {
+  @apply m-0 !important;
+}
+
+.splitter {
+  @apply w-2 !important;
+  background-color: @component-background !important;
+  border-color: @component-background !important;
+}
+
+.splitterHorizontal {
+  @apply h-2 !important;
+  background-color: @component-background !important;
+  border-color: @component-background !important;
+}
+
+.saveIndicator::after {
+  @apply inline-block w-2 h-2 ml-1 rounded-md;
+  content: "";
+  background-color: @text-color-secondary;
+}
+
+// Events List
+
+.events {
+  @apply h-full w-full;
+  height: 50vh;
+  max-width: 400px;
+
+  :global {
+    .ant-card-body {
+      @apply h-full box-border overflow-y-hidden p-2;
+    }
+    .ant-list {
+      @apply pr-1;
+    }
+    .ant-skeleton-content .ant-skeleton-paragraph > li + li {
+      @apply mt-2;
+    }
+  }
+}
+
+.eventItem {
+  @apply block w-full rounded-md p-1 m-1;
+  text-align: left;
+  height: auto;
+}
+
+.eventItem:hover {
+  @apply cursor-pointer;
+  background-color: @secondary-background;
+}
+
+.eventTabs {
+  height: 100%;
+
+  :global {
+    .ant-tabs-content {
+      height: 100%;
+      padding: 0;
+    }
+
+    .ant-tabs-tab-active {
+      border-bottom-color: #1a2332 !important;
+    }
+  }
+}
+
+.consoleOutput {
+  overflow-y: auto;
+
+  pre {
+    margin: 0.5em 0;
+  }
+
+  :global {
+    .log-line {
+      padding: 5px 10px;
+      border-bottom: 1px solid #5b0000;
+    }
+
+    .log-error {
+      background: #280000;
+      color: #e77072;
+      border-bottom: 1px solid #5b0000;
+    }
+
+    .log-warn {
+      background: #332a00;
+      color: #f1d094;
+      border-bottom: 1px solid #4d3f00;
+    }
+
+    .log-info {
+      border-bottom: 1px solid #535353;
+    }
+  }
+}

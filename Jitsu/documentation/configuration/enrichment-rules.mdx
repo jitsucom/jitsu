@@ -1,0 +1,107 @@
+# Enrichment Rules
+
+**Jitsu** supports `ip_lookup` and `user_agent_parse` enrichment rules per destination. Rules are executed **before** field mappings. Enrichment rule configuration has the following structure:
+
+<table>
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Type</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>
+        <b>name</b>
+        <br />
+        <em>(required)</em>
+      </td>
+      <td>string</td>
+      <td>
+        Enrichment rule name. Currently supported rules:{" "}
+        <code inline={true}>ip_lookup</code>
+        <em> </em>and<em> </em>
+        <code inline={true}>user_agent_parse</code>.
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <b>from</b>
+        <br />
+        <em>(required)</em>
+      </td>
+      <td>string</td>
+      <td>JSON path to string IP address value.</td>
+    </tr>
+    <tr>
+      <td>
+        <b>to</b>
+        <br />
+        <em>(required)</em>
+      </td>
+      <td>string</td>
+      <td>JSON path to the result.</td>
+    </tr>
+  </tbody>
+</table>
+
+## IP Lookup
+
+IP lookup resolves address in `from` JSON node into geo data structure and set geo data into `to` JSON node. It uses MaxMind under the hood. IP lookup configuration example:
+
+```yaml
+destinations:
+  destination_name:
+    enrichment:
+      - name: ip_lookup
+        from: /key1/ip_address
+        to: /key2/geo
+```
+
+<Hint>
+  Please note, that <code inline={true}>ip_lookup</code> works only if a MaxMind
+  file is provided (see{" "}
+  <a href="/docs/other-features/geo-data-resolution">Geo Resolution</a>)
+</Hint>
+
+## User Agent Parse
+
+User Agent parse decomposes user agent in `from` JSON node and set decomposed into `to` JSON node. User Agent parse configuration example:
+
+```yaml
+destinations:
+  destination_name:
+    enrichment:
+      - name: user_agent_parse
+        from: /client/device/user_agent
+        to: /client/device/parsed_user_agent
+```
+
+Parsed user agent example:
+
+```yaml
+{
+  "ua_family": "Mobile Safari",
+  "ua_version": "14.0",
+  "os_family": "iOS",
+  "os_version": "14.0.1",
+  "device_family": "iPhone",
+  "device_brand": "Apple",
+  "device_model": "iPhone",
+}
+```
+
+## Default Rules
+
+**Jitsu** has default enrichment rules that are applied to events from JavaScript API:
+
+```yaml
+enrichment:
+  - name: ip_lookup
+    from: /source_ip
+    to: /location
+  - name: user_agent_parse
+    from: /user_agent
+    to: /parsed_ua
+```

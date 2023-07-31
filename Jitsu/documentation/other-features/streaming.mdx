@@ -1,0 +1,24 @@
+# Stream mode
+
+Jitsu supports streaming of incoming event for data warehouse.
+In Stream mode all events are loaded to destinations in real-time one by one.
+That is the fastest way to get data to destinations, but it may not be as performant and cost-effective as [Batch mode](/docs/other-features/batches).
+
+Jitsu uses intermediate queue that helps to survive temporary destination unavailability or slowdowns.
+
+Currently, Jitsu supports only one streaming thread for destination.
+That may be a bottleneck in cases of high event number. In that case  [Batch mode](/docs/other-features/batches) is recommended.
+
+## Pipeline
+
+* Apply multiplexing, put each multiplexed event to the destination queue. Queue items are persisted in `events/queue.dst=${destination_id}` dir.
+* Separate thread processes each queue. For each event:
+  * Run `table_name_template` expression. If the result is an empty string - skip. If evaluation failed, the event is written to `events/failed`
+  * Apply LookupEnrichment step
+  * Apply Transformation and MappingStep (get BatchHeader)
+  * Get Table structure from memory (if memory cache is missing, get the schema from DWH)
+  * Do **table patching** (see above in batch step)
+  * Insert object with explicit typecast (if it is configured in the [JavaScript Transformation](/docs/other-features/javascript-transform)) using INSERT statement.
+  * If INSERT failed, refresh schema from DWH and repeat the step
+  * If failed, write the record to `events/failed`
+  * If success, write the event to `events/archive`

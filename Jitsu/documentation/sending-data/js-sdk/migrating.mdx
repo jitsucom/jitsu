@@ -1,0 +1,223 @@
+---
+sort: "0010"
+title: "Migration Guide"
+
+---
+# Migrating from previous version
+
+A [previous version](/docs/sending-data/javascript-reference) (deprecated) of JavaScript SDK is mostly compatible
+with new [SDK](/docs/sending-data/js-sdk). However, it has a few differences:
+
+ * Client from npm package should be initialized differently: instead of `eventN.init({...opts})` `jitsuClient({...opts})` should be called. The constructed object will have the same API
+ * The data structure sent to sever will be a slightly different which can break database structure and queries
+   (unless you pass `compat_mode: true` to [initialization options](/docs/sending-data/js-sdk/parameters-reference))
+ * If you embed Jitsu with HTML snippet you need to use a [new one](/docs/sending-data/js-sdk/snippet.md)
+
+## Migrating npm package
+
+In order to upgrade an existing npm package (`@jitsu/eventnative`) remove an old version
+
+<CodeInTabs>
+    <CodeTab lang="bash" title="yarn">yarn remove @jitsu/eventnative</CodeTab>
+    <CodeTab lang="bash" title="npm">npm uninstall -S @jitsu/eventnative</CodeTab>
+</CodeInTabs>
+
+Add a new package (`@jitsu/sdk-js`)
+
+<CodeInTabs>
+    <CodeTab title="npm" lang="bash">
+        npm install --save @jitsu/sdk-js
+    </CodeTab>
+    <CodeTab title="yarn" lang="bash">
+        yarn add @jitsu/sdk-js
+    </CodeTab>
+</CodeInTabs>
+
+Replace `eventN.init({...opts})` with `let eventN = jitsuClient({...opts})` and use the same methods to send the data. Example
+
+<CodeInTabs>
+    <CodeTab title="Old Code" lang="javascript">
+{`
+       import { eventN } from '@ksense/eventnative';
+       //init
+       eventN.init({
+         key: "$\{key\}",
+         tracking_host: "https://$\{host\}"
+       });
+       //identify user
+       eventN.id({
+         "email": getEmail(),
+         "internal_id": getId()
+       });
+    //track page views
+    eventN.track('app_page');
+`}
+    </CodeTab>
+    <CodeTab title="New Code" lang="javascript">
+{`
+       import { jitsuClient } from '@jitsu/sdk-js'
+       //init
+       const jitsu = jitsuClient({
+         key: "$\{key\}",
+         tracking_host: "https://$\{host\}"
+       });
+       //identify user
+       jitsu.id({
+         "email": getEmail(),
+         "id": getId()
+       });
+       //track page views
+       jitsu.track('app_page');
+`}
+    </CodeTab>
+    <CodeTab title="Diff" lang="plain">
+{`
+-import { eventN } from '@ksense/eventnative';
++import { jitsuClient } from '@jitsu/sdk-js'
+ //init
+-eventN.init({
++const jitsu = jitsuClient({
+     key: "$\{key\}",
+     tracking_host: "https://$\{host\}"
+ });
+ //identify user
+-eventN.id({
++jitsu.id({
+     "email": getEmail(),
+-    "internal_id": getId()
++    "id": getId()
+ });
+ //track page views
+-eventN.track('app_page');
++jitsu.track('app_page');
+`}
+    </CodeTab>
+</CodeInTabs>
+
+
+
+## Migrating snippet
+
+If you use HTML snippet just migrate it on a new [api](/docs/sending-data/js-sdk/snippet)
+
+## Migrating database schema
+
+New API sends a different JSON to the server unless [compat_mode](/docs/sending-data/js-sdk/parameters-reference) parameter is set to `true`. If you want to keep
+JSON structure intact use the following pattern:
+
+
+<CodeInTabs>
+<CodeTab title="HTML Snippet" lang="html">
+{`
+<script src="%%SERVER%%/s/lib.js"
+        data-compat-mode="true"
+        ...other params></script>
+`}
+</CodeTab>
+<CodeTab title="JS SDK" lang="javascript">
+{`const jitsu = jitsuClient({
+     compat_mode: true,
+     ...other_options
+});`}
+</CodeTab>
+</CodeInTabs>
+
+Otherwise the JSON sent by new SDK will have a little different structure
+
+
+<CodeInTabs>
+<CodeTab title="New Structure" lang="json">
+{`
+{
+  "api_key": "Test",
+  "src": "jitsu",
+  "event_type": "pageview",
+  "event_id": "",
+  "user": {
+    "anonymous_id": "sasa7qj2fg"
+  },
+  "ids": {},
+  "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_2_3) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/90.0.4430.0 Safari/537.36",
+  "utc_time": "2021-04-27T16:30:40.759000Z",
+  "local_tz_offset": -180,
+  "referer": "",
+  "url": "http://localhost:60226/test-case/embed.html?gclid=1",
+  "page_title": "",
+  "doc_path": "/test-case/embed.html",
+  "doc_host": "localhost",
+  "doc_search": "?gclid=1",
+  "screen_resolution": "1280x720",
+  "vp_size": "1280x720",
+  "user_language": "en-US",
+  "doc_encoding": "UTF-8",
+  "utm": {},
+  "click_id": {
+    "gclid": "1"
+  }
+}
+`}
+</CodeTab>
+<CodeTab title="Old Structure" lang="json">
+{`
+{
+  "api_key": "Test2",
+  "src": "eventn",
+  "event_type": "user_identify",
+  "eventn_ctx": {
+    "event_id": "",
+    "user": {
+      "anonymous_id": "v83fs15i9n",
+      "id": "uid",
+      "email": "a@b.com"
+    },
+    "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_2_3) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/90.0.4430.0 Safari/537.36",
+    "utc_time": "2021-04-27T16:39:00.588000Z",
+    "local_tz_offset": -180,
+    "referer": "",
+    "url": "http://localhost:62465/test-case/embed-no-init.html?gclid=1",
+    "page_title": "",
+    "doc_path": "/test-case/embed-no-init.html",
+    "doc_host": "localhost",
+    "doc_search": "?gclid=1",
+    "screen_resolution": "1280x720",
+    "vp_size": "1280x720",
+    "user_language": "en-US",
+    "doc_encoding": "UTF-8",
+    "utm": {},
+    "click_id": {
+      "gclid": "1"
+    }
+  }
+}`}
+</CodeTab>
+</CodeInTabs>
+
+`eventn_ctx` node present in old structure, but it's not present in a new one. All children of `eventn_ctx` is moved to the root of the object. If you have any
+mappings settings that that relies on an old structure (presence of `eventn_ctx` node), or have [user recognition](/docs/other-features/retroactive-user-recognition) enabled
+you need to make following changes in your configuration
+
+### Retroactive users recognition changes
+
+Jitsu saves each anonymous event JSON in Redis. On each identification event server gets saved events by event id from Redis and updates them in Data warehouse.
+If you have already had configured users recognition then you should change it in eventnative.yaml according to a new format:
+
+```
+users_recognition:
+ enabled: true
+ anonymous_id_node: /eventn_ctx/user/anonymous_id||/user/anonymous_id
+ identification_nodes:
+  - /eventn_ctx/user/id||/user/id
+  - /eventn_ctx/user/email||/user/email
+```
+or just:
+```
+users_recognition:
+ enabled: true
+```
+
+
+
+
+
+
+

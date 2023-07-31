@@ -1,0 +1,80 @@
+# dbt Cloud integration
+
+You can configure Jitsu to trigger [dbt Cloud job run](https://docs.getdbt.com/dbt-cloud/api-v2#operation/triggerRun) on certain events:
+ - Successful run of Source sync task
+ - Sync of Destination in batch mode 
+
+## Configuration
+
+To enable the integration first you need to configure a special kind of destination with type `dbtcloud`:
+```yaml
+destinations:
+ my_dbtcloud:
+  type: dbtcloud
+  mode: stream
+  dbtcloud:
+   account_id: 12345
+   job_id: 12345
+   cause: '`${_.event_type} triggered sync. source: ${_.source}`'
+   token: '12345'
+   enabled: true
+```
+
+Then you need to add this destination to `post_handle_destinations` collection of Sources and Destinations that need to trigger dbt Cloud job:
+```yaml
+sources:
+  amplitude:
+    type: amplitude
+    post_handle_destinations:
+      - my_dbtcloud
+    config:
+    ...
+```
+ 
+```yaml
+destinations:
+ my_snowflake:
+  type: snowflake
+  mode: batch
+  post_handle_destinations:
+   - my_dbtcloud
+  snowflake:
+  ...
+```
+### dbt Cloud Configuration Parameters
+
+| Parameter | Description |
+| :--- | :--- |
+| `account_id` (required) | Numeric ID of the dbt Cloud Account that the Job belongs to|
+| `job_id` (required) | Numeric ID of the Job to run |
+| `cause`  (required) | Text or [JavaScript function](/docs/other-features/javascript-transform) describing what causing job run |
+| `token`  (required) | dbt Cloud API key |
+| `enabled` (required) | Set to true to enable the integration |
+
+See [dbt Cloud API docs](https://docs.getdbt.com/dbt-cloud/api-v2#operation/triggerRun)
+
+#### Destination Batch Runs frequency
+
+If dbt Cloud jobs are triggered to frequently you can adjust interval of batch runs with `log.rotation_min` configuration parameter.
+
+See [General Configuration](/docs/configuration)
+
+## Supported Events
+
+dbt Cloud destination works with following event types only:
+- SOURCE_SUCCESSFUL_RUN
+- DESTINATION_BATCH_RUN
+
+all other events are ignored.
+
+Event body example:
+```json
+{
+    "event_type":  "DESTINATION_BATCH_RUN",
+    "source":      "my_snowflake",
+    "_timestamp":  "2021-08-05T14:33:18.607892Z",
+    "finished_at": "2021-08-05T14:33:18.607892Z",
+    "started_at":  "2021-08-05T14:30:55.182912Z"
+}
+```
+

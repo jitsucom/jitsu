@@ -1,0 +1,204 @@
+# Mobile API
+
+Jitsu accepts JSON events arrays as well as requests with templates (see below). You can send grouped events as a one batch or
+group repeatable fields in template object. Just send your mobile data to the Jitsu event endpoint: `/api/v1/event` with client secret api key!
+
+<APIMethod method="POST" path="/api/v1/event" title="Mobile API endpoint"/>
+
+Endpoint accepts JSON array in body as well as JSON object.
+
+<h4>Parameters</h4>
+
+<APIParam name={"X-Auth-Token"} dataType="string" required={true} type="header" description="Client secret token"/>
+<APIParam name={"token"} dataType="string" required={true} type="queryString" description="Client secret token"/>
+
+<h4>Request Payload</h4>
+
+JSON array body example:
+
+```json
+[
+  {
+    "src": "jitsu_ios",
+    "app_build_id": "2.1.1",
+    "sdk_version": "1.4.1",
+    "utc_time": "2021-06-08T09:51:02.510000Z",
+    "local_tz_offset": -180,
+    "event_id": "event1id",
+    "event_type": "user tapped purchase button",
+    "parsed_ua": {
+      "device": "iPhone 12",
+      "manufacturer": "Apple",
+      "platform": "iOS",
+      "os": "iOS",
+      "os_version": "14.1",
+      "screen_resolution": "1440x900"
+    },
+    "user": {
+      "anonymous_id": "sh1ah4rvsasdf",
+      "email": "foo@bar.com",
+      "id": "pzrWMXvtZUThJ24JW5iL2bvG9SA2"
+    },
+    "user_language": "en-GB",
+    "location": {
+      "lat": "55.706335",
+      "lon": "37.561748"
+    },
+    "custom_param_1": "chips",
+    "other_custom_param": "crisps",
+    "another parameter": {
+      "foo": "bar",
+      "cat": "cat"
+    }
+  },
+  {
+    "src": "jitsu_ios",
+    "app_build_id": "2.1.1",
+    "sdk_version": "1.4.1",
+    "utc_time": "2021-06-08T09:51:02.510000Z",
+    "local_tz_offset": -180,
+    "event_id": "event2id",
+    "event_type": "app entered background",
+    "parsed_ua": {
+      "device": "iPhone 12",
+      "manufacturer": "Apple",
+      "platform": "iOS",
+      "os": "iOS",
+      "os_version": "14.1",
+      "screen_resolution": "1440x900"
+    },
+    "user": {
+      "anonymous_id": "sh1ah4rvqeadfasdf",
+      "email": "foo@bar.com",
+      "id": "pzrWMXvtZUThJ24JW5iL2bvG9SA2"
+    },
+    "user_language": "en-GB",
+    "custom_param_2": "34"
+  }
+]
+```
+
+JSON object with template body:
+
+```json
+{
+	"template": {
+		"src": "jitsu_ios",
+		"app_build_id": "2.1.1",
+		"sdk_version": "1.4.1",
+		"parsed_ua": {
+			"device": "iPhone 12",
+			"manufacturer": "Apple",
+			"platform": "iOS",
+			"os": "iOS",
+			"os_version": "14.1",
+			"screen_resolution": "1440x900"
+		},
+		"user_language": "en-GB",
+		"user": {
+			"anonymous_id": "sh1ah4rvqeadsfd",
+			"email": "foo@bar.com",
+			"id": "pzrWMXvtZUThJ24JW5iL2bvG9SA2"
+		}
+	},
+	"events": [
+        {
+			"utc_time": "2021-06-08T09:51:02.510000Z",
+			"local_tz_offset": -180,
+			"event_id": "gpon6lmpwquappfl0",
+			"event_type": "user tapped purchase button",
+			"location": {
+				"lat": "55.706335",
+				"lon": "37.561748"
+			},
+			"custom_param_1": "chips",
+			"other_custom_param": "crisps",
+			"another parameter": {
+				"foo": "bar",
+				"cat": "cat"
+			}
+		},
+		{
+			"utc_time": "2021-06-08T09:51:02.510000Z",
+			"local_tz_offset": -180,
+			"event_id": "gpon6lmpwquappfl0",
+			"event_type": "app entered background",
+			"custom_param_2": "34"
+		}
+	]
+}
+```
+
+Based on this request Jitsu creates 2 events. Both events have fields from `template` object:
+```json
+[
+  {
+    "utc_time": "2021-06-08T09:51:02.510000Z",
+    "local_tz_offset": -180,
+    "event_id": "gpon6lmpwquappfl0",
+    "event_type": "user tapped purchase button",
+    "location": {
+      "lat": "55.706335",
+      "lon": "37.561748"
+    },
+    "custom_param_1": "chips",
+    "other_custom_param": "crisps",
+    "another parameter": {
+      "foo": "bar",
+      "cat": "cat"
+    },
+    "src": "jitsu_ios",
+    "app_build_id": "2.1.1",
+    "sdk_version": "1.4.1",
+    "parsed_ua": {
+      "device": "iPhone 12",
+      "manufacturer": "Apple",
+      "platform": "iOS",
+      "os": "iOS",
+      "os_version": "14.1",
+      "screen_resolution": "1440x900"
+    },
+    "user_language": "en-GB",
+    "user": {
+      "anonymous_id": "sh1ah4rvqeadsfd",
+      "email": "foo@bar.com",
+      "id": "pzrWMXvtZUThJ24JW5iL2bvG9SA2"
+    }
+  },
+  {
+    "utc_time": "2021-06-08T09:51:02.510000Z",
+    "local_tz_offset": -180,
+    "event_id": "gpon6lmpwquappfl0",
+    "event_type": "app entered background",
+    "custom_param_2": "34",
+    "src": "jitsu_ios",
+    "app_build_id": "2.1.1",
+    "sdk_version": "1.4.1",
+    "parsed_ua": {
+      "device": "iPhone 12",
+      "manufacturer": "Apple",
+      "platform": "iOS",
+      "os": "iOS",
+      "os_version": "14.1",
+      "screen_resolution": "1440x900"
+    },
+    "user_language": "en-GB",
+    "user": {
+      "anonymous_id": "sh1ah4rvqeadsfd",
+      "email": "foo@bar.com",
+      "id": "pzrWMXvtZUThJ24JW5iL2bvG9SA2"
+    }
+  }
+]
+```
+
+<h4>Response</h4>
+
+```json
+{"status": "ok"}
+```
+
+
+<Hint>
+  Default Geo data and User-Agent lookup enrichment are applied only if request doesn't have <code inline="true">location</code> and <code inline="true">parsed_ua</code> fields data respectively.
+</Hint>

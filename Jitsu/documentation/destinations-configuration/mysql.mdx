@@ -1,0 +1,35 @@
+# MySQL
+
+**Jitsu** supports [MySQL](https://www.mysql.com/) as a destination.
+For more information about MySQL [see docs](https://dev.mysql.com/doc/).
+
+### Configuration
+
+MySQL destination config consists of the following schema:
+
+```yaml
+destinations:
+  mysql:
+    type: mysql
+    datasource:
+      host: my_mysql_host
+      db: mydb
+      port: 3306
+      username: user
+      password: pass
+      parameters:
+        tls: false
+        timeout: '300s'
+```
+
+### datasource
+
+| Field \(\*required\) | Type | Description | Default value |
+| :--- | :--- | :--- | :--- |
+| **host\*** | string | Host of destination. | - |
+| **port** | int | Port of destination. | `3306` |
+| **db\*** | string | Database of destination. | - |
+| **username\*** | string | Username for authorization in a destination. | - |
+| **password** | string | Password for authorization in a destination. | - |
+| **parameters** | object | Connection parameters. | `timeout=600s` |
+

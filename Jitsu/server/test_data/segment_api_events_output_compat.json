@@ -1,0 +1,535 @@
+[
+  {
+    "_timestamp": "2020-06-16T23:00:00.000000Z",
+    "api_key": "s2stoken",
+    "app": {
+      "build": "build",
+      "name": "app1",
+      "namespace": "namespace",
+      "version": "1.0"
+    },
+    "event": "test_track",
+    "event_type": "track",
+    "eventn_ctx": {
+      "doc": {
+        "hash": "page_hash",
+        "path": "page_path",
+        "referrer": "page_referrer",
+        "search": "page_search",
+        "url": "page_url"
+      },
+      "event_id": "track1",
+      "ids": {
+        "ajs_anonymous_id": "anonym1"
+      },
+      "local_tz_offset": 0,
+      "location": {
+        "city": "San Francisco",
+        "country": "US",
+        "latitude": 1,
+        "longitude": 2,
+        "region": "CA",
+        "speed": 100
+      },
+      "page_title": "page_title",
+      "parsed_ua": {
+        "device_advertising_id": "an_advertising_id",
+        "device_brand": "Apple",
+        "device_id": "device1",
+        "device_model": "iPhone",
+        "device_name": "iPhone 12",
+        "device_type": "mobile",
+        "os_family": "iOS",
+        "os_version": "14.0",
+        "ua_version": "12"
+      },
+      "referer": "ref_url",
+      "screen_resolution": "1024x768",
+      "user": {
+        "anonymous_id": "anonym1",
+        "email": "ned@starkinc.com",
+        "firstName": "Ned",
+        "hashed_anonymous_id":"fae67b1cccc98d3e7e1f722238568662",
+        "lastName": "Stark",
+        "role": "the Lord of Winterfell"
+      },
+      "user_agent": "Mozilla/5.0 (iPod; CPU iPhone OS 12_0 like macOS) AppleWebKit/602.1.50 (KHTML, like Gecko) Version/12.0 Mobile/14A5335d Safari/602.1.50",
+      "user_language": "en-EU",
+      "utm": {
+        "campaign": "my_cmp",
+        "content": "my_cmp_content",
+        "medium": "my_cmp_medium",
+        "name": "my_cmp",
+        "source": "my_cmp_src",
+        "term": "my_cmp_term"
+      }
+    },
+    "extra": true,
+    "integrations": {
+      "Marketo": false,
+      "Salesforce": false,
+      "all": true
+    },
+    "library": {
+      "name": "lib1",
+      "version": "1.0"
+    },
+    "network": {
+      "wifi": true
+    },
+      "currency": "USD",
+      "revenue": 10,
+    "referrer": {
+      "link": "ref_link",
+      "name": "ref_name",
+      "type": "ref_type"
+    },
+    "source_ip": "1.1.1.1",
+    "src": "segment_api",
+    "timestamp": "2020-06-16T23:00:00Z"
+  },
+  {
+    "_timestamp": "2020-06-16T23:00:00.000000Z",
+    "api_key": "s2stoken",
+    "app": {
+      "build": "build",
+      "name": "app1",
+      "namespace": "namespace",
+      "version": "1.0"
+    },
+    "event_type": "screen",
+    "eventn_ctx": {
+      "doc": {
+        "hash": "page_hash",
+        "path": "page_path",
+        "referrer": "page_referrer",
+        "search": "page_search",
+        "url": "page_url"
+      },
+      "event_id": "screen1",
+      "ids": {
+        "ajs_anonymous_id": "anonym1"
+      },
+      "local_tz_offset": 0,
+      "location": {
+        "city": "San Francisco",
+        "country": "US",
+        "latitude": 1,
+        "longitude": 2,
+        "region": "CA",
+        "speed": 100
+      },
+      "page_title": "page_title",
+      "parsed_ua": {
+        "device_advertising_id": "an_advertising_id",
+        "device_brand": "Apple",
+        "device_id": "device1",
+        "device_model": "iPhone",
+        "device_name": "iPhone 12",
+        "device_type": "mobile",
+        "os_family": "iOS",
+        "os_version": "14.0",
+        "ua_version": "12"
+      },
+      "referer": "ref_url",
+      "screen_resolution": "1024x768",
+      "user": {
+        "anonymous_id": "anonym1",
+        "email": "ned@starkinc.com",
+        "firstName": "Ned",
+        "hashed_anonymous_id":"fae67b1cccc98d3e7e1f722238568662",
+        "lastName": "Stark",
+        "role": "the Lord of Winterfell"
+      },
+      "user_agent": "Mozilla/5.0 (iPod; CPU iPhone OS 12_0 like macOS) AppleWebKit/602.1.50 (KHTML, like Gecko) Version/12.0 Mobile/14A5335d Safari/602.1.50",
+      "user_language": "en-EU",
+      "utm": {
+        "campaign": "my_cmp",
+        "content": "my_cmp_content",
+        "medium": "my_cmp_medium",
+        "name": "my_cmp",
+        "source": "my_cmp_src",
+        "term": "my_cmp_term"
+      }
+    },
+    "extra": true,
+    "integrations": {
+      "Marketo": false,
+      "Salesforce": false,
+      "all": true
+    },
+    "library": {
+      "name": "lib1",
+      "version": "1.0"
+    },
+    "name": "home screen",
+    "network": {
+      "wifi": true
+    },
+      "currency": "USD",
+      "revenue": 10,
+    "referrer": {
+      "link": "ref_link",
+      "name": "ref_name",
+      "type": "ref_type"
+    },
+    "source_ip": "1.1.1.1",
+    "src": "segment_api",
+    "timestamp": "2020-06-16T23:00:00Z"
+  },
+  {
+    "_timestamp": "2020-06-16T23:00:00.000000Z",
+    "api_key": "s2stoken",
+    "app": {
+      "build": "build",
+      "name": "app1",
+      "namespace": "namespace",
+      "version": "1.0"
+    },
+    "event_type": "alias",
+    "eventn_ctx": {
+      "doc": {
+        "hash": "page_hash",
+        "path": "page_path",
+        "referrer": "page_referrer",
+        "search": "page_search",
+        "url": "page_url"
+      },
+      "event_id": "alias1",
+      "ids": {
+        "ajs_user_id": "user1"
+      },
+      "local_tz_offset": 0,
+      "location": {
+        "city": "San Francisco",
+        "country": "US",
+        "latitude": 1,
+        "longitude": 2,
+        "region": "CA",
+        "speed": 100
+      },
+      "page_title": "page_title",
+      "parsed_ua": {
+        "device_advertising_id": "an_advertising_id",
+        "device_brand": "Apple",
+        "device_id": "device1",
+        "device_model": "iPhone",
+        "device_name": "iPhone 12",
+        "device_type": "mobile",
+        "os_family": "iOS",
+        "os_version": "14.0",
+        "ua_version": "12"
+      },
+      "referer": "ref_url",
+      "screen_resolution": "1024x768",
+      "user": {
+        "email": "ned@starkinc.com",
+        "firstName": "Ned",
+        "hashed_anonymous_id":"fae67b1cccc98d3e7e1f722238568662",
+        "internal_id": "user1",
+        "lastName": "Stark",
+        "role": "the Lord of Winterfell"
+      },
+      "user_agent": "Mozilla/5.0 (iPod; CPU iPhone OS 12_0 like macOS) AppleWebKit/602.1.50 (KHTML, like Gecko) Version/12.0 Mobile/14A5335d Safari/602.1.50",
+      "user_language": "en-EU",
+      "utm": {
+        "campaign": "my_cmp",
+        "content": "my_cmp_content",
+        "medium": "my_cmp_medium",
+        "name": "my_cmp",
+        "source": "my_cmp_src",
+        "term": "my_cmp_term"
+      }
+    },
+    "extra": true,
+    "integrations": {
+      "Marketo": false,
+      "Salesforce": false,
+      "all": true
+    },
+    "library": {
+      "name": "lib1",
+      "version": "1.0"
+    },
+    "network": {
+      "wifi": true
+    },
+    "previousId": "previousId",
+    "referrer": {
+      "link": "ref_link",
+      "name": "ref_name",
+      "type": "ref_type"
+    },
+    "source_ip": "1.1.1.1",
+    "src": "segment_api",
+    "timestamp": "2020-06-16T23:00:00Z"
+  },
+  {
+    "_timestamp": "2020-06-16T23:00:00.000000Z",
+    "api_key": "s2stoken",
+    "app": {
+      "build": "build",
+      "name": "app1",
+      "namespace": "namespace",
+      "version": "1.0"
+    },
+    "event_type": "group",
+    "eventn_ctx": {
+      "doc": {
+        "hash": "page_hash",
+        "path": "page_path",
+        "referrer": "page_referrer",
+        "search": "page_search",
+        "url": "page_url"
+      },
+      "event_id": "group1",
+      "ids": {
+        "ajs_anonymous_id": "anonym1",
+        "ajs_user_id": "user1"
+      },
+      "local_tz_offset": 0,
+      "location": {
+        "city": "San Francisco",
+        "country": "US",
+        "latitude": 1,
+        "longitude": 2,
+        "region": "CA",
+        "speed": 100
+      },
+      "page_title": "page_title",
+      "parsed_ua": {
+        "device_advertising_id": "an_advertising_id",
+        "device_brand": "Apple",
+        "device_id": "device1",
+        "device_model": "iPhone",
+        "device_name": "iPhone 12",
+        "device_type": "mobile",
+        "os_family": "iOS",
+        "os_version": "14.0",
+        "ua_version": "12"
+      },
+      "referer": "ref_url",
+      "screen_resolution": "1024x768",
+      "user": {
+        "anonymous_id": "anonym1",
+        "email": "ned@starkinc.com",
+        "firstName": "Ned",
+        "hashed_anonymous_id":"fae67b1cccc98d3e7e1f722238568662",
+        "internal_id": "user1",
+        "lastName": "Stark",
+        "role": "the Lord of Winterfell"
+      },
+      "user_agent": "Mozilla/5.0 (iPod; CPU iPhone OS 12_0 like macOS) AppleWebKit/602.1.50 (KHTML, like Gecko) Version/12.0 Mobile/14A5335d Safari/602.1.50",
+      "user_language": "en-EU",
+      "utm": {
+        "campaign": "my_cmp",
+        "content": "my_cmp_content",
+        "medium": "my_cmp_medium",
+        "name": "my_cmp",
+        "source": "my_cmp_src",
+        "term": "my_cmp_term"
+      }
+    },
+    "extra": true,
+    "groupId": "group1",
+    "integrations": {
+      "Marketo": false,
+      "Salesforce": false,
+      "all": true
+    },
+    "library": {
+      "name": "lib1",
+      "version": "1.0"
+    },
+    "network": {
+      "wifi": true
+    },
+    "referrer": {
+      "link": "ref_link",
+      "name": "ref_name",
+      "type": "ref_type"
+    },
+    "source_ip": "1.1.1.1",
+    "src": "segment_api",
+    "timestamp": "2020-06-16T23:00:00Z"
+  },
+  {
+    "_timestamp": "2020-06-16T23:00:00.000000Z",
+    "api_key": "s2stoken",
+    "app": {
+      "build": "build",
+      "name": "app1",
+      "namespace": "namespace",
+      "version": "1.0"
+    },
+    "event_type": "identify",
+    "eventn_ctx": {
+      "doc": {
+        "hash": "page_hash",
+        "path": "page_path",
+        "referrer": "page_referrer",
+        "search": "page_search",
+        "url": "page_url"
+      },
+      "event_id": "identify1",
+      "ids": {
+        "ajs_anonymous_id": "anonym1",
+        "ajs_user_id": "user1"
+      },
+      "local_tz_offset": 0,
+      "location": {
+        "city": "San Francisco",
+        "country": "US",
+        "latitude": 1,
+        "longitude": 2,
+        "region": "CA",
+        "speed": 100
+      },
+      "page_title": "page_title",
+      "parsed_ua": {
+        "device_advertising_id": "an_advertising_id",
+        "device_brand": "Apple",
+        "device_id": "device1",
+        "device_model": "iPhone",
+        "device_name": "iPhone 12",
+        "device_type": "mobile",
+        "os_family": "iOS",
+        "os_version": "14.0",
+        "ua_version": "12"
+      },
+      "referer": "ref_url",
+      "screen_resolution": "1024x768",
+      "user": {
+        "anonymous_id": "anonym1",
+        "email": "ned@starkinc.com",
+        "firstName": "Ned",
+        "hashed_anonymous_id":"fae67b1cccc98d3e7e1f722238568662",
+        "internal_id": "user1",
+        "lastName": "Stark",
+        "role": "the Lord of Winterfell"
+      },
+      "user_agent": "Mozilla/5.0 (iPod; CPU iPhone OS 12_0 like macOS) AppleWebKit/602.1.50 (KHTML, like Gecko) Version/12.0 Mobile/14A5335d Safari/602.1.50",
+      "user_language": "en-EU",
+      "utm": {
+        "campaign": "my_cmp",
+        "content": "my_cmp_content",
+        "medium": "my_cmp_medium",
+        "name": "my_cmp",
+        "source": "my_cmp_src",
+        "term": "my_cmp_term"
+      }
+    },
+    "extra": true,
+    "integrations": {
+      "Marketo": false,
+      "Salesforce": false,
+      "all": true
+    },
+    "library": {
+      "name": "lib1",
+      "version": "1.0"
+    },
+    "network": {
+      "wifi": true
+    },
+    "referrer": {
+      "link": "ref_link",
+      "name": "ref_name",
+      "type": "ref_type"
+    },
+    "source_ip": "1.1.1.1",
+    "src": "segment_api",
+    "timestamp": "2020-06-16T23:00:00Z"
+  },
+  {
+    "_timestamp": "2020-06-16T23:00:00.000000Z",
+    "api_key": "s2stoken",
+    "app": {
+      "build": "build",
+      "name": "app1",
+      "namespace": "namespace",
+      "version": "1.0"
+    },
+    "event_type": "page",
+    "eventn_ctx": {
+      "doc": {
+        "hash": "page_hash",
+        "path": "page_path",
+        "referrer": "page_referrer",
+        "search": "page_search",
+        "url": "page_url"
+      },
+      "event_id": "page1",
+      "ids": {
+        "ajs_anonymous_id": "anonym1",
+        "ajs_user_id": "user1"
+      },
+      "local_tz_offset": 0,
+      "location": {
+        "city": "San Francisco",
+        "country": "US",
+        "latitude": 1,
+        "longitude": 2,
+        "region": "CA",
+        "speed": 100
+      },
+      "page_title": "page_title",
+      "parsed_ua": {
+        "device_advertising_id": "an_advertising_id",
+        "device_brand": "Apple",
+        "device_id": "device1",
+        "device_model": "iPhone",
+        "device_name": "iPhone 12",
+        "device_type": "mobile",
+        "os_family": "iOS",
+        "os_version": "14.0",
+        "ua_version": "12"
+      },
+      "referer": "ref_url",
+      "screen_resolution": "1024x768",
+      "user": {
+        "anonymous_id": "anonym1",
+        "email": "ned@starkinc.com",
+        "firstName": "Ned",
+        "hashed_anonymous_id":"fae67b1cccc98d3e7e1f722238568662",
+        "internal_id": "user1",
+        "lastName": "Stark",
+        "role": "the Lord of Winterfell"
+      },
+      "user_agent": "Mozilla/5.0 (iPod; CPU iPhone OS 12_0 like macOS) AppleWebKit/602.1.50 (KHTML, like Gecko) Version/12.0 Mobile/14A5335d Safari/602.1.50",
+      "user_language": "en-EU",
+      "utm": {
+        "campaign": "my_cmp",
+        "content": "my_cmp_content",
+        "medium": "my_cmp_medium",
+        "name": "my_cmp",
+        "source": "my_cmp_src",
+        "term": "my_cmp_term"
+      }
+    },
+    "extra": true,
+    "integrations": {
+      "Marketo": false,
+      "Salesforce": false,
+      "all": true
+    },
+    "library": {
+      "name": "lib1",
+      "version": "1.0"
+    },
+    "name": "page",
+    "network": {
+      "wifi": true
+    },
+      "currency": "USD",
+      "revenue": 10,
+    "referrer": {
+      "link": "ref_link",
+      "name": "ref_name",
+      "type": "ref_type"
+    },
+    "source_ip": "1.1.1.1",
+    "src": "segment_api",
+    "timestamp": "2020-06-16T23:00:00Z"
+  }
+]

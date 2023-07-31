@@ -1,0 +1,43 @@
+@import "../commons/OnboardingCommonStyles.module.less";
+
+.mainContainer {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  max-height: 70vh;
+  max-width: 100%;
+  height: 100vh;
+  width: 100vw;
+}
+
+.header {
+  font-size: @header-font-size;
+  font-weight: @header-font-weight;
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.paragraph {
+  font-size: @text-font-size;
+  margin-bottom: 30px;
+}
+
+.controlsContainer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+
+  && > button {
+    width: @buttons-width;
+    max-width: @buttons-max-width;
+  }
+}
+
+.logoutLink {
+  position: absolute;
+  bottom: -10px;
+  right: 0px;
+  font-size: 12px;
+}

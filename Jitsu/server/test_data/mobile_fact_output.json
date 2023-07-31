@@ -1,0 +1,57 @@
+{
+  "__HTTP_CONTEXT__": {
+    "headers": {
+      "accept-encoding": [
+        "gzip"
+      ],
+      "content-length": [
+        "824"
+      ],
+      "user-agent": [
+        "Go-http-client/1.1"
+      ],
+      "x-auth-token": [
+        "c2stoken"
+      ],
+      "x-forwarded-for": [
+        "95.82.232.185"
+      ]
+    }
+  },
+  "_timestamp": "2020-06-16T23:00:00.000000Z",
+  "source_ip": "95.82.232.185",
+  "src": "jitsu_ios",
+  "api_key": "c2stoken",
+  "app_build_id": "2.1.1",
+  "sdk_version": "1.4.1",
+  "utc_time": "2021-06-08T09:51:02.510000Z",
+  "local_tz_offset": -180,
+  "eventn_ctx_event_id": "gpon6lmpwquappfl0",
+  "event_type": "user tapped purchase button",
+  "screen_resolution": "1440x900",
+  "parsed_ua": {
+    "device_model": "iPhone 12",
+    "device_brand": "Apple",
+    "device_family": "iPhone",
+    "os_family": "iOS",
+    "os_version": "14.1"
+  },
+  "user": {
+    "anonymous_id": "sh1ah4rvqedasfd",
+    "email": "foo@bar.com",
+    "hashed_anonymous_id": "c48e863c1710f147ad11fd2715f99d7a",
+    "internal_id": "pzrWMXvtZUThJ24JW5iL2bvG9SA2"
+  },
+  "user_language": "en-GB",
+  "location": {
+    "latitude": "55.706335",
+    "longitude": "37.561748"
+  },
+  "user_agent": "Go-http-client/1.1",
+  "custom_param_1": "chips",
+  "other_custom_param": "crisps",
+  "another parameter": {
+    "foo": "bar",
+    "cat": "cat"
+  }
+}

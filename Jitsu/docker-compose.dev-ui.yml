@@ -1,0 +1,56 @@
+# Compose for setting up local dev environment. For developing UI. This includes:
+#    - Configurator
+#    - Postgres to test destinations configurations
+# Configurator is started at localhost:9875
+# Run UI with BACKEND_API_BASE=http://localhost:9875 to use local backend
+
+version: "2.3"
+networks:
+  main:
+
+services:
+  db:
+    image: postgres
+    volumes:
+      - ./ui-dev-compose/configurator/postgres/data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+
+  jitsu:
+    container_name: jitsu
+    image: jitsucom/jitsu:latest
+    environment:
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+    volumes:
+      - ./ui-dev-compose/configurator/data/logs:/home/configurator/data/logs
+      - ./ui-dev-compose/server/data/logs:/home/eventnative/data/logs
+      - ./ui-dev-compose/server/data/logs/events:/home/eventnative/data/logs/events
+    restart: always
+    ports:
+      - "9875:7000"
+    networks:
+      - main
+  redis:
+    container_name: jitsu_redis
+    image: redis:6.2.6-bullseye
+    volumes:
+      - ./ui-dev-compose/configurator/redis/data:/data
+    restart: always
+    networks:
+      - main
+  redis_insights:
+    container_name: jitsu_redis_insights
+    image: redislabs/redisinsight:latest
+    restart: always
+    networks:
+      - main
+    volumes:
+      - ./ui-dev-compose/redis-insights/db:/db
+    ports:
+      - "9874:8001"
+    depends_on:
+      - redis

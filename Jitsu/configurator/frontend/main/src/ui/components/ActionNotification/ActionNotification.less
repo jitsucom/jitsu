@@ -1,0 +1,67 @@
+.jitsu-message {
+  @apply flex justify-center pt-2;
+  position: fixed;
+  width: 100%;
+  pointer-events: none;
+  top: 0;
+  left: 0;
+  z-index: 10000 !important;
+}
+
+.jitsu-message-notice {
+  margin-top: 2px;
+}
+
+.jitsu-message-notice-content {
+  @apply bg-bgComponent px-4 py-3 rounded-lg inline-block;
+  box-sizing: border-box;
+  display: inline-block;
+  box-shadow: 0 3px 6px -4px rgba(0, 0, 0, 0.12), 0 6px 16px 0 rgba(0, 0, 0, 0.08), 0 9px 28px 8px rgba(0, 0, 0, 0.05);
+  pointer-events: all;
+}
+
+.jitsu-message-notice-content > .jitsu-message-custom-content > .anticon {
+  display: none;
+}
+
+.jitsu-message-notice.jitsu-move-up-leave.jitsu-move-up-leave-active {
+  animation-name: MessageMoveOut;
+  animation-duration: 0.3s;
+}
+
+.jitsu-message-notice .close-btn > span {
+  font-size: 18px;
+  vertical-align: -0.215em;
+}
+
+.app-update-notice {
+  .jitsu-message-notice-content {
+    font-size: 24px;
+  }
+}
+
+@-webkit-keyframes MessageMoveOut {
+  0% {
+    max-height: 150px;
+    margin-top: 2px;
+    opacity: 1;
+  }
+  100% {
+    max-height: 0;
+    margin-top: -10px;
+    opacity: 0;
+  }
+}
+
+@keyframes MessageMoveOut {
+  0% {
+    max-height: 150px;
+    margin-top: 2px;
+    opacity: 1;
+  }
+  100% {
+    max-height: 0;
+    margin-top: -10px;
+    opacity: 0;
+  }
+}

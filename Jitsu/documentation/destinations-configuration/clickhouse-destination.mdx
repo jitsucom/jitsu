@@ -1,0 +1,157 @@
+# ClickHouse
+
+**Jitsu** supports [ClickHouse](https://clickhouse.tech/) as a destination. For more information about
+ClickHouse [see docs](https://clickhouse.tech/docs/en/).
+
+## Configuration
+
+ClickHouse destination config consists of following schema:
+
+```yaml
+#We recommend to set up Clickhouse TLS config separately from destinations.
+#That allows sharing TLS config between destinations and makes possible to configure secure connection with configurator UI
+clickhouse:
+  tls_config:
+    maincert: path_to_crt_file
+    cert2: path_to_crt_file2
+
+#Destinations config    
+destinations:
+  clickhouse_1:
+    type: clickhouse
+    clickhouse:
+      dsns:
+        - "https://username:password@host1:8443/mydb?read_timeout=5m&timeout=5m&enable_http_compression=1&tls_config=maincert"
+        - "https://username:password@host2:8443/mydb?read_timeout=5m&timeout=5m&enable_http_compression=1&tls_config=maincert"
+        - "https://username:password@host3:8443/mydb?read_timeout=5m&timeout=5m&enable_http_compression=1&tls_config=maincert"
+      db: mydb
+      cluster: mycluster
+      engine:
+        raw_statement: "ENGINE = ReplacingMergeTree(_timestamp) ORDER BY (event_id)" #Optional
+        nullable_fields:
+          - middle_name
+          - event_description
+        partition_fields:
+          - function: toYYYYMMDD
+            field: _timestamp
+          - field: event_type
+        order_fields:
+          - function: intHash32
+            field: id
+        primary_keys:
+          - event_id #Must be equal to server.unique_id_field
+```
+
+## Fields
+
+| Field \(\*required\) | Type         | Description                                                                                                                      | Default value |
+| :------------------- | :----------- | :------------------------------------------------------------------------------------------------------------------------------- | :------------ |
+| **dsns\***           | string array | Array of connection strings. Must contain at least one connection string.                                                        | -             |
+| **db\***             | string       | Database name.                                                                                                                   | -             |
+| **cluster\***        | string       | Required if **dsns** count more than 1. Run `SELECT * from system.clusters` to get the list of all available clusters            | -             |
+| **engine**           | object       | Tables engine configuration.                                                                                                     | see below     |
+| **tls**              | object       | TLS configuration. Map of cert names and paths to cert files. Cert names will be used in **tls_config** query parameter in dsns. | -             |
+
+If **engine** wasn't provided default one \(depends on cluster configuration\) will be used:
+
+```yaml
+#if ClickHouse single server (dsns = 1)
+ReplacingMergeTree(_timestamp) PARTITION BY toYYYYMM(_timestamp) ORDER BY ($server.unique_id_field)
+
+#if ClickHouse cluster (dsns > 1)
+ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/$db/$tablename', '{replica}', _timestamp) PARTITION BY toYYYYMM(_timestamp) ORDER BY ($server.unique_id_field)
+```
+
+`$server.unique_id_field` - is a global configuration of events unique ID depends on type of Jitsu JS SDK.
+For JS SDK 2.0: `server.unique_id_field = event_id`
+For the oldest one: `server.unique_id_field = eventn_ctx_event_id`
+
+## Engine
+
+<table>
+  <thead>
+    <tr>
+      <th>Field (*required)</th>
+      <th>Type</th>
+      <th>Description</th>
+      <th>Default value</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>
+        <b>raw_statement</b>
+      </td>
+      <td>string</td>
+      <td>
+        Engine raw statement which will be used in
+        <p>CREATE TABLE db.name (a type,b type) $raw_statement.</p>
+        <p>
+          Must begin with &apos;ENGINE=&apos;. Could include ORDER BY, PARTITION
+          BY, etc.
+        </p>
+      </td>
+      <td>-</td>
+    </tr>
+    <tr>
+      <td>
+        <b>nullable_fields</b>
+      </td>
+      <td>string array</td>
+      <td>
+        Array of nullable fields. All fields are created as non-null by default.
+      </td>
+      <td>-</td>
+    </tr>
+    <tr>
+      <td>
+        <b>partition_fields</b>
+      </td>
+      <td>field object array</td>
+      <td>
+        Array of <b>field</b> <b>objects</b> will be used in PARTITION BY
+        ($partition_fields) statement
+      </td>
+      <td>
+        <code inline={true}>toYYYYMM(_timestamp)</code>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <b>order_fields</b>
+      </td>
+      <td>field object array</td>
+      <td>
+        Array of <b>field</b> <b>objects</b> will be used in ORDER BY
+        ($order_fields) statement
+      </td>
+      <td>
+        <code inline={true}>$server.unique_id_field</code>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <b>primary_keys</b>
+      </td>
+      <td>string array</td>
+      <td>
+        Array of field names will be used in PRIMARY KEY ($primary_keys)
+        statement
+      </td>
+      <td>-</td>
+    </tr>
+  </tbody>
+</table>
+
+<Hint>
+  Please note, if <b>raw_statement</b> exists than config keys{" "}
+  <b>partition_fields</b>, <b>order_fields</b>,<b>primary_keys</b> will be
+  skipped.
+</Hint>
+
+## Field object
+
+| Field \(\*required\) | Type   | Description                                                                                | Default value |
+| :------------------- | :----- | :----------------------------------------------------------------------------------------- | :------------ |
+| **function**         | string | ClickHouse function name which will be applied to the field \(e.g. toYYYYMMDD, intHash32\) | -             |
+| **field\***          | string | Field name                                                                                 | -             |
