@@ -121,9 +121,13 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
   }, [workspace.id, credUserProvided, obj.package, obj.version, change, specs]);
 
   const validate = useCallback(() => {
+    const errors: string[] = [];
+    if (!specs || !specs.connectionSpecification) {
+      errors.push("Source specification was not loaded");
+      return;
+    }
     const validate = ajv.compile(specs.connectionSpecification);
     const valid = validate(credentials);
-    const errors: string[] = [];
     if (!obj.name) {
       errors.push("[required] Object must have required property 'name'");
     }
@@ -156,7 +160,7 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
       return false;
     }
     return true;
-  }, [ajv, credentials, modal, obj.name, specs.connectionSpecification]);
+  }, [ajv, credentials, modal, obj.name, specs]);
 
   const save = useCallback(async () => {
     setLoading(true);

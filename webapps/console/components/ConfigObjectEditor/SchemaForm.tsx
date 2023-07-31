@@ -1,7 +1,6 @@
 import React, { useCallback, useMemo, useState } from "react";
 import set from "lodash/set";
 import get from "lodash/get";
-import styles from "./ConfigEditor.module.css";
 import { EditorField } from "./EditorField";
 import { Switch, Tabs } from "antd";
 import { createDisplayName } from "../../lib/zod";
@@ -110,15 +109,15 @@ export const SchemaForm: React.FC<{
           const editorProps = { value, onChange: change };
 
           if (f.const) {
-            if (f.description) {
-              return (
-                <div key={n} className={`px-3 py-0.5 text-textLight ${styles.help}`}>
-                  <Htmlizer>{f.description}</Htmlizer>
-                </div>
-              );
-            } else {
-              return null;
-            }
+            // if (f.description) {
+            //   return (
+            //     <div key={n} className={`px-3 py-0.5 text-textLight ${styles.help}`}>
+            //       <Htmlizer>{f.description}</Htmlizer>
+            //     </div>
+            //   );
+            // } else {
+            return null;
+            //}
           }
 
           return (

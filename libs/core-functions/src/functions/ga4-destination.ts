@@ -156,6 +156,7 @@ function trackEvent(event: AnalyticsServerEvent): Ga4Event {
   const evp = event.properties || {};
   let params: Record<string, any> = {};
   let name;
+  const eventName = event.event || event.name;
   switch (event.name) {
     case "Promotion Clicked":
       name = "select_promotion";
@@ -267,7 +268,7 @@ function trackEvent(event: AnalyticsServerEvent): Ga4Event {
       params.items = getItems(event);
       break;
     default:
-      name = event.event || event.name;
+      name = eventName;
       params = { ...evp };
       params = removeProperties(params, StandardProperties);
       params.currency = evp.currency;
