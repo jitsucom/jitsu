@@ -161,7 +161,7 @@ function SyncEditor({
     }
     let cancelled = false;
     (async () => {
-      console.log("Loading catalog");
+      console.log("Loading catalog for:", service.package, service.version);
       setLoadingCatalog(true);
       try {
         const h = juavaHash("md5", hash(JSON.parse(service.credentials)));
@@ -205,7 +205,9 @@ function SyncEditor({
       } catch (error) {
         updateCatalog(error);
       } finally {
-        setLoadingCatalog(false);
+        if (!cancelled) {
+          setLoadingCatalog(false);
+        }
       }
     })();
     return () => {

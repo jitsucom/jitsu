@@ -30,6 +30,7 @@ import JSON5 from "json5";
 import { ButtonGroup, ButtonProps } from "../../../components/ButtonGroup/ButtonGroup";
 import { Overlay } from "../../../components/Overlay/Overlay";
 import { CodeBlock } from "../../../components/CodeBlock/CodeBlock";
+import { processTaskStatus, TaskStatus } from "./tasks";
 
 dayjs.extend(utc);
 dayjs.extend(relativeTime);
@@ -185,7 +186,7 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
       },
     },
     {
-      title: <div className={"whitespace-nowrap"}>Sync Status</div>,
+      title: <div className={"whitespace-nowrap"}>Last Status</div>,
       className: "text-right",
       width: "4%",
       render: (text, link) => {
@@ -200,37 +201,10 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
           );
         }
         const t = tasks.data.tasks?.[link.id];
-        const color = (status: string) => {
-          switch (status) {
-            case "RUNNING":
-              return "blue";
-            case "FAILED":
-              return "red";
-            case "SUCCESS":
-              return "green";
-            default:
-              return undefined;
-          }
-        };
         if (!t?.status) {
-          return <Tag>NO RUNS</Tag>;
+          return <Tag style={{ marginRight: 0 }}>NO RUNS</Tag>;
         }
-        return (
-          //<div className={"flex flex-col items-end text-right"}>
-          <Tag
-            className={"cursor-pointer"}
-            title={"Show logs"}
-            onClick={() => {
-              router.push(`/${workspace.slug || workspace.id}/syncs/logs?taskId=${t.taskId}&syncId=${t.syncId}`);
-            }}
-            color={color(t.status)}
-            style={{ marginRight: 0 }}
-          >
-            {t.status} <FaExternalLinkAlt className={"inline ml-0.5 w-2.5 h-2.5"} />
-          </Tag>
-          //  <span className={"text-xxs text-gray-500"}>show logs</span>
-          //</div>
-        );
+        return <TaskStatus task={processTaskStatus(t)} />;
       },
     },
     {
@@ -241,7 +215,7 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
           return undefined;
         }
         const t = tasks.data.tasks?.[link.id];
-        return <div>{t ? formatDate(t.updatedAt) : ""}</div>;
+        return <div>{t ? formatDate(t.updated_at) : ""}</div>;
       },
     },
     {
@@ -405,7 +379,7 @@ function Syncs(props: RemoteEntitiesProps) {
     <div>
       <div className="flex justify-between py-6">
         <div className="flex items-center">
-          <div className="text-3xl">Edit syncs</div>
+          <div className="text-3xl">Syncs</div>
         </div>
         <div>
           <WJitsuButton href={`/syncs/edit`} type="primary" size="large" icon={<FaPlus className="anticon" />}>

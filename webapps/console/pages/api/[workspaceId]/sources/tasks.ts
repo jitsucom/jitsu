@@ -17,11 +17,12 @@ const aggregatedResultType = z.object({
   tasks: z
     .record(
       z.object({
-        syncId: z.string(),
-        taskId: z.string(),
+        sync_id: z.string(),
+        task_id: z.string(),
         status: z.string(),
-        startedAt: z.date(),
-        updatedAt: z.date(),
+        description: z.string(),
+        started_at: z.date(),
+        updated_at: z.date(),
       })
     )
     .optional(),
@@ -53,21 +54,23 @@ export default createRoute()
     try {
       //get latest source_tasks from db for provided sync ids grouped by sync id
       const rows = await db.pgPool().query(
-        `select distinct sync_id as syncid,
-       last_value(task_id) over ( partition by sync_id order by started_at RANGE BETWEEN unbounded preceding and unbounded following) taskid,
-       last_value(status) over ( partition by sync_id order by started_at RANGE BETWEEN unbounded preceding and unbounded following) status,
-       last_value(started_at) over ( partition by sync_id order by started_at RANGE BETWEEN unbounded preceding and unbounded following) startedat,
-       last_value(updated_at) over ( partition by sync_id order by started_at RANGE BETWEEN unbounded preceding and unbounded following) updatedat
+        `select distinct sync_id as sync_id,
+       last_value(task_id) over ( partition by sync_id order by started_at RANGE BETWEEN unbounded preceding and unbounded following) as task_id,
+       last_value(status) over ( partition by sync_id order by started_at RANGE BETWEEN unbounded preceding and unbounded following) as status,
+       last_value(description) over ( partition by sync_id order by started_at RANGE BETWEEN unbounded preceding and unbounded following) as description,
+       last_value(started_at) over ( partition by sync_id order by started_at RANGE BETWEEN unbounded preceding and unbounded following) as started_at,
+       last_value(updated_at) over ( partition by sync_id order by started_at RANGE BETWEEN unbounded preceding and unbounded following) as updated_at
 from source_task where sync_id = ANY($1::text[])`,
         [body]
       );
       const tasksRecord = rows.rows.reduce((acc, r) => {
-        acc[r.syncid] = {
-          syncId: r.syncid,
-          taskId: r.taskid,
+        acc[r.sync_id] = {
+          sync_id: r.sync_id,
+          task_id: r.task_id,
           status: r.status,
-          startedAt: r.startedat,
-          updatedAt: r.updatedat,
+          description: r.description,
+          started_at: r.started_at,
+          updated_at: r.updated_at,
         };
         return acc;
       }, {} as aggregatedResultType["tasks"]);

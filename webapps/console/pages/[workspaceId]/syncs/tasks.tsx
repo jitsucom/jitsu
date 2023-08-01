@@ -3,8 +3,8 @@ import { useWorkspace } from "../../../lib/context";
 import { useApi } from "../../../lib/useApi";
 import { source_taskDbModel } from "../../../prisma/schema";
 import { z } from "zod";
-import { DatePicker, notification, Popconfirm, Select, Table, Tag } from "antd";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { DatePicker, notification, Popover, Select, Table, Tag } from "antd";
+import React, { PropsWithChildren, useCallback, useEffect, useMemo, useState } from "react";
 import { useQueryStringState } from "../../../lib/useQueryStringState";
 import { ColumnType } from "antd/es/table/interface";
 import dayjs, { Dayjs } from "dayjs";
@@ -15,11 +15,13 @@ import { ErrorCard } from "../../../components/GlobalError/GlobalError";
 import { useLinksQuery } from "../../../lib/queries";
 import { arrayToMap } from "../../../lib/shared/arrays";
 import { JitsuButton, WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
-import { ChevronLeft, FileText, RefreshCw } from "lucide-react";
-import { FaExternalLinkAlt, FaRegPlayCircle } from "react-icons/fa";
+import { AlertCircle, CheckCircle2, ChevronLeft, ListMinusIcon, RefreshCw, XCircle } from "lucide-react";
+import { FaExternalLinkAlt, FaPlay, FaRegPlayCircle } from "react-icons/fa";
 import { useRouter } from "next/router";
-import { ExclamationCircleOutlined } from "@ant-design/icons";
 import { SyncTitle } from "./index";
+import { ButtonGroup, ButtonProps } from "../../../components/ButtonGroup/ButtonGroup";
+import { rpc } from "juava";
+import { feedbackError } from "../../../lib/ui";
 
 dayjs.extend(utc);
 dayjs.extend(relativeTime);
@@ -49,18 +51,268 @@ const formatBytes = bytes => {
 
 type TasksDbModel = z.infer<typeof source_taskDbModel>;
 
+type TaskStats = {
+  stats: any;
+  totalStreams: number;
+  successStreams: number;
+  processedRows: number;
+  processedBytes: number;
+};
+
 type TasksTableProps = {
   tasks: TasksDbModel[];
   loading: boolean;
   linksMap?: Record<string, { id: string; fromId: string; toId: string }>;
   servicesMap?: Record<string, any>;
   destinationsMap?: Record<string, any>;
+  refreshCb?: () => void;
 };
 
-function TasksTable({ tasks, loading, linksMap, servicesMap, destinationsMap }: TasksTableProps) {
+export function TaskStatus({ task }: { task: TasksDbModel & TaskStats }) {
   const router = useRouter();
   const workspace = useWorkspace();
-  const columns: ColumnType<TasksDbModel>[] = [
+
+  const SyncStatus: React.FC<PropsWithChildren<{ status: "PARTIAL" | "FAILED" | "SUCCESS" }>> = props => {
+    const [showPopover, setShowPopover] = useState(false);
+    const handleOpenChange = (newOpen: boolean) => {
+      console.log("handleOpenChange", newOpen);
+      setShowPopover(newOpen);
+    };
+
+    const popoverContent = (
+      <div>
+        <div className={"overflow-y-auto"} style={{ maxHeight: "60vh" }}>
+          {task.stats ? (
+            <TaskStatusResultTable
+              stats={Object.entries(task.stats).reduce((arr, v) => {
+                const o = { key: v[0], stream: v[0], ...(v[1] as any) };
+                arr.push(o);
+                return arr;
+              }, [] as any[])}
+            />
+          ) : (
+            <div className={"whitespace-pre-wrap font-mono text-xs"}>{task.description}</div>
+          )}
+        </div>
+        <div className={"flex flex-row w-full gap-2 justify-end pt-2"}>
+          <WJitsuButton
+            icon={<ListMinusIcon className={"w-5 h-5"} />}
+            type={"primary"}
+            ghost
+            href={`/syncs/logs?taskId=${task.task_id}&syncId=${task.sync_id}`}
+          >
+            Show Logs
+          </WJitsuButton>
+          <JitsuButton
+            type={"primary"}
+            onClick={() => {
+              setShowPopover(false);
+            }}
+          >
+            Ok
+          </JitsuButton>
+        </div>
+      </div>
+    );
+
+    const icon =
+      props.status === "SUCCESS" ? (
+        <CheckCircle2 style={{ color: "green" }} />
+      ) : props.status === "PARTIAL" ? (
+        <AlertCircle style={{ color: "orange" }} />
+      ) : (
+        <XCircle style={{ color: "red" }} />
+      );
+    return (
+      <Popover
+        open={showPopover}
+        content={popoverContent}
+        overlayClassName={"w-1/2"}
+        onOpenChange={handleOpenChange}
+        placement={"left"}
+        title={
+          <div className={"flex flex-row gap-1.5"}>
+            {icon}
+            {props.status}
+          </div>
+        }
+        trigger={"click"}
+      >
+        <button className={"outline-0"}>
+          <div className={"flex flex-col items-end text-right cursor-pointer"}>{props.children}</div>
+        </button>
+      </Popover>
+    );
+  };
+
+  switch (task.status) {
+    case "SUCCESS":
+      if (task.stats) {
+        return (
+          <SyncStatus status={task.status}>
+            <Tag color={"green"} style={{ marginRight: 0 }}>
+              SUCCESS
+            </Tag>
+            <span className={"text-xxs text-gray-500"}>show stats</span>
+          </SyncStatus>
+        );
+      } else {
+        return (
+          <Tag color={"green"} style={{ marginRight: 0 }}>
+            SUCCESS
+          </Tag>
+        );
+      }
+    case "PARTIAL":
+      return (
+        <SyncStatus status={task.status}>
+          <Tag color={"orange"} style={{ marginRight: 0 }}>
+            PARTIAL <FaExternalLinkAlt className={"inline ml-0.5 w-2.5 h-2.5"} />
+          </Tag>
+          <span className={"text-xxs text-gray-500"}>show stats</span>
+        </SyncStatus>
+      );
+    case "FAILED":
+      return (
+        <SyncStatus status={task.status}>
+          <Tag color={"red"} style={{ marginRight: 0 }}>
+            FAILED <FaExternalLinkAlt className={"inline ml-0.5 w-2.5 h-2.5"} />
+          </Tag>
+          <span className={"text-xxs text-gray-500"}>show error</span>
+        </SyncStatus>
+      );
+    case "RUNNING":
+      return (
+        <div
+          className={"flex flex-col items-end text-right cursor-pointer"}
+          onClick={() => {
+            router.push(`/${workspace.slug || workspace.id}/syncs/logs?taskId=${task.task_id}&syncId=${task.sync_id}`);
+          }}
+        >
+          <Tag color={"blue"} style={{ marginRight: 0 }}>
+            RUNNING <FaExternalLinkAlt className={"inline ml-0.5 w-2.5 h-2.5"} />
+          </Tag>
+          <span className={"text-xxs text-gray-500"}>show logs</span>
+        </div>
+      );
+    default:
+      return (
+        <Tag color={"gray"} style={{ marginRight: 0 }}>
+          {task.status}
+        </Tag>
+      );
+  }
+}
+
+function TaskStatusResultTable({ stats }: { stats: any[] }) {
+  const columns: ColumnType<any>[] = [
+    {
+      title: "Stream",
+      dataIndex: "stream",
+      key: "stream",
+      width: "100%",
+      className: "font-mono",
+    },
+    Table.EXPAND_COLUMN,
+    {
+      title: "Status",
+      key: "status",
+      render: (text, record) => {
+        if (record.status === "SUCCESS") {
+          return <Tag color="green">SUCCESS</Tag>;
+        } else if (record.status === "PARTIAL") {
+          return <Tag color="orange">PARTIAL</Tag>;
+        } else {
+          return <Tag color="red">{record.status}</Tag>;
+        }
+      },
+    },
+    {
+      title: "Rows",
+      dataIndex: "events",
+      key: "rows",
+      className: "text-right text-xs whitespace-nowrap",
+      render: (text, record) => {
+        return record.events ? record.events.toLocaleString() : 0;
+      },
+    },
+    {
+      title: "Size",
+      dataIndex: "bytes",
+      render: (text, record) => {
+        return formatBytes(record.bytes);
+      },
+      key: "size",
+      className: "text-right text-xs whitespace-nowrap",
+    },
+  ];
+  return (
+    <Table
+      size={"small"}
+      columns={columns}
+      dataSource={stats}
+      pagination={false}
+      expandable={{
+        rowExpandable: record => record.status !== "SUCCESS",
+        expandedRowRender: record => {
+          return <pre className={"text-xs text-red-600 break-all whitespace-pre-wrap"}>{record.error}</pre>;
+        },
+      }}
+    />
+  );
+}
+
+export function processTaskStatus(task: TasksDbModel): TasksDbModel & TaskStats {
+  let stats: any = undefined;
+  try {
+    stats = JSON.parse(task.description || "{}");
+  } catch (e) {}
+  //sum des values
+  const taskStats: TaskStats = {
+    stats,
+    totalStreams: 0,
+    successStreams: 0,
+    processedRows: 0,
+    processedBytes: 0,
+  };
+  if (stats) {
+    for (const key in stats) {
+      taskStats.totalStreams++;
+      const stat = stats[key];
+      if (typeof stat === "number") {
+        stats[key] = {
+          events: stat,
+          status: "SUCCESS",
+        };
+        taskStats.successStreams++;
+        taskStats.processedRows += stats[key];
+      } else if (typeof stat === "object") {
+        if (stat.status === "SUCCESS") {
+          taskStats.successStreams++;
+        }
+        taskStats.processedRows += stats[key].events;
+        taskStats.processedBytes += stats[key].bytes;
+      }
+    }
+  }
+  return {
+    ...task,
+    ...taskStats,
+  };
+}
+
+function TasksTable({ tasks, loading, linksMap, servicesMap, destinationsMap, refreshCb }: TasksTableProps) {
+  const workspace = useWorkspace();
+
+  const tasksMapped = useMemo(() => {
+    return tasks.map(task => {
+      return {
+        key: task.task_id,
+        ...processTaskStatus(task),
+      };
+    });
+  }, [tasks]);
+  const columns: ColumnType<(typeof tasksMapped)[number]>[] = [
     {
       title: <div className={"whitespace-nowrap"}>Started (UTC)</div>,
       key: "started_at",
@@ -92,98 +344,94 @@ function TasksTable({ tasks, loading, linksMap, servicesMap, destinationsMap }: 
     },
     {
       title: <div className={"whitespace-nowrap"}>Duration</div>,
-      key: "updated_at",
+      key: "duration",
       width: "12%",
       render: (text, task) => {
-        return <div className={"whitespace-nowrap"}>{dayjs(task.updated_at).from(dayjs(task.started_at), true)}</div>;
+        return (
+          <div className={"whitespace-nowrap text-xs"}>{dayjs(task.updated_at).from(dayjs(task.started_at), true)}</div>
+        );
       },
     },
     {
-      title: <div className={"whitespace-nowrap"}>Sync Status</div>,
+      title: <div className={"whitespace-nowrap text-right"}>Status</div>,
       key: "status",
-      className: "text-right",
+      className: "text-right whitespace-nowrap",
       width: "5%",
+      render: (text, task) => <TaskStatus task={task} />,
+    },
+    {
+      title: <div className={"whitespace-nowrap"}>Streams</div>,
+      key: "streams",
+      width: "12%",
+      className: "text-right",
       render: (text, task) => {
-        switch (task.status) {
-          case "SUCCESS":
-            try {
-              const des = JSON.parse(task.description || "{}");
-              //sum des values
-              let processed_rows = 0;
-              let processed_bytes = 0;
-              for (const key in des) {
-                const stat = des[key];
-                if (typeof stat === "number") {
-                  processed_rows += des[key];
-                } else if (typeof stat === "object") {
-                  processed_rows += des[key].events;
-                  processed_bytes += des[key].bytes;
-                }
-              }
-              return (
-                <div className={"flex flex-col items-end text-right"}>
-                  <Tag color={"green"} style={{ marginRight: 0 }}>
-                    SUCCESS
-                  </Tag>
-                  <span className={"text-xxs text-gray-500"}>{processed_rows.toLocaleString()} rows</span>
-                  <span className={"text-xxs text-gray-500"}>{formatBytes(processed_bytes)}</span>
-                </div>
-              );
-            } catch (e) {}
-            return (
-              <Tag color={"green"} style={{ marginRight: 0 }}>
-                SUCCESS
-              </Tag>
-            );
-          case "FAILED":
-            const popoverContent = (
-              <div className={"max-h-96 overflow-y-auto"}>
-                <div className={"whitespace-pre-wrap font-mono text-xs"}>{task.description}</div>
-              </div>
-            );
-            return (
-              <Popconfirm
-                description={popoverContent}
-                overlayClassName={"w-1/2"}
-                placement={"topRight"}
-                title={"Error"}
-                trigger={"click"}
-                icon={<ExclamationCircleOutlined style={{ color: "red" }} />}
-                showCancel={false}
-              >
-                <button className={"outline-0"}>
-                  <div className={"flex flex-col items-end text-right cursor-pointer"}>
-                    <Tag color={"red"} style={{ marginRight: 0 }}>
-                      FAILED <FaExternalLinkAlt className={"inline ml-0.5 w-2.5 h-2.5"} />
-                    </Tag>
-                    <span className={"text-xxs text-gray-500"}>show error</span>
-                  </div>
-                </button>
-              </Popconfirm>
-            );
-          case "RUNNING":
-            return (
-              <Tag color={"blue"} style={{ marginRight: 0 }}>
-                RUNNING
-              </Tag>
-            );
+        if (task.status === "SUCCESS") {
+          return <div className={"whitespace-nowrap"}>{task.successStreams}</div>;
+        } else if (task.status === "PARTIAL") {
+          return (
+            <div className={"whitespace-nowrap"}>
+              {task.successStreams} of {task.totalStreams}
+            </div>
+          );
+        } else {
+          return <div className={"whitespace-nowrap"}>0</div>;
         }
       },
     },
     {
-      title: "",
-      key: "actions",
+      title: <div className={"whitespace-nowrap text-right"}>Rows</div>,
+      dataIndex: "processedRows",
+      width: "12%",
+      className: "text-right",
       render: (text, task) => {
-        return (
-          <WJitsuButton
-            icon={<FileText />}
-            type={"link"}
-            title={"View logs"}
-            href={`/syncs/logs?taskId=${task.task_id}&syncId=${task.sync_id}`}
-          >
-            View Logs
-          </WJitsuButton>
-        );
+        return <code className={"whitespace-nowrap font-normal"}>{(task.processedRows || 0).toLocaleString()}</code>;
+      },
+    },
+    {
+      title: <div className={"whitespace-nowrap text-right"}>Data Size</div>,
+      dataIndex: "processedRows",
+      width: "12%",
+      className: "text-right",
+      render: (text, task) => {
+        return <code className={"whitespace-nowrap font-normal"}>{formatBytes(task.processedBytes)}</code>;
+      },
+    },
+    {
+      title: <div className={"text-right"}>Actions</div>,
+      key: "actions",
+      render: (text, task, index) => {
+        const items: ButtonProps[] = [
+          {
+            disabled: index > 0 || task.status === "RUNNING",
+            title:
+              index > 0
+                ? "Only last task may be restarted"
+                : task.status === "RUNNING"
+                ? "Sync is already running"
+                : undefined,
+            icon: <FaPlay className="w-3.5 h-3.5" />,
+            onClick: async () => {
+              try {
+                const runStatus = await rpc(`/api/${workspace.id}/sources/run?syncId=${task.sync_id}`);
+                if (runStatus?.error) {
+                  feedbackError(runStatus.error, { placement: "top" });
+                } else if (refreshCb) {
+                  refreshCb();
+                }
+              } catch (e) {
+                feedbackError("Failed to run sync", { error: e, placement: "top" });
+              } finally {
+              }
+            },
+            label: "Run Again",
+          },
+          {
+            icon: <ListMinusIcon className={"w-5 h-5"} />,
+            href: `/syncs/logs?taskId=${task.task_id}&syncId=${task.sync_id}`,
+            label: "Show Logs",
+          },
+        ];
+        return <ButtonGroup items={items} />;
       },
     },
   ];
@@ -201,7 +449,7 @@ function TasksTable({ tasks, loading, linksMap, servicesMap, destinationsMap }: 
         //     },
         //   };
         // }}
-        dataSource={tasks}
+        dataSource={tasksMapped}
         sortDirections={["ascend", "descend"]}
         columns={columns}
         pagination={false}
@@ -467,6 +715,7 @@ function Tasks() {
           linksMap={linksMap}
           servicesMap={servicesMap}
           destinationsMap={destinationsMap}
+          refreshCb={() => setRefresh(refresh + 1)}
         />
       )}
     </>
