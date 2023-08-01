@@ -440,15 +440,6 @@ function TasksTable({ tasks, loading, linksMap, servicesMap, destinationsMap, re
       <Table
         rowKey={"task_id"}
         size={"small"}
-        // onRow={record => {
-        //   return {
-        //     onClick: () => {
-        //       router.push(
-        //         `/${workspace.slug || workspace.id}/syncs/logs?taskId=${record.task_id}&syncId=${record.sync_id}`
-        //       );
-        //     },
-        //   };
-        // }}
         dataSource={tasksMapped}
         sortDirections={["ascend", "descend"]}
         columns={columns}
