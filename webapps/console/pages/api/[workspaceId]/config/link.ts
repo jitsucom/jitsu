@@ -25,15 +25,32 @@ export const api: Api = {
     auth: true,
     types: {
       query: z.object({ workspaceId: z.string() }),
-      body: z.object({ data: z.any().optional(), toId: z.string(), fromId: z.string(), type: z.string().optional() }),
+      body: z.object({
+        id: z.string().optional(),
+        data: z.any().optional(),
+        toId: z.string(),
+        fromId: z.string(),
+        type: z.string().optional(),
+      }),
     },
     handle: async ({ body, user, query: { workspaceId } }) => {
-      const { toId, fromId, data = undefined, type = "push" } = body;
+      const { id, toId, fromId, data = undefined, type = "push" } = body;
       await verifyAccess(user, workspaceId);
-      const existingLink = await db.prisma().configurationObjectLink.findFirst({
-        where: { workspaceId: workspaceId, toId, fromId, deleted: false },
-      });
       const fromType = type === "sync" ? "service" : "stream";
+
+      // we allow duplicates of service=>dst links because they may have different streams and scheduling
+      const existingLink =
+        type === "push"
+          ? await db.prisma().configurationObjectLink.findFirst({
+              where: { workspaceId: workspaceId, toId, fromId, deleted: false },
+            })
+          : id
+          ? await db.prisma().configurationObjectLink.findFirst({ where: { id, deleted: false } })
+          : undefined;
+
+      if (!id && existingLink) {
+        throw new Error(`Link from '${fromId}' to '${toId}' already exists`);
+      }
 
       const co = db.prisma().configurationObject;
       if (

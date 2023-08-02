@@ -305,7 +305,6 @@ const OneOf: React.FC<{
     label: o.title,
     value: i,
   }));
-
   // find discriminator field. This is a field that is present in all oneOf variants and has a const or enum with a single value
   // discriminator is used to determine which variant is selected
   const consts = (fieldSchema.oneOf as any[])
@@ -329,6 +328,7 @@ const OneOf: React.FC<{
 
   let selected: any;
   let selectedIdx: number = 0;
+  let removeIdx = -1;
   for (let i = 0; i < fieldSchema.oneOf.length; i++) {
     const o = fieldSchema.oneOf[i];
     if (
@@ -340,6 +340,18 @@ const OneOf: React.FC<{
       break;
     }
   }
+  //Hide CDC option for replication_method
+  if (name === "replication_method") {
+    for (let i = 0; i < fieldSchema.oneOf.length; i++) {
+      const o = fieldSchema.oneOf[i];
+      if (o.properties[discriminatorKey].const === "CDC" || o.properties[discriminatorKey].enum?.[0] === "CDC") {
+        removeIdx = i;
+        break;
+      }
+    }
+  }
+
+  const filteredOptions = options.filter((o, i) => i !== removeIdx);
 
   return (
     <>
@@ -352,7 +364,7 @@ const OneOf: React.FC<{
               fieldSchema.oneOf[v].properties[discriminatorKey].enum?.[0],
           });
         }}
-        options={options}
+        options={filteredOptions}
       />
       {selected && (
         <SchemaForm

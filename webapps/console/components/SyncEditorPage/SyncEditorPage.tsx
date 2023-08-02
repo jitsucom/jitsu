@@ -357,7 +357,13 @@ function SyncEditor({
               setLoading(true);
               try {
                 await get(`/api/${workspace.id}/config/link`, {
-                  body: { fromId: srvId, toId: dstId, type: "sync", data: syncOptions },
+                  body: {
+                    ...(existingLink ? { id: existingLink.id } : {}),
+                    fromId: srvId,
+                    toId: dstId,
+                    type: "sync",
+                    data: syncOptions,
+                  },
                 });
                 router.back();
               } catch (error) {

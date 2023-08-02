@@ -280,18 +280,18 @@ export function processTaskStatus(task: TasksDbModel): TasksDbModel & TaskStats 
       taskStats.totalStreams++;
       const stat = stats[key];
       if (typeof stat === "number") {
+        taskStats.successStreams++;
+        taskStats.processedRows += stat;
         stats[key] = {
           events: stat,
           status: "SUCCESS",
         };
-        taskStats.successStreams++;
-        taskStats.processedRows += stats[key];
       } else if (typeof stat === "object") {
         if (stat.status === "SUCCESS") {
           taskStats.successStreams++;
         }
-        taskStats.processedRows += stats[key].events;
-        taskStats.processedBytes += stats[key].bytes;
+        taskStats.processedRows += stat.events;
+        taskStats.processedBytes += stat.bytes;
       }
     }
   }

@@ -184,9 +184,12 @@ model source_catalog {
 }
 
 model source_state {
-    sync_id       String @id
+    sync_id       String
+    stream        String
     state         Json
     timestamp DateTime @default(now()) @db.Timestamptz(3)
+
+    @@id([sync_id, stream])
 }
 
 model source_task {
