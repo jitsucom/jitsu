@@ -2,6 +2,7 @@ package airbyte
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/drivers/base"
@@ -56,7 +57,9 @@ func (ap *asynchronousParser) parse(stdout io.Reader) error {
 		lineBytes := scanner.Bytes()
 
 		row := &Row{}
-		err := json.Unmarshal(lineBytes, row)
+		dec := json.NewDecoder(bytes.NewReader(lineBytes))
+		dec.UseNumber()
+		err := dec.Decode(row)
 		if err != nil {
 			ap.logger.LOG(string(lineBytes), airbyteSystem, logging.DEBUG)
 			continue
