@@ -366,7 +366,6 @@ async function saveConnectionsToRedis(db: DatabaseConnection) {
   if (lastStreamConfig && destinationsBuffer.length > 0) {
     addStreamByDomain(lastStreamConfig, destinationsBuffer, lastBackupEnabled);
   }
-  const apiKeysTmp = apiKeys.tmp();
   for (const [domain, streamDsts] of Object.entries(streamsByDomain)) {
     //store array of StreamWithDestinations by domain
     await redis().hset(domainsRedisKey.tmp(), domain.toLowerCase(), JSON.stringify(Object.values(streamDsts)));
@@ -380,14 +379,18 @@ async function saveConnectionsToRedis(db: DatabaseConnection) {
         (strm.stream.publicKeys ?? [])
           .filter(k => !!k.hash)
           .map(k =>
-            redis().hset(apiKeysTmp, k.id, JSON.stringify({ hash: k.hash as string, streamId: id, keyType: "browser" }))
+            redis().hset(
+              apiKeys.tmp(),
+              k.id,
+              JSON.stringify({ hash: k.hash as string, streamId: id, keyType: "browser" })
+            )
           )
       );
       await Promise.all(
         (strm.stream.privateKeys ?? [])
           .filter(k => !!k.hash)
           .map(k =>
-            redis().hset(apiKeysTmp, k.id, JSON.stringify({ hash: k.hash as string, streamId: id, keyType: "s2s" }))
+            redis().hset(apiKeys.tmp(), k.id, JSON.stringify({ hash: k.hash as string, streamId: id, keyType: "s2s" }))
           )
       );
     }
