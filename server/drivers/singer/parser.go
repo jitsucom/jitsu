@@ -2,6 +2,7 @@ package singer
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,7 +21,7 @@ const (
 	SINGER_REPLICATION_FULL_TABLE  = "FULL_TABLE"
 )
 
-//StreamOutputParser is an Singer output parser
+// StreamOutputParser is an Singer output parser
 type streamOutputParser struct {
 	dataConsumer      base.CLIDataConsumer
 	logger            logging.TaskLogger
@@ -38,9 +39,10 @@ type Schema struct {
 	Properties map[string]*base.Property `json:"properties,omitempty"`
 }
 
-//Parse reads from stdout and:
-//  parses singer output
-//  passes data as batches to dataConsumer
+// Parse reads from stdout and:
+//
+//	parses singer output
+//	passes data as batches to dataConsumer
 func (sop *streamOutputParser) Parse(stdout io.ReadCloser) error {
 	startTime := timestamp.Now()
 	timeInDestinations := time.Duration(0)
@@ -59,7 +61,9 @@ func (sop *streamOutputParser) Parse(stdout io.ReadCloser) error {
 		lineBytes := scanner.Bytes()
 
 		lineObject := map[string]interface{}{}
-		err := json.Unmarshal(lineBytes, &lineObject)
+		dec := json.NewDecoder(bytes.NewReader(lineBytes))
+		dec.UseNumber()
+		err := dec.Decode(&lineObject)
 		if err != nil {
 			return fmt.Errorf("Error unmarshalling singer output line %s into json: %v", string(lineBytes), err)
 		}
