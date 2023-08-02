@@ -68,9 +68,9 @@ export async function runChain(
         eventIndex: i,
         functionId: f.id,
         ms: sw.elapsedMs(),
-        dropped: result === "drop",
+        dropped: result === "drop" || (Array.isArray(result) && result.length === 0),
       });
-      if (result === "drop") {
+      if (result === "drop" || (Array.isArray(result) && result.length === 0)) {
         return execLog;
       } else if (result) {
         newEvents.push(...(Array.isArray(result) ? result : [result]));
