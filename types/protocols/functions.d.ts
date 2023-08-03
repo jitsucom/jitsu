@@ -43,7 +43,6 @@ export type FetchResponse = {
 export type FetchOpts = {
   method?: string;
   headers?: Record<string, string>;
-  agent?: RequestOptions["agent"] | ((parsedUrl: URL) => RequestOptions["agent"]);
   body?: string;
 };
 export type FunctionContext = {

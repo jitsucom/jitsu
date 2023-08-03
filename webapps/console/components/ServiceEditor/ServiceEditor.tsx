@@ -164,11 +164,9 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
 
   const save = useCallback(async () => {
     setLoading(true);
-    try {
-      if (!validate()) {
-        return;
-      }
+    async function _save(testConnectionError?: string) {
       obj.credentials = JSON.stringify(credentials);
+      obj.testConnectionError = testConnectionError;
       if (props.isNew) {
         await getConfigApi(workspace.id, "service").create(obj);
       } else if (obj.id) {
@@ -177,6 +175,28 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
         feedbackError(`Can't save service without id`);
       }
       push(`/${workspace.id}/services`);
+    }
+    try {
+      if (!validate()) {
+        return;
+      }
+      const testRes = await onTest!({ ...obj, credentials: JSON.stringify(credentials) });
+      if (!testRes.ok) {
+        modal.confirm({
+          title: "Connection test failed",
+          content: testRes.error,
+          okText: "Save anyway",
+          okType: "danger",
+          cancelText: "Cancel",
+          onOk: () => {
+            _save(testRes.error);
+          },
+        });
+        return;
+      } else {
+        delete obj.testConnectionError;
+      }
+      await _save();
     } catch (error) {
       feedbackError(`Can't save service`, { error });
     } finally {
