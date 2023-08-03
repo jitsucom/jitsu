@@ -236,15 +236,23 @@ const ProgressBar0: React.FC<{ className?: string }> = ({ className }) => {
 const ProgressBar = React.memo(ProgressBar0);
 
 const LoadingBlur: React.FC<{}> = () => {
+  const [showAnimation, setShowAnimation] = useState(false);
+  useEffect(() => {
+    setTimeout(() => setShowAnimation(true), 1000);
+  }, []);
   return (
     <div
-      className="absolute top-0 flex flex-col left-0 m-0 p-0 z-50  overflow-hidden"
+      className="absolute top-0 flex flex-col left-0 m-0 p-0 overflow-hidden"
       style={{ height: "100vh", width: "100vw", maxWidth: "100%" }}
     >
-      <div>
+      <div className={"z-50"}>
         <ProgressBar className="bg-primary text-xxs p-0.5" />
       </div>
-      <div className="flex justify-center items-center text-primary flex-grow">
+      <div
+        className={`flex justify-center items-center text-primary flex-auto relative z-40 ${
+          showAnimation ? "backdrop-blur" : ""
+        }`}
+      >
         <div className="flex flex-col items-center justify-center">
           <GlobalLoader title="Loading..." />
         </div>
