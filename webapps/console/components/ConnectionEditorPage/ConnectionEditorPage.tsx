@@ -644,7 +644,13 @@ function ConnectionEditor({
               setLoading(true);
               try {
                 await get(`/api/${workspace.id}/config/link`, {
-                  body: { fromId: srcId, toId: dstId, type: "push", data: connectionOptions },
+                  body: {
+                    ...(existingLink ? { id: existingLink.id } : {}),
+                    fromId: srcId,
+                    toId: dstId,
+                    type: "push",
+                    data: connectionOptions,
+                  },
                 });
                 if (router.query.backTo) {
                   router.push(`/${workspace.id}${router.query.backTo}`);
