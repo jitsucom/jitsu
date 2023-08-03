@@ -26,6 +26,7 @@ import express from "express";
 import NodeCache from "node-cache";
 import hash from "object-hash";
 import { UDFRunHandler } from "./http/udf";
+import Prometheus from "prom-client";
 
 setServerJsonFormat(process.env.LOG_FORMAT === "json");
 
@@ -316,12 +317,19 @@ async function main() {
       handle: rotorMessageHandler,
     });
     log.atInfo().log("Starting kafka processing");
+    Prometheus.collectDefaultMetrics();
+
     rotor
       .start()
       .then(() => {
         log.atInfo().log(`Kafka processing started. Listening for topic ${kafkaTopic} with group ${consumerGroupId}`);
         http.get("/health", (req, res) => {
           res.send("OK");
+        });
+        http.get("/metrics", async (req, res) => {
+          res.set("Content-Type", Prometheus.register.contentType);
+          const result = await Prometheus.register.metrics();
+          res.end(result);
         });
         http.post("/udfrun", UDFRunHandler);
         http.listen(rotorHttpPort, () => {
