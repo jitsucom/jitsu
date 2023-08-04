@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "object-hash": "^3.0.0",
+    "prom-client": "^14.2.0",
     "node-cache": "^5.1.2",
     "@jitsu-internal/console": "workspace:*",
     "@jitsu/core-functions": "workspace:*",

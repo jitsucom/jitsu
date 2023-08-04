@@ -568,7 +568,7 @@ export const WorkspacePageLayout: React.FC<PropsWithChildren<PageLayoutProps>> =
   }, [fullscreen]);
 
   const pHeader = (
-    <VerticalSection className="header border-b border-neutral-300 bg-neutral-50" key="header">
+    <VerticalSection className="header border-b border-neutral-300 bg-neutral-50 z-40" key="header">
       <WidthControl className={"px-4"}>
         <PageHeader />
       </WidthControl>

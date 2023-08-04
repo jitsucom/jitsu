@@ -1,5 +1,5 @@
 import { EventContext, EventsStore, FetchOpts, FullContext, Store, SystemContext } from "@jitsu/protocols/functions";
-import nodeFetch from "node-fetch-commonjs";
+import nodeFetch, { RequestInit } from "node-fetch-commonjs";
 import { getErrorMessage, getLog } from "juava";
 import { httpAgent, httpsAgent } from "./functions/lib/http-agent";
 
@@ -31,12 +31,19 @@ export function createFullContext(
         headers: init?.headers ? hideSensitiveHeaders(init.headers) : undefined,
         event: event,
       };
-      if (!init?.agent) {
-        init = { ...init, agent: (url.startsWith("https://") ? httpsAgent : httpAgent)() };
-      }
+      const controller = new AbortController();
+      setTimeout(() => {
+        controller.abort();
+      }, 30000);
+
+      let internalInit: RequestInit = {
+        ...init,
+        agent: (url.startsWith("https://") ? httpsAgent : httpAgent)(),
+        signal: controller.signal,
+      };
       let fetchResult: any = undefined;
       try {
-        fetchResult = await nodeFetch(url, init as any);
+        fetchResult = await nodeFetch(url, internalInit);
       } catch (err) {
         if (logToRedis) {
           eventsStore.log(true, { ...baseInfo, error: getErrorMessage(err) });

@@ -110,6 +110,7 @@ export const DestinationConfig = ConfigEntityBase.merge(
       destinationType: z.string(),
       provisioned: z.boolean().optional(),
       name: z.string(),
+      testConnectionError: z.string().optional(),
     })
     .passthrough()
 );
@@ -131,6 +132,7 @@ export const ServiceConfig = ConfigEntityBase.merge(
     package: z.string(),
     version: z.string(),
     credentials: z.string(),
+    testConnectionError: z.string().optional(),
   })
 );
 export type ServiceConfig = z.infer<typeof ServiceConfig>;

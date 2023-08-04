@@ -288,7 +288,27 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
           schema={schema as any}
           liveValidate={true}
           validator={validator}
-          onSubmit={({ formData }) => withLoading(() => onSave(formData))()}
+          onSubmit={async ({ formData }) => {
+            if (onTest && testConnectionEnabled && testConnectionEnabled(formData || object)) {
+              const testRes = await onTest(formState?.formData || object);
+              if (!testRes.ok) {
+                modal.confirm({
+                  title: "Connection test failed",
+                  content: testRes.error,
+                  okText: "Save anyway",
+                  okType: "danger",
+                  cancelText: "Cancel",
+                  onOk: () => {
+                    withLoading(() => onSave({ ...formData, testConnectionError: testRes.error }))();
+                  },
+                });
+                return;
+              } else {
+                delete formData.testConnectionError;
+              }
+            }
+            withLoading(() => onSave(formData))();
+          }}
           formData={formState?.formData || object}
           uiSchema={uiSchema}
         >

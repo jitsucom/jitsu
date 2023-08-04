@@ -1,5 +1,6 @@
 import { getLog } from "juava";
 import { connectToKafka, KafkaCredentials } from "@jitsu-internal/console/lib/server/kafka-config";
+import Prometheus from "prom-client";
 
 const log = getLog("kafka-rotor");
 
@@ -66,9 +67,31 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
       const producer = kafka.producer({ allowAutoTopicCreation: false });
       await producer.connect();
 
+      const admin = kafka.admin();
+
+      const topicOffsets = new Prometheus.Gauge({
+        name: "rotor_topic_offsets",
+        help: "topic offsets",
+        // add `as const` here to enforce label names
+        labelNames: ["partition", "offset"] as const,
+      });
+
+      const interval = setInterval(async () => {
+        try {
+          const offsets = await admin.fetchTopicOffsets(kafkaTopic);
+          for (const o of offsets) {
+            topicOffsets.set({ partition: o.partition, offset: "offset" }, parseInt(o.offset));
+            topicOffsets.set({ partition: o.partition, offset: "high" }, parseInt(o.high));
+            topicOffsets.set({ partition: o.partition, offset: "low" }, parseInt(o.low));
+          }
+        } catch (e) {
+          log.atError().withCause(e).log("Failed to commit offsets");
+        }
+      }, 60000);
+
       await consumer.run({
         autoCommit: true,
-
+        partitionsConsumedConcurrently: 4,
         eachMessage: async ({ message }) => {
           const firstProcessed = message.headers?.firstProcessed
             ? new Date(message.headers?.firstProcessed.toString())
