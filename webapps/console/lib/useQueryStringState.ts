@@ -24,7 +24,7 @@ export function useQueryStringState<T = string | undefined>(
     parser: (val: string) => val as T,
     serializer: (val: T) => (val || "").toString(),
   }
-): [T, (val: T) => void] {
+): [T, (val: T) => Promise<boolean>] {
   const { push, query } = useRouter();
   const initialValueStr = query[param] as string | undefined;
   const initialValue = initialValueStr

@@ -37,6 +37,7 @@ import { ObjectTitle } from "../../components/ObjectTitle/ObjectTitle";
 import { useQueryStringState } from "../../lib/useQueryStringState";
 import { CustomWidgetProps } from "../../components/ConfigObjectEditor/Editors";
 import { Htmlizer } from "../../components/Htmlizer/Htmlizer";
+import omit from "lodash/omit";
 
 const log = getLog("destinations");
 const Loader: React.FC<{}> = () => {
@@ -606,7 +607,7 @@ const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
     },
     onTest: async obj => {
       try {
-        const res = await getConfigApi(workspace.id, obj.type).test(obj);
+        const res = await getConfigApi(workspace.id, obj.type).test(omit(obj, "testConnectionError"));
         return res.ok ? { ok: true } : { ok: false, error: res?.error || res?.message || "unknown error" };
       } catch (error) {
         log
@@ -629,6 +630,7 @@ const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
       destinationType: { hidden: true },
       workspaceId: { constant: workspace.id },
       provisioned: { hidden: true },
+      testConnectionError: { hidden: true },
       ...extraFields,
     },
     noun: "destination",
@@ -670,19 +672,18 @@ const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
         footer={null}
       >
         <DestinationCatalog
-          onClick={destination => {
+          onClick={async destination => {
             const url = `/${
               workspace.id
             }/destinations?id=new&destinationType=${destination}&backTo=${encodeURIComponent(
               (router.query.backTo ?? "") as string
             )}`;
-            router.push(url);
-            setShowCatalog(false);
+            setShowCatalog(false).then(() => router.push(url));
           }}
-          dismiss={() => {
-            setShowCatalog(false);
-            router.push(`/${workspace.slugOrId}${router.query.backTo || "/destinations"}`);
-            setRefresh(new Date());
+          dismiss={async () => {
+            await setShowCatalog(false)
+              .then(() => router.push(`/${workspace.slugOrId}${router.query.backTo || "/destinations"}`))
+              .then(() => setRefresh(new Date()));
           }}
         />
       </Modal>
