@@ -1,4 +1,4 @@
-import { PropsWithChildren, ReactNode, useEffect, useState } from "react";
+import React, { PropsWithChildren, ReactNode, useEffect, useState } from "react";
 import { branding } from "../../lib/branding";
 import { HiSelector } from "react-icons/hi";
 import { FaSignOutAlt, FaUserCircle } from "react-icons/fa";
@@ -9,10 +9,13 @@ import { ButtonLabel } from "../ButtonLabel/ButtonLabel";
 import styles from "./WorkspacePageLayout.module.css";
 import {
   Activity,
+  AlertCircle,
   ArrowLeftRight,
+  ArrowRight,
   BarChart3,
   ChevronUp,
   FilePlus,
+  FolderKanban,
   Folders,
   FunctionSquare,
   Globe,
@@ -34,7 +37,7 @@ import { get, useApi } from "../../lib/useApi";
 
 import { Overlay } from "../Overlay/Overlay";
 import { WorkspaceNameAndSlugEditor } from "../WorkspaceNameAndSlugEditor/WorkspaceNameAndSlugEditor";
-import { getLog, requireDefined } from "juava";
+import { assertDefined, assertTrue, getLog, requireDefined } from "juava";
 import classNames from "classnames";
 import { getEeClient } from "../../lib/ee-client";
 import { BillingBlockingDialog } from "../Billing/BillingBlockingDialog";
@@ -46,6 +49,8 @@ import { useClassicProject } from "./ClassicProjectProvider";
 import { useJitsu } from "@jitsu/jitsu-react";
 import { useSearchParams } from "next/navigation";
 import omit from "lodash/omit";
+import { useBilling } from "../Billing/BillingProvider";
+import { useUsage } from "../Billing/use-usage";
 
 export type PageLayoutProps = {
   fullscreen?: boolean;
@@ -87,20 +92,6 @@ export const WorkspaceMenu: React.FC<{ closeMenu: () => void; classicProject?: s
   );
 };
 
-function AdminMenuItems() {
-  const { data, error } = useApi(`/user/properties`);
-  if (error) {
-    log.atWarn().log("Failed to load user properties", error);
-  } else if (data) {
-    return (
-      <MenuItem icon={<ShieldAlert className="h-4 w-4 mr-2" />}>
-        <Link href="/admin/users">Admin Users</Link>
-      </MenuItem>
-    );
-  }
-  return <></>;
-}
-
 function WorkspacesMenu(props: { jitsuClassicAvailable: boolean }) {
   const router = useRouter();
   const [classicLoading, setClassicLoading] = useState(false);
@@ -121,6 +112,14 @@ function WorkspacesMenu(props: { jitsuClassicAvailable: boolean }) {
         icon: <ShieldAlert className="h-4 w-4 mr-2" />,
         onClick: async () => {
           await router.push("/admin/users");
+        },
+      },
+      {
+        key: "admin-workspaces",
+        label: "Admin Workspaces",
+        icon: <FolderKanban className="h-4 w-4 mr-2" />,
+        onClick: async () => {
+          await router.push("/admin/workspaces");
         },
       },
     ];
@@ -370,6 +369,70 @@ const UserProfileButton: React.FC<{}> = () => {
   );
 };
 
+const AlertView: React.FC<PropsWithChildren<{}>> = ({ children }) => {
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    setTimeout(() => setShow(true), 1); // Set a delay of 1 second before showing the alert.
+  }, []);
+
+  return (
+    <div
+      className={`absolute top-0 rounded-b border-warning border-l border-r border-b flex items-start space-x-4 py-2 px-4 text-xs bg-warning/5 transition-all duration-500 `}
+      style={{ transform: `translateX(-50%) ` + (show ? "" : "translateY(-100%)"), left: "50%", maxWidth: "40vw" }}
+    >
+      <AlertCircle className="text-warning" />
+      <div>{children}</div>
+      <div>
+        <button onClick={() => setShow(false)}>
+          <X className="h-3" />
+        </button>
+      </div>
+    </div>
+  );
+};
+const FreePlanQuotaAlert: React.FC<{}> = () => {
+  const workspace = useWorkspace();
+  const usage = useUsage();
+  const billing = useBilling();
+  const router = useRouter();
+  assertTrue(billing.enabled, "Billing should be enabled and loaded");
+  assertDefined(billing.settings, "Billing settings should be loaded");
+
+  if (router.pathname.endsWith("/settings/billing")) {
+    //don't display second alert on billing page
+    return <></>;
+  }
+
+  if (
+    !usage.isLoading &&
+    !usage.error &&
+    billing.settings.planId === "free" &&
+    usage.usage?.projectionByTheEndOfPeriod &&
+    usage.usage?.projectionByTheEndOfPeriod > usage.usage.maxAllowedDestinatonEvents
+  ) {
+    return (
+      <AlertView>
+        You are projected to exceed your monthly events. Please upgrade your plan to avoid service disruption.{" "}
+        <Link
+          className="group inline-flex items-center border-b border-neutral-600"
+          href={`${workspace.slug}/settings/billing`}
+        >
+          Go to billing <ArrowRight className="h-4 group-hover:rotate-45 transition-all duration-500" />
+        </Link>
+      </AlertView>
+    );
+  }
+  return <></>;
+};
+
+const WorkspaceAlert: React.FC<{}> = () => {
+  const billing = useBilling();
+  if (billing.loading || !billing.enabled) {
+    return <></>;
+  }
+  return <FreePlanQuotaAlert />;
+};
+
 function PageHeader() {
   const appConfig = useAppConfig();
   const workspace = useWorkspace();
@@ -397,7 +460,8 @@ function PageHeader() {
   );
   return (
     <div>
-      <div className="w-full">
+      <div className="w-full relative">
+        <WorkspaceAlert />
         <div className="flex justify-between items-center px-4">
           <Breadcrumbs />
           <UserProfileButton />

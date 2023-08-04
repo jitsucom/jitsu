@@ -23,10 +23,11 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
   const { jwt } = createJwt(user.internalId, user.email, workspaceId, 60);
   const query = {
     ...(req.query || {}),
-    workspaceId,
+    workspaceId: workspaceId === "$all" ? undefined : workspaceId,
   };
   const queryString = Object.entries(query)
-    .map(([key, val]) => `${key}=${encodeURIComponent(val)}`)
+    .filter(([, val]) => val !== undefined)
+    .map(([key, val]) => `${key}=${encodeURIComponent(val + "")}`)
     .join("&");
   const url = removeDoubleSlashes(`${getEeConnection().host}/api/${proxyPath.join("/")}?${queryString}`);
   const response = await fetch(url, {

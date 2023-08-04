@@ -1,14 +1,51 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { assertTrue, getLog, requireDefined } from "juava";
+import { assertTrue, getLog } from "juava";
 import { withErrorHandler } from "../../../lib/error-handler";
 import { auth } from "../../../lib/auth";
-import { pg, store } from "../../../lib/services";
+import { store } from "../../../lib/services";
 import { getAvailableProducts, stripe, stripeDataTable } from "../../../lib/stripe";
 import Stripe from "stripe";
-import { queries, query } from "./[reportName]";
 import pick from "lodash/pick";
+import { buildWorkspaceReport } from "./workspace-stat";
 
 const log = getLog("/api/report");
+
+function toUTC(date: Date | string) {
+  const dateObj = new Date(date);
+  const timezoneOffset = dateObj.getTimezoneOffset();
+  return new Date(dateObj.getTime() - timezoneOffset * 60000);
+}
+
+function round(date: Date | string, granularity: "day" = "day"): { start: string; end: string } {
+  try {
+    const dateObj = toUTC(date).toISOString();
+    const day = dateObj.split("T")[0];
+    const start = `${day}T00:00:00.000Z`;
+    const end = `${day}T23:59:59.999Z`;
+    return { start, end };
+  } catch (e) {
+    throw new Error(`Can't parse date ${date}`);
+  }
+}
+
+async function listAllInvoices() {
+  log.atInfo().log("Listing invoices...");
+  let starting_after: string | undefined = undefined;
+  const allInvoices: Stripe.Invoice[] = [];
+  do {
+    const result = await stripe.invoices.list({
+      limit: 100,
+      starting_after: starting_after,
+    });
+    starting_after = result?.data[result.data.length - 1]?.id;
+    log.atInfo().log(`Fetched ${result?.data.length} invoices. Has more: ${!!starting_after}`);
+    if (result?.data) {
+      allInvoices.push(...result?.data);
+    }
+  } while (starting_after);
+  log.atInfo().log(`${allInvoices.length} invoices found`);
+  return allInvoices;
+}
 
 const handler = async function handler(req: NextApiRequest, res: NextApiResponse) {
   const claims = await auth(req, res);
@@ -30,6 +67,14 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
     res.status(200).end();
     return;
   }
+  const report = await buildWorkspaceReport(
+    new Date("2023-01-01").toISOString(),
+    new Date().toISOString(),
+    "day",
+    workspaceId
+  );
+
+  log.atInfo().log("Report", JSON.stringify(report, null, 2));
 
   const allWorkspaces = workspaceId
     ? [
@@ -42,24 +87,12 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
 
   const availableProducts = await getAvailableProducts();
 
-  const report: any[] = [];
+  const result: any[] = [];
+  const allInvoices = await listAllInvoices();
   for (const { id: workspaceId, obj } of allWorkspaces) {
     const { stripeCustomerId } = obj;
-    let starting_after: string | undefined = undefined;
-    const customerInvoices: Stripe.Invoice[] = [];
-    do {
-      const result = await stripe.invoices.list({
-        limit: 100,
-        starting_after: starting_after,
-        customer: stripeCustomerId,
-      });
-      starting_after = result?.data[result.data.length - 1]?.id;
-      if (result?.data) {
-        customerInvoices.push(...result?.data);
-      }
-    } while (starting_after);
 
-    const metricsTable = `${process.env.METRICS_SCHEMA || "bulker"}.bulker_metrics`;
+    const customerInvoices = allInvoices.filter(i => i.customer === stripeCustomerId);
     for (const invoice of customerInvoices) {
       if (!invoice.lines.data.length) {
         log.atWarn().log(`No lines found for invoice ${invoice.id}`);
@@ -76,16 +109,47 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
         log.atWarn().log(`No plan found for ${product} from invoice ${invoice.id}`);
         continue;
       }
+      log
+        .atInfo()
+        .log(
+          `Processing invoice ${invoice.id} for [${new Date(start).toISOString()}, ${new Date(
+            end
+          ).toISOString()}] workspace ${workspaceId}, plan ${plan.id}`
+        );
       const { overagePricePer100k, destinationEvensPerMonth } = JSON.parse(plan.metadata.plan_data);
-      const sqlQuery = requireDefined(queries["destination-stat"], `destination-stat`)({ metricsTable });
       const overagePricePerEvent = overagePricePer100k / 100_000;
-
-      const data = await query(await pg(), sqlQuery, { workspaceId, granularity: "day", start, end });
-
-      const destinationEvents = data.reduce((acc, row) => acc + row.events, 0);
+      const invoiceStartRounded = round(start, "day").start;
+      const invoiceEndRounded = round(end, "day").end;
+      log.atInfo().log(`\t[${invoiceStartRounded}, ${invoiceEndRounded}]`);
+      let rows = report.filter(row => {
+        log.atInfo().log(JSON.stringify(row));
+        const { start, end } = round(row.period, "day");
+        let includes =
+          row.workspaceId === workspaceId &&
+          Date.parse(start) >= Date.parse(invoiceStartRounded) &&
+          Date.parse(end) <= Date.parse(invoiceEndRounded);
+        log.atInfo().log(includes + ":" + JSON.stringify({ start, end, invoiceStartRounded, invoiceEndRounded }));
+        return includes;
+      });
+      log
+        .atInfo()
+        .log(
+          `Found ${rows.length} rows for ${workspaceId} for [${new Date(invoiceStartRounded).toISOString()}, ${new Date(
+            invoiceEndRounded
+          ).toISOString()}]: \n ${JSON.stringify(rows, null, 2)}}`
+        );
+      const destinationEvents = rows.reduce((acc, row) => acc + row.events, 0);
+      log
+        .atInfo()
+        .log(
+          `Destination events for ${workspaceId} for [${new Date(invoiceStartRounded).toISOString()}, ${new Date(
+            invoiceEndRounded
+          ).toISOString()}] → ${destinationEvents}`
+        );
       const overageFee = (Math.max(0, destinationEvents - destinationEvensPerMonth) / 100_000) * overagePricePer100k;
       const discountPercentage = invoice.discount ? invoice.discount.coupon.percent_off : undefined;
-      report.push({
+      let overageFeeFinal = discountPercentage ? overageFee * (1 - discountPercentage / 100) : overageFee;
+      result.push({
         month: start.toLocaleString("en-US", { month: "long", year: "numeric" }),
         baseInvoiceId: invoice.id,
         workspaceId,
@@ -103,14 +167,14 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
         discountPercentage,
         coupon: invoice.discount ? pick(invoice.discount.coupon, "id", "name") : undefined,
         couponName: invoice.discount ? invoice.discount.coupon.name : undefined,
-        overageFeeFinal: discountPercentage ? overageFee * (1 - discountPercentage / 100) : overageFee,
+        overageFeeFinal,
       });
     }
   }
 
   return res.status(200).json({
     stripeDataTable,
-    report,
+    result,
   });
 };
 

@@ -2,9 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import { assertFalse, assertTrue, rpc } from "juava";
 import { useWorkspace } from "../../lib/context";
 import { useBilling } from "./BillingProvider";
+import dayjs from "dayjs";
 
 export type Usage = {
-  destinationEvents: number;
+  events: number;
+  projectionByTheEndOfPeriod?: number;
   maxAllowedDestinatonEvents: number;
   usagePercentage: number;
   periodStart: Date;
@@ -12,6 +14,8 @@ export type Usage = {
 };
 
 export type UseUsageRes = { isLoading: boolean; error?: any; usage?: Usage };
+
+export type DestinationReportDataRow = {};
 
 export function useUsage(): UseUsageRes {
   const workspace = useWorkspace();
@@ -34,20 +38,18 @@ export function useUsage(): UseUsageRes {
   const { isLoading, error, data } = useQuery(
     ["billing usage", workspace.id],
     async () => {
-      const report = await rpc(`/api/${workspace.id}/ee/report/destination-stat?start=${periodStart?.toISOString()}`);
-      const warehouseUsage = report.data.reduce(
-        (acc, d) => acc + (d.destination_type === "warehouse" ? d.events : 0),
-        0
-      );
-      const destinationUsage = report.data.reduce(
-        (acc, d) => acc + (d.destination_type === "warehouse" ? 0 : d.events),
-        0
-      );
-      return { warehouseUsage, destinationUsage } as const;
+      const report = await rpc(`/api/${workspace.id}/ee/report/workspace-stat?start=${periodStart?.toISOString()}`);
+      const usage = report.data.reduce((acc, d) => acc + d.events, 0);
+      return { usage } as const;
     },
     { retry: false, cacheTime: 0 }
   );
 
+  const periodDuration = dayjs(new Date()).diff(dayjs(periodStart), "day");
+  const projection =
+    periodDuration > 0 && data
+      ? (data.usage / periodDuration) * dayjs(periodEnd).diff(dayjs(periodStart), "day")
+      : undefined;
   return {
     isLoading,
     error,
@@ -55,9 +57,10 @@ export function useUsage(): UseUsageRes {
       ? {
           periodStart,
           periodEnd,
-          destinationEvents: data.warehouseUsage + data.destinationUsage,
+          events: data.usage,
+          projectionByTheEndOfPeriod: projection,
           maxAllowedDestinatonEvents: billing.settings.destinationEvensPerMonth,
-          usagePercentage: (data.warehouseUsage + data.destinationUsage) / billing.settings.destinationEvensPerMonth,
+          usagePercentage: data.usage / billing.settings.destinationEvensPerMonth,
         }
       : undefined,
   };

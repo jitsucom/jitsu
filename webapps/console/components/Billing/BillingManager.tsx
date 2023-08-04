@@ -90,8 +90,8 @@ const UsageSection: React.FC<{}> = () => {
         status={usage.usagePercentage > 1 ? "exception" : undefined}
       />
       <div>
-        {formatNumber(Math.round(usage.destinationEvents))} / {formatNumber(usage.maxAllowedDestinatonEvents)}{" "}
-        destination events used from <i>{startStr}</i> to <i>{endStr}</i>. The quota will be reset on <i>{endStr}</i>.
+        {formatNumber(Math.round(usage?.events))} / {formatNumber(usage.maxAllowedDestinatonEvents)} destination events
+        used from <i>{startStr}</i> to <i>{endStr}</i>. The quota will be reset on <i>{endStr}</i>.
       </div>
       {usage.usagePercentage > 1 && billing.settings.planId === "free" && (
         <div className="mt-8">
@@ -103,6 +103,24 @@ const UsageSection: React.FC<{}> = () => {
           />
         </div>
       )}
+      {usage?.projectionByTheEndOfPeriod &&
+        usage?.projectionByTheEndOfPeriod > usage?.maxAllowedDestinatonEvents &&
+        billing.settings.planId == "free" && (
+          <div className="mt-8">
+            <Alert
+              message={<h4 className="font-bold">Account quota warning!</h4>}
+              showIcon
+              type={"warning"}
+              description={
+                <>
+                  You are projected to exceed your monthly events destination limit by{" "}
+                  <b>{formatNumber(usage?.projectionByTheEndOfPeriod - usage?.maxAllowedDestinatonEvents)}</b> events.
+                  Please upgrade your plan to avoid service disruption.
+                </>
+              }
+            />
+          </div>
+        )}
       {usage.usagePercentage > 1 && billing.settings.planId !== "free" && (
         <div className="mt-8">
           <Alert
@@ -110,14 +128,26 @@ const UsageSection: React.FC<{}> = () => {
             description={
               <div>
                 You have exceeded your monthly events destination limit by{" "}
-                <b>{formatNumber(usage.destinationEvents - usage.maxAllowedDestinatonEvents)}</b>. The overage fee of $
+                <b>{formatNumber(usage.events - usage.maxAllowedDestinatonEvents)}</b>. The overage fee of at least $
                 <b>
                   {(
-                    ((usage.destinationEvents - usage.maxAllowedDestinatonEvents) / 100_000) *
+                    ((usage.events - usage.maxAllowedDestinatonEvents) / 100_000) *
                     (billing.settings?.overagePricePer100k || 0)
                   ).toLocaleString("en-us", { maximumFractionDigits: 2 })}
                 </b>{" "}
-                will be added to your next invoice
+                will be added to your next invoice.{" "}
+                {usage.projectionByTheEndOfPeriod && (
+                  <>
+                    The projected overage fee by end of the month is{" "}
+                    <b>
+                      $
+                      {(
+                        ((usage?.projectionByTheEndOfPeriod - usage.maxAllowedDestinatonEvents) / 100_000) *
+                        (billing.settings?.overagePricePer100k || 0)
+                      ).toLocaleString("en-us", { maximumFractionDigits: 2 })}
+                    </b>{" "}
+                  </>
+                )}
               </div>
             }
             type="info"
