@@ -74,8 +74,6 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
     workspaceId
   );
 
-  log.atInfo().log("Report", JSON.stringify(report, null, 2));
-
   const allWorkspaces = workspaceId
     ? [
         {

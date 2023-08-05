@@ -35,7 +35,7 @@ export function isValidSecret(secret: string): boolean {
 export type Authorizer = (secret: string) => boolean;
 
 /**
- * Creates an authorizer agains a string that contains a comma separated list of
+ * Creates an authorizer against a string that contains a comma separated list of
  * tokens. Each token can be a plain string or a hash of a string. The hash is
  * something that contains '.'.
  */

@@ -246,7 +246,7 @@ const WorkspaceSettingsComponent: React.FC<any> = () => {
                 size="large"
                 type="primary"
               >
-                Manage Billing {"&"} Plan / Download Invoices
+                Manage Billing {"&"} Plan
               </WJitsuButton>
             </div>
           </div>

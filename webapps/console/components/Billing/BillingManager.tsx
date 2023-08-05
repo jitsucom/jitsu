@@ -179,7 +179,7 @@ const CurrentSubscription: React.FC<{}> = () => {
                 className="flex items-center"
                 href={`/api/${workspace.id}/ee/billing/manage?returnUrl=${encodeURIComponent(window.location.href)}`}
               >
-                <span>Manage subscription</span>
+                <span>Manage subscription / download invoices</span>
                 <Edit2 className="ml-1 h-3 w-3" />
               </Link>
             )}

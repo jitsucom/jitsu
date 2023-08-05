@@ -371,21 +371,35 @@ const UserProfileButton: React.FC<{}> = () => {
 
 const AlertView: React.FC<PropsWithChildren<{}>> = ({ children }) => {
   const [show, setShow] = useState(false);
+  const workspaceAlertHiddenAt = "workspaceAlertHiddenAt";
   useEffect(() => {
-    setTimeout(() => setShow(true), 1); // Set a delay of 1 second before showing the alert.
+    const hiddenAt = localStorage.getItem(workspaceAlertHiddenAt);
+    const hideAlertSeconds = 60 * 60; // 1 hour
+    if (!hiddenAt || new Date().getTime() - new Date(hiddenAt).getTime() > 1000 * hideAlertSeconds) {
+      setTimeout(() => setShow(true), 1); // show after 1ms to avoid SSR issues and enable animation
+    }
   }, []);
 
   return (
     <div
-      className={`absolute z-40 top-0 rounded-b border-warning border-l border-r border-b flex items-start space-x-4 py-2 px-4 text-xs bg-warning/5 transition-all duration-500 `}
+      className="absolute top-0 z-40 rounded-b bg-white transition-all duration-500 ease-in-out"
       style={{ transform: `translateX(-50%) ` + (show ? "" : "translateY(-100%)"), left: "50%", maxWidth: "40vw" }}
     >
-      <AlertCircle className="text-warning" />
-      <div>{children}</div>
-      <div>
-        <button onClick={() => setShow(false)}>
-          <X className="h-3" />
-        </button>
+      <div
+        className={`rounded-b border-warning border-l border-r border-b flex items-start space-x-4 py-2 px-4 text-xs bg-warning/5 `}
+      >
+        <AlertCircle className="text-warning" />
+        <div>{children}</div>
+        <div>
+          <button
+            onClick={() => {
+              setShow(false);
+              localStorage.setItem(workspaceAlertHiddenAt, new Date().toISOString());
+            }}
+          >
+            <X className="h-3" />
+          </button>
+        </div>
       </div>
     </div>
   );
