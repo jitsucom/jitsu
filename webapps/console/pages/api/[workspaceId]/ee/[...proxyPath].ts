@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { getUser, verifyAccess } from "../../../../lib/api";
+import { getUser, verifyAccess, verifyAdmin } from "../../../../lib/api";
 import { createJwt, getEeConnection } from "../../../../lib/server/ee";
 import { isEEAvailable } from "../../ee/jwt";
 
@@ -19,7 +19,12 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
   }
   const workspaceId = req.query.workspaceId as string;
   const proxyPath = req.query.proxyPath as string[];
-  await verifyAccess(user, workspaceId);
+  if (workspaceId === "$all") {
+    //only admins can access to all workspaces
+    await verifyAdmin(user);
+  } else {
+    await verifyAccess(user, workspaceId);
+  }
   const { jwt } = createJwt(user.internalId, user.email, workspaceId, 60);
   const query = {
     ...(req.query || {}),

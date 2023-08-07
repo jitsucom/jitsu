@@ -66,6 +66,10 @@ export async function auth(req: NextApiRequest, res: NextApiResponse): Promise<A
     try {
       const decrypted = await decryptJWT(token);
       if (decrypted) {
+        if (decrypted?.workspaceId == "$all") {
+          //change to admin claim
+          return { type: "admin" };
+        }
         return decrypted;
       } else {
         res.status(401).json({ ok: false, error: `Invalid JWT token. Code: MAYBE_EXPIRED` });

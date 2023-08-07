@@ -233,6 +233,13 @@ function stackToArray(stack?: string) {
   const lines = stack.split("\n");
   return lines.length > 0 ? lines.map(s => s.trim()) : undefined;
 }
+export async function verifyAdmin(user: SessionUser) {
+  const userId = requireDefined(user.internalId, `internalId is not defined`);
+  if ((await db.prisma().userProfile.findFirst({ where: { id: user.internalId } }))?.admin) {
+    return;
+  }
+  throw new ApiError(`User ${userId} is not an admin`, { status: 403 });
+}
 
 export async function verifyAccess(user: SessionUser, workspaceId: string) {
   const userId = requireDefined(user.internalId, `internalId is not defined`);
