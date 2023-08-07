@@ -9,7 +9,6 @@ import { prepareZodObjectForDeserialization, safeParseWithDate } from "./zod";
 import { ApiError } from "./shared/errors";
 import { getServerLog } from "./server/log";
 import { getFirebaseUser, isFirebaseEnabled } from "./server/firebase-server";
-import { ReactNode } from "react";
 
 type HandlerOpts<Req = void, Query = void, RequireAuth extends boolean = boolean> = {
   body?: Req;
@@ -264,7 +263,7 @@ export type RouteBuilderBase = {
     ResultZodType extends ZodType = any,
     RequireAuth extends undefined | boolean = false
   >(spec: {
-    description?: ReactNode;
+    description?: string;
     query?: QueryZodType;
     body?: BodyZodType;
     result?: ResultZodType;
