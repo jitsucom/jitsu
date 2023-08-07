@@ -23,7 +23,7 @@ const queryType = z.object({
   storageKey: z.string(),
 });
 
-type queryType = z.infer<typeof queryType>;
+type catalogKeyType = z.infer<typeof queryType>;
 
 export default createRoute()
   .POST({
@@ -31,7 +31,7 @@ export default createRoute()
     query: z.object({
       workspaceId: z.string(),
       storageKey: z.string(),
-      refresh: z.boolean().optional(),
+      refresh: z.string().optional(),
     }),
     body: ServiceConfig,
     result: resultType,
@@ -54,13 +54,13 @@ export default createRoute()
     }
 
     try {
-      if (!query.refresh) {
-        const res = await checkInDb({ ...query, package: body.package, version: body.version });
-        if (res && !res.error) {
-          return res;
+      if (query.refresh !== "true") {
+        const discoverDbRes = await catalogFromDb({ ...query, package: body.package, version: body.version });
+        if (discoverDbRes && !discoverDbRes.error) {
+          return discoverDbRes;
         }
       }
-      const checkRes = await rpc(syncURL + "/discover", {
+      const discoverQueryRes = await rpc(syncURL + "/discover", {
         method: "POST",
         body: {
           config: await tryManageOauthCreds(body as ServiceConfig, req),
@@ -75,8 +75,8 @@ export default createRoute()
           storageKey: query.storageKey,
         },
       });
-      if (!checkRes.ok) {
-        return { ok: false, error: checkRes.error ?? "unknown error" };
+      if (!discoverQueryRes.ok) {
+        return { ok: false, error: discoverQueryRes.error ?? "unknown error" };
       } else {
         return { ok: false, pending: true };
       }
@@ -102,7 +102,7 @@ export default createRoute()
       return { ok: false, error: "storageKey doesn't belong to the current workspace" };
     }
     try {
-      const res = await checkInDb(query);
+      const res = await catalogFromDb(query);
       if (res) {
         return res;
       } else {
@@ -120,7 +120,7 @@ export default createRoute()
   })
   .toNextApiHandler();
 
-async function checkInDb(query: queryType) {
+async function catalogFromDb(query: Omit<catalogKeyType, "workspaceId">) {
   const res = await db
     .pgPool()
     .query(`select catalog, status, description from source_catalog where key = $1 and package = $2 and version = $3`, [
@@ -134,7 +134,7 @@ async function checkInDb(query: queryType) {
     const description = res.rows[0].description;
     switch (status) {
       case "SUCCESS":
-        return { ok: true, catalog: selectStreamsFromCatalog(catalog) };
+        return { ok: true, catalog: catalog };
       case "RUNNING":
         return { ok: false, pending: true };
       default:
@@ -143,16 +143,4 @@ async function checkInDb(query: queryType) {
   } else {
     return null;
   }
-}
-
-function selectStreamsFromCatalog(catalog: any): any {
-  let streams: any[] = [];
-  for (const stream of catalog.streams) {
-    streams.push({
-      sync_mode: stream.supported_sync_modes[0],
-      destination_sync_mode: "overwrite",
-      stream: { ...stream },
-    });
-  }
-  return { streams };
 }

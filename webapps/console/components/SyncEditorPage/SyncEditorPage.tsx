@@ -7,9 +7,7 @@ import { ConfigurationObjectLinkDbModel } from "../../prisma/schema";
 import { useRouter } from "next/router";
 import { assertTrue, getLog, hash as juavaHash, rpc } from "juava";
 import { Disable } from "../Disable/Disable";
-import { Button, Select } from "antd";
-import { WLink } from "../Workspace/WLink";
-import { FaExternalLinkAlt } from "react-icons/fa";
+import { Button, Select, Switch, Tooltip } from "antd";
 import { getCoreDestinationType } from "../../lib/schema/destinations";
 import { confirmOp, feedbackError, feedbackSuccess } from "../../lib/ui";
 import FieldListEditorLayout, { EditorItem } from "../FieldListEditorLayout/FieldListEditorLayout";
@@ -17,9 +15,13 @@ import { ChevronLeft } from "lucide-react";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
 import { LoadingAnimation } from "../GlobalLoader/GlobalLoader";
 import hash from "stable-hash";
-import { CodeEditor } from "../CodeEditor/CodeEditor";
 import { DestinationTitle } from "../../pages/[workspaceId]/destinations";
 import { ServiceTitle } from "../../pages/[workspaceId]/services";
+import { SwitchComponent } from "../ConnectionEditorPage/ConnectionEditorPage";
+import { ErrorCard } from "../GlobalError/GlobalError";
+import { LabelEllipsis } from "../LabelEllipsis/LabelEllipsis";
+import { createDisplayName } from "../../lib/zod";
+import xor from "lodash/xor";
 
 const log = getLog("SyncEditorPage");
 
@@ -30,7 +32,17 @@ type SelectorProps<T> = {
   onSelect: (value: string) => void;
 };
 
-type SyncOptionsType = any;
+type SyncOptionsType = {
+  storageKey?: string;
+  streams?: SelectedStreams;
+};
+
+type SelectedStreamSettings = {
+  sync_mode: "full_refresh" | "incremental";
+  cursor_field?: string[];
+};
+
+type SelectedStreams = Record<string, SelectedStreamSettings>;
 
 function DestinationSelector(props: SelectorProps<DestinationConfig>) {
   return (
@@ -61,18 +73,18 @@ function DestinationSelector(props: SelectorProps<DestinationConfig>) {
           })}
         </Select>
       </Disable>
-      {!props.enabled && (
-        <div className="text-lg px-6">
-          <WLink href={`/destinations?id=${props.selected}`}>
-            <FaExternalLinkAlt />
-          </WLink>
-        </div>
-      )}
+      {/*{!props.enabled && (*/}
+      {/*  <div className="text-lg px-6">*/}
+      {/*    <WLink href={`/destinations?id=${props.selected}`}>*/}
+      {/*      <FaExternalLinkAlt />*/}
+      {/*    </WLink>*/}
+      {/*  </div>*/}
+      {/*)}*/}
     </div>
   );
 }
 
-function ServiceSelector(props: SelectorProps<ServiceConfig>) {
+function ServiceSelector(props: SelectorProps<ServiceConfig> & { refreshCatalogCb?: () => void }) {
   return (
     <div className="flex items-center justify-between">
       <Disable disabled={!props.enabled} disabledReason="Create a new sync if you want to change the service">
@@ -95,12 +107,17 @@ function ServiceSelector(props: SelectorProps<ServiceConfig>) {
           ))}
         </Select>
       </Disable>
-      {!props.enabled && (
-        <div className="text-lg px-6">
-          <WLink href={`/services?id=${props.selected}`}>
-            <FaExternalLinkAlt />
-          </WLink>
-        </div>
+      {props.refreshCatalogCb && (
+        <Button
+          className={"mb-2"}
+          type={"primary"}
+          ghost={true}
+          onClick={() => {
+            props.refreshCatalogCb?.();
+          }}
+        >
+          Refresh Catalog
+        </Button>
       )}
     </div>
   );
@@ -128,35 +145,139 @@ function SyncEditor({
 
   const service = services.find(s => s.id === srvId);
 
-  const [syncOptions, setSyncOptions] = useState<SyncOptionsType>(existingLink?.data || {});
-  const [streamsProvided, setStreamsProvided] = useState(!!syncOptions.streams && syncOptions.streams !== "{}");
-  const [loadingCatalog, setLoadingCatalog] = useState(false);
+  const [syncOptions, setSyncOptions] = useState<SyncOptionsType | undefined>(existingLink?.data as SyncOptionsType);
+  const [catalog, setCatalog] = useState<any>(undefined);
+  const [catalogError, setCatalogError] = useState<any>(undefined);
+  const [loadingCatalog, setLoadingCatalog] = useState(true);
+  const [refreshCatalog, setRefreshCatalog] = useState(0);
 
-  const updateOptions: (patch: Partial<SyncOptionsType>) => void = useCallback(
-    patch => {
-      log.atDebug().log("Patching sync options with", patch, " existing options", syncOptions);
+  const updateOptions = useCallback(
+    (patch: Partial<SyncOptionsType>) => {
+      log.atInfo().log("Patching sync options with", patch, " existing options", syncOptions);
       setSyncOptions({ ...syncOptions, ...patch });
     },
     [syncOptions]
   );
 
-  const updateCatalog: (catalog: any) => void = useCallback(
-    catalog => {
-      if (!streamsProvided) {
-        updateOptions({ streams: catalog });
-        setStreamsProvided(true);
+  const updateSelectedStream = useCallback(
+    <K extends keyof SelectedStreamSettings>(streamName: string, propName: K, value: SelectedStreamSettings[K]) => {
+      if (syncOptions) {
+        setSyncOptions({
+          ...syncOptions,
+          streams: {
+            ...syncOptions.streams,
+            [streamName]: { ...syncOptions.streams?.[streamName], [propName]: value } as SelectedStreamSettings,
+          },
+        });
       }
     },
-    [updateOptions, streamsProvided]
+    [syncOptions]
   );
+
+  const deleteSelectedStream = useCallback(
+    <K extends keyof SelectedStreamSettings>(streamName: string) => {
+      if (syncOptions) {
+        const streams = { ...syncOptions.streams };
+        delete streams[streamName];
+        setSyncOptions({
+          ...syncOptions,
+          streams: streams,
+        });
+      }
+    },
+    [syncOptions]
+  );
+
+  const addStream = useCallback(
+    (streamName: string) => {
+      if (syncOptions) {
+        const stream = catalog.streams.find((s: any) =>
+          streamName === s.namespace ? s.namespace + "." + s.name : s.name
+        );
+        if (!stream) {
+          log.atError().log("Stream not found in catalog", streamName);
+          return;
+        }
+        const initedStream = initStream(stream);
+        setSyncOptions({
+          ...syncOptions,
+          streams: {
+            ...syncOptions.streams,
+            [streamName]: initedStream,
+          },
+        });
+      }
+    },
+    [syncOptions, catalog]
+  );
+
+  const initStream = (stream: any): SelectedStreamSettings => {
+    const supportedModes = stream.supported_sync_modes;
+    let sync_mode: "full_refresh" | "incremental" = "full_refresh";
+    let cursor_field: string[] | undefined = undefined;
+    if (supportedModes.includes("incremental")) {
+      if (stream.source_defined_cursor) {
+        sync_mode = "incremental";
+      }
+      if (stream.default_cursor_field?.length > 0) {
+        sync_mode = "incremental";
+        cursor_field = stream.default_cursor_field;
+      } else {
+        const props = Object.entries(stream.json_schema.properties as Record<string, any>);
+        const dateProps = props.filter(([_, p]) => p.format === "date-time");
+        const cursorField =
+          dateProps.find(([name, _]) => name.startsWith("updated")) ||
+          dateProps.find(([name, _]) => name.startsWith("created")) ||
+          dateProps.find(([name, _]) => name === "timestamp") ||
+          props.find(
+            ([name, p]) =>
+              name === "id" && (p.type === "integer" || (Array.isArray(p.type) && p.type.includes("integer")))
+          );
+        if (cursorField) {
+          sync_mode = "incremental";
+          cursor_field = [cursorField[0]];
+        }
+      }
+    }
+    return {
+      sync_mode,
+      cursor_field,
+    };
+  };
+
+  const initSyncOptions = useCallback(
+    (storageKey: string, catalog: any, force?: boolean) => {
+      const streams: SelectedStreams = {};
+      const currentStreams = force ? {} : syncOptions?.streams || {};
+      for (const stream of catalog.streams) {
+        const name = stream.namespace ? `${stream.namespace}.${stream.name}` : stream.name;
+        streams[name] = currentStreams[name] || initStream(stream);
+      }
+      if (xor(Object.keys(streams), Object.keys(currentStreams)).length > 0) {
+        updateOptions({ streams, storageKey });
+      }
+    },
+    [syncOptions?.streams, updateOptions]
+  );
+
+  const deleteAllStreams = useCallback(() => {
+    if (syncOptions) {
+      setSyncOptions({ ...syncOptions, streams: {} });
+    }
+  }, [syncOptions]);
+
+  const addAllStreams = useCallback(() => {
+    if (syncOptions?.storageKey && catalog) {
+      initSyncOptions(syncOptions?.storageKey, catalog, true);
+    }
+  }, [initSyncOptions, catalog, syncOptions?.storageKey]);
 
   useEffect(() => {
     if (!service) {
       console.log("No service.");
       return;
     }
-    if (streamsProvided) {
-      console.log("No need to load catalog. Specs are already filled.");
+    if (catalog) {
       return;
     }
     let cancelled = false;
@@ -164,10 +285,13 @@ function SyncEditor({
       console.log("Loading catalog for:", service.package, service.version);
       setLoadingCatalog(true);
       try {
-        const h = juavaHash("md5", hash(JSON.parse(service.credentials)));
+        const force = refreshCatalog > 0;
+        const h = juavaHash("md5", hash(service.credentials));
         const storageKey = `${workspace.id}_${service.id}_${h}`;
         const firstRes = await rpc(
-          `/api/${workspace.id}/sources/discover?package=${service.package}&version=${service.version}&storageKey=${storageKey}`,
+          `/api/${workspace.id}/sources/discover?package=${service.package}&version=${
+            service.version
+          }&storageKey=${storageKey}${force ? "&refresh=true" : ""}`,
           {
             body: service,
           }
@@ -176,10 +300,11 @@ function SyncEditor({
           return;
         }
         if (firstRes.error) {
-          updateCatalog(firstRes.error);
+          setCatalogError(firstRes.error);
         } else if (firstRes.ok) {
           console.log("Loaded cached catalog:", JSON.stringify(firstRes, null, 2));
-          updateCatalog(JSON.stringify(firstRes.catalog, null, 2));
+          setCatalog(firstRes.catalog);
+          initSyncOptions(storageKey, firstRes.catalog);
         } else {
           for (let i = 0; i < 60; i++) {
             if (cancelled) {
@@ -191,19 +316,20 @@ function SyncEditor({
             );
             if (!resp.pending) {
               if (resp.error) {
-                updateCatalog(resp.error);
+                setCatalogError(resp.error);
                 return;
               } else {
                 console.log("Loaded catalog:", JSON.stringify(resp, null, 2));
-                updateCatalog(JSON.stringify(resp.catalog, null, 2));
+                setCatalog(resp.catalog);
+                initSyncOptions(storageKey, resp.catalog);
                 return;
               }
             }
           }
-          updateCatalog(`Cannot load catalog for ${service.package}:${service.version} error: Timeout`);
+          setCatalogError(`Cannot load catalog for ${service.package}:${service.version} error: Timeout`);
         }
       } catch (error) {
-        updateCatalog(error);
+        setCatalogError(error);
       } finally {
         if (!cancelled) {
           setLoadingCatalog(false);
@@ -213,7 +339,7 @@ function SyncEditor({
     return () => {
       cancelled = true;
     };
-  }, [workspace.id, service, updateOptions, updateCatalog, streamsProvided]);
+  }, [workspace.id, service, initSyncOptions, updateOptions, refreshCatalog, catalog]);
 
   const configItems: EditorItem[] = [
     {
@@ -225,9 +351,16 @@ function SyncEditor({
           selected={srvId}
           enabled={!existingLink}
           onSelect={v => {
+            setLoadingCatalog(true);
             setSrvId(v);
-            updateOptions({ streams: "{}" });
-            setStreamsProvided(false);
+            setRefreshCatalog(0);
+            setCatalog(undefined);
+            updateOptions({ streams: undefined });
+          }}
+          refreshCatalogCb={() => {
+            setLoadingCatalog(true);
+            setCatalog(undefined);
+            setRefreshCatalog(refreshCatalog + 1);
           }}
         />
       ),
@@ -250,51 +383,109 @@ function SyncEditor({
     },
   ];
   if (service) {
-    configItems.push({
-      name: "Selected Streams",
-      component: (
-        <>
-          {loadingCatalog ? (
+    if (loadingCatalog) {
+      configItems.push({
+        group: "Streams",
+        key: "streams",
+        component: (
+          <>
             <LoadingAnimation
               className={"h-96"}
               title={"Loading connector catalog..."}
               longLoadingThresholdSeconds={4}
               longLoadingTitle={"It may take a little longer if it happens for the first time or catalog is too big."}
             />
-          ) : (
-            <div className={"flex flex-col items-end"}>
-              <Button
-                className={"mb-2"}
-                type={"primary"}
-                ghost={true}
-                size={"small"}
-                onClick={() => {
-                  setStreamsProvided(false);
-                }}
-              >
-                Refresh
-              </Button>
-              <div className={"w-full border border-textDisabled"}>
-                <CodeEditor
-                  value={syncOptions.streams ?? "{}"}
-                  onChange={streams => {
-                    updateOptions({ streams });
-                  }}
-                  height={"382px"}
-                  language={"json"}
-                  foldLevel={5}
-                  monacoOptions={{
-                    folding: true,
-                    foldingHighlight: false,
-                    showFoldingControls: "always",
-                  }}
+          </>
+        ),
+      });
+    } else if (catalog) {
+      for (const stream of catalog.streams ?? []) {
+        const name = stream.namespace ? `${stream.namespace}.${stream.name}` : stream.name;
+        const syncModeOptions = stream.supported_sync_modes.map(m => ({
+          value: m,
+          label: createDisplayName(m),
+        }));
+        let cursorFieldOptions: { value: string[]; label: string }[] = [];
+        if (stream.supported_sync_modes.includes("incremental") && !stream.source_defined_cursor) {
+          const props = Object.entries(stream.json_schema.properties as Record<string, any>);
+          cursorFieldOptions = props
+            .filter(
+              ([_, p]) =>
+                p.format === "date-time" ||
+                p.type === "integer" ||
+                (Array.isArray(p.type) && p.type.includes("integer"))
+            )
+            .map(([name, _]) => ({ value: [name], label: name }));
+        }
+
+        configItems.push({
+          group: "Streams",
+          key: name,
+          name: (
+            <LabelEllipsis maxLen={45} trim={"middle"}>
+              {name}
+            </LabelEllipsis>
+          ),
+          component: (
+            <div className={"flex flex-row justify-end gap-8 items-center"}>
+              <div>
+                Mode:{" "}
+                <Select
+                  disabled={!syncOptions?.streams?.[name] || syncModeOptions.length === 1}
+                  className={"w-32"}
+                  options={syncModeOptions}
+                  value={syncOptions?.streams?.[name]?.sync_mode}
+                  onChange={v => updateSelectedStream(name, "sync_mode", v)}
                 />
               </div>
+              <div className={"w-72"}>
+                {stream.supported_sync_modes.includes("incremental") &&
+                  syncOptions?.streams?.[name]?.sync_mode === "incremental" && (
+                    <>
+                      Cursor field:{" "}
+                      <Tooltip title={stream.source_defined_cursor ? "Cursor field is defined by source" : undefined}>
+                        <Select
+                          className={"w-44"}
+                          dropdownMatchSelectWidth={false}
+                          disabled={!syncOptions?.streams?.[name] || stream.source_defined_cursor}
+                          options={cursorFieldOptions}
+                          value={syncOptions?.streams?.[name]?.cursor_field ?? []}
+                          onChange={v => updateSelectedStream(name, "cursor_field", v)}
+                        />
+                      </Tooltip>
+                    </>
+                  )}
+              </div>
+              <SwitchComponent
+                className="max-w-xs"
+                value={!!syncOptions?.streams?.[name]}
+                onChange={enabled => {
+                  if (enabled) {
+                    addStream(name);
+                  } else {
+                    deleteSelectedStream(name);
+                  }
+                }}
+              />
             </div>
-          )}
-        </>
-      ),
-    });
+          ),
+        });
+      }
+    } else {
+      configItems.push({
+        group: "Streams",
+        key: "streams",
+        component: (
+          <div className={"pl-4 pr-2"}>
+            <ErrorCard
+              title={"Failed to load catalog"}
+              hideActions={true}
+              error={catalogError || "Unknown error. Please contact support."}
+            />
+          </div>
+        ),
+      });
+    }
   }
   return (
     <div className="max-w-5xl grow">
@@ -307,8 +498,27 @@ function SyncEditor({
       <div className="w-full">
         <FieldListEditorLayout
           groups={{
-            Advanced: { expandable: true },
-            Functions: { expandable: true },
+            Streams: {
+              expandable: false,
+              title: (
+                <div className="flex flex-row items-center justify-between gap-2 mt-4 mb-3">
+                  <div className={"text-xl"}>Streams</div>
+                  <div className={"flex gap-2 pr-2"}>
+                    Switch All
+                    <Switch
+                      checked={Object.keys(syncOptions?.streams || {}).length > 0}
+                      onChange={ch => {
+                        if (ch) {
+                          addAllStreams();
+                        } else {
+                          deleteAllStreams();
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+              ),
+            },
           }}
           items={configItems}
         />

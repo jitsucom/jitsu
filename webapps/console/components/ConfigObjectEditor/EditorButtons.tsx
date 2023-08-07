@@ -66,7 +66,7 @@ export const EditorButtons: React.FC<EditorButtonProps> = ({
 
   return (
     <>
-      {testStatus && testStatus !== "success" && testStatus !== "pending" && (
+      {!loading && testStatus && testStatus !== "success" && testStatus !== "pending" && (
         <Alert
           message="Connection test failed"
           className={"whitespace-pre-wrap"}
@@ -76,6 +76,7 @@ export const EditorButtons: React.FC<EditorButtonProps> = ({
           closable
         />
       )}
+      {loading && onTest && <Alert message="Testing connection..." type="info" />}
       <div className="flex justify-between mt-4">
         <div>
           {!isNew && (

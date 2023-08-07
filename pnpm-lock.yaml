@@ -662,8 +662,8 @@ importers:
         specifier: 3.21.4
         version: 3.21.4
       zod-to-json-schema:
-        specifier: 3.20.4
-        version: 3.20.4(zod@3.21.4)
+        specifier: 3.21.4
+        version: 3.21.4(zod@3.21.4)
     devDependencies:
       '@ant-design/icons':
         specifier: ^5.0.1
@@ -26539,10 +26539,10 @@ packages:
       zod: 3.21.4
     dev: true
 
-  /zod-to-json-schema@3.20.4(zod@3.21.4):
-    resolution: {integrity: sha512-Un9+kInJ2Zt63n6Z7mLqBifzzPcOyX+b+Exuzf7L1+xqck9Q2EPByyTRduV3kmSPaXaRer1JCsucubpgL1fipg==}
+  /zod-to-json-schema@3.21.4(zod@3.21.4):
+    resolution: {integrity: sha512-fjUZh4nQ1s6HMccgIeE0VP4QG/YRGPmyjO9sAh890aQKPEk3nqbfUXhMFaC+Dr5KvYBm8BCyvfpZf2jY9aGSsw==}
     peerDependencies:
-      zod: ^3.20.0
+      zod: ^3.21.4
     dependencies:
       zod: 3.21.4
     dev: false

@@ -148,6 +148,19 @@ export default createRoute()
         }
       }
 
+      const catalog = await catalogFromDb(
+        (service.config as any).package,
+        (service.config as any).version,
+        (sync.data as any).storageKey
+      );
+      if (!catalog) {
+        return {
+          ok: false,
+          error: `Catalog not found. Please run Refresh Catalog in Sync settings`,
+        };
+      }
+      const configuredCatalog = selectStreamsFromCatalog(catalog, (sync.data as any).streams);
+
       const taskId = randomUUID();
       const res = await rpc(syncURL + "/read", {
         method: "POST",
@@ -163,7 +176,7 @@ export default createRoute()
         },
         body: {
           config: await tryManageOauthCreds({ ...(service.config as ServiceConfig), id: sync.fromId }, req),
-          catalog: JSON.parse((sync.data as any).streams),
+          catalog: configuredCatalog,
           ...(stateObj ? { state: stateObj } : {}),
         },
       });
@@ -186,3 +199,32 @@ export default createRoute()
     }
   })
   .toNextApiHandler();
+
+async function catalogFromDb(packageName: string, version: string, storageKey: string) {
+  const res = await db
+    .pgPool()
+    .query(`select catalog from source_catalog where key = $1 and package = $2 and version = $3`, [
+      storageKey,
+      packageName,
+      version,
+    ]);
+  if (res.rowCount === 1) {
+    return res.rows[0].catalog;
+  } else {
+    return null;
+  }
+}
+
+function selectStreamsFromCatalog(catalog: any, selectedStreams: any): any {
+  const streams = catalog.streams
+    .filter((s: any) => !!selectedStreams[s.namespace ? s.namespace + "." + s.name : s.name])
+    .map((s: any) => {
+      const stream = selectedStreams[s.namespace ? s.namespace + "." + s.name : s.name];
+      return {
+        ...stream,
+        destination_sync_mode: "overwrite",
+        stream: s,
+      };
+    });
+  return { streams };
+}

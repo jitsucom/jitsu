@@ -8,7 +8,7 @@ import { OauthDecorator, oauthDecorators } from "../../../lib/server/oauth/servi
 export default createRoute()
   .POST({
     auth: true,
-    body: z.string().optional(),
+    body: z.object({}).passthrough(),
     query: z.object({
       serviceId: z.string().optional(),
       package: z.string().optional(),
@@ -22,7 +22,7 @@ export default createRoute()
 
     // we need that because we work with unsaved objects (new or edited) - body represents credentials from the form
     if (body) {
-      credentials = JSON.parse(body);
+      credentials = body;
       oauthDecorator = requireDefined(
         oauthDecorators.find(d => d.packageId === query.package),
         `Package ${query.package} for service ${query.serviceId} not found in catalog`
@@ -34,7 +34,7 @@ export default createRoute()
       });
       assertDefined(object, `Service ${query.serviceId} not found in database`);
       await verifyAccess(user, object.workspaceId);
-      credentials = JSON.parse((object.config as any).credentials);
+      credentials = (object.config as any).credentials;
       const packageId = (object.config as any).package;
       oauthDecorator = requireDefined(
         oauthDecorators.find(d => d.packageId === packageId),

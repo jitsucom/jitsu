@@ -88,7 +88,7 @@ export const serialization = {
 export function useURLPersistedState<T = any>(
   paramName: string,
   opts: Serialization<T> & { defaultVal?: T; type?: Serialization<T> } = { type: serialization.json }
-): [T, (val: T) => void] {
+): [T, (val: T) => Promise<boolean>] {
   const router = useRouter();
   const parser = opts.parser || opts.type?.parser || serialization.json.parser;
   const serializer = opts?.serializer || opts.type?.serializer || serialization.json.serializer;
@@ -98,7 +98,7 @@ export function useURLPersistedState<T = any>(
 
   const setPersistedValue = val => {
     setValue(val);
-    router.replace({
+    return router.replace({
       pathname: router.pathname,
       query: { ...(router.query || {}), [paramName]: serializer(val) },
     });

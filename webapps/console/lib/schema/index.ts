@@ -131,7 +131,7 @@ export const ServiceConfig = ConfigEntityBase.merge(
     authorized: z.boolean().optional(),
     package: z.string(),
     version: z.string(),
-    credentials: z.string(),
+    credentials: z.object({}).passthrough(),
     testConnectionError: z.string().optional(),
   })
 );

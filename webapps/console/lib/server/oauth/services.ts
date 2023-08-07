@@ -26,7 +26,7 @@ export const tryManageOauthCreds = async (service: ServiceConfig, req: NextApiRe
       }
     );
   } else {
-    return JSON.parse(service.credentials);
+    return service.credentials;
   }
 };
 

@@ -40,7 +40,6 @@ export default createRoute()
     if (syncAuthKey) {
       authHeaders["Authorization"] = `Bearer ${syncAuthKey}`;
     }
-
     const config = await tryManageOauthCreds(body as ServiceConfig, req);
 
     try {

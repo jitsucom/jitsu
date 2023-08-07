@@ -5,7 +5,6 @@ generator zod {
   relationModel         = false
   modelCase             = "PascalCase"
   modelSuffix           = "DbModel"
-  imports               = "../lib/schema"
   useDecimalJs          = true
   prismaJsonNullability = true
 }
@@ -33,8 +32,8 @@ model EmailLog {
 
 model UserPreferences {
   id        String      @id @default(cuid())
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @default(now()) @updatedAt
+  createdAt DateTime    @default(now())  /// @zod.custom(z.coerce.date())
+  updatedAt DateTime    @default(now()) @updatedAt /// @zod.custom(z.coerce.date())
   userId    String
   user      UserProfile @relation(fields: [userId], references: [id])
 
@@ -51,8 +50,8 @@ model UserProfile {
   name             String
   email            String
   admin            Boolean?          @default(false)
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @default(now()) @updatedAt
+  createdAt        DateTime          @default(now()) /// @zod.custom(z.coerce.date())
+  updatedAt        DateTime          @default(now()) @updatedAt /// @zod.custom(z.coerce.date())
   loginProvider    String
   externalUsername String?
   externalId       String
@@ -63,8 +62,8 @@ model UserProfile {
 
 model Workspace {
   id        String   @id @default(cuid())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
+  createdAt DateTime @default(now()) /// @zod.custom(z.coerce.date())
+  updatedAt DateTime @default(now()) @updatedAt /// @zod.custom(z.coerce.date())
   name      String
   deleted   Boolean  @default(false)
 
@@ -80,8 +79,8 @@ model Workspace {
 
 model WorkspaceAccess {
   workspaceId String
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @default(now()) @updatedAt
+  createdAt   DateTime    @default(now()) /// @zod.custom(z.coerce.date())
+  updatedAt   DateTime    @default(now()) @updatedAt /// @zod.custom(z.coerce.date())
   userId      String
   workspace   Workspace   @relation(fields: [workspaceId], references: [id])
   user        UserProfile @relation(fields: [userId], references: [id])
@@ -91,8 +90,8 @@ model WorkspaceAccess {
 
 model UserApiToken {
   id        String      @id @default(cuid())
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @default(now()) @updatedAt
+  createdAt DateTime    @default(now()) /// @zod.custom(z.coerce.date())
+  updatedAt DateTime    @default(now()) @updatedAt /// @zod.custom(z.coerce.date())
   hint      String
   hash      String
   userId    String
@@ -104,8 +103,8 @@ model InvitationToken {
   workspaceId String
 
   email     String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
+  createdAt DateTime @default(now()) /// @zod.custom(z.coerce.date())
+  updatedAt DateTime @default(now()) @updatedAt /// @zod.custom(z.coerce.date())
   token     String
   usedBy    String?
 }
@@ -113,8 +112,8 @@ model InvitationToken {
 model ConfigurationObject {
   id          String    @id @default(cuid())
   deleted     Boolean?  @default(false)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @default(now()) @updatedAt
+  createdAt   DateTime  @default(now()) /// @zod.custom(z.coerce.date())
+  updatedAt   DateTime  @default(now()) @updatedAt /// @zod.custom(z.coerce.date())
   type        String
   workspaceId String
   workspace   Workspace @relation(fields: [workspaceId], references: [id])
@@ -127,8 +126,8 @@ model ConfigurationObject {
 model ConfigurationObjectLink {
   id        String   @id @default(cuid())
   deleted   Boolean? @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
+  createdAt DateTime @default(now()) /// @zod.custom(z.coerce.date())
+  updatedAt DateTime @default(now()) @updatedAt /// @zod.custom(z.coerce.date())
   type      String?  @default("push")
   data      Json?
 
@@ -148,15 +147,15 @@ model ConnectorPackage {
   packageType String @default("airbyte")
   meta      Json?
   logoSvg   String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
+  createdAt DateTime @default(now()) /// @zod.custom(z.coerce.date())
+  updatedAt DateTime @default(now()) @updatedAt /// @zod.custom(z.coerce.date())
 }
 
 model source_spec {
     package        String
     version String
     specs     Json?
-    timestamp DateTime @default(now()) @db.Timestamptz(3)
+    timestamp DateTime @default(now()) @db.Timestamptz(3) /// @zod.custom(z.coerce.date())
     error    String?
 
     @@id([package, version])
@@ -168,7 +167,7 @@ model source_check {
     key String @id
     status String
     description String?
-    timestamp DateTime @default(now()) @db.Timestamptz(3)
+    timestamp DateTime @default(now()) @db.Timestamptz(3) /// @zod.custom(z.coerce.date())
 }
 
 model source_catalog {
@@ -176,7 +175,7 @@ model source_catalog {
     version String
     key String
     catalog     Json?
-    timestamp DateTime @default(now()) @db.Timestamptz(3)
+    timestamp DateTime @default(now()) @db.Timestamptz(3) /// @zod.custom(z.coerce.date())
     status String
     description String?
 
@@ -187,7 +186,7 @@ model source_state {
     sync_id       String
     stream        String
     state         Json
-    timestamp DateTime @default(now()) @db.Timestamptz(3)
+    timestamp DateTime @default(now()) @db.Timestamptz(3) /// @zod.custom(z.coerce.date())
 
     @@id([sync_id, stream])
 }
@@ -197,8 +196,8 @@ model source_task {
     task_id        String @id
     package        String
     version String
-    started_at DateTime @default(now()) @db.Timestamptz(3)
-    updated_at DateTime @default(now()) @db.Timestamptz(3)
+    started_at DateTime @default(now()) @db.Timestamptz(3) /// @zod.custom(z.coerce.date())
+    updated_at DateTime @default(now()) @db.Timestamptz(3) /// @zod.custom(z.coerce.date())
     status String
     description String?
 
@@ -213,7 +212,7 @@ model task_log {
     message String
     sync_id String
     task_id String
-    timestamp DateTime @default(now()) @db.Timestamptz(3)
+    timestamp DateTime @default(now()) @db.Timestamptz(3) /// @zod.custom(z.coerce.date())
 
     @@index(sync_id)
     @@index(task_id)
@@ -224,8 +223,8 @@ model task_log {
 
 //model OauthSecrets {
 //  id        String   @id @default(cuid())
-//  createdAt DateTime @default(now())
-//  updatedAt DateTime @default(now()) @updatedAt
+//  createdAt DateTime @default(now()) /// @zod.custom(z.coerce.date())
+//  updatedAt DateTime @default(now()) @updatedAt /// @zod.custom(z.coerce.date())
 //  nangoIntegrationId String
 //  secrets      Json?
 //}

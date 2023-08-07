@@ -1,6 +1,6 @@
 import { EditorComponentProps } from "../ConfigObjectEditor/ConfigEditor";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { getErrorMessage, getLog, rpc } from "juava";
+import { getErrorMessage, getLog, hash as juavaHash, rpc } from "juava";
 import { EditorTitle } from "../ConfigObjectEditor/EditorTitle";
 import { EditorBase } from "../ConfigObjectEditor/EditorBase";
 import { LoadingAnimation } from "../GlobalLoader/GlobalLoader";
@@ -23,6 +23,7 @@ import unset from "lodash/unset";
 import { SchemaForm } from "../ConfigObjectEditor/SchemaForm";
 import { TextEditor } from "../ConfigObjectEditor/Editors";
 import { useAntdModal } from "../../lib/modal";
+import hash from "stable-hash";
 
 type ServiceEditorProps = {} & EditorComponentProps;
 
@@ -43,13 +44,12 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
   const [obj, setObj] = useState<Partial<ServiceConfig>>({
     ...props.object,
   });
-  const [credentials, setCredentials] = useState<any>(obj.credentials ? JSON.parse(obj.credentials) : {});
+  const [credentials, setCredentials] = useState<any>(obj.credentials || {});
   const [isTouched, setIsTouched] = useState<boolean>(false);
   const [showErrors, setShowErrors] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
   const [nangoLoading, setNangoLoading] = useState<boolean>(false);
   const [nangoError, setNangoError] = useState<string | undefined>(undefined);
-  const [credUserProvided, setCredUserProvided] = useState(!!obj.credentials && obj.credentials !== "{}");
   const [loadingSpecs, setLoadingSpecs] = useState<boolean>(true);
   const [specs, setSpecs] = useState<any>(undefined);
 
@@ -84,9 +84,6 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
         if (firstRes.ok) {
           console.log("Loaded cached specs:", JSON.stringify(firstRes, null, 2));
           setSpecs(firstRes.specs);
-          if (!credUserProvided) {
-            change("credentials", JSON.stringify(firstRes.fakeJson, null, 2));
-          }
         } else if (firstRes.error) {
           feedbackError(`Cannot load specs for ${obj.package}:${obj.version} error: ${firstRes.error}`);
           return;
@@ -103,9 +100,6 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
               } else {
                 console.log("Loaded specs:", JSON.stringify(resp, null, 2));
                 setSpecs(resp.specs);
-                if (!credUserProvided) {
-                  change("credentials", JSON.stringify(resp.fakeJson, null, 2));
-                }
                 return;
               }
             }
@@ -118,7 +112,7 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
         setLoadingSpecs(false);
       }
     })();
-  }, [workspace.id, credUserProvided, obj.package, obj.version, change, specs]);
+  }, [workspace.id, obj.package, obj.version, change, specs]);
 
   const validate = useCallback(() => {
     const errors: string[] = [];
@@ -165,8 +159,16 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
   const save = useCallback(async () => {
     setLoading(true);
     async function _save(testConnectionError?: string) {
-      obj.credentials = JSON.stringify(credentials);
+      obj.credentials = credentials;
       obj.testConnectionError = testConnectionError;
+      const storageKey = `${workspace.id}_${obj.id}_${juavaHash("md5", hash(credentials))}`;
+      // trigger loading catalog in background (k8s)
+      await rpc(
+        `/api/${workspace.id}/sources/discover?package=${obj.package}&version=${obj.version}&storageKey=${storageKey}`,
+        {
+          body: obj,
+        }
+      );
       if (props.isNew) {
         await getConfigApi(workspace.id, "service").create(obj);
       } else if (obj.id) {
@@ -180,7 +182,7 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
       if (!validate()) {
         return;
       }
-      const testRes = await onTest!({ ...obj, credentials: JSON.stringify(credentials) });
+      const testRes = await onTest!({ ...obj, credentials: credentials });
       if (!testRes.ok) {
         modal.confirm({
           title: "Connection test failed",
@@ -233,9 +235,8 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
                     .auth(oauthConnector.nangoIntegrationId ?? "", `sync-source.${obj?.id}`)
                     .then(result => {
                       const strippedSchema = oauthConnector.stripSchema(credentials || {});
-                      setObj({ ...obj, credentials: JSON.stringify(strippedSchema), authorized: true });
+                      setObj({ ...obj, credentials: strippedSchema, authorized: true });
                       setCredentials(strippedSchema);
-                      setCredUserProvided(true);
                       setNangoError(undefined);
                     })
                     .catch(err => {
@@ -348,7 +349,7 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
             if (!validate()) {
               return Promise.resolve({ ok: false, error: "Config validation failed" });
             }
-            return onTest!({ ...obj, credentials: JSON.stringify(credentials) });
+            return onTest!({ ...obj, credentials: credentials });
           }}
         />
       </EditorBase>

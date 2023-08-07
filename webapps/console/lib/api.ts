@@ -141,8 +141,7 @@ export function nextJsApiHandler(api: Api): NextApiHandler {
       }
       let body = undefined;
       if (req.body && handler.types?.body) {
-        const parseResult = safeParseWithDate(
-          handler.types?.body,
+        const parseResult = handler.types?.body.safeParse(
           req.body ? prepareZodObjectForDeserialization(parseIfNeeded(req.body)) : undefined
         );
 

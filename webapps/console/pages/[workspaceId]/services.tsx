@@ -14,6 +14,7 @@ import { ServiceEditor } from "../../components/ServiceEditor/ServiceEditor";
 import { ErrorCard } from "../../components/GlobalError/GlobalError";
 import { syncError } from "../../lib/shared/errors";
 import { ObjectTitle } from "../../components/ObjectTitle/ObjectTitle";
+import omit from "lodash/omit";
 
 const log = getLog("services");
 
@@ -130,11 +131,12 @@ const ServicesList: React.FC<{}> = () => {
       try {
         //hash object to avoid sending credentials to the server
         const queryId = randomId();
-        const h = jhash("md5", hash(JSON.parse(obj.credentials)));
+        const h = jhash("md5", hash(obj.credentials));
+
         const storageKey = `${workspace.id}_${obj.id}_${h}_${queryId}`;
         const res = await rpc(`/api/${workspace.id}/sources/check?storageKey=${storageKey}`, {
           method: "POST",
-          body: obj,
+          body: omit(obj, "testConnectionError"),
         });
         if (res.error) {
           return res;
@@ -186,11 +188,12 @@ const ServicesList: React.FC<{}> = () => {
         footer={null}
       >
         <ServicesCatalog
-          onClick={(packageType, packageId) => {
-            router.push(
-              `/${workspace.id}/services?id=new&packageType=${packageType}&packageId=${encodeURIComponent(packageId)}`
+          onClick={async (packageType, packageId) => {
+            await setShowCatalog(false).then(() =>
+              router.push(
+                `/${workspace.id}/services?id=new&packageType=${packageType}&packageId=${encodeURIComponent(packageId)}`
+              )
             );
-            setShowCatalog(false);
           }}
         />
       </Modal>
