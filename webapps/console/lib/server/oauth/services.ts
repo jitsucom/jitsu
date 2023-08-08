@@ -1,7 +1,6 @@
 import { ServiceConfig } from "../../schema";
-import { rpc } from "juava";
-import { getAppEndpoint } from "../../domains";
-import { NextApiRequest } from "next";
+import { requireDefined, rpc } from "juava";
+import { nangoConfig } from "./nango-config";
 
 export type PackageId = `airbyte/${string}`;
 /**
@@ -9,26 +8,6 @@ export type PackageId = `airbyte/${string}`;
  */
 
 export const JITSU_MANAGED = "JITSU_MANAGED";
-
-// If service supports Jitsu OAuth - returns decorated credentials part of service config
-// otherwise returns original credentials part of config
-export const tryManageOauthCreds = async (service: ServiceConfig, req: NextApiRequest): Promise<any> => {
-  const oauthConnector = oauthDecorators.find(d => d.packageId === service.package);
-  if (oauthConnector && service.authorized) {
-    return await rpc(
-      `${getAppEndpoint(req).baseUrl}/api/oauth/service?package=${service.package}&serviceId=${service.id}`,
-      {
-        headers: {
-          Authorization: req.headers.authorization ?? "",
-          Cookie: req.headers.cookie ?? "",
-        },
-        body: service.credentials,
-      }
-    );
-  } else {
-    return service.credentials;
-  }
-};
 
 function manage(original: string, provided: string) {
   if (original === JITSU_MANAGED) {
@@ -227,3 +206,31 @@ export const oauthDecorators = [
   googleSheets,
   facebookMarketing,
 ].map(fillDefaults);
+
+// If service supports Jitsu OAuth - returns decorated credentials part of service config
+// otherwise returns original credentials part of config
+export const tryManageOauthCreds = async (service: ServiceConfig): Promise<any> => {
+  if (service.authorized) {
+    const oauthDecorator = requireDefined(
+      oauthDecorators.find(d => d.packageId === service.package),
+      `Package ${service.package} for service ${service.id} not found in catalog`
+    );
+    const credentials = service.credentials;
+    const integrationId = oauthDecorator.nangoIntegrationId;
+
+    const integrationSettings = await rpc(`${nangoConfig.nangoApiHost}/config/${integrationId}?include_creds=true`, {
+      headers: { Authorization: `Bearer ${nangoConfig.secretKey}` },
+    });
+    const nangoConnectionObject = await rpc(
+      `${nangoConfig.nangoApiHost}/connection/sync-source.${service.id}?provider_config_key=${integrationId}&refresh_token=true`,
+      { headers: { Authorization: `Bearer ${nangoConfig.secretKey}` } }
+    );
+
+    // getLog().atInfo().log("Integration settings", JSON.stringify(integrationSettings, null, 2));
+    // getLog().atInfo().log("Configuration object", JSON.stringify(nangoConnectionObject, null, 2));
+
+    return oauthDecorator.merge(credentials, integrationSettings.config, nangoConnectionObject.credentials);
+  } else {
+    return service.credentials;
+  }
+};

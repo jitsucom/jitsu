@@ -546,7 +546,7 @@ function SyncEditor({
                           className={"w-44"}
                           dropdownMatchSelectWidth={false}
                           disabled={!syncOptions?.streams?.[name] || stream.source_defined_cursor}
-                          options={cursorFieldOptions}
+                          options={!stream.source_defined_cursor ? cursorFieldOptions : []}
                           value={syncOptions?.streams?.[name]?.cursor_field ?? []}
                           onChange={v => updateSelectedStream(name, "cursor_field", v)}
                         />

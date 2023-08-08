@@ -3,11 +3,12 @@ import { z } from "zod";
 import { createRoute, getUser, verifyAccess } from "../../../../lib/api";
 import { requireDefined, rpc } from "juava";
 import { randomUUID } from "crypto";
-import { tryManageOauthCreds } from "../../../../lib/server/oauth/services";
 import { ServiceConfig } from "../../../../lib/schema";
 import { ApiError, syncError } from "../../../../lib/shared/errors";
 import { getServerLog } from "../../../../lib/server/log";
 import { getAppEndpoint } from "../../../../lib/domains";
+
+import { tryManageOauthCreds } from "../../../../lib/server/oauth/services";
 
 const log = getServerLog("sync-run");
 
@@ -182,7 +183,7 @@ export default createRoute()
           syncId: query.syncId,
         },
         body: {
-          config: await tryManageOauthCreds({ ...(service.config as ServiceConfig), id: sync.fromId }, req),
+          config: await tryManageOauthCreds({ ...(service.config as ServiceConfig), id: sync.fromId }),
           catalog: configuredCatalog,
           ...(stateObj ? { state: stateObj } : {}),
         },

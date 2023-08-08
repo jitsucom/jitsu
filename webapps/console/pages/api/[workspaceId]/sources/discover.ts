@@ -3,9 +3,10 @@ import { z } from "zod";
 import { createRoute, verifyAccess } from "../../../../lib/api";
 import { ServiceConfig } from "../../../../lib/schema";
 import { requireDefined, rpc } from "juava";
-import { tryManageOauthCreds } from "../../../../lib/server/oauth/services";
 import { getServerLog } from "../../../../lib/server/log";
 import { syncError } from "../../../../lib/shared/errors";
+
+import { tryManageOauthCreds } from "../../../../lib/server/oauth/services";
 
 const log = getServerLog("sync-discover");
 
@@ -63,7 +64,7 @@ export default createRoute()
       const discoverQueryRes = await rpc(syncURL + "/discover", {
         method: "POST",
         body: {
-          config: await tryManageOauthCreds(body as ServiceConfig, req),
+          config: await tryManageOauthCreds(body as ServiceConfig),
         },
         headers: {
           "Content-Type": "application/json",
