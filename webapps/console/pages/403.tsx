@@ -1,3 +1,5 @@
+import { GlobalError } from "../components/GlobalError/GlobalError";
+
 export default function Custom403() {
-  return <h1>403 - Not authorized</h1>;
+  return <GlobalError error={{ message: "403 - Not authorized" }} hideActions={true} />;
 }

@@ -42,7 +42,12 @@ import hljs from "highlight.js/lib/common";
 import { CopyButton } from "../CopyButton/CopyButton";
 import { Copy } from "lucide-react";
 
-export const CodeBlock: React.FC<PropsWithChildrenClassname<{ lang?: string }>> = ({ lang, children, className }) => {
+export const CodeBlock: React.FC<PropsWithChildrenClassname<{ lang?: string; preWrap?: boolean }>> = ({
+  lang,
+  preWrap,
+  children,
+  className,
+}) => {
   assertDefined(children, "CodeBlock children must be defined");
   const codeRef = useRef(null);
   useEffect(() => {
@@ -57,7 +62,12 @@ export const CodeBlock: React.FC<PropsWithChildrenClassname<{ lang?: string }>> 
           <Copy className="mt-2 w-5 h-5 text-textInverted" />
         </CopyButton>
       </div>
-      <pre ref={codeRef} className={`bg-textDark px-4 py-3 overflow-auto rounded-lg text-bgLight language-${lang}`}>
+      <pre
+        ref={codeRef}
+        className={`bg-textDark ${
+          preWrap ? "whitespace-pre-wrap" : ""
+        } px-4 py-3 overflow-auto rounded-lg text-bgLight language-${lang}`}
+      >
         {children}
       </pre>
     </div>

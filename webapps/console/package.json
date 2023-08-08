@@ -84,7 +84,9 @@
     "stopwatch-node": "^1.1.0",
     "tslib": "^2.4.0",
     "zod": "3.21.4",
-    "zod-to-json-schema": "3.21.4"
+    "zod-to-json-schema": "3.21.4",
+    "@google-cloud/scheduler": "^4.0.0",
+    "timezones-list": "^3.0.2"
   },
   "devDependencies": {
     "@ant-design/icons": "^5.0.1",

@@ -38,12 +38,15 @@ export default createRoute()
   })
   .handler(async ({ user, query, req }) => {
     const { workspaceId } = query;
-    await verifyAccess(user, workspaceId);
+    const syncAuthKey = process.env.SYNCCTL_AUTH_KEY ?? "";
+    const token = req.headers.authorization ?? "";
+    if (token.replace("Bearer ", "") !== syncAuthKey || !token || !syncAuthKey) {
+      await verifyAccess(user, workspaceId);
+    }
     const syncURL = requireDefined(
       process.env.SYNCCTL_URL,
       `env SYNCCTL_URL is not set. Sync Controller is required to run sources`
     );
-    const syncAuthKey = process.env.SYNCCTL_AUTH_KEY ?? "";
     const authHeaders: any = {};
     if (syncAuthKey) {
       authHeaders["Authorization"] = `Bearer ${syncAuthKey}`;

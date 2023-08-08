@@ -3,6 +3,8 @@ import { Api, inferUrl, nextJsApiHandler, verifyAccess } from "../../../../lib/a
 import { db } from "../../../../lib/server/db";
 import { fastStore } from "../../../../lib/server/fast-store";
 import { randomId } from "juava";
+import { syncWithScheduler } from "../../../../lib/server/sync-scheduler";
+import { getAppEndpoint } from "../../../../lib/domains";
 
 export const api: Api = {
   url: inferUrl(__filename),
@@ -33,7 +35,7 @@ export const api: Api = {
         type: z.string().optional(),
       }),
     },
-    handle: async ({ body, user, query: { workspaceId } }) => {
+    handle: async ({ body, user, query: { workspaceId }, req }) => {
       const { id, toId, fromId, data = undefined, type = "push" } = body;
       await verifyAccess(user, workspaceId);
       const fromType = type === "sync" ? "service" : "stream";
@@ -72,6 +74,7 @@ export const api: Api = {
           where: { id: existingLink.id },
           data: { data, deleted: false },
         });
+        await syncWithScheduler(getAppEndpoint(req).baseUrl);
         await fastStore.fullRefresh();
         return { id: existingLink.id, created: false };
       }
@@ -85,6 +88,7 @@ export const api: Api = {
           type,
         },
       });
+      await syncWithScheduler(getAppEndpoint(req).baseUrl);
       await fastStore.fullRefresh();
       return { id: created.id, created: true };
     },
@@ -94,7 +98,7 @@ export const api: Api = {
     types: {
       query: z.object({ workspaceId: z.string(), type: z.string().optional(), toId: z.string(), fromId: z.string() }),
     },
-    handle: async ({ user, query: { workspaceId, fromId, toId } }) => {
+    handle: async ({ user, query: { workspaceId, fromId, toId }, req }) => {
       await verifyAccess(user, workspaceId);
       const existingLink = await db.prisma().configurationObjectLink.findFirst({
         where: { workspaceId: workspaceId, toId, fromId, deleted: false },
@@ -103,6 +107,7 @@ export const api: Api = {
         return { deleted: false };
       }
       await db.prisma().configurationObjectLink.update({ where: { id: existingLink.id }, data: { deleted: true } });
+      await syncWithScheduler(getAppEndpoint(req).baseUrl);
       await fastStore.fullRefresh();
       return { deleted: true };
     },

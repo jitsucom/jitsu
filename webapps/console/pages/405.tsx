@@ -1,3 +1,5 @@
+import { GlobalError } from "../components/GlobalError/GlobalError";
+
 export default function Custom405() {
-  return <h1>405 - Method is not allowed</h1>;
+  return <GlobalError error={{ message: "405 - Method is not allowed" }} hideActions={true} />;
 }

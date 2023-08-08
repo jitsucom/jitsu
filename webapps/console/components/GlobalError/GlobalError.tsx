@@ -2,7 +2,7 @@ import React, { ErrorInfo, ReactNode } from "react";
 import { Expandable } from "../Expandable/Expandable";
 import { CodeBlock } from "../CodeBlock/CodeBlock";
 import { FaExclamationCircle } from "react-icons/fa";
-import { Button } from "antd";
+import { Button, Collapse } from "antd";
 import { signOut } from "next-auth/react";
 import { getErrorMessage, getLog } from "juava";
 import { firebaseSignOut } from "../../lib/firebase-client";
@@ -13,6 +13,7 @@ import classNames from "classnames";
 export type GlobalErrorProps = {
   error: any;
   title?: string;
+  hideActions?: boolean;
 };
 
 export type ErrorProps = { error: Error; errorInfo: ErrorInfo };
@@ -44,34 +45,33 @@ export class ErrorBoundary extends React.Component<
 export function ErrorDetails(props: { error: any }) {
   const message = props.error?.message && `${props.error.message}`;
   const stack = props.error?.stack && `${props.error.stack}`;
-
   return (
-    <>
+    <Collapse defaultActiveKey={"error"}>
       {message && (
-        <>
-          <div className="font-bold text-sm my-2">Error:</div>
-          <CodeBlock>{message}</CodeBlock>
-        </>
-      )}
-      {stack && (
-        <>
-          <div className="font-bold text-sm my-2">Stack:</div>
-          <CodeBlock>{stack}</CodeBlock>
-        </>
+        <Collapse.Panel key={"error"} header={<div className="font-bold text-sm">Error</div>}>
+          <CodeBlock preWrap>{message}</CodeBlock>
+        </Collapse.Panel>
       )}
       {props.error.response && (
-        <>
-          <div className="font-bold text-sm my-2">Response</div>
-          <CodeBlock lang="json">{JSON.stringify(props.error.response, null, 2)}</CodeBlock>
-        </>
+        <Collapse.Panel key={"response"} header={<div className="font-bold text-sm">Response</div>}>
+          <CodeBlock preWrap lang="json">
+            {JSON.stringify(props.error.response, null, 2)}
+          </CodeBlock>
+        </Collapse.Panel>
       )}
       {props.error.request && (
-        <>
-          <div className="font-bold text-sm my-2">Request</div>
-          <CodeBlock lang="json">{JSON.stringify(props.error.request, null, 2)}</CodeBlock>
-        </>
+        <Collapse.Panel key={"request"} header={<div className="font-bold text-sm">Request</div>}>
+          <CodeBlock preWrap lang="json">
+            {JSON.stringify(props.error.request, null, 2)}
+          </CodeBlock>
+        </Collapse.Panel>
       )}
-    </>
+      {stack && (
+        <Collapse.Panel key={"stack"} header={<div className="font-bold text-sm">Stack</div>}>
+          <CodeBlock preWrap>{stack}</CodeBlock>
+        </Collapse.Panel>
+      )}
+    </Collapse>
   );
 }
 
@@ -156,8 +156,8 @@ export const GlobalOverlay: React.FC<PropsWithChildrenClassname<{}>> = ({ childr
   </div>
 );
 
-export const GlobalError: React.FC<GlobalErrorProps> = ({ error, title }) => (
+export const GlobalError: React.FC<GlobalErrorProps> = props => (
   <GlobalOverlay>
-    <ErrorCard error={error} title={title} />
+    <ErrorCard {...props} />
   </GlobalOverlay>
 );

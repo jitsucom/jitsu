@@ -1,4 +1,4 @@
-import { useWorkspace } from "../../lib/context";
+import { useAppConfig, useWorkspace } from "../../lib/context";
 import { get } from "../../lib/useApi";
 import { DestinationConfig, ServiceConfig } from "../../lib/schema";
 import React, { useCallback, useEffect, useState } from "react";
@@ -7,7 +7,7 @@ import { ConfigurationObjectLinkDbModel } from "../../prisma/schema";
 import { useRouter } from "next/router";
 import { assertTrue, getLog, hash as juavaHash, rpc } from "juava";
 import { Disable } from "../Disable/Disable";
-import { Button, Select, Switch, Tooltip } from "antd";
+import { Button, Input, Select, Switch, Tooltip } from "antd";
 import { getCoreDestinationType } from "../../lib/schema/destinations";
 import { confirmOp, feedbackError, feedbackSuccess } from "../../lib/ui";
 import FieldListEditorLayout, { EditorItem } from "../FieldListEditorLayout/FieldListEditorLayout";
@@ -22,8 +22,40 @@ import { ErrorCard } from "../GlobalError/GlobalError";
 import { LabelEllipsis } from "../LabelEllipsis/LabelEllipsis";
 import { createDisplayName } from "../../lib/zod";
 import xor from "lodash/xor";
+import timezones from "timezones-list";
 
 const log = getLog("SyncEditorPage");
+
+const scheduleOptions = [
+  {
+    label: "Disabled",
+    value: "",
+  },
+  {
+    label: "Every minute",
+    value: "* * * * *",
+  },
+  {
+    label: "Every 5 minutes",
+    value: "*/5 * * * *",
+  },
+  {
+    label: "Every 15 minutes",
+    value: "*/15 * * * *",
+  },
+  {
+    label: "Every hour",
+    value: "0 * * * *",
+  },
+  {
+    label: "Every day",
+    value: "0 0 * * *",
+  },
+  {
+    label: "Custom",
+    value: "custom",
+  },
+];
 
 type SelectorProps<T> = {
   enabled: boolean;
@@ -35,6 +67,8 @@ type SelectorProps<T> = {
 type SyncOptionsType = {
   storageKey?: string;
   streams?: SelectedStreams;
+  schedule?: string;
+  timezone?: string;
 };
 
 type SelectedStreamSettings = {
@@ -133,6 +167,7 @@ function SyncEditor({
   links: z.infer<typeof ConfigurationObjectLinkDbModel>[];
 }) {
   const router = useRouter();
+  const appConfig = useAppConfig();
   const existingLink = router.query.id ? links.find(link => link.id === router.query.id) : undefined;
 
   assertTrue(services.length > 0, `Services list is empty`);
@@ -150,6 +185,10 @@ function SyncEditor({
   const [catalogError, setCatalogError] = useState<any>(undefined);
   const [loadingCatalog, setLoadingCatalog] = useState(true);
   const [refreshCatalog, setRefreshCatalog] = useState(0);
+
+  const [showCustomSchedule, setShowCustomSchedule] = useState(
+    syncOptions?.schedule && !scheduleOptions.find(o => o.value === syncOptions?.schedule)
+  );
 
   const updateOptions = useCallback(
     (patch: Partial<SyncOptionsType>) => {
@@ -382,6 +421,65 @@ function SyncEditor({
       ),
     },
   ];
+  if (appConfig.scheduler.enabled) {
+    configItems.push({
+      name: "Schedule",
+      documentation: "Select schedule to run sync",
+      component: (
+        <Select
+          className={"w-80"}
+          options={scheduleOptions}
+          value={showCustomSchedule ? "custom" : syncOptions?.schedule || ""}
+          onSelect={id => {
+            if (id === "custom") {
+              setShowCustomSchedule(true);
+            } else {
+              setShowCustomSchedule(false);
+              updateOptions({ schedule: id });
+            }
+          }}
+        />
+      ),
+    });
+    if (showCustomSchedule) {
+      configItems.push({
+        name: "Schedule (Cron)",
+        documentation: (
+          <>
+            Schedules are specified using unix-cron format. E.g. every 3 hours: <code>0 */3 * * *</code>, every Monday
+            at 9:00: <code>0 9 * * 1</code>
+          </>
+        ),
+        component: (
+          <div className={"w-80"}>
+            <Input value={syncOptions?.schedule} onChange={e => updateOptions({ schedule: e.target.value })} />
+          </div>
+        ),
+      });
+    }
+    if (syncOptions?.schedule) {
+      configItems.push({
+        name: "Scheduler Timezone",
+        documentation:
+          "Select timezone for scheduler. E.g. 'Every day' setting runs sync at 00:00 in selected timezone",
+        component: (
+          <Select
+            showSearch={true}
+            dropdownMatchSelectWidth={false}
+            className={"w-80"}
+            options={[
+              { value: "Etc/UTC", label: "UTC" },
+              ...timezones.map(tz => ({ value: tz.tzCode, label: tz.label })),
+            ]}
+            value={syncOptions?.timezone || "Etc/UTC"}
+            onSelect={tz => {
+              updateOptions({ timezone: tz });
+            }}
+          />
+        ),
+      });
+    }
+  }
   if (service) {
     if (loadingCatalog) {
       configItems.push({

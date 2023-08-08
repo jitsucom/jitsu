@@ -487,6 +487,9 @@ importers:
       '@fontsource/roboto-mono':
         specifier: ^4.5.8
         version: 4.5.10
+      '@google-cloud/scheduler':
+        specifier: ^4.0.0
+        version: 4.0.0
       '@jitsu/core-functions':
         specifier: workspace:*
         version: link:../../libs/core-functions
@@ -655,6 +658,9 @@ importers:
       stopwatch-node:
         specifier: ^1.1.0
         version: 1.1.0
+      timezones-list:
+        specifier: ^3.0.2
+        version: 3.0.2
       tslib:
         specifier: ^2.4.0
         version: 2.5.0
@@ -4309,6 +4315,16 @@ packages:
     dev: false
     optional: true
 
+  /@google-cloud/scheduler@4.0.0:
+    resolution: {integrity: sha512-9q3djPsxaKIJETgdlx+76F8zobzUTyCZujSVtj2FD2K7jyjfhYZ31meLVBJzbsJ+YwDzF9KK3cCIx57Xap39WQ==}
+    engines: {node: '>=14.0.0'}
+    dependencies:
+      google-gax: 4.0.3
+    transitivePeerDependencies:
+      - encoding
+      - supports-color
+    dev: false
+
   /@google-cloud/storage@6.9.5:
     resolution: {integrity: sha512-fcLsDA8YKcGuqvhk0XTjJGVpG9dzs5Em8IcUjSjspYvERuHYqMy9CMChWapSjv3Lyw//exa3mv4nUxPlV93BnA==}
     engines: {node: '>=12'}
@@ -4351,7 +4367,6 @@ packages:
       '@grpc/proto-loader': 0.7.6
       '@types/node': 18.15.11
     dev: false
-    optional: true
 
   /@grpc/proto-loader@0.6.13:
     resolution: {integrity: sha512-FjxPYDRTn6Ec3V0arm1FtSpmP6V50wuph2yILpyvTKzjc76oDdoihXqM1DzOW5ubvCC8GivfCnNtfaRE8myJ7g==}
@@ -4372,7 +4387,7 @@ packages:
       '@types/long': 4.0.2
       lodash.camelcase: 4.3.0
       long: 4.0.0
-      protobufjs: 7.2.3
+      protobufjs: 7.2.4
       yargs: 16.2.0
 
   /@humanwhocodes/config-array@0.10.7:
@@ -9287,6 +9302,15 @@ packages:
     transitivePeerDependencies:
       - supports-color
 
+  /agent-base@7.1.0:
+    resolution: {integrity: sha512-o/zjMZRhJxny7OyEF+Op8X+efiELC7k7yOjMzgfzVqOzXqkBkWI79YoTdOtsuWd5BWhAGAuOY/Xa6xpiaWXiNg==}
+    engines: {node: '>= 14'}
+    dependencies:
+      debug: 4.3.4
+    transitivePeerDependencies:
+      - supports-color
+    dev: false
+
   /agentkeepalive@4.3.0:
     resolution: {integrity: sha512-7Epl1Blf4Sy37j4v9f9FjICCh4+KAQOyXgHEwlyBiAQLbhKdq/i2QQU3amQalS/wPhdPzDXPL5DMR5bkn+YeWg==}
     engines: {node: '>= 8.0.0'}
@@ -11975,7 +11999,6 @@ packages:
       readable-stream: 3.6.2
       stream-shift: 1.0.1
     dev: false
-    optional: true
 
   /ecdsa-sig-formatter@1.0.11:
     resolution: {integrity: sha512-nagl3RYrbNv6kQkeJIpt6NJZy8twLB/2vtz6yN9Z4vRKHN4/QZJIEbqohALSgwKdnksuY3k5Addp5lg8sVoVcQ==}
@@ -13973,6 +13996,19 @@ packages:
     dev: false
     optional: true
 
+  /gaxios@6.0.4:
+    resolution: {integrity: sha512-mwKfHJn7f3pLRfahdEPNyvygXRwjwgsgDPaIIoBRIDkgP4SFyezkYGWQ2aLCfrAnzimSrP+mAg1aSUj5gidXvw==}
+    engines: {node: '>=14'}
+    dependencies:
+      extend: 3.0.2
+      https-proxy-agent: 7.0.1
+      is-stream: 2.0.1
+      node-fetch: 2.6.9
+    transitivePeerDependencies:
+      - encoding
+      - supports-color
+    dev: false
+
   /gcp-metadata@4.3.1:
     resolution: {integrity: sha512-x850LS5N7V1F3UcV7PoupzGsyD6iVwTVvsh3tbXfkctZnBnjW5yu5z1/3k3SehF7TyoTIe78rJs02GMMy+LF+A==}
     engines: {node: '>=10'}
@@ -13995,6 +14031,17 @@ packages:
       - supports-color
     dev: false
     optional: true
+
+  /gcp-metadata@6.0.0:
+    resolution: {integrity: sha512-Ozxyi23/1Ar51wjUT2RDklK+3HxqDr8TLBNK8rBBFQ7T85iIGnXnVusauj06QyqCXRFZig8LZC+TUddWbndlpQ==}
+    engines: {node: '>=14'}
+    dependencies:
+      gaxios: 6.0.4
+      json-bigint: 1.0.0
+    transitivePeerDependencies:
+      - encoding
+      - supports-color
+    dev: false
 
   /generic-names@2.0.1:
     resolution: {integrity: sha512-kPCHWa1m9wGG/OwQpeweTwM/PYiQLrUIxXbt/P4Nic3LbGjCP0YwrALHW1uNLKZ0LIMg+RF+XRlj2ekT9ZlZAQ==}
@@ -14267,6 +14314,22 @@ packages:
     dev: false
     optional: true
 
+  /google-auth-library@9.0.0:
+    resolution: {integrity: sha512-IQGjgQoVUAfOk6khqTVMLvWx26R+yPw9uLyb1MNyMQpdKiKt0Fd9sp4NWoINjyGHR8S3iw12hMTYK7O8J07c6Q==}
+    engines: {node: '>=14'}
+    dependencies:
+      base64-js: 1.5.1
+      ecdsa-sig-formatter: 1.0.11
+      gaxios: 6.0.4
+      gcp-metadata: 6.0.0
+      gtoken: 7.0.1
+      jws: 4.0.0
+      lru-cache: 6.0.0
+    transitivePeerDependencies:
+      - encoding
+      - supports-color
+    dev: false
+
   /google-gax@3.6.0:
     resolution: {integrity: sha512-2fyb61vWxUonHiArRNJQmE4tx5oY1ni8VPo08fzII409vDSCWG7apDX4qNOQ2GXXT82gLBn3d3P1Dydh7pWjyw==}
     engines: {node: '>=12'}
@@ -14283,7 +14346,7 @@ packages:
       is-stream-ended: 0.1.4
       node-fetch: 2.6.9
       object-hash: 3.0.0
-      proto3-json-serializer: 1.1.0
+      proto3-json-serializer: 1.1.1
       protobufjs: 7.2.3
       protobufjs-cli: 1.1.1(protobufjs@7.2.3)
       retry-request: 5.0.2
@@ -14292,6 +14355,26 @@ packages:
       - supports-color
     dev: false
     optional: true
+
+  /google-gax@4.0.3:
+    resolution: {integrity: sha512-gllHYRhZvpz0LcVN+xtyzBeUa/ZYiLGF4JNBECrvL/LxDkaJc09hHoQ+KzRBI2Ewqgrjj7V3QrOC2pGno5ropw==}
+    engines: {node: '>=14'}
+    dependencies:
+      '@grpc/grpc-js': 1.8.13
+      '@grpc/proto-loader': 0.7.6
+      '@types/long': 4.0.2
+      abort-controller: 3.0.0
+      duplexify: 4.1.2
+      google-auth-library: 9.0.0
+      node-fetch: 2.6.9
+      object-hash: 3.0.0
+      proto3-json-serializer: 1.1.1
+      protobufjs: 7.2.4
+      retry-request: 6.0.0
+    transitivePeerDependencies:
+      - encoding
+      - supports-color
+    dev: false
 
   /google-p12-pem@3.1.4:
     resolution: {integrity: sha512-HHuHmkLgwjdmVRngf5+gSmpkyaRI6QmOg77J8tkNBHhNEI62sGHyw4/+UkgyZEI7h84NbWprXDJ+sa3xOYFvTg==}
@@ -14392,6 +14475,17 @@ packages:
       - supports-color
     dev: false
     optional: true
+
+  /gtoken@7.0.1:
+    resolution: {integrity: sha512-KcFVtoP1CVFtQu0aSk3AyAt2og66PFhZAlkUOuWKwzMLoulHXG5W5wE5xAnHb+yl3/wEFoqGW7/cDGMU8igDZQ==}
+    engines: {node: '>=14.0.0'}
+    dependencies:
+      gaxios: 6.0.4
+      jws: 4.0.0
+    transitivePeerDependencies:
+      - encoding
+      - supports-color
+    dev: false
 
   /gunzip-maybe@1.4.2:
     resolution: {integrity: sha512-4haO1M4mLO91PW57BMsDFf75UmwoRX0GkdD+Faw+Lr+r/OZrOCS0pIBwOL1xCKQqnQzbNFGgK2V2CpBUPeFNTw==}
@@ -14747,6 +14841,16 @@ packages:
       debug: 4.3.4
     transitivePeerDependencies:
       - supports-color
+
+  /https-proxy-agent@7.0.1:
+    resolution: {integrity: sha512-Eun8zV0kcYS1g19r78osiQLEFIRspRUDd9tIfBCTBPBeMieF/EsJNL8VI3xOIdYRDEkjQnqOYPsZ2DsWsVsFwQ==}
+    engines: {node: '>= 14'}
+    dependencies:
+      agent-base: 7.1.0
+      debug: 4.3.4
+    transitivePeerDependencies:
+      - supports-color
+    dev: false
 
   /human-signals@2.1.0:
     resolution: {integrity: sha512-B4FFZ6q/T2jhhksgkbEW3HBvWIfDW85snkQgawt07S7J5QXTk6BkNV+0yAeZrM5QpMAdYlocGoljn0sJ/WQkFw==}
@@ -21562,13 +21666,12 @@ packages:
     resolution: {integrity: sha512-vtK/94akxsTMhe0/cbfpR+syPuszcuwhqVjJq26CuNDgFGj682oRBXOP5MJpv2r7JtE8MsiepGIqvvOTBwn2vA==}
     dev: false
 
-  /proto3-json-serializer@1.1.0:
-    resolution: {integrity: sha512-SjXwUWe/vANGs/mJJTbw5++7U67nwsymg7qsoPtw6GiXqw3kUy8ByojrlEdVE2efxAdKreX8WkDafxvYW95ZQg==}
+  /proto3-json-serializer@1.1.1:
+    resolution: {integrity: sha512-AwAuY4g9nxx0u52DnSMkqqgyLHaW/XaPLtaAo3y/ZCfeaQB/g4YDH4kb8Wc/mWzWvu0YjOznVnfn373MVZZrgw==}
     engines: {node: '>=12.0.0'}
     dependencies:
-      protobufjs: 7.2.3
+      protobufjs: 7.2.4
     dev: false
-    optional: true
 
   /protobufjs-cli@1.1.1(protobufjs@7.2.3):
     resolution: {integrity: sha512-VPWMgIcRNyQwWUv8OLPyGQ/0lQY/QTQAVN5fh+XzfDwsVw1FZ2L3DM/bcBf8WPiRz2tNpaov9lPZfNcmNo6LXA==}
@@ -21612,6 +21715,26 @@ packages:
 
   /protobufjs@7.2.3:
     resolution: {integrity: sha512-TtpvOqwB5Gdz/PQmOjgsrGH1nHjAQVCN7JG4A6r1sXRWESL5rNMAiRcBQlCAdKxZcAbstExQePYG8xof/JVRgg==}
+    engines: {node: '>=12.0.0'}
+    requiresBuild: true
+    dependencies:
+      '@protobufjs/aspromise': 1.1.2
+      '@protobufjs/base64': 1.1.2
+      '@protobufjs/codegen': 2.0.4
+      '@protobufjs/eventemitter': 1.1.0
+      '@protobufjs/fetch': 1.1.0
+      '@protobufjs/float': 1.0.2
+      '@protobufjs/inquire': 1.1.0
+      '@protobufjs/path': 1.1.2
+      '@protobufjs/pool': 1.1.0
+      '@protobufjs/utf8': 1.1.0
+      '@types/node': 18.15.11
+      long: 5.2.1
+    dev: false
+    optional: true
+
+  /protobufjs@7.2.4:
+    resolution: {integrity: sha512-AT+RJgD2sH8phPmCf7OUZR8xGdcJRga4+1cOaXJ64hvcSkVhNcRHOwIxUatPH15+nj59WAGTDv3LSGZPEQbJaQ==}
     engines: {node: '>=12.0.0'}
     requiresBuild: true
     dependencies:
@@ -22982,6 +23105,16 @@ packages:
       - supports-color
     dev: false
     optional: true
+
+  /retry-request@6.0.0:
+    resolution: {integrity: sha512-24kaFMd3wCnT3n4uPnsQh90ZSV8OISpfTFXJ00Wi+/oD2OPrp63EQ8hznk6rhxdlpwx2QBhQSDz2Fg46ki852g==}
+    engines: {node: '>=14'}
+    dependencies:
+      debug: 4.3.4
+      extend: 3.0.2
+    transitivePeerDependencies:
+      - supports-color
+    dev: false
 
   /retry@0.12.0:
     resolution: {integrity: sha512-9LkiTwjUh6rT555DtE9rTX+BKByPfrMzEAtnlEtdEwr3Nkffwiihqe2bWADg+OQRjt9gl6ICdmB/ZFDCGAtSow==}
@@ -24592,6 +24725,10 @@ packages:
     dependencies:
       convert-hrtime: 3.0.0
     dev: true
+
+  /timezones-list@3.0.2:
+    resolution: {integrity: sha512-I698hm6Jp/xxkwyTSOr39pZkYKETL8LDJeSIhjxXBfPUAHM5oZNuQ4o9UK3PSkDBOkjATecSOBb3pR1IkIBUsg==}
+    dev: false
 
   /timsort@0.3.0:
     resolution: {integrity: sha512-qsdtZH+vMoCARQtyod4imc2nIJwg9Cc7lPRrw9CzF8ZKR0khdr8+2nX80PBhET3tcyTtJDxAffGh2rXH4tyU8A==}
