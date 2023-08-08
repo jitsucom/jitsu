@@ -5,7 +5,7 @@ import { DestinationConfig, ServiceConfig } from "../../../lib/schema";
 import { ConfigurationObjectLinkDbModel } from "../../../prisma/schema";
 import { QueryResponse } from "../../../components/QueryResponse/QueryResponse";
 import { z } from "zod";
-import { Alert, Table, Tag } from "antd";
+import { Table, Tag } from "antd";
 import { confirmOp, feedbackError, feedbackSuccess } from "../../../lib/ui";
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
@@ -83,7 +83,7 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
   const [tasks, setTasks] = useState<{ loading: boolean; data?: any; error?: any }>({ loading: true });
   const [running, setRunning] = useState<string | undefined>(undefined);
 
-  const [showScheduling, setShowScheduling] = useQueryStringState<string | undefined>("schedule");
+  const [apiDocs, setShowAPIDocs] = useQueryStringState<string | undefined>("schedule");
   //useEffect update tasksData every 5 seconds
   useEffect(() => {
     const fetchTasks = async () => {
@@ -302,9 +302,9 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
           {
             icon: <CalendarCheckIcon className={"w-4 h-4"} />,
             onClick: async () => {
-              setShowScheduling(link.id);
+              setShowAPIDocs(link.id);
             },
-            label: "Schedule (API)",
+            label: "API",
           },
           {
             icon: <FaTrash />,
@@ -331,13 +331,13 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
         loading={loading}
         onChange={onChange}
       />
-      {showScheduling && (
+      {apiDocs && (
         <ScheduleDocumentation
-          syncId={showScheduling}
-          service={servicesById[linksById[showScheduling].fromId]}
-          destination={destinationsById[linksById[showScheduling].toId]}
+          syncId={apiDocs}
+          service={servicesById[linksById[apiDocs].fromId]}
+          destination={destinationsById[linksById[apiDocs].toId]}
           onCancel={() => {
-            setShowScheduling(undefined);
+            setShowAPIDocs(undefined);
           }}
         />
       )}
@@ -469,23 +469,6 @@ const ScheduleDocumentation: React.FC<{
       </div>
       <div className="flex flex-row">
         <div className={"flex-shrink prose-sm max-w-none overflow-auto"}>
-          <h2 id={"scheduling"}>Scheduling Sync</h2>
-          <Alert
-            type="warning"
-            showIcon
-            message={<b>Service Sync Beta</b>}
-            description={
-              <>
-                Jitsu Next Service Sync is currently in Beta. Scheduling of sync tasks is not yet implemented.
-                <br />
-                But you can use API endpoint that trigger sync together with third-party scheduling tools like{" "}
-                <a target={"_blank"} rel={"noreferrer noopener"} href={"https://cloud.google.com/scheduler"}>
-                  Google Cloud Scheduler
-                </a>
-                , cron, Airflow, ...
-              </>
-            }
-          />
           <h2 id={"trigger"}>Trigger Sync</h2>
           <h3>Endpoint</h3>
           <CodeBlock>{`${displayDomain}/api/${workspace.id}/sources/run?syncId=${syncId}`}</CodeBlock>
@@ -602,7 +585,6 @@ const ScheduleDocumentation: React.FC<{
         </div>
         <div className={"ml-6 pt-2 px-6 hidden lg:block w-60 border-l flex-shrink-0"}>
           <div className="flex whitespace-nowrap fixed   flex-col space-y-3  ">
-            <Link href="#scheduling">Scheduling Sync</Link>
             <Link href="#trigger">Trigger Sync</Link>
             <Link href="#status">Sync Status</Link>
             <Link href="#logs">Sync Logs</Link>

@@ -58,7 +58,7 @@ export async function syncWithScheduler(baseUrl: string) {
     const job: IJob = {
       name: `${googleSchedulerParent}/jobs/${id}`,
       schedule: schedule,
-      timeZone: (sync.data as any).timezone,
+      timeZone: (sync.data as any).timezone ?? "Etc/UTC",
       httpTarget: {
         uri: `${baseUrl}/api/${sync.workspaceId}/sources/run?syncId=${sync.id}`,
         headers: {
@@ -84,13 +84,14 @@ export async function syncWithScheduler(baseUrl: string) {
     const sync = syncsById[id];
     const schedule = (sync.data as any).schedule;
     const job = jobsById[id];
-    if (job.schedule !== schedule || job.timeZone !== (sync.data as any).timezone) {
+    const syncTimezone = (sync.data as any).timezone ?? "Etc/UTC";
+    if (job.schedule !== schedule || job.timeZone !== syncTimezone) {
       log.atInfo().log(`Updating job ${job.name}`);
       await client.updateJob({
         job: {
           ...job,
           schedule: schedule,
-          timeZone: (sync.data as any).timezone,
+          timeZone: syncTimezone,
         },
       });
     }
