@@ -62,7 +62,7 @@ export async function syncWithScheduler(baseUrl: string) {
       httpTarget: {
         uri: `${baseUrl}/api/${sync.workspaceId}/sources/run?syncId=${sync.id}`,
         headers: {
-          Authorization: `Bearer ${process.env.SYNCCTL_AUTH_TOKEN}`,
+          Authorization: `Bearer ${process.env.SYNCCTL_AUTH_KEY}`,
         },
         httpMethod: "GET",
       },
