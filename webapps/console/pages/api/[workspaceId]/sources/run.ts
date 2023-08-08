@@ -1,11 +1,11 @@
 import { db } from "../../../../lib/server/db";
 import { z } from "zod";
-import { createRoute, verifyAccess } from "../../../../lib/api";
+import { createRoute, getUser, verifyAccess } from "../../../../lib/api";
 import { requireDefined, rpc } from "juava";
 import { randomUUID } from "crypto";
 import { tryManageOauthCreds } from "../../../../lib/server/oauth/services";
 import { ServiceConfig } from "../../../../lib/schema";
-import { syncError } from "../../../../lib/shared/errors";
+import { ApiError, syncError } from "../../../../lib/shared/errors";
 import { getServerLog } from "../../../../lib/server/log";
 import { getAppEndpoint } from "../../../../lib/domains";
 
@@ -28,7 +28,7 @@ const resultType = z.object({
 
 export default createRoute()
   .GET({
-    auth: true,
+    auth: false,
     query: z.object({
       workspaceId: z.string(),
       syncId: z.string(),
@@ -36,11 +36,15 @@ export default createRoute()
     }),
     result: resultType,
   })
-  .handler(async ({ user, query, req }) => {
+  .handler(async ({ query, req, res }) => {
     const { workspaceId } = query;
     const syncAuthKey = process.env.SYNCCTL_AUTH_KEY ?? "";
     const token = req.headers.authorization ?? "";
     if (token.replace("Bearer ", "") !== syncAuthKey || !token || !syncAuthKey) {
+      const user = await getUser(res, req);
+      if (!user) {
+        throw new ApiError("Authorization Required", {}, { status: 401 });
+      }
       await verifyAccess(user, workspaceId);
     }
     const syncURL = requireDefined(
