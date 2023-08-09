@@ -18,7 +18,7 @@ import { JitsuButton, WJitsuButton } from "../../../components/JitsuButton/Jitsu
 import { AlertCircle, CheckCircle2, ChevronLeft, ListMinusIcon, RefreshCw, XCircle } from "lucide-react";
 import { FaExternalLinkAlt, FaPlay, FaRegPlayCircle } from "react-icons/fa";
 import { useRouter } from "next/router";
-import { SyncTitle } from "./index";
+import { formatDateOnly, formatTime, SyncTitle } from "./index";
 import { ButtonGroup, ButtonProps } from "../../../components/ButtonGroup/ButtonGroup";
 import { rpc } from "juava";
 import { feedbackError } from "../../../lib/ui";
@@ -26,8 +26,6 @@ import { feedbackError } from "../../../lib/ui";
 dayjs.extend(utc);
 dayjs.extend(relativeTime);
 type DatesRange = [string | null, string | null];
-
-const formatDate = (date: string | Date) => dayjs(date, "YYYY-MM-DDTHH:mm:ss.SSSZ").utc().format("YYYY-MM-DD HH:mm:ss");
 
 const formatBytes = bytes => {
   const dp = 1;
@@ -317,8 +315,13 @@ function TasksTable({ tasks, loading, linksMap, servicesMap, destinationsMap, re
       title: <div className={"whitespace-nowrap"}>Started (UTC)</div>,
       key: "started_at",
       width: "12%",
-      render: (text, task) => {
-        return <div className={"whitespace-nowrap"}>{formatDate(task.started_at)}</div>;
+      render: (text, t) => {
+        return (
+          <div className={"flex flex-col items-start text-xs font-semibold"}>
+            <div>{t ? formatDateOnly(t.started_at) : ""}</div>
+            <div>{t ? formatTime(t.started_at) : ""}</div>
+          </div>
+        );
       },
     },
     {
@@ -335,6 +338,7 @@ function TasksTable({ tasks, loading, linksMap, servicesMap, destinationsMap, re
                 service={servicesMap[link.fromId]}
                 destination={destinationsMap[link.toId]}
                 showLink={true}
+                className={"max-w-sm xl:max-w-fit"}
               />
             );
           }
@@ -369,8 +373,8 @@ function TasksTable({ tasks, loading, linksMap, servicesMap, destinationsMap, re
           return <div className={"whitespace-nowrap"}>{task.successStreams}</div>;
         } else if (task.status === "PARTIAL") {
           return (
-            <div className={"whitespace-nowrap"}>
-              {task.successStreams} of {task.totalStreams}
+            <div>
+              {task.successStreams} / {task.totalStreams}
             </div>
           );
         } else {
@@ -384,18 +388,23 @@ function TasksTable({ tasks, loading, linksMap, servicesMap, destinationsMap, re
       width: "12%",
       className: "text-right",
       render: (text, task) => {
-        return <code className={"whitespace-nowrap font-normal"}>{(task.processedRows || 0).toLocaleString()}</code>;
+        return (
+          <div className={"flex flex-col items-end justify-self-end gap-1"}>
+            <code className={"whitespace-nowrap font-normal"}>{(task.processedRows || 0).toLocaleString()}</code>
+            <div className={"whitespace-nowrap text-xxs text-gray-500"}>{formatBytes(task.processedBytes)}</div>
+          </div>
+        );
       },
     },
-    {
-      title: <div className={"whitespace-nowrap text-right"}>Data Size</div>,
-      dataIndex: "processedRows",
-      width: "12%",
-      className: "text-right",
-      render: (text, task) => {
-        return <code className={"whitespace-nowrap font-normal"}>{formatBytes(task.processedBytes)}</code>;
-      },
-    },
+    // {
+    //   title: <div className={"whitespace-nowrap text-right"}>Data Size</div>,
+    //   dataIndex: "processedRows",
+    //   width: "12%",
+    //   className: "text-right",
+    //   render: (text, task) => {
+    //     return <code className={"whitespace-nowrap font-normal"}>{formatBytes(task.processedBytes)}</code>;
+    //   },
+    // },
     {
       title: <div className={"text-right"}>Actions</div>,
       key: "actions",

@@ -16,9 +16,9 @@ export const ObjectTitle: React.FC<{
     }
   })();
   return (
-    <div className={`flex items-center ${size !== "small" ? "gap-3" : "gap-2"}`}>
+    <div className={`flex overflow-auto items-center ${size !== "small" ? "gap-3" : "gap-2"}`}>
       {icon && <div className={iconClassName}>{icon}</div>}
-      <div className={`text-text whitespace-nowrap ${size !== "small" ? "font-semibold" : ""}`}>{title}</div>
+      <div className={`text-text truncate overflow-hidden  ${size !== "small" ? "font-semibold" : ""}`}>{title}</div>
     </div>
   );
 };
