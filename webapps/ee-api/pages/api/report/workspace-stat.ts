@@ -175,7 +175,8 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
   const end = getDate(req.query.end as string, new Date().toISOString()).toISOString();
   const granularity = "day"; // = ((req.query.granularity as string) || "day").toLowerCase();
   const reportResult = await buildWorkspaceReport(start, end, granularity, workspaceId);
-  res.send({ data: extended ? await extend(reportResult) : reportResult });
+  const records = extended ? await extend(reportResult) : reportResult;
+  res.send(req.query.format === "array" ? records : { data: records });
 };
 
 export default withErrorHandler(handler);
