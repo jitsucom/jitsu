@@ -1,5 +1,4 @@
 import { AnalyticsServerEvent } from "./analytics";
-import { RequestOptions } from "http";
 
 export type SetOpts = { ttlMs?: number } | { ttlSec?: number };
 
@@ -56,6 +55,27 @@ export type FunctionContext = {
   store: Store;
 };
 
+export type PrivacyOpts = {
+  /**
+   * IP address processing mode
+   * "keep" means that the IP address will be kept as is
+   * "reduce" means that the IP address will be reduced to the first 3 octets
+   * "hash" means that the IP address will be hashed with SHA256 (not implemented yet)
+   *
+   * "reduce" is the default behavior
+   */
+  ip?: "reduce" | "keep" | "hash";
+  /**
+   * Replaces cookie based anonymous ID with a fingerprint hash
+   * "hash1" means that anyonymous ID will be replaced with hash(ip + user_agent)
+   */
+  anonymousId?: "hash1" | "keep" | ((opts: { ip: string; ip3octets: string; userAgent: string }) => string);
+};
+
+export type CoreLib = {
+  privacy(event: AnalyticsServerEvent, opts?: PrivacyOpts): AnalyticsServerEvent;
+};
+
 export type AnonymousEventsStore = {
   addEvent(collectionName: string, anonymousId: string, event: AnalyticsServerEvent, ttlDays: number): Promise<void>;
   evictEvents(collectionName: string, anonymousId: string): Promise<AnalyticsServerEvent[]>;
@@ -70,7 +90,80 @@ export type SystemContext = {
   };
 };
 
+export type WithConfidence<T> = T & {
+  //A value from 0-100 indicating how confident we are in the result
+  confidence?: number;
+};
+
+export type Geo = {
+  /**
+   * IP address of the incoming request
+   */
+  ip: string;
+  continent?: {
+    code: "AF" | "AN" | "AS" | "EU" | "NA" | "OC" | "SA";
+  };
+  country: {
+    /**
+     * Two-letter country code (ISO 3166-1 alpha-2): https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2
+     */
+    code: string;
+    isEU: boolean;
+  };
+  region?: WithConfidence<{
+    /**
+     * Code of the region (ISO 3166-2): https://en.wikipedia.org/wiki/ISO_3166-2.
+     * For USA it's two-letter capitaluzed state code (such as NY)
+     */
+    code: string;
+  }>;
+  city?: WithConfidence<{
+    name: string;
+  }>;
+
+  postalCode: WithConfidence<{
+    code: string;
+  }>;
+
+  location?: {
+    latitude: number;
+    longitude: number;
+    accuracyRadius: number;
+    /**
+     * Only for USA locations
+     */
+    usaData?: {
+      populationDensity?: number;
+      metroCode?: number;
+      averageIncome?: number;
+    };
+  };
+  provider: {
+    /**
+     * Autonomous system number
+     */
+    as?: {
+      num: number;
+      name?: string;
+    };
+    connectionType?: string;
+    domain: string;
+    isAnonymousVpn?: boolean;
+    isHostingProvider?: boolean;
+    isLegitimateProxy?: boolean;
+    isPublicProxy?: boolean;
+    isResidentialProxy?: boolean;
+    isTorExitNode?: boolean;
+    userType?: string;
+    isp?: string;
+  };
+};
+
 export type EventContext = {
+  /**
+   * Geo data of incoming request
+   */
+  geo?: Geo;
   /**
    * Headers of incoming request
    */
