@@ -69,9 +69,12 @@ export const AppConfig = z.object({
     writeKey: z.string().optional(),
   }),
   logLevel: z.enum(["debug", "info", "warn", "error"]),
-  scheduler: z.object({
+  syncs: z.object({
     enabled: z.boolean(),
-    provider: z.enum(["google-cloud-scheduler"]).optional(),
+    scheduler: z.object({
+      enabled: z.boolean(),
+      provider: z.enum(["google-cloud-scheduler"]).optional(),
+    }),
   }),
   nango: z
     .object({

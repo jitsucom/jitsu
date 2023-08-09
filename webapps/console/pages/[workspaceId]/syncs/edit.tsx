@@ -1,5 +1,5 @@
 import { WorkspacePageLayout } from "../../../components/PageLayout/WorkspacePageLayout";
-import { useWorkspace } from "../../../lib/context";
+import { useAppConfig, useWorkspace } from "../../../lib/context";
 import React from "react";
 import { LoadingAnimation } from "../../../components/GlobalLoader/GlobalLoader";
 import { ErrorCard, GlobalError } from "../../../components/GlobalError/GlobalError";
@@ -8,12 +8,13 @@ import SyncEditorPage from "../../../components/SyncEditorPage/SyncEditorPage";
 
 const Loader = () => {
   const workspace = useWorkspace();
+  const appconfig = useAppConfig();
 
   const result = useLinksQuery(workspace.id, "sync", {
     cacheTime: 0,
     retry: false,
   });
-  if (!workspace.featuresEnabled || !workspace.featuresEnabled.includes("syncs")) {
+  if (!(appconfig.syncs.enabled || workspace.featuresEnabled.includes("syncs"))) {
     return (
       <ErrorCard
         title={"Feature is not enabled"}
