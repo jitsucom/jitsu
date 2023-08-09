@@ -9,10 +9,11 @@ import { getServerLog } from "./log";
 const log = getServerLog("sync-scheduler");
 
 export async function syncWithScheduler(baseUrl: string) {
-  const googleSchedulerKeyJson = requireDefined(
-    process.env.GOOGLE_SCHEDULER_KEY,
-    "env GOOGLE_SCHEDULER_KEY is not defined"
-  );
+  const googleSchedulerKeyJson = process.env.GOOGLE_SCHEDULER_KEY;
+  if (!googleSchedulerKeyJson) {
+    log.atInfo().log(`GoogleCloudScheduler sync: GOOGLE_SCHEDULER_KEY is not defined, skipping`);
+    return;
+  }
   const googleSchedulerKey = JSON.parse(googleSchedulerKeyJson);
   const googleSchedulerProjectId = googleSchedulerKey.project_id;
   const googleSchedulerLocation = requireDefined(
