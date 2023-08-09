@@ -3,7 +3,7 @@ import { branding } from "../../lib/branding";
 import { HiSelector } from "react-icons/hi";
 import { FaSignOutAlt, FaUserCircle } from "react-icons/fa";
 import { FiSettings } from "react-icons/fi";
-import { Button, Drawer, Dropdown, Menu } from "antd";
+import { Button, Drawer, Dropdown, Menu, MenuProps } from "antd";
 import MenuItem from "antd/lib/menu/MenuItem";
 import { ButtonLabel } from "../ButtonLabel/ButtonLabel";
 import styles from "./WorkspacePageLayout.module.css";
@@ -13,25 +13,30 @@ import {
   ArrowLeftRight,
   ArrowRight,
   BarChart3,
+  ChevronDown,
   ChevronUp,
   FilePlus,
   FolderKanban,
   Folders,
   FunctionSquare,
   Globe,
+  Hammer,
   LayoutDashboard,
   Loader2,
+  PlugZap,
+  SearchCode,
   Server,
   ServerCog,
   Settings,
   Share2,
   ShieldAlert,
+  User,
   X,
+  Zap,
 } from "lucide-react";
 
 import { NextRouter, useRouter } from "next/router";
 import Link from "next/link";
-import { WLink } from "../Workspace/WLink";
 import { getDomains, useAppConfig, useUser, useUserSessionControls, useWorkspace } from "../../lib/context";
 import { get, useApi } from "../../lib/useApi";
 
@@ -218,50 +223,88 @@ type TabsMenuItem = {
   title: ReactNode;
   icon: ReactNode;
   path: string;
+  globalPath?: boolean;
   aliases?: string[] | string;
   hidden?: boolean;
-};
-export type TopTabsMenuProps = {
-  items: TabsMenuItem[];
+  items?: never;
 };
 
-function isSelected(item: { title: React.ReactNode; path: string; aliases?: string[] | string }, router: NextRouter) {
+type TabsMenuGroup = {
+  title: ReactNode;
+  icon: ReactNode;
+  items: TabsMenuItem[];
+};
+export type TopTabsMenuProps = {
+  items: (TabsMenuItem | TabsMenuGroup)[];
+};
+
+function isSelected(item: string, router: NextRouter) {
   let workspacePath = router.pathname.replace("/[workspaceId]", "");
   if (workspacePath === "") {
     workspacePath = "/";
   }
 
-  return item.path === workspacePath || item.aliases === workspacePath || item.aliases?.includes(workspacePath);
+  return item === workspacePath;
+}
+
+function MenuLabel({ children, icon, hasSubMenu }: { children: ReactNode; icon?: ReactNode; hasSubMenu?: boolean }) {
+  return (
+    <div className={`flex items-center flex-nowrap group`}>
+      {icon && <div className="h-4 w-4 mr-2">{icon}</div>}
+      <div>{children}</div>
+      {hasSubMenu && (
+        <div>
+          <ChevronDown className="w-3.5 h-3.5 mt-0.5 ml-1" />
+        </div>
+      )}
+    </div>
+  );
 }
 
 export const TopTabsMenu: React.FC<TopTabsMenuProps> = props => {
   const router = useRouter();
+  const workspace = useWorkspace();
+
+  const items: MenuProps["items"] = props.items.map(item => {
+    if (item.items) {
+      return {
+        label: <MenuLabel hasSubMenu={true}>{item.title}</MenuLabel>,
+        key: item.items.map(subItem => subItem.path).join("-"),
+        selected: true,
+        children: item.items.map(subItem => ({
+          key: subItem.path,
+          label: (
+            <MenuLabel icon={subItem.icon}>
+              <Link href={subItem.globalPath ? subItem.path : `/${workspace.slug}${subItem.path}`}>
+                {subItem.title}
+              </Link>
+            </MenuLabel>
+          ),
+          link: subItem.path,
+        })),
+      };
+    } else {
+      return {
+        label: (
+          <MenuLabel>
+            <Link href={item.globalPath ? item.path : `/${workspace.slug}${item.path}`}>{item.title}</Link>
+          </MenuLabel>
+        ),
+        key: item.path,
+        link: item.path,
+      };
+    }
+  });
+  const allKeys = props.items.map(x => (x.items ? x.items.map(i => i.path) : x.path)).flat();
 
   return (
-    <div className="flex pl-1.5 gap-0 xl:gap-5">
-      {props.items
-        .filter(i => !i.hidden)
-        .map(item => {
-          const selected = isSelected(item, router);
-          return (
-            <div
-              key={item.path}
-              className={`cursor-pointer py-2 px-2 mb-2 ${selected ? "bg-neutral-200 rounded-xl" : ""}`}
-            >
-              <WLink href={item.path}>
-                <span
-                  className={`flex flex-nowrap items-center whitespace-nowrap hover:text-neutral-800 ${
-                    selected ? "text-neutral-800" : "text-neutral-500"
-                  }`}
-                >
-                  <div className="mr-0.5 xl:mr-1 h-4 w-4">{item.icon}</div>
-                  {item.title}
-                </span>
-              </WLink>
-            </div>
-          );
-        })}
-    </div>
+    <Menu
+      className={styles.topMenu}
+      onClick={() => {}}
+      selectedKeys={allKeys.filter(p => isSelected(p, router))}
+      mode="horizontal"
+      items={items}
+    />
   );
 };
 
@@ -450,28 +493,45 @@ const WorkspaceAlert: React.FC<{}> = () => {
 function PageHeader() {
   const appConfig = useAppConfig();
   const workspace = useWorkspace();
-  const items: TabsMenuItem[] = [
+  const items: (TabsMenuItem | TabsMenuGroup | undefined | false)[] = [
     { title: "Overview", path: "/", aliases: "/overview", icon: <LayoutDashboard className="w-full h-full" /> },
-    { title: "Sites", path: "/streams", icon: <Globe className="w-full h-full" /> },
+    {
+      title: "Event Streaming",
+      icon: <Zap className="w-full h-full" />,
+      items: [
+        { title: "Sites", path: "/streams", icon: <Globe className="w-full h-full" /> },
+        { title: "Connections", path: "/connections", icon: <Share2 className="w-full h-full" /> },
+        { title: "Functions", path: "/functions", icon: <FunctionSquare className="w-full h-full" /> },
+      ],
+    },
+    workspace.featuresEnabled?.includes("syncs") && {
+      title: "Connectors",
+      icon: <PlugZap className="w-full h-full" />,
+      items: [
+        { title: "Connections", path: "/services", icon: <ServerCog className="w-full h-full" /> },
+        { title: "Syncs", path: "/syncs", icon: <Share2 className="w-full h-full" /> },
+      ],
+    },
+
     { title: "Destinations", path: "/destinations", icon: <Server className="w-full h-full" /> },
-    { title: "Connections", path: "/connections", icon: <Share2 className="w-full h-full" /> },
-    { title: "Functions", path: "/functions", icon: <FunctionSquare className="w-full h-full" /> },
-  ];
-  if (workspace.featuresEnabled && workspace.featuresEnabled.includes("syncs")) {
-    items.push(
-      { title: "Services", path: "/services", icon: <ServerCog className="w-full h-full" /> },
-      { title: "Syncs", path: "/syncs", icon: <Share2 className="w-full h-full" /> }
-    );
-  }
-  items.push(
-    { title: "Live Events", path: "/data", icon: <Activity className="w-full h-full" /> },
-    { title: "Query Data", path: "/sql", icon: <BarChart3 className="w-full h-full" />, hidden: !appConfig?.ee },
+    ,
+    {
+      title: "Data",
+      icon: <SearchCode className={"w-full h-full"} />,
+      items: [
+        { title: "Live Events", path: "/data", icon: <Activity className="w-full h-full" /> },
+        { title: "Query Data", path: "/sql", icon: <BarChart3 className="w-full h-full" />, hidden: !appConfig?.ee },
+      ],
+    },
     {
       title: "Settings",
-      path: "/settings",
       icon: <Settings className="w-full h-full" />,
-    }
-  );
+      items: [
+        { title: "Workspace Settings", path: "/settings", icon: <Hammer className="w-full h-full" /> },
+        { title: "User Settings", path: "/user", icon: <User className="w-full h-full" />, globalPath: true },
+      ],
+    },
+  ];
   return (
     <div>
       <div className="w-full relative">
@@ -480,7 +540,7 @@ function PageHeader() {
           <Breadcrumbs />
           <UserProfileButton />
         </div>
-        <TopTabsMenu items={items} />
+        <TopTabsMenu items={items.filter(i => !!i) as (TabsMenuItem | TabsMenuGroup)[]} />
       </div>
     </div>
   );
@@ -591,7 +651,7 @@ export const WorkspacePageLayout: React.FC<PropsWithChildren<PageLayoutProps>> =
   return (
     <div className={`flex flex-col ${className}`}>
       {!doNotBlockIfUsageExceeded && <BillingBlockingDialog />}
-      <div className="flex-auto overflow-auto flex flex-col">
+      <div className="flex-auto flex flex-col">
         {!workspace.slug && (
           <WorkspaceSettingsModal
             onSuccess={() => {
