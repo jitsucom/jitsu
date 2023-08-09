@@ -382,11 +382,13 @@ function Syncs(props: RemoteEntitiesProps) {
 
 function SyncsLoader(props: { reloadCallback: () => void }) {
   const workspace = useWorkspace();
+  const appconfig = useAppConfig();
+
   const data = useLinksQuery(workspace.id, "sync", {
     cacheTime: 0,
     retry: false,
   });
-  if (!workspace.featuresEnabled || !workspace.featuresEnabled.includes("syncs")) {
+  if (!(appconfig.syncs.enabled || workspace.featuresEnabled.includes("syncs"))) {
     return (
       <ErrorCard
         title={"Feature is not enabled"}

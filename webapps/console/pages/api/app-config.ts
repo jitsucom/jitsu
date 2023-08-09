@@ -27,9 +27,12 @@ export default createRoute()
           }
         : undefined,
       billingEnabled: isEEAvailable(),
-      scheduler: {
-        enabled: !!process.env.GOOGLE_SCHEDULER_KEY,
-        provider: process.env.GOOGLE_SCHEDULER_KEY ? "google-cloud-scheduler" : undefined,
+      syncs: {
+        enabled: process.env.SYNCS_ENABLED === "true",
+        scheduler: {
+          enabled: !!process.env.GOOGLE_SCHEDULER_KEY,
+          provider: process.env.GOOGLE_SCHEDULER_KEY ? "google-cloud-scheduler" : undefined,
+        },
       },
       jitsuClassicUrl: process.env.JITSU_CLASSIC_URL || "https://cloud.jitsu.com",
       telemetry: {

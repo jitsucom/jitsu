@@ -1,7 +1,7 @@
 import { WorkspacePageLayout } from "../../components/PageLayout/WorkspacePageLayout";
 import { ConfigEditor, ConfigEditorProps } from "../../components/ConfigObjectEditor/ConfigEditor";
 import { ServiceConfig } from "../../lib/schema";
-import { useWorkspace } from "../../lib/context";
+import { useAppConfig, useWorkspace } from "../../lib/context";
 import { useRouter } from "next/router";
 import { getLog, hash as jhash, randomId, rpc } from "juava";
 import React from "react";
@@ -55,8 +55,9 @@ const ServicesList: React.FC<{}> = () => {
     type: serialization.bool,
   });
   const router = useRouter();
+  const appconfig = useAppConfig();
 
-  if (!workspace.featuresEnabled || !workspace.featuresEnabled.includes("syncs")) {
+  if (!(appconfig.syncs.enabled || workspace.featuresEnabled.includes("syncs"))) {
     return (
       <ErrorCard
         title={"Feature is not enabled"}

@@ -504,7 +504,7 @@ function PageHeader() {
         { title: "Functions", path: "/functions", icon: <FunctionSquare className="w-full h-full" /> },
       ],
     },
-    workspace.featuresEnabled?.includes("syncs") && {
+    (appConfig.syncs.enabled || workspace.featuresEnabled?.includes("syncs")) && {
       title: "Connectors",
       icon: <PlugZap className="w-full h-full" />,
       items: [

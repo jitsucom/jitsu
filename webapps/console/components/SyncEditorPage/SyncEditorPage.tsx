@@ -421,7 +421,7 @@ function SyncEditor({
       ),
     },
   ];
-  if (appConfig.scheduler.enabled) {
+  if (appConfig.syncs.scheduler.enabled) {
     configItems.push({
       name: "Schedule",
       documentation: "Select schedule to run sync",
