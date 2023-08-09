@@ -62,6 +62,9 @@ export async function auth(req: NextApiRequest, res: NextApiResponse): Promise<A
   if (adminAuthorizer(token)) {
     return { type: "admin" };
   }
+  if (typeof req.query.__auth === "string" && adminAuthorizer(req.query.__auth)) {
+    return { type: "admin" };
+  }
   if (process.env.JWT_SECRET) {
     try {
       const decrypted = await decryptJWT(token);
