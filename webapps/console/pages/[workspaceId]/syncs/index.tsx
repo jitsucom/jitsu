@@ -18,7 +18,7 @@ import { TableProps } from "antd/es/table/InternalTable";
 import { ColumnType, SortOrder } from "antd/es/table/interface";
 import { CalendarCheckIcon, Edit3, Inbox, ListMinusIcon, Loader2, RefreshCw } from "lucide-react";
 import { PlusOutlined } from "@ant-design/icons";
-import { JitsuButton, WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
+import { WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
 import { ErrorCard } from "../../../components/GlobalError/GlobalError";
 import { Spinner } from "../../../components/GlobalLoader/GlobalLoader";
 import dayjs from "dayjs";
@@ -35,7 +35,11 @@ import { processTaskStatus, TaskStatus } from "./tasks";
 dayjs.extend(utc);
 dayjs.extend(relativeTime);
 
-const formatDate = (date: string | Date) => dayjs(date, "YYYY-MM-DDTHH:mm:ss.SSSZ").utc().format("YYYY-MM-DD HH:mm:ss");
+export const formatDate = (date: string | Date) =>
+  dayjs(date, "YYYY-MM-DDTHH:mm:ss.SSSZ").utc().format("YYYY-MM-DD HH:mm:ss");
+export const formatDateOnly = (date: string | Date) =>
+  dayjs(date, "YYYY-MM-DDTHH:mm:ss.SSSZ").utc().format("YYYY-MM-DD");
+export const formatTime = (date: string | Date) => dayjs(date, "YYYY-MM-DDTHH:mm:ss.SSSZ").utc().format("HH:mm:ss");
 
 function EmptyLinks() {
   const workspace = useWorkspace();
@@ -129,8 +133,8 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
   };
   const columns: ColumnType<any>[] = [
     {
-      title: "Service",
-      width: "40%",
+      title: "Sync",
+      width: "70%",
       sortOrder: sorting.columns?.find(s => s.field === "Service")?.order,
       sorter: (a, b) => {
         const serviceA = servicesById[a.fromId];
@@ -139,47 +143,16 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
       },
       render: (text, link) => {
         const service = servicesById[link.fromId];
-        if (!service) {
-          return <div>Service not found</div>;
-        }
-        return (
-          <div className="flex items-center">
-            <ServiceTitle service={service} />
-            <WJitsuButton
-              href={`/services?id=${link.fromId}`}
-              type="link"
-              className="link"
-              size="small"
-              icon={<FaExternalLinkAlt className="w-2.5 h-2.5" />}
-            />
-          </div>
-        );
-      },
-    },
-    {
-      title: "Destination",
-      width: "40%",
-      sortOrder: sorting.columns?.find(s => s.field === "Destination")?.order,
-
-      sorter: (a, b) => {
-        const destA = destinationsById[a.toId];
-        const destB = destinationsById[b.toId];
-        return (destA.name || "").localeCompare(destB.name || "");
-      },
-      render: (text, link) => {
         const destination = destinationsById[link.toId];
-        if (!destination) {
-          return <div>Destination not found</div>;
-        }
+
         return (
           <div className="flex items-center">
-            <DestinationTitle destination={destination} />
-            <JitsuButton
-              type="link"
-              icon={<FaExternalLinkAlt className="w-2.5 h-2.5" />}
-              className="link"
-              size="small"
-              href={`/${workspace.id}/destinations?id=${link.toId}`}
+            <SyncTitle
+              size={"medium"}
+              syncId={link.id}
+              service={service}
+              destination={destination}
+              className={"max-w-md xl:max-w-fit"}
             />
           </div>
         );
@@ -208,14 +181,19 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
       },
     },
     {
-      title: <div className={"whitespace-nowrap"}>Status Updated (UTC)</div>,
+      title: <div className={"whitespace-nowrap text-right"}>Updated (UTC)</div>,
       width: "12%",
       render: (text, link) => {
         if (tasks.error || tasks.loading) {
           return undefined;
         }
         const t = tasks.data.tasks?.[link.id];
-        return <div>{t ? formatDate(t.updated_at) : ""}</div>;
+        return (
+          <div className={"flex flex-col items-end text-xs font-semibold"}>
+            <div>{t ? formatDateOnly(t.updated_at) : ""}</div>
+            <div>{t ? formatTime(t.updated_at) : ""}</div>
+          </div>
+        );
       },
     },
     {
@@ -432,13 +410,15 @@ export const SyncTitle: React.FC<{
   syncId: string;
   service: ServiceConfig;
   destination: DestinationConfig;
+  size?: "small" | "medium" | "large";
+  className?: string;
   showLink?: boolean;
-}> = ({ syncId, service, destination, showLink = false }) => {
+}> = ({ syncId, service, size = "small", destination, showLink, className = false }) => {
   return (
-    <div className={"flex flex-row whitespace-nowrap gap-1.5"}>
-      <ServiceTitle size={"small"} service={service} />
+    <div className={`flex flex-row whitespace-nowrap gap-1.5 ${className ?? ""}`}>
+      <ServiceTitle size={size === "medium" ? "default" : size} service={service} />
       {"→"}
-      <DestinationTitle size={"small"} destination={destination} />
+      <DestinationTitle size={size === "medium" ? "default" : size} destination={destination} />
       {showLink && (
         <WJitsuButton
           href={`/syncs/edit?id=${syncId}`}

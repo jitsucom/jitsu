@@ -547,7 +547,9 @@ function SyncEditor({
                           dropdownMatchSelectWidth={false}
                           disabled={!syncOptions?.streams?.[name] || stream.source_defined_cursor}
                           options={!stream.source_defined_cursor ? cursorFieldOptions : []}
-                          value={syncOptions?.streams?.[name]?.cursor_field ?? []}
+                          value={
+                            !stream.source_defined_cursor ? syncOptions?.streams?.[name]?.cursor_field ?? [] : undefined
+                          }
                           onChange={v => updateSelectedStream(name, "cursor_field", v)}
                         />
                       </Tooltip>
