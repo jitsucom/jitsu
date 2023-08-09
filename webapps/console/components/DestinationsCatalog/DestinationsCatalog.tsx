@@ -71,7 +71,7 @@ export const DestinationCatalog: React.FC<{ onClick: (destinationType: string) =
   const groups = useMemo(() => groupDestinationTypes(), []);
   return (
     <div className="p-12 flex flex-col flex-shrink w-full h-full overflow-y-auto">
-      <div className={"flex-shrink overflow-scroll"}>
+      <div className={"flex-shrink overflow-auto"}>
         {Object.entries(groups).map(([tag, destinations]) => (
           <div key={tag} className="">
             <div className="text-3xl text-textLight px-4 pb-0 pt-3">{tag}</div>
