@@ -4,6 +4,6 @@
 }
 
 .logs {
-  @apply border rounded-lg overflow-scroll;
+  @apply border rounded-lg overflow-auto;
   border-color: #d9d9d9;
 }

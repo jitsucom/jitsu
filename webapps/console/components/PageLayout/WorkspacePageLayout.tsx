@@ -651,7 +651,7 @@ export const WorkspacePageLayout: React.FC<PropsWithChildren<PageLayoutProps>> =
   return (
     <div className={`flex flex-col ${className}`}>
       {!doNotBlockIfUsageExceeded && <BillingBlockingDialog />}
-      <div className="flex-auto flex flex-col">
+      <div className={`flex-auto ${fullscreen ? "overflow-hidden" : ""} flex flex-col`}>
         {!workspace.slug && (
           <WorkspaceSettingsModal
             onSuccess={() => {

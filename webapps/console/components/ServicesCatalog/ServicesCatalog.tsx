@@ -76,7 +76,7 @@ export const ServicesCatalog: React.FC<{ onClick: (packageType, packageId: strin
           className="w-full border border-textDisabled rounded-lg px-4 py-4"
         />
       </div>
-      <div className={"flex-shrink overflow-scroll"}>
+      <div className={"flex-shrink overflow-auto"}>
         {Object.entries(groups).map(([group, sources]) => {
           const filtered = sources.filter(source => source.meta.name.toLowerCase().includes(filter.toLowerCase()));
           if (filtered.length === 0) {
