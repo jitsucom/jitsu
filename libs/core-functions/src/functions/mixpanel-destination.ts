@@ -195,11 +195,11 @@ const MixpanelDestination: JitsuFunction<AnalyticsServerEvent, MixpanelCredentia
   const messages: HttpRequest[] = [];
   if (event.type === "identify") {
     if (!event.userId) {
-      const distinctId = `${event.anonymousId || event.traits?.email}`;
+      const distinctId = `${(event.anonymousId || event.traits?.email) ?? ""}`;
       if (!distinctId) {
         ctx.log.info(`No distinct id found for event ${JSON.stringify(event)}`);
       } else if (ctx.props.enableAnonymousUserProfiles) {
-        messages.push(...setProfileMessage(distinctId as string, event, ctx.props));
+        messages.push(...setProfileMessage(distinctId, event, ctx.props));
       }
       if (event.anonymousId && event.traits?.email) {
         messages.push(merge(`${event.anonymousId}`, `${event.traits.email}`, ctx.props));
@@ -214,7 +214,7 @@ const MixpanelDestination: JitsuFunction<AnalyticsServerEvent, MixpanelCredentia
       messages.push(...setProfileMessage(`${event.userId}`, event, ctx.props));
     }
     if (ctx.props.sendIdentifyEvents) {
-      const distinctId = `${event.userId || event.traits?.email || event.anonymousId}`;
+      const distinctId = `${(event.userId || event.traits?.email || event.anonymousId) ?? ""}`;
       if (distinctId) {
         messages.push(trackEvent(distinctId, "Identify", event, ctx.props));
       }
@@ -222,7 +222,7 @@ const MixpanelDestination: JitsuFunction<AnalyticsServerEvent, MixpanelCredentia
   } else if (event.type === "group" && ctx.props.enableGroupAnalytics) {
     messages.push(setGroupMessage(event, ctx.props));
   } else if (event.type === "track") {
-    const distinctId = `${event.userId || event.anonymousId || event.traits?.email}`;
+    const distinctId = `${(event.userId || event.anonymousId || event.traits?.email) ?? ""}`;
     if (!distinctId) {
       ctx.log.info(`No distinct id found for event ${JSON.stringify(event)}`);
     } else {
@@ -231,7 +231,7 @@ const MixpanelDestination: JitsuFunction<AnalyticsServerEvent, MixpanelCredentia
       }
     }
   } else if (event.type === "page") {
-    const distinctId = `${event.userId || event.anonymousId || event.traits?.email}`;
+    const distinctId = `${(event.userId || event.anonymousId || event.traits?.email) ?? ""}`;
     if (!distinctId) {
       ctx.log.info(`No distinct id found for Page View event ${JSON.stringify(event)}`);
     } else {
