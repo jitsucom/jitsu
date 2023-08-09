@@ -210,7 +210,7 @@ export const oauthDecorators = [
 // If service supports Jitsu OAuth - returns decorated credentials part of service config
 // otherwise returns original credentials part of config
 export const tryManageOauthCreds = async (service: ServiceConfig): Promise<any> => {
-  if (service.authorized) {
+  if (service.authorized && nangoConfig.enabled) {
     const oauthDecorator = requireDefined(
       oauthDecorators.find(d => d.packageId === service.package),
       `Package ${service.package} for service ${service.id} not found in catalog`

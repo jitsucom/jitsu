@@ -24,6 +24,7 @@ import { SchemaForm } from "../ConfigObjectEditor/SchemaForm";
 import { TextEditor } from "../ConfigObjectEditor/Editors";
 import { useAntdModal } from "../../lib/modal";
 import hash from "stable-hash";
+import { nangoConfig } from "../../lib/server/oauth/nango-config";
 
 type ServiceEditorProps = {} & EditorComponentProps;
 
@@ -53,7 +54,7 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
   const [loadingSpecs, setLoadingSpecs] = useState<boolean>(true);
   const [specs, setSpecs] = useState<any>(undefined);
 
-  const oauthConnector = oauthDecorators.find(d => d.packageId === obj.package);
+  const oauthConnector = nangoConfig.enabled ? oauthDecorators.find(d => d.packageId === obj.package) : "";
   const [manualAuth, setManualAuth] = useState(typeof oauthConnector === "undefined");
   const ajv = useMemo(
     () => new Ajv({ allErrors: true, strictSchema: false, useDefaults: true, allowUnionTypes: true }),
