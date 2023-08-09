@@ -51,6 +51,9 @@ export async function auth(req: NextApiRequest, res: NextApiResponse): Promise<A
 
   const authVal = req.headers.authorization;
   if (!authVal) {
+    if (typeof req.query.__auth === "string" && adminAuthorizer(req.query.__auth)) {
+      return { type: "admin" };
+    }
     res.status(401).json({ ok: false, error: "No authorization header" });
     return undefined;
   }
@@ -62,9 +65,7 @@ export async function auth(req: NextApiRequest, res: NextApiResponse): Promise<A
   if (adminAuthorizer(token)) {
     return { type: "admin" };
   }
-  if (typeof req.query.__auth === "string" && adminAuthorizer(req.query.__auth)) {
-    return { type: "admin" };
-  }
+  console.log(`req.query.__auth=${req.query.__auth}`);
   if (process.env.JWT_SECRET) {
     try {
       const decrypted = await decryptJWT(token);
