@@ -86,7 +86,9 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
           console.log("Loaded cached specs:", JSON.stringify(firstRes, null, 2));
           setSpecs(firstRes.specs);
         } else if (firstRes.error) {
-          feedbackError(`Cannot load specs for ${obj.package}:${obj.version} error: ${firstRes.error}`);
+          feedbackError(`Cannot load specs for ${obj.package}:${obj.version}`, {
+            error: { message: firstRes.error },
+          });
           return;
         } else {
           for (let i = 0; i < 60; i++) {
@@ -96,7 +98,9 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
             );
             if (!resp.pending) {
               if (resp.error) {
-                feedbackError(`Cannot load specs for ${obj.package}:${obj.version} error: ${resp.error}`);
+                feedbackError(`Cannot load specs for ${obj.package}:${obj.version}`, {
+                  error: { message: resp.error },
+                });
                 return;
               } else {
                 console.log("Loaded specs:", JSON.stringify(resp, null, 2));
@@ -105,10 +109,12 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
               }
             }
           }
-          feedbackError(`Cannot load specs for ${obj.package}:${obj.version} error: Timeout`);
+          feedbackError(`Cannot load specs for ${obj.package}:${obj.version}`, {
+            error: { message: "Timeout" },
+          });
         }
       } catch (error) {
-        feedbackError(`Cannot load specs for ${obj.package}:${obj.version} error: ${error}`);
+        feedbackError(`Cannot load specs for ${obj.package}:${obj.version}`, { error });
       } finally {
         setLoadingSpecs(false);
       }

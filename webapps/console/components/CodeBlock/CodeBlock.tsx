@@ -42,9 +42,9 @@ import hljs from "highlight.js/lib/common";
 import { CopyButton } from "../CopyButton/CopyButton";
 import { Copy } from "lucide-react";
 
-export const CodeBlock: React.FC<PropsWithChildrenClassname<{ lang?: string; preWrap?: boolean }>> = ({
+export const CodeBlock: React.FC<PropsWithChildrenClassname<{ lang?: string; breakWords?: boolean }>> = ({
   lang,
-  preWrap,
+  breakWords,
   children,
   className,
 }) => {
@@ -65,7 +65,7 @@ export const CodeBlock: React.FC<PropsWithChildrenClassname<{ lang?: string; pre
       <pre
         ref={codeRef}
         className={`bg-textDark ${
-          preWrap ? "whitespace-pre-wrap" : ""
+          breakWords ? "whitespace-pre-wrap break-words" : ""
         } px-4 py-3 overflow-auto rounded-lg text-bgLight language-${lang}`}
       >
         {children}

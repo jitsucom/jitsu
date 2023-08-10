@@ -288,7 +288,7 @@ function SyncEditor({
     (storageKey: string, catalog: any, force?: boolean) => {
       const streams: SelectedStreams = {};
       const currentStreams = force ? {} : syncOptions?.streams || {};
-      for (const stream of catalog.streams) {
+      for (const stream of catalog?.streams ?? []) {
         const name = stream.namespace ? `${stream.namespace}.${stream.name}` : stream.name;
         streams[name] = currentStreams[name] || initStream(stream);
       }
@@ -338,7 +338,7 @@ function SyncEditor({
         if (cancelled) {
           return;
         }
-        if (firstRes.error) {
+        if (typeof firstRes.error !== "undefined") {
           setCatalogError(firstRes.error);
         } else if (firstRes.ok) {
           console.log("Loaded cached catalog:", JSON.stringify(firstRes, null, 2));
@@ -354,7 +354,7 @@ function SyncEditor({
               `/api/${workspace.id}/sources/discover?package=${service.package}&version=${service.version}&storageKey=${storageKey}`
             );
             if (!resp.pending) {
-              if (resp.error) {
+              if (typeof resp.error !== "undefined") {
                 setCatalogError(resp.error);
                 return;
               } else {
@@ -580,7 +580,7 @@ function SyncEditor({
             <ErrorCard
               title={"Failed to load catalog"}
               hideActions={true}
-              error={catalogError || "Unknown error. Please contact support."}
+              error={{ message: catalogError || "Unknown error. Please contact support." }}
             />
           </div>
         ),
