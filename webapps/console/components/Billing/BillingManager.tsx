@@ -82,6 +82,11 @@ const UsageSection: React.FC<{}> = () => {
     day: "numeric",
     year: "numeric",
   });
+  const usageExceeded = usage.usagePercentage > 1 && billing.settings.planId === "free";
+  const usageIsAboutToExceed =
+    usage?.projectionByTheEndOfPeriod &&
+    usage?.projectionByTheEndOfPeriod > usage?.maxAllowedDestinatonEvents &&
+    billing.settings.planId == "free";
   return (
     <div>
       <Progress
@@ -93,7 +98,7 @@ const UsageSection: React.FC<{}> = () => {
         {formatNumber(Math.round(usage?.events))} / {formatNumber(usage.maxAllowedDestinatonEvents)} destination events
         used from <i>{startStr}</i> to <i>{endStr}</i>. The quota will be reset on <i>{endStr}</i>.
       </div>
-      {usage.usagePercentage > 1 && billing.settings.planId === "free" && (
+      {usageExceeded && (
         <div className="mt-8">
           <Alert
             message={<h4 className="text-xl">Upgrade your plan to keep using Jitsu</h4>}
@@ -103,24 +108,22 @@ const UsageSection: React.FC<{}> = () => {
           />
         </div>
       )}
-      {usage?.projectionByTheEndOfPeriod &&
-        usage?.projectionByTheEndOfPeriod > usage?.maxAllowedDestinatonEvents &&
-        billing.settings.planId == "free" && (
-          <div className="mt-8">
-            <Alert
-              message={<h4 className="font-bold">Account quota warning!</h4>}
-              showIcon
-              type={"warning"}
-              description={
-                <>
-                  You are projected to exceed your monthly events destination limit by{" "}
-                  <b>{formatNumber(usage?.projectionByTheEndOfPeriod - usage?.maxAllowedDestinatonEvents)}</b> events.
-                  Please upgrade your plan to avoid service disruption.
-                </>
-              }
-            />
-          </div>
-        )}
+      {usageIsAboutToExceed && !usageExceeded && (
+        <div className="mt-8">
+          <Alert
+            message={<h4 className="font-bold">Account quota warning!</h4>}
+            showIcon
+            type={"warning"}
+            description={
+              <>
+                You are projected to exceed your monthly events destination limit by{" "}
+                <b>{formatNumber((usage?.projectionByTheEndOfPeriod || 0) - usage?.maxAllowedDestinatonEvents)}</b>{" "}
+                events. Please upgrade your plan to avoid service disruption.
+              </>
+            }
+          />
+        </div>
+      )}
       {usage.usagePercentage > 1 && billing.settings.planId !== "free" && (
         <div className="mt-8">
           <Alert

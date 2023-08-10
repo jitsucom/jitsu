@@ -15,6 +15,7 @@ import {
   BarChart3,
   ChevronDown,
   ChevronUp,
+  CreditCard,
   FilePlus,
   FolderKanban,
   Folders,
@@ -54,8 +55,8 @@ import { useClassicProject } from "./ClassicProjectProvider";
 import { useJitsu } from "@jitsu/jitsu-react";
 import { useSearchParams } from "next/navigation";
 import omit from "lodash/omit";
-import { useBilling } from "../Billing/BillingProvider";
-import { useUsage } from "../Billing/use-usage";
+import { useBilling, UseBillingResult } from "../Billing/BillingProvider";
+import { useUsage, UseUsageRes } from "../Billing/use-usage";
 
 export type PageLayoutProps = {
   fullscreen?: boolean;
@@ -447,6 +448,21 @@ const AlertView: React.FC<PropsWithChildren<{}>> = ({ children }) => {
     </div>
   );
 };
+
+function usageIsAboutToExceed(billing: UseBillingResult, usage: UseUsageRes) {
+  return (
+    billing.enabled &&
+    billing.settings &&
+    !usage.isLoading &&
+    !usage.error &&
+    usage.usage?.usagePercentage &&
+    usage.usage?.usagePercentage < 1 &&
+    billing.settings.planId === "free" &&
+    usage.usage?.projectionByTheEndOfPeriod &&
+    usage.usage?.projectionByTheEndOfPeriod > usage.usage.maxAllowedDestinatonEvents
+  );
+}
+
 const FreePlanQuotaAlert: React.FC<{}> = () => {
   const workspace = useWorkspace();
   const usage = useUsage();
@@ -460,13 +476,7 @@ const FreePlanQuotaAlert: React.FC<{}> = () => {
     return <></>;
   }
 
-  if (
-    !usage.isLoading &&
-    !usage.error &&
-    billing.settings.planId === "free" &&
-    usage.usage?.projectionByTheEndOfPeriod &&
-    usage.usage?.projectionByTheEndOfPeriod > usage.usage.maxAllowedDestinatonEvents
-  ) {
+  if (usageIsAboutToExceed(billing, usage)) {
     return (
       <AlertView>
         You are projected to exceed your monthly events. Please upgrade your plan to avoid service disruption.{" "}
@@ -493,6 +503,7 @@ const WorkspaceAlert: React.FC<{}> = () => {
 function PageHeader() {
   const appConfig = useAppConfig();
   const workspace = useWorkspace();
+  const billing = useBilling();
   const items: (TabsMenuItem | TabsMenuGroup | undefined | false)[] = [
     { title: "Overview", path: "/", aliases: "/overview", icon: <LayoutDashboard className="w-full h-full" /> },
     {
@@ -514,7 +525,6 @@ function PageHeader() {
     },
 
     { title: "Destinations", path: "/destinations", icon: <Server className="w-full h-full" /> },
-    ,
     {
       title: "Data",
       icon: <SearchCode className={"w-full h-full"} />,
@@ -529,6 +539,7 @@ function PageHeader() {
       items: [
         { title: "Workspace Settings", path: "/settings", icon: <Hammer className="w-full h-full" /> },
         { title: "User Settings", path: "/user", icon: <User className="w-full h-full" />, globalPath: true },
+        { title: "Billing Settings", path: "/settings/billing", icon: <CreditCard className="w-full h-full" /> },
       ],
     },
   ];

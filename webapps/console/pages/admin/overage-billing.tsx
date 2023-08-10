@@ -17,7 +17,12 @@ const View = ({ data }) => {
         </JitsuButton>
       </div>
       <JsonAsTable
-        rows={data}
+        rows={data.sort((a, b) => {
+          {
+            const dateCompare = -new Date(a.month).getTime() + new Date(b.month).getTime();
+            return dateCompare === 0 ? -a.overageEvents + b.overageEvents : dateCompare;
+          }
+        })}
         columnOptions={{
           baseInvoiceId: { omit: true },
           quota: { omit: true },

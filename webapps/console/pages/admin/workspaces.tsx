@@ -38,16 +38,21 @@ const View = ({ data }) => {
               }, {})
             )
           : data.data
-        ).map(({ period, workspaceName, workspaceId, domains, workspaceSlug, events, ...rest }) => ({
-          ...(period ? { period: new Date(period).toISOString().replace("T", " ") } : {}),
-          ...{
-            workspaceName: workspaceName || workspaceSlug || workspaceId,
-            workspaceSlug: workspaceSlug || workspaceId,
-            domains,
-            ...rest,
-            events,
-          },
-        }))}
+        )
+          .sort((a, b) => {
+            const dateCompare = a.period && b.period ? -a.period.localeCompare(b.period) : 0;
+            return dateCompare === 0 ? b.events - a.events : dateCompare;
+          })
+          .map(({ period, workspaceName, workspaceId, domains, workspaceSlug, events, ...rest }) => ({
+            ...(period ? { period: new Date(period).toISOString().replace("T", " ") } : {}),
+            ...{
+              workspaceName: workspaceName || workspaceSlug || workspaceId,
+              workspaceSlug: workspaceSlug || workspaceId,
+              domains,
+              ...rest,
+              events,
+            },
+          }))}
         columnOptions={{
           src: { omit: true },
           workspaceId: { omit: true },
