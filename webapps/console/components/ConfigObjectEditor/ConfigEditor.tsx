@@ -249,12 +249,15 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
   const [formState, setFormState] = useState<any | undefined>(undefined);
   const hasErrors = formState?.errors?.length > 0;
   const isTouched = formState !== undefined || !!createNew;
+  const [testResult, setTestResult] = useState<any>(undefined);
+
   const uiSchema = getUiSchema(schema, fields);
 
   const [submitCount, setSubmitCount] = useState(0);
   const modal = useAntdModal();
   const onFormChange = state => {
     setFormState(state);
+    setTestResult(undefined);
     log.atDebug().log(`Updating editor form state`, state);
   };
   const withLoading = (fn: () => Promise<void>) => async () => {
@@ -290,7 +293,7 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
           validator={validator}
           onSubmit={async ({ formData }) => {
             if (onTest && testConnectionEnabled && testConnectionEnabled(formData || object)) {
-              const testRes = await onTest(formState?.formData || object);
+              const testRes = testResult || (await onTest(formState?.formData || object));
               if (!testRes.ok) {
                 modal.confirm({
                   title: "Connection test failed",
@@ -319,7 +322,11 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
             hasErrors={hasErrors}
             onTest={
               onTest && testConnectionEnabled && testConnectionEnabled(formState?.formData || object)
-                ? () => onTest(formState?.formData || object)
+                ? async () => {
+                    const testResult = await onTest(formState?.formData || object);
+                    setTestResult(testResult);
+                    return testResult;
+                  }
                 : undefined
             }
             onDelete={withLoading(onDelete)}

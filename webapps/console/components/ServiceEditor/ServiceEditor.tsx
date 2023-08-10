@@ -47,6 +47,7 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
   });
   const [credentials, setCredentials] = useState<any>(obj.credentials || {});
   const [isTouched, setIsTouched] = useState<boolean>(false);
+  const [testResult, setTestResult] = useState<any>(undefined);
   const [showErrors, setShowErrors] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
   const [nangoLoading, setNangoLoading] = useState<boolean>(false);
@@ -69,6 +70,7 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
         [key]: value,
       });
       setIsTouched(true);
+      setTestResult(undefined);
     },
     [obj]
   );
@@ -165,7 +167,7 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
 
   const save = useCallback(async () => {
     setLoading(true);
-    async function _save(testConnectionError?: string) {
+    const _save = async (testConnectionError?: string) => {
       obj.credentials = credentials;
       obj.testConnectionError = testConnectionError;
       const storageKey = `${workspace.id}_${obj.id}_${juavaHash("md5", hash(credentials))}`;
@@ -184,12 +186,12 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
         feedbackError(`Can't save service without id`);
       }
       push(`/${workspace.id}/services`);
-    }
+    };
     try {
       if (!validate()) {
         return;
       }
-      const testRes = await onTest!({ ...obj, credentials: credentials });
+      const testRes = testResult || (await onTest!({ ...obj, credentials: credentials }));
       if (!testRes.ok) {
         modal.confirm({
           title: "Connection test failed",
@@ -211,7 +213,7 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
     } finally {
       setLoading(false);
     }
-  }, [validate, obj, credentials, props.isNew, push, workspace.id]);
+  }, [obj, credentials, workspace.id, props.isNew, push, validate, testResult, onTest, modal]);
 
   if (meta === undefined) {
     return <LoadingAnimation />;
@@ -339,6 +341,7 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
                     set(newCred, n, v);
                   }
                   setIsTouched(true);
+                  setTestResult(undefined);
                   setCredentials(newCred);
                 }}
                 obj={credentials}
@@ -352,11 +355,13 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
           onDelete={onDelete}
           onCancel={() => onCancel(isTouched)}
           onSave={save}
-          onTest={() => {
+          onTest={async () => {
             if (!validate()) {
               return Promise.resolve({ ok: false, error: "Config validation failed" });
             }
-            return onTest!({ ...obj, credentials: credentials });
+            const testResult = await onTest!({ ...obj, credentials: credentials });
+            setTestResult(testResult);
+            return testResult;
           }}
         />
       </EditorBase>
