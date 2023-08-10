@@ -15,9 +15,6 @@ function groupByType(sources: SourceType[]): Record<string, SourceType[]> {
   const sortOrder = ["Datawarehouse", "Product Analytics", "CRM", "Block Storage"];
 
   sources.forEach(s => {
-    if (s.meta.license !== "MIT") {
-      return;
-    }
     if (s.packageId.endsWith("strict-encrypt")) {
       return;
     }

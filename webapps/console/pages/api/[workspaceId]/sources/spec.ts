@@ -2,29 +2,16 @@ import { db } from "../../../../lib/server/db";
 import { z } from "zod";
 import { createRoute, verifyAccess } from "../../../../lib/api";
 import { requireDefined, rpc } from "juava";
-import { JSONSchemaFaker } from "json-schema-faker";
-import { JsonObject } from "type-fest";
 import { getServerLog } from "../../../../lib/server/log";
 import { syncError } from "../../../../lib/shared/errors";
 
 const log = getServerLog("sync-spec");
-
-JSONSchemaFaker.option("alwaysFakeOptionals", true);
-JSONSchemaFaker.option("useDefaultValue", true);
-JSONSchemaFaker.option("useExamplesValue", true);
-JSONSchemaFaker.option("sortProperties", true);
-JSONSchemaFaker.option("fillProperties", false);
-JSONSchemaFaker.option("maxItems", 2);
-JSONSchemaFaker.option("minLength", 2);
-JSONSchemaFaker.option("replaceEmptyByRandomValue", true);
-JSONSchemaFaker.option("ignoreProperties", ["replication_method", "tunnel_method"]);
 
 const resultType = z.object({
   ok: z.boolean(),
   pending: z.boolean().optional(),
   error: z.string().optional(),
   specs: z.object({}).passthrough().optional(),
-  fakeJson: z.object({}).passthrough().optional(),
   startedAt: z.number().optional(),
 });
 
@@ -59,7 +46,7 @@ export default createRoute()
           .query(`select specs, error from source_spec where package = $1 and version = $2 and timestamp >= $3`, [
             query.package,
             query.version,
-            new Date(parseInt(query.after)),
+            new Date(1000 * parseInt(query.after)),
           ]);
       } else {
         res = await db
@@ -73,11 +60,9 @@ export default createRoute()
       if (res.rowCount === 1) {
         const specs = res.rows[0].specs;
         if (specs) {
-          const fakeJson = await JSONSchemaFaker.resolve(specs.connectionSpecification);
           return {
             ok: true,
             specs,
-            fakeJson: fakeJson as JsonObject,
           };
         } else {
           error = res.rows[0].error ?? "unknown error";
