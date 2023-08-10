@@ -7,10 +7,12 @@ import { useJitsu } from "@jitsu/jitsu-react";
 export const BillingContext = createContext<BillingSettings | null | "disabled" | "loading">(null);
 const log = getLog(`BillingProvider`);
 
-export function useBilling():
+export type UseBillingResult =
   | { loading: true; enabled: true; settings?: never }
   | { loading: false; enabled: false; settings?: never }
-  | { loading: false; enabled: true; settings: BillingSettings } {
+  | { loading: false; enabled: true; settings: BillingSettings };
+
+export function useBilling(): UseBillingResult {
   const ctx = useContext(BillingContext);
   const appConfig = useAppConfig();
   if (!appConfig.billingEnabled) {

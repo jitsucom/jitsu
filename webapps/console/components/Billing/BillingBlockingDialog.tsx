@@ -1,11 +1,11 @@
-import { useBilling } from "./BillingProvider";
+import { useBilling, UseBillingResult } from "./BillingProvider";
 import { assertDefined, assertFalse, assertTrue, getLog } from "juava";
 import { useUsage } from "./use-usage";
 import { Modal } from "antd";
 import { upgradeRequired } from "./copy";
 import { AlertTriangle, ArrowRight } from "lucide-react";
 import { WJitsuButton } from "../JitsuButton/JitsuButton";
-import { useWorkspace } from "../../lib/context";
+import { useWorkspace, WorkspaceContext } from "../../lib/context";
 
 const log = getLog("billing");
 
@@ -57,15 +57,19 @@ function LoadAndBlockIfNeed() {
   }
 }
 
-export const BillingBlockingDialog = () => {
-  const billing = useBilling();
-  const workspace = useWorkspace();
-  if (
+export function usageExceeded(billing: UseBillingResult, workspace: WorkspaceContext) {
+  return (
     !billing.enabled ||
     billing.loading ||
     billing.settings.planId !== "free" ||
     workspace.featuresEnabled.includes("noblock")
-  ) {
+  );
+}
+
+export const BillingBlockingDialog = () => {
+  const billing = useBilling();
+  const workspace = useWorkspace();
+  if (usageExceeded(billing, workspace)) {
     return <></>;
   } else {
     return <LoadAndBlockIfNeed />;
