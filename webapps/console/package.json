@@ -55,7 +55,6 @@
     "highlight.js": "^11.6.0",
     "ioredis": "^5.2.3",
     "js-yaml": "^4.1.0",
-    "json-schema-faker": "~0.5.3",
     "json5": "^2.2.3",
     "jsonwebtoken": "^8.5.1",
     "juava": "workspace:*",

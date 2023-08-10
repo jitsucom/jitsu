@@ -127,7 +127,7 @@ export const SchemaForm: React.FC<{
               className={isHidden ? "hidden" : ""}
               id={n}
               errors={showErrors ? error : undefined}
-              label={f.title}
+              label={f.title || createDisplayName(n)}
               help={f.description && <Htmlizer>{f.description}</Htmlizer>}
               required={required.includes(n)}
             >
