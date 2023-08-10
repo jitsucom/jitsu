@@ -232,7 +232,7 @@ function createStreamWithDestinations(
 }
 
 async function saveConnectionsToRedis(db: DatabaseConnection) {
-  const backupSupported = process.env.S3_REGION && process.env.S3_ACCESS_KEY_ID && process.env.S3_SECRET_ACCESS_KEY;
+  const backupSupported = !!(process.env.S3_REGION && process.env.S3_ACCESS_KEY_ID && process.env.S3_SECRET_ACCESS_KEY);
   const bulkerRedisKey = redisKeyRoutes.enrichedConnections();
   const domainsRedisKey = redisKeyRoutes.streamDomain();
   const idsRedisKey = redisKeyRoutes.streamIds();
@@ -249,7 +249,7 @@ async function saveConnectionsToRedis(db: DatabaseConnection) {
       src."config" as "srcConfig",
     dst.id as "toId",
       dst."config" as "dstConfig",
-     true as "backupEnabled"
+     ${backupSupported} as "backupEnabled"
     from "ConfigurationObjectLink" link
     join "ConfigurationObject" src on link."fromId" = src.id
     join "ConfigurationObject" dst on link."toId" = dst.id
