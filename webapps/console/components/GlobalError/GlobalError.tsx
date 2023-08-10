@@ -49,26 +49,26 @@ export function ErrorDetails(props: { error: any }) {
     <Collapse defaultActiveKey={"error"}>
       {message && (
         <Collapse.Panel key={"error"} header={<div className="font-bold text-sm">Error</div>}>
-          <CodeBlock preWrap>{message}</CodeBlock>
+          <CodeBlock breakWords>{message}</CodeBlock>
         </Collapse.Panel>
       )}
       {props.error.response && (
         <Collapse.Panel key={"response"} header={<div className="font-bold text-sm">Response</div>}>
-          <CodeBlock preWrap lang="json">
+          <CodeBlock breakWords lang="json">
             {JSON.stringify(props.error.response, null, 2)}
           </CodeBlock>
         </Collapse.Panel>
       )}
       {props.error.request && (
         <Collapse.Panel key={"request"} header={<div className="font-bold text-sm">Request</div>}>
-          <CodeBlock preWrap lang="json">
+          <CodeBlock breakWords lang="json">
             {JSON.stringify(props.error.request, null, 2)}
           </CodeBlock>
         </Collapse.Panel>
       )}
       {stack && (
         <Collapse.Panel key={"stack"} header={<div className="font-bold text-sm">Stack</div>}>
-          <CodeBlock preWrap>{stack}</CodeBlock>
+          <CodeBlock breakWords>{stack}</CodeBlock>
         </Collapse.Panel>
       )}
     </Collapse>
