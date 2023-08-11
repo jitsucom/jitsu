@@ -11,6 +11,7 @@ export const SourceType = ConnectorPackageDbModel.merge(
     meta: z.object({
       name: z.string(),
       license: z.string(),
+      mitVersions: z.array(z.string()).optional(),
       releaseStage: z.string(),
       dockerImageTag: z.string(),
       connectorSubtype: z.string(),
@@ -40,6 +41,7 @@ export default createRoute()
           meta as any,
           "name",
           "license",
+          "mitVersions",
           "releaseStage",
           "dockerImageTag",
           "connectorSubtype",

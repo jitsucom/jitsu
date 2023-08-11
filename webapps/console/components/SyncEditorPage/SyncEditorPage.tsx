@@ -11,7 +11,7 @@ import { Button, Input, Select, Switch, Tooltip } from "antd";
 import { getCoreDestinationType } from "../../lib/schema/destinations";
 import { confirmOp, feedbackError, feedbackSuccess } from "../../lib/ui";
 import FieldListEditorLayout, { EditorItem } from "../FieldListEditorLayout/FieldListEditorLayout";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, ExternalLink } from "lucide-react";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
 import { LoadingAnimation } from "../GlobalLoader/GlobalLoader";
 import hash from "stable-hash";
@@ -23,6 +23,8 @@ import { LabelEllipsis } from "../LabelEllipsis/LabelEllipsis";
 import { createDisplayName } from "../../lib/zod";
 import xor from "lodash/xor";
 import timezones from "timezones-list";
+import { useBilling } from "../Billing/BillingProvider";
+import { WLink } from "../Workspace/WLink";
 
 const log = getLog("SyncEditorPage");
 
@@ -30,30 +32,37 @@ const scheduleOptions = [
   {
     label: "Disabled",
     value: "",
-  },
-  {
-    label: "Every minute",
-    value: "* * * * *",
-  },
-  {
-    label: "Every 5 minutes",
-    value: "*/5 * * * *",
-  },
-  {
-    label: "Every 15 minutes",
-    value: "*/15 * * * *",
-  },
-  {
-    label: "Every hour",
-    value: "0 * * * *",
+    minuteFrequency: Number.MAX_VALUE,
   },
   {
     label: "Every day",
     value: "0 0 * * *",
+    minuteFrequency: 60 * 24,
+  },
+  {
+    label: "Every hour",
+    value: "0 * * * *",
+    minuteFrequency: 60,
+  },
+  {
+    label: "Every 15 minutes",
+    value: "*/15 * * * *",
+    minuteFrequency: 15,
+  },
+  {
+    label: "Every 5 minutes",
+    value: "*/5 * * * *",
+    minuteFrequency: 5,
+  },
+  {
+    label: "Every minute",
+    value: "* * * * *",
+    minuteFrequency: 1,
   },
   {
     label: "Custom",
     value: "custom",
+    minuteFrequency: 0,
   },
 ];
 
@@ -167,6 +176,7 @@ function SyncEditor({
   links: z.infer<typeof ConfigurationObjectLinkDbModel>[];
 }) {
   const router = useRouter();
+  const billing = useBilling();
   const appConfig = useAppConfig();
   const existingLink = router.query.id ? links.find(link => link.id === router.query.id) : undefined;
 
@@ -422,13 +432,34 @@ function SyncEditor({
     },
   ];
   if (appConfig.syncs.scheduler.enabled) {
+    const disableScheduling = billing.enabled && !billing.loading && !billing.settings.maximumSyncFrequency;
     configItems.push({
       name: "Schedule",
       documentation: "Select schedule to run sync",
-      component: (
+      component: disableScheduling ? (
+        <div className="text-xs font-normal text-textLight">
+          <div>Your plan allows to only manual runs.</div>
+          <WLink className="underline flex space-x-3 items-center" href="/settings/billing">
+            Please upgrade to any paid plan to enable scheduled runs
+            <ExternalLink className="w-4 h-4" />
+          </WLink>
+        </div>
+      ) : (
         <Select
+          disabled={disableScheduling}
           className={"w-80"}
-          options={scheduleOptions}
+          options={scheduleOptions.map(({ minuteFrequency, ...rest }) => {
+            const optionDisabled =
+              billing.enabled &&
+              !billing.loading &&
+              billing.settings.maximumSyncFrequency &&
+              minuteFrequency < billing.settings.maximumSyncFrequency;
+            return {
+              ...rest,
+              label: `${rest.label} ${optionDisabled ? "(Plan upgrade required)" : ""}`,
+              disabled: !!optionDisabled,
+            };
+          })}
           value={showCustomSchedule ? "custom" : syncOptions?.schedule || ""}
           onSelect={id => {
             if (id === "custom") {

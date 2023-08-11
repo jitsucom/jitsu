@@ -75,7 +75,14 @@ export const ServicesCatalog: React.FC<{ onClick: (packageType, packageId: strin
       </div>
       <div className={"flex-shrink overflow-auto"}>
         {Object.entries(groups).map(([group, sources]) => {
-          const filtered = sources.filter(source => source.meta.name.toLowerCase().includes(filter.toLowerCase()));
+          const filtered = sources
+            .filter(source => source.meta.name)
+            .filter(source => source.meta.name && source.meta.name.toLowerCase().includes(filter.toLowerCase()))
+            .filter(
+              source =>
+                source.meta.license?.toLowerCase() === "mit" ||
+                (source.meta.mitVersions && source.meta.mitVersions.length > 0)
+            );
           if (filtered.length === 0) {
             return null;
           }
