@@ -184,7 +184,11 @@ export function nextJsApiHandler(api: Api): NextApiHandler {
           log
             .atDebug()
             .log(
-              `Zod mismatch. Obj: ${JSON.stringify(result, null, 2)}. Zod error: ${JSON.stringify(parseResult.error)}`
+              `Api method zod mismatch at ${req.method} ${req.url}. Obj: ${JSON.stringify(
+                result,
+                null,
+                2
+              )}. Zod error: ${JSON.stringify(parseResult.error)}`
             );
           throw new ApiError(`Response for ${req.method} ${req.url} doesn't match required schema`, {
             zodError: parseResult.error,
