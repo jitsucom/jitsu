@@ -21,6 +21,7 @@ const aggregatedResultType = z.object({
         task_id: z.string(),
         status: z.string(),
         description: z.string(),
+        started_by: z.any().optional(),
         started_at: z.date(),
         updated_at: z.date(),
       })
