@@ -198,6 +198,7 @@ model source_task {
     version String
     started_at DateTime @default(now()) @db.Timestamptz(3) /// @zod.custom(z.coerce.date())
     updated_at DateTime @default(now()) @db.Timestamptz(3) /// @zod.custom(z.coerce.date())
+    started_by Json?
     status String
     description String?
 

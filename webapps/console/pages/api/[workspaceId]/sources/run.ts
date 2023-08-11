@@ -3,12 +3,13 @@ import { z } from "zod";
 import { createRoute, getUser, verifyAccess } from "../../../../lib/api";
 import { requireDefined, rpc } from "juava";
 import { randomUUID } from "crypto";
-import { ServiceConfig } from "../../../../lib/schema";
+import { ServiceConfig, SessionUser } from "../../../../lib/schema";
 import { ApiError, syncError } from "../../../../lib/shared/errors";
 import { getServerLog } from "../../../../lib/server/log";
 import { getAppEndpoint } from "../../../../lib/domains";
 
 import { tryManageOauthCreds } from "../../../../lib/server/oauth/services";
+import { createJwt, getEeConnection, isEEAvailable } from "../../../../lib/server/ee";
 
 const log = getServerLog("sync-run");
 
@@ -27,6 +28,71 @@ const resultType = z.object({
     .optional(),
 });
 
+async function checkQuota(opts: {
+  user?: SessionUser;
+  workspaceId: string;
+  taskId: string;
+  syncId: string;
+  package: string;
+  version: string;
+}): Promise<any> {
+  try {
+    const quotaCheck = `${getEeConnection().host}api/quotas/sync`;
+    let eeAuthToken: string | undefined;
+    if (opts.user) {
+      eeAuthToken = createJwt(opts.user.internalId, opts.user.email, opts.workspaceId, 60).jwt;
+    } else {
+      //automatic run, authorized via syncctl auth key. Authorize as admin
+      eeAuthToken = createJwt("admin-service-account@jitsu.com", "admin-service-account@jitsu.com", "$all", 60).jwt;
+    }
+    const quotaCheckResult = await rpc(quotaCheck, {
+      method: "POST",
+      query: { workspaceId: opts.workspaceId }, //db is created, so the slug won't be really used
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${eeAuthToken}`,
+      },
+    });
+    if (!quotaCheckResult.ok) {
+      if (!opts.user) {
+        //scheduled run. We need to create a failed task so user can see the error
+        await db.prisma().source_task.create({
+          data: {
+            sync_id: opts.syncId,
+            task_id: opts.taskId,
+            status: "FAILED",
+            started_at: new Date(),
+            updated_at: new Date(),
+            description: quotaCheckResult.error,
+            package: "jitsu",
+            version: "0.0.1",
+          },
+        });
+        await db.prisma().task_log.create({
+          data: {
+            logger: "sync",
+            task_id: opts.taskId,
+            sync_id: opts.syncId,
+            message: `Quota exceeded: ${quotaCheckResult.error}`,
+            level: "ERROR",
+            timestamp: new Date(),
+          },
+        });
+      }
+      return {
+        ok: false,
+        error: `Quota exceeded: ${quotaCheckResult.error}`,
+      };
+    }
+  } catch (e) {
+    log.atError().log("Error checking quota", e);
+    return {
+      ok: false,
+      error: `Quota server is not available`,
+    };
+  }
+}
+
 export default createRoute()
   .GET({
     auth: false,
@@ -39,10 +105,15 @@ export default createRoute()
   })
   .handler(async ({ query, req, res }) => {
     const { workspaceId } = query;
+    //Since we need custom auth for syncctl, here we set auth: false in route config (see abouve)
+    // and we need to do auth manually
     const syncAuthKey = process.env.SYNCCTL_AUTH_KEY ?? "";
     const token = req.headers.authorization ?? "";
+    const taskId = randomUUID();
+    let trigger: "manual" | "scheduled" = "manual";
+    let user: SessionUser | undefined;
     if (token.replace("Bearer ", "") !== syncAuthKey || !token || !syncAuthKey) {
-      const user = await getUser(res, req);
+      user = await getUser(res, req);
       if (!user) {
         throw new ApiError("Authorization Required", {}, { status: 401 });
       }
@@ -54,6 +125,7 @@ export default createRoute()
     );
     const authHeaders: any = {};
     if (syncAuthKey) {
+      trigger = "scheduled";
       authHeaders["Authorization"] = `Bearer ${syncAuthKey}`;
     }
     try {
@@ -101,6 +173,19 @@ export default createRoute()
           ok: false,
           error: `Service ${sync.from} not found`,
         };
+      }
+      if (isEEAvailable()) {
+        const checkResult = await checkQuota({
+          user,
+          workspaceId,
+          taskId,
+          syncId: query.syncId as string,
+          package: (service.config as any).package,
+          version: (service.config as any).version,
+        });
+        if (checkResult) {
+          return checkResult;
+        }
       }
       let stateObj: any = undefined;
       if (query.fullSync === "true" || query.fullSync === "1") {
@@ -169,7 +254,6 @@ export default createRoute()
       }
       const configuredCatalog = selectStreamsFromCatalog(catalog, (sync.data as any).streams);
 
-      const taskId = randomUUID();
       const res = await rpc(syncURL + "/read", {
         method: "POST",
         headers: {
@@ -183,6 +267,10 @@ export default createRoute()
           syncId: query.syncId,
         },
         body: {
+          startedBy: {
+            trigger,
+            ...(user ? { userId: user.internalId } : {}),
+          },
           config: await tryManageOauthCreds({ ...(service.config as ServiceConfig), id: sync.fromId }),
           catalog: configuredCatalog,
           ...(stateObj ? { state: stateObj } : {}),

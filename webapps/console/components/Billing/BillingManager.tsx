@@ -227,7 +227,6 @@ const AvailablePlans: React.FC<{}> = () => {
     async () => {
       const plans = await rpc(`/api/${workspace.id}/ee/billing/plans`);
       assertDefined(billing.settings.planId, `planId is not defined in ${JSON.stringify(billing.settings)}`);
-      console.log("plans.products", plans.products);
 
       return {
         plans: {
