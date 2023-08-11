@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { auth } from "../../../lib/auth";
-import { assertTrue, requireDefined } from "juava";
+import { assertTrue, getLog, requireDefined } from "juava";
 import { withErrorHandler } from "../../../lib/error-handler";
 import { getOrCreateCurrentSubscription } from "../../../lib/stripe";
 import { pg as pgService } from "../../../lib/services";
@@ -39,14 +39,19 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
             group by "workspaceId";`,
       { workspaceId }
     );
+    getLog()
+      .atInfo()
+      .log(`Quota check for ${workspaceId}: ${JSON.stringify(res, null, 2)}`);
     if (res.length == 0) {
       return { ok: true };
     } else {
       const activeSyncs = res[0].activeSyncs;
-      if (activeSyncs > freePlanLimitations.dailyActiveSyncs) {
+      if (activeSyncs >= freePlanLimitations.dailyActiveSyncs) {
         return {
           ok: false,
-          error: `Daily active syncs limit exceeded. Current: ${activeSyncs}, limit: ${freePlanLimitations.dailyActiveSyncs}. Last sync completed at: ${res[0].lastSync}`,
+          error: `Daily active syncs limit exceeded. Syncs in last 24 hours: ${activeSyncs}, limit: ${
+            freePlanLimitations.dailyActiveSyncs
+          }. Last sync completed at: ${new Date(res[0].lastSync).toISOString()}`,
         };
       }
     }
