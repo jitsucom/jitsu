@@ -1,5 +1,5 @@
 import { WorkspacePageLayout } from "../../../components/PageLayout/WorkspacePageLayout";
-import { useAppConfig, useWorkspace } from "../../../lib/context";
+import { useAppConfig, useWorkspace, WorkspaceContext } from "../../../lib/context";
 import { get } from "../../../lib/useApi";
 import { DestinationConfig, ServiceConfig } from "../../../lib/schema";
 import { ConfigurationObjectLinkDbModel } from "../../../prisma/schema";
@@ -16,7 +16,7 @@ import { useLinksQuery } from "../../../lib/queries";
 import { jsonSerializationBase64, useQueryStringState } from "../../../lib/useQueryStringState";
 import { TableProps } from "antd/es/table/InternalTable";
 import { ColumnType, SortOrder } from "antd/es/table/interface";
-import { CalendarCheckIcon, Edit3, Inbox, ListMinusIcon, Loader2, RefreshCw } from "lucide-react";
+import { CalendarCheckIcon, Edit3, ExternalLink, Inbox, ListMinusIcon, Loader2, RefreshCw } from "lucide-react";
 import { PlusOutlined } from "@ant-design/icons";
 import { WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
 import { ErrorCard } from "../../../components/GlobalError/GlobalError";
@@ -31,6 +31,7 @@ import { ButtonGroup, ButtonProps } from "../../../components/ButtonGroup/Button
 import { Overlay } from "../../../components/Overlay/Overlay";
 import { CodeBlock } from "../../../components/CodeBlock/CodeBlock";
 import { processTaskStatus, TaskStatus } from "./tasks";
+import { WLink } from "../../../components/Workspace/WLink";
 
 dayjs.extend(utc);
 dayjs.extend(relativeTime);
@@ -72,6 +73,23 @@ type RemoteEntitiesProps = {
 type SortingSettings = {
   columns: { order: SortOrder; field: string }[];
 };
+
+export function displayTaskRunError(workspace: WorkspaceContext, error: { error: string; errorType?: string }) {
+  if (error.errorType === "quota_exceeded") {
+    feedbackError(
+      <div className="flex flex-col">
+        <div className="text-red-500 font-bold mb-2">Quota exceeded</div>
+        <div className="text-sm my-2">{error.error}</div>
+        <Link href={`/${workspace.slugOrId}/settings/billing`} className="flex items-center space-x-2 underline">
+          Please, update your plan here <ExternalLink className="w-4 h-4" />{" "}
+        </Link>
+      </div>,
+      { placement: "top" }
+    );
+  } else {
+    feedbackError(error.error, { placement: "top" });
+  }
+}
 
 function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEntitiesProps) {
   const servicesById = index(services, "id");
@@ -215,7 +233,7 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
               try {
                 const runStatus = await rpc(`/api/${workspace.id}/sources/run?syncId=${link.id}`);
                 if (runStatus?.error) {
-                  feedbackError(runStatus.error, { placement: "top" });
+                  displayTaskRunError(workspace, runStatus);
                 } else {
                   router.push(
                     `/${workspace.slug || workspace.id}/syncs/tasks?query=${encodeURIComponent(
@@ -258,7 +276,7 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
               try {
                 const runStatus = await rpc(`/api/${workspace.id}/sources/run?syncId=${link.id}&fullSync=true`);
                 if (runStatus?.error) {
-                  feedbackError(runStatus.error, { placement: "top" });
+                  displayTaskRunError(workspace, runStatus);
                 } else {
                   router.push(
                     `/${workspace.slug || workspace.id}/syncs/tasks?query=${encodeURIComponent(

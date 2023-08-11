@@ -16,6 +16,7 @@ const log = getServerLog("sync-run");
 const resultType = z.object({
   ok: z.boolean(),
   error: z.string().optional(),
+  errorType: z.string().optional(),
   taskId: z.string().optional(),
   status: z.string().optional(),
   logs: z.string().optional(),
@@ -82,6 +83,7 @@ async function checkQuota(opts: {
       return {
         ok: false,
         error: `Quota exceeded: ${quotaCheckResult.error}`,
+        errorType: "quota_exceeded",
       };
     }
   } catch (e) {
