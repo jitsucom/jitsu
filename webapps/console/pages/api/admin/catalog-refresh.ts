@@ -25,7 +25,7 @@ function shuffle<T>(arr: T[]) {
 }
 
 export default createRoute()
-  .GET({ auth: true, query: z.object({ limit: z.string().optional() }) })
+  .GET({ auth: true, query: z.object({ limit: z.string().optional(), source: z.string().optional() }) })
   .handler(async ({ user, req, query }) => {
     const userProfile = await db.prisma().userProfile.findFirst({ where: { id: user.internalId } });
 
@@ -34,6 +34,7 @@ export default createRoute()
 
     const sources: string[] = (await rpc(`https://api.github.com/repos/${repo}/contents/${basePath}?ref=${branch}`))
       .filter(({ name }) => name.startsWith("source-"))
+      .filter(({ name }) => !query.source || name === query.source || `airbyte/${name}` === query.source)
       .map(({ name }) => name);
 
     shuffle(sources);
@@ -41,7 +42,9 @@ export default createRoute()
     log.atInfo().log(`Found ${sources.length} sources`);
     const max = query.limit ? Math.min(parseInt(query.limit), sources.length) : sources.length;
     const statuses = {};
+
     for (let i = 0; i < max; i++) {
+      const mitVersions = new Set<string>();
       const src = sources[i];
       const metadataUrl = `https://raw.githubusercontent.com/${repo}/master/${basePath}/${src}/metadata.yaml`;
       const res = await fetch(metadataUrl);
@@ -50,6 +53,33 @@ export default createRoute()
       let icon: string | undefined = undefined;
       if (res.ok) {
         metadata = yaml.load(await res.text());
+
+        const license = metadata.data?.license?.toLowerCase();
+
+        if (license === "elv2") {
+          const commitHistory = `https://api.github.com/repos/${repo}/commits?path=/${basePath}/${src}/metadata.yaml`;
+          log.atWarn().log(`Source ${src} has ELv2 license. Looking for MIT versions at ${commitHistory}`);
+          const commits = await rpc(commitHistory);
+          log.atInfo().log(`Found ${commits.length} commits`);
+          for (const { sha } of commits) {
+            const commitFile = `https://raw.githubusercontent.com/${repo}/${sha}/${basePath}/${src}/metadata.yaml`;
+            const oldYml = await fetch(commitFile);
+            if (oldYml.ok) {
+              const oldMeta = yaml.load(await oldYml.text());
+              if (oldMeta.data?.license?.toLowerCase() === "mit") {
+                const dockerVersion = oldMeta.data?.dockerImageTag;
+                if (!dockerVersion) {
+                  log.atWarn().log(`MIT version of ${src} doesn't have dockerImageTag: ${commitFile}`);
+                } else {
+                  log.atWarn().log(`Found MIT version of ${src} --> ${dockerVersion}`);
+                  mitVersions.add(dockerVersion);
+                }
+              }
+            } else {
+              log.atWarn().log(`Failed to load ${commitFile}`);
+            }
+          }
+        }
 
         packageId = metadata.data?.dockerRepository || `airbyte/${src}`;
       } else {
@@ -73,7 +103,10 @@ export default createRoute()
       const data = {
         packageId: packageId as string,
         packageType: "airbyte",
-        meta: metadata?.data || {},
+        meta: {
+          ...(metadata?.data || {}),
+          ...([...mitVersions].length > 0 ? { mitVersions: [...mitVersions] } : {}),
+        },
         logoSvg: icon,
       };
       if (currentId) {
