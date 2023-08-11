@@ -25,6 +25,7 @@ import {
   LayoutDashboard,
   Loader2,
   PlugZap,
+  ScrollText,
   SearchCode,
   Server,
   ServerCog,
@@ -521,6 +522,7 @@ function PageHeader() {
       items: [
         { title: "Connections", path: "/services", icon: <ServerCog className="w-full h-full" /> },
         { title: "Syncs", path: "/syncs", icon: <Share2 className="w-full h-full" /> },
+        { title: "All Logs", path: "/syncs/tasks", icon: <ScrollText className="w-full h-full" /> },
       ],
     },
 
