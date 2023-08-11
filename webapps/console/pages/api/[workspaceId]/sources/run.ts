@@ -88,10 +88,7 @@ async function checkQuota(opts: {
     }
   } catch (e) {
     log.atError().log("Error checking quota", e);
-    return {
-      ok: false,
-      error: `Quota server is not available`,
-    };
+    //ignore this error and proceed with the run. If billing server is down, we don't want to spoil the user experience
   }
 }
 
