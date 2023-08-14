@@ -112,10 +112,11 @@ func ReformatNumberValue(v interface{}) interface{} {
 		return v
 	}
 
-	if strings.Contains(jsonNumber.String(), ".") {
+	str := jsonNumber.String()
+	if strings.ContainsAny(str, ".eE") {
 		floatValue, err := jsonNumber.Float64()
 		if err != nil {
-			logging.Errorf("Error parsing %s into float64: %v", jsonNumber.String(), err)
+			logging.Errorf("Error parsing %s into float64: %v", str, err)
 			return v
 		}
 		return interface{}(floatValue)
@@ -123,7 +124,7 @@ func ReformatNumberValue(v interface{}) interface{} {
 
 	intValue, err := jsonNumber.Int64()
 	if err != nil {
-		logging.Errorf("Error parsing %s into int64: %v", jsonNumber.String(), err)
+		logging.Errorf("Error parsing %s into int64: %v", str, err)
 		return v
 	}
 	return interface{}(intValue)
