@@ -78,11 +78,16 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
 
       const interval = setInterval(async () => {
         try {
-          const offsets = await admin.fetchTopicOffsets(kafkaTopic);
-          for (const o of offsets) {
-            topicOffsets.set({ partition: o.partition, offset: "offset" }, parseInt(o.offset));
+          const watermarks = await admin.fetchTopicOffsets(kafkaTopic);
+          for (const o of watermarks) {
             topicOffsets.set({ partition: o.partition, offset: "high" }, parseInt(o.high));
             topicOffsets.set({ partition: o.partition, offset: "low" }, parseInt(o.low));
+          }
+          const offsets = await admin.fetchOffsets({ groupId: cfg.consumerGroupId, topics: [kafkaTopic] });
+          for (const o of offsets) {
+            for (const p of o.partitions) {
+              topicOffsets.set({ partition: p.partition, offset: "offset" }, parseInt(p.offset));
+            }
           }
         } catch (e) {
           log.atError().withCause(e).log("Failed to commit offsets");

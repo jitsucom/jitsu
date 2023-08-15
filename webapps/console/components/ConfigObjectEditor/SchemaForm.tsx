@@ -210,6 +210,8 @@ export const SchemaForm: React.FC<{
                         const options = f.items?.enum ?? [];
                         return <StringArray options={options} {...editorProps} />;
                       }
+                    default:
+                      return <TextEditor {...editorProps} />;
                   }
                 })()}
               </>
