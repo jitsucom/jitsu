@@ -656,7 +656,16 @@ export const coreDestinations: DestinationType<any>[] = [
   },
   {
     id: "webhook",
-    connectionOptions: CloudDestinationsConnectionOptions,
+    connectionOptions: CloudDestinationsConnectionOptions.merge(
+      z.object({
+        multithreading: z
+          .boolean()
+          .optional()
+          .describe(
+            "Multithreading::Use multiple threads to send data to the endpoint. Faster but doesn't guarantee order of events"
+          ),
+      })
+    ),
     icon: webhookIcon,
     title: "Webhook",
     tags: "Special",

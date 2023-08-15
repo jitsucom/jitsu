@@ -208,36 +208,44 @@ export async function rotorMessageHandler(_message: string | undefined) {
       await redisClient.hdel(`store:${connection.id}`, key);
     },
   };
-  const execLog = await runChain(funcChain, event, connection, redisLogger, store, ctx);
-
-  if (metricsFunction) {
-    const processedIdx = execLog.findIndex(l => !l.dropped && l.functionId.startsWith("builtin.destination."));
-    if (processedIdx >= 0) {
-      const d = new Date(message.messageCreated);
-      d.setMilliseconds(0);
-      d.setSeconds(0);
-      const event = {
-        timestamp: d.toISOString(),
-        workspaceId: connection.workspaceId,
-        messageId: message.messageId,
-        JITSU_TABLE_NAME: "active_incoming",
-      };
-      try {
-        await metricsFunction.exec(
-          event,
-          createFullContext(
-            metricsFunction.id,
-            { log: async () => {} },
-            store,
-            { headers: message.httpHeaders },
-            {},
-            metricsFunction.config
-          )
-        );
-      } catch (e) {
-        log.atError().withCause(e).log("Failed to send metrics");
+  const chainCallback = async () =>
+    runChain(funcChain, event, connection, redisLogger, store, ctx).then(async execLog => {
+      if (metricsFunction) {
+        const processedIdx = execLog.findIndex(l => !l.dropped && l.functionId.startsWith("builtin.destination."));
+        if (processedIdx >= 0) {
+          const d = new Date(message.messageCreated);
+          d.setMilliseconds(0);
+          d.setSeconds(0);
+          const event = {
+            timestamp: d.toISOString(),
+            workspaceId: connection.workspaceId,
+            messageId: message.messageId,
+            JITSU_TABLE_NAME: "active_incoming",
+          };
+          try {
+            await metricsFunction.exec(
+              event,
+              createFullContext(
+                metricsFunction.id,
+                {
+                  log: async () => {},
+                },
+                store,
+                { headers: message.httpHeaders },
+                {},
+                metricsFunction.config
+              )
+            );
+          } catch (e) {
+            log.atError().withCause(e).log("Failed to send metrics");
+          }
+        }
       }
-    }
+    });
+  if (connectionData.multithreading) {
+    queueMicrotask(chainCallback);
+  } else {
+    await chainCallback();
   }
 }
 

@@ -546,6 +546,28 @@ function ConnectionEditor({
       ),
     });
   }
+  if (hasZodFields(connectionOptionsZodType, "multithreading")) {
+    console.log("multithreading", connectionOptions.multithreading);
+    configItems.push({
+      group: "Advanced",
+      documentation: (
+        <>
+          Use multiple threads to send data to the endpoint. Faster, but doesn't guarantee order of events. Recommended
+          on high volumes of data.
+        </>
+      ),
+      name: "Multithreading",
+      component: (
+        <SwitchComponent
+          className="max-w-xs"
+          value={connectionOptions.multithreading}
+          onChange={m => {
+            updateOptions({ multithreading: m });
+          }}
+        />
+      ),
+    });
+  }
   if (hasZodFields(connectionOptionsZodType, "functions")) {
     for (const func of functions) {
       const functionId = "udf." + func.id;
