@@ -1,5 +1,6 @@
 import {
   AnyEvent,
+  BatchEventsStore,
   EventContext,
   EventsStore,
   FuncReturn,
@@ -38,7 +39,7 @@ export async function runChain(
   chain: FuncChain,
   event: AnyEvent,
   connection: EnrichedConnectionConfig,
-  eventsStore: EventsStore,
+  batchEventsStore: BatchEventsStore,
   store: Store,
   eventContext: EventContext
 ): Promise<FunctionExecLog> {
@@ -50,6 +51,13 @@ export async function runChain(
       const event = events[i];
       let result: FuncReturn;
       const sw = stopwatch();
+      const logs: { error: boolean; msg: Record<string, any> }[] = [];
+      const eventsStore: EventsStore = {
+        log(error: boolean, msg: Record<string, any>): Promise<void> {
+          logs.push({ error, msg });
+          return Promise.resolve();
+        },
+      };
       const funcCtx = createFullContext(f.id, eventsStore, store, eventContext, f.context, f.config, event);
       try {
         result = await f.exec(event, funcCtx);
@@ -63,6 +71,8 @@ export async function runChain(
           ms: sw.elapsedMs(),
         });
         continue;
+      } finally {
+        await batchEventsStore.log(logs);
       }
       execLog.push({
         eventIndex: i,
@@ -83,18 +93,37 @@ export async function runChain(
   return execLog;
 }
 
-export function createRedisLogger(redis: Redis, key: (err: boolean) => string, storeDebug): EventsStore {
+export function createRedisLogger(redis: Redis, key: (err: boolean) => string, storeDebug): BatchEventsStore {
   return {
-    log: async (error, msg) => {
+    log: async (logs: { error: boolean; msg: Record<string, any> }[]) => {
       try {
-        if (msg.type === "log-debug" && !storeDebug) {
-          return;
+        if (logs.length === 1) {
+          const msg = logs[0].msg;
+          const error = logs[0].error;
+          if (msg.type === "log-debug" && !storeDebug) {
+            return;
+          }
+          const logEntry = JSON.stringify({ timestamp: new Date().toISOString(), error, ...msg });
+          if (error) {
+            await redis.xadd(key(true), "MAXLEN", "~", eventsLogSize, "*", "event", logEntry);
+          }
+          await redis.xadd(key(false), "MAXLEN", "~", eventsLogSize, "*", "event", logEntry);
+        } else {
+          const pipeline = redis.pipeline();
+          for (const log of logs) {
+            const msg = log.msg;
+            const error = log.error;
+            if (msg.type === "log-debug" && !storeDebug) {
+              continue;
+            }
+            const logEntry = JSON.stringify({ timestamp: new Date().toISOString(), error, ...msg });
+            if (error) {
+              pipeline.xadd(key(true), "MAXLEN", "~", eventsLogSize, "*", "event", logEntry);
+            }
+            pipeline.xadd(key(false), "MAXLEN", "~", eventsLogSize, "*", "event", logEntry);
+          }
+          await pipeline.exec();
         }
-        const logEntry = JSON.stringify({ timestamp: new Date().toISOString(), error, ...msg });
-        if (error) {
-          await redis.xadd(key(true), "MAXLEN", "~", eventsLogSize, "*", "event", logEntry);
-        }
-        await redis.xadd(key(false), "MAXLEN", "~", eventsLogSize, "*", "event", logEntry);
       } catch (e) {
         log.atError().withCause(e).log("Failed to put event to redis events log");
       }

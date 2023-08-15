@@ -1,6 +1,6 @@
 import { EventContext, EventsStore, FetchOpts, FullContext, Store, SystemContext } from "@jitsu/protocols/functions";
 import nodeFetch, { RequestInit } from "node-fetch-commonjs";
-import { getErrorMessage, getLog } from "juava";
+import { getErrorMessage, getLog, stopwatch } from "juava";
 import { httpAgent, httpsAgent } from "./functions/lib/http-agent";
 
 const log = getLog("functions-context");
@@ -21,6 +21,8 @@ export function createFullContext(
     props: props,
     store: store,
     async fetch(url: string, init?: FetchOpts, logToRedis: boolean = true): Promise<Response> {
+      //capture execution time
+      const sw = stopwatch();
       const baseInfo = {
         functionId: id,
         functionType: type,
@@ -46,7 +48,7 @@ export function createFullContext(
         fetchResult = await nodeFetch(url, internalInit);
       } catch (err) {
         if (logToRedis) {
-          eventsStore.log(true, { ...baseInfo, error: getErrorMessage(err) });
+          eventsStore.log(true, { ...baseInfo, error: getErrorMessage(err), elapsedMs: sw.elapsedMs() });
         }
         throw err;
       }
@@ -57,6 +59,7 @@ export function createFullContext(
           ...baseInfo,
           status: fetchResult.status,
           statusText: fetchResult.statusText,
+          elapsedMs: sw.elapsedMs(),
           response: await tryJson(cloned),
         });
       }
