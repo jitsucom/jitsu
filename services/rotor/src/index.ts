@@ -213,7 +213,7 @@ export async function rotorMessageHandler(_message: string | undefined) {
       if (metricsFunction) {
         const processedIdx = execLog.findIndex(l => !l.dropped && l.functionId.startsWith("builtin.destination."));
         if (processedIdx >= 0) {
-          const d = new Date(message.messageCreated);
+          const d = new Date();
           d.setMilliseconds(0);
           d.setSeconds(0);
           const event = {
