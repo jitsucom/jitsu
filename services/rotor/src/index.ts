@@ -209,7 +209,7 @@ export async function rotorMessageHandler(_message: string | undefined) {
     },
   };
   const chainCallback = async () =>
-    runChain(funcChain, event, connection, redisLogger, store, ctx).then(async execLog => {
+    await runChain(funcChain, event, connection, redisLogger, store, ctx).then(async execLog => {
       if (metricsFunction) {
         const processedIdx = execLog.findIndex(l => !l.dropped && l.functionId.startsWith("builtin.destination."));
         if (processedIdx >= 0) {
