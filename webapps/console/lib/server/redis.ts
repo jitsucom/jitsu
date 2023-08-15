@@ -35,6 +35,7 @@ function createRedis(): Redis {
     maxRetriesPerRequest: 3,
     tls: tls,
     lazyConnect: false,
+    enableAutoPipelining: true,
   });
   redisClient.on("error", err => {
     log
