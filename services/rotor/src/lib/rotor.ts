@@ -75,7 +75,6 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
         // add `as const` here to enforce label names
         labelNames: ["partition", "offset"] as const,
       });
-
       const interval = setInterval(async () => {
         try {
           const watermarks = await admin.fetchTopicOffsets(kafkaTopic);

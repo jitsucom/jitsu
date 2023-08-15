@@ -31,7 +31,6 @@ import { ButtonGroup, ButtonProps } from "../../../components/ButtonGroup/Button
 import { Overlay } from "../../../components/Overlay/Overlay";
 import { CodeBlock } from "../../../components/CodeBlock/CodeBlock";
 import { processTaskStatus, TaskStatus } from "./tasks";
-import { WLink } from "../../../components/Workspace/WLink";
 
 dayjs.extend(utc);
 dayjs.extend(relativeTime);
