@@ -242,8 +242,8 @@ export async function rotorMessageHandler(_message: string | undefined) {
         }
       }
     });
-  //50% chance
-  if (connectionData.multithreading && Math.random() < 0.5) {
+  //95% chance
+  if (connectionData.multithreading && Math.random() < 0.95) {
     queueMicrotask(chainCallback);
   } else {
     await chainCallback();
