@@ -227,7 +227,7 @@ export async function rotorMessageHandler(_message: string | undefined) {
           event,
           createFullContext(
             metricsFunction.id,
-            redisLogger,
+            { log: async () => {} },
             store,
             { headers: message.httpHeaders },
             {},
