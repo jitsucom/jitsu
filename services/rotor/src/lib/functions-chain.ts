@@ -78,11 +78,12 @@ export async function runChain(
         eventIndex: i,
         functionId: f.id,
         ms: sw.elapsedMs(),
-        dropped: result === "drop" || (Array.isArray(result) && result.length === 0),
+        dropped: isDropResult(result),
       });
-      if (result === "drop" || (Array.isArray(result) && result.length === 0)) {
+      if (isDropResult(result)) {
         return execLog;
       } else if (result) {
+        // @ts-ignore
         newEvents.push(...(Array.isArray(result) ? result : [result]));
       } else {
         newEvents.push(event);
@@ -91,6 +92,10 @@ export async function runChain(
     events = newEvents;
   }
   return execLog;
+}
+
+function isDropResult(result: FuncReturn): boolean {
+  return result === "drop" || (Array.isArray(result) && result.length === 0) || result === null || result === false;
 }
 
 export function createRedisLogger(redis: Redis, key: (err: boolean) => string, storeDebug): BatchEventsStore {

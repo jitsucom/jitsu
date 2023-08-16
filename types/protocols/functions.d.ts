@@ -115,7 +115,7 @@ export type FullContext<P extends AnyProps = AnyProps> = EventContext &
 //equivalent to returning [] from a function
 export type FunctionCommand = "drop";
 
-export type FuncReturn = AnyEvent[] | AnyEvent | null | undefined | FunctionCommand;
+export type FuncReturn = AnyEvent[] | AnyEvent | null | undefined | FunctionCommand | false;
 
 export interface JitsuFunction<E extends AnyEvent = AnyEvent, P extends AnyProps = AnyProps> {
   (event: E, ctx: FullContext<P>): Promise<FuncReturn> | FuncReturn;

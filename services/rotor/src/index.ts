@@ -6,6 +6,7 @@ disableService("pg");
 import {
   connectToKafka,
   destinationMessagesTopic,
+  destinationMessagesTopicMultiThreaded,
   getCredentialsFromEnv,
   rotorConsumerGroupId,
 } from "@jitsu-internal/console/lib/server/kafka-config";
@@ -274,11 +275,11 @@ async function main() {
     log.atInfo().log(`Received message: ${message.value}`);
     await consumer.disconnect();
   } else {
-    const kafkaTopic = destinationMessagesTopic();
+    const kafkaTopics = [destinationMessagesTopic(), destinationMessagesTopicMultiThreaded()];
     const consumerGroupId = rotorConsumerGroupId();
     const rotor = kafkaRotor({
       credentials: getCredentialsFromEnv(),
-      kafkaTopic,
+      kafkaTopics: kafkaTopics,
       consumerGroupId,
       maxSecondsInQueueAfterFailure: retrySettings.maxMinutesInQueue * 60,
       handle: rotorMessageHandler,
@@ -289,7 +290,7 @@ async function main() {
     rotor
       .start()
       .then(() => {
-        log.atInfo().log(`Kafka processing started. Listening for topic ${kafkaTopic} with group ${consumerGroupId}`);
+        log.atInfo().log(`Kafka processing started. Listening for topics ${kafkaTopics} with group ${consumerGroupId}`);
         http.get("/health", (req, res) => {
           res.send("OK");
         });

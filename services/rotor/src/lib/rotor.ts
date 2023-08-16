@@ -1,5 +1,5 @@
 import { getLog } from "juava";
-import { connectToKafka, KafkaCredentials } from "@jitsu-internal/console/lib/server/kafka-config";
+import { connectToKafka, deatLetterTopic, KafkaCredentials } from "@jitsu-internal/console/lib/server/kafka-config";
 import Prometheus from "prom-client";
 
 const log = getLog("kafka-rotor");
@@ -41,7 +41,7 @@ async function withRetries(f: () => Promise<void>, opts: { maxRetries?: number; 
 export type KafkaRotorConfig = {
   credentials: KafkaCredentials;
   consumerGroupId: string;
-  kafkaTopic?: string;
+  kafkaTopics: string[];
   kafkaClientId?: string;
   maxSecondsInQueueAfterFailure?: number;
   handle: (message: string) => Promise<void>;
@@ -56,13 +56,13 @@ function shouldReturnToQueue(firstProcessed: Date, maxSecondsInQueueAfterFailure
 }
 
 export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
-  const { kafkaTopic = "incoming-queue", kafkaClientId = "kafka-rotor", maxSecondsInQueueAfterFailure = 3600 } = cfg;
+  const { kafkaTopics, kafkaClientId = "kafka-rotor", maxSecondsInQueueAfterFailure = 3600 } = cfg;
   return {
     start: async () => {
       const kafka = connectToKafka({ defaultAppId: kafkaClientId, ...cfg.credentials });
       const consumer = kafka.consumer({ groupId: cfg.consumerGroupId, allowAutoTopicCreation: false });
       await consumer.connect();
-      await consumer.subscribe({ topic: kafkaTopic, fromBeginning: true });
+      await consumer.subscribe({ topics: kafkaTopics, fromBeginning: true });
 
       const producer = kafka.producer({ allowAutoTopicCreation: false });
       await producer.connect();
@@ -70,22 +70,24 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
       const admin = kafka.admin();
 
       const topicOffsets = new Prometheus.Gauge({
-        name: "rotor_topic_offsets",
+        name: "rotor_topic_offsets2",
         help: "topic offsets",
         // add `as const` here to enforce label names
-        labelNames: ["partition", "offset"] as const,
+        labelNames: ["topic", "partition", "offset"] as const,
       });
       const interval = setInterval(async () => {
         try {
-          const watermarks = await admin.fetchTopicOffsets(kafkaTopic);
-          for (const o of watermarks) {
-            topicOffsets.set({ partition: o.partition, offset: "high" }, parseInt(o.high));
-            topicOffsets.set({ partition: o.partition, offset: "low" }, parseInt(o.low));
+          for (const topic of kafkaTopics) {
+            const watermarks = await admin.fetchTopicOffsets(topic);
+            for (const o of watermarks) {
+              topicOffsets.set({ topic: topic, partition: o.partition, offset: "high" }, parseInt(o.high));
+              topicOffsets.set({ topic: topic, partition: o.partition, offset: "low" }, parseInt(o.low));
+            }
           }
-          const offsets = await admin.fetchOffsets({ groupId: cfg.consumerGroupId, topics: [kafkaTopic] });
+          const offsets = await admin.fetchOffsets({ groupId: cfg.consumerGroupId, topics: kafkaTopics });
           for (const o of offsets) {
             for (const p of o.partitions) {
-              topicOffsets.set({ partition: p.partition, offset: "offset" }, parseInt(p.offset));
+              topicOffsets.set({ topic: o.topic, partition: p.partition, offset: "offset" }, parseInt(p.offset));
             }
           }
         } catch (e) {
@@ -96,7 +98,7 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
       await consumer.run({
         autoCommit: true,
         partitionsConsumedConcurrently: 4,
-        eachMessage: async ({ message }) => {
+        eachMessage: async ({ message, topic }) => {
           const firstProcessed = message.headers?.firstProcessed
             ? new Date(message.headers?.firstProcessed.toString())
             : new Date();
@@ -125,10 +127,10 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
                     : "Message will be sent to dead-letter queue"
                 }: ${message.value}`
               );
-            const topic = returnToQueue ? kafkaTopic : kafkaTopic + "-dead-letter";
+            const requeueTopic = returnToQueue ? topic : deatLetterTopic();
             try {
               await producer.send({
-                topic,
+                topic: requeueTopic,
                 messages: [
                   {
                     value: message.value,
