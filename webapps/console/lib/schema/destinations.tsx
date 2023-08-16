@@ -92,15 +92,9 @@ export type SchemaUI = Record<string, PropertyUI>;
 //Options of any source -> destination connection that are not specific to any particular destination
 export const CloudDestinationsConnectionOptions = z.object({
   functions: z.array(z.object({ functionId: z.string(), functionOptions: z.any() })).optional(),
+  multithreading: z.boolean().optional(),
 });
 export type CloudDestinationsConnectionOptions = z.infer<typeof CloudDestinationsConnectionOptions>;
-
-export const FunctionsBasedDestinationsConnectionOptions = CloudDestinationsConnectionOptions.merge(
-  z.object({
-    multithreading: z.boolean().optional(),
-  })
-);
-export type FunctionsBasedDestinationsConnectionOptions = z.infer<typeof FunctionsBasedDestinationsConnectionOptions>;
 
 //Auxiliary type for batch mode options
 export const BatchModeOptions = z.object({
@@ -567,7 +561,7 @@ export const coreDestinations: DestinationType<any>[] = [
     icon: mixpanelIcon,
     title: "Mixpanel",
     tags: "Product Analytics",
-    connectionOptions: FunctionsBasedDestinationsConnectionOptions,
+    connectionOptions: CloudDestinationsConnectionOptions,
     credentials: meta.MixpanelCredentials,
     credentialsUi: meta.MixpanelCredentialsUi,
     description: "Mixpanel is a product analytics platform that provides insights into user behavior.",
@@ -577,7 +571,7 @@ export const coreDestinations: DestinationType<any>[] = [
     icon: juneIcon,
     title: "June.so",
     tags: "Product Analytics",
-    connectionOptions: FunctionsBasedDestinationsConnectionOptions,
+    connectionOptions: CloudDestinationsConnectionOptions,
     credentials: meta.JuneCredentials,
     description: "June.so is a product analytics platform that provides insights into user behavior.",
   },
@@ -586,7 +580,7 @@ export const coreDestinations: DestinationType<any>[] = [
     icon: mongodbIcon,
     title: "MongoDB",
     tags: "Datawarehouse",
-    connectionOptions: FunctionsBasedDestinationsConnectionOptions,
+    connectionOptions: CloudDestinationsConnectionOptions,
     credentials: meta.MongodbDestinationConfig,
     credentialsUi: meta.MongodbDestinationConfigUi,
     description:
@@ -597,7 +591,7 @@ export const coreDestinations: DestinationType<any>[] = [
     icon: ga4Icon,
     title: "Google Analytics 4",
     tags: "Product Analytics",
-    connectionOptions: FunctionsBasedDestinationsConnectionOptions,
+    connectionOptions: CloudDestinationsConnectionOptions,
     credentials: meta.Ga4Credentials,
     description:
       "Google Analytics 4 is a service offered by Google that reports website traffic data and marketing trends.",
@@ -607,7 +601,7 @@ export const coreDestinations: DestinationType<any>[] = [
     icon: posthogIcon,
     title: "Posthog",
     tags: "Product Analytics",
-    connectionOptions: FunctionsBasedDestinationsConnectionOptions,
+    connectionOptions: CloudDestinationsConnectionOptions,
     credentials: meta.PosthogDestinationConfig,
     description:
       "Posthog is an open-source product analytics tool. Jitsu supports both self-hosted Posthog and Posthog Cloud.",
@@ -615,7 +609,7 @@ export const coreDestinations: DestinationType<any>[] = [
   {
     id: "amplitude",
     icon: amplitudeIcon,
-    connectionOptions: FunctionsBasedDestinationsConnectionOptions,
+    connectionOptions: CloudDestinationsConnectionOptions,
     title: "Amplitude",
     tags: "Product Analytics",
     comingSoon: true,
@@ -628,7 +622,7 @@ export const coreDestinations: DestinationType<any>[] = [
     id: "hubspot",
     icon: hubspotIcon,
     comingSoon: true,
-    connectionOptions: FunctionsBasedDestinationsConnectionOptions,
+    connectionOptions: CloudDestinationsConnectionOptions,
     title: "Hubspot",
     tags: "CRM",
     credentials: z.object({
@@ -649,7 +643,7 @@ export const coreDestinations: DestinationType<any>[] = [
   },
   {
     id: "segment-proxy",
-    connectionOptions: FunctionsBasedDestinationsConnectionOptions,
+    connectionOptions: CloudDestinationsConnectionOptions,
     icon: segmentIcon,
     title: "Segment",
     tags: "Special",
@@ -663,7 +657,7 @@ export const coreDestinations: DestinationType<any>[] = [
   },
   {
     id: "webhook",
-    connectionOptions: FunctionsBasedDestinationsConnectionOptions,
+    connectionOptions: CloudDestinationsConnectionOptions,
     icon: webhookIcon,
     title: "Webhook",
     tags: "Special",
