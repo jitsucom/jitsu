@@ -381,6 +381,26 @@ function ConnectionEditor({
         />
       ),
     });
+    configItems.push({
+      name: "Max Batch Size",
+      documentation: (
+        <>
+          Maximum number of events to send in one batch. If there are more events in queue than 'Batch Size', events
+          will be sent as a consequence of batches with provided size.
+        </>
+      ),
+      component: (
+        <InputNumber
+          value={connectionOptions.batchSize || 10000}
+          size="small"
+          defaultValue={10000}
+          className="w-36"
+          min={100}
+          max={1000000}
+          onChange={batchSize => updateOptions({ batchSize: batchSize ?? 10000 })}
+        />
+      ),
+    });
   }
   if (hasZodFields(connectionOptionsZodType, "dataLayout")) {
     configItems.push({
