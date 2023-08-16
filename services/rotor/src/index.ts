@@ -27,6 +27,7 @@ import NodeCache from "node-cache";
 import hash from "object-hash";
 import { UDFRunHandler } from "./http/udf";
 import Prometheus from "prom-client";
+import { metrics } from "./lib/metrics";
 
 setServerJsonFormat(process.env.LOG_FORMAT === "json");
 
@@ -48,24 +49,6 @@ udfCache.on("del", (key, value) => {
 const rotorHttpPort = process.env.ROTOR_HTTP_PORT || process.env.PORT || 3401;
 const bulkerBase = requireDefined(process.env.BULKER_URL, "env BULKER_URL is not defined");
 const bulkerAuthKey = requireDefined(process.env.BULKER_AUTH_KEY, "env BULKER_AUTH_KEY is not defined");
-const metricsDestinationId = process.env.METRICS_DESTINATION_ID;
-
-const metricsFunction: Func | undefined = metricsDestinationId
-  ? {
-      id: "builtin.destination.bulker",
-      config: {
-        bulkerEndpoint: bulkerBase,
-        destinationId: metricsDestinationId,
-        authToken: bulkerAuthKey,
-        dataLayout: "passthrough",
-      },
-      exec: requireDefined(
-        getBuiltinFunction("builtin.destination.bulker"),
-        `Unknown function builtin.destination.bulker`
-      ) as JitsuFunction,
-      context: {},
-    }
-  : undefined;
 
 const getCachedOrLoad = async (cache: NodeCache, key: string, loader: (key: string) => Promise<any>) => {
   const cached = cache.get(key);
@@ -210,40 +193,10 @@ export async function rotorMessageHandler(_message: string | undefined) {
   };
   const chainCallback = async () =>
     await runChain(funcChain, event, connection, redisLogger, store, ctx).then(async execLog => {
-      if (metricsFunction) {
-        const processedIdx = execLog.findIndex(l => !l.dropped && l.functionId.startsWith("builtin.destination."));
-        if (processedIdx >= 0) {
-          const d = new Date();
-          d.setMilliseconds(0);
-          d.setSeconds(0);
-          const event = {
-            timestamp: d.toISOString(),
-            workspaceId: connection.workspaceId,
-            messageId: message.messageId,
-            JITSU_TABLE_NAME: "active_incoming",
-          };
-          try {
-            await metricsFunction.exec(
-              event,
-              createFullContext(
-                metricsFunction.id,
-                {
-                  log: async () => {},
-                },
-                store,
-                { headers: message.httpHeaders },
-                {},
-                metricsFunction.config
-              )
-            );
-          } catch (e) {
-            log.atError().withCause(e).log("Failed to send metrics");
-          }
-        }
-      }
+      await metrics().logMetrics(connection.workspaceId, message.messageId, execLog);
     });
-  //95% chance
-  if (connectionData.multithreading && Math.random() < 0.95) {
+  //97% chance
+  if (connectionData.multithreading && Math.random() < 0.97) {
     queueMicrotask(chainCallback);
   } else {
     await chainCallback();

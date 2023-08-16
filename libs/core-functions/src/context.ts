@@ -68,7 +68,7 @@ export function createFullContext(
     },
     log: {
       debug: (message, ...args: any[]) => {
-        log.atDebug().log(`[CON:${eventContext.connection?.id}]: [f:${id}]: ${message}`, ...args);
+        log.atDebug().log(`[CON:${eventContext.connection?.id}]: [f:${id}][DEBUG]: ${message}`, ...args);
         eventsStore.log(false, {
           type: "log-debug",
           functionId: id,
@@ -80,7 +80,7 @@ export function createFullContext(
         });
       },
       warn: (message, ...args: any[]) => {
-        log.atWarn().log(`[CON:${eventContext.connection?.id}]: [f:${id}]: ${message}`, ...args);
+        log.atDebug().log(`[CON:${eventContext.connection?.id}]: [f:${id}][WARN]: ${message}`, ...args);
         eventsStore.log(false, {
           type: "log-warn",
           functionId: id,
@@ -101,7 +101,7 @@ export function createFullContext(
             args: args.map(a => `${a}`),
           },
         });
-        const l = log.atError();
+        const l = log.atDebug();
         if (args.length > 0) {
           const last = args[args.length - 1];
           if (last.stack) {
@@ -109,10 +109,10 @@ export function createFullContext(
             args = args.slice(0, args.length - 1);
           }
         }
-        l.log(`[CON:${eventContext.connection?.id}]: [f:${id}]: ${message}`, ...args);
+        l.log(`[CON:${eventContext.connection?.id}]: [f:${id}][ERROR]: ${message}`, ...args);
       },
       info: (message, ...args: any[]) => {
-        log.atInfo().log(`[CON:${eventContext.connection?.id}]: [f:${id}]: ${message}`, ...args);
+        log.atDebug().log(`[CON:${eventContext.connection?.id}]: [f:${id}][INFO]: ${message}`, ...args);
         eventsStore.log(false, {
           type: "log-info",
           functionId: id,
