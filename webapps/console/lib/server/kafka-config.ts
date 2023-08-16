@@ -74,6 +74,14 @@ export function destinationMessagesTopic(): string {
   return process.env.KAFKA_DESTINATIONS_TOPIC_NAME || "destination-messages";
 }
 
+export function deatLetterTopic(): string {
+  return process.env.KAFKA_DESTINATIONS_DEAD_LETTER_TOPIC_NAME || "destination-messages-dead-letter";
+}
+
+export function destinationMessagesTopicMultiThreaded(): string {
+  return process.env.KAFKA_DESTINATIONS_MT_TOPIC_NAME || "destination-messages-mt";
+}
+
 export function rotorConsumerGroupId(): string {
   return process.env.KAFKA_CONSUMER_GROUP_ID !== undefined
     ? process.env.KAFKA_CONSUMER_GROUP_ID.replace("$random", randomId(5))
