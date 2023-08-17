@@ -1,8 +1,4 @@
 import { disableService, getLog, newError, randomId, requireDefined, setServerJsonFormat } from "juava";
-
-disableService("prisma");
-disableService("pg");
-
 import {
   connectToKafka,
   destinationMessagesTopic,
@@ -19,9 +15,9 @@ import minimist from "minimist";
 import { glob } from "glob";
 import fs from "fs";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
-import { createRedisLogger, Func, FuncChain, runChain } from "./lib/functions-chain";
-import { createFullContext, getBuiltinFunction, mongoAnonymousEventsStore, UDFWrapper } from "@jitsu/core-functions";
-import { EventContext, JitsuFunction, Store, SystemContext } from "@jitsu/protocols/functions";
+import { createRedisLogger, FuncChain, runChain } from "./lib/functions-chain";
+import { getBuiltinFunction, mongoAnonymousEventsStore, UDFWrapper } from "@jitsu/core-functions";
+import { EventContext, Geo, JitsuFunction, Store, SystemContext } from "@jitsu/protocols/functions";
 import { redis } from "@jitsu-internal/console/lib/server/redis";
 import express from "express";
 import NodeCache from "node-cache";
@@ -29,6 +25,10 @@ import hash from "object-hash";
 import { UDFRunHandler } from "./http/udf";
 import Prometheus from "prom-client";
 import { metrics } from "./lib/metrics";
+import { isEU } from "./lib/eu";
+
+disableService("prisma");
+disableService("pg");
 
 setServerJsonFormat(process.env.LOG_FORMAT === "json");
 
@@ -60,6 +60,25 @@ const getCachedOrLoad = async (cache: NodeCache, key: string, loader: (key: stri
   cache.set(key, loaded);
   return loaded;
 };
+
+function fromHeaders(httpHeaders: Record<string, string>): Geo {
+  const country = httpHeaders["x-vercel-ip-country"];
+  const region = httpHeaders["x-vercel-ip-country-region"];
+  const city = httpHeaders["x-vercel-ip-city"];
+  const lat = httpHeaders["x-vercel-ip-latitude"];
+  const lon = httpHeaders["x-vercel-ip-longitude"];
+  return {
+    country: country
+      ? {
+          code: country,
+          isEU: isEU(country),
+        }
+      : undefined,
+    city: city ? { name: city } : undefined,
+    region: region ? { code: region } : undefined,
+    location: lat && lon ? { latitude: parseFloat(lat), longitude: parseFloat(lon) } : undefined,
+  };
+}
 
 export async function rotorMessageHandler(_message: string | undefined) {
   if (!_message) {
@@ -158,6 +177,7 @@ export async function rotorMessageHandler(_message: string | undefined) {
   const event = message.httpPayload as AnalyticsServerEvent;
   const ctx: EventContext = {
     headers: message.httpHeaders,
+    geo: fromHeaders(message.httpHeaders),
     source: {
       id: connection.streamId,
       domain: message.origin?.domain,

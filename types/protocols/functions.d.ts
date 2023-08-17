@@ -103,11 +103,10 @@ export type Geo = {
   /**
    * IP address of the incoming request
    */
-  ip: string;
   continent?: {
     code: "AF" | "AN" | "AS" | "EU" | "NA" | "OC" | "SA";
   };
-  country: {
+  country?: {
     /**
      * Two-letter country code (ISO 3166-1 alpha-2): https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2
      */
@@ -125,14 +124,14 @@ export type Geo = {
     name: string;
   }>;
 
-  postalCode: WithConfidence<{
+  postalCode?: WithConfidence<{
     code: string;
   }>;
 
   location?: {
     latitude: number;
     longitude: number;
-    accuracyRadius: number;
+    accuracyRadius?: number;
     /**
      * Only for USA locations
      */
@@ -142,7 +141,7 @@ export type Geo = {
       averageIncome?: number;
     };
   };
-  provider: {
+  provider?: {
     /**
      * Autonomous system number
      */
