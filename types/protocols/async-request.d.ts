@@ -1,8 +1,10 @@
 import { ISO8601Date } from "./iso8601";
+import { Geo } from "./functions";
 
 export type IngestType = "s2s" | "browser";
 
 export type IngestMessage = {
+  geo?: Geo;
   ingestType: IngestType;
   messageCreated: ISO8601Date;
   writeKey: string;
