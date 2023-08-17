@@ -21,6 +21,25 @@ export const UDFRunHandler = async (req, res) => {
   const logs: logType[] = [];
   try {
     const eventContext: EventContext = {
+      geo: {
+        country: {
+          code: "US",
+          isEU: false,
+        },
+        city: {
+          name: "New York",
+        },
+        region: {
+          code: "NY",
+        },
+        location: {
+          latitude: 40.6808,
+          longitude: -73.9701,
+        },
+        postalCode: {
+          code: "11238",
+        },
+      },
       headers: {},
       source: {
         id: "functionsDebugger-streamId",

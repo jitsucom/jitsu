@@ -25,7 +25,6 @@ import hash from "object-hash";
 import { UDFRunHandler } from "./http/udf";
 import Prometheus from "prom-client";
 import { metrics } from "./lib/metrics";
-import { isEU } from "./lib/eu";
 
 disableService("prisma");
 disableService("pg");
@@ -60,25 +59,6 @@ const getCachedOrLoad = async (cache: NodeCache, key: string, loader: (key: stri
   cache.set(key, loaded);
   return loaded;
 };
-
-function fromHeaders(httpHeaders: Record<string, string>): Geo {
-  const country = httpHeaders["x-vercel-ip-country"];
-  const region = httpHeaders["x-vercel-ip-country-region"];
-  const city = httpHeaders["x-vercel-ip-city"];
-  const lat = httpHeaders["x-vercel-ip-latitude"];
-  const lon = httpHeaders["x-vercel-ip-longitude"];
-  return {
-    country: country
-      ? {
-          code: country,
-          isEU: isEU(country),
-        }
-      : undefined,
-    city: city ? { name: city } : undefined,
-    region: region ? { code: region } : undefined,
-    location: lat && lon ? { latitude: parseFloat(lat), longitude: parseFloat(lon) } : undefined,
-  };
-}
 
 export async function rotorMessageHandler(_message: string | undefined) {
   if (!_message) {
@@ -177,7 +157,7 @@ export async function rotorMessageHandler(_message: string | undefined) {
   const event = message.httpPayload as AnalyticsServerEvent;
   const ctx: EventContext = {
     headers: message.httpHeaders,
-    geo: message.geo || fromHeaders(message.httpHeaders),
+    geo: message.geo,
     source: {
       id: connection.streamId,
       domain: message.origin?.domain,

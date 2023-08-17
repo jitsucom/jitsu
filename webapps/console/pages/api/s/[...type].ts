@@ -12,6 +12,9 @@ import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { fastStore, StreamWithDestinations } from "../../../lib/server/fast-store";
 import { getCoreDestinationType } from "../../../lib/schema/destinations";
 import { redis } from "../../../lib/server/redis";
+import { Geo } from "@jitsu/protocols/functions";
+import { isEU } from "../../../lib/shared/eu";
+import { IncomingHttpHeaders } from "http";
 
 function isInternalHeader(headerName: string) {
   return headerName.toLowerCase().startsWith("x-jitsu-") || headerName.toLowerCase().startsWith("x-vercel");
@@ -59,6 +62,29 @@ async function getStream(loc: StreamLocator): Promise<StreamWithDestinations | u
   } else {
     return undefined;
   }
+}
+
+function asString(httpHeader?: string | string[]): string | undefined {
+  return httpHeader ? (Array.isArray(httpHeader) ? httpHeader[0] : httpHeader) : undefined;
+}
+
+function fromHeaders(httpHeaders: IncomingHttpHeaders): Geo {
+  const country = asString(httpHeaders["x-vercel-ip-country"]);
+  const region = asString(httpHeaders["x-vercel-ip-country-region"]);
+  const city = asString(httpHeaders["x-vercel-ip-city"]);
+  const lat = asString(httpHeaders["x-vercel-ip-latitude"]);
+  const lon = asString(httpHeaders["x-vercel-ip-longitude"]);
+  return {
+    country: country
+      ? {
+          code: country,
+          isEU: isEU(country),
+        }
+      : undefined,
+    city: city ? { name: city } : undefined,
+    region: region ? { code: region } : undefined,
+    location: lat && lon ? { latitude: parseFloat(lat), longitude: parseFloat(lon) } : undefined,
+  };
 }
 
 /**
@@ -160,6 +186,7 @@ const api: Api = {
         body.messageId = randomId();
       }
       const message: IngestMessage = {
+        geo: fromHeaders(req.headers),
         connectionId: "",
         ingestType,
         messageCreated: nowIsoDate,
