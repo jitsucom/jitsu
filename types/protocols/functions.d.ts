@@ -15,7 +15,7 @@ interface Store {
  * Store for incoming events, destination results and function log messages
  */
 interface EventsStore {
-  log(error: boolean, msg: Record<string, any>): Promise<void>;
+  log(error: boolean, msg: Record<string, any>): void;
 }
 /**
  * A special properties that user can set on an event to define how

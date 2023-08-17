@@ -67,7 +67,7 @@ export const UDFRunHandler = async (req, res) => {
       },
     };
     const eventsStore: EventsStore = {
-      log(error: boolean, msg: Record<string, any>): Promise<void> {
+      log(error: boolean, msg: Record<string, any>) {
         switch (msg.type) {
           case "log-info":
           case "log-warn":
@@ -103,7 +103,6 @@ export const UDFRunHandler = async (req, res) => {
               },
             });
         }
-        return Promise.resolve();
       },
     };
     const ctx = createFullContext(body.functionId, eventsStore, store, eventContext, {}, body.config);

@@ -136,7 +136,7 @@ export function createRedisLogger(redis: Redis, key: (err: boolean) => string, s
   }, 5000);
 
   return {
-    log: async (error, msg) => {
+    log: (error, msg) => {
       try {
         if (msg.type === "log-debug" && !storeDebug) {
           return;

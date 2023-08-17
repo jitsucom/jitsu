@@ -60,7 +60,12 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
   return {
     start: async () => {
       const kafka = connectToKafka({ defaultAppId: kafkaClientId, ...cfg.credentials });
-      const consumer = kafka.consumer({ groupId: cfg.consumerGroupId, allowAutoTopicCreation: false });
+      const consumer = kafka.consumer({
+        groupId: cfg.consumerGroupId,
+        allowAutoTopicCreation: false,
+        sessionTimeout: 60000,
+        maxInFlightRequests: 10000,
+      });
       await consumer.connect();
       await consumer.subscribe({ topics: kafkaTopics, fromBeginning: true });
 
