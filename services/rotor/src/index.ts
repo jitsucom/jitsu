@@ -177,7 +177,7 @@ export async function rotorMessageHandler(_message: string | undefined) {
   const event = message.httpPayload as AnalyticsServerEvent;
   const ctx: EventContext = {
     headers: message.httpHeaders,
-    geo: fromHeaders(message.httpHeaders),
+    geo: message.geo || fromHeaders(message.httpHeaders),
     source: {
       id: connection.streamId,
       domain: message.origin?.domain,
