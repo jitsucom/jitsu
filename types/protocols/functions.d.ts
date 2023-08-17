@@ -18,11 +18,6 @@ interface Store {
 interface EventsStore {
   log(error: boolean, msg: Record<string, any>): Promise<void>;
 }
-
-interface BatchEventsStore {
-  log(logs: { error: boolean; msg: Record<string, any> }[]): Promise<void>;
-}
-
 /**
  * A special properties that user can set on an event to define how
  * event will be processed further
