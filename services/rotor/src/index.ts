@@ -192,16 +192,9 @@ export async function rotorMessageHandler(_message: string | undefined) {
       await redisClient.hdel(`store:${connection.id}`, key);
     },
   };
-  const chainCallback = async () =>
-    await runChain(funcChain, event, connection, redisLogger, store, ctx).then(async execLog => {
-      await metrics().logMetrics(connection.workspaceId, message.messageId, execLog);
-    });
-  //97% chance
-  if (connectionData.multithreading && Math.random() < 0.97) {
-    queueMicrotask(chainCallback);
-  } else {
-    await chainCallback();
-  }
+  await runChain(funcChain, event, connection, redisLogger, store, ctx).then(async execLog => {
+    await metrics().logMetrics(connection.workspaceId, message.messageId, execLog);
+  });
 }
 
 const retrySettings = {
