@@ -1,6 +1,5 @@
 import {
   AnyEvent,
-  BatchEventsStore,
   EventContext,
   EventsStore,
   FuncReturn,
@@ -39,7 +38,7 @@ export async function runChain(
   chain: FuncChain,
   event: AnyEvent,
   connection: EnrichedConnectionConfig,
-  batchEventsStore: BatchEventsStore,
+  eventsStore: EventsStore,
   store: Store,
   eventContext: EventContext
 ): Promise<FunctionExecLog> {
@@ -51,13 +50,6 @@ export async function runChain(
       const event = events[i];
       let result: FuncReturn;
       const sw = stopwatch();
-      const logs: { error: boolean; msg: Record<string, any> }[] = [];
-      const eventsStore: EventsStore = {
-        log(error: boolean, msg: Record<string, any>): Promise<void> {
-          logs.push({ error, msg });
-          return Promise.resolve();
-        },
-      };
       const funcCtx = createFullContext(f.id, eventsStore, store, eventContext, f.context, f.config, event);
       try {
         result = await f.exec(event, funcCtx);
@@ -71,8 +63,6 @@ export async function runChain(
           ms: sw.elapsedMs(),
         });
         continue;
-      } finally {
-        await batchEventsStore.log(logs);
       }
       execLog.push({
         eventIndex: i,
@@ -98,37 +88,63 @@ function isDropResult(result: FuncReturn): boolean {
   return result === "drop" || (Array.isArray(result) && result.length === 0) || result === null || result === false;
 }
 
-export function createRedisLogger(redis: Redis, key: (err: boolean) => string, storeDebug): BatchEventsStore {
-  return {
-    log: async (logs: { error: boolean; msg: Record<string, any> }[]) => {
-      try {
-        if (logs.length === 1) {
-          const msg = logs[0].msg;
-          const error = logs[0].error;
-          if (msg.type === "log-debug" && !storeDebug) {
-            return;
+export function createRedisLogger(redis: Redis, key: (err: boolean) => string, storeDebug): EventsStore {
+  const buffer: Record<string, string[]> = {};
+
+  const put = (key: string, logEntry: string) => {
+    let buf = buffer[key];
+    if (!buf) {
+      buffer[key] = buf = [];
+    }
+    if (buf.length < eventsLogSize) {
+      buf.push(logEntry);
+    }
+  };
+
+  const flush = async () => {
+    if (Object.keys(buffer).length === 0) {
+      return;
+    }
+    try {
+      const pipeline = redis.pipeline();
+      for (const [key, buf] of Object.entries(buffer)) {
+        for (let i = 0; i < buf.length; i++) {
+          const logEntry = buf[i];
+          if (i == buf.length - 1) {
+            log.atDebug().log(`Posting ${buf.length} events to stream [${key}]`);
+            pipeline.xadd(key, "MAXLEN", "~", eventsLogSize, "*", "event", logEntry);
+          } else {
+            pipeline.xadd(key, "*", "event", logEntry);
           }
-          const logEntry = JSON.stringify({ timestamp: new Date().toISOString(), error, ...msg });
-          if (error) {
-            await redis.xadd(key(true), "MAXLEN", "~", eventsLogSize, "*", "event", logEntry);
-          }
-          await redis.xadd(key(false), "MAXLEN", "~", eventsLogSize, "*", "event", logEntry);
-        } else {
-          const pipeline = redis.pipeline();
-          for (const log of logs) {
-            const msg = log.msg;
-            const error = log.error;
-            if (msg.type === "log-debug" && !storeDebug) {
-              continue;
-            }
-            const logEntry = JSON.stringify({ timestamp: new Date().toISOString(), error, ...msg });
-            if (error) {
-              pipeline.xadd(key(true), "MAXLEN", "~", eventsLogSize, "*", "event", logEntry);
-            }
-            pipeline.xadd(key(false), "MAXLEN", "~", eventsLogSize, "*", "event", logEntry);
-          }
-          await pipeline.exec();
         }
+      }
+      await pipeline.exec();
+      for (const key in buffer) {
+        delete buffer[key];
+      }
+    } catch (e) {
+      log.atError().withCause(e).log(`Failed to flush events logs to redis`);
+    }
+  };
+
+  setInterval(async () => {
+    if (Object.keys(buffer).length === 0) {
+      return;
+    }
+    await flush();
+  }, 5000);
+
+  return {
+    log: async (error, msg) => {
+      try {
+        if (msg.type === "log-debug" && !storeDebug) {
+          return;
+        }
+        const logEntry = JSON.stringify({ timestamp: new Date().toISOString(), error, ...msg });
+        if (error) {
+          put(key(true), logEntry);
+        }
+        put(key(false), logEntry);
       } catch (e) {
         log.atError().withCause(e).log("Failed to put event to redis events log");
       }
