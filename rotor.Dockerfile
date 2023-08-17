@@ -30,4 +30,4 @@ EXPOSE 3401
 
 COPY --from=builder /app/services/rotor/dist .
 
-ENTRYPOINT ["sh", "-c", "node main.js"]
+ENTRYPOINT ["sh", "-c", "node --max-old-space-size=4096 main.js"]
