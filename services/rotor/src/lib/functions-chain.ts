@@ -105,12 +105,16 @@ export function createRedisLogger(redis: Redis, key: (err: boolean) => string, s
     if (Object.keys(buffer).length === 0) {
       return;
     }
+    const copy = { ...buffer };
+    for (const key in buffer) {
+      delete buffer[key];
+    }
     try {
       const pipeline = redis.pipeline();
-      for (const [key, buf] of Object.entries(buffer)) {
+      for (const [key, buf] of Object.entries(copy)) {
         for (let i = 0; i < buf.length; i++) {
           const logEntry = buf[i];
-          if (i == buf.length - 1) {
+          if (i === buf.length - 1) {
             log.atDebug().log(`Posting ${buf.length} events to stream [${key}]`);
             pipeline.xadd(key, "MAXLEN", "~", eventsLogSize, "*", "event", logEntry);
           } else {
@@ -119,9 +123,6 @@ export function createRedisLogger(redis: Redis, key: (err: boolean) => string, s
         }
       }
       await pipeline.exec();
-      for (const key in buffer) {
-        delete buffer[key];
-      }
     } catch (e) {
       log.atError().withCause(e).log(`Failed to flush events logs to redis`);
     }

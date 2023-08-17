@@ -4,6 +4,7 @@ import { getServerLog } from "@jitsu-internal/console/lib/server/log";
 import { FunctionExecLog } from "./functions-chain";
 import fetch from "node-fetch-commonjs";
 import { Readable } from "stream";
+import { httpAgent, httpsAgent } from "@jitsu-internal/console/lib/server/http-agent";
 
 export const log = getServerLog("metrics");
 
@@ -29,15 +30,16 @@ interface Metrics {
 function createMetrics(): Metrics {
   const buffer: MetricsEvent[] = [];
 
-  const flush = async () => {
+  const flush = async (buf: MetricsEvent[]) => {
     //create readable stream
     const stream = new Readable();
     const res = fetch(`${bulkerBase}/bulk/${metricsDestinationId}?tableName=${metricsTable}&mode=batch`, {
       method: "POST",
       headers: { Authorization: `Bearer ${bulkerAuthKey}` },
       body: stream,
+      agent: (bulkerBase.startsWith("https://") ? httpsAgent : httpAgent)(),
     });
-    buffer.forEach(e => {
+    buf.forEach(e => {
       stream.push(JSON.stringify(e));
       stream.push("\n");
     });
@@ -52,13 +54,13 @@ function createMetrics(): Metrics {
       .catch(e => {
         log.atError().withCause(e).log(`Failed to flush metrics events`);
       });
-    buffer.length = 0;
   };
 
   setInterval(async () => {
     if (buffer.length > 0) {
       log.atInfo().log(`Periodic flushing ${buffer.length} metrics events`);
-      await flush();
+      await flush([...buffer]);
+      buffer.length = 0;
     }
   }, flush_interval_ms);
 
@@ -81,7 +83,8 @@ function createMetrics(): Metrics {
       });
       if (buffer.length >= max_batch_size) {
         log.atInfo().log(`Flushing ${buffer.length} metrics events`);
-        setImmediate(flush);
+        setImmediate(() => flush([...buffer]));
+        buffer.length = 0;
       }
     },
   };
