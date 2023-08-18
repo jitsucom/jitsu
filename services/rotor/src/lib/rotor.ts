@@ -200,8 +200,8 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
 
       await consumer.run({
         eachMessage: async ({ message, topic, partition }) => {
-          //make sure that queue has no more entities than concurrency
-          await onSizeLessThan(1);
+          //make sure that queue has no more entities than concurrency limit (running tasks not included)
+          await onSizeLessThan(concurrency);
           queue.add(async () => onMessage(message, topic, partition));
         },
       });
