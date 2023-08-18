@@ -15,7 +15,7 @@ import minimist from "minimist";
 import { glob } from "glob";
 import fs from "fs";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
-import { createRedisLogger, FuncChain, runChain } from "./lib/functions-chain";
+import { FuncChain, runChain } from "./lib/functions-chain";
 import { getBuiltinFunction, mongoAnonymousEventsStore, UDFWrapper } from "@jitsu/core-functions";
 import { EventContext, Geo, JitsuFunction, Store, SystemContext } from "@jitsu/protocols/functions";
 import { redis } from "@jitsu-internal/console/lib/server/redis";
@@ -25,6 +25,7 @@ import hash from "object-hash";
 import { UDFRunHandler } from "./http/udf";
 import Prometheus from "prom-client";
 import { metrics } from "./lib/metrics";
+import { redisLogger } from "./lib/redis-logger";
 
 disableService("prisma");
 disableService("pg");
@@ -175,11 +176,6 @@ export async function rotorMessageHandler(_message: string | undefined) {
     },
   };
   const redisClient = redis();
-  const redisLogger = createRedisLogger(
-    redisClient,
-    isErr => `events_log:functions.${isErr ? "error" : "all"}#${connection.id}`,
-    false
-  );
   const store: Store = {
     get: async (key: string) => {
       const res = await redisClient.hget(`store:${connection.id}`, key);
@@ -192,7 +188,8 @@ export async function rotorMessageHandler(_message: string | undefined) {
       await redisClient.hdel(`store:${connection.id}`, key);
     },
   };
-  await runChain(funcChain, event, connection, redisLogger, store, ctx).then(async execLog => {
+  const rl = await redisLogger.waitInit();
+  await runChain(funcChain, event, connection, rl, store, ctx).then(async execLog => {
     await metrics().logMetrics(connection.workspaceId, message.messageId, execLog);
   });
 }

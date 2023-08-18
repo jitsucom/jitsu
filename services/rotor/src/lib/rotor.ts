@@ -63,8 +63,7 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
       const consumer = kafka.consumer({
         groupId: cfg.consumerGroupId,
         allowAutoTopicCreation: false,
-        sessionTimeout: 60000,
-        maxInFlightRequests: 10000,
+        sessionTimeout: 120000,
       });
       await consumer.connect();
       await consumer.subscribe({ topics: kafkaTopics, fromBeginning: true });
@@ -79,6 +78,30 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
         help: "topic offsets",
         // add `as const` here to enforce label names
         labelNames: ["topic", "partition", "offset"] as const,
+      });
+      const messagesConsumed = new Prometheus.Counter({
+        name: "rotor_messages_consumed",
+        help: "messages consumed",
+        // add `as const` here to enforce label names
+        labelNames: ["topic", "partition"] as const,
+      });
+      const messagesProcessed = new Prometheus.Counter({
+        name: "rotor_messages_processed",
+        help: "messages processed",
+        // add `as const` here to enforce label names
+        labelNames: ["topic", "partition"] as const,
+      });
+      const messagesRequeued = new Prometheus.Counter({
+        name: "rotor_messages_requeued",
+        help: "messages requeued",
+        // add `as const` here to enforce label names
+        labelNames: ["topic"] as const,
+      });
+      const messagesDeadLettered = new Prometheus.Counter({
+        name: "rotor_messages_dead_lettered",
+        help: "messages dead lettered",
+        // add `as const` here to enforce label names
+        labelNames: ["topic"] as const,
       });
       const interval = setInterval(async () => {
         try {
@@ -102,8 +125,9 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
 
       await consumer.run({
         autoCommit: true,
-        partitionsConsumedConcurrently: 4,
-        eachMessage: async ({ message, topic }) => {
+        partitionsConsumedConcurrently: 64,
+        eachMessage: async ({ message, topic, partition }) => {
+          messagesConsumed.inc({ topic, partition });
           const firstProcessed = message.headers?.firstProcessed
             ? new Date(message.headers?.firstProcessed.toString())
             : new Date();
@@ -118,6 +142,7 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
               },
               { maxRetries: maxLocalRetries }
             );
+            messagesProcessed.inc({ topic, partition });
           } catch (e) {
             const returnToQueue = shouldReturnToQueue(firstProcessed, maxSecondsInQueueAfterFailure, e);
             log
@@ -132,6 +157,11 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
                     : "Message will be sent to dead-letter queue"
                 }: ${message.value}`
               );
+            if (!returnToQueue) {
+              messagesDeadLettered.inc({ topic });
+            } else {
+              messagesRequeued.inc({ topic });
+            }
             const requeueTopic = returnToQueue ? topic : deatLetterTopic();
             try {
               await producer.send({

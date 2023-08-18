@@ -67,7 +67,7 @@ export const UDFRunHandler = async (req, res) => {
       },
     };
     const eventsStore: EventsStore = {
-      log(error: boolean, msg: Record<string, any>) {
+      log(connectionId: string, error: boolean, msg: Record<string, any>) {
         switch (msg.type) {
           case "log-info":
           case "log-warn":

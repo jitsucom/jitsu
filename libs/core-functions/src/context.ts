@@ -17,6 +17,7 @@ export function createFullContext(
   const ar = functionId.split(".");
   const id = ar.pop();
   const type = ar.join(".");
+  const connectionId = eventContext.connection?.id ?? "";
   return {
     props: props,
     store: store,
@@ -36,7 +37,7 @@ export function createFullContext(
       const controller = new AbortController();
       setTimeout(() => {
         controller.abort();
-      }, 15000);
+      }, 60000);
 
       let internalInit: RequestInit = {
         ...init,
@@ -48,14 +49,14 @@ export function createFullContext(
         fetchResult = await nodeFetch(url, internalInit);
       } catch (err) {
         if (logToRedis) {
-          eventsStore.log(true, { ...baseInfo, error: getErrorMessage(err), elapsedMs: sw.elapsedMs() });
+          eventsStore.log(connectionId, true, { ...baseInfo, error: getErrorMessage(err), elapsedMs: sw.elapsedMs() });
         }
         throw err;
       }
       //clone response to be able to read it twice
       const cloned = fetchResult.clone();
       if (logToRedis) {
-        eventsStore.log(!fetchResult.ok, {
+        eventsStore.log(connectionId, !fetchResult.ok, {
           ...baseInfo,
           status: fetchResult.status,
           statusText: fetchResult.statusText,
@@ -68,8 +69,8 @@ export function createFullContext(
     },
     log: {
       debug: (message, ...args: any[]) => {
-        log.atDebug().log(`[CON:${eventContext.connection?.id}]: [f:${id}][DEBUG]: ${message}`, ...args);
-        eventsStore.log(false, {
+        log.atDebug().log(`[CON:${connectionId}]: [f:${id}][DEBUG]: ${message}`, ...args);
+        eventsStore.log(connectionId, false, {
           type: "log-debug",
           functionId: id,
           functionType: type,
@@ -80,8 +81,8 @@ export function createFullContext(
         });
       },
       warn: (message, ...args: any[]) => {
-        log.atDebug().log(`[CON:${eventContext.connection?.id}]: [f:${id}][WARN]: ${message}`, ...args);
-        eventsStore.log(false, {
+        log.atDebug().log(`[CON:${connectionId}]: [f:${id}][WARN]: ${message}`, ...args);
+        eventsStore.log(connectionId, false, {
           type: "log-warn",
           functionId: id,
           functionType: type,
@@ -92,7 +93,7 @@ export function createFullContext(
         });
       },
       error: (message, ...args: any[]) => {
-        eventsStore.log(true, {
+        eventsStore.log(connectionId, true, {
           type: "log-error",
           functionId: id,
           functionType: type,
@@ -109,11 +110,11 @@ export function createFullContext(
             args = args.slice(0, args.length - 1);
           }
         }
-        l.log(`[CON:${eventContext.connection?.id}]: [f:${id}][ERROR]: ${message}`, ...args);
+        l.log(`[CON:${connectionId}]: [f:${id}][ERROR]: ${message}`, ...args);
       },
       info: (message, ...args: any[]) => {
-        log.atDebug().log(`[CON:${eventContext.connection?.id}]: [f:${id}][INFO]: ${message}`, ...args);
-        eventsStore.log(false, {
+        log.atDebug().log(`[CON:${connectionId}]: [f:${id}][INFO]: ${message}`, ...args);
+        eventsStore.log(connectionId, false, {
           type: "log-info",
           functionId: id,
           functionType: type,
