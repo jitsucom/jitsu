@@ -37,7 +37,7 @@ export function createFullContext(
       const controller = new AbortController();
       setTimeout(() => {
         controller.abort();
-      }, 60000);
+      }, 30000);
 
       let internalInit: RequestInit = {
         ...init,

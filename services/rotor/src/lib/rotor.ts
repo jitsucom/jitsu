@@ -1,6 +1,8 @@
 import { getLog } from "juava";
 import { connectToKafka, deatLetterTopic, KafkaCredentials } from "@jitsu-internal/console/lib/server/kafka-config";
 import Prometheus from "prom-client";
+import PQueue from "p-queue";
+const concurrency = process.env.CONCURRENCY ? parseInt(process.env.CONCURRENCY) : 50;
 
 const log = getLog("kafka-rotor");
 
@@ -123,64 +125,84 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
         }
       }, 60000);
 
-      await consumer.run({
-        autoCommit: true,
-        partitionsConsumedConcurrently: 64,
-        eachMessage: async ({ message, topic, partition }) => {
-          messagesConsumed.inc({ topic, partition });
-          const firstProcessed = message.headers?.firstProcessed
-            ? new Date(message.headers?.firstProcessed.toString())
-            : new Date();
-          const retries = message.headers?.retries ? parseInt(message.headers?.retries.toString()) : 0;
+      async function onMessage(message: any, topic: string, partition: number) {
+        messagesConsumed.inc({ topic, partition });
+        const firstProcessed = message.headers?.firstProcessed
+          ? new Date(message.headers?.firstProcessed.toString())
+          : new Date();
+        const retries = message.headers?.retries ? parseInt(message.headers?.retries.toString()) : 0;
 
-          try {
-            await withRetries(
-              async () => {
-                if (message.value) {
-                  await cfg.handle(message.value?.toString());
-                }
-              },
-              { maxRetries: maxLocalRetries }
+        try {
+          await withRetries(
+            async () => {
+              if (message.value) {
+                await cfg.handle(message.value?.toString());
+              }
+            },
+            { maxRetries: maxLocalRetries }
+          );
+          messagesProcessed.inc({ topic, partition });
+        } catch (e) {
+          const returnToQueue = shouldReturnToQueue(firstProcessed, maxSecondsInQueueAfterFailure, e);
+          log
+            .atError()
+            .withCause(e)
+            .log(
+              `Failed to process message for ${message.key || "(no key set)"} after ${maxLocalRetries} local retries. ${
+                returnToQueue ? "Message will be returned to reprocessing" : "Message will be sent to dead-letter queue"
+              }: ${message.value}`
             );
-            messagesProcessed.inc({ topic, partition });
-          } catch (e) {
-            const returnToQueue = shouldReturnToQueue(firstProcessed, maxSecondsInQueueAfterFailure, e);
-            log
-              .atError()
-              .withCause(e)
-              .log(
-                `Failed to process message for ${
-                  message.key || "(no key set)"
-                } after ${maxLocalRetries} local retries. ${
-                  returnToQueue
-                    ? "Message will be returned to reprocessing"
-                    : "Message will be sent to dead-letter queue"
-                }: ${message.value}`
-              );
-            if (!returnToQueue) {
-              messagesDeadLettered.inc({ topic });
-            } else {
-              messagesRequeued.inc({ topic });
-            }
-            const requeueTopic = returnToQueue ? topic : deatLetterTopic();
-            try {
-              await producer.send({
-                topic: requeueTopic,
-                messages: [
-                  {
-                    value: message.value,
-                    key: message.key,
-                    headers: {
-                      firstProcessed: firstProcessed.toISOString(),
-                      retries: `${retries + 1}`,
-                    },
-                  },
-                ],
-              });
-            } catch (e) {
-              log.atDebug().withCause(e).log(`Failed to put message to ${topic}: ${message.value}`);
-            }
+          if (!returnToQueue) {
+            messagesDeadLettered.inc({ topic });
+          } else {
+            messagesRequeued.inc({ topic });
           }
+          const requeueTopic = returnToQueue ? topic : deatLetterTopic();
+          try {
+            await producer.send({
+              topic: requeueTopic,
+              messages: [
+                {
+                  value: message.value,
+                  key: message.key,
+                  headers: {
+                    firstProcessed: firstProcessed.toISOString(),
+                    retries: `${retries + 1}`,
+                  },
+                },
+              ],
+            });
+          } catch (e) {
+            log.atDebug().withCause(e).log(`Failed to put message to ${topic}: ${message.value}`);
+          }
+        }
+      }
+
+      const queue = new PQueue({ concurrency });
+
+      const onSizeLessThan = async (limit: number) => {
+        // Instantly resolve if the queue is empty.
+        if (queue.size < limit) {
+          return;
+        }
+
+        return new Promise<void>(resolve => {
+          const listener = () => {
+            if (queue.size < limit) {
+              queue.removeListener("next", listener);
+              resolve();
+            }
+          };
+
+          queue.on("next", listener);
+        });
+      };
+
+      await consumer.run({
+        eachMessage: async ({ message, topic, partition }) => {
+          //make sure that queue has no more entities than concurrency
+          await onSizeLessThan(1);
+          queue.add(async () => onMessage(message, topic, partition));
         },
       });
     },

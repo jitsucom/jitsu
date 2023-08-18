@@ -373,6 +373,9 @@ importers:
       object-hash:
         specifier: ^3.0.0
         version: 3.0.0
+      p-queue:
+        specifier: ^6.6.2
+        version: 6.6.2
       prom-client:
         specifier: ^14.2.0
         version: 14.2.0
