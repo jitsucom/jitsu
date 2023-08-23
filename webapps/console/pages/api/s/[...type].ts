@@ -15,6 +15,7 @@ import { redis } from "../../../lib/server/redis";
 import { Geo } from "@jitsu/protocols/functions";
 import { isEU } from "../../../lib/shared/eu";
 import { IncomingHttpHeaders } from "http";
+import { NextApiRequest, NextApiResponse } from "next";
 
 function isInternalHeader(headerName: string) {
   return headerName.toLowerCase().startsWith("x-jitsu-") || headerName.toLowerCase().startsWith("x-vercel");
@@ -104,6 +105,213 @@ function buildResponse(baseUrl: string, stream: StreamWithDestinations): any {
   };
 }
 
+export function setResponseHeaders({ req, res }: { req: NextApiRequest; res: NextApiResponse }) {
+  res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
+  res.setHeader("Access-Control-Allow-Methods", "*");
+  res.setHeader("Access-Control-Allow-Headers", "x-enable-debug, x-write-key, authorization, content-type");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+}
+
+export async function sendEventToBulker(
+  req: NextApiRequest,
+  ingestType: "s2s" | "browser",
+  event: AnalyticsServerEvent
+) {
+  const bulkerAuthKey = process.env.BULKER_AUTH_KEY ?? "";
+  const bulkerURLEnv: string | undefined = (process.env.BULKER_URL as string) || undefined;
+  const bulkerURLRetryAttempts = process.env.BULKER_URL_RETRY_ATTEMPTS
+    ? parseInt(process.env.BULKER_URL_RETRY_ATTEMPTS)
+    : bulkerURLDefaultRetryAttempts;
+  const bulkerURLRetryTimeoutMs = process.env.BULKER_URL_RETRY_TIMEOUT_MS
+    ? parseInt(process.env.BULKER_URL_RETRY_TIMEOUT_MS)
+    : bulkerURLDefaultRetryTimeout;
+  const isHttps = !!bulkerURLEnv && bulkerURLEnv.startsWith("https://");
+
+  const { slug, domain, writeKey } = getDataLocator(req, ingestType);
+  const type = event.type;
+  const message: IngestMessage = {
+    geo: fromHeaders(req.headers),
+    connectionId: "",
+    ingestType,
+    messageCreated: new Date().toISOString(),
+    messageId: event.messageId,
+    writeKey: writeKey ?? "",
+    type,
+
+    origin: {
+      baseUrl: getReqEndpoint(req).baseUrl,
+      slug,
+      domain,
+    },
+    httpHeaders: Object.entries(req.headers)
+      .filter(([k, v]) => v !== undefined && v !== null && !isInternalHeader(k))
+      .map(
+        ([k, v]) =>
+          (k.toLowerCase() === "x-write-key" ? [k, maskWriteKey(`${v}`)] : [k, v]) as [
+            string,
+            string | string[] | undefined
+          ]
+      )
+      .map(([k, v]) => [k, typeof v === "string" ? v : (v as string[]).join(",")])
+      .reduce((acc, [k, v]) => ({ ...acc, [k]: v }), {}),
+    httpPayload: event,
+  };
+
+  log.atDebug().log(`Sending to bulker: ${JSON.stringify(message, null, 2)}`);
+  const payload = JSON.stringify(message);
+  // Options object
+  const options = {
+    method: "POST",
+    agent: (isHttps ? httpsAgent : httpAgent)(),
+    headers: {
+      "Content-Type": "application/json",
+    },
+  };
+  if (bulkerAuthKey) {
+    options.headers["Authorization"] = `Bearer ${bulkerAuthKey}`;
+  }
+  try {
+    let bulkerPromise;
+    let response: any;
+    let stream: StreamWithDestinations | undefined;
+    const loc = {
+      slug,
+      domain,
+      writeKey,
+      keyType: ingestType,
+    } as StreamLocator;
+    try {
+      stream = await getStream(loc);
+      if (stream) {
+        response = buildResponse(message.origin.baseUrl, stream);
+      } else {
+        const msg = `Source not found for ${JSON.stringify(loc)}`;
+        log.atWarn().log(msg);
+        response = { ok: false, error: msg };
+      }
+    } catch (e) {
+      const msg = `Failed to get stream for ${JSON.stringify(loc)}: ${getErrorMessage(e)}`;
+      log.atWarn().withCause(e).log(msg);
+      response = { ok: false, error: msg };
+    }
+    if (bulkerURLEnv) {
+      const injestUrl = bulkerURLEnv + "/ingest";
+      bulkerPromise = httpRequest(
+        event.messageId,
+        injestUrl,
+        options,
+        { retryAttempts: bulkerURLRetryAttempts, retryTimeoutMs: bulkerURLRetryTimeoutMs },
+        payload
+      ).then(response =>
+        log
+          .atDebug()
+          .log(
+            `Event ID: ${type} / ${event.messageId} sent to bulker: ${injestUrl}. Response: ${JSON.stringify(
+              response
+            )} `
+          )
+      );
+      if (stream?.backupEnabled) {
+        const backupUrl = `${bulkerURLEnv}/post/${stream.stream.workspaceId}_backup?tableName=backup`;
+        bulkerPromise = bulkerPromise
+          .then(() =>
+            httpRequest(
+              event.messageId,
+              backupUrl,
+              options,
+              { retryAttempts: bulkerURLRetryAttempts, retryTimeoutMs: bulkerURLRetryTimeoutMs },
+              payload
+            )
+          )
+          .then(response =>
+            log
+              .atDebug()
+              .log(
+                `Event ID: ${type} / ${event.messageId} sent to backup: ${backupUrl}. Response: ${JSON.stringify(
+                  response
+                )} `
+              )
+          );
+      }
+    } else {
+      bulkerPromise = Promise.resolve(undefined);
+      log
+        .atWarn()
+        .log(`Bulker is not connected (BULKER_URL is not set). Request dump: ${JSON.stringify(message, null, 2)}`);
+    }
+
+    const waitForBulker = req.query.sync as string;
+    if (waitForBulker === "true" || waitForBulker === "1") {
+      await bulkerPromise;
+    } else {
+      bulkerPromise.catch(e => {
+        log
+          .atError()
+          .withCause(e)
+          .log(`Failed to send event to bulker: ${getErrorMessage(e)}`);
+      });
+    }
+
+    if (response) {
+      return response;
+    } else {
+      return { ok: true };
+    }
+  } catch (e: any) {
+    const errorMessage = `Failed to process event with ID ${event.messageId}: ${getErrorMessage(e)}`;
+    log.atDebug().withCause(e).log(errorMessage);
+    if (e.status && e.body) {
+      throw new ApiError(errorMessage, e.body, { status: e.status });
+    } else {
+      throw new ApiError(errorMessage, undefined, { status: 500 });
+    }
+  }
+}
+
+export function patchEvent(
+  event: AnalyticsServerEvent,
+  type: string,
+  req: NextApiRequest,
+  ingestType: "s2s" | "browser"
+) {
+  let typeFixed =
+    {
+      p: "page",
+      i: "identify",
+      t: "track",
+      g: "group",
+      a: "alias",
+      s: "screen",
+      e: "event",
+    }[type] || type;
+
+  if (typeFixed === "event") {
+    typeFixed = requireDefined(event.type, `type property of event is required`);
+  }
+
+  event.request_ip =
+    (req.headers["x-real-ip"] as string) || (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress;
+
+  if (ingestType === "browser") {
+    event.context = event.context || {};
+    event.context.ip = event.request_ip;
+  }
+
+  const nowIsoDate = new Date().toISOString();
+  event.receivedAt = nowIsoDate;
+  event.type = typeFixed as any;
+  if (!event.timestamp) {
+    event.timestamp = nowIsoDate;
+  }
+  if (!event.messageId) {
+    event.messageId = randomId();
+  }
+
+  if (!["page", "identify", "track", "group", "alias", "screen"].includes(typeFixed)) {
+    throw new ApiError(`Unknown event type: ${type}`, undefined, { status: 404 });
+  }
+}
+
 const api: Api = {
   OPTIONS: {
     auth: false,
@@ -129,202 +337,16 @@ const api: Api = {
       await redis.waitInit();
       //TODO validate event messageId, timestamp
 
-      const bulkerURLEnv: string | undefined = (process.env.BULKER_URL as string) || undefined;
-      const bulkerURLRetryAttempts = process.env.BULKER_URL_RETRY_ATTEMPTS
-        ? parseInt(process.env.BULKER_URL_RETRY_ATTEMPTS)
-        : bulkerURLDefaultRetryAttempts;
-      const bulkerURLRetryTimeoutMs = process.env.BULKER_URL_RETRY_TIMEOUT_MS
-        ? parseInt(process.env.BULKER_URL_RETRY_TIMEOUT_MS)
-        : bulkerURLDefaultRetryTimeout;
-      const bulkerAuthKey = process.env.BULKER_AUTH_KEY ?? "";
-      const isHttps = !!bulkerURLEnv && bulkerURLEnv.startsWith("https://");
       const args = Array.isArray(req.query.type) ? req.query.type : [req.query.type];
       const [prefix, ...rest] = args;
 
       const type: string = prefix === "s2s" ? rest.join("") : args.join("");
       const ingestType: IngestType = prefix === "s2s" ? "s2s" : "browser";
 
-      let typeFixed =
-        {
-          p: "page",
-          i: "identify",
-          t: "track",
-          g: "group",
-          a: "alias",
-          s: "screen",
-          e: "event",
-        }[type] || type;
-
       const event = body as AnalyticsServerEvent;
-      if (typeFixed === "event") {
-        typeFixed = requireDefined(event.type, `type property of event is required`);
-      }
-
-      event.request_ip =
-        (req.headers["x-real-ip"] as string) || (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress;
-
-      if (ingestType === "browser") {
-        event.context = event.context || {};
-        event.context.ip = event.request_ip;
-      }
-
-      const nowIsoDate = new Date().toISOString();
-      event.receivedAt = nowIsoDate;
-      event.type = typeFixed as any;
-      if (!event.timestamp) {
-        event.timestamp = nowIsoDate;
-      }
-      if (!event.messageId) {
-        event.messageId = randomId();
-      }
-
-      if (!["page", "identify", "track", "group", "alias", "screen"].includes(typeFixed)) {
-        throw new ApiError(`Unknown event type: ${type}`, undefined, { status: 404 });
-      }
-      const { slug, domain, writeKey } = getDataLocator(req, ingestType);
-      if (!body.messageId) {
-        body.messageId = randomId();
-      }
-      const message: IngestMessage = {
-        geo: fromHeaders(req.headers),
-        connectionId: "",
-        ingestType,
-        messageCreated: nowIsoDate,
-        messageId: body.messageId,
-        writeKey: writeKey ?? "",
-        type: typeFixed,
-
-        origin: {
-          baseUrl: getReqEndpoint(req).baseUrl,
-          slug,
-          domain,
-        },
-        httpHeaders: Object.entries(req.headers)
-          .filter(([k, v]) => v !== undefined && v !== null && !isInternalHeader(k))
-          .map(
-            ([k, v]) =>
-              (k.toLowerCase() === "x-write-key" ? [k, maskWriteKey(`${v}`)] : [k, v]) as [
-                string,
-                string | string[] | undefined
-              ]
-          )
-          .map(([k, v]) => [k, typeof v === "string" ? v : (v as string[]).join(",")])
-          .reduce((acc, [k, v]) => ({ ...acc, [k]: v }), {}),
-        httpPayload: body,
-      };
-      log.atDebug().log(`Sending to bulker: ${JSON.stringify(message, null, 2)}`);
-      const payload = JSON.stringify(message);
-      // Options object
-      const options = {
-        method: "POST",
-        agent: (isHttps ? httpsAgent : httpAgent)(),
-        headers: {
-          "Content-Type": "application/json",
-        },
-      };
-      if (bulkerAuthKey) {
-        options.headers["Authorization"] = `Bearer ${bulkerAuthKey}`;
-      }
-      res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
-      res.setHeader("Access-Control-Allow-Methods", "*");
-      res.setHeader("Access-Control-Allow-Headers", "x-enable-debug, x-write-key, authorization, content-type");
-      res.setHeader("Access-Control-Allow-Credentials", "true");
-      try {
-        let bulkerPromise;
-        let response: any;
-        let stream: StreamWithDestinations | undefined;
-        const loc = {
-          slug,
-          domain,
-          writeKey,
-          keyType: ingestType,
-        } as StreamLocator;
-        try {
-          stream = await getStream(loc);
-          if (stream) {
-            response = buildResponse(message.origin.baseUrl, stream);
-          } else {
-            const msg = `Source not found for ${JSON.stringify(loc)}`;
-            log.atWarn().log(msg);
-            response = { ok: false, error: msg };
-          }
-        } catch (e) {
-          const msg = `Failed to get stream for ${JSON.stringify(loc)}: ${getErrorMessage(e)}`;
-          log.atWarn().withCause(e).log(msg);
-          response = { ok: false, error: msg };
-        }
-        if (bulkerURLEnv) {
-          const injestUrl = bulkerURLEnv + "/ingest";
-          bulkerPromise = httpRequest(
-            body.messageId,
-            injestUrl,
-            options,
-            { retryAttempts: bulkerURLRetryAttempts, retryTimeoutMs: bulkerURLRetryTimeoutMs },
-            payload
-          ).then(response =>
-            log
-              .atDebug()
-              .log(
-                `Event ID: ${typeFixed} / ${body.messageId} sent to bulker: ${injestUrl}. Response: ${JSON.stringify(
-                  response
-                )} `
-              )
-          );
-          if (stream?.backupEnabled) {
-            const backupUrl = `${bulkerURLEnv}/post/${stream.stream.workspaceId}_backup?tableName=backup`;
-            bulkerPromise = bulkerPromise
-              .then(() =>
-                httpRequest(
-                  body.messageId,
-                  backupUrl,
-                  options,
-                  { retryAttempts: bulkerURLRetryAttempts, retryTimeoutMs: bulkerURLRetryTimeoutMs },
-                  payload
-                )
-              )
-              .then(response =>
-                log
-                  .atDebug()
-                  .log(
-                    `Event ID: ${typeFixed} / ${
-                      body.messageId
-                    } sent to backup: ${backupUrl}. Response: ${JSON.stringify(response)} `
-                  )
-              );
-          }
-        } else {
-          bulkerPromise = Promise.resolve(undefined);
-          log
-            .atWarn()
-            .log(`Bulker is not connected (BULKER_URL is not set). Request dump: ${JSON.stringify(message, null, 2)}`);
-        }
-
-        const waitForBulker = req.query.sync as string;
-        if (waitForBulker === "true" || waitForBulker === "1") {
-          await bulkerPromise;
-        } else {
-          bulkerPromise.catch(e => {
-            log
-              .atError()
-              .withCause(e)
-              .log(`Failed to send event to bulker: ${getErrorMessage(e)}`);
-          });
-        }
-
-        if (response) {
-          return response;
-        } else {
-          return { ok: true };
-        }
-      } catch (e: any) {
-        const errorMessage = `Failed to process event with ID ${body.messageId}: ${getErrorMessage(e)}`;
-        log.atDebug().withCause(e).log(errorMessage);
-        if (e.status && e.body) {
-          throw new ApiError(errorMessage, e.body, { status: e.status });
-        } else {
-          throw new ApiError(errorMessage, undefined, { status: 500 });
-        }
-      }
+      patchEvent(event, type, req, ingestType);
+      setResponseHeaders({ res, req });
+      return await sendEventToBulker(req, ingestType, event);
     },
   },
 };
