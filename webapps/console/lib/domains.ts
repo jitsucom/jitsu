@@ -45,8 +45,6 @@ export function getDataLocator(req: NextApiRequest, keyType: IngestType, event: 
     return { writeKey: auth, keyType };
   } else if (req.headers["x-write-key"]) {
     return { writeKey: req.headers["x-write-key"] as string, keyType };
-  } else if (event.writeKey) {
-    return { writeKey: event.writeKey, keyType };
   } else if (requestEndpoint.hostname === dataHost) {
     throw new Error(`Cannot get data slug from data hostname ${requestEndpoint.hostname}`);
   } else if (dataHost && requestEndpoint.hostname.endsWith(`.${dataHost}`)) {
