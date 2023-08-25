@@ -2,6 +2,7 @@ import { NextApiRequest } from "next";
 import { getErrorMessage, getLog } from "juava";
 import { MergeExclusive, Simplify } from "type-fest";
 import { IngestType } from "@jitsu/protocols/async-request";
+import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 
 export type HttpProtocolVariant = "https" | "http";
 
@@ -35,13 +36,19 @@ export type StreamLocator = Simplify<
  * @param req
  * @param keyType type of a key
  */
-export function getDataLocator(req: NextApiRequest, keyType: IngestType): StreamLocator {
+export function getDataLocator(req: NextApiRequest, keyType: IngestType, event: AnalyticsServerEvent): StreamLocator {
   const requestEndpoint = getReqEndpoint(req);
   const [dataHost] = getDataDomain(requestEndpoint)?.split(":") || [undefined]; //ignore port, port can be used only in dev env
-  if (requestEndpoint.hostname === dataHost) {
-    throw new Error(`Cannot get data slug from data hostname ${requestEndpoint.hostname}`);
+
+  if (req.headers["authorization"]) {
+    const auth = Buffer.from(req.headers["authorization"].replace("Basic ", ""), "base64").toString("utf-8");
+    return { writeKey: auth, keyType };
   } else if (req.headers["x-write-key"]) {
     return { writeKey: req.headers["x-write-key"] as string, keyType };
+  } else if (event.writeKey) {
+    return { writeKey: event.writeKey, keyType };
+  } else if (requestEndpoint.hostname === dataHost) {
+    throw new Error(`Cannot get data slug from data hostname ${requestEndpoint.hostname}`);
   } else if (dataHost && requestEndpoint.hostname.endsWith(`.${dataHost}`)) {
     return { slug: requestEndpoint.hostname.replace(`.${dataHost}`, "") };
   } else {
