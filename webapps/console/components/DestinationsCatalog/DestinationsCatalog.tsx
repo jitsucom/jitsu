@@ -92,10 +92,10 @@ export const DestinationCatalog: React.FC<{ onClick: (destinationType: string) =
               {destinations.map(destination => (
                 <div
                   key={destination.id}
-                  className={`cursor-pointer relative w-72 border border-textDisabled ${
-                    !destination.comingSoon && "hover:scale-105 hover:border-primary"
+                  className={`relative w-72 border border-textDisabled ${
+                    !destination.comingSoon && "cursor-pointer hover:scale-105 hover:border-primary"
                   } transition ease-in-out flex rounded-lg px-4 py-4 space-x-4 m-4`}
-                  onClick={() => onClick(destination.id)}
+                  onClick={!destination.comingSoon ? () => onClick(destination.id) : undefined}
                 >
                   {destination.comingSoon && (
                     <div className="absolute -right-2 -top-2 bg-primary text-backgroundLight px-1 py-0.5 rounded">

@@ -23,6 +23,7 @@ const builtinDestinations: Record<BuiltinDestinationFunctionName, JitsuFunction>
   "builtin.destination.webhook": WebhookDestination as JitsuFunction,
   "builtin.destination.posthog": PosthogDestination as JitsuFunction,
   "builtin.destination.mongodb": MongodbDestination as JitsuFunction,
+  "builtin.destination.hubspot": () => null,
   "builtin.destination.devnull": () => null,
 } as const;
 
