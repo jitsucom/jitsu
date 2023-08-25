@@ -127,7 +127,7 @@ export async function sendEventToBulker(
     : bulkerURLDefaultRetryTimeout;
   const isHttps = !!bulkerURLEnv && bulkerURLEnv.startsWith("https://");
 
-  const { slug, domain, writeKey } = getDataLocator(req, ingestType);
+  const { slug, domain, writeKey } = getDataLocator(req, ingestType, event);
   const type = event.type;
   const message: IngestMessage = {
     geo: fromHeaders(req.headers),

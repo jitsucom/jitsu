@@ -785,12 +785,12 @@ const IncomingEventDrawer = ({ event }: { event: IncomingEvent }) => {
       drawerData.push({
         name: "Page URL",
         value: (
-          <>
+          <div className={"break-all"}>
             <a href={event.pageURL} target={"_blank"} rel={"noreferrer nopener"}>
               <ExternalLink className={"w-4 h-4"} />{" "}
             </a>
             {event.pageURL}
-          </>
+          </div>
         ),
       });
       drawerData.push({
