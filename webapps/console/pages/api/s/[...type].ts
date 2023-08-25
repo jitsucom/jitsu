@@ -8,7 +8,7 @@ import { getServerLog } from "../../../lib/server/log";
 
 import { checkHash, getErrorMessage, randomId, requireDefined } from "juava";
 import { httpAgent, httpsAgent } from "../../../lib/server/http-agent";
-import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
+import { AnalyticsContext, AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { fastStore, StreamWithDestinations } from "../../../lib/server/fast-store";
 import { getCoreDestinationType } from "../../../lib/schema/destinations";
 import { redis } from "../../../lib/server/redis";
@@ -272,7 +272,8 @@ export function patchEvent(
   event: AnalyticsServerEvent,
   type: string,
   req: NextApiRequest,
-  ingestType: "s2s" | "browser"
+  ingestType: "s2s" | "browser",
+  context?: AnalyticsContext
 ) {
   let typeFixed =
     {
@@ -295,6 +296,9 @@ export function patchEvent(
   if (ingestType === "browser") {
     event.context = event.context || {};
     event.context.ip = event.request_ip;
+  }
+  if (context) {
+    event.context = { ...context, ...event.context };
   }
 
   const nowIsoDate = new Date().toISOString();

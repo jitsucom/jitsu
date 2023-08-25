@@ -15,7 +15,7 @@ export default createRoute()
     //make sure that redis is initialized
     await redis.waitInit();
 
-    const { batch } = body;
+    const { batch, context } = body;
     if (!batch) {
       throw new ApiError("Payload should contain `batch` node", { status: 400 });
     }
@@ -33,7 +33,7 @@ export default createRoute()
       const event = _event as AnalyticsServerEvent;
       try {
         const ingestType = "s2s";
-        patchEvent(event, "event", req, ingestType);
+        patchEvent(event, "event", req, ingestType, context);
         await sendEventToBulker(req, ingestType, event);
         okEvents++;
       } catch (e) {
