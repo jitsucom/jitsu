@@ -28,7 +28,6 @@ export async function middleware(request: NextRequest) {
   } else {
     response = NextResponse.next();
   }
-
   if (logRequests) {
     const method = request.method;
     const body = request.body;
@@ -39,10 +38,9 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  response.headers.set("X-Frame-Options", "DENY");
   return response;
 }
 
 export const config = {
-  matcher: "",
+  matcher: !logRequests ? ["/p.js", "/v1/batch"] : "",
 };

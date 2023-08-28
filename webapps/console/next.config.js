@@ -30,6 +30,20 @@ module.exports = {
   //     skipDefaultConversion: true,
   //   },
   // },
+  async headers() {
+    //set cors headers
+    return [
+      {
+        source: "/:path*{/}?",
+        headers: [
+          {
+            key: "X-Frame-Options",
+            value: "DENY",
+          },
+        ],
+      },
+    ];
+  },
   experimental: {
     outputFileTracingExcludes: {
       "*": [
