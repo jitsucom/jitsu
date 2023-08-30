@@ -213,6 +213,8 @@ const pageSegmentExpected = {
     traits: {
       case_name: "identify-without-user-id",
       email: "john.doe3@gmail.com",
+      case_last_name: "Doe",
+      user_name: "jj",
     },
     user_agent:
       "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/107.0.5304.18 Safari/537.36",
