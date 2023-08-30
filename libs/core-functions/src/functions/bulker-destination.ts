@@ -21,7 +21,7 @@ function anonymizeIp(ip: string | undefined) {
 }
 
 function idToSnakeCase(id: string) {
-  return id.replace(/([A-Z])/g, "_$1").toLowerCase();
+  return id.replace(/((?<=[a-zA-Z0-9])[A-Z])/g, "_$1").toLowerCase();
 }
 
 function toSnakeCase(param: any): any {

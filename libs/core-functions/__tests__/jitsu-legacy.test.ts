@@ -41,6 +41,8 @@ const identify: AnalyticsServerEvent = {
   timestamp: "2022-11-14T08:56:34.387Z",
   traits: {
     caseName: "basic-identify",
+    CaseLastName: "Doe",
+    User_Name: "jj",
     email: "john.doe2@gmail.com",
   },
   type: "identify",
@@ -66,6 +68,8 @@ const legacyIdentifyExpected: Omit<JitsuLegacyEvent, "local_tz_offset"> & { loca
     id: "userId2",
     email: "john.doe2@gmail.com",
     case_name: "basic-identify",
+    case_last_name: "Doe",
+    user_name: "jj",
   },
   user_agent:
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/107.0.5304.18 Safari/537.36",
@@ -76,7 +80,7 @@ const legacyIdentifyExpected: Omit<JitsuLegacyEvent, "local_tz_offset"> & { loca
     name: "campaign",
     source: "source",
   },
-  vp_size: "",
+  vp_size: "1280x720",
 };
 
 const page: AnalyticsServerEvent = {
@@ -111,6 +115,8 @@ const page: AnalyticsServerEvent = {
     },
     traits: {
       caseName: "identify-without-user-id",
+      CaseLastName: "Doe",
+      User_Name: "jj",
       email: "john.doe3@gmail.com",
     },
     userAgent:
@@ -149,6 +155,8 @@ const legacyPageExpected = {
     id: "userId2",
     email: "john.doe3@gmail.com",
     case_name: "identify-without-user-id",
+    case_last_name: "Doe",
+    user_name: "jj",
   },
   user_agent:
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/107.0.5304.18 Safari/537.36",
@@ -165,8 +173,8 @@ const legacyPageExpected = {
 test("legacy event", () => {
   const identifyLegacyResult = jitsuLegacy(identify).event;
   const pageLegacyResult = jitsuLegacy(page).event;
-  // console.log(JSON.stringify(identifyLegacyResult, null, 2));
-  // expect(identifyLegacyResult).toStrictEqual(legacyIdentifyExpected);
+  console.log(JSON.stringify(identifyLegacyResult, null, 2));
+  expect(identifyLegacyResult).toStrictEqual(legacyIdentifyExpected);
 
   console.log(JSON.stringify(pageLegacyResult, null, 2));
   expect(pageLegacyResult).toStrictEqual(legacyPageExpected);
