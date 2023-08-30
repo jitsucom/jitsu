@@ -44,6 +44,10 @@ export const SchemaForm: React.FC<{
         if (req && noValue) {
           return "Required";
         } else if (!noValue) {
+          // workaround for buggy schema having null instead of "null" in type array
+          if (Array.isArray(fieldSchema.type)) {
+            fieldSchema.type = fieldSchema.type.map(t => (t === null ? "null" : t));
+          }
           const validate = ajv.compile(fieldSchema);
           if (!validate(value)) {
             //show only one error message for the field
@@ -159,7 +163,8 @@ export const SchemaForm: React.FC<{
                       />
                     );
                   }
-                  switch (f.type) {
+                  const typ = Array.isArray(f.type) ? f.type.find(t => t !== "null") : f.type;
+                  switch (typ) {
                     case "integer":
                     case "number":
                       return <NumberEditor {...editorProps} />;

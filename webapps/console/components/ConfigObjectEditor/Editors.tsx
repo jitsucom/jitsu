@@ -69,7 +69,11 @@ export const NumberEditor: React.FC<CustomWidgetProps<number | undefined>> = pro
       value={props.value}
       onChange={e => {
         const v = parseInt(e.target.value);
-        props.onChange(v);
+        if (isNaN(v)) {
+          props.onChange(undefined);
+        } else {
+          props.onChange(v);
+        }
       }}
     />
   );
