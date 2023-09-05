@@ -264,12 +264,10 @@ export default createRoute()
           version: (service.config as any).version,
           taskId,
           syncId: query.syncId,
+          startedBy: trigger === "manual" ? (user ? user.internalId : "manual") : "scheduled",
+          tableNamePrefix: sync.data?.["tableNamePrefix"] ?? "",
         },
         body: {
-          startedBy: {
-            trigger,
-            ...(user ? { userId: user.internalId } : {}),
-          },
           config: await tryManageOauthCreds({ ...(service.config as ServiceConfig), id: sync.fromId }),
           catalog: configuredCatalog,
           ...(stateObj ? { state: stateObj } : {}),

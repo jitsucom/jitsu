@@ -76,6 +76,7 @@ type SelectorProps<T> = {
 type SyncOptionsType = {
   storageKey?: string;
   streams?: SelectedStreams;
+  tableNamePrefix?: string;
   schedule?: string;
   timezone?: string;
 };
@@ -434,6 +435,21 @@ function SyncEditor({
             setDstId(id);
           }}
         />
+      ),
+    },
+    {
+      name: "Table Name Prefix",
+      documentation:
+        "Prefix to add to all table names resulting from this sync. E.g. 'mysrc_'. Useful to avoid table names collisions with other syncs.",
+      component: (
+        <div className={"w-80"}>
+          <Input
+            disabled={!!existingLink}
+            style={{ color: "black" }}
+            value={syncOptions?.tableNamePrefix}
+            onChange={e => updateOptions({ tableNamePrefix: e.target.value })}
+          />
+        </div>
       ),
     },
   ];
