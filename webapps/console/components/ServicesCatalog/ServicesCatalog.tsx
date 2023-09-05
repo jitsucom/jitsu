@@ -42,8 +42,8 @@ function groupByType(sources: SourceType[]): Record<string, SourceType[]> {
 
 export function getServiceIcon(source: SourceType) {
   const connectorSubtype = source.meta.connectorSubtype;
-  return source.logo ? (
-    <img src={source.logo} alt={source.meta.name} />
+  return source.logoSvg ? (
+    <img src={"data:image/svg+xml;base64," + Buffer.from(source.logoSvg).toString("base64")} alt={source.meta.name} />
   ) : connectorSubtype === "database" ? (
     <FaDatabase className={"w-full h-full"} />
   ) : (

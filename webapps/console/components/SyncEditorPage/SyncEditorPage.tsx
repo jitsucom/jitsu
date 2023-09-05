@@ -298,9 +298,15 @@ function SyncEditor({
     (storageKey: string, catalog: any, force?: boolean) => {
       const streams: SelectedStreams = {};
       const currentStreams = force ? {} : syncOptions?.streams || {};
+      const newSync = typeof syncOptions?.streams === "undefined" || force;
       for (const stream of catalog?.streams ?? []) {
         const name = stream.namespace ? `${stream.namespace}.${stream.name}` : stream.name;
-        streams[name] = currentStreams[name] || initStream(stream);
+        const currentStream = currentStreams[name];
+        if (currentStream) {
+          streams[name] = currentStream;
+        } else if (newSync) {
+          streams[name] = initStream(stream);
+        }
       }
       if (xor(Object.keys(streams), Object.keys(currentStreams)).length > 0) {
         updateOptions({ streams, storageKey });
@@ -534,17 +540,18 @@ function SyncEditor({
           value: m,
           label: createDisplayName(m),
         }));
-        let cursorFieldOptions: { value: string[]; label: string }[] = [];
+        let cursorFieldOptions: { value: string; label: string }[] = [];
         if (stream.supported_sync_modes.includes("incremental") && !stream.source_defined_cursor) {
           const props = Object.entries(stream.json_schema.properties as Record<string, any>);
           cursorFieldOptions = props
-            .filter(
-              ([_, p]) =>
-                p.format === "date-time" ||
-                p.type === "integer" ||
-                (Array.isArray(p.type) && p.type.includes("integer"))
-            )
-            .map(([name, _]) => ({ value: [name], label: name }));
+            // .filter(
+            //   ([_, p]) =>
+            //     p.format === "date-time" ||
+            //     p.type === "integer" ||
+            //     (Array.isArray(p.type) && p.type.includes("integer")) ||
+            //     true
+            // )
+            .map(([name, _]) => ({ value: name, label: name }));
         }
 
         configItems.push({
@@ -579,9 +586,11 @@ function SyncEditor({
                           disabled={!syncOptions?.streams?.[name] || stream.source_defined_cursor}
                           options={!stream.source_defined_cursor ? cursorFieldOptions : []}
                           value={
-                            !stream.source_defined_cursor ? syncOptions?.streams?.[name]?.cursor_field ?? [] : undefined
+                            !stream.source_defined_cursor ? syncOptions?.streams?.[name]?.cursor_field?.[0] : undefined
                           }
-                          onChange={v => updateSelectedStream(name, "cursor_field", v)}
+                          onChange={v => {
+                            updateSelectedStream(name, "cursor_field", v ? [v] : undefined);
+                          }}
                         />
                       </Tooltip>
                     </>
@@ -718,6 +727,24 @@ function SyncEditor({
           </Button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function CursorFieldSelector(props: { onAdd: (value: string) => void }) {
+  const [name, setName] = useState("");
+  return (
+    <div className={"flex flex-row px-1 pt-1.5 gap-2"}>
+      <Input placeholder="Set custom cursor field" value={name} onChange={e => setName(e.target.value)} />
+      <Button
+        type="primary"
+        onClick={() => {
+          props.onAdd(name);
+          setName("");
+        }}
+      >
+        Set
+      </Button>
     </div>
   );
 }
