@@ -346,7 +346,7 @@ function CredentialsPopover(props: { credentials: ClickhouseConnectionCredential
                 }}
               >
                 {[
-                  `echo 'SELECT * from events' |\\\n`,
+                  `echo 'SELECT * from events' |\\`,
                   `curl 'https://${props.credentials.username}:***@${props.credentials.host}:${props.credentials.httpPort}/?database=${props.credentials.database}' -d @-`,
                 ].join("\n")}
               </CredentialsDisplay>
