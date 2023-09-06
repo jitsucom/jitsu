@@ -301,6 +301,7 @@ function CredentialsPopover(props: { credentials: ClickhouseConnectionCredential
               >
                 {[
                   `clickhouse-client --host ${props.credentials.host} \\`,
+                  `\t--accept-invalid-certificate \\`,
                   `\t--database ${props.credentials.database} \\`,
                   `\t--port ${props.credentials.tcpPort} --secure \\`,
                   `\t--user ${props.credentials.username} \\`,
@@ -316,16 +317,16 @@ function CredentialsPopover(props: { credentials: ClickhouseConnectionCredential
               <CredentialsDisplay
                 credentials={{
                   Host: props.credentials.host,
-                  Port: props.credentials.tcpPort.toString(),
+                  Port: props.credentials.pgPort.toString(),
                   Database: props.credentials.database,
                   Username: props.credentials.username,
                   Password: { type: "password", password: props.credentials.password },
                 }}
               >
                 {[
-                  `psql -host ${props.credentials.host} \\`,
-                  `\t-p ${props.credentials.tcpPort} \\`,
-                  `\t-u ${props.credentials.username} \\`,
+                  `psql -h ${props.credentials.host} \\`,
+                  `\t-p ${props.credentials.pgPort} \\`,
+                  `\t-U ${props.credentials.username} \\`,
                   `\t${props.credentials.database}`,
                 ].join("\n")}
               </CredentialsDisplay>
@@ -338,7 +339,7 @@ function CredentialsPopover(props: { credentials: ClickhouseConnectionCredential
               <CredentialsDisplay
                 credentials={{
                   Host: props.credentials.host,
-                  Port: props.credentials.pgPort.toString(),
+                  Port: props.credentials.httpPort.toString(),
                   Database: props.credentials.database,
                   Username: props.credentials.username,
                   Password: { type: "password", password: props.credentials.password },
@@ -346,7 +347,7 @@ function CredentialsPopover(props: { credentials: ClickhouseConnectionCredential
               >
                 {[
                   `echo 'SELECT * from events' |\\\n`,
-                  `curl 'https://${props.credentials.username}:***@${props.credentials.host}:8123/?database=${props.credentials.database}' -d @-`,
+                  `curl 'https://${props.credentials.username}:***@${props.credentials.host}:${props.credentials.httpPort}/?database=${props.credentials.database}' -d @-`,
                 ].join("\n")}
               </CredentialsDisplay>
             ),

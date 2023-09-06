@@ -574,7 +574,7 @@ function SyncEditor({
           group: "Streams",
           key: name,
           name: (
-            <LabelEllipsis maxLen={45} trim={"middle"}>
+            <LabelEllipsis maxLen={34} trim={"middle"}>
               {name}
             </LabelEllipsis>
           ),
