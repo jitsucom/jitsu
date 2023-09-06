@@ -60,7 +60,7 @@ export function DataView() {
     },
     {
       key: "functions",
-      label: `Functions Log`,
+      label: `API Destinations & Functions Logs`,
       children: (
         <EventsBrowser
           {...state.viewState.functions}

@@ -93,7 +93,7 @@ export const PosthogDestinationConfig = z.object({
   key: z
     .string()
     .describe(
-      "API Key::Posthog API key. <a target='_blank' rel='noopener noreferrer' href='https://posthog.com/docs/api#authentication'>How to obtain</a>"
+      "Project API Key::Posthog Project API Key. Can be found in <a target='_blank' rel='noopener noreferrer' href='https://app.posthog.com/project/settings'>Project Settings</a>"
     ),
   host: z.string().optional().default(POSTHOG_DEFAULT_HOST).describe("Posthog host"),
   enableGroupAnalytics: z
