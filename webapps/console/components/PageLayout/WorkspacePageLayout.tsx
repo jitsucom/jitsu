@@ -483,7 +483,7 @@ const FreePlanQuotaAlert: React.FC<{}> = () => {
         You are projected to exceed your monthly events. Please upgrade your plan to avoid service disruption.{" "}
         <Link
           className="group inline-flex items-center border-b border-neutral-600"
-          href={`${workspace.slug}/settings/billing`}
+          href={`/${workspace.slug}/settings/billing`}
         >
           Go to billing <ArrowRight className="h-4 group-hover:rotate-45 transition-all duration-500" />
         </Link>
