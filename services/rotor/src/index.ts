@@ -123,7 +123,7 @@ export async function rotorMessageHandler(_message: string | undefined) {
       } else if (f.functionId.startsWith("udf.")) {
         const functionId = f.functionId.substring(4);
         const userFunctionObj = requireDefined(
-          await getCachedOrLoad(connectionsCache, functionId, key => {
+          await getCachedOrLoad(functionsCache, functionId, key => {
             return fastStore.getConfig("function", key);
           }),
           `Unknown function: ${functionId}`

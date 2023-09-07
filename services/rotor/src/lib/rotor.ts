@@ -1,42 +1,44 @@
 import { getLog } from "juava";
-import { connectToKafka, deatLetterTopic, KafkaCredentials } from "@jitsu-internal/console/lib/server/kafka-config";
+import {
+  connectToKafka,
+  deatLetterTopic,
+  KafkaCredentials,
+  retryTopic,
+} from "@jitsu-internal/console/lib/server/kafka-config";
 import Prometheus from "prom-client";
 import PQueue from "p-queue";
 const concurrency = process.env.CONCURRENCY ? parseInt(process.env.CONCURRENCY) : 50;
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+dayjs.extend(utc);
 
 const log = getLog("kafka-rotor");
 
-const maxLocalRetries = 2;
+const RETRY_TIME_HEADER = "retry_time";
+const RETRY_COUNT_HEADER = "retries";
+const ORIGINAL_TOPIC_HEADER = "original_topic";
+
+const MESSAGES_RETRY_COUNT = process.env.MESSAGES_RETRY_COUNT ? parseInt(process.env.MESSAGES_RETRY_COUNT) : 3;
+// MESSAGES_RETRY_BACKOFF_BASE defines base for exponential backoff in minutes.
+// For example, if MESSAGES_RETRY_COUNT is 3 and base is 5, then retry delays will be 5, 25, 125 minutes.
+const MESSAGES_RETRY_BACKOFF_BASE = process.env.MESSAGES_RETRY_BACKOFF_BASE
+  ? parseInt(process.env.MESSAGES_RETRY_BACKOFF_BASE)
+  : 2;
+// MESSAGES_RETRY_BACKOFF_MAX_DELAY defines maximum possible retry delay in minutes. Default: 1440 minutes = 24 hours
+const MESSAGES_RETRY_BACKOFF_MAX_DELAY = process.env.MESSAGES_RETRY_BACKOFF_MAX_DELAY
+  ? parseInt(process.env.MESSAGES_RETRY_BACKOFF_MAX_DELAY)
+  : 1440;
+
+function RetryBackOffTime(attempt: number) {
+  const backOffDelayMin = Math.min(Math.pow(MESSAGES_RETRY_BACKOFF_BASE, attempt), MESSAGES_RETRY_BACKOFF_MAX_DELAY);
+  return dayjs().add(backOffDelayMin, "minute").utc().toISOString();
+}
 
 export class NotRetryableError extends Error {
   public doNotRetry: boolean = true;
 
   constructor(message: string) {
     super(message);
-  }
-}
-
-async function withRetries(f: () => Promise<void>, opts: { maxRetries?: number; pauseSeconds?: number } = {}) {
-  const { maxRetries = 2, pauseSeconds = 5 } = opts;
-  while (true) {
-    try {
-      await f();
-      break;
-    } catch (e: any) {
-      if (e.doNotRetry) {
-        throw e;
-      }
-      log
-        .atDebug()
-        .withCause(e)
-        .log(`Failed to process message. (Local) retries left: ${maxRetries - 1}`);
-      if (maxRetries > 1) {
-        await new Promise(resolve => setTimeout(resolve, pauseSeconds * 1000));
-        return withRetries(f, { maxRetries: maxRetries - 1, pauseSeconds });
-      } else {
-        throw e;
-      }
-    }
   }
 }
 
@@ -53,8 +55,8 @@ export type KafkaRotor = {
   start: () => Promise<void>;
 };
 
-function shouldReturnToQueue(firstProcessed: Date, maxSecondsInQueueAfterFailure: number, error: any) {
-  return !error.doNotRetry && Date.now() - firstProcessed.getTime() <= maxSecondsInQueueAfterFailure * 1000;
+function shouldRetry(retries: number, error: any) {
+  return !error.doNotRetry && retries < MESSAGES_RETRY_COUNT;
 }
 
 export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
@@ -127,37 +129,30 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
 
       async function onMessage(message: any, topic: string, partition: number) {
         messagesConsumed.inc({ topic, partition });
-        const firstProcessed = message.headers?.firstProcessed
-          ? new Date(message.headers?.firstProcessed.toString())
-          : new Date();
-        const retries = message.headers?.retries ? parseInt(message.headers?.retries.toString()) : 0;
+        const headers = message.headers || {};
+        const retries = headers[RETRY_COUNT_HEADER] ? parseInt(headers[RETRY_COUNT_HEADER].toString()) : 0;
 
         try {
-          await withRetries(
-            async () => {
-              if (message.value) {
-                await cfg.handle(message.value?.toString());
-              }
-            },
-            { maxRetries: maxLocalRetries }
-          );
-          messagesProcessed.inc({ topic, partition });
+          if (message.value) {
+            await cfg.handle(message.value?.toString());
+            messagesProcessed.inc({ topic, partition });
+          }
         } catch (e) {
-          const returnToQueue = shouldReturnToQueue(firstProcessed, maxSecondsInQueueAfterFailure, e);
+          const retry = shouldRetry(retries, e);
           log
             .atError()
             .withCause(e)
             .log(
-              `Failed to process message for ${message.key || "(no key set)"} after ${maxLocalRetries} local retries. ${
-                returnToQueue ? "Message will be returned to reprocessing" : "Message will be sent to dead-letter queue"
+              `Failed to process message for ${message.key || "(no key set)"} after ${retries} local retries. ${
+                retry ? "Message will be returned to reprocessing" : "Message will be sent to dead-letter queue"
               }: ${message.value}`
             );
-          if (!returnToQueue) {
+          if (!retry) {
             messagesDeadLettered.inc({ topic });
           } else {
             messagesRequeued.inc({ topic });
           }
-          const requeueTopic = returnToQueue ? topic : deatLetterTopic();
+          const requeueTopic = retry ? retryTopic() : deatLetterTopic();
           try {
             await producer.send({
               topic: requeueTopic,
@@ -166,8 +161,9 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
                   value: message.value,
                   key: message.key,
                   headers: {
-                    firstProcessed: firstProcessed.toISOString(),
-                    retries: `${retries + 1}`,
+                    [RETRY_COUNT_HEADER]: `${retries}`,
+                    [ORIGINAL_TOPIC_HEADER]: topic,
+                    [RETRY_TIME_HEADER]: RetryBackOffTime(retries + 1),
                   },
                 },
               ],

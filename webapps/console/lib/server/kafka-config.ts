@@ -78,6 +78,10 @@ export function deatLetterTopic(): string {
   return process.env.KAFKA_DESTINATIONS_DEAD_LETTER_TOPIC_NAME || "destination-messages-dead-letter";
 }
 
+export function retryTopic(): string {
+  return process.env.KAFKA_DESTINATIONS_RETRY_TOPIC_NAME || "destination-messages-retry";
+}
+
 export function destinationMessagesTopicMultiThreaded(): string {
   return process.env.KAFKA_DESTINATIONS_MT_TOPIC_NAME || "destination-messages-mt";
 }

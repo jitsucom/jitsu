@@ -343,6 +343,9 @@ importers:
       '@jitsu/core-functions':
         specifier: workspace:*
         version: link:../../libs/core-functions
+      dayjs:
+        specifier: ^1.11.7
+        version: 1.11.7
       express:
         specifier: ^4.18.2
         version: 4.18.2
