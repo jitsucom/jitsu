@@ -207,7 +207,14 @@ export const googleAds: SourceConnector = {
       type: isoUtcDateType,
       defaultValue: "2020-01-01",
       required: true,
-    },
+    },{
+      displayName: "Custom 'WHERE' clause",
+      documentation: <>(Advanced) Custom GAQL query 'WHERE' clause to filter data.<br/>For example:<br/><code>{`campaign.start_date >= $DATE_FROM AND campaign.start_date <= $DATE_TO`}</code></>,
+      id: "where",
+      // prettier-ignore
+      type: stringType,
+      required: false,
+    }
   ],
   collectionTemplates: [
     {
