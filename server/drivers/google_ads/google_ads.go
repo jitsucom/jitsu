@@ -25,6 +25,8 @@ const (
 	dayLayout       = "2006-01-02"
 	dateLayoutFull  = "2006-01-02 15:04:05"
 	serviceEndpoint = "https://googleads.googleapis.com/v13"
+	dateFromMacro   = "$date_from"
+	dateToMacro     = "$date_to"
 )
 
 //go:embed reports.csv
@@ -59,6 +61,7 @@ type GoogleAds struct {
 
 	collection  *base.Collection
 	config      *GoogleAdsConfig
+	where       string
 	fields      []string
 	httpClient  *http.Client
 	granularity schema.Granularity
@@ -103,7 +106,8 @@ func NewGoogleAds(ctx context.Context, sourceConfig *base.SourceConfig, collecti
 	if !availableReports[collection.Type] {
 		return nil, fmt.Errorf("Unknown collection [%s]", collection.Type)
 	}
-
+	where := reportConfig.Where
+	where = strings.ReplaceAll(strings.ToLower(where), "where", "")
 	fields := strings.Split(strings.ReplaceAll(reportConfig.Fields, " ", ""), ",")
 
 	granularity := schema.ALL
@@ -116,13 +120,18 @@ func NewGoogleAds(ctx context.Context, sourceConfig *base.SourceConfig, collecti
 		i := sort.SearchStrings(sortedFields, pair.name)
 		if i < len(sortedFields) && sortedFields[i] == pair.name {
 			granularity = pair.granularity
+			where = utils.JoinNonEmptyStrings(" AND ", fmt.Sprintf("segments.date BETWEEN %s AND %s", dateFromMacro, dateToMacro), where)
 			break
 		}
+	}
+	if granularity == schema.ALL && where != "" && (strings.Contains(where, dateFromMacro) || strings.Contains(where, dateToMacro)) {
+		granularity = schema.DAY
 	}
 	return &GoogleAds{
 		IntervalDriver: base.IntervalDriver{SourceType: sourceConfig.Type},
 		collection:     collection,
 		config:         config,
+		where:          where,
 		fields:         fields,
 		httpClient:     httpClient,
 		granularity:    granularity,
@@ -163,8 +172,11 @@ func (g *GoogleAds) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
 
 func (g *GoogleAds) GetObjectsFor(interval *base.TimeInterval, objectsLoader base.ObjectsLoader) error {
 	gaql := "SELECT " + strings.Join(g.fields, ",") + " FROM " + g.collection.Type
-	if !interval.IsAll() {
-		gaql += fmt.Sprintf(" WHERE segments.date BETWEEN '%s' AND '%s'", interval.LowerEndpoint().Format(dayLayout), interval.UpperEndpoint().Format(dayLayout))
+
+	if g.where != "" {
+		where := strings.ReplaceAll(g.where, dateFromMacro, fmt.Sprintf("'%s'", interval.LowerEndpoint().Format(dayLayout)))
+		where = strings.ReplaceAll(where, dateToMacro, fmt.Sprintf("'%s'", interval.UpperEndpoint().Format(dayLayout)))
+		gaql += " WHERE " + where
 	}
 	loaded := 0
 	pageToken := ""

@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-//googleAdsHTTPConfiguration contains default amplitude HTTP timeouts/retry/delays,etc
+// googleAdsHTTPConfiguration contains default amplitude HTTP timeouts/retry/delays,etc
 var googleAdsHTTPConfiguration = &adapters.HTTPConfiguration{
 	GlobalClientTimeout:       10 * time.Minute,
 	RetryDelay:                10 * time.Second,
@@ -29,6 +29,7 @@ type GoogleAdsConfig struct {
 type GoogleAdsCollectionConfig struct {
 	StartDateStr string `mapstructure:"start_date" json:"start_date,omitempty" yaml:"start_date,omitempty"`
 	Fields       string `mapstructure:"fields" json:"fields,omitempty" yaml:"fields,omitempty"`
+	Where        string `mapstructure:"where" json:"where,omitempty" yaml:"where,omitempty"`
 }
 
 func (gac *GoogleAdsConfig) FillPreconfiguredOauth(sourceType string) {
