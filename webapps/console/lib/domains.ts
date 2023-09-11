@@ -1,6 +1,5 @@
 import { NextApiRequest } from "next";
 import { getErrorMessage, getLog } from "juava";
-import { MergeExclusive, Simplify } from "type-fest";
 import { IngestType } from "@jitsu/protocols/async-request";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 
@@ -25,9 +24,7 @@ export function getDataDomain({ hostname }: PublicEndpoint): string | undefined 
   return undefined;
 }
 
-export type StreamLocator = Simplify<
-  MergeExclusive<MergeExclusive<{ domain: string }, { slug: string }>, { writeKey: string; keyType: IngestType }>
->;
+export type StreamCredentials = { domain?: string; slug?: string; writeKey?: string; ingestType: IngestType };
 
 /**
  * Example:
@@ -36,22 +33,26 @@ export type StreamLocator = Simplify<
  * @param req
  * @param keyType type of a key
  */
-export function getDataLocator(req: NextApiRequest, keyType: IngestType, event: AnalyticsServerEvent): StreamLocator {
+export function getDataLocator(
+  req: NextApiRequest,
+  ingestType: IngestType,
+  event: AnalyticsServerEvent
+): StreamCredentials {
   const requestEndpoint = getReqEndpoint(req);
   const [dataHost] = getDataDomain(requestEndpoint)?.split(":") || [undefined]; //ignore port, port can be used only in dev env
-
+  const loc: Partial<StreamCredentials> = { ingestType };
   if (req.headers["authorization"]) {
     const auth = Buffer.from(req.headers["authorization"].replace("Basic ", ""), "base64").toString("utf-8");
-    return { writeKey: auth, keyType };
+    loc.writeKey = auth;
   } else if (req.headers["x-write-key"]) {
-    return { writeKey: req.headers["x-write-key"] as string, keyType };
-  } else if (requestEndpoint.hostname === dataHost) {
-    throw new Error(`Cannot get data slug from data hostname ${requestEndpoint.hostname}`);
-  } else if (dataHost && requestEndpoint.hostname.endsWith(`.${dataHost}`)) {
-    return { slug: requestEndpoint.hostname.replace(`.${dataHost}`, "") };
-  } else {
-    return { domain: requestEndpoint.hostname };
+    loc.writeKey = req.headers["x-write-key"] as string;
   }
+  if (dataHost && requestEndpoint.hostname.endsWith(`.${dataHost}`)) {
+    loc.slug = requestEndpoint.hostname.replace(`.${dataHost}`, "");
+  } else {
+    loc.domain = requestEndpoint.hostname;
+  }
+  return loc as StreamCredentials;
 }
 
 export function getDefaultPort(protocol: HttpProtocolVariant) {

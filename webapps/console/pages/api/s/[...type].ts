@@ -1,4 +1,4 @@
-import { getDataLocator, getReqEndpoint, StreamLocator } from "../../../lib/domains";
+import { getDataLocator, getReqEndpoint, StreamCredentials } from "../../../lib/domains";
 import { Api, nextJsApiHandler } from "../../../lib/api";
 import { z } from "zod";
 import { ApiError } from "../../../lib/shared/errors";
@@ -28,7 +28,9 @@ const bulkerURLDefaultRetryAttempts = 3;
 
 const log = getServerLog("ingest-api");
 
-async function getStream(loc: StreamLocator): Promise<StreamWithDestinations | undefined> {
+type StreamLocator = (loc: StreamCredentials) => Promise<StreamWithDestinations | undefined>;
+
+const WriteKeyStreamLocator: StreamLocator = async loc => {
   if (loc.writeKey) {
     const [keyId, keySecret] = loc.writeKey.split(":");
     if (!keySecret) {
@@ -37,31 +39,43 @@ async function getStream(loc: StreamLocator): Promise<StreamWithDestinations | u
     } else {
       const stream = await fastStore.getStreamByKeyId(keyId);
       if (stream) {
-        if (loc.keyType !== stream.keyType) {
-          throw new Error(`Invalid key type: found ${stream.keyType}, expected ${loc.keyType}`);
+        if (loc.ingestType !== stream.keyType) {
+          log.atError().log(`Invalid key type: found ${stream.keyType}, expected ${loc.ingestType}`);
+        } else if (!checkHash(stream.hash, keySecret)) {
+          log.atError().log(`Invalid key secret`);
+        } else {
+          return await fastStore.getStreamById(stream.streamId);
         }
-        if (!checkHash(stream.hash, keySecret)) {
-          throw new Error(`Invalid key secret`);
-        }
-        return await fastStore.getStreamById(stream.streamId);
-      }
-      {
-        return undefined;
       }
     }
-  } else if (loc.slug) {
+  }
+};
+
+const SlugStreamLocator: StreamLocator = async loc => {
+  if (loc.slug) {
     return await fastStore.getStreamById(loc.slug);
-  } else if (loc.domain) {
+  }
+};
+
+const DomainStreamLocator: StreamLocator = async loc => {
+  if (loc.domain) {
     const streams = (await fastStore.getStreamsByDomain(loc.domain)) || [];
     if (streams.length == 1) {
       return streams[0];
-    } else if (streams.length > 1) {
-      throw new Error(`Multiple streams found for domain ${loc.domain}`);
-    } else {
-      return undefined;
     }
-  } else {
-    return undefined;
+  }
+};
+
+async function getStream(loc: StreamCredentials): Promise<StreamWithDestinations | undefined> {
+  const locators =
+    loc.ingestType === "s2s"
+      ? [WriteKeyStreamLocator, SlugStreamLocator, DomainStreamLocator]
+      : [SlugStreamLocator, DomainStreamLocator, WriteKeyStreamLocator];
+  for (const locator of locators) {
+    const stream = await locator(loc);
+    if (stream) {
+      return stream;
+    }
   }
 }
 
@@ -112,11 +126,7 @@ export function setResponseHeaders({ req, res }: { req: NextApiRequest; res: Nex
   res.setHeader("Access-Control-Allow-Credentials", "true");
 }
 
-export async function sendEventToBulker(
-  req: NextApiRequest,
-  ingestType: "s2s" | "browser",
-  event: AnalyticsServerEvent
-) {
+export async function sendEventToBulker(req: NextApiRequest, ingestType: IngestType, event: AnalyticsServerEvent) {
   const bulkerAuthKey = process.env.BULKER_AUTH_KEY ?? "";
   const bulkerURLEnv: string | undefined = (process.env.BULKER_URL as string) || undefined;
   const bulkerURLRetryAttempts = process.env.BULKER_URL_RETRY_ATTEMPTS
@@ -127,7 +137,7 @@ export async function sendEventToBulker(
     : bulkerURLDefaultRetryTimeout;
   const isHttps = !!bulkerURLEnv && bulkerURLEnv.startsWith("https://");
 
-  const { slug, domain, writeKey } = getDataLocator(req, ingestType, event);
+  const loc = getDataLocator(req, ingestType, event);
   const type = event.type;
   const message: IngestMessage = {
     geo: fromHeaders(req.headers),
@@ -135,13 +145,13 @@ export async function sendEventToBulker(
     ingestType,
     messageCreated: new Date().toISOString(),
     messageId: event.messageId,
-    writeKey: writeKey ?? "",
+    writeKey: loc.writeKey ?? "",
     type,
 
     origin: {
       baseUrl: getReqEndpoint(req).baseUrl,
-      slug,
-      domain,
+      slug: loc.slug,
+      domain: loc.domain,
     },
     httpHeaders: Object.entries(req.headers)
       .filter(([k, v]) => v !== undefined && v !== null && !isInternalHeader(k))
@@ -174,12 +184,6 @@ export async function sendEventToBulker(
     let bulkerPromise;
     let response: any;
     let stream: StreamWithDestinations | undefined;
-    const loc = {
-      slug,
-      domain,
-      writeKey,
-      keyType: ingestType,
-    } as StreamLocator;
     try {
       stream = await getStream(loc);
       if (stream) {
