@@ -92,6 +92,48 @@ const github: OauthDecorator = {
   },
 };
 
+const salesforce: OauthDecorator = {
+  stripSchema: (schema: any) => {
+    return {
+      ...schema,
+      refresh_token: JITSU_MANAGED,
+      client_id: JITSU_MANAGED,
+      client_secret: JITSU_MANAGED,
+    };
+  },
+  packageId: "airbyte/source-salesforce",
+  packageType: "airbyte",
+  nangoProvider: "salesforce",
+  merge: (opts, integrationObj, connectionObj) => {
+    const mCred = { ...opts };
+    mCred.refresh_token = manage(mCred.refresh_token, connectionObj.refresh_token);
+    mCred.client_id = manage(mCred.client_id, integrationObj.client_id);
+    mCred.client_secret = manage(mCred.client_secret, integrationObj.client_secret);
+    return mCred;
+  },
+};
+
+const salesforceSinger: OauthDecorator = {
+  stripSchema: (schema: any) => {
+    return {
+      ...schema,
+      refresh_token: JITSU_MANAGED,
+      client_id: JITSU_MANAGED,
+      client_secret: JITSU_MANAGED,
+    };
+  },
+  packageId: "airbyte/source-salesforce-singer",
+  packageType: "airbyte",
+  nangoProvider: "salesforce",
+  merge: (opts, integrationObj, connectionObj) => {
+    const mCred = { ...opts };
+    mCred.refresh_token = manage(mCred.refresh_token, connectionObj.refresh_token);
+    mCred.client_id = manage(mCred.client_id, integrationObj.client_id);
+    mCred.client_secret = manage(mCred.client_secret, integrationObj.client_secret);
+    return mCred;
+  },
+};
+
 const _googleBase: Omit<OauthDecorator, "packageId"> = {
   stripSchema: (schema: any) => {
     return {
@@ -200,6 +242,8 @@ const facebookMarketing: OauthDecorator = {
 
 export const oauthDecorators = [
   github,
+  salesforce,
+  salesforceSinger,
   googleAnalytics,
   googleAnalyticsGA4,
   googleAds,
