@@ -120,6 +120,32 @@ export const PosthogDestinationConfig = z.object({
 
 export type PosthogDestinationConfig = z.infer<typeof PosthogDestinationConfig>;
 
+export const AmplitudeDestinationConfig = z.object({
+  key: z.string().describe("Project API Key::Amplitude Project API Key."),
+  enableGroupAnalytics: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe(
+      "Build an analysis around aggregated units of measure like accounts, charts, or order IDs. Requires The Amplitude Accounts add-on. <a href='https://help.amplitude.com/hc/en-us/articles/115001765532-Account-level-reporting-in-Amplitude' target='_blank' rel='noreferrer noopener'>Learn more.</a>"
+    ),
+  groupType: z
+    .string()
+    .optional()
+    .default("company")
+    .describe(
+      "Group type is the abstract type of whatever our group represents (e.g. accounts, charts, or order IDs)."
+    ),
+  enableAnonymousUserProfiles: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe("If enabled, anonymous users will be tracked in Amplitude"),
+  dataResidency: z.enum(["US", "EU"]).optional().default("US"),
+});
+
+export type AmplitudeDestinationConfig = z.infer<typeof AmplitudeDestinationConfig>;
+
 export const MongodbDestinationConfig = z.object({
   url: z.string().optional(),
   protocol: z

@@ -362,6 +362,7 @@ function Breadcrumbs() {
 
 function UserProfileMenu({ user }: { user: { name: string; email: string } }) {
   const router = useRouter();
+  const { analytics } = useJitsu();
   const sessionControl = useUserSessionControls();
   return (
     <div>
@@ -377,6 +378,7 @@ function UserProfileMenu({ user }: { user: { name: string; email: string } }) {
         <MenuItem
           onClick={async () => {
             await sessionControl.logout();
+            analytics.reset();
             router.push("/", undefined, { shallow: true });
           }}
         >

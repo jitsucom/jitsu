@@ -105,7 +105,7 @@ const PosthogDestination: JitsuFunction<AnalyticsServerEvent, PosthogDestination
       //   //   });
       //   // }
       // }
-    } else if (event.type === "group") {
+    } else if (event.type === "group" && props.enableGroupAnalytics) {
       client.groupIdentify({
         groupType: groupType,
         groupKey: event.groupId as string,

@@ -612,10 +612,7 @@ export const coreDestinations: DestinationType<any>[] = [
     connectionOptions: CloudDestinationsConnectionOptions,
     title: "Amplitude",
     tags: "Product Analytics",
-    comingSoon: true,
-    credentials: z.object({
-      apiKey: z.string().describe("API Key::Amplitude API Key"),
-    }),
+    credentials: meta.AmplitudeDestinationConfig,
     description: "Amplitude is a product analytics platform",
   },
   {

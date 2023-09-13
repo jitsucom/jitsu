@@ -13,6 +13,7 @@ import UserRecognitionFunction from "./functions/user-recognition";
 import MongodbDestination from "./functions/mongodb-destination";
 import JuneDestination from "./functions/june-destination";
 import SegmentDestination from "./functions/segment-destination";
+import AmplitudeDestination from "./functions/amplitude-destination";
 
 const builtinDestinations: Record<BuiltinDestinationFunctionName, JitsuFunction> = {
   "builtin.destination.bulker": BulkerDestination as JitsuFunction,
@@ -23,6 +24,7 @@ const builtinDestinations: Record<BuiltinDestinationFunctionName, JitsuFunction>
   "builtin.destination.webhook": WebhookDestination as JitsuFunction,
   "builtin.destination.posthog": PosthogDestination as JitsuFunction,
   "builtin.destination.mongodb": MongodbDestination as JitsuFunction,
+  "builtin.destination.amplitude": AmplitudeDestination as JitsuFunction,
   "builtin.destination.hubspot": () => null,
   "builtin.destination.devnull": () => null,
 } as const;
