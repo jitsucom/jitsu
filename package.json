@@ -43,7 +43,7 @@
   },
   "packageManager": "pnpm@8.2.0",
   "workspaces": [
-    "examples/*",
+    "examples/react-app",
     "e2e",
     "types/*",
     "webapps/*",

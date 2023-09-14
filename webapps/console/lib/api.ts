@@ -101,6 +101,7 @@ export async function getUser(
         await db.prisma().userProfile.findUnique({ where: { id: token.userId } }),
         `Can't find user ${token.userId} for API key ${keyId}`
       );
+      db.prisma().userApiToken.update({ where: { id: keyId }, data: { lastUsed: new Date() } });
       return {
         internalId: user.id,
         externalUsername: user.externalUsername,

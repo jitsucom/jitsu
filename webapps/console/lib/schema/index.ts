@@ -100,6 +100,8 @@ export const ApiKey = z.object({
   plaintext: z.string().nullish(),
   hash: z.string().nullish(),
   hint: z.string().nullish(),
+  createdAt: z.date().nullish(),
+  lastUsed: z.date().nullish(),
   id: z.string(),
 });
 export type ApiKey = z.infer<typeof ApiKey>;

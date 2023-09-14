@@ -7,7 +7,7 @@ import { ContextApiResponse } from "../lib/schema";
 import { Button } from "antd";
 import { signOut } from "next-auth/react";
 import { firebaseSignOut } from "../lib/firebase-client";
-import { getLog } from "juava";
+import { encrypt, getLog, randomId, rpc } from "juava";
 
 const log = getLog("index");
 
@@ -65,7 +65,28 @@ function WorkspaceRedirect() {
     }
     return <GlobalError error={error} />;
   } else if (data) {
-    if (data.firstWorkspaceSlug || data.firstWorkspaceId) {
+    const origin = router.query.origin as string;
+    const redirect = router.query.redirect as string;
+    if (origin === "jitsu-cli") {
+      if (redirect.match(/http:\/\/localhost:\d{4,5}\//)) {
+        //local request from jitsu-cli
+        rpc("/api/user/cli-key")
+          .then(key => {
+            if (key) {
+              const c = `${origin}-${router.query.c}`;
+              const iv = randomId(32);
+              encrypt(c, iv, JSON.stringify(key));
+              window.location.href = `${router.query.redirect}?c=${iv}${key}`;
+            } else {
+              router.push(`/cli?error=failed+to+get+CLI+key`);
+            }
+          })
+          .catch(err => {
+            router.push(`/cli?error=${encodeURIComponent(err.message)}`);
+          });
+      }
+      router.push(router.query.redirect as string);
+    } else if (data.firstWorkspaceSlug || data.firstWorkspaceId) {
       router.push(`/${data.firstWorkspaceSlug || data.firstWorkspaceId}${data.newUser ? "?welcome=true" : ""}`);
     } else {
       //TODO: seems like we don't need this anymore and there is no such page

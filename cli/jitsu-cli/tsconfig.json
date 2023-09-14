@@ -1,14 +1,27 @@
 {
-  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "sourceMap": true,
-    "rootDir": ".",
     "outDir": "./dist",
-    "declaration": true
+    "rootDir": ".",
+    "noImplicitAny": false,
+    "allowSyntheticDefaultImports": true,
+    "importHelpers": true,
+    "removeComments": true,
+    "target": "ESNext",
+    "module": "esnext",
+    "lib": [
+      "dom","esnext"
+    ],
+    "allowJs": true,
+    "strict": true,
+    "esModuleInterop": true,
+    "moduleResolution": "node",
+    "resolveJsonModule": true
   },
+  "exclude": [
+    "node_modules"
+  ],
   "include": [
-    "./src",
-    "package.json"
+    "src/**/*"
   ]
-
 }
+
