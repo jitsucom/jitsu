@@ -5,6 +5,13 @@ import { requireDefined, rpc } from "juava";
 
 const log = getServerLog("function-run");
 
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: "10mb", // Set desired value here
+    },
+  },
+};
 export type logType = {
   message: string;
   level: string;

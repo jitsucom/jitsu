@@ -33,7 +33,7 @@
   "dependencies": {
     "@swc/core": "^1.3.40",
     "@swc/wasm": "^1.3.40",
-    "vm2": "^3.9.14",
+    "vm2": "^3.9.19",
     "juava": "workspace:*",
     "lodash": "^4.17.21",
     "mongodb": "^5.1.0",

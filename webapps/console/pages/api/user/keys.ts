@@ -15,7 +15,7 @@ const api: Api = {
     handle: async ({ user }) => {
       return await db.prisma().userApiToken.findMany({
         where: { userId: user.internalId },
-        select: { id: true, hint: true },
+        select: { id: true, hint: true, createdAt: true, lastUsed: true },
       });
     },
   },

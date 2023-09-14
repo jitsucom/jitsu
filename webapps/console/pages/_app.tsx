@@ -280,7 +280,7 @@ function NextJsSigninForm() {
             size="large"
             onClick={() => signInAndRedirect("github")}
           >
-            {signup ? "Sign up" : "Sign in"} in with Github
+            {signup ? "Sign up" : "Sign in"} with Github
           </JitsuButton>
           <div className="mt-6 text-textLight">
             {!signup && !appConfig.disableSignup && (

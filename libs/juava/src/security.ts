@@ -50,3 +50,15 @@ export function createAuthorized(tokens: string): Authorizer {
     );
   return (secret: string) => authorizers.find(auth => auth(secret)) !== undefined;
 }
+
+export function encrypt(secret: string, iv: string, value: string): string {
+  const cipher = crypto.createCipheriv("aes-256-ctr", Buffer.from(secret), Buffer.from(iv));
+  const encrypted = Buffer.concat([cipher.update(value), cipher.final()]);
+  return encrypted.toString("hex");
+}
+
+export function decrypt(secret: string, iv: string, value: string): string {
+  const decipher = crypto.createDecipheriv("aes-256-ctr", Buffer.from(secret), Buffer.from(iv));
+  const decrypted = Buffer.concat([decipher.update(Buffer.from(value, "hex")), decipher.final()]);
+  return decrypted.toString();
+}

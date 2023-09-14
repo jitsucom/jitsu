@@ -8,3 +8,4 @@ node_modules
 
 /libs/jitsu-react/dist/
 /examples/nextjs-app/.next/
+/examples/hubspot-function/dist/

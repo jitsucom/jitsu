@@ -92,6 +92,7 @@ model UserApiToken {
   id        String      @id @default(cuid())
   createdAt DateTime    @default(now()) /// @zod.custom(z.coerce.date())
   updatedAt DateTime    @default(now()) @updatedAt /// @zod.custom(z.coerce.date())
+  lastUsed  DateTime? /// @zod.custom(z.coerce.date())
   hint      String
   hash      String
   userId    String
