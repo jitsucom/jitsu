@@ -1,6 +1,6 @@
 packages:
   - "e2e"
-  - "examples/*"
+  - "examples/react-app"
   - "types/*"
   - "webapps/*"
   - "services/*"

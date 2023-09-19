@@ -7,7 +7,9 @@ const AnonymousEventsStoreIdField = "_jitsu_anonymous_id_";
 
 const log = getLog("mongodb");
 
-export const mongodb = getSingleton<MongoClient>("mongodb", createClient);
+export const mongodb = getSingleton<MongoClient>("mongodb", createClient, {
+  optional: true,
+});
 
 async function createClient() {
   const mongodbURL = requireDefined(process.env.MONGODB_URL, "env MONGODB_URL is not defined");

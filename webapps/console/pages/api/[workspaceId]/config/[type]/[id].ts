@@ -13,6 +13,14 @@ function defaultMerge(a, b) {
 
 const log = getServerLog("config-api");
 
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: "20mb", // Set desired value here
+    },
+  },
+};
+
 export const api: Api = {
   url: inferUrl(__filename),
   GET: {

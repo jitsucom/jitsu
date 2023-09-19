@@ -25,3 +25,8 @@ function randomChar(noDigits?: boolean) {
     }
   }
 }
+
+//sanitizes string for usage in file name
+export function sanitize(name: string) {
+  return name.replace(/[^a-zA-Z0-9]+/gi, "-").toLowerCase();
+}

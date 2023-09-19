@@ -1,6 +1,10 @@
 import { NodeVM } from "vm2";
 import { getLog } from "juava";
 import * as swc from "@swc/core";
+import { EventContext, EventsStore, FuncReturn, JitsuFunction, Store } from "@jitsu/protocols/functions";
+import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
+import { createFullContext } from "../context";
+import { isDropResult } from "../index";
 
 const log = getLog("udf-vm2-wrapper");
 
@@ -37,7 +41,19 @@ function throwOnCall(module, prop) {
   };
 }
 
-export const UDFWrapper = (functionId, name, functionCode: string) => {
+export type logType = {
+  message: string;
+  level: string;
+  timestamp: Date;
+  type: string;
+  data?: any;
+};
+
+export const UDFWrapper = (
+  functionId,
+  name,
+  functionCode: string
+): { close: () => void; userFunction: JitsuFunction } => {
   log.atInfo().log(`[${functionId}] Compiling UDF function '${name}'`);
 
   const startMs = new Date().getTime();
@@ -138,3 +154,135 @@ module.exports = wrapped;
     };
   }
 };
+
+export type UDFTestRequest = {
+  functionId: string;
+  functionName: string;
+  code: string;
+  event: AnalyticsServerEvent;
+  config: any;
+  store: any;
+  workspaceId: string;
+};
+
+export type UDFTestResponse = {
+  error?: any;
+  dropped?: boolean;
+  result: FuncReturn;
+  store: any;
+  logs: logType[];
+};
+
+export async function UDFTestRun({
+  functionId: id,
+  functionName: name,
+  code,
+  store,
+  event,
+  config,
+}: UDFTestRequest): Promise<UDFTestResponse> {
+  const logs: logType[] = [];
+  try {
+    const eventContext: EventContext = {
+      geo: {
+        country: {
+          code: "US",
+          isEU: false,
+        },
+        city: {
+          name: "New York",
+        },
+        region: {
+          code: "NY",
+        },
+        location: {
+          latitude: 40.6808,
+          longitude: -73.9701,
+        },
+        postalCode: {
+          code: "11238",
+        },
+      },
+      headers: {},
+      source: {
+        id: "functionsDebugger-streamId",
+      },
+      destination: {
+        id: "functionsDebugger-destinationId",
+        type: "clickhouse",
+        updatedAt: new Date(),
+        hash: "hash",
+      },
+      connection: {
+        id: "functionsDebugger",
+      },
+    };
+
+    const storeImpl: Store = {
+      get: async (key: string) => {
+        return store[key];
+      },
+      set: async (key: string, obj: any) => {
+        store[key] = obj;
+      },
+      del: async (key: string) => {
+        delete store[key];
+      },
+    };
+    const eventsStore: EventsStore = {
+      log(connectionId: string, error: boolean, msg: Record<string, any>) {
+        switch (msg.type) {
+          case "log-info":
+          case "log-warn":
+          case "log-debug":
+          case "log-error":
+            logs.push({
+              message:
+                msg.message?.text +
+                (Array.isArray(msg.message?.args) && msg.message.args.length > 0
+                  ? `, ${msg.message?.args.join(",")}`
+                  : ""),
+              level: msg.type.replace("log-", ""),
+              timestamp: new Date(),
+              type: "log",
+            });
+            break;
+          case "http-request":
+            let statusText;
+            if (msg.error) {
+              statusText = `${msg.error}`;
+            } else {
+              statusText = `${msg.statusText ?? ""}${msg.status ? `(${msg.status})` : ""}`;
+            }
+            logs.push({
+              message: `${msg.method} ${msg.url} :: ${statusText}`,
+              level: msg.error ? "error" : "info",
+              timestamp: new Date(),
+              type: "http",
+              data: {
+                body: msg.body,
+                headers: msg.headers,
+                response: msg.response,
+              },
+            });
+        }
+      },
+    };
+    const ctx = createFullContext(id, eventsStore, storeImpl, eventContext, {}, config);
+    const wrapper = UDFWrapper(id, name, code);
+    const result = await wrapper.userFunction(event, ctx);
+    return {
+      dropped: isDropResult(result),
+      result: typeof result === "undefined" ? event : result,
+      store: store,
+      logs,
+    };
+  } catch (e) {
+    return {
+      error: `${e}`,
+      result: {},
+      store: store ?? {},
+      logs,
+    };
+  }
+}

@@ -8,21 +8,15 @@ const log = getServerLog("function-run");
 export const config = {
   api: {
     bodyParser: {
-      sizeLimit: "10mb", // Set desired value here
+      sizeLimit: "20mb", // Set desired value here
     },
   },
-};
-export type logType = {
-  message: string;
-  level: string;
-  timestamp: Date;
-  type: string;
-  data?: any;
 };
 
 const resultType = z.object({
   error: z.string().optional(),
-  result: z.any(),
+  dropped: z.boolean().optional(),
+  result: z.any().nullish(),
   store: z.record(z.any()),
   logs: z.array(z.any()),
 });

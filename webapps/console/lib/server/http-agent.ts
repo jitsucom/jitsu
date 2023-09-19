@@ -1,8 +1,8 @@
 import { getSingleton } from "juava";
 import Agent, { HttpsAgent } from "agentkeepalive";
 
-export const httpAgent = getSingleton<Agent>("http-agent", createHTTPAgent);
-export const httpsAgent = getSingleton<HttpsAgent>("https-agent", createHTTPSAgent);
+export const httpAgent = getSingleton<Agent>("http-agent", createHTTPAgent, { silent: true });
+export const httpsAgent = getSingleton<HttpsAgent>("https-agent", createHTTPSAgent, { silent: true });
 
 async function createHTTPAgent(): Promise<Agent> {
   const agent = new Agent({ timeout: 300000, freeSocketTimeout: 30000, maxSockets: 1024 });

@@ -9,6 +9,14 @@ import nodeFetch from "node-fetch-commonjs";
 
 const log = getServerLog("test-connection");
 
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: "20mb", // Set desired value here
+    },
+  },
+};
+
 export const api: Api = {
   url: inferUrl(__filename),
   POST: {
