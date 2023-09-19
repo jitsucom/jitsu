@@ -34,8 +34,8 @@ setServerJsonFormat(process.env.LOG_FORMAT === "json");
 
 const log = getLog("rotor");
 const http = express();
-http.use(express.json({ limit: "10mb" }));
-http.use(express.urlencoded({ limit: "10mb" }));
+http.use(express.json({ limit: "20mb" }));
+http.use(express.urlencoded({ limit: "20mb" }));
 
 //cache connections for 20sec
 const connectionsCache = new NodeCache({ stdTTL: 20, checkperiod: 60, useClones: false });

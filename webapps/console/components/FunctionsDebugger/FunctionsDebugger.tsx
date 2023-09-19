@@ -14,13 +14,16 @@ import { ColumnsType } from "antd/es/table";
 import { UTCDate, UTCHeader } from "../DataView/EventsBrowser";
 import { examplePageEvent, exampleTrackEvents, exportIdentifyEvent } from "./example_events";
 import { rpc } from "juava";
-import { logType } from "../../pages/api/[workspaceId]/function/run";
+import { logType } from "@jitsu/core-functions";
+import Convert from "ansi-to-html";
 import dayjs from "dayjs";
 import { defaultFunctionTemplate } from "./code_templates";
 import { FunctionConfig } from "../../lib/schema";
 import { useRouter } from "next/router";
 import { feedbackError } from "../../lib/ui";
+import { Htmlizer } from "../Htmlizer/Htmlizer";
 
+const convert = new Convert({ newline: true });
 const localDate = (date: string | Date) => dayjs(date).format("YYYY-MM-DD HH:mm:ss");
 
 type FunctionsDebuggerProps = {} & EditorComponentProps;
@@ -115,6 +118,7 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
   const [config, setConfig] = useState<any>("{}");
   const [store, setStore] = useState<any>({});
   const [result, setResult] = useState<any>({});
+  const [resultType, setResultType] = useState<"ok" | "drop" | "error">("ok");
   const [logs, setLogs] = useState<logType[]>([]);
   const [unreadErrorLogs, setUnreadErrorLogs] = useState(0);
   const [unreadLogs, setUnreadLogs] = useState(0);
@@ -164,6 +168,7 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
       });
       if (res.error) {
         setResult(res.error);
+        setResultType("error");
         setLogs([
           ...res.logs,
           {
@@ -175,7 +180,20 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
         ]);
       } else {
         setResult(res.result);
-        setLogs(res.logs);
+        setResultType(res.dropped ? "drop" : "ok");
+        if (res.dropped) {
+          setLogs([
+            ...res.logs,
+            {
+              level: "info",
+              type: "log",
+              message: `Further processing will be SKIPPED. Function returned: ${JSON.stringify(result)}`,
+              timestamp: new Date(),
+            },
+          ]);
+        } else {
+          setLogs(res.logs);
+        }
       }
 
       if (!showLogs) {
@@ -194,6 +212,7 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
         },
       ]);
       setResult(errorText);
+      setResultType("error");
     } finally {
       setRunning(false);
     }
@@ -297,7 +316,7 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
                 </div>
               </div>
               <div className={`flex-auto h-full w-1/2 flex flex-col ${showLogs ? "hidden" : "block"}`}>
-                <div className={"flex-auto w-full flex flex-row justify-between mt-2 mb-2 items-end"}>
+                <div className={"flex-auto w-full flex flex-row flex-shrink justify-between mt-2 mb-2 items-end"}>
                   <div>
                     <h2 className="text-lg pl-2">Result:</h2>
                   </div>
@@ -318,20 +337,33 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
                     </Button>
                   </Badge>
                 </div>
-                <div className={`${styles.editor} flex-auto bg-backgroundLight w-full pl-2`}>
-                  <CodeEditor
-                    width={"99.9%"}
-                    language={typeof result !== "string" ? "json" : "text"}
-                    value={typeof result !== "string" ? JSON.stringify(result, null, 2) : result}
-                    onChange={s => {}}
-                    monacoOptions={{
-                      renderLineHighlight: "none",
-                      lineDecorationsWidth: 8,
-                      lineNumbers: "off",
-                      readOnly: true,
-                      folding: false,
-                    }}
-                  />
+                <div className={`${styles.editor} flex-auto h-full bg-backgroundLight w-full pl-2`}>
+                  {resultType === "error" && (
+                    <div className={"font-mono p-2 text-xs"}>
+                      <Htmlizer>{convert.toHtml(result.replaceAll(" ", "&nbsp;"))}</Htmlizer>
+                    </div>
+                  )}
+                  {resultType === "drop" && (
+                    <div className={"font-mono p-2 text-xs"}>
+                      Further processing will be <b>SKIPPED</b>. Function returned:{" "}
+                      <code>{JSON.stringify(result)}</code>.
+                    </div>
+                  )}
+                  {resultType === "ok" && (
+                    <CodeEditor
+                      width={"99.9%"}
+                      language={typeof result !== "string" ? "json" : "text"}
+                      value={typeof result !== "string" ? JSON.stringify(result, null, 2) : result}
+                      onChange={s => {}}
+                      monacoOptions={{
+                        renderLineHighlight: "none",
+                        lineDecorationsWidth: 8,
+                        lineNumbers: "off",
+                        readOnly: true,
+                        folding: false,
+                      }}
+                    />
+                  )}
                 </div>
               </div>
               <div className={`flex-auto h-full w-1/2 flex flex-col ${showLogs ? "block" : "hidden"}`}>
@@ -344,7 +376,7 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
                   </Button>
                 </div>
                 <div
-                  className={`${styles.logs} flex-auto flex flex-column place-content-start flex-wrap pb-4 bg-backgroundLight w-full h-full`}
+                  className={`${styles.logs} flex-auto flex flex-col place-content-start flex-wrap pb-4 bg-backgroundLight w-full h-full`}
                 >
                   {logs.map((log, index) => {
                     const colors = (() => {

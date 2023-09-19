@@ -1,37 +1,45 @@
 import figlet from "figlet";
 import { Command } from "commander";
 import { login } from "./commands/login";
+import { deploy } from "./commands/deploy";
+import { init } from "./commands/init";
+import { build } from "./commands/build";
+import { test } from "./commands/test";
+import { run } from "./commands/run";
 
-//console.log(figlet.textSync("Jitsu CLI", { font: "ANSI Regular", horizontalLayout: "full" }));
+import { jitsuPackageName } from "./lib/version";
+
+console.log(figlet.textSync("Jitsu CLI", { horizontalLayout: "full" }));
 
 const p = new Command();
 
-p.name("jitsu-cli").description("CLI command to create, test and deploy extensions for Jitsu Next");
+p.name(jitsuPackageName).description("CLI command to create, test and deploy extensions for Jitsu Next");
 
 p.command("init")
-  .description("Initialize a new Jitsu extension project in current directory")
+  .description("Initialize a new Jitsu extension project")
   .option(
     "-n, --name <name>",
     "the name of the project. (Optional). By default, interactive prompt is shown to enter the name."
   )
-  .action(options => {
-    console.log("init", options);
-  });
+  .option(
+    "-p, --parent <dir>",
+    "the parent directory of project. (Optional). By default, interactive prompt is shown to enter the parent directory."
+  )
+  .action(init);
 
 p.command("build")
   .description("Build the extension")
-  .action(options => {
-    console.log("build", options);
-  });
+  .option("-d, --dir <dir>", "the directory of project. (Optional). By default, current directory is used")
+  .action(build);
 
 p.command("test")
   .description("Run test provided with the extension")
-  .action(options => {
-    console.log("build", options);
-  });
+  .option("-d, --dir <dir>", "the directory of project. (Optional). By default, current directory is used")
+  .action(test);
 
 p.command("run")
   .description("Check extensions on provided event, config and persistent storage state")
+  .option("-d, --dir <dir>", "the directory of project. (Optional). By default, current directory is used")
   .option(
     "-n, --name <name>",
     "name of function to check (optional). Required if multiple functions are defined in project"
@@ -40,9 +48,7 @@ p.command("run")
   .requiredOption("-e, --event <file_or_json>", "path to file with event json or event json as a string")
   .option("-p, --props <file_or_json>", "path to file with config json or config json as a string (optional)")
   .option("-s, --store <file_or_json>", "path to file with state json or state json as a string (optional)")
-  .action(options => {
-    console.log("run", options);
-  });
+  .action(run);
 
 p.command("login")
   .description("Login to Jitsu and remember credentials in `~/.jitsu/jitsu-cli.json` file")
@@ -52,11 +58,12 @@ p.command("login")
 
 p.command("deploy")
   .description("Deploy functions to Jitsu project")
+  .option("-d, --dir <dir>", "the directory of project. (Optional). By default, current directory is used")
   .option(
     "-w, --workspace <workspace-id>",
     "Id of workspace where to deploy function (Optional). By default, interactive prompt is shown to select workspace"
   )
   .option("-t, --type <type>", "entity type to deploy", "function")
-  .action(login);
+  .action(deploy);
 
 p.parse();

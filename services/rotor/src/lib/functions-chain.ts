@@ -7,7 +7,7 @@ import {
   Store,
   SystemContext,
 } from "@jitsu/protocols/functions";
-import { createFullContext } from "@jitsu/core-functions";
+import { createFullContext, isDropResult } from "@jitsu/core-functions";
 
 import { getErrorMessage, getLog, stopwatch } from "juava";
 import { EnrichedConnectionConfig } from "@jitsu-internal/console/lib/server/fast-store";
@@ -79,8 +79,4 @@ export async function runChain(
     events = newEvents;
   }
   return execLog;
-}
-
-function isDropResult(result: FuncReturn): boolean {
-  return result === "drop" || (Array.isArray(result) && result.length === 0) || result === null || result === false;
 }

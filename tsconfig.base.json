@@ -12,7 +12,8 @@
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "importHelpers": true,
-    "removeComments": true
+    "removeComments": true,
+    "skipLibCheck": true
   },
   "exclude": ["node_modules", "dist", "test_projects", "test", "templates"]
 }
