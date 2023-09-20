@@ -135,12 +135,6 @@ importers:
 
   libs/core-functions:
     dependencies:
-      '@amplitude/analytics-core':
-        specifier: ^2.0.5
-        version: 2.0.5
-      '@amplitude/analytics-node':
-        specifier: ^1.3.3
-        version: 1.3.3
       '@swc/core':
         specifier: ^1.3.40
         version: 1.3.49
@@ -150,6 +144,9 @@ importers:
       agentkeepalive:
         specifier: 4.3.0
         version: 4.3.0
+      dayjs:
+        specifier: ^1.11.10
+        version: 1.11.10
       juava:
         specifier: workspace:*
         version: link:../juava
@@ -159,6 +156,9 @@ importers:
       mongodb:
         specifier: ^5.1.0
         version: 5.2.0
+      object-hash:
+        specifier: ^3.0.0
+        version: 3.0.0
       posthog-node:
         specifier: ^2.4.0
         version: 2.6.0
@@ -172,9 +172,6 @@ importers:
         specifier: 3.21.4
         version: 3.21.4
     devDependencies:
-      '@amplitude/analytics-types':
-        specifier: ^2.2.0
-        version: 2.2.0
       '@jitsu/protocols':
         specifier: workspace:*
         version: link:../../types/protocols
@@ -353,8 +350,8 @@ importers:
         specifier: workspace:*
         version: link:../../libs/core-functions
       dayjs:
-        specifier: ^1.11.7
-        version: 1.11.7
+        specifier: ^1.11.10
+        version: 1.11.10
       express:
         specifier: ^4.18.2
         version: 4.18.2
@@ -531,7 +528,7 @@ importers:
         version: 4.12.0(prisma@4.12.0)
       '@rjsf/antd':
         specifier: 5.10.0
-        version: 5.10.0(@ant-design/icons@5.0.1)(@rjsf/core@5.10.0)(@rjsf/utils@5.10.0)(antd@5.4.2)(dayjs@1.11.7)(react-dom@18.2.0)(react@18.2.0)
+        version: 5.10.0(@ant-design/icons@5.0.1)(@rjsf/core@5.10.0)(@rjsf/utils@5.10.0)(antd@5.4.2)(dayjs@1.11.10)(react-dom@18.2.0)(react@18.2.0)
       '@rjsf/core':
         specifier: 5.10.0
         version: 5.10.0(@rjsf/utils@5.10.0)(react@18.2.0)
@@ -572,8 +569,8 @@ importers:
         specifier: ^2.1.8
         version: 2.1.8
       dayjs:
-        specifier: ^1.11.7
-        version: 1.11.7
+        specifier: ^1.11.10
+        version: 1.11.10
       firebase:
         specifier: ^9.17.1
         version: 9.19.1
@@ -873,35 +870,6 @@ packages:
   /@adobe/css-tools@4.2.0:
     resolution: {integrity: sha512-E09FiIft46CmH5Qnjb0wsW54/YQd69LsxeKUOWawmws1XWvyFGURnAChH0mlr7YPFR1ofwvUQfcL0J3lMxXqPA==}
     dev: true
-
-  /@amplitude/analytics-core@1.2.3:
-    resolution: {integrity: sha512-3WADE8IcxU7ZERMkBb0+JP7t6EekyFPM0djtNKXQaxgGgH3oqQzMmBCg19UnYYiBSHrZkpiMBLHNAvXL6HM7zg==}
-    dependencies:
-      '@amplitude/analytics-types': 1.3.3
-      tslib: 2.5.0
-    dev: false
-
-  /@amplitude/analytics-core@2.0.5:
-    resolution: {integrity: sha512-ke937QKOHFeUuQxwu5fQ5X9x9KUJoe+5XnJ589Fuz0VStWwqQZl7AkgSe85cX45z0bMUdbG7q8u9y/9uaqf2SQ==}
-    dependencies:
-      '@amplitude/analytics-types': 2.2.0
-      tslib: 2.5.0
-    dev: false
-
-  /@amplitude/analytics-node@1.3.3:
-    resolution: {integrity: sha512-G+5EoGcVOOclcNRR57AQcGqg46xNXjG6tsSdF71+Npzc6zTfvDzKDY97ZULBju9TT/FXvhP8LnppAI8umT6qkQ==}
-    dependencies:
-      '@amplitude/analytics-core': 1.2.3
-      '@amplitude/analytics-types': 1.3.3
-      tslib: 2.5.0
-    dev: false
-
-  /@amplitude/analytics-types@1.3.3:
-    resolution: {integrity: sha512-V4/h+izhG7NyVfIva1uhe6bToI/l5n+UnEomL3KEO9DkFoKiOG7KmXo/fmzfU6UmD1bUEWmy//hUFF16BfrEww==}
-    dev: false
-
-  /@amplitude/analytics-types@2.2.0:
-    resolution: {integrity: sha512-HThPlsX5KnxCorQnPVNQR8WZy0/PdgAzlT5n8bubjSmzPEWQgvn8bQzD48wYXoAkEZxlfYlaSnx7IxD5j3N1Dw==}
 
   /@ampproject/remapping@2.2.1:
     resolution: {integrity: sha512-lFMjJTrFL3j7L9yBxwYfCq2k6qqwHyzuUl/XBnif78PWTJYyL/dfowQHWE3sp6U6ZzqWiiIZnpTMO96zhkjwtg==}
@@ -5940,7 +5908,7 @@ packages:
       source-map: 0.7.4
     dev: true
 
-  /@rjsf/antd@5.10.0(@ant-design/icons@5.0.1)(@rjsf/core@5.10.0)(@rjsf/utils@5.10.0)(antd@5.4.2)(dayjs@1.11.7)(react-dom@18.2.0)(react@18.2.0):
+  /@rjsf/antd@5.10.0(@ant-design/icons@5.0.1)(@rjsf/core@5.10.0)(@rjsf/utils@5.10.0)(antd@5.4.2)(dayjs@1.11.10)(react-dom@18.2.0)(react@18.2.0):
     resolution: {integrity: sha512-dj0BVL/g2wtrvNxnlya069H8M9hoserMTEWtRtutLf99nsmiargCei34OhM+MxkKkk+c8SsSv5DlEqPiUa+Low==}
     engines: {node: '>=14'}
     peerDependencies:
@@ -5956,7 +5924,7 @@ packages:
       '@rjsf/utils': 5.10.0(react@18.2.0)
       antd: 5.4.2(react-dom@18.2.0)(react@18.2.0)
       classnames: 2.3.2
-      dayjs: 1.11.7
+      dayjs: 1.11.10
       lodash: 4.17.21
       lodash-es: 4.17.21
       rc-picker: 2.7.2(react-dom@18.2.0)(react@18.2.0)
@@ -9517,7 +9485,7 @@ packages:
       '@rc-component/trigger': 1.8.0(react-dom@18.2.0)(react@18.2.0)
       classnames: 2.3.2
       copy-to-clipboard: 3.3.3
-      dayjs: 1.11.7
+      dayjs: 1.11.10
       qrcode.react: 3.1.0(react@18.2.0)
       rc-cascader: 3.10.1(react-dom@18.2.0)(react@18.2.0)
       rc-checkbox: 3.0.0(react-dom@18.2.0)(react@18.2.0)
@@ -9534,7 +9502,7 @@ packages:
       rc-motion: 2.6.3(react-dom@18.2.0)(react@18.2.0)
       rc-notification: 5.0.3(react-dom@18.2.0)(react@18.2.0)
       rc-pagination: 3.3.1(react-dom@18.2.0)(react@18.2.0)
-      rc-picker: 3.6.2(dayjs@1.11.7)(react-dom@18.2.0)(react@18.2.0)
+      rc-picker: 3.6.2(dayjs@1.11.10)(react-dom@18.2.0)(react@18.2.0)
       rc-progress: 3.4.1(react-dom@18.2.0)(react@18.2.0)
       rc-rate: 2.10.0(react-dom@18.2.0)(react@18.2.0)
       rc-resize-observer: 1.3.1(react-dom@18.2.0)(react@18.2.0)
@@ -11543,8 +11511,8 @@ packages:
   /dateformat@4.6.3:
     resolution: {integrity: sha512-2P0p0pFGzHS5EMnhdxQi7aJN+iMheud0UhG4dlE1DLAlvL8JHjJJTX/CSm4JXwV0Ka5nGk3zC5mcb5bUQUxxMA==}
 
-  /dayjs@1.11.7:
-    resolution: {integrity: sha512-+Yw9U6YO5TQohxLcIkrXBeY73WP3ejHWVvx8XCk3gxvQDCTEmS48ZrSZCKciI7Bhl/uCMyxYtE9UqRILmFphkQ==}
+  /dayjs@1.11.10:
+    resolution: {integrity: sha512-vjAczensTgRcqDERK0SR2XMwsF/tSvnvlv6VcF2GIhg6Sx4yOIt/irsr1RDJsKiIyBzJDpCoXiWWq28MqH2cnQ==}
 
   /deasync@0.1.28:
     resolution: {integrity: sha512-QqLF6inIDwiATrfROIyQtwOQxjZuek13WRYZ7donU5wJPLoP67MnYxA6QtqdvdBy2mMqv5m3UefBVdJjvevOYg==}
@@ -22160,7 +22128,7 @@ packages:
       '@babel/runtime': 7.21.0
       classnames: 2.3.2
       date-fns: 2.29.3
-      dayjs: 1.11.7
+      dayjs: 1.11.10
       moment: 2.29.4
       rc-trigger: 5.3.4(react-dom@18.2.0)(react@18.2.0)
       rc-util: 5.29.3(react-dom@18.2.0)(react@18.2.0)
@@ -22169,7 +22137,7 @@ packages:
       shallowequal: 1.1.0
     dev: false
 
-  /rc-picker@3.6.2(dayjs@1.11.7)(react-dom@18.2.0)(react@18.2.0):
+  /rc-picker@3.6.2(dayjs@1.11.10)(react-dom@18.2.0)(react@18.2.0):
     resolution: {integrity: sha512-acLNCi2WTNAuvTtcEzKp72mU15ni0sqrIKVlEcj04KgLZxhlVPMabCS+Sc8VuOCPJbOcW0XeOydbNnJbWTvzxg==}
     engines: {node: '>=8.x'}
     peerDependencies:
@@ -22192,7 +22160,7 @@ packages:
       '@babel/runtime': 7.21.0
       '@rc-component/trigger': 1.8.0(react-dom@18.2.0)(react@18.2.0)
       classnames: 2.3.2
-      dayjs: 1.11.7
+      dayjs: 1.11.10
       rc-util: 5.29.3(react-dom@18.2.0)(react@18.2.0)
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
