@@ -1,4 +1,5 @@
 const path = require("path");
+const webpack = require("webpack");
 
 const config = {
   entry: "./src/index.ts",
@@ -18,6 +19,9 @@ const config = {
   output: {
     path: path.resolve(__dirname, "dist"),
   },
+  plugins: [
+    new webpack.IgnorePlugin({ resourceRegExp: /^fsevents$/ }), // Ignore MacOS-only module
+  ],
   module: {
     rules: [
       {
