@@ -156,9 +156,6 @@ importers:
       mongodb:
         specifier: ^5.1.0
         version: 5.2.0
-      object-hash:
-        specifier: ^3.0.0
-        version: 3.0.0
       posthog-node:
         specifier: ^2.4.0
         version: 2.6.0
