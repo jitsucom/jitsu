@@ -6,6 +6,7 @@ import { getLog } from "juava";
 import { httpAgent, httpsAgent } from "@jitsu/core-functions/src/functions/lib/http-agent";
 import JSON5 from "json5";
 import { getDistFile, loadPackageJson } from "./shared";
+import isEqual from "lodash/isEqual";
 
 const currentDir = process.cwd();
 
@@ -18,6 +19,7 @@ export async function run({ dir, event, store, props }: { dir?: string; event: a
   const eventJson = parseJson5("event", event);
   const propsJson = parseJson5("props", props);
   const storeJson = parseJson5("store", store);
+  const originalStore = { ...storeJson };
 
   const file = getDistFile(projectDir, packageJson);
   const name = packageJson.name || "function";
@@ -30,8 +32,8 @@ export async function run({ dir, event, store, props }: { dir?: string; event: a
   await httpsAgent.waitInit();
 
   const result = await UDFTestRun({
-    functionId: "test",
-    functionName: "test",
+    functionId: name,
+    functionName: name,
     event: eventJson,
     config: propsJson,
     store: storeJson,
@@ -62,6 +64,12 @@ export async function run({ dir, event, store, props }: { dir?: string; event: a
   } else {
     console.log(JSON.stringify(result.result, null, 2));
   }
+  //if store was changed - print it
+  if (!isEqual(originalStore, storeJson)) {
+    console.log(chalk.bold("Function store was changed:"));
+    console.log(JSON.stringify(storeJson, null, 2));
+  }
+  process.exit(0);
 }
 
 function parseJson5(name: string, jsonOrFilename?: string) {

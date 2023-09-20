@@ -7,13 +7,13 @@ import { build } from "./commands/build";
 import { test } from "./commands/test";
 import { run } from "./commands/run";
 
-import { jitsuPackageName } from "./lib/version";
+import { jitsuCliVersion, jitsuCliPackageName } from "./lib/version";
 
 console.log(figlet.textSync("Jitsu CLI", { horizontalLayout: "full" }));
 
 const p = new Command();
 
-p.name(jitsuPackageName).description("CLI command to create, test and deploy extensions for Jitsu Next");
+p.name(jitsuCliPackageName).description("CLI command to create, test and deploy extensions for Jitsu Next");
 
 p.command("init")
   .description("Initialize a new Jitsu extension project")
@@ -65,5 +65,8 @@ p.command("deploy")
   )
   .option("-t, --type <type>", "entity type to deploy", "function")
   .action(deploy);
+
+//version
+p.version(jitsuCliPackageName + " " + jitsuCliVersion, "-v, --version");
 
 p.parse();

@@ -47,7 +47,7 @@ export async function deploy({ dir, workspace }: { dir?: string; workspace?: str
             name: "workspaceId",
             message: `Select workspace:`,
             choices: workspaces.map(w => ({
-              name: w.name,
+              name: `${w.name} (${w.id})`,
               value: w.id,
             })),
           },

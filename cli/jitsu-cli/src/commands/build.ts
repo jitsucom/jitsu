@@ -36,6 +36,7 @@ export async function build({ dir }: { dir?: string }) {
   const bundle = await rollup({
     input: [indexFile],
     plugins: rollupPlugins,
+    logLevel: "silent",
   });
 
   let format: ModuleFormat = "es";
@@ -47,7 +48,7 @@ export async function build({ dir }: { dir?: string }) {
   mkdirSync(path.resolve(projectDir, "dist"), { recursive: true });
   writeFileSync(path.resolve(projectDir, "dist/index.js"), output.output[0].code);
 
-  console.log(`\nBuild finished.`);
+  console.log(`\n${chalk.bold("Build finished.")}`);
 }
 
 const run = async cmd => {
