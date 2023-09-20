@@ -135,6 +135,9 @@ importers:
 
   libs/core-functions:
     dependencies:
+      '@amplitude/analytics-core':
+        specifier: ^2.0.5
+        version: 2.0.5
       '@amplitude/analytics-node':
         specifier: ^1.3.3
         version: 1.3.3
@@ -169,6 +172,9 @@ importers:
         specifier: 3.21.4
         version: 3.21.4
     devDependencies:
+      '@amplitude/analytics-types':
+        specifier: ^2.2.0
+        version: 2.2.0
       '@jitsu/protocols':
         specifier: workspace:*
         version: link:../../types/protocols
@@ -875,6 +881,13 @@ packages:
       tslib: 2.5.0
     dev: false
 
+  /@amplitude/analytics-core@2.0.5:
+    resolution: {integrity: sha512-ke937QKOHFeUuQxwu5fQ5X9x9KUJoe+5XnJ589Fuz0VStWwqQZl7AkgSe85cX45z0bMUdbG7q8u9y/9uaqf2SQ==}
+    dependencies:
+      '@amplitude/analytics-types': 2.2.0
+      tslib: 2.5.0
+    dev: false
+
   /@amplitude/analytics-node@1.3.3:
     resolution: {integrity: sha512-G+5EoGcVOOclcNRR57AQcGqg46xNXjG6tsSdF71+Npzc6zTfvDzKDY97ZULBju9TT/FXvhP8LnppAI8umT6qkQ==}
     dependencies:
@@ -886,6 +899,9 @@ packages:
   /@amplitude/analytics-types@1.3.3:
     resolution: {integrity: sha512-V4/h+izhG7NyVfIva1uhe6bToI/l5n+UnEomL3KEO9DkFoKiOG7KmXo/fmzfU6UmD1bUEWmy//hUFF16BfrEww==}
     dev: false
+
+  /@amplitude/analytics-types@2.2.0:
+    resolution: {integrity: sha512-HThPlsX5KnxCorQnPVNQR8WZy0/PdgAzlT5n8bubjSmzPEWQgvn8bQzD48wYXoAkEZxlfYlaSnx7IxD5j3N1Dw==}
 
   /@ampproject/remapping@2.2.1:
     resolution: {integrity: sha512-lFMjJTrFL3j7L9yBxwYfCq2k6qqwHyzuUl/XBnif78PWTJYyL/dfowQHWE3sp6U6ZzqWiiIZnpTMO96zhkjwtg==}

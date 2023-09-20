@@ -2,7 +2,9 @@ import { JitsuFunction } from "@jitsu/protocols/functions";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { getEventCustomProperties } from "./lib";
 import { parseUserAgent } from "./lib/browser";
+import { BaseTransport } from "@amplitude/analytics-core";
 import { init, track, flush, identify, Identify, groupIdentify } from "@amplitude/analytics-node";
+import { Payload, Response, Transport } from "@amplitude/analytics-types";
 import { AmplitudeDestinationConfig } from "../meta";
 
 function getHostFromUrl(url: string | undefined): string | undefined {
@@ -72,9 +74,27 @@ const AmplitudeDestination: JitsuFunction<AnalyticsServerEvent, AmplitudeDestina
 ) => {
   const groupType = props.groupType || "group";
   const deviceId = event.anonymousId;
+  class FetchTransport extends BaseTransport implements Transport {
+    async send(serverUrl: string, payload: Payload): Promise<Response | null> {
+      const options = {
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "*/*",
+        },
+        body: JSON.stringify(payload),
+        method: "POST",
+      };
+      const response = await fetch(serverUrl, options);
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      const responsePayload: Record<string, any> = await response.json();
+      return this.buildResponse(responsePayload);
+    }
+  }
+  const transport = new FetchTransport();
   await init(props.key, {
     logLevel: 0,
     serverZone: props.dataResidency,
+    transportProvider: transport,
   }).promise;
   if (event.type === "identify") {
     const identifyObj = new Identify();
