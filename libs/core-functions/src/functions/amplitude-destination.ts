@@ -95,6 +95,7 @@ const AmplitudeDestination: JitsuFunction<AnalyticsServerEvent, AmplitudeDestina
     logLevel: 0,
     serverZone: props.dataResidency,
     transportProvider: transport,
+    flushMaxRetries: 3,
   }).promise;
   if (event.type === "identify") {
     const identifyObj = new Identify();
