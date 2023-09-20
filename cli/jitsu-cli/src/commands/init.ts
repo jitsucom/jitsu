@@ -42,4 +42,6 @@ export async function init({ name, parent }: { name?: string; parent?: string })
     packageName: projectName,
     jitsuVersion: jitsuCliVersion,
   });
+
+  console.log(`Project ${chalk.bold(projectName)} created!`);
 }

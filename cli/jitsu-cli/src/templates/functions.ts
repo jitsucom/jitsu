@@ -1,5 +1,5 @@
 import { ProjectTemplate } from "../lib/template";
-import { jitsuCliVersion, jitsuPackageName } from "../lib/version";
+import { jitsuCliVersion, jitsuCliPackageName } from "../lib/version";
 import { sanitize } from "juava";
 
 export type TemplateVars = {
@@ -17,9 +17,9 @@ export const packageJsonTemplate = ({ packageName, license = "MIT", jitsuVersion
   main: `dist/index.js`,
   scripts: {
     clean: "rm -rf ./dist",
-    build: `${jitsuPackageName} build`,
-    test: `${jitsuPackageName} test`,
-    deploy: `${jitsuPackageName} deploy`,
+    build: `${jitsuCliPackageName} build`,
+    test: `${jitsuCliPackageName} test`,
+    deploy: `${jitsuCliPackageName} deploy`,
   },
   devDependencies: {
     "jitsu-cli": `${jitsuCliVersion}`,
@@ -43,7 +43,9 @@ let functionCode = ({ packageName }: TemplateVars) => {
 import { JitsuFunction } from "@jitsu/protocols/functions";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 
-const ${sanitize(packageName)}: JitsuFunction<AnalyticsServerEvent, any> = async (event, ctx) => {
+const ${sanitize(
+    packageName
+  )}: JitsuFunction<AnalyticsServerEvent, any> = async (event, { log, fetch, props, store, geo, ...meta }) => {
     //TODO: implement function logic
 };
 
@@ -61,6 +63,7 @@ export const functionProjectTemplate: ProjectTemplate<TemplateVars> = ({ package
       outDir: "./dist",
       declaration: true,
       esModuleInterop: true,
+      moduleResolution: "node",
       importHelpers: false,
       module: "esnext",
       lib: ["esnext", "dom"],

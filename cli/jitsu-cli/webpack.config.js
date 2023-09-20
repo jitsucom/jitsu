@@ -9,6 +9,7 @@ const config = {
     "@swc/wasm": "require('@swc/wasm')",
     vm2: "require('vm2')",
     "jest-cli": "require('jest-cli')",
+    "../../package.json": "require('../package.json')",
   },
   node: {
     __dirname: false,
