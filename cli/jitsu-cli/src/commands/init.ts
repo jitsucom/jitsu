@@ -1,12 +1,12 @@
 import inquirer from "inquirer";
-import chalk from "chalk";
 import path from "path";
 import { sanitize } from "juava";
 import { write } from "../lib/template";
 import { functionProjectTemplate } from "../templates/functions";
 import { jitsuCliVersion } from "../lib/version";
+import { b } from "../lib/chalk-code-highlight";
 
-export async function init({ name, parent }: { name?: string; parent?: string }) {
+export async function init({ name, parent, displayname }: { name?: string; parent?: string; displayname?: string }) {
   const currentDir = process.cwd();
 
   const projectName =
@@ -34,14 +34,27 @@ export async function init({ name, parent }: { name?: string; parent?: string })
       ])
     ).dir;
 
+  const functionName =
+    displayname ||
+    (
+      await inquirer.prompt([
+        {
+          type: "input",
+          name: "functionName",
+          message: `Enter function name. Human readable function name that will be used in Jitsu:`,
+        },
+      ])
+    ).functionName;
+
   const projectDir = path.resolve(parentDir, sanitize(projectName));
 
-  console.log(`Creating project ${chalk.bold(projectName)}. Path: ${projectDir}`);
+  console.log(`Creating project ${b(projectName)}. Path: ${projectDir}`);
 
   write(projectDir, functionProjectTemplate, {
     packageName: projectName,
+    functionName: functionName,
     jitsuVersion: jitsuCliVersion,
   });
 
-  console.log(`Project ${chalk.bold(projectName)} created!`);
+  console.log(`Project ${b(projectName)} created!`);
 }

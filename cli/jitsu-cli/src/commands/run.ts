@@ -1,19 +1,30 @@
 import chalk from "chalk";
-import { readFileSync, existsSync } from "fs";
+import { readFileSync, existsSync, readdirSync } from "fs";
 import path from "path";
 import { UDFTestRun } from "@jitsu/core-functions";
 import { getLog } from "juava";
 import { httpAgent, httpsAgent } from "@jitsu/core-functions/src/functions/lib/http-agent";
 import JSON5 from "json5";
-import { getDistFile, loadPackageJson } from "./shared";
+import { loadPackageJson } from "./shared";
 import isEqual from "lodash/isEqual";
+import { b, red } from "../lib/chalk-code-highlight";
 
 const currentDir = process.cwd();
 
-export async function run({ dir, event, store, props }: { dir?: string; event: any; store?: any; props?: any }) {
+export async function run({
+  dir,
+  name,
+  event,
+  store,
+  props,
+}: {
+  dir?: string;
+  name;
+  event: any;
+  store?: any;
+  props?: any;
+}) {
   const projectDir = dir || currentDir;
-  console.log(`Running ${chalk.bold(projectDir)}`);
-
   const packageJson = loadPackageJson(projectDir);
 
   const eventJson = parseJson5("event", event);
@@ -21,26 +32,58 @@ export async function run({ dir, event, store, props }: { dir?: string; event: a
   const storeJson = parseJson5("store", store);
   const originalStore = { ...storeJson };
 
-  const file = getDistFile(projectDir, packageJson);
-  const name = packageJson.name || "function";
-  const log = getLog({
-    level: "debug",
-    component: name,
-  });
-
   await httpAgent.waitInit();
   await httpsAgent.waitInit();
 
+  const functionsDir = path.resolve(projectDir, "dist/functions");
+  if (!existsSync(functionsDir)) {
+    console.error(red(`Can't find dist directory: ${b(functionsDir)} . Please build project first.`));
+    process.exit(1);
+  }
+  const fname = name ? (name.endsWith(".js") ? name : `${name.replace(".ts", "")}.js`) : undefined;
+  const functionsFiles = readdirSync(functionsDir);
+  let functionFile: string | undefined = undefined;
+  if (!name && functionsFiles.length === 1) {
+    functionFile = functionsFiles[0];
+  }
+  if (name) {
+    functionFile = functionsFiles.find(f => f === fname);
+  } else {
+    console.error(
+      red(
+        `Directory ${b("dist/functions")} contain multiple functions. Please choose the one to run with ${b(
+          "-n"
+        )} parameter.`
+      )
+    );
+    process.exit(1);
+  }
+  if (!functionFile) {
+    console.error(
+      red(
+        `Can't find function file: ${b(fname)} in ${b(
+          "dist/functions"
+        )} directory. Please make sure that you have built the project.`
+      )
+    );
+    process.exit(1);
+  }
+  console.log(`Running ${b(functionFile)}`);
+  const n = functionFile.replace(".js", "");
+  const log = getLog({
+    level: "debug",
+    component: n,
+  });
   const result = await UDFTestRun({
-    functionId: name,
-    functionName: name,
+    functionId: n,
+    functionName: n,
     event: eventJson,
     config: propsJson,
     store: storeJson,
-    code: readFileSync(file, "utf-8"),
+    code: readFileSync(path.resolve(functionsDir, functionFile), "utf-8"),
     workspaceId: "test",
   });
-  console.log(chalk.bold("Function logs:"));
+  console.log(b("Function logs:"));
   for (const logItem of result.logs) {
     const logFunc = (() => {
       switch (logItem.level) {
@@ -56,7 +99,7 @@ export async function run({ dir, event, store, props }: { dir?: string; event: a
     })();
     logFunc.log(logItem.message);
   }
-  console.log(chalk.bold("Function result:"));
+  console.log(b("Function result:"));
   if (result.error) {
     log.atError().log("Error:", result.error);
   } else if (result.dropped) {
@@ -66,7 +109,7 @@ export async function run({ dir, event, store, props }: { dir?: string; event: a
   }
   //if store was changed - print it
   if (!isEqual(originalStore, storeJson)) {
-    console.log(chalk.bold("Function store was changed:"));
+    console.log(b("Function store was changed:"));
     console.log(JSON.stringify(storeJson, null, 2));
   }
   process.exit(0);

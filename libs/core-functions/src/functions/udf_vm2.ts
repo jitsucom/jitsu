@@ -53,7 +53,7 @@ export const UDFWrapper = (
   functionId,
   name,
   functionCode: string
-): { close: () => void; userFunction: JitsuFunction } => {
+): { close: () => void; userFunction: JitsuFunction; meta: any } => {
   log.atInfo().log(`[${functionId}] Compiling UDF function '${name}'`);
 
   const startMs = new Date().getTime();
@@ -103,16 +103,18 @@ export const UDFWrapper = (
     });
 
     //const userFunction = vm.run(functionCode, `${functionId}.js`);
-    const userFunction = vm.run(
+    const wrapped = vm.run(
       `${functionCode}
 const exported = module.exports;
 let userFunction;
+let meta;
 if (typeof exported === "function") {
   userFunction = exported;
 } else {
   userFunction = exported.default;
-  if (!userFunction && Object.keys(exported).length === 1) {
-    userFunction = exported[Object.keys(exported)[0]];
+  meta = exported.config;
+  if (!userFunction && Object.keys(exported).length > 0) {
+    userFunction = Object.values(exported).find(v => typeof v === "function");
   }
 }
 const wrapped = async function(event, ctx) {
@@ -133,16 +135,17 @@ const wrapped = async function(event, ctx) {
     };
   return userFunction(event, ctx);
 }
-module.exports = wrapped;
+module.exports = {userFunction: wrapped, meta };
 `,
       `${functionId}.js`
     );
-    if (!userFunction || typeof userFunction !== "function") {
+    if (!wrapped || typeof wrapped.userFunction !== "function") {
       throw new Error("Function not found. Please export default function.");
     }
     log.atInfo().log(`[${functionId}] udf compile time ${new Date().getTime() - startMs}ms`);
     return {
-      userFunction,
+      userFunction: wrapped.userFunction,
+      meta: wrapped.meta,
       close: () => {},
     };
   } catch (e) {
@@ -150,6 +153,7 @@ module.exports = wrapped;
       userFunction: () => {
         throw new Error(`Cannot compile function: ${e}`);
       },
+      meta: {},
       close: () => {},
     };
   }

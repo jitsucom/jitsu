@@ -11,9 +11,12 @@ export const defaultColorScheme = {
   "function-variable": null,
 };
 
+export const b = chalk.bold;
+export const red = chalk.red;
+
 function chalkString(expr: string, str: string): string {
   if (expr.startsWith("b")) {
-    return chalk.bold(chalkString(expr.substring(1), str));
+    return b(chalkString(expr.substring(1), str));
   } else {
     return chalk.hex(expr)(str);
   }
