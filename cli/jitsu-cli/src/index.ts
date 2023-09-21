@@ -23,7 +23,7 @@ p.command("init")
   )
   .option(
     "-N, --displayname <name>",
-    "human readable function name that will be used in Jitsu. (Optional). By default, interactive prompt is shown to enter the name."
+    "human-readable function name that will be used in Jitsu. (Optional). By default, interactive prompt is shown to enter the name."
   )
   .option(
     "-p, --parent <dir>",

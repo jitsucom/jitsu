@@ -60,7 +60,7 @@ export default ${sanitize(packageName)};
 };
 
 export const functionProjectTemplate: ProjectTemplate<TemplateVars> = ({ packageName }: TemplateVars) => ({
-  [`__test__/${sanitize(packageName)}.test.ts`]: functionTest,
+  [`__test__/functions/${sanitize(packageName)}.test.ts`]: functionTest,
   [`src/functions/${sanitize(packageName)}.ts`]: functionCode,
   "package.json": packageJsonTemplate,
   "tsconfig.json": {
