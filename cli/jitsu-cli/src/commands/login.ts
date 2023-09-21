@@ -4,7 +4,7 @@ import { decrypt, randomId } from "juava";
 import { writeFileSync, mkdirSync } from "fs";
 import { homedir } from "os";
 import readline from "readline";
-import chalk from "chalk";
+import { red } from "../lib/chalk-code-highlight";
 
 const origin = "jitsu-cli";
 
@@ -46,6 +46,8 @@ export async function login({ host, apikey }: { host: string; apikey?: string })
               rl.close();
             });
             server.close();
+          } else {
+            console.log("Opening a browser window to proceed with authorization...");
           }
         }
       }, 100);
@@ -59,7 +61,7 @@ export async function login({ host, apikey }: { host: string; apikey?: string })
         process.exit(0);
       } else {
         const err = req.query.err as string;
-        console.error(chalk.red(`${chalk.red("Error: ")}${err}`));
+        console.error(red(`Error: ${err}`));
         res.setHeader("Location", `${url}/cli?err=${err}`);
         res.status(302).send();
         server.close();
@@ -85,7 +87,7 @@ function processCode(code: string, key: string, host: string) {
     );
     console.info(`\nSuccess!`);
   } catch (e) {
-    console.error(`\n${chalk.red("Incorrect code value")}`);
+    console.error(`\n${red("Incorrect code value")}`);
     process.exit(1);
   }
 }

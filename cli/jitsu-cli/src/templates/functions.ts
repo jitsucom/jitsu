@@ -5,6 +5,7 @@ import { sanitize } from "juava";
 export type TemplateVars = {
   license?: "MIT" | "Other";
   packageName: string;
+  functionName: string;
   jitsuVersion?: string;
 };
 
@@ -14,7 +15,6 @@ export const packageJsonTemplate = ({ packageName, license = "MIT", jitsuVersion
   description: `Jitsu extension - ${packageName}`,
   license: license,
   keywords: ["jitsu", "jitsu-cli", "function", `jitsu-extension`],
-  main: `dist/index.js`,
   scripts: {
     clean: "rm -rf ./dist",
     build: `${jitsuCliPackageName} build`,
@@ -38,10 +38,16 @@ test("${sanitize(packageName)} test", () => {
 `;
 };
 
-let functionCode = ({ packageName }: TemplateVars) => {
+let functionCode = ({ packageName, functionName }: TemplateVars) => {
   return `
 import { JitsuFunction } from "@jitsu/protocols/functions";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
+
+export const config = {
+    slug: "${sanitize(packageName)}", //id (uniq per workspace) used to identify function in Jitsu
+    name: "${functionName.replaceAll('"', '\\"')}", //human readable name of function
+    description: ""
+};
 
 const ${sanitize(
     packageName
@@ -55,7 +61,7 @@ export default ${sanitize(packageName)};
 
 export const functionProjectTemplate: ProjectTemplate<TemplateVars> = ({ packageName }: TemplateVars) => ({
   [`__test__/${sanitize(packageName)}.test.ts`]: functionTest,
-  [`src/index.ts`]: functionCode,
+  [`src/functions/${sanitize(packageName)}.ts`]: functionCode,
   "package.json": packageJsonTemplate,
   "tsconfig.json": {
     compilerOptions: {

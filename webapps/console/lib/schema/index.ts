@@ -133,6 +133,9 @@ export const FunctionConfig = ConfigEntityBase.merge(
   z.object({
     name: z.string(),
     code: z.string(),
+    description: z.string().optional(),
+    origin: z.string().optional(),
+    slug: z.string().optional(),
   })
 );
 export type FunctionConfig = z.infer<typeof FunctionConfig>;

@@ -1,6 +1,6 @@
 import chalk from "chalk";
 import path from "path";
-import { existsSync, writeFileSync, mkdirSync } from "fs";
+import { existsSync, writeFileSync, mkdirSync, readdirSync } from "fs";
 import typescript from "@rollup/plugin-typescript";
 import resolve from "@rollup/plugin-node-resolve";
 import commonjs from "@rollup/plugin-commonjs";
@@ -8,47 +8,52 @@ import rollupJson from "@rollup/plugin-json";
 import { ModuleFormat, rollup } from "rollup";
 import { exec } from "child_process";
 import { loadPackageJson } from "./shared";
+import { b } from "../lib/chalk-code-highlight";
 
 export async function build({ dir }: { dir?: string }) {
   const projectDir = dir || process.cwd();
-  console.log(`Building project in ${chalk.bold(projectDir)}`);
-
   const packageJson = loadPackageJson(projectDir);
 
-  const indexFile = path.resolve(projectDir, "src/index.ts");
+  console.log(`Building ${b(packageJson.name)} project`);
 
-  process.chdir(projectDir);
+  //list files in src directory
+  const functionsDir = path.resolve(projectDir, "src/functions");
+  const files = readdirSync(functionsDir);
+  if (files.length === 0) {
+    console.error(`No functions found in ${b("/src/functions")} directory`);
+    process.exit(0);
+  }
+  for (const file of files) {
+    console.log(`Building function ${b(file)}`);
+    const funcFile = path.resolve(functionsDir, file);
 
-  const tsconfigPath = path.resolve(projectDir, "tsconfig.json");
-  if (!existsSync(tsconfigPath)) {
-    //workaround for bug https://github.com/rollup/plugins/issues/1572
-    writeFileSync(tsconfigPath, "{}");
+    process.chdir(projectDir);
+
+    const rollupPlugins = [
+      typescript(),
+      resolve({ preferBuiltins: false }),
+      commonjs(),
+      rollupJson(),
+      // terser(),
+    ];
+
+    const bundle = await rollup({
+      input: [funcFile],
+      plugins: rollupPlugins,
+      logLevel: "silent",
+    });
+
+    let format: ModuleFormat = "es";
+    let output = await bundle.generate({
+      dir: projectDir,
+      format: format,
+    });
+
+    mkdirSync(path.resolve(projectDir, "dist/functions"), { recursive: true });
+    writeFileSync(path.resolve(projectDir, `dist/functions/${file.replace(".ts", ".js")}`), output.output[0].code);
   }
 
-  const rollupPlugins = [
-    typescript(),
-    resolve({ preferBuiltins: false }),
-    commonjs(),
-    rollupJson(),
-    // terser(),
-  ];
-
-  const bundle = await rollup({
-    input: [indexFile],
-    plugins: rollupPlugins,
-    logLevel: "silent",
-  });
-
-  let format: ModuleFormat = "es";
-  let output = await bundle.generate({
-    dir: projectDir,
-    format: format,
-  });
-
-  mkdirSync(path.resolve(projectDir, "dist"), { recursive: true });
-  writeFileSync(path.resolve(projectDir, "dist/index.js"), output.output[0].code);
-
-  console.log(`\n${chalk.bold("Build finished.")}`);
+  console.log(`${b("Build finished.")}`);
 }
 
 const run = async cmd => {

@@ -1,6 +1,7 @@
 import pkg from "../../package.json";
 import chalk from "chalk";
 import semver from "semver/preload";
+import { b } from "./chalk-code-highlight";
 const fetch = require("cross-fetch");
 
 export const jitsuCliVersion = pkg.version;
@@ -9,9 +10,9 @@ let newVersion = undefined;
 
 export function getUpgradeMessage(newVersion: string, oldVersion: string) {
   return box(
-    `🚀 New version of Jitsu CLI is available: ${oldVersion} → ${chalk.green(newVersion)} \n   Run ${chalk.bold(
+    `🚀 New version of Jitsu CLI is available: ${oldVersion} → ${chalk.green(newVersion)} \n   Run ${b(
       "npm install -g " + jitsuCliPackageName
-    )} or ${chalk.bold("yarn global install " + jitsuCliPackageName)}`
+    )} or ${b("yarn global install " + jitsuCliPackageName)}`
   );
 }
 function padRight(str: string, minLen: number, symbol: string = " ") {

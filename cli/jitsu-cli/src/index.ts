@@ -19,7 +19,11 @@ p.command("init")
   .description("Initialize a new Jitsu extension project")
   .option(
     "-n, --name <name>",
-    "the name of the project. (Optional). By default, interactive prompt is shown to enter the name."
+    "the name of the project. It will be used as a package name and directory name. (Optional). By default, interactive prompt is shown to enter the name."
+  )
+  .option(
+    "-N, --displayname <name>",
+    "human readable function name that will be used in Jitsu. (Optional). By default, interactive prompt is shown to enter the name."
   )
   .option(
     "-p, --parent <dir>",
@@ -42,18 +46,18 @@ p.command("run")
   .option("-d, --dir <dir>", "the directory of project. (Optional). By default, current directory is used")
   .option(
     "-n, --name <name>",
-    "name of function to check (optional). Required if multiple functions are defined in project"
+    "name of function file to check (optional). Required if multiple functions are defined in project"
   )
   .option("-t, --type <type>", "entity type to run", "function")
   .requiredOption("-e, --event <file_or_json>", "path to file with event json or event json as a string")
-  .option("-p, --props <file_or_json>", "path to file with config json or config json as a string (optional)")
-  .option("-s, --store <file_or_json>", "path to file with state json or state json as a string (optional)")
+  .option("-p, --props <file_or_json>", "path to file with config json or config json as a string. (Optional)")
+  .option("-s, --store <file_or_json>", "path to file with state json or state json as a string. (Optional)")
   .action(run);
 
 p.command("login")
   .description("Login to Jitsu and remember credentials in `~/.jitsu/jitsu-cli.json` file")
   .option("--host <host>", "Jitsu host or base url", "https://use.jitsu.com")
-  .option("-k, --apikey <api-key>", "Jitsu user's Api Key (optional). Disables interactive login.")
+  .option("-k, --apikey <api-key>", "Jitsu user's Api Key. (Optional). Disables interactive login.")
   .action(login);
 
 p.command("deploy")
@@ -64,6 +68,7 @@ p.command("deploy")
     "Id of workspace where to deploy function (Optional). By default, interactive prompt is shown to select workspace"
   )
   .option("-t, --type <type>", "entity type to deploy", "function")
+  .option("-n, --name <name...>", "limit deploy to provided entities only. (Optional)")
   .action(deploy);
 
 //version
