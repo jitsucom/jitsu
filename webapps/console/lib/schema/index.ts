@@ -134,6 +134,7 @@ export const FunctionConfig = ConfigEntityBase.merge(
     name: z.string(),
     code: z.string(),
     description: z.string().optional(),
+    version: z.string().optional(),
     origin: z.string().optional(),
     slug: z.string().optional(),
   })
