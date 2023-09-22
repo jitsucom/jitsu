@@ -23,7 +23,38 @@ function LoadAndBlockIfNeed() {
     return <></>;
   }
   assertDefined(usage);
-  if (usage.usagePercentage > 1) {
+  if (billing.settings?.pastDue) {
+    return (
+      <Modal
+        style={{ minWidth: 1000 }}
+        open={true}
+        title={
+          <div className="flex items-center space-x-4">
+            <AlertTriangle className="w-8 h-8 text-error" />
+            <h2 className="text-4xl">Your subscription is past-due.</h2>
+          </div>
+        }
+        closable={false}
+        footer={
+          <div className="w-full">
+            <WJitsuButton
+              href={`/settings/billing`}
+              className="w-full"
+              size="large"
+              type="primary"
+              icon={<ArrowRight className="-rotate-45 w-4 h-4" />}
+            >
+              Manage Billing {"&"} Plan
+            </WJitsuButton>
+          </div>
+        }
+      >
+        <div className="text-lg my-12">
+          You have unpaid invoices. Please arrange the payment as soon as possible to avoid service interruption
+        </div>
+      </Modal>
+    );
+  } else if (usage.usagePercentage > 1) {
     return (
       <Modal
         style={{ minWidth: 1000 }}
@@ -61,7 +92,7 @@ export function usageExceeded(billing: UseBillingResult, workspace: WorkspaceCon
   return (
     !billing.enabled ||
     billing.loading ||
-    billing.settings.planId !== "free" ||
+    (billing.settings.planId !== "free" && !billing.settings.pastDue) ||
     workspace.featuresEnabled.includes("noblock")
   );
 }

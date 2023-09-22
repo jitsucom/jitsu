@@ -23,6 +23,7 @@ export type ContextApiResponse = z.infer<typeof ContextApiResponse>;
 //Default values are for "free" (default) plan
 export const BillingSettings = z.object({
   planId: z.string().default("free"),
+  pastDue: z.boolean().default(false).optional(),
   dailyActiveSyncs: z.number().default(1).optional(),
   dailyActiveSyncsOverage: z.number().default(10).optional(),
   maximumSyncFrequency: z.number().optional(), //minutes

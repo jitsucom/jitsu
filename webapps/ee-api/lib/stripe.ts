@@ -57,28 +57,34 @@ export async function getActivePlan(customerId: string): Promise<null | Subscrip
     sub2product.set(sub.id, product);
   }
   //fist, look for active non-legacy plans
-  const activeNonLegacy = subscriptions.data.find(sub => {
+  const activeSubscription = subscriptions.data.find(sub => {
     const product = requireDefined(sub2product.get(sub.id), `Can't find product for subscription ${sub.id}`);
-    return sub.status === "active" && product.metadata?.object_tag === getStripeObjectTag();
+    return sub.status === "active" || product.metadata?.object_tag === getStripeObjectTag();
   });
-  if (activeNonLegacy) {
+  const pastDueSubscription = subscriptions.data.find(sub => {
+    const product = requireDefined(sub2product.get(sub.id), `Can't find product for subscription ${sub.id}`);
+    return sub.status === "past_due" || product.metadata?.object_tag === getStripeObjectTag();
+  });
+  const subscription = activeSubscription || pastDueSubscription;
+  if (subscription) {
     const product = requireDefined(
-      sub2product.get(activeNonLegacy.id),
-      `Can't find product for subscription ${activeNonLegacy.id}`
+      sub2product.get(subscription.id),
+      `Can't find product for subscription ${subscription.id}`
     );
     return {
       planId: requireDefined(product.metadata?.jitsu_plan_id),
       planName: product.name,
-      expiresAt: new Date(activeNonLegacy.current_period_end * 1000).toISOString(),
-      renewAfterExpiration: !activeNonLegacy.cancel_at_period_end,
+      expiresAt: new Date(subscription.current_period_end * 1000).toISOString(),
+      renewAfterExpiration: !subscription.cancel_at_period_end,
+      pastDue: pastDueSubscription && !activeSubscription,
       ...JSON.parse(requireDefined(product.metadata?.plan_data, `Can't find plan data for product ${product.id}`)),
     };
   }
   //second, look for just cancelled non-legacy plans
-  const canceledNonLegacy = subscriptions.data.find(sub => {
+  const pastDue = subscriptions.data.find(sub => {
     const product = requireDefined(sub2product.get(sub.id), `Can't find product for subscription ${sub.id}`);
     if (
-      sub.status === "canceled" &&
+      sub.status === "past_due" &&
       product.metadata?.object_tag === getStripeObjectTag() &&
       sub.cancel_at_period_end
     ) {

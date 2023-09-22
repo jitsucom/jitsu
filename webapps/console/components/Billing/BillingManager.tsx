@@ -5,7 +5,7 @@ import { assertDefined, assertFalse, assertTrue, requireDefined, rpc } from "jua
 import { BillingSettings } from "../../lib/schema";
 import { Alert, Button, Progress, Skeleton, Tooltip } from "antd";
 import Link from "next/link";
-import { Check, Edit2, Info, XCircle } from "lucide-react";
+import { Check, Edit2, ExternalLink, Info, XCircle } from "lucide-react";
 
 import styles from "./BillingManager.module.css";
 import { useQuery } from "@tanstack/react-query";
@@ -59,6 +59,7 @@ const ComparisonSection: React.FC<{
 
 const UsageSection: React.FC<{}> = () => {
   const billing = useBilling();
+  const workspace = useWorkspace();
   assertTrue(billing.enabled);
   assertFalse(billing.loading, "Billing must be loaded before using UsageSection component");
 
@@ -98,6 +99,31 @@ const UsageSection: React.FC<{}> = () => {
         {formatNumber(Math.round(usage?.events))} / {formatNumber(usage.maxAllowedDestinatonEvents)} destination events
         used from <i>{startStr}</i> to <i>{endStr}</i>. The quota will be reset on <i>{endStr}</i>.
       </div>
+      {billing.settings?.pastDue && (
+        <div className="mt-8">
+          <Alert
+            message={<h4 className="text-xl">You have unpaid invoices!</h4>}
+            description={
+              <div className="text-lg">
+                Please{" "}
+                <Link
+                  prefetch={false}
+                  className=""
+                  href={`/api/${workspace.id}/ee/billing/manage?returnUrl=${encodeURIComponent(window.location.href)}`}
+                >
+                  <span className="inline-flex items-center space-x-1">
+                    <span>update your payment method</span>
+                    <ExternalLink className="w-5 h-5" />
+                  </span>
+                </Link>{" "}
+                to avoid service interruption
+              </div>
+            }
+            type="error"
+            showIcon
+          />
+        </div>
+      )}
       {usageExceeded && (
         <div className="mt-8">
           <Alert
