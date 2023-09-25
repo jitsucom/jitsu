@@ -51,7 +51,7 @@ const $wrappedUserFunction = async function (eventcopy, ctxcopy) {
       ...c.store,
       get: async key => {
         const res = await c.store.get.apply(undefined, [key], { arguments: { copy: true }, result: { promise: true } });
-        return JSON.parse(res);
+        return res ? JSON.parse(res) : undefined;
       },
     },
     fetch: async (url, opts) => {
@@ -61,11 +61,23 @@ const $wrappedUserFunction = async function (eventcopy, ctxcopy) {
       return {
         ...r,
         json: async () => {
-          return JSON.parse(r.text);
+          return JSON.parse(r.body);
         },
         text: async () => {
-          return r.text;
+          return r.body;
         },
+        arrayBuffer: async () => {
+            throw new Error("Method 'arrayBuffer' is not implemented");
+        },
+        blob: async () => {
+            throw new Error("Method 'blob' is not implemented");
+        },
+        formData: async () => {
+            throw new Error("Method 'formData' is not implemented");
+        },
+        clone: async () => {
+            throw new Error("Method 'clone' is not implemented");
+        }
       };
     },
   };
@@ -152,9 +164,12 @@ export const UDFWrapper = (functionId, name, functionCode: string): UDFWrapperRe
                   status: res.status,
                   statusText: res.statusText,
                   type: res.type,
+                  redirected: res.redirected,
+                  body: text,
+                  bodyUsed: true,
+                  url: res.url,
                   ok: res.ok,
                   headers: headers,
-                  text: text,
                 };
                 return JSON.stringify(j);
               }),
