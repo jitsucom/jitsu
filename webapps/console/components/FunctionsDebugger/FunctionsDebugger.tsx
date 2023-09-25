@@ -397,7 +397,7 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
                   </Button>
                 </div>
                 <div
-                  className={`${styles.logs} flex-auto flex flex-col place-content-start flex-wrap pb-4 bg-backgroundLight w-full h-full`}
+                  className={`${styles.logs} flex-auto flex flex-col place-content-start flex-nowrap pb-4 bg-backgroundLight w-full h-full`}
                 >
                   {logs.map((log, index) => {
                     const colors = (() => {

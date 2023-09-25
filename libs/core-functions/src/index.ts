@@ -49,9 +49,8 @@ export function isDropResult(result: FuncReturn): boolean {
 }
 
 export * as bulkerDestination from "./functions/bulker-destination";
-export { UDFWrapper, UDFTestRun } from "./functions/udf_vm2";
-export type { UDFTestRequest, UDFTestResponse, logType } from "./functions/udf_vm2";
-
+export { UDFWrapper, UDFTestRun } from "./functions/udf_wrapper";
+export type { UDFTestRequest, UDFTestResponse, logType } from "./functions/udf_wrapper";
 export { createFullContext } from "./context";
 export * as mixpanelDestination from "./functions/mixpanel-destination";
 export * as ga4Destination from "./functions/ga4-destination";

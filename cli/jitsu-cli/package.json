@@ -16,10 +16,10 @@
     "run": "node dist/main.js"
   },
   "dependencies": {
-    "vm2": "^3.9.19",
+    "isolated-vm": "^4.6.0",
     "jest-cli": "^29.7.0",
-    "@swc/core": "^1.3.40",
-    "@swc/wasm": "^1.3.40",
+    "@swc/core": "^1.3.88",
+    "@swc/wasm": "^1.3.89",
     "figlet": "^1.6.0",
     "tslib": "^2.6.2"
   },
