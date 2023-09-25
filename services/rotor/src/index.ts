@@ -149,7 +149,20 @@ export async function rotorMessageHandler(_message: string | undefined) {
         return {
           id: f.functionId as string,
           config: f.functionOptions as any,
-          exec: cached.wrapper.userFunction,
+          exec: async (event, ctx) => {
+            try {
+              return await cached.wrapper.userFunction(event, ctx);
+            } catch (e: any) {
+              if (e?.message === "Isolate is disposed") {
+                log.atError().log(`UDF ${functionId} VM was disposed. Reloading`);
+                cached = { wrapper: UDFWrapper(functionId, userFunctionObj.name, code), hash: codeHash };
+                udfCache.set(functionId, cached);
+                return await cached.wrapper.userFunction(event, ctx);
+              } else {
+                throw e;
+              }
+            }
+          },
           context: {},
         };
       } else {
