@@ -48,7 +48,7 @@
     "classnames": "^2.3.1",
     "cookie": "^0.5.0",
     "cuid": "^2.1.8",
-    "dayjs": "^1.11.7",
+    "dayjs": "^1.11.10",
     "firebase": "^9.17.1",
     "firebase-admin": "^11.5.0",
     "googleapis": "^100.0.0",

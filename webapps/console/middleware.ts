@@ -25,6 +25,12 @@ export async function middleware(request: NextRequest) {
     response = NextResponse.rewrite(new URL("/api/s/javascript-library", request.url));
   } else if (request.nextUrl.pathname.startsWith("/v1/batch")) {
     response = NextResponse.rewrite(new URL("/api/s/batch", request.url));
+  } else if (request.nextUrl.pathname.startsWith("/v1/b")) {
+    response = NextResponse.rewrite(new URL("/api/s/batch", request.url));
+  } else if (request.nextUrl.pathname.startsWith("/v1/projects/")) {
+    // mimic segments setting endpoint
+    // https://cdn-settings.segment.com/v1/projects/<writekey>/settings
+    response = NextResponse.json({});
   } else {
     response = NextResponse.next();
   }
