@@ -5,7 +5,7 @@ const config = {
   entry: "./src/index.ts",
   target: "node",
   externals: {
-    vm2: "require('vm2')",
+    "isolated-vm": "require('isolated-vm')",
   },
   node: {
     __dirname: false,

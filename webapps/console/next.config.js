@@ -73,7 +73,7 @@ module.exports = {
       config.plugins.push(new opts.webpack.IgnorePlugin({ resourceRegExp: /^mongodb$/ }));
       config.plugins.push(new opts.webpack.IgnorePlugin({ resourceRegExp: /^posthog-node$/ }));
     }
-    config.externals.vm2 = "require('vm2')";
+    config.externals["isolated-vm"] = "require('isolated-vm')";
     config.module.rules.push({
       test: /\.txt$/,
       use: "raw-loader",
