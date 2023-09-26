@@ -22,6 +22,7 @@ import { formatDateOnly, formatTime, SyncTitle } from "./index";
 import { ButtonGroup, ButtonProps } from "../../../components/ButtonGroup/ButtonGroup";
 import { rpc } from "juava";
 import { feedbackError } from "../../../lib/ui";
+import hash from "object-hash";
 
 dayjs.extend(utc);
 dayjs.extend(relativeTime);
@@ -66,7 +67,7 @@ type TasksTableProps = {
   refreshCb?: () => void;
 };
 
-export function TaskStatus({ task }: { task: TasksDbModel & TaskStats }) {
+function TaskStatus0({ task }: { task: TasksDbModel & TaskStats }) {
   const router = useRouter();
   const workspace = useWorkspace();
 
@@ -201,6 +202,8 @@ export function TaskStatus({ task }: { task: TasksDbModel & TaskStats }) {
       );
   }
 }
+
+export const TaskStatus = React.memo(TaskStatus0, (p, n) => hash(p) === hash(n));
 
 function TaskStatusResultTable({ stats }: { stats: any[] }) {
   const columns: ColumnType<any>[] = [
@@ -732,4 +735,3 @@ const TasksPage = () => {
     </WorkspacePageLayout>
   );
 };
-export default TasksPage;
