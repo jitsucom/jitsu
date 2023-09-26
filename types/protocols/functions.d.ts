@@ -33,6 +33,8 @@ export type AnyProps = Record<string, any>;
 
 export type FetchResponse = Response;
 
+export type FetchType = (url: string, opts?: FetchOpts, logToRedis?: boolean) => Promise<FetchResponse>;
+
 export type FetchOpts = {
   method?: string;
   headers?: Record<string, string>;
@@ -45,7 +47,7 @@ export type FunctionContext = {
     debug: (message: string, ...args: any[]) => void;
     error: (message: string, ...args: any[]) => void;
   };
-  fetch: (url: string, opts?: FetchOpts, logToRedis?: boolean) => Promise<FetchResponse>;
+  fetch: FetchType;
   store: Store;
 };
 

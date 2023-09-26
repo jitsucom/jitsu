@@ -1,7 +1,9 @@
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import UserRecognitionFunction, { UserRecognitionConfig } from "../src/functions/user-recognition";
-import { testJitsuFunction, TestOptions } from "./lib/testing-lib";
-import { createAnonymousEventsStore } from "./lib/mem-store";
+import { prefixLogMessage, testJitsuFunction, TestOptions } from "./lib/testing-lib";
+import { createAnonymousEventsStore, createStore } from "./lib/mem-store";
+import nodeFetch from "node-fetch-commonjs";
+import { FetchOpts, FetchResponse, FetchType } from "@jitsu/protocols/functions";
 
 const anonymousEvents: AnalyticsServerEvent[] = [
   {
@@ -99,6 +101,14 @@ test("user-recognition-test", async () => {
           primaryKey: "messageId",
           deduplicate: true,
         },
+      },
+      fetch: nodeFetch as unknown as FetchType,
+      store: createStore(),
+      log: {
+        info: (msg: any, ...args: any[]) => console.log(prefixLogMessage("INFO", msg), args),
+        error: (msg: any, ...args: any[]) => console.error(prefixLogMessage("ERROR", msg), args),
+        debug: (msg: any, ...args: any[]) => console.debug(prefixLogMessage("DEBUG", msg), args),
+        warn: (msg: any, ...args: any[]) => console.warn(prefixLogMessage("WARN", msg), args),
       },
       $system: {
         anonymousEventsStore: createAnonymousEventsStore(),

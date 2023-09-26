@@ -23,7 +23,7 @@ export type TestOptions<T = any> = {
 } & Or<{ config: T }, { configEnvVar: string }> &
   Or<{ generateEvents: (jitsu: AnalyticsInterface) => void }, { events: AnalyticsServerEvent[] }>;
 
-function prefixLogMessage(level: string, msg: any) {
+export function prefixLogMessage(level: string, msg: any) {
   return `[${level}] ${msg}`;
 }
 
