@@ -64,7 +64,7 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
     }
     let domainInfo = await getExistingDomain(domain);
     if (!domainInfo) {
-      domainInfo = await rpc(`/v9/projects/${vercelProjectId}/domains?teamId=${vercelTeamId}`, { name: domain });
+      domainInfo = await rpc(`/v10/projects/${vercelProjectId}/domains?teamId=${vercelTeamId}`, { name: domain });
     }
     if (!domainInfo) {
       throw new Error(`Can't get domainInfo for ${domain}`);
