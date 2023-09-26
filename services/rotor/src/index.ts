@@ -34,7 +34,9 @@ setServerJsonFormat(process.env.LOG_FORMAT === "json");
 
 const log = getLog("rotor");
 const http = express();
-http.use(express.json());
+http.use(express.json({ limit: "20mb" }));
+http.use(express.urlencoded({ limit: "20mb" }));
+
 //cache connections for 20sec
 const connectionsCache = new NodeCache({ stdTTL: 20, checkperiod: 60, useClones: false });
 //cache functions for 20sec
@@ -147,7 +149,20 @@ export async function rotorMessageHandler(_message: string | undefined) {
         return {
           id: f.functionId as string,
           config: f.functionOptions as any,
-          exec: cached.wrapper.userFunction,
+          exec: async (event, ctx) => {
+            try {
+              return await cached.wrapper.userFunction(event, ctx);
+            } catch (e: any) {
+              if (e?.message === "Isolate is disposed") {
+                log.atError().log(`UDF ${functionId} VM was disposed. Reloading`);
+                cached = { wrapper: UDFWrapper(functionId, userFunctionObj.name, code), hash: codeHash };
+                udfCache.set(functionId, cached);
+                return await cached.wrapper.userFunction(event, ctx);
+              } else {
+                throw e;
+              }
+            }
+          },
           context: {},
         };
       } else {

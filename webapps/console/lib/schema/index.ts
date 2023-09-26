@@ -101,6 +101,8 @@ export const ApiKey = z.object({
   plaintext: z.string().nullish(),
   hash: z.string().nullish(),
   hint: z.string().nullish(),
+  createdAt: z.coerce.date().nullish(),
+  lastUsed: z.coerce.date().nullish(),
   id: z.string(),
 });
 export type ApiKey = z.infer<typeof ApiKey>;
@@ -132,6 +134,10 @@ export const FunctionConfig = ConfigEntityBase.merge(
   z.object({
     name: z.string(),
     code: z.string(),
+    description: z.string().optional(),
+    version: z.string().optional(),
+    origin: z.string().optional(),
+    slug: z.string().optional(),
   })
 );
 export type FunctionConfig = z.infer<typeof FunctionConfig>;

@@ -4,6 +4,7 @@
     "outDir": "./dist",
     "declaration": true,
     "esModuleInterop": true,
+    "target": "ES2019",
     "module": "commonjs",
     "lib": ["ES2019", "dom"],
     "noEmit": true

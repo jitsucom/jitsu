@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useReducer, useState } from "react";
 import { EditorComponentProps } from "../ConfigObjectEditor/ConfigEditor";
-import { Badge, Button, Drawer, Dropdown, Input, MenuProps, Select, Table } from "antd";
+import { Badge, Button, Descriptions, Drawer, Dropdown, Input, MenuProps, Select, Table } from "antd";
 import { PlayCircleOutlined } from "@ant-design/icons";
 import { CodeEditor } from "../CodeEditor/CodeEditor";
 import styles from "./FunctionsDebugger.module.css";
@@ -14,13 +14,16 @@ import { ColumnsType } from "antd/es/table";
 import { UTCDate, UTCHeader } from "../DataView/EventsBrowser";
 import { examplePageEvent, exampleTrackEvents, exportIdentifyEvent } from "./example_events";
 import { rpc } from "juava";
-import { logType } from "../../pages/api/[workspaceId]/function/run";
+import { logType } from "@jitsu/core-functions";
+import Convert from "ansi-to-html";
 import dayjs from "dayjs";
 import { defaultFunctionTemplate } from "./code_templates";
 import { FunctionConfig } from "../../lib/schema";
 import { useRouter } from "next/router";
 import { feedbackError } from "../../lib/ui";
+import { Htmlizer } from "../Htmlizer/Htmlizer";
 
+const convert = new Convert({ newline: true });
 const localDate = (date: string | Date) => dayjs(date).format("YYYY-MM-DD HH:mm:ss");
 
 type FunctionsDebuggerProps = {} & EditorComponentProps;
@@ -41,7 +44,10 @@ export const EditableTitle: React.FC<{ children: string; onUpdate: (str: string)
               value={value}
               className="text-2xl"
               size="large"
-              onChange={e => setValue(e.target.value)}
+              onChange={e => {
+                setValue(e.target.value);
+                onUpdate(e.target.value);
+              }}
               onKeyDown={e => {
                 if (e.key === "Enter") {
                   setEditing(false);
@@ -49,8 +55,8 @@ export const EditableTitle: React.FC<{ children: string; onUpdate: (str: string)
                 } else if (e.key == "Escape") {
                   setEditing(false);
                   setValue(rollbackValue);
+                  onUpdate(rollbackValue);
                 }
-                console.log(e.key);
               }}
             />
           </div>
@@ -68,6 +74,7 @@ export const EditableTitle: React.FC<{ children: string; onUpdate: (str: string)
             onClick={() => {
               setEditing(false);
               setValue(rollbackValue);
+              onUpdate(rollbackValue);
             }}
           >
             <X className="w-5 h-5" />
@@ -115,6 +122,7 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
   const [config, setConfig] = useState<any>("{}");
   const [store, setStore] = useState<any>({});
   const [result, setResult] = useState<any>({});
+  const [resultType, setResultType] = useState<"ok" | "drop" | "error">("ok");
   const [logs, setLogs] = useState<logType[]>([]);
   const [unreadErrorLogs, setUnreadErrorLogs] = useState(0);
   const [unreadLogs, setUnreadLogs] = useState(0);
@@ -164,6 +172,7 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
       });
       if (res.error) {
         setResult(res.error);
+        setResultType("error");
         setLogs([
           ...res.logs,
           {
@@ -175,7 +184,20 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
         ]);
       } else {
         setResult(res.result);
-        setLogs(res.logs);
+        setResultType(res.dropped ? "drop" : "ok");
+        if (res.dropped) {
+          setLogs([
+            ...res.logs,
+            {
+              level: "info",
+              type: "log",
+              message: `Further processing will be SKIPPED. Function returned: ${JSON.stringify(result)}`,
+              timestamp: new Date(),
+            },
+          ]);
+        } else {
+          setLogs(res.logs);
+        }
       }
 
       if (!showLogs) {
@@ -194,6 +216,7 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
         },
       ]);
       setResult(errorText);
+      setResultType("error");
     } finally {
       setRunning(false);
     }
@@ -203,7 +226,7 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
     <div className="flex flex-col h-full">
       <div className="w-full flex-auto  overflow-auto">
         <div className={"w-full h-full flex flex-col overflow-auto relative rounded-lg"}>
-          <div className={"shrink basis-3/5 overflow-auto flex flex-col"}>
+          <div className={`shrink ${obj.origin === "jitsu-cli" ? "" : "basis-3/5"} overflow-auto flex flex-col`}>
             <div className="pl-2">
               <EditableTitle
                 onUpdate={name => {
@@ -215,7 +238,7 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
             </div>
             <div className={"flex flex-row items-end justify-between mt-2 mb-2"}>
               <div>
-                <h2 className="text-lg pl-2">Code:</h2>
+                <h2 className="text-lg pl-2">{obj.origin === "jitsu-cli" ? "Info:" : "Code:"}</h2>
               </div>
               <div className={"space-x-4"}>
                 <Button type="primary" ghost disabled={saving} onClick={() => push(`/${workspace.id}/functions`)}>
@@ -244,17 +267,34 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
               </div>
             </div>
             <div className={"flex-auto flex flex-row h-full gap-x-4 overflow-auto"}>
-              <div className={`${styles.editor} flex-auto pl-2 bg-backgroundLight`}>
-                <CodeEditor
-                  width={"99.9%"}
-                  language={"javascript"}
-                  value={obj.code ?? ""}
-                  ctrlEnterCallback={runFunction}
-                  ctrlSCallback={save}
-                  onChange={value => setObj({ ...obj, code: value })}
-                  monacoOptions={{ renderLineHighlight: "none" }}
-                />
-              </div>
+              {obj.origin === "jitsu-cli" ? (
+                <Descriptions
+                  bordered
+                  className={`${styles.editor} flex-auto pl-2 bg-backgroundLight`}
+                  contentStyle={{ width: "100%" }}
+                  column={1}
+                  size={"small"}
+                >
+                  <Descriptions.Item label="Slug">{obj.slug}</Descriptions.Item>
+                  <Descriptions.Item label="Origin">This function was created with Jitsu CLI</Descriptions.Item>
+                  <Descriptions.Item label="Package Version" className={"whitespace-nowrap"}>
+                    {obj.version}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Description">{obj.description}</Descriptions.Item>
+                </Descriptions>
+              ) : (
+                <div className={`${styles.editor} flex-auto pl-2 bg-backgroundLight`}>
+                  <CodeEditor
+                    width={"99.9%"}
+                    language={"javascript"}
+                    value={obj.code ?? ""}
+                    ctrlEnterCallback={runFunction}
+                    ctrlSCallback={save}
+                    onChange={value => setObj({ ...obj, code: value })}
+                    monacoOptions={{ renderLineHighlight: "none" }}
+                  />
+                </div>
+              )}
               <div className={`${styles.editor} ${showConfig ? "block" : "hidden"} flex-auto w-1/3 bg-backgroundLight`}>
                 <div className={"jitsu-label-borderless"}>Config</div>
                 <CodeEditor
@@ -267,7 +307,7 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
               </div>
             </div>
           </div>
-          <div className={`flex-auto basis-2/5 overflow-auto`}>
+          <div className={`flex-auto ${obj.origin === "jitsu-cli" ? "" : "basis-2/5"} overflow-auto`}>
             <div className={"flex flex-row h-full gap-x-4"}>
               <div className={"flex-auto h-full w-1/2 flex flex-col"}>
                 <div className={"flex-auto w-full flex flex-row justify-between mt-2 mb-2 items-end"}>
@@ -297,7 +337,7 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
                 </div>
               </div>
               <div className={`flex-auto h-full w-1/2 flex flex-col ${showLogs ? "hidden" : "block"}`}>
-                <div className={"flex-auto w-full flex flex-row justify-between mt-2 mb-2 items-end"}>
+                <div className={"flex-auto w-full flex flex-row flex-shrink justify-between mt-2 mb-2 items-end"}>
                   <div>
                     <h2 className="text-lg pl-2">Result:</h2>
                   </div>
@@ -318,20 +358,33 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
                     </Button>
                   </Badge>
                 </div>
-                <div className={`${styles.editor} flex-auto bg-backgroundLight w-full pl-2`}>
-                  <CodeEditor
-                    width={"99.9%"}
-                    language={typeof result !== "string" ? "json" : "text"}
-                    value={typeof result !== "string" ? JSON.stringify(result, null, 2) : result}
-                    onChange={s => {}}
-                    monacoOptions={{
-                      renderLineHighlight: "none",
-                      lineDecorationsWidth: 8,
-                      lineNumbers: "off",
-                      readOnly: true,
-                      folding: false,
-                    }}
-                  />
+                <div className={`${styles.editor} flex-auto h-full bg-backgroundLight w-full pl-2`}>
+                  {resultType === "error" && (
+                    <div className={"font-mono p-2 text-xs"}>
+                      <Htmlizer>{convert.toHtml(result.replaceAll(" ", "&nbsp;"))}</Htmlizer>
+                    </div>
+                  )}
+                  {resultType === "drop" && (
+                    <div className={"font-mono p-2 text-xs"}>
+                      Further processing will be <b>SKIPPED</b>. Function returned:{" "}
+                      <code>{JSON.stringify(result)}</code>.
+                    </div>
+                  )}
+                  {resultType === "ok" && (
+                    <CodeEditor
+                      width={"99.9%"}
+                      language={typeof result !== "string" ? "json" : "text"}
+                      value={typeof result !== "string" ? JSON.stringify(result, null, 2) : result}
+                      onChange={s => {}}
+                      monacoOptions={{
+                        renderLineHighlight: "none",
+                        lineDecorationsWidth: 8,
+                        lineNumbers: "off",
+                        readOnly: true,
+                        folding: false,
+                      }}
+                    />
+                  )}
                 </div>
               </div>
               <div className={`flex-auto h-full w-1/2 flex flex-col ${showLogs ? "block" : "hidden"}`}>
@@ -344,7 +397,7 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
                   </Button>
                 </div>
                 <div
-                  className={`${styles.logs} flex-auto flex flex-column place-content-start flex-wrap pb-4 bg-backgroundLight w-full h-full`}
+                  className={`${styles.logs} flex-auto flex flex-col place-content-start flex-nowrap pb-4 bg-backgroundLight w-full h-full`}
                 >
                   {logs.map((log, index) => {
                     const colors = (() => {

@@ -31,12 +31,9 @@ export type EventControlOpts = {
 export type AnyEvent = Record<string, any> & EventControlOpts;
 export type AnyProps = Record<string, any>;
 
-export type FetchResponse = {
-  status: number;
-  statusText: string;
-  text: () => Promise<string>;
-  json: () => Promise<any>;
-};
+export type FetchResponse = Response;
+
+export type FetchType = (url: string, opts?: FetchOpts, logToRedis?: boolean) => Promise<FetchResponse>;
 
 export type FetchOpts = {
   method?: string;
@@ -50,7 +47,7 @@ export type FunctionContext = {
     debug: (message: string, ...args: any[]) => void;
     error: (message: string, ...args: any[]) => void;
   };
-  fetch: (url: string, opts?: FetchOpts, logToRedis?: boolean) => Promise<FetchResponse>;
+  fetch: FetchType;
   store: Store;
 };
 

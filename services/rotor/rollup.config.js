@@ -13,10 +13,9 @@ module.exports = [
       commonjs(),
       rollupJson(),
       babel({
-        babelpHelpers: "inline",
+        babelHelpers: "inline",
         babelrc: false,
-        extensions: ['.js', '.ts']
-
+        extensions: [".js", ".ts"],
       }),
     ],
     input: "./compiled/index.js",

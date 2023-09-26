@@ -4,10 +4,10 @@ import { EmbeddedErrorMessage, GlobalError } from "../components/GlobalError/Glo
 import React from "react";
 import { useApi } from "../lib/useApi";
 import { ContextApiResponse } from "../lib/schema";
-import { Button } from "antd";
+import { Button, Modal } from "antd";
 import { signOut } from "next-auth/react";
 import { firebaseSignOut } from "../lib/firebase-client";
-import { getLog } from "juava";
+import { encrypt, getLog, randomId, rpc } from "juava";
 
 const log = getLog("index");
 
@@ -65,7 +65,53 @@ function WorkspaceRedirect() {
     }
     return <GlobalError error={error} />;
   } else if (data) {
-    if (data.firstWorkspaceSlug || data.firstWorkspaceId) {
+    const origin = router.query.origin as string;
+    const redirect = (router.query.redirect as string) ?? "";
+    const redir = (query: string) => {
+      if (redirect.match(/http:\/\/localhost:\d{4,5}\//)) {
+        window.location.href = `${router.query.redirect}?${query}`;
+      } else {
+        router.push(`/cli?${query}`);
+      }
+    };
+    if (origin === "jitsu-cli") {
+      return (
+        <Modal
+          open={true}
+          maskClosable={false}
+          closable={false}
+          title={
+            <div className={"flex flex-row items-center"}>
+              <img alt={""} src="/logo.svg" className="anticon h-5 w-5 mr-2" />
+              <span>Jitsu CLI authorization</span>
+            </div>
+          }
+          width={500}
+          okText={"Authorize"}
+          onOk={() => {
+            //local request from jitsu-cli
+            rpc("/api/user/cli-key")
+              .then(key => {
+                if (key) {
+                  const iv = randomId(16 - origin.length);
+                  const enc = encrypt(router.query.c as string, `${origin}${iv}`, JSON.stringify(key));
+                  redir(`code=${iv}${enc}`);
+                } else {
+                  redir(`err=${encodeURIComponent("Failed to get CLI key")}`);
+                }
+              })
+              .catch(err => {
+                redir(`err=${encodeURIComponent(err.message)}`);
+              });
+          }}
+          onCancel={() => {
+            redir(`err=${encodeURIComponent("Authorization was cancelled.")}`);
+          }}
+        >
+          Do you want to authorize Jitsu CLI to use your account?
+        </Modal>
+      );
+    } else if (data.firstWorkspaceSlug || data.firstWorkspaceId) {
       router.push(`/${data.firstWorkspaceSlug || data.firstWorkspaceId}${data.newUser ? "?welcome=true" : ""}`);
     } else {
       //TODO: seems like we don't need this anymore and there is no such page

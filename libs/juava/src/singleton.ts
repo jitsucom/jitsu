@@ -46,7 +46,12 @@ function getDisableServiceVar(globalName: string) {
 export function getSingleton<T>(
   globalName: string,
   factory: () => T | Promise<T>,
-  opts: { ttlSec: number; errorTtlSec?: number; cleanupFunc?: (t: T) => {} } = { ttlSec: 0, errorTtlSec: 0 }
+  opts: { ttlSec?: number; optional?: boolean; silent?: boolean; errorTtlSec?: number; cleanupFunc?: (t: T) => {} } = {
+    ttlSec: 0,
+    errorTtlSec: 0,
+    optional: false,
+    silent: false,
+  }
 ): Singleton<T> {
   const disableServiceVar = getDisableServiceVar(globalName);
   if (process.env[disableServiceVar]) {
@@ -67,14 +72,20 @@ export function getSingleton<T>(
       success: true,
       value,
       debounceCleanup:
-        opts.ttlSec > 0 ? debounce(() => clearSingleton(globalName, opts.cleanupFunc), 1000 * opts.ttlSec) : () => {},
+        opts.ttlSec && opts.ttlSec > 0
+          ? debounce(() => clearSingleton(globalName, opts.cleanupFunc), 1000 * opts.ttlSec)
+          : () => {},
     };
-    log.atInfo().log(`️⚡️⚡️⚡️ ${globalName} connected in ${Date.now() - startedAtTs}ms!`);
+    if (!opts.silent) {
+      log.atInfo().log(`️⚡️⚡️⚡️ ${globalName} connected in ${Date.now() - startedAtTs}ms!`);
+    }
     return value;
   };
 
   const handleError = (error: any): any => {
-    log.atError().log(`❌ ❌ ❌ ${globalName} connection failed. The application isn't functional.`, error);
+    if (!opts.optional) {
+      log.atError().log(`❌ ❌ ❌ ${globalName} connection failed. The application isn't functional.`, error);
+    }
     global[`singletons_${globalName}`] = {
       success: false,
       error,
