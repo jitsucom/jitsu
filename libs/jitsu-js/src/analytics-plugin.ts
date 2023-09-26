@@ -3,6 +3,7 @@
 import { JitsuOptions, PersistentStorage, RuntimeFacade } from "./jitsu";
 import { AnalyticsClientEvent, Callback, ID, JSONObject, Options } from "@jitsu/protocols/analytics";
 import parse from "./index";
+import { parse as parseTLD } from "tldts";
 import { AnalyticsInstance, AnalyticsPlugin } from "analytics";
 import { loadScript } from "./script-loader";
 import { internalDestinationPlugins } from "./destination-plugins";
@@ -73,12 +74,11 @@ export function getTopLevelDomain(opts: JitsuOptions = {}) {
   if (opts.cookieDomain) {
     return opts.cookieDomain;
   }
-  const [domain] = window.location.hostname.split(":");
-  const parts = domain.split(".");
-  if (parts[parts.length - 1] === "localhost" || parts.length < 2) {
-    return parts[parts.length - 1];
+  const tld = parseTLD(window.location.hostname);
+  if (tld.domain === null) {
+    return tld.hostname;
   } else {
-    return parts[parts.length - 2] + "." + parts[parts.length - 1];
+    return tld.domain;
   }
 }
 
