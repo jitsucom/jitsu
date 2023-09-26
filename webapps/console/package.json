@@ -51,7 +51,7 @@
     "dayjs": "^1.11.10",
     "firebase": "^10.4.0",
     "firebase-admin": "^11.10.1",
-    "googleapis": "^100.0.0",
+    "googleapis": "^126.0.1",
     "highlight.js": "^11.6.0",
     "ioredis": "^5.2.3",
     "js-yaml": "^4.1.0",
