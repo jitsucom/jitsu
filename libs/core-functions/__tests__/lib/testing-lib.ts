@@ -1,6 +1,13 @@
 import { AnalyticsInterface, AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { requireDefined } from "juava";
-import { AnyEvent, EventContext, FuncReturn, JitsuFunction, SystemContext } from "@jitsu/protocols/functions";
+import {
+  AnyEvent,
+  EventContext,
+  FuncReturn,
+  FunctionContext,
+  JitsuFunction,
+  SystemContext,
+} from "@jitsu/protocols/functions";
 import nodeFetch from "node-fetch-commonjs";
 import { createStore } from "./mem-store";
 import * as JSON5 from "json5";
@@ -12,7 +19,7 @@ export type Or<T1, T2> =
 export type TestOptions<T = any> = {
   mockFetch?: boolean;
   func: JitsuFunction<AnalyticsServerEvent, T>;
-  ctx?: SystemContext & EventContext;
+  ctx?: SystemContext & EventContext & FunctionContext;
 } & Or<{ config: T }, { configEnvVar: string }> &
   Or<{ generateEvents: (jitsu: AnalyticsInterface) => void }, { events: AnalyticsServerEvent[] }>;
 
