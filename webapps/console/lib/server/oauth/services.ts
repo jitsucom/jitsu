@@ -79,8 +79,8 @@ const github: OauthDecorator = {
     const mCred = { ...opts.credentials };
     if (mCred.option_title === "OAuth Credentials") {
       mCred.access_token = manage(mCred.access_token, connectionObj.access_token);
-      mCred.client_id = manage(mCred.client_id, integrationObj.clientId);
-      mCred.client_secret = manage(mCred.client_secret, integrationObj.clientSecret);
+      mCred.client_id = manage(mCred.client_id, integrationObj.client_id);
+      mCred.client_secret = manage(mCred.client_secret, integrationObj.client_secret);
     }
     return {
       ...opts,
@@ -154,8 +154,8 @@ const _googleBase: Omit<OauthDecorator, "packageId"> = {
     if (mCred.auth_type === "Client") {
       mCred.access_token = manage(mCred.access_token, connectionObj.access_token);
       mCred.refresh_token = manage(mCred.refresh_token, connectionObj.refresh_token);
-      mCred.client_id = manage(mCred.client_id, integrationObj.clientId);
-      mCred.client_secret = manage(mCred.client_secret, integrationObj.clientSecret);
+      mCred.client_id = manage(mCred.client_id, integrationObj.client_id);
+      mCred.client_secret = manage(mCred.client_secret, integrationObj.client_secret);
     }
     return {
       ...opts,
@@ -198,8 +198,8 @@ const googleAds: OauthDecorator = {
     mCred.developer_token = manage(mCred.developer_token, process.env.GOOGLE_ADS_DEVELOPER_TOKEN ?? "");
     mCred.access_token = manage(mCred.access_token, connectionObj.access_token);
     mCred.refresh_token = manage(mCred.refresh_token, connectionObj.refresh_token);
-    mCred.client_id = manage(mCred.client_id, integrationObj.clientId);
-    mCred.client_secret = manage(mCred.client_secret, integrationObj.clientSecret);
+    mCred.client_id = manage(mCred.client_id, integrationObj.client_id);
+    mCred.client_secret = manage(mCred.client_secret, integrationObj.client_secret);
     return {
       ...opts,
       credentials: {
@@ -234,8 +234,8 @@ const facebookMarketing: OauthDecorator = {
   merge: (opts, integrationObj, connectionObj) => {
     const mCred = { ...opts };
     mCred.access_token = manage(mCred.access_token, connectionObj.access_token);
-    mCred.client_id = manage(mCred.client_id, integrationObj.clientId);
-    mCred.client_secret = manage(mCred.client_secret, integrationObj.clientSecret);
+    mCred.client_id = manage(mCred.client_id, integrationObj.client_id);
+    mCred.client_secret = manage(mCred.client_secret, integrationObj.client_secret);
     return mCred;
   },
 };
