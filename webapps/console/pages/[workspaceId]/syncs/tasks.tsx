@@ -735,3 +735,5 @@ const TasksPage = () => {
     </WorkspacePageLayout>
   );
 };
+
+export default TasksPage;
