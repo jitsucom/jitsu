@@ -102,7 +102,8 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
     ...jsonSerializationBase64,
   });
   const [tasks, setTasks] = useState<{ loading: boolean; data?: any; error?: any }>({ loading: true });
-  const [running, setRunning] = useState<string | undefined>(undefined);
+
+  const [runPressed, setRunPressed] = useState<string | undefined>(undefined);
 
   const [apiDocs, setShowAPIDocs] = useQueryStringState<string | undefined>("schedule");
   //useEffect update tasksData every 5 seconds
@@ -219,16 +220,19 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
         const t = tasks?.data?.tasks?.[link.id];
         const items: ButtonProps[] = [
           {
-            disabled: t?.status === "RUNNING" || !!running,
-            title: t?.status === "RUNNING" ? "Sync is already running" : undefined,
+            disabled: t?.status === "RUNNING" || !!runPressed,
+            title: t?.status === "RUNNING" ? "Sync is already runPressed" : undefined,
             icon:
-              running == link.id ? (
+              runPressed == link.id ? (
                 <Loader2 className="animate-spin w-3.5 h-3.5" />
               ) : (
                 <FaPlay className="w-3.5 h-3.5" />
               ),
             onClick: async () => {
-              setRunning(link.id);
+              if (!!runPressed) {
+                return;
+              }
+              setRunPressed(link.id);
               try {
                 const runStatus = await rpc(`/api/${workspace.id}/sources/run?syncId=${link.id}`);
                 if (runStatus?.error) {
@@ -246,7 +250,7 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
               } catch (e) {
                 feedbackError("Failed to run sync", { error: e, placement: "top" });
               } finally {
-                setRunning(undefined);
+                setRunPressed(undefined);
               }
             },
             label: "Run",
@@ -262,16 +266,19 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
             href: `/syncs/edit?id=${link.id}`,
           },
           {
-            disabled: t?.status === "RUNNING" || !!running,
-            title: t?.status === "RUNNING" ? "Sync is already running" : undefined,
+            disabled: t?.status === "RUNNING" || !!runPressed,
+            title: t?.status === "RUNNING" ? "Sync is already runPressed" : undefined,
             icon:
-              running == link.id ? (
+              runPressed == link.id ? (
                 <Loader2 className="animate-spin w-3.5 h-3.5" />
               ) : (
                 <RefreshCw className="w-3.5 h-3.5" />
               ),
             onClick: async () => {
-              setRunning(link.id);
+              if (!!runPressed) {
+                return;
+              }
+              setRunPressed(link.id);
               try {
                 const runStatus = await rpc(`/api/${workspace.id}/sources/run?syncId=${link.id}&fullSync=true`);
                 if (runStatus?.error) {
@@ -289,7 +296,7 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
               } catch (e) {
                 feedbackError("Failed to run sync", { error: e, placement: "top" });
               } finally {
-                setRunning(undefined);
+                setRunPressed(undefined);
               }
             },
             label: "Full Sync",
