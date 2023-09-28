@@ -9,7 +9,7 @@ const log = getLog(`BillingProvider`);
 
 export type UseBillingResult =
   | { loading: true; enabled: true; settings?: never }
-  | { loading: false; enabled: false; settings?: never }
+  | { loading: false; enabled: false; settings?: never; error?: { message: string } }
   | { loading: false; enabled: true; settings: BillingSettings };
 
 export function useBilling(): UseBillingResult {
