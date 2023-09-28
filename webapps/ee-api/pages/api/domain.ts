@@ -84,19 +84,22 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
       res.status(200).json({ ok: true, needsConfiguration: true, configurationType: "cname", cnameValue: cname });
     } else if (!verified) {
       //request Vercel to verify domain
-      domainInfo = await rpc(`/v9/projects/${vercelProjectId}/domains/${domain}/verify?teamId=${vercelTeamId}`, "POST");
-      if (!domainInfo) {
+      const verifyInfo = await rpc(
+        `/v9/projects/${vercelProjectId}/domains/${domain}/verify?teamId=${vercelTeamId}`,
+        "POST"
+      );
+      if (!verifyInfo) {
         throw new Error(`Can't verify ${domain}`);
       }
-      if (!domainInfo.verified) {
-        if (!domainInfo.verification) {
+      if (!verifyInfo.verified) {
+        if (!verifyInfo.verification && !domainInfo.verification) {
           throw new Error(`Domain ${domain} is not verified, and there is no verification info`);
         }
         res.status(200).json({
           ok: true,
           needsConfiguration: true,
           configurationType: "verification",
-          verification: domainInfo.verification,
+          verification: verifyInfo.verification || domainInfo.verification,
         });
       } else {
         res.status(200).json({ ok: true, needsConfiguration: false });

@@ -29,9 +29,9 @@ function hint(key: string) {
   return key.substring(0, 3) + "*" + key.substring(key.length - 3);
 }
 
-export const ApiKeysEditor: React.FC<CustomWidgetProps<ApiKey[]>> = props => {
+export const ApiKeysEditor: React.FC<CustomWidgetProps<ApiKey[]> & { compact?: boolean }> = props => {
   const [keys, setKeys] = useState<ApiKey[]>(props.value || []);
-  const columns = [
+  const columns: any[] = [
     {
       title: "Key",
       key: "id",
@@ -74,53 +74,66 @@ export const ApiKeysEditor: React.FC<CustomWidgetProps<ApiKey[]>> = props => {
         );
       },
     },
-    {
-      title: <div className={"whitespace-nowrap"}>Created</div>,
-      className: "text-right text-xs text-text whitespace-nowrap",
-      dataIndex: "createdAt",
-      render: createdAt => {
-        return <div className="flex items-center">{createdAt ? new Date(createdAt).toLocaleString() : ""}</div>;
-      },
-    },
-    {
-      title: <div className={"whitespace-nowrap"}>Last Used</div>,
-      className: "text-right text-xs text-text whitespace-nowrap",
-      dataIndex: "lastUsed",
-      render: lastUsed => {
-        return lastUsed ? new Date(lastUsed).toLocaleString() : "Never";
-      },
-    },
-    {
-      title: "",
-      className: "text-right",
-      key: "actions",
-      render: (key: ApiKey) => {
-        return (
-          <div>
-            <Button
-              type="text"
-              onClick={async () => {
-                if (
-                  key.plaintext ||
-                  (await confirmOp("Are you sure you want to delete this API key? You won't be able to recover it"))
-                ) {
-                  const newVal = keys.filter(k => k.id !== key.id);
-                  setKeys(newVal);
-                  props.onChange(newVal);
-                }
-              }}
-            >
-              <FaTrash />
-            </Button>
-          </div>
-        );
-      },
-    },
   ];
+  if (!props.compact) {
+    columns.push(
+      {
+        title: <div className={"whitespace-nowrap"}>Created</div>,
+        className: "text-right text-xs text-text whitespace-nowrap",
+        dataIndex: "createdAt",
+        render: createdAt => {
+          return <div className="flex items-center">{createdAt ? new Date(createdAt).toLocaleString() : ""}</div>;
+        },
+      },
+      {
+        title: <div className={"whitespace-nowrap"}>Last Used</div>,
+        className: "text-right text-xs text-text whitespace-nowrap",
+        dataIndex: "lastUsed",
+        render: lastUsed => {
+          return lastUsed ? new Date(lastUsed).toLocaleString() : "Never";
+        },
+      }
+    );
+  }
+  columns.push({
+    title: "",
+    className: "text-right",
+    key: "actions",
+    render: (key: ApiKey) => {
+      return (
+        <div>
+          <Button
+            type="text"
+            onClick={async () => {
+              if (
+                key.plaintext ||
+                (await confirmOp("Are you sure you want to delete this API key? You won't be able to recover it"))
+              ) {
+                const newVal = keys.filter(k => k.id !== key.id);
+                setKeys(newVal);
+                props.onChange(newVal);
+              }
+            }}
+          >
+            <FaTrash />
+          </Button>
+        </div>
+      );
+    },
+  });
   return (
     <div className={"pt-3"}>
-      {keys.length === 0 && <div className="flex text-textDisabled justify-center">API keys list us empty</div>}
-      <Table size={"small"} columns={columns} dataSource={keys} pagination={false} rowKey={k => k.id} />
+      {keys.length === 0 && <div className="flex text-textDisabled justify-center">Keys list is empty</div>}
+      {(keys.length > 0 || !props.compact) && (
+        <Table
+          size={"small"}
+          showHeader={!props.compact}
+          columns={columns}
+          dataSource={keys}
+          pagination={false}
+          rowKey={k => k.id}
+        />
+      )}
       <div className="flex justify-between p-2">
         {keys.find(key => !!key.plaintext) ? (
           <div className="text-text text-sm">
@@ -145,4 +158,8 @@ export const ApiKeysEditor: React.FC<CustomWidgetProps<ApiKey[]>> = props => {
       </div>
     </div>
   );
+};
+
+export const BrowserKeysEditor: React.FC<CustomWidgetProps<ApiKey[]> & { compact?: boolean }> = (props: any) => {
+  return <ApiKeysEditor {...props} compact={true} />;
 };

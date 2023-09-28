@@ -9,7 +9,7 @@ import { FaExternalLinkAlt, FaSpinner, FaTrash, FaWrench } from "react-icons/fa"
 import { branding } from "../../lib/branding";
 import { useRouter } from "next/router";
 import { TrackingIntegrationDocumentation } from "../../components/TrackingIntegrationDocumentation/TrackingIntegrationDocumentation";
-import { ApiKeysEditor } from "../../components/ApiKeyEditor/ApiKeyEditor";
+import { BrowserKeysEditor } from "../../components/ApiKeyEditor/ApiKeyEditor";
 import { useQuery } from "@tanstack/react-query";
 import { getEeClient } from "../../lib/ee-client";
 import { requireDefined } from "juava";
@@ -407,7 +407,7 @@ const StreamsList: React.FC<{}> = () => {
       type: { constant: "stream" },
       workspaceId: { constant: workspace.id },
       privateKeys: {
-        editor: ApiKeysEditor,
+        editor: BrowserKeysEditor,
         displayName: "Server-to-server Write Keys",
         advanced: false,
         documentation: (
@@ -415,7 +415,7 @@ const StreamsList: React.FC<{}> = () => {
         ),
       },
       publicKeys: {
-        editor: ApiKeysEditor,
+        editor: BrowserKeysEditor,
         displayName: "Browser Write Keys",
         advanced: false,
         documentation: (
