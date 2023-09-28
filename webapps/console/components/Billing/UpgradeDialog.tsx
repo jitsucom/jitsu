@@ -36,7 +36,8 @@ export const UpgradeDialog: React.FC<{ featureDescription: string; availableInPl
         description={
           <div>
             <div className="text">
-              You are currently subscribed to a <b className="uppercase">{billing.settings.planId}</b> plan. To use{" "}
+              You are currently subscribed to a{" "}
+              <b className="uppercase">{billing.settings?.planName || billing.settings.planId}</b> plan. To use{" "}
               {featureDescription}, please upgrade to a{" "}
               {availableInPlans
                 ? arrayJoin(
