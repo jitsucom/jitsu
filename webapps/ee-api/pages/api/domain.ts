@@ -16,9 +16,9 @@ const vercelTeamId = requireDefined(process.env.DOMAINS_VERCEL_TEAM_ID, `env DOM
 const vercelToken = requireDefined(process.env.DOMAINS_VERCEL_TOKEN, `env DOMAINS_VERCEL_TOKEN is not set`);
 const cname = process.env.CNAME || "cname.jitsu.com";
 
-async function rpc(url: string, body?: any): Promise<any> {
+async function rpc(url: string, method?: "GET" | "POST", body?: any): Promise<any> {
   const res = await fetch(url.indexOf("https://") === 0 ? url : `https://api.vercel.com${url}`, {
-    method: body ? "POST" : "GET",
+    method: method ?? "GET",
     body: body ? JSON.stringify(body) : undefined,
     headers: {
       Authorization: `Bearer ${vercelToken}`,
@@ -64,7 +64,9 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
     }
     let domainInfo = await getExistingDomain(domain);
     if (!domainInfo) {
-      domainInfo = await rpc(`/v10/projects/${vercelProjectId}/domains?teamId=${vercelTeamId}`, { name: domain });
+      domainInfo = await rpc(`/v10/projects/${vercelProjectId}/domains?teamId=${vercelTeamId}`, "POST", {
+        name: domain,
+      });
     }
     if (!domainInfo) {
       throw new Error(`Can't get domainInfo for ${domain}`);
@@ -81,15 +83,24 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
     } else if (misconfigured) {
       res.status(200).json({ ok: true, needsConfiguration: true, configurationType: "cname", cnameValue: cname });
     } else if (!verified) {
-      if (!domainInfo.verification) {
-        throw new Error(`Domain ${domain} is not verified, and there is no verification info`);
+      //request Vercel to verify domain
+      domainInfo = await rpc(`/v9/projects/${vercelProjectId}/domains/${domain}/verify?teamId=${vercelTeamId}`, "POST");
+      if (!domainInfo) {
+        throw new Error(`Can't verify ${domain}`);
       }
-      res.status(200).json({
-        ok: true,
-        needsConfiguration: true,
-        configurationType: "verification",
-        verification: domainInfo.verification,
-      });
+      if (!domainInfo.verified) {
+        if (!domainInfo.verification) {
+          throw new Error(`Domain ${domain} is not verified, and there is no verification info`);
+        }
+        res.status(200).json({
+          ok: true,
+          needsConfiguration: true,
+          configurationType: "verification",
+          verification: domainInfo.verification,
+        });
+      } else {
+        res.status(200).json({ ok: true, needsConfiguration: false });
+      }
     } else {
       throw new Error(`Unexpected state: misconfigured=${misconfigured}, verified=${verified} `);
     }
