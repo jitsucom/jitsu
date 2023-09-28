@@ -761,11 +761,11 @@ importers:
         specifier: ^3.0.0
         version: 3.0.0
       pg:
-        specifier: ~8.11.1
-        version: 8.11.1
+        specifier: ~8.11.3
+        version: 8.11.3
       pg-cursor:
         specifier: ~2.10.1
-        version: 2.10.1(pg@8.11.1)
+        version: 2.10.1(pg@8.11.3)
       prisma:
         specifier: ^4.12.0
         version: 4.12.0
@@ -838,7 +838,7 @@ importers:
         version: 8.6.6
       '@types/pg-query-stream':
         specifier: ^3.4.0
-        version: 3.4.0(pg@8.11.1)
+        version: 3.4.0(pg@8.11.3)
       '@types/react':
         specifier: 18.0.28
         version: 18.0.28
@@ -954,8 +954,8 @@ importers:
         specifier: ^3.2.4
         version: 3.2.4
       pg:
-        specifier: ^8.7.3
-        version: 8.10.0
+        specifier: ^8.11.3
+        version: 8.11.3
       react:
         specifier: 18.2.0
         version: 18.2.0
@@ -9367,11 +9367,11 @@ packages:
       - pg-native
     dev: false
 
-  /@types/pg-query-stream@3.4.0(pg@8.11.1):
+  /@types/pg-query-stream@3.4.0(pg@8.11.3):
     resolution: {integrity: sha512-oqGAu+5CMPAVNqemN9xYT3LBDy2qXBke15cstEuVYIvJL6lcKSNKeG61fONlVrxTYIFi9sPuGVtIweanrEZcJw==}
     deprecated: This is a stub types definition. pg-query-stream provides its own type definitions, so you do not need this installed.
     dependencies:
-      pg-query-stream: 4.4.0(pg@8.11.1)
+      pg-query-stream: 4.4.0(pg@8.11.3)
     transitivePeerDependencies:
       - pg
     dev: true
@@ -20814,19 +20814,15 @@ packages:
     requiresBuild: true
     optional: true
 
-  /pg-connection-string@2.5.0:
-    resolution: {integrity: sha512-r5o/V/ORTA6TmUnyWZR9nCj1klXCO2CEKNRlVuJptZe85QuhFayC7WeMic7ndayT5IRIR0S0xFxFi2ousartlQ==}
-    dev: false
+  /pg-connection-string@2.6.2:
+    resolution: {integrity: sha512-ch6OwaeaPYcova4kKZ15sbJ2hKb/VP48ZD2gE7i1J+L4MspCtBMAx8nMgz7bksc7IojCIIWuEhHibSMFH8m8oA==}
 
-  /pg-connection-string@2.6.1:
-    resolution: {integrity: sha512-w6ZzNu6oMmIzEAYVw+RLK0+nqHPt8K3ZnknKi+g48Ak2pr3dtljJW3o+D/n2zzCG07Zoe9VOX3aiKpj+BN0pjg==}
-
-  /pg-cursor@2.10.1(pg@8.11.1):
+  /pg-cursor@2.10.1(pg@8.11.3):
     resolution: {integrity: sha512-t4bjqL/gtohsNoByFcD4EKjHVppOuJipBYVhunVUm25TnaS2xEEr2jy3vumOX2z44SHROaf4K7QWPY9xnKT3HA==}
     peerDependencies:
       pg: ^8
     dependencies:
-      pg: 8.11.1
+      pg: 8.11.3
 
   /pg-int8@1.0.1:
     resolution: {integrity: sha512-WCtabS6t3c8SkpDBUlb1kjOs7l66xsGdKpIPZsg4wR+B3+u9UAum2odSsF9tnvxg80h4ZxLWMy4pRjOsFIqQpw==}
@@ -20837,20 +20833,20 @@ packages:
     engines: {node: '>=12.0.0'}
     dev: false
 
-  /pg-pool@3.6.0(pg@8.10.0):
-    resolution: {integrity: sha512-clFRf2ksqd+F497kWFyM21tMjeikn60oGDmqMT8UBrynEwVEX/5R5xd2sdvdo1cZCFlguORNpVuqxIj+aK4cfQ==}
+  /pg-pool@3.6.1(pg@8.10.0):
+    resolution: {integrity: sha512-jizsIzhkIitxCGfPRzJn1ZdcosIt3pz9Sh3V01fm1vZnbnCMgmGl5wvGGdNN2EL9Rmb0EcFoCkixH4Pu+sP9Og==}
     peerDependencies:
       pg: '>=8.0'
     dependencies:
       pg: 8.10.0
     dev: false
 
-  /pg-pool@3.6.1(pg@8.11.1):
+  /pg-pool@3.6.1(pg@8.11.3):
     resolution: {integrity: sha512-jizsIzhkIitxCGfPRzJn1ZdcosIt3pz9Sh3V01fm1vZnbnCMgmGl5wvGGdNN2EL9Rmb0EcFoCkixH4Pu+sP9Og==}
     peerDependencies:
       pg: '>=8.0'
     dependencies:
-      pg: 8.11.1
+      pg: 8.11.3
 
   /pg-promise@11.4.3:
     resolution: {integrity: sha512-b4wuukB+pkrLRZ53Z+3L9IONlIhOUSM/VlLQV2SnQzNJPJmDZj6ticgcMtZMDanAUEj+zX1FJOBrSpSR9TumXg==}
@@ -20867,13 +20863,13 @@ packages:
   /pg-protocol@1.6.0:
     resolution: {integrity: sha512-M+PDm637OY5WM307051+bsDia5Xej6d9IR4GwJse1qA1DIhiKlksvrneZOYQq42OM+spubpcNYEo2FcKQrDk+Q==}
 
-  /pg-query-stream@4.4.0(pg@8.11.1):
+  /pg-query-stream@4.4.0(pg@8.11.3):
     resolution: {integrity: sha512-shmP973/ruBw3exSmIEBW9iubWvyyZMzp6oWfcHgvlqAe4LtaRyVqPGxgnuorbRqksK03mjOC9PU+Ohz3b0GkQ==}
     peerDependencies:
       pg: ^8
     dependencies:
-      pg: 8.11.1
-      pg-cursor: 2.10.1(pg@8.11.1)
+      pg: 8.11.3
+      pg-cursor: 2.10.1(pg@8.11.3)
     dev: true
 
   /pg-types@2.2.0:
@@ -20897,15 +20893,15 @@ packages:
     dependencies:
       buffer-writer: 2.0.0
       packet-reader: 1.0.0
-      pg-connection-string: 2.5.0
-      pg-pool: 3.6.0(pg@8.10.0)
+      pg-connection-string: 2.6.2
+      pg-pool: 3.6.1(pg@8.10.0)
       pg-protocol: 1.6.0
       pg-types: 2.2.0
       pgpass: 1.0.5
     dev: false
 
-  /pg@8.11.1:
-    resolution: {integrity: sha512-utdq2obft07MxaDg0zBJI+l/M3mBRfIpEN3iSemsz0G5F2/VXx+XzqF4oxrbIZXQxt2AZzIUzyVg/YM6xOP/WQ==}
+  /pg@8.11.3:
+    resolution: {integrity: sha512-+9iuvG8QfaaUrrph+kpF24cXkH1YOOUeArRNYIxq1viYHZagBxrTno7cecY1Fa44tJeZvaoG+Djpkc3JwehN5g==}
     engines: {node: '>= 8.0.0'}
     peerDependencies:
       pg-native: '>=3.0.1'
@@ -20915,8 +20911,8 @@ packages:
     dependencies:
       buffer-writer: 2.0.0
       packet-reader: 1.0.0
-      pg-connection-string: 2.6.1
-      pg-pool: 3.6.1(pg@8.11.1)
+      pg-connection-string: 2.6.2
+      pg-pool: 3.6.1(pg@8.11.3)
       pg-protocol: 1.6.0
       pg-types: 2.2.0
       pgpass: 1.0.5
