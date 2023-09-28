@@ -106,7 +106,7 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
   const [runPressed, setRunPressed] = useState<string | undefined>(undefined);
 
   const [apiDocs, setShowAPIDocs] = useQueryStringState<string | undefined>("schedule");
-  //useEffect update tasksData every 5 seconds
+  //useEffect update tasksData every 10 seconds
   useEffect(() => {
     const fetchTasks = async () => {
       try {
@@ -217,6 +217,15 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
     {
       title: <div className={"text-right"}>Actions</div>,
       render: (text, link) => {
+        const toTasks = async () =>
+          router.push(
+            `/${workspace.slug || workspace.id}/syncs/tasks?query=${encodeURIComponent(
+              JSON5.stringify({
+                syncId: link.id,
+                notification: "Sync Started",
+              })
+            )}`
+          );
         const t = tasks?.data?.tasks?.[link.id];
         const items: ButtonProps[] = [
           {
@@ -233,6 +242,14 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
                 return;
               }
               setRunPressed(link.id);
+              try {
+                const data = await rpc(`/api/${workspace.id}/sources/tasks`, { body: links.map(l => l.id) });
+                setTasks({ loading: false, data });
+                if (data.tasks?.[link.id]?.status === "RUNNING") {
+                  toTasks();
+                  return;
+                }
+              } catch (e) {}
               try {
                 const runStatus = await rpc(`/api/${workspace.id}/sources/run?syncId=${link.id}`);
                 if (runStatus?.error) {
@@ -280,18 +297,19 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
               }
               setRunPressed(link.id);
               try {
+                const data = await rpc(`/api/${workspace.id}/sources/tasks`, { body: links.map(l => l.id) });
+                setTasks({ loading: false, data });
+                if (data.tasks?.[link.id]?.status === "RUNNING") {
+                  toTasks();
+                  return;
+                }
+              } catch (e) {}
+              try {
                 const runStatus = await rpc(`/api/${workspace.id}/sources/run?syncId=${link.id}&fullSync=true`);
                 if (runStatus?.error) {
                   displayTaskRunError(workspace, runStatus);
                 } else {
-                  router.push(
-                    `/${workspace.slug || workspace.id}/syncs/tasks?query=${encodeURIComponent(
-                      JSON5.stringify({
-                        syncId: link.id,
-                        notification: "Sync Started",
-                      })
-                    )}`
-                  );
+                  toTasks();
                 }
               } catch (e) {
                 feedbackError("Failed to run sync", { error: e, placement: "top" });
