@@ -99,8 +99,6 @@ export function createPg(url: string, opts: { defaultSchema?: string; connection
 
   const pool = new PG.Pool({
     connectionString: url,
-    idleTimeoutMillis: 0,
-    allowExitOnIdle: false,
     ssl: sslMode === "no-verify" ? { rejectUnauthorized: false } : undefined,
   });
   pool.on("connect", async client => {
