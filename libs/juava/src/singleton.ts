@@ -135,7 +135,7 @@ export function getSingleton<T>(
         return globalInstance.value;
       } else {
         throw newError(
-          `${globalName} failed during initialization: ${getErrorMessage(globalInstance.error)}`,
+          `STALLED ERROR - ${globalName} failed during initialization: ${getErrorMessage(globalInstance.error)}`,
           globalInstance.error
         );
       }
