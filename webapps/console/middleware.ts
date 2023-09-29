@@ -21,9 +21,7 @@ const log = getServerLog("request-logger");
 
 export async function middleware(request: NextRequest) {
   let response;
-  if (request.nextUrl.pathname.startsWith("/p.js")) {
-    response = NextResponse.rewrite(new URL("/api/s/javascript-library", request.url));
-  } else if (request.nextUrl.pathname.startsWith("/v1/batch")) {
+  if (request.nextUrl.pathname.startsWith("/v1/batch")) {
     response = NextResponse.rewrite(new URL("/api/s/batch", request.url));
   } else if (request.nextUrl.pathname.startsWith("/v1/b")) {
     response = NextResponse.rewrite(new URL("/api/s/batch", request.url));
