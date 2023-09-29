@@ -120,36 +120,26 @@ export function createPg(url: string, opts: { defaultSchema?: string; connection
   return pool;
 }
 
-export function getPostgresStore(
+export async function getPostgresStore(
   postgres: string | PG.Pool,
   opts: { tableName?: string; schema?: string } = {}
-): KeyValueStore {
+): Promise<KeyValueStore> {
   const pgPool =
     typeof postgres === "string"
-      ? createPg(postgres, { defaultSchema: opts.schema, connectionName: "kvstore" })
+      ? await createPg(postgres, { defaultSchema: opts.schema, connectionName: "kvstore" })
       : postgres;
   const table = opts?.tableName || `kvstore`;
-
-  let initialized = false;
-
-  const initIfNeeded = async () => {
-    if (!initialized) {
-      try {
-        await pgPool.query(schema(table));
-      } catch (e: any) {
-        log.atError().log(`Failed to initialize postgres table storage: ${getErrorMessage(e)} Query: schema(table)`);
-        throw new Error("Failed to initialize postgres table storage: " + getErrorMessage(e));
-      }
-    }
-    initialized = true;
-  };
+  try {
+    await pgPool.query(schema(table));
+  } catch (e: any) {
+    log.atError().log(`Failed to initialize postgres table storage: ${getErrorMessage(e)} Query: schema(table)`);
+    throw new Error("Failed to initialize postgres table storage: " + getErrorMessage(e));
+  }
 
   return {
     getTable(tableName: string): KeyValueTable {
       return {
         async list(keyPattern?: string) {
-          await initIfNeeded();
-
           maybeDeleteExpiredObjects(pgPool, table);
           assertDefined(!keyPattern, "keyPattern is not supported yet");
           const result = await pgPool.query({
@@ -162,7 +152,6 @@ export function getPostgresStore(
           return result.rows.map(({ id, obj }) => ({ id: id as string, obj }));
         },
         async listKeys(keyPattern?: string): Promise<string[]> {
-          await initIfNeeded();
           maybeDeleteExpiredObjects(pgPool, table);
           assertDefined(!keyPattern, "keyPattern is not supported yet");
           const result = await pgPool.query({
@@ -175,12 +164,10 @@ export function getPostgresStore(
           return result.rows.map(({ id }) => id);
         },
         async del(key: string) {
-          await initIfNeeded();
           maybeDeleteExpiredObjects(pgPool, table);
           await pgPool.query(deleteQuery(table, tableName, key));
         },
         async get(key: string) {
-          await initIfNeeded();
           maybeDeleteExpiredObjects(pgPool, table);
           let result = await pgPool.query({
             text: `SELECT obj, expire
@@ -203,7 +190,6 @@ export function getPostgresStore(
           }
         },
         async put(key: string, obj: any, opts: { ttlMs?: number } = {}) {
-          await initIfNeeded();
           maybeDeleteExpiredObjects(pgPool, table);
           const upsertQuery = `
               INSERT INTO ${table} (id, namespace, obj, expire)

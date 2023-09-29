@@ -94,7 +94,10 @@ export function getSingleton<T>(
           ? debounce(() => clearSingleton(globalName, opts.cleanupFunc), 1000 * opts.errorTtlSec)
           : () => {},
     };
-    if (process.env.FAIL_ON_DB_CONNECTION_ERRORS === "true" || process.env.FAIL_ON_DB_CONNECTION_ERRORS === "1") {
+    if (
+      !opts.optional &&
+      (process.env.FAIL_ON_DB_CONNECTION_ERRORS === "true" || process.env.FAIL_ON_DB_CONNECTION_ERRORS === "1")
+    ) {
       log.atInfo().log("❌ ❌ ❌ Shutting down the application");
       process.exit(1);
     }
@@ -135,7 +138,7 @@ export function getSingleton<T>(
         return globalInstance.value;
       } else {
         throw newError(
-          `STALLED ERROR - ${globalName} failed during initialization: ${getErrorMessage(globalInstance.error)}`,
+          `${globalName} failed during initialization: ${getErrorMessage(globalInstance.error)}`,
           globalInstance.error
         );
       }

@@ -301,7 +301,6 @@ function CredentialsPopover(props: { credentials: ClickhouseConnectionCredential
               >
                 {[
                   `clickhouse-client --host ${props.credentials.host} \\`,
-                  `\t--accept-invalid-certificate \\`,
                   `\t--database ${props.credentials.database} \\`,
                   `\t--port ${props.credentials.tcpPort} --secure \\`,
                   `\t--user ${props.credentials.username} \\`,

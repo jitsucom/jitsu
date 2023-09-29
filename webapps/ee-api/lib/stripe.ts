@@ -24,11 +24,11 @@ export async function getOrCreateCurrentSubscription(
   userEmail: () => string,
   opts: { changeEmail?: boolean } = {}
 ): Promise<{ stripeCustomerId: string; noRestrictions?: boolean; subscriptionStatus: SubscriptionStatus }> {
-  let stripeOptions = await store.getTable(stripeDataTable).get(workspaceId);
+  let stripeOptions = await store().getTable(stripeDataTable).get(workspaceId);
   if (!stripeOptions) {
     const email = userEmail();
     const newCustomer = await stripe.customers.create({ email });
-    await store.getTable(stripeDataTable).put(workspaceId, { stripeCustomerId: newCustomer.id });
+    await store().getTable(stripeDataTable).put(workspaceId, { stripeCustomerId: newCustomer.id });
     stripeOptions = { stripeCustomerId: newCustomer.id };
   }
   if (opts.changeEmail) {
