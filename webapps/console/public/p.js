@@ -1,1 +1,0 @@
-../../../libs/jitsu-js/dist/web/p.js.txt
