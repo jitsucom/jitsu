@@ -87,7 +87,7 @@ export const rpc: RpcFunc = async (url, { body, ...rest } = {}) => {
     let errorText = await getErrorText(result);
     const errorJson = tryJson(errorText);
     const message = `Error ${result.status} on ${method} ${url}`;
-    console.log(message, errorJson);
+    console.error(message, errorJson);
     throw typeof errorJson === "string"
       ? new Error(`${message}: ${errorJson}`)
       : new ApiResponseError(message, errorJson, {
