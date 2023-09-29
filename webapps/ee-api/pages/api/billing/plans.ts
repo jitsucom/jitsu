@@ -27,7 +27,6 @@ type Response = {
   products: Product[];
 };
 const handler = async function handler(req: NextApiRequest, res: NextApiResponse<ErrorResponse | Response>) {
-  await store.waitInit();
   if (req.method === "OPTIONS") {
     //allowing requests from everywhere since our tokens are short-lived
     //and can't be hijacked

@@ -31,10 +31,8 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
     claims.type === "admin" || (claims.type === "user" && claims.workspaceId === workspaceId),
     `Token can't access workspace ${workspaceId}`
   );
-  await s3client.waitInit();
-  await store.waitInit();
 
-  let credentials = await store().getTable("s3-buckets").get(workspaceId);
+  let credentials = await store.getTable("s3-buckets").get(workspaceId);
   if (credentials) {
     return res.status(200).json({
       ...credentials,
@@ -47,7 +45,7 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
   };
   const command = new CreateBucketCommand(bucketParams);
 
-  const result = await s3client().send(command);
+  const result = await s3client.send(command);
 
   log.atInfo().log(`Bucket ${workspaceId} status: ${JSON.stringify(result)}`);
 
@@ -56,7 +54,7 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
     region: process.env.S3_REGION,
   };
 
-  await store().getTable("s3-buckets").put(workspaceId, credentials);
+  await store.getTable("s3-buckets").put(workspaceId, credentials);
   return {
     ...credentials,
   };

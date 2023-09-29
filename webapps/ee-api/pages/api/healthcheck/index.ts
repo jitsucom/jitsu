@@ -1,15 +1,23 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { getLog } from "juava";
-import { pg, store } from "../../../lib/services";
+import { clickhouse, pg, s3client, store, telemetryDb } from "../../../lib/services";
+import { ListBucketsCommand } from "@aws-sdk/client-s3";
 
 const healthChecks: Record<string, () => Promise<any>> = {
   postgres: async () => {
-    const pgPool = await pg.waitInit();
-    await pgPool.query(`SELECT 1 as pgpool_healthcheck`);
+    await pg.query(`SELECT 1 as pgpool_healthcheck`);
+  },
+  clickhouse: async () => {
+    await clickhouse.query({ query: `SELECT 1 as chpool_healthcheck`, clickhouse_settings: { wait_end_of_query: 1 } });
+  },
+  telemetryDb: async () => {
+    await telemetryDb.query(`SELECT 1 as telemetry_healthcheck`);
+  },
+  s3: async () => {
+    await s3client.send(new ListBucketsCommand({}));
   },
   pgstore: async () => {
-    const pgStore = await store.waitInit();
-    await pgStore.getTable("last_healthcheck").put("last_healthcheck", {
+    await store.getTable("last_healthcheck").put("last_healthcheck", {
       timestamp: new Date().toISOString(),
       env: process.env,
     });

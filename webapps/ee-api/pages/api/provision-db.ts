@@ -18,7 +18,7 @@ async function createDb(name: string, cluster: string): Promise<string> {
   let nameCounter = 0;
   while (true) {
     const currentName = nameCounter === 0 ? name : `${name}${nameCounter}`;
-    const resultSet = await clickhouse().query({
+    const resultSet = await clickhouse.query({
       query: `select count(*) as cnt
               from system.databases
               where name = '${currentName}'`,
@@ -29,7 +29,7 @@ async function createDb(name: string, cluster: string): Promise<string> {
     const result = await resultSet.json();
     const cnt = (result as any).data[0].cnt;
     if (cnt === "0") {
-      const res = await clickhouse()
+      const res = await clickhouse
         .query({ query: `CREATE DATABASE ${currentName} ON CLUSTER ${cluster}` })
         .then(result => result.text());
       log.atInfo().log(`Database ${currentName} created`, res);
@@ -47,7 +47,7 @@ async function createUser(name: string, password: string, dbName: string, cluste
   let nameCounter = 0;
   while (true) {
     const currentName = nameCounter === 0 ? name : `${name}${nameCounter}`;
-    const resultSet = await clickhouse().query({
+    const resultSet = await clickhouse.query({
       query: `select count(*) as cnt
               from system.users
               where name = '${currentName}'`,
@@ -60,11 +60,11 @@ async function createUser(name: string, password: string, dbName: string, cluste
     if (cnt === "0") {
       const query = `CREATE USER ${currentName} ON CLUSTER ${cluster} IDENTIFIED WITH sha256_password BY '${password}' DEFAULT DATABASE ${dbName}`;
       log.atDebug().log(`Creating user ${name} with query: ${query}`);
-      await clickhouse().exec({ query });
+      await clickhouse.exec({ query });
       log.atInfo().log(`User ${currentName} created`);
       const grantQuery = `GRANT ON CLUSTER ${cluster} ALL ON ${dbName}.* TO ${currentName}`;
       log.atDebug().log(`Granting db privileges to user ${name} with query: ${query}`);
-      await clickhouse().exec({ query: grantQuery });
+      await clickhouse.exec({ query: grantQuery });
       log.atInfo().log(`Privileges granted to user ${currentName} on db ${dbName}`);
       return currentName;
     } else {
@@ -79,7 +79,6 @@ async function createUser(name: string, password: string, dbName: string, cluste
  * for creating a database. It might be slightly different if database name was already taken.
  */
 async function createAccount(credentials: Credentials): Promise<Credentials> {
-  await clickhouse.waitInit();
   const database = await createDb(credentials.database, credentials.cluster);
   return {
     username: await createUser(credentials.username, credentials.password, database, credentials.cluster),
@@ -98,7 +97,6 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
       new URL(requireDefined(process.env.CLICKHOUSE_URL, `CLICKHOUSE_URL or CLICKHOUSE_HOSTS must be defined`)).hostname
     );
   }
-  await store.waitInit();
   const claims = await auth(req, res);
   if (!claims) {
     return;
@@ -110,7 +108,7 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
     claims.type === "admin" || (claims.type === "user" && claims.workspaceId === workspaceId),
     `Token can't access workspace ${workspaceId}`
   );
-  const credentials = await store().getTable("provisioned-db").get(workspaceId);
+  const credentials = store.getTable("provisioned-db").get(workspaceId);
   if (credentials) {
     return res.status(200).json({
       ...credentials,
@@ -124,7 +122,7 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
     password: randomId(24),
     cluster: clickhouseClusterName,
   });
-  await store().getTable("provisioned-db").put(workspaceId, dbCredentials);
+  await store.getTable("provisioned-db").put(workspaceId, dbCredentials);
   return {
     ...dbCredentials,
     protocol: "clickhouse-secure",

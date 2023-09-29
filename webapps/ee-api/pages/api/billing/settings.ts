@@ -20,7 +20,6 @@ export type ErrorResponse = {
 };
 
 const handler = async function handler(req: NextApiRequest, res: NextApiResponse<SuccessfullResponse | ErrorResponse>) {
-  await store.waitInit();
   if (req.method === "OPTIONS") {
     //allowing requests from everywhere since our tokens are short-lived
     //and can't be hijacked
