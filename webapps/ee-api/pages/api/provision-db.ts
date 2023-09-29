@@ -108,7 +108,7 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
     claims.type === "admin" || (claims.type === "user" && claims.workspaceId === workspaceId),
     `Token can't access workspace ${workspaceId}`
   );
-  const credentials = store.getTable("provisioned-db").get(workspaceId);
+  const credentials = await store.getTable("provisioned-db").get(workspaceId);
   if (credentials) {
     return res.status(200).json({
       ...credentials,
