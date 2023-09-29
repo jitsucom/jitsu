@@ -1,10 +1,11 @@
 import { getUser } from "../../../lib/api";
 import { z } from "zod";
-import { assertDefined, assertTrue, getErrorMessage, getLog, requireDefined } from "juava";
+import { assertDefined, assertTrue, getErrorMessage, requireDefined } from "juava";
 import { firebase, isFirebaseEnabled } from "../../../lib/server/firebase-server";
 import { db } from "../../../lib/server/db";
 import { SessionUser } from "../../../lib/schema";
 import { NextApiRequest, NextApiResponse } from "next";
+import { getServerLog } from "../../../lib/server/log";
 
 const ResultUser = z.object({
   internalId: z.string().optional(),
@@ -76,6 +77,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.status(200).send({ users });
   } catch (e) {
     res.status(500).send(getErrorMessage(e));
-    getLog().atError().withCause(e).log("Error obtaining list of platform users");
+    getServerLog().atError().withCause(e).log("Error obtaining list of platform users");
   }
 }

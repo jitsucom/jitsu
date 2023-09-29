@@ -3,7 +3,8 @@ import { NextApiRequest } from "next";
 
 import * as admin from "firebase-admin";
 import * as JSON5 from "json5";
-import { getErrorMessage, getLog, getSingleton, requireDefined, Singleton } from "juava";
+import { getErrorMessage, getSingleton, requireDefined, Singleton } from "juava";
+import { getServerLog } from "./log";
 
 export type FirebaseOptions = {
   admin: any;
@@ -94,7 +95,7 @@ export async function getFirebaseUser(req: NextApiRequest, checkRevoked?: boolea
   //make sure service is initialized
   await firebaseService.waitInit();
 
-  getLog()
+  getServerLog()
     .atDebug()
     .log(`authToken (${(checkRevoked = !!checkRevoked)}): ${JSON.stringify(authToken)}`);
 
@@ -106,7 +107,7 @@ export async function getFirebaseUser(req: NextApiRequest, checkRevoked?: boolea
           .auth()
           .verifySessionCookie(authToken.cookieToken as string, checkRevoked);
   } catch (e) {
-    getLog()
+    getServerLog()
       .atWarn()
       .withCause(e)
       .log(`Failed to verify firebase token: ${getErrorMessage(e)}`);

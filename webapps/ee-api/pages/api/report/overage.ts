@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { assertTrue, getLog } from "juava";
+import { assertTrue } from "juava";
 import { withErrorHandler } from "../../../lib/error-handler";
 import { auth } from "../../../lib/auth";
 import { store } from "../../../lib/services";
@@ -7,8 +7,9 @@ import { getAvailableProducts, stripe, stripeDataTable } from "../../../lib/stri
 import Stripe from "stripe";
 import pick from "lodash/pick";
 import { buildWorkspaceReport } from "./workspace-stat";
+import { getServerLog } from "../../../lib/log";
 
-const log = getLog("/api/report");
+const log = getServerLog("/api/report");
 
 function toUTC(date: Date | string) {
   const dateObj = new Date(date);

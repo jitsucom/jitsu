@@ -1,11 +1,12 @@
 import { NextApiRequest } from "next";
-import { getErrorMessage, getLog } from "juava";
+import { getErrorMessage } from "juava";
 import { IngestType } from "@jitsu/protocols/async-request";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
+import { getServerLog } from "./server/log";
 
 export type HttpProtocolVariant = "https" | "http";
 
-export const log = getLog("domains");
+export const log = getServerLog("domains");
 
 export type PublicEndpoint = {
   //always without port

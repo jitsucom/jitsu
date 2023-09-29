@@ -1,8 +1,9 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { assertDefined, getErrorMessage, getLog, getSingleton, newError, requireDefined, Singleton } from "juava";
+import { getErrorMessage, getSingleton, requireDefined, Singleton } from "juava";
 
 import * as admin from "firebase-admin";
 import * as JSON5 from "json5";
+import { getServerLog } from "./log";
 
 const bearerPrefix = "bearer ";
 
@@ -10,7 +11,7 @@ export const firebaseAuthCookieName = "fb-auth2";
 
 export type FirebaseToken = { idToken: string; cookieToken?: never } | { idToken?: never; cookieToken: string };
 
-const log = getLog("firebase-auth");
+const log = getServerLog("firebase-auth");
 
 export type FirebaseOptions = {
   admin: any;

@@ -2,12 +2,13 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { store } from "../../../lib/services";
 import { auth } from "../../../lib/auth";
 import { getAvailableProducts, getOrCreateCurrentSubscription, stripe } from "../../../lib/stripe";
-import { getLog, requireDefined } from "juava";
+import { requireDefined } from "juava";
 import { withErrorHandler } from "../../../lib/error-handler";
 
 import omit from "lodash/omit";
+import { getServerLog } from "../../../lib/log";
 
-const log = getLog("/api/billing/create");
+const log = getServerLog("/api/billing/create");
 
 export type ErrorResponse = {
   ok: false;

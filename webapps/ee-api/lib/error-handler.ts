@@ -1,7 +1,8 @@
-import { getErrorMessage, getLog } from "juava";
+import { getErrorMessage } from "juava";
 import { NextApiHandler } from "next";
+import { getServerLog } from "./log";
 
-const log = getLog("api-error");
+const log = getServerLog("api-error");
 
 export function withErrorHandler(handler: NextApiHandler): NextApiHandler {
   return async (req, res) => {

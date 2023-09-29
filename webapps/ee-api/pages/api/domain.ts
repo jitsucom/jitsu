@@ -1,12 +1,13 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { auth } from "../../lib/auth";
-import { getErrorMessage, getLog, requireDefined } from "juava";
+import { getErrorMessage, requireDefined } from "juava";
 
 import fetch from "node-fetch-commonjs";
 import { withErrorHandler } from "../../lib/error-handler";
 import isValidDomain from "is-valid-domain";
+import { getServerLog } from "../../lib/log";
 
-const log = getLog("/api/domain");
+const log = getServerLog("/api/domain");
 
 const vercelProjectId = requireDefined(
   process.env.DOMAINS_VERCEL_PROJECT_ID,

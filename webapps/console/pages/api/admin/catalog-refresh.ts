@@ -1,9 +1,10 @@
 import { createRoute } from "../../../lib/api";
 import { db } from "../../../lib/server/db";
-import { assertDefined, assertTrue, getLog, rpc } from "juava";
+import { assertDefined, assertTrue, rpc } from "juava";
 import { z } from "zod";
+import { getServerLog } from "../../../lib/server/log";
 
-const log = getLog("catalog-refresh");
+const log = getServerLog("catalog-refresh");
 const yaml = require("js-yaml");
 const branch = `master`;
 const repo = `airbytehq/airbyte`;

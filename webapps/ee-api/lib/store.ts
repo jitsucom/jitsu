@@ -1,7 +1,8 @@
-import { assertDefined, getErrorMessage, getLog } from "juava";
+import { assertDefined, getErrorMessage } from "juava";
 import * as PG from "pg";
+import { getServerLog } from "./log";
 
-const log = getLog("store");
+const log = getServerLog("store");
 
 /**
  * Key value table with hash-map interface

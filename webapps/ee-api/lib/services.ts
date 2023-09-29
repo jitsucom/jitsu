@@ -1,9 +1,10 @@
-import { getErrorMessage, getLog, getSingleton, requireDefined } from "juava";
+import { getErrorMessage, getSingleton, requireDefined } from "juava";
 import { createPg, getPostgresStore } from "./store";
 import { createClient } from "@clickhouse/client";
 import { S3Client } from "@aws-sdk/client-s3";
 
 import PG from "pg";
+import { getServerLog } from "./log";
 
 const dbUrl = requireDefined(
   process.env.EE_DATABASE_URL || process.env.DATABASE_URL,
@@ -13,7 +14,7 @@ const dbUrl = requireDefined(
 export const pg = getSingleton("postgres", () => createPg(dbUrl, { connectionName: "kvstore" }));
 
 export const store = getSingleton("pgstore", async () => {
-  getLog().atInfo().log("Initializing postgres store (pgstore) - initializing postgres pool");
+  getServerLog().atInfo().log("Initializing postgres store (pgstore) - initializing postgres pool");
   let pgPool: PG.Pool;
   try {
     pgPool = await pg.waitInit();
@@ -21,7 +22,7 @@ export const store = getSingleton("pgstore", async () => {
     const msg = `Failed to initialize postgres pool: ${getErrorMessage(e)}`;
     throw new Error(msg);
   }
-  getLog().atInfo().log("Postgres connection pool initialized - initializing kvstore");
+  getServerLog().atInfo().log("Postgres connection pool initialized - initializing kvstore");
   try {
     return getPostgresStore(pgPool, { tableName: "kvstore" });
   } catch (e) {

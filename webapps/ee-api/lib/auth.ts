@@ -1,12 +1,13 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { assertDefined, createAuthorized, getLog, newError, requireDefined } from "juava";
+import { assertDefined, createAuthorized, newError, requireDefined } from "juava";
 
 import jwt from "jsonwebtoken";
 import * as process from "process";
+import { getServerLog } from "./log";
 
 const bearerPrefix = "Bearer ";
 
-const log = getLog("auth");
+const log = getServerLog("auth");
 
 const adminAuthorizer = createAuthorized(process.env.EE_API_AUTH_TOKENS || "");
 

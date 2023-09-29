@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { getLog } from "juava";
+import { getServerLog } from "./lib/server/log";
 
 function isTruish(val: any) {
   return val === "true" || val === "1" || val === "yes" || val === true || val === 1;
@@ -17,7 +17,7 @@ function prettifyBody(body: string) {
   }
 }
 
-const log = getLog("request-logger");
+const log = getServerLog("request-logger");
 
 export async function middleware(request: NextRequest) {
   let response;

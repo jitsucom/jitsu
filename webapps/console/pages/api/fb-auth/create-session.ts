@@ -1,13 +1,13 @@
 import { Api, inferUrl, nextJsApiHandler } from "../../../lib/api";
-import { getLog } from "juava";
 import { z } from "zod";
 import { createSessionCookie, firebaseAuthCookieName } from "../../../lib/server/firebase-server";
 import { ApiError } from "../../../lib/shared/errors";
 import { CookieSerializeOptions, serialize } from "cookie";
 import { getAppEndpoint } from "../../../lib/domains";
 import { getRequestHost, getTopLevelDomain } from "../../../lib/server/origin";
+import { getServerLog } from "../../../lib/server/log";
 
-export const log = getLog("firebase");
+export const log = getServerLog("firebase");
 
 export const api: Api = {
   url: inferUrl(__filename),

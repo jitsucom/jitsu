@@ -1,11 +1,12 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { auth } from "../../../lib/auth";
-import { getLog, requireDefined } from "juava";
+import { requireDefined } from "juava";
 import { withErrorHandler } from "../../../lib/error-handler";
 import { getOrCreatePortalConfiguration, getOrCreateCurrentSubscription, stripe } from "../../../lib/stripe";
 import { store } from "../../../lib/services";
+import { getServerLog } from "../../../lib/log";
 
-const log = getLog("/api/billing/manager");
+const log = getServerLog("/api/billing/manager");
 
 export type SuccessfullResponse = {
   ok: true;

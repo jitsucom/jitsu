@@ -1,11 +1,12 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getLog, namedParameters, SqlQueryParameters, unrollParams } from "juava";
+import { namedParameters, SqlQueryParameters, unrollParams } from "juava";
 import { withErrorHandler } from "../../../lib/error-handler";
 import { auth } from "../../../lib/auth";
 import { clickhouse, pg } from "../../../lib/services";
 import * as PG from "pg";
+import { getServerLog } from "../../../lib/log";
 
-const log = getLog("/api/report");
+const log = getServerLog("/api/report");
 
 const workspaceStatSql = require("../../../lib/sql/workspace-info.sql").default;
 

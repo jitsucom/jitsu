@@ -1,11 +1,12 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { auth } from "../../lib/auth";
-import { assertTrue, getLog, requireDefined } from "juava";
+import { assertTrue, requireDefined } from "juava";
 import { withErrorHandler } from "../../lib/error-handler";
 import { s3client, store } from "../../lib/services";
 import { CreateBucketCommand, CreateBucketCommandInput } from "@aws-sdk/client-s3";
+import { getServerLog } from "../../lib/log";
 
-export const log = getLog("s3-bucket-init");
+export const log = getServerLog("s3-bucket-init");
 
 export type Credentials = {
   accessKeyId: string;

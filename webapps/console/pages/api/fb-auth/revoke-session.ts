@@ -1,10 +1,10 @@
 import { createRoute } from "../../../lib/api";
-import { getLog } from "juava";
 import { firebaseAuthCookieName, signOut } from "../../../lib/server/firebase-server";
 import { serialize } from "cookie";
 import { getAppEndpoint } from "../../../lib/domains";
+import { getServerLog } from "../../../lib/server/log";
 
-export const log = getLog("firebase");
+export const log = getServerLog("firebase");
 
 export default createRoute()
   .GET({ auth: true })

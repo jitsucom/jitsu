@@ -3,8 +3,8 @@ import { z } from "zod";
 import { db } from "../../../../lib/server/db";
 import { ApiError } from "../../../../lib/shared/errors";
 import { getUserPreferenceService } from "../../../../lib/server/user-preferences";
-import { getLog } from "juava";
-const log = getLog();
+import { getServerLog } from "../../../../lib/server/log";
+const log = getServerLog();
 export const api: Api = {
   url: inferUrl(__filename),
   GET: {

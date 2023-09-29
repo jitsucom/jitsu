@@ -1,10 +1,10 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { getLog } from "juava";
 import { auth } from "../../lib/firebase-auth";
 import { withErrorHandler } from "../../lib/error-handler";
 import { telemetryDb } from "../../lib/services";
+import { getServerLog } from "../../lib/log";
 
-const log = getLog("/api/is-active");
+const log = getServerLog("/api/is-active");
 
 const handler = async function handler(req: NextApiRequest, res: NextApiResponse) {
   res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");

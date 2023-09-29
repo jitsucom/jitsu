@@ -1,10 +1,11 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { auth } from "../../lib/auth";
-import { assertTrue, getLog, randomId, requireDefined } from "juava";
+import { assertTrue, randomId, requireDefined } from "juava";
 import { withErrorHandler } from "../../lib/error-handler";
 import { clickhouse, store } from "../../lib/services";
+import { getServerLog } from "../../lib/log";
 
-export const log = getLog("provision-db");
+export const log = getServerLog("provision-db");
 
 export type Credentials = {
   username: string;

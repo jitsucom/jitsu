@@ -2,9 +2,10 @@ import { createRoute } from "../../../lib/api";
 import { redis } from "../../../lib/server/redis";
 import { ApiError } from "../../../lib/shared/errors";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
-import { getErrorMessage, getLog } from "juava";
+import { getErrorMessage } from "juava";
 import { patchEvent, sendEventToBulker, setResponseHeaders } from "./[...type]";
 import { z } from "zod";
+import { getServerLog } from "../../../lib/server/log";
 
 export default createRoute()
   .POST({
@@ -37,7 +38,7 @@ export default createRoute()
         await sendEventToBulker(req, ingestType, event);
         okEvents++;
       } catch (e) {
-        getLog().atWarn().log(`Failed to process event ${i} / ${size} `, e);
+        getServerLog().atWarn().log(`Failed to process event ${i} / ${size} `, e);
         errors.push(getErrorMessage(e));
       }
     }

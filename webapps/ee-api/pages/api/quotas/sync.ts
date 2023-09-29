@@ -1,10 +1,11 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { auth } from "../../../lib/auth";
-import { assertTrue, getLog, requireDefined } from "juava";
+import { assertTrue, requireDefined } from "juava";
 import { withErrorHandler } from "../../../lib/error-handler";
 import { getOrCreateCurrentSubscription } from "../../../lib/stripe";
 import { pg as pgService } from "../../../lib/services";
 import { query } from "../report/workspace-stat";
+import { getServerLog } from "../../../lib/log";
 
 //A little copy-paste doesn't hurt
 //Values should be the same as in BillingSettings from webapps/console/lib/schema/index.ts
@@ -39,7 +40,7 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
             group by "workspaceId";`,
       { workspaceId }
     );
-    getLog()
+    getServerLog()
       .atInfo()
       .log(`Quota check for ${workspaceId}: ${JSON.stringify(res, null, 2)}`);
     if (res.length == 0) {

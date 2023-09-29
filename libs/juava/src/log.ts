@@ -16,7 +16,7 @@ function getComponent() {
 }
 
 let globalLogLevel: LogLevel = "info" as LogLevel;
-let enableServerLogsColoring: boolean = true;
+let enableServerLogsColoring: boolean = false;
 let enableJsonFormat: boolean = false;
 
 export function setGlobalLogLevel(level: LogLevel) {

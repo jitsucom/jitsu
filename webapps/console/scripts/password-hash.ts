@@ -1,7 +1,8 @@
 import minimist from "minimist";
-import { createHash, getLog, randomId } from "juava";
+import { createHash, randomId } from "juava";
+import { getServerLog } from "../lib/server/log";
 
-const log = getLog("password-hash");
+const log = getServerLog("password-hash");
 
 async function main(): Promise<void> {
   const args = minimist(process.argv.slice(2));

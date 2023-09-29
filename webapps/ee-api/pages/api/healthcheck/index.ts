@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { getLog } from "juava";
 import { pg, store, clickhouse, telemetryDb, s3client } from "../../../lib/services";
 import { ListBucketsCommand } from "@aws-sdk/client-s3";
+import { getServerLog } from "../../../lib/log";
 
 const healthChecks: Record<string, () => Promise<any>> = {
   postgres: async () => {
@@ -28,7 +28,7 @@ const healthChecks: Record<string, () => Promise<any>> = {
   },
 };
 
-const log = getLog("healthcheck");
+const log = getServerLog("healthcheck");
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const result: Record<string, any> = {};

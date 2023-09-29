@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { db } from "../../../lib/server/db";
-import { getLog } from "juava";
 import { redis } from "../../../lib/server/redis";
+import { getServerLog } from "../../../lib/server/log";
 
 const healthChecks: Record<string, () => Promise<any>> = {
   prisma: async () => {
@@ -18,7 +18,7 @@ const healthChecks: Record<string, () => Promise<any>> = {
   },
 };
 
-const log = getLog("healthcheck");
+const log = getServerLog("healthcheck");
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const result: Record<string, any> = {};
