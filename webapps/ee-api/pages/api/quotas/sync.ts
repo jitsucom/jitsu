@@ -3,7 +3,7 @@ import { auth } from "../../../lib/auth";
 import { assertTrue, requireDefined } from "juava";
 import { withErrorHandler } from "../../../lib/error-handler";
 import { getOrCreateCurrentSubscription } from "../../../lib/stripe";
-import { pg as pgService } from "../../../lib/services";
+import { pg } from "../../../lib/services";
 import { query } from "../report/workspace-stat";
 import { getServerLog } from "../../../lib/log";
 
@@ -14,7 +14,6 @@ export const freePlanLimitations = {
 };
 
 const handler = async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const pg = await pgService.waitInit();
   const claims = requireDefined(await auth(req, res), `Auth is required`);
   const workspaceId = requireDefined(req.query.workspaceId as string, "workspaceId GET param is required");
   assertTrue(claims.type === "admin" || claims.workspaceId === workspaceId, "Invalid auth claims");

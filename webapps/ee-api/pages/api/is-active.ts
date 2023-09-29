@@ -25,8 +25,7 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
   let projectId: string | null = null;
   let projectName: string | null = null;
   try {
-    const pool = await telemetryDb.waitInit();
-    const rows = await pool.query("select * from jitsu_configs_users_info where _uid=$1 limit 1", [uid]);
+    const rows = await telemetryDb.query("select * from jitsu_configs_users_info where _uid=$1 limit 1", [uid]);
     if (rows.rowCount === 0) {
       return { ok: true, uid: null, project: null, name: null, active: false };
     } else {

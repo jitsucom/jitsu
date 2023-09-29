@@ -56,11 +56,9 @@ async function getPostgresPart({ granularity, start, end, workspaceId }: ReportP
   `;
   const params = removeUndefined({ start, end, granularity, workspaceId });
   const { query, values } = namedParameters(sql, params);
-  return await pg()
-    .query({ text: query, values })
-    .then(res => {
-      return res.rows;
-    });
+  return await pg.query({ text: query, values }).then(res => {
+    return res.rows;
+  });
 }
 
 async function getClickhousePart({
@@ -83,7 +81,7 @@ async function getClickhousePart({
                  group by period, workspaceId
                  order by period desc;
   `;
-  const resultSet = await clickhouse().query({
+  const resultSet = await clickhouse.query({
     query,
     clickhouse_settings: {
       wait_end_of_query: 1,
@@ -142,7 +140,7 @@ export async function buildWorkspaceReport(
 }
 
 async function extend(reportResult: WorkspaceReportRow[]): Promise<ExtendedWorkspaceReportRow[]> {
-  const workspaceInfo = await query(pg(), workspaceStatSql);
+  const workspaceInfo = await query(pg, workspaceStatSql);
   const workspaceInfoMap = workspaceInfo.reduce((acc, w) => {
     acc[w.workspaceId] = w;
     return acc;
@@ -153,9 +151,6 @@ async function extend(reportResult: WorkspaceReportRow[]): Promise<ExtendedWorks
 }
 
 const handler = async function handler(req: NextApiRequest, res: NextApiResponse) {
-  await clickhouse.waitInit();
-  await pg.waitInit();
-
   res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
   res.setHeader("Access-Control-Allow-Methods", "*");
   res.setHeader("Access-Control-Allow-Headers", "authorization, content-type, baggage, sentry-trace");

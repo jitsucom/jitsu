@@ -3,7 +3,6 @@ import { auth } from "../../../lib/auth";
 import { requireDefined } from "juava";
 import { withErrorHandler } from "../../../lib/error-handler";
 import { getOrCreatePortalConfiguration, getOrCreateCurrentSubscription, stripe } from "../../../lib/stripe";
-import { store } from "../../../lib/services";
 import { getServerLog } from "../../../lib/log";
 
 const log = getServerLog("/api/billing/manager");
@@ -19,7 +18,6 @@ export type ErrorResponse = {
 };
 
 const handler = async function handler(req: NextApiRequest, res: NextApiResponse<SuccessfullResponse | ErrorResponse>) {
-  await store.waitInit();
   if (req.method === "OPTIONS") {
     //allowing requests from everywhere since our tokens are short-lived
     //and can't be hijacked

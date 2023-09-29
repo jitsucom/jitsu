@@ -5,23 +5,19 @@ import { getServerLog } from "../../../lib/log";
 
 const healthChecks: Record<string, () => Promise<any>> = {
   postgres: async () => {
-    const pgPool = await pg.waitInit();
-    await pgPool.query(`SELECT 1 as pgpool_healthcheck`);
+    await pg.query(`SELECT 1 as pgpool_healthcheck`);
   },
   clickhouse: async () => {
-    await clickhouse
-      .waitInit()
-      .then(c => c.query({ query: `SELECT 1 as chpool_healthcheck`, clickhouse_settings: { wait_end_of_query: 1 } }));
+    await clickhouse.query({ query: `SELECT 1 as chpool_healthcheck`, clickhouse_settings: { wait_end_of_query: 1 } });
   },
   telemetryDb: async () => {
-    await telemetryDb.waitInit().then(t => t.query(`SELECT 1 as telemetry_healthcheck`));
+    await telemetryDb.query(`SELECT 1 as telemetry_healthcheck`);
   },
   s3: async () => {
-    await s3client.waitInit().then(s => s.send(new ListBucketsCommand({})));
+    await s3client.send(new ListBucketsCommand({}));
   },
   pgstore: async () => {
-    const pgStore = await store.waitInit();
-    await pgStore.getTable("last_healthcheck").put("last_healthcheck", {
+    await store.getTable("last_healthcheck").put("last_healthcheck", {
       timestamp: new Date().toISOString(),
       env: process.env,
     });

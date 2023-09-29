@@ -1,11 +1,9 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { store } from "../../../lib/services";
 import { auth } from "../../../lib/auth";
 import { getAvailableProducts, getOrCreateCurrentSubscription, stripe } from "../../../lib/stripe";
 import { requireDefined } from "juava";
 import { withErrorHandler } from "../../../lib/error-handler";
 
-import omit from "lodash/omit";
 import { getServerLog } from "../../../lib/log";
 
 const log = getServerLog("/api/billing/create");
@@ -28,7 +26,6 @@ type Response = {
   products: Product[];
 };
 const handler = async function handler(req: NextApiRequest, res: NextApiResponse<ErrorResponse | Response>) {
-  await store.waitInit();
   if (req.method === "OPTIONS") {
     //allowing requests from everywhere since our tokens are short-lived
     //and can't be hijacked

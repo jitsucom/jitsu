@@ -79,10 +79,10 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
     ? [
         {
           id: workspaceId,
-          obj: await store().getTable(stripeDataTable).get(workspaceId),
+          obj: await store.getTable(stripeDataTable).get(workspaceId),
         },
       ]
-    : await store().getTable(stripeDataTable).list();
+    : await store.getTable(stripeDataTable).list();
 
   const availableProducts = await getAvailableProducts();
 
