@@ -36,11 +36,8 @@ export const FirebaseSignUp: React.FC<{}> = () => {
   });
   return (
     <div className="flex min-h-screen flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className={"flex flex-col items-center justify-center grow"}>
-        <div
-          className="bg-backgroundLight p-8 border border-backgroundDark rounded-md shadow-sm mx-4"
-          style={{ minWidth: "28rem" }}
-        >
+      <div className={"flex flex-col items-center sm:justify-center grow"}>
+        <div className="bg-backgroundLight p-8 border border-backgroundDark rounded-md shadow-sm mx-4">
           <div className="flex justify-center text-2xl font-header font-bold mb-4">Sign up for Jitsu</div>
           <div>
             <SocialLogin

@@ -86,7 +86,7 @@ export const SocialLogin: React.FC<{ onSocialLogin: (type: string) => Promise<vo
   const router = useRouter();
   return (
     <div className="flex flex-col items-center">
-      <div className="pt-6 flex justify-between space-x-2">
+      <div className="pt-0 sm:pt-6 flex flex-col sm:flex-row space-y-2 sm:space-x-2 sm:space-y-0 justify-between">
         <Button
           loading={loading === "google.com"}
           disabled={!!loading}
@@ -221,13 +221,10 @@ export const SigninLayout: React.FC<PropsWithChildren<{ title: ReactNode; footer
 }) => {
   return (
     <div className="flex min-h-screen flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className={"flex flex-col items-center justify-center grow"}>
-        <div
-          className="bg-backgroundLight p-8 border border-backgroundDark rounded-md shadow-sm mx-4"
-          style={{ minWidth: "28rem" }}
-        >
+      <div className={"flex flex-col items-center sm:justify-center grow"}>
+        <div className="bg-backgroundLight p-8 border border-backgroundDark rounded-md shadow-sm mx-4">
           <div className="flex justify-center text-3xl font-header font-bold mb-4">{title}</div>
-          <div>{children}</div>
+          <div className="debug">{children}</div>
         </div>
         {footer && <div>{footer}</div>}
       </div>
