@@ -90,6 +90,7 @@ export function jitsuLegacy(event: AnalyticsServerEvent): MappedEvent {
       user_agent: event.context.userAgent,
       user_language: event.context?.locale,
       utc_time: event.timestamp,
+      _timestamp: event.timestamp,
       utm: event.context?.campaign,
       vp_size:
         Math.max(event.context?.screen?.innerWidth || 0) + "x" + Math.max(event.context?.screen?.innerHeight || 0),
