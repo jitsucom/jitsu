@@ -20,7 +20,6 @@
     "build": "tsc -p . && rollup -c && cp compiled/src/*.d.ts dist"
   },
   "devDependencies": {
-    "tldts": "^6.0.15",
     "@jitsu/protocols": "workspace:*",
     "@playwright/test": "1.31.2",
     "@rollup/plugin-commonjs": "^23.0.2",

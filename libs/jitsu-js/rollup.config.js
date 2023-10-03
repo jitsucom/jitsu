@@ -6,7 +6,7 @@ const terser = require("@rollup/plugin-terser");
 
 module.exports = [
   {
-    plugins: [multi(), resolve({ preferBuiltins: false }), commonjs(), rollupJson()],
+    plugins: [multi(), resolve({ preferBuiltins: false }), commonjs(), rollupJson(), terser()],
     input: "./compiled/src/browser.js",
     output: {
       file: `dist/web/p.js.txt`,

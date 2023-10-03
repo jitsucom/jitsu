@@ -1,9 +1,10 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { getUser } from "../../lib/api";
 import { requireDefined } from "juava";
-import { getRequestHost, getTopLevelDomain } from "../../lib/server/origin";
+import { getRequestHost } from "../../lib/server/origin";
 import { db } from "../../lib/server/db";
 import { getServerLog } from "../../lib/server/log";
+import { getTopLevelDomain } from "@jitsu/js";
 
 const allowedOrigins = process.env.ALLOWED_API_ORIGINS || "*.[originTopLevelDomain],[originTopLevelDomain]";
 

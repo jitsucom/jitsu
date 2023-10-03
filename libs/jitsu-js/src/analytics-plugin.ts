@@ -3,11 +3,12 @@
 import { JitsuOptions, PersistentStorage, RuntimeFacade } from "./jitsu";
 import { AnalyticsClientEvent, Callback, ID, JSONObject, Options } from "@jitsu/protocols/analytics";
 import parse from "./index";
-import { parse as parseTLD } from "tldts";
+
 import { AnalyticsInstance, AnalyticsPlugin } from "analytics";
 import { loadScript } from "./script-loader";
 import { internalDestinationPlugins } from "./destination-plugins";
 import { jitsuLibraryName, jitsuVersion } from "./version";
+import { getTopLevelDomain } from "./tlds";
 
 const defaultConfig: Required<JitsuOptions> = {
   /* Your segment writeKey */
@@ -69,18 +70,6 @@ function restoreTraits(storage: PersistentStorage) {
 }
 
 export type StorageFactory = (cookieDomain: string, cookie2key: Record<string, string>) => PersistentStorage;
-
-export function getTopLevelDomain(opts: JitsuOptions = {}) {
-  if (opts.cookieDomain) {
-    return opts.cookieDomain;
-  }
-  const tld = parseTLD(window.location.hostname);
-  if (tld.domain === null) {
-    return tld.hostname;
-  } else {
-    return tld.domain;
-  }
-}
 
 function getCookie(name: string) {
   const value = `; ${document.cookie}`;
@@ -148,7 +137,7 @@ export function windowRuntime(opts: JitsuOptions): RuntimeFacade {
       return new Date().getTimezoneOffset();
     },
     store(): PersistentStorage {
-      return cookieStorage(opts.cookieDomain || getTopLevelDomain(), defaultCookie2Key);
+      return cookieStorage(opts.cookieDomain || getTopLevelDomain(window.location.hostname), defaultCookie2Key);
     },
 
     language(): string {

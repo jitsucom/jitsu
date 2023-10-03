@@ -389,9 +389,6 @@ importers:
       rollup:
         specifier: ^3.2.5
         version: 3.20.2
-      tldts:
-        specifier: ^6.0.15
-        version: 6.0.15
       ts-jest:
         specifier: 29.0.5
         version: 29.0.5(@babel/core@7.21.4)(jest@29.5.0)(typescript@4.9.5)
@@ -699,7 +696,7 @@ importers:
         version: 10.4.0
       firebase-admin:
         specifier: ^11.10.1
-        version: 11.10.1
+        version: 11.11.0
       googleapis:
         specifier: ^126.0.1
         version: 126.0.1
@@ -931,7 +928,7 @@ importers:
         version: 13.0.0(eslint@8.29.0)(typescript@4.9.4)
       firebase-admin:
         specifier: ^11.10.1
-        version: 11.10.1
+        version: 11.11.0
       is-valid-domain:
         specifier: ^0.1.6
         version: 0.1.6
@@ -4657,7 +4654,7 @@ packages:
     resolution: {integrity: sha512-iY3jsdfbc0ARoCLFvbvUB8optgyb0r1XLPb142u+QtgBcKJYkCIFt3Fd/881KqjLYWjsBJF57N3b8Eop9NDfUA==}
     engines: {node: ^8.13.0 || >=10.10.0}
     dependencies:
-      '@grpc/proto-loader': 0.7.6
+      '@grpc/proto-loader': 0.7.10
       '@types/node': 18.15.11
     dev: false
 
@@ -14690,8 +14687,8 @@ packages:
       micromatch: 4.0.5
       pkg-dir: 4.2.0
 
-  /firebase-admin@11.10.1:
-    resolution: {integrity: sha512-atv1E6GbuvcvWaD3eHwrjeP5dAVs+EaHEJhu9CThMzPY6In8QYDiUR6tq5SwGl4SdA/GcAU0nhwWc/FSJsAzfQ==}
+  /firebase-admin@11.11.0:
+    resolution: {integrity: sha512-lp784gXFAJgUEtjSdYNZGTWZqltqjBkoaPSQhDKnmWXJP/MCbWdiDY1hsdkl/6O4O4KFovTjUDLu26sojwdQvw==}
     engines: {node: '>=14'}
     dependencies:
       '@fastify/busboy': 1.2.1
@@ -25278,17 +25275,6 @@ packages:
   /titleize@3.0.0:
     resolution: {integrity: sha512-KxVu8EYHDPBdUYdKZdKtU2aj2XfEx9AfjXxE/Aj0vT06w2icA09Vus1rh6eSu1y01akYg6BjIK/hxyLJINoMLQ==}
     engines: {node: '>=12'}
-    dev: true
-
-  /tldts-core@6.0.15:
-    resolution: {integrity: sha512-8RuyZ9S3kY2NaSx5zfEiURuyM1kipN6xXp/1guWWKwiSqvb/7dNKKjfvF88H3A3wX1pagaNlewK21kpxZt/DPg==}
-    dev: true
-
-  /tldts@6.0.15:
-    resolution: {integrity: sha512-GMoI6Ae4c8vv7A3lgmD+ubAziHINxn3/X1BTRqfePmTnff2qAaZsGnDMo2OHbDn9psPLmW9SCBISiNzyce6bKw==}
-    hasBin: true
-    dependencies:
-      tldts-core: 6.0.15
     dev: true
 
   /tmp@0.0.33:

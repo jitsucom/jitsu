@@ -98,3 +98,4 @@ export function jitsuAnalytics(opts: JitsuOptions): AnalyticsInterface {
 
 export * from "./jitsu";
 export * from "./analytics-plugin";
+export { getTopLevelDomain } from "./tlds";

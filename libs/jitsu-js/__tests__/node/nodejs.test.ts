@@ -1,6 +1,6 @@
 import { createServer, SimpleSyrup } from "../simple-syrup";
 import { AnalyticsClientEvent, AnalyticsInterface } from "@jitsu/protocols/analytics";
-import { parse } from "tldts";
+import { getTopLevelDomain } from "../../src/tlds";
 
 const jitsuAnalytics = require("../../dist/jitsu.cjs.js").jitsuAnalytics;
 const fetchImpl = require("node-fetch-commonjs");
@@ -92,12 +92,11 @@ describe("Test Jitsu NodeJS client", () => {
   });
 
   test("tld", async () => {
-    expect(parse("http://www.google.com").domain).toBe("google.com");
-    expect(parse("www.trendstyle.com.au").domain).toBe("trendstyle.com.au");
-    expect(parse("http://localhost:3000").domain).toBe(null);
-    expect(parse("http://localhost:3000").hostname).toBe("localhost");
-    expect(parse("http://use.jitsu.com").domain).toBe("jitsu.com");
-    expect(parse("use.jitsu.com").domain).toBe("jitsu.com");
+    expect(getTopLevelDomain("www.google.com")).toBe("google.com");
+    expect(getTopLevelDomain("www.trendstyle.com.au")).toBe("trendstyle.com.au");
+    expect(getTopLevelDomain("localhost:3000")).toBe("localhost");
+    expect(getTopLevelDomain("use.jitsu.com")).toBe("jitsu.com");
+    expect(getTopLevelDomain("use.jitsu.com")).toBe("jitsu.com");
     //console.log(parse("http://localhost:3000"));
   });
 });

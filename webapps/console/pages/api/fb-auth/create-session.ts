@@ -4,8 +4,9 @@ import { createSessionCookie, firebaseAuthCookieName } from "../../../lib/server
 import { ApiError } from "../../../lib/shared/errors";
 import { CookieSerializeOptions, serialize } from "cookie";
 import { getAppEndpoint } from "../../../lib/domains";
-import { getRequestHost, getTopLevelDomain } from "../../../lib/server/origin";
+import { getRequestHost } from "../../../lib/server/origin";
 import { getServerLog } from "../../../lib/server/log";
+import { getTopLevelDomain } from "@jitsu/js";
 
 export const log = getServerLog("firebase");
 
@@ -30,7 +31,7 @@ export const api: Api = {
         throw new ApiError("CSRF error", {}, { status: 401 });
       }
       const { cookie, expiresIn } = await createSessionCookie(idToken);
-      const domain = "." + getTopLevelDomain(getRequestHost(req)).split(":")[0];
+      const domain = "." + getTopLevelDomain(getRequestHost(req));
       console.log("Setting cookie", cookie, domain);
       const options: CookieSerializeOptions = {
         maxAge: expiresIn,
