@@ -1,14 +1,14 @@
 import { createRoute } from "../../../../lib/api";
 import { db } from "../../../../lib/server/db";
 import pick from "lodash/pick";
-import { JitsuSources, SourceType } from "../index";
+import { jitsuSources, SourceType } from "../index";
 
 export default createRoute()
   .GET({ auth: false })
   .handler(async ({ req }): Promise<SourceType | null> => {
     const packageType = req.query.packageType as string;
     const packageId = req.query.packageId as string;
-    const jitsuSource = JitsuSources[packageId];
+    const jitsuSource = jitsuSources[packageId];
     if (jitsuSource) {
       return jitsuSource;
     }
