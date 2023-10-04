@@ -164,7 +164,7 @@ const ServicesList: React.FC<{}> = () => {
       const verb = isNew ? "New" : "Edit";
       return (
         <div className="flex items-center">
-          <div className="h-12 w-12 mr-4">{getServiceIcon(meta)}</div>
+          <div className="h-12 w-12 mr-4">{getServiceIcon(meta, {})}</div>
           {verb} service: {meta.meta.name}
         </div>
       );
@@ -179,6 +179,7 @@ const ServicesList: React.FC<{}> = () => {
         bodyStyle={{
           overflowY: "auto",
           maxHeight: "calc(100vh - 200px)",
+          minHeight: "400px",
           display: "flex",
           flexDirection: "column",
         }}
