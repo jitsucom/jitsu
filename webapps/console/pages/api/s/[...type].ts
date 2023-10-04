@@ -84,11 +84,30 @@ function asString(httpHeader?: string | string[]): string | undefined {
 }
 
 function fromHeaders(httpHeaders: IncomingHttpHeaders): Geo {
-  const country = asString(httpHeaders["x-vercel-ip-country"]);
-  const region = asString(httpHeaders["x-vercel-ip-country-region"]);
-  const city = asString(httpHeaders["x-vercel-ip-city"]);
-  const lat = asString(httpHeaders["x-vercel-ip-latitude"]);
-  const lon = asString(httpHeaders["x-vercel-ip-longitude"]);
+  let country: undefined | string,
+    region: undefined | string,
+    city: undefined | string,
+    lat: undefined | string,
+    lon: undefined | string;
+
+  // Cloudflare headers
+  if (httpHeaders["cf-ipcountry"]) {
+    country = asString(httpHeaders["cf-ipcountry"]);
+    region = asString(httpHeaders["cf-region-code"]);
+    city = asString(httpHeaders["cf-ipcity"]);
+    lat = asString(httpHeaders["cf-iplatitude"]);
+    lon = asString(httpHeaders["cf-iplongitude"]);
+  }
+
+  // Vercel headers
+  if (httpHeaders["x-vercel-ip-country"]) {
+    country = asString(httpHeaders["x-vercel-ip-country"]);
+    region = asString(httpHeaders["x-vercel-ip-country-region"]);
+    city = asString(httpHeaders["x-vercel-ip-city"]);
+    lat = asString(httpHeaders["x-vercel-ip-latitude"]);
+    lon = asString(httpHeaders["x-vercel-ip-longitude"]);
+  }
+
   return {
     country: country
       ? {
