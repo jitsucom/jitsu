@@ -73,14 +73,13 @@ export const JitsuSources: Record<string, SourceType> = {
 export default createRoute()
   .GET({ auth: false })
   .handler(async ({ req, res }): Promise<void> => {
-    res.setHeader("Content-Type", "application/json");
-    const p = res;
-    p.write("[");
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.write("[");
     Object.values(JitsuSources).forEach((source, index) => {
       if (index > 0) {
-        p.write(",");
+        res.write(",");
       }
-      p.write(JSON.stringify(source));
+      res.write(JSON.stringify(source));
     });
     await db.pgHelper().streamQuery(
       `select *
@@ -89,7 +88,7 @@ export default createRoute()
                                 order by cp."packageId" asc`,
       [],
       ({ id, logoSvg, meta, ...rest }) => {
-        p.write(",");
+        res.write(",");
         const a = {
           id,
           logoSvg,
@@ -108,9 +107,9 @@ export default createRoute()
             "dockerRepository"
           ),
         };
-        p.write(JSON.stringify(a));
+        res.write(JSON.stringify(a));
       }
     );
-    p.end("]");
+    res.end("]");
   })
   .toNextApiHandler();
