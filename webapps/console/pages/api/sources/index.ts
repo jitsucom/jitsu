@@ -3,6 +3,13 @@ import { db } from "../../../lib/server/db";
 import * as z from "zod";
 import { ConnectorPackageDbModel } from "../../../prisma/schema";
 import pick from "lodash/pick";
+import zlib from "zlib";
+
+export const config = {
+  api: {
+    responseLimit: "10mb",
+  },
+};
 
 export const SourceType = ConnectorPackageDbModel.merge(
   z.object({
@@ -65,28 +72,47 @@ export const JitsuSources: Record<string, SourceType> = {
 };
 
 export default createRoute()
-  .GET({ auth: false })
-  .handler(async ({ req }): Promise<{ sources: SourceType[] }> => {
-    const sources: SourceType[] = (await db.prisma().connectorPackage.findMany())
-      .filter(c => c.packageId !== "airbyte/source-mongodb-v2")
-      .map(({ id, logoSvg, meta, ...rest }) => ({
-        id,
-        logoSvg,
-        ...rest,
-        versions: `/api/sources/versions?type=${encodeURIComponent(rest.packageType)}&package=${encodeURIComponent(
-          rest.packageId
-        )}`,
-        meta: pick(
-          meta as any,
-          "name",
-          "license",
-          "mitVersions",
-          "releaseStage",
-          "dockerImageTag",
-          "connectorSubtype",
-          "dockerRepository"
-        ),
-      }));
-    return { sources: [...Object.values(JitsuSources), ...sources] };
+  .GET({ auth: false, streaming: true })
+  .handler(async ({ req, res }): Promise<void> => {
+    res.writeHead(200, { "Content-Type": "application/json-jitsu", "Content-Encoding": "gzip" });
+    const gz = zlib.createGzip();
+    gz.pipe(res);
+    gz.write("[");
+    Object.values(JitsuSources).forEach((source, index) => {
+      if (index > 0) {
+        gz.write(",");
+      }
+      gz.write(JSON.stringify(source));
+    });
+    await db.pgHelper().streamQuery(
+      `select *
+                                from "ConnectorPackage" cp
+                                where cp."packageId" <> 'airbyte/source-mongodb-v2'
+                                order by cp."packageId" asc`,
+      [],
+      ({ id, logoSvg, meta, ...rest }) => {
+        gz.write(",");
+        const a = {
+          id,
+          logoSvg,
+          ...rest,
+          versions: `/api/sources/versions?type=${encodeURIComponent(rest.packageType)}&package=${encodeURIComponent(
+            rest.packageId
+          )}`,
+          meta: pick(
+            meta as any,
+            "name",
+            "license",
+            "mitVersions",
+            "releaseStage",
+            "dockerImageTag",
+            "connectorSubtype",
+            "dockerRepository"
+          ),
+        };
+        gz.write(JSON.stringify(a));
+      }
+    );
+    gz.end("]");
   })
   .toNextApiHandler();

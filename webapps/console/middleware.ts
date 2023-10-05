@@ -46,7 +46,7 @@ export async function middleware(request: NextRequest) {
 
   return response;
 }
-
-export const config = {
-  matcher: !logRequests ? ["/p.js", "/v1/batch"] : "",
-};
+//
+// export const config = {
+//   matcher: !logRequests ? ["/p.js", "/v1/batch"] : "",
+// };
