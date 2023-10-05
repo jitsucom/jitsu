@@ -71,7 +71,7 @@ export default createRoute()
       .filter(c => c.packageId !== "airbyte/source-mongodb-v2")
       .map(({ id, logoSvg, meta, ...rest }) => ({
         id,
-        //logoSvg,
+        logoSvg,
         ...rest,
         versions: `/api/sources/versions?type=${encodeURIComponent(rest.packageType)}&package=${encodeURIComponent(
           rest.packageId
