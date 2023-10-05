@@ -36,6 +36,7 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
                  join newjitsu."ConfigurationObjectLink" sync on task.sync_id = sync."id"
             where task.status = 'SUCCESS' and "workspaceId" = :workspaceId
               and started_at > now() - interval '24 hour'
+            and deleted = false
             group by "workspaceId";`,
       { workspaceId }
     );
