@@ -62,7 +62,7 @@ export const ServicesCatalog: React.FC<{ onClick: (packageType, packageId: strin
   }
   const groups = groupByType(data);
   return (
-    <div className="p-12 flex flex-col flex-shrink w-full h-full overflow-y-auto">
+    <div className="p-6 flex flex-col flex-shrink w-full h-full overflow-y-auto">
       <div key={"filter"} className={"m-4"}>
         <Input
           allowClear

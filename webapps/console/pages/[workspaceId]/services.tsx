@@ -179,6 +179,7 @@ const ServicesList: React.FC<{}> = () => {
         bodyStyle={{
           overflowY: "auto",
           maxHeight: "calc(100vh - 200px)",
+          minHeight: "400px",
           display: "flex",
           flexDirection: "column",
         }}
