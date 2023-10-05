@@ -182,6 +182,7 @@ const ServicesList: React.FC<{}> = () => {
           minHeight: "400px",
           display: "flex",
           flexDirection: "column",
+          justifyContent: "center",
         }}
         open={showCatalog}
         style={{ minWidth: 1000 }}
