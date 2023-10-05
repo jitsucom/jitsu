@@ -71,7 +71,7 @@ export const JitsuSources: Record<string, SourceType> = {
 };
 
 export default createRoute()
-  .GET({ auth: false })
+  .GET({ auth: false, streaming: true })
   .handler(async ({ req, res }): Promise<void> => {
     res.writeHead(200, { "Content-Type": "application/json" });
     res.write("[");
