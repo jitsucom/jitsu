@@ -1,13 +1,13 @@
 import { db } from "../../../lib/server/db";
 import { getErrorMessage, requireDefined } from "juava";
-import { jitsuSources } from "./index";
+import { JitsuSources } from "./index";
 
 export default async function handler(req, res) {
   try {
     const packageType = (req.query.type as string) || "airbyte";
     const packageId = requireDefined(req.query.package as string, `GET param package is required`);
 
-    const jitsuSource = jitsuSources[packageId];
+    const jitsuSource = JitsuSources[packageId];
     if (jitsuSource) {
       res.setHeader("Content-Type", "image/svg+xml");
       res.setHeader("Cache-Control", "public, max-age=2592000, immutable");
