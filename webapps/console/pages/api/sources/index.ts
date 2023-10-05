@@ -4,6 +4,12 @@ import * as z from "zod";
 import { ConnectorPackageDbModel } from "../../../prisma/schema";
 import pick from "lodash/pick";
 
+export const config = {
+  api: {
+    responseLimit: "10mb",
+  },
+};
+
 export const SourceType = ConnectorPackageDbModel.merge(
   z.object({
     versions: z.string(),
@@ -66,27 +72,45 @@ export const JitsuSources: Record<string, SourceType> = {
 
 export default createRoute()
   .GET({ auth: false })
-  .handler(async ({ req }): Promise<{ sources: SourceType[] }> => {
-    const sources: SourceType[] = (await db.prisma().connectorPackage.findMany())
-      .filter(c => c.packageId !== "airbyte/source-mongodb-v2")
-      .map(({ id, logoSvg, meta, ...rest }) => ({
-        id,
-        logoSvg,
-        ...rest,
-        versions: `/api/sources/versions?type=${encodeURIComponent(rest.packageType)}&package=${encodeURIComponent(
-          rest.packageId
-        )}`,
-        meta: pick(
-          meta as any,
-          "name",
-          "license",
-          "mitVersions",
-          "releaseStage",
-          "dockerImageTag",
-          "connectorSubtype",
-          "dockerRepository"
-        ),
-      }));
-    return { sources: [...Object.values(JitsuSources), ...sources] };
+  .handler(async ({ req, res }): Promise<void> => {
+    res.setHeader("Content-Type", "application/json");
+    const p = res;
+    p.write("[");
+    Object.values(JitsuSources).forEach((source, index) => {
+      if (index > 0) {
+        p.write(",");
+      }
+      p.write(JSON.stringify(source));
+    });
+    await db.pgHelper().streamQuery(
+      `select *
+                                from "ConnectorPackage" cp
+                                where cp."packageId" <> 'airbyte/source-mongodb-v2'
+                                order by cp."packageId" asc`,
+      [],
+      ({ id, logoSvg, meta, ...rest }) => {
+        p.write(",");
+        const a = {
+          id,
+          logoSvg,
+          ...rest,
+          versions: `/api/sources/versions?type=${encodeURIComponent(rest.packageType)}&package=${encodeURIComponent(
+            rest.packageId
+          )}`,
+          meta: pick(
+            meta as any,
+            "name",
+            "license",
+            "mitVersions",
+            "releaseStage",
+            "dockerImageTag",
+            "connectorSubtype",
+            "dockerRepository"
+          ),
+        };
+        p.write(JSON.stringify(a));
+      }
+    );
+    p.end("]");
   })
   .toNextApiHandler();

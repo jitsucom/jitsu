@@ -15,7 +15,7 @@ function groupByType(sources: SourceType[]): Record<string, SourceType[]> {
   const sortOrder = ["Datawarehouse", "Product Analytics", "CRM", "Block Storage"];
 
   sources.forEach(s => {
-    if (s.packageId.endsWith("strict-encrypt")) {
+    if (s.packageId.endsWith("strict-encrypt") || s.packageId === "airbyte/source-file-secure") {
       return;
     }
     const groupName = s.meta.connectorSubtype || otherGroup;
@@ -52,7 +52,7 @@ export function getServiceIcon(source: SourceType) {
 }
 
 export const ServicesCatalog: React.FC<{ onClick: (packageType, packageId: string) => void }> = ({ onClick }) => {
-  const { data, isLoading, error } = useApi<{ sources: SourceType[] }>(`/api/sources`);
+  const { data, isLoading, error } = useApi<SourceType[]>(`/api/sources`);
   const [filter, setFilter] = React.useState("");
 
   if (isLoading) {
@@ -60,7 +60,7 @@ export const ServicesCatalog: React.FC<{ onClick: (packageType, packageId: strin
   } else if (error) {
     return <ErrorCard error={error} />;
   }
-  const groups = groupByType(data.sources);
+  const groups = groupByType(data);
   return (
     <div className="p-12 flex flex-col flex-shrink w-full h-full overflow-y-auto">
       <div key={"filter"} className={"m-4"}>
