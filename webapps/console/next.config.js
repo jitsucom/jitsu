@@ -11,8 +11,6 @@ const prevWebpack = module.exports.webpack;
 const packageRoot = path.join(__dirname, "../../");
 console.log("packageRoot", packageRoot);
 module.exports = {
-  compress: false,
-
   // modularizeImports: {
   //   // "lucide-react": {
   //   //   transform: "Use <JLucideIcon name=\"{{ kebabCase member }}\" /> instead of importing from 'lucide-react'",

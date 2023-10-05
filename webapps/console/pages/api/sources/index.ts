@@ -3,6 +3,7 @@ import { db } from "../../../lib/server/db";
 import * as z from "zod";
 import { ConnectorPackageDbModel } from "../../../prisma/schema";
 import pick from "lodash/pick";
+import zlib from "zlib";
 
 export const config = {
   api: {
@@ -73,13 +74,15 @@ export const JitsuSources: Record<string, SourceType> = {
 export default createRoute()
   .GET({ auth: false, streaming: true })
   .handler(async ({ req, res }): Promise<void> => {
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.write("[");
+    res.writeHead(200, { "Content-Type": "application/json-jitsu", "Content-Encoding": "gzip" });
+    const gz = zlib.createGzip();
+    gz.pipe(res);
+    gz.write("[");
     Object.values(JitsuSources).forEach((source, index) => {
       if (index > 0) {
-        res.write(",");
+        gz.write(",");
       }
-      res.write(JSON.stringify(source));
+      gz.write(JSON.stringify(source));
     });
     await db.pgHelper().streamQuery(
       `select *
@@ -88,7 +91,7 @@ export default createRoute()
                                 order by cp."packageId" asc`,
       [],
       ({ id, logoSvg, meta, ...rest }) => {
-        res.write(",");
+        gz.write(",");
         const a = {
           id,
           logoSvg,
@@ -107,9 +110,9 @@ export default createRoute()
             "dockerRepository"
           ),
         };
-        res.write(JSON.stringify(a));
+        gz.write(JSON.stringify(a));
       }
     );
-    res.end("]");
+    gz.end("]");
   })
   .toNextApiHandler();
