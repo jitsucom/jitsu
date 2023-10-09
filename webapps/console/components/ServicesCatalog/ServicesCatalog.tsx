@@ -40,10 +40,12 @@ function groupByType(sources: SourceType[]): Record<string, SourceType[]> {
     .reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {});
 }
 
-export function getServiceIcon(source: SourceType) {
+export function getServiceIcon(source: SourceType, icons: Record<string, string> = {}): React.ReactNode {
   const connectorSubtype = source.meta.connectorSubtype;
-  return source.logoSvg ? (
-    <img src={"data:image/svg+xml;base64," + Buffer.from(source.logoSvg).toString("base64")} alt={source.meta.name} />
+
+  const logoSvg = source.logoSvg || icons[source.packageId];
+  return logoSvg ? (
+    <img src={"data:image/svg+xml;base64," + Buffer.from(logoSvg).toString("base64")} alt={source.meta.name} />
   ) : connectorSubtype === "database" ? (
     <FaDatabase className={"w-full h-full"} />
   ) : (
@@ -52,15 +54,25 @@ export function getServiceIcon(source: SourceType) {
 }
 
 export const ServicesCatalog: React.FC<{ onClick: (packageType, packageId: string) => void }> = ({ onClick }) => {
-  const { data, isLoading, error } = useApi<SourceType[]>(`/api/sources`);
+  const { data, isLoading, error } = useApi<{ sources: SourceType[] }>(`/api/sources?mode=meta`);
+  const sourcesIconsLoader = useApi<{ sources: SourceType[] }>(`/api/sources?mode=icons-only`);
   const [filter, setFilter] = React.useState("");
+  const sourcesIcons: Record<string, string> = sourcesIconsLoader.data
+    ? sourcesIconsLoader.data.sources.reduce(
+        (acc, item) => ({
+          ...acc,
+          [item.packageId]: item.logoSvg,
+        }),
+        {}
+      )
+    : {};
 
   if (isLoading) {
     return <LoadingAnimation />;
   } else if (error) {
     return <ErrorCard error={error} />;
   }
-  const groups = groupByType(data);
+  const groups = groupByType(data.sources);
   return (
     <div className="p-6 flex flex-col flex-shrink w-full h-full overflow-y-auto">
       <div key={"filter"} className={"m-4"}>
@@ -99,7 +111,7 @@ export const ServicesCatalog: React.FC<{ onClick: (packageType, packageId: strin
                       className={`flex items-center cursor-pointer relative w-72 border border-textDisabled ${"hover:scale-105 hover:border-primary"} transition ease-in-out rounded-lg px-4 py-4 space-x-4 m-4`}
                       onClick={() => onClick(source.packageType, source.packageId)}
                     >
-                      <div className={`${styles.icon} flex`}>{getServiceIcon(source)}</div>
+                      <div className={`${styles.icon} flex`}>{getServiceIcon(source, sourcesIcons)}</div>
                       <div>
                         <div className={`text-xl`}>{source.meta.name}</div>
                       </div>
