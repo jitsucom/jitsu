@@ -20,6 +20,8 @@ export type Actions = {
 export type ConnectionDiagramProps = {
   sources: ConnectorNode[];
   destinations: ConnectorNode[];
+  connectorSources: ConnectorNode[];
+  connectorSourcesActions: Actions;
   srcActions: Actions;
   dstActions: Actions;
   connections: {
@@ -52,7 +54,9 @@ export function getRelativePosition(parent: Element, child: Element): Point {
 const Header: React.FC<Actions & { className?: string }> = p => {
   return (
     <div className={classNames(`flex items-center justify-between`, p.className)}>
-      <h1 className="text-2xl">{p.title}</h1>
+      <h1 className="text-2xl">
+        <Link href={p.editLink}>{p.title}</Link>
+      </h1>
       <div className="space-x-2 flex items-center">
         <Button type="ghost" href={p.editLink}>
           View All
@@ -65,10 +69,17 @@ const Header: React.FC<Actions & { className?: string }> = p => {
   );
 };
 
-export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({ connections, sources, destinations, ...p }) => {
+export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({
+  connections,
+  sources,
+  connectorSources,
+  destinations,
+  ...p
+}) => {
   const canvasRef = React.useRef<HTMLDivElement>(null);
   const srcRefs = React.useRef<RefObject<HTMLElement>[]>([]);
   const dstRefs = React.useRef<RefObject<HTMLElement>[]>([]);
+  const connectorsRef = React.useRef<RefObject<HTMLElement>[]>([]);
   const logoRef = React.useRef<HTMLAnchorElement>(null);
   const [windowSize, setWindowSize] = React.useState<{ width: number; height: number } | undefined>();
   const [lines, setLines] = React.useState<ConnectorLine[]>([]);
@@ -113,6 +124,24 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({ connectio
         }
       });
 
+    connectorsRef.current
+      .map(r => r.current)
+      .filter(r => !!r)
+      .forEach((r, idx) => {
+        const rel = getRelativePosition(canvasRef.current!, r!);
+        const bounds = r!.getBoundingClientRect();
+        const source = connectorSources[idx];
+        const selected =
+          mouseOverSrc === source.id ||
+          (!!mouseOverDst && !!connections.find(c => c.from === source.id && c.to === mouseOverDst));
+        if (connections.find(c => c.from === source.id)) {
+          newLines.push({
+            from: { top: rel.top + bounds.height / 2, left: rel.left + bounds.width },
+            to: { left: logoPosition.left, top: logoPosition.top + logoBounds.height / 2 },
+            selected,
+          });
+        }
+      });
     dstRefs.current
       .map(r => r.current)
       .filter(r => !!r)
@@ -151,26 +180,52 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({ connectio
 
   srcRefs.current = sources.map((_, i) => srcRefs.current[i] ?? React.createRef());
   dstRefs.current = destinations.map((_, i) => dstRefs.current[i] ?? React.createRef());
+  connectorsRef.current = destinations.map((_, i) => connectorsRef.current[i] ?? React.createRef());
 
   return (
     <div className="w-full relative" ref={canvasRef}>
       <div className="flex flex-row" style={{ zIndex: 2 }}>
         <div className="flex flex-col grow">
-          <Header {...p.srcActions} className="mb-4" />
-          {sources.map((s, idx) => (
-            <div
-              key={s.id}
-              ref={srcRefs.current[idx] as any}
-              className="cursor-pointer mb-4"
-              onClick={() => console.log("Clicked", s.id)}
-              onMouseOver={() => {
-                setMouseOverSrc(s.id);
-              }}
-              onMouseLeave={() => setMouseOverSrc(undefined)}
-            >
-              {s.card(forceSelectSource.includes(s.id))}
-            </div>
-          ))}
+          <>
+            {sources?.length > 0 && (
+              <>
+                <Header {...p.srcActions} className="mb-4" />
+                {sources.map((s, idx) => (
+                  <div
+                    key={s.id}
+                    ref={srcRefs.current[idx] as any}
+                    className="cursor-pointer mb-4"
+                    onClick={() => console.log("Clicked", s.id)}
+                    onMouseOver={() => {
+                      setMouseOverSrc(s.id);
+                    }}
+                    onMouseLeave={() => setMouseOverSrc(undefined)}
+                  >
+                    {s.card(forceSelectSource.includes(s.id))}
+                  </div>
+                ))}
+              </>
+            )}
+            {connectorSources?.length > 0 && (
+              <>
+                <Header {...p.connectorSourcesActions} className="mb-4" />
+                {connectorSources.map((s, idx) => (
+                  <div
+                    key={s.id}
+                    ref={connectorsRef.current[idx] as any}
+                    className="cursor-pointer mb-4"
+                    onClick={() => console.log("Clicked", s.id)}
+                    onMouseOver={() => {
+                      setMouseOverSrc(s.id);
+                    }}
+                    onMouseLeave={() => setMouseOverSrc(undefined)}
+                  >
+                    {s.card(forceSelectSource.includes(s.id))}
+                  </div>
+                ))}
+              </>
+            )}{" "}
+          </>
         </div>
         <div className="shrink px-36 flex items-center">
           <div className="flex flex-col items-center group">
