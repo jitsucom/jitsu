@@ -104,7 +104,7 @@ const ServicesList: React.FC<{}> = () => {
       const rawVersions = await rpc(
         `/api/sources/versions?type=${packageType}&package=${encodeURIComponent(packageId)}`
       );
-      const versions = rawVersions.versions.filter((v: any) => v.isRelease).map((v: any) => v.name);
+      const versions = rawVersions.versions.filter((v: any) => v.isRelease && v.isMit).map((v: any) => v.name);
       const sourceType = await rpc(`/api/sources/${packageType}/${encodeURIComponent(packageId)}`);
 
       return {
