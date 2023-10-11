@@ -106,38 +106,100 @@ export function segmentLayout(event: AnalyticsServerEvent, singleTable: boolean)
   let baseTrackFlat: any;
   switch (event.type) {
     case "identify":
-      transformed = {
-        ...(event.context ? { context: omit(event.context, "traits") } : {}),
-        ...event.properties,
-        ...event.context?.traits,
-        ...event.traits,
-        ...omit(event, ["context", "properties", "traits", "type", TableNameParameter]),
-      };
+      if (singleTable) {
+        transformed = {
+          ...(event.context || event.traits
+            ? {
+                context: {
+                  ...event.context,
+                  traits: omit({ ...event.context?.traits, ...event.traits }, ["groupId"]),
+                  groupId: event.traits?.groupId || event.context?.traits?.groupId || undefined,
+                },
+              }
+            : {}),
+          ...event.properties,
+          ...omit(event, ["context", "properties", "traits", "type", TableNameParameter]),
+        };
+      } else {
+        transformed = {
+          ...(event.context ? { context: omit(event.context, "traits") } : {}),
+          ...event.properties,
+          ...event.context?.traits,
+          ...event.traits,
+          ...omit(event, ["context", "properties", "traits", "type", TableNameParameter]),
+        };
+      }
       break;
     case "group":
-      transformed = {
-        ...(event.context ? { context: omit(event.context, "traits") } : {}),
-        ...event.properties,
-        ...event.traits,
-        ...omit(event, ["context", "properties", "traits", "type", TableNameParameter]),
-      };
+      if (singleTable) {
+        transformed = {
+          ...(event.context || event.traits
+            ? { context: { ...event.context, group: event.traits, groupId: event.groupId } }
+            : {}),
+          ...event.properties,
+          ...omit(event, ["context", "properties", "traits", "type", "groupId", TableNameParameter]),
+        };
+      } else {
+        transformed = {
+          ...(event.context ? { context: omit(event.context, "traits") } : {}),
+          ...event.properties,
+          ...event.traits,
+          ...omit(event, ["context", "properties", "traits", "type", TableNameParameter]),
+        };
+      }
       break;
     case "track":
-      if (!singleTable) {
+      if (singleTable) {
+        transformed = {
+          ...(event.context || typeof event.properties?.traits === "object"
+            ? {
+                context: {
+                  ...event.context,
+                  traits: omit(
+                    {
+                      ...event.context?.traits,
+                      ...(typeof event.properties?.traits === "object" ? event.properties?.traits : {}),
+                    },
+                    ["groupId"]
+                  ),
+                  groupId: event.context?.traits?.groupId,
+                },
+              }
+            : {}),
+          ...(event.properties ? omit(event.properties, ["traits"]) : {}),
+          ...omit(event, ["context", "properties", "type", TableNameParameter]),
+        };
+      } else {
         baseTrackFlat = toSnakeCase({
           ...omit(event, ["properties", "type", TableNameParameter]),
         });
+        transformed = {
+          ...(event.properties || {}),
+          ...omit(event, ["properties", "type", TableNameParameter]),
+        };
       }
-      transformed = {
-        ...(event.properties || {}),
-        ...omit(event, ["properties", "type", TableNameParameter]),
-      };
       break;
     default:
-      transformed = {
-        ...(event.properties || {}),
-        ...omit(event, ["properties", TableNameParameter]),
-      };
+      if (singleTable) {
+        transformed = {
+          ...(event.context
+            ? {
+                context: {
+                  ...event.context,
+                  traits: omit(event.context?.traits, ["groupId"]),
+                  groupId: event.context?.traits?.groupId,
+                },
+              }
+            : {}),
+          ...(event.properties || {}),
+          ...omit(event, ["context", "properties", TableNameParameter]),
+        };
+      } else {
+        transformed = {
+          ...(event.properties || {}),
+          ...omit(event, ["properties", TableNameParameter]),
+        };
+      }
   }
   const flat: Record<string, any> = toSnakeCase(transformed);
   if (event[TableNameParameter]) {
