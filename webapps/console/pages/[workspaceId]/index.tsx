@@ -339,7 +339,12 @@ function WorkspaceOverview(props: {
             card: (forceSelect: boolean) => (
               <Card
                 selected={forceSelect}
-                icon={<img alt="logo" src={`/api/sources/logo?package=${cfg.package}&protocol=${cfg.protocol}`} />}
+                icon={
+                  <img
+                    alt="logo"
+                    src={`/api/sources/logo?package=${encodeURIComponent(cfg.package)}&protocol=${cfg.protocol}`}
+                  />
+                }
                 title={name || id}
                 configLink={`/${workspace.id}/services?id=${id}`}
               />
