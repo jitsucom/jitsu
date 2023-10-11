@@ -2,8 +2,7 @@ import { WorkspacePageLayout } from "../../components/PageLayout/WorkspacePageLa
 import { useAppConfig, useWorkspace } from "../../lib/context";
 import { DestinationConfig, ServiceConfig, StreamConfig } from "../../lib/schema";
 import { branding } from "../../lib/branding";
-import { Badge, Steps, Tooltip } from "antd";
-import { WLink } from "../../components/Workspace/WLink";
+import { Badge, Tooltip } from "antd";
 import React, { ReactNode, useEffect, useState } from "react";
 import { FaGlobe } from "react-icons/fa";
 import { LabelEllipsis } from "../../components/LabelEllipsis/LabelEllipsis";
@@ -17,180 +16,10 @@ import { ConnectionsDiagram } from "../../components/ConnectionsDiagram/Connecti
 import { getLog } from "juava";
 import { Chrome } from "lucide-react";
 import classNames from "classnames";
-import { useRouter } from "next/router";
-import { TrackingIntegrationDocumentation } from "../../components/TrackingIntegrationDocumentation/TrackingIntegrationDocumentation";
-import omit from "lodash/omit";
-import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { get, getConfigApi } from "../../lib/useApi";
 import { LoadingAnimation } from "../../components/GlobalLoader/GlobalLoader";
 import { GlobalError } from "../../components/GlobalError/GlobalError";
-
-function Welcome({
-  destinations,
-  streams,
-  links,
-}: {
-  streams: StreamConfig[];
-  destinations: DestinationConfig[];
-  links: any[];
-}) {
-  const router = useRouter();
-  const [implementationDocumentationId, setImplementationDocumentationId] = useState<string | undefined>(
-    router.query.implementationFor as string | undefined
-  );
-
-  let step = -1;
-  if (streams.length > 0 && destinations.length > 0 && links.length > 0) {
-    step = 3;
-  } else if (streams.length > 0 && destinations.length > 0) {
-    step = 2;
-  } else if (streams.length > 0) {
-    step = 1;
-  } else {
-    step = 0;
-  }
-  return (
-    <>
-      {implementationDocumentationId && (
-        <TrackingIntegrationDocumentation
-          streamId={implementationDocumentationId}
-          onCancel={() => {
-            setImplementationDocumentationId(undefined);
-            router.push(
-              { pathname: router.pathname, query: omit(router.query, "implementationFor", "framework") },
-              undefined,
-              {
-                shallow: true,
-              }
-            );
-          }}
-        />
-      )}
-      <div className="flex flex-col items-center">
-        <h1 className="text-center text-4xl mt-6">✨ Welcome to {branding.productName}!</h1>
-        <div className="text-2xl text-textLight mb-10 mt-6">Implement {branding.productName} in 4 simple steps</div>
-        <div>
-          <Steps direction="vertical" current={step}>
-            <Steps.Step
-              title={
-                <>
-                  Add your website or application
-                  {streams.length > 0 ? (
-                    <>
-                      {" "}
-                      - <b>done</b>!
-                    </>
-                  ) : (
-                    ""
-                  )}
-                </>
-              }
-              description={
-                streams.length === 0 ? (
-                  <>
-                    <WLink href={`/streams?id=new&backTo=%2F%3Fwelcome%3D1`}>Click here to add it!</WLink>
-                  </>
-                ) : (
-                  <>
-                    Congratulations! You have{" "}
-                    <WLink href={`/streams`} passHref>
-                      {streams.length} {streams.length > 1 ? "sites" : "site"}
-                    </WLink>{" "}
-                    configured.
-                  </>
-                )
-              }
-            />
-            <Steps.Step
-              title={
-                <>
-                  Add the destination of your data{" "}
-                  {destinations.length > 0 ? (
-                    <>
-                      {" "}
-                      - <b>done</b>!
-                    </>
-                  ) : (
-                    ""
-                  )}
-                </>
-              }
-              description={
-                destinations.length === 0 ? (
-                  <>
-                    <WLink href={`/destinations?showCatalog=true&backTo=%2F%3Fwelcome%3D1`}>
-                      Click here to add it!
-                    </WLink>
-                  </>
-                ) : (
-                  <>
-                    Congratulations! You have{" "}
-                    <WLink href={`/destinations`} passHref>
-                      {destinations.length} {destinations.length > 1 ? "destinations" : "destination"}
-                    </WLink>{" "}
-                    configured.
-                  </>
-                )
-              }
-            />
-            <Steps.Step
-              title={
-                <>
-                  Link your site with destination{" "}
-                  {links.length > 0 ? (
-                    <>
-                      {" "}
-                      - <b>done</b>!
-                    </>
-                  ) : (
-                    ""
-                  )}
-                </>
-              }
-              description={
-                links.length === 0 ? (
-                  streams.length > 0 && destinations.length > 0 ? (
-                    <>
-                      <WLink href={`/connections/edit?backTo=%2F%3Fwelcome%3D1`}>Click here to add it!</WLink>
-                    </>
-                  ) : (
-                    <>First, add at least one site and destination</>
-                  )
-                ) : (
-                  <>
-                    Congratulations! You have{" "}
-                    <WLink href={`/connections`} passHref>
-                      {links.length} {links.length > 1 ? "connections" : "connection"}
-                    </WLink>{" "}
-                    configured.
-                  </>
-                )
-              }
-            />
-            <Steps.Step
-              title="Start capturing data"
-              description={
-                streams.length === 0 ? (
-                  <>
-                    First, <WLink href={`/streams?id=new&backTo=%2F%3Fwelcome%3D1`}>add at least one site</WLink>
-                  </>
-                ) : (
-                  <>
-                    Read{" "}
-                    <Link href={"#"} onClick={() => setImplementationDocumentationId(streams[0].id)}>
-                      {branding.productName} implementation documentation
-                    </Link>
-                  </>
-                )
-              }
-            />
-          </Steps>
-        </div>
-      </div>
-    </>
-  );
-}
 
 function HoverBorder({ children, forceHover }: { children: ReactNode; forceHover?: boolean }) {
   const [_hover, setHover] = useState(false);
@@ -317,17 +146,13 @@ function WorkspaceOverview(props: {
   connectors: ServiceConfig[];
   links: ConfigurationLinkDbModel[];
 }) {
-  const router = useRouter();
   const appConfig = useAppConfig();
   const workspace = useWorkspace();
   const { destinations, streams, links, connectors } = props;
   useTitle(`${branding.productName} : ${workspace.name}`);
-  const configurationFinished =
-    !router.query.welcome && streams.length > 0 && destinations.length > 0 && links.length > 0;
   return (
     <div>
-      {!configurationFinished && <Welcome streams={streams} destinations={destinations} links={links} />}
-      {configurationFinished && (
+      {
         <ConnectionsDiagram
           connectorSourcesActions={{
             title: "Connectors",
@@ -380,8 +205,8 @@ function WorkspaceOverview(props: {
             to: l.toId,
           }))}
         />
-      )}
-      {configurationFinished && appConfig.ee?.available && (
+      }
+      {appConfig.ee?.available && (
         <div className="flex justify-center">
           <ProvisionDatabaseButton />
         </div>

@@ -2,8 +2,8 @@ import React, { ReactNode, RefObject, useEffect } from "react";
 import { branding } from "../../lib/branding";
 import { requireDefined } from "juava";
 import Link from "next/link";
-import { useWorkspace } from "../../lib/context";
-import { ExternalLink } from "lucide-react";
+import { useAppConfig, useWorkspace } from "../../lib/context";
+import { ArrowRight, ExternalLink, Inbox } from "lucide-react";
 import { Button } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
 import classNames from "classnames";
@@ -51,23 +51,49 @@ export function getRelativePosition(parent: Element, child: Element): Point {
   };
 }
 
-const Header: React.FC<Actions & { className?: string }> = p => {
+const Header: React.FC<Actions & { className?: string; hasData: boolean }> = p => {
   return (
     <div className={classNames(`flex items-center justify-between`, p.className)}>
       <h1 className="text-2xl">
         <Link href={p.editLink}>{p.title}</Link>
       </h1>
-      <div className="space-x-2 flex items-center">
-        <Button type="ghost" href={p.editLink}>
-          View All
-        </Button>
-        <Button type="primary" ghost={true} icon={<PlusOutlined />} href={p.newLink}>
-          Add
-        </Button>
+      <div className="gap-2 flex items-center">
+        <Link type="ghost" href={p.editLink} className="group flex items-center flex-nowrap whitespace-nowrap ml-12">
+          View All <ArrowRight className="h-4 group-hover:-rotate-12 transition-all duration-500" />
+        </Link>
+        {p.hasData && (
+          <Button type="primary" ghost={true} icon={<PlusOutlined />} href={p.newLink}>
+            Add
+          </Button>
+        )}
       </div>
     </div>
   );
 };
+
+export function EmptyList({
+  children,
+  title,
+  createLink,
+  footer,
+}: {
+  children: ReactNode;
+  title: ReactNode;
+  createLink: string;
+  footer?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col items-center border px-4 py-6 rounded-xl border-dashed">
+      <Inbox className="h-12 w-12 my-3 text-neutral-200" />
+      <h4 className="text-lg font-bold text-center">{title}</h4>
+      <p className="font-light text-sm text-center mt-2 text-neutral-600">{children}</p>
+      <Button type="primary" href={createLink} className="mt-4">
+        Create
+      </Button>
+      {footer}
+    </div>
+  );
+}
 
 export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({
   connections,
@@ -86,8 +112,12 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({
   const [mouseOverSrc, setMouseOverSrc] = React.useState<string | undefined>();
   const [mouseOverDst, setMouseOverDst] = React.useState<string | undefined>();
   const workspaces = useWorkspace();
+  const appConfig = useAppConfig();
   const [forceSelectDestination, setForceSelectDestination] = React.useState<string[]>([]);
   const [forceSelectSource, setForceSelectSource] = React.useState<string[]>([]);
+  const emptySitesRef = React.useRef<HTMLAnchorElement>(null);
+  const emptyConnectorsRef = React.useRef<HTMLAnchorElement>(null);
+  const emptyDestinationsRef = React.useRef<HTMLAnchorElement>(null);
   useEffect(() => {
     const resizeListener = () => setWindowSize({ width: window.innerWidth, height: window.innerHeight });
     window.addEventListener("resize", resizeListener);
@@ -164,6 +194,33 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({
           });
         }
       });
+    if (emptySitesRef.current) {
+      const rel = getRelativePosition(canvasRef.current!, emptySitesRef.current!);
+      const bounds = emptySitesRef.current!.getBoundingClientRect();
+      newLines.push({
+        from: { top: rel.top + bounds.height / 2, left: rel.left + bounds.width },
+        to: { left: logoPosition.left, top: logoPosition.top + logoBounds.height / 2 },
+        selected: false,
+      });
+    }
+    if (emptyConnectorsRef.current) {
+      const rel = getRelativePosition(canvasRef.current!, emptyConnectorsRef.current!);
+      const bounds = emptyConnectorsRef.current!.getBoundingClientRect();
+      newLines.push({
+        from: { top: rel.top + bounds.height / 2, left: rel.left + bounds.width },
+        to: { left: logoPosition.left, top: logoPosition.top + logoBounds.height / 2 },
+        selected: false,
+      });
+    }
+    if (emptyDestinationsRef.current) {
+      const rel = getRelativePosition(canvasRef.current!, emptyDestinationsRef.current!);
+      const bounds = emptyDestinationsRef.current!.getBoundingClientRect();
+      newLines.push({
+        to: { top: rel.top + bounds.height / 2, left: rel.left },
+        from: { left: logoPosition.left + logoBounds.width, top: logoPosition.top + logoBounds.height / 2 },
+        selected: false,
+      });
+    }
     setLines(newLines);
 
     if (mouseOverSrc) {
@@ -186,10 +243,10 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({
     <div className="w-full relative" ref={canvasRef}>
       <div className="flex flex-row" style={{ zIndex: 2 }}>
         <div className="flex flex-col grow">
+          <Header {...p.srcActions} className="mb-4" hasData={sources?.length > 0} />
           <>
-            {sources?.length > 0 && (
+            {sources?.length > 0 ? (
               <>
-                <Header {...p.srcActions} className="mb-4" />
                 {sources.map((s, idx) => (
                   <div
                     key={s.id}
@@ -205,26 +262,43 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({
                   </div>
                 ))}
               </>
+            ) : (
+              <div ref={emptySitesRef as any} className="mb-12">
+                <EmptyList title={"Create your first site"} createLink={p.srcActions.newLink}>
+                  Site (or stream) is a source of events which are bing pushed to Jitsu via SDK. It could be a website,
+                  web application, mobile application or backend server
+                </EmptyList>
+              </div>
             )}
-            {connectorSources?.length > 0 && (
+            {appConfig.syncs.enabled && (
               <>
-                <Header {...p.connectorSourcesActions} className="mb-4" />
-                {connectorSources.map((s, idx) => (
-                  <div
-                    key={s.id}
-                    ref={connectorsRef.current[idx] as any}
-                    className="cursor-pointer mb-4"
-                    onClick={() => console.log("Clicked", s.id)}
-                    onMouseOver={() => {
-                      setMouseOverSrc(s.id);
-                    }}
-                    onMouseLeave={() => setMouseOverSrc(undefined)}
-                  >
-                    {s.card(forceSelectSource.includes(s.id))}
+                <Header {...p.connectorSourcesActions} className="mb-4" hasData={connectorSources?.length > 0} />
+                {connectorSources?.length > 0 ? (
+                  <>
+                    {connectorSources.map((s, idx) => (
+                      <div
+                        key={s.id}
+                        ref={connectorsRef.current[idx] as any}
+                        className="cursor-pointer mb-4"
+                        onClick={() => console.log("Clicked", s.id)}
+                        onMouseOver={() => {
+                          setMouseOverSrc(s.id);
+                        }}
+                        onMouseLeave={() => setMouseOverSrc(undefined)}
+                      >
+                        {s.card(forceSelectSource.includes(s.id))}
+                      </div>
+                    ))}
+                  </>
+                ) : (
+                  <div ref={emptyConnectorsRef as any} className="mb-12">
+                    <EmptyList title={"Create your fist connector"} createLink={p.connectorSourcesActions.newLink}>
+                      Connectors are used to pull data from external sources like databases, APIs, files, etc.
+                    </EmptyList>
                   </div>
-                ))}
+                )}
               </>
-            )}{" "}
+            )}
           </>
         </div>
         <div className="shrink px-36 flex items-center">
@@ -245,7 +319,7 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({
           </div>
         </div>
         <div className="flex flex-col grow">
-          <Header {...p.dstActions} className="mb-4" />
+          <Header {...p.dstActions} className="mb-4" hasData={destinations?.length > 0} />
           {destinations.map((dest, idx) => (
             <div
               className="cursor-pointer mb-4"
@@ -259,6 +333,13 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({
               {dest.card(forceSelectDestination.includes(dest.id))}
             </div>
           ))}
+          {destinations.length === 0 && (
+            <div ref={emptyDestinationsRef as any} className="mb-12">
+              <EmptyList title={"Create your fist destination"} createLink={p.dstActions.newLink}>
+                Destination is a database or service which accepts data coming from sites or connector
+              </EmptyList>
+            </div>
+          )}
         </div>
       </div>
       <svg className="w-full h-full absolute top-0 left-0" style={{ pointerEvents: "none" }}>

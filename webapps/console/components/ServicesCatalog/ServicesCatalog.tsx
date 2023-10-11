@@ -78,7 +78,7 @@ export const ServicesCatalog: React.FC<{ onClick: (packageType, packageId: strin
       <div key={"filter"} className={"m-4"}>
         <Input
           allowClear
-          placeholder="Search"
+          placeholder={sourcesIconsLoader.data ? `Search ${sourcesIconsLoader.data.sources.length} sources` : `Search`}
           onChange={e => {
             setFilter(e.target.value);
           }}

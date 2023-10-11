@@ -780,7 +780,7 @@ const ObjectListEditor: React.FC<ConfigEditorProps> = props => {
           <div>
             <div className="flex flex-col items-center">
               <Inbox className="h-16 w-16 my-6 text-neutral-200" />
-              <div className="text text-textLight mb-6">You don't any have {props.noun}s configured.</div>
+              <div className="text text-textLight mb-6">You don't have any {props.noun}s configured.</div>
 
               <Button type="default" onClick={() => doAction(router, addAction)}>
                 {props.createKeyword || "Create"} your first {props.noun}

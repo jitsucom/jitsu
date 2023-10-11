@@ -1,6 +1,5 @@
 import { getErrorMessage, getLog, LogLevel, rpc, setGlobalLogLevel } from "juava";
 import { AppProps } from "next/app";
-import "@fontsource/inter/variable.css";
 import "../styles/globals.css";
 import { useRouter } from "next/router";
 import React, { PropsWithChildren, useEffect, useState } from "react";

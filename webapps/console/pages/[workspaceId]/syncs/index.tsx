@@ -373,14 +373,13 @@ function Syncs(props: RemoteEntitiesProps) {
       <div className="flex flex-col justify-center items-center ">
         <Inbox className="w-16 h-16 text-textDisabled" />
         <div className="text-center mt-12 text text-textLight max-w-4xl">
-          In order to connect service to destination please create at least one destination and one service. Currently,
-          you have{" "}
+          In order to create a sync please create at least one destination and one connector. Currently, you have{" "}
           <Link href={`/${workspace.slug || workspace.id}/destinations`} className="underline">
             {props.destinations.length} destination{props.destinations.length === 1 ? "" : "s"}
           </Link>{" "}
           and{" "}
           <Link href={`/${workspace.slug || workspace.id}/services`} className="underline">
-            {props.services.length} service{props.services.length === 1 ? "" : "s"}
+            {props.services.length} connectors{props.services.length === 1 ? "" : "s"}
           </Link>{" "}
           configured
         </div>
