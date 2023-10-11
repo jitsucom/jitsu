@@ -5,6 +5,8 @@ import { getRequestHost } from "../../lib/server/origin";
 import { db } from "../../lib/server/db";
 import { getServerLog } from "../../lib/server/log";
 import { getTopLevelDomain } from "@jitsu/js";
+import { getUserPreferenceService } from "../../lib/server/user-preferences";
+import { SessionUser } from "../../lib/schema";
 
 const allowedOrigins = process.env.ALLOWED_API_ORIGINS || "*.[originTopLevelDomain],[originTopLevelDomain]";
 
@@ -63,6 +65,19 @@ async function getWorkspaces(internalUserId: string) {
     .filter(w => !w.deleted);
 }
 
+async function getLastWorkspace(user: SessionUser) {
+  const pref = await getUserPreferenceService(db.prisma()).getPreferences({ userId: user.internalId });
+  if (pref?.lastUsedWorkspaceId) {
+    return {
+      id: pref.lastUsedWorkspaceId,
+      slug:
+        (await db.prisma().workspace.findUnique({ where: { id: pref?.lastUsedWorkspaceId } }))?.slug ||
+        pref.lastUsedWorkspaceId,
+    };
+  }
+  return undefined;
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const [hostname] = getRequestHost(req).split(":");
   handleCors(hostname, req.headers.origin, res);
@@ -74,6 +89,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       auth: true,
       user: user,
       workspaces: req.query.workspaces === "true" ? await getWorkspaces(user.internalId) : undefined,
+      lastUsedWorkspace: req.query.lastWorkspace === "true" ? await getLastWorkspace(user) : undefined,
     });
   }
 }
