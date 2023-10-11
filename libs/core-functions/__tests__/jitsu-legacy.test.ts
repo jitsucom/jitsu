@@ -50,7 +50,6 @@ const identify: AnalyticsServerEvent = {
 };
 
 const legacyIdentifyExpected: Omit<JitsuLegacyEvent, "local_tz_offset"> & { local_tz_offset?: number } = {
-  _timestamp: "2022-11-14T08:56:34.387Z",
   anon_ip: "141.136.89.0",
   doc_path: "/basic.html",
   doc_search: "?utm_source=source&utm_medium=medium&utm_campaign=campaign",
@@ -141,7 +140,6 @@ const page: AnalyticsServerEvent = {
 };
 
 const legacyPageExpected = {
-  _timestamp: "2022-11-14T08:56:34.395Z",
   api_key: "",
   click_id: {},
   doc_host: "localhost",
