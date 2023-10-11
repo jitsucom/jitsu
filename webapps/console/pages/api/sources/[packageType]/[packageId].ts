@@ -15,7 +15,7 @@ export default createRoute()
     const _packageId = req.query.packageId as string;
     const packageId = _packageId.startsWith(`${packageType}/`) ? _packageId : `${packageType}/${_packageId}`;
     getLog().atDebug().log(`packageType: ${packageType}, packageId: ${packageId}`);
-    const jitsuSource = jitsuSources[packageType + "/" + packageId];
+    const jitsuSource = jitsuSources[packageId];
     if (jitsuSource) {
       return jitsuSource;
     }
