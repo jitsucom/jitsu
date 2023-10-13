@@ -28,7 +28,7 @@ require (
 	github.com/huandu/facebook/v2 v2.5.3
 	github.com/iancoleman/strcase v0.2.0
 	github.com/jarcoal/httpmock v1.1.0
-	github.com/lib/pq v1.10.2
+	github.com/lib/pq v1.10.9
 	github.com/logrusorgru/aurora v2.0.3+incompatible
 	github.com/mailru/go-clickhouse v1.8.0
 	github.com/mitchellh/hashstructure/v2 v2.0.2
