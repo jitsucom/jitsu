@@ -8,7 +8,6 @@ require (
 	github.com/carlmjohnson/requests v0.22.1
 	github.com/coreos/go-oidc v2.1.0+incompatible
 	github.com/deepmap/oapi-codegen v1.10.1
-	github.com/gin-contrib/sessions v0.0.5
 	github.com/gin-gonic/contrib v0.0.0-20201101042839-6a891bf89f19
 	github.com/gin-gonic/gin v1.7.7
 	github.com/go-acme/lego v2.7.2+incompatible
@@ -16,7 +15,7 @@ require (
 	github.com/gomodule/redigo v2.0.0+incompatible
 	github.com/hashicorp/go-multierror v1.1.0
 	github.com/jitsucom/jitsu/server v1.37.3
-	github.com/lib/pq v1.10.3
+	github.com/lib/pq v1.10.9
 	github.com/mitchellh/mapstructure v1.4.1
 	github.com/pkg/errors v0.9.1
 	github.com/satori/go.uuid v1.2.0
@@ -71,6 +70,7 @@ require (
 	github.com/form3tech-oss/jwt-go v3.2.5+incompatible // indirect
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.0 // indirect
+	github.com/gin-contrib/sessions v0.0.5 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
 	github.com/go-ole/go-ole v1.2.5 // indirect
 	github.com/go-playground/locales v0.14.0 // indirect

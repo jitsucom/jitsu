@@ -107,7 +107,7 @@ func NewGoogleAds(ctx context.Context, sourceConfig *base.SourceConfig, collecti
 		return nil, fmt.Errorf("Unknown collection [%s]", collection.Type)
 	}
 	where := reportConfig.Where
-	where = strings.ReplaceAll(strings.ToLower(where), "where", "")
+	where = strings.TrimPrefix(strings.ToLower(where), "where")
 	fields := strings.Split(strings.ReplaceAll(reportConfig.Fields, " ", ""), ",")
 
 	granularity := schema.ALL
