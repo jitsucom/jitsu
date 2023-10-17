@@ -7,6 +7,7 @@ import pick from "lodash/pick";
 export const SourceType = ConnectorPackageDbModel.merge(
   z.object({
     versions: z.string(),
+    sortIndex: z.number().optional(),
     meta: z.object({
       name: z.string(),
       license: z.string(),
@@ -64,6 +65,29 @@ export const jitsuSources: Record<string, SourceType> = {
   "jitsucom/source-mongodb": JitsuMongoDBSource,
 };
 
+export const popularConnectors: string[] = [
+  "jitsucom/source-firebase",
+  "jitsucom/source-mongodb",
+  "airbyte/source-stripe",
+  "airbyte/source-google-ads",
+  "airbyte/source-facebook-marketing",
+  "airbyte/source-github",
+  "airbyte/source-google-analytics-data-api",
+  "airbyte/source-postgres",
+  "airbyte/source-mysql",
+  "airbyte/source-google-sheets",
+  "airbyte/source-airtable",
+  "airbyte/source-intercom",
+];
+
+const sortIndexes = popularConnectors.reduce(
+  (acc, connector, index) => ({
+    ...acc,
+    [connector]: (popularConnectors.length - index) * 10 + 100,
+  }),
+  {}
+);
+
 export default createRoute()
   .GET({ auth: false, query: z.object({ mode: z.enum(["meta", "icons-only", "full"]).optional().default("full") }) })
   .handler(async ({ query, req, res }): Promise<{ sources: Partial<SourceType>[] }> => {
@@ -74,6 +98,7 @@ export default createRoute()
     res.setHeader("Access-Control-Allow-Credentials", "true");
     const includeMeta = query.mode === "full" || query.mode == "meta";
     const includeIcons = query.mode === "full" || query.mode == "icons-only";
+    console.log(JSON.stringify(sortIndexes, null, 2));
     const sources: Partial<SourceType>[] = (await db.prisma().connectorPackage.findMany())
       .filter(
         c =>
@@ -115,7 +140,12 @@ export default createRoute()
           meta: includeMeta ? rest.meta : undefined,
         })),
         ...sources,
-      ],
+      ]
+        .map(s => ({ ...s, sortIndex: sortIndexes[s.packageId!] }))
+        .sort((a, b) => {
+          const res = (b.sortIndex || 0) - (a.sortIndex || 0);
+          return res === 0 ? (a?.meta?.name || a?.packageId!).localeCompare(b?.meta?.name || b?.packageId!) : res;
+        }),
     };
   })
   .toNextApiHandler();

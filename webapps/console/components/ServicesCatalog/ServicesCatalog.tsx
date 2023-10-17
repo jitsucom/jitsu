@@ -104,20 +104,25 @@ export const ServicesCatalog: React.FC<{ onClick: (packageType, packageId: strin
                 {group === "api" ? "API" : capitalize(group)}
               </div>
               <div className="flex flex-wrap">
-                {filtered.map(source => {
-                  return (
-                    <div
-                      key={source.id}
-                      className={`flex items-center cursor-pointer relative w-72 border border-textDisabled ${"hover:scale-105 hover:border-primary"} transition ease-in-out rounded-lg px-4 py-4 space-x-4 m-4`}
-                      onClick={() => onClick(source.packageType, source.packageId)}
-                    >
-                      <div className={`${styles.icon} flex`}>{getServiceIcon(source, sourcesIcons)}</div>
-                      <div>
-                        <div className={`text-xl`}>{source.meta.name}</div>
+                {filtered
+                  .sort((a, b) => {
+                    const res = (b.sortIndex || 0) - (a.sortIndex || 0);
+                    return res === 0 ? a.meta.name.localeCompare(b.meta.name) : res;
+                  })
+                  .map(source => {
+                    return (
+                      <div
+                        key={source.id}
+                        className={`flex items-center cursor-pointer relative w-72 border border-textDisabled ${"hover:scale-105 hover:border-primary"} transition ease-in-out rounded-lg px-4 py-4 space-x-4 m-4`}
+                        onClick={() => onClick(source.packageType, source.packageId)}
+                      >
+                        <div className={`${styles.icon} flex`}>{getServiceIcon(source, sourcesIcons)}</div>
+                        <div>
+                          <div className={`text-xl`}>{source.meta.name}</div>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
               </div>
             </div>
           );
