@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ExternalLink } from "lucide-react";
 import { Table } from "antd";
 import hash from "stable-hash";
+import { ReactNode } from "react";
 
 function makeNiceName(key: string) {
   return key
@@ -16,7 +17,12 @@ export type TypedColumn =
   | {
       type: "number";
     }
-  | { type: "link"; href: (val, row) => string };
+  | {
+      type: "currency";
+      currency?: "USD";
+    }
+  | { type: "link"; href: (val, row) => string }
+  | { type: "custom"; render: (val, row) => ReactNode };
 export type ColumnOption = { omit: true; type?: unknown } | ({ omit?: false | undefined } & TypedColumn);
 export const JsonAsTable: React.FC<{ rows: any[]; columnOptions: Record<string, ColumnOption> }> = ({
   rows,
@@ -33,7 +39,7 @@ export const JsonAsTable: React.FC<{ rows: any[]; columnOptions: Record<string, 
     for (const key of displayKeys) {
       if (!columnsMeta[key]) {
         const columnType = columnOptions[key];
-        const isNumber = columnType?.type === "number";
+        const isNumber = columnType?.type === "number" || columnType?.type === "currency";
         columnsMeta[key] = {
           key: key,
           title: <span className="whitespace-nowrap">{makeNiceName(key)}</span>,
@@ -42,8 +48,12 @@ export const JsonAsTable: React.FC<{ rows: any[]; columnOptions: Record<string, 
               <div className={`whitespace-nowrap text-sm ${isNumber ? "text-right font-mono" : ""}`}>
                 {(() => {
                   const val = row[key];
-                  if (isNumber) {
+                  if (columnType?.type === "currency") {
+                    return "$" + new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(val);
+                  } else if (columnType?.type === "number") {
                     return new Intl.NumberFormat("en-US").format(val);
+                  } else if (columnType?.type === "custom") {
+                    return (columnType as any).render(val, row);
                   } else if (columnType?.type === "link") {
                     return (
                       <Link

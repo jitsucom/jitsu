@@ -9,12 +9,16 @@ import pick from "lodash/pick";
 import { buildWorkspaceReport } from "./workspace-stat";
 import { getServerLog } from "../../../lib/log";
 
-const log = getServerLog("/api/report");
+const log = getServerLog("/api/overage");
 
 function toUTC(date: Date | string) {
   const dateObj = new Date(date);
   const timezoneOffset = dateObj.getTimezoneOffset();
   return new Date(dateObj.getTime() - timezoneOffset * 60000);
+}
+
+function stripeLink(entity: string, id: string) {
+  return `https://dashboard.stripe.com/${entity}/${id}`;
 }
 
 function round(date: Date | string, granularity: "day" = "day"): { start: string; end: string } {
@@ -30,13 +34,16 @@ function round(date: Date | string, granularity: "day" = "day"): { start: string
 }
 
 async function listAllInvoices() {
-  log.atInfo().log("Listing invoices...");
   let starting_after: string | undefined = undefined;
   const allInvoices: Stripe.Invoice[] = [];
   do {
     const result = await stripe.invoices.list({
       limit: 100,
       starting_after: starting_after,
+      created: {
+        //invoices for past 90 days
+        gte: Math.floor(Date.now() / 1000 - 90 * 24 * 60 * 60),
+      },
     });
     starting_after = result?.data[result.data.length - 1]?.id;
     log.atInfo().log(`Fetched ${result?.data.length} invoices. Has more: ${!!starting_after}`);
@@ -85,6 +92,7 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
     : await store.getTable(stripeDataTable).list();
 
   const availableProducts = await getAvailableProducts();
+  const subscriptionCache: Record<string, Stripe.Subscription> = {};
 
   const result: any[] = [];
   const allInvoices = await listAllInvoices();
@@ -92,6 +100,17 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
     const { stripeCustomerId } = obj;
 
     const customerInvoices = allInvoices.filter(i => i.customer === stripeCustomerId);
+    if (customerInvoices.length === 0) {
+      continue;
+    }
+    log
+      .atInfo()
+      .log(
+        `Found ${customerInvoices.length} invoices for workspace ${workspaceId} / customer ${stripeLink(
+          "customers",
+          stripeCustomerId
+        )}`
+      );
     for (const invoice of customerInvoices) {
       if (!invoice.lines.data.length) {
         log.atWarn().log(`No lines found for invoice ${invoice.id}`);
@@ -103,9 +122,31 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
         .filter(l => !!l.plan)
         .map(l => l.plan!.product)
         .join("");
+      const subscriptionId = invoice.lines.data
+        .filter(l => !!l.subscription)
+        .map(l => l.subscription)
+        .join("");
+      if (subscriptionId === "") {
+        log.atWarn().log(`No subscription found for invoice ${stripeLink("invoices", invoice.id)}, skipping`);
+        continue;
+      }
+      const subscription =
+        subscriptionCache[subscriptionId] ||
+        (subscriptionCache[subscriptionId] = await stripe.subscriptions.retrieve(subscriptionId));
+      if (subscription.status === "canceled") {
+        log
+          .atWarn()
+          .log(
+            `Subscription ${stripeLink("subscriptions", invoice.id)} is canceled. Skipping invoice ${stripeLink(
+              "invoices",
+              invoice.id
+            )}`
+          );
+        continue;
+      }
       const plan = availableProducts.find(p => p.id === product);
       if (!plan) {
-        log.atWarn().log(`No plan found for ${product} from invoice ${invoice.id}`);
+        log.atWarn().log(`No plan found for ${product} from invoice ${stripeLink("invoices", invoice.id)}`);
         continue;
       }
       log
@@ -119,16 +160,13 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
       const overagePricePerEvent = overagePricePer100k / 100_000;
       const invoiceStartRounded = round(start, "day").start;
       const invoiceEndRounded = round(end, "day").end;
-      log.atInfo().log(`\t[${invoiceStartRounded}, ${invoiceEndRounded}]`);
-      let rows = report.filter(row => {
-        log.atInfo().log(JSON.stringify(row));
+      const rows = report.filter(row => {
         const { start, end } = round(row.period, "day");
-        let includes =
+        return (
           row.workspaceId === workspaceId &&
           Date.parse(start) >= Date.parse(invoiceStartRounded) &&
-          Date.parse(end) <= Date.parse(invoiceEndRounded);
-        log.atInfo().log(includes + ":" + JSON.stringify({ start, end, invoiceStartRounded, invoiceEndRounded }));
-        return includes;
+          Date.parse(end) <= Date.parse(invoiceEndRounded)
+        );
       });
       log
         .atInfo()
@@ -152,6 +190,8 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
         month: start.toLocaleString("en-US", { month: "long", year: "numeric" }),
         baseInvoiceId: invoice.id,
         workspaceId,
+        stripeCustomerId,
+        subscriptionId,
         start,
         end,
         destinationEvents,
