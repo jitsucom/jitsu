@@ -242,7 +242,7 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({
   return (
     <div className="w-full relative" ref={canvasRef}>
       <div className="flex flex-row" style={{ zIndex: 2 }}>
-        <div className="flex flex-col grow">
+        <div style={{ width: "calc(50% - 100px)" }} className="flex flex-col">
           <Header {...p.srcActions} className="mb-4" hasData={sources?.length > 0} />
           <>
             {sources?.length > 0 ? (
@@ -301,7 +301,10 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({
             )}
           </>
         </div>
-        <div className="shrink px-36 flex items-center">
+        <div
+          style={{ width: "200px", minWidth: "200px", maxWidth: "200px" }}
+          className="px-36 flex justify-center items-center"
+        >
           <div className="flex flex-col items-center group">
             <Link
               className="block h-16 w-15 aspect-square  rounded-full hover:scale-110 transition-all duration-500 z-30"
@@ -318,7 +321,7 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({
             </Link>
           </div>
         </div>
-        <div className="flex flex-col grow">
+        <div style={{ width: "calc(50% - 100px)" }} className="flex flex-col">
           <Header {...p.dstActions} className="mb-4" hasData={destinations?.length > 0} />
           {destinations.map((dest, idx) => (
             <div
