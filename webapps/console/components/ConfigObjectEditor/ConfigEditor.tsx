@@ -664,6 +664,7 @@ const ObjectsList: React.FC<{ objects: any[]; onDelete: (id: string) => Promise<
   name = (o: any) => o.name,
 }) => {
   const modal = useAntdModal();
+  const nameRender = listColumns.find(c => c.title === "name")?.render;
   useTitle(`${branding.productName} : ${plural(noun)}`);
   const deleteObject = id => {
     modal.confirm({
@@ -677,16 +678,20 @@ const ObjectsList: React.FC<{ objects: any[]; onDelete: (id: string) => Promise<
   const columns = [
     {
       title: "Name",
-      render: (text, record) => (
-        <WLink href={`/${type}s?id=${record.id}`}>
-          <ObjectTitle title={name(record)} icon={icon ? icon(record) : undefined} />
-        </WLink>
-      ),
+      render:
+        nameRender ||
+        ((text, record) => (
+          <WLink href={`/${type}s?id=${record.id}`}>
+            <ObjectTitle title={name(record)} icon={icon ? icon(record) : undefined} />
+          </WLink>
+        )),
     },
-    ...listColumns.map(c => ({
-      title: c.title,
-      render: (text, record) => c.render(record),
-    })),
+    ...listColumns
+      .filter(c => c.title !== "name")
+      .map(c => ({
+        title: c.title,
+        render: (text, record) => c.render(record),
+      })),
     {
       title: "",
       className: "text-right",

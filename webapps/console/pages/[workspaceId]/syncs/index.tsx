@@ -379,16 +379,16 @@ function Syncs(props: RemoteEntitiesProps) {
           </Link>{" "}
           and{" "}
           <Link href={`/${workspace.slug || workspace.id}/services`} className="underline">
-            {props.services.length} connectors{props.services.length === 1 ? "" : "s"}
+            {props.services.length} connector{props.services.length === 1 ? "" : "s"}
           </Link>{" "}
           configured
         </div>
         <div className="flex space-x-4 items-center mt-4">
+          <WJitsuButton href={"/services"} type="default" icon={<PlusOutlined />}>
+            Create Connector
+          </WJitsuButton>
           <WJitsuButton href={"/destinations"} type="default" icon={<PlusOutlined />}>
             Create Destination
-          </WJitsuButton>
-          <WJitsuButton href={"/services"} type="default" icon={<PlusOutlined />}>
-            Create Service
           </WJitsuButton>
         </div>
       </div>
