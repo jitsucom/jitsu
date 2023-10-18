@@ -292,7 +292,7 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({
                   </>
                 ) : (
                   <div ref={emptyConnectorsRef as any} className="mb-12">
-                    <EmptyList title={"Create your fist connector"} createLink={p.connectorSourcesActions.newLink}>
+                    <EmptyList title={"Create your first connector"} createLink={p.connectorSourcesActions.newLink}>
                       Connectors are used to pull data from external sources like databases, APIs, files, etc.
                     </EmptyList>
                   </div>
@@ -335,7 +335,7 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({
           ))}
           {destinations.length === 0 && (
             <div ref={emptyDestinationsRef as any} className="mb-12">
-              <EmptyList title={"Create your fist destination"} createLink={p.dstActions.newLink}>
+              <EmptyList title={"Create your first destination"} createLink={p.dstActions.newLink}>
                 Destination is a database or service which accepts data coming from sites or connector
               </EmptyList>
             </div>

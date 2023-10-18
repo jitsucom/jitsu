@@ -70,7 +70,7 @@ const SchemaTree: React.FC<SchemaTreeProps> = ({ onColumnSelect, onTableSelect, 
       <div className="px-2 py-2 rounded-md border border-neutral-100 shadow-sm h-full">
         <h3 className="font-semibold text-lg">No tables</h3>
         <div className="text-sm text-textLight mt-6">
-          The tables are created in few mins after you send your fist events to Jitsu, after the first batch of events
+          The tables are created in few mins after you send your first events to Jitsu, after the first batch of events
           is processed
         </div>
       </div>

@@ -179,7 +179,7 @@ test("segment-reference", async ({ browser }) => {
 test("basic", async ({ browser }) => {
   const browserContext = await browser.newContext();
 
-  const { page: firstPage, uncaughtErrors: fistPageErrors } = await createLoggingPage(browserContext);
+  const { page: firstPage, uncaughtErrors: firstPageErrors } = await createLoggingPage(browserContext);
   const [pageResult] = await Promise.all([
     firstPage.goto(`${server.baseUrl}/basic.html?utm_source=source&utm_medium=medium&utm_campaign=campaign`),
   ]);
@@ -197,7 +197,7 @@ test("basic", async ({ browser }) => {
     {}
   );
   console.log("🍪 Jitsu Cookies", cookies);
-  expect(fistPageErrors.length).toEqual(0);
+  expect(firstPageErrors.length).toEqual(0);
   const anonymousId = cookies["__eventn_id"];
   expect(anonymousId).toBeDefined();
   expect(cookies["__eventn_uid"]).toBe("user1");

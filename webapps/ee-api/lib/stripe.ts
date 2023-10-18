@@ -56,7 +56,7 @@ export async function getActivePlan(customerId: string): Promise<null | Subscrip
     assertDefined(product, `Can't get product ${productId} from subscription ${sub.id}. Product doesn't exist`);
     sub2product.set(sub.id, product);
   }
-  //fist, look for active non-legacy plans
+  //first, look for active non-legacy plans
   const activeSubscription = subscriptions.data.find(sub => {
     const product = requireDefined(sub2product.get(sub.id), `Can't find product for subscription ${sub.id}`);
     return sub.status === "active" || product.metadata?.object_tag === getStripeObjectTag();
