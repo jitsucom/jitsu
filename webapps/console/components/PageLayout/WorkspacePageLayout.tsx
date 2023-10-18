@@ -15,6 +15,7 @@ import {
   BarChart3,
   ChevronDown,
   ChevronUp,
+  CircleDollarSign,
   CreditCard,
   FilePlus,
   FolderKanban,
@@ -131,6 +132,16 @@ function WorkspacesMenu(props: { jitsuClassicAvailable: boolean }) {
         },
       },
     ];
+    if (appConfig.ee.available) {
+      additionalMenuItems.push({
+        key: "billing-workspaces",
+        label: "Billing Administration",
+        icon: <CircleDollarSign className="h-4 w-4 mr-2" />,
+        onClick: async () => {
+          await router.push("/admin/overage-billing");
+        },
+      });
+    }
   }
 
   return (

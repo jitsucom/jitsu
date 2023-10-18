@@ -111,7 +111,10 @@ export const OverageBillingPage = () => {
   if (isLoading || workspacesLoader.isLoading) {
     return (
       <div className="w-full h-full flex justify-center items-center">
-        <Loader2 className="h-16 w-16 animate-spin" />
+        <div className="flex flex-col justify-center items-center">
+          <Loader2 className="h-16 w-16 animate-spin" />
+          <div className="text-center">Hang tight, it could take up to a few minutes...</div>
+        </div>
       </div>
     );
   } else if (error || workspacesLoader.error) {
