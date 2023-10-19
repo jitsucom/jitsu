@@ -7,6 +7,8 @@ import { ArrowRight, ExternalLink, Inbox } from "lucide-react";
 import { Button } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
 import classNames from "classnames";
+import { isTruish } from "../../lib/shared/chores";
+import { useRouter } from "next/router";
 
 export type ConnectorNode = {
   id: string;
@@ -113,6 +115,7 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({
   const [mouseOverDst, setMouseOverDst] = React.useState<string | undefined>();
   const workspaces = useWorkspace();
   const appConfig = useAppConfig();
+  const router = useRouter();
   const [forceSelectDestination, setForceSelectDestination] = React.useState<string[]>([]);
   const [forceSelectSource, setForceSelectSource] = React.useState<string[]>([]);
   const emptySitesRef = React.useRef<HTMLAnchorElement>(null);
@@ -239,67 +242,70 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({
   dstRefs.current = destinations.map((_, i) => dstRefs.current[i] ?? React.createRef());
   connectorsRef.current = destinations.map((_, i) => connectorsRef.current[i] ?? React.createRef());
 
+  const connectorSection = appConfig.syncs.enabled && (
+    <React.Fragment key="connectors">
+      <Header {...p.connectorSourcesActions} className="mb-4" hasData={connectorSources?.length > 0} />
+      {connectorSources?.length > 0 ? (
+        <>
+          {connectorSources.map((s, idx) => (
+            <div
+              key={s.id}
+              ref={connectorsRef.current[idx] as any}
+              className="cursor-pointer mb-4"
+              onClick={() => console.log("Clicked", s.id)}
+              onMouseOver={() => {
+                setMouseOverSrc(s.id);
+              }}
+              onMouseLeave={() => setMouseOverSrc(undefined)}
+            >
+              {s.card(forceSelectSource.includes(s.id))}
+            </div>
+          ))}
+        </>
+      ) : (
+        <div ref={emptyConnectorsRef as any} className="mb-12">
+          <EmptyList title={"Create your first connector"} createLink={p.connectorSourcesActions.newLink}>
+            Connectors are used to pull data from external sources like databases, APIs, files, etc.
+          </EmptyList>
+        </div>
+      )}
+    </React.Fragment>
+  );
+  const sitesSection = (
+    <React.Fragment key="sites">
+      <Header {...p.srcActions} className="mb-4" hasData={sources?.length > 0} />
+      {sources?.length > 0 ? (
+        <>
+          {sources.map((s, idx) => (
+            <div
+              key={s.id}
+              ref={srcRefs.current[idx] as any}
+              className="cursor-pointer mb-4"
+              onClick={() => console.log("Clicked", s.id)}
+              onMouseOver={() => {
+                setMouseOverSrc(s.id);
+              }}
+              onMouseLeave={() => setMouseOverSrc(undefined)}
+            >
+              {s.card(forceSelectSource.includes(s.id))}
+            </div>
+          ))}
+        </>
+      ) : (
+        <div ref={emptySitesRef as any} className="mb-12">
+          <EmptyList title={"Create your first site"} createLink={p.srcActions.newLink}>
+            Site (or stream) is a source of events which are bing pushed to Jitsu via SDK. It could be a website, web
+            application, mobile application or backend server
+          </EmptyList>
+        </div>
+      )}
+    </React.Fragment>
+  );
   return (
     <div className="w-full relative" ref={canvasRef}>
       <div className="flex flex-row" style={{ zIndex: 2 }}>
         <div style={{ width: "calc(50% - 100px)" }} className="flex flex-col">
-          <Header {...p.srcActions} className="mb-4" hasData={sources?.length > 0} />
-          <>
-            {sources?.length > 0 ? (
-              <>
-                {sources.map((s, idx) => (
-                  <div
-                    key={s.id}
-                    ref={srcRefs.current[idx] as any}
-                    className="cursor-pointer mb-4"
-                    onClick={() => console.log("Clicked", s.id)}
-                    onMouseOver={() => {
-                      setMouseOverSrc(s.id);
-                    }}
-                    onMouseLeave={() => setMouseOverSrc(undefined)}
-                  >
-                    {s.card(forceSelectSource.includes(s.id))}
-                  </div>
-                ))}
-              </>
-            ) : (
-              <div ref={emptySitesRef as any} className="mb-12">
-                <EmptyList title={"Create your first site"} createLink={p.srcActions.newLink}>
-                  Site (or stream) is a source of events which are bing pushed to Jitsu via SDK. It could be a website,
-                  web application, mobile application or backend server
-                </EmptyList>
-              </div>
-            )}
-            {appConfig.syncs.enabled && (
-              <>
-                <Header {...p.connectorSourcesActions} className="mb-4" hasData={connectorSources?.length > 0} />
-                {connectorSources?.length > 0 ? (
-                  <>
-                    {connectorSources.map((s, idx) => (
-                      <div
-                        key={s.id}
-                        ref={connectorsRef.current[idx] as any}
-                        className="cursor-pointer mb-4"
-                        onClick={() => console.log("Clicked", s.id)}
-                        onMouseOver={() => {
-                          setMouseOverSrc(s.id);
-                        }}
-                        onMouseLeave={() => setMouseOverSrc(undefined)}
-                      >
-                        {s.card(forceSelectSource.includes(s.id))}
-                      </div>
-                    ))}
-                  </>
-                ) : (
-                  <div ref={emptyConnectorsRef as any} className="mb-12">
-                    <EmptyList title={"Create your first connector"} createLink={p.connectorSourcesActions.newLink}>
-                      Connectors are used to pull data from external sources like databases, APIs, files, etc.
-                    </EmptyList>
-                  </div>
-                )}
-              </>
-            )}
-          </>
+          {isTruish(router.query.connectorsFirst) ? [connectorSection, sitesSection] : [sitesSection, connectorSection]}
         </div>
         <div
           style={{ width: "200px", minWidth: "200px", maxWidth: "200px" }}
