@@ -524,7 +524,7 @@ const FunctionsLogTable = ({ loadEvents, loading, streamType, entityType, actorI
           case "log-warn":
             return (
               d.message?.text +
-              (Array.isArray(d.message?.args) && d.message.args.length > 0 ? `, ${d.message?.args.join(",")}` : "")
+              (Array.isArray(d.message?.args) && d.message.args.length > 0 ? `, ${d.message?.args.join(", ")}` : "")
             );
           case "http-request":
             return `${d.method} ${d.url}`;

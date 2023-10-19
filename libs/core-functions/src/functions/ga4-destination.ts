@@ -1,4 +1,4 @@
-import { JitsuFunction } from "@jitsu/protocols/functions";
+import { JitsuFunction, RetryError } from "@jitsu/protocols/functions";
 import type { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { Ga4Credentials } from "../meta";
 
@@ -327,12 +327,12 @@ const Ga4Destination: JitsuFunction<AnalyticsServerEvent, Ga4Credentials> = asyn
     //   ctx.log.info(`Ga4:${JSON.stringify(gaRequest)} --> ${result.status}: ${await result.text()}`);
     // } else
     if (result.status !== 200 && result.status !== 204) {
-      ctx.log.error(`Ga4:${JSON.stringify(gaRequest)} --> ${result.status} ${await result.text()}`);
+      throw new Error(`Ga4:${JSON.stringify(gaRequest)} --> ${result.status} ${await result.text()}`);
     } else {
       ctx.log.debug(`Ga4:${JSON.stringify(gaRequest)} --> ${result.status}`);
     }
   } catch (e: any) {
-    throw new Error(`Failed to send request to Ga4: ${JSON.stringify(gaRequest)}: ${e?.message}`);
+    throw new RetryError(`Failed to send request to Ga4: ${JSON.stringify(gaRequest)}: ${e?.message}`);
   }
 };
 

@@ -5,7 +5,7 @@ export type SetOpts = { ttlMs?: number } | { ttlSec?: number };
 /**
  * A key value store that exposed to a function
  */
-interface Store {
+export interface Store {
   get(key: string): Promise<any>;
   del(key: string): Promise<void>;
   set(key: string, value: any, opts?: SetOpts): Promise<void>;
@@ -14,7 +14,7 @@ interface Store {
 /**
  * Store for incoming events, destination results and function log messages
  */
-interface EventsStore {
+export interface EventsStore {
   log(connectionId: string, error: boolean, msg: Record<string, any>): void;
 }
 /**
@@ -182,6 +182,8 @@ export type EventContext = {
     mode?: string;
     options?: any;
   };
+  // number of retries attempted
+  retries?: number;
 };
 
 export type FunctionConfigContext<P extends AnyProps = AnyProps> = {
@@ -215,3 +217,13 @@ export interface JitsuFunction<E extends AnyEvent = AnyEvent, P extends AnyProps
 export type BuiltinFunctionName<T extends string = string> = `builtin.${T}`;
 export type BuiltinDestinationFunctionName = BuiltinFunctionName<`destination.${string}`>;
 export type BuiltinTransformationFunctionName = BuiltinFunctionName<`transformation.${string}`>;
+
+export const DropRetryErrorName = "Drop & RetryError";
+export const RetryErrorName = "RetryError";
+
+export class RetryError extends Error {
+  constructor(message?: any, options?: { drop: boolean }) {
+    super(message);
+    this.name = options?.drop ? `${DropRetryErrorName}` : `${RetryErrorName}`;
+  }
+}

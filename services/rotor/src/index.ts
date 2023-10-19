@@ -15,9 +15,9 @@ import minimist from "minimist";
 import { glob } from "glob";
 import fs from "fs";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
-import { FuncChain, runChain } from "./lib/functions-chain";
+import { checkError, FuncChain, runChain } from "./lib/functions-chain";
 import { getBuiltinFunction, mongoAnonymousEventsStore, UDFWrapper } from "@jitsu/core-functions";
-import { EventContext, Geo, JitsuFunction, Store, SystemContext } from "@jitsu/protocols/functions";
+import { AnyEvent, EventContext, FullContext, JitsuFunction, Store, SystemContext } from "@jitsu/protocols/functions";
 import { redis } from "@jitsu-internal/console/lib/server/redis";
 import express from "express";
 import NodeCache from "node-cache";
@@ -26,6 +26,7 @@ import { UDFRunHandler } from "./http/udf";
 import Prometheus from "prom-client";
 import { metrics } from "./lib/metrics";
 import { redisLogger } from "./lib/redis-logger";
+import pick from "lodash/pick";
 
 disableService("prisma");
 disableService("pg");
@@ -63,7 +64,11 @@ const getCachedOrLoad = async (cache: NodeCache, key: string, loader: (key: stri
   return loaded;
 };
 
-export async function rotorMessageHandler(_message: string | undefined) {
+export async function rotorMessageHandler(
+  _message: string | undefined,
+  functionsFilter?: (id: string) => boolean,
+  retries: number = 0
+) {
   if (!_message) {
     return;
   }
@@ -78,6 +83,42 @@ export async function rotorMessageHandler(_message: string | undefined) {
     .log(
       `Processing ${message.type} Message ID: ${message.messageId} for: ${connection.id} (${connection.streamId} → ${connection.destinationId}(${connection.type}))`
     );
+
+  const event = message.httpPayload as AnalyticsServerEvent;
+  const ctx: EventContext = {
+    headers: message.httpHeaders,
+    geo: message.geo,
+    retries,
+    source: {
+      id: connection.streamId,
+      domain: message.origin?.domain,
+    },
+    destination: {
+      id: connection.destinationId,
+      type: connection.type,
+      updatedAt: connection.updatedAt,
+      hash: connection.credentialsHash,
+    },
+    connection: {
+      id: connection.id,
+      mode: connection.mode,
+      options: connection.options,
+    },
+  };
+  const redisClient = redis();
+  const store: Store = {
+    get: async (key: string) => {
+      const res = await redisClient.hget(`store:${connection.id}`, key);
+      return res ? JSON.parse(res) : undefined;
+    },
+    set: async (key: string, obj: any) => {
+      await redisClient.hset(`store:${connection.id}`, key, JSON.stringify(obj));
+    },
+    del: async (key: string) => {
+      await redisClient.hdel(`store:${connection.id}`, key);
+    },
+  };
+  const rl = await redisLogger.waitInit();
 
   const connectionData = connection.options as any;
 
@@ -105,24 +146,19 @@ export async function rotorMessageHandler(_message: string | undefined) {
       );
     }
   }
-  const functions = [...(connectionData.functions || []), mainFunction];
+  const functions = [...(connectionData.functions || []), mainFunction].filter(f =>
+    functionsFilter ? functionsFilter(f.functionId) : true
+  );
   //system context for builtin functions only
   const systemContext: SystemContext = {
     $system: {
       anonymousEventsStore: mongoAnonymousEventsStore(),
     },
   };
-
-  const funcChain: FuncChain = await Promise.all(
-    functions.map(async f => {
-      if (f.functionId.startsWith("builtin.")) {
-        return {
-          id: f.functionId as string,
-          config: f.functionOptions as any,
-          exec: requireDefined(getBuiltinFunction(f.functionId), `Unknown function ${f.functionId}`) as JitsuFunction,
-          context: systemContext,
-        };
-      } else if (f.functionId.startsWith("udf.")) {
+  const udfFuncChain: FuncChain = await Promise.all(
+    functions
+      .filter(f => f.functionId.startsWith("udf."))
+      .map(async f => {
         const functionId = f.functionId.substring(4);
         const userFunctionObj = requireDefined(
           await getCachedOrLoad(functionsCache, functionId, key => {
@@ -165,53 +201,54 @@ export async function rotorMessageHandler(_message: string | undefined) {
           },
           context: {},
         };
-      } else {
-        throw newError(`Function of unknown type: ${f.functionId}`);
-      }
-    })
+      })
   );
-  const event = message.httpPayload as AnalyticsServerEvent;
-  const ctx: EventContext = {
-    headers: message.httpHeaders,
-    geo: message.geo,
-    source: {
-      id: connection.streamId,
-      domain: message.origin?.domain,
-    },
-    destination: {
-      id: connection.destinationId,
-      type: connection.type,
-      updatedAt: connection.updatedAt,
-      hash: connection.credentialsHash,
-    },
-    connection: {
-      id: connection.id,
-      mode: connection.mode,
-      options: connection.options,
-    },
-  };
-  const redisClient = redis();
-  const store: Store = {
-    get: async (key: string) => {
-      const res = await redisClient.hget(`store:${connection.id}`, key);
-      return res ? JSON.parse(res) : undefined;
-    },
-    set: async (key: string, obj: any) => {
-      await redisClient.hset(`store:${connection.id}`, key, JSON.stringify(obj));
-    },
-    del: async (key: string) => {
-      await redisClient.hdel(`store:${connection.id}`, key);
-    },
-  };
-  const rl = await redisLogger.waitInit();
-  await runChain(funcChain, event, connection, rl, store, ctx).then(async execLog => {
-    await metrics().logMetrics(connection.workspaceId, message.messageId, execLog);
-  });
-}
+  const aggregatedFunctions: any[] = [
+    ...functions.filter(f => f.functionId.startsWith("builtin.transformation.")),
+    ...(udfFuncChain.length > 0 ? [{ functionId: "udf.PIPELINE" }] : []),
+    ...functions.filter(f => f.functionId.startsWith("builtin.destination.")),
+  ];
 
-const retrySettings = {
-  maxMinutesInQueue: process.env.KAFKA_MAX_MINUTES_IN_QUEUE ? parseInt(process.env.KAFKA_MAX_MINUTES_IN_QUEUE) : 120,
-};
+  const udfPipelineFunc = async (event: AnyEvent, ctx: FullContext) => {
+    const chainRes = await runChain(
+      udfFuncChain,
+      event,
+      connection,
+      rl,
+      store,
+      pick(ctx, ["geo", "headers", "source", "destination", "connection", "retries"])
+    );
+    checkError(chainRes);
+    return chainRes.events;
+  };
+
+  const funcChain: FuncChain = await Promise.all(
+    aggregatedFunctions
+      .filter(f => (functionsFilter ? functionsFilter(f.functionId) : true))
+      .map(async f => {
+        if (f.functionId.startsWith("builtin.")) {
+          return {
+            id: f.functionId as string,
+            config: f.functionOptions as any,
+            exec: requireDefined(getBuiltinFunction(f.functionId), `Unknown function ${f.functionId}`) as JitsuFunction,
+            context: systemContext,
+          };
+        } else if (f.functionId === "udf.PIPELINE") {
+          return {
+            id: f.functionId as string,
+            config: {},
+            exec: udfPipelineFunc,
+            context: systemContext,
+          };
+        } else {
+          throw newError(`Function of unknown type: ${f.functionId}`);
+        }
+      })
+  );
+  const chainRes = await runChain(funcChain, event, connection, rl, store, ctx);
+  await metrics().logMetrics(connection.workspaceId, message.messageId, chainRes.execLog);
+  checkError(chainRes);
+}
 
 async function main() {
   process.on("uncaughtException", function (err) {
@@ -286,7 +323,6 @@ async function main() {
       credentials: getCredentialsFromEnv(),
       kafkaTopics: kafkaTopics,
       consumerGroupId,
-      maxSecondsInQueueAfterFailure: retrySettings.maxMinutesInQueue * 60,
       handle: rotorMessageHandler,
     });
     log.atInfo().log("Starting kafka processing");

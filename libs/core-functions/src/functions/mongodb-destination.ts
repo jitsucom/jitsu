@@ -1,4 +1,4 @@
-import { FullContext, JitsuFunction } from "@jitsu/protocols/functions";
+import { FullContext, JitsuFunction, RetryError } from "@jitsu/protocols/functions";
 import type { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { getSingleton } from "juava";
 import { MongoClient } from "mongodb";
@@ -53,8 +53,8 @@ const MongodbDestination: JitsuFunction<AnalyticsServerEvent, MongodbDestination
     const collection = mongo.db().collection(ctx.props.collection);
     const res = await collection.insertOne(event);
     ctx.log.debug(`Inserted to MongoDB: ${JSON.stringify(res)}`);
-  } catch (e) {
-    ctx.log.error(`Error while sending event to MongoDB: ${e}`);
+  } catch (e: any) {
+    throw new RetryError(`Error while sending event to MongoDB: ${e}`);
   }
 };
 

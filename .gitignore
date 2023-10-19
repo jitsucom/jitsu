@@ -11,3 +11,4 @@ node_modules
 /examples/hubspot-function/dist/
 /cli/jitsu-cli/compiled/
 /cli/jitsu-cli/dist/
+/types/protocols/dist/

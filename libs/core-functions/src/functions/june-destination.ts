@@ -1,4 +1,4 @@
-import { JitsuFunction } from "@jitsu/protocols/functions";
+import { JitsuFunction, RetryError } from "@jitsu/protocols/functions";
 import type { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { JuneCredentials } from "../meta";
 
@@ -66,36 +66,36 @@ function groupEvent(event: AnalyticsServerEvent): any {
 
 const JuneDestination: JitsuFunction<AnalyticsServerEvent, JuneCredentials> = async (event, ctx) => {
   ctx.log.debug(`June destination (props=${JSON.stringify(ctx.props)}) received event ${JSON.stringify(event)}`);
-  let httpRequest: HttpRequest | undefined = undefined;
-  const headers = {
-    "Content-type": "application/json",
-    Authorization: `Basic ${ctx.props.apiKey}`,
-  };
-  if (event.type === "identify" && event.userId) {
-    httpRequest = {
-      url: `https://api.june.so/sdk/identify`,
-      payload: identifyEvent(event),
-      headers,
+  try {
+    let httpRequest: HttpRequest | undefined = undefined;
+    const headers = {
+      "Content-type": "application/json",
+      Authorization: `Basic ${ctx.props.apiKey}`,
     };
-  } else if (event.type === "group") {
-    httpRequest = {
-      url: `https://api.june.so/sdk/group`,
-      payload: groupEvent(event),
-      headers,
-    };
-  } else if (event.type === "track" || event.type === "page") {
-    if (event.userId || ctx.props.enableAnonymousUserProfiles) {
+    if (event.type === "identify" && event.userId) {
       httpRequest = {
-        url: `https://api.june.so/sdk/track`,
-        payload: trackEvent(event),
+        url: `https://api.june.so/sdk/identify`,
+        payload: identifyEvent(event),
         headers,
       };
+    } else if (event.type === "group") {
+      httpRequest = {
+        url: `https://api.june.so/sdk/group`,
+        payload: groupEvent(event),
+        headers,
+      };
+    } else if (event.type === "track" || event.type === "page") {
+      if (event.userId || ctx.props.enableAnonymousUserProfiles) {
+        httpRequest = {
+          url: `https://api.june.so/sdk/track`,
+          payload: trackEvent(event),
+          headers,
+        };
+      }
     }
-  }
 
-  if (httpRequest) {
-    const method = httpRequest.method || "POST";
-    try {
+    if (httpRequest) {
+      const method = httpRequest.method || "POST";
       const result = await ctx.fetch(httpRequest.url, {
         method,
         headers: httpRequest.headers,
@@ -105,17 +105,13 @@ const JuneDestination: JitsuFunction<AnalyticsServerEvent, JuneCredentials> = as
         httpRequest.payload ? `${JSON.stringify(httpRequest.payload)} --> ` : ""
       }${result.status} ${await result.text()}`;
       if (result.status !== 200) {
-        ctx.log.error(logMessage);
+        throw new Error(logMessage);
       } else {
         ctx.log.debug(logMessage);
       }
-    } catch (e: any) {
-      throw new Error(
-        `Failed to send event to MixPanel: ${method} ${httpRequest.url} ${JSON.stringify(httpRequest.payload)}: ${
-          e?.message
-        }`
-      );
     }
+  } catch (e: any) {
+    throw new RetryError(e.message);
   }
 };
 

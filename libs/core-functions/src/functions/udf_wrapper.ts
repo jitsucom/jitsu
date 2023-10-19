@@ -5,10 +5,11 @@ import {
   EventContext,
   EventsStore,
   FetchOpts,
-  FetchResponse,
   FuncReturn,
   JitsuFunction,
   Store,
+  DropRetryErrorName,
+  RetryErrorName,
 } from "@jitsu/protocols/functions";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { createFullContext } from "../context";
@@ -31,6 +32,12 @@ export type UDFWrapperResult = {
 };
 
 const wrapperJs = `
+class RetryError extends Error {
+  constructor(message, options) {
+    super(message);
+    this.name = options?.drop ? "${DropRetryErrorName}" : "${RetryErrorName}";
+  }
+}
 const exported = exports;
 let $userFunction;
 let $config;
@@ -197,10 +204,14 @@ export const UDFWrapper = (functionId, name, functionCode: string): UDFWrapperRe
           default:
             return (res as Reference).copy();
         }
-      } catch (e) {
+      } catch (e: any) {
         if (isolate.isDisposed) {
           throw new Error("Isolate is disposed");
         }
+        if (meta) {
+          e.retryPolicy = meta.retryPolicy;
+        }
+        //log.atInfo().log(`ERROR name: ${e.name} message: ${e.message} json: ${e.stack}`);
         throw e;
       }
     };
@@ -232,11 +243,17 @@ export type UDFTestRequest = {
 };
 
 export type UDFTestResponse = {
-  error?: any;
+  error?: {
+    message: string;
+    stack?: string;
+    name: string;
+    retryPolicy?: any;
+  };
   dropped?: boolean;
   result: FuncReturn;
   store: any;
   logs: logType[];
+  meta: any;
 };
 
 export async function UDFTestRun({
@@ -248,6 +265,7 @@ export async function UDFTestRun({
   config,
 }: UDFTestRequest): Promise<UDFTestResponse> {
   const logs: logType[] = [];
+  let wrapper: UDFWrapperResult | undefined = undefined;
   try {
     const eventContext: EventContext = {
       geo: {
@@ -335,25 +353,31 @@ export async function UDFTestRun({
       },
     };
     const ctx = createFullContext(id, eventsStore, storeImpl, eventContext, {}, config);
-    let wrapper: UDFWrapperResult;
     if (typeof code === "string") {
       wrapper = UDFWrapper(id, name, code);
     } else {
       wrapper = code;
     }
-    const result = await wrapper.userFunction(event, ctx);
+    const result = await wrapper?.userFunction(event, ctx);
     return {
       dropped: isDropResult(result),
       result: typeof result === "undefined" ? event : result,
       store: store,
       logs,
+      meta: wrapper?.meta,
     };
-  } catch (e) {
+  } catch (e: any) {
     return {
-      error: `${e}`,
+      error: {
+        message: e.message,
+        stack: e.stack,
+        name: e.name,
+        retryPolicy: e.retryPolicy,
+      },
       result: {},
       store: store ?? {},
       logs,
+      meta: wrapper?.meta,
     };
   }
 }
