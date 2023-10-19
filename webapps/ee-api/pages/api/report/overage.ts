@@ -55,6 +55,7 @@ async function listAllInvoices() {
   return allInvoices;
 }
 
+const msPerHour = 1000 * 60 * 60;
 const handler = async function handler(req: NextApiRequest, res: NextApiResponse) {
   const claims = await auth(req, res);
   const workspaceId: string | undefined = req.query.workspaceId ? (req.query.workspaceId as string) : undefined;
@@ -184,8 +185,17 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
           ).toISOString()}] → ${destinationEvents}`
         );
       const overageFee = (Math.max(0, destinationEvents - destinationEvensPerMonth) / 100_000) * overagePricePer100k;
-      const discountPercentage = invoice.discount ? invoice.discount.coupon.percent_off : undefined;
-      let overageFeeFinal = discountPercentage ? overageFee * (1 - discountPercentage / 100) : overageFee;
+      const discountPercentage = invoice?.discount?.coupon?.percent_off || 0;
+      const overageFeeFinal = overageFee * (1 - discountPercentage / 100);
+
+      const projectedEvents =
+        (destinationEvents / ((Math.min(Date.now(), end.getTime()) - start.getTime()) / msPerHour)) *
+        ((end.getTime() - start.getTime()) / msPerHour);
+      const projectedOverageFeeFinal =
+        (Math.max(0, projectedEvents - destinationEvensPerMonth) / 100_000) *
+        overagePricePer100k *
+        (1 - discountPercentage / 100);
+
       result.push({
         month: start.toLocaleString("en-US", { month: "long", year: "numeric" }),
         baseInvoiceId: invoice.id,
@@ -207,6 +217,8 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
         coupon: invoice.discount ? pick(invoice.discount.coupon, "id", "name") : undefined,
         couponName: invoice.discount ? invoice.discount.coupon.name : undefined,
         overageFeeFinal,
+        projectedEvents,
+        projectedOverageFeeFinal,
       });
     }
   }

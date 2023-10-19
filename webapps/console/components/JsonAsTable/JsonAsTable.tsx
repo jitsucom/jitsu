@@ -23,7 +23,9 @@ export type TypedColumn =
     }
   | { type: "link"; href: (val, row) => string }
   | { type: "custom"; render: (val, row) => ReactNode };
-export type ColumnOption = { omit: true; type?: unknown } | ({ omit?: false | undefined } & TypedColumn);
+export type ColumnOption =
+  | { omit: true; type?: unknown }
+  | ({ omit?: false | undefined; title?: string } & TypedColumn);
 export const JsonAsTable: React.FC<{ rows: any[]; columnOptions: Record<string, ColumnOption> }> = ({
   rows,
   columnOptions,
@@ -39,10 +41,11 @@ export const JsonAsTable: React.FC<{ rows: any[]; columnOptions: Record<string, 
     for (const key of displayKeys) {
       if (!columnsMeta[key]) {
         const columnType = columnOptions[key];
+        const columnName = (columnType as any)?.title || makeNiceName(key);
         const isNumber = columnType?.type === "number" || columnType?.type === "currency";
         columnsMeta[key] = {
           key: key,
-          title: <span className="whitespace-nowrap">{makeNiceName(key)}</span>,
+          title: <span className="whitespace-nowrap">{columnName}</span>,
           render: (row: any) => {
             return (
               <div className={`whitespace-nowrap text-sm ${isNumber ? "text-right font-mono" : ""}`}>

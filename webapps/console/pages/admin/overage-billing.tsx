@@ -93,11 +93,13 @@ const View = ({ data, workspaces }) => {
           overageFee: { omit: true },
           baseFee: { type: "currency" },
           overageFeeFinal: { type: "currency" },
+          projectedOverageFeeFinal: { type: "currency", title: "Projection" },
           discountPercentage: { omit: true },
           coupon: { omit: true },
           couponName: { omit: true },
           invoiceHelper: { omit: true },
           workspaceSlug: { omit: true },
+          projectedEvents: { omit: true },
           workspaceName: { type: "link", href: (val, row) => `/${row.workspaceSlug}` },
         }}
       />
