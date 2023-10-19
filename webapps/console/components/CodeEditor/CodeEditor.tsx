@@ -15,6 +15,7 @@ type CodeEditorProps = {
   ctrlEnterCallback?: (value: string) => void;
   ctrlSCallback?: (value: string) => void;
   foldLevel?: number;
+  extraSuggestions?: string;
   monacoOptions?: Partial<monaco.editor.IStandaloneEditorConstructionOptions>;
 };
 
@@ -28,6 +29,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   ctrlSCallback,
   changePosition,
   monacoOptions,
+  extraSuggestions,
   foldLevel,
 }) => {
   const editorRef = useRef<any>(null);
@@ -43,6 +45,9 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       editorRef.current = editor;
       if (typeof value !== "undefined") {
         editor.setValue(value);
+      }
+      if (extraSuggestions) {
+        monaco.languages.typescript.javascriptDefaults.setExtraLibs([{ content: extraSuggestions }]);
       }
       editor.onDidChangeCursorPosition(e => {
         handleChangePosition(editor.getModel().getOffsetAt(e.position));

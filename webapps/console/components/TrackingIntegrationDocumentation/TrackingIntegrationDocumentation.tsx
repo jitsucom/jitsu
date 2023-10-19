@@ -108,7 +108,7 @@ export const TrackingIntegrationDocumentation: React.FC<{ streamId: string; onCa
     appConfig.publicEndpoints.dataHost || appConfig.ee.available
       ? undefined
       : stream?.publicKeys?.[0]
-      ? stream.publicKeys[0].hint
+      ? `${stream.publicKeys[0].id}:${stream.publicKeys[0].hint}`
       : streamId || "{write-key}";
   const displayDomain = `${appConfig.publicEndpoints.protocol}://${selectedDomain ?? domains?.[0]}`;
   const wrap = (r: ReactNode) => {

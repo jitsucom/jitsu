@@ -1,5 +1,5 @@
 import { ISO8601Date } from "./iso8601";
-import { Geo } from "./functions";
+import type { Geo } from "./functions";
 
 export type IngestType = "s2s" | "browser";
 

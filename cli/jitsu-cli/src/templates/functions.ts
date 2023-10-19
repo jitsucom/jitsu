@@ -40,7 +40,7 @@ test("${sanitize(packageName)} test", () => {
 
 let functionCode = ({ packageName, functionName }: TemplateVars) => {
   return `
-import { JitsuFunction } from "@jitsu/protocols/functions";
+import { JitsuFunction, RetryError } from "@jitsu/protocols";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 
 export const config = {

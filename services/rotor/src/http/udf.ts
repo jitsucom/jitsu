@@ -8,7 +8,11 @@ export const UDFRunHandler = async (req, res) => {
   log.atInfo().log(`Running function: ${body?.functionId} workspace: ${body?.workspaceId}`, JSON.stringify(body));
   const result = await UDFTestRun(body);
   if (result.error) {
-    log.atError().log(`Error running function: ${body?.functionId} workspace: ${body?.workspaceId}\n${result.error}`);
+    log
+      .atError()
+      .log(
+        `Error running function: ${body?.functionId} workspace: ${body?.workspaceId}\n${result.error.name}: ${result.error.message}`
+      );
   }
   res.json(result);
 };

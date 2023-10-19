@@ -15,6 +15,8 @@ import { UTCDate, UTCHeader } from "../DataView/EventsBrowser";
 import { examplePageEvent, exampleTrackEvents, exportIdentifyEvent } from "./example_events";
 import { rpc } from "juava";
 import { logType } from "@jitsu/core-functions";
+import { RetryErrorName, DropRetryErrorName } from "@jitsu/protocols/functions";
+
 import Convert from "ansi-to-html";
 import dayjs from "dayjs";
 import { defaultFunctionTemplate } from "./code_templates";
@@ -22,6 +24,9 @@ import { FunctionConfig } from "../../lib/schema";
 import { useRouter } from "next/router";
 import { feedbackError } from "../../lib/ui";
 import { Htmlizer } from "../Htmlizer/Htmlizer";
+//
+// export const DropRetryErrorName = "Drop & RetryError";
+// export const RetryErrorName = "RetryError";
 
 const convert = new Convert({ newline: true });
 const localDate = (date: string | Date) => dayjs(date).format("YYYY-MM-DD HH:mm:ss");
@@ -171,14 +176,14 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
         body,
       });
       if (res.error) {
-        setResult(res.error);
+        setResult({ ...res.error, ...res.meta });
         setResultType("error");
         setLogs([
           ...res.logs,
           {
             level: "error",
             type: "log",
-            message: res.error,
+            message: `${res.error.name}: ${res.error.message}`,
             timestamp: new Date(),
           },
         ]);
@@ -290,6 +295,14 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
                     value={obj.code ?? ""}
                     ctrlEnterCallback={runFunction}
                     ctrlSCallback={save}
+                    extraSuggestions={`
+declare class RetryError extends Error {
+  constructor(message, options?: { drop: boolean }) {
+    super(message);
+    this.name = options?.drop ? "${DropRetryErrorName}" : "${RetryErrorName}";
+  }
+}
+                    `}
                     onChange={value => setObj({ ...obj, code: value })}
                     monacoOptions={{ renderLineHighlight: "none" }}
                   />
@@ -361,7 +374,26 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
                 <div className={`${styles.editor} flex-auto h-full bg-backgroundLight w-full pl-2`}>
                   {resultType === "error" && (
                     <div className={"font-mono p-2 text-xs"}>
-                      <Htmlizer>{convert.toHtml(result.replaceAll(" ", "&nbsp;"))}</Htmlizer>
+                      <Htmlizer>
+                        {`<span class="text-red-600"><b>${result.name}:</b></span> ` +
+                          convert.toHtml(result.message.replaceAll(" ", "&nbsp;"))}
+                      </Htmlizer>
+                      {result.name === DropRetryErrorName && (
+                        <div className={"pt-1"}>
+                          If such error will happen on an actual event, it will be <b>SKIPPED</b> and retry will be
+                          scheduled in{" "}
+                          {result.retryPolicy?.delays?.[0] ? Math.min(result.retryPolicy.delays[0], 1440) : 5} minutes.
+                        </div>
+                      )}
+                      {result.name === RetryErrorName && (
+                        <div className={"pt-1"}>
+                          If such error will happen on an actual event, this function will be scheduled
+                          <br />
+                          for retry in{" "}
+                          {result.retryPolicy?.delays?.[0] ? Math.min(result.retryPolicy.delays[0], 1440) : 5} minutes,
+                          but event will be processed further.
+                        </div>
+                      )}
                     </div>
                   )}
                   {resultType === "drop" && (

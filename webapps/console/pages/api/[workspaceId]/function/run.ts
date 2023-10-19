@@ -14,11 +14,12 @@ export const config = {
 };
 
 const resultType = z.object({
-  error: z.string().optional(),
+  error: z.object({ name: z.string(), message: z.string(), stack: z.string().optional() }).optional(),
   dropped: z.boolean().optional(),
   result: z.any().nullish(),
   store: z.record(z.any()),
   logs: z.array(z.any()),
+  meta: z.any().nullish(),
 });
 
 export type FunctionRunType = z.infer<typeof resultType>;

@@ -10,6 +10,7 @@ import PQueue from "p-queue";
 const concurrency = process.env.CONCURRENCY ? parseInt(process.env.CONCURRENCY) : 50;
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
+import { getRetryPolicy, retryBackOffTime, retryLogMessage } from "./retries";
 dayjs.extend(utc);
 
 const log = getLog("kafka-rotor");
@@ -17,55 +18,27 @@ const log = getLog("kafka-rotor");
 const RETRY_TIME_HEADER = "retry_time";
 const RETRY_COUNT_HEADER = "retries";
 const ORIGINAL_TOPIC_HEADER = "original_topic";
-
-const MESSAGES_RETRY_COUNT = process.env.MESSAGES_RETRY_COUNT ? parseInt(process.env.MESSAGES_RETRY_COUNT) : 3;
-// MESSAGES_RETRY_BACKOFF_BASE defines base for exponential backoff in minutes.
-// For example, if MESSAGES_RETRY_COUNT is 3 and base is 5, then retry delays will be 5, 25, 125 minutes.
-const MESSAGES_RETRY_BACKOFF_BASE = process.env.MESSAGES_RETRY_BACKOFF_BASE
-  ? parseInt(process.env.MESSAGES_RETRY_BACKOFF_BASE)
-  : 2;
-// MESSAGES_RETRY_BACKOFF_MAX_DELAY defines maximum possible retry delay in minutes. Default: 1440 minutes = 24 hours
-const MESSAGES_RETRY_BACKOFF_MAX_DELAY = process.env.MESSAGES_RETRY_BACKOFF_MAX_DELAY
-  ? parseInt(process.env.MESSAGES_RETRY_BACKOFF_MAX_DELAY)
-  : 1440;
-
-function RetryBackOffTime(attempt: number) {
-  const backOffDelayMin = Math.min(Math.pow(MESSAGES_RETRY_BACKOFF_BASE, attempt), MESSAGES_RETRY_BACKOFF_MAX_DELAY);
-  return dayjs().add(backOffDelayMin, "minute").utc().toISOString();
-}
-
-export class NotRetryableError extends Error {
-  public doNotRetry: boolean = true;
-
-  constructor(message: string) {
-    super(message);
-  }
-}
+const FUNCTION_ID_HEADER = "function_id";
 
 export type KafkaRotorConfig = {
   credentials: KafkaCredentials;
   consumerGroupId: string;
   kafkaTopics: string[];
   kafkaClientId?: string;
-  maxSecondsInQueueAfterFailure?: number;
-  handle: (message: string) => Promise<void>;
+  handle: (message: string, functionsFilter?: (id: string) => boolean, retries?: number) => Promise<void>;
 };
 
 export type KafkaRotor = {
   start: () => Promise<void>;
 };
 
-function shouldRetry(retries: number, error: any) {
-  return !error.doNotRetry && retries < MESSAGES_RETRY_COUNT;
-}
-
 export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
-  const { kafkaTopics, kafkaClientId = "kafka-rotor", maxSecondsInQueueAfterFailure = 3600 } = cfg;
+  const { kafkaTopics, consumerGroupId, handle, kafkaClientId = "kafka-rotor" } = cfg;
   return {
     start: async () => {
       const kafka = connectToKafka({ defaultAppId: kafkaClientId, ...cfg.credentials });
       const consumer = kafka.consumer({
-        groupId: cfg.consumerGroupId,
+        groupId: consumerGroupId,
         allowAutoTopicCreation: false,
         sessionTimeout: 120000,
       });
@@ -116,7 +89,7 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
               topicOffsets.set({ topic: topic, partition: o.partition, offset: "low" }, parseInt(o.low));
             }
           }
-          const offsets = await admin.fetchOffsets({ groupId: cfg.consumerGroupId, topics: kafkaTopics });
+          const offsets = await admin.fetchOffsets({ groupId: consumerGroupId, topics: kafkaTopics });
           for (const o of offsets) {
             for (const p of o.partitions) {
               topicOffsets.set({ topic: o.topic, partition: p.partition, offset: "offset" }, parseInt(p.offset));
@@ -131,39 +104,56 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
         messagesConsumed.inc({ topic, partition });
         const headers = message.headers || {};
         const retries = headers[RETRY_COUNT_HEADER] ? parseInt(headers[RETRY_COUNT_HEADER].toString()) : 0;
-
+        const retriedFunctionId = headers[FUNCTION_ID_HEADER] ? headers[FUNCTION_ID_HEADER].toString() : "";
         try {
           if (message.value) {
-            await cfg.handle(message.value?.toString());
+            await handle(
+              message.value?.toString(),
+              retriedFunctionId
+                ? id => {
+                    if (retriedFunctionId.startsWith("udf.")) {
+                      return id.startsWith("udf.") || id.startsWith("builtin.destination.");
+                    } else if (retriedFunctionId.startsWith("builtin.destination.")) {
+                      return id.startsWith("builtin.destination.");
+                    } else {
+                      return true;
+                    }
+                  }
+                : undefined,
+              retries
+            );
             messagesProcessed.inc({ topic, partition });
           }
-        } catch (e) {
-          const retry = shouldRetry(retries, e);
+        } catch (e: any) {
+          const retryPolicy = getRetryPolicy(e);
+          const retryTime = retryBackOffTime(retryPolicy, retries + 1);
+          const newMessage = e.event
+            ? JSON.stringify({ ...JSON.parse(message.value), httpPayload: e.event })
+            : message.value;
           log
             .atError()
             .withCause(e)
             .log(
-              `Failed to process message for ${message.key || "(no key set)"} after ${retries} local retries. ${
-                retry ? "Message will be returned to reprocessing" : "Message will be sent to dead-letter queue"
-              }: ${message.value}`
+              `Failed to process message for ${message.key || "(no key set)"}. ${retryLogMessage(retryPolicy, retries)}`
             );
-          if (!retry) {
+          if (!retryTime) {
             messagesDeadLettered.inc({ topic });
           } else {
             messagesRequeued.inc({ topic });
           }
-          const requeueTopic = retry ? retryTopic() : deatLetterTopic();
+          const requeueTopic = retryTime ? retryTopic() : deatLetterTopic();
           try {
             await producer.send({
               topic: requeueTopic,
               messages: [
                 {
-                  value: message.value,
+                  value: newMessage,
                   key: message.key,
                   headers: {
                     [RETRY_COUNT_HEADER]: `${retries}`,
                     [ORIGINAL_TOPIC_HEADER]: topic,
-                    [RETRY_TIME_HEADER]: RetryBackOffTime(retries + 1),
+                    [RETRY_TIME_HEADER]: retryTime,
+                    ...(e.functionId ? { [FUNCTION_ID_HEADER]: e.functionId } : {}),
                   },
                 },
               ],

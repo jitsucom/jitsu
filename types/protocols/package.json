@@ -2,12 +2,19 @@
   "name": "@jitsu/protocols",
   "version": "0.0.0",
   "description": "",
+  "main": "dist/functions.js",
+  "module": "dist/functions.js",
+  "types": "dist/functions.d.ts",
   "author": "Jitsu Dev Team <dev@jitsu.com>",
   "publishConfig": {
     "access": "public"
   },
   "license": "MIT",
   "private": false,
-  "scripts": {},
+  "scripts": {
+    "build": "tsc -p .",
+    "compile": "tsc -p .",
+    "clean": "rm -rf ./dist"
+  },
   "devDependencies": {}
 }

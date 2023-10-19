@@ -1,4 +1,4 @@
-import { JitsuFunction } from "@jitsu/protocols/functions";
+import { JitsuFunction, RetryError } from "@jitsu/protocols/functions";
 import type { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { randomId } from "juava";
 import { MixpanelCredentials } from "../meta";
@@ -192,57 +192,57 @@ function merge(primaryId: string, secondaryId: string, props: MixpanelCredential
 
 const MixpanelDestination: JitsuFunction<AnalyticsServerEvent, MixpanelCredentials> = async (event, ctx) => {
   ctx.log.debug(`Mixpanel destination (props=${JSON.stringify(ctx.props)}) received event ${JSON.stringify(event)}`);
-  const messages: HttpRequest[] = [];
-  if (event.type === "identify") {
-    if (!event.userId) {
-      const distinctId = `${(event.anonymousId || event.traits?.email) ?? ""}`;
+  try {
+    const messages: HttpRequest[] = [];
+    if (event.type === "identify") {
+      if (!event.userId) {
+        const distinctId = `${(event.anonymousId || event.traits?.email) ?? ""}`;
+        if (!distinctId) {
+          ctx.log.info(`No distinct id found for event ${JSON.stringify(event)}`);
+        } else if (ctx.props.enableAnonymousUserProfiles) {
+          messages.push(...setProfileMessage(distinctId, event, ctx.props));
+        }
+        if (event.anonymousId && event.traits?.email) {
+          messages.push(merge(`${event.anonymousId}`, `${event.traits.email}`, ctx.props));
+        }
+      } else {
+        if (event.anonymousId) {
+          messages.push(merge(`${event.userId}`, `${event.anonymousId}`, ctx.props));
+        }
+        if (event.traits?.email) {
+          messages.push(merge(`${event.userId}`, `${event.traits?.email}`, ctx.props));
+        }
+        messages.push(...setProfileMessage(`${event.userId}`, event, ctx.props));
+      }
+      if (ctx.props.sendIdentifyEvents) {
+        const distinctId = `${(event.userId || event.traits?.email || event.anonymousId) ?? ""}`;
+        if (distinctId) {
+          messages.push(trackEvent(distinctId, "Identify", event, ctx.props));
+        }
+      }
+    } else if (event.type === "group" && ctx.props.enableGroupAnalytics) {
+      messages.push(setGroupMessage(event, ctx.props));
+    } else if (event.type === "track") {
+      const distinctId = `${(event.userId || event.anonymousId || event.traits?.email) ?? ""}`;
       if (!distinctId) {
         ctx.log.info(`No distinct id found for event ${JSON.stringify(event)}`);
-      } else if (ctx.props.enableAnonymousUserProfiles) {
-        messages.push(...setProfileMessage(distinctId, event, ctx.props));
+      } else {
+        if (event.userId || ctx.props.enableAnonymousUserProfiles) {
+          messages.push(trackEvent(distinctId, event.event as string, event, ctx.props));
+        }
       }
-      if (event.anonymousId && event.traits?.email) {
-        messages.push(merge(`${event.anonymousId}`, `${event.traits.email}`, ctx.props));
-      }
-    } else {
-      if (event.anonymousId) {
-        messages.push(merge(`${event.userId}`, `${event.anonymousId}`, ctx.props));
-      }
-      if (event.traits?.email) {
-        messages.push(merge(`${event.userId}`, `${event.traits?.email}`, ctx.props));
-      }
-      messages.push(...setProfileMessage(`${event.userId}`, event, ctx.props));
-    }
-    if (ctx.props.sendIdentifyEvents) {
-      const distinctId = `${(event.userId || event.traits?.email || event.anonymousId) ?? ""}`;
-      if (distinctId) {
-        messages.push(trackEvent(distinctId, "Identify", event, ctx.props));
+    } else if (event.type === "page") {
+      const distinctId = `${(event.userId || event.anonymousId || event.traits?.email) ?? ""}`;
+      if (!distinctId) {
+        ctx.log.info(`No distinct id found for Page View event ${JSON.stringify(event)}`);
+      } else {
+        if (event.userId || ctx.props.enableAnonymousUserProfiles) {
+          messages.push(trackEvent(distinctId, "Page View", event, ctx.props));
+        }
       }
     }
-  } else if (event.type === "group" && ctx.props.enableGroupAnalytics) {
-    messages.push(setGroupMessage(event, ctx.props));
-  } else if (event.type === "track") {
-    const distinctId = `${(event.userId || event.anonymousId || event.traits?.email) ?? ""}`;
-    if (!distinctId) {
-      ctx.log.info(`No distinct id found for event ${JSON.stringify(event)}`);
-    } else {
-      if (event.userId || ctx.props.enableAnonymousUserProfiles) {
-        messages.push(trackEvent(distinctId, event.event as string, event, ctx.props));
-      }
-    }
-  } else if (event.type === "page") {
-    const distinctId = `${(event.userId || event.anonymousId || event.traits?.email) ?? ""}`;
-    if (!distinctId) {
-      ctx.log.info(`No distinct id found for Page View event ${JSON.stringify(event)}`);
-    } else {
-      if (event.userId || ctx.props.enableAnonymousUserProfiles) {
-        messages.push(trackEvent(distinctId, "Page View", event, ctx.props));
-      }
-    }
-  }
-  for (const message of messages) {
-    const method = message.method || "POST";
-    try {
+    for (const message of messages) {
+      const method = message.method || "POST";
       const result = await ctx.fetch(message.url, {
         method,
         headers: message.headers,
@@ -252,15 +252,13 @@ const MixpanelDestination: JitsuFunction<AnalyticsServerEvent, MixpanelCredentia
         message.payload ? `${JSON.stringify(message.payload)} --> ` : ""
       }${result.status} ${await result.text()}`;
       if (result.status !== 200) {
-        ctx.log.error(logMessage);
+        throw new Error(logMessage);
       } else {
         ctx.log.debug(logMessage);
       }
-    } catch (e: any) {
-      throw new Error(
-        `Failed to send event to MixPanel: ${method} ${message.url} ${JSON.stringify(message.payload)}: ${e?.message}`
-      );
     }
+  } catch (e: any) {
+    throw new RetryError(e.message);
   }
 };
 

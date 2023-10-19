@@ -37,7 +37,7 @@
     "@types/node": "^18.11.9",
     "microbundle-crl": "^0.13.11",
     "typescript": "^4.9.5",
-    "@babel/plugin-transform-regenerator": "^7.20.5"
+    "@babel/plugin-transform-regenerator": "^7.22.10"
   },
   "files": [
     "dist"
