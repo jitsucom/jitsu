@@ -1,19 +1,11 @@
 import { getLog } from "juava";
 import { Isolate, ExternalCopy, Callback, Reference } from "isolated-vm";
-import * as swc from "@swc/core";
-import {
-  EventContext,
-  EventsStore,
-  FetchOpts,
-  FuncReturn,
-  JitsuFunction,
-  Store,
-  DropRetryErrorName,
-  RetryErrorName,
-} from "@jitsu/protocols/functions";
+import { EventContext, EventsStore, FetchOpts, FuncReturn, JitsuFunction, Store } from "@jitsu/protocols/functions";
+import { DropRetryErrorName, RetryErrorName } from "@jitsu/functions-lib";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { createFullContext } from "../context";
 import { isDropResult } from "../index";
+import { functionsLibCode, wrapperCode } from "./lib/udf-wrapper-code";
 
 const log = getLog("udf-wrapper");
 
@@ -32,25 +24,21 @@ export type UDFWrapperResult = {
 };
 
 const wrapperJs = `
-class RetryError extends Error {
-  constructor(message, options) {
-    super(message);
-    this.name = options?.drop ? "${DropRetryErrorName}" : "${RetryErrorName}";
+import * as udf from "udf";
+
+const userFunction = udf.default;
+const meta = udf.config || {};
+
+if (typeof RetryError === "undefined") {
+  global.RetryError = class extends Error {
+    constructor(message, options) {
+      super(message);
+      this.name = options?.drop ? "${DropRetryErrorName}" : "${RetryErrorName}";
+    }
   }
 }
-const exported = exports;
-let $userFunction;
-let $config;
-if (typeof exported === "function") {
-  $userFunction = exported;
-} else {
-  $userFunction = exported.default;
-  $config = exported.config;
-  if (!$userFunction && Object.keys(exported).length > 0) {
-    $userFunction = Object.values(exported).find(v => typeof v === "function");
-  }
-}
-const $wrappedUserFunction = async function (eventcopy, ctxcopy) {
+
+const wrappedUserFunction = async function (eventcopy, ctxcopy) {
   const c = ctxcopy.copy();
   const ctx = {
     ...c,
@@ -89,7 +77,7 @@ const $wrappedUserFunction = async function (eventcopy, ctxcopy) {
     },
   };
   const event = eventcopy.copy();
-  if (!$userFunction || typeof $userFunction !== "function") {
+  if (!userFunction || typeof userFunction !== "function") {
     throw new Error("Function not found. Please export default function.");
   }
   console = {
@@ -105,21 +93,16 @@ const $wrappedUserFunction = async function (eventcopy, ctxcopy) {
       }
     },
   };
-  return $userFunction(event, ctx);
+  return userFunction(event, ctx);
 };
-export const meta = $config;
-export default $wrappedUserFunction;
+export { meta, wrappedUserFunction };
 `;
 
 export const UDFWrapper = (functionId, name, functionCode: string): UDFWrapperResult => {
   log.atInfo().log(`[${functionId}] Compiling UDF function '${name}'`);
-  functionCode = swc.transformSync(functionCode, {
-    filename: `index.js`,
-    module: { type: "commonjs" },
-  }).code;
   const startMs = new Date().getTime();
   try {
-    const wrappedCode = `let exports = {}\n${functionCode}\n${wrapperJs}`;
+    //const wrappedCode = `let exports = {}\n${functionCode}\n${wrapperJs}`;
     const isolate = new Isolate({ memoryLimit: 10 });
     const context = isolate.createContextSync();
     const jail = context.global;
@@ -127,14 +110,38 @@ export const UDFWrapper = (functionId, name, functionCode: string): UDFWrapperRe
     // This make the global object available in the context as 'global'. We use 'derefInto()' here
     // because otherwise 'global' would actually be a Reference{} object in the new isolate.
     jail.setSync("global", jail.derefInto());
-    const module = isolate.compileModuleSync(wrappedCode, { filename: "udf.js" });
-    module.instantiateSync(context, (specifier: string) => {
+
+    const functions = isolate.compileModuleSync(functionsLibCode, {
+      filename: "functions-lib.js",
+    });
+    functions.instantiateSync(context, (specifier: string) => {
       throw new Error(`import is not allowed: ${specifier}`);
     });
-    module.evaluateSync();
-    const exported = module.namespace;
 
-    const ref = exported.getSync("default", {
+    const udf = isolate.compileModuleSync(functionCode, { filename: name + ".js" });
+    udf.instantiateSync(context, (specifier: string) => {
+      if (specifier === "@jitsu/functions-lib") {
+        return functions;
+      }
+      throw new Error(`import is not allowed: ${specifier}`);
+    });
+
+    const wrapper = isolate.compileModuleSync(wrapperCode, {
+      filename: "jitsu-wrapper.js",
+    });
+    wrapper.instantiateSync(context, (specifier: string) => {
+      if (specifier === "udf") {
+        return udf;
+      }
+      if (specifier === "@jitsu/functions-lib") {
+        return functions;
+      }
+      throw new Error(`import is not allowed: ${specifier}`);
+    });
+    wrapper.evaluateSync();
+    const exported = wrapper.namespace;
+
+    const ref = exported.getSync("wrappedUserFunction", {
       reference: true,
     });
     if (!ref || ref.typeof !== "function") {

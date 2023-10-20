@@ -18,14 +18,13 @@
   "dependencies": {
     "isolated-vm": "^4.6.0",
     "jest-cli": "^29.7.0",
-    "@swc/core": "^1.3.88",
-    "@swc/wasm": "^1.3.89",
     "figlet": "^1.6.0",
     "tslib": "^2.6.2"
   },
   "devDependencies": {
     "juava": "workspace:*",
     "@jitsu/protocols": "workspace:*",
+    "@jitsu/functions-lib": "workspace:*",
     "@jitsu/core-functions": "workspace:*",
     "typescript": "^5.2.2",
     "express": "^4.18.2",

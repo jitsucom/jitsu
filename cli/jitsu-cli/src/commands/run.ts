@@ -8,7 +8,7 @@ import JSON5 from "json5";
 import { loadPackageJson } from "./shared";
 import isEqual from "lodash/isEqual";
 import { b, red } from "../lib/chalk-code-highlight";
-import { DropRetryErrorName, RetryErrorName } from "@jitsu/protocols/functions";
+import { DropRetryErrorName, RetryErrorName } from "@jitsu/functions-lib";
 
 const currentDir = process.cwd();
 

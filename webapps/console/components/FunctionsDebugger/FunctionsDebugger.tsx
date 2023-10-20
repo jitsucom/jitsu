@@ -15,7 +15,7 @@ import { UTCDate, UTCHeader } from "../DataView/EventsBrowser";
 import { examplePageEvent, exampleTrackEvents, exportIdentifyEvent } from "./example_events";
 import { rpc } from "juava";
 import { logType } from "@jitsu/core-functions";
-import { RetryErrorName, DropRetryErrorName } from "@jitsu/protocols/functions";
+import { RetryErrorName, DropRetryErrorName } from "@jitsu/functions-lib";
 
 import Convert from "ansi-to-html";
 import dayjs from "dayjs";
@@ -24,9 +24,6 @@ import { FunctionConfig } from "../../lib/schema";
 import { useRouter } from "next/router";
 import { feedbackError } from "../../lib/ui";
 import { Htmlizer } from "../Htmlizer/Htmlizer";
-//
-// export const DropRetryErrorName = "Drop & RetryError";
-// export const RetryErrorName = "RetryError";
 
 const convert = new Convert({ newline: true });
 const localDate = (date: string | Date) => dayjs(date).format("YYYY-MM-DD HH:mm:ss");
@@ -176,7 +173,7 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
         body,
       });
       if (res.error) {
-        setResult({ ...res.error, ...res.meta });
+        setResult({ ...res.meta, ...res.error });
         setResultType("error");
         setLogs([
           ...res.logs,
@@ -220,7 +217,10 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
           timestamp: new Date(),
         },
       ]);
-      setResult(errorText);
+      setResult({
+        name: "Error",
+        message: errorText,
+      });
       setResultType("error");
     } finally {
       setRunning(false);

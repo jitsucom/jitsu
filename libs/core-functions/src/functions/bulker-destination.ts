@@ -1,4 +1,5 @@
-import { JitsuFunction, RetryError } from "@jitsu/protocols/functions";
+import { JitsuFunction } from "@jitsu/protocols/functions";
+import { RetryError } from "@jitsu/functions-lib";
 import { AnalyticsServerEvent, DataLayoutType } from "@jitsu/protocols/analytics";
 
 import omit from "lodash/omit";

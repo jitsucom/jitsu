@@ -24,6 +24,7 @@ export const packageJsonTemplate = ({ packageName, license = "MIT", jitsuVersion
   devDependencies: {
     "jitsu-cli": `${jitsuCliVersion}`,
     "@jitsu/protocols": `${jitsuVersion || "^" + jitsuCliVersion}`,
+    "@jitsu/functions-lib": `${jitsuVersion || "^" + jitsuCliVersion}`,
     "@types/jest": "^29.5.5",
     "ts-jest": "^29.1.1",
   },
@@ -40,7 +41,8 @@ test("${sanitize(packageName)} test", () => {
 
 let functionCode = ({ packageName, functionName }: TemplateVars) => {
   return `
-import { JitsuFunction, RetryError } from "@jitsu/protocols";
+import { JitsuFunction } from "@jitsu/protocols/functions";
+import { RetryError } from "@jitsu/functions-lib";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 
 export const config = {

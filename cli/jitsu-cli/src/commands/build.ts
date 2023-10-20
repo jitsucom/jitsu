@@ -1,6 +1,5 @@
-import chalk from "chalk";
 import path from "path";
-import { existsSync, writeFileSync, mkdirSync, readdirSync } from "fs";
+import { writeFileSync, mkdirSync, readdirSync } from "fs";
 import typescript from "@rollup/plugin-typescript";
 import resolve from "@rollup/plugin-node-resolve";
 import commonjs from "@rollup/plugin-commonjs";
@@ -40,6 +39,7 @@ export async function build({ dir }: { dir?: string }) {
     const bundle = await rollup({
       input: [funcFile],
       plugins: rollupPlugins,
+      external: ["@jitsu/functions-lib"],
       logLevel: "silent",
     });
 

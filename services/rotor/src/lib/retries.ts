@@ -1,5 +1,5 @@
 import dayjs from "dayjs";
-import { DropRetryErrorName, RetryErrorName } from "@jitsu/protocols/functions";
+import { RetryErrorName, DropRetryErrorName } from "@jitsu/functions-lib";
 
 const MESSAGES_RETRY_COUNT = process.env.MESSAGES_RETRY_COUNT ? parseInt(process.env.MESSAGES_RETRY_COUNT) : 3;
 // MESSAGES_RETRY_BACKOFF_BASE defines base for exponential backoff in minutes.

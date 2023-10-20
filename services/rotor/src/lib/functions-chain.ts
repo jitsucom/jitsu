@@ -6,10 +6,9 @@ import {
   JitsuFunction,
   Store,
   SystemContext,
-  RetryErrorName,
-  DropRetryErrorName,
 } from "@jitsu/protocols/functions";
 import { createFullContext, isDropResult } from "@jitsu/core-functions";
+import { RetryErrorName, DropRetryErrorName } from "@jitsu/functions-lib";
 
 import { getLog, stopwatch } from "juava";
 import { EnrichedConnectionConfig } from "@jitsu-internal/console/lib/server/fast-store";

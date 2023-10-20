@@ -1,4 +1,5 @@
-import { FullContext, JitsuFunction, RetryError } from "@jitsu/protocols/functions";
+import { FullContext, JitsuFunction } from "@jitsu/protocols/functions";
+import { RetryError } from "@jitsu/functions-lib";
 import type { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { getSingleton } from "juava";
 import { MongoClient } from "mongodb";
