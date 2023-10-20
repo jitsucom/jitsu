@@ -497,9 +497,6 @@ importers:
       '@jitsu/functions-lib':
         specifier: workspace:*
         version: link:../../libs/functions
-      '@types/lodash':
-        specifier: ^4.14.200
-        version: 4.14.200
       dayjs:
         specifier: ^1.11.10
         version: 1.11.10
@@ -579,6 +576,9 @@ importers:
       '@types/glob':
         specifier: ^8.0.0
         version: 8.1.0
+      '@types/lodash':
+        specifier: ^4.14.200
+        version: 4.14.200
       '@types/minimist':
         specifier: ^1.2.2
         version: 1.2.2
@@ -8466,7 +8466,7 @@ packages:
 
   /@types/lodash@4.14.200:
     resolution: {integrity: sha512-YI/M/4HRImtNf3pJgbF+W6FrXovqj+T+/HpENLTooK9PnkacBsDpeP3IpHab40CClUfhNmdM2WTNP2sa2dni5Q==}
-    dev: false
+    dev: true
 
   /@types/long@4.0.2:
     resolution: {integrity: sha512-MqTGEo5bj5t157U6fA/BiDynNkn0YknVdh48CMPkTSpFTVmvao5UQmm7uEF6xBEo7qIMAlY/JSleYaE6VOdpaA==}
