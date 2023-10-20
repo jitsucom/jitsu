@@ -32,10 +32,10 @@
     "json5": "^2.1.0",
     "minimist": "^1.2.7",
     "node-fetch-commonjs": "^3.3.1",
-    "tslib": "^2.4.0",
-    "@types/lodash": "^4.14.200"
+    "tslib": "^2.4.0"
   },
   "devDependencies": {
+    "@types/lodash": "^4.14.200",
     "lodash": "^4.17.21",
     "node-loader": "^2.0.0",
     "@babel/preset-env": "^7.23.2",
