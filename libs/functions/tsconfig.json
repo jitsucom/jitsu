@@ -1,14 +1,12 @@
 {
   "compilerOptions": {
+    "lib": ["es2015", "dom", "es2017"],
     "rootDir": "./src",
     "outDir": "./dist",
     "declaration": true,
     "esModuleInterop": true,
-    "moduleResolution": "node",
-    "target": "ES2019",
-    "module": "commonjs",
-    "lib": ["ES2019", "dom"],
-    "noEmit": true
+    "noEmit": true,
+    "target": "esnext"
   },
   "exclude": [
     "__tests__",

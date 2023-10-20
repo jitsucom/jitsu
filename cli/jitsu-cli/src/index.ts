@@ -14,7 +14,6 @@ console.log(figlet.textSync("Jitsu CLI", { horizontalLayout: "full" }));
 const p = new Command();
 
 p.name(jitsuCliPackageName).description("CLI command to create, test and deploy extensions for Jitsu Next");
-
 p.command("init")
   .description("Initialize a new Jitsu extension project")
   .option(
@@ -56,7 +55,7 @@ p.command("run")
 
 p.command("login")
   .description("Login to Jitsu and remember credentials in `~/.jitsu/jitsu-cli.json` file")
-  .option("--host <host>", "Jitsu host or base url", "https://use.jitsu.com")
+  .option("-h, --host <host>", "Jitsu host or base url", "https://use.jitsu.com")
   .option("-k, --apikey <api-key>", "Jitsu user's Api Key. (Optional). Disables interactive login.")
   .action(login);
 
@@ -73,5 +72,7 @@ p.command("deploy")
 
 //version
 p.version(jitsuCliPackageName + " " + jitsuCliVersion, "-v, --version");
+//help
+p.helpOption("--help", "display help for command");
 
 p.parse();

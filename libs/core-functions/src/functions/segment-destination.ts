@@ -1,4 +1,5 @@
 import { JitsuFunction } from "@jitsu/protocols/functions";
+import { RetryError } from "@jitsu/functions-lib";
 import type { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { SegmentCredentials } from "../meta";
 
@@ -43,13 +44,13 @@ const SegmentDestination: JitsuFunction<AnalyticsServerEvent, SegmentCredentials
       httpRequest.payload ? `${JSON.stringify(httpRequest.payload)} --> ` : ""
     }${result.status} ${await result.text()}`;
     if (result.status !== 200) {
-      ctx.log.error(logMessage);
+      throw new RetryError(logMessage);
     } else {
       ctx.log.debug(logMessage);
     }
   } catch (e: any) {
-    throw new Error(
-      `Failed to send event to MixPanel: ${httpRequest.method} ${httpRequest.url} ${JSON.stringify(
+    throw new RetryError(
+      `Failed to send event to Segment: ${httpRequest.method} ${httpRequest.url} ${JSON.stringify(
         httpRequest.payload
       )}: ${e?.message}`
     );

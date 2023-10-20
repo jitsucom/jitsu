@@ -1,4 +1,5 @@
 import { JitsuFunction } from "@jitsu/protocols/functions";
+import { RetryError } from "@jitsu/functions-lib";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { PostHog } from "posthog-node";
 import { getEventCustomProperties } from "./lib";
@@ -146,6 +147,8 @@ const PosthogDestination: JitsuFunction<AnalyticsServerEvent, PosthogDestination
         }
       }
     }
+  } catch (e: any) {
+    throw new RetryError(e.message);
   } finally {
     await client.shutdownAsync();
   }

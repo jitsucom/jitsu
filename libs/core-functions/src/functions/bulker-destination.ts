@@ -1,4 +1,5 @@
 import { JitsuFunction } from "@jitsu/protocols/functions";
+import { RetryError } from "@jitsu/functions-lib";
 import { AnalyticsServerEvent, DataLayoutType } from "@jitsu/protocols/analytics";
 
 import omit from "lodash/omit";
@@ -252,20 +253,26 @@ export type BulkerDestinationConfig = {
 
 const BulkerDestination: JitsuFunction<AnalyticsServerEvent, BulkerDestinationConfig> = async (event, ctx) => {
   const { bulkerEndpoint, destinationId, authToken, dataLayout = "segment-single-table" } = ctx.props;
-  const events = dataLayouts[dataLayout](event);
-
-  for (const { event, table } of Array.isArray(events) ? events : [events]) {
-    await ctx.fetch(
-      `${bulkerEndpoint}/post/${destinationId}?tableName=${table}`,
-      {
-        method: "POST",
-        headers: { Authorization: `Bearer ${authToken}` },
-        body: JSON.stringify(event),
-      },
-      false
-    );
+  try {
+    const events = dataLayouts[dataLayout](event);
+    for (const { event, table } of Array.isArray(events) ? events : [events]) {
+      const res = await ctx.fetch(
+        `${bulkerEndpoint}/post/${destinationId}?tableName=${table}`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${authToken}` },
+          body: JSON.stringify(event),
+        },
+        false
+      );
+      if (!res.ok) {
+        throw new Error(`HTTP Error: ${res.status} ${res.statusText}`);
+      }
+    }
+    return event;
+  } catch (e: any) {
+    throw new RetryError(e.message);
   }
-  return event;
 };
 
 BulkerDestination.displayName = "Bulker Destination";

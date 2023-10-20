@@ -8,6 +8,7 @@ import JSON5 from "json5";
 import { loadPackageJson } from "./shared";
 import isEqual from "lodash/isEqual";
 import { b, red } from "../lib/chalk-code-highlight";
+import { DropRetryErrorName, RetryErrorName } from "@jitsu/functions-lib";
 
 const currentDir = process.cwd();
 
@@ -101,9 +102,26 @@ export async function run({
   }
   console.log(b("Function result:"));
   if (result.error) {
-    log.atError().log("Error:", result.error);
+    log.atError().log(`Error: ${result.error.name}: ${result.error.message}`);
+    if (result.error.name == DropRetryErrorName) {
+      log
+        .atError()
+        .log(
+          `If such error will happen on an actual event, it will be ${b("SKIPPED")} and retry will be scheduled in ${
+            result.error.retryPolicy?.delays?.[0] ? Math.min(result.error.retryPolicy.delays[0], 1440) : 5
+          } minutes.`
+        );
+    } else if (result.error.name == RetryErrorName) {
+      log
+        .atError()
+        .log(
+          `If such error will happen on an actual event, this function will be scheduled for retry in ${
+            result.error.retryPolicy?.delays?.[0] ? Math.min(result.error.retryPolicy.delays[0], 1440) : 5
+          } minutes, but event will be processed further.`
+        );
+    }
   } else if (result.dropped) {
-    log.atInfo().log(`Further processing will be SKIPPED. Function returned: ${JSON.stringify(result)}`);
+    log.atInfo().log(`Further processing will be ${b("SKIPPED")}. Function returned: ${JSON.stringify(result)}`);
   } else {
     console.log(JSON.stringify(result.result, null, 2));
   }

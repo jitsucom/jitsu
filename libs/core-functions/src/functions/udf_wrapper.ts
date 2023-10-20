@@ -1,18 +1,10 @@
 import { getLog } from "juava";
 import { Isolate, ExternalCopy, Callback, Reference } from "isolated-vm";
-import * as swc from "@swc/core";
-import {
-  EventContext,
-  EventsStore,
-  FetchOpts,
-  FetchResponse,
-  FuncReturn,
-  JitsuFunction,
-  Store,
-} from "@jitsu/protocols/functions";
+import { EventContext, EventsStore, FetchOpts, FuncReturn, JitsuFunction, Store } from "@jitsu/protocols/functions";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { createFullContext } from "../context";
 import { isDropResult } from "../index";
+import { functionsLibCode, wrapperCode } from "./lib/udf-wrapper-code";
 
 const log = getLog("udf-wrapper");
 
@@ -30,89 +22,11 @@ export type UDFWrapperResult = {
   close: () => void;
 };
 
-const wrapperJs = `
-const exported = exports;
-let $userFunction;
-let $config;
-if (typeof exported === "function") {
-  $userFunction = exported;
-} else {
-  $userFunction = exported.default;
-  $config = exported.config;
-  if (!$userFunction && Object.keys(exported).length > 0) {
-    $userFunction = Object.values(exported).find(v => typeof v === "function");
-  }
-}
-const $wrappedUserFunction = async function (eventcopy, ctxcopy) {
-  const c = ctxcopy.copy();
-  const ctx = {
-    ...c,
-    store: {
-      ...c.store,
-      get: async key => {
-        const res = await c.store.get.apply(undefined, [key], { arguments: { copy: true }, result: { promise: true } });
-        return res ? JSON.parse(res) : undefined;
-      },
-    },
-    fetch: async (url, opts) => {
-      const res = await c.fetch.apply(undefined, [url, opts], { arguments: { copy: true }, result: { promise: true } });
-      const r = JSON.parse(res);
-
-      return {
-        ...r,
-        json: async () => {
-          return JSON.parse(r.body);
-        },
-        text: async () => {
-          return r.body;
-        },
-        arrayBuffer: async () => {
-            throw new Error("Method 'arrayBuffer' is not implemented");
-        },
-        blob: async () => {
-            throw new Error("Method 'blob' is not implemented");
-        },
-        formData: async () => {
-            throw new Error("Method 'formData' is not implemented");
-        },
-        clone: async () => {
-            throw new Error("Method 'clone' is not implemented");
-        }
-      };
-    },
-  };
-  const event = eventcopy.copy();
-  if (!$userFunction || typeof $userFunction !== "function") {
-    throw new Error("Function not found. Please export default function.");
-  }
-  console = {
-    ...console,
-    log: ctx.log.info,
-    error: ctx.log.error,
-    warn: ctx.log.warn,
-    debug: ctx.log.debug,
-    info: ctx.log.info,
-    assert: (asrt, ...args) => {
-      if (!asrt) {
-        ctx.log.error("Assertion failed", ...args);
-      }
-    },
-  };
-  return $userFunction(event, ctx);
-};
-export const meta = $config;
-export default $wrappedUserFunction;
-`;
-
 export const UDFWrapper = (functionId, name, functionCode: string): UDFWrapperResult => {
   log.atInfo().log(`[${functionId}] Compiling UDF function '${name}'`);
-  functionCode = swc.transformSync(functionCode, {
-    filename: `index.js`,
-    module: { type: "commonjs" },
-  }).code;
   const startMs = new Date().getTime();
   try {
-    const wrappedCode = `let exports = {}\n${functionCode}\n${wrapperJs}`;
+    //const wrappedCode = `let exports = {}\n${functionCode}\n${wrapperJs}`;
     const isolate = new Isolate({ memoryLimit: 10 });
     const context = isolate.createContextSync();
     const jail = context.global;
@@ -120,14 +34,38 @@ export const UDFWrapper = (functionId, name, functionCode: string): UDFWrapperRe
     // This make the global object available in the context as 'global'. We use 'derefInto()' here
     // because otherwise 'global' would actually be a Reference{} object in the new isolate.
     jail.setSync("global", jail.derefInto());
-    const module = isolate.compileModuleSync(wrappedCode, { filename: "udf.js" });
-    module.instantiateSync(context, (specifier: string) => {
+
+    const functions = isolate.compileModuleSync(functionsLibCode, {
+      filename: "functions-lib.js",
+    });
+    functions.instantiateSync(context, (specifier: string) => {
       throw new Error(`import is not allowed: ${specifier}`);
     });
-    module.evaluateSync();
-    const exported = module.namespace;
 
-    const ref = exported.getSync("default", {
+    const udf = isolate.compileModuleSync(functionCode, { filename: name + ".js" });
+    udf.instantiateSync(context, (specifier: string) => {
+      if (specifier === "@jitsu/functions-lib") {
+        return functions;
+      }
+      throw new Error(`import is not allowed: ${specifier}`);
+    });
+
+    const wrapper = isolate.compileModuleSync(wrapperCode, {
+      filename: "jitsu-wrapper.js",
+    });
+    wrapper.instantiateSync(context, (specifier: string) => {
+      if (specifier === "udf") {
+        return udf;
+      }
+      if (specifier === "@jitsu/functions-lib") {
+        return functions;
+      }
+      throw new Error(`import is not allowed: ${specifier}`);
+    });
+    wrapper.evaluateSync();
+    const exported = wrapper.namespace;
+
+    const ref = exported.getSync("wrappedUserFunction", {
       reference: true,
     });
     if (!ref || ref.typeof !== "function") {
@@ -197,10 +135,14 @@ export const UDFWrapper = (functionId, name, functionCode: string): UDFWrapperRe
           default:
             return (res as Reference).copy();
         }
-      } catch (e) {
+      } catch (e: any) {
         if (isolate.isDisposed) {
           throw new Error("Isolate is disposed");
         }
+        if (meta) {
+          e.retryPolicy = meta.retryPolicy;
+        }
+        //log.atInfo().log(`ERROR name: ${e.name} message: ${e.message} json: ${e.stack}`);
         throw e;
       }
     };
@@ -232,11 +174,17 @@ export type UDFTestRequest = {
 };
 
 export type UDFTestResponse = {
-  error?: any;
+  error?: {
+    message: string;
+    stack?: string;
+    name: string;
+    retryPolicy?: any;
+  };
   dropped?: boolean;
   result: FuncReturn;
   store: any;
   logs: logType[];
+  meta: any;
 };
 
 export async function UDFTestRun({
@@ -248,6 +196,7 @@ export async function UDFTestRun({
   config,
 }: UDFTestRequest): Promise<UDFTestResponse> {
   const logs: logType[] = [];
+  let wrapper: UDFWrapperResult | undefined = undefined;
   try {
     const eventContext: EventContext = {
       geo: {
@@ -335,25 +284,31 @@ export async function UDFTestRun({
       },
     };
     const ctx = createFullContext(id, eventsStore, storeImpl, eventContext, {}, config);
-    let wrapper: UDFWrapperResult;
     if (typeof code === "string") {
       wrapper = UDFWrapper(id, name, code);
     } else {
       wrapper = code;
     }
-    const result = await wrapper.userFunction(event, ctx);
+    const result = await wrapper?.userFunction(event, ctx);
     return {
       dropped: isDropResult(result),
       result: typeof result === "undefined" ? event : result,
       store: store,
       logs,
+      meta: wrapper?.meta,
     };
-  } catch (e) {
+  } catch (e: any) {
     return {
-      error: `${e}`,
+      error: {
+        message: e.message,
+        stack: e.stack,
+        name: e.name,
+        retryPolicy: e.retryPolicy,
+      },
       result: {},
       store: store ?? {},
       logs,
+      meta: wrapper?.meta,
     };
   }
 }
