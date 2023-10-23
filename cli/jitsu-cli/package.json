@@ -13,7 +13,13 @@
     "clean": "rm -rf ./dist",
     "compile": "tsc -p . ",
     "build": "pnpm compile && webpack",
-    "run": "node dist/main.js"
+    "run": "node dist/main.js",
+    "login":  "pnpm build && node dist/main.js login",
+    "init child":  "pnpm build && node dist/main.js init",
+    "build child":  "pnpm build && node dist/main.js build",
+    "run child":  "pnpm build && node dist/main.js run -e ./data/page.json",
+    "test child":  "pnpm build && node dist/main.js test",
+    "deploy child":  "pnpm build && node dist/main.js deploy"
   },
   "dependencies": {
     "isolated-vm": "^4.6.0",

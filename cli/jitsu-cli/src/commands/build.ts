@@ -10,8 +10,7 @@ import { loadPackageJson } from "./shared";
 import { b } from "../lib/chalk-code-highlight";
 
 export async function build({ dir }: { dir?: string }) {
-  const projectDir = dir || process.cwd();
-  const packageJson = loadPackageJson(projectDir);
+  const { packageJson, projectDir } = await loadPackageJson(dir || process.cwd());
 
   console.log(`Building ${b(packageJson.name)} project`);
 

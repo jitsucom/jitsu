@@ -9,10 +9,9 @@ import cuid from "cuid";
 import { b, red } from "../lib/chalk-code-highlight";
 
 export async function deploy({ dir, workspace, name: names }: { dir?: string; workspace?: string; name?: string[] }) {
-  const projectDir = dir || process.cwd();
-  const selected = names ? names.flatMap(n => n.split(",")).map(n => n.trim()) : undefined;
+  const { packageJson, projectDir } = await loadPackageJson(dir || process.cwd());
 
-  const packageJson = loadPackageJson(projectDir);
+  const selected = names ? names.flatMap(n => n.split(",")).map(n => n.trim()) : undefined;
 
   const configFile = `${homedir()}/.jitsu/jitsu-cli.json`;
   if (!existsSync(configFile)) {

@@ -1,0 +1,53 @@
+{
+  "type": "page",
+  "properties": {
+    "title": "Example page event",
+    "url": "https://example.com/",
+    "path": "/",
+    "hash": "",
+    "search": "",
+    "currency": "USD",
+    "width": 1458,
+    "height": 1186
+  },
+  "userId": "user@example.com",
+  "anonymousId": "f6ps414GyUoRLws4r4NXD1kF",
+  "timestamp": "2023-10-23T08:56:09.043Z",
+  "sentAt": "2023-10-23T08:56:09.043Z",
+  "messageId": "y4eAqqw9PFErquqfT9IDZDRh",
+  "writeKey": "Bysczu8o75nkuoQtlpyJWE11",
+  "context": {
+    "library": {
+      "name": "jitsu-js",
+      "version": "1.0.0"
+    },
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/111.0",
+    "locale": "en-US",
+    "screen": {
+      "width": 2304,
+      "height": 1296,
+      "innerWidth": 1458,
+      "innerHeight": 1186,
+      "density": 2
+    },
+    "traits": {
+      "email": "user@example.com"
+    },
+    "page": {
+      "path": "/",
+      "referrer": "",
+      "referring_domain": "",
+      "host": "example.com",
+      "search": "",
+      "title": "Example page event",
+      "url": "https://example.com/",
+      "enconding": "UTF-8"
+    },
+    "campaign": {
+      "name": "example",
+      "source": "g"
+    }
+  },
+  "request_ip": "69.162.81.155",
+  "receivedAt": "2023-10-23T08:56:09.043Z"
+}

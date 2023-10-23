@@ -9,6 +9,7 @@ import { loadPackageJson } from "./shared";
 import isEqual from "lodash/isEqual";
 import { b, red } from "../lib/chalk-code-highlight";
 import { DropRetryErrorName, RetryErrorName } from "@jitsu/functions-lib";
+import inquirer from "inquirer";
 
 const currentDir = process.cwd();
 
@@ -25,8 +26,7 @@ export async function run({
   store?: any;
   props?: any;
 }) {
-  const projectDir = dir || currentDir;
-  const packageJson = loadPackageJson(projectDir);
+  const { packageJson, projectDir } = await loadPackageJson(dir || currentDir);
 
   const eventJson = parseJson5("event", event);
   const propsJson = parseJson5("props", props);
@@ -41,28 +41,36 @@ export async function run({
     console.error(red(`Can't find dist directory: ${b(functionsDir)} . Please build project first.`));
     process.exit(1);
   }
-  const fname = name ? (name.endsWith(".js") ? name : `${name.replace(".ts", "")}.js`) : undefined;
+  const fname = n => (n ? (n.endsWith(".js") ? n : `${n.replace(".ts", "")}.js`) : undefined);
   const functionsFiles = readdirSync(functionsDir);
   let functionFile: string | undefined = undefined;
-  if (!name && functionsFiles.length === 1) {
-    functionFile = functionsFiles[0];
-  }
+
   if (name) {
-    functionFile = functionsFiles.find(f => f === fname);
+    functionFile = functionsFiles.find(f => f === fname(name));
   } else {
-    console.error(
-      red(
-        `Directory ${b("dist/functions")} contain multiple functions. Please choose the one to run with ${b(
-          "-n"
-        )} parameter.`
-      )
-    );
-    process.exit(1);
+    if (functionsFiles.length === 1) {
+      functionFile = functionsFiles[0];
+    } else {
+      name = (
+        await inquirer.prompt([
+          {
+            type: "list",
+            name: "name",
+            message: `Select workspace:`,
+            choices: functionsFiles.map(w => ({
+              name: w,
+              value: w,
+            })),
+          },
+        ])
+      ).name;
+      functionFile = functionsFiles.find(f => f === name);
+    }
   }
   if (!functionFile) {
     console.error(
       red(
-        `Can't find function file: ${b(fname)} in ${b(
+        `Can't find function: ${b(fname(name))} in ${b(
           "dist/functions"
         )} directory. Please make sure that you have built the project.`
       )
