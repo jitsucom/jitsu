@@ -1,6 +1,8 @@
 import React, { ReactNode, useEffect, useState } from "react";
 import classNames from "classnames";
 import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+dayjs.extend(utc);
 
 export function Spinner(props: { className?: string }) {
   return (

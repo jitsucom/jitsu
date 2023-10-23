@@ -4,8 +4,8 @@ import { createRoute, verifyAccess } from "../../../../lib/api";
 import { randomId } from "juava";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
-import { getServerLog } from "../../../../lib/server/log";
 dayjs.extend(utc);
+import { getServerLog } from "../../../../lib/server/log";
 
 const log = getServerLog("sync-logs");
 

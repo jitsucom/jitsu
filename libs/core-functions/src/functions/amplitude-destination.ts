@@ -5,6 +5,8 @@ import { randomUUID } from "crypto";
 import { parseUserAgent } from "./lib/browser";
 import { AmplitudeDestinationConfig } from "../meta";
 import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+dayjs.extend(utc);
 
 const AmplitudeDestination: JitsuFunction<AnalyticsServerEvent, AmplitudeDestinationConfig> = async (
   event,

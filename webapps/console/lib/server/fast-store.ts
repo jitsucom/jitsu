@@ -353,7 +353,7 @@ async function saveConnectionsToRedis(db: DatabaseConnection) {
     }
 
     // when we reach new stream, we need to save destinationsBuffer for the previous stream
-    if (lastStreamConfig && streamConfig.id !== lastStreamConfig.id && destinationsBuffer.length > 0) {
+    if (lastStreamConfig && streamConfig.id !== lastStreamConfig.id) {
       addStreamByDomain(lastStreamConfig, destinationsBuffer, row.backupEnabled);
       destinationsBuffer = [];
     }
@@ -363,7 +363,7 @@ async function saveConnectionsToRedis(db: DatabaseConnection) {
   });
 
   // save the last stream
-  if (lastStreamConfig && destinationsBuffer.length > 0) {
+  if (lastStreamConfig) {
     addStreamByDomain(lastStreamConfig, destinationsBuffer, lastBackupEnabled);
   }
   for (const [domain, streamDsts] of Object.entries(streamsByDomain)) {

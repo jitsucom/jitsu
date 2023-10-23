@@ -19,6 +19,8 @@ import { RetryErrorName, DropRetryErrorName } from "@jitsu/functions-lib";
 
 import Convert from "ansi-to-html";
 import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+dayjs.extend(utc);
 import { defaultFunctionTemplate } from "./code_templates";
 import { FunctionConfig } from "../../lib/schema";
 import { useRouter } from "next/router";

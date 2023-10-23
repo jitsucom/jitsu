@@ -187,7 +187,13 @@ export async function sendEventToBulker(req: NextApiRequest, ingestType: IngestT
     try {
       stream = await getStream(loc);
       if (stream) {
-        response = buildResponse(message.origin.baseUrl, stream);
+        if (stream.asynchronousDestinations?.length > 0 || stream.synchronousDestinations?.length > 0) {
+          response = buildResponse(message.origin.baseUrl, stream);
+        } else {
+          const msg = `No destinations linked for stream: ${stream.stream.id}`;
+          log.atWarn().log(msg);
+          response = { ok: false, error: msg };
+        }
       } else {
         const msg = `Source not found for ${JSON.stringify(loc)}`;
         log.atWarn().log(msg);

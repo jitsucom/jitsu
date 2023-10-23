@@ -33,6 +33,9 @@ export type FuncChainResult = {
 export type FunctionExecRes = {
   eventIndex: number;
   event?: any;
+  // streamId: string;
+  // destinationId: string;
+  // connectionId: string;
   functionId: string;
   error?: any;
   dropped?: boolean;

@@ -10,8 +10,8 @@ import PQueue from "p-queue";
 const concurrency = process.env.CONCURRENCY ? parseInt(process.env.CONCURRENCY) : 50;
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
-import { getRetryPolicy, retryBackOffTime, retryLogMessage } from "./retries";
 dayjs.extend(utc);
+import { getRetryPolicy, retryBackOffTime, retryLogMessage } from "./retries";
 
 const log = getLog("kafka-rotor");
 

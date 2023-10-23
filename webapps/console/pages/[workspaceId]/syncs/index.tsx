@@ -24,6 +24,8 @@ import { Spinner } from "../../../components/GlobalLoader/GlobalLoader";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import relativeTime from "dayjs/plugin/relativeTime";
+dayjs.extend(relativeTime);
+dayjs.extend(utc);
 import { ServiceTitle } from "../services";
 import { DestinationTitle } from "../destinations";
 import JSON5 from "json5";
@@ -31,9 +33,6 @@ import { ButtonGroup, ButtonProps } from "../../../components/ButtonGroup/Button
 import { Overlay } from "../../../components/Overlay/Overlay";
 import { CodeBlock } from "../../../components/CodeBlock/CodeBlock";
 import { processTaskStatus, TaskStatus } from "./tasks";
-
-dayjs.extend(utc);
-dayjs.extend(relativeTime);
 
 export const formatDate = (date: string | Date) =>
   dayjs(date, "YYYY-MM-DDTHH:mm:ss.SSSZ").utc().format("YYYY-MM-DD HH:mm:ss");
