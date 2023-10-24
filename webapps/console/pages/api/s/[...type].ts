@@ -62,6 +62,17 @@ const DomainStreamLocator: StreamLocator = async loc => {
     const streams = (await fastStore.getStreamsByDomain(loc.domain)) || [];
     if (streams.length == 1) {
       return streams[0];
+    } else if (streams.length > 1 && !loc.writeKey) {
+      return streams[0];
+    }
+  }
+};
+
+const AmbiguousDomainStreamLocator: StreamLocator = async loc => {
+  if (loc.domain) {
+    const streams = (await fastStore.getStreamsByDomain(loc.domain)) || [];
+    if (streams.length > 0) {
+      return streams[0];
     }
   }
 };
@@ -69,7 +80,7 @@ const DomainStreamLocator: StreamLocator = async loc => {
 async function getStream(loc: StreamCredentials): Promise<StreamWithDestinations | undefined> {
   const locators =
     loc.ingestType === "s2s"
-      ? [WriteKeyStreamLocator, SlugStreamLocator, DomainStreamLocator]
+      ? [WriteKeyStreamLocator, SlugStreamLocator, AmbiguousDomainStreamLocator]
       : [SlugStreamLocator, DomainStreamLocator, WriteKeyStreamLocator];
   for (const locator of locators) {
     const stream = await locator(loc);

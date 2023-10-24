@@ -41,7 +41,6 @@ function redisKey(name: string): RedisKey {
  */
 
 const redisKeyRoutes = {
-  configurationObjectsLink: () => redisKey(`config:links`),
   configurationObject: (type: string) => redisKey(`config:${type}`),
   streamIds: () => redisKey(`streamIds`),
   apiKeys: () => redisKey(`apiKeys`),
@@ -103,7 +102,6 @@ export type FastStore = {
   getStreamById: (slug: string) => Promise<StreamWithDestinations | undefined>;
   getStreamByKeyId: (keyId: string) => Promise<ApiKeyBinding | undefined>;
   getConfig: <T>(type: string, id: string) => Promise<T | undefined>;
-  getConnection: (id: string) => Promise<ConfigurationObjectLinkDbModel | undefined>;
   getEnrichedConnection: (id: string) => Promise<EnrichedConnectionConfig | undefined>;
 
   fullRefresh();
@@ -237,7 +235,6 @@ async function saveConnectionsToRedis(db: DatabaseConnection) {
   const domainsRedisKey = redisKeyRoutes.streamDomain();
   const idsRedisKey = redisKeyRoutes.streamIds();
   const apiKeys = redisKeyRoutes.apiKeys();
-  const linksKey = redisKeyRoutes.configurationObjectsLink();
   const query = `    
   select
       greatest(link."updatedAt", src."updatedAt", dst."updatedAt") as "updatedAt",
@@ -303,8 +300,6 @@ async function saveConnectionsToRedis(db: DatabaseConnection) {
       ...pick(row, "createdAt", "updatedAt", "fromId", "toId"),
       data: row.connectionData,
     };
-
-    redis().hset(linksKey.tmp(), linkId, JSON.stringify(allConnectionParameters));
 
     await redis().hset(
       bulkerRedisKey.tmp(),
@@ -398,7 +393,6 @@ async function saveConnectionsToRedis(db: DatabaseConnection) {
 
   await apiKeys.rename(redis());
   await idsRedisKey.rename(redis());
-  await linksKey.rename(redis());
   await domainsRedisKey.rename(redis());
   await bulkerRedisKey.rename(redis());
 }
@@ -428,17 +422,13 @@ export function createFastStore({ db }: { db: DatabaseConnection }): FastStore {
       const config = await redis().hget(redisKeyRoutes.configurationObject(type).name(), id);
       return config ? JSON.parse(config) : undefined;
     },
-    async getConnection(id: string): Promise<ConfigurationObjectLinkDbModel | undefined> {
-      const config = await redis().hget(redisKeyRoutes.configurationObjectsLink().name(), id);
-      return config ? JSON.parse(config) : undefined;
-    },
     async getEnrichedConnection(id: string): Promise<EnrichedConnectionConfig | undefined> {
       const config = await redis().hget(redisKeyRoutes.enrichedConnections().name(), id);
       return config ? JSON.parse(config) : undefined;
     },
     async fullRefresh() {
       const sw = stopwatch();
-      await saveConfigObjectsToRedis(["stream", "destination", "function"], db);
+      await saveConfigObjectsToRedis(["function"], db);
       await saveConnectionsToRedis(db);
       getServerLog().atInfo().log("Export to redis took", sw.elapsedPretty());
     },
