@@ -74,7 +74,8 @@ export const api: Api = {
           where: { id: existingLink.id },
           data: { data, deleted: false },
         });
-        await syncWithScheduler(getAppEndpoint(req).baseUrl);
+        //try to do asynchronously for edit
+        syncWithScheduler(getAppEndpoint(req).baseUrl);
         await fastStore.fullRefresh();
         return { id: existingLink.id, created: false };
       }
