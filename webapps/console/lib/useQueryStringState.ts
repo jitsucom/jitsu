@@ -19,13 +19,14 @@ export const jsonSerializationBase64: Serde<any> = {
 
 export function useQueryStringState<T = string | undefined>(
   param: string,
-  opt: { defaultValue?: T } & Partial<Serde<T>> = {
+  opt: { defaultValue?: T; skipHistory?: boolean } & Partial<Serde<T>> = {
     defaultValue: undefined as T,
     parser: (val: string) => val as T,
     serializer: (val: T) => (val || "").toString(),
   }
 ): [T, (val: T) => Promise<boolean>] {
-  const { push, query } = useRouter();
+  const { push, replace, query } = useRouter();
+  const transition = opt.skipHistory ? replace : push;
   const initialValueStr = query[param] as string | undefined;
   const initialValue = initialValueStr
     ? opt.parser
@@ -39,12 +40,12 @@ export function useQueryStringState<T = string | undefined>(
       setState(val);
       if (val) {
         const newQuery = { ...query, [param]: opt.serializer ? opt.serializer(val) : (val as string) };
-        return push({ query: newQuery }, undefined, { shallow: true });
+        return transition({ query: newQuery }, undefined, { shallow: true });
       } else {
-        return push({ query: omit(query, param) }, undefined, { shallow: true });
+        return transition({ query: omit(query, param) }, undefined, { shallow: true });
       }
     },
-    [opt, param, query, push]
+    [opt, param, query, transition]
   );
   return [state, updateState];
 }

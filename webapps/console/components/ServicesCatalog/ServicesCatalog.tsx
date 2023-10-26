@@ -5,7 +5,7 @@ import { useApi } from "../../lib/useApi";
 import { SourceType } from "../../pages/api/sources";
 import capitalize from "lodash/capitalize";
 import { LoadingAnimation } from "../GlobalLoader/GlobalLoader";
-import React, { useMemo } from "react";
+import React from "react";
 import { ErrorCard } from "../GlobalError/GlobalError";
 import { Input } from "antd";
 
@@ -15,7 +15,7 @@ function groupByType(sources: SourceType[]): Record<string, SourceType[]> {
   const sortOrder = ["Datawarehouse", "Product Analytics", "CRM", "Block Storage"];
 
   sources.forEach(s => {
-    if (s.packageId.endsWith("strict-encrypt")) {
+    if (s.packageId.endsWith("strict-encrypt") || s.packageId === "airbyte/source-file-secure") {
       return;
     }
     const groupName = s.meta.connectorSubtype || otherGroup;
@@ -40,8 +40,9 @@ function groupByType(sources: SourceType[]): Record<string, SourceType[]> {
     .reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {});
 }
 
-export function getServiceIcon(source: SourceType, icons: Record<string, string>): React.ReactNode {
+export function getServiceIcon(source: SourceType, icons: Record<string, string> = {}): React.ReactNode {
   const connectorSubtype = source.meta.connectorSubtype;
+
   const logoSvg = source.logoSvg || icons[source.packageId];
   return logoSvg ? (
     <img src={"data:image/svg+xml;base64," + Buffer.from(logoSvg).toString("base64")} alt={source.meta.name} />
@@ -54,22 +55,17 @@ export function getServiceIcon(source: SourceType, icons: Record<string, string>
 
 export const ServicesCatalog: React.FC<{ onClick: (packageType, packageId: string) => void }> = ({ onClick }) => {
   const { data, isLoading, error } = useApi<{ sources: SourceType[] }>(`/api/sources?mode=meta`);
-  const { data: logos, isLoading: logosAreLoading } = useApi<{ sources: SourceType[] }>(`/api/sources?mode=icons-only`);
-  console.log("logos", logos);
-  const logosMap: Record<string, string> = useMemo(() => {
-    if (logos) {
-      return logos.sources
-        .filter(({ logoSvg }) => !!logoSvg)
-        .reduce((acc, { packageId, logoSvg }) => {
-          acc[packageId] = logoSvg;
-          return acc;
-        }, {});
-    } else {
-      return {};
-    }
-  }, [logos]);
+  const sourcesIconsLoader = useApi<{ sources: SourceType[] }>(`/api/sources?mode=icons-only`);
   const [filter, setFilter] = React.useState("");
-  console.log("logosMap", logosMap);
+  const sourcesIcons: Record<string, string> = sourcesIconsLoader.data
+    ? sourcesIconsLoader.data.sources.reduce(
+        (acc, item) => ({
+          ...acc,
+          [item.packageId]: item.logoSvg,
+        }),
+        {}
+      )
+    : {};
 
   if (isLoading) {
     return <LoadingAnimation />;
@@ -82,7 +78,7 @@ export const ServicesCatalog: React.FC<{ onClick: (packageType, packageId: strin
       <div key={"filter"} className={"m-4"}>
         <Input
           allowClear
-          placeholder="Search"
+          placeholder={sourcesIconsLoader.data ? `Search ${sourcesIconsLoader.data.sources.length} sources` : `Search`}
           onChange={e => {
             setFilter(e.target.value);
           }}
@@ -108,20 +104,25 @@ export const ServicesCatalog: React.FC<{ onClick: (packageType, packageId: strin
                 {group === "api" ? "API" : capitalize(group)}
               </div>
               <div className="flex flex-wrap">
-                {filtered.map(source => {
-                  return (
-                    <div
-                      key={source.id}
-                      className={`flex items-center cursor-pointer relative w-72 border border-textDisabled ${"hover:scale-105 hover:border-primary"} transition ease-in-out rounded-lg px-4 py-4 space-x-4 m-4`}
-                      onClick={() => onClick(source.packageType, source.packageId)}
-                    >
-                      <div className={`${styles.icon} flex`}>{getServiceIcon(source, logosMap)}</div>
-                      <div>
-                        <div className={`text-xl`}>{source.meta.name}</div>
+                {filtered
+                  .sort((a, b) => {
+                    const res = (b.sortIndex || 0) - (a.sortIndex || 0);
+                    return res === 0 ? a.meta.name.localeCompare(b.meta.name) : res;
+                  })
+                  .map(source => {
+                    return (
+                      <div
+                        key={source.id}
+                        className={`flex items-center cursor-pointer relative w-72 border border-textDisabled ${"hover:scale-105 hover:border-primary"} transition ease-in-out rounded-lg px-4 py-4 space-x-4 m-4`}
+                        onClick={() => onClick(source.packageType, source.packageId)}
+                      >
+                        <div className={`${styles.icon} flex`}>{getServiceIcon(source, sourcesIcons)}</div>
+                        <div>
+                          <div className={`text-xl`}>{source.meta.name}</div>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
               </div>
             </div>
           );

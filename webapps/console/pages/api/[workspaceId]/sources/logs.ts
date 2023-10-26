@@ -4,8 +4,8 @@ import { createRoute, verifyAccess } from "../../../../lib/api";
 import { randomId } from "juava";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
-import { getServerLog } from "../../../../lib/server/log";
 dayjs.extend(utc);
+import { getServerLog } from "../../../../lib/server/log";
 
 const log = getServerLog("sync-logs");
 
@@ -23,9 +23,15 @@ export default createRoute()
   .handler(async ({ user, query, res }) => {
     const { workspaceId } = query;
     await verifyAccess(user, workspaceId);
-    res.setHeader("Content-Type", "text/plain");
     if (query.download) {
-      res.setHeader("Content-Disposition", `attachment; filename=logs_sync_${query.syncId}_task_${query.taskId}.txt`);
+      res.writeHead(200, {
+        "Content-Type": "text/plain",
+        "Content-Disposition": `attachment; filename=logs_sync_${query.syncId}_task_${query.taskId}.txt`,
+      });
+    } else {
+      res.writeHead(200, {
+        "Content-Type": "text/plain",
+      });
     }
     try {
       await db.pgHelper().streamQuery(

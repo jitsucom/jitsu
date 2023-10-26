@@ -1,6 +1,5 @@
-import chalk from "chalk";
 import path from "path";
-import { existsSync, writeFileSync, mkdirSync, readdirSync } from "fs";
+import { writeFileSync, mkdirSync, readdirSync } from "fs";
 import typescript from "@rollup/plugin-typescript";
 import resolve from "@rollup/plugin-node-resolve";
 import commonjs from "@rollup/plugin-commonjs";
@@ -11,8 +10,7 @@ import { loadPackageJson } from "./shared";
 import { b } from "../lib/chalk-code-highlight";
 
 export async function build({ dir }: { dir?: string }) {
-  const projectDir = dir || process.cwd();
-  const packageJson = loadPackageJson(projectDir);
+  const { packageJson, projectDir } = await loadPackageJson(dir || process.cwd());
 
   console.log(`Building ${b(packageJson.name)} project`);
 
@@ -40,6 +38,7 @@ export async function build({ dir }: { dir?: string }) {
     const bundle = await rollup({
       input: [funcFile],
       plugins: rollupPlugins,
+      external: ["@jitsu/functions-lib"],
       logLevel: "silent",
     });
 

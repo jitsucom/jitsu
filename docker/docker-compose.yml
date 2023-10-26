@@ -33,6 +33,7 @@ services:
   #      - ./data/postgres:/var/lib/postgresql/data
   zookeeper:
     tty: true
+    platform: linux/amd64
     image: wurstmeister/zookeeper:latest
     expose:
       - 2181
@@ -59,6 +60,7 @@ services:
 
   bulker:
     tty: true
+    platform: linux/amd64
     image: jitsucom/bulker:latest
     restart: "unless-stopped"
     ports:

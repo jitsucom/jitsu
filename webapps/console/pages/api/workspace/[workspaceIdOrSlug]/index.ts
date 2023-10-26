@@ -4,7 +4,32 @@ import { db } from "../../../../lib/server/db";
 import { ApiError } from "../../../../lib/shared/errors";
 import { getUserPreferenceService } from "../../../../lib/server/user-preferences";
 import { getServerLog } from "../../../../lib/server/log";
+import { SessionUser } from "../../../../lib/schema";
+
 const log = getServerLog();
+
+async function savePreferences(user: SessionUser, workspace): Promise<void> {
+  await Promise.all([
+    getUserPreferenceService(db.prisma()).savePreference(
+      { userId: user.internalId },
+      { lastUsedWorkspaceId: workspace.id }
+    ),
+    db.prisma().workspaceUserProperties.upsert({
+      where: {
+        workspaceId_userId: { userId: user.internalId, workspaceId: workspace.id },
+      },
+      create: {
+        userId: user.internalId,
+        workspaceId: workspace.id,
+        lastUsed: new Date(),
+      },
+      update: {
+        lastUsed: new Date(),
+      },
+    }),
+  ]);
+}
+
 export const api: Api = {
   url: inferUrl(__filename),
   GET: {
@@ -30,15 +55,12 @@ export const api: Api = {
         );
       }
       //it doesn't have to by sync since the preferences are optional
-      getUserPreferenceService(db.prisma())
-        .savePreference({ userId: user.internalId }, { lastUsedWorkspaceId: workspace.id })
-        .catch(e => {
-          log
-            .atWarn()
-            .withCause(e)
-            .log(`Failed to save last workspace id (${workspace.id}). For user (${user.internalId})`);
-        });
-
+      savePreferences(user, workspace).catch(e => {
+        log
+          .atWarn()
+          .withCause(e)
+          .log(`Failed to save workspace preferences (${workspace.id}). For user (${user.internalId})`);
+      });
       return workspace;
     },
   },

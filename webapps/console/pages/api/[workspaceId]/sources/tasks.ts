@@ -4,11 +4,10 @@ import { createRoute, verifyAccess } from "../../../../lib/api";
 import { source_taskDbModel } from "../../../../prisma/schema";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
+dayjs.extend(utc);
 import { syncError } from "../../../../lib/shared/errors";
 import { getServerLog } from "../../../../lib/server/log";
 import { getAppEndpoint } from "../../../../lib/domains";
-
-dayjs.extend(utc);
 
 const log = getServerLog("sync-tasks");
 

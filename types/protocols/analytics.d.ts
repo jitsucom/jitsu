@@ -147,6 +147,14 @@ interface AnalyticsContext {
   amp?: {
     id: string;
   };
+  /**
+   * Other tracking tools client ids
+   */
+  clientIds?: {
+    //Client ID of GA4 property
+    ga4?: string;
+    [key: string]: string;
+  };
 
   [key: string]: any;
 }

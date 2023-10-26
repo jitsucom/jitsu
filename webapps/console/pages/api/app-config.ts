@@ -5,6 +5,7 @@ import { getEeConnection } from "../../lib/server/ee";
 import { isEEAvailable } from "./ee/jwt";
 import { isFirebaseEnabled, requireFirebaseOptions } from "../../lib/server/firebase-server";
 import { nangoConfig } from "../../lib/server/oauth/nango-config";
+import { isTruish } from "../../lib/shared/chores";
 
 export default createRoute()
   .GET({ result: AppConfig, auth: false })
@@ -28,7 +29,7 @@ export default createRoute()
         : undefined,
       billingEnabled: isEEAvailable(),
       syncs: {
-        enabled: process.env.SYNCS_ENABLED === "true",
+        enabled: isTruish(process.env.SYNCS_ENABLED),
         scheduler: {
           enabled: !!process.env.GOOGLE_SCHEDULER_KEY,
           provider: process.env.GOOGLE_SCHEDULER_KEY ? "google-cloud-scheduler" : undefined,

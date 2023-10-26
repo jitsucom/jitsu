@@ -18,10 +18,11 @@ import { useQueryStringState } from "../lib/useQueryStringState";
 const log = getLog("worspaces");
 
 const WorkspacesList = () => {
+  const router = useRouter();
   const { data: userData } = useApi(`/api/user/properties`);
   const { data, isLoading, error } = useApi<z.infer<typeof WorkspaceDbModel>[]>(`/api/workspace`);
-  const [filter, setFilter] = useQueryStringState("filter", { defaultValue: "" });
-
+  const [filter, setFilter] = useQueryStringState("filter", { defaultValue: "", skipHistory: true });
+  console.log("referer", router);
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-fit">

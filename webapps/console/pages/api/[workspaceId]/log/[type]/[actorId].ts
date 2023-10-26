@@ -7,6 +7,8 @@ import { httpAgent, httpsAgent } from "../../../../../lib/server/http-agent";
 import { getErrorMessage, requireDefined } from "juava";
 import nodeFetch from "node-fetch-commonjs";
 import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+dayjs.extend(utc);
 
 const log = getServerLog("test-connection");
 

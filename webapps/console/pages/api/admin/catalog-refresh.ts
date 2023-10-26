@@ -46,6 +46,7 @@ export default createRoute()
 
     for (let i = 0; i < max; i++) {
       const mitVersions = new Set<string>();
+      const otherVersions: Record<string, Set<string>> = {};
       const src = sources[i];
       const metadataUrl = `https://raw.githubusercontent.com/${repo}/master/${basePath}/${src}/metadata.yaml`;
       const res = await fetch(metadataUrl);
@@ -67,7 +68,8 @@ export default createRoute()
             const oldYml = await fetch(commitFile);
             if (oldYml.ok) {
               const oldMeta = yaml.load(await oldYml.text());
-              if (oldMeta.data?.license?.toLowerCase() === "mit") {
+              const license = oldMeta.data?.license?.toLowerCase() || "unknown-license";
+              if (license === "mit") {
                 const dockerVersion = oldMeta.data?.dockerImageTag;
                 if (!dockerVersion) {
                   log.atWarn().log(`MIT version of ${src} doesn't have dockerImageTag: ${commitFile}`);
@@ -75,6 +77,9 @@ export default createRoute()
                   log.atWarn().log(`Found MIT version of ${src} --> ${dockerVersion}`);
                   mitVersions.add(dockerVersion);
                 }
+              } else {
+                otherVersions[license] = otherVersions[license] || new Set<string>();
+                otherVersions[license].add(license);
               }
             } else {
               log.atWarn().log(`Failed to load ${commitFile}`);
@@ -107,6 +112,7 @@ export default createRoute()
         meta: {
           ...(metadata?.data || {}),
           ...([...mitVersions].length > 0 ? { mitVersions: [...mitVersions] } : {}),
+          ...(Object.keys(otherVersions).length > 0 ? { otherVersions } : {}),
         },
         logoSvg: icon,
       };

@@ -24,6 +24,8 @@ import { Spinner } from "../../../components/GlobalLoader/GlobalLoader";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import relativeTime from "dayjs/plugin/relativeTime";
+dayjs.extend(relativeTime);
+dayjs.extend(utc);
 import { ServiceTitle } from "../services";
 import { DestinationTitle } from "../destinations";
 import JSON5 from "json5";
@@ -31,9 +33,6 @@ import { ButtonGroup, ButtonProps } from "../../../components/ButtonGroup/Button
 import { Overlay } from "../../../components/Overlay/Overlay";
 import { CodeBlock } from "../../../components/CodeBlock/CodeBlock";
 import { processTaskStatus, TaskStatus } from "./tasks";
-
-dayjs.extend(utc);
-dayjs.extend(relativeTime);
 
 export const formatDate = (date: string | Date) =>
   dayjs(date, "YYYY-MM-DDTHH:mm:ss.SSSZ").utc().format("YYYY-MM-DD HH:mm:ss");
@@ -373,23 +372,22 @@ function Syncs(props: RemoteEntitiesProps) {
       <div className="flex flex-col justify-center items-center ">
         <Inbox className="w-16 h-16 text-textDisabled" />
         <div className="text-center mt-12 text text-textLight max-w-4xl">
-          In order to connect service to destination please create at least one destination and one service. Currently,
-          you have{" "}
+          In order to create a sync please create at least one destination and one connector. Currently, you have{" "}
           <Link href={`/${workspace.slug || workspace.id}/destinations`} className="underline">
             {props.destinations.length} destination{props.destinations.length === 1 ? "" : "s"}
           </Link>{" "}
           and{" "}
           <Link href={`/${workspace.slug || workspace.id}/services`} className="underline">
-            {props.services.length} service{props.services.length === 1 ? "" : "s"}
+            {props.services.length} connector{props.services.length === 1 ? "" : "s"}
           </Link>{" "}
           configured
         </div>
         <div className="flex space-x-4 items-center mt-4">
+          <WJitsuButton href={"/services"} type="default" icon={<PlusOutlined />}>
+            Create Connector
+          </WJitsuButton>
           <WJitsuButton href={"/destinations"} type="default" icon={<PlusOutlined />}>
             Create Destination
-          </WJitsuButton>
-          <WJitsuButton href={"/services"} type="default" icon={<PlusOutlined />}>
-            Create Service
           </WJitsuButton>
         </div>
       </div>

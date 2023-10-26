@@ -1,6 +1,7 @@
 import { createRoute } from "../../../lib/api";
 import { z } from "zod";
 import { rpc } from "juava";
+import { db } from "../../../lib/server/db";
 
 export default createRoute()
   .GET({
@@ -12,16 +13,23 @@ export default createRoute()
   })
   .handler(async ({ req, query }) => {
     const type = query.type || "airbyte";
+    const packageId = query.package;
     if (type !== "airbyte") {
       throw new Error(`Only airbyte is supported, not ${type}`);
     }
     let error: any = null;
+    const connectorPackage = await db.prisma().connectorPackage.findFirst({ where: { packageType: type, packageId } });
+    const mitVersions = (connectorPackage?.meta as any).mitVersions;
     for (let i = 0; i < 3; i++) {
       // endpoint prone to 500 errors
       try {
-        const tags = (
-          await rpc(`https://hub.docker.com/v2/repositories/${query.package}/tags?page_size=100`)
-        ).results.map(({ name }) => ({ name, isRelease: name.match(/^[0-9.]+$/) !== null }));
+        const tags = (await rpc(`https://hub.docker.com/v2/repositories/${packageId}/tags?page_size=100`)).results.map(
+          ({ name }) => ({
+            name,
+            isRelease: name.match(/^[0-9.]+$/) !== null,
+            isMit: !mitVersions || mitVersions.includes(name),
+          })
+        );
         return {
           versions: tags,
         };

@@ -8,6 +8,8 @@ import JSON5 from "json5";
 import { loadPackageJson } from "./shared";
 import isEqual from "lodash/isEqual";
 import { b, red } from "../lib/chalk-code-highlight";
+import { DropRetryErrorName, RetryErrorName } from "@jitsu/functions-lib";
+import inquirer from "inquirer";
 
 const currentDir = process.cwd();
 
@@ -24,8 +26,7 @@ export async function run({
   store?: any;
   props?: any;
 }) {
-  const projectDir = dir || currentDir;
-  const packageJson = loadPackageJson(projectDir);
+  const { packageJson, projectDir } = await loadPackageJson(dir || currentDir);
 
   const eventJson = parseJson5("event", event);
   const propsJson = parseJson5("props", props);
@@ -40,28 +41,36 @@ export async function run({
     console.error(red(`Can't find dist directory: ${b(functionsDir)} . Please build project first.`));
     process.exit(1);
   }
-  const fname = name ? (name.endsWith(".js") ? name : `${name.replace(".ts", "")}.js`) : undefined;
+  const fname = n => (n ? (n.endsWith(".js") ? n : `${n.replace(".ts", "")}.js`) : undefined);
   const functionsFiles = readdirSync(functionsDir);
   let functionFile: string | undefined = undefined;
-  if (!name && functionsFiles.length === 1) {
-    functionFile = functionsFiles[0];
-  }
+
   if (name) {
-    functionFile = functionsFiles.find(f => f === fname);
+    functionFile = functionsFiles.find(f => f === fname(name));
   } else {
-    console.error(
-      red(
-        `Directory ${b("dist/functions")} contain multiple functions. Please choose the one to run with ${b(
-          "-n"
-        )} parameter.`
-      )
-    );
-    process.exit(1);
+    if (functionsFiles.length === 1) {
+      functionFile = functionsFiles[0];
+    } else {
+      name = (
+        await inquirer.prompt([
+          {
+            type: "list",
+            name: "name",
+            message: `Select workspace:`,
+            choices: functionsFiles.map(w => ({
+              name: w,
+              value: w,
+            })),
+          },
+        ])
+      ).name;
+      functionFile = functionsFiles.find(f => f === name);
+    }
   }
   if (!functionFile) {
     console.error(
       red(
-        `Can't find function file: ${b(fname)} in ${b(
+        `Can't find function: ${b(fname(name))} in ${b(
           "dist/functions"
         )} directory. Please make sure that you have built the project.`
       )
@@ -101,9 +110,26 @@ export async function run({
   }
   console.log(b("Function result:"));
   if (result.error) {
-    log.atError().log("Error:", result.error);
+    log.atError().log(`Error: ${result.error.name}: ${result.error.message}`);
+    if (result.error.name == DropRetryErrorName) {
+      log
+        .atError()
+        .log(
+          `If such error will happen on an actual event, it will be ${b("SKIPPED")} and retry will be scheduled in ${
+            result.error.retryPolicy?.delays?.[0] ? Math.min(result.error.retryPolicy.delays[0], 1440) : 5
+          } minutes.`
+        );
+    } else if (result.error.name == RetryErrorName) {
+      log
+        .atError()
+        .log(
+          `If such error will happen on an actual event, this function will be scheduled for retry in ${
+            result.error.retryPolicy?.delays?.[0] ? Math.min(result.error.retryPolicy.delays[0], 1440) : 5
+          } minutes, but event will be processed further.`
+        );
+    }
   } else if (result.dropped) {
-    log.atInfo().log(`Further processing will be SKIPPED. Function returned: ${JSON.stringify(result)}`);
+    log.atInfo().log(`Further processing will be ${b("SKIPPED")}. Function returned: ${JSON.stringify(result)}`);
   } else {
     console.log(JSON.stringify(result.result, null, 2));
   }

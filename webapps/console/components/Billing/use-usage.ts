@@ -3,6 +3,8 @@ import { assertFalse, assertTrue, rpc } from "juava";
 import { useWorkspace } from "../../lib/context";
 import { useBilling } from "./BillingProvider";
 import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+dayjs.extend(utc);
 
 export type Usage = {
   events: number;

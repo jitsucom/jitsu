@@ -15,6 +15,7 @@ import {
   BarChart3,
   ChevronDown,
   ChevronUp,
+  CircleDollarSign,
   CreditCard,
   FilePlus,
   FolderKanban,
@@ -22,6 +23,7 @@ import {
   FunctionSquare,
   Globe,
   Hammer,
+  HelpCircle,
   LayoutDashboard,
   Loader2,
   PlugZap,
@@ -130,6 +132,16 @@ function WorkspacesMenu(props: { jitsuClassicAvailable: boolean }) {
         },
       },
     ];
+    if (appConfig.ee.available) {
+      additionalMenuItems.push({
+        key: "billing-workspaces",
+        label: "Billing Administration",
+        icon: <CircleDollarSign className="h-4 w-4 mr-2" />,
+        onClick: async () => {
+          await router.push("/admin/overage-billing");
+        },
+      });
+    }
   }
 
   return (
@@ -506,7 +518,6 @@ const WorkspaceAlert: React.FC<{}> = () => {
 function PageHeader() {
   const appConfig = useAppConfig();
   const workspace = useWorkspace();
-  const billing = useBilling();
   const items: (TabsMenuItem | TabsMenuGroup | undefined | false)[] = [
     { title: "Overview", path: "/", aliases: "/overview", icon: <LayoutDashboard className="w-full h-full" /> },
     {
@@ -545,6 +556,11 @@ function PageHeader() {
         { title: "User Settings", path: "/user", icon: <User className="w-full h-full" />, globalPath: true },
         { title: "Billing Settings", path: "/settings/billing", icon: <CreditCard className="w-full h-full" /> },
       ],
+    },
+    appConfig.ee?.available && {
+      title: "Support",
+      path: "/support",
+      icon: <HelpCircle className="w-full h-full" />,
     },
   ];
   return (

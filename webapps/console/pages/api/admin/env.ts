@@ -2,6 +2,9 @@ import { Api, nextJsApiHandler } from "../../../lib/api";
 import { db } from "../../../lib/server/db";
 import { assertDefined, assertTrue } from "juava";
 
+function sortByKeys(dict: Record<string, any>): Record<string, any> {
+  return Object.fromEntries(Object.entries(dict).sort(([a], [b]) => a.localeCompare(b)));
+}
 export const api: Api = {
   GET: {
     auth: true,
@@ -10,8 +13,10 @@ export const api: Api = {
       assertDefined(userProfile, "User profile not found");
       assertTrue(userProfile.admin, "Not enough permissions");
       return {
-        env: process.env,
-        headers: req.headers,
+        env: sortByKeys(process.env),
+        headers: sortByKeys(req.headers),
+        nodeVersion: process.versions.node,
+        remoteAddress: req.socket.remoteAddress,
       };
     },
   },

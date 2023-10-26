@@ -1,6 +1,5 @@
 import { getErrorMessage, getLog, LogLevel, rpc, setGlobalLogLevel } from "juava";
 import { AppProps } from "next/app";
-import "@fontsource/inter/variable.css";
 import "../styles/globals.css";
 import { useRouter } from "next/router";
 import React, { PropsWithChildren, useEffect, useState } from "react";
@@ -125,10 +124,14 @@ const FirebaseAuthorizer: React.FC<PropsWithChildren<{}>> = ({ children }) => {
               const user = await session.resolveUser().user;
               if (!user) {
                 feedbackError(`Signin failed`);
-                await analytics.track("login_error", { email, type: "password", loginProvider: "firebase/email" });
+                await analytics.track("login_error", {
+                  traits: { email, type: "password", loginProvider: "firebase/email" },
+                });
               } else {
                 setUser(user);
-                await analytics.track("login", { ...user, type: "password", loginProvider: "firebase/email" });
+                await analytics.track("login", {
+                  traits: { ...user, type: "password", loginProvider: "firebase/email" },
+                });
               }
             } catch (e: any) {
               await analytics.track("login_error", {
@@ -146,10 +149,12 @@ const FirebaseAuthorizer: React.FC<PropsWithChildren<{}>> = ({ children }) => {
               const user = await session.resolveUser().user;
               if (!user) {
                 feedbackError(`Signin failed`);
-                await analytics.track("login_error", { type: "social", loginProvider: `firebase/${type}` });
+                await analytics.track("login_error", { traits: { type: "social", loginProvider: `firebase/${type}` } });
               } else {
                 setUser(user);
-                await analytics.track("login", { ...user, type: "social", loginProvider: `firebase/${type}` });
+                await analytics.track("login", {
+                  traits: { ...user, type: "social", loginProvider: `firebase/${type}` },
+                });
               }
             } catch (e: any) {
               await analytics.track("login_error", {

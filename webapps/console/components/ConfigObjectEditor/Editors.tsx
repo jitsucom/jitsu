@@ -1,6 +1,8 @@
 import React from "react";
 import { DatePicker, Input, Select } from "antd";
 import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+dayjs.extend(utc);
 
 export type CustomWidgetProps<T> = {
   value: T | undefined;

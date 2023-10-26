@@ -58,6 +58,7 @@ model UserProfile {
   tokens           UserApiToken[]
   workspaceAccess  WorkspaceAccess[]
   userPreferences  UserPreferences[]
+  workspaceUserProperties WorkspaceUserProperties[]
 }
 
 model Workspace {
@@ -72,6 +73,7 @@ model Workspace {
   configurationObject     ConfigurationObject[]
   configurationObjectLink ConfigurationObjectLink[]
   preferences             UserPreferences[]
+  workspaceUserProperties WorkspaceUserProperties[]
   featuresEnabled         String[] @default([])
 
   @@unique(slug)
@@ -87,6 +89,17 @@ model WorkspaceAccess {
 
   @@id([userId, workspaceId])
 }
+
+model WorkspaceUserProperties {
+  workspaceId String
+  workspace   Workspace   @relation(fields: [workspaceId], references: [id])
+  userId      String
+  user        UserProfile @relation(fields: [userId], references: [id])
+  lastUsed    DateTime    @default(now()) /// @zod.custom(z.coerce.date())
+
+  @@id([workspaceId, userId])
+}
+
 
 model UserApiToken {
   id        String      @id @default(cuid())

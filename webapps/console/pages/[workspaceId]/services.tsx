@@ -15,6 +15,9 @@ import { ErrorCard } from "../../components/GlobalError/GlobalError";
 import { syncError } from "../../lib/shared/errors";
 import { ObjectTitle } from "../../components/ObjectTitle/ObjectTitle";
 import omit from "lodash/omit";
+import { useApi } from "../../lib/useApi";
+import { AlertTriangle, Check } from "lucide-react";
+import Link from "next/link";
 
 const log = getLog("services");
 
@@ -47,6 +50,33 @@ export const ServiceTitle: React.FC<{
   );
 };
 
+const ConnectionsHint: React.FC<{ connections: any[]; service: ServiceConfig }> = ({ connections, service }) => {
+  const workspace = useWorkspace();
+  if (connections.length === 0) {
+    return (
+      <div className="flex items-center flex-nowrap">
+        <AlertTriangle className="h-4 w-4 mr-1 text-warning" />{" "}
+        <span className="text-sm">
+          <Link href={`/${workspace.slug}/syncs/edit?serviceId=${service.id}`}>Create sync to any destination</Link> to
+          start seeing data
+        </span>
+      </div>
+    );
+  } else {
+    return (
+      <div className="flex items-center flex-nowrap">
+        <Check className="h-4 w-4 mr-1 text-success" />{" "}
+        <span className="text-sm">
+          Connected to{" "}
+          <Link href={`/${workspace.slug}/syncs`}>
+            {connections.length} destination{connections.length > 1 ? "s" : ""}
+          </Link>
+        </span>
+      </div>
+    );
+  }
+};
+
 const ServicesList: React.FC<{}> = () => {
   const workspace = useWorkspace();
 
@@ -56,7 +86,17 @@ const ServicesList: React.FC<{}> = () => {
   });
   const router = useRouter();
   const appconfig = useAppConfig();
-
+  const connectionsLoader = useApi(`/api/${workspace.id}/config/link`);
+  const connections =
+    connectionsLoader.data?.links?.reduce((res, link) => {
+      const fromId = link.fromId;
+      if (res[fromId]) {
+        res[fromId].push(link);
+      } else {
+        res[fromId] = [link];
+      }
+      return res;
+    }, {}) || {};
   if (!(appconfig.syncs.enabled || workspace.featuresEnabled.includes("syncs"))) {
     return (
       <ErrorCard
@@ -73,6 +113,14 @@ const ServicesList: React.FC<{}> = () => {
         title: "Package",
         render: (s: ServiceConfig) => <span className={"font-semibold"}>{`${s?.package}:${s?.version}`}</span>,
       },
+      {
+        title: "Syncs",
+        render: (s: ServiceConfig) => (
+          <div>
+            <ConnectionsHint service={s} connections={connections[s.id] || []}></ConnectionsHint>
+          </div>
+        ),
+      },
     ],
     objectType: ServiceConfig,
     fields: {
@@ -81,7 +129,7 @@ const ServicesList: React.FC<{}> = () => {
       protocol: { hidden: true },
       package: { hidden: true },
     },
-    noun: "service",
+    noun: "connector",
     type: "service",
     explanation: "Services are used to connect to external systems",
     icon: s => (
@@ -104,7 +152,7 @@ const ServicesList: React.FC<{}> = () => {
       const rawVersions = await rpc(
         `/api/sources/versions?type=${packageType}&package=${encodeURIComponent(packageId)}`
       );
-      const versions = rawVersions.versions.filter((v: any) => v.isRelease).map((v: any) => v.name);
+      const versions = rawVersions.versions.filter((v: any) => v.isRelease && v.isMit).map((v: any) => v.name);
       const sourceType = await rpc(`/api/sources/${packageType}/${encodeURIComponent(packageId)}`);
 
       return {
@@ -164,7 +212,7 @@ const ServicesList: React.FC<{}> = () => {
       const verb = isNew ? "New" : "Edit";
       return (
         <div className="flex items-center">
-          <div className="h-12 w-12 mr-4">{getServiceIcon(meta, {})}</div>
+          <div className="h-12 w-12 mr-4">{getServiceIcon(meta)}</div>
           {verb} service: {meta.meta.name}
         </div>
       );
@@ -182,6 +230,7 @@ const ServicesList: React.FC<{}> = () => {
           minHeight: "400px",
           display: "flex",
           flexDirection: "column",
+          justifyContent: "center",
         }}
         open={showCatalog}
         style={{ minWidth: 1000 }}

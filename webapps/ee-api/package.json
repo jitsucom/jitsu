@@ -17,12 +17,12 @@
     "crypto-js": "^4.1.1",
     "eslint": "8.29.0",
     "eslint-config-next": "13.0.0",
-    "firebase-admin": "^11.10.1",
+    "firebase-admin": "^11.11.0",
     "json5": "^2.2.3",
     "jsonwebtoken": "^9.0.2",
     "juava": "workspace:*",
     "lodash": "^4.17.21",
-    "next": "13.0.0",
+    "next": "^13.5.4",
     "node-fetch-commonjs": "^3.2.4",
     "pg": "^8.11.3",
     "react": "18.2.0",
@@ -37,6 +37,6 @@
     "@types/lodash": "^4.14.185",
     "@types/pg": "^8.6.5",
     "@types/stripe": "^8.0.417",
-    "next-transpile-modules": "^10.0.0"
+    "next-transpile-modules": "^10.0.1"
   }
 }

@@ -61,7 +61,7 @@ export const ApiKeysEditor: React.FC<CustomWidgetProps<ApiKey[]> & { compact?: b
               className="cursor-pointer"
               title={
                 <>
-                  {branding.productName} doesn't store full version of a ket. If you haven't recorded the key, generate
+                  {branding.productName} doesn't store full version of a key. If you haven't recorded the key, generate
                   a new one
                 </>
               }

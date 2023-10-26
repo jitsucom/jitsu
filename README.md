@@ -30,7 +30,7 @@
 
 # What is Jitsu?
 
-Jitsu is a tool for collecting event data from your websites, apps and stream them to your data warehouse or other servises.
+Jitsu is a tool for collecting event data from your websites, apps and stream them to your data warehouse or other services.
 It is a self-hosted, open-source alternative to Segment.
 
 <p align="center">

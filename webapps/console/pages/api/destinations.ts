@@ -8,7 +8,7 @@ import { z } from "zod";
 export default createRoute()
   .GET({ auth: false })
   .handler(async ({ req, res }) => {
-    //set cors headers
+    //set cors headers, allow access from all origins
     res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
     res.setHeader("Access-Control-Allow-Methods", "*");
     res.setHeader("Access-Control-Allow-Headers", "authorization, content-type, baggage, sentry-trace");

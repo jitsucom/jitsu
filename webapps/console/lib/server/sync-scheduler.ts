@@ -1,6 +1,6 @@
 import { CloudSchedulerClient } from "@google-cloud/scheduler";
 import { db } from "./db";
-import { requireDefined } from "juava";
+import { requireDefined, stopwatch } from "juava";
 import { google } from "@google-cloud/scheduler/build/protos/protos";
 import IJob = google.cloud.scheduler.v1.IJob;
 import { difference } from "lodash";
@@ -9,6 +9,7 @@ import { getServerLog } from "./log";
 const log = getServerLog("sync-scheduler");
 
 export async function syncWithScheduler(baseUrl: string) {
+  const sw = stopwatch();
   const googleSchedulerKeyJson = process.env.GOOGLE_SCHEDULER_KEY;
   if (!googleSchedulerKeyJson) {
     log.atInfo().log(`GoogleCloudScheduler sync: GOOGLE_SCHEDULER_KEY is not defined, skipping`);
@@ -97,4 +98,5 @@ export async function syncWithScheduler(baseUrl: string) {
       });
     }
   }
+  getServerLog().atInfo().log("Sync with GoogleCloudScheduler took", sw.elapsedPretty());
 }

@@ -1,5 +1,5 @@
 import { db } from "../../../lib/server/db";
-import { getErrorMessage, requireDefined } from "juava";
+import { getErrorMessage, getLog, requireDefined } from "juava";
 import { jitsuSources } from "./index";
 
 export default async function handler(req, res) {
@@ -44,5 +44,6 @@ export default async function handler(req, res) {
     }
   } catch (e) {
     res.status(500).json({ status: 500, message: getErrorMessage(e) });
+    getLog().atError().log(`Failed to get logo for ${req.query.type}/${req.query.package}`, e);
   }
 }

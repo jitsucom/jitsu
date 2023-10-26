@@ -1,4 +1,5 @@
 import { JitsuFunction } from "@jitsu/protocols/functions";
+import { RetryError } from "@jitsu/functions-lib";
 import { AnalyticsServerEvent, DataLayoutType } from "@jitsu/protocols/analytics";
 
 import omit from "lodash/omit";
@@ -106,38 +107,100 @@ export function segmentLayout(event: AnalyticsServerEvent, singleTable: boolean)
   let baseTrackFlat: any;
   switch (event.type) {
     case "identify":
-      transformed = {
-        ...(event.context ? { context: omit(event.context, "traits") } : {}),
-        ...event.properties,
-        ...event.context?.traits,
-        ...event.traits,
-        ...omit(event, ["context", "properties", "traits", "type", TableNameParameter]),
-      };
+      if (singleTable) {
+        transformed = {
+          ...(event.context || event.traits
+            ? {
+                context: {
+                  ...event.context,
+                  traits: omit({ ...event.context?.traits, ...event.traits }, ["groupId"]),
+                  groupId: event.traits?.groupId || event.context?.traits?.groupId || undefined,
+                },
+              }
+            : {}),
+          ...event.properties,
+          ...omit(event, ["context", "properties", "traits", "type", TableNameParameter]),
+        };
+      } else {
+        transformed = {
+          ...(event.context ? { context: omit(event.context, "traits") } : {}),
+          ...event.properties,
+          ...event.context?.traits,
+          ...event.traits,
+          ...omit(event, ["context", "properties", "traits", "type", TableNameParameter]),
+        };
+      }
       break;
     case "group":
-      transformed = {
-        ...(event.context ? { context: omit(event.context, "traits") } : {}),
-        ...event.properties,
-        ...event.traits,
-        ...omit(event, ["context", "properties", "traits", "type", TableNameParameter]),
-      };
+      if (singleTable) {
+        transformed = {
+          ...(event.context || event.traits
+            ? { context: { ...event.context, group: event.traits, groupId: event.groupId } }
+            : {}),
+          ...event.properties,
+          ...omit(event, ["context", "properties", "traits", "type", "groupId", TableNameParameter]),
+        };
+      } else {
+        transformed = {
+          ...(event.context ? { context: omit(event.context, "traits") } : {}),
+          ...event.properties,
+          ...event.traits,
+          ...omit(event, ["context", "properties", "traits", "type", TableNameParameter]),
+        };
+      }
       break;
     case "track":
-      if (!singleTable) {
+      if (singleTable) {
+        transformed = {
+          ...(event.context || typeof event.properties?.traits === "object"
+            ? {
+                context: {
+                  ...event.context,
+                  traits: omit(
+                    {
+                      ...event.context?.traits,
+                      ...(typeof event.properties?.traits === "object" ? event.properties?.traits : {}),
+                    },
+                    ["groupId"]
+                  ),
+                  groupId: event.context?.traits?.groupId,
+                },
+              }
+            : {}),
+          ...(event.properties ? omit(event.properties, ["traits"]) : {}),
+          ...omit(event, ["context", "properties", "type", TableNameParameter]),
+        };
+      } else {
         baseTrackFlat = toSnakeCase({
           ...omit(event, ["properties", "type", TableNameParameter]),
         });
+        transformed = {
+          ...(event.properties || {}),
+          ...omit(event, ["properties", "type", TableNameParameter]),
+        };
       }
-      transformed = {
-        ...(event.properties || {}),
-        ...omit(event, ["properties", "type", TableNameParameter]),
-      };
       break;
     default:
-      transformed = {
-        ...(event.properties || {}),
-        ...omit(event, ["properties", TableNameParameter]),
-      };
+      if (singleTable) {
+        transformed = {
+          ...(event.context
+            ? {
+                context: {
+                  ...event.context,
+                  traits: omit(event.context?.traits, ["groupId"]),
+                  groupId: event.context?.traits?.groupId,
+                },
+              }
+            : {}),
+          ...(event.properties || {}),
+          ...omit(event, ["context", "properties", TableNameParameter]),
+        };
+      } else {
+        transformed = {
+          ...(event.properties || {}),
+          ...omit(event, ["properties", TableNameParameter]),
+        };
+      }
   }
   const flat: Record<string, any> = toSnakeCase(transformed);
   if (event[TableNameParameter]) {
@@ -190,20 +253,26 @@ export type BulkerDestinationConfig = {
 
 const BulkerDestination: JitsuFunction<AnalyticsServerEvent, BulkerDestinationConfig> = async (event, ctx) => {
   const { bulkerEndpoint, destinationId, authToken, dataLayout = "segment-single-table" } = ctx.props;
-  const events = dataLayouts[dataLayout](event);
-
-  for (const { event, table } of Array.isArray(events) ? events : [events]) {
-    await ctx.fetch(
-      `${bulkerEndpoint}/post/${destinationId}?tableName=${table}`,
-      {
-        method: "POST",
-        headers: { Authorization: `Bearer ${authToken}` },
-        body: JSON.stringify(event),
-      },
-      false
-    );
+  try {
+    const events = dataLayouts[dataLayout](event);
+    for (const { event, table } of Array.isArray(events) ? events : [events]) {
+      const res = await ctx.fetch(
+        `${bulkerEndpoint}/post/${destinationId}?tableName=${table}`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${authToken}` },
+          body: JSON.stringify(event),
+        },
+        false
+      );
+      if (!res.ok) {
+        throw new Error(`HTTP Error: ${res.status} ${res.statusText}`);
+      }
+    }
+    return event;
+  } catch (e: any) {
+    throw new RetryError(e.message);
   }
-  return event;
 };
 
 BulkerDestination.displayName = "Bulker Destination";
