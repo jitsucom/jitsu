@@ -20,8 +20,8 @@ export default createRoute()
       streamId: z.string().optional(),
       connectionId: z.string().optional(),
       statuses: z.string().optional().default("success,dropped,error"),
-      start: z.string().optional(),
-      end: z.string().optional(),
+      start: z.any().optional(),
+      end: z.any().optional(),
       groupBy: z.string().optional().default("workspaceId,status"),
       granularity: z.enum(["month", "day", "hour", "minute"]).optional().default("day"),
     }),
@@ -46,15 +46,15 @@ export default createRoute()
       }),
       `Workspace ${workspaceId} not found`
     );
-    const startTs = query.start ? dayjs(query.start, "YYYY-MM-DD").utc(true).unix() : undefined;
-    const endTs = query.end ? dayjs(query.end, "YYYY-MM-DD").add(1, "day").utc(true).unix() : undefined;
+    const startTs = query.start ? new Date(query.start).toISOString() : undefined;
+    const endTs = query.end ? new Date(query.end).toISOString() : undefined;
     const groupBy = query.groupBy ? query.groupBy.split(",") : [];
     const sql = `select date_trunc('${query.granularity || "day"}', timestamp) dt, ${
       groupBy.length > 0 ? groupBy.join(",") + "," : ""
-    } sumMerge(events) events, uniqMerge(uniqEvents) uniq_events from newjitsu_metrics.mv_metrics
+    } sumMerge(events) events, uniqMerge(uniqEvents) uniq_events from newjitsu_metrics_test.mv_metrics
 where workspaceId = '${workspace.id}'
-${startTs ? ` and timestamp >= fromUnixTimestamp(${startTs})` : ""}
-${endTs ? ` and timestamp < fromUnixTimestamp(${endTs})` : ""}
+${startTs ? ` and timestamp >= toDateTime('${isoDateTOClickhouse(startTs)}')` : ""}
+${endTs ? ` and timestamp < toDateTime('${isoDateTOClickhouse(endTs)}')` : ""}
 ${query.destinationId ? ` and destinationId = '${query.destinationId}'` : ""}
 ${query.connectionId ? ` and connectionId = '${query.connectionId}'` : ""}
 ${query.streamId ? ` and streamId = '${query.streamId}'` : ""}
@@ -80,3 +80,7 @@ order by 1 desc`;
     return await resultSet.json();
   })
   .toNextApiHandler();
+
+function isoDateTOClickhouse(date: string): string {
+  return date.replace("T", " ").replace("Z", "").split(".")[0];
+}
