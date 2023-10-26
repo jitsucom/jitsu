@@ -51,7 +51,7 @@ export default createRoute()
     const groupBy = query.groupBy ? query.groupBy.split(",") : [];
     const sql = `select date_trunc('${query.granularity || "day"}', timestamp) dt, ${
       groupBy.length > 0 ? groupBy.join(",") + "," : ""
-    } sumMerge(events) events, uniqMerge(uniqEvents) uniq_events from newjitsu_metrics_test.mv_metrics
+    } sumMerge(events) events, uniqMerge(uniqEvents) uniq_events from newjitsu_metrics.mv_metrics
 where workspaceId = '${workspace.id}'
 ${startTs ? ` and timestamp >= toDateTime('${isoDateTOClickhouse(startTs)}')` : ""}
 ${endTs ? ` and timestamp < toDateTime('${isoDateTOClickhouse(endTs)}')` : ""}
