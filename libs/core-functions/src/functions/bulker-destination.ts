@@ -3,6 +3,8 @@ import { RetryError } from "@jitsu/functions-lib";
 import { AnalyticsServerEvent, DataLayoutType } from "@jitsu/protocols/analytics";
 
 import omit from "lodash/omit";
+import { requireDefined } from "juava";
+import { MetricsMeta, SystemContext } from "./lib";
 
 const TableNameParameter = "JITSU_TABLE_NAME";
 export type MappedEvent = {
@@ -254,10 +256,15 @@ export type BulkerDestinationConfig = {
 const BulkerDestination: JitsuFunction<AnalyticsServerEvent, BulkerDestinationConfig> = async (event, ctx) => {
   const { bulkerEndpoint, destinationId, authToken, dataLayout = "segment-single-table" } = ctx.props;
   try {
+    const systemContext = requireDefined((ctx as any as SystemContext).$system, `$system context is not available`);
+    const metricsMeta: MetricsMeta = {
+      ...omit(systemContext.metricsMeta, "retries"),
+      functionId: "builtin.destination.bulker",
+    };
     const events = dataLayouts[dataLayout](event);
     for (const { event, table } of Array.isArray(events) ? events : [events]) {
       const res = await ctx.fetch(
-        `${bulkerEndpoint}/post/${destinationId}?tableName=${table}`,
+        `${bulkerEndpoint}/post/${destinationId}?tableName=${table}&metricsMeta=${JSON.stringify(metricsMeta)}`,
         {
           method: "POST",
           headers: { Authorization: `Bearer ${authToken}` },

@@ -1,7 +1,8 @@
-import { EventContext, EventsStore, FetchOpts, FullContext, Store, SystemContext } from "@jitsu/protocols/functions";
+import { EventContext, EventsStore, FetchOpts, FullContext, Store } from "@jitsu/protocols/functions";
 import nodeFetch, { RequestInit } from "node-fetch-commonjs";
 import { getErrorMessage, getLog, stopwatch } from "juava";
 import { httpAgent, httpsAgent } from "./functions/lib/http-agent";
+import { SystemContext } from "./functions/lib";
 
 const log = getLog("functions-context");
 

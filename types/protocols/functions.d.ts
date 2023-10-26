@@ -77,15 +77,6 @@ export type AnonymousEventsStore = {
   evictEvents(collectionName: string, anonymousId: string): Promise<AnalyticsServerEvent[]>;
 };
 
-/**
- * Function execution context available for builin functions only
- */
-export type SystemContext = {
-  $system: {
-    anonymousEventsStore: AnonymousEventsStore;
-  };
-};
-
 export type WithConfidence<T> = T & {
   //A value from 0-100 indicating how confident we are in the result
   confidence?: number;
@@ -166,18 +157,18 @@ export type EventContext = {
   /**
    * Source of the incoming event
    */
-  source?: {
+  source: {
     id: string;
     name?: string;
     domain?: string;
   };
-  destination?: {
+  destination: {
     id: string;
     type: string;
     updatedAt: Date;
     hash: string;
   };
-  connection?: {
+  connection: {
     id: string;
     mode?: string;
     options?: any;
@@ -193,10 +184,7 @@ export type FunctionConfigContext<P extends AnyProps = AnyProps> = {
 /**
  * Parameters for a function
  */
-export type FullContext<P extends AnyProps = AnyProps> = EventContext &
-  FunctionContext &
-  FunctionConfigContext<P> &
-  (SystemContext | {});
+export type FullContext<P extends AnyProps = AnyProps> = EventContext & FunctionContext & FunctionConfigContext<P>;
 
 //equivalent to returning [] from a function
 export type FunctionCommand = "drop";

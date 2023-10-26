@@ -28,3 +28,44 @@ GROUP BY
     timestamp,
     workspaceId;
 
+
+CREATE TABLE newjitsu_metrics.metrics on cluster jitsu_cluster
+(
+    timestamp DateTime,
+    messageId String,
+    workspaceId LowCardinality(String),
+    streamId LowCardinality(String),
+    connectionId LowCardinality(String),
+    functionId LowCardinality(String),
+    destinationId LowCardinality(String),
+    status LowCardinality(String),
+    events Int64
+    )
+    ENGINE = Null;
+
+CREATE MATERIALIZED VIEW newjitsu_metrics.mv_metrics on cluster jitsu_cluster
+        (
+        timestamp DateTime,
+        workspaceId LowCardinality(String),
+        streamId LowCardinality(String),
+        connectionId LowCardinality(String),
+        functionId LowCardinality(String),
+        destinationId LowCardinality(String),
+        status LowCardinality(String),
+        events AggregateFunction(sum, Int64),
+        uniqEvents AggregateFunction(uniq, String)
+
+        )
+        ENGINE = ReplicatedAggregatingMergeTree('/clickhouse/tables/{shard}/newjitsu_metrics/mv_metrics', '{replica}') ORDER BY (timestamp, workspaceId, streamId, connectionId, functionId, destinationId, status)
+AS SELECT
+       timestamp,
+       workspaceId,
+       streamId,
+       connectionId,
+       functionId,
+       destinationId,
+       status,
+       sumState(events) AS events,
+       uniqState(messageId) AS uniqEvents
+   FROM newjitsu_metrics.metrics
+   GROUP BY timestamp, workspaceId, streamId, connectionId, functionId, destinationId, status;

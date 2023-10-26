@@ -17,6 +17,7 @@ const log = getLog("kafka-rotor");
 
 const RETRY_TIME_HEADER = "retry_time";
 const RETRY_COUNT_HEADER = "retries";
+const ERROR_HEADER = "error";
 const ORIGINAL_TOPIC_HEADER = "original_topic";
 const FUNCTION_ID_HEADER = "function_id";
 
@@ -150,6 +151,7 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
                   value: newMessage,
                   key: message.key,
                   headers: {
+                    [ERROR_HEADER]: e.message,
                     [RETRY_COUNT_HEADER]: `${retries}`,
                     [ORIGINAL_TOPIC_HEADER]: topic,
                     [RETRY_TIME_HEADER]: retryTime,

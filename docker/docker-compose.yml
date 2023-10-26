@@ -87,8 +87,6 @@ services:
     tty: true
     image: jitsucom/syncctl:latest
     restart: "unless-stopped"
-    profiles:
-      - syncs
     ports:
       - "${SYNCCTL_PORT:-3046}:3043"
     environment:
@@ -158,4 +156,4 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - "${JITSU_PORT:-3216}:3000"
+      - "${JITSU_PORT:-8081}:3000"

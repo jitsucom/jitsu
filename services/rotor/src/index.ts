@@ -16,8 +16,14 @@ import { glob } from "glob";
 import fs from "fs";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { checkError, FuncChain, runChain } from "./lib/functions-chain";
-import { getBuiltinFunction, mongoAnonymousEventsStore, UDFWrapper } from "@jitsu/core-functions";
-import { AnyEvent, EventContext, FullContext, JitsuFunction, Store, SystemContext } from "@jitsu/protocols/functions";
+import {
+  getBuiltinFunction,
+  MetricsMeta,
+  mongoAnonymousEventsStore,
+  SystemContext,
+  UDFWrapper,
+} from "@jitsu/core-functions";
+import { AnyEvent, EventContext, FullContext, JitsuFunction, Store } from "@jitsu/protocols/functions";
 import { redis } from "@jitsu-internal/console/lib/server/redis";
 import express from "express";
 import NodeCache from "node-cache";
@@ -149,10 +155,19 @@ export async function rotorMessageHandler(
   const functions = [...(connectionData.functions || []), mainFunction].filter(f =>
     functionsFilter ? functionsFilter(f.functionId) : true
   );
+  const metricsMeta: MetricsMeta = {
+    workspaceId: connection.workspaceId,
+    messageId: message.messageId,
+    streamId: connection.streamId,
+    destinationId: connection.destinationId,
+    connectionId: connection.id,
+    retries,
+  };
   //system context for builtin functions only
   const systemContext: SystemContext = {
     $system: {
       anonymousEventsStore: mongoAnonymousEventsStore(),
+      metricsMeta,
     },
   };
   const udfFuncChain: FuncChain = await Promise.all(
@@ -213,7 +228,6 @@ export async function rotorMessageHandler(
     const chainRes = await runChain(
       udfFuncChain,
       event,
-      connection,
       rl,
       store,
       pick(ctx, ["geo", "headers", "source", "destination", "connection", "retries"])
@@ -245,8 +259,8 @@ export async function rotorMessageHandler(
         }
       })
   );
-  const chainRes = await runChain(funcChain, event, connection, rl, store, ctx);
-  await metrics().logMetrics(connection.workspaceId, message.messageId, chainRes.execLog);
+  const chainRes = await runChain(funcChain, event, rl, store, ctx);
+  await metrics().logMetrics(chainRes.execLog);
   checkError(chainRes);
 }
 

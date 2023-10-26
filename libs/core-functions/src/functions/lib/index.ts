@@ -5,6 +5,27 @@ import {
   ProcessingContext,
   ServerContextReservedProps,
 } from "@jitsu/protocols/analytics";
+import { AnonymousEventsStore } from "@jitsu/protocols/functions";
+
+export type MetricsMeta = {
+  workspaceId: string;
+  messageId: string;
+  streamId: string;
+  destinationId: string;
+  connectionId: string;
+  functionId?: string;
+  retries?: number;
+};
+
+/**
+ * Function execution context available for built-in functions only
+ */
+export type SystemContext = {
+  $system: {
+    anonymousEventsStore: AnonymousEventsStore;
+    metricsMeta: MetricsMeta;
+  };
+};
 
 type KnownEventKeys = keyof Required<AnalyticsClientEvent & ServerContextReservedProps & ProcessingContext>;
 //to make sure we

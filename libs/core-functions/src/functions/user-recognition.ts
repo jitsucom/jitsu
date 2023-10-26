@@ -1,10 +1,11 @@
 import { z } from "zod";
-import { JitsuFunction, SystemContext } from "@jitsu/protocols/functions";
+import { JitsuFunction } from "@jitsu/protocols/functions";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { requireDefined } from "juava";
 import get from "lodash/get";
 import set from "lodash/set";
 import merge from "lodash/merge";
+import { SystemContext } from "./lib";
 
 export const UserRecognitionConfig = z.object({
   /**

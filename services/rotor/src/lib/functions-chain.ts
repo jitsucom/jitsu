@@ -1,17 +1,8 @@
-import {
-  AnyEvent,
-  EventContext,
-  EventsStore,
-  FuncReturn,
-  JitsuFunction,
-  Store,
-  SystemContext,
-} from "@jitsu/protocols/functions";
-import { createFullContext, isDropResult } from "@jitsu/core-functions";
+import { AnyEvent, EventContext, EventsStore, FuncReturn, JitsuFunction, Store } from "@jitsu/protocols/functions";
+import { createFullContext, isDropResult, MetricsMeta, SystemContext } from "@jitsu/core-functions";
 import { RetryErrorName, DropRetryErrorName } from "@jitsu/functions-lib";
 
 import { getLog, stopwatch } from "juava";
-import { EnrichedConnectionConfig } from "@jitsu-internal/console/lib/server/fast-store";
 import { retryLogMessageIfNeeded } from "./retries";
 
 export type Func = {
@@ -33,9 +24,7 @@ export type FuncChainResult = {
 export type FunctionExecRes = {
   eventIndex: number;
   event?: any;
-  // streamId: string;
-  // destinationId: string;
-  // connectionId: string;
+  metricsMeta?: MetricsMeta;
   functionId: string;
   error?: any;
   dropped?: boolean;
@@ -59,7 +48,6 @@ export function checkError(chainRes: FuncChainResult) {
 export async function runChain(
   chain: FuncChain,
   event: AnyEvent,
-  connection: EnrichedConnectionConfig,
   eventsStore: EventsStore,
   store: Store,
   eventContext: EventContext
@@ -73,11 +61,15 @@ export async function runChain(
       let result: FuncReturn = undefined;
       const sw = stopwatch();
       const funcCtx = createFullContext(f.id, eventsStore, store, eventContext, f.context, f.config, event);
+      const execLogMeta = {
+        eventIndex: i,
+        functionId: f.id,
+        metricsMeta: Object.hasOwn(f.context, "$system") ? (f.context as SystemContext).$system.metricsMeta : undefined,
+      };
       try {
         result = await f.exec(event, funcCtx);
         execLog.push({
-          eventIndex: i,
-          functionId: f.id,
+          ...execLogMeta,
           ms: sw.elapsedMs(),
           dropped: isDropResult(result),
         });
@@ -86,8 +78,7 @@ export async function runChain(
           result = "drop";
         }
         execLog.push({
-          eventIndex: i,
-          functionId: f.id,
+          ...execLogMeta,
           event,
           error: err,
           ms: sw.elapsedMs(),
