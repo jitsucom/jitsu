@@ -68,24 +68,26 @@ function createMetrics(): Metrics {
     //close stream
     streamOld.push(null);
     stream.push(null);
-    resOld
-      .then(r => {
-        if (!r.ok) {
-          log.atError().log(`Failed to flush metrics events(old): ${r.status} ${r.statusText}`);
-        }
-      })
-      .catch(e => {
-        log.atError().withCause(e).log(`Failed to flush metrics events(old)`);
-      });
-    res
-      .then(r => {
-        if (!r.ok) {
-          log.atError().log(`Failed to flush metrics events: ${r.status} ${r.statusText}`);
-        }
-      })
-      .catch(e => {
-        log.atError().withCause(e).log(`Failed to flush metrics events`);
-      });
+    await Promise.all([
+      resOld
+        .then(r => {
+          if (!r.ok) {
+            log.atError().log(`Failed to flush metrics events(old): ${r.status} ${r.statusText}`);
+          }
+        })
+        .catch(e => {
+          log.atError().withCause(e).log(`Failed to flush metrics events(old)`);
+        }),
+      res
+        .then(r => {
+          if (!r.ok) {
+            log.atError().log(`Failed to flush metrics events: ${r.status} ${r.statusText}`);
+          }
+        })
+        .catch(e => {
+          log.atError().withCause(e).log(`Failed to flush metrics events`);
+        }),
+    ]);
   };
 
   setInterval(async () => {
