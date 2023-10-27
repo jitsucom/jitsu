@@ -46,12 +46,13 @@ export default createRoute()
       }),
       `Workspace ${workspaceId} not found`
     );
+    const metricsSchema = process.env.CLICKHOUSE_METRICS_SCHEMA || "newjitsu_metrics";
     const startTs = query.start ? new Date(query.start).toISOString() : undefined;
     const endTs = query.end ? new Date(query.end).toISOString() : undefined;
     const groupBy = query.groupBy ? query.groupBy.split(",") : [];
     const sql = `select date_trunc('${query.granularity || "day"}', timestamp) dt, ${
       groupBy.length > 0 ? groupBy.join(",") + "," : ""
-    } sumMerge(events) events, uniqMerge(uniqEvents) uniq_events from newjitsu_metrics.mv_metrics
+    } sumMerge(events) events, uniqMerge(uniqEvents) uniq_events from ${metricsSchema}.mv_metrics
 where workspaceId = '${workspace.id}'
 ${startTs ? ` and timestamp >= toDateTime('${isoDateTOClickhouse(startTs)}')` : ""}
 ${endTs ? ` and timestamp < toDateTime('${isoDateTOClickhouse(endTs)}')` : ""}

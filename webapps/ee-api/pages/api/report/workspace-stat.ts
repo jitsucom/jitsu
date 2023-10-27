@@ -67,11 +67,12 @@ async function getClickhousePart({
   end,
   workspaceId,
 }: ReportParams): Promise<WorkspaceReportRow[]> {
+  const metricsSchema = process.env.CLICKHOUSE_METRICS_SCHEMA || "newjitsu_metrics";
   const query = `select
                    date_trunc('${granularity}', timestamp) as period,
                    workspaceId as "workspaceId",
                    uniqMerge(count) as events
-                 from newjitsu_metrics.mv_active_incoming
+                 from ${metricsSchema}.mv_active_incoming
                  where
                    timestamp >= toDateTime('2023-07-28 00:00:00', 'UTC') and
                    timestamp >= toDateTime({start :String}, 'UTC') and
