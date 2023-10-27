@@ -70,8 +70,10 @@ function createMetrics(): Metrics {
     stream.push(null);
     await Promise.all([
       resOld
-        .then(r => {
-          if (!r.ok) {
+        .then(async r => {
+          if (r.ok) {
+            log.atInfo().log(`Flushed metrics events(old): ${((await r.json()) as any).state.successfulRows}`);
+          } else {
             log.atError().log(`Failed to flush metrics events(old): ${r.status} ${r.statusText}`);
           }
         })
@@ -79,8 +81,10 @@ function createMetrics(): Metrics {
           log.atError().withCause(e).log(`Failed to flush metrics events(old)`);
         }),
       res
-        .then(r => {
-          if (!r.ok) {
+        .then(async r => {
+          if (r.ok) {
+            log.atInfo().log(`Flushed metrics events: ${((await r.json()) as any).state.successfulRows}`);
+          } else {
             log.atError().log(`Failed to flush metrics events: ${r.status} ${r.statusText}`);
           }
         })
