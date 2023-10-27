@@ -99,8 +99,8 @@ module.exports = withSentryConfig(
     // Suppresses source map uploading logs during build
     silent: true,
     authToken: process.env.SENTRY_AUTH_TOKEN,
-    org: "jitsucom",
-    project: "new-jitsu",
+    org: process.env.SENTRY_ORG || "jitsucom",
+    project: process.env.SENTRY_PROJECT || "new-jitsu",
   },
   {
     // For all available options, see:
