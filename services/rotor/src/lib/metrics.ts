@@ -27,26 +27,35 @@ export function createMetrics(producer: Producer): Metrics {
   const buffer: MetricsEvent[] = [];
 
   const flush = async (buf: MetricsEvent[]) => {
-    await Promise.all([
-      producer.send({
-        topic: `in.id.metrics.m.batch.t.metrics`,
-        messages: buf.map(m => ({
-          value: JSON.stringify(m),
-        })),
-      }),
-      producer.send({
-        topic: `in.id.metrics.m.batch.t.active_incoming`,
-        messages: buf
-          .filter(m => m.functionId.startsWith("builtin.destination.") && m.status !== "dropped")
-          .map(m => ({
-            value: JSON.stringify({
-              timestamp: m.timestamp,
-              workspaceId: m.workspaceId,
-              messageId: m.messageId,
-            }),
-          })),
-      }),
-    ]);
+    //split buf by 1000 events
+    const chunks: MetricsEvent[][] = [];
+    while (buf.length > 0) {
+      chunks.push(buf.splice(0, 1000));
+    }
+    await Promise.all(
+      chunks.flatMap(chunk => {
+        return [
+          producer.send({
+            topic: `in.id.metrics.m.batch.t.metrics`,
+            messages: chunk.map(m => ({
+              value: JSON.stringify(m),
+            })),
+          }),
+          producer.send({
+            topic: `in.id.metrics.m.batch.t.active_incoming`,
+            messages: chunk
+              .filter(m => m.functionId.startsWith("builtin.destination.") && m.status !== "dropped")
+              .map(m => ({
+                value: JSON.stringify({
+                  timestamp: m.timestamp,
+                  workspaceId: m.workspaceId,
+                  messageId: m.messageId,
+                }),
+              })),
+          }),
+        ];
+      })
+    );
   };
 
   setInterval(async () => {
