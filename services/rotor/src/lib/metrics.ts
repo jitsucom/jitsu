@@ -9,7 +9,7 @@ export const log = getServerLog("metrics");
 
 const metricsDestinationId = process.env.METRICS_DESTINATION_ID;
 
-const max_batch_size = 10000;
+const max_batch_size = 1000;
 const flush_interval_ms = 60000;
 
 type MetricsEvent = MetricsMeta & {
@@ -106,7 +106,8 @@ export function createMetrics(producer: Producer): Metrics {
       }
       if (buffer.length >= max_batch_size) {
         log.atInfo().log(`Flushing ${buffer.length} metrics events`);
-        setImmediate(() => flush([...buffer]));
+        const copy = [...buffer];
+        setImmediate(() => flush(copy));
         buffer.length = 0;
       }
     },
