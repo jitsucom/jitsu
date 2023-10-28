@@ -1,25 +1,16 @@
-import { getSingleton } from "juava";
-import { requireDefined } from "juava";
+import { stopwatch } from "juava";
 import { getServerLog } from "@jitsu-internal/console/lib/server/log";
 import { FunctionExecLog, FunctionExecRes } from "./functions-chain";
-import fetch from "node-fetch-commonjs";
-import { Readable } from "stream";
-import { httpAgent, httpsAgent } from "@jitsu-internal/console/lib/server/http-agent";
 import { MetricsMeta } from "@jitsu/core-functions";
 import omit from "lodash/omit";
+import type { Producer } from "kafkajs";
 
 export const log = getServerLog("metrics");
 
-const bulkerBase = requireDefined(process.env.BULKER_URL, "env BULKER_URL is not defined");
-const bulkerAuthKey = requireDefined(process.env.BULKER_AUTH_KEY, "env BULKER_AUTH_KEY is not defined");
 const metricsDestinationId = process.env.METRICS_DESTINATION_ID;
-const oldMetricsTable = "active_incoming";
-const metricsTable = "metrics";
 
 const max_batch_size = 10000;
 const flush_interval_ms = 60000;
-
-export const metrics = getSingleton("metrics", createMetrics);
 
 type MetricsEvent = MetricsMeta & {
   functionId: string;
@@ -28,77 +19,47 @@ type MetricsEvent = MetricsMeta & {
   events: number;
 };
 
-interface Metrics {
+export interface Metrics {
   logMetrics: (execLog: FunctionExecLog) => Promise<void>;
 }
 
-function createMetrics(): Metrics {
+export function createMetrics(producer: Producer): Metrics {
   const buffer: MetricsEvent[] = [];
 
   const flush = async (buf: MetricsEvent[]) => {
-    //create readable stream
-    const streamOld = new Readable();
-    const resOld = fetch(`${bulkerBase}/bulk/${metricsDestinationId}?tableName=${oldMetricsTable}&mode=batch`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${bulkerAuthKey}` },
-      body: streamOld,
-      agent: (bulkerBase.startsWith("https://") ? httpsAgent : httpAgent)(),
-    });
-    const stream = new Readable();
-    const res = fetch(`${bulkerBase}/bulk/${metricsDestinationId}?tableName=${metricsTable}&mode=batch`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${bulkerAuthKey}` },
-      body: stream,
-      agent: (bulkerBase.startsWith("https://") ? httpsAgent : httpAgent)(),
-    });
-    buf.forEach(e => {
-      if (e.functionId.startsWith("builtin.destination.") && e.status !== "dropped") {
-        streamOld.push(
-          JSON.stringify({
-            timestamp: e.timestamp,
-            workspaceId: e.workspaceId,
-            messageId: e.messageId,
-          })
-        );
-        streamOld.push("\n");
-      }
-      stream.push(JSON.stringify(omit(e, "retries")));
-      stream.push("\n");
-    });
-    //close stream
-    streamOld.push(null);
-    stream.push(null);
     await Promise.all([
-      resOld
-        .then(async r => {
-          if (r.ok) {
-            log.atInfo().log(`Flushed metrics events(old): ${((await r.json()) as any).state.successfulRows}`);
-          } else {
-            log.atError().log(`Failed to flush metrics events(old): ${r.status} ${r.statusText}`);
-          }
-        })
-        .catch(e => {
-          log.atError().withCause(e).log(`Failed to flush metrics events(old)`);
-        }),
-      res
-        .then(async r => {
-          if (r.ok) {
-            log.atInfo().log(`Flushed metrics events: ${((await r.json()) as any).state.successfulRows}`);
-          } else {
-            log.atError().log(`Failed to flush metrics events: ${r.status} ${r.statusText}`);
-          }
-        })
-        .catch(e => {
-          log.atError().withCause(e).log(`Failed to flush metrics events`);
-        }),
+      producer.send({
+        topic: `in.id.metrics.m.batch.t.metrics`,
+        messages: buf.map(m => ({
+          value: JSON.stringify(m),
+        })),
+      }),
+      producer.send({
+        topic: `in.id.metrics.m.batch.t.active_incoming`,
+        messages: buf
+          .filter(m => m.functionId.startsWith("builtin.destination.") && m.status !== "dropped")
+          .map(m => ({
+            value: JSON.stringify({
+              timestamp: m.timestamp,
+              workspaceId: m.workspaceId,
+              messageId: m.messageId,
+            }),
+          })),
+      }),
     ]);
   };
 
   setInterval(async () => {
-    if (buffer.length > 0) {
-      log.atInfo().log(`Periodic flushing ${buffer.length} metrics events`);
-      await flush([...buffer]);
-      buffer.length = 0;
+    const length = buffer.length;
+    if (length > 0) {
+      const sw = stopwatch();
+      try {
+        await flush([...buffer]);
+        buffer.length = 0;
+        log.atInfo().log(`Periodic flushing ${length} metrics events took ${sw.elapsedPretty()}`);
+      } catch (e) {
+        log.atError().withCause(e).log(`Failed to flush metrics`);
+      }
     }
   }, flush_interval_ms);
 
@@ -137,7 +98,7 @@ function createMetrics(): Metrics {
         })(el);
         buffer.push({
           timestamp: d.toISOString(),
-          ...el.metricsMeta,
+          ...omit(el.metricsMeta, "retries"),
           functionId: el.functionId,
           status,
           events: 1,

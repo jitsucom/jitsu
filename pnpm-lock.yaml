@@ -518,6 +518,12 @@ importers:
       juava:
         specifier: workspace:*
         version: link:../../libs/juava
+      kafkajs:
+        specifier: ^2.2.4
+        version: 2.2.4
+      kafkajs-snappy:
+        specifier: ^1.1.0
+        version: 1.1.0
       minimist:
         specifier: ^1.2.7
         version: 1.2.8

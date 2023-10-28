@@ -30,7 +30,7 @@ import NodeCache from "node-cache";
 import hash from "object-hash";
 import { UDFRunHandler } from "./http/udf";
 import Prometheus from "prom-client";
-import { metrics } from "./lib/metrics";
+import { Metrics } from "./lib/metrics";
 import { redisLogger } from "./lib/redis-logger";
 import pick from "lodash/pick";
 
@@ -72,6 +72,7 @@ const getCachedOrLoad = async (cache: NodeCache, key: string, loader: (key: stri
 
 export async function rotorMessageHandler(
   _message: string | undefined,
+  metrics?: Metrics,
   functionsFilter?: (id: string) => boolean,
   retries: number = 0
 ) {
@@ -260,7 +261,7 @@ export async function rotorMessageHandler(
       })
   );
   const chainRes = await runChain(funcChain, event, rl, store, ctx);
-  await metrics().logMetrics(chainRes.execLog);
+  await metrics?.logMetrics(chainRes.execLog);
   checkError(chainRes);
 }
 

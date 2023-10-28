@@ -32,7 +32,9 @@
     "json5": "^2.1.0",
     "minimist": "^1.2.7",
     "node-fetch-commonjs": "^3.3.1",
-    "tslib": "^2.4.0"
+    "tslib": "^2.4.0",
+    "kafkajs": "^2.2.4",
+    "kafkajs-snappy": "^1.1.0"
   },
   "devDependencies": {
     "@types/lodash": "^4.14.200",

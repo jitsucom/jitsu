@@ -12,6 +12,7 @@ import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 dayjs.extend(utc);
 import { getRetryPolicy, retryBackOffTime, retryLogMessage } from "./retries";
+import { createMetrics, Metrics } from "./metrics";
 
 const log = getLog("kafka-rotor");
 
@@ -26,7 +27,12 @@ export type KafkaRotorConfig = {
   consumerGroupId: string;
   kafkaTopics: string[];
   kafkaClientId?: string;
-  handle: (message: string, functionsFilter?: (id: string) => boolean, retries?: number) => Promise<void>;
+  handle: (
+    message: string,
+    metrics: Metrics,
+    functionsFilter?: (id: string) => boolean,
+    retries?: number
+  ) => Promise<void>;
 };
 
 export type KafkaRotor = {
@@ -48,7 +54,7 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
 
       const producer = kafka.producer({ allowAutoTopicCreation: false });
       await producer.connect();
-
+      const metrics = createMetrics(producer);
       const admin = kafka.admin();
 
       const topicOffsets = new Prometheus.Gauge({
@@ -110,6 +116,7 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
           if (message.value) {
             await handle(
               message.value?.toString(),
+              metrics,
               retriedFunctionId
                 ? id => {
                     if (retriedFunctionId.startsWith("udf.")) {
