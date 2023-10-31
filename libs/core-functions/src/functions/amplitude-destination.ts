@@ -30,7 +30,7 @@ const AmplitudeDestination: JitsuFunction<AnalyticsServerEvent, AmplitudeDestina
         log.debug(`Amplitude session not found for deviceId: ${deviceId} new session: ${newSession}`);
       }
       sessionId = savedSession || newSession;
-      await ttlStore.set(sessionKey, sessionId, { ttl: 60 * props.sessionWindow });
+      await ttlStore.set(sessionKey, sessionId, { ttl: 60 * (props.sessionWindow ?? 30) });
     }
     const groupType = props.groupType || "group";
     const endpoint =
