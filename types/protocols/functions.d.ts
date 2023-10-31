@@ -1,6 +1,9 @@
 import { AnalyticsServerEvent } from "./analytics";
 
-export type SetOpts = { ttl: number };
+/**
+ * Store set options: ttl in seconds or string representation of duration (e.g. "1d")
+ */
+export type SetOpts = number | string | { ttl: number };
 
 /**
  * A key value store that exposed to a function

@@ -11,7 +11,7 @@ import {
 } from "@jitsu/protocols/functions";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { createFullContext } from "../context";
-import { defaultTTL, isDropResult, maxAllowedTTL } from "../index";
+import { createMemoryStore, isDropResult } from "../index";
 import { functionsLibCode, wrapperCode } from "./lib/udf-wrapper-code";
 import uaParser from "@amplitude/ua-parser-js";
 import omit from "lodash/omit";
@@ -255,37 +255,7 @@ export async function UDFTestRun({
       },
     };
 
-    const storeImpl: Store = {
-      get: async (key: string) => {
-        const val = store[key];
-        if (val && val.expireAt < new Date().getTime()) {
-          delete store[key];
-          return undefined;
-        }
-        return val?.obj;
-      },
-      set: async (key: string, obj: any, opts) => {
-        store[key] = {
-          obj,
-          expireAt: new Date().getTime() + Math.min(opts?.ttl ?? defaultTTL, maxAllowedTTL) * 1000,
-        };
-      },
-      del: async (key: string) => {
-        delete store[key];
-      },
-      ttl: async (key: string) => {
-        const val = store[key];
-        if (!val) {
-          return -2;
-        }
-        const diff = (val.expireAt - new Date().getTime()) / 1000;
-        if (diff < 0) {
-          delete store[key];
-          return -2;
-        }
-        return diff;
-      },
-    };
+    const storeImpl: Store = createMemoryStore(store);
     const eventsStore: EventsStore = {
       log(connectionId: string, error: boolean, msg: Record<string, any>) {
         switch (msg.type) {

@@ -279,6 +279,9 @@ importers:
       mongodb:
         specifier: ^5.9.0
         version: 5.9.0
+      parse-duration:
+        specifier: ^1.1.0
+        version: 1.1.0
       posthog-node:
         specifier: ^2.4.0
         version: 2.6.0
@@ -19766,6 +19769,10 @@ packages:
       json-parse-even-better-errors: 2.3.1
       just-diff: 5.2.0
       just-diff-apply: 5.5.0
+
+  /parse-duration@1.1.0:
+    resolution: {integrity: sha512-z6t9dvSJYaPoQq7quMzdEagSFtpGu+utzHqqxmpVWNNZRIXnvqyCvn9XsTdh7c/w0Bqmdz3RB3YnRaKtpRtEXQ==}
+    dev: false
 
   /parse-json@4.0.0:
     resolution: {integrity: sha512-aOIos8bujGN93/8Ox/jPLh7RwVnPEysynVFE+fQZyg6jKELEHwzgKdLRFHUgXJL6kylijVSBC4BvN9OmsB48Rw==}
