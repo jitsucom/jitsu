@@ -22,8 +22,12 @@ import {
   mongoAnonymousEventsStore,
   SystemContext,
   UDFWrapper,
+  createMultiStore,
+  createTtlStore,
+  createOldStore,
+  defaultTTL,
 } from "@jitsu/core-functions";
-import { AnyEvent, EventContext, FullContext, JitsuFunction, Store } from "@jitsu/protocols/functions";
+import { AnyEvent, EventContext, FullContext, JitsuFunction, UserAgent } from "@jitsu/protocols/functions";
 import { redis } from "@jitsu-internal/console/lib/server/redis";
 import express from "express";
 import NodeCache from "node-cache";
@@ -33,7 +37,8 @@ import Prometheus from "prom-client";
 import { Metrics } from "./lib/metrics";
 import { redisLogger } from "./lib/redis-logger";
 import pick from "lodash/pick";
-
+import omit from "lodash/omit";
+import uaParser from "@amplitude/ua-parser-js";
 disableService("prisma");
 disableService("pg");
 
@@ -95,6 +100,7 @@ export async function rotorMessageHandler(
   const ctx: EventContext = {
     headers: message.httpHeaders,
     geo: message.geo,
+    ua: omit(uaParser(event.context?.userAgent), "ua") as UserAgent,
     retries,
     source: {
       id: connection.streamId,
@@ -112,19 +118,10 @@ export async function rotorMessageHandler(
       options: connection.options,
     },
   };
-  const redisClient = redis();
-  const store: Store = {
-    get: async (key: string) => {
-      const res = await redisClient.hget(`store:${connection.id}`, key);
-      return res ? JSON.parse(res) : undefined;
-    },
-    set: async (key: string, obj: any) => {
-      await redisClient.hset(`store:${connection.id}`, key, JSON.stringify(obj));
-    },
-    del: async (key: string) => {
-      await redisClient.hdel(`store:${connection.id}`, key);
-    },
-  };
+  const oldStore = createOldStore(connection.id, redis());
+  const ttlStore = createTtlStore(connection.workspaceId, redis(), defaultTTL);
+  const store = createMultiStore(ttlStore, oldStore);
+
   const rl = await redisLogger.waitInit();
 
   const connectionData = connection.options as any;
@@ -169,6 +166,7 @@ export async function rotorMessageHandler(
     $system: {
       anonymousEventsStore: mongoAnonymousEventsStore(),
       metricsMeta,
+      store: ttlStore,
     },
   };
   const udfFuncChain: FuncChain = await Promise.all(

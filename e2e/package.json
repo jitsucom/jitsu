@@ -16,7 +16,7 @@
     "@jitsu-internal/console": "workspace:*",
     "@types/jest": "^29.1.1",
     "find-free-port": "^2.0.0",
-    "ioredis": "^5.2.3",
+    "ioredis": "^5.3.2",
     "jest": "^29.3.1",
     "json5": "^2.1.0",
     "juava": "workspace:*",

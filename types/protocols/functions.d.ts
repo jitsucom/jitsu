@@ -1,6 +1,6 @@
 import { AnalyticsServerEvent } from "./analytics";
 
-export type SetOpts = { ttlMs?: number } | { ttlSec?: number };
+export type SetOpts = { ttl: number };
 
 /**
  * A key value store that exposed to a function
@@ -9,6 +9,7 @@ export interface Store {
   get(key: string): Promise<any>;
   del(key: string): Promise<void>;
   set(key: string, value: any, opts?: SetOpts): Promise<void>;
+  ttl(key: string): Promise<number>;
 }
 
 /**
@@ -145,11 +146,39 @@ export type Geo = {
   };
 };
 
+export type UserAgent = {
+  browser: {
+    name: string;
+    version: string;
+    major: string; //@deprecated
+  };
+  engine: {
+    name: string;
+    version: string;
+  };
+  os: {
+    name: string;
+    version: string;
+  };
+  device: {
+    model: string;
+    type: "console" | "mobile" | "tablet" | "smarttv" | "wearable" | "embedded";
+    vendor: string;
+  };
+  cpu: {
+    architecture: string;
+  };
+};
+
 export type EventContext = {
   /**
    * Geo data of incoming request
    */
   geo?: Geo;
+  /**
+   * Parsed User Agent of incoming request
+   */
+  ua?: UserAgent;
   /**
    * Headers of incoming request
    */

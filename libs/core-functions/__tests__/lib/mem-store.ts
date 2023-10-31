@@ -12,6 +12,9 @@ export function createStore(): Store {
     set(key: string, value: any, opts?: SetOpts): Promise<void> {
       throw new Error("Method not implemented.");
     },
+    ttl(key: string): Promise<number> {
+      throw new Error("Method not implemented.");
+    },
   };
 }
 

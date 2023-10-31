@@ -2,19 +2,37 @@ import { JitsuFunction } from "@jitsu/protocols/functions";
 import { RetryError } from "@jitsu/functions-lib";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { randomUUID } from "crypto";
-import { parseUserAgent } from "./lib/browser";
 import { AmplitudeDestinationConfig } from "../meta";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
+import { requireDefined } from "juava";
+import { SystemContext } from "./lib";
 dayjs.extend(utc);
 
 const AmplitudeDestination: JitsuFunction<AnalyticsServerEvent, AmplitudeDestinationConfig> = async (
   event,
-  { props, fetch, log, geo, destination }
+  { props, fetch, log, geo, ua, ...ctx }
 ) => {
   try {
-    const groupType = props.groupType || "group";
     const deviceId = event.anonymousId;
+    let sessionId: string | undefined = undefined;
+    if (deviceId) {
+      const systemContext = requireDefined((ctx as any as SystemContext).$system, `$system context is not available`);
+      const ttlStore = systemContext.store;
+      const sessionKey = `${ctx.source.id}_${deviceId}_sess`;
+      const newSession = new Date().getTime();
+      const savedSession = await ttlStore.get(sessionKey);
+      if (savedSession) {
+        log.debug(
+          `Amplitude session found: ${savedSession} for deviceId: ${deviceId} ttl: ${await ttlStore.ttl(sessionKey)}`
+        );
+      } else {
+        log.debug(`Amplitude session not found for deviceId: ${deviceId} new session: ${newSession}`);
+      }
+      sessionId = savedSession || newSession;
+      await ttlStore.set(sessionKey, sessionId, { ttl: 60 * props.sessionWindow });
+    }
+    const groupType = props.groupType || "group";
     const endpoint =
       props.dataResidency === "EU" ? "https://api.eu.amplitude.com/2/httpapi" : "https://api2.amplitude.com/2/httpapi";
     let payload: any = undefined;
@@ -70,9 +88,6 @@ const AmplitudeDestination: JitsuFunction<AnalyticsServerEvent, AmplitudeDestina
           location_lng: geo.location?.longitude,
         };
       }
-      const browser = event.context?.userAgent
-        ? parseUserAgent(event.context?.userAgent, event.context?.userAgentVendor)
-        : undefined;
       let groups = {};
       if (event.context?.groupId && props.enableGroupAnalytics) {
         groups = { [groupType]: event.context?.groupId };
@@ -84,12 +99,18 @@ const AmplitudeDestination: JitsuFunction<AnalyticsServerEvent, AmplitudeDestina
             time: dayjs(event.timestamp).valueOf(),
             insert_id: event.messageId || randomUUID(),
             event_type: event.type === "page" ? "pageview" : event.event || event.name || "Unknown Event",
+            session_id: sessionId || -1,
             event_properties: event.properties,
             groups,
             user_properties: event.context?.traits,
             user_id: event.userId,
             device_id: deviceId ?? undefined,
-            os_name: browser?.os,
+            os_name: ua?.os?.name,
+            os_version: ua?.os?.version,
+            device_model: ua?.device?.model,
+            device_manufacturer: ua?.device?.vendor,
+            device_brand: ua?.device?.vendor,
+            platform: ua?.device?.type,
             language: event.context?.locale,
             ip: event.request_ip,
             user_agent: event.context?.userAgent,

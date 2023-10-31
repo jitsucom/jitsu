@@ -1,4 +1,4 @@
-import Redis from "ioredis";
+import { Redis } from "ioredis";
 import { StreamConfig } from "../schema";
 import { DatabaseConnection, db, Handler } from "./db";
 import omit from "lodash/omit";

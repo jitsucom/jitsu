@@ -59,3 +59,4 @@ export * as posthogDestination from "./functions/posthog-destination";
 export * as mongodbDestination from "./functions/mongodb-destination";
 export { mongodb, mongoAnonymousEventsStore } from "./functions/lib/mongodb";
 export type { SystemContext, MetricsMeta } from "./functions/lib/index";
+export * from "./functions/lib/store";

@@ -163,6 +163,7 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
         config: JSON.parse(config),
         store,
         workspaceId: workspace.id,
+        userAgent: navigator.userAgent,
       };
     } catch (e) {
       feedbackError("Invalid JSON", { error: e });

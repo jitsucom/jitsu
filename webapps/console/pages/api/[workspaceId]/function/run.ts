@@ -40,6 +40,7 @@ export const api: Api = {
         config: z.any(),
         store: z.any(),
         workspaceId: z.string(),
+        userAgent: z.string().optional(),
       }),
       result: resultType,
     },

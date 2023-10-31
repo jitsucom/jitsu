@@ -186,8 +186,8 @@ importers:
         specifier: ^2.0.0
         version: 2.0.0
       ioredis:
-        specifier: ^5.2.3
-        version: 5.3.1
+        specifier: ^5.3.2
+        version: 5.3.2
       jest:
         specifier: ^29.3.1
         version: 29.5.0(@types/node@18.15.11)(ts-node@10.8.2)
@@ -255,12 +255,18 @@ importers:
 
   libs/core-functions:
     dependencies:
+      '@amplitude/ua-parser-js':
+        specifier: ^0.7.33
+        version: 0.7.33
       agentkeepalive:
         specifier: 4.3.0
         version: 4.3.0
       dayjs:
         specifier: ^1.11.10
         version: 1.11.10
+      ioredis:
+        specifier: ^5.3.2
+        version: 5.3.2
       isolated-vm:
         specifier: ^4.6.0
         version: 4.6.0
@@ -488,6 +494,9 @@ importers:
 
   services/rotor:
     dependencies:
+      '@amplitude/ua-parser-js':
+        specifier: ^0.7.33
+        version: 0.7.33
       '@jitsu-internal/console':
         specifier: workspace:*
         version: link:../../webapps/console
@@ -507,8 +516,8 @@ importers:
         specifier: ^8.0.3
         version: 8.1.0
       ioredis:
-        specifier: ^5.2.3
-        version: 5.3.1
+        specifier: ^5.3.2
+        version: 5.3.2
       json-grab:
         specifier: 0.1.0-alpha.2
         version: 0.1.0-alpha.2
@@ -747,8 +756,8 @@ importers:
         specifier: ^11.6.0
         version: 11.7.0
       ioredis:
-        specifier: ^5.2.3
-        version: 5.3.1
+        specifier: ^5.3.2
+        version: 5.3.2
       js-yaml:
         specifier: ^4.1.0
         version: 4.1.0
@@ -1036,6 +1045,10 @@ packages:
   /@adobe/css-tools@4.3.1:
     resolution: {integrity: sha512-/62yikz7NLScCGAAST5SHdnjaDJQBDq0M2muyRTpf2VQhw6StBg2ALiu73zSJQ4fMVLA+0uBhBHAle7Wg+2kSg==}
     dev: true
+
+  /@amplitude/ua-parser-js@0.7.33:
+    resolution: {integrity: sha512-wKEtVR4vXuPT9cVEIJkYWnlF++Gx3BdLatPBM+SZ1ztVIvnhdGBZR/mn9x/PzyrMcRlZmyi6L56I2J3doVBnjA==}
+    dev: false
 
   /@ampproject/remapping@2.2.1:
     resolution: {integrity: sha512-lFMjJTrFL3j7L9yBxwYfCq2k6qqwHyzuUl/XBnif78PWTJYyL/dfowQHWE3sp6U6ZzqWiiIZnpTMO96zhkjwtg==}
@@ -15132,8 +15145,8 @@ packages:
     resolution: {integrity: sha512-6xwYfHbajpoF0xLW+iwLkhwgvLoZDfjYfoFNu8ftMoXINzwuymNLd9u/KmwtdT2GbR+/Cz66otEGEVVUHX9QLQ==}
     engines: {node: '>=10.13.0'}
 
-  /ioredis@5.3.1:
-    resolution: {integrity: sha512-C+IBcMysM6v52pTLItYMeV4Hz7uriGtoJdz7SSBDX6u+zwSYGirLdQh3L7t/OItWITcw3gTFMjJReYUwS4zihg==}
+  /ioredis@5.3.2:
+    resolution: {integrity: sha512-1DKMMzlIHM02eBBVOFQ1+AolGjs6+xEcM4PDL7NqOS6szq7H9jSaEkIUH6/a5Hl241LzW6JLSiAbNvTQjUupUA==}
     engines: {node: '>=12.22.0'}
     dependencies:
       '@ioredis/commands': 1.2.0

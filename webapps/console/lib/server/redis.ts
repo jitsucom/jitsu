@@ -1,5 +1,5 @@
 import { getSingleton } from "juava";
-import Redis from "ioredis";
+import { Redis } from "ioredis";
 import { requireDefined } from "juava";
 import { getServerLog } from "./log";
 

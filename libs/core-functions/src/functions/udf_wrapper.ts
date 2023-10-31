@@ -1,10 +1,20 @@
 import { getLog } from "juava";
 import { Isolate, ExternalCopy, Callback, Reference } from "isolated-vm";
-import { EventContext, EventsStore, FetchOpts, FuncReturn, JitsuFunction, Store } from "@jitsu/protocols/functions";
+import {
+  EventContext,
+  EventsStore,
+  FetchOpts,
+  FuncReturn,
+  JitsuFunction,
+  Store,
+  UserAgent,
+} from "@jitsu/protocols/functions";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { createFullContext } from "../context";
-import { isDropResult } from "../index";
+import { defaultTTL, isDropResult, maxAllowedTTL } from "../index";
 import { functionsLibCode, wrapperCode } from "./lib/udf-wrapper-code";
+import uaParser from "@amplitude/ua-parser-js";
+import omit from "lodash/omit";
 
 const log = getLog("udf-wrapper");
 
@@ -118,6 +128,9 @@ export const UDFWrapper = (functionId, name, functionCode: string): UDFWrapperRe
                 }),
                 set: new Callback(ctx.store.set, { ignored: true }),
                 del: new Callback(ctx.store.del, { ignored: true }),
+                ttl: new Reference(async (key: string) => {
+                  return await ctx.store.ttl(key);
+                }),
               },
             }),
           ],
@@ -171,6 +184,7 @@ export type UDFTestRequest = {
   config: any;
   store: any;
   workspaceId: string;
+  userAgent?: string;
 };
 
 export type UDFTestResponse = {
@@ -194,6 +208,7 @@ export async function UDFTestRun({
   store,
   event,
   config,
+  userAgent,
 }: UDFTestRequest): Promise<UDFTestResponse> {
   const logs: logType[] = [];
   let wrapper: UDFWrapperResult | undefined = undefined;
@@ -218,6 +233,13 @@ export async function UDFTestRun({
           code: "11238",
         },
       },
+      ua: omit(
+        uaParser(
+          userAgent ||
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36"
+        ),
+        "ua"
+      ) as UserAgent,
       headers: {},
       source: {
         id: "functionsDebugger-streamId",
@@ -235,13 +257,33 @@ export async function UDFTestRun({
 
     const storeImpl: Store = {
       get: async (key: string) => {
-        return store[key];
+        const val = store[key];
+        if (val && val.expireAt < new Date().getTime()) {
+          delete store[key];
+          return undefined;
+        }
+        return val?.obj;
       },
-      set: async (key: string, obj: any) => {
-        store[key] = obj;
+      set: async (key: string, obj: any, opts) => {
+        store[key] = {
+          obj,
+          expireAt: new Date().getTime() + Math.min(opts?.ttl ?? defaultTTL, maxAllowedTTL) * 1000,
+        };
       },
       del: async (key: string) => {
         delete store[key];
+      },
+      ttl: async (key: string) => {
+        const val = store[key];
+        if (!val) {
+          return -2;
+        }
+        const diff = (val.expireAt - new Date().getTime()) / 1000;
+        if (diff < 0) {
+          delete store[key];
+          return -2;
+        }
+        return diff;
       },
     };
     const eventsStore: EventsStore = {

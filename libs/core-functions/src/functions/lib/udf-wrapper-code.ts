@@ -30,6 +30,9 @@ const wrappedUserFunction = async function (eventcopy, ctxcopy) {
         const res = await c.store.get.apply(undefined, [key], { arguments: { copy: true }, result: { promise: true } });
         return res ? JSON.parse(res) : undefined;
       },
+      ttl: async key => {
+        return await c.store.ttl.apply(undefined, [key], { arguments: { copy: true }, result: { promise: true } });
+      },
     },
     fetch: async (url, opts) => {
       const res = await c.fetch.apply(undefined, [url, opts], { arguments: { copy: true }, result: { promise: true } });

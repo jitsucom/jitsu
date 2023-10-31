@@ -142,6 +142,7 @@ export const AmplitudeDestinationConfig = z.object({
     .default(false)
     .describe("If enabled, anonymous users will be tracked in Amplitude"),
   dataResidency: z.enum(["US", "EU"]).optional().default("US"),
+  sessionWindow: z.number().optional().default(30).describe("Session window in minutes"),
 });
 
 export type AmplitudeDestinationConfig = z.infer<typeof AmplitudeDestinationConfig>;
