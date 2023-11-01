@@ -87,9 +87,8 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
     //   url,
     //   error: `Response is redirect to ${location}, but the proxy doesn't support redirects yet`,
     // });
-    return location;
-  }
-  if (!response.ok) {
+    res.redirect(response.status, location);
+  } else if (!response.ok) {
     res.status(response.status).send({
       url,
       status: response.status,
