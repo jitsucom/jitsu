@@ -258,7 +258,9 @@ const AvailablePlans: React.FC<{}> = () => {
         plans: {
           free: { ...BillingSettings.parse({}), monthlyPrice: 0, annualPrice: 0 },
           ...plans.products
-            .filter(p => !p.data.disabled)
+            //the end-point shouldn't return custom plans anyway,
+            //but let's double-check that the plan is not custom
+            .filter(p => !p.data.disabled && !p.data.custom)
             .reduce(
               (acc, p) => ({
                 ...acc,
@@ -382,17 +384,39 @@ const AvailablePlans: React.FC<{}> = () => {
 
 const BillingManager0: React.FC<{}> = () => {
   const appConfig = useAppConfig();
+  const billing = useBilling();
+  const workspace = useWorkspace();
+
   return (
     <div>
       <CurrentSubscription />
-      <h3 className="my-12 text-2xl text-center">Available Plans</h3>
-      <AvailablePlans />
-      <p className="text-center text-textLight text-sm mt-12">
-        Need more information? Learn more about each plan by checking out our{" "}
-        <a className="text-primary" href={`${appConfig.websiteUrl || "https://jitsu.com"}/pricing?utm_source=app`}>
-          pricing page
-        </a>
-      </p>
+      {billing.settings?.custom ? (
+        <div className="text-center text-textLight mt-12">
+          You're using a custom plan. To downgrade to standard plan or cancel your supbscription, please reach out to
+          our{" "}
+          <Link className="text-primary underline" href={"/support"}>
+            Support Team
+          </Link>
+          . You can also cancel your subscription{" "}
+          <Link
+            className="text-primary underline"
+            href={`/api/${workspace.id}/ee/billing/manage?returnUrl=${encodeURIComponent(window.location.href)}`}
+          >
+            here
+          </Link>
+        </div>
+      ) : (
+        <>
+          <h3 className="my-12 text-2xl text-center">Available Plans</h3>
+          <AvailablePlans />
+          <p className="text-center text-textLight text-sm mt-12">
+            Need more information? Learn more about each plan by checking out our{" "}
+            <a className="text-primary" href={`${appConfig.websiteUrl || "https://jitsu.com"}/pricing?utm_source=app`}>
+              pricing page
+            </a>
+          </p>
+        </>
+      )}
     </div>
   );
 };

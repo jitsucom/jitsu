@@ -1,6 +1,7 @@
 import Stripe from "stripe";
 import { store } from "./services";
 import { assertDefined, assertTrue, requireDefined } from "juava";
+import { omit } from "lodash";
 
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
   apiVersion: "2022-11-15",
@@ -59,11 +60,11 @@ export async function getActivePlan(customerId: string): Promise<null | Subscrip
   //first, look for active non-legacy plans
   const activeSubscription = subscriptions.data.find(sub => {
     const product = requireDefined(sub2product.get(sub.id), `Can't find product for subscription ${sub.id}`);
-    return sub.status === "active" || product.metadata?.object_tag === getStripeObjectTag();
+    return sub.status === "active" && product.metadata?.object_tag === getStripeObjectTag();
   });
   const pastDueSubscription = subscriptions.data.find(sub => {
     const product = requireDefined(sub2product.get(sub.id), `Can't find product for subscription ${sub.id}`);
-    return sub.status === "past_due" || product.metadata?.object_tag === getStripeObjectTag();
+    return sub.status === "past_due" && product.metadata?.object_tag === getStripeObjectTag();
   });
   const subscription = activeSubscription || pastDueSubscription;
   if (subscription) {
@@ -77,7 +78,12 @@ export async function getActivePlan(customerId: string): Promise<null | Subscrip
       expiresAt: new Date(subscription.current_period_end * 1000).toISOString(),
       renewAfterExpiration: !subscription.cancel_at_period_end,
       pastDue: pastDueSubscription && !activeSubscription,
-      ...JSON.parse(requireDefined(product.metadata?.plan_data, `Can't find plan data for product ${product.id}`)),
+      //omit token field that might be considered as sensitive
+      ...omit(
+        JSON.parse(requireDefined(product.metadata?.plan_data, `Can't find plan data for product ${product.id}`)),
+        "token"
+      ),
+      subscriptionId: subscription.id,
     };
   }
   //second, look for just cancelled non-legacy plans
@@ -99,11 +105,24 @@ function getStripeObjectTag() {
   return (process.env.STRIPE_OBJECT_TAG as string) || "jitsu2.0";
 }
 
-export async function getAvailableProducts() {
+/**
+ * opts.custom - if custom priced products should be included
+ * @param opts
+ */
+export async function getAvailableProducts(opts: { custom?: boolean } = {}) {
   const stripeObjectTag = getStripeObjectTag();
-  const products = (await stripe.products.list({ limit: 100 })).data.filter(
-    p => p.metadata?.object_tag === stripeObjectTag
-  );
+  const products = (await stripe.products.list({ limit: 100 })).data
+    .filter(p => p.metadata?.object_tag === stripeObjectTag)
+    .filter(p => {
+      if (opts.custom) {
+        //include everything
+        return true;
+      } else {
+        //check if product is custom priced
+        const meta = p.metadata?.plan_data ? JSON.parse(p.metadata?.plan_data) : undefined;
+        return !meta?.custom;
+      }
+    });
   if (products.length === 0) {
     throw new Error(`No products with tag ${stripeObjectTag} found`);
   }

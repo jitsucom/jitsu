@@ -38,7 +38,7 @@ export class ApiResponseError extends Error {
   public request: object;
 
   constructor(message: string, response: object, request: object) {
-    super(message + ": " + JSON.stringify(response));
+    super(message);
     this.response = response;
     this.request = request;
   }
@@ -56,6 +56,10 @@ export interface RpcFunc<Result = any, Query = Record<string, any>, Payload = an
   (url: string, params?: RpcParams<Query, Payload>): Promise<Result>;
 
   useFetch(fetchImpl: FetchType);
+}
+
+function extractString(obj: any): string | undefined {
+  return typeof obj === "string" ? obj : undefined;
 }
 
 export const rpc: RpcFunc = async (url, { body, ...rest } = {}) => {
@@ -86,15 +90,20 @@ export const rpc: RpcFunc = async (url, { body, ...rest } = {}) => {
   if (!result.ok) {
     let errorText = await getErrorText(result);
     const errorJson = tryJson(errorText);
-    const message = `Error ${result.status} on ${method} ${url}`;
-    console.error(message, errorJson);
-    throw typeof errorJson === "string"
-      ? new Error(`${message}: ${errorJson}`)
-      : new ApiResponseError(message, errorJson, {
-          url: urlWithQuery,
-          ...requestParams,
-          body: body || undefined,
-        });
+    const defaultErrorMessage = `Error ${result.status} on ${method} ${url}`;
+    console.error(defaultErrorMessage, errorJson);
+    //Try to extract meaningful error message from response. We don't need to include a full message since it will be visible
+    //in the logs. On the other hand, error message could be displayed in UI
+    const errorMessage =
+      extractString(errorJson.message) ||
+      extractString(errorJson.error) ||
+      extractString(errorJson.error?.error) ||
+      "Server error";
+    throw new ApiResponseError(errorMessage, typeof errorJson === "string" ? undefined : errorJson, {
+      url: urlWithQuery,
+      ...requestParams,
+      body: body || undefined,
+    });
   }
   if ((result.headers.get("Content-Type") ?? "").startsWith("application/json")) {
     return await parseJsonResponse(result, method, url);

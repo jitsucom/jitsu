@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { auth } from "../../../lib/auth";
-import { getAvailableProducts, getOrCreateCurrentSubscription, stripe } from "../../../lib/stripe";
+import { getActivePlan, getAvailableProducts, getOrCreateCurrentSubscription, stripe } from "../../../lib/stripe";
 import { requireDefined } from "juava";
 import { withErrorHandler } from "../../../lib/error-handler";
 import { getServerLog } from "../../../lib/log";
@@ -34,8 +34,16 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
     () => requireDefined(req.query.email as string, "email parameter is required"),
     { changeEmail: true }
   );
+  const activeSubscription = await getActivePlan(stripeCustomerId);
+  if (activeSubscription) {
+    throw new Error(
+      `Customer already has an active subscription. Ref: customer - ${stripeCustomerId} / subscription - ${
+        activeSubscription.subscriptionId || "unknown"
+      }`
+    );
+  }
 
-  const products = await getAvailableProducts();
+  const products = await getAvailableProducts({ custom: true });
 
   const product = requireDefined(
     products.find(p => p.metadata?.jitsu_plan_id === planId),
@@ -48,6 +56,7 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
     (product.default_price as any)?.id || product.default_price,
     `No default price for ${product.id}`
   );
+  const returnUrl = requireDefined(req.query.returnUrl as string, "returnUrl parameter is required");
   const { url } = await stripe.checkout.sessions.create({
     allow_promotion_codes: true,
     payment_method_types: ["card"],
@@ -55,8 +64,8 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
     mode: "subscription",
     line_items: [{ price: defaultPrice, quantity: 1 }],
     customer: stripeCustomerId,
-    success_url: requireDefined(req.query.returnUrl as string, "returnUrl parameter is required"),
-    cancel_url: requireDefined(req.query.returnUrl as string, "returnUrl parameter is required"),
+    success_url: returnUrl,
+    cancel_url: (req.query.cancelUrl as string | undefined) || returnUrl,
   });
 
   return res.redirect(303, url as string);

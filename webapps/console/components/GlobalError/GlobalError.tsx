@@ -139,6 +139,7 @@ export function ErrorCard(props: { error?: any; title?: string; hideActions?: bo
         <div className="mt-6">
           <Expandable title={exp => (exp ? "Hide Details" : "Show Details")}>
             {(props.error?.stack || props.error?.message) && <ErrorDetails error={props.error} />}
+            {typeof props.error === "string" && <ErrorDetails error={{ message: props.error }} />}
           </Expandable>
         </div>
       )}

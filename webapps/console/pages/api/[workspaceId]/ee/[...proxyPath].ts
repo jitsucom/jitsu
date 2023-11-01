@@ -2,9 +2,27 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { getUser, verifyAccess, verifyAdmin } from "../../../../lib/api";
 import { createJwt, getEeConnection } from "../../../../lib/server/ee";
 import { isEEAvailable } from "../../ee/jwt";
+import { getLog } from "juava";
 
 function removeDoubleSlashes(path: string) {
   return path.replace(/\/\//g, "/");
+}
+
+//If string is a JSON, parse it, so it looks better in JSON response. Needed for
+//errors display only
+function toJSON(str: string): any {
+  try {
+    return JSON.parse(str);
+  } catch (e) {
+    return str;
+  }
+}
+
+function removeTrailingSlashes(url: string) {
+  while (url.endsWith("/")) {
+    url = url.slice(0, -1);
+  }
+  return url;
 }
 
 const handler = async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -19,27 +37,32 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
   }
   const workspaceId = req.query.workspaceId as string;
   const proxyPath = req.query.proxyPath as string[];
-  if (workspaceId === "$all") {
+  if (workspaceId === "$none") {
+    //do nothing, $none means that the downstream end-point is public
+  } else if (workspaceId === "$all") {
     //only admins can access to all workspaces
     await verifyAdmin(user);
   } else {
     await verifyAccess(user, workspaceId);
   }
-  const { jwt } = createJwt(user.internalId, user.email, workspaceId, 60);
+  const { jwt } =
+    workspaceId !== "$none" ? createJwt(user.internalId, user.email, workspaceId, 60) : { jwt: undefined };
   const query = {
     ...(req.query || {}),
-    workspaceId: workspaceId === "$all" ? undefined : workspaceId,
+    workspaceId: workspaceId === "$all" || workspaceId === "$none" ? undefined : workspaceId,
   };
   const queryString = Object.entries(query)
     .filter(([, val]) => val !== undefined)
     .map(([key, val]) => `${key}=${encodeURIComponent(val + "")}`)
     .join("&");
-  const url = removeDoubleSlashes(`${getEeConnection().host}/api/${proxyPath.join("/")}?${queryString}`);
+  //if slash symbols are messed up, Next.js will respond with redirect, which we do not support here
+  const url =
+    removeTrailingSlashes(getEeConnection().host) + removeDoubleSlashes(`/api/${proxyPath.join("/")}?${queryString}`);
   const response = await fetch(url, {
     method: req.method,
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${jwt}`,
+      ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
       Accept: "application/json",
     },
     redirect: "manual",
@@ -47,6 +70,7 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
   });
   if (response.status >= 301 && response.status <= 308) {
     const location = response.headers.get("location") || response.headers.get("Location");
+    getLog().atInfo().withCause(`${url} redirects to ${location}`);
     if (!location) {
       res.status(500).send({
         url,
@@ -56,7 +80,10 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
       });
       return;
     }
-    res.redirect(response.status, location);
+    res.status(400).json({
+      url,
+      error: `Response is redirect to ${location}, but the proxy doesn't support redirects yet`,
+    });
     return;
   }
   if (!response.ok) {
@@ -64,7 +91,7 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
       url,
       status: response.status,
       statusText: response.statusText,
-      error: await response.text(),
+      error: toJSON(await response.text()),
     });
     return;
   } else {
