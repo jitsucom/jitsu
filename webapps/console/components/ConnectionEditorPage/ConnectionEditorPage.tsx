@@ -20,6 +20,8 @@ import { JitsuButton } from "../JitsuButton/JitsuButton";
 import { StreamTitle } from "../../pages/[workspaceId]/streams";
 import { DestinationTitle } from "../../pages/[workspaceId]/destinations";
 import { Htmlizer } from "../Htmlizer/Htmlizer";
+import { FunctionsSelector } from "../FunctionsSelector/FunctionsSelector";
+import { Expandable } from "../Expandable/Expandable";
 
 const log = getLog("ConnectionEditorPage");
 
@@ -313,7 +315,6 @@ function ConnectionEditor({
     if (connectionOptionsZodType) {
       const description = connectionOptionsZodType.description;
       if (description) {
-        console.log("limitations", description);
         try {
           const obj = JSON.parse(description);
           setLimitations(obj.limitations || {});
@@ -567,7 +568,6 @@ function ConnectionEditor({
     });
   }
   if (hasZodFields(connectionOptionsZodType, "multithreading")) {
-    console.log("multithreading", connectionOptions.multithreading);
     configItems.push({
       group: "Advanced",
       documentation: (
@@ -588,31 +588,6 @@ function ConnectionEditor({
       ),
     });
   }
-  if (hasZodFields(connectionOptionsZodType, "functions")) {
-    for (const func of functions) {
-      const functionId = "udf." + func.id;
-      configItems.push({
-        group: "Functions",
-        name: func.name,
-        link: `/functions?id=${func.id}`,
-        component: (
-          <SwitchComponent
-            className="max-w-xs"
-            value={typeof (connectionOptions.functions ?? []).find(f => f.functionId === functionId) !== "undefined"}
-            onChange={enabled => {
-              const f = (connectionOptions.functions ?? []).filter(f => f.functionId !== functionId);
-              if (enabled) {
-                f.push({
-                  functionId: functionId,
-                });
-              }
-              updateOptions({ functions: f });
-            }}
-          />
-        ),
-      });
-    }
-  }
   return (
     <div className="max-w-5xl grow">
       <div className="flex justify-between pt-6 pb-0 mb-0 items-center">
@@ -629,6 +604,23 @@ function ConnectionEditor({
           }}
           items={configItems}
         />
+        <Expandable
+          initiallyExpanded={!!connectionOptions.functions?.length}
+          title={<h2 className="font-bold my-4 text-xl text-textDark">Functions</h2>}
+          hideArrow={false}
+          caretSize="1.5em"
+          contentLeftPadding={false}
+        >
+          <FunctionsSelector
+            functions={functions}
+            stream={streams.find(s => s.id === srcId) || streams[0]}
+            destination={destinations.find(d => d.id === dstId) || destinations[0]}
+            selectedFunctions={connectionOptions.functions}
+            onChange={enabledFunctions => {
+              updateOptions({ functions: enabledFunctions.map(f => ({ functionId: `udf.${f.id}` })) });
+            }}
+          />
+        </Expandable>
       </div>
       <div className="flex justify-between pt-6">
         <div>
