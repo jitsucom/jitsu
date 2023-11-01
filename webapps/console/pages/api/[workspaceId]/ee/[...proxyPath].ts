@@ -80,11 +80,14 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
       });
       return;
     }
-    res.status(400).json({
-      url,
-      error: `Response is redirect to ${location}, but the proxy doesn't support redirects yet`,
-    });
-    return;
+    //apparently we can't do that, since sometimes the endpoint returns a legitimate redirect
+    //theoretically it's possible to distinguish external redirects, from internal ones,
+    //but it's too much for this validation
+    // res.status(400).json({
+    //   url,
+    //   error: `Response is redirect to ${location}, but the proxy doesn't support redirects yet`,
+    // });
+    return location;
   }
   if (!response.ok) {
     res.status(response.status).send({
