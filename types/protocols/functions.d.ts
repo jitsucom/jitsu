@@ -165,12 +165,13 @@ export type UserAgent = {
   };
   device: {
     model: string;
-    type: "console" | "mobile" | "tablet" | "smarttv" | "wearable" | "embedded";
+    type: "console" | "mobile" | "tablet" | "smarttv" | "wearable" | "embedded" | "desktop";
     vendor: string;
   };
   cpu: {
     architecture: string;
   };
+  bot?: boolean;
 };
 
 export type EventContext = {

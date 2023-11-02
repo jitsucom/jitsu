@@ -3,7 +3,7 @@ import { RetryError } from "@jitsu/functions-lib";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { PostHog } from "posthog-node";
 import { getEventCustomProperties } from "./lib";
-import { parseUserAgent } from "./lib/browser";
+import { parseUserAgentLegacy } from "./lib/browser";
 import { POSTHOG_DEFAULT_HOST, PosthogDestinationConfig } from "../meta";
 
 function getHostFromUrl(url: string | undefined): string | undefined {
@@ -31,7 +31,7 @@ function getPathFromUrl(url: string | undefined): string | undefined {
 function getEventProperties(event: AnalyticsServerEvent) {
   //see https://github.com/PostHog/posthog-js-lite/blob/master/posthog-web/src/context.ts
   const browser = event.context?.userAgent
-    ? parseUserAgent(event.context?.userAgent, event.context?.userAgentVendor)
+    ? parseUserAgentLegacy(event.context?.userAgent, event.context?.userAgentVendor)
     : undefined;
   return {
     $referrer: event.context?.page?.referrer,

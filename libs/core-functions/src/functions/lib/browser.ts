@@ -1,6 +1,6 @@
 type ParsedUserAgent = { name: string; deviceType: string; os: string; browserVersion: number | undefined };
 
-export function parseUserAgent(userAgent: string, vendor: string | undefined): ParsedUserAgent {
+export function parseUserAgentLegacy(userAgent: string, vendor: string | undefined): ParsedUserAgent {
   return {
     name: browser(userAgent, vendor),
     deviceType: device(userAgent),

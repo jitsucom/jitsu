@@ -1,20 +1,11 @@
 import { getLog } from "juava";
 import { Isolate, ExternalCopy, Callback, Reference } from "isolated-vm";
-import {
-  EventContext,
-  EventsStore,
-  FetchOpts,
-  FuncReturn,
-  JitsuFunction,
-  Store,
-  UserAgent,
-} from "@jitsu/protocols/functions";
+import { EventContext, EventsStore, FetchOpts, FuncReturn, JitsuFunction, Store } from "@jitsu/protocols/functions";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { createFullContext } from "../context";
 import { createMemoryStore, isDropResult } from "../index";
 import { functionsLibCode, wrapperCode } from "./lib/udf-wrapper-code";
-import uaParser from "@amplitude/ua-parser-js";
-import omit from "lodash/omit";
+import { parseUserAgent } from "./lib/ua";
 
 const log = getLog("udf-wrapper");
 
@@ -233,13 +224,11 @@ export async function UDFTestRun({
           code: "11238",
         },
       },
-      ua: omit(
-        uaParser(
+      ua: parseUserAgent(
+        event.context?.userAgent ||
           userAgent ||
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36"
-        ),
-        "ua"
-      ) as UserAgent,
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36"
+      ),
       headers: {},
       source: {
         id: "functionsDebugger-streamId",

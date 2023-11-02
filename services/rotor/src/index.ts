@@ -26,6 +26,7 @@ import {
   createTtlStore,
   createOldStore,
   defaultTTL,
+  parseUserAgent,
 } from "@jitsu/core-functions";
 import { AnyEvent, EventContext, FullContext, JitsuFunction, UserAgent } from "@jitsu/protocols/functions";
 import { redis } from "@jitsu-internal/console/lib/server/redis";
@@ -100,7 +101,7 @@ export async function rotorMessageHandler(
   const ctx: EventContext = {
     headers: message.httpHeaders,
     geo: message.geo,
-    ua: omit(uaParser(event.context?.userAgent), "ua") as UserAgent,
+    ua: parseUserAgent(event.context?.userAgent),
     retries,
     source: {
       id: connection.streamId,
@@ -229,7 +230,7 @@ export async function rotorMessageHandler(
       event,
       rl,
       store,
-      pick(ctx, ["geo", "headers", "source", "destination", "connection", "retries"])
+      pick(ctx, ["geo", "ua", "headers", "source", "destination", "connection", "retries"])
     );
     checkError(chainRes);
     return chainRes.events;
