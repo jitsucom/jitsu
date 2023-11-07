@@ -113,7 +113,7 @@ function WorkspacesMenu(props: { jitsuClassicAvailable: boolean }) {
   let additionalMenuItems: MenuItemType[] = [];
   if (error) {
     log.atWarn().log("Failed to load user properties", error);
-  } else if (data?.admin) {
+  } else if (data?.admin && appConfig.auth) {
     additionalMenuItems = [
       {
         key: "admin-users",

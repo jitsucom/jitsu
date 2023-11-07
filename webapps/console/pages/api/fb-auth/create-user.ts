@@ -15,7 +15,6 @@ export const api: Api = {
           loginProvider: "firebase",
           email: user.email,
           name: user.name || user.email,
-          admin: false,
         });
         await linkFirebaseUser(user.externalId, dbUser.id);
       }

@@ -60,8 +60,8 @@ services:
 
   bulker:
     tty: true
-    platform: linux/amd64
     image: jitsucom/bulker:latest
+    platform: linux/amd64
     restart: "unless-stopped"
     ports:
       - "${BULKER_PORT:-3045}:3042"
@@ -86,6 +86,7 @@ services:
   syncctl:
     tty: true
     image: jitsucom/syncctl:latest
+    platform: linux/amd64
     restart: "unless-stopped"
     ports:
       - "${SYNCCTL_PORT:-3046}:3043"
@@ -112,6 +113,7 @@ services:
   rotor:
     tty: true
     image: jitsucom/rotor:latest
+    platform: linux/amd64
     restart: "unless-stopped"
     environment:
       DISABLE_SERVICE_prisma: "true"
@@ -131,6 +133,7 @@ services:
     tty: true
     image: jitsucom/console:latest
     restart: "unless-stopped"
+    platform: linux/amd64
     environment:
       ROTOR_URL: "http://rotor:3401"
       BULKER_URL: "http://bulker:3042"

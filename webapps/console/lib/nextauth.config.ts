@@ -69,15 +69,16 @@ export async function getOrCreateUser(opts: {
   loginProvider: string;
   name?: string;
   email: string;
-  admin?: boolean;
 }): Promise<User> {
-  const { externalId, loginProvider, email, name = email, admin = false } = opts;
+  const { externalId, loginProvider, email, name = email } = opts;
   log.atDebug().log(`Signing in user ${JSON.stringify(opts)}`);
   let user = await db.prisma().userProfile.findFirst({ where: { externalId, loginProvider } });
   if (!user) {
     if (process.env.DISABLE_SIGNUP === "true" || process.env.DISABLE_SIGNUP === "1") {
       throw new ApiError("Sign up is disabled", { code: "signup-disabled" });
     }
+    //first user is admin
+    const admin = !(await db.prisma().userProfile.count());
     user = await db.prisma().userProfile.create({
       data: {
         email,
@@ -118,7 +119,7 @@ export const nextAuthConfig: NextAuthOptions = {
     ]),
   callbacks: {
     jwt: async props => {
-      const loginProvider = (props.account?.provider || "credentials") as string;
+      const loginProvider = (props.account?.provider || props.token.loginProvider || "credentials") as string;
       const externalId = requireDefined(props.token.sub, `JWT token .sub is not defined`);
       const email = requireDefined(props.token.email, `JWT token .email is not defined`);
       const user = await getOrCreateUser({
@@ -126,8 +127,6 @@ export const nextAuthConfig: NextAuthOptions = {
         loginProvider,
         email,
         name: props.token.name || email,
-        //credentials login are only for test only, so we make all of them admins
-        admin: false,
       });
       return {
         internalId: user.id,
