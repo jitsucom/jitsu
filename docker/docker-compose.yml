@@ -87,12 +87,13 @@ services:
     tty: true
     image: jitsucom/syncctl:latest
     platform: linux/amd64
-    restart: "unless-stopped"
+    restart: "on-failure"
     ports:
       - "${SYNCCTL_PORT:-3046}:3043"
     environment:
       HTTP_PORT: "3043"
       TERM: "xterm-256color"
+      SYNCCTL_SYNCS_ENABLED: ${SYNCS_ENABLED}
       SYNCCTL_AUTH_TOKENS: "${SYNCCTL_PASSWORD:-4ba41958f341469993fd8ea1c0c932f0}"
       SYNCCTL_DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/postgres"
       SYNCCTL_SIDECAR_DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@${EXTERNAL_DATABASE_HOST}:${PG_PORT:-5437}/postgres"
@@ -159,4 +160,4 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - "${JITSU_PORT:-8081}:3000"
+      - "${JITSU_PORT:-3000}:3000"
