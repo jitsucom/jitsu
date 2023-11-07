@@ -1,6 +1,9 @@
 # Syncs in Docker Compose
 
-Current implementation is not production-ready. It's just a PoC.
+Syncs rely on kubernetes cluster to run jobs.
+
+This doc is just a proof-of-concept:
+In the presence of kubernetes cluster, it is not recommended to run Jitsu in Docker Compose. Instead, running all Jitsu components in kubernetes cluster is preferable.
 
 # How to set up
 
@@ -13,11 +16,6 @@ Jitsu runs sync jobs in kubernetes cluster. So we need to connect `syncctl` serv
 
 # How to run
 
-To enable `syncctl` service in docker-compose you need to add `--profile syncs` to `docker-compose` command.
-
-```shell
-docker-compose --profile syncs up
-```
 
 ## Minikube example
 
