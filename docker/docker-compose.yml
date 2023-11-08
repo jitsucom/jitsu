@@ -58,7 +58,7 @@ services:
       BULKER_HTTP_PORT: "3042"
       TERM: "xterm-256color"
       BULKER_KAFKA_BOOTSTRAP_SERVERS: "kafka:19093"
-      BULKER_AUTH_TOKENS: "${BULKER_PASSWORD:-default}"
+      BULKER_AUTH_TOKENS: ${BULKER_PASSWORD}
       BULKER_CONFIG_SOURCE: "redis"
       REDIS_URL: "redis://default:${REDIS_PASSWORD:-default}@redis:6379"
       BULKER_INTERNAL_TASK_LOG: '{"id":"task_log","metricsKeyPrefix":"syncs","usesBulker":true,"type":"postgres","options":{"mode":"stream"},"credentials":{"host":"postgres","port":5432,"sslMode":"disable","database":"postgres","password":"${POSTGRES_PASSWORD:-default}","username":"postgres","defaultSchema":"public"}}'
@@ -81,11 +81,11 @@ services:
       HTTP_PORT: "3043"
       TERM: "xterm-256color"
       SYNCCTL_SYNCS_ENABLED: ${SYNCS_ENABLED:-false}
-      SYNCCTL_AUTH_TOKENS: "${SYNCCTL_PASSWORD:-default}"
+      SYNCCTL_AUTH_TOKENS: ${SYNCCTL_PASSWORD}
       SYNCCTL_DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD:-default}@postgres:5432/postgres"
       SYNCCTL_SIDECAR_DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD:-default}@${EXTERNAL_DATABASE_HOST}:${PG_PORT:-5437}/postgres"
       SYNCCTL_BULKER_URL: "http://${EXTERNAL_BULKER_HOST}:${BULKER_PORT:-3045}"
-      SYNCCTL_BULKER_AUTH_TOKEN: "${BULKER_PASSWORD:-default}"
+      SYNCCTL_BULKER_AUTH_TOKEN: ${BULKER_PASSWORD}
       SYNCCTL_BULKER_LOGS_CONNECTION_ID: task_log
       SYNCCTL_KUBERNETES_CLIENT_CONFIG: "${SYNCCTL_KUBERNETES_CLIENT_CONFIG:-local}"
       SYNCCTL_KUBERNETES_CONTEXT: "${SYNCCTL_KUBERNETES_CONTEXT}"
@@ -107,7 +107,7 @@ services:
       DISABLE_SERVICE_prisma: "true"
       DISABLE_SERVICE_pg: "true"
       BULKER_URL: "http://bulker:3042"
-      BULKER_AUTH_KEY: "${BULKER_PASSWORD:-default}"
+      BULKER_AUTH_KEY: ${BULKER_PASSWORD}
       KAFKA_BOOTSTRAP_SERVERS: "kafka:19093"
       REDIS_URL: "redis://default:${REDIS_PASSWORD:-default}@redis:6379"
     depends_on:
@@ -125,7 +125,7 @@ services:
     environment:
       ROTOR_URL: "http://rotor:3401"
       BULKER_URL: "http://bulker:3042"
-      BULKER_AUTH_KEY: "${BULKER_PASSWORD:-default}"
+      BULKER_AUTH_KEY: ${BULKER_PASSWORD}
       DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD:-default}@postgres:5432/postgres"
       REDIS_URL: "redis://default:${REDIS_PASSWORD:-default}@redis:6379"
       TEST_CREDENTIALS: ${TEST_CREDENTIALS}
@@ -134,7 +134,7 @@ services:
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
       SYNCS_ENABLED: ${SYNCS_ENABLED:-false}
       SYNCCTL_URL: "http://syncctl:3043"
-      SYNCCTL_AUTH_KEY: "${SYNCCTL_PASSWORD:-default}"
+      SYNCCTL_AUTH_KEY: ${SYNCCTL_PASSWORD}
       GOOGLE_SCHEDULER_KEY: ${GOOGLE_SCHEDULER_KEY}
       GOOGLE_SCHEDULER_LOCATION: ${GOOGLE_SCHEDULER_LOCATION:-us-central1}
       NEXTAUTH_URL: "${JITSU_PUBLIC_URL:-${NEXTAUTH_URL:-http://localhost:${JITSU_PORT:-3000}/}}"

@@ -44,87 +44,21 @@ export default createRoute()
     const max = query.limit ? Math.min(parseInt(query.limit), sources.length) : sources.length;
     const statuses = {};
 
+    const promises: Promise<any>[] = [];
     for (let i = 0; i < max; i++) {
-      const mitVersions = new Set<string>();
-      const otherVersions: Record<string, Set<string>> = {};
       const src = sources[i];
-      const metadataUrl = `https://raw.githubusercontent.com/${repo}/master/${basePath}/${src}/metadata.yaml`;
-      const res = await fetch(metadataUrl);
-      let packageId: string | undefined = undefined;
-      let metadata: any = {};
-      let icon: string | undefined = undefined;
-      if (res.ok) {
-        metadata = yaml.load(await res.text());
-
-        const license = metadata.data?.license?.toLowerCase();
-
-        if (license === "elv2") {
-          const commitHistory = `https://api.github.com/repos/${repo}/commits?path=/${basePath}/${src}/metadata.yaml`;
-          log.atWarn().log(`Source ${src} has ELv2 license. Looking for MIT versions at ${commitHistory}`);
-          const commits = await rpc(commitHistory);
-          log.atInfo().log(`Found ${commits.length} commits`);
-          for (const { sha } of commits) {
-            const commitFile = `https://raw.githubusercontent.com/${repo}/${sha}/${basePath}/${src}/metadata.yaml`;
-            const oldYml = await fetch(commitFile);
-            if (oldYml.ok) {
-              const oldMeta = yaml.load(await oldYml.text());
-              const license = oldMeta.data?.license?.toLowerCase() || "unknown-license";
-              if (license === "mit") {
-                const dockerVersion = oldMeta.data?.dockerImageTag;
-                if (!dockerVersion) {
-                  log.atWarn().log(`MIT version of ${src} doesn't have dockerImageTag: ${commitFile}`);
-                } else {
-                  log.atWarn().log(`Found MIT version of ${src} --> ${dockerVersion}`);
-                  mitVersions.add(dockerVersion);
-                }
-              } else {
-                otherVersions[license] = otherVersions[license] || new Set<string>();
-                otherVersions[license].add(license);
-              }
-            } else {
-              log.atWarn().log(`Failed to load ${commitFile}`);
-            }
-          }
+      promises.push(process(src));
+      if (i % 10 === 0) {
+        const results = await Promise.all(promises);
+        for (const result of results) {
+          Object.assign(statuses, result);
         }
-
-        packageId = metadata.data?.dockerRepository || `airbyte/${src}`;
-      } else {
-        log.atWarn().log(`Source ${src} doesn't have metadata.yaml`);
-        packageId = `airbyte/${src}`;
+        promises.length = 0;
       }
-
-      if (metadata?.data?.icon) {
-        const iconUrl = `https://raw.githubusercontent.com/${repo}/master/${basePath}/${src}/icon.svg`;
-        const iconRes = await fetch(iconUrl);
-        if (iconRes.ok) {
-          icon = await iconRes.text();
-        } else {
-          log.atWarn().log(`Source ${src} icon file ${metadata.data?.icon} doesn't exist at ${iconUrl}`);
-        }
-      }
-
-      const currentId = (
-        await db.prisma().connectorPackage.findFirst({ where: { packageId: packageId, packageType: "airbyte" } })
-      )?.id;
-      const data = {
-        packageId: packageId as string,
-        packageType: "airbyte",
-        meta: {
-          ...(metadata?.data || {}),
-          ...([...mitVersions].length > 0 ? { mitVersions: [...mitVersions] } : {}),
-          ...(Object.keys(otherVersions).length > 0 ? { otherVersions } : {}),
-        },
-        logoSvg: icon,
-      };
-      if (currentId) {
-        statuses[`${packageId}`] = "updated";
-        log.atInfo().log(`Updating ${packageId} info. Has icon: ${!!icon}, has metadata: ${!!metadata}`);
-        await db.prisma().connectorPackage.update({ where: { id: currentId }, data });
-      } else {
-        statuses[`${packageId}`] = "created";
-        log.atInfo().log(`Created ${packageId} info. Has icon: ${!!icon}, has metadata: ${!!metadata}`);
-        await db.prisma().connectorPackage.create({ data: data });
-      }
+    }
+    const results = await Promise.all(promises);
+    for (const result of results) {
+      Object.assign(statuses, result);
     }
     return {
       total: sources.length,
@@ -133,3 +67,85 @@ export default createRoute()
     };
   })
   .toNextApiHandler();
+
+async function process(src: string) {
+  const mitVersions = new Set<string>();
+  const otherVersions: Record<string, Set<string>> = {};
+  const metadataUrl = `https://raw.githubusercontent.com/${repo}/master/${basePath}/${src}/metadata.yaml`;
+  const res = await fetch(metadataUrl);
+  let packageId: string | undefined = undefined;
+  let metadata: any = {};
+  let icon: string | undefined = undefined;
+  if (res.ok) {
+    metadata = yaml.load(await res.text());
+
+    const license = metadata.data?.license?.toLowerCase();
+
+    if (license === "elv2") {
+      const commitHistory = `https://api.github.com/repos/${repo}/commits?path=/${basePath}/${src}/metadata.yaml&per_page=100`;
+      log.atWarn().log(`Source ${src} has ELv2 license. Looking for MIT versions at ${commitHistory}`);
+      const commits = await rpc(commitHistory);
+      log.atInfo().log(`Found ${commits.length} commits`);
+      for (const { sha } of commits) {
+        const commitFile = `https://raw.githubusercontent.com/${repo}/${sha}/${basePath}/${src}/metadata.yaml`;
+        const oldYml = await fetch(commitFile);
+        if (oldYml.ok) {
+          const oldMeta = yaml.load(await oldYml.text());
+          const license = oldMeta.data?.license?.toLowerCase() || "unknown-license";
+          if (license === "mit") {
+            const dockerVersion = oldMeta.data?.dockerImageTag;
+            if (!dockerVersion) {
+              log.atWarn().log(`MIT version of ${src} doesn't have dockerImageTag: ${commitFile}`);
+            } else {
+              log.atWarn().log(`Found MIT version of ${src} --> ${dockerVersion}`);
+              mitVersions.add(dockerVersion);
+            }
+          } else {
+            otherVersions[license] = otherVersions[license] || new Set<string>();
+            otherVersions[license].add(license);
+          }
+        } else {
+          log.atWarn().log(`Failed to load ${commitFile}`);
+        }
+      }
+    }
+
+    packageId = metadata.data?.dockerRepository || `airbyte/${src}`;
+  } else {
+    log.atWarn().log(`Source ${src} doesn't have metadata.yaml`);
+    packageId = `airbyte/${src}`;
+  }
+
+  if (metadata?.data?.icon) {
+    const iconUrl = `https://raw.githubusercontent.com/${repo}/master/${basePath}/${src}/icon.svg`;
+    const iconRes = await fetch(iconUrl);
+    if (iconRes.ok) {
+      icon = await iconRes.text();
+    } else {
+      log.atWarn().log(`Source ${src} icon file ${metadata.data?.icon} doesn't exist at ${iconUrl}`);
+    }
+  }
+
+  const currentId = (
+    await db.prisma().connectorPackage.findFirst({ where: { packageId: packageId, packageType: "airbyte" } })
+  )?.id;
+  const data = {
+    packageId: packageId as string,
+    packageType: "airbyte",
+    meta: {
+      ...(metadata?.data || {}),
+      ...([...mitVersions].length > 0 ? { mitVersions: [...mitVersions] } : {}),
+      ...(Object.keys(otherVersions).length > 0 ? { otherVersions } : {}),
+    },
+    logoSvg: icon,
+  };
+  if (currentId) {
+    log.atInfo().log(`Updating ${packageId} info. Has icon: ${!!icon}, has metadata: ${!!metadata}`);
+    await db.prisma().connectorPackage.update({ where: { id: currentId }, data });
+    return { [`${packageId}`]: "updated" };
+  } else {
+    log.atInfo().log(`Created ${packageId} info. Has icon: ${!!icon}, has metadata: ${!!metadata}`);
+    await db.prisma().connectorPackage.create({ data: data });
+    return { [`${packageId}`]: "created" };
+  }
+}
