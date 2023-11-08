@@ -142,41 +142,41 @@ export const BatchOrStreamEditor: EditorComponent<ConnectionOptionsType["mode"],
   onChange,
   limitations,
 }) => {
-  const [streamModeLocked, setStreamModeLocked] = useState(false);
-  const [streamModeDisabled, setStreamModeDisabled] = useState(false);
+  const [streamModeState, setStreamModeState] = useState<"locked" | "disabled" | "allowed">("allowed");
   const [streamModeCaveats, setStreamModeCaveats] = useState<string>();
 
   useEffect(() => {
     if (limitations?.streamModeLocked) {
-      if (value !== "stream") {
-        setStreamModeLocked(true);
-      }
+      setStreamModeState(value !== "stream" ? "locked" : "allowed");
       setStreamModeCaveats(limitations?.streamModeLocked);
     } else if (limitations?.streamModeDisabled) {
-      setStreamModeDisabled(true);
+      setStreamModeState("disabled");
       setStreamModeCaveats(limitations?.streamModeDisabled);
+    } else {
+      setStreamModeState("allowed");
+      setStreamModeCaveats(undefined);
     }
   }, [limitations, value]);
 
   return (
     <Radio.Group
       className={styles.radioGroup}
-      value={streamModeDisabled ? "batch" : value || "batch"}
+      value={streamModeState === "disabled" ? "batch" : value || "batch"}
       disabled={disabled}
       onChange={e => onChange(e.target.value)}
     >
       <div className={"flex flex-col gap-2"}>
-        <Radio value="stream" disabled={streamModeLocked || streamModeDisabled}>
+        <Radio value="stream" disabled={streamModeState !== "allowed"}>
           <div>
             <div className={``}>
               Stream
-              {streamModeLocked && (
+              {streamModeState === "locked" && (
                 <Button
                   className="m-0 p-0"
                   type="link"
                   size="small"
                   onClick={() => {
-                    setStreamModeLocked(false);
+                    setStreamModeState("allowed");
                   }}
                 >
                   🔒
@@ -321,6 +321,8 @@ function ConnectionEditor({
         } catch (e) {
           console.error(e);
         }
+      } else {
+        setLimitations({});
       }
     }
   }, [connectionOptionsZodType]);
