@@ -61,9 +61,17 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
     allow_promotion_codes: true,
     payment_method_types: ["card"],
     billing_address_collection: "required",
+    consent_collection: {
+      promotions: "none",
+      terms_of_service: "required",
+    },
     mode: "subscription",
     line_items: [{ price: defaultPrice, quantity: 1 }],
     customer: stripeCustomerId,
+    customer_update: {
+      address: "auto",
+      name: "auto",
+    },
     success_url: returnUrl,
     cancel_url: (req.query.cancelUrl as string | undefined) || returnUrl,
   });

@@ -167,6 +167,7 @@ export async function getOrCreatePortalConfiguration() {
         enabled: true,
         allowed_updates: ["address", "email", "name", "phone"],
       },
+      //billing_address_collection: "required",
       invoice_history: { enabled: true },
       payment_method_update: { enabled: true },
       subscription_update: {

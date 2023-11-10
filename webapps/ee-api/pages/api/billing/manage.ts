@@ -43,6 +43,7 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
   const { url } = await stripe.billingPortal.sessions.create({
     customer: stripeCustomerId,
     configuration: configurationId,
+
     return_url: requireDefined(req.query.returnUrl as string, "returnUrl parameter is required"),
   });
 
