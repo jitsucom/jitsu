@@ -245,7 +245,7 @@ function adjustPayload(payload: any, config: JitsuOptions, storage: PersistentSt
   const customContext = payload.properties?.context || {};
   delete payload.properties?.context;
   const referrer = runtime.referrer();
-  const context = {
+  const context: AnalyticsClientEvent["context"] = {
     library: {
       name: jitsuLibraryName,
       version: jitsuVersion,
@@ -263,6 +263,10 @@ function adjustPayload(payload: any, config: JitsuOptions, storage: PersistentSt
       title: properties.title || runtime.pageTitle(),
       url: properties.url || url,
       encoding: properties.encoding || runtime.documentEncoding(),
+    },
+    clientIds: {
+      fbc: getCookie("_fbc"),
+      fbp: getCookie("_fbp"),
     },
     campaign: parseUtms(query),
   };

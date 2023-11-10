@@ -1,5 +1,17 @@
 import { z } from "zod";
 
+const eventsParamDescription = `
+List of events to send to Facebook, delimited by comma. Following <code>page</code>, screen, or any arbitrary event (name of track event). 
+Special values: empty string - send only track events, <code>*</code> - send all events useful if you want to filter events with Functions 
+`;
+export const FacebookConversionApiCredentials = z.object({
+  pixelId: z.string().describe("Facebook Pixel ID"),
+  accessToken: z.string().describe("Facebook Access Token"),
+  events: z.string().optional().default("").describe(eventsParamDescription),
+});
+
+export type FacebookConversionApiCredentials = z.infer<typeof FacebookConversionApiCredentials>;
+
 export const WebhookDestinationConfig = z.object({
   url: z.string().url().describe("Webhook URL"),
   method: z

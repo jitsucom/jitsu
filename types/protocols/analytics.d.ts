@@ -152,7 +152,12 @@ interface AnalyticsContext {
    */
   clientIds?: {
     //Client ID of GA4 property
-    ga4?: string;
+    //ga4?: string;
+
+    //from cookies: _fbc - Facebook click ID, _fbp - Facebook browser ID.
+    //see https://developers.facebook.com/docs/marketing-api/conversions-api/parameters/customer-information-parameters
+    fbc?: string;
+    fbp?: string;
     [key: string]: string;
   };
 
