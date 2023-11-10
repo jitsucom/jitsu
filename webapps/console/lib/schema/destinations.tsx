@@ -8,7 +8,7 @@ import devnullIcon from "./icons/devnull";
 import gcsIcon from "./icons/gcs";
 import hubspotIcon from "./icons/hubspot";
 import mixpanelIcon from "./icons/mixpanel";
-import facebookIcon from "./icons/facebook";
+//import facebookIcon from "./icons/facebook";
 import juneIcon from "./icons/june";
 import mongodbIcon from "./icons/mongodb";
 
