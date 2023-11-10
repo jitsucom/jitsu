@@ -8,7 +8,7 @@ export const FacebookConversionApiCredentials = z.object({
   pixelId: z.string().describe("Facebook Pixel ID"),
   accessToken: z.string().describe("Facebook Access Token"),
   events: z.string().optional().default("").describe(eventsParamDescription),
-  actionSource: z.string().optional().default(undefined).describe("Action Source"),
+  actionSource: z.string().optional().describe("Action Source"),
 });
 
 export const FacebookConversionApiCredentialsUi = {
