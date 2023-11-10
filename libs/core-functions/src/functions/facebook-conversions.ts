@@ -3,7 +3,8 @@ import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { FacebookConversionApiCredentials } from "../meta";
 
 import crypto from "crypto";
-import { sanitize } from "juava";
+import omit from "lodash/omit";
+import { RetryError } from "@jitsu/functions-lib";
 
 function createFilter(filter: string): (eventName: string, eventType: string) => boolean {
   if (filter === "*") {
@@ -30,6 +31,18 @@ function sanitizeEmail(em: string) {
   return em.trim().toLowerCase();
 }
 
+function tryParse(responseText: string) {
+  try {
+    return JSON.parse(responseText);
+  } catch (e) {
+    return responseText;
+  }
+}
+
+function toPrettyString(responseJson: any) {
+  return typeof responseJson === "string" ? responseJson : JSON.stringify(responseJson, null, 2);
+}
+
 /**
  * See https://developers.facebook.com/docs/marketing-api/conversions-api/using-the-api
  * and https://developers.facebook.com/docs/marketing-api/conversions-api/parameters
@@ -47,6 +60,7 @@ const FacebookConversionsApi: JitsuFunction<AnalyticsServerEvent, FacebookConver
     const fbEvent = {
       event_name: event.type === "track" ? event.event : event.type,
       event_time: Math.floor((event.timestamp ? new Date(event.timestamp) : new Date()).getTime() / 1000),
+      action_source: ctx.props?.actionSource || undefined,
       user_data: {
         em: event.context.traits?.email ? facebookHash(sanitizeEmail(event.context.traits.email + "")) : undefined,
         //ph: "" - phone number hash. We don't have a predefined field for phone number. Should be configurable
@@ -56,7 +70,30 @@ const FacebookConversionsApi: JitsuFunction<AnalyticsServerEvent, FacebookConver
         fbc: event.context.clientIds?.fbc,
         fbp: event.context.clientIds?.fbp,
       },
+      custom_data: omit(event.properties, ["path", "referrer", "host", "referring_domain", "search", "title", "url"]),
     };
+
+    const baseUrl = `https://graph.facebook.com/v18.0/${ctx.props.pixelId}/events?access_token=`;
+    const payload = { data: [fbEvent] };
+    const fetchResult = await ctx.fetch(`${baseUrl}${ctx.props.accessToken}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+    const responseText = await fetchResult.text();
+    const responseJson = tryParse(responseText);
+    ctx.log.debug(
+      `Facebook API - ${baseUrl}****\n${toPrettyString(payload)}\n ---------> ${fetchResult.status} ${
+        fetchResult.statusText
+      }:\n${toPrettyString(responseJson)}`
+    );
+    if (!fetchResult.ok) {
+      throw new RetryError(
+        `Facebook API error. Called: ${baseUrl}****, got ${fetchResult.status} ${fetchResult.statusText} - ${responseText}`
+      );
+    }
   }
 };
 

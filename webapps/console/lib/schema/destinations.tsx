@@ -8,6 +8,7 @@ import devnullIcon from "./icons/devnull";
 import gcsIcon from "./icons/gcs";
 import hubspotIcon from "./icons/hubspot";
 import mixpanelIcon from "./icons/mixpanel";
+import facebookIcon from "./icons/facebook";
 import juneIcon from "./icons/june";
 import mongodbIcon from "./icons/mongodb";
 
@@ -566,6 +567,16 @@ export const coreDestinations: DestinationType<any>[] = [
     credentialsUi: meta.MixpanelCredentialsUi,
     description: "Mixpanel is a product analytics platform that provides insights into user behavior.",
   },
+  // {
+  //   id: "facebook-conversions",
+  //   icon: facebookIcon,
+  //   title: "Facebook Conversions API",
+  //   tags: "Product Analytics",
+  //   connectionOptions: CloudDestinationsConnectionOptions,
+  //   credentials: meta.FacebookConversionApiCredentials,
+  //   credentialsUi: meta.FacebookConversionApiCredentialsUi,
+  //   description: "Facebook Conversion API is a tool for sending events to Facebook Ads Manager.",
+  // },
   {
     id: "june",
     icon: juneIcon,

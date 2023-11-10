@@ -1,13 +1,6 @@
 import { AnalyticsInterface, AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { requireDefined } from "juava";
-import {
-  AnyEvent,
-  EventContext,
-  FuncReturn,
-  FunctionContext,
-  JitsuFunction,
-  SystemContext,
-} from "@jitsu/protocols/functions";
+import { AnyEvent, EventContext, FuncReturn, FunctionContext, JitsuFunction } from "@jitsu/protocols/functions";
 import nodeFetch from "node-fetch-commonjs";
 import { createStore } from "./mem-store";
 import * as JSON5 from "json5";
@@ -19,7 +12,7 @@ export type Or<T1, T2> =
 export type TestOptions<T = any> = {
   mockFetch?: boolean;
   func: JitsuFunction<AnalyticsServerEvent, T>;
-  ctx?: SystemContext & EventContext & FunctionContext;
+  ctx?: EventContext & FunctionContext;
 } & Or<{ config: T }, { configEnvVar: string }> &
   Or<{ generateEvents: (jitsu: AnalyticsInterface) => void }, { events: AnalyticsServerEvent[] }>;
 
@@ -36,7 +29,7 @@ export async function testJitsuFunction<T = any>(opts: TestOptions<T>): Promise<
     throw new Error("generateEvents() is not supported yet");
   }
   if (opts.mockFetch) {
-    throw new Error("generateEvents() is not supported yet");
+    throw new Error("mockFetch() is not supported yet");
   }
   const events: AnalyticsServerEvent[] = opts.events;
   const func = opts.func;
