@@ -8,7 +8,7 @@ import { getServerLog } from "../../../lib/server/log";
 
 import { checkHash, getErrorMessage, randomId, requireDefined } from "juava";
 import { httpAgent, httpsAgent } from "../../../lib/server/http-agent";
-import { AnalyticsContext, AnalyticsServerEvent } from "@jitsu/protocols/analytics";
+import { AnalyticsClientEvent, AnalyticsContext, AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { fastStore, StreamWithDestinations } from "../../../lib/server/fast-store";
 import { getCoreDestinationType } from "../../../lib/schema/destinations";
 import { redis } from "../../../lib/server/redis";
@@ -17,7 +17,7 @@ import { isEU } from "../../../lib/shared/eu";
 import { IncomingHttpHeaders } from "http";
 import { NextApiRequest, NextApiResponse } from "next";
 import jsondiffpatch from "jsondiffpatch";
-import { applyFilters } from "@jitsu/js/compiled/src";
+import { CommonDestinationCredentials, satisfyDomainFilter, satisfyFilter } from "@jitsu/js/compiled/src/destination-plugins";
 const jsondiffpatchInstance = jsondiffpatch.create({});
 
 function isInternalHeader(headerName: string) {
@@ -30,6 +30,28 @@ const bulkerURLDefaultRetryTimeout = 100;
 const bulkerURLDefaultRetryAttempts = 3;
 
 const log = getServerLog("ingest-api");
+
+export function applyFilters(event: AnalyticsClientEvent, creds: CommonDestinationCredentials): boolean {
+  const { hosts = "*", events = "*" } = creds;
+  try {
+    const eventsArray = Array.isArray(events) ? events : events.split("\n");
+    const hostsArray = Array.isArray(hosts) ? hosts : hosts.split("\n");
+    return (
+      !!hostsArray.find(hostFilter => satisfyDomainFilter(hostFilter, event.context?.page?.host)) &&
+      (!!eventsArray.find(eventFilter => satisfyFilter(eventFilter, event.type)) ||
+        !!eventsArray.find(eventFilter => satisfyFilter(eventFilter, event.event)))
+    );
+  } catch (e: any) {
+    console.warn(
+      `Failed to apply filters: ${e.message}. Typeof events: ${typeof events}, typeof hosts: ${typeof hosts}. Values`,
+      events,
+      hosts
+    );
+    throw new Error(
+      `Failed to apply filters: ${e.message}. Typeof events: ${typeof events}, typeof hosts: ${typeof hosts}`
+    );
+  }
+}
 
 type StreamLocator = (loc: StreamCredentials) => Promise<StreamWithDestinations | undefined>;
 

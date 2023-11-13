@@ -77,23 +77,12 @@ function getCookie(name: string) {
   return parts.length === 2 ? parts.pop().split(";").shift() : undefined;
 }
 
-function getGa4Sessions(): Record<string, string> | undefined {
-  const value = `; ${document.cookie}`;
-  const matches = value.matchAll(/_ga_(\w+)=([^;]+)/g);
-  const sessions: Record<string, string> = {};
-  let matchesCount = 0;
-  for (const match of matches) {
-    const parts = match[2].split(".");
-    if (parts.length < 3) {
-      continue;
-    }
-    sessions[match[1]] = parts[2];
-    matchesCount++;
-  }
-  if (matchesCount === 0) {
+function getGa4Sessions(allCookies: Record<string, string>): Record<string, string> | undefined {
+  const gaCookies = Object.entries(allCookies).filter(([key]) => key.startsWith("_ga_"));
+  if (gaCookies.length === 0) {
     return undefined;
   }
-  return sessions;
+  return Object.fromEntries(gaCookies.map(([key, value]) => [key.substring("_ga_".length), value]));
 }
 
 function removeCookie(name: string) {
@@ -149,6 +138,20 @@ const cookieStorage: StorageFactory = (cookieDomain, key2cookie) => {
 
 export function windowRuntime(opts: JitsuOptions): RuntimeFacade {
   return {
+    getCookie(name: string): string | undefined {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      return parts.length === 2 ? parts.pop().split(";").shift() : undefined;
+    },
+    getCookies(): Record<string, string> {
+      const value = `; ${document.cookie}`;
+      const cookies: Record<string, string> = {};
+      const matches = value.matchAll(/(\w+)=([^;]+)/g);
+      for (const match of matches) {
+        cookies[match[1]] = match[2];
+      }
+      return cookies;
+    },
     documentEncoding(): string | undefined {
       return window.document.characterSet;
     },
@@ -182,7 +185,7 @@ export function windowRuntime(opts: JitsuOptions): RuntimeFacade {
     },
     userAgent(): string {
       return window.navigator.userAgent;
-    },
+    }
   };
 }
 
@@ -192,6 +195,12 @@ export const emptyRuntime = (config: JitsuOptions): RuntimeFacade => ({
   },
   timezoneOffset(): number | undefined {
     return undefined;
+  },
+  getCookie(name: string): string | undefined {
+    return undefined;
+  },
+  getCookies(): Record<string, string> {
+    return {};
   },
 
   store(): PersistentStorage {
@@ -284,11 +293,11 @@ function adjustPayload(payload: any, config: JitsuOptions, storage: PersistentSt
       encoding: properties.encoding || runtime.documentEncoding(),
     },
     clientIds: {
-      fbc: getCookie("_fbc"),
-      fbp: getCookie("_fbp"),
+      fbc: runtime.getCookie("_fbc"),
+      fbp: runtime.getCookie("_fbp"),
       ga4: {
-        clientId: getCookie("_ga")?.split(".").slice(-2).join("."), //last 2 parts of GA cookie
-        sessions: getGa4Sessions(),
+        clientId: runtime.getCookie("_ga")?.split(".").slice(-2).join("."), //last 2 parts of GA cookie
+        sessions: getGa4Sessions(runtime.getCookies()),
       },
     },
     campaign: parseUtms(query),

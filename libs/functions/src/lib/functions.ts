@@ -7,3 +7,4 @@ export class RetryError extends Error {
     this.name = options?.drop ? `${DropRetryErrorName}` : `${RetryErrorName}`;
   }
 }
+

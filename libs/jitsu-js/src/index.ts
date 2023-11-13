@@ -98,5 +98,3 @@ export function jitsuAnalytics(opts: JitsuOptions): AnalyticsInterface {
 
 export * from "./jitsu";
 export * from "./analytics-plugin";
-export { applyFilters } from "./destination-plugins";
-export { getTopLevelDomain } from "./tlds";

@@ -1,10 +1,9 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { getUser } from "../../lib/api";
 import { requireDefined } from "juava";
-import { getRequestHost } from "../../lib/server/origin";
+import { getRequestHost, getTopLevelDomain } from "../../lib/server/origin";
 import { db } from "../../lib/server/db";
 import { getServerLog } from "../../lib/server/log";
-import { getTopLevelDomain } from "@jitsu/js";
 import { getUserPreferenceService } from "../../lib/server/user-preferences";
 import { SessionUser } from "../../lib/schema";
 

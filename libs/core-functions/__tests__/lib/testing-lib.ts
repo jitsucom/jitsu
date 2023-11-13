@@ -4,6 +4,7 @@ import { AnyEvent, EventContext, FuncReturn, FunctionContext, JitsuFunction } fr
 import nodeFetch from "node-fetch-commonjs";
 import { createStore } from "./mem-store";
 import * as JSON5 from "json5";
+import { SystemContext } from "../../src";
 
 export type Or<T1, T2> =
   | ({ [P in keyof T1]: T1[P] } & { [P in keyof T2]?: never })
@@ -12,7 +13,7 @@ export type Or<T1, T2> =
 export type TestOptions<T = any> = {
   mockFetch?: boolean;
   func: JitsuFunction<AnalyticsServerEvent, T>;
-  ctx?: EventContext & FunctionContext;
+  ctx?: EventContext & FunctionContext & { $system?: Partial<SystemContext["$system"]> };
 } & Or<{ config: T }, { configEnvVar: string }> &
   Or<{ generateEvents: (jitsu: AnalyticsInterface) => void }, { events: AnalyticsServerEvent[] }>;
 
