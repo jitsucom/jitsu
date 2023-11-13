@@ -70,7 +70,6 @@ const View = ({ data, workspaces }) => {
           workspaceId: {
             type: "custom",
             render: workspaceId => {
-              console.log("val", workspaceId, "against", workspacesMap);
               const name = workspacesMap[workspaceId]?.name || workspacesMap[workspaceId]?.slug || workspaceId;
               return <Reference href={`/${workspacesMap[workspaceId]?.slug || workspaceId}`}>{name}</Reference>;
             },
