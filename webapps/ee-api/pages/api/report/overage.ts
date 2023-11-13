@@ -3,7 +3,7 @@ import { assertTrue, getLog } from "juava";
 import { withErrorHandler } from "../../../lib/error-handler";
 import { auth } from "../../../lib/auth";
 import { store } from "../../../lib/services";
-import { getAvailableProducts, stripe, stripeDataTable } from "../../../lib/stripe";
+import { getAvailableProducts, stripe, stripeDataTable, stripeLink } from "../../../lib/stripe";
 import Stripe from "stripe";
 import pick from "lodash/pick";
 import { buildWorkspaceReport } from "./workspace-stat";
@@ -15,10 +15,6 @@ function toUTC(date: Date | string) {
   const dateObj = new Date(date);
   const timezoneOffset = dateObj.getTimezoneOffset();
   return new Date(dateObj.getTime() - timezoneOffset * 60000);
-}
-
-function stripeLink(entity: string, id: string) {
-  return `https://dashboard.stripe.com/${entity}/${id}`;
 }
 
 function round(date: Date | string, granularity: "day" = "day"): { start: string; end: string } {

@@ -46,6 +46,10 @@ export async function getOrCreateCurrentSubscription(
   };
 }
 
+export function stripeLink(entity: string, id: string) {
+  return `https://dashboard.stripe.com/${entity}/${id}`;
+}
+
 export async function getActivePlan(customerId: string): Promise<null | SubscriptionStatus> {
   const subscriptions = await stripe.subscriptions.list({ customer: customerId, status: "all", limit: 10 });
   const sub2product = new Map<string, Stripe.Product>();
@@ -101,7 +105,7 @@ export async function getActivePlan(customerId: string): Promise<null | Subscrip
   return null;
 }
 
-function getStripeObjectTag() {
+export function getStripeObjectTag() {
   return (process.env.STRIPE_OBJECT_TAG as string) || "jitsu2.0";
 }
 

@@ -1,7 +1,7 @@
-import { useApi } from "../../lib/useApi";
+import { get } from "../../lib/useApi";
 import { useRouter } from "next/router";
 import { useQueryStringState } from "../../lib/useQueryStringState";
-import { Loader2 } from "lucide-react";
+import { CircleDollarSign, Loader2, UserCircle2 } from "lucide-react";
 import { ErrorCard } from "../../components/GlobalError/GlobalError";
 import { Switch } from "antd";
 import omit from "lodash/omit";
@@ -10,6 +10,8 @@ import { FaArrowLeft } from "react-icons/fa";
 import { useState } from "react";
 import hash from "stable-hash";
 import { JsonAsTable } from "../../components/JsonAsTable/JsonAsTable";
+import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
 
 const View = ({ data }) => {
   const [rollup, setRollup] = useState(false);
@@ -27,7 +29,7 @@ const View = ({ data }) => {
       <JsonAsTable
         rows={(rollup
           ? Object.values(
-              data.data.reduce((res, row) => {
+              data.reduce((res, row) => {
                 const rowKey = hash(omit(row, "events", "period"));
                 const rowValues = omit(row, "period");
                 if (!res[rowKey]) {
@@ -37,7 +39,7 @@ const View = ({ data }) => {
                 return res;
               }, {})
             )
-          : data.data
+          : data
         )
           .sort((a, b) => {
             const dateCompare = a.period && b.period ? -a.period.localeCompare(b.period) : 0;
@@ -60,6 +62,55 @@ const View = ({ data }) => {
           events: { type: "number" },
           workspaceSlug: { omit: true },
           workspaceName: { type: "link", href: (val, row) => `/${row.workspaceSlug}` },
+          billing: {
+            type: "custom",
+            render: (val, row) => {
+              if (val?.renewAfterExpiration === true) {
+                return (
+                  <div className="flex flex-nowrap text-success items-center gap-1 text-sm">
+                    <Link key="status" href={`/${row.workspaceSlug}/settings/billing`} className="grow">
+                      <div className="border text-center rounded-full text-xs text-success border-success bg-success/10">
+                        PAYING
+                      </div>
+                    </Link>
+                    <Link key="customer" href={val.customerLink}>
+                      <UserCircle2 className="text-success w-4 h-4" />
+                    </Link>
+                    <Link href={val.subscriptionLink}>
+                      <CircleDollarSign className="text-success w-4 h-4" />
+                    </Link>
+                  </div>
+                );
+              } else if (val?.renewAfterExpiration === false) {
+                return (
+                  <div className="flex flex-nowrap text-warning items-center gap-1 text-sm">
+                    <Link key="status" href={`/${row.workspaceSlug}/settings/billing`} className="grow">
+                      <div className="border text-center rounded-full text-xs text-warning border-warning bg-warning/10">
+                        CANCELLING
+                      </div>
+                    </Link>
+                    <Link key="customer" href={val.customerLink}>
+                      <UserCircle2 className="text-warning w-4 h-4" />
+                    </Link>
+                    <Link href={val.subscriptionLink}>
+                      <CircleDollarSign className="text-warning w-4 h-4" />
+                    </Link>
+                  </div>
+                );
+              }
+              return (
+                <div className="flex flex-nowrap text-textLight items-center gap-1 text-sm">
+                  <Link key="status" href={`/${row.workspaceSlug}/settings/billing`} className="grow">
+                    <div className="border text-center rounded-full text-xs text-textLight border-textLight bg-textLight/10">
+                      FREE
+                    </div>
+                  </Link>
+                  <UserCircle2 className="text-warning w-4 h-4 invisible" />
+                  <CircleDollarSign className="text-warning w-4 h-4 invisible" />
+                </div>
+              );
+            },
+          },
         }}
       />
     </div>
@@ -67,7 +118,16 @@ const View = ({ data }) => {
 };
 
 export const WorkspacesAdminPage = () => {
-  const { data, isLoading, error } = useApi(`/api/$all/ee/report/workspace-stat?extended=true`);
+  const { data, isLoading, error } = useQuery(
+    ["workspaces-admin"],
+    async () => {
+      return await Promise.all([
+        get("/api/$all/ee/report/workspace-stat?extended=true"),
+        get("/api/$all/ee/billing/workspaces"),
+      ]);
+    },
+    { retry: false, cacheTime: 0 }
+  );
   const router = useRouter();
   const [filter, setFilter] = useQueryStringState("filter");
   if (isLoading) {
@@ -83,7 +143,15 @@ export const WorkspacesAdminPage = () => {
       </div>
     );
   }
-  return <View data={data} />;
+  const [workspacesList, billing] = data!;
+  const enrichedList = workspacesList.data.map(w => {
+    if (billing[w.workspaceId]) {
+      w.billing = billing[w.workspaceId];
+    }
+    return w;
+  });
+  console.log(enrichedList);
+  return <View data={enrichedList} />;
 };
 
 export default WorkspacesAdminPage;
