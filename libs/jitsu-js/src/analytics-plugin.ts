@@ -287,7 +287,7 @@ function adjustPayload(payload: any, config: JitsuOptions, storage: PersistentSt
       fbc: getCookie("_fbc"),
       fbp: getCookie("_fbp"),
       ga4: {
-        clientId: getCookie("_ga").split(".").slice(-2).join("."), //last 2 parts of GA cookie
+        clientId: getCookie("_ga")?.split(".").slice(-2).join("."), //last 2 parts of GA cookie
         sessions: getGa4Sessions(),
       },
     },
