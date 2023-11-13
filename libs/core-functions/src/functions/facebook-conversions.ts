@@ -62,7 +62,7 @@ const FacebookConversionsApi: JitsuFunction<AnalyticsServerEvent, FacebookConver
       event_time: Math.floor((event.timestamp ? new Date(event.timestamp) : new Date()).getTime() / 1000),
       event_id: event.messageId,
       action_source: ctx.props?.actionSource || "website",
-      event_source_url: event.context?.page.url,
+      event_source_url: event.context?.page?.url,
       user_data: {
         em: event.context.traits?.email ? facebookHash(sanitizeEmail(event.context.traits.email + "")) : undefined,
         //ph: "" - phone number hash. We don't have a predefined field for phone number. Should be configurable
