@@ -8,7 +8,7 @@ import devnullIcon from "./icons/devnull";
 import gcsIcon from "./icons/gcs";
 import hubspotIcon from "./icons/hubspot";
 import mixpanelIcon from "./icons/mixpanel";
-//import facebookIcon from "./icons/facebook";
+import facebookIcon from "./icons/facebook";
 import juneIcon from "./icons/june";
 import mongodbIcon from "./icons/mongodb";
 
@@ -90,11 +90,16 @@ export type PropertyUI = {
 
 export type SchemaUI = Record<string, PropertyUI>;
 
-//Options of any source -> destination connection that are not specific to any particular destination
-export const CloudDestinationsConnectionOptions = z.object({
+export const FunctionsConnectionOptions = z.object({
   functions: z.array(z.object({ functionId: z.string(), functionOptions: z.any() })).optional(),
-  multithreading: z.boolean().optional(),
 });
+
+//Options of any source -> destination connection that are not specific to any particular destination
+export const CloudDestinationsConnectionOptions = z
+  .object({
+    multithreading: z.boolean().optional(),
+  })
+  .merge(FunctionsConnectionOptions);
 export type CloudDestinationsConnectionOptions = z.infer<typeof CloudDestinationsConnectionOptions>;
 
 //Auxiliary type for batch mode options
@@ -112,10 +117,12 @@ export type BatchModeOptions = z.infer<typeof BatchModeOptions>;
 /**
  * Common settings for device destination connections
  */
-export const DeviceDestinationsConnectionOptions = z.object({
-  events: z.string().optional().default("*"),
-  hosts: z.string().optional().default("*"),
-});
+export const DeviceDestinationsConnectionOptions = z
+  .object({
+    events: z.string().optional().default("*"),
+    hosts: z.string().optional().default("*"),
+  })
+  .merge(FunctionsConnectionOptions);
 
 export type DeviceDestinationsConnectionOptions = z.infer<typeof DeviceDestinationsConnectionOptions>;
 
@@ -131,9 +138,15 @@ export const BaseBulkerConnectionOptions = z
       .default("segment-single-table"),
   })
   .merge(BatchModeOptions)
-  .merge(CloudDestinationsConnectionOptions);
+  .merge(FunctionsConnectionOptions);
 
 export type BaseBulkerConnectionOptions = z.infer<typeof BaseBulkerConnectionOptions>;
+
+export const AllConnectionOptions = BaseBulkerConnectionOptions.merge(DeviceDestinationsConnectionOptions).merge(
+  CloudDestinationsConnectionOptions
+);
+
+export type AllConnectionOptions = Partial<z.infer<typeof AllConnectionOptions>>;
 
 /**
  * There's a little copy-paste between here and jitsu-js
@@ -281,14 +294,22 @@ const gaDeviceDestination = {
     measurementIds: z
       .string()
       .describe(
-        "Measurement IDs of your Google Analytics 4 properties. <a href='https://support.google.com/analytics/answer/9539598?hl=en' target='_blank' rel='noreferrer noopener'>How to find</a>"
+        "Measurement ID::Measurement ID of your Google Analytics 4 properties. <a href='https://support.google.com/analytics/answer/9539598?hl=en' target='_blank' rel='noreferrer noopener'>How to find</a>"
+      ),
+    autoPageView: z
+      .boolean()
+      .default(false)
+      .describe(
+        "Rely on <a href='https://support.google.com/analytics/answer/9216061#page_view' target='_blank' rel='noopener noreferer'>Enhanced event measurement</a> to track page views. Jitsu <code>page</code> event will be ignored."
       ),
   }),
   deviceOptions: {
-    type: "analytics-plugin",
-    packageCdn:
-      "https://cdn.jsdelivr.net/npm/@analytics/google-analytics@1.0.5/dist/@analytics/google-analytics.min.js",
-    moduleVarName: "analyticsGa",
+    type: "internal-plugin",
+    name: "ga4-tag",
+    // type: "analytics-plugin",
+    // packageCdn:
+    //   "https://cdn.jsdelivr.net/npm/@analytics/google-analytics@1.0.7/dist/@analytics/google-analytics.min.js",
+    // moduleVarName: "analyticsGa",
   } as DeviceOptions,
   connectionOptions: DeviceDestinationsConnectionOptions,
 };
@@ -567,16 +588,16 @@ export const coreDestinations: DestinationType<any>[] = [
     credentialsUi: meta.MixpanelCredentialsUi,
     description: "Mixpanel is a product analytics platform that provides insights into user behavior.",
   },
-  // {
-  //   id: "facebook-conversions",
-  //   icon: facebookIcon,
-  //   title: "Facebook Conversions API",
-  //   tags: "Product Analytics",
-  //   connectionOptions: CloudDestinationsConnectionOptions,
-  //   credentials: meta.FacebookConversionApiCredentials,
-  //   credentialsUi: meta.FacebookConversionApiCredentialsUi,
-  //   description: "Facebook Conversion API is a tool for sending events to Facebook Ads Manager.",
-  // },
+  {
+    id: "facebook-conversions",
+    icon: facebookIcon,
+    title: "Facebook Conversions API",
+    tags: "Product Analytics",
+    connectionOptions: CloudDestinationsConnectionOptions,
+    credentials: meta.FacebookConversionApiCredentials,
+    credentialsUi: meta.FacebookConversionApiCredentialsUi,
+    description: "Facebook Conversion API is a tool for sending events to Facebook Ads Manager.",
+  },
   {
     id: "june",
     icon: juneIcon,

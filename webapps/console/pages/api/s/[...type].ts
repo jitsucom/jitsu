@@ -16,6 +16,9 @@ import { Geo } from "@jitsu/protocols/functions";
 import { isEU } from "../../../lib/shared/eu";
 import { IncomingHttpHeaders } from "http";
 import { NextApiRequest, NextApiResponse } from "next";
+import jsondiffpatch from "jsondiffpatch";
+import { applyFilters } from "@jitsu/js/compiled/src";
+const jsondiffpatchInstance = jsondiffpatch.create({});
 
 function isInternalHeader(headerName: string) {
   return headerName.toLowerCase().startsWith("x-jitsu-") || headerName.toLowerCase().startsWith("x-vercel");
@@ -116,17 +119,60 @@ function fromHeaders(httpHeaders: IncomingHttpHeaders): Geo {
 /**
  * Builds response if any sync destination is connected to a stream
  */
-function buildResponse(baseUrl: string, stream: StreamWithDestinations): any {
-  return {
-    destinations: (stream.synchronousDestinations || []).map(d => {
+async function buildResponse(message: IngestMessage, stream: StreamWithDestinations): Promise<any> {
+  const dsts = await Promise.all(
+    (stream.synchronousDestinations || []).map(async d => {
+      let newEvents: any[] | undefined = undefined;
+      if (!applyFilters(message.httpPayload, d.options)) {
+        return null;
+      }
+      if (d.options.functions && d.options.functions.length > 0) {
+        try {
+          const rotorURL = requireDefined(
+            process.env.ROTOR_URL,
+            `env ROTOR_URL is not set. Rotor is required to run functions`
+          );
+          const controller = new AbortController();
+          setTimeout(() => {
+            controller.abort();
+          }, parseInt(process.env.DEVICE_FUNCTIONS_TIMEOUT_MS ?? "200"));
+          const res = await nodeFetch(rotorURL + "/func", {
+            method: "POST",
+            body: JSON.stringify({ ...message, connectionId: d.connectionId }),
+            agent: (rotorURL.startsWith("https://") ? httpsAgent : httpAgent)(),
+            signal: controller.signal,
+            headers: {
+              "Content-Type": "application/json",
+            },
+          });
+          if (res.status === 200) {
+            const json = await res.json();
+            newEvents = json as any[];
+          } else if (res.status === 204) {
+            //drop
+            return null;
+          }
+        } catch (e) {
+          log
+            .atError()
+            .withCause(e)
+            .log(`Failed to run device functions. connectionId: ${message.connectionId}: ${getErrorMessage(e)}`);
+        }
+      }
       const deviceOptions: any =
         requireDefined(getCoreDestinationType(d.destinationType), `Unknown destination ${d.destinationType}`)
           .deviceOptions || {};
       return {
         ...d,
+        newEvents: newEvents
+          ? newEvents.map(e => (jsondiffpatchInstance.diff(message.httpPayload, e) == null ? "same" : e))
+          : undefined,
         deviceOptions,
       };
-    }),
+    })
+  );
+  return {
+    destinations: dsts.filter(d => d !== null),
   };
 }
 
@@ -199,7 +245,7 @@ export async function sendEventToBulker(req: NextApiRequest, ingestType: IngestT
       stream = await getStream(loc);
       if (stream) {
         if (stream.asynchronousDestinations?.length > 0 || stream.synchronousDestinations?.length > 0) {
-          response = buildResponse(message.origin.baseUrl, stream);
+          response = await buildResponse(message, stream);
         } else {
           const msg = `No destinations linked for stream: ${stream.stream.id}`;
           log.atWarn().log(msg);

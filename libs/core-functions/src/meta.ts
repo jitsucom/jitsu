@@ -1,14 +1,17 @@
 import { z } from "zod";
 
 const eventsParamDescription = `
-List of events to send to Facebook, delimited by comma. Following <code>page</code>, screen, or any arbitrary event (name of track event). 
-Special values: empty string - send only track events, <code>*</code> - send all events useful if you want to filter events with Functions 
+List of events to send to Facebook, delimited by comma. Following <code>page</code>, <code>screen</code>, or any arbitrary event (name of <code>track</code> event). 
+Special values: <b>empty string</b> - send only <code>track</code> events, <b>*</b> - send all events useful if you want to filter events with Functions 
 `;
 export const FacebookConversionApiCredentials = z.object({
   pixelId: z.string().describe("Facebook Pixel ID"),
   accessToken: z.string().describe("Facebook Access Token"),
+  actionSource: z
+    .enum(["email", "website", "app", "phone_call", "chat", "physical_store", "system_generated", "other"])
+    .default("website")
+    .describe("Action Source"),
   events: z.string().optional().default("").describe(eventsParamDescription),
-  actionSource: z.string().optional().describe("Action Source"),
 });
 
 export const FacebookConversionApiCredentialsUi = {

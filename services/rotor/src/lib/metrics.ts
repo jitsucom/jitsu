@@ -81,7 +81,11 @@ export function createMetrics(producer: Producer): Metrics {
         //   `${el.metricsMeta.connectionId} ${el.metricsMeta.messageId} ${el.functionId} ${el.error} ${el.dropped} ${el.metricsMeta.retries}`
         // );
         const status = ((el: FunctionExecRes) => {
-          let prefix = el.functionId.startsWith("builtin.destination.") ? "" : "function_";
+          let prefix = el.functionId.startsWith("builtin.destination.")
+            ? ""
+            : el.functionId.startsWith("builtin.transformation.")
+            ? "builtin_function_"
+            : "function_";
           let status = "success";
           if (el.error) {
             if (el.metricsMeta?.retries) {

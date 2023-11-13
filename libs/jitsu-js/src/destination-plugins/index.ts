@@ -2,6 +2,7 @@ import { AnalyticsClientEvent } from "@jitsu/protocols/analytics";
 import { tagPlugin } from "./tag";
 import { logrocketPlugin } from "./logrocket";
 import { gtmPlugin } from "./gtm";
+import { ga4Plugin } from "./ga4";
 
 export type InternalPlugin<T> = {
   id: string;
@@ -36,7 +37,7 @@ export function applyFilters(event: AnalyticsClientEvent, creds: CommonDestinati
     const eventsArray = Array.isArray(events) ? events : events.split("\n");
     const hostsArray = Array.isArray(hosts) ? hosts : hosts.split("\n");
     return (
-      !!hostsArray.find(hostFilter => satisfyDomainFilter(hostFilter, event.context?.host)) &&
+      !!hostsArray.find(hostFilter => satisfyDomainFilter(hostFilter, event.context?.page?.host)) &&
       (!!eventsArray.find(eventFilter => satisfyFilter(eventFilter, event.type)) ||
         !!eventsArray.find(eventFilter => satisfyFilter(eventFilter, event.event)))
     );
@@ -55,5 +56,6 @@ export function applyFilters(event: AnalyticsClientEvent, creds: CommonDestinati
 export const internalDestinationPlugins: Record<string, InternalPlugin<any>> = {
   [tagPlugin.id]: tagPlugin,
   [gtmPlugin.id]: gtmPlugin,
+  [ga4Plugin.id]: ga4Plugin,
   [logrocketPlugin.id]: logrocketPlugin,
 };

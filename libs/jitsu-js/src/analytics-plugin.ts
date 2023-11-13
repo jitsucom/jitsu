@@ -77,6 +77,25 @@ function getCookie(name: string) {
   return parts.length === 2 ? parts.pop().split(";").shift() : undefined;
 }
 
+function getGa4Sessions(): Record<string, string> | undefined {
+  const value = `; ${document.cookie}`;
+  const matches = value.matchAll(/_ga_(\w+)=([^;]+)/g);
+  const sessions: Record<string, string> = {};
+  let matchesCount = 0;
+  for (const match of matches) {
+    const parts = match[2].split(".");
+    if (parts.length < 3) {
+      continue;
+    }
+    sessions[match[1]] = parts[2];
+    matchesCount++;
+  }
+  if (matchesCount === 0) {
+    return undefined;
+  }
+  return sessions;
+}
+
 function removeCookie(name: string) {
   document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:01 GMT;";
 }
@@ -267,6 +286,10 @@ function adjustPayload(payload: any, config: JitsuOptions, storage: PersistentSt
     clientIds: {
       fbc: getCookie("_fbc"),
       fbp: getCookie("_fbp"),
+      ga4: {
+        clientId: getCookie("_ga").split(".").slice(-2).join("."), //last 2 parts of GA cookie
+        sessions: getGa4Sessions(),
+      },
     },
     campaign: parseUtms(query),
   };
@@ -288,6 +311,7 @@ export type DestinationDescriptor = {
   destinationType: string;
   credentials: any;
   options: any;
+  newEvents?: any[];
   deviceOptions: DeviceOptions;
 };
 export type AnalyticsPluginDescriptor = {
@@ -306,24 +330,31 @@ export type DeviceOptions = AnalyticsPluginDescriptor | InternalPluginDescriptor
 async function processDestinations(
   destinations: DestinationDescriptor[],
   method: string,
-  event: AnalyticsClientEvent,
+  originalEvent: AnalyticsClientEvent,
   debug: boolean,
   analyticsInstance: AnalyticsInstance
 ) {
   const promises: Promise<any>[] = [];
+
   for (const destination of destinations) {
+    let newEvents = [originalEvent];
+    if (destination.newEvents) {
+      newEvents = destination.newEvents.map(e => (e === "same" ? originalEvent : e));
+    }
     const credentials = { ...destination.credentials, ...destination.options };
 
     if (destination.deviceOptions.type === "internal-plugin") {
       const plugin = internalDestinationPlugins[destination.deviceOptions.name];
       if (plugin) {
-        try {
-          promises.push(plugin.handle(credentials, event));
-        } catch (e) {
-          console.warn(
-            `[JITSU] Error processing event with internal plugin '${destination.deviceOptions.name}': ${e?.message}`,
-            e
-          );
+        for (const event of newEvents) {
+          try {
+            promises.push(plugin.handle(credentials, event));
+          } catch (e) {
+            console.warn(
+              `[JITSU] Error processing event with internal plugin '${destination.deviceOptions.name}': ${e?.message}`,
+              e
+            );
+          }
         }
       } else {
         console.warn(
@@ -366,13 +397,19 @@ async function processDestinations(
         }
 
         if (pluginInstance[method]) {
-          try {
-            pluginInstance[method]({ payload: event, config: pluginInstance.config, instance: analyticsInstance });
-          } catch (e) {
-            console.warn(
-              `[JITSU] Error processing ${method}() with plugin '${destination.deviceOptions.moduleVarName}@${destination.deviceOptions.packageCdn}' for destination '${destination.id}': ${e?.message}`,
-              e
-            );
+          for (const event of newEvents) {
+            try {
+              pluginInstance[method]({
+                payload: event,
+                config: pluginInstance.config,
+                instance: analyticsInstance,
+              });
+            } catch (e) {
+              console.warn(
+                `[JITSU] Error processing ${method}() with plugin '${destination.deviceOptions.moduleVarName}@${destination.deviceOptions.packageCdn}' for destination '${destination.id}': ${e?.message}`,
+                e
+              );
+            }
           }
         }
       }

@@ -779,6 +779,9 @@ importers:
       json5:
         specifier: ^2.2.3
         version: 2.2.3
+      jsondiffpatch:
+        specifier: ^0.5.0
+        version: 0.5.0
       jsonwebtoken:
         specifier: ^9.0.2
         version: 9.0.2
@@ -9424,6 +9427,7 @@ packages:
     dependencies:
       webpack: 5.88.2(webpack-cli@5.1.4)
       webpack-cli: 5.1.4(@webpack-cli/generators@3.0.7)(webpack@5.88.2)
+    dev: true
 
   /@webpack-cli/generators@3.0.1(mem-fs-editor@9.7.0)(mem-fs@2.3.0)(prettier@2.8.7)(webpack-cli@5.0.1)(webpack@5.78.0):
     resolution: {integrity: sha512-kgtqwN13udxC2wV2LfEmJQ/yGz6+j8cgy17jE9ybyHrmT0PJcwjSpsvj1fDWYUb7brSOB4B03s1mEPjZTRfwCQ==}
@@ -9470,6 +9474,7 @@ packages:
       - mem-fs
       - mem-fs-editor
       - supports-color
+    dev: true
 
   /@webpack-cli/info@2.0.1(webpack-cli@5.0.1)(webpack@5.78.0):
     resolution: {integrity: sha512-fE1UEWTwsAxRhrJNikE7v4EotYflkEhBL7EbajfkPlf6E37/2QshOy/D48Mw8G5XMFlQtS6YV42vtbG9zBpIQA==}
@@ -9490,6 +9495,7 @@ packages:
     dependencies:
       webpack: 5.88.2(webpack-cli@5.1.4)
       webpack-cli: 5.1.4(@webpack-cli/generators@3.0.7)(webpack@5.88.2)
+    dev: true
 
   /@webpack-cli/serve@2.0.1(webpack-cli@5.0.1)(webpack@5.78.0):
     resolution: {integrity: sha512-0G7tNyS+yW8TdgHwZKlDWYXFA6OJQnoLCQvYKkQP0Q2X205PSQ6RNUj0M+1OB/9gRQaUZ/ccYfaxd0nhaWKfjw==}
@@ -9518,6 +9524,7 @@ packages:
     dependencies:
       webpack: 5.88.2(webpack-cli@5.1.4)
       webpack-cli: 5.1.4(@webpack-cli/generators@3.0.7)(webpack@5.88.2)
+    dev: true
 
   /@xobotyi/scrollbar-width@1.9.5:
     resolution: {integrity: sha512-N8tkAACJx2ww8vFMneJmaAgmjAG1tnVBZJRLRcx061tmsLRZHSEZSLuGWnwPtunsSLvSqXQ2wfp7Mgqg1I+2dQ==}
@@ -11175,6 +11182,7 @@ packages:
   /commander@10.0.1:
     resolution: {integrity: sha512-y4Mg2tXshplEbSGzx7amzPwKKOCGuoSRP/CjEdwwk0FOGlUbq6lKuoyDZTNZkmxHdJtp54hdfY/JUrdL7Xfdug==}
     engines: {node: '>=14'}
+    dev: true
 
   /commander@11.0.0:
     resolution: {integrity: sha512-9HMlXtt/BNoYr8ooyjjNRdIilOTkVJXB+GhxMTtOKwk0R4j4lS4NpjuqmRxroBfnfTSHQIHQB7wryHhXarNjmQ==}
@@ -12143,6 +12151,10 @@ packages:
 
   /didyoumean@1.2.2:
     resolution: {integrity: sha512-gxtyfqMg7GKyhQmb056K7M3xszy/myH8w+B4RT+QXBQsvAOdc3XymqDDPHx1BgPgsdAA5SIifona89YtRATDzw==}
+
+  /diff-match-patch@1.0.5:
+    resolution: {integrity: sha512-IayShXAgj/QMXgB0IWmKx+rOPuGMhqm5w6jvFxmVenXKIzRqTAAsbBPT3kWQeGANj3jGgvcvv4yK6SxqYmikgw==}
+    dev: false
 
   /diff-sequences@27.5.1:
     resolution: {integrity: sha512-k1gCAXAsNgLwEL+Y8Wvl+M6oEFj5bgazfZULpS5CneoPPXRaCCW7dm+q21Ky2VEE5X+VeRDBVg1Pcvvsr4TtNQ==}
@@ -17543,6 +17555,15 @@ packages:
     resolution: {integrity: sha512-XmOWe7eyHYH14cLdVPoyg+GOH3rYX++KpzrylJwSW98t3Nk+U8XOl8FWKOgwtzdb8lXGf6zYwDUzeHMWfxasyg==}
     engines: {node: '>=6'}
     hasBin: true
+
+  /jsondiffpatch@0.5.0:
+    resolution: {integrity: sha512-Quz3MvAwHxVYNXsOByL7xI5EB2WYOeFswqaHIA3qOK3isRWTxiplBEocmmru6XmxDB2L7jDNYtYA4FyimoAFEw==}
+    engines: {node: '>=8.17.0'}
+    hasBin: true
+    dependencies:
+      chalk: 3.0.0
+      diff-match-patch: 1.0.5
+    dev: false
 
   /jsonfile@4.0.0:
     resolution: {integrity: sha512-m6F1R3z8jjlf2imQHS2Qez5sjKWQzbuuhuJ/FKYFRZvPE3PuHcSMVZzfsLhGVOkfd20obL5SWEBew5ShlquNxg==}
@@ -24405,7 +24426,7 @@ packages:
       schema-utils: 3.3.0
       serialize-javascript: 6.0.1
       terser: 5.19.4
-      webpack: 5.88.2(webpack-cli@5.1.4)
+      webpack: 5.88.2(webpack-cli@5.0.1)
 
   /terser@4.8.1:
     resolution: {integrity: sha512-4GnLC0x667eJG0ewJTa6z/yXrbLGv80D9Ru6HIpCQmO+Q4PfEtBFi0ObSckqwL6VyQv/7ENJieXHo2ANmdQwgw==}
@@ -25679,6 +25700,7 @@ packages:
       rechoir: 0.8.0
       webpack: 5.88.2(webpack-cli@5.1.4)
       webpack-merge: 5.8.0
+    dev: true
 
   /webpack-dev-middleware@5.3.3(webpack@5.88.2):
     resolution: {integrity: sha512-hj5CYrY0bZLB+eTO+x/j67Pkrquiy7kWepMHmUMoPsmcUaeEnQJqFzHJOyxgWlq746/wUuA64p9ta34Kyb01pA==}
@@ -25901,6 +25923,7 @@ packages:
       - '@swc/core'
       - esbuild
       - uglify-js
+    dev: true
 
   /websocket-driver@0.7.4:
     resolution: {integrity: sha512-b17KeDIQVjvb0ssuSDF2cYXSg2iztliJ4B9WdsuB6J952qCPKmnVq4DyW5motImXHDC1cBT/1UezrJVsKw5zjg==}

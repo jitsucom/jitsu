@@ -1,20 +1,20 @@
 import { JitsuFunction } from "@jitsu/protocols/functions";
-import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
+import { AnalyticsServerEvent, ID } from "@jitsu/protocols/analytics";
 import { FacebookConversionApiCredentials } from "../meta";
 
 import crypto from "crypto";
 import omit from "lodash/omit";
 import { RetryError } from "@jitsu/functions-lib";
 
-function createFilter(filter: string): (eventName: string, eventType: string) => boolean {
+function createFilter(filter: string): (eventType: string, eventName?: string) => boolean {
   if (filter === "*") {
     return () => true;
   } else if (filter === "") {
-    return eventName => eventName !== "page" && eventName !== "screen";
+    return eventType => eventType !== "page" && eventType !== "screen";
   } else {
     const events = filter.split(",").map(e => e.trim());
-    return (eventName: string, eventType: string) => {
-      return events.includes(eventName) || events.includes(eventType);
+    return (eventType: string, eventName?: string) => {
+      return events.includes(eventType) || (!!eventName && events.includes(eventName));
     };
   }
 }
@@ -23,7 +23,7 @@ export function facebookHash(email: string) {
   return crypto.createHash("sha256").update(email.toLowerCase()).digest("hex");
 }
 
-function reduceArray(strings: string[]): string[] | string {
+function reduceArray(strings: ID[]): ID[] | ID {
   return strings.length === 1 ? strings[0] : strings;
 }
 
@@ -51,16 +51,18 @@ const FacebookConversionsApi: JitsuFunction<AnalyticsServerEvent, FacebookConver
   event,
   ctx
 ) => {
-  if (event.type === "track" || event.event === "page" || event.event === "screen") {
+  if (event.type === "track" || event.type === "page" || event.type === "screen") {
     const filter = createFilter(ctx.props.events || "");
-    if (!filter(event.event, event.type)) {
+    if (!filter(event.type, event.event)) {
       return;
     }
 
     const fbEvent = {
       event_name: event.type === "track" ? event.event : event.type,
       event_time: Math.floor((event.timestamp ? new Date(event.timestamp) : new Date()).getTime() / 1000),
-      action_source: ctx.props?.actionSource || undefined,
+      event_id: event.messageId,
+      action_source: ctx.props?.actionSource || "website",
+      event_source_url: event.context?.url,
       user_data: {
         em: event.context.traits?.email ? facebookHash(sanitizeEmail(event.context.traits.email + "")) : undefined,
         //ph: "" - phone number hash. We don't have a predefined field for phone number. Should be configurable
@@ -70,7 +72,18 @@ const FacebookConversionsApi: JitsuFunction<AnalyticsServerEvent, FacebookConver
         fbc: event.context.clientIds?.fbc,
         fbp: event.context.clientIds?.fbp,
       },
-      custom_data: omit(event.properties, ["path", "referrer", "host", "referring_domain", "search", "title", "url"]),
+      custom_data: omit(event.properties, [
+        "path",
+        "referrer",
+        "host",
+        "referring_domain",
+        "search",
+        "title",
+        "url",
+        "hash",
+        "height",
+        "width",
+      ]),
     };
 
     const baseUrl = `https://graph.facebook.com/v18.0/${ctx.props.pixelId}/events?access_token=`;

@@ -38,8 +38,7 @@ import Prometheus from "prom-client";
 import { Metrics } from "./lib/metrics";
 import { redisLogger } from "./lib/redis-logger";
 import pick from "lodash/pick";
-import omit from "lodash/omit";
-import uaParser from "@amplitude/ua-parser-js";
+import { FunctionsHandler } from "./http/functions";
 disableService("prisma");
 disableService("pg");
 
@@ -77,7 +76,7 @@ const getCachedOrLoad = async (cache: NodeCache, key: string, loader: (key: stri
 };
 
 export async function rotorMessageHandler(
-  _message: string | undefined,
+  _message: string | object | undefined,
   metrics?: Metrics,
   functionsFilter?: (id: string) => boolean,
   retries: number = 0
@@ -85,7 +84,7 @@ export async function rotorMessageHandler(
   if (!_message) {
     return;
   }
-  const message = JSON.parse(_message) as IngestMessage;
+  const message = (typeof _message === "string" ? JSON.parse(_message) : _message) as IngestMessage;
   const connection = requireDefined(
     await getCachedOrLoad(connectionsCache, message.connectionId, fastStore.getEnrichedConnection),
     `Unknown connection: ${message.connectionId}`
@@ -262,6 +261,7 @@ export async function rotorMessageHandler(
   const chainRes = await runChain(funcChain, event, rl, store, ctx);
   await metrics?.logMetrics(chainRes.execLog);
   checkError(chainRes);
+  return chainRes;
 }
 
 async function main() {
@@ -344,7 +344,7 @@ async function main() {
 
     rotor
       .start()
-      .then(() => {
+      .then(chMetrics => {
         log.atInfo().log(`Kafka processing started. Listening for topics ${kafkaTopics} with group ${consumerGroupId}`);
         http.get("/health", (req, res) => {
           res.send("OK");
@@ -355,6 +355,7 @@ async function main() {
           res.end(result);
         });
         http.post("/udfrun", UDFRunHandler);
+        http.post("/func", FunctionsHandler(chMetrics));
         http.listen(rotorHttpPort, () => {
           log.atInfo().log(`Listening health-checks on port ${rotorHttpPort}`);
         });

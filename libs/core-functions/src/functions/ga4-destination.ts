@@ -22,6 +22,7 @@ function removeProperties(properties: Record<string, any>, toRemove: string[]): 
 
 type Ga4Request = {
   client_id: string;
+  user_id?: string;
   timestamp_micros: number;
   user_properties?: Record<string, any>;
   events: Ga4Event[];
@@ -131,7 +132,11 @@ function getUserProperties(event: AnalyticsServerEvent): Record<string, any> {
 }
 
 function getClientId(event: AnalyticsServerEvent): string {
-  return event.userId || event.anonymousId || "";
+  return event.context?.clientIds?.ga4?.clientId || event.anonymousId || "";
+}
+
+function getSessionId(event: AnalyticsServerEvent, measurementId: string): string | undefined {
+  return event.context?.clientIds?.ga4?.sessions?.[measurementId.replace("G-", "")];
 }
 
 function pageViewEvent(event: AnalyticsServerEvent): Ga4Event {
@@ -148,7 +153,6 @@ function pageViewEvent(event: AnalyticsServerEvent): Ga4Event {
       page_location: customProperties.url || "",
       page_referrer: customProperties.referrer || "",
       page_title: customProperties.title || "",
-      engagement_time_msec: 1,
     },
   };
 }
@@ -157,7 +161,7 @@ function trackEvent(event: AnalyticsServerEvent): Ga4Event {
   const evp = event.properties || {};
   let params: Record<string, any> = {};
   let name;
-  const eventName = event.event || event.name;
+  const eventName = event.event || event.name || event.type;
   switch (event.name) {
     case "Promotion Clicked":
       name = "select_promotion";
@@ -276,7 +280,6 @@ function trackEvent(event: AnalyticsServerEvent): Ga4Event {
       params.value = evp.value || evp.total || evp.revenue;
       break;
   }
-  params.engagement_time_msec = 1;
   return {
     name,
     params,
@@ -291,6 +294,7 @@ const Ga4Destination: JitsuFunction<AnalyticsServerEvent, Ga4Credentials> = asyn
       ctx.log.info(`Ga4: no client_id found for event ID: ${event.messageId}`);
       return;
     }
+    const sessionId = getSessionId(event, ctx.props.measurementId);
     const userProperties = getUserProperties(event);
     const events: Ga4Event[] = [];
 
@@ -314,9 +318,10 @@ const Ga4Destination: JitsuFunction<AnalyticsServerEvent, Ga4Credentials> = asyn
 
     gaRequest = {
       client_id: clientId,
+      user_id: event.userId,
       timestamp_micros: new Date(event.timestamp as string).getTime() * 1000,
       user_properties: userProperties,
-      events: events,
+      events: sessionId ? events.map(e => ({ ...e, params: { ...e.params, session_id: sessionId } })) : events,
     };
 
     const result = await ctx.fetch(url, {

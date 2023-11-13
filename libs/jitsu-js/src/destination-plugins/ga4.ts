@@ -4,33 +4,42 @@ import { applyFilters, CommonDestinationCredentials, InternalPlugin } from "./in
 
 const defaultScriptSrc = "https://www.googletagmanager.com/gtag/js";
 
-export type GtmDestinationCredentials = {
+export type Ga4DestinationCredentials = {
   debug?: boolean;
-  containerId?: string;
+  measurementIds?: string;
+  autoPageView?: boolean;
   dataLayerName?: string;
-  preview?: string;
-  auth?: string;
-  customScriptSrc?: string;
 } & CommonDestinationCredentials;
 
-export const gtmPlugin: InternalPlugin<GtmDestinationCredentials> = {
-  id: "gtm",
+export const ga4Plugin: InternalPlugin<Ga4DestinationCredentials> = {
+  id: "ga4-tag",
   async handle(config, payload: AnalyticsClientEvent) {
     if (!applyFilters(payload, config)) {
       return;
     }
-    await initGtmIfNeeded(config, payload);
+    await initGa4IfNeeded(config, payload);
 
     const dataLayer = window[config.dataLayerName || "dataLayer"];
+    const gtag = function () {
+      dataLayer.push(arguments);
+    };
     const ids = {
       ...(payload.userId ? { user_id: payload.userId, userId: payload.userId } : {}),
       ...(payload.anonymousId ? { anonymousId: payload.anonymousId } : {}),
     };
+    if (payload.userId) {
+      // @ts-ignore
+      gtag("set", { user_id: payload.userId });
+    }
+
     switch (payload.type) {
       case "page":
+        if (config.autoPageView) {
+          console.log("autoPageView");
+          break;
+        }
         const { properties: pageProperties, context } = payload;
         const pageEvent = {
-          event: "page_view",
           page_location: pageProperties.url,
           page_title: pageProperties.title,
           page_path: pageProperties.path,
@@ -39,75 +48,76 @@ export const gtmPlugin: InternalPlugin<GtmDestinationCredentials> = {
           page_referrer: context?.page?.referrer ?? "",
           ...ids,
         };
-        dataLayer.push(pageEvent);
+        // @ts-ignore
+        gtag("event", "page_view", pageEvent);
         break;
       case "track":
         const { properties: trackProperties } = payload;
         const trackEvent: any = {
-          event: payload.event,
           ...trackProperties,
           ...ids,
         };
-        dataLayer.push(trackEvent);
+        // @ts-ignore
+        gtag("event", payload.event, trackEvent);
         break;
       case "identify":
         const { traits } = payload;
         const identifyEvent: any = {
-          event: "identify",
           ...traits,
           ...ids,
         };
-        dataLayer.push(identifyEvent);
+        // @ts-ignore
+        gtag("event", "identify", identifyEvent);
         break;
     }
-    dataLayer.push(function () {
-      this.reset();
-    });
   },
 };
 
 type GtmState = "fresh" | "loading" | "loaded" | "failed";
 
-function getGtmState(): GtmState {
-  return window["__jitsuGtmState"] || "fresh";
+function getGa4State(): GtmState {
+  return window["__jitsuGa4State"] || "fresh";
 }
 
-function setGtmState(s: GtmState) {
-  window["__jitsuGtmState"] = s;
+function setGa4State(s: GtmState) {
+  window["__jitsuGa4State"] = s;
 }
 
-async function initGtmIfNeeded(config: GtmDestinationCredentials, payload: AnalyticsClientEvent) {
-  if (getGtmState() !== "fresh") {
+async function initGa4IfNeeded(config: Ga4DestinationCredentials, payload: AnalyticsClientEvent) {
+  if (getGa4State() !== "fresh") {
     return;
   }
-  setGtmState("loading");
+  setGa4State("loading");
 
   const dlName = config.dataLayerName || "dataLayer";
   const dlParam = dlName !== "dataLayer" ? "&l=" + dlName : "";
-  const previewParams = config.preview
-    ? `&gtm_preview=${config.preview}&gtm_auth=${config.auth}&gtm_cookies_win=x`
-    : "";
-  const tagId = config.containerId;
-  const scriptSrc = `${config.customScriptSrc || defaultScriptSrc}?id=${tagId}${dlParam}${previewParams}`;
+
+  // to work with both GA4 and GTM
+  const tagId = config.measurementIds;
+  const scriptSrc = `${defaultScriptSrc}?id=${tagId}${dlParam}`;
 
   window[dlName] = window[dlName] || [];
   const gtag = function () {
     window[dlName].push(arguments);
   };
-  window[dlName].push({
-    user_id: payload.userId,
-  });
   // @ts-ignore
   gtag("js", new Date());
-  // @ts-ignore
-  gtag("config", tagId);
+  gtag(
+    // @ts-ignore
+    "config",
+    tagId,
+    {
+      ...(payload.userId ? { user_id: payload.userId } : {}),
+      ...(!config.autoPageView ? { send_page_view: false } : {}),
+    }
+  );
 
   loadScript(scriptSrc)
     .then(() => {
-      setGtmState("loaded");
+      setGa4State("loaded");
     })
     .catch(e => {
-      console.warn(`GTM (containerId=${tagId}) init failed: ${e.message}`, e);
-      setGtmState("failed");
+      console.warn(`GA4 (containerId=${config.measurementIds}) init failed: ${e.message}`, e);
+      setGa4State("failed");
     });
 }

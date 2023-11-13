@@ -13,6 +13,7 @@ import utc from "dayjs/plugin/utc";
 dayjs.extend(utc);
 import { getRetryPolicy, retryBackOffTime, retryLogMessage } from "./retries";
 import { createMetrics, Metrics } from "./metrics";
+import { FuncChainResult } from "./functions-chain";
 
 const log = getLog("kafka-rotor");
 
@@ -29,14 +30,14 @@ export type KafkaRotorConfig = {
   kafkaClientId?: string;
   handle: (
     message: string,
-    metrics: Metrics,
+    metrics?: Metrics,
     functionsFilter?: (id: string) => boolean,
     retries?: number
-  ) => Promise<void>;
+  ) => Promise<FuncChainResult | undefined>;
 };
 
 export type KafkaRotor = {
-  start: () => Promise<void>;
+  start: () => Promise<Metrics>;
 };
 
 export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
@@ -197,9 +198,11 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
         eachMessage: async ({ message, topic, partition }) => {
           //make sure that queue has no more entities than concurrency limit (running tasks not included)
           await onSizeLessThan(concurrency);
-          queue.add(async () => onMessage(message, topic, partition));
+          await queue.add(async () => onMessage(message, topic, partition));
         },
       });
+
+      return metrics;
     },
   };
 }

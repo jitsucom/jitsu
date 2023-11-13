@@ -7,7 +7,7 @@ import { randomId, requireDefined, stopwatch } from "juava";
 import { z } from "zod";
 import { ConfigurationObjectDbModel, ConfigurationObjectLinkDbModel, WorkspaceDbModel } from "../../prisma/schema";
 import { zParse } from "../shared/zod";
-import { BaseBulkerConnectionOptions, DestinationType, getCoreDestinationType } from "../schema/destinations";
+import { AllConnectionOptions, DestinationType, getCoreDestinationType } from "../schema/destinations";
 import { redis } from "./redis";
 import { getServerLog } from "./log";
 import hash from "object-hash";
@@ -61,7 +61,7 @@ export type CommonShortDestinationConfig = {
   connectionId: string;
   destinationType: string;
   credentials: any;
-  options: BaseBulkerConnectionOptions;
+  options: AllConnectionOptions;
 };
 
 export type SyncShortDestinationConfig = { isSynchronous: true } & CommonShortDestinationConfig;
@@ -85,7 +85,7 @@ export type EnrichedConnectionConfig = {
   usesBulker: boolean;
   //destinationType
   type: string;
-  options: BaseBulkerConnectionOptions;
+  options: AllConnectionOptions;
 
   credentials: {
     [key: string]: any;
@@ -191,7 +191,7 @@ function createDestinationConfig(type: DestinationType, row: any): ShortDestinat
     destinationType: type.id,
     credentials: omit(row.dstConfig, "name", "type", "destinationType"),
     connectionId: row.id,
-    options: row.connectionData as BaseBulkerConnectionOptions,
+    options: row.connectionData as AllConnectionOptions,
   } as ShortDestinationConfig;
 }
 

@@ -15,6 +15,7 @@ import MongodbDestination from "./functions/mongodb-destination";
 import JuneDestination from "./functions/june-destination";
 import SegmentDestination from "./functions/segment-destination";
 import AmplitudeDestination from "./functions/amplitude-destination";
+import FacebookConversionsApi from "./functions/facebook-conversions";
 
 const builtinDestinations: Record<BuiltinDestinationFunctionName, JitsuFunction> = {
   "builtin.destination.bulker": BulkerDestination as JitsuFunction,
@@ -26,8 +27,13 @@ const builtinDestinations: Record<BuiltinDestinationFunctionName, JitsuFunction>
   "builtin.destination.posthog": PosthogDestination as JitsuFunction,
   "builtin.destination.mongodb": MongodbDestination as JitsuFunction,
   "builtin.destination.amplitude": AmplitudeDestination as JitsuFunction,
+  "builtin.destination.facebook-conversions": FacebookConversionsApi as JitsuFunction,
   "builtin.destination.hubspot": () => null,
   "builtin.destination.devnull": () => null,
+  "builtin.destination.tag": () => undefined,
+  "builtin.destination.gtm": () => undefined,
+  "builtin.destination.logrocket": () => undefined,
+  "builtin.destination.ga4-tag": () => undefined,
 } as const;
 
 const builtinTransformations: Record<BuiltinTransformationFunctionName, JitsuFunction> = {
