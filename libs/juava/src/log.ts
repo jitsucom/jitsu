@@ -92,7 +92,7 @@ function colorConsoleMessage(color: Color, str: string): string {
 
 function dispatch(msg: LogMessage) {
   const levelColor = levelColors[msg.level];
-  let logPrefix = `${msg.component ? `[${msg.component}]` : ""}`;
+  let logPrefix = `${msg.component ? ` [${msg.component}]: ` : ": "}`;
   if (!enableJsonFormat) {
     const timeFormatted = msg.date.toISOString().split("T").join(" ");
     const levelFormatted = msg.level.toUpperCase().padEnd(5);
@@ -101,9 +101,9 @@ function dispatch(msg: LogMessage) {
   if (inBrowser()) {
     const color = browserColors[levelColor || ""] || levelColor;
     const fullArgs = [...(msg.args || []), ...(msg.errorCause ? [msg.errorCause] : [])];
-    console.log(`%c${logPrefix}: ${msg.message}`, `color: ${color}`, ...fullArgs);
+    console.log(`%c${logPrefix}${msg.message}`, `color: ${color}`, ...fullArgs);
   } else {
-    const lines = [...`${logPrefix}: ${msg.message}${msg.args ? " " + msg.args.join(" ") : ""}`.split("\n")];
+    const lines = [...`${logPrefix}${msg.message}${msg.args ? " " + msg.args.join(" ") : ""}`.split("\n")];
     if (msg.errorCause) {
       if (msg.errorCause.message && !msg.errorCause.stack) {
         lines.push("Error! - " + msg.errorCause.message);

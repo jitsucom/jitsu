@@ -1,6 +1,6 @@
 import { useApi } from "../../lib/useApi";
 import { useRouter } from "next/router";
-import { ExternalLink, Loader2 } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import { ErrorCard } from "../../components/GlobalError/GlobalError";
 import { JitsuButton } from "../../components/JitsuButton/JitsuButton";
 import { FaArrowLeft } from "react-icons/fa";
@@ -8,6 +8,8 @@ import { ColumnOption, JsonAsTable } from "../../components/JsonAsTable/JsonAsTa
 import { z } from "zod";
 import { WorkspaceDbModel } from "../../prisma/schema";
 import Link from "next/link";
+import { Progress } from "antd";
+import { useEffect, useState } from "react";
 
 function Reference(props: { children: React.ReactNode; href: string }) {
   return (
@@ -107,6 +109,20 @@ const View = ({ data, workspaces }) => {
   );
 };
 
+export const FakeProgressBar: React.FC<{ durationSeconds: number }> = ({ durationSeconds }) => {
+  const [progress, setProgress] = useState(0);
+  useEffect(() => {
+    const started = Date.now() / 1000;
+    const interval = setInterval(() => {
+      if (Math.random() < 0.8) {
+        setProgress(Math.round(((Date.now() / 1000 - started) / durationSeconds) * 100));
+      }
+    }, (durationSeconds * 1000) / 100);
+    return () => clearInterval(interval);
+  }, [durationSeconds]);
+  return <Progress type="circle" percent={progress} size="default" />;
+};
+
 export const OverageBillingPage = () => {
   const { data, isLoading, error } = useApi(`/api/$all/ee/report/overage`);
   const workspacesLoader = useApi<z.infer<typeof WorkspaceDbModel>[]>(`/api/workspace`);
@@ -114,8 +130,11 @@ export const OverageBillingPage = () => {
     return (
       <div className="w-full h-full flex justify-center items-center">
         <div className="flex flex-col justify-center items-center">
-          <Loader2 className="h-16 w-16 animate-spin" />
-          <div className="text-center">Hang tight, it could take up to a few minutes...</div>
+          {/*<Loader2 className="h-16 w-16 animate-spin" />*/}
+          <FakeProgressBar durationSeconds={60} />
+          <div className="text-center text-textLight text-sm">
+            Building report. Hang tight, it could take up to a few minutes...
+          </div>
         </div>
       </div>
     );

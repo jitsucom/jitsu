@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { assertTrue } from "juava";
+import { assertTrue, getLog } from "juava";
 import { withErrorHandler } from "../../../lib/error-handler";
 import { auth } from "../../../lib/auth";
 import { store } from "../../../lib/services";
@@ -34,6 +34,7 @@ function round(date: Date | string, granularity: "day" = "day"): { start: string
 }
 
 async function listAllInvoices() {
+  const timer = Date.now();
   let starting_after: string | undefined = undefined;
   const allInvoices: Stripe.Invoice[] = [];
   do {
@@ -46,13 +47,20 @@ async function listAllInvoices() {
       },
     });
     starting_after = result?.data[result.data.length - 1]?.id;
-    log.atInfo().log(`Fetched ${result?.data.length} invoices. Has more: ${!!starting_after}`);
     if (result?.data) {
       allInvoices.push(...result?.data);
     }
   } while (starting_after);
-  log.atInfo().log(`${allInvoices.length} invoices found`);
+  log.atInfo().log(`${allInvoices.length} invoices found. Took ${Date.now() - timer}ms`);
   return allInvoices;
+}
+
+function getInvoiceStartDate(invoice: Stripe.Invoice) {
+  return new Date(invoice.lines.data[0].period.start * 1000);
+}
+
+function getInvoiceEndDate(invoice: Stripe.Invoice) {
+  return new Date(invoice.lines.data[0].period.end * 1000);
 }
 
 const msPerHour = 1000 * 60 * 60;
@@ -76,13 +84,7 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
     res.status(200).end();
     return;
   }
-  const report = await buildWorkspaceReport(
-    new Date("2023-01-01").toISOString(),
-    new Date().toISOString(),
-    "day",
-    workspaceId
-  );
-
+  const timerAllWorkspaces = Date.now();
   const allWorkspaces = workspaceId
     ? [
         {
@@ -92,33 +94,49 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
       ]
     : await store.getTable(stripeDataTable).list();
 
+  getLog()
+    .atInfo()
+    .log(`Got ${allWorkspaces.length} workspaces in ${Date.now() - timerAllWorkspaces}ms`);
+
   const availableProducts = await getAvailableProducts();
   const subscriptionCache: Record<string, Stripe.Subscription> = {};
 
   const result: any[] = [];
   const allInvoices = await listAllInvoices();
+  const allCustomers = new Set(allWorkspaces.map(w => w.obj.stripeCustomerId));
+  const eligibleInvoices = allInvoices.filter(i => allCustomers.has(i.customer)).filter(i => i.lines.data.length > 0);
+  getLog().atInfo().log(`Found ${eligibleInvoices.length} invoices for ${allCustomers.size} workspaces`);
+  const minDate = eligibleInvoices.map(i => getInvoiceStartDate(i)).sort()[0];
+
+  const timer = Date.now();
+  const report = await buildWorkspaceReport(minDate.toISOString(), new Date().toISOString(), "day", workspaceId);
+  getLog()
+    .atInfo()
+    .log(`Build workspace report from ${minDate.toISOString()}. Took ${Date.now() - timer}ms`);
+
+  const resultBuilderTimer = Date.now();
   for (const { id: workspaceId, obj } of allWorkspaces) {
     const { stripeCustomerId } = obj;
 
-    const customerInvoices = allInvoices.filter(i => i.customer === stripeCustomerId);
+    const customerInvoices = eligibleInvoices.filter(i => i.customer === stripeCustomerId);
     if (customerInvoices.length === 0) {
       continue;
     }
-    log
-      .atInfo()
-      .log(
-        `Found ${customerInvoices.length} invoices for workspace ${workspaceId} / customer ${stripeLink(
-          "customers",
-          stripeCustomerId
-        )}`
-      );
+    // log
+    //   .atInfo()
+    //   .log(
+    //     `Found ${customerInvoices.length} invoices for workspace ${workspaceId} / customer ${stripeLink(
+    //       "customers",
+    //       stripeCustomerId
+    //     )}`
+    //   );
     for (const invoice of customerInvoices) {
       if (!invoice.lines.data.length) {
         log.atWarn().log(`No lines found for invoice ${invoice.id}`);
         continue;
       }
-      const start = new Date(invoice.lines.data[0].period.start * 1000);
-      const end = new Date(invoice.lines.data[0].period.end * 1000);
+      const start = getInvoiceStartDate(invoice);
+      const end = getInvoiceEndDate(invoice);
       const product = invoice.lines.data
         .filter(l => !!l.plan)
         .map(l => l.plan!.product)
@@ -138,7 +156,7 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
         log
           .atWarn()
           .log(
-            `Subscription ${stripeLink("subscriptions", invoice.id)} is canceled. Skipping invoice ${stripeLink(
+            `Subscription ${stripeLink("subscriptions", subscription.id)} is canceled. Skipping invoice ${stripeLink(
               "invoices",
               invoice.id
             )}`
@@ -150,13 +168,13 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
         log.atWarn().log(`No plan found for ${product} from invoice ${stripeLink("invoices", invoice.id)}`);
         continue;
       }
-      log
-        .atInfo()
-        .log(
-          `Processing invoice ${invoice.id} for [${new Date(start).toISOString()}, ${new Date(
-            end
-          ).toISOString()}] workspace ${workspaceId}, plan ${plan.id}`
-        );
+      // log
+      //   .atInfo()
+      //   .log(
+      //     `Processing invoice ${invoice.id} for [${new Date(start).toISOString()}, ${new Date(
+      //       end
+      //     ).toISOString()}] workspace ${workspaceId}, plan ${plan.id}`
+      //   );
       const { overagePricePer100k, destinationEvensPerMonth } = JSON.parse(plan.metadata.plan_data);
       const overagePricePerEvent = overagePricePer100k / 100_000;
       const invoiceStartRounded = round(start, "day").start;
@@ -169,21 +187,21 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
           Date.parse(end) <= Date.parse(invoiceEndRounded)
         );
       });
-      log
-        .atInfo()
-        .log(
-          `Found ${rows.length} rows for ${workspaceId} for [${new Date(invoiceStartRounded).toISOString()}, ${new Date(
-            invoiceEndRounded
-          ).toISOString()}]: \n ${JSON.stringify(rows, null, 2)}}`
-        );
+      // log
+      //   .atInfo()
+      //   .log(
+      //     `Found ${rows.length} rows for ${workspaceId} for [${new Date(invoiceStartRounded).toISOString()}, ${new Date(
+      //       invoiceEndRounded
+      //     ).toISOString()}]`
+      //   );
       const destinationEvents = rows.reduce((acc, row) => acc + row.events, 0);
-      log
-        .atInfo()
-        .log(
-          `Destination events for ${workspaceId} for [${new Date(invoiceStartRounded).toISOString()}, ${new Date(
-            invoiceEndRounded
-          ).toISOString()}] → ${destinationEvents}`
-        );
+      // log
+      //   .atInfo()
+      //   .log(
+      //     `Destination events for ${workspaceId} for [${new Date(invoiceStartRounded).toISOString()}, ${new Date(
+      //       invoiceEndRounded
+      //     ).toISOString()}] → ${destinationEvents}`
+      //   );
       const overageFee = (Math.max(0, destinationEvents - destinationEvensPerMonth) / 100_000) * overagePricePer100k;
       const discountPercentage = invoice?.discount?.coupon?.percent_off || 0;
       const overageFeeFinal = overageFee * (1 - discountPercentage / 100);
@@ -222,11 +240,18 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
       });
     }
   }
+  getLog()
+    .atInfo()
+    .log(`Built final result of ${result.length} rows in ${Date.now() - resultBuilderTimer}ms`);
 
   return res.status(200).json({
     stripeDataTable,
     result,
   });
+};
+
+export const config = {
+  maxDuration: 120, //2 mins, mostly becasue of workspace-stat call
 };
 
 export default withErrorHandler(handler);

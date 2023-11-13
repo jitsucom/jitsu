@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { namedParameters, SqlQueryParameters, unrollParams } from "juava";
+import { getLog, namedParameters, SqlQueryParameters, unrollParams } from "juava";
 import { withErrorHandler } from "../../../lib/error-handler";
 import { auth } from "../../../lib/auth";
 import { clickhouse, pg } from "../../../lib/services";
@@ -67,6 +67,7 @@ async function getClickhousePart({
   end,
   workspaceId,
 }: ReportParams): Promise<WorkspaceReportRow[]> {
+  const timer = Date.now();
   const metricsSchema = process.env.CLICKHOUSE_METRICS_SCHEMA || "newjitsu_metrics";
   const query = `select
                    date_trunc('${granularity}', timestamp) as period,
@@ -82,6 +83,7 @@ async function getClickhousePart({
                  group by period, workspaceId
                  order by period desc;
   `;
+  //getLog().atInfo().log(`Running Clickhouse query: ${query}`);
   const resultSet = await clickhouse.query({
     query,
     clickhouse_settings: {
@@ -94,6 +96,7 @@ async function getClickhousePart({
       workspaceId,
     }),
   });
+  log.atInfo().log(`Clickhouse query took ${Date.now() - timer}ms`);
 
   return ((await resultSet.json()) as any).data.map(({ events, period, ...rest }) => ({
     events: Number(events),
@@ -174,6 +177,10 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
   const reportResult = await buildWorkspaceReport(start, end, granularity, workspaceId);
   const records = extended ? await extend(reportResult) : reportResult;
   res.send(req.query.format === "array" ? records : { data: records });
+};
+
+export const config = {
+  maxDuration: 120,
 };
 
 export default withErrorHandler(handler);

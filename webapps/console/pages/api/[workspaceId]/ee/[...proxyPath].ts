@@ -101,4 +101,8 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
   }
 };
 
+export const config = {
+  maxDuration: 120, // /api/overage takes 100ms
+};
+
 export default handler;
