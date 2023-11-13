@@ -1,10 +1,12 @@
+# jitsu-react
 
-[![NPM](https://img.shields.io/npm/v/@jitsu/js.svg)](https://www.npmjs.com/package/@jitsu/js)
+
+[![NPM](https://img.shields.io/npm/v/@jitsu/jitsu-react.svg)](https://www.npmjs.com/package/@jitsu/jitsu-react)
 
 ## Install
 
 ```bash
-npm install --save @jitsu/js
+npm install --save @jitsu/jitsu-react
 ```
 
 ## Usage
