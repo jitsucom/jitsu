@@ -1,7 +1,7 @@
 import * as React from "react";
 import { PropsWithChildren, useMemo } from "react";
 import JitsuContext, { JitsuInstance } from "./JitsuContext";
-import { emptyAnalytics, jitsuAnalytics } from "@jitsu/js/compiled/src";
+import { emptyAnalytics, jitsuAnalytics } from "@jitsu/js";
 import { ExtendedJitsuOptions } from "./useJitsu";
 
 const JitsuProvider: React.FC<PropsWithChildren<{ options: ExtendedJitsuOptions }>> = props => {

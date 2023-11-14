@@ -1,5 +1,5 @@
 import { createContext } from "react";
-import { AnalyticsInterface } from "@jitsu/js/compiled/src";
+import { AnalyticsInterface } from "@jitsu/js";
 
 export type JitsuInstance = { analytics: AnalyticsInterface };
 

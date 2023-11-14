@@ -1,6 +1,3 @@
-import packageInfo from "../package.json";
-
-const jitsuVersion = packageInfo.version;
-const jitsuLibraryName = packageInfo.name;
+import { name as jitsuLibraryName, version as jitsuVersion } from "../package.json";
 
 export { jitsuVersion, jitsuLibraryName };
