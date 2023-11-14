@@ -234,7 +234,6 @@ function WorkspaceOverviewLoader() {
   } else if (dataLoader.error) {
     return <GlobalError title={"Failed to load data from server"} error={dataLoader.error} />;
   }
-  console.log("Data", dataLoader.data);
   const [streams, destinations, links, services] = dataLoader.data!;
   return <WorkspaceOverview streams={streams} destinations={destinations} links={links} connectors={services} />;
 }

@@ -480,7 +480,7 @@ function usageIsAboutToExceed(billing: UseBillingResult, usage: UseUsageRes) {
 
 const FreePlanQuotaAlert: React.FC<{}> = () => {
   const workspace = useWorkspace();
-  const usage = useUsage();
+  const usage = useUsage({ skipSubscribed: true });
   const billing = useBilling();
   const router = useRouter();
   assertTrue(billing.enabled, "Billing should be enabled and loaded");

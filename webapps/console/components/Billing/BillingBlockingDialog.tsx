@@ -14,8 +14,11 @@ function LoadAndBlockIfNeed() {
 
   assertTrue(billing.enabled);
   assertFalse(billing.loading);
-
-  const { isLoading, error, usage } = useUsage();
+  const { isLoading, error, usage } = useUsage({ skipSubscribed: true });
+  if (!billing.settings?.pastDue && billing.settings?.planId !== "free") {
+    //paid project with no past due subscriptions, we never block those
+    return <></>;
+  }
   if (isLoading) {
     return <></>;
   } else if (error) {
@@ -88,7 +91,7 @@ function LoadAndBlockIfNeed() {
   }
 }
 
-export function usageExceeded(billing: UseBillingResult, workspace: WorkspaceContext) {
+export function neverBlock(billing: UseBillingResult, workspace: WorkspaceContext) {
   return (
     !billing.enabled ||
     billing.loading ||
@@ -100,7 +103,7 @@ export function usageExceeded(billing: UseBillingResult, workspace: WorkspaceCon
 export const BillingBlockingDialog = () => {
   const billing = useBilling();
   const workspace = useWorkspace();
-  if (usageExceeded(billing, workspace)) {
+  if (neverBlock(billing, workspace)) {
     return <></>;
   } else {
     return <LoadAndBlockIfNeed />;

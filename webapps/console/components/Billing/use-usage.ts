@@ -19,11 +19,16 @@ export type UseUsageRes = { isLoading: boolean; error?: any; usage?: Usage };
 
 export type DestinationReportDataRow = {};
 
-export function useUsage(): UseUsageRes {
+/**
+ * @param opts.skipSubscribed - if true, will return bogus data if workspace is subscribed to a paiad
+ * plan. In some cases, we don't really need usage for subscribed workspaces
+ */
+export function useUsage(opts?: { skipSubscribed?: boolean; cacheSeconds?: number }): UseUsageRes {
   const workspace = useWorkspace();
   const billing = useBilling();
   assertTrue(billing.enabled, "Billing is not enabled");
   assertFalse(billing.loading, "Billing must be loaded before using usage hook");
+  const cacheSeconds = opts?.cacheSeconds ?? 60 * 5; //5 minutes by default
 
   let periodStart: Date | undefined;
   let periodEnd: Date | undefined;
@@ -40,11 +45,16 @@ export function useUsage(): UseUsageRes {
   const { isLoading, error, data } = useQuery(
     ["billing usage", workspace.id],
     async () => {
+      console.log("Getting usage", opts?.skipSubscribed, billing.settings.planId);
+      if (opts?.skipSubscribed && billing.settings.planId !== "free") {
+        //if workspace is subscribed to a paid plan - we don't really need usage in some cases
+        return { usage: 0 };
+      }
       const report = await rpc(`/api/${workspace.id}/ee/report/workspace-stat?start=${periodStart?.toISOString()}`);
       const usage = report.data.reduce((acc, d) => acc + d.events, 0);
       return { usage } as const;
     },
-    { retry: false, cacheTime: 0 }
+    { retry: false, cacheTime: cacheSeconds * 1000, staleTime: cacheSeconds * 1000 }
   );
 
   const periodDuration = dayjs(new Date()).diff(dayjs(periodStart), "day");
