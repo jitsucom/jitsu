@@ -6,7 +6,7 @@ on:
     branches: [newjitsu]
 
 env:
-  #container jitsucom/node16builder:latest has playwright browsers binaries preinstalled on this path:
+  #container jitsucom/node18builder:latest has playwright browsers binaries preinstalled on this path:
   PLAYWRIGHT_BROWSERS_PATH: /root/.cache/ms-playwright
 
 jobs:
@@ -41,6 +41,13 @@ jobs:
         run: pnpm lint
       - name: Build project
         run: pnpm build
+      - name: Notify Slack
+        uses: rtCamp/action-slack-notify@v2
+        if: always()
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_DEV_CHANNEL }}
+          SLACK_COLOR: ${{ job.status }}
+          SLACK_ICON_EMOJI: ":github-mark:"
   test:
     name: Run Tests
     container: jitsucom/node18builder:latest
@@ -82,3 +89,10 @@ jobs:
           path: libs/jitsu-js/playwright/artifacts
           name: artifacts/@jitsu/js
           retention-days: 30
+      - name: Notify Slack
+        uses: rtCamp/action-slack-notify@v2
+        if: always()
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_DEV_CHANNEL }}
+          SLACK_COLOR: ${{ job.status }}
+          SLACK_ICON_EMOJI: ":github-mark:"

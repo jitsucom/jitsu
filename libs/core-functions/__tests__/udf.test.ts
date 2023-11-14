@@ -4,6 +4,7 @@ import express from "express";
 
 test("UDFWrapper", async () => {
   let server: any = undefined;
+  let wrapper: any = undefined;
   try {
     const app = express();
     app.get("/", (req, res) => {
@@ -43,7 +44,7 @@ const udf = async (event, { log, fetch, props, store, geo, ...meta }) => {
 export default udf;
 `;
 
-    const wrapper = UDFWrapper("udf", "UDF Wrapper test", udfCode);
+    wrapper = UDFWrapper("udf", "UDF Wrapper test", udfCode);
     console.log("wrapper", wrapper.meta);
     const res = await UDFTestRun({
       functionId: "udf",
@@ -79,6 +80,7 @@ export default udf;
     });
   } finally {
     server?.close();
+    wrapper?.close();
   }
 });
 

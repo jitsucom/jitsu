@@ -26,9 +26,10 @@ export type UDFWrapperResult = {
 export const UDFWrapper = (functionId, name, functionCode: string): UDFWrapperResult => {
   log.atInfo().log(`[${functionId}] Compiling UDF function '${name}'`);
   const startMs = new Date().getTime();
+  let isolate: Isolate | undefined = undefined;
   try {
     //const wrappedCode = `let exports = {}\n${functionCode}\n${wrapperJs}`;
-    const isolate = new Isolate({ memoryLimit: 10 });
+    isolate = new Isolate({ memoryLimit: 10 });
     const context = isolate.createContextSync();
     const jail = context.global;
 
@@ -154,7 +155,16 @@ export const UDFWrapper = (functionId, name, functionCode: string): UDFWrapperRe
     return {
       userFunction,
       meta,
-      close: () => {},
+      close: () => {
+        try {
+          if (isolate) {
+            isolate.dispose();
+            log.atInfo().log(`[${functionId}] isolate closed.`);
+          }
+        } catch (e) {
+          log.atError().log(`[${functionId}] Error while closing isolate: ${e}`);
+        }
+      },
     };
   } catch (e) {
     return {
@@ -162,7 +172,16 @@ export const UDFWrapper = (functionId, name, functionCode: string): UDFWrapperRe
         throw new Error(`Cannot compile function: ${e}`);
       },
       meta: {},
-      close: () => {},
+      close: () => {
+        try {
+          if (isolate) {
+            isolate.dispose();
+            log.atInfo().log(`[${functionId}] isolate closed`);
+          }
+        } catch (e) {
+          log.atError().log(`[${functionId}] Error while closing isolate: ${e}`);
+        }
+      },
     };
   }
 };

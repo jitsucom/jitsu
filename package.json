@@ -40,7 +40,7 @@
     "yarn": ">=1000",
     "pnpm": ">=8",
     "npm": ">=1000",
-    "node": "16.x"
+    "node": "18.x"
   },
   "packageManager": "pnpm@8.2.0",
   "workspaces": [
