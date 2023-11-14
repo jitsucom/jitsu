@@ -12,6 +12,7 @@
   "private": false,
   "scripts": {
     "compile": "tsc -p .",
+    "build": "pnpm compile",
     "test": "tsc -p . && jest --verbose"
   },
   "devDependencies": {

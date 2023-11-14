@@ -2,7 +2,6 @@
   "compilerOptions": {
     "lib": ["es2015", "dom", "es2017"],
     "rootDir": "./src",
-    "outDir": "./dist",
     "declaration": true,
     "esModuleInterop": true,
     "noEmit": true

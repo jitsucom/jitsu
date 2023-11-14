@@ -11,7 +11,7 @@
     "node": ">=10"
   },
   "scripts": {
-    "build": "microbundle-crl --no-compress --format es,cjs",
+    "build": "pnpm compile && microbundle-crl --no-compress --format es,cjs",
     "compile": "tsc -p .",
     "clean": "rm -rf dist"
   },

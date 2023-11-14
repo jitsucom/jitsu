@@ -10,7 +10,6 @@
     "pre-commit": "pnpm format:check",
     "build": "turbo run build",
     "ee-api:dev": "dotenv -e .env.local -- turbo run ee-api:dev",
-    "compile": "turbo run compile",
     "console:dev": "dotenv -e .env.local -- turbo run console:dev",
     "rotor:dev": "dotenv -e .env.local -- turbo run rotor:dev",
     "console:start": "dotenv -e .env.local -- pnpm run --filter=console console:start",

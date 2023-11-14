@@ -13,7 +13,7 @@
   "private": false,
   "scripts": {
     "compile": "tsc -p .",
-    "build": "rollup -c"
+    "build": "pnpm compile && rollup -c"
   },
   "devDependencies": {
     "rollup": "^4.1.4",

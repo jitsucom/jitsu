@@ -20,10 +20,6 @@
       "dependsOn": ["^tool:hash"],
       "cache": false
     },
-    "compile": {
-      "dependsOn": ["^compile"],
-      "cache": false
-    },
     "dev": {
       "dependsOn": ["console:dev", "rotor:dev"],
       "cache": false

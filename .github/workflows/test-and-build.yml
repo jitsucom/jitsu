@@ -35,8 +35,6 @@ jobs:
         run: pnpm install --no-frozen-lockfile
       - name: Check code format
         run: pnpm format:check
-      - name: Compile TypeScript
-        run: pnpm compile
       - name: Run linter
         run: pnpm lint
       - name: Build project
