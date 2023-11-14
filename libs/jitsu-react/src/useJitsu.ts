@@ -1,7 +1,7 @@
 import { useContext } from "react";
 import JitsuContext from "./JitsuContext";
 
-import { AnalyticsInterface, jitsuAnalytics, JitsuOptions, emptyAnalytics } from "@jitsu/js";
+import { AnalyticsInterface, jitsuAnalytics, JitsuOptions, emptyAnalytics } from "@jitsu/js/compiled/src";
 
 export interface BeforeEffect {
   effect: (analytics: AnalyticsInterface) => any;
