@@ -4,9 +4,8 @@ import { createSessionCookie, firebaseAuthCookieName } from "../../../lib/server
 import { ApiError } from "../../../lib/shared/errors";
 import { CookieSerializeOptions, serialize } from "cookie";
 import { getAppEndpoint } from "../../../lib/domains";
-import { getRequestHost } from "../../../lib/server/origin";
+import { getRequestHost, getTopLevelDomain } from "../../../lib/server/origin";
 import { getServerLog } from "../../../lib/server/log";
-import { getTopLevelDomain } from "@jitsu/js";
 
 export const log = getServerLog("firebase");
 

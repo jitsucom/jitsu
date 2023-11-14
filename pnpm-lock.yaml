@@ -4,6 +4,9 @@ importers:
 
   .:
     devDependencies:
+      '@playwright/test':
+        specifier: 1.39.0
+        version: 1.39.0
       dotenv-cli:
         specifier: ^6.0.0
         version: 6.0.0
@@ -364,8 +367,8 @@ importers:
         specifier: workspace:*
         version: link:../../types/protocols
       '@playwright/test':
-        specifier: 1.31.2
-        version: 1.31.2
+        specifier: 1.39.0
+        version: 1.39.0
       '@rollup/plugin-commonjs':
         specifier: ^23.0.2
         version: 23.0.7(rollup@3.20.2)
@@ -5440,15 +5443,12 @@ packages:
       tslib: 2.6.2
     dev: true
 
-  /@playwright/test@1.31.2:
-    resolution: {integrity: sha512-BYVutxDI4JeZKV1+ups6dt5WiqKhjBtIYowyZIJ3kBDmJgsuPKsqqKNIMFbUePLSCmp2cZu+BDL427RcNKTRYw==}
-    engines: {node: '>=14'}
+  /@playwright/test@1.39.0:
+    resolution: {integrity: sha512-3u1iFqgzl7zr004bGPYiN/5EZpRUSFddQBra8Rqll5N0/vfpqlP9I9EXqAoGacuAbX6c9Ulg/Cjqglp5VkK6UQ==}
+    engines: {node: '>=16'}
     hasBin: true
     dependencies:
-      '@types/node': 18.15.11
-      playwright-core: 1.31.2
-    optionalDependencies:
-      fsevents: 2.3.2
+      playwright: 1.39.0
     dev: true
 
   /@pmmmwh/react-refresh-webpack-plugin@0.5.10(react-refresh@0.11.0)(webpack-dev-server@4.13.2)(webpack@5.88.2):
@@ -9427,7 +9427,6 @@ packages:
     dependencies:
       webpack: 5.88.2(webpack-cli@5.1.4)
       webpack-cli: 5.1.4(@webpack-cli/generators@3.0.7)(webpack@5.88.2)
-    dev: true
 
   /@webpack-cli/generators@3.0.1(mem-fs-editor@9.7.0)(mem-fs@2.3.0)(prettier@2.8.7)(webpack-cli@5.0.1)(webpack@5.78.0):
     resolution: {integrity: sha512-kgtqwN13udxC2wV2LfEmJQ/yGz6+j8cgy17jE9ybyHrmT0PJcwjSpsvj1fDWYUb7brSOB4B03s1mEPjZTRfwCQ==}
@@ -9474,7 +9473,6 @@ packages:
       - mem-fs
       - mem-fs-editor
       - supports-color
-    dev: true
 
   /@webpack-cli/info@2.0.1(webpack-cli@5.0.1)(webpack@5.78.0):
     resolution: {integrity: sha512-fE1UEWTwsAxRhrJNikE7v4EotYflkEhBL7EbajfkPlf6E37/2QshOy/D48Mw8G5XMFlQtS6YV42vtbG9zBpIQA==}
@@ -9495,7 +9493,6 @@ packages:
     dependencies:
       webpack: 5.88.2(webpack-cli@5.1.4)
       webpack-cli: 5.1.4(@webpack-cli/generators@3.0.7)(webpack@5.88.2)
-    dev: true
 
   /@webpack-cli/serve@2.0.1(webpack-cli@5.0.1)(webpack@5.78.0):
     resolution: {integrity: sha512-0G7tNyS+yW8TdgHwZKlDWYXFA6OJQnoLCQvYKkQP0Q2X205PSQ6RNUj0M+1OB/9gRQaUZ/ccYfaxd0nhaWKfjw==}
@@ -9524,7 +9521,6 @@ packages:
     dependencies:
       webpack: 5.88.2(webpack-cli@5.1.4)
       webpack-cli: 5.1.4(@webpack-cli/generators@3.0.7)(webpack@5.88.2)
-    dev: true
 
   /@xobotyi/scrollbar-width@1.9.5:
     resolution: {integrity: sha512-N8tkAACJx2ww8vFMneJmaAgmjAG1tnVBZJRLRcx061tmsLRZHSEZSLuGWnwPtunsSLvSqXQ2wfp7Mgqg1I+2dQ==}
@@ -11182,7 +11178,6 @@ packages:
   /commander@10.0.1:
     resolution: {integrity: sha512-y4Mg2tXshplEbSGzx7amzPwKKOCGuoSRP/CjEdwwk0FOGlUbq6lKuoyDZTNZkmxHdJtp54hdfY/JUrdL7Xfdug==}
     engines: {node: '>=14'}
-    dev: true
 
   /commander@11.0.0:
     resolution: {integrity: sha512-9HMlXtt/BNoYr8ooyjjNRdIilOTkVJXB+GhxMTtOKwk0R4j4lS4NpjuqmRxroBfnfTSHQIHQB7wryHhXarNjmQ==}
@@ -17564,6 +17559,7 @@ packages:
       chalk: 3.0.0
       diff-match-patch: 1.0.5
     dev: false
+    bundledDependencies: []
 
   /jsonfile@4.0.0:
     resolution: {integrity: sha512-m6F1R3z8jjlf2imQHS2Qez5sjKWQzbuuhuJ/FKYFRZvPE3PuHcSMVZzfsLhGVOkfd20obL5SWEBew5ShlquNxg==}
@@ -20165,10 +20161,20 @@ packages:
       find-up: 3.0.0
     dev: false
 
-  /playwright-core@1.31.2:
-    resolution: {integrity: sha512-a1dFgCNQw4vCsG7bnojZjDnPewZcw7tZUNFN0ZkcLYKj+mPmXvg4MpaaKZ5SgqPsOmqIf2YsVRkgqiRDxD+fDQ==}
-    engines: {node: '>=14'}
+  /playwright-core@1.39.0:
+    resolution: {integrity: sha512-+k4pdZgs1qiM+OUkSjx96YiKsXsmb59evFoqv8SKO067qBA+Z2s/dCzJij/ZhdQcs2zlTAgRKfeiiLm8PQ2qvw==}
+    engines: {node: '>=16'}
     hasBin: true
+    dev: true
+
+  /playwright@1.39.0:
+    resolution: {integrity: sha512-naE5QT11uC/Oiq0BwZ50gDmy8c8WLPRTEWuSSFVG2egBka/1qMoSqYQcROMT9zLwJ86oPofcTH2jBY/5wWOgIw==}
+    engines: {node: '>=16'}
+    hasBin: true
+    dependencies:
+      playwright-core: 1.39.0
+    optionalDependencies:
+      fsevents: 2.3.2
     dev: true
 
   /postcss-attribute-case-insensitive@5.0.2(postcss@8.4.30):
@@ -24426,7 +24432,7 @@ packages:
       schema-utils: 3.3.0
       serialize-javascript: 6.0.1
       terser: 5.19.4
-      webpack: 5.88.2(webpack-cli@5.0.1)
+      webpack: 5.88.2(webpack-cli@5.1.4)
 
   /terser@4.8.1:
     resolution: {integrity: sha512-4GnLC0x667eJG0ewJTa6z/yXrbLGv80D9Ru6HIpCQmO+Q4PfEtBFi0ObSckqwL6VyQv/7ENJieXHo2ANmdQwgw==}
@@ -25700,7 +25706,6 @@ packages:
       rechoir: 0.8.0
       webpack: 5.88.2(webpack-cli@5.1.4)
       webpack-merge: 5.8.0
-    dev: true
 
   /webpack-dev-middleware@5.3.3(webpack@5.88.2):
     resolution: {integrity: sha512-hj5CYrY0bZLB+eTO+x/j67Pkrquiy7kWepMHmUMoPsmcUaeEnQJqFzHJOyxgWlq746/wUuA64p9ta34Kyb01pA==}
@@ -25923,7 +25928,6 @@ packages:
       - '@swc/core'
       - esbuild
       - uglify-js
-    dev: true
 
   /websocket-driver@0.7.4:
     resolution: {integrity: sha512-b17KeDIQVjvb0ssuSDF2cYXSg2iztliJ4B9WdsuB6J952qCPKmnVq4DyW5motImXHDC1cBT/1UezrJVsKw5zjg==}

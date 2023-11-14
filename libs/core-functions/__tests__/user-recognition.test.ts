@@ -91,6 +91,7 @@ const expectedEvents: AnalyticsServerEvent[] = [
 ];
 
 test("user-recognition-test", async () => {
+  const store = createStore();
   const options: TestOptions = {
     func: UserRecognitionFunction,
     ctx: {
@@ -102,8 +103,17 @@ test("user-recognition-test", async () => {
           deduplicate: true,
         },
       },
+      destination: {
+        id: "test",
+        type: "test",
+        updatedAt: new Date(),
+        hash: "123",
+      },
+      source: {
+        id: "test",
+      },
       fetch: nodeFetch as unknown as FetchType,
-      store: createStore(),
+      store: store,
       log: {
         info: (msg: any, ...args: any[]) => console.log(prefixLogMessage("INFO", msg), args),
         error: (msg: any, ...args: any[]) => console.error(prefixLogMessage("ERROR", msg), args),
@@ -112,6 +122,14 @@ test("user-recognition-test", async () => {
       },
       $system: {
         anonymousEventsStore: createAnonymousEventsStore(),
+        store: store,
+        metricsMeta: {
+          workspaceId: "123",
+          messageId: "123",
+          streamId: "123",
+          destinationId: "123",
+          connectionId: "123",
+        },
       },
     },
     config: {} as UserRecognitionConfig,

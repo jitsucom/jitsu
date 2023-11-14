@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "main": "dist/index.cjs.js",
   "module": "dist/index.es.js",
-    "types": "dist/index.d.ts",
+  "types": "dist/index.d.ts",
   "description": "",
   "author": "Jitsu Dev Team <dev@jitsu.com>",
   "publishConfig": {

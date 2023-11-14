@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 const eventsParamDescription = `
-List of events to send to Facebook, delimited by comma. Following <code>page</code>, <code>screen</code>, or any arbitrary event (name of <code>track</code> event). 
+List of events to send, delimited by comma. Following <code>page</code>, <code>screen</code>, or any arbitrary event (name of <code>track</code> event). 
 Special values: <b>empty string</b> - send only <code>track</code> events, <b>*</b> - send all events useful if you want to filter events with Functions 
 `;
 export const FacebookConversionApiCredentials = z.object({
@@ -221,6 +221,7 @@ export const Ga4Credentials = z.object({
       "The measurement ID associated with a stream. Found in the Google Analytics UI under:<br/>" +
         "<b>Admin > Data Streams > choose your stream > Measurement ID</b>"
     ),
+  events: z.string().optional().default("").describe(eventsParamDescription),
   //validationMode: z.boolean().default(false).optional(),
 });
 export type Ga4Credentials = z.infer<typeof Ga4Credentials>;

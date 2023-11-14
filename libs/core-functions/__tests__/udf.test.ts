@@ -3,21 +3,24 @@ import { UDFTestRun, UDFWrapper } from "../src";
 import express from "express";
 
 test("UDFWrapper", async () => {
-  const app = express();
-  app.get("/", (req, res) => {
-    return res.send("FETCH RESPONSE");
-  });
-  var promiseResolve;
-  let prom = new Promise<number>((resolve, reject) => {
-    promiseResolve = resolve;
-  });
-  const server = app.listen(0, async () => {
-    const addr = server.address() as any;
-    promiseResolve(addr.port);
-  });
-  const port = await prom;
+  let server: any = undefined;
+  let wrapper: any = undefined;
+  try {
+    const app = express();
+    app.get("/", (req, res) => {
+      return res.send("FETCH RESPONSE");
+    });
+    var promiseResolve;
+    let prom = new Promise<number>((resolve, reject) => {
+      promiseResolve = resolve;
+    });
+    server = app.listen(0, async () => {
+      const addr = server.address() as any;
+      promiseResolve(addr.port);
+    });
+    const port = await prom;
 
-  const udfCode = `
+    const udfCode = `
 export const config = {
     slug: "udf",
     name: "UDF Wrapper test",
@@ -41,41 +44,44 @@ const udf = async (event, { log, fetch, props, store, geo, ...meta }) => {
 export default udf;
 `;
 
-  const wrapper = UDFWrapper("udf", "UDF Wrapper test", udfCode);
-  console.log("wrapper", wrapper.meta);
-  const res = await UDFTestRun({
-    functionId: "udf",
-    functionName: "UDF Wrapper test",
-    code: wrapper,
-    event: {
+    wrapper = UDFWrapper("udf", "UDF Wrapper test", udfCode);
+    console.log("wrapper", wrapper.meta);
+    const res = await UDFTestRun({
+      functionId: "udf",
+      functionName: "UDF Wrapper test",
+      code: wrapper,
+      event: {
+        messageId: "test",
+        type: "page",
+        context: {},
+      },
+      config: {
+        prop1: "test_prop1",
+      },
+      store: {
+        store1: "test_store1",
+      },
+      workspaceId: "test",
+    });
+    console.log("res", res);
+
+    expect(res.result).toEqual({
       messageId: "test",
       type: "page",
       context: {},
-    },
-    config: {
+      test: "test123",
       prop1: "test_prop1",
-    },
-    store: {
       store1: "test_store1",
-    },
-    workspaceId: "test",
-  });
-  console.log("res", res);
-
-  expect(res.result).toEqual({
-    messageId: "test",
-    type: "page",
-    context: {},
-    test: "test123",
-    prop1: "test_prop1",
-    store1: "test_store1",
-    fetch_result: "FETCH RESPONSE",
-  });
-  expect(res.store).toEqual({
-    store1: "test_store1",
-    test: "FETCH RESPONSE",
-  });
-  server.close();
+      fetch_result: "FETCH RESPONSE",
+    });
+    expect(res.store).toEqual({
+      store1: "test_store1",
+      test: "FETCH RESPONSE",
+    });
+  } finally {
+    server?.close();
+    wrapper?.close();
+  }
 });
 
 test("isolate", async () => {

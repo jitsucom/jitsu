@@ -6,13 +6,13 @@ on:
     branches: [newjitsu]
 
 env:
-  #container jitsucom/node16builder:latest has playwright browsers binaries preinstalled on this path:
+  #container jitsucom/node18builder:latest has playwright browsers binaries preinstalled on this path:
   PLAYWRIGHT_BROWSERS_PATH: /root/.cache/ms-playwright
 
 jobs:
-  test:
-    name: Test and Build project
-    container: jitsucom/node16builder:latest
+  build:
+    name: Build Project
+    container: jitsucom/node18builder:latest
     timeout-minutes: 60
     runs-on: ubuntu-latest
     steps:
@@ -35,6 +35,46 @@ jobs:
         run: pnpm install --no-frozen-lockfile
       - name: Check code format
         run: pnpm format:check
+      - name: Compile TypeScript
+        run: pnpm compile
+      - name: Run linter
+        run: pnpm lint
+      - name: Build project
+        run: pnpm build
+      - name: Notify Slack
+        uses: rtCamp/action-slack-notify@v2
+        if: failure()
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_DEV_CHANNEL }}
+          SLACK_COLOR: ${{ job.status }}
+          SLACK_ICON_EMOJI: ":github-mark:"
+  test:
+    name: Run Tests
+    container: jitsucom/node18builder:latest
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+
+      - uses: actions/cache@v3
+        name: Setup pnpm cache
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies with pnpm
+        run: pnpm install --no-frozen-lockfile
+      - name: Check code format
+        run: pnpm format:check
+      - name: Compile TypeScript
+        run: pnpm compile
       - name: Run linter
         run: pnpm lint
       - name: Build project
@@ -49,3 +89,10 @@ jobs:
           path: libs/jitsu-js/playwright/artifacts
           name: artifacts/@jitsu/js
           retention-days: 30
+      - name: Notify Slack
+        uses: rtCamp/action-slack-notify@v2
+        if: always()
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_DEV_CHANNEL }}
+          SLACK_COLOR: ${{ job.status }}
+          SLACK_ICON_EMOJI: ":github-mark:"

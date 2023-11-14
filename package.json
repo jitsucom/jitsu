@@ -26,6 +26,7 @@
     "release:canary": "monorel --filter ./types/protocols --filter ./cli/jitsu-cli --filter ./libs/functions --filter ./libs/jitsu-js --filter ./libs/jitsu-react --version '1.3.1-canary.{rev}.{time}' --npm-tag canary --git-tag 'canary-v{version}' --push-tag --publish"
   },
   "devDependencies": {
+    "@playwright/test": "1.39.0",
     "dotenv-cli": "^6.0.0",
     "husky": "^8.0.3",
     "monorel": "0.4.2",
@@ -39,7 +40,7 @@
     "yarn": ">=1000",
     "pnpm": ">=8",
     "npm": ">=1000",
-    "node": "16.x"
+    "node": "18.x"
   },
   "packageManager": "pnpm@8.2.0",
   "workspaces": [

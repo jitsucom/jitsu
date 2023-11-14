@@ -52,6 +52,9 @@ type RuntimeFacade = {
   language(): string | undefined;
   pageUrl(): string | undefined;
   documentEncoding(): string | undefined;
+  getCookie(name: string): string | undefined;
+  getCookies(): Record<string, string>;
+
   timezoneOffset(): number | undefined;
   screen():
     | {
