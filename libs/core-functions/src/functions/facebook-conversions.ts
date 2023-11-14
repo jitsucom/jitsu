@@ -5,19 +5,7 @@ import { FacebookConversionApiCredentials } from "../meta";
 import crypto from "crypto";
 import omit from "lodash/omit";
 import { RetryError } from "@jitsu/functions-lib";
-
-function createFilter(filter: string): (eventType: string, eventName?: string) => boolean {
-  if (filter === "*") {
-    return () => true;
-  } else if (filter === "") {
-    return eventType => eventType !== "page" && eventType !== "screen";
-  } else {
-    const events = filter.split(",").map(e => e.trim());
-    return (eventType: string, eventName?: string) => {
-      return events.includes(eventType) || (!!eventName && events.includes(eventName));
-    };
-  }
-}
+import { createFilter } from "./lib";
 
 export function facebookHash(email: string) {
   return crypto.createHash("sha256").update(email.toLowerCase()).digest("hex");

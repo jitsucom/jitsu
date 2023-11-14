@@ -26,7 +26,7 @@ export type UDFWrapperResult = {
 export const UDFWrapper = (functionId, name, functionCode: string): UDFWrapperResult => {
   log.atInfo().log(`[${functionId}] Compiling UDF function '${name}'`);
   const startMs = new Date().getTime();
-  let isolate: Isolate | undefined = undefined;
+  let isolate: Isolate;
   try {
     //const wrappedCode = `let exports = {}\n${functionCode}\n${wrapperJs}`;
     isolate = new Isolate({ memoryLimit: 10 });

@@ -87,3 +87,16 @@ export function getEventCustomProperties(
 export function getTraits(event: AnalyticsServerEvent) {
   return { ...(event.traits || {}), ...(event.context?.traits || {}) };
 }
+
+export function createFilter(filter: string): (eventType: string, eventName?: string) => boolean {
+  if (filter === "*") {
+    return () => true;
+  } else if (filter === "") {
+    return eventType => eventType !== "page" && eventType !== "screen";
+  } else {
+    const events = filter.split(",").map(e => e.trim());
+    return (eventType: string, eventName?: string) => {
+      return events.includes(eventType) || (!!eventName && events.includes(eventName));
+    };
+  }
+}

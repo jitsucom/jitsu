@@ -2,6 +2,7 @@ import { JitsuFunction } from "@jitsu/protocols/functions";
 import { RetryError } from "@jitsu/functions-lib";
 import type { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { Ga4Credentials } from "../meta";
+import { createFilter } from "./lib";
 
 const ReservedUserProperties = [
   "first_open_time",
@@ -287,6 +288,12 @@ function trackEvent(event: AnalyticsServerEvent): Ga4Event {
 }
 
 const Ga4Destination: JitsuFunction<AnalyticsServerEvent, Ga4Credentials> = async (event, ctx) => {
+  if (typeof ctx.props.events !== "undefined") {
+    const filter = createFilter(ctx.props.events || "");
+    if (!filter(event.type, event.event)) {
+      return;
+    }
+  }
   let gaRequest: Ga4Request | undefined = undefined;
   try {
     const clientId = getClientId(event);
