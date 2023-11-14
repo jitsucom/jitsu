@@ -3,7 +3,7 @@ import { Isolate, ExternalCopy, Callback, Reference } from "isolated-vm";
 import { EventContext, EventsStore, FetchOpts, FuncReturn, JitsuFunction, Store } from "@jitsu/protocols/functions";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { createFullContext } from "../context";
-import { createMemoryStore, isDropResult } from "../index";
+import { createMemoryStore, isDropResult, memoryStoreDump } from "../index";
 import { functionsLibCode, wrapperCode } from "./lib/udf-wrapper-code";
 import { parseUserAgent } from "./lib/ua";
 
@@ -294,7 +294,7 @@ export async function UDFTestRun({
     return {
       dropped: isDropResult(result),
       result: typeof result === "undefined" ? event : result,
-      store: store,
+      store: memoryStoreDump(store),
       logs,
       meta: wrapper?.meta,
     };
@@ -307,7 +307,7 @@ export async function UDFTestRun({
         retryPolicy: e.retryPolicy,
       },
       result: {},
-      store: store ?? {},
+      store: store ? memoryStoreDump(store) : {},
       logs,
       meta: wrapper?.meta,
     };

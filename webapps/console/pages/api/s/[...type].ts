@@ -17,7 +17,11 @@ import { isEU } from "../../../lib/shared/eu";
 import { IncomingHttpHeaders } from "http";
 import { NextApiRequest, NextApiResponse } from "next";
 import jsondiffpatch from "jsondiffpatch";
-import { CommonDestinationCredentials, satisfyDomainFilter, satisfyFilter } from "@jitsu/js/compiled/src/destination-plugins";
+import {
+  CommonDestinationCredentials,
+  satisfyDomainFilter,
+  satisfyFilter,
+} from "@jitsu/js/compiled/src/destination-plugins";
 const jsondiffpatchInstance = jsondiffpatch.create({});
 
 function isInternalHeader(headerName: string) {

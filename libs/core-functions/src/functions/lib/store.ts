@@ -78,11 +78,14 @@ export const createMultiStore = (ttlStore: Store, oldStore: Store): Store => {
 export const createMemoryStore = (store: any): Store => ({
   get: async (key: string) => {
     const val = store[key];
-    if (val && val.expireAt < new Date().getTime()) {
-      delete store[key];
-      return undefined;
+    if (val?.expireAt) {
+      if (val.expireAt < new Date().getTime()) {
+        delete store[key];
+        return undefined;
+      }
+      return val.obj;
     }
-    return val?.obj;
+    return val;
   },
   set: async (key: string, obj: any, opts) => {
     store[key] = {
@@ -106,3 +109,24 @@ export const createMemoryStore = (store: any): Store => ({
     return Math.floor(diff);
   },
 });
+
+export const memoryStoreDump = (store: any): any => {
+  const dt = new Date().getTime();
+  return Object.entries(store as Record<string, any>)
+    .map(([k, v]) => {
+      if (v?.expireAt) {
+        if (v.expireAt < dt) {
+          return null;
+        }
+        return [k, v.obj];
+      }
+      return [k, v];
+    })
+    .filter(v => v !== null)
+    .reduce((prev, cur) => {
+      if (cur) {
+        prev[cur[0]] = cur[1];
+      }
+      return prev;
+    }, {});
+};

@@ -82,7 +82,20 @@ function getGa4Sessions(allCookies: Record<string, string>): Record<string, stri
   if (gaCookies.length === 0) {
     return undefined;
   }
-  return Object.fromEntries(gaCookies.map(([key, value]) => [key.substring("_ga_".length), value]));
+  return Object.fromEntries(
+    gaCookies
+      .map(([key, value]) => {
+        if (typeof value !== "string") {
+          return null;
+        }
+        const parts = value.split(".");
+        if (parts.length < 3) {
+          return null;
+        }
+        return [key.substring("_ga_".length), parts[2]];
+      })
+      .filter(v => v !== null)
+  );
 }
 
 function removeCookie(name: string) {
@@ -185,7 +198,7 @@ export function windowRuntime(opts: JitsuOptions): RuntimeFacade {
     },
     userAgent(): string {
       return window.navigator.userAgent;
-    }
+    },
   };
 }
 

@@ -91,40 +91,58 @@ const expectedEvents: AnalyticsServerEvent[] = [
 ];
 
 test("user-recognition-test", async () => {
-  // const options: TestOptions = {
-  //   func: UserRecognitionFunction,
-  //   ctx: {
-  //     headers: {},
-  //     connection: {
-  //       id: "test",
-  //       options: {
-  //         primaryKey: "messageId",
-  //         deduplicate: true,
-  //       },
-  //     },
-  //     fetch: nodeFetch as unknown as FetchType,
-  //     store: createStore(),
-  //     log: {
-  //       info: (msg: any, ...args: any[]) => console.log(prefixLogMessage("INFO", msg), args),
-  //       error: (msg: any, ...args: any[]) => console.error(prefixLogMessage("ERROR", msg), args),
-  //       debug: (msg: any, ...args: any[]) => console.debug(prefixLogMessage("DEBUG", msg), args),
-  //       warn: (msg: any, ...args: any[]) => console.warn(prefixLogMessage("WARN", msg), args),
-  //     },
-  //     $system: {
-  //       anonymousEventsStore: createAnonymousEventsStore(),
-  //     },
-  //   },
-  //   config: {} as UserRecognitionConfig,
-  //   events: [],
-  // };
-  // let res = await testJitsuFunction({ ...options, events: anonymousEvents });
-  // expect(res).toEqual(anonymousEvents);
-  //
-  // res = await testJitsuFunction({ ...options, events: [identifiedEvent] });
-  // expect(res).toEqual(expectedEvents);
-  //
-  // const fifthEvent = { ...identifiedEvent, messageId: "5" };
-  // //no more anonymous events
-  // res = await testJitsuFunction({ ...options, events: [fifthEvent] });
-  // expect(res).toEqual([fifthEvent]);
+  const store = createStore();
+  const options: TestOptions = {
+    func: UserRecognitionFunction,
+    ctx: {
+      headers: {},
+      connection: {
+        id: "test",
+        options: {
+          primaryKey: "messageId",
+          deduplicate: true,
+        },
+      },
+      destination: {
+        id: "test",
+        type: "test",
+        updatedAt: new Date(),
+        hash: "123",
+      },
+      source: {
+        id: "test",
+      },
+      fetch: nodeFetch as unknown as FetchType,
+      store: store,
+      log: {
+        info: (msg: any, ...args: any[]) => console.log(prefixLogMessage("INFO", msg), args),
+        error: (msg: any, ...args: any[]) => console.error(prefixLogMessage("ERROR", msg), args),
+        debug: (msg: any, ...args: any[]) => console.debug(prefixLogMessage("DEBUG", msg), args),
+        warn: (msg: any, ...args: any[]) => console.warn(prefixLogMessage("WARN", msg), args),
+      },
+      $system: {
+        anonymousEventsStore: createAnonymousEventsStore(),
+        store: store,
+        metricsMeta: {
+          workspaceId: "123",
+          messageId: "123",
+          streamId: "123",
+          destinationId: "123",
+          connectionId: "123",
+        },
+      },
+    },
+    config: {} as UserRecognitionConfig,
+    events: [],
+  };
+  let res = await testJitsuFunction({ ...options, events: anonymousEvents });
+  expect(res).toEqual(anonymousEvents);
+
+  res = await testJitsuFunction({ ...options, events: [identifiedEvent] });
+  expect(res).toEqual(expectedEvents);
+
+  const fifthEvent = { ...identifiedEvent, messageId: "5" };
+  //no more anonymous events
+  res = await testJitsuFunction({ ...options, events: [fifthEvent] });
+  expect(res).toEqual([fifthEvent]);
 });
