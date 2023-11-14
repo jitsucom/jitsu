@@ -82,7 +82,7 @@ function getScriptAttributes(scriptElement: HTMLScriptElement) {
       if (typeof callback === "function") {
         callback(jitsu);
       } else {
-        console.warn(`${JITSU_V2_ID}Q.push() accepts only function, ${typeof callback} given`)
+        console.warn(`${JITSU_V2_ID}Q.push() accepts only function, ${typeof callback} given`);
       }
     },
   };
