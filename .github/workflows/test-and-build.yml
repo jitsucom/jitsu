@@ -49,7 +49,7 @@ jobs:
           retention-days: 30
       - name: Notify Slack
         uses: rtCamp/action-slack-notify@v2
-        if: failure()
+        if: always()
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_DEV_CHANNEL }}
           SLACK_COLOR: ${{ job.status }}
