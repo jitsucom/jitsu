@@ -100,3 +100,10 @@ export function createFilter(filter: string): (eventType: string, eventName?: st
     };
   }
 }
+
+export function eventTimeSafeMs(event: AnalyticsServerEvent) {
+  const ts = event.timestamp ? new Date(event.timestamp as string).getTime() : undefined;
+  const receivedAt = event.receivedAt ? new Date(event.receivedAt as string).getTime() : undefined;
+  const now = new Date().getTime();
+  return Math.min(ts ?? now, receivedAt ?? now, now);
+}

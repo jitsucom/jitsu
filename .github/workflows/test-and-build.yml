@@ -56,3 +56,4 @@ jobs:
           SLACK_WEBHOOK: ${{ secrets.SLACK_DEV_CHANNEL }}
           SLACK_COLOR: ${{ job.status }}
           SLACK_ICON_EMOJI: ":github-mark:"
+          SLACK_MESSAGE: "${{ job.status }}: Newjitsu Test: ${{ github.event.head_commit.message }}"

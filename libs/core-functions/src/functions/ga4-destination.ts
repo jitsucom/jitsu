@@ -2,7 +2,7 @@ import { JitsuFunction } from "@jitsu/protocols/functions";
 import { RetryError } from "@jitsu/functions-lib";
 import type { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { Ga4Credentials } from "../meta";
-import { createFilter } from "./lib";
+import { createFilter, eventTimeSafeMs } from "./lib";
 
 const ReservedUserProperties = [
   "first_open_time",
@@ -326,7 +326,7 @@ const Ga4Destination: JitsuFunction<AnalyticsServerEvent, Ga4Credentials> = asyn
     gaRequest = {
       client_id: clientId,
       user_id: event.userId,
-      timestamp_micros: new Date(event.timestamp as string).getTime() * 1000,
+      timestamp_micros: eventTimeSafeMs(event) * 1000,
       user_properties: userProperties,
       events: sessionId ? events.map(e => ({ ...e, params: { ...e.params, session_id: sessionId } })) : events,
     };

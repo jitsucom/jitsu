@@ -3,11 +3,8 @@ import { RetryError } from "@jitsu/functions-lib";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { randomUUID } from "crypto";
 import { AmplitudeDestinationConfig } from "../meta";
-import dayjs from "dayjs";
-import utc from "dayjs/plugin/utc";
 import { requireDefined } from "juava";
-import { SystemContext } from "./lib";
-dayjs.extend(utc);
+import { eventTimeSafeMs, SystemContext } from "./lib";
 
 const AmplitudeDestination: JitsuFunction<AnalyticsServerEvent, AmplitudeDestinationConfig> = async (
   event,
@@ -41,7 +38,7 @@ const AmplitudeDestination: JitsuFunction<AnalyticsServerEvent, AmplitudeDestina
         api_key: props.key,
         events: [
           {
-            time: dayjs(event.timestamp).valueOf(),
+            time: eventTimeSafeMs(event),
             insert_id: event.messageId || randomUUID(),
             user_id: event.userId,
             event_type: "$identify",
@@ -58,7 +55,7 @@ const AmplitudeDestination: JitsuFunction<AnalyticsServerEvent, AmplitudeDestina
         api_key: props.key,
         events: [
           {
-            time: dayjs(event.timestamp).valueOf(),
+            time: eventTimeSafeMs(event),
             insert_id: event.messageId || randomUUID(),
             user_id: event.userId,
             event_type: "$groupidentify",
@@ -96,7 +93,7 @@ const AmplitudeDestination: JitsuFunction<AnalyticsServerEvent, AmplitudeDestina
         api_key: props.key,
         events: [
           {
-            time: dayjs(event.timestamp).valueOf(),
+            time: eventTimeSafeMs(event),
             insert_id: event.messageId || randomUUID(),
             event_type: event.type === "page" ? "pageview" : event.event || event.name || "Unknown Event",
             session_id: sessionId || -1,

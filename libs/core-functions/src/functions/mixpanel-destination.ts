@@ -3,6 +3,7 @@ import { RetryError } from "@jitsu/functions-lib";
 import type { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { randomId } from "juava";
 import { MixpanelCredentials } from "../meta";
+import { eventTimeSafeMs } from "./lib";
 
 export type HttpRequest = {
   id: string;
@@ -32,9 +33,6 @@ function trackEvent(
   const groupId = event.context?.groupId || traits.groupId;
   const groupKey = opts.groupKey || "$group_id";
   delete traits.groupId;
-  const receivedAt = new Date(event.receivedAt as string).getTime();
-  const ts = new Date(event.timestamp as string).getTime();
-  const now = new Date().getTime();
 
   const customProperties = {
     ...prefix(event.context?.campaign || {}, "utm_"),
@@ -57,7 +55,7 @@ function trackEvent(
         event: eventType,
         properties: {
           ip: event.context?.ip || event.request_ip,
-          time: ts > now ? receivedAt : ts,
+          time: eventTimeSafeMs(event),
           distinct_id: distinctId,
           $insert_id: event.messageId + "-" + randomId(),
           $user_id: event.userId ? event.userId : undefined,

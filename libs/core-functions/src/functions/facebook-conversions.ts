@@ -5,7 +5,7 @@ import { FacebookConversionApiCredentials } from "../meta";
 import crypto from "crypto";
 import omit from "lodash/omit";
 import { RetryError } from "@jitsu/functions-lib";
-import { createFilter } from "./lib";
+import { createFilter, eventTimeSafeMs } from "./lib";
 
 export function facebookHash(email: string) {
   return crypto.createHash("sha256").update(email.toLowerCase()).digest("hex");
@@ -47,7 +47,7 @@ const FacebookConversionsApi: JitsuFunction<AnalyticsServerEvent, FacebookConver
 
     const fbEvent = {
       event_name: event.type === "track" ? event.event : event.type,
-      event_time: Math.floor((event.timestamp ? new Date(event.timestamp) : new Date()).getTime() / 1000),
+      event_time: Math.floor(eventTimeSafeMs(event) / 1000),
       event_id: event.messageId,
       action_source: ctx.props?.actionSource || "website",
       event_source_url: event.context?.page?.url,
