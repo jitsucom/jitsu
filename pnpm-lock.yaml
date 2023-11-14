@@ -4,6 +4,9 @@ importers:
 
   .:
     devDependencies:
+      '@playwright/test':
+        specifier: 1.39.0
+        version: 1.39.0
       dotenv-cli:
         specifier: ^6.0.0
         version: 6.0.0
