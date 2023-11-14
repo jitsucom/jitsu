@@ -107,7 +107,7 @@ function getScriptAttributes(scriptElement: HTMLScriptElement) {
     } catch (e: any) {
       console.warn(`Error processing callback from Jitsu queue`, e);
     }
-  })
+  });
   if (!options.initOnly) {
     jitsu.page();
   }
