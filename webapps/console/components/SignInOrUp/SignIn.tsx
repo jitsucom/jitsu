@@ -219,11 +219,15 @@ export const SigninLayout: React.FC<PropsWithChildren<{ title: ReactNode; footer
   children,
   footer,
 }) => {
+  const router = useRouter();
   return (
     <div className="flex min-h-screen flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className={"flex flex-col items-center sm:justify-center grow"}>
         <div className="bg-backgroundLight p-8 border border-backgroundDark rounded-md shadow-sm mx-4">
           <div className="flex justify-center text-3xl font-header font-bold mb-4">{title}</div>
+          {router.query.invite && (
+            <div className="text text-textLight">Login to Jitsu to accept the invitation, or create an account</div>
+          )}
           <div className="debug">{children}</div>
         </div>
         {footer && <div>{footer}</div>}
