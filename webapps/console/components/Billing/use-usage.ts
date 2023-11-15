@@ -43,7 +43,7 @@ export function useUsage(opts?: { skipSubscribed?: boolean; cacheSeconds?: numbe
   }
 
   const { isLoading, error, data } = useQuery(
-    ["billing usage", workspace.id],
+    ["billing usage", workspace.id, opts?.skipSubscribed, billing.settings.planId],
     async () => {
       console.log("Getting usage", opts?.skipSubscribed, billing.settings.planId);
       if (opts?.skipSubscribed && billing.settings.planId !== "free") {
