@@ -21,7 +21,7 @@ datasource db {
 }
 
 model EmailLog {
-  id         String   @id @default("cuid()")
+  id         String   @id @default(cuid())
   time       DateTime @default(now())
   email      Json
   error      String?

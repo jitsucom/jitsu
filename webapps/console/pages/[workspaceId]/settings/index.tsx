@@ -156,7 +156,7 @@ const Members: React.FC<any> = () => {
                             type="link"
                             className="mr-2"
                             onClick={() =>
-                              get(`/api/workspace/${workspace.id}/users/invite`, {
+                              get(`/api/workspace/${workspace.id}/users`, {
                                 body: {
                                   email: r.invitationEmail,
                                   resend: true,
@@ -164,7 +164,7 @@ const Members: React.FC<any> = () => {
                               })
                             }
                           >
-                            Resend
+                            Resend Invitation Email
                           </AsyncButton>
                         </>
                       )}
@@ -175,7 +175,7 @@ const Members: React.FC<any> = () => {
                             className="mr-2"
                             onClick={() => showInvitationLink(m, r.invitationLink || "")}
                           >
-                            Show Invitation
+                            Show Invitation Link
                           </Button>
                         </>
                       )}

@@ -19,7 +19,7 @@ async function sendInvitationEmail<Req>(
   const link = `${baseUrl}/accept?invite=${token}`;
   await sendEmail({
     to: email,
-    subject: `${currentUser.name} has invited you to join ${workspaceName} workspace in ${branding.productName}`,
+    subject: `${currentUser.name} has invited you to join ${workspaceName} workspace at ${branding.productName}`,
     html: [
       `<p>${currentUser.name} has invited you to join <b>${workspaceName}</b> workspace in <b>${branding.productName}</b>.</p>`,
       `<p>Accept invitation by clicking on this link <a href="${link}">${link}</a></p>`,
@@ -64,6 +64,7 @@ const api: Api = {
         workspaceId: workspace.id,
         invitationLink: `${whoamiUrl(req)}/accept?invite=${res.token}`,
         invitationEmail: res.email,
+        canSendEmail: isMailAvailable(),
       }));
       return [...currentUsers, ...invitations] as any;
     },
