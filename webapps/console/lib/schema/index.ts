@@ -50,6 +50,8 @@ export const AppConfig = z.object({
   docsUrl: z.string().optional(),
   websiteUrl: z.string().optional(),
   credentialsLoginEnabled: z.boolean(),
+  //iso date
+  readOnlyUntil: z.string().optional(),
   disableSignup: z.boolean().optional(),
   ee: z.object({
     available: z.boolean(),

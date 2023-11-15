@@ -6,6 +6,7 @@ import { ApiError } from "../../../../../lib/shared/errors";
 import { fastStore } from "../../../../../lib/server/fast-store";
 import { getConfigObjectType, parseObject } from "../../../../../lib/schema/config-objects";
 import { prepareZodObjectForDeserialization } from "../../../../../lib/zod";
+import { isReadOnly } from "../../../../../lib/server/read-only-mode";
 
 function defaultMerge(a, b) {
   return { ...a, ...b };
@@ -49,6 +50,9 @@ export const api: Api = {
     handle: async ({ user, body, query }) => {
       body = prepareZodObjectForDeserialization(body);
       const { id, workspaceId, type } = query;
+      if (isReadOnly) {
+        throw new ApiError("Console is in read-only mode. Modifications of objects are not allowed");
+      }
       await verifyAccess(user, workspaceId);
       const configObjectType = getConfigObjectType(type);
       const object = await db.prisma().configurationObject.findFirst({
@@ -75,6 +79,9 @@ export const api: Api = {
     handle: async ({ user, body, query }) => {
       const { id, workspaceId, type } = query;
       await verifyAccess(user, workspaceId);
+      if (isReadOnly) {
+        throw new ApiError("Console is in read-only mode. Modifications of objects are not allowed");
+      }
       const object = await db.prisma().configurationObject.findFirst({
         where: { workspaceId: workspaceId, id, deleted: false },
       });

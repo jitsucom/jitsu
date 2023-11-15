@@ -3,6 +3,7 @@ import { Alert, Button, Popover } from "antd";
 import { CheckOutlined, LoadingOutlined } from "@ant-design/icons";
 import { getLog } from "juava";
 import { ConfigTestResult } from "./ConfigEditor";
+import { useAppConfig } from "../../lib/context";
 
 const log = getLog("ConfigEditor");
 
@@ -29,6 +30,8 @@ export const EditorButtons: React.FC<EditorButtonProps> = ({
   hasErrors,
 }) => {
   const buttonDivRef = useRef<HTMLDivElement>(null);
+  const appConfig = useAppConfig();
+  const readOnly = !!appConfig.readOnlyUntil;
 
   const [testStatus, setTestStatus] = useState<string>("");
 
@@ -80,7 +83,7 @@ export const EditorButtons: React.FC<EditorButtonProps> = ({
       <div className="flex justify-between mt-4">
         <div>
           {!isNew && (
-            <Button disabled={loading} type="primary" ghost danger size="large" onClick={onDelete}>
+            <Button disabled={loading || readOnly} type="primary" ghost danger size="large" onClick={onDelete}>
               Delete
             </Button>
           )}
@@ -111,7 +114,7 @@ export const EditorButtons: React.FC<EditorButtonProps> = ({
             type="primary"
             size="large"
             loading={loading}
-            disabled={isTouched !== undefined && !isTouched}
+            disabled={(isTouched !== undefined && !isTouched) || readOnly}
             htmlType={isTouched && !hasErrors ? "submit" : "button"}
             onClick={onSave}
           >

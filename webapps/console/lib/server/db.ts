@@ -1,9 +1,9 @@
 import { PrismaClient } from "@prisma/client";
 import { Pool, PoolClient } from "pg";
 import Cursor from "pg-cursor";
-import { namedParameters, newError, requireDefined, stopwatch } from "juava";
-import { getSingleton } from "juava";
+import { getSingleton, namedParameters, newError, requireDefined, stopwatch } from "juava";
 import { getServerLog } from "./log";
+import { isReadOnly } from "./read-only-mode";
 
 export type Handler = (row: Record<string, any>) => Promise<void> | void;
 
@@ -112,6 +112,18 @@ export function createPg(): Pool {
   return pool;
 }
 
+const mutationActions = ["create", "update", "upsert", "delete"];
+
+function blockPrismaMutations() {
+  return async (params, next) => {
+    const action = params.action;
+    if (mutationActions.find(candidate => action.indexOf(candidate) === 0)) {
+      throw new Error(`Prisma operation ${action} is not allowed in read-only mode`);
+    }
+    return await next(params);
+  };
+}
+
 export function createPrisma(): PrismaClient {
   // @ts-ignore
   if (typeof window !== "undefined") {
@@ -179,5 +191,9 @@ export function createPrisma(): PrismaClient {
         }`
       );
   });
+  if (isReadOnly) {
+    prisma.$use(blockPrismaMutations());
+  }
+
   return prisma;
 }

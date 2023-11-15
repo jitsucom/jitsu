@@ -4,6 +4,8 @@ import { db } from "../../../../../lib/server/db";
 import { assertDefined } from "juava";
 import { fastStore } from "../../../../../lib/server/fast-store";
 import { getConfigObjectType, parseObject } from "../../../../../lib/schema/config-objects";
+import { ApiError } from "../../../../../lib/shared/errors";
+import { isReadOnly } from "../../../../../lib/server/read-only-mode";
 
 export const config = {
   api: {
@@ -48,6 +50,9 @@ export const api: Api = {
     },
     handle: async ({ body, user, query: { workspaceId, type } }) => {
       await verifyAccess(user, workspaceId);
+      if (isReadOnly) {
+        throw new ApiError("Console is in read-only mode. Modifications of objects are not allowed");
+      }
       const configObjectTypes = getConfigObjectType(type);
       const object = await configObjectTypes.inputFilter(parseObject(type, body), "create");
       const id = object.id;

@@ -6,6 +6,7 @@ import { isEEAvailable } from "./ee/jwt";
 import { isFirebaseEnabled, requireFirebaseOptions } from "../../lib/server/firebase-server";
 import { nangoConfig } from "../../lib/server/oauth/nango-config";
 import { isTruish } from "../../lib/shared/chores";
+import { readOnlyUntil } from "../../lib/server/read-only-mode";
 
 export default createRoute()
   .GET({ result: AppConfig, auth: false })
@@ -15,7 +16,7 @@ export default createRoute()
 
     return {
       docsUrl: process.env.JITSU_DOCUMENTATION_URL || "https://docs-jitsu-com.staging.jitsu.com/",
-      websiteUrl: process.env.JITSU_WEBSITE_URL || "https://next.jitsu.com",
+      readOnlyUntil: readOnlyUntil?.toISOString(),
       credentialsLoginEnabled: !!process.env.TEST_CREDENTIALS && !!process.env.TEST_CREDENTIALS_SHOW_LOGIN,
       ee: {
         available: isEEAvailable(),

@@ -532,6 +532,21 @@ const WorkspaceLoader: React.FC<PropsWithChildren<{ workspaceId: string }>> = ({
     );
   }
 };
+
+export const ReadOnlyBanner: React.FC<{}> = () => {
+  const appConfig = useAppConfig();
+  if (appConfig.readOnlyUntil) {
+    return (
+      <div className="px-4 py-2 text-center bg-warning/20 border-b border-warning">
+        Jitsu is in a read-only maintenance mode until{" "}
+        <b>{new Date(appConfig.readOnlyUntil).toISOString().split(".")[0].replace("T", " ")} UTC</b>. Your data is being
+        processed as usual, but you can't change the configuration.
+      </div>
+    );
+  }
+  return <></>;
+};
+
 export const App = ({ Component, pageProps }: AppProps) => {
   useTitle(branding.productName);
   const router = useRouter();
@@ -567,6 +582,7 @@ export const App = ({ Component, pageProps }: AppProps) => {
           <ErrorBoundary renderError={props => <GlobalError error={props.error} title="System error" />}>
             <QueryClientProvider client={queryClient}>
               <AppLoader pageProps={pageProps}>
+                <ReadOnlyBanner />
                 <WorkspaceWrapper>
                   <Component {...pageProps} />
                 </WorkspaceWrapper>
