@@ -4,9 +4,16 @@ const commonjs = require("@rollup/plugin-commonjs");
 const rollupJson = require("@rollup/plugin-json");
 const terser = require("@rollup/plugin-terser");
 
+
 module.exports = [
   {
-    plugins: [multi(), resolve({ preferBuiltins: false }), commonjs(), rollupJson(), terser()],
+    plugins: [
+      multi(),
+      resolve({ preferBuiltins: false }),
+      commonjs(),
+      rollupJson(),
+      (process.JITSU_JS_DEBUG_BUILD = "1" ? undefined : terser()),
+    ],
     input: "./compiled/src/browser.js",
     output: {
       file: `dist/web/p.js.txt`,

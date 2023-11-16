@@ -479,7 +479,7 @@ function send(
   store: PersistentStorage
 ): Promise<void> {
   if (jitsuConfig.echoEvents) {
-    console.log(`[JITSU] sending '${method}' event:`, payload);
+    console.log(`[JITSU DEBUG] sending '${method}' event:`, payload);
     return;
   }
 
@@ -545,18 +545,31 @@ function send(
 
 const jitsuAnalyticsPlugin = (pluginConfig: JitsuOptions = {}): AnalyticsPlugin => {
   const storageCache: any = {};
+
   // AnalyticsInstance's storage is async somewhere inside. So if we make 'page' call right after 'identify' call
   // 'page' call will load traits from storage before 'identify' call had a change to save them.
   // to avoid that we use in-memory cache for storage
   const cachingStorageWrapper = (persistentStorage: PersistentStorage): PersistentStorage => ({
     setItem(key: string, val: any) {
+      if (pluginConfig.debug) {
+        console.log(`[JITSU DEBUG] Caching storage setItem: ${key}=${val}`);
+      }
       storageCache[key] = val;
       persistentStorage.setItem(key, val);
     },
     getItem(key: string) {
-      return storageCache[key] || persistentStorage.getItem(key);
+      const value = storageCache[key] || persistentStorage.getItem(key);
+      if (pluginConfig.debug) {
+        console.log(
+          `[JITSU DEBUG] Caching storage getItem: ${key}=${value}. Evicted from cache: ${!storageCache[key]}`
+        );
+      }
+      return value;
     },
     removeItem(key: string) {
+      if (pluginConfig.debug) {
+        console.log(`[JITSU DEBUG] Caching storage removeItem: ${key}`);
+      }
       delete storageCache[key];
       persistentStorage.removeItem(key);
     },
@@ -568,10 +581,11 @@ const jitsuAnalyticsPlugin = (pluginConfig: JitsuOptions = {}): AnalyticsPlugin 
   return {
     name: "jitsu",
     config: instanceConfig,
+
     initialize: args => {
       const { config } = args;
       if (config.debug) {
-        console.debug("[JITSU] Initializing Jitsu plugin with config: ", JSON.stringify(config));
+        console.debug("[JITSU DEBUG] Initializing Jitsu plugin with config: ", JSON.stringify(config, null, 2));
       }
       if (!config.host && !config.echoEvents) {
         throw new Error("Please specify host variable in jitsu plugin initialization, or set echoEvents to true");
@@ -600,15 +614,16 @@ const jitsuAnalyticsPlugin = (pluginConfig: JitsuOptions = {}): AnalyticsPlugin 
       //analytics doesn't support group as a base method, so we need to add it manually
       group(groupId?: ID, traits?: JSONObject | null, options?: Options, callback?: Callback) {
         const analyticsInstance = this.instance;
+        const cacheWrap = cachingStorageWrapper(analyticsInstance.storage);
         const user = analyticsInstance.user();
         const userId = options?.userId || user?.userId;
-        const anonymousId = options?.anonymousId || user?.anonymousId;
+        const anonymousId = options?.anonymousId || user?.anonymousId || cacheWrap.getItem("__anon_id");
         return send(
           "group",
           { type: "group", groupId, traits, ...(anonymousId ? { anonymousId } : {}), ...(userId ? { userId } : {}) },
           instanceConfig,
           analyticsInstance,
-          cachingStorageWrapper(analyticsInstance.storage)
+          cacheWrap
         );
       },
     },

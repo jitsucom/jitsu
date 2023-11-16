@@ -199,6 +199,8 @@ export interface AnalyticsInterface {
 
   user(): any;
 
+  setAnonymousId(id: string): void;
+
   // alias(
   //   to: string | number,
   //   from?: string | number | Options,

@@ -11,6 +11,7 @@ describe("Test Jitsu NodeJS client", () => {
   let requestLog: { type: string; body: AnalyticsClientEvent }[] = [];
 
   const startServer = async () => {
+    requestLog = [];
     server = await createServer({
       port: 3088,
       https: false,
@@ -30,7 +31,44 @@ describe("Test Jitsu NodeJS client", () => {
   const shutdownServer = async () => {
     console.log("Shutting down server " + server.baseUrl);
     await server.close();
+    console.log("Server is down " + server.baseUrl);
   };
+
+  test("setAnonymousId test2", async () => {
+    await startServer();
+
+    const config = {
+      host: server.baseUrl,
+      writeKey: "key:secret",
+      debug: true,
+    };
+
+    try {
+      console.log("[JITSU TEST] Initializing Jitsu");
+      const client = jitsuAnalytics(config);
+      console.log("[JITSU TEST] Jitsu instance", client);
+
+      const anonymousId = "anonymous_id_test";
+      console.log("[JITSU TEST] Setting anonymous id to " + anonymousId);
+      await client.setAnonymousId(anonymousId);
+      console.log("user state", client.getState("user"));
+
+      expect(requestLog.length).toBe(0);
+      console.log("[JITSU TEST] Sending event EVENT_1");
+      await client.track("EVENT_1");
+      await client.track("EVENT_2");
+      await client.track("groupId");
+
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      expect(requestLog.length).toBe(3);
+      expect(requestLog[1].body.anonymousId).toBe("anonymous_id_test");
+      expect(requestLog[0].body.anonymousId).toBe("anonymous_id_test");
+      expect(requestLog[2].body.anonymousId).toBe("anonymous_id_test");
+    } finally {
+      shutdownServer();
+    }
+  });
 
   test("node js", async () => {
     await startServer();

@@ -360,8 +360,8 @@ importers:
   libs/jitsu-js:
     dependencies:
       analytics:
-        specifier: ^0.8.1
-        version: 0.8.1(@types/dlv@1.1.2)
+        specifier: 0.8.9
+        version: 0.8.9(@types/dlv@1.1.2)
     devDependencies:
       '@jitsu/protocols':
         specifier: workspace:*
@@ -1078,52 +1078,52 @@ packages:
       '@jridgewell/gen-mapping': 0.3.3
       '@jridgewell/trace-mapping': 0.3.18
 
-  /@analytics/cookie-utils@0.2.10:
-    resolution: {integrity: sha512-k7oyW1PkMCnEdCYmHCLLXAsKavQh5ZRh5EeugBEUTlPJs8x8ajF+W1T0PYVDS26Impkea1sJR2etv/6l2pKtlg==}
+  /@analytics/cookie-utils@0.2.12:
+    resolution: {integrity: sha512-2h/yuIu3kmu+ZJlKmlT6GoRvUEY2k1BbQBezEv5kGhnn9KpmzPz715Y3GmM2i+m7Y0QmBdVUoA260dQZkofs2A==}
     dependencies:
-      '@analytics/global-storage-utils': 0.1.5
+      '@analytics/global-storage-utils': 0.1.7
     dev: false
 
-  /@analytics/core@0.11.1(@types/dlv@1.1.2):
-    resolution: {integrity: sha512-vHuiMpeGV6jGRRoOuScUJ4CHpVd1Zu9M+fjEWgN+boMAxIwFCtRTkSbhhIP337JuEBLpMT8w37OxA4Yh3NZFZw==}
+  /@analytics/core@0.12.7(@types/dlv@1.1.2):
+    resolution: {integrity: sha512-etmIPCoxWLoUZ/o1o2zvIk4cdVHa8I1xUQtTuLA+YXQ4SsFbm75ZoMXJBqWrNSENpqCJgoL6hizl5uTbkNN+1Q==}
     dependencies:
-      '@analytics/global-storage-utils': 0.1.5
-      '@analytics/type-utils': 0.6.0
-      analytics-utils: 1.0.10(@types/dlv@1.1.2)
+      '@analytics/global-storage-utils': 0.1.7
+      '@analytics/type-utils': 0.6.2
+      analytics-utils: 1.0.12(@types/dlv@1.1.2)
     transitivePeerDependencies:
       - '@types/dlv'
     dev: false
 
-  /@analytics/global-storage-utils@0.1.5:
-    resolution: {integrity: sha512-DzOCd0qK7PGnz/dgBYNzLmaFBkxcEHM6/CpWMY7hel1IBUldMsyet4sdRgI2Nk+Wc6B/YvqVqos68p5ntB59zA==}
+  /@analytics/global-storage-utils@0.1.7:
+    resolution: {integrity: sha512-V+spzGLZYm4biZT4uefaylm80SrLXf8WOTv9hCgA46cLcyxx3LD4GCpssp1lj+RcWLl/uXJQBRO4Mnn/o1x6Gw==}
     dependencies:
-      '@analytics/type-utils': 0.6.0
+      '@analytics/type-utils': 0.6.2
     dev: false
 
-  /@analytics/localstorage-utils@0.1.8:
-    resolution: {integrity: sha512-tU5rLEHdYRc4EmRXkWacMJSmu4SeJfQuxvthSHHRVx3hGBQ00MJRDGyDHMXcrLKQXrBpsJo6t/8YRavHLOxDPQ==}
+  /@analytics/localstorage-utils@0.1.10:
+    resolution: {integrity: sha512-uJS+Jp1yLG5VFCgA5T82ZODYBS0xuDQx0NtAZrgbqt9j51BX3TcgmOez5LVkrUNu/lpbxjCLq35I4TKj78VmOQ==}
     dependencies:
-      '@analytics/global-storage-utils': 0.1.5
+      '@analytics/global-storage-utils': 0.1.7
     dev: false
 
-  /@analytics/session-storage-utils@0.0.5:
-    resolution: {integrity: sha512-BXRNQ73GSkkkny//a/SNCYRyrIhEJBwOTcdNkr2gq6ghXgekQGrTfVzwybZ/tAEHA0XYkkaOszelRsDPxa+UOQ==}
+  /@analytics/session-storage-utils@0.0.7:
+    resolution: {integrity: sha512-PSv40UxG96HVcjY15e3zOqU2n8IqXnH8XvTkg1X43uXNTKVSebiI2kUjA3Q7ESFbw5DPwcLbJhV7GforpuBLDw==}
     dependencies:
-      '@analytics/global-storage-utils': 0.1.5
+      '@analytics/global-storage-utils': 0.1.7
     dev: false
 
-  /@analytics/storage-utils@0.4.0:
-    resolution: {integrity: sha512-RY9nhoSQcuQxkmVUZBG3ULOwiFxi+H5N0WHn+FPUScnoM4b+tC48dWzyFxD9qKyWPah8/ndjCj6r+6wTGSl1zw==}
+  /@analytics/storage-utils@0.4.2:
+    resolution: {integrity: sha512-AXObwyVQw9h2uJh1t2hUgabtVxzYpW+7uKVbdHQK80vr3Td5rrmCxrCxarh7HUuAgSDZ0bZWqmYxVgmwKceaLg==}
     dependencies:
-      '@analytics/cookie-utils': 0.2.10
-      '@analytics/global-storage-utils': 0.1.5
-      '@analytics/localstorage-utils': 0.1.8
-      '@analytics/session-storage-utils': 0.0.5
-      '@analytics/type-utils': 0.6.0
+      '@analytics/cookie-utils': 0.2.12
+      '@analytics/global-storage-utils': 0.1.7
+      '@analytics/localstorage-utils': 0.1.10
+      '@analytics/session-storage-utils': 0.0.7
+      '@analytics/type-utils': 0.6.2
     dev: false
 
-  /@analytics/type-utils@0.6.0:
-    resolution: {integrity: sha512-1Yw7u/COtxx06BfwlI+kVhsa/upKYzmCNrT4c8QDeCY2KMYlnijkUjtHiPU08HxyTIVB5j6d75O0YWVIHwQS8g==}
+  /@analytics/type-utils@0.6.2:
+    resolution: {integrity: sha512-TD+xbmsBLyYy/IxFimW/YL/9L2IEnM7/EoV9Aeh56U64Ify8o27HJcKjo38XY9Tcn0uOq1AX3thkKgvtWvwFQg==}
     dev: false
 
   /@ant-design/colors@7.0.0:
@@ -9702,21 +9702,21 @@ packages:
     resolution: {integrity: sha512-0FcBfdcmaumGPQ0qPn7Q5qTgz/ooXgIyp1rf8ik5bGX8mpE2YHjC0P/eyQvxu1GURYQgq9ozf2mteQ5ZD9YiyQ==}
     dev: true
 
-  /analytics-utils@1.0.10(@types/dlv@1.1.2):
-    resolution: {integrity: sha512-ZKYKhip7Sf09qE85l4vZMBPR3fz6ISUTlwzkWSwJHbzLLzP5qrWQtcQlBcP9Pah7BMNSq8pqho+PX4ZKB014Yg==}
+  /analytics-utils@1.0.12(@types/dlv@1.1.2):
+    resolution: {integrity: sha512-WvV2YWgsnXLxaY0QYux0crpBAg/0JA763NmbMVz22jKhMPo7dpTBet8G2IlF7ixTjLDzGlkHk1ZaKqqQmjJ+4w==}
     peerDependencies:
       '@types/dlv': ^1.0.0
     dependencies:
-      '@analytics/type-utils': 0.6.0
+      '@analytics/type-utils': 0.6.2
       '@types/dlv': 1.1.2
       dlv: 1.1.3
     dev: false
 
-  /analytics@0.8.1(@types/dlv@1.1.2):
-    resolution: {integrity: sha512-mXOe8zTGDfiYqw9MZsgul8HrOBmHsIwk/0xbrkGZr75yvWqAcyKfZA0WjOalwI9tzIKv8WNfHV5yhnrtQcXJpw==}
+  /analytics@0.8.9(@types/dlv@1.1.2):
+    resolution: {integrity: sha512-oTbUzQpncMTslakqfK70GgB6bopk5hY+uuekwnadMkDyqNLgcD02KRzteTnO7q5Ko6wDECVtT8xi/6OuAMZykA==}
     dependencies:
-      '@analytics/core': 0.11.1(@types/dlv@1.1.2)
-      '@analytics/storage-utils': 0.4.0
+      '@analytics/core': 0.12.7(@types/dlv@1.1.2)
+      '@analytics/storage-utils': 0.4.2
     transitivePeerDependencies:
       - '@types/dlv'
     dev: false
