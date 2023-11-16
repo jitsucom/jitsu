@@ -25,3 +25,6 @@ pnpm-lock.yaml
 /libs/jitsu-js/__tests__/playwright/artifacts
 /libs/jitsu-js/compiled/
 libs/jitsu-js/dist/
+/cli/jitsu-cli/compiled/
+/cli/jitsu-cli/dist/
+/libs/functions/dist/

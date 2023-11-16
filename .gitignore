@@ -12,3 +12,4 @@ node_modules
 /cli/jitsu-cli/compiled/
 /cli/jitsu-cli/dist/
 /types/protocols/dist/
+/libs/functions/dist/

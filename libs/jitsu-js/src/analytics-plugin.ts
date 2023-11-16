@@ -77,25 +77,32 @@ function getCookie(name: string) {
   return parts.length === 2 ? parts.pop().split(";").shift() : undefined;
 }
 
-function getGa4Sessions(allCookies: Record<string, string>): Record<string, string> | undefined {
-  const gaCookies = Object.entries(allCookies).filter(([key]) => key.startsWith("_ga_"));
-  if (gaCookies.length === 0) {
+function getGa4Ids(runtime: RuntimeFacade) {
+  const allCookies = runtime.getCookies();
+  const clientId = allCookies["_ga"]?.split(".").slice(-2).join(".");
+  const gaSessionCookies = Object.entries(allCookies).filter(([key]) => key.startsWith("_ga_"));
+  const sessionIds =
+    gaSessionCookies.length > 0
+      ? Object.fromEntries(
+          gaSessionCookies
+            .map(([key, value]) => {
+              if (typeof value !== "string") {
+                return null;
+              }
+              const parts = value.split(".");
+              if (parts.length < 3) {
+                return null;
+              }
+              return [key.substring("_ga_".length), parts[2]];
+            })
+            .filter(v => v !== null)
+        )
+      : undefined;
+  if (clientId || sessionIds) {
+    return { ga4: { clientId, sessionIds } };
+  } else {
     return undefined;
   }
-  return Object.fromEntries(
-    gaCookies
-      .map(([key, value]) => {
-        if (typeof value !== "string") {
-          return null;
-        }
-        const parts = value.split(".");
-        if (parts.length < 3) {
-          return null;
-        }
-        return [key.substring("_ga_".length), parts[2]];
-      })
-      .filter(v => v !== null)
-  );
 }
 
 function removeCookie(name: string) {
@@ -308,10 +315,7 @@ function adjustPayload(payload: any, config: JitsuOptions, storage: PersistentSt
     clientIds: {
       fbc: runtime.getCookie("_fbc"),
       fbp: runtime.getCookie("_fbp"),
-      ga4: {
-        clientId: runtime.getCookie("_ga")?.split(".").slice(-2).join("."), //last 2 parts of GA cookie
-        sessions: getGa4Sessions(runtime.getCookies()),
-      },
+      ...getGa4Ids(runtime),
     },
     campaign: parseUtms(query),
   };

@@ -430,6 +430,10 @@ const api: Api = {
       body: z.any(),
     },
     handle: async ({ body, req, res }) => {
+      const contentType = req.headers["content-type"];
+      if (contentType && contentType !== "application/json") {
+        throw new ApiError(`Invalid content type: ${contentType}`, undefined, { status: 400 });
+      }
       //make sure that redis is initialized
       await redis.waitInit();
       //TODO validate event messageId, timestamp
