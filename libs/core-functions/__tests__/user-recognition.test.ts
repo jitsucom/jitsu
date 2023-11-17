@@ -111,6 +111,7 @@ test("user-recognition-test", async () => {
       },
       source: {
         id: "test",
+        type: "browser",
       },
       fetch: nodeFetch as unknown as FetchType,
       store: store,
