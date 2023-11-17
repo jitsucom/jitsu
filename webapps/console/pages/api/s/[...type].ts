@@ -512,11 +512,20 @@ function httpRequest(
           response
             .text()
             .then(json => {
-              retryRequest({
-                ...new Error(`HTTP error: ${response.status} body: ${json}`),
-                status: response.status,
-                body: json,
-              } as HttpError);
+              if (response.status === 500) {
+                retryRequest(new Error(`HTTP error: ${response.status} body: ${json}`));
+              } else {
+                try {
+                  const e = JSON.parse(json);
+                  log
+                    .atError()
+                    .log(
+                      `ID: ${messageId} Error while sending request to bulker (${url}): Known error: ${e.error}. Not retrying.`
+                    );
+                } catch (e) {
+                  retryRequest(new Error(`HTTP error: ${response.status} body: ${json}`));
+                }
+              }
             })
             .catch(retryRequest);
         }

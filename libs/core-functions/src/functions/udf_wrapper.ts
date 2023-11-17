@@ -192,7 +192,7 @@ export type UDFTestRequest = {
   code: string | UDFWrapperResult;
   event: AnalyticsServerEvent;
   config: any;
-  store: any;
+  store: Store | any;
   workspaceId: string;
   userAgent?: string;
 };
@@ -222,6 +222,7 @@ export async function UDFTestRun({
 }: UDFTestRequest): Promise<UDFTestResponse> {
   const logs: logType[] = [];
   let wrapper: UDFWrapperResult | undefined = undefined;
+  let realStore = false;
   try {
     const eventContext: EventContext = {
       geo: {
@@ -262,8 +263,20 @@ export async function UDFTestRun({
         id: "functionsDebugger",
       },
     };
+    let storeImpl: Store;
+    if (
+      typeof store?.set === "function" &&
+      typeof store?.get === "function" &&
+      typeof store?.del === "function" &&
+      typeof store.ttl === "function"
+    ) {
+      storeImpl = store;
+      realStore = true;
+    } else {
+      store = store || {};
+      storeImpl = createMemoryStore(store);
+    }
 
-    const storeImpl: Store = createMemoryStore(store);
     const eventsStore: EventsStore = {
       log(connectionId: string, error: boolean, msg: Record<string, any>) {
         switch (msg.type) {
@@ -313,7 +326,7 @@ export async function UDFTestRun({
     return {
       dropped: isDropResult(result),
       result: typeof result === "undefined" ? event : result,
-      store: memoryStoreDump(store),
+      store: !realStore ? memoryStoreDump(store) : {},
       logs,
       meta: wrapper?.meta,
     };
@@ -326,7 +339,7 @@ export async function UDFTestRun({
         retryPolicy: e.retryPolicy,
       },
       result: {},
-      store: store ? memoryStoreDump(store) : {},
+      store: !realStore && store ? memoryStoreDump(store) : {},
       logs,
       meta: wrapper?.meta,
     };

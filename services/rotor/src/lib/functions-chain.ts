@@ -22,6 +22,7 @@ export type FuncChainResult = {
 };
 
 export type FunctionExecRes = {
+  receivedAt?: any;
   eventIndex: number;
   event?: any;
   metricsMeta?: MetricsMeta;
@@ -61,8 +62,10 @@ export async function runChain(
       let result: FuncReturn = undefined;
       const sw = stopwatch();
       const funcCtx = createFullContext(f.id, eventsStore, store, eventContext, f.context, f.config, event);
+      const rat = new Date(event.receivedAt) as any;
       const execLogMeta = {
         eventIndex: i,
+        receivedAt: rat && rat != "Invalid Date" ? rat : new Date(),
         functionId: f.id,
         metricsMeta: Object.hasOwn(f.context, "$system") ? (f.context as SystemContext).$system.metricsMeta : undefined,
       };

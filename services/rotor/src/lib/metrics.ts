@@ -69,14 +69,13 @@ export function createMetrics(producer: Producer): Metrics {
         return;
       }
 
-      const d = new Date();
-      d.setMilliseconds(0);
-      d.setSeconds(0);
-
       for (const el of execLog) {
         if (!el.metricsMeta) {
           continue;
         }
+        const d = el.receivedAt || new Date();
+        d.setMilliseconds(0);
+        d.setSeconds(0);
         // console.log(
         //   `${el.metricsMeta.connectionId} ${el.metricsMeta.messageId} ${el.functionId} ${el.error} ${el.dropped} ${el.metricsMeta.retries}`
         // );
