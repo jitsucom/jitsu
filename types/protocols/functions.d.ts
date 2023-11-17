@@ -193,6 +193,8 @@ export type EventContext = {
   source: {
     id: string;
     name?: string;
+    //if request was sent from browser or server-to-server api
+    type: "browser" | "s2s";
     domain?: string;
   };
   destination: {

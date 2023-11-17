@@ -103,6 +103,7 @@ export async function rotorMessageHandler(
     ua: parseUserAgent(event.context?.userAgent),
     retries,
     source: {
+      type: message.ingestType,
       id: connection.streamId,
       domain: message.origin?.domain,
     },

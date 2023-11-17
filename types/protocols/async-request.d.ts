@@ -9,6 +9,7 @@ export type IngestMessage = {
   messageCreated: ISO8601Date;
   writeKey: string;
   messageId: string;
+  //currently this not being filled
   connectionId: string;
   type: string;
   origin: {
