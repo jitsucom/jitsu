@@ -165,6 +165,18 @@ model ConnectorPackage {
   updatedAt DateTime @default(now()) @updatedAt /// @zod.custom(z.coerce.date())
 }
 
+model AuditLog {
+  id          String   @id @default(cuid())
+  timestamp   DateTime @default(now()) /// @zod.custom(z.coerce.date())
+  type        String
+  userId      String?
+  workspaceId String?
+  objectId    String?
+  changes     Json?
+  @@index(timestamp)
+  @@index(type)
+}
+
 model source_spec {
     package        String
     version String

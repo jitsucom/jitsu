@@ -6,6 +6,7 @@ import { fastStore } from "../../../../../lib/server/fast-store";
 import { getConfigObjectType, parseObject } from "../../../../../lib/schema/config-objects";
 import { ApiError } from "../../../../../lib/shared/errors";
 import { isReadOnly } from "../../../../../lib/server/read-only-mode";
+import { enableAuditLog } from "../../../../../lib/server/audit-log";
 
 export const config = {
   api: {
@@ -62,6 +63,19 @@ export const api: Api = {
         data: { id, workspaceId: workspaceId, config: object, type },
       });
       await fastStore.fullRefresh();
+      if (enableAuditLog) {
+        await db.prisma().auditLog.create({
+          data: {
+            type: "config-object-create",
+            workspaceId,
+            objectId: id,
+            userId: user.internalId,
+            changes: {
+              newVersion: object,
+            },
+          },
+        });
+      }
       return { id: created.id };
     },
   },

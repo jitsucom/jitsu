@@ -7,6 +7,7 @@ import { fastStore } from "../../../../../lib/server/fast-store";
 import { getConfigObjectType, parseObject } from "../../../../../lib/schema/config-objects";
 import { prepareZodObjectForDeserialization } from "../../../../../lib/zod";
 import { isReadOnly } from "../../../../../lib/server/read-only-mode";
+import { enableAuditLog } from "../../../../../lib/server/audit-log";
 
 function defaultMerge(a, b) {
   return { ...a, ...b };
@@ -68,6 +69,21 @@ export const api: Api = {
       delete filtered.id;
       delete filtered.workspaceId;
       await db.prisma().configurationObject.update({ where: { id }, data: { config: filtered } });
+      if (enableAuditLog) {
+        await db.prisma().auditLog.create({
+          data: {
+            type: "config-object-update",
+            workspaceId,
+            objectId: id,
+            userId: user.internalId,
+            changes: {
+              objectType: type,
+              prevVersion: object.config,
+              newVersion: filtered,
+            },
+          },
+        });
+      }
       await fastStore.fullRefresh();
     },
   },
@@ -90,6 +106,20 @@ export const api: Api = {
           where: { id: object.id },
           data: { deleted: true },
         });
+        if (enableAuditLog) {
+          await db.prisma().auditLog.create({
+            data: {
+              type: "config-object-delete",
+              workspaceId,
+              objectId: id,
+              userId: user.internalId,
+              changes: {
+                objectType: type,
+                prevVersion: object.config,
+              },
+            },
+          });
+        }
         await fastStore.fullRefresh();
         return { ...((object.config as any) || {}), workspaceId, id, type };
       }
