@@ -361,10 +361,37 @@ async function main() {
           log.atInfo().log(`Listening health-checks on port ${rotorHttpPort}`);
         });
       })
-      .catch(e => {
+      .catch(async e => {
         log.atError().withCause(e).log("Failed to start kafka processing");
+        await rotor.close();
         process.exit(1);
       });
+    console.log("listening for signals");
+    const errorTypes = ["unhandledRejection", "uncaughtException"];
+    const signalTraps = ["SIGTERM", "SIGINT", "SIGUSR2"];
+
+    errorTypes.forEach(type => {
+      process.on(type, async err => {
+        try {
+          log.atError().withCause(err).log(`process.on ${type}`);
+          await rotor.close();
+          process.exit(1);
+        } catch (_) {
+          process.exit(1);
+        }
+      });
+    });
+
+    signalTraps.forEach(type => {
+      process.once(type, async () => {
+        try {
+          log.atInfo().log(`Signal ${type} received`);
+          await rotor.close();
+        } finally {
+          process.kill(process.pid, type);
+        }
+      });
+    });
   }
 }
 

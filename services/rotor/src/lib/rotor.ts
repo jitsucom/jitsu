@@ -14,6 +14,7 @@ dayjs.extend(utc);
 import { getRetryPolicy, retryBackOffTime, retryLogMessage } from "./retries";
 import { createMetrics, Metrics } from "./metrics";
 import { FuncChainResult } from "./functions-chain";
+import type { Admin, Consumer, Producer } from "kafkajs";
 
 const log = getLog("kafka-rotor");
 
@@ -38,14 +39,20 @@ export type KafkaRotorConfig = {
 
 export type KafkaRotor = {
   start: () => Promise<Metrics>;
+  close: () => Promise<void>;
 };
 
 export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
   const { kafkaTopics, consumerGroupId, handle, kafkaClientId = "kafka-rotor" } = cfg;
+  let consumer: Consumer;
+  let producer: Producer;
+  let admin: Admin;
+  let closeQueue: () => Promise<void>;
+  let interval: NodeJS.Timer;
   return {
     start: async () => {
       const kafka = connectToKafka({ defaultAppId: kafkaClientId, ...cfg.credentials });
-      const consumer = kafka.consumer({
+      consumer = kafka.consumer({
         groupId: consumerGroupId,
         allowAutoTopicCreation: false,
         sessionTimeout: 120000,
@@ -53,10 +60,10 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
       await consumer.connect();
       await consumer.subscribe({ topics: kafkaTopics, fromBeginning: true });
 
-      const producer = kafka.producer({ allowAutoTopicCreation: false });
+      producer = kafka.producer({ allowAutoTopicCreation: false });
       await producer.connect();
       const metrics = createMetrics(producer);
-      const admin = kafka.admin();
+      admin = kafka.admin();
 
       const topicOffsets = new Prometheus.Gauge({
         name: "rotor_topic_offsets2",
@@ -88,7 +95,7 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
         // add `as const` here to enforce label names
         labelNames: ["topic"] as const,
       });
-      const interval = setInterval(async () => {
+      interval = setInterval(async () => {
         try {
           for (const topic of kafkaTopics) {
             const watermarks = await admin.fetchTopicOffsets(topic);
@@ -193,8 +200,13 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
           queue.on("next", listener);
         });
       };
+      closeQueue = async () => {
+        log.atInfo().log("Closing queue...");
+        await queue.onIdle();
+      };
 
       await consumer.run({
+        autoCommitInterval: 5000,
         eachMessage: async ({ message, topic, partition }) => {
           //make sure that queue has no more entities than concurrency limit (running tasks not included)
           await onSizeLessThan(concurrency);
@@ -203,6 +215,17 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
       });
 
       return metrics;
+    },
+    close: async () => {
+      log.atInfo().log("Closing kafka-rotor");
+      await consumer?.disconnect();
+      await admin?.disconnect();
+      await closeQueue?.();
+      await producer?.disconnect();
+      if (interval) {
+        clearInterval(interval);
+      }
+      log.atInfo().log("Kafka-rotor closed gracefully. 💜");
     },
   };
 }
