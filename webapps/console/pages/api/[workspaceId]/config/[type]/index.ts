@@ -71,6 +71,7 @@ export const api: Api = {
             objectId: id,
             userId: user.internalId,
             changes: {
+              objectType: type,
               newVersion: object,
             },
           },
