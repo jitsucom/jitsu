@@ -6,6 +6,7 @@ import { CookieSerializeOptions, serialize } from "cookie";
 import { getAppEndpoint } from "../../../lib/domains";
 import { getRequestHost, getTopLevelDomain } from "../../../lib/server/origin";
 import { getServerLog } from "../../../lib/server/log";
+import { getLog } from "juava";
 
 export const log = getServerLog("firebase");
 
@@ -30,8 +31,9 @@ export const api: Api = {
         throw new ApiError("CSRF error", {}, { status: 401 });
       }
       const { cookie, expiresIn } = await createSessionCookie(idToken);
-      const domain = "." + getTopLevelDomain(getRequestHost(req));
-      console.log("Setting cookie", cookie, domain);
+      //we need to split() since the domain might contain a port, not good for cookies
+      const domain = "." + getTopLevelDomain(getRequestHost(req)).split(":")[0];
+      getLog().atDebug().log(`Setting firebase auth cookie for '${domain}': ${cookie}`);
       const options: CookieSerializeOptions = {
         maxAge: expiresIn,
         httpOnly: true,
