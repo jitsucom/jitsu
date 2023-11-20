@@ -12,18 +12,22 @@ describe("Test Jitsu NodeJS client", () => {
 
   const startServer = async () => {
     requestLog = [];
+    let handler = (req, res) => {
+      res.setHeader("Content-Type", "text/javascript");
+      res.send({ ok: true });
+      requestLog.push({
+        type: req.params.type,
+        body: req.body,
+      });
+    };
     server = await createServer({
       port: 3088,
       https: false,
       handlers: {
-        "/api/s/:type": (req, res) => {
-          res.setHeader("Content-Type", "text/javascript");
-          res.send({ ok: true });
-          requestLog.push({
-            type: req.params.type,
-            body: req.body,
-          });
-        },
+        //we're using same handler for s2s and browser events since
+        //we don't check types anyway
+        "/api/s/:type": handler,
+        "/api/s/s2s/:type": handler,
       },
     });
     console.log("Running on " + server.baseUrl);
