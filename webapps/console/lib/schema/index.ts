@@ -72,7 +72,7 @@ export const AppConfig = z.object({
       firebasePublic: z.any(),
     })
     .optional(),
-  telemetry: z.object({
+  frontendTelemetry: z.object({
     enabled: z.boolean(),
     host: z.string().optional(),
     writeKey: z.string().optional(),

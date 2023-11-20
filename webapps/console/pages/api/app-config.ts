@@ -7,6 +7,7 @@ import { isFirebaseEnabled, requireFirebaseOptions } from "../../lib/server/fire
 import { nangoConfig } from "../../lib/server/oauth/nango-config";
 import { isTruish } from "../../lib/shared/chores";
 import { readOnlyUntil } from "../../lib/server/read-only-mode";
+import { frontendTelemetryEnabled, frontendTelemetryHost, frontendTelemetryWriteKey } from "../../lib/server/telemetry";
 
 export default createRoute()
   .GET({ result: AppConfig, auth: false })
@@ -37,10 +38,10 @@ export default createRoute()
         },
       },
       jitsuClassicUrl: process.env.JITSU_CLASSIC_URL || "https://cloud.jitsu.com",
-      telemetry: {
-        enabled: !!process.env.TELEMETRY_HOST,
-        host: process.env.TELEMETRY_HOST === "__self__" ? publicEndpoints.baseUrl : process.env.TELEMETRY_HOST,
-        writeKey: process.env.TELEMETRY_WRITE_KEY,
+      frontendTelemetry: {
+        enabled: frontendTelemetryEnabled,
+        host: frontendTelemetryHost === "__self__" ? publicEndpoints.baseUrl : frontendTelemetryHost,
+        writeKey: frontendTelemetryWriteKey,
       },
       publicEndpoints: {
         protocol: publicEndpoints.protocol,

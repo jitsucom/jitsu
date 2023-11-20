@@ -7,6 +7,7 @@ import { getConfigObjectType, parseObject } from "../../../../../lib/schema/conf
 import { ApiError } from "../../../../../lib/shared/errors";
 import { isReadOnly } from "../../../../../lib/server/read-only-mode";
 import { enableAuditLog } from "../../../../../lib/server/audit-log";
+import { trackTelemetryEvent } from "../../../../../lib/server/telemetry";
 
 export const config = {
   api: {
@@ -62,6 +63,7 @@ export const api: Api = {
       const created = await db.prisma().configurationObject.create({
         data: { id, workspaceId: workspaceId, config: object, type },
       });
+      await trackTelemetryEvent("config-object-delete", { objectType: type });
       await fastStore.fullRefresh();
       if (enableAuditLog) {
         await db.prisma().auditLog.create({

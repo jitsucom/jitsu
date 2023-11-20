@@ -58,6 +58,13 @@ function createUnderlyingAnalyticsInstance(
   };
   return {
     ...analytics,
+    identify: (...args) => {
+      if (args[0] && typeof args[0] !== "object" && typeof args[0] !== "string") {
+        //fix the quirk of analytics.js: if you pass number as first argument, it will be converted to string
+        args[0] = args[0] + "";
+      }
+      return (analytics.identify as any)(...args);
+    },
     setAnonymousId: (id: string) => {
       if (opts.debug) {
         console.log("[JITSU DEBUG] Setting anonymous id to " + id);

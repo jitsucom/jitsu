@@ -4,6 +4,7 @@ import Cursor from "pg-cursor";
 import { getSingleton, namedParameters, newError, requireDefined, stopwatch } from "juava";
 import { getServerLog } from "./log";
 import { isReadOnly } from "./read-only-mode";
+import { isTruish } from "../shared/chores";
 
 export type Handler = (row: Record<string, any>) => Promise<void> | void;
 
@@ -183,13 +184,15 @@ export function createPrisma(): PrismaClient {
   //   return result
   // })
   prisma.$on("query", e => {
-    log
-      .atDebug()
-      .log(
-        `SQL executed ${queryCounter++}. Duration: ${e.duration}ms: ${e.query.replaceAll("\n", " ").trim()}${
-          e.params !== "[]" ? " " + e.params : ""
-        }`
-      );
+    if (isTruish(process.env.CONSOLE_DATABASE_DEBUG)) {
+      log
+        .atDebug()
+        .log(
+          `SQL executed ${queryCounter++}. Duration: ${e.duration}ms: ${e.query.replaceAll("\n", " ").trim()}${
+            e.params !== "[]" ? " " + e.params : ""
+          }`
+        );
+    }
   });
   if (isReadOnly) {
     prisma.$use(blockPrismaMutations());

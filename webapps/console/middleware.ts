@@ -1,12 +1,9 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { getServerLog } from "./lib/server/log";
+import { isTruish } from "./lib/shared/chores";
 
-function isTruish(val: any) {
-  return val === "true" || val === "1" || val === "yes" || val === true || val === 1;
-}
-
-const logRequests = isTruish(process.env.DEBUG_REQUESTS);
+const logRequests = isTruish(process.env.CONSOLE_DEBUG_REQUESTS);
 
 function prettifyBody(body: string) {
   try {

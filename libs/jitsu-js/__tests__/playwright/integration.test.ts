@@ -112,12 +112,14 @@ const generateTestEvents = async () => {
   const analytics = (window["analytics"] || window["jitsu"]) as AnalyticsInterface;
   console.log(`Generating test events. Implementation ${implName}: ${Object.keys(analytics)}`);
   await analytics.identify("userId2", { email: "john.doe2@gmail.com", caseName: "basic-identify" });
+  await analytics.page("test-page-right-after-identify", { caseName: "test-page-right-after-identify" });
   // jitsu must extract traits even from 'id' object
   await analytics.identify({ email: "john.doe3@gmail.com", caseName: "identify-without-user-id" });
   await analytics.group("group1", { name: "Group 1", caseName: "basic-group" });
   await analytics.page({ caseName: "page-without-name", context: { page: { title: "Synthetic Title" } } });
   await analytics.page("test-page", { caseName: "page-with-name" });
   await analytics.track("testEvent", { caseName: "track-with-name" });
+  await analytics.identify(9292649175 as any, { caseName: "identify-with-numeric-id-1" });
   console.log(`Test events for ${implName} has been generated`);
 };
 
@@ -162,14 +164,14 @@ test("segment-reference", async ({ browser }) => {
     {}
   );
   console.log("🍪 Segment Cookies", cookies);
-
+  let counter = 1;
   for (const type of Object.keys(requests)) {
     for (const { payload } of requests[type]) {
       const dir = path.join(__dirname, "artifacts", "segment-reference");
       fs.mkdirSync(dir, { recursive: true });
       const file = path.join(
         dir,
-        `${payload.traits?.caseName || payload.properties?.caseName || payload.context?.caseName}.json`
+        `${counter++} - ${payload.traits?.caseName || payload.properties?.caseName || payload.context?.caseName}.json`
       );
       fs.writeFileSync(file, JSON.stringify(sortKeysRecursively(payload), null, 2));
     }
@@ -200,7 +202,7 @@ test("basic", async ({ browser }) => {
   expect(firstPageErrors.length).toEqual(0);
   const anonymousId = cookies["__eventn_id"];
   expect(anonymousId).toBeDefined();
-  expect(cookies["__eventn_uid"]).toBe("user1");
+  expect(cookies["__eventn_uid"]).toBe("john-doe-id-1");
   expect(cookies["__eventn_id_usr"]).toBeDefined();
   expect(JSON.parse(decodeURIComponent(cookies["__eventn_id_usr"])).email).toEqual("john.doe@gmail.com");
   let identifies = requestLog.filter(x => x.type === "identify");
@@ -218,18 +220,18 @@ test("basic", async ({ browser }) => {
   expect(track.properties.trackParam).toEqual("trackValue");
   expect(track.type).toEqual("track");
   expect(track.context.traits.email).toEqual("john.doe@gmail.com");
-  expect(track.userId).toEqual("user1");
+  expect(track.userId).toEqual("john-doe-id-1");
   expect(track.event).toEqual("pageLoaded");
 
   console.log(chalk.bold("📝 Checking identify event"), JSON.stringify(identify, null, 3));
   expect(identify.traits.email).toEqual("john.doe@gmail.com");
-  expect(identify.userId).toEqual("user1");
+  expect(identify.userId).toEqual("john-doe-id-1");
   expect(identify.anonymousId).toEqual(anonymousId);
 
   console.log(chalk.bold("📝 Checking page event"), JSON.stringify(page, null, 3));
   expect(page.anonymousId).toEqual(anonymousId);
   expect(page.context.traits.email).toEqual("john.doe@gmail.com");
-  expect(page.userId).toEqual("user1");
+  expect(page.userId).toEqual("john-doe-id-1");
 
   expect(page.context.campaign.source).toEqual("source");
 
@@ -243,12 +245,13 @@ test("basic", async ({ browser }) => {
 
   await secondPage.evaluate(generateTestEvents);
   expect(secondPageErrors.length).toBe(0);
+  let counter = 1;
   requestLog.forEach(({ body: payload }) => {
     const dir = path.join(__dirname, "artifacts", "requests");
     fs.mkdirSync(dir, { recursive: true });
     const file = path.join(
       dir,
-      `${payload.traits?.caseName || payload.properties?.caseName || payload.context?.caseName}.json`
+      `${counter++} - ${payload.traits?.caseName || payload.properties?.caseName || payload.context?.caseName}.json`
     );
     fs.writeFileSync(file, JSON.stringify(sortKeysRecursively(payload), null, 2));
   });

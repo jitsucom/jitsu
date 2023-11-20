@@ -177,6 +177,15 @@ model AuditLog {
   @@index(type)
 }
 
+model GlobalProps {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now()) /// @zod.custom(z.coerce.date())
+  updatedAt   DateTime @default(now()) @updatedAt /// @zod.custom(z.coerce.date())
+  name		String
+  value		Json?
+
+}
+
 model source_spec {
     package        String
     version String

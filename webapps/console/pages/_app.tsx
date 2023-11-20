@@ -376,7 +376,7 @@ function AppLoader({ children, pageProps }: PropsWithChildren<any>) {
     );
   }
 
-  const trackingHost = data!.telemetry.enabled ? data!.telemetry.host : undefined;
+  const trackingHost = data!.frontendTelemetry.enabled ? data!.frontendTelemetry.host : undefined;
   return (
     <AppConfigContextProvider config={data!}>
       <Head>
@@ -389,8 +389,7 @@ function AppLoader({ children, pageProps }: PropsWithChildren<any>) {
                 //debug: data?.logLevel === "debug",
                 debug: false,
                 host: trackingHost,
-                echoEvents: !data!.telemetry.host,
-                writeKey: data!.telemetry.writeKey,
+                writeKey: data!.frontendTelemetry.writeKey,
               }
             : { disabled: true }
         }

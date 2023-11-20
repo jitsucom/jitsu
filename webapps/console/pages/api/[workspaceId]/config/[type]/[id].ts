@@ -8,6 +8,7 @@ import { getConfigObjectType, parseObject } from "../../../../../lib/schema/conf
 import { prepareZodObjectForDeserialization } from "../../../../../lib/zod";
 import { isReadOnly } from "../../../../../lib/server/read-only-mode";
 import { enableAuditLog } from "../../../../../lib/server/audit-log";
+import { trackTelemetryEvent } from "../../../../../lib/server/telemetry";
 
 function defaultMerge(a, b) {
   return { ...a, ...b };
@@ -69,6 +70,7 @@ export const api: Api = {
       delete filtered.id;
       delete filtered.workspaceId;
       await db.prisma().configurationObject.update({ where: { id }, data: { config: filtered } });
+      await trackTelemetryEvent("config-object-update", { objectType: type });
       if (enableAuditLog) {
         await db.prisma().auditLog.create({
           data: {
@@ -106,6 +108,7 @@ export const api: Api = {
           where: { id: object.id },
           data: { deleted: true },
         });
+        await trackTelemetryEvent("config-object-delete", { objectType: type });
         if (enableAuditLog) {
           await db.prisma().auditLog.create({
             data: {

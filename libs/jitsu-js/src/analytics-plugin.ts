@@ -20,6 +20,7 @@ const defaultConfig: Required<JitsuOptions> = {
   echoEvents: false,
   cookieDomain: undefined,
   runtime: undefined,
+  s2s: undefined,
 };
 
 export const parseQuery = (qs?: string): Record<string, string> => {
@@ -471,7 +472,7 @@ function maskWriteKey(writeKey?: string): string | undefined {
   return writeKey;
 }
 
-function send(
+async function send(
   method,
   payload,
   jitsuConfig: Required<JitsuOptions>,
@@ -482,8 +483,8 @@ function send(
     console.log(`[JITSU DEBUG] sending '${method}' event:`, payload);
     return;
   }
-
-  const url = `${jitsuConfig.host}/api/s/${method}`;
+  const s2s = jitsuConfig.s2s === undefined ? !isInBrowser() : jitsuConfig.s2s;
+  const url = s2s ? `${jitsuConfig.host}/api/s/s2s/${method}` : `${jitsuConfig.host}/api/s/${method}`;
   const fetch = jitsuConfig.fetch || globalThis.fetch;
   if (!fetch) {
     throw new Error(
@@ -498,49 +499,56 @@ function send(
   const adjustedPayload = adjustPayload(payload, jitsuConfig, store);
 
   const authHeader = jitsuConfig.writeKey ? { "X-Write-Key": jitsuConfig.writeKey } : {};
+  let fetchResult;
+  try {
+    fetchResult = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
 
-  return fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-
-      ...authHeader,
-      ...debugHeader,
-    },
-    body: JSON.stringify(adjustedPayload),
-  })
-    .then(res => {
-      if (jitsuConfig.debug) {
-        console.log(
-          `[JITSU] ${url} replied ${res.status}. Original payload: `,
-          JSON.stringify(adjustedPayload, null, 2)
-        );
-      }
-      if (res.ok) {
-        return res.text();
-      } else {
-        return Promise.reject(res.text());
-      }
-    })
-    .then(responseText => {
-      let response: any;
-      try {
-        response = JSON.parse(responseText);
-      } catch (e) {
-        return Promise.reject(`Can't parse JSON: ${responseText}: ${e?.message}`);
-      }
-      if (response.destinations) {
-        if (jitsuConfig.debug) {
-          console.log(`[JITSU] Processing device destinations: `, JSON.stringify(response.destinations, null, 2));
-        }
-        return processDestinations(response.destinations, method, adjustedPayload, !!jitsuConfig.debug, instance);
-      }
-    })
-    .catch(err => {
-      if (jitsuConfig.debug) {
-        console.error(`Jitsu ${url} failed: `, err);
-      }
+        ...authHeader,
+        ...debugHeader,
+      },
+      body: JSON.stringify(adjustedPayload),
     });
+  } catch (e) {
+    //should we throw here instead?
+    console.error(`Calling ${url} failed: `, e);
+  }
+  let responseText;
+  try {
+    responseText = await fetchResult.text();
+  } catch (e) {
+    console.warn(
+      `Can't read response text from ${url} (status - ${fetchResult.status}  ${fetchResult.statusText}): ${e?.message}`
+    );
+  }
+  if (jitsuConfig.debug) {
+    console.log(
+      `[JITSU DEBUG] ${url} replied ${fetchResult.status}: ${responseText}. Original payload:\n${JSON.stringify(
+        adjustedPayload,
+        null,
+        2
+      )}`
+    );
+  }
+  if (!fetchResult.ok) {
+    throw new Error(`Jitsu ${url} replied ${fetchResult.status} - ${fetchResult.statusText}: ${responseText}`);
+  }
+
+  let responseJson: any;
+  try {
+    responseJson = JSON.parse(responseText);
+  } catch (e) {
+    return Promise.reject(`Can't parse JSON: ${responseText}: ${e?.message}`);
+  }
+
+  if (responseJson.destinations) {
+    if (jitsuConfig.debug) {
+      console.log(`[JITSU] Processing device destinations: `, JSON.stringify(responseJson.destinations, null, 2));
+    }
+    return processDestinations(responseJson.destinations, method, adjustedPayload, !!jitsuConfig.debug, instance);
+  }
 }
 
 const jitsuAnalyticsPlugin = (pluginConfig: JitsuOptions = {}): AnalyticsPlugin => {
