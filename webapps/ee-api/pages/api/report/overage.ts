@@ -94,7 +94,7 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
     .atInfo()
     .log(`Got ${allWorkspaces.length} workspaces in ${Date.now() - timerAllWorkspaces}ms`);
 
-  const availableProducts = await getAvailableProducts();
+  const availableProducts = await getAvailableProducts({ custom: true });
   const subscriptionCache: Record<string, Stripe.Subscription> = {};
 
   const result: any[] = [];
