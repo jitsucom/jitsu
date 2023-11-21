@@ -24,7 +24,7 @@ export async function middleware(request: NextRequest) {
     response = NextResponse.rewrite(new URL("/api/s/batch", request.url));
   } else if (request.nextUrl.pathname.startsWith("/v1/b")) {
     response = NextResponse.rewrite(new URL("/api/s/batch", request.url));
-  } else if (request.nextUrl.pathname.startsWith("/v1/projects/")) {
+  } else if (request.nextUrl.pathname.startsWith("/v1/projects")) {
     // mimic segments setting endpoint
     // https://cdn-settings.segment.com/v1/projects/<writekey>/settings
     response = NextResponse.json({});
@@ -32,18 +32,21 @@ export async function middleware(request: NextRequest) {
     response = NextResponse.next();
   }
   if (logRequests) {
+    if (request.nextUrl.pathname.startsWith("/_next") || request.nextUrl.pathname.startsWith("/favicon.ico")) {
+      return response;
+    }
     const method = request.method;
     const body = request.body;
     if (body) {
-      console.log(`${method} ${request.nextUrl.pathname}`, prettifyBody(await request.text()));
+      log.atInfo().log(`${method} ${request.nextUrl.pathname}`, prettifyBody(await request.text()));
     } else {
-      console.log(`${method} ${request.nextUrl.pathname}`);
+      log.atInfo().log(`${method} ${request.nextUrl.pathname}`);
     }
   }
 
   return response;
 }
-//
-// export const config = {
-//   matcher: !logRequests ? ["/p.js", "/v1/batch"] : "",
-// };
+
+export const config = {
+  matcher: !logRequests ? ["/p.js", "/v1/batch*", "/api/s/batch*", "/v1/projects*"] : undefined,
+};

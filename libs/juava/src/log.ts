@@ -1,3 +1,5 @@
+import * as process from "process";
+
 export type LogLevel = "debug" | "info" | "warn" | "error";
 
 export type LoggerOpts = {
@@ -90,6 +92,14 @@ function colorConsoleMessage(color: Color, str: string): string {
     : str;
 }
 
+//process.stdout is not available on Vercel's edge runtime
+const writeln = process.stdout
+  ? (msg: string) => {
+      process.stdout.write(msg);
+      process.stdout.write("\n");
+    }
+  : console.log;
+
 function dispatch(msg: LogMessage) {
   const levelColor = levelColors[msg.level];
   let logPrefix = `${msg.component ? ` [${msg.component}]: ` : ": "}`;
@@ -113,13 +123,11 @@ function dispatch(msg: LogMessage) {
       }
     }
     if (enableJsonFormat) {
-      process.stdout.write(JSON.stringify({ time: msg.date, level: msg.level, msg: lines.join("\n") }));
-      process.stdout.write("\n");
+      writeln(JSON.stringify({ time: msg.date, level: msg.level, msg: lines.join("\n") }));
     } else {
       const border = "│";
       const messageFormatted = lines.join(`\n${border} `);
-      process.stdout.write(colorConsoleMessage(levelColor, messageFormatted));
-      process.stdout.write("\n");
+      writeln(colorConsoleMessage(levelColor, messageFormatted));
     }
   }
   msg.dispatched = true;
