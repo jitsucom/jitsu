@@ -100,7 +100,7 @@ export function createFullContext(
           functionType: type,
           message: {
             text: message,
-            args: args.map(a => `${a}`),
+            args,
           },
         });
         const l = log.atDebug();

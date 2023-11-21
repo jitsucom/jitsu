@@ -3,7 +3,7 @@ import { createFullContext, isDropResult, MetricsMeta, SystemContext } from "@ji
 import { RetryErrorName, DropRetryErrorName } from "@jitsu/functions-lib";
 
 import { getLog, stopwatch } from "juava";
-import { retryLogMessageIfNeeded } from "./retries";
+import { retryObject } from "./retries";
 
 export type Func = {
   id: string;
@@ -95,7 +95,16 @@ export async function runChain(
             continue;
           }
         } else {
-          funcCtx.log.error(`Function execution failed`, err, retryLogMessageIfNeeded(err, eventContext.retries ?? 0));
+          const args = [err];
+          const r = retryObject(err, eventContext.retries ?? 0);
+          if (r) {
+            args.push(r);
+          }
+          if (r?.retry?.left ?? 0 > 0) {
+            funcCtx.log.warn(`Function execution failed`, ...args);
+          } else {
+            funcCtx.log.error(`Function execution failed`, ...args);
+          }
         }
       }
       if (!isDropResult(result)) {

@@ -1,5 +1,5 @@
 import { JitsuFunction } from "@jitsu/protocols/functions";
-import { RetryError } from "@jitsu/functions-lib";
+import { HTTPError, RetryError } from "@jitsu/functions-lib";
 import { AnalyticsServerEvent, DataLayoutType } from "@jitsu/protocols/analytics";
 
 import omit from "lodash/omit";
@@ -273,12 +273,12 @@ const BulkerDestination: JitsuFunction<AnalyticsServerEvent, BulkerDestinationCo
         false
       );
       if (!res.ok) {
-        throw new Error(`HTTP Error: ${res.status} ${res.statusText}`);
+        throw new HTTPError(`HTTP Error: ${res.status} ${res.statusText}`, res.status, await res.text());
       }
     }
     return event;
   } catch (e: any) {
-    throw new RetryError(e.message);
+    throw new RetryError(e);
   }
 };
 

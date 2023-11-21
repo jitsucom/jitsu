@@ -58,6 +58,16 @@ export function retryLogMessage(retryPolicy: retryPolicy, retries: number): stri
   }`;
 }
 
+export function retryObject(e: Error & { retryPolicy?: retryPolicy }, retries: number) {
+  if (e.name === DropRetryErrorName || e.name === RetryErrorName) {
+    const retryPolicy = getRetryPolicy(e);
+    const retryTime = retryBackOffTime(retryPolicy, retries + 1);
+    return { retry: { left: retryPolicy.retries - retries, ...(retryTime ? { time: retryTime } : {}) } };
+  } else {
+    return undefined;
+  }
+}
+
 export function retryLogMessageIfNeeded(e: Error & { retryPolicy?: retryPolicy }, retries: number) {
   if (e.name === DropRetryErrorName || e.name === RetryErrorName) {
     const retryPolicy = getRetryPolicy(e);
