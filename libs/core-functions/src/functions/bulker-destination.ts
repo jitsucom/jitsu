@@ -261,13 +261,31 @@ const BulkerDestination: JitsuFunction<AnalyticsServerEvent, BulkerDestinationCo
       ...omit(systemContext.metricsMeta, "retries"),
       functionId: "builtin.destination.bulker",
     };
-    const events = dataLayouts[dataLayout](event);
+    let adjustedEvent = event;
+    const clientIds = event.context?.clientIds;
+    const ga4 = clientIds?.ga4;
+    if (ga4 && ga4.sessionIds) {
+      adjustedEvent = {
+        ...event,
+        context: {
+          ...event.context,
+          clientIds: {
+            ...clientIds,
+            ga4: {
+              clientId: ga4.clientId,
+              sessionIds: JSON.stringify(ga4.sessionIds),
+            },
+          },
+        },
+      };
+    }
+    const events = dataLayouts[dataLayout](adjustedEvent);
     for (const { event, table } of Array.isArray(events) ? events : [events]) {
       const res = await ctx.fetch(
-        `${bulkerEndpoint}/post/${destinationId}?tableName=${table}&metricsMeta=${JSON.stringify(metricsMeta)}`,
+        `${bulkerEndpoint}/post/${destinationId}?tableName=${table}`,
         {
           method: "POST",
-          headers: { Authorization: `Bearer ${authToken}` },
+          headers: { Authorization: `Bearer ${authToken}`, metricsMeta: JSON.stringify(metricsMeta) },
           body: JSON.stringify(event),
         },
         false

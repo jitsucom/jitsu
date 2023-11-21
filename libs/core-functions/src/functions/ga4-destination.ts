@@ -137,7 +137,7 @@ function getClientId(event: AnalyticsServerEvent): string {
 }
 
 function getSessionId(event: AnalyticsServerEvent, measurementId: string): string | undefined {
-  return event.context?.clientIds?.ga4?.sessions?.[measurementId.replace("G-", "")];
+  return event.context?.clientIds?.ga4?.sessionIds?.[measurementId.replace("G-", "")];
 }
 
 function pageViewEvent(event: AnalyticsServerEvent): Ga4Event {
