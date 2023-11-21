@@ -58,6 +58,7 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
         sessionTimeout: 120000,
       });
       await consumer.connect();
+      log.atInfo().log("Subscribing to kafka topics: ", kafkaTopics);
       await consumer.subscribe({ topics: kafkaTopics, fromBeginning: true });
 
       producer = kafka.producer({ allowAutoTopicCreation: false });
@@ -206,7 +207,10 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
       };
 
       await consumer.run({
-        autoCommitInterval: 5000,
+        autoCommitInterval: 10000,
+        autoCommit: true,
+        eachBatchAutoResolve: false,
+        partitionsConsumedConcurrently: 4,
         eachMessage: async ({ message, topic, partition }) => {
           //make sure that queue has no more entities than concurrency limit (running tasks not included)
           await onSizeLessThan(concurrency);
