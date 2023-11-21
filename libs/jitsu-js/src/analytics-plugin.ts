@@ -551,37 +551,10 @@ async function send(
   }
 }
 
-const jitsuAnalyticsPlugin = (pluginConfig: JitsuOptions = {}): AnalyticsPlugin => {
-  const storageCache: any = {};
-
-  // AnalyticsInstance's storage is async somewhere inside. So if we make 'page' call right after 'identify' call
-  // 'page' call will load traits from storage before 'identify' call had a change to save them.
-  // to avoid that we use in-memory cache for storage
-  const cachingStorageWrapper = (persistentStorage: PersistentStorage): PersistentStorage => ({
-    setItem(key: string, val: any) {
-      if (pluginConfig.debug) {
-        console.log(`[JITSU DEBUG] Caching storage setItem: ${key}=${val}`);
-      }
-      storageCache[key] = val;
-      persistentStorage.setItem(key, val);
-    },
-    getItem(key: string) {
-      const value = storageCache[key] || persistentStorage.getItem(key);
-      if (pluginConfig.debug) {
-        console.log(
-          `[JITSU DEBUG] Caching storage getItem: ${key}=${value}. Evicted from cache: ${!storageCache[key]}`
-        );
-      }
-      return value;
-    },
-    removeItem(key: string) {
-      if (pluginConfig.debug) {
-        console.log(`[JITSU DEBUG] Caching storage removeItem: ${key}`);
-      }
-      delete storageCache[key];
-      persistentStorage.removeItem(key);
-    },
-  });
+export type JitsuPluginConfig = JitsuOptions & {
+  storageWrapper?: (persistentStorage: PersistentStorage) => PersistentStorage & { reset: () => void };
+};
+const jitsuAnalyticsPlugin = (pluginConfig: JitsuPluginConfig = {}): AnalyticsPlugin => {
   const instanceConfig = {
     ...defaultConfig,
     ...pluginConfig,
@@ -602,27 +575,45 @@ const jitsuAnalyticsPlugin = (pluginConfig: JitsuOptions = {}): AnalyticsPlugin 
     },
     page: args => {
       const { payload, config, instance } = args;
-      return send("page", payload, config, instance, cachingStorageWrapper(instance.storage));
+      return send(
+        "page",
+        payload,
+        config,
+        instance,
+        pluginConfig.storageWrapper ? pluginConfig.storageWrapper(instance.storage) : instance.storage
+      );
     },
     track: args => {
       const { payload, config, instance } = args;
-      return send("track", payload, config, instance, cachingStorageWrapper(instance.storage));
+      return send(
+        "track",
+        payload,
+        config,
+        instance,
+        pluginConfig.storageWrapper ? pluginConfig.storageWrapper(instance.storage) : instance.storage
+      );
     },
     identify: args => {
       const { payload, config, instance } = args;
       // Store traits in cache to be able to use them in page and track events that run asynchronously with current identify.
-      storageCache["__user_traits"] = payload.traits;
-      return send("identify", payload, config, instance, cachingStorageWrapper(instance.storage));
+      const storage = pluginConfig.storageWrapper ? pluginConfig.storageWrapper(instance.storage) : instance.storage;
+      storage.setItem("__user_id", payload.userId);
+      storage.setItem("__user_traits", payload.traits);
+      return send("identify", payload, config, instance, storage);
     },
     reset: args => {
       //clear storage cache
-      Object.keys(storageCache).forEach(key => delete storageCache[key]);
+      if (pluginConfig.storageWrapper) {
+        pluginConfig.storageWrapper(args.instance.storage).reset();
+      }
     },
     methods: {
       //analytics doesn't support group as a base method, so we need to add it manually
       group(groupId?: ID, traits?: JSONObject | null, options?: Options, callback?: Callback) {
         const analyticsInstance = this.instance;
-        const cacheWrap = cachingStorageWrapper(analyticsInstance.storage);
+        const cacheWrap = pluginConfig.storageWrapper
+          ? pluginConfig.storageWrapper(analyticsInstance.storage)
+          : analyticsInstance.storage;
         const user = analyticsInstance.user();
         const userId = options?.userId || user?.userId;
         const anonymousId = options?.anonymousId || user?.anonymousId || cacheWrap.getItem("__anon_id");

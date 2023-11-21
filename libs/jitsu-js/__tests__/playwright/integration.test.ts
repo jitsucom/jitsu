@@ -52,7 +52,10 @@ test.beforeAll(async () => {
         res.setHeader("Content-Type", "text/javascript");
         res.send(fs.readFileSync(path.join(__dirname, "../../dist/web/p.js.txt")).toString());
       },
-      "/api/s/:type": (req, res) => {
+      "/api/s/:type": async (req, res) => {
+        //sleep for 30ms to simulate network latency. It helps catch bugs with async processing
+        await new Promise(resolve => setTimeout(resolve, 50));
+
         res.setHeader("Content-Type", "text/javascript");
         res.send({ ok: true });
         requestLog.push({
@@ -178,6 +181,17 @@ test("segment-reference", async ({ browser }) => {
   }
 });
 
+function describeEvent(type: string, body: any) {
+  const params = [
+    body.userId ? "userId=" + body.userId : undefined,
+    body.anonymousId ? "anonId=" + body.anonymousId : undefined,
+    body.traits ? ["traits=" + JSON.stringify(body.traits)] : [],
+  ]
+    .filter(x => !!x)
+    .join(", ");
+  return `${type}${type === "track" ? `(${body.event})` : ""}[${params}]`;
+}
+
 test("basic", async ({ browser }) => {
   const browserContext = await browser.newContext();
 
@@ -199,12 +213,18 @@ test("basic", async ({ browser }) => {
     {}
   );
   console.log("🍪 Jitsu Cookies", cookies);
+  //wait for some time since the server has an artificial latency of 30ms
+  await new Promise(resolve => setTimeout(resolve, 1000));
   expect(firstPageErrors.length).toEqual(0);
   const anonymousId = cookies["__eventn_id"];
   expect(anonymousId).toBeDefined();
   expect(cookies["__eventn_uid"]).toBe("john-doe-id-1");
   expect(cookies["__eventn_id_usr"]).toBeDefined();
   expect(JSON.parse(decodeURIComponent(cookies["__eventn_id_usr"])).email).toEqual("john.doe@gmail.com");
+  console.log(
+    `📝 Request log size of ${requestLog.length}`,
+    requestLog.map(x => describeEvent(x.type, x.body))
+  );
   let identifies = requestLog.filter(x => x.type === "identify");
   let pages = requestLog.filter(x => x.type === "page");
   let tracks = requestLog.filter(x => x.type === "track");

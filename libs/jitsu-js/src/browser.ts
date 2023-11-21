@@ -88,7 +88,7 @@ function getScriptAttributes(scriptElement: HTMLScriptElement) {
   };
 
   if (options.debug) {
-    console.log(`Jitsu callback queue size: ${callbackQueue.length}`, callbackQueue);
+    console.log(`[JITSU DEBUG] Jitsu callback queue size: ${callbackQueue.length}`, callbackQueue);
   }
   callbackQueue.forEach((callback: any) => {
     try {

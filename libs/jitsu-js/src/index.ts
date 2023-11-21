@@ -1,5 +1,5 @@
 import Analytics from "analytics";
-import { AnalyticsInterface, JitsuOptions, RuntimeFacade } from "./jitsu";
+import { AnalyticsInterface, JitsuOptions, PersistentStorage, RuntimeFacade } from "./jitsu";
 import jitsuAnalyticsPlugin, { emptyRuntime, isInBrowser, windowRuntime } from "./analytics-plugin";
 import { Callback, DispatchedEvent, ID, JSONObject, Options } from "@jitsu/protocols/analytics";
 
@@ -39,29 +39,84 @@ function createUnderlyingAnalyticsInstance(
   plugins: any[] = []
 ): AnalyticsInterface {
   const storage = rt.store();
+
+  const storageCache: any = {};
+
+  // AnalyticsInstance's storage is async somewhere inside. So if we make 'page' call right after 'identify' call
+  // 'page' call will load traits from storage before 'identify' call had a change to save them.
+  // to avoid that we use in-memory cache for storage
+  const cachingStorageWrapper = (persistentStorage: PersistentStorage) => ({
+    setItem(key: string, val: any) {
+      if (opts.debug) {
+        console.log(`[JITSU DEBUG] Caching storage setItem: ${key}=${val}`);
+      }
+      storageCache[key] = val;
+      persistentStorage.setItem(key, val);
+    },
+    getItem(key: string) {
+      const value = storageCache[key] || persistentStorage.getItem(key);
+      if (opts.debug) {
+        console.log(
+          `[JITSU DEBUG] Caching storage getItem: ${key}=${value}. Evicted from cache: ${!storageCache[key]}`
+        );
+      }
+      return value;
+    },
+    reset() {
+      for (const key of [...Object.keys(storageCache)]) {
+        storage.removeItem(key);
+        delete storageCache[key];
+      }
+    },
+    removeItem(key: string) {
+      if (opts.debug) {
+        console.log(`[JITSU DEBUG] Caching storage removeItem: ${key}`);
+      }
+      delete storageCache[key];
+      persistentStorage.removeItem(key);
+    },
+  });
+
   const analytics = Analytics({
-    app: "test",
     debug: !!opts.debug,
     storage,
-    plugins: [jitsuAnalyticsPlugin(opts), ...plugins],
+    plugins: [jitsuAnalyticsPlugin({ ...opts, storageWrapper: cachingStorageWrapper }), ...plugins],
   } as any);
-  const originalPage = analytics.page;
-  analytics.page = (...args) => {
-    if (args.length === 2 && typeof args[0] === "string" && typeof args[1] === "object") {
-      return originalPage({
-        name: args[0],
-        ...args[1],
-      });
-    } else {
-      return originalPage(...args);
-    }
-  };
+
   return {
     ...analytics,
+    page: (...args) => {
+      if (args.length === 2 && typeof args[0] === "string" && typeof args[1] === "object") {
+        return analytics.page({
+          name: args[0],
+          ...args[1],
+        });
+      } else {
+        return (analytics.page as any)(...args);
+      }
+    },
     identify: (...args) => {
       if (args[0] && typeof args[0] !== "object" && typeof args[0] !== "string") {
         //fix the quirk of analytics.js: if you pass number as first argument, it will be converted to string
         args[0] = args[0] + "";
+      }
+
+      //analytics.js sets userId and traits asynchronously, so if
+      //we want them to be available immediately after identify call in subsequent page() calls,
+      //we need to put them into storage manually
+      const storage = (analytics as any).storage;
+      const storageWrapper = cachingStorageWrapper(storage);
+      if (typeof args[0] === "string") {
+        //first argument is user id
+        storageWrapper.setItem("__user_id", args[0]);
+      } else if (typeof args[0] === "object") {
+        //first argument is traits
+        storageWrapper.setItem("__user_traits", args[0]);
+      }
+
+      if (args.length === 2 && typeof args[1] === "object") {
+        //first argument is user id, second is traits
+        storageWrapper.setItem("__user_traits", args[1]);
       }
       return (analytics.identify as any)(...args);
     },
