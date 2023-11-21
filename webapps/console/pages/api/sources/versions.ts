@@ -2,13 +2,14 @@ import { createRoute } from "../../../lib/api";
 import { z } from "zod";
 import { rpc } from "juava";
 import { db } from "../../../lib/server/db";
+import { jitsuSources } from "./index";
 
 export default createRoute()
   .GET({
     auth: false,
     query: z.object({
       type: z.string().optional(),
-      package: z.string().optional(),
+      package: z.string(),
     }),
   })
   .handler(async ({ req, query }) => {
@@ -18,8 +19,13 @@ export default createRoute()
       throw new Error(`Only airbyte is supported, not ${type}`);
     }
     let error: any = null;
-    const connectorPackage = await db.prisma().connectorPackage.findFirst({ where: { packageType: type, packageId } });
-    const mitVersions = (connectorPackage?.meta as any).mitVersions;
+    let mitVersions: string[] | undefined = undefined;
+    if (!jitsuSources[packageId]) {
+      const connectorPackage = await db
+        .prisma()
+        .connectorPackage.findFirst({ where: { packageType: type, packageId } });
+      mitVersions = (connectorPackage?.meta as any).mitVersions;
+    }
     for (let i = 0; i < 3; i++) {
       // endpoint prone to 500 errors
       try {
