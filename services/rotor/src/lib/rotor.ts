@@ -265,8 +265,14 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
         clearInterval(interval);
       }
       log.atInfo().log("Kafka-rotor closed gracefully. 💜");
-      //extra time to flush logs
-      await new Promise(resolve => setTimeout(resolve, 15000));
+      const extraDelay = process.env.SHUTDOWN_EXTRA_DELAY_SEC
+        ? 1000 * parseInt(process.env.SHUTDOWN_EXTRA_DELAY_SEC)
+        : 5000;
+      if (extraDelay > 0) {
+        log.atInfo().log(`Giving extra ${extraDelay / 1000}s. to flush logs...`);
+        //extra time to flush logs
+        await new Promise(resolve => setTimeout(resolve, extraDelay));
+      }
     },
   };
 }
