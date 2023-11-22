@@ -50,7 +50,7 @@ export const api: Api = {
       query: z.object({ workspaceId: z.string(), type: z.string() }),
       body: z.any(),
     },
-    handle: async ({ body, user, query: { workspaceId, type } }) => {
+    handle: async ({ req, body, user, query: { workspaceId, type } }) => {
       await verifyAccess(user, workspaceId);
       if (isReadOnly) {
         throw new ApiError("Console is in read-only mode. Modifications of objects are not allowed");
@@ -71,7 +71,7 @@ export const api: Api = {
             objectType: type,
           }),
         //there's no workspace name / id available. Maybe that's fine?
-        { user, workspace: { id: workspaceId } }
+        { user, workspace: { id: workspaceId }, req }
       );
       if (enableAuditLog) {
         await db.prisma().auditLog.create({

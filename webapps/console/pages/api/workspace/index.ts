@@ -32,11 +32,11 @@ const api: Api = {
     types: {
       body: z.object({ name: z.string().optional() }),
     },
-    handle: async ({ user, body }) => {
+    handle: async ({ req, user, body }) => {
       const newWorkspace = await db.prisma().workspace.create({
         data: { name: body.name || `${user.name || user.email || user.externalId}'s new workspace` },
       });
-      await withProductAnalytics(p => p.workspace("workspace_created"), { user, workspace: newWorkspace });
+      await withProductAnalytics(p => p.workspace("workspace_created"), { user, workspace: newWorkspace, req });
       return { id: newWorkspace.id };
     },
   },

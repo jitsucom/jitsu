@@ -37,7 +37,7 @@ export const api: Api = {
     description: "Get workspace",
     auth: true,
     types: { query: z.object({ workspaceIdOrSlug: z.string() }) },
-    handle: async ({ query: { workspaceIdOrSlug }, user }) => {
+    handle: async ({ req, query: { workspaceIdOrSlug }, user }) => {
       const workspace = await db
         .prisma()
         .workspace.findFirst({ where: { OR: [{ id: workspaceIdOrSlug }, { slug: workspaceIdOrSlug }] } });
@@ -60,7 +60,7 @@ export const api: Api = {
         //send event asynchronously to prevent increased response time
         //theoretically, event can get lost, however this is not the type of event that
         //requires 100% reliability
-        withProductAnalytics(callback => callback.track("workspace_access"), { user, workspace });
+        withProductAnalytics(callback => callback.track("workspace_access"), { user, workspace, req });
       }
 
       //it doesn't have to by sync since the preferences are optional
@@ -83,13 +83,13 @@ export const api: Api = {
         workspaceIdOrSlug: z.string(),
       }),
     },
-    handle: async ({ query: { workspaceIdOrSlug, onboarding }, body, user }) => {
+    handle: async ({ req, query: { workspaceIdOrSlug, onboarding }, body, user }) => {
       await verifyAccess(user, workspaceIdOrSlug);
       const workspace = await db
         .prisma()
         .workspace.update({ where: { id: workspaceIdOrSlug }, data: { name: body.name, slug: body.slug } });
       if (onboarding) {
-        await withProductAnalytics(callback => callback.track("workspace_onboarded"), { user, workspace });
+        await withProductAnalytics(callback => callback.track("workspace_onboarded"), { user, workspace, req });
       }
       return workspace;
     },

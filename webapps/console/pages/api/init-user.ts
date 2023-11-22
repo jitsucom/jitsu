@@ -37,7 +37,7 @@ export default createRoute()
       invite: z.string().optional(),
     }),
   })
-  .handler(async ({ query, user }) => {
+  .handler(async ({ req, query, user }) => {
     await initTelemetry();
     getServerLog()
       .atInfo()
@@ -93,7 +93,7 @@ export default createRoute()
             externalId: user.externalId,
           },
         });
-        await withProductAnalytics(p => p.track("user_created"), { user: { ...newUser, internalId: newUser.id } });
+        await withProductAnalytics(p => p.track("user_created"), { user: { ...newUser, internalId: newUser.id }, req });
       }
       const newWorkspace = await db
         .prisma()

@@ -4,6 +4,8 @@ import { isTruish } from "../shared/chores";
 import { AnalyticsInterface, emptyAnalytics, jitsuAnalytics } from "@jitsu/js/compiled/src";
 import { SessionUser } from "../schema";
 import { Workspace } from "@prisma/client";
+import { NextApiRequest } from "next";
+import { AnalyticsContext } from "@jitsu/protocols/analytics";
 
 /**
  * Server telemetry is enabled by default. We need it to see the usage
@@ -66,8 +68,9 @@ export interface ProductAnalytics extends AnalyticsInterface {
   track(event: TrackEvents, props?: any): Promise<any>;
 }
 
-function createProductAnalytics(analytics: AnalyticsInterface): ProductAnalytics {
+function createProductAnalytics(analytics: AnalyticsInterface, req?: NextApiRequest): ProductAnalytics {
   return {
+    ...analytics,
     identifyUser(sessionUser: SessionUser): Promise<void> {
       return analytics.identify(sessionUser.internalId, {
         email: sessionUser.email,
@@ -82,7 +85,13 @@ function createProductAnalytics(analytics: AnalyticsInterface): ProductAnalytics
         return analytics.group(idOrObject.id, { workspaceSlug: idOrObject.slug, workspaceName: idOrObject.name });
       }
     },
-    ...analytics,
+    track(event: TrackEvents, props?: any): Promise<any> {
+      const context: AnalyticsContext = {
+        ip: (req?.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req?.socket?.remoteAddress,
+        //userAgent: req?.headers["user-agent"] as string,
+      };
+      return analytics.track(event, { ...(props || {}), context });
+    },
   };
 }
 
@@ -97,11 +106,12 @@ export function withProductAnalytics(
   opts: {
     user: TrackedUser;
     workspace?: Workspace | WorkspaceIdAndProps;
+    req?: NextApiRequest;
   }
 ): Promise<any[]> {
   //we create new instance every time since analytics.js saves state in props and not thread safe
   //creating of an instance is cheap operation
-  const instance = createProductAnalytics(createAnalytics());
+  const instance = createProductAnalytics(createAnalytics(), opts?.req);
   const allPromises: Promise<any>[] = [];
   if (opts.user) {
     allPromises.push(instance.identifyUser(opts.user));

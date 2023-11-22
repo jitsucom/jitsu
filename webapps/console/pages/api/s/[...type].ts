@@ -22,6 +22,7 @@ import {
   satisfyDomainFilter,
   satisfyFilter,
 } from "@jitsu/js/compiled/src/destination-plugins";
+
 const jsondiffpatchInstance = jsondiffpatch.create({});
 
 function isInternalHeader(headerName: string) {
@@ -225,6 +226,7 @@ export async function sendEventToBulker(req: NextApiRequest, ingestType: IngestT
   const message: IngestMessage = {
     geo: fromHeaders(req.headers),
     connectionId: "",
+
     ingestType,
     messageCreated: new Date().toISOString(),
     messageId: event.messageId,
@@ -269,6 +271,7 @@ export async function sendEventToBulker(req: NextApiRequest, ingestType: IngestT
     let stream: StreamWithDestinations | undefined;
     try {
       stream = await getStream(loc);
+      message.streamId = stream?.stream.id;
       if (stream) {
         if (stream.asynchronousDestinations?.length > 0 || stream.synchronousDestinations?.length > 0) {
           response = await buildResponse(message, stream);
@@ -386,13 +389,24 @@ export function patchEvent(
   event.request_ip =
     (req.headers["x-real-ip"] as string) || (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress;
 
+  //make sure that context is initialized
+  event.context = event.context || {};
+
   if (ingestType === "browser") {
-    event.context = event.context || {};
+    //if ip comes from browser, don't trust i
     event.context.ip = event.request_ip;
   }
   if (context) {
     event.context = { ...context, ...event.context };
   }
+  if (!event.context.userAgent) {
+    event.context.userAgent = req.headers["user-agent"] as string;
+  }
+  if (!event.context.locale) {
+    event.context.locale = (req.headers["accept-language"] as string | undefined)?.split(",")[0]?.trim() || undefined;
+  }
+  //get geo from headers, so we can display it in the console
+  event.context.geo = fromHeaders(req.headers);
 
   const nowIsoDate = new Date().toISOString();
   event.receivedAt = nowIsoDate;
