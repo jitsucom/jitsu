@@ -2,13 +2,11 @@ import { Kafka, logLevel, CompressionCodecs, CompressionTypes } from "kafkajs";
 import SnappyCodec from "kafkajs-snappy";
 import "@sensejs/kafkajs-zstd-support";
 
-import { LogMessageBuilder, requireDefined, randomId } from "juava";
+import { LogMessageBuilder, requireDefined, randomId, getLog } from "juava";
 import JSON5 from "json5";
-import { getServerLog } from "./log";
+const log = getLog("kafka");
 
 CompressionCodecs[CompressionTypes.Snappy] = SnappyCodec;
-
-const log = getServerLog("kafka");
 
 function translateLevel(l: logLevel): LogMessageBuilder {
   switch (l) {

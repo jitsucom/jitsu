@@ -55,7 +55,7 @@ export const api: Api = {
       const end = req.query.end as string;
       try {
         const response = await nodeFetch(
-          `${bulkerURLEnv}/log/${type}/${actorId}?limit=${req.query.limit ?? 50}&start=${
+          `${bulkerURLEnv}/log/${type}/${actorId}?limit=${req.query.limit ?? 50}&maxBytes=4000000&start=${
             start ? dayjs(start, "YYYY-MM-DD").utc(true).unix() * 1000 : ""
           }&end=${end ? dayjs(end, "YYYY-MM-DD").utc(true).add(1, "d").unix() * 1000 : ""}&beforeId=${
             req.query.beforeId ?? ""

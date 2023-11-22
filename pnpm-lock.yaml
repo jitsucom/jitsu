@@ -512,6 +512,9 @@ importers:
       '@jitsu/functions-lib':
         specifier: workspace:*
         version: link:../../libs/functions
+      '@sensejs/kafkajs-zstd-support':
+        specifier: ^0.11.0
+        version: 0.11.0(kafkajs@2.2.4)
       dayjs:
         specifier: ^1.11.10
         version: 1.11.10
@@ -728,9 +731,6 @@ importers:
       '@rjsf/validator-ajv6':
         specifier: 5.10.0
         version: 5.10.0(@rjsf/utils@5.10.0)
-      '@sensejs/kafkajs-zstd-support':
-        specifier: ^0.9.2
-        version: 0.9.2(kafkajs@2.2.4)
       '@sentry/nextjs':
         specifier: ^7.70.0
         version: 7.70.0(next@13.5.4)(react@18.2.0)(webpack@5.88.2)
@@ -791,12 +791,6 @@ importers:
       juava:
         specifier: workspace:*
         version: link:../../libs/juava
-      kafkajs:
-        specifier: ^2.2.4
-        version: 2.2.4
-      kafkajs-snappy:
-        specifier: ^1.1.0
-        version: 1.1.0
       lodash:
         specifier: ^4.17.21
         version: 4.17.21
@@ -6319,10 +6313,10 @@ packages:
       - supports-color
     dev: true
 
-  /@sensejs/kafkajs-zstd-support@0.9.2(kafkajs@2.2.4):
-    resolution: {integrity: sha512-mzwpWC93EpNUjGYG/0whqTa+wYeMaY/OJ8Z/8FhP/YS0czwZZH8dNNKGYPIXo6YzkHuucULo1F3pNIE3L0HxXQ==}
+  /@sensejs/kafkajs-zstd-support@0.11.0(kafkajs@2.2.4):
+    resolution: {integrity: sha512-qWTaL7wUOUv/HLW8zBmfReVWFn1qOUvubqdhbjMzf1mD6at0dkOFF5g+QSi8Nb3RXWJeNb0KhgIwbOm/S+wPaQ==}
     peerDependencies:
-      kafkajs: ^1.16.0 || ^2.0.2
+      kafkajs: ^2.0.2
     dependencies:
       kafkajs: 2.2.4
       tslib: 2.6.2

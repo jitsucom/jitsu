@@ -4,12 +4,13 @@ import { FunctionExecLog, FunctionExecRes } from "./functions-chain";
 import { MetricsMeta } from "@jitsu/core-functions";
 import omit from "lodash/omit";
 import type { Producer } from "kafkajs";
+import { getCompressionType } from "./rotor";
 
 export const log = getServerLog("metrics");
 
 const metricsDestinationId = process.env.METRICS_DESTINATION_ID;
 
-const max_batch_size = 1000;
+const max_batch_size = 10000;
 const flush_interval_ms = 60000;
 
 type MetricsEvent = MetricsMeta & {
@@ -30,12 +31,14 @@ export function createMetrics(producer: Producer): Metrics {
     await Promise.all([
       producer.send({
         topic: `in.id.metrics.m.batch.t.metrics`,
+        compression: getCompressionType(),
         messages: buf.map(m => ({
           value: JSON.stringify(m),
         })),
       }),
       producer.send({
         topic: `in.id.metrics.m.batch.t.active_incoming`,
+        compression: getCompressionType(),
         messages: buf
           .filter(m => m.functionId.startsWith("builtin.destination.") && m.status !== "dropped")
           .map(m => ({

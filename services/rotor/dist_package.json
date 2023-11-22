@@ -2,6 +2,7 @@
   "name": "rotor",
   "version": "0.0.0",
   "dependencies": {
-    "isolated-vm": "4.6.0"
+    "isolated-vm": "4.6.0",
+    "@sensejs/kafkajs-zstd-support": "^0.11.0"
   }
 }
