@@ -5,7 +5,7 @@ import {
   destinationMessagesTopicMultiThreaded,
   getCredentialsFromEnv,
   rotorConsumerGroupId,
-} from "@jitsu-internal/console/lib/server/kafka-config";
+} from "./lib/kafka-config";
 
 import { IngestMessage } from "@jitsu/protocols/async-request";
 import { kafkaRotor } from "./lib/rotor";

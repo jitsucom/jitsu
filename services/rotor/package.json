@@ -13,7 +13,7 @@
     "bundle_extenals": "cp dist_package.json ./dist/package.json && cd ./dist/ && npm install",
     "build": "pnpm compile && webpack && cp ../../webapps/console/prisma/schema.prisma ./dist/schema.prisma && pnpm bundle_extenals",
     "start": "dotenv -e ../../.env.local -- node dist/main.js",
-    "rotor:dev": "dotenv -e ../../.env.local -- nodemon --signal SIGTERM --watch \"src/**\" --ext \"ts,json,tsx\" --exec \"ts-node src/index.ts\""
+    "rotor:dev": "dotenv -e ../../.env.local -- nodemon --watch \"src/**\" --ext \"ts,json,tsx\" --exec \"ts-node src/index.ts\""
   },
   "dependencies": {
     "p-queue": "^6.6.2",
@@ -35,7 +35,8 @@
     "node-fetch-commonjs": "^3.3.1",
     "tslib": "^2.4.0",
     "kafkajs": "^2.2.4",
-    "kafkajs-snappy": "^1.1.0"
+    "kafkajs-snappy": "^1.1.0",
+    "@kafkajs/zstd": "^0.1.1"
   },
   "devDependencies": {
     "@types/lodash": "^4.14.200",

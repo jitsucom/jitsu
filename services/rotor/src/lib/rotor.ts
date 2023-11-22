@@ -1,13 +1,8 @@
 import { getLog } from "juava";
-import {
-  connectToKafka,
-  deatLetterTopic,
-  KafkaCredentials,
-  retryTopic,
-} from "@jitsu-internal/console/lib/server/kafka-config";
+import { connectToKafka, deatLetterTopic, KafkaCredentials, retryTopic } from "./kafka-config";
 import Prometheus from "prom-client";
 import PQueue from "p-queue";
-const concurrency = process.env.CONCURRENCY ? parseInt(process.env.CONCURRENCY) : 50;
+const concurrency = process.env.CONCURRENCY ? parseInt(process.env.CONCURRENCY) : 10;
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 dayjs.extend(utc);
@@ -15,6 +10,7 @@ import { getRetryPolicy, retryBackOffTime, retryLogMessage } from "./retries";
 import { createMetrics, Metrics } from "./metrics";
 import { FuncChainResult } from "./functions-chain";
 import type { Admin, Consumer, Producer } from "kafkajs";
+import { CompressionTypes } from "kafkajs";
 
 const log = getLog("kafka-rotor");
 
@@ -162,6 +158,7 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
           try {
             await producer.send({
               topic: requeueTopic,
+              compression: getCompressionType(),
               messages: [
                 {
                   value: newMessage,
@@ -209,13 +206,51 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
       await consumer.run({
         autoCommitInterval: 10000,
         autoCommit: true,
-        eachBatchAutoResolve: false,
         partitionsConsumedConcurrently: 4,
         eachMessage: async ({ message, topic, partition }) => {
           //make sure that queue has no more entities than concurrency limit (running tasks not included)
           await onSizeLessThan(concurrency);
           await queue.add(async () => onMessage(message, topic, partition));
         },
+        // eachBatch: async ({
+        //   batch,
+        //   resolveOffset,
+        //   heartbeat,
+        //   isRunning,
+        //   isStale,
+        //   commitOffsetsIfNecessary,
+        //   uncommittedOffsets,
+        // }) => {
+        //   const topic = batch.topic;
+        //   const partition = batch.partition;
+        //   const messages = batch.messages;
+        //   const size = batch.messages.length;
+        //   const batchId = `${topic}-${partition}-${messages[0].offset}-${messages[size - 1].offset}`;
+        //   log.atInfo().log(`Processing batch ${batchId} of ${size} messages`);
+        //   const start = dayjs().utc();
+        //   for (const message of messages) {
+        //     if (isStale()) {
+        //       log.atInfo().log(`Batch ${batchId} is stale. Stopping processing.`);
+        //       break;
+        //     }
+        //     if (!isRunning()) {
+        //       log.atInfo().log(`Batch ${batchId} is not running. Stopping processing.`);
+        //       break;
+        //     }
+        //     //make sure that queue has no more entities than concurrency limit (running tasks not included)
+        //     await onSizeLessThan(concurrency);
+        //     await queue.add(async () => onMessage(message, topic, partition));
+        //     resolveOffset(message.offset);
+        //   }
+        //   await commitOffsetsIfNecessary();
+        //   const end = dayjs().utc();
+        //   log
+        //     .atInfo()
+        //     .log(
+        //       `Processed batch ${batchId} of ${size} messages in ${end.diff(start, "millisecond")}ms`,
+        //       JSON.stringify(uncommittedOffsets())
+        //     );
+        // },
       });
 
       return metrics;
@@ -230,6 +265,26 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
         clearInterval(interval);
       }
       log.atInfo().log("Kafka-rotor closed gracefully. 💜");
+      //extra time to flush logs
+      await new Promise(resolve => setTimeout(resolve, 15000));
     },
   };
+}
+
+export function getCompressionType() {
+  switch (process.env.KAFKA_TOPIC_COMPRESSION) {
+    case "gzip":
+      return CompressionTypes.GZIP;
+    case "snappy":
+      return CompressionTypes.Snappy;
+    case "lz4":
+      log.atWarn().log("lz4 compression is not supported. Disabling producer compression.");
+      return undefined;
+    case "zstd":
+      return CompressionTypes.ZSTD;
+    case "none":
+      return CompressionTypes.None;
+    default:
+      return undefined;
+  }
 }

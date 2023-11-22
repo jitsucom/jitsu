@@ -2,6 +2,7 @@
   "name": "rotor",
   "version": "0.0.0",
   "dependencies": {
-    "isolated-vm": "4.6.0"
+    "isolated-vm": "4.6.0",
+    "@kafkajs/zstd": "^0.1.1"
   }
 }

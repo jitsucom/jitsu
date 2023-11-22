@@ -71,20 +71,28 @@ export async function runChain(
       };
       try {
         result = await f.exec(event, funcCtx);
+        const ms = sw.elapsedMs();
+        // if (ms > 100) {
+        //   console.log(`Function ${f.id} took ${ms}ms to execute`);
+        // }
         execLog.push({
           ...execLogMeta,
-          ms: sw.elapsedMs(),
+          ms,
           dropped: isDropResult(result),
         });
       } catch (err: any) {
         if (err.name === DropRetryErrorName) {
           result = "drop";
         }
+        const ms = sw.elapsedMs();
+        // if (ms > 100) {
+        //   console.log(`Function ${f.id} took ${ms}ms to execute`);
+        // }
         execLog.push({
           ...execLogMeta,
           event,
           error: err,
-          ms: sw.elapsedMs(),
+          ms,
           dropped: isDropResult(result),
         });
         if (f.id === "udf.PIPELINE") {
