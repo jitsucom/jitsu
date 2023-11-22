@@ -7,7 +7,7 @@ import { getConfigObjectType, parseObject } from "../../../../../lib/schema/conf
 import { ApiError } from "../../../../../lib/shared/errors";
 import { isReadOnly } from "../../../../../lib/server/read-only-mode";
 import { enableAuditLog } from "../../../../../lib/server/audit-log";
-import { trackTelemetryEvent } from "../../../../../lib/server/telemetry";
+import { trackTelemetryEvent, withProductAnalytics } from "../../../../../lib/server/telemetry";
 
 export const config = {
   api: {
@@ -65,6 +65,14 @@ export const api: Api = {
       });
       await trackTelemetryEvent("config-object-delete", { objectType: type });
       await fastStore.fullRefresh();
+      await withProductAnalytics(
+        p =>
+          p.track("create_object", {
+            objectType: type,
+          }),
+        //there's no workspace name / id available. Maybe that's fine?
+        { user, workspace: { id: workspaceId } }
+      );
       if (enableAuditLog) {
         await db.prisma().auditLog.create({
           data: {

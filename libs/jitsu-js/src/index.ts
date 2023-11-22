@@ -133,13 +133,21 @@ function createUnderlyingAnalyticsInstance(
         (analytics as any).setAnonymousId(id);
       }
     },
-    group(groupId?: ID, traits?: JSONObject | null, options?: Options, callback?: Callback): Promise<DispatchedEvent> {
+    async group(
+      groupId?: ID,
+      traits?: JSONObject | null,
+      options?: Options,
+      callback?: Callback
+    ): Promise<DispatchedEvent> {
+      const results: any[] = [];
       for (const plugin of Object.values(analytics.plugins)) {
         if (plugin["group"]) {
-          plugin["group"](groupId, traits, options, callback);
+          results.push(await plugin["group"](groupId, traits, options, callback));
         }
       }
-      return Promise.resolve({});
+      //It's incorrect at many levels. First, it's not a dispatched event. Second, we take a first result
+      //However, since returned values are used for debugging purposes only, it's ok
+      return results[0];
     },
   } as AnalyticsInterface;
 }

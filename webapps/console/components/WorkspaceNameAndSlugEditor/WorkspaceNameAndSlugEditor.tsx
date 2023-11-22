@@ -28,14 +28,20 @@ function pickSlug(email, name): string {
   return ensureLength(username.replace(/[^a-z0-9]/g, ""));
 }
 
+/**
+ * @param onboarding if the dialog is shown on onboarding page. For onboarding,
+ * we should issue an event that onboarding is completed
+ */
 export function WorkspaceNameAndSlugEditor({
   onSuccess,
   displayId,
   offerClassic,
+  onboarding,
 }: {
   onSuccess?: (newVals: { name: string; slug: string }) => void;
   displayId?: boolean;
   offerClassic?: boolean;
+  onboarding?: boolean;
 }) {
   const workspace = useWorkspace();
   const appConfig = useAppConfig();
@@ -144,7 +150,10 @@ export function WorkspaceNameAndSlugEditor({
                   return;
                 }
               }
-              await get(`/api/workspace/${workspace.id}`, { method: "PUT", body: { name, slug } });
+              await get(`/api/workspace/${workspace.id}?onboarding=${!!onboarding}`, {
+                method: "PUT",
+                body: { name, slug },
+              });
               feedbackSuccess("Workspace name has been saved");
               if (onSuccess) {
                 onSuccess({ name, slug });

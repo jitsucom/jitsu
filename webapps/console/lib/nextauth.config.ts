@@ -6,6 +6,7 @@ import { db } from "./server/db";
 import { checkHash, requireDefined } from "juava";
 import { ApiError } from "./shared/errors";
 import { getServerLog } from "./server/log";
+import { withProductAnalytics } from "./server/telemetry";
 
 const crypto = require("crypto");
 
@@ -87,6 +88,9 @@ export async function getOrCreateUser(opts: {
         loginProvider: loginProvider,
         admin,
       },
+    });
+    await withProductAnalytics(p => p.track("user_created"), {
+      user: { email, name, internalId: user.id, externalId, loginProvider },
     });
   } else if (user.name !== name || user.email !== email) {
     await db.prisma().userProfile.update({ where: { id: user.id }, data: { name, email } });

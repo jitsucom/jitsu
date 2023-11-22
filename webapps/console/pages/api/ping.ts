@@ -3,7 +3,7 @@ import { initTelemetry, trackTelemetryEvent } from "../../lib/server/telemetry";
 
 export default createRoute()
   .GET({ auth: false })
-  .handler(async () => {
+  .handler(async ({ user }) => {
     const { deploymentId } = await initTelemetry();
     await trackTelemetryEvent("ping");
     return {

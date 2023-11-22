@@ -389,7 +389,6 @@ function AppLoader({ children, pageProps }: PropsWithChildren<any>) {
                 //debug: data?.logLevel === "debug",
                 debug: false,
                 host: trackingHost,
-                writeKey: data!.frontendTelemetry.writeKey,
               }
             : { disabled: true }
         }
