@@ -11,6 +11,8 @@ export type IngestMessage = {
   messageId: string;
   //currently this not being filled
   connectionId: string;
+  //id of a stream where this message should eventually go. For debugging purposes so far
+  streamId?: string;
   type: string;
   origin: {
     baseUrl: string;

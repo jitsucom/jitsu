@@ -7,7 +7,7 @@ import { publicEmailDomains } from "../../lib/shared/email-domains";
 import { getUserPreferenceService } from "../../lib/server/user-preferences";
 import { ApiError } from "../../lib/shared/errors";
 import { z } from "zod";
-import { initTelemetry } from "../../lib/server/telemetry";
+import { initTelemetry, withProductAnalytics } from "../../lib/server/telemetry";
 
 function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
@@ -37,8 +37,8 @@ export default createRoute()
       invite: z.string().optional(),
     }),
   })
-  .handler(async ({ query, user }) => {
-    initTelemetry();
+  .handler(async ({ req, query, user }) => {
+    await initTelemetry();
     getServerLog()
       .atInfo()
       .log(`Looking for workspace for user ${JSON.stringify(user)}`);
@@ -93,9 +93,7 @@ export default createRoute()
             externalId: user.externalId,
           },
         });
-        await db.prisma().$queryRaw`UPDATE "UserProfile"
-                                  SET "id" = ${user.internalId}
-                                  WHERE "id" = ${newUser.id}`;
+        await withProductAnalytics(p => p.track("user_created"), { user: { ...newUser, internalId: newUser.id }, req });
       }
       const newWorkspace = await db
         .prisma()

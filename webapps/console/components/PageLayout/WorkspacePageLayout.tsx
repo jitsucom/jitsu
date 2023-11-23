@@ -577,7 +577,14 @@ function PageHeader() {
   );
 }
 
-const WorkspaceSettingsModal: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
+/**
+ * @param onboarding if the dialog is shown on onboarding page. For onboarding,
+ * we should issue an event that onboarding is completed
+ */
+const WorkspaceSettingsModal: React.FC<{ onSuccess: () => void; onboarding: boolean }> = ({
+  onSuccess,
+  onboarding,
+}) => {
   const appConfig = useAppConfig();
   const domains = getDomains(appConfig);
   const { analytics } = useJitsu();
@@ -610,7 +617,7 @@ const WorkspaceSettingsModal: React.FC<{ onSuccess: () => void }> = ({ onSuccess
               {domains.appBase}/<span className="text-textDark">your-slug</span>
             </code>{" "}
           </div>
-          <WorkspaceNameAndSlugEditor onSuccess={onSuccess} offerClassic={true} />
+          <WorkspaceNameAndSlugEditor onSuccess={onSuccess} offerClassic={false} onboarding={onboarding} />
           <div className="text-center my-4">
             Got here by mistake?{" "}
             <a
@@ -685,6 +692,7 @@ export const WorkspacePageLayout: React.FC<PropsWithChildren<PageLayoutProps>> =
       <div className={`flex-auto ${fullscreen ? "overflow-hidden" : ""} flex flex-col`}>
         {!workspace.slug && (
           <WorkspaceSettingsModal
+            onboarding={true}
             onSuccess={() => {
               router.reload();
             }}

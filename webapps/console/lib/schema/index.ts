@@ -75,7 +75,6 @@ export const AppConfig = z.object({
   frontendTelemetry: z.object({
     enabled: z.boolean(),
     host: z.string().optional(),
-    writeKey: z.string().optional(),
   }),
   logLevel: z.enum(["debug", "info", "warn", "error"]),
   syncs: z.object({

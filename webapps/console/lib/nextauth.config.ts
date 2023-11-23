@@ -6,6 +6,8 @@ import { db } from "./server/db";
 import { checkHash, requireDefined } from "juava";
 import { ApiError } from "./shared/errors";
 import { getServerLog } from "./server/log";
+import { withProductAnalytics } from "./server/telemetry";
+import { NextApiRequest } from "next";
 
 const crypto = require("crypto");
 
@@ -69,6 +71,8 @@ export async function getOrCreateUser(opts: {
   loginProvider: string;
   name?: string;
   email: string;
+  // we only need this for product analytics, so it's optional
+  req?: NextApiRequest;
 }): Promise<User> {
   const { externalId, loginProvider, email, name = email } = opts;
   log.atDebug().log(`Signing in user ${JSON.stringify(opts)}`);
@@ -87,6 +91,10 @@ export async function getOrCreateUser(opts: {
         loginProvider: loginProvider,
         admin,
       },
+    });
+    await withProductAnalytics(p => p.track("user_created"), {
+      user: { email, name, internalId: user.id, externalId, loginProvider },
+      req: opts.req,
     });
   } else if (user.name !== name || user.email !== email) {
     await db.prisma().userProfile.update({ where: { id: user.id }, data: { name, email } });

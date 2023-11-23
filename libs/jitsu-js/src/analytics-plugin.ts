@@ -1,7 +1,7 @@
 /* global analytics */
 
 import { JitsuOptions, PersistentStorage, RuntimeFacade } from "./jitsu";
-import { AnalyticsClientEvent, Callback, ID, JSONObject, Options } from "@jitsu/protocols/analytics";
+import { AnalyticsClientEvent, Callback, DispatchedEvent, ID, JSONObject, Options } from "@jitsu/protocols/analytics";
 import parse from "./index";
 
 import { AnalyticsInstance, AnalyticsPlugin } from "analytics";
@@ -63,11 +63,18 @@ function safeCall<T>(f: () => T, defaultVal?: T): T | undefined {
 }
 
 function restoreTraits(storage: PersistentStorage) {
-  const val = storage.getItem("__user_traits");
+  let val = storage.getItem("__user_traits");
   if (typeof val === "string") {
-    return safeCall(() => JSON.parse(val), {});
+    val = safeCall(() => JSON.parse(val), {});
   }
-  return val;
+  let groupVal = storage.getItem("__group_traits");
+  if (typeof groupVal === "string") {
+    groupVal = safeCall(() => JSON.parse(groupVal), {});
+  }
+  return {
+    ...(groupVal || {}),
+    ...(val || {}), //user traits override group traits
+  };
 }
 
 export type StorageFactory = (cookieDomain: string, cookie2key: Record<string, string>) => PersistentStorage;
@@ -326,6 +333,7 @@ function adjustPayload(payload: any, config: JitsuOptions, storage: PersistentSt
     sentAt: new Date().toISOString(),
     messageId: randomId(properties.path || (parsedUrl && parsedUrl.pathname)),
     writeKey: maskWriteKey(config.writeKey),
+    groupId: storage.getItem("__group_id"),
     context: deepMerge(context, customContext),
   };
   delete withContext.meta;
@@ -478,7 +486,7 @@ async function send(
   jitsuConfig: Required<JitsuOptions>,
   instance: AnalyticsInstance,
   store: PersistentStorage
-): Promise<void> {
+): Promise<any> {
   if (jitsuConfig.echoEvents) {
     console.log(`[JITSU DEBUG] sending '${method}' event:`, payload);
     return;
@@ -544,11 +552,19 @@ async function send(
   }
 
   if (responseJson.destinations) {
-    if (jitsuConfig.debug) {
-      console.log(`[JITSU] Processing device destinations: `, JSON.stringify(responseJson.destinations, null, 2));
+    if (jitsuConfig.s2s) {
+      console.warn(
+        `[JITSU] ${payload.type} responded with list of ${responseJson.destinations.length} destinations. However, this code is running in server-to-server mode, so destinations will be ignored`,
+        jitsuConfig.debug ? JSON.stringify(responseJson.destinations, null, 2) : undefined
+      );
+    } else {
+      if (jitsuConfig.debug) {
+        console.log(`[JITSU] Processing device destinations: `, JSON.stringify(responseJson.destinations, null, 2));
+      }
+      return processDestinations(responseJson.destinations, method, adjustedPayload, !!jitsuConfig.debug, instance);
     }
-    return processDestinations(responseJson.destinations, method, adjustedPayload, !!jitsuConfig.debug, instance);
   }
+  return adjustedPayload;
 }
 
 export type JitsuPluginConfig = JitsuOptions & {
@@ -610,6 +626,11 @@ const jitsuAnalyticsPlugin = (pluginConfig: JitsuPluginConfig = {}): AnalyticsPl
     methods: {
       //analytics doesn't support group as a base method, so we need to add it manually
       group(groupId?: ID, traits?: JSONObject | null, options?: Options, callback?: Callback) {
+        if (typeof groupId === "number") {
+          //fix potential issues with group id being used incorrectly
+          groupId = groupId + "";
+        }
+
         const analyticsInstance = this.instance;
         const cacheWrap = pluginConfig.storageWrapper
           ? pluginConfig.storageWrapper(analyticsInstance.storage)
@@ -617,6 +638,10 @@ const jitsuAnalyticsPlugin = (pluginConfig: JitsuPluginConfig = {}): AnalyticsPl
         const user = analyticsInstance.user();
         const userId = options?.userId || user?.userId;
         const anonymousId = options?.anonymousId || user?.anonymousId || cacheWrap.getItem("__anon_id");
+        cacheWrap.setItem("__group_id", groupId);
+        if (traits && typeof traits === "object") {
+          cacheWrap.setItem("__group_traits", traits);
+        }
         return send(
           "group",
           { type: "group", groupId, traits, ...(anonymousId ? { anonymousId } : {}), ...(userId ? { userId } : {}) },

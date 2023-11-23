@@ -5,6 +5,7 @@ import { ApiError } from "../../../../lib/shared/errors";
 import { getUserPreferenceService } from "../../../../lib/server/user-preferences";
 import { getServerLog } from "../../../../lib/server/log";
 import { SessionUser } from "../../../../lib/schema";
+import { withProductAnalytics } from "../../../../lib/server/telemetry";
 
 const log = getServerLog();
 
@@ -36,7 +37,7 @@ export const api: Api = {
     description: "Get workspace",
     auth: true,
     types: { query: z.object({ workspaceIdOrSlug: z.string() }) },
-    handle: async ({ query: { workspaceIdOrSlug }, user }) => {
+    handle: async ({ req, query: { workspaceIdOrSlug }, user }) => {
       const workspace = await db
         .prisma()
         .workspace.findFirst({ where: { OR: [{ id: workspaceIdOrSlug }, { slug: workspaceIdOrSlug }] } });
@@ -54,6 +55,14 @@ export const api: Api = {
           { status: 403 }
         );
       }
+      //if slug is not set, means that workspace is not yet onboarded. We shouldn't track
+      if (workspace.slug) {
+        //send event asynchronously to prevent increased response time
+        //theoretically, event can get lost, however this is not the type of event that
+        //requires 100% reliability
+        withProductAnalytics(callback => callback.track("workspace_access"), { user, workspace, req });
+      }
+
       //it doesn't have to by sync since the preferences are optional
       savePreferences(user, workspace).catch(e => {
         log
@@ -68,13 +77,21 @@ export const api: Api = {
     auth: true,
     types: {
       body: z.object({ name: z.string(), slug: z.string() }),
-      query: z.object({ workspaceIdOrSlug: z.string() }),
+      query: z.object({
+        //true if the changed done during onboarding
+        onboarding: z.boolean().optional(),
+        workspaceIdOrSlug: z.string(),
+      }),
     },
-    handle: async ({ query: { workspaceIdOrSlug }, body, user }) => {
+    handle: async ({ req, query: { workspaceIdOrSlug, onboarding }, body, user }) => {
       await verifyAccess(user, workspaceIdOrSlug);
-      return await db
+      const workspace = await db
         .prisma()
         .workspace.update({ where: { id: workspaceIdOrSlug }, data: { name: body.name, slug: body.slug } });
+      if (onboarding) {
+        await withProductAnalytics(callback => callback.track("workspace_onboarded"), { user, workspace, req });
+      }
+      return workspace;
     },
   },
 };
