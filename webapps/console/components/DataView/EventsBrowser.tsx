@@ -13,15 +13,17 @@ import { WLink } from "../Workspace/WLink";
 import { DestinationTitle } from "../../pages/[workspaceId]/destinations";
 import ExternalLink from "../Icons/ExternalLink";
 import { AnalyticsContext, AnalyticsServerEvent } from "@jitsu/protocols/analytics";
-import { GlobalOutlined, LinkOutlined, QuestionCircleOutlined, UserOutlined } from "@ant-design/icons";
+import Icon, { GlobalOutlined, LinkOutlined, QuestionCircleOutlined, UserOutlined } from "@ant-design/icons";
 import { getConfigApi, useEventsLogApi } from "../../lib/useApi";
 import { FunctionTitle } from "../../pages/[workspaceId]/functions";
 import { FunctionConfig } from "../../lib/schema";
 import { arrayToMap } from "../../lib/shared/arrays";
-import { BadgeCheck, RefreshCw } from "lucide-react";
+import { Globe, RefreshCw, Server } from "lucide-react";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
 import { ConnectionTitle } from "../../pages/[workspaceId]/connections";
 import { StreamTitle } from "../../pages/[workspaceId]/streams";
+import { trimMiddle } from "../../lib/shared/strings";
+import { countries } from "../../lib/shared/countries";
 
 dayjs.extend(utc);
 dayjs.extend(relativeTime);
@@ -861,6 +863,57 @@ const IncomingEventDrawer = ({ event }: { event: IncomingEvent }) => {
   );
 };
 
+const Flag: React.FC<{ emoji?: string }> = ({ emoji }) => {
+  return (
+    <span className={`px-2 ${emoji ? "border-transparent" : "border-textDisabled"}`}>
+      <span className={`${emoji ? "visible" : "invisible"}`}>{emoji || "🇺🇸"}</span>
+    </span>
+  );
+};
+
+function googleMapsLink(lat: number, lng: number) {
+  return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+}
+
+//we should make sure that Geo object is typed in a common module.
+//it is typed, but in functions lib only.
+export const Geo: React.FC<{ geo: Record<string, any> }> = ({ geo }) => {
+  if (geo?.country?.code) {
+    const flag = countries[geo.country.code]?.flag;
+    if (!flag) {
+      return <Flag />;
+    }
+    return (
+      <Tooltip
+        title={
+          <div className="whitespace-pre">
+            {[
+              `Country: ${countries[geo.country.code]?.name || geo.country.code}`,
+              geo.region?.code ? `Region: ${geo.region?.code}` : undefined,
+              geo.city?.name ? `City: ${geo.city.name}` : undefined,
+            ]
+              .filter(s => !!s)
+              .join("\n")}
+            {"\n\n"}
+            {geo.location && geo.location.latitude && geo.location.latitude ? (
+              <>
+                Location:{" "}
+                <a target="_blank" href={googleMapsLink(geo.location.latitude, geo.location.longitude)}>
+                  {geo.location.latitude}, {geo.location.longitude}
+                </a>
+              </>
+            ) : undefined}
+          </div>
+        }
+      >
+        {/* Without the space after the tag below, tooltip doesn't work. Don't delete it! */}
+        <Flag emoji={flag} />{" "}
+      </Tooltip>
+    );
+  }
+  return <Flag />;
+};
+
 type IncomingEvent = {
   id: string;
   date: string;
@@ -971,22 +1024,42 @@ const IncomingEventsTable = ({ loadEvents, loading, streamType, entityType, acto
     },
     {
       title: "Type",
-      width: "8em",
-      dataIndex: "type",
+      width: "12em",
+      //dataIndex: "type",
+      render: (d: IncomingEvent) => {
+        const eventName = d.type === "track" ? d.event?.event || d.type : d.type;
+        const isDeviceEvent = d.pagePath;
+        return (
+          <Tooltip title={eventName}>
+            <Tag
+              color={isDeviceEvent ? "geekblue" : "purple"}
+              icon={
+                <Icon
+                  component={() => (isDeviceEvent ? <Globe className="w-3 h-3" /> : <Server className="w-3 h-3" />)}
+                />
+              }
+              className={"whitespace-nowrap"}
+            >
+              {trimMiddle(eventName || "", 16)}
+            </Tag>
+          </Tooltip>
+        );
+      },
     },
     {
       title: "Page Path",
       width: "20em",
       ellipsis: true,
       key: "pagePath",
-      render: (d: IncomingEvent) => (
-        <div className={"whitespace-nowrap"}>
-          <a href={d.pageURL} target={"_blank"} rel={"noreferrer noopener"}>
-            <ExternalLink className={"w-3.5 h-3.5"} />{" "}
-          </a>
-          {d.pagePath}
-        </div>
-      ),
+      render: (d: IncomingEvent) =>
+        d.pageURL && (
+          <div className={"whitespace-nowrap"}>
+            <a href={d.pageURL} target={"_blank"} rel={"noreferrer noopener"}>
+              <ExternalLink className={"w-3.5 h-3.5"} />{" "}
+            </a>
+            {d.pagePath}
+          </div>
+        ),
     },
     {
       title: "Summary",
@@ -995,17 +1068,7 @@ const IncomingEventsTable = ({ loadEvents, loading, streamType, entityType, acto
       render: (d: IncomingEvent) => {
         return (
           <div className={"flex flex-row"}>
-            {d.event?.event && (
-              <Tooltip title={"Track Event Name"}>
-                <Tag
-                  color={"cyan"}
-                  icon={<BadgeCheck className={"anticon"} style={{ width: 13, height: 13 }} />}
-                  className={"whitespace-nowrap"}
-                >
-                  {d.event?.event}
-                </Tag>
-              </Tooltip>
-            )}
+            <Geo geo={d.context?.geo} />
             {d.host && (
               <Tooltip title={"Host"}>
                 <Tag color={"geekblue"} icon={<GlobalOutlined />} className={"whitespace-nowrap"}>

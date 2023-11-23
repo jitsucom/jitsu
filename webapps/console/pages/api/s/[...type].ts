@@ -224,7 +224,8 @@ export async function sendEventToBulker(req: NextApiRequest, ingestType: IngestT
   const loc = getDataLocator(req, ingestType, event);
   const type = event.type;
   const message: IngestMessage = {
-    geo: fromHeaders(req.headers),
+    //getting geo make sense only for browser events, otherwise it will based on ip of a server
+    geo: ingestType === "browser" ? fromHeaders(req.headers) : {},
     connectionId: "",
 
     ingestType,
@@ -393,8 +394,12 @@ export function patchEvent(
   event.context = event.context || {};
 
   if (ingestType === "browser") {
-    //if ip comes from browser, don't trust i
+    //if ip comes from browser, don't trust it!
     event.context.ip = event.request_ip;
+    //get geo from headers, so we can display it in the console
+    //we do it only for calls fron browser, otherwise it's pointless, the geo
+    //will contain ip of the server
+    event.context.geo = fromHeaders(req.headers);
   }
   if (context) {
     event.context = { ...context, ...event.context };
@@ -405,8 +410,6 @@ export function patchEvent(
   if (!event.context.locale) {
     event.context.locale = (req.headers["accept-language"] as string | undefined)?.split(",")[0]?.trim() || undefined;
   }
-  //get geo from headers, so we can display it in the console
-  event.context.geo = fromHeaders(req.headers);
 
   const nowIsoDate = new Date().toISOString();
   event.receivedAt = nowIsoDate;
