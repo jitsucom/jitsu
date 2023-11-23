@@ -332,7 +332,7 @@ async function main() {
     log.atInfo().log(`Received message: ${message.value}`);
     await consumer.disconnect();
   } else {
-    const kafkaTopics = [destinationMessagesTopic(), destinationMessagesTopicMultiThreaded()];
+    const kafkaTopics = [destinationMessagesTopic()];
     const consumerGroupId = rotorConsumerGroupId();
     const rotor = kafkaRotor({
       credentials: getCredentialsFromEnv(),
