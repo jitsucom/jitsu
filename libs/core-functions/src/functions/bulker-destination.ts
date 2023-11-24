@@ -264,7 +264,7 @@ const BulkerDestination: JitsuFunction<AnalyticsServerEvent, BulkerDestinationCo
     let adjustedEvent = event;
     const clientIds = event.context?.clientIds;
     const ga4 = clientIds?.ga4;
-    if (ga4 && ga4.sessionIds) {
+    if (ga4 && (ga4.sessionIds || ga4["sessions"])) {
       adjustedEvent = {
         ...event,
         context: {
@@ -273,7 +273,7 @@ const BulkerDestination: JitsuFunction<AnalyticsServerEvent, BulkerDestinationCo
             ...clientIds,
             ga4: {
               clientId: ga4.clientId,
-              sessionIds: JSON.stringify(ga4.sessionIds),
+              sessionIds: ga4["sessions"] ? JSON.stringify(ga4["sessions"]) : JSON.stringify(ga4.sessionIds),
             },
           },
         },
