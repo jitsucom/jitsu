@@ -372,24 +372,15 @@ async function main() {
 
     errorTypes.forEach(type => {
       process.on(type, async err => {
-        try {
-          log.atError().withCause(err).log(`process.on ${type}`);
-          await rotor.close();
-          process.exit(1);
-        } catch (_) {
-          process.exit(1);
-        }
+        log.atError().withCause(err).log(`process.on ${type}`);
+        await rotor.close().finally(() => process.exit(1));
       });
     });
 
     signalTraps.forEach(type => {
       process.once(type, async () => {
-        try {
-          log.atInfo().log(`Signal ${type} received`);
-          await rotor.close();
-        } finally {
-          process.kill(process.pid, type);
-        }
+        log.atInfo().log(`Signal ${type} received`);
+        await rotor.close().finally(() => process.kill(process.pid, type));
       });
     });
   }
