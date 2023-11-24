@@ -79,7 +79,8 @@ export const api: Api = {
       body: z.object({ name: z.string(), slug: z.string() }),
       query: z.object({
         //true if the changed done during onboarding
-        onboarding: z.boolean().optional(),
+        //also, we can't do boolean since there's a bug in how we parse zod
+        onboarding: z.string().optional(),
         workspaceIdOrSlug: z.string(),
       }),
     },
@@ -88,7 +89,7 @@ export const api: Api = {
       const workspace = await db
         .prisma()
         .workspace.update({ where: { id: workspaceIdOrSlug }, data: { name: body.name, slug: body.slug } });
-      if (onboarding) {
+      if (onboarding === "true") {
         await withProductAnalytics(callback => callback.track("workspace_onboarded"), { user, workspace, req });
       }
       return workspace;
