@@ -22,7 +22,6 @@ const WorkspacesList = () => {
   const { data: userData } = useApi(`/api/user/properties`);
   const { data, isLoading, error } = useApi<z.infer<typeof WorkspaceDbModel>[]>(`/api/workspace`);
   const [filter, setFilter] = useQueryStringState("filter", { defaultValue: "", skipHistory: true });
-  console.log("referer", router);
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-fit">

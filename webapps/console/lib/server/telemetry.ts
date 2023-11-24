@@ -80,9 +80,16 @@ function createProductAnalytics(analytics: AnalyticsInterface, req?: NextApiRequ
     },
     workspace(idOrObject: string | Workspace, opts?: WorkspaceProps) {
       if (typeof idOrObject === "string") {
-        return analytics.group(idOrObject, opts ? { workspaceSlug: opts.slug, workspaceName: opts.name } : {});
+        return analytics.group(
+          idOrObject,
+          opts ? { workspaceSlug: opts.slug, workspaceName: opts.name, workspaceId: idOrObject } : {}
+        );
       } else {
-        return analytics.group(idOrObject.id, { workspaceSlug: idOrObject.slug, workspaceName: idOrObject.name });
+        return analytics.group(idOrObject.id, {
+          workspaceSlug: idOrObject.slug,
+          workspaceName: idOrObject.name,
+          workspaceId: idOrObject.id,
+        });
       }
     },
     track(event: TrackEvents, props?: any): Promise<any> {
@@ -129,7 +136,7 @@ export function withProductAnalytics(
       try {
         return await callback(instance);
       } catch (e) {
-        log.atWarn().withCause(e).log("Failed to send product analytics event");
+        log.atWarn().withCause(e).log(`Failed to send product analytics event`);
       }
       return {};
     })()

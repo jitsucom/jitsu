@@ -551,7 +551,7 @@ async function send(
     return Promise.reject(`Can't parse JSON: ${responseText}: ${e?.message}`);
   }
 
-  if (responseJson.destinations) {
+  if (responseJson.destinations && responseJson.destinations.length > 0) {
     if (jitsuConfig.s2s) {
       console.warn(
         `[JITSU] ${payload.type} responded with list of ${responseJson.destinations.length} destinations. However, this code is running in server-to-server mode, so destinations will be ignored`,
