@@ -75,7 +75,6 @@ export async function getOrCreateUser(opts: {
   req?: NextApiRequest;
 }): Promise<User> {
   const { externalId, loginProvider, email, name = email } = opts;
-  log.atDebug().log(`Signing in user ${JSON.stringify(opts)}`);
   let user = await db.prisma().userProfile.findFirst({ where: { externalId, loginProvider } });
   if (!user) {
     if (process.env.DISABLE_SIGNUP === "true" || process.env.DISABLE_SIGNUP === "1") {

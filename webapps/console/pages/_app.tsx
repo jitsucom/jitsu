@@ -161,6 +161,7 @@ const FirebaseAuthorizer: React.FC<PropsWithChildren<{}>> = ({ children }) => {
                 type: "social",
                 loginProvider: `firebase/${type}`,
                 message: e?.message || "Unknown error",
+                details: e?.stack || undefined,
               });
               throw e;
             }
