@@ -98,6 +98,8 @@ export default createRoute()
       const newWorkspace = await db
         .prisma()
         .workspace.create({ data: { name: pickWorkspaceName(query.projectName, user) } });
+      await withProductAnalytics(p => p.track("workspace_created"), { req, user, workspace: newWorkspace });
+
       await db.prisma().workspaceAccess.create({ data: { userId: user.internalId, workspaceId: newWorkspace.id } });
       return { user: user, firstWorkspaceId: newWorkspace.id, firstWorkspaceSlug: null, newUser: true };
     }
