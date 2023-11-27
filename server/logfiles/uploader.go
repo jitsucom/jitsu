@@ -108,7 +108,7 @@ func (u *PeriodicUploader) Start() {
 					}
 
 					if timestamp.Now().Sub(fileDate) > time.Hour*24*30 {
-						logging.Infof("Skipping file %s. File is more than 30 days old: %s", filePath, fileDate)
+						logging.Debugf("Skipping file %s. File is more than 30 days old: %s", filePath, fileDate)
 						return
 					}
 
