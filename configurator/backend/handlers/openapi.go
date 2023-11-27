@@ -544,6 +544,8 @@ func (oa *OpenAPI) GetUserInfo(ctx *gin.Context) {
 			} else {
 				if len(ssoProfile.Profile) > 0 {
 					p := ssoProfile.Profile
+					// add access token to SSO profile
+					p["access_token"] = ssoProfile.AccessToken
 					result.SsoProfile = &p
 				}
 				sub := ssoProfile.UserID
