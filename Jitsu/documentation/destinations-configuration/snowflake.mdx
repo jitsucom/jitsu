@@ -1,0 +1,106 @@
+# Snowflake
+
+**Jitsu** supports [Snowflake](https://www.snowflake.com/) as a destination. For more information about Snowflake [see docs](https://docs.snowflake.com).
+Snowflake destination can work in stream and batch modes. In stream mode Jitsu uses plain insert statements for storing data.
+In batch mode Jitsu writes incoming events in formatted file on the AWS S3 or Google Cloud Storage (intermediate Stage layer) and uses [COPY command](https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html) to store data from Stage files into Snowflake.
+
+<Hint>
+    Please carefully read Snowflake docs regarding <a href="https://docs.snowflake.com/en/user-guide/admin-usage-billing.html">System Usage & Billing</a>,
+    especially the <a href="https://docs.snowflake.com/en/user-guide/credits.html#virtual-warehouse-credit-usage">Virtual Warehouse Credit Usage</a> part.
+    <br></br>Remember that using Snowflake destination in <code inline="true">stream</code> mode is highly likely to be charged as full-time warehouse usage.
+    <br></br>For <code inline="true">batch</code> mode, we recommend enabling <a href="https://docs.snowflake.com/en/user-guide/warehouses-considerations.html#automating-warehouse-suspension">Automating Warehouse Suspension</a> using <a href="https://docs.snowflake.com/en/sql-reference/sql/alter-warehouse.html">ALTER WAREHOUSE</a> query. E.g.:<br></br>
+    <code inline="false">ALTER WAREHOUSE WAREHOUSE_NAME set AUTO_SUSPEND = 1</code>
+</Hint>
+
+## Configuration
+
+Snowflake destination in batch mode can be configured via S3 or Google Cloud Storage. In the stream mode, it can be configured without any. The config consists of the following schema:
+
+```yaml
+destinations:
+  my_snowflake_via_aws_s3_or_gcp:
+    type: snowflake
+    snowflake:
+      account: hha56552.us-east-1
+      schema: MYSCHEMA
+      warehouse: my_warehouse
+      db: mydb
+      username: user
+      password: pass
+      parameters:
+        name: value
+      stage: my_stage
+# via s3
+    s3:
+      access_key_id: ...
+      secret_access_key: ...
+      bucket: ...
+      region: ...
+# or via gcp
+    google:
+      gcs_bucket: ...
+      key_file: ...
+```
+
+### snowflake section
+
+| Field \(\*required\) | Type | Description | Default value |
+| :--- | :--- | :--- | :--- |
+| **account\*** | string | Snowflake Account from URL https://"SNOWFLAKE_ACCOUNT".snowflakecomputing.com/| - |
+| **port** | int | Port of destination. | `443` |
+| **db\*** | string | Database of destination. | - |
+| **schema** | string | Schema of destination. | `PUBLIC` |
+| **username\*** | string | Username for authorization in a destination. | - |
+| **password** | string | Password for authorization in a destination. | - |
+| **warehouse\*** | string | Snowflake warehouse name. |  |
+| **parameters** | object | Connection parameters. | `client_session_keep_alive=true` |
+| **stage\*\*** | string | Name of [Snowflake stage](https://docs.snowflake.com/en/user-guide/data-load-local-file-system-create-stage.html). It is required in **batch** mode. | - |
+
+### s3 section
+
+<LargeLink href="/docs/destinations-configuration/s3" title="S3 configuration" />
+
+### google section
+
+<LargeLink href="/docs/destinations-configuration/bigquery" title="Google (GCS) configuration" />
+
+### AWS S3 Stage
+
+For using Snowflake in batch mode with AWS S3 stage you should create AWS S3 bucket and add IAM permissions:
+
+- [Create](https://docs.aws.amazon.com/AmazonS3/latest/userguide/create-bucket-overview.html) your AWS S3 bucket.
+- [Create](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_users_create.html) your AWS IAM User and save its credentials: `Access key ID` and `Secret Access Key`.
+- [Create](https://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-create-and-attach-iam-policy.html) IAM Policy with clear name (e.g. `jitsu-snowflake-policy`) and attach it to created user with the following JSON:
+
+Replace `YOUR_BUCKET_ARN` with your bucket ARN:
+```yaml
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "VisualEditor0",
+      "Effect": "Allow",
+      "Action": [
+        "s3:PutObject",
+        "s3:GetObject",
+        "s3:ListBucket",
+        "s3:DeleteObject"
+      ],
+      "Resource": [
+        "arn:aws:s3:::YOUR_BUCKET_ARN",
+        "arn:aws:s3:::YOUR_BUCKET_ARN/*"
+      ]
+    }
+  ]
+}
+```
+
+### Google Cloud Storage Stage
+
+For using Snowflake in batch mode with Google Cloud Storage stage you should create a GCP bucket, an Integration and Stage between Snowflake and GCP bucket.
+Also, you should configure IAM permissions in created by Snowflake Google Service Account.
+
+- [Create](/docs/configuration/google-authorization) Google Service Account
+- [Create](https://cloud.google.com/storage/docs/creating-buckets) Google Cloud Storage bucket
+- Give `Storage Object Admin` permission to your Google Service Account in created bucket.
+- [Create an integration in Snowflake](https://docs.snowflake.com/en/user-guide/data-load-gcs-config.html#step-1-create-a-cloud-storage-integration-in-snowflake)

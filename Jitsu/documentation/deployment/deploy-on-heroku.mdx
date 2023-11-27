@@ -1,0 +1,74 @@
+---
+sort: 1
+---
+
+
+# Deploy to Heroku
+
+[Heroku](https://www.heroku.com/about) is the easiest way to get started with **Jitsu**. If you don't have an active Heroku account, [signup here](https://signup.heroku.com/)
+
+<Hint>
+  Since Heroku restricts running docker containers inside Heroku apps, <a href="/docs/sources-configuration">Airbyte sources</a> synchronization won't be available. For using Airbyte sources, please use another deploy method.
+</Hint>
+
+### Getting Running on Heroku
+
+<a href="https://heroku.com/deploy?template=https://github.com/jitsucom/jitsu"><img src="https://www.herokucdn.com/deploy/button.svg" width="250px" /></a>
+
+- Click on the "Deploy to Heroku" button to go to app creation screen.
+- Enter name of your Jitsu app
+- All configuration parameters are optional
+- Click on the "Deploy app" at the bottom of the screen
+
+<Hint>
+  It may take up to 5 minutes for Heroku to install environment. Please don't refresh you page.
+</Hint>
+
+Once completed, you will see two buttons at the bottom of the screen: `Manage App` and `View App`.
+
+- For visit Jitsu, click `View App`. Also, your can visit Jitsu via `<your_app_name>.herokuapp.com` link or from Heroku
+App page `https://dashboard.heroku.com/apps/<your_app_name>` -> click `Open App` button in the right corner on of the page.
+
+- For checking your app details, click `Manage App`.
+
+After your app is deployed, you can set up your API keys, Destinations and Source connectors on Jitsu UI.
+
+Once Jitsu is set up, place the following code on your web-app. (See our [JavaScript SDK 2.0 guide](/docs/sending-data/js-sdk) for fine-tuning):
+
+```html
+<script src="https://[your_app_name].herokuapp.com/s/lib.js" data-key="<YOUR_API_KEY_FROM_CONFIGURATOR_UI>" defer>
+</script>
+```
+
+### Upgrade Jitsu version
+
+Once a new [Jitsu docker](https://hub.docker.com/repository/docker/jitsucom/jitsu) version has been created you can update
+your Heroku app with the following command set:
+
+- git clone https://github.com/jitsucom/jitsu.git
+- cd jitsu
+- git remote add heroku https://git.heroku.com/{your_heroku_jitsu_app_name}.git
+- git push -f heroku master
+
+### Upgrade Heroku App (Recommended)
+
+By default, Heroku creates app with a free plan. It means that the app is going to sleep if there hasn't been any activity for 30 minutes.
+
+For using Jitsu constantly, we **strongly** recommend upgrading to at least a `Hobby` plan:
+
+- visit your Heroku app resources page `https://dashboard.heroku.com/apps/<your_app_name>/resources`
+- click `Change Dyno Type` button
+
+### Upgrade Heroku Redis plan (Recommended)
+
+By default, Jitsu installs free `hobby-dev` [Heroku Redis add-on](https://elements.heroku.com/addons/heroku-redis) to the app.
+It can be found on the `Manage App` screen -> `Installed add-ons` on the `https://dashboard.heroku.com/apps/<your_app_name>` page.
+
+For upgrading Redis plan:
+- visit your Heroku app resources page `https://dashboard.heroku.com/apps/<your_app>/resources`
+- click ↕️ button in the right corner of `Heroku Redis` in Add-ons section row
+- click Modify Plan
+
+<Hint>
+    Upgrading process might take some time. Check the status by clicking on the <code inline="true">Heroku Redis</code> in Add-ons section.
+</Hint>

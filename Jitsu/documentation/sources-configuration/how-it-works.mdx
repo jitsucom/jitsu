@@ -1,0 +1,29 @@
+---
+sort: 1000
+---
+
+# How it works
+
+This page describes how Jitsu sources works internally. This page is still work
+in progress and only basic concepts are explained here
+
+Data may be synchronized by time chunks (if data source supports data loading by time intervals) or all data is loaded together. This depends on the type of data source and defined at driver implementation (an entity that loads data). Jitsu stores information about synchronized chunks at `meta.storage` (meta storage configuration is described at [General Configuration](/docs/configuration)). Time chunk is synchronized if
+
+* it is not synchronized yet
+* time chunk covers the current moment
+* time chunk covers the previous period to the current one (in case some data is loaded after the period ends)
+
+The result of synchronization is a replica of data from the data source with some enriched fields.
+
+* `collection_id` contains the type of collection (see documentation on collections [below](/docs/sources-configuration#collections))
+* `$server.unique_id_field` column name depends on `server.unique_id_field` configuration. (`eventn_ctx_event_id` by default) - a hash of the synchronized object
+* `time_interval` field stores information about what synchronization interval
+* `interval_start` field stores information about start of synchronization interval
+* `interval_end` field stores information about the end of synchronization interval
+
+## Re-sync
+
+Once source is synced, Jitsu writes a sync state in Redis therefore new syncs won't load data that has been already synced.
+For re-sync source use:
+- [Clear Cache endpoint](/docs/other-features/admin-endpoints#apiv1sourcesclearcache)
+- Once Jitsu's cache is cleared - schedule a new [sync task](/docs/sources-configuration/sync-tasks)

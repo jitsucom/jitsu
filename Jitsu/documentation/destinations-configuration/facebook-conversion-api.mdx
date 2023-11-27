@@ -1,0 +1,111 @@
+# Facebook Conversion API
+
+**Jitsu** supports [Facebook Conversions API](https://developers.facebook.com/docs/marketing-api/conversions-api/) as a
+destination. All event fields after [Mapping Step](/docs/how-it-works/architecture#mapping-step) will be formatted as JSON body and will be sent via Facebook Conversion API with HTTP POST request.
+
+<Hint>
+  Facebook destination supports only <code inline="true">stream</code> mode and{" "}
+  <b>should have</b> mapping rules compatible with
+  <a href="https://developers.facebook.com/docs/marketing-api/conversions-api/using-the-api">FB API parameters</a>. See mapping below
+</Hint>
+
+## Filtering events
+
+For filtering events stream to prevent sending all events to Facebook `table_name_template` is used.
+For more information see [Table Names and Filters](/docs/configuration/table-names-and-filters).
+
+## Configuration
+
+Facebook destination config consists of the following schema:
+
+```yaml
+destinations:
+  my_facebook:
+    type: facebook
+    mode: stream
+    facebook:
+      pixel_id: <YOUR_PIXEL_ID> #see below how to get it from Facebook
+      access_token: <YOUR_ACCESS_TOKEN> #see below how to get it from Facebook
+    data_layout:
+      table_name_template: "$.event_type" #Optional. It is used for filtering events.
+      mappings:
+        keep_unmapped: false
+        fields:
+          - src: /_timestamp
+            dst: /_timestamp
+            action: move
+          - src: /event_type
+            dst: /event_name
+            action: move
+          - src: /eventn_ctx/event_id
+            dst: /event_id
+            action: move
+          - src: /event_id
+            dst: /event_id
+            action: move
+          - src: /eventn_ctx/url
+            dst: /event_source_url
+            action: move
+          - src: /url
+            dst: /event_source_url
+            action: move
+          - src: /source_ip
+            dst: /user_data/client_ip_address
+            action: move
+          - src: /eventn_ctx/user/email
+            dst: /user_data/em
+            action: move
+          - src: /user/email
+            dst: /user_data/em
+            action: move
+          - src: /eventn_ctx/user_agent
+            dst: /user_data/client_user_agent
+            action: move
+          - src: /user_agent
+            dst: /user_data/client_user_agent
+            action: move
+```
+
+## Facebook credentials (facebook field below)
+
+<table>
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Type</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>
+        <b>pixel_id</b>
+        <br />
+        <em>(required)</em>
+      </td>
+      <td>string</td>
+      <td>
+        Facebook Pixel ID, from the data source created on the{" "}
+        <a href="https://www.facebook.com/ads/manager/pixel/facebook_pixel/">
+          Facebook page
+        </a>
+        .
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <b>access_token</b>
+        <br />
+        <em>(required)</em>
+      </td>
+      <td>string</td>
+      <td>
+        Facebook access token, from the data source. Read more about{" "}
+        <a href="https://developers.facebook.com/docs/marketing-api/conversions-api/get-started#via-events-manager">
+          access token creation
+        </a>
+        .
+      </td>
+    </tr>
+  </tbody>
+</table>

@@ -1,0 +1,90 @@
+server:
+  name: jitsu
+  port: '${env.SERVER_PORT|8001}'
+  disable_welcome_page: true
+  strict_auth_tokens: true
+  admin_token: '${env.CLUSTER_ADMIN_TOKEN|env.SERVER_ADMIN_TOKEN|demo___please_provide_value_in_production___}'
+  telemetry: '${env.TELEMETRY_URL|}'
+  cache:
+    enabled: '${env.EVENTS_CACHE_ENABLED|true}'
+  metrics:
+    relay:
+      disabled: '${env.JITSU_EXTENDED_TELEMETRY_DISABLED|false}'
+      deployment_id: '${env.JITSU_EXTENDED_TELEMETRY_DEPLOYMENT_ID|}'
+  event_enrichment:
+    http_context: '${env.JITSU_HTTP_CONTEXT_ENRICHMENT|false}'
+
+geo:
+  maxmind_path: '${env.MAX_MIND_PATH|}'
+
+global_destinations: '${env.JITSU_GLOBAL_DESTINATIONS|}'
+
+configurator:
+  base_url: '${env.JITSU_CONFIGURATOR_URL|}'
+  admin_token: '${env.CLUSTER_ADMIN_TOKEN|env.CONFIGURATOR_ADMIN_TOKEN|demo___please_provide_value_in_production___}'
+
+geo_resolvers: '${env.GEO_RESOLVERS_URL|}'
+
+api_keys: '${env.API_KEYS_URL|}'
+
+destinations: '${env.DESTINATIONS_URL|}'
+
+sources: '${env.SOURCES_URL|}'
+
+system: '${env.SYSTEM_URL|}'
+
+notifications:
+  slack:
+    url: '${env.SLACK_NOTIFICATIONS_WEBHOOK|}'
+
+ui:
+  base_url: '${env.JITSU_UI_BASE_URL|}'
+
+users_recognition:
+  enabled: '${env.USER_RECOGNITION_ENABLED|false}'
+  redis:
+    host: '${env.USER_RECOGNITION_REDIS_URL|}'
+    tls_skip_verify: '${env.TLS_SKIP_VERIFY|false}'
+    ttl_minutes:
+      anonymous_events: '${env.USER_RECOGNITION_TTL_MINUTES|10080}'
+
+transform:
+  redis:
+    host: '${env.TRANSFORM_REDIS_URL|env.USER_RECOGNITION_REDIS_URL|}'
+    database: 1
+    ttl_sec: 5184000
+    tls_skip_verify: '${env.TLS_SKIP_VERIFY|false}'
+
+meta:
+  storage:
+    redis:
+      host: '${env.REDIS_URL|}'
+      tls_skip_verify: '${env.TLS_SKIP_VERIFY|false}'
+      ttl_minutes:
+        anonymous_events: '${env.USER_RECOGNITION_TTL_MINUTES|10080}'
+
+events:
+  queue:
+    redis:
+      host: '${env.EVENTS_QUEUE_REDIS_URL|}'
+      tls_skip_verify: '${env.TLS_SKIP_VERIFY|false}'
+
+coordination:
+  type: redis
+
+sql_debug_log:
+  ddl:
+    enabled: '${env.SQL_DDL_LOG_ENABLED|true}'
+  queries:
+    enabled: '${env.SQL_QUERIES_LOG_ENABLED|false}'
+
+singer-bridge:
+  log:
+    enabled: '${env.SINGER_LOG_ENABLED|false}'
+  batch_size: '${env.SOURCES_SYNC_BATCH_SIZE|10000}'
+
+airbyte-bridge:
+  batch_size: '${env.SOURCES_SYNC_BATCH_SIZE|10000}'
+
+google-ads:
+  developer-token: '${env.GOOGLE_ADS_DEVELOPER_TOKEN|}'

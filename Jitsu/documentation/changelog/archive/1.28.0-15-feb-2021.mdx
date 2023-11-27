@@ -1,0 +1,35 @@
+---
+sort: 50
+---
+
+# 1.28.0 - 15 Feb 2021
+
+EventNative `1.28.1` is out! Here are the biggest changes:
+
+### Singer bridge
+
+[Singer](https://singer.io) is an command-line open-source data synronization framework. Singer operates so-called "taps" — an API data extraction scripts. EventNative supports singer taps as sources for pulling data. Each tap is automatically installed in [python virtual environment](https://docs.python.org/3/tutorial/venv.html). You won't need to worry about pip packages compatibility!
+
+[**Read more about Singer configuration** ](/docs/sources-configuration/singer-taps)»
+
+### New sources: GoogleAnalytics, Facebook Marketing and Redis
+
+We added 3 new sources: EventNative now can pull data from Redis, Google Analytics and Facebook Marketing API which is very useful for measuring online ads ROI. Read more about configuration of those sources:
+
+* [**Google Analytics** ](/docs/sources-configuration/google-analytics)»
+* [**Facebook Marketing API »**](/docs/sources-configuration/facebook-marketing) »
+* [**Redis**](/docs/sources-configuration/redis) »
+
+### Facebook Pixel API as a destination
+
+EventNative can send data to Facebook Pixel API through backend. It's similar to server-2-server [Google Analytics](/docs/destinations-configuration/google-analytics) destinations.
+
+[**Read more about configuration**](/docs/destinations-configuration/facebook-conversion-api) »
+
+### Test configuration with dry-run end-point
+
+The end-point allows to test how event JSON is mapped and sent to destination. [**Read more**](/docs/other-features/dry-run-events) »
+
+<Hint>
+    See more detailed changelog <a href="https://github.com/jitsucom/eventnative/releases"><b>on GitHub</b></a>
+</Hint>

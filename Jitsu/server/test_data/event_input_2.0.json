@@ -1,0 +1,26 @@
+{
+  "src": "jitsu",
+  "event_type": "pageview",
+  "event_id": "",
+  "user": {
+    "anonymous_id": "jg5r4o6j02"
+  },
+  "ids": {},
+  "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_2_3) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/90.0.4430.0 Safari/537.36",
+  "utc_time": "2021-04-29T14:53:11.670000Z",
+  "local_tz_offset": -180,
+  "referer": "",
+  "url": "http://localhost:61006/test-case/embed.html?gclid=1",
+  "page_title": "",
+  "doc_path": "/test-case/embed.html",
+  "doc_host": "localhost",
+  "doc_search": "?gclid=1",
+  "screen_resolution": "1280x720",
+  "vp_size": "1280x720",
+  "user_language": "en-US",
+  "doc_encoding": "UTF-8",
+  "utm": {},
+  "click_id": {
+    "gclid": "1"
+  }
+}

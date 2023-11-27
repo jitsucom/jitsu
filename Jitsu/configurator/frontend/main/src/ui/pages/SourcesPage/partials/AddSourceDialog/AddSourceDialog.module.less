@@ -1,0 +1,180 @@
+@import "./src/theme";
+@import "./src/assets/mixins/transition";
+
+.dialog {
+  @apply pr-3;
+  .filter {
+    margin-bottom: 20px;
+
+    .filterInput {
+      height: 48px;
+      font-size: 16px;
+
+      &::-webkit-input-placeholder {
+        color: @text-color-secondary;
+      }
+      &:-ms-input-placeholder {
+        color: @text-color-secondary;
+      }
+      &::-moz-placeholder {
+        color: @text-color-secondary;
+        opacity: 1;
+      }
+      &:-moz-placeholder {
+        color: @text-color-secondary;
+        opacity: 1;
+      }
+    }
+  }
+
+  .list {
+    display: flex;
+    flex-wrap: wrap;
+    margin: 0 -10px;
+
+    .item {
+      width: calc(20% - 20px);
+      min-width: 200px;
+      flex-shrink: 0;
+      height: 165px;
+      padding: 25px;
+      margin: 0 10px 20px 10px;
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      cursor: pointer;
+      position: relative;
+      background-color: @background-color-light;
+      .default-transition(border-color);
+      @apply border rounded-xl;
+      @apply transition-opacity duration-500;
+
+      .pic {
+        display: block;
+        flex: 0 0 80px;
+        width: 80px;
+        height: 80px;
+        margin-bottom: 10px;
+      }
+
+      .title {
+        display: block;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        line-height: 1.2;
+        font-size: 15px;
+        flex: 0 0 auto;
+      }
+
+      .airbyteLabel {
+        @apply text-xs mt-1;
+        color: @disabled;
+        flex: 0 0 auto;
+      }
+
+      .star {
+        display: inline-flex;
+        justify-content: flex-end;
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 63px;
+        height: 63px;
+        background: @primary-background;
+        overflow: hidden;
+        @apply rounded-xl;
+
+        .starIcon {
+          position: absolute;
+          top: 8px;
+          right: 8px;
+          .default-transition(opacity);
+
+          :global {
+            svg {
+              display: block;
+              width: 16px;
+              height: 16px;
+            }
+          }
+        }
+
+        .fillStar {
+          opacity: 0;
+
+          :global {
+            svg {
+              fill: @link-color;
+            }
+          }
+        }
+
+        &:before {
+          content: "";
+          display: block;
+          position: absolute;
+          background-color: @background-color-light;
+          transform: rotate(45deg);
+          width: 80px;
+          height: 80px;
+          top: 15px;
+          right: 15px;
+        }
+      }
+
+      :global {
+        .ant-ribbon-wrapper {
+          position: absolute;
+          top: 5px;
+          right: 0;
+        }
+      }
+
+      &:hover {
+        border-color: @link-color;
+
+        .strokeStar {
+          opacity: 0;
+        }
+
+        .fillStar {
+          opacity: 1;
+        }
+      }
+
+      @media only screen and (max-width: 1360px) {
+        width: calc(25% - 20px);
+      }
+
+      @media only screen and (max-width: 1200px) {
+        width: calc(33.33% - 20px);
+      }
+    }
+
+    .item__disabled {
+      position: relative;
+      color: @secondaryText !important;
+      border-color: @secondaryBorder !important;
+      background-color: @background-color-light !important;
+
+      -webkit-filter: grayscale(60%);
+      filter: grayscale(60%);
+    }
+
+    .item__disabled::after {
+      @apply transition-all duration-500 opacity-0;
+      @apply absolute block text-center w-3/4;
+      content: "This connector is currently not available. Click to learn more.";
+      left: 50%;
+      height: 80px; // height of the .pic
+      transform: translate(-50%, 0) scale3d(1.05, 1.05, 1);
+      background-color: @background-color-light;
+    }
+
+    .item__disabled:hover::after {
+      @apply opacity-100;
+      transform: translate(-50%, 0);
+    }
+  }
+}

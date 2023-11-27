@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <link rel="shortcut icon" href="<%= htmlWebpackPlugin.options.publicUrl %>/favicon.ico" />
+    <meta name="robots" content="noindex" />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="16x16"
+      href="<%= htmlWebpackPlugin.options.publicUrl %>/favicon-16x16.png"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href="<%= htmlWebpackPlugin.options.publicUrl %>/favicon-32x32.png"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="48x48"
+      href="<%= htmlWebpackPlugin.options.publicUrl %>/favicon-48x48.png"
+    />
+
+    <meta charset="utf-8" />
+    <title>Jitsu</title>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Nunito+Sans&display=swap");
+      @import url("https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400&display=swap");
+
+      img {
+        vertical-align: middle;
+        border-style: none;
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        color: rgb(17, 24, 39);
+        font-size: 14px;
+        font-family: "system-ui", sans-serif;
+        font-variant: tabular-nums;
+        line-height: 1.5715;
+        font-feature-settings: "tnum";
+        background-color: rgb(17, 24, 39);
+      }
+
+      .preloader-image {
+        height: 150px;
+      }
+
+      .preloader-wrapper,
+      .error-wrapper {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-wrap: wrap;
+        flex-direction: column;
+      }
+
+      .preloader-wrapper img {
+        display: block;
+      }
+
+      .preloader-text {
+        font-family: "Nunito", sans-serif;
+        margin-top: 20px;
+        font-size: x-large;
+        color: #dcf3ff;
+      }
+    </style>
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root">
+      <div class="preloader-wrapper">
+        <img
+          src="<%= htmlWebpackPlugin.options.publicUrl %>/boot/loading.gif"
+          alt="[loading]"
+          class="preloader-image"
+        />
+        <div class="preloader-text final-check-by-classname">Loading application, please be patient...</div>
+      </div>
+    </div>
+  </body>
+</html>

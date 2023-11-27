@@ -1,0 +1,30 @@
+@import "src/theme";
+.featureList li {
+  @apply mt-4;
+}
+
+.featureList li:before {
+  content: "✓ ";
+}
+
+.underline {
+  //@apply border-b-4 border-primary;
+}
+
+.hero b {
+}
+
+a.heroLink {
+  @apply font-bold border-b-2 border-primary transition-all duration-500;
+  color: @textPale;
+  background-size: 100% 0.3em;
+  background-repeat: no-repeat;
+  background-image: linear-gradient(@primary, @primary);
+  background-position: 0px 100%;
+  transition: background-position 0.3s ease-in-out 0s, background-size 0.3s ease-in-out 0s;
+
+  &:hover {
+    background-size: 100% 100%;
+    background-position: 0px 0px;
+  }
+}

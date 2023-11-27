@@ -1,0 +1,111 @@
+# Amplitude API
+
+**Jitsu** supports [Amplitude](http://amplitude.com/) as a destination.
+All event fields after [Mapping Step](/docs/how-it-works/architecture#mapping-step) will be formatted as JSON body and
+will be sent via [Amplitude API](https://developers.amplitude.com/docs/http-api-v2) with HTTP POST request.
+
+<Hint>
+  Amplitude destination supports only <code inline="true">stream</code> mode and{" "}
+  <b>should have</b> mapping rules compatible with{" "}
+  <a href="https://developers.amplitude.com/docs/http-api-v2">Amplitude API parameters</a>. See mapping below
+</Hint>
+
+## Filtering events
+
+For filtering events stream to prevent sending all events to Amplitude `table_name_template` is used.
+For more information see [Table Names and Filters](/docs/configuration/table-names-and-filters).
+
+## Configuration
+
+Amplitude destination config consists of the following schema:
+
+```yaml
+destinations:
+  my_amplitude:
+    type: amplitude
+    mode: stream
+    amplitude:
+      api_key: <YOUR_API_KEY> #see below how to get it from Amplitude
+    data_layout:
+      table_name_template: "$.event_type" #Optional. It is used for filtering events.
+      mappings:
+        keep_unmapped: false
+        fields:
+          - src: /user/email
+            dst: /user_id
+            action: move
+          - src: /user/anonymous_id
+            dst: /device_id
+            action: move
+          - src: /event_type
+            dst: /event_type
+            action: move
+          - src: /parsed_ua/os_family
+            dst: /os_name
+            action: move
+          - src: /parsed_ua/os_version
+            dst: /os_version
+            action: move
+          - src: /parsed_ua/os_version
+            dst: /os_version
+            action: move
+          - src: /parsed_ua/device_brand
+            dst: /device_brand
+            action: move
+          - src: /parsed_ua/device_family
+            dst: /device_manufacturer
+            action: move
+          - src: /parsed_ua/device_model
+            dst: /device_model
+            action: move
+          - src: /location/country
+            dst: /country
+            action: move
+          - src: /location/region
+            dst: /region
+            action: move
+          - src: /location/city
+            dst: /city
+            action: move
+          - src: /user_language
+            dst: /language
+            action: move
+          - src: /location/latitude
+            dst: /location_lat
+            action: move
+          - src: /location/longitude
+            dst: /location_lng
+            action: move
+          - src: /source_ip
+            dst: /ip
+            action: move
+          - src: /eventn_ctx_event_id
+            dst: /insert_id
+            action: move
+```
+
+## Amplitude credentials
+
+<table>
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Type</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>
+        <b>api_key</b>
+        <br />
+        <em>(required)</em>
+      </td>
+      <td>string</td>
+      <td>
+        Amplitude project API Key from the{" "}
+        <a href="https://analytics.amplitude.com/">Project Settings</a> page.
+      </td>
+    </tr>
+  </tbody>
+</table>

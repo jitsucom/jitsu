@@ -1,0 +1,35 @@
+@import "./src/theme";
+
+.filterLabel {
+  @apply mr-2 text-secondaryText font-bold uppercase;
+}
+
+.filterEdit {
+  @apply w-48 inline-block pr-4;
+}
+
+.logViewer {
+  @apply border px-3 py-2 rounded-xl;
+  height: 80vh;
+  overflow: auto;
+}
+
+.logViewerWrapper {
+  overflow: auto;
+}
+
+.logEntry_error {
+  @apply text-error;
+}
+
+.logEntry_info {
+  @apply text-success;
+}
+
+.logEntry_warn {
+  @apply text-warning;
+}
+
+.logEntry_debug {
+  @apply text-secondaryText;
+}

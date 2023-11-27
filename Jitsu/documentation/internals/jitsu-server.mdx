@@ -1,0 +1,57 @@
+---
+title: Jitsu Server
+---
+
+# Jitsu Server Architecture
+
+**Jitsu Server** is a standalone application that doesn't have any requirements such as an inner database or others. Simultaneously some features \(e.g. event caching\) need Redis, but these features are optional.
+
+<div style={{backgroundColor: 'white'}}>
+    <img alt="Jitsu processing pipeline" src="/img/docs/processing-pipeline.png" />
+</div>
+
+### **Definitions**
+
+`Event` — an incoming message as a JSON object. Message can be sent to Jitsu via API or JavaScript library.
+
+`Destination` — usually a database, but can be a different type of service as well. The destination is a service that contains structured records and supports an INSERT-like statement. [Google analytics measurment protocol](https://developers.google.com/analytics/devguides/collection/protocol/v1) is an example of a non-DB destination. It has structured records (events) and an INSERT-like interface.
+
+`Table` — a table in DB or any other structure within the destination.
+
+`BatchHeader` — describes a structure of batch: fields and types along with table name.
+
+### Destination modes
+
+Jitsu's destination can operate in two modes:
+
+`Stream` — data (events) is being sent to a destination as soon as possible.
+
+`Batch` — data is being written to local disk and sent to a destination in batches, once in N (configurable) minutes.
+
+### First Step
+
+Once an event is accepted by the HTTP end-point it undergoes the Context Enrichment step. The logic is different for different sources of events. The purpose of this event is to add additional information to the event which can be useful for further processing. After JSON is enriched it goes to [Batch](/docs/other-features/batches) or/and [Stream](/docs/other-features/streaming) pipeline depending on destination type. Partially multiplexing happens here. If destinations config contains destinations of both types, the event will be sent to both routes.
+
+Also `only_keys` filtering is applied.
+
+[Batch](/docs/other-features/batches) and [Stream](/docs/other-features/streaming) pipelines are different, however, they have the same logical steps.
+
+### Context Enrichment Step
+
+In this step, events are enriched with context data:
+
+* Add IP from where the request came from (`/source_ip` field)
+* Add UTC timestamp (`/_timestamp` field)
+* Add generated UUID (`/eventn_ctx_event_id` field)
+* If request is processed by JavaScript endpoint - read and add user-agent header (`/user_agent` field)
+* If request is processed by Server API - add `api` value (`/src` field)
+
+### Lookup Enrichment Step
+
+During this step [Enrichment rules](/docs/configuration/enrichment-rules) are applied. Enrichment rule is a function F(src_node) → dst_node. It is configured in the [destination section](/docs/destinations-configuration) of the **Jitsu** configuration. Also, there are [two default enrichment rules](/docs/configuration/enrichment-rules#default-rules) that are applied to JavaScript events.
+
+### Transformation and Mapping Step
+
+In this step, all configured mappings are applied to a JSON object and as a result, BatchHeader is generated. Read about [JavaScript Transformation](/docs/other-features/javascript-transform) and [Schema and Mappings](/docs/configuration/schema-and-mappings) configuration. After all mappings are applied, JSON is flattened, and all special characters and spaces in field names are replaced with underscores. Also values types recognition happens here, read about [Typecast](/docs/other-features/typecast).
+
+<LargeLink title="Directories structure" href="/docs/configuration/directories-structure" />

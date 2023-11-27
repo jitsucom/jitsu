@@ -1,0 +1,88 @@
+@import "./src/theme";
+
+.add-source {
+  .add-fields-container {
+    display: flex;
+    align-items: center;
+
+    .add-field-prefix {
+      display: block;
+      margin-right: 15px;
+    }
+
+    .add-field-btn {
+      margin-right: 10px;
+    }
+  }
+
+  .fields-list-header {
+    display: inline-flex;
+    align-items: center;
+
+    span {
+      display: block;
+      margin-right: 10px;
+    }
+  }
+}
+
+.custom-report {
+  &__group {
+    &-composite {
+      display: flex;
+
+      .ant-form-item {
+        flex: 1 0 auto;
+      }
+
+      &-delete {
+        flex-shrink: 0;
+        display: block;
+        padding: 10px;
+      }
+    }
+  }
+}
+
+.source-form {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.ant-tabs-content {
+  padding: 0 1.5rem;
+}
+
+.tab-name {
+  &_error {
+    color: @error-color;
+  }
+
+  &_warning {
+    color: @warning-color;
+  }
+}
+
+.ant-checkbox-group {
+  width: 100%;
+}
+
+.ant-list-item-meta-avatar {
+  width: auto;
+}
+
+.ant-switch-group-label {
+  display: block;
+  width: 100%;
+  cursor: pointer;
+
+  &__avatar {
+    display: inline-flex;
+    align-items: center;
+
+    .ant-switch {
+      margin-right: 10px;
+    }
+  }
+}

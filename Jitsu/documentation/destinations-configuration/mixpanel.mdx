@@ -1,0 +1,150 @@
+# Mixpanel
+
+**Jitsu** supports [Mixpanel](https://mixpanel.com) as a destination and
+sends data using [Ingestion API](https://developer.mixpanel.com/reference/ingestion-api).
+
+Jitsu sends events to Ingestion API filling as much Mixpanel [Events Properties](https://help.mixpanel.com/hc/en-us/articles/115004613766#ingestion-api) as possible from original event data.
+
+Mixpanel destination may also send User Profiles data to Mixpanel accounts that have User Profiles enabled.
+
+Implementation is based on **npm-package:** [mixpanel-destination](https://www.npmjs.com/package/jitsu-mixpanel-destination)
+
+Source code on [Jitsu Github](https://github.com/jitsucom/jitsu-mixpanel)
+
+## Tracking Revenue
+
+In addition to Mixpanel Default properties, Jitsu automatically sets `Revenue` field for each event if original event has `revenue` field, e.g. `conversion`
+
+## User Profiles
+
+If enabled Jitsu sets [Mixpanel User Profiles](https://help.mixpanel.com/hc/en-us/articles/115004708186-Profile-Properties) properties
+from `user_identify` events.
+
+### Aliases
+
+Jitsu automatically create aliases in Mixpanel on `user_identify` events if `user.id` or `user.email` is present in event along with `user.anonymous_id`.
+
+### User Profiles properties and counters
+
+Jitsu automatically updates following User Profile properties on every event except `user_identify`:
+
+- `Last ${event name or type}` with `_timestamp` of incoming event. E.g.: `Last Page View: 2021-11-11T16:12:41`
+- `${event name or type}` – increments counter by 1 for each event. E.g.: `Page View: 1`
+
+Jitsu automatically increments `Lifetime Revenue` User Profile property on events with `revenue` field like `conversion`
+
+## Events Customization
+
+Use [JavaScript Transform](/docs/other-features/javascript-transform) to set your own event names based on incoming event data:
+
+```javascript
+if ($.doc_path?.startsWith("/shop/")) {
+  $.event_type = "Shop Page";
+}
+return $;
+```
+### Custom event properties
+
+Jitsu automatically pass all non standard jitsu event properties from original event to Mixpanel.
+You can add custom property by adding it with JS SDK on the web site or using [JavaScript Transform](/docs/other-features/javascript-transform) on server side.
+
+## Skipping events
+
+If not all event types are needed in Mixpanel – you can skip unnecessary evens using [JavaScript Transform](/docs/other-features/javascript-transform) general skip logic by returning `null`:
+
+```javascript
+if ($.event_type === "not_interesting") {
+  return null;
+}
+return $;
+```
+
+## Configuration
+
+Mixpanel destination config consists of the following schema:
+
+```yaml
+destinations:
+  my_mixpanel:
+    type: npm
+    package: jitsu-mixpanel-destination@^0.2.0
+    mode: stream
+    config:
+      token: abc123abc123abc123
+      api_secret: zzzz123123
+      project_id: "123456"
+      users_enabled: true
+      anonymous_users_enabled: false
+```
+
+### Configuration Parameters
+
+Configuration parameters for Mixpanel destination must be provided under `template_variables` object. See example above.
+
+<table>
+  <thead>
+    <tr>
+      <th>Parameter</th>
+      <th>Type</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>
+          <b>project_id</b>
+          <br />
+          <em>(required)</em>
+      </td>
+      <td>string</td>
+      <td>ID of Mixpanel project. Can be found in the Project Details section of a project's settings overview page: <a href="https://mixpanel.com/settings/project/">https://mixpanel.com/settings/project/</a></td>
+    </tr>
+    <tr>
+      <td>
+          <b>token</b>
+          <br />
+          <em>(required)</em>
+      </td>
+      <td>string</td>
+      <td>
+          <a href="https://developer.mixpanel.com/reference/project-token">
+              Project Token
+          </a>
+          . A project's token can be found in the Access Keys section of a
+          project's settings overview page:{" "}
+          <a href="https://mixpanel.com/settings/project/">
+              https://mixpanel.com/settings/project/
+          </a>
+      </td>
+    </tr>
+    <tr>
+      <td>
+          <b>api_secret</b>
+          <br />
+          <em>(required)</em>
+      </td>
+      <td>string</td>
+      <td><a href="https://developer.mixpanel.com/reference/project-secret">API Secret</a>. A project's API Secret can be found in the Access Keys section of a project's settings overview page: <a href="https://mixpanel.com/settings/project/">https://mixpanel.com/settings/project/</a></td>
+    </tr>
+    <tr>
+      <td>
+          <b>users_enabled</b>
+      </td>
+      <td>boolean</td>
+      <td>
+        Enables Mixpanel destination to work with User Profiles. See{" "}
+        <a href="#user-profiles">User Profiles</a> section
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <b>anonymous_users_enabled</b>
+      </td>
+      <td>boolean</td>
+      <td>
+        Enables updating User Profiles for anonymous users. Requires{" "}
+        <b>users_enabled</b> set to <b>true</b>
+      </td>
+    </tr>
+  </tbody>
+</table>

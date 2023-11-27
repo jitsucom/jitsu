@@ -1,0 +1,36 @@
+# S3
+
+**Jitsu** supports S3 \([AWS](https://aws.amazon.com/ru/s3/), [DigitalOcean](https://www.digitalocean.com/products/spaces/)\) as a destination. The only difference between them is `endpoint` parameter in the configuration.
+
+## Configuration
+
+S3 destination config consists of the following schema:
+
+```yaml
+destinations:
+  my_s3:
+    type: s3
+    s3:
+      access_key_id: abc123
+      secret_access_key: secretabc123
+      bucket: my-bucket
+      region: us-west-1
+      folder: my_s3_events
+      endpoint: s3_provider_endpoint
+      format: json
+      compression: gzip
+```
+
+### 's3' fields
+
+| Field \(\*required\) | Type | Description | Default value       |
+| :--- | :--- | :--- |:--------------------|
+| **access\_key\_id\*** | string | S3 access key. | -                   |
+| **secret\_access\_key\*** | string | S3 secret key. | -                   |
+| **bucket\*** | string | S3 bucket. | -                   |
+| **region\*** | string | S3 region \(e.g. `us-west-1`\) | -                   |
+| **folder** | string | S3 bucket folder. It is used if several destinations use one S3 bucket. | empty string        |
+| **endpoint** | string | S3 provider URL. By default is used AWS S3. | AWS S3 URL          |
+| **format** | enum | \(`json`, `flat_json`, `csv`, `parquet`\)  S3 file with events format. | flat_json           |
+| **compression** | enum | If set `gzip` - S3 file will be compressed and will have `.gz` sufix. | without compression |
+

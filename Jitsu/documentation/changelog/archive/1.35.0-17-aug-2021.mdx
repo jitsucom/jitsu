@@ -1,0 +1,32 @@
+---
+sort: 16
+---
+
+
+# 1.35 - 17 August 2021
+
+Jitsu `1.35` is out! Here are the biggest changes:
+
+
+### dbt Cloud integration
+
+Now Jitsu can trigger a dbt Cloud job after each Source synchronization or Destination batch run
+
+[**Read more about configuration** ](/docs/other-features/dbt-cloud-integration) »
+
+### Destination statistics UI
+
+We added destination statistics charts UI for you to find out how many events were successful or skipped, or failed due to an error.
+
+### Bulk API
+
+The new endpoint that can consume ~50,000 events in one HTTP request and store them into destinations synchronously.
+
+[**Read more about Bulk API** ](/docs/sending-data/bulk-api) »
+
+### Jitsu CLI tool
+
+Now you can easily import historical data into data warehouse of your choice using Jitsu CLI. Historical data – Jitsu archive logs or your raw data to migrate.
+Command line tool reads local files and upload them to data warehouse via Bulk API.
+
+[**Read more about CLI** ](/docs/other-features/cli) »

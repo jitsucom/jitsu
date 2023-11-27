@@ -1,0 +1,45 @@
+{
+  "__HTTP_CONTEXT__": {
+    "headers": {
+      "accept-encoding": [
+        "gzip"
+      ],
+      "content-length": [
+        "295"
+      ],
+      "user-agent": [
+        "Go-http-client/1.1"
+      ],
+      "x-auth-token": [
+        "s2stoken"
+      ],
+      "x-forwarded-for": [
+        "95.82.232.185"
+      ]
+    }
+  },
+  "_timestamp": "2020-06-16T23:00:00.000000Z",
+  "api_key": "s2stoken",
+  "eventn_ctx_event_id": "mockeduuid",
+  "event_data": {
+    "customkey": {
+      "key1": "key2"
+    }
+  },
+  "event_origin": "test",
+  "user": {
+    "hashed_anonymous_id":"c48e863c1710f147ad11fd2715f99d7a",
+    "id": 123
+  },
+  "device_ctx": {
+    "location": {},
+    "parsed_ua": {}
+  },
+  "page_ctx": {
+    "page_title": "EventNative Demo",
+    "referer": "",
+    "url": "http://track-demo.ksense"
+  },
+  "src": "api",
+  "source_ip": "95.82.232.185"
+}

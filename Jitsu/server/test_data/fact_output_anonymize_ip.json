@@ -1,0 +1,46 @@
+{
+  "__HTTP_CONTEXT__": {
+    "headers": {
+      "accept-encoding": [
+        "gzip"
+      ],
+      "content-length": [
+        "708"
+      ],
+      "user-agent": [
+        "Go-http-client/1.1"
+      ],
+      "x-forwarded-for": [
+        "95.82.232.185"
+      ]
+    }
+  },
+  "source_ip": "95.82.232.1",
+  "_timestamp": "2020-06-16T23:00:00.000000Z",
+  "api_key": "c2stoken",
+  "event_type": "pageview",
+  "eventn_ctx_event_id": "mockeduuid",
+  "user": {
+    "anonymous_id": "jg5r4o6j02",
+    "hashed_anonymous_id": "c48e863c1710f147ad11fd2715f99d7a"
+  },
+  "ids": {},
+  "user_agent": "Go-http-client/1.1",
+  "utc_time": "2021-04-29T14:53:11.670000Z",
+  "local_tz_offset": -180,
+  "referer": "",
+  "src": "jitsu",
+  "url": "http://localhost:61006/test-case/embed.html?gclid=1",
+  "page_title": "",
+  "doc_path": "/test-case/embed.html",
+  "doc_host": "localhost",
+  "doc_search": "?gclid=1",
+  "screen_resolution": "1280x720",
+  "vp_size": "1280x720",
+  "user_language": "en-US",
+  "doc_encoding": "UTF-8",
+  "utm": {},
+  "click_id": {
+    "gclid": "1"
+  }
+}

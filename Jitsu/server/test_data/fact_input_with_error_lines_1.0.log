@@ -1,0 +1,8 @@
+{"_geo_data":{"country":"US","city":"New York"},"_timestamp":"2020-08-02T18:23:56.291383Z","event_type":"user","key1":{"key2":"splu"},"key10":{"sib1":{"1":"k"}}}
+{"_geo_data":{"latitude":40.7809,"longitude":-73.9502},"_timestamp":"2020-08-02T18:23:58.057807Z","event_type":"notification","key1":{"key2":"123"},"key3":"privvvv","key5":[1,2,4,5]}
+{"_geo_data":{"country":"US","city":"New York"},"_timestamp":"2020-08-02T18:23:56.291383Z","event_type":"user","key1":{"key2":"splu"},"key10":{"sib1":{"1":50.0}}}
+{"_geo_data":{},"event_type":"views","key1000":"super value"}
+{"_geo_data":{"region":"null"},"_timestamp":"2020-08-02T18:23:59.757719Z","key1":9999999.0}
+{"_geo_data":{"zip":10128},"_timestamp":"2020-08-02T18:23:59.757719Z","event_type":"user","key1":"10","key10":[1,2,3,4],"key3":"privvvv"}
+{"_geo_data":{"region":"NY"},"_timestamp":"2020-07-02T18:23:59.757719Z","event_type":"user","key1":120.0,"key3":"privvvv"}
+{"_geo_data":{"country":"US","city":"New York"},"_timestamp":"2020-08-02T18:23:56.291383Z","event_type":"skipped","eventn_ctx_event_id": "qoow1","key1":{"key2":"splu"},"key10":{"sib1":{"1":"k"}}}

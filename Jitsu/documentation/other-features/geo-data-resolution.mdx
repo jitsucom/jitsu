@@ -1,0 +1,80 @@
+# Geo Data resolution
+
+<ConfigurationAvailability name={"Geolocation Enrichment"} ui={true} envVar={true} configFile={true} />
+
+**Jitsu** looks up geolocation data by IP address during [enrichment step](/docs/how-it-works/architecture#context-enrichment-step).
+Here's a full list of fields Jitsu could get from the IP address:
+
+```json
+{
+  "location": {
+    "continent": "North America",
+    "country": "US",
+    "country_name": "United States",
+    "region": "NY",
+    "city": "New York",
+    "latitude": 40.7809,
+    "longitude": -73.9502,
+    "zip": "10128",
+    "autonomous_system_number": 16509,
+    "autonomous_system_organization": "AMAZON-02",
+    "organization": "Amazon.com",
+    "domain": "amazonaws.com"
+  }
+}
+```
+
+<Hint>
+  Please note, latitude and longitude are approximate. They are most likely the coordinates of the center of a city.
+</Hint>
+
+
+### Configuration
+
+**Jitsu** uses [MaxMind](https://www.maxmind.com/) databases for doing geo lookup. There are two families of MaxMind databases: `GeoIP2` and `GeoLite2`.
+
+`GeoIP2` databases such as `GeoIP2-Country`, `GeoIP2-City`, `GeoIP2-ISP`, `GeoIP2-Domain` are paid product. You can buy a license on [maxmind.com](https://www.maxmind.com/en/geoip2-databases).
+After purchasing, you will receive a license key. You can use the license key Jitsu:
+ * Put obtained license key on Jitsu UI → Geo data resolver section (available since 1.37.3 version) if you're using Configurator UI.
+ * Or use [`MAX_MIND_PATH` env variable](#configuration).
+
+`GeoLite2` databases such as `GeoLite2-Country`, `GeoLite2-City`, `GeoLite2-ASN` are free. For obtaining them you should just create a [free account](https://dev.maxmind.com/geoip/geolite2-free-geolocation-data) and
+generate a license key. Configuration steps are the same as with paid database: either put obtained license key on Jitsu UI → Geo data resolver,  or use`MAX_MIND_PATH`
+
+With the key, Jitsu will download all databases available for the key. If you want to limit the databases, you can specify them as a postfix to Maxmind license key as `[key]?edition_id=GeoIP2-City,GeoIP2-ISP`
+
+Also, you can point MAX_MIND_PATH environment variable directly to a local file
+
+### Configuration with Configurator
+
+MaxMind can be configure with Jitsu
+
+
+### Configuration with env var or config file
+
+If Configurator UI is not used, Jitsu can still be configured to use MaxMind. Use:
+
+`MAX_MIND_PATH` env variable
+
+or
+
+Set `geo.maxmind_path: path_to_file` in `eventnative.yaml` config file:
+
+```yaml
+server:
+...
+
+destinations:
+...
+
+#local file
+geo.maxmind_path: path_to_file or http://resource.url/path or maxmind://<YOUR_MAXMIND_LICENSE_KEY>
+```
+
+The env var (or config param) can accept following values:
+ * `/path/to/file` — path to local file (if the DB has been downloaded by other means)
+ * `http://resource.url/path` - path to URL. Jitsu will download it for you and will check for updates once in a few hours
+ * `maxmind://<YOUR_MAXMIND_LICENSE_KEY>` - Jitsu will download it from MaxMind servers and check for updates once in a few hours.
+Since several databases (aka editions) can be available, Jitsu will download all of them
+ * `maxmind://<YOUR_MAXMIND_LICENSE_KEY>?edition_id=db1,db2` - Jitsu will download only listed editions (databases). Available editions are:
+`GeoIP2-Country`, `GeoLite2-Country`, `GeoIP2-City`, `GeoLite2-City`, `GeoLite2-ASN`, `GeoIP2-ISP`

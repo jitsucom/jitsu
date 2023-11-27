@@ -1,0 +1,16 @@
+---
+sort: 80
+---
+
+
+# 1.21.0 - 25 Nov 2020
+
+EventNative `1.21.0` is out! The most significant features:
+
+1. **Anti-AdBlock**:  EventNative supports URL randomization which allows avoiding Adblockers! Events will be sent through a dynamic endpoint. The setting is off by default, it can be switched on with `randomize_url` option.  [**Read more about JavaScript configuration »**](/docs/sending-data/javascript-reference/initialization-parameters)
+2. **Configurable data enrichment.** EventNative has a IP-lookup and User-Agent parser from the beginning. However, before this release IP and User-Agent should be written at hardcoded JSON node path. We made it configurable with Enrichment Rules framework. [**Read more about Enrichment rules »**](/docs/configuration/enrichment-rules)
+3. **Data Replay**. EventNative writes all erroneous events a separate files. Once the cause of error is fixed, it's possible to send the data for reprocessing. Also, this feature is useful for sending historical data to a new destination. [**Read more about fallback API »**](/docs/other-features/admin-endpoints)
+
+<Hint>
+    See more detailed changelog <a href="https://github.com/jitsucom/eventnative/releases"><b>on GitHub</b></a>
+</Hint>

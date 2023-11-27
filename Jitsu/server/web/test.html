@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Welcome to EventNative</title>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans&family=Rubik:wght@500&family=Ubuntu+Mono&display=swap" rel="stylesheet">
+	<link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.2/styles/default.min.css"/>
+    <style type="text/css">
+        pre.code {
+
+            background-color: lightgray;
+            padding-top: 10px;
+            padding-bottom: 10px;
+            padding-left: 20px;
+            font-family: 'Ubuntu Mono', monospace;
+            border-radius: 7px;
+            margin-bottom: 1px;
+        }
+
+        p.inteceptors-config {
+            padding-bottom: 20px;
+            margin-top: 0px;
+            font-family: 'Ubuntu Mono', monospace;
+        }
+
+        body {
+            margin: auto;
+            min-width: 800px;
+            max-width: 50%;
+            font-family: 'IMB Plex Sans', sans-serif;
+        }
+
+        h1 {
+            font-family: 'Rubik', serif;
+        }
+
+		#tests {
+			margin-top: 50px;
+			margin-bottom: 0px;
+			border: 1px solid #e0e0e0;
+			border-radius: 15px;
+			padding: 20px;
+		}
+
+		#tests h2 {
+			margin-top: 0px;
+			margin-bottom: 60px;
+		}
+
+		.test {
+			margin-bottom: 30px;
+		}
+
+		.test:not(:last-child) {
+			border-bottom: 1px solid #e0e0e0;
+			padding-bottom: 30px;
+		}
+
+		.test.ok h3 {
+			color: green;
+		}
+
+		.test.fail h3 {
+			color: red;
+		}
+
+    </style>
+
+	<script src="//cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+	<script src="/t/inline.js?key=YOUR_API_KEY_HERE"></script>
+    <script>
+
+		function runTest(name, desc, code) {
+			let resultStatus = true;
+			let resultText = '';
+
+			const writeSuccess = (text) => {
+				resultStatus = true;
+				resultText = text;
+			};
+			const writeError = (text) => {
+				resultStatus = false;
+				resultText = text;
+			};
+
+			try {
+				code(writeSuccess, writeError);
+			} catch (err) {
+				writeError(err);
+			}
+
+			const t = $('<div class="test"></div>');
+			
+			if (resultStatus) {
+				t.addClass('ok');
+			} else {
+				t.addClass('fail');
+			}
+
+			t.append('<h3>' + name + '</h3>');
+			if (desc) {
+				t.append('<p>' + desc + '</p>');
+			}
+			t.append('<em>' + resultText + '</em>');
+
+			$('#tests').append(t);
+
+			if (!resultStatus) {
+				throw 'noop';
+			}
+		}
+
+        document.addEventListener('DOMContentLoaded', () => {
+            runTest('EventNative lib availability', '', (ok, fail) => {
+				try {
+					if (eventN) {
+						ok('Library is available in global context');
+					} else {
+						fail('Library is not available in global context');
+					}
+				} catch (err) {
+					fail('Library is not available in global context');
+				}
+			});
+
+			runTest('User identification', '', (ok, fail) => {
+				eventN.id({
+					"name": "Man with No Name",
+					"email": "thegoods@western.com",
+					"internal_id": "6"
+				}, true);
+				ok('Sent successfully');
+			});
+
+			runTest('Track event', '', (ok, fail) => {
+				eventN.track('product_page_view', {
+					product_id: '1e48fb70-ef12-4ea9-ab10-fd0b910c49ce',
+					product_price: 399,
+					price_currency: 'USD'
+				});
+				ok('Sent successfully');
+			});
+        });
+    </script>
+</head>
+	<p>
+		<h1 align="center">
+			<img
+					src="data:image/png;base64,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"
+					height="50"
+			/>
+			Welcome to EventNative!
+		</h1>
+		<br />
+		<b>If you see this page, the <b></b><a href="https://github.com/jitsucom/jitsu/server">EventNative</a></b> sever is successfully installed and working.
+	</p>
+
+	<div id="tests">
+		<h2>Tests</h2>
+
+	</div>
+	<br /><br />
+	
+<p>Links:</p>
+<ol>
+    <li><a href="https://github.com/jitsucom/jitsu/server">GitHub</a></li>
+    <li><a href="https://docs.eventnative.org">Documentation</a></li>
+</ol>
+
+<p></p><i>Thank you for using EventNative!</i></p>
+
+
+</body>
+</html>

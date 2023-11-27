@@ -1,0 +1,44 @@
+@import "theme.less";
+
+.eventsList {
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 600px;
+}
+
+.eventsTabs {
+  height: 100%;
+
+  :global {
+    .ant-tabs-content {
+      height: 100%;
+    }
+  }
+}
+
+.eventsListTab {
+  display: flex;
+  flex-direction: column;
+}
+
+.autoReloadInfo {
+  font-size: 13px;
+  height: 24px;
+  line-height: 24px;
+  text-align: center;
+  background: @bgSecondary;
+  border-radius: @border-radius-base @border-radius-base 0 0;
+}
+
+.expandBtn {
+  margin-left: auto;
+
+  & > span {
+    margin-left: auto;
+  }
+}
+
+.timestampColumn {
+  min-width: 155px;
+}

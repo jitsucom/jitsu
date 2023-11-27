@@ -1,0 +1,210 @@
+# Admin Endpoints
+
+**Jitsu** has a number system for diagnostics and provisioning (aka admin end-points). All those end-points
+are secured with a configurable token:
+
+```yaml
+server:
+  admin_token: your_admin_token
+
+destinations:
+...
+```
+
+<Hint>
+    Put admin token to HTTP requests in <code inline={true}>X-Admin-Token</code> header
+</Hint>
+
+
+See a list of all API endpoints below
+
+<APIMethod method="POST" path="/api/v1/destinations/test" title="Destinations test connection"/>
+
+This end-point tests if Jitsu can connect to particular destination
+
+<h4>Parameters</h4>
+
+<APIParam name={"X-Admin-Token"} dataType="string" required={true} type="header">Authorization token (see below)</APIParam>
+
+<h4>Request Payload and Response</h4>
+
+Request payload should follow the same structure as [Jitsu destination configuration](/docs/destinations-configuration).
+Example for postgres
+
+```yaml
+{
+  "type": "postgres",
+  "datasource": {
+    "host": "my_postgres_host",
+    "db": "my-db",
+    "schema": "myschema",
+    "port": 5432,
+    "username": "user",
+    "password": "pass",
+    "parameters": {}
+  }
+}
+```
+
+Response will be either HTTP 200 OK, or error with description as JSON
+
+<APIMethod method="GET" path="/api/v1/cluster"/>
+
+This api call returns a cluster information as JSON. If synchronization service is configured, this endpoint returns all instances in the cluster,
+otherwise only **server.name** from the configuration.
+
+<h4>Parameters</h4>
+
+<APIParam name={"X-Admin-Token"} dataType="string" required={true} type="header" description="Authorization token (see above)"/>
+
+<h4>Response</h4>
+
+Response body contains instance names (from **server.name** configuration section). Example:
+
+```yaml
+{
+  "instances": [
+    {
+      "name": "instance1.domain.com"
+    },
+    {
+      "name": "instance2.domain.com"
+    }
+  ]
+}
+```
+
+<APIMethod method="GET" path="/api/v1/fallback?destination_ids=id1,id2"/>
+
+Get all fallback files per destination(s). Fallback files contains all JSON events that
+haven't been written to a destination due to error. Each line of this file is a JSON object
+with original JSON event and error description
+
+<APIParam name={"X-Admin-Token"} dataType="string" required={true} type="header" description="Authorization token (see above)"/>
+<APIParam name="destination_id" dataType="string" required={true} type="queryString" description="comma-separated array of destination ids strings"/>
+
+<h4>Response</h4>
+
+```yaml
+{
+  "files": [
+    {
+      "file_name": "host-errors-destination1-2020-11-25T09-57-10.411.log",
+      "destination_id": "destination1",
+      "uploaded": false,
+      // error - replaying error
+      "error": "Error uploading host-errors-destination1-2020-11-25T09-57-10.411.log wrong format"
+    }
+}
+```
+
+<APIMethod method="POST" path="/api/v1/replay"/>
+
+This method replays data from the file. File should be locally located on a same
+machine as server instance. It is suitable to use this endpoint in case you don't have access to the server file system.
+In case you have the access, it might be more convenient to use [Jitsu CLI](/docs/other-features/cli).
+
+<APIParam name={"X-Admin-Token"} dataType="string" required={true} type="header" description="Authorization token (see above)"/>
+
+<APIParam name={"file_format"} dataType="string" required={false} type="jsonBody" description="File format">
+    For storing custom JSON files via fallback endpoint use this parameter with value = raw_json. Each JSON must be on a single
+    line and has \n in the end. The last row in the file must be empty. Omit this parameter if you are storing a fallback file.
+</APIParam>
+
+<APIParam name={"destination_id"} dataType="string" required={false} type="jsonBody" description="Destination to load data. By default, it is taken from fallback file name."/>
+
+<APIParam name={"file_name"} dataType="string" required={true} type="jsonBody" description="name of a fallback file to replay or global path to a custom file with json data"/>
+
+<APIParam name={"skip_malformed"} dataType="boolean" required={false} type="jsonBody" description="Set true and fallback file won't be interrupted if any fallback event is malformed. Malformed events will be written into application logs with error message. Default value is false means that whole fallback file won't be processed if it contains any malformed event."/>
+
+<h4>Request and response</h4>
+
+Request example
+
+```yaml
+{
+  "file_name": "hostname-destination1-2020-11-25T09-57-10.411.log"
+}
+```
+
+Response will be either HTTP 200 OK, or error with description as JSON
+
+
+<APIMethod method="POST" path="/api/v1/templates/evaluate"/>
+
+Evaluates input [JavaScript functions](/docs/other-features/javascript-transform) or [GO text/template](https://golang.org/pkg/text/template/) expression with input object. It is suitable for:
+* testing [table name template](/docs/configuration/table-names-and-filters) - rules for choosing table name for every income JSON event.
+* testing [HTTP body payload and HTTP URL](https://jitsu.com/docs/destinations-configuration/webhook#webhook-configuration-parameters) - expressions in [WebHook](https://jitsu.com/docs/destinations-configuration/webhook) destination configuration.
+
+<APIParam name={"X-Admin-Token"} dataType="string" required={true} type="header" description="Authorization token (see above)"/>
+<APIParam name={"expression"} dataType="string" required={true} type="jsonBody" description="GO text/template or JavaScript expression"/>
+<APIParam name={"object"} dataType="JSON object" required={true} type="jsonBody" description="Event JSON object for evaluating expression"/>
+<APIParam name={"reformat"} dataType="boolean" required={false} type="jsonBody" description="If true - result will be reformatted like in table name evaluating (special chars will be replaced)"/>
+
+<h4>Request</h4>
+
+```json
+{
+  "object": {
+    "app": "jitsu_cloud",
+    "user": {
+      "anonymous_id": "anonym_id",
+      "id": "id"
+    },
+    "src": "jitsu",
+    "event_type": "site_page"
+  },
+  "expression": "$.event_type"
+}
+```
+
+<h4>Response</h4>
+
+HTTP 200
+```json
+{
+  "result": "site_page",
+  "format": "javascript"
+}
+```
+
+or HTTP 400
+```json
+{
+  "message": "Error description",
+  "format": "go"
+}
+```
+
+<APIMethod method="POST" path="/api/v1/sources/clear_cache"/>
+
+Clears Jitsu API connector cache (state) for re-sync. [More information about re-sync](/docs/sources-configuration#resync).
+
+<APIParam name={"X-Admin-Token"} dataType="string" required={true} type="header" description="Authorization token (see above)"/>
+<APIParam name={"source"} dataType="string" required={true} type="jsonBody" description="ID of source to clear cache (from configuration)"/>
+<APIParam name={"collection"} dataType="JSON object" required={false} type="jsonBody" description="Name of collection to clear cache. If empty - all collection's caches will be cleared"/>
+
+<h4>Request</h4>
+
+```yaml
+{
+  "source": "google_analytics",
+  "collection": "acquisition_overview"
+}
+```
+
+<h4>Response</h4>
+
+HTTP 200
+```yaml
+{
+  "status": "ok"
+}
+```
+
+or HTTP 400
+```yaml
+{
+  "message": "Error description"
+}
+```

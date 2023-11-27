@@ -1,0 +1,112 @@
+# CLI
+
+
+**Jitsu CLI** reads files with events JSONs from local file system and send them to Jitsu via [Bulk API](/docs/sending-data/bulk-api)
+where 1 file = 1 HTTP request with synchronous response. Common use case is uploading archive events into new destination.
+Use a certain `--api-key` for routing events payload into a certain destination.
+All big files larger than [max chunk size](#max-chunk-size) are divided into parts with size smaller or equal to [max chunk size](#max-chunk-size) configuration and parts are sent separately: 1 part = 1 HTTP request.
+
+### Run
+
+The easiest way to use Jitsu CLI is run it via docker container. There are two key points:
+
+- Mount dir with files to docker container: since Docker has own dirs structure for passing files to the CLI and uploading
+them to Jitsu you should mount directory with files to the container with flag:
+
+```bash
+-v <local_path_to_dir>:/home/eventnative/data/upload
+```
+
+- Specify Jitsu Host: since Docker doesn't have access to host machine's `localhost` and if Jitsu is deployed locally, you
+should use `--host` flag with value depend on you OS:
+
+1. for Mac OS: `--host http://host.docker.internal:8000`
+2. for Linux: `--host http://172.17.0.1:8000`
+
+Command structure:
+```bash
+docker run --rm -it -v <dir_with_files_to_upload>:/home/eventnative/data/upload jitsucom/jitsu <command> [flags] <list of files to upload or bash pattern>
+```
+
+Example:
+
+```bash
+docker run --rm -it -v /tmp/my_dir_with_files/:/home/eventnative/data/upload jitsucom/jitsu replay --api-key s2s.dai213sad.dasdpwneqe --host http://myhost:8000 '/home/eventnative/data/upload/*'
+```
+
+<Hint>
+  Currently only <code inline="true">replay</code> command is supported
+</Hint>
+
+List of files can be a bash expression with wildcard. All directories in the list will be read recursively.
+
+### Usage
+
+Please use the following command for displaying all flags and usage:
+
+```bash
+docker run --rm -it jitsucom/jitsu replay -h
+```
+
+
+| Flag(*required) | Type | Description |
+| :--- | :--- | :--- |
+| `--api-key`* | string | Jitsu API Server secret. Data will be loaded into all destinations linked to this API Key. |
+| `--host` | string |  Jitsu host (default "http://localhost:8000") |
+| `--state` | string |  a path to file where Jitsu will save the state - already uploaded files names |
+| `--start` | string | start date as YYYY-MM-DD. Treated as the beginning of the day UTC (YYYY-MM-DD 00:00:00.000Z). If missing, all files will be processed |
+| `--end` | string | end date as YYYY-MM-DD. Treated as the end of the day UTC (YYYY-MM-DD 23:59:59.999Z). If missing, all will be processed |
+| `--chunk-size` | int | max data chunk size in bytes (default 20 MB). If file size is greater then the file will be split into N chunks with max size and sent to Jitsu (default 20971520)|
+| `--disable-progress-bars` | bool | if true then progress bars won't be displayed|
+| `--fallback` | bool | Use true when you intend to replay "failed events" (log files with failed events from Jitsu Server events/failed directory). Failed events log records have different format|
+| `--file` | string | single file to upload |
+| `--suppress-errors` | int | option allows suppressing the specified amount of errors |
+| `-h` or `--help` | - | shows command usage|
+
+### State
+
+Jitsu CLI supports state file to prevent resending the same file on each run. Names of already uploaded files are stored into state file
+and CLI won't resend them. Make sure that state directory is writable. Giving permissions for writing state file may be needed:
+
+```bash
+  #Ubuntu/Mac OS
+  chmod -R 777 /tmp/my_dir_with_files/
+```
+
+Use `--state` flag and make sure that path to state file is mounted to container as well:
+
+```bash
+docker run --rm -it -v /tmp/my_dir_with_files/:/home/eventnative/data/upload jitsucom/jitsu replay --api-key s2s.dai213sad.dasdpwneqe --state /home/eventnative/data/upload/cli_state.state --host http://myhost:8000 '/home/eventnative/data/upload/*'
+```
+
+In the example state file `cli_state.state` is in `/home/eventnative/data/upload` dir which is mounted to the container. Jitsu CLI filters state files from uploading to Jitsu API.
+
+### Filtering files by date
+
+Jitsu CLI supports filtering files by date. CLI will read file names and filter files that contains date in name
+and this date isn't in start-end interval. `--start` and `--end` flags can be used together or separately and should be
+in `YYYY-MM-DD` format. `--start` flag will be treated as the beginning of the day UTC `YYYY-MM-DD 00:00:00.000Z` and
+`--end` flag will be treated as the end of the day UTC `YYYY-MM-DD 23:59:59.999Z`:
+
+```bash
+docker run --rm -it -v /tmp/my_dir_with_files/:/home/eventnative/data/upload jitsucom/jitsu replay --api-key s2s.dai213sad.dasdpwneqe --start 2021-01-01 --end 2021-01-08 --state /home/eventnative/data/upload/cli_state.state --host http://myhost:8000 '/home/eventnative/data/upload/*'
+```
+
+<Hint>
+  If date filter flags are provided and a file doesn't have any date in name it won't be sent to Jitsu API.
+</Hint>
+
+### Max chunk size
+
+Max chunk size parameter controls request payload size. If a file is smaller than max chunk size Jitsu CLI will send
+it as one HTTP request. If a file is larger - CLI will divide the file into parts where 1 part size is smaller or equal
+max chunk size and send them to Jitsu.
+
+You can override max chunk size configuration with `--chunk-size` flag and value in **bytes**:
+
+- chunk size 100KB = 100 * 1024: `--chunk-size 102400`
+- chunk size 10MB = 10 \* 1024 \* 1024: `--chunk-size 10485760`
+
+```bash
+docker run --rm -it -v /tmp/my_dir_with_files/:/home/eventnative/data/upload jitsucom/jitsu replay --api-key s2s.dai213sad.dasdpwneqe --chunk-size 10485760 --state /home/eventnative/data/upload/cli_state.state --host http://myhost:8000 '/home/eventnative/data/upload/*'
+```

@@ -1,0 +1,18 @@
+{
+  "event_origin": "test",
+  "event_data": {
+    "customkey": {"key1": "key2"}
+  },
+  "page_ctx": {
+    "page_title": "EventNative Demo",
+    "referer": "",
+    "url": "http://track-demo.ksense"
+  },
+  "device_ctx": {
+    "location": {},
+    "parsed_ua": {}
+  },
+  "user": {
+    "id": 123
+  }
+}

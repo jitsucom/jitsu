@@ -1,0 +1,9 @@
+# Deploy on Kubernetes
+
+Jitsu is 100% compatible with Kubernetes. There're a number of Jitsu k8s deployment operating at large scale.
+However, there are a few issues:
+
+ * We don't maintain an official Helm chart. There's a chart maintained my [@viggin543](https://github.com/viggin543/jitsu_helm_chart); [another chart](https://github.com/pluralsh/plural-artifacts/tree/main/jitsu/helm/jitsu)
+is available as part of [Plural deployment](/docs/deploment/deploy-on-plural)
+ * There's an issue with running Airbyte connectors on k8s. Ideally, Jitsu should have an option to run Airbyte tasks on k8s cluster directly,
+but it's not implemented yet. Jitsu can start Airbyte containers as DinD (Docker in Docker), but there are some issues with that. See [GitHub discussion](https://github.com/jitsucom/jitsu/issues/863)

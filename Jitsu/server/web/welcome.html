@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="shortcut icon" href="https://jitsu.com/favicon.ico">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins&family=Rubik:wght@500&family=Ubuntu+Mono&display=swap" rel="stylesheet">
+    <title>Welcome to Jitsu</title>
+    <style type="text/css">
+        body {
+            font-family: 'Poppins', sans-serif;
+        }
+        .main {
+            max-width: 750px;
+            margin: auto;
+        }
+        .jitsu-configurator-false {
+            display: none;
+        }
+        pre.code {
+
+            background-color: lightgray;
+            padding-top: 10px;
+            padding-bottom: 10px;
+            padding-left: 20px;
+            font-family: 'Ubuntu Mono', monospace;
+            border-radius: 7px;
+            margin-bottom: 1px;
+        }
+
+        a {
+            font-weight: bold;
+        }
+
+    </style>
+
+    <script src="//cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+</head>
+<div class="main">
+<p align="center">
+    <img
+            src="data:image/png;base64,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"
+            height="50"
+    />
+</p>
+<h1 align="center">Welcome to Jitsu!</h1>
+<b>If you see this page, the <b></b><a href="https://github.com/jitsucom/jitsu/server">Jitsu</a></b> server is successfully installed and working.</b>
+<p>Add following config parameter to disable this page (blank page will be shown instead)</p>
+<pre class="code">
+server:
+  disable_welcome_page: true
+</pre>
+
+<p class="jitsu-configurator-{{.__JITSU_CONFIGURATOR_PRESENT__}}">This server is configured by Jitsu configurator.
+    Please, visit <a href="{{.__JITSU_CONFIGURATOR_URL__}}">Jitsu Configurator page</a> to add or remove destinations, connectors or API keys.
+</p>
+<p>
+    Read more about event tracking at <a href="https://jitsu.com/docs/sending-data/js-sdk">JS SDK documentation section</a>.
+</p>
+
+<h3>Other links:</h3>
+<ul style="list-style: none">
+    <li>📚 Documentation: <a href="https://jitsu.com/docs">https://jitsu.com/docs</a></li>
+    <li>🌎 Website: <a href="https://jitsu.com">https://jitsu.com</a></li>
+    <li>⭐ Github: <a href="https://github.com/jitsucom/jitsu">https://github.com/jitsucom/jitsu</a></li>
+    <li>💪 Follow us on twitter: <a href="https://twitter.com/jitsucom">https://twitter.com/jitsucom</a></li>
+    <li>💬 Join our Slack: <a href="https://jitsu.com/slack">https://jitsu.com/slack</a></li>
+</ul>
+
+
+<p><i>Thank you for using Jitsu!</i></p>
+
+</div>
+</body>
+</html>

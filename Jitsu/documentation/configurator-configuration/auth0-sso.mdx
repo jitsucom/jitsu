@@ -1,0 +1,68 @@
+# Auth0 SSO
+
+<PageNotice type="version" version="1.43.4" />
+
+
+Read more about [Auth0](https://auth0.com/)
+
+### Prerequisites
+
+<Hint>
+Jitsu supports authentication with any identity provider that provides user **email** field.<br/>
+Some providers may not provide **email** field by default.<br/>
+In this case you need to enable **email** field for specific provider in **Authentication** section of [Auth0 dashboard](https://manage.auth0.com).
+</Hint>
+
+<Hint>
+`ui.base_url` must be configured in `configurator.yaml`
+</Hint>
+
+### Configuring Auth0 Application
+
+Auth0 application must be of **Regular Web Application** type.
+
+It is necessary to set following settings in 'Application URIs' section of an Auth0 application Settings:
+
+* **Allowed Login URI** – `${configurator_base_url}`
+* **Allowed Callback URLs** — `${configurator_base_url}/api/v1/sso-auth-callback`
+* **Allowed Web Origins** — `${configurator_base_url}`
+
+where `${configurator_base_url}` is a public URL of Jitsu Configurator backend, e.g.: `https://jitsu.example.com`
+
+### Configuring Jitsu
+
+
+* `provider` — SSO provider: `auth0` 
+* `auto_provision.enable` — Enables user auto provision after SSO authorization if user does not exist in system
+* `auto_provision.auto_onboarding` — Enable this for skipping onboarding step for new users
+* `auth0.domain` — Auth0 tenant domain. Can be obtained from Application settings in [Auth0 dashboard](https://manage.auth0.com)
+* `auth0.client_id` — Application Client ID. Can be obtained from Application settings in [Auth0 dashboard](https://manage.auth0.com)
+* `auth0.client_secret` — Application Client Secret. Can be obtained from Application settings in [Auth0 dashboard](https://manage.auth0.com)
+* `auth0.allow_unverified_email` — Allow login for users with unverified email. Default value is `false`
+* `access_token_ttl_seconds` — time to live for SSO auth session.
+
+configurator.yaml:
+```yaml
+ui:
+  #Public URL of the Configurator UI
+  base_url: 'https://jitsu.example.com'
+    
+sso:
+  provider: 'auth0'
+  auto_provision:
+    enable: true
+    auto_onboarding: true
+  auth0:
+    domain: 'dev-12345678.us.auth0.com'
+    client_id: '___auth0_app_client_id___'
+    client_secret: '___auth0_app_client_secret___'
+  access_token_ttl_seconds: 86400,
+```
+
+or you can configure it with env variable `JITSU_SSO_CONFIG`:
+```bash
+export JITSU_SSO_CONFIG='{"provider": "auth0", "auth0":{"domain": "dev-12345678.us.auth0.com", "client_id": "___auth0_app_client_id___", "client_secret": "___auth0_app_client_secret___"}, "access_token_ttl_seconds": 86400, "auto_provision": {"enable": true, "auto_onboarding": true}}'
+export UI_BASE_URL='https://jitsu.example.com'
+```
+
+After you have configured the SSO auth, the "Continue with SSO" button will appear on the authorization page.

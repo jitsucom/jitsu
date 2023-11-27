@@ -1,0 +1,164 @@
+---
+title: Joint Image
+sort: 2
+---
+
+# Deploying Jitsu (@jitsucom/jitsu)
+
+`@jitsucom/jitsu` is a Docker image to simplify deployment on your IaaS or hardware of choice. It contains
+both Configurator and Server (read more about the [difference here](/docs/deployment)).
+
+The only external dependency is <a href="https://redis.io/">Redis</a>. The image is configured with environment
+variables and certain volumes must be mounted.
+
+### Exposed Ports
+
+The only port image exposing is `8000`. Jitsu Configurator UI and Jitsu Server API works on this port, Configurator
+under `/configurator` path
+
+### Environment Variables
+
+<APIParam small={true}  name="REDIS_URL" dataType="string" required={true} type="Docker Env Var">
+    Main Redis. Value in format of Redis connection string: <code inline={true}>redis://:password@host:port</code> or{' '}
+    <code inline={true}>redis://host:port</code> without password
+</APIParam>
+<APIParam small={true}  name="CLUSTER_ADMIN_TOKEN" dataType="string" required={true} type="Docker Env Var">
+    Admin Token for authorizing requests from/to Configurator.
+</APIParam>
+<APIParam small={true}  name="TLS_SKIP_VERIFY" dataType="boolean" required={false} type="Docker Env Var">
+    Redis: skip client certificate verification
+</APIParam>
+<APIParam small={true}  name="MAX_MIND_PATH" dataType="boolean" required={false} type="Docker Env Var">
+  Path to MaxMind file (read more about <a href={"/docs/other-features/geo-data-resolution"}>geo-resolution</a>).
+  Can be either path to file (inside docker-mounted dir) or <code inline={true}>maxmind://[license key]</code>.
+  The latter will make Jitsu to download files from MaxMind servers using your license key. Read more about the capability
+  read more about <a href={"/docs/other-features/geo-data-resolution"}>here</a>.
+</APIParam>
+<APIParam small={true}  name="SLACK_NOTIFICATIONS_WEBHOOK" dataType="string" required={false} type="Docker Env Var">
+    Slack webhook URL. Server starts, system errors, and panics information will be sent there
+</APIParam>
+<APIParam small={true} name="GOOGLE_ADS_DEVELOPER_TOKEN" dataType="string" required={false} type="Docker Env Var">
+    Developer Token for <a href="/docs/sources/google-ads">Google Ads connector</a>
+</APIParam>
+<APIParam small={true} name="JITSU_SSO_CONFIG" dataType="string" required={false} type="Docker Env Var">
+    Read more about this configuration <a href="/docs/configurator-configuration/sso-authentication">here</a>
+</APIParam>
+<APIParam small={true} name="JITSU_SMTP_CONFIG" dataType="string" required={false} type="Docker Env Var">
+    SMTP configuration in JSON format. Read more about this configuration <a href="/docs/configurator-configuration">here</a>
+</APIParam>
+<APIParam small={true} name="JITSU_HTTP_CONTEXT_ENRICHMENT" dataType="boolean" required={false} type="Docker Env Var">
+  Whether the server should enrich incoming HTTP events with HTTP context (headers, etc.).
+  Please note that when upgrading from Jitsu 1.41.6 you can switch this setting to `true` only separately from the upgrade itself, otherwise event data may get corrupted.
+</APIParam>
+
+<APIParam small={true} name="USER_RECOGNITION_TTL_MINUTES" dataType="number" required={false} type="Docker Env Var">
+  Default value is 10080 minutes (7 days). This setting controls when user events are evicted from user recognition cache. Read
+  more about <a href="/docs/other-features/retroactive-user-recognition/redis-optimization">user recognition eviction policy</a>
+</APIParam>
+<APIParam small={true} name="USER_RECOGNITION_ENABLED" dataType="boolean" required={false} type="Docker Env Var">
+  If <a href="/docs/other-features/retroactive-user-recognition">Retroactive User Recognition</a> should be enabled.
+  <code inline={true}>true</code> by default
+</APIParam>
+<APIParam small={true}  name="USER_RECOGNITION_REDIS_URL" dataType="string" required={false} type="Docker Env Var">
+  Redis connection string: <code inline={true}>redis://:password@host:port</code> or{' '}
+  <code inline={true}>redis://host:port without password</code> for using separate Redis for anonymous events. Read more about {' '}
+  <a href="/docs/other-features/redis-storage-memory-optimization">Redis storage memory optimization</a>.
+</APIParam>
+<APIParam small={true}  name="EVENTS_QUEUE_REDIS_URL" dataType="string" required={false} type="Docker Env Var">
+  Redis connection string: <code inline={true}>redis://:password@host:port</code> or{' '}
+  <code inline={true}>redis://host:port without password</code> for using separate Redis for incoming events JSON queue. All destinations in <code inline="true">stream</code> mode uses Redis events queue (if REDIS_URL or EVENTS_QUEUE_REDIS_URL configured). Otherwise they use in-memory queue).
+</APIParam>
+<APIParam small={true} name="SQL_DDL_LOG_ENABLED" dataType="boolean" required={false} type="Docker Env Var">
+    Enable SQL DDL debug logs (create, update table statements). Default value is <code inline="true">true</code>
+</APIParam>
+<APIParam small={true} name="SQL_QUERIES_LOG_ENABLED" dataType="boolean" required={false} type="Docker Env Var">
+    Enable SQL inserts debug logs. Warning: this feature can take significant disk space: all SQL insert statements will be written into the log file. {' '}
+    Default value is <code inline="false">true</code>
+</APIParam>
+<APIParam small={true} name="SOURCES_SYNC_BATCH_SIZE" dataType="integer" required={false} type="Docker Env Var">
+    Synchronization data batch size for writing into destinations. Default value is <code inline="false">10 000</code>. If you server has enough RAM you can increase this value for speed up your sources synchronization.
+</APIParam>
+
+### Volumes
+
+
+<table>
+    <thead>
+    <tr>
+        <th>Path (inside docker image)</th>
+        <th>Description</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr>
+        <td>
+            <b><code inline={true}>/home/eventnative/data/logs/</code>*</b><br />
+            <i>(Highly recommended to mount)</i>
+        </td>
+        <td>
+            To send data <a href="/docs/destinations-configuration">in batches to destination</a>,{' '}
+            Jitsu needs to persist current batch on local disk. Internal queues are also persisted locally. If you
+            don't want to loose the data, it's highly recommended to mount this volume. <br /><br />Example:{' '}
+            <code inline={true}>-v $PWD/server_logs/:/home/eventnative/data/logs/</code>, make sure that the volume is writable with:{' '}
+            <code inline={true}>`chmod 777 $PWD/server_logs/</code><br /><br />This volume contains server application logs as well
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <b><code inline={true}>/home/configurator/data/logs/</code></b><br />
+            <i>(optional)</i>
+        </td>
+        <td>
+            Configurator application logs <br /><br />Example:{' '}
+            <code inline={true}>-v $PWD/configurator_logs/:/home/configurator/data/logs/</code>, make sure that the volume is writable with:{' '}
+            <code inline={true}>chmod 777 $PWD/configurator_logs/</code>
+        </td>
+    </tr>
+    <tr>
+      <td>
+        <b><code inline={true}>/home/eventnative/data/airbyte</code></b><br />
+        <i>(optional)</i>
+      </td>
+      <td>
+        Required for <a href="/docs/sources-configuration/airbyte">Airbyte connectors</a> support. Mount with <code inline={true}>-v jitsu_workspace:/home/eventnative/data/airbyte</code>). Name <code inline={true}>jitsu_workspace</code> should be exactly this.
+      </td>
+    </tr>
+    <tr>
+        <td>
+            <b><code inline={true}>/var/run/docker.sock</code></b><br />
+            <i>(optional)</i>
+        </td>
+        <td>
+            Required for <a href="/docs/sources-configuration/airbyte">Airbyte connectors</a> support. Mount to <code inline={true}>/var/run/docker.sock</code>
+            (with <code inline={true}>-v /var/run/docker.sock:/var/run/docker.sock</code>)
+        </td>
+    </tr>
+    </tbody>
+</table>
+
+
+
+### Example
+
+```
+mkdir $PWD/server_logs/ $PWD/configurator_logs/
+chmod -R 777 $PWD/server_logs/ $PWD/configurator_logs/
+```
+
+(you need the one above to ensure that Jitsu can write data to those dirs)
+
+```
+docker run -p <local_port>:8000 \
+  -e REDIS_URL=<redis_url> \
+  -v $PWD/server_logs/:/home/eventnative/data/logs/ \
+  -v $PWD/configurator_logs/:/home/configurator/data/logs/ \
+  -v jitsu_workspace:/home/eventnative/data/airbyte \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  jitsucom/jitsu:latest
+```
+
+
+<Hint>
+    Jitsu deployment requires <a href="https://redis.io/">Redis</a>.
+    You can easily run redis docker instance with <code inline="true">docker run -p 6379:6379 --name jitsu-redis -d redis</code> command.
+</Hint>

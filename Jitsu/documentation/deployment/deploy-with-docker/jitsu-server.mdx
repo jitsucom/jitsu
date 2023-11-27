@@ -1,0 +1,191 @@
+---
+sort: 3
+---
+
+# Jitsu Server
+
+There' two options on how to deploy [Jitsu Server](/docs/deployment).
+
+* **Standalone Deployment (with ENV variables)**: server won't pull configuration from Configurator. This is a
+easiest way to deploy Jitsu server. For configuring destinations, sources, API keys and etc you'll need to use
+`API_KEYS_URL`, `DESTINATIONS_URL` or `SOURCES_URL` which point to local file or, URL containing configuration, or JSON object
+(yes, `_URL` postfix is a little confusing). See detailed explanation below.
+
+* **Standalone Deployment (with config file)**: Jistu server is configured with Configurator UI — it pulls configuration
+from Configurator with HTTP.
+
+* **Coupled with Configurator (config with a file)**: Jitsu server is configured with Configurator UI, it pulls configuration
+from Configurator with HTTP (see `JITSU_CONFIGURATOR_URL`). You'll still need to set system properties such as `CLUSTER_ADMIN_TOKEN`,
+`REDIS_URL`
+
+In all cases you should use `@jitsucom/server` image
+
+## Standalone deployment
+
+Please, read [a section about structure of Jitsu Server configuration file](/docs/configuration). The is
+file called `eventnative.yaml` (we renamed from EventNative to Jitsu a while ago, but you'll see the name in config and code here and there).
+
+Don't forget to map `/home/eventnative/data/config/eventnative.yaml` to locally created configuration file!
+
+## Exposed ports
+
+`@jitsucom/server` image exposes `8001` port
+
+## Environment Variable
+
+If you're configuring Jitsu in Standalone mode (with [configuration file](/docs/configuration)) - skip this section,
+those variables will not work!
+
+<APIParam small={true} name="CLUSTER_ADMIN_TOKEN" dataType="string" required={true} type="Docker Env Var">
+    Admin Token for authorizing requests from/to Configurator.
+</APIParam>
+<APIParam small={true} name="REDIS_URL" dataType="string" required={true} type="Docker Env Var">
+    Redis connection string: <code inline={true}>redis://:password@host:port</code> or{' '}
+    <code inline={true}>redis://host:port</code> without password
+</APIParam>
+<APIParam small={true} name="SERVER_PORT" dataType="integer" required={false} type="Docker Env Var">
+    Jitsu Server listening port. Default value is <code inline={true}>8001</code>.
+</APIParam>
+<APIParam small={true} name="JITSU_CONFIGURATOR_URL" dataType="string" required={false} type="Docker Env Var">
+    HTTP URL of Jitsu Configurator. Required if Jitsu Server is going to be configured with Configurator UI. If
+    <code inline={true}>JITSU_CONFIGURATOR_URL</code> following env variables will be
+    ignored: <code inline={true}>API_KEYS_URL</code>, <code inline={true}>DESTINATIONS_URL</code> and
+    <code inline={true}>SOURCES_URL</code>
+</APIParam>
+<APIParam small={true} name="USER_RECOGNITION_TTL_MINUTES" dataType="number" required={false} type="Docker Env Var">
+  Default value is 10080 minutes (7 days). This setting controls when user events are evicted from user recognition cache. Read
+  more about <a href="/docs/other-features/retroactive-user-recognition/redis-optimization">user recognition eviction policy</a>
+</APIParam>
+<APIParam small={true} name="TLS_SKIP_VERIFY" dataType="boolean" required={false} type="Docker Env Var">
+    Redis: skip client certificate verification
+</APIParam>
+<APIParam small={true} name="USER_RECOGNITION_ENABLED" dataType="boolean" required={false} type="Docker Env Var">
+    If <a href="/docs/other-features/retroactive-user-recognition">Retroactive User Recognition</a> should be enabled.
+    <code inline={true}>false</code> by default
+</APIParam>
+<APIParam small={true} name="USER_RECOGNITION_REDIS_URL" dataType="string" required={false} type="Docker Env Var">
+    Redis connection string: <code inline={true}>redis://:password@host:port</code> or{' '}
+    <code inline={true}>redis://host:port without password</code> for using separate Redis for anonymous events. Read more about {' '}
+    <a href="/docs/other-features/redis-storage-memory-optimization">Redis storage memory optimization</a>.
+</APIParam>
+<APIParam small={true}  name="EVENTS_QUEUE_REDIS_URL" dataType="string" required={false} type="Docker Env Var">
+    Redis connection string: <code inline={true}>redis://:password@host:port</code> or{' '}
+    <code inline={true}>redis://host:port without password</code> for using separate Redis for incoming events JSON queue. All destinations in <code inline="true">stream</code> mode uses Redis events queue (if REDIS_URL or EVENTS_QUEUE_REDIS_URL configured). Otherwise they use in-memory queue).
+</APIParam>
+<APIParam small={true}  name="MAX_MIND_PATH" dataType="boolean" required={false} type="Docker Env Var">
+  Path to MaxMind file (read more about <a href={"/docs/other-features/geo-data-resolution"}>geo-resolution</a>).
+  Can be either path to file (inside docker-mounted dir) or <code inline={true}>maxmind://[license key]</code>.
+  The latter will make Jitsu to download files from MaxMind servers using your license key. Read more about the capability
+  read more about <a href={"/docs/other-features/geo-data-resolution"}>here</a>.
+</APIParam>
+<APIParam small={true}  name="SLACK_NOTIFICATIONS_WEBHOOK" dataType="string" required={false} type="Docker Env Var">
+    Slack webhook URL. Server starts, system errors, and panics information will be sent there
+</APIParam>
+<APIParam small={true} name="GOOGLE_ADS_DEVELOPER_TOKEN" dataType="string" required={false} type="Docker Env Var">
+    Developer Token for <a href="/docs/sources/google-ads">Google Ads connector</a>
+</APIParam>
+<APIParam small={true} name="SQL_DDL_LOG_ENABLED" dataType="boolean" required={false} type="Docker Env Var">
+    Enable SQL DDL debug logs (create, update table statements). Default value is <code inline="true">true</code>
+</APIParam>
+<APIParam small={true} name="SQL_QUERIES_LOG_ENABLED" dataType="boolean" required={false} type="Docker Env Var">
+    Enable SQL inserts debug logs. Warning: this feature can take significant disk space: all SQL
+    insert statements will be written into the log file. {' '}
+    Default value is <code inline="false">false</code>
+</APIParam>
+<APIParam small={true} name="SOURCES_SYNC_BATCH_SIZE" dataType="integer" required={false} type="Docker Env Var">
+    Synchronization data batch size for writing into destinations. Default value is <code inline="false">10000</code>.
+    If you server has enough RAM you can increase this value for speed up your sources synchronization.
+</APIParam>
+<APIParam small={true} name="API_KEYS_URL" dataType="JSON object" required={false} type="Docker Env Var">
+    Can be an URL for getting API keys JSON or raw JSON. Read more about <a href="/docs/configuration/authorization#http-url">API keys configuration format</a>.
+    This var is not compatible with <code inline={true}>JITSU_CONFIGURATOR_URL</code> (see above)
+</APIParam>
+<APIParam small={true} name="DESTINATIONS_URL" dataType="JSON object" required={false} type="Docker Env Var">
+    Can be an URL for getting Destinations configuration JSON or raw JSON. Read more about <a href="/docs/destinations-configuration#configuring-destinations-via-http--endpoint">Destinations configuration format</a>.
+    This var is not compatible with <code inline={true}>JITSU_CONFIGURATOR_URL</code> (see above)
+</APIParam>
+<APIParam small={true} name="SOURCES_URL" dataType="JSON object" required={false} type="Docker Env Var">
+    Can be an URL for getting Sources configuration JSON or raw JSON. Read more about <a href="/docs/sources-configuration#configuring-sources-via-http--endpoint">Sources configuration format</a>.
+   This var is not compatible with <code inline={true}>JITSU_CONFIGURATOR_URL</code> (see above)
+</APIParam>
+<APIParam small={true} name="JITSU_EXTENDED_TELEMETRY_DISABLED" dataType="boolean" required={false} type="Docker Env Var">
+  Disables extended telemetry collection.
+</APIParam>
+<APIParam small={true} name="JITSU_EXTENDED_TELEMETRY_DEPLOYMENT_ID" dataType="string" required={false} type="Docker Env Var">
+  Deployment ID for extended telemetry collection. By default, <code inline={true}>clusterId</code> would be used as deployment ID.
+</APIParam>
+<APIParam small={true} name="JITSU_UI_BASE_URL" dataType="string" required={false} type="Docker Env Var">
+  Base Configurator UI URL for generating links in notifications.
+</APIParam>
+<APIParam small={true} name="JITSU_HTTP_CONTEXT_ENRICHMENT" dataType="boolean" required={false} type="Docker Env Var">
+  Whether the server should enrich incoming HTTP events with HTTP context (headers, etc.).
+  Please note that when upgrading from Jitsu 1.41.6 you can switch this setting to `true` only separately from the upgrade itself, otherwise event data may get corrupted.
+</APIParam>
+
+
+
+## Volumes
+
+<Hint>
+    Do not forget to <code inline={true}>chmod 777 /local_logs_mount</code> if you're mounting
+    <code inline={true}>/home/eventnative/data/logs/</code>
+    <br /><br />
+    Do mount <code inline={true}>jitsu_workspace</code> and <code inline={true}>/var/run/docker.sock</code> if you want <a href="/docs/sources-configuration/airbyte">Airbyte based connectors</a> to work
+</Hint>
+
+
+<table>
+    <thead>
+    <tr>
+        <th>Path (inside docker image)</th>
+        <th>Description</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr>
+        <td>
+            <b><code inline={true}>/home/eventnative/data/logs/</code>*</b><br />
+            <i>(Highly recommended to mount)</i>
+        </td>
+        <td>
+            To send data <a href="/docs/destinations-configuration">in batches to destination</a>,{' '}
+            Jitsu needs to persist current batch on local disk. Internal queues are also persisted locally. If you
+            don't want to loose the data, it's highly recommended to mount this volume. <br /><br />Example:{' '}
+            <code inline={true}>-v $PWD/server_logs/:/home/eventnative/data/logs/</code>, make sure that the volume is writable with:{' '}
+            <code inline={true}>`chmod 777 $PWD/server_logs/</code><br /><br />This volume contains server application logs as well
+        </td>
+    </tr>
+    <tr>
+      <td>
+        <b><code inline={true}>/home/eventnative/data/airbyte</code></b><br />
+        <i>(optional)</i>
+      </td>
+      <td>
+        Required for <a href="/docs/sources-configuration/airbyte">Airbyte connectors</a> support. Mount with <code inline={true}>-v jitsu_workspace:/home/eventnative/data/airbyte</code>). Name <code inline={true}>jitsu_workspace</code> should be exactly this.
+      </td>
+    </tr>
+    <tr>
+        <td>
+            <b><code inline={true}>/var/run/docker.sock</code></b><br />
+            <i>(optional)</i>
+        </td>
+        <td>
+            Required for <a href="/docs/sources-configuration/airbyte">Airbyte connectors</a> support. Mount to <code inline={true}>/var/run/docker.sock</code>
+            (with <code inline={true}>-v /var/run/docker.sock:/var/run/docker.sock</code>)
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <b><code inline={true}>/home/eventnative/data/config/eventnative.yaml</code></b><br />
+            <i>(optional)</i>
+        </td>
+        <td>
+            That's the server configuration file. Do not touch it unless you're configuring Jitsu in standalone mode
+        </td>
+    </tr>
+    </tbody>
+</table>
+
+
+
+

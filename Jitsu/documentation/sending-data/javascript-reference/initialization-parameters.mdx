@@ -1,0 +1,65 @@
+---
+sort: 3
+---
+
+# Javascript Configuration
+
+### Initialization
+
+Both in npm and standalone mode, EventNative accepts the following parameters.
+
+| Parameter | Value |
+| :--- | :--- |
+| key *  | **Required.** API key ([How to get API key](/docs/configuration/authorization)) |
+| tracking_host | If not set, EventNative will do the best attempt to detect it automatically |
+| cookie_name | Name of tracking cookie (`__eventn_id` by default) |
+| ga_hook | If set to true, EventNative will automatically listen to Google Analytics events and collect them.  |
+| segment_hook | If set to true, EventNative will automatically listen to Segment's [analytics.js](https://github.com/segmentio/analytics.js/) event and collect them.  |
+| randomize_url | If set to true, EventNative will send events on a dynamic endpoint. It allows avoiding ad blockers. |
+
+<Hint>
+    All parameters with documentation can be in <a href="https://github.com/jitsucom/eventnative/blob/master/web/src/types.ts" >the interface definition file</a>. This file is also bundled with <a href="/docs/sending-data/javascript-reference/npm-or-yarn">npm package</a>.
+</Hint>
+
+### Tracking
+
+If EventNative is [not configured to listen to Google Analytics or Segment events](/docs/sending-data/javascript-reference/events-interception), you need to track these events manually. Unlike other analytics providers, EventNative is schema-less by design. You can send any parameters you wish without having to reconfigure the backend.
+
+`id()` sets the properties of the user (such as `name`, `e-mail`, `internal id` — any parameters are accepted)
+
+```json
+eventN.id({
+    "name": "Man with No Name",
+    "email": "thegoods@western.com",
+    "id": "6"
+})
+```
+
+By default, a `user_identification` event will be sent. However, it can be changed by setting the second parameter to `true`.
+
+```javascript
+eventN.id({...}, true);
+```
+
+`eventN.track()` is used to record any event happens with user
+
+<CodeInTabs>
+    <CodeTab title="Syntax" lang="javascript">
+        {"eventN.track('{event_name}', {...event data})"}
+    </CodeTab>
+    <CodeTab title="Example" lang="javascript">
+        {`
+        eventN.track('product_page_view', {
+            product_id: '1e48fb70-ef12-4ea9-ab10-fd0b910c49ce',
+            product_price: 399,
+            price_currency: 'USD'
+        });
+        `}
+    </CodeTab>
+</CodeInTabs>
+
+<Hint>
+    If <code inline="true">id()</code> has been called prior to <code inline="true">track()</code>, all user details will be included.
+    Also, do not include parameters such as page URL and user agent. EventNative collects this automatically!
+    Read more about <a href="/docs/configuration/schema-and-mappings">our event scheme</a>.
+</Hint>

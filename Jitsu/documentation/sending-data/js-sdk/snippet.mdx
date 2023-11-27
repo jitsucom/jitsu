@@ -1,0 +1,77 @@
+---
+sort: "0003"
+
+---
+
+# HTML snippet
+
+Jitsu JS SDK for embedding as HTML snippet. The snippet is a small piece of HTML code that should be added
+to `<head>` section of your page. Example:
+
+```html
+<script src="https://t.jitsu.com/s/lib.js" data-key="JITSU_API_KEY" defer></script>
+<script>window.jitsu = window.jitsu || (function(){(window.jitsuQ = window.jitsuQ || []).push(arguments);})</script>
+```
+
+The configuration parameters should be passed as `data-` attributes. The full list of attributes
+can be found at [Parameters Reference](/docs/sending-data/js-sdk/parameters-reference) page
+
+<Hint>
+    Use <a href="/docs/sending-data/js-sdk/package">npm or yarn</a> for SPA web applications if possible
+</Hint>
+
+## Sending data
+
+The snippet sends `pageview` event automatically. However, this behaviour can be customized:
+
+If you don't want to send pageviews automatically, set `data-init-only` to "true"
+
+```html
+<script src="%%SERVER%%/s/lib.js"
+        data-key="JITSU_API_KEY"
+        data-init-only="true"
+        defer></script>
+<script>window.jitsu = window.jitsu || (function(){(window.jitsuQ = window.jitsuQ || []).push(arguments);})</script>
+```
+
+Also, you can send data with `jitsu(methodName, eventType, optionalData?)` calls. Such as:
+
+ * `jitsu('id', {id: 'uid', email: 'a@b.com'})` to id a user
+ * `jitsu('track', 'pageview')` to send a specific event
+
+Those calls are identical to [jitsu package](/docs/sending-data/js-sdk/package#sending-data) API.
+Just instead of `jitsu.methodName(...params)` you should use `jitsu('methodName', ...params)`
+
+## Persistent properties
+
+Persistent properties are properties that are set once and sent with every track event:
+
+```javascript
+jitsu('set', { project : 'X' })
+```
+
+will make jitsu to send `{project: 'X'}` with each `jitsu('track',...)` call. Use:
+
+ * `jitsu('set', { project : 'X' }, { eventType: 'pageview' })` to associate properties only with specific event type
+ * `jitsu('set', { project : 'X' }, { persist: false })` to not persist properties in cookies across sessions
+
+
+
+
+
+## Intercepting Segment events
+
+As Jitsu, can serve as [Segment replacement](/docs/other-features/segment-compatibility), you can optionally
+intercept events that has been sent to segment before. Just set `data-segment-hook` parameter to true and make
+sure the snippet is placed **before** Segment optimization.
+
+Also, you should not use **defer** or **async** parameter
+
+
+```html
+<script src="JITSU_SERVER/s/lib.js"
+        data-key="JITSU_KEY"
+        data-init-only="true"
+        data-segment-hook="true"
+></script>
+```

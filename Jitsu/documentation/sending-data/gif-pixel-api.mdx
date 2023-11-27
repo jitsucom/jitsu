@@ -1,0 +1,92 @@
+# GIF Pixel API
+
+
+Jitsu has a [GIF Pixel API](#apiv1pgif) endpoint for tracking email opens, impressions of advertisements and other cases when:
+
+- JavaScript is restricted
+- only HTTP GET request is allowed
+- only embedding an image is allowed
+
+The endpoint accepts `data` query parameter with base64 encoded event data JSON and returns an empty 1×1 GIF image.
+
+<Hint>
+  If you are using <a href="/docs/sending-data/javascript-reference">deprecated events API</a> (events structure with <code inline="true">eventn_ctx</code> prefix) please add <code inline="true">compat=true</code> field in JSON or as a query parameter.
+</Hint>
+
+<APIMethod method="GET" path="/api/v1/p.gif" title="Tracking Pixel API endpoint"/>
+
+Event data might be provided via `data` query parameter that is base64 encoded JSON or via query parameters where parameter name is a path to value in event.
+
+<h4>Parameters</h4>
+
+<APIParam name={"token"} dataType="string" required={true} type="queryString" description="Client or Server secret token. Also might be provided in the data JSON object."/>
+<APIParam name={"data"} dataType="string" required={false} type="queryString" description="Base 64 encoded string with event JSON. Might contain token field as well."/>
+<APIParam name={"path.to.node"} dataType="string" required={false} type="queryString" description="Path to node where write the value. (http://URL?user.email=john@gmail.com&event_type=email_open)"/>
+
+
+<h4>Request sample with data parameter</h4>
+
+JSON for encoding:
+```json
+{
+  "token": "client_secret",
+  "user": {
+    "anonymous_id": "123"
+  }
+}
+```
+
+Request:
+```bash
+HTTP GET https://t.jitsu.com/api/v1/p.gif?data=ewogICJ0b2tlbiI6ICJjbGllbnRfc2VjcmV0IiwKICAidXNlciI6IHsKICAgICJhbm9ueW1vdXNfaWQiOiAiMTIzIgogIH0KfQ==
+```
+
+<h4> Request sample with data parameter and paths</h4>
+
+JSON for encoding:
+```json
+{
+  "token": "client_secret",
+  "user": {
+    "anonymous_id": "123"
+  }
+}
+```
+
+Request:
+```bash
+HTTP GET https://t.jitsu.com/api/v1/p.gif?event_type=email_open&utm_campaign=cpa_10000&user.context.flag=true&data=ewogICJ0b2tlbiI6ICJjbGllbnRfc2VjcmV0IiwKICAidXNlciI6IHsKICAgICJhbm9ueW1vdXNfaWQiOiAiMTIzIgogIH0KfQ==
+```
+
+Result JSON:
+```json
+{
+  "token": "client_secret",
+  "user": {
+    "anonymous_id": "123",
+    "context": {
+      "flag": true
+    }
+  },
+  "event_type": "email_open",
+  "utm_campaign": "cpa_10000"
+}
+```
+
+<h4>Response</h4>
+
+Empty 1×1 GIF image with `image/gif` Content-Type.
+
+The following data will be set into income events if an event doesn't have a field:
+
+
+| Field  | Taken from |
+| :-------   | :---------  |
+| `url` | referer header |
+| `doc_host`    | parsed url |
+| `doc_path`    | parsed url |
+| `doc_search`    | parsed url |
+| `user/anonymous_id`    | Jitsu identification cookie value. Also, Jitsu sets this cookie if it doesn't exist |
+| `user_agent`    | request header |
+| `utc_time`    | current time in UTC as ISO string |
+| `src`    | `jitsu_gif` constant |

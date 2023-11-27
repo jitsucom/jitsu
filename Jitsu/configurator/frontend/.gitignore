@@ -1,0 +1,26 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+**/generated
+# dev environment
+/.vscode
+
+# dependencies
+**/node_modules
+
+# production
+**/build
+**/dist
+
+**/.pnpm-debug.log
+
+# env variables
+**/.env*
+
+# misc
+**/.DS_Store
+
+**/tsconfig.tsbuildinfo
+configurator/frontend/main/public/app-version.json
+**/.turbo
+
+
+

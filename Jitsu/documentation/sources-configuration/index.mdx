@@ -1,0 +1,156 @@
+# Sources Configuration
+
+## Understanding sources (aka connectors)
+
+![Sources (connectors) and Collection (streams)](/img/docs/sources-streams.png)
+
+Sources (or connectors) are used to import data from external API (Google Analytics, Facebook, etc) or databases (redis, firebase, etc)
+into [destinations](/docs/destinations-configuration). Each source represents a connection to particular API.
+
+Synchronization scheduling engine is called sync tasks [sync tasks](/docs/sources-configuration/sync-tasks).
+
+Jitsu supports 3 type of sources:
+
+ * Native sources (example: [Google Ads](/docs/sources/google-ads), [Facebook](/docs/sources/facebook-marketing)). Those sources are written in Go and are a part of Jitsu code-base
+ * [Singer](https://singer.io) based sources. Singer as a collection of ETL-connectors written in Python (called 'taps'). Singer-based sources are not part of Jitsu codebase. Jitsu just runs the python package, processes output and
+saves data to a destination. [Learn more about Singer-based sources configuration](/docs/sources-configuration/singer-taps)
+ * [Airbyte](https://airbyte.io) based sources. Airbyte is an ETL-framework similar to Sinnger. Airbyte sources are distributed as docker images. Jitsu pulls those images,
+runs them and puts output to a database. [Learn more about Airbyte-based sources configuration](/docs/sources-configuration/airbyte)
+
+## Collections (aka streams)
+
+Each source exports one or more collections (also called "streams" in Airbyte/Singer nomenclature). Example: [slack source](/docs/sources/slack) exports Users, Messages,
+Channels and few other collections. Each collection is represented by a table in a destination.
+
+Collections may be static or configurable. Configuration usually defines a set of fields which are exported. Example [Firebase](/docs/sources/firebase)
+collections (users, firestore) are static while **Google Analytics** collections is parametrized (**Google Analytics** has `dimensions` and `metrics`).
+
+
+## Native Connecting Configuration
+
+This section applies only to connectors that are native part of Jitsu. A full list of native connectors is:
+is: [facebook](/docs/sources/facebook), [google-ads](/docs/sources/google-ads), [google-analytics](/docs/sources/google-analytics),
+[redis](/docs/sources/redis), [google-play](/docs/sources/google-play), [firebase](/docs/sources/firebase), [amplitude](/sources/amplitude).
+
+Other connectors  (based either on Singer, or Airbyte) has a slighly different configuration syntax. Learn more abour [Singer-based](/docs/sources-configuration/singer-taps)
+or [Airbyte-based](/docs/sources-configuration/airbyte) sources
+
+Example of source configuration:
+
+```yaml
+sources:
+  firebase_example_id:
+    type: firebase
+    destinations:
+      - "<DESTINATION_ID>"
+    collections:
+      - "<FIRESTORE_COLLECTION_ID>"
+    config:
+      project_id: "<FIREBASE_PROJECT_ID>"
+      key: '<GOOGLE_SERVICE_ACCOUNT_KEY_JSON>'
+  google_analytics_example_id:
+    type: google_analytics
+    destinations:
+      - "<DESTINATION_ID>"
+    collections:
+      - name: "report_test"
+        type: "report"
+        schedule: '45 23 * * 6'
+        parameters:
+          dimensions:
+            - "ga:country"
+            - "ga:yearMonth"
+          metrics:
+            - "ga:sessions"
+    config:
+      view_id: "<VIEW_ID_VALUE>"
+      auth:
+        service_account_key: "<GOOGLE_SERVICE_ACCOUNT_KEY_JSON>"
+  ...
+
+```
+
+Common yaml properties for all sources (**all yaml properties are required**):
+
+| Property | Description |
+| :--- | :--- |
+| `type`  | determines the type of a data source from which data would be imported (like `google_analytics` or `firebase`) |
+| `destinations`  | list of destination ids where result must be stored |
+| `collections`  | list of collections to synchronize |
+| `config` | custom parameters for each source type |
+
+To see how to configure some type of source, please visit documentation pages for exact source types.
+
+<Hint>
+    This feature requires:
+    <li><code inline="true">meta.storage</code> <a href="/docs/configuration">configuration</a></li>
+    <li><code inline="true">primary_key_fields</code> <a href="/docs/configuration/primary-keys-configuration">configuration</a> (in Postgres destination case)</li>
+</Hint>
+
+
+## Collection Configuration
+
+Sources should define a list of collections (or stream) explicitly. Each collection defines a synchronization schedule, destination table name (table name will be prefixed
+with `source_id` to avoid collisions). Here's an example configuration snippet:
+
+```yaml
+sources:
+  firebase_example_id:
+  collections:
+    - name: "some_name"
+      type: "collection_type_id"
+      table_name: "table_name_for_data"
+      start_date: "2020-06-01"
+      schedule: '@daily' #cron expression. see below
+      parameters:
+        field1: "value"
+        field2: ["values"]
+        field3:
+          some_object:
+      ...
+```
+
+Full list of parameters
+
+| Parameter | Description |
+| :--- | :--- |
+| `name` (required)  | is a unique identifier of collection within a list of collections |
+| `type`  | determines which data subset must be synchronized. If type absents, type equals to `name` parameter |
+| `table_name` | name of the table to keep synchronized data. If not set, equals to the name of collection |
+| `start_date` | start date string of data to download in `YYYY-MM-DD` format. Default values is `365` days ago |
+| `schedule`   | [cron expression](https://en.wikipedia.org/wiki/Cron) automatic collection synchronization schedule. If not set - only manual collection synchronization(by HTTP API) will be available |
+| `parameters` | if the collection is parametrized, parameter values are set here. A value may be of any type (`string`, `number`, `boolean`, `list`, `object`). To get a full list of parameters, take a look to [catalog](/sources/)  |
+
+If the collection has no parameters, it may be configured only by its name as a string argument. For example:
+
+```yaml
+collections: ["collection1_id", "collection2_id"]
+```
+
+
+### Configuring sources via HTTP - endpoint
+
+If sources configuration is generated by an external service, it is possible to externalize via HTTP end - point \(or file\) as follows:
+
+```yaml
+sources: 'location'
+```
+
+The location can be`http(s)://` of a local file \(`/path/to/file`\) location and should contain YAML or \(JSON that is identical to YAML structure\). If the location is an URL, the client will respect `If-Modified-Since` / `Last-Modified` caching.
+
+Example of URL content:
+
+```json
+{
+  "sources": { #json object where inner keys - sources unique ids
+    "facebook_marketing_online_sales": { #source config object
+      "type": "facebook_marketing",
+      ...
+    },
+    "facebook_marketing_offline_sales": {
+      "type": "facebook_marketing",
+      ...
+    }
+  }
+}
+```

@@ -1,0 +1,210 @@
+# JavaScript Transform
+
+Use the power of Javascript to modify incoming event object, replace it with a completely new event or produce multiple events based on incoming data.<br/>
+Also, you can use Transform to assign Data Warehouse specific SQL types for object fields, set the destination table name for each event or to skip the event altogether.
+
+- [Overview](#overview)
+- [Server YAML configuration](#server-yaml-configuration)
+- [Modify incoming event](#modify-incoming-event)
+- [Build new event](#build-new-event)
+- [Produce multiple events](#produce-multiple-events)
+- [Override destination table](#override-destination-table)
+- [Override SQL column type](#override-sql-column-type)
+- [Predefined constants and functions](#predefined-constants-and-functions)
+- [Using HTTP headers in transformations](#using-http-headers-in-transformations)
+
+## Overview
+
+<Hint>
+Transform deprecates <a href="/docs/configuration/schema-and-mappings">Mappings</a>. Once Transform is enabled for a destination, all Mappings configs are ignored.
+</Hint>
+
+You can use modern javascript language features and built-in functions to transform an incoming event.
+Jitsu puts incoming event as a global variable: `$`
+
+Provided javascript must return:
+
+ * **single object** - modified incoming event or completely new object 
+ * **array of objects** - a single incoming event will result in multiple events in destinations 
+ * **null** - to skip event from processing
+
+To override the destination table, you need to add a special property named `JITSU_TABLE_NAME` to the resulting events.
+
+To override the destination SQL column type for a specific object field, you need to add an extra property with the special prefix `__sql_type_` added to the name of a field to resulting events. E.g.: `__sql_type_utc_time: "date"` sets SQL type **date** for column **utc_time**
+
+**NOTE** Jitsu uses Node.js under the hood for JavaScript execution. This requires that `node` and `npm` executables are
+present in `$PATH`. Furthermore, Jitsu needs `node-fetch@2.6.7` and `vm2@3.9.9` NPM modules in order to run JavaScript
+transformations and plugins. These modules are installed in a temporary directory automatically on Jitsu Server startup,
+but you may set `NODE_PATH` environment variable with the location of `node_modules` directory with `node-fetch` and `vm2`
+installed in order to use pre-installed modules. You can also use our Docker image which is already set up to run JavaScript
+transformations and plugins.
+
+## Server YAML configuration
+
+Transform is controlled via `data_layout.transform_enabled` and `data_layout.transform` properties of **destination** object. <br/>
+
+Example:
+```yaml
+destinations:
+  example:
+    type: google_analytics
+    mode: stream
+    data_layout:
+      transform_enabled: true
+      transform: |-
+        const context = $.eventn_ctx || $
+
+        return {
+            ...$,
+            dl: context.url,
+            dh: context.doc_host,
+            dp: context.doc_path,
+            dt: context.page_title,
+        }
+```
+
+## Modify incoming event
+
+Javascript spread operator allows making a copy of an incoming event while applying some changes in just a few lines of code:
+
+```javascript
+return {...$,
+    new_property: $.event_type
+}
+```
+Add property to user object:
+
+```javascript
+return {...$,
+    user: {...$.user, state: "active"}
+}
+```
+
+## Build new event
+
+Collect some user properties to the new object:
+
+```javascript
+return {
+    properties: [
+        {
+            property: "email",
+            value: $.user?.email
+        },
+        {
+            property: "language",
+            value: $.user_language
+        }
+    ]
+}
+```
+
+Put an original event as a string payload:
+
+```javascript
+return {
+    "event_type": "POST event",
+    "payload": JSON.stringify($)
+}
+```
+
+## Produce multiple events
+
+Produce multiple purchase events from a single shopping cart event:
+
+```javascript
+if ($.event_type == "conversion" && $.products?.length > 0) {
+    let results = []
+    for (const product of $.products) {
+        results.push({
+            event_type: "purchase",
+            product_id: product.id,
+            price: product.price
+        })
+    }
+    return results
+} else {
+    //skip events without any purchase
+    return null
+}
+```
+
+## Override destination table
+
+Using Javascript spread operator:
+
+```javascript
+return {...$, JITSU_TABLE_NAME: "new_table_name"}
+```
+
+Conventional way:
+
+```javascript
+$.JITSU_TABLE_NAME = "new_table_name"
+return $
+```
+
+## Override SQL column type
+
+Set simple SQL types:
+
+```javascript
+return {...$, 
+    event_date: $.utc_time,                               
+    __sql_type_event_date: "date",
+    event_time: $.utc_time,
+    __sql_type_event_time: "time"
+}
+```
+Sql types with extra parameters:
+
+Some Data Warehouses support extra parameters for column types during table creation.
+For such cases, Transform uses the following syntax to provide data type and column type separately:
+
+```javascript
+return {...$,
+    title: $.page_title,
+    __sql_type_title: ["varchar(256)", "varchar(256) encode zstd"]
+}
+```
+
+## Predefined constants and functions
+
+Transform comes with predefined constants: `destinationId` and `destinationType`
+that can be used to enrich your data
+
+```javascript
+return {...$, 
+    destination_id: destinationId,
+    destination_type: destinationType,
+}
+```
+
+Also `toSegment(event)` function is available to set up [Segment Compatibility](/docs/other-features/segment-compatibility):
+
+```javascript
+return toSegment($)
+```
+
+## Using HTTP headers in transformations
+
+Jitsu Server may be configured to enrich incoming HTTP events with HTTP context – headers and possibly other stuff in the future.
+Please refer to [Jitsu YAML configuration section](/docs/configuration) and [Jitsu Docker configuration section](/docs/deployment/deploy-with-docker/joint-image)
+for more information on enabling the feature.
+
+In order to access HTTP context from JavaScript transformation you may use `$context.header()` helper function which
+will return the first header value (if any):
+
+```javascript
+return {...$,
+    content_type: $context.header("content-type")
+}
+```
+
+It is also possible to directly access HTTP context via `$`:
+
+```javascript
+return {...$,
+    content_type: $['__HTTP_CONTEXT__'].headers["content-type"][0]
+}
+```

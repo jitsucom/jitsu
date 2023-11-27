@@ -1,0 +1,17 @@
+---
+sort: 90
+---
+
+# 1.17.0 - 11 Nov 2020
+
+We're are pleased to announce a `1.17.0`. Here's the list of most exciting features:
+
+* **Postgres data deduplication**. This feature is very useful if you want to send same JSON objects with a unique key and don't worry about duplicates. Now you can configure primary key constraints in Postgres destination and records with existing ids will be updated! [**Read more about Postgres primary keys configuration** ](/docs/configuration/primary-keys-configuration)
+* **System monitoring.** Notifications about service starts, system errors will be sent in you Slack! [**Read more about Slack notifier configuration**](/docs/configuration)
+* **ClickHouse optimization**. At present all fields are created as non-null by default, but you can specify nullable fields as well. [**Read more about ClickHouse configuration**](/docs/destinations-configuration/clickhouse-destination#engine)
+* **Test Destination connection**. Now we support testing Snowflake and BigQuery connections as well! [**Read more about connection testing**](/docs/other-features/admin-endpoints)
+
+<Hint>
+    See more detailed changelog <a href="https://github.com/jitsucom/eventnative/releases"><b>on GitHub</b></a>
+</Hint>
+

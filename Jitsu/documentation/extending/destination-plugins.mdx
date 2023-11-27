@@ -1,0 +1,449 @@
+---
+title: Destination Extensions
+---
+
+# Destination Extensions (Plugins)
+
+1. [Overview](#overview)
+2. [Quickstart](#quickstart)
+3. [Project Structure](#project-structure)
+4. [Destination Config](#destination-config)
+5. [Pushing to the Destination](#pushing-to-the-destination)
+6. [Providing Meta Information](#providing-meta-information)
+7. [Writing a Test](#writing-a-test)
+8. [Adding to Jitsu](#adding-to-jitsu)
+
+
+
+## Overview
+
+Jitsu Destination Plugins allow anyone to implement a new destination type for Jitsu
+and publish it to make it available for all users of Jitsu.
+
+Jitsu Destination Plugins are designed to work with HTTP APIs in stream mode.
+
+A plugin receives a Jitsu event and returns objects describing HTTP requests necessary to push data to destinations.
+
+## Quickstart
+
+We need to use Jitsu SDK's CLI tool to bootstrap a project for new destination plugin:
+```shell
+npx jitsu-cli extension create --type destination
+```
+
+`nodejs` and `npx` must be installed on your system.
+
+jitsu-cli creates a functioning project for a destination plugin. All parts are working, but they are placeholder implementation and don't do anything meaningful.
+
+If you are an experienced developer, you can start replacing placeholder logic with your own right away.
+
+This article will explain the creation of a Jitsu destination plugin step by step.<br/>
+As an example, we will implement a simple destination that will post a message to a Slack webhook on receiving a Jitsu event with provided types.
+
+## Project Structure
+
+jitsu-cli generates project directory structure with a set of files typical for Typescript node.js project:
+```text
+├── package.json
+├── src
+│   ├── destination.ts
+│   └── index.ts
+├── __test__
+│   └── destination.test.ts
+└── tsconfig.json
+```
+
+ * `package.json` – file contains meta-information about npm project including name, version
+ * `src/index.ts` – file contains the instance of ExtensionDescriptor that Jitsu uses to collect info about the destination:
+id, icon,  name, description, configuration parameters.
+ * `src/destination.ts` – file where must be implemented main logic of destination along with config object and config validator
+ * `__test__/destination.test.ts` – test for destination logic must be written here
+ * `tsconfig.json` – settings for Typescript compiler. No need to change that
+
+We recommend working on the project in an integrated development environment (IDE) like Visual Studio Code or WebStorm.
+
+## Destination Config
+
+No destination can work without configuration.
+Let's open `src/destination.ts` file and prepare the DestinationConfig object for our Slack destination.
+Config will consist of webhook URL, list of event types to react on, and message template for Slack message:
+
+```typescript
+export type DestinationConfig = {
+  webhookUrl: string, //url of slack webhook https://hooks.slack.com/services/ABC/XYZ/etc
+  eventTypes: string, //comma-separated list of event types to trigger Slack message
+  messageTemplate: string //message template that will be filled with data from event e.g. `New event: ${event_type}!`
+}
+```
+
+It is nice to tell users in advance if they make a mistake in their config.
+That is why destination plugins have ConfigValidator
+
+### Validating Config
+
+Once we have the destination config, we can implement the `validator`.
+It is an optional part, but we highly recommend implementing it.
+
+ConfigValidator is the only part of the plugin that can access internet using the `fetch` method.
+The main logic of plugins relies on Jitsu Server pipelines for sending HTTP requests.
+
+We replace placeholder implementation with to following code
+```typescript
+export const validator: ConfigValidator<DestinationConfig> = async (config: DestinationConfig) => {
+  //check that all config parameters are present
+  if (!config.webhookUrl) {
+    return "Missing required parameter: webhookUrl";
+  }
+  if (!config.eventTypes) {
+    return "Missing required parameter: eventTypes";
+  }
+  if (!config.messageTemplate) {
+    return "Missing required parameter: messageTemplate";
+  }
+  //check validness of provided webhookUrl.
+  try {
+    //validator must not send any real messages, so we intentionally miss request body
+    let response = await fetch(config.webhookUrl, { method: 'post' });
+    let responseText = await response.text()
+    if (responseText == "invalid_payload") {
+      //invalid_payload - is success case because we haven't sent any. It means that webhookUrl is correct
+      //otherwise that would be other kind of error response
+      return true
+    } else {
+      return "Error: " + responseText
+    }
+  } catch (error) {
+    return "Error: " + error.toString()
+  }
+}
+```
+
+Now we can test our validator with validate-config action that jitsu-cli already added to the project
+
+```shell
+yarn build && yarn validate-config -c '{"webhookUrl":"https://hooks.slack.com/services/ABC/XYZ/etc", "eventTypes":"registration,error", "messageTemplate": "Important event of type: ${event_type}"}'
+```
+alternatively config may be stored in JSON-file:
+```shell
+yarn build && yarn validate-config -c config.json
+```
+
+If everything is fine, we should get the following output:
+```text
+[info ] - 🤔 Validating configuration {"webhookUrl":"https://hooks.slack.com/services/ABC/XYZ/etc", "eventTypes":"registration,error", "messageTemplate": "Important event of type: ${event_type}"}
+[info ] - ✅ Config is valid. Hooray!
+[info ] - ✨ Done
+```
+
+## Pushing to the Destination
+
+Lets get to the main part of plugin – pushing data to the target destination.
+We need to write proper version of DestinationFunction instead of placeholder:
+```typescript
+export const destination: DestinationFunction = (event: DefaultJitsuEvent, dstContext: JitsuDestinationContext<DestinationConfig>) => {
+  return { url: "https://test.com", method: "POST", body: { a: (event.a || 0) + 1 } };
+};
+```
+
+DestinationFunction receives two parameters:
+ * `event` – type: DefaultJitsuEvent – event received and enriched by Jitsu Server
+ * `dstContext` - type: JitsuDestinationContext - destination context containing: `destinationId`, `destinationType`
+and what is more important: `config` - config object that we described at the beginning filled by Jitsu Server
+
+### Return values
+
+The main plugin code doesn't support async execution and doesn't have access to any external resources. So instead, DestinationFunction needs to return:
+ * a single instance of DestinationMessage
+ * an array of DestinationMessage's - to produce multiple pushes to destination
+ * null - null means that Jitsu must skip this event.
+
+DestinationMessage is an object that tells Jitsu Server what HTTP request it needs to make to push data to the destination:
+```typescript
+export declare type DestinationMessage = {
+  url: string;
+  method: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
+  headers?: { [key: string]: string };
+  body: any;
+};
+```
+Jitsu server is in charge of queuing, executing, and retrying HTTP requests, the same as with built-in destinations like webhook.
+
+### Writing DestinationFunction
+
+Now we can write DestinationFunction implementation that prepares DestinationMessage with HTTP request that creates a new Slack Message.
+DestinationFunction must skip all events whose types differ from those provided in the config.
+Let's get back to the **src/destination.ts** file and write some code:
+
+```typescript
+//Function that fill string template with values from obj
+function renderTemplateMessage(str, obj) {
+    const get = (obj: any, key: string | string[]) => {
+        if (typeof key == 'string')
+            key = key.split('.');
+
+        if (key.length == 1)
+            return obj[key[0]];
+        else if (key.length == 0)
+            return obj;
+        else
+            return get(obj[key[0]], key.slice(1));
+    }
+    return str.replace(/\$\{(.+)\}/g, (match, p1) => {
+        return get(obj, p1)
+    })
+}
+
+export const destination: DestinationFunction = (event: DefaultJitsuEvent, dstContext: JitsuDestinationContext<DestinationConfig>) => {
+    const eventTypes = dstContext.config.eventTypes.split(",")
+    if (!eventTypes.includes(event.event_type)) {
+        return null
+    }
+    let messageText = renderTemplateMessage(dstContext.config.messageTemplate, event)
+    if (!messageText) {
+        return null;
+    }
+    //Using Block Kit to build message. See: https://api.slack.com/block-kit
+    let blocks = [];
+    blocks.push({
+        "type": "section",
+        "text": {
+            "type": "plain_text",
+            "text": messageText
+        }
+    })
+    if (event.slack_destinantion_message_blocks) {
+        //extensibility with javascript transformation
+        blocks.push(...event.slack_destinantion_message_blocks)
+    }
+    return {
+        url: dstContext.config.webhookUrl,
+        method: "POST",
+        body: {
+            "blocks": blocks
+        }
+    };
+};
+```
+
+That is it!
+
+### Testing destination
+
+We need Jitsu Server to run the plugin, but jitsu-cli created our project with the `execute` action that allows executing the plugin for a single event.
+`exec` action performs HTTP requests from returned `DestinationMessage`.
+
+You need to prepare JSON file `event.json` with a sample of a Jitsu event first.
+```shell
+yarn build && yarn execute --file event.json -c '{"webhookUrl":"https://hooks.slack.com/services/ABC/XYZ/etc", "eventTypes":"registration,error", "messageTemplate": "Important event of type: ${event_type}"}'
+```
+or with config from file:
+```shell
+yarn build && yarn execute --file event.json -c config.json
+```
+
+Since `exec` action actually performs HTTP request, it makes changes in the destination.
+We not always can afford to put test data to a destination.
+In that case, it is good to write an automated test that checks the correctness of returned `DestinationMessage`'s in most possible cases.
+See [Writing a Test](#writing_a_test) section
+
+## Providing Meta Information
+
+Let's open file **src/index.ts**
+Here we can find a placeholder object that jitsu-cli made for us.
+Let's fill it with some real data
+
+```typescript
+const descriptor: ExtensionDescriptor = {
+  id: "jitsu-slack-destination",
+  displayName: "Slack",
+  icon: "<svg enable-background=\"new 0 0 2447.6 2452.5\" viewBox=\"0 0 2447.6 2452.5\" xmlns=\"http:\/\/www.w3.org\/2000\/svg\"><g clip-rule=\"evenodd\" fill-rule=\"evenodd\"><path d=\"m897.4 0c-135.3.1-244.8 109.9-244.7 245.2-.1 135.3 109.5 245.1 244.8 245.2h244.8v-245.1c.1-135.3-109.5-245.1-244.9-245.3.1 0 .1 0 0 0m0 654h-652.6c-135.3.1-244.9 109.9-244.8 245.2-.2 135.3 109.4 245.1 244.7 245.3h652.7c135.3-.1 244.9-109.9 244.8-245.2.1-135.4-109.5-245.2-244.8-245.3z\" fill=\"#36c5f0\"\/><path d=\"m2447.6 899.2c.1-135.3-109.5-245.1-244.8-245.2-135.3.1-244.9 109.9-244.8 245.2v245.3h244.8c135.3-.1 244.9-109.9 244.8-245.3zm-652.7 0v-654c.1-135.2-109.4-245-244.7-245.2-135.3.1-244.9 109.9-244.8 245.2v654c-.2 135.3 109.4 245.1 244.7 245.3 135.3-.1 244.9-109.9 244.8-245.3z\" fill=\"#2eb67d\"\/><path d=\"m1550.1 2452.5c135.3-.1 244.9-109.9 244.8-245.2.1-135.3-109.5-245.1-244.8-245.2h-244.8v245.2c-.1 135.2 109.5 245 244.8 245.2zm0-654.1h652.7c135.3-.1 244.9-109.9 244.8-245.2.2-135.3-109.4-245.1-244.7-245.3h-652.7c-135.3.1-244.9 109.9-244.8 245.2-.1 135.4 109.4 245.2 244.7 245.3z\" fill=\"#ecb22e\"\/><path d=\"m0 1553.2c-.1 135.3 109.5 245.1 244.8 245.2 135.3-.1 244.9-109.9 244.8-245.2v-245.2h-244.8c-135.3.1-244.9 109.9-244.8 245.2zm652.7 0v654c-.2 135.3 109.4 245.1 244.7 245.3 135.3-.1 244.9-109.9 244.8-245.2v-653.9c.2-135.3-109.4-245.1-244.7-245.3-135.4 0-244.9 109.8-244.8 245.1 0 0 0 .1 0 0\" fill=\"#e01e5a\"\/><\/g><\/svg>",
+  description: "Destination that posts messages to Slack Webhook on receiving Jitsu evens with specified event_types",
+  configurationParameters: [
+    {
+      id: "webhookUrl",
+      type: "string",
+      required: true,
+      displayName: "Webhook URL",
+      documentation: "Url of slack webhook https://hooks.slack.com/services/ABC/XYZ/etc"
+    },
+    {
+      id: "eventTypes",
+      type: "string",
+      required: true,
+      displayName: "Event Types",
+      documentation: "comma separated list of event types to trigger Slack message"
+    },
+    {
+      id: "messageTemplate",
+      type: "string",
+      required: true,
+      displayName: "Message Template",
+      documentation: "Template of Slack message.<br/>You can use ${parameter} expressions to add values from incoming event, e.g.:<br/>Welcome ${user.id}<br/>Received event ${event_type}"
+    }
+  ],
+};
+```
+
+configurationParameters's parameters can have type from the list:
+ * string
+ * int
+ * boolean
+ * password
+ * json
+ * dashDate - Date formatted like YYYY-MM-DD, e.g: 2022-01-31
+ * isoUtcDate - Date and time formatted according to [ISO_8601](https://en.wikipedia.org/wiki/ISO_8601) standard, e.g.: 2022-01-31T10:28:13Z
+
+If you want Jitsu to display a nice graphic icon along with destination name you need to provide svg code of icon to "icon" parameter of ExtensionDescriptor.
+
+## Writing a Test
+
+Tests allow to check plugin logic without actually posting anything to the destination.
+
+Let's open `__test__/destination.test.ts`
+To write a test we simply need to make a call to the function `testDestination`.
+testDestination accepts a single parameter - object of DestinationTestParams type:
+```typescript
+export declare type DestinationTestParams = {
+  name: string;                                    //name of the test
+  context: JitsuDestinationContext;                //JitsuDestinationContext containing: destinationId, destinationType and config
+  destination: DestinationFunction;                //DestinationFunction we are going to test
+  event: DefaultJitsuEvent;                        //JitsuEvent
+  expectedResult: ObjectSet<DestinationMessage>;   //Result object we expect to get after processing event with provided DestinationFunction
+};
+
+```
+To implement the test we need to fill DestinationTestParams properties and pass it to the function **testDestination**
+
+```typescript
+testDestination({
+    name: "proper case",
+
+    context: {
+        destinationId: "test",
+        destinationType: "slack",
+        config: {
+            "webhookUrl": "https://hooks.slack.com/services/ABC/XYZ/etc",
+            "eventTypes": "registration,error",
+            "messageTemplate": "Important event of type: ${event_type}"
+        }
+    },
+
+    destination: destination,
+
+    event: {
+        event_type: 'registration'
+    },
+
+    expectedResult: {
+        method: "POST",
+        url: "https://hooks.slack.com/services/ABC/XYZ/etc",
+        body: {
+            "blocks": [
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "Important event of type: registration"
+                    }
+                }
+            ]
+        }
+    },
+})
+```
+This is a test for "proper case". We provide testDestination function with:
+ * properly set context with a config,
+ * Jitsu event - very short one with fields that may be used in plugin code
+ * our expectation of HTTP request jitsu should make to a Slack webhook URL in case of receiving such an event.
+
+Now let's run tests to make sure that everything works fine.
+```shell
+yarn test
+```
+Output must contain the following lines.
+```text
+ PASS  __test__/destination.test.ts
+  ✓ proper case (1 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       1 passed, 1 total
+```
+
+One test for "proper case" probably won't be enough in a real plugin for production usage.
+It would be great to add test cases when event_type is not "registration" to make sure that nothing wrong happens in that cases,
+and we get **null** result.
+
+
+## Adding to Jitsu
+
+To add our plugin to jitsu we need to build and publish it.
+
+To build plugin code use:
+```shell
+yarn build
+```
+
+### Publishing to NPM Repository
+
+Publishing plugin to public npm repository to make it available for other users.
+You need to have an account in https://www.npmjs.com
+
+The following commands in the project directory will publish the package to the npmjs repository:
+```shell
+npm login
+npm publish
+```
+npm will ask to provide some additional details to complete the publishing.
+
+### Setting up Jitsu Server
+
+Users of a standalone jitsu server can setup a destination based on plugin since version 1.38.
+Add a new destination of type **npm**, information about plugin package, and config to `eventnative.yaml` config file:
+```yaml
+destinations:
+...
+  my_slack_destination:
+    only_tokens:
+      - my_token
+    type: npm
+    package: jitsu-slack-destination@^1.0.0
+    mode: stream
+    config:
+      webhookUrl: "https://hooks.slack.com/services/ABC/XYZ/etc"
+      eventTypes: "registration,error"
+      messageTemplate: "Important event of type: ${event_type}"
+```
+
+`package` can be:
+ * npm package name - if a plugin is published to npm repository. We recommend providing package name with version expression to prevent backward compatibility issues: `jitsu-slack-destination@^1.0.0`
+ * HTTP URL - e.g.: `https://my-site.com/plugins/jitsu-slack-destination.tgz`
+ * filesystem path - in case of a docker image, provided path needs to be reachable inside of docker image filesystem.
+/home/eventnative/data/plugins/ needs to be mounted to host filesystem directory where plugin's .tgz is located,
+e.g. following param may be added to docker run command: `-v /Users/testaccount/projects/:/home/eventnative/data/plugins/`
+
+### Setting up Jitsu Joint Image or Configurator UI
+
+UI support for adding plugin based destinations is not ready yet.
+To make your destination plugin appear in Jitsu Configurator UI please create a new ticket or pull request in the
+[jitsu repository](https://github.com/jitsucom/jitsu)
+
+
+### Publishing plugin locally
+
+If there is no intention to publish plugin for other users, you can keep it for yourself.
+
+You need to build .tgz package manually:
+
+Use a command like that to make compressed .tgz package of destination project directory:
+```shell
+tar -cvzf package_name.tgz -C /workspace_directory/ destination_project_directory
+```
+In case of our destination command will look like:
+```shell
+tar -cvzf jitsu-slack-destination.tgz -C /Users/testaccount/projects/ jitsu-slack-destination
+```
+`jitsu-slack-destination.tgz` file will appear in the current directory.
+
+See [Setting Up Jitsu Server](#setting-up-jitsu-server) to check how to pass local package to Jitsu Server
+
+

@@ -1,0 +1,77 @@
+@import "./src/theme";
+
+.field {
+  :global {
+    .ant-form-item-control-input,
+    .form-fields-card {
+      @apply max-w-3xl;
+    }
+  }
+}
+
+.jsonField {
+  :global {
+    .ant-form-item-control {
+      height: 18.75rem;
+    }
+
+    .ant-form-item-control-input,
+    .ant-form-item-control-input-content {
+      height: 100%;
+    }
+
+    .react-monaco-editor-container {
+      @apply absolute top-0 left-0 w-full h-full max-h-full m-0 p-0 overflow-hidden;
+    }
+  }
+}
+
+.bigField {
+  :global {
+    .ant-form-item-control {
+      height: 28rem;
+    }
+    .ant-form-item-control .ant-form-item-control-input {
+      max-width: 61rem;
+    }
+  }
+}
+
+.modal {
+  @apply flex;
+
+  :global {
+    .ant-modal-content {
+      @apply flex flex-auto flex-col;
+      @apply rounded-md !important;
+      max-height: 95%;
+    }
+
+    .ant-modal-body {
+      @apply flex-auto h-full py-0 !important;
+      overflow-y: auto;
+    }
+
+    .ant-modal-footer {
+      border-top: none !important;
+    }
+  }
+}
+
+.codeEditor {
+  border: 1px solid @secondaryBorder;
+  border-radius: @border-radius-base;
+  overflow: hidden !important;
+}
+
+.bugIcon {
+  color: @success-color;
+  @apply cursor-pointer w-4 h-4;
+
+  :global {
+    svg {
+      width: 100%;
+      height: 100%;
+    }
+  }
+}

@@ -1,0 +1,15 @@
+@import "src/theme.less";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-width: 0;
+    border-style: solid;
+    border-color: @splitBorder;
+  }
+}

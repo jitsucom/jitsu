@@ -1,0 +1,22 @@
+@import "theme.less";
+
+.card {
+}
+
+.link {
+  & > div {
+    padding-right: 1rem;
+    transition: background-color @default-transiton;
+    transition: transform @default-transiton;
+    background-color: @component-background;
+  }
+  & > div:hover {
+    cursor: pointer;
+    background-color: @secondary-background;
+    box-shadow: @box-shadow-base;
+  }
+  & > div:active {
+    transform: scale(0.98);
+    background-color: @secondary-background;
+  }
+}

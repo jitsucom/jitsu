@@ -1,0 +1,129 @@
+@import "./src/theme";
+
+.wrapper {
+}
+
+.mainArea {
+  // flex flex-col flex-grow'
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  height: 0;
+  overflow: scroll;
+
+  .linkedWarning {
+    @apply mb-5;
+    display: inline-flex;
+
+    :global {
+      .ant-card-body {
+        display: inline-flex;
+        align-items: center;
+      }
+    }
+
+    .warningIcon {
+      @apply mr-4;
+      color: @warning-color;
+    }
+
+    .pseudoLink {
+      color: @link-color;
+      border-bottom: 1px dotted @link-color;
+      cursor: pointer;
+    }
+  }
+}
+
+:global .ant-tabs-content {
+  padding: 0 1.5rem;
+}
+
+.tabCard :global .ant-tabs-content-holder {
+  overflow: auto;
+}
+
+.highlightNewElement {
+  transition: all 2s;
+}
+
+.mappingsWrap {
+  padding-bottom: 20px;
+
+  .mappings {
+    .mappingsItem {
+      min-width: 1138px;
+      padding: 20px 20px 0;
+      margin-bottom: 20px;
+
+      .delete {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        margin-bottom: 20px;
+
+        .deleteLink {
+          cursor: pointer;
+          border-bottom: 1px dotted @link-color;
+          color: @link-color;
+          line-height: 1.35;
+        }
+      }
+
+      .secondaryLabel {
+        :global {
+          .ant-form-item-label-left {
+            padding-left: 20px;
+          }
+        }
+      }
+    }
+  }
+}
+
+.library {
+  width: 100%;
+
+  .item {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    border-bottom: 1px solid @border-color-base;
+    padding: 20px 0;
+
+    .comment {
+      color: @text-color-secondary;
+      font-size: 14px;
+      line-height: 1.5715;
+    }
+
+    &:last-child {
+      border-bottom: none;
+    }
+  }
+}
+
+.documentation code {
+  @apply bg-bgTableHeader rounded px-1;
+}
+
+.documentation pre {
+  padding-bottom: 14px !important;
+  background-color: @bgPrimary !important;
+}
+
+.documentation :global .ant-collapse-content-box {
+  background-color: unset !important;
+}
+
+.documentation pre code {
+  @apply px-0;
+  background-color: unset;
+  line-height: normal;
+  padding-bottom: 0.125rem;
+  padding-top: 0.125rem;
+}
+
+.documentation ul {
+  @apply list-disc list-outside my-1 ml-6 text-sm leading-6;
+}

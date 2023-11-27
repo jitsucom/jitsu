@@ -1,0 +1,70 @@
+[
+  {
+    "src": "jitsu_ios",
+    "api_key": "c2stoken",
+    "app_build_id": "2.1.1",
+    "sdk_version": "1.4.1",
+    "utc_time": "2021-06-08T09:51:02.510000Z",
+    "local_tz_offset": -180,
+    "event_id": "gpon6lmpwquappfl0",
+    "event_type": "user tapped purchase button",
+    "screen_resolution": "1440x900",
+    "parsed_ua": {
+      "device_model": "iPhone 12",
+      "device_brand": "Apple",
+      "device_family": "iPhone",
+      "os_family": "iOS",
+      "os_version": "14.1"
+    },
+    "user": {
+      "anonymous_id": "sh1ah4rvqedasfd",
+      "email": "foo@bar.com",
+      "internal_id": "pzrWMXvtZUThJ24JW5iL2bvG9SA2"
+    },
+    "user_language": "en-GB",
+    "location": {
+      "latitude": "55.706335",
+      "longitude": "37.561748"
+    },
+    "custom_param_1": "chips",
+    "other_custom_param": "crisps",
+    "another parameter": {
+      "foo": "bar",
+      "cat": "cat"
+    }
+  },
+  {
+    "src": "jitsu_ios",
+    "api_key": "c2stoken",
+    "app_build_id": "2.1.1",
+    "sdk_version": "1.4.1",
+    "utc_time": "2021-06-08T09:51:02.510000Z",
+    "local_tz_offset": -180,
+    "event_id": "gpon6lmpwquappfl123",
+    "event_type": "login",
+    "screen_resolution": "1440x900",
+    "parsed_ua": {
+      "device_model": "iPhone 11",
+      "device_brand": "Apple",
+      "device_family": "iPhone",
+      "os_family": "iOS",
+      "os_version": "15.1"
+    },
+    "user": {
+      "anonymous_id": "dasone21ug1",
+      "email": "my@me.com",
+      "internal_id": "dioBSDAg4obdUDAbd"
+    },
+    "user_language": "en-GB",
+    "location": {
+      "latitude": "56.706335",
+      "longitude": "38.561748"
+    },
+    "custom_param_1": "french",
+    "other_custom_param": "fries",
+    "another parameter": {
+      "dog": "like",
+      "love": "my"
+    }
+  }
+]

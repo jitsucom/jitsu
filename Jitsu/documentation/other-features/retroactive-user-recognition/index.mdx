@@ -1,0 +1,77 @@
+---
+title: User Recognition
+---
+
+# Retroactive User Recognition
+
+**Jitsu** supports storing all events from anonymous users and updates them in DWH with user id after users identification.
+At present this functionality is supported only for [Postgres](/docs/destinations-configuration/postgres), [Redshift](/docs/destinations-configuration/redshift),
+[Snowflake](/docs/destinations-configuration/snowflake), [MySQL](/docs/destinations-configuration/mysql)
+and [ClickHouse](/docs/destinations-configuration/clickhouse-destination)<sup>\*</sup>
+
+<sup>\*</sup>User Recognition support for Clickhouse is limited to ReplacingMergeTree and ReplicatedReplacingMergeTree engine.<br/>
+<sup>\*</sup>Clickhouse handles data mutation differently. Please read [Clickhouse specifics](/docs/other-features/retroactive-user-recognition) to avoid unexpected results of Retroactive User Recognition on Clickhouse data tables.
+
+### Example
+
+| event\_id | anonymous\_id | email |
+| :--- | :--- | :--- |
+| **event1** | 1 |  |
+| **event2** | 1 |  |
+| **event3** | 1 | a@b.com |
+| **event4** | 1 | a@b.com |
+
+Right after **event3** **Jitsu** amends **event1** and **event2** and adds email=[a@b.com](mailto:a@b.com). As a result, there will be the following events in DWH:
+
+| event\_id | anonymous\_id | email |
+| :--- | :--- | :--- |
+| **event1** | 1 | **a@b.com** |
+| **event2** | 1 | **a@b.com** |
+| **event3** | 1 | a@b.com |
+| **event4** | 1 | a@b.com |
+
+<Hint>
+    Fields anonymous_id and email are configurable. See <code inline="true">identification_nodes</code> below.
+</Hint>
+
+### Resources
+
+![user recognition flow](/img/docs/user-recognition-redis.png)
+
+Retroactive Users Recognition stores all anonymous incoming events to Redis. RAM consumption can be pretty high. You can
+take a few measures to reduce the consumption. Namely, use a dedicated Redis instance and configure eviction and compression.
+Read <a href="/docs/other-features/retroactive-user-recognition/redis-optimization">how to optimize Redis  memory</a>
+
+### Configuration
+
+To enable this feature, set `users_recognition.enabled` to `true` in the configuration file. Or use its env variable equivalent `USER_RECOGNITION_ENABLED=true`.
+
+This setting enables user recognition for all supported destinations: Postgres, Redshift, Snowflake, MySQL and ClickHouse. By default,
+`/user/anonymous_id` will be used as a node for getting anonymous_id. `/user/id` and `/user/email` will be used as a source for user identification field.
+
+Those settings can be redefined on global level of config file:
+
+```yaml
+users_recognition:
+  enabled: true #Enabled by default.
+  anonymous_id_node: /user/anonymous_id
+  identification_nodes:
+    - /user/id
+    - /user/email
+```
+
+Those settings cannot be configured with env variables at the moment :(
+
+By default, a system-wide Redis instance will be used for storing the data (`meta.storage.redis` in config file or `REDIS_URL` env var).
+
+You can use a dedicated Redis instance (separate from Redis user for configuration and short-time caches) and apply
+memory optimization. Read more [about options here](/docs/other-features/retroactive-user-recognition/redis-optimization).
+
+<Hint>
+    This feature requires:
+    1. <code inline="true">users_recognition.redis</code> or <code inline="true">meta.storage.redis</code> configuration
+    2. <code inline="true">primary_key_fields</code> configuration in Postgres, Redshift and MySQL destinations.
+    Read more about those settings on <a href="/docs/configuration/">General Configuration</a>
+</Hint>
+
+

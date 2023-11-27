@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+import "google/protobuf/struct.proto";
+
+//Defines a structure of DWN table or structure of changes to apply to table
+message Table {
+  string name = 1; //table name in destination
+  map<string, Column> columns = 2; //column names and sql types
+  map<string, bool> pk_fields = 3; //set of fields in primary key
+  bool delete_pk_fields = 4; //flag to delete primary key
+  int64 version = 5; //version of table (it is used for optimistic locking table changes in multi-node EventNative deployment)
+
+  message Column{
+    string sql_type = 1; //string representation of SQL type
+  }
+}
+
+
+//Defines a structure of batch header - all fields present in
+//table batch
+message BatchHeader {
+  string table_name = 1; //table in destination
+  map<string, Field> fields = 2;
+}
+
+//Definition of the field: occurred types and calculated type
+message Field {
+  string type = 1; //calculated type of the value
+  map<string, bool> type_occurrence = 2; //set of existed field data types in input batch file
+}
+
+//Definition of destination - table pairs uploading status
+message DestinationStatus {
+  //keys are serialized destination_id/table_name
+  map<string, Status> status = 1;
+
+  message Status {
+    bool uploaded = 1;
+    string error = 2;
+  }
+}
+
+//Original event
+message EventError {
+  google.protobuf.Struct event = 1; //Original JSON event (after ContextEnrichment step)
+  string error = 2; //Error description
+}
+
+//Cached event
+message CachedEvent {
+  string original = 1; //Original JSON event string (after ContextEnrichment step)
+  string success = 2; //SuccessEvent string
+  string error = 3; //Error description
+}
+
+//Cached event part if event was mapped successfully
+message SuccessEvent{
+  string destination_id = 1;
+  string table = 2; //Table name
+  repeated TableField record = 3; //Array of fields representations
+}
+
+//Cached event's field representation
+message TableField{
+  string field = 1; //Field name
+  string type = 2; //Field SQL type
+  google.protobuf.Value value = 3; //Field value
+}

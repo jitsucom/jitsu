@@ -1,0 +1,44 @@
+{
+  "_metadata": {
+    "bundled": [
+      "Segment.io"
+    ],
+    "bundledIds": [],
+    "unbundled": [
+      "Facebook Pixel Server Side"
+    ]
+  },
+  "anonymousId": "e10d0b70-0a3e-44b5-82ea-43f1372904ee",
+  "channel": "client",
+  "context": {
+    "ip": "83.220.56.2",
+    "library": {
+      "name": "analytics.js",
+      "version": "next-1.28.1"
+    },
+    "locale": "ru-RU",
+    "page": {
+      "path": "/overview",
+      "referrer": "google.com",
+      "search": "utm_source=tt",
+      "title": "",
+      "url": "https://jitsu.com/overview?utm_source=tt"
+    },
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.164 Safari/537.36"
+  },
+  "event": "Signed Up",
+  "integrations": {},
+  "messageId": "ajs-next-3e5fa189c9cad87c13a449a8c0a10a33",
+  "originalTimestamp": "2021-07-28T08:58:16.939Z",
+  "projectId": "xjPi6XBhLh7KBALcBH8Qtq",
+  "properties": {
+    "plan": "Enterprise"
+  },
+  "receivedAt": "2021-07-28T08:58:17.127Z",
+  "sentAt": "2021-07-28T08:58:16.939Z",
+  "timestamp": "2021-07-28T08:58:17.127Z",
+  "type": "track",
+  "userId": "f4ca124298",
+  "version": 2,
+  "apiKey": ""
+}

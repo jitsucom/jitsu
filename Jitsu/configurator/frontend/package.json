@@ -1,0 +1,49 @@
+{
+  "version": "1.0.0",
+  "workspaces": [
+    "catalog",
+    "main"
+  ],
+  "name": "root",
+  "private": true,
+  "scripts": {
+    "preinstall": "echo 'pnpm version:' `pnpm --version` && echo 'NodeJs Version:' `node --version`",
+    "turbo": "turbo",
+    "clean": "turbo run clean",
+    "dev": "turbo run build --filter=./catalog && turbo run dev --continue --parallel",
+    "verify": "pnpm lint",
+    "_verify": "pnpm code-style:check && pnpm lint",
+    "build": "pnpm verify && turbo run build",
+    "test": "turbo run test",
+    "factory-reset": "pnpm clean && rm -rf `find . -type d -name node_modules`",
+    "code-style:check": "prettier --check --config ./.prettierrc.json --ignore-path ./.prettierignore ./ || (echo \"👉 Run pnpm format:fix!\" && exit 1)",
+    "code-style:fix": "prettier --write --config ./.prettierrc.json --ignore-path ./.prettierignore ./",
+    "lint": "turbo run lint",
+    "canary:publish": "monorel  --filter './catalog' --version '1.1.0-alpha.{rev}.{time}' --npm-tag canary --git-tag 'frontend-v{version}' --push-tag --publish"
+  },
+  "publishConfig": {
+    "access": "restricted"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jitsucom/jitsu.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jitsucom/jitsu/issues"
+  },
+  "packageManager": "pnpm@8.2.0",
+  "engines": {
+    "pnpm": ">=3",
+    "node": ">=14 <18"
+  },
+  "devDependencies": {
+    "@types/jest": "^26.0.24",
+    "@types/node": "^12.0.0",
+    "@types/react": "^17.0.0",
+    "monorel": "0.3.0",
+    "prettier": "^2.5.1",
+    "ts-jest": "^27.0.3",
+    "turbo": "^1.2.11",
+    "typescript": "4.7.4"
+  }
+}

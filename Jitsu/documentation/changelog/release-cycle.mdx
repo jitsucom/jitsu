@@ -1,0 +1,47 @@
+---
+sort: "0000"
+---
+
+# Release cycle
+
+<Hint>
+  The next stable version of Jitsu (<code inline={true}>1.37</code>) is going to be release approximately on <b>16th of December 2021</b>
+</Hint>
+
+
+At Jitsu, we maintain two streams (or branches) of releases.
+
+ * **Stable releases** ([`master`](https://github.com/jitsucom/jitsu/tree/master) branch on GitHub). We make a
+   stable release once in a month.
+ *  **Beta releases** ([`beta`](https://github.com/jitsucom/jitsu/tree/beta) on GitHub). Despite the name,
+   we consider `beta` releases stable enough to power [Jitsu.Cloud](https://jitsu.com)
+
+## Stable Releases
+
+All releases a listed [on github](https://github.com/jitsucom/jitsu/releases). The releases follows
+`1.[version].[patch]` naming convention. We highly recommend to use latest patch. Patches are always
+100% backward compatible and contains only bug-fixes.
+
+If you deploy Jitsu [with Docker](/docs/deployment/deploy-with-docker), `latest` tag will always point to most
+recent patch. To get notified about patch releases, subscribe on [github](https://github.com/jitsucom/jitsu):
+Watch (top right corner) → Custom → Releases.
+
+We make major version (`1.[version]`) once a month. Each version is announced on our [blog](/blog),
+[twitter](https://twitter.com/jitsucom), [slack](/slack) and e-mailing list.
+
+Subscribe to any of those channels to follow the news!
+
+Also, list of all major releases is available on a [changelog](/docs/changelog) page
+
+## Beta
+
+Beta releases are built from [`beta`](https://github.com/jitsucom/jitsu/tree/beta) branch on continues basis (usually once in a few days).
+We consider beta releases stable enough with one exception: we might change the way how certain features are configured.
+Beta releases are used for running [Jitsu.Cloud](https://cloud.jitsu.com).
+
+Beta releases are not numbered. Make sure you always use the latest `beta` release. If you [use Docker](/docs/deployment/deploy-with-docker),
+`beta` tag will always point to the latest beta release. Use commands like `docker run [...] jitsucom/jitsu:beta` to use
+beta releases.
+
+Once feature becomes is available in beta, the documentation is published right away. The documentation page
+will be marked with '**available only in beta**' banner.

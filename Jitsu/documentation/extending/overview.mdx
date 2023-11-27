@@ -1,0 +1,16 @@
+---
+title: Overview
+---
+
+# Extending Jitsu
+
+With [Jitsu SDK](https://github.com/jitsucom/jitsu) you can implement extension for Jitsu using Typescript. Each extension
+is a separate node package that could be published to public or private npm repository. Jitsu server downloads extension code and executes in within internal
+V8 JS virtual machine
+
+Extensions can have several purposes:
+
+ * **[Destination](/docs/extending/destination-plugins)**. An external service where Jitsu distributes
+incoming events based on configuration. A good example of the destination extension will be [Mixpanel](https://github.com/jitsucom/jitsu-mixpanel).
+ * **[Source](/docs/extending/source-plugins)**. Source (or pull-source) is typically a service or platform from which Jitsu pulls the data. Later, the data is being
+sent to destination database or data-warehouse. See the list of [all supported source](https://cloud.jitsu.com/sources). 

@@ -1,0 +1,73 @@
+# Table Names and Filters
+
+**Jitsu** supports splitting events stream into different tables in DWH based on event JSON payload. It works by applying [JavaScript functions](/docs/other-features/javascript-transform) to incoming JSON objects. It can select a table name or pass a constant or even filter certain events from the destination. It is configured in the destination section and each destination has its own rules.
+
+See also [JavaScript Transform](/docs/other-features/javascript-transform) for full event transformation using JavaScript
+
+## **Table Name Selection**
+
+By default table name will be `events` constant. It can be overridden in several ways:
+
+Constant table name. In this case, all incoming events for `destination_1` will be stored in a single table with `constant` name.
+
+```yaml
+destinations:
+  destination_1:
+    data_layout:
+      table_name_template: 'constant'
+```
+
+Table names are based on field values.
+
+```yaml
+destinations:
+  destination_1:
+    data_layout:
+      #tables will be created with 'event_type' names
+      table_name_template: '$.event_type'
+
+      #or
+      #tables will have 'event_type_YYYY_MM' format based on 'event_type' and date
+      table_name_template: '`${_.event_type}_${_._timestamp.Format("2006_01")}`'
+
+```
+
+<Hint>
+    Timestamp formatting is based on <a href="https://user-images.githubusercontent.com/18486255/98962749-fd5ae480-2517-11eb-9448-93aafdf6f97f.png">GO lang time layouts</a>.
+</Hint>
+
+## Events Filtering
+
+`table_name_template` might be used for filtering certain events from the destination.
+<Hint>
+    If <code inline={true}>table_name_template</code> returns an empty string, `null` or `false` then the event will be skipped.
+    Use <a href="/docs/other-features/admin-endpoints#apiv1templatesevaluate">Jitsu Template Evaluation endpoint</a> for testing your code.
+</Hint>
+
+For example all `pageview` events might be skipped:
+
+```yaml
+destinations:
+  destination_1:
+    data_layout:
+      table_name_template: '$.event_type=="pageview" ? "" : $.event_type' #JavaScript
+
+```
+
+Expressions might be more complex. For example, keep only conversion events
+\(skip other\) in case when a user isn't Google Analytics known user:
+
+```yaml
+destinations:
+  destination_1:
+    data_layout:
+      table_name_template: |
+            if ($.event_type == "conversion") {
+                //only for conversion events
+                if (!$.ids?.ga) {
+                    //no ga id present
+                    return $.event_type
+                }
+            }
+            return ""
+```

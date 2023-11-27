@@ -1,0 +1,126 @@
+server:
+  name: jitsu-benchmark
+  disable_welcome_page: true
+  strict_auth_tokens: true
+  admin_token: '${env.CLUSTER_ADMIN_TOKEN}'
+  telemetry:
+    disabled:
+      usage: true
+  metrics:
+    prometheus:
+      enabled: true
+
+log.rotation_min: 1
+
+api_keys:
+  - id: stream_api_key
+    client_secret: stream
+    server_secret: stream
+  - id: batch_api_key
+    client_secret: batch
+    server_secret: batch
+  - id: transform_api_key
+    client_secret: transform
+    server_secret: transform
+  - id: transform_batch_api_key
+    client_secret: transform_batch
+    server_secret: transform_batch
+
+destinations:
+  pg_stream:
+    only_tokens:
+      - stream_api_key
+    type: postgres
+    mode: stream
+    data_layout:
+      table_name_template: stream_events
+      primary_key_fields:
+        - eventn_ctx_event_id
+    datasource:
+      host: pg_destination
+      port: "5432"
+      db: jitsu
+      schema: public
+      username: jitsu
+      password: jitsu
+      parameters:
+        sslmode: disable
+  pg_batch:
+    only_tokens:
+      - batch_api_key
+    type: postgres
+    mode: batch
+    data_layout:
+      table_name_template: batch_events
+      primary_key_fields:
+        - eventn_ctx_event_id
+    datasource:
+      host: pg_destination
+      port: "5432"
+      db: jitsu
+      schema: public
+      username: jitsu
+      password: jitsu
+      parameters:
+        sslmode: disable
+  pg_transform:
+    only_tokens:
+      - transform_api_key
+    type: postgres
+    mode: stream
+    data_layout:
+      transform_enabled: true
+      transform: 'return toSegment($)'
+      table_name_template: transform_events
+      primary_key_fields:
+        - eventn_ctx_event_id
+    datasource:
+      host: pg_destination
+      port: "5432"
+      db: jitsu
+      schema: public
+      username: jitsu
+      password: jitsu
+      parameters:
+        sslmode: disable
+  pg_transform_batch:
+    only_tokens:
+      - transform_batch_api_key
+    type: postgres
+    mode: batch
+    data_layout:
+      transform_enabled: true
+      transform: 'return toSegment($)'
+      table_name_template: transform_events
+      primary_key_fields:
+        - eventn_ctx_event_id
+    datasource:
+      host: pg_destination
+      port: "5432"
+      db: jitsu
+      schema: public
+      username: jitsu
+      password: jitsu
+      parameters:
+        sslmode: disable
+
+geo:
+  maxmind_path: '${env.MAX_MIND_PATH|}'
+
+meta:
+  storage:
+    redis:
+      host: '${env.REDIS_URL|}'
+      tls_skip_verify: '${env.TLS_SKIP_VERIFY|false}'
+
+sql_debug_log:
+  ddl:
+    path: /home/eventnative/data/logs
+    rotation_min: 1440
+  queries:
+    path: /home/eventnative/data/logs
+    rotation_min: 60
+
+users_recognition:
+  enabled: false
+  cache_ttl_min: 0

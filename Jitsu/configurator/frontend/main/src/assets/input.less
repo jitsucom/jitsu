@@ -1,0 +1,29 @@
+@import "./src/theme";
+
+.ant-input:-webkit-autofill,
+.ant-input:-webkit-autofill:hover,
+.ant-input:-webkit-autofill:focus,
+.ant-input:-webkit-autofill:active {
+  -webkit-text-fill-color: @text-color;
+  border-color: @border-hover-color-base;
+  box-shadow: 0 0 0 1000px @primary-background inset;
+  background: transparent !important;
+}
+
+.ant-input-affix-wrapper:not(.login-form-input) .ant-input:-webkit-autofill:focus,
+.ant-input-affix-wrapper:not(.login-form-input) .ant-input:-webkit-autofill:active {
+  outline: 0;
+  box-shadow: 0 0 0 1000px @primary-background inset !important;
+}
+
+.ant-input:-webkit-autofill[type="password"],
+.login-form-input .ant-input {
+  border-radius: 0;
+}
+
+.ant-input-affix-wrapper.login-form-input .ant-input:-webkit-autofill,
+.ant-input-affix-wrapper.login-form-input .ant-input:-webkit-autofill:hover,
+.ant-input-affix-wrapper.login-form-input .ant-input:-webkit-autofill:focus,
+.ant-input-affix-wrapper.login-form-input .ant-input:-webkit-autofill:active {
+  box-shadow: 0 0 0 1000px #1a2332 inset !important;
+}

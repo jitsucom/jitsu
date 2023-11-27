@@ -1,0 +1,145 @@
+# Configuration
+
+If **Jitsu Server** is deployed in a standalone mode, it could be configured via single YAML file
+(read more about deployment options [here](/docs/deployment/)). The most popular options can be defined as
+[environment variables too](/docs/deployment/deploy-with-docker/jitsu-server#environment-variable). We're aiming to make
+Jitsu 100% configurable with env variables, but we're not there yet. Besides, you can host Jitsu config file
+on an external storage - S3, HTTP etc - with [`JITSU_CONFIGURATOR_URL` env var](/docs/deployment/deploy-with-docker/jitsu-server#environment-variable)
+
+
+We follow [convention over configuration](https://en.wikipedia.org/wiki/Convention_over_configuration) so the majority of
+parameters are optional. To get a base file, clone it from
+[GitHub](https://github.com/jitsucom/jitsu/blob/master/server/appconfig/config.template.yaml).
+
+## Redis
+
+**Jitsu Server** requires [Redis](https://redis.io/). Jitsu can run without it, however it will work
+in single-node mode without synchronization, queue persistence and other high-availability features.
+It's good enough for development, but not recommended to for production.
+
+Redis version 5 and higher is supported. Here's a full list of features that **will not** work if Redis is not available
+
+- Last events caching (see [Events Cache](/docs/other-features/events-cache))
+- Sources synchronization (see [Sources Configuration](/docs/sources-configuration/))
+- [Retroactive Users Recognition](/docs/other-features/retroactive-user-recognition)
+- [Coordination](/docs/other-features/scaling-eventnative).
+
+Redis credentials should be put into to `meta.storage.redis` section (see below)
+
+## Configuration file structure
+
+Jitsu config file consists of the following sections:
+
+* `server` — General configuration parameters such as port, application logs configuration, singer bridge configuration, etc.
+* `geo` — Geo resolution data (extracting city/state information from the IP address). We currently only support [MaxMind](https://www.maxmind.com/en/home) as a data provider. see [Geo Data resolution](/docs/other-features/geo-data-resolution)
+* `log` — Jitsu writes all events locally and sends them to their destinations (in batch mode). This is where you configure your local temporary path and push frequency.
+* `sql_debug_log` — All SQL statements such as DDL and DML expressions can be stored in separated log files or in stdout. see [SQL Query Logs](/docs/configuration/sql-query-logs)
+* `api_keys` — A set of API Keys objects that identify incoming events JSONs and mapping between destinations is done based on them. see [Authorization](/docs/configuration/authorization) page
+* `destinations` — A set of targets where the final version of events will be stored. see [Destinations Configuration](/docs/destinations-configuration)
+* `sources` — A set of data sources to synchronize from. see [Sources Configuration](/docs/sources-configuration)
+* `users_recognition` — Jitsu can update past events with user identifiers on user's identification event! see [Retroactive Users Recognition](/docs/other-features/retroactive-user-recognition)
+* `coordination` — coordination service configuration. It is used in cluster Jitsu deployments. see [Scaling Jitsu](/docs/other-features/scaling-eventnative)
+* `notifications` — notifier configuration. Server starts, system errors, synchronization statuses, and panics information will be sent to it. Currently, only Slack notifications are supported.
+* `meta.storage` - meta storage is the main application storage and it is required for some features. At present Jitsu supports only Redis version 5 and higher.
+* `ui.base_url` – base Configurator UI URL for generating links in notifications
+* `node` – node.js process pool size and max heap space in megabytes per process (`node` is used to execute JavaScript transformations and plugins).
+
+**Example**:
+
+```yaml
+server:
+  name: instance1.domain.com
+  port: 8081
+  public_url: https://instances.domain.com
+  log:
+    path: /home/eventnative/data/logs/
+  metrics.prometheus.enabled: true
+
+geo.maxmind_path: /home/eventnative/data/config
+
+log:
+  path: /home/eventnative/data/logs/events
+  rotation_min: 5
+
+sql_debug_log:
+  ddl:
+  queries:
+
+api_keys:
+  - id: my_website_key
+    client_secret: '193b6281-f211-47a9-b384-102cf4cd2d55'
+    server_secret: 'a6880b16-73d0-476e-840a-804b74f7684d'
+
+destinations:
+  redshift:
+  bigquery:
+
+sources:
+  facebook:
+  google_analytics:
+
+users_recognition:
+  enabled: true
+
+coordination:
+  type: redis
+
+notifications:
+  slack:
+    url: https://slack_web_hook_url
+
+ui:
+  base_url: https://your_configurator_ui_host:5555
+
+meta:
+  storage:
+    redis:
+      host: redis_host
+      port: 6379
+      password: secret_password
+      database: 0
+
+node:
+  pool_size: 1 # default
+  max_space: 100 # default
+
+```
+
+<Hint>
+    You can set {'${env.OS_ENV_VAR_NAME}'} to any configuration parameter in YAML file. Jitsu will get the value from OS ENV (with name OS_ENV_VAR_NAME from the example).
+</Hint>
+
+### Server
+
+All fields from the **server** section are optional:
+
+| Field | Type | Description | Default value |
+| :--- | :--- | :--- | :--- |
+| **name** | string | Unique instance name. It is used in cluster deployments. | **unnamed-server** |
+| **port** | int | TCP port for the server to listen on. | `8001` |
+| **public\_url** | string | Service public URL. It is used on the [welcome HTML page](/docs/sending-data/javascript-reference/#quickstart). Required in [Heroku deployment](/docs/deployment/deploy-on-heroku). | Will be got from `Host` request header |
+| **log.path** | string | Path to application logs. If not set,  app logs will be in stdout. | - |
+| **log.rotation\_min** | int | Log files rotation minutes. If **log.path** is configured. | - |
+| **api\_keys\_reload\_sec** | int | If an URL is set in **api_keys** section, authorization will be reloaded every **api\_keys\_reload\_sec** seconds. see [Authorization](/docs/configuration/authorization#http-url) page. | `1` |
+| **destinations\_reload\_sec** | int | If an URL is set in **destinations** section, destinations will be reloaded every **destinations\_reload\_sec** seconds. see [Destinations](/docs/configuration/destinations-configuration). | `1` |
+| **sources\_reload\_sec** | int | If an URL is set in **sources** section, sources will be reloaded every **sources\_reload\_sec** seconds. see [Sources](/docs/sources-configuration). | `1` |
+| **admin\_token** | string | see [Admin Endpoints](/docs/other-features/admin-endpoints) page. | - |
+| **metrics.prometheus.enabled** | boolean | see [Application Metrics](/docs/other-features/application-metrics) page. | `false` |
+| **telemetry.disabled.usage** | boolean | Flag for disabling telemetry. **Jitsu** collects usage metrics about how you use it and how it is working. **We don't collect any customer data**. | `false` |
+| **metrics.relay.disabled** | boolean | Disables extended telemetry metrics collection. | `false` |
+| **metrics.relay.deployment_id** | string | Allows to provide deployment ID for extended telemetry collection. | Cluster ID |
+| **disable\_version\_reminder** | boolean | Flag for disabling log reminder banner about new **Jitsu** versions availability. | `false` |
+| **sync_tasks.store_logs.last_runs** | int | Logs for how many task runs must be kept in meta storage. Controlled on Source's collection level. When number of task runs for Source collection exceed provided value – old records get removed from meta storage. | `-1` unlimited number of logs |
+| **event_enrichment.http_context** | boolean | Whether the server should enrich incoming HTTP events with HTTP context (headers, etc.). Please note that when upgrading from Jitsu 1.41.6 you can switch this setting to `true` only separately from the upgrade itself, otherwise event data may get corrupted. | `false` |
+
+### Log
+
+**Jitsu Server** supports destinations in streaming and batch modes. In the case of batch mode, all events are stored in JSON log files locally to **path** directory, and every **rotation\_min** minutes they are processed and pushed to destinations.
+All fields from **log** section are optional:
+
+| Field | Type | Description | Default value |
+| :--- | :--- | :--- | :--- |
+| **path** | string | Events log files path. | `/home/eventnative/data/logs/events` |
+| **rotation\_min** | int | Log files rotation minutes. | `5` |
+| **show\_in\_server** | boolean | Flag for debugging. If true - all events JSON data is written in app logs. | `false` |
+

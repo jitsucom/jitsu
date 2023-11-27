@@ -1,0 +1,53 @@
+@import "src/theme.less";
+
+.destination-list-item {
+  border-bottom: 1px solid lightgray !important;
+  .ant-list-item-meta-title {
+    font-size: 16px !important;
+  }
+}
+
+.destination-modal-header {
+  img {
+    height: 48px;
+    margin-right: 20px;
+  }
+}
+
+.destinations-editor-modal {
+  min-width: 1000px;
+  max-height: 80vh;
+}
+
+.destinations-editor-modal .ant-modal-body {
+  overflow-y: auto;
+  max-height: ~"calc(80vh - 130px)";
+  position: relative;
+}
+
+.destinations-list-add-menu {
+  span.anticon {
+    vertical-align: baseline;
+  }
+
+  span.anticon img {
+    vertical-align: baseline;
+  }
+}
+
+.destinations-list-s3config-disabled,
+.destinations-list-hidden {
+  display: none !important;
+}
+
+.destinations-list-json-textarea {
+  font-size: 90%;
+  font-family: @font-monospace;
+}
+
+.destinations-list-multiline-code {
+  pre {
+    max-width: 100% !important;
+  }
+  max-width: 70vw;
+}

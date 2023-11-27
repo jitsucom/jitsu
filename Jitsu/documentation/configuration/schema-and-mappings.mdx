@@ -1,0 +1,195 @@
+# Schema and Mapping
+
+<PageNotice type="deprecated">
+  Please use [JavaScript Transformation](/docs/other-features/javascript-transform)
+  instead.
+</PageNotice>
+
+**Jitsu** is a "schema-less" by design. Event with any JSON inside can be processed.
+Simultaneously, explicit SQL types can be configured in the mapping section. Explicit SQL types will
+override types determined from JSON values. They will be used in creating/patching Data Warehouse tables
+and in cast functions on insert operations. See more about types recognizing and typecasting in
+[Typecast](/docs/other-features/typecast) section.
+
+### Configuration
+
+A special section in the destination configuration is designed to define how JSON is transformed before it's sent to the target. Currently,
+four mapping actions are supported: **move**, **remove**, **cast**, and **constant**:
+
+```yaml
+destinations:
+  destination_name:
+    data_layout:
+      mappings:
+        keep_unmapped: true # if fields that are not explicitly mapped should be kept or removed
+        fields:
+          - src: /src/field/path # JSON path
+            dst: /dst/field/path # could be just_field_name, without leading. Before inserting all / (except
+            # first one) will be replaced wth '_'
+            action: move | remove | cast | constant
+            type: varchar(256) # for 'move' (optional) and 'cast' (required) actions - SQL type (depend on destination)
+            column_type: varchar(256) encode zstd # Optional. SQL Column DDL on create/patch tables. Default value is 'type' variable value from this object.
+            value: # Value for setting as constant to 'dst'. Required only for 'constant' action. Other actions will ignore this field.
+```
+
+<table>
+  <thead>
+    <tr>
+      <th>Parameter</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>
+        <b>keep_unmapped</b>
+      </td>
+      <td>
+        if true - all not mapped fields will be added to the result JSON as-is.
+        <p>
+          if false - only fields that were mentioned in mapping rules with
+          actions <b>move</b> will be added to the result JSON. Default value:{" "}
+          <b>true</b>
+        </p>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <b>fields</b>
+      </td>
+      <td>An array of mapping objects</td>
+    </tr>
+    <tr>
+      <td>
+        <b>fields[N].src</b>
+      </td>
+      <td>Slash separated source JSON node path.</td>
+    </tr>
+    <tr>
+      <td>
+        <b>fields[N].dst</b>
+      </td>
+      <td>Slash separated or final destination JSON node path</td>
+    </tr>
+    <tr>
+      <td>
+        <b>fields[N].action</b>
+      </td>
+      <td>
+        Currently, <b>move</b>, <b>remove</b>, <b>cast</b>, and <b>constant</b>{" "}
+        are supported.
+        <p>
+          <b>move</b> - get value with <b>src</b> JSON path and put it to{" "}
+          <b>dst </b>JSON path.
+        </p>
+        <p>
+          <b>remove</b> - remove value from <b>src </b>JSON path
+        </p>
+        <p>
+          <b>cast</b> - take into account SQL type from <b>type</b> field and
+          apply it to <b>dst</b> JSON path node in SQL statements
+          (creates/updated tables and inserts with <b>src</b> field)
+        </p>
+        <p>
+          <b>constant </b>- put the value from <b>value </b>field into{" "}
+          <b>dst </b>JSON path node
+        </p>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <b>fields[N].type</b>
+      </td>
+      <td>
+        Data Warehouse specific SQL type which will be applied to <b>dst </b>
+        JSON path field. Can be used with <b>move</b>, <b>cast</b>, and <b>
+          constant
+        </b> actions.
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <b>fields[N].column_type</b>
+      </td>
+      <td>
+        Data Warehouse specific SQL column DDL which will be used in column
+        creation statement. It is used with
+        <b>fields[N].type</b> in pair. For instance Redshift column encoding might
+        be provided here - <code inline="true">
+          column_type: varchar(256) encode zstd
+        </code>. Optional. Default value is <b>fields[N].type</b> value. Can be used
+        with <b>move</b>, and <b>cast</b> actions.
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <b>fields[N].value</b>
+      </td>
+      <td>
+        A constant value that will be set into <b>dst </b>JSON path in result
+        object. Can be used only with <b>constant </b>action
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+###
+
+### Example
+
+```yaml
+destinations:
+  destination_name:
+    data_layout:
+      mappings:
+        keep_unmapped: false #only fields from configured ruless will be in the result
+        fields:
+          - src: /employee/id
+            dst: /id
+            action: move
+          - src: /employee/start_at
+            dst: /working_period_start
+            action: move
+            type: timestamp #SQL type
+          - src: /employee/salary
+            action: remove
+          - dst: /postal_code
+            action: constant
+            type: text #SQL type
+            value: 90210
+          - dst: /taxes_sum
+            action: cast
+            type: numeric(38,18) #SQL type
+```
+
+#### Input JSON object:
+
+```yaml
+{
+  "employee":
+    {
+      "id": 19318412,
+      "start_at": "2018-12-10 10:06:18.509996",
+      "salary": 50000.00,
+      "personal_data": { "address": "...", "phone_number": "..." },
+    },
+  "taxes_sum": "892.32",
+}
+```
+
+#### Result object with SQL types:
+
+```yaml
+{
+  "id": 19318412,
+  "working_period_start": "2018-12-10 10:06:18.509996" #::timestamp,
+  "postal_code": 90210 #::text,
+  "taxes_sum": "892.32" #::numeric(38,18)
+}
+```
+
+<Hint>
+  For configuring Segment like schema please see{" "}
+  <a href="/docs/other-features/segment-compatibility">Segment Compatibility</a>{" "}
+  section
+</Hint>

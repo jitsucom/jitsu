@@ -1,0 +1,37 @@
+# Bulk API
+
+Jitsu has events bulk API. The endpoint can consume ~50,000 events in one HTTP request and store them into destinations synchronously.
+Common use case is uploading archive files with analytics events, which Jitsu writes when events stream from JS SDK or API is stored.
+For reloading archive files you can use <a href="/docs/other-features/cli">Jitsu CLI</a>.
+
+<APIMethod method="POST" path="/api/v1/events/bulk?token=$server_api_key_secret" title="Bulk events"/>
+
+Authorization server secret token might be provided either as query parameter or HTTP header
+
+<h4>Parameters</h4>
+
+<APIParam name={"X-Auth-Token"} dataType="string" required={true} type="header" description="Server secret token"/>
+<APIParam name={"token"} dataType="string" required={true} type="queryString" description="Server secret token"/>
+<APIParam name={"fallback"} dataType="boolean" required={false} type="queryString" description="Set true if provided file contains fallback format"/>
+<APIParam name={"skip_malformed"} dataType="boolean" required={false} type="queryString" description="Option for skipping malformed events while processing fallback=true. Default value is false means that all events batch won't be processed if it contains any malformed event."/>
+<APIParam name={"Content-Type"} dataType="string" required={true} type="header" description="multipart/form-data"/>
+
+<h4>Request Payload</h4>
+
+Events should be formatted with <code inline="true">\n</code> delimiter (1 event per line):
+```json
+{"field1": 1, "field2": "value"}\n
+{"field3": 999}\n
+{"field4": "value3", "field5": 123}
+```
+
+Payload should be sent as multipart form data in field with name <code inline="true">file</code>.
+For reducing network costs, request can be compressed with Content-Encoding <code inline="true">gzip</code>.
+
+<h4>Response</h4>
+
+```json
+{"status": "ok"}
+```
+
+<LargeLink title="Jitsu CLI for reloading archive files" href="/docs/other-features/cli" />
