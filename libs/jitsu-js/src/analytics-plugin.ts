@@ -519,9 +519,8 @@ async function send(
       },
       body: JSON.stringify(adjustedPayload),
     });
-  } catch (e) {
-    //should we throw here instead?
-    console.error(`Calling ${url} failed: `, e);
+  } catch (e: any) {
+    throw new Error(`Calling ${url} failed: ${e.message}`);
   }
   let responseText;
   try {

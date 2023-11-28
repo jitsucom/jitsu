@@ -437,7 +437,7 @@ function ConnectionEditor({
           className="max-w-xs"
           value={connectionOptions.primaryKey}
           onChange={primaryKey => {
-            updateOptions({ primaryKey });
+            updateOptions({ primaryKey, ...(primaryKey === "" ? { deduplicate: false } : {}) });
           }}
         />
       ),
@@ -456,6 +456,7 @@ function ConnectionEditor({
       component: (
         <SwitchComponent
           className="max-w-xs"
+          disabled={connectionOptions.primaryKey === ""}
           value={connectionOptions.deduplicate}
           onChange={deduplicate => {
             let functions = connectionOptions.functions ?? [];
@@ -465,6 +466,36 @@ function ConnectionEditor({
             }
             updateOptions({ deduplicate, functions });
           }}
+        />
+      ),
+    });
+  }
+  if (hasZodFields(connectionOptionsZodType, "deduplicateWindow") && destinationType.id === "bigquery") {
+    configItems.push({
+      group: "Advanced",
+      documentation: (
+        <>
+          Limits date range on which deduplication is performed by reducing lookup to historic data. In BigQuery that
+          means that only data from partitions that are in that range will be processed for deduplication. That may
+          significantly reduce cost of data processing during inserting batches with 'Deduplicate' option. 'Timestamp
+          Column' is used as a parameter that defines date range.
+        </>
+      ),
+      name: "Deduplicate Window",
+      component: (
+        <InputNumber
+          value={connectionOptions.deduplicateWindow || 31}
+          disabled={
+            connectionOptions.primaryKey === "" ||
+            !connectionOptions.deduplicate ||
+            connectionOptions.timestampColumn === ""
+          }
+          size="small"
+          defaultValue={31}
+          className="w-36"
+          min={1}
+          max={1000000}
+          onChange={deduplicateWindow => updateOptions({ deduplicateWindow: deduplicateWindow ?? 31 })}
         />
       ),
     });
