@@ -36,6 +36,16 @@ export type WebhookDestinationConfig = z.infer<typeof WebhookDestinationConfig>;
 const MixpanelServiceAccountDocumentation =
   'See <a href="https://developer.mixpanel.com/reference/service-accounts">how to create service account</a>';
 
+export const IntercomDestinationCredentials = z.object({
+  accessToken: z
+    .string()
+    .describe(
+      "Intercom Access Token. You should first create an app in Intercom Developer Hub, and then generate an access token in the app settings. See <a href='https://developers.intercom.com/docs/build-an-integration/getting-started/' target='_blank' rel='noreferrer noopener'>a detailed guide</a>"
+    ),
+});
+
+export type IntercomDestinationCredentials = z.infer<typeof IntercomDestinationCredentials>;
+
 export const MixpanelCredentials = z.object({
   projectId: z
     .string()

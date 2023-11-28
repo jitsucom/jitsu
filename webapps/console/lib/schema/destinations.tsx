@@ -23,10 +23,10 @@ import s3Icon from "./icons/s3";
 import tagIcon from "./icons/tag";
 import snowflakeIcon from "./icons/snowflake";
 import logRocketIcon from "./icons/logrocket";
+import intercomIcon from "./icons/intercom";
 import webhookIcon from "./icons/webhook";
 import { branding } from "../branding";
 import * as meta from "@jitsu/core-functions/src/meta";
-import { SegmentCredentials } from "@jitsu/core-functions/src/meta";
 
 const s3Regions = [
   "us-west-1",
@@ -590,6 +590,20 @@ export const coreDestinations: DestinationType<any>[] = [
     description: "Mixpanel is a product analytics platform that provides insights into user behavior.",
   },
   {
+    id: "intercom",
+    icon: intercomIcon,
+    title: "Intercom",
+    tags: "Product Analytics",
+    credentials: meta.IntercomDestinationCredentials,
+    connectionOptions: CloudDestinationsConnectionOptions,
+    description: (
+      <>
+        Jitsu updates intercom companies and users on each <code>.group()</code> and <code>.identify()</code> calls. For
+        other events Jitsu sends them as custom events to Intercom
+      </>
+    ),
+  },
+  {
     id: "facebook-conversions",
     icon: facebookIcon,
     title: "Facebook Conversions API",
@@ -677,7 +691,7 @@ export const coreDestinations: DestinationType<any>[] = [
     icon: segmentIcon,
     title: "Segment",
     tags: "Special",
-    credentials: SegmentCredentials,
+    credentials: meta.SegmentCredentials,
     description: (
       <>
         Forward events for to Segment-compatible endpoint. It's useful if you want to use {branding.productName} for

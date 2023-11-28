@@ -66,7 +66,6 @@ function groupEvent(event: AnalyticsServerEvent): any {
 }
 
 const JuneDestination: JitsuFunction<AnalyticsServerEvent, JuneCredentials> = async (event, ctx) => {
-  ctx.log.debug(`June destination (props=${JSON.stringify(ctx.props)}) received event ${JSON.stringify(event)}`);
   try {
     let httpRequest: HttpRequest | undefined = undefined;
     const headers = {
