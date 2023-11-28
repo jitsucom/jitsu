@@ -1,5 +1,6 @@
 import { Api, nextJsApiHandler } from "../../../lib/api";
 import { db } from "../../../lib/server/db";
+import { ApiError } from "../../../lib/shared/errors";
 
 export const api: Api = {
   GET: {
@@ -7,13 +8,11 @@ export const api: Api = {
     handle: async ({ req, query, res }) => {
       const token = query.token;
       if (!token || process.env.CADDY_TOKEN !== token) {
-        res.status(401).send({ error: "Unauthorized" });
-        return;
+        throw new ApiError("Unauthorized", {}, { status: 401 });
       }
       const domain = query.domain;
       if (!domain) {
-        res.status(400).send({ error: "missing required parameter" });
-        return;
+        throw new ApiError("missing required parameter", {}, { status: 400 });
       }
       const stream = await db.prisma().configurationObject.findFirst({
         where: {
@@ -26,10 +25,8 @@ export const api: Api = {
         },
       });
       if (!stream) {
-        res.status(404).send({ error: "not found" });
-        return;
+        throw new ApiError("not found", {}, { status: 404 });
       }
-      res.status(200).send({ ok: true });
     },
   },
 };
