@@ -175,16 +175,18 @@ export async function rotorMessageHandler(
       .filter(f => f.functionId.startsWith("udf."))
       .map(async f => {
         const functionId = f.functionId.substring(4);
-        const userFunctionObj = requireDefined(
-          await getCachedOrLoad(functionsCache, functionId, key => {
-            return fastStore.getConfig("function", key);
-          }),
-          `Unknown function: ${functionId}`
-        );
-        if (userFunctionObj.workspaceId !== connection.workspaceId) {
-          throw newError(
-            `Function ${functionId} is not in the same workspace as connection ${connection.id} (${connection.workspaceId})`
-          );
+        const userFunctionObj = await getCachedOrLoad(functionsCache, functionId, key => {
+          return fastStore.getConfig("function", key);
+        });
+        if (!userFunctionObj || userFunctionObj.workspaceId !== connection.workspaceId) {
+          return {
+            id: f.functionId as string,
+            config: {},
+            exec: async (event, ctx) => {
+              throw newError(`Function ${functionId} not found in workspace: ${connection.workspaceId}`);
+            },
+            context: {},
+          };
         }
         const code = userFunctionObj.code;
         const codeHash = hash(code);

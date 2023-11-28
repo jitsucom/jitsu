@@ -35,10 +35,11 @@ export function createFullContext(
         headers: init?.headers ? hideSensitiveHeaders(init.headers) : undefined,
         event: event,
       };
+      const timeout = 10000;
       const controller = new AbortController();
       setTimeout(() => {
         controller.abort();
-      }, 10000);
+      }, timeout);
 
       let internalInit: RequestInit = {
         ...init,
@@ -49,6 +50,9 @@ export function createFullContext(
       try {
         fetchResult = await nodeFetch(url, internalInit);
       } catch (err) {
+        if (err.name === "AbortError") {
+          err.message = `Fetch request exceeded timeout ${timeout}ms and was aborted`;
+        }
         if (logToRedis) {
           eventsStore.log(connectionId, true, { ...baseInfo, error: getErrorMessage(err), elapsedMs: sw.elapsedMs() });
         }
