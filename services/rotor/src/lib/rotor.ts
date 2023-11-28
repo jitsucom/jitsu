@@ -147,7 +147,9 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
             .atError()
             .withCause(e)
             .log(
-              `Failed to process message for ${message.key || "(no key set)"}. ${retryLogMessage(retryPolicy, retries)}`
+              `Failed to process function ${e.functionId} for message ${
+                message.key || "(no key set)"
+              }. ${retryLogMessage(retryPolicy, retries)}`
             );
           if (!retryTime) {
             messagesDeadLettered.inc({ topic });

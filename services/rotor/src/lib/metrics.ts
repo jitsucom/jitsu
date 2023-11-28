@@ -28,12 +28,18 @@ export function createMetrics(producer: Producer): Metrics {
   const buffer: MetricsEvent[] = [];
 
   const flush = async (buf: MetricsEvent[]) => {
+    const d = new Date();
+    d.setMilliseconds(0);
+    d.setSeconds(0);
     await Promise.all([
       producer.send({
         topic: `in.id.metrics.m.batch.t.metrics`,
         compression: getCompressionType(),
         messages: buf.map(m => ({
-          value: JSON.stringify(m),
+          value: JSON.stringify({
+            ...m,
+            timestamp: d.toISOString(),
+          }),
         })),
       }),
       producer.send({

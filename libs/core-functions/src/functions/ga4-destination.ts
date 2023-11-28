@@ -154,6 +154,7 @@ function pageViewEvent(event: AnalyticsServerEvent): Ga4Event {
       page_location: customProperties.url || "",
       page_referrer: customProperties.referrer || "",
       page_title: customProperties.title || "",
+      engagement_time_msec: 1,
     },
   };
 }
@@ -281,6 +282,7 @@ function trackEvent(event: AnalyticsServerEvent): Ga4Event {
       params.value = evp.value || evp.total || evp.revenue;
       break;
   }
+  params.engagement_time_msec = 1;
   return {
     name,
     params,
