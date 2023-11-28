@@ -4,6 +4,7 @@ import { IntercomDestinationCredentials } from "../meta";
 import { JsonFetcher, jsonFetcher } from "./lib/json-fetch";
 import omit from "lodash/omit";
 import { isEqual, pick } from "lodash";
+import { requireDefined } from "juava";
 
 type ExtendedCtx = FullContext<IntercomDestinationCredentials> & {
   jsonFetch: JsonFetcher;
@@ -64,7 +65,7 @@ async function getCompanyByGroupId(
         "Content-Type": "application/json",
       },
     });
-  } catch (e) {
+  } catch (e: any) {
     if (e.responseStatus === 404) {
       return undefined;
     } else {
@@ -75,7 +76,7 @@ async function getCompanyByGroupId(
 
 async function createOrUpdateCompany(event: AnalyticsServerEvent, ctx: ExtendedCtx) {
   const { jsonFetch, log, props } = ctx;
-  const existingCompany = await getCompanyByGroupId(event.groupId, ctx);
+  const existingCompany = await getCompanyByGroupId(requireDefined(event.groupId, `Group event has no groupId`), ctx);
   //log.debug(`Intercom: search for company ${event.groupId} returned ${JSON.stringify(existingCompany, null, 2)}`);
 
   const newCompany = {
@@ -116,6 +117,19 @@ async function createOrUpdateCompany(event: AnalyticsServerEvent, ctx: ExtendedC
       });
     }
     return existingCompany.id;
+  }
+}
+
+function toDate(timestamp?: string | number | Date): Date {
+  if (!timestamp) {
+    return new Date();
+  }
+  if (typeof timestamp === "string") {
+    return new Date(timestamp);
+  } else if (typeof timestamp === "number") {
+    return new Date(timestamp);
+  } else {
+    return timestamp;
   }
 }
 
@@ -221,7 +235,7 @@ const IntercomDestination: JitsuFunction<AnalyticsServerEvent, IntercomDestinati
       }
     }
     if (!intercomContactId) {
-      intercomContactId = (await getContactByOurUserId(event.userId, { ...ctx, jsonFetch })).id;
+      intercomContactId = (await getContactByOurUserId(event.userId, { ...ctx, jsonFetch }))?.id;
       if (!intercomContactId) {
         ctx.log.info(`Intercom contact ${event.userId} not found`);
         return;
@@ -249,7 +263,7 @@ const IntercomDestination: JitsuFunction<AnalyticsServerEvent, IntercomDestinati
     const intercomEvent = {
       type: "event",
       event_name: event.type === "track" ? event.event : event.type,
-      created_at: Math.round(new Date(event.timestamp).getTime() / 1000),
+      created_at: Math.round(toDate(event.timestamp).getTime() / 1000),
       user_id: userId || undefined,
       email: email || undefined,
       metadata: event.properties,

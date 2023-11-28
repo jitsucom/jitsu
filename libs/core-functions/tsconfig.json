@@ -5,6 +5,8 @@
     "declaration": true,
     "esModuleInterop": true,
     "moduleResolution": "node",
+    "strict": true,
+    "noImplicitAny": false,
     "target": "ES2019",
     "module": "commonjs",
     "lib": ["ES2019", "dom"],
