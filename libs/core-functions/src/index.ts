@@ -16,10 +16,12 @@ import JuneDestination from "./functions/june-destination";
 import SegmentDestination from "./functions/segment-destination";
 import AmplitudeDestination from "./functions/amplitude-destination";
 import FacebookConversionsApi from "./functions/facebook-conversions";
+import IntercomDestination from "./functions/intercom-destination";
 
 const builtinDestinations: Record<BuiltinDestinationFunctionName, JitsuFunction> = {
   "builtin.destination.bulker": BulkerDestination as JitsuFunction,
   "builtin.destination.mixpanel": MixpanelDestination as JitsuFunction,
+  "builtin.destination.intercom": IntercomDestination as JitsuFunction,
   "builtin.destination.segment-proxy": SegmentDestination as JitsuFunction,
   "builtin.destination.june": JuneDestination as JitsuFunction,
   "builtin.destination.ga4": Ga4Destination as JitsuFunction,
