@@ -60,7 +60,15 @@ export const api: Api = {
         //send event asynchronously to prevent increased response time
         //theoretically, event can get lost, however this is not the type of event that
         //requires 100% reliability
-        withProductAnalytics(callback => callback.track("workspace_access"), { user, workspace, req });
+        withProductAnalytics(
+          callback =>
+            callback.track("workspace_access", {
+              workspaceId: workspace.id,
+              workspaceName: workspace.name,
+              workspaceSlug: workspace.slug,
+            }),
+          { user, workspace, req }
+        );
       }
 
       //it doesn't have to by sync since the preferences are optional

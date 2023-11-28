@@ -36,7 +36,7 @@ export type WebhookDestinationConfig = z.infer<typeof WebhookDestinationConfig>;
 const MixpanelServiceAccountDocumentation =
   'See <a href="https://developer.mixpanel.com/reference/service-accounts">how to create service account</a>';
 
-export const IntercomCredentials = z.object({
+export const IntercomDestinationCredentials = z.object({
   accessToken: z
     .string()
     .describe(
@@ -44,7 +44,7 @@ export const IntercomCredentials = z.object({
     ),
 });
 
-export type IntercomCredentials = z.infer<typeof IntercomCredentials>;
+export type IntercomDestinationCredentials = z.infer<typeof IntercomDestinationCredentials>;
 
 export const MixpanelCredentials = z.object({
   projectId: z
