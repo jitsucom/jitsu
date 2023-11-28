@@ -7,12 +7,12 @@ export const api: Api = {
     handle: async ({ req, query, res }) => {
       const token = query.token;
       if (!token || process.env.CADDY_TOKEN !== token) {
-        res.status(401).json({ error: "Unauthorized" });
+        res.status(401).send({ error: "Unauthorized" });
         return;
       }
       const domain = query.domain;
       if (!domain) {
-        res.status(400).json({ error: "missing required parameter" });
+        res.status(400).send({ error: "missing required parameter" });
         return;
       }
       const stream = await db.prisma().configurationObject.findFirst({
@@ -26,10 +26,10 @@ export const api: Api = {
         },
       });
       if (!stream) {
-        res.status(404).json({ error: "not found" });
+        res.status(404).send({ error: "not found" });
         return;
       }
-      res.status(200).json({ ok: true });
+      res.status(200).send({ ok: true });
     },
   },
 };
