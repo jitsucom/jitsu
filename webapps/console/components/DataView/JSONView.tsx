@@ -15,7 +15,9 @@ export const JSONView = (props: { data: any; rawData?: string }) => {
 
   const copyToClipboard = () => {
     if (raw) {
-      navigator.clipboard.writeText(props.rawData ?? "");
+      navigator.clipboard.writeText(
+        typeof props.rawData === "string" ? props.rawData : JSON.stringify(props.data, undefined, "  ")
+      );
     } else {
       navigator.clipboard.writeText(JSON.stringify(props.data, null, 2));
     }
