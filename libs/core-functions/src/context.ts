@@ -49,7 +49,7 @@ export function createFullContext(
       let fetchResult: any = undefined;
       try {
         fetchResult = await nodeFetch(url, internalInit);
-      } catch (err) {
+      } catch (err: any) {
         if (err.name === "AbortError") {
           err.message = `Fetch request exceeded timeout ${timeout}ms and was aborted`;
         }
