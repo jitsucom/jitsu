@@ -29,7 +29,8 @@
     "react/jsx-no-target-blank": "off",
     "react/display-name": "off",
     "react/no-unescaped-entities": "off",
-    "react/no-unknown-property": "off"
+    "react/no-unknown-property": "off",
+    "react/no-deprecated": "off"
     //this rule fails on prompt usage as well. We have a few legitimate cases
     //where we use promt, so we can't really use it
     //"no-alert": "error"
