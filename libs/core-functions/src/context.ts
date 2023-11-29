@@ -35,7 +35,7 @@ export function createFullContext(
         headers: init?.headers ? hideSensitiveHeaders(init.headers) : undefined,
         event: event,
       };
-      const timeout = 10000;
+      const timeout = 15000;
       const controller = new AbortController();
       setTimeout(() => {
         controller.abort();
