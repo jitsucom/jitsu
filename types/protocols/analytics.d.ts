@@ -126,6 +126,8 @@ interface AnalyticsContext {
   library?: {
     name: string;
     version: string;
+    //allow to add custom fields
+    [key: string]: any;
   };
 
   traits?: { crossDomainId?: string } & JSONObject;

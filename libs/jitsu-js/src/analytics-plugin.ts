@@ -292,7 +292,12 @@ export function isInBrowser() {
   return typeof document !== "undefined" && typeof window !== "undefined";
 }
 
-function adjustPayload(payload: any, config: JitsuOptions, storage: PersistentStorage): AnalyticsClientEvent {
+function adjustPayload(
+  payload: any,
+  config: JitsuOptions,
+  storage: PersistentStorage,
+  s2s: boolean
+): AnalyticsClientEvent {
   const runtime: RuntimeFacade = config.runtime || (isInBrowser() ? windowRuntime(config) : emptyRuntime(config));
   const url = runtime.pageUrl();
   const parsedUrl = safeCall(() => new URL(url), undefined);
@@ -305,6 +310,7 @@ function adjustPayload(payload: any, config: JitsuOptions, storage: PersistentSt
     library: {
       name: jitsuLibraryName,
       version: jitsuVersion,
+      env: s2s ? "node" : "browser",
     },
     userAgent: runtime.userAgent(),
     locale: runtime.language(),
@@ -504,7 +510,7 @@ async function send(
   // if (jitsuConfig.debug) {
   //   console.log(`[JITSU] Sending event to ${url}: `, JSON.stringify(payload, null, 2));
   // }
-  const adjustedPayload = adjustPayload(payload, jitsuConfig, store);
+  const adjustedPayload = adjustPayload(payload, jitsuConfig, store, s2s);
 
   const authHeader = jitsuConfig.writeKey ? { "X-Write-Key": jitsuConfig.writeKey } : {};
   let fetchResult;
