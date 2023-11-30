@@ -44,13 +44,14 @@ export type FetchOpts = {
   headers?: Record<string, string>;
   body?: string;
 };
+export type FunctionLogger = {
+  info: (message: string, ...args: any[]) => void;
+  warn: (message: string, ...args: any[]) => void;
+  debug: (message: string, ...args: any[]) => void;
+  error: (message: string, ...args: any[]) => void;
+};
 export type FunctionContext = {
-  log: {
-    info: (message: string, ...args: any[]) => void;
-    warn: (message: string, ...args: any[]) => void;
-    debug: (message: string, ...args: any[]) => void;
-    error: (message: string, ...args: any[]) => void;
-  };
+  log: FunctionLogger;
   fetch: FetchType;
   store: Store;
 };

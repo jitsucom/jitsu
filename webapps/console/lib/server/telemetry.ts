@@ -82,7 +82,7 @@ function createProductAnalytics(analytics: AnalyticsInterface, req?: NextApiRequ
       if (typeof idOrObject === "string") {
         return analytics.group(
           idOrObject,
-          opts ? { workspaceSlug: opts.slug, workspaceName: opts.name, workspaceId: idOrObject } : {}
+          opts ? { workspaceSlug: opts.slug, workspaceName: opts.name, name: opts.name, workspaceId: idOrObject } : {}
         );
       } else {
         return analytics.group(idOrObject.id, {

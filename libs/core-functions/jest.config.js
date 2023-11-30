@@ -5,5 +5,5 @@ module.exports = {
   testMatch: ["**/__tests__/**/*.test.ts"],
   testEnvironment: "node",
   runner: "jest-runner",
-  testMatch: ["**/__tests__/**/*.test.ts"],
+  "setupFiles": ["./jest.setup.js"]
 };

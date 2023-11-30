@@ -2,7 +2,6 @@ import { FullContext, JitsuFunction } from "@jitsu/protocols/functions";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { IntercomDestinationCredentials } from "../meta";
 import { JsonFetcher, jsonFetcher } from "./lib/json-fetch";
-import omit from "lodash/omit";
 import { isEqual, pick } from "lodash";
 import { requireDefined } from "juava";
 
@@ -210,7 +209,8 @@ async function createOrUpdateContact(event: AnalyticsServerEvent, { jsonFetch, l
           Accept: "application/json",
           "Content-Type": "application/json",
         },
-        body: forComparison.external_id ? omit(newContact, "external_id") : newContact,
+        body: newContact,
+        //body: forComparison.external_id ? omit(newContact, "external_id") : newContact,
       });
     }
     return contact.id;
@@ -218,7 +218,7 @@ async function createOrUpdateContact(event: AnalyticsServerEvent, { jsonFetch, l
 }
 
 const IntercomDestination: JitsuFunction<AnalyticsServerEvent, IntercomDestinationCredentials> = async (event, ctx) => {
-  const jsonFetch = jsonFetcher(ctx.fetch);
+  const jsonFetch = jsonFetcher(ctx.fetch, { log: ctx.log, debug: true });
   let intercomContactId: string | undefined;
   let intercomCompanyId: string | undefined;
   if (event.type === "identify") {
@@ -230,7 +230,9 @@ const IntercomDestination: JitsuFunction<AnalyticsServerEvent, IntercomDestinati
     if (!intercomCompanyId) {
       intercomCompanyId = (await getCompanyByGroupId(event.groupId, { ...ctx, jsonFetch }))?.id;
       if (!intercomCompanyId) {
-        ctx.log.info(`Intercom company ${event.groupId} not found`);
+        ctx.log.warn(
+          `Intercom company ${event.groupId} not found. It's coming from ${event.type} event. Following .group() call might fix it`
+        );
         return;
       }
     }
@@ -254,7 +256,7 @@ const IntercomDestination: JitsuFunction<AnalyticsServerEvent, IntercomDestinati
     });
   }
 
-  if (event.type !== "identify" && event.type !== "group" && event.type !== "page") {
+  if (event.type !== "identify" && event.type !== "group") {
     const email = event.context?.traits?.email || event.traits?.email;
     const userId = event.userId;
     if (!email && !userId) {
@@ -262,11 +264,11 @@ const IntercomDestination: JitsuFunction<AnalyticsServerEvent, IntercomDestinati
     }
     const intercomEvent = {
       type: "event",
-      event_name: event.type === "track" ? event.event : event.type,
+      event_name: event.type === "track" ? event.event : event.type === "page" ? "page-view" : "unknown",
       created_at: Math.round(toDate(event.timestamp).getTime() / 1000),
       user_id: userId || undefined,
       email: email || undefined,
-      metadata: event.properties,
+      metadata: { ...event.properties, url: event.context?.page?.url || undefined },
     };
     await jsonFetch(`https://api.intercom.io/events`, {
       headers: {
@@ -276,7 +278,6 @@ const IntercomDestination: JitsuFunction<AnalyticsServerEvent, IntercomDestinati
       },
       body: intercomEvent,
     });
-    ctx.log.debug(`Intercom event:\n${JSON.stringify(intercomEvent, null, 2)}`);
   }
 };
 

@@ -1,5 +1,5 @@
 import { AnalyticsInterface, AnalyticsServerEvent } from "@jitsu/protocols/analytics";
-import { requireDefined } from "juava";
+import { getLog, logFormat, requireDefined } from "juava";
 import { AnyEvent, EventContext, FuncReturn, FunctionContext, JitsuFunction } from "@jitsu/protocols/functions";
 import nodeFetch from "node-fetch-commonjs";
 import { createStore } from "./mem-store";
@@ -20,6 +20,20 @@ export type TestOptions<T = any> = {
 export function prefixLogMessage(level: string, msg: any) {
   return `[${level}] ${msg}`;
 }
+const testLogger = getLog("function-tester");
+
+function toDate(timestamp?: string | number | Date): Date {
+  if (!timestamp) {
+    return new Date();
+  }
+  if (typeof timestamp === "string") {
+    return new Date(timestamp);
+  } else if (typeof timestamp === "number") {
+    return new Date(timestamp);
+  } else {
+    return timestamp;
+  }
+}
 
 export async function testJitsuFunction<T = any>(opts: TestOptions<T>): Promise<FuncReturn> {
   const config =
@@ -36,15 +50,20 @@ export async function testJitsuFunction<T = any>(opts: TestOptions<T>): Promise<
   const func = opts.func;
   const fetch = nodeFetch;
   const log = {
-    info: (msg: any, ...args: any[]) => console.log(prefixLogMessage("INFO", msg), args),
-    error: (msg: any, ...args: any[]) => console.error(prefixLogMessage("ERROR", msg), args),
-    debug: (msg: any, ...args: any[]) => console.debug(prefixLogMessage("DEBUG", msg), args),
-    warn: (msg: any, ...args: any[]) => console.warn(prefixLogMessage("WARN", msg), args),
+    info: (msg: any, ...args: any[]) => testLogger.atInfo().log(msg, ...args),
+    error: (msg: any, ...args: any[]) => testLogger.atError().log(msg, ...args),
+    debug: (msg: any, ...args: any[]) => testLogger.atDebug().log(msg, ...args),
+    warn: (msg: any, ...args: any[]) => testLogger.atWarn().log(msg, ...args),
   };
 
   let res: AnyEvent[] = null;
   for (const event of events) {
     try {
+      testLogger
+        .atInfo()
+        .log(
+          `📌Testing ${logFormat.bold(event.event || event.type)} message of ${toDate(event.timestamp).toISOString()}`
+        );
       const r = await func(event, {
         props: config,
         fetch,

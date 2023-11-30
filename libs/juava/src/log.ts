@@ -18,7 +18,7 @@ function getComponent() {
 }
 
 let globalLogLevel: LogLevel = "info" as LogLevel;
-let enableServerLogsColoring: boolean = false;
+let enableServerLogsColoring: boolean = !(process.env.CI === "1" || process.env.CI === "true");
 let enableJsonFormat: boolean = false;
 
 export function setGlobalLogLevel(level: LogLevel) {
@@ -83,14 +83,23 @@ function inBrowser() {
   return typeof window !== "undefined";
 }
 
-function colorConsoleMessage(color: Color, str: string): string {
-  return !inBrowser() && enableServerLogsColoring && color !== undefined
-    ? str
-        .split("\n")
-        .map(line => `${colorsAnsi[color]}${line}\x1b[0m`)
-        .join("\n")
-    : str;
-}
+export const logFormat = {
+  bold(msg: string): string {
+    return msg;
+  },
+  italic(msg: string): string {
+    return msg;
+  },
+  color(color: Color, str: string): string {
+    //to implement bold and italic we should split string by [0m and apply bold/italic to each part
+    return !inBrowser() && enableServerLogsColoring && color !== undefined
+      ? str
+          .split("\n")
+          .map(line => `${colorsAnsi[color]}${line}\x1b[0m`)
+          .join("\n")
+      : str;
+  },
+};
 
 //process.stdout is not available on Vercel's edge runtime
 const writeln = process.stdout
@@ -125,9 +134,9 @@ function dispatch(msg: LogMessage) {
     if (enableJsonFormat) {
       writeln(JSON.stringify({ time: msg.date, level: msg.level, msg: lines.join("\n") }));
     } else {
-      const border = "│";
+      const border = ""; // = "｜";
       const messageFormatted = lines.join(`\n${border} `);
-      writeln(colorConsoleMessage(levelColor, messageFormatted));
+      writeln(logFormat.color(levelColor, messageFormatted));
     }
   }
   msg.dispatched = true;

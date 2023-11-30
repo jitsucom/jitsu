@@ -1,4 +1,4 @@
-import { FetchOpts, FetchType } from "@jitsu/protocols/functions";
+import { FetchOpts, FetchType, FunctionLogger } from "@jitsu/protocols/functions";
 
 export type JsonFetchOpts = Omit<FetchOpts, "body"> & {
   body?: any;
@@ -34,7 +34,10 @@ export class JsonFetchError extends Error {
   }
 }
 
-export function jsonFetcher(fetch: FetchType): JsonFetcher {
+export function jsonFetcher(
+  fetch: FetchType,
+  { log, debug }: { log: FunctionLogger; debug?: boolean } = { log: console }
+): JsonFetcher {
   return async (url: string, options?: JsonFetchOpts) => {
     const method = options?.method || (options?.body ? "POST" : "GET");
     const bodyStr =
@@ -50,16 +53,21 @@ export function jsonFetcher(fetch: FetchType): JsonFetcher {
       body: bodyStr,
     });
     let responseText = await response.text();
+    if (debug) {
+      const message = `${method} ${url} → ${response.ok ? "🟢" : "🔴"}${response.status} ${response.statusText}.${
+        bodyStr ? `\n📨Request body:\n${prettifyJson(bodyStr)}` : ""
+      }\n📩Response body${responseText ? `: \n${prettifyJson(responseText)}` : " is empty"}`;
+      if (response.ok) {
+        log.debug(message);
+      } else {
+        log.warn(message);
+      }
+    }
     if (!response.ok) {
       if (responseText.length > maxResponseLen) {
         responseText =
           responseText.substring(0, maxResponseLen) + "...(truncated, total length: " + responseText.length + ")";
       }
-      console.log(
-        `Request error: ${method} ${url} failed with status ${response.status} ${response.statusText}: ${prettifyJson(
-          responseText
-        )}${bodyStr ? `. Request body: ${prettifyJson(bodyStr)}` : ""}`
-      );
       throw new JsonFetchError(
         response.status,
         `${method} ${url} failed with status ${response.status} ${response.statusText}: ${responseText}`
