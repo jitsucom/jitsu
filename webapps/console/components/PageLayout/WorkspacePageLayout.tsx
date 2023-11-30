@@ -533,7 +533,7 @@ function PageHeader() {
       title: "Connectors",
       icon: <PlugZap className="w-full h-full" />,
       items: [
-        { title: "Connections", path: "/services", icon: <ServerCog className="w-full h-full" /> },
+        { title: "Connected Services", path: "/services", icon: <ServerCog className="w-full h-full" /> },
         { title: "Syncs", path: "/syncs", icon: <Share2 className="w-full h-full" /> },
         { title: "All Logs", path: "/syncs/tasks", icon: <ScrollText className="w-full h-full" /> },
       ],
