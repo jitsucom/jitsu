@@ -2,7 +2,7 @@ import { WorkspacePageLayout } from "../../components/PageLayout/WorkspacePageLa
 import { useAppConfig, useWorkspace } from "../../lib/context";
 import { DestinationConfig, ServiceConfig, StreamConfig } from "../../lib/schema";
 import { branding } from "../../lib/branding";
-import { Badge, Tooltip } from "antd";
+import { Badge, Button, Dropdown, Tooltip } from "antd";
 import React, { ReactNode, useEffect, useState } from "react";
 import { FaGlobe } from "react-icons/fa";
 import { LabelEllipsis } from "../../components/LabelEllipsis/LabelEllipsis";
@@ -14,12 +14,13 @@ import { QuestionCircleOutlined } from "@ant-design/icons";
 import { ProvisionDatabaseButton } from "../../components/ProvisionDatabaseButton/ProvisionDatabaseButton";
 import { ConnectionsDiagram } from "../../components/ConnectionsDiagram/ConnectionsDiagram";
 import { getLog } from "juava";
-import { Chrome } from "lucide-react";
+import { Chrome, MoreVertical } from "lucide-react";
 import classNames from "classnames";
 import { useQuery } from "@tanstack/react-query";
 import { get, getConfigApi } from "../../lib/useApi";
 import { LoadingAnimation } from "../../components/GlobalLoader/GlobalLoader";
 import { GlobalError } from "../../components/GlobalError/GlobalError";
+import Link from "next/link";
 
 function HoverBorder({ children, forceHover }: { children: ReactNode; forceHover?: boolean }) {
   const [_hover, setHover] = useState(false);
@@ -44,20 +45,43 @@ function Card({
   configLink,
   icon,
   selected,
+  actions,
 }: {
   title: string;
   configLink?: string;
   icon: ReactNode;
+  actions?: { title: ReactNode; link: string }[];
   selected?: boolean;
 }) {
   const card = (
     <HoverBorder forceHover={selected}>
       <div className={classNames(`w-full px-4 py-5 rounded-lg text-primary`)}>
-        <div className="flex flex-start items-center space-x-4">
-          <div className="w-6 h-6">{icon}</div>
-          <div className="text-lg py-0 text-neutral-600">
-            <LabelEllipsis maxLen={29}>{title}</LabelEllipsis>
+        <div className="flex flex-nowrap justify-between items-start">
+          <div className="flex flex-start items-center space-x-4">
+            <div className="w-6 h-6">{icon}</div>
+            <div className="text-lg py-0 text-neutral-600">
+              <LabelEllipsis maxLen={29}>{title}</LabelEllipsis>
+            </div>
           </div>
+          {actions && actions.length > 0 && (
+            <Dropdown
+              trigger={["click"]}
+              menu={{
+                items: actions.map(({ link, title }) => ({
+                  key: link,
+                  label: (
+                    <Link prefetch={false} href={link}>
+                      {title}
+                    </Link>
+                  ),
+                })),
+              }}
+            >
+              <Button size="small" type="ghost">
+                <MoreVertical strokeWidth={2} className="text-textLight w-5 h-5 ant-icon" />
+              </Button>
+            </Dropdown>
+          )}
         </div>
       </div>
     </HoverBorder>
@@ -74,6 +98,19 @@ function DestinationCard({ dest, selected }: { dest: DestinationConfig; selected
       selected={selected}
       icon={coreDestinationsMap[dest.destinationType]?.icon || <FaGlobe className="w-full h-full" />}
       title={dest.name}
+      actions={[
+        { title: "Edit", link: `/${workspace.slug || workspace.id}/destinations?id=${dest.id}` },
+        {
+          title: "View Connected Streams",
+          link: `/${workspace.slug || workspace.id}/connections?sorting=${encodeURIComponent(
+            btoa(JSON.stringify({ columns: [{ field: "Source", order: "ascend" }] }))
+          )}&destination=${encodeURIComponent(dest.id)}`,
+        },
+        {
+          title: "View Syncs",
+          link: `/${workspace.slug || workspace.id}/syncs?destination=${encodeURIComponent(dest.id)}`,
+        },
+      ]}
       configLink={!dest.provisioned ? `/${workspace.id}/destinations?id=${dest.id}` : `/${workspace.id}/destinations`}
     />
   );
@@ -171,7 +208,14 @@ function WorkspaceOverview(props: {
                   />
                 }
                 title={name || id}
-                configLink={`/${workspace.id}/services?id=${id}`}
+                configLink={`/${workspace.slug || workspace.id}/services?id=${id}`}
+                actions={[
+                  { title: "Edit", link: `/${workspace.slug || workspace.id}/services?id=${id}` },
+                  {
+                    title: "View Syncs",
+                    link: `/${workspace.slug || workspace.id}/syncs?source=${encodeURIComponent(id)}`,
+                  },
+                ]}
               />
             ),
           }))}
@@ -192,7 +236,18 @@ function WorkspaceOverview(props: {
                 selected={forceSelect}
                 icon={<FaviconLoader potentialUrl={name} />}
                 title={name || id}
-                configLink={`/${workspace.id}/streams?id=${id}`}
+                configLink={`/${workspace.slug || workspace.id}/streams?id=${id}`}
+                actions={[
+                  { title: "Edit", link: `/${workspace.slug || workspace.id}/streams?id=${id}` },
+                  { title: "Live Events", link: `/${workspace.slug || workspace.id}/data` },
+                  {
+                    title: "View Connected Destinations",
+
+                    link: `/${workspace.slug || workspace.id}/connections?sorting=${encodeURIComponent(
+                      btoa(JSON.stringify({ columns: [{ field: "Source", order: "ascend" }] }))
+                    )}&source=${encodeURIComponent(id)}`,
+                  },
+                ]}
               />
             ),
           }))}

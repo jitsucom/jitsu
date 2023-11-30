@@ -16,7 +16,16 @@ import { useLinksQuery } from "../../../lib/queries";
 import { jsonSerializationBase64, useQueryStringState } from "../../../lib/useQueryStringState";
 import { TableProps } from "antd/es/table/InternalTable";
 import { ColumnType, SortOrder } from "antd/es/table/interface";
-import { CalendarCheckIcon, Edit3, ExternalLink, Inbox, ListMinusIcon, Loader2, RefreshCw } from "lucide-react";
+import {
+  CalendarCheckIcon,
+  Edit3,
+  ExternalLink,
+  Inbox,
+  ListMinusIcon,
+  Loader2,
+  RefreshCw,
+  XCircle,
+} from "lucide-react";
 import { PlusOutlined } from "@ant-design/icons";
 import { WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
 import { ErrorCard } from "../../../components/GlobalError/GlobalError";
@@ -24,8 +33,6 @@ import { Spinner } from "../../../components/GlobalLoader/GlobalLoader";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import relativeTime from "dayjs/plugin/relativeTime";
-dayjs.extend(relativeTime);
-dayjs.extend(utc);
 import { ServiceTitle } from "../services";
 import { DestinationTitle } from "../destinations";
 import JSON5 from "json5";
@@ -33,6 +40,11 @@ import { ButtonGroup, ButtonProps } from "../../../components/ButtonGroup/Button
 import { Overlay } from "../../../components/Overlay/Overlay";
 import { CodeBlock } from "../../../components/CodeBlock/CodeBlock";
 import { processTaskStatus, TaskStatus } from "./tasks";
+import omit from "lodash/omit";
+import { toURL } from "../../../lib/shared/url";
+
+dayjs.extend(relativeTime);
+dayjs.extend(utc);
 
 export const formatDate = (date: string | Date) =>
   dayjs(date, "YYYY-MM-DDTHH:mm:ss.SSSZ").utc().format("YYYY-MM-DD HH:mm:ss");
@@ -317,6 +329,7 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
               }
             },
             label: "Full Sync",
+            collapsed: true,
           },
           {
             icon: <CalendarCheckIcon className={"w-4 h-4"} />,
@@ -324,6 +337,7 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
               setShowAPIDocs(link.id);
             },
             label: "API",
+            collapsed: true,
           },
           {
             icon: <FaTrash />,
@@ -332,9 +346,10 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
             },
             danger: true,
             label: "Delete",
+            collapsed: true,
           },
         ];
-        return <ButtonGroup collapseLast={3} items={items} />;
+        return <ButtonGroup items={items} />;
       },
     },
   ];
@@ -366,6 +381,9 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
 
 function Syncs(props: RemoteEntitiesProps) {
   const { services, destinations, links } = props;
+  const router = useRouter();
+  const destinationFilter = router.query.destination as string | undefined;
+  const srcFilter = router.query.source as string | undefined;
   const workspace = useWorkspace();
   if (props.services.length == 0 || props.destinations.length == 0) {
     return (
@@ -398,7 +416,24 @@ function Syncs(props: RemoteEntitiesProps) {
       <div className="flex justify-between py-6">
         <div className="flex items-center">
           <div className="text-3xl">Syncs</div>
+          {destinationFilter && (
+            <div className="mt-1 ml-4 rounded-full bg-textDisabled/50 px-4 py-1 flex flex-nowrap items-center">
+              <DestinationTitle size="small" destination={destinations.find(d => d.id === destinationFilter)} />
+              <Link className={"ml-1"} prefetch={false} href={toURL(router.route, omit(router.query, ["destination"]))}>
+                <XCircle className="w-4 h-4 text-textLight" />
+              </Link>
+            </div>
+          )}
+          {srcFilter && (
+            <div className="mt-1 ml-4 rounded-full bg-textDisabled/50 px-4 py-1 flex flex-nowrap items-center">
+              <ServiceTitle size="small" service={services.find(d => d.id === srcFilter)} />
+              <Link className={"ml-1"} prefetch={false} href={toURL(router.route, omit(router.query, ["source"]))}>
+                <XCircle className="w-4 h-4 text-textLight" />
+              </Link>
+            </div>
+          )}
         </div>
+
         <div>
           <WJitsuButton href={`/syncs/edit`} type="primary" size="large" icon={<FaPlus className="anticon" />}>
             Connect service and destination
@@ -409,7 +444,9 @@ function Syncs(props: RemoteEntitiesProps) {
         {links.length === 0 && <EmptyLinks />}
         {links.length > 0 && (
           <SyncsTable
-            links={links}
+            links={links
+              .filter(l => !destinationFilter || l.toId === destinationFilter)
+              .filter(l => !srcFilter || l.fromId === srcFilter)}
             services={services}
             destinations={destinations}
             reloadCallback={props.reloadCallback}

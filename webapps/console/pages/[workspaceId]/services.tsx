@@ -16,7 +16,7 @@ import { syncError } from "../../lib/shared/errors";
 import { ObjectTitle } from "../../components/ObjectTitle/ObjectTitle";
 import omit from "lodash/omit";
 import { useApi } from "../../lib/useApi";
-import { AlertTriangle, Check } from "lucide-react";
+import { AlertTriangle, Check, Zap } from "lucide-react";
 import Link from "next/link";
 
 const log = getLog("services");
@@ -220,6 +220,14 @@ const ServicesList: React.FC<{}> = () => {
     subtitle: (obj: ServiceConfig, isNew: boolean, meta) => {
       return `${obj.package || meta!.packageId}`;
     },
+    actions: [
+      {
+        icon: <Zap className="w-full h-full" />,
+        title: "Connected Destinations",
+        collapsed: true,
+        link: s => `/syncs?source=${s.id}`,
+      },
+    ],
   };
   return (
     <>

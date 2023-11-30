@@ -25,7 +25,7 @@ import { SnippedEditor } from "../../components/CodeEditor/SnippedEditor";
 import { MultiSelectWithCustomOptions } from "../../components/MultiSelectWithCustomOptions/MultiSelectWithCustomOptions";
 import { LoadingAnimation } from "../../components/GlobalLoader/GlobalLoader";
 import { useQuery } from "@tanstack/react-query";
-import { Copy, Eye, FileKey, Loader2, TerminalSquare, XCircle } from "lucide-react";
+import { Copy, Eye, FileKey, Loader2, Share2, TerminalSquare, XCircle, Zap } from "lucide-react";
 import { ClickhouseConnectionCredentials } from "../../lib/schema/clickhouse-connection-credentials";
 import { CodeBlock } from "../../components/CodeBlock/CodeBlock";
 import { useBilling } from "../../components/Billing/BillingProvider";
@@ -570,18 +570,32 @@ const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
   log.atDebug().log("extraFields", extraFields);
   const config: ConfigEditorProps<DestinationConfig> = {
     actions: [
-      // {
-      //   title: "Run SQL query editor",
-      //   collapsed: true,
-      //   icon: <TerminalSquare className="h-4 w-4" />,
-      //   key: "sql",
-      //   link: (d: DestinationConfig) => `/sql?destinationId=${d.id}`,
-      //   disabled: (d: DestinationConfig) => {
-      //     return d.provisioned || (d.destinationType === "clickhouse" && d.protocol === "https")
-      //       ? false
-      //       : "Jitsu can query either provisioned ClickHouse, or ClickHouse connected via HTTPS protocol";
-      //   },
-      // },
+      {
+        title: "Run SQL query editor",
+        collapsed: true,
+        icon: <TerminalSquare className="h-4 w-4" />,
+        key: "sql",
+        link: (d: DestinationConfig) => `/sql?destinationId=${d.id}`,
+        disabled: (d: DestinationConfig) => {
+          return d.provisioned || (d.destinationType === "clickhouse" && d.protocol === "https")
+            ? false
+            : "Jitsu can query either provisioned ClickHouse, or ClickHouse connected via HTTPS protocol";
+        },
+      },
+      {
+        title: "Connected Sources",
+        collapsed: true,
+        icon: <Zap className="h-4 w-4" />,
+        key: "sources",
+        link: (d: DestinationConfig) => `/connections?destination=${d.id}`,
+      },
+      {
+        title: "Syncs",
+        collapsed: true,
+        icon: <Share2 className="h-4 w-4" />,
+        key: "syncs",
+        link: (d: DestinationConfig) => `/syncs?destination=${d.id}`,
+      },
     ],
     filter: (obj: DestinationConfig) => !obj.provisioned,
     icon: (d: DestinationConfig) => {

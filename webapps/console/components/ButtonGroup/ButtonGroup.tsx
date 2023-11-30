@@ -4,8 +4,10 @@ import { JitsuButton, WJitsuButton } from "../JitsuButton/JitsuButton";
 import { BaseButtonProps } from "antd/lib/button/button";
 import styles from "./ButtonGroup.module.css";
 import { useRouter } from "next/router";
-import { useWorkspace } from "../../lib/context";
+import { useWorkspace, WorkspaceContext } from "../../lib/context";
 import { MoreVertical } from "lucide-react";
+import Link from "next/link";
+import { MenuItemType } from "antd/es/menu/hooks/useItems";
 
 const AntButtonGroup = Button.Group;
 
@@ -20,29 +22,58 @@ export type ButtonProps = Omit<BaseButtonProps, "children" | "type"> & {
 
 export type ButtonGroupProps = {
   items: ButtonProps[];
-  collapseLast?: number;
 };
 
-export const ButtonGroup: React.FC<ButtonGroupProps> = ({ items, collapseLast }) => {
+function toMenuIten(w: WorkspaceContext, item: ButtonProps, i: number): MenuItemType {
+  return item.href
+    ? {
+        label: (
+          <Link prefetch={true} href={`/${w.slug || w.id}/${item.href}`}>
+            {item.label}
+          </Link>
+        ),
+        key: item.href,
+        icon: item.icon,
+        disabled: item.disabled,
+        danger: item.danger,
+      }
+    : {
+        label: item.label,
+        key: i,
+        icon: item.icon,
+        disabled: item.disabled,
+        danger: item.danger,
+        onClick: item.onClick,
+      };
+}
+
+export const ButtonGroup: React.FC<ButtonGroupProps> = ({ items }) => {
   const router = useRouter();
   const w = useWorkspace();
-  const _expandedItems = typeof collapseLast !== "undefined" ? items.slice(0, items.length - collapseLast) : items;
-  const _collapsedItems: MenuProps["items"] =
-    typeof collapseLast !== "undefined"
-      ? items.slice(items.length - collapseLast).map((item, i) => ({
-          label: item.label,
+  const menuItems: MenuProps["items"] = items.map((item, i) =>
+    item.onClick
+      ? {
+          label: (
+            <Link prefetch={true} href={`/${w.slug || w.id}/${item.href}`}>
+              {item.label}
+            </Link>
+          ),
           key: i,
           icon: item.icon,
           disabled: item.disabled,
           danger: item.danger,
-          onClick: item.onClick || (item.href ? () => router.push(`/${w.slug || w.id}${item.href}`) : undefined),
-        }))
-      : [];
-  const expandedItems = _expandedItems.filter(item => !item.collapsed);
-  const collapsedItems = [..._expandedItems.filter(item => item.collapsed), ..._collapsedItems].map((item, i) => ({
-    ...item,
-    key: i,
-  }));
+        }
+      : {
+          label: item.label,
+          key: i,
+          icon: item.icon,
+          disabled: item.disabled,
+          anger: item.danger,
+          onClick: item.onClick,
+        }
+  );
+  const expandedItems = items.filter(item => !item.collapsed);
+  const collapsedItems = items.filter(item => !!item.collapsed).map((item, i) => toMenuIten(w, item, i));
 
   return (
     <AntButtonGroup className={styles.buttonGroup}>

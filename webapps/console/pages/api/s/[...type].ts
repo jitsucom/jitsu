@@ -13,7 +13,6 @@ import { fastStore, StreamWithDestinations } from "../../../lib/server/fast-stor
 import { getCoreDestinationType } from "../../../lib/schema/destinations";
 import { redis } from "../../../lib/server/redis";
 import { Geo } from "@jitsu/protocols/functions";
-import { isEU } from "../../../lib/shared/eu";
 import { IncomingHttpHeaders } from "http";
 import { NextApiRequest, NextApiResponse } from "next";
 import jsondiffpatch from "jsondiffpatch";
@@ -22,6 +21,7 @@ import {
   satisfyDomainFilter,
   satisfyFilter,
 } from "@jitsu/js/compiled/src/destination-plugins";
+import { isEU } from "../../../lib/shared/countries";
 
 const jsondiffpatchInstance = jsondiffpatch.create({});
 

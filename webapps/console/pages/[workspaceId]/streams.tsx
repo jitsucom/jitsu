@@ -18,7 +18,7 @@ import { confirmOp, feedbackError } from "../../lib/ui";
 import type { DomainStatus } from "../../lib/server/ee";
 import { getAntdModal, useAntdModal } from "../../lib/modal";
 import { get } from "../../lib/useApi";
-import { Globe, Wrench } from "lucide-react";
+import { Globe, Wrench, Zap } from "lucide-react";
 import { FaviconLoader } from "./index";
 import { ObjectTitle } from "../../components/ObjectTitle/ObjectTitle";
 import omit from "lodash/omit";
@@ -381,6 +381,12 @@ const StreamsList: React.FC<{}> = () => {
           });
           setImplementationDocumentationId(stream.id);
         },
+      },
+      {
+        icon: <Zap className="w-full h-full" />,
+        title: "Connected Destinations",
+        collapsed: true,
+        link: stream => `/connections?source=${stream.id}`,
       },
     ],
     listColumns:
