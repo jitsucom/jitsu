@@ -718,16 +718,18 @@ const ObjectsList: React.FC<{ objects: any[]; onDelete: (id: string) => Promise<
           {
             label: "Clone",
             href: `/${type}s?id=new&clone=${record.id}`,
+            collapsed: true,
             icon: <FaClone />,
           },
           {
             label: "Delete",
             danger: true,
+            collapsed: true,
             onClick: () => deleteObject(record.id),
             icon: <DeleteOutlined />,
           },
         ].filter(i => !!i);
-        return <ButtonGroup collapseLast={2} items={items} />;
+        return <ButtonGroup items={items} />;
       },
     },
   ];

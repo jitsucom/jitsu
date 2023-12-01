@@ -16,7 +16,7 @@ import { syncError } from "../../lib/shared/errors";
 import { ObjectTitle } from "../../components/ObjectTitle/ObjectTitle";
 import omit from "lodash/omit";
 import { useApi } from "../../lib/useApi";
-import { AlertTriangle, Check } from "lucide-react";
+import { AlertTriangle, Check, Zap } from "lucide-react";
 import Link from "next/link";
 
 const log = getLog("services");
@@ -68,7 +68,7 @@ const ConnectionsHint: React.FC<{ connections: any[]; service: ServiceConfig }> 
         <Check className="h-4 w-4 mr-1 text-success" />{" "}
         <span className="text-sm">
           Connected to{" "}
-          <Link href={`/${workspace.slug}/syncs`}>
+          <Link href={`/${workspace.slug}/syncs?source=${service.id}`}>
             {connections.length} destination{connections.length > 1 ? "s" : ""}
           </Link>
         </span>
@@ -129,7 +129,7 @@ const ServicesList: React.FC<{}> = () => {
       protocol: { hidden: true },
       package: { hidden: true },
     },
-    noun: "connector",
+    noun: "connected service",
     type: "service",
     explanation: "Services are used to connect to external systems",
     icon: s => (
@@ -220,6 +220,14 @@ const ServicesList: React.FC<{}> = () => {
     subtitle: (obj: ServiceConfig, isNew: boolean, meta) => {
       return `${obj.package || meta!.packageId}`;
     },
+    actions: [
+      {
+        icon: <Zap className="w-full h-full" />,
+        title: "Connected Destinations",
+        collapsed: true,
+        link: s => `/syncs?source=${s.id}`,
+      },
+    ],
   };
   return (
     <>

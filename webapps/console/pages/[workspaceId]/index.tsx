@@ -14,12 +14,15 @@ import { QuestionCircleOutlined } from "@ant-design/icons";
 import { ProvisionDatabaseButton } from "../../components/ProvisionDatabaseButton/ProvisionDatabaseButton";
 import { ConnectionsDiagram } from "../../components/ConnectionsDiagram/ConnectionsDiagram";
 import { getLog } from "juava";
-import { Chrome } from "lucide-react";
+import { Activity, Chrome, Edit3, MoreVertical, Share2, Zap } from "lucide-react";
 import classNames from "classnames";
 import { useQuery } from "@tanstack/react-query";
 import { get, getConfigApi } from "../../lib/useApi";
 import { LoadingAnimation } from "../../components/GlobalLoader/GlobalLoader";
 import { GlobalError } from "../../components/GlobalError/GlobalError";
+import { toURL } from "../../lib/shared/url";
+import JSON5 from "json5";
+import { ButtonGroup } from "../../components/ButtonGroup/ButtonGroup";
 
 function HoverBorder({ children, forceHover }: { children: ReactNode; forceHover?: boolean }) {
   const [_hover, setHover] = useState(false);
@@ -44,20 +47,34 @@ function Card({
   configLink,
   icon,
   selected,
+  actions,
 }: {
   title: string;
   configLink?: string;
   icon: ReactNode;
+  actions?: { label: ReactNode; icon?: ReactNode; href: string }[];
   selected?: boolean;
 }) {
   const card = (
     <HoverBorder forceHover={selected}>
       <div className={classNames(`w-full px-4 py-5 rounded-lg text-primary`)}>
-        <div className="flex flex-start items-center space-x-4">
-          <div className="w-6 h-6">{icon}</div>
-          <div className="text-lg py-0 text-neutral-600">
-            <LabelEllipsis maxLen={29}>{title}</LabelEllipsis>
+        <div className="flex flex-nowrap justify-between items-start">
+          <div className="flex flex-start items-center space-x-4">
+            <div className="w-6 h-6">{icon}</div>
+            <div className="text-lg py-0 text-neutral-600 text-ellipsis">
+              <LabelEllipsis maxLen={29}>{title}</LabelEllipsis>
+            </div>
           </div>
+          {actions && actions.length > 0 && (
+            <ButtonGroup
+              dotsButtonProps={{
+                size: "small",
+                type: "ghost",
+                icon: <MoreVertical strokeWidth={2} className="text-textLight w-5 h-5" />,
+              }}
+              items={actions.map(a => ({ ...a, collapsed: true }))}
+            />
+          )}
         </div>
       </div>
     </HoverBorder>
@@ -74,6 +91,22 @@ function DestinationCard({ dest, selected }: { dest: DestinationConfig; selected
       selected={selected}
       icon={coreDestinationsMap[dest.destinationType]?.icon || <FaGlobe className="w-full h-full" />}
       title={dest.name}
+      actions={[
+        { label: "Edit", href: `/destinations?id=${dest.id}`, icon: <Edit3 className="w-4 h-4" /> },
+
+        {
+          label: "View Connected Streams",
+          icon: <Zap className="w-4 h-4" />,
+          href: `/connections?sorting=${encodeURIComponent(
+            btoa(JSON.stringify({ columns: [{ field: "Source", order: "ascend" }] }))
+          )}&destination=${encodeURIComponent(dest.id)}`,
+        },
+        {
+          label: "View Syncs",
+          icon: <Share2 className="w-4 h-4" />,
+          href: `/syncs?destination=${encodeURIComponent(dest.id)}`,
+        },
+      ]}
       configLink={!dest.provisioned ? `/${workspace.id}/destinations?id=${dest.id}` : `/${workspace.id}/destinations`}
     />
   );
@@ -171,7 +204,15 @@ function WorkspaceOverview(props: {
                   />
                 }
                 title={name || id}
-                configLink={`/${workspace.id}/services?id=${id}`}
+                configLink={`/${workspace.slug || workspace.id}/services?id=${id}`}
+                actions={[
+                  { label: "Edit", href: `/services?id=${id}`, icon: <Edit3 className={"w-4 h-4"} /> },
+                  {
+                    label: "View Syncs",
+                    icon: <Share2 className="w-4 h-4" />,
+                    href: `/syncs?source=${encodeURIComponent(id)}`,
+                  },
+                ]}
               />
             ),
           }))}
@@ -192,7 +233,27 @@ function WorkspaceOverview(props: {
                 selected={forceSelect}
                 icon={<FaviconLoader potentialUrl={name} />}
                 title={name || id}
-                configLink={`/${workspace.id}/streams?id=${id}`}
+                configLink={`/${workspace.slug || workspace.id}/streams?id=${id}`}
+                actions={[
+                  { label: "Edit", href: `/streams?id=${id}`, icon: <Edit3 className={"w-4 h-4"} /> },
+                  {
+                    label: "Live Events",
+                    icon: <Activity className="w-4 h-4" />,
+                    href: toURL("/data", {
+                      query: JSON5.stringify({
+                        activeView: "incoming",
+                        viewState: { incoming: { actorId: id } },
+                      }),
+                    }),
+                  },
+                  {
+                    label: "View Connected Destinations",
+                    icon: <Zap className="w-4 h-4" />,
+                    href: `/connections?sorting=${encodeURIComponent(
+                      btoa(JSON.stringify({ columns: [{ field: "Source", order: "ascend" }] }))
+                    )}&source=${encodeURIComponent(id)}`,
+                  },
+                ]}
               />
             ),
           }))}

@@ -6,6 +6,7 @@ import React from "react";
 import { ButtonLabel } from "../ButtonLabel/ButtonLabel";
 import { useRouter } from "next/router";
 import { useWorkspace } from "../../lib/context";
+import Link from "next/link";
 
 export type JitsuButtonProps = ButtonProps & {
   iconPosition?: "left" | "right";
@@ -46,5 +47,5 @@ export const JitsuButton: React.FC<JitsuButtonProps> = p => {
   if (p.ws) {
     return <WJitsuButton {...p} href={p.href} />;
   }
-  return <HJitsuButton {...p} href={p.href} />;
+  return <Link prefetch={false} {...p} href={p.href} />;
 };

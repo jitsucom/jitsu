@@ -12,17 +12,20 @@ import { TrackingIntegrationDocumentation } from "../../components/TrackingInteg
 import { BrowserKeysEditor } from "../../components/ApiKeyEditor/ApiKeyEditor";
 import { useQuery } from "@tanstack/react-query";
 import { getEeClient } from "../../lib/ee-client";
-import { requireDefined } from "juava";
+import { assertDefined, requireDefined } from "juava";
 import { ReloadOutlined } from "@ant-design/icons";
 import { confirmOp, feedbackError } from "../../lib/ui";
 import type { DomainStatus } from "../../lib/server/ee";
 import { getAntdModal, useAntdModal } from "../../lib/modal";
 import { get } from "../../lib/useApi";
-import { Globe, Wrench } from "lucide-react";
+import { Activity, AlertTriangle, Check, Globe, Wrench, Zap } from "lucide-react";
 import { FaviconLoader } from "./index";
 import { ObjectTitle } from "../../components/ObjectTitle/ObjectTitle";
 import omit from "lodash/omit";
 import { CustomWidgetProps } from "../../components/ConfigObjectEditor/Editors";
+import { useLinksQuery } from "../../lib/queries";
+import { toURL } from "../../lib/shared/url";
+import JSON5 from "json5";
 
 const Streams: React.FC<any> = () => {
   return (
@@ -348,6 +351,12 @@ const StreamsList: React.FC<{}> = () => {
   const noun = "site";
   const router = useRouter();
   const appConfig = useAppConfig();
+  const links = useLinksQuery(workspace.id, "push", {
+    cacheTime: 0,
+    retry: false,
+    withFunctions: true,
+  });
+  const destinations = links.data?.destinations || [];
 
   const [implementationDocumentationId, setImplementationDocumentationId] = useState<string | undefined>(
     router.query.implementationFor as string | undefined
@@ -371,9 +380,9 @@ const StreamsList: React.FC<{}> = () => {
     icon: s => <FaviconLoader potentialUrl={s.name} />,
     actions: [
       {
-        icon: <Wrench className="w-full h-full" />,
+        icon: <Wrench className="w-4 h-4" />,
         title: "Setup Instructions",
-        collapsed: false,
+        collapsed: true,
         action: stream => {
           router.replace({
             pathname: router.pathname,
@@ -382,9 +391,26 @@ const StreamsList: React.FC<{}> = () => {
           setImplementationDocumentationId(stream.id);
         },
       },
+      {
+        icon: <Activity className="w-4 h-4" />,
+        link: stream =>
+          toURL("/data", {
+            query: JSON5.stringify({
+              activeView: "incoming",
+              viewState: { incoming: { actorId: stream.id } },
+            }),
+          }),
+        title: "Live Events",
+      },
+      {
+        icon: <Zap className="w-4 h-4" />,
+        title: "Connected Destinations",
+        collapsed: true,
+        link: stream => `/connections?source=${stream.id}`,
+      },
     ],
-    listColumns:
-      appConfig.publicEndpoints.dataHost || appConfig.ee.available
+    listColumns: [
+      ...(appConfig.publicEndpoints.dataHost || appConfig.ee.available
         ? [
             {
               title: "Domains",
@@ -402,7 +428,46 @@ const StreamsList: React.FC<{}> = () => {
               ),
             },
           ]
-        : [],
+        : []),
+      {
+        title: "Destination Connections",
+        render: (s: StreamConfig) => {
+          if (links.isLoading) {
+            return <FaSpinner className="animate-spin mr-1" />;
+          } else if (links.error) {
+            return <></>;
+          }
+          assertDefined(links.data);
+          const [streams, _, connections] = links.data;
+          const destinations = connections.filter(c => c.fromId === s.id);
+          if (destinations.length === 0) {
+            return (
+              <div className="flex items-center flex-nowrap">
+                <AlertTriangle className="h-4 w-4 mr-1 text-warning" />{" "}
+                <span className="text-sm">
+                  <Link href={`/${workspace.slug}/connections/edit?serviceId=${s.id}`}>
+                    Create a connection to any destination
+                  </Link>{" "}
+                  to start seeing data
+                </span>
+              </div>
+            );
+          } else {
+            return (
+              <div className="flex items-center flex-nowrap">
+                <Check className="h-4 w-4 mr-1 text-success" />{" "}
+                <span className="text-sm">
+                  Connected to{" "}
+                  <Link href={`/${workspace.slug}/connections?source=${s.id}`}>
+                    {destinations.length} destination{destinations.length > 1 ? "s" : ""}
+                  </Link>
+                </span>
+              </div>
+            );
+          }
+        },
+      },
+    ],
     fields: {
       type: { constant: "stream" },
       workspaceId: { constant: workspace.id },

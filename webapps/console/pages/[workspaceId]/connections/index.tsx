@@ -17,13 +17,16 @@ import { useLinksQuery } from "../../../lib/queries";
 import { jsonSerializationBase64, useQueryStringState } from "../../../lib/useQueryStringState";
 import { TableProps } from "antd/es/table/InternalTable";
 import { ColumnType, SortOrder } from "antd/es/table/interface";
-import { Edit3, Inbox } from "lucide-react";
+import { Activity, Edit3, Inbox, XCircle } from "lucide-react";
 import { PlusOutlined } from "@ant-design/icons";
 import { JitsuButton, WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
 import { DestinationTitle } from "../destinations";
 import { ButtonGroup, ButtonProps } from "../../../components/ButtonGroup/ButtonGroup";
 import { StreamTitle } from "../streams";
 import { FunctionTitle } from "../functions";
+import omit from "lodash/omit";
+import { toURL } from "../../../lib/shared/url";
+import JSON5 from "json5";
 
 function EmptyLinks() {
   const workspace = useWorkspace();
@@ -224,6 +227,13 @@ function ConnectionsTable({ links, streams, destinations, functions, reloadCallb
       title: <span onClick={() => setShowId(!showId)}>Actions</span>,
       key: "actions",
       render: (text, link) => {
+        const dst = destinationsById[link.toId];
+        let type = "functions";
+        try {
+          if (getCoreDestinationType(dst.destinationType).usesBulker) {
+            type = "bulker";
+          }
+        } catch (e) {}
         const items: ButtonProps[] = [
           {
             icon: <Edit3 className={"w-4 h-4"} />,
@@ -231,7 +241,19 @@ function ConnectionsTable({ links, streams, destinations, functions, reloadCallb
             href: `/connections/edit?id=${link.id}`,
           },
           {
+            icon: <Activity className="w-4 h-4" />,
+            //collapsed: true,
+            href: toURL("/data", {
+              query: JSON5.stringify({
+                activeView: type,
+                viewState: { [type]: { actorId: link.id } },
+              }),
+            }),
+            label: "Live Events",
+          },
+          {
             icon: <FaTrash />,
+            collapsed: true,
             onClick: async () => {
               deleteConnection(link);
             },
@@ -239,7 +261,7 @@ function ConnectionsTable({ links, streams, destinations, functions, reloadCallb
             label: "Delete",
           },
         ];
-        return <ButtonGroup collapseLast={1} items={items} />;
+        return <ButtonGroup items={items} />;
       },
     },
   ];
@@ -261,6 +283,9 @@ function ConnectionsTable({ links, streams, destinations, functions, reloadCallb
 
 function Connections(props: RemoteEntitiesProps) {
   const { streams, destinations, links, functions } = props;
+  const router = useRouter();
+  const destinationFilter = router.query.destination as string | undefined;
+  const srcFilter = router.query.source as string | undefined;
   const workspace = useWorkspace();
   if (props.streams.length == 0 || props.destinations.length == 0) {
     return (
@@ -289,11 +314,30 @@ function Connections(props: RemoteEntitiesProps) {
       </div>
     );
   }
+  console.log("router.query", router);
   return (
     <div>
       <div className="flex justify-between py-6">
         <div className="flex items-center">
           <div className="text-3xl">Edit connections</div>
+          {destinationFilter && (
+            <div className="mt-1 ml-4 rounded-full bg-textDisabled/50 px-4 py-1 flex flex-nowrap items-center">
+              {/*<span className="mr-2 ">to</span>*/}
+              <DestinationTitle size="small" destination={destinations.find(d => d.id === destinationFilter)} />
+              <Link className={"ml-1"} prefetch={false} href={toURL(router.route, omit(router.query, ["destination"]))}>
+                <XCircle className="w-4 h-4 text-textLight" />
+              </Link>
+            </div>
+          )}
+          {srcFilter && (
+            <div className="mt-1 ml-4 rounded-full bg-textDisabled/50 px-4 py-1 flex flex-nowrap items-center">
+              {/*<span className="mr-2 ">to</span>*/}
+              <StreamTitle size="small" stream={streams.find(d => d.id === srcFilter)} />
+              <Link className={"ml-1"} prefetch={false} href={toURL(router.route, omit(router.query, ["source"]))}>
+                <XCircle className="w-4 h-4 text-textLight" />
+              </Link>
+            </div>
+          )}
         </div>
         <div>
           <WJitsuButton href={`/connections/edit`} type="primary" size="large" icon={<FaPlus className="anticon" />}>
@@ -305,7 +349,9 @@ function Connections(props: RemoteEntitiesProps) {
         {links.length === 0 && <EmptyLinks />}
         {links.length > 0 && (
           <ConnectionsTable
-            links={links}
+            links={links
+              .filter(l => !destinationFilter || l.toId === destinationFilter)
+              .filter(l => !srcFilter || l.fromId === srcFilter)}
             functions={functions}
             streams={streams}
             destinations={destinations}
