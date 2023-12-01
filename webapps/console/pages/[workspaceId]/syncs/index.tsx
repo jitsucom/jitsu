@@ -241,7 +241,7 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
         const items: ButtonProps[] = [
           {
             disabled: t?.status === "RUNNING" || !!runPressed,
-            title: t?.status === "RUNNING" ? "Sync is already runPressed" : undefined,
+            tooltip: t?.status === "RUNNING" ? "Sync is already runPressed" : undefined,
             icon:
               runPressed == link.id ? (
                 <Loader2 className="animate-spin w-3.5 h-3.5" />
@@ -295,7 +295,7 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
           },
           {
             disabled: t?.status === "RUNNING" || !!runPressed,
-            title: t?.status === "RUNNING" ? "Sync is already runPressed" : undefined,
+            tooltip: t?.status === "RUNNING" ? "Sync is already runPressed" : undefined,
             icon:
               runPressed == link.id ? (
                 <Loader2 className="animate-spin w-3.5 h-3.5" />

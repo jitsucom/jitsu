@@ -415,7 +415,7 @@ function TasksTable({ tasks, loading, linksMap, servicesMap, destinationsMap, re
         const items: ButtonProps[] = [
           {
             disabled: index > 0 || task.status === "RUNNING",
-            title:
+            tooltip:
               index > 0
                 ? "Only last task may be restarted"
                 : task.status === "RUNNING"

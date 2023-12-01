@@ -129,7 +129,7 @@ const ServicesList: React.FC<{}> = () => {
       protocol: { hidden: true },
       package: { hidden: true },
     },
-    noun: "connector",
+    noun: "connected service",
     type: "service",
     explanation: "Services are used to connect to external systems",
     icon: s => (

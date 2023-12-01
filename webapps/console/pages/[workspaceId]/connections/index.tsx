@@ -227,6 +227,13 @@ function ConnectionsTable({ links, streams, destinations, functions, reloadCallb
       title: <span onClick={() => setShowId(!showId)}>Actions</span>,
       key: "actions",
       render: (text, link) => {
+        const dst = destinationsById[link.toId];
+        let type = "functions";
+        try {
+          if (getCoreDestinationType(dst.destinationType).usesBulker) {
+            type = "bulker";
+          }
+        } catch (e) {}
         const items: ButtonProps[] = [
           {
             icon: <Edit3 className={"w-4 h-4"} />,
@@ -234,12 +241,12 @@ function ConnectionsTable({ links, streams, destinations, functions, reloadCallb
             href: `/connections/edit?id=${link.id}`,
           },
           {
-            icon: <Activity className="w-4 w-3" />,
+            icon: <Activity className="w-4 h-4" />,
             //collapsed: true,
             href: toURL("/data", {
               query: JSON5.stringify({
-                activeView: "functions",
-                viewState: { incoming: { actorId: link.id }, functions: {}, bulker: {} },
+                activeView: type,
+                viewState: { [type]: { actorId: link.id } },
               }),
             }),
             label: "Live Events",

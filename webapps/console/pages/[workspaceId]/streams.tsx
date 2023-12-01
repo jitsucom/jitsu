@@ -18,12 +18,14 @@ import { confirmOp, feedbackError } from "../../lib/ui";
 import type { DomainStatus } from "../../lib/server/ee";
 import { getAntdModal, useAntdModal } from "../../lib/modal";
 import { get } from "../../lib/useApi";
-import { AlertTriangle, Check, Globe, Wrench, Zap } from "lucide-react";
+import { Activity, AlertTriangle, Check, Globe, Wrench, Zap } from "lucide-react";
 import { FaviconLoader } from "./index";
 import { ObjectTitle } from "../../components/ObjectTitle/ObjectTitle";
 import omit from "lodash/omit";
 import { CustomWidgetProps } from "../../components/ConfigObjectEditor/Editors";
 import { useLinksQuery } from "../../lib/queries";
+import { toURL } from "../../lib/shared/url";
+import JSON5 from "json5";
 
 const Streams: React.FC<any> = () => {
   return (
@@ -378,9 +380,9 @@ const StreamsList: React.FC<{}> = () => {
     icon: s => <FaviconLoader potentialUrl={s.name} />,
     actions: [
       {
-        icon: <Wrench className="w-full h-full" />,
+        icon: <Wrench className="w-4 h-4" />,
         title: "Setup Instructions",
-        collapsed: false,
+        collapsed: true,
         action: stream => {
           router.replace({
             pathname: router.pathname,
@@ -390,7 +392,18 @@ const StreamsList: React.FC<{}> = () => {
         },
       },
       {
-        icon: <Zap className="w-full h-full" />,
+        icon: <Activity className="w-4 h-4" />,
+        link: stream =>
+          toURL("/data", {
+            query: JSON5.stringify({
+              activeView: "incoming",
+              viewState: { incoming: { actorId: stream.id } },
+            }),
+          }),
+        title: "Live Events",
+      },
+      {
+        icon: <Zap className="w-4 h-4" />,
         title: "Connected Destinations",
         collapsed: true,
         link: stream => `/connections?source=${stream.id}`,
