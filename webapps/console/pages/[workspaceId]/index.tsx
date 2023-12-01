@@ -30,7 +30,7 @@ function HoverBorder({ children, forceHover }: { children: ReactNode; forceHover
   return (
     <div
       className={classNames(
-        "border border-transparent transition duration-150 rounded-lg",
+        "border border-transparent transition duration-150 rounded-lg w-full",
         hover ? "border-primary" : "border-primaryLighter"
       )}
       onMouseEnter={() => setHover(true)}
@@ -42,11 +42,23 @@ function HoverBorder({ children, forceHover }: { children: ReactNode; forceHover
   );
 }
 
+function ConditionalBadge({ icon, tooltip, children }: { icon?: ReactNode; tooltip?: ReactNode; children: ReactNode }) {
+  if (!icon) {
+    return <>{children}</>;
+  }
+  return (
+    <Badge className="w-full block min-w-full" count={tooltip ? <Tooltip title={tooltip}>{icon}</Tooltip> : icon}>
+      {children}
+    </Badge>
+  );
+}
+
 function Card({
   title,
   configLink,
   icon,
   selected,
+  badge,
   actions,
 }: {
   title: string;
@@ -54,30 +66,36 @@ function Card({
   icon: ReactNode;
   actions?: { label: ReactNode; icon?: ReactNode; href: string }[];
   selected?: boolean;
+  badge?: {
+    icon: ReactNode;
+    tooltip?: ReactNode;
+  };
 }) {
   const card = (
-    <HoverBorder forceHover={selected}>
-      <div className={classNames(`w-full px-4 py-5 rounded-lg text-primary`)}>
-        <div className="flex flex-nowrap justify-between items-start">
-          <div className="flex flex-start items-center space-x-4">
-            <div className="w-6 h-6">{icon}</div>
-            <div className="text-lg py-0 text-neutral-600 text-ellipsis">
-              <LabelEllipsis maxLen={29}>{title}</LabelEllipsis>
+    <ConditionalBadge icon={badge?.icon} tooltip={badge?.tooltip}>
+      <HoverBorder forceHover={selected}>
+        <div className={classNames(`w-full px-4 py-5 rounded-lg text-primary`)}>
+          <div className="flex flex-nowrap justify-between items-start">
+            <div className="flex flex-start items-center space-x-4">
+              <div className="w-6 h-6">{icon}</div>
+              <div className="text-lg py-0 text-neutral-600 text-ellipsis">
+                <LabelEllipsis maxLen={29}>{title}</LabelEllipsis>
+              </div>
             </div>
+            {actions && actions.length > 0 && (
+              <ButtonGroup
+                dotsButtonProps={{
+                  size: "small",
+                  type: "ghost",
+                  icon: <MoreVertical strokeWidth={2} className="text-textLight w-5 h-5" />,
+                }}
+                items={actions.map(a => ({ ...a, collapsed: true }))}
+              />
+            )}
           </div>
-          {actions && actions.length > 0 && (
-            <ButtonGroup
-              dotsButtonProps={{
-                size: "small",
-                type: "ghost",
-                icon: <MoreVertical strokeWidth={2} className="text-textLight w-5 h-5" />,
-              }}
-              items={actions.map(a => ({ ...a, collapsed: true }))}
-            />
-          )}
         </div>
-      </div>
-    </HoverBorder>
+      </HoverBorder>
+    </ConditionalBadge>
   );
   return configLink ? <a href={configLink}>{card}</a> : card;
 }
@@ -203,6 +221,19 @@ function WorkspaceOverview(props: {
                     src={`/api/sources/logo?package=${encodeURIComponent(cfg.package)}&protocol=${cfg.protocol}`}
                   />
                 }
+                badge={
+                  links?.find(l => l.fromId === id)
+                    ? undefined
+                    : {
+                        icon: (
+                          <div className="bg-warning w-5 h-5 rounded-full flex items-center justify-center font-bold text-text">
+                            !
+                          </div>
+                        ),
+                        tooltip:
+                          "The source is not connected to any destination. Connect it to any destination to start seeing the data",
+                      }
+                }
                 title={name || id}
                 configLink={`/${workspace.slug || workspace.id}/services?id=${id}`}
                 actions={[
@@ -233,6 +264,19 @@ function WorkspaceOverview(props: {
                 selected={forceSelect}
                 icon={<FaviconLoader potentialUrl={name} />}
                 title={name || id}
+                badge={
+                  links.find(l => l.fromId === id)
+                    ? undefined
+                    : {
+                        icon: (
+                          <div className="bg-warning w-5 h-5 rounded-full flex items-center justify-center font-bold text-text">
+                            !
+                          </div>
+                        ),
+                        tooltip:
+                          "The source is not connected to any destination. Connect it to any destination to start seeing the data",
+                      }
+                }
                 configLink={`/${workspace.slug || workspace.id}/streams?id=${id}`}
                 actions={[
                   { label: "Edit", href: `/streams?id=${id}`, icon: <Edit3 className={"w-4 h-4"} /> },

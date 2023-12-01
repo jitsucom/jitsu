@@ -162,29 +162,31 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
   };
   const columns: ColumnType<any>[] = [
     {
-      title: "Sync",
-      width: "70%",
-      sortOrder: sorting.columns?.find(s => s.field === "Service")?.order,
+      title: "From",
+      width: "35%",
+      sortOrder: sorting.columns?.find(s => s.field === "From")?.order,
       sorter: (a, b) => {
         const serviceA = servicesById[a.fromId];
         const serviceB = servicesById[b.fromId];
-        return (serviceA.name || "").localeCompare(serviceB.name || "");
+        return (serviceA?.name || "").localeCompare(serviceB?.name || "");
       },
       render: (text, link) => {
         const service = servicesById[link.fromId];
+        return service ? <ServiceTitle service={service} link /> : "Not Found";
+      },
+    },
+    {
+      title: "To",
+      width: "35%",
+      sortOrder: sorting.columns?.find(s => s.field === "To")?.order,
+      sorter: (a, b) => {
+        const destinationA = destinations[a.toId];
+        const destinationB = destinations[b.toId];
+        return (destinationA?.name || "").localeCompare(destinationB?.name || "");
+      },
+      render: (text, link) => {
         const destination = destinationsById[link.toId];
-
-        return (
-          <div className="flex items-center">
-            <SyncTitle
-              size={"medium"}
-              syncId={link.id}
-              service={service}
-              destination={destination}
-              className={"max-w-md xl:max-w-fit"}
-            />
-          </div>
-        );
+        return destination ? <DestinationTitle destination={destination} link /> : "Not Found";
       },
     },
     {

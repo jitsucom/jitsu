@@ -26,6 +26,7 @@ import { CustomWidgetProps } from "../../components/ConfigObjectEditor/Editors";
 import { useLinksQuery } from "../../lib/queries";
 import { toURL } from "../../lib/shared/url";
 import JSON5 from "json5";
+import { EditorToolbar } from "../../components/EditorToolbar/EditorToolbar";
 
 const Streams: React.FC<any> = () => {
   return (
@@ -336,11 +337,13 @@ export const StreamTitle: React.FC<{
   stream?: StreamConfig;
   size?: "small" | "default" | "large";
   title?: (s: StreamConfig) => string | React.ReactNode;
-}> = ({ stream, title = s => s.name, size = "default" }) => {
+  link?: boolean;
+}> = ({ stream, title = s => s.name, size = "default", link }) => {
   return (
     <ObjectTitle
       icon={<FaviconLoader potentialUrl={stream?.name} />}
       size={size}
+      href={stream && link ? `/${stream.workspaceId}/streams?id=${stream?.id}` : undefined}
       title={stream ? title(stream) : "Unknown stream"}
     />
   );
@@ -364,17 +367,48 @@ const StreamsList: React.FC<{}> = () => {
   const config: ConfigEditorProps<StreamConfig> = {
     subtitle: (obj, isNew) =>
       !isNew && (
-        <Link
-          href={`/${workspace.slug || workspace.id}/streams?id=${obj.id}&implementationFor=${obj.id}`}
-          onClick={() => {
-            router.replace(`/${workspace.slug || workspace.id}/streams?id=${obj.id}&implementationFor=${obj.id}`);
-            setImplementationDocumentationId(obj.id);
-          }}
-          className="flex items-center space-x-2 text-primary"
-        >
-          <Wrench className="h-4 w-4" />
-          <span>Setup Instructions</span>
-        </Link>
+        <EditorToolbar
+          items={[
+            {
+              title: "Setup Instructions",
+              icon: <Wrench className="w-full h-full" />,
+              href: `/${workspace.slugOrId}/streams?id=${obj.id}&implementationFor=${obj.id}`,
+              onClick: () => {
+                setImplementationDocumentationId(obj.id);
+              },
+            },
+            {
+              title: "Live Events",
+              icon: <Activity className="w-full h-full" />,
+              href: toURL(`/${workspace.slugOrId}/data`, {
+                query: JSON5.stringify({
+                  activeView: "incoming",
+                  viewState: { incoming: { actorId: obj.id } },
+                }),
+              }),
+            },
+            {
+              title: "Connected Destinations",
+              icon: <Zap className="w-full h-full" />,
+              href: `/${workspace.slugOrId}/connections?source=${obj.id}`,
+            },
+          ]}
+          className="mb-4"
+        />
+        // <div className="mb-4 flex items-center justify-left">
+        //
+        //   <Link
+        //     href={`/${workspace.slug || workspace.id}/streams?id=${obj.id}&implementationFor=${obj.id}`}
+        //     onClick={() => {
+        //       router.replace(`/${workspace.slug || workspace.id}/streams?id=${obj.id}&implementationFor=${obj.id}`);
+        //       setImplementationDocumentationId(obj.id);
+        //     }}
+        //     className="flex items-center space-x-2 border border-textLight px-2 py-1 rounded text-textLight text-xs"
+        //   >
+        //     <Wrench className="h-4 w-4" />
+        //     <span>Setup Instructions</span>
+        //   </Link>
+        // </div>
       ),
     objectType: StreamConfig,
     icon: s => <FaviconLoader potentialUrl={s.name} />,

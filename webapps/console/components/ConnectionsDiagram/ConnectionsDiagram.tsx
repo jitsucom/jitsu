@@ -252,7 +252,6 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({
               key={s.id}
               ref={connectorsRef.current[idx] as any}
               className="cursor-pointer mb-4"
-              onClick={() => console.log("Clicked", s.id)}
               onMouseOver={() => {
                 setMouseOverSrc(s.id);
               }}
@@ -281,7 +280,6 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({
               key={s.id}
               ref={srcRefs.current[idx] as any}
               className="cursor-pointer mb-4"
-              onClick={() => console.log("Clicked", s.id)}
               onMouseOver={() => {
                 setMouseOverSrc(s.id);
               }}
