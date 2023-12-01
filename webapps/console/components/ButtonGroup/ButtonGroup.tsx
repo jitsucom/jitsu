@@ -1,9 +1,8 @@
 import { Button, Dropdown, MenuProps, Tooltip } from "antd";
 import React from "react";
-import { JitsuButton, WJitsuButton } from "../JitsuButton/JitsuButton";
+import { JitsuButton } from "../JitsuButton/JitsuButton";
 import { BaseButtonProps } from "antd/lib/button/button";
 import styles from "./ButtonGroup.module.css";
-import { useRouter } from "next/router";
 import { useWorkspace } from "../../lib/context";
 import { MoreVertical } from "lucide-react";
 import Link from "next/link";
@@ -25,44 +24,28 @@ export type ButtonGroupProps = {
 };
 
 export const ButtonGroup: React.FC<ButtonGroupProps> = ({ items, dotsButtonProps }) => {
-  const router = useRouter();
   const w = useWorkspace();
-  const expandedItems = items.filter(item => !item.collapsed);
-  const collapsedItems: MenuProps["items"] = items
+  const shownItems = items.filter(item => !item.collapsed);
+  const dropdownItems: MenuProps["items"] = items
     .filter(item => item.collapsed)
     .map((item, i) => ({
-      label: item.href ? (
-        <Link prefetch={true} href={`/${w.slug || w.id}/${item.href}`}>
-          {item.label}
-        </Link>
-      ) : (
-        item.label
-      ),
+      label: item.href ? <Link href={`/${w.slug || w.id}/${item.href}`}>{item.label}</Link> : item.label,
       key: i,
       icon: item.icon,
       disabled: item.disabled,
       danger: item.danger,
-      onClick: item.onClick || (item.href ? () => router.push(`/${w.slug || w.id}${item.href}`) : undefined),
+      onClick: item.onClick,
     }));
 
   return (
     <AntButtonGroup className={styles.buttonGroup}>
-      {expandedItems.map((item, i) => {
-        if (item.href) {
-          return (
-            <Tooltip title={typeof item.label === "string" ? item.label : item.tooltip} key={i}>
-              <WJitsuButton {...item} key={i} href={item.href} />
-            </Tooltip>
-          );
-        }
-        return (
-          <Tooltip title={typeof item.label === "string" ? item.label : item.tooltip} key={i}>
-            <JitsuButton {...item} key={i} />
-          </Tooltip>
-        );
-      })}
-      {collapsedItems.length > 0 && (
-        <Dropdown trigger={["click"]} menu={{ items: collapsedItems }}>
+      {shownItems.map((item, i) => (
+        <Tooltip title={typeof item.label === "string" ? item.label : item.tooltip} key={i}>
+          <JitsuButton {...item} key={i} ws={!!item.href} />
+        </Tooltip>
+      ))}
+      {dropdownItems.length > 0 && (
+        <Dropdown trigger={["click"]} menu={{ items: dropdownItems }}>
           <JitsuButton
             className="text-lg font-bold p-0"
             icon={<MoreVertical className={"w-4 h-4"} />}
