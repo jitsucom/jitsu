@@ -329,7 +329,9 @@ function Breadcrumbs() {
 
   return (
     <div className="flex py-4 items-center">
-      <div className="w-8 h-8">{branding.logo}</div>
+      <div className="w-8 h-8">
+        <Link href="/">{branding.logo}</Link>
+      </div>
       <div className="pl-2 w-8 h-8 text-textLight">
         <svg fill="none" height="100%" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" width="100%">
           <path d="M16.88 3.549L7.12 20.451" />

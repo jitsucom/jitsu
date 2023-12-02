@@ -85,7 +85,7 @@ async function createOrUpdateCompany(event: AnalyticsServerEvent, ctx: ExtendedC
   };
 
   if (!existingCompany) {
-    log.debug(`Company ${event.groupId} not found, creating a new one:\b${JSON.stringify(event, null, 2)}`);
+    log.debug(`Company ${event.groupId} not found, creating a new one:\n${JSON.stringify(newCompany, null, 2)}`);
     const createCompanyResponse = await jsonFetch(`https://api.intercom.io/companies`, {
       headers: {
         Authorization: `Bearer ${props.accessToken}`,
