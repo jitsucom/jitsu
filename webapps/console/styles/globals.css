@@ -46,6 +46,9 @@ body {
 .debug-border {
   border: 1px solid red;
 }
+.debug-border2 {
+  border: 1px solid green;
+}
 
 /*
 See https://github.com/ant-design/ant-design/issues/13074

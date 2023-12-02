@@ -35,7 +35,9 @@ export const ServiceTitle: React.FC<{
   service?: ServiceConfig;
   size?: "small" | "default" | "large";
   title?: (d: ServiceConfig) => string | React.ReactNode;
-}> = ({ service, title = d => d.name, size = "default" }) => {
+  link?: boolean;
+}> = ({ service, title = d => d.name, size = "default", link }) => {
+  const workspace = useWorkspace();
   return (
     <ObjectTitle
       icon={
@@ -45,6 +47,7 @@ export const ServiceTitle: React.FC<{
         />
       }
       size={size}
+      href={link && service ? `/${workspace.slugOrId}/services?id=${service?.id}` : undefined}
       title={service ? title(service) : "Unknown service"}
     />
   );

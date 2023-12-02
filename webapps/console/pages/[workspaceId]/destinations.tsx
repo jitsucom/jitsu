@@ -38,6 +38,7 @@ import { useQueryStringState } from "../../lib/useQueryStringState";
 import { CustomWidgetProps } from "../../components/ConfigObjectEditor/Editors";
 import { Htmlizer } from "../../components/Htmlizer/Htmlizer";
 import omit from "lodash/omit";
+import { EditorToolbar } from "../../components/EditorToolbar/EditorToolbar";
 
 const log = getLog("destinations");
 const Loader: React.FC<{}> = () => {
@@ -198,13 +199,16 @@ function getEditorComponent(editor: string, editorProps?: any) {
 export const DestinationTitle: React.FC<{
   destination?: DestinationConfig;
   size?: "small" | "default" | "large";
-  title?: (d: DestinationConfig, t: DestinationType) => string | React.ReactNode;
-}> = ({ destination, title = (d, t) => d.name, size = "default" }) => {
+  title?: (d: DestinationConfig, t: DestinationType) => React.ReactNode;
+  link?: boolean;
+}> = ({ destination, title = (d, t) => d.name, size = "default", link }) => {
+  const w = useWorkspace();
   const destinationType = coreDestinationsMap[destination?.destinationType ?? ""];
   return (
     <ObjectTitle
       icon={getDestinationIcon(destinationType)}
       size={size}
+      href={link && destination ? `/${w.slugOrId}/destinations?id=${destination.id}` : undefined}
       title={destination ? title(destination, destinationType) : "Unknown destination"}
     />
   );
@@ -666,6 +670,38 @@ const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
           <div className="h-12 w-12 mr-4">{destinationType?.icon}</div>
           {verb} {destinationType?.title || ""} destination
         </div>
+      );
+    },
+    subtitle: (obj: DestinationConfig, isNew: boolean) => {
+      if (isNew) {
+        return undefined;
+      }
+
+      return (
+        <EditorToolbar
+          items={
+            [
+              obj.provisioned || obj.destinationType === "clickhouse"
+                ? {
+                    title: "SQL Query Editor",
+                    icon: <TerminalSquare className="w-full h-full" />,
+                    href: `/${workspace.slugOrId}/sql?destinationId=${obj.id}`,
+                  }
+                : undefined,
+              {
+                title: "Connected Sources",
+                icon: <Zap className="w-full h-full" />,
+                href: `/${workspace.slugOrId}/connections?destination=${obj.id}`,
+              },
+              {
+                title: "Syncs",
+                icon: <Share2 className="w-full h-full" />,
+                href: `/${workspace.slugOrId}/syncs?destination=${obj.id}`,
+              },
+            ].filter(Boolean) as any
+          }
+          className="mb-4"
+        />
       );
     },
   };

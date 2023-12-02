@@ -19,7 +19,7 @@ import { TableProps } from "antd/es/table/InternalTable";
 import { ColumnType, SortOrder } from "antd/es/table/interface";
 import { Activity, Edit3, Inbox, XCircle } from "lucide-react";
 import { PlusOutlined } from "@ant-design/icons";
-import { JitsuButton, WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
+import { WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
 import { DestinationTitle } from "../destinations";
 import { ButtonGroup, ButtonProps } from "../../../components/ButtonGroup/ButtonGroup";
 import { StreamTitle } from "../streams";
@@ -152,14 +152,7 @@ function ConnectionsTable({ links, streams, destinations, functions, reloadCallb
         }
         return (
           <div className="flex items-center">
-            <StreamTitle stream={stream} />
-            <WJitsuButton
-              href={`/streams?id=${link.fromId}`}
-              type="link"
-              className="link"
-              size="small"
-              icon={<FaExternalLinkAlt className="w-2.5 h-2.5" />}
-            />
+            <StreamTitle stream={stream} link />
           </div>
         );
       },
@@ -179,17 +172,9 @@ function ConnectionsTable({ links, streams, destinations, functions, reloadCallb
         if (!destination) {
           return <div>Destination not found</div>;
         }
-        const coreDestinationType = getCoreDestinationType(destination.destinationType);
         return (
           <div className="flex items-center">
-            <DestinationTitle destination={destination} />
-            <JitsuButton
-              type="link"
-              icon={<FaExternalLinkAlt className="w-2.5 h-2.5" />}
-              className="link"
-              size="small"
-              href={`/${workspace.id}/destinations?id=${link.toId}`}
-            />
+            <DestinationTitle destination={destination} link />
           </div>
         );
       },
