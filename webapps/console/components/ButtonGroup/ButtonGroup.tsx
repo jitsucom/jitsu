@@ -29,7 +29,13 @@ export const ButtonGroup: React.FC<ButtonGroupProps> = ({ items, dotsButtonProps
   const dropdownItems: MenuProps["items"] = items
     .filter(item => item.collapsed)
     .map((item, i) => ({
-      label: item.href ? <Link href={`/${w.slug || w.id}/${item.href}`}>{item.label}</Link> : item.label,
+      label: item.href ? (
+        <Link prefetch={false} href={`/${w.slug || w.id}/${item.href}`}>
+          {item.label}
+        </Link>
+      ) : (
+        item.label
+      ),
       key: i,
       icon: item.icon,
       disabled: item.disabled,
