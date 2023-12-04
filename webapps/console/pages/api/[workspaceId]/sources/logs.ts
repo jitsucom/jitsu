@@ -34,6 +34,7 @@ export default createRoute()
       });
     }
     try {
+      let lines = 0;
       await db.pgHelper().streamQuery(
         `select tl.*
                                 from task_log tl join "ConfigurationObjectLink" link on tl.sync_id = link.id
@@ -41,11 +42,15 @@ export default createRoute()
                                 order by timestamp`,
         { task_id: query.taskId, workspace_id: workspaceId },
         r => {
+          lines++;
           res.write(
             `${dayjs(r.timestamp).utc().format("YYYY-MM-DD HH:mm:ss.SSS")} ${r.level} [${r.logger}] ${r.message}\n`
           );
         }
       );
+      if (lines === 0) {
+        res.write("The task is starting...");
+      }
     } catch (e: any) {
       const errorId = randomId();
       log
