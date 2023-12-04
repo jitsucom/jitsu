@@ -104,7 +104,6 @@ export const WorkspaceMenu: React.FC<{ closeMenu: () => void; classicProject?: s
 function WorkspacesMenu(props: { jitsuClassicAvailable: boolean }) {
   const router = useRouter();
   const [classicLoading, setClassicLoading] = useState(false);
-  const [workspacesLoading, setWorkspacesLoading] = useState(false);
   const [adding, setAdding] = useState(false);
 
   const workspace = useWorkspace();
@@ -117,29 +116,37 @@ function WorkspacesMenu(props: { jitsuClassicAvailable: boolean }) {
     additionalMenuItems = [
       {
         key: "admin-users",
-        label: "Admin Users",
-        icon: <ShieldAlert className="h-4 w-4 mr-2" />,
-        onClick: async () => {
-          await router.push("/admin/users");
-        },
+
+        label: (
+          <Link href="/admin/users" className="flex items-center">
+            <ButtonLabel iconSize="small" icon={<ShieldAlert className="h-full w-full" />}>
+              Admin Users
+            </ButtonLabel>
+          </Link>
+        ),
       },
       {
+        label: (
+          <Link href="/admin/workspaces" className="flex items-center">
+            <ButtonLabel iconSize="small" icon={<FolderKanban className="h-full w-full" />}>
+              Admin Workspaces
+            </ButtonLabel>
+          </Link>
+        ),
+
         key: "admin-workspaces",
-        label: "Admin Workspaces",
-        icon: <FolderKanban className="h-4 w-4 mr-2" />,
-        onClick: async () => {
-          await router.push("/admin/workspaces");
-        },
       },
     ];
     if (appConfig.ee.available) {
       additionalMenuItems.push({
         key: "billing-workspaces",
-        label: "Billing Administration",
-        icon: <CircleDollarSign className="h-4 w-4 mr-2" />,
-        onClick: async () => {
-          await router.push("/admin/overage-billing");
-        },
+        label: (
+          <Link href="/admin/overage-billing" className="flex items-center">
+            <ButtonLabel iconSize="small" icon={<CircleDollarSign className="h-full w-full" />}>
+              Billing Administration
+            </ButtonLabel>
+          </Link>
+        ),
       });
     }
   }
@@ -149,25 +156,28 @@ function WorkspacesMenu(props: { jitsuClassicAvailable: boolean }) {
       items={[
         {
           key: "all-workspaces",
-          label: "View all workspaces",
-          icon: workspacesLoading ? (
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-          ) : (
-            <Folders className="h-4 w-4 mr-2" />
+          label: (
+            <Link href="/workspaces" className="flex items-center">
+              <ButtonLabel iconSize="small" icon={<Folders className="w-full h-full" />}>
+                All Workspaces
+              </ButtonLabel>
+            </Link>
           ),
-          onClick: async () => {
-            setWorkspacesLoading(true);
-            try {
-              await router.push("/workspaces");
-            } finally {
-              setWorkspacesLoading(false);
-            }
-          },
         },
         {
           key: "new-workspace",
-          label: "Create new workspace",
-          icon: adding ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FilePlus className="h-4 w-4 mr-2" />,
+          label: (
+            <div className="flex items-center">
+              <ButtonLabel
+                iconSize="small"
+                icon={
+                  adding ? <Loader2 className="h-full w-full animate-spin" /> : <FilePlus className="h-full w-full" />
+                }
+              >
+                Create new workspace
+              </ButtonLabel>
+            </div>
+          ),
           onClick: async () => {
             setAdding(true);
             try {
@@ -184,11 +194,19 @@ function WorkspacesMenu(props: { jitsuClassicAvailable: boolean }) {
           ? [
               {
                 key: "switch",
-                label: "Switch to Jitsu Classic",
-                icon: classicLoading ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <ArrowLeftRight className="h-4 w-4 mr-2" />
+                label: (
+                  <ButtonLabel
+                    iconSize="small"
+                    icon={
+                      classicLoading ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <ArrowLeftRight className="h-4 w-4 mr-2" />
+                      )
+                    }
+                  >
+                    Switch to Jitsu Classic
+                  </ButtonLabel>
                 ),
                 onClick: async () => {
                   setClassicLoading(true);
