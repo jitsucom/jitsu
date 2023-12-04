@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getLog, namedParameters, SqlQueryParameters, unrollParams } from "juava";
+import { namedParameters, SqlQueryParameters, unrollParams } from "juava";
 import { withErrorHandler } from "../../../lib/error-handler";
 import { auth } from "../../../lib/auth";
 import { clickhouse, pg } from "../../../lib/services";
@@ -37,28 +37,6 @@ function removeUndefined<T>(obj: Record<string, T | undefined>): Record<string, 
 
 function isoDateTOClickhouse(date: ISODate): string {
   return date.replace("T", " ").replace("Z", "").split(".")[0];
-}
-
-async function getPostgresPart({ granularity, start, end, workspaceId }: ReportParams): Promise<WorkspaceReportRow[]> {
-  const sql = `select
-                 obj."workspaceId" as "workspaceId",
-                 date_trunc(:granularity, (m.timestamp::TIMESTAMPTZ)) as period,
-                 sum(m.value) as events
-               from newjitsuee.bulker_metrics m
-                    left join newjitsu."ConfigurationObjectLink" obj
-                              on obj."id" = m."destinationId"
-               where m.metric_name = 'bulkerapp_ingest_messages' and m.status = 'success' and m.timestamp <= '2023-07-28T00:00:00Z' and ${
-                 workspaceId ? 'obj."workspaceId" = :workspaceId and' : ""
-               } date_trunc(:granularity, "timestamp") >= date_trunc(:granularity, :start::timestamp) and
-                 date_trunc(:granularity, "timestamp") <= date_trunc(:granularity, :end::timestamp)
-               group by period, "workspaceId"
-               order by period, "workspaceId" desc;;
-  `;
-  const params = removeUndefined({ start, end, granularity, workspaceId });
-  const { query, values } = namedParameters(sql, params);
-  return await pg.query({ text: query, values }).then(res => {
-    return res.rows;
-  });
 }
 
 async function getClickhousePart({
@@ -136,11 +114,7 @@ export async function buildWorkspaceReport(
   granularity: "day",
   workspaceId: string | undefined
 ): Promise<WorkspaceReportRow[]> {
-  const [pgRes, chRes] = await Promise.all([
-    getPostgresPart({ start, end, granularity, workspaceId }),
-    getClickhousePart({ start, end, granularity, workspaceId }),
-  ]);
-  return [...pgRes.map(s => ({ ...s, src: "pg" })), ...chRes.map(s => ({ ...s, src: "ch" }))];
+  return (await getClickhousePart({ start, end, granularity, workspaceId })).map(s => ({ ...s, src: "ch" }));
 }
 
 async function extend(reportResult: WorkspaceReportRow[]): Promise<ExtendedWorkspaceReportRow[]> {
