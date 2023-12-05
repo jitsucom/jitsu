@@ -52,7 +52,7 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
         let misconfigurationReason: any = null;
         if (!domainStatus?.misconfigured && domainInfo?.verified) {
           configured = true;
-        } else if (domainInfo?.misconfigured) {
+        } else if (domainStatus?.misconfigured) {
           configured = false;
           misconfigurationReason = "cname";
         } else {
