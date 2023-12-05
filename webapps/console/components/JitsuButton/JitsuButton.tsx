@@ -44,7 +44,7 @@ export const JitsuButton: React.FC<JitsuButtonProps> = p => {
     return <Button0 {...p} />;
   }
   if (p.ws) {
-    return <WJitsuButton {...p} href={p.href} />;
+    return <WJitsuButton {...omit(p, "ws")} href={p.href} />;
   }
   return <HJitsuButton {...p} href={p.href} />;
 };

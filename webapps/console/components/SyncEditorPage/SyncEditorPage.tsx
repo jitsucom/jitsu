@@ -186,7 +186,9 @@ function SyncEditor({
 
   const [loading, setLoading] = useState(false);
   const workspace = useWorkspace();
-  const [dstId, setDstId] = useState(existingLink?.toId || destinations[0].id);
+  const [dstId, setDstId] = useState(
+    existingLink?.toId || (router.query.destinationId as string) || destinations[0].id
+  );
   const [srvId, setSrvId] = useState(existingLink?.fromId || (router.query.serviceId as string) || services[0].id);
 
   const service = services.find(s => s.id === srvId);

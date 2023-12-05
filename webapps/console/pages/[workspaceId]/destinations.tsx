@@ -16,7 +16,7 @@ import { useRouter } from "next/router";
 import { assertDefined, getLog, requireDefined, rpc } from "juava";
 import React, { PropsWithChildren, useState } from "react";
 import TextArea from "antd/lib/input/TextArea";
-import { getConfigApi, useApi } from "../../lib/useApi";
+import { get, getConfigApi, useApi } from "../../lib/useApi";
 import { EmbeddedErrorMessage, ErrorCard } from "../../components/GlobalError/GlobalError";
 import { branding } from "../../lib/branding";
 import styles from "../../components/ConfigObjectEditor/ConfigEditor.module.css";
@@ -25,7 +25,19 @@ import { SnippedEditor } from "../../components/CodeEditor/SnippedEditor";
 import { MultiSelectWithCustomOptions } from "../../components/MultiSelectWithCustomOptions/MultiSelectWithCustomOptions";
 import { LoadingAnimation } from "../../components/GlobalLoader/GlobalLoader";
 import { useQuery } from "@tanstack/react-query";
-import { Copy, Eye, FileKey, Loader2, Share2, TerminalSquare, XCircle, Zap } from "lucide-react";
+import {
+  AlertTriangle,
+  Check,
+  Copy,
+  Eye,
+  FileKey,
+  Loader2,
+  Share2,
+  ShieldAlert,
+  TerminalSquare,
+  XCircle,
+  Zap,
+} from "lucide-react";
 import { ClickhouseConnectionCredentials } from "../../lib/schema/clickhouse-connection-credentials";
 import { CodeBlock } from "../../components/CodeBlock/CodeBlock";
 import { useBilling } from "../../components/Billing/BillingProvider";
@@ -551,6 +563,51 @@ const ProvisionedDestinations = (props: any) => {
   );
 };
 
+const ConnectionsList: React.FC<{ streams: any[]; service: any[]; destinationId: string; syncSupported: boolean }> = ({
+  streams,
+  service,
+  destinationId,
+  syncSupported,
+}) => {
+  const workspace = useWorkspace();
+  console.log("workspace", workspace);
+  if (streams.length === 0 && service.length === 0) {
+    return (
+      <div className="flex items-center flex-nowrap">
+        <AlertTriangle className="h-4 w-4 mr-1 text-warning" />{" "}
+        <span className="text-sm">
+          Create <Link href={`/${workspace.slugOrId}/syncs/edit?destination=${destinationId}`}>sync</Link> or{" "}
+          <Link href={`/${workspace.slugOrId}/connections/edit?destinationId=${destinationId}`}>
+            connect destination to a site
+          </Link>{" "}
+          to start seeing data
+        </span>
+      </div>
+    );
+  } else {
+    return (
+      <div className="flex items-center flex-nowrap">
+        <Check className="h-4 w-4 mr-1 text-success" />{" "}
+        <span className="text-sm">
+          Connected to{" "}
+          <Link href={`/${workspace.slugOrId}/connections?destination=${destinationId}`}>
+            {streams.length} site{streams.length > 1 ? "s" : ""}
+          </Link>
+          {syncSupported && (
+            <>
+              {" "}
+              and{" "}
+              <Link href={`/${workspace.slugOrId}/syncs?destination=${destinationId}`}>
+                {service.length} sync{service.length > 1 ? "s" : ""}
+              </Link>
+            </>
+          )}
+        </span>
+      </div>
+    );
+  }
+};
+
 const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
   const [showCatalog, setShowCatalog] = useQueryStringState<boolean>("showCatalog", {
     defaultValue: false,
@@ -570,8 +627,12 @@ const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
     },
     {}
   );
+  const links = useQuery<any>(["all_links", workspace.id], () => get(`/api/${workspace.id}/config/link`), {
+    retry: false,
+    cacheTime: 0,
+  });
+
   const [refresh, setRefresh] = useState(new Date());
-  log.atDebug().log("extraFields", extraFields);
   const config: ConfigEditorProps<DestinationConfig> = {
     actions: [
       {
@@ -608,10 +669,29 @@ const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
     },
     listColumns: [
       {
-        title: "Type",
+        title: "Connections and Syncs",
         render: (d: DestinationConfig) => {
-          const destinationType = coreDestinationsMap[d.destinationType];
-          return <span className={"font-semibold"}>{destinationType.title}</span>;
+          return (
+            <div className="flex flex-col justify-center">
+              <>
+                {links.isLoading && <Loader2 className="animate-spin text-textLight" />}
+                {links.error && (
+                  <div className="flex items-center gap-1">
+                    <ShieldAlert className="w-4 h-4 text-error" />
+                    <span>Can't load links</span>
+                  </div>
+                )}
+                {links.data && (
+                  <ConnectionsList
+                    destinationId={d.id}
+                    syncSupported={!!coreDestinationsMap[d.destinationType]?.usesBulker}
+                    service={links.data.links.filter((l: any) => l.toId === d.id && l.type === "sync")}
+                    streams={links.data.links.filter((l: any) => l.toId === d.id && l.type === "push")}
+                  />
+                )}
+              </>
+            </div>
+          );
         },
       },
     ],

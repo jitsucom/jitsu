@@ -45,7 +45,6 @@ export function useUsage(opts?: { skipSubscribed?: boolean; cacheSeconds?: numbe
   const { isLoading, error, data } = useQuery(
     ["billing usage", workspace.id, opts?.skipSubscribed, billing.settings.planId],
     async () => {
-      console.log("Getting usage", opts?.skipSubscribed, billing.settings.planId);
       if (opts?.skipSubscribed && billing.settings.planId !== "free") {
         //if workspace is subscribed to a paid plan - we don't really need usage in some cases
         return { usage: 0 };

@@ -10,7 +10,7 @@ import { confirmOp, feedbackError, feedbackSuccess } from "../../../lib/ui";
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { FaExternalLinkAlt, FaPlay, FaPlus, FaTrash } from "react-icons/fa";
-import { index, rpc } from "juava";
+import { getLog, index, rpc } from "juava";
 import { useRouter } from "next/router";
 import { useLinksQuery } from "../../../lib/queries";
 import { jsonSerializationBase64, useQueryStringState } from "../../../lib/useQueryStringState";
@@ -149,6 +149,12 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
       }
     }
   };
+  getLog()
+    .atDebug()
+    .log(
+      `<SyncsTable /> sorter: ${sorting.columns.map(({ field, order }) => `${field}/${order}`).join(", ")}`,
+      sorting
+    );
   const onChange: TableProps<any>["onChange"] = (pagination, filters, sorter, { currentDataSource }) => {
     const sortArray = Array.isArray(sorter) ? sorter : [sorter];
     const columns = sortArray
@@ -158,7 +164,6 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
       columns: columns as any,
     };
     setSorting(newVal);
-    console.log("sorter", newVal);
   };
   const columns: ColumnType<any>[] = [
     {
