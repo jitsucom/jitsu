@@ -8,11 +8,18 @@ const dbUrl = requireDefined(
   "nor EE_DATABASE_URL, neither DATABASE_URL is not defined"
 );
 
+const appDbUrl = requireDefined(
+  process.env.APPLICATION_DATABASE_URL || process.env.DATABASE_URL,
+  "nor APPLICATION_DATABASE_URL, neither DATABASE_URL is not defined"
+);
+
 export const pg = createPg(dbUrl, { connectionName: "kvstore" });
 
 export const store = getPostgresStore(pg, { tableName: "kvstore" });
 
 export const telemetryDb = createPg(process.env.TELEMETRY_DATABASE_URL || dbUrl, { connectionName: "telemetry" });
+
+export const applicationDb = createPg(appDbUrl, { connectionName: "app-db" });
 
 export const clickhouse = createClient({
   host: requireDefined(process.env.CLICKHOUSE_URL, `env CLICKHOUSE_URL is not defined`),

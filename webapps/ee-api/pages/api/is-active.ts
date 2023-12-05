@@ -20,7 +20,6 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
   if (!claims) {
     return;
   }
-  log.atInfo().log("claims", JSON.stringify(claims));
   let uid = claims.uid;
   let projectId: string | null = null;
   let projectName: string | null = null;

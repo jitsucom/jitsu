@@ -6,43 +6,16 @@ import fetch from "node-fetch-commonjs";
 import { withErrorHandler } from "../../lib/error-handler";
 import isValidDomain from "is-valid-domain";
 import { getServerLog } from "../../lib/log";
+import {
+  vercelTeamId,
+  vercelProjectId,
+  vercelToken,
+  vercelCname,
+  getExistingDomain,
+  vercelRpc,
+} from "../../lib/vercel";
 
 const log = getServerLog("/api/domain");
-
-const vercelProjectId = requireDefined(
-  process.env.DOMAINS_VERCEL_PROJECT_ID,
-  `env DOMAINS_VERCEL_PROJECT_ID is not set`
-);
-const vercelTeamId = requireDefined(process.env.DOMAINS_VERCEL_TEAM_ID, `env DOMAINS_VERCEL_TEAM_ID is not set`);
-const vercelToken = requireDefined(process.env.DOMAINS_VERCEL_TOKEN, `env DOMAINS_VERCEL_TOKEN is not set`);
-const cname = process.env.CNAME || "cname.jitsu.com";
-
-async function rpc(url: string, method?: "GET" | "POST", body?: any): Promise<any> {
-  const res = await fetch(url.indexOf("https://") === 0 ? url : `https://api.vercel.com${url}`, {
-    method: method ?? "GET",
-    body: body ? JSON.stringify(body) : undefined,
-    headers: {
-      Authorization: `Bearer ${vercelToken}`,
-      "Content-Type": "application/json",
-    },
-  });
-  const txt = await res.text();
-  if (!res.ok) {
-    log.atError().log(`Rpc failed: ${res.status} ${res.statusText}. Response: ${txt}`);
-  }
-  return JSON.parse(txt);
-}
-
-export type DomainInfo = Record<string, any>;
-
-async function getExistingDomain(domain: string): Promise<DomainInfo | undefined> {
-  const result = await rpc(`/v9/projects/${vercelProjectId}/domains/${domain}?teamId=${vercelTeamId}`);
-  if (result.name) {
-    return result;
-  } else {
-    return undefined;
-  }
-}
 
 const handler = async function handler(req: NextApiRequest, res: NextApiResponse) {
   log.atDebug().log(`${req.method} ${req.url} ${JSON.stringify(req.headers)}`);
@@ -65,7 +38,7 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
     }
     let domainInfo = await getExistingDomain(domain);
     if (!domainInfo) {
-      domainInfo = await rpc(`/v10/projects/${vercelProjectId}/domains?teamId=${vercelTeamId}`, "POST", {
+      domainInfo = await vercelRpc(`/v10/projects/${vercelProjectId}/domains?teamId=${vercelTeamId}`, "POST", {
         name: domain,
       });
     }
@@ -75,17 +48,17 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
     if (domainInfo.error) {
       return res.status(200).json({ ok: false, error: domainInfo.error.message || domainInfo.error });
     }
-    const status = await rpc(`/v6/domains/${domain}/config?teamId=${vercelTeamId}`);
+    const status = await vercelRpc(`/v6/domains/${domain}/config?teamId=${vercelTeamId}`);
     log.atDebug().log(`Checking status of domain ${domain}: ${JSON.stringify({ status, domainInfo }, null, 2)}`);
     const misconfigured = status.misconfigured;
     const verified = domainInfo.verified;
     if (!misconfigured && verified) {
       res.status(200).json({ ok: true, needsConfiguration: false });
     } else if (misconfigured) {
-      res.status(200).json({ ok: true, needsConfiguration: true, configurationType: "cname", cnameValue: cname });
+      res.status(200).json({ ok: true, needsConfiguration: true, configurationType: "cname", cnameValue: vercelCname });
     } else if (!verified) {
       //request Vercel to verify domain
-      const verifyInfo = await rpc(
+      const verifyInfo = await vercelRpc(
         `/v9/projects/${vercelProjectId}/domains/${domain}/verify?teamId=${vercelTeamId}`,
         "POST"
       );
