@@ -5,7 +5,7 @@ import { LoadingAnimation } from "../../../components/GlobalLoader/GlobalLoader"
 import { ErrorCard, GlobalError } from "../../../components/GlobalError/GlobalError";
 import { useLinksQuery } from "../../../lib/queries";
 import SyncEditorPage from "../../../components/SyncEditorPage/SyncEditorPage";
-import { router } from "next/client";
+import { Redirect } from "../../../components/Redirect/Redirect";
 
 const Loader = () => {
   const workspace = useWorkspace();
@@ -34,11 +34,9 @@ const Loader = () => {
   const [services, destinations, links] = result.data;
   //protection from faulty redirects to this page
   if (services.length === 0) {
-    router.push(`/${workspace.slugOrId}/services`);
-    return <></>;
+    return <Redirect href={`/${workspace.slugOrId}/services`} />;
   } else if (destinations.length === 0) {
-    router.push(`/${workspace.slugOrId}/destinations`);
-    return <></>;
+    return <Redirect href={`/${workspace.slugOrId}/destinations`} />;
   }
   return <SyncEditorPage services={services} destinations={destinations} links={links} />;
 };
