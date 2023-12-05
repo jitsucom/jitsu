@@ -89,7 +89,7 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
 };
 
 export const config = {
-  maxDuration: 3600,
+  maxDuration: 300,
 };
 
 export default withErrorHandler(handler);
