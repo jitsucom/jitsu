@@ -12,7 +12,6 @@ import { SourceType } from "../api/sources";
 import hash from "stable-hash";
 import { ServiceEditor } from "../../components/ServiceEditor/ServiceEditor";
 import { ErrorCard } from "../../components/GlobalError/GlobalError";
-import { syncError } from "../../lib/shared/errors";
 import { ObjectTitle } from "../../components/ObjectTitle/ObjectTitle";
 import omit from "lodash/omit";
 import { useApi } from "../../lib/useApi";
@@ -201,8 +200,8 @@ const ServicesList: React.FC<{}> = () => {
           await new Promise(resolve => setTimeout(resolve, 2000));
         }
         return { ok: false, error: "Connection test timeout." };
-      } catch (error) {
-        return syncError(log, "Failed to test service", error);
+      } catch (error: any) {
+        return { ok: false, error: error.message };
       }
     },
     addAction: () => {
