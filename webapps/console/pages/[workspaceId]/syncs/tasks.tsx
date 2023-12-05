@@ -21,7 +21,7 @@ import { useRouter } from "next/router";
 import { formatDateOnly, formatTime, SyncTitle } from "./index";
 import { ButtonGroup, ButtonProps } from "../../../components/ButtonGroup/ButtonGroup";
 import { rpc } from "juava";
-import { feedbackError } from "../../../lib/ui";
+import { feedbackError, useKeyboard } from "../../../lib/ui";
 import hash from "object-hash";
 
 dayjs.extend(utc);
@@ -74,9 +74,13 @@ function TaskStatus0({ task }: { task: TasksDbModel & TaskStats }) {
   const SyncStatus: React.FC<PropsWithChildren<{ status: "PARTIAL" | "FAILED" | "SUCCESS" }>> = props => {
     const [showPopover, setShowPopover] = useState(false);
     const handleOpenChange = (newOpen: boolean) => {
-      console.log("handleOpenChange", newOpen);
       setShowPopover(newOpen);
     };
+    useKeyboard("Escape", () => {
+      if (showPopover) {
+        setShowPopover(false);
+      }
+    });
 
     const popoverContent = (
       <div>
