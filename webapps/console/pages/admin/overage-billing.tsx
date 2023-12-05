@@ -8,7 +8,7 @@ import { ColumnOption, JsonAsTable } from "../../components/JsonAsTable/JsonAsTa
 import { z } from "zod";
 import { WorkspaceDbModel } from "../../prisma/schema";
 import Link from "next/link";
-import { Progress } from "antd";
+import { Button, Progress } from "antd";
 import { useEffect, useState } from "react";
 
 function Reference(props: { children: React.ReactNode; href: string }) {
@@ -53,9 +53,14 @@ const View = ({ data, workspaces }) => {
     <div className="p-12">
       <div className="flex justify-between mb-12">
         <div className="flex space-x-2 items-center"></div>
-        <JitsuButton icon={<FaArrowLeft />} size="large" type="primary" onClick={() => router.back()}>
-          Go back
-        </JitsuButton>
+        <div>
+          <Button size="large" type="link" href={"/admin/workspaces"}>
+            Go to Workspace Admin
+          </Button>
+          <Button size="large" type="primary" href={"/"}>
+            Back
+          </Button>
+        </div>{" "}
       </div>
       <JsonAsTable
         rows={data.sort((a, b) => {

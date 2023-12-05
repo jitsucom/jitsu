@@ -1,9 +1,9 @@
 import { get } from "../../lib/useApi";
 import { useRouter } from "next/router";
 import { useQueryStringState } from "../../lib/useQueryStringState";
-import { CircleDollarSign, Loader2, UserCircle2 } from "lucide-react";
+import { CircleDollarSign, DollarSign, Loader2, UserCircle2 } from "lucide-react";
 import { ErrorCard } from "../../components/GlobalError/GlobalError";
-import { Switch } from "antd";
+import { Button, Switch } from "antd";
 import omit from "lodash/omit";
 import { JitsuButton } from "../../components/JitsuButton/JitsuButton";
 import { FaArrowLeft } from "react-icons/fa";
@@ -12,19 +12,24 @@ import hash from "stable-hash";
 import { JsonAsTable } from "../../components/JsonAsTable/JsonAsTable";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-
 const View = ({ data }) => {
   const [rollup, setRollup] = useState(false);
   const router = useRouter();
+  const [loadingGoBack, setLoadingGoBack] = useState(false);
   return (
     <div className="p-12">
       <div className="flex justify-between mb-12">
         <div className="flex space-x-2 items-center">
           <Switch onClick={val => setRollup(val)} /> <label>Rollup</label>
         </div>
-        <JitsuButton icon={<FaArrowLeft />} size="large" type="primary" onClick={() => router.back()}>
-          Go back
-        </JitsuButton>
+        <div>
+          <Button size="large" type="link" href={"/admin/overage-billing"}>
+            Go to Billing Admin
+          </Button>
+          <Button size="large" type="primary" href={"/"}>
+            Back
+          </Button>
+        </div>
       </div>
       <JsonAsTable
         rows={(rollup

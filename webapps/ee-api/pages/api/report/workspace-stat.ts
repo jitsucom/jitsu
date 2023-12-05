@@ -123,8 +123,6 @@ async function extend(reportResult: WorkspaceReportRow[]): Promise<ExtendedWorks
     acc[w.workspaceId] = w;
     return acc;
   }, {});
-  log.atInfo().log(`Got workspace info: ${JSON.stringify(workspaceInfoMap)}`);
-
   return reportResult.map(r => ({ ...r, ...workspaceInfoMap[r.workspaceId] }));
 }
 
