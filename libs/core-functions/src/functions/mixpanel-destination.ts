@@ -70,10 +70,10 @@ function trackEvent(ctx: FullContext, distinctId: string, eventType: string, eve
         properties: {
           ip: event.context?.ip || event.request_ip,
           time: eventTimeSafeMs(event),
-          $device_id: event.anonymousId,
+          $device_id: `${event.anonymousId}`,
           distinct_id: distinctId,
           $insert_id: event.messageId + "-" + randomId(),
-          $user_id: event.userId ? event.userId : undefined,
+          $user_id: event.userId ? `${event.userId}` : undefined,
           $browser: ctx.ua?.browser?.name,
           $browser_version: ctx.ua?.browser?.version,
           $os: ctx.ua?.os?.name,
