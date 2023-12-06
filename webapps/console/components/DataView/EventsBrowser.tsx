@@ -12,7 +12,7 @@ import { linksQuery } from "../../lib/queries";
 import { WLink } from "../Workspace/WLink";
 import { DestinationTitle } from "../../pages/[workspaceId]/destinations";
 import ExternalLink from "../Icons/ExternalLink";
-import { AnalyticsContext, AnalyticsServerEvent } from "@jitsu/protocols/analytics";
+import { AnalyticsContext, AnalyticsServerEvent, Geo as aGeo } from "@jitsu/protocols/analytics";
 import Icon, { GlobalOutlined, LinkOutlined, QuestionCircleOutlined, UserOutlined } from "@ant-design/icons";
 import { getConfigApi, useEventsLogApi } from "../../lib/useApi";
 import { FunctionTitle } from "../../pages/[workspaceId]/functions";
@@ -877,7 +877,7 @@ function googleMapsLink(lat: number, lng: number) {
 
 //we should make sure that Geo object is typed in a common module.
 //it is typed, but in functions lib only.
-export const Geo: React.FC<{ geo: Record<string, any> }> = ({ geo }) => {
+export const Geo: React.FC<{ geo?: aGeo }> = ({ geo }) => {
   if (geo?.country?.code) {
     const flag = countries[geo.country.code]?.flag;
     if (!flag) {

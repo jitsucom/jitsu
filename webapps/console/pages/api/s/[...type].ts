@@ -12,7 +12,7 @@ import { AnalyticsClientEvent, AnalyticsContext, AnalyticsServerEvent } from "@j
 import { fastStore, StreamWithDestinations } from "../../../lib/server/fast-store";
 import { getCoreDestinationType } from "../../../lib/schema/destinations";
 import { redis } from "../../../lib/server/redis";
-import { Geo } from "@jitsu/protocols/functions";
+import { Geo } from "@jitsu/protocols/analytics";
 import { IncomingHttpHeaders } from "http";
 import { NextApiRequest, NextApiResponse } from "next";
 import jsondiffpatch from "jsondiffpatch";
