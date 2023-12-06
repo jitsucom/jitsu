@@ -4,6 +4,70 @@ export type ID = string | null | undefined;
 
 export type DataLayoutType = "segment" | "jitsu-legacy" | "segment-single-table" | "passthrough";
 
+export type WithConfidence<T> = T & {
+  //A value from 0-100 indicating how confident we are in the result
+  confidence?: number;
+};
+
+export type Geo = {
+  continent?: {
+    code: "AF" | "AN" | "AS" | "EU" | "NA" | "OC" | "SA";
+  };
+  country?: {
+    /**
+     * Two-letter country code (ISO 3166-1 alpha-2): https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2
+     */
+    code: string;
+    isEU: boolean;
+  };
+  region?: WithConfidence<{
+    /**
+     * Code of the region (ISO 3166-2): https://en.wikipedia.org/wiki/ISO_3166-2.
+     * For USA it's two-letter capitaluzed state code (such as NY)
+     */
+    code: string;
+  }>;
+  city?: WithConfidence<{
+    name: string;
+  }>;
+
+  postalCode?: WithConfidence<{
+    code: string;
+  }>;
+
+  location?: {
+    latitude: number;
+    longitude: number;
+    accuracyRadius?: number;
+    /**
+     * Only for USA locations
+     */
+    usaData?: {
+      populationDensity?: number;
+      metroCode?: number;
+      averageIncome?: number;
+    };
+  };
+  provider?: {
+    /**
+     * Autonomous system number
+     */
+    as?: {
+      num?: number;
+      name?: string;
+    };
+    connectionType?: string;
+    domain?: string;
+    isAnonymousVpn?: boolean;
+    isHostingProvider?: boolean;
+    isLegitimateProxy?: boolean;
+    isPublicProxy?: boolean;
+    isResidentialProxy?: boolean;
+    isTorExitNode?: boolean;
+    userType?: string;
+    isp?: string;
+  };
+};
 /**
  * Event coming from client library
  */
@@ -163,6 +227,8 @@ interface AnalyticsContext {
     fbc?: string;
     fbp?: string;
   };
+
+  geo?: Geo;
 
   [key: string]: any;
 }

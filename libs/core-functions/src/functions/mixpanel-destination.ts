@@ -1,9 +1,21 @@
-import { JitsuFunction } from "@jitsu/protocols/functions";
+import { FullContext, JitsuFunction } from "@jitsu/protocols/functions";
 import { RetryError } from "@jitsu/functions-lib";
 import type { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { randomId } from "juava";
 import { MixpanelCredentials } from "../meta";
 import { eventTimeSafeMs } from "./lib";
+
+//See https://help.mixpanel.com/hc/en-us/articles/115004708186-Profile-Properties
+export const specialProperties = [
+  "avatar",
+  "email",
+  "phone",
+  "name",
+  "first_name",
+  "last_name",
+  "timezone",
+  "unsubscribed",
+];
 
 export type HttpRequest = {
   id: string;
@@ -23,13 +35,15 @@ function evict(obj: Record<string, any>, key: string) {
   return val;
 }
 
-function trackEvent(
-  distinctId: string,
-  eventType: string,
-  event: AnalyticsServerEvent,
-  opts: MixpanelCredentials
-): HttpRequest {
+function trackEvent(ctx: FullContext, distinctId: string, eventType: string, event: AnalyticsServerEvent): HttpRequest {
+  const opts = ctx.props as MixpanelCredentials;
   const traits = { ...(event.traits || event.context?.traits || {}) };
+  specialProperties.forEach(prop => {
+    if (traits[prop]) {
+      traits[`$${prop}`] = traits[prop];
+      delete traits[prop];
+    }
+  });
   const groupId = event.context?.groupId || traits.groupId;
   const groupKey = opts.groupKey || "$group_id";
   delete traits.groupId;
@@ -56,14 +70,19 @@ function trackEvent(
         properties: {
           ip: event.context?.ip || event.request_ip,
           time: eventTimeSafeMs(event),
+          $device_id: event.anonymousId,
           distinct_id: distinctId,
           $insert_id: event.messageId + "-" + randomId(),
           $user_id: event.userId ? event.userId : undefined,
-          // $browser: "",
-          // $browser_version: "",
+          $browser: ctx.ua?.browser?.name,
+          $browser_version: ctx.ua?.browser?.version,
+          $os: ctx.ua?.os?.name,
           $current_url: evict(customProperties, "url"),
           $referrer: evict(customProperties, "referrer"),
+          $referring_domain: evict(customProperties, "referring_domain"),
           $session_id: event.context?.sessionId,
+          $latitude: event.context?.geo?.location?.latitude,
+          $longitude: event.context?.geo?.location?.longitude,
 
           $screen_dpi: event.context?.screen?.density,
           $screen_height: event.context?.screen?.height,
@@ -74,19 +93,9 @@ function trackEvent(
     ],
   };
 }
-//See https://help.mixpanel.com/hc/en-us/articles/115004708186-Profile-Properties
-export const specialProperties = [
-  "avatar",
-  "email",
-  "phone",
-  "name",
-  "first_name",
-  "last_name",
-  "timezone",
-  "unsubscribed",
-];
 
-function setProfileMessage(distinctId: string, event: AnalyticsServerEvent, opts: MixpanelCredentials): HttpRequest[] {
+function setProfileMessage(ctx: FullContext, distinctId: string, event: AnalyticsServerEvent): HttpRequest[] {
+  const opts = ctx.props as MixpanelCredentials;
   const traits = { ...(event.traits || event.context?.traits || {}) };
   specialProperties.forEach(prop => {
     if (traits[prop]) {
@@ -101,7 +110,16 @@ function setProfileMessage(distinctId: string, event: AnalyticsServerEvent, opts
     $token: opts.projectToken,
     $distinct_id: distinctId,
     $ip: event.context?.ip || event.request_ip,
-    $set: traits,
+    $latitude: event.context?.geo?.location?.latitude,
+    $longitude: event.context?.geo?.location?.longitude,
+    $set: {
+      ...traits,
+      $initial_referrer: event.context?.page?.referrer,
+      $initial_referring_domain: event.context?.page?.referring_domain,
+      $browser: ctx.ua?.browser?.name,
+      $browser_version: ctx.ua?.browser?.version,
+      $os: ctx.ua?.os?.name,
+    },
   };
 
   const reqs = [
@@ -171,76 +189,111 @@ function getAuth(props: MixpanelCredentials) {
   return base64(`${props.serviceAccountUserName}:${props.serviceAccountPassword}`);
 }
 
-function merge(primaryId: string, secondaryId: string, props: MixpanelCredentials): HttpRequest {
-  const basicAuth = getAuth(props);
-  return {
-    id: randomId(),
-    url: `https://api.mixpanel.com/import?strict=1&project_id=${props.projectId}`,
-    headers: {
-      "Content-type": "application/json",
-      Accept: "text-plain",
-      Authorization: `Basic ${basicAuth}`,
-    },
-    payload: [
-      {
-        event: "$merge",
-        properties: {
-          $distinct_ids: [primaryId, secondaryId],
-        },
+function merge(ctx: FullContext, messageId: string, identifiedId: string, anonymousId: string): HttpRequest[] {
+  if (!anonymousId) {
+    return [];
+  }
+  const opts = ctx.props as MixpanelCredentials;
+  const basicAuth = getAuth(opts);
+  return [
+    {
+      id: randomId(),
+      url: `https://api.mixpanel.com/import?strict=1&project_id=${opts.projectId}`,
+      headers: {
+        "Content-type": "application/json",
+        Accept: "text-plain",
+        Authorization: `Basic ${basicAuth}`,
       },
-    ],
-  };
+      payload: [
+        {
+          event: "$merge",
+          properties: {
+            $insert_id: messageId + "-" + randomId(),
+            $distinct_ids: [identifiedId, anonymousId],
+            token: opts.projectToken,
+          },
+        },
+      ],
+    },
+  ];
+}
+
+function alias(ctx: FullContext, messageId: string, identifiedId: string, anonymousId: string): HttpRequest[] {
+  if (!anonymousId) {
+    return [];
+  }
+  const opts = ctx.props as MixpanelCredentials;
+  const basicAuth = getAuth(opts);
+  return [
+    {
+      id: randomId(),
+      url: `https://api.mixpanel.com/import?strict=1&project_id=${opts.projectId}`,
+      headers: {
+        "Content-type": "application/json",
+        Accept: "text-plain",
+        Authorization: `Basic ${basicAuth}`,
+      },
+      payload: [
+        {
+          event: "$create_alias",
+          properties: {
+            $insert_id: messageId + "-" + randomId(),
+            distinct_id: anonymousId,
+            alias: identifiedId,
+            token: opts.projectToken,
+          },
+        },
+      ],
+    },
+  ];
+}
+
+function getDistinctId(ctx: FullContext, event: AnalyticsServerEvent) {
+  if (ctx.props.simplifiedIdMerge) {
+    return event.userId ? `${event.userId}` : `$device:${event.anonymousId}`;
+  } else {
+    return `${(event.userId || event.traits?.email || event.context?.traits?.email || event.anonymousId) ?? ""}`;
+  }
 }
 
 const MixpanelDestination: JitsuFunction<AnalyticsServerEvent, MixpanelCredentials> = async (event, ctx) => {
   ctx.log.debug(`Mixpanel destination (props=${JSON.stringify(ctx.props)}) received event ${JSON.stringify(event)}`);
+  const distinctId = getDistinctId(ctx, event);
+  if (!distinctId) {
+    ctx.log.warn(
+      `No distinctId can be assumed in event with messageId: ${event.messageId}. 'anonymousId' is missing. Skipping...`
+    );
+    return;
+  }
+  // no userId or email
+  const isAnonymous = event.anonymousId && distinctId.endsWith(event.anonymousId);
+  if (isAnonymous && !ctx.props.enableAnonymousUserProfiles) {
+    return;
+  }
   try {
     const messages: HttpRequest[] = [];
     if (event.type === "identify") {
-      if (!event.userId) {
-        const distinctId = `${(event.anonymousId || event.traits?.email) ?? ""}`;
-        if (!distinctId) {
-          ctx.log.info(`No distinct id found for event ${JSON.stringify(event)}`);
-        } else if (ctx.props.enableAnonymousUserProfiles) {
-          messages.push(...setProfileMessage(distinctId, event, ctx.props));
+      if (event.userId || !ctx.props.simplifiedIdMerge) {
+        messages.push(...setProfileMessage(ctx, distinctId, event));
+      }
+      if (!ctx.props.simplifiedIdMerge && !isAnonymous) {
+        if (event.userId) {
+          messages.push(...merge(ctx, event.messageId, distinctId, `${event.anonymousId}`));
+        } else {
+          // when no userId, distinctId=email for non-anonymous events. make an alias
+          messages.push(...alias(ctx, event.messageId, distinctId, `${event.anonymousId}`));
         }
-        if (event.anonymousId && event.traits?.email) {
-          messages.push(merge(`${event.anonymousId}`, `${event.traits.email}`, ctx.props));
-        }
-      } else {
-        if (event.anonymousId) {
-          messages.push(merge(`${event.userId}`, `${event.anonymousId}`, ctx.props));
-        }
-        if (event.traits?.email) {
-          messages.push(merge(`${event.userId}`, `${event.traits?.email}`, ctx.props));
-        }
-        messages.push(...setProfileMessage(`${event.userId}`, event, ctx.props));
       }
       if (ctx.props.sendIdentifyEvents) {
-        const distinctId = `${(event.userId || event.traits?.email || event.anonymousId) ?? ""}`;
-        if (distinctId) {
-          messages.push(trackEvent(distinctId, "Identify", event, ctx.props));
-        }
+        messages.push(trackEvent(ctx, distinctId, "Identify", event));
       }
-    } else if (event.type === "group" && ctx.props.enableGroupAnalytics) {
-      messages.push(setGroupMessage(event, ctx.props));
-    } else if (event.type === "track") {
-      const distinctId = `${(event.userId || event.anonymousId || event.traits?.email) ?? ""}`;
-      if (!distinctId) {
-        ctx.log.info(`No distinct id found for event ${JSON.stringify(event)}`);
-      } else {
-        if (event.userId || ctx.props.enableAnonymousUserProfiles) {
-          messages.push(trackEvent(distinctId, event.event as string, event, ctx.props));
-        }
-      }
-    } else if (event.type === "page") {
-      const distinctId = `${(event.userId || event.anonymousId || event.traits?.email) ?? ""}`;
-      if (!distinctId) {
-        ctx.log.info(`No distinct id found for Page View event ${JSON.stringify(event)}`);
-      } else {
-        if (event.userId || ctx.props.enableAnonymousUserProfiles) {
-          messages.push(trackEvent(distinctId, "Page View", event, ctx.props));
-        }
+    } else {
+      if (event.type === "group" && ctx.props.enableGroupAnalytics) {
+        messages.push(setGroupMessage(event, ctx.props));
+      } else if (event.type === "track") {
+        messages.push(trackEvent(ctx, distinctId, event.event as string, event));
+      } else if (event.type === "page") {
+        messages.push(trackEvent(ctx, distinctId, "Page View", event));
       }
     }
     for (const message of messages) {

@@ -33,7 +33,7 @@ const AmplitudeDestination: JitsuFunction<AnalyticsServerEvent, AmplitudeDestina
     const endpoint =
       props.dataResidency === "EU" ? "https://api.eu.amplitude.com/2/httpapi" : "https://api2.amplitude.com/2/httpapi";
     let payload: any = undefined;
-    if (event.type === "identify") {
+    if (event.type === "identify" && event.userId) {
       payload = {
         api_key: props.key,
         events: [
@@ -50,7 +50,7 @@ const AmplitudeDestination: JitsuFunction<AnalyticsServerEvent, AmplitudeDestina
           },
         ],
       };
-    } else if (event.type === "group" && props.enableGroupAnalytics) {
+    } else if (event.type === "group" && props.enableGroupAnalytics && event.userId) {
       payload = {
         api_key: props.key,
         events: [

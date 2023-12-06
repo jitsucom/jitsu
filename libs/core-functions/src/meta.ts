@@ -47,6 +47,13 @@ export const IntercomDestinationCredentials = z.object({
 export type IntercomDestinationCredentials = z.infer<typeof IntercomDestinationCredentials>;
 
 export const MixpanelCredentials = z.object({
+  simplifiedIdMerge: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe(
+      `Simplified Identity Merge::Use Mixpanel <a href="https://docs.mixpanel.com/docs/tracking-methods/identifying-users">Simplified Identity Merge</a> feature.<br/>Enable this option if your Mixpanel project has the corresponding <a href="https://docs.mixpanel.com/docs/tracking-methods/identifying-users#how-do-i-switch-between-the-simplified-and-original-api">feature enabled</a>.<br/><b>Using this feature is highly recommended to achieve better quality Identity Merge</b>`
+    ),
   projectId: z
     .string()
     .describe(
@@ -88,7 +95,7 @@ export const MixpanelCredentials = z.object({
 export type MixpanelCredentials = z.infer<typeof MixpanelCredentials>;
 
 export const MixpanelCredentialsUi: Partial<
-  Record<keyof MixpanelCredentials, { documentation?: string; password?: boolean }>
+  Record<keyof MixpanelCredentials, { documentation?: string; password?: boolean; hidden?: boolean }>
 > = {
   serviceAccountPassword: {
     password: true,

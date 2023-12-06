@@ -1,4 +1,4 @@
-import { AnalyticsServerEvent } from "./analytics";
+import { AnalyticsServerEvent, Geo } from "./analytics";
 
 /**
  * Store set options: ttl in seconds or string representation of duration (e.g. "1d")
@@ -80,74 +80,6 @@ export type CoreLib = {
 export type AnonymousEventsStore = {
   addEvent(collectionName: string, anonymousId: string, event: AnalyticsServerEvent, ttlDays: number): Promise<void>;
   evictEvents(collectionName: string, anonymousId: string): Promise<AnalyticsServerEvent[]>;
-};
-
-export type WithConfidence<T> = T & {
-  //A value from 0-100 indicating how confident we are in the result
-  confidence?: number;
-};
-
-export type Geo = {
-  /**
-   * IP address of the incoming request
-   */
-  continent?: {
-    code: "AF" | "AN" | "AS" | "EU" | "NA" | "OC" | "SA";
-  };
-  country?: {
-    /**
-     * Two-letter country code (ISO 3166-1 alpha-2): https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2
-     */
-    code: string;
-    isEU: boolean;
-  };
-  region?: WithConfidence<{
-    /**
-     * Code of the region (ISO 3166-2): https://en.wikipedia.org/wiki/ISO_3166-2.
-     * For USA it's two-letter capitaluzed state code (such as NY)
-     */
-    code: string;
-  }>;
-  city?: WithConfidence<{
-    name: string;
-  }>;
-
-  postalCode?: WithConfidence<{
-    code: string;
-  }>;
-
-  location?: {
-    latitude: number;
-    longitude: number;
-    accuracyRadius?: number;
-    /**
-     * Only for USA locations
-     */
-    usaData?: {
-      populationDensity?: number;
-      metroCode?: number;
-      averageIncome?: number;
-    };
-  };
-  provider?: {
-    /**
-     * Autonomous system number
-     */
-    as?: {
-      num: number;
-      name?: string;
-    };
-    connectionType?: string;
-    domain: string;
-    isAnonymousVpn?: boolean;
-    isHostingProvider?: boolean;
-    isLegitimateProxy?: boolean;
-    isPublicProxy?: boolean;
-    isResidentialProxy?: boolean;
-    isTorExitNode?: boolean;
-    userType?: string;
-    isp?: string;
-  };
 };
 
 export type UserAgent = {
