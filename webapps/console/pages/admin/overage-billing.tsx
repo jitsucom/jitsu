@@ -2,8 +2,6 @@ import { useApi } from "../../lib/useApi";
 import { useRouter } from "next/router";
 import { ExternalLink } from "lucide-react";
 import { ErrorCard } from "../../components/GlobalError/GlobalError";
-import { JitsuButton } from "../../components/JitsuButton/JitsuButton";
-import { FaArrowLeft } from "react-icons/fa";
 import { ColumnOption, JsonAsTable } from "../../components/JsonAsTable/JsonAsTable";
 import { z } from "zod";
 import { WorkspaceDbModel } from "../../prisma/schema";

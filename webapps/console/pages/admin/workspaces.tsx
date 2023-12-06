@@ -1,12 +1,10 @@
 import { get } from "../../lib/useApi";
 import { useRouter } from "next/router";
 import { useQueryStringState } from "../../lib/useQueryStringState";
-import { CircleDollarSign, DollarSign, Loader2, UserCircle2 } from "lucide-react";
+import { CircleDollarSign, Loader2, UserCircle2 } from "lucide-react";
 import { ErrorCard } from "../../components/GlobalError/GlobalError";
 import { Button, Switch } from "antd";
 import omit from "lodash/omit";
-import { JitsuButton } from "../../components/JitsuButton/JitsuButton";
-import { FaArrowLeft } from "react-icons/fa";
 import { useState } from "react";
 import hash from "stable-hash";
 import { JsonAsTable } from "../../components/JsonAsTable/JsonAsTable";
