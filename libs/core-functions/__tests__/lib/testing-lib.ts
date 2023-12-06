@@ -35,10 +35,21 @@ function toDate(timestamp?: string | number | Date): Date {
   }
 }
 
+function parse(varName: string, varContent: string): any {
+  try {
+    return JSON5.parse(varContent);
+  } catch (e) {
+    throw new Error(`Error parsing env.${varName}: ${e.message}. Content: ${varContent}`);
+  }
+}
+
 export async function testJitsuFunction<T = any>(opts: TestOptions<T>): Promise<FuncReturn> {
   const config =
     opts.config ||
-    JSON5.parse(requireDefined(process.env[opts.configEnvVar], `${opts.configEnvVar} env var is not defined`));
+    parse(
+      opts.configEnvVar,
+      requireDefined(process.env[opts.configEnvVar], `${opts.configEnvVar} env var is not defined`)
+    );
   //generateEvents is not supported yet
   if (opts.generateEvents) {
     throw new Error("generateEvents() is not supported yet");
