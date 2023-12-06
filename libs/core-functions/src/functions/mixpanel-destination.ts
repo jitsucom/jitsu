@@ -249,10 +249,12 @@ function alias(ctx: FullContext, messageId: string, identifiedId: string, anonym
 }
 
 function getDistinctId(ctx: FullContext, event: AnalyticsServerEvent) {
+  const userId = event.userId;
+  const email = event.traits?.email || event.context?.traits?.email;
   if (ctx.props.simplifiedIdMerge) {
-    return event.userId ? `${event.userId}` : `$device:${event.anonymousId}`;
+    return userId || email ? `${userId || email}` : `$device:${event.anonymousId}`;
   } else {
-    return `${(event.userId || event.traits?.email || event.context?.traits?.email || event.anonymousId) ?? ""}`;
+    return `${(userId || email || event.anonymousId) ?? ""}`;
   }
 }
 
