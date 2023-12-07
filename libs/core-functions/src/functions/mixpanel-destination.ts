@@ -218,6 +218,26 @@ function merge(ctx: FullContext, messageId: string, identifiedId: string, anonym
   ];
 }
 
+function prettify(body: any): string {
+  if (!body) {
+    return body + "";
+  } else if (typeof body === "string") {
+    try {
+      const obj = JSON.parse(body);
+      return JSON.stringify(obj, null, 2);
+    } catch (e) {
+      return body;
+    }
+  } else {
+    try {
+      return JSON.stringify(body, null, 2);
+    } catch (e) {
+      return body + "";
+    }
+  }
+}
+
+
 function alias(ctx: FullContext, messageId: string, identifiedId: string, anonymousId: string): HttpRequest[] {
   if (!anonymousId) {
     return [];
@@ -305,11 +325,11 @@ const MixpanelDestination: JitsuFunction<AnalyticsServerEvent, MixpanelCredentia
         headers: message.headers,
         ...(message.payload ? { body: JSON.stringify(message.payload) } : {}),
       });
-      const logMessage = `MixPanel ${method} ${message.url}:${
-        message.payload ? `${JSON.stringify(message.payload)} --> ` : ""
-      }${result.status} ${await result.text()}`;
+      const messageBase = `MixPanel ${method} ${message.url} → ${result.status} ${result.statusText}`;
+      const logMessage = messageBase + `. Request body: ${prettify(message.payload)}, response body: ${await result.text()} `;
       if (result.status !== 200) {
-        throw new Error(logMessage);
+        ctx.log.error(logMessage);
+        throw new Error(messageBase);
       } else {
         ctx.log.debug(logMessage);
       }

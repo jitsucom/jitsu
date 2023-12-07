@@ -69,11 +69,12 @@ export async function testJitsuFunction<T = any>(opts: TestOptions<T>): Promise<
 
   let res: AnyEvent[] = null;
   for (const event of events) {
+    const eventName = event.event || event.type;
     try {
       testLogger
         .atInfo()
         .log(
-          `📌Testing ${logFormat.bold(event.event || event.type)} message of ${toDate(event.timestamp).toISOString()}`
+          `📌Testing ${logFormat.bold(eventName)} message of ${toDate(event.timestamp).toISOString()}`
         );
       const r = await func(event, {
         props: config,
@@ -97,7 +98,7 @@ export async function testJitsuFunction<T = any>(opts: TestOptions<T>): Promise<
         }
       }
     } catch (e) {
-      console.log(`Error running function`, e);
+      testLogger.atError().log(`Error running function ${func.displayName || func.name} on ${eventName}`, e);
       throw e;
     }
   }
