@@ -109,22 +109,26 @@ function DestinationCard({ dest, selected }: { dest: DestinationConfig; selected
       selected={selected}
       icon={coreDestinationsMap[dest.destinationType]?.icon || <FaGlobe className="w-full h-full" />}
       title={dest.name}
-      actions={[
-        { label: "Edit", href: `/destinations?id=${dest.id}`, icon: <Edit3 className="w-4 h-4" /> },
+      actions={
+        dest.provisioned
+          ? []
+          : [
+              { label: "Edit", href: `/destinations?id=${dest.id}`, icon: <Edit3 className="w-4 h-4" /> },
 
-        {
-          label: "View Connected Streams",
-          icon: <Zap className="w-4 h-4" />,
-          href: `/connections?sorting=${encodeURIComponent(
-            btoa(JSON.stringify({ columns: [{ field: "Source", order: "ascend" }] }))
-          )}&destination=${encodeURIComponent(dest.id)}`,
-        },
-        {
-          label: "View Syncs",
-          icon: <Share2 className="w-4 h-4" />,
-          href: `/syncs?destination=${encodeURIComponent(dest.id)}`,
-        },
-      ]}
+              {
+                label: "View Connected Streams",
+                icon: <Zap className="w-4 h-4" />,
+                href: `/connections?sorting=${encodeURIComponent(
+                  btoa(JSON.stringify({ columns: [{ field: "Source", order: "ascend" }] }))
+                )}&destination=${encodeURIComponent(dest.id)}`,
+              },
+              {
+                label: "View Syncs",
+                icon: <Share2 className="w-4 h-4" />,
+                href: `/syncs?destination=${encodeURIComponent(dest.id)}`,
+              },
+            ]
+      }
       configLink={!dest.provisioned ? `/${workspace.id}/destinations?id=${dest.id}` : `/${workspace.id}/destinations`}
     />
   );
