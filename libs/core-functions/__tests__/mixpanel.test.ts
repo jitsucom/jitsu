@@ -2,22 +2,22 @@ import { testJitsuFunction, TestOptions } from "./lib/testing-lib";
 import MixpanelDestination from "../src/functions/mixpanel-destination";
 import { event, group, identify } from "./lib/test-data";
 import { MixpanelCredentials } from "../src/meta";
+import { getLog } from "juava";
+import * as JSON5 from "json5";
 
 /**
  * We use two projects for testing MixPanel:
  *
  *  https://mixpanel.com/project/3168139/ - with enabled simplified API (=simplified identity management)
- *    - Reset project here: https://mixpanel.com/project/3168139/app/settings#project/3168139
- *  https://mixpanel.com/project/3168140/ - with disabled simplified API (=old identity management)
- *    - Reset project here: https://mixpanel.com/project/3168140/app/settings#project/3168140
+ *  https://mixpanel.com/project/3168263/ - with disabled simplified API (=old identity management)
  *
  * Tests are semi-automated, because MixPanel doesn't provide API for deleting events. Do a manual project reset
  * and set TEST_MIXPANEL_DESTINATION env variable to the token of the project you want to test.
  *
  * For 3168139 - simplified. Insert real credentials to test.
- * TEST_MIXPANEL_DESTINATION={projectId: 3168139, simplifiedIdentityMerge: true, enableGroupAnalytics: true, enableAnonymousUserProfiles: true groupKey: "$group_id", projectToken: "", serviceAccountUserName: "", serviceAccountPassword: ""}
- * For 3168140 - old. Insert real credentials to test.
- * TEST_MIXPANEL_DESTINATION={projectId: 3168139, simplifiedIdentityMerge: true, enableGroupAnalytics: true, enableAnonymousUserProfiles: true groupKey: "$group_id", projectToken: "", serviceAccountUserName: "", serviceAccountPassword: ""}
+ * TEST_MIXPANEL_DESTINATION={projectId: 3168139, simplifiedIdentityMerge: true, enableGroupAnalytics: true, enableAnonymousUserProfiles: true, groupKey: "$group_id", serviceAccountUserName: "jitsu-destination-tests.a985cb.mp-service-account", projectToken: "", serviceAccountPassword: ""}
+ * For 3168263 - old. Insert real credentials to test.
+ * TEST_MIXPANEL_DESTINATION={projectId: 3168263, simplifiedIdentityMerge: false, enableGroupAnalytics: true, enableAnonymousUserProfiles: true, groupKey: "$group_id", serviceAccountUserName: "jitsu-destination-tests.a985cb.mp-service-account", projectToken: "", serviceAccountPassword: ""}
  *
  */
 test("mixpanel-destination-integration", async () => {
@@ -25,6 +25,8 @@ test("mixpanel-destination-integration", async () => {
     console.log("Skipping mixpanel destination integration test - TEST_MIXPANEL_DESTINATION is not set");
     return;
   }
+  const config = JSON5.parse(process.env.TEST_MIXPANEL_DESTINATION);
+  getLog().atInfo().log(`Testing MixPanel destination. Project https://mixpanel.com/project/${config.projectId}. Simplified: ${!!config.simplifiedIdMerge}`);
   const events = [
     event("page", { anonymousId: "anon1", url: "http://sample-website.com/landing?utm_source=ads&utm_campaign=ad" }),
     event("page", { anonymousId: "anon1", url: "http://sample-website.com/contact" }),
