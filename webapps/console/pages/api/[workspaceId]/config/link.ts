@@ -3,7 +3,7 @@ import { Api, inferUrl, nextJsApiHandler, verifyAccess } from "../../../../lib/a
 import { db } from "../../../../lib/server/db";
 import { fastStore } from "../../../../lib/server/fast-store";
 import { randomId } from "juava";
-import { syncWithScheduler } from "../../../../lib/server/sync-scheduler";
+import { scheduleSync, syncWithScheduler } from "../../../../lib/server/sync";
 import { getAppEndpoint } from "../../../../lib/domains";
 
 export const api: Api = {
@@ -26,7 +26,7 @@ export const api: Api = {
   POST: {
     auth: true,
     types: {
-      query: z.object({ workspaceId: z.string() }),
+      query: z.object({ workspaceId: z.string(), runSync: z.string().optional() }),
       body: z.object({
         id: z.string().optional(),
         data: z.any().optional(),
@@ -35,7 +35,7 @@ export const api: Api = {
         type: z.string().optional(),
       }),
     },
-    handle: async ({ body, user, query: { workspaceId }, req }) => {
+    handle: async ({ body, user, query: { workspaceId, runSync }, req }) => {
       const { id, toId, fromId, data = undefined, type = "push" } = body;
       await verifyAccess(user, workspaceId);
       const fromType = type === "sync" ? "service" : "stream";
@@ -69,29 +69,41 @@ export const api: Api = {
       ) {
         throw new Error(`Destination object with id '${toId}' not found in the workspace '${workspaceId}'`);
       }
+      let createdOrUpdated;
       if (existingLink) {
-        await db.prisma().configurationObjectLink.update({
+        createdOrUpdated = await db.prisma().configurationObjectLink.update({
           where: { id: existingLink.id },
           data: { data, deleted: false },
         });
         //try to do asynchronously for edit
         syncWithScheduler(getAppEndpoint(req).baseUrl);
-        await fastStore.fullRefresh();
-        return { id: existingLink.id, created: false };
+      } else {
+        createdOrUpdated = await db.prisma().configurationObjectLink.create({
+          data: {
+            id: `${workspaceId}-${fromId.substring(fromId.length - 4)}-${toId.substring(toId.length - 4)}-${randomId(
+              6
+            )}`,
+            workspaceId,
+            fromId,
+            toId,
+            data,
+            type,
+          },
+        });
+        //sync scheduler immediately, so if it fails, user sees the error
+        await syncWithScheduler(getAppEndpoint(req).baseUrl);
       }
-      const created = await db.prisma().configurationObjectLink.create({
-        data: {
-          id: `${workspaceId}-${fromId.substring(fromId.length - 4)}-${toId.substring(toId.length - 4)}-${randomId(6)}`,
-          workspaceId,
-          fromId,
-          toId,
-          data,
-          type,
-        },
-      });
-      await syncWithScheduler(getAppEndpoint(req).baseUrl);
       await fastStore.fullRefresh();
-      return { id: created.id, created: true };
+      if (type === "sync" && (runSync === "true" || runSync === "1")) {
+        await scheduleSync({
+          req,
+          user,
+          trigger: "manual",
+          workspaceId,
+          syncId: createdOrUpdated.id,
+        });
+      }
+      return { id: createdOrUpdated.id, created: !existingLink };
     },
   },
   DELETE: {

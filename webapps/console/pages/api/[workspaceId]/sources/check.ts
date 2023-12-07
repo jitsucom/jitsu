@@ -4,8 +4,8 @@ import { createRoute, verifyAccess } from "../../../../lib/api";
 import { ServiceConfig } from "../../../../lib/schema";
 import { requireDefined, rpc } from "juava";
 import { tryManageOauthCreds } from "../../../../lib/server/oauth/services";
-import { syncError } from "../../../../lib/shared/errors";
 import { getServerLog } from "../../../../lib/server/log";
+import { syncError } from "../../../../lib/server/sync";
 
 const log = getServerLog("sync-check");
 

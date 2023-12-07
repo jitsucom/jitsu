@@ -7,7 +7,7 @@ import { ConfigurationObjectLinkDbModel } from "../../prisma/schema";
 import { useRouter } from "next/router";
 import { assertTrue, getLog, hash as juavaHash, rpc } from "juava";
 import { Disable } from "../Disable/Disable";
-import { Button, Input, Select, Switch, Tooltip } from "antd";
+import { Button, Checkbox, Input, Select, Switch, Tooltip } from "antd";
 import { getCoreDestinationType } from "../../lib/schema/destinations";
 import { confirmOp, feedbackError, feedbackSuccess } from "../../lib/ui";
 import FieldListEditorLayout, { EditorItem } from "../FieldListEditorLayout/FieldListEditorLayout";
@@ -317,6 +317,8 @@ function SyncEditor({
     },
     [syncOptions?.streams, updateOptions]
   );
+
+  const [runSyncAfterSave, setRunSyncAfterSave] = useState(!existingLink);
 
   const deleteAllStreams = useCallback(() => {
     if (syncOptions) {
@@ -712,7 +714,10 @@ function SyncEditor({
             </Button>
           )}
         </div>
-        <div className="flex justify-end space-x-5">
+        <div className="flex justify-end space-x-5 items-center">
+          <Checkbox checked={runSyncAfterSave} onChange={() => setRunSyncAfterSave(!runSyncAfterSave)}>
+            Run{!existingLink ? " first" : ""} sync after save
+          </Checkbox>
           <Button type="primary" ghost size="large" disabled={loading} onClick={() => router.back()}>
             Cancel
           </Button>
@@ -724,7 +729,7 @@ function SyncEditor({
             onClick={async () => {
               setLoading(true);
               try {
-                await get(`/api/${workspace.id}/config/link`, {
+                await get(`/api/${workspace.id}/config/link?runSync=${runSyncAfterSave}`, {
                   body: {
                     ...(existingLink ? { id: existingLink.id } : {}),
                     fromId: srvId,
