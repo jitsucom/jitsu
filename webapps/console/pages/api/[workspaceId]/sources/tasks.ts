@@ -5,9 +5,9 @@ import { source_taskDbModel } from "../../../../prisma/schema";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 dayjs.extend(utc);
-import { syncError } from "../../../../lib/shared/errors";
 import { getServerLog } from "../../../../lib/server/log";
 import { getAppEndpoint } from "../../../../lib/domains";
+import { syncError } from "../../../../lib/server/sync";
 
 const log = getServerLog("sync-tasks");
 
