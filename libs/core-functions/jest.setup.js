@@ -8,6 +8,8 @@ function loadEnv() {
   });
 }
 
+process.env.JUAVA_GLOBAL_LOG_LEVEL = "debug";
+
 
 
 //replace jest verbose logging with ordinary logs

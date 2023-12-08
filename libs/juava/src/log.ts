@@ -17,7 +17,7 @@ function getComponent() {
   return undefined;
 }
 
-let globalLogLevel: LogLevel = "info" as LogLevel;
+let globalLogLevel: LogLevel = (process.env.JUAVA_GLOBAL_LOG_LEVEL || "info") as LogLevel;
 let enableServerLogsColoring: boolean = !(process.env.CI === "1" || process.env.CI === "true");
 let enableJsonFormat: boolean = false;
 

@@ -1,7 +1,7 @@
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { randomId } from "juava";
 
-function createContext(url: string): any {
+function createContext(url: string, traits?: Record<string, any>): any {
   const parsedUrl = new URL(url);
   return {
     app: {},
@@ -19,6 +19,7 @@ function createContext(url: string): any {
       name: "",
       version: "",
     },
+    traits: traits,
     page: {
       path: parsedUrl.pathname,
       referrer: "$direct",
@@ -42,7 +43,14 @@ export const reservedEventNames = new Set(["page", "screen", "identify", "alias"
 
 export function event(
   type: string,
-  opts: { anonymousId?: string; url: string; userId?: string; groupId?: string; properties?: Record<string, any> }
+  opts: {
+    anonymousId?: string;
+    url: string;
+    userId?: string;
+    groupId?: string;
+    properties?: Record<string, any>;
+    contextTraits?: Record<string, any>;
+  }
 ): AnalyticsServerEvent {
   let [eventType, eventSubtype] = type.indexOf("/") > 0 ? type.split("/") : [type, undefined];
   if (!eventSubtype && !reservedEventNames.has(eventType)) {
@@ -54,9 +62,9 @@ export function event(
     event: eventSubtype,
     ...(opts.anonymousId ? { anonymousId: opts.anonymousId } : {}),
     ...(opts.userId ? { userId: opts.userId } : {}),
-    ...(opts.groupId ? { userId: opts.groupId } : {}),
+    ...(opts.groupId ? { groupId: opts.groupId } : {}),
     channel: "web",
-    context: createContext(opts.url),
+    context: createContext(opts.url, opts.contextTraits),
     properties: opts.properties || {},
     messageId: randomId(),
     originalTimestamp: new Date().toISOString(),

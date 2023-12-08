@@ -73,9 +73,8 @@ export async function testJitsuFunction<T = any>(opts: TestOptions<T>): Promise<
     try {
       testLogger
         .atInfo()
-        .log(
-          `📌Testing ${logFormat.bold(eventName)} message of ${toDate(event.timestamp).toISOString()}`
-        );
+        .log(`📌Testing ${logFormat.bold(eventName)} message of ${toDate(event.timestamp).toISOString()}`);
+      testLogger.atDebug().log(`${JSON.stringify(event, null, 2)}`.split("\n").join("\n\t"));
       const r = await func(event, {
         props: config,
         fetch,

@@ -70,7 +70,7 @@ function trackEvent(ctx: FullContext, distinctId: string, eventType: string, eve
         properties: {
           ip: event.context?.ip || event.request_ip,
           time: eventTimeSafeMs(event),
-          $device_id: `${event.anonymousId}`,
+          $device_id: event.anonymousId,
           distinct_id: distinctId,
           $insert_id: event.messageId + "-" + randomId(),
           $user_id: event.userId ? `${event.userId}` : undefined,
@@ -237,7 +237,6 @@ function prettify(body: any): string {
   }
 }
 
-
 function alias(ctx: FullContext, messageId: string, identifiedId: string, anonymousId: string): HttpRequest[] {
   if (!anonymousId) {
     return [];
@@ -279,7 +278,6 @@ function getDistinctId(ctx: FullContext, event: AnalyticsServerEvent) {
 }
 
 const MixpanelDestination: JitsuFunction<AnalyticsServerEvent, MixpanelCredentials> = async (event, ctx) => {
-  ctx.log.debug(`Mixpanel destination (props=${JSON.stringify(ctx.props)}) received event ${JSON.stringify(event)}`);
   const distinctId = getDistinctId(ctx, event);
   if (!distinctId) {
     ctx.log.warn(
@@ -306,7 +304,7 @@ const MixpanelDestination: JitsuFunction<AnalyticsServerEvent, MixpanelCredentia
           messages.push(...alias(ctx, event.messageId, distinctId, `${event.anonymousId}`));
         }
       }
-      if (ctx.props.sendIdentifyEvents) {
+      if (ctx.props.sendIdentifyEvents || ctx.props.simplifiedIdMerge) {
         messages.push(trackEvent(ctx, distinctId, "Identify", event));
       }
     } else {
@@ -326,7 +324,8 @@ const MixpanelDestination: JitsuFunction<AnalyticsServerEvent, MixpanelCredentia
         ...(message.payload ? { body: JSON.stringify(message.payload) } : {}),
       });
       const messageBase = `MixPanel ${method} ${message.url} → ${result.status} ${result.statusText}`;
-      const logMessage = messageBase + `. Request body: ${prettify(message.payload)}, response body: ${await result.text()} `;
+      const logMessage =
+        messageBase + `. Request body: ${prettify(message.payload)}, response body: ${await result.text()} `;
       if (result.status !== 200) {
         ctx.log.error(logMessage);
         throw new Error(messageBase);

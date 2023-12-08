@@ -26,39 +26,65 @@ test("mixpanel-destination-integration", async () => {
     return;
   }
   const config = JSON5.parse(process.env.TEST_MIXPANEL_DESTINATION);
-  getLog().atInfo().log(`Testing MixPanel destination. Project https://mixpanel.com/project/${config.projectId}. Simplified: ${!!config.simplifiedIdMerge}`);
+  getLog()
+    .atInfo()
+    .log(
+      `Testing MixPanel destination. Project https://mixpanel.com/project/${
+        config.projectId
+      }. Simplified: ${!!config.simplifiedIdMerge}`
+    );
+
+  const userSuffix = 2;
+
+  const anonymousId = `anon${userSuffix}`;
+  const userId = `user${userSuffix}`;
+  const groupId = `group${userSuffix}`;
+  const email = `john${userSuffix}.doe@customer.com`;
+
+  const name = `John ${userSuffix} Doe`;
+
   const events = [
-    event("page", { anonymousId: "anon1", url: "http://sample-website.com/landing?utm_source=ads&utm_campaign=ad" }),
-    event("page", { anonymousId: "anon1", url: "http://sample-website.com/contact" }),
+    event("page", { anonymousId, url: "http://sample-website.com/landing?utm_source=ads&utm_campaign=ad" }),
+    event("page", { anonymousId, url: "http://sample-website.com/contact" }),
 
     //identify() with email, but not userId. Can happen when a user fills a contact form on the website
     identify({
-      anonymousId: "anon1",
+      anonymousId,
       url: "http://sample-website.com/contact",
-      traits: { email: "john.doe@customer.com" },
+      traits: { email, name },
     }),
+
     event("page", {
-      anonymousId: "anon1",
+      anonymousId: anonymousId,
       url: "http://sample-website.com/signup",
+      //contextTraits: { email: "john.doe@customer.com" },
+    }),
+
+    //client-side identify with userId and email and anonymousId
+    identify({
+      url: "http://sample-website.com/signup",
+      userId,
+      anonymousId,
+      traits: { email },
     }),
 
     //The next block of events is for server-side sign-flow
     identify({
       url: "http://sample-website.com/signup",
-      userId: "user1",
-      traits: { email: "john.doe@customer.com" },
+      userId: userId,
+      traits: { email },
     }),
     group({
       url: "http://sample-website.com/signup",
-      groupId: "group1",
-      userId: "user1",
+      groupId,
+      userId,
       traits: {
         companyName: "Company Name",
       },
     }),
     event("signup", {
       url: "http://sample-website.com/signup",
-      userId: "user1",
+      userId,
     }),
 
     //product usage - page views coming from browser with both anonymousId and userId
@@ -66,18 +92,18 @@ test("mixpanel-destination-integration", async () => {
     //locally
     group({
       url: "http://app.sample-website.com",
-      userId: "user1",
-      groupId: "group1",
+      userId,
+      groupId,
     }),
     identify({
       url: "http://app.sample-website.com",
-      userId: "user1",
-      groupId: "group1",
+      userId,
+      groupId,
     }),
     event("page", {
       url: "http://app.sample-website.com",
-      userId: "user1",
-      groupId: "group1",
+      userId,
+      groupId,
     }),
   ];
   const opts: TestOptions<MixpanelCredentials> = {
