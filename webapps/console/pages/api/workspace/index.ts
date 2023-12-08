@@ -36,6 +36,7 @@ const api: Api = {
       const newWorkspace = await db.prisma().workspace.create({
         data: { name: body.name || `${user.name || user.email || user.externalId}'s new workspace` },
       });
+      await db.prisma().workspaceAccess.create({ data: { userId: user.internalId, workspaceId: newWorkspace.id } });
       await withProductAnalytics(p => p.track("workspace_created"), { user, workspace: newWorkspace, req });
       return { id: newWorkspace.id };
     },
