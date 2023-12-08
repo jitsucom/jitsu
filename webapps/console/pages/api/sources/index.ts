@@ -110,7 +110,7 @@ export default createRoute()
       .map(({ id, logoSvg, packageId, meta, ...rest }) => ({
         id,
         packageId,
-        logoSvg: includeIcons ? logoSvg : undefined,
+        logoSvg: includeIcons ? (logoSvg ? logoSvg.toString() : undefined) : undefined,
         ...(includeMeta ? rest : {}),
         versions: includeMeta
           ? `/api/sources/versions?type=${encodeURIComponent(rest.packageType)}&package=${encodeURIComponent(
@@ -134,7 +134,7 @@ export default createRoute()
         ...Object.values(jitsuSources).map(({ id, packageId, versions, logoSvg, ...rest }) => ({
           id,
           packageId,
-          logoSvg: includeIcons ? logoSvg : undefined,
+          logoSvg: includeIcons ? (logoSvg ? logoSvg.toString() : undefined) : undefined,
           ...(includeMeta ? rest : {}),
           versions: includeMeta ? versions : undefined,
           meta: includeMeta ? rest.meta : undefined,
