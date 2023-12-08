@@ -126,6 +126,7 @@ services:
       ROTOR_URL: "http://rotor:3401"
       BULKER_URL: "http://bulker:3042"
       BULKER_AUTH_KEY: ${BULKER_PASSWORD}
+      MIT_COMPLIANT: ${MIT_COMPLIANT:-true}
       DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD:-default}@postgres:5432/postgres"
       REDIS_URL: "redis://default:${REDIS_PASSWORD:-default}@redis:6379"
       TEST_CREDENTIALS: ${TEST_CREDENTIALS}

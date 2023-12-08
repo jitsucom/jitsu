@@ -8,6 +8,7 @@ import { LoadingAnimation } from "../GlobalLoader/GlobalLoader";
 import React from "react";
 import { ErrorCard } from "../GlobalError/GlobalError";
 import { Input } from "antd";
+import { useAppConfig } from "../../lib/context";
 
 function groupByType(sources: SourceType[]): Record<string, SourceType[]> {
   const groups: Record<string, SourceType[]> = {};
@@ -43,7 +44,7 @@ function groupByType(sources: SourceType[]): Record<string, SourceType[]> {
 export function getServiceIcon(source: SourceType, icons: Record<string, string> = {}): React.ReactNode {
   const connectorSubtype = source.meta.connectorSubtype;
 
-  const logoSvg = source.logoSvg || icons[source.packageId];
+  const logoSvg = (source.logoSvg || icons[source.packageId]) as string;
   return logoSvg ? (
     <img src={"data:image/svg+xml;base64," + Buffer.from(logoSvg).toString("base64")} alt={source.meta.name} />
   ) : connectorSubtype === "database" ? (
@@ -57,6 +58,7 @@ export const ServicesCatalog: React.FC<{ onClick: (packageType, packageId: strin
   const { data, isLoading, error } = useApi<{ sources: SourceType[] }>(`/api/sources?mode=meta`);
   const sourcesIconsLoader = useApi<{ sources: SourceType[] }>(`/api/sources?mode=icons-only`);
   const [filter, setFilter] = React.useState("");
+  const appconfig = useAppConfig();
   const sourcesIcons: Record<string, string> = sourcesIconsLoader.data
     ? sourcesIconsLoader.data.sources.reduce(
         (acc, item) => ({
@@ -92,6 +94,7 @@ export const ServicesCatalog: React.FC<{ onClick: (packageType, packageId: strin
             .filter(source => source.meta.name && source.meta.name.toLowerCase().includes(filter.toLowerCase()))
             .filter(
               source =>
+                !appconfig.mitCompliant ||
                 source.meta.license?.toLowerCase() === "mit" ||
                 (source.meta.mitVersions && source.meta.mitVersions.length > 0)
             );

@@ -50,7 +50,7 @@ export const MixpanelCredentials = z.object({
   simplifiedIdMerge: z
     .boolean()
     .optional()
-    .default(true)
+    .default(false)
     .describe(
       `Simplified Identity Merge::Use Mixpanel <a href="https://docs.mixpanel.com/docs/tracking-methods/identifying-users">Simplified Identity Merge</a> feature.<br/>Enable this option if your Mixpanel project has the corresponding <a href="https://docs.mixpanel.com/docs/tracking-methods/identifying-users#how-do-i-switch-between-the-simplified-and-original-api">feature enabled</a>.<br/><b>Using this feature is highly recommended to achieve better quality Identity Merge</b>`
     ),

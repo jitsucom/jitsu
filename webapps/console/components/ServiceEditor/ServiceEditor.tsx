@@ -40,9 +40,10 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
   const { object, meta, createNew, onCancel, onDelete, onTest, isNew, noun, loadMeta } = props;
   const appConfig = useAppConfig();
   const workspace = useWorkspace();
-  const { push } = useRouter();
+  const { push, query } = useRouter();
   const [obj, setObj] = useState<Partial<ServiceConfig>>({
     ...props.object,
+    version: query.version ? query.version.toString() : props.object?.version,
   });
   const [credentials, setCredentials] = useState<any>(obj.credentials || {});
   const [isTouched, setIsTouched] = useState<boolean>(false);
@@ -298,7 +299,11 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
         <EditorField
           key={"version"}
           id={"version"}
-          help={`Version of package: ${obj.package || meta.packageId}`}
+          help={`Version of package: ${obj.package || meta.packageId} License: ${
+            Array.isArray(meta.meta.mitVersions) && meta.meta.mitVersions.includes(obj.version)
+              ? "MIT"
+              : meta.meta.license
+          }`}
           label={"Version"}
           required={true}
         >

@@ -56,6 +56,7 @@ export default createRoute()
             host: nangoConfig.nangoApiHost,
           }
         : undefined,
+      mitCompliant: isTruish(process.env.MIT_COMPLIANT),
     };
   })
   .toNextApiHandler();

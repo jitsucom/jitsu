@@ -84,6 +84,7 @@ export const AppConfig = z.object({
       provider: z.enum(["google-cloud-scheduler"]).optional(),
     }),
   }),
+  mitCompliant: z.boolean().optional(),
   nango: z
     .object({
       publicKey: z.string(),
