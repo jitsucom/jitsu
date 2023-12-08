@@ -14,6 +14,7 @@
     "rotor:dev": "dotenv -e .env.local -- turbo run rotor:dev",
     "console:start": "dotenv -e .env.local -- pnpm run --filter=console console:start",
     "console:db-prepare": "dotenv -e .env.local -- pnpm run --filter=console db:update-schema",
+    "console:db-prepare-force": "dotenv -e .env.local -- pnpm run --filter=console db:update-schema-force",
     "dev": "dotenv -e .env.local -- turbo run dev",
     "test": "turbo run test",
     "jitsu-cli": "turbo run build --filter=jitsu-cli && node --enable-source-maps core/jitsu-cli/lib/index.js",

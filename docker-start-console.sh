@@ -63,7 +63,7 @@ main() {
   if [ -z "$cmd" ]; then
     if [ "$UPDATE_DB" = "1" ] || [ "$UPDATE_DB" = "yes" ] || [ "$UPDATE_DB" = "true" ]; then
       echo "UPDATE_DB is set, updating database schema..."
-      npm run console:db-prepare
+      npm run console:db-prepare-force
     fi
     echo "Starting the app"
     healthcheck $$ &
