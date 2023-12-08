@@ -109,7 +109,7 @@ const AmplitudeDestination: JitsuFunction<AnalyticsServerEvent, AmplitudeDestina
             device_brand: ua?.device?.vendor,
             platform: ua?.device?.type,
             language: event.context?.locale,
-            ip: event.request_ip,
+            ip: event.requestIp,
             user_agent: event.context?.userAgent,
             ...geoObj,
           },

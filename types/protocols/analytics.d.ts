@@ -107,7 +107,7 @@ export type ServerContextReservedProps = {
   //if request came server-to-server, then it's an IP of a server
   //for device events it will be an IP of a device
   //don't use this field in functions, use context.ip instead
-  request_ip?: string;
+  requestIp?: string;
   receivedAt?: ISO8601Date;
   sentAt?: ISO8601Date;
   timestamp?: ISO8601Date;
@@ -172,7 +172,7 @@ export type PageReservedProps = {
 interface AnalyticsContext {
   /**
    * IP address of the originating request. If event is sent from a device, then it's an IP of a device
-   * (copied from request_ip)
+   * (copied from requestIp)
    * If request is sent from server-to-server, this field is not automatically populated
    * and should be filled manually
    */

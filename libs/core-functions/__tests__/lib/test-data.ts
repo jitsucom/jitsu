@@ -54,7 +54,7 @@ function event(
     messageId: randomId(),
     originalTimestamp: new Date().toISOString(),
     receivedAt: new Date().toISOString(),
-    request_ip: "99.177.205.92",
+    requestIp: "99.177.205.92",
     sentAt: new Date().toISOString(),
     timestamp: new Date().toISOString(),
   };
@@ -76,7 +76,7 @@ function identify(opts: {
     messageId: randomId(),
     originalTimestamp: new Date().toISOString(),
     receivedAt: new Date().toISOString(),
-    request_ip: "99.177.205.92",
+    requestIp: "99.177.205.92",
     sentAt: new Date().toISOString(),
     timestamp: new Date().toISOString(),
   };

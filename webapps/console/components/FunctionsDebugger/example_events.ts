@@ -51,7 +51,7 @@ export const examplePageEvent = () => {
         source: "g",
       },
     },
-    request_ip: "127.0.0.1",
+    requestIp: "127.0.0.1",
     receivedAt: new Date(),
   };
 };
@@ -97,7 +97,7 @@ export const exportIdentifyEvent = () => {
         source: "g",
       },
     },
-    request_ip: "127.0.0.1",
+    requestIp: "127.0.0.1",
     receivedAt: new Date(),
   };
 };
@@ -147,7 +147,7 @@ export const exampleTrackEvents = () => {
         source: "g",
       },
     },
-    request_ip: "127.0.0.1",
+    requestIp: "127.0.0.1",
     receivedAt: new Date(),
   };
 };

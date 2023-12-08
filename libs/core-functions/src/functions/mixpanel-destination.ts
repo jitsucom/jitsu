@@ -68,7 +68,7 @@ function trackEvent(ctx: FullContext, distinctId: string, eventType: string, eve
       {
         event: eventType,
         properties: {
-          ip: event.context?.ip || event.request_ip,
+          ip: event.context?.ip || event.requestIp,
           time: eventTimeSafeMs(event),
           $device_id: `${event.anonymousId}`,
           distinct_id: distinctId,
@@ -109,7 +109,7 @@ function setProfileMessage(ctx: FullContext, distinctId: string, event: Analytic
   const setPayload: any = {
     $token: opts.projectToken,
     $distinct_id: distinctId,
-    $ip: event.context?.ip || event.request_ip,
+    $ip: event.context?.ip || event.requestIp,
     $latitude: event.context?.geo?.location?.latitude,
     $longitude: event.context?.geo?.location?.longitude,
     $set: {
@@ -138,7 +138,7 @@ function setProfileMessage(ctx: FullContext, distinctId: string, event: Analytic
     const unionPayload: any = {
       $token: opts.projectToken,
       $distinct_id: distinctId,
-      $ip: event.context?.ip || event.request_ip,
+      $ip: event.context?.ip || event.requestIp,
       $union: { [groupKey]: [groupId] },
     };
     reqs.push({

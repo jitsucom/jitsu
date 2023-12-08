@@ -43,7 +43,7 @@ const knownProps: Record<keyof Required<AnalyticsClientEvent & ServerContextRese
     previousId: true,
     properties: true,
     receivedAt: true,
-    request_ip: true,
+    requestIp: true,
     sentAt: true,
     timestamp: true,
     traits: true,

@@ -387,7 +387,7 @@ export function patchEvent(
     typeFixed = requireDefined(event.type, `type property of event is required`);
   }
 
-  event.request_ip =
+  event.requestIp =
     (req.headers["x-real-ip"] as string) || (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress;
 
   //make sure that context is initialized
@@ -395,7 +395,7 @@ export function patchEvent(
 
   if (ingestType === "browser") {
     //if ip comes from browser, don't trust it!
-    event.context.ip = event.request_ip;
+    event.context.ip = event.requestIp;
     //get geo from headers, so we can display it in the console
     //we do it only for calls fron browser, otherwise it's pointless, the geo
     //will contain ip of the server
