@@ -75,37 +75,45 @@ async function process(src: string) {
   const res = await fetch(metadataUrl);
   let packageId: string | undefined = undefined;
   let metadata: any = {};
-  let icon: string | undefined = undefined;
+  let icon: Buffer | undefined = undefined;
+  log.atInfo().log(`Processing ${src}: ${metadataUrl}`);
   if (res.ok) {
-    metadata = yaml.load(await res.text());
+    metadata = yaml.load(await res.text(), { json: true });
 
     const license = metadata.data?.license?.toLowerCase();
 
-    if (license === "elv2") {
-      const commitHistory = `https://api.github.com/repos/${repo}/commits?path=/${basePath}/${src}/metadata.yaml&per_page=100`;
-      log.atWarn().log(`Source ${src} has ELv2 license. Looking for MIT versions at ${commitHistory}`);
-      const commits = await rpc(commitHistory);
-      log.atInfo().log(`Found ${commits.length} commits`);
-      for (const { sha } of commits) {
-        const commitFile = `https://raw.githubusercontent.com/${repo}/${sha}/${basePath}/${src}/metadata.yaml`;
-        const oldYml = await fetch(commitFile);
-        if (oldYml.ok) {
-          const oldMeta = yaml.load(await oldYml.text());
-          const license = oldMeta.data?.license?.toLowerCase() || "unknown-license";
-          if (license === "mit") {
-            const dockerVersion = oldMeta.data?.dockerImageTag;
-            if (!dockerVersion) {
-              log.atWarn().log(`MIT version of ${src} doesn't have dockerImageTag: ${commitFile}`);
+    if (!license || license.toLowerCase() !== "mit") {
+      const pageSize = 100; // max supported by github API
+      const commitHistory = `https://api.github.com/repos/${repo}/commits?path=/${basePath}/${src}/metadata.yaml&per_page=${pageSize}`;
+      log.atWarn().log(`Source ${src} has ${license} license. Looking for MIT versions at ${commitHistory}`);
+      for (let page = 1; page <= 10; page++) {
+        const commits = await rpc(commitHistory + "&page=" + page);
+        log.atInfo().log(`Source ${src} found ${commits.length} commits (page ${page})`);
+        for (const { sha } of commits) {
+          const commitFile = `https://raw.githubusercontent.com/${repo}/${sha}/${basePath}/${src}/metadata.yaml`;
+          const oldYml = await fetch(commitFile);
+          if (oldYml.ok) {
+            const oldMeta = yaml.load(await oldYml.text(), { json: true });
+            const license = oldMeta.data?.license?.toLowerCase() || "unknown-license";
+            if (license === "mit") {
+              const dockerVersion = oldMeta.data?.dockerImageTag;
+              if (!dockerVersion) {
+                log.atWarn().log(`MIT version of ${src} doesn't have dockerImageTag: ${commitFile}`);
+              } else {
+                log.atInfo().log(`Found MIT version of ${src} --> ${dockerVersion}`);
+                mitVersions.add(dockerVersion);
+              }
             } else {
-              log.atWarn().log(`Found MIT version of ${src} --> ${dockerVersion}`);
-              mitVersions.add(dockerVersion);
+              otherVersions[license] = otherVersions[license] || new Set<string>();
+              otherVersions[license].add(license);
             }
           } else {
-            otherVersions[license] = otherVersions[license] || new Set<string>();
-            otherVersions[license].add(license);
+            log.atWarn().log(`Failed to load ${commitFile}`);
           }
-        } else {
-          log.atWarn().log(`Failed to load ${commitFile}`);
+        }
+        if (commits.length < pageSize) {
+          // no more commits
+          break;
         }
       }
     }
@@ -120,7 +128,7 @@ async function process(src: string) {
     const iconUrl = `https://raw.githubusercontent.com/${repo}/master/${basePath}/${src}/icon.svg`;
     const iconRes = await fetch(iconUrl);
     if (iconRes.ok) {
-      icon = await iconRes.text();
+      icon = Buffer.from(await iconRes.arrayBuffer());
     } else {
       log.atWarn().log(`Source ${src} icon file ${metadata.data?.icon} doesn't exist at ${iconUrl}`);
     }
@@ -144,7 +152,7 @@ async function process(src: string) {
     await db.prisma().connectorPackage.update({ where: { id: currentId }, data });
     return { [`${packageId}`]: "updated" };
   } else {
-    log.atInfo().log(`Created ${packageId} info. Has icon: ${!!icon}, has metadata: ${!!metadata}`);
+    log.atInfo().log(`Creating ${packageId} info. Has icon: ${!!icon}, has metadata: ${!!metadata}`);
     await db.prisma().connectorPackage.create({ data: data });
     return { [`${packageId}`]: "created" };
   }
