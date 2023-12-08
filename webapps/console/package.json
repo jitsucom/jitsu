@@ -19,7 +19,9 @@
     "compile": "tsc -p .",
     "tool:hash": "ts-node scripts/password-hash.ts",
     "db:code-gen": "prisma generate",
-    "db:update-schema": "dotenv -e ../../.env.local -- prisma db push"
+    "db:update-schema": "dotenv -e ../../.env.local -- prisma db push",
+    "db:update-schema-force": "dotenv -e ../../.env.local -- prisma db push --accept-data-loss"
+
   },
   "dependencies": {
     "@dnd-kit/core": "^6.0.8",
