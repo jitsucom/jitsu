@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { namedParameters, SqlQueryParameters, unrollParams } from "juava";
+import { getLog, namedParameters, SqlQueryParameters, unrollParams } from "juava";
 import { withErrorHandler } from "../../../lib/error-handler";
 import { auth } from "../../../lib/auth";
 import { clickhouse, pg } from "../../../lib/services";
@@ -59,20 +59,23 @@ async function getClickhousePart({
                      workspaceId ? "and workspaceId = {workspaceId:String}" : ""
                    }
                  group by period, workspaceId
-                 order by period desc;
+                 order by period desc, workspaceId desc;
   `;
-  //getLog().atInfo().log(`Running Clickhouse query: ${query}`);
+  const queryParams = removeUndefined({
+    start: isoDateTOClickhouse(start),
+    end: isoDateTOClickhouse(end),
+    granularity,
+    workspaceId,
+  });
+  // getLog()
+  //   .atDebug()
+  //   .log(`Running Clickhouse query with ${JSON.stringify(queryParams)} : ${query}`);
   const resultSet = await clickhouse.query({
     query,
     clickhouse_settings: {
       wait_end_of_query: 1,
     },
-    query_params: removeUndefined({
-      start: isoDateTOClickhouse(start),
-      end: isoDateTOClickhouse(end),
-      granularity,
-      workspaceId,
-    }),
+    query_params: queryParams,
   });
   log.atInfo().log(`Clickhouse query took ${Date.now() - timer}ms`);
 

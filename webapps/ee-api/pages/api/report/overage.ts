@@ -101,8 +101,7 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
   const allInvoices = await listAllInvoices();
   const allCustomers = new Set(allWorkspaces.map(w => w.obj.stripeCustomerId));
   const eligibleInvoices = allInvoices.filter(i => allCustomers.has(i.customer)).filter(i => i.lines.data.length > 0);
-  getLog().atInfo().log(`Found ${eligibleInvoices.length} invoices for ${allCustomers.size} workspaces`);
-  const minDate = eligibleInvoices.map(i => getInvoiceStartDate(i)).sort()[0];
+  const minDate = eligibleInvoices.map(i => getInvoiceStartDate(i)).sort((a, b) => a.getTime() - b.getTime())[0];
 
   const timer = Date.now();
   const report = await buildWorkspaceReport(minDate.toISOString(), new Date().toISOString(), "day", workspaceId);
