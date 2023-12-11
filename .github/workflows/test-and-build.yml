@@ -34,7 +34,7 @@ jobs:
       - name: Install dependencies with pnpm
         run: pnpm install --no-frozen-lockfile
       - name: Check code format
-        run: pnpm format:check
+        run: pnpm format:check:all
       - name: Run linter
         run: pnpm lint
       - name: Build project
