@@ -14,7 +14,7 @@ export default createRoute()
   })
   .handler(async ({ body, req, res }) => {
     const contentType = req.headers["content-type"];
-    if (contentType && contentType !== "application/json") {
+    if (contentType && contentType !== "application/json" && contentType !== "text/plain") {
       throw new ApiError(`Invalid content type: ${contentType}. Expected: application/json`, undefined, {
         status: 400,
       });

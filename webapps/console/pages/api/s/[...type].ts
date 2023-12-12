@@ -8,7 +8,7 @@ import { getServerLog } from "../../../lib/server/log";
 
 import { checkHash, getErrorMessage, randomId, requireDefined } from "juava";
 import { httpAgent, httpsAgent } from "../../../lib/server/http-agent";
-import { AnalyticsClientEvent, AnalyticsContext, AnalyticsServerEvent } from "@jitsu/protocols/analytics";
+import { AnalyticsContext, AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { fastStore, StreamWithDestinations } from "../../../lib/server/fast-store";
 import { getCoreDestinationType } from "../../../lib/schema/destinations";
 import { redis } from "../../../lib/server/redis";
@@ -16,11 +16,7 @@ import { Geo } from "@jitsu/protocols/analytics";
 import { IncomingHttpHeaders } from "http";
 import { NextApiRequest, NextApiResponse } from "next";
 import jsondiffpatch from "jsondiffpatch";
-import {
-  CommonDestinationCredentials,
-  satisfyDomainFilter,
-  satisfyFilter,
-} from "@jitsu/js/compiled/src/destination-plugins";
+import { applyFilters } from "@jitsu/js/compiled/src/destination-plugins";
 import { isEU } from "../../../lib/shared/countries";
 
 const jsondiffpatchInstance = jsondiffpatch.create({});
@@ -35,28 +31,6 @@ const bulkerURLDefaultRetryTimeout = 100;
 const bulkerURLDefaultRetryAttempts = 3;
 
 const log = getServerLog("ingest-api");
-
-export function applyFilters(event: AnalyticsClientEvent, creds: CommonDestinationCredentials): boolean {
-  const { hosts = "*", events = "*" } = creds;
-  try {
-    const eventsArray = Array.isArray(events) ? events : events.split("\n");
-    const hostsArray = Array.isArray(hosts) ? hosts : hosts.split("\n");
-    return (
-      !!hostsArray.find(hostFilter => satisfyDomainFilter(hostFilter, event.context?.page?.host)) &&
-      (!!eventsArray.find(eventFilter => satisfyFilter(eventFilter, event.type)) ||
-        !!eventsArray.find(eventFilter => satisfyFilter(eventFilter, event.event)))
-    );
-  } catch (e: any) {
-    console.warn(
-      `Failed to apply filters: ${e.message}. Typeof events: ${typeof events}, typeof hosts: ${typeof hosts}. Values`,
-      events,
-      hosts
-    );
-    throw new Error(
-      `Failed to apply filters: ${e.message}. Typeof events: ${typeof events}, typeof hosts: ${typeof hosts}`
-    );
-  }
-}
 
 type StreamLocator = (loc: StreamCredentials) => Promise<StreamWithDestinations | undefined>;
 
@@ -205,7 +179,7 @@ async function buildResponse(message: IngestMessage, stream: StreamWithDestinati
 
 export function setResponseHeaders({ req, res }: { req: NextApiRequest; res: NextApiResponse }) {
   res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
-  res.setHeader("Access-Control-Allow-Methods", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "x-enable-debug, x-write-key, authorization, content-type");
   res.setHeader("Access-Control-Allow-Credentials", "true");
 }
@@ -397,7 +371,7 @@ export function patchEvent(
     //if ip comes from browser, don't trust it!
     event.context.ip = event.requestIp;
     //get geo from headers, so we can display it in the console
-    //we do it only for calls fron browser, otherwise it's pointless, the geo
+    //we do it only for calls from browser, otherwise it's pointless, the geo
     //will contain ip of the server
     event.context.geo = fromHeaders(req.headers);
   }
@@ -433,11 +407,7 @@ const api: Api = {
       body: z.any(),
     },
     handle: async ({ res, req }) => {
-      res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
-      res.setHeader("Access-Control-Allow-Methods", "*");
-      res.setHeader("Access-Control-Allow-Headers", "x-enable-debug, x-write-key, authorization, content-type");
-      res.setHeader("Access-Control-Allow-Credentials", "true");
-      //res.setHeader("Vary", "Origin");
+      setResponseHeaders({ res, req });
       return;
     },
   },
@@ -448,7 +418,7 @@ const api: Api = {
     },
     handle: async ({ body, req, res }) => {
       const contentType = req.headers["content-type"];
-      if (contentType && contentType !== "application/json") {
+      if (contentType && contentType !== "application/json" && contentType !== "text/plain") {
         throw new ApiError(`Invalid content type: ${contentType}. Expected: application/json`, undefined, {
           status: 400,
         });
