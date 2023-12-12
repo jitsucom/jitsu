@@ -13,7 +13,29 @@ function prettifyBody(body: string) {
     return body;
   }
 }
-
+const segmentsSettings = (writeKey: string) => ({
+  integrations: {
+    "Segment.io": {
+      apiKey: writeKey,
+      unbundledIntegrations: [],
+      addBundledMetadata: true,
+      maybeBundledConfigIds: {},
+      versionSettings: { version: "4.4.7", componentTypes: ["browser"] },
+    },
+  },
+  plan: {
+    track: { __default: { enabled: true, integrations: {} } },
+    identify: { __default: { enabled: true } },
+    group: { __default: { enabled: true } },
+  },
+  edgeFunction: {},
+  analyticsNextEnabled: true,
+  middlewareSettings: {},
+  enabledMiddleware: {},
+  metrics: { sampleRate: 0.1 },
+  legacyVideoPluginsEnabled: false,
+  remotePlugins: [],
+});
 const log = getServerLog("request-logger");
 
 export async function middleware(request: NextRequest) {
@@ -27,7 +49,7 @@ export async function middleware(request: NextRequest) {
   } else if (request.nextUrl.pathname.startsWith("/v1/projects")) {
     // mimic segments setting endpoint
     // https://cdn-settings.segment.com/v1/projects/<writekey>/settings
-    response = NextResponse.json({});
+    response = NextResponse.json(segmentsSettings(request.nextUrl.pathname.split("/")[3]));
   } else {
     response = NextResponse.next();
   }
