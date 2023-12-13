@@ -17,7 +17,6 @@
   },
   "dependencies": {
     "@maxmind/geoip2-node": "4.2.0",
-    "jsondiffpatch": "^0.5.0",
     "tar": "^6.2.0",
     "p-queue": "^6.6.2",
     "object-hash": "^3.0.0",

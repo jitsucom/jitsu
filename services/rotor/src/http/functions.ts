@@ -5,9 +5,7 @@ import { GeoResolver } from "../lib/maxmind";
 import { rotorMessageHandler } from "../lib/message-handler";
 import { CONNECTION_IDS_HEADER } from "../lib/rotor";
 import { AnyEvent } from "@jitsu/protocols/functions";
-import jsondiffpatch from "jsondiffpatch";
-
-const jsondiffpatchInstance = jsondiffpatch.create({});
+import isEqual from "lodash/isEqual";
 
 const log = getLog("functions_handler");
 
@@ -41,5 +39,5 @@ function mapTheSame(message: IngestMessage, newEvents?: AnyEvent[]) {
   if (!newEvents) {
     return [];
   }
-  return newEvents.map(e => (jsondiffpatchInstance.diff(message.httpPayload, e) == null ? "same" : e));
+  return newEvents.map(e => (isEqual(message.httpPayload, e) ? "same" : e));
 }
