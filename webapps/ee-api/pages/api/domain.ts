@@ -1,21 +1,28 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { auth } from "../../lib/auth";
 import { getErrorMessage, requireDefined } from "juava";
-
-import fetch from "node-fetch-commonjs";
+import dns from "dns";
 import { withErrorHandler } from "../../lib/error-handler";
 import isValidDomain from "is-valid-domain";
 import { getServerLog } from "../../lib/log";
-import {
-  vercelTeamId,
-  vercelProjectId,
-  vercelToken,
-  vercelCname,
-  getExistingDomain,
-  vercelRpc,
-} from "../../lib/vercel";
+import { getExistingDomain, vercelCname, vercelProjectId, vercelRpc, vercelTeamId } from "../../lib/vercel";
 
 const log = getServerLog("/api/domain");
+
+
+function resolveCname(domain: string): Promise<string[]> {
+  return new Promise((resolve, reject) => {
+    dns.resolveCname(domain, (err, addresses) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(addresses);
+      }
+    });
+  });
+}
+
+const alternativeCname = process.env.CUSTOM_DOMAIN_CNAMES?.split(",");
 
 const handler = async function handler(req: NextApiRequest, res: NextApiResponse) {
   log.atDebug().log(`${req.method} ${req.url} ${JSON.stringify(req.headers)}`);
@@ -36,6 +43,41 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
     if (!isValidDomain(domain, { subdomain: true, wildcard: false })) {
       throw new Error(`Not a valid domain name`);
     }
+
+    if (alternativeCname && alternativeCname.length > 0) {
+      try {
+        const cnames = await resolveCname(domain);
+        if (cnames.length > 0) {
+          const configuredCname = cnames.find(cname => alternativeCname.includes(cname));
+          if (configuredCname) {
+            res.status(200).json({ ok: true, needsConfiguration: false, configuredCname });
+            return;
+          } else {
+            res
+              .status(200)
+              .json({ ok: false, needsConfiguration: true, configurationType: "cname", cnameValue: alternativeCname[0] });
+            return;
+          }
+        } else {
+          if (vercelProjectId) {
+            //continue with vercel
+          } else {
+            res
+              .status(200)
+              .json({ ok: false, needsConfiguration: true, configurationType: "cname", cnameValue: alternativeCname[0] });
+          }
+        }
+      } catch (e) {
+        if (vercelProjectId) {
+          //continue with vercel
+        } else {
+          res
+            .status(200)
+            .json({ ok: false, needsConfiguration: true, configurationType: "cname", cnameValue: alternativeCname[0] });
+        }
+      }
+    }
+
     let domainInfo = await getExistingDomain(domain);
     if (!domainInfo) {
       domainInfo = await vercelRpc(`/v10/projects/${vercelProjectId}/domains?teamId=${vercelTeamId}`, "POST", {
