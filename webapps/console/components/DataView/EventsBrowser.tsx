@@ -759,6 +759,7 @@ const IncomingEventDrawer = ({ event }: { event: IncomingEvent }) => {
       };
 
       drawerData.push({ name: <UTCHeader />, value: <UTCDate date={event.date} /> });
+      drawerData.push({ name: "Source", value: event.ingestType });
       drawerData.push({ name: "Message ID", value: event.messageId });
       drawerData.push({ name: "Type", value: event.type });
       if (event.event?.event) {
@@ -827,14 +828,18 @@ const IncomingEventDrawer = ({ event }: { event: IncomingEvent }) => {
                   { dataIndex: "name", width: "14em", className: "font-mono" },
                   { dataIndex: "value", className: "break-all font-mono" },
                 ]}
-                dataSource={Object.entries(event.httpHeaders).map((d, i) => {
-                  let name = d[0];
-                  let value = d[1];
-                  if (name.toLowerCase() === "authorization") {
-                    value = "*** MASKED ***";
-                  }
-                  return { name, value };
-                })}
+                dataSource={
+                  event.httpHeaders
+                    ? Object.entries(event.httpHeaders).map((d, i) => {
+                        let name = d[0];
+                        let value = d[1];
+                        if (name.toLowerCase() === "authorization") {
+                          value = "*** MASKED ***";
+                        }
+                        return { name, value };
+                      })
+                    : undefined
+                }
               />
             </Collapse.Panel>
           </Collapse>
@@ -917,6 +922,7 @@ export const Geo: React.FC<{ geo?: aGeo }> = ({ geo }) => {
 type IncomingEvent = {
   id: string;
   date: string;
+  ingestType: string;
   status: string;
   error: string;
 
@@ -965,6 +971,8 @@ const IncomingEventsTable = ({ loadEvents, loading, streamType, entityType, acto
           return {
             id: ev.id,
             date: ev.date,
+            ingestType: ingestPayload.ingestType,
+
             status: ev.content.status,
             error: ev.content.error,
 
@@ -977,7 +985,7 @@ const IncomingEventsTable = ({ loadEvents, loading, streamType, entityType, acto
               ingestPayload.origin?.domain ||
               (ingestPayload.origin?.slug
                 ? `${ingestPayload.origin?.slug}.${appConfig.publicEndpoints.dataHost}`
-                : ingestPayload.httpHeaders["x-forwarded-host"] || appConfig.publicEndpoints.dataHost),
+                : ingestPayload.httpHeaders?.["x-forwarded-host"] || appConfig.publicEndpoints.dataHost),
             writeKey: ingestPayload.writeKey,
             httpHeaders: ingestPayload.httpHeaders,
 

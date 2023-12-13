@@ -9,8 +9,9 @@ dayjs.extend(utc);
 import { getRetryPolicy, retryBackOffTime, retryLogMessage } from "./retries";
 import { createMetrics, Metrics } from "./metrics";
 import { FuncChainResult } from "./functions-chain";
-import type { Admin, Consumer, Producer } from "kafkajs";
+import type { Admin, Consumer, Producer, KafkaMessage } from "kafkajs";
 import { CompressionTypes } from "kafkajs";
+import { GeoResolver } from "./maxmind";
 
 const log = getLog("kafka-rotor");
 
@@ -19,15 +20,19 @@ const RETRY_COUNT_HEADER = "retries";
 const ERROR_HEADER = "error";
 const ORIGINAL_TOPIC_HEADER = "original_topic";
 const FUNCTION_ID_HEADER = "function_id";
+export const CONNECTION_IDS_HEADER = "connection_ids";
 
 export type KafkaRotorConfig = {
   credentials: KafkaCredentials;
   consumerGroupId: string;
   kafkaTopics: string[];
   kafkaClientId?: string;
+  geoResolver?: GeoResolver;
   handle: (
     message: string,
+    headers?,
     metrics?: Metrics,
+    geoResolver?: GeoResolver,
     functionsFilter?: (id: string) => boolean,
     retries?: number
   ) => Promise<FuncChainResult | undefined>;
@@ -39,7 +44,7 @@ export type KafkaRotor = {
 };
 
 export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
-  const { kafkaTopics, consumerGroupId, handle, kafkaClientId = "kafka-rotor" } = cfg;
+  const { kafkaTopics, consumerGroupId, handle, kafkaClientId = "kafka-rotor", geoResolver } = cfg;
   let consumer: Consumer;
   let producer: Producer;
   let admin: Admin;
@@ -112,16 +117,27 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
         }
       }, 60000);
 
-      async function onMessage(message: any, topic: string, partition: number) {
+      async function onMessage(message: KafkaMessage, topic: string, partition: number) {
         messagesConsumed.inc({ topic, partition });
+        const value = message.value;
+        if (!value) {
+          return;
+        }
         const headers = message.headers || {};
         const retries = headers[RETRY_COUNT_HEADER] ? parseInt(headers[RETRY_COUNT_HEADER].toString()) : 0;
         const retriedFunctionId = headers[FUNCTION_ID_HEADER] ? headers[FUNCTION_ID_HEADER].toString() : "";
-        try {
-          if (message.value) {
+        const connectionIds =
+          headers && headers[CONNECTION_IDS_HEADER] ? headers[CONNECTION_IDS_HEADER].toString().split(",") : [""];
+        for (const connectionId of connectionIds) {
+          try {
             await handle(
-              message.value?.toString(),
+              value.toString(),
+              {
+                ...headers,
+                [CONNECTION_IDS_HEADER]: connectionId,
+              },
               metrics,
+              geoResolver,
               retriedFunctionId
                 ? id => {
                     if (retriedFunctionId.startsWith("udf.")) {
@@ -136,47 +152,49 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
               retries
             );
             messagesProcessed.inc({ topic, partition });
-          }
-        } catch (e: any) {
-          const retryPolicy = getRetryPolicy(e);
-          const retryTime = retryBackOffTime(retryPolicy, retries + 1);
-          const newMessage = e.event
-            ? JSON.stringify({ ...JSON.parse(message.value), httpPayload: e.event })
-            : message.value;
-          log
-            .atError()
-            .withCause(e)
-            .log(
-              `Failed to process function ${e.functionId} for message ${
-                message.key || "(no key set)"
-              }. ${retryLogMessage(retryPolicy, retries)}`
-            );
-          if (!retryTime) {
-            messagesDeadLettered.inc({ topic });
-          } else {
-            messagesRequeued.inc({ topic });
-          }
-          const requeueTopic = retryTime ? retryTopic() : deatLetterTopic();
-          try {
-            await producer.send({
-              topic: requeueTopic,
-              compression: getCompressionType(),
-              messages: [
-                {
-                  value: newMessage,
-                  key: message.key,
-                  headers: {
-                    [ERROR_HEADER]: e.message,
-                    [RETRY_COUNT_HEADER]: `${retries}`,
-                    [ORIGINAL_TOPIC_HEADER]: topic,
-                    [RETRY_TIME_HEADER]: retryTime,
-                    ...(e.functionId ? { [FUNCTION_ID_HEADER]: e.functionId } : {}),
+          } catch (e: any) {
+            const retryPolicy = getRetryPolicy(e);
+            const retryTime = retryBackOffTime(retryPolicy, retries + 1);
+            const newMessage = e.event
+              ? JSON.stringify({ ...JSON.parse(value.toString()), httpPayload: e.event })
+              : value;
+            log
+              .atError()
+              .withCause(e)
+              .log(
+                `Failed to process function ${e.functionId} for message ${
+                  message.key || "(no key set)"
+                }. ${retryLogMessage(retryPolicy, retries)}`
+              );
+            if (!retryTime) {
+              messagesDeadLettered.inc({ topic });
+            } else {
+              messagesRequeued.inc({ topic });
+            }
+            const requeueTopic = retryTime ? retryTopic() : deatLetterTopic();
+            try {
+              await producer.send({
+                topic: requeueTopic,
+                compression: getCompressionType(),
+                messages: [
+                  {
+                    value: newMessage,
+                    // on first retry we create a new key so if more than one destination fails - they will be retried independently
+                    key: retries === 0 ? `${message.key}_${connectionId}` : message.key,
+                    headers: {
+                      [ERROR_HEADER]: e.message,
+                      [RETRY_COUNT_HEADER]: `${retries}`,
+                      [ORIGINAL_TOPIC_HEADER]: topic,
+                      [RETRY_TIME_HEADER]: retryTime,
+                      [CONNECTION_IDS_HEADER]: connectionId,
+                      ...(e.functionId ? { [FUNCTION_ID_HEADER]: e.functionId } : {}),
+                    },
                   },
-                },
-              ],
-            });
-          } catch (e) {
-            log.atDebug().withCause(e).log(`Failed to put message to ${topic}: ${message.value}`);
+                ],
+              });
+            } catch (e) {
+              log.atDebug().withCause(e).log(`Failed to put message to ${topic}: ${message.value}`);
+            }
           }
         }
       }

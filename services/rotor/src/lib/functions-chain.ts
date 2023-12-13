@@ -17,6 +17,7 @@ export type FuncChain = Func[];
 const log = getLog("functions-chain");
 
 export type FuncChainResult = {
+  connectionId?: string;
   events: AnyEvent[];
   execLog: FunctionExecLog;
 };
