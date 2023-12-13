@@ -52,28 +52,24 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
             res.status(200).json({ ok: true, needsConfiguration: false, configuredCname });
             return;
           } else {
-            res
-              .status(200)
-              .json({
-                ok: false,
-                needsConfiguration: true,
-                configurationType: "cname",
-                cnameValue: alternativeCname[0],
-              });
+            res.status(200).json({
+              ok: false,
+              needsConfiguration: true,
+              configurationType: "cname",
+              cnameValue: alternativeCname[0],
+            });
             return;
           }
         } else {
           if (vercelProjectId) {
             //continue with vercel
           } else {
-            res
-              .status(200)
-              .json({
-                ok: false,
-                needsConfiguration: true,
-                configurationType: "cname",
-                cnameValue: alternativeCname[0],
-              });
+            res.status(200).json({
+              ok: false,
+              needsConfiguration: true,
+              configurationType: "cname",
+              cnameValue: alternativeCname[0],
+            });
           }
         }
       } catch (e) {
