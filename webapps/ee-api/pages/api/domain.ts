@@ -9,7 +9,6 @@ import { getExistingDomain, vercelCname, vercelProjectId, vercelRpc, vercelTeamI
 
 const log = getServerLog("/api/domain");
 
-
 function resolveCname(domain: string): Promise<string[]> {
   return new Promise((resolve, reject) => {
     dns.resolveCname(domain, (err, addresses) => {
@@ -55,7 +54,12 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
           } else {
             res
               .status(200)
-              .json({ ok: false, needsConfiguration: true, configurationType: "cname", cnameValue: alternativeCname[0] });
+              .json({
+                ok: false,
+                needsConfiguration: true,
+                configurationType: "cname",
+                cnameValue: alternativeCname[0],
+              });
             return;
           }
         } else {
@@ -64,7 +68,12 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
           } else {
             res
               .status(200)
-              .json({ ok: false, needsConfiguration: true, configurationType: "cname", cnameValue: alternativeCname[0] });
+              .json({
+                ok: false,
+                needsConfiguration: true,
+                configurationType: "cname",
+                cnameValue: alternativeCname[0],
+              });
           }
         }
       } catch (e) {
