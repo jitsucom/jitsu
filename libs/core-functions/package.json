@@ -39,7 +39,7 @@
     "isolated-vm": "^4.6.0",
     "juava": "workspace:*",
     "lodash": "^4.17.21",
-    "mongodb": "^5.9.0",
+    "mongodb": "^5.9.2",
     "ioredis": "^5.3.2",
     "posthog-node": "^2.4.0",
     "tslib": "^2.4.0",

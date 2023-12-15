@@ -7,8 +7,9 @@ import { fastStore } from "@jitsu-internal/console/lib/server/fast-store";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { AnyEvent, EventContext, FullContext, JitsuFunction } from "@jitsu/protocols/functions";
 import {
+  createMongoStore,
   createMultiStore,
-  createOldStore,
+  mongodb,
   createTtlStore,
   defaultTTL,
   getBuiltinFunction,
@@ -39,6 +40,7 @@ udfCache.on("del", (key, value) => {
 });
 const bulkerBase = requireDefined(process.env.BULKER_URL, "env BULKER_URL is not defined");
 const bulkerAuthKey = requireDefined(process.env.BULKER_AUTH_KEY, "env BULKER_AUTH_KEY is not defined");
+const newStoreWorskpaceId = (process.env.NEW_STORE_WORKSPACE_ID ?? "").split(",").filter(x => x.length > 0);
 
 const getCachedOrLoad = async (cache: NodeCache, key: string, loader: (key: string) => Promise<any>) => {
   const cached = cache.get(key);
@@ -105,9 +107,9 @@ export async function rotorMessageHandler(
       options: connection.options,
     },
   };
-  const oldStore = createOldStore(connection.id, redis());
-  const ttlStore = createTtlStore(connection.workspaceId, redis(), defaultTTL);
-  const store = createMultiStore(ttlStore, oldStore);
+  const oldStore = createTtlStore(connection.workspaceId, redis(), defaultTTL);
+  const newStore = createMongoStore(connection.workspaceId, await mongodb.waitInit(), defaultTTL);
+  const store = newStoreWorskpaceId.includes(connection.workspaceId) ? newStore : createMultiStore(newStore, oldStore);
 
   const rl = await redisLogger.waitInit();
 
@@ -153,7 +155,7 @@ export async function rotorMessageHandler(
     $system: {
       anonymousEventsStore: mongoAnonymousEventsStore(),
       metricsMeta,
-      store: ttlStore,
+      store: newStore,
     },
   };
   const udfFuncChain: FuncChain = await Promise.all(

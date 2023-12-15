@@ -1,6 +1,7 @@
 import { SetOpts, Store } from "@jitsu/protocols/functions";
 import type { Redis } from "ioredis";
 import parse from "parse-duration";
+import type { MongoClient } from "mongodb";
 
 export const defaultTTL = 60 * 60 * 24 * 31; // 31 days
 export const maxAllowedTTL = 60 * 60 * 24 * 93; // 93 days
@@ -53,24 +54,85 @@ export const createTtlStore = (namespace: string, redisClient: Redis, defaultTtl
   },
 });
 
-export const createMultiStore = (ttlStore: Store, oldStore: Store): Store => {
+export const createMongoStore = (namespace: string, mongo: MongoClient, defaultTtlSec: number): Store => {
+  interface StoreValue {
+    _id: string;
+    value: any;
+    expireAt: Date;
+  }
+  const collections = new Set<string>();
+  const dbName = `persistent_store`;
+  async function ensureCollection() {
+    if (collections.has(namespace)) {
+      return;
+    }
+    try {
+      const db = mongo.db(dbName);
+      const collStatus = await db.collection<StoreValue>(namespace).stats();
+      if (collStatus.wiredTiger) {
+        //collection already exists
+        collections.add(namespace);
+        return;
+      }
+      const collection = await db.createCollection<StoreValue>(namespace, {
+        writeConcern: { w: 1, journal: false },
+        storageEngine: { wiredTiger: { configString: "block_compressor=zstd" } },
+      });
+      await collection.createIndex({ expireAt: 1 }, { expireAfterSeconds: 0 });
+      collections.add(namespace);
+    } catch (err) {
+      throw new Error(`Failed to create collection ${namespace}: ${err}`);
+    }
+  }
+
   return {
     get: async (key: string) => {
-      const res = await ttlStore.get(key);
+      const res = await mongo.db(dbName).collection<StoreValue>(namespace).findOne({ _id: key });
+      return res ? res.value : undefined;
+    },
+    set: async (key: string, obj: any, opts?: SetOpts) => {
+      await ensureCollection();
+      const ttl = getTtlSec(opts);
+      const expireAt = new Date();
+      expireAt.setSeconds(expireAt.getSeconds() + ttl);
+      await mongo.db(dbName).collection<StoreValue>(namespace).replaceOne(
+        { _id: key },
+        {
+          value: obj,
+          expireAt,
+        },
+        { upsert: true }
+      );
+    },
+    del: async (key: string) => {
+      await ensureCollection();
+      await mongo.db(dbName).collection<StoreValue>(namespace).deleteOne({ _id: key });
+    },
+    ttl: async (key: string) => {
+      const res = await mongo.db(dbName).collection<StoreValue>(namespace).findOne({ _id: key });
+      return res ? Math.max(Math.floor((res.expireAt.getTime() - new Date().getTime()) / 1000), 0) : -2;
+    },
+  };
+};
+
+export const createMultiStore = (newStore: Store, oldStore: Store): Store => {
+  return {
+    get: async (key: string) => {
+      const res = await newStore.get(key);
       if (res) {
         return res;
       }
       return await oldStore.get(key);
     },
     set: async (key: string, obj: any, opts?: SetOpts) => {
-      await ttlStore.set(key, obj, opts);
+      await newStore.set(key, obj, opts);
     },
     del: async (key: string) => {
-      await ttlStore.del(key);
+      await newStore.del(key);
       await oldStore.del(key);
     },
     ttl: async (key: string) => {
-      return await ttlStore.ttl(key);
+      return await newStore.ttl(key);
     },
   };
 };
