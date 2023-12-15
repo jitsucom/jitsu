@@ -54,25 +54,26 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
       } else if (searchResult.data.length > 1) {
         getLog().atInfo().log(`Contact ${email} has ${searchResult.data.length} in Intercom, taking the first one`);
       }
-      const userId = searchResult.data.map(d => d.external_id).find(id => id !== undefined);
-      if (!userId) {
-        getLog()
-          .atInfo()
-          .log(`Non of ${searchResult.data.length} contacts attached to ${email} doesn't have external_id`);
+      const intercomUserId = searchResult.data.map(d => d.id).find(id => id !== undefined);
+      if (!intercomUserId) {
+        getLog().atInfo().log(`Non of ${searchResult.data.length} contacts attached to ${email} doesn't have id`);
         invalidEvents++;
         continue;
       }
       await client.events.create({
         eventName: eventName as string,
         createdAt: Math.round((timestamp as Date).getTime() / 1000),
-        userId: userId,
-        id: messageId as string,
+        id: intercomUserId,
       });
       sentEvents.eventIds.push(messageId);
       await sentEventsTable.put(email as string, sentEvents);
     }
   }
-  return { ok: true, alreadySent, newEvents, invalidEvents };
+  const apiResponse = { ok: true, alreadySent, newEvents, invalidEvents };
+  getLog()
+    .atInfo()
+    .log(`Result: ${JSON.stringify(apiResponse, null, 2)}`);
+  return apiResponse;
 };
 
 export default withErrorHandler(handler);
