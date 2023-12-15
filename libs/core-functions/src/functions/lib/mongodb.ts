@@ -17,7 +17,7 @@ async function createClient() {
   log.atInfo().log(`Connecting to MongoDB server...`);
 
   // Create a new MongoClient
-  const client = new MongoClient(mongodbURL, { readPreference: "nearest" });
+  const client = new MongoClient(mongodbURL);
   // Connect the client to the server (optional starting in v4.7)
   await client.connect();
   // Establish and verify connection
