@@ -87,7 +87,10 @@ export const createMongoStore = (namespace: string, mongo: MongoClient, defaultT
 
   return {
     get: async (key: string) => {
-      const res = await mongo.db(dbName).collection<StoreValue>(namespace).findOne({ _id: key });
+      const res = await mongo
+        .db(dbName)
+        .collection<StoreValue>(namespace)
+        .findOne({ _id: key }, { readPreference: "nearest" });
       return res ? res.value : undefined;
     },
     set: async (key: string, obj: any, opts?: SetOpts) => {
@@ -95,21 +98,30 @@ export const createMongoStore = (namespace: string, mongo: MongoClient, defaultT
       const ttl = getTtlSec(opts);
       const expireAt = new Date();
       expireAt.setSeconds(expireAt.getSeconds() + ttl);
-      await mongo.db(dbName).collection<StoreValue>(namespace).replaceOne(
-        { _id: key },
-        {
-          value: obj,
-          expireAt,
-        },
-        { upsert: true }
-      );
+      await mongo
+        .db(dbName)
+        .collection<StoreValue>(namespace)
+        .replaceOne(
+          { _id: key },
+          {
+            value: obj,
+            expireAt,
+          },
+          { upsert: true, writeConcern: { w: 1, journal: false } }
+        );
     },
     del: async (key: string) => {
       await ensureCollection();
-      await mongo.db(dbName).collection<StoreValue>(namespace).deleteOne({ _id: key });
+      await mongo
+        .db(dbName)
+        .collection<StoreValue>(namespace)
+        .deleteOne({ _id: key }, { writeConcern: { w: 1, journal: false } });
     },
     ttl: async (key: string) => {
-      const res = await mongo.db(dbName).collection<StoreValue>(namespace).findOne({ _id: key });
+      const res = await mongo
+        .db(dbName)
+        .collection<StoreValue>(namespace)
+        .findOne({ _id: key }, { readPreference: "nearest" });
       return res ? Math.max(Math.floor((res.expireAt.getTime() - new Date().getTime()) / 1000), 0) : -2;
     },
   };
