@@ -24,7 +24,7 @@ export type ContextApiResponse = z.infer<typeof ContextApiResponse>;
 export const BillingSettings = z.object({
   planId: z.string().default("free"),
   //if plan has a custom pricing prepared for a particular workspace
-  custom: z.boolean().default(false).optional(),
+  customBilling: z.boolean().default(false).optional(),
   pastDue: z.boolean().default(false).optional(),
   dailyActiveSyncs: z.number().default(1).optional(),
   dailyActiveSyncsOverage: z.number().default(10).optional(),
@@ -32,6 +32,7 @@ export const BillingSettings = z.object({
   planName: z.string().optional(), //if not set - will be taken from planId
   overagePricePer100k: z.number().optional(),
   canShowProvisionDbCredentials: z.boolean().default(false),
+  dataRetentionEditorEnabled: z.boolean().default(false).optional(),
   destinationEvensPerMonth: z.number().default(200_000),
   expiresAt: z.string().optional(),
   renewAfterExpiration: z.boolean().default(false).optional(),

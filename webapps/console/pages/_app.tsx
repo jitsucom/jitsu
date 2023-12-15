@@ -496,7 +496,7 @@ const WorkspaceLoader: React.FC<PropsWithChildren<{ workspaceId: string }>> = ({
   /* eslint-enable */
 
   if (error) {
-    log.atError().log(`Can't load workspace ${JSON.stringify(error)}`, error);
+    log.atError().log(`Can't load workspace ${JSON.stringify(error, null, 2)}`, error);
     return (
       <GlobalOverlay>
         <div className="md:scale-125 mt-4 mx-4">

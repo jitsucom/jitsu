@@ -1,6 +1,6 @@
 import Stripe from "stripe";
 import { store } from "./services";
-import { assertDefined, assertTrue, requireDefined } from "juava";
+import { assertDefined, assertTrue, getLog, requireDefined } from "juava";
 import { omit } from "lodash";
 
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
@@ -20,21 +20,80 @@ export type SubscriptionStatus = {
   renewAfterExpiration?: boolean;
 } & Record<string, any>;
 
+export type Day = `${number}${number}${number}${number}-${number}${number}-${number}${number}`;
+
+//entry of `stripe-settings` / `stripe-settings-test-mode` table
+export type StripeDataTableEntry = {
+  //always present even if billing is not managed through stripe
+  stripeCustomerId: string;
+  //if true - no restrictions on workspace, essentially "give everything for free
+  noRestrictions?: boolean;
+  //custom settings of the plan. Overwrites ones coming from Stripe plan
+  customSettings?: Record<string, any>;
+  //if set, billing settings will be taken from this object, not from Stripe. Plan settings should be
+  //present in `customSettings` field
+  customBilling?: {
+    start: Day;
+    end?: Day;
+  };
+};
+
 export async function getOrCreateCurrentSubscription(
   workspaceId: string,
   userEmail: () => string,
   opts: { changeEmail?: boolean } = {}
-): Promise<{ stripeCustomerId: string; noRestrictions?: boolean; subscriptionStatus: SubscriptionStatus }> {
-  let stripeOptions = await store.getTable(stripeDataTable).get(workspaceId);
+): Promise<{
+  stripeCustomerId: string;
+  customBilling?: boolean;
+  noRestrictions?: boolean;
+  subscriptionStatus: SubscriptionStatus;
+}> {
+  let stripeOptions: StripeDataTableEntry = await store.getTable(stripeDataTable).get(workspaceId);
   if (!stripeOptions) {
     const email = userEmail();
-    const newCustomer = await stripe.customers.create({ email });
+    const existingCustomers = await stripe.customers.list({ email });
+    getLog()
+      .atInfo()
+      .log(
+        `${workspaceId} doesn't have a linked stripe customer. Found ${existingCustomers.data.length} customers with email ${email}`
+      );
+    const newCustomer =
+      existingCustomers.data.length > 0 ? existingCustomers.data[0] : await stripe.customers.create({ email });
     await store.getTable(stripeDataTable).put(workspaceId, { stripeCustomerId: newCustomer.id });
     stripeOptions = { stripeCustomerId: newCustomer.id };
   }
   if (opts.changeEmail) {
     await stripe.customers.update(stripeOptions.stripeCustomerId, { email: userEmail() });
   }
+
+  if (stripeOptions.customBilling) {
+    //in UTC, at 00:00:00
+    getLog()
+      .atDebug()
+      .log(
+        `Custom billing is set for workspace ${workspaceId}: ${JSON.stringify(stripeOptions.customBilling, null, 2)}`
+      );
+    const startDate = new Date(stripeOptions.customBilling.start + "T00:00:00Z");
+    const startDay = startDate.getUTCDate();
+    const currentDay = new Date().getUTCDate();
+    const expiresAt = new Date();
+    expiresAt.setUTCDate(startDay);
+    if (currentDay > startDay) {
+      expiresAt.setUTCMonth(expiresAt.getUTCMonth() + 1);
+    }
+
+    return {
+      stripeCustomerId: stripeOptions.stripeCustomerId,
+      subscriptionStatus: {
+        customBilling: true,
+        planId: "$custom",
+        expiresAt: expiresAt.toISOString(),
+        renewAfterExpiration: true,
+        ...stripeOptions.customSettings,
+      },
+    };
+  }
+
   const plan = (await getActivePlan(stripeOptions.stripeCustomerId)) || { planId: "free" };
   return {
     stripeCustomerId: stripeOptions.stripeCustomerId,

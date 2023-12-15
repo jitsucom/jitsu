@@ -11,7 +11,7 @@ import { AlertCircle } from "lucide-react";
 import classNames from "classnames";
 
 export type GlobalErrorProps = {
-  error: any;
+  error?: any;
   title?: string;
   hideActions?: boolean;
 };

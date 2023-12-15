@@ -37,6 +37,7 @@ import {
   User,
   X,
   Zap,
+  PackageOpen,
 } from "lucide-react";
 
 import { NextRouter, useRouter } from "next/router";
@@ -264,7 +265,7 @@ type TabsMenuItem = {
 type TabsMenuGroup = {
   title: ReactNode;
   icon: ReactNode;
-  items: TabsMenuItem[];
+  items: (TabsMenuItem | undefined)[];
 };
 export type TopTabsMenuProps = {
   items: (TabsMenuItem | TabsMenuGroup)[];
@@ -301,18 +302,21 @@ export const TopTabsMenu: React.FC<TopTabsMenuProps> = props => {
     if (item.items) {
       return {
         label: <MenuLabel hasSubMenu={true}>{item.title}</MenuLabel>,
-        key: item.items.map(subItem => subItem.path).join("-"),
+        key: item.items
+          .filter(Boolean)
+          .map(subItem => subItem!.path)
+          .join("-"),
         selected: true,
-        children: item.items.map(subItem => ({
-          key: subItem.path,
+        children: item.items.filter(Boolean).map(subItem => ({
+          key: subItem!.path,
           label: (
-            <MenuLabel icon={subItem.icon}>
-              <Link href={subItem.globalPath ? subItem.path : `/${workspace.slug}${subItem.path}`}>
-                {subItem.title}
+            <MenuLabel icon={subItem!.icon}>
+              <Link href={subItem!.globalPath ? subItem!.path : `/${workspace.slug}${subItem!.path}`}>
+                {subItem!.title}
               </Link>
             </MenuLabel>
           ),
-          link: subItem.path,
+          link: subItem!.path,
         })),
       };
     } else {
@@ -327,7 +331,7 @@ export const TopTabsMenu: React.FC<TopTabsMenuProps> = props => {
       };
     }
   });
-  const allKeys = props.items.map(x => (x.items ? x.items.map(i => i.path) : x.path)).flat();
+  const allKeys = props.items.map(x => (x.items ? x.items.filter(Boolean).map(i => i!.path) : x.path)).flat();
 
   return (
     <Menu
@@ -538,6 +542,7 @@ const WorkspaceAlert: React.FC<{}> = () => {
 function PageHeader() {
   const appConfig = useAppConfig();
   const workspace = useWorkspace();
+  const billing = useBilling();
   const items: (TabsMenuItem | TabsMenuGroup | undefined | false)[] = [
     { title: "Overview", path: "/", aliases: "/overview", icon: <LayoutDashboard className="w-full h-full" /> },
     {
@@ -575,6 +580,13 @@ function PageHeader() {
         { title: "Workspace Settings", path: "/settings", icon: <Hammer className="w-full h-full" /> },
         { title: "User Settings", path: "/user", icon: <User className="w-full h-full" />, globalPath: true },
         { title: "Billing Settings", path: "/settings/billing", icon: <CreditCard className="w-full h-full" /> },
+        billing.enabled && billing.settings?.dataRetentionEditorEnabled
+          ? {
+              title: "Data Retention",
+              path: "/settings/data-retention",
+              icon: <PackageOpen className="w-full h-full" />,
+            }
+          : undefined,
       ],
     },
     appConfig.ee?.available && {

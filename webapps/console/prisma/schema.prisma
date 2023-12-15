@@ -32,7 +32,7 @@ model EmailLog {
 
 model UserPreferences {
   id        String      @id @default(cuid())
-  createdAt DateTime    @default(now())  /// @zod.custom(z.coerce.date())
+  createdAt DateTime    @default(now()) /// @zod.custom(z.coerce.date())
   updatedAt DateTime    @default(now()) @updatedAt /// @zod.custom(z.coerce.date())
   userId    String
   user      UserProfile @relation(fields: [userId], references: [id])
@@ -46,18 +46,18 @@ model UserPreferences {
 }
 
 model UserProfile {
-  id               String            @id @default(cuid())
-  name             String
-  email            String
-  admin            Boolean?          @default(false)
-  createdAt        DateTime          @default(now()) /// @zod.custom(z.coerce.date())
-  updatedAt        DateTime          @default(now()) @updatedAt /// @zod.custom(z.coerce.date())
-  loginProvider    String
-  externalUsername String?
-  externalId       String
-  tokens           UserApiToken[]
-  workspaceAccess  WorkspaceAccess[]
-  userPreferences  UserPreferences[]
+  id                      String                    @id @default(cuid())
+  name                    String
+  email                   String
+  admin                   Boolean?                  @default(false)
+  createdAt               DateTime                  @default(now()) /// @zod.custom(z.coerce.date())
+  updatedAt               DateTime                  @default(now()) @updatedAt /// @zod.custom(z.coerce.date())
+  loginProvider           String
+  externalUsername        String?
+  externalId              String
+  tokens                  UserApiToken[]
+  workspaceAccess         WorkspaceAccess[]
+  userPreferences         UserPreferences[]
   workspaceUserProperties WorkspaceUserProperties[]
 }
 
@@ -70,14 +70,28 @@ model Workspace {
 
   slug                    String?
   workspaceAccess         WorkspaceAccess[]
+  workspaceOptions        WorkspaceOptions[]
   configurationObject     ConfigurationObject[]
   configurationObjectLink ConfigurationObjectLink[]
   preferences             UserPreferences[]
   workspaceUserProperties WorkspaceUserProperties[]
-  featuresEnabled         String[] @default([])
+  featuresEnabled         String[]                  @default([])
 
   @@unique(slug)
   @@index(updatedAt(sort: Desc))
+}
+
+//additional properties for workspace
+model WorkspaceOptions {
+  id          String    @id @default(cuid())
+  createdAt   DateTime  @default(now()) /// @zod.custom(z.coerce.date())
+  updatedAt   DateTime  @default(now()) @updatedAt /// @zod.custom(z.coerce.date())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  namespace   String
+  value       Json
+
+  @@index([workspaceId, namespace])
 }
 
 model WorkspaceAccess {
@@ -100,7 +114,6 @@ model WorkspaceUserProperties {
 
   @@id([workspaceId, userId])
 }
-
 
 model UserApiToken {
   id        String      @id @default(cuid())
@@ -161,13 +174,13 @@ model ConfigurationObjectLink {
 }
 
 model ConnectorPackage {
-  id        String   @id @default(cuid())
-  packageId String
-  packageType String @default("airbyte")
-  meta      Json?
-  logoSvg   Bytes?
-  createdAt DateTime @default(now()) /// @zod.custom(z.coerce.date())
-  updatedAt DateTime @default(now()) @updatedAt /// @zod.custom(z.coerce.date())
+  id          String   @id @default(cuid())
+  packageId   String
+  packageType String   @default("airbyte")
+  meta        Json?
+  logoSvg     Bytes?
+  createdAt   DateTime @default(now()) /// @zod.custom(z.coerce.date())
+  updatedAt   DateTime @default(now()) @updatedAt /// @zod.custom(z.coerce.date())
 }
 
 model AuditLog {
@@ -178,86 +191,86 @@ model AuditLog {
   workspaceId String?
   objectId    String?
   changes     Json?
+
   @@index(timestamp)
   @@index(type)
 }
 
 model GlobalProps {
-  id          String   @id @default(cuid())
-  createdAt   DateTime @default(now()) /// @zod.custom(z.coerce.date())
-  updatedAt   DateTime @default(now()) @updatedAt /// @zod.custom(z.coerce.date())
-  name		String
-  value		Json?
-
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) /// @zod.custom(z.coerce.date())
+  updatedAt DateTime @default(now()) @updatedAt /// @zod.custom(z.coerce.date())
+  name      String
+  value     Json?
 }
 
 model source_spec {
-    package        String
-    version String
-    specs     Json?
-    timestamp DateTime @default(now()) @db.Timestamptz(3) /// @zod.custom(z.coerce.date())
-    error    String?
+  package   String
+  version   String
+  specs     Json?
+  timestamp DateTime @default(now()) @db.Timestamptz(3) /// @zod.custom(z.coerce.date())
+  error     String?
 
-    @@id([package, version])
+  @@id([package, version])
 }
 
 model source_check {
-    package        String
-    version String
-    key String @id
-    status String
-    description String?
-    timestamp DateTime @default(now()) @db.Timestamptz(3) /// @zod.custom(z.coerce.date())
+  package     String
+  version     String
+  key         String   @id
+  status      String
+  description String?
+  timestamp   DateTime @default(now()) @db.Timestamptz(3) /// @zod.custom(z.coerce.date())
 }
 
 model source_catalog {
-    package        String
-    version String
-    key String
-    catalog     Json?
-    timestamp DateTime @default(now()) @db.Timestamptz(3) /// @zod.custom(z.coerce.date())
-    status String
-    description String?
+  package     String
+  version     String
+  key         String
+  catalog     Json?
+  timestamp   DateTime @default(now()) @db.Timestamptz(3) /// @zod.custom(z.coerce.date())
+  status      String
+  description String?
 
-    @@id([package, version, key])
+  @@id([package, version, key])
 }
 
 model source_state {
-    sync_id       String
-    stream        String
-    state         Json
-    timestamp DateTime @default(now()) @db.Timestamptz(3) /// @zod.custom(z.coerce.date())
+  sync_id   String
+  stream    String
+  state     Json
+  timestamp DateTime @default(now()) @db.Timestamptz(3) /// @zod.custom(z.coerce.date())
 
-    @@id([sync_id, stream])
+  @@id([sync_id, stream])
 }
 
 model source_task {
-    sync_id       String
-    task_id        String @id
-    package        String
-    version String
-    started_at DateTime @default(now()) @db.Timestamptz(3) /// @zod.custom(z.coerce.date())
-    updated_at DateTime @default(now()) @db.Timestamptz(3) /// @zod.custom(z.coerce.date())
-    started_by Json?
-    status String
-    description String?
+  sync_id     String
+  task_id     String   @id
+  package     String
+  version     String
+  started_at  DateTime @default(now()) @db.Timestamptz(3) /// @zod.custom(z.coerce.date())
+  updated_at  DateTime @default(now()) @db.Timestamptz(3) /// @zod.custom(z.coerce.date())
+  started_by  Json?
+  status      String
+  description String?
 
-    @@index(sync_id)
-    @@index(started_at)
+  @@index(sync_id)
+  @@index(started_at)
 }
 
 model task_log {
-    id String @id @default(uuid()) @db.Uuid
-    level String
-    logger String
-    message String
-    sync_id String
-    task_id String
-    timestamp DateTime @default(now()) @db.Timestamptz(3) /// @zod.custom(z.coerce.date())
+  id        String   @id @default(uuid()) @db.Uuid
+  level     String
+  logger    String
+  message   String
+  sync_id   String
+  task_id   String
+  timestamp DateTime @default(now()) @db.Timestamptz(3) /// @zod.custom(z.coerce.date())
 
-    @@index(sync_id)
-    @@index(task_id)
-    @@index(timestamp)
+  @@index(sync_id)
+  @@index(task_id)
+  @@index(timestamp)
 }
 
 //

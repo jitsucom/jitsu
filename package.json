@@ -3,9 +3,9 @@
   "version": "0.0.0",
   "private": false,
   "scripts": {
-    "format:check": "prettier --check --config ./.prettierrc.json --ignore-path ./.prettierignore $(git diff --name-only --diff-filter d | xargs)",
+    "format:check": "prettier --ignore-unknown --check --config ./.prettierrc.json --ignore-path ./.prettierignore $(git diff --name-only --diff-filter d | xargs)",
     "format:check:all": "prettier --check --config ./.prettierrc.json --ignore-path ./.prettierignore .",
-    "format": "prettier --write --config ./.prettierrc.json --ignore-path ./.prettierignore $(git diff --name-only --diff-filter d | xargs)",
+    "format": "prettier --ignore-unknown --write --config ./.prettierrc.json --ignore-path ./.prettierignore $(git diff --name-only --diff-filter d | xargs)",
     "format:all": "prettier --write --config ./.prettierrc.json --ignore-path ./.prettierignore .",
     "tool:hash": "turbo run tool:hash --",
     "prepare": "husky install",

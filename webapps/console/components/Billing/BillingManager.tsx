@@ -199,10 +199,12 @@ const CurrentSubscription: React.FC<{}> = () => {
       <div className="flex flex-row justify-between">
         <div className="">
           <div className="text-2xl text-textDark font-bold">
-            {(billing.settings.planName || billing.settings.planId).toUpperCase()}
+            {billing.settings?.customBilling
+              ? "JITSU SUBSCRIPTION"
+              : (billing.settings.planName || billing.settings.planId).toUpperCase()}
           </div>
           <div className="text-primary">
-            {billing.settings.planId !== "free" && (
+            {billing.settings.planId !== "free" && !billing.settings?.customBilling && (
               <Link
                 prefetch={false}
                 className="flex items-center"
@@ -216,7 +218,7 @@ const CurrentSubscription: React.FC<{}> = () => {
         </div>
         <div>
           {billing.settings.planId !== "free" && (
-            <div className="flex flex items-center">
+            <div className="flex items-center">
               {billing.settings?.renewAfterExpiration ? (
                 <div className="text-textLight">Renews at</div>
               ) : (
@@ -233,7 +235,7 @@ const CurrentSubscription: React.FC<{}> = () => {
           )}
         </div>
       </div>
-      <h3 className="text-lg text-textLight my-6">Usage</h3>
+      <h3 className="text-lg text-textLight my-6">Events Usage</h3>
       <UsageSection />
     </div>
   );
@@ -390,19 +392,12 @@ const BillingManager0: React.FC<{}> = () => {
   return (
     <div>
       <CurrentSubscription />
-      {billing.settings?.custom ? (
+      {billing.settings?.customBilling ? (
         <div className="text-center text-textLight mt-12">
           You're using a custom plan. To downgrade to standard plan or cancel your supbscription, please reach out to
           our{" "}
           <Link className="text-primary underline" href={"/support"}>
             Support Team
-          </Link>
-          . You can also cancel your subscription{" "}
-          <Link
-            className="text-primary underline"
-            href={`/api/${workspace.id}/ee/billing/manage?returnUrl=${encodeURIComponent(window.location.href)}`}
-          >
-            here
           </Link>
         </div>
       ) : (
