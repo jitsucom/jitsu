@@ -6,8 +6,6 @@ const config = {
   target: "node",
   externals: {
     "isolated-vm": "require('isolated-vm')",
-    "@sensejs/kafkajs-zstd-support": "require('@sensejs/kafkajs-zstd-support')",
-    "@mongodb-js/zstd": "require('@mongodb-js/zstd')",
   },
   node: {
     __dirname: false,
