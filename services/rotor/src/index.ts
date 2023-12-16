@@ -6,7 +6,7 @@ import {
   rotorConsumerGroupId,
 } from "./lib/kafka-config";
 import { kafkaRotor } from "./lib/rotor";
-
+import { mongodb } from "@jitsu/core-functions";
 import minimist from "minimist";
 import { glob } from "glob";
 import fs from "fs";
@@ -16,6 +16,7 @@ import Prometheus from "prom-client";
 import { FunctionsHandler, FunctionsHandlerMulti } from "./http/functions";
 import { initMaxMindClient } from "./lib/maxmind";
 import { rotorMessageHandler } from "./lib/message-handler";
+import { redis } from "@jitsu-internal/console/lib/server/redis";
 
 export const log = getLog("rotor");
 
@@ -54,6 +55,8 @@ async function main() {
     });
     log.atInfo().log("Starting kafka processing");
     Prometheus.collectDefaultMetrics();
+    await mongodb.waitInit();
+    await redis.waitInit();
     rotor
       .start()
       .then(chMetrics => {

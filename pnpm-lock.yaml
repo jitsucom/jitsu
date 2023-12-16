@@ -261,6 +261,9 @@ importers:
       '@amplitude/ua-parser-js':
         specifier: ^0.7.33
         version: 0.7.33
+      '@mongodb-js/zstd':
+        specifier: ^1.2.0
+        version: 1.2.0
       agentkeepalive:
         specifier: 4.3.0
         version: 4.3.0
@@ -281,7 +284,7 @@ importers:
         version: 4.17.21
       mongodb:
         specifier: ^5.9.2
-        version: 5.9.2
+        version: 5.9.2(@mongodb-js/zstd@1.2.0)
       parse-duration:
         specifier: ^1.1.0
         version: 1.1.0
@@ -5077,6 +5080,82 @@ packages:
     dev: false
     optional: true
 
+  /@mongodb-js/zstd-darwin-arm64@1.2.0:
+    resolution: {integrity: sha512-QWgW6IkWp3ErBXOvlOj9lw3lwMfey7eXh/p/Srb/7sEiu1e0yEO+LQ8IctmDWh8bfznKXmwUC0h7LKDbYR30yw==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [darwin]
+    requiresBuild: true
+    dev: false
+    optional: true
+
+  /@mongodb-js/zstd-darwin-x64@1.2.0:
+    resolution: {integrity: sha512-VnxYO8P2SWubdnydGId5+6veO6Ki6nxCr/pTaDZd8s4Urn6bDdXSX6YsZ0r42dO3Fa0FVYzrlcVAuNB67e2b6w==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [darwin]
+    requiresBuild: true
+    dev: false
+    optional: true
+
+  /@mongodb-js/zstd-linux-arm64-gnu@1.2.0:
+    resolution: {integrity: sha512-TYF0XgNJW6UrvtY2u4Uuo5HiVWNgWNZ/ae2BhVp8hNsDhwFqb/YNoyiZqBei6whUwr8hecMy0UaHAXm3h+O2+Q==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [linux]
+    requiresBuild: true
+    dev: false
+    optional: true
+
+  /@mongodb-js/zstd-linux-arm64-musl@1.2.0:
+    resolution: {integrity: sha512-e2ClmJI1BvJq23VSLH14hgjjjcMOad3R/Ap7Q7dTa1uiVSJG4xKd2CmrWQgX1Az4/EfUMWEI7pb4yuanbdd2AQ==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [linux]
+    requiresBuild: true
+    dev: false
+    optional: true
+
+  /@mongodb-js/zstd-linux-x64-gnu@1.2.0:
+    resolution: {integrity: sha512-JuoK8lxUlkFPDBfsBUJKnLxpXA5ar+v7G43lIUlBKgjOp5aEWO/qQp5sNgCRnYA7x6PItYqIkEJjsays4N6JOA==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [linux]
+    requiresBuild: true
+    dev: false
+    optional: true
+
+  /@mongodb-js/zstd-linux-x64-musl@1.2.0:
+    resolution: {integrity: sha512-pSb1iUF3Gc/qrJuP/Mi5ry4YFAUdUVFKNRZh1KTDDhSWyRCLd9gKcNdRnXqJjIdeGGEKf4bhtZAbYw4i/g0foA==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [linux]
+    requiresBuild: true
+    dev: false
+    optional: true
+
+  /@mongodb-js/zstd-win32-x64-msvc@1.2.0:
+    resolution: {integrity: sha512-iz4Yl+WK3yr/4Yg6F4tKz3X9+yMZDK6pyBMA0CdXydSDZs6o2XQ2I0ZSu3oSk/ACfaZX3SNfRi3XTGgAM1eKZA==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [win32]
+    requiresBuild: true
+    dev: false
+    optional: true
+
+  /@mongodb-js/zstd@1.2.0:
+    resolution: {integrity: sha512-sKHsJU2MXsp822IFXOHw/4mpFulScNHpZzVy1Zi5k5wBsdiAPx1QramyOXZkpacla+2QPEC/s7TxPlEhG/HuNQ==}
+    engines: {node: '>= 10'}
+    optionalDependencies:
+      '@mongodb-js/zstd-darwin-arm64': 1.2.0
+      '@mongodb-js/zstd-darwin-x64': 1.2.0
+      '@mongodb-js/zstd-linux-arm64-gnu': 1.2.0
+      '@mongodb-js/zstd-linux-arm64-musl': 1.2.0
+      '@mongodb-js/zstd-linux-x64-gnu': 1.2.0
+      '@mongodb-js/zstd-linux-x64-musl': 1.2.0
+      '@mongodb-js/zstd-win32-x64-msvc': 1.2.0
+    dev: false
+
   /@nangohq/frontend@0.21.11:
     resolution: {integrity: sha512-oNOqM8gZhRaaHt63zyaWxsWi3pip4a78S9IzstEBVvUUzEFOU3+ys0r3TmyQCbA1veaAZjzeMyq+LtZem/Nt9g==}
     dev: false
@@ -9437,7 +9516,6 @@ packages:
     dependencies:
       webpack: 5.88.2(webpack-cli@5.1.4)
       webpack-cli: 5.1.4(@webpack-cli/generators@3.0.7)(webpack@5.88.2)
-    dev: true
 
   /@webpack-cli/generators@3.0.1(mem-fs-editor@9.7.0)(mem-fs@2.3.0)(prettier@2.8.7)(webpack-cli@5.0.1)(webpack@5.78.0):
     resolution: {integrity: sha512-kgtqwN13udxC2wV2LfEmJQ/yGz6+j8cgy17jE9ybyHrmT0PJcwjSpsvj1fDWYUb7brSOB4B03s1mEPjZTRfwCQ==}
@@ -9484,7 +9562,6 @@ packages:
       - mem-fs
       - mem-fs-editor
       - supports-color
-    dev: true
 
   /@webpack-cli/info@2.0.1(webpack-cli@5.0.1)(webpack@5.78.0):
     resolution: {integrity: sha512-fE1UEWTwsAxRhrJNikE7v4EotYflkEhBL7EbajfkPlf6E37/2QshOy/D48Mw8G5XMFlQtS6YV42vtbG9zBpIQA==}
@@ -9505,7 +9582,6 @@ packages:
     dependencies:
       webpack: 5.88.2(webpack-cli@5.1.4)
       webpack-cli: 5.1.4(@webpack-cli/generators@3.0.7)(webpack@5.88.2)
-    dev: true
 
   /@webpack-cli/serve@2.0.1(webpack-cli@5.0.1)(webpack@5.78.0):
     resolution: {integrity: sha512-0G7tNyS+yW8TdgHwZKlDWYXFA6OJQnoLCQvYKkQP0Q2X205PSQ6RNUj0M+1OB/9gRQaUZ/ccYfaxd0nhaWKfjw==}
@@ -9534,7 +9610,6 @@ packages:
     dependencies:
       webpack: 5.88.2(webpack-cli@5.1.4)
       webpack-cli: 5.1.4(@webpack-cli/generators@3.0.7)(webpack@5.88.2)
-    dev: true
 
   /@xobotyi/scrollbar-width@1.9.5:
     resolution: {integrity: sha512-N8tkAACJx2ww8vFMneJmaAgmjAG1tnVBZJRLRcx061tmsLRZHSEZSLuGWnwPtunsSLvSqXQ2wfp7Mgqg1I+2dQ==}
@@ -11205,7 +11280,6 @@ packages:
   /commander@10.0.1:
     resolution: {integrity: sha512-y4Mg2tXshplEbSGzx7amzPwKKOCGuoSRP/CjEdwwk0FOGlUbq6lKuoyDZTNZkmxHdJtp54hdfY/JUrdL7Xfdug==}
     engines: {node: '>=14'}
-    dev: true
 
   /commander@11.0.0:
     resolution: {integrity: sha512-9HMlXtt/BNoYr8ooyjjNRdIilOTkVJXB+GhxMTtOKwk0R4j4lS4NpjuqmRxroBfnfTSHQIHQB7wryHhXarNjmQ==}
@@ -18990,7 +19064,7 @@ packages:
       whatwg-url: 11.0.0
     dev: false
 
-  /mongodb@5.9.2:
+  /mongodb@5.9.2(@mongodb-js/zstd@1.2.0):
     resolution: {integrity: sha512-H60HecKO4Bc+7dhOv4sJlgvenK4fQNqqUIlXxZYQNbfEWSALGAwGoyJd/0Qwk4TttFXUOHJ2ZJQe/52ScaUwtQ==}
     engines: {node: '>=14.20.1'}
     peerDependencies:
@@ -19011,6 +19085,7 @@ packages:
       snappy:
         optional: true
     dependencies:
+      '@mongodb-js/zstd': 1.2.0
       bson: 5.5.0
       mongodb-connection-string-url: 2.6.0
       socks: 2.7.1
@@ -24514,7 +24589,7 @@ packages:
       schema-utils: 3.3.0
       serialize-javascript: 6.0.1
       terser: 5.19.4
-      webpack: 5.88.2(webpack-cli@5.0.1)
+      webpack: 5.88.2(webpack-cli@5.1.4)
 
   /terser@4.8.1:
     resolution: {integrity: sha512-4GnLC0x667eJG0ewJTa6z/yXrbLGv80D9Ru6HIpCQmO+Q4PfEtBFi0ObSckqwL6VyQv/7ENJieXHo2ANmdQwgw==}
@@ -25802,7 +25877,6 @@ packages:
       rechoir: 0.8.0
       webpack: 5.88.2(webpack-cli@5.1.4)
       webpack-merge: 5.8.0
-    dev: true
 
   /webpack-dev-middleware@5.3.3(webpack@5.88.2):
     resolution: {integrity: sha512-hj5CYrY0bZLB+eTO+x/j67Pkrquiy7kWepMHmUMoPsmcUaeEnQJqFzHJOyxgWlq746/wUuA64p9ta34Kyb01pA==}
@@ -26025,7 +26099,6 @@ packages:
       - '@swc/core'
       - esbuild
       - uglify-js
-    dev: true
 
   /websocket-driver@0.7.4:
     resolution: {integrity: sha512-b17KeDIQVjvb0ssuSDF2cYXSg2iztliJ4B9WdsuB6J952qCPKmnVq4DyW5motImXHDC1cBT/1UezrJVsKw5zjg==}

@@ -108,8 +108,12 @@ export async function rotorMessageHandler(
     },
   };
   const oldStore = createTtlStore(connection.workspaceId, redis(), defaultTTL);
-  const newStore = createMongoStore(connection.workspaceId, await mongodb.waitInit(), defaultTTL);
-  const store = newStoreWorskpaceId.includes(connection.workspaceId) ? newStore : createMultiStore(newStore, oldStore);
+  const newStore = process.env.MONGODB_URL ? createMongoStore(connection.workspaceId, mongodb(), defaultTTL) : oldStore;
+  const store = newStoreWorskpaceId.includes(connection.workspaceId)
+    ? newStore
+    : newStore != oldStore
+    ? createMultiStore(newStore, oldStore)
+    : oldStore;
 
   const rl = await redisLogger.waitInit();
 
