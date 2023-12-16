@@ -7,11 +7,19 @@ import { CONNECTION_IDS_HEADER } from "../lib/rotor";
 import { AnyEvent } from "@jitsu/protocols/functions";
 import isEqual from "lodash/isEqual";
 
+import Prometheus from "prom-client";
+
 const log = getLog("functions_handler");
+
+const handlerMetric = new Prometheus.Counter({
+  name: "rotor_function_handler",
+  help: "function handler status",
+  labelNames: ["connectionId", "status"] as const,
+});
 
 export const FunctionsHandler = (metrics: Metrics, geoResolver?: GeoResolver) => async (req, res) => {
   const message = req.body as IngestMessage;
-  log.atInfo().log(`Functions handler. Message ID: ${message.messageId} connectionId: ${message.connectionId}`);
+  //log.atInfo().log(`Functions handler. Message ID: ${message.messageId} connectionId: ${message.connectionId}`);
   const result = await rotorMessageHandler(message, {}, metrics, geoResolver);
   if (result?.events && result.events.length > 0) {
     res.json(result.events);
@@ -22,17 +30,28 @@ export const FunctionsHandler = (metrics: Metrics, geoResolver?: GeoResolver) =>
 
 export const FunctionsHandlerMulti = (metrics: Metrics, geoResolver?: GeoResolver) => async (req, res) => {
   const connectionIds = (req.query.ids ?? "").split(",") as string[];
-  const message = req.body as IngestMessage;
-  const prom = connectionIds
-    .filter(id => !!id)
-    .map(id => {
-      log.atInfo().log(`Functions handler2. Message ID: ${message.messageId} connectionId: ${id}`);
-      return rotorMessageHandler(message, { [CONNECTION_IDS_HEADER]: id }, metrics, geoResolver);
+  try {
+    const message = req.body as IngestMessage;
+    const prom = connectionIds
+      .filter(id => !!id)
+      .map(id => {
+        //log.atInfo().log(`Functions handler2. Message ID: ${message.messageId} connectionId: ${id}`);
+        return rotorMessageHandler(message, { [CONNECTION_IDS_HEADER]: id }, metrics, geoResolver);
+      });
+    const results = await Promise.all(prom);
+    connectionIds.forEach((id, i) => {
+      handlerMetric.inc({ connectionId: id, status: "success" }, 1);
     });
-  const results = await Promise.all(prom);
-
-  const events = Object.fromEntries(results.map(result => [result?.connectionId, mapTheSame(message, result?.events)]));
-  res.json(events);
+    const events = Object.fromEntries(
+      results.map(result => [result?.connectionId, mapTheSame(message, result?.events)])
+    );
+    res.json(events);
+  } catch (e) {
+    connectionIds.forEach((id, i) => {
+      handlerMetric.inc({ connectionId: id, status: "error" }, 1);
+    });
+    throw e;
+  }
 };
 
 function mapTheSame(message: IngestMessage, newEvents?: AnyEvent[]) {

@@ -33,4 +33,6 @@ EXPOSE 3401
 
 COPY --from=builder /app/services/rotor/dist .
 
+ENV NODE_ENV=production
+
 ENTRYPOINT ["sh", "-c", "node --max-old-space-size=4096 main.js"]

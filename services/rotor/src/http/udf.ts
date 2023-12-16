@@ -13,7 +13,7 @@ const log = getLog("udf_run");
 
 export const UDFRunHandler = async (req, res) => {
   const body = req.body as UDFTestRequest;
-  //log.atInfo().log(`Running function: ${body?.functionId} workspace: ${body?.workspaceId}`, JSON.stringify(body));
+  log.atInfo().log(`Running function: ${body?.functionId} workspace: ${body?.workspaceId}`, JSON.stringify(body));
   body.store = process.env.MONGODB_URL
     ? createMongoStore(body?.workspaceId, mongodb(), defaultTTL)
     : createTtlStore(body?.workspaceId, redis(), defaultTTL);
