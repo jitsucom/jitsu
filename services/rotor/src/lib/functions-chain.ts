@@ -104,7 +104,7 @@ export async function runChain(
             continue;
           }
         } else {
-          const args = [err];
+          const args = [err?.name, err?.message];
           const r = retryObject(err, eventContext.retries ?? 0);
           if (r) {
             args.push(r);
