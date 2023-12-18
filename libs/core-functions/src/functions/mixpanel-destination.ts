@@ -25,8 +25,14 @@ export type HttpRequest = {
   headers?: Record<string, string>;
 };
 
-function prefix<P extends string = string>(param: Record<any, string>, prefix: P): Record<string, any> {
-  return Object.entries(param).reduce((acc, [key, value]) => ({ ...acc, [`${prefix}${key}`]: value }), {});
+function utm(param: Record<any, string>): Record<string, any> {
+  return Object.entries(param).reduce(
+    (acc, [key, value]) => ({
+      ...acc,
+      [`utm_${key === "name" ? "campaign" : key}`]: value,
+    }),
+    {}
+  );
 }
 
 function evict(obj: Record<string, any>, key: string) {
@@ -49,7 +55,7 @@ function trackEvent(ctx: FullContext, distinctId: string, eventType: string, eve
   delete traits.groupId;
 
   const customProperties = {
-    ...prefix(event.context?.campaign || {}, "utm_"),
+    ...utm(event.context?.campaign || {}),
     ...(event.context?.page || {}),
     ...traits,
     ...(event.properties || {}),
