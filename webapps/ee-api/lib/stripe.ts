@@ -73,7 +73,22 @@ export async function getOrCreateCurrentSubscription(
       .log(
         `Custom billing is set for workspace ${workspaceId}: ${JSON.stringify(stripeOptions.customBilling, null, 2)}`
       );
+
     const startDate = new Date(stripeOptions.customBilling.start + "T00:00:00Z");
+    getLog().atInfo().log(`Subscription start date for workspace ${workspaceId}: ${startDate.toISOString()}`);
+    if (startDate.getTime() > new Date().getTime()) {
+      getLog()
+        .atInfo()
+        .log(`Subscription start date for workspace ${workspaceId}: ${startDate.toISOString()} - future`);
+      return {
+        stripeCustomerId: stripeOptions.stripeCustomerId,
+        subscriptionStatus: {
+          //customBilling: true,
+          planId: "free",
+          futureSubscriptionDate: startDate,
+        },
+      };
+    }
     const startDay = startDate.getUTCDate();
     const currentDay = new Date().getUTCDate();
     const expiresAt = new Date();
