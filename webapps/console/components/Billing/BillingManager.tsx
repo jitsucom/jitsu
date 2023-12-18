@@ -214,6 +214,16 @@ const CurrentSubscription: React.FC<{}> = () => {
                 <Edit2 className="ml-1 h-3 w-3" />
               </Link>
             )}
+            {billing.settings?.futureSubscriptionDate && (
+              <div className="text-textLight">
+                Your paid subscription starts on{" "}
+                {new Intl.DateTimeFormat("en-US", {
+                  month: "long",
+                  year: "numeric",
+                  day: "numeric",
+                }).format(new Date(billing.settings?.futureSubscriptionDate))}
+              </div>
+            )}
           </div>
         </div>
         <div>
