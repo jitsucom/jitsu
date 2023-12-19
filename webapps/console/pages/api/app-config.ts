@@ -1,6 +1,6 @@
 import { createRoute } from "../../lib/api";
 import { AppConfig } from "../../lib/schema";
-import { getAppEndpoint, getDataDomain } from "../../lib/domains";
+import { getAppEndpoint } from "../../lib/domains";
 import { getEeConnection } from "../../lib/server/ee";
 import { isEEAvailable } from "./ee/jwt";
 import { isFirebaseEnabled, requireFirebaseOptions } from "../../lib/server/firebase-server";
@@ -8,12 +8,13 @@ import { nangoConfig } from "../../lib/server/oauth/nango-config";
 import { isTruish } from "../../lib/shared/chores";
 import { readOnlyUntil } from "../../lib/server/read-only-mode";
 import { productTelemetryEnabled, productTelemetryHost } from "../../lib/server/telemetry";
+import { mainDataDomain } from "../../lib/server/data-domains";
 
 export default createRoute()
   .GET({ result: AppConfig, auth: false })
   .handler(async ({ req }) => {
     const publicEndpoints = getAppEndpoint(req);
-    const dataHost = getDataDomain(publicEndpoints);
+    const dataHost = mainDataDomain;
 
     return {
       docsUrl: process.env.JITSU_DOCUMENTATION_URL || "https://docs-jitsu-com.staging.jitsu.com/",

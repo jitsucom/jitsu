@@ -30,6 +30,17 @@ export default createRoute()
           }),
           {}
         );
+      } else if (typeName === "destination") {
+        schema.subTypes = coreDestinations.reduce(
+          (acc, dest) => ({
+            ...acc,
+            [dest.id]: {
+              type: `${dest.id}`,
+              schemaURL: `${publicEndpoints.baseUrl}/api/schema/${typeName}/${dest.id}`,
+            },
+          }),
+          {}
+        );
       }
       result.push(schema);
     }

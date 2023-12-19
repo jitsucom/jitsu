@@ -3,6 +3,7 @@ import { getErrorMessage } from "juava";
 import { IngestType } from "@jitsu/protocols/async-request";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { getServerLog } from "./server/log";
+import { mainDataDomain } from "./server/data-domains";
 
 export type HttpProtocolVariant = "https" | "http";
 
@@ -17,13 +18,6 @@ export type PublicEndpoint = {
   port: number;
   baseUrl: string;
 };
-
-export function getDataDomain({ hostname }: PublicEndpoint): string | undefined {
-  if (process.env.DATA_DOMAIN) {
-    return process.env.DATA_DOMAIN;
-  }
-  return undefined;
-}
 
 export type StreamCredentials = { domain?: string; slug?: string; writeKey?: string; ingestType: IngestType };
 
@@ -40,7 +34,7 @@ export function getDataLocator(
   event: AnalyticsServerEvent
 ): StreamCredentials {
   const requestEndpoint = getReqEndpoint(req);
-  const [dataHost] = getDataDomain(requestEndpoint)?.split(":") || [undefined]; //ignore port, port can be used only in dev env
+  const [dataHost] = mainDataDomain?.split(":") || [undefined]; //ignore port, port can be used only in dev env
   const loc: Partial<StreamCredentials> = { ingestType };
   if (req.headers["authorization"]) {
     const auth = Buffer.from(req.headers["authorization"].replace("Basic ", ""), "base64").toString("utf-8");
