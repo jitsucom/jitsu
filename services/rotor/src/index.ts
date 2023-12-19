@@ -18,6 +18,7 @@ import { initMaxMindClient } from "./lib/maxmind";
 import { rotorMessageHandler } from "./lib/message-handler";
 import { redis } from "@jitsu-internal/console/lib/server/redis";
 import { redisLogger } from "./lib/redis-logger";
+import { pgConfigStore } from "./lib/pg-config-store";
 
 export const log = getLog("rotor");
 
@@ -59,13 +60,22 @@ async function main() {
     await mongodb.waitInit();
     await redis.waitInit();
     await redisLogger.waitInit();
+    let status = "pass";
+    http.get("/health", async (req, res) => {
+      pgConfigStore.get();
+      res.json({
+        status: "pass",
+        configStore: {
+          enabled: pgConfigStore.getCurrent()?.enabled || "loading",
+          status: pgConfigStore.status(),
+          lastUpdated: pgConfigStore.lastRefresh(),
+        },
+      });
+    });
     rotor
       .start()
       .then(chMetrics => {
         log.atInfo().log(`Kafka processing started. Listening for topics ${kafkaTopics} with group ${consumerGroupId}`);
-        http.get("/health", (req, res) => {
-          res.json({ status: "pass" });
-        });
         http.get("/metrics", async (req, res) => {
           res.set("Content-Type", Prometheus.register.contentType);
           const result = await Prometheus.register.metrics();
@@ -97,7 +107,10 @@ async function main() {
     signalTraps.forEach(type => {
       process.once(type, async () => {
         log.atInfo().log(`Signal ${type} received`);
-        await rotor.close().finally(() => process.kill(process.pid, type));
+        await rotor.close().finally(() => {
+          pgConfigStore.stop();
+          process.kill(process.pid, type);
+        });
       });
     });
   }

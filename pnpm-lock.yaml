@@ -524,6 +524,9 @@ importers:
       '@sensejs/kafkajs-zstd-support':
         specifier: ^0.11.0
         version: 0.11.0(kafkajs@2.2.4)
+      '@types/pg-cursor':
+        specifier: ^2.7.2
+        version: 2.7.2
       dayjs:
         specifier: ^1.11.10
         version: 1.11.10
@@ -566,6 +569,12 @@ importers:
       p-queue:
         specifier: ^6.6.2
         version: 6.6.2
+      pg:
+        specifier: ^8.11.3
+        version: 8.11.3
+      pg-cursor:
+        specifier: ~2.10.1
+        version: 2.10.1(pg@8.11.3)
       prom-client:
         specifier: ^14.2.0
         version: 14.2.0
@@ -624,6 +633,9 @@ importers:
       '@types/node':
         specifier: 16.11.6
         version: 16.11.6
+      '@types/pg':
+        specifier: ^8.6.5
+        version: 8.6.6
       '@types/web':
         specifier: 0.0.69
         version: 0.0.69
@@ -8776,6 +8788,13 @@ packages:
   /@types/parse-json@4.0.0:
     resolution: {integrity: sha512-//oorEZjL6sbPcKUaCdIGlIUeH26mgzimjBB77G6XRgnDl/L5wOnpyBGRe/Mmf5CVW3PwEBE1NjiMZ/ssFh4wA==}
 
+  /@types/pg-cursor@2.7.2:
+    resolution: {integrity: sha512-m3xT8bVFCvx98LuzbvXyuCdT/Hjdd/v8ml4jL4K1QF70Y8clOfCFdgoaEB1FWdcSwcpoFYZTJQaMD9/GQ27efQ==}
+    dependencies:
+      '@types/node': 18.15.11
+      '@types/pg': 8.6.6
+    dev: false
+
   /@types/pg-promise@5.4.3:
     resolution: {integrity: sha512-ABgy5hzmcyRZxLNG6HUafpxbpmXGeVJ5dopKwssEsFeA7rpRakdoodt75HJNIjQB4He+s3PTfG1AoWQWm7OuCg==}
     deprecated: This is a stub types definition for pg-promise (https://github.com/vitaly-t/pg-promise). pg-promise provides its own type definitions, so you don't need @types/pg-promise installed!
@@ -8800,7 +8819,6 @@ packages:
       '@types/node': 18.15.11
       pg-protocol: 1.6.0
       pg-types: 2.2.0
-    dev: true
 
   /@types/prettier@2.7.2:
     resolution: {integrity: sha512-KufADq8uQqo1pYKVIYzfKbJfBAc0sOeXqGbFaSpv8MRmC/zXgowNZmFcbngndGk922QDmOASEXUZCaY48gs4cg==}
