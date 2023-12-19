@@ -2,6 +2,8 @@ import { Api, nextJsApiHandler } from "../../../lib/api";
 import { db } from "../../../lib/server/db";
 import { ApiError } from "../../../lib/shared/errors";
 
+//For Caddy to allow issuing certificates for a domain, it must be present in the domains array of a stream object.
+//or it must be a subdomain of the data domain
 export const api: Api = {
   GET: {
     auth: false,
@@ -13,6 +15,11 @@ export const api: Api = {
       const domain = query.domain;
       if (!domain) {
         throw new ApiError("missing required parameter", {}, { status: 400 });
+      }
+      const dataDomain = process.env.DATA_DOMAIN;
+      if (domain === dataDomain || domain.endsWith("." + dataDomain)) {
+        //data domain and subdomains are always allowed
+        return;
       }
       const stream = await db.prisma().configurationObject.findFirst({
         where: {
