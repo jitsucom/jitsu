@@ -17,6 +17,7 @@ import { FunctionsHandler, FunctionsHandlerMulti } from "./http/functions";
 import { initMaxMindClient } from "./lib/maxmind";
 import { rotorMessageHandler } from "./lib/message-handler";
 import { redis } from "@jitsu-internal/console/lib/server/redis";
+import { redisLogger } from "./lib/redis-logger";
 
 export const log = getLog("rotor");
 
@@ -57,6 +58,7 @@ async function main() {
     Prometheus.collectDefaultMetrics();
     await mongodb.waitInit();
     await redis.waitInit();
+    await redisLogger.waitInit();
     rotor
       .start()
       .then(chMetrics => {

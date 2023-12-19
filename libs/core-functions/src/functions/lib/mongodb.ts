@@ -30,7 +30,7 @@ const MongoCreatedCollections = new Set<string>();
 export function mongoAnonymousEventsStore(): AnonymousEventsStore {
   return {
     async addEvent(collectionName: string, anonymousId: string, event: AnalyticsServerEvent, ttlDays: number) {
-      const mongo = await mongodb.waitInit();
+      const mongo = mongodb();
       await ensureMongoCollection(mongo, collectionName, ttlDays);
       const res = await mongo
         .db()
@@ -44,7 +44,7 @@ export function mongoAnonymousEventsStore(): AnonymousEventsStore {
     },
 
     async evictEvents(collectionName: string, anonymousId: string) {
-      const mongo = await mongodb.waitInit();
+      const mongo = mongodb();
       // to ensure query consistency between find and delete query - limit them to the same time window
       const maxObjectId = new ObjectId(Math.floor(new Date().getTime() / 1000).toString(16) + "0000000000000000");
       // load anonymous events from user_recognition collection

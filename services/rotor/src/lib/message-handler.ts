@@ -115,7 +115,7 @@ export async function rotorMessageHandler(
     ? createMultiStore(newStore, oldStore)
     : oldStore;
 
-  const rl = await redisLogger.waitInit();
+  const rl = redisLogger();
 
   const connectionData = connection.options as any;
 
