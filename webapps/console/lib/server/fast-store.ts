@@ -282,6 +282,7 @@ async function saveConnectionsToRedis(db: DatabaseConnection) {
   //   const streamConfig = flatten(obj);
   //   addStreamByDomain(streamConfig, [], row.backupEnabled);
   // });
+
   await db.pgHelper().streamQuery(query, async row => {
     const workspaceId = row.workspaceId;
     const linkId = row.id;
