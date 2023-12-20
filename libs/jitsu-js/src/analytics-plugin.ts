@@ -67,9 +67,15 @@ function restoreTraits(storage: PersistentStorage) {
   if (typeof val === "string") {
     val = safeCall(() => JSON.parse(val), {});
   }
+  if (typeof val !== "object" || val === null) {
+    val = {};
+  }
   let groupVal = storage.getItem("__group_traits");
   if (typeof groupVal === "string") {
     groupVal = safeCall(() => JSON.parse(groupVal), {});
+  }
+  if (typeof groupVal !== "object" || groupVal === null) {
+    groupVal = {};
   }
   return {
     ...(groupVal || {}),
@@ -619,7 +625,9 @@ const jitsuAnalyticsPlugin = (pluginConfig: JitsuPluginConfig = {}): AnalyticsPl
       // Store traits in cache to be able to use them in page and track events that run asynchronously with current identify.
       const storage = pluginConfig.storageWrapper ? pluginConfig.storageWrapper(instance.storage) : instance.storage;
       storage.setItem("__user_id", payload.userId);
-      storage.setItem("__user_traits", payload.traits);
+      if (payload.traits && typeof payload.traits === "object") {
+        storage.setItem("__user_traits", payload.traits);
+      }
       return send("identify", payload, config, instance, storage);
     },
     reset: args => {
