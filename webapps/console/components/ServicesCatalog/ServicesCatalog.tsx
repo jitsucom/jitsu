@@ -95,7 +95,8 @@ export const ServicesCatalog: React.FC<{ onClick: (packageType, packageId: strin
             .filter(source => source.meta.name && source.meta.name.toLowerCase().includes(filter.toLowerCase()))
             .filter(
               source =>
-                !appconfig.mitCompliant || workspace.featuresEnabled.includes("ignore_sources_licenses") ||
+                !appconfig.mitCompliant ||
+                workspace.featuresEnabled.includes("ignore_sources_licenses") ||
                 source.meta.license?.toLowerCase() === "mit" ||
                 (source.meta.mitVersions && source.meta.mitVersions.length > 0)
             );
