@@ -508,7 +508,7 @@ const FunctionsLogTable = ({ loadEvents, loading, streamType, entityType, actorI
           case "log-warn":
             return <Tag color={"orange"}>WARN</Tag>;
           case "http-request":
-            return <Tag color={d.status >= 200 && d.status < 300 ? "cyan" : "red"}>{d.status ?? "ERROR"}</Tag>;
+            return <Tag color={d.status >= 200 && d.status < 300 ? "cyan" : "orange"}>{d.status ?? "WARN"}</Tag>;
           default:
             return <Tag color={"cyan"}>{d.status}</Tag>;
         }
