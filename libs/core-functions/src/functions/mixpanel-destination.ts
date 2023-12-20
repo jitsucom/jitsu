@@ -1,7 +1,7 @@
 import { FullContext, JitsuFunction } from "@jitsu/protocols/functions";
 import { RetryError } from "@jitsu/functions-lib";
 import type { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
-import { randomId } from "juava";
+import { randomId, hash } from "juava";
 import { MixpanelCredentials } from "../meta";
 import { eventTimeSafeMs } from "./lib";
 
@@ -41,7 +41,13 @@ function evict(obj: Record<string, any>, key: string) {
   return val;
 }
 
-function trackEvent(ctx: FullContext, distinctId: string, eventType: string, event: AnalyticsServerEvent): HttpRequest {
+function trackEvent(
+  ctx: FullContext,
+  deviceId: string,
+  distinctId: string,
+  eventType: string,
+  event: AnalyticsServerEvent
+): HttpRequest {
   const opts = ctx.props as MixpanelCredentials;
   const traits = { ...(event.traits || event.context?.traits || {}) };
   specialProperties.forEach(prop => {
@@ -76,7 +82,7 @@ function trackEvent(ctx: FullContext, distinctId: string, eventType: string, eve
         properties: {
           ip: event.context?.ip || event.requestIp,
           time: eventTimeSafeMs(event),
-          $device_id: `${event.anonymousId}`,
+          $device_id: deviceId,
           distinct_id: distinctId,
           $insert_id: event.messageId + "-" + randomId(),
           $user_id: event.userId ? `${event.userId}` : undefined,
@@ -254,23 +260,53 @@ function alias(ctx: FullContext, messageId: string, identifiedId: string, anonym
   ];
 }
 
-function getDistinctId(ctx: FullContext, event: AnalyticsServerEvent) {
+function getDistinctId(ctx: FullContext, event: AnalyticsServerEvent, deviceId: string) {
   if (ctx.props.simplifiedIdMerge) {
-    return event.userId ? `${event.userId}` : `$device:${event.anonymousId}`;
+    return event.userId ? `${event.userId}` : `$device:${deviceId}`;
   } else {
-    return `${(event.userId || event.traits?.email || event.context?.traits?.email || event.anonymousId) ?? ""}`;
+    return `${(event.userId || event.traits?.email || event.context?.traits?.email || deviceId) ?? ""}`;
   }
+}
+
+function getDeviceId(ctx: FullContext, event: AnalyticsServerEvent) {
+  let deviceId = event.anonymousId;
+  if (
+    !deviceId ||
+    deviceId === "undefined" ||
+    deviceId === "unknown" ||
+    deviceId === "00000000-0000-0000-0000-000000000000"
+  ) {
+    const traits = event.traits || event.context?.traits;
+    const id = `${event.userId ?? ""}${event.context.ip ? `${event.context.ip}${event.context.userAgent ?? ""}` : ""}${
+      traits ? JSON.stringify(traits) : ""
+    }`;
+    if (id) {
+      deviceId = hash("sha256", id);
+    }
+  } else {
+    if (typeof deviceId === "number") {
+      return `${deviceId}`;
+    }
+    if (typeof deviceId !== "string") {
+      deviceId = `${JSON.stringify(deviceId)}`;
+    }
+    if (deviceId.length > 250) {
+      deviceId = hash("sha256", deviceId);
+    }
+  }
+  return deviceId;
 }
 
 const MixpanelDestination: JitsuFunction<AnalyticsServerEvent, MixpanelCredentials> = async (event, ctx) => {
   ctx.log.debug(`Mixpanel destination (props=${JSON.stringify(ctx.props)}) received event ${JSON.stringify(event)}`);
-  const distinctId = getDistinctId(ctx, event);
-  if (!distinctId) {
+  const deviceId = getDeviceId(ctx, event);
+  if (!deviceId) {
     ctx.log.warn(
-      `No distinctId can be assumed in event with messageId: ${event.messageId}. 'anonymousId' is missing. Skipping...`
+      `No anonymousId and there is no way to assume anonymous id from event: at least context.ip or any user trait is required. Skipping.`
     );
     return;
   }
+  const distinctId = getDistinctId(ctx, event, deviceId);
   // no userId or email
   const isAnonymous = event.anonymousId && distinctId.endsWith(event.anonymousId);
   if (isAnonymous && !ctx.props.enableAnonymousUserProfiles) {
@@ -279,7 +315,7 @@ const MixpanelDestination: JitsuFunction<AnalyticsServerEvent, MixpanelCredentia
   try {
     const messages: HttpRequest[] = [];
     if (event.type === "identify") {
-      if (event.userId || !ctx.props.simplifiedIdMerge) {
+      if (event.userId) {
         messages.push(...setProfileMessage(ctx, distinctId, event));
       }
       if (!ctx.props.simplifiedIdMerge && !isAnonymous) {
@@ -291,15 +327,15 @@ const MixpanelDestination: JitsuFunction<AnalyticsServerEvent, MixpanelCredentia
         }
       }
       if (ctx.props.sendIdentifyEvents) {
-        messages.push(trackEvent(ctx, distinctId, "Identify", event));
+        messages.push(trackEvent(ctx, deviceId, distinctId, "Identify", event));
       }
     } else {
       if (event.type === "group" && ctx.props.enableGroupAnalytics) {
         messages.push(setGroupMessage(event, ctx.props));
       } else if (event.type === "track") {
-        messages.push(trackEvent(ctx, distinctId, event.event as string, event));
+        messages.push(trackEvent(ctx, deviceId, distinctId, event.event as string, event));
       } else if (event.type === "page") {
-        messages.push(trackEvent(ctx, distinctId, "Page View", event));
+        messages.push(trackEvent(ctx, deviceId, distinctId, "Page View", event));
       }
     }
     for (const message of messages) {
