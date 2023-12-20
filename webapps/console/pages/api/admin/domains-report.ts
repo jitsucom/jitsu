@@ -6,8 +6,9 @@ import { isCnameValid } from "../../../lib/server/custom-domains";
 export default createRoute()
   .GET({
     auth: true,
+    streaming: true,
   })
-  .handler(async ({ user }) => {
+  .handler(async ({ res, user }) => {
     const userProfile = await db.prisma().userProfile.findFirst({ where: { id: user.internalId } });
     assertDefined(userProfile, "User profile not found");
     assertTrue(userProfile.admin, "Not enough permissions");
@@ -27,34 +28,28 @@ export default createRoute()
 
     const result: any[] = [];
     const cache: { [key: string]: boolean } = {};
-
+    res.writeHead(200, {
+      "Content-Type": "application/json",
+    });
+    res.write("[");
+    let hasPrev: boolean = false;
     for (const row of domains.rows) {
       for (const domain of row.config.domains) {
         const validCname = cache[domain] ?? (cache[domain] = await isCnameValid(domain));
-        result.push({
+        const resRow = {
           configured: validCname,
           domain,
           lastValidated: row.updatedAt,
           misconfigurationReason: validCname ? null : "invalid_cname",
           sourceId: row.id,
           workspaceId: row.workspaceId,
-        });
+        };
+        res.write(`${hasPrev ? "," : ""}${JSON.stringify(resRow)}\n`);
+        hasPrev = true;
       }
     }
-    result.sort((a, b) => {
-      if (a.configured && !b.configured) {
-        return -1;
-      }
-      if (!a.configured && b.configured) {
-        return 1;
-      }
-      if (a.configured && b.configured) {
-        return a.domain.localeCompare(b.domain);
-      }
-      return 0;
-    });
-
-    return result;
+    res.write("]");
+    res.end();
   })
   .toNextApiHandler();
 export const config = {
