@@ -56,6 +56,7 @@ export const AppConfig = z.object({
   //iso date
   readOnlyUntil: z.string().optional(),
   disableSignup: z.boolean().optional(),
+  customDomainsEnabled: z.boolean().optional(),
   ee: z.object({
     available: z.boolean(),
     host: z.string().optional(),

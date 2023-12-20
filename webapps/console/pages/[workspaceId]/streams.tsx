@@ -547,7 +547,7 @@ const StreamsList: React.FC<{}> = () => {
       },
       domains: {
         editor: DomainsEditor,
-        hidden: !appConfig.ee.available,
+        hidden: !appConfig.customDomainsEnabled,
         displayName: "Custom Tracking Domains",
         documentation: (
           <>
