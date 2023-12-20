@@ -1,5 +1,4 @@
 import { get } from "./useApi";
-import { DomainStatus } from "./server/ee";
 import * as auth from "firebase/auth";
 
 export type ClassicProjectStatus = {
@@ -11,7 +10,6 @@ export type ClassicProjectStatus = {
 };
 
 export interface EeClient {
-  attachDomain(domain: string): Promise<DomainStatus>;
   checkClassicProject(): Promise<ClassicProjectStatus>;
   createCustomToken(): Promise<string>;
 }
@@ -39,15 +37,6 @@ export function getEeClient(host: string, workspaceId: string): EeClient {
     return cachedToken;
   };
   return {
-    attachDomain: async domain => {
-      cachedToken = await refreshTokenIfNeeded();
-      return await get(removeDoubleSlashes(`${host}/api/domain`), {
-        query: { domain },
-        headers: {
-          Authorization: `Bearer ${cachedToken.token}`,
-        },
-      });
-    },
     checkClassicProject: async () => {
       const fbToken = await auth.getAuth().currentUser?.getIdToken();
       return await get(removeDoubleSlashes(`${host}/api/is-active`), {

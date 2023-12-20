@@ -15,7 +15,6 @@ import { getEeClient } from "../../lib/ee-client";
 import { assertDefined, requireDefined } from "juava";
 import { ReloadOutlined } from "@ant-design/icons";
 import { confirmOp, feedbackError } from "../../lib/ui";
-import type { DomainStatus } from "../../lib/server/ee";
 import { getAntdModal, useAntdModal } from "../../lib/modal";
 import { get } from "../../lib/useApi";
 import { Activity, AlertTriangle, Check, Globe, Wrench, Zap } from "lucide-react";
@@ -27,6 +26,7 @@ import { useLinksQuery } from "../../lib/queries";
 import { toURL } from "../../lib/shared/url";
 import JSON5 from "json5";
 import { EditorToolbar } from "../../components/EditorToolbar/EditorToolbar";
+import { DomainCheckResponse } from "../../lib/shared/domain-check-response";
 
 const Streams: React.FC<any> = () => {
   return (
@@ -77,10 +77,10 @@ const CustomDomain: React.FC<{ domain: string; deleteDomain: () => Promise<void>
   );
   const [reloadTrigger, setReloadTrigger] = useState(0);
   const [deleting, setDeleting] = useState(false);
-  const { data, isLoading, error, refetch } = useQuery<DomainStatus>(
+  const { data, isLoading, error, refetch } = useQuery<DomainCheckResponse>(
     ["domain-status", domain.toLowerCase(), reloadTrigger],
     async () => {
-      return await eeClient.attachDomain(domain);
+      return await get(`/api/${workspace.id}/domain-check?domain=${domain.toLowerCase()}`);
     },
     { cacheTime: 0 }
   );
@@ -94,9 +94,7 @@ const CustomDomain: React.FC<{ domain: string; deleteDomain: () => Promise<void>
           {/*</div>*/}
           <div className={"text-blue-600 w-4 h-4 mr-1.5"}>
             <Globe
-              className={`w-full h-full ${
-                error || data?.error ? "text-red-600" : data?.needsConfiguration ? "text-yellow-600" : "text-blue-600"
-              }`}
+              className={`w-full h-full ${error ? "text-red-600" : data?.ok ? "text-blue-600" : "text-yellow-600"}`}
             />
           </div>
           <div className="font-bold  text-lg">{domain}</div>
@@ -113,14 +111,14 @@ const CustomDomain: React.FC<{ domain: string; deleteDomain: () => Promise<void>
                 <FaExternalLinkAlt />
               </Button>
             </Tooltip>
-            {data?.needsConfiguration && (
+            {!data?.ok && (
               <Tooltip title="See configuration instructions">
                 <Button
                   type="text"
                   danger
                   disabled={isLoading || deleting}
                   onClick={() => {
-                    DomainConfigurationInstructions.show({ domain, status: data });
+                    DomainConfigurationInstructions.show({ domain, status: data! });
                   }}
                   className="border-0"
                 >
@@ -174,29 +172,29 @@ const CustomDomain: React.FC<{ domain: string; deleteDomain: () => Promise<void>
                   </span>
                 </StatusBadge>
               );
-            } else if (error || data?.error) {
+            } else if (error) {
               return <StatusBadge status="error">ERROR</StatusBadge>;
-            } else if (data?.needsConfiguration) {
+            } else if (!data?.ok) {
               return <StatusBadge status="warning">Configuration Required</StatusBadge>;
             } else {
               return <StatusBadge status="success">OK</StatusBadge>;
             }
           })()}
         </div>
-        {(error || data?.error) && (
+        {error && (
           <div className="flex items-start mt-1">
             <div className={"mr-2"}>Description:</div>
-            <div className="">{`${data?.error || "Internal error"}`}</div>
+            <div className="">{`${"Internal error"}`}</div>
           </div>
         )}
-        {data?.needsConfiguration && (
+        {!data?.ok && (
           <div className="flex items-start mt-1">
             <div className={"mr-2"}>Description:</div>
             <div className="">
               See{" "}
               <a
                 className={"cursor-pointer"}
-                onClick={() => DomainConfigurationInstructions.show({ domain, status: data })}
+                onClick={() => DomainConfigurationInstructions.show({ domain, status: data! })}
               >
                 <u>configuration instructions</u>
               </a>
@@ -234,25 +232,16 @@ export const DNSRecordTable: React.FC<DNSRecordTableProps> = ({ records }) => {
   );
 };
 
-export type DomainInstructionsProps = { domain: string; status: DomainStatus };
+export type DomainInstructionsProps = { domain: string; status: DomainCheckResponse };
 const DomainConfigurationInstructions: React.FC<DomainInstructionsProps> & {
   show: (p: DomainInstructionsProps) => void;
 } = ({ domain, status }) => {
-  if (status.needsConfiguration && status.configurationType === "cname") {
+  if (status.reason === "requires_cname_configuration") {
     return (
       <div>
         <h3>Set the following record on your DNS provider to continue</h3>
         <p className="bg-bgLight py-2 my-4">
-          <DNSRecordTable records={[{ type: "CNAME", domain, value: status.cnameValue }]} />
-        </p>
-      </div>
-    );
-  } else if (status.needsConfiguration && status.configurationType == "verification") {
-    return (
-      <div>
-        <h3>Set the following record on your DNS provider to continue</h3>
-        <p className="bg-bgLight py-2 my-4">
-          <DNSRecordTable records={status.verification} />
+          <DNSRecordTable records={[{ type: "CNAME", domain, value: status.cnameValue! }]} />
         </p>
       </div>
     );
@@ -282,10 +271,24 @@ const DomainsEditor: React.FC<CustomWidgetProps<string[]>> = props => {
   const add = async () => {
     setAddPending(true);
     try {
-      const { available } = await get(`/api/${workspace.id}/domain-check?domain=${addValue}`);
-      if (!available) {
-        feedbackError(`Domain ${addValue} is not available. It is used by other workspace`);
-        return;
+      const available: DomainCheckResponse = await get(`/api/${workspace.id}/domain-check?domain=${addValue}`);
+      if (!available.ok) {
+        if (available.reason === "used_by_other_workspace") {
+          feedbackError(
+            <>
+              Domain <code>{addValue}</code> is not available. It is used by other workspace. Contact{" "}
+              <code>support@jitsu.com</code> if you think this is a mistake
+            </>
+          );
+          return;
+        } else if (available.reason === "invalid_domain_name") {
+          feedbackError(
+            <>
+              Invalid domain name <code>{addValue}</code>
+            </>
+          );
+          return;
+        }
       }
       const newVal = [...domains, addValue as string];
       setDomains(newVal);
