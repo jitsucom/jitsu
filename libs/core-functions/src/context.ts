@@ -54,14 +54,14 @@ export function createFullContext(
           err.message = `Fetch request exceeded timeout ${timeout}ms and was aborted`;
         }
         if (logToRedis) {
-          eventsStore.log(connectionId, true, { ...baseInfo, error: getErrorMessage(err), elapsedMs: sw.elapsedMs() });
+          eventsStore.log(connectionId, false, { ...baseInfo, error: getErrorMessage(err), elapsedMs: sw.elapsedMs() });
         }
         throw err;
       }
       //clone response to be able to read it twice
       const cloned = fetchResult.clone();
       if (logToRedis) {
-        eventsStore.log(connectionId, !fetchResult.ok, {
+        eventsStore.log(connectionId, false, {
           ...baseInfo,
           status: fetchResult.status,
           statusText: fetchResult.statusText,
