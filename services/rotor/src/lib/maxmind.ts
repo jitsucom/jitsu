@@ -181,7 +181,7 @@ export async function initMaxMindClient(licenseKey: string): Promise<GeoResolver
           geoIpCache.set(ip, finalGeo);
           return finalGeo;
         } catch (e: any) {
-          log.atError().log(`Failed to resolve geo for ${ip}: ${e.message}`);
+          log.atDebug().log(`Failed to resolve geo for ${ip}: ${e.message}`);
           geoIpCache.set(ip, {});
           return {};
         }
