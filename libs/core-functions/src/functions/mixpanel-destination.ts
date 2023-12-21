@@ -17,6 +17,8 @@ export const specialProperties = [
   "unsubscribed",
 ];
 
+const CLICK_IDS = ["dclid", "fbclid", "gclid", "ko_click_id", "li_fat_id", "msclkid", "ttclid", "twclid", "wbraid"];
+
 export type HttpRequest = {
   id: string;
   method?: string;
@@ -39,6 +41,37 @@ function evict(obj: Record<string, any>, key: string) {
   const val = obj[key];
   delete obj[key];
   return val;
+}
+
+function getQueryParam(url: string, param: string) {
+  param = param.replace(/[[]/, "\\[").replace(/[\]]/, "\\]");
+  const regexS = "[\\?&]" + param + "=([^&#]*)",
+    regex = new RegExp(regexS),
+    results = regex.exec(url);
+  if (results === null || (results && typeof results[1] !== "string" && results[1]["length"])) {
+    return "";
+  } else {
+    let result = results[1];
+    try {
+      result = decodeURIComponent(result);
+    } catch (err) {}
+    return result.replace(/\+/g, " ");
+  }
+}
+
+function clickParams(url: string) {
+  if (!url) {
+    return {};
+  }
+  const params: any = {};
+  CLICK_IDS.forEach(idkey => {
+    const id = getQueryParam(url, idkey);
+    if (id.length) {
+      params[idkey] = id;
+    }
+  });
+
+  return params;
 }
 
 function trackEvent(
@@ -68,6 +101,7 @@ function trackEvent(
     ...(groupId ? { [groupKey]: groupId } : {}),
     userAgent: event.context?.userAgent,
   };
+  const pageUrl = evict(customProperties, "url");
   return {
     id: randomId(),
     url: `https://api.mixpanel.com/import?strict=1&project_id=${opts.projectId}`,
@@ -89,7 +123,9 @@ function trackEvent(
           $browser: ctx.ua?.browser?.name,
           $browser_version: ctx.ua?.browser?.version,
           $os: ctx.ua?.os?.name,
-          $current_url: evict(customProperties, "url"),
+          $current_url: pageUrl,
+          ...clickParams(pageUrl),
+          current_page_title: evict(customProperties, "title"),
           $referrer: evict(customProperties, "referrer"),
           $referring_domain: evict(customProperties, "referring_domain"),
           $session_id: event.context?.sessionId,
@@ -118,23 +154,7 @@ function setProfileMessage(ctx: FullContext, distinctId: string, event: Analytic
   const groupId = event.context?.groupId || traits.groupId;
   delete traits.groupId;
 
-  const setPayload: any = {
-    $token: opts.projectToken,
-    $distinct_id: distinctId,
-    $ip: event.context?.ip || event.requestIp,
-    $latitude: event.context?.geo?.location?.latitude,
-    $longitude: event.context?.geo?.location?.longitude,
-    $set: {
-      ...traits,
-      $initial_referrer: event.context?.page?.referrer,
-      $initial_referring_domain: event.context?.page?.referring_domain,
-      $browser: ctx.ua?.browser?.name,
-      $browser_version: ctx.ua?.browser?.version,
-      $os: ctx.ua?.os?.name,
-    },
-  };
-
-  const reqs = [
+  const reqs: HttpRequest[] = [
     {
       id: randomId(),
       url: "https://api.mixpanel.com/engage?verbose=1#profile-set",
@@ -142,9 +162,46 @@ function setProfileMessage(ctx: FullContext, distinctId: string, event: Analytic
         "Content-type": "application/json",
         Accept: "text-plain",
       },
-      payload: [setPayload],
+      payload: [
+        {
+          $token: opts.projectToken,
+          $distinct_id: distinctId,
+          $ip: event.context?.ip || event.requestIp,
+          $latitude: event.context?.geo?.location?.latitude,
+          $longitude: event.context?.geo?.location?.longitude,
+          $set: {
+            ...traits,
+            $browser: ctx.ua?.browser?.name,
+            $browser_version: ctx.ua?.browser?.version,
+            $os: ctx.ua?.os?.name,
+          },
+        },
+      ],
     },
   ];
+  if (event.context?.page?.referrer || event.context?.page?.referring_domain) {
+    reqs.push({
+      id: randomId(),
+      url: "https://api.mixpanel.com/engage?verbose=1#profile-set-once",
+      headers: {
+        "Content-type": "application/json",
+        Accept: "text-plain",
+      },
+      payload: [
+        {
+          $token: opts.projectToken,
+          $distinct_id: distinctId,
+          $ip: event.context?.ip || event.requestIp,
+          $latitude: event.context?.geo?.location?.latitude,
+          $longitude: event.context?.geo?.location?.longitude,
+          $set_once: {
+            $initial_referrer: event.context?.page?.referrer,
+            $initial_referring_domain: event.context?.page?.referring_domain,
+          },
+        },
+      ],
+    });
+  }
   if (groupId) {
     const groupKey = opts.groupKey || "$group_id";
     const unionPayload: any = {
@@ -299,6 +356,13 @@ function getDeviceId(ctx: FullContext, event: AnalyticsServerEvent) {
 
 const MixpanelDestination: JitsuFunction<AnalyticsServerEvent, MixpanelCredentials> = async (event, ctx) => {
   ctx.log.debug(`Mixpanel destination (props=${JSON.stringify(ctx.props)}) received event ${JSON.stringify(event)}`);
+  if (typeof ctx.props.filterBotTraffic === "undefined" || ctx.props.filterBotTraffic) {
+    if (ctx.ua?.bot) {
+      ctx.log.debug(`Skipping bot traffic`);
+      return;
+    }
+  }
+  const trackPageView = typeof ctx.props.sendPageEvents === "undefined" || ctx.props.sendPageEvents;
   const deviceId = getDeviceId(ctx, event);
   if (!deviceId) {
     ctx.log.warn(
@@ -334,8 +398,10 @@ const MixpanelDestination: JitsuFunction<AnalyticsServerEvent, MixpanelCredentia
         messages.push(setGroupMessage(event, ctx.props));
       } else if (event.type === "track") {
         messages.push(trackEvent(ctx, deviceId, distinctId, event.event as string, event));
-      } else if (event.type === "page") {
-        messages.push(trackEvent(ctx, deviceId, distinctId, "Page View", event));
+      } else if (event.type === "page" && trackPageView) {
+        messages.push(trackEvent(ctx, deviceId, distinctId, "$mp_web_page_view", event));
+      } else if (event.type === "screen") {
+        messages.push(trackEvent(ctx, deviceId, distinctId, "Screen", event));
       }
     }
     for (const message of messages) {

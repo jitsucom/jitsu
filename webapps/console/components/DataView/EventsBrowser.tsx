@@ -314,7 +314,7 @@ export const EventsBrowser = ({
         <div key={"left"}>
           <div className={"flex flex-row gap-4"}>
             <div>
-              <span>{entityType == "stream" ? "Sites: " : "Connection: "}</span>
+              <span>{entityType == "stream" ? "Site: " : "Connection: "}</span>
               <Select
                 dropdownMatchSelectWidth={false}
                 notFoundContent={

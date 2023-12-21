@@ -65,6 +65,11 @@ export const MixpanelCredentials = z.object({
   //apiSecret: z.string(),
   serviceAccountUserName: z.string().describe(MixpanelServiceAccountDocumentation),
   serviceAccountPassword: z.string().describe(MixpanelServiceAccountDocumentation),
+  sendPageEvents: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe("If enabled, all page view events will be sent to Mixpanel."),
   sendIdentifyEvents: z
     .boolean()
     .optional()
@@ -79,6 +84,7 @@ export const MixpanelCredentials = z.object({
     .describe(
       "Mixpanel Group Analytics allows behavioral data analysis at a customized group level. Group Analytics is available as an add-on package to customers on <a href='https://mixpanel.com/pricing/' target='_blank' rel='noreferrer noopener'>Growth and Enterprise plans.</a>"
     ),
+  filterBotTraffic: z.boolean().optional().default(true).describe("Don't send traffic from known bots to Mixpanel"),
   groupKey: z
     .string()
     .optional()

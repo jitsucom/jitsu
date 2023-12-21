@@ -33,7 +33,7 @@ export function DataView() {
     setState({ ...state, activeView: activeView as DataViewState["activeView"] });
 
   const patchQueryStringState = (key: string, value: any) => {
-    if (state.viewState[state.activeView][key] === value) return;
+    if (state.viewState[state.activeView]?.[key] === value) return;
     if (value === null) {
       const newState = { ...state };
       delete newState[key];
