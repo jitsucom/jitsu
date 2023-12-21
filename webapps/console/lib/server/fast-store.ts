@@ -78,6 +78,7 @@ export type StreamWithDestinations = {
 export type EnrichedConnectionConfig = {
   id: string;
   workspaceId: string;
+  special?: string;
   updatedAt?: Date;
   destinationId: string;
   streamId: string;
@@ -318,6 +319,7 @@ async function saveConnectionsToRedis(db: DatabaseConnection) {
     if (backupSupported && row.backupEnabled && !backupDestCreated[row.workspaceId]) {
       const backupConn: EnrichedConnectionConfig = {
         id: `${row.workspaceId}_backup`,
+        special: "backup",
         workspaceId: row.workspaceId,
         destinationId: `${row.workspaceId}_backup`,
         streamId: "backup",
