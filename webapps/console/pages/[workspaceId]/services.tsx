@@ -155,7 +155,11 @@ const ServicesList: React.FC<{}> = () => {
         `/api/sources/versions?type=${packageType}&package=${encodeURIComponent(packageId)}`
       );
       const versions = rawVersions.versions
-        .filter((v: any) => v.isRelease && (v.isMit || !appconfig.mitCompliant))
+        .filter(
+          (v: any) =>
+            v.isRelease &&
+            (v.isMit || !appconfig.mitCompliant || workspace.featuresEnabled.includes("ignore_sources_licenses"))
+        )
         .map((v: any) => v.name);
       const sourceType = await rpc(`/api/sources/${packageType}/${encodeURIComponent(packageId)}`);
 

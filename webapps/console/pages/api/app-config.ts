@@ -9,6 +9,7 @@ import { isTruish } from "../../lib/shared/chores";
 import { readOnlyUntil } from "../../lib/server/read-only-mode";
 import { productTelemetryEnabled, productTelemetryHost } from "../../lib/server/telemetry";
 import { mainDataDomain } from "../../lib/server/data-domains";
+import { customDomainCnames } from "../../lib/server/custom-domains";
 
 export default createRoute()
   .GET({ result: AppConfig, auth: false })
@@ -31,6 +32,7 @@ export default createRoute()
           }
         : undefined,
       billingEnabled: isEEAvailable(),
+      customDomainsEnabled: customDomainCnames && customDomainCnames.length > 0,
       syncs: {
         enabled: isTruish(process.env.SYNCS_ENABLED),
         scheduler: {

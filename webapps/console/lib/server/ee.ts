@@ -45,13 +45,3 @@ export function createJwt(
   const token = jwt.sign({ userId, email, workspaceId, exp: expiresSecondsTimestamp }, jwtSecret);
   return { jwt: token, expiresAt: new Date(expiresSecondsTimestamp * 1000).toISOString() };
 }
-
-export type DomainStatus = { error?: string } & (
-  | { needsConfiguration: false }
-  | { needsConfiguration: true; configurationType: "cname"; cnameValue: string }
-  | {
-      needsConfiguration: true;
-      configurationType: "verification";
-      verification: { type: string; domain: string; value: string }[];
-    }
-);

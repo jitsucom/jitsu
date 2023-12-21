@@ -76,6 +76,9 @@ function parseIfNeeded(o: any): any {
 export function getAuthBearerToken(req: NextApiRequest): string | undefined {
   if (req.headers.authorization && req.headers.authorization.toLowerCase().indexOf("bearer ") === 0) {
     return req.headers.authorization.substring("bearer ".length);
+  } else if (req.query?.__unsafe_token) {
+    //very unsafe, but some tools we use can't set headers, so we need to allow this
+    return req.query.__unsafe_token as string;
   }
   return undefined;
 }

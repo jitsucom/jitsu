@@ -8,7 +8,7 @@ import { LoadingAnimation } from "../GlobalLoader/GlobalLoader";
 import React from "react";
 import { ErrorCard } from "../GlobalError/GlobalError";
 import { Input } from "antd";
-import { useAppConfig } from "../../lib/context";
+import { useAppConfig, useWorkspace } from "../../lib/context";
 
 function groupByType(sources: SourceType[]): Record<string, SourceType[]> {
   const groups: Record<string, SourceType[]> = {};
@@ -57,6 +57,7 @@ export function getServiceIcon(source: SourceType, icons: Record<string, string>
 export const ServicesCatalog: React.FC<{ onClick: (packageType, packageId: string) => void }> = ({ onClick }) => {
   const { data, isLoading, error } = useApi<{ sources: SourceType[] }>(`/api/sources?mode=meta`);
   const sourcesIconsLoader = useApi<{ sources: SourceType[] }>(`/api/sources?mode=icons-only`);
+  const workspace = useWorkspace();
   const [filter, setFilter] = React.useState("");
   const appconfig = useAppConfig();
   const sourcesIcons: Record<string, string> = sourcesIconsLoader.data
@@ -95,6 +96,7 @@ export const ServicesCatalog: React.FC<{ onClick: (packageType, packageId: strin
             .filter(
               source =>
                 !appconfig.mitCompliant ||
+                workspace.featuresEnabled.includes("ignore_sources_licenses") ||
                 source.meta.license?.toLowerCase() === "mit" ||
                 (source.meta.mitVersions && source.meta.mitVersions.length > 0)
             );

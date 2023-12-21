@@ -2,7 +2,7 @@
 
 <p align="center">
 👉<b>Looking for Jitsu Classic? Switch to 
-<a href="https://github.com/jitsucom/jitsu/tree/master">classic branch</a>, and read about <a href="https://docs.jitsu.com/jitsu-classic">Jitsu Classic and Jitsu Next differences</a></b>
+<a href="https://github.com/jitsucom/jitsu/tree/master">classic branch</a>, and read about <a href="[https://docs.jitsu.com/jitsu-classic](https://jitsu.com/blog/jitsu-next">Jitsu Classic and Jitsu Next differences</a></b>
 </p>
 <p align="center">
 <img src="https://github.com/jitsucom/jitsu/blob/newjitsu/.readme-assets/github-hero-light-mode.png?raw=true#gh-light-mode-only" />
