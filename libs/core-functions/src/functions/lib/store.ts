@@ -4,18 +4,22 @@ import parse from "parse-duration";
 import type { MongoClient } from "mongodb";
 
 export const defaultTTL = 60 * 60 * 24 * 31; // 31 days
-export const maxAllowedTTL = 60 * 60 * 24 * 93; // 93 days
+export const maxAllowedTTL = 2147483647; // max allowed value for ttl in redis (68years)
 
 function getTtlSec(opts?: SetOpts): number {
   let seconds = defaultTTL;
   if (typeof opts === "number") {
     seconds = Math.ceil(opts);
   } else if (typeof opts === "string") {
-    try {
-      seconds = Math.ceil(parse(opts, "s") || defaultTTL);
-    } catch (e) {}
-  } else if (typeof opts === "object" && typeof opts.ttl === "number") {
-    seconds = Math.ceil(opts.ttl);
+    if (opts.toLowerCase() === "inf") {
+      seconds = -1;
+    } else {
+      try {
+        seconds = Math.ceil(parse(opts, "s") || defaultTTL);
+      } catch (e) {}
+    }
+  } else if (typeof opts === "object") {
+    return getTtlSec(opts.ttl);
   }
   return Math.min(seconds, maxAllowedTTL);
 }
@@ -44,7 +48,11 @@ export const createTtlStore = (namespace: string, redisClient: Redis, defaultTtl
   },
   set: async (key: string, obj: any, opts?: SetOpts) => {
     const ttl = getTtlSec(opts);
-    await redisClient.set(`store:${namespace}:${key}`, JSON.stringify(obj), "EX", ttl);
+    if (ttl >= 0) {
+      await redisClient.set(`store:${namespace}:${key}`, JSON.stringify(obj), "EX", ttl);
+    } else {
+      await redisClient.set(`store:${namespace}:${key}`, JSON.stringify(obj));
+    }
   },
   del: async (key: string) => {
     await redisClient.del(`store:${namespace}:${key}`);
@@ -95,20 +103,17 @@ export const createMongoStore = (namespace: string, mongo: MongoClient, defaultT
     },
     set: async (key: string, obj: any, opts?: SetOpts) => {
       await ensureCollection();
+      const colObj: any = { value: obj };
       const ttl = getTtlSec(opts);
-      const expireAt = new Date();
-      expireAt.setSeconds(expireAt.getSeconds() + ttl);
+      if (ttl >= 0) {
+        const expireAt = new Date();
+        expireAt.setSeconds(expireAt.getSeconds() + ttl);
+        colObj.expireAt = expireAt;
+      }
       await mongo
         .db(dbName)
         .collection<StoreValue>(namespace)
-        .replaceOne(
-          { _id: key },
-          {
-            value: obj,
-            expireAt,
-          },
-          { upsert: true, writeConcern: { w: 1, journal: false } }
-        );
+        .replaceOne({ _id: key }, colObj, { upsert: true, writeConcern: { w: 1, journal: false } });
     },
     del: async (key: string) => {
       await ensureCollection();
@@ -122,7 +127,11 @@ export const createMongoStore = (namespace: string, mongo: MongoClient, defaultT
         .db(dbName)
         .collection<StoreValue>(namespace)
         .findOne({ _id: key }, { readPreference: "nearest" });
-      return res ? Math.max(Math.floor((res.expireAt.getTime() - new Date().getTime()) / 1000), 0) : -2;
+      return res
+        ? res.expireAt
+          ? Math.max(Math.floor((res.expireAt.getTime() - new Date().getTime()) / 1000), 0)
+          : -1
+        : -2;
     },
   };
 };

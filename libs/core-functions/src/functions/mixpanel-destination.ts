@@ -27,11 +27,11 @@ export type HttpRequest = {
   headers?: Record<string, string>;
 };
 
-function utm(param: Record<any, string>): Record<string, any> {
+function utm(param: Record<any, string>, prefix: string = "utm_"): Record<string, any> {
   return Object.entries(param).reduce(
     (acc, [key, value]) => ({
       ...acc,
-      [`utm_${key === "name" ? "campaign" : key}`]: value,
+      [`${prefix}${key === "name" ? "campaign" : key}`]: value,
     }),
     {}
   );
@@ -195,6 +195,7 @@ function setProfileMessage(ctx: FullContext, distinctId: string, event: Analytic
           $latitude: event.context?.geo?.location?.latitude,
           $longitude: event.context?.geo?.location?.longitude,
           $set_once: {
+            ...utm(event.context?.campaign || {}, "initial_utm_"),
             $initial_referrer: event.context?.page?.referrer,
             $initial_referring_domain: event.context?.page?.referring_domain,
           },
