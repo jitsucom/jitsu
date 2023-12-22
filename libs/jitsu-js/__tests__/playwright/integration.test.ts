@@ -191,8 +191,37 @@ function describeEvent(type: string, body: any) {
     .join(", ");
   return `${type}${type === "track" ? `(${body.event})` : ""}[${params}]`;
 }
+test("url-bug", async ({ browser }) => {
+  //tests a bug in getanalytics.io where the url without slash provided by
+  //<link rel="canonical" ../> causes incorrect page path
+  const browserContext = await browser.newContext();
+  const { page, uncaughtErrors } = await createLoggingPage(browserContext);
+  const [pageResult] = await Promise.all([page.goto(`${server.baseUrl}/url-bug.html`)]);
+
+  await page.waitForFunction(() => window["jitsu"] !== undefined, undefined, {
+    timeout: 1000,
+    polling: 100,
+  });
+  expect(pageResult.status()).toBe(200);
+  //wait for some time since the server has an artificial latency of 30ms
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  expect(uncaughtErrors.length).toEqual(0);
+  expect(requestLog.length).toBe(2);
+  console.log(
+    `📝 Request log size of ${requestLog.length}`,
+    requestLog.map(x => describeEvent(x.type, x.body))
+  );
+  //a track contains a valid URL, probably because analytics can't grab the canonical URL yet
+  const trackEvent = requestLog.find(x => x.type === "page");
+  expect(trackEvent).toBeDefined();
+  const pagePath = trackEvent.body.context.page.path;
+  expect(pagePath).toBeDefined();
+  //it's  "//localhost:3088" when the bug is present
+  expect(pagePath).toEqual("/");
+});
 
 test("basic", async ({ browser }) => {
+  requestLog.length = 0;
   const browserContext = await browser.newContext();
 
   const { page: firstPage, uncaughtErrors: firstPageErrors } = await createLoggingPage(browserContext);

@@ -1,7 +1,7 @@
 /* global analytics */
 
 import { JitsuOptions, PersistentStorage, RuntimeFacade } from "./jitsu";
-import { AnalyticsClientEvent, Callback, DispatchedEvent, ID, JSONObject, Options } from "@jitsu/protocols/analytics";
+import { AnalyticsClientEvent, Callback, ID, JSONObject, Options } from "@jitsu/protocols/analytics";
 import parse from "./index";
 
 import { AnalyticsInstance, AnalyticsPlugin } from "analytics";
@@ -298,6 +298,17 @@ export function isInBrowser() {
   return typeof document !== "undefined" && typeof window !== "undefined";
 }
 
+/**
+ * Fixes a weird bug in analytics URL where path
+ * of https://test.com becomes //test.com
+ */
+function fixPath(path: string): string {
+  if (path.indexOf("//") === 0 && path.lastIndexOf("/") === 1) {
+    return "/";
+  }
+  return path;
+}
+
 function adjustPayload(
   payload: any,
   config: JitsuOptions,
@@ -309,6 +320,11 @@ function adjustPayload(
   const parsedUrl = safeCall(() => new URL(url), undefined);
   const query = parsedUrl ? parseQuery(parsedUrl.search) : {};
   const properties = payload.properties || {};
+
+  if (properties.path) {
+    properties.path = fixPath(properties.path);
+  }
+
   const customContext = payload.properties?.context || {};
   delete payload.properties?.context;
   const referrer = runtime.referrer();

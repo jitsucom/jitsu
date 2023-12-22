@@ -75,7 +75,8 @@ function getScriptAttributes(scriptElement: HTMLScriptElement) {
    * New callback based queue, see below
    */
   //make a copy of the queue
-  const callbackQueue = [...(window[JITSU_V2_ID + "Q"] || [])];
+  const callbackQueue =
+    window[JITSU_V2_ID + "Q"] && window[JITSU_V2_ID + "Q"].length ? [...window[JITSU_V2_ID + "Q"]] : [];
   //replace push with a function that calls callback immediately
   window[JITSU_V2_ID + "Q"] = {
     push: (callback: any) => {

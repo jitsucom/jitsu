@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="canonical" href="<%=trackingBase%>" />
+    <title>Tracking page</title>
+    <script type="text/javascript" src="<%=trackingBase%>/p.js" data-debug="true" defer></script>
+    <script>
+      (window.jitsuQ = window.jitsuQ || []).push(function (jitsu) {
+        jitsu.track("test-event");
+      });
+    </script>
+  </head>
+
+  <body>
+    <h1>Test</h1>
+  </body>
+</html>
