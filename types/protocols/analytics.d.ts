@@ -230,6 +230,43 @@ interface AnalyticsContext {
 
   geo?: Geo;
 
+  //mobile
+  app?: {
+    name: string;
+    version: string;
+    build?: string;
+    namespace?: string;
+    [key: string]: any;
+  };
+  device?: {
+    id?: string;
+    advertisingId?: string;
+    adTrackingEnabled?: boolean;
+    manufacturer?: string;
+    model?: string;
+    name?: string;
+    type?: string;
+    token?: string;
+    [key: string]: any;
+  };
+  network?: {
+    bluetooth?: boolean;
+    carrier?: string;
+    cellular?: boolean;
+    wifi?: boolean;
+    [key: string]: any;
+  };
+  os?: {
+    name: string;
+    version: string;
+  };
+  screen?: {
+    width: number;
+    height: number;
+    density?: number;
+    [key: string]: any;
+  };
+
   [key: string]: any;
 }
 

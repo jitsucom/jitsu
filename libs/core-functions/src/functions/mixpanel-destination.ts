@@ -82,24 +82,25 @@ function trackEvent(
   event: AnalyticsServerEvent
 ): HttpRequest {
   const opts = ctx.props as MixpanelCredentials;
-  const traits = { ...(event.traits || event.context?.traits || {}) };
+  const analyticsContext = event.context || {};
+  const traits = { ...(event.traits || analyticsContext.traits || {}) };
   specialProperties.forEach(prop => {
     if (traits[prop]) {
       traits[`$${prop}`] = traits[prop];
       delete traits[prop];
     }
   });
-  const groupId = event.context?.groupId || traits.groupId;
+  const groupId = analyticsContext.groupId || traits.groupId;
   const groupKey = opts.groupKey || "$group_id";
   delete traits.groupId;
 
   const customProperties = {
-    ...utm(event.context?.campaign || {}),
-    ...(event.context?.page || {}),
+    ...utm(analyticsContext.campaign || {}),
+    ...(analyticsContext.page || {}),
     ...traits,
     ...(event.properties || {}),
     ...(groupId ? { [groupKey]: groupId } : {}),
-    userAgent: event.context?.userAgent,
+    userAgent: analyticsContext.userAgent,
   };
   const pageUrl = evict(customProperties, "url");
   return {
@@ -114,7 +115,7 @@ function trackEvent(
       {
         event: eventType,
         properties: {
-          ip: event.context?.ip || event.requestIp,
+          ip: analyticsContext.ip || event.requestIp,
           time: eventTimeSafeMs(event),
           $device_id: deviceId,
           distinct_id: distinctId,
@@ -122,19 +123,45 @@ function trackEvent(
           $user_id: event.userId ? `${event.userId}` : undefined,
           $browser: ctx.ua?.browser?.name,
           $browser_version: ctx.ua?.browser?.version,
-          $os: ctx.ua?.os?.name,
+          $os: analyticsContext.os?.name || ctx.ua?.os?.name,
+          $os_version: analyticsContext.os?.version || ctx.ua?.os?.version,
           $current_url: pageUrl,
           ...clickParams(pageUrl),
           current_page_title: evict(customProperties, "title"),
           $referrer: evict(customProperties, "referrer"),
           $referring_domain: evict(customProperties, "referring_domain"),
-          $session_id: event.context?.sessionId,
-          $latitude: event.context?.geo?.location?.latitude,
-          $longitude: event.context?.geo?.location?.longitude,
+          $session_id: analyticsContext.sessionId,
+          $latitude: analyticsContext.geo?.location?.latitude,
+          $longitude: analyticsContext.geo?.location?.longitude,
 
-          $screen_dpi: event.context?.screen?.density,
-          $screen_height: event.context?.screen?.height,
-          $screen_width: event.context?.screen?.width,
+          //mobile
+          $app_namespace: analyticsContext.app?.namespace,
+          $app_name: analyticsContext.app?.name,
+          $app_build_number: analyticsContext.app?.build,
+          $app_release: analyticsContext.app?.build,
+          $app_version: analyticsContext.app?.version,
+          $app_version_string: analyticsContext.app?.version,
+
+          $carrier: analyticsContext?.network?.carrier,
+          $has_telephone: analyticsContext?.network?.cellular,
+          $bluetooth_enabled: analyticsContext.network?.bluetooth,
+          $wifi: analyticsContext?.network?.wifi,
+
+          $screen_dpi: analyticsContext.screen?.density,
+          $screen_height: analyticsContext.screen?.height,
+          $screen_width: analyticsContext.screen?.width,
+
+          // $bluetooth_version: "ble",
+          // $brand: "google",
+          // $had_persisted_distinct_id: false,
+          // $has_nfc: false,
+          $device_type: analyticsContext.device?.type,
+          $device_name: analyticsContext.device?.name,
+          $manufacturer: analyticsContext.device?.manufacturer,
+          $model: analyticsContext.device?.model,
+          advertising_id: analyticsContext.device?.advertisingId,
+          ad_tracking_enabled: analyticsContext.device?.adTrackingEnabled,
+
           ...customProperties,
         },
       },
@@ -153,6 +180,25 @@ function setProfileMessage(ctx: FullContext, distinctId: string, event: Analytic
   });
   const groupId = event.context?.groupId || traits.groupId;
   delete traits.groupId;
+
+  let mobileDeviceInfo: any = {};
+  if (event.context?.os?.name === "Android" && event.context?.app) {
+    mobileDeviceInfo = {
+      $android_app_version: event.context.app.version,
+      $android_app_version_code: event.context.app.build,
+      $android_manufacturer: event.context.device?.manufacturer,
+      $android_model: event.context.device?.model,
+      $android_os: event.context.os?.name,
+      $android_os_version: event.context.os?.version,
+    };
+  } else if (event.context?.device?.manufacturer === "Apple" && event.context?.app) {
+    mobileDeviceInfo = {
+      $ios_app_version: event.context.app.build,
+      $ios_app_release: event.context.app.version,
+      $ios_device_model: event.context.device?.model,
+      $ios_version: event.context.os?.version,
+    };
+  }
 
   const reqs: HttpRequest[] = [
     {
@@ -174,6 +220,7 @@ function setProfileMessage(ctx: FullContext, distinctId: string, event: Analytic
             $browser: ctx.ua?.browser?.name,
             $browser_version: ctx.ua?.browser?.version,
             $os: ctx.ua?.os?.name,
+            ...mobileDeviceInfo,
           },
         },
       ],
