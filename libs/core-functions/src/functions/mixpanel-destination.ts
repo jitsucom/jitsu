@@ -119,7 +119,7 @@ function trackEvent(
           time: eventTimeSafeMs(event),
           $device_id: deviceId,
           distinct_id: distinctId,
-          $insert_id: event.messageId + "-" + randomId(),
+          $insert_id: hash("md5", event.messageId) + "-" + randomId(),
           $user_id: event.userId ? `${event.userId}` : undefined,
           $browser: ctx.ua?.browser?.name,
           $browser_version: ctx.ua?.browser?.version,
