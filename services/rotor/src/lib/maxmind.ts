@@ -1,11 +1,11 @@
 import { Reader, ReaderModel, City, Isp } from "@maxmind/geoip2-node";
-import { getServerLog } from "@jitsu-internal/console/lib/server/log";
 import * as zlib from "zlib";
 import * as tar from "tar";
 import { Geo } from "@jitsu/protocols/analytics";
 import NodeCache from "node-cache";
+import { getLog } from "juava";
 
-export const log = getServerLog("maxmind");
+export const log = getLog("maxmind");
 
 const InvalidLicenseKey = "Invalid license key";
 

@@ -1,9 +1,8 @@
-import { getSingleton } from "juava";
+import { getLog, getSingleton } from "juava";
 import { EventsStore } from "@jitsu/protocols/functions";
 import { redis } from "@jitsu-internal/console/lib/server/redis";
-import { getServerLog } from "@jitsu-internal/console/lib/server/log";
 
-export const log = getServerLog("redisLogger");
+export const log = getLog("redisLogger");
 
 const eventsLogSize = process.env.EVENTS_LOG_MAX_SIZE ? parseInt(process.env.EVENTS_LOG_MAX_SIZE) : 1000;
 
