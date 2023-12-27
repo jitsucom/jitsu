@@ -99,9 +99,7 @@ export function createMetrics(producer?: Producer): Metrics {
       await Promise.all([
         resOld
           .then(async r => {
-            if (r.ok) {
-              log.atInfo().log(`Flushed metrics events(old): ${((await r.json()) as any).state.successfulRows}`);
-            } else {
+            if (!r.ok) {
               log.atError().log(`Failed to flush metrics events(old): ${r.status} ${r.statusText}`);
             }
           })
@@ -110,9 +108,7 @@ export function createMetrics(producer?: Producer): Metrics {
           }),
         res
           .then(async r => {
-            if (r.ok) {
-              log.atInfo().log(`Flushed metrics events: ${((await r.json()) as any).state.successfulRows}`);
-            } else {
+            if (!r.ok) {
               log.atError().log(`Failed to flush metrics events: ${r.status} ${r.statusText}`);
             }
           })
@@ -128,9 +124,10 @@ export function createMetrics(producer?: Producer): Metrics {
     if (length > 0) {
       const sw = stopwatch();
       try {
-        await flush([...buffer]);
+        const copy = [...buffer];
+        await flush(copy);
         buffer.length = 0;
-        log.atInfo().log(`Periodic flushing ${length} metrics events took ${sw.elapsedPretty()}`);
+        log.atInfo().log(`Periodic flushing ${copy.length} metrics events took ${sw.elapsedPretty()}`);
       } catch (e) {
         log.atError().withCause(e).log(`Failed to flush metrics`);
       }
@@ -182,9 +179,15 @@ export function createMetrics(producer?: Producer): Metrics {
         });
       }
       if (buffer.length >= max_batch_size) {
-        log.atInfo().log(`Flushing ${buffer.length} metrics events`);
+        const sw = stopwatch();
         const copy = [...buffer];
-        setImmediate(() => flush(copy));
+        setImmediate(async () =>
+          flush(copy)
+            .then(() => log.atInfo().log(`Flushed ${copy.length} metrics events. Took: ${sw.elapsedPretty()}`))
+            .catch(e => {
+              log.atError().withCause(e).log(`Failed to flush metrics`);
+            })
+        );
         buffer.length = 0;
       }
     },
