@@ -20,6 +20,7 @@ import { redis } from "@jitsu-internal/console/lib/server/redis";
 import { redisLogger } from "./lib/redis-logger";
 import { createMetrics, Metrics } from "./lib/metrics";
 import { isTruish } from "@jitsu-internal/console/lib/shared/chores";
+import { pgConfigStore } from "./lib/pg-config-store";
 
 export const log = getLog("rotor");
 
@@ -62,6 +63,15 @@ async function main() {
   } else if (args._?.[0] === "test-connection") {
     await testConnection(args);
   } else if (process.env.KAFKA_BOOTSTRAP_SERVERS && !isTruish(process.env.HTTP_ONLY)) {
+    Prometheus.collectDefaultMetrics();
+    await mongodb.waitInit();
+    await redis.waitInit();
+    await redisLogger.waitInit();
+    const store = await pgConfigStore.get();
+    if (!store.enabled) {
+      log.atError().log("Postgres is not configured. Rotor will not work");
+      process.exit(1);
+    }
     //kafka consumer mode
     const kafkaTopics = [destinationMessagesTopic()];
     const consumerGroupId = rotorConsumerGroupId();
@@ -74,10 +84,6 @@ async function main() {
       handle: rotorMessageHandler,
     });
     log.atInfo().log("Starting kafka processing");
-    Prometheus.collectDefaultMetrics();
-    await mongodb.waitInit();
-    await redis.waitInit();
-    await redisLogger.waitInit();
     rotor
       .start()
       .then(chMetrics => {
@@ -94,6 +100,15 @@ async function main() {
       await rotor.close();
     });
   } else {
+    Prometheus.collectDefaultMetrics();
+    await mongodb.waitInit();
+    await redis.waitInit();
+    await redisLogger.waitInit();
+    const store = await pgConfigStore.get();
+    if (!store.enabled) {
+      log.atError().log("Postgres is not configured. Rotor will not work");
+      process.exit(1);
+    }
     const geoResolver = await initMaxMindClient(process.env.MAXMIND_LICENSE_KEY || "");
     const chMetrics = createMetrics();
     initHTTP(chMetrics, geoResolver);
@@ -102,7 +117,14 @@ async function main() {
 
 function initHTTP(metrics: Metrics, geoResolver: GeoResolver) {
   http.get("/health", (req, res) => {
-    res.json({ status: "pass" });
+    res.json({
+      status: "pass",
+      configStore: {
+        enabled: pgConfigStore.getCurrent()?.enabled || "loading",
+        status: pgConfigStore.status(),
+        lastUpdated: pgConfigStore.lastRefresh(),
+      },
+    });
   });
   http.get("/metrics", async (req, res) => {
     res.set("Content-Type", Prometheus.register.contentType);

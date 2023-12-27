@@ -1,4 +1,4 @@
-import { SetOpts, Store } from "@jitsu/protocols/functions";
+import { SetOpts, Store, TTLStore } from "@jitsu/protocols/functions";
 import type { Redis } from "ioredis";
 import parse from "parse-duration";
 import type { MongoClient } from "mongodb";
@@ -62,7 +62,7 @@ export const createTtlStore = (namespace: string, redisClient: Redis, defaultTtl
   },
 });
 
-export const createMongoStore = (namespace: string, mongo: MongoClient, defaultTtlSec: number): Store => {
+export const createMongoStore = (namespace: string, mongo: MongoClient, defaultTtlSec: number): TTLStore => {
   interface StoreValue {
     _id: string;
     value: any;
@@ -100,6 +100,17 @@ export const createMongoStore = (namespace: string, mongo: MongoClient, defaultT
         .collection<StoreValue>(namespace)
         .findOne({ _id: key }, { readPreference: "nearest" });
       return res ? res.value : undefined;
+    },
+    getWithTTL: async (key: string) => {
+      const res = await mongo
+        .db(dbName)
+        .collection<StoreValue>(namespace)
+        .findOne({ _id: key }, { readPreference: "nearest" });
+      if (!res) {
+        return undefined;
+      }
+      const ttl = res.expireAt ? Math.max(Math.floor((res.expireAt.getTime() - new Date().getTime()) / 1000), 0) : -1;
+      return { value: res.value, ttl };
     },
     set: async (key: string, obj: any, opts?: SetOpts) => {
       await ensureCollection();

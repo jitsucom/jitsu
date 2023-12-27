@@ -26,7 +26,7 @@ type MetricsEvent = MetricsMeta & {
 };
 
 export interface Metrics {
-  logMetrics: (execLog: FunctionExecLog) => Promise<void>;
+  logMetrics: (execLog: FunctionExecLog) => void;
   close: () => void;
 }
 
@@ -138,7 +138,7 @@ export function createMetrics(producer?: Producer): Metrics {
   }, flush_interval_ms);
 
   return {
-    logMetrics: async (execLog: FunctionExecLog) => {
+    logMetrics: (execLog: FunctionExecLog) => {
       if (!metricsDestinationId) {
         return;
       }
