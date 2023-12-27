@@ -15,6 +15,10 @@ export interface Store {
   ttl(key: string): Promise<number>;
 }
 
+export interface TTLStore extends Store {
+  getWithTTL(key: string): Promise<{ value: any; ttl: number } | undefined>;
+}
+
 /**
  * Store for incoming events, destination results and function log messages
  */
@@ -133,7 +137,7 @@ export type EventContext = {
   destination: {
     id: string;
     type: string;
-    updatedAt: Date;
+    updatedAt?: Date;
     hash: string;
   };
   connection: {

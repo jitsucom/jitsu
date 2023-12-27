@@ -5,7 +5,7 @@ import {
   ProcessingContext,
   ServerContextReservedProps,
 } from "@jitsu/protocols/analytics";
-import { AnonymousEventsStore, Store } from "@jitsu/protocols/functions";
+import { AnonymousEventsStore, EventsStore, TTLStore } from "@jitsu/protocols/functions";
 
 export type MetricsMeta = {
   workspaceId: string;
@@ -24,7 +24,8 @@ export type SystemContext = {
   $system: {
     anonymousEventsStore: AnonymousEventsStore;
     metricsMeta: MetricsMeta;
-    store: Store;
+    store: TTLStore;
+    eventsStore: EventsStore;
   };
 };
 

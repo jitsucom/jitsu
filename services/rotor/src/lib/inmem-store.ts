@@ -39,10 +39,10 @@ function loadFromCache(definition: StoreDefinition): { updateDate: Date; instanc
   if (definition.localDir) {
     const cacheFile = path.join(definition.localDir, `${definition.name}-latest.json`);
     try {
-      const cached = JSON.parse(fs.readFileSync(cacheFile).toString());
+      const cached = fs.readFileSync(cacheFile).toString();
       return {
         updateDate: new Date(fs.statSync(cacheFile).mtime),
-        instance: definition.deserializer ? definition.deserializer(cached) : cached,
+        instance: definition.deserializer ? definition.deserializer(cached) : JSON.parse(cached),
       };
     } catch (e) {
       log.atWarn().withCause(e).log(`Failed to load local cache for ${definition.name}`);

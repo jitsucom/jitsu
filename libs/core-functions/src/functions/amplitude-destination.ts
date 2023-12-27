@@ -12,22 +12,26 @@ const AmplitudeDestination: JitsuFunction<AnalyticsServerEvent, AmplitudeDestina
 ) => {
   try {
     const deviceId = event.anonymousId;
-    let sessionId: string | undefined = undefined;
+    let sessionId: number | undefined = undefined;
     if (deviceId) {
       const systemContext = requireDefined((ctx as any as SystemContext).$system, `$system context is not available`);
       const ttlStore = systemContext.store;
+      const ttlSec = 60 * (props.sessionWindow ?? 30);
       const sessionKey = `${ctx.source.id}_${deviceId}_sess`;
-      const newSession = new Date().getTime();
-      const savedSession = await ttlStore.get(sessionKey);
-      if (savedSession) {
-        log.debug(
-          `Amplitude session found: ${savedSession} for deviceId: ${deviceId} ttl: ${await ttlStore.ttl(sessionKey)}`
-        );
+      const savedSessionValue = await ttlStore.getWithTTL(sessionKey);
+      if (savedSessionValue) {
+        sessionId = savedSessionValue.value;
+        const ttl = savedSessionValue.ttl;
+        log.debug(`Amplitude session found: ${sessionId} for deviceId: ${deviceId} ttl: ${ttl}`);
+        if (ttl < ttlSec - 60) {
+          // refresh ttl not often than once per minute
+          await ttlStore.set(sessionKey, sessionId, { ttl: ttlSec });
+        }
       } else {
-        log.debug(`Amplitude session not found for deviceId: ${deviceId} new session: ${newSession}`);
+        sessionId = new Date().getTime();
+        log.debug(`Amplitude session not found for deviceId: ${deviceId} new session: ${sessionId}`);
+        await ttlStore.set(sessionKey, sessionId, { ttl: ttlSec });
       }
-      sessionId = savedSession || newSession;
-      await ttlStore.set(sessionKey, sessionId, { ttl: 60 * (props.sessionWindow ?? 30) });
     }
     const groupType = props.groupType || "group";
     const endpoint =

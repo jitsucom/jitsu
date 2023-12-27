@@ -14,10 +14,13 @@ import express from "express";
 import { UDFRunHandler } from "./http/udf";
 import Prometheus from "prom-client";
 import { FunctionsHandler, FunctionsHandlerMulti } from "./http/functions";
-import { initMaxMindClient } from "./lib/maxmind";
+import { initMaxMindClient, GeoResolver } from "./lib/maxmind";
 import { rotorMessageHandler } from "./lib/message-handler";
 import { redis } from "@jitsu-internal/console/lib/server/redis";
 import { redisLogger } from "./lib/redis-logger";
+import { createMetrics, Metrics } from "./lib/metrics";
+import { isTruish } from "@jitsu-internal/console/lib/shared/chores";
+import { pgConfigStore } from "./lib/pg-config-store";
 
 export const log = getLog("rotor");
 
@@ -33,9 +36,25 @@ http.use(express.urlencoded({ limit: "20mb" }));
 const rotorHttpPort = process.env.ROTOR_HTTP_PORT || process.env.PORT || 3401;
 
 async function main() {
-  process.on("uncaughtException", function (err) {
-    // Handle the error safely
-    log.atError().withCause(err).log("UncaughtException");
+  const errorTypes = ["unhandledRejection", "uncaughtException"];
+  const signalTraps = ["SIGTERM", "SIGINT", "SIGUSR2"];
+
+  errorTypes.forEach(type => {
+    process.once(type, err => {
+      log.atError().withCause(err).log(`process.on ${type}`);
+      process.exit(1);
+    });
+  });
+
+  signalTraps.forEach(type => {
+    process.once(type, () => {
+      log.atInfo().log(`Signal ${type} received`);
+      process.kill(process.pid, type);
+    });
+  });
+
+  process.on("exit", code => {
+    log.atInfo().log(`Process exited with code ${code}`);
   });
 
   const args = minimist(process.argv.slice(2));
@@ -43,7 +62,17 @@ async function main() {
     await processLocalFile(args);
   } else if (args._?.[0] === "test-connection") {
     await testConnection(args);
-  } else {
+  } else if (process.env.KAFKA_BOOTSTRAP_SERVERS && !isTruish(process.env.HTTP_ONLY)) {
+    Prometheus.collectDefaultMetrics();
+    await mongodb.waitInit();
+    await redis.waitInit();
+    await redisLogger.waitInit();
+    const store = await pgConfigStore.get();
+    if (!store.enabled) {
+      log.atError().log("Postgres is not configured. Rotor will not work");
+      process.exit(1);
+    }
+    //kafka consumer mode
     const kafkaTopics = [destinationMessagesTopic()];
     const consumerGroupId = rotorConsumerGroupId();
     const geoResolver = await initMaxMindClient(process.env.MAXMIND_LICENSE_KEY || "");
@@ -55,52 +84,59 @@ async function main() {
       handle: rotorMessageHandler,
     });
     log.atInfo().log("Starting kafka processing");
-    Prometheus.collectDefaultMetrics();
-    await mongodb.waitInit();
-    await redis.waitInit();
-    await redisLogger.waitInit();
     rotor
       .start()
       .then(chMetrics => {
         log.atInfo().log(`Kafka processing started. Listening for topics ${kafkaTopics} with group ${consumerGroupId}`);
-        http.get("/health", (req, res) => {
-          res.json({ status: "pass" });
-        });
-        http.get("/metrics", async (req, res) => {
-          res.set("Content-Type", Prometheus.register.contentType);
-          const result = await Prometheus.register.metrics();
-          res.end(result);
-        });
-        http.post("/udfrun", UDFRunHandler);
-        http.post("/func", FunctionsHandler(chMetrics, geoResolver));
-        http.post("/func/multi", FunctionsHandlerMulti(chMetrics, geoResolver));
-        http.listen(rotorHttpPort, () => {
-          log.atInfo().log(`Listening health-checks on port ${rotorHttpPort}`);
-        });
+        initHTTP(chMetrics, geoResolver);
       })
       .catch(async e => {
         log.atError().withCause(e).log("Failed to start kafka processing");
         await rotor.close();
         process.exit(1);
       });
-    console.log("listening for signals");
-    const errorTypes = ["unhandledRejection", "uncaughtException"];
-    const signalTraps = ["SIGTERM", "SIGINT", "SIGUSR2"];
 
-    errorTypes.forEach(type => {
-      process.once(type, async err => {
-        log.atError().withCause(err).log(`process.on ${type}`);
-        await rotor.close().finally(() => process.exit(1));
-      });
+    process.on("beforeExit", async () => {
+      await rotor.close();
     });
-
-    signalTraps.forEach(type => {
-      process.once(type, async () => {
-        log.atInfo().log(`Signal ${type} received`);
-        await rotor.close().finally(() => process.kill(process.pid, type));
-      });
-    });
+  } else {
+    Prometheus.collectDefaultMetrics();
+    await mongodb.waitInit();
+    await redis.waitInit();
+    await redisLogger.waitInit();
+    const store = await pgConfigStore.get();
+    if (!store.enabled) {
+      log.atError().log("Postgres is not configured. Rotor will not work");
+      process.exit(1);
+    }
+    const geoResolver = await initMaxMindClient(process.env.MAXMIND_LICENSE_KEY || "");
+    const chMetrics = createMetrics();
+    initHTTP(chMetrics, geoResolver);
   }
+}
+
+function initHTTP(metrics: Metrics, geoResolver: GeoResolver) {
+  http.get("/health", (req, res) => {
+    res.json({
+      status: "pass",
+      configStore: {
+        enabled: pgConfigStore.getCurrent()?.enabled || "loading",
+        status: pgConfigStore.status(),
+        lastUpdated: pgConfigStore.lastRefresh(),
+      },
+    });
+  });
+  http.get("/metrics", async (req, res) => {
+    res.set("Content-Type", Prometheus.register.contentType);
+    const result = await Prometheus.register.metrics();
+    res.end(result);
+  });
+  http.post("/udfrun", UDFRunHandler);
+  http.post("/func", FunctionsHandler(metrics, geoResolver));
+  http.post("/func/multi", FunctionsHandlerMulti(metrics, geoResolver));
+  http.listen(rotorHttpPort, () => {
+    log.atInfo().log(`Listening health-checks on port ${rotorHttpPort}`);
+  });
 }
 
 async function processLocalFile(args: minimist.ParsedArgs) {

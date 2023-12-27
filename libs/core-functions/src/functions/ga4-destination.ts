@@ -159,6 +159,11 @@ function pageViewEvent(event: AnalyticsServerEvent): Ga4Event {
   };
 }
 
+function adjustName(name: string): string {
+  name.replace(/[^a-zA-Z0-9_]/g, "_");
+  return name.substring(0, 40);
+}
+
 function trackEvent(event: AnalyticsServerEvent): Ga4Event {
   const evp = event.properties || {};
   let params: Record<string, any> = {};
@@ -275,7 +280,7 @@ function trackEvent(event: AnalyticsServerEvent): Ga4Event {
       params.items = getItems(event);
       break;
     default:
-      name = eventName;
+      name = adjustName(eventName);
       params = { ...evp };
       params = removeProperties(params, StandardProperties);
       params.currency = evp.currency;
