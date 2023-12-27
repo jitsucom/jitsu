@@ -3,25 +3,9 @@ import { auth } from "../../../lib/auth";
 import { assertDefined, assertTrue, requireDefined } from "juava";
 import { withErrorHandler } from "../../../lib/error-handler";
 import { store } from "../../../lib/services";
-import { getStripeObjectTag, stripe, stripeDataTable, stripeLink } from "../../../lib/stripe";
+import { getStripeObjectTag, listAllSubscriptions, stripe, stripeDataTable, stripeLink } from "../../../lib/stripe";
 import Stripe from "stripe";
 import { omit } from "lodash";
-
-async function listAllSubscriptions(): Promise<Stripe.Subscription[]> {
-  let starting_after: string | undefined = undefined;
-  const allSubscriptions: Stripe.Subscription[] = [];
-  do {
-    const result = await stripe.subscriptions.list({
-      limit: 100,
-      starting_after: starting_after,
-    });
-    starting_after = result?.data[result.data.length - 1]?.id;
-    if (result?.data) {
-      allSubscriptions.push(...result?.data);
-    }
-  } while (starting_after);
-  return allSubscriptions;
-}
 
 const handler = async function handler(req: NextApiRequest, res: NextApiResponse) {
   const claims = await auth(req, res);

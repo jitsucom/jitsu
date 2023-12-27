@@ -268,3 +268,51 @@ export async function getOrCreatePortalConfiguration() {
   }
   return configurationId;
 }
+
+export async function listAllInvoices() {
+  const timer = Date.now();
+  let starting_after: string | undefined = undefined;
+  const allInvoices: Stripe.Invoice[] = [];
+  do {
+    const result = await stripe.invoices.list({
+      limit: 100,
+      starting_after: starting_after,
+      created: {
+        //invoices for past 90 days
+        gte: Math.floor(Date.now() / 1000 - 90 * 24 * 60 * 60),
+      },
+    });
+    starting_after = result?.data[result.data.length - 1]?.id;
+    if (result?.data) {
+      allInvoices.push(...result?.data);
+    }
+  } while (starting_after);
+  getLog()
+    .atInfo()
+    .log(`${allInvoices.length} invoices found. Took ${Date.now() - timer}ms`);
+  return allInvoices;
+}
+
+export function getInvoiceStartDate(invoice: Stripe.Invoice) {
+  return new Date(invoice.lines.data[0].period.start * 1000);
+}
+
+export function getInvoiceEndDate(invoice: Stripe.Invoice) {
+  return new Date(invoice.lines.data[0].period.end * 1000);
+}
+
+export async function listAllSubscriptions(): Promise<Stripe.Subscription[]> {
+  let starting_after: string | undefined = undefined;
+  const allSubscriptions: Stripe.Subscription[] = [];
+  do {
+    const result = await stripe.subscriptions.list({
+      limit: 100,
+      starting_after: starting_after,
+    });
+    starting_after = result?.data[result.data.length - 1]?.id;
+    if (result?.data) {
+      allSubscriptions.push(...result?.data);
+    }
+  } while (starting_after);
+  return allSubscriptions;
+}

@@ -1,10 +1,12 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getLog, namedParameters, SqlQueryParameters, unrollParams } from "juava";
+import { assertDefined, assertTrue, namedParameters, requireDefined, SqlQueryParameters, unrollParams } from "juava";
 import { withErrorHandler } from "../../../lib/error-handler";
 import { auth } from "../../../lib/auth";
-import { clickhouse, pg } from "../../../lib/services";
+import { clickhouse, pg, store } from "../../../lib/services";
 import * as PG from "pg";
 import { getServerLog } from "../../../lib/log";
+import { listAllSubscriptions, stripe, stripeDataTable } from "../../../lib/stripe";
+import Stripe from "stripe";
 
 const log = getServerLog("/api/report");
 
@@ -77,9 +79,10 @@ async function getClickhousePart({
     },
     query_params: queryParams,
   });
-  log.atInfo().log(`Clickhouse query took ${Date.now() - timer}ms`);
+  const rows: any[] = ((await resultSet.json()) as any).data;
+  log.atInfo().log(`Clickhouse query took ${Date.now() - timer}ms. Rows in result: ${rows.length}`);
 
-  return ((await resultSet.json()) as any).data.map(({ events, period, ...rest }) => ({
+  return rows.map(({ events, period, ...rest }) => ({
     events: Number(events),
     period: period.replace(" ", "T") + ".000Z",
     ...rest,
@@ -150,7 +153,56 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
   const end = getDate(req.query.end as string, new Date().toISOString()).toISOString();
   const granularity = "day"; // = ((req.query.granularity as string) || "day").toLowerCase();
   const reportResult = await buildWorkspaceReport(start, end, granularity, workspaceId);
-  const records = extended ? await extend(reportResult) : reportResult;
+  let records = extended ? await extend(reportResult) : reportResult;
+  if (req.query.billing === "true") {
+    const allWorkspaces = workspaceId
+      ? [
+          {
+            id: workspaceId,
+            obj: await store.getTable(stripeDataTable).get(workspaceId),
+          },
+        ]
+      : await store.getTable(stripeDataTable).list();
+
+    const subscriptions: Record<string, Stripe.Subscription[]> = (await listAllSubscriptions()).reduce((acc, sub) => {
+      let customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
+      acc[customerId] = [...(acc[customerId] || []), sub];
+      return acc;
+    }, {});
+
+    const sub2product = new Map<string, Stripe.Product>();
+    for (const sub of Object.values(subscriptions).flat()) {
+      const productId = sub.items.data[0].price.product;
+      assertDefined(productId, `Can't get product from subscription ${sub.id}`);
+      assertTrue(typeof productId === "string", `Subscription ${sub.id} should have a string product id`);
+      const product = await stripe.products.retrieve(productId as string);
+      assertDefined(product, `Can't get product ${productId} from subscription ${sub.id}. Product doesn't exist`);
+      sub2product.set(sub.id, product);
+    }
+    const workspacePlans: Record<string, string> = {};
+
+    for (const { id: workspaceId, obj } of allWorkspaces) {
+      const { stripeCustomerId } = obj;
+      const customerSubscriptions = subscriptions[stripeCustomerId];
+      if (!customerSubscriptions) {
+        continue;
+      }
+      const products = customerSubscriptions.map(sub =>
+        requireDefined(sub2product.get(sub.id), `Can't find product for subscription ${sub.id}`)
+      );
+      const product = products.find(p => !!p.metadata.jitsu_plan_id);
+      if (product) {
+        if (customerSubscriptions.find(sub => sub.status === "active" && !sub.cancel_at_period_end)) {
+          workspacePlans[workspaceId] = "paying";
+        } else if (customerSubscriptions.find(sub => sub.status === "active" || sub.cancel_at_period_end)) {
+          workspacePlans[workspaceId] = "cancelling";
+        } else {
+          workspacePlans[workspaceId] = "free";
+        }
+      }
+      records = records.map(r => ({ ...r, billingStatus: workspacePlans[r.workspaceId] || "free" }));
+    }
+  }
   res.send(req.query.format === "array" ? records : { data: records });
 };
 

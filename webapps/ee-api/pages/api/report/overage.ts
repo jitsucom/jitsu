@@ -3,7 +3,15 @@ import { assertTrue, getLog } from "juava";
 import { withErrorHandler } from "../../../lib/error-handler";
 import { auth } from "../../../lib/auth";
 import { store } from "../../../lib/services";
-import { getAvailableProducts, stripe, stripeDataTable, stripeLink } from "../../../lib/stripe";
+import {
+  getAvailableProducts,
+  getInvoiceEndDate,
+  getInvoiceStartDate,
+  listAllInvoices,
+  stripe,
+  stripeDataTable,
+  stripeLink,
+} from "../../../lib/stripe";
 import Stripe from "stripe";
 import pick from "lodash/pick";
 import { buildWorkspaceReport } from "./workspace-stat";
@@ -27,36 +35,6 @@ function round(date: Date | string, granularity: "day" = "day"): { start: string
   } catch (e) {
     throw new Error(`Can't parse date ${date}`);
   }
-}
-
-async function listAllInvoices() {
-  const timer = Date.now();
-  let starting_after: string | undefined = undefined;
-  const allInvoices: Stripe.Invoice[] = [];
-  do {
-    const result = await stripe.invoices.list({
-      limit: 100,
-      starting_after: starting_after,
-      created: {
-        //invoices for past 90 days
-        gte: Math.floor(Date.now() / 1000 - 90 * 24 * 60 * 60),
-      },
-    });
-    starting_after = result?.data[result.data.length - 1]?.id;
-    if (result?.data) {
-      allInvoices.push(...result?.data);
-    }
-  } while (starting_after);
-  log.atInfo().log(`${allInvoices.length} invoices found. Took ${Date.now() - timer}ms`);
-  return allInvoices;
-}
-
-function getInvoiceStartDate(invoice: Stripe.Invoice) {
-  return new Date(invoice.lines.data[0].period.start * 1000);
-}
-
-function getInvoiceEndDate(invoice: Stripe.Invoice) {
-  return new Date(invoice.lines.data[0].period.end * 1000);
 }
 
 const msPerHour = 1000 * 60 * 60;
