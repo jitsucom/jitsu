@@ -19,8 +19,9 @@
     "compile": "tsc -p .",
     "tool:hash": "ts-node scripts/password-hash.ts",
     "db:code-gen": "prisma generate",
-    "db:update-schema": "dotenv -e ../../.env.local -- prisma db push",
-    "db:update-schema-force": "dotenv -e ../../.env.local -- prisma db push --accept-data-loss"
+    "db:post-update": "dotenv -e ../../.env.local -- ts-node ./scripts/sql-exec.ts ./prisma/sql",
+    "db:update-schema": "dotenv -e ../../.env.local -- prisma db push && pnpm run db:post-update",
+    "db:update-schema-force": "dotenv -e ../../.env.local -- prisma db push --accept-data-loss && pnpm run db:post-update"
   },
   "dependencies": {
     "@ant-design/cssinjs": "^1.5.6",

@@ -5,7 +5,8 @@
   "scripts": {
     "ee-api:dev": "next dev -p 3001",
     "build": "next build",
-    "lint": "next lint"
+    "lint": "next lint",
+    "db:update-schema": "dotenv -e ../../.env.local -- ts-node ./scripts/sql-exec.ts ./scripts/sql"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.418.0",
@@ -37,7 +38,9 @@
     "@types/lodash": "^4.14.185",
     "@types/pg": "^8.6.5",
     "@types/stripe": "^8.0.417",
+    "dotenv": "^16.3.1",
     "next-transpile-modules": "^10.0.1",
+    "ts-node": "^10.9.2",
     "typescript": "^5.3.3"
   }
 }
