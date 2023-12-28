@@ -12,6 +12,7 @@ import { redis } from "./redis";
 import { getServerLog } from "./log";
 import hash from "object-hash";
 import { IngestType } from "@jitsu/protocols/async-request";
+import { isTruish } from "../shared/chores";
 
 type RedisKey = { tmp(): string; used(): boolean; rename(redis: Redis): Promise<void>; name(): string };
 
@@ -231,11 +232,14 @@ function createStreamWithDestinations(
 }
 
 async function saveConnectionsToRedis(db: DatabaseConnection) {
+  const fastStoreEnabled = !isTruish(process.env.DISABLE_FAST_STORE);
   const backupSupported = !!(process.env.S3_REGION && process.env.S3_ACCESS_KEY_ID && process.env.S3_SECRET_ACCESS_KEY);
   const bulkerRedisKey = redisKeyRoutes.enrichedConnections();
-  //const domainsRedisKey = redisKeyRoutes.streamDomain();
-  //const idsRedisKey = redisKeyRoutes.streamIds();
-  //const apiKeys = redisKeyRoutes.apiKeys();
+
+  const domainsRedisKey = redisKeyRoutes.streamDomain();
+  const idsRedisKey = redisKeyRoutes.streamIds();
+  const apiKeys = redisKeyRoutes.apiKeys();
+
   const query = `    
   select
       greatest(link."updatedAt", src."updatedAt", dst."updatedAt") as "updatedAt",
@@ -260,29 +264,32 @@ async function saveConnectionsToRedis(db: DatabaseConnection) {
           ws."deleted" = false and src."workspaceId" = link."workspaceId" and src."workspaceId" = link."workspaceId"
     order by "fromId", "toId"      
     `;
-  //let destinationsBuffer: ShortDestinationConfig[] = [];
-  //let lastStreamConfig: StreamConfig | undefined = undefined;
-  //let lastBackupEnabled: boolean = false;
-  //let streamsByDomain: Record<string, Record<string, StreamWithDestinations>> = {};
-  //const noDomainKey = "no-domain";
-  // const addStreamByDomain = (
-  //   streamConfig: StreamConfig,
-  //   destinationsBuffer: ShortDestinationConfig[],
-  //   backupEnabled: boolean
-  // ) => {
-  //   for (const domain of streamConfig.domains?.length ? streamConfig.domains : [noDomainKey]) {
-  //     let streams = streamsByDomain[domain.toLowerCase()];
-  //     const stream = createStreamWithDestinations(streamConfig, destinationsBuffer, backupEnabled);
-  //     streams = streams ? { ...streams, [stream.stream.id]: stream } : { [stream.stream.id]: stream };
-  //     streamsByDomain[domain.toLowerCase()] = streams;
-  //   }
-  // };
-  // // to make sure we have all the streams in redis (even with no destinations) fill the buffer with all the streams first
-  // await selectConfigObjectRows("stream", db, async row => {
-  //   const obj = ConfigurationObjectDbModel.parse(prefixedWith(row, "obj_"));
-  //   const streamConfig = flatten(obj);
-  //   addStreamByDomain(streamConfig, [], row.backupEnabled);
-  // });
+
+  let destinationsBuffer: ShortDestinationConfig[] = [];
+  let lastStreamConfig: StreamConfig | undefined = undefined;
+  let lastBackupEnabled: boolean = false;
+  let streamsByDomain: Record<string, Record<string, StreamWithDestinations>> = {};
+  const noDomainKey = "no-domain";
+  const addStreamByDomain = (
+    streamConfig: StreamConfig,
+    destinationsBuffer: ShortDestinationConfig[],
+    backupEnabled: boolean
+  ) => {
+    for (const domain of streamConfig.domains?.length ? streamConfig.domains : [noDomainKey]) {
+      let streams = streamsByDomain[domain.toLowerCase()];
+      const stream = createStreamWithDestinations(streamConfig, destinationsBuffer, backupEnabled);
+      streams = streams ? { ...streams, [stream.stream.id]: stream } : { [stream.stream.id]: stream };
+      streamsByDomain[domain.toLowerCase()] = streams;
+    }
+  };
+  if (fastStoreEnabled) {
+    // to make sure we have all the streams in redis (even with no destinations) fill the buffer with all the streams first
+    await selectConfigObjectRows("stream", db, async row => {
+      const obj = ConfigurationObjectDbModel.parse(prefixedWith(row, "obj_"));
+      const streamConfig = flatten(obj);
+      addStreamByDomain(streamConfig, [], row.backupEnabled);
+    });
+  }
 
   await db.pgHelper().streamQuery(query, async row => {
     const workspaceId = row.workspaceId;
@@ -350,53 +357,65 @@ async function saveConnectionsToRedis(db: DatabaseConnection) {
       backupDestCreated[row.workspaceId] = true;
     }
 
-    // // when we reach new stream, we need to save destinationsBuffer for the previous stream
-    // if (lastStreamConfig && streamConfig.id !== lastStreamConfig.id) {
-    //   addStreamByDomain(lastStreamConfig, destinationsBuffer, row.backupEnabled);
-    //   destinationsBuffer = [];
-    // }
-    // destinationsBuffer.push(destinationConfig);
-    // lastStreamConfig = streamConfig;
-    // lastBackupEnabled = row.backupEnabled;
+    if (fastStoreEnabled) {
+      // when we reach new stream, we need to save destinationsBuffer for the previous stream
+      if (lastStreamConfig && streamConfig.id !== lastStreamConfig.id) {
+        addStreamByDomain(lastStreamConfig, destinationsBuffer, row.backupEnabled);
+        destinationsBuffer = [];
+      }
+      destinationsBuffer.push(destinationConfig);
+      lastStreamConfig = streamConfig;
+      lastBackupEnabled = row.backupEnabled;
+    }
   });
 
-  // // save the last stream
-  // if (lastStreamConfig) {
-  //   addStreamByDomain(lastStreamConfig, destinationsBuffer, lastBackupEnabled);
-  // }
-  // for (const [domain, streamDsts] of Object.entries(streamsByDomain)) {
-  //   //store array of StreamWithDestinations by domain
-  //   await redis().hset(domainsRedisKey.tmp(), domain.toLowerCase(), JSON.stringify(Object.values(streamDsts)));
-  //
-  //   for (const id in streamDsts) {
-  //     const strm = streamDsts[id];
-  //     //store each StreamWithDestinations by stream id separately
-  //     await redis().hset(idsRedisKey.tmp(), id, JSON.stringify(strm));
-  //
-  //     await Promise.all(
-  //       (strm.stream.publicKeys ?? [])
-  //         .filter(k => !!k.hash)
-  //         .map(k =>
-  //           redis().hset(
-  //             apiKeys.tmp(),
-  //             k.id,
-  //             JSON.stringify({ hash: k.hash as string, streamId: id, keyType: "browser" })
-  //           )
-  //         )
-  //     );
-  //     await Promise.all(
-  //       (strm.stream.privateKeys ?? [])
-  //         .filter(k => !!k.hash)
-  //         .map(k =>
-  //           redis().hset(apiKeys.tmp(), k.id, JSON.stringify({ hash: k.hash as string, streamId: id, keyType: "s2s" }))
-  //         )
-  //     );
-  //   }
-  // }
+  if (fastStoreEnabled) {
+    // save the last stream
+    if (lastStreamConfig) {
+      addStreamByDomain(lastStreamConfig, destinationsBuffer, lastBackupEnabled);
+    }
+    for (const [domain, streamDsts] of Object.entries(streamsByDomain)) {
+      //store array of StreamWithDestinations by domain
+      await redis().hset(domainsRedisKey.tmp(), domain.toLowerCase(), JSON.stringify(Object.values(streamDsts)));
 
-  // await apiKeys.rename(redis());
-  // await idsRedisKey.rename(redis());
-  // await domainsRedisKey.rename(redis());
+      for (const id in streamDsts) {
+        const strm = streamDsts[id];
+        //store each StreamWithDestinations by stream id separately
+        await redis().hset(idsRedisKey.tmp(), id, JSON.stringify(strm));
+
+        await Promise.all(
+          (strm.stream.publicKeys ?? [])
+            .filter(k => !!k.hash)
+            .map(k =>
+              redis().hset(
+                apiKeys.tmp(),
+                k.id,
+                JSON.stringify({ hash: k.hash as string, streamId: id, keyType: "browser" })
+              )
+            )
+        );
+        await Promise.all(
+          (strm.stream.privateKeys ?? [])
+            .filter(k => !!k.hash)
+            .map(k =>
+              redis().hset(
+                apiKeys.tmp(),
+                k.id,
+                JSON.stringify({
+                  hash: k.hash as string,
+                  streamId: id,
+                  keyType: "s2s",
+                })
+              )
+            )
+        );
+      }
+    }
+
+    await apiKeys.rename(redis());
+    await idsRedisKey.rename(redis());
+    await domainsRedisKey.rename(redis());
+  }
   await bulkerRedisKey.rename(redis());
 }
 
@@ -431,7 +450,9 @@ export function createFastStore({ db }: { db: DatabaseConnection }): FastStore {
     },
     async fullRefresh() {
       const sw = stopwatch();
-      await saveConfigObjectsToRedis(["function"], db);
+      if (!isTruish(process.env.DISABLE_FAST_STORE)) {
+        await saveConfigObjectsToRedis(["function"], db);
+      }
       await saveConnectionsToRedis(db);
       getServerLog().atInfo().log("Export to redis took", sw.elapsedPretty());
     },
