@@ -1,10 +1,13 @@
 import { SetOpts, Store, TTLStore } from "@jitsu/protocols/functions";
 import type { Redis } from "ioredis";
 import parse from "parse-duration";
-import type { MongoClient } from "mongodb";
+import { MongoClient, ReadPreference, Collection, ClientSession } from "mongodb";
+import { getLog } from "juava";
 
 export const defaultTTL = 60 * 60 * 24 * 31; // 31 days
 export const maxAllowedTTL = 2147483647; // max allowed value for ttl in redis (68years)
+
+export const log = getLog("store");
 
 function getTtlSec(opts?: SetOpts): number {
   let seconds = defaultTTL;
@@ -62,32 +65,45 @@ export const createTtlStore = (namespace: string, redisClient: Redis, defaultTtl
   },
 });
 
-export const createMongoStore = (namespace: string, mongo: MongoClient, defaultTtlSec: number): TTLStore => {
-  interface StoreValue {
-    _id: string;
-    value: any;
-    expireAt: Date;
-  }
-  const collections = new Set<string>();
+interface StoreValue {
+  _id: string;
+  value: any;
+  expireAt: Date;
+}
+
+const MongoCreatedCollections: Record<string, Collection<StoreValue>> = {};
+
+export const createMongoStore = (namespace: string, mongo: MongoClient, fast: boolean): TTLStore => {
+  const localCache: Record<string, StoreValue> = {};
+  const readOptions = fast ? { readPreference: ReadPreference.NEAREST } : {};
+  const writeOptions = fast ? { writeConcern: { w: 1, journal: false } } : {};
+
   const dbName = `persistent_store`;
-  async function ensureCollection() {
-    if (collections.has(namespace)) {
-      return;
+
+  async function ensureCollection(): Promise<Collection<StoreValue>> {
+    let collection = MongoCreatedCollections[namespace];
+    if (collection) {
+      return collection;
     }
     try {
       const db = mongo.db(dbName);
-      const collStatus = await db.collection<StoreValue>(namespace).stats();
-      if (collStatus.wiredTiger) {
+
+      const col = db.collection<StoreValue>(namespace);
+      const collStatus = await col
+        .aggregate([{ $collStats: { count: {} } }])
+        .next()
+        .catch(e => {});
+      if (collStatus) {
         //collection already exists
-        collections.add(namespace);
-        return;
+        MongoCreatedCollections[namespace] = col;
+        return col;
       }
-      const collection = await db.createCollection<StoreValue>(namespace, {
-        writeConcern: { w: 1, journal: false },
+      collection = await db.createCollection<StoreValue>(namespace, {
         storageEngine: { wiredTiger: { configString: "block_compressor=zstd" } },
       });
       await collection.createIndex({ expireAt: 1 }, { expireAfterSeconds: 0 });
-      collections.add(namespace);
+      MongoCreatedCollections[namespace] = collection;
+      return collection;
     } catch (err) {
       throw new Error(`Failed to create collection ${namespace}: ${err}`);
     }
@@ -95,17 +111,23 @@ export const createMongoStore = (namespace: string, mongo: MongoClient, defaultT
 
   return {
     get: async (key: string) => {
-      const res = await mongo
-        .db(dbName)
-        .collection<StoreValue>(namespace)
-        .findOne({ _id: key }, { readPreference: "nearest" });
+      const res =
+        localCache[key] ||
+        (await ensureCollection()
+          .then(c => c.findOne({ _id: key }, readOptions))
+          .catch(e => {
+            log.atError().withCause(e).log(`Error getting key ${key} from mongo store ${namespace}`);
+          }));
       return res ? res.value : undefined;
     },
     getWithTTL: async (key: string) => {
-      const res = await mongo
-        .db(dbName)
-        .collection<StoreValue>(namespace)
-        .findOne({ _id: key }, { readPreference: "nearest" });
+      const res =
+        localCache[key] ||
+        (await ensureCollection()
+          .then(c => c.findOne({ _id: key }, readOptions))
+          .catch(e => {
+            log.atError().withCause(e).log(`Error getting key ${key} from mongo store ${namespace}`);
+          }));
       if (!res) {
         return undefined;
       }
@@ -113,7 +135,6 @@ export const createMongoStore = (namespace: string, mongo: MongoClient, defaultT
       return { value: res.value, ttl };
     },
     set: async (key: string, obj: any, opts?: SetOpts) => {
-      await ensureCollection();
       const colObj: any = { value: obj };
       const ttl = getTtlSec(opts);
       if (ttl >= 0) {
@@ -121,23 +142,39 @@ export const createMongoStore = (namespace: string, mongo: MongoClient, defaultT
         expireAt.setSeconds(expireAt.getSeconds() + ttl);
         colObj.expireAt = expireAt;
       }
-      await mongo
-        .db(dbName)
-        .collection<StoreValue>(namespace)
-        .replaceOne({ _id: key }, colObj, { upsert: true, writeConcern: { w: 1, journal: false } });
+
+      await ensureCollection()
+        .then(c =>
+          c.replaceOne({ _id: key }, colObj, {
+            upsert: true,
+            ...writeOptions,
+          })
+        )
+        .then(() => {
+          localCache[key] = colObj;
+        })
+        .catch(e => {
+          log.atError().withCause(e).log(`Error setting key ${key} from mongo store ${namespace}`);
+        });
     },
     del: async (key: string) => {
-      await ensureCollection();
-      await mongo
-        .db(dbName)
-        .collection<StoreValue>(namespace)
-        .deleteOne({ _id: key }, { writeConcern: { w: 1, journal: false } });
+      await ensureCollection()
+        .then(c => c.deleteOne({ _id: key }, writeOptions))
+        .then(() => {
+          delete localCache[key];
+        })
+        .catch(e => {
+          log.atError().withCause(e).log(`Error deleting key ${key} from mongo store ${namespace}`);
+        });
     },
     ttl: async (key: string) => {
-      const res = await mongo
-        .db(dbName)
-        .collection<StoreValue>(namespace)
-        .findOne({ _id: key }, { readPreference: "nearest" });
+      const res =
+        localCache[key] ||
+        (await ensureCollection()
+          .then(c => c.findOne({ _id: key }, readOptions))
+          .catch(e => {
+            log.atError().withCause(e).log(`Error getting key ${key} from mongo store ${namespace}`);
+          }));
       return res
         ? res.expireAt
           ? Math.max(Math.floor((res.expireAt.getTime() - new Date().getTime()) / 1000), 0)

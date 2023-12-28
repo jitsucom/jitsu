@@ -76,8 +76,12 @@ async function ensureMongoCollection(mongo: MongoClient, collectionName: string,
   }
   try {
     const db = mongo.db();
-    const collStatus = await db.collection(collectionName).stats();
-    if (collStatus.wiredTiger) {
+    const collStatus = await db
+      .collection(collectionName)
+      .aggregate([{ $collStats: { count: {} } }])
+      .next()
+      .catch(e => {});
+    if (collStatus) {
       //collection already exists
       MongoCreatedCollections.add(collectionName);
       return;

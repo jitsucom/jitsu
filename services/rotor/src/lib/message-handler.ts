@@ -20,6 +20,7 @@ import { buildFunctionChain, checkError, runChain } from "./functions-chain";
 export const log = getLog("rotor");
 
 const anonymousEventsStore = mongoAnonymousEventsStore();
+const fastStoreWorskpaceId = (process.env.FAST_STORE_WORKSPACE_ID ?? "").split(",").filter(x => x.length > 0);
 
 export async function rotorMessageHandler(
   _message: string | object | undefined,
@@ -86,7 +87,11 @@ export async function rotorMessageHandler(
     connectionId: connection.id,
     retries,
   };
-  const store = createMongoStore(connection.workspaceId, mongodb(), defaultTTL);
+  const store = createMongoStore(
+    connection.workspaceId,
+    mongodb(),
+    fastStoreWorskpaceId.includes(connection.workspaceId)
+  );
   //system context for builtin functions only
   const systemContext: SystemContext = {
     $system: {
