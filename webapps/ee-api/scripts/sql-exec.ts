@@ -40,7 +40,14 @@ async function main() {
     const sql = fs.readFileSync(fullPath, "utf-8");
     process.stdout.write(`Running ${file}...`);
     try {
-      await client.query(sql);
+      const replacedSql = sql.replace(/\$\{(\w+)}/g, (_, envVarName) => {
+        const envVarValue = process.env[envVarName];
+        if (!envVarValue) {
+          throw new Error(`Environment variable ${envVarName} is not defined`);
+        }
+        return envVarValue;
+      });
+      await client.query(replacedSql);
       process.stdout.write(`\r✅ ${file} - DONE\n`);
     } catch (e: any) {
       process.stdout.write(`\r🔴 ${file} - ERROR\n`);

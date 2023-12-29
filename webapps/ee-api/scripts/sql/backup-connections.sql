@@ -1,0 +1,28 @@
+-- View that sets up the backup connection for each workspace. (backup connection is a S3 connection where all incoming events are archived)
+create or replace view backup_connections as
+select ws.id || '_backup' as "id",
+       json_build_object('id', ws.id || '_backup',
+                         'workspaceId', ws.id,
+                         'destinationId', ws.id || '_backup',
+                         'streamId', 'backup',
+                         'usesBulker', true,
+                         'type', 's3',
+                         'options', json_build_object('dataLayout', 'passthrough',
+                                                      'deduplicate', false,
+                                                      'primaryKey', '',
+                                                      'timestampColumn', '',
+                                                      'frequency', 60,
+                                                      'batchSize', 1000000,
+                                                      'mode', 'batch'),
+                         'credentials', json_build_object('region', '${BACKUP_S3_REGION}',
+                                                          'accessKeyId', '${BACKUP_S3_ACCESS_KEY_ID}',
+                                                          'secretAccessKey', '${BACKUP_S3_SECRET_ACCESS_KEY}',
+                                                          'bucket', ws.id || '.data.use.jitsu.com',
+                                                          'compression', 'gzip',
+                                                          'format', 'ndjson',
+                                                          'folder', '[DATE]'),
+                         'credentialsHash', ''
+       )                  as "enrichedConnection"
+from "Workspace" ws
+where deleted = false
+  and not 'nobackup' = ANY ("featuresEnabled")
