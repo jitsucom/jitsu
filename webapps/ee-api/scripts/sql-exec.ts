@@ -4,9 +4,9 @@
  * It makes sure that certain objects, such as views and triggers, that cannot be defined in Prisma schema are created in the database.
  * It does so by executing SQL scripts that are located in a directory provided as a first argument.
  *
- * It also relies on precense of DATABASE_URL environment variable (same as `prisma schema push`).
+ * It also relies on presence of APPLICATION_DATABASE_URL environment variable (same as `prisma schema push`).
  *
- * NOTE: This as a copy of webapps/console/scripts/sql-exec.ts, since ee-api and console doesn't have a common dependency where we
+ * NOTE: This as mostly a copy of webapps/console/scripts/sql-exec.ts, since ee-api and console doesn't have a common dependency where we
  * can put this script. A little copy-paste is not a big deal!
  */
 import { Client } from "pg";
@@ -21,9 +21,9 @@ async function main() {
   const sqlDir = path.resolve(_sqlDir);
   console.log(`Running SQL scripts from ${sqlDir}`);
 
-  const dbUrl = process.env.DATABASE_URL;
+  const dbUrl = process.env.APPLICATION_DATABASE_URL;
   if (!dbUrl) {
-    throw new Error("DATABASE_URL is not defined");
+    throw new Error("APPLICATION_DATABASE_URL is not defined");
   }
   const defaultSchema = new URL(dbUrl).searchParams.get("schema");
   const client = new Client({
