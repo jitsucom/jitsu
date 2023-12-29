@@ -12,7 +12,9 @@ export default createRoute()
     res.setHeader("Access-Control-Allow-Headers", "authorization, content-type, baggage, sentry-trace");
     res.setHeader("Access-Control-Allow-Credentials", "true");
     const packageType = req.query.packageType as string;
-    const packageId = req.query.packageId as string;
+    const packageId = Array.isArray(req.query.packageId)
+      ? req.query.packageId.join("/")
+      : (req.query.packageId as string);
     getLog().atInfo().log(`packageType: ${packageType}, packageId: ${packageId}`);
     const jitsuSource = jitsuSources[packageId];
     if (jitsuSource) {
