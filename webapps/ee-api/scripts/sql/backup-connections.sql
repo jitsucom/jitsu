@@ -26,3 +26,4 @@ select ws.id || '_backup' as "id",
 from "Workspace" ws
 where deleted = false
   and not 'nobackup' = ANY ("featuresEnabled")
+  and (select count(*) from "ConfigurationObjectLink" where "workspaceId" = ws.id and type='push' and deleted = false) > 0
