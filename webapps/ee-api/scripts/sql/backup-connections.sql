@@ -2,6 +2,7 @@
 create or replace view backup_connections as
 select ws.id || '_backup' as "id",
        json_build_object('id', ws.id || '_backup',
+                         'special', 'backup',
                          'workspaceId', ws.id,
                          'destinationId', ws.id || '_backup',
                          'streamId', 'backup',
