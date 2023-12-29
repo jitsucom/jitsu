@@ -37,18 +37,12 @@ export async function rotorMessageHandler(
   if (!pgStore || !pgStore.enabled) {
     throw newError("Config store is not enabled");
   }
+  const eventStore = redisLogger();
 
   const message = (typeof _message === "string" ? JSON.parse(_message) : _message) as IngestMessage;
   const connectionId =
     headers && headers[CONNECTION_IDS_HEADER] ? headers[CONNECTION_IDS_HEADER].toString() : message.connectionId;
   const connection = requireDefined(pgStore.getEnrichedConnection(connectionId), `Unknown connection: ${connectionId}`);
-
-  const eventStore =
-    connection.workspaceId !== "cl9u9mupl0000ttvreo2el0c7"
-      ? redisLogger()
-      : {
-          log(connectionId: string, error: boolean, msg: Record<string, any>) {},
-        };
 
   log
     .atDebug()

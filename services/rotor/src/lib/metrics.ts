@@ -30,6 +30,11 @@ export interface Metrics {
   close: () => void;
 }
 
+export const DummyMetrics: Metrics = {
+  logMetrics: () => {},
+  close: () => {},
+};
+
 export function createMetrics(producer?: Producer): Metrics {
   const buffer: MetricsEvent[] = [];
 

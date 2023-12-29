@@ -18,7 +18,7 @@ import { initMaxMindClient, GeoResolver } from "./lib/maxmind";
 import { rotorMessageHandler } from "./lib/message-handler";
 import { redis } from "@jitsu-internal/console/lib/server/redis";
 import { redisLogger } from "./lib/redis-logger";
-import { createMetrics, Metrics } from "./lib/metrics";
+import { DummyMetrics, Metrics } from "./lib/metrics";
 import { isTruish } from "@jitsu-internal/console/lib/shared/chores";
 import { pgConfigStore } from "./lib/pg-config-store";
 
@@ -110,8 +110,7 @@ async function main() {
       process.exit(1);
     }
     const geoResolver = await initMaxMindClient(process.env.MAXMIND_LICENSE_KEY || "");
-    const chMetrics = createMetrics();
-    initHTTP(chMetrics, geoResolver);
+    initHTTP(DummyMetrics, geoResolver);
   }
 }
 
