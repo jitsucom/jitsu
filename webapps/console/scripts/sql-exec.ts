@@ -4,7 +4,7 @@
  * It makes sure that certain objects, such as views and triggers, that cannot be defined in Prisma schema are created in the database.
  * It does so by executing SQL scripts that are located in a directory provided as a first argument.
  *
- * It also relies on precense of DATABASE_URL environment variable (same as `prisma schema push`).
+ * It also relies on presence of DATABASE_URL environment variable (same as `prisma schema push`).
  * NOTE: This as a copy of ee-api/scripts/sql-exec.ts, since ee-api and console doesn't have a common dependency where we
  * can put this script. A little copy-paste is not a big deal!
  * */
