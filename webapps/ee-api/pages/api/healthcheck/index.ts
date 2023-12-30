@@ -5,7 +5,7 @@ import { getServerLog } from "../../../lib/log";
 
 const healthChecks: Record<string, () => Promise<any>> = {
   postgres: async () => {
-    await pg.query(`SELECT 1 as pgpool_healthcheck`);
+    await pg.query(`SELECT count(*) from kvstore`);
   },
   clickhouse: async () => {
     await clickhouse.query({ query: `SELECT 1 as chpool_healthcheck`, clickhouse_settings: { wait_end_of_query: 1 } });
