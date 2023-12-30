@@ -3,34 +3,41 @@
 #    docker buildx build --platform linux/amd64 . -f console.Dockerfile --push -t jitsucom/console:latest
 
 
-FROM node:16-bullseye-slim as builder
+FROM node:18-slim as base
 
-RUN apt-get update -y
-RUN apt-get install nano curl git openssl1.1 procps python3 make g++ bash netcat -y
+WORKDIR /app
+RUN apt-get update
+#those commands are used in docker-start-console.sh
+RUN apt-get install curl bash netcat-traditional -y
 
-# Create app directory
+
+FROM base as builder-base
+#Global dependencies required for building the project
+RUN npm -g install pnpm
+
+
+FROM builder-base as dependency-downloader
+
 WORKDIR /app
 RUN npm -g install pnpm
 COPY pnpm-lock.yaml .
 RUN --mount=type=cache,id=onetag_pnpm,target=/root/.local/share/pnpm/store/v3 pnpm fetch
+
+
+
+FROM dependency-downloader as builder
+
 COPY . .
-RUN --mount=type=cache,id=onetag_pnpm,target=/root/.local/share/pnpm/store/v3 pnpm install -r --unsafe-perm
-RUN --mount=type=cache,id=console_turborepo,target=/app/node_modules/.cache/turbo pnpm build
-#RUN pnpm build
-
-#Remove env files to prevent accidental leaks of credentials
 RUN rm .env*
+RUN pnpm install --frozen-lockfile
+RUN pnpm build
 
 
-#FROM node:16-bullseye-slim AS runner
-#RUN apt-get install bash
-#RUN npm -g install pnpm
-#WORKDIR /app
-#RUN addgroup --system --gid 1001 runner
-#RUN adduser --system --uid 1001 runner
-#USER runner
-#
-#COPY --from=builder /app/ .
+FROM builder as release
+
+#Delete all dependencies except production
+RUN pnpm prune --prod
+
 
 EXPOSE 3000
 
