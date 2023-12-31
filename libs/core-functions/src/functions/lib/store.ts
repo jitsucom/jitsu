@@ -44,10 +44,18 @@ export const createOldStore = (namespace: string, redisClient: Redis): Store => 
   },
 });
 
-export const createTtlStore = (namespace: string, redisClient: Redis, defaultTtlSec: number): Store => ({
+export const createTtlStore = (namespace: string, redisClient: Redis, defaultTtlSec: number): TTLStore => ({
   get: async (key: string) => {
     const res = await redisClient.get(`store:${namespace}:${key}`);
     return res ? JSON.parse(res) : undefined;
+  },
+  getWithTTL: async (key: string) => {
+    const res = await redisClient.get(`store:${namespace}:${key}`);
+    if (!res) {
+      return undefined;
+    }
+    const ttl = await redisClient.ttl(`store:${namespace}:${key}`);
+    return { value: JSON.parse(res), ttl };
   },
   set: async (key: string, obj: any, opts?: SetOpts) => {
     const ttl = getTtlSec(opts);
