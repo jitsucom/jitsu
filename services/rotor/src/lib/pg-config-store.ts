@@ -115,7 +115,7 @@ export async function refreshStore(): Promise<ConfigStore> {
       };
     });
 
-    await stream(pg, `select * from enriched_connections_push`, [], row => {
+    await stream(pg, `select * from enriched_connections where type='push'`, [], row => {
       connections[row.id] = row["enrichedConnection"];
     });
     return {
