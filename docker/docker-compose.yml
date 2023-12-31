@@ -110,6 +110,7 @@ services:
       BULKER_AUTH_KEY: ${BULKER_PASSWORD}
       KAFKA_BOOTSTRAP_SERVERS: "kafka:19093"
       REDIS_URL: "redis://default:${REDIS_PASSWORD:-default}@redis:6379"
+      CONFIG_STORE_DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD:-default}@postgres:5432/postgres"
     depends_on:
       bulker:
         condition: service_healthy
