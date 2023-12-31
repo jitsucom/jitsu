@@ -14,9 +14,11 @@ import {
   mongoAnonymousEventsStore,
   parseUserAgent,
   SystemContext,
+  createTtlStore,
 } from "@jitsu/core-functions";
 import { redisLogger } from "./redis-logger";
 import { buildFunctionChain, checkError, runChain } from "./functions-chain";
+import { redis } from "@jitsu-internal/console/lib/server/redis";
 export const log = getLog("rotor");
 
 const anonymousEventsStore = mongoAnonymousEventsStore();
@@ -88,11 +90,9 @@ export async function rotorMessageHandler(
     connectionId: connection.id,
     retries,
   };
-  const store = createMongoStore(
-    connection.workspaceId,
-    mongodb(),
-    fastStoreWorskpaceId.includes(connection.workspaceId)
-  );
+  const store = process.env.MONGODB_URL
+    ? createMongoStore(connection.workspaceId, mongodb(), fastStoreWorskpaceId.includes(connection.workspaceId))
+    : createTtlStore(connection.workspaceId, redis(), defaultTTL);
   //system context for builtin functions only
   const systemContext: SystemContext = {
     $system: {
