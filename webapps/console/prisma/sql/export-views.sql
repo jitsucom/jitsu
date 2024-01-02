@@ -22,6 +22,12 @@ from "ConfigurationObjectLink" link
                  src."workspaceId" = link."workspaceId" and src.deleted = false
 where link.deleted = false;
 
+create or replace view last_updated as select greatest(
+                                                      (select max("updatedAt") from "ConfigurationObjectLink"),
+                                                      (select max("updatedAt") from "ConfigurationObject"),
+                                                      (select max("updatedAt") from "Workspace")
+                                              );
+
 create or replace view streams_with_destinations as
 select b."streamId",
        json_build_object('stream', b."srcConfig",
