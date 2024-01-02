@@ -28,30 +28,31 @@ export const FunctionsHandler = (metrics: Metrics, geoResolver?: GeoResolver) =>
   }
 };
 
-export const FunctionsHandlerMulti = (metrics: Metrics, geoResolver?: GeoResolver) => async (req, res) => {
+export const FunctionsHandlerMulti = (metrics: Metrics, geoResolver?: GeoResolver) => async (req, res, next) => {
   const connectionIds = (req.query.ids ?? "").split(",") as string[];
-  try {
-    const message = req.body as IngestMessage;
-    const prom = connectionIds
-      .filter(id => !!id)
-      .map(id => {
-        //log.atInfo().log(`Functions handler2. Message ID: ${message.messageId} connectionId: ${id}`);
-        return rotorMessageHandler(message, { [CONNECTION_IDS_HEADER]: id }, metrics, geoResolver);
+  const message = req.body as IngestMessage;
+  const prom = connectionIds
+    .filter(id => !!id)
+    .map(id => {
+      //log.atInfo().log(`Functions handler2. Message ID: ${message.messageId} connectionId: ${id}`);
+      return rotorMessageHandler(message, { [CONNECTION_IDS_HEADER]: id }, metrics, geoResolver);
+    });
+  await Promise.all(prom)
+    .then(results => {
+      connectionIds.forEach((id, i) => {
+        handlerMetric.inc({ connectionId: id, status: "success" }, 1);
       });
-    const results = await Promise.all(prom);
-    connectionIds.forEach((id, i) => {
-      handlerMetric.inc({ connectionId: id, status: "success" }, 1);
+      const events = Object.fromEntries(
+        results.map(result => [result?.connectionId, mapTheSame(message, result?.events)])
+      );
+      res.json(events);
+    })
+    .catch(e => {
+      connectionIds.forEach((id, i) => {
+        handlerMetric.inc({ connectionId: id, status: "error" }, 1);
+      });
+      next(e);
     });
-    const events = Object.fromEntries(
-      results.map(result => [result?.connectionId, mapTheSame(message, result?.events)])
-    );
-    res.json(events);
-  } catch (e) {
-    connectionIds.forEach((id, i) => {
-      handlerMetric.inc({ connectionId: id, status: "error" }, 1);
-    });
-    throw e;
-  }
 };
 
 function mapTheSame(message: IngestMessage, newEvents?: AnyEvent[]) {

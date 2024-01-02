@@ -122,6 +122,7 @@ function initHTTP(metrics: Metrics, geoResolver: GeoResolver) {
         enabled: pgConfigStore.getCurrent()?.enabled || "loading",
         status: pgConfigStore.status(),
         lastUpdated: pgConfigStore.lastRefresh(),
+        lastModified: pgConfigStore.lastModified(),
       },
     });
   });

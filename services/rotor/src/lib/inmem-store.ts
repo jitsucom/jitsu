@@ -5,7 +5,7 @@ import path from "path";
 export type StoreDefinition<T = any> = {
   refreshIntervalMillis: number;
   name: string;
-  refresh: () => Promise<T>;
+  refresh: (ifModifiedSince?: Date) => Promise<{ lastModified: Date | undefined; store: T } | "not_modified">;
   serializer?: (arg: T) => string;
   deserializer?: (arg: string) => T;
   localDir?: string;
@@ -19,6 +19,7 @@ export type InMemoryStore<T> = {
   get(): Promise<T>;
   getCurrent(): T | undefined;
   lastRefresh(): Date | undefined;
+  lastModified(): Date | undefined;
   stop(): void;
 };
 
@@ -56,6 +57,7 @@ export const createInMemoryStore = <T>(definition: StoreDefinition<T>): InMemory
   let status: Status = "initializing";
   let instance: T | undefined = undefined;
   let lastRefresh: Date | undefined = undefined;
+  let lastModified: Date | undefined = undefined;
   let stopping: boolean = false;
   let intervalToClear: NodeJS.Timeout | undefined = undefined;
 
@@ -65,8 +67,12 @@ export const createInMemoryStore = <T>(definition: StoreDefinition<T>): InMemory
         return;
       }
       try {
-        instance = await definition.refresh();
-        saveLocalCache(definition, instance);
+        const newDef = await definition.refresh(lastModified);
+        if (newDef !== "not_modified") {
+          saveLocalCache(definition, newDef.store);
+          lastModified = newDef.lastModified;
+          instance = newDef.store;
+        }
         status = "ok";
         lastRefresh = new Date();
       } catch (e) {
@@ -80,14 +86,19 @@ export const createInMemoryStore = <T>(definition: StoreDefinition<T>): InMemory
     definition
       .refresh()
       .then(res => {
-        instance = res;
-        saveLocalCache(definition, res);
+        if (res === "not_modified") {
+          throw new Error("Not modified. (must never happen on first load)");
+        }
+        const store = res.store;
+        lastModified = res.lastModified;
+        instance = store;
+        saveLocalCache(definition, store);
         status = "ok";
         lastRefresh = new Date();
         log.atInfo().log(`Initial version of store ${definition.name} has been loaded`);
         scheduleStoreRefresh();
 
-        resolve(res);
+        resolve(store);
       })
       .catch(e => {
         log
@@ -132,6 +143,7 @@ export const createInMemoryStore = <T>(definition: StoreDefinition<T>): InMemory
     },
     status: () => status,
     lastRefresh: () => lastRefresh,
+    lastModified: () => lastModified,
     stop: () => {
       log.atInfo().log(`Stopping store ${definition.name}`);
       stopping = true;

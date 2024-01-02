@@ -90,18 +90,37 @@ export type ConfigStore = {
   enabled: boolean;
 };
 
-const DummyStore: ConfigStore = {
+const DisabledStore: ConfigStore = {
   enabled: false,
+  getConfig: () => undefined,
+  getEnrichedConnection: () => undefined,
+  toJSON: () => "disabled",
+};
+
+const EmptyStore: ConfigStore = {
+  enabled: true,
   getConfig: () => undefined,
   getEnrichedConnection: () => undefined,
   toJSON: () => "",
 };
 
-export async function refreshStore(): Promise<ConfigStore> {
+export async function refreshStore(
+  ifModifiedSince?: Date
+): Promise<{ lastModified: Date | undefined; store: ConfigStore } | "not_modified"> {
   if (process.env.CONFIG_STORE_DATABASE_URL) {
     const configs: Record<string, Record<string, any>> = {};
     const connections: Record<string, any> = {};
     assertDefined(pg);
+
+    const res = await pg.query("select * from last_updated");
+    const lastModified: Date = res.rows?.[0]?.last_updated;
+    if (!lastModified) {
+      return { store: EmptyStore, lastModified: undefined };
+    }
+    if (ifModifiedSince && lastModified.getTime() <= ifModifiedSince.getTime()) {
+      return "not_modified";
+    }
+    log.atInfo().log(`Config updated: ${lastModified} previous update date: ${ifModifiedSince}`);
 
     await stream(pg, `select * from "ConfigurationObject" where deleted is false and type in ('function')`, [], row => {
       const type = row.type;
@@ -119,28 +138,31 @@ export async function refreshStore(): Promise<ConfigStore> {
       connections[row.id] = row["enrichedConnection"];
     });
     return {
-      enabled: true,
-      getConfig: <T>(type: string, key: string) => {
-        const config = configs[type]?.[key];
-        if (config) {
-          return config as T;
-        }
+      store: {
+        enabled: true,
+        getConfig: <T>(type: string, key: string) => {
+          const config = configs[type]?.[key];
+          if (config) {
+            return config as T;
+          }
+        },
+        getEnrichedConnection: (connectionId: string) => {
+          const c = connections[connectionId];
+          if (c) {
+            return c as EnrichedConnectionConfig;
+          }
+        },
+        toJSON: () => {
+          return JSON.stringify({
+            configs,
+            connections,
+          });
+        },
       },
-      getEnrichedConnection: (connectionId: string) => {
-        const c = connections[connectionId];
-        if (c) {
-          return c as EnrichedConnectionConfig;
-        }
-      },
-      toJSON: () => {
-        return JSON.stringify({
-          configs,
-          connections,
-        });
-      },
+      lastModified: new Date(lastModified),
     };
   } else {
-    return DummyStore;
+    return { store: DisabledStore, lastModified: new Date() };
   }
 }
 
@@ -153,6 +175,9 @@ export const pgConfigStore = createInMemoryStore({
   serializer: (store: ConfigStore) => (store.enabled ? store.toJSON() : ""),
   deserializer: (serialized: string) => {
     if (serialized) {
+      if (serialized === "disabled") {
+        return DisabledStore;
+      }
       const store = JSON.parse(serialized);
       return {
         enabled: true,
@@ -165,7 +190,7 @@ export const pgConfigStore = createInMemoryStore({
         toJSON: () => serialized,
       };
     } else {
-      return DummyStore;
+      return EmptyStore;
     }
   },
   refresh: refreshStore,
