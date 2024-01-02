@@ -8,11 +8,15 @@ const log = getLog("inmem-store-test");
 test("Test in-mem store", async () => {
   const artifactsDir = path.join(__dirname, "artifacts");
   const cacheDir = path.join(artifactsDir, "in-mem-store");
-  const loader = () => {
-    return new Promise<Date>(resolve => setTimeout(() => resolve(new Date()), 300));
+  const loader = (ifModifiedSince?: Date) => {
+    return new Promise<{ store: Date; lastModified: Date }>(resolve =>
+      setTimeout(() => resolve({ store: new Date(), lastModified: new Date() }), 300)
+    );
   };
-  const badLoader = () => {
-    return new Promise<Date>((resolve, reject) => setTimeout(() => reject(new Error("")), 300));
+  const badLoader = (ifModifiedSince?: Date) => {
+    return new Promise<{ store: Date; lastModified: Date }>((resolve, reject) =>
+      setTimeout(() => reject(new Error("")), 300)
+    );
   };
 
   const store = createInMemoryStore<Date>({
