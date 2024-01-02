@@ -138,8 +138,8 @@ export function getPostgresStore(
       try {
         await pgPool.query(schema(table));
       } catch (e: any) {
-        log.atError().log(`Failed to initialize postgres table storage: ${getErrorMessage(e)} Query: schema(table)`);
-        throw new Error("Failed to initialize postgres table storage: " + getErrorMessage(e));
+        log.atWarn().log(`Failed to initialize postgres table storage: ${getErrorMessage(e)} Query: ${schema(table)}`);
+        //throw new Error("Failed to initialize postgres table storage: " + getErrorMessage(e));
       }
     }
     initialized = true;

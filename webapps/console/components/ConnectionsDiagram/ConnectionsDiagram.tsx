@@ -312,13 +312,13 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({
           <div className="flex flex-col items-center group">
             <Link
               className="block h-16 w-15 aspect-square  rounded-full hover:scale-110 transition-all duration-500 z-30"
-              href={`/${workspaces.id}/connections`}
+              href={`/${workspaces.slugOrId}/connections`}
               ref={logoRef}
             >
               {branding.logo}
             </Link>
             <Link
-              href={`/${workspaces.id}/connections`}
+              href={`/${workspaces.slugOrId}/connections`}
               className="flex items-center text-xs mt-2 opacity-0 group-hover:opacity-100 transition-all duration-500"
             >
               Connections <ExternalLink className="w-4 h-4" />

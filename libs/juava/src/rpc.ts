@@ -98,7 +98,7 @@ export const rpc: RpcFunc = async (url, { body, ...rest } = {}) => {
       extractString(errorJson.message) ||
       extractString(errorJson.error) ||
       extractString(errorJson.error?.error) ||
-      "Server error";
+      `${result.status} ${result.statusText} on ${url}`; //a 500 error without JSON message, propbably just html page
     throw new ApiResponseError(errorMessage, typeof errorJson === "string" ? undefined : errorJson, {
       url: urlWithQuery,
       ...requestParams,

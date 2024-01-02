@@ -1,8 +1,8 @@
 import React, { createContext, PropsWithChildren, ReactNode, useContext, useEffect, useState } from "react";
-import { Button, Col, Form as AntdForm, Input, Row, Skeleton, Switch, Table } from "antd";
+import { Button, Col, Form as AntdForm, Input, Row, Switch, Table } from "antd";
 import { FaCaretDown, FaCaretRight, FaClone, FaPlus } from "react-icons/fa";
 import { ZodType } from "zod";
-import { getConfigApi, useApi } from "../../lib/useApi";
+import { getConfigApi } from "../../lib/useApi";
 import { useRouter } from "next/router";
 import { asFunction, FunctionLike, getErrorMessage, getLog, requireDefined, rpc } from "juava";
 
@@ -28,15 +28,14 @@ import {
 
 import { ConfigEntityBase } from "../../lib/schema";
 import { useAppConfig, useWorkspace } from "../../lib/context";
-import { GlobalLoader, LoadingAnimation } from "../GlobalLoader/GlobalLoader";
+import { LoadingAnimation } from "../GlobalLoader/GlobalLoader";
 import { WLink } from "../Workspace/WLink";
 import { DeleteOutlined } from "@ant-design/icons";
-import { ErrorCard, GlobalError } from "../GlobalError/GlobalError";
 import { Action, confirmOp, doAction, feedbackError, feedbackSuccess, useTitle } from "../../lib/ui";
 import { branding } from "../../lib/branding";
 import { useAntdModal } from "../../lib/modal";
 import { Edit3, Inbox } from "lucide-react";
-import { createDisplayName, prepareZodObjectForSerialization } from "../../lib/zod";
+import { createDisplayName } from "../../lib/zod";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
 import { EditorTitle } from "./EditorTitle";
 import { EditorBase } from "./EditorBase";
@@ -46,6 +45,7 @@ import { ButtonGroup, ButtonProps } from "../ButtonGroup/ButtonGroup";
 import cuid from "cuid";
 import { ObjectTitle } from "../ObjectTitle/ObjectTitle";
 import omitBy from "lodash/omitBy";
+import { asConfigType, useConfigObject, useConfigObjectList, useConfigObjectMutation } from "../../lib/store";
 
 const log = getLog("ConfigEditor");
 
@@ -381,6 +381,28 @@ const SingleObjectEditor: React.FC<SingleObjectEditorProps> = props => {
   const appConfig = useAppConfig();
   const router = useRouter();
 
+  const onSaveMutation = useConfigObjectMutation(type as any, async (newObject: any) => {
+    if (isNew) {
+      await getConfigApi(workspace.id, type).create(newObject);
+      if (type === "stream" && appConfig.ee.available) {
+        try {
+          await rpc(`/api/${workspace.id}/ee/s3-init`, {
+            method: "POST",
+            query: { workspaceId: workspace.id },
+          });
+        } catch (e: any) {
+          console.error("Failed to init S3 bucket", e.message);
+        }
+      }
+    } else {
+      await getConfigApi(workspace.id, type).update(object.id, newObject);
+    }
+  });
+
+  const onDeleteMutation = useConfigObjectMutation(type as any, async (_: any) => {
+    await getConfigApi(workspace.id, type).del(object.id);
+  });
+
   useEffect(() => {
     if (loadMeta) {
       loadMeta(otherProps.object).then(setMeta);
@@ -411,7 +433,7 @@ const SingleObjectEditor: React.FC<SingleObjectEditorProps> = props => {
   const onDelete = async () => {
     if (await confirmOp(`Are you sure you want to delete this ${noun}?`)) {
       try {
-        await getConfigApi(workspace.id, type).del(object.id);
+        await onDeleteMutation.mutateAsync(undefined);
         feedbackSuccess(`Successfully deleted ${noun}`);
         router.push(`/${workspace.id}/${type}s`);
       } catch (error) {
@@ -420,25 +442,8 @@ const SingleObjectEditor: React.FC<SingleObjectEditorProps> = props => {
     }
   };
   const onSave = async newObject => {
-    newObject = prepareZodObjectForSerialization(newObject);
-    console.log("Saving", newObject);
     try {
-      if (isNew) {
-        await getConfigApi(workspace.id, type).create(newObject);
-        if (type === "stream" && appConfig.ee.available) {
-          try {
-            await rpc(`/api/${workspace.id}/ee/s3-init`, {
-              method: "POST",
-              query: { workspaceId: workspace.id },
-            });
-          } catch (e: any) {
-            console.error("Failed to init S3 bucket", e.message);
-          }
-        }
-      } else {
-        await getConfigApi(workspace.id, type).update(object.id, newObject);
-        //await new Promise(resolve => setTimeout(resolve, 10000000));
-      }
+      await onSaveMutation.mutateAsync(newObject)
       if (backTo) {
         router.push(`/${workspace.id}${backTo}`);
       } else {
@@ -605,13 +610,7 @@ const SingleObjectEditorLoader: React.FC<ConfigEditorProps & { id: string; clone
   clone,
   ...rest
 }) => {
-  const workspace = useWorkspace();
-  const { isLoading, data, error } = useApi(`/api/${workspace.id}/config/${rest.type}/${id}`);
-  if (isLoading) {
-    return <GlobalLoader />;
-  } else if (error) {
-    return <GlobalError error={error} />;
-  }
+  const data = requireDefined(useConfigObject(asConfigType(rest.type), id), `Unknown ${rest.type} ${id}`);
   return (
     <SingleObjectEditor
       {...rest}
@@ -749,19 +748,21 @@ const ObjectsList: React.FC<{ objects: any[]; onDelete: (id: string) => Promise<
 
 const ObjectListEditor: React.FC<ConfigEditorProps> = props => {
   const workspace = useWorkspace();
-  const { isLoading, data, error, reload } = useApi(`/api/${workspace.id}/config/${props.type}`);
+  const  data = useConfigObjectList(asConfigType(props.type));
   const router = useRouter();
   const pluralNoun = props.nounPlural || plural(props.noun);
   const addAction = props.addAction || (() => router.push(`${router.asPath}?id=new`));
+  const onDeleteMutation = useConfigObjectMutation(props.type as any, async (id: string) => {
+    await getConfigApi(workspace.id, props.type).del(id);
+  });
   const onDelete = async (id: string) => {
     try {
-      await getConfigApi(workspace.id, props.type).del(id);
-      reload();
+      await onDeleteMutation.mutateAsync(id)
     } catch (e) {
       alert(`Failed to delete ${props.noun}: ${getErrorMessage(e)}`);
     }
   };
-  const list = data?.objects?.filter(props.filter || (() => true)) || [];
+  const list = data.filter(props.filter || (() => true)) || [];
   return (
     <div>
       <div className="flex justify-between py-6">
@@ -773,7 +774,6 @@ const ObjectListEditor: React.FC<ConfigEditorProps> = props => {
             onClick={() => doAction(router, addAction)}
             type="primary"
             size="large"
-            disabled={!!(isLoading || error)}
             icon={<FaPlus />}
           >
             Add new {props.noun}
@@ -781,9 +781,7 @@ const ObjectListEditor: React.FC<ConfigEditorProps> = props => {
         </div>
       </div>
       <div>
-        {isLoading && <Skeleton active title={false} paragraph={{ rows: 8, width: "100%" }} />}
-        {error && <ErrorCard error={error} title={`Failed to load the list of ${pluralNoun}`} />}
-        {list.length === 0 && !isLoading && !error && (
+        {list.length === 0 && (
           <div>
             <div className="flex flex-col items-center">
               <Inbox className="h-16 w-16 my-6 text-neutral-200" />

@@ -3,20 +3,19 @@ import { useAppConfig, useWorkspace, WorkspaceContext } from "../../../lib/conte
 import { get } from "../../../lib/useApi";
 import { DestinationConfig, ServiceConfig } from "../../../lib/schema";
 import { ConfigurationObjectLinkDbModel } from "../../../prisma/schema";
-import { QueryResponse } from "../../../components/QueryResponse/QueryResponse";
 import { z } from "zod";
-import { Table, Tag } from "antd";
+import { Table, Tag, Tooltip } from "antd";
 import { confirmOp, feedbackError, feedbackSuccess } from "../../../lib/ui";
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { FaExternalLinkAlt, FaPlay, FaPlus, FaTrash } from "react-icons/fa";
 import { getLog, index, rpc } from "juava";
 import { useRouter } from "next/router";
-import { useLinksQuery } from "../../../lib/queries";
 import { jsonSerializationBase64, useQueryStringState } from "../../../lib/useQueryStringState";
 import { TableProps } from "antd/es/table/InternalTable";
 import { ColumnType, SortOrder } from "antd/es/table/interface";
 import {
+  AlertTriangle,
   CalendarCheckIcon,
   Edit3,
   ExternalLink,
@@ -42,6 +41,7 @@ import { CodeBlock } from "../../../components/CodeBlock/CodeBlock";
 import { processTaskStatus, TaskStatus } from "./tasks";
 import omit from "lodash/omit";
 import { toURL } from "../../../lib/shared/url";
+import { useConfigObjectLinks, useConfigObjectList, useStoreReload } from "../../../lib/store";
 
 dayjs.extend(relativeTime);
 dayjs.extend(utc);
@@ -77,7 +77,6 @@ type RemoteEntitiesProps = {
   services: ServiceConfig[];
   destinations: DestinationConfig[];
   links: Omit<SyncDbModel, "data">[];
-  reloadCallback: () => void;
 };
 
 type SortingSettings = {
@@ -101,7 +100,26 @@ export function displayTaskRunError(workspace: WorkspaceContext, error: { error:
   }
 }
 
-function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEntitiesProps) {
+
+export const NotFound: React.FC<{ id: string; type: string }> = ({ id, type }) => {
+  return (
+    <Tooltip
+      overlay={
+        <div>
+          <span className="capitalize">{type}</span> with id <code>{id}</code> not found. It might happen if you deleted
+          it.
+        </div>
+      }
+    >
+      <div className="flex items-center jusify-left w-fit cursor-pointer">
+        <AlertTriangle className="w-4 h-4 text-warning mr-2" />
+        <div className="capitalize text">{type} not found</div>
+      </div>
+    </Tooltip>
+  );
+};
+
+function SyncsTable({ links, services, destinations }: RemoteEntitiesProps) {
   const servicesById = index(services, "id");
   const destinationsById = index(destinations, "id");
   const linksById = index(links, "id");
@@ -115,6 +133,8 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
   const [tasks, setTasks] = useState<{ loading: boolean; data?: any; error?: any }>({ loading: true });
 
   const [runPressed, setRunPressed] = useState<string | undefined>(undefined);
+
+  const reloadStore = useStoreReload();
 
   const [apiDocs, setShowAPIDocs] = useQueryStringState<string | undefined>("schedule");
   //useEffect update tasksData every 10 seconds
@@ -141,7 +161,7 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
           query: { fromId: link.fromId, toId: link.toId },
         });
         feedbackSuccess("Successfully unliked");
-        reloadCallback();
+        reloadStore();
       } catch (e) {
         feedbackError("Failed to unlink service and destination", { error: e });
       } finally {
@@ -177,7 +197,7 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
       },
       render: (text, link) => {
         const service = servicesById[link.fromId];
-        return service ? <ServiceTitle service={service} link /> : "Not Found";
+        return service ? <ServiceTitle service={service} link /> : <NotFound id={link.fromId} type={"service"} />;
       },
     },
     {
@@ -213,7 +233,11 @@ function SyncsTable({ links, services, destinations, reloadCallback }: RemoteEnt
         if (!t?.status) {
           return <Tag style={{ marginRight: 0 }}>NO RUNS</Tag>;
         }
-        return <TaskStatus task={processTaskStatus(t)} />;
+        return (
+          <div className="h-5 flex flex-col justify-center">
+            <TaskStatus task={processTaskStatus(t)} />
+          </div>
+        );
       },
     },
     {
@@ -456,7 +480,6 @@ function Syncs(props: RemoteEntitiesProps) {
               .filter(l => !srcFilter || l.fromId === srcFilter)}
             services={services}
             destinations={destinations}
-            reloadCallback={props.reloadCallback}
           />
         )}
       </div>
@@ -468,10 +491,10 @@ function SyncsLoader(props: { reloadCallback: () => void }) {
   const workspace = useWorkspace();
   const appconfig = useAppConfig();
 
-  const data = useLinksQuery(workspace.id, "sync", {
-    cacheTime: 0,
-    retry: false,
-  });
+  const services = useConfigObjectList("service");
+  const destinations = useConfigObjectList("destination");
+  const links = useConfigObjectLinks({ withData: true, type: "sync" });
+
   if (!(appconfig.syncs.enabled || workspace.featuresEnabled.includes("syncs"))) {
     return (
       <ErrorCard
@@ -482,14 +505,7 @@ function SyncsLoader(props: { reloadCallback: () => void }) {
     );
   }
 
-  return (
-    <QueryResponse
-      result={data}
-      render={([services, destinations, links]) => (
-        <Syncs services={services} destinations={destinations} links={links} reloadCallback={props.reloadCallback} />
-      )}
-    />
-  );
+  return <Syncs services={services} destinations={destinations} links={links} />;
 }
 
 export const SyncTitle: React.FC<{

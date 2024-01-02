@@ -14,15 +14,13 @@ import { ServiceEditor } from "../../components/ServiceEditor/ServiceEditor";
 import { ErrorCard } from "../../components/GlobalError/GlobalError";
 import { ObjectTitle } from "../../components/ObjectTitle/ObjectTitle";
 import omit from "lodash/omit";
-import { useApi } from "../../lib/useApi";
 import { AlertTriangle, Check, Zap } from "lucide-react";
 import Link from "next/link";
+import { useConfigObjectLinks } from "../../lib/store";
 
 const log = getLog("services");
 
 const Services: React.FC<any> = () => {
-  const router = useRouter();
-  console.log("router", router.pathname);
   return (
     <WorkspacePageLayout>
       <ServicesList />
@@ -88,9 +86,10 @@ const ServicesList: React.FC<{}> = () => {
   });
   const router = useRouter();
   const appconfig = useAppConfig();
-  const connectionsLoader = useApi(`/api/${workspace.id}/config/link`);
+  const links = useConfigObjectLinks()
+
   const connections =
-    connectionsLoader.data?.links?.reduce((res, link) => {
+    links.reduce((res, link) => {
       const fromId = link.fromId;
       if (res[fromId]) {
         res[fromId].push(link);

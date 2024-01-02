@@ -3,7 +3,6 @@ import { useWorkspace } from "../../../lib/context";
 import { get } from "../../../lib/useApi";
 import { DestinationConfig, FunctionConfig, StreamConfig } from "../../../lib/schema";
 import { ConfigurationObjectLinkDbModel } from "../../../prisma/schema";
-import { QueryResponse } from "../../../components/QueryResponse/QueryResponse";
 import { z } from "zod";
 import { Table } from "antd";
 import { confirmOp, feedbackError, feedbackSuccess } from "../../../lib/ui";
@@ -13,7 +12,6 @@ import { FaExternalLinkAlt, FaPlus, FaTrash } from "react-icons/fa";
 import { index } from "juava";
 import { getCoreDestinationType } from "../../../lib/schema/destinations";
 import { useRouter } from "next/router";
-import { useLinksQuery } from "../../../lib/queries";
 import { jsonSerializationBase64, useQueryStringState } from "../../../lib/useQueryStringState";
 import { TableProps } from "antd/es/table/InternalTable";
 import { ColumnType, SortOrder } from "antd/es/table/interface";
@@ -27,6 +25,7 @@ import { FunctionTitle } from "../functions";
 import omit from "lodash/omit";
 import { toURL } from "../../../lib/shared/url";
 import JSON5 from "json5";
+import { useConfigObjectLinks, useConfigObjectList } from "../../../lib/store";
 
 function EmptyLinks() {
   const workspace = useWorkspace();
@@ -299,7 +298,6 @@ function Connections(props: RemoteEntitiesProps) {
       </div>
     );
   }
-  console.log("router.query", router);
   return (
     <div>
       <div className="flex justify-between py-6">
@@ -349,27 +347,21 @@ function Connections(props: RemoteEntitiesProps) {
 }
 
 function ConnectionsLoader(props: { reloadCallback: () => void }) {
-  const workspace = useWorkspace();
-  const data = useLinksQuery(workspace.id, "push", {
-    cacheTime: 0,
-    retry: false,
-    withFunctions: true,
-  });
+  const functions = useConfigObjectList("function");
+  const streams = useConfigObjectList("stream");
+  const destinations = useConfigObjectList("destination");
+  const links = useConfigObjectLinks();
 
   return (
-    <QueryResponse
-      result={data}
-      render={([streams, destinations, links, functions]) => (
-        <Connections
-          functions={functions}
-          streams={streams}
-          destinations={destinations}
-          links={links}
-          reloadCallback={props.reloadCallback}
-        />
-      )}
+    <Connections
+      functions={functions}
+      streams={streams}
+      destinations={destinations}
+      links={links.filter(l => l.type === "push")}
+      reloadCallback={() => {}}
     />
   );
+
 }
 
 const ConnectionsPage = () => {

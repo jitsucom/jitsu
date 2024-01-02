@@ -570,7 +570,6 @@ const ConnectionsList: React.FC<{ streams: any[]; service: any[]; destinationId:
   syncSupported,
 }) => {
   const workspace = useWorkspace();
-  console.log("workspace", workspace);
   if (streams.length === 0 && service.length === 0) {
     return (
       <div className="flex items-center flex-nowrap">

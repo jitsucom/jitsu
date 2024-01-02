@@ -1,4 +1,4 @@
-import { getErrorMessage, getLog, LogLevel, rpc, setGlobalLogLevel } from "juava";
+import { assertDefined, getErrorMessage, getLog, LogLevel, rpc, setGlobalLogLevel } from "juava";
 import { AppProps } from "next/app";
 import "../styles/globals.css";
 import { useRouter } from "next/router";
@@ -13,25 +13,24 @@ import {
   AppConfigContextProvider,
   useAppConfig,
   UserContextProvider,
-  useUser,
+  useUser, useWorkspace,
   WorkspaceContextProvider,
 } from "../lib/context";
-import { AppConfig, ContextApiResponse, SessionUser, StreamConfig } from "../lib/schema";
+import { AppConfig, ContextApiResponse, SessionUser } from "../lib/schema";
 import Link from "next/link";
 import { ErrorBoundary, GlobalError, GlobalOverlay } from "../components/GlobalError/GlobalError";
 import { feedbackError, useTitle } from "../lib/ui";
-import { getConfigApi, useApi } from "../lib/useApi";
+import { useApi } from "../lib/useApi";
 import { AntdTheme } from "../components/AntdTheme/AntdTheme";
 import { AntdModalProvider } from "../lib/modal";
 import Head from "next/head";
 import { JitsuProvider, useJitsu } from "@jitsu/jitsu-react";
 import { FirebaseProvider, useFirebaseSession } from "../lib/firebase-client";
 import { SignIn } from "../components/SignInOrUp/SignIn";
-import { z } from "zod";
-import { WorkspaceDbModel } from "../prisma/schema";
 import { JitsuButton } from "../components/JitsuButton/JitsuButton";
 import { BillingProvider } from "../components/Billing/BillingProvider";
 import { ClassicProjectProvider } from "../components/PageLayout/ClassicProjectProvider";
+import { useConfigObjectList, useConfigObjectsUpdater, useLoadedWorkspace } from "../lib/store";
 
 const log = getLog("app");
 
@@ -335,6 +334,9 @@ function NextJsSigninForm() {
 }
 
 const queryClient = new QueryClient();
+if (typeof window !== "undefined") {
+  window["queryClient"] = queryClient;
+}
 
 function AppLoader({ children, pageProps }: PropsWithChildren<any>) {
   const { data, isLoading, error } = useApi<AppConfig>(`/api/app-config`);
@@ -421,30 +423,16 @@ const WorkspaceWrapper: React.FC<PropsWithChildren<{}>> = ({ children }) => {
   }
 };
 
-const WorkspaceLoader: React.FC<PropsWithChildren<{ workspaceId: string }>> = ({ workspaceId, children }) => {
-  const { analytics } = useJitsu();
+/**
+ * We need to get rid of this, and move this to the backend completely.
+ *
+ * We should actually use this component somewhere in the app
+ * @constructor
+ */
+export const S3BucketInitializer: React.FC<{}> = () => {
   const appConfig = useAppConfig();
-  const user = useUser();
-  const router = useRouter();
-  const [streams, setStreams] = useState<StreamConfig[]>([]);
-
-  const {
-    data: workspace,
-    error,
-    isLoading,
-  } = useApi<z.infer<typeof WorkspaceDbModel>>(`/api/workspace/${workspaceId}`, {
-    outputType: WorkspaceDbModel,
-  });
-
-  useEffect(() => {
-    (async () => {
-      if (workspace?.id) {
-        const streams = await getConfigApi<StreamConfig>(workspace.id, "stream").list();
-        setStreams(streams);
-      }
-    })();
-  }, [workspace?.id]);
-
+  const workspace = useWorkspace();
+  const streams = useConfigObjectList("stream");
   useEffect(() => {
     (async () => {
       if (appConfig.ee.available && workspace?.id && streams.length > 0) {
@@ -459,16 +447,36 @@ const WorkspaceLoader: React.FC<PropsWithChildren<{ workspaceId: string }>> = ({
       }
     })();
   }, [workspace?.id, streams, appConfig]);
+  return <></>
+}
+
+const WorkspaceLoader: React.FC<PropsWithChildren<{ workspaceId: string }>> = ({ workspaceId: workspaceIdOrSlug, children }) => {
+  const { analytics } = useJitsu();
+  const appConfig = useAppConfig();
+  const user = useUser();
+  const router = useRouter();
+
+  // const {
+  //   data: workspace,
+  //   error,
+  //   isLoading,
+  // } = useApi<z.infer<typeof WorkspaceDbModel>>(`/api/workspace/${workspaceIdOrSlug}`, {
+  //   outputType: WorkspaceDbModel,
+  // });
+
+  const configObjectsUpdater = useConfigObjectsUpdater(workspaceIdOrSlug);
+  const workspace = useLoadedWorkspace(workspaceIdOrSlug);
+
 
   useEffect(() => {
     if (workspace?.id) {
       analytics.page("Workspace Page", {
         context: { workspaceId: workspace.id, groupId: workspace.id },
       });
-    } else if (error) {
-      analytics.track("error", { location: "WorkspacePageLayout", errorMessage: getErrorMessage(error) });
+    } else if (configObjectsUpdater.error) {
+      analytics.track("error", { location: "WorkspacePageLayout", errorMessage: getErrorMessage(configObjectsUpdater.error) });
     }
-  }, [analytics, router.asPath, workspace?.id, error]);
+  }, [analytics, router.asPath, workspace?.id, configObjectsUpdater.error]);
 
   /* eslint-disable react-hooks/exhaustive-deps  */
   //user may be a new object on each render while being the same user
@@ -486,6 +494,7 @@ const WorkspaceLoader: React.FC<PropsWithChildren<{ workspaceId: string }>> = ({
 
   useEffect(() => {
     if (workspace?.id) {
+      console.log('Sending page view of workspace', workspace)
       analytics.group(workspace.id, {
         name: workspace.name,
         slug: workspace.slug ?? "",
@@ -495,8 +504,8 @@ const WorkspaceLoader: React.FC<PropsWithChildren<{ workspaceId: string }>> = ({
   }, [analytics, workspace?.id, workspace?.name, workspace?.slug]);
   /* eslint-enable */
 
-  if (error) {
-    log.atError().log(`Can't load workspace ${JSON.stringify(error, null, 2)}`, error);
+  if (configObjectsUpdater.error) {
+    log.atError().log(`Can't load workspace ${JSON.stringify(configObjectsUpdater.error, null, 2)}`, configObjectsUpdater.error);
     return (
       <GlobalOverlay>
         <div className="md:scale-125 mt-4 mx-4">
@@ -519,9 +528,10 @@ const WorkspaceLoader: React.FC<PropsWithChildren<{ workspaceId: string }>> = ({
         </div>
       </GlobalOverlay>
     );
-  } else if (isLoading) {
-    return <GlobalLoader title={isLoading ? "Loading workspace data..." : "Loading user data..."} />;
+  } else if (configObjectsUpdater.loading) {
+    return <GlobalLoader title={"Loading workspace data..."} />;
   } else {
+    assertDefined(workspace, `Workspace is not defined`);
     return (
       <WorkspaceContextProvider workspace={{ ...workspace, slugOrId: workspace?.slug || workspace?.id }}>
         <BillingProvider sendAnalytics={true} enabled={appConfig.billingEnabled}>

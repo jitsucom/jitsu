@@ -8,15 +8,14 @@ import { TableWithDrawer } from "./TableWithDrawer";
 import { JSONView } from "./JSONView";
 import { useAppConfig, useWorkspace } from "../../lib/context";
 import React, { ReactNode, useCallback, useEffect, useMemo, useReducer, useState } from "react";
-import { linksQuery } from "../../lib/queries";
 import { WLink } from "../Workspace/WLink";
 import { DestinationTitle } from "../../pages/[workspaceId]/destinations";
 import ExternalLink from "../Icons/ExternalLink";
 import { AnalyticsContext, AnalyticsServerEvent, Geo as aGeo } from "@jitsu/protocols/analytics";
 import Icon, { GlobalOutlined, LinkOutlined, QuestionCircleOutlined, UserOutlined } from "@ant-design/icons";
-import { getConfigApi, useEventsLogApi } from "../../lib/useApi";
+import { get, getConfigApi, useEventsLogApi } from "../../lib/useApi";
 import { FunctionTitle } from "../../pages/[workspaceId]/functions";
-import { FunctionConfig } from "../../lib/schema";
+import { DestinationConfig, FunctionConfig, ServiceConfig, StreamConfig } from "../../lib/schema";
 import { arrayToMap } from "../../lib/shared/arrays";
 import { Globe, RefreshCw, Server } from "lucide-react";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
@@ -78,6 +77,24 @@ export const UTCDate: React.FC<{ date: string | Date }> = ({ date }) => {
     </Tooltip>
   );
 };
+
+export function linksQuery(workspaceId: string, type: "push" | "sync" = "push", withFunctions: boolean = false) {
+  return async () => {
+    const promises = [
+      type === "sync"
+        ? getConfigApi<ServiceConfig>(workspaceId, "service").list()
+        : getConfigApi<StreamConfig>(workspaceId, "stream").list(),
+      getConfigApi<DestinationConfig>(workspaceId, "destination").list(),
+      get(`/api/${workspaceId}/config/link`).then(res =>
+        res.links.filter(l => l.type === type || (type === "push" && !l.type))
+      ),
+    ];
+    if (withFunctions) {
+      promises.push(getConfigApi<FunctionConfig>(workspaceId, "function").list());
+    }
+    return await Promise.all(promises);
+  };
+}
 
 export const RelativeDate: React.FC<{ date: string | Date }> = ({ date }) => {
   return (
@@ -202,7 +219,6 @@ export const EventsBrowser = ({
           query = () => getConfigApi(workspace.id, "stream").list();
         } else {
           query = async () => {
-            const data = await linksQuery(workspace.id)();
             const streamsMap = arrayToMap(data[0]);
             const dstMap = arrayToMap(data[1]);
             return data[2]
@@ -696,7 +712,7 @@ const BatchTable = ({ loadEvents, loading, streamType, entityType, actorId, even
 const IncomingEventDrawer = ({ event }: { event: IncomingEvent }) => {
   const workspace = useWorkspace();
   const [loading, setLoading] = useState(true);
-  const [destinationsMap, setDestinationsMap] = useState<any[]>([]);
+  const [destinationsMap, setDestinationsMap] = useState<any>([]);
 
   const hasEvent = typeof event !== "undefined";
   useEffect(() => {

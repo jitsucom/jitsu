@@ -12,7 +12,7 @@ import { TrackingIntegrationDocumentation } from "../../components/TrackingInteg
 import { BrowserKeysEditor } from "../../components/ApiKeyEditor/ApiKeyEditor";
 import { useQuery } from "@tanstack/react-query";
 import { getEeClient } from "../../lib/ee-client";
-import { assertDefined, requireDefined } from "juava";
+import { requireDefined } from "juava";
 import { ReloadOutlined } from "@ant-design/icons";
 import { confirmOp, feedbackError } from "../../lib/ui";
 import { getAntdModal, useAntdModal } from "../../lib/modal";
@@ -22,11 +22,11 @@ import { FaviconLoader } from "./index";
 import { ObjectTitle } from "../../components/ObjectTitle/ObjectTitle";
 import omit from "lodash/omit";
 import { CustomWidgetProps } from "../../components/ConfigObjectEditor/Editors";
-import { useLinksQuery } from "../../lib/queries";
 import { toURL } from "../../lib/shared/url";
 import JSON5 from "json5";
 import { EditorToolbar } from "../../components/EditorToolbar/EditorToolbar";
 import { DomainCheckResponse } from "../../lib/shared/domain-check-response";
+import { useConfigObjectLinks, useConfigObjectList } from "../../lib/store";
 
 const Streams: React.FC<any> = () => {
   return (
@@ -357,12 +357,9 @@ const StreamsList: React.FC<{}> = () => {
   const noun = "site";
   const router = useRouter();
   const appConfig = useAppConfig();
-  const links = useLinksQuery(workspace.id, "push", {
-    cacheTime: 0,
-    retry: false,
-    withFunctions: true,
-  });
-  const destinations = links.data?.destinations || [];
+
+  const streams = useConfigObjectList("stream");
+  const connections = useConfigObjectLinks({ type: "push" });
 
   const [implementationDocumentationId, setImplementationDocumentationId] = useState<string | undefined>(
     router.query.implementationFor as string | undefined
@@ -469,22 +466,19 @@ const StreamsList: React.FC<{}> = () => {
       {
         title: "Destination Connections",
         render: (s: StreamConfig) => {
-          if (links.isLoading) {
-            return <FaSpinner className="animate-spin mr-1" />;
-          } else if (links.error) {
-            return <></>;
-          }
-          assertDefined(links.data);
-          const [streams, _, connections] = links.data;
           const destinations = connections.filter(c => c.fromId === s.id);
           if (destinations.length === 0) {
             return (
               <div className="flex items-center flex-nowrap">
                 <AlertTriangle className="h-4 w-4 mr-1 text-warning" />{" "}
                 <span className="text-sm">
-                  <Link href={`/${workspace.slug}/connections/edit?serviceId=${s.id}`}>
-                    Create a connection to any destination
-                  </Link>{" "}
+                  {destinations.length > 0 ? (
+                    <Link href={`/${workspace.slugOrId}/connections/edit?serviceId=${s.id}`}>
+                      Create a connection to any destination
+                    </Link>
+                  ) : (
+                    <Link href={`/${workspace.slugOrId}/destinations`}>Create a destination</Link>
+                  )}{" "}
                   to start seeing data
                 </span>
               </div>

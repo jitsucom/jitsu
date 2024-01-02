@@ -16,13 +16,11 @@ import { ConnectionsDiagram } from "../../components/ConnectionsDiagram/Connecti
 import { getLog } from "juava";
 import { Activity, Chrome, Edit3, MoreVertical, Share2, Zap } from "lucide-react";
 import classNames from "classnames";
-import { useQuery } from "@tanstack/react-query";
-import { get, getConfigApi } from "../../lib/useApi";
-import { LoadingAnimation } from "../../components/GlobalLoader/GlobalLoader";
-import { GlobalError } from "../../components/GlobalError/GlobalError";
 import { toURL } from "../../lib/shared/url";
 import JSON5 from "json5";
 import { ButtonGroup } from "../../components/ButtonGroup/ButtonGroup";
+import { useConfigObjectLinks, useConfigObjectList } from "../../lib/store";
+import Link from "next/link";
 
 function HoverBorder({ children, forceHover }: { children: ReactNode; forceHover?: boolean }) {
   const [_hover, setHover] = useState(false);
@@ -97,7 +95,7 @@ function Card({
       </HoverBorder>
     </ConditionalBadge>
   );
-  return configLink ? <a href={configLink}>{card}</a> : card;
+  return configLink ? <Link href={configLink}>{card}</Link> : card;
 }
 
 type ConfigurationLinkDbModel = Omit<z.infer<typeof ConfigurationObjectLinkDbModel>, "data">;
@@ -325,25 +323,11 @@ function WorkspaceOverview(props: {
 }
 
 function WorkspaceOverviewLoader() {
-  const workspace = useWorkspace();
-  const dataLoader = useQuery(
-    ["workspaceEntities", workspace.id],
-    () => {
-      return Promise.all([
-        getConfigApi(workspace.id, "stream").list(),
-        getConfigApi(workspace.id, "destination").list(),
-        get(`/api/${workspace.id}/config/link`).then(r => r.links),
-        getConfigApi(workspace.id, "service").list(),
-      ]);
-    },
-    { retry: false, cacheTime: 0 }
-  );
-  if (dataLoader.isLoading) {
-    return <LoadingAnimation />;
-  } else if (dataLoader.error) {
-    return <GlobalError title={"Failed to load data from server"} error={dataLoader.error} />;
-  }
-  const [streams, destinations, links, services] = dataLoader.data!;
+  const streams = useConfigObjectList("stream")
+  const destinations = useConfigObjectList("destination")
+  const services = useConfigObjectList("service");
+  const links = useConfigObjectLinks();
+
   return <WorkspaceOverview streams={streams} destinations={destinations} links={links} connectors={services} />;
 }
 

@@ -12,7 +12,6 @@ import utc from "dayjs/plugin/utc";
 import relativeTime from "dayjs/plugin/relativeTime";
 import JSON5 from "json5";
 import { ErrorCard } from "../../../components/GlobalError/GlobalError";
-import { useLinksQuery } from "../../../lib/queries";
 import { arrayToMap } from "../../../lib/shared/arrays";
 import { JitsuButton, WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
 import { AlertCircle, CheckCircle2, ChevronLeft, ListMinusIcon, RefreshCw, XCircle } from "lucide-react";
@@ -23,6 +22,7 @@ import { ButtonGroup, ButtonProps } from "../../../components/ButtonGroup/Button
 import { rpc } from "juava";
 import { feedbackError, useKeyboard } from "../../../lib/ui";
 import hash from "object-hash";
+import { useConfigObjectLinks, useConfigObjectList } from "../../../lib/store";
 
 dayjs.extend(utc);
 dayjs.extend(relativeTime);
@@ -493,20 +493,11 @@ function Tasks() {
       return JSON5.stringify(value);
     },
   });
-  const [linksMap, setLinksMap] = useState<Record<string, { fromId: string; toId: string; id: string }> | undefined>(
-    undefined
-  );
-  const [servicesMap, setServicesMap] = useState<Record<string, any> | undefined>(undefined);
-  const [destinationsMap, setDestinationsMap] = useState<Record<string, any> | undefined>(undefined);
 
-  const {
-    data: linksData,
-    isLoading: linksLoading,
-    error: linksError,
-  } = useLinksQuery(workspace.id, "sync", {
-    cacheTime: 0,
-    retry: false,
-  });
+  const linksMap = arrayToMap(useConfigObjectLinks({type: "sync"}))
+  const servicesMap = arrayToMap(useConfigObjectList("service"));
+  const destinationsMap = arrayToMap(useConfigObjectList("destination"));
+
 
   const patchQueryStringState = useCallback(
     (key: string, value: any) => {
@@ -536,22 +527,6 @@ function Tasks() {
       patchQueryStringState("notification", null);
     }
   }, [state, api, patchQueryStringState]);
-
-  useEffect(() => {
-    if (linksData) {
-      setServicesMap(arrayToMap(linksData[0]));
-      setDestinationsMap(arrayToMap(linksData[1]));
-      setLinksMap(arrayToMap(linksData[2]));
-    }
-  }, [linksData]);
-
-  useEffect(() => {
-    if (linksData) {
-      if (!state.syncId) {
-        patchQueryStringState("syncId", linksData[2][0]?.id);
-      }
-    }
-  }, [linksData, patchQueryStringState, state.syncId]);
 
   const entitiesSelectOptions = useMemo(() => {
     if (linksMap && servicesMap && destinationsMap) {
@@ -619,7 +594,6 @@ function Tasks() {
                 dropdownMatchSelectWidth={false}
                 notFoundContent={<div>Project doesn't have configured Syncs</div>}
                 style={{ width: 300 }}
-                loading={linksLoading}
                 onChange={e => {
                   patchQueryStringState("syncId", e);
                 }}

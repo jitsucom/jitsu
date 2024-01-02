@@ -1,12 +1,12 @@
 import { WorkspacePageLayout } from "../../../components/PageLayout/WorkspacePageLayout";
 import { useWorkspace } from "../../../lib/context";
-import React, { useEffect, useState } from "react";
-import { LoadingAnimation } from "../../../components/GlobalLoader/GlobalLoader";
-import { GlobalError } from "../../../components/GlobalError/GlobalError";
+import React from "react";
 import ConnectionEditorPage from "../../../components/ConnectionEditorPage/ConnectionEditorPage";
-import { useLinksQuery } from "../../../lib/queries";
 import { useConfigApi } from "../../../lib/useApi";
 import { FunctionConfig } from "../../../lib/schema";
+import { useConfigObjectLinks, useConfigObjectList } from "../../../lib/store";
+import { z } from "zod";
+import { ConfigurationObjectLinkDbModel } from "../../../prisma/schema";
 
 type FunctionAPIResult = {
   functions: FunctionConfig[];
@@ -16,35 +16,12 @@ type FunctionAPIResult = {
 const Loader = () => {
   const workspace = useWorkspace();
   const functionsApi = useConfigApi("function");
-  const [functions, setFunctions] = useState<FunctionAPIResult>({
-    functions: [],
-    isLoading: true,
-    error: null,
-  });
-  const result = useLinksQuery(workspace.id, "push", {
-    cacheTime: 0,
-    retry: false,
-  });
-  useEffect(() => {
-    (async () => {
-      try {
-        setFunctions({ functions: [], isLoading: true, error: null });
-        setFunctions({ functions: await functionsApi.list(), isLoading: false, error: null });
-      } catch (e) {
-        setFunctions({ functions: [], isLoading: false, error: e });
-      }
-    })();
-  }, [functionsApi]);
-
-  if (result.isLoading || functions.isLoading) {
-    return <LoadingAnimation />;
-  }
-  if (result.error || functions.error) {
-    return <GlobalError title={"Failed to load data from server"} error={result.error || functions.error} />;
-  }
-  const [streams, destinations, links] = result.data;
+  const links = useConfigObjectLinks({withData: true});
+  const streams = useConfigObjectList("stream");
+  const destinations = useConfigObjectList("destination");
+  const functions = useConfigObjectList("function");
   return (
-    <ConnectionEditorPage streams={streams} destinations={destinations} links={links} functions={functions.functions} />
+    <ConnectionEditorPage streams={streams} destinations={destinations} links={links as z.infer<typeof ConfigurationObjectLinkDbModel>[]} functions={functions} />
   );
 };
 
