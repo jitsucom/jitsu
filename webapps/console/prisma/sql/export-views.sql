@@ -26,7 +26,7 @@ create or replace view last_updated as select greatest(
                                                       (select max("updatedAt") from "ConfigurationObjectLink"),
                                                       (select max("updatedAt") from "ConfigurationObject"),
                                                       (select max("updatedAt") from "Workspace")
-                                              );
+                                              ) as "last_updated";
 
 create or replace view streams_with_destinations as
 select b."streamId",
