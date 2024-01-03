@@ -102,13 +102,21 @@ type EditorProps<T> = {
 
 type EditorComponent<T, P = {}> = React.FC<EditorProps<T> & P>;
 
-const DataLayoutEditor: EditorComponent<DataLayoutType> = props => (
+const DataLayoutEditor: EditorComponent<DataLayoutType, { fileStorage?: boolean }> = props => (
   <Radio.Group className={styles.radioGroup} value={props.value} onChange={val => props.onChange(val.target.value)}>
     <div className={"flex flex-col gap-2"}>
+      {props.fileStorage && (
+        <Radio value="passthrough">
+          <div>
+            <div className={``}>Original</div>
+            <div className={`text-textLight text-xs`}>Keep original event structure.</div>
+          </div>
+        </Radio>
+      )}
       <Radio value="segment-single-table">
         <div>
           <div className={``}>
-            Single Table <span className="text-textDark font-bold">(recommended)</span>
+            Single Table{!props.fileStorage ? <span className="text-textDark font-bold"> (recommended)</span> : <></>}
           </div>
           <div className={`max-w-2xl text-textLight text-sm`}>
             The data is written into a table <code>events</code>. Field names and naming convention are same as in
@@ -411,6 +419,7 @@ function ConnectionEditor({
       name: "Data Layout",
       component: (
         <DataLayoutEditor
+          fileStorage={destinationType.id === "gcs" || destinationType.id === "s3"}
           onChange={dataLayout => updateOptions({ dataLayout })}
           value={connectionOptions.dataLayout || "segment-single-table"}
         />

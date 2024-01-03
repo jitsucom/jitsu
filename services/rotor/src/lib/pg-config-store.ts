@@ -115,6 +115,7 @@ export async function refreshStore(
     const res = await pg.query("select * from last_updated");
     const lastModified: Date = res.rows?.[0]?.last_updated;
     if (!lastModified) {
+      //Failed to load repository last updated date. Probably database has no records yet.
       return { store: EmptyStore, lastModified: undefined };
     }
     if (ifModifiedSince && lastModified.getTime() <= ifModifiedSince.getTime()) {
