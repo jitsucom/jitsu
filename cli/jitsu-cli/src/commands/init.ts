@@ -1,17 +1,29 @@
 import inquirer from "inquirer";
 import path from "path";
-import { sanitize } from "juava";
-import { write } from "../lib/template";
-import { functionProjectTemplate } from "../templates/functions";
-import { jitsuCliVersion } from "../lib/version";
 import { b } from "../lib/chalk-code-highlight";
+import * as fs from "fs";
+import { functionProjectTemplate } from "../templates/functions";
+import { write } from "../lib/template";
+import { jitsuCliVersion } from "../lib/version";
 
-export async function init({ name, parent, displayname }: { name?: string; parent?: string; displayname?: string }) {
-  const currentDir = process.cwd();
-
-  const projectName =
-    name ||
-    (
+export async function init(dir?: string, opts?: { jitsuVersion?: string; allowNonEmptyDir?: boolean }) {
+  let projectName;
+  if (dir) {
+    dir = path.resolve(dir);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir);
+    } else if (fs.readdirSync(dir).length > 0) {
+      const msg = `Directory ${b(dir)} is not empty, can't create project there`;
+      if (opts?.allowNonEmptyDir) {
+        console.warn(`Directory ${b(dir)} is not empty. Will create project there, files may be overwritten`);
+      } else {
+        console.error(msg);
+        process.exit(1);
+      }
+    }
+    projectName = path.basename(dir);
+  } else {
+    projectName = (
       await inquirer.prompt([
         {
           type: "input",
@@ -20,40 +32,12 @@ export async function init({ name, parent, displayname }: { name?: string; paren
         },
       ])
     ).project;
+    dir = path.resolve(projectName);
+  }
 
-  const parentDir =
-    parent ||
-    (
-      await inquirer.prompt([
-        {
-          type: "input",
-          name: "dir",
-          default: currentDir,
-          message: `Enter parent directory of project:`,
-        },
-      ])
-    ).dir;
-
-  const functionName =
-    displayname ||
-    (
-      await inquirer.prompt([
-        {
-          type: "input",
-          name: "functionName",
-          message: `Enter function name. Human readable function name that will be used in Jitsu:`,
-        },
-      ])
-    ).functionName;
-
-  const projectDir = path.resolve(parentDir, sanitize(projectName));
-
-  console.log(`Creating project ${b(projectName)}. Path: ${projectDir}`);
-
-  write(projectDir, functionProjectTemplate, {
+  write(dir, functionProjectTemplate, {
     packageName: projectName,
-    functionName: functionName,
-    jitsuVersion: jitsuCliVersion,
+    jitsuVersion: opts?.jitsuVersion || jitsuCliVersion,
   });
 
   console.log(`Project ${b(projectName)} created!`);

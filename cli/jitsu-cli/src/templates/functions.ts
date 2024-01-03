@@ -5,7 +5,6 @@ import { sanitize } from "juava";
 export type TemplateVars = {
   license?: "MIT" | "Other";
   packageName: string;
-  functionName: string;
   jitsuVersion?: string;
 };
 
@@ -22,7 +21,7 @@ export const packageJsonTemplate = ({ packageName, license = "MIT", jitsuVersion
     deploy: `${jitsuCliPackageName} deploy`,
   },
   devDependencies: {
-    "jitsu-cli": `${jitsuCliVersion}`,
+    "jitsu-cli": `${jitsuVersion || "^" + jitsuCliVersion}`,
     "@jitsu/protocols": `${jitsuVersion || "^" + jitsuCliVersion}`,
     "@jitsu/functions-lib": `${jitsuVersion || "^" + jitsuCliVersion}`,
     "@types/jest": "^29.5.5",
@@ -39,31 +38,31 @@ test("${sanitize(packageName)} test", () => {
 `;
 };
 
-let functionCode = ({ packageName, functionName }: TemplateVars) => {
+let functionCode = ({}: TemplateVars) => {
   return `
 import { JitsuFunction } from "@jitsu/protocols/functions";
 import { RetryError } from "@jitsu/functions-lib";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 
 export const config = {
-    slug: "${sanitize(packageName)}", //id (uniq per workspace) used to identify function in Jitsu
-    name: "${functionName.replaceAll('"', '\\"')}", //human readable name of function
+    slug: "hello.ts", //id (uniq per workspace) used to identify function in Jitsu
+    name: "Hello World Function", //human readable name of function
     description: ""
 };
 
-const ${sanitize(
-    packageName
-  )}: JitsuFunction<AnalyticsServerEvent, any> = async (event, { log, fetch, props, store, geo, ...meta }) => {
-    //TODO: implement function logic
+const helloWorldFunction: JitsuFunction<AnalyticsServerEvent, any> = async (event, { log, fetch, props, store, geo, ...meta }) => {
+    //output "Hello World!" to logs and return unchanged event
+    log.info("Hello World!");
+    return event
 };
 
-export default ${sanitize(packageName)};
+export default helloWorldFunction;
 `;
 };
 
 export const functionProjectTemplate: ProjectTemplate<TemplateVars> = ({ packageName }: TemplateVars) => ({
-  [`__test__/functions/${sanitize(packageName)}.test.ts`]: functionTest,
-  [`src/functions/${sanitize(packageName)}.ts`]: functionCode,
+  [`__test__/functions/hello.test.ts`]: functionTest,
+  [`src/functions/hello.ts`]: functionCode,
   "package.json": packageJsonTemplate,
   "tsconfig.json": {
     compilerOptions: {

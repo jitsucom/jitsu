@@ -1,16 +1,54 @@
 import open from "open";
 import express from "express";
 import { decrypt, randomId } from "juava";
-import { writeFileSync, mkdirSync } from "fs";
+import { writeFileSync, mkdirSync, readFileSync } from "fs";
 import { homedir } from "os";
 import readline from "readline";
 import { red } from "../lib/chalk-code-highlight";
+import * as fs from "fs";
+import inquirer from "inquirer";
 
 const origin = "jitsu-cli";
+export async function logout({ force }: { force?: boolean }) {
+  const jitsuFile = `${homedir()}/.jitsu/jitsu-cli.json`;
+  if (fs.existsSync(jitsuFile)) {
+    if (force) {
+      fs.unlinkSync(jitsuFile);
+    } else {
+      const { confirm } = await inquirer.prompt([
+        {
+          type: "confirm",
+          name: "confirm",
+          message: "Are you sure you want to logout?",
+          default: false,
+        },
+      ]);
+      if (confirm) {
+        fs.unlinkSync(jitsuFile);
+      } else {
+        console.log("Logout cancelled");
+        return;
+      }
+    }
+    console.log("You are logged out");
+  } else {
+    console.log("You are not logged in");
+  }
+}
 
-export async function login({ host, apikey }: { host: string; apikey?: string }) {
+export async function login({ host, apikey, force }: { host: string; apikey?: string; force?: boolean }) {
+  const jitsuFile = `${homedir()}/.jitsu/jitsu-cli.json`;
+  if (fs.existsSync(jitsuFile) && !force) {
+    const loginInfo = JSON.parse(readFileSync(jitsuFile, { encoding: "utf-8" }));
+    console.error(
+      red(
+        `Error: seems like you already logged into jitsu at ${loginInfo.host}. If you want to re-login again, use --force flag, or logout first with \`jitsu-cli logout\` command`
+      )
+    );
+    process.exit(1);
+  }
   if (apikey) {
-    writeFileSync(`${homedir()}/.jitsu/jitsu-cli.json`, JSON.stringify({ host, apikey }, null, 2));
+    writeFileSync(jitsuFile, JSON.stringify({ host, apikey }, null, 2));
     console.info(`\nSuccess!`);
     return;
   }

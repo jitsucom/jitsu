@@ -1,6 +1,7 @@
 import React from "react";
 import { useRouter } from "next/router";
 import { CodeBlock } from "../components/CodeBlock/CodeBlock";
+import Link from "next/link";
 
 const CLI = () => {
   const router = useRouter();
@@ -28,6 +29,14 @@ const CLI = () => {
             ) : (
               <div>
                 <b>Success!</b> You can close this window and return to the terminal.
+                <p className="mt-3">
+                  A special API key that starts with <code>jitsu-cli</code> has been created. You can edit a list of API
+                  keys on{" "}
+                  <Link className="underline text-primary" href="/user">
+                    User Profile page
+                  </Link>
+                  .
+                </p>
               </div>
             )}
           </div>
