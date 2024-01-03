@@ -7,7 +7,6 @@ import json from "highlight.js/lib/languages/json";
 import yaml from "highlight.js/lib/languages/yaml";
 import htmlLang from "highlight.js/lib/languages/xml";
 import typescript from "highlight.js/lib/languages/typescript";
-import styles from "./CodeBlock.module.css";
 
 export type SupportedLang = "html" | "javascript" | "json" | "yaml" | "typescript" | "tsx" | "jsx";
 const langMap: Record<SupportedLang, any> = {
@@ -41,7 +40,8 @@ export const CodeBlockLight: React.FC<PropsWithChildrenClassname<{ lang?: string
     <div className={`relative group ${className}`}>
       <pre
         ref={codeRef}
-        className={`${styles.codeBlockLight} whitespace-pre-wrap break-all rounded-lg language-${lang} `}
+        className={`whitespace-pre-wrap break-all rounded-lg language-${lang}`}
+        style={{ background: "transparent" }}
       >
         {children}
       </pre>

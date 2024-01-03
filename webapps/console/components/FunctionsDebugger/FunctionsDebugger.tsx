@@ -26,6 +26,8 @@ import { FunctionConfig } from "../../lib/schema";
 import { useRouter } from "next/router";
 import { feedbackError } from "../../lib/ui";
 import { Htmlizer } from "../Htmlizer/Htmlizer";
+import Link from "next/link";
+import { CodeBlockLight } from "../CodeBlock/CodeBlockLight";
 
 const convert = new Convert({ newline: true });
 const localDate = (date: string | Date) => dayjs(date).format("YYYY-MM-DD HH:mm:ss");
@@ -105,6 +107,26 @@ export const EditableTitle: React.FC<{ children: string; onUpdate: (str: string)
             <Pencil className="w-5 h-5" />
           </button>
         </div>
+      )}
+    </div>
+  );
+};
+
+const CodeViewer: React.FC<{ code: string }> = ({ code }) => {
+  const [showCode, setShowCode] = useState(false);
+
+  return (
+    <div>
+      <button className="text-primary" onClick={() => setShowCode(!showCode)}>
+        {showCode ? "Hide code" : "View compiled code"} »
+      </button>
+      {showCode && (
+        <CodeBlockLight
+          className="mt-2 bg-background text-xs py-2 px-3 rounded-lg max-h-60 overflow-y-auto "
+          lang="javascript"
+        >
+          {code}
+        </CodeBlockLight>
       )}
     </div>
   );
@@ -283,12 +305,30 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
                   column={1}
                   size={"small"}
                 >
-                  <Descriptions.Item label="Slug">{obj.slug}</Descriptions.Item>
+                  <Descriptions.Item label="Slug">
+                    <code>{obj.slug}</code>
+                  </Descriptions.Item>
                   <Descriptions.Item label="Origin">This function was created with Jitsu CLI</Descriptions.Item>
                   <Descriptions.Item label="Package Version" className={"whitespace-nowrap"}>
                     {obj.version}
                   </Descriptions.Item>
-                  <Descriptions.Item label="Description">{obj.description}</Descriptions.Item>
+                  {obj.description && <Descriptions.Item label="Description">{obj.description}</Descriptions.Item>}
+                  {
+                    <Descriptions.Item label="Code">
+                      <div className="text-sm">
+                        <div className="mb-6">
+                          The function is compiled and deployed with{" "}
+                          <Link href="https://docs.jitsu.com/functions/sdk">
+                            <code>jitsu-cli</code>
+                          </Link>{" "}
+                          and can't be edited in the UI. However, you can still run it with different events and see the
+                          results below. And you can view the code
+                        </div>
+
+                        <CodeViewer code={obj.code as string} />
+                      </div>
+                    </Descriptions.Item>
+                  }
                 </Descriptions>
               ) : (
                 <div className={`${styles.editor} flex-auto pl-2 bg-backgroundLight`}>

@@ -8,16 +8,35 @@ import { UDFWrapper } from "@jitsu/core-functions";
 import cuid from "cuid";
 import { b, red } from "../lib/chalk-code-highlight";
 
-export async function deploy({ dir, workspace, name: names }: { dir?: string; workspace?: string; name?: string[] }) {
+function readLoginFile() {
+  const configFile = `${homedir()}/.jitsu/jitsu-cli.json`;
+  if (!existsSync(configFile)) {
+    console.error(red("Please login first with `jitsu-cli login` command or provide --apikey option"));
+    process.exit(1);
+  }
+  return JSON.parse(readFileSync(configFile, { encoding: "utf-8" }));
+}
+
+export async function deploy({
+  dir,
+  workspace,
+  name: names,
+  ...params
+}: {
+  dir?: string;
+  workspace?: string;
+  name?: string[];
+  apikey?: string;
+  host?: string;
+}) {
   const { packageJson, projectDir } = await loadPackageJson(dir || process.cwd());
 
   const selected = names ? names.flatMap(n => n.split(",")).map(n => n.trim()) : undefined;
 
   const configFile = `${homedir()}/.jitsu/jitsu-cli.json`;
-  if (!existsSync(configFile)) {
-    console.error(red("Please login first."));
-    process.exit(1);
-  }
+  const { host, apikey } = params.apikey
+    ? { apikey: params.apikey, host: params.host || "https://use.jitsu.com" }
+    : readLoginFile();
 
   const functionsDir = path.resolve(projectDir, "dist/functions");
   if (!existsSync(functionsDir)) {
@@ -60,7 +79,6 @@ export async function deploy({ dir, workspace, name: names }: { dir?: string; wo
     selectedFiles.push(...functionsFiles);
   }
 
-  const { host, apikey } = JSON.parse(readFileSync(configFile, "utf-8"));
   const res = await fetch(`${host}/api/workspace`, {
     method: "GET",
     headers: {

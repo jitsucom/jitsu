@@ -1,6 +1,6 @@
 import figlet from "figlet";
 import { Command } from "commander";
-import { login } from "./commands/login";
+import { login, logout } from "./commands/login";
 import { deploy } from "./commands/deploy";
 import { init } from "./commands/init";
 import { build } from "./commands/build";
@@ -16,18 +16,9 @@ const p = new Command();
 p.name(jitsuCliPackageName).description("CLI command to create, test and deploy extensions for Jitsu Next");
 p.command("init")
   .description("Initialize a new Jitsu extension project")
-  .option(
-    "-n, --name <name>",
-    "the name of the project. It will be used as a package name and directory name. (Optional). By default, interactive prompt is shown to enter the name."
-  )
-  .option(
-    "-N, --displayname <name>",
-    "human-readable function name that will be used in Jitsu. (Optional). By default, interactive prompt is shown to enter the name."
-  )
-  .option(
-    "-p, --parent <dir>",
-    "the parent directory of project. (Optional). By default, interactive prompt is shown to enter the parent directory."
-  )
+  .arguments("[dir]")
+  .option("-j, --jitsu-version <version>", "Jitsu version to use in package.json. (Optional)")
+  .option("--allow-non-empty-dir", "Allow to create project in non-empty directory. (Optional)")
   .action(init);
 
 p.command("build")
@@ -55,13 +46,21 @@ p.command("run")
 
 p.command("login")
   .description("Login to Jitsu and remember credentials in `~/.jitsu/jitsu-cli.json` file")
+  .option("-f, --force", "If user already logged in, replace existing session")
   .option("-h, --host <host>", "Jitsu host or base url", "https://use.jitsu.com")
   .option("-k, --apikey <api-key>", "Jitsu user's Api Key. (Optional). Disables interactive login.")
   .action(login);
+p.command("logout").description("Logout").option("-f, --force", "Do not ask for confirmation").action(logout);
 
 p.command("deploy")
   .description("Deploy functions to Jitsu project")
   .option("-d, --dir <dir>", "the directory of project. (Optional). By default, current directory is used")
+  .option(
+    "-h, --host <host>",
+    "(Optional) Jitsu host or base url. Useful for CI, if it's not possible to run login beforehand",
+    "https://use.jitsu.com"
+  )
+  .option("-k, --apikey <api-key>", "(Optional) Jitsu user's Api Key.")
   .option(
     "-w, --workspace <workspace-id>",
     "Id of workspace where to deploy function (Optional). By default, interactive prompt is shown to select workspace"

@@ -5,15 +5,15 @@ import { useWorkspace } from "../../lib/context";
 import { useRouter } from "next/router";
 import { getLog } from "juava";
 import React from "react";
-import { FunctionSquare } from "lucide-react";
+import { FunctionSquare, HardDrive } from "lucide-react";
 import { FunctionsDebugger } from "../../components/FunctionsDebugger/FunctionsDebugger";
 import { ObjectTitle } from "../../components/ObjectTitle/ObjectTitle";
+import Link from "next/link";
 
 const log = getLog("functions");
 
 const Functions: React.FC<any> = () => {
   const router = useRouter();
-  console.log("router", router.pathname);
   return (
     <WorkspacePageLayout
       className={`${
@@ -52,6 +52,25 @@ const FunctionsList: React.FC<{}> = () => {
       code: { textarea: true },
     },
     noun: "function",
+    listColumns: [
+      {
+        title: "name",
+        render: (f: FunctionConfig) => {
+          return (
+            <Link className="flex items-center text-text" href={`/${workspace.slugOrId}/functions?id=${f.id}`}>
+              <ObjectTitle title={f.name} icon={<FunctionSquare className={"text-text"} />} />
+              {f.origin === "jitsu-cli" && (
+                <div className="bg-background border border-backgroundDark px-0.5 py-0.2 rounded textLight flex items-center gap-1 ml-2 text-text">
+                  <HardDrive className="w-3 h-3" />
+                  <span className="font-mono text-xs text-text">deployed from CLI</span>
+                </div>
+              )}
+            </Link>
+          );
+        },
+      },
+    ],
+
     type: "function",
     newObject: () => ({ name: "New function" }),
     icon: f => <FunctionSquare className={"text-text"} />,
