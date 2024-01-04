@@ -158,11 +158,20 @@ function DestinationCard({ dest, selected }: { dest: DestinationConfig; selected
   );
 }
 
+function looksLikeUrl(potentialUrl: string) {
+  try {
+    new URL(potentialUrl);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
 export const FaviconLoader: React.FC<{ potentialUrl?: string }> = ({ potentialUrl }) => {
   const [faviconUrl, setFaviconUrl] = useState<string | null>(null);
   useEffect(() => {
     (async () => {
-      if (potentialUrl) {
+      if (potentialUrl && looksLikeUrl(potentialUrl)) {
         let url;
         let fullUrl =
           potentialUrl.indexOf("http") === 0 ? potentialUrl + "/favicon.ico" : `https://${potentialUrl}/favicon.ico`;
