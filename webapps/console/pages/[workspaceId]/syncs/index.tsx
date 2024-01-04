@@ -416,18 +416,21 @@ function Syncs(props: RemoteEntitiesProps) {
   const destinationFilter = router.query.destination as string | undefined;
   const srcFilter = router.query.source as string | undefined;
   const workspace = useWorkspace();
-  if (props.services.length == 0 || props.destinations.length == 0) {
+  const bulkerDsts = destinations.filter(d => getCoreDestinationTypeNonStrict(d.destinationType)?.usesBulker);
+
+  if (services.length == 0 || bulkerDsts.length == 0) {
     return (
       <div className="flex flex-col justify-center items-center ">
         <Inbox className="w-16 h-16 text-textDisabled" />
         <div className="text-center mt-12 text text-textLight max-w-4xl">
-          In order to create a sync please create at least one destination and one connector. Currently, you have{" "}
+          In order to create a sync please create at least one connector and destination of <b>data warehouse</b> or{" "}
+          <b>cloud storage</b> type. Currently, you have{" "}
           <Link href={`/${workspace.slug || workspace.id}/destinations`} className="underline">
-            {props.destinations.length} destination{props.destinations.length === 1 ? "" : "s"}
+            {bulkerDsts.length} destination{bulkerDsts.length === 1 ? "" : "s"}
           </Link>{" "}
           and{" "}
           <Link href={`/${workspace.slug || workspace.id}/services`} className="underline">
-            {props.services.length} connector{props.services.length === 1 ? "" : "s"}
+            {services.length} connector{services.length === 1 ? "" : "s"}
           </Link>{" "}
           configured
         </div>
