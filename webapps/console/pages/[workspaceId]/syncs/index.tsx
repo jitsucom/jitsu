@@ -42,6 +42,7 @@ import { processTaskStatus, TaskStatus } from "./tasks";
 import omit from "lodash/omit";
 import { toURL } from "../../../lib/shared/url";
 import { useConfigObjectLinks, useConfigObjectList, useStoreReload } from "../../../lib/store";
+import { getCoreDestinationTypeNonStrict } from "../../../lib/schema/destinations";
 
 dayjs.extend(relativeTime);
 dayjs.extend(utc);

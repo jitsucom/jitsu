@@ -1,21 +1,22 @@
 import { WorkspacePageLayout } from "../../../components/PageLayout/WorkspacePageLayout";
 import { useAppConfig, useWorkspace } from "../../../lib/context";
 import React from "react";
-import { LoadingAnimation } from "../../../components/GlobalLoader/GlobalLoader";
-import { ErrorCard, GlobalError } from "../../../components/GlobalError/GlobalError";
-import { useLinksQuery } from "../../../lib/queries";
+import { ErrorCard } from "../../../components/GlobalError/GlobalError";
 import SyncEditorPage from "../../../components/SyncEditorPage/SyncEditorPage";
 import { Redirect } from "../../../components/Redirect/Redirect";
 import { getCoreDestinationTypeNonStrict } from "../../../lib/schema/destinations";
+import { useConfigObjectLinks, useConfigObjectList } from "../../../lib/store";
+import { z } from "zod";
+import { ConfigurationObjectLinkDbModel } from "../../../prisma/schema";
 
 const Loader = () => {
   const workspace = useWorkspace();
   const appconfig = useAppConfig();
 
-  const result = useLinksQuery(workspace.id, "sync", {
-    cacheTime: 0,
-    retry: false,
-  });
+  const links = useConfigObjectLinks({ withData: true });
+  const services = useConfigObjectList("service");
+  const destinations = useConfigObjectList("destination");
+
   if (!(appconfig.syncs.enabled || workspace.featuresEnabled.includes("syncs"))) {
     return (
       <ErrorCard
@@ -26,13 +27,6 @@ const Loader = () => {
     );
   }
 
-  if (result.isLoading) {
-    return <LoadingAnimation />;
-  }
-  if (result.error) {
-    return <GlobalError title={"Failed to load data from server"} error={result.error} />;
-  }
-  const [services, destinations, links] = result.data;
   const bulkerDsts = destinations.filter(d => getCoreDestinationTypeNonStrict(d.destinationType)?.usesBulker);
   //protection from faulty redirects to this page
   if (services.length === 0) {
@@ -40,7 +34,13 @@ const Loader = () => {
   } else if (bulkerDsts.length === 0) {
     return <Redirect href={`/${workspace.slugOrId}/destinations`} />;
   }
-  return <SyncEditorPage services={services} destinations={bulkerDsts} links={links} />;
+  return (
+    <SyncEditorPage
+      services={services}
+      destinations={bulkerDsts}
+      links={links as z.infer<typeof ConfigurationObjectLinkDbModel>[]}
+    />
+  );
 };
 
 const RootComponent: React.FC = () => {
