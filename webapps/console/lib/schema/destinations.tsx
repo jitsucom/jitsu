@@ -212,6 +212,10 @@ export function getCoreDestinationType(typeId: string): DestinationType {
   return destinationType;
 }
 
+export function getCoreDestinationTypeNonStrict(typeId: string): DestinationType | undefined {
+  return coreDestinationsMap[typeId];
+}
+
 export const ClickhouseCredentials = z.object({
   protocol: z
     .enum(["http", "https", "clickhouse", "clickhouse-secure"])

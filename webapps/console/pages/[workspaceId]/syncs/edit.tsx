@@ -6,6 +6,7 @@ import { ErrorCard, GlobalError } from "../../../components/GlobalError/GlobalEr
 import { useLinksQuery } from "../../../lib/queries";
 import SyncEditorPage from "../../../components/SyncEditorPage/SyncEditorPage";
 import { Redirect } from "../../../components/Redirect/Redirect";
+import { getCoreDestinationTypeNonStrict } from "../../../lib/schema/destinations";
 
 const Loader = () => {
   const workspace = useWorkspace();
@@ -32,13 +33,14 @@ const Loader = () => {
     return <GlobalError title={"Failed to load data from server"} error={result.error} />;
   }
   const [services, destinations, links] = result.data;
+  const bulkerDsts = destinations.filter(d => getCoreDestinationTypeNonStrict(d.destinationType)?.usesBulker);
   //protection from faulty redirects to this page
   if (services.length === 0) {
     return <Redirect href={`/${workspace.slugOrId}/services`} />;
-  } else if (destinations.length === 0) {
+  } else if (bulkerDsts.length === 0) {
     return <Redirect href={`/${workspace.slugOrId}/destinations`} />;
   }
-  return <SyncEditorPage services={services} destinations={destinations} links={links} />;
+  return <SyncEditorPage services={services} destinations={bulkerDsts} links={links} />;
 };
 
 const RootComponent: React.FC = () => {
