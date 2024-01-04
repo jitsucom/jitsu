@@ -1,4 +1,4 @@
-import { assertDefined, getErrorMessage, getLog, LogLevel, rpc, setGlobalLogLevel } from "juava";
+import { getErrorMessage, getLog, LogLevel, rpc, setGlobalLogLevel } from "juava";
 import { AppProps } from "next/app";
 import "../styles/globals.css";
 import { useRouter } from "next/router";
@@ -13,7 +13,8 @@ import {
   AppConfigContextProvider,
   useAppConfig,
   UserContextProvider,
-  useUser, useWorkspace,
+  useUser,
+  useWorkspace,
   WorkspaceContextProvider,
 } from "../lib/context";
 import { AppConfig, ContextApiResponse, SessionUser } from "../lib/schema";
@@ -259,7 +260,7 @@ const LoadingBlur: React.FC<{}> = () => {
         }`}
       >
         <div className="flex flex-col items-center justify-center">
-          <GlobalLoader title="Loading..." />
+          <GlobalLoader title="Loading page..." />
         </div>
       </div>
     </div>
@@ -414,10 +415,53 @@ function configureLogging() {
   }
 }
 
+const StoreLoader: React.FC<
+  PropsWithChildren<{
+    workspaceIdOrSlug: string;
+  }>
+> = ({ workspaceIdOrSlug, children }) => {
+  const configObjectsUpdater = useConfigObjectsUpdater(workspaceIdOrSlug);
+  if (configObjectsUpdater.error) {
+    log
+      .atError()
+      .log(`Can't load workspace ${JSON.stringify(configObjectsUpdater.error, null, 2)}`, configObjectsUpdater.error);
+    return (
+      <GlobalOverlay>
+        <div className="md:scale-125 mt-4 mx-4">
+          <Alert
+            type="info"
+            showIcon
+            message={<b>Can't access workspace</b>}
+            description={
+              <div className="">
+                <div className="max-w-1xl">
+                  The workspace <b>{workspaceIdOrSlug}</b> is not available or you don't have access to it. If you sure
+                  that it exists, please contact the owner.
+                </div>
+                <JitsuButton href="/workspaces" className="mt-4">
+                  Go to available workspaces
+                </JitsuButton>
+              </div>
+            }
+          />
+        </div>
+      </GlobalOverlay>
+    );
+  } else if (configObjectsUpdater.loading) {
+    return <GlobalLoader title={"Loading workspace data..."} />;
+  } else {
+    return <>{children}</>;
+  }
+};
+
 const WorkspaceWrapper: React.FC<PropsWithChildren<{}>> = ({ children }) => {
   const router = useRouter();
   if (router.query.workspaceId) {
-    return <WorkspaceLoader workspaceId={router.query.workspaceId.toString()}>{children}</WorkspaceLoader>;
+    return (
+      <StoreLoader workspaceIdOrSlug={router.query.workspaceId.toString()}>
+        <WorkspaceLoader workspaceIdOrSlug={router.query.workspaceId.toString()}>{children}</WorkspaceLoader>
+      </StoreLoader>
+    );
   } else {
     return <>{children}</>;
   }
@@ -447,26 +491,22 @@ export const S3BucketInitializer: React.FC<{}> = () => {
       }
     })();
   }, [workspace?.id, streams, appConfig]);
-  return <></>
-}
+  return <></>;
+};
 
-const WorkspaceLoader: React.FC<PropsWithChildren<{ workspaceId: string }>> = ({ workspaceId: workspaceIdOrSlug, children }) => {
+const WorkspaceLoader: React.FC<
+  PropsWithChildren<{
+    workspaceIdOrSlug: string;
+  }>
+> = ({ workspaceIdOrSlug, children }) => {
   const { analytics } = useJitsu();
   const appConfig = useAppConfig();
   const user = useUser();
   const router = useRouter();
 
-  // const {
-  //   data: workspace,
-  //   error,
-  //   isLoading,
-  // } = useApi<z.infer<typeof WorkspaceDbModel>>(`/api/workspace/${workspaceIdOrSlug}`, {
-  //   outputType: WorkspaceDbModel,
-  // });
-
-  const configObjectsUpdater = useConfigObjectsUpdater(workspaceIdOrSlug);
   const workspace = useLoadedWorkspace(workspaceIdOrSlug);
 
+  const configObjectsUpdater = useConfigObjectsUpdater(workspaceIdOrSlug);
 
   useEffect(() => {
     if (workspace?.id) {
@@ -474,7 +514,10 @@ const WorkspaceLoader: React.FC<PropsWithChildren<{ workspaceId: string }>> = ({
         context: { workspaceId: workspace.id, groupId: workspace.id },
       });
     } else if (configObjectsUpdater.error) {
-      analytics.track("error", { location: "WorkspacePageLayout", errorMessage: getErrorMessage(configObjectsUpdater.error) });
+      analytics.track("error", {
+        location: "WorkspacePageLayout",
+        errorMessage: getErrorMessage(configObjectsUpdater.error),
+      });
     }
   }, [analytics, router.asPath, workspace?.id, configObjectsUpdater.error]);
 
@@ -494,7 +537,7 @@ const WorkspaceLoader: React.FC<PropsWithChildren<{ workspaceId: string }>> = ({
 
   useEffect(() => {
     if (workspace?.id) {
-      console.log('Sending page view of workspace', workspace)
+      console.log("Sending page view of workspace", workspace);
       analytics.group(workspace.id, {
         name: workspace.name,
         slug: workspace.slug ?? "",
@@ -504,42 +547,13 @@ const WorkspaceLoader: React.FC<PropsWithChildren<{ workspaceId: string }>> = ({
   }, [analytics, workspace?.id, workspace?.name, workspace?.slug]);
   /* eslint-enable */
 
-  if (configObjectsUpdater.error) {
-    log.atError().log(`Can't load workspace ${JSON.stringify(configObjectsUpdater.error, null, 2)}`, configObjectsUpdater.error);
-    return (
-      <GlobalOverlay>
-        <div className="md:scale-125 mt-4 mx-4">
-          <Alert
-            type="info"
-            showIcon
-            message={<b>Can't access workspace</b>}
-            description={
-              <div className="">
-                <div className="max-w-1xl">
-                  The workspace <b>{router.query.workspaceId}</b> is not available or you don't have access to it. If
-                  you sure that it exists, please contact the owner.
-                </div>
-                <JitsuButton href="/workspaces" className="mt-4">
-                  Go to available workspaces
-                </JitsuButton>
-              </div>
-            }
-          />
-        </div>
-      </GlobalOverlay>
-    );
-  } else if (configObjectsUpdater.loading) {
-    return <GlobalLoader title={"Loading workspace data..."} />;
-  } else {
-    assertDefined(workspace, `Workspace is not defined`);
-    return (
-      <WorkspaceContextProvider workspace={{ ...workspace, slugOrId: workspace?.slug || workspace?.id }}>
-        <BillingProvider sendAnalytics={true} enabled={appConfig.billingEnabled}>
-          <ClassicProjectProvider>{children}</ClassicProjectProvider>
-        </BillingProvider>
-      </WorkspaceContextProvider>
-    );
-  }
+  return (
+    <WorkspaceContextProvider workspace={{ ...workspace, slugOrId: workspace?.slug || workspace?.id }}>
+      <BillingProvider sendAnalytics={true} enabled={appConfig.billingEnabled}>
+        <ClassicProjectProvider>{children}</ClassicProjectProvider>
+      </BillingProvider>
+    </WorkspaceContextProvider>
+  );
 };
 
 export const ReadOnlyBanner: React.FC<{}> = () => {

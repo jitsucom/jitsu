@@ -1,5 +1,5 @@
 import type { DestinationConfig, FunctionConfig, ServiceConfig, StreamConfig } from "../schema";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getLog, requireDefined, rpc } from "juava";
 import { useWorkspace } from "../context";
 import { QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -55,25 +55,24 @@ function toError(e: any) {
   return e instanceof Error ? e : new Error(e?.message || "Unknown error");
 }
 
-function getWorkspaceCacheKey(workspaceIdOrSlug: string) {
+export function getWorkspaceCacheKey(workspaceIdOrSlug: string) {
   return ["workspace", workspaceIdOrSlug];
 }
 
+export const foreverCache = {
+  retry: false,
+  staleTime: Infinity,
+  cacheTime: Infinity,
+  //initialData: []
+};
+
 async function initialDataLoad(workspaceIdOrSlug: string, queryClient: QueryClient): Promise<{ workspaceId: string }> {
   const loaders: Promise<void>[] = [];
-  const cachingOptions = {
-    retry: false,
-    staleTime: Infinity,
-    cacheTime: Infinity,
-    //initialData: []
-  };
-
 
   await queryClient.prefetchQuery(
     getWorkspaceCacheKey(workspaceIdOrSlug),
-    async ({ signal }) =>
-      WorkspaceDbModel.parse(await rpc(`/api/workspace/${workspaceIdOrSlug}`, { signal })),
-    cachingOptions
+    async ({ signal }) => WorkspaceDbModel.parse(await rpc(`/api/workspace/${workspaceIdOrSlug}`, { signal })),
+    foreverCache
   );
   const workspace = requireDefined(
     queryClient.getQueryData(getWorkspaceCacheKey(workspaceIdOrSlug)),
@@ -82,20 +81,28 @@ async function initialDataLoad(workspaceIdOrSlug: string, queryClient: QueryClie
 
   for (const type of allConfigTypes) {
     loaders.push(
-      queryClient.prefetchQuery(getConfigObjectCacheKey(workspace.id, type), async ({ signal }) => {
-        getLog().atDebug().log(`/api/${workspace.id}/config/${type}`);
-        const { objects } = await rpc(`/api/${workspace.id}/config/${type}`, { signal });
-        getLog().atDebug().log(`Loaded ${objects.length} config objects of type ${type}`);
-        return objects;
-      }, cachingOptions)
+      queryClient.prefetchQuery(
+        getConfigObjectCacheKey(workspace.id, type),
+        async ({ signal }) => {
+          getLog().atDebug().log(`/api/${workspace.id}/config/${type}`);
+          const { objects } = await rpc(`/api/${workspace.id}/config/${type}`, { signal });
+          getLog().atDebug().log(`Loaded ${objects.length} config objects of type ${type}`);
+          return objects;
+        },
+        foreverCache
+      )
     );
   }
   loaders.push(
-    queryClient.prefetchQuery(getLinksCacheKey(workspace.id), async ({ signal }) => {
-      const { links } = await rpc(`/api/${workspace.id}/config/link`, { signal });
-      getLog().atDebug().log(`Loaded ${links.length} config links`);
-      return links;
-    }, cachingOptions)
+    queryClient.prefetchQuery(
+      getLinksCacheKey(workspace.id),
+      async ({ signal }) => {
+        const { links } = await rpc(`/api/${workspace.id}/config/link`, { signal });
+        getLog().atDebug().log(`Loaded ${links.length} config links`);
+        return links;
+      },
+      foreverCache
+    )
   );
   await Promise.all(loaders);
   return { workspaceId: workspace.id };
@@ -120,9 +127,27 @@ function fullDataRefresh(workspaceId: string, queryClient: QueryClient) {
   return loaders;
 }
 
-export function useLoadedWorkspace(workspaceIdOrSlug: string): z.infer<typeof WorkspaceDbModel> | undefined {
-  const queryClient = useQueryClient();
-  return queryClient.getQueryData(getWorkspaceCacheKey(workspaceIdOrSlug)) as z.infer<typeof WorkspaceDbModel>;
+function getDebugQueryClient() {
+  if (typeof window !== "undefined") {
+    return (window as any).queryClient;
+  }
+}
+
+export function useLoadedWorkspace(workspaceIdOrSlug: string): z.infer<typeof WorkspaceDbModel> {
+  const { isLoading, error, data } = useQuery(getWorkspaceCacheKey(workspaceIdOrSlug), noopLoader, foreverCache);
+  if (isLoading) {
+    getLog()
+      .atError()
+      .log(
+        "useLoadedWorkspace() assumes that workspace is already loaded, but it is loading. See window.queryClient",
+        getDebugQueryClient()
+      );
+    throw new Error(`useLoadedWorkspace() assumes that workspace is already loaded, but it is loading`);
+  }
+  if (error) {
+    throw error;
+  }
+  return data! as z.infer<typeof WorkspaceDbModel>;
 }
 
 /**
@@ -134,11 +159,12 @@ export function useLoadedWorkspace(workspaceIdOrSlug: string): z.infer<typeof Wo
  * And it provides a method to signal an update to the cache.
  */
 export function useConfigObjectsUpdater(workspaceIdOrSlug: string): UseConfigObjectsUpdaterResult {
+  getLog().atInfo().log("useConfigObjectsUpdater() called with workspaceIdOrSlug=", workspaceIdOrSlug);
   const queryClient = useQueryClient();
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loadedWorkspace, setLoadedWorkspace] = useState<string | undefined>(undefined);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | undefined>();
   useEffect(() => {
-    const abortController = new AbortController();
     let isMounted = true;
     let modifiedSince = new Date();
     //reload data after every 5 seconds;
@@ -149,9 +175,15 @@ export function useConfigObjectsUpdater(workspaceIdOrSlug: string): UseConfigObj
           if (!isMounted) {
             clearInterval(interval);
           } else {
-            const ifModified = await rpc(`/api/${res.workspaceId}/if-modified`, {
-              query: { since: modifiedSince.toISOString() },
-            });
+            let ifModified: any;
+            try {
+              ifModified = await rpc(`/api/${res.workspaceId}/if-modified`, {
+                query: { since: modifiedSince.toISOString() },
+              });
+            } catch (e) {
+              getLog().atWarn().log("Failed to check if workspace config has been modified", e);
+              return;
+            }
             if (ifModified.modified) {
               modifiedSince = new Date();
               getLog().atDebug().log("Workspace config has been modified, reloading");
@@ -165,17 +197,17 @@ export function useConfigObjectsUpdater(workspaceIdOrSlug: string): UseConfigObj
             }
           }
         }, 5000);
+        setLoadedWorkspace(workspaceIdOrSlug);
       })
       .catch(setError)
       .finally(() => setLoading(false));
 
     return () => {
       isMounted = false;
-      abortController.abort();
     };
-  }, [queryClient, workspaceIdOrSlug]);
+  }, [queryClient, workspaceIdOrSlug, loading, loadedWorkspace]);
 
-  return loading ? { loading: true } : { loading: false, error: error! };
+  return loading || loadedWorkspace != workspaceIdOrSlug ? { loading: true } : { loading: false, error: error! };
 }
 
 type UseConfigObjectLinksParams = { withData?: boolean; type?: "push" | "sync" };
@@ -229,14 +261,21 @@ export function useConfigObjectLinksLoader(opts?: UseConfigObjectLinksParams): R
 export function useStoreReload(): (opts?: {}) => Promise<void> {
   const queryClient = useQueryClient();
   const workspace = useWorkspace();
-  return async () => {
-    await Promise.all(fullDataRefresh(workspace.id, queryClient));
-  };
+  return useCallback(
+    () => Promise.all(fullDataRefresh(workspace.id, queryClient)).then(() => {}),
+    [workspace.id, queryClient]
+  );
 }
 
 export function useConfigObjectLinks(opts?: UseConfigObjectLinksParams): UseConfigObjetLinkResult[] {
   const loader = useConfigObjectLinksLoader(opts);
   if (loader.isLoading) {
+    getLog()
+      .atError()
+      .log(
+        "useConfigObjectLinks() assumes that workspace is already loaded, but it is loading. See window.queryClient",
+        getDebugQueryClient()
+      );
     throw new Error(
       "useConfigObjectLinks() assumes that all config objects are already loaded, but they are loading. use useConfigObjectListLoader() instead."
     );
@@ -270,14 +309,15 @@ export function useConfigObjectListLoader<T extends ConfigType>(type: T): Result
   }
 }
 
-export function useConfigObjectListIfAvailable<T extends ConfigType>(type: T): ConfigTypes[T][] | undefined {
-  const loader = useConfigObjectListLoader(type);
-  return !loader.isLoading && !loader.error ? loader.data : undefined;
-}
-
 export function useConfigObjectList<T extends ConfigType>(type: T): ConfigTypes[T][] {
   const loader = useConfigObjectListLoader(type);
   if (loader.isLoading) {
+    getLog()
+      .atError()
+      .log(
+        "useConfigObjectList() assumes that workspace is already loaded, but it is loading. See window.queryClient",
+        getDebugQueryClient()
+      );
     throw new Error(
       `useConfigObjectList() assumes that instance of ${type} is already loaded, but it is loading. use useConfigObjectListLoader() instead.`
     );

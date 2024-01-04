@@ -1,4 +1,4 @@
-create or replace view enriched_connections as
+create or replace view newjitsu.enriched_connections as
 select link.id   as "id",
        link.type as "type",
        json_build_object('id', link.id,
@@ -12,12 +12,12 @@ select link.id   as "id",
                          'credentials', dst.config,
                          'credentialsHash', md5(dst.config::text)
        )         as "enrichedConnection"
-from "ConfigurationObjectLink" link
-         join "Workspace" ws on link."workspaceId" = ws.id and ws.deleted = false
-         join "ConfigurationObject" dst
+from newjitsu."ConfigurationObjectLink" link
+         join newjitsu."Workspace" ws on link."workspaceId" = ws.id and ws.deleted = false
+         join newjitsu."ConfigurationObject" dst
               on dst.id = link."toId" and dst.type = 'destination' and dst."workspaceId" = link."workspaceId" and
                  dst.deleted = false
-         join "ConfigurationObject" src
+         join newjitsu."ConfigurationObject" src
               on src.id = link."fromId" and src.type in ('stream', 'service') and
                  src."workspaceId" = link."workspaceId" and src.deleted = false
 where link.deleted = false;
@@ -28,7 +28,7 @@ create or replace view last_updated as select greatest(
                                                       (select max("updatedAt") from "Workspace")
                                               ) as "last_updated";
 
-create or replace view streams_with_destinations as
+create or replace view newjitsu.streams_with_destinations as
 select b."streamId",
        json_build_object('stream', b."srcConfig",
                          'deleted', b."deleted",
@@ -51,11 +51,11 @@ from (select src.id                                                             
                                                      'options', link."data")
                  end)                                                                          as "connectionData",
              max(greatest(link."updatedAt", src."updatedAt", dst."updatedAt", ws."updatedAt")) as "updatedAt"
-      from "ConfigurationObject" src
-               join "Workspace" ws on src."workspaceId" = ws.id
-               left join "ConfigurationObjectLink" link
+      from newjitsu."ConfigurationObject" src
+               join newjitsu."Workspace" ws on src."workspaceId" = ws.id
+               left join newjitsu."ConfigurationObjectLink" link
                          on src.id = link."fromId" and link."workspaceId" = src."workspaceId"
-               left join "ConfigurationObject" dst
+               left join newjitsu."ConfigurationObject" dst
                          on dst.id = link."toId" and dst.type = 'destination' and dst."workspaceId" = link."workspaceId"
       where src."type" = 'stream'
       group by 1, 2) b

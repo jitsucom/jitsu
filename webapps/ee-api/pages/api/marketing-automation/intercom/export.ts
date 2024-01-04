@@ -3,7 +3,7 @@ import { withErrorHandler } from "../../../../lib/error-handler";
 import { auth } from "../../../../lib/auth";
 import { assertTrue, getLog, requireDefined } from "juava";
 import { Client, Operators } from "intercom-client";
-import { applicationDb, store } from "../../../../lib/services";
+import { pg, store } from "../../../../lib/services";
 
 const handler = async function handler(req: NextApiRequest, res: NextApiResponse) {
   res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
@@ -23,7 +23,7 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
     tokenAuth: { token: requireDefined(process.env.INTERCOM_TOKEN, "INTERCOM_TOKEN env variable is not defined") },
   });
   const lookbackDays = req.query.lookbackDays ? parseInt(req.query.lookbackDays as string) : 30;
-  const result = await applicationDb.query(
+  const result = await pg.query(
     `select * from newjitsu."IntercomEventsExport" where timestamp > now() - interval '${lookbackDays} day'`
   );
   getLog().atInfo().log(`Found ${result.rowCount} events to export to Intercom`);

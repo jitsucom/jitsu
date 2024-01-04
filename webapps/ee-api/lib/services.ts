@@ -3,23 +3,13 @@ import { createPg, getPostgresStore } from "./store";
 import { createClient } from "@clickhouse/client";
 import { S3Client } from "@aws-sdk/client-s3";
 
-const dbUrl = requireDefined(
-  process.env.EE_DATABASE_URL || process.env.DATABASE_URL,
-  "nor EE_DATABASE_URL, neither DATABASE_URL is not defined"
-);
-
-const appDbUrl = requireDefined(
-  process.env.APPLICATION_DATABASE_URL || process.env.DATABASE_URL,
-  "nor APPLICATION_DATABASE_URL, neither DATABASE_URL is not defined"
-);
+const dbUrl = requireDefined(process.env.DATABASE_URL, "DATABASE_URL");
 
 export const pg = createPg(dbUrl, { connectionName: "kvstore" });
 
-export const store = getPostgresStore(pg, { tableName: "kvstore" });
+export const store = getPostgresStore(pg, { tableName: "newjitsu.kvstore" });
 
 export const telemetryDb = createPg(process.env.TELEMETRY_DATABASE_URL || dbUrl, { connectionName: "telemetry" });
-
-export const applicationDb = createPg(appDbUrl, { connectionName: "app-db" });
 
 export const clickhouse = createClient({
   host: requireDefined(process.env.CLICKHOUSE_URL, `env CLICKHOUSE_URL is not defined`),

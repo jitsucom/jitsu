@@ -14,7 +14,7 @@ export async function isDomainAvailable(domain: string, workspaceId: string): Pr
   const pattern = `%${domain.toLowerCase()}%`;
   const dirtyList = (await db.prisma().$queryRaw`
       select "id", "workspaceId", "config"
-      from "ConfigurationObject"
+      from newjitsu."ConfigurationObject"
       where type = 'stream'
         and config::TEXT ilike ${pattern}
         and "workspaceId" <> ${workspaceId}

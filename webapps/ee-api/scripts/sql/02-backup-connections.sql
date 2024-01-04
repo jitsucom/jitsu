@@ -1,5 +1,5 @@
 -- View that sets up the backup connection for each workspace. (backup connection is a S3 connection where all incoming events are archived)
-create or replace view backup_connections as
+create or replace view newjitsu.backup_connections as
 select ws.id || '_backup' as "id",
        json_build_object('id', ws.id || '_backup',
                          'special', 'backup',
@@ -24,7 +24,7 @@ select ws.id || '_backup' as "id",
                                                           'folder', '[DATE]'),
                          'credentialsHash', ''
        )                  as "enrichedConnection"
-from "Workspace" ws
+from newjitsu."Workspace" ws
 where deleted = false
   and not 'nobackup' = ANY ("featuresEnabled")
-  and (select count(*) from "ConfigurationObjectLink" where "workspaceId" = ws.id and type='push' and deleted = false) > 0
+  and (select count(*) from newjitsu."ConfigurationObjectLink" where "workspaceId" = ws.id and type='push' and deleted = false) > 0

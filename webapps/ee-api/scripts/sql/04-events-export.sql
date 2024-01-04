@@ -9,9 +9,9 @@ WITH workspace_activity AS (SELECT md5(concat_ws(','::text, u.id, 'workspace_eve
                                    u.email,
                                    'workspace_event_activity'::text                         AS "eventName",
                                    stat.events
-                            FROM "WorkspaceAccess" w2u
-                                 JOIN "UserProfile" u ON u.id = w2u."userId"
-                                 JOIN "Workspace" w ON w2u."workspaceId" = w.id
+                            FROM newjitsu."WorkspaceAccess" w2u
+                                 JOIN newjitsu."UserProfile" u ON u.id = w2u."userId"
+                                 JOIN newjitsu."Workspace" w ON w2u."workspaceId" = w.id
                                  JOIN external.workspace_stat stat ON w2u."workspaceId" = stat."workspaceId"
                             WHERE stat.events > 0
                             ORDER BY stat.period DESC, stat.events DESC),
@@ -27,9 +27,9 @@ WITH workspace_activity AS (SELECT md5(concat_ws(','::text, u.id, 'workspace_eve
                                   ELSE 'domain_configuration_attempted'::text
                                   END                                                         AS "eventName"
                          FROM external.domain_stat stat
-                              JOIN "ConfigurationObject" config ON config.id = stat."sourceId"
-                              LEFT JOIN "WorkspaceAccess" w2u ON w2u."workspaceId" = config."workspaceId"
-                              JOIN "UserProfile" u ON u.id = w2u."userId"
+                              JOIN newjitsu."ConfigurationObject" config ON config.id = stat."sourceId"
+                              LEFT JOIN newjitsu."WorkspaceAccess" w2u ON w2u."workspaceId" = config."workspaceId"
+                              JOIN newjitsu."UserProfile" u ON u.id = w2u."userId"
                          ORDER BY stat."lastUpdated" DESC, u.email DESC)
 SELECT x."messageId",
        x."workspaceId",

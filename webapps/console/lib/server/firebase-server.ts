@@ -95,10 +95,6 @@ export async function getFirebaseUser(req: NextApiRequest, checkRevoked?: boolea
   //make sure service is initialized
   await firebaseService.waitInit();
 
-  getServerLog()
-    .atDebug()
-    .log(`authToken (${(checkRevoked = !!checkRevoked)}): ${JSON.stringify(authToken)}`);
-
   let decodedIdToken;
   try {
     decodedIdToken = authToken.idToken

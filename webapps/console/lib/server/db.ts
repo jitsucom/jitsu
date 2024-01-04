@@ -81,7 +81,10 @@ export type DatabaseConnection = typeof db;
 export type PrismaSSLMode = "disable" | "prefer" | "require" | "no-verify";
 
 export function createPg(): Pool {
-  const connectionUrl = requireDefined(process.env.DATABASE_URL, "env DATABASE_URL is not defined");
+  const connectionUrl = requireDefined(
+    getApplicationDatabaseUrl(),
+    "nor DATABASE_URL, neither APP_DATABASE_URL is not defined"
+  );
   const parsedUrl = new URL(connectionUrl);
   const schema = parsedUrl.searchParams.get("schema");
   const sslMode = parsedUrl.searchParams.get("sslmode") || ("disable" as PrismaSSLMode);
@@ -95,6 +98,7 @@ export function createPg(): Pool {
     idleTimeoutMillis: 600000,
     connectionString: requireDefined(process.env.DATABASE_URL, "env.DATABASE_URL is not defined"),
     ssl: sslMode === "no-verify" ? { rejectUnauthorized: false } : undefined,
+    application_name: (parsedUrl.searchParams.get("application_name") || "console") + "-raw-pg",
   });
   pool.on("connect", async client => {
     log
@@ -103,9 +107,11 @@ export function createPg(): Pool {
         `Connecting new client ${connectionUrl}. Pool stat: idle=${pool.idleCount}, waiting=${pool.waitingCount}, total=${pool.totalCount}` +
           (schema ? `. Default schema: ${schema}` : "")
       );
-    if (schema) {
-      await client.query(`SET search_path TO "${schema}"`);
-    }
+    //this is commented on purpose, it won't work for pgbouncer in transaction mode https://www.pgbouncer.org/features.html
+    //let's leave it commented for information purposes
+    // if (schema) {
+    //   await client.query(`SET search_path TO "${schema}"`);
+    // }
   });
   pool.on("error", error => {
     log.atError().withCause(error).log("Pool error");
@@ -123,6 +129,17 @@ function blockPrismaMutations() {
     }
     return await next(params);
   };
+}
+
+export function getApplicationDatabaseUrl(): string {
+  return requireDefined(
+    process.env.APP_DATABASE_URL || process.env.DATABASE_URL,
+    "neither env.DATABASE_URL, nor env.APP_DATABASE_URL is not defined"
+  );
+}
+
+export function isUsingPgBouncer() {
+  return isTruish(new URL(getApplicationDatabaseUrl()).searchParams.get("pgbouncer"));
 }
 
 export function createPrisma(): PrismaClient {
@@ -144,6 +161,11 @@ export function createPrisma(): PrismaClient {
     ) as PrismaClient;
   }
   const prisma = new PrismaClient({
+    datasources: {
+      db: {
+        url: getApplicationDatabaseUrl(),
+      },
+    },
     log: [
       {
         emit: "event",

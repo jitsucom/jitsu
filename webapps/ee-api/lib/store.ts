@@ -111,9 +111,12 @@ export function createPg(url: string, opts: { defaultSchema?: string; connection
         }. Pool stat: idle=${pool.idleCount}, waiting=${pool.waitingCount}, total=${pool.totalCount}` +
           (schema ? `. Default schema: ${schema}` : ",")
       );
-    if (schema) {
-      await client.query(`SET search_path TO "${schema}"`);
-    }
+    //this is commented on purpose, it won't work for pgbouncer in transaction mode https://www.pgbouncer.org/features.html
+    //let's leave it commented for information purposes
+    //as a result, we need to use fully qualified table names
+    // if (schema) {
+    //   await client.query(`SET search_path TO "${schema}"`);
+    // }
   });
   pool.on("error", error => {
     log.atError().withCause(error).log("Pool error");
@@ -129,7 +132,7 @@ export function getPostgresStore(
     typeof postgres === "string"
       ? createPg(postgres, { defaultSchema: opts.schema, connectionName: "kvstore" })
       : postgres;
-  const table = opts?.tableName || `kvstore`;
+  const table = opts?.tableName || `newjitsuee.kvstore`;
 
   let initialized = false;
 

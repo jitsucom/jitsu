@@ -164,8 +164,8 @@ async function selectConfigObjectRows(type: string, db: DatabaseConnection, hand
             workspace."createdAt" as "workspace_createdAt",
             workspace."updatedAt" as "workspace_updatedAt",
             workspace."deleted" as "workspace_deleted"
-         FROM "ConfigurationObject" obj
-         join "Workspace" workspace on obj."workspaceId" = workspace.id
+         FROM newjitsu."ConfigurationObject" obj
+         join newjitsu."Workspace" workspace on obj."workspaceId" = workspace.id
          WHERE workspace."deleted" = false AND
             obj."type" = :type AND
             obj."deleted" = false`,
@@ -251,10 +251,10 @@ async function saveConnectionsToRedis(db: DatabaseConnection) {
     dst.id as "toId",
       dst."config" as "dstConfig",
      ${backupSupported} as "backupEnabled"
-    from "ConfigurationObjectLink" link
-    join "ConfigurationObject" src on link."fromId" = src.id
-    join "ConfigurationObject" dst on link."toId" = dst.id
-    join "Workspace" ws on link."workspaceId" = ws.id
+    from newjitsu."ConfigurationObjectLink" link
+    join newjitsu."ConfigurationObject" src on link."fromId" = src.id
+    join newjitsu."ConfigurationObject" dst on link."toId" = dst.id
+    join newjitsu."Workspace" ws on link."workspaceId" = ws.id
     where link.deleted = false and 
         src."type" in ('stream', 'service') and 
           src."deleted" = false and 

@@ -6,9 +6,9 @@ SELECT workspace.slug,
        task.started_at,
        task.status,
        task.started_by
-FROM source_task task
-     JOIN "ConfigurationObjectLink" sync ON sync.id = task.sync_id
-     JOIN "Workspace" workspace ON sync."workspaceId" = workspace.id
+FROM newjitsu.source_task task
+     JOIN newjitsu."ConfigurationObjectLink" sync ON sync.id = task.sync_id
+     JOIN newjitsu."Workspace" workspace ON sync."workspaceId" = workspace.id
 WHERE workspace.slug <> 'jitsu'::text
 ORDER BY task.started_at DESC;
 
@@ -20,9 +20,9 @@ SELECT l."timestamp",
        ws.slug,
        ws.name,
        COALESCE(l.changes ->> 'objectType'::text, l.changes ->> 'type'::text) AS "objectType"
-FROM "AuditLog" l
-     JOIN "Workspace" ws ON l."workspaceId" = ws.id
-     JOIN "UserProfile" u ON l."userId" = u.id
+FROM newjitsu."AuditLog" l
+     JOIN newjitsu."Workspace" ws ON l."workspaceId" = ws.id
+     JOIN newjitsu."UserProfile" u ON l."userId" = u.id
 ORDER BY l."timestamp" DESC;
 
 

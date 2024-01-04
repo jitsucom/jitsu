@@ -21,9 +21,10 @@ async function main() {
   const sqlDir = path.resolve(_sqlDir);
   console.log(`Running SQL scripts from ${sqlDir}`);
 
-  const dbUrl = process.env.APPLICATION_DATABASE_URL;
+  //If application
+  const dbUrl = process.env.DATABASE_URL_DIRECT || process.env.DATABASE_URL;
   if (!dbUrl) {
-    throw new Error("APPLICATION_DATABASE_URL is not defined");
+    throw new Error("Nor DATABASE_URL_DIRECT, neither DATABASE_URL is not defined");
   }
   const defaultSchema = new URL(dbUrl).searchParams.get("schema");
   const client = new Client({
@@ -31,9 +32,6 @@ async function main() {
   });
   await client.connect();
   console.log(`✅ Connected to SQL database`);
-  if (defaultSchema) {
-    await client.query(`SET search_path TO "${defaultSchema}"`);
-  }
   const files = fs.readdirSync(sqlDir);
   for (const file of files) {
     const fullPath = path.join(sqlDir, file);
