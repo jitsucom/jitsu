@@ -63,7 +63,6 @@ export const api: Api = {
           options
         );
         const json = await response.json();
-        log.atDebug().log(`StatusCode: ${response.status} Response Body: ${JSON.stringify(json)}`);
         return json;
       } catch (e) {
         throw new ApiError(`failed to fetch bulker API: ${getErrorMessage(e)}`, {}, { status: 500 });

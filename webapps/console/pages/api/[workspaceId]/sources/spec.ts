@@ -43,15 +43,14 @@ export default createRoute()
       if (query.after) {
         res = await db
           .pgPool()
-          .query(`select specs, error from source_spec where package = $1 and version = $2 and timestamp >= $3`, [
-            query.package,
-            query.version,
-            new Date(1000 * parseInt(query.after)),
-          ]);
+          .query(
+            `select specs, error from newjitsu.source_spec where package = $1 and version = $2 and timestamp >= $3`,
+            [query.package, query.version, new Date(1000 * parseInt(query.after))]
+          );
       } else {
         res = await db
           .pgPool()
-          .query(`select specs, error from source_spec where package = $1 and version = $2`, [
+          .query(`select specs, error from newjitsu.source_spec where package = $1 and version = $2`, [
             query.package,
             query.version,
           ]);

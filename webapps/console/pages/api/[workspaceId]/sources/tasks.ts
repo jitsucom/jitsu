@@ -66,7 +66,7 @@ export default createRoute()
        last_value(description) over ( partition by sync_id order by started_at RANGE BETWEEN unbounded preceding and unbounded following) as description,
        last_value(started_at) over ( partition by sync_id order by started_at RANGE BETWEEN unbounded preceding and unbounded following) as started_at,
        last_value(updated_at) over ( partition by sync_id order by started_at RANGE BETWEEN unbounded preceding and unbounded following) as updated_at
-from source_task where sync_id = ANY($1::text[])`,
+from newjitsu.source_task where sync_id = ANY($1::text[])`,
         [body]
       );
       const tasksRecord = rows.rows.reduce((acc, r) => {
@@ -100,14 +100,14 @@ from source_task where sync_id = ANY($1::text[])`,
     }),
     result: tasksResultType,
   })
-  .handler(async ({ user, query, req }) => {
+  .handler(async ({ user, query, req, res }) => {
     const { workspaceId } = query;
     await verifyAccess(user, workspaceId);
 
     try {
       let i = 1;
       let sql: string =
-        'select st.* from source_task st join "ConfigurationObjectLink" link on st.sync_id = link.id where link."workspaceId" = $1';
+        'select st.* from newjitsu.source_task st join newjitsu."ConfigurationObjectLink" link on st.sync_id = link.id where link."workspaceId" = $1';
       sql += query.syncId ? ` and st.sync_id = $${++i}` : "";
       sql += query.taskId ? ` and st.task_id = $${++i}` : "";
       sql += query.status ? ` and st.status = $${++i}` : "";

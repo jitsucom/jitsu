@@ -38,7 +38,7 @@ export default createRoute()
       db.prisma().$queryRaw;
       await db.pgHelper().streamQuery(
         `select tl.*
-                                from task_log tl join newjitsu."ConfigurationObjectLink" link on tl.sync_id = link.id
+                                from newjitsu.task_log tl join newjitsu."ConfigurationObjectLink" link on tl.sync_id = link.id
                                 where task_id = :task_id and link."workspaceId" = :workspace_id
                                 order by timestamp`,
         { task_id: query.taskId, workspace_id: workspaceId },
@@ -50,7 +50,12 @@ export default createRoute()
         }
       );
       if (lines === 0) {
-        res.write("The task is starting...");
+        const task = await db.prisma().source_task.findFirst({ where: { task_id: query.taskId } });
+        if (!task || task.status === "RUNNING") {
+          res.write("The task is starting...");
+        } else {
+          res.write("No logs found for this task");
+        }
       }
     } catch (e: any) {
       const errorId = randomId();

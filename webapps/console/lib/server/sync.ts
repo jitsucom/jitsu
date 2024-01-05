@@ -105,7 +105,7 @@ export async function checkQuota(opts: {
 export async function catalogFromDb(packageName: string, version: string, storageKey: string) {
   const res = await db
     .pgPool()
-    .query(`select catalog from source_catalog where key = $1 and package = $2 and version = $3`, [
+    .query(`select catalog from newjitsu.source_catalog where key = $1 and package = $2 and version = $3`, [
       storageKey,
       packageName,
       version,

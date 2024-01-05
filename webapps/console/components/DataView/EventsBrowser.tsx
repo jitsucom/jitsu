@@ -219,6 +219,7 @@ export const EventsBrowser = ({
           query = () => getConfigApi(workspace.id, "stream").list();
         } else {
           query = async () => {
+            const data = await linksQuery(workspace.id)();
             const streamsMap = arrayToMap(data[0]);
             const dstMap = arrayToMap(data[1]);
             return data[2]

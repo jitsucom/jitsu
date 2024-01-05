@@ -90,7 +90,7 @@ export default createRoute()
     try {
       const res = await db
         .pgPool()
-        .query(`select status, description from source_check where key = $1`, [query.storageKey]);
+        .query(`select status, description from newjitsu.source_check where key = $1`, [query.storageKey]);
       if (res.rowCount === 1) {
         const status = res.rows[0].status;
         const description = res.rows[0].description;

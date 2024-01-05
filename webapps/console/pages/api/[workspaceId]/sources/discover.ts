@@ -124,11 +124,10 @@ export default createRoute()
 async function catalogFromDb(query: Omit<catalogKeyType, "workspaceId">) {
   const res = await db
     .pgPool()
-    .query(`select catalog, status, description from source_catalog where key = $1 and package = $2 and version = $3`, [
-      query.storageKey,
-      query.package,
-      query.version,
-    ]);
+    .query(
+      `select catalog, status, description from newjitsu.source_catalog where key = $1 and package = $2 and version = $3`,
+      [query.storageKey, query.package, query.version]
+    );
   if (res.rowCount === 1) {
     const status = res.rows[0].status;
     const catalog = res.rows[0].catalog;
