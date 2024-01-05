@@ -1,7 +1,7 @@
 import { ZodType } from "zod";
 import { NextApiHandler, NextApiRequest, NextApiResponse } from "next";
 import { assertDefined, checkHash, getErrorMessage, requireDefined, tryJson } from "juava";
-import { Session, getServerSession } from "next-auth";
+import { getServerSession, Session } from "next-auth";
 import { nextAuthConfig } from "./nextauth.config";
 import { SessionUser } from "./schema";
 import { db } from "./server/db";
@@ -9,6 +9,7 @@ import { prepareZodObjectForDeserialization, safeParseWithDate } from "./zod";
 import { ApiError } from "./shared/errors";
 import { getServerLog } from "./server/log";
 import { getFirebaseUser, isFirebaseEnabled } from "./server/firebase-server";
+const adminServiceAccountEmail = "admin-service-account@jitsu.com";
 
 type HandlerOpts<Req = void, Query = void, RequireAuth extends boolean = boolean> = {
   body?: Req;
@@ -83,6 +84,24 @@ export function getAuthBearerToken(req: NextApiRequest): string | undefined {
   return undefined;
 }
 
+function findServiceAccount({ keyId, secret }): SessionUser | undefined {
+  if (process.env.CONSONE_AUTH_TOKENS) {
+    const tokens = process.env.CONSONE_AUTH_TOKENS.split(",");
+    for (const tokenHash of tokens) {
+      if (checkHash(tokenHash, secret)) {
+        return {
+          internalId: adminServiceAccountEmail,
+          externalUsername: adminServiceAccountEmail,
+          externalId: adminServiceAccountEmail,
+          loginProvider: "admin/token",
+          email: adminServiceAccountEmail,
+          name: adminServiceAccountEmail,
+        };
+      }
+    }
+  }
+}
+
 export async function getUser(
   res: NextApiResponse,
   req: NextApiRequest,
@@ -91,6 +110,10 @@ export async function getUser(
   const bearerToken = getAuthBearerToken(req);
   if (bearerToken) {
     const [keyId, secret] = bearerToken.split(":");
+    const serviceAccount = findServiceAccount({ keyId, secret });
+    if (serviceAccount) {
+      return serviceAccount;
+    }
     if (keyId && secret) {
       //auth based on an API key
       const token = await db.prisma().userApiToken.findUnique({ where: { id: keyId } });
@@ -241,6 +264,9 @@ function stackToArray(stack?: string) {
   return lines.length > 0 ? lines.map(s => s.trim()) : undefined;
 }
 export async function verifyAdmin(user: SessionUser) {
+  if (user.internalId === adminServiceAccountEmail && user.loginProvider === "admin/token") {
+    return;
+  }
   const userId = requireDefined(user.internalId, `internalId is not defined`);
   if ((await db.prisma().userProfile.findFirst({ where: { id: user.internalId } }))?.admin) {
     return;
@@ -249,6 +275,9 @@ export async function verifyAdmin(user: SessionUser) {
 }
 
 export async function verifyAccess(user: SessionUser, workspaceId: string) {
+  if (user.internalId === adminServiceAccountEmail && user.loginProvider === "admin/token") {
+    return;
+  }
   const userId = requireDefined(user.internalId, `internalId is not defined`);
   if ((await db.prisma().workspaceAccess.count({ where: { userId, workspaceId } })) === 0) {
     if ((await db.prisma().userProfile.findFirst({ where: { id: user.internalId } }))?.admin) {
