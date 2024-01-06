@@ -15,16 +15,16 @@ select ws.id || '_backup' as "id",
                                                       'frequency', 60,
                                                       'batchSize', 1000000,
                                                       'mode', 'batch'),
-                         'credentials', json_build_object('region', '${S3_REGION}',
-                                                          'accessKeyId', '${S3_ACCESS_KEY_ID}',
-                                                          'secretAccessKey', '${S3_SECRET_ACCESS_KEY}',
+                         'credentials', json_build_object('region', (select s3region from newjitsuee.tmp_s3_credentials),
+                                                          'accessKeyId', (select "s3accessKey" from newjitsuee.tmp_s3_credentials),
+                                                          'secretAccessKey', (select "s3accessKey" from newjitsuee.tmp_s3_credentials),
                                                           'bucket', ws.id || '.data.use.jitsu.com',
                                                           'compression', 'gzip',
                                                           'format', 'ndjson',
                                                           'folder', '[DATE]'),
                          'credentialsHash', ''
        )                  as "enrichedConnection"
-from "Workspace" ws
+from newjitsu."Workspace" ws
 where deleted = false
   and not 'nobackup' = ANY ("featuresEnabled")
-  and (select count(*) from "ConfigurationObjectLink" where "workspaceId" = ws.id and type='push' and deleted = false) > 0
+  and (select count(*) from newjitsu."ConfigurationObjectLink" where "workspaceId" = ws.id and type='push' and deleted = false) > 0
