@@ -1,5 +1,5 @@
 -- View that sets up the backup connection for each workspace. (backup connection is a S3 connection where all incoming events are archived)
-create or replace view backup_connections as
+create or replace view newjitsu.backup_connections as
 select ws.id || '_backup' as "id",
        json_build_object('id', ws.id || '_backup',
                          'special', 'backup',
@@ -17,7 +17,7 @@ select ws.id || '_backup' as "id",
                                                       'mode', 'batch'),
                          'credentials', json_build_object('region', (select s3region from newjitsuee.tmp_s3_credentials),
                                                           'accessKeyId', (select "s3accessKey" from newjitsuee.tmp_s3_credentials),
-                                                          'secretAccessKey', (select "s3accessKey" from newjitsuee.tmp_s3_credentials),
+                                                          'secretAccessKey', (select "s3secretKey" from newjitsuee.tmp_s3_credentials),
                                                           'bucket', ws.id || '.data.use.jitsu.com',
                                                           'compression', 'gzip',
                                                           'format', 'ndjson',
