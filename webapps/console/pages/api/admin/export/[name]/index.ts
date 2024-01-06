@@ -205,7 +205,7 @@ export function getIfModifiedSince(req: NextApiRequest): Date | undefined {
 export const ExportQueryParams = z.object({
   name: z.string(),
   listen: z.string().optional(),
-  timeoutMs: z.number().optional().default(10000),
+  timeoutMs: z.number().optional().default(10_000),
   dateOnly: z.coerce.boolean().optional().default(false),
 });
 
@@ -239,10 +239,7 @@ export default createRoute()
     const exp = requireDefined(exportsMap[query.name], `Export ${query.name} not found`);
     const ifModifiedSince = getIfModifiedSince(req);
     let lastModified = await exp.lastModified();
-    console.log("Comparing", ifModifiedSince, lastModified);
     if (notModified(ifModifiedSince, lastModified)) {
-      console.log("NOT MODIFIED", ifModifiedSince, lastModified);
-
       if (query.listen) {
         //fake implementation of long polling, switch to pg NOTIFY later
         await new Promise(resolve => setTimeout(resolve, query.timeoutMs));

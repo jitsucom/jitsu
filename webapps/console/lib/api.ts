@@ -85,8 +85,8 @@ export function getAuthBearerToken(req: NextApiRequest): string | undefined {
 }
 
 function findServiceAccount({ keyId, secret }): SessionUser | undefined {
-  if (process.env.CONSONE_AUTH_TOKENS) {
-    const tokens = process.env.CONSONE_AUTH_TOKENS.split(",");
+  if (process.env.CONSOLE_AUTH_TOKENS) {
+    const tokens = process.env.CONSOLE_AUTH_TOKENS.split(",");
     for (const tokenHash of tokens) {
       if (checkHash(tokenHash, secret)) {
         return {
