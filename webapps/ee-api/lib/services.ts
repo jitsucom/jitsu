@@ -15,7 +15,7 @@ const appDbUrl = requireDefined(
 
 export const pg = createPg(dbUrl, { connectionName: "kvstore" });
 
-export const store = getPostgresStore(pg, { tableName: "kvstore" });
+export const store = getPostgresStore(pg, { tableName: "newjitsuee.kvstore" });
 
 export const telemetryDb = createPg(process.env.TELEMETRY_DATABASE_URL || dbUrl, { connectionName: "telemetry" });
 
