@@ -171,20 +171,18 @@ export function useConfigObjectsUpdater(workspaceIdOrSlug: string): UseConfigObj
     initialDataLoad(workspaceIdOrSlug, queryClient)
       .then(res => {
         getLog().atDebug().log("Initial version of workspace config has been loaded");
-        const interval = setInterval(async () => {
-          if (!isMounted) {
-            clearInterval(interval);
-          } else {
-            let ifModified: any;
-            try {
-              ifModified = await rpc(`/api/${res.workspaceId}/if-modified`, {
-                query: { since: modifiedSince.toISOString() },
-              });
-            } catch (e) {
-              getLog().atWarn().log("Failed to check if workspace config has been modified", e);
-              return;
-            }
-            if (ifModified.modified) {
+        //setup background task to reload data
+        setTimeout(async () => {
+          while (isMounted) {
+            const listenMaxWaitMs = 5_000;
+            const ifModified = await fetch(`/api/${res.workspaceId}/listen?maxWaitMs=${listenMaxWaitMs}`, {
+              headers: {
+                "If-Modified-Since": modifiedSince.toUTCString(),
+              },
+            });
+            if (ifModified.status === 304) {
+              //do nothing
+            } else if (ifModified.status === 200) {
               modifiedSince = new Date();
               getLog().atDebug().log("Workspace config has been modified, reloading");
               try {
@@ -193,10 +191,10 @@ export function useConfigObjectsUpdater(workspaceIdOrSlug: string): UseConfigObj
                 getLog().atWarn().log("Failed to refresh workspace config", e);
               }
             } else {
-              //getLog().atDebug().log("No changes in workspace config");
+              getLog().atWarn().log(`Unexpected response from listen: ${ifModified.status} ${ifModified.statusText}`);
             }
           }
-        }, 5000);
+        }, 0);
         setLoadedWorkspace(workspaceIdOrSlug);
       })
       .catch(setError)

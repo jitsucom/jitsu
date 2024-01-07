@@ -221,9 +221,11 @@ export function nextJsApiHandler(api: Api): NextApiHandler {
             zodError: parseResult.error,
           });
         }
-        res.status(200).json(parseResult.data);
+        //do not set explicit 200 status here. If the status has been set by the handler, we should respect it. There's
+        //no way to check if the status has been set. If status is not set here and in handler, Next.js will set 200 by default.
+        res.json(parseResult.data);
       } else {
-        res.status(200).json(result || { success: true });
+        res.json(result || { success: true });
       }
     } catch (e: any) {
       if (isApiError(e)) {

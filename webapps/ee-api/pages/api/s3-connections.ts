@@ -2,7 +2,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { auth } from "../../lib/auth";
 import { assertTrue } from "juava";
 import { withErrorHandler } from "../../lib/error-handler";
-import { applicationDb } from "../../lib/services";
+import { pg } from "../../lib/services";
 import { getServerLog } from "../../lib/log";
 import pick from "lodash/pick";
 
@@ -21,7 +21,7 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
   }
   assertTrue(claims.type === "admin", "Only admins can call this API");
 
-  const workspaces = await applicationDb.query(`
+  const workspaces = await pg.query(`
       select *
       from newjitsu."Workspace" ws
       where deleted = false
