@@ -1,11 +1,12 @@
-import { createRoute, verifyAdmin } from "../../../../lib/api";
-import { db } from "../../../../lib/server/db";
+import { createRoute, verifyAdmin } from "../../../../../lib/api";
+import { db } from "../../../../../lib/server/db";
 import { getErrorMessage, getLog, requireDefined, rpc } from "juava";
 import { z } from "zod";
-import { getCoreDestinationTypeNonStrict } from "../../../../lib/schema/destinations";
+import { getCoreDestinationTypeNonStrict } from "../../../../../lib/schema/destinations";
 import pick from "lodash/pick";
-import { createJwt, getEeConnection, isEEAvailable } from "../../../../lib/server/ee";
+import { createJwt, getEeConnection, isEEAvailable } from "../../../../../lib/server/ee";
 import omit from "lodash/omit";
+import { NextApiRequest } from "next";
 
 interface Writer {
   write(data: string): void;
@@ -183,39 +184,86 @@ const exports: Export[] = [
 
 const exportsMap = exports.reduce((acc, e) => ({ ...acc, [e.name]: e }), {});
 
+export function getExport(name: string): Export {
+  return requireDefined(exportsMap[name], `Export ${name} not found`);
+}
+
+export function getIfModifiedSince(req: NextApiRequest): Date | undefined {
+  const ifModifiedSinceStr = req.headers["if-modified-since"];
+  let ifModifiedSince: Date | undefined = undefined;
+  try {
+    ifModifiedSince = ifModifiedSinceStr ? new Date(ifModifiedSinceStr) : undefined;
+  } catch (e) {
+    getLog()
+      .atWarn()
+      .withCause(e)
+      .log(`Error parsing if-modified-since header '${ifModifiedSinceStr}': ${getErrorMessage(e)}`);
+  }
+  return ifModifiedSince;
+}
+
+export const ExportQueryParams = z.object({
+  name: z.string(),
+  listen: z.string().optional(),
+  timeoutMs: z.number().optional().default(10_000),
+  dateOnly: z.coerce.boolean().optional().default(false),
+});
+
+export function notModified(ifModifiedSince: Date | undefined, lastModified: Date | undefined) {
+  return ifModifiedSince && lastModified && ifModifiedSince.getTime() >= lastModified.getTime();
+}
+
 export default createRoute()
+  .OPTIONS({
+    auth: true,
+    streaming: true,
+    query: ExportQueryParams,
+  })
+  .handler(async ({ user, res, req, query }) => {
+    const exp = requireDefined(exportsMap[query.name], `Export ${query.name} not found`);
+    await verifyAdmin(user);
+    const ifModifiedSince = getIfModifiedSince(req);
+    const lastModified = await exp.lastModified();
+    res.setHeader("Last-Modified", lastModified.toUTCString());
+    res.status(notModified(ifModifiedSince, lastModified) ? 304 : 200);
+    res.end();
+    return;
+  })
   .GET({
     auth: true,
     streaming: true,
-    query: z.object({
-      name: z.string(),
-    }),
+    query: ExportQueryParams,
   })
   .handler(async ({ user, req, res, query }) => {
     await verifyAdmin(user);
     const exp = requireDefined(exportsMap[query.name], `Export ${query.name} not found`);
-    let ifModifiedSince: Date | undefined = undefined;
-    const ifModifiedSinceStr = req.headers["if-modified-since"];
-    try {
-      ifModifiedSince = ifModifiedSinceStr ? new Date(ifModifiedSinceStr) : undefined;
-    } catch (e) {
-      getLog()
-        .atWarn()
-        .withCause(e)
-        .log(`Error parsing if-modified-since header '${ifModifiedSinceStr}': ${getErrorMessage(e)}`);
-    }
-    const lastModified = await exp.lastModified();
-    if (ifModifiedSince && lastModified && ifModifiedSince.getTime() >= lastModified.getTime()) {
-      res.setHeader("Last-Modified", lastModified.toUTCString());
-      res.status(304).end();
-      return;
-    } else {
-      if (lastModified) {
+    const ifModifiedSince = getIfModifiedSince(req);
+    let lastModified = await exp.lastModified();
+    if (notModified(ifModifiedSince, lastModified)) {
+      if (query.listen) {
+        //fake implementation of long polling, switch to pg NOTIFY later
+        await new Promise(resolve => setTimeout(resolve, query.timeoutMs));
+        lastModified = await exp.lastModified();
+        if (notModified(ifModifiedSince, lastModified)) {
+          res.setHeader("Last-Modified", lastModified.toUTCString());
+          res.status(304).end();
+          return;
+        }
+      } else {
         res.setHeader("Last-Modified", lastModified.toUTCString());
+        res.status(304).end();
+        return;
       }
-      res.setHeader("Content-Type", "application/json");
-      await exp.data(res);
-      res.end();
     }
+    if (lastModified) {
+      res.setHeader("Last-Modified", lastModified.toUTCString());
+    }
+    res.setHeader("Content-Type", "application/json");
+    if (query.dateOnly) {
+      res.write(JSON.stringify({ lastModified: lastModified.toISOString() }));
+    } else {
+      await exp.data(res);
+    }
+    res.end();
   })
   .toNextApiHandler();
