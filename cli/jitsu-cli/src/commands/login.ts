@@ -68,11 +68,20 @@ export async function login({ host, apikey, force }: { host: string; apikey?: st
     const c = randomId(32);
     const server = app.listen(0, async () => {
       const addr = server.address() as any;
-      const r = await open(`${url}?origin=${origin}&c=${c}&redirect=http://localhost:${addr.port}/`);
+      let openCode: number | null = null;
+      try {
+        const r = await open(`${url}?origin=${origin}&c=${c}&redirect=http://localhost:${addr.port}/`);
+        openCode = r.exitCode;
+      } catch (e) {
+        console.error(
+          `Failed to open a browser window. Please open this url in your browser:\n${url}?origin=${origin}&c=${c}`
+        );
+      }
+
       const int = setInterval(() => {
-        if (r.exitCode !== null) {
+        if (openCode !== null) {
           clearInterval(int);
-          if (r.exitCode !== 0) {
+          if (openCode !== 0) {
             console.log(`Please open this url in your browser:\n${url}?origin=${origin}&c=${c}`);
             const rl = readline.createInterface({
               input: process.stdin,
