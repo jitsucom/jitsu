@@ -8,6 +8,7 @@ import { test } from "./commands/test";
 import { run } from "./commands/run";
 
 import { jitsuCliVersion, jitsuCliPackageName } from "./lib/version";
+import { whoami } from "./commands/whoami";
 
 console.log(figlet.textSync("Jitsu CLI", { horizontalLayout: "full" }));
 
@@ -43,6 +44,12 @@ p.command("run")
   .option("-p, --props <file_or_json>", "path to file with config json or config json as a string. (Optional)")
   .option("-s, --store <file_or_json>", "path to file with state json or state json as a string. (Optional)")
   .action(run);
+
+p.command("whoami")
+  .description("Check if current user is logged in. Shows user's info if logged in")
+  .option("-h, --host <host>", "Jitsu host or base url", "https://use.jitsu.com")
+  .option("-k, --apikey <api-key>", "Jitsu user's Api Key. (Optional). Disables interactive login.")
+  .action(whoami);
 
 p.command("login")
   .description("Login to Jitsu and remember credentials in `~/.jitsu/jitsu-cli.json` file")

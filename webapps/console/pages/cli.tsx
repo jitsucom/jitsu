@@ -17,8 +17,12 @@ const CLI = () => {
                 <CodeBlock breaks={"all"} lang="plaintext">
                   {router.query.code}
                 </CodeBlock>
-                <div className="text-textLight">
-                  Paste this code to the terminal and press Enter to authorize Jitsu CLI
+                <div className="mt-4">Paste this code to the terminal and press Enter to authorize Jitsu CLI</div>
+                <div className="mt-4">
+                  The dedicated API key was created for this CLI authorization. You can revoke it on user{" "}
+                  <Link className="primary underline" href="/user">
+                    user settings page
+                  </Link>
                 </div>
               </>
             ) : router.query.err ? (
