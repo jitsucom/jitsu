@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { Api, inferUrl, nextJsApiHandler, verifyAccess } from "../../../../lib/api";
 import { db } from "../../../../lib/server/db";
-import { fastStore } from "../../../../lib/server/fast-store";
 import { randomId } from "juava";
 import { scheduleSync, syncWithScheduler } from "../../../../lib/server/sync";
 import { getAppEndpoint } from "../../../../lib/domains";
@@ -93,7 +92,6 @@ export const api: Api = {
         //sync scheduler immediately, so if it fails, user sees the error
         await syncWithScheduler(getAppEndpoint(req).baseUrl);
       }
-      await fastStore.fullRefresh();
       if (type === "sync" && (runSync === "true" || runSync === "1")) {
         await scheduleSync({
           req,
@@ -121,7 +119,6 @@ export const api: Api = {
       }
       await db.prisma().configurationObjectLink.update({ where: { id: existingLink.id }, data: { deleted: true } });
       await syncWithScheduler(getAppEndpoint(req).baseUrl);
-      await fastStore.fullRefresh();
       return { deleted: true };
     },
   },

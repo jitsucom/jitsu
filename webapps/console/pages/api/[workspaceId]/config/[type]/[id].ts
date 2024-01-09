@@ -3,7 +3,6 @@ import { z } from "zod";
 import { db } from "../../../../../lib/server/db";
 import { getServerLog } from "../../../../../lib/server/log";
 import { ApiError } from "../../../../../lib/shared/errors";
-import { fastStore } from "../../../../../lib/server/fast-store";
 import { getConfigObjectType, parseObject } from "../../../../../lib/schema/config-objects";
 import { prepareZodObjectForDeserialization } from "../../../../../lib/zod";
 import { isReadOnly } from "../../../../../lib/server/read-only-mode";
@@ -86,7 +85,6 @@ export const api: Api = {
           },
         });
       }
-      await fastStore.fullRefresh();
     },
   },
   DELETE: {
@@ -123,7 +121,6 @@ export const api: Api = {
             },
           });
         }
-        await fastStore.fullRefresh();
         return { ...((object.config as any) || {}), workspaceId, id, type };
       }
     },

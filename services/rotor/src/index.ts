@@ -16,7 +16,7 @@ import Prometheus from "prom-client";
 import { FunctionsHandler, FunctionsHandlerMulti } from "./http/functions";
 import { initMaxMindClient, GeoResolver } from "./lib/maxmind";
 import { rotorMessageHandler } from "./lib/message-handler";
-import { redis } from "@jitsu-internal/console/lib/server/redis";
+import { redis } from "./lib/redis";
 import { redisLogger } from "./lib/redis-logger";
 import { DummyMetrics, Metrics } from "./lib/metrics";
 import { isTruish } from "@jitsu-internal/console/lib/shared/chores";
