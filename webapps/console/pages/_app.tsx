@@ -1,4 +1,4 @@
-import { getErrorMessage, getLog, LogLevel, rpc, setGlobalLogLevel } from "juava";
+import { getLog, LogLevel, rpc, setGlobalLogLevel } from "juava";
 import { AppProps } from "next/app";
 import "../styles/globals.css";
 import { useRouter } from "next/router";
