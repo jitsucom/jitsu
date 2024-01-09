@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": false,
   "scripts": {
+    "build-scripts": "cd cli/build-scripts && pnpm run exec",
     "format:check": "prettier --ignore-unknown --check --config ./.prettierrc.json --ignore-path ./.prettierignore $(git diff --name-only --diff-filter d | xargs)",
     "format:check:all": "prettier --check --config ./.prettierrc.json --ignore-path ./.prettierignore .",
     "format": "prettier --ignore-unknown --write --config ./.prettierrc.json --ignore-path ./.prettierignore $(git diff --name-only --diff-filter d | xargs)",

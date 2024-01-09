@@ -19,10 +19,10 @@ import { RetryErrorName, DropRetryErrorName } from "@jitsu/functions-lib";
 
 import { getLog, newError, requireDefined, stopwatch } from "juava";
 import { retryObject } from "./retries";
-import { EnrichedConnectionConfig } from "@jitsu-internal/console/lib/server/fast-store";
 import { ConfigStore } from "./pg-config-store";
 import NodeCache from "node-cache";
 import pick from "lodash/pick";
+import { EnrichedConnectionConfig } from "./config-types";
 
 export type Func = {
   id: string;

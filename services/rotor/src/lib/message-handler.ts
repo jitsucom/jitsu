@@ -18,7 +18,7 @@ import {
 } from "@jitsu/core-functions";
 import { redisLogger } from "./redis-logger";
 import { buildFunctionChain, checkError, runChain } from "./functions-chain";
-import { redis } from "@jitsu-internal/console/lib/server/redis";
+import { redis } from "./redis";
 export const log = getLog("rotor");
 
 const anonymousEventsStore = mongoAnonymousEventsStore();

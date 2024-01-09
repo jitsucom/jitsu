@@ -1,0 +1,29 @@
+{
+  "name": "jitsu-build-scripts",
+  "version": "0.0.0",
+  "description": "",
+  "author": "Jitsu Dev Team <dev@jitsu.com>",
+  "publishConfig": {
+    "access": "public"
+  },
+  "bin": "./bin/jitsu-cli",
+  "license": "MIT",
+  "private": false,
+  "scripts": {
+    "exec": "ts-node src/index.ts"
+  },
+  "dependencies": {
+    "figlet": "^1.6.0",
+    "isolated-vm": "^4.6.0",
+    "jest-cli": "^29.7.0",
+    "semver": "^7.5.4",
+    "simple-git": "^3.22.0",
+    "tslib": "^2.6.2"
+  },
+  "devDependencies": {
+    "@types/minimist": "^1.2.2",
+    "@types/node": "^20.10.8",
+    "@types/semver": "^7.5.6",
+    "juava": "workspace:*"
+  }
+}

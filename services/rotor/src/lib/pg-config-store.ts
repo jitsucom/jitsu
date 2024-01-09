@@ -1,10 +1,10 @@
-import { EnrichedConnectionConfig } from "@jitsu-internal/console/lib/server/fast-store";
 import { createInMemoryStore } from "./inmem-store";
 import { Pool, PoolClient } from "pg";
 import { assertDefined, getLog, namedParameters, newError } from "juava";
 import Cursor from "pg-cursor";
 import omit from "lodash/omit";
 import hash from "object-hash";
+import { EnrichedConnectionConfig } from "./config-types";
 
 const log = getLog("pg-config-store");
 
