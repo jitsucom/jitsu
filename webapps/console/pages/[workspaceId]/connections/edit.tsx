@@ -16,12 +16,17 @@ type FunctionAPIResult = {
 const Loader = () => {
   const workspace = useWorkspace();
   const functionsApi = useConfigApi("function");
-  const links = useConfigObjectLinks({withData: true});
+  const links = useConfigObjectLinks({ withData: true });
   const streams = useConfigObjectList("stream");
   const destinations = useConfigObjectList("destination");
   const functions = useConfigObjectList("function");
   return (
-    <ConnectionEditorPage streams={streams} destinations={destinations} links={links as z.infer<typeof ConfigurationObjectLinkDbModel>[]} functions={functions} />
+    <ConnectionEditorPage
+      streams={streams}
+      destinations={destinations}
+      links={links as z.infer<typeof ConfigurationObjectLinkDbModel>[]}
+      functions={functions}
+    />
   );
 };
 

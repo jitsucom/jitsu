@@ -443,7 +443,7 @@ const SingleObjectEditor: React.FC<SingleObjectEditorProps> = props => {
   };
   const onSave = async newObject => {
     try {
-      await onSaveMutation.mutateAsync(newObject)
+      await onSaveMutation.mutateAsync(newObject);
       if (backTo) {
         router.push(`/${workspace.id}${backTo}`);
       } else {
@@ -748,7 +748,7 @@ const ObjectsList: React.FC<{ objects: any[]; onDelete: (id: string) => Promise<
 
 const ObjectListEditor: React.FC<ConfigEditorProps> = props => {
   const workspace = useWorkspace();
-  const  data = useConfigObjectList(asConfigType(props.type));
+  const data = useConfigObjectList(asConfigType(props.type));
   const router = useRouter();
   const pluralNoun = props.nounPlural || plural(props.noun);
   const addAction = props.addAction || (() => router.push(`${router.asPath}?id=new`));
@@ -757,7 +757,7 @@ const ObjectListEditor: React.FC<ConfigEditorProps> = props => {
   });
   const onDelete = async (id: string) => {
     try {
-      await onDeleteMutation.mutateAsync(id)
+      await onDeleteMutation.mutateAsync(id);
     } catch (e) {
       alert(`Failed to delete ${props.noun}: ${getErrorMessage(e)}`);
     }
@@ -770,12 +770,7 @@ const ObjectListEditor: React.FC<ConfigEditorProps> = props => {
           <div className="text-3xl">{props.listTitle || `Edit ${pluralNoun}`}</div>
         </div>
         <div>
-          <JitsuButton
-            onClick={() => doAction(router, addAction)}
-            type="primary"
-            size="large"
-            icon={<FaPlus />}
-          >
+          <JitsuButton onClick={() => doAction(router, addAction)} type="primary" size="large" icon={<FaPlus />}>
             Add new {props.noun}
           </JitsuButton>
         </div>

@@ -361,7 +361,6 @@ function ConnectionsLoader(props: { reloadCallback: () => void }) {
       reloadCallback={() => {}}
     />
   );
-
 }
 
 const ConnectionsPage = () => {

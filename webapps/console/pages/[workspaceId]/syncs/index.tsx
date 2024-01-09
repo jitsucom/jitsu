@@ -101,7 +101,6 @@ export function displayTaskRunError(workspace: WorkspaceContext, error: { error:
   }
 }
 
-
 export const NotFound: React.FC<{ id: string; type: string }> = ({ id, type }) => {
   return (
     <Tooltip

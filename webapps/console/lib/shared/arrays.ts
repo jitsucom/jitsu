@@ -1,4 +1,6 @@
-export function arrayToMap<T extends {id: string} = {id: string} & Record<string, any>>(arr: T[]): Record<string, T> {
+export function arrayToMap<T extends { id: string } = { id: string } & Record<string, any>>(
+  arr: T[]
+): Record<string, T> {
   if (!arr || arr.length === 0) {
     return {};
   }

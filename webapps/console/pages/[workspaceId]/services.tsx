@@ -86,7 +86,7 @@ const ServicesList: React.FC<{}> = () => {
   });
   const router = useRouter();
   const appconfig = useAppConfig();
-  const links = useConfigObjectLinks()
+  const links = useConfigObjectLinks();
 
   const connections =
     links.reduce((res, link) => {

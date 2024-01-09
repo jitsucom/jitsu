@@ -332,8 +332,8 @@ function WorkspaceOverview(props: {
 }
 
 function WorkspaceOverviewLoader() {
-  const streams = useConfigObjectList("stream")
-  const destinations = useConfigObjectList("destination")
+  const streams = useConfigObjectList("stream");
+  const destinations = useConfigObjectList("destination");
   const services = useConfigObjectList("service");
   const links = useConfigObjectLinks();
 

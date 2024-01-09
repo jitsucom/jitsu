@@ -494,10 +494,9 @@ function Tasks() {
     },
   });
 
-  const linksMap = arrayToMap(useConfigObjectLinks({type: "sync"}))
+  const linksMap = arrayToMap(useConfigObjectLinks({ type: "sync" }));
   const servicesMap = arrayToMap(useConfigObjectList("service"));
   const destinationsMap = arrayToMap(useConfigObjectList("destination"));
-
 
   const patchQueryStringState = useCallback(
     (key: string, value: any) => {
