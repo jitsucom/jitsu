@@ -167,15 +167,18 @@ export function useConfigObjectsUpdater(workspaceIdOrSlug: string): UseConfigObj
   useEffect(() => {
     let isMounted = true;
     let modifiedSince = new Date();
+    let timeout;
+    const abortController = new AbortController();
     //reload data after every 5 seconds;
     initialDataLoad(workspaceIdOrSlug, queryClient)
       .then(res => {
         getLog().atDebug().log("Initial version of workspace config has been loaded");
         //setup background task to reload data
-        setTimeout(async () => {
+        timeout = setTimeout(async () => {
           while (isMounted) {
-            const listenMaxWaitMs = 5_000;
+            const listenMaxWaitMs = 10_000;
             const ifModified = await fetch(`/api/${res.workspaceId}/listen?maxWaitMs=${listenMaxWaitMs}`, {
+              signal: abortController.signal,
               headers: {
                 "If-Modified-Since": modifiedSince.toUTCString(),
               },
@@ -202,6 +205,10 @@ export function useConfigObjectsUpdater(workspaceIdOrSlug: string): UseConfigObj
 
     return () => {
       isMounted = false;
+      abortController.abort();
+      if (timeout) {
+        clearTimeout(timeout);
+      }
     };
   }, [queryClient, workspaceIdOrSlug, loading, loadedWorkspace]);
 

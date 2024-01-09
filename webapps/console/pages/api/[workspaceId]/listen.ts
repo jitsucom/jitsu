@@ -73,3 +73,7 @@ export default createRoute()
     return createResponse(res, modifiedAt, ifModifiedSince);
   })
   .toNextApiHandler();
+
+export const config = {
+  maxDuration: 120,
+};

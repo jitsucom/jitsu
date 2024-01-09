@@ -506,20 +506,13 @@ const WorkspaceLoader: React.FC<
 
   const workspace = useLoadedWorkspace(workspaceIdOrSlug);
 
-  const configObjectsUpdater = useConfigObjectsUpdater(workspaceIdOrSlug);
-
   useEffect(() => {
     if (workspace?.id) {
       analytics.page("Workspace Page", {
         context: { workspaceId: workspace.id, groupId: workspace.id },
       });
-    } else if (configObjectsUpdater.error) {
-      analytics.track("error", {
-        location: "WorkspacePageLayout",
-        errorMessage: getErrorMessage(configObjectsUpdater.error),
-      });
     }
-  }, [analytics, router.asPath, workspace?.id, configObjectsUpdater.error]);
+  }, [analytics, router.asPath, workspace?.id]);
 
   /* eslint-disable react-hooks/exhaustive-deps  */
   //user may be a new object on each render while being the same user
