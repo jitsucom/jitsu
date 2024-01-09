@@ -52,7 +52,7 @@ jobs:
 
       - name: Build Beta Images
         if: github.ref == 'refs/heads/feat/newjitsu/self-hosted-revamped'
-        run: pnpm build-scripts docker --tag beta --push-git-tag --push-docker --dry-run
+        run: pnpm build-scripts docker --tag beta --push-git-tag --push-docker
 
       - name: Build Release Images
         if: startsWith(github.ref, 'refs/tags/jitsu2-')
