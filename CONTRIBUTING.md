@@ -30,15 +30,15 @@ always release them together, even if only one of them has changes.
 
 ## Canary releases
 
- - `pnpm exec monorel  --filter '@jitsu/js' --filter '@jitsu/jitsu-react' --filter '@jitsu/protocols' --version '1.1.0-canary.{rev}.{time}' --npm-tag canary` - to **dry-run** publishing
- - Same command, but with `--publish` - to **publish**.
+ - `pnpm release:canary` - to **dry-run** publishing
+ - Same command, but with `pnpm release:canary --publish` - to **publish**.
 
-> **Note**
-> Replace `1.1.0` in `--version '1.1.0-canary.{rev}'` to the version that makes sense
 
 ## Stable releases
 
-- `pnpm exec monorel  --filter '@jitsu/js' --filter '@jitsu/jitsu-react' --filter '@jitsu/protocols' --version '**<put new version>**' --npm-tag latest` - to **dry-run** publishing
+- `pnpm release --version <put a version here>` - to **dry-run** publishing
 - Same command, but with `--publish` - to **publish**.
+
+
 
   

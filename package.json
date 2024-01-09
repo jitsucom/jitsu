@@ -24,8 +24,8 @@
     "factory-reset": "pnpm clean ; pnpm clean:turbo ; rm -rf `find . -type d -name node_modules`",
     "clean": "turbo run clean || exit 0",
     "lint": "turbo run lint --",
-    "release": "monorel --filter ./types/protocols --filter ./cli/jitsu-cli --filter ./libs/functions --filter ./libs/jitsu-js --filter ./libs/jitsu-react --npm-tag latest",
-    "release:canary": "monorel --filter ./types/protocols --filter ./cli/jitsu-cli --filter ./libs/functions --filter ./libs/jitsu-js --filter ./libs/jitsu-react --version '1.7.1-canary.{rev}.{time}' --npm-tag canary --git-tag 'canary-v{version}' --push-tag --publish"
+    "release": "pnpm build && pnpm test && monorel --filter ./types/protocols --filter ./cli/jitsu-cli --filter ./libs/functions --filter ./libs/jitsu-js --filter ./libs/jitsu-react --npm-tag latest --git-tag 'jitsu-js-libs-v{version}' --push-tag",
+    "release:canary": "monorel --filter ./types/protocols --filter ./cli/jitsu-cli --filter ./libs/functions --filter ./libs/jitsu-js --filter ./libs/jitsu-react --version '1.9.0-canary.{rev}.{time}' --npm-tag canary --git-tag 'jitsu-js-libs-canary-v{version}' --push-tag"
   },
   "devDependencies": {
     "@playwright/test": "1.39.0",
