@@ -56,6 +56,11 @@ module.exports = {
       ],
     },
   },
+  ...(process.env.NEXTJS_STANDALONE_BUILD === "1"
+    ? {
+        output: "standalone",
+      }
+    : {}),
   outputFileTracing: true,
   webpack: (config, opts) => {
     if (prevWebpack) {
