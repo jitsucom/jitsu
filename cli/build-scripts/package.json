@@ -13,11 +13,13 @@
     "exec": "ts-node src/index.ts"
   },
   "dependencies": {
-    "figlet": "^1.6.0",
+    "boxen": "^7.1.1",
+    "colorette": "^2.0.20",
     "isolated-vm": "^4.6.0",
     "jest-cli": "^29.7.0",
     "semver": "^7.5.4",
     "simple-git": "^3.22.0",
+    "string-width": "^7.0.0",
     "tslib": "^2.6.2"
   },
   "devDependencies": {

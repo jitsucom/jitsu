@@ -4,6 +4,8 @@ import simpleGit from "simple-git";
 import * as fs from "fs";
 import { compare as semverCompare, parse as semverParse, SemVer } from "semver";
 import * as child_process from "child_process";
+import { color } from "./colors";
+import { drawBox } from "./box";
 
 type ReleaseStream = "beta" | "latest";
 
@@ -88,43 +90,84 @@ export async function docker(args: minimist.ParsedArgs): Promise<void> {
   let version = args.version;
   const tag: ReleaseStream = args.tag || "beta";
   const tagPrefix = args.taxPrefix || "jitsu2";
-  const dockerPlatforms = args.dockerPlatforms;
   const dryRun = !!(args["dry-run"] || false);
+  console.log(
+    drawBox({
+      content: [`Hi, I'm Jitsu Docker Builder!`, ``, `I'm going to build docker images for \`${tag}\` release stream`],
+    })
+  );
   if (!version) {
     version = await getAutomaticVersion(tag, tagPrefix);
-    console.info("--version is not specified, using automatic version: " + version);
+    console.info(
+      "💁🏻‍ Version (--version param) is not specified, using automatic version: " + color.bold(color.cyan(version))
+    );
   }
   const gitTag = `${tagPrefix}-${version}`;
   if ((await git.tags()).all.includes(gitTag)) {
     throw new Error(`Tag ${gitTag} for next version ${version} already exists. Aborting`);
   }
+  const logsDir = args["logs"] ? path.resolve(__dirname, "../../../", args["logs"]) : undefined;
+  if (logsDir) {
+    fs.mkdirSync(logsDir, { recursive: true });
+  }
 
   for (const dockerTarget of ["console", "rotor"]) {
-    console.log(`Building jitsucom/${dockerTarget}:${version}...`);
+    console.log(
+      `🚀 Building ${color.cyan(dockerTarget)} docker with tags: ${color.cyan(
+        `jitsucom/${dockerTarget}:${version}`
+      )} and ${color.cyan(`jitsucom/${dockerTarget}:${tag}`)}...`
+    );
     const dockerImageName = `jitsucom/${dockerTarget}`;
     const dockerArgs = [
       "buildx build",
       `--target ${dockerTarget}`,
-      "--progress plain",
-      args["docker-platforms"] && `--platform ${dockerPlatforms}`,
+      "--progress=plain",
+      args["platform"] && `--platform ${args["platform"]}`,
       `-t ${dockerImageName}:${tag}`,
       `-t ${dockerImageName}:${version}`,
       `-f all.Dockerfile`,
       args["push-docker"] ? "--push" : "--load",
       ".",
     ].filter(Boolean);
+    const qt = `${color.gray(color.bold("`"))}`;
+    console.log(
+      `🎻 Docker command\n\n\t${qt}${color.cyan(
+        `docker ${dockerArgs.filter(args => !args.startsWith("--progress")).join(" ")}`
+      )}${qt}\n\n\t`
+    );
     if (dryRun) {
-      console.log("Dry run: docker " + dockerArgs.join(" "));
+      console.log(`🏃🏻 Skipping actual build because of ${color.cyan("--dry-run")} flag`);
     } else {
+      const logPath = logsDir
+        ? path.join(logsDir, `${dockerTarget}-docker-build-${new Date().toISOString()}.log`)
+        : undefined;
+      const stream = logsDir ? fs.createWriteStream(logPath!) : undefined;
+      if (stream) {
+        console.log(`📝 Writing logs to ${color.cyan(logPath!)}`);
+        stream.write(`Building ${dockerImageName}:${tag}\n`);
+        stream.write(`Command:\n\tdocker ${dockerArgs.join(" ")}\n`);
+        stream.write("=".repeat(80));
+        stream.write("\n\n");
+      }
       const exitCode = await runCommand("docker", {
         args: [...dockerArgs],
         outputHandler: (data, opts) => {
           const dataStr = data.toString();
           dataStr.split("\n").forEach(line => {
-            process.stdout.write(`${dockerTarget}: ${line}\n`);
+            if (!logsDir) {
+              process.stdout.write(`${color.green(dockerTarget)}: ${line}\n`);
+            }
+            if (stream) {
+              stream.write(`${line}\n`);
+            }
           });
         },
       });
+      if (stream) {
+        stream.write("=".repeat(80));
+        stream.write("\n\n");
+        stream.end();
+      }
       if (exitCode != 0) {
         throw new Error(`Docker build failed with exit code ${exitCode}`);
       }
