@@ -4,8 +4,6 @@ on:
     branches:
       # todo - change with main
       - feat/newjitsu/self-hosted-revamped
-    tags:
-      - jitsu2-*
 
 jobs:
   build:
@@ -33,7 +31,6 @@ jobs:
         run: |
           echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
 
-
       - uses: actions/cache@v3
         name: Setup pnpm cache
         with:
@@ -45,15 +42,5 @@ jobs:
       - name: Install dependencies with pnpm
         run: pnpm install --no-frozen-lockfile
 
-      - name: Extract version from tag
-        if: startsWith(github.ref, 'refs/tags/jitsu2-')
-        id: version
-        run: echo "::set-output name=version::${GITHUB_REF#refs/tags/jitsu2-}"
-
-      - name: Build Beta Images
-        if: github.ref == 'refs/heads/feat/newjitsu/self-hosted-revamped'
-        run: pnpm build-scripts docker --tag beta --push-git-tag --push-docker
-
-      - name: Build Release Images
-        if: startsWith(github.ref, 'refs/tags/jitsu2-')
-        run: pnpm build-scripts docker --tag latest --version ${{ steps.version.outputs.version }} --push-git-tag --push-docker --dry-run
+      - name: Build Beta Images for AMD64
+        run: pnpm build-scripts docker --platform linux/amd64 --tag beta --push-git-tag --push-docker --logs
