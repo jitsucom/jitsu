@@ -71,13 +71,15 @@ export const api: Api = {
         );
       }
 
-      //it doesn't have to by sync since the preferences are optional
-      savePreferences(user, workspace).catch(e => {
+      try {
+        await savePreferences(user, workspace);
+      } catch (e) {
         log
           .atWarn()
           .withCause(e)
           .log(`Failed to save workspace preferences (${workspace.id}). For user (${user.internalId})`);
-      });
+      }
+
       return workspace;
     },
   },

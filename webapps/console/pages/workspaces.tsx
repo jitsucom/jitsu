@@ -9,13 +9,25 @@ import { getLog } from "juava";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { firebaseSignOut } from "../lib/firebase-client";
-import React, { useState } from "react";
+import React, { ReactNode, useState } from "react";
 import { feedbackError } from "../lib/ui";
 import { JitsuButton } from "../components/JitsuButton/JitsuButton";
-import { Input, Tag } from "antd";
+import { Badge, Input, Tag } from "antd";
 import { useQueryStringState } from "../lib/useQueryStringState";
 
 const log = getLog("worspaces");
+
+const NewWorkspaceWrapper = (props: { children: ReactNode; isNew: boolean }) => {
+  if (props.isNew) {
+    return (
+      <Badge.Ribbon text="Not configured" color="green">
+        {props.children}
+      </Badge.Ribbon>
+    );
+  } else {
+    return <>{props.children}</>;
+  }
+};
 
 const WorkspacesList = () => {
   const router = useRouter();
@@ -67,7 +79,12 @@ const WorkspacesList = () => {
               <div className="flex items-center justify-start gap-2">
                 <div>{workspace.name || workspace.slug || workspace.id}</div>
                 <div className="text-textLight">/{workspace.slug || workspace.id}</div>
-                {userData?.admin && <Tag className="text-xs text-textLight">{workspace.id}</Tag>}
+                {<Tag className="text-xs text-textLight">{workspace.id}</Tag>}
+                {!workspace.slug && (
+                  <Tag color="lime" className="text-xs text-textLight">
+                    Not configured
+                  </Tag>
+                )}
               </div>
               <div className="invisible group-hover:visible">
                 <ArrowRight className="text-primary" />
