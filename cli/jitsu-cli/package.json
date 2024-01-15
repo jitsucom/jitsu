@@ -30,7 +30,6 @@
   "devDependencies": {
     "@babel/preset-env": "^7.23.2",
     "@babel/preset-typescript": "^7.23.2",
-    "@jitsu/core-functions": "workspace:*",
     "@jitsu/functions-lib": "workspace:*",
     "@jitsu/protocols": "workspace:*",
     "@rollup/plugin-commonjs": "^25.0.4",
