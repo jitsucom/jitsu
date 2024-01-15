@@ -22,10 +22,10 @@ from newjitsu."ConfigurationObjectLink" link
                  src."workspaceId" = link."workspaceId" and src.deleted = false
 where link.deleted = false;
 
-create or replace view last_updated as select greatest(
-                                                      (select max("updatedAt") from "ConfigurationObjectLink"),
-                                                      (select max("updatedAt") from "ConfigurationObject"),
-                                                      (select max("updatedAt") from "Workspace")
+create or replace view newjitsu.last_updated as select greatest(
+                                                      (select max("updatedAt") from newjitsu."ConfigurationObjectLink"),
+                                                      (select max("updatedAt") from newjitsu."ConfigurationObject"),
+                                                      (select max("updatedAt") from newjitsu."Workspace")
                                               ) as "last_updated";
 
 create or replace view newjitsu.streams_with_destinations as
