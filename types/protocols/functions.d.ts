@@ -10,6 +10,12 @@ export type SetOpts = number | string | { ttl: number };
  */
 export interface Store {
   get(key: string): Promise<any>;
+  // getWithMeta(key: string): Promise<{
+  //   value: any;
+  //   lastUpdated: Date
+  //   initialTTLSeconds: number
+  //   leftTTLSeconds: number
+  // } | undefined>;
   del(key: string): Promise<void>;
   set(key: string, value: any, opts?: SetOpts): Promise<void>;
   ttl(key: string): Promise<number>;
