@@ -43,4 +43,3 @@ export type EnrichedConnectionConfig = {
   };
   credentialsHash: string;
 };
-

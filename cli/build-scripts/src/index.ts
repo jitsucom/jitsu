@@ -1,9 +1,8 @@
-import minimist from 'minimist';
+import minimist from "minimist";
 import { docker } from "./docker";
 
-
 const commands: Record<string, (args: minimist.ParsedArgs) => Promise<void>> = {
-  "docker": docker,
+  docker: docker,
 };
 
 async function main() {
