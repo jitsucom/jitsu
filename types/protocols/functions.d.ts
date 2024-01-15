@@ -15,6 +15,18 @@ export interface Store {
   ttl(key: string): Promise<number>;
 }
 
+export interface Metrics {
+  counter(name: string): {
+    //increment / decrement counter. Supports negative values
+    inc: (value: number) => void;
+  };
+  gauge(name: string): {
+    set: (value: number) => void;
+    //increment / decrement counter. Supports negative values
+    inc: (value: number) => void;
+  };
+}
+
 export interface TTLStore extends Store {
   getWithTTL(key: string): Promise<{ value: any; ttl: number } | undefined>;
 }
@@ -58,6 +70,7 @@ export type FunctionContext = {
   log: FunctionLogger;
   fetch: FetchType;
   store: Store;
+  metrics: Metrics;
 };
 
 export type PrivacyOpts = {
