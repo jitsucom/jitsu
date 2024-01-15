@@ -1,24 +1,10 @@
-import { EventContext, EventsStore, FetchOpts, FullContext, Metrics, Store } from "@jitsu/protocols/functions";
+import { EventContext, EventsStore, FetchOpts, FullContext, Store } from "@jitsu/protocols/functions";
 import nodeFetch, { RequestInit } from "node-fetch-commonjs";
 import { getErrorMessage, getLog, stopwatch } from "juava";
 import { httpAgent, httpsAgent } from "./functions/lib/http-agent";
 import { SystemContext } from "./functions/lib";
 
 const log = getLog("functions-context");
-
-export const bogusMetrics: Metrics = {
-  counter(name) {
-    return {
-      inc: () => {},
-    };
-  },
-  gauge(name) {
-    return {
-      inc: () => {},
-      set: () => {},
-    };
-  },
-};
 
 export function createFullContext(
   functionId: string,
@@ -36,7 +22,6 @@ export function createFullContext(
   return {
     props: props,
     store: store,
-    metrics: bogusMetrics,
     async fetch(url: string, init?: FetchOpts, logToRedis: boolean = true): Promise<Response> {
       //capture execution time
       const sw = stopwatch();

@@ -76,7 +76,7 @@ export type FunctionContext = {
   log: FunctionLogger;
   fetch: FetchType;
   store: Store;
-  metrics: Metrics;
+  metrics?: Metrics;
 };
 
 export type PrivacyOpts = {
