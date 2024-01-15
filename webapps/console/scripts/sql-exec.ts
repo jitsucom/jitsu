@@ -30,9 +30,6 @@ async function main() {
   });
   await client.connect();
   console.log(`✅ Connected to SQL database`);
-  if (defaultSchema) {
-    await client.query(`SET search_path TO "${defaultSchema}"`);
-  }
   const files = fs.readdirSync(sqlDir);
   for (const file of files) {
     const fullPath = path.join(sqlDir, file);
@@ -50,7 +47,7 @@ async function main() {
 }
 
 main()
-  .finally(() => process.exit(0))
+  .then(() => process.exit(0))
   .catch(e => {
     console.error(`🔴Error executing SQL scripts: ${e?.message || "unknown error"}`, e);
     process.exit(1);

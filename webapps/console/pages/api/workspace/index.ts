@@ -13,18 +13,27 @@ const api: Api = {
         await db.prisma().userProfile.findUnique({ where: { id: user.internalId } }),
         `User ${user.internalId} does not exist`
       );
-      if (userModel.admin) {
-        return await db.prisma().workspace.findMany({ where: { deleted: false }, orderBy: { createdAt: "asc" } });
-      }
-      return (
-        await db.prisma().workspaceAccess.findMany({
-          where: { userId: user.internalId },
-          include: { workspace: true },
-          orderBy: { createdAt: "asc" },
-        })
-      )
-        .map(res => res.workspace)
-        .filter(w => !w.deleted);
+
+      const baseList = userModel.admin
+        ? await db.prisma().workspace.findMany({
+            where: { deleted: false },
+            include: { workspaceUserProperties: { where: { userId: userModel.id } } },
+            orderBy: { createdAt: "asc" },
+          })
+        : (
+            await db.prisma().workspaceAccess.findMany({
+              where: { userId: user.internalId },
+              include: { workspace: { include: { workspaceUserProperties: true } } },
+              orderBy: { createdAt: "asc" },
+            })
+          ).map(({ workspace }) => workspace);
+
+      return baseList
+        .map(({ workspaceUserProperties, ...workspace }) => ({
+          ...workspace,
+          lastUsed: workspaceUserProperties?.[0]?.lastUsed || undefined,
+        }))
+        .sort((a, b) => (b.lastUsed?.getTime() || 0) - (a.lastUsed?.getTime() || 0));
     },
   },
   POST: {
