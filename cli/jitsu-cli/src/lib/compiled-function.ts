@@ -14,7 +14,6 @@ export type CompiledFunction = {
 
 function getSlug(filePath: string) {
   return filePath.split("/").pop()?.replace(".ts", "");
-
 }
 
 export async function getFunctionFromFilePath(filePath: string): Promise<CompiledFunction> {
@@ -36,8 +35,11 @@ export async function getFunctionFromFilePath(filePath: string): Promise<Compile
   });
 
   const exports: Record<string, any> = {} as Record<string, any>;
-  eval(output.output[0].code)
-  assertDefined(exports.default, `Function from ${filePath} doesn't have default export. Exported symbols: ${Object.keys(exports)}`);
+  eval(output.output[0].code);
+  assertDefined(
+    exports.default,
+    `Function from ${filePath} doesn't have default export. Exported symbols: ${Object.keys(exports)}`
+  );
   assertTrue(typeof exports.default === "function", `Default export from ${filePath} is not a function`);
 
   return {
@@ -47,5 +49,5 @@ export async function getFunctionFromFilePath(filePath: string): Promise<Compile
       name: exports.config?.name,
       description: exports.config?.description,
     },
-  }
+  };
 }
