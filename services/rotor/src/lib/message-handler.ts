@@ -30,7 +30,8 @@ export async function rotorMessageHandler(
   metrics?: Metrics,
   geoResolver?: GeoResolver,
   functionsFilter?: (id: string) => boolean,
-  retries: number = 0
+  retries: number = 0,
+  fetchTimeoutMs: number = 15000
 ) {
   if (!_message) {
     return;
@@ -103,9 +104,9 @@ export async function rotorMessageHandler(
     },
   };
 
-  const funcChain = buildFunctionChain(connection, pgStore, functionsFilter);
+  const funcChain = buildFunctionChain(connection, pgStore, functionsFilter, fetchTimeoutMs);
 
-  const chainRes = await runChain(funcChain, event, eventStore, store, ctx, systemContext);
+  const chainRes = await runChain(funcChain, event, eventStore, store, ctx, systemContext, fetchTimeoutMs);
   chainRes.connectionId = connectionId;
   metrics?.logMetrics(chainRes.execLog);
   checkError(chainRes);

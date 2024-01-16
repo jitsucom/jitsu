@@ -13,7 +13,8 @@ export function createFullContext(
   eventContext: EventContext,
   systemContext: SystemContext | {} = {},
   props: Record<string, any> = {},
-  event?: any
+  event?: any,
+  fetchTimeoutMs: number = 15000
 ): FullContext {
   const ar = functionId.split(".");
   const id = ar.pop();
@@ -35,11 +36,10 @@ export function createFullContext(
         headers: init?.headers ? hideSensitiveHeaders(init.headers) : undefined,
         event: event,
       };
-      const timeout = 15000;
       const controller = new AbortController();
       setTimeout(() => {
         controller.abort();
-      }, timeout);
+      }, fetchTimeoutMs);
 
       let internalInit: RequestInit = {
         ...init,
@@ -51,23 +51,41 @@ export function createFullContext(
         fetchResult = await nodeFetch(url, internalInit);
       } catch (err: any) {
         if (err.name === "AbortError") {
-          err.message = `Fetch request exceeded timeout ${timeout}ms and was aborted`;
+          err.message = `Fetch request exceeded timeout ${fetchTimeoutMs}ms and was aborted`;
         }
+        const elapsedMs = sw.elapsedMs();
         if (logToRedis) {
-          eventsStore.log(connectionId, false, { ...baseInfo, error: getErrorMessage(err), elapsedMs: sw.elapsedMs() });
+          eventsStore.log(connectionId, false, { ...baseInfo, error: getErrorMessage(err), elapsedMs: elapsedMs });
         }
+        log
+          .atWarn()
+          .log(
+            `[CON:${connectionId}]: [f:${id}][ERROR][FETCH]: ${url} Error: ${getErrorMessage(
+              err
+            )} ElapsedMs: ${elapsedMs}`
+          );
         throw err;
       }
+      const elapsedMs = sw.elapsedMs();
+
       //clone response to be able to read it twice
       const cloned = fetchResult.clone();
+      const respText = await trimResponse(cloned);
       if (logToRedis) {
         eventsStore.log(connectionId, false, {
           ...baseInfo,
           status: fetchResult.status,
           statusText: fetchResult.statusText,
-          elapsedMs: sw.elapsedMs(),
-          response: await tryJson(cloned),
+          elapsedMs: elapsedMs,
+          response: tryJson(respText),
         });
+      }
+      if (fetchResult.status >= 300) {
+        log
+          .atWarn()
+          .log(
+            `[CON:${connectionId}]: [f:${id}][ERROR][FETCH]: ${url} Status: ${fetchResult.status} Response: ${respText} ElapsedMs: ${elapsedMs}`
+          );
       }
 
       return fetchResult;
@@ -86,7 +104,7 @@ export function createFullContext(
         });
       },
       warn: (message, ...args: any[]) => {
-        log.atDebug().log(`[CON:${connectionId}]: [f:${id}][WARN]: ${message}`, ...args);
+        log.atWarn().log(`[CON:${connectionId}]: [f:${id}][WARN]: ${message}`, ...args);
         eventsStore.log(connectionId, false, {
           type: "log-warn",
           functionId: id,
@@ -107,7 +125,7 @@ export function createFullContext(
             args,
           },
         });
-        const l = log.atDebug();
+        const l = log.atWarn();
         if (args.length > 0) {
           const last = args[args.length - 1];
           if (last.stack) {
@@ -118,7 +136,7 @@ export function createFullContext(
         l.log(`[CON:${connectionId}]: [f:${id}][ERROR]: ${message}`, ...args);
       },
       info: (message, ...args: any[]) => {
-        log.atDebug().log(`[CON:${connectionId}]: [f:${id}][INFO]: ${message}`, ...args);
+        log.atInfo().log(`[CON:${connectionId}]: [f:${id}][INFO]: ${message}`, ...args);
         eventsStore.log(connectionId, false, {
           type: "log-info",
           functionId: id,
@@ -143,16 +161,18 @@ function hideSensitiveHeaders(headers: Record<string, string>): Record<string, s
   return result;
 }
 
-async function tryJson(fetchResult: Response): Promise<any> {
+async function trimResponse(fetchResult: Response, maxLen: number = 1000): Promise<any> {
   const text = await fetchResult.text();
-  const maxLen = 1000;
+  if (text.length > maxLen) {
+    return `${text.substring(0, maxLen)} ... [truncated, length: ${text.length}]`;
+  }
+  return text;
+}
+
+function tryJson(text: string, maxLen: number = 1000): any {
   try {
     return JSON.parse(text);
   } catch (err) {
-    if (text.length < maxLen) {
-      return text;
-    } else {
-      return `${text.substring(0, maxLen)} ... [truncated, length: ${text.length}]`;
-    }
+    return text;
   }
 }

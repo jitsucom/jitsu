@@ -35,4 +35,4 @@ COPY --from=builder /app/services/rotor/dist .
 
 ENV NODE_ENV=production
 
-ENTRYPOINT ["sh", "-c", "node --max-old-space-size=4096 main.js"]
+ENTRYPOINT ["sh", "-c", "node --max-old-space-size=4096 --no-node-snapshot main.js"]
