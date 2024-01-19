@@ -19,10 +19,10 @@ import { RetryErrorName, DropRetryErrorName } from "@jitsu/functions-lib";
 
 import { getLog, newError, requireDefined, stopwatch } from "juava";
 import { retryObject } from "./retries";
-import { ConfigStore } from "./pg-config-store";
 import NodeCache from "node-cache";
 import pick from "lodash/pick";
 import { EnrichedConnectionConfig } from "./config-types";
+import { EntityStore } from "./entity-store";
 
 export type Func = {
   id: string;
@@ -87,7 +87,7 @@ const getCachedOrLoad = (cache: NodeCache, key: string, loader: (key: string) =>
 
 export function buildFunctionChain(
   connection: EnrichedConnectionConfig,
-  pgStore: ConfigStore,
+  func: EntityStore,
   functionsFilter?: (id: string) => boolean
 ) {
   let mainFunction;
@@ -123,7 +123,7 @@ export function buildFunctionChain(
     .filter(f => f.functionId.startsWith("udf."))
     .map(f => {
       const functionId = f.functionId.substring(4);
-      const userFunctionObj = pgStore.getConfig("function", functionId);
+      const userFunctionObj = func.getObject(functionId);
       if (!userFunctionObj || userFunctionObj.workspaceId !== connection.workspaceId) {
         return {
           id: f.functionId as string,

@@ -20,7 +20,7 @@ import { redis } from "./lib/redis";
 import { redisLogger } from "./lib/redis-logger";
 import { DummyMetrics, Metrics } from "./lib/metrics";
 import { isTruish } from "@jitsu-internal/console/lib/shared/chores";
-import { pgConfigStore } from "./lib/pg-config-store";
+import { connectionsStore, functionsStore } from "./lib/entity-store";
 
 export const log = getLog("rotor");
 
@@ -67,9 +67,14 @@ async function main() {
     await mongodb.waitInit();
     await redis.waitInit();
     await redisLogger.waitInit();
-    const store = await pgConfigStore.get();
-    if (!store.enabled) {
-      log.atError().log("Postgres is not configured. Rotor will not work");
+    const connStore = await connectionsStore.get();
+    if (!connStore.enabled) {
+      log.atError().log("Connection store is not configured. Rotor will not work");
+      process.exit(1);
+    }
+    const funcStore = await functionsStore.get();
+    if (!funcStore.enabled) {
+      log.atError().log("Functions store is not configured. Rotor will not work");
       process.exit(1);
     }
     //kafka consumer mode
@@ -104,9 +109,14 @@ async function main() {
     await mongodb.waitInit();
     await redis.waitInit();
     await redisLogger.waitInit();
-    const store = await pgConfigStore.get();
-    if (!store.enabled) {
-      log.atError().log("Postgres is not configured. Rotor will not work");
+    const connStore = await connectionsStore.get();
+    if (!connStore.enabled) {
+      log.atError().log("Connection store is not configured. Rotor will not work");
+      process.exit(1);
+    }
+    const funcStore = await functionsStore.get();
+    if (!funcStore.enabled) {
+      log.atError().log("Functions store is not configured. Rotor will not work");
       process.exit(1);
     }
     const geoResolver = await initMaxMindClient(process.env.MAXMIND_LICENSE_KEY || "");
@@ -118,11 +128,17 @@ function initHTTP(metrics: Metrics, geoResolver: GeoResolver) {
   http.get("/health", (req, res) => {
     res.json({
       status: "pass",
-      configStore: {
-        enabled: pgConfigStore.getCurrent()?.enabled || "loading",
-        status: pgConfigStore.status(),
-        lastUpdated: pgConfigStore.lastRefresh(),
-        lastModified: pgConfigStore.lastModified(),
+      connectionsStore: {
+        enabled: connectionsStore.getCurrent()?.enabled || "loading",
+        status: connectionsStore.status(),
+        lastUpdated: connectionsStore.lastRefresh(),
+        lastModified: connectionsStore.lastModified(),
+      },
+      functionsStore: {
+        enabled: functionsStore.getCurrent()?.enabled || "loading",
+        status: functionsStore.status(),
+        lastUpdated: functionsStore.lastRefresh(),
+        lastModified: functionsStore.lastModified(),
       },
     });
   });

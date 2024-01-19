@@ -3,7 +3,8 @@ import { Metrics } from "./metrics";
 import { GeoResolver } from "./maxmind";
 import { IngestMessage } from "@jitsu/protocols/async-request";
 import { CONNECTION_IDS_HEADER } from "./rotor";
-import { pgConfigStore } from "./pg-config-store";
+import { connectionsStore, functionsStore } from "./entity-store";
+
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { EventContext } from "@jitsu/protocols/functions";
 import {
@@ -36,9 +37,13 @@ export async function rotorMessageHandler(
   if (!_message) {
     return;
   }
-  const pgStore = pgConfigStore.getCurrent();
-  if (!pgStore || !pgStore.enabled) {
-    throw newError("Config store is not enabled");
+  const connStore = connectionsStore.getCurrent();
+  if (!connStore || !connStore.enabled) {
+    throw newError("Connection store is not enabled");
+  }
+  const funcStore = functionsStore.getCurrent();
+  if (!funcStore || !funcStore.enabled) {
+    throw newError("Functions store is not enabled");
   }
   const eventStore = redisLogger();
 
@@ -46,7 +51,7 @@ export async function rotorMessageHandler(
   const connectionId =
     headers && headers[CONNECTION_IDS_HEADER] ? headers[CONNECTION_IDS_HEADER].toString() : message.connectionId;
   const connection: EnrichedConnectionConfig = requireDefined(
-    pgStore.getEnrichedConnection(connectionId),
+    connStore.getObject(connectionId),
     `Unknown connection: ${connectionId}`
   );
 
@@ -107,7 +112,7 @@ export async function rotorMessageHandler(
     },
   };
 
-  const funcChain = buildFunctionChain(connection, pgStore, functionsFilter);
+  const funcChain = buildFunctionChain(connection, funcStore, functionsFilter);
 
   const chainRes = await runChain(funcChain, event, eventStore, store, ctx, systemContext);
   chainRes.connectionId = connectionId;

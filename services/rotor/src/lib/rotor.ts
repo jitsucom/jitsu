@@ -162,7 +162,7 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
               .atError()
               .withCause(e)
               .log(
-                `Failed to process function ${e.functionId} for message ${
+                `Failed to process function ${e.functionId} for connection ${connectionId} messageId: ${
                   message.key || "(no key set)"
                 }. ${retryLogMessage(retryPolicy, retries)}`
               );
