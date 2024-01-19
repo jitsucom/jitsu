@@ -19,6 +19,7 @@ import {
 import { redisLogger } from "./redis-logger";
 import { buildFunctionChain, checkError, runChain } from "./functions-chain";
 import { redis } from "./redis";
+import { EnrichedConnectionConfig } from "./config-types";
 export const log = getLog("rotor");
 
 const anonymousEventsStore = mongoAnonymousEventsStore();
@@ -44,7 +45,10 @@ export async function rotorMessageHandler(
   const message = (typeof _message === "string" ? JSON.parse(_message) : _message) as IngestMessage;
   const connectionId =
     headers && headers[CONNECTION_IDS_HEADER] ? headers[CONNECTION_IDS_HEADER].toString() : message.connectionId;
-  const connection = requireDefined(pgStore.getEnrichedConnection(connectionId), `Unknown connection: ${connectionId}`);
+  const connection: EnrichedConnectionConfig = requireDefined(
+    pgStore.getEnrichedConnection(connectionId),
+    `Unknown connection: ${connectionId}`
+  );
 
   log
     .atDebug()
