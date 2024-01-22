@@ -5,7 +5,6 @@ import { deploy } from "./commands/deploy";
 import { init } from "./commands/init";
 import { build } from "./commands/build";
 import { test } from "./commands/test";
-import { run } from "./commands/run";
 
 import { jitsuCliVersion, jitsuCliPackageName } from "./lib/version";
 import { whoami } from "./commands/whoami";
@@ -32,18 +31,18 @@ p.command("test")
   .option("-d, --dir <dir>", "the directory of project. (Optional). By default, current directory is used")
   .action(test);
 
-p.command("run")
-  .description("Check extensions on provided event, config and persistent storage state")
-  .option("-d, --dir <dir>", "the directory of project. (Optional). By default, current directory is used")
-  .option(
-    "-n, --name <name>",
-    "name of function file to check (optional). Required if multiple functions are defined in project"
-  )
-  .option("-t, --type <type>", "entity type to run", "function")
-  .requiredOption("-e, --event <file_or_json>", "path to file with event json or event json as a string")
-  .option("-p, --props <file_or_json>", "path to file with config json or config json as a string. (Optional)")
-  .option("-s, --store <file_or_json>", "path to file with state json or state json as a string. (Optional)")
-  .action(run);
+// p.command("run")
+//   .description("Check extensions on provided event, config and persistent storage state")
+//   .option("-d, --dir <dir>", "the directory of project. (Optional). By default, current directory is used")
+//   .option(
+//     "-n, --name <name>",
+//     "name of function file to check (optional). Required if multiple functions are defined in project"
+//   )
+//   .option("-t, --type <type>", "entity type to run", "function")
+//   .requiredOption("-e, --event <file_or_json>", "path to file with event json or event json as a string")
+//   .option("-p, --props <file_or_json>", "path to file with config json or config json as a string. (Optional)")
+//   .option("-s, --store <file_or_json>", "path to file with state json or state json as a string. (Optional)")
+//   .action(run);
 
 p.command("whoami")
   .description("Check if current user is logged in. Shows user's info if logged in")
