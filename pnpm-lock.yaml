@@ -93,9 +93,6 @@ importers:
       '@babel/preset-typescript':
         specifier: ^7.23.2
         version: 7.23.2(@babel/core@7.21.4)
-      '@jitsu/core-functions':
-        specifier: workspace:*
-        version: link:../../libs/core-functions
       '@jitsu/functions-lib':
         specifier: workspace:*
         version: link:../../libs/functions

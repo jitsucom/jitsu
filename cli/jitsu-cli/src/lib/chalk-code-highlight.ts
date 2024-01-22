@@ -13,6 +13,8 @@ export const defaultColorScheme = {
 
 export const b = chalk.bold;
 export const red = chalk.red;
+export const green = chalk.green;
+export const yellow = chalk.yellow;
 
 function chalkString(expr: string, str: string): string {
   if (expr.startsWith("b")) {

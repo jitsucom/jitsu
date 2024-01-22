@@ -128,75 +128,75 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
         const retriedFunctionId = headers[FUNCTION_ID_HEADER] ? headers[FUNCTION_ID_HEADER].toString() : "";
         const connectionIds =
           headers && headers[CONNECTION_IDS_HEADER] ? headers[CONNECTION_IDS_HEADER].toString().split(",") : [""];
-        for (const connectionId of connectionIds) {
-          try {
-            await handle(
-              value.toString(),
-              {
-                ...headers,
-                [CONNECTION_IDS_HEADER]: connectionId,
-              },
-              metrics,
-              geoResolver,
-              retriedFunctionId
-                ? id => {
-                    if (retriedFunctionId.startsWith("udf.")) {
-                      return id.startsWith("udf.") || id.startsWith("builtin.destination.");
-                    } else if (retriedFunctionId.startsWith("builtin.destination.")) {
-                      return id.startsWith("builtin.destination.");
-                    } else {
-                      return true;
-                    }
+        const conProms = connectionIds.map(connectionId =>
+          handle(
+            value.toString(),
+            {
+              ...headers,
+              [CONNECTION_IDS_HEADER]: connectionId,
+            },
+            metrics,
+            geoResolver,
+            retriedFunctionId
+              ? id => {
+                  if (retriedFunctionId.startsWith("udf.")) {
+                    return id.startsWith("udf.") || id.startsWith("builtin.destination.");
+                  } else if (retriedFunctionId.startsWith("builtin.destination.")) {
+                    return id.startsWith("builtin.destination.");
+                  } else {
+                    return true;
                   }
-                : undefined,
-              retries
-            );
-            messagesProcessed.inc({ topic, partition });
-          } catch (e: any) {
-            const retryPolicy = getRetryPolicy(e);
-            const retryTime = retryBackOffTime(retryPolicy, retries + 1);
-            const newMessage = e.event
-              ? JSON.stringify({ ...JSON.parse(value.toString()), httpPayload: e.event })
-              : value;
-            log
-              .atError()
-              .withCause(e)
-              .log(
-                `Failed to process function ${e.functionId} for connection ${connectionId} messageId: ${
-                  message.key || "(no key set)"
-                }. ${retryLogMessage(retryPolicy, retries)}`
-              );
-            if (!retryTime) {
-              messagesDeadLettered.inc({ topic });
-            } else {
-              messagesRequeued.inc({ topic });
-            }
-            const requeueTopic = retryTime ? retryTopic() : deatLetterTopic();
-            try {
-              await producer.send({
-                topic: requeueTopic,
-                compression: getCompressionType(),
-                messages: [
-                  {
-                    value: newMessage,
-                    // on first retry we create a new key so if more than one destination fails - they will be retried independently
-                    key: retries === 0 ? `${message.key}_${connectionId}` : message.key,
-                    headers: {
-                      [ERROR_HEADER]: e.message,
-                      [RETRY_COUNT_HEADER]: `${retries}`,
-                      [ORIGINAL_TOPIC_HEADER]: topic,
-                      [RETRY_TIME_HEADER]: retryTime,
-                      [CONNECTION_IDS_HEADER]: connectionId,
-                      ...(e.functionId ? { [FUNCTION_ID_HEADER]: e.functionId } : {}),
+                }
+              : undefined,
+            retries
+          )
+            .then(() => messagesProcessed.inc({ topic, partition }))
+            .catch(async e => {
+              const retryPolicy = getRetryPolicy(e);
+              const retryTime = retryBackOffTime(retryPolicy, retries + 1);
+              const newMessage = e.event
+                ? JSON.stringify({ ...JSON.parse(value.toString()), httpPayload: e.event })
+                : value;
+              log
+                .atError()
+                .withCause(e)
+                .log(
+                  `Failed to process function ${e.functionId} for connection ${connectionId} messageId: ${
+                    message.key || "(no key set)"
+                  }. ${retryLogMessage(retryPolicy, retries)}`
+                );
+              if (!retryTime) {
+                messagesDeadLettered.inc({ topic });
+              } else {
+                messagesRequeued.inc({ topic });
+              }
+              const requeueTopic = retryTime ? retryTopic() : deatLetterTopic();
+              try {
+                await producer.send({
+                  topic: requeueTopic,
+                  compression: getCompressionType(),
+                  messages: [
+                    {
+                      value: newMessage,
+                      // on first retry we create a new key so if more than one destination fails - they will be retried independently
+                      key: retries === 0 ? `${message.key}_${connectionId}` : message.key,
+                      headers: {
+                        [ERROR_HEADER]: e.message,
+                        [RETRY_COUNT_HEADER]: `${retries}`,
+                        [ORIGINAL_TOPIC_HEADER]: topic,
+                        [RETRY_TIME_HEADER]: retryTime,
+                        [CONNECTION_IDS_HEADER]: connectionId,
+                        ...(e.functionId ? { [FUNCTION_ID_HEADER]: e.functionId } : {}),
+                      },
                     },
-                  },
-                ],
-              });
-            } catch (e) {
-              log.atDebug().withCause(e).log(`Failed to put message to ${topic}: ${message.value}`);
-            }
-          }
-        }
+                  ],
+                });
+              } catch (e) {
+                log.atDebug().withCause(e).log(`Failed to put message to ${topic}: ${message.value}`);
+              }
+            })
+        );
+        await Promise.all(conProms);
       }
 
       const queue = new PQueue({ concurrency });
@@ -230,7 +230,7 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
         eachMessage: async ({ message, topic, partition }) => {
           //make sure that queue has no more entities than concurrency limit (running tasks not included)
           await onSizeLessThan(concurrency);
-          await queue.add(async () => onMessage(message, topic, partition));
+          queue.add(async () => onMessage(message, topic, partition));
         },
         // eachBatch: async ({
         //   batch,

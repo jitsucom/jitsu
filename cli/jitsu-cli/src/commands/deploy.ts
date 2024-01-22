@@ -4,9 +4,9 @@ import inquirer from "inquirer";
 import { existsSync, readdirSync, readFileSync } from "fs";
 import { loadPackageJson } from "./shared";
 import fetch from "node-fetch";
-import { UDFWrapper } from "@jitsu/core-functions";
 import cuid from "cuid";
-import { b, red } from "../lib/chalk-code-highlight";
+import { b, green, red } from "../lib/chalk-code-highlight";
+import { getFunctionFromFilePath } from "../lib/compiled-function";
 
 function readLoginFile() {
   const configFile = `${homedir()}/.jitsu/jitsu-cli.json`;
@@ -115,18 +115,20 @@ export async function deploy({
     }
   }
 
-  const workspaceName = workspaces.find(w => w.id === workspaceId)?.name;
+  const workspaceObj = workspaces.find(w => w.id === workspaceId);
+  const workspaceName = workspaceObj?.name;
+  const workspaceSlug = workspaceObj?.slug || workspaceObj?.id;
   if (!workspaceId || !workspaceName) {
     console.error(red(`Workspace with id ${workspaceId} not found`));
     process.exit(1);
   }
   for (const file of selectedFiles) {
-    console.log(b(`Deploying function ${b(file)} to workspace '${workspaceName}'`));
+    console.log(`${b(`𝑓`)} Deploying function ${b(file)} to workspace ${workspaceName} (${host}/${workspaceSlug})`);
     const code = readFileSync(path.resolve(functionsDir, file), "utf-8");
-    const wrapped = UDFWrapper(file, file, code);
+    const wrapped = await getFunctionFromFilePath(path.resolve(functionsDir, file));
     const meta = wrapped.meta;
     if (meta) {
-      console.log(`Function ${b(file)} meta: slug=${meta.slug}, name=${meta.name}, description=${meta.description}`);
+      console.log(`  meta: slug=${meta.slug}, name=${meta.name || "not set"}`);
     } else {
       console.log(`File ${b(file)} doesn't have function meta information. ${red("Skipping")}`);
       continue;
@@ -192,12 +194,10 @@ export async function deploy({
         }),
       });
       if (!res.ok) {
-        console.error(red(`Cannot patch function ${name}(${id}):\n${b(await res.text())}`));
+        console.error(red(`⚠ Cannot deploy function ${b(meta.slug)}(${id}):\n${b(await res.text())}`));
         process.exit(1);
       } else {
-        console.log(
-          `Function ${b(meta.name)} (id: ${b(id)}) was successfully updated in workspace ${b(workspaceName)}`
-        );
+        console.log(`${green(`✓`)} ${b(meta.name)} deployed successfully!`);
       }
     }
   }

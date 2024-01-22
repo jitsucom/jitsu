@@ -31,11 +31,22 @@ export const FunctionsHandler = (metrics: Metrics, geoResolver?: GeoResolver) =>
 export const FunctionsHandlerMulti = (metrics: Metrics, geoResolver?: GeoResolver) => async (req, res, next) => {
   const connectionIds = (req.query.ids ?? "").split(",") as string[];
   const message = req.body as IngestMessage;
+  const functionsFetchTimeout = req.headers["x-request-timeout-ms"]
+    ? parseInt(req.headers["x-request-timeout-ms"] as string)
+    : 2000;
   const prom = connectionIds
     .filter(id => !!id)
     .map(id => {
       //log.atInfo().log(`Functions handler2. Message ID: ${message.messageId} connectionId: ${id}`);
-      return rotorMessageHandler(message, { [CONNECTION_IDS_HEADER]: id }, metrics, geoResolver);
+      return rotorMessageHandler(
+        message,
+        { [CONNECTION_IDS_HEADER]: id },
+        metrics,
+        geoResolver,
+        undefined,
+        0,
+        functionsFetchTimeout
+      );
     });
   await Promise.all(prom)
     .then(results => {

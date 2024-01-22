@@ -15,6 +15,7 @@ import {
   SystemContext,
   UDFWrapper,
 } from "@jitsu/core-functions";
+import Prometheus from "prom-client";
 import { RetryErrorName, DropRetryErrorName } from "@jitsu/functions-lib";
 
 import { getLog, newError, requireDefined, stopwatch } from "juava";
@@ -36,6 +37,20 @@ export type FuncChain = Func[];
 const log = getLog("functions-chain");
 const bulkerBase = requireDefined(process.env.BULKER_URL, "env BULKER_URL is not defined");
 const bulkerAuthKey = requireDefined(process.env.BULKER_AUTH_KEY, "env BULKER_AUTH_KEY is not defined");
+
+const functionsInFlight = new Prometheus.Gauge({
+  name: "rotor_functions_in_flight",
+  help: "Functions in flight",
+  // add `as const` here to enforce label names
+  labelNames: ["connectionId", "functionId"] as const,
+});
+const functionsTime = new Prometheus.Histogram({
+  name: "rotor_functions_time",
+  help: "Functions execution time in ms",
+  buckets: [1, 10, 100, 200, 1000, 10000],
+  // add `as const` here to enforce label names
+  labelNames: ["connectionId", "functionId"] as const,
+});
 
 //cache compiled udfs for 10min (ttl is extended on each access)
 const udfTTL = 60 * 10;
@@ -88,7 +103,8 @@ const getCachedOrLoad = (cache: NodeCache, key: string, loader: (key: string) =>
 export function buildFunctionChain(
   connection: EnrichedConnectionConfig,
   func: EntityStore,
-  functionsFilter?: (id: string) => boolean
+  functionsFilter?: (id: string) => boolean,
+  fetchTimeoutMs: number = 15000
 ) {
   let mainFunction;
   const connectionData = connection.options as any;
@@ -177,7 +193,9 @@ export function buildFunctionChain(
       event,
       ctx["$system"].eventsStore,
       ctx.store,
-      pick(ctx, ["geo", "ua", "headers", "source", "destination", "connection", "retries"])
+      pick(ctx, ["geo", "ua", "headers", "source", "destination", "connection", "retries"]),
+      undefined,
+      fetchTimeoutMs
     );
     checkError(chainRes);
     return chainRes.events;
@@ -213,13 +231,18 @@ export async function runChain(
   eventsStore: EventsStore,
   store: Store,
   eventContext: EventContext,
-  systemContext?: SystemContext
+  systemContext?: SystemContext,
+  fetchTimeoutMs: number = 15000
 ): Promise<FuncChainResult> {
   const execLog: FunctionExecLog = [];
   let events = [event];
   for (const f of chain) {
     const newEvents: AnyEvent[] = [];
     for (let i = 0; i < events.length; i++) {
+      const isUDFChain = f.id === "udf.PIPELINE";
+      if (!isUDFChain) {
+        functionsInFlight.inc({ connectionId: eventContext.connection?.id ?? "", functionId: f.id });
+      }
       const event = events[i];
       let result: FuncReturn = undefined;
       const sw = stopwatch();
@@ -230,7 +253,8 @@ export async function runChain(
         eventContext,
         f.enableSystemContext && systemContext ? systemContext : {},
         f.config,
-        event
+        event,
+        fetchTimeoutMs
       );
       const rat = new Date(event.receivedAt) as any;
       const execLogMeta = {
@@ -242,6 +266,9 @@ export async function runChain(
       try {
         result = await f.exec(event, funcCtx);
         const ms = sw.elapsedMs();
+        if (!isUDFChain) {
+          functionsTime.observe({ connectionId: eventContext.connection?.id ?? "", functionId: f.id }, ms);
+        }
         // if (ms > 100) {
         //   console.log(`Function ${f.id} took ${ms}ms to execute`);
         // }
@@ -265,7 +292,7 @@ export async function runChain(
           ms,
           dropped: isDropResult(result),
         });
-        if (f.id === "udf.PIPELINE") {
+        if (isUDFChain) {
           if (err.name !== DropRetryErrorName && err.event) {
             // if udf pipeline has multiple functions and failed in the middle w/o drop error
             // pass partial result of pipeline to the destination function
@@ -273,6 +300,7 @@ export async function runChain(
             continue;
           }
         } else {
+          functionsTime.observe({ connectionId: eventContext.connection?.id ?? "", functionId: f.id }, ms);
           const args = [err?.name, err?.message];
           const r = retryObject(err, eventContext.retries ?? 0);
           if (r) {
@@ -283,6 +311,10 @@ export async function runChain(
           } else {
             funcCtx.log.error(`Function execution failed`, ...args);
           }
+        }
+      } finally {
+        if (!isUDFChain) {
+          functionsInFlight.dec({ connectionId: eventContext.connection?.id ?? "", functionId: f.id });
         }
       }
       if (!isDropResult(result)) {
