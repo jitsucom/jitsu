@@ -20,7 +20,7 @@ export default createRoute()
             s."updatedAt" as "updatedAt",
             s.config,
             w.id as "workspaceId"
-        from "ConfigurationObject" s
+        from newjitsu."ConfigurationObject" s
              join "Workspace" w on w.id = s."workspaceId"
         where s.type = 'stream'
           and s.config ->> 'domains' <> '[]'
