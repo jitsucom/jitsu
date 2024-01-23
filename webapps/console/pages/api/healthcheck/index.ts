@@ -1,6 +1,5 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { db } from "../../../lib/server/db";
-import { redis } from "../../../lib/server/redis";
 import { getServerLog } from "../../../lib/server/log";
 
 const healthChecks: Record<string, () => Promise<any>> = {
@@ -13,10 +12,6 @@ const healthChecks: Record<string, () => Promise<any>> = {
   postgres: async () => {
     await db.pgPool.waitInit();
     await db.pgPool().query(`SELECT 1 as pgpool_healthcheck`);
-  },
-  redis: async () => {
-    await redis.waitInit();
-    await redis().ping();
   },
 };
 
