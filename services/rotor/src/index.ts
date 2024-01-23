@@ -42,7 +42,7 @@ async function main() {
   errorTypes.forEach(type => {
     process.once(type, err => {
       log.atError().withCause(err).log(`process.on ${type}`);
-      process.exit(1);
+      //process.exit(1);
     });
   });
 
