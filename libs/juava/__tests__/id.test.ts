@@ -1,4 +1,4 @@
-import { checkHash, createHash, randomId } from "../src";
+import { randomId } from "../src";
 
 test("id test", () => {
   const id1 = randomId();
