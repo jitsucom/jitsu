@@ -1,5 +1,24 @@
 version: "3.8"
 services:
+  kafka:
+    tty: true
+    image: "bitnami/kafka:3.6.0"
+    environment:
+      TERM: "xterm-256color"
+      KAFKA_CFG_NODE_ID: 0
+      KAFKA_CFG_PROCESS_ROLES: controller,broker
+      KAFKA_CFG_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 0@kafka:9093
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server 127.0.0.1:9092 --describe"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    volumes:
+      - ./data/kafka:/bitnami/kafka
+
   redis:
     tty: true
     image: redis:6.2-alpine
@@ -25,65 +44,138 @@ services:
       interval: 1s
       timeout: 10s
       retries: 10
-  #    volumes:
-  #      - ./data/postgres:/var/lib/postgresql/data
-  zookeeper:
+#    volumes:
+#      - ./data/postgres:/var/lib/postgresql/data
+
+
+  console:
     tty: true
+    image: jitsucom/console:beta
+    restart: "unless-stopped"
     platform: linux/amd64
-    image: wurstmeister/zookeeper:latest
-  kafka:
-    tty: true
-    image: wurstmeister/kafka:latest
-    depends_on:
-      - zookeeper
     environment:
-      TERM: "xterm-256color"
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_LISTENERS: INTERNAL://0.0.0.0:19093,OUTSIDE://0.0.0.0:19092
-      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:19093,OUTSIDE://localhost:19092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,OUTSIDE:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      DATA_DOMAIN: ${INGEST_DOMAIN}
+      ROTOR_URL: "http://rotor:3401"
+      BULKER_URL: "http://bulker:3042"
+      CONSOLE_AUTH_TOKENS: ${CONSOLE_PASSWORD}
+      BULKER_AUTH_KEY: ${BULKER_PASSWORD}
+      MIT_COMPLIANT: ${MIT_COMPLIANT:-true}
+      DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD:-default}@postgres:5432/postgres?schema=newjitsu"
+      REDIS_URL: "redis://default:${REDIS_PASSWORD:-default}@redis:6379"
+      TEST_CREDENTIALS: ${TEST_CREDENTIALS}
+      TEST_CREDENTIALS_SHOW_LOGIN: "true"
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
+      SYNCS_ENABLED: ${SYNCS_ENABLED:-false}
+      SYNCCTL_URL: "http://syncctl:3043"
+      SYNCCTL_AUTH_KEY: ${SYNCCTL_PASSWORD}
+      GOOGLE_SCHEDULER_KEY: ${GOOGLE_SCHEDULER_KEY}
+      GOOGLE_SCHEDULER_LOCATION: ${GOOGLE_SCHEDULER_LOCATION:-us-central1}
+      NEXTAUTH_URL: "${JITSU_PUBLIC_URL:-${NEXTAUTH_URL:-http://localhost:${JITSU_UI_PORT:-3000}/}}"
+      UPDATE_DB: "true"
     healthcheck:
-      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server 127.0.0.1:19092 --describe"]
-      interval: 5s
-      timeout: 3s
+      test: [ "CMD", "curl", "-f", "http://console:3000/api/healthcheck" ]
+      interval: 2s
+      timeout: 10s
       retries: 30
+    depends_on:
+      redis:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${JITSU_UI_PORT:-3000}:3000"
 
   bulker:
     tty: true
-    image: jitsucom/bulker:latest
+    image: jitsucom/bulker:beta
     platform: linux/amd64
     restart: "unless-stopped"
     environment:
-      BULKER_HTTP_PORT: "3042"
       TERM: "xterm-256color"
-      BULKER_KAFKA_BOOTSTRAP_SERVERS: "kafka:19093"
+      BULKER_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
       BULKER_AUTH_TOKENS: ${BULKER_PASSWORD}
-      BULKER_CONFIG_SOURCE: "redis"
+      BULKER_CONFIG_SOURCE: "http://console:3000/api/admin/export/bulker-connections"
+      BULKER_CONFIG_SOURCE_HTTP_AUTH_TOKEN: "service-admin-account:${CONSOLE_PASSWORD}"
+      BULKER_CACHE_DIR: "/tmp/cache"
       REDIS_URL: "redis://default:${REDIS_PASSWORD:-default}@redis:6379"
       BULKER_INTERNAL_TASK_LOG: '{"id":"task_log","metricsKeyPrefix":"syncs","usesBulker":true,"type":"postgres","options":{"mode":"stream"},"credentials":{"host":"postgres","port":5432,"sslMode":"disable","database":"postgres","password":"${POSTGRES_PASSWORD:-default}","username":"postgres","defaultSchema":"public"}}'
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3042/ready"]
+      test: ["CMD", "curl", "-f", "http://bulker:3042/health"]
       interval: 2s
       timeout: 10s
       retries: 15
     depends_on:
-      redis:
-        condition: service_started
+      console:
+        condition: service_healthy
       kafka:
         condition: service_healthy
+
+  rotor:
+    tty: true
+    image: jitsucom/rotor:beta
+    platform: linux/amd64
+    restart: "unless-stopped"
+    environment:
+      DISABLE_SERVICE_prisma: "true"
+      DISABLE_SERVICE_pg: "true"
+      BULKER_URL: "http://bulker:3042"
+      BULKER_AUTH_KEY: ${BULKER_PASSWORD}
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      REDIS_URL: "redis://default:${REDIS_PASSWORD:-default}@redis:6379"
+      REPOSITORY_BASE_URL: "http://console:3000/api/admin/export/"
+      REPOSITORY_AUTH_TOKEN: "service-admin-account:${CONSOLE_PASSWORD}"
+      REPOSITORY_CACHE_DIR: "/tmp/cache"
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://rotor:3401/health" ]
+      interval: 2s
+      timeout: 10s
+      retries: 15
+    depends_on:
+      console:
+        condition: service_healthy
+      bulker:
+        condition: service_healthy
+
+  ingest:
+    tty: true
+    image: jitsucom/ingest:beta
+    platform: linux/amd64
+    restart: "unless-stopped"
+    environment:
+      TERM: "xterm-256color"
+      INGEST_DATA_DOMAIN: ${INGEST_DOMAIN}
+      INGEST_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      INGEST_AUTH_TOKENS: ${BULKER_PASSWORD}
+      INGEST_REPOSITORY_URL: "http://console:3000/api/admin/export/streams-with-destinations"
+      INGEST_REPOSITORY_AUTH_TOKENS: "service-admin-account:${CONSOLE_PASSWORD}"
+      INGEST_CACHE_DIR: "/tmp/cache"
+      INGEST_REDIS_URL: "redis://default:${REDIS_PASSWORD:-default}@redis:6379"
+      INGEST_ROTOR_URL: "http://rotor:3401"
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://ingest:3049/health" ]
+      interval: 2s
+      timeout: 10s
+      retries: 15
+    depends_on:
+      console:
+        condition: service_healthy
+      rotor:
+        condition: service_healthy
+    ports:
+      - "${JITSU_INGEST_PORT:-8080}:3049"
+
   syncctl:
     tty: true
-    image: jitsucom/syncctl:latest
+    image: jitsucom/syncctl:beta
     platform: linux/amd64
     restart: "on-failure"
     environment:
-      HTTP_PORT: "3043"
       TERM: "xterm-256color"
       SYNCCTL_SYNCS_ENABLED: ${SYNCS_ENABLED:-false}
       SYNCCTL_AUTH_TOKENS: ${SYNCCTL_PASSWORD}
-      SYNCCTL_DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD:-default}@postgres:5432/postgres"
-      SYNCCTL_SIDECAR_DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD:-default}@${EXTERNAL_DATABASE_HOST}:${PG_PORT:-5437}/postgres"
+      SYNCCTL_DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD:-default}@postgres:5432/postgres?search_path=newjitsu"
+      SYNCCTL_SIDECAR_DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD:-default}@${EXTERNAL_DATABASE_HOST}:${PG_PORT:-5437}/postgres?search_path=newjitsu"
       SYNCCTL_BULKER_URL: "http://${EXTERNAL_BULKER_HOST}:${BULKER_PORT:-3045}"
       SYNCCTL_BULKER_AUTH_TOKEN: ${BULKER_PASSWORD}
       SYNCCTL_BULKER_LOGS_CONNECTION_ID: task_log
@@ -96,57 +188,3 @@ services:
     depends_on:
       bulker:
         condition: service_healthy
-      postgres:
-        condition: service_healthy
-  rotor:
-    tty: true
-    image: jitsucom/rotor:latest
-    platform: linux/amd64
-    restart: "unless-stopped"
-    environment:
-      DISABLE_SERVICE_prisma: "true"
-      DISABLE_SERVICE_pg: "true"
-      BULKER_URL: "http://bulker:3042"
-      BULKER_AUTH_KEY: ${BULKER_PASSWORD}
-      KAFKA_BOOTSTRAP_SERVERS: "kafka:19093"
-      REDIS_URL: "redis://default:${REDIS_PASSWORD:-default}@redis:6379"
-      CONFIG_STORE_DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD:-default}@postgres:5432/postgres"
-    depends_on:
-      bulker:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-      redis:
-        condition: service_started
-  console:
-    tty: true
-    image: jitsucom/console:latest
-    restart: "unless-stopped"
-    platform: linux/amd64
-    environment:
-      ROTOR_URL: "http://rotor:3401"
-      BULKER_URL: "http://bulker:3042"
-      BULKER_AUTH_KEY: ${BULKER_PASSWORD}
-      MIT_COMPLIANT: ${MIT_COMPLIANT:-true}
-      DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD:-default}@postgres:5432/postgres"
-      REDIS_URL: "redis://default:${REDIS_PASSWORD:-default}@redis:6379"
-      TEST_CREDENTIALS: ${TEST_CREDENTIALS}
-      TEST_CREDENTIALS_SHOW_LOGIN: "true"
-      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
-      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
-      SYNCS_ENABLED: ${SYNCS_ENABLED:-false}
-      SYNCCTL_URL: "http://syncctl:3043"
-      SYNCCTL_AUTH_KEY: ${SYNCCTL_PASSWORD}
-      GOOGLE_SCHEDULER_KEY: ${GOOGLE_SCHEDULER_KEY}
-      GOOGLE_SCHEDULER_LOCATION: ${GOOGLE_SCHEDULER_LOCATION:-us-central1}
-      NEXTAUTH_URL: "${JITSU_PUBLIC_URL:-${NEXTAUTH_URL:-http://localhost:${JITSU_PORT:-3000}/}}"
-      UPDATE_DB: "true"
-    depends_on:
-      redis:
-        condition: service_started
-      bulker:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-    ports:
-      - "${JITSU_PORT:-3000}:3000"

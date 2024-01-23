@@ -86,7 +86,7 @@ main() {
   if [ -z "$cmd" ]; then
     if [ "$UPDATE_DB" = "1" ] || [ "$UPDATE_DB" = "yes" ] || [ "$UPDATE_DB" = "true" ]; then
       echo "UPDATE_DB is set, updating database schema..."
-      prisma --skip-generate --schema schema.prisma
+      prisma db push --skip-generate --schema schema.prisma
     fi
     echo "Starting the app"
     healthcheck $$ &
@@ -97,7 +97,7 @@ main() {
 
 
   elif [ "$cmd" = "db-prepare" ]; then
-    prisma --skip-generate --schema schema.prisma
+    prisma db push --skip-generate --schema schema.prisma
   else
     echo "ERROR! Unknown command '$cmd'"
   fi

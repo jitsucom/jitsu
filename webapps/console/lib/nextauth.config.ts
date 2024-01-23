@@ -3,7 +3,7 @@ import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { NextAuthOptions, User } from "next-auth";
 import { db } from "./server/db";
-import { checkHash, requireDefined } from "juava";
+import { checkToken, requireDefined } from "juava";
 import { ApiError } from "./shared/errors";
 import { getServerLog } from "./server/log";
 import { withProductAnalytics } from "./server/telemetry";
@@ -48,7 +48,7 @@ const credentialsProvider =
         log.atWarn().log(`Failed attempt to login with ${credentials.username}: no such user`);
         return null;
       }
-      if (!checkHash(userRecord[1], credentials.password)) {
+      if (!checkToken(userRecord[1], credentials.password)) {
         log.atWarn().log(`Failed attempt to login with ${credentials.username}: invalid password`);
         return null;
       }
