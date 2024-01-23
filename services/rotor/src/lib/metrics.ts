@@ -39,19 +39,13 @@ export function createMetrics(producer?: Producer): Metrics {
   const buffer: MetricsEvent[] = [];
 
   const flush = async (buf: MetricsEvent[]) => {
-    const d = new Date();
-    d.setMilliseconds(0);
-    d.setSeconds(0);
     if (producer) {
       await Promise.all([
         producer.send({
           topic: `in.id.metrics.m.batch.t.${metricsTable}`,
           compression: getCompressionType(),
           messages: buf.map(m => ({
-            value: JSON.stringify({
-              ...m,
-              timestamp: d.toISOString(),
-            }),
+            value: JSON.stringify(m),
           })),
         }),
         producer.send({
