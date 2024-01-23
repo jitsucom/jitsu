@@ -21,7 +21,7 @@ export default createRoute()
             s.config,
             w.id as "workspaceId"
         from newjitsu."ConfigurationObject" s
-             join "Workspace" w on w.id = s."workspaceId"
+             join newjitsu."Workspace" w on w.id = s."workspaceId"
         where s.type = 'stream'
           and s.config ->> 'domains' <> '[]'
     `);
