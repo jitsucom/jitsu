@@ -36,7 +36,7 @@
     "parse-duration": "^1.1.0",
     "@amplitude/ua-parser-js": "^0.7.33",
     "dayjs": "^1.11.10",
-    "isolated-vm": "^4.6.0",
+    "isolated-vm": "4.7.2",
     "juava": "workspace:*",
     "lodash": "^4.17.21",
     "mongodb": "^5.9.2",

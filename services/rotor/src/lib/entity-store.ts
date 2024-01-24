@@ -44,7 +44,7 @@ const refreshFunc =
           agent: await (repositoryBase.startsWith("https://") ? httpsAgent : httpAgent).waitInit(),
         });
         if (res.status === 304) {
-          log.atInfo().log(`${storeId} nod modified: ${ifModifiedSince}`);
+          log.atDebug().log(`${storeId} nod modified: ${ifModifiedSince}`);
           return "not_modified";
         }
         if (!res.ok) {
