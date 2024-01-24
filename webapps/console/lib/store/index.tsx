@@ -177,24 +177,24 @@ export function useConfigObjectsUpdater(workspaceIdOrSlug: string): UseConfigObj
         timeout = setTimeout(async () => {
           while (isMounted) {
             const listenMaxWaitMs = 10_000;
-            const ifModified = await fetch(`/api/${res.workspaceId}/listen?maxWaitMs=${listenMaxWaitMs}`, {
-              signal: abortController.signal,
-              headers: {
-                "If-Modified-Since": modifiedSince.toUTCString(),
-              },
-            });
-            if (ifModified.status === 304) {
-              //do nothing
-            } else if (ifModified.status === 200) {
-              modifiedSince = new Date();
-              getLog().atDebug().log("Workspace config has been modified, reloading");
-              try {
+            try {
+              const ifModified = await fetch(`/api/${res.workspaceId}/listen?maxWaitMs=${listenMaxWaitMs}`, {
+                signal: abortController.signal,
+                headers: {
+                  "If-Modified-Since": modifiedSince.toUTCString(),
+                },
+              });
+              if (ifModified.status === 304) {
+                //do nothing
+              } else if (ifModified.status === 200) {
+                modifiedSince = new Date();
+                getLog().atDebug().log("Workspace config has been modified, reloading");
                 await Promise.all(fullDataRefresh(res.workspaceId, queryClient));
-              } catch (e) {
-                getLog().atWarn().log("Failed to refresh workspace config", e);
+              } else {
+                getLog().atWarn().log(`Unexpected response from listen: ${ifModified.status} ${ifModified.statusText}`);
               }
-            } else {
-              getLog().atWarn().log(`Unexpected response from listen: ${ifModified.status} ${ifModified.statusText}`);
+            } catch (e) {
+              getLog().atWarn().log("Failed to check workspace config freshness");
             }
           }
         }, 0);
@@ -206,6 +206,7 @@ export function useConfigObjectsUpdater(workspaceIdOrSlug: string): UseConfigObj
     return () => {
       isMounted = false;
       abortController.abort();
+
       if (timeout) {
         clearTimeout(timeout);
       }
