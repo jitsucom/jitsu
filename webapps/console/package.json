@@ -86,6 +86,7 @@
     "react-icons": "^4.10.1",
     "react-json-view": "^1.19.1",
     "react-use": "^17.4.0",
+    "recharts": "^2.10.4",
     "stable-hash": "0.0.3",
     "stopwatch-node": "^1.1.0",
     "timezones-list": "^3.0.2",
