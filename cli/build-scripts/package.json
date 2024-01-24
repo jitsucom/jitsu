@@ -15,7 +15,7 @@
   "dependencies": {
     "boxen": "^7.1.1",
     "colorette": "^2.0.20",
-    "isolated-vm": "^4.6.0",
+    "isolated-vm": "4.7.2",
     "jest-cli": "^29.7.0",
     "semver": "^7.5.4",
     "simple-git": "^3.22.0",
