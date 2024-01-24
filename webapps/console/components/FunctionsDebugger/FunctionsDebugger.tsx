@@ -28,6 +28,7 @@ import { feedbackError } from "../../lib/ui";
 import { Htmlizer } from "../Htmlizer/Htmlizer";
 import Link from "next/link";
 import { CodeBlockLight } from "../CodeBlock/CodeBlockLight";
+import { useStoreReload } from "../../lib/store";
 
 const convert = new Convert({ newline: true });
 const localDate = (date: string | Date) => dayjs(date).format("YYYY-MM-DD HH:mm:ss");
@@ -154,6 +155,7 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
   const [unreadLogs, setUnreadLogs] = useState(0);
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
+  const reloadStore = useStoreReload();
 
   const save = useCallback(async () => {
     setSaving(true);
@@ -165,6 +167,7 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
       } else {
         feedbackError(`Can't save function without id`);
       }
+      await reloadStore();
       push(`/${workspace.id}/functions`);
     } catch (error) {
       feedbackError(`Can't save function`, { error });

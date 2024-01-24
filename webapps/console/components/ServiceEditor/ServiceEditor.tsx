@@ -24,6 +24,7 @@ import { SchemaForm } from "../ConfigObjectEditor/SchemaForm";
 import { TextEditor } from "../ConfigObjectEditor/Editors";
 import { useAntdModal } from "../../lib/modal";
 import hash from "stable-hash";
+import { useStoreReload } from "../../lib/store";
 
 type ServiceEditorProps = {} & EditorComponentProps;
 
@@ -61,6 +62,7 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
     []
   );
   const modal = useAntdModal();
+  const reloadStore = useStoreReload();
 
   const change = useCallback(
     (key: string, value: any) => {
@@ -184,6 +186,7 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
       } else {
         feedbackError(`Can't save service without id`);
       }
+      await reloadStore();
       push(`/${workspace.id}/services`);
     };
     try {
