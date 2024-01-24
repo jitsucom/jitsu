@@ -44,6 +44,8 @@ services:
       interval: 1s
       timeout: 10s
       retries: 10
+    ports:
+      - "${EXTERNAL_POSTGRES_PORT:-5432}:5432"
 #    volumes:
 #      - ./data/postgres:/var/lib/postgresql/data
 
@@ -105,6 +107,8 @@ services:
       interval: 2s
       timeout: 10s
       retries: 15
+    ports:
+      - "${EXTERNAL_BULKER_PORT:-3042}:3042"
     depends_on:
       console:
         condition: service_healthy
@@ -128,7 +132,7 @@ services:
       REPOSITORY_CACHE_DIR: "/tmp/cache"
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://rotor:3401/health" ]
-      interval: 2s
+      interval: 5s
       timeout: 10s
       retries: 15
     depends_on:
@@ -148,7 +152,7 @@ services:
       INGEST_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
       INGEST_AUTH_TOKENS: ${BULKER_PASSWORD}
       INGEST_REPOSITORY_URL: "http://console:3000/api/admin/export/streams-with-destinations"
-      INGEST_REPOSITORY_AUTH_TOKENS: "service-admin-account:${CONSOLE_PASSWORD}"
+      INGEST_REPOSITORY_AUTH_TOKEN: "service-admin-account:${CONSOLE_PASSWORD}"
       INGEST_CACHE_DIR: "/tmp/cache"
       INGEST_REDIS_URL: "redis://default:${REDIS_PASSWORD:-default}@redis:6379"
       INGEST_ROTOR_URL: "http://rotor:3401"
