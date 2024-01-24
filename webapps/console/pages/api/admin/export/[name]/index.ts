@@ -342,10 +342,11 @@ export default createRoute()
     query: ExportQueryParams,
   })
   .handler(async ({ user, req, res, query }) => {
+    const safeLastModified = new Date(2024, 0, 1, 0, 0, 0, 0);
     await verifyAdmin(user);
     const exp = requireDefined(exportsMap[query.name], `Export ${query.name} not found`);
     const ifModifiedSince = getIfModifiedSince(req);
-    let lastModified = await exp.lastModified();
+    let lastModified = (await exp.lastModified()) || safeLastModified;
     if (notModified(ifModifiedSince, lastModified)) {
       if (query.listen) {
         //fake implementation of long polling, switch to pg NOTIFY later
