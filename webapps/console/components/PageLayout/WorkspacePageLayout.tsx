@@ -37,7 +37,7 @@ import {
   User,
   X,
   Zap,
-  PackageOpen,
+  PackageOpen, LineChart, Terminal,
 } from "lucide-react";
 
 import { NextRouter, useRouter } from "next/router";
@@ -570,7 +570,8 @@ function PageHeader() {
       icon: <SearchCode className={"w-full h-full"} />,
       items: [
         { title: "Live Events", path: "/data", icon: <Activity className="w-full h-full" /> },
-        { title: "Query Data", path: "/sql", icon: <BarChart3 className="w-full h-full" />, hidden: !appConfig?.ee },
+        { title: "Query Data", path: "/sql", icon: <Terminal className="w-full h-full" />, hidden: !appConfig?.ee },
+        { title: "Event Statistics", path: "/event-stat", icon: <LineChart className="w-full h-full" />, hidden: !appConfig?.ee },
       ],
     },
     {

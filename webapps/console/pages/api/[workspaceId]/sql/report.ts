@@ -50,7 +50,7 @@ export default createRoute()
     const startTs = query.start ? new Date(query.start).toISOString() : undefined;
     const endTs = query.end ? new Date(query.end).toISOString() : undefined;
     const groupBy = query.groupBy ? query.groupBy.split(",") : [];
-    const sql = `select date_trunc('${query.granularity || "day"}', timestamp) dt, ${
+    const sql = `select formatDateTime(date_trunc('${query.granularity || "day"}', timestamp), '%Y-%m-%dT%H:%i:00.000Z') dt, ${
       groupBy.length > 0 ? groupBy.join(",") + "," : ""
     } sumMerge(events) events, uniqMerge(uniqEvents) uniq_events from ${metricsSchema}.mv_metrics
 where workspaceId = '${workspace.id}'
