@@ -46,9 +46,8 @@ services:
       retries: 10
     ports:
       - "${EXTERNAL_POSTGRES_PORT:-5432}:5432"
-#    volumes:
-#      - ./data/postgres:/var/lib/postgresql/data
-
+  #    volumes:
+  #      - ./data/postgres:/var/lib/postgresql/data
 
   console:
     tty: true
@@ -76,7 +75,7 @@ services:
       NEXTAUTH_URL: "${JITSU_PUBLIC_URL:-${NEXTAUTH_URL:-http://localhost:${JITSU_UI_PORT:-3000}/}}"
       UPDATE_DB: "true"
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://console:3000/api/healthcheck" ]
+      test: ["CMD", "curl", "-f", "http://console:3000/api/healthcheck"]
       interval: 2s
       timeout: 10s
       retries: 30
@@ -131,7 +130,7 @@ services:
       REPOSITORY_AUTH_TOKEN: "service-admin-account:${CONSOLE_PASSWORD}"
       REPOSITORY_CACHE_DIR: "/tmp/cache"
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://rotor:3401/health" ]
+      test: ["CMD", "curl", "-f", "http://rotor:3401/health"]
       interval: 5s
       timeout: 10s
       retries: 15
@@ -157,7 +156,7 @@ services:
       INGEST_REDIS_URL: "redis://default:${REDIS_PASSWORD:-default}@redis:6379"
       INGEST_ROTOR_URL: "http://rotor:3401"
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://ingest:3049/health" ]
+      test: ["CMD", "curl", "-f", "http://ingest:3049/health"]
       interval: 2s
       timeout: 10s
       retries: 15
