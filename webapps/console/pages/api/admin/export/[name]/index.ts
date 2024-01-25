@@ -319,11 +319,6 @@ export function notModified(ifModifiedSince: Date | undefined, lastModified: Dat
   const lastModifiedCopy = new Date(lastModified.getTime());
   // Last-Modified and If-Modified-Since headers are not precise enough, so we need to round it to seconds
   lastModifiedCopy.setMilliseconds(0);
-  console.log(
-    `Comparing ${ifModifiedSince} and ${lastModifiedCopy}. Not modified: ${
-      ifModifiedSince.getTime() >= lastModifiedCopy.getTime()
-    }`
-  );
   return ifModifiedSince.getTime() >= lastModifiedCopy.getTime();
 }
 
