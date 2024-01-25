@@ -100,7 +100,7 @@ services:
       BULKER_CONFIG_SOURCE_HTTP_AUTH_TOKEN: "service-admin-account:${CONSOLE_PASSWORD}"
       BULKER_CACHE_DIR: "/tmp/cache"
       REDIS_URL: "redis://default:${REDIS_PASSWORD:-default}@redis:6379"
-      BULKER_INTERNAL_TASK_LOG: '{"id":"task_log","metricsKeyPrefix":"syncs","usesBulker":true,"type":"postgres","options":{"mode":"stream"},"credentials":{"host":"postgres","port":5432,"sslMode":"disable","database":"postgres","password":"${POSTGRES_PASSWORD:-default}","username":"postgres","defaultSchema":"public"}}'
+      BULKER_INTERNAL_TASK_LOG: '{"id":"task_log","metricsKeyPrefix":"syncs","usesBulker":true,"type":"postgres","options":{"mode":"stream"},"credentials":{"host":"postgres","port":5432,"sslMode":"disable","database":"postgres","password":"${POSTGRES_PASSWORD:-default}","username":"postgres","defaultSchema":"newjitsu"}}'
     healthcheck:
       test: ["CMD", "curl", "-f", "http://bulker:3042/health"]
       interval: 2s
@@ -178,8 +178,8 @@ services:
       SYNCCTL_SYNCS_ENABLED: ${SYNCS_ENABLED:-false}
       SYNCCTL_AUTH_TOKENS: ${SYNCCTL_PASSWORD}
       SYNCCTL_DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD:-default}@postgres:5432/postgres?search_path=newjitsu"
-      SYNCCTL_SIDECAR_DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD:-default}@${EXTERNAL_DATABASE_HOST}:${PG_PORT:-5437}/postgres?search_path=newjitsu"
-      SYNCCTL_BULKER_URL: "http://${EXTERNAL_BULKER_HOST}:${BULKER_PORT:-3045}"
+      SYNCCTL_SIDECAR_DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD:-default}@${EXTERNAL_DATABASE_HOST}:${EXTERNAL_POSTGRES_PORT:-5432}/postgres?search_path=newjitsu"
+      SYNCCTL_BULKER_URL: "http://${EXTERNAL_BULKER_HOST}:${EXTERNAL_BULKER_PORT:-3045}"
       SYNCCTL_BULKER_AUTH_TOKEN: ${BULKER_PASSWORD}
       SYNCCTL_BULKER_LOGS_CONNECTION_ID: task_log
       SYNCCTL_KUBERNETES_CLIENT_CONFIG: "${SYNCCTL_KUBERNETES_CLIENT_CONFIG:-local}"

@@ -332,7 +332,7 @@ export default createRoute()
     const exp = requireDefined(exportsMap[query.name], `Export ${query.name} not found`);
     await verifyAdmin(user);
     const ifModifiedSince = getIfModifiedSince(req);
-    const lastModified = await exp.lastModified();
+    const lastModified = (await exp.lastModified()) || safeLastModified;
     res.setHeader("Last-Modified", lastModified.toUTCString());
     res.status(notModified(ifModifiedSince, lastModified) ? 304 : 200);
     res.end();
@@ -354,13 +354,13 @@ export default createRoute()
         await new Promise(resolve => setTimeout(resolve, query.timeoutMs));
         lastModified = await exp.lastModified();
         if (notModified(ifModifiedSince, lastModified)) {
-          res.setHeader("Last-Modified", lastModified.toUTCString());
-          res.status(304).end();
+          res.writeHead(304, { "Last-Modified": lastModified.toUTCString() });
+          res.end();
           return;
         }
       } else {
-        res.setHeader("Last-Modified", lastModified.toUTCString());
-        res.status(304).end();
+        res.writeHead(304, { "Last-Modified": lastModified.toUTCString() });
+        res.end();
         return;
       }
     }

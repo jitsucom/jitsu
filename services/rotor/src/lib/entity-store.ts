@@ -58,13 +58,6 @@ const refreshFunc =
         if (lmString) {
           lastModified = new Date(lmString);
         }
-        log
-          .atInfo()
-          .log(
-            `Headers: ${JSON.stringify(res.headers)} lastModified: ${lastModified} status: ${
-              res.status
-            } body: ${JSON.stringify(json)}`
-          );
         log.atInfo().log(`${storeId} updated: ${lastModified} previous update date: ${ifModifiedSince}`);
         return {
           store: {
