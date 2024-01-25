@@ -20,6 +20,8 @@ export type Export = {
 
 const batchSize = 1000;
 
+const safeLastModified = new Date(2024, 0, 1, 0, 0, 0, 0);
+
 function dateMax(...dates: (Date | undefined)[]): Date | undefined {
   return dates.reduce((acc, d) => (d && (!acc || d.getTime() > acc.getTime()) ? d : acc), undefined);
 }
@@ -317,6 +319,11 @@ export function notModified(ifModifiedSince: Date | undefined, lastModified: Dat
   const lastModifiedCopy = new Date(lastModified.getTime());
   // Last-Modified and If-Modified-Since headers are not precise enough, so we need to round it to seconds
   lastModifiedCopy.setMilliseconds(0);
+  console.log(
+    `Comparing ${ifModifiedSince} and ${lastModifiedCopy}. Not modified: ${
+      ifModifiedSince.getTime() >= lastModifiedCopy.getTime()
+    }`
+  );
   return ifModifiedSince.getTime() >= lastModifiedCopy.getTime();
 }
 
@@ -342,7 +349,6 @@ export default createRoute()
     query: ExportQueryParams,
   })
   .handler(async ({ user, req, res, query }) => {
-    const safeLastModified = new Date(2024, 0, 1, 0, 0, 0, 0);
     await verifyAdmin(user);
     const exp = requireDefined(exportsMap[query.name], `Export ${query.name} not found`);
     const ifModifiedSince = getIfModifiedSince(req);
