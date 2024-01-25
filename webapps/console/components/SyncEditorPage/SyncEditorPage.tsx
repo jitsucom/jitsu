@@ -25,6 +25,7 @@ import xor from "lodash/xor";
 import timezones from "timezones-list";
 import { useBilling } from "../Billing/BillingProvider";
 import { WLink } from "../Workspace/WLink";
+import { useStoreReload } from "../../lib/store";
 
 const log = getLog("SyncEditorPage");
 
@@ -198,6 +199,7 @@ function SyncEditor({
   const [catalogError, setCatalogError] = useState<any>(undefined);
   const [loadingCatalog, setLoadingCatalog] = useState(true);
   const [refreshCatalog, setRefreshCatalog] = useState(0);
+  const reloadStore = useStoreReload();
 
   const [showCustomSchedule, setShowCustomSchedule] = useState(
     syncOptions?.schedule && !scheduleOptions.find(o => o.value === syncOptions?.schedule)
@@ -738,6 +740,7 @@ function SyncEditor({
                     data: syncOptions,
                   },
                 });
+                await reloadStore();
                 router.back();
               } catch (error) {
                 feedbackError(`Can't link destinations`, { error });
