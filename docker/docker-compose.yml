@@ -164,7 +164,7 @@ services:
       console:
         condition: service_healthy
       rotor:
-        condition: service_healthy
+        condition: service_started
     ports:
       - "${JITSU_INGEST_PORT:-8080}:3049"
 

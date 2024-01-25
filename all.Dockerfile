@@ -38,8 +38,8 @@ RUN npm -g install prisma@$(cat webapps/console/package.json | jq -r '.dependenc
 COPY --from=builder /app/docker-start-console.sh ./
 COPY --from=builder /app/webapps/console/prisma/schema.prisma ./
 COPY --from=builder /app/webapps/console/.next/standalone ./
-COPY --from=builder /app/webapps/console/.next/static /app/webapps/console/.next/standalone/webapps/console/.next/static
-COPY --from=builder /app/webapps/console/public /app/webapps/console/.next/standalone/webapps/console/public
+COPY --from=builder /app/webapps/console/.next/static ./webapps/console/.next/static
+COPY --from=builder /app/webapps/console/public ./webapps/console/public
 
 EXPOSE 3000
 
