@@ -63,17 +63,20 @@ export async function rotorMessageHandler(
     );
 
   const event = message.httpPayload as AnalyticsServerEvent;
+  if (!event.context) {
+    event.context = {};
+  }
   const geo =
     Object.keys(event.context.geo || {}).length > 0
       ? event.context.geo
-      : geoResolver && event.context?.ip
-      ? await geoResolver.resolve(event.context?.ip)
+      : geoResolver && event.context.ip
+      ? await geoResolver.resolve(event.context.ip)
       : undefined;
   event.context.geo = geo;
   const ctx: EventContext = {
     headers: message.httpHeaders,
     geo: geo,
-    ua: parseUserAgent(event.context?.userAgent),
+    ua: parseUserAgent(event.context.userAgent),
     retries,
     source: {
       type: message.ingestType,
