@@ -160,8 +160,8 @@ function SyncsTable({ links, services, destinations }: RemoteEntitiesProps) {
           method: "DELETE",
           query: { fromId: link.fromId, toId: link.toId },
         });
+        await reloadStore();
         feedbackSuccess("Successfully unliked");
-        reloadStore();
       } catch (e) {
         feedbackError("Failed to unlink service and destination", { error: e });
       } finally {
