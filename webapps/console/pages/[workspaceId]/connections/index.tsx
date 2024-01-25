@@ -25,7 +25,7 @@ import { FunctionTitle } from "../functions";
 import omit from "lodash/omit";
 import { toURL } from "../../../lib/shared/url";
 import JSON5 from "json5";
-import { useConfigObjectLinks, useConfigObjectList } from "../../../lib/store";
+import { useConfigObjectLinks, useConfigObjectList, useStoreReload } from "../../../lib/store";
 
 function EmptyLinks() {
   const workspace = useWorkspace();
@@ -97,6 +97,8 @@ function ConnectionsTable({ links, streams, destinations, functions, reloadCallb
     defaultValue: { columns: [] },
     ...jsonSerializationBase64,
   });
+  const reloadStore = useStoreReload();
+
   const deleteConnection = async (link: Omit<ConfigurationLinkDbModel, "data">) => {
     if (await confirmOp("Are you sure you want to unlink this site from this destination?")) {
       setLoading(true);
@@ -105,6 +107,7 @@ function ConnectionsTable({ links, streams, destinations, functions, reloadCallb
           method: "DELETE",
           query: { fromId: link.fromId, toId: link.toId },
         });
+        await reloadStore();
         feedbackSuccess("Successfully unliked");
         reloadCallback();
       } catch (e) {

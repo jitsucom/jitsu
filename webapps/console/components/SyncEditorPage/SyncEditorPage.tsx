@@ -702,6 +702,7 @@ function SyncEditor({
                       method: "DELETE",
                       query: { fromId: existingLink.fromId, toId: existingLink.toId },
                     });
+                    await reloadStore();
                     feedbackSuccess("Successfully unliked");
                     router.back();
                   } catch (e) {
