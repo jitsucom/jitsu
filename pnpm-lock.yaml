@@ -1127,6 +1127,9 @@ importers:
       next-transpile-modules:
         specifier: ^10.0.1
         version: 10.0.1
+      raw-loader:
+        specifier: ^4.0.2
+        version: 4.0.2(webpack@5.88.2)
       ts-node:
         specifier: ^10.9.2
         version: 10.9.2(@types/node@18.11.12)(typescript@5.3.3)
