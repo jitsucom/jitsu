@@ -58,6 +58,11 @@ const refreshFunc =
         if (lmString) {
           lastModified = new Date(lmString);
         }
+        //print all headers
+        res.headers.forEach((value, name) => {
+          log.atInfo().log(`${storeId} header: ${name}: ${value}`);
+        });
+        log.atInfo().log(`${storeId} lm: (${lmString}/${res.headers.get("last-modified")})`);
         log.atInfo().log(`${storeId} updated: ${lastModified} previous update date: ${ifModifiedSince}`);
         return {
           store: {
