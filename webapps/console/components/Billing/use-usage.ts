@@ -4,6 +4,7 @@ import { useWorkspace } from "../../lib/context";
 import { useBilling } from "./BillingProvider";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
+import { ActiveEventsReport } from "../../lib/shared/reporting";
 dayjs.extend(utc);
 
 export type Usage = {
@@ -20,7 +21,7 @@ export type UseUsageRes = { isLoading: boolean; error?: any; usage?: Usage };
 export type DestinationReportDataRow = {};
 
 /**
- * @param opts.skipSubscribed - if true, will return bogus data if workspace is subscribed to a paiad
+ * @param opts.skipSubscribed - if true, will return bogus data if workspace is subscribed to a paid
  * plan. In some cases, we don't really need usage for subscribed workspaces
  */
 export function useUsage(opts?: { skipSubscribed?: boolean; cacheSeconds?: number }): UseUsageRes {
@@ -30,16 +31,14 @@ export function useUsage(opts?: { skipSubscribed?: boolean; cacheSeconds?: numbe
   assertFalse(billing.loading, "Billing must be loaded before using usage hook");
   const cacheSeconds = opts?.cacheSeconds ?? 60 * 5; //5 minutes by default
 
-  let periodStart: Date | undefined;
-  let periodEnd: Date | undefined;
+  let periodStart: Date;
+  let periodEnd: Date;
   if (billing.settings.expiresAt) {
-    periodEnd = new Date(billing.settings.expiresAt);
-    periodStart = new Date(billing.settings.expiresAt);
-    periodStart.setMonth(periodStart.getMonth() - 1);
+    periodEnd = dayjs(billing.settings.expiresAt).utc().startOf("day").add(-1, "millisecond").toDate();
+    periodStart = dayjs(billing.settings.expiresAt).utc().add(-1, "month").startOf("day").toDate();
   } else {
-    periodStart = new Date();
-    periodStart.setDate(1);
-    periodEnd = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0);
+    periodStart = dayjs().utc().startOf("month").toDate();
+    periodEnd = dayjs().utc().endOf("month").add(-1, "millisecond").toDate();
   }
 
   const { isLoading, error, data } = useQuery(
@@ -49,8 +48,12 @@ export function useUsage(opts?: { skipSubscribed?: boolean; cacheSeconds?: numbe
         //if workspace is subscribed to a paid plan - we don't really need usage in some cases
         return { usage: 0 };
       }
-      const report = await rpc(`/api/${workspace.id}/ee/report/workspace-stat?start=${periodStart?.toISOString()}`);
-      const usage = report.data.reduce((acc, d) => acc + d.events, 0);
+      const report = (await rpc(
+        `/api/${workspace.id}/reports/active-events?start=${periodStart.toISOString()}&end=${dayjs(periodEnd)
+          .subtract(1, "millisecond")
+          .toISOString()}`
+      )) as ActiveEventsReport;
+      const usage = report.totalActiveEvents;
       return { usage } as const;
     },
     { retry: false, cacheTime: cacheSeconds * 1000, staleTime: cacheSeconds * 1000 }

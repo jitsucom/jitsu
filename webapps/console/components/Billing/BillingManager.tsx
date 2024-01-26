@@ -5,7 +5,7 @@ import { assertDefined, assertFalse, assertTrue, requireDefined, rpc } from "jua
 import { BillingSettings } from "../../lib/schema";
 import { Alert, Button, Progress, Skeleton, Tooltip } from "antd";
 import Link from "next/link";
-import { Check, Edit2, ExternalLink, Info, XCircle } from "lucide-react";
+import { Check, ChevronRight, Edit2, ExternalLink, Info, XCircle } from "lucide-react";
 
 import styles from "./BillingManager.module.css";
 import { useQuery } from "@tanstack/react-query";
@@ -13,6 +13,7 @@ import { ErrorCard } from "../GlobalError/GlobalError";
 import { useUsage } from "./use-usage";
 import { upgradeRequired } from "./copy";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
+import dayjs from "dayjs";
 
 function formatNumber(n: number) {
   return n.toLocaleString("en-US", { maximumFractionDigits: 0 });
@@ -73,16 +74,6 @@ const UsageSection: React.FC<{}> = () => {
 
   assertDefined(usage, "Data should be defined");
 
-  const startStr = usage.periodStart.toLocaleString("en-Us", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-  const endStr = usage.periodEnd.toLocaleString("en-Us", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
   const usageExceeded = usage.usagePercentage > 1 && billing.settings.planId === "free";
   const usageIsAboutToExceed =
     usage?.projectionByTheEndOfPeriod &&
@@ -95,9 +86,22 @@ const UsageSection: React.FC<{}> = () => {
         showInfo={false}
         status={usage.usagePercentage > 1 ? "exception" : undefined}
       />
-      <div>
-        {formatNumber(Math.round(usage?.events))} / {formatNumber(usage.maxAllowedDestinatonEvents)} destination events
-        used from <i>{startStr}</i> to <i>{endStr}</i>. The quota will be reset on <i>{endStr}</i>.
+      <div className="flex items-center justify-between">
+        <div>
+          {formatNumber(Math.round(usage?.events))} / {formatNumber(usage.maxAllowedDestinatonEvents)} destination
+          events used from <i>{dayjs(usage.periodStart).utc().format("MMM DD, YYYY")}</i> to{" "}
+          <i>{dayjs(usage.periodEnd).utc().format("MMM DD, YYYY")}</i>. The quota will be reset on{" "}
+          <i>{dayjs(usage.periodEnd).add(1, "day").utc().format("MMM DD")}</i>.
+        </div>
+        <Link
+          href={`/${
+            workspace.slugOrId
+          }/settings/billing/details?start=${usage.periodStart.toISOString()}&end=${usage.periodEnd.toISOString()}`}
+          className="flex items-center text-primary"
+        >
+          View detailed stat
+          <ChevronRight className="h-5" />
+        </Link>
       </div>
       {billing.settings?.pastDue && (
         <div className="mt-8">
@@ -235,17 +239,13 @@ const CurrentSubscription: React.FC<{}> = () => {
                 <div className="text-error">Cancels at</div>
               )}
               <div className="ml-2 rounded-3xl bg-textDark text-backgroundLight px-3 py-1 text-sm">
-                {new Date(billing.settings?.expiresAt as string).toLocaleString("en-Us", {
-                  month: "long",
-                  day: "numeric",
-                  year: "numeric",
-                })}
+                {dayjs(billing.settings?.expiresAt as string).format("MMMM DD, YYYY")}
               </div>
             </div>
           )}
         </div>
       </div>
-      <h3 className="text-lg text-textLight my-6">Events Usage</h3>
+      <h3 className="text-lg text-textLight mt-6 mb-2">Events Usage</h3>
       <UsageSection />
     </div>
   );
@@ -397,7 +397,6 @@ const AvailablePlans: React.FC<{}> = () => {
 const BillingManager0: React.FC<{}> = () => {
   const appConfig = useAppConfig();
   const billing = useBilling();
-  const workspace = useWorkspace();
 
   return (
     <div>

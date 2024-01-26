@@ -7,6 +7,9 @@ import * as PG from "pg";
 import { getServerLog } from "../../../lib/log";
 import { listAllSubscriptions, stripe, stripeDataTable } from "../../../lib/stripe";
 import Stripe from "stripe";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+dayjs.extend(utc);
 
 const log = getServerLog("/api/report");
 
@@ -57,15 +60,15 @@ async function getClickhousePart({
                  where
                    timestamp >= toDateTime('2023-07-28 00:00:00', 'UTC') and
                    timestamp >= toDateTime({start :String}, 'UTC') and
-                   timestamp <= toDateTime({end :String}, 'UTC') ${
+                   timestamp < toDateTime({end :String}, 'UTC') ${
                      workspaceId ? "and workspaceId = {workspaceId:String}" : ""
                    }
                  group by period, workspaceId
                  order by period desc, workspaceId desc;
   `;
   const queryParams = removeUndefined({
-    start: isoDateTOClickhouse(start),
-    end: isoDateTOClickhouse(end),
+    start: isoDateTOClickhouse(dayjs(start).utc().startOf("day").toISOString()),
+    end: isoDateTOClickhouse(dayjs(end).utc().endOf("day").add(-1, "millisecond").toISOString()),
     granularity,
     workspaceId,
   });

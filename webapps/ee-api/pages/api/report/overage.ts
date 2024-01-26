@@ -16,6 +16,7 @@ import Stripe from "stripe";
 import pick from "lodash/pick";
 import { buildWorkspaceReport } from "./workspace-stat";
 import { getServerLog } from "../../../lib/log";
+import dayjs from "dayjs";
 
 const log = getServerLog("/api/overage");
 
@@ -23,18 +24,6 @@ function toUTC(date: Date | string) {
   const dateObj = new Date(date);
   const timezoneOffset = dateObj.getTimezoneOffset();
   return new Date(dateObj.getTime() - timezoneOffset * 60000);
-}
-
-function round(date: Date | string, granularity: "day" = "day"): { start: string; end: string } {
-  try {
-    const dateObj = toUTC(date).toISOString();
-    const day = dateObj.split("T")[0];
-    const start = `${day}T00:00:00.000Z`;
-    const end = `${day}T23:59:59.999Z`;
-    return { start, end };
-  } catch (e) {
-    throw new Error(`Can't parse date ${date}`);
-  }
 }
 
 const msPerHour = 1000 * 60 * 60;
@@ -150,31 +139,13 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
       //   );
       const { overagePricePer100k, destinationEvensPerMonth } = JSON.parse(plan.metadata.plan_data);
       const overagePricePerEvent = overagePricePer100k / 100_000;
-      const invoiceStartRounded = round(start, "day").start;
-      const invoiceEndRounded = round(end, "day").end;
+      const startTimestamp = dayjs(start).utc().startOf("day").toDate().getTime();
+      const endTimestamp = dayjs(end).utc().startOf("day").add(-1, "millisecond").toDate().getTime();
       const rows = report.filter(row => {
-        const { start, end } = round(row.period, "day");
-        return (
-          row.workspaceId === workspaceId &&
-          Date.parse(start) >= Date.parse(invoiceStartRounded) &&
-          Date.parse(end) <= Date.parse(invoiceEndRounded)
-        );
+        const rowTimestamp = dayjs(row.period).utc().toDate().getTime();
+        return row.workspaceId === workspaceId && rowTimestamp >= startTimestamp && rowTimestamp <= endTimestamp;
       });
-      // log
-      //   .atInfo()
-      //   .log(
-      //     `Found ${rows.length} rows for ${workspaceId} for [${new Date(invoiceStartRounded).toISOString()}, ${new Date(
-      //       invoiceEndRounded
-      //     ).toISOString()}]`
-      //   );
       const destinationEvents = rows.reduce((acc, row) => acc + row.events, 0);
-      // log
-      //   .atInfo()
-      //   .log(
-      //     `Destination events for ${workspaceId} for [${new Date(invoiceStartRounded).toISOString()}, ${new Date(
-      //       invoiceEndRounded
-      //     ).toISOString()}] → ${destinationEvents}`
-      //   );
       const overageFee = (Math.max(0, destinationEvents - destinationEvensPerMonth) / 100_000) * overagePricePer100k;
       const discountPercentage = invoice?.discount?.coupon?.percent_off || 0;
       const overageFeeFinal = overageFee * (1 - discountPercentage / 100);
@@ -195,6 +166,10 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
         subscriptionId,
         start,
         end,
+        roundedPeriod: {
+          start: dayjs(startTimestamp).utc().toISOString(),
+          end: dayjs(endTimestamp).utc().toISOString(),
+        },
         destinationEvents,
         quota: {
           destinationEvensPerMonth,

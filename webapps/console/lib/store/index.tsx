@@ -216,10 +216,10 @@ export function useConfigObjectsUpdater(workspaceIdOrSlug: string): UseConfigObj
   return loading || loadedWorkspace != workspaceIdOrSlug ? { loading: true } : { loading: false, error: error! };
 }
 
-type UseConfigObjectLinksParams = { withData?: boolean; type?: "push" | "sync" };
+export type UseConfigObjectLinksParams = { withData?: boolean; type?: "push" | "sync" };
 
-type ConfigurationObjectLinkType = z.infer<typeof ConfigurationObjectLinkDbModel>;
-type UseConfigObjetLinkResult = Omit<ConfigurationObjectLinkType, "data"> & { data?: any };
+export type ConfigurationObjectLinkType = z.infer<typeof ConfigurationObjectLinkDbModel>;
+export type UseConfigObjetLinkResult = Omit<ConfigurationObjectLinkType, "data"> & { data?: any };
 
 export function useConfigObjectLinksLoader(opts?: UseConfigObjectLinksParams): Result<UseConfigObjetLinkResult[]> {
   const workspace = useWorkspace();
