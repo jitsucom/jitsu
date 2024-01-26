@@ -22,6 +22,7 @@ import { DestinationTitle } from "../../pages/[workspaceId]/destinations";
 import { Htmlizer } from "../Htmlizer/Htmlizer";
 import { FunctionsSelector } from "../FunctionsSelector/FunctionsSelector";
 import { Expandable } from "../Expandable/Expandable";
+import { useStoreReload } from "../../lib/store";
 
 const log = getLog("ConnectionEditorPage");
 
@@ -318,6 +319,7 @@ function ConnectionEditor({
   };
 
   const [limitations, setLimitations] = useState<any>({});
+  const reloadStore = useStoreReload();
 
   useEffect(() => {
     if (connectionOptionsZodType) {
@@ -681,6 +683,7 @@ function ConnectionEditor({
                       method: "DELETE",
                       query: { fromId: existingLink.fromId, toId: existingLink.toId },
                     });
+                    await reloadStore();
                     feedbackSuccess("Successfully unliked");
                     router.back();
                   } catch (e) {
@@ -728,6 +731,7 @@ function ConnectionEditor({
                     data: connectionOptions,
                   },
                 });
+                await reloadStore();
                 if (router.query.backTo) {
                   router.push(`/${workspace.id}${router.query.backTo}`);
                 } else {
