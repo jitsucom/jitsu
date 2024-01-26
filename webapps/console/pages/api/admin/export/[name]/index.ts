@@ -352,7 +352,7 @@ export default createRoute()
       if (query.listen) {
         //fake implementation of long polling, switch to pg NOTIFY later
         await new Promise(resolve => setTimeout(resolve, query.timeoutMs));
-        lastModified = await exp.lastModified();
+        lastModified = (await exp.lastModified()) || safeLastModified;
         if (notModified(ifModifiedSince, lastModified)) {
           res.writeHead(304, { "Last-Modified": lastModified.toUTCString() });
           res.end();

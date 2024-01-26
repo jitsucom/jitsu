@@ -38,7 +38,7 @@ const refreshFunc =
         headers["If-Modified-Since"] = ifModifiedSince.toUTCString();
       }
       try {
-        const res = await fetch(`${repositoryBase}/${storeId}?timeoutMs=10000&listen=1`, {
+        const res = await fetch(`${repositoryBase}/${storeId}`, {
           method: "GET",
           headers: headers,
           agent: await (repositoryBase.startsWith("https://") ? httpsAgent : httpAgent).waitInit(),
@@ -58,11 +58,6 @@ const refreshFunc =
         if (lmString) {
           lastModified = new Date(lmString);
         }
-        //print all headers
-        res.headers.forEach((value, name) => {
-          log.atInfo().log(`${storeId} header: ${name}: ${value}`);
-        });
-        log.atInfo().log(`${storeId} lm: (${lmString}/${res.headers.get("last-modified")})`);
         log.atInfo().log(`${storeId} updated: ${lastModified} previous update date: ${ifModifiedSince}`);
         return {
           store: {
