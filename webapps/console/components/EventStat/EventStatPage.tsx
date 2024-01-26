@@ -1,16 +1,19 @@
-import React from "react";
-import { Checkbox, Radio, Skeleton, Tooltip } from "antd";
+import React, { useEffect } from "react";
+import { Checkbox, Radio, Select, Skeleton, Tooltip } from "antd";
 import { QuestionCircleFilled } from "@ant-design/icons";
 import { useQueryStringState } from "../../lib/useQueryStringState";
 import { useQuery } from "@tanstack/react-query";
 import { useWorkspace } from "../../lib/context";
 import { rpc } from "juava";
-import { FakeProgressBar } from "../../pages/admin/overage-billing";
-import { AlertTriangle } from "lucide-react";
-import { Area, AreaChart, ResponsiveContainer, Tooltip as ChartTooltip, XAxis, YAxis } from "recharts";
+import { AlertTriangle, ArrowRight, Loader2 } from "lucide-react";
 import classNames from "classnames";
+import { buildConnectionAggregate, ConnectionAggregate, KnownEventStatus, Report } from "../../lib/shared/reporting";
+import { useConfigObjectLinks, useConfigObjectList, UseConfigObjetLinkResult } from "../../lib/store";
+import { DestinationTitle } from "../../pages/[workspaceId]/destinations";
+import { StreamTitle } from "../../pages/[workspaceId]/streams";
+import { Chart } from "chart.js/auto";
 
-const TotalEvents: React.FC<{ val?: number, className?: string }> = ({ val, className }) => (
+const TotalEvents: React.FC<{ val?: number; className?: string }> = ({ val, className }) => (
   <div className={className}>
     <h3 className={classNames("text-textLight")}>Total Events</h3>
     <div className="h-10 flex items-center">
@@ -20,7 +23,6 @@ const TotalEvents: React.FC<{ val?: number, className?: string }> = ({ val, clas
         <Skeleton paragraph={false} active />
       )}
     </div>
-
   </div>
 );
 
@@ -43,7 +45,9 @@ const Period: React.FC<{ value?: string; onChange: (value: string) => void }> = 
         <Radio.Button value="24h">24H</Radio.Button>
         <Radio.Button value="7d">7D </Radio.Button>
         <Radio.Button value="1m">1 Month</Radio.Button>
-        <Radio.Button value="custom" disabled={true}>Custom (soon)</Radio.Button>
+        <Radio.Button value="custom" disabled={true}>
+          Custom (soon)
+        </Radio.Button>
       </Radio.Group>
     </div>
   );
@@ -66,15 +70,12 @@ export const LabelWithComment: React.FC<{ children: string; comment: string; cla
 
 const eventStatuses = ["success", "dropped", "error"] as const;
 type EventStatus = (typeof eventStatuses)[number];
-type DataRow = {
-  date: Date;
-} & Record<EventStatus, number | undefined>;
 
 const EventTypes: React.FC<{ value: EventStatus[]; onChange: (val: EventStatus[]) => void }> = props => {
   const [value, setValue] = React.useState<EventStatus[]>(props.value);
   return (
     <Checkbox.Group
-      onChange={(_val) => {
+      onChange={_val => {
         const newVal = _val as EventStatus[];
         if (_val.length === 0) {
           return;
@@ -122,35 +123,107 @@ const EventTypes: React.FC<{ value: EventStatus[]; onChange: (val: EventStatus[]
   );
 };
 
-function getDataTable(data: any[]) {
-  if (!data) {
-    return undefined;
-  }
-  return Object.entries(
-    data
-      .map(
-        (r: any) =>
-          ({
-            date: new Date(r.dt),
-            ...eventStatuses.reduce((acc, res) => ({ ...acc, [res]: r.status === res ? parseInt(r.events) : 0 }), {}),
-          } as DataRow)
-      )
-      .reduce(
-        (byDate, row: DataRow) => ({
-          ...byDate,
-          [row.date.toISOString()]: {
-            ...eventStatuses.reduce(
-              (acc, res) => ({ ...acc, [res]: (byDate[row.date.toISOString()]?.[res] || 0) + (row[res] || 0) }),
-              {}
-            ),
+const ConnectionSelector = (props: { onChange: (val: string) => void; value?: string }) => {
+  const links = useConfigObjectLinks();
+  const allConnections = links
+    .filter(l => l.type === "push")
+    .reduce((acc, l) => ({ ...acc, [l.id]: l }), {} as Record<string, UseConfigObjetLinkResult>);
+  const streams = useConfigObjectList("stream");
+  const destinations = useConfigObjectList("destination");
+  const [connectionId, setConnectionId] = React.useState(props.value || undefined);
+  return (
+    <>
+      <Select
+        placeholder={"Select connection to see statistics"}
+        style={{ width: "500px" }}
+        dropdownMatchSelectWidth={false}
+        value={connectionId}
+        defaultValue={connectionId}
+        onSelect={val => {
+          setConnectionId(val);
+          props.onChange(val);
+        }}
+      >
+        {Object.entries(allConnections).map(([id, connection]) => (
+          <Select.Option key={id} value={id}>
+            <div className="flex items-center gap-2">
+              <StreamTitle stream={streams.find(s => s.id === connection.fromId)} />
+              <ArrowRight className="w-3" />
+              <DestinationTitle destination={destinations.find(d => d.id === connection.toId)} />
+            </div>
+          </Select.Option>
+        ))}
+      </Select>
+    </>
+  );
+};
+
+export const ChartView: React.FC<{
+  report: ConnectionAggregate;
+  dateFormat: "day" | "hour";
+  status: KnownEventStatus[];
+}> = ({ report, dateFormat, status }) => {
+  const wrapperRef = React.useRef<HTMLCanvasElement>(null);
+  const data = [...report.breakdown].sort((a, b) => a.period.getTime() - b.period.getTime());
+  useEffect(() => {
+    if (wrapperRef.current) {
+      const chart = new Chart(wrapperRef.current as any, {
+        type: "bar",
+        options: {
+          //for dev env double animation due to double rendering is just annoying
+          animation: process.env.NODE_ENV === "development" ? false : undefined,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false,
+            },
           },
-        }),
-        {}
-      ) as Record<string, Omit<DataRow, "date">>
-  )
-    .reduce((acc, [date, row]) => [...acc, { date: new Date(date), ...row } as DataRow], [] as DataRow[])
-    .sort((a, b) => a.date.getTime() - b.date.getTime());
-}
+        },
+        data: {
+          labels: data.map(row =>
+            dateFormat === "day"
+              ? row.period.toLocaleDateString("en-US", { month: "short", day: "2-digit" })
+              : row.period.toLocaleTimeString("en-US", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: false,
+                })
+          ),
+          datasets: [
+            status.includes("error")
+              ? {
+                  stack: "main",
+                  label: "error",
+                  backgroundColor: "rgb(224, 49, 48)",
+                  data: data.map(row => row.error),
+                }
+              : undefined,
+            status.includes("dropped")
+              ? {
+                  stack: "main",
+                  label: "dropped",
+                  backgroundColor: "#737373",
+                  data: data.map(row => row.dropped),
+                }
+              : undefined,
+            status.includes("success")
+              ? {
+                  stack: "main",
+                  backgroundColor: "#009140",
+                  data: data.map(row => row.success),
+                }
+              : undefined,
+          ].filter(Boolean) as any,
+        },
+      });
+      return () => {
+        chart.destroy();
+      };
+    }
+  }, [data]);
+
+  return <canvas ref={wrapperRef} className="w-full h-full my-12"></canvas>;
+};
 
 export const EventStatPage: React.FC = () => {
   const workspace = useWorkspace();
@@ -160,7 +233,9 @@ export const EventStatPage: React.FC = () => {
   const [eventTypes, setEventTypes] = useQueryStringState("ev", {
     defaultValue: "success,error,dropped",
   });
-  const currentTypesSet = new Set(eventTypes.split(",") as EventStatus[]);
+  const [connectionId, setConnectionId] = useQueryStringState<string | undefined>("connectionId", {
+    defaultValue: undefined,
+  });
   const [start, end, granularity] = (() => {
     switch (period) {
       case "24h":
@@ -175,46 +250,43 @@ export const EventStatPage: React.FC = () => {
         throw new Error(`Unknown period '${period}'`);
     }
   })();
-  const remoteResult = useQuery(
+  const remoteResult = useQuery<Report>(
     ["event-stat", workspace.slugOrId, period, granularity],
     async () => {
-      return (
+      return Report.parse(
         await rpc(
           `/api/${
             workspace.slugOrId
-          }/sql/report?start=${start.toISOString()}&end=${end.toISOString()}&statuses=${eventStatuses.join(",")}&granularity=${granularity}`
+          }/reports/event-stat?start=${start.toISOString()}&end=${end.toISOString()}&granularity=${granularity}`
         )
-      ).data;
+      );
     },
-    { retry: false, staleTime: 60 * 1000, cacheTime: 5 * 60 * 1000 }
+    { retry: false, staleTime: 0, cacheTime: 0 }
   );
-  const rows: DataRow[] | undefined =
-    remoteResult.status === "success" && remoteResult.data ? getDataTable(remoteResult.data) : undefined;
-  console.log(`Rows`, rows);
   return (
     <div>
       <h1 className="text-3xl  mt-4 mb-4">Workspace Statistics</h1>
       <div className="border border-textDisabled px-4 py-6 rounded-lg">
         <section className="flex justify-between items-start">
-          <TotalEvents
-            className="ml-6"
-            val={remoteResult.data
-              ?.map(r => (currentTypesSet.has(r.status) ? parseInt(r.events) : 0))
-              .reduce((sum, delta) => sum + delta, 0)}
-          />
-          <div className="flex items-center justify-end gap-2">
-            <EventTypes value={eventTypes.split(",") as EventStatus[]} onChange={val => setEventTypes(val.join(","))} />
+          <div className="flex items-center justify-end gap-2 w-full">
+            <ConnectionSelector value={connectionId} onChange={setConnectionId} />
             <Period value={period} onChange={setPeriod} />
           </div>
         </section>
         <div style={{ height: "600px" }}>
-          {remoteResult.isLoading && (
+          {!connectionId && (
             <div className="flex flex-col items-center justify-center h-full">
-              <FakeProgressBar durationSeconds={60} />
+              <div className="mt-4 text-textLight">Please select connection to display stat</div>
+            </div>
+          )}
+
+          {connectionId && remoteResult.isLoading && (
+            <div className="flex flex-col items-center justify-center h-full">
+              <Loader2 className="w-12 h-12 animate-spin" />
               <div className="mt-4 text-textLight">Hang tight, statistics is loading...</div>
             </div>
           )}
-          {remoteResult.error ? (
+          {connectionId && remoteResult.error ? (
             <div className="flex flex-col items-center justify-center h-full">
               <AlertTriangle size={64} className="text-error" />
               <div className="mt-4 text-textLight">
@@ -222,58 +294,16 @@ export const EventStatPage: React.FC = () => {
               </div>
             </div>
           ) : undefined}
-          {rows ? (
-            <ResponsiveContainer width="100%" height="90%">
-              <AreaChart
-                data={rows}
-                margin={{
-                  top: 20,
-                  right: 30,
-                  left: 20,
-                  bottom: 5,
-                }}
-              >
-                <XAxis
-                  dataKey="date"
-
-                  tickFormatter={date => {
-                    return granularity === "day"
-                      ? date.toLocaleDateString("en-US", { month: "short", day: "2-digit" })
-                      : date.toLocaleTimeString("en-US", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                          hour12: false,
-                        });
-                  }}
-                />
-                <YAxis tickFormatter={v => v.toLocaleString("en-US")} orientation={"right"} />
-                {/*<ChartTooltip formatter={(v, n) => n === "date" ? (v as Date).toISOString() : (v as number).toLocaleString("en-US")} />*/}
-                <ChartTooltip
-                  formatter={v => (typeof v === "number" ? v.toLocaleString("en-US") : v + "")}
-                  labelFormatter={v =>
-                    v instanceof Date ? v.toISOString().replace("T", " ").split(".")[0] + " UTC" : v + ""
-                  }
-                  wrapperStyle={{ background: "red" }}
-                />
-                {currentTypesSet.has("dropped") ? (
-                  <Area dataKey="dropped" type="monotone" opacity={0.9} stroke="#737373" stackId="a" fill="#737373" />
-                ) : undefined}
-                {currentTypesSet.has("error") ? (
-                  <Area
-                    dataKey="error"
-                    stackId="a"
-                    type="monotone"
-                    opacity={0.5}
-                    stroke="rgb(224, 49, 48)"
-                    fill="rgb(224, 49, 48)"
-                  />
-                ) : undefined}
-                {currentTypesSet.has("success") ? (
-                  <Area dataKey="success" stroke="#009140" stackId="a" type="monotone" opacity={0.5} fill="#009140" />
-                ) : undefined}
-              </AreaChart>
-            </ResponsiveContainer>
+          {remoteResult.data && connectionId ? (
+            <ChartView
+              report={buildConnectionAggregate(remoteResult.data, connectionId)}
+              dateFormat={granularity as any}
+              status={eventTypes.split(",") as KnownEventStatus[]}
+            />
           ) : undefined}
+        </div>
+        <div className="flex justify-end mr-4">
+          <EventTypes value={eventTypes.split(",") as EventStatus[]} onChange={val => setEventTypes(val.join(","))} />
         </div>
       </div>
     </div>

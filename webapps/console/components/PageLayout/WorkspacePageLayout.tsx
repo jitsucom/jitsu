@@ -12,7 +12,6 @@ import {
   AlertCircle,
   ArrowLeftRight,
   ArrowRight,
-  BarChart3,
   ChevronDown,
   ChevronUp,
   CircleDollarSign,
@@ -37,7 +36,9 @@ import {
   User,
   X,
   Zap,
-  PackageOpen, LineChart, Terminal,
+  PackageOpen,
+  LineChart,
+  Terminal,
 } from "lucide-react";
 
 import { NextRouter, useRouter } from "next/router";
@@ -571,7 +572,12 @@ function PageHeader() {
       items: [
         { title: "Live Events", path: "/data", icon: <Activity className="w-full h-full" /> },
         { title: "Query Data", path: "/sql", icon: <Terminal className="w-full h-full" />, hidden: !appConfig?.ee },
-        { title: "Event Statistics", path: "/event-stat", icon: <LineChart className="w-full h-full" />, hidden: !appConfig?.ee },
+        {
+          title: "Event Statistics",
+          path: "/event-stat",
+          icon: <LineChart className="w-full h-full" />,
+          hidden: !appConfig?.ee,
+        },
       ],
     },
     {
