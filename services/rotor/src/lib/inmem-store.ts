@@ -67,7 +67,9 @@ export const createInMemoryStore = <T>(definition: StoreDefinition<T>): InMemory
         const newDef = await definition.refresh(lastModified);
         if (newDef !== "not_modified") {
           saveLocalCache(definition, newDef.store);
-          lastModified = newDef.lastModified;
+          if (newDef.lastModified) {
+            lastModified = newDef.lastModified;
+          }
           instance = newDef.store;
         }
         status = "ok";
