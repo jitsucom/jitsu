@@ -14,21 +14,18 @@ RUN apt-get update -y
 RUN apt-get install git openssl1.1 procps python3 make g++ -y
 RUN npm -g install pnpm
 
-
-FROM builder as installer
 # Create app directory
 WORKDIR /app
 COPY pnpm-lock.yaml .
 RUN --mount=type=cache,id=onetag_pnpm,target=/root/.local/share/pnpm/store/v3 pnpm fetch
 
-FROM installer as builder
-
 COPY . .
 RUN rm .env*
 RUN --mount=type=cache,id=onetag_pnpm,target=/root/.local/share/pnpm/store/v3 pnpm install -r --unsafe-perm
+
 ENV NEXTJS_STANDALONE_BUILD=1
-#Tubo cache is not working well....
-#RUN --mount=type=cache,id=jitsu_turbo,target=/app/node_modules/.cache/turbo pnpm build
+#Tubo cache is not working well ?
+RUN --mount=type=cache,id=onetag_turbo,target=/app/node_modules/.cache/turbo pnpm build
 RUN pnpm build
 
 FROM base as console
