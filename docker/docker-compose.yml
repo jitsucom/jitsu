@@ -68,7 +68,7 @@ services:
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
       SYNCS_ENABLED: ${SYNCS_ENABLED:-false}
-      SYNCCTL_URL: "http://syncctl:3043"
+      SYNCCTL_URL: "http://syncctl:${EXTERNAL_SYNCS_PORT:-3043}"
       SYNCCTL_AUTH_KEY: ${SYNCCTL_PASSWORD}
       GOOGLE_SCHEDULER_KEY: ${GOOGLE_SCHEDULER_KEY}
       GOOGLE_SCHEDULER_LOCATION: ${GOOGLE_SCHEDULER_LOCATION:-us-central1}
@@ -80,6 +80,8 @@ services:
       interval: 2s
       timeout: 10s
       retries: 30
+    extra_hosts:
+      - "syncctl:host-gateway"
     depends_on:
       redis:
         condition: service_started
@@ -187,6 +189,7 @@ services:
     restart: "on-failure"
     environment:
       TERM: "xterm-256color"
+      HTTP_PORT: ${EXTERNAL_SYNCS_PORT:-3043}
       SYNCCTL_SYNCS_ENABLED: ${SYNCS_ENABLED:-false}
       SYNCCTL_AUTH_TOKENS: ${SYNCCTL_PASSWORD}
       SYNCCTL_DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD:-default}@postgres:5432/postgres?search_path=newjitsu"

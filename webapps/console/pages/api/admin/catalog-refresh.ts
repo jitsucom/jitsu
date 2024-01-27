@@ -60,9 +60,11 @@ export default createRoute()
     for (const result of results) {
       Object.assign(statuses, result);
     }
+    const processed = Math.min(sources.length, max);
+    log.atInfo().log(`Processed ${sources.length} sources`);
     return {
       total: sources.length,
-      processed: query.limit || sources.length,
+      processed: processed,
       statuses,
     };
   })
@@ -76,7 +78,7 @@ async function processSrc(src: string) {
   let packageId: string | undefined = undefined;
   let metadata: any = {};
   let icon: Buffer | undefined = undefined;
-  log.atInfo().log(`Processing ${src}: ${metadataUrl}`);
+  log.atDebug().log(`Processing ${src}: ${metadataUrl}`);
   if (res.ok) {
     metadata = yaml.load(await res.text(), { json: true });
 
@@ -85,10 +87,10 @@ async function processSrc(src: string) {
     if (!license || license.toLowerCase() !== "mit") {
       const pageSize = 100; // max supported by github API
       const commitHistory = `https://api.github.com/repos/${repo}/commits?path=/${basePath}/${src}/metadata.yaml&per_page=${pageSize}`;
-      log.atWarn().log(`Source ${src} has ${license} license. Looking for MIT versions at ${commitHistory}`);
+      log.atDebug().log(`Source ${src} has ${license} license. Looking for MIT versions at ${commitHistory}`);
       for (let page = 1; page <= 10; page++) {
         const commits = await rpc(commitHistory + "&page=" + page);
-        log.atInfo().log(`Source ${src} found ${commits.length} commits (page ${page})`);
+        log.atDebug().log(`Source ${src} found ${commits.length} commits (page ${page})`);
         for (const { sha } of commits) {
           const commitFile = `https://raw.githubusercontent.com/${repo}/${sha}/${basePath}/${src}/metadata.yaml`;
           const oldYml = await fetch(commitFile);
@@ -98,9 +100,9 @@ async function processSrc(src: string) {
             if (license === "mit") {
               const dockerVersion = oldMeta.data?.dockerImageTag;
               if (!dockerVersion) {
-                log.atWarn().log(`MIT version of ${src} doesn't have dockerImageTag: ${commitFile}`);
+                log.atDebug().log(`MIT version of ${src} doesn't have dockerImageTag: ${commitFile}`);
               } else {
-                log.atInfo().log(`Found MIT version of ${src} --> ${dockerVersion}`);
+                log.atDebug().log(`Found MIT version of ${src} --> ${dockerVersion}`);
                 mitVersions.add(dockerVersion);
               }
             } else {
@@ -130,7 +132,7 @@ async function processSrc(src: string) {
     if (iconRes.ok) {
       icon = Buffer.from(await iconRes.arrayBuffer());
     } else {
-      log.atWarn().log(`Source ${src} icon file ${metadata.data?.icon} doesn't exist at ${iconUrl}`);
+      log.atDebug().log(`Source ${src} icon file ${metadata.data?.icon} doesn't exist at ${iconUrl}`);
     }
   }
 
@@ -148,11 +150,11 @@ async function processSrc(src: string) {
     logoSvg: icon,
   };
   if (currentId) {
-    log.atInfo().log(`Updating ${packageId} info. Has icon: ${!!icon}, has metadata: ${!!metadata}`);
+    log.atDebug().log(`Updating ${packageId} info. Has icon: ${!!icon}, has metadata: ${!!metadata}`);
     await db.prisma().connectorPackage.update({ where: { id: currentId }, data });
     return { [`${packageId}`]: "updated" };
   } else {
-    log.atInfo().log(`Creating ${packageId} info. Has icon: ${!!icon}, has metadata: ${!!metadata}`);
+    log.atDebug().log(`Creating ${packageId} info. Has icon: ${!!icon}, has metadata: ${!!metadata}`);
     await db.prisma().connectorPackage.create({ data: data });
     return { [`${packageId}`]: "created" };
   }
