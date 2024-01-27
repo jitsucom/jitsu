@@ -55,7 +55,8 @@ services:
     restart: "unless-stopped"
     platform: linux/amd64
     environment:
-      DATA_DOMAIN: ${INGEST_DOMAIN}
+      INGEST_HOST: ${INGEST_DOMAIN}
+      INGEST_PORT: ${JITSU_INGEST_PORT:-8080}
       ROTOR_URL: "http://rotor:3401"
       BULKER_URL: "http://bulker:3042"
       CONSOLE_AUTH_TOKENS: ${CONSOLE_PASSWORD}

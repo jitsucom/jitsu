@@ -16,6 +16,8 @@ export default createRoute()
   .handler(async ({ req }) => {
     const publicEndpoints = getAppEndpoint(req);
     const dataHost = mainDataDomain;
+    const ingestHost = process.env.INGEST_HOST;
+    const ingestPort = process.env.INGEST_PORT ? parseInt(process.env.INGEST_PORT) : 80;
 
     return {
       docsUrl: process.env.JITSU_DOCUMENTATION_URL || "https://docs-jitsu-com.staging.jitsu.com/",
@@ -50,6 +52,8 @@ export default createRoute()
         host: publicEndpoints.hostname,
         cname: process.env.CNAME || "cname.jitsu.com",
         dataHost,
+        ingestHost,
+        ingestPort,
         port: publicEndpoints.isDefaultPort ? undefined : publicEndpoints.port,
       },
       logLevel: (process.env.FRONTEND_LOG_LEVEL || process.env.LOG_LEVEL || "info") as any,
