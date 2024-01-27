@@ -1,0 +1,46 @@
+name: Jitsu 2.0 Build Docker Images
+on:
+  push:
+    branches:
+      # todo - change with main
+      - feat/newjitsu/self-hosted-revamped
+
+jobs:
+  build:
+    name: Build Project
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Install Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - uses: actions/checkout@v3
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+
+      - uses: actions/cache@v3
+        name: Setup pnpm cache
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies with pnpm
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build Beta Images for AMD64
+        run: pnpm build-scripts docker --platform linux/amd64 --tag beta --push-git-tag --push-docker --logs

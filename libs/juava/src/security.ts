@@ -23,6 +23,13 @@ export function createHash(secret: string): string {
   return hashInternal(secret, randomSeed, globalSeed[0]);
 }
 
+export function checkToken(hashOrPlain: string, secret: string): boolean {
+  if (hashOrPlain.indexOf(".") === -1) {
+    return secret === hashOrPlain;
+  }
+  return checkHash(hashOrPlain, secret);
+}
+
 export function checkHash(hash: string, secret: string): boolean {
   const [randomSeed] = hash.split(".");
   return globalSeed.find(seed => hash === hashInternal(secret, randomSeed, seed)) !== undefined;
@@ -43,11 +50,7 @@ export function createAuthorized(tokens: string): Authorizer {
   const authorizers = tokens
     .split(",")
     .map(tok => tok.trim())
-    .map(hashOrPlain =>
-      hashOrPlain.indexOf(".") === -1
-        ? (secret: string) => secret === hashOrPlain
-        : (secret: string) => checkHash(hashOrPlain, secret)
-    );
+    .map(hashOrPlain => (secret: string) => checkToken(hashOrPlain, secret));
   return (secret: string) => authorizers.find(auth => auth(secret)) !== undefined;
 }
 

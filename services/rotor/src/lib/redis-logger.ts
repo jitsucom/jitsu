@@ -1,6 +1,6 @@
 import { getLog, getSingleton } from "juava";
 import { EventsStore } from "@jitsu/protocols/functions";
-import { redis } from "@jitsu-internal/console/lib/server/redis";
+import { redis } from "./redis";
 
 export const log = getLog("redisLogger");
 
