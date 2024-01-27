@@ -90,7 +90,7 @@ services:
 
   sync-catalog-init:
     tty: true
-    image: curl
+    image: curlimages/curl
     restart: "on-failure"
     environment:
       CONSOLE_PASSWORD: ${CONSOLE_PASSWORD}
