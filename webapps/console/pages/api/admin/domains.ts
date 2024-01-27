@@ -24,7 +24,7 @@ export default createRoute()
       throw new ApiError("Unauthorized", {}, { status: 401 });
     }
     if (domain.match(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/)) {
-      res.status(404).end(`${domain} is an IP address`);
+      res.status(404).send(`${domain} is an IP address`);
       return;
     }
     log.atInfo().log(`Validating domain ${domain}`);
