@@ -67,6 +67,8 @@ export const AppConfig = z.object({
     protocol: z.enum(["http", "https"]),
     host: z.string(),
     dataHost: z.string().optional(),
+    ingestHost: z.string().optional(),
+    ingestPort: z.number().optional(),
     cname: z.string().optional(),
     //if differs from standard protocol port - 80 or 443
     port: z.number().optional(),
