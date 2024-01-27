@@ -192,7 +192,7 @@ services:
       HTTP_PORT: ${EXTERNAL_SYNCS_PORT:-3043}
       SYNCCTL_SYNCS_ENABLED: ${SYNCS_ENABLED:-false}
       SYNCCTL_AUTH_TOKENS: ${SYNCCTL_PASSWORD}
-      SYNCCTL_DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD:-default}@postgres:5432/postgres?search_path=newjitsu"
+      SYNCCTL_DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD:-default}@127.0.0.1:${EXTERNAL_POSTGRES_PORT:-5432}/postgres?search_path=newjitsu"
       SYNCCTL_SIDECAR_DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD:-default}@${EXTERNAL_DATABASE_HOST}:${EXTERNAL_POSTGRES_PORT:-5432}/postgres?search_path=newjitsu"
       SYNCCTL_BULKER_URL: "http://${EXTERNAL_BULKER_HOST}:${EXTERNAL_BULKER_PORT:-3045}"
       SYNCCTL_BULKER_AUTH_TOKEN: ${BULKER_PASSWORD}
