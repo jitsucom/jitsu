@@ -23,6 +23,9 @@ export default createRoute()
     if (!token || process.env.CADDY_TOKEN !== token) {
       throw new ApiError("Unauthorized", {}, { status: 401 });
     }
+    if (domain.match(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/)) {
+      throw new ApiError(`${domain} is an IP address`, {}, { status: 404 });
+    }
     log.atInfo().log(`Validating domain ${domain}`);
 
     const streamId = [...dataDomains]
