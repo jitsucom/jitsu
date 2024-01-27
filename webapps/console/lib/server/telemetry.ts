@@ -14,7 +14,7 @@ import { AnalyticsContext } from "@jitsu/protocols/analytics";
 export const anonymousTelemetryEnabled = !isTruish(process.env.JITSU_DISABLE_ANONYMOUS_TELEMETRY);
 export const anonymousTelemetryJitsuKey =
   process.env.JITSU_SERVER_ANONYMOUS_TELEMETRY_KEY ||
-  "n5ZDLVfXZD5JkqpcSly8I66xz3we16sv:YszSaTV83VAc6vNcFuz7Ry9dCHHV8zJY";
+  "mxPhV4KmCQasdEsGr98TzX4hq12VuEaN:etEKNhKx5Gy2Ib8gVu4CSWGF6oRgyckG";
 
 /**
  * Frontend telemetry is opposite from server telemetry. It's disabled by default,
@@ -28,7 +28,7 @@ const log = getLog("telemetry");
 
 const anonymousTelemetry = anonymousTelemetryEnabled
   ? jitsuAnalytics({
-      host: "https://use.jitsu.com",
+      host: "https://ingest.g.jitsu.com",
       writeKey: anonymousTelemetryJitsuKey,
     })
   : emptyAnalytics;
