@@ -1,6 +1,6 @@
-import { createRoute } from "../../../lib/api";
+import { createRoute, verifyAdmin } from "../../../lib/api";
 import { db } from "../../../lib/server/db";
-import { assertDefined, assertTrue, rpc } from "juava";
+import { rpc } from "juava";
 import { z } from "zod";
 import { getServerLog } from "../../../lib/server/log";
 
@@ -31,10 +31,7 @@ export default createRoute()
     if (!process.env.SYNCS_ENABLED) {
       return;
     }
-    const userProfile = await db.prisma().userProfile.findFirst({ where: { id: user.internalId } });
-
-    assertDefined(userProfile, "User profile not found");
-    assertTrue(userProfile.admin, "Not enough permissions");
+    await verifyAdmin(user);
 
     const sources: string[] = (await rpc(`https://api.github.com/repos/${repo}/contents/${basePath}?ref=${branch}`))
       .filter(({ name }) => name.startsWith("source-"))
