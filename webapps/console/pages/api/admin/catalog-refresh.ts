@@ -28,6 +28,9 @@ function shuffle<T>(arr: T[]) {
 export default createRoute()
   .GET({ auth: true, query: z.object({ limit: z.string().optional(), source: z.string().optional() }) })
   .handler(async ({ user, req, query }) => {
+    if (!process.env.SYNCS_ENABLED) {
+      return;
+    }
     const userProfile = await db.prisma().userProfile.findFirst({ where: { id: user.internalId } });
 
     assertDefined(userProfile, "User profile not found");
@@ -47,7 +50,7 @@ export default createRoute()
     const promises: Promise<any>[] = [];
     for (let i = 0; i < max; i++) {
       const src = sources[i];
-      promises.push(process(src));
+      promises.push(processSrc(src));
       if (i % 10 === 0) {
         const results = await Promise.all(promises);
         for (const result of results) {
@@ -68,7 +71,7 @@ export default createRoute()
   })
   .toNextApiHandler();
 
-async function process(src: string) {
+async function processSrc(src: string) {
   const mitVersions = new Set<string>();
   const otherVersions: Record<string, Set<string>> = {};
   const metadataUrl = `https://raw.githubusercontent.com/${repo}/master/${basePath}/${src}/metadata.yaml`;
