@@ -3,7 +3,7 @@ import { BillingDetails } from "../../../../components/BillingDetails/BillingDet
 
 const BillingDetailsPage: React.FC = () => {
   return (
-    <WorkspacePageLayout>
+    <WorkspacePageLayout doNotBlockIfUsageExceeded={true}>
       <BillingDetails />
     </WorkspacePageLayout>
   );
