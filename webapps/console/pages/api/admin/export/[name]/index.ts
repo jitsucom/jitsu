@@ -260,6 +260,7 @@ const exports: Export[] = [
                   "workspace"
                 ),
                 ...obj.config,
+                workspaceId: obj.workspace.id,
               },
               backupEnabled: !(obj.workspace.featuresEnabled || []).includes("nobackup"),
               destinations: obj.toLinks
