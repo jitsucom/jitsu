@@ -33,6 +33,7 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
     },
     id: `${w.id}_backup`,
     type: "s3",
+    special: "backup",
     options: {
       dataLayout: "passthrough",
       deduplicate: false,
@@ -43,7 +44,7 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
       region: process.env.S3_REGION,
       accessKeyId: process.env.S3_ACCESS_KEY_ID,
       secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
-      bucket: `${w.slug}.data.use.jitsu.com`,
+      bucket: `${w.id}.data.use.jitsu.com`,
       compression: "gzip",
       format: "ndjson",
       folder: "[DATE]",

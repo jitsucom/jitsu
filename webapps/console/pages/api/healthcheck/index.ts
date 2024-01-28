@@ -32,5 +32,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       hasErrors = true;
     }
   }
-  res.status(hasErrors ? 500 : 200).send({ status: hasErrors ? "error" : "ok", ...result });
+  res.status(hasErrors ? 503 : 200).send({ status: hasErrors ? "error" : "ok", ...result });
 }

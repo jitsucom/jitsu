@@ -3,7 +3,8 @@ import { Metrics } from "./metrics";
 import { GeoResolver } from "./maxmind";
 import { IngestMessage } from "@jitsu/protocols/async-request";
 import { CONNECTION_IDS_HEADER } from "./rotor";
-import { pgConfigStore } from "./pg-config-store";
+import { connectionsStore, functionsStore } from "./entity-store";
+
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { EventContext } from "@jitsu/protocols/functions";
 import {
@@ -18,7 +19,8 @@ import {
 } from "@jitsu/core-functions";
 import { redisLogger } from "./redis-logger";
 import { buildFunctionChain, checkError, runChain } from "./functions-chain";
-import { redis } from "@jitsu-internal/console/lib/server/redis";
+import { redis } from "./redis";
+import { EnrichedConnectionConfig } from "./config-types";
 export const log = getLog("rotor");
 
 const anonymousEventsStore = mongoAnonymousEventsStore();
@@ -36,16 +38,23 @@ export async function rotorMessageHandler(
   if (!_message) {
     return;
   }
-  const pgStore = pgConfigStore.getCurrent();
-  if (!pgStore || !pgStore.enabled) {
-    throw newError("Config store is not enabled");
+  const connStore = connectionsStore.getCurrent();
+  if (!connStore || !connStore.enabled) {
+    throw newError("Connection store is not enabled");
+  }
+  const funcStore = functionsStore.getCurrent();
+  if (!funcStore || !funcStore.enabled) {
+    throw newError("Functions store is not enabled");
   }
   const eventStore = redisLogger();
 
   const message = (typeof _message === "string" ? JSON.parse(_message) : _message) as IngestMessage;
   const connectionId =
     headers && headers[CONNECTION_IDS_HEADER] ? headers[CONNECTION_IDS_HEADER].toString() : message.connectionId;
-  const connection = requireDefined(pgStore.getEnrichedConnection(connectionId), `Unknown connection: ${connectionId}`);
+  const connection: EnrichedConnectionConfig = requireDefined(
+    connStore.getObject(connectionId),
+    `Unknown connection: ${connectionId}`
+  );
 
   log
     .atDebug()
@@ -107,7 +116,7 @@ export async function rotorMessageHandler(
     },
   };
 
-  const funcChain = buildFunctionChain(connection, pgStore, functionsFilter, fetchTimeoutMs);
+  const funcChain = buildFunctionChain(connection, funcStore, functionsFilter, fetchTimeoutMs);
 
   const chainRes = await runChain(funcChain, event, eventStore, store, ctx, systemContext, fetchTimeoutMs);
   chainRes.connectionId = connectionId;

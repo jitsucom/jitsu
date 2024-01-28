@@ -62,15 +62,14 @@ export const createInMemoryStore = <T>(definition: StoreDefinition<T>): InMemory
   let intervalToClear: NodeJS.Timeout | undefined = undefined;
 
   function scheduleStoreRefresh() {
-    intervalToClear = setInterval(async () => {
-      if (stopping) {
-        return;
-      }
+    const refresh = async () => {
       try {
         const newDef = await definition.refresh(lastModified);
         if (newDef !== "not_modified") {
           saveLocalCache(definition, newDef.store);
-          lastModified = newDef.lastModified;
+          if (newDef.lastModified) {
+            lastModified = newDef.lastModified;
+          }
           instance = newDef.store;
         }
         status = "ok";
@@ -79,7 +78,25 @@ export const createInMemoryStore = <T>(definition: StoreDefinition<T>): InMemory
         log.atWarn().withCause(e).log(`Failed to refresh store ${definition.name}. Using an old value`);
         status = "outdated";
       }
-    }, definition.refreshIntervalMillis);
+    };
+    if (definition.refreshIntervalMillis > 0) {
+      intervalToClear = setInterval(async () => {
+        if (stopping) {
+          return;
+        }
+        await refresh();
+      }, definition.refreshIntervalMillis);
+    } else {
+      (function loop() {
+        if (stopping) {
+          return;
+        }
+        setTimeout(async () => {
+          await refresh();
+          loop();
+        }, 1);
+      })();
+    }
   }
 
   let instancePromise = new Promise<T>((resolve, reject) => {
@@ -149,8 +166,6 @@ export const createInMemoryStore = <T>(definition: StoreDefinition<T>): InMemory
       stopping = true;
       if (intervalToClear) {
         clearInterval(intervalToClear);
-      } else {
-        log.atError().log(`There's no interval for ${definition.name}`);
       }
       status = "stopped";
     },

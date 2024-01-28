@@ -1,11 +1,11 @@
-import { createHash, checkHash, createAuthorized } from "../src/security";
+import { createHash, checkToken, createAuthorized } from "../src/security";
 
 test("security", () => {
   const password = "secretPassword";
   const hashResult = createHash(password);
   console.log("Hash result = " + hashResult);
-  expect(checkHash(hashResult, password)).toBe(true);
-  expect(checkHash(hashResult.substring(2), password)).toBe(false);
+  expect(checkToken(hashResult, password)).toBe(true);
+  expect(checkToken(hashResult.substring(2), password)).toBe(false);
 });
 
 test("authorizer", () => {

@@ -78,6 +78,9 @@ module.exports = {
       config.plugins.push(new opts.webpack.IgnorePlugin({ resourceRegExp: /^mongodb$/ }));
       config.plugins.push(new opts.webpack.IgnorePlugin({ resourceRegExp: /^posthog-node$/ }));
     }
+    if (opts.isServer) {
+      config.devtool = 'source-map'
+    }
     config.externals["isolated-vm"] = "require('isolated-vm')";
     config.module.rules.push({
       test: /\.txt$/,

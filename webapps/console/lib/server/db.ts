@@ -81,10 +81,7 @@ export type DatabaseConnection = typeof db;
 export type PrismaSSLMode = "disable" | "prefer" | "require" | "no-verify";
 
 export function createPg(): Pool {
-  const connectionUrl = requireDefined(
-    getApplicationDatabaseUrl(),
-    "nor DATABASE_URL, neither APP_DATABASE_URL is not defined"
-  );
+  const connectionUrl = getApplicationDatabaseUrl();
   const parsedUrl = new URL(connectionUrl);
   const schema = parsedUrl.searchParams.get("schema");
   const sslMode = parsedUrl.searchParams.get("sslmode") || ("disable" as PrismaSSLMode);
@@ -160,6 +157,7 @@ export function createPrisma(): PrismaClient {
       }
     ) as PrismaClient;
   }
+  log.atInfo().log("Initializing prisma");
   const prisma = new PrismaClient({
     datasources: {
       db: {

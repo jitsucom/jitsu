@@ -99,11 +99,17 @@ export const TrackingIntegrationDocumentation: React.FC<{ streamId: string; onCa
     parser: v => v,
     serializer: v => v,
   });
-  const domains = stream
-    ? appConfig.publicEndpoints.dataHost || appConfig.ee.available
-      ? [...(stream?.domains ?? []), `${stream.id}.${appConfig.publicEndpoints.dataHost}`]
-      : ["{deploy domain}"]
-    : [];
+  let domains: string[] = [];
+  if (appConfig.publicEndpoints.ingestHost) {
+    const port = appConfig.publicEndpoints.ingestPort;
+    domains.push(`${appConfig.publicEndpoints.ingestHost}${port != 80 && port != 443 ? `:${port}` : ""}`);
+  } else {
+    domains = stream
+      ? appConfig.publicEndpoints.dataHost || appConfig.ee.available
+        ? [...(stream?.domains ?? []), `${stream.id}.${appConfig.publicEndpoints.dataHost}`]
+        : ["{deploy domain}"]
+      : [];
+  }
   const writeKey =
     appConfig.publicEndpoints.dataHost || appConfig.ee.available
       ? undefined

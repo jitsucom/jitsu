@@ -124,7 +124,9 @@ export function getSingleton<T>(
     newInstance = factory();
   } catch (error) {
     handleError(error);
-    throw error;
+    const singleton: Partial<Singleton<T>> = () => Promise.reject<T>(error);
+    singleton.waitInit = () => Promise.reject(error);
+    return singleton as Singleton<T>;
   }
   if (newInstance instanceof Promise) {
     const awaiter = newInstance.then(instance => handleSuccess(instance, startedAtTs)).catch(handleError);

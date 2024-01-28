@@ -7,7 +7,7 @@ import {
   createTtlStore,
 } from "@jitsu/core-functions";
 import { getLog } from "juava";
-import { redis } from "@jitsu-internal/console/lib/server/redis";
+import { redis } from "../lib/redis";
 
 const log = getLog("udf_run");
 

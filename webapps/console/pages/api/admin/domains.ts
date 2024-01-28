@@ -16,12 +16,16 @@ export default createRoute()
       token: z.string(),
     }),
   })
-  .handler(async ({ query: { token, domain } }) => {
+  .handler(async ({ query: { token, domain }, res }) => {
     if (!dataDomains) {
       throw new ApiError(`Domain ${domain} not found. Data domains configuration is absent`, {}, { status: 404 });
     }
     if (!token || process.env.CADDY_TOKEN !== token) {
       throw new ApiError("Unauthorized", {}, { status: 401 });
+    }
+    if (domain.match(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/)) {
+      res.status(404);
+      return;
     }
     log.atInfo().log(`Validating domain ${domain}`);
 
