@@ -276,6 +276,7 @@ export async function listAllInvoices() {
   do {
     const result = await stripe.invoices.list({
       limit: 100,
+      status: "paid",
       starting_after: starting_after,
       created: {
         //invoices for past 90 days

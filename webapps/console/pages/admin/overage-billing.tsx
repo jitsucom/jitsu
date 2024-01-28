@@ -91,6 +91,7 @@ const View = ({ data, workspaces }) => {
           },
           subscriptionId: { omit: true },
           start: dateFormat,
+          roundedPeriod: { omit: true },
           end: dateFormat,
           destinationEvents: { type: "number" },
           overageEvents: { type: "number" },

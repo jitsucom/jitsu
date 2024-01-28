@@ -1,10 +1,10 @@
-import { WorkspacePageLayout } from "../../../components/PageLayout/WorkspacePageLayout";
-import { useBilling } from "../../../components/Billing/BillingProvider";
+import { WorkspacePageLayout } from "../../../../components/PageLayout/WorkspacePageLayout";
+import { useBilling } from "../../../../components/Billing/BillingProvider";
 import { Alert, Skeleton } from "antd";
 import { ChevronLeft } from "lucide-react";
 import React from "react";
-import { BillingManager } from "../../../components/Billing/BillingManager";
-import { WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
+import { BillingManager } from "../../../../components/Billing/BillingManager";
+import { WJitsuButton } from "../../../../components/JitsuButton/JitsuButton";
 
 const BillingPage: React.FC<{}> = () => {
   return (
