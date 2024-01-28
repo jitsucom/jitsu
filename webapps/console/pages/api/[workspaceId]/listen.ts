@@ -68,12 +68,15 @@ export default createRoute()
       return createResponse(res, modifiedAt, ifModifiedSince);
     }
     //emulate long polling
-    await new Promise(resolve => setTimeout(resolve, query.maxWaitMs));
-    modifiedAt = await getLastModification(query.workspaceId);
+    if (query.maxWaitMs && query.maxWaitMs > 0) {
+      await new Promise(resolve => setTimeout(resolve, query.maxWaitMs));
+      modifiedAt = await getLastModification(query.workspaceId);
+    }
     return createResponse(res, modifiedAt, ifModifiedSince);
   })
   .toNextApiHandler();
 
 export const config = {
   maxDuration: 120,
+  memory: 400,
 };

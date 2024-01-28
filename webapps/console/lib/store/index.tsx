@@ -150,6 +150,11 @@ export function useLoadedWorkspace(workspaceIdOrSlug: string): z.infer<typeof Wo
   return data! as z.infer<typeof WorkspaceDbModel>;
 }
 
+const listenConfig = {
+  listenTimeMs: 0,
+  sleepTimeMs: 10_000,
+} as const;
+
 /**
  * This method loads all config object and stores them in a cache. Subsequent calls useConfigObjectList() will be
  * non-blocking and return the cached data.
@@ -168,6 +173,7 @@ export function useConfigObjectsUpdater(workspaceIdOrSlug: string): UseConfigObj
     let isMounted = true;
     let modifiedSince = new Date();
     let timeout;
+    let sleepTimeout;
     const abortController = new AbortController();
     //reload data after every 5 seconds;
     initialDataLoad(workspaceIdOrSlug, queryClient)
@@ -176,9 +182,8 @@ export function useConfigObjectsUpdater(workspaceIdOrSlug: string): UseConfigObj
         //setup background task to reload data
         timeout = setTimeout(async () => {
           while (isMounted) {
-            const listenMaxWaitMs = 10_000;
             try {
-              const ifModified = await fetch(`/api/${res.workspaceId}/listen?maxWaitMs=${listenMaxWaitMs}`, {
+              const ifModified = await fetch(`/api/${res.workspaceId}/listen?maxWaitMs=${listenConfig.listenTimeMs}`, {
                 signal: abortController.signal,
                 headers: {
                   "If-Modified-Since": modifiedSince.toUTCString(),
@@ -192,6 +197,14 @@ export function useConfigObjectsUpdater(workspaceIdOrSlug: string): UseConfigObj
                 await Promise.all(fullDataRefresh(res.workspaceId, queryClient));
               } else {
                 getLog().atWarn().log(`Unexpected response from listen: ${ifModified.status} ${ifModified.statusText}`);
+              }
+              if (listenConfig.sleepTimeMs > 0) {
+                await new Promise(resolve => {
+                  sleepTimeout = setTimeout(() => {
+                    sleepTimeout = undefined;
+                    resolve(undefined);
+                  }, listenConfig.sleepTimeMs);
+                });
               }
             } catch (e) {
               getLog().atWarn().log("Failed to check workspace config freshness");
@@ -208,7 +221,14 @@ export function useConfigObjectsUpdater(workspaceIdOrSlug: string): UseConfigObj
       abortController.abort();
 
       if (timeout) {
-        clearTimeout(timeout);
+        try {
+          clearTimeout(timeout);
+        } catch (e) {}
+      }
+      if (sleepTimeout) {
+        try {
+          clearTimeout(sleepTimeout);
+        } catch (e) {}
       }
     };
   }, [queryClient, workspaceIdOrSlug, loading, loadedWorkspace]);
