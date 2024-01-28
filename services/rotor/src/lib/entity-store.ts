@@ -38,13 +38,15 @@ const refreshFunc =
         headers["If-Modified-Since"] = ifModifiedSince.toUTCString();
       }
       try {
-        const res = await fetch(`${repositoryBase}/${storeId}`, {
+        const base = repositoryBase.endsWith("/") ? repositoryBase : `${repositoryBase}/`;
+        const res = await fetch(`${base}${storeId}`, {
           method: "GET",
           headers: headers,
           agent: await (repositoryBase.startsWith("https://") ? httpsAgent : httpAgent).waitInit(),
         });
         if (res.status === 304) {
           log.atDebug().log(`${storeId} nod modified: ${ifModifiedSince}`);
+          await res.text();
           return "not_modified";
         }
         if (!res.ok) {
