@@ -2,7 +2,6 @@ import { Api, inferUrl, nextJsApiHandler, verifyAccess } from "../../../../../li
 import { z } from "zod";
 import { db } from "../../../../../lib/server/db";
 import { assertDefined } from "juava";
-import { fastStore } from "../../../../../lib/server/fast-store";
 import { getConfigObjectType, parseObject } from "../../../../../lib/schema/config-objects";
 import { ApiError } from "../../../../../lib/shared/errors";
 import { isReadOnly } from "../../../../../lib/server/read-only-mode";
@@ -64,7 +63,6 @@ export const api: Api = {
         data: { id, workspaceId: workspaceId, config: object, type },
       });
       await trackTelemetryEvent("config-object-delete", { objectType: type });
-      await fastStore.fullRefresh();
       await withProductAnalytics(
         p =>
           p.track("create_object", {

@@ -39,6 +39,7 @@
     "@types/lodash": "^4.14.185",
     "@types/pg": "^8.6.5",
     "@types/stripe": "^8.0.417",
+    "raw-loader": "^4.0.2",
     "dotenv": "^16.3.1",
     "next-transpile-modules": "^10.0.1",
     "ts-node": "^10.9.2",

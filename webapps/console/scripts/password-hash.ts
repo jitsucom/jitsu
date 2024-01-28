@@ -17,7 +17,7 @@ async function main(): Promise<void> {
         process.env.GLOBAL_HASH_SECRET ? "custom GLOBAL_HASH_SECRET" : "default hash secret"
       }`
     );
-  log.atInfo().log(`Hashing ${secret} → ${createHash(args._[0])}`);
+  log.atInfo().log(`Hashing ${secret} → ${createHash(secret)}`);
 }
 
 main();

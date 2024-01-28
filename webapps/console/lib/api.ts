@@ -1,6 +1,6 @@
 import { ZodType } from "zod";
 import { NextApiHandler, NextApiRequest, NextApiResponse } from "next";
-import { assertDefined, checkHash, getErrorMessage, requireDefined, tryJson } from "juava";
+import { assertDefined, checkToken, getErrorMessage, requireDefined, tryJson } from "juava";
 import { getServerSession, Session } from "next-auth";
 import { nextAuthConfig } from "./nextauth.config";
 import { SessionUser } from "./schema";
@@ -87,8 +87,8 @@ export function getAuthBearerToken(req: NextApiRequest): string | undefined {
 function findServiceAccount({ keyId, secret }): SessionUser | undefined {
   if (process.env.CONSOLE_AUTH_TOKENS) {
     const tokens = process.env.CONSOLE_AUTH_TOKENS.split(",");
-    for (const tokenHash of tokens) {
-      if (checkHash(tokenHash, secret)) {
+    for (const tokenHashOrPlain of tokens) {
+      if (checkToken(tokenHashOrPlain, secret)) {
         return {
           internalId: adminServiceAccountEmail,
           externalUsername: adminServiceAccountEmail,
@@ -120,7 +120,7 @@ export async function getUser(
       if (!token) {
         throw new ApiError(`Invalid API key id ${keyId}`, { keyId }, { status: 401 });
       }
-      if (!checkHash(token.hash, secret)) {
+      if (!checkToken(token.hash, secret)) {
         throw new ApiError(`Invalid API key secret for ${keyId}`, { keyId }, { status: 401 });
       }
       const user = requireDefined(

@@ -1,4 +1,4 @@
-name: Newjitsu Test
+name: Jitsu 2.0 Test and Build
 on:
   push:
     branches: [newjitsu]

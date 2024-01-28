@@ -1,4 +1,5 @@
 node_modules
+**/node_modules
 .idea
 .env.local
 .turbo
@@ -13,3 +14,5 @@ node_modules
 /cli/jitsu-cli/dist/
 /types/protocols/dist/
 /libs/functions/dist/
+/docker/data/**
+/cache/**

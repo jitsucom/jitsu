@@ -1,9 +1,8 @@
 import { getSingleton } from "juava";
 import { Redis } from "ioredis";
-import { requireDefined } from "juava";
-import { getServerLog } from "./log";
+import { requireDefined, getLog } from "juava";
 
-export const log = getServerLog("redis");
+export const log = getLog("redis");
 
 export const redis = getSingleton<Redis>("redis", createRedis);
 
