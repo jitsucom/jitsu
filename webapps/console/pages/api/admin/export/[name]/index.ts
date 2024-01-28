@@ -264,7 +264,7 @@ const exports: Export[] = [
               },
               backupEnabled: !(obj.workspace.featuresEnabled || []).includes("nobackup"),
               destinations: obj.toLinks
-                .filter(l => !l.deleted && l.type === "push")
+                .filter(l => !l.deleted && l.type === "push" && !l.to.deleted)
                 .map(l => ({
                   id: l.to.id,
                   connectionId: l.id,
