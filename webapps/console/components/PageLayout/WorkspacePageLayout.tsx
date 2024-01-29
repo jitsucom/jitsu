@@ -572,12 +572,14 @@ function PageHeader() {
       items: [
         { title: "Live Events", path: "/data", icon: <Activity className="w-full h-full" /> },
         { title: "Query Data", path: "/sql", icon: <Terminal className="w-full h-full" />, hidden: !appConfig?.ee },
-        {
-          title: "Event Statistics",
-          path: "/event-stat",
-          icon: <LineChart className="w-full h-full" />,
-          hidden: !appConfig?.ee,
-        },
+        appConfig.ee?.available
+          ? {
+              title: "Event Statistics",
+              path: "/event-stat",
+              icon: <LineChart className="w-full h-full" />,
+              hidden: !appConfig?.ee,
+            }
+          : undefined,
       ],
     },
     {
