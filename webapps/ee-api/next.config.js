@@ -11,7 +11,20 @@ const nextConfig = {
       use: "raw-loader",
     });
     return config;
-  }
+  },
+  async headers() {
+    return [
+      {
+        source: "/:path*{/}?",
+        headers: [
+          {
+            key: "X-Frame-Options",
+            value: "DENY",
+          },
+        ],
+      },
+    ];
+  },
 }
 
 const withTM = require('next-transpile-modules')(['juava']); // pass the modules you would like to see transpiled
