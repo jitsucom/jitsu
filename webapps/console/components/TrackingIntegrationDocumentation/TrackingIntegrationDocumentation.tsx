@@ -11,13 +11,13 @@ import { ReactManual } from "./React";
 import { useURLPersistedState } from "../../lib/ui";
 import { ButtonLabel } from "../ButtonLabel/ButtonLabel";
 import { FiMonitor } from "react-icons/fi";
-import { FaReact } from "react-icons/fa";
-import { IoLogoJavascript } from "react-icons/io5";
-import { JavaScriptManual } from "./JavaScript";
+import { FaGlobe, FaNodeJs, FaReact } from "react-icons/fa";
+import { NPMManual } from "./NPMPackage";
 import { Segment } from "./Segment";
 import { useAppConfig } from "../../lib/context";
 import { ReactNode, useState } from "react";
 import { HiSelector } from "react-icons/hi";
+import { HTTPManual } from "./HTTPApi";
 
 function SegmentLogo() {
   return (
@@ -116,6 +116,9 @@ export const TrackingIntegrationDocumentation: React.FC<{ streamId: string; onCa
       : stream?.publicKeys?.[0]
       ? `${stream.publicKeys[0].id}:${stream.publicKeys[0].hint}`
       : streamId || "{write-key}";
+  const serverWriteKey = stream?.privateKeys?.[0]
+    ? `${stream.privateKeys[0].id}:${stream.privateKeys[0].hint}`
+    : "{server-write-key}";
   const displayDomain = `${appConfig.publicEndpoints.protocol}://${selectedDomain ?? domains?.[0]}`;
   const wrap = (r: ReactNode) => {
     return (
@@ -170,9 +173,9 @@ export const TrackingIntegrationDocumentation: React.FC<{ streamId: string; onCa
                     children: wrap(<ReactManual domain={displayDomain} writeKey={writeKey || undefined} />),
                   },
                   {
-                    label: <ButtonLabel icon={<IoLogoJavascript className="text-lg" />}>JavaScript</ButtonLabel>,
+                    label: <ButtonLabel icon={<FaNodeJs className="text-lg" />}>NPM Package</ButtonLabel>,
                     key: "js",
-                    children: wrap(<JavaScriptManual domain={displayDomain} writeKey={writeKey || undefined} />),
+                    children: wrap(<NPMManual domain={displayDomain} writeKey={writeKey || undefined} />),
                   },
                   {
                     label: (
@@ -188,6 +191,15 @@ export const TrackingIntegrationDocumentation: React.FC<{ streamId: string; onCa
                     ),
                     key: "segment",
                     children: wrap(<Segment domain={displayDomain} />),
+                  },
+                  {
+                    label: (
+                      <ButtonLabel className="text-lg" icon={<FaGlobe />}>
+                        HTTP API
+                      </ButtonLabel>
+                    ),
+                    key: "http",
+                    children: wrap(<HTTPManual domain={displayDomain} writeKey={serverWriteKey || undefined} />),
                   },
                 ]}
               />

@@ -97,7 +97,7 @@ services:
     restart: "on-failure"
     environment:
       CONSOLE_PASSWORD: ${CONSOLE_PASSWORD:-default}
-    command: "curl -H 'Authorization: Bearer service-admin-account:${CONSOLE_PASSWORD:-default}' http://console:3000/api/admin/catalog-refresh"
+    command: "curl --silent --output nul --show-error -H 'Authorization: Bearer service-admin-account:${CONSOLE_PASSWORD:-default}' http://console:3000/api/admin/catalog-refresh?initial=true"
     depends_on:
       console:
         condition: service_healthy

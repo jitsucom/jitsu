@@ -10,7 +10,7 @@ function getExampleJsonConfig() {
   );
 }
 
-export const JavaScriptManual: React.FC<{ domain: string; writeKey?: string }> = ({ domain, writeKey }) => {
+export const NPMManual: React.FC<{ domain: string; writeKey?: string }> = ({ domain, writeKey }) => {
   return (
     <div className="py-8 px-6 flex justify-center">
       <div className="prose max-w-6xl w-full ">

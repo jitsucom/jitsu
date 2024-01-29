@@ -3,6 +3,7 @@ import { db } from "../../../lib/server/db";
 import { rpc } from "juava";
 import { z } from "zod";
 import { getServerLog } from "../../../lib/server/log";
+import { isTruish } from "../../../lib/shared/chores";
 
 const log = getServerLog("catalog-refresh");
 const yaml = require("js-yaml");
@@ -26,12 +27,17 @@ function shuffle<T>(arr: T[]) {
 }
 
 export default createRoute()
-  .GET({ auth: true, query: z.object({ limit: z.string().optional(), source: z.string().optional() }) })
+  .GET({
+    auth: true,
+    query: z.object({ limit: z.string().optional(), source: z.string().optional(), initial: z.string().optional() }),
+  })
   .handler(async ({ user, req, query }) => {
     if (!process.env.SYNCS_ENABLED) {
       return;
     }
     await verifyAdmin(user);
+
+    const initialMode = isTruish(query.initial);
 
     const sources: string[] = (await rpc(`https://api.github.com/repos/${repo}/contents/${basePath}?ref=${branch}`))
       .filter(({ name }) => name.startsWith("source-"))
@@ -47,7 +53,7 @@ export default createRoute()
     const promises: Promise<any>[] = [];
     for (let i = 0; i < max; i++) {
       const src = sources[i];
-      promises.push(processSrc(src));
+      promises.push(processSrc(src, initialMode));
       if (i % 10 === 0) {
         const results = await Promise.all(promises);
         for (const result of results) {
@@ -70,7 +76,19 @@ export default createRoute()
   })
   .toNextApiHandler();
 
-async function processSrc(src: string) {
+async function processSrc(src: string, initial?: boolean) {
+  const presentId = (
+    await db.prisma().connectorPackage.findFirst({ where: { packageId: `airbyte/${src}`, packageType: "airbyte" } })
+  )?.id;
+  if (presentId && initial) {
+    log.atDebug().log(`Skipping ${src} because it's already in the database`);
+    return { [`airbyte/${src}`]: "already initialized" };
+  }
+  let logger = log.atInfo();
+  if (initial) {
+    // initial is used in docker-compose init. no need for logs spam
+    logger = log.atDebug();
+  }
   const mitVersions = new Set<string>();
   const otherVersions: Record<string, Set<string>> = {};
   const metadataUrl = `https://raw.githubusercontent.com/${repo}/master/${basePath}/${src}/metadata.yaml`;
@@ -78,7 +96,7 @@ async function processSrc(src: string) {
   let packageId: string | undefined = undefined;
   let metadata: any = {};
   let icon: Buffer | undefined = undefined;
-  log.atDebug().log(`Processing ${src}: ${metadataUrl}`);
+  logger.log(`Processing ${src}: ${metadataUrl}`);
   if (res.ok) {
     metadata = yaml.load(await res.text(), { json: true });
 
@@ -87,10 +105,10 @@ async function processSrc(src: string) {
     if (!license || license.toLowerCase() !== "mit") {
       const pageSize = 100; // max supported by github API
       const commitHistory = `https://api.github.com/repos/${repo}/commits?path=/${basePath}/${src}/metadata.yaml&per_page=${pageSize}`;
-      log.atDebug().log(`Source ${src} has ${license} license. Looking for MIT versions at ${commitHistory}`);
+      logger.log(`Source ${src} has ${license} license. Looking for MIT versions at ${commitHistory}`);
       for (let page = 1; page <= 10; page++) {
         const commits = await rpc(commitHistory + "&page=" + page);
-        log.atDebug().log(`Source ${src} found ${commits.length} commits (page ${page})`);
+        logger.log(`Source ${src} found ${commits.length} commits (page ${page})`);
         for (const { sha } of commits) {
           const commitFile = `https://raw.githubusercontent.com/${repo}/${sha}/${basePath}/${src}/metadata.yaml`;
           const oldYml = await fetch(commitFile);
@@ -100,9 +118,9 @@ async function processSrc(src: string) {
             if (license === "mit") {
               const dockerVersion = oldMeta.data?.dockerImageTag;
               if (!dockerVersion) {
-                log.atDebug().log(`MIT version of ${src} doesn't have dockerImageTag: ${commitFile}`);
+                logger.log(`MIT version of ${src} doesn't have dockerImageTag: ${commitFile}`);
               } else {
-                log.atDebug().log(`Found MIT version of ${src} --> ${dockerVersion}`);
+                logger.log(`Found MIT version of ${src} --> ${dockerVersion}`);
                 mitVersions.add(dockerVersion);
               }
             } else {
@@ -132,13 +150,10 @@ async function processSrc(src: string) {
     if (iconRes.ok) {
       icon = Buffer.from(await iconRes.arrayBuffer());
     } else {
-      log.atDebug().log(`Source ${src} icon file ${metadata.data?.icon} doesn't exist at ${iconUrl}`);
+      logger.log(`Source ${src} icon file ${metadata.data?.icon} doesn't exist at ${iconUrl}`);
     }
   }
 
-  const currentId = (
-    await db.prisma().connectorPackage.findFirst({ where: { packageId: packageId, packageType: "airbyte" } })
-  )?.id;
   const data = {
     packageId: packageId as string,
     packageType: "airbyte",
@@ -149,12 +164,17 @@ async function processSrc(src: string) {
     },
     logoSvg: icon,
   };
+
+  const currentId =
+    presentId ||
+    (await db.prisma().connectorPackage.findFirst({ where: { packageId: packageId, packageType: "airbyte" } }))?.id;
+
   if (currentId) {
-    log.atDebug().log(`Updating ${packageId} info. Has icon: ${!!icon}, has metadata: ${!!metadata}`);
+    logger.log(`Updating ${packageId} info. Has icon: ${!!icon}, has metadata: ${!!metadata}`);
     await db.prisma().connectorPackage.update({ where: { id: currentId }, data });
     return { [`${packageId}`]: "updated" };
   } else {
-    log.atDebug().log(`Creating ${packageId} info. Has icon: ${!!icon}, has metadata: ${!!metadata}`);
+    logger.log(`Creating ${packageId} info. Has icon: ${!!icon}, has metadata: ${!!metadata}`);
     await db.prisma().connectorPackage.create({ data: data });
     return { [`${packageId}`]: "created" };
   }

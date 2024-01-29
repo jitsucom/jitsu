@@ -14,7 +14,7 @@ import { QuestionCircleOutlined } from "@ant-design/icons";
 import { ProvisionDatabaseButton } from "../../components/ProvisionDatabaseButton/ProvisionDatabaseButton";
 import { ConnectionsDiagram } from "../../components/ConnectionsDiagram/ConnectionsDiagram";
 import { getLog } from "juava";
-import { Activity, Chrome, Edit3, MoreVertical, Share2, Zap } from "lucide-react";
+import { Activity, Chrome, Edit3, MoreVertical, Share2, Wrench, Zap } from "lucide-react";
 import classNames from "classnames";
 import { toURL } from "../../lib/shared/url";
 import JSON5 from "json5";
@@ -307,6 +307,11 @@ function WorkspaceOverview(props: {
                     href: `/connections?sorting=${encodeURIComponent(
                       btoa(JSON.stringify({ columns: [{ field: "Source", order: "ascend" }] }))
                     )}&source=${encodeURIComponent(id)}`,
+                  },
+                  {
+                    label: "Setup Instructions",
+                    icon: <Wrench className="w-4 h-4" />,
+                    href: `/streams?id=${id}&implementationFor=${id}`,
                   },
                 ]}
               />
