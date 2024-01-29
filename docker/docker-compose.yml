@@ -55,12 +55,12 @@ services:
     restart: "unless-stopped"
     platform: linux/amd64
     environment:
-      INGEST_HOST: ${INGEST_DOMAIN}
+      INGEST_HOST: ${INGEST_DOMAIN:-localhost}
       INGEST_PORT: ${JITSU_INGEST_PORT:-8080}
       ROTOR_URL: "http://rotor:3401"
       BULKER_URL: "http://bulker:3042"
-      CONSOLE_AUTH_TOKENS: ${CONSOLE_PASSWORD}
-      BULKER_AUTH_KEY: ${BULKER_PASSWORD}
+      CONSOLE_AUTH_TOKENS: ${CONSOLE_PASSWORD:-default}
+      BULKER_AUTH_KEY: ${BULKER_PASSWORD:-default}
       MIT_COMPLIANT: ${MIT_COMPLIANT:-true}
       DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD:-default}@postgres:5432/postgres?schema=newjitsu"
       REDIS_URL: "redis://default:${REDIS_PASSWORD:-default}@redis:6379"
@@ -70,7 +70,7 @@ services:
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
       SYNCS_ENABLED: ${SYNCS_ENABLED:-false}
       SYNCCTL_URL: "http://syncctl:${EXTERNAL_SYNCS_PORT:-3043}"
-      SYNCCTL_AUTH_KEY: ${SYNCCTL_PASSWORD}
+      SYNCCTL_AUTH_KEY: ${SYNCCTL_PASSWORD:-default}
       GOOGLE_SCHEDULER_KEY: ${GOOGLE_SCHEDULER_KEY}
       GOOGLE_SCHEDULER_LOCATION: ${GOOGLE_SCHEDULER_LOCATION:-us-central1}
       JITSU_PUBLIC_URL: "${JITSU_PUBLIC_URL:-${NEXTAUTH_URL:-http://localhost:${JITSU_UI_PORT:-3000}/}}"
@@ -96,8 +96,8 @@ services:
     image: curlimages/curl
     restart: "on-failure"
     environment:
-      CONSOLE_PASSWORD: ${CONSOLE_PASSWORD}
-    command: "curl -H 'Authorization: Bearer service-admin-account:${CONSOLE_PASSWORD}' http://console:3000/api/admin/catalog-refresh"
+      CONSOLE_PASSWORD: ${CONSOLE_PASSWORD:-default}
+    command: "curl -H 'Authorization: Bearer service-admin-account:${CONSOLE_PASSWORD:-default}' http://console:3000/api/admin/catalog-refresh"
     depends_on:
       console:
         condition: service_healthy
@@ -110,9 +110,9 @@ services:
     environment:
       TERM: "xterm-256color"
       BULKER_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
-      BULKER_AUTH_TOKENS: ${BULKER_PASSWORD}
+      BULKER_AUTH_TOKENS: ${BULKER_PASSWORD:-default}
       BULKER_CONFIG_SOURCE: "http://console:3000/api/admin/export/bulker-connections"
-      BULKER_CONFIG_SOURCE_HTTP_AUTH_TOKEN: "service-admin-account:${CONSOLE_PASSWORD}"
+      BULKER_CONFIG_SOURCE_HTTP_AUTH_TOKEN: "service-admin-account:${CONSOLE_PASSWORD:-default}"
       BULKER_CACHE_DIR: "/tmp/cache"
       REDIS_URL: "redis://default:${REDIS_PASSWORD:-default}@redis:6379"
       BULKER_INTERNAL_TASK_LOG: '{"id":"task_log","metricsKeyPrefix":"syncs","usesBulker":true,"type":"postgres","options":{"mode":"stream"},"credentials":{"host":"postgres","port":5432,"sslMode":"disable","database":"postgres","password":"${POSTGRES_PASSWORD:-default}","username":"postgres","defaultSchema":"newjitsu"}}'
@@ -138,11 +138,11 @@ services:
       DISABLE_SERVICE_prisma: "true"
       DISABLE_SERVICE_pg: "true"
       BULKER_URL: "http://bulker:3042"
-      BULKER_AUTH_KEY: ${BULKER_PASSWORD}
+      BULKER_AUTH_KEY: ${BULKER_PASSWORD:-default}
       KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
       REDIS_URL: "redis://default:${REDIS_PASSWORD:-default}@redis:6379"
       REPOSITORY_BASE_URL: "http://console:3000/api/admin/export/"
-      REPOSITORY_AUTH_TOKEN: "service-admin-account:${CONSOLE_PASSWORD}"
+      REPOSITORY_AUTH_TOKEN: "service-admin-account:${CONSOLE_PASSWORD:-default}"
       REPOSITORY_CACHE_DIR: "/tmp/cache"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://rotor:3401/health"]
@@ -162,11 +162,11 @@ services:
     restart: "unless-stopped"
     environment:
       TERM: "xterm-256color"
-      INGEST_DATA_DOMAIN: ${INGEST_DOMAIN}
+      INGEST_DATA_DOMAIN: ${INGEST_DOMAIN:-localhost}
       INGEST_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
-      INGEST_AUTH_TOKENS: ${BULKER_PASSWORD}
+      INGEST_AUTH_TOKENS: ${BULKER_PASSWORD:-default}
       INGEST_REPOSITORY_URL: "http://console:3000/api/admin/export/streams-with-destinations"
-      INGEST_REPOSITORY_AUTH_TOKEN: "service-admin-account:${CONSOLE_PASSWORD}"
+      INGEST_REPOSITORY_AUTH_TOKEN: "service-admin-account:${CONSOLE_PASSWORD:-default}"
       INGEST_CACHE_DIR: "/tmp/cache"
       INGEST_REDIS_URL: "redis://default:${REDIS_PASSWORD:-default}@redis:6379"
       INGEST_ROTOR_URL: "http://rotor:3401"
@@ -192,11 +192,11 @@ services:
       TERM: "xterm-256color"
       HTTP_PORT: ${EXTERNAL_SYNCS_PORT:-3043}
       SYNCCTL_SYNCS_ENABLED: ${SYNCS_ENABLED:-false}
-      SYNCCTL_AUTH_TOKENS: ${SYNCCTL_PASSWORD}
+      SYNCCTL_AUTH_TOKENS: ${SYNCCTL_PASSWORD:-default}
       SYNCCTL_DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD:-default}@127.0.0.1:${EXTERNAL_POSTGRES_PORT:-5432}/postgres?search_path=newjitsu"
       SYNCCTL_SIDECAR_DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD:-default}@${EXTERNAL_DATABASE_HOST}:${EXTERNAL_POSTGRES_PORT:-5432}/postgres?search_path=newjitsu"
       SYNCCTL_BULKER_URL: "http://${EXTERNAL_BULKER_HOST}:${EXTERNAL_BULKER_PORT:-3045}"
-      SYNCCTL_BULKER_AUTH_TOKEN: ${BULKER_PASSWORD}
+      SYNCCTL_BULKER_AUTH_TOKEN: ${BULKER_PASSWORD:-default}
       SYNCCTL_BULKER_LOGS_CONNECTION_ID: task_log
       SYNCCTL_KUBERNETES_CLIENT_CONFIG: "${SYNCCTL_KUBERNETES_CLIENT_CONFIG:-local}"
       SYNCCTL_KUBERNETES_CONTEXT: "${SYNCCTL_KUBERNETES_CONTEXT}"
