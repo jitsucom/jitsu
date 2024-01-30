@@ -323,10 +323,7 @@ export async function syncWithScheduler(baseUrl: string) {
   }
   const googleSchedulerKey = JSON.parse(googleSchedulerKeyJson);
   const googleSchedulerProjectId = googleSchedulerKey.project_id;
-  const googleSchedulerLocation = requireDefined(
-    process.env.GOOGLE_SCHEDULER_LOCATION,
-    "env GOOGLE_SCHEDULER_LOCATION is not defined"
-  );
+  const googleSchedulerLocation = process.env.GOOGLE_SCHEDULER_LOCATION || "us-central1";
   const googleSchedulerParent = `projects/${googleSchedulerProjectId}/locations/${googleSchedulerLocation}`;
 
   const allSyncs = await db.prisma().configurationObjectLink.findMany({

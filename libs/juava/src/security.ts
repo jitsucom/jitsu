@@ -24,10 +24,13 @@ export function createHash(secret: string): string {
 }
 
 export function checkToken(hashOrPlain: string, secret: string): boolean {
-  if (hashOrPlain.indexOf(".") === -1) {
-    return secret === hashOrPlain;
+  if (secret === hashOrPlain) {
+    return true;
   }
-  return checkHash(hashOrPlain, secret);
+  if (hashOrPlain.indexOf(".") >= 0) {
+    return checkHash(hashOrPlain, secret);
+  }
+  return false;
 }
 
 export function checkHash(hash: string, secret: string): boolean {

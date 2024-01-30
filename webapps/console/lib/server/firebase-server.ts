@@ -41,6 +41,10 @@ export function isFirebaseEnabled(): boolean {
   return !!(process.env.FIREBASE_AUTH || (process.env.FIREBASE_ADMIN && process.env.FIREBASE_CLIENT_CONFIG));
 }
 
+export function isGithubEnabled(): boolean {
+  return !!(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET);
+}
+
 const bearerPrefix = "bearer ";
 
 const firebaseService: Singleton<admin.app.App | undefined> = getSingleton("firebase-service", () => {

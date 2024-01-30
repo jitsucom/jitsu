@@ -274,11 +274,19 @@ function NextJsSigninForm() {
   const signInAndRedirect = async (provider: string) => {
     await signIn(provider);
   };
+  useEffect(() => {
+    if (!appConfig.auth?.githubEnabled) {
+      router.push("/api/auth/signin");
+    }
+  }, [appConfig.auth, router]);
   return (
     <>
       <div className="w-screen h-screen flex justify-center items-center">
         <div className="flex flex-col items-center justify-center bg-backgroundLight p-8 rounded-xl shadow-lg">
-          <h1 className="text-2xl mb-4">{signup ? "Sign Up" : "Sign In"}</h1>
+          <div className="flex items-center w-fit h-10 space-x-2 mb-6">
+            <div className="aspect-square h-full">{branding.logo}</div>
+            <div className="text-textDark h-4/6">{branding.wordmark}</div>
+          </div>
           <JitsuButton
             icon={<FiGithub />}
             type="primary"

@@ -18,28 +18,21 @@ cp .env.example .env
 
 2. Set up all required variables in `.env` file.
 
+#### `ADMIN_CREDENTIALS`
+
+**Required**
+
+Comma-separated list of admin user credentials in format email:password, e.g.: email1@example.com:password1,email2@example.com:password2
+
 #### `JITSU_PUBLIC_URL`
 
-This is a URL where Jitsu UI will be available.
+This is an URL where Jitsu UI will be available.
 
 When using jitsu locally, no need to set this variable.
 
 **Default value:** `http://localhost:${JITSU_UI_PORT}/`
 
 When UI is deployed on remote server, set it with your remote server URL, e.g.: `https://jitsu.mycompany.com:3000`.
-
-#### `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`
-
-Jitsu self-hosted authorization is based on GitHub OAuth.
-
-You'll need to create a GitHub OAuth application to get those values:
-
-* Go to [Github Developer settings](https://github.com/settings/developers) » **OAuth Apps** » **New OAuth App**.
-* Put any value to `Application name`
-* Set `Homepage URL` and `Authorization callback URL` with `JITSU_PUBLIC_URL` value
-* Press `Register application` button
-* Press `Generate a new client secret` button
-* Copy `Client ID` and `Client Secret` values to `.env` file to `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` variables respectively.
 
 #### `INGEST_DOMAIN`
 

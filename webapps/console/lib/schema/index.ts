@@ -76,6 +76,7 @@ export const AppConfig = z.object({
   auth: z
     .object({
       firebasePublic: z.any(),
+      githubEnabled: z.boolean().optional(),
     })
     .optional(),
   frontendTelemetry: z.object({

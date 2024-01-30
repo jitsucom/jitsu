@@ -1,5 +1,4 @@
 import GithubProvider from "next-auth/providers/github";
-import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { NextAuthOptions, User } from "next-auth";
 import { db } from "./server/db";
@@ -13,10 +12,10 @@ const crypto = require("crypto");
 
 const log = getServerLog("auth");
 
-const googleProvider = GoogleProvider({
-  clientId: "942257799287-a7jjl052dugnfav58ij8lihq17o9mc41.apps.googleusercontent.com",
-  clientSecret: "1eEfuTzfp5f9ZkDHg4YqnqhE",
-});
+// const googleProvider = GoogleProvider({
+//   clientId: "942257799287-a7jjl052dugnfav58ij8lihq17o9mc41.apps.googleusercontent.com",
+//   clientSecret: "1eEfuTzfp5f9ZkDHg4YqnqhE",
+// });
 const githubProvider = GithubProvider({
   clientId: process.env.GITHUB_CLIENT_ID as string,
   clientSecret: process.env.GITHUB_CLIENT_SECRET as string,
@@ -34,14 +33,14 @@ const firebase = {
 };
 
 const credentialsProvider =
-  process.env.TEST_CREDENTIALS &&
+  (process.env.ADMIN_CREDENTIALS || !process.env.GITHUB_CLIENT_ID) &&
   CredentialsProvider({
     authorize(credentials) {
-      if (!process.env.TEST_CREDENTIALS || !credentials) {
+      if (!process.env.ADMIN_CREDENTIALS || !credentials) {
         return null;
       }
       log.atInfo().log(JSON.stringify(credentials));
-      const userRecord = process.env.TEST_CREDENTIALS.split(",")
+      const userRecord = process.env.ADMIN_CREDENTIALS.split(",")
         .map(s => s.trim().split(":"))
         .find(([user]) => user.toLowerCase() === credentials.username.toLowerCase());
       if (!userRecord) {
@@ -109,21 +108,24 @@ function generateSecret(base: (string | undefined)[]) {
   return secretKey;
 }
 
+const providers: any[] = [];
+if (process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET) {
+  providers.push(githubProvider);
+}
+providers.push(credentialsProvider);
+
 export const nextAuthConfig: NextAuthOptions = {
   // Configure one or more authentication providers
-  providers: [githubProvider, googleProvider, credentialsProvider].filter(provider => !!provider) as any,
+  providers: providers.filter(provider => !!provider) as any,
   pages: {
     error: "/error/auth", // Error code passed in query string as ?error=
   },
-
+  theme: {
+    logo: "/logo-with-text.svg",
+  },
   secret:
     process.env.JWT_SECRET ||
-    generateSecret([
-      process.env.GITHUB_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.DATABASE_URL,
-      process.env.REDIS_URL,
-    ]),
+    generateSecret([process.env.GITHUB_CLIENT_ID, process.env.DATABASE_URL, process.env.REDIS_URL]),
   callbacks: {
     jwt: async props => {
       const loginProvider = (props.account?.provider || props.token.loginProvider || "credentials") as string;

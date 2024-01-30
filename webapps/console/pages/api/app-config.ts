@@ -3,7 +3,7 @@ import { AppConfig } from "../../lib/schema";
 import { getAppEndpoint } from "../../lib/domains";
 import { getEeConnection } from "../../lib/server/ee";
 import { isEEAvailable } from "./ee/jwt";
-import { isFirebaseEnabled, requireFirebaseOptions } from "../../lib/server/firebase-server";
+import { isFirebaseEnabled, isGithubEnabled, requireFirebaseOptions } from "../../lib/server/firebase-server";
 import { nangoConfig } from "../../lib/server/oauth/nango-config";
 import { isTruish } from "../../lib/shared/chores";
 import { readOnlyUntil } from "../../lib/server/read-only-mode";
@@ -22,7 +22,7 @@ export default createRoute()
     return {
       docsUrl: process.env.JITSU_DOCUMENTATION_URL || "https://docs-jitsu-com.staging.jitsu.com/",
       readOnlyUntil: readOnlyUntil?.toISOString(),
-      credentialsLoginEnabled: !!process.env.TEST_CREDENTIALS && !!process.env.TEST_CREDENTIALS_SHOW_LOGIN,
+      credentialsLoginEnabled: !!process.env.ADMIN_CREDENTIALS,
       ee: {
         available: isEEAvailable(),
         host: isEEAvailable() ? getEeConnection().host : undefined,
@@ -31,6 +31,10 @@ export default createRoute()
       auth: isFirebaseEnabled()
         ? {
             firebasePublic: requireFirebaseOptions().client,
+          }
+        : isGithubEnabled()
+        ? {
+            githubEnabled: true,
           }
         : undefined,
       billingEnabled: isEEAvailable(),
