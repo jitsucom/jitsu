@@ -44,7 +44,8 @@ async function getAutomaticVersion(str: ReleaseStream, tagPrefix: string): Promi
   const latest = allSemvers.sort((a, b) => semverCompare(a, b)).pop();
   if (latest) {
     const nextVersion = `${latest.major}.${latest.minor}.${latest.patch + 1}`;
-    console.log(`Found latest stable release: ' + ${latest.version}. Going touse ${nextVersion} as next version`);
+    console.log(`Found latest stable release: ' + ${latest.version}. Going to use ${nextVersion} as next version`);
+    return nextVersion;
   }
   const [major, minor] = versions.latest.split(".");
   return `${major}.${minor}.0`;
