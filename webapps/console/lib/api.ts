@@ -1,6 +1,6 @@
 import { ZodType } from "zod";
 import { NextApiHandler, NextApiRequest, NextApiResponse } from "next";
-import { assertDefined, checkToken, getErrorMessage, requireDefined, tryJson } from "juava";
+import { assertDefined, checkHash, checkRawToken, getErrorMessage, requireDefined, tryJson } from "juava";
 import { getServerSession, Session } from "next-auth";
 import { nextAuthConfig } from "./nextauth.config";
 import { SessionUser } from "./schema";
@@ -85,10 +85,18 @@ export function getAuthBearerToken(req: NextApiRequest): string | undefined {
 }
 
 function findServiceAccount({ keyId, secret }): SessionUser | undefined {
+  let tokens: string[] = [];
+  let checkFunction: (token: string, secret: string) => boolean = () => false;
   if (process.env.CONSOLE_AUTH_TOKENS) {
-    const tokens = process.env.CONSOLE_AUTH_TOKENS.split(",");
+    tokens = process.env.CONSOLE_AUTH_TOKENS.split(",");
+    checkFunction = checkHash;
+  } else if (process.env.CONSOLE_RAW_AUTH_TOKENS) {
+    tokens = process.env.CONSOLE_RAW_AUTH_TOKENS.split(",");
+    checkFunction = checkRawToken;
+  }
+  if (tokens.length > 0) {
     for (const tokenHashOrPlain of tokens) {
-      if (checkToken(tokenHashOrPlain, secret)) {
+      if (checkFunction(tokenHashOrPlain, secret)) {
         return {
           internalId: adminServiceAccountEmail,
           externalUsername: adminServiceAccountEmail,
@@ -120,7 +128,7 @@ export async function getUser(
       if (!token) {
         throw new ApiError(`Invalid API key id ${keyId}`, { keyId }, { status: 401 });
       }
-      if (!checkToken(token.hash, secret)) {
+      if (!checkHash(token.hash, secret)) {
         throw new ApiError(`Invalid API key secret for ${keyId}`, { keyId }, { status: 401 });
       }
       const user = requireDefined(

@@ -52,7 +52,7 @@ services:
 
   console:
     tty: true
-    image: jitsucom/console:latest
+    image: jitsucom/console:beta
     restart: "unless-stopped"
     platform: linux/amd64
     environment:
@@ -60,7 +60,7 @@ services:
       INGEST_PORT: ${JITSU_INGEST_PORT:-8080}
       ROTOR_URL: "http://rotor:3401"
       BULKER_URL: "http://bulker:3042"
-      CONSOLE_AUTH_TOKENS: ${CONSOLE_TOKEN:-default}
+      CONSOLE_RAW_AUTH_TOKENS: ${CONSOLE_TOKEN:-default}
       BULKER_AUTH_KEY: ${BULKER_TOKEN:-default}
       MIT_COMPLIANT: ${MIT_COMPLIANT:-false}
       DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD:-default}@postgres:5432/postgres?schema=newjitsu"
@@ -103,13 +103,13 @@ services:
 
   bulker:
     tty: true
-    image: jitsucom/bulker:latest
+    image: jitsucom/bulker:beta
     platform: linux/amd64
     restart: "unless-stopped"
     environment:
       TERM: "xterm-256color"
       BULKER_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
-      BULKER_AUTH_TOKENS: ${BULKER_TOKEN:-default}
+      BULKER_RAW_AUTH_TOKENS: ${BULKER_TOKEN:-default}
       BULKER_CONFIG_SOURCE: "http://console:3000/api/admin/export/bulker-connections"
       BULKER_CONFIG_SOURCE_HTTP_AUTH_TOKEN: "service-admin-account:${CONSOLE_TOKEN:-default}"
       BULKER_CACHE_DIR: "/tmp/cache"
@@ -130,7 +130,7 @@ services:
 
   rotor:
     tty: true
-    image: jitsucom/rotor:latest
+    image: jitsucom/rotor:beta
     platform: linux/amd64
     restart: "unless-stopped"
     environment:
@@ -156,15 +156,16 @@ services:
 
   ingest:
     tty: true
-    image: jitsucom/ingest:latest
+    image: jitsucom/ingest:beta
     platform: linux/amd64
     restart: "unless-stopped"
     environment:
       TERM: "xterm-256color"
       INGEST_DATA_DOMAIN: ${INGEST_DOMAIN:-localhost}
       INGEST_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
-      INGEST_AUTH_TOKENS: ${BULKER_TOKEN:-default}
+      INGEST_RAW_AUTH_TOKENS: ${BULKER_TOKEN:-default}
       INGEST_REPOSITORY_URL: "http://console:3000/api/admin/export/streams-with-destinations"
+      INGEST_SCRIPT_ORIGIN: "http://console:3000/api/s/javascript-library"
       INGEST_REPOSITORY_AUTH_TOKEN: "service-admin-account:${CONSOLE_TOKEN:-default}"
       INGEST_CACHE_DIR: "/tmp/cache"
       INGEST_REDIS_URL: "redis://default:${REDIS_PASSWORD:-default}@redis:6379"
@@ -184,14 +185,14 @@ services:
 
   syncctl:
     tty: true
-    image: jitsucom/syncctl:latest
+    image: jitsucom/syncctl:beta
     platform: linux/amd64
     restart: "on-failure"
     environment:
       TERM: "xterm-256color"
       HTTP_PORT: ${EXTERNAL_SYNCS_PORT:-3043}
       SYNCCTL_SYNCS_ENABLED: ${SYNCS_ENABLED:-false}
-      SYNCCTL_AUTH_TOKENS: ${SYNCCTL_TOKEN:-default}
+      SYNCCTL_RAW_AUTH_TOKENS: ${SYNCCTL_TOKEN:-default}
       SYNCCTL_DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD:-default}@127.0.0.1:${EXTERNAL_POSTGRES_PORT:-5432}/postgres?search_path=newjitsu"
       SYNCCTL_SIDECAR_DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD:-default}@${EXTERNAL_POSTGRES_HOST}:${EXTERNAL_POSTGRES_PORT:-5432}/postgres?search_path=newjitsu"
       SYNCCTL_BULKER_URL: "http://${EXTERNAL_BULKER_HOST}:${EXTERNAL_BULKER_PORT:-3042}"

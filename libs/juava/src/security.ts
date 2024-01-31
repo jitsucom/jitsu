@@ -23,17 +23,15 @@ export function createHash(secret: string): string {
   return hashInternal(secret, randomSeed, globalSeed[0]);
 }
 
-export function checkToken(hashOrPlain: string, secret: string): boolean {
-  if (secret === hashOrPlain) {
-    return true;
-  }
-  if (hashOrPlain.indexOf(".") >= 0) {
-    return checkHash(hashOrPlain, secret);
-  }
-  return false;
+export function checkRawToken(hashOrPlain: string, secret: string): boolean {
+  return secret === hashOrPlain;
 }
 
 export function checkHash(hash: string, secret: string): boolean {
+  if (hash.indexOf(".") < 0) {
+    console.error(`Invalid auth token: ${hash} Should be in format \$\{salt\}.\$\{hash\}`);
+    return false;
+  }
   const [randomSeed] = hash.split(".");
   return globalSeed.find(seed => hash === hashInternal(secret, randomSeed, seed)) !== undefined;
 }
@@ -49,11 +47,14 @@ export type Authorizer = (secret: string) => boolean;
  * tokens. Each token can be a plain string or a hash of a string. The hash is
  * something that contains '.'.
  */
-export function createAuthorized(tokens: string): Authorizer {
+export function createAuthorized(
+  tokens: string,
+  checkFunc: (hashOrPlain: string, secret: string) => boolean
+): Authorizer {
   const authorizers = tokens
     .split(",")
     .map(tok => tok.trim())
-    .map(hashOrPlain => (secret: string) => checkToken(hashOrPlain, secret));
+    .map(hashOrPlain => (secret: string) => checkFunc(hashOrPlain, secret));
   return (secret: string) => authorizers.find(auth => auth(secret)) !== undefined;
 }
 

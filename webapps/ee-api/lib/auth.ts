@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { assertDefined, createAuthorized, newError, requireDefined } from "juava";
+import { assertDefined, checkRawToken, createAuthorized, newError, requireDefined } from "juava";
 
 import jwt from "jsonwebtoken";
 import * as process from "process";
@@ -9,7 +9,7 @@ const bearerPrefix = "Bearer ";
 
 const log = getServerLog("auth");
 
-const adminAuthorizer = createAuthorized(process.env.EE_API_AUTH_TOKENS || "");
+const adminAuthorizer = createAuthorized(process.env.EE_API_AUTH_TOKENS || "", checkRawToken);
 
 type UserAuthClaim = {
   type: "user";
