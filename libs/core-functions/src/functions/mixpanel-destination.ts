@@ -1,6 +1,6 @@
 import { FullContext, JitsuFunction } from "@jitsu/protocols/functions";
 import { RetryError } from "@jitsu/functions-lib";
-import type { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
+import type { AnalyticsServerEvent, Geo } from "@jitsu/protocols/analytics";
 import { randomId, hash } from "juava";
 import { MixpanelCredentials } from "../meta";
 import { eventTimeSafeMs } from "./lib";
@@ -59,6 +59,28 @@ function getQueryParam(url: string, param: string) {
   }
 }
 
+function geoParams(geo?: Geo) {
+  if (!geo) {
+    return {};
+  }
+  const params: any = {};
+  if (geo.country?.code) {
+    params.mp_country_code = geo.country.code;
+  }
+  if (geo.region?.code) {
+    params.$region = geo.region.code;
+  }
+  if (geo.city?.name) {
+    params.$city = geo.city.name;
+  }
+  if (geo.location?.latitude && geo.location?.longitude) {
+    params.$geo_source = "reverse_geocoding";
+    params.$latitude = geo.location.latitude;
+    params.$longitude = geo.location.longitude;
+  }
+  return params;
+}
+
 function clickParams(url: string) {
   if (!url) {
     return {};
@@ -115,7 +137,7 @@ function trackEvent(
       {
         event: eventType,
         properties: {
-          ip: analyticsContext.ip || event.requestIp,
+          ip: analyticsContext.ip,
           time: eventTimeSafeMs(event),
           $device_id: deviceId,
           distinct_id: distinctId,
@@ -131,8 +153,8 @@ function trackEvent(
           $referrer: evict(customProperties, "referrer"),
           $referring_domain: evict(customProperties, "referring_domain"),
           $session_id: analyticsContext.sessionId,
-          $latitude: analyticsContext.geo?.location?.latitude,
-          $longitude: analyticsContext.geo?.location?.longitude,
+
+          ...geoParams(analyticsContext.geo),
 
           //mobile
           $app_namespace: analyticsContext.app?.namespace,
@@ -212,10 +234,9 @@ function setProfileMessage(ctx: FullContext, distinctId: string, event: Analytic
         {
           $token: opts.projectToken,
           $distinct_id: distinctId,
-          $ip: event.context?.ip || event.requestIp,
-          $latitude: event.context?.geo?.location?.latitude,
-          $longitude: event.context?.geo?.location?.longitude,
+          $ip: event.context?.ip,
           $set: {
+            ...geoParams(event.context?.geo),
             ...traits,
             $browser: ctx.ua?.browser?.name,
             $browser_version: ctx.ua?.browser?.version,
@@ -238,9 +259,7 @@ function setProfileMessage(ctx: FullContext, distinctId: string, event: Analytic
         {
           $token: opts.projectToken,
           $distinct_id: distinctId,
-          $ip: event.context?.ip || event.requestIp,
-          $latitude: event.context?.geo?.location?.latitude,
-          $longitude: event.context?.geo?.location?.longitude,
+          $ip: event.context?.ip,
           $set_once: {
             ...utm(event.context?.campaign || {}, "initial_utm_"),
             $initial_referrer: event.context?.page?.referrer,
@@ -255,7 +274,7 @@ function setProfileMessage(ctx: FullContext, distinctId: string, event: Analytic
     const unionPayload: any = {
       $token: opts.projectToken,
       $distinct_id: distinctId,
-      $ip: event.context?.ip || event.requestIp,
+      $ip: event.context?.ip,
       $union: { [groupKey]: [groupId] },
     };
     reqs.push({

@@ -32,7 +32,7 @@ function trackEvent(event: AnalyticsServerEvent): any {
       referrer: event.context?.referrer,
       referring_domain: event.context?.referring_domain,
       ...prefix(event.context?.campaign || {}, "campaign_"),
-      ip: event.requestIp,
+      ip: event.context?.ip,
       userAgent: event.context?.userAgent,
       locale: event.context?.locale,
       ...prefix(event.context?.screen || {}, "screen_"),

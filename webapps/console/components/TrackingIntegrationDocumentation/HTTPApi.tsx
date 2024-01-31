@@ -36,12 +36,12 @@ export const HTTPManual: React.FC<{ domain: string; writeKey?: string }> = ({ do
             site
           </li>
           <li>
-            <code>request_ip</code> and <code>userAgent</code> are not extracted from the request headers, but should be
-            passed explicitly in the event payload
+            <code>context.ip</code> and <code>context.userAgent</code> are not extracted from the request headers, but
+            should be passed explicitly in the event payload
           </li>
           <li>
-            If <code>request_ip</code> is not present, the ip field will be empty to avoid confusion; same applies for{" "}
-            <code>userAgent</code>
+            If <code>context.ip</code> is not present, the ip field will be empty to avoid confusion; same applies for{" "}
+            <code>context.userAgent</code>
           </li>
         </ul>
         <h2>Examples</h2>
@@ -67,6 +67,7 @@ export const HTTPManual: React.FC<{ domain: string; writeKey?: string }> = ({ do
       "name": "jitsu-js",
       "version": "1.0.0"
     },
+    "ip": "127.0.0.1",
     "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/111.0",
     "locale": "en-US",
     "screen": {
@@ -94,7 +95,6 @@ export const HTTPManual: React.FC<{ domain: string; writeKey?: string }> = ({ do
       "source": "g"
     }
   },
-  "request_ip": "127.0.0.1",
   "receivedAt": "2023-04-12T13:29:04.690Z"
 }'`}</CodeBlock>
       </div>
