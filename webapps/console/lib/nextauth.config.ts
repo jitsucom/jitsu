@@ -2,62 +2,87 @@ import GithubProvider from "next-auth/providers/github";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { NextAuthOptions, User } from "next-auth";
 import { db } from "./server/db";
-import { checkRawToken, requireDefined } from "juava";
+import { checkHash, createHash, hash, requireDefined } from "juava";
 import { ApiError } from "./shared/errors";
 import { getServerLog } from "./server/log";
 import { withProductAnalytics } from "./server/telemetry";
 import { NextApiRequest } from "next";
+import { isTruish } from "./shared/chores";
 
 const crypto = require("crypto");
 
 const log = getServerLog("auth");
 
-// const googleProvider = GoogleProvider({
-//   clientId: "942257799287-a7jjl052dugnfav58ij8lihq17o9mc41.apps.googleusercontent.com",
-//   clientSecret: "1eEfuTzfp5f9ZkDHg4YqnqhE",
-// });
-const githubProvider = GithubProvider({
-  clientId: process.env.GITHUB_CLIENT_ID as string,
-  clientSecret: process.env.GITHUB_CLIENT_SECRET as string,
-});
+const githubProvider = process.env.GITHUB_CLIENT_ID
+  ? GithubProvider({
+      clientId: process.env.GITHUB_CLIENT_ID as string,
+      clientSecret: process.env.GITHUB_CLIENT_SECRET as string,
+    })
+  : undefined;
 
-const firebase = {
-  apiKey: "AIzaSyDBm2HqvxleuJyD9xo8rh0vo1TQGp8Vohg",
-  authDomain: "backbase.jitsu.com",
-  databaseURL: "https://tracker-285220.firebaseio.com",
-  projectId: "tracker-285220",
-  storageBucket: "tracker-285220.appspot.com",
-  messagingSenderId: "942257799287",
-  appId: "1:942257799287:web:e3b0bd3435f929d6a00672",
-  measurementId: "G-6ZMG0NSJP8",
-};
+function toId(email: string) {
+  return hash("sha256", email.toLowerCase().trim());
+}
 
+export const credentialsLoginEnabled =
+  isTruish(process.env.ENABLE_CREDETIALS_LOGIN) || !!(process.env.SEED_USER_EMAIL && process.env.SEED_USER_PASSWORD);
 const credentialsProvider =
-  (process.env.ADMIN_CREDENTIALS || !process.env.GITHUB_CLIENT_ID) &&
+  credentialsLoginEnabled &&
   CredentialsProvider({
-    authorize(credentials) {
-      if (!process.env.ADMIN_CREDENTIALS || !credentials) {
+    authorize: async function (credentials) {
+      if (!credentials) {
+        log.atWarn().log(`Failed attempt to login with empty credentials`);
         return null;
       }
-      log.atInfo().log(JSON.stringify(credentials));
-      const userRecord = process.env.ADMIN_CREDENTIALS.split(",")
-        .map(s => s.trim().split(":"))
-        .find(([user]) => user.toLowerCase() === credentials.username.toLowerCase());
-      if (!userRecord) {
-        log.atWarn().log(`Failed attempt to login with ${credentials.username}: no such user`);
-        return null;
+      const username = credentials.username;
+      if (!username) {
+        throw new ApiError("Username is not defined");
       }
-      if (!checkRawToken(userRecord[1], credentials.password)) {
-        log.atWarn().log(`Failed attempt to login with ${credentials.username}: invalid password`);
-        return null;
+      console.log(JSON.stringify(credentials, null, 2));
+      const user = await db.prisma().userProfile.findFirst({ where: { email: username }, include: { password: true } });
+      if (!user) {
+        log.atDebug().log(`Attempt to login with unknown user: ${username}`);
+        const profileCount = await db.prisma().userProfile.count();
+        if (profileCount === 0 && process.env.SEED_USER_EMAIL && process.env.SEED_USER_PASSWORD) {
+          log.atDebug().log(`There're no user profiles in DB, checking ${username} against seed user config`);
+          if (process.env.SEED_USER_EMAIL === username && process.env.SEED_USER_PASSWORD === credentials.password) {
+            const userId = toId(process.env.SEED_USER_EMAIL);
+            log.atDebug().log(`Adding a seed admin user with id ${userId} and email ${username}`);
+            await db.prisma().userProfile.create({
+              data: {
+                id: userId,
+                email: username,
+                name: username,
+                externalId: userId,
+                loginProvider: "credentials",
+                admin: true,
+                password: {
+                  create: {
+                    hash: createHash(credentials.password),
+                    changeAtNextLogin: true,
+                  },
+                },
+              },
+            });
+            return {
+              id: userId,
+              externalId: userId,
+              email: process.env.SEED_USER_EMAIL,
+              name: process.env.SEED_USER_EMAIL,
+            };
+          } else {
+            log.atWarn().log(`Attempt to login with unknown user: ${username} and invalid password`);
+          }
+        }
+      } else if (user.password && checkHash(user.password.hash, credentials.password)) {
+        return {
+          id: user.id,
+          externalId: user.externalId,
+          email: user.email,
+          name: user.name,
+        };
       }
-      const userId = "id-" + credentials.username.toLowerCase().replace("@", "-").replace(".", "-");
-      return {
-        id: userId,
-        externalId: userId,
-        email: credentials.username.toLowerCase(),
-        name: credentials.username.toLowerCase(),
-      };
+      return null;
     },
     credentials: {
       username: { label: "Email", type: "text" },
@@ -83,6 +108,8 @@ export async function getOrCreateUser(opts: {
     const admin = !(await db.prisma().userProfile.count());
     user = await db.prisma().userProfile.create({
       data: {
+        //we need this to be consistent with id generated by .authorize() call
+        id: loginProvider === "credentials" ? externalId : undefined,
         email,
         name,
         externalId: externalId,
@@ -108,24 +135,22 @@ function generateSecret(base: (string | undefined)[]) {
   return secretKey;
 }
 
-const providers: any[] = [];
-if (process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET) {
-  providers.push(githubProvider);
-}
-providers.push(credentialsProvider);
-
 export const nextAuthConfig: NextAuthOptions = {
   // Configure one or more authentication providers
-  providers: providers.filter(provider => !!provider) as any,
+  providers: [githubProvider, credentialsProvider].filter(provider => !!provider) as any,
   pages: {
     error: "/error/auth", // Error code passed in query string as ?error=
+    signIn: "/signin", // Displays signin buttons
   },
-  theme: {
-    logo: "/logo-with-text.svg",
-  },
+
   secret:
     process.env.JWT_SECRET ||
-    generateSecret([process.env.GITHUB_CLIENT_ID, process.env.DATABASE_URL, process.env.REDIS_URL]),
+    generateSecret([
+      process.env.GITHUB_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.DATABASE_URL,
+      process.env.REDIS_URL,
+    ]),
   callbacks: {
     jwt: async props => {
       const loginProvider = (props.account?.provider || props.token.loginProvider || "credentials") as string;

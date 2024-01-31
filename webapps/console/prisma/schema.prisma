@@ -59,6 +59,17 @@ model UserProfile {
   workspaceAccess         WorkspaceAccess[]
   userPreferences         UserPreferences[]
   workspaceUserProperties WorkspaceUserProperties[]
+  password				  UserPassword?
+}
+
+model UserPassword {
+  id        String      @id @default(cuid())
+  createdAt DateTime    @default(now()) /// @zod.custom(z.coerce.date())
+  updatedAt DateTime    @default(now()) @updatedAt /// @zod.custom(z.coerce.date())
+  userId    String      @unique
+  user      UserProfile @relation(fields: [userId], references: [id])
+  hash      String
+  changeAtNextLogin Boolean @default(false)
 }
 
 model Workspace {

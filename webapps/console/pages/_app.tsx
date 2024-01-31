@@ -3,11 +3,10 @@ import { AppProps } from "next/app";
 import "../styles/globals.css";
 import { useRouter } from "next/router";
 import React, { PropsWithChildren, useEffect, useState } from "react";
-import { SessionProvider, signIn, signOut, useSession } from "next-auth/react";
+import { SessionProvider, signOut, useSession } from "next-auth/react";
 import { GlobalLoader } from "../components/GlobalLoader/GlobalLoader";
 import { branding } from "../lib/branding";
 import { Alert } from "antd";
-import { FiGithub } from "react-icons/fi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   AppConfigContextProvider,
@@ -18,7 +17,6 @@ import {
   WorkspaceContextProvider,
 } from "../lib/context";
 import { AppConfig, ContextApiResponse, SessionUser } from "../lib/schema";
-import Link from "next/link";
 import { ErrorBoundary, GlobalError, GlobalOverlay } from "../components/GlobalError/GlobalError";
 import { feedbackError, useTitle } from "../lib/ui";
 import { useApi } from "../lib/useApi";
@@ -32,6 +30,7 @@ import { JitsuButton } from "../components/JitsuButton/JitsuButton";
 import { BillingProvider } from "../components/Billing/BillingProvider";
 import { ClassicProjectProvider } from "../components/PageLayout/ClassicProjectProvider";
 import { useConfigObjectList, useConfigObjectsUpdater, useLoadedWorkspace } from "../lib/store";
+import { Redirect } from "../components/Redirect/Redirect";
 
 const log = getLog("app");
 
@@ -185,12 +184,7 @@ const NextJsAuthorizer: React.FC<PropsWithChildren<{}>> = ({ children }) => {
   } else if (session.status === "loading") {
     return <GlobalLoader title={"Authorizing"} />;
   }
-  return (
-    <>
-      <Analytics />
-      <NextJsSigninForm />
-    </>
-  );
+  return <Redirect href={"/signin"} />;
 };
 
 function LoginWrapper(props: PropsWithChildren<{ requiresLogin: boolean }>) {
@@ -266,81 +260,6 @@ const LoadingBlur: React.FC<{}> = () => {
     </div>
   );
 };
-
-function NextJsSigninForm() {
-  const router = useRouter();
-  const signup = router.query.signup === "true";
-  const appConfig = useAppConfig();
-  const signInAndRedirect = async (provider: string) => {
-    await signIn(provider);
-  };
-  useEffect(() => {
-    if (!appConfig.auth?.githubEnabled) {
-      router.push("/api/auth/signin");
-    }
-  }, [appConfig.auth, router]);
-  return (
-    <>
-      <div className="w-screen h-screen flex justify-center items-center">
-        <div className="flex flex-col items-center justify-center bg-backgroundLight p-8 rounded-xl shadow-lg">
-          <div className="flex items-center w-fit h-10 space-x-2 mb-6">
-            <div className="aspect-square h-full">{branding.logo}</div>
-            <div className="text-textDark h-4/6">{branding.wordmark}</div>
-          </div>
-          <JitsuButton
-            icon={<FiGithub />}
-            type="primary"
-            className="w-72 mb-6 "
-            size="large"
-            onClick={() => signInAndRedirect("github")}
-          >
-            {signup ? "Sign up" : "Sign in"} with Github
-          </JitsuButton>
-          <div className="mt-6 text-textLight">
-            {!signup && !appConfig.disableSignup && (
-              <>
-                Don't have an account?{" "}
-                <Link
-                  passHref
-                  href={{
-                    pathname: router.pathname,
-                    query: { ...(router.query || {}), signup: true },
-                  }}
-                  className="font-bold"
-                >
-                  Sign Up
-                </Link>{" "}
-                up for free.
-              </>
-            )}
-            {signup && (
-              <>
-                Already registered?{" "}
-                <Link
-                  passHref
-                  href={{
-                    pathname: router.pathname,
-                    query: { ...(router.query || {}), signup: false },
-                  }}
-                  className="font-bold"
-                >
-                  Sign In
-                </Link>
-              </>
-            )}
-          </div>
-          {appConfig.credentialsLoginEnabled && (
-            <div className="mt-6 text-textLight text-xs">
-              <Link passHref href="/api/auth/signin" className="font-bold">
-                Sign In with Email
-              </Link>
-            </div>
-          )}
-        </div>
-      </div>
-    </>
-  );
-}
 
 const queryClient = new QueryClient();
 if (typeof window !== "undefined") {
@@ -429,6 +348,7 @@ const StoreLoader: React.FC<
   }>
 > = ({ workspaceIdOrSlug, children }) => {
   const configObjectsUpdater = useConfigObjectsUpdater(workspaceIdOrSlug);
+  console.log("configObjectsUpdater", configObjectsUpdater);
   if (configObjectsUpdater.error) {
     log
       .atError()

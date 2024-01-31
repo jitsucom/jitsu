@@ -39,9 +39,6 @@ export default createRoute()
   })
   .handler(async ({ req, query, user }) => {
     await initTelemetry();
-    getServerLog()
-      .atInfo()
-      .log(`Looking for workspace for user ${JSON.stringify(user)}`);
     if (query.invite) {
       const token = await db.prisma().invitationToken.findFirst({ where: { token: query.invite } });
       if (!token) {
@@ -79,8 +76,10 @@ export default createRoute()
       where: { userId: requireDefined(user.internalId, `internal id is not defined`) },
     });
     if (!workspaceAccess) {
+      getServerLog().atInfo().log(`User ${user.internalId} has no access to any workspace. Creating a new one for him`);
       const dbUser = await db.prisma().userProfile.findFirst({ where: { id: user.internalId } });
       if (!dbUser) {
+        getServerLog().atInfo().log(`User ${user.internalId} has no profile in db. Creating a new one`);
         if (process.env.DISABLE_SIGNUP === "true" || process.env.DISABLE_SIGNUP === "1") {
           throw new ApiError("Sign up is disabled", { code: "signup-disabled" });
         }
@@ -99,8 +98,10 @@ export default createRoute()
         .prisma()
         .workspace.create({ data: { name: pickWorkspaceName(query.projectName, user) } });
       await withProductAnalytics(p => p.track("workspace_created"), { req, user, workspace: newWorkspace });
-
       await db.prisma().workspaceAccess.create({ data: { userId: user.internalId, workspaceId: newWorkspace.id } });
+      getServerLog()
+        .atInfo()
+        .log(`Created a new workspace ${newWorkspace.id} for user ${user.internalId} (${user.email}).`);
       return { user: user, firstWorkspaceId: newWorkspace.id, firstWorkspaceSlug: null, newUser: true };
     }
     const lastUsedWorkspaceId = (

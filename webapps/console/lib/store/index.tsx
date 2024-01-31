@@ -49,7 +49,7 @@ export function getLinksCacheKey(workspaceId: string, opts?: UseConfigObjectLink
   return [`workspaceId=${workspaceId}`, "links", "withData=true"];
 }
 
-type UseConfigObjectsUpdaterResult = { loading: true; error?: never } | { loading: false; error: Error };
+type UseConfigObjectsUpdaterResult = { loading: true; error?: never } | { loading: false; error?: Error };
 
 function toError(e: any) {
   return e instanceof Error ? e : new Error(e?.message || "Unknown error");
@@ -66,14 +66,16 @@ export const foreverCache = {
   //initialData: []
 };
 
-async function initialDataLoad(workspaceIdOrSlug: string, queryClient: QueryClient): Promise<{ workspaceId: string }> {
+async function initialDataLoad(
+  workspaceIdOrSlug: string,
+  queryClient: QueryClient,
+  signal: AbortSignal
+): Promise<{ workspaceId: string }> {
   const loaders: Promise<void>[] = [];
 
-  await queryClient.prefetchQuery(
-    getWorkspaceCacheKey(workspaceIdOrSlug),
-    async ({ signal }) => WorkspaceDbModel.parse(await rpc(`/api/workspace/${workspaceIdOrSlug}`, { signal })),
-    foreverCache
-  );
+  const workspaceDbModel = WorkspaceDbModel.parse(await rpc(`/api/workspace/${workspaceIdOrSlug}`, { signal }));
+
+  await queryClient.prefetchQuery(getWorkspaceCacheKey(workspaceIdOrSlug), async () => workspaceDbModel, foreverCache);
   const workspace = requireDefined(
     queryClient.getQueryData(getWorkspaceCacheKey(workspaceIdOrSlug)),
     `No data for workspace ${workspaceIdOrSlug} was prefetched`
@@ -104,7 +106,14 @@ async function initialDataLoad(workspaceIdOrSlug: string, queryClient: QueryClie
       foreverCache
     )
   );
-  await Promise.all(loaders);
+  try {
+    getLog().atInfo().log("@@@@@@@@@@@@@@@@@@@ Loaders", loaders);
+    await Promise.all(loaders);
+  } catch (e) {
+    getLog().atError().log("@@@@@@@@@@@@@@@@@@@Failed to load initial data", e);
+    throw e;
+  }
+
   return { workspaceId: workspace.id };
 }
 
@@ -176,7 +185,7 @@ export function useConfigObjectsUpdater(workspaceIdOrSlug: string): UseConfigObj
     let sleepTimeout;
     const abortController = new AbortController();
     //reload data after every 5 seconds;
-    initialDataLoad(workspaceIdOrSlug, queryClient)
+    initialDataLoad(workspaceIdOrSlug, queryClient, abortController.signal)
       .then(res => {
         getLog().atDebug().log("Initial version of workspace config has been loaded");
         //setup background task to reload data
@@ -213,7 +222,9 @@ export function useConfigObjectsUpdater(workspaceIdOrSlug: string): UseConfigObj
         }, 0);
         setLoadedWorkspace(workspaceIdOrSlug);
       })
-      .catch(setError)
+      .catch(e => {
+        setError(e);
+      })
       .finally(() => setLoading(false));
 
     return () => {
@@ -232,7 +243,13 @@ export function useConfigObjectsUpdater(workspaceIdOrSlug: string): UseConfigObj
       }
     };
   }, [queryClient, workspaceIdOrSlug, loading, loadedWorkspace]);
-
+  if (error) {
+    return { loading: false, error: error! };
+  } else if (loading || loadedWorkspace != workspaceIdOrSlug) {
+    return { loading: true };
+  } else {
+    return { loading: false };
+  }
   return loading || loadedWorkspace != workspaceIdOrSlug ? { loading: true } : { loading: false, error: error! };
 }
 

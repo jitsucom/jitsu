@@ -50,7 +50,7 @@ function WorkspaceRedirect() {
                     log.atWarn().withCause(err).log(`Can't sign ut from next-auth`);
                   });
                   firebaseSignOut().catch(err => {
-                    log.atWarn().withCause(err).log(`Can't sign ut from next-auth`);
+                    log.atWarn().withCause(err).log(`Can't sign ut from firebase`);
                   });
                 }}
               >

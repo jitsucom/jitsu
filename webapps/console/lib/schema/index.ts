@@ -52,7 +52,6 @@ export const noRestrictions: BillingSettings = {
 export const AppConfig = z.object({
   docsUrl: z.string().optional(),
   websiteUrl: z.string().optional(),
-  credentialsLoginEnabled: z.boolean(),
   //iso date
   readOnlyUntil: z.string().optional(),
   disableSignup: z.boolean().optional(),
@@ -76,7 +75,6 @@ export const AppConfig = z.object({
   auth: z
     .object({
       firebasePublic: z.any(),
-      githubEnabled: z.boolean().optional(),
     })
     .optional(),
   frontendTelemetry: z.object({

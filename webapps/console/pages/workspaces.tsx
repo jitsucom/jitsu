@@ -14,6 +14,7 @@ import { feedbackError } from "../lib/ui";
 import { JitsuButton } from "../components/JitsuButton/JitsuButton";
 import { Badge, Input, Tag } from "antd";
 import { useQueryStringState } from "../lib/useQueryStringState";
+import { Redirect } from "../components/Redirect/Redirect";
 
 const log = getLog("worspaces");
 
@@ -49,6 +50,9 @@ const WorkspacesList = () => {
       </div>
     );
   } else if (data) {
+    if (data.length === 0) {
+      return <Redirect href="/" />;
+    }
     return (
       <div className="flex flex-col space-y-4 w-full mx-auto">
         {data.length > 5 && (

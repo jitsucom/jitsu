@@ -65,7 +65,8 @@ services:
       MIT_COMPLIANT: ${MIT_COMPLIANT:-false}
       DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD:-default}@postgres:5432/postgres?schema=newjitsu"
       REDIS_URL: "redis://default:${REDIS_PASSWORD:-default}@redis:6379"
-      ADMIN_CREDENTIALS: ${ADMIN_CREDENTIALS}
+      SEED_USER_EMAIL: ${SEED_USER_EMAIL:-}
+      SEED_USER_PASSWORD: ${SEED_USER_EMAIL:-}
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
       SYNCS_ENABLED: ${SYNCS_ENABLED:-false}
