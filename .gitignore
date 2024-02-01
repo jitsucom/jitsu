@@ -16,11 +16,5 @@ node_modules
 /libs/functions/dist/
 /docker/data/**
 /cache/**
-/cli/build-scripts/compiled/src/commands/docker.js
-/cli/build-scripts/compiled/src/box.js
-/cli/build-scripts/compiled/src/colors.js
-/cli/build-scripts/compiled/src/docker.js
-/cli/build-scripts/compiled/src/index.js
-/cli/build-scripts/compiled/package.json
-/cli/build-scripts/dist/main.js
-/cli/build-scripts/dist/main.js.map
+/cli/build-scripts/compiled/
+/cli/build-scripts/dist/

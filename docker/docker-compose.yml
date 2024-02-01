@@ -64,7 +64,7 @@ services:
       DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD:-default}@postgres:5432/postgres?schema=newjitsu"
       REDIS_URL: "redis://default:${REDIS_PASSWORD:-default}@redis:6379"
       SEED_USER_EMAIL: ${SEED_USER_EMAIL:-}
-      SEED_USER_PASSWORD: ${SEED_USER_EMAIL:-}
+      SEED_USER_PASSWORD: ${SEED_USER_PASSWORD:-}
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
       SYNCS_ENABLED: ${SYNCS_ENABLED:-false}
