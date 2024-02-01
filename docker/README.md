@@ -56,7 +56,7 @@ In this case, this value must be set to a public URL, such as: https://jitsu.my-
 
 Those secrets are used mostly for internal communication between Jitsu components.
 
-Please make sure to generate random values for those variables, and keep `raw:` prefix for those variables
+Please make sure to generate random values for those variables.
 
 
 ## Run Jitsu
