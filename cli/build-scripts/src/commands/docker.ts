@@ -40,7 +40,7 @@ export async function docker(dir: string | undefined, args: DockerArgs): Promise
 
   version = await adjustVersion(version, dockerTag, tagPrefix);
   console.info(`💁🏻‍ Adjusted version for ${dockerTag} release: ` + color.bold(color.cyan(version)));
-  const gitTag = `${tagPrefix}-${version}`;
+  const gitTag = `${tagPrefix}-v${version}`;
   if ((await git.tags()).all.includes(gitTag)) {
     throw new Error(`Tag ${gitTag} for next version ${version} already exists. Aborting`);
   }
@@ -115,12 +115,12 @@ export async function docker(dir: string | undefined, args: DockerArgs): Promise
     }
   }
   if (!args.dryRun && args.push && args.pushGitTag) {
-    console.log(`Pushing git tag ${tagPrefix}-${version}...`);
+    console.log(`Pushing git tag ${gitTag}...`);
     await git.addTag(gitTag);
     try {
       await git.pushTags();
-    } catch (e) {
-      //so far ignore, it happens when there's a conflict in tags
+    } catch (e: any) {
+      throw new Error(`Failed to push git tag ${gitTag}: ${e.message}`);
     }
   }
 }
@@ -138,9 +138,13 @@ function formatDate(date: Date): number {
   return parseInt(`${year}${month}${day}${hour}${minute}${second}`);
 }
 
-async function adjustVersion(baseVersion: string | undefined, str: ReleaseStream, tagPrefix: string): Promise<string> {
+async function adjustVersion(
+  manualVersion: string | undefined,
+  str: ReleaseStream,
+  tagPrefix: string
+): Promise<string> {
   let version: SemVer | undefined;
-  if (!baseVersion) {
+  if (!manualVersion) {
     const gitTags = await git.tags();
     const allSemvers = gitTags.all
       .filter(tag => tag.startsWith(tagPrefix + "-") && tag.indexOf("beta") < 0)
@@ -155,9 +159,9 @@ async function adjustVersion(baseVersion: string | undefined, str: ReleaseStream
       throw new Error(`Couldn't guess version from git tags. Please provide --version param`);
     }
   } else {
-    const bs = semverParse(baseVersion);
+    const bs = semverParse(manualVersion);
     if (!bs) {
-      throw new Error(`Cannot parse --version ${baseVersion} param as semver`);
+      throw new Error(`Cannot parse --version ${manualVersion} param as semver`);
     }
     version = bs;
   }
@@ -168,9 +172,15 @@ async function adjustVersion(baseVersion: string | undefined, str: ReleaseStream
     const revision = gitHistory.latest!.hash.slice(0, 7);
     return `${version.major}.${version.minor}.${latest}-${str}.${formatDate(new Date())}.${revision}`;
   } else {
-    const nextVersion = `${version.major}.${version.minor}.${version.patch + 1}`;
-    console.log(`Found latest stable release: ' + ${version.version}. Going to use ${nextVersion} as next version`);
-    return nextVersion;
+    if (manualVersion) {
+      const nextVersion = `${version.major}.${version.minor}.${version.patch}`;
+      console.log(`Going to use ${nextVersion} as next version`);
+      return nextVersion;
+    } else {
+      const nextVersion = `${version.major}.${version.minor}.${version.patch + 1}`;
+      console.log(`Found latest stable release: ' + ${version.version}. Going to use ${nextVersion} as next version`);
+      return nextVersion;
+    }
   }
 }
 
