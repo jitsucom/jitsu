@@ -25,8 +25,8 @@ RUN --mount=type=cache,id=onetag_pnpm,target=/root/.local/share/pnpm/store/v3 pn
 
 ENV NEXTJS_STANDALONE_BUILD=1
 #Tubo cache is not working well ?
-RUN --mount=type=cache,id=onetag_turbo,target=/app/node_modules/.cache/turbo pnpm build
-#RUN pnpm build
+#RUN --mount=type=cache,id=onetag_turbo,target=/app/node_modules/.cache/turbo pnpm build
+RUN pnpm build
 
 FROM base as console
 
