@@ -18,31 +18,45 @@ cp .env.example .env
 
 2. Set up all required variables in `.env` file.
 
-#### `ADMIN_CREDENTIALS`
+#### `SEED_USER_EMAIL`, `SEED_USER_PASSWORD`
 
 **Required**
 
-Comma-separated list of admin user credentials in format email:password, e.g.: email1@example.com:password1,email2@example.com:password2
+Initial user login and password. 
+
+The very first user will be created with those credentials, and it will become an admin user. 
+
+**Please change the password right after first login.**
 
 #### `JITSU_PUBLIC_URL`
 
-This is an URL where Jitsu UI will be available.
-
-When using jitsu locally, no need to set this variable.
-
 **Default value:** `http://localhost:${JITSU_UI_PORT}/`
 
-When UI is deployed on remote server, set it with your remote server URL, e.g.: `https://jitsu.mycompany.com:3000`.
+This is a URL where Jitsu UI will be available.
 
-#### `INGEST_DOMAIN`
+When UI is deployed on remote server, set it with your remote server URL, e.g.: http://your-domain:3000.
 
-Domain of the Jitsu Ingest API how it is available for external users. Ingest API is used for sending events to Jitsu.
+For production deployments, it is recommended to put it behind an HTTPs load balancer or reverse proxy.
 
-When using jitsu locally, no need to set this variable.
+In this case, this value must be set to a public URL, such as: https://jitsu.my-company.com.
 
-**Default value:** `localhost`
+#### `JITSU_INGEST_PUBLIC_URL`
 
-When deployed on remote server, set it with your remote server domain, e.g.: `data.mycompany.com`.
+**Default value:** `http://localhost:${JITSU_INGEST_PORT}/`
+
+This is a URL where Jitsu Ingest will be available. 
+
+When Jitsu is deployed on remote server, set it with your remote server URL, e.g.: http://your-domain:8080.
+
+For production deployments, it is recommended to put it behind an HTTPs load balancer or reverse proxy.
+
+In this case, this value must be set to a public URL, such as: https://jitsu.my-company.com.
+
+#### `CONSOLE_TOKEN`, `POSTGRES_PASSWORD`, `BULKER_TOKEN`, `SYNCCTL_TOKEN`
+
+Those secrets are used mostly for internal communication between Jitsu components.
+
+Please make sure to generate random values for those variables, and keep `raw:` prefix for those variables
 
 
 ## Run Jitsu

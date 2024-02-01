@@ -100,9 +100,17 @@ export const TrackingIntegrationDocumentation: React.FC<{ streamId: string; onCa
     serializer: v => v,
   });
   let domains: string[] = [];
-  if (appConfig.publicEndpoints.ingestHost) {
-    const port = appConfig.publicEndpoints.ingestPort;
-    domains.push(`${appConfig.publicEndpoints.ingestHost}${port != 80 && port != 443 ? `:${port}` : ""}`);
+  let protocol = appConfig.publicEndpoints.protocol;
+  if (appConfig.publicEndpoints.ingestUrl) {
+    //extract host and port
+    try {
+      const url = new URL(appConfig.publicEndpoints.ingestUrl);
+      const host = url.host;
+      protocol = url.protocol === "https:" ? "https" : "http";
+      domains.push(host);
+    } catch (e) {
+      console.error("Can't parse ingest URL", appConfig.publicEndpoints.ingestUrl);
+    }
   } else {
     domains = stream
       ? appConfig.publicEndpoints.dataHost || appConfig.ee.available
@@ -119,7 +127,7 @@ export const TrackingIntegrationDocumentation: React.FC<{ streamId: string; onCa
   const serverWriteKey = stream?.privateKeys?.[0]
     ? `${stream.privateKeys[0].id}:${stream.privateKeys[0].hint}`
     : "{server-write-key}";
-  const displayDomain = `${appConfig.publicEndpoints.protocol}://${selectedDomain ?? domains?.[0]}`;
+  const displayDomain = `${protocol}://${selectedDomain ?? domains?.[0]}`;
   const wrap = (r: ReactNode) => {
     return (
       <div className="relative">

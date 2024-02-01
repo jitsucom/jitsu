@@ -56,8 +56,6 @@ services:
     restart: "unless-stopped"
     platform: linux/amd64
     environment:
-      INGEST_HOST: ${INGEST_DOMAIN:-localhost}
-      INGEST_PORT: ${JITSU_INGEST_PORT:-8080}
       ROTOR_URL: "http://rotor:3401"
       BULKER_URL: "http://bulker:3042"
       CONSOLE_RAW_AUTH_TOKENS: ${CONSOLE_TOKEN:-default}
@@ -73,6 +71,7 @@ services:
       SYNCCTL_URL: "http://syncctl:${EXTERNAL_SYNCS_PORT:-3043}"
       SYNCCTL_AUTH_KEY: ${SYNCCTL_TOKEN:-default}
       GOOGLE_SCHEDULER_KEY: ${GOOGLE_SCHEDULER_KEY}
+      JITSU_INGEST_PUBLIC_URL: "${JITSU_INGEST_PUBLIC_URL:-http://localhost:${JITSU_INGEST_PORT:-8080}/}"
       JITSU_PUBLIC_URL: "${JITSU_PUBLIC_URL:-${NEXTAUTH_URL:-http://localhost:${JITSU_UI_PORT:-3000}/}}"
       NEXTAUTH_URL: "${JITSU_PUBLIC_URL:-${NEXTAUTH_URL:-http://localhost:${JITSU_UI_PORT:-3000}/}}"
       UPDATE_DB: "true"
@@ -162,7 +161,7 @@ services:
     restart: "unless-stopped"
     environment:
       TERM: "xterm-256color"
-      INGEST_DATA_DOMAIN: ${INGEST_DOMAIN:-localhost}
+      INGEST_PUBLIC_URL: "${JITSU_INGEST_PUBLIC_URL:-http://localhost:${JITSU_INGEST_PORT:-8080}/}"
       INGEST_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
       INGEST_RAW_AUTH_TOKENS: ${BULKER_TOKEN:-default}
       INGEST_REPOSITORY_URL: "http://console:3000/api/admin/export/streams-with-destinations"
