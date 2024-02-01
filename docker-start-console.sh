@@ -69,6 +69,7 @@ healthcheck() {
 start_console() {
   cd /app/webapps/console
   node server.js & echo $! > /app/console.pid
+  return $?
 }
 
 kill_console() {
@@ -90,10 +91,10 @@ main() {
     fi
     echo "Starting the app"
     healthcheck $$ &
-    start_console
+    exit_code=$(start_console)
     sleep 1000
     cancel_healthcheck="1"
-    echo "App stopped, exiting..."
+    echo "App stopped with exit code ${exit_code}, exiting..."
 
 
   elif [ "$cmd" = "db-prepare" ]; then
