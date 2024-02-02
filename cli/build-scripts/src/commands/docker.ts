@@ -38,6 +38,12 @@ export async function docker(dir: string | undefined, args: DockerArgs): Promise
     })
   );
 
+  //git check that all changes are pulled from remote
+  const status = await git.status();
+  if (status.behind > 0) {
+    throw new Error(`You are ${status.behind} commits behind the remote. Please pull the changes first.`);
+  }
+
   version = await adjustVersion(version, dockerTag, tagPrefix);
   console.info(`💁🏻‍ Adjusted version for ${dockerTag} release: ` + color.bold(color.cyan(version)));
   const gitTag = `${tagPrefix}-v${version}`;
