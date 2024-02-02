@@ -14,16 +14,7 @@ p.name("build-scripts").description("CLI command to create, test and deploy exte
 p.command("docker")
   .description("Builds and pushes docker images for Jitsu Next services")
   .addArgument(new Argument("[dir]", "directory of project to build. Must contain all.Dockerfile file"))
-  .addOption(
-    new Option("-t, --targets <targets...>", "list of targets to build").choices([
-      "console",
-      "rotor",
-      "bulker",
-      "ingest",
-      "syncctl",
-      "sidecar",
-    ])
-  )
+  .addOption(new Option("-t, --targets <targets...>", "list of Dockerfile targets to build."))
   .option(
     "-v, --version <semver>",
     "base version of release in semver format. Required for the first release or version bumps."
