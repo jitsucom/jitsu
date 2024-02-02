@@ -39,6 +39,7 @@ export async function docker(dir: string | undefined, args: DockerArgs): Promise
   );
 
   //git check that all changes are pulled from remote
+  await git.fetch();
   const status = await git.status();
   if (status.behind > 0) {
     throw new Error(`You are ${status.behind} commits behind the remote. Please pull the changes first.`);
