@@ -57,7 +57,7 @@ export default createRoute()
       trigger,
       workspaceId,
       fullSync: query.fullSync === "true" || query.fullSync === "1",
-      syncId: query.syncId as string,
+      syncIdOrModel: query.syncId as string,
     });
   })
   .toNextApiHandler();

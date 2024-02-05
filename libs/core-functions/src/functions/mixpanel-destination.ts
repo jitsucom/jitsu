@@ -1,9 +1,11 @@
 import { FullContext, JitsuFunction } from "@jitsu/protocols/functions";
 import { RetryError } from "@jitsu/functions-lib";
 import type { AnalyticsServerEvent, Geo } from "@jitsu/protocols/analytics";
-import { randomId, hash } from "juava";
+import { hash, randomId } from "juava";
 import { MixpanelCredentials } from "../meta";
 import { eventTimeSafeMs } from "./lib";
+import { z } from "zod";
+import { googleAdsSync } from "./syncs/mixpanel";
 
 //See https://help.mixpanel.com/hc/en-us/articles/115004708186-Profile-Properties
 export const specialProperties = [

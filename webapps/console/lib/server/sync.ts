@@ -1,5 +1,6 @@
 import { CloudSchedulerClient } from "@google-cloud/scheduler";
 import { db } from "./db";
+import { ConfigurationObject, ConfigurationObjectLink } from "@prisma/client";
 import { LogFactory, randomId, requireDefined, rpc, stopwatch } from "juava";
 import { google } from "@google-cloud/scheduler/build/protos/protos";
 import { difference } from "lodash";
@@ -17,6 +18,7 @@ const log = getServerLog("sync-scheduler");
 export type ScheduleSyncError = { ok: false; error: string; [key: string]: any };
 export type ScheduleSyncSuccess = { ok: true; taskId: string; [key: string]: any };
 export type ScheduleSyncResult = ScheduleSyncError | ScheduleSyncSuccess;
+
 
 export const syncError = (
   log: LogFactory,
@@ -131,16 +133,35 @@ export function selectStreamsFromCatalog(catalog: any, selectedStreams: any): an
   return { streams };
 }
 
+export type SyncDatabaseModel = ConfigurationObjectLink & { from: ConfigurationObject; to: ConfigurationObject };
+
+export async function getSyncById(syncId: string, workspaceId: string): Promise<SyncDatabaseModel | undefined> {
+  return (
+    (await db.prisma().configurationObjectLink.findFirst({
+      where: {
+        id: syncId,
+        workspaceId: workspaceId,
+        deleted: false,
+        type: "sync",
+      },
+      include: {
+        from: true,
+        to: true,
+      },
+    })) ?? undefined
+  );
+}
+
 export async function scheduleSync({
   workspaceId,
-  syncId,
+  syncIdOrModel,
   user,
   trigger = "manual",
   req,
   fullSync,
 }: {
   workspaceId: string;
-  syncId: string;
+  syncIdOrModel: string | SyncDatabaseModel;
   trigger?: "manual" | "scheduled";
   user?: SessionUser;
   req: NextApiRequest;
@@ -159,26 +180,16 @@ export async function scheduleSync({
   }
   try {
     const appBase = getAppEndpoint(req).baseUrl;
-    const sync = await db.prisma().configurationObjectLink.findFirst({
-      where: {
-        id: syncId,
-        workspaceId: workspaceId,
-        deleted: false,
-        type: "sync",
-      },
-      include: {
-        from: true,
-      },
-    });
+    const sync = typeof syncIdOrModel === "string" ? await getSyncById(syncIdOrModel, workspaceId) : syncIdOrModel;
     if (!sync) {
       return {
         ok: false,
-        error: `Sync ${syncId} not found`,
+        error: `Sync ${syncIdOrModel} not found`,
       };
     }
     const running = await db.prisma().source_task.findFirst({
       where: {
-        sync_id: syncId as string,
+        sync_id: syncIdOrModel as string,
         status: "RUNNING",
       },
     });
@@ -188,8 +199,8 @@ export async function scheduleSync({
         error: `Sync is already running`,
         runningTask: {
           taskId: running.task_id,
-          status: `${appBase}/api/${workspaceId}/sources/tasks?taskId=${running.task_id}&syncId=${syncId}`,
-          logs: `${appBase}/api/${workspaceId}/sources/logs?taskId=${running.task_id}&syncId=${syncId}`,
+          status: `${appBase}/api/${workspaceId}/sources/tasks?taskId=${running.task_id}&syncId=${syncIdOrModel}`,
+          logs: `${appBase}/api/${workspaceId}/sources/logs?taskId=${running.task_id}&syncId=${syncIdOrModel}`,
         },
       };
     }
@@ -204,7 +215,7 @@ export async function scheduleSync({
       const checkResult = await checkQuota({
         user,
         workspaceId,
-        syncId,
+        syncId: sync.id,
         package: (service.config as any).package,
         version: (service.config as any).version,
       });
@@ -216,14 +227,14 @@ export async function scheduleSync({
     if (fullSync) {
       await db.prisma().source_state.deleteMany({
         where: {
-          sync_id: syncId,
+          sync_id: sync.id,
         },
       });
     } else {
       //load state from db
       const stateRows = await db.prisma().source_state.findMany({
         where: {
-          sync_id: syncId,
+          sync_id: sync.id,
         },
       });
       if (stateRows.length > 0) {
@@ -289,7 +300,7 @@ export async function scheduleSync({
         package: (service.config as any).package,
         version: (service.config as any).version,
         taskId,
-        syncId,
+        syncIdOr: sync.id,
         startedBy: trigger === "manual" ? (user ? user.internalId : "manual") : "scheduled",
         tableNamePrefix: sync.data?.["tableNamePrefix"] ?? "",
       },
@@ -305,12 +316,12 @@ export async function scheduleSync({
       return {
         ok: true,
         taskId,
-        status: `${appBase}/api/${workspaceId}/sources/tasks?taskId=${taskId}&syncId=${syncId}`,
-        logs: `${appBase}/api/${workspaceId}/sources/logs?taskId=${taskId}&syncId=${syncId}`,
+        status: `${appBase}/api/${workspaceId}/sources/tasks?taskId=${taskId}&syncId=${syncIdOrModel}`,
+        logs: `${appBase}/api/${workspaceId}/sources/logs?taskId=${taskId}&syncId=${syncIdOrModel}`,
       };
     }
   } catch (e: any) {
-    return syncError(log, `Error running sync`, e, false, `sync: ${syncId} workspace: ${workspaceId}`);
+    return syncError(log, `Error running sync`, e, false, `sync: ${syncIdOrModel} workspace: ${workspaceId}`);
   }
 }
 
