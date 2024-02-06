@@ -42,6 +42,8 @@ EXPOSE 3000
 
 HEALTHCHECK CMD curl --fail http://localhost:3000/api/healthcheck || exit 1
 
+ENV NODE_ENV=production
+
 ENTRYPOINT ["sh", "-c", "/app/docker-start-console.sh"]
 
 FROM base as rotor

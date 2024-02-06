@@ -1,35 +1,14 @@
 import { z } from "zod";
-import { createRoute, verifyAccess } from "../../../../lib/api";
+import { createRoute, verifyAccess, getWorkspace } from "../../../../lib/api";
 import { clickhouse } from "../../../../lib/server/clickhouse";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import { getServerLog } from "../../../../lib/server/log";
-import { requireDefined } from "juava";
-import { db } from "../../../../lib/server/db";
 import { ActiveEventsReport, ActiveEventsReportRow } from "../../../../lib/shared/reporting";
 
 dayjs.extend(utc);
 
 const log = getServerLog("report-query");
-
-async function getWorkspace(workspaceId: string | undefined) {
-  return requireDefined(
-    await db.prisma().workspace.findFirst({
-      where: {
-        OR: [
-          {
-            id: workspaceId,
-          },
-          {
-            slug: workspaceId,
-          },
-        ],
-        deleted: false,
-      },
-    }),
-    `Workspace ${workspaceId} not found`
-  );
-}
 
 function toISOString(period: string) {
   const [date, time] = period.split(" ");
@@ -50,8 +29,8 @@ export default createRoute()
   })
   .handler(async ({ user, query }) => {
     const { workspaceId } = query;
-    await verifyAccess(user, workspaceId);
     const workspace = await getWorkspace(workspaceId);
+    await verifyAccess(user, workspace.id);
     const metricsSchema = process.env.CLICKHOUSE_METRICS_SCHEMA || "newjitsu_metrics";
     const end = query.end ? query.end.toISOString() : new Date().toISOString();
     const start = query.start ? query.start.toISOString() : dayjs(end).subtract(1, "month").toDate().toISOString();
