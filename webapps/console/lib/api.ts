@@ -284,9 +284,38 @@ export async function verifyAdmin(user: SessionUser) {
   throw new ApiError(`User ${userId} is not an admin`, { status: 403 });
 }
 
+export function looksLikeCuid(id: string) {
+  return id.length === 25 && id.charAt(0) === "c";
+}
+
+export async function getWorkspace(workspaceId: string | undefined) {
+  return requireDefined(
+    await db.prisma().workspace.findFirst({
+      where: {
+        OR: [
+          {
+            id: workspaceId,
+          },
+          {
+            slug: workspaceId,
+          },
+        ],
+        deleted: false,
+      },
+    }),
+    `Workspace ${workspaceId} not found`
+  );
+}
+
 export async function verifyAccess(user: SessionUser, workspaceId: string) {
   if (user.internalId === adminServiceAccountEmail && user.loginProvider === "admin/token") {
     return;
+  }
+  if (!looksLikeCuid(workspaceId)) {
+    const w = await db.prisma().workspace.findFirst({ where: { slug: workspaceId } });
+    if (w) {
+      workspaceId = w.id;
+    }
   }
   const userId = requireDefined(user.internalId, `internalId is not defined`);
   if ((await db.prisma().workspaceAccess.count({ where: { userId, workspaceId } })) === 0) {
