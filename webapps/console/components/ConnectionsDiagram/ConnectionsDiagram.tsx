@@ -292,7 +292,7 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({
       ) : (
         <div ref={emptySitesRef as any} className="mb-12">
           <EmptyList title={"Create your first site"} createLink={p.srcActions.newLink}>
-            Site (or stream) is a source of events which are bing pushed to Jitsu via SDK. It could be a website, web
+            Site (or stream) is a source of events which are being pushed to Jitsu via SDK. It could be a website, web
             application, mobile application or backend server
           </EmptyList>
         </div>
