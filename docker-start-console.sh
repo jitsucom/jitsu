@@ -68,7 +68,7 @@ healthcheck() {
 
 start_console() {
   cd /app/webapps/console
-  node server.js & echo $! > /app/console.pid
+  HOSTNAME=0.0.0.0 node server.js & echo $! > /app/console.pid
   return $?
 }
 
