@@ -62,6 +62,9 @@ export const api: Api = {
           }`,
           options
         );
+        if (!response.ok) {
+          throw new Error(`${response.status} ${response.statusText}`);
+        }
         const json = await response.json();
         return json;
       } catch (e) {
