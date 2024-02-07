@@ -109,6 +109,8 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("log.pool.size", 10)
 	viper.SetDefault("log.rotation_min", 5)
 
+	viper.SetDefault("batch_uploader.reprocess_days", 30)
+
 	viper.SetDefault("batch_uploader.threads_count", 1)
 	viper.SetDefault("streaming.threads_count", 1)
 
