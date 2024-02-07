@@ -270,6 +270,8 @@ func NewClickHouse(ctx context.Context, connectionString, database, cluster stri
 	}
 
 	connectionString += "wait_end_of_query=1"
+	//timeouts
+	connectionString += "&timeout=30s&write_timeout=30s&read_timeout=30s"
 	//connect
 	dataSource, err := sql.Open("clickhouse", connectionString)
 	if err != nil {
