@@ -471,7 +471,12 @@ func main() {
 	if uploaderThreadsCount < 1 {
 		uploaderThreadsCount = 1
 	}
-	uploader, err := logfiles.NewUploader(logEventPath, uploaderFileMask, uploaderRunInterval, uploaderThreadsCount, destinationsService)
+	//Uploader must read event logger directory
+	reprocessDays := viper.GetInt("batch_uploader.reprocess_days")
+	if reprocessDays < 1 {
+		reprocessDays = 30
+	}
+	uploader, err := logfiles.NewUploader(logEventPath, uploaderFileMask, uploaderRunInterval, uploaderThreadsCount, reprocessDays, destinationsService)
 	if err != nil {
 		logging.Fatal("Error while creating file uploader", err)
 	}

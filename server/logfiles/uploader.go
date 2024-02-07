@@ -35,6 +35,7 @@ type PeriodicUploader struct {
 	fileMask              string
 	defaultBatchPeriodMin int
 	concurrentUploads     int
+	reprocessDays         int
 
 	archiver           *Archiver
 	statusManager      *StatusManager
@@ -43,7 +44,7 @@ type PeriodicUploader struct {
 }
 
 // NewUploader returns new configured PeriodicUploader instance
-func NewUploader(logEventPath, fileMask string, defaultBatchPeriodMin int, concurrentUploads int, destinationService *destinations.Service) (*PeriodicUploader, error) {
+func NewUploader(logEventPath, fileMask string, defaultBatchPeriodMin int, concurrentUploads, reprocessDays int, destinationService *destinations.Service) (*PeriodicUploader, error) {
 	logIncomingEventPath := path.Join(logEventPath, logevents.IncomingDir)
 	logArchiveEventPath := path.Join(logEventPath, logevents.ArchiveDir)
 	statusManager, err := NewStatusManager(logIncomingEventPath)
@@ -58,6 +59,7 @@ func NewUploader(logEventPath, fileMask string, defaultBatchPeriodMin int, concu
 		statusManager:         statusManager,
 		destinationService:    destinationService,
 		concurrentUploads:     concurrentUploads,
+		reprocessDays:         reprocessDays,
 		tokenLastUpload:       map[string]time.Time{},
 	}, nil
 }
@@ -107,8 +109,8 @@ func (u *PeriodicUploader) Start() {
 						return
 					}
 
-					if timestamp.Now().Sub(fileDate) > time.Hour*24*30 {
-						logging.Debugf("Skipping file %s. File is more than 30 days old: %s", filePath, fileDate)
+					if timestamp.Now().Sub(fileDate) > time.Hour*24*time.Duration(u.reprocessDays) {
+						logging.Debugf("Skipping file %s. File is more than %d days old: %s", filePath, u.reprocessDays, fileDate)
 						return
 					}
 
