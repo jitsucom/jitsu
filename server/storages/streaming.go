@@ -1,7 +1,6 @@
 package storages
 
 import (
-	"fmt"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/errorj"
@@ -12,7 +11,6 @@ import (
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/utils"
 	"go.uber.org/atomic"
-	"math"
 	"math/rand"
 	"time"
 )
@@ -73,7 +71,7 @@ func (sw *StreamingWorker) start() {
 				break
 			}
 
-			fact, dequeuedTime, tokenID, retriesCount, err := sw.eventQueue.DequeueBlock()
+			fact, dequeuedTime, tokenID, err := sw.eventQueue.DequeueBlock()
 			if err != nil {
 				if err == events.ErrQueueClosed && sw.closed.Load() {
 					continue
@@ -85,7 +83,7 @@ func (sw *StreamingWorker) start() {
 
 			//dequeued event was from retry call and retry timeout hasn't come
 			if timestamp.Now().Before(dequeuedTime) {
-				sw.eventQueue.ConsumeTimed(fact, dequeuedTime, tokenID, retriesCount)
+				sw.eventQueue.ConsumeTimed(fact, dequeuedTime, tokenID)
 				continue
 			}
 			_, recognizedEvent := fact[schema.JitsuUserRecognizedEvent]
@@ -151,11 +149,9 @@ func (sw *StreamingWorker) start() {
 							WithProperty(errorj.DestinationType, sw.streamingStorage.Type())
 
 						var retryInfoInLog string
-						var delay time.Duration
-						retry := IsConnectionError(updateErr) && retriesCount < 4
+						retry := IsConnectionError(err)
 						if retry {
-							delay = time.Duration(math.Pow10(retriesCount)) * time.Minute
-							retryInfoInLog = fmt.Sprintf("connection problem. event will be re-updated after %s. (retry: %d)\n", delay.String(), retriesCount)
+							retryInfoInLog = "connection problem. event will be re-updated after 20 seconds\n"
 						}
 						if errorj.IsSystemError(err) {
 							logging.SystemErrorf("%+v\n%sorigin event: %s", err, retryInfoInLog, flattenObject.DebugString())
@@ -165,7 +161,7 @@ func (sw *StreamingWorker) start() {
 
 						if retry {
 							//retry
-							sw.eventQueue.ConsumeTimed(fact, timestamp.Now().Add(delay), tokenID, retriesCount+1)
+							sw.eventQueue.ConsumeTimed(fact, timestamp.Now().Add(20*time.Second), tokenID)
 						}
 					}
 				} else {
@@ -175,11 +171,9 @@ func (sw *StreamingWorker) start() {
 							WithProperty(errorj.DestinationType, sw.streamingStorage.Type())
 
 						var retryInfoInLog string
-						var delay time.Duration
-						retry := IsConnectionError(insertErr) && retriesCount < 4
+						retry := IsConnectionError(err)
 						if retry {
-							delay = time.Duration(math.Pow10(retriesCount)) * time.Minute
-							retryInfoInLog = fmt.Sprintf("connection problem. event will be re-inserted after %s. (retry: %d)\n", delay.String(), retriesCount)
+							retryInfoInLog = "connection problem. event will be re-inserted after 20 seconds\n"
 						}
 						if errorj.IsSystemError(err) {
 							logging.SystemErrorf("%+v\n%sorigin event: %s", err, retryInfoInLog, flattenObject.DebugString())
@@ -189,7 +183,7 @@ func (sw *StreamingWorker) start() {
 
 						if retry {
 							//retry
-							sw.eventQueue.ConsumeTimed(fact, timestamp.Now().Add(delay), tokenID, retriesCount+1)
+							sw.eventQueue.ConsumeTimed(fact, timestamp.Now().Add(20*time.Second), tokenID)
 						}
 					}
 				}

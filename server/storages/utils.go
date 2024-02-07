@@ -35,15 +35,14 @@ func dryRun(payload events.Event, processor *schema.Processor, tableHelper *Tabl
 }
 
 func IsConnectionError(err error) bool {
-	s := err.Error()
-	return strings.Contains(s, "connection refused") ||
-		strings.Contains(s, "EOF") ||
-		strings.Contains(s, "write: broken pipe") ||
-		strings.Contains(s, "read-only transaction") ||
-		strings.Contains(s, "context deadline exceeded") ||
-		strings.Contains(s, "connection reset by peer") ||
-		strings.Contains(s, "timed out") ||
-		strings.Contains(s, "no such host")
+	return strings.Contains(err.Error(), "connection refused") ||
+		strings.Contains(err.Error(), "EOF") ||
+		strings.Contains(err.Error(), "write: broken pipe") ||
+		strings.Contains(err.Error(), "read-only transaction") ||
+		strings.Contains(err.Error(), "context deadline exceeded") ||
+		strings.Contains(err.Error(), "connection reset by peer") ||
+		strings.Contains(err.Error(), "timed out") ||
+		strings.Contains(err.Error(), "no such host")
 }
 
 // syncStoreImpl implements common behaviour used to storing chunk of pulled data to any storages with processing
@@ -82,7 +81,7 @@ func syncStoreImpl(storage Storage, overriddenDataSchema *schema.BatchHeader, ob
 	return nil
 }
 
-// cleanImpl implements common table cleaning
+//cleanImpl implements common table cleaning
 func cleanImpl(storage Storage, tableName string) error {
 	adapter, _ := storage.getAdapters()
 	return adapter.Truncate(tableName)

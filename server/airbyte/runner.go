@@ -112,8 +112,6 @@ func (r *Runner) Check(airbyteSourceConfig interface{}) error {
 	case connectionStatusSucceed:
 		return nil
 	case connectionStatusFailed:
-		errMsg := Instance.BuildMsg("Error executing airbyte check:", resultParser.output, errWriter, nil)
-		logging.Error(errMsg)
 		return errors.New(resultParser.parsedRow.ConnectionStatus.Message)
 	default:
 		return fmt.Errorf("unknown airbyte connection status [%s]: %s", resultParser.parsedRow.ConnectionStatus.Status, resultParser.parsedRow.ConnectionStatus.Message)

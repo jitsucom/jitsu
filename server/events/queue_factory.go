@@ -10,12 +10,11 @@ import (
 	"github.com/jitsucom/jitsu/server/queue"
 )
 
-// TimedEvent is used for keeping events with time in queue
+//TimedEvent is used for keeping events with time in queue
 type TimedEvent struct {
 	Payload      map[string]interface{}
 	DequeuedTime time.Time
 	TokenID      string
-	RetriesCount int
 }
 
 type DummyQueue struct {
@@ -28,19 +27,19 @@ func (d *DummyQueue) Close() error {
 func (d *DummyQueue) Consume(f map[string]interface{}, tokenID string) {
 }
 
-func (d *DummyQueue) ConsumeTimed(f map[string]interface{}, t time.Time, tokenID string, retriesCount int) {
+func (d *DummyQueue) ConsumeTimed(f map[string]interface{}, t time.Time, tokenID string) {
 }
 
-func (d *DummyQueue) DequeueBlock() (Event, time.Time, string, int, error) {
-	return nil, time.Time{}, "", 0, fmt.Errorf("DequeueBlock not supported on DummyQueue")
+func (d *DummyQueue) DequeueBlock() (Event, time.Time, string, error) {
+	return nil, time.Time{}, "", fmt.Errorf("DequeueBlock not supported on DummyQueue")
 }
 
-// Queue is an events queue. Possible implementations (dque, leveldbqueue, native)
+//Queue is an events queue. Possible implementations (dque, leveldbqueue, native)
 type Queue interface {
 	io.Closer
 	Consume(f map[string]interface{}, tokenID string)
-	ConsumeTimed(f map[string]interface{}, t time.Time, tokenID string, retriesCount int)
-	DequeueBlock() (Event, time.Time, string, int, error)
+	ConsumeTimed(f map[string]interface{}, t time.Time, tokenID string)
+	DequeueBlock() (Event, time.Time, string, error)
 }
 
 type QueueFactory struct {
