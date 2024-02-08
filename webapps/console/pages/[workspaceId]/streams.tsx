@@ -111,7 +111,7 @@ const CustomDomain: React.FC<{ domain: string; deleteDomain: () => Promise<void>
                 <FaExternalLinkAlt />
               </Button>
             </Tooltip>
-            {!data?.ok && (
+            {data?.reason === "requires_cname_configuration" && (
               <Tooltip title="See configuration instructions">
                 <Button
                   type="text"
@@ -172,12 +172,14 @@ const CustomDomain: React.FC<{ domain: string; deleteDomain: () => Promise<void>
                   </span>
                 </StatusBadge>
               );
-            } else if (error) {
-              return <StatusBadge status="error">ERROR</StatusBadge>;
-            } else if (!data?.ok) {
-              return <StatusBadge status="warning">Configuration Required</StatusBadge>;
-            } else {
+            } else if (data?.ok) {
               return <StatusBadge status="success">OK</StatusBadge>;
+            } else if (data?.reason === "requires_cname_configuration") {
+              return <StatusBadge status="warning">Configuration Required</StatusBadge>;
+            } else if (data?.reason === "pending_ssl") {
+              return <StatusBadge status="warning">Issuing Certificate</StatusBadge>;
+            } else {
+              return <StatusBadge status="error">{data?.reason || "ERROR"}</StatusBadge>;
             }
           })()}
         </div>
@@ -187,7 +189,7 @@ const CustomDomain: React.FC<{ domain: string; deleteDomain: () => Promise<void>
             <div className="">{`${"Internal error"}`}</div>
           </div>
         )}
-        {!data?.ok && (
+        {data?.reason === "requires_cname_configuration" && (
           <div className="flex items-start mt-1">
             <div className={"mr-2"}>Description:</div>
             <div className="">

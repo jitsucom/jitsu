@@ -1,7 +1,13 @@
 import { getServerLog } from "../../../lib/server/log";
 
 import { z } from "zod";
-import { customDomainCnames, isCnameValid, isDomainAvailable } from "../../../lib/server/custom-domains";
+import {
+  customDomainCnames,
+  isDomainAvailable,
+  resolveCname,
+  checkCname,
+  checkOrAddToIngress,
+} from "../../../lib/server/custom-domains";
 import { DomainCheckResponse } from "../../../lib/shared/domain-check-response";
 import { createRoute, verifyAccess } from "../../../lib/api";
 
@@ -30,11 +36,34 @@ export default createRoute()
         );
       return { ok: false, reason: "used_by_other_workspace" };
     }
-
-    const cnameValid = await isCnameValid(domain);
+    const cname = await resolveCname(domain);
+    const cnameValid = await checkCname(cname);
     if (!cnameValid) {
       log.atWarn().log(`Domain ${domain} is not valid`);
       return { ok: false, reason: "requires_cname_configuration", cnameValue: customDomainCnames[0] };
+    }
+    //TODO: remove condition after migration complete
+    if (cname === "cname2.jitsu.com") {
+      try {
+        const ingressStatus = await checkOrAddToIngress(domain);
+        log.atInfo().log(`Ingress status for ${domain}: ${JSON.stringify(ingressStatus)}`);
+        if (!ingressStatus) {
+          log.atWarn().log(`Incorrect ingress status ${domain} is not valid`);
+          return { ok: false, reason: "internal_error" };
+        }
+        if (ingressStatus.status === "ok") {
+          return { ok: true };
+        } else if (ingressStatus.status === "pending_ssl") {
+          return { ok: false, reason: "pending_ssl" };
+        } else if (ingressStatus.status === "dns_error") {
+          return { ok: false, reason: "requires_cname_configuration", cnameValue: customDomainCnames[0] };
+        } else {
+          return { ok: false, reason: "internal_error" };
+        }
+      } catch (e) {
+        log.atError().withCause(e).log(`Error checking ingress status for ${domain}`);
+        return { ok: false, reason: "internal_error" };
+      }
     }
     return { ok: true };
   })
