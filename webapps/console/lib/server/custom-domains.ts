@@ -33,25 +33,30 @@ export async function isDomainAvailable(domain: string, workspaceId: string): Pr
   }
 }
 
-export function resolveCname(domain: string): Promise<string | undefined> {
-  return new Promise((resolve, reject) => {
-    dns.resolveCname(domain, (err, addresses) => {
-      if (err) {
-        reject(err);
-      } else {
-        if (addresses.length === 1) {
-          resolve(addresses[0]);
-        } else if (!addresses || addresses.length === 0) {
-          resolve(undefined);
+export async function resolveCname(domain: string): Promise<string | undefined> {
+  try {
+    return await new Promise((resolve, reject) => {
+      dns.resolveCname(domain, (err, addresses) => {
+        if (err) {
+          reject(err);
         } else {
-          getLog()
-            .atWarn()
-            .log(`Domain ${domain} has multiple CNAME records: ${addresses.join(", ")}. Using first one`);
-          resolve(addresses[0]);
+          if (addresses.length === 1) {
+            resolve(addresses[0]);
+          } else if (!addresses || addresses.length === 0) {
+            resolve(undefined);
+          } else {
+            getLog()
+              .atWarn()
+              .log(`Domain ${domain} has multiple CNAME records: ${addresses.join(", ")}. Using first one`);
+            resolve(addresses[0]);
+          }
         }
-      }
+      });
     });
-  });
+  } catch (e) {
+    getLog().atError().withCause(e).log(`Domain ${domain} has no CNAME records`);
+    return undefined;
+  }
 }
 
 export async function isDomainCnameValid(domain: string): Promise<boolean> {
