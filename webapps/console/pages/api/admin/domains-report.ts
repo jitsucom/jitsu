@@ -19,7 +19,8 @@ export default createRoute()
             s.config ->> 'name' as "streamName",
             s."updatedAt" as "updatedAt",
             s.config,
-            w.id as "workspaceId"
+            w.id as "workspaceId",
+            (s.deleted or w.deleted) as "deleted"
         from newjitsu."ConfigurationObject" s
              join newjitsu."Workspace" w on w.id = s."workspaceId"
         where s.type = 'stream'
@@ -43,6 +44,7 @@ export default createRoute()
           misconfigurationReason: validCname ? null : "invalid_cname",
           sourceId: row.id,
           workspaceId: row.workspaceId,
+          deleted: row.deleted,
         };
         res.write(`${hasPrev ? "," : ""}${JSON.stringify(resRow)}\n`);
         hasPrev = true;
