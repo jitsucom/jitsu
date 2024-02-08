@@ -206,6 +206,12 @@ const CustomDomain: React.FC<{ domain: string; deleteDomain: () => Promise<void>
             </div>
           </div>
         )}
+        {data?.reason === "pending_ssl" && (
+          <div className="flex items-start mt-1">
+            <div className={"mr-2"}>Description:</div>
+            <div className="">Issuing SSL certificate for the domain. It may take up to 10 minutes.</div>
+          </div>
+        )}
       </>
     </div>
   );
