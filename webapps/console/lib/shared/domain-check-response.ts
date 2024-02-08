@@ -8,7 +8,12 @@ export const DomainCheckResponse = z.union([
   }),
   z.object({
     ok: z.literal(false),
-    reason: z.union([z.literal("used_by_other_workspace"), z.literal("invalid_domain_name")]),
+    reason: z.union([
+      z.literal("used_by_other_workspace"),
+      z.literal("invalid_domain_name"),
+      z.literal("pending_ssl"),
+      z.literal("internal_error"),
+    ]),
     cnameValue: z.never().optional(),
   }),
   z.object({

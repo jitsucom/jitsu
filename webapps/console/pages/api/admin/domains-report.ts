@@ -1,7 +1,7 @@
 import { createRoute } from "../../../lib/api";
 import { db } from "../../../lib/server/db";
 import { assertDefined, assertTrue } from "juava";
-import { isCnameValid } from "../../../lib/server/custom-domains";
+import { isDomainCnameValid } from "../../../lib/server/custom-domains";
 
 export default createRoute()
   .GET({
@@ -35,7 +35,7 @@ export default createRoute()
     let hasPrev: boolean = false;
     for (const row of domains.rows) {
       for (const domain of row.config.domains) {
-        const validCname = cache[domain] ?? (cache[domain] = await isCnameValid(domain));
+        const validCname = cache[domain] ?? (cache[domain] = await isDomainCnameValid(domain));
         const resRow = {
           configured: validCname,
           domain,
