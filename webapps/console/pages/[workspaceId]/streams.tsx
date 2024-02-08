@@ -37,7 +37,7 @@ const Streams: React.FC<any> = () => {
 };
 
 const StatusBadge: React.FC<
-  PropsWithChildren<{ status: "error" | "warning" | "success" | "loading"; className?: string }>
+  PropsWithChildren<{ status: "error" | "warning" | "info" | "success" | "loading"; className?: string }>
 > = ({ status, children, className }) => {
   let color: string | undefined;
   let defaultDescription: string;
@@ -47,6 +47,9 @@ const StatusBadge: React.FC<
   } else if (status === "success") {
     color = "cyan";
     defaultDescription = "Success";
+  } else if (status === "info") {
+    color = "geekblue";
+    defaultDescription = "Info";
   } else if (status === "warning") {
     color = "orange";
     defaultDescription = "Warning";
@@ -177,7 +180,7 @@ const CustomDomain: React.FC<{ domain: string; deleteDomain: () => Promise<void>
             } else if (data?.reason === "requires_cname_configuration") {
               return <StatusBadge status="warning">Configuration Required</StatusBadge>;
             } else if (data?.reason === "pending_ssl") {
-              return <StatusBadge status="warning">Issuing Certificate</StatusBadge>;
+              return <StatusBadge status="info">Issuing Certificate</StatusBadge>;
             } else {
               return <StatusBadge status="error">{data?.reason || "ERROR"}</StatusBadge>;
             }
