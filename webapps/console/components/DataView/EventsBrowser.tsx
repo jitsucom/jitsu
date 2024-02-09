@@ -23,6 +23,7 @@ import { ConnectionTitle } from "../../pages/[workspaceId]/connections";
 import { StreamTitle } from "../../pages/[workspaceId]/streams";
 import { trimMiddle } from "../../lib/shared/strings";
 import { countries } from "../../lib/shared/countries";
+import zlib from "zlib";
 
 dayjs.extend(utc);
 dayjs.extend(relativeTime);
@@ -452,17 +453,29 @@ const FunctionsLogTable = ({ loadEvents, loading, streamType, entityType, actorI
     })();
   }, [workspace.id]);
 
-  const functionLogs = events
-    ? events.map(e => {
-        e = { ...e };
-        if (e.content.body) {
-          try {
-            e.content.body = JSON.parse(e.content.body);
-          } catch (e) {}
+  const functionLogs = events || ([] as EventsLogRecord[]);
+
+  const mapHttpBody = (r: { event: EventsLogRecord }): { event: EventsLogRecord } => {
+    const e = r.event;
+    if (e.content.body) {
+      let string;
+      if (e.content.body.type === "Buffer" && e.content.body.data) {
+        if (e.content.headers?.["Content-Encoding"] === "gzip") {
+          string = zlib.gunzipSync(Buffer.from(e.content.body.data)).toString();
+        } else {
+          string = Buffer.from(e.content.body.data).toString();
         }
-        return e;
-      })
-    : ([] as EventsLogRecord[]);
+      } else {
+        string = e.content.body;
+      }
+      try {
+        e.content.body = JSON.parse(string);
+      } catch (er) {
+        e.content.body = string;
+      }
+    }
+    return r;
+  };
 
   const columns: ColumnsType<EventsLogRecord> = [
     {
@@ -565,7 +578,7 @@ const FunctionsLogTable = ({ loadEvents, loading, streamType, entityType, actorI
       loadEvents={loadEvents}
       className="border border-backgroundDark rounded-lg"
       events={functionLogs}
-      drawerNode={event => <JSONView data={event} />}
+      drawerNode={event => <JSONView data={mapHttpBody(event)} />}
       columns={columns}
     />
   );
