@@ -64,7 +64,7 @@ export type FetchType = (url: string, opts?: FetchOpts, logToRedis?: boolean) =>
 export type FetchOpts = {
   method?: string;
   headers?: Record<string, string>;
-  body?: string;
+  body?: string | Buffer;
 };
 export type FunctionLogger<Sync extends boolean = false> = {
   info: (message: string, ...args: any[]) => void | Promise<void>;
