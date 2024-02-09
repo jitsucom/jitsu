@@ -39,7 +39,7 @@
     "isolated-vm": "4.7.2",
     "juava": "workspace:*",
     "lodash": "^4.17.21",
-    "mongodb": "^5.9.2",
+    "mongodb": "^6.3.0",
     "node-cache": "^5.1.2",
     "@mongodb-js/zstd": "^1.2.0",
     "ioredis": "^5.3.2",

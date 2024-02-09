@@ -4,6 +4,7 @@ import type { AnalyticsServerEvent, Geo } from "@jitsu/protocols/analytics";
 import { randomId, hash } from "juava";
 import { MixpanelCredentials } from "../meta";
 import { eventTimeSafeMs } from "./lib";
+import zlib from "zlib";
 
 //See https://help.mixpanel.com/hc/en-us/articles/115004708186-Profile-Properties
 export const specialProperties = [
@@ -130,6 +131,7 @@ function trackEvent(
     url: `https://api.mixpanel.com/import?strict=1&project_id=${opts.projectId}`,
     headers: {
       "Content-type": "application/json",
+      "Content-Encoding": "gzip",
       Accept: "application/json",
       Authorization: `Basic ${getAuth(opts)}`,
     },
@@ -473,13 +475,17 @@ const MixpanelDestination: JitsuFunction<AnalyticsServerEvent, MixpanelCredentia
     }
     for (const message of messages) {
       const method = message.method || "POST";
+      const payload = message.payload ? JSON.stringify(message.payload) : "{}";
+      const compressed = message.headers?.["Content-Encoding"] === "gzip" ? zlib.gzipSync(payload) : payload;
       const result = await ctx.fetch(message.url, {
         method,
         headers: message.headers,
-        ...(message.payload ? { body: JSON.stringify(message.payload) } : {}),
+        ...(message.payload ? { body: compressed } : {}),
       });
       const logMessage = `MixPanel ${method} ${message.url}:${
-        message.payload ? `${JSON.stringify(message.payload)} --> ` : ""
+        message.payload
+          ? `${JSON.stringify(message.payload)} (size: ${payload.length} compressed: ${compressed.length}) --> `
+          : ""
       }${result.status} ${await result.text()}`;
       if (result.status !== 200) {
         throw new Error(logMessage);
