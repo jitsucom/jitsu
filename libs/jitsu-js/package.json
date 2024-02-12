@@ -42,7 +42,8 @@
     "raw-loader": "^4.0.2",
     "rollup": "^3.2.5",
     "ts-jest": "29.0.5",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "jsondiffpatch": "workspace:*"
   },
   "dependencies": {
     "analytics": "0.8.9"

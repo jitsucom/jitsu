@@ -6,9 +6,12 @@ import { rotorMessageHandler } from "../lib/message-handler";
 import { CONNECTION_IDS_HEADER } from "../lib/rotor";
 import { AnyEvent } from "@jitsu/protocols/functions";
 import isEqual from "lodash/isEqual";
+import { parse as semverParse } from "semver";
+import * as jsondiffpatch from "jsondiffpatch";
 
 import Prometheus from "prom-client";
 
+const jsondiffpatchInstance = jsondiffpatch.create();
 const log = getLog("functions_handler");
 
 const handlerMetric = new Prometheus.Counter({
@@ -54,7 +57,7 @@ export const FunctionsHandlerMulti = (metrics: Metrics, geoResolver?: GeoResolve
         handlerMetric.inc({ connectionId: id, status: "success" }, 1);
       });
       const events = Object.fromEntries(
-        results.map(result => [result?.connectionId, mapTheSame(message, result?.events)])
+        results.map(result => [result?.connectionId, mapDiff(message, result?.events)])
       );
       res.json(events);
     })
@@ -66,9 +69,34 @@ export const FunctionsHandlerMulti = (metrics: Metrics, geoResolver?: GeoResolve
     });
 };
 
-function mapTheSame(message: IngestMessage, newEvents?: AnyEvent[]) {
+function mapDiff(message: IngestMessage, newEvents?: AnyEvent[]) {
   if (!newEvents) {
     return [];
   }
-  return newEvents.map(e => (isEqual(message.httpPayload, e) ? "same" : e));
+
+  return newEvents.map(e => {
+    if (isEqual(message.httpPayload, e)) {
+      return "same";
+    }
+    let supportsDiff = false;
+    const library = message.httpPayload?.context?.library;
+    if (library?.name === "@jitsu/js") {
+      const semver = semverParse(library.version);
+      if (semver && semver.major >= 2) {
+        supportsDiff = true;
+      }
+    }
+    if (!supportsDiff) {
+      return e;
+    }
+
+    const originalSize = JSON.stringify(message.httpPayload).length;
+    const diff = jsondiffpatchInstance.diff(message.httpPayload, e);
+    const diffSize = JSON.stringify(diff).length;
+    if (diffSize > originalSize) {
+      return e;
+    } else {
+      return { __diff: diff };
+    }
+  });
 }

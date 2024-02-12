@@ -18,3 +18,5 @@ node_modules
 /cache/**
 /cli/build-scripts/compiled/
 /cli/build-scripts/dist/
+/libs/jsondiffpatch/lib/
+/libs/jsondiffpatch/coverage/

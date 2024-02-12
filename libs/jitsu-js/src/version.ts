@@ -1,6 +1,6 @@
-//import pkg from "../package.json";
+import pkg from "../package.json";
 
-const jitsuVersion = "0.0.0";
+const jitsuVersion = pkg.version !== "0.0.0" ? pkg.version : "2.0.0";
 const jitsuLibraryName = "@jitsu/js";
 
 export { jitsuVersion, jitsuLibraryName };
