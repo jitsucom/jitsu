@@ -1,10 +1,10 @@
-import Context from './context.js';
-import type { Delta } from '../types.js';
+import Context from "./context.js";
+import type { Delta } from "../types.js";
 
 class PatchContext extends Context<unknown> {
   left: unknown;
   delta: Delta;
-  pipe: 'patch';
+  pipe: "patch";
 
   nested?: boolean;
 
@@ -12,7 +12,7 @@ class PatchContext extends Context<unknown> {
     super();
     this.left = left;
     this.delta = delta;
-    this.pipe = 'patch';
+    this.pipe = "patch";
   }
 }
 

@@ -1,4 +1,4 @@
-import type { Options } from '../types.js';
+import type { Options } from "../types.js";
 
 export default abstract class Context<TResult> {
   abstract pipe: string;
@@ -27,7 +27,7 @@ export default abstract class Context<TResult> {
 
   push(child: this, name?: string | number) {
     child.parent = this;
-    if (typeof name !== 'undefined') {
+    if (typeof name !== "undefined") {
       child.childName = name;
     }
     child.root = this.root || this;
