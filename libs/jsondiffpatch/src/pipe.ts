@@ -1,6 +1,6 @@
-import type Context from './contexts/context.js';
-import type Processor from './processor.js';
-import type { Filter } from './types.js';
+import type Context from "./contexts/context.js";
+import type Processor from "./processor.js";
+import type { Filter } from "./types.js";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 class Pipe<TContext extends Context<any>> {
@@ -17,7 +17,7 @@ class Pipe<TContext extends Context<any>> {
 
   process(input: TContext) {
     if (!this.processor) {
-      throw new Error('add this pipe to a processor before using it');
+      throw new Error("add this pipe to a processor before using it");
     }
     const debug = this.debug;
     const length = this.filters.length;
@@ -28,7 +28,7 @@ class Pipe<TContext extends Context<any>> {
         this.log(`filter: ${filter.filterName}`);
       }
       filter(context);
-      if (typeof context === 'object' && context.exiting) {
+      if (typeof context === "object" && context.exiting) {
         context.exiting = false;
         break;
       }
@@ -54,7 +54,7 @@ class Pipe<TContext extends Context<any>> {
 
   indexOf(filterName: string) {
     if (!filterName) {
-      throw new Error('a filter name is required');
+      throw new Error("a filter name is required");
     }
     for (let index = 0; index < this.filters.length; index++) {
       const filter = this.filters[index];
@@ -66,7 +66,7 @@ class Pipe<TContext extends Context<any>> {
   }
 
   list() {
-    return this.filters.map((f) => f.filterName);
+    return this.filters.map(f => f.filterName);
   }
 
   after(filterName: string, ...params: Filter<TContext>[]) {
@@ -106,12 +106,10 @@ class Pipe<TContext extends Context<any>> {
     if (this.resultCheck) {
       return;
     }
-    this.resultCheck = (context) => {
+    this.resultCheck = context => {
       if (!context.hasResult) {
         console.log(context);
-        const error: Error & { noResult?: boolean } = new Error(
-          `${this.name} failed`,
-        );
+        const error: Error & { noResult?: boolean } = new Error(`${this.name} failed`);
         error.noResult = true;
         throw error;
       }

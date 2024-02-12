@@ -1,9 +1,7 @@
-import type { Filter } from '../types.js';
-import type DiffContext from '../contexts/diff.js';
+import type { Filter } from "../types.js";
+import type DiffContext from "../contexts/diff.js";
 
-export const diffFilter: Filter<DiffContext> = function datesDiffFilter(
-  context,
-) {
+export const diffFilter: Filter<DiffContext> = function datesDiffFilter(context) {
   if (context.left instanceof Date) {
     if (context.right instanceof Date) {
       if (context.left.getTime() !== context.right.getTime()) {
@@ -19,4 +17,4 @@ export const diffFilter: Filter<DiffContext> = function datesDiffFilter(
     context.setResult([context.left, context.right]).exit();
   }
 };
-diffFilter.filterName = 'dates';
+diffFilter.filterName = "dates";
