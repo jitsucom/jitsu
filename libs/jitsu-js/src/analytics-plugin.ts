@@ -9,6 +9,8 @@ import { loadScript } from "./script-loader";
 import { internalDestinationPlugins } from "./destination-plugins";
 import { jitsuLibraryName, jitsuVersion } from "./version";
 import { getTopLevelDomain } from "./tlds";
+import * as jsondiffpatch from "jsondiffpatch";
+const diff = jsondiffpatch.create();
 
 const defaultConfig: Required<JitsuOptions> = {
   /* Your segment writeKey */
@@ -390,6 +392,11 @@ export type InternalPluginDescriptor = {
 
 export type DeviceOptions = AnalyticsPluginDescriptor | InternalPluginDescriptor;
 
+function isDiff(obj: any) {
+  const keys = Object.keys(obj);
+  return keys.length === 1 && keys[0] === "__diff";
+}
+
 async function processDestinations(
   destinations: DestinationDescriptor[],
   method: string,
@@ -402,7 +409,13 @@ async function processDestinations(
   for (const destination of destinations) {
     let newEvents = [originalEvent];
     if (destination.newEvents) {
-      newEvents = destination.newEvents.map(e => (e === "same" ? originalEvent : e));
+      try {
+        newEvents = destination.newEvents.map(e =>
+          e === "same" ? originalEvent : isDiff(e) ? diff.patch(originalEvent, e.__diff) : e
+        );
+      } catch (e) {
+        console.error(`[JITSU] Error applying '${destination.id}' changes to event: ${e?.message}`, e);
+      }
     }
     const credentials = { ...destination.credentials, ...destination.options };
 
