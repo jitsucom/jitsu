@@ -1,18 +1,18 @@
 import React, { ErrorInfo, ReactNode } from "react";
-import { Expandable } from "../Expandable/Expandable";
 import { CodeBlock } from "../CodeBlock/CodeBlock";
 import { FaExclamationCircle } from "react-icons/fa";
 import { Button, Collapse } from "antd";
-import { signOut } from "next-auth/react";
 import { getErrorMessage, getLog } from "juava";
-import { firebaseSignOut } from "../../lib/firebase-client";
 import { PropsWithChildrenClassname } from "../../lib/ui";
 import { AlertCircle } from "lucide-react";
 import classNames from "classnames";
+import { signOut } from "next-auth/react";
+import { firebaseSignOut } from "../../lib/firebase-client";
 
 export type GlobalErrorProps = {
   error?: any;
   title?: string;
+  children?: ReactNode;
   hideActions?: boolean;
 };
 
@@ -100,7 +100,25 @@ function maxLen(str: string, maxLen = 200) {
   return str.length <= maxLen - 2 ? str : str.substring(0, maxLen) + "...";
 }
 
-export function ErrorCard(props: { error?: any; title?: string; hideActions?: boolean }) {
+export function ErrorCard(props: { error?: any; title?: string; hideActions?: boolean; children?: ReactNode }) {
+  const title = props.title || (props.error ? maxLen(getErrorMessage(props.error), 60) : "Error");
+  const description = (
+    <>
+      {props.children || `We encountered an error processing your request`}. Please try refreshing the page, or logging
+      out and back in. If the problem persists, please contact support.
+    </>
+  );
+  const [detailsVisible, setDetailsVisible] = React.useState(false);
+  const universalSignOut = async () => {
+    //we can't use current session here, since the error can be originated
+    //from auth layer. Try to logout using all methods
+    signOut().catch(err => {
+      log.atWarn().withCause(err).log(`Can't sign ut from next-auth`);
+    });
+    firebaseSignOut().catch(err => {
+      log.atWarn().withCause(err).log(`Can't sign ut from next-auth`);
+    });
+  };
   return (
     <div
       className="max-w-screen-md  px-6 py-4 border border-error/20 rounded-xl bg-error/5 w-full overflow-auto mx-auto"
@@ -108,39 +126,32 @@ export function ErrorCard(props: { error?: any; title?: string; hideActions?: bo
     >
       <div className="text-error text-lg flex items-center">
         <div className="flex items-center">
-          <FaExclamationCircle className="h-8 w-8 mr-2" />
-          {props.title || (props.error ? maxLen(getErrorMessage(props.error), 60) : "Error")}
-          {!props.hideActions && (
-            <Button
-              type="link"
-              className="mt-0.5"
-              onClick={async () => {
-                //we can't use current session here, since the error can be originated
-                //from auth layer. Try to logout using all methods
-                signOut().catch(err => {
-                  log.atWarn().withCause(err).log(`Can't sign ut from next-auth`);
-                });
-                firebaseSignOut().catch(err => {
-                  log.atWarn().withCause(err).log(`Can't sign ut from next-auth`);
-                });
-              }}
-            >
-              Logout
-            </Button>
-          )}
-          {!props.hideActions && (
-            <Button type="link" onClick={() => window.location.reload()} className="mt-0.5">
-              Reload
-            </Button>
-          )}
+          <FaExclamationCircle className="h-4 w-4 mr-2" />
+          {title}
         </div>
       </div>
-      {props.error && (
+      <div className="pl-6 text-sm text-error font-light">
+        <div>{description}</div>
+        {!props.hideActions && (
+          <div className="pt-2 -ml-2 flex items-center justify-start gap-2">
+            <Button size="small" type="link" onClick={universalSignOut}>
+              Logout
+            </Button>
+            <Button size="small" type="link" onClick={() => window.location.reload()} className="mt-0.5">
+              Reload
+            </Button>
+            {props.error && (
+              <Button size="small" type="link" onClick={() => setDetailsVisible(!detailsVisible)} className="mt-0.5">
+                {detailsVisible ? "Hide technical details" : "Show technical details"}
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+      {props.error && detailsVisible && (
         <div className="mt-6">
-          <Expandable title={exp => (exp ? "Hide Details" : "Show Details")}>
-            {(props.error?.stack || props.error?.message) && <ErrorDetails error={props.error} />}
-            {typeof props.error === "string" && <ErrorDetails error={{ message: props.error }} />}
-          </Expandable>
+          {(props.error?.stack || props.error?.message) && <ErrorDetails error={props.error} />}
+          {typeof props.error === "string" && <ErrorDetails error={{ message: props.error }} />}
         </div>
       )}
     </div>

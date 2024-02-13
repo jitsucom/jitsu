@@ -92,13 +92,14 @@ export const rpc: RpcFunc = async (url, { body, ...rest } = {}) => {
     const errorJson = tryJson(errorText);
     const defaultErrorMessage = `Error ${result.status} on ${method} ${url}`;
     console.error(defaultErrorMessage, errorJson);
+
     //Try to extract meaningful error message from response. We don't need to include a full message since it will be visible
     //in the logs. On the other hand, error message could be displayed in UI
     const errorMessage =
       extractString(errorJson.message) ||
       extractString(errorJson.error) ||
       extractString(errorJson.error?.error) ||
-      `${result.status} ${result.statusText} on ${url}`; //a 500 error without JSON message, propbably just html page
+      `${result.status} ${result.statusText}`;
     throw new ApiResponseError(errorMessage, typeof errorJson === "string" ? undefined : errorJson, {
       url: urlWithQuery,
       ...requestParams,

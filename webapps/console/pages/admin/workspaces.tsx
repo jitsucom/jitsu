@@ -10,6 +10,7 @@ import hash from "stable-hash";
 import { JsonAsTable } from "../../components/JsonAsTable/JsonAsTable";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
+
 const View = ({ data }) => {
   const [rollup, setRollup] = useState(false);
   const router = useRouter();
@@ -68,7 +69,15 @@ const View = ({ data }) => {
           billing: {
             type: "custom",
             render: (val, row) => {
-              if (val?.renewAfterExpiration === true) {
+              if (val?.planId === "enterprise") {
+                return (
+                  <Link key="status" href={`/${row.workspaceSlug}/settings/billing`} className="grow">
+                    <div className="border text-center rounded-full text-xs text-orange-400 border-orange-400 bg-orange-400/10">
+                      ENTERPRISE
+                    </div>
+                  </Link>
+                );
+              } else if (val?.renewAfterExpiration === true) {
                 return (
                   <div className="flex flex-nowrap text-success items-center gap-1 text-sm">
                     <Link key="status" href={`/${row.workspaceSlug}/settings/billing`} className="grow">

@@ -57,6 +57,16 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
   const result = Object.fromEntries(
     allWorkspaces
       .map(w => {
+        if (w.obj.customBilling) {
+          return [
+            w.id,
+            {
+              planId: "enterprise",
+              planName: "enterprise",
+              pastDue: false,
+            },
+          ];
+        }
         const customerSubscriptions = subscriptions[w.obj.stripeCustomerId];
         if (!customerSubscriptions) {
           return [w.id, undefined];
