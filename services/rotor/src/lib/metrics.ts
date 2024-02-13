@@ -12,7 +12,7 @@ export const log = getLog("metrics");
 const bulkerBase = requireDefined(process.env.BULKER_URL, "env BULKER_URL is not defined");
 const bulkerAuthKey = requireDefined(process.env.BULKER_AUTH_KEY, "env BULKER_AUTH_KEY is not defined");
 const metricsDestinationId = process.env.METRICS_DESTINATION_ID;
-const oldMetricsTable = "active_incoming";
+const billingMetricsTable = "active_incoming";
 const metricsTable = "metrics";
 
 const max_batch_size = 10000;
@@ -20,7 +20,7 @@ const flush_interval_ms = 60000;
 
 type MetricsEvent = MetricsMeta & {
   functionId: string;
-  timestamp: string;
+  timestamp: Date;
   status: string;
   events: number;
 };
@@ -49,23 +49,27 @@ export function createMetrics(producer?: Producer): Metrics {
           })),
         }),
         producer.send({
-          topic: `in.id.metrics.m.batch.t.${oldMetricsTable}`,
+          topic: `in.id.metrics.m.batch.t.${billingMetricsTable}`,
           compression: getCompressionType(),
           messages: buf
             .filter(m => m.functionId.startsWith("builtin.destination.") && m.status !== "dropped")
-            .map(m => ({
-              value: JSON.stringify({
-                timestamp: m.timestamp,
-                workspaceId: m.workspaceId,
-                messageId: m.messageId,
-              }),
-            })),
+            .map(m => {
+              const d = new Date(m.timestamp);
+              d.setMinutes(0);
+              return {
+                value: JSON.stringify({
+                  timestamp: d,
+                  workspaceId: m.workspaceId,
+                  messageId: m.messageId,
+                }),
+              };
+            }),
         }),
       ]);
     } else {
       //create readable stream
       const streamOld = new Readable();
-      const resOld = fetch(`${bulkerBase}/bulk/${metricsDestinationId}?tableName=${oldMetricsTable}&mode=batch`, {
+      const resOld = fetch(`${bulkerBase}/bulk/${metricsDestinationId}?tableName=${billingMetricsTable}&mode=batch`, {
         method: "POST",
         headers: { Authorization: `Bearer ${bulkerAuthKey}` },
         body: streamOld,
@@ -170,7 +174,7 @@ export function createMetrics(producer?: Producer): Metrics {
           return prefix + status;
         })(el);
         buffer.push({
-          timestamp: d.toISOString(),
+          timestamp: d,
           ...omit(el.metricsMeta, "retries"),
           functionId: el.functionId,
           status,
