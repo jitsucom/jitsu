@@ -9,6 +9,7 @@ import { listAllSubscriptions, stripe, stripeDataTable } from "../../../lib/stri
 import Stripe from "stripe";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
+
 dayjs.extend(utc);
 
 const log = getServerLog("/api/report");
@@ -155,7 +156,10 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
   const start = getDate(req.query.start as string, minusDays(new Date(), 32).toISOString()).toISOString();
   const end = getDate(req.query.end as string, new Date().toISOString()).toISOString();
   const granularity = "day"; // = ((req.query.granularity as string) || "day").toLowerCase();
+  const timer = Date.now();
+  log.atInfo().log("Building workspace report");
   const reportResult = await buildWorkspaceReport(start, end, granularity, workspaceId);
+  log.atInfo().log(`Workspace report built in ${Date.now() - timer}ms. Rows in result: ${reportResult.length}`);
   let records = extended ? await extend(reportResult) : reportResult;
   if (req.query.billing === "true") {
     const allWorkspaces = workspaceId
@@ -184,8 +188,15 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
     }
     const workspacePlans: Record<string, string> = {};
 
+    console.log(`All workspaces`, allWorkspaces);
+
     for (const { id: workspaceId, obj } of allWorkspaces) {
-      const { stripeCustomerId } = obj;
+      const { stripeCustomerId, customBilling } = obj;
+      if (customBilling) {
+        workspacePlans[workspaceId] = "enterprise";
+        continue;
+      }
+
       const customerSubscriptions = subscriptions[stripeCustomerId];
       if (!customerSubscriptions) {
         continue;

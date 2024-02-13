@@ -274,10 +274,12 @@ function AppLoader({ children, pageProps }: PropsWithChildren<any>) {
     setOrigin(window.location.origin);
   }, []);
 
-  if (isLoading || !data || !origin) {
+  console.log("AppLoader", { data, isLoading, error });
+
+  if (isLoading || !origin) {
     return <GlobalLoader title={"Loading application..."} />;
   } else if (error) {
-    return <GlobalError error={error} title="Failed to load application config" />;
+    return <GlobalError error={error} title="Application failed to initialize"></GlobalError>;
   }
   let originUrl;
   try {

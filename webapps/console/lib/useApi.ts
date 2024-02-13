@@ -123,7 +123,7 @@ export function useApi<Res = any, Req = any, Query extends Record<string, any> =
       }
       return zodParsed.data;
     },
-    { retry: false, cacheTime: 0 }
+    { retry: false, cacheTime: 0, staleTime: 0 }
   );
   return { ...queryResult, reload: () => setVersion(version + 1) };
 }
