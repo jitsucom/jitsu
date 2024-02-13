@@ -1,6 +1,6 @@
 import { FullContext, JitsuFunction } from "@jitsu/protocols/functions";
 import { RetryError } from "@jitsu/functions-lib";
-import type { AnalyticsServerEvent, Geo } from "@jitsu/protocols/analytics";
+import type { AnalyticsContext, AnalyticsServerEvent, Geo } from "@jitsu/protocols/analytics";
 import { randomId, hash } from "juava";
 import { MixpanelCredentials } from "../meta";
 import { eventTimeSafeMs } from "./lib";
@@ -28,14 +28,25 @@ export type HttpRequest = {
   headers?: Record<string, string>;
 };
 
-function utm(param: Record<any, string>, prefix: string = "utm_"): Record<string, any> {
+// Map and extracts campaign parameters from context.campaign into object with utm properties
+function utmFromCampaign(param: Record<string, any>, prefix: string = ""): Record<string, any> {
   return Object.entries(param).reduce(
     (acc, [key, value]) => ({
       ...acc,
-      [`${prefix}${key === "name" ? "campaign" : key}`]: value,
+      [`${prefix}utm_${key === "name" ? "campaign" : key}`]: value,
     }),
     {}
   );
+}
+
+// Extracts utm parameters from properties and returns them as a new object
+function extractUtmParams(properties: Record<string, any>, prefix: string = ""): Record<string, any> {
+  return Object.entries(properties).reduce((acc, [key, value]) => {
+    if (key.startsWith("utm_")) {
+      acc[`${prefix}${key}`] = value;
+    }
+    return acc;
+  }, {});
 }
 
 function evict(obj: Record<string, any>, key: string) {
@@ -118,7 +129,7 @@ function trackEvent(
   delete traits.groupId;
 
   const customProperties = {
-    ...utm(analyticsContext.campaign || {}),
+    ...utmFromCampaign(analyticsContext.campaign || {}),
     ...(analyticsContext.page || {}),
     ...traits,
     ...(event.properties || {}),
@@ -250,6 +261,10 @@ function setProfileMessage(ctx: FullContext, distinctId: string, event: Analytic
     },
   ];
   if (event.context?.page?.referrer || event.context?.page?.referring_domain) {
+    const utm = {
+      ...utmFromCampaign(event.context?.campaign || {}, "initial_"),
+      ...extractUtmParams(event.properties || {}, "initial_"),
+    };
     reqs.push({
       id: randomId(),
       url: "https://api.mixpanel.com/engage?verbose=1#profile-set-once",
@@ -263,7 +278,7 @@ function setProfileMessage(ctx: FullContext, distinctId: string, event: Analytic
           $distinct_id: distinctId,
           $ip: event.context?.ip,
           $set_once: {
-            ...utm(event.context?.campaign || {}, "initial_utm_"),
+            ...utm,
             $initial_referrer: event.context?.page?.referrer,
             $initial_referring_domain: event.context?.page?.referring_domain,
           },
