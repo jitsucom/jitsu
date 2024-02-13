@@ -40,7 +40,7 @@ export default createRoute()
             date_trunc({granularity:String}, timestamp) as period,
             uniqMerge(count) as "activeEvents",
             count(*) as "srcSize"
-        from ${metricsSchema}.mv_active_incoming
+        from ${metricsSchema}.mv_active_incoming2
         where 
             timestamp >= toDateTime({start:String}, 'UTC') and
             timestamp <= toDateTime({end:String}, 'UTC') and 

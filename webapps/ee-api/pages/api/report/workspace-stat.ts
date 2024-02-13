@@ -56,7 +56,7 @@ async function getClickhousePart({
                    date_trunc('${granularity}', timestamp) as period,
                    workspaceId as "workspaceId",
                    uniqMerge(count) as events
-                 from ${metricsSchema}.mv_active_incoming
+                 from ${metricsSchema}.mv_active_incoming2
                  where
                    timestamp >= toDateTime('2023-07-28 00:00:00', 'UTC') and
                    timestamp >= toDateTime({start :String}, 'UTC') and

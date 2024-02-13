@@ -7,6 +7,26 @@ create table newjitsu_metrics.active_incoming on cluster jitsu_cluster
 )
     engine = Null;
 
+CREATE MATERIALIZED VIEW newjitsu_metrics.mv_active_incoming2 on cluster jitsu_cluster
+        (
+         `workspaceId` LowCardinality(String),
+         `timestamp` DateTime,
+        `count` AggregateFunction(uniq, String)
+        )
+        ENGINE = ReplicatedAggregatingMergeTree('/clickhouse/tables/{shard}/newjitsu_metrics/mv_active_incoming2_0',
+        '{replica}')
+        ORDER BY (workspaceId, timestamp)
+        PARTITION BY toYYYYMM(timestamp)
+        SETTINGS index_granularity = 8192
+AS
+SELECT
+    workspaceId,
+    timestamp,
+    uniqState(messageId) AS count
+FROM newjitsu_metrics.active_incoming
+GROUP BY
+    workspaceId,
+    timestamp;
 
 CREATE MATERIALIZED VIEW newjitsu_metrics.mv_active_incoming on cluster jitsu_cluster
             (
