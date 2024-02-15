@@ -5,7 +5,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { z } from "zod";
 import { ConfigurationObjectLinkDbModel } from "../../prisma/schema";
 import { useRouter } from "next/router";
-import { assertTrue, getLog, hash as juavaHash, rpc } from "juava";
+import { assertTrue, getLog, hash as juavaHash, requireDefined, rpc } from "juava";
 import { Disable } from "../Disable/Disable";
 import { Button, Checkbox, Input, Select, Switch, Tooltip } from "antd";
 import { getCoreDestinationType } from "../../lib/schema/destinations";
@@ -96,9 +96,6 @@ function DestinationSelector(props: SelectorProps<DestinationConfig>) {
         <Select dropdownMatchSelectWidth={false} className="w-80" value={props.selected} onSelect={props.onSelect}>
           {props.items.map(destination => {
             const destinationType = getCoreDestinationType(destination.destinationType);
-            if (!destinationType.usesBulker) {
-              return null;
-            }
             return (
               <Select.Option dropdownMatchSelectWidth={false} value={destination.id} key={destination.id}>
                 <DestinationTitle
@@ -193,6 +190,11 @@ function SyncEditor({
   const [srvId, setSrvId] = useState(existingLink?.fromId || (router.query.serviceId as string) || services[0].id);
 
   const service = services.find(s => s.id === srvId);
+  const destination = requireDefined(
+    destinations.find(d => d.id === dstId),
+    `Destination ${dstId} not found`
+  );
+  const destinationType = getCoreDestinationType(destination.destinationType);
 
   const [syncOptions, setSyncOptions] = useState<SyncOptionsType | undefined>(existingLink?.data as SyncOptionsType);
   const [catalog, setCatalog] = useState<any>(undefined);
@@ -419,11 +421,11 @@ function SyncEditor({
             setCatalog(undefined);
             updateOptions({ streams: undefined });
           }}
-          refreshCatalogCb={() => {
+          refreshCatalogCb={destinationType.usesBulker ? () => {
             setLoadingCatalog(true);
             setCatalog(undefined);
             setRefreshCatalog(refreshCatalog + 1);
-          }}
+          } : undefined}
         />
       ),
     },
@@ -443,22 +445,24 @@ function SyncEditor({
         />
       ),
     },
-    {
-      name: "Table Name Prefix",
-      documentation:
-        "Prefix to add to all table names resulting from this sync. E.g. 'mysrc_'. Useful to avoid table names collisions with other syncs.",
-      component: (
-        <div className={"w-80"}>
-          <Input
-            disabled={!!existingLink}
-            style={{ color: "black" }}
-            value={syncOptions?.tableNamePrefix}
-            onChange={e => updateOptions({ tableNamePrefix: e.target.value })}
-          />
-        </div>
-      ),
-    },
-  ];
+    destinationType.usesBulker
+      ? {
+          name: "Table Name Prefix",
+          documentation:
+            "Prefix to add to all table names resulting from this sync. E.g. 'mysrc_'. Useful to avoid table names collisions with other syncs.",
+          component: (
+            <div className={"w-80"}>
+              <Input
+                disabled={!!existingLink}
+                style={{ color: "black" }}
+                value={syncOptions?.tableNamePrefix}
+                onChange={e => updateOptions({ tableNamePrefix: e.target.value })}
+              />
+            </div>
+          ),
+        }
+      : undefined,
+  ].filter(Boolean) as EditorItem[];
   if (appConfig.syncs.scheduler.enabled) {
     const disableScheduling = billing.enabled && !billing.loading && !billing.settings.maximumSyncFrequency;
     configItems.push({
@@ -539,7 +543,20 @@ function SyncEditor({
       });
     }
   }
-  if (service) {
+  if (service && !destinationType.usesBulker && destinationType.syncs) {
+    const syncOptions = destinationType.syncs[service.package];
+    if (destinationType.syncs && syncOptions) {
+      configItems.push({
+        group: "Options",
+        key: "options",
+        component: <div className="prose max-w-none text-sm pl-3">
+          {syncOptions.description}
+        </div>
+      })
+    }
+  }
+
+  if (service && destinationType.usesBulker) {
     if (loadingCatalog) {
       configItems.push({
         group: "Streams",
@@ -664,9 +681,9 @@ function SyncEditor({
               expandable: false,
               title: (
                 <div className="flex flex-row items-center justify-between gap-2 mt-4 mb-3">
-                  <div className={"text-xl"}>Streams</div>
+                  <div className={"text-xl"}>Streams {destinationType.usesBulker}</div>
                   <div className={"flex gap-2 pr-2"}>
-                    Switch All
+                    Switch All1
                     <Switch
                       checked={Object.keys(syncOptions?.streams || {}).length > 0}
                       onChange={ch => {

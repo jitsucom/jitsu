@@ -27,7 +27,10 @@ const Loader = () => {
     );
   }
 
-  const bulkerDsts = destinations.filter(d => getCoreDestinationTypeNonStrict(d.destinationType)?.usesBulker);
+  const bulkerDsts = destinations.filter(d => {
+    const dest = getCoreDestinationTypeNonStrict(d.destinationType);
+    return dest && (dest.usesBulker || dest.syncs);
+  });
   //protection from faulty redirects to this page
   if (services.length === 0) {
     return <Redirect href={`/${workspace.slugOrId}/services`} />;

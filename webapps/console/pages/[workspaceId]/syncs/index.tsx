@@ -416,7 +416,10 @@ function Syncs(props: RemoteEntitiesProps) {
   const destinationFilter = router.query.destination as string | undefined;
   const srcFilter = router.query.source as string | undefined;
   const workspace = useWorkspace();
-  const bulkerDsts = destinations.filter(d => getCoreDestinationTypeNonStrict(d.destinationType)?.usesBulker);
+  const bulkerDsts = destinations.filter(d => {
+    const dest = getCoreDestinationTypeNonStrict(d.destinationType);
+    return dest && (dest.usesBulker || dest.syncs);
+  });
 
   if (services.length == 0 || bulkerDsts.length == 0) {
     return (

@@ -1,6 +1,5 @@
 import { SyncFunction } from "@jitsu/protocols/functions";
 import { MixpanelCredentials } from "../../meta";
-import { GoogleAdsSyncProps } from "../mixpanel-destination";
 import { GoogleAdsApi } from "google-ads-api";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";

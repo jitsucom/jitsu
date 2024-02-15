@@ -25,7 +25,7 @@ export type FieldListEditorLayoutProps = {
       initiallyExpanded?: boolean;
       title?: Title;
       className?: string;
-    }
+    } | undefined
   >;
 };
 

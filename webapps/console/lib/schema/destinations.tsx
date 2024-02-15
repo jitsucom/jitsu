@@ -192,6 +192,7 @@ export type DestinationType<T = any> = {
   syncs?: {
     [key: string]: {
       syncOptions: SomeZodObject;
+      description: ReactNode;
     };
   }
 };
@@ -602,6 +603,22 @@ export const coreDestinations: DestinationType<any>[] = [
     credentials: meta.MixpanelCredentials,
     credentialsUi: meta.MixpanelCredentialsUi,
     description: "Mixpanel is a product analytics platform that provides insights into user behavior.",
+    syncs: {
+      "airbyte/source-google-ads": {
+        syncOptions: z.object({}),
+        description: <>
+          Jitsu exports ad spend data to from Google Ads to Mixpanel to measure return on ad spend (ROAS).
+          Learn more about Mixpanel ROAS tracking <a href="https://mixpanel.com/blog/the-next-evolution-of-marketing-analytics/" target="_blank" rel="noreferrer noopener">here</a>
+        </>
+      },
+      "airbyte/source-facebook-marketing": {
+        syncOptions: z.object({}),
+        description: <>
+          Jitsu exports ad spend data to from Facebook to Mixpanel to measure return on ad spend (ROAS).
+          Learn more about Mixpanel ROAS tracking <a href="https://mixpanel.com/blog/the-next-evolution-of-marketing-analytics/" target="_blank" rel="noreferrer noopener">here</a>
+        </>
+      },
+    }
   },
   {
     id: "intercom",
