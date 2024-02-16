@@ -11,6 +11,7 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/typing"
+	"github.com/jitsucom/jitsu/server/utils"
 	"github.com/jitsucom/jitsu/server/uuid"
 	"math"
 	"sort"
@@ -62,7 +63,7 @@ var (
 	}
 )
 
-//MySQL is adapter for creating, patching (schema or table), inserting data to mySQL database
+// MySQL is adapter for creating, patching (schema or table), inserting data to mySQL database
 type MySQL struct {
 	ctx         context.Context
 	config      *DataSourceConfig
@@ -72,12 +73,15 @@ type MySQL struct {
 	sqlTypes typing.SQLTypes
 }
 
-//NewMySQL returns configured MySQL adapter instance
+// NewMySQL returns configured MySQL adapter instance
 func NewMySQL(ctx context.Context, config *DataSourceConfig, queryLogger *logging.QueryLogger, sqlTypes typing.SQLTypes) (*MySQL, error) {
 	if _, ok := config.Parameters["tls"]; !ok {
 		// similar to postgres default value of sslmode option
 		config.Parameters["tls"] = "preferred"
 	}
+	utils.MapPutIfAbsent(config.Parameters, "readTimeout", "60s")
+	utils.MapPutIfAbsent(config.Parameters, "writeTimeout", "60s")
+	utils.MapPutIfAbsent(config.Parameters, "timeout", "60s")
 	connectionString := mySQLDriverConnectionString(config)
 	dataSource, err := sql.Open("mysql", connectionString)
 	if err != nil {
@@ -96,12 +100,12 @@ func NewMySQL(ctx context.Context, config *DataSourceConfig, queryLogger *loggin
 	return &MySQL{ctx: ctx, config: config, dataSource: dataSource, queryLogger: queryLogger, sqlTypes: reformatMappings(sqlTypes, SchemaToMySQL)}, nil
 }
 
-//Type returns MySQL type
+// Type returns MySQL type
 func (MySQL) Type() string {
 	return "MySQL"
 }
 
-//OpenTx opens underline sql transaction and return wrapped instance
+// OpenTx opens underline sql transaction and return wrapped instance
 func (m *MySQL) OpenTx() (*Transaction, error) {
 	tx, err := m.dataSource.BeginTx(m.ctx, nil)
 	if err != nil {
@@ -114,7 +118,7 @@ func (m *MySQL) OpenTx() (*Transaction, error) {
 	return &Transaction{tx: tx, dbType: m.Type()}, nil
 }
 
-//CreateDB creates database instance if doesn't exist
+// CreateDB creates database instance if doesn't exist
 func (m *MySQL) CreateDB(dbSchemaName string) error {
 	query := fmt.Sprintf(mySQLCreateDBIfNotExistsTemplate, dbSchemaName)
 	m.queryLogger.LogDDL(query)
@@ -129,7 +133,7 @@ func (m *MySQL) CreateDB(dbSchemaName string) error {
 	return nil
 }
 
-//CreateTable creates database table with name,columns provided in Table representation
+// CreateTable creates database table with name,columns provided in Table representation
 func (m *MySQL) CreateTable(table *Table) (err error) {
 	wrappedTx, err := m.OpenTx()
 	if err != nil {
@@ -150,7 +154,7 @@ func (m *MySQL) CreateTable(table *Table) (err error) {
 	return m.createTableInTransaction(wrappedTx, table)
 }
 
-//PatchTableSchema adds new columns(from provided Table) to existing table
+// PatchTableSchema adds new columns(from provided Table) to existing table
 func (m *MySQL) PatchTableSchema(patchTable *Table) (err error) {
 	wrappedTx, err := m.OpenTx()
 	if err != nil {
@@ -208,7 +212,7 @@ func (m *MySQL) PatchTableSchema(patchTable *Table) (err error) {
 	return nil
 }
 
-//GetTableSchema returns table (name,columns with name and types) representation wrapped in Table struct
+// GetTableSchema returns table (name,columns with name and types) representation wrapped in Table struct
 func (m *MySQL) GetTableSchema(tableName string) (*Table, error) {
 	table, err := m.getTable(tableName)
 	if err != nil {
@@ -230,8 +234,8 @@ func (m *MySQL) GetTableSchema(tableName string) (*Table, error) {
 	return table, nil
 }
 
-//Insert provided object in mySQL with typecasts
-//uses upsert (merge on conflict) if primary_keys are configured
+// Insert provided object in mySQL with typecasts
+// uses upsert (merge on conflict) if primary_keys are configured
 func (m *MySQL) Insert(insertContext *InsertContext) error {
 	if insertContext.eventContext != nil {
 		return m.insertSingle(insertContext.eventContext)
@@ -240,8 +244,8 @@ func (m *MySQL) Insert(insertContext *InsertContext) error {
 	}
 }
 
-//insertBatch inserts batch of provided objects in mysql with typecasts
-//uses upsert if primary_keys are configured
+// insertBatch inserts batch of provided objects in mysql with typecasts
+// uses upsert if primary_keys are configured
 func (m *MySQL) insertBatch(table *Table, objects []map[string]interface{}, deleteConditions *base.DeleteConditions) error {
 	var e error
 	// Batch operation takes a long time. And some mysql servers or middlewares prone to closing connections in the middle.
@@ -267,8 +271,8 @@ func (m *MySQL) insertBatch(table *Table, objects []map[string]interface{}, dele
 	return e
 }
 
-//insertSingle inserts single provided object in mysql with typecasts
-//uses upsert if primary_keys are configured
+// insertSingle inserts single provided object in mysql with typecasts
+// uses upsert if primary_keys are configured
 func (m *MySQL) insertSingle(eventContext *EventContext) error {
 	columnsWithoutQuotes, columnsWithQuotes, placeholders, values := m.buildInsertPayload(eventContext.ProcessedEvent)
 
@@ -296,7 +300,7 @@ func (m *MySQL) insertSingle(eventContext *EventContext) error {
 	return nil
 }
 
-//Update one record in MySQL
+// Update one record in MySQL
 func (m *MySQL) Update(table *Table, object map[string]interface{}, whereKey string, whereValue interface{}) error {
 	columns := make([]string, len(object), len(object))
 	values := make([]interface{}, len(object)+1, len(object)+1)
@@ -324,7 +328,7 @@ func (m *MySQL) Update(table *Table, object map[string]interface{}, whereKey str
 	return nil
 }
 
-//DropTable drops table in transaction
+// DropTable drops table in transaction
 func (m *MySQL) DropTable(table *Table) (err error) {
 	wrappedTx, err := m.OpenTx()
 	if err != nil {
@@ -400,7 +404,7 @@ func (m *MySQL) toDeleteQuery(conditions *base.DeleteConditions) (string, []inte
 	return strings.Join(queryConditions, " "+conditions.JoinCondition+" "), values
 }
 
-//Truncate deletes all records in tableName table
+// Truncate deletes all records in tableName table
 func (m *MySQL) Truncate(tableName string) error {
 	sqlParams := SqlParams{
 		dataSource:  m.dataSource,
@@ -420,7 +424,7 @@ func (m *MySQL) Truncate(tableName string) error {
 	return nil
 }
 
-//Close underlying sql.DB
+// Close underlying sql.DB
 func (m *MySQL) Close() error {
 	return m.dataSource.Close()
 }
@@ -536,9 +540,9 @@ func mySQLDriverConnectionString(config *DataSourceConfig) string {
 	return connectionString
 }
 
-//bulkStoreInTransaction checks PKFields and uses bulkInsert or bulkMerge
-//in bulkMerge - deduplicate objects
-//if there are any duplicates, do the job 2 times
+// bulkStoreInTransaction checks PKFields and uses bulkInsert or bulkMerge
+// in bulkMerge - deduplicate objects
+// if there are any duplicates, do the job 2 times
 func (m *MySQL) insertBatchInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}, deleteConditions *base.DeleteConditions) error {
 	if !deleteConditions.IsEmpty() {
 		if err := m.deleteInTransaction(wrappedTx, table, deleteConditions); err != nil {
@@ -562,8 +566,8 @@ func (m *MySQL) insertBatchInTransaction(wrappedTx *Transaction, table *Table, o
 	return nil
 }
 
-//Must be used when table has no primary keys. Inserts data in batches to improve performance.
-//Prefer to use bulkStoreInTransaction instead of calling this method directly
+// Must be used when table has no primary keys. Inserts data in batches to improve performance.
+// Prefer to use bulkStoreInTransaction instead of calling this method directly
 func (m *MySQL) bulkInsertInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
 	var placeholdersBuilder strings.Builder
 	var headerWithoutQuotes []string
@@ -617,7 +621,7 @@ func (m *MySQL) bulkInsertInTransaction(wrappedTx *Transaction, table *Table, ob
 	return nil
 }
 
-//executeInsert executes insert with mySQLInsertTemplate
+// executeInsert executes insert with mySQLInsertTemplate
 func (m *MySQL) executeInsertInTransaction(wrappedTx *Transaction, table *Table, headerWithoutQuotes []string, placeholders string, valueArgs []interface{}) error {
 	var quotedHeader []string
 	for _, columnName := range headerWithoutQuotes {
@@ -642,8 +646,8 @@ func (m *MySQL) executeInsertInTransaction(wrappedTx *Transaction, table *Table,
 	return nil
 }
 
-//bulkMergeInTransaction creates tmp table without duplicates
-//inserts all data into tmp table and using bulkMergeTemplate merges all data to main table
+// bulkMergeInTransaction creates tmp table without duplicates
+// inserts all data into tmp table and using bulkMergeTemplate merges all data to main table
 func (m *MySQL) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
 	tmpTable := &Table{
 		Name:           fmt.Sprintf("jitsu_tmp_%s", uuid.NewLettersNumbers()[:5]),
@@ -735,7 +739,7 @@ func (m *MySQL) dropTableInTransaction(wrappedTx *Transaction, table *Table) err
 	return nil
 }
 
-//buildUpdateSection returns value for merge update statement ("col1"=$1, "col2"=$2)
+// buildUpdateSection returns value for merge update statement ("col1"=$1, "col2"=$2)
 func (m *MySQL) buildUpdateSection(header []string) string {
 	var updateColumns []string
 	for _, columnName := range header {
@@ -744,7 +748,7 @@ func (m *MySQL) buildUpdateSection(header []string) string {
 	return strings.Join(updateColumns, ",")
 }
 
-//columnDDL returns column DDL (quoted column name, mapped sql type and 'not null' if pk field)
+// columnDDL returns column DDL (quoted column name, mapped sql type and 'not null' if pk field)
 func (m *MySQL) columnDDL(name string, column typing.SQLColumn, pkFields map[string]bool) string {
 	sqlType := column.DDLType()
 
@@ -763,7 +767,7 @@ func (m *MySQL) columnDDL(name string, column typing.SQLColumn, pkFields map[str
 	return fmt.Sprintf("%s %s", m.quote(name), sqlType)
 }
 
-//createPrimaryKeyInTransaction create primary key constraint
+// createPrimaryKeyInTransaction create primary key constraint
 func (m *MySQL) createPrimaryKeyInTransaction(wrappedTx *Transaction, table *Table) error {
 	if len(table.PKFields) == 0 {
 		return nil
@@ -791,9 +795,9 @@ func (m *MySQL) createPrimaryKeyInTransaction(wrappedTx *Transaction, table *Tab
 	return nil
 }
 
-//create table columns and pk key
-//override input table sql type with configured cast type
-//make fields from Table PkFields - 'not null'
+// create table columns and pk key
+// override input table sql type with configured cast type
+// make fields from Table PkFields - 'not null'
 func (m *MySQL) createTableInTransaction(wrappedTx *Transaction, table *Table) error {
 	var columnsDDL []string
 	pkFields := table.GetPKFieldsMap()
@@ -828,7 +832,7 @@ func (m *MySQL) quote(str string) string {
 	return fmt.Sprintf("`%s`", str)
 }
 
-//buildInsertPayload returns
+// buildInsertPayload returns
 // 1. column names slice
 // 2. quoted column names slice
 // 2. placeholders slice

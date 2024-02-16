@@ -29,6 +29,7 @@ require (
 	github.com/iancoleman/strcase v0.2.0
 	github.com/jarcoal/httpmock v1.1.0
 	github.com/lib/pq v1.10.9
+	github.com/Kount/pq-timeouts v1.0.0
 	github.com/logrusorgru/aurora v2.0.3+incompatible
 	github.com/mailru/go-clickhouse v1.8.0
 	github.com/mitchellh/hashstructure/v2 v2.0.2

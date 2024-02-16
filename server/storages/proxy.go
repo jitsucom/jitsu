@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-//RetryableProxy creates Storage with retry (if create fails e.g. because of connection issue)
+// RetryableProxy creates Storage with retry (if create fails e.g. because of connection issue)
 type RetryableProxy struct {
 	sync.RWMutex
 	factoryMethod func(*Config) (Storage, error)
@@ -20,21 +20,22 @@ type RetryableProxy struct {
 	storage Storage
 	ready   *atomic.Bool
 	closed  *atomic.Bool
+	started *atomic.Bool
 }
 
-//newProxy return New RetryableProxy and starts goroutine
+// newProxy return New RetryableProxy and starts goroutine
 func newProxy(factoryMethod func(*Config) (Storage, error), config *Config) StorageProxy {
 	rsp := &RetryableProxy{
 		factoryMethod: factoryMethod,
 		config:        config,
 		ready:         atomic.NewBool(false),
 		closed:        atomic.NewBool(false),
+		started:       atomic.NewBool(false),
 	}
-	rsp.start()
 	return rsp
 }
 
-//start runs a new goroutine for calling factoryMethod 1 time per 1 minute
+// start runs a new goroutine for calling factoryMethod 1 time per 1 minute
 func (rsp *RetryableProxy) start() {
 	safego.RunWithRestart(func() {
 		var lastErr string
@@ -80,37 +81,43 @@ func (rsp *RetryableProxy) start() {
 
 			break
 		}
-	}).WithRestartTimeout(1 * time.Minute)
+	}).WithRestartTimeout(10 * time.Minute)
+	rsp.started.Store(true)
 }
 
-//Get returns underlying destination storage and ready flag
+// Get returns underlying destination storage and ready flag
 func (rsp *RetryableProxy) Get() (Storage, bool) {
 	rsp.RLock()
 	defer rsp.RUnlock()
-	return rsp.storage, rsp.ready.Load()
+	if rsp.started.Load() {
+		return rsp.storage, rsp.ready.Load()
+	} else {
+		rsp.start()
+		return nil, false
+	}
 }
 
-//GetUniqueIDField returns unique ID field configuration
+// GetUniqueIDField returns unique ID field configuration
 func (rsp *RetryableProxy) GetUniqueIDField() *identifiers.UniqueID {
 	return rsp.config.uniqueIDField
 }
 
-//ID returns destination ID
+// ID returns destination ID
 func (rsp *RetryableProxy) ID() string {
 	return rsp.config.destinationID
 }
 
-//Type returns destination type
+// Type returns destination type
 func (rsp *RetryableProxy) Type() string {
 	return rsp.storage.Type()
 }
 
-//Mode returns destination mode
+// Mode returns destination mode
 func (rsp *RetryableProxy) Mode() string {
 	return rsp.config.destination.Mode
 }
 
-//IsCachingDisabled returns true if caching is disabled in destination configuration
+// IsCachingDisabled returns true if caching is disabled in destination configuration
 func (rsp *RetryableProxy) IsCachingDisabled() bool {
 	return rsp.config.destination.CachingConfiguration != nil &&
 		rsp.config.destination.CachingConfiguration.Disabled
@@ -124,7 +131,7 @@ func (rsp *RetryableProxy) GetGeoResolverID() string {
 	return rsp.config.destination.GeoDataResolverID
 }
 
-//Close stops underlying goroutine and close the storage
+// Close stops underlying goroutine and close the storage
 func (rsp *RetryableProxy) Close() error {
 	rsp.Lock()
 	rsp.closed.Store(true)

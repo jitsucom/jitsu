@@ -106,6 +106,8 @@ github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym
 github.com/FZambia/sentinel v1.1.0 h1:qrCBfxc8SvJihYNjBWgwUI93ZCvFe/PJIPTHKmlp8a8=
 github.com/FZambia/sentinel v1.1.0/go.mod h1:ytL1Am/RLlAoAXG6Kj5LNuw/TRRQrv2rt2FT26vP5gI=
 github.com/JohnCGriffin/overflow v0.0.0-20211019200055-46fa312c352c h1:RGWPOewvKIROun94nF7v2cua9qP+thov/7M50KEoeSU=
+github.com/Kount/pq-timeouts v1.0.0 h1:6a23dhwmQ2PukftCWm56T4RPJ4zc2iE9y5E42TMAl6E=
+github.com/Kount/pq-timeouts v1.0.0/go.mod h1:Y7rNVWI9KiI3xj1QxBmOSB12Eyv9g5Gjego8KFpV5PY=
 github.com/Microsoft/go-winio v0.4.11/go.mod h1:VhR8bwka0BXejwEJY73c50VrPtXAaKcyvVC4A4RozmA=
 github.com/Microsoft/go-winio v0.4.14/go.mod h1:qXqCSQ3Xa7+6tgxaGTIe4Kpcdsi+P8jBhyzoq1bpyYA=
 github.com/Microsoft/go-winio v0.4.15-0.20190919025122-fc70bd9a86b5/go.mod h1:tTuCMEN+UleMWgg9dVx4Hu52b1bJo+59jBh3ajtinzw=

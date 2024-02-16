@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	_ "github.com/Kount/pq-timeouts"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/typing"
 	_ "github.com/lib/pq"
@@ -213,7 +214,10 @@ func NewPostgresUnderRedshift(ctx context.Context, config *DataSourceConfig, que
 	for k, v := range config.Parameters {
 		connectionString += k + "=" + v + " "
 	}
-	dataSource, err := sql.Open("postgres", connectionString)
+	utils.MapPutIfAbsent(config.Parameters, "connect_timeout", "60")
+	utils.MapPutIfAbsent(config.Parameters, "write_timeout", "120000")
+	utils.MapPutIfAbsent(config.Parameters, "read_timeout", "120000")
+	dataSource, err := sql.Open("pq-timeouts", connectionString)
 	if err != nil {
 		return nil, err
 	}
@@ -237,7 +241,10 @@ func NewPostgres(ctx context.Context, config *DataSourceConfig, queryLogger *log
 	for k, v := range config.Parameters {
 		connectionString += k + "=" + v + " "
 	}
-	dataSource, err := sql.Open("postgres", connectionString)
+	utils.MapPutIfAbsent(config.Parameters, "connect_timeout", "60")
+	utils.MapPutIfAbsent(config.Parameters, "write_timeout", "120000")
+	utils.MapPutIfAbsent(config.Parameters, "read_timeout", "120000")
+	dataSource, err := sql.Open("pq-timeouts", connectionString)
 	if err != nil {
 		return nil, err
 	}

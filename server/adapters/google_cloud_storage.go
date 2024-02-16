@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jitsucom/jitsu/server/errorj"
 	"github.com/jitsucom/jitsu/server/schema"
@@ -30,7 +31,7 @@ type GoogleConfig struct {
 	credentials option.ClientOption
 }
 
-//ValidateBatchMode checks that google cloud storage is set
+// ValidateBatchMode checks that google cloud storage is set
 func (gc *GoogleConfig) ValidateBatchMode() error {
 	if gc.Bucket == "" {
 		return errors.New("Google cloud storage bucket(gcs_bucket) is required parameter")
@@ -121,7 +122,7 @@ func (gcs *GoogleCloudStorage) Compression() FileCompression {
 	return gcs.config.Compression
 }
 
-//UploadBytes creates named file on google cloud storage with payload
+// UploadBytes creates named file on google cloud storage with payload
 func (gcs *GoogleCloudStorage) UploadBytes(fileName string, fileBytes []byte) (err error) {
 	//panic handler
 	defer func() {
@@ -139,7 +140,11 @@ func (gcs *GoogleCloudStorage) UploadBytes(fileName string, fileBytes []byte) (e
 
 	bucket := gcs.client.Bucket(gcs.config.Bucket)
 	object := bucket.Object(fileName)
-	w := object.NewWriter(gcs.ctx)
+	ctx, cancelFn := context.WithTimeout(gcs.ctx, time.Minute*5)
+	if cancelFn != nil {
+		defer cancelFn()
+	}
+	w := object.NewWriter(ctx)
 
 	if _, err := w.Write(fileBytes); err != nil {
 		return errorj.SaveOnStageError.Wrap(err, "failed to write file to google cloud storage").
@@ -160,7 +165,7 @@ func (gcs *GoogleCloudStorage) UploadBytes(fileName string, fileBytes []byte) (e
 	return nil
 }
 
-//DeleteObject deletes object from google cloud storage bucket
+// DeleteObject deletes object from google cloud storage bucket
 func (gcs *GoogleCloudStorage) DeleteObject(key string) (err error) {
 	//panic handler
 	defer func() {
@@ -187,8 +192,8 @@ func (gcs *GoogleCloudStorage) DeleteObject(key string) (err error) {
 	return nil
 }
 
-//ValidateWritePermission tries to create temporary file and remove it.
-//returns nil if file creation was successful.
+// ValidateWritePermission tries to create temporary file and remove it.
+// returns nil if file creation was successful.
 func (gcs *GoogleCloudStorage) ValidateWritePermission() error {
 	filename := fmt.Sprintf("test_%v", timestamp.NowUTC())
 
@@ -205,7 +210,7 @@ func (gcs *GoogleCloudStorage) ValidateWritePermission() error {
 	return nil
 }
 
-//Close closes gcp client and returns err if occurred
+// Close closes gcp client and returns err if occurred
 func (gcs *GoogleCloudStorage) Close() error {
 	gcs.closed.Store(true)
 	return gcs.client.Close()
