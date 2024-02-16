@@ -2,9 +2,11 @@ package adapters
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -16,7 +18,7 @@ import (
 	"go.uber.org/atomic"
 )
 
-//S3Config is a dto for config deserialization
+// S3Config is a dto for config deserialization
 type S3Config struct {
 	AccessKeyID string `mapstructure:"access_key_id,omitempty" json:"access_key_id,omitempty" yaml:"access_key_id,omitempty"`
 	SecretKey   string `mapstructure:"secret_access_key,omitempty" json:"secret_access_key,omitempty" yaml:"secret_access_key,omitempty"`
@@ -26,7 +28,7 @@ type S3Config struct {
 	FileConfig  `mapstructure:",squash" yaml:"-,inline"`
 }
 
-//Validate returns err if invalid
+// Validate returns err if invalid
 func (s3c *S3Config) Validate() error {
 	if s3c == nil {
 		return errors.New("S3 config is required")
@@ -46,7 +48,7 @@ func (s3c *S3Config) Validate() error {
 	return nil
 }
 
-//S3 is a S3 adapter for uploading/deleting files
+// S3 is a S3 adapter for uploading/deleting files
 type S3 struct {
 	config *S3Config
 	client *s3.S3
@@ -54,7 +56,7 @@ type S3 struct {
 	closed *atomic.Bool
 }
 
-//NewS3 returns configured S3 adapter
+// NewS3 returns configured S3 adapter
 func NewS3(s3Config *S3Config) (*S3, error) {
 	if err := s3Config.Validate(); err != nil {
 		return nil, err
@@ -82,7 +84,7 @@ func (a *S3) Compression() FileCompression {
 	return a.config.Compression
 }
 
-//UploadBytes creates named file on s3 with payload
+// UploadBytes creates named file on s3 with payload
 func (a *S3) UploadBytes(fileName string, fileBytes []byte) error {
 	if a.closed.Load() {
 		return fmt.Errorf("attempt to use closed S3 instance")
@@ -102,11 +104,14 @@ func (a *S3) UploadBytes(fileName string, fileBytes []byte) error {
 	} else {
 		fileType = http.DetectContentType(fileBytes)
 	}
-
+	ctx, cancelFn := context.WithTimeout(context.Background(), time.Minute*5)
+	if cancelFn != nil {
+		defer cancelFn()
+	}
 	params.ContentType = aws.String(fileType)
 	params.Key = aws.String(fileName)
 	params.Body = bytes.NewReader(fileBytes)
-	if _, err := a.client.PutObject(params); err != nil {
+	if _, err := a.client.PutObjectWithContext(ctx, params); err != nil {
 		return errorj.SaveOnStageError.Wrap(err, "failed to write file to s3").
 			WithProperty(errorj.DBInfo, &ErrorPayload{
 				Bucket:    a.config.Bucket,
@@ -116,7 +121,7 @@ func (a *S3) UploadBytes(fileName string, fileBytes []byte) error {
 	return nil
 }
 
-//DeleteObject deletes object from s3 bucket by key
+// DeleteObject deletes object from s3 bucket by key
 func (a *S3) DeleteObject(key string) error {
 	if a.closed.Load() {
 		return fmt.Errorf("attempt to use closed S3 instance")
@@ -143,8 +148,8 @@ func (a *S3) DeleteObject(key string) error {
 	return nil
 }
 
-//ValidateWritePermission tries to create temporary file and remove it.
-//returns nil if file creation was successful.
+// ValidateWritePermission tries to create temporary file and remove it.
+// returns nil if file creation was successful.
 func (a *S3) ValidateWritePermission() error {
 	filename := fmt.Sprintf("test_%v", timestamp.NowUTC())
 
@@ -161,7 +166,7 @@ func (a *S3) ValidateWritePermission() error {
 	return nil
 }
 
-//Close returns nil
+// Close returns nil
 func (a *S3) Close() error {
 	a.closed.Store(true)
 	return nil

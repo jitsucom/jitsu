@@ -16,6 +16,15 @@ func MapPutAll(destination map[string]interface{}, source map[string]interface{}
 	}
 }
 
+// MapPutIfAbsent puts value into map if key doesn't exist. Returns true if value was put
+func MapPutIfAbsent(mp map[string]string, key string, value string) bool {
+	if _, ok := mp[key]; !ok {
+		mp[key] = value
+		return true
+	}
+	return false
+}
+
 // MapNestedKeysToString recursively traverses passed map and converts all nested map[interface{}]interface{} objects to map[string]interface{}
 // that may be necessary for json marshalling of objects extracted from yaml
 func MapNestedKeysToString(m map[string]interface{}) map[string]interface{} {
