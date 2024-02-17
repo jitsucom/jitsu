@@ -134,9 +134,20 @@ func (u *PeriodicUploader) Start() {
 							return
 						}
 					}
-					storageProxies := u.destinationService.GetBatchStorages(tokenID)
-					if len(storageProxies) == 0 {
+					allStorageProxies := u.destinationService.GetBatchStorages(tokenID)
+					if len(allStorageProxies) == 0 {
 						logging.Warnf("Destination storages weren't found for file [%s] and token [%s]", filePath, tokenID)
+						return
+					}
+					storageProxies := make([]storages.StorageProxy, len(allStorageProxies))
+					for _, storageProxy := range allStorageProxies {
+						storage, ok := storageProxy.Get()
+						if ok && storage != nil {
+							storageProxies = append(storageProxies, storageProxy)
+						}
+					}
+					if len(storageProxies) == 0 {
+						logging.Warnf("Alive destination storages weren't found for file [%s] and token [%s]", filePath, tokenID)
 						return
 					}
 
