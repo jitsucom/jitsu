@@ -139,7 +139,7 @@ func (u *PeriodicUploader) Start() {
 						logging.Warnf("Destination storages weren't found for file [%s] and token [%s]", filePath, tokenID)
 						return
 					}
-					storageProxies := make([]storages.StorageProxy, len(allStorageProxies))
+					storageProxies := make([]storages.StorageProxy, 0, len(allStorageProxies))
 					for _, storageProxy := range allStorageProxies {
 						storage, ok := storageProxy.Get()
 						if ok && storage != nil {
