@@ -23,9 +23,9 @@ import (
 const useIdentifiedCacheAfterMin = time.Minute * 1
 const sysErrFreqSec = 10
 
-//RecognitionService has a thread pool under the hood
-//saves anonymous events in meta storage
-//rewrites recognized events
+// RecognitionService has a thread pool under the hood
+// saves anonymous events in meta storage
+// rewrites recognized events
 type RecognitionService struct {
 	storage            Storage
 	destinationService *destinations.Service
@@ -44,7 +44,7 @@ type RecognitionService struct {
 	configuration       *storages.UserRecognitionConfiguration
 }
 
-//NewRecognitionService creates a new RecognitionService if metaStorage configuration exists
+// NewRecognitionService creates a new RecognitionService if metaStorage configuration exists
 func NewRecognitionService(storage Storage, destinationService *destinations.Service, configuration *config.UsersRecognition, userAgentPath string) (*RecognitionService, error) {
 	if !configuration.IsEnabled() {
 		logging.Info("❌ Users recognition is not enabled. Read how to enable them: https://jitsu.com/docs/other-features/retroactive-user-recognition")
@@ -244,7 +244,7 @@ func (rs *RecognitionService) startAggregatedIdentifiedObserver(queue *Queue) {
 	}
 }
 
-//Event consumes events.Event and put it to the recognition queue
+// Event consumes events.Event and put it to the recognition queue
 func (rs *RecognitionService) Event(event events.Event, eventID string, destinationIDs []string, tokenID string) {
 	if rs.closed.Load() {
 		return
@@ -283,7 +283,7 @@ func (rs *RecognitionService) extractPayload(event events.Event, eventID string,
 
 		storage, ok := storageProxy.Get()
 		if !ok {
-			logging.Errorf("Error recognizing user: Destination [%s] hasn't been initialized yet", destinationID)
+			logging.Debugf("Error recognizing user: Destination [%s] hasn't been initialized yet", destinationID)
 			continue
 		}
 
@@ -374,8 +374,8 @@ func (rs *RecognitionService) reprocessAnonymousEvents(eventsKey EventKey, ident
 	return nil
 }
 
-//Close sets closed flag = true (stop goroutines)
-//closes the queue
+// Close sets closed flag = true (stop goroutines)
+// closes the queue
 func (rs *RecognitionService) Close() (multiErr error) {
 	rs.closed.Store(true)
 
