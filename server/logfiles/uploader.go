@@ -143,11 +143,15 @@ func (u *PeriodicUploader) Start() {
 						logFunc("Destination storages weren't found for file [%s] and token [%s]", filePath, tokenID)
 						return
 					}
+					//flag for archiving file if all storages don't have errors while storing this file
+					archiveFile := true
 					storageProxies := make([]storages.StorageProxy, 0, len(allStorageProxies))
 					for _, storageProxy := range allStorageProxies {
 						storage, ok := storageProxy.Get()
 						if ok && storage != nil {
 							storageProxies = append(storageProxies, storageProxy)
+						} else {
+							archiveFile = false
 						}
 					}
 					if len(storageProxies) == 0 {
@@ -193,8 +197,6 @@ func (u *PeriodicUploader) Start() {
 						logging.Warnf("JSON file %s contains %d malformed events. They are sent to failed log", filePath, len(parsingErrors))
 					}
 
-					//flag for archiving file if all storages don't have errors while storing this file
-					archiveFile := true
 					for _, storageProxy := range storageProxies {
 						storage, ok := storageProxy.Get()
 						if !ok {
