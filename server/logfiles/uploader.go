@@ -108,10 +108,14 @@ func (u *PeriodicUploader) Start() {
 						logging.SystemErrorf("Error processing file %s. Cant parse file date: %s", filePath, fileDate)
 						return
 					}
-
-					if timestamp.Now().Sub(fileDate) > time.Hour*24*time.Duration(u.reprocessDays) {
+					fileAge := timestamp.Now().Sub(fileDate)
+					if fileAge > time.Hour*24*time.Duration(u.reprocessDays) {
 						logging.Debugf("Skipping file %s. File is more than %d days old: %s", filePath, u.reprocessDays, fileDate)
 						return
+					}
+					logFunc := logging.Warnf
+					if fileAge > time.Hour*24 {
+						logFunc = logging.Debugf
 					}
 
 					//get token from filename
@@ -136,7 +140,7 @@ func (u *PeriodicUploader) Start() {
 					}
 					allStorageProxies := u.destinationService.GetBatchStorages(tokenID)
 					if len(allStorageProxies) == 0 {
-						logging.Warnf("Destination storages weren't found for file [%s] and token [%s]", filePath, tokenID)
+						logFunc("Destination storages weren't found for file [%s] and token [%s]", filePath, tokenID)
 						return
 					}
 					storageProxies := make([]storages.StorageProxy, 0, len(allStorageProxies))
@@ -147,7 +151,7 @@ func (u *PeriodicUploader) Start() {
 						}
 					}
 					if len(storageProxies) == 0 {
-						logging.Warnf("Alive destination storages weren't found for file [%s] and token [%s]", filePath, tokenID)
+						logFunc("Alive destination storages weren't found for file [%s] and token [%s]", filePath, tokenID)
 						return
 					}
 
