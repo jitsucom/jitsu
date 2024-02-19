@@ -30,6 +30,7 @@ const anonymousTelemetry = anonymousTelemetryEnabled
   ? jitsuAnalytics({
       host: "https://ingest.g.jitsu.com",
       writeKey: anonymousTelemetryJitsuKey,
+      //debug: true,
     })
   : emptyAnalytics;
 
@@ -39,7 +40,8 @@ function createAnalytics() {
         host: productTelemetryHost,
         writeKey: productTelemetryBackendKey,
         s2s: true,
-        //debug: true,
+        fetchTimeoutMs: 1000,
+//        debug: true,
       })
     : emptyAnalytics;
 }
@@ -144,28 +146,33 @@ export function withProductAnalytics(
   return Promise.all(allPromises);
 }
 
-let deploymentId = "unknown";
+let deploymentId: string | undefined = undefined
 
-export async function initTelemetry(): Promise<{ deploymentId: string }> {
+export async function initTelemetry(): Promise<{ deploymentId: string } | undefined> {
   if (anonymousTelemetryEnabled) {
-    try {
-      const instanceIdVal = await db.prisma().globalProps.findFirst({ where: { name: "deploymentId" } });
-      if (instanceIdVal) {
-        deploymentId = (instanceIdVal.value as any).id;
-      } else {
-        deploymentId = randomId();
-        log.atInfo().log("Initializing telemetry with deploymentId: " + deploymentId);
-        await db.prisma().globalProps.create({ data: { name: "deploymentId", value: { id: deploymentId } } });
+    if (!deploymentId) {
+      try {
+        const instanceIdVal = await db.prisma().globalProps.findFirst({ where: { name: "deploymentId" } });
+        if (instanceIdVal) {
+          deploymentId = (instanceIdVal.value as any).id;
+          log.atInfo().log(`Deployment id is going to be used for telemetry: ${deploymentId}`);
+        } else {
+          deploymentId = randomId();
+          log.atInfo().log(`Creating new deployment id ${deploymentId}`);
+          await db.prisma().globalProps.create({ data: { name: "deploymentId", value: { id: deploymentId } } });
+          await trackTelemetryEvent("deployment_created")
+        }
+      } catch (e) {
+        log.atWarn().withCause(e).log("Failed to initialize telemetry");
       }
-    } catch (e) {
-      log.atWarn().withCause(e).log("Failed to initialize telemetry");
     }
   }
-  return { deploymentId };
+  return deploymentId ? { deploymentId } : undefined;
 }
 
 export async function trackTelemetryEvent(event: string, props: any = {}): Promise<void> {
   try {
+    anonymousTelemetry.setAnonymousId(deploymentId || "unknown");
     const result = await anonymousTelemetry.track(`console.${event}`, {
       ...props,
       deploymentId,
