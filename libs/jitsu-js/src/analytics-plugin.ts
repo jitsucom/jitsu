@@ -549,11 +549,11 @@ async function send(
   // }
   const adjustedPayload = adjustPayload(payload, jitsuConfig, store, s2s);
   const abortController = jitsuConfig.fetchTimeoutMs ? new AbortController() : undefined;
-  const abortTimeout =
-    jitsuConfig.fetchTimeoutMs ?
-    setTimeout(() => {
-      abortController.abort();
-    }, jitsuConfig.fetchTimeoutMs) : undefined;
+  const abortTimeout = jitsuConfig.fetchTimeoutMs
+    ? setTimeout(() => {
+        abortController.abort();
+      }, jitsuConfig.fetchTimeoutMs)
+    : undefined;
 
   const authHeader = jitsuConfig.writeKey ? { "X-Write-Key": jitsuConfig.writeKey } : {};
   let fetchResult;

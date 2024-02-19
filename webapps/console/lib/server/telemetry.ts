@@ -41,7 +41,7 @@ function createAnalytics() {
         writeKey: productTelemetryBackendKey,
         s2s: true,
         fetchTimeoutMs: 1000,
-//        debug: true,
+        //        debug: true,
       })
     : emptyAnalytics;
 }
@@ -146,7 +146,7 @@ export function withProductAnalytics(
   return Promise.all(allPromises);
 }
 
-let deploymentId: string | undefined = undefined
+let deploymentId: string | undefined = undefined;
 
 export async function initTelemetry(): Promise<{ deploymentId: string } | undefined> {
   if (anonymousTelemetryEnabled) {
@@ -160,7 +160,7 @@ export async function initTelemetry(): Promise<{ deploymentId: string } | undefi
           deploymentId = randomId();
           log.atInfo().log(`Creating new deployment id ${deploymentId}`);
           await db.prisma().globalProps.create({ data: { name: "deploymentId", value: { id: deploymentId } } });
-          await trackTelemetryEvent("deployment_created")
+          await trackTelemetryEvent("deployment_created");
         }
       } catch (e) {
         log.atWarn().withCause(e).log("Failed to initialize telemetry");
