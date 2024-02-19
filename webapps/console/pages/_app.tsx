@@ -274,8 +274,6 @@ function AppLoader({ children, pageProps }: PropsWithChildren<any>) {
     setOrigin(window.location.origin);
   }, []);
 
-  console.log("AppLoader", { data, isLoading, error });
-
   if (isLoading || !origin) {
     return <GlobalLoader title={"Loading application..."} />;
   } else if (error) {
