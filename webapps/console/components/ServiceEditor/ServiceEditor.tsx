@@ -81,12 +81,11 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
       return;
     }
     (async () => {
-      console.log("Loading specs");
       setLoadingSpecs(true);
       try {
         const firstRes = await rpc(`/api/${workspace.id}/sources/spec?package=${obj.package}&version=${obj.version}`);
         if (firstRes.ok) {
-          console.log("Loaded cached specs:", JSON.stringify(firstRes, null, 2));
+          getLog().atDebug().log("Loaded cached specs", firstRes);
           setSpecs(firstRes.specs);
         } else if (firstRes.error) {
           feedbackError(`Cannot load specs for ${obj.package}:${obj.version}`, {
@@ -106,7 +105,6 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
                 });
                 return;
               } else {
-                console.log("Loaded specs:", JSON.stringify(resp, null, 2));
                 setSpecs(resp.specs);
                 return;
               }

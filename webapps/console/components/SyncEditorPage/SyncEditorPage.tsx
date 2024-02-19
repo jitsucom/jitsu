@@ -543,9 +543,14 @@ function SyncEditor({
       });
     }
   }
+  //we should disable sync if non-bulker destination generally supports, but not supported by this service
+  const disableSync = service &&!destinationType.usesBulker && destinationType.syncs && !destinationType.syncs[service.package];
+
   if (service && !destinationType.usesBulker && destinationType.syncs) {
+    //destination supports sync, so we have two options (see below)
     const syncOptions = destinationType.syncs[service.package];
-    if (destinationType.syncs && syncOptions) {
+    if (syncOptions) {
+      //destination and service (source) are compatible, show description (later we might want to implement options)
       configItems.push({
         group: "Options",
         key: "options",
@@ -553,6 +558,16 @@ function SyncEditor({
           {syncOptions.description}
         </div>
       })
+    } else {
+      //destination and service (source) are not compatible, show error message
+      configItems.push({
+        group: "Options",
+        key: "options",
+        component: <div className="prose max-w-none text-sm pl-3">
+          Sync from {service.name} to {destination.name} is not supported.
+        </div>
+      })
+
     }
   }
 
@@ -735,17 +750,17 @@ function SyncEditor({
           )}
         </div>
         <div className="flex justify-end space-x-5 items-center">
-          <Checkbox checked={runSyncAfterSave} onChange={() => setRunSyncAfterSave(!runSyncAfterSave)}>
+          <Checkbox checked={runSyncAfterSave} disabled={disableSync} onChange={() => setRunSyncAfterSave(!runSyncAfterSave)}>
             Run{!existingLink ? " first" : ""} sync after save
           </Checkbox>
-          <Button type="primary" ghost size="large" disabled={loading} onClick={() => router.back()}>
+          <Button type="primary" ghost size="large" disabled={loading || disableSync} onClick={() => router.back()}>
             Cancel
           </Button>
           <Button
             type="primary"
             size="large"
             loading={loading}
-            disabled={loading}
+            disabled={loading || disableSync}
             onClick={async () => {
               setLoading(true);
               try {
