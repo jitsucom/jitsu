@@ -4,11 +4,12 @@ import { initTelemetry, trackTelemetryEvent } from "../../lib/server/telemetry";
 export default createRoute()
   .GET({ auth: false })
   .handler(async ({ user }) => {
-    const { deploymentId } = await initTelemetry();
+    const telemetry = await initTelemetry();
     await trackTelemetryEvent("ping");
     return {
       health: "ok",
-      deploymentId,
+      telemetryEnabled: !!telemetry,
+      deploymentId: telemetry?.deploymentId,
     };
   })
   .toNextApiHandler();
