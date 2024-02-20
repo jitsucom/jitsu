@@ -50,6 +50,7 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
   let admin: Admin;
   let closeQueue: () => Promise<void>;
   let interval: NodeJS.Timer;
+  let metrics: Metrics;
   return {
     start: async () => {
       const kafka = connectToKafka({ defaultAppId: kafkaClientId, ...cfg.credentials });
@@ -64,7 +65,7 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
 
       producer = kafka.producer({ allowAutoTopicCreation: false });
       await producer.connect();
-      const metrics = createMetrics(producer);
+      metrics = createMetrics(producer);
       admin = kafka.admin();
 
       const topicOffsets = new Prometheus.Gauge({
@@ -284,15 +285,10 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
       if (interval) {
         clearInterval(interval);
       }
-      log.atInfo().log("Kafka-rotor closed gracefully. 💜");
-      const extraDelay = process.env.SHUTDOWN_EXTRA_DELAY_SEC
-        ? 1000 * parseInt(process.env.SHUTDOWN_EXTRA_DELAY_SEC)
-        : 5000;
-      if (extraDelay > 0) {
-        log.atInfo().log(`Giving extra ${extraDelay / 1000}s. to flush logs...`);
-        //extra time to flush logs
-        await new Promise(resolve => setTimeout(resolve, extraDelay));
+      if (metrics) {
+        metrics.close();
       }
+      log.atInfo().log("Kafka-rotor closed gracefully. 💜");
     },
   };
 }

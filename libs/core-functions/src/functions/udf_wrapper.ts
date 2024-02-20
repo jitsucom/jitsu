@@ -316,6 +316,7 @@ export async function UDFTestRun({
             });
         }
       },
+      close() {},
     };
     const ctx = createFullContext(id, eventsStore, storeImpl, eventContext, {}, config);
     if (typeof code === "string") {

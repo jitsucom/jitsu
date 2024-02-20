@@ -4,7 +4,7 @@ import { requireDefined, getLog } from "juava";
 
 export const log = getLog("redis");
 
-export const redis = getSingleton<Redis>("redis", createRedis);
+export const redis = getSingleton<Redis>("redis", createRedis, { cleanupFunc: redis => redis.disconnect() });
 
 function hideSensitiveInfoFromURL(url: string) {
   let parsed: URL;

@@ -57,6 +57,7 @@ services:
     platform: linux/amd64
     environment:
       ROTOR_URL: "http://rotor:3401"
+      ROTOR_AUTH_KEY: ${BULKER_TOKEN:-default}
       BULKER_URL: "http://bulker:3042"
       CONSOLE_RAW_AUTH_TOKENS: ${CONSOLE_TOKEN:-default}
       BULKER_AUTH_KEY: ${BULKER_TOKEN:-default}
@@ -134,8 +135,7 @@ services:
     platform: linux/amd64
     restart: "unless-stopped"
     environment:
-      DISABLE_SERVICE_prisma: "true"
-      DISABLE_SERVICE_pg: "true"
+      ROTOR_RAW_AUTH_TOKENS: ${BULKER_TOKEN:-default}
       BULKER_URL: "http://bulker:3042"
       BULKER_AUTH_KEY: ${BULKER_TOKEN:-default}
       KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
@@ -170,6 +170,7 @@ services:
       INGEST_CACHE_DIR: "/tmp/cache"
       INGEST_REDIS_URL: "redis://default:${REDIS_PASSWORD:-default}@redis:6379"
       INGEST_ROTOR_URL: "http://rotor:3401"
+      INGEST_ROTOR_AUTH_KEY: ${BULKER_TOKEN:-default}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://ingest:3049/health"]
       interval: 2s

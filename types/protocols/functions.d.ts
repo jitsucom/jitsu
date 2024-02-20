@@ -42,6 +42,7 @@ export interface TTLStore extends Store {
  */
 export interface EventsStore {
   log(connectionId: string, error: boolean, msg: Record<string, any>): void;
+  close(): void;
 }
 /**
  * A special properties that user can set on an event to define how

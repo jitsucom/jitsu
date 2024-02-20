@@ -582,9 +582,6 @@ importers:
       '@amplitude/ua-parser-js':
         specifier: ^0.7.33
         version: 0.7.33
-      '@jitsu-internal/console':
-        specifier: workspace:*
-        version: link:../../webapps/console
       '@jitsu/core-functions':
         specifier: workspace:*
         version: link:../../libs/core-functions
@@ -697,6 +694,9 @@ importers:
       '@rollup/plugin-typescript':
         specifier: ^9.0.2
         version: 9.0.2(rollup@3.20.2)(tslib@2.5.0)(typescript@5.3.3)
+      '@types/express':
+        specifier: ^4.17.13
+        version: 4.17.17
       '@types/glob':
         specifier: ^8.0.0
         version: 8.1.0

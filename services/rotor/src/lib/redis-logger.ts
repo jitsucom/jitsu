@@ -6,7 +6,11 @@ export const log = getLog("redisLogger");
 
 const eventsLogSize = process.env.EVENTS_LOG_MAX_SIZE ? parseInt(process.env.EVENTS_LOG_MAX_SIZE) : 1000;
 
-export const redisLogger = getSingleton("redisLogger", createRedisLogger);
+export const redisLogger = getSingleton("redisLogger", createRedisLogger, {
+  cleanupFunc: (logger: EventsStore) => {
+    logger.close();
+  },
+});
 
 export function createRedisLogger(): EventsStore {
   const buffer: Record<string, string[]> = {};
@@ -48,7 +52,7 @@ export function createRedisLogger(): EventsStore {
     }
   };
 
-  setInterval(async () => {
+  const interval = setInterval(async () => {
     if (Object.keys(buffer).length === 0) {
       return;
     }
@@ -70,6 +74,9 @@ export function createRedisLogger(): EventsStore {
       } catch (e) {
         log.atError().withCause(e).log("Failed to put event to redis events log");
       }
+    },
+    close: () => {
+      clearInterval(interval);
     },
   };
 }

@@ -9,12 +9,14 @@ async function main(): Promise<void> {
   if (!args._ || args._.length === 0) {
     log.atInfo().log("No secret provided as a first arg, generating a random one");
   }
-  const secret = !args._ || args._.length === 0 ? randomId(16) : args._[0];
+  const secret = !args._ || args._.length === 0 ? randomId(32) : args._[0];
   log
     .atInfo()
     .log(
       `Calculating password hash. Using ${
-        process.env.GLOBAL_HASH_SECRET ? "custom GLOBAL_HASH_SECRET" : "default hash secret"
+        process.env.GLOBAL_HASH_SECRET || process.env.CONSOLE_TOKEN_SECRET
+          ? "custom token secret"
+          : "default hash secret"
       }`
     );
   log.atInfo().log(`Hashing ${secret} → ${createHash(secret)}`);

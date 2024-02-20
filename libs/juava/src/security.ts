@@ -2,7 +2,14 @@ const crypto = require("crypto");
 
 const defaultSeed = "dea42a58-acf4-45af-85bb-e77e94bd5025";
 
-const globalSeed: string[] = (process.env.GLOBAL_HASH_SECRET || defaultSeed).split(",").map(s => s.trim());
+const globalSeed: string[] = (
+  process.env.GLOBAL_HASH_SECRET ||
+  process.env.CONSOLE_TOKEN_SECRET ||
+  process.env.ROTOR_TOKEN_SECRET ||
+  defaultSeed
+)
+  .split(",")
+  .map(s => s.trim());
 
 function hashInternal(secret: string, randomSeed: string, globalSeed: string) {
   return `${randomSeed}.${hash("sha512", secret + randomSeed + globalSeed)}`;

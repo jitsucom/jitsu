@@ -9,6 +9,9 @@ const log = getLog("mongodb");
 
 export const mongodb = getSingleton<MongoClient>("mongodb", createClient, {
   optional: true,
+  cleanupFunc: async (client: MongoClient) => {
+    await client.close();
+  },
 });
 
 async function createClient() {
