@@ -150,14 +150,21 @@ function initHTTP(metrics: Metrics, geoResolver: GeoResolver) {
     if (req.path === "/health") {
       return next();
     }
-    let token = req.headers.authorization;
-    if (!token || !token.startsWith("Bearer ")) {
-      res.status(401).json({ error: "Authorization header with Bearer token is required" });
-      return;
+    let token = req.headers.authorization || "";
+    if (token) {
+      if (token.startsWith("Bearer ")) {
+        token = token.substring("Bearer ".length);
+      } else {
+        res.status(401).json({ error: "Authorization header with Bearer token is required" });
+        return;
+      }
     }
-    token = token.substring("Bearer ".length);
     if (!checkAuth(token)) {
-      res.status(401).json({ error: `Invalid token: ${token}` });
+      if (token) {
+        res.status(401).json({ error: `Invalid token: ${token}` });
+      } else {
+        res.status(401).json({ error: "Authorization header with Bearer token is required" });
+      }
       return;
     }
     next();
