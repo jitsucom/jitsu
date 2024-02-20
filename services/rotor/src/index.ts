@@ -147,7 +147,6 @@ async function main() {
 
 function initHTTP(metrics: Metrics, geoResolver: GeoResolver) {
   http.use((req, res, next) => {
-    console.log("path:", req.path);
     if (req.path === "/health") {
       return next();
     }
