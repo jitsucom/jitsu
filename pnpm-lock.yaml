@@ -368,6 +368,9 @@ importers:
       json5:
         specifier: ^2.1.0
         version: 2.2.3
+      node-fetch-commonjs:
+        specifier: ^3.2.4
+        version: 3.3.1
       ts-jest:
         specifier: 29.0.5
         version: 29.0.5(@babel/core@7.21.4)(jest@29.5.0)(typescript@5.3.3)
@@ -20206,7 +20209,6 @@ packages:
     dependencies:
       formdata-polyfill: 4.0.10
       web-streams-polyfill: 3.2.1
-    dev: false
 
   /node-fetch@2.6.7:
     resolution: {integrity: sha512-ZjMPFEfVx5j+y2yF35Kzx5sF7kDzxuDj6ziH4FFbOp87zKDZNx8yExJIb05OGF4Nlt9IHFIMBkRl41VdvcNdbQ==}
