@@ -30,6 +30,11 @@ RUN pnpm build
 
 FROM base as console
 
+ARG JITSU_BUILD_VERSION=dev,
+ARG JITSU_BUILD_DOCKER_TAG=dev,
+ARG JITSU_BUILD_COMMIT_SHA=unknown,
+
+
 WORKDIR /app
 RUN npm -g install prisma@$(cat webapps/console/package.json | jq -r '.dependencies.prisma')
 COPY --from=builder /app/docker-start-console.sh ./
@@ -43,10 +48,18 @@ EXPOSE 3000
 HEALTHCHECK CMD curl --fail http://localhost:3000/api/healthcheck || exit 1
 
 ENV NODE_ENV=production
+ENV JITSU_VERSION_COMMIT_SHA=${JITSU_BUILD_COMMIT_SHA}
+ENV JITSU_VERSION_DOCKER_TAG=${JITSU_BUILD_DOCKER_TAG}
+ENV JITSU_VERSION_STRING=${JITSU_BUILD_VERSION}
 
 ENTRYPOINT ["sh", "-c", "/app/docker-start-console.sh"]
 
 FROM base as rotor
+
+ARG JITSU_BUILD_VERSION=dev,
+ARG JITSU_BUILD_DOCKER_TAG=dev,
+ARG JITSU_BUILD_COMMIT_SHA=unknown,
+
 
 WORKDIR /app
 RUN addgroup --system --gid 1001 runner
@@ -55,9 +68,11 @@ USER runner
 
 EXPOSE 3401
 
-
 COPY --from=builder /app/services/rotor/dist .
 
 ENV NODE_ENV=production
+ENV JITSU_VERSION_COMMIT_SHA=${JITSU_BUILD_COMMIT_SHA}
+ENV JITSU_VERSION_DOCKER_TAG=${JITSU_BUILD_DOCKER_TAG}
+ENV JITSU_VERSION_STRING=${JITSU_BUILD_VERSION}
 
 ENTRYPOINT ["sh", "-c", "node --no-node-snapshot --max-old-space-size=1024 main.js"]

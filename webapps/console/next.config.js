@@ -78,9 +78,9 @@ module.exports = {
       config.plugins.push(new opts.webpack.IgnorePlugin({ resourceRegExp: /^mongodb$/ }));
       config.plugins.push(new opts.webpack.IgnorePlugin({ resourceRegExp: /^posthog-node$/ }));
     }
-    if (opts.isServer) {
-      config.devtool = 'source-map'
-    }
+    //    if (opts.isServer) {
+    config.devtool = "source-map";
+    //    }
     config.externals["isolated-vm"] = "require('isolated-vm')";
     config.module.rules.push({
       test: /\.txt$/,
@@ -123,8 +123,9 @@ module.exports = withSentryConfig(
     // // Routes browser requests to Sentry through a Next.js rewrite to circumvent ad-blockers (increases server load)
     // tunnelRoute: "/monitoring",
 
-    // Hides source maps from generated client bundles
-    hideSourceMaps: true,
+    //enable source maps on client
+    hideSourceMaps: false,
+    productionBrowserSourceMaps: true,
 
     // Automatically tree-shake Sentry logger statements to reduce bundle size
     disableLogger: true,

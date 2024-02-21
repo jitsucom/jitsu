@@ -21,6 +21,7 @@ import { redisLogger } from "./lib/redis-logger";
 import { DummyMetrics, Metrics } from "./lib/metrics";
 import { connectionsStore, functionsStore } from "./lib/entity-store";
 import { Server } from "node:net";
+import { getApplicationVersion, getDiagnostics } from "./lib/version";
 
 export const log = getLog("rotor");
 
@@ -168,6 +169,18 @@ function initHTTP(metrics: Metrics, geoResolver: GeoResolver) {
       return;
     }
     next();
+  });
+  http.get("/version", (req, res) => {
+    res.json({
+      ...getApplicationVersion(),
+      node: {
+        version: process.version,
+        platform: process.platform,
+        arch: process.arch,
+        env: process.env.NODE_ENV,
+      },
+      diagnostics: isTruish(process.env.__DANGEROUS_ENABLE_FULL_DIAGNOSTICS) ? getDiagnostics() : undefined,
+    });
   });
   http.get("/health", (req, res) => {
     res.json({
