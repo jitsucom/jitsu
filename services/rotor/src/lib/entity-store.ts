@@ -1,7 +1,5 @@
 import { createInMemoryStore } from "./inmem-store";
 import { getLog } from "juava";
-import { httpAgent, httpsAgent } from "@jitsu/core-functions";
-import fetch from "node-fetch-commonjs";
 
 const log = getLog("entity-store");
 
@@ -42,7 +40,7 @@ const refreshFunc =
         const res = await fetch(`${base}${storeId}`, {
           method: "GET",
           headers: headers,
-          agent: await (repositoryBase.startsWith("https://") ? httpsAgent : httpAgent).waitInit(),
+          keepalive: true,
         });
         if (res.status === 304) {
           log.atDebug().log(`${storeId} nod modified: ${ifModifiedSince}`);

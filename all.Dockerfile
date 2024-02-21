@@ -2,7 +2,7 @@
 # Build & push it with
 #    docker buildx build --platform linux/amd64 . -f console.Dockerfile --push -t jitsucom/console:latest
 
-FROM node:18-slim as base
+FROM node:21-slim as base
 
 WORKDIR /app
 RUN apt-get update -y
@@ -60,4 +60,4 @@ COPY --from=builder /app/services/rotor/dist .
 
 ENV NODE_ENV=production
 
-ENTRYPOINT ["sh", "-c", "node --max-old-space-size=4096 main.js"]
+ENTRYPOINT ["sh", "-c", "node --no-node-snapshot --max-old-space-size=1024 main.js"]
