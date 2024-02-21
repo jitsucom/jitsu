@@ -192,7 +192,12 @@ function describeEvent(type: string, body: any) {
   return `${type}${type === "track" ? `(${body.event})` : ""}[${params}]`;
 }
 
+function clearRequestLog() {
+  requestLog.length = 0;
+}
+
 test("jitsu-queue-callbacks", async ({ browser }) => {
+  clearRequestLog();
   const browserContext = await browser.newContext();
   const { page, uncaughtErrors } = await createLoggingPage(browserContext);
   const [pageResult] = await Promise.all([page.goto(`${server.baseUrl}/callbacks.html`)]);
@@ -210,6 +215,7 @@ test("jitsu-queue-callbacks", async ({ browser }) => {
 });
 
 test("url-bug", async ({ browser }) => {
+  clearRequestLog();
   //tests a bug in getanalytics.io where the url without slash provided by
   //<link rel="canonical" ../> causes incorrect page path
   const browserContext = await browser.newContext();
@@ -239,7 +245,7 @@ test("url-bug", async ({ browser }) => {
 });
 
 test("basic", async ({ browser }) => {
-  requestLog.length = 0;
+  clearRequestLog();
   const browserContext = await browser.newContext();
 
   const { page: firstPage, uncaughtErrors: firstPageErrors } = await createLoggingPage(browserContext);
@@ -308,7 +314,7 @@ test("basic", async ({ browser }) => {
     timeout: 1000,
     polling: 100,
   });
-  requestLog.length = 0;
+  clearRequestLog();
 
   await secondPage.evaluate(generateTestEvents);
   expect(secondPageErrors.length).toBe(0);
