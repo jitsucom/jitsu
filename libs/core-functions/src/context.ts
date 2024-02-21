@@ -1,7 +1,5 @@
 import { EventContext, EventsStore, FetchOpts, FullContext, Store } from "@jitsu/protocols/functions";
-import nodeFetch, { RequestInit } from "node-fetch-commonjs";
 import { getErrorMessage, getLog, stopwatch } from "juava";
-import { httpAgent, httpsAgent } from "./functions/lib/http-agent";
 import { SystemContext } from "./functions/lib";
 
 const log = getLog("functions-context");
@@ -14,7 +12,7 @@ export function createFullContext(
   systemContext: SystemContext | {} = {},
   props: Record<string, any> = {},
   event?: any,
-  fetchTimeoutMs: number = 15000
+  fetchTimeoutMs: number = 5000
 ): FullContext {
   const ar = functionId.split(".");
   const id = ar.pop();
@@ -43,12 +41,12 @@ export function createFullContext(
 
       let internalInit: RequestInit = {
         ...init,
-        agent: (url.startsWith("https://") ? httpsAgent : httpAgent)(),
+        keepalive: true,
         signal: controller.signal,
       };
       let fetchResult: any = undefined;
       try {
-        fetchResult = await nodeFetch(url, internalInit);
+        fetchResult = await fetch(url, internalInit);
       } catch (err: any) {
         if (err.name === "AbortError") {
           err.message = `Fetch request exceeded timeout ${fetchTimeoutMs}ms and was aborted`;

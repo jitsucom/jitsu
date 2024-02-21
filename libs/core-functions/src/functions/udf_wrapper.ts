@@ -29,7 +29,7 @@ export const UDFWrapper = (functionId, name, functionCode: string): UDFWrapperRe
   let isolate: Isolate;
   try {
     //const wrappedCode = `let exports = {}\n${functionCode}\n${wrapperJs}`;
-    isolate = new Isolate({ memoryLimit: 128 });
+    isolate = new Isolate({ memoryLimit: 64 });
     const context = isolate.createContextSync();
     const jail = context.global;
 
