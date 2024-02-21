@@ -14,7 +14,7 @@ export function createFullContext(
   systemContext: SystemContext | {} = {},
   props: Record<string, any> = {},
   event?: any,
-  fetchTimeoutMs: number = 15000
+  fetchTimeoutMs: number = 5000
 ): FullContext {
   const ar = functionId.split(".");
   const id = ar.pop();
