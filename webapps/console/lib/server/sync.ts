@@ -8,17 +8,23 @@ import { getServerLog } from "./log";
 import { getAppEndpoint } from "../domains";
 import { NextApiRequest } from "next";
 import { createJwt, getEeConnection, isEEAvailable } from "./ee";
-import { ServiceConfig, SessionUser } from "../schema";
+import { DestinationConfig, ServiceConfig, SessionUser } from "../schema";
 import { randomUUID } from "crypto";
 import { tryManageOauthCreds } from "./oauth/services";
+import { DestinationType, getCoreDestinationType } from "../schema/destinations";
+import omit from "lodash/omit";
+import { FunctionLogger, SetOpts, Store, SyncFunction } from "@jitsu/protocols/functions";
 import IJob = google.cloud.scheduler.v1.IJob;
+import { mixpanelGoogleAdsSync } from "./syncs/mixpanel";
+
+const child_process_1 = require("child_process");
+
 
 const log = getServerLog("sync-scheduler");
 
 export type ScheduleSyncError = { ok: false; error: string; [key: string]: any };
 export type ScheduleSyncSuccess = { ok: true; taskId: string; [key: string]: any };
 export type ScheduleSyncResult = ScheduleSyncError | ScheduleSyncSuccess;
-
 
 export const syncError = (
   log: LogFactory,
@@ -40,6 +46,57 @@ export const syncError = (
     error: publicMessage,
   };
 };
+
+async function dbLog({
+  taskId,
+  syncId,
+  message,
+  level,
+}: {
+  taskId: string;
+  message: string;
+  syncId: string;
+  level: string;
+}) {
+  await db.prisma().task_log.create({
+    data: {
+      timestamp: new Date(),
+      logger: "sync",
+      task_id: taskId,
+      sync_id: syncId,
+      message,
+      level,
+    },
+  });
+}
+
+async function createOrUpdateTask({
+  taskId,
+  syncId,
+  status,
+  description,
+}: {
+  taskId: string;
+  syncId: string;
+  status: string;
+  description: string;
+}) {
+  const taskData = {
+    sync_id: syncId,
+    task_id: taskId,
+    status,
+    started_at: new Date(),
+    updated_at: new Date(),
+    description,
+    package: "jitsu",
+    version: "0.0.1",
+  };
+  await db.prisma().source_task.upsert({
+    where: { task_id: taskId },
+    create: taskData,
+    update: omit(taskData, "task_id"),
+  });
+}
 
 export async function checkQuota(opts: {
   user?: SessionUser;
@@ -69,27 +126,17 @@ export async function checkQuota(opts: {
       if (!opts.user) {
         const taskId = randomUUID();
         //scheduled run. We need to create a failed task so user can see the error
-        await db.prisma().source_task.create({
-          data: {
-            sync_id: opts.syncId,
-            task_id: taskId,
-            status: "FAILED",
-            started_at: new Date(),
-            updated_at: new Date(),
-            description: quotaCheckResult.error,
-            package: "jitsu",
-            version: "0.0.1",
-          },
+        await createOrUpdateTask({
+          taskId,
+          syncId: opts.syncId,
+          status: "FAILED",
+          description: `Quota exceeded: ${quotaCheckResult.error}`,
         });
-        await db.prisma().task_log.create({
-          data: {
-            logger: "sync",
-            task_id: taskId,
-            sync_id: opts.syncId,
-            message: `Quota exceeded: ${quotaCheckResult.error}`,
-            level: "ERROR",
-            timestamp: new Date(),
-          },
+        await dbLog({
+          taskId,
+          syncId: opts.syncId,
+          message: `Quota exceeded: ${quotaCheckResult.error}`,
+          level: "ERROR",
         });
       }
       return {
@@ -148,8 +195,163 @@ export async function getSyncById(syncId: string, workspaceId: string): Promise<
         from: true,
         to: true,
       },
-    })) ?? undefined
+    })) || undefined
   );
+}
+
+function createDatabaseLogger(taskId: string, syncId: string): FunctionLogger {
+  return {
+    debug: async (message: string) => {
+      await dbLog({
+        taskId,
+        syncId,
+        message,
+        level: "DEBUG",
+      });
+    },
+    info: async (message: string) => {
+      await dbLog({
+        taskId,
+        syncId,
+        message,
+        level: "INFO",
+      });
+    },
+    error: async (message: string) => {
+      await dbLog({
+        taskId,
+        syncId,
+        message,
+        level: "ERROR",
+      });
+    },
+    warn: async (message: string) => {
+      await dbLog({
+        taskId,
+        syncId,
+        message,
+        level: "WARN",
+      });
+    },
+  };
+}
+
+type SaasSyncState = {
+  dict: Record<
+    string,
+    {
+      value: any;
+      //ISO date
+      expireAt?: string;
+    }
+  >;
+};
+
+function createDatabaseStore(taskId: string, syncId: string): Store {
+  const stream = "cloud-sync";
+  async function getSaasSyncState(): Promise<SaasSyncState> {
+    return ((await db.prisma().source_state.findFirst({ where: { sync_id: syncId, stream } }))?.state || {
+      dict: {},
+    }) as SaasSyncState;
+  }
+
+  async function saveSaasSyncState(state: SaasSyncState) {
+    await db.prisma().source_state.upsert({
+      where: { sync_id_stream: { sync_id: syncId, stream } },
+      create: {
+        sync_id: syncId,
+        stream,
+        state,
+      },
+      update: {
+        state,
+      },
+    });
+  }
+
+  return {
+    del: async (key: string): Promise<void> => {
+      const state = await getSaasSyncState();
+      delete state.dict[key];
+      await saveSaasSyncState(state);
+    },
+    get: async (key: string): Promise<any> => {
+      return (await getSaasSyncState()).dict[key]?.value;
+    },
+    set: async (key: string, value: any, opts?: SetOpts): Promise<void> => {
+      if (opts) {
+        throw new Error("Custom TTLs are not supported for Cloud Syncs sync");
+      }
+      const state = await getSaasSyncState();
+      state.dict[key] = { value };
+      await saveSaasSyncState(state);
+    },
+    ttl: (key: string): Promise<number> => Promise.reject(new Error("Not implemented")),
+  };
+}
+function getImplemetingFunction(pkg: string, destinationType: DestinationType): SyncFunction {
+  if (destinationType.id === "mixpanel" && pkg === "airbyte/source-google-ads") {
+    return mixpanelGoogleAdsSync as any;
+  }
+  throw new Error(`${pkg} -> ${destinationType.id} sync doesn't exist`);
+
+}
+
+async function runSyncSynchronously({
+  syncId,
+  taskId,
+  destinationConfig,
+  destinationType,
+  sourceConfig,
+}: {
+  syncId: string;
+  taskId: string;
+  destinationType: DestinationType;
+  destinationConfig: DestinationConfig;
+  sourceConfig: ServiceConfig;
+}) {
+  await createOrUpdateTask({
+    taskId,
+    syncId,
+    status: "RUNNING",
+    description: "Started",
+  });
+  const syncConfig = destinationType?.syncs?.[sourceConfig.package];
+  if (!syncConfig) {
+    await createOrUpdateTask({
+      taskId,
+      syncId,
+      status: "FAILED",
+      description: `Sync function not found for package ${sourceConfig.package}`,
+    });
+    return;
+  }
+  await dbLog({
+    taskId,
+    syncId,
+    message: `Running sync from ${sourceConfig.package} -> ${destinationType.title} (#${destinationType.id})`,
+    level: "INFO",
+  });
+  const credentials = tryManageOauthCreds({ ...sourceConfig, id: sourceConfig.id });
+  log.atDebug().log(`${JSON.stringify(sourceConfig, null, 2)} ==> ${JSON.stringify(credentials, null, 2)}`);
+
+
+  const implementingFunction = getImplemetingFunction(sourceConfig.package, destinationType);
+
+  await implementingFunction({
+    source: {
+      package: sourceConfig.package,
+      credentials,
+      syncProps: sourceConfig,
+    },
+    destination: {
+      props: destinationConfig,
+    },
+    ctx: {
+      log: createDatabaseLogger(taskId, syncId),
+      store: createDatabaseStore(taskId, syncId),
+    },
+  });
 }
 
 export async function scheduleSync({
@@ -276,12 +478,41 @@ export async function scheduleSync({
         }
       }
     }
+    const destinationConfig = sync.to.config as DestinationConfig;
+    const destinationType = getCoreDestinationType(destinationConfig.destinationType);
+    const serviceConfig = service.config as ServiceConfig;
+    if (!destinationType.usesBulker && destinationType.syncs) {
+      try {
+        await runSyncSynchronously({
+          taskId,
+          syncId: sync.id,
+          destinationConfig,
+          destinationType,
+          sourceConfig: serviceConfig,
+        });
+      } catch (e: any) {
+        await createOrUpdateTask({
+          taskId,
+          syncId: sync.id,
+          status: "FAILED",
+          description: `Error running sync: ${e?.message}`,
+        });
+        await dbLog({
+          taskId,
+          syncId: sync.id,
+          message: `Error running sync: ${e?.message}\n${e?.stack}`,
+          level: "ERROR",
+        });
+      }
+      return {
+        ok: true,
+        taskId,
+        status: `${appBase}/api/${workspaceId}/sources/tasks?taskId=${taskId}&syncId=${syncIdOrModel}`,
+        logs: `${appBase}/api/${workspaceId}/sources/logs?taskId=${taskId}&syncId=${syncIdOrModel}`,
+      };
+    }
 
-    const catalog = await catalogFromDb(
-      (service.config as any).package,
-      (service.config as any).version,
-      (sync.data as any).storageKey
-    );
+    const catalog = await catalogFromDb(serviceConfig.package, serviceConfig.version, (sync.data as any).storageKey);
     if (!catalog) {
       return {
         ok: false,
@@ -297,15 +528,15 @@ export async function scheduleSync({
         ...authHeaders,
       },
       query: {
-        package: (service.config as any).package,
-        version: (service.config as any).version,
+        package: serviceConfig.package,
+        version: serviceConfig.version,
         taskId,
         syncIdOr: sync.id,
         startedBy: trigger === "manual" ? (user ? user.internalId : "manual") : "scheduled",
         tableNamePrefix: sync.data?.["tableNamePrefix"] ?? "",
       },
       body: {
-        config: await tryManageOauthCreds({ ...(service.config as ServiceConfig), id: sync.fromId }),
+        config: await tryManageOauthCreds({ ...serviceConfig, id: sync.fromId }),
         catalog: configuredCatalog,
         ...(stateObj ? { state: stateObj } : {}),
       },

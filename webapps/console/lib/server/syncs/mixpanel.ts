@@ -1,5 +1,4 @@
-import { SyncFunction } from "@jitsu/protocols/functions";
-import { MixpanelCredentials } from "../../meta";
+import { AnyProps, SyncFunction } from "@jitsu/protocols/functions";
 import { GoogleAdsApi } from "google-ads-api";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
@@ -34,11 +33,13 @@ export type MixpanelAdReportRaw = {
   clicks: number;
 };
 
-export const mixpanelGoogleAdsSync: SyncFunction<MixpanelCredentials, GoogleAdsCredentials, {}> = async ({
-  source,
-  destination,
-  ctx: { log, store },
-}) => {
+export const mixpanelGoogleAdsSync: SyncFunction<AnyProps, GoogleAdsCredentials, {}> = async (props) => {
+  const {
+    source,
+    destination,
+    ctx: { log, store },
+  } = props;
+  log.info(`Starting Mixpanel Google Ads sync: ${JSON.stringify(source, null, 2)}`);
   const googleAdsProps = source.credentials;
   const firstRun = !(await store.get("last-run"));
   const initialLookbackWindowDays = 30,
@@ -48,9 +49,9 @@ export const mixpanelGoogleAdsSync: SyncFunction<MixpanelCredentials, GoogleAdsC
     `Connecting to Google Ads API with client id = ${googleAdsProps.credentials.client_id}. Fist run: ${firstRun}, look-back window: ${lookbackWindow} days.`
   );
   const client = new GoogleAdsApi({
-    client_id: googleAdsProps.credentials.client_id,
-    client_secret: googleAdsProps.credentials.client_secret,
-    developer_token: googleAdsProps.credentials.developer_token,
+    client_id: googleAdsProps.client_id,
+    client_secret: googleAdsProps.client_secret,
+    developer_token: googleAdsProps.developer_token,
   });
 
   const customer = client.Customer({

@@ -189,11 +189,6 @@ export type SyncFunction<
   };
 }) => Promise<void>;
 
-export type SyncType<T extends string> = {
-  supportedConnectors: T[];
-  [key: T]: P;
-};
-
 export interface JitsuFunction<E extends AnyEvent = AnyEvent, P extends AnyProps = AnyProps> {
   (event: E, ctx: FullContext<P>): Promise<FuncReturn> | FuncReturn;
 
@@ -203,12 +198,6 @@ export interface JitsuFunction<E extends AnyEvent = AnyEvent, P extends AnyProps
 
   //It's allowed to use basic JSX
   description?: any;
-
-  sync?: {
-    supportedConnectors: string[];
-    executors: Record<string, SyncFunction>;
-    syncConfigSchemas: Record<string, any>;
-  };
 }
 
 export type BuiltinFunctionName<T extends string = string> = `builtin.${T}`;

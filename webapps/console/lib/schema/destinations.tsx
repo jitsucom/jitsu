@@ -27,6 +27,7 @@ import intercomIcon from "./icons/intercom";
 import webhookIcon from "./icons/webhook";
 import { branding } from "../branding";
 import * as meta from "@jitsu/core-functions/src/meta";
+import { SyncFunction } from "@jitsu/protocols/functions";
 
 const s3Regions = [
   "us-west-1",
@@ -609,15 +610,15 @@ export const coreDestinations: DestinationType<any>[] = [
         description: <>
           Jitsu exports ad spend data to from Google Ads to Mixpanel to measure return on ad spend (ROAS).
           Learn more about Mixpanel ROAS tracking <a href="https://mixpanel.com/blog/the-next-evolution-of-marketing-analytics/" target="_blank" rel="noreferrer noopener">here</a>
-        </>
+        </>,
       },
-      "airbyte/source-facebook-marketing": {
-        syncOptions: z.object({}),
-        description: <>
-          Jitsu exports ad spend data to from Facebook to Mixpanel to measure return on ad spend (ROAS).
-          Learn more about Mixpanel ROAS tracking <a href="https://mixpanel.com/blog/the-next-evolution-of-marketing-analytics/" target="_blank" rel="noreferrer noopener">here</a>
-        </>
-      },
+      // "airbyte/source-facebook-marketing": {
+      //   syncOptions: z.object({}),
+      //   description: <>
+      //     Jitsu exports ad spend data to from Facebook to Mixpanel to measure return on ad spend (ROAS).
+      //     Learn more about Mixpanel ROAS tracking <a href="https://mixpanel.com/blog/the-next-evolution-of-marketing-analytics/" target="_blank" rel="noreferrer noopener">here</a>
+      //   </>
+      // },
     }
   },
   {
