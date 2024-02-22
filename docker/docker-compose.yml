@@ -154,8 +154,8 @@ services:
         condition: service_healthy
       bulker:
         condition: service_healthy
-#    ports:
-#      - "3401:3401"
+  #    ports:
+  #      - "3401:3401"
 
   ingest:
     tty: true
