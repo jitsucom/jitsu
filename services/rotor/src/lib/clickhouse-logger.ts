@@ -65,16 +65,19 @@ export function createClickhouseLogger(): EventsStore {
       if (level === "debug") {
         return;
       }
-      rateLimiter.consume(connectionId + "_" + level, 1).then(() => {
-        const logEntry = {
-          actorId: connectionId,
-          type: "function",
-          timestamp: new Date(),
-          level,
-          message,
-        };
-        buffer.push(logEntry);
-      });
+      rateLimiter
+        .consume(connectionId + "_" + level, 1)
+        .then(() => {
+          const logEntry = {
+            actorId: connectionId,
+            type: "function",
+            timestamp: new Date(),
+            level,
+            message,
+          };
+          buffer.push(logEntry);
+        })
+        .catch(() => {});
     },
     close: () => {
       clearInterval(interval);
