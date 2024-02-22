@@ -654,6 +654,9 @@ importers:
       prom-client:
         specifier: ^14.2.0
         version: 14.2.0
+      rate-limiter-flexible:
+        specifier: ^5.0.0
+        version: 5.0.0
       semver:
         specifier: ^7.5.4
         version: 7.5.4
@@ -10772,7 +10775,7 @@ packages:
       '@babel/core': 7.21.4
       find-cache-dir: 4.0.0
       schema-utils: 4.0.0
-      webpack: 5.88.2(webpack-cli@5.0.1)
+      webpack: 5.88.2(webpack-cli@5.1.4)
     dev: true
 
   /babel-plugin-istanbul@6.1.1:
@@ -22772,6 +22775,10 @@ packages:
   /range-parser@1.2.1:
     resolution: {integrity: sha512-Hrgsx+orqoygnmhFbKaHE6c296J+HTAQXoxEF6gNupROmmGJRoyzfG3ccAveqCBrwr/2yxQ5BVd/GTl5agOwSg==}
     engines: {node: '>= 0.6'}
+
+  /rate-limiter-flexible@5.0.0:
+    resolution: {integrity: sha512-ivCyLBwPtR5IRrz+aZnztVwX16ZK3iAjdlW21I/vjHq56at5Zb8eIefDzODg8R7hwPOHpBtb6Pj9Zdmn0nRb8g==}
+    dev: false
 
   /raw-body@2.4.1:
     resolution: {integrity: sha512-9WmIKF6mkvA0SLmA2Knm9+qj89e+j1zqgyn8aXGd7+nAduPoqgI9lO57SAZNn/Byzo5P7JhXTyg9PzaJbH73bA==}

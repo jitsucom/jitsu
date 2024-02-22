@@ -1,5 +1,5 @@
 import { EventContext, FetchOpts, FullContext, Store } from "@jitsu/protocols/functions";
-import { getErrorMessage, getLog, LogLevel, stopwatch } from "juava";
+import { getErrorMessage, getLog, LogLevel, newError, stopwatch } from "juava";
 import { SystemContext } from "./functions/lib";
 
 const log = getLog("functions-context");
@@ -72,7 +72,7 @@ export function createFullContext(
         fetchResult = await fetch(url, internalInit);
       } catch (err: any) {
         if (err.name === "AbortError") {
-          err.message = `Fetch request exceeded timeout ${fetchTimeoutMs}ms and was aborted`;
+          err = newError(`Fetch request exceeded timeout ${fetchTimeoutMs}ms and was aborted`, err);
         }
         const elapsedMs = sw.elapsedMs();
         if (logToRedis) {

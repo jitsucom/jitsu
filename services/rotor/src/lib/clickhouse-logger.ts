@@ -4,6 +4,7 @@ export const log = getLog("clickhouseLogger");
 
 import { createClient } from "@clickhouse/client";
 import { EventsStore } from "@jitsu/core-functions";
+import { RateLimiterMemory } from "rate-limiter-flexible";
 
 type LogEntry = {
   actorId: string;
@@ -27,6 +28,11 @@ export function createClickhouseLogger(): EventsStore {
       async_insert_busy_timeout_ms: 5000,
       date_time_input_format: "best_effort",
     },
+  });
+
+  const rateLimiter = new RateLimiterMemory({
+    points: 20,
+    duration: 5,
   });
 
   const flush = async () => {
@@ -59,14 +65,16 @@ export function createClickhouseLogger(): EventsStore {
       if (level === "debug") {
         return;
       }
-      const logEntry = {
-        actorId: connectionId,
-        type: "function",
-        timestamp: new Date(),
-        level,
-        message,
-      };
-      buffer.push(logEntry);
+      rateLimiter.consume(connectionId + "_" + level, 1).then(() => {
+        const logEntry = {
+          actorId: connectionId,
+          type: "function",
+          timestamp: new Date(),
+          level,
+          message,
+        };
+        buffer.push(logEntry);
+      });
     },
     close: () => {
       clearInterval(interval);
