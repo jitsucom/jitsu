@@ -5,7 +5,8 @@ import {
   ProcessingContext,
   ServerContextReservedProps,
 } from "@jitsu/protocols/analytics";
-import { AnonymousEventsStore, EventsStore, TTLStore } from "@jitsu/protocols/functions";
+import { AnonymousEventsStore, TTLStore } from "@jitsu/protocols/functions";
+import { EventsStore } from "../../context";
 
 export type MetricsMeta = {
   workspaceId: string;

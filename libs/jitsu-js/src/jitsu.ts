@@ -45,6 +45,11 @@ type JitsuOptions = {
    * If not set at all, it will be detected automatically by presence of `window` object
    */
   s2s?: boolean;
+
+  /**
+   * Timeout for fetch requests. Default value: 5000
+   */
+  fetchTimeoutMs?: number;
 };
 
 type PersistentStorage = {

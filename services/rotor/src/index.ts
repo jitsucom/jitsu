@@ -1,15 +1,7 @@
-import { disableService, getLog, randomId, setServerJsonFormat } from "juava";
-import {
-  connectToKafka,
-  destinationMessagesTopic,
-  getCredentialsFromEnv,
-  rotorConsumerGroupId,
-} from "./lib/kafka-config";
+import { checkHash, checkRawToken, disableService, getLog, randomId, setServerJsonFormat, isTruish } from "juava";
+import { destinationMessagesTopic, getCredentialsFromEnv, rotorConsumerGroupId } from "./lib/kafka-config";
 import { kafkaRotor } from "./lib/rotor";
-import { mongodb } from "@jitsu/core-functions";
-import minimist from "minimist";
-import { glob } from "glob";
-import fs from "fs";
+import { EventsStore, mongodb, MultiEventsStore } from "@jitsu/core-functions";
 import express from "express";
 import { UDFRunHandler } from "./http/udf";
 import Prometheus from "prom-client";
@@ -19,8 +11,10 @@ import { rotorMessageHandler } from "./lib/message-handler";
 import { redis } from "./lib/redis";
 import { redisLogger } from "./lib/redis-logger";
 import { DummyMetrics, Metrics } from "./lib/metrics";
-import { isTruish } from "@jitsu-internal/console/lib/shared/chores";
 import { connectionsStore, functionsStore } from "./lib/entity-store";
+import { Server } from "node:net";
+import { getApplicationVersion, getDiagnostics } from "./lib/version";
+import { createClickhouseLogger } from "./lib/clickhouse-logger";
 
 export const log = getLog("rotor");
 
@@ -33,23 +27,20 @@ const http = express();
 http.use(express.json({ limit: "20mb" }));
 http.use(express.urlencoded({ limit: "20mb" }));
 
+const metricsHttp = express();
+
 const rotorHttpPort = process.env.ROTOR_HTTP_PORT || process.env.PORT || 3401;
+const rotorMetricsPort = process.env.ROTOR_METRICS_PORT || 9091;
+
+let started = false;
 
 async function main() {
   const errorTypes = ["unhandledRejection", "uncaughtException"];
   const signalTraps = ["SIGTERM", "SIGINT", "SIGUSR2"];
 
   errorTypes.forEach(type => {
-    process.once(type, err => {
+    process.on(type, err => {
       log.atError().withCause(err).log(`process.on ${type}`);
-      //  process.exit(1);
-    });
-  });
-
-  signalTraps.forEach(type => {
-    process.once(type, () => {
-      log.atInfo().log(`Signal ${type} received`);
-      process.kill(process.pid, type);
     });
   });
 
@@ -57,16 +48,20 @@ async function main() {
     log.atInfo().log(`Process exited with code ${code}`);
   });
 
-  const args = minimist(process.argv.slice(2));
-  if (args._?.[0] === "local") {
-    await processLocalFile(args);
-  } else if (args._?.[0] === "test-connection") {
-    await testConnection(args);
-  } else if (process.env.KAFKA_BOOTSTRAP_SERVERS && !isTruish(process.env.HTTP_ONLY)) {
+  let httpServer: Server;
+  let metricsServer: Server | undefined;
+  let geoResolver: GeoResolver;
+  let eventsLogger: EventsStore;
+  try {
     Prometheus.collectDefaultMetrics();
     await mongodb.waitInit();
     await redis.waitInit();
-    await redisLogger.waitInit();
+    const eventsLoggers = [await redisLogger.waitInit()];
+    if (process.env.CLICKHOUSE_URL) {
+      eventsLoggers.push(createClickhouseLogger());
+    }
+    eventsLogger = MultiEventsStore(eventsLoggers);
+
     const connStore = await connectionsStore.get();
     if (!connStore.enabled) {
       log.atError().log("Connection store is not configured. Rotor will not work");
@@ -77,12 +72,46 @@ async function main() {
       log.atError().log("Functions store is not configured. Rotor will not work");
       process.exit(1);
     }
+
+    geoResolver = await initMaxMindClient(process.env.MAXMIND_LICENSE_KEY || "");
+    metricsServer = initMetricsServer();
+  } catch (e) {
+    log.atError().withCause(e).log("Failed to start");
+    process.exit(1);
+  }
+
+  const gracefulShutdown = async () => {
+    if (httpServer) {
+      httpServer.close();
+    }
+    connectionsStore.stop();
+    functionsStore.stop();
+    eventsLogger.close();
+    redisLogger.close();
+    mongodb.close();
+    redis.close();
+    const extraDelay = process.env.SHUTDOWN_EXTRA_DELAY_SEC
+      ? 1000 * parseInt(process.env.SHUTDOWN_EXTRA_DELAY_SEC)
+      : 5000;
+    if (extraDelay > 0) {
+      log.atInfo().log(`Giving extra ${extraDelay / 1000}s. to flush logs and scrape metrics...`);
+      //extra time to flush logs
+      setTimeout(() => {
+        if (metricsServer) {
+          metricsServer.close();
+        }
+        process.exit(started ? 0 : 1);
+      }, extraDelay);
+    }
+  };
+
+  if (process.env.KAFKA_BOOTSTRAP_SERVERS && !isTruish(process.env.HTTP_ONLY)) {
     //kafka consumer mode
     const kafkaTopics = [destinationMessagesTopic()];
     const consumerGroupId = rotorConsumerGroupId();
-    const geoResolver = await initMaxMindClient(process.env.MAXMIND_LICENSE_KEY || "");
     const rotor = kafkaRotor({
       credentials: getCredentialsFromEnv(),
+      eventsLogger,
       kafkaTopics: kafkaTopics,
       consumerGroupId,
       geoResolver,
@@ -93,38 +122,66 @@ async function main() {
       .start()
       .then(chMetrics => {
         log.atInfo().log(`Kafka processing started. Listening for topics ${kafkaTopics} with group ${consumerGroupId}`);
-        initHTTP(chMetrics, geoResolver);
+        httpServer = initHTTP(eventsLogger, chMetrics, geoResolver);
       })
       .catch(async e => {
-        log.atError().withCause(e).log("Failed to start kafka processing");
+        log.atError().withCause(e).log("Failed to start rotor processing");
         await rotor.close();
         process.exit(1);
       });
 
-    process.on("beforeExit", async () => {
-      await rotor.close();
+    signalTraps.forEach(type => {
+      process.once(type, () => {
+        log.atInfo().log(`Signal ${type} received. Closing rotor`);
+        rotor.close().then(gracefulShutdown);
+      });
     });
   } else {
-    Prometheus.collectDefaultMetrics();
-    await mongodb.waitInit();
-    await redis.waitInit();
-    await redisLogger.waitInit();
-    const connStore = await connectionsStore.get();
-    if (!connStore.enabled) {
-      log.atError().log("Connection store is not configured. Rotor will not work");
-      process.exit(1);
-    }
-    const funcStore = await functionsStore.get();
-    if (!funcStore.enabled) {
-      log.atError().log("Functions store is not configured. Rotor will not work");
-      process.exit(1);
-    }
-    const geoResolver = await initMaxMindClient(process.env.MAXMIND_LICENSE_KEY || "");
-    initHTTP(DummyMetrics, geoResolver);
+    httpServer = initHTTP(eventsLogger, DummyMetrics, geoResolver);
+    signalTraps.forEach(type => {
+      process.once(type, () => {
+        gracefulShutdown();
+      });
+    });
   }
 }
 
-function initHTTP(metrics: Metrics, geoResolver: GeoResolver) {
+function initHTTP(eventsLogger: EventsStore, metrics: Metrics, geoResolver: GeoResolver) {
+  http.use((req, res, next) => {
+    if (req.path === "/health" || req.path === "/version") {
+      return next();
+    }
+    let token = req.headers.authorization || "";
+    if (token) {
+      if (token.startsWith("Bearer ")) {
+        token = token.substring("Bearer ".length);
+      } else {
+        res.status(401).json({ error: "Authorization header with Bearer token is required" });
+        return;
+      }
+    }
+    if (!checkAuth(token)) {
+      if (token) {
+        res.status(401).json({ error: `Invalid token: ${token}` });
+      } else {
+        res.status(401).json({ error: "Authorization header with Bearer token is required" });
+      }
+      return;
+    }
+    next();
+  });
+  http.get("/version", (req, res) => {
+    res.json({
+      ...getApplicationVersion(),
+      node: {
+        version: process.version,
+        platform: process.platform,
+        arch: process.arch,
+        env: process.env.NODE_ENV,
+      },
+      diagnostics: isTruish(process.env.__DANGEROUS_ENABLE_FULL_DIAGNOSTICS) ? getDiagnostics() : undefined,
+    });
+  });
   http.get("/health", (req, res) => {
     res.json({
       status: "pass",
@@ -142,80 +199,56 @@ function initHTTP(metrics: Metrics, geoResolver: GeoResolver) {
       },
     });
   });
-  http.get("/metrics", async (req, res) => {
+  http.post("/udfrun", UDFRunHandler);
+  http.post("/func", FunctionsHandler(eventsLogger, metrics, geoResolver));
+  http.post("/func/multi", FunctionsHandlerMulti(eventsLogger, metrics, geoResolver));
+  const httpServer = http.listen(rotorHttpPort, () => {
+    log.atInfo().log(`Listening on port ${rotorHttpPort}`);
+    started = true;
+  });
+  httpServer.on("error", e => {
+    log.atError().withCause(e).log("Failed to start http server. Exiting...");
+    process.kill(process.pid, "SIGTERM");
+  });
+  return httpServer;
+}
+
+function initMetricsServer() {
+  metricsHttp.get("/metrics", async (req, res) => {
     res.set("Content-Type", Prometheus.register.contentType);
     const result = await Prometheus.register.metrics();
     res.end(result);
   });
-  http.post("/udfrun", UDFRunHandler);
-  http.post("/func", FunctionsHandler(metrics, geoResolver));
-  http.post("/func/multi", FunctionsHandlerMulti(metrics, geoResolver));
-  http.listen(rotorHttpPort, () => {
-    log.atInfo().log(`Listening health-checks on port ${rotorHttpPort}`);
+  const metricsServer = metricsHttp.listen(rotorMetricsPort, () => {
+    log.atInfo().log(`Listening metrics on port ${rotorMetricsPort}`);
   });
+  metricsServer.on("error", e => {
+    log.atError().withCause(e).log("Failed to start metrics server");
+  });
+  return metricsServer;
 }
 
-async function processLocalFile(args: minimist.ParsedArgs) {
-  if (args["f"]) {
-    glob(args["f"], async (err, files) => {
-      if (err) {
-        log.atError().withCause(err).log(`Failed to read files ${args["f"]}`);
-        process.exit(1);
-      }
-      for (const file of files) {
-        const content = JSON.parse(fs.readFileSync(file, "utf8"));
-        const events = Array.isArray(content) ? content : [content];
-        log.atInfo().log(`Reading file ${file}. Events: ${events.length}`);
-        for (const event of events) {
-          try {
-            await rotorMessageHandler(JSON.stringify(event));
-          } catch (e) {
-            log
-              .atError()
-              .withCause(e)
-              .log(`Failed to process event from ${file}: ${JSON.stringify(event)}`);
-          }
-        }
-      }
-    });
-  } else if (args["j"]) {
-    const content = JSON.parse(args["j"]);
-    const events = Array.isArray(content) ? content : [content];
-    for (const event of events) {
-      try {
-        await rotorMessageHandler(JSON.stringify(event));
-      } catch (e) {
-        log
-          .atError()
-          .withCause(e)
-          .log(`Failed to process event: ${JSON.stringify(event)}`);
+function checkAuth(token: string): boolean {
+  let tokens: string[] = [];
+  let checkFunction: (token: string, secret: string) => boolean = () => false;
+  if (process.env.ROTOR_AUTH_TOKENS) {
+    tokens = process.env.ROTOR_AUTH_TOKENS.split(",");
+    checkFunction = checkHash;
+  } else if (process.env.ROTOR_RAW_AUTH_TOKENS) {
+    tokens = process.env.ROTOR_RAW_AUTH_TOKENS.split(",");
+    checkFunction = checkRawToken;
+  } else {
+    log.atWarn().log("No auth tokens are configured. Rotor is open for everyone.");
+    return true;
+  }
+  if (tokens.length > 0) {
+    for (const tokenHashOrPlain of tokens) {
+      if (checkFunction(tokenHashOrPlain, token)) {
+        return true;
       }
     }
   }
-}
-
-async function testConnection(args: minimist.ParsedArgs) {
-  const credentials = getCredentialsFromEnv();
-  const kafka = connectToKafka({ ...credentials, defaultAppId: "connection-tester" });
-  const producer = kafka.producer();
-  await producer.connect();
-  const topic = "connection-tester" + randomId(5);
-  const testMessage = { value: "test" };
-  await producer.send({ topic, messages: [testMessage] });
-  await producer.disconnect();
-
-  const consumer = kafka.consumer({ groupId: topic });
-  await consumer.connect();
-  await consumer.subscribe({ topic, fromBeginning: true });
-  const message = (await new Promise(resolve => {
-    consumer.run({
-      eachMessage: async ({ message }) => {
-        resolve(message);
-      },
-    });
-  })) as any;
-  log.atInfo().log(`Received message: ${message.value}`);
-  await consumer.disconnect();
+  return false;
 }
 
 main();

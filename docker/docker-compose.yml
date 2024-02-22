@@ -52,11 +52,12 @@ services:
 
   console:
     tty: true
-    image: jitsucom/console:latest
+    image: jitsucom/console:${DOCKER_TAG:-latest}
     restart: "unless-stopped"
     platform: linux/amd64
     environment:
       ROTOR_URL: "http://rotor:3401"
+      ROTOR_AUTH_KEY: ${BULKER_TOKEN:-default}
       BULKER_URL: "http://bulker:3042"
       CONSOLE_RAW_AUTH_TOKENS: ${CONSOLE_TOKEN:-default}
       BULKER_AUTH_KEY: ${BULKER_TOKEN:-default}
@@ -65,6 +66,7 @@ services:
       REDIS_URL: "redis://default:${REDIS_PASSWORD:-default}@redis:6379"
       SEED_USER_EMAIL: ${SEED_USER_EMAIL:-}
       SEED_USER_PASSWORD: ${SEED_USER_PASSWORD:-}
+      ENABLE_CREDETIALS_LOGIN: ${ENABLE_CREDETIALS_LOGIN:-true}
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
       SYNCS_ENABLED: ${SYNCS_ENABLED:-false}
@@ -103,7 +105,7 @@ services:
 
   bulker:
     tty: true
-    image: jitsucom/bulker:latest
+    image: jitsucom/bulker:${DOCKER_TAG:-latest}
     platform: linux/amd64
     restart: "unless-stopped"
     environment:
@@ -130,12 +132,11 @@ services:
 
   rotor:
     tty: true
-    image: jitsucom/rotor:latest
+    image: jitsucom/rotor:${DOCKER_TAG:-latest}
     platform: linux/amd64
     restart: "unless-stopped"
     environment:
-      DISABLE_SERVICE_prisma: "true"
-      DISABLE_SERVICE_pg: "true"
+      ROTOR_RAW_AUTH_TOKENS: ${BULKER_TOKEN:-default}
       BULKER_URL: "http://bulker:3042"
       BULKER_AUTH_KEY: ${BULKER_TOKEN:-default}
       KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
@@ -153,10 +154,12 @@ services:
         condition: service_healthy
       bulker:
         condition: service_healthy
+  #    ports:
+  #      - "3401:3401"
 
   ingest:
     tty: true
-    image: jitsucom/ingest:latest
+    image: jitsucom/ingest:${DOCKER_TAG:-latest}
     platform: linux/amd64
     restart: "unless-stopped"
     environment:
@@ -170,6 +173,7 @@ services:
       INGEST_CACHE_DIR: "/tmp/cache"
       INGEST_REDIS_URL: "redis://default:${REDIS_PASSWORD:-default}@redis:6379"
       INGEST_ROTOR_URL: "http://rotor:3401"
+      INGEST_ROTOR_AUTH_KEY: ${BULKER_TOKEN:-default}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://ingest:3049/health"]
       interval: 2s
@@ -185,7 +189,7 @@ services:
 
   syncctl:
     tty: true
-    image: jitsucom/syncctl:latest
+    image: jitsucom/syncctl:${DOCKER_TAG:-latest}
     platform: linux/amd64
     restart: "on-failure"
     environment:

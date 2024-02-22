@@ -12,6 +12,8 @@ import { FuncChainResult } from "./functions-chain";
 import type { Admin, Consumer, Producer, KafkaMessage } from "kafkajs";
 import { CompressionTypes } from "kafkajs";
 import { GeoResolver } from "./maxmind";
+import { MessageHandlerContext } from "./message-handler";
+import { EventsStore } from "@jitsu/core-functions";
 
 const log = getLog("kafka-rotor");
 
@@ -26,13 +28,13 @@ export type KafkaRotorConfig = {
   credentials: KafkaCredentials;
   consumerGroupId: string;
   kafkaTopics: string[];
+  eventsLogger: EventsStore;
   kafkaClientId?: string;
   geoResolver?: GeoResolver;
   handle: (
     message: string,
+    rotorContext: MessageHandlerContext,
     headers?,
-    metrics?: Metrics,
-    geoResolver?: GeoResolver,
     functionsFilter?: (id: string) => boolean,
     retries?: number
   ) => Promise<FuncChainResult | undefined>;
@@ -44,12 +46,13 @@ export type KafkaRotor = {
 };
 
 export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
-  const { kafkaTopics, consumerGroupId, handle, kafkaClientId = "kafka-rotor", geoResolver } = cfg;
+  const { kafkaTopics, consumerGroupId, eventsLogger, handle, kafkaClientId = "kafka-rotor", geoResolver } = cfg;
   let consumer: Consumer;
   let producer: Producer;
   let admin: Admin;
   let closeQueue: () => Promise<void>;
   let interval: NodeJS.Timer;
+  let metrics: Metrics;
   return {
     start: async () => {
       const kafka = connectToKafka({ defaultAppId: kafkaClientId, ...cfg.credentials });
@@ -64,7 +67,7 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
 
       producer = kafka.producer({ allowAutoTopicCreation: false });
       await producer.connect();
-      const metrics = createMetrics(producer);
+      metrics = createMetrics(producer);
       admin = kafka.admin();
 
       const topicOffsets = new Prometheus.Gauge({
@@ -132,11 +135,14 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
           handle(
             value.toString(),
             {
+              eventsLogger,
+              metrics,
+              geoResolver,
+            },
+            {
               ...headers,
               [CONNECTION_IDS_HEADER]: connectionId,
             },
-            metrics,
-            geoResolver,
             retriedFunctionId
               ? id => {
                   if (retriedFunctionId.startsWith("udf.")) {
@@ -284,15 +290,10 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
       if (interval) {
         clearInterval(interval);
       }
-      log.atInfo().log("Kafka-rotor closed gracefully. 💜");
-      const extraDelay = process.env.SHUTDOWN_EXTRA_DELAY_SEC
-        ? 1000 * parseInt(process.env.SHUTDOWN_EXTRA_DELAY_SEC)
-        : 5000;
-      if (extraDelay > 0) {
-        log.atInfo().log(`Giving extra ${extraDelay / 1000}s. to flush logs...`);
-        //extra time to flush logs
-        await new Promise(resolve => setTimeout(resolve, extraDelay));
+      if (metrics) {
+        metrics.close();
       }
+      log.atInfo().log("Kafka-rotor closed gracefully. 💜");
     },
   };
 }

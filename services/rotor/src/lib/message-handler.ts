@@ -16,8 +16,8 @@ import {
   parseUserAgent,
   SystemContext,
   createTtlStore,
+  EventsStore,
 } from "@jitsu/core-functions";
-import { redisLogger } from "./redis-logger";
 import { buildFunctionChain, checkError, runChain } from "./functions-chain";
 import { redis } from "./redis";
 import { EnrichedConnectionConfig } from "./config-types";
@@ -26,14 +26,19 @@ export const log = getLog("rotor");
 const anonymousEventsStore = mongoAnonymousEventsStore();
 const fastStoreWorskpaceId = (process.env.FAST_STORE_WORKSPACE_ID ?? "").split(",").filter(x => x.length > 0);
 
+export type MessageHandlerContext = {
+  eventsLogger: EventsStore;
+  metrics?: Metrics;
+  geoResolver?: GeoResolver;
+};
+
 export async function rotorMessageHandler(
   _message: string | object | undefined,
+  rotorContext: MessageHandlerContext,
   headers?,
-  metrics?: Metrics,
-  geoResolver?: GeoResolver,
   functionsFilter?: (id: string) => boolean,
   retries: number = 0,
-  fetchTimeoutMs: number = 15000
+  fetchTimeoutMs: number = 5000
 ) {
   if (!_message) {
     return;
@@ -46,7 +51,7 @@ export async function rotorMessageHandler(
   if (!funcStore || !funcStore.enabled) {
     throw newError("Functions store is not enabled");
   }
-  const eventStore = redisLogger();
+  const eventStore = rotorContext.eventsLogger;
 
   const message = (typeof _message === "string" ? JSON.parse(_message) : _message) as IngestMessage;
   const connectionId =
@@ -69,8 +74,8 @@ export async function rotorMessageHandler(
   const geo =
     Object.keys(event.context.geo || {}).length > 0
       ? event.context.geo
-      : geoResolver && event.context.ip
-      ? await geoResolver.resolve(event.context.ip)
+      : rotorContext.geoResolver && event.context.ip
+      ? await rotorContext.geoResolver.resolve(event.context.ip)
       : undefined;
   event.context.geo = geo;
   const ctx: EventContext = {
@@ -120,7 +125,7 @@ export async function rotorMessageHandler(
 
   const chainRes = await runChain(funcChain, event, eventStore, store, ctx, systemContext, fetchTimeoutMs);
   chainRes.connectionId = connectionId;
-  metrics?.logMetrics(chainRes.execLog);
+  rotorContext.metrics?.logMetrics(chainRes.execLog);
   checkError(chainRes);
   return chainRes;
 }

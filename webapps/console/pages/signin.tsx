@@ -130,10 +130,21 @@ const NextAuthSignInPage = ({ csrfToken, providers }) => {
 };
 
 export async function getServerSideProps(context) {
+  const providers = await getProviders();
+  if (!providers) {
+    throw new Error(
+      [
+        `No auth providers found. Please check your configuration and grep logs for CLIENT_FETCH_ERROR.`,
+        `Firebase configured via FIREBASE_AUTH: ${!!process.env.FIREBASE_AUTH}`,
+        `GitHub configured (via GITHUB_CLIENT_ID) : ${!!process.env.GITHUB_CLIENT_ID}`,
+        `Seed user configured (via SEED_USER_EMAIL) : ${!!process.env.SEED_USER_EMAIL}`,
+      ].join("\n")
+    );
+  }
   return {
     props: {
       csrfToken: await getCsrfToken(context),
-      providers: await getProviders(),
+      providers: providers,
       publicPage: true,
     },
   };

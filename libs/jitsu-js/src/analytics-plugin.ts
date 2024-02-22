@@ -10,6 +10,7 @@ import { internalDestinationPlugins } from "./destination-plugins";
 import { jitsuLibraryName, jitsuVersion } from "./version";
 import { getTopLevelDomain } from "./tlds";
 import * as jsondiffpatch from "jsondiffpatch";
+
 const diff = jsondiffpatch.create();
 
 const defaultConfig: Required<JitsuOptions> = {
@@ -22,6 +23,7 @@ const defaultConfig: Required<JitsuOptions> = {
   echoEvents: false,
   cookieDomain: undefined,
   runtime: undefined,
+  fetchTimeoutMs: undefined,
   s2s: undefined,
 };
 
@@ -546,6 +548,12 @@ async function send(
   //   console.log(`[JITSU] Sending event to ${url}: `, JSON.stringify(payload, null, 2));
   // }
   const adjustedPayload = adjustPayload(payload, jitsuConfig, store, s2s);
+  const abortController = jitsuConfig.fetchTimeoutMs ? new AbortController() : undefined;
+  const abortTimeout = jitsuConfig.fetchTimeoutMs
+    ? setTimeout(() => {
+        abortController.abort();
+      }, jitsuConfig.fetchTimeoutMs)
+    : undefined;
 
   const authHeader = jitsuConfig.writeKey ? { "X-Write-Key": jitsuConfig.writeKey } : {};
   let fetchResult;
@@ -559,7 +567,11 @@ async function send(
         ...debugHeader,
       },
       body: JSON.stringify(adjustedPayload),
+      signal: abortController?.signal,
     });
+    if (abortTimeout) {
+      clearTimeout(abortTimeout);
+    }
   } catch (e: any) {
     throw new Error(`Calling ${url} failed: ${e.message}`);
   }

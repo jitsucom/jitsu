@@ -1,4 +1,4 @@
-import { JitsuOptions } from "./jitsu";
+import type { AnalyticsInterface, JitsuOptions } from "./jitsu";
 import { jitsuAnalytics } from "./index";
 
 export type JitsuBrowserOptions = {
@@ -38,6 +38,21 @@ function getScriptAttributes(scriptElement: HTMLScriptElement) {
       }),
       {}
     );
+}
+
+function runCallback(callback: any, jitsu: AnalyticsInterface) {
+  if (typeof callback === "function") {
+    callback(jitsu);
+  } else if (Array.isArray(callback) && typeof callback[0] === "string") {
+    const [method, ...args] = callback;
+    if (typeof jitsu[method] === "function") {
+      jitsu[method](...args);
+    } else {
+      console.warn(`Method ${method} is not supported, ignoring callback`);
+    }
+  } else {
+    console.warn(`Invalid jitsu queue callback`, callback);
+  }
 }
 
 (function () {
@@ -93,7 +108,7 @@ function getScriptAttributes(scriptElement: HTMLScriptElement) {
   }
   callbackQueue.forEach((callback: any) => {
     try {
-      callback(jitsu);
+      runCallback(callback, jitsu);
     } catch (e: any) {
       console.warn(`Error processing callback from Jitsu queue`, e);
     }

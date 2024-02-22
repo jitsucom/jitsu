@@ -5,7 +5,7 @@ import { ApiError } from "../../../../lib/shared/errors";
 import { getUserPreferenceService } from "../../../../lib/server/user-preferences";
 import { getServerLog } from "../../../../lib/server/log";
 import { SessionUser } from "../../../../lib/schema";
-import { withProductAnalytics } from "../../../../lib/server/telemetry";
+import { initTelemetry, withProductAnalytics } from "../../../../lib/server/telemetry";
 
 const log = getServerLog();
 
@@ -38,6 +38,8 @@ export const api: Api = {
     auth: true,
     types: { query: z.object({ workspaceIdOrSlug: z.string() }) },
     handle: async ({ req, query: { workspaceIdOrSlug }, user }) => {
+      //we need to initialize telemetry to get deploymentId for old deployments. Not an optimal solution, because of additional query. But guarantees to work
+      await initTelemetry();
       const workspace = await db
         .prisma()
         .workspace.findFirst({ where: { OR: [{ id: workspaceIdOrSlug }, { slug: workspaceIdOrSlug }] } });

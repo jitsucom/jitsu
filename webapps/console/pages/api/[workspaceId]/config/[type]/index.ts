@@ -62,7 +62,7 @@ export const api: Api = {
       const created = await db.prisma().configurationObject.create({
         data: { id, workspaceId: workspaceId, config: object, type },
       });
-      await trackTelemetryEvent("config-object-delete", { objectType: type });
+      await trackTelemetryEvent("config-object-create", { objectType: type });
       await withProductAnalytics(
         p =>
           p.track("create_object", {

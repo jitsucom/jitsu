@@ -51,13 +51,18 @@ export const api: Api = {
         process.env.ROTOR_URL,
         `env ROTOR_URL is not set. Rotor is required to run functions`
       );
+      const rotorAuthKey = process.env.ROTOR_AUTH_KEY;
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (rotorAuthKey) {
+        headers["Authorization"] = `Bearer ${rotorAuthKey}`;
+      }
 
       const res = await rpc(rotorURL + "/udfrun", {
         method: "POST",
         body: body,
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
       });
       return resultType.parse(res);
     },

@@ -19,9 +19,10 @@ export type CachedValue<T> = (
 export interface Singleton<T> {
   (): T;
   waitInit: () => Promise<T>;
+  close: () => Promise<void>;
 }
 
-function clearSingleton<T>(globalName: string, cleanupFunc?: (t: T) => {}) {
+function clearSingleton<T>(globalName: string, cleanupFunc?: (t: T) => void) {
   log.atInfo().log(`️🚮🚮🚮 ${globalName} deleting stale singleton`);
   const cachedValue = global[`singletons_${globalName}`];
   if (cachedValue?.success) {
@@ -46,7 +47,13 @@ function getDisableServiceVar(globalName: string) {
 export function getSingleton<T>(
   globalName: string,
   factory: () => T | Promise<T>,
-  opts: { ttlSec?: number; optional?: boolean; silent?: boolean; errorTtlSec?: number; cleanupFunc?: (t: T) => {} } = {
+  opts: {
+    ttlSec?: number;
+    optional?: boolean;
+    silent?: boolean;
+    errorTtlSec?: number;
+    cleanupFunc?: (t: T) => void;
+  } = {
     ttlSec: 0,
     errorTtlSec: 0,
     optional: false,
@@ -109,6 +116,12 @@ export function getSingleton<T>(
     cachedValue.debounceCleanup();
     const result = () => cachedValue.value as T;
     result.waitInit = () => Promise.resolve(cachedValue.value as T);
+    result.close = () => {
+      if (opts.cleanupFunc) {
+        opts.cleanupFunc(cachedValue.value);
+      }
+      return Promise.resolve();
+    };
     return result;
   } else if (cachedValue && !cachedValue.success) {
     cachedValue.debounceCleanup();
@@ -146,11 +159,24 @@ export function getSingleton<T>(
       }
     };
     result.waitInit = () => awaiter;
+    result.close = () => {
+      const globalInstance = global[`singletons_${globalName}`];
+      if (opts.cleanupFunc && globalInstance.success) {
+        opts.cleanupFunc(globalInstance.value);
+      }
+      return Promise.resolve();
+    };
     return result;
   } else {
     handleSuccess(newInstance, startedAtTs);
     const result = () => newInstance as T;
     result.waitInit = () => Promise.resolve(newInstance as T);
+    result.close = () => {
+      if (opts.cleanupFunc) {
+        opts.cleanupFunc(newInstance as T);
+      }
+      return Promise.resolve();
+    };
     return result;
   }
 }

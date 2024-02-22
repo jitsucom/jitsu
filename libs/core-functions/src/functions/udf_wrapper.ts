@@ -1,8 +1,8 @@
-import { getLog } from "juava";
+import { getLog, LogLevel } from "juava";
 import { Isolate, ExternalCopy, Callback, Reference } from "isolated-vm";
-import { EventContext, EventsStore, FetchOpts, FuncReturn, JitsuFunction, Store } from "@jitsu/protocols/functions";
+import { EventContext, FetchOpts, FuncReturn, JitsuFunction, Store } from "@jitsu/protocols/functions";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
-import { createFullContext } from "../context";
+import { createFullContext, EventsStore } from "../context";
 import { createMemoryStore, isDropResult, memoryStoreDump } from "../index";
 import { functionsLibCode, wrapperCode } from "./lib/udf-wrapper-code";
 import { parseUserAgent } from "./lib/ua";
@@ -29,7 +29,7 @@ export const UDFWrapper = (functionId, name, functionCode: string): UDFWrapperRe
   let isolate: Isolate;
   try {
     //const wrappedCode = `let exports = {}\n${functionCode}\n${wrapperJs}`;
-    isolate = new Isolate({ memoryLimit: 128 });
+    isolate = new Isolate({ memoryLimit: 64 });
     const context = isolate.createContextSync();
     const jail = context.global;
 
@@ -279,7 +279,7 @@ export async function UDFTestRun({
     }
 
     const eventsStore: EventsStore = {
-      log(connectionId: string, error: boolean, msg: Record<string, any>) {
+      log(connectionId: string, level: LogLevel, msg: Record<string, any>) {
         switch (msg.type) {
           case "log-info":
           case "log-warn":
@@ -316,6 +316,7 @@ export async function UDFTestRun({
             });
         }
       },
+      close() {},
     };
     const ctx = createFullContext(id, eventsStore, storeImpl, eventContext, {}, config);
     if (typeof code === "string") {

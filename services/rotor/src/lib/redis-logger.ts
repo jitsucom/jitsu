@@ -1,12 +1,16 @@
 import { getLog, getSingleton } from "juava";
-import { EventsStore } from "@jitsu/protocols/functions";
 import { redis } from "./redis";
+import { EventsStore } from "@jitsu/core-functions";
 
 export const log = getLog("redisLogger");
 
 const eventsLogSize = process.env.EVENTS_LOG_MAX_SIZE ? parseInt(process.env.EVENTS_LOG_MAX_SIZE) : 1000;
 
-export const redisLogger = getSingleton("redisLogger", createRedisLogger);
+export const redisLogger = getSingleton("redisLogger", createRedisLogger, {
+  cleanupFunc: (logger: EventsStore) => {
+    logger.close();
+  },
+});
 
 export function createRedisLogger(): EventsStore {
   const buffer: Record<string, string[]> = {};
@@ -48,7 +52,7 @@ export function createRedisLogger(): EventsStore {
     }
   };
 
-  setInterval(async () => {
+  const interval = setInterval(async () => {
     if (Object.keys(buffer).length === 0) {
       return;
     }
@@ -56,20 +60,23 @@ export function createRedisLogger(): EventsStore {
   }, 5000);
 
   return {
-    log: (connectionId: string, error, msg) => {
+    log: (connectionId: string, level, msg) => {
       const key = (isErr: boolean) => `events_log:functions.${isErr ? "error" : "all"}#${connectionId}`;
       try {
         if (msg.type === "log-debug") {
           return;
         }
-        const logEntry = JSON.stringify({ timestamp: new Date().toISOString(), error, ...msg });
-        if (error) {
+        const logEntry = JSON.stringify({ timestamp: new Date().toISOString(), error: level === "error", ...msg });
+        if (level === "error") {
           put(key(true), logEntry);
         }
         put(key(false), logEntry);
       } catch (e) {
         log.atError().withCause(e).log("Failed to put event to redis events log");
       }
+    },
+    close: () => {
+      clearInterval(interval);
     },
   };
 }

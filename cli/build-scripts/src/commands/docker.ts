@@ -1,5 +1,5 @@
 import * as path from "path";
-import simpleGit from "simple-git";
+import simpleGit, { SimpleGit } from "simple-git";
 import * as fs from "fs";
 import { compare as semverCompare, parse as semverParse, SemVer } from "semver";
 import * as child_process from "child_process";
@@ -24,8 +24,13 @@ export type DockerArgs = {
   logs?: string;
 };
 
+async function getLastCommitSha(git: SimpleGit): Promise<string> {
+  return (await git.log({ n: 1 }))?.latest?.hash || "unknown";
+}
+
 export async function docker(dir: string | undefined, args: DockerArgs): Promise<void> {
   let version = args.version;
+  const projectRootDir = dir ? path.resolve(process.cwd(), dir) : process.cwd();
   const dockerTag: ReleaseStream = args.release || "beta";
   const tagPrefix = args.gitTagPrefix || "jitsu2";
   console.log(
@@ -36,6 +41,11 @@ export async function docker(dir: string | undefined, args: DockerArgs): Promise
         `I'm going to build docker images for \`${dockerTag}\` release stream`,
       ],
     })
+  );
+  console.log(
+    `📦 Project root directory: ${color.cyan(projectRootDir)}${
+      dir ? ` (provided as ${color.cyan(dir)})` : ` (default)`
+    }}`
   );
 
   //git check that all changes are pulled from remote
@@ -72,6 +82,9 @@ export async function docker(dir: string | undefined, args: DockerArgs): Promise
       `--platform ${args.platform || "linux/amd64"}`,
       `-t ${dockerImageName}:${dockerTag}`,
       `-t ${dockerImageName}:${version}`,
+      `--build-arg JITSU_BUILD_VERSION=${version}`,
+      `--build-arg JITSU_BUILD_DOCKER_TAG=${dockerTag}`,
+      `--build-arg JITSU_BUILD_COMMIT_SHA=${await getLastCommitSha(git)}`,
       `-f all.Dockerfile`,
       args.push ? "--push" : "--load",
       ".",
@@ -98,7 +111,7 @@ export async function docker(dir: string | undefined, args: DockerArgs): Promise
       }
       const exitCode = await runCommand("docker", {
         args: [...dockerArgs],
-        cwd: dir,
+        cwd: projectRootDir,
         outputHandler: (data, opts) => {
           const dataStr = data.toString();
           dataStr.split("\n").forEach(line => {

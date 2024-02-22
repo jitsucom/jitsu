@@ -1,10 +1,31 @@
-import { EventContext, EventsStore, FetchOpts, FullContext, Store } from "@jitsu/protocols/functions";
-import nodeFetch, { RequestInit } from "node-fetch-commonjs";
-import { getErrorMessage, getLog, stopwatch } from "juava";
-import { httpAgent, httpsAgent } from "./functions/lib/http-agent";
+import { EventContext, FetchOpts, FullContext, Store } from "@jitsu/protocols/functions";
+import { getErrorMessage, getLog, LogLevel, newError, stopwatch } from "juava";
 import { SystemContext } from "./functions/lib";
 
 const log = getLog("functions-context");
+
+/**
+ * Store for incoming events, destination results and function log messages
+ */
+export interface EventsStore {
+  log(connectionId: string, level: LogLevel, msg: Record<string, any>): void;
+  close(): void;
+}
+
+export function MultiEventsStore(stores: EventsStore[]): EventsStore {
+  return {
+    log(connectionId: string, level: LogLevel, msg: Record<string, any>): void {
+      for (const store of stores) {
+        store.log(connectionId, level, msg);
+      }
+    },
+    close(): void {
+      for (const store of stores) {
+        store.close();
+      }
+    },
+  };
+}
 
 export function createFullContext(
   functionId: string,
@@ -14,7 +35,7 @@ export function createFullContext(
   systemContext: SystemContext | {} = {},
   props: Record<string, any> = {},
   event?: any,
-  fetchTimeoutMs: number = 15000
+  fetchTimeoutMs: number = 5000
 ): FullContext {
   const ar = functionId.split(".");
   const id = ar.pop();
@@ -43,19 +64,19 @@ export function createFullContext(
 
       let internalInit: RequestInit = {
         ...init,
-        agent: (url.startsWith("https://") ? httpsAgent : httpAgent)(),
+        keepalive: true,
         signal: controller.signal,
       };
       let fetchResult: any = undefined;
       try {
-        fetchResult = await nodeFetch(url, internalInit);
+        fetchResult = await fetch(url, internalInit);
       } catch (err: any) {
         if (err.name === "AbortError") {
-          err.message = `Fetch request exceeded timeout ${fetchTimeoutMs}ms and was aborted`;
+          err = newError(`Fetch request exceeded timeout ${fetchTimeoutMs}ms and was aborted`, err);
         }
         const elapsedMs = sw.elapsedMs();
         if (logToRedis) {
-          eventsStore.log(connectionId, false, { ...baseInfo, error: getErrorMessage(err), elapsedMs: elapsedMs });
+          eventsStore.log(connectionId, "warn", { ...baseInfo, error: getErrorMessage(err), elapsedMs: elapsedMs });
         }
         log
           .atWarn()
@@ -72,7 +93,7 @@ export function createFullContext(
       const cloned = fetchResult.clone();
       const respText = await trimResponse(cloned);
       if (logToRedis) {
-        eventsStore.log(connectionId, false, {
+        eventsStore.log(connectionId, fetchResult.status >= 300 ? "warn" : "info", {
           ...baseInfo,
           status: fetchResult.status,
           statusText: fetchResult.statusText,
@@ -93,7 +114,7 @@ export function createFullContext(
     log: {
       debug: (message, ...args: any[]) => {
         log.atDebug().log(`[CON:${connectionId}]: [f:${id}][DEBUG]: ${message}`, ...args);
-        eventsStore.log(connectionId, false, {
+        eventsStore.log(connectionId, "debug", {
           type: "log-debug",
           functionId: id,
           functionType: type,
@@ -105,7 +126,7 @@ export function createFullContext(
       },
       warn: (message, ...args: any[]) => {
         log.atWarn().log(`[CON:${connectionId}]: [f:${id}][WARN]: ${message}`, ...args);
-        eventsStore.log(connectionId, false, {
+        eventsStore.log(connectionId, "warn", {
           type: "log-warn",
           functionId: id,
           functionType: type,
@@ -116,7 +137,7 @@ export function createFullContext(
         });
       },
       error: (message, ...args: any[]) => {
-        eventsStore.log(connectionId, true, {
+        eventsStore.log(connectionId, "error", {
           type: "log-error",
           functionId: id,
           functionType: type,
@@ -137,7 +158,7 @@ export function createFullContext(
       },
       info: (message, ...args: any[]) => {
         log.atInfo().log(`[CON:${connectionId}]: [f:${id}][INFO]: ${message}`, ...args);
-        eventsStore.log(connectionId, false, {
+        eventsStore.log(connectionId, "info", {
           type: "log-info",
           functionId: id,
           functionType: type,

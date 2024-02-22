@@ -38,12 +38,6 @@ export interface TTLStore extends Store {
 }
 
 /**
- * Store for incoming events, destination results and function log messages
- */
-export interface EventsStore {
-  log(connectionId: string, error: boolean, msg: Record<string, any>): void;
-}
-/**
  * A special properties that user can set on an event to define how
  * event will be processed further
  */
