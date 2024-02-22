@@ -582,6 +582,9 @@ importers:
       '@amplitude/ua-parser-js':
         specifier: ^0.7.33
         version: 0.7.33
+      '@clickhouse/client':
+        specifier: ^0.2.10
+        version: 0.2.10
       '@jitsu/core-functions':
         specifier: workspace:*
         version: link:../../libs/core-functions
@@ -781,8 +784,8 @@ importers:
         specifier: ^1.5.6
         version: 1.8.1(react-dom@18.2.0)(react@18.2.0)
       '@clickhouse/client':
-        specifier: ^0.2.4
-        version: 0.2.4
+        specifier: ^0.2.10
+        version: 0.2.10
       '@dnd-kit/core':
         specifier: ^6.0.8
         version: 6.0.8(react-dom@18.2.0)(react@18.2.0)
@@ -1094,8 +1097,8 @@ importers:
         specifier: ^3.418.0
         version: 3.418.0
       '@clickhouse/client':
-        specifier: ^0.2.4
-        version: 0.2.4
+        specifier: ^0.2.10
+        version: 0.2.10
       '@types/node':
         specifier: 18.11.12
         version: 18.11.12
@@ -3306,15 +3309,15 @@ packages:
   /@bcoe/v8-coverage@0.2.3:
     resolution: {integrity: sha512-0hYQ8SB4Db5zvZB4axdMHGwEaQjkZzFjQiN9LVYvIFB2nSUHW9tYpxWriPrWDASIxiaXax83REcLxuSdnGPZtw==}
 
-  /@clickhouse/client-common@0.2.4:
-    resolution: {integrity: sha512-XVmxvU0kACANTmQSfdYCIA/reDkH5353AOvfwKRXMNwag8pX2IIoO8zoJjZvtfbGPy5LoI+UKj3aoiKSl8Z8qA==}
+  /@clickhouse/client-common@0.2.10:
+    resolution: {integrity: sha512-BvTY0IXS96y9RUeNCpKL4HUzHmY80L0lDcGN0lmUD6zjOqYMn78+xyHYJ/AIAX7JQsc+/KwFt2soZutQTKxoGQ==}
     dev: false
 
-  /@clickhouse/client@0.2.4:
-    resolution: {integrity: sha512-qeKYMHoNxRG8xQ4CPEnPcAbreivhWm3QTw9v5BkovS9j/mnt9NcUzWpmdZTsL/vTl63fSTXVkiA9/QY++r3/qQ==}
+  /@clickhouse/client@0.2.10:
+    resolution: {integrity: sha512-ZwBgzjEAFN/ogS0ym5KHVbR7Hx/oYCX01qGp2baEyfN2HM73kf/7Vp3GvMHWRy+zUXISONEtFv7UTViOXnmFrg==}
     engines: {node: '>=16'}
     dependencies:
-      '@clickhouse/client-common': 0.2.4
+      '@clickhouse/client-common': 0.2.10
     dev: false
 
   /@cspotcode/source-map-support@0.8.1:

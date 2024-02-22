@@ -12,6 +12,8 @@ import { FuncChainResult } from "./functions-chain";
 import type { Admin, Consumer, Producer, KafkaMessage } from "kafkajs";
 import { CompressionTypes } from "kafkajs";
 import { GeoResolver } from "./maxmind";
+import { MessageHandlerContext } from "./message-handler";
+import { EventsStore } from "@jitsu/core-functions";
 
 const log = getLog("kafka-rotor");
 
@@ -26,13 +28,13 @@ export type KafkaRotorConfig = {
   credentials: KafkaCredentials;
   consumerGroupId: string;
   kafkaTopics: string[];
+  eventsLogger: EventsStore;
   kafkaClientId?: string;
   geoResolver?: GeoResolver;
   handle: (
     message: string,
+    rotorContext: MessageHandlerContext,
     headers?,
-    metrics?: Metrics,
-    geoResolver?: GeoResolver,
     functionsFilter?: (id: string) => boolean,
     retries?: number
   ) => Promise<FuncChainResult | undefined>;
@@ -44,7 +46,7 @@ export type KafkaRotor = {
 };
 
 export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
-  const { kafkaTopics, consumerGroupId, handle, kafkaClientId = "kafka-rotor", geoResolver } = cfg;
+  const { kafkaTopics, consumerGroupId, eventsLogger, handle, kafkaClientId = "kafka-rotor", geoResolver } = cfg;
   let consumer: Consumer;
   let producer: Producer;
   let admin: Admin;
@@ -133,11 +135,14 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
           handle(
             value.toString(),
             {
+              eventsLogger,
+              metrics,
+              geoResolver,
+            },
+            {
               ...headers,
               [CONNECTION_IDS_HEADER]: connectionId,
             },
-            metrics,
-            geoResolver,
             retriedFunctionId
               ? id => {
                   if (retriedFunctionId.startsWith("udf.")) {

@@ -1,14 +1,7 @@
-import {
-  AnyEvent,
-  EventContext,
-  EventsStore,
-  FullContext,
-  FuncReturn,
-  JitsuFunction,
-  Store,
-} from "@jitsu/protocols/functions";
+import { AnyEvent, EventContext, FullContext, FuncReturn, JitsuFunction, Store } from "@jitsu/protocols/functions";
 import {
   createFullContext,
+  EventsStore,
   getBuiltinFunction,
   isDropResult,
   MetricsMeta,
@@ -47,7 +40,7 @@ const functionsInFlight = new Prometheus.Gauge({
 const functionsTime = new Prometheus.Histogram({
   name: "rotor_functions_time",
   help: "Functions execution time in ms",
-  buckets: [1, 10, 100, 200, 1000, 10000],
+  buckets: [1, 10, 100, 200, 1000, 2000, 3000, 4000, 5000],
   // add `as const` here to enforce label names
   labelNames: ["connectionId", "functionId"] as const,
 });
@@ -104,7 +97,7 @@ export function buildFunctionChain(
   connection: EnrichedConnectionConfig,
   func: EntityStore,
   functionsFilter?: (id: string) => boolean,
-  fetchTimeoutMs: number = 15000
+  fetchTimeoutMs: number = 5000
 ) {
   let mainFunction;
   const connectionData = connection.options as any;
@@ -232,7 +225,7 @@ export async function runChain(
   store: Store,
   eventContext: EventContext,
   systemContext?: SystemContext,
-  fetchTimeoutMs: number = 15000
+  fetchTimeoutMs: number = 5000
 ): Promise<FuncChainResult> {
   const execLog: FunctionExecLog = [];
   let events = [event];

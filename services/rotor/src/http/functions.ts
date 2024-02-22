@@ -10,6 +10,7 @@ import { parse as semverParse } from "semver";
 import * as jsondiffpatch from "jsondiffpatch";
 
 import Prometheus from "prom-client";
+import { EventsStore } from "@jitsu/core-functions";
 
 const jsondiffpatchInstance = jsondiffpatch.create();
 const log = getLog("functions_handler");
@@ -20,54 +21,63 @@ const handlerMetric = new Prometheus.Counter({
   labelNames: ["connectionId", "status"] as const,
 });
 
-export const FunctionsHandler = (metrics: Metrics, geoResolver?: GeoResolver) => async (req, res) => {
-  const message = req.body as IngestMessage;
-  //log.atInfo().log(`Functions handler. Message ID: ${message.messageId} connectionId: ${message.connectionId}`);
-  const result = await rotorMessageHandler(message, {}, metrics, geoResolver);
-  if (result?.events && result.events.length > 0) {
-    res.json(result.events);
-  } else {
-    res.status(204).send();
-  }
-};
+export const FunctionsHandler =
+  (eventsLogger: EventsStore, metrics: Metrics, geoResolver?: GeoResolver) => async (req, res) => {
+    const message = req.body as IngestMessage;
+    //log.atInfo().log(`Functions handler. Message ID: ${message.messageId} connectionId: ${message.connectionId}`);
+    const result = await rotorMessageHandler(message, {
+      eventsLogger,
+      metrics,
+      geoResolver,
+    });
+    if (result?.events && result.events.length > 0) {
+      res.json(result.events);
+    } else {
+      res.status(204).send();
+    }
+  };
 
-export const FunctionsHandlerMulti = (metrics: Metrics, geoResolver?: GeoResolver) => async (req, res, next) => {
-  const connectionIds = (req.query.ids ?? "").split(",") as string[];
-  const message = req.body as IngestMessage;
-  const functionsFetchTimeout = req.headers["x-request-timeout-ms"]
-    ? parseInt(req.headers["x-request-timeout-ms"] as string)
-    : 2000;
-  const prom = connectionIds
-    .filter(id => !!id)
-    .map(id => {
-      //log.atInfo().log(`Functions handler2. Message ID: ${message.messageId} connectionId: ${id}`);
-      return rotorMessageHandler(
-        message,
-        { [CONNECTION_IDS_HEADER]: id },
-        metrics,
-        geoResolver,
-        undefined,
-        0,
-        functionsFetchTimeout
-      );
-    });
-  await Promise.all(prom)
-    .then(results => {
-      connectionIds.forEach((id, i) => {
-        handlerMetric.inc({ connectionId: id, status: "success" }, 1);
+export const FunctionsHandlerMulti =
+  (eventsLogger: EventsStore, metrics: Metrics, geoResolver?: GeoResolver) => async (req, res, next) => {
+    const connectionIds = (req.query.ids ?? "").split(",") as string[];
+    const message = req.body as IngestMessage;
+    const functionsFetchTimeout = req.headers["x-request-timeout-ms"]
+      ? parseInt(req.headers["x-request-timeout-ms"] as string)
+      : 2000;
+    const prom = connectionIds
+      .filter(id => !!id)
+      .map(id => {
+        //log.atInfo().log(`Functions handler2. Message ID: ${message.messageId} connectionId: ${id}`);
+        return rotorMessageHandler(
+          message,
+          {
+            eventsLogger,
+            metrics,
+            geoResolver,
+          },
+          { [CONNECTION_IDS_HEADER]: id },
+          undefined,
+          0,
+          functionsFetchTimeout
+        );
       });
-      const events = Object.fromEntries(
-        results.map(result => [result?.connectionId, mapDiff(message, result?.events)])
-      );
-      res.json(events);
-    })
-    .catch(e => {
-      connectionIds.forEach((id, i) => {
-        handlerMetric.inc({ connectionId: id, status: "error" }, 1);
+    await Promise.all(prom)
+      .then(results => {
+        connectionIds.forEach((id, i) => {
+          handlerMetric.inc({ connectionId: id, status: "success" }, 1);
+        });
+        const events = Object.fromEntries(
+          results.map(result => [result?.connectionId, mapDiff(message, result?.events)])
+        );
+        res.json(events);
+      })
+      .catch(e => {
+        connectionIds.forEach((id, i) => {
+          handlerMetric.inc({ connectionId: id, status: "error" }, 1);
+        });
+        next(e);
       });
-      next(e);
-    });
-};
+  };
 
 function mapDiff(message: IngestMessage, newEvents?: AnyEvent[]) {
   if (!newEvents) {

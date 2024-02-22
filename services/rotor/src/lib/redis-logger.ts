@@ -1,6 +1,6 @@
 import { getLog, getSingleton } from "juava";
-import { EventsStore } from "@jitsu/protocols/functions";
 import { redis } from "./redis";
+import { EventsStore } from "@jitsu/core-functions";
 
 export const log = getLog("redisLogger");
 
@@ -60,14 +60,14 @@ export function createRedisLogger(): EventsStore {
   }, 5000);
 
   return {
-    log: (connectionId: string, error, msg) => {
+    log: (connectionId: string, level, msg) => {
       const key = (isErr: boolean) => `events_log:functions.${isErr ? "error" : "all"}#${connectionId}`;
       try {
         if (msg.type === "log-debug") {
           return;
         }
-        const logEntry = JSON.stringify({ timestamp: new Date().toISOString(), error, ...msg });
-        if (error) {
+        const logEntry = JSON.stringify({ timestamp: new Date().toISOString(), error: level === "error", ...msg });
+        if (level === "error") {
           put(key(true), logEntry);
         }
         put(key(false), logEntry);

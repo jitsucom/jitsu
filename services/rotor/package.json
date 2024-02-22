@@ -43,6 +43,7 @@
     "tar": "^6.2.0",
     "tslib": "^2.4.0",
     "jsondiffpatch": "workspace:*",
+    "@clickhouse/client": "^0.2.10",
     "semver": "^7.5.4"
   },
   "devDependencies": {
