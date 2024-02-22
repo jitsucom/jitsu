@@ -148,7 +148,7 @@ async function main() {
 
 function initHTTP(eventsLogger: EventsStore, metrics: Metrics, geoResolver: GeoResolver) {
   http.use((req, res, next) => {
-    if (req.path === "/health") {
+    if (req.path === "/health" || req.path === "/version") {
       return next();
     }
     let token = req.headers.authorization || "";

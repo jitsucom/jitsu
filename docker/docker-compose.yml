@@ -52,7 +52,7 @@ services:
 
   console:
     tty: true
-    image: jitsucom/console:latest
+    image: jitsucom/console:${DOCKER_TAG:-latest}
     restart: "unless-stopped"
     platform: linux/amd64
     environment:
@@ -105,7 +105,7 @@ services:
 
   bulker:
     tty: true
-    image: jitsucom/bulker:latest
+    image: jitsucom/bulker:${DOCKER_TAG:-latest}
     platform: linux/amd64
     restart: "unless-stopped"
     environment:
@@ -132,7 +132,7 @@ services:
 
   rotor:
     tty: true
-    image: jitsucom/rotor:latest
+    image: jitsucom/rotor:${DOCKER_TAG:-latest}
     platform: linux/amd64
     restart: "unless-stopped"
     environment:
@@ -154,10 +154,12 @@ services:
         condition: service_healthy
       bulker:
         condition: service_healthy
+#    ports:
+#      - "3401:3401"
 
   ingest:
     tty: true
-    image: jitsucom/ingest:latest
+    image: jitsucom/ingest:${DOCKER_TAG:-latest}
     platform: linux/amd64
     restart: "unless-stopped"
     environment:
@@ -187,7 +189,7 @@ services:
 
   syncctl:
     tty: true
-    image: jitsucom/syncctl:latest
+    image: jitsucom/syncctl:${DOCKER_TAG:-latest}
     platform: linux/amd64
     restart: "on-failure"
     environment:
