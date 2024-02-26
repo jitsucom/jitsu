@@ -6,14 +6,14 @@
   "contributors": [
     "Benjamin Eidelman <beneidel@gmail.com>"
   ],
-  "main": "./lib/index.js",
-  "types": "./lib/index.d.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "files": [
     "src/index.ts"
   ],
   "scripts": {
     "build": "tsc",
-    "clean": "rm -rf ./lib",
+    "clean": "rm -rf ./dist",
     "type-check": "tsc --noEmit",
     "lint": "eslint . --ext .ts",
     "test": "jest --coverage",

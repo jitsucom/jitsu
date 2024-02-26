@@ -2,7 +2,7 @@
   "compilerOptions": {
     "target": "ES2015",
     "declaration": true,
-    "outDir": "lib",
+    "outDir": "dist",
     "isolatedModules": true,
     "moduleResolution": "node",
     "esModuleInterop": true,
