@@ -98,7 +98,7 @@ export const api: Api = {
           user,
           trigger: "manual",
           workspaceId,
-          syncId: createdOrUpdated.id,
+          syncIdOrModel: createdOrUpdated.id,
         });
       }
       return { id: createdOrUpdated.id, created: !existingLink };

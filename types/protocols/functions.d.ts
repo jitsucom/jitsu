@@ -60,11 +60,11 @@ export type FetchOpts = {
   headers?: Record<string, string>;
   body?: string | Buffer;
 };
-export type FunctionLogger = {
-  info: (message: string, ...args: any[]) => void;
-  warn: (message: string, ...args: any[]) => void;
-  debug: (message: string, ...args: any[]) => void;
-  error: (message: string, ...args: any[]) => void;
+export type FunctionLogger<Sync extends boolean = false> = {
+  info: (message: string, ...args: any[]) => void | Promise<void>;
+  warn: (message: string, ...args: any[]) => void | Promise<void>;
+  debug: (message: string, ...args: any[]) => void | Promise<void>;
+  error: (message: string, ...args: any[]) => void | Promise<void>;
 };
 export type FunctionContext = {
   log: FunctionLogger;
@@ -175,6 +175,19 @@ export type FullContext<P extends AnyProps = AnyProps> = EventContext & Function
 export type FunctionCommand = "drop";
 
 export type FuncReturn = AnyEvent[] | AnyEvent | null | undefined | FunctionCommand | false;
+
+export type SyncFunction<
+  Dest extends AnyProps = AnyProps,
+  Cred extends AnyProps = AnyProps,
+  SyncProps extends AnyProps = AnyProps
+> = (p: {
+  source: { package: string; credentials: Cred; syncProps: SyncProps };
+  destination: Dest;
+  ctx: {
+    log: FunctionLogger;
+    store: Store;
+  };
+}) => Promise<void>;
 
 export interface JitsuFunction<E extends AnyEvent = AnyEvent, P extends AnyProps = AnyProps> {
   (event: E, ctx: FullContext<P>): Promise<FuncReturn> | FuncReturn;

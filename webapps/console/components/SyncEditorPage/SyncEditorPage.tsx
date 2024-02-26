@@ -5,7 +5,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { z } from "zod";
 import { ConfigurationObjectLinkDbModel } from "../../prisma/schema";
 import { useRouter } from "next/router";
-import { assertTrue, getLog, hash as juavaHash, rpc } from "juava";
+import { assertTrue, getLog, hash as juavaHash, requireDefined, rpc } from "juava";
 import { Disable } from "../Disable/Disable";
 import { Button, Checkbox, Input, Select, Switch, Tooltip } from "antd";
 import { getCoreDestinationType } from "../../lib/schema/destinations";
@@ -96,9 +96,6 @@ function DestinationSelector(props: SelectorProps<DestinationConfig>) {
         <Select dropdownMatchSelectWidth={false} className="w-80" value={props.selected} onSelect={props.onSelect}>
           {props.items.map(destination => {
             const destinationType = getCoreDestinationType(destination.destinationType);
-            if (!destinationType.usesBulker) {
-              return null;
-            }
             return (
               <Select.Option dropdownMatchSelectWidth={false} value={destination.id} key={destination.id}>
                 <DestinationTitle
@@ -193,6 +190,11 @@ function SyncEditor({
   const [srvId, setSrvId] = useState(existingLink?.fromId || (router.query.serviceId as string) || services[0].id);
 
   const service = services.find(s => s.id === srvId);
+  const destination = requireDefined(
+    destinations.find(d => d.id === dstId),
+    `Destination ${dstId} not found`
+  );
+  const destinationType = getCoreDestinationType(destination.destinationType);
 
   const [syncOptions, setSyncOptions] = useState<SyncOptionsType | undefined>(existingLink?.data as SyncOptionsType);
   const [catalog, setCatalog] = useState<any>(undefined);
@@ -419,11 +421,15 @@ function SyncEditor({
             setCatalog(undefined);
             updateOptions({ streams: undefined });
           }}
-          refreshCatalogCb={() => {
-            setLoadingCatalog(true);
-            setCatalog(undefined);
-            setRefreshCatalog(refreshCatalog + 1);
-          }}
+          refreshCatalogCb={
+            destinationType.usesBulker
+              ? () => {
+                  setLoadingCatalog(true);
+                  setCatalog(undefined);
+                  setRefreshCatalog(refreshCatalog + 1);
+                }
+              : undefined
+          }
         />
       ),
     },
@@ -443,22 +449,24 @@ function SyncEditor({
         />
       ),
     },
-    {
-      name: "Table Name Prefix",
-      documentation:
-        "Prefix to add to all table names resulting from this sync. E.g. 'mysrc_'. Useful to avoid table names collisions with other syncs.",
-      component: (
-        <div className={"w-80"}>
-          <Input
-            disabled={!!existingLink}
-            style={{ color: "black" }}
-            value={syncOptions?.tableNamePrefix}
-            onChange={e => updateOptions({ tableNamePrefix: e.target.value })}
-          />
-        </div>
-      ),
-    },
-  ];
+    destinationType.usesBulker
+      ? {
+          name: "Table Name Prefix",
+          documentation:
+            "Prefix to add to all table names resulting from this sync. E.g. 'mysrc_'. Useful to avoid table names collisions with other syncs.",
+          component: (
+            <div className={"w-80"}>
+              <Input
+                disabled={!!existingLink}
+                style={{ color: "black" }}
+                value={syncOptions?.tableNamePrefix}
+                onChange={e => updateOptions({ tableNamePrefix: e.target.value })}
+              />
+            </div>
+          ),
+        }
+      : undefined,
+  ].filter(Boolean) as EditorItem[];
   if (appConfig.syncs.scheduler.enabled) {
     const disableScheduling = billing.enabled && !billing.loading && !billing.settings.maximumSyncFrequency;
     configItems.push({
@@ -539,7 +547,35 @@ function SyncEditor({
       });
     }
   }
-  if (service) {
+  //we should disable sync if non-bulker destination generally supports, but not supported by this service
+  const disableSync =
+    service && !destinationType.usesBulker && destinationType.syncs && !destinationType.syncs[service.package];
+
+  if (service && !destinationType.usesBulker && destinationType.syncs) {
+    //destination supports sync, so we have two options (see below)
+    const syncOptions = destinationType.syncs[service.package];
+    if (syncOptions) {
+      //destination and service (source) are compatible, show description (later we might want to implement options)
+      configItems.push({
+        group: "Options",
+        key: "options",
+        component: <div className="prose max-w-none text-sm pl-3">{syncOptions.description}</div>,
+      });
+    } else {
+      //destination and service (source) are not compatible, show error message
+      configItems.push({
+        group: "Options",
+        key: "options",
+        component: (
+          <div className="prose max-w-none text-sm pl-3">
+            Sync from {service.name} to {destination.name} is not supported.
+          </div>
+        ),
+      });
+    }
+  }
+
+  if (service && destinationType.usesBulker) {
     if (loadingCatalog) {
       configItems.push({
         group: "Streams",
@@ -664,9 +700,9 @@ function SyncEditor({
               expandable: false,
               title: (
                 <div className="flex flex-row items-center justify-between gap-2 mt-4 mb-3">
-                  <div className={"text-xl"}>Streams</div>
+                  <div className={"text-xl"}>Streams {destinationType.usesBulker}</div>
                   <div className={"flex gap-2 pr-2"}>
-                    Switch All
+                    Switch All1
                     <Switch
                       checked={Object.keys(syncOptions?.streams || {}).length > 0}
                       onChange={ch => {
@@ -718,17 +754,21 @@ function SyncEditor({
           )}
         </div>
         <div className="flex justify-end space-x-5 items-center">
-          <Checkbox checked={runSyncAfterSave} onChange={() => setRunSyncAfterSave(!runSyncAfterSave)}>
+          <Checkbox
+            checked={runSyncAfterSave}
+            disabled={disableSync}
+            onChange={() => setRunSyncAfterSave(!runSyncAfterSave)}
+          >
             Run{!existingLink ? " first" : ""} sync after save
           </Checkbox>
-          <Button type="primary" ghost size="large" disabled={loading} onClick={() => router.back()}>
+          <Button type="primary" ghost size="large" disabled={loading || disableSync} onClick={() => router.back()}>
             Cancel
           </Button>
           <Button
             type="primary"
             size="large"
             loading={loading}
-            disabled={loading}
+            disabled={loading || disableSync}
             onClick={async () => {
               setLoading(true);
               try {

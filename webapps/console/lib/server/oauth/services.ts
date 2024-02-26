@@ -195,7 +195,13 @@ const googleAds: OauthDecorator = {
   },
   merge: (opts, integrationObj, connectionObj) => {
     const mCred = { ...opts.credentials };
-    mCred.developer_token = manage(mCred.developer_token, process.env.GOOGLE_ADS_DEVELOPER_TOKEN ?? "");
+    mCred.developer_token = manage(
+      mCred.developer_token,
+      requireDefined(
+        process.env.GOOGLE_ADS_DEVELOPER_TOKEN,
+        "GOOGLE_ADS_DEVELOPER_TOKEN is not configured, google ads integration will not work"
+      )
+    );
     mCred.access_token = manage(mCred.access_token, connectionObj.access_token);
     mCred.refresh_token = manage(mCred.refresh_token, connectionObj.refresh_token);
     mCred.client_id = manage(mCred.client_id, integrationObj.client_id);
@@ -253,7 +259,7 @@ export const oauthDecorators = [
 
 // If service supports Jitsu OAuth - returns decorated credentials part of service config
 // otherwise returns original credentials part of config
-export const tryManageOauthCreds = async (service: ServiceConfig): Promise<any> => {
+export const tryManageOauthCreds = async (service: ServiceConfig): Promise<ServiceConfig["credentials"]> => {
   if (service.authorized && nangoConfig.enabled) {
     const oauthDecorator = requireDefined(
       oauthDecorators.find(d => d.packageId === service.package),

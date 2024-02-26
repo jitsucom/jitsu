@@ -53,6 +53,9 @@ export function getLog(_opts?: LoggerOpts | string): LogFactory {
       const minSeverity = levelSeverities[level || globalLogLevel || "info"];
       return minSeverity <= levelSeverities.warn ? logMessageBuilder(component, "warn") : noopLogMessageBuilder;
     },
+    at(level: string): LogMessageBuilder {
+      return (this[`at${level.charAt(0).toUpperCase() + level.slice(1).toLowerCase()}`] || this.atInfo)();
+    },
   };
 }
 
@@ -176,6 +179,7 @@ export type LogFactory = {
   atWarn(): LogMessageBuilder;
   atError(): LogMessageBuilder;
   atDebug(): LogMessageBuilder;
+  at(level: string): any;
 };
 
 export type LogMessageBuilder = {
