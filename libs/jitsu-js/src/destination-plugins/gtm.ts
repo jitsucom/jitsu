@@ -2,15 +2,9 @@ import { loadScript } from "../script-loader";
 import { AnalyticsClientEvent } from "@jitsu/protocols/analytics";
 import { applyFilters, CommonDestinationCredentials, InternalPlugin } from "./index";
 
-const defaultScriptSrc = "https://www.googletagmanager.com/gtag/js";
-
 export type GtmDestinationCredentials = {
-  debug?: boolean;
   containerId?: string;
   dataLayerName?: string;
-  preview?: string;
-  auth?: string;
-  customScriptSrc?: string;
 } & CommonDestinationCredentials;
 
 export const gtmPlugin: InternalPlugin<GtmDestinationCredentials> = {
@@ -83,31 +77,26 @@ async function initGtmIfNeeded(config: GtmDestinationCredentials, payload: Analy
   setGtmState("loading");
 
   const dlName = config.dataLayerName || "dataLayer";
-  const dlParam = dlName !== "dataLayer" ? "&l=" + dlName : "";
-  const previewParams = config.preview
-    ? `&gtm_preview=${config.preview}&gtm_auth=${config.auth}&gtm_cookies_win=x`
-    : "";
   const tagId = config.containerId;
-  const scriptSrc = `${config.customScriptSrc || defaultScriptSrc}?id=${tagId}${dlParam}${previewParams}`;
 
-  window[dlName] = window[dlName] || [];
-  const gtag = function () {
-    window[dlName].push(arguments);
-  };
-  window[dlName].push({
-    user_id: payload.userId,
-  });
-  // @ts-ignore
-  gtag("js", new Date());
-  // @ts-ignore
-  gtag("config", tagId);
-
-  loadScript(scriptSrc)
-    .then(() => {
-      setGtmState("loaded");
-    })
-    .catch(e => {
-      console.warn(`GTM (containerId=${tagId}) init failed: ${e.message}`, e);
-      setGtmState("failed");
+  (function (w, l, i) {
+    w[l] = w[l] || [];
+    w[l].push({
+      user_id: payload.userId,
     });
+    w[l].push({
+      "gtm.start": new Date().getTime(),
+      event: "gtm.js",
+    });
+    const dl = l != "dataLayer" ? "&l=" + l : "";
+    const scriptSrc = "https://www.googletagmanager.com/gtm.js?id=" + i + dl;
+    loadScript(scriptSrc)
+      .then(() => {
+        setGtmState("loaded");
+      })
+      .catch(e => {
+        console.warn(`GTM (containerId=${tagId}) init failed: ${e.message}`, e);
+        setGtmState("failed");
+      });
+  })(window, dlName, tagId);
 }
