@@ -182,7 +182,7 @@ export type SyncFunction<
   SyncProps extends AnyProps = AnyProps
 > = (p: {
   source: { package: string; credentials: Cred; syncProps: SyncProps };
-  destination: { props: Dest };
+  destination: Dest;
   ctx: {
     log: FunctionLogger;
     store: Store;

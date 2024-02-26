@@ -14,11 +14,8 @@ import { tryManageOauthCreds } from "./oauth/services";
 import { DestinationType, getCoreDestinationType } from "../schema/destinations";
 import omit from "lodash/omit";
 import { FunctionLogger, SetOpts, Store, SyncFunction } from "@jitsu/protocols/functions";
+import { mixpanelFacebookAdsSync, mixpanelGoogleAdsSync } from "./syncs/mixpanel";
 import IJob = google.cloud.scheduler.v1.IJob;
-import { mixpanelGoogleAdsSync } from "./syncs/mixpanel";
-
-const child_process_1 = require("child_process");
-
 
 const log = getServerLog("sync-scheduler");
 
@@ -58,6 +55,7 @@ async function dbLog({
   syncId: string;
   level: string;
 }) {
+  log.at(level).log(`Task ${taskId} sync ${syncId}: ${message}`);
   await db.prisma().task_log.create({
     data: {
       timestamp: new Date(),
@@ -249,6 +247,7 @@ type SaasSyncState = {
 
 function createDatabaseStore(taskId: string, syncId: string): Store {
   const stream = "cloud-sync";
+
   async function getSaasSyncState(): Promise<SaasSyncState> {
     return ((await db.prisma().source_state.findFirst({ where: { sync_id: syncId, stream } }))?.state || {
       dict: {},
@@ -289,12 +288,15 @@ function createDatabaseStore(taskId: string, syncId: string): Store {
     ttl: (key: string): Promise<number> => Promise.reject(new Error("Not implemented")),
   };
 }
+
 function getImplemetingFunction(pkg: string, destinationType: DestinationType): SyncFunction {
   if (destinationType.id === "mixpanel" && pkg === "airbyte/source-google-ads") {
     return mixpanelGoogleAdsSync as any;
+  } else if (destinationType.id === "mixpanel" && pkg === "airbyte/source-facebook-marketing") {
+    return mixpanelFacebookAdsSync as any;
   }
-  throw new Error(`${pkg} -> ${destinationType.id} sync doesn't exist`);
 
+  throw new Error(`${pkg} -> ${destinationType.id} sync doesn't exist`);
 }
 
 async function runSyncSynchronously({
@@ -332,11 +334,15 @@ async function runSyncSynchronously({
     message: `Running sync from ${sourceConfig.package} -> ${destinationType.title} (#${destinationType.id})`,
     level: "INFO",
   });
-  const credentials = tryManageOauthCreds({ ...sourceConfig, id: sourceConfig.id });
-  log.atDebug().log(`${JSON.stringify(sourceConfig, null, 2)} ==> ${JSON.stringify(credentials, null, 2)}`);
-
+  const credentials = await tryManageOauthCreds(sourceConfig);
 
   const implementingFunction = getImplemetingFunction(sourceConfig.package, destinationType);
+  await dbLog({
+    taskId,
+    syncId,
+    level: "INFO",
+    message: `Successfully connected to to ${sourceConfig.package}. Running sync`,
+  });
 
   await implementingFunction({
     source: {
@@ -344,13 +350,18 @@ async function runSyncSynchronously({
       credentials,
       syncProps: sourceConfig,
     },
-    destination: {
-      props: destinationConfig,
-    },
+    destination: destinationConfig,
     ctx: {
       log: createDatabaseLogger(taskId, syncId),
       store: createDatabaseStore(taskId, syncId),
     },
+  });
+
+  await createOrUpdateTask({
+    taskId,
+    syncId,
+    status: "SUCCESS",
+    description: "Succesfully finished",
   });
 }
 
@@ -361,6 +372,7 @@ export async function scheduleSync({
   trigger = "manual",
   req,
   fullSync,
+  ignoreRunning,
 }: {
   workspaceId: string;
   syncIdOrModel: string | SyncDatabaseModel;
@@ -368,6 +380,7 @@ export async function scheduleSync({
   user?: SessionUser;
   req: NextApiRequest;
   fullSync?: boolean;
+  ignoreRunning?: boolean;
 }): Promise<ScheduleSyncResult> {
   const syncAuthKey = process.env.SYNCCTL_AUTH_KEY ?? "";
   const taskId = randomUUID();
@@ -396,15 +409,27 @@ export async function scheduleSync({
       },
     });
     if (running) {
-      return {
-        ok: false,
-        error: `Sync is already running`,
-        runningTask: {
-          taskId: running.task_id,
-          status: `${appBase}/api/${workspaceId}/sources/tasks?taskId=${running.task_id}&syncId=${syncIdOrModel}`,
-          logs: `${appBase}/api/${workspaceId}/sources/logs?taskId=${running.task_id}&syncId=${syncIdOrModel}`,
-        },
-      };
+      if (ignoreRunning) {
+        await db.prisma().source_task.update({
+          where: {
+            task_id: running.task_id,
+          },
+          data: {
+            status: "CANCELED",
+            updated_at: new Date(),
+          },
+        });
+      } else {
+        return {
+          ok: false,
+          error: `Sync is already running`,
+          runningTask: {
+            taskId: running.task_id,
+            status: `${appBase}/api/${workspaceId}/sources/tasks?taskId=${running.task_id}&syncId=${syncIdOrModel}`,
+            logs: `${appBase}/api/${workspaceId}/sources/logs?taskId=${running.task_id}&syncId=${syncIdOrModel}`,
+          },
+        };
+      }
     }
     const service = sync.from;
     if (!service) {
@@ -480,8 +505,9 @@ export async function scheduleSync({
     }
     const destinationConfig = sync.to.config as DestinationConfig;
     const destinationType = getCoreDestinationType(destinationConfig.destinationType);
-    const serviceConfig = service.config as ServiceConfig;
+    const serviceConfig = { ...(service.config as any), ...service };
     if (!destinationType.usesBulker && destinationType.syncs) {
+      const started = Date.now();
       try {
         await runSyncSynchronously({
           taskId,
@@ -490,7 +516,17 @@ export async function scheduleSync({
           destinationType,
           sourceConfig: serviceConfig,
         });
+        const time = Date.now() - started;
+        dbLog({
+          taskId,
+          syncId: sync.id,
+          message: `Sync finished in ${time}ms`,
+          level: "INFO",
+        });
       } catch (e: any) {
+        log
+          .atError()
+          .log(`Error running task ${taskId}, sync ${sync.id}. Message : ${e?.message}`, JSON.stringify(e, null, 2));
         await createOrUpdateTask({
           taskId,
           syncId: sync.id,

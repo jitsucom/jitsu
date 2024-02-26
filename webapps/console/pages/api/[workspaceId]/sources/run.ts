@@ -31,6 +31,7 @@ export default createRoute()
       workspaceId: z.string(),
       syncId: z.string(),
       fullSync: z.string().optional(),
+      ignoreRunning: z.coerce.boolean().optional(),
     }),
     result: resultType,
   })
@@ -58,6 +59,7 @@ export default createRoute()
       workspaceId,
       fullSync: query.fullSync === "true" || query.fullSync === "1",
       syncIdOrModel: query.syncId as string,
+      ignoreRunning: !!query.ignoreRunning,
     });
   })
   .toNextApiHandler();
