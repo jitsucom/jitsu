@@ -19,13 +19,14 @@ export type FieldListEditorLayoutProps = {
   items: (EditorItem | undefined | false)[];
   groups?: Record<
     string,
-    {
-      expandable?: boolean;
-      hideArrow?: boolean;
-      initiallyExpanded?: boolean;
-      title?: Title;
-      className?: string;
-    } | undefined
+    | {
+        expandable?: boolean;
+        hideArrow?: boolean;
+        initiallyExpanded?: boolean;
+        title?: Title;
+        className?: string;
+      }
+    | undefined
   >;
 };
 
