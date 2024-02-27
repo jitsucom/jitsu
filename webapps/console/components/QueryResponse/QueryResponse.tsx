@@ -24,7 +24,7 @@ export function QueryResponse(props: QueryResponseProps) {
   }, [result.data, props.prepare, result.isLoading, props]);
 
   if (result.isLoading) {
-    return <LoadingAnimation />;
+    return <LoadingAnimation title="Waiting for server..." />;
   }
   if (result.error) {
     if (props.errorRender) {

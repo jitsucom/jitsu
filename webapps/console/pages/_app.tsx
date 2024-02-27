@@ -182,7 +182,7 @@ const NextJsAuthorizer: React.FC<PropsWithChildren<{}>> = ({ children }) => {
       </UserContextProvider>
     );
   } else if (session.status === "loading") {
-    return <GlobalLoader title={"Authorizing"} />;
+    return <GlobalLoader title={"Authorizing..."} />;
   }
   return <Redirect href={"/signin"} />;
 };
@@ -521,7 +521,7 @@ export const App = ({ Component, pageProps }: AppProps) => {
         <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5bbad5" />
       </Head>
       <AntdModalProvider>
-        {loading && <LoadingBlur />}
+        {/*{loading && <LoadingBlur />}*/}
         <div className={`global-wrapper`}>
           <ErrorBoundary renderError={props => <GlobalError error={props.error} title="System error" />}>
             <QueryClientProvider client={queryClient}>

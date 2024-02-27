@@ -13,7 +13,11 @@ const crypto = require("crypto");
 
 const log = getServerLog("auth");
 
-const githubProvider = process.env.GITHUB_CLIENT_ID
+export const githubLoginEnabled = !!process.env.GITHUB_CLIENT_ID;
+export const credentialsLoginEnabled = isTruish(process.env.ENABLE_CREDETIALS_LOGIN) || !!(process.env.SEED_USER_EMAIL && process.env.SEED_USER_PASSWORD);
+
+
+const githubProvider = githubLoginEnabled
   ? GithubProvider({
       clientId: process.env.GITHUB_CLIENT_ID as string,
       clientSecret: process.env.GITHUB_CLIENT_SECRET as string,
@@ -24,8 +28,6 @@ function toId(email: string) {
   return hash("sha256", email.toLowerCase().trim());
 }
 
-export const credentialsLoginEnabled =
-  isTruish(process.env.ENABLE_CREDETIALS_LOGIN) || !!(process.env.SEED_USER_EMAIL && process.env.SEED_USER_PASSWORD);
 const credentialsProvider =
   credentialsLoginEnabled &&
   CredentialsProvider({
@@ -75,6 +77,7 @@ const credentialsProvider =
           }
         }
       } else if (user.password && checkHash(user.password.hash, credentials.password)) {
+        log.atDebug().log(`User ${username} logged in successfully with password`);
         return {
           id: user.id,
           externalId: user.externalId,
@@ -82,6 +85,7 @@ const credentialsProvider =
           name: user.name,
         };
       }
+      log.atDebug().log(`Unsuccessful login attempt: user ${username} exists, but password is invalid`);
       return null;
     },
     credentials: {
@@ -146,6 +150,7 @@ export const nextAuthConfig: NextAuthOptions = {
   secret:
     process.env.JWT_SECRET ||
     generateSecret([
+      "v2",
       process.env.GITHUB_CLIENT_ID,
       process.env.GOOGLE_CLIENT_ID,
       process.env.DATABASE_URL,

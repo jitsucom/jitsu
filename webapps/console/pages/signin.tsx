@@ -1,4 +1,4 @@
-import { getCsrfToken, getProviders, signIn, useSession } from "next-auth/react";
+import { getCsrfToken, signIn, useSession } from "next-auth/react";
 import { Redirect } from "../components/Redirect/Redirect";
 import { Button, Input } from "antd";
 import { useAppConfig } from "../lib/context";
@@ -9,6 +9,8 @@ import React, { useState } from "react";
 import { feedbackError } from "../lib/ui";
 import { useRouter } from "next/router";
 import { branding } from "../lib/branding";
+import { credentialsLoginEnabled, githubLoginEnabled } from "../lib/nextauth.config";
+import { useQuery } from "@tanstack/react-query";
 
 function JitsuLogo() {
   return (
@@ -19,16 +21,29 @@ function JitsuLogo() {
   );
 }
 
-function CredentialsForm({ providerConfig, csrfToken }) {
+
+
+function CredentialsForm({}) {
   const lastUsedLogin = localStorage.getItem("last-used-login-email") || undefined;
+  const {
+    data,
+    isLoading,
+    error,
+  } = useQuery(["next-auth-csrfToken"], async () => {
+    return {
+      csrfToken: await getCsrfToken(),
+    };
+  });
+  const loading = isLoading || !!error;
   return (
-    <form className="space-y-4" method="post" action={providerConfig.callbackUrl}>
-      <input name="csrfToken" type="hidden" defaultValue={csrfToken} />
+    <form className="space-y-4" method="post" action={"/api/auth/callback/credentials"}>
+      {data?.csrfToken && <input name="csrfToken" type="hidden" defaultValue={data?.csrfToken} />}
       <div className="space-y-2">
         <label className="block text-sm font-medium text-gray-700" htmlFor="email">
           Email
         </label>
         <Input
+          disabled={loading}
           id="email"
           size="large"
           placeholder="m@example.com"
@@ -47,10 +62,10 @@ function CredentialsForm({ providerConfig, csrfToken }) {
         <label className="block text-sm font-medium text-gray-700" htmlFor="password">
           Password
         </label>
-        <Input id="password" size="large" required type="password" name="password" />
+        <Input disabled={loading} id="password" size="large" required type="password" name="password" />
       </div>
-      <Button htmlType="submit" className="w-full" type="primary">
-        Sign In
+      <Button htmlType="submit" className="w-full" type="primary" disabled={loading}>
+        {loading ? 'Preparing login form...' : 'Sign In'}
       </Button>
     </form>
   );
@@ -83,7 +98,7 @@ function GitHubSignIn() {
   );
 }
 
-const NextAuthSignInPage = ({ csrfToken, providers }) => {
+const NextAuthSignInPage = ({ csrfToken, providers: { github, credentials } }) => {
   const router = useRouter();
   const nextAuthSession = useSession();
   const app = useAppConfig();
@@ -109,16 +124,16 @@ const NextAuthSignInPage = ({ csrfToken, providers }) => {
         <JitsuLogo />
       </div>
       <div>
-        {providers.credentials && <CredentialsForm providerConfig={providers.credentials} csrfToken={csrfToken} />}
-        {providers.credentials && providers.github && <hr className="my-8" />}
-        {providers.github && <GitHubSignIn />}
+        {credentials.enabled && <CredentialsForm />}
+        {credentials.enabled && github.enabled && <hr className="my-8" />}
+        {github.enabled && <GitHubSignIn />}
       </div>
       {router.query.error && (
         <div className="text-error">
           Something went wrong. Please try again. Error code: <code>{router.query.error}</code>
         </div>
       )}
-      {!app.disableSignup && providers.github && (
+      {!app.disableSignup && github.enabled && (
         <div className="text-center text-textLight text-xs">
           Automatic signup is enabled for this instance. Sign in with github and if you don't have an account, a new
           account will be created automatically. This account won't have any access to pre-existing project unless the
@@ -130,21 +145,23 @@ const NextAuthSignInPage = ({ csrfToken, providers }) => {
 };
 
 export async function getServerSideProps(context) {
-  const providers = await getProviders();
-  if (!providers) {
-    throw new Error(
-      [
-        `No auth providers found. Please check your configuration and grep logs for CLIENT_FETCH_ERROR.`,
-        `Firebase configured via FIREBASE_AUTH: ${!!process.env.FIREBASE_AUTH}`,
-        `GitHub configured (via GITHUB_CLIENT_ID) : ${!!process.env.GITHUB_CLIENT_ID}`,
-        `Seed user configured (via SEED_USER_EMAIL) : ${!!process.env.SEED_USER_EMAIL}`,
-      ].join("\n")
-    );
+  if (process.env.FIREBASE_AUTH) {
+    throw new Error(`Firebase auth is enabled. This page should not be used.`);
+  }
+  if (!githubLoginEnabled && !credentialsLoginEnabled) {
+    throw new Error(`No auth providers are enabled found. Available providers: github, credentials`);
   }
   return {
     props: {
-      csrfToken: await getCsrfToken(context),
-      providers: providers,
+      providers: {
+        credentials: {
+          enabled: credentialsLoginEnabled,
+          callbackUrl: "/api/auth/callback/credentials",
+        },
+        github: {
+          enabled: githubLoginEnabled,
+        },
+      },
       publicPage: true,
     },
   };

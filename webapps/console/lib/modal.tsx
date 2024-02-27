@@ -115,7 +115,6 @@ export function PromptContextProvider({ children }) {
   const [okText, setOkText] = useState<ReactNode>(null);
   const [initialValue, setInitialValue] = useState<string | undefined>();
 
-  log.atDebug().log(`render - <PromptContextProvider />`);
 
   return (
     <PromptContext.Provider
@@ -134,7 +133,6 @@ export function PromptContextProvider({ children }) {
       {children}
       <PromptContext.Consumer>
         {context => {
-          log.atDebug().log(`functional child of - <PromptContext.Consumer />. Context:`, context);
           return (
             <PromptModal
               // //random key to destroy the component after it's closed
