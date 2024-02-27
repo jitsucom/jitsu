@@ -47,17 +47,20 @@ export function createFullContext(
     store: store,
     async fetch(url: string, init?: FetchOpts, logToRedis: boolean = true): Promise<Response> {
       //capture execution time
-      const sw = stopwatch();
-      const baseInfo = {
-        functionId: id,
-        functionType: type,
-        type: "http-request",
-        url: url,
-        method: init?.method || "GET",
-        body: init?.body,
-        headers: init?.headers ? hideSensitiveHeaders(init.headers) : undefined,
-        event: event,
-      };
+      const sw = debugEnabled ? stopwatch() : undefined;
+      const baseInfo =
+        debugEnabled && logToRedis
+          ? {
+              functionId: id,
+              functionType: type,
+              type: "http-request",
+              url: url,
+              method: init?.method || "GET",
+              body: init?.body,
+              headers: init?.headers ? hideSensitiveHeaders(init.headers) : undefined,
+              event: event,
+            }
+          : undefined;
       const controller = new AbortController();
       setTimeout(() => {
         controller.abort();
@@ -75,8 +78,8 @@ export function createFullContext(
         if (err.name === "AbortError") {
           err = newError(`Fetch request exceeded timeout ${fetchTimeoutMs}ms and was aborted`, err);
         }
-        const elapsedMs = sw.elapsedMs();
         if (debugEnabled) {
+          const elapsedMs = sw.elapsedMs();
           if (logToRedis) {
             eventsStore.log(connectionId, "debug", { ...baseInfo, error: getErrorMessage(err), elapsedMs: elapsedMs });
           }
@@ -90,12 +93,12 @@ export function createFullContext(
         }
         throw err;
       }
-      const elapsedMs = sw.elapsedMs();
 
-      //clone response to be able to read it twice
-      const cloned = fetchResult.clone();
-      const respText = await trimResponse(cloned);
       if (debugEnabled) {
+        const elapsedMs = sw.elapsedMs();
+        //clone response to be able to read it twice
+        const cloned = fetchResult.clone();
+        const respText = await trimResponse(cloned);
         if (logToRedis) {
           eventsStore.log(connectionId, "debug", {
             ...baseInfo,
