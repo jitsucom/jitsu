@@ -8,7 +8,7 @@ import { rpc } from "juava";
 import { AlertTriangle, ArrowRight, Loader2 } from "lucide-react";
 import classNames from "classnames";
 import { buildConnectionAggregate, ConnectionAggregate, KnownEventStatus, Report } from "../../lib/shared/reporting";
-import { useConfigObjectLinks, useConfigObjectList, UseConfigObjetLinkResult } from "../../lib/store";
+import { useConfigObjectLinks, useConfigObjectList, UseConfigObjectLinkResult } from "../../lib/store";
 import { DestinationTitle } from "../../pages/[workspaceId]/destinations";
 import { StreamTitle } from "../../pages/[workspaceId]/streams";
 import { Chart } from "chart.js/auto";
@@ -127,7 +127,7 @@ const ConnectionSelector = (props: { onChange: (val: string) => void; value?: st
   const links = useConfigObjectLinks();
   const allConnections = links
     .filter(l => l.type === "push")
-    .reduce((acc, l) => ({ ...acc, [l.id]: l }), {} as Record<string, UseConfigObjetLinkResult>);
+    .reduce((acc, l) => ({ ...acc, [l.id]: l }), {} as Record<string, UseConfigObjectLinkResult>);
   const streams = useConfigObjectList("stream");
   const destinations = useConfigObjectList("destination");
   const [connectionId, setConnectionId] = React.useState(props.value || undefined);

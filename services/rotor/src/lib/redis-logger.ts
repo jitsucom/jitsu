@@ -63,9 +63,6 @@ export function createRedisLogger(): EventsStore {
     log: (connectionId: string, level, msg) => {
       const key = (isErr: boolean) => `events_log:functions.${isErr ? "error" : "all"}#${connectionId}`;
       try {
-        if (msg.type === "log-debug") {
-          return;
-        }
         const logEntry = JSON.stringify({ timestamp: new Date().toISOString(), error: level === "error", ...msg });
         if (level === "error") {
           put(key(true), logEntry);

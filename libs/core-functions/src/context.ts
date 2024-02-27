@@ -41,6 +41,7 @@ export function createFullContext(
   const id = ar.pop();
   const type = ar.join(".");
   const connectionId = eventContext.connection?.id ?? "";
+  const debugEnabled = new Date(eventContext.connection.options.debugTill ?? 0) > new Date();
   return {
     props: props,
     store: store,
@@ -75,16 +76,18 @@ export function createFullContext(
           err = newError(`Fetch request exceeded timeout ${fetchTimeoutMs}ms and was aborted`, err);
         }
         const elapsedMs = sw.elapsedMs();
-        if (logToRedis) {
-          eventsStore.log(connectionId, "warn", { ...baseInfo, error: getErrorMessage(err), elapsedMs: elapsedMs });
+        if (debugEnabled) {
+          if (logToRedis) {
+            eventsStore.log(connectionId, "debug", { ...baseInfo, error: getErrorMessage(err), elapsedMs: elapsedMs });
+          }
+          log
+            .atDebug()
+            .log(
+              `[CON:${connectionId}]: [f:${id}][ERROR][FETCH]: ${url} Error: ${getErrorMessage(
+                err
+              )} ElapsedMs: ${elapsedMs}`
+            );
         }
-        log
-          .atWarn()
-          .log(
-            `[CON:${connectionId}]: [f:${id}][ERROR][FETCH]: ${url} Error: ${getErrorMessage(
-              err
-            )} ElapsedMs: ${elapsedMs}`
-          );
         throw err;
       }
       const elapsedMs = sw.elapsedMs();
@@ -92,37 +95,41 @@ export function createFullContext(
       //clone response to be able to read it twice
       const cloned = fetchResult.clone();
       const respText = await trimResponse(cloned);
-      if (logToRedis) {
-        eventsStore.log(connectionId, fetchResult.status >= 300 ? "warn" : "info", {
-          ...baseInfo,
-          status: fetchResult.status,
-          statusText: fetchResult.statusText,
-          elapsedMs: elapsedMs,
-          response: tryJson(respText),
-        });
-      }
-      if (fetchResult.status >= 300) {
-        log
-          .atWarn()
-          .log(
-            `[CON:${connectionId}]: [f:${id}][ERROR][FETCH]: ${url} Status: ${fetchResult.status} Response: ${respText} ElapsedMs: ${elapsedMs}`
-          );
+      if (debugEnabled) {
+        if (logToRedis) {
+          eventsStore.log(connectionId, "debug", {
+            ...baseInfo,
+            status: fetchResult.status,
+            statusText: fetchResult.statusText,
+            elapsedMs: elapsedMs,
+            response: tryJson(respText),
+          });
+        }
+        if (fetchResult.status >= 300) {
+          log
+            .atDebug()
+            .log(
+              `[CON:${connectionId}]: [f:${id}][ERROR][FETCH]: ${url} Status: ${fetchResult.status} Response: ${respText} ElapsedMs: ${elapsedMs}`
+            );
+        }
       }
 
       return fetchResult;
     },
     log: {
       debug: (message, ...args: any[]) => {
-        log.atDebug().log(`[CON:${connectionId}]: [f:${id}][DEBUG]: ${message}`, ...args);
-        eventsStore.log(connectionId, "debug", {
-          type: "log-debug",
-          functionId: id,
-          functionType: type,
-          message: {
-            text: message,
-            args,
-          },
-        });
+        if (debugEnabled) {
+          log.atDebug().log(`[CON:${connectionId}]: [f:${id}][DEBUG]: ${message}`, ...args);
+          eventsStore.log(connectionId, "debug", {
+            type: "log-debug",
+            functionId: id,
+            functionType: type,
+            message: {
+              text: message,
+              args,
+            },
+          });
+        }
       },
       warn: (message, ...args: any[]) => {
         log.atWarn().log(`[CON:${connectionId}]: [f:${id}][WARN]: ${message}`, ...args);

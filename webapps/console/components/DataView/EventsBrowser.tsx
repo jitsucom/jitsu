@@ -3,7 +3,7 @@ import utc from "dayjs/plugin/utc";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { EventsLogRecord } from "../../lib/server/events-log";
 import { ColumnsType } from "antd/es/table";
-import { Alert, Collapse, DatePicker, Select, Spin, Table, Tag, Tooltip } from "antd";
+import { Alert, Checkbox, Collapse, DatePicker, Select, Spin, Table, Tag, Tooltip } from "antd";
 import { TableWithDrawer } from "./TableWithDrawer";
 import { JSONView } from "./JSONView";
 import { useAppConfig, useWorkspace } from "../../lib/context";
@@ -23,7 +23,9 @@ import { ConnectionTitle } from "../../pages/[workspaceId]/connections";
 import { StreamTitle } from "../../pages/[workspaceId]/streams";
 import { trimMiddle } from "../../lib/shared/strings";
 import { countries } from "../../lib/shared/countries";
+
 import zlib from "zlib";
+import { useConfigObjectLinkMutation, UseConfigObjectLinkResult, useConfigObjectLinks } from "../../lib/store";
 
 dayjs.extend(utc);
 dayjs.extend(relativeTime);
@@ -97,10 +99,10 @@ export function linksQuery(workspaceId: string, type: "push" | "sync" = "push", 
   };
 }
 
-export const RelativeDate: React.FC<{ date: string | Date }> = ({ date }) => {
+export const RelativeDate: React.FC<{ date: string | Date; fromNow?: boolean }> = ({ date, fromNow = true }) => {
   return (
     <Tooltip overlayClassName="min-w-fit" title={formatDate(date)}>
-      {`${dayjs(date).fromNow(true)} ago`}
+      {fromNow ? `${dayjs(date).fromNow(true)} ago` : `${dayjs(date).toNow(true)}`}
     </Tooltip>
   );
 };
@@ -114,6 +116,15 @@ export const EventsBrowser = ({
 }: EventsBrowserProps) => {
   const workspace = useWorkspace();
   const entityType = streamType === "incoming" ? "stream" : "link";
+  const connections = useConfigObjectLinks({ type: "push" });
+  const [connection, setConnection] = useState<UseConfigObjectLinkResult | undefined>(undefined);
+  const [debugEnabled, setDebugEnabled] = useState(false);
+
+  const onSaveMutation = useConfigObjectLinkMutation(async (obj: any) => {
+    await get(`/api/${workspace.id}/config/link`, {
+      body: obj,
+    });
+  });
 
   const defaultState: EventsBrowserState = {
     bulkerMode: "stream",
@@ -154,6 +165,20 @@ export const EventsBrowser = ({
   }, [events]);
 
   const eventsLogApi = useEventsLogApi();
+
+  useEffect(() => {
+    if (streamType === "functions" && actorId) {
+      (async () => {
+        const connection = connections.find(c => c.id === actorId);
+        if (connection) {
+          setConnection(connection);
+          setDebugEnabled(new Date(connection.data.debugTill) > new Date());
+        }
+      })();
+    }
+  }, [actorId, connections, streamType, workspace.id]);
+
+  useEffect(() => {}, [debugEnabled, connection, onSaveMutation]);
 
   const loadEvents = useCallback(
     async (
@@ -330,7 +355,7 @@ export const EventsBrowser = ({
     <>
       <div className={"flex flex-row justify-between items-center pb-3.5"}>
         <div key={"left"}>
-          <div className={"flex flex-row gap-4"}>
+          <div className={"flex flex-row gap-4 mr-2"}>
             <div>
               <span>{entityType == "stream" ? "Site: " : "Connection: "}</span>
               <Select
@@ -397,6 +422,27 @@ export const EventsBrowser = ({
                 // onOpenChange={onOpenChange}
               />
             </div>
+            {streamType === "functions" && connection && (
+              <Tooltip
+                title={
+                  "Enables 'debug' level for functions logs and fetch requests verbose logging for a period of 5 minutes."
+                }
+              >
+                <div className={"flex flex-row gap-1 items-center"}>
+                  <span>Debug: </span>
+                  <Checkbox
+                    checked={debugEnabled}
+                    onChange={e => {
+                      const debugTill = e.target.checked ? dayjs().add(5, "minute").toISOString() : undefined;
+                      const newConnection = { ...connection, data: { ...connection.data, debugTill } };
+                      setConnection(newConnection);
+                      setDebugEnabled(e.target.checked);
+                      onSaveMutation.mutateAsync(newConnection);
+                    }}
+                  />
+                </div>
+              </Tooltip>
+            )}
           </div>
         </div>
         <div key={"right"}>
@@ -414,6 +460,12 @@ export const EventsBrowser = ({
           </JitsuButton>
         </div>
       </div>
+      {debugEnabled && (
+        <div className={"w-full rounded-lg border mb-3.5 p-2 bg-amber-100"}>
+          Debug logging is enabled on the selected connection for{" "}
+          <RelativeDate date={connection?.data.debugTill} fromNow={false} />.
+        </div>
+      )}
       {!error ? (
         <TableElement
           loading={eventsLoading || entitiesLoading}

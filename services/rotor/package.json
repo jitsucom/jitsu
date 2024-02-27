@@ -44,8 +44,7 @@
     "tslib": "^2.4.0",
     "jsondiffpatch": "workspace:*",
     "@clickhouse/client": "^0.2.10",
-    "semver": "^7.5.4",
-    "rate-limiter-flexible": "^5.0.0"
+    "semver": "^7.5.4"
   },
   "devDependencies": {
     "@babel/preset-env": "^7.23.2",

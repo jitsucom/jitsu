@@ -1,5 +1,5 @@
 import type { DestinationConfig, FunctionConfig, ServiceConfig, StreamConfig } from "../schema";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { getLog, requireDefined, rpc } from "juava";
 import { useWorkspace } from "../context";
 import { QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -256,9 +256,9 @@ export function useConfigObjectsUpdater(workspaceIdOrSlug: string): UseConfigObj
 export type UseConfigObjectLinksParams = { withData?: boolean; type?: "push" | "sync" };
 
 export type ConfigurationObjectLinkType = z.infer<typeof ConfigurationObjectLinkDbModel>;
-export type UseConfigObjetLinkResult = Omit<ConfigurationObjectLinkType, "data"> & { data?: any };
+export type UseConfigObjectLinkResult = Omit<ConfigurationObjectLinkType, "data"> & { data?: any };
 
-export function useConfigObjectLinksLoader(opts?: UseConfigObjectLinksParams): Result<UseConfigObjetLinkResult[]> {
+export function useConfigObjectLinksLoader(opts?: UseConfigObjectLinksParams): Result<UseConfigObjectLinkResult[]> {
   const workspace = useWorkspace();
   const queryRes = useQuery(getLinksCacheKey(workspace.id, opts), noopLoader, {
     retry: false,
@@ -266,16 +266,18 @@ export function useConfigObjectLinksLoader(opts?: UseConfigObjectLinksParams): R
     cacheTime: Infinity,
   });
   //reserved for future use, due to noopLoader, the loading will be always false
-  if (queryRes.isLoading) {
-    return { isLoading: true };
-  } else if (queryRes.error) {
-    return { isLoading: false, error: toError(queryRes.error) };
-  } else {
-    return {
-      isLoading: false,
-      data: (queryRes.data! as UseConfigObjetLinkResult[]).filter(link => !opts?.type || link.type === opts?.type),
-    };
-  }
+  return useMemo(() => {
+    if (queryRes.isLoading) {
+      return { isLoading: true };
+    } else if (queryRes.error) {
+      return { isLoading: false, error: toError(queryRes.error) };
+    } else {
+      return {
+        isLoading: false,
+        data: (queryRes.data! as UseConfigObjectLinkResult[]).filter(link => !opts?.type || link.type === opts?.type),
+      };
+    }
+  }, [queryRes.isLoading, queryRes.error, queryRes.data, opts?.type]);
 }
 
 /**
@@ -310,7 +312,7 @@ export function useStoreReload(): (opts?: {}) => Promise<void> {
   );
 }
 
-export function useConfigObjectLinks(opts?: UseConfigObjectLinksParams): UseConfigObjetLinkResult[] {
+export function useConfigObjectLinks(opts?: UseConfigObjectLinksParams): UseConfigObjectLinkResult[] {
   const loader = useConfigObjectLinksLoader(opts);
   if (loader.isLoading) {
     getLog()
@@ -343,13 +345,15 @@ export function useConfigObjectListLoader<T extends ConfigType>(type: T): Result
     cacheTime: Infinity,
   });
   //reserved for future use, due to noopLoader, the loading will be always false
-  if (queryRes.isLoading) {
-    return { isLoading: true };
-  } else if (queryRes.error) {
-    return { isLoading: false, error: toError(queryRes.error) };
-  } else {
-    return { isLoading: false, data: queryRes.data! };
-  }
+  return useMemo(() => {
+    if (queryRes.isLoading) {
+      return { isLoading: true };
+    } else if (queryRes.error) {
+      return { isLoading: false, error: toError(queryRes.error) };
+    } else {
+      return { isLoading: false, data: queryRes.data! };
+    }
+  }, [queryRes.isLoading, queryRes.error, queryRes.data]);
 }
 
 export function useConfigObjectList<T extends ConfigType>(type: T): ConfigTypes[T][] {
@@ -398,7 +402,7 @@ export function useConfigObjectLinkMutation<FParams = unknown>(
   return useMutation<unknown, Error, FParams, unknown>(async params => {
     try {
       await fn(params);
-      queryClient.setQueriesData(getLinksCacheKey(workspace.id), (await rpc(`/api/${workspace.id}/link`)).links);
+      queryClient.setQueriesData(getLinksCacheKey(workspace.id), (await rpc(`/api/${workspace.id}/config/link`)).links);
     } catch (e) {
       throw toError(e);
     }
