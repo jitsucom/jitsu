@@ -63,3 +63,8 @@ export default createRoute()
     });
   })
   .toNextApiHandler();
+
+export const config = {
+  maxDuration: 300,
+  memory: 400,
+};

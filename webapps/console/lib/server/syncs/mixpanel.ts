@@ -1,8 +1,8 @@
-import { AnyProps, Store, SyncFunction } from "@jitsu/protocols/functions";
+import { AnyProps, FunctionLogger, Store, SyncFunction } from "@jitsu/protocols/functions";
 import { GoogleAdsApi } from "google-ads-api";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
-import { requireDefined, rpc } from "juava";
+import { assertTrue, requireDefined, rpc } from "juava";
 
 dayjs.extend(utc);
 
@@ -214,18 +214,11 @@ export const mixpanelFacebookAdsSync: SyncFunction<AnyProps, FacebookCredentials
   }
 };
 
-export const mixpanelGoogleAdsSync: SyncFunction<AnyProps, GoogleAdsCredentials, {}> = async props => {
-  const {
-    source,
-    destination,
-    ctx: { log, store },
-  } = props;
-  const googleAdsProps = source.credentials;
-  const daysToSync = await getDaysToSync({ lookbackWindow: 2, initialSyncDays: 30, store });
-  await log.info(
-    `Following days will be synced (${Object.keys(daysToSync).length})\n${describeDaysToSync(daysToSync)}`
-  );
-
+async function getSubAccountsIfManagerAccount(
+  googleAdsProps: GoogleAdsCredentials,
+  customerId: string,
+  { log }: { log: FunctionLogger }
+): Promise<string[] | unknown> {
   const client = new GoogleAdsApi({
     client_id: googleAdsProps.credentials.client_id,
     client_secret: googleAdsProps.credentials.client_secret,
@@ -236,13 +229,115 @@ export const mixpanelGoogleAdsSync: SyncFunction<AnyProps, GoogleAdsCredentials,
     customer_id: googleAdsProps.customer_id,
     refresh_token: googleAdsProps.credentials.refresh_token,
   });
+  const customerInfo = await customer.query(
+    `SELECT customer.manager, customer.descriptive_name FROM customer WHERE customer.id = ${googleAdsProps.customer_id}`
+  );
+  if (customerInfo[0]?.customer?.manager) {
+    const subAccounts = await customer.query(`
+                SELECT
+                    customer_client.id,
+                    customer_client.status,
+                    customer_client.manager,
+                    customer_client.descriptive_name
+                FROM
+                    customer_client
+                WHERE
+                    customer_client.level = 1 AND customer_client.status = 'ENABLED' and customer_client.manager = false 
+            `);
+    await log.info(
+      `Google Ads account ${googleAdsProps.customer_id} ${
+        customerInfo[0]?.customer.descriptive_name
+      } is a manager account with ${subAccounts.length} sub-accounts. Following accounts will be used:\n${subAccounts
+        .map((a: any) => `${a.customer_client.id} ${a.customer_client.descriptive_name}`)
+        .join("\t\n")}`
+    );
+    return subAccounts.map((row: any) => row.customer_client.id);
+  }
+}
 
+async function getCustomersWithActiveCampaigns(
+  client: GoogleAdsApi,
+  refhresToken: string,
+  day: string,
+  managerCustomerId: string
+): Promise<string[]> {
+  const customer = client.Customer({
+    customer_id: managerCustomerId,
+    refresh_token: refhresToken,
+    //    login_customer_id: managerCustomerId, // Set this to the manager account ID
+  });
+  const query = `
+            SELECT
+                customer.id,
+                customer.descriptive_name,
+                campaign.id,
+                campaign.name,
+                campaign.status,
+                campaign.start_date,
+                campaign.end_date
+            FROM
+                campaign
+            WHERE
+                AND campaign.start_date <= '${day}'
+                AND (campaign.end_date >= '${day}' OR campaign.end_date IS NULL)
+        `;
+  const result = await customer.query(query);
+  console.log(result);
+  return result.map((row: any) => row.customer.id);
+}
+
+export const mixpanelGoogleAdsSync: SyncFunction<AnyProps, GoogleAdsCredentials, {}> = async props => {
+  const {
+    source,
+    destination,
+    ctx: { log, store },
+  } = props;
+  const googleAdsProps = source.credentials;
+  const started = Date.now();
+
+  let customerIds: string[] = googleAdsProps.customer_id.split(",");
+  assertTrue(customerIds.length > 0, "No customer ids provided");
+
+  const client = new GoogleAdsApi({
+    client_id: googleAdsProps.credentials.client_id,
+    client_secret: googleAdsProps.credentials.client_secret,
+    developer_token: googleAdsProps.credentials.developer_token,
+  });
+
+  let loginCustomer: string | undefined = undefined;
+
+  if (customerIds.length === 1) {
+    const subAccounts = await getSubAccountsIfManagerAccount(googleAdsProps, customerIds[0], {
+      log,
+    });
+    if (subAccounts) {
+      loginCustomer = customerIds[0];
+      customerIds = subAccounts as string[];
+    }
+  }
+
+  const daysToSync = await getDaysToSync({ lookbackWindow: 2, initialSyncDays: 30, store });
+  await log.info(
+    `Following days will be synced (${Object.keys(daysToSync).length})\n${describeDaysToSync(daysToSync)}`
+  );
   for (const day of Object.entries(daysToSync)
     .filter(([day, val]) => val === null)
     .map(([day]) => day)) {
     await log.info(`Fetching Google Ads data for the day: ${day}`);
+    let activeCustomers = customerIds;
+    if (loginCustomer) {
+      // activeCustomers = await getCustomersWithActiveCampaigns(client, day, googleAdsProps.credentials.refresh_token, loginCustomer);
+      // await log.info(`Active customers for the day: ${day} are: ${activeCustomers.length} / ${customerIds.length}`);
+    }
 
-    const campaigns = await customer.query(`
+    for (const customerId of activeCustomers) {
+      await log.info(`Fetching Google Ads data for the day: ${day} and customer: ${customerId}`);
+      const customer = client.Customer({
+        customer_id: customerId,
+        login_customer_id: loginCustomer || customerId,
+        refresh_token: googleAdsProps.credentials.refresh_token,
+      });
+      const campaigns = await customer.query(`
         SELECT
             segments.date,
             campaign.id,
@@ -255,25 +350,36 @@ export const mixpanelGoogleAdsSync: SyncFunction<AnyProps, GoogleAdsCredentials,
         WHERE
             metrics.cost_micros > 0
         AND
-            segments.date BETWEEN '${day}' AND '${day}' 
-    `);
+            segments.date BETWEEN '${day}' AND '${day}'`);
+      await log.info(
+        `Fetched Google Ads data for the day: ${day} and customer: ${customerId}. Results size: ${campaigns.length}`
+      );
 
-    const mixpanelEvents = campaigns.map((campaign: any) => ({
-      event: "Ad Data",
-      properties: {
-        $insert_id: `G-${campaign.segments.date}-${campaign.campaign.id}`,
-        time: new Date(campaign.segments.date).getTime(),
-        source: "Google",
-        campaign_id: campaign.campaign.id,
+      if (campaigns.length > 0) {
+        const mixpanelEvents = campaigns.map((campaign: any) => ({
+          event: "Ad Data",
+          properties: {
+            $insert_id: `G-${campaign.segments.date}-${campaign.campaign.id}`,
+            time: new Date(campaign.segments.date).getTime(),
+            source: "Google",
+            campaign_id: campaign.campaign.id,
 
-        utm_source: "google",
-        utm_campaign: campaign.campaign.name,
-        cost: campaign.metrics.cost_micros / 1_000_000,
-        impressions: campaign.metrics.impressions,
-        clicks: campaign.metrics.clicks,
-      },
-    }));
-    await sendMixpanelMessage(destination, mixpanelEvents);
-    await store.set(`day-synced.${day}`, { time: new Date().toISOString(), rows: campaigns.length });
+            utm_source: "google",
+            utm_campaign: campaign.campaign.name,
+            cost: campaign.metrics.cost_micros / 1_000_000,
+            impressions: campaign.metrics.impressions,
+            clicks: campaign.metrics.clicks,
+          },
+        }));
+        await sendMixpanelMessage(destination, mixpanelEvents);
+      }
+    }
+    await store.set(`day-synced.${day}`, { time: new Date().toISOString() });
+    if (Date.now() - started > maxRunTimeSeconds * 1000) {
+      await log.info(
+        `Syncing took more than ${maxRunTimeSeconds} seconds. Stopping. Rest of the days will be synced next time.`
+      );
+      break;
+    }
   }
 };
