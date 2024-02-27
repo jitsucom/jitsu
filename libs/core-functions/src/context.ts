@@ -41,7 +41,7 @@ export function createFullContext(
   const id = ar.pop();
   const type = ar.join(".");
   const connectionId = eventContext.connection?.id ?? "";
-  const debugEnabled = new Date(eventContext.connection.options.debugTill ?? 0) > new Date();
+  const debugEnabled = new Date(eventContext.connection.options?.debugTill ?? 0) > new Date();
   return {
     props: props,
     store: store,
