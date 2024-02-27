@@ -47,7 +47,7 @@ export function createFullContext(
     store: store,
     async fetch(url: string, init?: FetchOpts, logToRedis: boolean = true): Promise<Response> {
       //capture execution time
-      const sw = debugEnabled ? stopwatch() : undefined;
+      const sw = stopwatch();
       const baseInfo =
         debugEnabled && logToRedis
           ? {
