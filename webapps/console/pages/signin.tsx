@@ -21,15 +21,9 @@ function JitsuLogo() {
   );
 }
 
-
-
 function CredentialsForm({}) {
   const lastUsedLogin = localStorage.getItem("last-used-login-email") || undefined;
-  const {
-    data,
-    isLoading,
-    error,
-  } = useQuery(["next-auth-csrfToken"], async () => {
+  const { data, isLoading, error } = useQuery(["next-auth-csrfToken"], async () => {
     return {
       csrfToken: await getCsrfToken(),
     };
@@ -65,7 +59,7 @@ function CredentialsForm({}) {
         <Input disabled={loading} id="password" size="large" required type="password" name="password" />
       </div>
       <Button htmlType="submit" className="w-full" type="primary" disabled={loading}>
-        {loading ? 'Preparing login form...' : 'Sign In'}
+        {loading ? "Preparing login form..." : "Sign In"}
       </Button>
     </form>
   );

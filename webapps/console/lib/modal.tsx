@@ -115,7 +115,6 @@ export function PromptContextProvider({ children }) {
   const [okText, setOkText] = useState<ReactNode>(null);
   const [initialValue, setInitialValue] = useState<string | undefined>();
 
-
   return (
     <PromptContext.Provider
       value={{
