@@ -178,7 +178,14 @@ export const EventsBrowser = ({
     }
   }, [actorId, connections, streamType, workspace.id]);
 
-  useEffect(() => {}, [debugEnabled, connection, onSaveMutation]);
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (connection) {
+        setDebugEnabled(new Date(connection.data.debugTill) > new Date());
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [connection]);
 
   const loadEvents = useCallback(
     async (
