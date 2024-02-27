@@ -517,7 +517,7 @@ export async function scheduleSync({
           sourceConfig: serviceConfig,
         });
         const time = Date.now() - started;
-        dbLog({
+        await dbLog({
           taskId,
           syncId: sync.id,
           message: `Sync finished in ${time}ms`,
