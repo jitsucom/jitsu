@@ -1,6 +1,5 @@
-import { createRoute } from "../../../lib/api";
-import { db } from "../../../lib/server/db";
-import { assertDefined, assertTrue, getLog, stopwatch } from "juava";
+import { createRoute, verifyAdmin } from "../../../lib/api";
+import { getLog, stopwatch } from "juava";
 import { clickhouse } from "../../../lib/server/clickhouse";
 import dayjs from "dayjs";
 
@@ -12,9 +11,7 @@ export default createRoute()
     streaming: true,
   })
   .handler(async ({ res, user }) => {
-    const userProfile = await db.prisma().userProfile.findFirst({ where: { id: user.internalId } });
-    assertDefined(userProfile, "User profile not found");
-    assertTrue(userProfile.admin, "Not enough permissions");
+    await verifyAdmin(user);
     log.atInfo().log(`Trimming events log`);
     const metricsSchema = process.env.CLICKHOUSE_METRICS_SCHEMA || "newjitsu_metrics";
     const clickhouseCluster = process.env.CLICKHOUSE_CLUSTER || "jitsu_cluster";
