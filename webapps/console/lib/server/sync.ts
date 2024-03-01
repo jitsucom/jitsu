@@ -402,14 +402,36 @@ export async function scheduleSync({
         error: `Sync ${syncIdOrModel} not found`,
       };
     }
+    const service = sync.from;
+    if (!service) {
+      return {
+        ok: false,
+        error: `Service ${sync.from} not found`,
+      };
+    }
+    const destinationConfig = sync.to.config as DestinationConfig;
+    const destinationType = getCoreDestinationType(destinationConfig.destinationType);
+    const serviceConfig = { ...(service.config as any), ...service };
     const running = await db.prisma().source_task.findFirst({
       where: {
         sync_id: syncIdOrModel as string,
         status: "RUNNING",
       },
     });
+    const runSynchronously = !destinationType.usesBulker && destinationType.syncs;
     if (running) {
-      if (ignoreRunning) {
+      const msInMin = 1000 * 60;
+      if (ignoreRunning || (runSynchronously && Date.now() - running.updated_at.getTime() >= 2 * msInMin)) {
+        await db.prisma().task_log.create({
+          data: {
+            timestamp: new Date(),
+            logger: "sync",
+            task_id: running.task_id,
+            sync_id: sync.id,
+            message: `Synchronous task ${running.task_id} was running due to timeout`,
+            level: "ERROR",
+          }
+        })
         await db.prisma().source_task.update({
           where: {
             task_id: running.task_id,
@@ -431,13 +453,8 @@ export async function scheduleSync({
         };
       }
     }
-    const service = sync.from;
-    if (!service) {
-      return {
-        ok: false,
-        error: `Service ${sync.from} not found`,
-      };
-    }
+
+
     if (isEEAvailable()) {
       const checkResult = await checkQuota({
         user,
@@ -503,10 +520,7 @@ export async function scheduleSync({
         }
       }
     }
-    const destinationConfig = sync.to.config as DestinationConfig;
-    const destinationType = getCoreDestinationType(destinationConfig.destinationType);
-    const serviceConfig = { ...(service.config as any), ...service };
-    if (!destinationType.usesBulker && destinationType.syncs) {
+    if (runSynchronously) {
       const started = Date.now();
       try {
         await runSyncSynchronously({
