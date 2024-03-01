@@ -437,7 +437,7 @@ export async function scheduleSync({
             task_id: running.task_id,
           },
           data: {
-            status: "CANCELED",
+            status: "FAILED",
             updated_at: new Date(),
           },
         });
