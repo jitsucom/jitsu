@@ -430,8 +430,8 @@ export async function scheduleSync({
             sync_id: sync.id,
             message: `Synchronous task ${running.task_id} was running due to timeout`,
             level: "ERROR",
-          }
-        })
+          },
+        });
         await db.prisma().source_task.update({
           where: {
             task_id: running.task_id,
@@ -453,7 +453,6 @@ export async function scheduleSync({
         };
       }
     }
-
 
     if (isEEAvailable()) {
       const checkResult = await checkQuota({
