@@ -580,7 +580,7 @@ export async function scheduleSync({
         package: serviceConfig.package,
         version: serviceConfig.version,
         taskId,
-        syncIdOr: sync.id,
+        syncId: sync.id,
         startedBy: trigger === "manual" ? (user ? user.internalId : "manual") : "scheduled",
         tableNamePrefix: sync.data?.["tableNamePrefix"] ?? "",
       },
