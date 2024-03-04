@@ -40,7 +40,6 @@ export function getEventsLogApi(workspaceId: string): EventsLogApi {
       filter: EventsLogFilter,
       limit: number
     ): Promise<EventsLogRecord[]> {
-      console.log("getEventsLogApi", typeof filter.start, filter.start?.toISOString(), filter.start?.toUTCString());
       return rpc(
         `/api/${workspaceId}/log/${eventType}/${actorId}?limit=${limit}${
           filter.start ? "&start=" + filter.start.toISOString() : ""

@@ -427,13 +427,16 @@ export const EventsBrowser = ({
                 }
                 disabledDate={d => false}
                 allowEmpty={[true, true]}
-                showTime={{ format: "HH:mm", defaultValue: [dayjs("00:00", "HH:mm"), dayjs("23:59", "HH:mm")] }}
+                showTime={{
+                  format: "HH:mm",
+                  defaultValue: [dayjs("00:00:00.000", "HH:mm:ss.SSS"), dayjs("23:59.59.999", "HH:mm:ss.SSS")],
+                }}
                 format={date => date.format("MMM DD, HH:mm")}
                 onChange={d => {
                   if (d) {
                     patchQueryStringState("dates", [
-                      d[0] ? d[0].utc(true).toISOString() : null,
-                      d[1] ? d[1].utc(true).toISOString() : null,
+                      d[0] ? d[0].utc(true).set("millisecond", 0).toISOString() : null,
+                      d[1] ? d[1].utc(true).set("millisecond", 999).toISOString() : null,
                     ]);
                   } else {
                     patchQueryStringState("dates", [null, null]);
