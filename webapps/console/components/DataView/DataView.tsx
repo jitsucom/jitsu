@@ -5,8 +5,8 @@ import React from "react";
 import { EventsBrowser } from "./EventsBrowser";
 
 export type DataViewState = {
-  activeView: "incoming" | "functions" | "bulker";
-  viewState: Record<"incoming" | "functions" | "bulker", any>;
+  activeView: "incoming" | "function" | "bulker";
+  viewState: Record<"incoming" | "function" | "bulker", any>;
 };
 
 export function DataView() {
@@ -15,7 +15,7 @@ export function DataView() {
     //state of nested Tab
     viewState: {
       incoming: {},
-      functions: {},
+      function: {},
       bulker: {},
     },
   };
@@ -59,12 +59,12 @@ export function DataView() {
       ),
     },
     {
-      key: "functions",
+      key: "function",
       label: `API Destinations & Functions Logs`,
       children: (
         <EventsBrowser
-          {...state.viewState.functions}
-          streamType={"functions"}
+          {...state.viewState.function}
+          streamType={"function"}
           patchQueryStringState={patchQueryStringState}
         />
       ),

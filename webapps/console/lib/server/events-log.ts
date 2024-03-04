@@ -1,7 +1,6 @@
 export type EventsLogFilter = {
-  start?: string;
-  end?: string;
-  beforeId?: string;
+  start?: Date;
+  end?: Date;
   filter?: (any) => boolean;
 };
 

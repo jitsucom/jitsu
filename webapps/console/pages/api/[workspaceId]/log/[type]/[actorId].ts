@@ -3,73 +3,82 @@ import { db } from "../../../../../lib/server/db";
 import { z } from "zod";
 import { getServerLog } from "../../../../../lib/server/log";
 import { ApiError } from "../../../../../lib/shared/errors";
-import { httpAgent, httpsAgent } from "../../../../../lib/server/http-agent";
-import { getErrorMessage, requireDefined } from "juava";
-import nodeFetch from "node-fetch-commonjs";
+import { clickhouse } from "../../../../../lib/server/clickhouse";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 dayjs.extend(utc);
 
-const log = getServerLog("test-connection");
+const log = getServerLog("events-log");
+const metricsSchema = process.env.CLICKHOUSE_METRICS_SCHEMA || "newjitsu_metrics";
 
 export const api: Api = {
   url: inferUrl(__filename),
   GET: {
     types: {
-      query: z.object({ type: z.string(), workspaceId: z.string(), actorId: z.string() }),
+      query: z.object({
+        type: z.string(),
+        workspaceId: z.string(),
+        actorId: z.string(),
+        levels: z.string().optional(),
+        limit: z.coerce.number().optional().default(50),
+        start: z.coerce.date().optional(),
+        end: z.coerce.date().optional(),
+      }),
       result: z.any(),
     },
     auth: true,
-    handle: async ({ user, req, query: { actorId, workspaceId, type } }) => {
-      log.atDebug().log("GET", JSON.stringify({ actorId, workspaceId, type }, null, 2));
-      const bulkerURLEnv = requireDefined(process.env.BULKER_URL, "env BULKER_URL is not defined");
-      const bulkerAuthKey = process.env.BULKER_AUTH_KEY ?? "";
-      const isHttps = bulkerURLEnv.startsWith("https://");
-      await verifyAccess(user, workspaceId);
-      if (type.startsWith("incoming.")) {
+    handle: async ({ user, req, res, query }) => {
+      log.atDebug().log("GET", JSON.stringify(query, null, 2));
+      await verifyAccess(user, query.workspaceId);
+      if (query.type === "incoming") {
         const source = await db
           .prisma()
-          .configurationObject.findFirst({ where: { id: actorId, workspaceId: workspaceId } });
+          .configurationObject.findFirst({ where: { id: query.actorId, workspaceId: query.workspaceId } });
         if (!source) {
           throw new ApiError(`site doesn't belong to the current workspace`, {}, { status: 403 });
         }
       } else {
         const link = await db
           .prisma()
-          .configurationObjectLink.findFirst({ where: { id: actorId, workspaceId: workspaceId } });
+          .configurationObjectLink.findFirst({ where: { id: query.actorId, workspaceId: query.workspaceId } });
         if (!link) {
           throw new ApiError(`connection doesn't belong to the current workspace`, {}, { status: 403 });
         }
       }
+      const sqlQuery = `select timestamp as date, level, message as content from ${metricsSchema}.events_log 
+         where 
+             actorId = {actorId:String} 
+             and type = {type:String}
+             ${query.levels ? "and level in ({levels:Array(String)})" : ""}
+             ${query.start ? "and timestamp >= {start:DateTime64}" : ""}
+             ${query.end ? "and timestamp < {end:DateTime64}" : ""}
+        order by timestamp desc limit {limit:UInt32}`;
+      const result: any[] = [];
 
-      // Options object
-      const options = {
-        method: "GET",
-        agent: (isHttps ? httpsAgent : httpAgent)(),
-        headers: {},
-      };
-      if (bulkerAuthKey) {
-        options.headers["Authorization"] = `Bearer ${bulkerAuthKey}`;
+      const chResult = (await (
+        await clickhouse.query({
+          query: sqlQuery,
+          query_params: {
+            actorId: query.actorId,
+            type: query.type,
+            levels: query.levels ? query.levels.split(",") : undefined,
+            start: query.start,
+            end: query.end,
+            limit: query.limit,
+          },
+          clickhouse_settings: {
+            wait_end_of_query: 1,
+          },
+        })
+      ).json()) as any;
+      for (const row of chResult.data) {
+        result.push({
+          date: row.date,
+          level: row.level,
+          content: JSON.parse(row.content),
+        });
       }
-      const start = req.query.start as string;
-      const end = req.query.end as string;
-      try {
-        const response = await nodeFetch(
-          `${bulkerURLEnv}/log/${type}/${actorId}?limit=${req.query.limit ?? 50}&maxBytes=4000000&start=${
-            start ? dayjs(start, "YYYY-MM-DD").utc(true).unix() * 1000 : ""
-          }&end=${end ? dayjs(end, "YYYY-MM-DD").utc(true).add(1, "d").unix() * 1000 : ""}&beforeId=${
-            req.query.beforeId ?? ""
-          }`,
-          options
-        );
-        if (!response.ok) {
-          throw new Error(`${response.status} ${response.statusText}`);
-        }
-        const json = await response.json();
-        return json;
-      } catch (e) {
-        throw new ApiError(`failed to fetch bulker API: ${getErrorMessage(e)}`, {}, { status: 500 });
-      }
+      res.json(result);
     },
   },
 };

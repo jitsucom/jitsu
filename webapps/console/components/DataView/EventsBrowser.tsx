@@ -3,7 +3,7 @@ import utc from "dayjs/plugin/utc";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { EventsLogRecord } from "../../lib/server/events-log";
 import { ColumnsType } from "antd/es/table";
-import { Alert, Checkbox, Collapse, DatePicker, Select, Spin, Table, Tag, Tooltip } from "antd";
+import { Alert, Collapse, DatePicker, Select, Spin, Table, Tag, Tooltip } from "antd";
 import { TableWithDrawer } from "./TableWithDrawer";
 import { JSONView } from "./JSONView";
 import { useAppConfig, useWorkspace } from "../../lib/context";
@@ -17,7 +17,7 @@ import { get, getConfigApi, useEventsLogApi } from "../../lib/useApi";
 import { FunctionTitle } from "../../pages/[workspaceId]/functions";
 import { DestinationConfig, FunctionConfig, ServiceConfig, StreamConfig } from "../../lib/schema";
 import { arrayToMap } from "../../lib/shared/arrays";
-import { Globe, RefreshCw, Server } from "lucide-react";
+import { Bug, Globe, RefreshCw, Server } from "lucide-react";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
 import { ConnectionTitle } from "../../pages/[workspaceId]/connections";
 import { StreamTitle } from "../../pages/[workspaceId]/streams";
@@ -30,15 +30,15 @@ import { useConfigObjectLinkMutation, UseConfigObjectLinkResult, useConfigObject
 dayjs.extend(utc);
 dayjs.extend(relativeTime);
 
-const formatDate = (date: string | Date) => dayjs(date).utc().format("YYYY-MM-DD HH:mm:ss");
+const formatDate = (date: string | Date) => dayjs(date).utc(true).format("YYYY-MM-DD HH:mm:ss");
 
-type StreamType = "incoming" | "functions" | "bulker";
-type EventType = "all" | "error";
+type StreamType = "incoming" | "function" | "bulker";
+type Level = "all" | "error" | "info" | "debug" | "warn";
 type DatesRange = [string | null, string | null];
 
 type EventsBrowserProps = {
   streamType: StreamType;
-  eventType: "all" | "error";
+  level: Level;
   actorId: string;
   dates: DatesRange;
   patchQueryStringState: (key: string, value: any) => void;
@@ -50,8 +50,8 @@ type EventsBrowserState = {
   entitiesMap?: Record<string, any>;
   eventsLoading: boolean;
   events?: EventsLogRecord[];
-  beforeId: string;
   refreshTime: Date;
+  beforeDate?: Date;
   error?: string;
 };
 
@@ -109,7 +109,7 @@ export const RelativeDate: React.FC<{ date: string | Date; fromNow?: boolean }> 
 
 export const EventsBrowser = ({
   streamType = "incoming",
-  eventType = "all",
+  level = "all",
   actorId = "",
   dates,
   patchQueryStringState,
@@ -132,7 +132,7 @@ export const EventsBrowser = ({
     entitiesMap: undefined,
     eventsLoading: false,
     events: undefined,
-    beforeId: "",
+    beforeDate: undefined,
     refreshTime: new Date(),
   };
 
@@ -153,8 +153,10 @@ export const EventsBrowser = ({
     return new Date();
   }, []);
 
-  const [{ bulkerMode, entitiesLoading, entitiesMap, eventsLoading, events, beforeId, refreshTime, error }, dispatch] =
-    useReducer(eventStreamReducer, { ...defaultState, refreshTime: initDate });
+  const [
+    { bulkerMode, entitiesLoading, entitiesMap, eventsLoading, events, beforeDate, refreshTime, error },
+    dispatch,
+  ] = useReducer(eventStreamReducer, { ...defaultState, refreshTime: initDate });
 
   const [shownEvents, setShownEvents] = useState<any[]>([]);
 
@@ -167,7 +169,7 @@ export const EventsBrowser = ({
   const eventsLogApi = useEventsLogApi();
 
   useEffect(() => {
-    if (streamType === "functions" && actorId) {
+    if (streamType === "function" && actorId) {
       (async () => {
         const connection = connections.find(c => c.id === actorId);
         if (connection) {
@@ -191,10 +193,10 @@ export const EventsBrowser = ({
     async (
       streamType: StreamType,
       entitiesMap: any,
-      eventType: EventType,
+      level: Level,
       actorId: string,
-      beforeId: string,
-      dates: DatesRange
+      dates: DatesRange,
+      beforeDate?: Date
     ) => {
       try {
         if (actorId && entitiesMap && entitiesMap[actorId]) {
@@ -211,22 +213,23 @@ export const EventsBrowser = ({
           }
           dispatch({ type: "eventsLoading", value: true });
           const data = await eventsLogApi.get(
-            `${eventsLogStream}.${eventType}`,
+            `${eventsLogStream}`,
+            level === "all" ? "all" : [level],
             actorId,
             {
-              beforeId: beforeId,
-              start: dates && dates[0] ? dates[0] : undefined,
-              end: dates && dates[1] ? dates[1] : undefined,
+              start: dates && dates[0] ? new Date(dates[0]) : undefined,
+              end: beforeDate || (dates && dates[1] ? new Date(dates[1]) : undefined),
             },
             100
           );
-          if (beforeId) {
+          if (beforeDate) {
             dispatch({ type: "addEvents", value: data });
           } else {
             dispatch({ type: "events", value: data });
           }
           if (data.length > 0) {
-            dispatch({ type: "beforeId", value: data[data.length - 1].id });
+            const d = dayjs(data[data.length - 1].date).utc(true);
+            dispatch({ type: "beforeDate", value: d.toDate() });
           }
           dispatch({ type: "error", value: "" });
         }
@@ -265,7 +268,7 @@ export const EventsBrowser = ({
                 usesBulker: typeof link.data?.mode === "string",
                 //usesFunctions: Array.isArray(link.data?.functions) && link.data?.functions.length > 0,
               }))
-              .filter(link => (streamType === "bulker" && link.usesBulker) || streamType === "functions");
+              .filter(link => (streamType === "bulker" && link.usesBulker) || streamType === "function");
           };
         }
 
@@ -292,8 +295,8 @@ export const EventsBrowser = ({
   }, [streamType, entitiesMap, actorId, workspace.id, patchQueryStringState, entitiesLoading]);
 
   useEffect(() => {
-    loadEvents(streamType, entitiesMap, eventType, actorId, "", dates);
-  }, [loadEvents, streamType, entitiesMap, eventType, actorId, dates, refreshTime]);
+    loadEvents(streamType, entitiesMap, level, actorId, dates);
+  }, [loadEvents, streamType, entitiesMap, level, actorId, dates, refreshTime]);
 
   // //load more events on reaching bottom
   // useEffect(() => {
@@ -301,7 +304,7 @@ export const EventsBrowser = ({
   //   const scrolling_function = e => {
   //     const div = document.getElementsByClassName("global-wrapper")[0];
   //     if (div.scrollHeight - div.scrollTop == div.clientHeight) {
-  //       if (!eventsLoading && beforeId) {
+  //       if (!eventsLoading && beforeDate) {
   //         force += -e.wheelDeltaY;
   //         document.getElementById("lmore")!.style.transform = `scale(${
   //           1 + Math.max(0, Math.min(force / 6000, 0.333))
@@ -309,7 +312,7 @@ export const EventsBrowser = ({
   //         if (force > 2000) {
   //           force = 0;
   //           window.removeEventListener("wheel", scrolling_function);
-  //           loadEvents(streamType, entitiesMap, eventType, actorId, beforeId, dates);
+  //           loadEvents(streamType, entitiesMap, eventType, actorId, beforeDate, dates);
   //         }
   //         if (force < 0) {
   //           force = 0;
@@ -324,7 +327,7 @@ export const EventsBrowser = ({
   //   return () => {
   //     window.removeEventListener("wheel", scrolling_function);
   //   };
-  // }, [loadEvents, eventsLoading, streamType, entitiesMap, eventType, actorId, dates, refreshTime, beforeId]);
+  // }, [loadEvents, eventsLoading, streamType, entitiesMap, eventType, actorId, dates, refreshTime, beforeDate]);
 
   const entitiesSelectOptions = useMemo(() => {
     if (entitiesMap) {
@@ -346,7 +349,7 @@ export const EventsBrowser = ({
     switch (streamType) {
       case "incoming":
         return IncomingEventsTable;
-      case "functions":
+      case "function":
         return FunctionsLogTable;
       case "bulker":
         if (bulkerMode === "batch") {
@@ -370,7 +373,7 @@ export const EventsBrowser = ({
                 notFoundContent={
                   entityType === "stream" ? (
                     <div>Project doesn't have Sites</div>
-                  ) : streamType === "functions" ? (
+                  ) : streamType === "function" ? (
                     <div>Project doesn't have Connections using Functions</div>
                   ) : (
                     <div>Project doesn't have data warehouse Connections</div>
@@ -380,7 +383,7 @@ export const EventsBrowser = ({
                 loading={entitiesLoading}
                 onChange={e => {
                   dispatch({ type: "events", value: [] });
-                  dispatch({ type: "beforeId", value: "" });
+                  dispatch({ type: "beforeDate", value: undefined });
                   patchQueryStringState("actorId", e);
                 }}
                 value={actorId}
@@ -388,78 +391,92 @@ export const EventsBrowser = ({
               />
             </div>
             <div>
-              <span>Statuses: </span>
+              <span>{streamType == "function" ? "Level: " : "Status: "}</span>
               <Select
                 style={{ width: 120 }}
-                value={eventType}
+                value={level}
                 onChange={e => {
                   dispatch({ type: "events", value: undefined });
-                  dispatch({ type: "beforeId", value: "" });
-                  patchQueryStringState("eventType", e);
+                  dispatch({ type: "beforeDate", value: undefined });
+                  patchQueryStringState("level", e);
                 }}
-                options={[
-                  { value: "all", label: "All" },
-                  { value: "error", label: "Errors only" },
-                ]}
+                options={
+                  streamType == "function"
+                    ? [
+                        { value: "all", label: "All" },
+                        { value: "error", label: "ERROR" },
+                        { value: "warn", label: "WARN" },
+                        { value: "info", label: "INFO" },
+                        { value: "debug", label: "DEBUG" },
+                      ]
+                    : [
+                        { value: "all", label: "All" },
+                        { value: "error", label: "Errors" },
+                      ]
+                }
               />
             </div>
             <div>
               <span>Date range: </span>
               <DatePicker.RangePicker
                 value={
-                  (dates ?? [null, null]).map(d => (d ? dayjs(d, "YYYY-MM-DD") : null)).slice(0, 2) as [
+                  (dates ?? [null, null]).map(d => (d ? dayjs(d).utc() : null)).slice(0, 2) as [
                     Dayjs | null,
                     Dayjs | null
                   ]
                 }
                 disabledDate={d => false}
                 allowEmpty={[true, true]}
+                showTime={{ format: "HH:mm", defaultValue: [dayjs("00:00", "HH:mm"), dayjs("23:59", "HH:mm")] }}
+                format={date => date.format("MMM DD, HH:mm")}
                 onChange={d => {
                   if (d) {
                     patchQueryStringState("dates", [
-                      d[0] ? d[0].format("YYYY-MM-DD") : null,
-                      d[1] ? d[1].format("YYYY-MM-DD") : null,
+                      d[0] ? d[0].utc(true).toISOString() : null,
+                      d[1] ? d[1].utc(true).toISOString() : null,
                     ]);
                   } else {
                     patchQueryStringState("dates", [null, null]);
                   }
                   dispatch({ type: "events", value: undefined });
-                  dispatch({ type: "beforeId", value: "" });
+                  dispatch({ type: "beforeDate", value: undefined });
                 }}
                 // onOpenChange={onOpenChange}
               />
             </div>
-            {streamType === "functions" && connection && (
-              <Tooltip
-                title={
-                  "Enables 'debug' level for functions logs and fetch requests verbose logging for a period of 5 minutes."
-                }
-              >
-                <div className={"flex flex-row gap-1 items-center"}>
-                  <span>Debug: </span>
-                  <Checkbox
-                    checked={debugEnabled}
-                    onChange={e => {
-                      const debugTill = e.target.checked ? dayjs().add(5, "minute").toISOString() : undefined;
-                      const newConnection = { ...connection, data: { ...connection.data, debugTill } };
-                      setConnection(newConnection);
-                      setDebugEnabled(e.target.checked);
-                      onSaveMutation.mutateAsync(newConnection);
-                    }}
-                  />
-                </div>
-              </Tooltip>
-            )}
           </div>
         </div>
-        <div key={"right"}>
+        <div key={"right"} className={"flex flex-row"}>
+          {streamType === "function" && connection && (
+            <Tooltip
+              title={
+                "Enables 'debug' level for functions logs and fetch requests verbose logging for a period of 5 minutes."
+              }
+            >
+              <JitsuButton
+                icon={<Bug className={`w-6 h-6`} />}
+                type="link"
+                size="small"
+                onClick={e => {
+                  const checked = !debugEnabled;
+                  const debugTill = checked ? dayjs().add(5, "minute").toISOString() : undefined;
+                  const newConnection = { ...connection, data: { ...connection.data, debugTill } };
+                  setConnection(newConnection);
+                  setDebugEnabled(checked);
+                  onSaveMutation.mutateAsync(newConnection);
+                }}
+              >
+                {!debugEnabled ? "Enable debug logs" : "Disable debug logs"}
+              </JitsuButton>
+            </Tooltip>
+          )}
           <JitsuButton
             icon={<RefreshCw className={`w-6 h-6 ${eventsLoading && refreshTime !== initDate && "animate-spin"}`} />}
             type="link"
             size="small"
             onClick={e => {
               dispatch({ type: "events", value: undefined });
-              dispatch({ type: "beforeId", value: "" });
+              dispatch({ type: "beforeDate", value: undefined });
               dispatch({ type: "refreshTime", value: new Date() });
             }}
           >
@@ -480,7 +497,7 @@ export const EventsBrowser = ({
           entityType={entityType}
           actorId={actorId}
           events={shownEvents}
-          loadEvents={() => loadEvents(streamType, entitiesMap, eventType, actorId, beforeId, dates)}
+          loadEvents={() => loadEvents(streamType, entitiesMap, level, actorId, dates, beforeDate)}
         />
       ) : (
         <Alert message={error} type="error" showIcon />
@@ -544,25 +561,6 @@ const FunctionsLogTable = ({ loadEvents, loading, streamType, entityType, actorI
       render: d => <UTCDate date={d} />,
     },
     {
-      title: "Type",
-      width: "6em",
-      dataIndex: ["content"],
-      key: "type",
-      render: d => {
-        switch (d.type) {
-          case "log-error":
-          case "log-info":
-          case "log-debug":
-          case "log-warn":
-            return "log";
-          case "http-request":
-            return "http";
-          default:
-            return streamType;
-        }
-      },
-    },
-    {
       title: "Function",
       width: "14em",
       dataIndex: ["content"],
@@ -582,22 +580,19 @@ const FunctionsLogTable = ({ loadEvents, loading, streamType, entityType, actorI
       },
     },
     {
-      title: "Status",
+      title: "Level",
       width: "8em",
-      dataIndex: ["content"],
-      key: "status",
+      dataIndex: ["level"],
       render: d => {
-        switch (d.type) {
-          case "log-error":
+        switch (d) {
+          case "error":
             return <Tag color={"red"}>ERROR</Tag>;
-          case "log-info":
+          case "info":
             return <Tag color={"cyan"}>INFO</Tag>;
-          case "log-debug":
+          case "debug":
             return <Tag>DEBUG</Tag>;
-          case "log-warn":
+          case "warn":
             return <Tag color={"orange"}>WARN</Tag>;
-          case "http-request":
-            return <Tag color={d.status >= 200 && d.status < 300 ? "cyan" : "orange"}>{d.status ?? "WARN"}</Tag>;
           default:
             return <Tag color={"cyan"}>{d.status}</Tag>;
         }
@@ -623,7 +618,13 @@ const FunctionsLogTable = ({ loadEvents, loading, streamType, entityType, actorI
                 : "")
             );
           case "http-request":
-            return `${d.method} ${d.url}`;
+            return (
+              <>
+                <Tag color={d.status >= 200 && d.status < 300 ? "cyan" : "orange"}>{d.status ?? "ERROR"}</Tag>
+                <span>{`HTTP ${d.method} `}</span>
+                <span>{d.url}</span>
+              </>
+            );
           default:
             return d.body || d.error;
         }

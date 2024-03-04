@@ -17,7 +17,13 @@ export type ConfigApi<T = any> = {
 };
 
 export type EventsLogApi = {
-  get(eventType: string, actorId: string, filter: EventsLogFilter, limit: number): Promise<EventsLogRecord[]>;
+  get(
+    eventType: string,
+    levels: ("warn" | "info" | "error" | "debug")[] | "all",
+    actorId: string,
+    filter: EventsLogFilter,
+    limit: number
+  ): Promise<EventsLogRecord[]>;
 };
 
 export function useEventsLogApi(): EventsLogApi {
@@ -27,11 +33,20 @@ export function useEventsLogApi(): EventsLogApi {
 
 export function getEventsLogApi(workspaceId: string): EventsLogApi {
   return {
-    get(eventType: string, actorId: string, filter: EventsLogFilter, limit: number): Promise<EventsLogRecord[]> {
+    get(
+      eventType: string,
+      levels: ("warn" | "info" | "error" | "debug")[] | "all",
+      actorId: string,
+      filter: EventsLogFilter,
+      limit: number
+    ): Promise<EventsLogRecord[]> {
+      console.log("getEventsLogApi", typeof filter.start, filter.start?.toISOString(), filter.start?.toUTCString());
       return rpc(
-        `/api/${workspaceId}/log/${eventType}/${actorId}?start=${filter.start ?? ""}&end=${filter.end ?? ""}&beforeId=${
-          filter.beforeId ?? ""
-        }&limit=${limit}`
+        `/api/${workspaceId}/log/${eventType}/${actorId}?limit=${limit}${
+          filter.start ? "&start=" + filter.start.toISOString() : ""
+        }${filter.end ? "&end=" + filter.end.toISOString() : ""}${
+          levels !== "all" ? `&levels=${levels.join(",")}` : ""
+        }`
       );
     },
   };

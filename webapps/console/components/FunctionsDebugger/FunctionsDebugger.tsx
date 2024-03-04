@@ -583,7 +583,7 @@ const EventsSelector = ({ selectEvent }: { selectEvent: (e: any) => void }) => {
       try {
         if (actorId && entitiesMap && entitiesMap[actorId]) {
           dispatch({ type: "eventsLoading", value: true });
-          const data = await eventsLogApi.get(`incoming.all`, actorId, {}, 100);
+          const data = await eventsLogApi.get(`incoming`, "all", actorId, {}, 100);
           dispatch({ type: "events", value: data });
           dispatch({ type: "error", value: "" });
         }

@@ -100,11 +100,7 @@ export default createRoute()
     } catch (e: any) {
       log.atError().withCause(e).log(`Failed to delete partition ${oldPartition}`);
     }
-    res.writeHead(200, {
-      "Content-Type": "application/json",
-    });
-    res.write(JSON.stringify(result, null, 2));
-    res.end();
+    res.json(result);
   })
   .toNextApiHandler();
 export const config = {
