@@ -365,6 +365,14 @@ async function runSyncSynchronously({
   });
 }
 
+function safeStringify(e: any) {
+  try {
+    return JSON.stringify(e, null, 2);
+  } catch (e) {
+    return e?.toString();
+  }
+}
+
 export async function scheduleSync({
   workspaceId,
   syncIdOrModel,
@@ -540,16 +548,17 @@ export async function scheduleSync({
         log
           .atError()
           .log(`Error running task ${taskId}, sync ${sync.id}. Message : ${e?.message}`, JSON.stringify(e, null, 2));
+        const syncError = `${e?.message || safeStringify(e)}`;
         await createOrUpdateTask({
           taskId,
           syncId: sync.id,
           status: "FAILED",
-          description: `Error running sync: ${e?.message}`,
+          description: `Error running sync: ${syncError}`,
         });
         await dbLog({
           taskId,
           syncId: sync.id,
-          message: `Error running sync: ${e?.message}\n${e?.stack}`,
+          message: `Error running sync: ${e?.message}${e?.stack ? `\n${e.stack}` : ""}`,
           level: "ERROR",
         });
       }
