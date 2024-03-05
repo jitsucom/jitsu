@@ -73,7 +73,7 @@ export const api: Api = {
       ).json()) as any;
       for (const row of chResult.data) {
         result.push({
-          date: row.date,
+          date: dayjs(row.date).utc(true).toDate(),
           level: row.level,
           content: JSON.parse(row.content),
         });

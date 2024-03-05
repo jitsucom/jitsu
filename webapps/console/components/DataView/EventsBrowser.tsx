@@ -30,7 +30,7 @@ import { useConfigObjectLinkMutation, UseConfigObjectLinkResult, useConfigObject
 dayjs.extend(utc);
 dayjs.extend(relativeTime);
 
-const formatDate = (date: string | Date) => dayjs(date).utc(true).format("YYYY-MM-DD HH:mm:ss");
+const formatDate = (date: string | Date | Dayjs) => dayjs(date).utc().format("YYYY-MM-DD HH:mm:ss");
 
 type StreamType = "incoming" | "function" | "bulker";
 type Level = "all" | "error" | "info" | "debug" | "warn";
