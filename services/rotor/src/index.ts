@@ -1,15 +1,13 @@
 import { checkHash, checkRawToken, disableService, getLog, randomId, setServerJsonFormat, isTruish } from "juava";
 import { destinationMessagesTopic, getCredentialsFromEnv, rotorConsumerGroupId } from "./lib/kafka-config";
 import { kafkaRotor } from "./lib/rotor";
-import { EventsStore, mongodb, MultiEventsStore } from "@jitsu/core-functions";
+import { DummyEventsStore, EventsStore, mongodb } from "@jitsu/core-functions";
 import express from "express";
 import { UDFRunHandler } from "./http/udf";
 import Prometheus from "prom-client";
 import { FunctionsHandler, FunctionsHandlerMulti } from "./http/functions";
 import { initMaxMindClient, GeoResolver } from "./lib/maxmind";
 import { rotorMessageHandler } from "./lib/message-handler";
-import { redis } from "./lib/redis";
-import { redisLogger } from "./lib/redis-logger";
 import { DummyMetrics, Metrics } from "./lib/metrics";
 import { connectionsStore, functionsStore } from "./lib/entity-store";
 import { Server } from "node:net";
@@ -55,11 +53,10 @@ async function main() {
   try {
     Prometheus.collectDefaultMetrics();
     await mongodb.waitInit();
-    await redis.waitInit();
     if (process.env.CLICKHOUSE_URL) {
       eventsLogger = createClickhouseLogger();
     } else {
-      eventsLogger = await redisLogger.waitInit();
+      eventsLogger = DummyEventsStore;
     }
 
     const connStore = await connectionsStore.get();
@@ -87,9 +84,7 @@ async function main() {
     connectionsStore.stop();
     functionsStore.stop();
     eventsLogger.close();
-    redisLogger.close();
     mongodb.close();
-    redis.close();
     const extraDelay = process.env.SHUTDOWN_EXTRA_DELAY_SEC
       ? 1000 * parseInt(process.env.SHUTDOWN_EXTRA_DELAY_SEC)
       : 5000;

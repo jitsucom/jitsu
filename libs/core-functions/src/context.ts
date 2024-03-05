@@ -12,6 +12,11 @@ export interface EventsStore {
   close(): void;
 }
 
+export const DummyEventsStore: EventsStore = {
+  log(connectionId: string, level: LogLevel, msg: Record<string, any>): void {},
+  close(): void {},
+};
+
 export function MultiEventsStore(stores: EventsStore[]): EventsStore {
   return {
     log(connectionId: string, level: LogLevel, msg: Record<string, any>): void {

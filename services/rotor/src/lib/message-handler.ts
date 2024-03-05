@@ -19,7 +19,6 @@ import {
   EventsStore,
 } from "@jitsu/core-functions";
 import { buildFunctionChain, checkError, runChain } from "./functions-chain";
-import { redis } from "./redis";
 import { EnrichedConnectionConfig } from "./config-types";
 export const log = getLog("rotor");
 
@@ -108,9 +107,11 @@ export async function rotorMessageHandler(
     connectionId: connection.id,
     retries,
   };
-  const store = process.env.MONGODB_URL
-    ? createMongoStore(connection.workspaceId, mongodb(), fastStoreWorskpaceId.includes(connection.workspaceId))
-    : createTtlStore(connection.workspaceId, redis(), defaultTTL);
+  const store = createMongoStore(
+    connection.workspaceId,
+    mongodb(),
+    fastStoreWorskpaceId.includes(connection.workspaceId)
+  );
   //system context for builtin functions only
   const systemContext: SystemContext = {
     $system: {

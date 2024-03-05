@@ -59,7 +59,7 @@ export function isDropResult(result: FuncReturn): boolean {
 export * as bulkerDestination from "./functions/bulker-destination";
 export { UDFWrapper, UDFTestRun } from "./functions/udf_wrapper";
 export type { UDFTestRequest, UDFTestResponse, logType } from "./functions/udf_wrapper";
-export { createFullContext, MultiEventsStore } from "./context";
+export { createFullContext, MultiEventsStore, DummyEventsStore } from "./context";
 export type { EventsStore } from "./context";
 export * as mixpanelDestination from "./functions/mixpanel-destination";
 export * as ga4Destination from "./functions/ga4-destination";

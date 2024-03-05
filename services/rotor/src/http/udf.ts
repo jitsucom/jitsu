@@ -7,16 +7,13 @@ import {
   createTtlStore,
 } from "@jitsu/core-functions";
 import { getLog } from "juava";
-import { redis } from "../lib/redis";
 
 const log = getLog("udf_run");
 
 export const UDFRunHandler = async (req, res) => {
   const body = req.body as UDFTestRequest;
   log.atInfo().log(`Running function: ${body?.functionId} workspace: ${body?.workspaceId}`, JSON.stringify(body));
-  body.store = process.env.MONGODB_URL
-    ? createMongoStore(body?.workspaceId, mongodb(), false)
-    : createTtlStore(body?.workspaceId, redis(), defaultTTL);
+  body.store = createMongoStore(body?.workspaceId, mongodb(), false);
   const result = await UDFTestRun(body);
   if (result.error) {
     log
