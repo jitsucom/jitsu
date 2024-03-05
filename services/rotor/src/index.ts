@@ -56,11 +56,11 @@ async function main() {
     Prometheus.collectDefaultMetrics();
     await mongodb.waitInit();
     await redis.waitInit();
-    const eventsLoggers = [await redisLogger.waitInit()];
     if (process.env.CLICKHOUSE_URL) {
-      eventsLoggers.push(createClickhouseLogger());
+      eventsLogger = createClickhouseLogger();
+    } else {
+      eventsLogger = await redisLogger.waitInit();
     }
-    eventsLogger = MultiEventsStore(eventsLoggers);
 
     const connStore = await connectionsStore.get();
     if (!connStore.enabled) {
