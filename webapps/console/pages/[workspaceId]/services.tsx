@@ -197,7 +197,7 @@ const ServicesList: React.FC<{}> = () => {
         if (res.error) {
           return res;
         }
-        for (let i = 0; i < 60; i++) {
+        for (let i = 0; i < 600; i++) {
           const res = await rpc(`/api/${workspace.id}/sources/check?storageKey=${storageKey}`);
           if (!res.pending) {
             return res;

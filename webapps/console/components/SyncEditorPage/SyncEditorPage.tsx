@@ -370,7 +370,7 @@ function SyncEditor({
           setCatalog(firstRes.catalog);
           initSyncOptions(storageKey, firstRes.catalog);
         } else {
-          for (let i = 0; i < 60; i++) {
+          for (let i = 0; i < 600; i++) {
             if (cancelled) {
               return;
             }
@@ -702,7 +702,7 @@ function SyncEditor({
                 <div className="flex flex-row items-center justify-between gap-2 mt-4 mb-3">
                   <div className={"text-xl"}>Streams {destinationType.usesBulker}</div>
                   <div className={"flex gap-2 pr-2"}>
-                    Switch All1
+                    Switch All
                     <Switch
                       checked={Object.keys(syncOptions?.streams || {}).length > 0}
                       onChange={ch => {
