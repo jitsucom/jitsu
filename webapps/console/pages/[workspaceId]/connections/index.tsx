@@ -1,7 +1,7 @@
 import { WorkspacePageLayout } from "../../../components/PageLayout/WorkspacePageLayout";
 import { useWorkspace } from "../../../lib/context";
 import { get } from "../../../lib/useApi";
-import { DestinationConfig, FunctionConfig, StreamConfig } from "../../../lib/schema";
+import { DestinationConfig, FunctionConfig, ServiceConfig, StreamConfig } from "../../../lib/schema";
 import { ConfigurationObjectLinkDbModel } from "../../../prisma/schema";
 import { z } from "zod";
 import { Table } from "antd";
@@ -26,6 +26,7 @@ import omit from "lodash/omit";
 import { toURL } from "../../../lib/shared/url";
 import JSON5 from "json5";
 import { useConfigObjectLinks, useConfigObjectList, useStoreReload } from "../../../lib/store";
+import { ServiceTitle } from "../services";
 
 function EmptyLinks() {
   const workspace = useWorkspace();
@@ -48,13 +49,16 @@ function EmptyLinks() {
 
 export const ConnectionTitle: React.FC<{
   connectionId: string;
-  stream: StreamConfig;
+  stream?: StreamConfig;
+  service?: ServiceConfig;
   destination: DestinationConfig;
   showLink?: boolean;
-}> = ({ connectionId, stream, destination, showLink = false }) => {
+}> = ({ connectionId, stream, service, destination, showLink = false }) => {
   return (
     <div className={"flex flex-row whitespace-nowrap gap-1.5"}>
-      <StreamTitle size={"small"} stream={stream} />
+      {service && <ServiceTitle size={"small"} service={service} />}
+      {stream && <StreamTitle size={"small"} stream={stream} />}
+      {!stream && !service && "DELETED "}
       {"→"}
       <DestinationTitle size={"small"} destination={destination} />
       {showLink && (

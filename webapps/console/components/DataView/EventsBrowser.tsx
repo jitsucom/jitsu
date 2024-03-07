@@ -26,6 +26,7 @@ import { countries } from "../../lib/shared/countries";
 
 import zlib from "zlib";
 import { useConfigObjectLinkMutation, UseConfigObjectLinkResult, useConfigObjectLinks } from "../../lib/store";
+import { coreDestinationsMap } from "../../lib/schema/destinations";
 
 dayjs.extend(utc);
 dayjs.extend(relativeTime);
@@ -81,15 +82,18 @@ export const UTCDate: React.FC<{ date: string | Date }> = ({ date }) => {
   );
 };
 
-export function linksQuery(workspaceId: string, type: "push" | "sync" = "push", withFunctions: boolean = false) {
+export function linksQuery(
+  workspaceId: string,
+  type: "push" | "sync" | "all" = "push",
+  withFunctions: boolean = false
+) {
   return async () => {
     const promises = [
-      type === "sync"
-        ? getConfigApi<ServiceConfig>(workspaceId, "service").list()
-        : getConfigApi<StreamConfig>(workspaceId, "stream").list(),
+      getConfigApi<StreamConfig>(workspaceId, "stream").list(),
+      getConfigApi<ServiceConfig>(workspaceId, "service").list(),
       getConfigApi<DestinationConfig>(workspaceId, "destination").list(),
       get(`/api/${workspaceId}/config/link`).then(res =>
-        res.links.filter(l => l.type === type || (type === "push" && !l.type))
+        res.links.filter(l => l.type === type || (type === "push" && !l.type) || type === "all")
       ),
     ];
     if (withFunctions) {
@@ -255,19 +259,25 @@ export const EventsBrowser = ({
           query = () => getConfigApi(workspace.id, "stream").list();
         } else {
           query = async () => {
-            const data = await linksQuery(workspace.id)();
+            const data = await linksQuery(workspace.id, streamType === "bulker" ? "all" : "push")();
             const streamsMap = arrayToMap(data[0]);
-            const dstMap = arrayToMap(data[1]);
-            return data[2]
-              .map(link => ({
-                id: link.id,
-                name: `${streamsMap[link.fromId]?.name ?? "DELETED"} → ${dstMap[link.toId]?.name ?? "DELETED"}`,
-                mode: link.data?.mode,
-                stream: streamsMap[link.fromId],
-                destination: dstMap[link.toId],
-                usesBulker: typeof link.data?.mode === "string",
-                //usesFunctions: Array.isArray(link.data?.functions) && link.data?.functions.length > 0,
-              }))
+            const servicesMap = arrayToMap(data[1]);
+            const dstMap = arrayToMap(data[2]);
+            return data[3]
+              .map(link => {
+                const dst = dstMap[link.toId];
+                const destinationType = coreDestinationsMap[dst.destinationType];
+                return {
+                  id: link.id,
+                  name: `${streamsMap[link.fromId]?.name ?? "DELETED"} → ${dstMap[link.toId]?.name ?? "DELETED"}`,
+                  mode: link.data?.mode,
+                  stream: streamsMap[link.fromId],
+                  service: servicesMap[link.fromId],
+                  destination: dst,
+                  usesBulker: destinationType?.usesBulker || false,
+                  //usesFunctions: Array.isArray(link.data?.functions) && link.data?.functions.length > 0,
+                };
+              })
               .filter(link => (streamType === "bulker" && link.usesBulker) || streamType === "function");
           };
         }
@@ -337,7 +347,12 @@ export const EventsBrowser = ({
           entity[1].type === "stream" ? (
             <StreamTitle stream={entity[1]} size={"small"} />
           ) : (
-            <ConnectionTitle connectionId={entity[0]} stream={entity[1].stream} destination={entity[1].destination} />
+            <ConnectionTitle
+              connectionId={entity[0]}
+              stream={entity[1].stream}
+              service={entity[1].service}
+              destination={entity[1].destination}
+            />
           ),
       }));
     } else {
@@ -794,11 +809,11 @@ const IncomingEventDrawer = ({ event }: { event: IncomingEvent }) => {
   const hasEvent = typeof event !== "undefined";
   useEffect(() => {
     if (!event) return;
-    linksQuery(workspace.id)()
+    linksQuery(workspace.id, "push")()
       .then(data => {
         const streamsMap = arrayToMap(data[0]);
-        const dstMap = arrayToMap(data[1]);
-        return data[2].map(link => ({
+        const dstMap = arrayToMap(data[2]);
+        return data[3].map(link => ({
           id: link.id,
           name: `${streamsMap[link.fromId]?.name ?? "DELETED"} → ${dstMap[link.toId]?.name ?? "DELETED"}`,
           mode: link.data?.mode,
