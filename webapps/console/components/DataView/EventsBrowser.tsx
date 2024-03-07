@@ -270,7 +270,7 @@ export const EventsBrowser = ({
                 return {
                   id: link.id,
                   name: `${streamsMap[link.fromId]?.name ?? "DELETED"} → ${dstMap[link.toId]?.name ?? "DELETED"}`,
-                  mode: link.data?.mode,
+                  mode: link.type === "sync" ? "batch" : link.data?.mode,
                   stream: streamsMap[link.fromId],
                   service: servicesMap[link.fromId],
                   destination: dst,
