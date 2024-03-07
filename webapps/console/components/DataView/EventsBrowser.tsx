@@ -266,7 +266,7 @@ export const EventsBrowser = ({
             return data[3]
               .map(link => {
                 const dst = dstMap[link.toId];
-                const destinationType = coreDestinationsMap[dst.destinationType];
+                const destinationType = coreDestinationsMap[dst?.destinationType];
                 return {
                   id: link.id,
                   name: `${streamsMap[link.fromId]?.name ?? "DELETED"} → ${dstMap[link.toId]?.name ?? "DELETED"}`,
