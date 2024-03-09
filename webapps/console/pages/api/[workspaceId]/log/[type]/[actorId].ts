@@ -50,8 +50,8 @@ export const api: Api = {
              actorId = {actorId:String} 
              and type = {type:String}
              ${query.levels ? "and level in ({levels:Array(String)})" : ""}
-             ${query.start ? "and timestamp >= {start:DateTime64}" : ""}
-             ${query.end ? "and timestamp < {end:DateTime64}" : ""}
+             ${query.start ? "and timestamp >= {start:String}" : ""}
+             ${query.end ? "and timestamp < {end:String}" : ""}
         order by timestamp desc limit {limit:UInt32}`;
       const result: any[] = [];
 
@@ -62,8 +62,8 @@ export const api: Api = {
             actorId: query.actorId,
             type: query.type,
             levels: query.levels ? query.levels.split(",") : undefined,
-            start: query.start,
-            end: query.end,
+            start: query.start ? dayjs(query.start).utc().format("YYYY-MM-DD HH:mm:ss.SSS") : undefined,
+            end: query.end ? dayjs(query.end).utc().format("YYYY-MM-DD HH:mm:ss.SSS") : undefined,
             limit: query.limit,
           },
           clickhouse_settings: {

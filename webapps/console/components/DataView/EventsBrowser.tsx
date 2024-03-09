@@ -232,7 +232,7 @@ export const EventsBrowser = ({
             dispatch({ type: "events", value: data });
           }
           if (data.length > 0) {
-            const d = dayjs(data[data.length - 1].date).utc(true);
+            const d = dayjs(data[data.length - 1].date);
             dispatch({ type: "beforeDate", value: d.toDate() });
           }
           dispatch({ type: "error", value: "" });
