@@ -6,21 +6,37 @@ import { WLink } from "../Workspace/WLink";
 export const Segment: React.FC<{ domain: string }> = ({ domain }) => {
   return (
     <div className="py-8 px-6 flex justify-center">
-      <div className="prose max-w-6xl w-full ">
+      <div className="prose max-w-6xl w-full">
         <h1>If you're already using Segment</h1>
         <p>
           If you're using Segment to collect data from your website, you can use our Segment integration to send data to{" "}
           {branding.productName}
         </p>
-        <h2>For analytics.js</h2>
+        <h2>For analytics.js (Server-side usage)</h2>
         <CodeBlock lang="js">
           {[
-            `const { Analytics } = require("analytics");`,
-            `const segmentPlugin = require('@analytics/segment')`,
+            `import Analytics from 'analytics'`,
+            `import segmentPlugin from '@analytics/segment'`,
             `const analytics = Analytics({`,
             `   plugins: [`,
             `      segmentPlugin({`,
             `         host: '${domain}/sg',`,
+            `         writeKey: '123-xyz'`,
+            `      })`,
+            `   ]`,
+            `})`,
+            `analytics.page();`,
+          ].join("\n")}
+        </CodeBlock>
+        <h2>For analytics.js (Browser usage)</h2>
+        <CodeBlock lang="js">
+          {[
+            `import Analytics from 'analytics'`,
+            `import segmentPlugin from '@analytics/segment'`,
+            `const analytics = Analytics({`,
+            `   plugins: [`,
+            `      segmentPlugin({`,
+            `         customScriptSrc: '${domain}/p.js',`,
             `         writeKey: '123-xyz'`,
             `      })`,
             `   ]`,
