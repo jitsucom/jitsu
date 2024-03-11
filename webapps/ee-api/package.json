@@ -25,7 +25,7 @@
     "jsonwebtoken": "^9.0.2",
     "juava": "workspace:*",
     "lodash": "^4.17.21",
-    "next": "^13.5.4",
+    "next": "^13.5.6",
     "node-fetch-commonjs": "^3.2.4",
     "pg": "^8.11.3",
     "react": "18.2.0",

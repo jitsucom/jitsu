@@ -1,4 +1,4 @@
-import { getLog } from "juava";
+import { getLog, requireDefined } from "juava";
 import { IngestMessage } from "@jitsu/protocols/async-request";
 import { Metrics } from "../lib/metrics";
 import { GeoResolver } from "../lib/maxmind";
@@ -11,6 +11,7 @@ import * as jsondiffpatch from "jsondiffpatch";
 
 import Prometheus from "prom-client";
 import { EventsStore } from "@jitsu/core-functions";
+import { connectionsStore, functionsStore } from "../lib/entity-store";
 
 const jsondiffpatchInstance = jsondiffpatch.create();
 const log = getLog("functions_handler");
@@ -26,6 +27,8 @@ export const FunctionsHandler =
     const message = req.body as IngestMessage;
     //log.atInfo().log(`Functions handler. Message ID: ${message.messageId} connectionId: ${message.connectionId}`);
     const result = await rotorMessageHandler(message, {
+      connectionStore: requireDefined(connectionsStore.getCurrent(), "Connection store is not initialized"),
+      functionsStore: requireDefined(functionsStore.getCurrent(), "Functions store is not initialized"),
       eventsLogger,
       metrics,
       geoResolver,
@@ -51,21 +54,20 @@ export const FunctionsHandlerMulti =
         return rotorMessageHandler(
           message,
           {
+            connectionStore: requireDefined(connectionsStore.getCurrent(), "Connection store is not initialized"),
+            functionsStore: requireDefined(functionsStore.getCurrent(), "Functions store is not initialized"),
             eventsLogger,
             metrics,
             geoResolver,
           },
+          "all",
           { [CONNECTION_IDS_HEADER]: id },
-          undefined,
           0,
           functionsFetchTimeout
         );
       });
     await Promise.all(prom)
       .then(results => {
-        connectionIds.forEach((id, i) => {
-          handlerMetric.inc({ connectionId: id, status: "success" }, 1);
-        });
         const events = Object.fromEntries(
           results.map(result => [result?.connectionId, mapDiff(message, result?.events)])
         );

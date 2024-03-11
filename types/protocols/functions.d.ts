@@ -53,13 +53,11 @@ export type AnyProps = Record<string, any>;
 
 export type FetchResponse = Response;
 
-export type FetchType = (url: string, opts?: FetchOpts, logToRedis?: boolean) => Promise<FetchResponse>;
-
-// export type FetchType = (
-//   url: string,
-//   opts?: FetchOpts,
-//   extra?: { log: boolean; udfId?: string }
-// ) => Promise<FetchResponse>;
+export type FetchType = (
+  url: string,
+  opts?: FetchOpts,
+  extra?: { log: boolean; udfId?: string }
+) => Promise<FetchResponse>;
 
 export type FetchOpts = {
   method?: string;

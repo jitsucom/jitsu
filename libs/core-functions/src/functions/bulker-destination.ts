@@ -288,7 +288,7 @@ const BulkerDestination: JitsuFunction<AnalyticsServerEvent, BulkerDestinationCo
           headers: { Authorization: `Bearer ${authToken}`, metricsMeta: JSON.stringify(metricsMeta) },
           body: JSON.stringify(event),
         },
-        false
+        { log: false }
       );
       if (!res.ok) {
         throw new HTTPError(`HTTP Error: ${res.status} ${res.statusText}`, res.status, await res.text());

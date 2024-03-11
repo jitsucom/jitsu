@@ -14,7 +14,7 @@
     "build": "pnpm compile && webpack && pnpm bundle_extenals",
     "start": "dotenv -e ../../.env.local -- node dist/main.js",
     "rotor:dev": "dotenv -e ../../.env.local -- nodemon --watch \"src/**\" --ext \"ts,json,tsx\" --exec \"ts-node src/index.ts\"",
-    "test": "tsc -p . &&  jest --verbose"
+    "test": "tsc -p . && BULKER_URL=dummy BULKER_AUTH_KEY=dummy jest --verbose"
   },
   "dependencies": {
     "@amplitude/ua-parser-js": "^0.7.33",
@@ -74,6 +74,8 @@
     "declaration-bundler-webpack-plugin": "^1.0.3",
     "dotenv-cli": "^6.0.0",
     "jest": "^29.7.0",
+    "@jest/globals": "^29.7.0",
+    "@jest/types": "^29.6.3",
     "lodash": "^4.17.21",
     "node-loader": "^2.0.0",
     "nodemon": "^2.0.20",
