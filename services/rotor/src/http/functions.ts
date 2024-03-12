@@ -105,6 +105,9 @@ function mapDiff(message: IngestMessage, newEvents?: AnyEvent[]) {
 
     const originalSize = JSON.stringify(message.httpPayload).length;
     const diff = jsondiffpatchInstance.diff(message.httpPayload, e);
+    if (!diff) {
+      return "same";
+    }
     const diffSize = JSON.stringify(diff).length;
     if (diffSize > originalSize) {
       return e;
