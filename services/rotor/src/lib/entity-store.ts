@@ -1,29 +1,32 @@
 import { createInMemoryStore } from "./inmem-store";
 import { getLog } from "juava";
+import { EnrichedConnectionConfig, FunctionConfig } from "./config-types";
 
 const log = getLog("entity-store");
 
-export type EntityStore = {
-  getObject: (id: string) => any;
+export type EntityStore<T> = {
+  getObject: (id: string) => T;
   toJSON: () => string;
   enabled: boolean;
+  lastModified?: Date;
 };
 
-const DisabledStore: EntityStore = {
+const DisabledStore: EntityStore<any> = {
   enabled: false,
   getObject: () => undefined,
   toJSON: () => "disabled",
 };
 
-const EmptyStore: EntityStore = {
+const EmptyStore: EntityStore<any> = {
   enabled: true,
   getObject: () => undefined,
   toJSON: () => "",
 };
 
-const refreshFunc =
-  (storeId: string) =>
-  async (ifModifiedSince?: Date): Promise<{ lastModified: Date | undefined; store: EntityStore } | "not_modified"> => {
+function refreshFunc<T>(storeId: string) {
+  return async (
+    ifModifiedSince?: Date
+  ): Promise<{ lastModified: Date | undefined; store: EntityStore<T> } | "not_modified"> => {
     const repositoryBase = process.env.REPOSITORY_BASE_URL;
     if (repositoryBase) {
       const objs: Record<string, any> = {};
@@ -68,6 +71,7 @@ const refreshFunc =
             toJSON: () => {
               return JSON.stringify(objs);
             },
+            lastModified: lastModified,
           },
           lastModified: lastModified,
         };
@@ -78,15 +82,16 @@ const refreshFunc =
       return { store: DisabledStore, lastModified: new Date() };
     }
   };
+}
 
-const storeFunc = (storeId: string) =>
-  createInMemoryStore({
+function storeFunc<T>(storeId: string) {
+  return createInMemoryStore({
     refreshIntervalMillis: process.env.REPOSITORY_REFRESH_PERIOD_SEC
       ? parseInt(process.env.REPOSITORY_REFRESH_PERIOD_SEC) * 1000
       : 2000,
     name: `${storeId}-store`,
     localDir: process.env.REPOSITORY_CACHE_DIR,
-    serializer: (store: EntityStore) => (store.enabled ? store.toJSON() : ""),
+    serializer: (store: EntityStore<T>) => (store.enabled ? store.toJSON() : ""),
     deserializer: (serialized: string) => {
       if (serialized) {
         if (serialized === "disabled") {
@@ -108,6 +113,7 @@ const storeFunc = (storeId: string) =>
     },
     refresh: refreshFunc(storeId),
   });
+}
 
-export const functionsStore = storeFunc("functions");
-export const connectionsStore = storeFunc("rotor-connections");
+export const functionsStore = storeFunc<FunctionConfig>("functions");
+export const connectionsStore = storeFunc<EnrichedConnectionConfig>("rotor-connections");

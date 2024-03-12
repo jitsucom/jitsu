@@ -1,4 +1,4 @@
-import { getLog } from "juava";
+import { getLog, requireDefined } from "juava";
 import { connectToKafka, deatLetterTopic, KafkaCredentials, retryTopic } from "./kafka-config";
 import Prometheus from "prom-client";
 import PQueue from "p-queue";
@@ -8,12 +8,13 @@ import utc from "dayjs/plugin/utc";
 dayjs.extend(utc);
 import { getRetryPolicy, retryBackOffTime, retryLogMessage } from "./retries";
 import { createMetrics, Metrics } from "./metrics";
-import { FuncChainResult } from "./functions-chain";
+import { FuncChainFilter, FuncChainResult } from "./functions-chain";
 import type { Admin, Consumer, Producer, KafkaMessage } from "kafkajs";
 import { CompressionTypes } from "kafkajs";
 import { GeoResolver } from "./maxmind";
-import { MessageHandlerContext } from "./message-handler";
+import { functionFilter, MessageHandlerContext } from "./message-handler";
 import { EventsStore } from "@jitsu/core-functions";
+import { connectionsStore, functionsStore } from "./entity-store";
 
 const log = getLog("kafka-rotor");
 
@@ -34,8 +35,9 @@ export type KafkaRotorConfig = {
   handle: (
     message: string,
     rotorContext: MessageHandlerContext,
+    runFuncs: FuncChainFilter,
     headers?,
-    functionsFilter?: (id: string) => boolean,
+    retriesEnabled?: boolean,
     retries?: number
   ) => Promise<FuncChainResult | undefined>;
 };
@@ -135,25 +137,18 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
           handle(
             value.toString(),
             {
+              connectionStore: requireDefined(connectionsStore.getCurrent(), "Connection store is not initialized"),
+              functionsStore: requireDefined(functionsStore.getCurrent(), "Functions store is not initialized"),
               eventsLogger,
               metrics,
               geoResolver,
             },
+            functionFilter(retriedFunctionId),
             {
               ...headers,
               [CONNECTION_IDS_HEADER]: connectionId,
             },
-            retriedFunctionId
-              ? id => {
-                  if (retriedFunctionId.startsWith("udf.")) {
-                    return id.startsWith("udf.") || id.startsWith("builtin.destination.");
-                  } else if (retriedFunctionId.startsWith("builtin.destination.")) {
-                    return id.startsWith("builtin.destination.");
-                  } else {
-                    return true;
-                  }
-                }
-              : undefined,
+            true,
             retries
           )
             .then(() => messagesProcessed.inc({ topic, partition }))

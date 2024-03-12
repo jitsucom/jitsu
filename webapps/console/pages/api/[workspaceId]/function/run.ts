@@ -14,7 +14,9 @@ export const config = {
 };
 
 const resultType = z.object({
-  error: z.object({ name: z.string(), message: z.string(), stack: z.string().optional() }).optional(),
+  error: z
+    .object({ name: z.string(), message: z.string(), stack: z.string().optional(), retryPolicy: z.any().optional() })
+    .optional(),
   dropped: z.boolean().optional(),
   result: z.any().nullish(),
   store: z.record(z.any()),

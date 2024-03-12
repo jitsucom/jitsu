@@ -214,7 +214,7 @@ export const createMultiStore = (newStore: Store, oldStore: Store): Store => {
   };
 };
 
-export const createMemoryStore = (store: any): Store => ({
+export const createMemoryStore = (store: any): TTLStore => ({
   get: async (key: string) => {
     const val = store[key];
     if (val?.expireAt) {
@@ -246,6 +246,21 @@ export const createMemoryStore = (store: any): Store => ({
       return -2;
     }
     return Math.floor(diff);
+  },
+  getWithTTL: async (key: string) => {
+    const val = store[key];
+    if (!val) {
+      return undefined;
+    }
+    const diff = (val.expireAt - new Date().getTime()) / 1000;
+    if (diff < 0) {
+      delete store[key];
+      return undefined;
+    }
+    return {
+      value: val.obj,
+      ttl: Math.floor(diff),
+    };
   },
 });
 

@@ -25,6 +25,16 @@ export type StreamWithDestinations = {
   asynchronousDestinations: ShortDestinationConfig[];
 };
 
+export type FunctionConfig = {
+  id: string;
+  createdAt: Date;
+  updatedAt: Date;
+  workspaceId: string;
+  name: string;
+  code: string;
+  codeHash: string;
+};
+
 export type EnrichedConnectionConfig = {
   id: string;
   workspaceId: string;

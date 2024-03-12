@@ -14,8 +14,8 @@ import { RetryErrorName, DropRetryErrorName } from "@jitsu/functions-lib";
 import { getLog, newError, requireDefined, stopwatch } from "juava";
 import { retryObject } from "./retries";
 import NodeCache from "node-cache";
-import pick from "lodash/pick";
-import { EnrichedConnectionConfig } from "./config-types";
+import isEqual from "lodash/isEqual";
+import { EnrichedConnectionConfig, FunctionConfig } from "./config-types";
 import { EntityStore } from "./entity-store";
 
 export type Func = {
@@ -23,9 +23,11 @@ export type Func = {
   exec: JitsuFunction;
   config: any;
   enableSystemContext: boolean;
+  hash?: string;
 };
 
 export type FuncChain = Func[];
+export type FuncChainFilter = "all" | "udf-n-dst" | "dst-only";
 
 const log = getLog("functions-chain");
 const bulkerBase = requireDefined(process.env.BULKER_URL, "env BULKER_URL is not defined");
@@ -93,12 +95,7 @@ const getCachedOrLoad = (cache: NodeCache, key: string, loader: (key: string) =>
   return loaded;
 };
 
-export function buildFunctionChain(
-  connection: EnrichedConnectionConfig,
-  func: EntityStore,
-  functionsFilter?: (id: string) => boolean,
-  fetchTimeoutMs: number = 5000
-) {
+export function buildFunctionChain(connection: EnrichedConnectionConfig, funcStore: EntityStore<FunctionConfig>) {
   let mainFunction;
   const connectionData = connection.options as any;
   if (connection.usesBulker) {
@@ -124,97 +121,87 @@ export function buildFunctionChain(
       );
     }
   }
-  const functions = functionsFilter
-    ? [...(connectionData.functions || []), mainFunction].filter(f => functionsFilter(f.functionId))
-    : [...(connectionData.functions || []), mainFunction];
-
-  const udfFuncChain: FuncChain = functions
+  const udfFuncs: FunctionConfig[] = (connectionData?.functions || [])
     .filter(f => f.functionId.startsWith("udf."))
     .map(f => {
       const functionId = f.functionId.substring(4);
-      const userFunctionObj = func.getObject(functionId);
+      const userFunctionObj = funcStore.getObject(functionId);
       if (!userFunctionObj || userFunctionObj.workspaceId !== connection.workspaceId) {
         return {
-          id: f.functionId as string,
-          config: {},
-          exec: async (event, ctx) => {
-            throw newError(`Function ${functionId} not found in workspace: ${connection.workspaceId}`);
-          },
-          enableSystemContext: false,
+          id: functionId as string,
+          code: `export default async function (event,ctx) {
+            throw newError(\`Function ${functionId} not found in workspace: ${connection.workspaceId}\`);
+          }`,
+          codeHash: "0",
         };
       }
-      const code = userFunctionObj.code;
-      const codeHash = userFunctionObj.codeHash;
-      let cached = getCachedOrLoad(udfCache, functionId, key => {
-        return { wrapper: UDFWrapper(key, userFunctionObj.name, code), hash: codeHash };
-      });
-      if (cached.hash !== codeHash) {
-        log.atInfo().log(`UDF ${functionId} changed (hash ${codeHash} != ${cached.hash}). Reloading`);
-        cached = { wrapper: UDFWrapper(functionId, userFunctionObj.name, code), hash: codeHash };
-        udfCache.set(functionId, cached);
-      }
-      udfCache.ttl(functionId, udfTTL);
-      return {
-        id: f.functionId as string,
-        config: f.functionOptions as any,
-        exec: async (event, ctx) => {
-          try {
-            return await cached.wrapper.userFunction(event, ctx);
-          } catch (e: any) {
-            if (e?.message === "Isolate is disposed") {
-              log.atError().log(`UDF ${functionId} VM was disposed. Reloading`);
-              cached = { wrapper: UDFWrapper(functionId, userFunctionObj.name, code), hash: codeHash };
-              udfCache.set(functionId, cached);
-              return await cached.wrapper.userFunction(event, ctx);
-            } else {
-              throw e;
-            }
-          }
-        },
-        enableSystemContext: false,
-      };
+      return userFunctionObj;
     });
+  let cached: any;
+  let hash: any[];
+  if (udfFuncs.length > 0) {
+    hash = udfFuncs.map(f => f.codeHash);
+    cached = udfCache.get(connection.id);
+    if (!cached || !isEqual(cached?.hash, hash)) {
+      log.atInfo().log(`UDF for connection ${connection.id} changed (hash ${hash} != ${cached?.hash}). Reloading`);
+      const wrapper = UDFWrapper(
+        connection.id,
+        udfFuncs.map(f => ({ id: f.id, name: f.name, code: f.code }))
+      );
+      const oldWrapper = cached?.wrapper;
+      if (oldWrapper) {
+        setTimeout(() => {
+          oldWrapper.close();
+        }, 10000);
+      }
+      cached = { wrapper, hash };
+      udfCache.set(connection.id, cached);
+    }
+    udfCache.ttl(connection.id, udfTTL);
+  }
   const aggregatedFunctions: any[] = [
-    ...functions.filter(f => f.functionId.startsWith("builtin.transformation.")),
-    ...(udfFuncChain.length > 0 ? [{ functionId: "udf.PIPELINE" }] : []),
-    ...functions.filter(f => f.functionId.startsWith("builtin.destination.")),
+    ...(connectionData.functions || []).filter(f => f.functionId.startsWith("builtin.transformation.")),
+    ...(udfFuncs.length > 0 ? [{ functionId: "udf.PIPELINE" }] : []),
+    mainFunction,
   ];
 
   const udfPipelineFunc = async (event: AnyEvent, ctx: FullContext) => {
-    const chainRes = await runChain(
-      udfFuncChain,
-      event,
-      ctx["$system"].eventsStore,
-      ctx.store,
-      pick(ctx, ["geo", "ua", "headers", "source", "destination", "connection", "retries"]),
-      undefined,
-      fetchTimeoutMs
-    );
-    checkError(chainRes);
-    return chainRes.events;
+    try {
+      return await cached.wrapper.userFunction(event, ctx);
+    } catch (e: any) {
+      if (e?.message === "Isolate is disposed") {
+        log.atError().log(`UDF for con:${connection.id} VM was disposed. Reloading`);
+        const wrapper = UDFWrapper(
+          connection.id,
+          udfFuncs.map(f => ({ id: f.id, name: f.name, code: f.code }))
+        );
+        udfCache.set(connection.id, { wrapper, hash });
+        return await cached.wrapper.userFunction(event, ctx);
+      } else {
+        throw e;
+      }
+    }
   };
 
-  const funcChain: FuncChain = aggregatedFunctions
-    .filter(f => (functionsFilter ? functionsFilter(f.functionId) : true))
-    .map(f => {
-      if (f.functionId.startsWith("builtin.")) {
-        return {
-          id: f.functionId as string,
-          config: f.functionOptions as any,
-          exec: requireDefined(getBuiltinFunction(f.functionId), `Unknown function ${f.functionId}`) as JitsuFunction,
-          enableSystemContext: true,
-        };
-      } else if (f.functionId === "udf.PIPELINE") {
-        return {
-          id: f.functionId as string,
-          config: {},
-          exec: udfPipelineFunc,
-          enableSystemContext: true,
-        };
-      } else {
-        throw newError(`Function of unknown type: ${f.functionId}`);
-      }
-    });
+  const funcChain: FuncChain = aggregatedFunctions.map(f => {
+    if (f.functionId.startsWith("builtin.")) {
+      return {
+        id: f.functionId as string,
+        config: f.functionOptions as any,
+        exec: requireDefined(getBuiltinFunction(f.functionId), `Unknown function ${f.functionId}`) as JitsuFunction,
+        enableSystemContext: true,
+      };
+    } else if (f.functionId === "udf.PIPELINE") {
+      return {
+        id: f.functionId as string,
+        config: {},
+        exec: udfPipelineFunc,
+        enableSystemContext: false,
+      };
+    } else {
+      throw newError(`Function of unknown type: ${f.functionId}`);
+    }
+  });
   return funcChain;
 }
 
@@ -224,18 +211,28 @@ export async function runChain(
   eventsStore: EventsStore,
   store: Store,
   eventContext: EventContext,
+  runFuncs: FuncChainFilter = "all",
+  retriesEnabled: boolean = true,
   systemContext?: SystemContext,
   fetchTimeoutMs: number = 5000
 ): Promise<FuncChainResult> {
   const execLog: FunctionExecLog = [];
   let events = [event];
   for (const f of chain) {
+    switch (runFuncs) {
+      case "udf-n-dst":
+        if (f.id !== "udf.PIPELINE" && !f.id.startsWith("builtin.destination.")) {
+          continue;
+        }
+        break;
+      case "dst-only":
+        if (!f.id.startsWith("builtin.destination.")) {
+          continue;
+        }
+        break;
+    }
     const newEvents: AnyEvent[] = [];
     for (let i = 0; i < events.length; i++) {
-      const isUDFChain = f.id === "udf.PIPELINE";
-      if (!isUDFChain) {
-        functionsInFlight.inc({ connectionId: eventContext.connection?.id ?? "", functionId: f.id });
-      }
       const event = events[i];
       let result: FuncReturn = undefined;
       const sw = stopwatch();
@@ -259,9 +256,7 @@ export async function runChain(
       try {
         result = await f.exec(event, funcCtx);
         const ms = sw.elapsedMs();
-        if (!isUDFChain) {
-          functionsTime.observe({ connectionId: eventContext.connection?.id ?? "", functionId: f.id }, ms);
-        }
+        functionsTime.observe({ connectionId: eventContext.connection?.id ?? "", functionId: f.id }, ms);
         // if (ms > 100) {
         //   console.log(`Function ${f.id} took ${ms}ms to execute`);
         // }
@@ -285,30 +280,29 @@ export async function runChain(
           ms,
           dropped: isDropResult(result),
         });
-        if (isUDFChain) {
-          if (err.name !== DropRetryErrorName && err.event) {
-            // if udf pipeline has multiple functions and failed in the middle w/o drop error
-            // pass partial result of pipeline to the destination function
-            newEvents.push(err.event);
-            continue;
-          }
+        functionsTime.observe({ connectionId: eventContext.connection?.id ?? "", functionId: f.id }, ms);
+        const args = [err?.name, err?.message];
+        const r = retriesEnabled ? retryObject(err, eventContext.retries ?? 0) : undefined;
+        if (r) {
+          args.push(r);
+        }
+        if (err.functionId) {
+          args.push({ udfId: err.functionId });
+        }
+        if (r?.retry?.left ?? 0 > 0) {
+          funcCtx.log.warn(`Function execution failed`, ...args);
         } else {
-          functionsTime.observe({ connectionId: eventContext.connection?.id ?? "", functionId: f.id }, ms);
-          const args = [err?.name, err?.message];
-          const r = retryObject(err, eventContext.retries ?? 0);
-          if (r) {
-            args.push(r);
-          }
-          if (r?.retry?.left ?? 0 > 0) {
-            funcCtx.log.warn(`Function execution failed`, ...args);
-          } else {
-            funcCtx.log.error(`Function execution failed`, ...args);
+          funcCtx.log.error(`Function execution failed`, ...args);
+        }
+        if (f.id === "udf.PIPELINE") {
+          if (err.name !== DropRetryErrorName && err.event) {
+            // if udf pipeline failed  w/o drop error pass partial result of pipeline to the destination function
+            newEvents.push(...(Array.isArray(err.event) ? err.event : [err.event]));
+            continue;
           }
         }
       } finally {
-        if (!isUDFChain) {
-          functionsInFlight.dec({ connectionId: eventContext.connection?.id ?? "", functionId: f.id });
-        }
+        functionsInFlight.dec({ connectionId: eventContext.connection?.id ?? "", functionId: f.id });
       }
       if (!isDropResult(result)) {
         if (result) {

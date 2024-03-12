@@ -44,8 +44,7 @@ const udf = async (event, { log, fetch, props, store, geo, ...meta }) => {
 export default udf;
 `;
 
-    wrapper = UDFWrapper("udf", "UDF Wrapper test", udfCode);
-    console.log("wrapper", wrapper.meta);
+    wrapper = UDFWrapper("udf", [{ id: "udf", name: "UDF Wrapper test", code: udfCode }]);
     const res = await UDFTestRun({
       functionId: "udf",
       functionName: "UDF Wrapper test",

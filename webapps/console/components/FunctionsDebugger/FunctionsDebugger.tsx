@@ -201,7 +201,7 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
         body,
       });
       if (res.error) {
-        setResult({ ...res.meta, ...res.error });
+        setResult(res.error);
         setResultType("error");
         setLogs([
           ...res.logs,

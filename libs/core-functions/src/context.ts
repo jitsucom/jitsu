@@ -50,13 +50,14 @@ export function createFullContext(
   return {
     props: props,
     store: store,
-    async fetch(url: string, init?: FetchOpts, logToRedis: boolean = true): Promise<Response> {
+    async fetch(url: string, init?: FetchOpts, extra?: { log: boolean; udfId?: string }): Promise<Response> {
       //capture execution time
       const sw = stopwatch();
+      const logToRedis = typeof extra?.log === "boolean" ? extra.log : true;
       const baseInfo =
         debugEnabled && logToRedis
           ? {
-              functionId: id,
+              functionId: extra?.udfId || id,
               functionType: type,
               type: "http-request",
               url: url,
@@ -127,10 +128,15 @@ export function createFullContext(
     log: {
       debug: (message, ...args: any[]) => {
         if (debugEnabled) {
-          log.atDebug().log(`[CON:${connectionId}]: [f:${id}][DEBUG]: ${message}`, ...args);
+          const opts = args?.length > 0 ? args[args.length - 1] : undefined;
+          if (typeof opts === "object" && opts.udfId) {
+            args.pop();
+          }
+          const fid = opts?.udfId || id;
+          log.atDebug().log(`[CON:${connectionId}]: [f:${fid}][DEBUG]: ${message}`, ...args);
           eventsStore.log(connectionId, "debug", {
             type: "log-debug",
-            functionId: id,
+            functionId: fid,
             functionType: type,
             message: {
               text: message,
@@ -140,10 +146,15 @@ export function createFullContext(
         }
       },
       warn: (message, ...args: any[]) => {
-        log.atWarn().log(`[CON:${connectionId}]: [f:${id}][WARN]: ${message}`, ...args);
+        const opts = args?.length > 0 ? args[args.length - 1] : undefined;
+        if (typeof opts === "object" && opts.udfId) {
+          args.pop();
+        }
+        const fid = opts?.udfId || id;
+        log.atWarn().log(`[CON:${connectionId}]: [f:${fid}][WARN]: ${message}`, ...args);
         eventsStore.log(connectionId, "warn", {
           type: "log-warn",
-          functionId: id,
+          functionId: fid,
           functionType: type,
           message: {
             text: message,
@@ -152,30 +163,40 @@ export function createFullContext(
         });
       },
       error: (message, ...args: any[]) => {
+        const opts = args?.length > 0 ? args[args.length - 1] : undefined;
+        if (typeof opts === "object" && opts.udfId) {
+          args.pop();
+        }
+        const fid = opts?.udfId || id;
         eventsStore.log(connectionId, "error", {
           type: "log-error",
-          functionId: id,
+          functionId: fid,
           functionType: type,
           message: {
             text: message,
             args,
           },
         });
-        const l = log.atWarn();
-        if (args.length > 0) {
+        const l = log.atError();
+        if (args?.length > 0) {
           const last = args[args.length - 1];
           if (last.stack) {
             l.withCause(last);
             args = args.slice(0, args.length - 1);
           }
         }
-        l.log(`[CON:${connectionId}]: [f:${id}][ERROR]: ${message}`, ...args);
+        l.log(`[CON:${connectionId}]: [f:${fid}][ERROR]: ${message}`, ...args);
       },
       info: (message, ...args: any[]) => {
-        log.atInfo().log(`[CON:${connectionId}]: [f:${id}][INFO]: ${message}`, ...args);
+        const opts = args?.length > 0 ? args[args.length - 1] : undefined;
+        if (typeof opts === "object" && opts.udfId) {
+          args.pop();
+        }
+        const fid = opts?.udfId || id;
+        log.atInfo().log(`[CON:${connectionId}]: [f:${fid}][INFO]: ${message}`, ...args);
         eventsStore.log(connectionId, "info", {
           type: "log-info",
-          functionId: id,
+          functionId: fid,
           functionType: type,
           message: {
             text: message,

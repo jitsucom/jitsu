@@ -1,10 +1,10 @@
-import { getLog, LogLevel } from "juava";
-import { Isolate, ExternalCopy, Callback, Reference } from "isolated-vm";
+import { getLog, LogLevel, sanitize, stopwatch } from "juava";
+import { Isolate, ExternalCopy, Callback, Reference, Module } from "isolated-vm";
 import { EventContext, FetchOpts, FuncReturn, JitsuFunction, Store } from "@jitsu/protocols/functions";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { createFullContext, EventsStore } from "../context";
 import { createMemoryStore, isDropResult, memoryStoreDump } from "../index";
-import { functionsLibCode, wrapperCode } from "./lib/udf-wrapper-code";
+import { functionsLibCode, chainWrapperCode } from "./lib/udf-wrapper-code";
 import { parseUserAgent } from "./lib/ua";
 
 const log = getLog("udf-wrapper");
@@ -19,17 +19,21 @@ export type logType = {
 
 export type UDFWrapperResult = {
   userFunction: JitsuFunction;
-  meta: any;
   close: () => void;
 };
 
-export const UDFWrapper = (functionId, name, functionCode: string): UDFWrapperResult => {
-  log.atInfo().log(`[${functionId}] Compiling UDF function '${name}'`);
-  const startMs = new Date().getTime();
+export type UDFFunction = {
+  id: string;
+  name: string;
+  code: string;
+};
+
+export const UDFWrapper = (connectionId: string, functions: UDFFunction[]): UDFWrapperResult => {
+  log.atInfo().log(`[${connectionId}] Compiling ${functions.length} UDF functions`);
+  const sw = stopwatch();
   let isolate: Isolate;
   try {
-    //const wrappedCode = `let exports = {}\n${functionCode}\n${wrapperJs}`;
-    isolate = new Isolate({ memoryLimit: 64 });
+    isolate = new Isolate({ memoryLimit: 128 });
     const context = isolate.createContextSync();
     const jail = context.global;
 
@@ -37,154 +41,182 @@ export const UDFWrapper = (functionId, name, functionCode: string): UDFWrapperRe
     // because otherwise 'global' would actually be a Reference{} object in the new isolate.
     jail.setSync("global", jail.derefInto());
 
-    const functions = isolate.compileModuleSync(functionsLibCode, {
+    const functionsLib = isolate.compileModuleSync(functionsLibCode, {
       filename: "functions-lib.js",
     });
-    functions.instantiateSync(context, (specifier: string) => {
+    functionsLib.instantiateSync(context, (specifier: string) => {
       throw new Error(`import is not allowed: ${specifier}`);
     });
+    const udfModules: Record<string, Module> = {};
+    for (let i = 0; i < functions.length; i++) {
+      const sw = stopwatch();
+      const f = functions[i];
+      log.atDebug().log(`[CON:${connectionId}]: [f:${f.id}] Compiling UDF function '${f.name}'`);
+      const moduleName = sanitize(f.name, "_") + "_" + f.id;
+      const udf = isolate.compileModuleSync(f.code, { filename: moduleName + ".js" });
+      udf.instantiateSync(context, (specifier: string) => {
+        if (specifier === "@jitsu/functions-lib") {
+          return functionsLib;
+        }
+        throw new Error(`import is not allowed: ${specifier}`);
+      });
+      udfModules[moduleName] = udf;
+      log.atDebug().log(`[${connectionId}] [f:${f.id}] UDF function '${f.name}' compiled in ${sw.elapsedPretty()}`);
+    }
 
-    const udf = isolate.compileModuleSync(functionCode, { filename: name + ".js" });
-    udf.instantiateSync(context, (specifier: string) => {
-      if (specifier === "@jitsu/functions-lib") {
-        return functions;
-      }
-      throw new Error(`import is not allowed: ${specifier}`);
-    });
-
-    const wrapper = isolate.compileModuleSync(wrapperCode, {
+    let code = chainWrapperCode.replace(
+      "//** @UDF_FUNCTIONS_IMPORT **//",
+      Object.keys(udfModules)
+        .map(m => `import * as ${m} from "${m}";\n`)
+        .join("")
+    );
+    code = code.replace(
+      "//** @UDF_FUNCTIONS_CHAIN **//",
+      "chain = [" +
+        Object.keys(udfModules)
+          .map(m => {
+            const id = m.split("_").pop();
+            return `{id: "${id}", meta: ${m}.config, f: wrappedUserFunction("${id}", ${m}.default)}`;
+          })
+          .join(",") +
+        "];"
+    );
+    const wrapper = isolate.compileModuleSync(code, {
       filename: "jitsu-wrapper.js",
     });
     wrapper.instantiateSync(context, (specifier: string) => {
-      if (specifier === "udf") {
+      const udf = udfModules[specifier];
+      if (udf) {
+        //log.atInfo().log(`[${connectionId}] UDF function '${specifier}' is imported`);
         return udf;
       }
       if (specifier === "@jitsu/functions-lib") {
-        return functions;
+        return functionsLib;
       }
       throw new Error(`import is not allowed: ${specifier}`);
     });
     wrapper.evaluateSync();
-    const exported = wrapper.namespace;
-
-    const ref = exported.getSync("wrappedUserFunction", {
-      reference: true,
-    });
-    if (!ref || ref.typeof !== "function") {
-      throw new Error("Function not found. Please export default function.");
-    }
-    const meta = exported.getSync("meta", {
-      copy: true,
-    });
-    const userFunction: JitsuFunction = async (event, ctx) => {
-      if (isolate.isDisposed) {
-        throw new Error("Isolate is disposed");
-      }
-      try {
-        const res = await ref.apply(
-          undefined,
-          [
-            new ExternalCopy(event),
-            new ExternalCopy({
-              ...ctx,
-              log: {
-                info: new Callback(ctx.log.info),
-                warn: new Callback(ctx.log.warn),
-                debug: new Callback(ctx.log.debug),
-                error: new Callback(ctx.log.error),
-              },
-              fetch: new Reference(async (url: string, opts?: FetchOpts) => {
-                const res = await ctx.fetch(url, opts);
-                const headers: any = {};
-                res.headers.forEach((v, k) => {
-                  headers[k] = v;
-                });
-                const text = await res.text();
-                const j = {
-                  status: res.status,
-                  statusText: res.statusText,
-                  type: res.type,
-                  redirected: res.redirected,
-                  body: text,
-                  bodyUsed: true,
-                  url: res.url,
-                  ok: res.ok,
-                  headers: headers,
-                };
-                return JSON.stringify(j);
-              }),
-              store: {
-                get: new Reference(async (key: string) => {
-                  const res = await ctx.store.get(key);
-                  return JSON.stringify(res);
-                }),
-                set: new Callback(ctx.store.set, { ignored: true }),
-                del: new Callback(ctx.store.del, { ignored: true }),
-                ttl: new Reference(async (key: string) => {
-                  return await ctx.store.ttl(key);
-                }),
-              },
-            }),
-          ],
-          {
-            result: { promise: true },
-          }
-        );
-        switch (typeof res) {
-          case "undefined":
-            return undefined;
-          case "string":
-          case "number":
-          case "boolean":
-            return res;
-          default:
-            return (res as Reference).copy();
-        }
-      } catch (e: any) {
-        if (isolate.isDisposed) {
-          throw new Error("Isolate is disposed");
-        }
-        if (meta) {
-          e.retryPolicy = meta.retryPolicy;
-        }
-        //log.atInfo().log(`ERROR name: ${e.name} message: ${e.message} json: ${e.stack}`);
-        throw e;
-      }
-    };
-    log.atInfo().log(`[${functionId}] udf compile time ${new Date().getTime() - startMs}ms`);
-    return {
-      userFunction,
-      meta,
-      close: () => {
-        try {
-          if (isolate) {
-            isolate.dispose();
-            log.atInfo().log(`[${functionId}] isolate closed.`);
-          }
-        } catch (e) {
-          log.atError().log(`[${functionId}] Error while closing isolate: ${e}`);
-        }
-      },
-    };
+    const wrapperFunc = wrap(connectionId, isolate, wrapper);
+    log.atInfo().log(`[${connectionId}] total UDF compile time: ${sw.elapsedPretty()}`);
+    return wrapperFunc;
   } catch (e) {
     return {
       userFunction: () => {
         throw new Error(`Cannot compile function: ${e}`);
       },
-      meta: {},
       close: () => {
         try {
           if (isolate) {
             isolate.dispose();
-            log.atInfo().log(`[${functionId}] isolate closed`);
+            log.atInfo().log(`[${connectionId}] isolate closed`);
           }
         } catch (e) {
-          log.atError().log(`[${functionId}] Error while closing isolate: ${e}`);
+          log.atError().log(`[${connectionId}] Error while closing isolate: ${e}`);
         }
       },
     };
   }
 };
+
+function wrap(connectionId: string, isolate: Isolate, wrapper: Module) {
+  const exported = wrapper.namespace;
+
+  const ref = exported.getSync("wrappedFunctionChain", {
+    reference: true,
+  });
+  if (!ref || ref.typeof !== "function") {
+    throw new Error("Function not found. Please export wrappedFunctionChain function.");
+  }
+  const userFunction: JitsuFunction = async (event, ctx) => {
+    if (isolate.isDisposed) {
+      throw new Error("Isolate is disposed");
+    }
+    try {
+      const res = await ref.apply(
+        undefined,
+        [
+          new ExternalCopy(event),
+          new ExternalCopy({
+            ...ctx,
+            log: {
+              info: new Callback(ctx.log.info),
+              warn: new Callback(ctx.log.warn),
+              debug: new Callback(ctx.log.debug),
+              error: new Callback(ctx.log.error),
+            },
+            fetch: new Reference(async (url: string, opts?: FetchOpts, extra?: any) => {
+              const res = await ctx.fetch(url, opts, extra);
+              const headers: any = {};
+              res.headers.forEach((v, k) => {
+                headers[k] = v;
+              });
+              const text = await res.text();
+              const j = {
+                status: res.status,
+                statusText: res.statusText,
+                type: res.type,
+                redirected: res.redirected,
+                body: text,
+                bodyUsed: true,
+                url: res.url,
+                ok: res.ok,
+                headers: headers,
+              };
+              return JSON.stringify(j);
+            }),
+            store: {
+              get: new Reference(async (key: string) => {
+                const res = await ctx.store.get(key);
+                return JSON.stringify(res);
+              }),
+              set: new Callback(ctx.store.set, { ignored: true }),
+              del: new Callback(ctx.store.del, { ignored: true }),
+              ttl: new Reference(async (key: string) => {
+                return await ctx.store.ttl(key);
+              }),
+            },
+          }),
+        ],
+        {
+          result: { promise: true },
+        }
+      );
+      switch (typeof res) {
+        case "undefined":
+          return undefined;
+        case "string":
+        case "number":
+        case "boolean":
+          return res;
+        default:
+          return (res as Reference).copy();
+      }
+    } catch (e: any) {
+      if (isolate.isDisposed) {
+        throw new Error("Isolate is disposed");
+      }
+      const m = e.message;
+      if (m.startsWith("{")) {
+        throw JSON.parse(m);
+      }
+      //log.atInfo().log(`ERROR name: ${e.name} message: ${e.message} json: ${e.stack}`);
+      throw e;
+    }
+  };
+  return {
+    userFunction,
+    close: () => {
+      try {
+        if (isolate) {
+          isolate.dispose();
+          log.atInfo().log(`[${connectionId}] isolate closed.`);
+        }
+      } catch (e) {
+        log.atError().log(`[${connectionId}] Error while closing isolate: ${e}`);
+      }
+    },
+  };
+}
 
 export type UDFTestRequest = {
   functionId: string;
@@ -208,7 +240,6 @@ export type UDFTestResponse = {
   result: FuncReturn;
   store: any;
   logs: logType[];
-  meta: any;
 };
 
 export async function UDFTestRun({
@@ -320,7 +351,7 @@ export async function UDFTestRun({
     };
     const ctx = createFullContext(id, eventsStore, storeImpl, eventContext, {}, config);
     if (typeof code === "string") {
-      wrapper = UDFWrapper(id, name, code);
+      wrapper = UDFWrapper(id, [{ id, name, code }]);
     } else {
       wrapper = code;
     }
@@ -330,7 +361,6 @@ export async function UDFTestRun({
       result: typeof result === "undefined" ? event : result,
       store: !realStore ? memoryStoreDump(store) : {},
       logs,
-      meta: wrapper?.meta,
     };
   } catch (e: any) {
     return {
@@ -343,7 +373,6 @@ export async function UDFTestRun({
       result: {},
       store: !realStore && store ? memoryStoreDump(store) : {},
       logs,
-      meta: wrapper?.meta,
     };
   }
 }
