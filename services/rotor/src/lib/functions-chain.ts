@@ -233,6 +233,7 @@ export async function runChain(
     }
     const newEvents: AnyEvent[] = [];
     for (let i = 0; i < events.length; i++) {
+      functionsInFlight.inc({ connectionId: eventContext.connection?.id ?? "", functionId: f.id });
       const event = events[i];
       let result: FuncReturn = undefined;
       const sw = stopwatch();
