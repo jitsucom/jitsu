@@ -62,6 +62,7 @@ export const FunctionsHandlerMulti =
           },
           "all",
           { [CONNECTION_IDS_HEADER]: id },
+          false,
           0,
           functionsFetchTimeout
         );

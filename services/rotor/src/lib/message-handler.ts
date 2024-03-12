@@ -53,6 +53,7 @@ export async function rotorMessageHandler(
   rotorContext: MessageHandlerContext,
   runFuncs: FuncChainFilter = "all",
   headers?,
+  retriesEnabled: boolean = true,
   retries: number = 0,
   fetchTimeoutMs: number = 5000
 ) {
@@ -141,7 +142,17 @@ export async function rotorMessageHandler(
     funcsChainCache.set(cacheKey, funcChain);
   }
 
-  const chainRes = await runChain(funcChain, event, eventStore, store, ctx, runFuncs, systemContext, fetchTimeoutMs);
+  const chainRes = await runChain(
+    funcChain,
+    event,
+    eventStore,
+    store,
+    ctx,
+    runFuncs,
+    retriesEnabled,
+    systemContext,
+    fetchTimeoutMs
+  );
   chainRes.connectionId = connectionId;
   rotorContext.metrics?.logMetrics(chainRes.execLog);
   checkError(chainRes);

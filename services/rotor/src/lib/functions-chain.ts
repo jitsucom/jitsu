@@ -212,6 +212,7 @@ export async function runChain(
   store: Store,
   eventContext: EventContext,
   runFuncs: FuncChainFilter = "all",
+  retriesEnabled: boolean = true,
   systemContext?: SystemContext,
   fetchTimeoutMs: number = 5000
 ): Promise<FuncChainResult> {
@@ -281,7 +282,7 @@ export async function runChain(
         });
         functionsTime.observe({ connectionId: eventContext.connection?.id ?? "", functionId: f.id }, ms);
         const args = [err?.name, err?.message];
-        const r = retryObject(err, eventContext.retries ?? 0);
+        const r = retriesEnabled ? retryObject(err, eventContext.retries ?? 0) : undefined;
         if (r) {
           args.push(r);
         }

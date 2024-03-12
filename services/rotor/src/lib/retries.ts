@@ -59,10 +59,6 @@ export function retryLogMessage(retryPolicy: retryPolicy, retries: number): stri
 }
 
 export function retryObject(e: Error & { retryPolicy?: retryPolicy }, retries: number) {
-  if (retries == -1) {
-    // retries disabled
-    return undefined;
-  }
   if (e.name === DropRetryErrorName || e.name === RetryErrorName) {
     const retryPolicy = getRetryPolicy(e);
     const retryTime = retryBackOffTime(retryPolicy, retries + 1);

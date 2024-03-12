@@ -37,6 +37,7 @@ export type KafkaRotorConfig = {
     rotorContext: MessageHandlerContext,
     runFuncs: FuncChainFilter,
     headers?,
+    retriesEnabled?: boolean,
     retries?: number
   ) => Promise<FuncChainResult | undefined>;
 };
@@ -147,6 +148,7 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
               ...headers,
               [CONNECTION_IDS_HEADER]: connectionId,
             },
+            true,
             retries
           )
             .then(() => messagesProcessed.inc({ topic, partition }))

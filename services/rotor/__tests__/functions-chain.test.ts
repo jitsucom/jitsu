@@ -256,6 +256,7 @@ describe("Test Functions Chain", () => {
         },
         "all",
         { [CONNECTION_IDS_HEADER]: "simple" },
+        true,
         0,
         5000
       );
@@ -280,6 +281,7 @@ describe("Test Functions Chain", () => {
         },
         "all",
         { [CONNECTION_IDS_HEADER]: "error" },
+        true,
         0,
         5000
       );
@@ -305,6 +307,7 @@ describe("Test Functions Chain", () => {
         },
         filter,
         { [CONNECTION_IDS_HEADER]: "retry" },
+        true,
         0,
         5000
       );
@@ -327,6 +330,7 @@ describe("Test Functions Chain", () => {
         },
         filter,
         { [CONNECTION_IDS_HEADER]: "retry" },
+        true,
         1,
         5000
       );
@@ -352,6 +356,7 @@ describe("Test Functions Chain", () => {
         },
         filter,
         { [CONNECTION_IDS_HEADER]: "drop_retry" },
+        true,
         0,
         5000
       );
@@ -375,6 +380,7 @@ describe("Test Functions Chain", () => {
         },
         filter,
         { [CONNECTION_IDS_HEADER]: "drop_retry" },
+        true,
         1,
         5000
       );
@@ -400,6 +406,7 @@ describe("Test Functions Chain", () => {
         },
         filter,
         { [CONNECTION_IDS_HEADER]: "dst_retry" },
+        true,
         0,
         5000
       );
@@ -421,6 +428,7 @@ describe("Test Functions Chain", () => {
         },
         filter,
         { [CONNECTION_IDS_HEADER]: "dst_retry" },
+        true,
         1,
         5000
       );
@@ -443,6 +451,7 @@ describe("Test Functions Chain", () => {
         },
         "all",
         { [CONNECTION_IDS_HEADER]: "multi" },
+        true,
         0,
         5000
       );
@@ -465,6 +474,7 @@ describe("Test Functions Chain", () => {
         },
         "all",
         { [CONNECTION_IDS_HEADER]: "multi_middle" },
+        true,
         0,
         5000
       );
@@ -490,6 +500,7 @@ describe("Test Functions Chain", () => {
         },
         filter,
         { [CONNECTION_IDS_HEADER]: "multi_retry" },
+        true,
         0,
         5000
       );
@@ -513,6 +524,7 @@ describe("Test Functions Chain", () => {
         },
         filter,
         { [CONNECTION_IDS_HEADER]: "multi_retry" },
+        true,
         1,
         5000
       );
