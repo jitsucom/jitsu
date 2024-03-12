@@ -69,6 +69,9 @@ export const FunctionsHandlerMulti =
       });
     await Promise.all(prom)
       .then(results => {
+        connectionIds.forEach((id, i) => {
+          handlerMetric.inc({ connectionId: id, status: "success" }, 1);
+        });
         const events = Object.fromEntries(
           results.map(result => [result?.connectionId, mapDiff(message, result?.events)])
         );
