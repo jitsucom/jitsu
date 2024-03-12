@@ -39,19 +39,15 @@ function deepCopy(o) {
     if (Array.isArray(o)) {
         const newO = []
         for (let i = 0; i < o.length; i += 1) {
-            const val = !o[i] || typeof o[i] !== "object" ? o[i] : deepCopy(o[i])
-            newO[i] = val === undefined ? null : val
+            const v = o[i]
+            newO[i] = !v || typeof v !== "object" ? v : deepCopy(v)
         }
         return newO
     }
 
     const newO = {}
-    for (const i of Object.keys(o)) {
-        const val = !o[i] || typeof o[i] !== "object" ? o[i] : deepCopy(o[i])
-        if (val === undefined) {
-            continue
-        }
-        newO[i] = val
+    for (const [k,v] of Object.entries(o)) {
+        newO[k] = !v || typeof v !== "object" ? v : deepCopy(v)
     }
     return newO
 }
