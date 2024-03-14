@@ -219,7 +219,7 @@ function ConnectionsTable({ links, streams, destinations, functions, reloadCallb
       key: "actions",
       render: (text, link) => {
         const dst = destinationsById[link.toId];
-        let type = "functions";
+        let type = "function";
         try {
           if (getCoreDestinationType(dst.destinationType).usesBulker) {
             type = "bulker";
