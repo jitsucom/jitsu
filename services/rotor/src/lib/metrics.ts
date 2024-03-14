@@ -45,7 +45,7 @@ export function createMetrics(producer?: Producer): Metrics {
           topic: `in.id.metrics.m.batch.t.${metricsTable}`,
           compression: getCompressionType(),
           messages: buf.map(m => ({
-            value: JSON.stringify(m),
+            value: JSON.stringify(omit(m, "retries", "messageId")),
           })),
         }),
         producer.send({
@@ -93,7 +93,7 @@ export function createMetrics(producer?: Producer): Metrics {
           );
           streamOld.push("\n");
         }
-        stream.push(JSON.stringify(omit(e, "retries")));
+        stream.push(JSON.stringify(omit(e, "retries", "messageId")));
         stream.push("\n");
       });
       //close stream

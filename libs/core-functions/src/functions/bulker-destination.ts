@@ -257,8 +257,8 @@ const BulkerDestination: JitsuFunction<AnalyticsServerEvent, BulkerDestinationCo
   const { bulkerEndpoint, destinationId, authToken, dataLayout = "segment-single-table" } = ctx.props;
   try {
     const systemContext = requireDefined((ctx as any as SystemContext).$system, `$system context is not available`);
-    const metricsMeta: MetricsMeta = {
-      ...omit(systemContext.metricsMeta, "retries"),
+    const metricsMeta: Omit<MetricsMeta, "messageId"> = {
+      ...omit(systemContext.metricsMeta, "retries", "messageId"),
       functionId: "builtin.destination.bulker",
     };
     let adjustedEvent = event;
