@@ -144,7 +144,7 @@ services:
     restart: "unless-stopped"
     environment:
       CONSOLE_TOKEN: ${CONSOLE_TOKEN:-default}
-    command: "watch -n 300 curl --silent --output nul --show-error -H 'Authorization: Bearer service-admin-account:${CONSOLE_TOKEN:-default}' http://console:3000/api/admin/events-log-trim"
+    command: "watch -n 300 \"curl --silent --output nul --show-error -H 'Authorization: Bearer service-admin-account:${CONSOLE_TOKEN:-default}' http://console:3000/api/admin/events-log-trim\""
     depends_on:
       console:
         condition: service_healthy
