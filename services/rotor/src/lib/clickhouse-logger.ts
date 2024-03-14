@@ -15,6 +15,7 @@ type LogEntry = {
 
 export function createClickhouseLogger(): EventsStore {
   const buffer: LogEntry[] = [];
+  const metricsSchema = process.env.CLICKHOUSE_METRICS_SCHEMA || "newjitsu_metrics";
 
   const clickhouse = createClient({
     host: requireDefined(process.env.CLICKHOUSE_URL, `env CLICKHOUSE_URL is not defined`),
@@ -36,7 +37,7 @@ export function createClickhouseLogger(): EventsStore {
     const copy = [...buffer];
     buffer.length = 0;
     const res = await clickhouse.insert<LogEntry>({
-      table: "newjitsu_metrics.events_log",
+      table: metricsSchema + ".events_log",
       format: "JSONEachRow",
       values: copy,
     });

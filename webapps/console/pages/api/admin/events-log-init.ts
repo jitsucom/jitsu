@@ -12,6 +12,17 @@ export default createRoute()
     await verifyAdmin(user);
     log.atInfo().log(`Init events log`);
     const metricsSchema = process.env.CLICKHOUSE_METRICS_SCHEMA || "newjitsu_metrics";
+    const createDbQuery: string = `create database IF NOT EXISTS ${metricsSchema}
+--ON CLUSTER jitsu_cluster`;
+    try {
+      await clickhouse.command({
+        query: createDbQuery,
+      });
+      log.atInfo().log(`Database ${metricsSchema} created or already exists`);
+    } catch (e: any) {
+      log.atError().withCause(e).log(`Failed to create ${metricsSchema} database.`);
+      throw new Error(`Failed to create ${metricsSchema} database.`);
+    }
     const createTableQuery: string = `create table IF NOT EXISTS ${metricsSchema}.events_log
 --ON CLUSTER jitsu_cluster
                                  (
@@ -33,6 +44,7 @@ export default createRoute()
       log.atInfo().log(`Table ${metricsSchema}.events_log created or already exists`);
     } catch (e: any) {
       log.atError().withCause(e).log(`Failed to create ${metricsSchema}.events_log table.`);
+      throw new Error(`Failed to create ${metricsSchema}.events_log table.`);
     }
   })
   .toNextApiHandler();
