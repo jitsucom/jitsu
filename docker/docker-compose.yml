@@ -19,13 +19,14 @@ services:
   #    volumes:
   #      - ./data/kafka:/bitnami/kafka
 
-  redis:
-    tty: true
-    image: redis:6.2-alpine
-    restart: "unless-stopped"
-    command: "redis-server --save 20 1 --loglevel warning --requirepass ${REDIS_PASSWORD:-default}"
-  #    volumes:
-  #      - ./data/redis:/var/lib/redis
+#
+#  redis:
+#    tty: true
+#    image: redis:6.2-alpine
+#    restart: "unless-stopped"
+#    command: "redis-server --save 20 1 --loglevel warning --requirepass ${REDIS_PASSWORD:-default}"
+#  #    volumes:
+#  #      - ./data/redis:/var/lib/redis
 
   clickhouse:
     tty: true
@@ -84,7 +85,6 @@ services:
       BULKER_AUTH_KEY: ${BULKER_TOKEN:-default}
       MIT_COMPLIANT: ${MIT_COMPLIANT:-false}
       DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD:-default}@postgres:5432/postgres?schema=newjitsu"
-      REDIS_URL: "redis://default:${REDIS_PASSWORD:-default}@redis:6379"
       SEED_USER_EMAIL: ${SEED_USER_EMAIL:-}
       SEED_USER_PASSWORD: ${SEED_USER_PASSWORD:-}
       ENABLE_CREDETIALS_LOGIN: ${ENABLE_CREDETIALS_LOGIN:-true}
@@ -109,7 +109,7 @@ services:
     extra_hosts:
       - "syncctl:host-gateway"
     depends_on:
-      redis:
+      clickhouse:
         condition: service_started
       postgres:
         condition: service_healthy
@@ -138,6 +138,17 @@ services:
       console:
         condition: service_healthy
 
+  events-log-trim:
+    tty: true
+    image: curlimages/curl
+    restart: "unless-stopped"
+    environment:
+      CONSOLE_TOKEN: ${CONSOLE_TOKEN:-default}
+    command: "watch -n 300 curl --silent --output nul --show-error -H 'Authorization: Bearer service-admin-account:${CONSOLE_TOKEN:-default}' http://console:3000/api/admin/events-log-trim"
+    depends_on:
+      console:
+        condition: service_healthy
+
   bulker:
     tty: true
     image: jitsucom/bulker:${DOCKER_TAG:-latest}
@@ -150,7 +161,6 @@ services:
       BULKER_CONFIG_SOURCE: "http://console:3000/api/admin/export/bulker-connections"
       BULKER_CONFIG_SOURCE_HTTP_AUTH_TOKEN: "service-admin-account:${CONSOLE_TOKEN:-default}"
       BULKER_CACHE_DIR: "/tmp/cache"
-      REDIS_URL: "redis://default:${REDIS_PASSWORD:-default}@redis:6379"
       BULKER_INTERNAL_TASK_LOG: '{"id":"task_log","metricsKeyPrefix":"syncs","usesBulker":true,"type":"postgres","options":{"mode":"stream"},"credentials":{"host":"postgres","port":5432,"sslMode":"disable","database":"postgres","password":"${POSTGRES_PASSWORD:-default}","username":"postgres","defaultSchema":"newjitsu"}}'
       BULKER_CLICKHOUSE_HOST: "clickhouse:9000"
       BULKER_CLICKHOUSE_PASSWORD: "${CLICKHOUSE_PASSWORD:-default}"
@@ -178,7 +188,7 @@ services:
       BULKER_URL: "http://bulker:3042"
       BULKER_AUTH_KEY: ${BULKER_TOKEN:-default}
       KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
-      REDIS_URL: "redis://default:${REDIS_PASSWORD:-default}@redis:6379"
+#      REDIS_URL: "redis://default:${REDIS_PASSWORD:-default}@redis:6379"
       REPOSITORY_BASE_URL: "http://console:3000/api/admin/export/"
       REPOSITORY_AUTH_TOKEN: "service-admin-account:${CONSOLE_TOKEN:-default}"
       REPOSITORY_CACHE_DIR: "/tmp/cache"
@@ -213,7 +223,6 @@ services:
       INGEST_SCRIPT_ORIGIN: "http://console:3000/api/s/javascript-library"
       INGEST_REPOSITORY_AUTH_TOKEN: "service-admin-account:${CONSOLE_TOKEN:-default}"
       INGEST_CACHE_DIR: "/tmp/cache"
-      INGEST_REDIS_URL: "redis://default:${REDIS_PASSWORD:-default}@redis:6379"
       INGEST_ROTOR_URL: "http://rotor:3401"
       INGEST_ROTOR_AUTH_KEY: ${BULKER_TOKEN:-default}
       INGEST_CLICKHOUSE_HOST: "clickhouse:9000"
