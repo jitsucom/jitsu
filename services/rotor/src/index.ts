@@ -7,12 +7,14 @@ import { UDFRunHandler } from "./http/udf";
 import Prometheus from "prom-client";
 import { FunctionsHandler, FunctionsHandlerMulti } from "./http/functions";
 import { initMaxMindClient, GeoResolver } from "./lib/maxmind";
-import { rotorMessageHandler } from "./lib/message-handler";
+import { MessageHandlerContext, rotorMessageHandler } from "./lib/message-handler";
 import { DummyMetrics, Metrics } from "./lib/metrics";
 import { connectionsStore, functionsStore } from "./lib/entity-store";
 import { Server } from "node:net";
 import { getApplicationVersion, getDiagnostics } from "./lib/version";
 import { createClickhouseLogger } from "./lib/clickhouse-logger";
+import { Redis } from "ioredis";
+import { createRedis } from "./lib/redis";
 
 export const log = getLog("rotor");
 
@@ -50,6 +52,7 @@ async function main() {
   let metricsServer: Server | undefined;
   let geoResolver: GeoResolver;
   let eventsLogger: EventsStore;
+  let redisClient: Redis | undefined;
   try {
     Prometheus.collectDefaultMetrics();
     await mongodb.waitInit();
@@ -57,6 +60,9 @@ async function main() {
       eventsLogger = createClickhouseLogger();
     } else {
       eventsLogger = DummyEventsStore;
+    }
+    if (process.env.REDIS_URL) {
+      redisClient = createRedis();
     }
 
     const connStore = await connectionsStore.get();
@@ -85,6 +91,9 @@ async function main() {
     functionsStore.stop();
     eventsLogger.close();
     mongodb.close();
+    if (redisClient) {
+      redisClient.disconnect();
+    }
     const extraDelay = process.env.SHUTDOWN_EXTRA_DELAY_SEC
       ? 1000 * parseInt(process.env.SHUTDOWN_EXTRA_DELAY_SEC)
       : 5000;
@@ -106,10 +115,9 @@ async function main() {
     const consumerGroupId = rotorConsumerGroupId();
     const rotor = kafkaRotor({
       credentials: getCredentialsFromEnv(),
-      eventsLogger,
       kafkaTopics: kafkaTopics,
       consumerGroupId,
-      geoResolver,
+      rotorContext: { geoResolver, eventsLogger, redisClient },
       handle: rotorMessageHandler,
     });
     log.atInfo().log("Starting kafka processing");
@@ -117,7 +125,7 @@ async function main() {
       .start()
       .then(chMetrics => {
         log.atInfo().log(`Kafka processing started. Listening for topics ${kafkaTopics} with group ${consumerGroupId}`);
-        httpServer = initHTTP(eventsLogger, chMetrics, geoResolver);
+        httpServer = initHTTP({ eventsLogger, metrics: chMetrics, geoResolver, redisClient });
       })
       .catch(async e => {
         log.atError().withCause(e).log("Failed to start rotor processing");
@@ -132,7 +140,7 @@ async function main() {
       });
     });
   } else {
-    httpServer = initHTTP(eventsLogger, DummyMetrics, geoResolver);
+    httpServer = initHTTP({ eventsLogger, metrics: DummyMetrics, geoResolver, redisClient });
     signalTraps.forEach(type => {
       process.once(type, () => {
         gracefulShutdown();
@@ -141,7 +149,7 @@ async function main() {
   }
 }
 
-function initHTTP(eventsLogger: EventsStore, metrics: Metrics, geoResolver: GeoResolver) {
+function initHTTP(rotorContext: Omit<MessageHandlerContext, "connectionStore" | "functionsStore">) {
   http.use((req, res, next) => {
     if (req.path === "/health" || req.path === "/version") {
       return next();
@@ -195,8 +203,8 @@ function initHTTP(eventsLogger: EventsStore, metrics: Metrics, geoResolver: GeoR
     });
   });
   http.post("/udfrun", UDFRunHandler);
-  http.post("/func", FunctionsHandler(eventsLogger, metrics, geoResolver));
-  http.post("/func/multi", FunctionsHandlerMulti(eventsLogger, metrics, geoResolver));
+  http.post("/func", FunctionsHandler(rotorContext));
+  http.post("/func/multi", FunctionsHandlerMulti(rotorContext));
   const httpServer = http.listen(rotorHttpPort, () => {
     log.atInfo().log(`Listening on port ${rotorHttpPort}`);
     started = true;

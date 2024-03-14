@@ -15,10 +15,13 @@ import {
   parseUserAgent,
   SystemContext,
   EventsStore,
+  createTtlStore,
+  createMultiStore,
 } from "@jitsu/core-functions";
 import NodeCache from "node-cache";
 import { buildFunctionChain, checkError, FuncChain, FuncChainFilter, runChain } from "./functions-chain";
 import { EnrichedConnectionConfig, FunctionConfig } from "./config-types";
+import { Redis } from "ioredis";
 export const log = getLog("rotor");
 
 const anonymousEventsStore = mongoAnonymousEventsStore();
@@ -35,6 +38,7 @@ export type MessageHandlerContext = {
   metrics?: Metrics;
   geoResolver?: GeoResolver;
   dummyPersistentStore?: TTLStore;
+  redisClient?: Redis;
 };
 
 export function functionFilter(errorFunctionId?: string) {
@@ -118,9 +122,14 @@ export async function rotorMessageHandler(
     connectionId: connection.id,
     retries,
   };
-  const store =
-    rotorContext.dummyPersistentStore ||
-    createMongoStore(connection.workspaceId, mongodb(), fastStoreWorskpaceId.includes(connection.workspaceId));
+  let store = rotorContext.dummyPersistentStore;
+  if (!store) {
+    store = createMongoStore(connection.workspaceId, mongodb(), fastStoreWorskpaceId.includes(connection.workspaceId));
+    if (rotorContext.redisClient) {
+      store = createMultiStore(store, createTtlStore(connection.workspaceId, rotorContext.redisClient));
+    }
+  }
+
   //system context for builtin functions only
   const systemContext: SystemContext = {
     $system: {

@@ -27,24 +27,7 @@ function getTtlSec(opts?: SetOpts): number {
   return Math.min(seconds, maxAllowedTTL);
 }
 
-// TODO: deprecate. we cannot control ttl for hash keys. So this store will consume memory indefinitely
-export const createOldStore = (namespace: string, redisClient: Redis): Store => ({
-  get: async (key: string) => {
-    const res = await redisClient.hget(`store:${namespace}`, key);
-    return res ? JSON.parse(res) : undefined;
-  },
-  set: async (key: string, obj: any) => {
-    await redisClient.hset(`store:${namespace}`, key, JSON.stringify(obj));
-  },
-  del: async (key: string) => {
-    await redisClient.hdel(`store:${namespace}`, key);
-  },
-  ttl: async (key: string) => {
-    return await redisClient.ttl(`store:${namespace}`);
-  },
-});
-
-export const createTtlStore = (namespace: string, redisClient: Redis, defaultTtlSec: number): TTLStore => ({
+export const createTtlStore = (namespace: string, redisClient: Redis): TTLStore => ({
   get: async (key: string) => {
     const res = await redisClient.get(`store:${namespace}:${key}`);
     return res ? JSON.parse(res) : undefined;
@@ -192,7 +175,7 @@ export const createMongoStore = (namespace: string, mongo: MongoClient, fast: bo
   };
 };
 
-export const createMultiStore = (newStore: Store, oldStore: Store): Store => {
+export const createMultiStore = (newStore: TTLStore, oldStore: TTLStore): TTLStore => {
   return {
     get: async (key: string) => {
       const res = await newStore.get(key);
@@ -209,7 +192,18 @@ export const createMultiStore = (newStore: Store, oldStore: Store): Store => {
       await oldStore.del(key);
     },
     ttl: async (key: string) => {
-      return await newStore.ttl(key);
+      const res = await newStore.ttl(key);
+      if (res >= -1) {
+        return res;
+      }
+      return await oldStore.ttl(key);
+    },
+    getWithTTL: async (key: string) => {
+      const res = await newStore.getWithTTL(key);
+      if (res) {
+        return res;
+      }
+      return await oldStore.getWithTTL(key);
     },
   };
 };

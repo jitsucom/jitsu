@@ -1,8 +1,6 @@
 import { getLog, requireDefined } from "juava";
 import { IngestMessage } from "@jitsu/protocols/async-request";
-import { Metrics } from "../lib/metrics";
-import { GeoResolver } from "../lib/maxmind";
-import { rotorMessageHandler } from "../lib/message-handler";
+import { MessageHandlerContext, rotorMessageHandler } from "../lib/message-handler";
 import { CONNECTION_IDS_HEADER } from "../lib/rotor";
 import { AnyEvent } from "@jitsu/protocols/functions";
 import isEqual from "lodash/isEqual";
@@ -10,7 +8,6 @@ import { parse as semverParse } from "semver";
 import * as jsondiffpatch from "jsondiffpatch";
 
 import Prometheus from "prom-client";
-import { EventsStore } from "@jitsu/core-functions";
 import { connectionsStore, functionsStore } from "../lib/entity-store";
 
 const jsondiffpatchInstance = jsondiffpatch.create();
@@ -23,15 +20,13 @@ const handlerMetric = new Prometheus.Counter({
 });
 
 export const FunctionsHandler =
-  (eventsLogger: EventsStore, metrics: Metrics, geoResolver?: GeoResolver) => async (req, res) => {
+  (rotorContext: Omit<MessageHandlerContext, "connectionStore" | "functionsStore">) => async (req, res) => {
     const message = req.body as IngestMessage;
     //log.atInfo().log(`Functions handler. Message ID: ${message.messageId} connectionId: ${message.connectionId}`);
     const result = await rotorMessageHandler(message, {
+      ...rotorContext,
       connectionStore: requireDefined(connectionsStore.getCurrent(), "Connection store is not initialized"),
       functionsStore: requireDefined(functionsStore.getCurrent(), "Functions store is not initialized"),
-      eventsLogger,
-      metrics,
-      geoResolver,
     });
     if (result?.events && result.events.length > 0) {
       res.json(result.events);
@@ -41,7 +36,7 @@ export const FunctionsHandler =
   };
 
 export const FunctionsHandlerMulti =
-  (eventsLogger: EventsStore, metrics: Metrics, geoResolver?: GeoResolver) => async (req, res, next) => {
+  (rotorContext: Omit<MessageHandlerContext, "connectionStore" | "functionsStore">) => async (req, res, next) => {
     const connectionIds = (req.query.ids ?? "").split(",") as string[];
     const message = req.body as IngestMessage;
     const functionsFetchTimeout = req.headers["x-request-timeout-ms"]
@@ -54,11 +49,9 @@ export const FunctionsHandlerMulti =
         return rotorMessageHandler(
           message,
           {
+            ...rotorContext,
             connectionStore: requireDefined(connectionsStore.getCurrent(), "Connection store is not initialized"),
             functionsStore: requireDefined(functionsStore.getCurrent(), "Functions store is not initialized"),
-            eventsLogger,
-            metrics,
-            geoResolver,
           },
           "all",
           { [CONNECTION_IDS_HEADER]: id },

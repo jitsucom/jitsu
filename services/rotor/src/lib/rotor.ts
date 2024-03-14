@@ -29,9 +29,8 @@ export type KafkaRotorConfig = {
   credentials: KafkaCredentials;
   consumerGroupId: string;
   kafkaTopics: string[];
-  eventsLogger: EventsStore;
   kafkaClientId?: string;
-  geoResolver?: GeoResolver;
+  rotorContext: Omit<MessageHandlerContext, "connectionStore" | "functionsStore" | "metrics">;
   handle: (
     message: string,
     rotorContext: MessageHandlerContext,
@@ -48,7 +47,7 @@ export type KafkaRotor = {
 };
 
 export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
-  const { kafkaTopics, consumerGroupId, eventsLogger, handle, kafkaClientId = "kafka-rotor", geoResolver } = cfg;
+  const { kafkaTopics, consumerGroupId, rotorContext, handle, kafkaClientId = "kafka-rotor" } = cfg;
   let consumer: Consumer;
   let producer: Producer;
   let admin: Admin;
@@ -137,11 +136,10 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
           handle(
             value.toString(),
             {
+              ...rotorContext,
               connectionStore: requireDefined(connectionsStore.getCurrent(), "Connection store is not initialized"),
               functionsStore: requireDefined(functionsStore.getCurrent(), "Functions store is not initialized"),
-              eventsLogger,
               metrics,
-              geoResolver,
             },
             functionFilter(retriedFunctionId),
             {
