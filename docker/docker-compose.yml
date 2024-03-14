@@ -27,6 +27,27 @@ services:
   #    volumes:
   #      - ./data/redis:/var/lib/redis
 
+  clickhouse:
+    tty: true
+    image: clickhouse/clickhouse-server:24.1
+    restart: "unless-stopped"
+    environment:
+      - CLICKHOUSE_DB=newjitsu_metrics
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD:-default}
+    logging:
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  mongo:
+    image: mongo
+    restart: "unless-stopped"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: default
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-default}
+
   postgres:
     tty: true
     image: postgres:14
@@ -76,6 +97,9 @@ services:
       JITSU_INGEST_PUBLIC_URL: "${JITSU_INGEST_PUBLIC_URL:-http://localhost:${JITSU_INGEST_PORT:-8080}/}"
       JITSU_PUBLIC_URL: "${JITSU_PUBLIC_URL:-${NEXTAUTH_URL:-http://localhost:${JITSU_UI_PORT:-3000}/}}"
       NEXTAUTH_URL: "${JITSU_PUBLIC_URL:-${NEXTAUTH_URL:-http://localhost:${JITSU_UI_PORT:-3000}/}}"
+      CLICKHOUSE_URL: "http://clickhouse:8123/"
+      CLICKHOUSE_PASSWORD: "${CLICKHOUSE_PASSWORD:-default}"
+      CLICKHOUSE_METRICS_SCHEMA: "newjitsu_metrics"
       UPDATE_DB: "true"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://console:3000/api/healthcheck"]
@@ -103,6 +127,17 @@ services:
       console:
         condition: service_healthy
 
+  events-log-init:
+    tty: true
+    image: curlimages/curl
+    restart: "on-failure"
+    environment:
+      CONSOLE_TOKEN: ${CONSOLE_TOKEN:-default}
+    command: "curl --silent --output nul --show-error -H 'Authorization: Bearer service-admin-account:${CONSOLE_TOKEN:-default}' http://console:3000/api/admin/events-log-init"
+    depends_on:
+      console:
+        condition: service_healthy
+
   bulker:
     tty: true
     image: jitsucom/bulker:${DOCKER_TAG:-latest}
@@ -117,6 +152,9 @@ services:
       BULKER_CACHE_DIR: "/tmp/cache"
       REDIS_URL: "redis://default:${REDIS_PASSWORD:-default}@redis:6379"
       BULKER_INTERNAL_TASK_LOG: '{"id":"task_log","metricsKeyPrefix":"syncs","usesBulker":true,"type":"postgres","options":{"mode":"stream"},"credentials":{"host":"postgres","port":5432,"sslMode":"disable","database":"postgres","password":"${POSTGRES_PASSWORD:-default}","username":"postgres","defaultSchema":"newjitsu"}}'
+      BULKER_CLICKHOUSE_HOST: "clickhouse:9000"
+      BULKER_CLICKHOUSE_PASSWORD: "${CLICKHOUSE_PASSWORD:-default}"
+      BULKER_CLICKHOUSE_DATABASE: "newjitsu_metrics"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://bulker:3042/health"]
       interval: 2s
@@ -144,6 +182,10 @@ services:
       REPOSITORY_BASE_URL: "http://console:3000/api/admin/export/"
       REPOSITORY_AUTH_TOKEN: "service-admin-account:${CONSOLE_TOKEN:-default}"
       REPOSITORY_CACHE_DIR: "/tmp/cache"
+      MONGODB_URL: "mongodb://default:${MONGO_PASSWORD:-default}@mongo/"
+      CLICKHOUSE_URL: "http://clickhouse:8123/"
+      CLICKHOUSE_PASSWORD: "${CLICKHOUSE_PASSWORD:-default}"
+      CLICKHOUSE_METRICS_SCHEMA: "newjitsu_metrics"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://rotor:3401/health"]
       interval: 5s
@@ -174,6 +216,9 @@ services:
       INGEST_REDIS_URL: "redis://default:${REDIS_PASSWORD:-default}@redis:6379"
       INGEST_ROTOR_URL: "http://rotor:3401"
       INGEST_ROTOR_AUTH_KEY: ${BULKER_TOKEN:-default}
+      INGEST_CLICKHOUSE_HOST: "clickhouse:9000"
+      INGEST_CLICKHOUSE_PASSWORD: "${CLICKHOUSE_PASSWORD:-default}"
+      INGEST_CLICKHOUSE_DATABASE: "newjitsu_metrics"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://ingest:3049/health"]
       interval: 2s
