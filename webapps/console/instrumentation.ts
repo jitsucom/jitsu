@@ -4,6 +4,10 @@ import { getLog } from "juava";
 export const log = getLog("events-log-init");
 
 export async function register() {
+  if (process.env.NEXT_RUNTIME && process.env.NEXT_RUNTIME !== "nodejs") {
+    log.atInfo().log(`Init events log. Skipping runtime ${process.env.NEXT_RUNTIME}`);
+    return;
+  }
   log.atInfo().log(`Init events log`);
   const metricsSchema = process.env.CLICKHOUSE_METRICS_SCHEMA || "newjitsu_metrics";
   const createDbQuery: string = `create database IF NOT EXISTS ${metricsSchema}
