@@ -5,7 +5,7 @@ function clickhouseHost() {
   if (process.env.CLICKHOUSE_URL) {
     return process.env.CLICKHOUSE_URL;
   }
-  return `${isTruish(process.env.CLICKHOUSE_SSL) ? "https://" : "http://"}:${requireDefined(
+  return `${isTruish(process.env.CLICKHOUSE_SSL) ? "https://" : "http://"}${requireDefined(
     process.env.CLICKHOUSE_HOST,
     "env CLICKHOUSE_HOST is not defined"
   )}`;
