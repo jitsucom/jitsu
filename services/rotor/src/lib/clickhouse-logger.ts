@@ -19,7 +19,7 @@ function clickhouseHost() {
   return `${isTruish(process.env.CLICKHOUSE_SSL) ? "https://" : "http://"}:${requireDefined(
     process.env.CLICKHOUSE_HOST,
     "env CLICKHOUSE_HOST is not defined"
-  )}}`;
+  )}`;
 }
 
 export function createClickhouseLogger(): EventsStore {
