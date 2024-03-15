@@ -1,8 +1,15 @@
 #!/bin/bash
 
 cancel_healthcheck="0"
+inited="0"
 export my_pid=$$
 
+init() {
+  if [ "$inited" = "0" ]; then
+    inited="1"
+    curl --silent --output nul --show-error -H "Authorization: Bearer service-admin-account:$CONSOLE_RAW_AUTH_TOKENS" http://$(hostname -f):3000/api/admin/events-log-init
+  fi
+}
 
 wait_for_service() {
     url=$1
@@ -27,6 +34,7 @@ wait_for_service() {
         fi
         sleep $interval
     done
+    init
     exit 0
 }
 
