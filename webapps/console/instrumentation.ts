@@ -1,4 +1,3 @@
-import { clickhouse } from "./lib/server/clickhouse";
 import { getLog } from "juava";
 
 export const log = getLog("events-log-init");
@@ -9,6 +8,8 @@ export async function register() {
     return;
   }
   log.atInfo().log(`Init events log`);
+  const ch = await import("./lib/server/clickhouse");
+  const clickhouse = ch.clickhouse;
   const metricsSchema = process.env.CLICKHOUSE_METRICS_SCHEMA || "newjitsu_metrics";
   const createDbQuery: string = `create database IF NOT EXISTS ${metricsSchema}
 --ON CLUSTER jitsu_cluster`;
