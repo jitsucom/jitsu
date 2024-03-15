@@ -1,4 +1,4 @@
-import { getLog, LogLevel, requireDefined } from "juava";
+import { getLog, isTruish, LogLevel, requireDefined } from "juava";
 
 export const log = getLog("clickhouseLogger");
 
@@ -12,13 +12,22 @@ type LogEntry = {
   level: LogLevel;
   message: any;
 };
+function clickhouseHost() {
+  if (process.env.CLICKHOUSE_URL) {
+    return process.env.CLICKHOUSE_URL;
+  }
+  return `${isTruish(process.env.CLICKHOUSE_SSL) ? "https://" : "http://"}:${requireDefined(
+    process.env.CLICKHOUSE_HOST,
+    "env CLICKHOUSE_HOST is not defined"
+  )}}`;
+}
 
 export function createClickhouseLogger(): EventsStore {
   const buffer: LogEntry[] = [];
-  const metricsSchema = process.env.CLICKHOUSE_METRICS_SCHEMA || "newjitsu_metrics";
+  const metricsSchema = process.env.CLICKHOUSE_METRICS_SCHEMA || process.env.CLICKHOUSE_DATABASE || "newjitsu_metrics";
 
   const clickhouse = createClient({
-    host: requireDefined(process.env.CLICKHOUSE_URL, `env CLICKHOUSE_URL is not defined`),
+    host: clickhouseHost(),
     username: process.env.CLICKHOUSE_USERNAME || "default",
     password: requireDefined(process.env.CLICKHOUSE_PASSWORD, `env CLICKHOUSE_PASSWORD is not defined`),
     clickhouse_settings: {

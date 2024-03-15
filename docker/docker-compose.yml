@@ -19,14 +19,14 @@ services:
   #    volumes:
   #      - ./data/kafka:/bitnami/kafka
 
-#
-#  redis:
-#    tty: true
-#    image: redis:6.2-alpine
-#    restart: "unless-stopped"
-#    command: "redis-server --save 20 1 --loglevel warning --requirepass ${REDIS_PASSWORD:-default}"
-#  #    volumes:
-#  #      - ./data/redis:/var/lib/redis
+  #
+  #  redis:
+  #    tty: true
+  #    image: redis:6.2-alpine
+  #    restart: "unless-stopped"
+  #    command: "redis-server --save 20 1 --loglevel warning --requirepass ${REDIS_PASSWORD:-default}"
+  #  #    volumes:
+  #  #      - ./data/redis:/var/lib/redis
 
   clickhouse:
     tty: true
@@ -97,9 +97,9 @@ services:
       JITSU_INGEST_PUBLIC_URL: "${JITSU_INGEST_PUBLIC_URL:-http://localhost:${JITSU_INGEST_PORT:-8080}/}"
       JITSU_PUBLIC_URL: "${JITSU_PUBLIC_URL:-${NEXTAUTH_URL:-http://localhost:${JITSU_UI_PORT:-3000}/}}"
       NEXTAUTH_URL: "${JITSU_PUBLIC_URL:-${NEXTAUTH_URL:-http://localhost:${JITSU_UI_PORT:-3000}/}}"
-      CLICKHOUSE_URL: "http://clickhouse:8123/"
+      CLICKHOUSE_HOST: "clickhouse:8123"
       CLICKHOUSE_PASSWORD: "${CLICKHOUSE_PASSWORD:-default}"
-      CLICKHOUSE_METRICS_SCHEMA: "newjitsu_metrics"
+      CLICKHOUSE_DATABASE: "newjitsu_metrics"
       UPDATE_DB: "true"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://console:3000/api/healthcheck"]
@@ -133,7 +133,7 @@ services:
     restart: "unless-stopped"
     environment:
       CONSOLE_TOKEN: ${CONSOLE_TOKEN:-default}
-    command: "watch -n 300 \"curl --silent --output nul --show-error -H 'Authorization: Bearer service-admin-account:${CONSOLE_TOKEN:-default}' http://console:3000/api/admin/events-log-trim\""
+    command: 'watch -n 300 "curl --silent --output nul --show-error -H ''Authorization: Bearer service-admin-account:${CONSOLE_TOKEN:-default}'' http://console:3000/api/admin/events-log-trim"'
     depends_on:
       console:
         condition: service_healthy
@@ -177,14 +177,14 @@ services:
       BULKER_URL: "http://bulker:3042"
       BULKER_AUTH_KEY: ${BULKER_TOKEN:-default}
       KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
-#      REDIS_URL: "redis://default:${REDIS_PASSWORD:-default}@redis:6379"
+      #      REDIS_URL: "redis://default:${REDIS_PASSWORD:-default}@redis:6379"
       REPOSITORY_BASE_URL: "http://console:3000/api/admin/export/"
       REPOSITORY_AUTH_TOKEN: "service-admin-account:${CONSOLE_TOKEN:-default}"
       REPOSITORY_CACHE_DIR: "/tmp/cache"
       MONGODB_URL: "mongodb://default:${MONGO_PASSWORD:-default}@mongo/"
-      CLICKHOUSE_URL: "http://clickhouse:8123/"
+      CLICKHOUSE_HOST: "clickhouse:8123"
       CLICKHOUSE_PASSWORD: "${CLICKHOUSE_PASSWORD:-default}"
-      CLICKHOUSE_METRICS_SCHEMA: "newjitsu_metrics"
+      CLICKHOUSE_DATABASE: "newjitsu_metrics"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://rotor:3401/health"]
       interval: 5s

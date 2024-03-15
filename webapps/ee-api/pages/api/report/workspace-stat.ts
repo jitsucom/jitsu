@@ -52,7 +52,7 @@ async function getClickhousePart({
   workspaceId,
 }: ReportParams): Promise<WorkspaceReportRow[]> {
   const timer = Date.now();
-  const metricsSchema = process.env.CLICKHOUSE_METRICS_SCHEMA || "newjitsu_metrics";
+  const metricsSchema = process.env.CLICKHOUSE_METRICS_SCHEMA || process.env.CLICKHOUSE_DATABASE || "newjitsu_metrics";
   const query = `select
                    date_trunc('${granularity}', timestamp) as period,
                    workspaceId as "workspaceId",

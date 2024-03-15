@@ -56,7 +56,7 @@ async function main() {
   try {
     Prometheus.collectDefaultMetrics();
     await mongodb.waitInit();
-    if (process.env.CLICKHOUSE_URL) {
+    if (process.env.CLICKHOUSE_HOST || process.env.CLICKHOUSE_URL) {
       eventsLogger = createClickhouseLogger();
     } else {
       eventsLogger = DummyEventsStore;

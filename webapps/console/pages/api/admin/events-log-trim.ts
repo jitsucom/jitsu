@@ -13,7 +13,8 @@ export default createRoute()
   .handler(async ({ res, user }) => {
     await verifyAdmin(user);
     log.atInfo().log(`Trimming events log`);
-    const metricsSchema = process.env.CLICKHOUSE_METRICS_SCHEMA || "newjitsu_metrics";
+    const metricsSchema =
+      process.env.CLICKHOUSE_METRICS_SCHEMA || process.env.CLICKHOUSE_DATABASE || "newjitsu_metrics";
     const clickhouseCluster = process.env.CLICKHOUSE_CLUSTER || "jitsu_cluster";
     const eventsLogSize = process.env.EVENTS_LOG_SIZE ? parseInt(process.env.EVENTS_LOG_SIZE) : 200000;
     const statQuery: string = `select actorId, type, timestamp

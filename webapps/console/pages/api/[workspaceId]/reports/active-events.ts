@@ -31,7 +31,8 @@ export default createRoute()
     const { workspaceId } = query;
     const workspace = await getWorkspace(workspaceId);
     await verifyAccess(user, workspace.id);
-    const metricsSchema = process.env.CLICKHOUSE_METRICS_SCHEMA || "newjitsu_metrics";
+    const metricsSchema =
+      process.env.CLICKHOUSE_METRICS_SCHEMA || process.env.CLICKHOUSE_DATABASE || "newjitsu_metrics";
     const end = query.end ? query.end.toISOString() : new Date().toISOString();
     const start = query.start ? query.start.toISOString() : dayjs(end).subtract(1, "month").toDate().toISOString();
 

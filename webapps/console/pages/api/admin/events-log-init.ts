@@ -11,7 +11,8 @@ export default createRoute()
   .handler(async ({ res, user }) => {
     await verifyAdmin(user);
     log.atInfo().log(`Init events log`);
-    const metricsSchema = process.env.CLICKHOUSE_METRICS_SCHEMA || "newjitsu_metrics";
+    const metricsSchema =
+      process.env.CLICKHOUSE_METRICS_SCHEMA || process.env.CLICKHOUSE_DATABASE || "newjitsu_metrics";
     const createDbQuery: string = `create database IF NOT EXISTS ${metricsSchema}
 --ON CLUSTER jitsu_cluster`;
     try {

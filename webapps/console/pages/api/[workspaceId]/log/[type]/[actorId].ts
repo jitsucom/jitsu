@@ -9,7 +9,7 @@ import utc from "dayjs/plugin/utc";
 dayjs.extend(utc);
 
 const log = getServerLog("events-log");
-const metricsSchema = process.env.CLICKHOUSE_METRICS_SCHEMA || "newjitsu_metrics";
+const metricsSchema = process.env.CLICKHOUSE_METRICS_SCHEMA || process.env.CLICKHOUSE_DATABASE || "newjitsu_metrics";
 
 export const api: Api = {
   url: inferUrl(__filename),
