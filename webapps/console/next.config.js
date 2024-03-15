@@ -45,6 +45,7 @@ module.exports = {
     ];
   },
   experimental: {
+    instrumentationHook: true,
     outputFileTracingExcludes: {
       "*": [
         "./**/node_modules/@swc/core-linux-x64-gnu",

@@ -127,17 +127,6 @@ services:
       console:
         condition: service_healthy
 
-  events-log-init:
-    tty: true
-    image: curlimages/curl
-    restart: "on-failure"
-    environment:
-      CONSOLE_TOKEN: ${CONSOLE_TOKEN:-default}
-    command: "curl --silent --output nul --show-error -H 'Authorization: Bearer service-admin-account:${CONSOLE_TOKEN:-default}' http://console:3000/api/admin/events-log-init"
-    depends_on:
-      console:
-        condition: service_healthy
-
   events-log-trim:
     tty: true
     image: curlimages/curl

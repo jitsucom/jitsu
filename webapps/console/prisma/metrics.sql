@@ -48,8 +48,7 @@ GROUP BY
     timestamp,
     workspaceId;
 
-
-CREATE TABLE newjitsu_metrics.metrics on cluster jitsu_cluster
+create table newjitsu_metrics.metrics
 (
     timestamp DateTime,
     messageId String,
@@ -59,9 +58,29 @@ CREATE TABLE newjitsu_metrics.metrics on cluster jitsu_cluster
     functionId LowCardinality(String),
     destinationId LowCardinality(String),
     status LowCardinality(String),
-    events Int64
-    )
-    ENGINE = Null;
+    events    Int64,
+    tmpTotal  Int64,
+    tmpUniq   Int64
+)
+    engine = ReplicatedMergeTree('/clickhouse/tables/{shard}/newjitsu_metrics/metrics_real', '{replica}')
+        PARTITION BY toYYYYMM(timestamp)
+        ORDER BY (workspaceId, connectionId, timestamp)
+        SETTINGS index_granularity = 8192;
+
+
+-- CREATE TABLE newjitsu_metrics.metrics on cluster jitsu_cluster
+-- (
+--     timestamp DateTime,
+--     messageId String,
+--     workspaceId LowCardinality(String),
+--     streamId LowCardinality(String),
+--     connectionId LowCardinality(String),
+--     functionId LowCardinality(String),
+--     destinationId LowCardinality(String),
+--     status LowCardinality(String),
+--     events Int64
+--     )
+--     ENGINE = Null;
 
 CREATE MATERIALIZED VIEW newjitsu_metrics.mv_metrics on cluster jitsu_cluster
         (
