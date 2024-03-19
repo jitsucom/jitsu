@@ -468,7 +468,8 @@ function SyncEditor({
       : undefined,
   ].filter(Boolean) as EditorItem[];
   if (appConfig.syncs.scheduler.enabled) {
-    const disableScheduling = billing.enabled && !billing.loading && !billing.settings.maximumSyncFrequency;
+    const disableScheduling =
+      billing.enabled && !billing.loading && typeof billing.settings.maximumSyncFrequency === "undefined";
     configItems.push({
       name: "Schedule",
       documentation: "Select schedule to run sync",
