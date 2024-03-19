@@ -46,6 +46,9 @@ export const noRestrictions: BillingSettings = {
   planId: "$admin",
   overagePricePer100k: undefined,
   canShowProvisionDbCredentials: true,
+  maximumSyncFrequency: 5,
+  dailyActiveSyncs: 100,
+  dailyActiveSyncsOverage: 100,
   destinationEvensPerMonth: 100_000_000_000,
 };
 
