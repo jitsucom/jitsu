@@ -21,7 +21,7 @@ export const ObjectTitle: React.FC<{
   return (
     <div className={`flex overflow-auto items-center ${size !== "small" ? "gap-3" : "gap-2"}`}>
       {icon && <div className={iconClassName}>{icon}</div>}
-      <div className={`text-text truncate overflow-hidden  ${size !== "small" ? "font-semibold" : ""}`}>{title}</div>
+      <div className={`text-text overflow-hidden  ${size !== "small" ? "font-semibold" : ""}`}>{title}</div>
       {href && (
         <Link className={size === "small" ? `-ml-1` : `-ml-2`} href={href}>
           <FaExternalLinkAlt className="w-2.5 h-2.5" />
