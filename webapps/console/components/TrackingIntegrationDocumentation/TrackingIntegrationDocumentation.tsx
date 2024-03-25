@@ -202,7 +202,7 @@ export const TrackingIntegrationDocumentation: React.FC<{ streamId: string; onCa
                   {
                     label: (
                       <ButtonLabel className="text-lg" icon={<Plug className="w-5 h-5" />}>
-                        Others
+                        Apps & Others
                       </ButtonLabel>
                     ),
                     key: "other",
