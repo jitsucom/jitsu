@@ -13,11 +13,12 @@ import { ButtonLabel } from "../ButtonLabel/ButtonLabel";
 import { FiMonitor } from "react-icons/fi";
 import { FaGlobe, FaNodeJs, FaReact } from "react-icons/fa";
 import { NPMManual } from "./NPMPackage";
-import { Segment } from "./Segment";
+import { Other } from "./Other";
 import { useAppConfig } from "../../lib/context";
 import { ReactNode, useState } from "react";
 import { HiSelector } from "react-icons/hi";
 import { HTTPManual } from "./HTTPApi";
+import { Plug } from "lucide-react";
 
 function SegmentLogo() {
   return (
@@ -164,7 +165,7 @@ export const TrackingIntegrationDocumentation: React.FC<{ streamId: string; onCa
                 items={[
                   {
                     label: (
-                      <ButtonLabel className="text-lg" icon={<FiMonitor />}>
+                      <ButtonLabel className="text-lg" icon={<FiMonitor className="w-5 h-5" />}>
                         HTML
                       </ButtonLabel>
                     ),
@@ -173,7 +174,7 @@ export const TrackingIntegrationDocumentation: React.FC<{ streamId: string; onCa
                   },
                   {
                     label: (
-                      <ButtonLabel className="text-lg" icon={<FaReact />}>
+                      <ButtonLabel className="text-lg" icon={<FaReact className="w-5 h-5" />}>
                         React
                       </ButtonLabel>
                     ),
@@ -181,33 +182,31 @@ export const TrackingIntegrationDocumentation: React.FC<{ streamId: string; onCa
                     children: wrap(<ReactManual domain={displayDomain} writeKey={writeKey || undefined} />),
                   },
                   {
-                    label: <ButtonLabel icon={<FaNodeJs className="text-lg" />}>NPM Package</ButtonLabel>,
+                    label: (
+                      <ButtonLabel className="text-lg" icon={<FaNodeJs className="w-5 h-5" />}>
+                        NPM Package
+                      </ButtonLabel>
+                    ),
                     key: "js",
                     children: wrap(<NPMManual domain={displayDomain} writeKey={writeKey || undefined} />),
                   },
                   {
                     label: (
-                      <ButtonLabel
-                        icon={
-                          <div className="h-4 w-4">
-                            <SegmentLogo />
-                          </div>
-                        }
-                      >
-                        Segment Proxy
-                      </ButtonLabel>
-                    ),
-                    key: "segment",
-                    children: wrap(<Segment domain={displayDomain} />),
-                  },
-                  {
-                    label: (
-                      <ButtonLabel className="text-lg" icon={<FaGlobe />}>
+                      <ButtonLabel className="text-lg" icon={<FaGlobe className="w-5 h-5" />}>
                         HTTP API
                       </ButtonLabel>
                     ),
                     key: "http",
                     children: wrap(<HTTPManual domain={displayDomain} writeKey={serverWriteKey || undefined} />),
+                  },
+                  {
+                    label: (
+                      <ButtonLabel className="text-lg" icon={<Plug className="w-5 h-5" />}>
+                        Others
+                      </ButtonLabel>
+                    ),
+                    key: "other",
+                    children: wrap(<Other domain={displayDomain} />),
                   },
                 ]}
               />
