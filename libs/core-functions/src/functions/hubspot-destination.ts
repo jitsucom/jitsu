@@ -105,7 +105,6 @@ class HubspotHelper {
         ...companyProperties,
         associations: [],
       });
-      console.log(`Company '${companyId}' with jitsu id '${c.companyId}' and name '${c.name}' was created`);
       return companyId;
     }
   }
@@ -116,9 +115,7 @@ class HubspotHelper {
     email: string;
     customProps?: Record<string, any>;
   }): Promise<string> {
-    console.log(`Searching contact by ${u.userId} and ${u.email}`);
     const existingContactId = await this.getContactByJitsuId(u.userId, u.email);
-    console.log(`Found ${existingContactId}`);
 
     const [fistName, lastName] = splitName(u.name);
 
@@ -134,7 +131,6 @@ class HubspotHelper {
     if (existingContactId) {
       // Contact exists, update it
       await this.client.crm.contacts.basicApi.update(existingContactId, contactProperties);
-      console.log(`Contact '${existingContactId}' with jitsu id '${u.userId}' and email '${u.email}' was updated`);
       return existingContactId;
     } else {
       // Contact does not exist, create it
@@ -142,7 +138,6 @@ class HubspotHelper {
         ...contactProperties,
         associations: [],
       });
-      console.log(`Contact '${contactId}' with jitsu id '${u.userId}' and email '${u.email}' was created`);
       return contactId;
     }
   }
@@ -206,7 +201,6 @@ const HubspotDestination: JitsuFunction<AnalyticsServerEvent, HubspotCredentials
   let contactId: string | undefined = undefined;
   let companyId: string | undefined = undefined;
   if (event.type === "identify" && event.userId && event.traits.email) {
-    ctx.log.info("Upserting contact");
     contactId = await helper.upsertHubspotContact({
       userId: event.userId,
       name: event.traits.name as string | undefined,
