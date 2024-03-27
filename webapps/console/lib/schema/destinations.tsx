@@ -27,6 +27,7 @@ import intercomIcon from "./icons/intercom";
 import webhookIcon from "./icons/webhook";
 import { branding } from "../branding";
 import * as meta from "@jitsu/core-functions/src/meta";
+import { HubspotCredentials } from "@jitsu/core-functions/src/meta";
 
 const s3Regions = [
   "us-west-1",
@@ -179,6 +180,7 @@ export type DestinationType<T = any> = {
   comingSoon?: boolean;
   icon?: ReactNode;
   description: ReactNode;
+  documentation?: ReactNode;
   //For cloud (=server side) destinations - name builtin of the function that implements it
   implementingFunction?: string;
   //For device destinations - how this destination should be invoked? Information such as analytics plugin name, package name
@@ -294,7 +296,10 @@ const tagDestination = {
     name: "tag",
   } as DeviceOptions,
   credentialsUi: {
-    code: { editor: "SnippedEditor", editorProps: { languages: ["html", "javascript"] } },
+    code: {
+      editor: "SnippedEditor",
+      editorProps: { languages: ["html", "javascript"] },
+    },
   },
   connectionOptions: DeviceDestinationsConnectionOptions,
 };
@@ -440,7 +445,11 @@ export const coreDestinations: DestinationType<any>[] = [
     credentialsUi: {
       keyFile: {
         editor: "CodeEditor",
-        editorProps: { language: "json", height: "250px", monacoOptions: { lineNumbers: "off" } },
+        editorProps: {
+          language: "json",
+          height: "250px",
+          monacoOptions: { lineNumbers: "off" },
+        },
       },
     },
   },
@@ -714,15 +723,40 @@ export const coreDestinations: DestinationType<any>[] = [
   {
     id: "hubspot",
     icon: hubspotIcon,
-    comingSoon: true,
     connectionOptions: CloudDestinationsConnectionOptions,
     title: "Hubspot",
     tags: "CRM",
-    credentials: z.object({
-      apiKey: z.string().describe("API Key::Hubspot API Key"),
-      hubId: z.string().describe("Hub ID::Hubspot Hub ID"),
-    }),
+    credentials: HubspotCredentials,
     description: "Hubspot is a CRM. Jitsu sends data to Hubspot API and updates contacts and company records",
+    documentation: (
+      <>
+        The integration performs several functions:
+        <ul>
+          <li>
+            For each <code>.identify()</code> event, it either creates or updates a contact in the CRM. Jitsu utilizes a
+            custom property named <code>jitsu_user_id</code>, which is automatically generated, as the unique identifier
+            for the contact object. This identifier corresponds to the <code>.userId</code> property within the{" "}
+            <code>identify</code> event.
+          </li>
+          <li>
+            For each <code>.group()</code> event, it either creates or updates a company profile in the CRM. Here, Jitsu
+            employs a custom property called <code>jitsu_group_id</code>, which is also automatically generated, to
+            serve as the unique identifier for the company object. This identifier is derived from the{" "}
+            <code>.groupId</code> property within the <code>group</code> event.
+          </li>
+          <li>
+            If an event includes both <code>groupId</code> and <code>userId</code>, Jitsu will establish a linkage
+            between the two identifiers, effectively associating the user with the company.
+          </li>
+          <li>
+            When the <code>sendPageViews</code> feature is activated, Jitsu will forward <code>page</code> events, along
+            with other related events, to HubSpot for any identified user. <b>Important:</b> To utilize this
+            functionality, ensure that your HubSpot plan includes access to the{" "}
+            <a href="https://developers.hubspot.com/apisbytier">Events API</a>.
+          </li>
+        </ul>
+      </>
+    ),
   },
   {
     id: "devnull",

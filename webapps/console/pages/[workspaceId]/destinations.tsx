@@ -1,5 +1,5 @@
 import { WorkspacePageLayout } from "../../components/PageLayout/WorkspacePageLayout";
-import { Button, Modal, Popover, Skeleton, Table, Tabs, Tooltip } from "antd";
+import { Button, Collapse, Modal, Popover, Skeleton, Table, Tabs, Tooltip } from "antd";
 import { ConfigEditor, ConfigEditorProps, FieldDisplay } from "../../components/ConfigObjectEditor/ConfigEditor";
 import { DestinationConfig } from "../../lib/schema";
 import { confirmOp, feedbackError, serialization } from "../../lib/ui";
@@ -826,6 +826,20 @@ const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
         {...(config as any)}
         editorComponent={props => {
           return customEditors[props.object.destinationType];
+        }}
+        subtitle={object => {
+          const destinationDocs = getCoreDestinationType((object as any).destinationType)?.documentation;
+          if (destinationDocs) {
+            // eslint-disable-next-line react/jsx-no-undef
+            return (
+              <Collapse ghost>
+                <Collapse.Panel header="Show destination documentation" key="1">
+                  <div className="prose-sm bg-neutral-100 rounded-lg px-5 py-4">{destinationDocs}</div>
+                </Collapse.Panel>
+              </Collapse>
+            );
+          }
+          return undefined;
         }}
       />
     </>

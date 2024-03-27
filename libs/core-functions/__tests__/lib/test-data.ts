@@ -65,6 +65,7 @@ function identify(opts: {
   url: string;
   userId?: string;
   traits?: Record<string, any>;
+  groupId?: string;
 }): AnalyticsServerEvent {
   return {
     type: "identify",
@@ -79,18 +80,43 @@ function identify(opts: {
     requestIp: "99.177.205.92",
     sentAt: new Date().toISOString(),
     timestamp: new Date().toISOString(),
+    groupId: opts.groupId,
   };
 }
 
 export function eventsSequence() {
   const traits = { email: "john.doe.1@gmail.com", name: "John Doe" };
-  const events = [
-    identify({ anonymousId: "anonymousId1", url: "https://jitsu.com?test=1" }),
-    event("page", { anonymousId: "anonymousId1", url: "https://jitsu.com?test=1" }),
-    event("page", { anonymousId: "anonymousId1", url: "https://jitsu.com/signup" }),
-    identify({ anonymousId: "anonymousId1", url: "https://jitsu.com?test=1", userId: "userId", traits }),
-    event("page", { anonymousId: "anonymousId1", userId: "userId1", url: "https://app.jitsu.com", traits }),
-    event("track/signup", { anonymousId: "anonymousId", userId: "userId1", url: "https://app.jitsu.com", traits }),
+  return [
+    identify({
+      anonymousId: "anonymousId1",
+      url: "https://jitsu.com?test=1",
+      groupId: "group1",
+    }),
+    event("page", {
+      anonymousId: "anonymousId1",
+      url: "https://jitsu.com?test=1",
+    }),
+    event("page", {
+      anonymousId: "anonymousId1",
+      url: "https://jitsu.com/signup",
+    }),
+    identify({
+      anonymousId: "anonymousId1",
+      url: "https://jitsu.com?test=1",
+      userId: "userId",
+      traits,
+    }),
+    event("page", {
+      anonymousId: "anonymousId1",
+      userId: "userId1",
+      url: "https://app.jitsu.com",
+      traits,
+    }),
+    event("track/signup", {
+      anonymousId: "anonymousId",
+      userId: "userId1",
+      url: "https://app.jitsu.com",
+      traits,
+    }),
   ];
-  return events;
 }

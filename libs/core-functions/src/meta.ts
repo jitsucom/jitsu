@@ -215,7 +215,12 @@ export const MongodbDestinationConfig = z.object({
 export const MongodbDestinationConfigUi: Partial<
   Record<
     keyof MongodbDestinationConfig,
-    { documentation?: string; editor?: string; hidden?: boolean; password?: boolean }
+    {
+      documentation?: string;
+      editor?: string;
+      hidden?: boolean;
+      password?: boolean;
+    }
   >
 > = {
   hosts: {
@@ -248,3 +253,20 @@ export const Ga4Credentials = z.object({
   //validationMode: z.boolean().default(false).optional(),
 });
 export type Ga4Credentials = z.infer<typeof Ga4Credentials>;
+
+export const HubspotCredentials = z.object({
+  accessToken: z
+    .string()
+    .describe(
+      [
+        "To obtain an access secret, go to <b>Settings » Account Setup » Private Apps</b>, create a new private app copy the <b>Access token</b>. See <a href='https://developers.hubspot.com/docs/api/private-apps'>detailed guide</a>.",
+        "Please make sure to grant an application all read and write permissions under CRM section",
+      ].join("\n")
+    ),
+  sendPageViewEvents: z
+    .boolean()
+    .optional()
+    .describe("If on, Jitsu will send page view events to hubspot (only events with a known email). Please note"),
+});
+
+export type HubspotCredentials = z.infer<typeof HubspotCredentials>;

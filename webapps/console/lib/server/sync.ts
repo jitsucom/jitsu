@@ -561,7 +561,7 @@ export async function scheduleSync({
         await dbLog({
           taskId,
           syncId: sync.id,
-          message: `Error running sync: ${e?.message}${e?.stack ? `\n${e.stack}` : ""}`,
+          message: `Error running sync: ${syncError}${e?.stack ? `\n${e.stack}` : ""}`,
           level: "ERROR",
         });
       }

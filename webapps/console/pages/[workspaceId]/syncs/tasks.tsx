@@ -3,7 +3,7 @@ import { useWorkspace } from "../../../lib/context";
 import { useApi } from "../../../lib/useApi";
 import { source_taskDbModel } from "../../../prisma/schema";
 import { z } from "zod";
-import { DatePicker, notification, Popover, Select, Table, Tag } from "antd";
+import { Button, DatePicker, notification, Popover, Select, Table, Tag } from "antd";
 import React, { PropsWithChildren, useCallback, useEffect, useMemo, useState } from "react";
 import { useQueryStringState } from "../../../lib/useQueryStringState";
 import { ColumnType } from "antd/es/table/interface";
@@ -14,15 +14,25 @@ import JSON5 from "json5";
 import { ErrorCard } from "../../../components/GlobalError/GlobalError";
 import { arrayToMap } from "../../../lib/shared/arrays";
 import { JitsuButton, WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
-import { AlertCircle, CheckCircle2, ChevronLeft, ListMinusIcon, RefreshCw, XCircle } from "lucide-react";
-import { FaExternalLinkAlt, FaPlay, FaRegPlayCircle } from "react-icons/fa";
+import {
+  AlertCircle,
+  CheckCircle2,
+  ChevronLeft,
+  Edit3,
+  ListMinusIcon,
+  PlayCircle,
+  RefreshCw,
+  XCircle,
+} from "lucide-react";
+import { FaExternalLinkAlt, FaRegPlayCircle } from "react-icons/fa";
 import { useRouter } from "next/router";
-import { formatDateOnly, formatTime, SyncTitle } from "./index";
+import { displayTaskRunError, formatDateOnly, formatTime, SyncTitle } from "./index";
 import { ButtonGroup, ButtonProps } from "../../../components/ButtonGroup/ButtonGroup";
 import { rpc } from "juava";
-import { feedbackError, useKeyboard } from "../../../lib/ui";
+import { feedbackError, feedbackSuccess, useKeyboard } from "../../../lib/ui";
 import hash from "object-hash";
 import { useConfigObjectLinks, useConfigObjectList } from "../../../lib/store";
+import { ButtonLabel } from "../../../components/ButtonLabel/ButtonLabel";
 
 dayjs.extend(utc);
 dayjs.extend(relativeTime);
@@ -418,28 +428,9 @@ function TasksTable({ tasks, loading, linksMap, servicesMap, destinationsMap, re
       render: (text, task, index) => {
         const items: ButtonProps[] = [
           {
-            disabled: index > 0 || task.status === "RUNNING",
-            tooltip:
-              index > 0
-                ? "Only last task may be restarted"
-                : task.status === "RUNNING"
-                ? "Sync is already running"
-                : undefined,
-            icon: <FaPlay className="w-3.5 h-3.5" />,
-            onClick: async () => {
-              try {
-                const runStatus = await rpc(`/api/${workspace.id}/sources/run?syncId=${task.sync_id}`);
-                if (runStatus?.error) {
-                  feedbackError(runStatus.error, { placement: "top" });
-                } else if (refreshCb) {
-                  refreshCb();
-                }
-              } catch (e) {
-                feedbackError("Failed to run sync", { error: e, placement: "top" });
-              } finally {
-              }
-            },
-            label: "Run Again",
+            icon: <Edit3 className={"w-5 h-5"} />,
+            href: `/syncs/edit?id=${task.task_id}`,
+            label: "Edit Sync",
           },
           {
             icon: <ListMinusIcon className={"w-5 h-5"} />,
@@ -466,6 +457,32 @@ function TasksTable({ tasks, loading, linksMap, servicesMap, destinationsMap, re
     </div>
   );
 }
+
+const ReRunButton: React.FC<{ syncId: string; updateStatus: () => void }> = props => {
+  const [loading, setLoading] = useState(false);
+  const workspace = useWorkspace();
+  const rerun = async () => {
+    try {
+      setLoading(true);
+      const runStatus = await rpc(`/api/${workspace.id}/sources/run?syncId=${props.syncId}`);
+      if (runStatus?.error) {
+        displayTaskRunError(workspace, runStatus);
+      } else {
+        feedbackSuccess("Sync started");
+      }
+    } catch (e) {
+      feedbackError("Failed to run sync", { error: e, placement: "top" });
+    } finally {
+      setLoading(false);
+      props.updateStatus();
+    }
+  };
+  return (
+    <Button type="link" size="small" onClick={rerun} disabled={loading}>
+      <ButtonLabel icon={<PlayCircle className={`w-6 h-6 ${loading ? "animate-spin" : ""}`} />}>Re-run</ButtonLabel>
+    </Button>
+  );
+};
 
 export type TasksViewState = {
   dates?: DatesRange;
@@ -665,6 +682,9 @@ function Tasks() {
         </div>
         <div key={"actions"}>
           <div className={"flex flex-row"}>
+            {state.syncId && state.syncId !== "all" && (
+              <ReRunButton syncId={state.syncId} updateStatus={() => setRefresh(refresh + 1)} />
+            )}
             <JitsuButton
               icon={<RefreshCw className={`w-6 h-6 ${isLoading && refresh > 0 && "animate-spin"}`} />}
               type="link"

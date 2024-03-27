@@ -65,7 +65,7 @@ async function getClickhousePart({
                      workspaceId ? "and workspaceId = {workspaceId:String}" : ""
                    }
                  group by period, workspaceId
-                 order by period desc, workspaceId desc;
+                 order by period desc, workspaceId desc;у
   `;
   const queryParams = removeUndefined({
     start: isoDateTOClickhouse(dayjs(start).utc().startOf("day").toISOString()),

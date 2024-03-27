@@ -524,18 +524,22 @@ export const SyncTitle: React.FC<{
 }> = ({ syncId, service, size = "small", destination, showLink, className = false }) => {
   return (
     <div className={`flex flex-row whitespace-nowrap gap-1.5 ${className ?? ""}`}>
-      <ServiceTitle size={size === "medium" ? "default" : size} service={service} />
+      <div className="flex flex-row items-center flex-nowrap">
+        <ServiceTitle size={size === "medium" ? "default" : size} service={service} link={showLink} />
+      </div>
       {"→"}
-      <DestinationTitle size={size === "medium" ? "default" : size} destination={destination} />
-      {showLink && (
-        <WJitsuButton
-          href={`/syncs/edit?id=${syncId}`}
-          type="link"
-          className="link"
-          size="small"
-          icon={<FaExternalLinkAlt className="w-2.5 h-2.5" />}
-        />
-      )}
+      <div className="flex flex-row items-center flex-nowrap">
+        <DestinationTitle size={size === "medium" ? "default" : size} destination={destination} />
+        {showLink && (
+          <WJitsuButton
+            href={`/syncs/edit?id=${syncId}`}
+            type="link"
+            className="link"
+            size="small"
+            icon={<FaExternalLinkAlt className="w-2.5 h-2.5" />}
+          />
+        )}
+      </div>
     </div>
   );
 };
