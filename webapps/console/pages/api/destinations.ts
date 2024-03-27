@@ -15,7 +15,16 @@ export default createRoute()
     res.setHeader("Access-Control-Allow-Credentials", "true");
     return {
       destinations: coreDestinations.map(d => ({
-        ...omit(d, "icon", "credentials", "credentialsUi", "connectionOptions", "deviceOptions", "description", "documentation"),
+        ...omit(
+          d,
+          "icon",
+          "credentials",
+          "credentialsUi",
+          "connectionOptions",
+          "deviceOptions",
+          "description",
+          "documentation"
+        ),
         icon: d.icon && renderToStaticMarkup(d.icon as any),
         documentation:
           typeof d.documentation === "string"
