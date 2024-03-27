@@ -620,64 +620,75 @@ function SyncEditor({
           name: (
             <div className={"flex flex-col"}>
               <LabelEllipsis maxLen={34} trim={"middle"}>
-                Stream: {name}
+                {name}
               </LabelEllipsis>
-              <div className={"font-light flex flex-row items-center mt-1 gap-1"}>
-                Table:{" "}
-                <Input
-                  size={"small"}
-                  disabled={!syncOptions?.streams?.[name]}
-                  onChange={e => updateSelectedStream(name, "table_name", e.target.value)}
-                  value={syncOptions?.streams?.[name]?.table_name || (syncOptions?.tableNamePrefix ?? "") + name}
-                ></Input>
-              </div>
             </div>
           ),
           component: (
-            <div className={"flex flex-row justify-end gap-8 items-center"}>
-              <div>
-                Mode:{" "}
-                <Select
-                  disabled={!syncOptions?.streams?.[name] || syncModeOptions.length === 1}
-                  className={"w-32"}
-                  options={syncModeOptions}
-                  value={syncOptions?.streams?.[name]?.sync_mode}
-                  onChange={v => updateSelectedStream(name, "sync_mode", v)}
+            <div className={"flex flex-col gap-1.5"}>
+              <div className={"flex flex-row justify-between items-center"}>
+                <div>
+                  Mode:{" "}
+                  <Select
+                    size={"middle"}
+                    disabled={!syncOptions?.streams?.[name] || syncModeOptions.length === 1}
+                    className={"w-52"}
+                    style={{ minWidth: "15rem" }}
+                    options={syncModeOptions}
+                    value={syncOptions?.streams?.[name]?.sync_mode}
+                    onChange={v => updateSelectedStream(name, "sync_mode", v)}
+                  />
+                </div>
+                <div className={"w-72"}>
+                  {stream.supported_sync_modes.includes("incremental") &&
+                    syncOptions?.streams?.[name]?.sync_mode === "incremental" && (
+                      <>
+                        Cursor field:{" "}
+                        <Tooltip title={stream.source_defined_cursor ? "Cursor field is defined by source" : undefined}>
+                          <Select
+                            size={"middle"}
+                            className={"w-44"}
+                            dropdownMatchSelectWidth={false}
+                            disabled={!syncOptions?.streams?.[name] || stream.source_defined_cursor}
+                            options={!stream.source_defined_cursor ? cursorFieldOptions : []}
+                            value={
+                              !stream.source_defined_cursor
+                                ? syncOptions?.streams?.[name]?.cursor_field?.[0]
+                                : undefined
+                            }
+                            onChange={v => {
+                              updateSelectedStream(name, "cursor_field", v ? [v] : undefined);
+                            }}
+                          />
+                        </Tooltip>
+                      </>
+                    )}
+                </div>
+                <SwitchComponent
+                  className="max-w-xs"
+                  value={!!syncOptions?.streams?.[name]}
+                  onChange={enabled => {
+                    if (enabled) {
+                      addStream(name);
+                    } else {
+                      deleteSelectedStream(name);
+                    }
+                  }}
                 />
               </div>
-              <div className={"w-72"}>
-                {stream.supported_sync_modes.includes("incremental") &&
-                  syncOptions?.streams?.[name]?.sync_mode === "incremental" && (
-                    <>
-                      Cursor field:{" "}
-                      <Tooltip title={stream.source_defined_cursor ? "Cursor field is defined by source" : undefined}>
-                        <Select
-                          className={"w-44"}
-                          dropdownMatchSelectWidth={false}
-                          disabled={!syncOptions?.streams?.[name] || stream.source_defined_cursor}
-                          options={!stream.source_defined_cursor ? cursorFieldOptions : []}
-                          value={
-                            !stream.source_defined_cursor ? syncOptions?.streams?.[name]?.cursor_field?.[0] : undefined
-                          }
-                          onChange={v => {
-                            updateSelectedStream(name, "cursor_field", v ? [v] : undefined);
-                          }}
-                        />
-                      </Tooltip>
-                    </>
-                  )}
+              <div className={"flex flex-row justify-between items-center"}>
+                <div className={"flex flex-row items-center gap-1"}>
+                  Table: <br />
+                  <Input
+                    size={"middle"}
+                    style={{ minWidth: "15rem" }}
+                    disabled={!syncOptions?.streams?.[name]}
+                    onChange={e => updateSelectedStream(name, "table_name", e.target.value)}
+                    value={syncOptions?.streams?.[name]?.table_name || (syncOptions?.tableNamePrefix ?? "") + name}
+                  ></Input>
+                </div>
+                <div className={"w-36"}></div>
               </div>
-              <SwitchComponent
-                className="max-w-xs"
-                value={!!syncOptions?.streams?.[name]}
-                onChange={enabled => {
-                  if (enabled) {
-                    addStream(name);
-                  } else {
-                    deleteSelectedStream(name);
-                  }
-                }}
-              />
             </div>
           ),
         });
