@@ -250,4 +250,5 @@ const HubspotDestination: JitsuFunction<AnalyticsServerEvent, HubspotCredentials
   }
 };
 
+export default HubspotDestination;
 export { HubspotDestination };

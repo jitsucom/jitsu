@@ -17,6 +17,7 @@ import SegmentDestination from "./functions/segment-destination";
 import AmplitudeDestination from "./functions/amplitude-destination";
 import FacebookConversionsApi from "./functions/facebook-conversions";
 import IntercomDestination from "./functions/intercom-destination";
+import HubspotDestination from "./functions/hubspot-destination";
 
 const builtinDestinations: Record<BuiltinDestinationFunctionName, JitsuFunction> = {
   "builtin.destination.bulker": BulkerDestination as JitsuFunction,
@@ -30,7 +31,7 @@ const builtinDestinations: Record<BuiltinDestinationFunctionName, JitsuFunction>
   "builtin.destination.mongodb": MongodbDestination as JitsuFunction,
   "builtin.destination.amplitude": AmplitudeDestination as JitsuFunction,
   "builtin.destination.facebook-conversions": FacebookConversionsApi as JitsuFunction,
-  "builtin.destination.hubspot": () => null,
+  "builtin.destination.hubspot": HubspotDestination as JitsuFunction,
   "builtin.destination.devnull": () => null,
   "builtin.destination.tag": () => undefined,
   "builtin.destination.gtm": () => undefined,
