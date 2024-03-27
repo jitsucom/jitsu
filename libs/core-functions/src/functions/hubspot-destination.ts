@@ -125,7 +125,7 @@ class HubspotHelper {
         firstname: fistName,
         lastname: lastName,
         [JITSU_USER_ID_PROPERTY]: u.userId,
-      },
+      } as { [key: string]: string },
     };
 
     if (existingContactId) {
@@ -200,7 +200,7 @@ const HubspotDestination: JitsuFunction<AnalyticsServerEvent, HubspotCredentials
   hubspotClient.init();
   let contactId: string | undefined = undefined;
   let companyId: string | undefined = undefined;
-  if (event.type === "identify" && event.userId && event.traits.email) {
+  if (event.type === "identify" && event.userId && event.traits?.email) {
     contactId = await helper.upsertHubspotContact({
       userId: event.userId,
       name: event.traits.name as string | undefined,
@@ -220,7 +220,7 @@ const HubspotDestination: JitsuFunction<AnalyticsServerEvent, HubspotCredentials
 
     await helper.upsertHubspotCompany({
       companyId: event.groupId,
-      name: (groupName || `Company ${event.groupId}`) as string | undefined,
+      name: (groupName || `Company ${event.groupId}`) as string,
       customProps: omit(event.traits, "email", "name"),
     });
     if (event.userId) {
@@ -240,7 +240,7 @@ const HubspotDestination: JitsuFunction<AnalyticsServerEvent, HubspotCredentials
     }
     const hubspotEvent: BehavioralEventHttpCompletionRequest = {
       email: email,
-      eventName: event.type === "track" ? event.event : event.type,
+      eventName: event.type === "track" ? event.event ?? "track" : event.type,
       objectId: contactId,
       occurredAt: event.timestamp ? new Date(event.timestamp) : new Date(),
       properties: properties,
