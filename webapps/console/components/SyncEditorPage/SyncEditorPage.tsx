@@ -84,6 +84,7 @@ type SyncOptionsType = {
 
 type SelectedStreamSettings = {
   sync_mode: "full_refresh" | "incremental";
+  table_name?: string;
   cursor_field?: string[];
 };
 
@@ -617,9 +618,20 @@ function SyncEditor({
           group: "Streams",
           key: name,
           name: (
-            <LabelEllipsis maxLen={34} trim={"middle"}>
-              {name}
-            </LabelEllipsis>
+            <div className={"flex flex-col"}>
+              <LabelEllipsis maxLen={34} trim={"middle"}>
+                Stream: {name}
+              </LabelEllipsis>
+              <div className={"font-light flex flex-row items-center mt-1 gap-1"}>
+                Table:{" "}
+                <Input
+                  size={"small"}
+                  disabled={!syncOptions?.streams?.[name]}
+                  onChange={e => updateSelectedStream(name, "table_name", e.target.value)}
+                  value={syncOptions?.streams?.[name]?.table_name || (syncOptions?.tableNamePrefix ?? "") + name}
+                ></Input>
+              </div>
+            </div>
           ),
           component: (
             <div className={"flex flex-row justify-end gap-8 items-center"}>

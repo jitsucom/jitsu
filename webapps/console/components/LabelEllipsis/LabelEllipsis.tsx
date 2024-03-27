@@ -4,7 +4,7 @@ import { trimEnd, trimMiddle } from "../../lib/shared/strings";
 export type LabelEllipsisProps = {
   maxLen: number;
   trim?: "middle" | "end";
-  children: string;
+  children: any;
   className?: string;
 };
 

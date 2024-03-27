@@ -170,9 +170,12 @@ export function selectStreamsFromCatalog(catalog: any, selectedStreams: any): an
     .map((s: any) => {
       const stream = selectedStreams[s.namespace ? s.namespace + "." + s.name : s.name];
       return {
-        ...stream,
+        ...omit(stream, "table_name"),
         destination_sync_mode: "overwrite",
-        stream: s,
+        stream: {
+          ...s,
+          table_name: stream.table_name,
+        },
       };
     });
   return { streams };
