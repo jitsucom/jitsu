@@ -1,4 +1,3 @@
-import wtf from "wtfnode";
 import { checkHash, checkRawToken, disableService, getLog, setServerJsonFormat, isTruish } from "juava";
 import { destinationMessagesTopic, getCredentialsFromEnv, rotorConsumerGroupId } from "./lib/kafka-config";
 import { kafkaRotor } from "./lib/rotor";
@@ -16,9 +15,8 @@ import { getApplicationVersion, getDiagnostics } from "./lib/version";
 import { createClickhouseLogger } from "./lib/clickhouse-logger";
 import { Redis } from "ioredis";
 import { createRedis } from "./lib/redis";
-import util from "util";
+import * as util from "util";
 export const log = getLog("rotor");
-export const profileLog = getLog("profile");
 
 disableService("prisma");
 disableService("pg");
@@ -208,12 +206,7 @@ function initHTTP(rotorContext: Omit<MessageHandlerContext, "connectionStore" | 
   http.post("/func", FunctionsHandler(rotorContext));
   http.get("/wtf", async (req, res) => {
     res.setHeader("Content-Type", "text/plain");
-    wtf.setLogger("info", (message?: any, ...optionalParams: any[]) => {
-      res.write(util.format(message, ...optionalParams) + "\n");
-      profileLog.atInfo().log(message, optionalParams);
-    });
-    wtf.dump();
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    res.write(util.inspect(process["_getActiveHandles"]()));
     res.end();
   });
   http.post("/func/multi", FunctionsHandlerMulti(rotorContext));

@@ -292,6 +292,8 @@ const BulkerDestination: JitsuFunction<AnalyticsServerEvent, BulkerDestinationCo
       );
       if (!res.ok) {
         throw new HTTPError(`HTTP Error: ${res.status} ${res.statusText}`, res.status, await res.text());
+      } else {
+        ctx.log.debug(`HTTP Status: ${res.status} ${res.statusText} Response: ${await res.text()}`);
       }
     }
     return event;

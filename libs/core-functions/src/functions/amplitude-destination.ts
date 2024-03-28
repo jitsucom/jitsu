@@ -130,7 +130,7 @@ const AmplitudeDestination: JitsuFunction<AnalyticsServerEvent, AmplitudeDestina
         body: JSON.stringify(payload),
       });
       if (res.status === 200) {
-        log.info(`Amplitude ${event.type} OK: ${res.status} message: ${await res.text()}`);
+        log.debug(`Amplitude ${event.type} OK: ${res.status} message: ${await res.text()}`);
       } else {
         throw new Error(`Amplitude ${event.type} Error: ${res.status} message: ${await res.text()}`);
       }

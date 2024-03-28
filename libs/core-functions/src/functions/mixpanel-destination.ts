@@ -439,10 +439,8 @@ function getDeviceId(ctx: FullContext, event: AnalyticsServerEvent) {
 }
 
 const MixpanelDestination: JitsuFunction<AnalyticsServerEvent, MixpanelCredentials> = async (event, ctx) => {
-  ctx.log.debug(`Mixpanel destination (props=${JSON.stringify(ctx.props)}) received event ${JSON.stringify(event)}`);
   if (typeof ctx.props.filterBotTraffic === "undefined" || ctx.props.filterBotTraffic) {
     if (ctx.ua?.bot) {
-      ctx.log.debug(`Skipping bot traffic`);
       return;
     }
   }

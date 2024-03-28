@@ -669,9 +669,6 @@ importers:
       tslib:
         specifier: ^2.4.0
         version: 2.5.0
-      wtfnode:
-        specifier: ^0.9.1
-        version: 0.9.1
     devDependencies:
       '@babel/preset-env':
         specifier: ^7.23.2
@@ -739,9 +736,6 @@ importers:
       '@types/webpack':
         specifier: ^5.28.0
         version: 5.28.1(webpack-cli@5.0.1)
-      '@types/wtfnode':
-        specifier: ^0.7.3
-        version: 0.7.3
       '@webpack-cli/generators':
         specifier: ^3.0.0
         version: 3.0.1(mem-fs-editor@9.7.0)(mem-fs@2.3.0)(prettier@2.8.7)(webpack-cli@5.0.1)(webpack@5.78.0)
@@ -9280,10 +9274,6 @@ packages:
     dependencies:
       '@types/node': 18.15.11
     dev: false
-
-  /@types/wtfnode@0.7.3:
-    resolution: {integrity: sha512-UMkHpx+o2xRWLJ7PmT3bBzvIA9/0oFw80oPtY/xO4jfdq+Gznn4wP7K9B/JjMxyxy+wF+5oRPIykxeBbEDjwRg==}
-    dev: true
 
   /@types/yargs-parser@21.0.0:
     resolution: {integrity: sha512-iO9ZQHkZxHn4mSakYV0vFHAVDyEOIJQrV2uZ06HxEPcx+mt8swXoZHIbaaJ2crJYFfErySgktuTZ3BeLz+XmFA==}
@@ -27716,11 +27706,6 @@ packages:
         optional: true
       utf-8-validate:
         optional: true
-    dev: false
-
-  /wtfnode@0.9.1:
-    resolution: {integrity: sha512-Ip6C2KeQPl/F3aP1EfOnPoQk14Udd9lffpoqWDNH3Xt78svxPbv53ngtmtfI0q2Te3oTq79XKTnRNXVIn/GsPA==}
-    hasBin: true
     dev: false
 
   /xdg-app-paths@5.1.0:
