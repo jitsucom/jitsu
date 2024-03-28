@@ -1,4 +1,4 @@
-import { checkHash, checkRawToken, disableService, getLog, randomId, setServerJsonFormat, isTruish } from "juava";
+import { checkHash, checkRawToken, disableService, getLog, setServerJsonFormat, isTruish } from "juava";
 import { destinationMessagesTopic, getCredentialsFromEnv, rotorConsumerGroupId } from "./lib/kafka-config";
 import { kafkaRotor } from "./lib/rotor";
 import { DummyEventsStore, EventsStore, mongodb } from "@jitsu/core-functions";
@@ -15,8 +15,10 @@ import { getApplicationVersion, getDiagnostics } from "./lib/version";
 import { createClickhouseLogger } from "./lib/clickhouse-logger";
 import { Redis } from "ioredis";
 import { createRedis } from "./lib/redis";
+import wtf from "wtfnode";
 
 export const log = getLog("rotor");
+export const profileLog = getLog("profile");
 
 disableService("prisma");
 disableService("pg");
@@ -204,6 +206,12 @@ function initHTTP(rotorContext: Omit<MessageHandlerContext, "connectionStore" | 
   });
   http.post("/udfrun", UDFRunHandler);
   http.post("/func", FunctionsHandler(rotorContext));
+  http.get("/wtf", async (req, res) => {
+    wtf.setLogger("info", (message?: any, ...optionalParams: any[]) => {
+      profileLog.atInfo().log(message, optionalParams);
+    });
+    wtf.dump();
+  });
   http.post("/func/multi", FunctionsHandlerMulti(rotorContext));
   const httpServer = http.listen(rotorHttpPort, () => {
     log.atInfo().log(`Listening on port ${rotorHttpPort}`);

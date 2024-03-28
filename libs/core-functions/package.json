@@ -43,7 +43,7 @@
     "isolated-vm": "4.7.2",
     "juava": "workspace:*",
     "lodash": "^4.17.21",
-    "mongodb": "^6.3.0",
+    "mongodb": "^6.5.0",
     "node-cache": "^5.1.2",
     "parse-duration": "^1.1.0",
     "posthog-node": "^2.4.0",
