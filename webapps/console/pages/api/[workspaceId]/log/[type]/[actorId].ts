@@ -11,6 +11,9 @@ dayjs.extend(utc);
 const log = getServerLog("events-log");
 const metricsSchema = process.env.CLICKHOUSE_METRICS_SCHEMA || process.env.CLICKHOUSE_DATABASE || "newjitsu_metrics";
 
+//Vercel Limit:  https://vercel.com/docs/functions/runtimes#request-body-size
+const maxResponseSize = 4500000;
+
 export const api: Api = {
   url: inferUrl(__filename),
   GET: {
@@ -71,7 +74,12 @@ export const api: Api = {
           },
         })
       ).json()) as any;
+      let written = 0;
       for (const row of chResult.data) {
+        written += row.content.length + 70;
+        if (written > maxResponseSize) {
+          break;
+        }
         result.push({
           date: dayjs(row.date).utc(true).toDate(),
           level: row.level,
