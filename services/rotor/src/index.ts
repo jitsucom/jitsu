@@ -16,6 +16,7 @@ import { createClickhouseLogger } from "./lib/clickhouse-logger";
 import { Redis } from "ioredis";
 import { createRedis } from "./lib/redis";
 import * as util from "util";
+import { getHeapSnapshot } from "node:v8";
 export const log = getLog("rotor");
 
 disableService("prisma");
@@ -208,6 +209,12 @@ function initHTTP(rotorContext: Omit<MessageHandlerContext, "connectionStore" | 
     res.setHeader("Content-Type", "text/plain");
     res.write(util.inspect(process["_getActiveHandles"]()));
     res.end();
+  });
+  http.get("/wtfheap", async (req, res) => {
+    const snapshot = getHeapSnapshot();
+    log.atInfo().log("snapshot");
+    snapshot.pipe(res);
+    log.atInfo().log("snapshot2");
   });
   http.post("/func/multi", FunctionsHandlerMulti(rotorContext));
   const httpServer = http.listen(rotorHttpPort, () => {

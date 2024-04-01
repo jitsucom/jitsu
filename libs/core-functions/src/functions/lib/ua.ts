@@ -5,7 +5,7 @@ import NodeCache from "node-cache";
 
 const BotUAKeywords = ["bot", "spider", "headless", "crawler", "uptimia"];
 const uaCacheTTL = 60 * 10; // 10 min;
-const uaCache = new NodeCache({ stdTTL: uaCacheTTL, checkperiod: 60, maxKeys: 10000 });
+const uaCache = new NodeCache({ stdTTL: uaCacheTTL, checkperiod: 60, maxKeys: 1000, useClones: false });
 
 export function parseUserAgent(userAgent?: string): UserAgent {
   if (!userAgent) {

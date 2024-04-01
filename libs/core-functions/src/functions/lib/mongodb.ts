@@ -19,7 +19,7 @@ async function createClient() {
   log.atInfo().log(`Connecting to MongoDB server...`);
 
   // Create a new MongoClient
-  const client = new MongoClient(mongodbURL, { compressors: ["zstd"] });
+  const client = new MongoClient(mongodbURL, { compressors: ["zstd"], maxPoolSize: 32 });
   // Connect the client to the server (optional starting in v4.7)
   await client.connect();
   // Establish and verify connection
