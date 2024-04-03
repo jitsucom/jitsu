@@ -1,5 +1,5 @@
 import { getLog, LogLevel, sanitize, stopwatch } from "juava";
-import { Isolate, ExternalCopy, Callback, Reference, Module, Context } from "isolated-vm";
+import { Isolate, ExternalCopy, Reference, Module, Context } from "isolated-vm";
 import { EventContext, FetchOpts, FuncReturn, JitsuFunction, Store } from "@jitsu/protocols/functions";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { createFullContext, EventsStore } from "../context";
@@ -133,51 +133,54 @@ function wrap(connectionId: string, isolate: Isolate, context: Context, wrapper:
     if (isolate.isDisposed) {
       throw new Error("Isolate is disposed");
     }
+    let refs: Reference[] = [];
+    const eventCopy = new ExternalCopy(event);
+    const ctxCopy = new ExternalCopy({
+      ...ctx,
+      log: {
+        info: makeReference(refs, ctx.log.info),
+        warn: makeReference(refs, ctx.log.warn),
+        debug: makeReference(refs, ctx.log.debug),
+        error: makeReference(refs, ctx.log.error),
+      },
+      fetch: makeReference(refs, async (url: string, opts?: FetchOpts, extra?: any) => {
+        const res = await ctx.fetch(url, opts, extra);
+        const headers: any = {};
+        res.headers.forEach((v, k) => {
+          headers[k] = v;
+        });
+        const text = await res.text();
+        const j = {
+          status: res.status,
+          statusText: res.statusText,
+          type: res.type,
+          redirected: res.redirected,
+          body: text,
+          bodyUsed: true,
+          url: res.url,
+          ok: res.ok,
+          headers: headers,
+        };
+        return JSON.stringify(j);
+      }),
+      store: {
+        get: makeReference(refs, async (key: string) => {
+          const res = await ctx.store.get(key);
+          return JSON.stringify(res);
+        }),
+        set: makeReference(refs, ctx.store.set),
+        del: makeReference(refs, ctx.store.del),
+        ttl: makeReference(refs, async (key: string) => {
+          return await ctx.store.ttl(key);
+        }),
+      },
+    });
     try {
       const res = await ref.apply(
         undefined,
         [
-          new ExternalCopy(event),
-          new ExternalCopy({
-            ...ctx,
-            log: {
-              info: new Callback(ctx.log.info),
-              warn: new Callback(ctx.log.warn),
-              debug: new Callback(ctx.log.debug),
-              error: new Callback(ctx.log.error),
-            },
-            fetch: new Reference(async (url: string, opts?: FetchOpts, extra?: any) => {
-              const res = await ctx.fetch(url, opts, extra);
-              const headers: any = {};
-              res.headers.forEach((v, k) => {
-                headers[k] = v;
-              });
-              const text = await res.text();
-              const j = {
-                status: res.status,
-                statusText: res.statusText,
-                type: res.type,
-                redirected: res.redirected,
-                body: text,
-                bodyUsed: true,
-                url: res.url,
-                ok: res.ok,
-                headers: headers,
-              };
-              return JSON.stringify(j);
-            }),
-            store: {
-              get: new Reference(async (key: string) => {
-                const res = await ctx.store.get(key);
-                return JSON.stringify(res);
-              }),
-              set: new Callback(ctx.store.set, { ignored: true }),
-              del: new Callback(ctx.store.del, { ignored: true }),
-              ttl: new Reference(async (key: string) => {
-                return await ctx.store.ttl(key);
-              }),
-            },
-          }),
+          eventCopy.copyInto({ release: true, transferIn: true }),
+          ctxCopy.copyInto({ release: true, transferIn: true }),
         ],
         {
           result: { promise: true },
@@ -191,7 +194,9 @@ function wrap(connectionId: string, isolate: Isolate, context: Context, wrapper:
         case "boolean":
           return res;
         default:
-          return (res as Reference).copy();
+          const r = (res as Reference).copy();
+          (res as Reference).release();
+          return r;
       }
     } catch (e: any) {
       if (isolate.isDisposed) {
@@ -203,6 +208,10 @@ function wrap(connectionId: string, isolate: Isolate, context: Context, wrapper:
       }
       //log.atInfo().log(`ERROR name: ${e.name} message: ${e.message} json: ${e.stack}`);
       throw e;
+    } finally {
+      for (const r of refs) {
+        r.release();
+      }
     }
   };
   return {
@@ -219,6 +228,12 @@ function wrap(connectionId: string, isolate: Isolate, context: Context, wrapper:
       }
     },
   };
+}
+
+function makeReference(refs: Reference[], obj: any): Reference {
+  const ref = new Reference(obj);
+  refs.push(ref);
+  return ref;
 }
 
 export type UDFTestRequest = {

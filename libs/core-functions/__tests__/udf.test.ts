@@ -28,6 +28,7 @@ export const config = {
 };
 const udf = async (event, { log, fetch, props, store, geo, ...meta }) => {
     console.log("udf")
+    log.error("just for the test error. ignore it")
     event.test = "test123"
     const url = \`http://localhost:${port}/\`;
     console.log("url", url)
@@ -37,6 +38,8 @@ const udf = async (event, { log, fetch, props, store, geo, ...meta }) => {
     event.store1 = await store.get("store1")
     event.fetch_result = result
     store.set("test", result)
+    store.set("test2", result)
+    await store.del("test2", result)
     console.log("done")
     return event;
 };
@@ -62,7 +65,7 @@ export default udf;
       },
       workspaceId: "test",
     });
-    console.log("res", res);
+    console.log("res", JSON.stringify(res, null, 2));
 
     expect(res.result).toEqual({
       messageId: "test",

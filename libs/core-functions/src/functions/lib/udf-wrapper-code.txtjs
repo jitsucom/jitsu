@@ -18,7 +18,7 @@ export function checkError(chainRes, funcCtx) {
                     functionId: error.functionId || el.functionId
                 }
             } else {
-                funcCtx.log.error(`Function execution failed`, error.name, error.message, {udfId: error.functionId || el.functionId});
+                funcCtx.log.error.apply(undefined, [`Function execution failed`, error.name, error.message, {udfId: error.functionId || el.functionId}]);
             }
         }
     }
@@ -120,10 +120,10 @@ async function runChain(
 }
 
 const wrappedFunctionChain = async function (eventcopy, ctxcopy) {
-    const c = ctxcopy.copy();
+    const c = ctxcopy;
     let chain = [];
     //** @UDF_FUNCTIONS_CHAIN **//
-    const event = eventcopy.copy();
+    const event = eventcopy;
     const chainRes = await runChain(chain, event, c);
     checkError(chainRes, c);
     if (Array.isArray(chainRes.events) && chainRes.events.length === 1) {
@@ -150,7 +150,18 @@ const wrappedUserFunction = (id, f) => async function (event, c) {
             },
         },
         store: {
-            ...c.store,
+            set: async (key,value,opts) => {
+                await c.store.set.apply(undefined, [key, value, opts], {
+                    arguments: {copy: true},
+                    result: { ignore: true}
+                });
+            },
+            del: async key => {
+                await c.store.del.apply(undefined, [key], {
+                    arguments: {copy: true},
+                    result: {ignore: true}
+                });
+            },
             get: async key => {
                 const res = await c.store.get.apply(undefined, [key], {
                     arguments: {copy: true},
