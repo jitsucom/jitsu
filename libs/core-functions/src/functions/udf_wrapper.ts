@@ -1,5 +1,5 @@
 import { getLog, LogLevel, sanitize, stopwatch } from "juava";
-import { Isolate, ExternalCopy, Callback, Reference, Module } from "isolated-vm";
+import { Isolate, ExternalCopy, Callback, Reference, Module, Context } from "isolated-vm";
 import { EventContext, FetchOpts, FuncReturn, JitsuFunction, Store } from "@jitsu/protocols/functions";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { createFullContext, EventsStore } from "../context";
@@ -32,9 +32,10 @@ export const UDFWrapper = (connectionId: string, functions: UDFFunction[]): UDFW
   log.atInfo().log(`[${connectionId}] Compiling ${functions.length} UDF functions`);
   const sw = stopwatch();
   let isolate: Isolate;
+  let context: Context;
   try {
     isolate = new Isolate({ memoryLimit: 128 });
-    const context = isolate.createContextSync();
+    context = isolate.createContextSync();
     const jail = context.global;
 
     // This make the global object available in the context as 'global'. We use 'derefInto()' here
@@ -96,7 +97,7 @@ export const UDFWrapper = (connectionId: string, functions: UDFFunction[]): UDFW
       throw new Error(`import is not allowed: ${specifier}`);
     });
     wrapper.evaluateSync();
-    const wrapperFunc = wrap(connectionId, isolate, wrapper);
+    const wrapperFunc = wrap(connectionId, isolate, context, wrapper);
     log.atInfo().log(`[${connectionId}] total UDF compile time: ${sw.elapsedPretty()}`);
     return wrapperFunc;
   } catch (e) {
@@ -107,6 +108,7 @@ export const UDFWrapper = (connectionId: string, functions: UDFFunction[]): UDFW
       close: () => {
         try {
           if (isolate) {
+            context.release();
             isolate.dispose();
             log.atInfo().log(`[${connectionId}] isolate closed`);
           }
@@ -118,7 +120,7 @@ export const UDFWrapper = (connectionId: string, functions: UDFFunction[]): UDFW
   }
 };
 
-function wrap(connectionId: string, isolate: Isolate, wrapper: Module) {
+function wrap(connectionId: string, isolate: Isolate, context: Context, wrapper: Module) {
   const exported = wrapper.namespace;
 
   const ref = exported.getSync("wrappedFunctionChain", {
@@ -208,6 +210,7 @@ function wrap(connectionId: string, isolate: Isolate, wrapper: Module) {
     close: () => {
       try {
         if (isolate) {
+          context.release();
           isolate.dispose();
           log.atInfo().log(`[${connectionId}] isolate closed.`);
         }

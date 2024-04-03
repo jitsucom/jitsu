@@ -47,8 +47,8 @@ const functionsTime = new Prometheus.Histogram({
   labelNames: ["connectionId", "functionId"] as const,
 });
 
-//cache compiled udfs for 10min (ttl is extended on each access)
-const udfTTL = 60 * 10;
+//cache compiled udfs for 5min
+const udfTTL = 60 * 5;
 const udfCache = new NodeCache({ stdTTL: udfTTL, checkperiod: 60, useClones: false });
 udfCache.on("del", (key, value) => {
   log.atInfo().log(`UDF ${key} deleted from cache`);
@@ -157,7 +157,7 @@ export function buildFunctionChain(connection: EnrichedConnectionConfig, funcSto
       cached = { wrapper, hash };
       udfCache.set(connection.id, cached);
     }
-    udfCache.ttl(connection.id, udfTTL);
+    //udfCache.ttl(connection.id, udfTTL);
   }
   const aggregatedFunctions: any[] = [
     ...(connectionData.functions || []).filter(f => f.functionId.startsWith("builtin.transformation.")),
