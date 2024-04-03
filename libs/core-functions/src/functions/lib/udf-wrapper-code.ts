@@ -103,7 +103,7 @@ export function checkError(chainRes, funcCtx) {
                     functionId: error.functionId || el.functionId
                 }
             } else {
-                funcCtx.log.error.apply(undefined, [\`Function execution failed\`, error.name, error.message, {udfId: error.functionId || el.functionId}]);
+                funcCtx.log.error.apply(undefined, [\`Function execution failed\`, error.name, error.message, {udfId: error.functionId || el.functionId}], {arguments: {copy: true}});
             }
         }
     }
