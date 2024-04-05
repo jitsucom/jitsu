@@ -2,6 +2,7 @@ import { JitsuFunction } from "@jitsu/protocols/functions";
 import { RetryError } from "@jitsu/functions-lib";
 import type { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { SegmentCredentials } from "../meta";
+import { createFetchWrapper, createFunctionLogger, JitsuFunctionWrapper } from "./lib";
 
 export type HttpRequest = {
   method?: string;
@@ -18,48 +19,56 @@ function getAuth(props: SegmentCredentials) {
   return base64(`${props.writeKey}:`);
 }
 
-const SegmentDestination: JitsuFunction<AnalyticsServerEvent, SegmentCredentials> = async (event, ctx) => {
-  ctx.log.debug(`Segment destination (props=${JSON.stringify(ctx.props)}) received event ${JSON.stringify(event)}`);
-  //trim slash from apiBase
-  let apiBase = ctx.props.apiBase;
-  if (apiBase.charAt(apiBase.length - 1) === "/") {
-    apiBase = apiBase.substring(0, apiBase.length - 1);
-  }
-  let httpRequest: HttpRequest = {
-    url: `${apiBase}/${event.type}`,
-    payload: event,
-    method: "POST",
-    headers: {
-      "Content-type": "application/json",
-      Authorization: `Basic ${getAuth(ctx.props)}`,
-    },
-  };
-  try {
-    const result = await ctx.fetch(httpRequest.url, {
-      method: httpRequest.method,
-      headers: httpRequest.headers,
-      ...(httpRequest.payload ? { body: JSON.stringify(httpRequest.payload) } : {}),
-    });
-    const logMessage = `Segment ${httpRequest.method} ${httpRequest.url}:${
-      httpRequest.payload ? `${JSON.stringify(httpRequest.payload)} --> ` : ""
-    }${result.status} ${await result.text()}`;
-    if (result.status !== 200) {
-      throw new RetryError(logMessage);
-    } else {
-      ctx.log.debug(logMessage);
+const SegmentDestination: JitsuFunctionWrapper<AnalyticsServerEvent, SegmentCredentials> = (chainCtx, funcCtx) => {
+  const log = createFunctionLogger(chainCtx, funcCtx);
+  const fetch = createFetchWrapper(chainCtx, funcCtx);
+  const props = funcCtx.props;
+
+  const func: JitsuFunction<AnalyticsServerEvent> = async (event, ctx) => {
+    //trim slash from apiBase
+    let apiBase = props.apiBase;
+    if (apiBase.charAt(apiBase.length - 1) === "/") {
+      apiBase = apiBase.substring(0, apiBase.length - 1);
     }
-  } catch (e: any) {
-    throw new RetryError(
-      `Failed to send event to Segment: ${httpRequest.method} ${httpRequest.url} ${JSON.stringify(
-        httpRequest.payload
-      )}: ${e?.message}`
-    );
-  }
+    let httpRequest: HttpRequest = {
+      url: `${apiBase}/${event.type}`,
+      payload: event,
+      method: "POST",
+      headers: {
+        "Content-type": "application/json",
+        Authorization: `Basic ${getAuth(props)}`,
+      },
+    };
+    try {
+      const result = await fetch(
+        httpRequest.url,
+        {
+          method: httpRequest.method,
+          headers: httpRequest.headers,
+          ...(httpRequest.payload ? { body: JSON.stringify(httpRequest.payload) } : {}),
+        },
+        { event }
+      );
+      const logMessage = `Segment ${httpRequest.method} ${httpRequest.url}: ${result.status} ${await result.text()}`;
+      if (result.status !== 200) {
+        throw new RetryError(logMessage);
+      } else {
+        log.debug(logMessage);
+      }
+    } catch (e: any) {
+      throw new RetryError(
+        `Failed to send event to Segment: ${httpRequest.method} ${httpRequest.url} ${JSON.stringify(
+          httpRequest.payload
+        )}: ${e?.message}`
+      );
+    }
+  };
+
+  func.displayName = "segment-destination";
+
+  func.description =
+    "Forward events for to Segment-compatible endpoint. It's useful if you want to use Jitsu for sending data to DWH and leave your existing Segment configuration for other purposes";
+
+  return func;
 };
-
-SegmentDestination.displayName = "segment-destination";
-
-SegmentDestination.description =
-  "Forward events for to Segment-compatible endpoint. It's useful if you want to use Jitsu for sending data to DWH and leave your existing Segment configuration for other purposes";
-
 export default SegmentDestination;

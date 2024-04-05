@@ -1,9 +1,15 @@
-import { FullContext, JitsuFunction } from "@jitsu/protocols/functions";
+import { EventContext, JitsuFunction } from "@jitsu/protocols/functions";
 import { RetryError } from "@jitsu/functions-lib";
 import type { AnalyticsServerEvent, Geo } from "@jitsu/protocols/analytics";
 import { hash, randomId } from "juava";
 import { MixpanelCredentials } from "../meta";
-import { eventTimeSafeMs } from "./lib";
+import {
+  createFetchWrapper,
+  createFunctionLogger,
+  eventTimeSafeMs,
+  FunctionContext,
+  JitsuFunctionWrapper,
+} from "./lib";
 import zlib from "zlib";
 
 //See https://help.mixpanel.com/hc/en-us/articles/115004708186-Profile-Properties
@@ -109,7 +115,8 @@ function clickParams(url: string) {
 }
 
 function trackEvent(
-  ctx: FullContext,
+  ctx: FunctionContext,
+  eventContext: EventContext,
   deviceId: string,
   distinctId: string,
   eventType: string,
@@ -137,6 +144,7 @@ function trackEvent(
     userAgent: analyticsContext.userAgent,
   };
   const pageUrl = evict(customProperties, "url");
+  const ua = eventContext.ua;
   return {
     id: randomId(),
     url: `https://api.mixpanel.com/import?strict=1&project_id=${opts.projectId}`,
@@ -156,10 +164,10 @@ function trackEvent(
           distinct_id: distinctId,
           $insert_id: hash("md5", event.messageId) + "-" + randomId(),
           $user_id: event.userId ? `${event.userId}` : undefined,
-          $browser: ctx.ua?.browser?.name,
-          $browser_version: ctx.ua?.browser?.version,
-          $os: analyticsContext.os?.name || ctx.ua?.os?.name,
-          $os_version: analyticsContext.os?.version || ctx.ua?.os?.version,
+          $browser: ua?.browser?.name,
+          $browser_version: ua?.browser?.version,
+          $os: analyticsContext.os?.name || ua?.os?.name,
+          $os_version: analyticsContext.os?.version || ua?.os?.version,
           $current_url: pageUrl,
           ...clickParams(pageUrl),
           current_page_title: evict(customProperties, "title"),
@@ -190,10 +198,10 @@ function trackEvent(
           // $brand: "google",
           // $had_persisted_distinct_id: false,
           // $has_nfc: false,
-          $device_type: analyticsContext.device?.type || ctx.ua?.device?.type,
-          $device_name: analyticsContext.device?.name || ctx.ua?.device?.model,
-          $manufacturer: analyticsContext.device?.manufacturer || ctx.ua?.device?.vendor,
-          $model: analyticsContext.device?.model || ctx.ua?.device?.model,
+          $device_type: analyticsContext.device?.type || ua?.device?.type,
+          $device_name: analyticsContext.device?.name || ua?.device?.model,
+          $manufacturer: analyticsContext.device?.manufacturer || ua?.device?.vendor,
+          $model: analyticsContext.device?.model || ua?.device?.model,
           advertising_id: analyticsContext.device?.advertisingId,
           ad_tracking_enabled: analyticsContext.device?.adTrackingEnabled,
 
@@ -204,7 +212,12 @@ function trackEvent(
   };
 }
 
-function setProfileMessage(ctx: FullContext, distinctId: string, event: AnalyticsServerEvent): HttpRequest[] {
+function setProfileMessage(
+  ctx: FunctionContext,
+  eventContext: EventContext,
+  distinctId: string,
+  event: AnalyticsServerEvent
+): HttpRequest[] {
   const opts = ctx.props as MixpanelCredentials;
   const traits = { ...(event.traits || event.context?.traits || {}) };
   specialProperties.forEach(prop => {
@@ -251,9 +264,9 @@ function setProfileMessage(ctx: FullContext, distinctId: string, event: Analytic
           $set: {
             ...geoParams(event.context?.geo),
             ...traits,
-            $browser: ctx.ua?.browser?.name,
-            $browser_version: ctx.ua?.browser?.version,
-            $os: ctx.ua?.os?.name,
+            $browser: eventContext.ua?.browser?.name,
+            $browser_version: eventContext.ua?.browser?.version,
+            $os: eventContext.ua?.os?.name,
             ...mobileDeviceInfo,
           },
         },
@@ -342,7 +355,7 @@ function getAuth(props: MixpanelCredentials) {
   return base64(`${props.serviceAccountUserName}:${props.serviceAccountPassword}`);
 }
 
-function merge(ctx: FullContext, messageId: string, identifiedId: string, anonymousId: string): HttpRequest[] {
+function merge(ctx: FunctionContext, messageId: string, identifiedId: string, anonymousId: string): HttpRequest[] {
   if (!anonymousId) {
     return [];
   }
@@ -371,7 +384,7 @@ function merge(ctx: FullContext, messageId: string, identifiedId: string, anonym
   ];
 }
 
-function alias(ctx: FullContext, messageId: string, identifiedId: string, anonymousId: string): HttpRequest[] {
+function alias(ctx: FunctionContext, messageId: string, identifiedId: string, anonymousId: string): HttpRequest[] {
   if (!anonymousId) {
     return [];
   }
@@ -401,7 +414,7 @@ function alias(ctx: FullContext, messageId: string, identifiedId: string, anonym
   ];
 }
 
-function getDistinctId(ctx: FullContext, event: AnalyticsServerEvent, deviceId: string) {
+function getDistinctId(ctx: FunctionContext, event: AnalyticsServerEvent, deviceId: string) {
   if (ctx.props.simplifiedIdMerge) {
     return event.userId ? `${event.userId}` : `$device:${deviceId}`;
   } else {
@@ -409,7 +422,7 @@ function getDistinctId(ctx: FullContext, event: AnalyticsServerEvent, deviceId: 
   }
 }
 
-function getDeviceId(ctx: FullContext, event: AnalyticsServerEvent) {
+function getDeviceId(ctx: EventContext, event: AnalyticsServerEvent) {
   let deviceId = event.anonymousId;
   if (
     !deviceId ||
@@ -438,81 +451,94 @@ function getDeviceId(ctx: FullContext, event: AnalyticsServerEvent) {
   return deviceId;
 }
 
-const MixpanelDestination: JitsuFunction<AnalyticsServerEvent, MixpanelCredentials> = async (event, ctx) => {
-  if (typeof ctx.props.filterBotTraffic === "undefined" || ctx.props.filterBotTraffic) {
-    if (ctx.ua?.bot) {
+const MixpanelDestination: JitsuFunctionWrapper<AnalyticsServerEvent, MixpanelCredentials> = (chainCtx, funcCtx) => {
+  const log = createFunctionLogger(chainCtx, funcCtx);
+  const fetch = createFetchWrapper(chainCtx, funcCtx);
+  const props = funcCtx.props;
+
+  const func: JitsuFunction<AnalyticsServerEvent> = async (event, ctx) => {
+    if (typeof props.filterBotTraffic === "undefined" || props.filterBotTraffic) {
+      if (ctx.ua?.bot) {
+        return;
+      }
+    }
+    const trackPageView = typeof props.sendPageEvents === "undefined" || props.sendPageEvents;
+    const deviceId = getDeviceId(ctx, event);
+    if (!deviceId) {
+      log.warn(
+        `No anonymousId and there is no way to assume anonymous id from event: at least context.ip or any user trait is required. Skipping.`
+      );
       return;
     }
-  }
-  const trackPageView = typeof ctx.props.sendPageEvents === "undefined" || ctx.props.sendPageEvents;
-  const deviceId = getDeviceId(ctx, event);
-  if (!deviceId) {
-    ctx.log.warn(
-      `No anonymousId and there is no way to assume anonymous id from event: at least context.ip or any user trait is required. Skipping.`
-    );
-    return;
-  }
-  const distinctId = getDistinctId(ctx, event, deviceId);
-  // no userId or email
-  const isAnonymous = event.anonymousId && distinctId.endsWith(event.anonymousId);
-  if (isAnonymous && !ctx.props.enableAnonymousUserProfiles) {
-    return;
-  }
-  try {
-    const messages: HttpRequest[] = [];
-    if (event.type === "identify") {
-      if (event.userId) {
-        messages.push(...setProfileMessage(ctx, distinctId, event));
-      }
-      if (!ctx.props.simplifiedIdMerge && !isAnonymous) {
+    const distinctId = getDistinctId(funcCtx, event, deviceId);
+    // no userId or email
+    const isAnonymous = event.anonymousId && distinctId.endsWith(event.anonymousId);
+    if (isAnonymous && !props.enableAnonymousUserProfiles) {
+      return;
+    }
+    try {
+      const messages: HttpRequest[] = [];
+      if (event.type === "identify") {
         if (event.userId) {
-          messages.push(...merge(ctx, event.messageId, distinctId, `${event.anonymousId}`));
-        } else {
-          // when no userId, distinctId=email for non-anonymous events. make an alias
-          messages.push(...alias(ctx, event.messageId, distinctId, `${event.anonymousId}`));
+          messages.push(...setProfileMessage(funcCtx, ctx, distinctId, event));
+        }
+        if (!props.simplifiedIdMerge && !isAnonymous) {
+          if (event.userId) {
+            messages.push(...merge(funcCtx, event.messageId, distinctId, `${event.anonymousId}`));
+          } else {
+            // when no userId, distinctId=email for non-anonymous events. make an alias
+            messages.push(...alias(funcCtx, event.messageId, distinctId, `${event.anonymousId}`));
+          }
+        }
+        if (props.sendIdentifyEvents) {
+          messages.push(trackEvent(funcCtx, ctx, deviceId, distinctId, "Identify", event));
+        }
+      } else {
+        if (event.type === "group" && props.enableGroupAnalytics) {
+          messages.push(setGroupMessage(event, props));
+        } else if (event.type === "track") {
+          messages.push(trackEvent(funcCtx, ctx, deviceId, distinctId, event.event as string, event));
+        } else if (event.type === "page" && trackPageView) {
+          messages.push(trackEvent(funcCtx, ctx, deviceId, distinctId, "$mp_web_page_view", event));
+        } else if (event.type === "screen") {
+          messages.push(trackEvent(funcCtx, ctx, deviceId, distinctId, "Screen", event));
         }
       }
-      if (ctx.props.sendIdentifyEvents) {
-        messages.push(trackEvent(ctx, deviceId, distinctId, "Identify", event));
+      for (const message of messages) {
+        const method = message.method || "POST";
+        const payload = message.payload ? JSON.stringify(message.payload) : "{}";
+        const compressed = message.headers?.["Content-Encoding"] === "gzip" ? zlib.gzipSync(payload) : payload;
+        const result = await fetch(
+          message.url,
+          {
+            method,
+            headers: message.headers,
+            ...(message.payload ? { body: compressed } : {}),
+          },
+          { event }
+        );
+        if (result.status !== 200) {
+          throw new Error(
+            `MixPanel ${method} ${message.url}:${
+              message.payload
+                ? `${JSON.stringify(message.payload)} (size: ${payload.length} compressed: ${compressed.length}) --> `
+                : ""
+            }${result.status} ${await result.text()}`
+          );
+        } else {
+          log.debug(`MixPanel response ${result.status}: ${await result.text()}`);
+        }
       }
-    } else {
-      if (event.type === "group" && ctx.props.enableGroupAnalytics) {
-        messages.push(setGroupMessage(event, ctx.props));
-      } else if (event.type === "track") {
-        messages.push(trackEvent(ctx, deviceId, distinctId, event.event as string, event));
-      } else if (event.type === "page" && trackPageView) {
-        messages.push(trackEvent(ctx, deviceId, distinctId, "$mp_web_page_view", event));
-      } else if (event.type === "screen") {
-        messages.push(trackEvent(ctx, deviceId, distinctId, "Screen", event));
-      }
+    } catch (e: any) {
+      throw new RetryError(e.message);
     }
-    for (const message of messages) {
-      const method = message.method || "POST";
-      const payload = message.payload ? JSON.stringify(message.payload) : "{}";
-      const compressed = message.headers?.["Content-Encoding"] === "gzip" ? zlib.gzipSync(payload) : payload;
-      const result = await ctx.fetch(message.url, {
-        method,
-        headers: message.headers,
-        ...(message.payload ? { body: compressed } : {}),
-      });
-      const logMessage = `MixPanel ${method} ${message.url}:${
-        message.payload
-          ? `${JSON.stringify(message.payload)} (size: ${payload.length} compressed: ${compressed.length}) --> `
-          : ""
-      }${result.status} ${await result.text()}`;
-      if (result.status !== 200) {
-        throw new Error(logMessage);
-      } else {
-        ctx.log.debug(logMessage);
-      }
-    }
-  } catch (e: any) {
-    throw new RetryError(e.message);
-  }
+  };
+
+  func.displayName = "mixpanel-destination";
+
+  func.description = "This functions covers jitsu events and sends them to MixPanel";
+
+  return func;
 };
-
-MixpanelDestination.displayName = "mixpanel-destination";
-
-MixpanelDestination.description = "This functions covers jitsu events and sends them to MixPanel";
 
 export default MixpanelDestination;

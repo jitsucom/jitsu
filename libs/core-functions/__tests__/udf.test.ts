@@ -47,11 +47,10 @@ const udf = async (event, { log, fetch, props, store, geo, ...meta }) => {
 export default udf;
 `;
 
-    wrapper = UDFWrapper("udf", [{ id: "udf", name: "UDF Wrapper test", code: udfCode }]);
     const res = await UDFTestRun({
-      functionId: "udf",
+      functionId: "udftest",
       functionName: "UDF Wrapper test",
-      code: wrapper,
+      code: udfCode,
       event: {
         messageId: "test",
         type: "page",
@@ -65,7 +64,13 @@ export default udf;
       },
       workspaceId: "test",
     });
-    console.log("res", JSON.stringify(res, null, 2));
+    console.log("res:" + JSON.stringify(res.result, null, 2));
+    console.log("log:" + JSON.stringify(res.logs, null, 2));
+    console.log("store:" + JSON.stringify(res.store, null, 2));
+    console.log("error:" + JSON.stringify(res.error, null, 2));
+    console.log("dropped:" + JSON.stringify(res.dropped, null, 2));
+
+    expect(res.error).toBeUndefined();
 
     expect(res.result).toEqual({
       messageId: "test",

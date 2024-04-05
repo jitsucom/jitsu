@@ -3,7 +3,7 @@ import UserRecognitionFunction, { UserRecognitionConfig } from "../src/functions
 import { prefixLogMessage, testJitsuFunction, TestOptions } from "./lib/testing-lib";
 import { createAnonymousEventsStore, createStore } from "./lib/mem-store";
 import nodeFetch from "node-fetch-commonjs";
-import { FetchOpts, FetchResponse, FetchType } from "@jitsu/protocols/functions";
+import { FetchType, FunctionContext } from "../src";
 
 const anonymousEvents: AnalyticsServerEvent[] = [
   {
@@ -93,7 +93,18 @@ const expectedEvents: AnalyticsServerEvent[] = [
 test("user-recognition-test", async () => {
   const store = createStore();
   const options: TestOptions = {
-    func: UserRecognitionFunction,
+    funcWrapper: UserRecognitionFunction,
+    chainCtx: {
+      fetch: nodeFetch as unknown as FetchType,
+      store: store,
+      log: {
+        info: (ctx: FunctionContext, msg: any, ...args: any[]) => console.log(prefixLogMessage("INFO", msg), args),
+        error: (ctx: FunctionContext, msg: any, ...args: any[]) => console.error(prefixLogMessage("ERROR", msg), args),
+        debug: (ctx: FunctionContext, msg: any, ...args: any[]) => console.debug(prefixLogMessage("DEBUG", msg), args),
+        warn: (ctx: FunctionContext, msg: any, ...args: any[]) => console.warn(prefixLogMessage("WARN", msg), args),
+      },
+      anonymousEventsStore: createAnonymousEventsStore(),
+    },
     ctx: {
       headers: {},
       connection: {
@@ -113,24 +124,8 @@ test("user-recognition-test", async () => {
         id: "test",
         type: "browser",
       },
-      fetch: nodeFetch as unknown as FetchType,
-      store: store,
-      log: {
-        info: (msg: any, ...args: any[]) => console.log(prefixLogMessage("INFO", msg), args),
-        error: (msg: any, ...args: any[]) => console.error(prefixLogMessage("ERROR", msg), args),
-        debug: (msg: any, ...args: any[]) => console.debug(prefixLogMessage("DEBUG", msg), args),
-        warn: (msg: any, ...args: any[]) => console.warn(prefixLogMessage("WARN", msg), args),
-      },
-      $system: {
-        anonymousEventsStore: createAnonymousEventsStore(),
-        store: store,
-        metricsMeta: {
-          workspaceId: "123",
-          messageId: "123",
-          streamId: "123",
-          destinationId: "123",
-          connectionId: "123",
-        },
+      workspace: {
+        id: "test",
       },
     },
     config: {} as UserRecognitionConfig,

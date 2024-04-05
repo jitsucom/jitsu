@@ -1,4 +1,4 @@
-import type { FullContext, FunctionLogger, JitsuFunction } from "@jitsu/protocols/functions";
+import type { FunctionLogger, JitsuFunction } from "@jitsu/protocols/functions";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { HubspotCredentials } from "../meta";
 import { Client } from "@hubspot/api-client";
@@ -11,6 +11,7 @@ import { FilterGroup } from "@hubspot/api-client/lib/codegen/crm/contacts/models
 import omit from "lodash/omit";
 import assert from "node:assert";
 import { BehavioralEventHttpCompletionRequest } from "@hubspot/api-client/lib/codegen/events/send/models/BehavioralEventHttpCompletionRequest";
+import { createFunctionLogger, JitsuFunctionWrapper } from "./lib";
 
 const JITSU_USER_ID_PROPERTY = "jitsu_user_id";
 
@@ -30,9 +31,9 @@ class HubspotHelper {
   private client: Client;
   private log: FunctionLogger;
 
-  constructor(client: Client, ctx: FullContext<HubspotCredentials>) {
+  constructor(client: Client, log: FunctionLogger) {
     this.client = client;
-    this.log = ctx.log;
+    this.log = log;
   }
 
   async checkIfPropertyExists(propertyName: string, opts: PropertyOptions = {}): Promise<boolean> {
@@ -188,66 +189,72 @@ class HubspotHelper {
   }
 }
 
-const HubspotDestination: JitsuFunction<AnalyticsServerEvent, HubspotCredentials> = async (event, ctx) => {
-  assert(ctx.props.accessToken);
-  const hubspotClient = new Client({ accessToken: ctx.props.accessToken });
-  const helper = new HubspotHelper(hubspotClient, ctx);
-  await helper.ensurePropertyExists(JITSU_USER_ID_PROPERTY);
-  await helper.ensurePropertyExists(JITSU_GROUP_ID_PROPERTY, {
-    objectType: "company",
-    group: "companyinformation",
-  });
-  hubspotClient.init();
-  let contactId: string | undefined = undefined;
-  let companyId: string | undefined = undefined;
-  if (event.type === "identify" && event.userId && event.traits?.email) {
-    contactId = await helper.upsertHubspotContact({
-      userId: event.userId,
-      name: event.traits.name as string | undefined,
-      email: event.traits.email as string,
-      customProps: omit(event.traits, "name"),
+const HubspotDestination: JitsuFunctionWrapper<AnalyticsServerEvent, HubspotCredentials> = (chainCtx, funcCtx) => {
+  const log = createFunctionLogger(chainCtx, funcCtx);
+  const props = funcCtx.props;
+
+  const func: JitsuFunction<AnalyticsServerEvent> = async (event, ctx) => {
+    assert(props.accessToken);
+    const hubspotClient = new Client({ accessToken: props.accessToken });
+    const helper = new HubspotHelper(hubspotClient, log);
+    await helper.ensurePropertyExists(JITSU_USER_ID_PROPERTY);
+    await helper.ensurePropertyExists(JITSU_GROUP_ID_PROPERTY, {
+      objectType: "company",
+      group: "companyinformation",
     });
-    if (event.groupId) {
-      companyId = await helper.upsertHubspotCompany({
-        companyId: event.groupId,
-        name: `Company ${event.groupId}`,
-        doNotUpdate: true,
+    hubspotClient.init();
+    let contactId: string | undefined = undefined;
+    let companyId: string | undefined = undefined;
+    if (event.type === "identify" && event.userId && event.traits?.email) {
+      contactId = await helper.upsertHubspotContact({
+        userId: event.userId,
+        name: event.traits.name as string | undefined,
+        email: event.traits.email as string,
+        customProps: omit(event.traits, "name"),
       });
+      if (event.groupId) {
+        companyId = await helper.upsertHubspotCompany({
+          companyId: event.groupId,
+          name: `Company ${event.groupId}`,
+          doNotUpdate: true,
+        });
+      }
     }
-  }
-  if (event.type === "group" && event.groupId) {
-    const groupName = event.type === "group" ? event.traits?.name : undefined;
+    if (event.type === "group" && event.groupId) {
+      const groupName = event.type === "group" ? event.traits?.name : undefined;
 
-    await helper.upsertHubspotCompany({
-      companyId: event.groupId,
-      name: (groupName || `Company ${event.groupId}`) as string,
-      customProps: omit(event.traits, "email", "name"),
-    });
-    if (event.userId) {
-      contactId = await helper.getContactByJitsuId(event.userId);
+      await helper.upsertHubspotCompany({
+        companyId: event.groupId,
+        name: (groupName || `Company ${event.groupId}`) as string,
+        customProps: omit(event.traits, "email", "name"),
+      });
+      if (event.userId) {
+        contactId = await helper.getContactByJitsuId(event.userId);
+      }
     }
-  }
-  if (contactId && companyId) {
-    await helper.associateContactWithCompany(contactId, companyId);
-  }
-  const email = (event.traits?.email || event.properties?.email || undefined) as string | undefined;
+    if (contactId && companyId) {
+      await helper.associateContactWithCompany(contactId, companyId);
+    }
+    const email = (event.traits?.email || event.properties?.email || undefined) as string | undefined;
 
-  if (email && ctx.props.sendPageViewEvents) {
-    const url = event.context?.page?.url || event.properties?.url;
-    const properties: Record<string, string> = {};
-    if (url) {
-      properties.url = url.toString();
+    if (email && props.sendPageViewEvents) {
+      const url = event.context?.page?.url || event.properties?.url;
+      const properties: Record<string, string> = {};
+      if (url) {
+        properties.url = url.toString();
+      }
+      const hubspotEvent: BehavioralEventHttpCompletionRequest = {
+        email: email,
+        eventName: event.type === "track" ? event.event ?? "track" : event.type,
+        objectId: contactId,
+        occurredAt: event.timestamp ? new Date(event.timestamp) : new Date(),
+        properties: properties,
+        uuid: event.messageId,
+      };
+      await hubspotClient.events.send.behavioralEventsTrackingApi.send(hubspotEvent);
     }
-    const hubspotEvent: BehavioralEventHttpCompletionRequest = {
-      email: email,
-      eventName: event.type === "track" ? event.event ?? "track" : event.type,
-      objectId: contactId,
-      occurredAt: event.timestamp ? new Date(event.timestamp) : new Date(),
-      properties: properties,
-      uuid: event.messageId,
-    };
-    await hubspotClient.events.send.behavioralEventsTrackingApi.send(hubspotEvent);
-  }
+  };
+  return func;
 };
 
 export default HubspotDestination;
