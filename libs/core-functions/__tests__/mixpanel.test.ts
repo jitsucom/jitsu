@@ -10,7 +10,7 @@ test("mixpanel-destination-integration", async () => {
   }
   const events = eventsSequence();
   const opts: TestOptions<MixpanelCredentials> = {
-    func: MixpanelDestination,
+    funcWrapper: MixpanelDestination,
     configEnvVar: "TEST_MIXPANEL_DESTINATION",
     events: events,
   };

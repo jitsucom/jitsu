@@ -1,23 +1,12 @@
-import { getLog, newError, requireDefined } from "juava";
+import { getLog, requireDefined } from "juava";
 import { Metrics } from "./metrics";
 import { GeoResolver } from "./maxmind";
 import { IngestMessage } from "@jitsu/protocols/async-request";
 import { CONNECTION_IDS_HEADER } from "./rotor";
 import { EntityStore } from "./entity-store";
-
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
-import { EventContext, Store, TTLStore } from "@jitsu/protocols/functions";
-import {
-  createMongoStore,
-  mongodb,
-  MetricsMeta,
-  mongoAnonymousEventsStore,
-  parseUserAgent,
-  SystemContext,
-  EventsStore,
-  createTtlStore,
-  createMultiStore,
-} from "@jitsu/core-functions";
+import { EventContext, TTLStore } from "@jitsu/protocols/functions";
+import { MetricsMeta, mongoAnonymousEventsStore, parseUserAgent, EventsStore } from "@jitsu/core-functions";
 import NodeCache from "node-cache";
 import { buildFunctionChain, checkError, FuncChain, FuncChainFilter, runChain } from "./functions-chain";
 import { EnrichedConnectionConfig, FunctionConfig } from "./config-types";
@@ -25,7 +14,6 @@ import { Redis } from "ioredis";
 export const log = getLog("rotor");
 
 const anonymousEventsStore = mongoAnonymousEventsStore();
-const fastStoreWorskpaceId = (process.env.FAST_STORE_WORKSPACE_ID ?? "").split(",").filter(x => x.length > 0);
 
 //cache function chains for 1m
 const funcsChainTTL = 60;
@@ -66,7 +54,6 @@ export async function rotorMessageHandler(
   }
   const connStore = rotorContext.connectionStore;
   const funcStore = rotorContext.functionsStore;
-  const eventStore = rotorContext.eventsLogger;
 
   const message = (typeof _message === "string" ? JSON.parse(_message) : _message) as IngestMessage;
   const connectionId =
@@ -112,6 +99,9 @@ export async function rotorMessageHandler(
       id: connection.id,
       options: connection.options,
     },
+    workspace: {
+      id: connection.workspaceId,
+    },
   };
 
   const metricsMeta: MetricsMeta = {
@@ -122,23 +112,6 @@ export async function rotorMessageHandler(
     connectionId: connection.id,
     retries,
   };
-  let store = rotorContext.dummyPersistentStore;
-  if (!store) {
-    store = createMongoStore(connection.workspaceId, mongodb(), fastStoreWorskpaceId.includes(connection.workspaceId));
-    if (rotorContext.redisClient) {
-      store = createMultiStore(store, createTtlStore(connection.workspaceId, rotorContext.redisClient));
-    }
-  }
-
-  //system context for builtin functions only
-  const systemContext: SystemContext = {
-    $system: {
-      anonymousEventsStore: anonymousEventsStore,
-      metricsMeta,
-      store,
-      eventsStore: eventStore,
-    },
-  };
 
   let lastUpdated = Math.max(
     new Date(connection.updatedAt || 0).getTime(),
@@ -147,21 +120,12 @@ export async function rotorMessageHandler(
   const cacheKey = `${connection.id}_${lastUpdated}`;
   let funcChain: FuncChain | undefined = funcsChainCache.get(cacheKey);
   if (!funcChain) {
-    funcChain = buildFunctionChain(connection, funcStore);
+    log.atDebug().log(`[${connection.id}] Refreshing function chain. Dt: ${lastUpdated}`);
+    funcChain = buildFunctionChain(connection, funcStore, rotorContext, anonymousEventsStore, fetchTimeoutMs);
     funcsChainCache.set(cacheKey, funcChain);
   }
 
-  const chainRes = await runChain(
-    funcChain,
-    event,
-    eventStore,
-    store,
-    ctx,
-    runFuncs,
-    retriesEnabled,
-    systemContext,
-    fetchTimeoutMs
-  );
+  const chainRes = await runChain(funcChain, event, ctx, metricsMeta, runFuncs, retriesEnabled);
   chainRes.connectionId = connectionId;
   rotorContext.metrics?.logMetrics(chainRes.execLog);
   checkError(chainRes);

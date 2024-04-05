@@ -11,84 +11,12 @@ class RetryError extends Error {
 
 export { DropRetryErrorName, RetryError, RetryErrorName };`;
 
-export const wrapperCode = `//JS
-import * as udf from "udf";
-import { RetryError } from "@jitsu/functions-lib";
-
-const userFunction = udf.default;
-const meta = udf.config || {};
-
-global.RetryError = RetryError;
-
-const wrappedUserFunction = async function (eventcopy, ctxcopy) {
-  const c = ctxcopy.copy();
-  const ctx = {
-    ...c,
-    store: {
-      ...c.store,
-      get: async key => {
-        const res = await c.store.get.apply(undefined, [key], { arguments: { copy: true }, result: { promise: true } });
-        return res ? JSON.parse(res) : undefined;
-      },
-      ttl: async key => {
-        return await c.store.ttl.apply(undefined, [key], { arguments: { copy: true }, result: { promise: true } });
-      },
-    },
-    fetch: async (url, opts) => {
-      const res = await c.fetch.apply(undefined, [url, opts], { arguments: { copy: true }, result: { promise: true } });
-      const r = JSON.parse(res);
-
-      return {
-        ...r,
-        json: async () => {
-          return JSON.parse(r.body);
-        },
-        text: async () => {
-          return r.body;
-        },
-        arrayBuffer: async () => {
-          throw new Error("Method 'arrayBuffer' is not implemented");
-        },
-        blob: async () => {
-          throw new Error("Method 'blob' is not implemented");
-        },
-        formData: async () => {
-          throw new Error("Method 'formData' is not implemented");
-        },
-        clone: async () => {
-          throw new Error("Method 'clone' is not implemented");
-        },
-      };
-    },
-  };
-  const event = eventcopy.copy();
-  if (!userFunction || typeof userFunction !== "function") {
-    throw new Error("Function not found. Please export default function.");
-  }
-  console = {
-    ...console,
-    log: ctx.log.info,
-    error: ctx.log.error,
-    warn: ctx.log.warn,
-    debug: ctx.log.debug,
-    info: ctx.log.info,
-    assert: (asrt, ...args) => {
-      if (!asrt) {
-        ctx.log.error("Assertion failed", ...args);
-      }
-    },
-  };
-  return userFunction(event, ctx);
-};
-export { meta, wrappedUserFunction };
-`;
-
 export const chainWrapperCode = `//** @UDF_FUNCTIONS_IMPORT **//
 import {DropRetryErrorName, RetryError, RetryErrorName} from "@jitsu/functions-lib";
 
 global.RetryError = RetryError;
 
-export function checkError(chainRes, funcCtx) {
+export function checkError(chainRes) {
     let errObj = undefined;
     for (const el of chainRes.execLog) {
         const error = el.error;
@@ -103,7 +31,7 @@ export function checkError(chainRes, funcCtx) {
                     functionId: error.functionId || el.functionId
                 }
             } else {
-                funcCtx.log.error.apply(undefined, [\`Function execution failed\`, error.name, error.message, {udfId: error.functionId || el.functionId}], {arguments: {copy: true}});
+                _jitsu_log.error.apply(undefined, [{ function: {..._jitsu_funcCtx.function, id:error.functionId || el.functionId }}, \`Function execution failed\`, error.name, error.message], {arguments: {copy: true}});
             }
         }
     }
@@ -144,7 +72,7 @@ function isDropResult(result) {
 async function runChain(
     chain,
     event,
-    funcCtx
+    ctx
 ) {
     const execLog = [];
     let events = [event];
@@ -155,26 +83,24 @@ async function runChain(
         for (let i = 0; i < events.length; i++) {
             const event = events[i];
             let result = undefined;
-            const sw = Date.now();
-            const rat = new Date(event.receivedAt);
-            const execLogMeta = {
-                eventIndex: i,
-                receivedAt: rat && rat != "Invalid Date" ? rat : new Date(),
-                functionId: f.id,
-            };
+            // const execLogMeta = {
+            //     eventIndex: i,
+            //     receivedAt: rat && rat != "Invalid Date" ? rat : new Date(),
+            //     functionId: f.id,
+            // };
             try {
-                result = await f.f(deepCopy(event), funcCtx);
+                result = await f.f(deepCopy(event), ctx);
 
                 if (k < chain.length - 1 && Array.isArray(result) && result.length > 1) {
                     const l = result.length;
                     result = undefined;
-                    throw new Error("Got " + l + "events as result of function #" + k + 1 + " of " + chain.length + ". Only the last function in a chain is allowed to multiply events.");
+                    throw new Error("Got " + l + " events as result of function #" + (k + 1) + " of " + chain.length + ". Only the last function in a chain is allowed to multiply events.");
                 }
-                execLog.push({
-                    ...execLogMeta,
-                    ms: Date.now() - sw,
-                    dropped: isDropResult(result),
-                });
+                // execLog.push({
+                //     ...execLogMeta,
+                //     ms: Date.now() - sw,
+                //     dropped: isDropResult(result),
+                // });
             } catch (err) {
                 if (err.name === DropRetryErrorName) {
                     result = "drop";
@@ -183,11 +109,11 @@ async function runChain(
                     err.retryPolicy = f.meta.retryPolicy;
                 }
                 execLog.push({
-                    ...execLogMeta,
-                    event,
+                    functionId: f.id,
                     error: err,
-                    ms: Date.now() - sw,
-                    dropped: isDropResult(result),
+                    //event,
+                    // ms: Date.now() - sw,
+                    // dropped: isDropResult(result),
                 });
             }
             if (!isDropResult(result)) {
@@ -204,95 +130,107 @@ async function runChain(
     return {events, execLog};
 }
 
-const wrappedFunctionChain = async function (eventcopy, ctxcopy) {
-    const c = ctxcopy;
+const wrappedFunctionChain = async function (event, ctx) {
     let chain = [];
     //** @UDF_FUNCTIONS_CHAIN **//
-    const event = eventcopy;
-    const chainRes = await runChain(chain, event, c);
-    checkError(chainRes, c);
+    const chainRes = await runChain(chain, event, ctx);
+    checkError(chainRes);
     if (Array.isArray(chainRes.events) && chainRes.events.length === 1) {
         return chainRes.events[0];
     }
     return chainRes.events;
 };
 
-const wrappedUserFunction = (id, f) => async function (event, c) {
-    const ctx = {
-        ...c,
-        log: {
-            info: (...args) => {
-                c.log.info.apply(undefined, [...args, {udfId: id}], {arguments: {copy: true}});
-            },
-            error: (...args) => {
-                c.log.error.apply(undefined, [...args, {udfId: id}], {arguments: {copy: true}});
-            },
-            warn: (...args) => {
-                c.log.warn.apply(undefined, [...args, {udfId: id}], {arguments: {copy: true}});
-            },
-            debug: (...args) => {
-                c.log.debug.apply(undefined, [...args, {udfId: id}], {arguments: {copy: true}});
-            },
+const wrappedUserFunction = (id, f, funcCtx) => async function (event, c) {
+    const log = {
+        info: (...args) => {
+            _jitsu_log.info.apply(undefined, [funcCtx, ...args], {arguments: {copy: true}});
         },
-        store: {
-            set: async (key,value,opts) => {
-                await c.store.set.apply(undefined, [key, value,opts], {
-                    arguments: {copy: true},
-                    result: { ignore: true}
-                });
-            },
-            del: async key => {
-                await c.store.del.apply(undefined, [key], {
-                    arguments: {copy: true},
-                    result: {ignore: true}
-                });
-            },
-            get: async key => {
-                const res = await c.store.get.apply(undefined, [key], {
-                    arguments: {copy: true},
-                    result: {promise: true}
-                });
-                return res ? JSON.parse(res) : undefined;
-            },
-            ttl: async key => {
-                return await c.store.ttl.apply(undefined, [key], {
-                    arguments: {copy: true},
-                    result: {promise: true}
-                });
-            },
+        error: (...args) => {
+            _jitsu_log.error.apply(undefined, [funcCtx, ...args], {arguments: {copy: true}});
         },
-        fetch: async (url, opts) => {
-            const res = await c.fetch.apply(undefined, [url, opts, {udfId: id}], {
+        warn: (...args) => {
+            _jitsu_log.warn.apply(undefined, [funcCtx, ...args], {arguments: {copy: true}});
+        },
+        debug: (...args) => {
+            _jitsu_log.debug.apply(undefined, [funcCtx, ...args], {arguments: {copy: true}});
+        },
+    }
+    const store = {
+        set: async (key,value,opts) => {
+            await _jitsu_store.set.apply(undefined, [key, value, opts], {
+                arguments: {copy: true},
+                result: { ignore: true}
+            });
+        },
+        del: async key => {
+            await _jitsu_store.del.apply(undefined, [key], {
+                arguments: {copy: true},
+                result: {ignore: true}
+            });
+        },
+        get: async key => {
+            const res = await _jitsu_store.get.apply(undefined, [key], {
                 arguments: {copy: true},
                 result: {promise: true}
             });
-            const r = JSON.parse(res);
-
-            return {
-                ...r,
-                json: async () => {
-                    return JSON.parse(r.body);
-                },
-                text: async () => {
-                    return r.body;
-                },
-                arrayBuffer: async () => {
-                    throw new Error("Method 'arrayBuffer' is not implemented");
-                },
-                blob: async () => {
-                    throw new Error("Method 'blob' is not implemented");
-                },
-                formData: async () => {
-                    throw new Error("Method 'formData' is not implemented");
-                },
-                clone: async () => {
-                    throw new Error("Method 'clone' is not implemented");
-                },
-            };
+            return res ? JSON.parse(res) : undefined;
         },
+        ttl: async key => {
+            return await _jitsu_store.ttl.apply(undefined, [key], {
+                arguments: {copy: true},
+                result: {promise: true}
+            });
+        },
+    }
+    const fetch = async (url, opts) => {
+        const debugEnabled = funcCtx.function.debugTill && funcCtx.function.debugTill > new Date();
+        let res
+        if (debugEnabled) {
+            res = await _jitsu_fetch.apply(undefined, [url, opts, {ctx: funcCtx, event: event}], {
+                arguments: {copy: true},
+                result: {promise: true}
+            });
+        } else {
+            res = await _jitsu_fetch.apply(undefined, [url, opts], {
+                arguments: {copy: true},
+                result: {promise: true}
+            });
+        }
+        const r = JSON.parse(res);
+
+        return {
+            ...r,
+            json: async () => {
+                return JSON.parse(r.body);
+            },
+            text: async () => {
+                return r.body;
+            },
+            arrayBuffer: async () => {
+                throw new Error("Method 'arrayBuffer' is not implemented");
+            },
+            blob: async () => {
+                throw new Error("Method 'blob' is not implemented");
+            },
+            formData: async () => {
+                throw new Error("Method 'formData' is not implemented");
+            },
+            clone: async () => {
+                throw new Error("Method 'clone' is not implemented");
+            },
+        };
+    }
+    const ctx = {
+        ...c,
+        props: funcCtx.props,
+        log,
+        store,
+        fetch,
     };
+    const oldConsole = console
     console = {
-        ...console,
+        ...oldConsole,
         log: ctx.log.info,
         error: ctx.log.error,
         warn: ctx.log.warn,
@@ -304,7 +242,17 @@ const wrappedUserFunction = (id, f) => async function (event, c) {
             }
         },
     };
-    return f(event, ctx);
+    try {
+        global.log = log
+        global.fetch = fetch
+        global.store = store
+        return await f(event, ctx);
+    } finally {
+        delete global.log
+        delete global.fetch
+        delete global.store
+        console = oldConsole
+    }
 };
 
 export {wrappedFunctionChain};

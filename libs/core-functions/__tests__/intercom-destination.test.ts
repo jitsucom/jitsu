@@ -21,7 +21,7 @@ test("test", async () => {
 
   let opts: TestOptions<IntercomDestinationCredentials>;
   opts = {
-    func: IntercomDestination,
+    funcWrapper: IntercomDestination,
     configEnvVar: "TEST_INTERCOM_DESTINATION_CONFIG",
     events: [
       {

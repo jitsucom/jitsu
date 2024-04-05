@@ -51,30 +51,11 @@ export type EventControlOpts = {
 export type AnyEvent = Record<string, any> & EventControlOpts;
 export type AnyProps = Record<string, any>;
 
-export type FetchResponse = Response;
-
-export type FetchType = (
-  url: string,
-  opts?: FetchOpts,
-  extra?: { log: boolean; udfId?: string }
-) => Promise<FetchResponse>;
-
-export type FetchOpts = {
-  method?: string;
-  headers?: Record<string, string>;
-  body?: string | Buffer;
-};
 export type FunctionLogger<Sync extends boolean = false> = {
   info: (message: string, ...args: any[]) => void | Promise<void>;
   warn: (message: string, ...args: any[]) => void | Promise<void>;
   debug: (message: string, ...args: any[]) => void | Promise<void>;
   error: (message: string, ...args: any[]) => void | Promise<void>;
-};
-export type FunctionContext = {
-  log: FunctionLogger;
-  fetch: FetchType;
-  store: Store;
-  metrics?: Metrics;
 };
 
 export type PrivacyOpts = {
@@ -162,18 +143,12 @@ export type EventContext = {
     mode?: string;
     options?: any;
   };
+  workspace: {
+    id: string;
+  };
   // number of retries attempted
   retries?: number;
 };
-
-export type FunctionConfigContext<P extends AnyProps = AnyProps> = {
-  props: P;
-};
-
-/**
- * Parameters for a function
- */
-export type FullContext<P extends AnyProps = AnyProps> = EventContext & FunctionContext & FunctionConfigContext<P>;
 
 //equivalent to returning [] from a function
 export type FunctionCommand = "drop";
@@ -193,8 +168,8 @@ export type SyncFunction<
   };
 }) => Promise<void>;
 
-export interface JitsuFunction<E extends AnyEvent = AnyEvent, P extends AnyProps = AnyProps> {
-  (event: E, ctx: FullContext<P>): Promise<FuncReturn> | FuncReturn;
+export interface JitsuFunction<E extends AnyEvent = AnyEvent> {
+  (event: E, ctx: EventContext): Promise<FuncReturn> | FuncReturn;
 
   displayName?: string;
   //for future use - config schema of the function

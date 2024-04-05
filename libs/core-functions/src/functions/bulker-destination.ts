@@ -3,8 +3,7 @@ import { HTTPError, RetryError } from "@jitsu/functions-lib";
 import { AnalyticsServerEvent, DataLayoutType } from "@jitsu/protocols/analytics";
 
 import omit from "lodash/omit";
-import { requireDefined } from "juava";
-import { MetricsMeta, SystemContext } from "./lib";
+import { MetricsMeta, createFunctionLogger, JitsuFunctionWrapper } from "./lib";
 
 const TableNameParameter = "JITSU_TABLE_NAME";
 export type MappedEvent = {
@@ -224,6 +223,15 @@ export function segmentLayout(event: AnalyticsServerEvent, singleTable: boolean)
   }
 }
 
+function transferAsSnakeCase(target: Record<string, any>, source: Record<string, any>, ...path: string[]) {
+  for (const p of path) {
+    target = target[p];
+  }
+  for (const [k, v] of Object.entries(source)) {
+    target[idToSnakeCase(k)] = toSnakeCase(v);
+  }
+}
+
 export function plural(s: string) {
   switch (s) {
     case "identify":
@@ -253,58 +261,65 @@ export type BulkerDestinationConfig = {
   dataLayout?: DataLayoutType;
 };
 
-const BulkerDestination: JitsuFunction<AnalyticsServerEvent, BulkerDestinationConfig> = async (event, ctx) => {
-  const { bulkerEndpoint, destinationId, authToken, dataLayout = "segment-single-table" } = ctx.props;
-  try {
-    const systemContext = requireDefined((ctx as any as SystemContext).$system, `$system context is not available`);
-    const metricsMeta: Omit<MetricsMeta, "messageId"> = {
-      ...omit(systemContext.metricsMeta, "retries", "messageId"),
-      functionId: "builtin.destination.bulker",
-    };
-    let adjustedEvent = event;
-    const clientIds = event.context?.clientIds;
-    const ga4 = clientIds?.ga4;
-    if (ga4 && (ga4.sessionIds || ga4["sessions"])) {
-      adjustedEvent = {
-        ...event,
-        context: {
-          ...event.context,
-          clientIds: {
-            ...clientIds,
-            ga4: {
-              clientId: ga4.clientId,
-              sessionIds: ga4["sessions"] ? JSON.stringify(ga4["sessions"]) : JSON.stringify(ga4.sessionIds),
+const BulkerDestination: JitsuFunctionWrapper<AnalyticsServerEvent, BulkerDestinationConfig> = (chainCtx, funcCtx) => {
+  const log = createFunctionLogger(chainCtx, funcCtx);
+
+  const func: JitsuFunction<AnalyticsServerEvent> = async (event, ctx) => {
+    const { bulkerEndpoint, destinationId, authToken, dataLayout = "segment-single-table" } = funcCtx.props;
+    try {
+      const metricsMeta: Omit<MetricsMeta, "messageId"> = {
+        workspaceId: ctx.workspace.id,
+        streamId: ctx.source.id,
+        destinationId: ctx.destination.id,
+        connectionId: ctx.connection.id,
+        functionId: "builtin.destination.bulker",
+      };
+      let adjustedEvent = event;
+      const clientIds = event.context?.clientIds;
+      const ga4 = clientIds?.ga4;
+      if (ga4 && (ga4.sessionIds || ga4["sessions"])) {
+        adjustedEvent = {
+          ...event,
+          context: {
+            ...event.context,
+            clientIds: {
+              ...clientIds,
+              ga4: {
+                clientId: ga4.clientId,
+                sessionIds: ga4["sessions"] ? JSON.stringify(ga4["sessions"]) : JSON.stringify(ga4.sessionIds),
+              },
             },
           },
-        },
-      };
-    }
-    const events = dataLayouts[dataLayout](adjustedEvent);
-    for (const { event, table } of Array.isArray(events) ? events : [events]) {
-      const res = await ctx.fetch(
-        `${bulkerEndpoint}/post/${destinationId}?tableName=${table}`,
-        {
-          method: "POST",
-          headers: { Authorization: `Bearer ${authToken}`, metricsMeta: JSON.stringify(metricsMeta) },
-          body: JSON.stringify(event),
-        },
-        { log: false }
-      );
-      if (!res.ok) {
-        throw new HTTPError(`HTTP Error: ${res.status} ${res.statusText}`, res.status, await res.text());
-      } else {
-        ctx.log.debug(`HTTP Status: ${res.status} ${res.statusText} Response: ${await res.text()}`);
+        };
       }
+      const events = dataLayouts[dataLayout](adjustedEvent);
+      for (const { event, table } of Array.isArray(events) ? events : [events]) {
+        const res = await chainCtx.fetch(
+          `${bulkerEndpoint}/post/${destinationId}?tableName=${table}`,
+          {
+            method: "POST",
+            headers: { Authorization: `Bearer ${authToken}`, metricsMeta: JSON.stringify(metricsMeta) },
+            body: JSON.stringify(event),
+          },
+          { log: false }
+        );
+        if (!res.ok) {
+          throw new HTTPError(`HTTP Error: ${res.status} ${res.statusText}`, res.status, await res.text());
+        } else {
+          log.debug(`HTTP Status: ${res.status} ${res.statusText} Response: ${await res.text()}`);
+        }
+      }
+      return event;
+    } catch (e: any) {
+      throw new RetryError(e);
     }
-    return event;
-  } catch (e: any) {
-    throw new RetryError(e);
-  }
+  };
+
+  func.displayName = "Bulker Destination";
+
+  func.description = "Synthetic destination to send data to Bulker, jitsu sub-system for storing data in databases";
+
+  return func;
 };
-
-BulkerDestination.displayName = "Bulker Destination";
-
-BulkerDestination.description =
-  "Synthetic destination to send data to Bulker, jitsu sub-system for storing data in databases";
 
 export default BulkerDestination;
