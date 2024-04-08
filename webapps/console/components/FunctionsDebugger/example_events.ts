@@ -45,7 +45,7 @@ export const examplePageEvent = () => {
         search: "",
         title: "Example page event",
         url: "https://example.com/",
-        enconding: "UTF-8",
+        encoding: "UTF-8",
       },
       campaign: {
         name: "example",
@@ -57,7 +57,7 @@ export const examplePageEvent = () => {
   };
 };
 
-export const exportIdentifyEvent = () => {
+export const exampleIdentifyEvent = () => {
   return {
     type: "identify",
     userId: "user@example.com",
@@ -92,7 +92,7 @@ export const exportIdentifyEvent = () => {
         search: "",
         title: "Example page event",
         url: "https://example.com/",
-        enconding: "UTF-8",
+        encoding: "UTF-8",
       },
       campaign: {
         name: "example",
@@ -143,7 +143,7 @@ export const exampleTrackEvents = () => {
         search: "",
         title: "Example page event",
         url: "https://example.com/",
-        enconding: "UTF-8",
+        encoding: "UTF-8",
       },
       campaign: {
         name: "example",

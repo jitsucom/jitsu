@@ -1,9 +1,10 @@
 import { FullContext, JitsuFunction } from "@jitsu/protocols/functions";
 import { RetryError } from "@jitsu/functions-lib";
 import type { AnalyticsServerEvent, Geo } from "@jitsu/protocols/analytics";
-import { hash, randomId } from "juava";
+import { hash } from "juava";
 import { MixpanelCredentials } from "../meta";
 import { eventTimeSafeMs } from "./lib";
+import { randomUUID } from "crypto";
 import zlib from "zlib";
 
 //See https://help.mixpanel.com/hc/en-us/articles/115004708186-Profile-Properties
@@ -21,7 +22,6 @@ export const specialProperties = [
 const CLICK_IDS = ["dclid", "fbclid", "gclid", "ko_click_id", "li_fat_id", "msclkid", "ttclid", "twclid", "wbraid"];
 
 export type HttpRequest = {
-  id: string;
   method?: string;
   url: string;
   payload?: any;
@@ -137,8 +137,14 @@ function trackEvent(
     userAgent: analyticsContext.userAgent,
   };
   const pageUrl = evict(customProperties, "url");
+
+  const app = analyticsContext.app || ({} as any);
+  const network = analyticsContext.network || ({} as any);
+  const screen = analyticsContext.screen || ({} as any);
+  const device = analyticsContext.device || ({} as any);
+  const ua = ctx.ua || ({} as any);
+  const uaDevice = ua.device || ({} as any);
   return {
-    id: randomId(),
     url: `https://api.mixpanel.com/import?strict=1&project_id=${opts.projectId}`,
     headers: {
       "Content-type": "application/json",
@@ -154,12 +160,12 @@ function trackEvent(
           time: eventTimeSafeMs(event),
           $device_id: deviceId,
           distinct_id: distinctId,
-          $insert_id: hash("md5", event.messageId) + "-" + randomId(),
+          $insert_id: randomUUID(),
           $user_id: event.userId ? `${event.userId}` : undefined,
-          $browser: ctx.ua?.browser?.name,
-          $browser_version: ctx.ua?.browser?.version,
-          $os: analyticsContext.os?.name || ctx.ua?.os?.name,
-          $os_version: analyticsContext.os?.version || ctx.ua?.os?.version,
+          $browser: ua.browser?.name,
+          $browser_version: ua.browser?.version,
+          $os: analyticsContext.os?.name || ua.os?.name,
+          $os_version: analyticsContext.os?.version || ua.os?.version,
           $current_url: pageUrl,
           ...clickParams(pageUrl),
           current_page_title: evict(customProperties, "title"),
@@ -170,32 +176,32 @@ function trackEvent(
           ...geoParams(analyticsContext.geo),
 
           //mobile
-          $app_namespace: analyticsContext.app?.namespace,
-          $app_name: analyticsContext.app?.name,
-          $app_build_number: analyticsContext.app?.build,
-          $app_release: analyticsContext.app?.build,
-          $app_version: analyticsContext.app?.version,
-          $app_version_string: analyticsContext.app?.version,
+          $app_namespace: app.namespace,
+          $app_name: app.name,
+          $app_build_number: app.build,
+          $app_release: app.build,
+          $app_version: app.version,
+          $app_version_string: app.version,
 
-          $carrier: analyticsContext?.network?.carrier,
-          $has_telephone: analyticsContext?.network?.cellular,
-          $bluetooth_enabled: analyticsContext.network?.bluetooth,
-          $wifi: analyticsContext?.network?.wifi,
+          $carrier: network.carrier,
+          $has_telephone: network.cellular,
+          $bluetooth_enabled: network.bluetooth,
+          $wifi: network.wifi,
 
-          $screen_dpi: analyticsContext.screen?.density,
-          $screen_height: analyticsContext.screen?.height,
-          $screen_width: analyticsContext.screen?.width,
+          $screen_dpi: screen.density,
+          $screen_height: screen.height,
+          $screen_width: screen.width,
 
           // $bluetooth_version: "ble",
           // $brand: "google",
           // $had_persisted_distinct_id: false,
           // $has_nfc: false,
-          $device_type: analyticsContext.device?.type || ctx.ua?.device?.type,
-          $device_name: analyticsContext.device?.name || ctx.ua?.device?.model,
-          $manufacturer: analyticsContext.device?.manufacturer || ctx.ua?.device?.vendor,
-          $model: analyticsContext.device?.model || ctx.ua?.device?.model,
-          advertising_id: analyticsContext.device?.advertisingId,
-          ad_tracking_enabled: analyticsContext.device?.adTrackingEnabled,
+          $device_type: device.type || uaDevice.type,
+          $device_name: device.name || uaDevice.model,
+          $manufacturer: device.manufacturer || uaDevice.vendor,
+          $model: device.model || uaDevice.model,
+          advertising_id: device.advertisingId,
+          ad_tracking_enabled: device.adTrackingEnabled,
 
           ...customProperties,
         },
@@ -206,38 +212,45 @@ function trackEvent(
 
 function setProfileMessage(ctx: FullContext, distinctId: string, event: AnalyticsServerEvent): HttpRequest[] {
   const opts = ctx.props as MixpanelCredentials;
-  const traits = { ...(event.traits || event.context?.traits || {}) };
+
+  const analyticsContext = event.context || {};
+  const traits = { ...(event.traits || analyticsContext.traits || {}) };
+  const app = analyticsContext.app;
+  const device = analyticsContext.device;
+  const os = analyticsContext.os;
+  const page = analyticsContext.page;
+  const ua = ctx.ua;
+
   specialProperties.forEach(prop => {
     if (traits[prop]) {
       traits[`$${prop}`] = traits[prop];
       delete traits[prop];
     }
   });
-  const groupId = event.context?.groupId || traits.groupId;
+  const groupId = analyticsContext.groupId || traits.groupId;
   delete traits.groupId;
 
   let mobileDeviceInfo: any = {};
-  if (event.context?.os?.name === "Android" && event.context?.app) {
+  if (os?.name === "Android" && app) {
     mobileDeviceInfo = {
-      $android_app_version: event.context.app.version,
-      $android_app_version_code: event.context.app.build,
-      $android_manufacturer: event.context.device?.manufacturer,
-      $android_model: event.context.device?.model,
-      $android_os: event.context.os?.name,
-      $android_os_version: event.context.os?.version,
+      $android_app_version: app.version,
+      $android_app_version_code: app.build,
+      $android_manufacturer: device?.manufacturer,
+      $android_model: device?.model,
+      $android_os: os.name,
+      $android_os_version: os.version,
     };
-  } else if (event.context?.device?.manufacturer === "Apple" && event.context?.app) {
+  } else if (device?.manufacturer === "Apple" && app) {
     mobileDeviceInfo = {
-      $ios_app_version: event.context.app.build,
-      $ios_app_release: event.context.app.version,
-      $ios_device_model: event.context.device?.model,
-      $ios_version: event.context.os?.version,
+      $ios_app_version: app.build,
+      $ios_app_release: app.version,
+      $ios_device_model: device.model,
+      $ios_version: os?.version,
     };
   }
 
   const reqs: HttpRequest[] = [
     {
-      id: randomId(),
       url: "https://api.mixpanel.com/engage?verbose=1#profile-set",
       headers: {
         "Content-type": "application/json",
@@ -247,26 +260,25 @@ function setProfileMessage(ctx: FullContext, distinctId: string, event: Analytic
         {
           $token: opts.projectToken,
           $distinct_id: distinctId,
-          $ip: event.context?.ip,
+          $ip: analyticsContext.ip,
           $set: {
-            ...geoParams(event.context?.geo),
+            ...geoParams(analyticsContext.geo),
             ...traits,
-            $browser: ctx.ua?.browser?.name,
-            $browser_version: ctx.ua?.browser?.version,
-            $os: ctx.ua?.os?.name,
+            $browser: ua?.browser?.name,
+            $browser_version: ua?.browser?.version,
+            $os: ua?.os?.name,
             ...mobileDeviceInfo,
           },
         },
       ],
     },
   ];
-  if (event.context?.page?.referrer || event.context?.page?.referring_domain) {
+  if (page?.referrer || page?.referring_domain) {
     const utm = {
-      ...utmFromCampaign(event.context?.campaign || {}, "initial_"),
+      ...utmFromCampaign(analyticsContext.campaign || {}, "initial_"),
       ...extractUtmParams(event.properties || {}, "initial_"),
     };
     reqs.push({
-      id: randomId(),
       url: "https://api.mixpanel.com/engage?verbose=1#profile-set-once",
       headers: {
         "Content-type": "application/json",
@@ -276,11 +288,11 @@ function setProfileMessage(ctx: FullContext, distinctId: string, event: Analytic
         {
           $token: opts.projectToken,
           $distinct_id: distinctId,
-          $ip: event.context?.ip,
+          $ip: analyticsContext.ip,
           $set_once: {
             ...utm,
-            $initial_referrer: event.context?.page?.referrer,
-            $initial_referring_domain: event.context?.page?.referring_domain,
+            $initial_referrer: page?.referrer,
+            $initial_referring_domain: page?.referring_domain,
           },
         },
       ],
@@ -291,11 +303,10 @@ function setProfileMessage(ctx: FullContext, distinctId: string, event: Analytic
     const unionPayload: any = {
       $token: opts.projectToken,
       $distinct_id: distinctId,
-      $ip: event.context?.ip,
+      $ip: analyticsContext.ip,
       $union: { [groupKey]: [groupId] },
     };
     reqs.push({
-      id: randomId(),
       url: "https://api.mixpanel.com/engage?verbose=1#profile-union",
       headers: {
         "Content-type": "application/json",
@@ -324,7 +335,6 @@ function setGroupMessage(event: AnalyticsServerEvent, opts: MixpanelCredentials)
   };
 
   return {
-    id: randomId(),
     url: "https://api.mixpanel.com/groups?verbose=1#group-set",
     headers: {
       "Content-type": "application/json",
@@ -350,7 +360,6 @@ function merge(ctx: FullContext, messageId: string, identifiedId: string, anonym
   const basicAuth = getAuth(opts);
   return [
     {
-      id: randomId(),
       url: `https://api.mixpanel.com/import?strict=1&project_id=${opts.projectId}`,
       headers: {
         "Content-type": "application/json",
@@ -361,7 +370,7 @@ function merge(ctx: FullContext, messageId: string, identifiedId: string, anonym
         {
           event: "$merge",
           properties: {
-            $insert_id: messageId + "-" + randomId(),
+            $insert_id: randomUUID(),
             $distinct_ids: [identifiedId, anonymousId],
             token: opts.projectToken,
           },
@@ -379,7 +388,6 @@ function alias(ctx: FullContext, messageId: string, identifiedId: string, anonym
   const basicAuth = getAuth(opts);
   return [
     {
-      id: randomId(),
       url: `https://api.mixpanel.com/import?strict=1&project_id=${opts.projectId}`,
       headers: {
         "Content-type": "application/json",
@@ -390,7 +398,7 @@ function alias(ctx: FullContext, messageId: string, identifiedId: string, anonym
         {
           event: "$create_alias",
           properties: {
-            $insert_id: messageId + "-" + randomId(),
+            $insert_id: randomUUID(),
             distinct_id: anonymousId,
             alias: identifiedId,
             token: opts.projectToken,
