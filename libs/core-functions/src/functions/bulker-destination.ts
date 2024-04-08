@@ -30,7 +30,11 @@ function toSnakeCase(param: any): any {
   if (Array.isArray(param)) {
     return param.map(toSnakeCase);
   } else if (typeof param === "object" && param !== null) {
-    return Object.fromEntries(Object.entries(param).map(([key, value]) => [idToSnakeCase(key), toSnakeCase(value)]));
+    const r = {};
+    for (const [key, value] of Object.entries(param)) {
+      r[idToSnakeCase(key)] = toSnakeCase(value);
+    }
+    return r;
   } else {
     return param;
   }
@@ -110,117 +114,142 @@ export function segmentLayout(event: AnalyticsServerEvent, singleTable: boolean)
     case "identify":
       if (singleTable) {
         transformed = {
-          ...(event.context || event.traits
-            ? {
-                context: {
-                  ...event.context,
-                  traits: omit({ ...event.context?.traits, ...event.traits }, ["groupId"]),
-                  groupId: event.traits?.groupId || event.context?.traits?.groupId || undefined,
-                },
-              }
-            : {}),
-          ...event.properties,
-          ...omit(event, ["context", "properties", "traits", "type", TableNameParameter]),
+          context: {
+            traits: {},
+          },
         };
+        transferAsSnakeCase(transformed.context, event.context, ["groupId", "traits"]);
+        transferAsSnakeCase(transformed.context.traits, event.context?.traits, ["groupId"]);
+        transferAsSnakeCase(transformed.context.traits, event.traits, ["groupId"]);
+        transferValueAsSnakeCase(
+          transformed.context,
+          "group_id",
+          event.context?.groupId || event.traits?.groupId || event.context?.traits?.groupId
+        );
+        transferAsSnakeCase(transformed, event.properties);
+        transferAsSnakeCase(transformed, event, ["context", "properties", "traits", "type", TableNameParameter]);
       } else {
         transformed = {
-          ...(event.context ? { context: omit(event.context, "traits") } : {}),
-          ...event.properties,
-          ...event.context?.traits,
-          ...event.traits,
-          ...omit(event, ["context", "properties", "traits", "type", TableNameParameter]),
+          context: {},
         };
+        transferAsSnakeCase(transformed.context, event.context, ["traits"]);
+        transferAsSnakeCase(transformed, event.properties);
+        transferAsSnakeCase(transformed, event.context?.traits);
+        transferAsSnakeCase(transformed, event.traits);
+        transferAsSnakeCase(transformed, event, ["context", "properties", "traits", "type", TableNameParameter]);
       }
       break;
     case "group":
       if (singleTable) {
         transformed = {
-          ...(event.context || event.traits
-            ? { context: { ...event.context, group: event.traits, groupId: event.groupId } }
-            : {}),
-          ...event.properties,
-          ...omit(event, ["context", "properties", "traits", "type", "groupId", TableNameParameter]),
+          context: {
+            group: {},
+          },
         };
+        transferAsSnakeCase(transformed.context, event.context);
+        transferAsSnakeCase(transformed.context.group, event.traits);
+        transferValueAsSnakeCase(transformed.context, "group_id", event.groupId);
+        transferAsSnakeCase(transformed, event.properties);
+        transferAsSnakeCase(transformed, event, [
+          "context",
+          "properties",
+          "traits",
+          "type",
+          "groupId",
+          TableNameParameter,
+        ]);
       } else {
         transformed = {
-          ...(event.context ? { context: omit(event.context, "traits") } : {}),
-          ...event.properties,
-          ...event.traits,
-          ...omit(event, ["context", "properties", "traits", "type", TableNameParameter]),
+          context: {},
         };
+        transferAsSnakeCase(transformed.context, event.context, ["traits"]);
+        transferAsSnakeCase(transformed, event.properties);
+        transferAsSnakeCase(transformed, event.traits);
+        transferAsSnakeCase(transformed, event, ["context", "properties", "traits", "type", TableNameParameter]);
       }
       break;
     case "track":
       if (singleTable) {
         transformed = {
-          ...(event.context || typeof event.properties?.traits === "object"
-            ? {
-                context: {
-                  ...event.context,
-                  traits: omit(
-                    {
-                      ...event.context?.traits,
-                      ...(typeof event.properties?.traits === "object" ? event.properties?.traits : {}),
-                    },
-                    ["groupId"]
-                  ),
-                  groupId: event.context?.traits?.groupId,
-                },
-              }
-            : {}),
-          ...(event.properties ? omit(event.properties, ["traits"]) : {}),
-          ...omit(event, ["context", "properties", "type", TableNameParameter]),
+          context: {
+            traits: {},
+          },
         };
+        transferAsSnakeCase(transformed.context, event.context, ["groupId", "traits"]);
+        transferAsSnakeCase(transformed.context.traits, event.context?.traits, ["groupId"]);
+        transferAsSnakeCase(transformed.context.traits, event.properties?.traits, ["groupId"]);
+        transferValueAsSnakeCase(
+          transformed.context,
+          "group_id",
+          event.context?.groupId || event.context?.traits?.groupId
+        );
+        transferAsSnakeCase(transformed, event.properties, ["traits"]);
+        transferAsSnakeCase(transformed, event, ["context", "properties", "type", TableNameParameter]);
       } else {
-        baseTrackFlat = toSnakeCase({
-          ...omit(event, ["properties", "type", TableNameParameter]),
-        });
-        transformed = {
-          ...(event.properties || {}),
-          ...omit(event, ["properties", "type", TableNameParameter]),
-        };
+        baseTrackFlat = {};
+        transferAsSnakeCase(baseTrackFlat, event, ["properties", "type", TableNameParameter]);
+        transformed = {};
+        transferAsSnakeCase(transformed, event.properties);
+        transferAsSnakeCase(transformed, event, ["properties", "type", TableNameParameter]);
       }
       break;
     default:
       if (singleTable) {
         transformed = {
-          ...(event.context
-            ? {
-                context: {
-                  ...event.context,
-                  traits: omit(event.context?.traits, ["groupId"]),
-                  groupId: event.context?.traits?.groupId,
-                },
-              }
-            : {}),
-          ...(event.properties || {}),
-          ...omit(event, ["context", "properties", TableNameParameter]),
+          context: {
+            traits: {},
+          },
         };
+        transferAsSnakeCase(transformed.context, event.context, ["groupId", "traits"]);
+        transferAsSnakeCase(transformed.context.traits, event.context?.traits, ["groupId"]);
+        transferValueAsSnakeCase(
+          transformed.context,
+          "group_id",
+          event.context?.groupId || event.context?.traits?.groupId
+        );
+        transferAsSnakeCase(transformed, event.properties);
+        transferAsSnakeCase(transformed, event, ["context", "properties", TableNameParameter]);
       } else {
-        transformed = {
-          ...(event.properties || {}),
-          ...omit(event, ["properties", TableNameParameter]),
-        };
+        transformed = {};
+        transferAsSnakeCase(transformed, event.properties);
+        transferAsSnakeCase(transformed, event, ["properties", TableNameParameter]);
       }
   }
-  const flat: Record<string, any> = toSnakeCase(transformed);
   if (event[TableNameParameter]) {
-    flat.type = event.type;
-    return { event: flat, table: event[TableNameParameter] };
+    transformed.type = event.type;
+    return { event: transformed, table: event[TableNameParameter] };
   }
   if (singleTable) {
-    flat.type = event.type;
-    return { event: flat, table: "events" };
+    transformed.type = event.type;
+    return { event: transformed, table: "events" };
   } else {
     if (event.type === "track" && event.event) {
       return [
         { event: baseTrackFlat, table: "tracks" },
-        { event: flat, table: event.event },
+        { event: transformed, table: event.event },
       ];
     } else {
-      return { event: flat, table: plural(event.type) };
+      return { event: transformed, table: plural(event.type) };
     }
   }
+}
+
+function transferAsSnakeCase(target: Record<string, any>, source: any, omit?: string[]) {
+  if (typeof source !== "object") {
+    return;
+  }
+  for (const [k, v] of Object.entries(source)) {
+    if (!omit || !omit.includes(k)) {
+      target[idToSnakeCase(k)] = toSnakeCase(v);
+    }
+  }
+}
+
+function transferValueAsSnakeCase(target: Record<string, any>, property: string, source: any) {
+  if (typeof source === "undefined") {
+    return;
+  }
+  target[property] = toSnakeCase(source);
 }
 
 export function plural(s: string) {

@@ -12,7 +12,7 @@ import { arrayToMap } from "../../lib/shared/arrays";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { ColumnsType } from "antd/es/table";
 import { UTCDate, UTCHeader } from "../DataView/EventsBrowser";
-import { examplePageEvent, exampleTrackEvents, exportIdentifyEvent } from "./example_events";
+import { examplePageEvent, exampleTrackEvents, exampleIdentifyEvent } from "./example_events";
 import { rpc } from "juava";
 import { logType } from "@jitsu/core-functions";
 import { RetryErrorName, DropRetryErrorName } from "@jitsu/functions-lib";
@@ -761,7 +761,7 @@ const ExamplesDropdown = ({ selectEvent }: { selectEvent: (e: any) => void }) =>
     {
       key: "identify",
       onClick: () => {
-        selectEvent(exportIdentifyEvent());
+        selectEvent(exampleIdentifyEvent());
       },
       label: "Identify",
     },

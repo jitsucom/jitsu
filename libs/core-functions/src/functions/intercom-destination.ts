@@ -357,18 +357,14 @@ const IntercomDestination: JitsuFunction<AnalyticsServerEvent, IntercomDestinati
         appName: event.context?.app?.name,
       },
     };
-    await jsonFetch(
-      `https://api.intercom.io/events`,
-      {
-        headers: {
-          Authorization: `Bearer ${ctx.props.accessToken}`,
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-        body: intercomEvent,
+    await jsonFetch(`https://api.intercom.io/events`, {
+      headers: {
+        Authorization: `Bearer ${ctx.props.accessToken}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
       },
-      { event }
-    );
+      body: intercomEvent,
+    });
   }
 };
 
