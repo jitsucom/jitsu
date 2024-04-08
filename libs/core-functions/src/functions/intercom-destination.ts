@@ -4,6 +4,7 @@ import { IntercomDestinationCredentials } from "../meta";
 import { JsonFetcher, jsonFetcher } from "./lib/json-fetch";
 import { isEqual, pick } from "lodash";
 import { requireDefined } from "juava";
+import { RetryError } from "@jitsu/functions-lib";
 
 type ExtendedCtx = FullContext<IntercomDestinationCredentials> & {
   jsonFetch: JsonFetcher;
@@ -17,13 +18,14 @@ function nullsToUndefined(obj: any) {
 
 export type IntercomCompany = {
   id: string;
-  company_id?: string;
+  //  company_id?: string;
   [key: string]: any;
 };
 
 export type IntercomContact = {
   id: string;
-  company_id?: string;
+  custom_attributes?: Record<string, any>;
+  //  company_id?: string;
 };
 
 async function getContactByOurUserId(
@@ -132,11 +134,11 @@ function toDate(timestamp?: string | number | Date): Date {
   }
 }
 
-async function createOrUpdateContact(event: AnalyticsServerEvent, { jsonFetch, log, props }: ExtendedCtx) {
-  if (!event.traits?.email) {
-    return;
-  }
-  const existingContact = await jsonFetch(`https://api.intercom.io/contacts/search`, {
+async function getContactByExternalIdOrEmail(
+  { email, externalId }: { email: string; externalId?: string },
+  { jsonFetch, props, log }: ExtendedCtx
+): Promise<IntercomContact | undefined> {
+  const result = await jsonFetch(`https://api.intercom.io/contacts/search`, {
     headers: {
       Authorization: `Bearer ${props.accessToken}`,
       Accept: "application/json",
@@ -149,14 +151,14 @@ async function createOrUpdateContact(event: AnalyticsServerEvent, { jsonFetch, l
           {
             field: "email",
             operator: "=",
-            value: (event.traits || {}).email,
+            value: email,
           },
-          ...(event.userId
+          ...(externalId
             ? [
                 {
                   field: "external_id",
                   operator: "=",
-                  value: event.userId,
+                  value: externalId,
                 },
               ]
             : []),
@@ -164,10 +166,46 @@ async function createOrUpdateContact(event: AnalyticsServerEvent, { jsonFetch, l
       },
     },
   });
-  const newContact = {
+  log.debug(
+    `Intercom: search for contact by email=${email} and external_id=${externalId} returned ${result.data.length} contacts`
+  );
+  if (result.data.length > 1) {
+    log.warn(
+      `Intercom: search for contact by email=${email} and external_id=${externalId} returned more than 1 (=${result.data.length}) contacts`
+    );
+  }
+  return result.data?.[0];
+}
+
+function extractContactIdFromErrorMessage(body: any): string | undefined {
+  const message = body?.errors?.[0]?.message;
+  if (!message) {
+    return;
+  }
+  const idPattern = /id=([a-zA-Z0-9]+)/;
+  const match = message.match(idPattern);
+
+  if (match && match[1]) {
+    return match[1];
+  }
+}
+
+async function createOrUpdateContact(event: AnalyticsServerEvent, ctx: ExtendedCtx): Promise<string | undefined> {
+  const { jsonFetch, log, props } = ctx;
+  if (!event.traits?.email) {
+    log.warn(
+      `Intercom: ${event.type} with userId=${event.userId} doesn't have email, skipping. Intercom requires email to create a contact`
+    );
+    return;
+  }
+  const email = event.traits.email as string;
+
+  const existingContact = await getContactByExternalIdOrEmail({ email, externalId: event.userId }, ctx);
+
+  const contactData = {
     role: "user",
     external_id: event.userId || undefined,
-    email: (event.traits || {}).email,
+    email,
     name:
       event.traits?.name ||
       (event.traits?.firstName && event.traits?.lastName
@@ -176,31 +214,63 @@ async function createOrUpdateContact(event: AnalyticsServerEvent, { jsonFetch, l
     phone: event.traits?.phone,
     custom_attributes: {}, // omit(event.traits || {}, "name", "firstName", "lastName", "phone", "email"),
   };
-  if (existingContact.data.length === 0) {
+  if (!existingContact) {
     log.debug(
-      `Contact ${(event.traits || {}).email} not found, creating a new one:\n${JSON.stringify(newContact, null, 2)}`
+      `Contact with email=${email} and userId=${event.userId} not found, creating a new one:\n${JSON.stringify(
+        contactData,
+        null,
+        2
+      )}`
     );
-    const createContactResponse = await jsonFetch(`https://api.intercom.io/contacts`, {
+    const createContactResponse = await fetch(`https://api.intercom.io/contacts`, {
       headers: {
         Authorization: `Bearer ${props.accessToken}`,
         Accept: "application/json",
         "Content-Type": "application/json",
       },
-      body: newContact,
+      body: JSON.stringify(contactData),
     });
-    return createContactResponse.id;
+    if (!createContactResponse.ok) {
+      if (createContactResponse.status === 409) {
+        const body = await createContactResponse.json();
+        log.warn(
+          `Intercom: contact with email=${email} and userId=${
+            event.userId
+          } already exists, skipping. Request: ${email}, ${JSON.stringify(
+            contactData,
+            null,
+            2
+          )}, response: ${JSON.stringify(body, null, 2)}`
+        );
+        return extractContactIdFromErrorMessage(body);
+      } else {
+        const body = await createContactResponse.json();
+        const errorMessage = `Intercom: attempt to create a contact email=${email} and userId=${
+          event.userId
+        } failed with ${createContactResponse.status} ${
+          createContactResponse.statusText
+        }. Request: ${email}, ${JSON.stringify(contactData, null, 2)}, response: ${JSON.stringify(body, null, 2)}`;
+        //log.warn(errorMessage);
+        throw new RetryError(errorMessage, { drop: false });
+      }
+    }
+    return (await createContactResponse.json()).id;
   } else {
-    const contact = existingContact.data[0];
+    const contact = existingContact;
     const forComparison = {
       ...nullsToUndefined(pick(contact, "name", "email", "phone", "role", "external_id")),
       custom_attributes: contact.custom_attributes || {},
     } as any;
-    if (isEqual(forComparison, newContact) && !alwaysUpdate) {
-      log.debug(`Contact ${(event.traits || {}).email} already exists and is up to date, skipping`);
+    if (isEqual(forComparison, contactData) && !alwaysUpdate) {
+      log.debug(`Contact with email=${email} and userId=${event.userId} already exists and is up to date, skipping`);
       return;
     } else {
       log.debug(
-        `Contact ${(event.traits || {}).email} needs to be updated, updating ${JSON.stringify(newContact, null, 2)}`
+        `Contact with email=${email} and userId=${event.userId} needs to be updated, updating ${JSON.stringify(
+          contactData,
+          null,
+          2
+        )}`
       );
       await jsonFetch(`https://api.intercom.io/contacts/${contact.id}`, {
         method: "PUT",
@@ -209,8 +279,8 @@ async function createOrUpdateContact(event: AnalyticsServerEvent, { jsonFetch, l
           Accept: "application/json",
           "Content-Type": "application/json",
         },
-        body: newContact,
-        //body: forComparison.external_id ? omit(newContact, "external_id") : newContact,
+        body: contactData,
+        //body: forComparison.external_id ? omit(contactData, "external_id") : contactData,
       });
     }
     return contact.id;
@@ -264,11 +334,28 @@ const IntercomDestination: JitsuFunction<AnalyticsServerEvent, IntercomDestinati
     }
     const intercomEvent = {
       type: "event",
-      event_name: event.type === "track" ? event.event : event.type === "page" ? "page-view" : "unknown",
+      event_name: event.type === "track" ? event.event : event.type === "page" ? "page-view" : event.type,
       created_at: Math.round(toDate(event.timestamp).getTime() / 1000),
       user_id: userId || undefined,
       email: email || undefined,
-      metadata: { ...event.properties, url: event.context?.page?.url || undefined },
+      metadata: {
+        ...event.properties,
+        url: event.context?.page?.url || undefined,
+        eventName: event.name,
+        ip: event.context?.ip,
+        libraryName: event.context?.library?.name,
+        libraryVersion: event.context?.library?.version,
+        timezone: event.context?.timezone,
+        osName: event.context?.os?.name,
+        osVersion: event.context?.os?.version,
+        networkCellular: event.context?.network?.cellular,
+        networkWifi: event.context?.network?.wifi,
+        instanceId: event.context?.instanceId,
+        appBuild: event.context?.app?.build,
+        appVersion: event.context?.app?.version,
+        appNamespace: event.context?.app?.namespace,
+        appName: event.context?.app?.name,
+      },
     };
     await jsonFetch(
       `https://api.intercom.io/events`,
