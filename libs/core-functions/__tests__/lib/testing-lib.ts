@@ -1,10 +1,10 @@
 import { AnalyticsInterface, AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { getLog, logFormat, requireDefined } from "juava";
 import nodeFetch from "node-fetch-commonjs";
-import { AnyEvent, EventContext, FuncReturn } from "@jitsu/protocols/functions";
+import { AnyEvent, EventContext, FuncReturn, JitsuFunction } from "@jitsu/protocols/functions";
 import { createStore } from "./mem-store";
 import * as JSON5 from "json5";
-import { FetchType, FunctionChainContext, FunctionContext, JitsuFunctionWrapper } from "../../src/functions/lib";
+import { FunctionChainContext, FunctionContext, InternalFetchType, wrapperFunction } from "../../src/functions/lib";
 
 export type Or<T1, T2> =
   | ({ [P in keyof T1]: T1[P] } & { [P in keyof T2]?: never })
@@ -12,7 +12,7 @@ export type Or<T1, T2> =
 
 export type TestOptions<T = any> = {
   mockFetch?: boolean;
-  funcWrapper: JitsuFunctionWrapper<AnalyticsServerEvent, T>;
+  func: JitsuFunction<AnalyticsServerEvent, T>;
   chainCtx?: FunctionChainContext;
   ctx?: EventContext;
 } & Or<{ config: T }, { configEnvVar: string }> &
@@ -54,9 +54,10 @@ export async function testJitsuFunction<T = any>(opts: TestOptions<T>): Promise<
     debug: (ctx: FunctionContext, msg: any, ...args: any[]) => testLogger.atDebug().log(msg, ...args),
     warn: (ctx: FunctionContext, msg: any, ...args: any[]) => testLogger.atWarn().log(msg, ...args),
   };
-  const func = opts.funcWrapper(
-    { log, fetch: nodeFetch as unknown as FetchType, store: createStore(), ...opts.chainCtx },
-    { function: { id: "test", type: "test" }, props: config }
+  const func = wrapperFunction(
+    { log, fetch: nodeFetch as unknown as InternalFetchType, store: createStore(), ...opts.chainCtx },
+    { function: { id: "test", type: "test" }, props: config },
+    opts.func
   );
 
   let res: AnyEvent[] = null;

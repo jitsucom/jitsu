@@ -22,7 +22,7 @@ test("test", async () => {
     return e;
   });
   const opts: TestOptions<FacebookConversionApiCredentials> = {
-    funcWrapper: FacebookConversionsApi,
+    func: FacebookConversionsApi,
     configEnvVar: "TEST_FACEBOOK_CONVERSION_API_DESTINATION",
     events: events,
   };

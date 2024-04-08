@@ -3,6 +3,7 @@ import {
   BuiltinFunctionName,
   BuiltinTransformationFunctionName,
   FuncReturn,
+  JitsuFunction,
 } from "@jitsu/protocols/functions";
 import BulkerDestination from "./functions/bulker-destination";
 import MixpanelDestination from "./functions/mixpanel-destination";
@@ -17,41 +18,37 @@ import AmplitudeDestination from "./functions/amplitude-destination";
 import FacebookConversionsApi from "./functions/facebook-conversions";
 import IntercomDestination from "./functions/intercom-destination";
 import HubspotDestination from "./functions/hubspot-destination";
-import { FunctionChainContext, FunctionContext, JitsuFunctionWrapper } from "./functions/lib";
 
-const devNull = (chainCtx: FunctionChainContext, funcCtx: FunctionContext<any>) => () => null;
-const placeHolder = (chainCtx: FunctionChainContext, funcCtx: FunctionContext<any>) => () => undefined;
-
-const builtinDestinations: Record<BuiltinDestinationFunctionName, JitsuFunctionWrapper> = {
-  "builtin.destination.bulker": BulkerDestination as JitsuFunctionWrapper,
-  "builtin.destination.mixpanel": MixpanelDestination as JitsuFunctionWrapper,
-  "builtin.destination.intercom": IntercomDestination as JitsuFunctionWrapper,
-  "builtin.destination.segment-proxy": SegmentDestination as JitsuFunctionWrapper,
-  "builtin.destination.june": JuneDestination as JitsuFunctionWrapper,
-  "builtin.destination.ga4": Ga4Destination as JitsuFunctionWrapper,
-  "builtin.destination.webhook": WebhookDestination as JitsuFunctionWrapper,
-  "builtin.destination.posthog": PosthogDestination as JitsuFunctionWrapper,
-  "builtin.destination.mongodb": MongodbDestination as JitsuFunctionWrapper,
-  "builtin.destination.amplitude": AmplitudeDestination as JitsuFunctionWrapper,
-  "builtin.destination.facebook-conversions": FacebookConversionsApi as JitsuFunctionWrapper,
-  "builtin.destination.hubspot": HubspotDestination as JitsuFunctionWrapper,
-  "builtin.destination.devnull": devNull,
-  "builtin.destination.tag": placeHolder,
-  "builtin.destination.gtm": placeHolder,
-  "builtin.destination.logrocket": placeHolder,
-  "builtin.destination.ga4-tag": placeHolder,
+const builtinDestinations: Record<BuiltinDestinationFunctionName, JitsuFunction> = {
+  "builtin.destination.bulker": BulkerDestination as JitsuFunction,
+  "builtin.destination.mixpanel": MixpanelDestination as JitsuFunction,
+  "builtin.destination.intercom": IntercomDestination as JitsuFunction,
+  "builtin.destination.segment-proxy": SegmentDestination as JitsuFunction,
+  "builtin.destination.june": JuneDestination as JitsuFunction,
+  "builtin.destination.ga4": Ga4Destination as JitsuFunction,
+  "builtin.destination.webhook": WebhookDestination as JitsuFunction,
+  "builtin.destination.posthog": PosthogDestination as JitsuFunction,
+  "builtin.destination.mongodb": MongodbDestination as JitsuFunction,
+  "builtin.destination.amplitude": AmplitudeDestination as JitsuFunction,
+  "builtin.destination.facebook-conversions": FacebookConversionsApi as JitsuFunction,
+  "builtin.destination.hubspot": HubspotDestination as JitsuFunction,
+  "builtin.destination.devnull": () => null,
+  "builtin.destination.tag": () => undefined,
+  "builtin.destination.gtm": () => undefined,
+  "builtin.destination.logrocket": () => undefined,
+  "builtin.destination.ga4-tag": () => undefined,
 } as const;
 
-const builtinTransformations: Record<BuiltinTransformationFunctionName, JitsuFunctionWrapper> = {
-  "builtin.transformation.user-recognition": UserRecognitionFunction as JitsuFunctionWrapper,
+const builtinTransformations: Record<BuiltinTransformationFunctionName, JitsuFunction> = {
+  "builtin.transformation.user-recognition": UserRecognitionFunction as JitsuFunction,
 } as const;
 
-const builtinFunctions: Record<BuiltinFunctionName, JitsuFunctionWrapper> = {
+const builtinFunctions: Record<BuiltinFunctionName, JitsuFunction> = {
   ...builtinDestinations,
   ...builtinTransformations,
 } as const;
 
-export function getBuiltinFunction(id: string): JitsuFunctionWrapper | undefined {
+export function getBuiltinFunction(id: string): JitsuFunction | undefined {
   const fixedId = id.indexOf("builtin.") === 0 ? id : `builtin.${id}`;
   return builtinFunctions[fixedId];
 }
@@ -63,7 +60,7 @@ export function isDropResult(result: FuncReturn): boolean {
 export * as bulkerDestination from "./functions/bulker-destination";
 export { UDFWrapper, UDFTestRun } from "./functions/udf_wrapper";
 export type { UDFTestRequest, UDFTestResponse, logType } from "./functions/udf_wrapper";
-export { makeLog, makeFetch, MultiEventsStore, DummyEventsStore } from "./functions/lib/index";
+export { makeLog, makeFetch, MultiEventsStore, DummyEventsStore, wrapperFunction } from "./functions/lib/index";
 export * as mixpanelDestination from "./functions/mixpanel-destination";
 export * as ga4Destination from "./functions/ga4-destination";
 export * as webhookDestination from "./functions/webhook-destination";
@@ -75,9 +72,8 @@ export type {
   FunctionContext,
   FunctionChainContext,
   FetchType,
-  FetchOpts,
-  FetchResponse,
   EventsStore,
+  JitsuFunctionWrapper,
 } from "./functions/lib/index";
 export { httpAgent, httpsAgent } from "./functions/lib/http-agent";
 export * from "./functions/lib/store";

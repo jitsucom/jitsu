@@ -1,12 +1,11 @@
 import { getLog, LogLevel, sanitize, stopwatch } from "juava";
 import { Isolate, ExternalCopy, Reference, Module, Context } from "isolated-vm";
-import { EventContext, FuncReturn, JitsuFunction, Store, TTLStore } from "@jitsu/protocols/functions";
+import { EventContext, FuncReturn, Store, TTLStore, FetchOpts } from "@jitsu/protocols/functions";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 
 import {
   createMemoryStore,
   EventsStore,
-  FetchOpts,
   FunctionChainContext,
   FunctionContext,
   isDropResult,
@@ -17,6 +16,7 @@ import {
 import { functionsLibCode, chainWrapperCode } from "./lib/udf-wrapper-code";
 import { parseUserAgent } from "./lib/ua";
 import { RetryError } from "@jitsu/functions-lib";
+import { JitsuFunctionWrapper } from "./lib";
 
 const log = getLog("udf-wrapper");
 
@@ -29,7 +29,7 @@ export type logType = {
 };
 
 export type UDFWrapperResult = {
-  userFunction: JitsuFunction;
+  userFunction: JitsuFunctionWrapper;
   close: () => void;
 };
 
@@ -197,7 +197,7 @@ function wrap(connectionId: string, isolate: Isolate, context: Context, wrapper:
   if (!ref || ref.typeof !== "function") {
     throw new Error("Function not found. Please export wrappedFunctionChain function.");
   }
-  const userFunction: JitsuFunction = async (event, ctx) => {
+  const userFunction: JitsuFunctionWrapper = async (event, ctx) => {
     if (isolate.isDisposed) {
       throw new RetryError("Isolate is disposed", { drop: true });
     }

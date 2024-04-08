@@ -9,6 +9,11 @@ import {
   AnonymousEventsStore,
   AnyEvent,
   AnyProps,
+  EventContext,
+  FetchOpts,
+  FetchResponse,
+  FullContext,
+  FuncReturn,
   FunctionLogger,
   JitsuFunction,
   Metrics,
@@ -56,19 +61,17 @@ export type MetricsMeta = {
   retries?: number;
 };
 
-export type FetchResponse = Response;
-
 export type FetchType = (
   url: string,
   opts?: FetchOpts,
-  extra?: { log: boolean; ctx?: FunctionContext; event?: AnyEvent }
+  extra?: { log?: boolean; event?: AnyEvent }
 ) => Promise<FetchResponse>;
 
-export type FetchOpts = {
-  method?: string;
-  headers?: Record<string, string>;
-  body?: string | Buffer;
-};
+export type InternalFetchType = (
+  url: string,
+  opts?: FetchOpts,
+  extra?: { log?: boolean; ctx?: FunctionContext; event?: AnyEvent }
+) => Promise<FetchResponse>;
 
 export type FunctionChainContext = {
   log: {
@@ -77,13 +80,43 @@ export type FunctionChainContext = {
     debug: (ctx: FunctionContext, message: string, ...args: any[]) => void | Promise<void>;
     error: (ctx: FunctionContext, message: string, ...args: any[]) => void | Promise<void>;
   };
-  fetch: FetchType;
+  fetch: InternalFetchType;
   store: TTLStore;
   anonymousEventsStore?: AnonymousEventsStore;
   metrics?: Metrics;
 };
 
-export function createFunctionLogger(chainCtx: FunctionChainContext, funcCtx: FunctionContext): FunctionLogger {
+export function wrapperFunction<E extends AnyEvent = AnyEvent, P extends AnyProps = AnyProps>(
+  chainCtx: FunctionChainContext,
+  funcCtx: FunctionContext<P>,
+  jitsuFunction: JitsuFunction<E, P>
+): JitsuFunctionWrapper<E> {
+  const log = createFunctionLogger(chainCtx, funcCtx);
+  const debugFetch = createFetchWrapper(chainCtx, funcCtx);
+  const props = funcCtx.props;
+  const store = chainCtx.store;
+
+  return async (event: E, ctx: EventContext) => {
+    let ftch = chainCtx.fetch;
+    const debugEnabled = funcCtx.function.debugTill && funcCtx.function.debugTill > new Date();
+    if (debugEnabled) {
+      ftch = async (url, opts, extra) => {
+        return debugFetch(url, opts, { ...extra, event });
+      };
+    }
+    const fullContext: FullContext<P> = {
+      ...ctx,
+      log,
+      fetch: ftch,
+      store,
+      props,
+    };
+    fullContext["anonymousEventsStore"] = chainCtx.anonymousEventsStore;
+    return jitsuFunction(event, fullContext);
+  };
+}
+
+function createFunctionLogger(chainCtx: FunctionChainContext, funcCtx: FunctionContext): FunctionLogger {
   return {
     info: (message: string, ...args: any) => chainCtx.log.info(funcCtx, message, ...args),
     warn: (message: string, ...args: any) => chainCtx.log.warn(funcCtx, message, ...args),
@@ -92,14 +125,9 @@ export function createFunctionLogger(chainCtx: FunctionChainContext, funcCtx: Fu
   };
 }
 
-export function createFetchWrapper(chainCtx: FunctionChainContext, funcCtx: FunctionContext) {
-  return (url: string, opts?: FetchOpts, debug?: { event?: AnyEvent }) => {
-    const debugEnabled = funcCtx.function.debugTill && funcCtx.function.debugTill > new Date();
-    if (debugEnabled) {
-      return chainCtx.fetch(url, opts, { log: true, ctx: funcCtx, event: debug?.event });
-    } else {
-      return chainCtx.fetch(url, opts);
-    }
+function createFetchWrapper(chainCtx: FunctionChainContext, funcCtx: FunctionContext): FetchType {
+  return (url: string, opts?: FetchOpts, debug?: { event?: AnyEvent; log?: boolean }) => {
+    return chainCtx.fetch(url, opts, { log: debug?.log, ctx: funcCtx, event: debug?.event });
   };
 }
 
@@ -112,10 +140,10 @@ export type FunctionContext<P extends AnyProps = AnyProps> = {
   props: P;
 };
 
-export type JitsuFunctionWrapper<E extends AnyEvent = AnyEvent, P extends AnyProps = AnyProps> = (
-  chainCtx: FunctionChainContext,
-  funcCtx: FunctionContext<P>
-) => JitsuFunction<E>;
+export type JitsuFunctionWrapper<E extends AnyEvent = AnyEvent> = (
+  event: E,
+  ctx: EventContext
+) => Promise<FuncReturn> | FuncReturn;
 
 type KnownEventKeys = keyof Required<AnalyticsClientEvent & ServerContextReservedProps & ProcessingContext>;
 //to make sure we
@@ -267,7 +295,7 @@ export const makeFetch =
   async (
     url: string,
     init?: FetchOpts,
-    extra?: { log: boolean; ctx?: FunctionContext; event?: AnyEvent }
+    extra?: { log?: boolean; ctx?: FunctionContext; event?: AnyEvent }
   ): Promise<Response> => {
     //capture execution time
     const sw = stopwatch();

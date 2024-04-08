@@ -3,7 +3,8 @@ import UserRecognitionFunction, { UserRecognitionConfig } from "../src/functions
 import { prefixLogMessage, testJitsuFunction, TestOptions } from "./lib/testing-lib";
 import { createAnonymousEventsStore, createStore } from "./lib/mem-store";
 import nodeFetch from "node-fetch-commonjs";
-import { FetchType, FunctionContext } from "../src";
+import { FunctionContext } from "../src";
+import { InternalFetchType } from "../src/functions/lib";
 
 const anonymousEvents: AnalyticsServerEvent[] = [
   {
@@ -93,9 +94,9 @@ const expectedEvents: AnalyticsServerEvent[] = [
 test("user-recognition-test", async () => {
   const store = createStore();
   const options: TestOptions = {
-    funcWrapper: UserRecognitionFunction,
+    func: UserRecognitionFunction,
     chainCtx: {
-      fetch: nodeFetch as unknown as FetchType,
+      fetch: nodeFetch as unknown as InternalFetchType,
       store: store,
       log: {
         info: (ctx: FunctionContext, msg: any, ...args: any[]) => console.log(prefixLogMessage("INFO", msg), args),
