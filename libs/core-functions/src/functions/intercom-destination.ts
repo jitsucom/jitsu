@@ -265,7 +265,13 @@ async function createOrUpdateContact(event: AnalyticsServerEvent, ctx: ExtendedC
       log.debug(`Contact with email=${email} and userId=${event.userId} already exists and is up to date, skipping`);
       return;
     } else {
-      log.debug(`Contact with email=${email} and userId=${event.userId} needs to be updated, updating ${JSON.stringify(contactData, null, 2)}`);
+      log.debug(
+        `Contact with email=${email} and userId=${event.userId} needs to be updated, updating ${JSON.stringify(
+          contactData,
+          null,
+          2
+        )}`
+      );
       await jsonFetch(`https://api.intercom.io/contacts/${contact.id}`, {
         method: "PUT",
         headers: {
