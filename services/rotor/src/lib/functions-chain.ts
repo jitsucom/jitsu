@@ -1,4 +1,4 @@
-import { AnonymousEventsStore, AnyEvent, EventContext, FuncReturn, JitsuFunction } from "@jitsu/protocols/functions";
+import { AnonymousEventsStore, AnyEvent, EventContext, FuncReturn } from "@jitsu/protocols/functions";
 import {
   createMongoStore,
   createMultiStore,
@@ -7,11 +7,13 @@ import {
   FunctionContext,
   getBuiltinFunction,
   isDropResult,
+  JitsuFunctionWrapper,
   makeFetch,
   makeLog,
   MetricsMeta,
   mongodb,
   UDFWrapper,
+  wrapperFunction,
 } from "@jitsu/core-functions";
 import Prometheus from "prom-client";
 import { RetryErrorName, DropRetryErrorName } from "@jitsu/functions-lib";
@@ -28,7 +30,7 @@ const fastStoreWorkspaceId = (process.env.FAST_STORE_WORKSPACE_ID ?? "").split("
 
 export type Func = {
   id: string;
-  exec: JitsuFunction;
+  exec: JitsuFunctionWrapper;
   context: FunctionContext;
   hash?: string;
 };
@@ -206,7 +208,7 @@ export function buildFunctionChain(
     mainFunction,
   ];
 
-  const udfPipelineFunc = (chainCtx: FunctionChainContext, funcCtx: FunctionContext): JitsuFunction => {
+  const udfPipelineFunc = (chainCtx: FunctionChainContext, funcCtx: FunctionContext): JitsuFunctionWrapper => {
     return async (event: AnyEvent, ctx: EventContext) => {
       try {
         return cached.wrapper.userFunction(event, ctx);
@@ -244,7 +246,11 @@ export function buildFunctionChain(
       return {
         id: f.functionId as string,
         context: funcCtx,
-        exec: requireDefined(getBuiltinFunction(f.functionId), `Unknown function ${f.functionId}`)(chainCtx, funcCtx),
+        exec: wrapperFunction(
+          chainCtx,
+          funcCtx,
+          requireDefined(getBuiltinFunction(f.functionId), `Unknown function ${f.functionId}`)
+        ),
       } as Func;
     } else if (f.functionId === "udf.PIPELINE") {
       return {

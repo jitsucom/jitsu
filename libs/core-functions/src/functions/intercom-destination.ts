@@ -1,14 +1,13 @@
-import { FunctionLogger, JitsuFunction } from "@jitsu/protocols/functions";
+import { FullContext, JitsuFunction } from "@jitsu/protocols/functions";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { IntercomDestinationCredentials } from "../meta";
 import { JsonFetcher, jsonFetcher } from "./lib/json-fetch";
 import { isEqual, pick } from "lodash";
 import { requireDefined } from "juava";
-import { createFetchWrapper, createFunctionLogger, FunctionContext, JitsuFunctionWrapper } from "./lib";
 
-type ExtendedCtx = { log: FunctionLogger } & FunctionContext<IntercomDestinationCredentials> & {
-    jsonFetch: JsonFetcher;
-  };
+type ExtendedCtx = FullContext<IntercomDestinationCredentials> & {
+  jsonFetch: JsonFetcher;
+};
 
 const alwaysUpdate = true;
 
@@ -218,83 +217,72 @@ async function createOrUpdateContact(event: AnalyticsServerEvent, { jsonFetch, l
   }
 }
 
-const IntercomDestination: JitsuFunctionWrapper<AnalyticsServerEvent, IntercomDestinationCredentials> = (
-  chainCtx,
-  funcCtx
-) => {
-  const log = createFunctionLogger(chainCtx, funcCtx);
-  const fetch = createFetchWrapper(chainCtx, funcCtx);
-  const props = funcCtx.props;
-
-  const func: JitsuFunction<AnalyticsServerEvent> = async (event, ctx) => {
-    const jsonFetch = jsonFetcher(fetch, { log: log, debug: true });
-    const etx: ExtendedCtx = { log, jsonFetch, ...funcCtx };
-    let intercomContactId: string | undefined;
-    let intercomCompanyId: string | undefined;
-    if (event.type === "identify") {
-      intercomContactId = await createOrUpdateContact(event, etx);
-    } else if (event.type === "group") {
-      intercomCompanyId = await createOrUpdateCompany(event, etx);
-    }
-    if ((event.type === "group" || event.type === "identify") && event.groupId && event.userId) {
+const IntercomDestination: JitsuFunction<AnalyticsServerEvent, IntercomDestinationCredentials> = async (event, ctx) => {
+  const jsonFetch = jsonFetcher(ctx.fetch, { log: ctx.log, debug: true });
+  let intercomContactId: string | undefined;
+  let intercomCompanyId: string | undefined;
+  if (event.type === "identify") {
+    intercomContactId = await createOrUpdateContact(event, { ...ctx, jsonFetch });
+  } else if (event.type === "group") {
+    intercomCompanyId = await createOrUpdateCompany(event, { ...ctx, jsonFetch });
+  }
+  if ((event.type === "group" || event.type === "identify") && event.groupId && event.userId) {
+    if (!intercomCompanyId) {
+      intercomCompanyId = (await getCompanyByGroupId(event.groupId, { ...ctx, jsonFetch }))?.id;
       if (!intercomCompanyId) {
-        intercomCompanyId = (await getCompanyByGroupId(event.groupId, etx))?.id;
-        if (!intercomCompanyId) {
-          log.warn(
-            `Intercom company ${event.groupId} not found. It's coming from ${event.type} event. Following .group() call might fix it`
-          );
-          return;
-        }
+        ctx.log.warn(
+          `Intercom company ${event.groupId} not found. It's coming from ${event.type} event. Following .group() call might fix it`
+        );
+        return;
       }
+    }
+    if (!intercomContactId) {
+      intercomContactId = (await getContactByOurUserId(event.userId, { ...ctx, jsonFetch }))?.id;
       if (!intercomContactId) {
-        intercomContactId = (await getContactByOurUserId(event.userId, etx))?.id;
-        if (!intercomContactId) {
-          log.info(`Intercom contact ${event.userId} not found`);
-          return;
-        }
+        ctx.log.info(`Intercom contact ${event.userId} not found`);
+        return;
       }
-      await jsonFetch(`https://api.intercom.io/contacts/${intercomContactId}/companies`, {
-        method: "POST",
+    }
+    await jsonFetch(`https://api.intercom.io/contacts/${intercomContactId}/companies`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${ctx.props.accessToken}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: {
+        id: intercomCompanyId,
+      },
+    });
+  }
+
+  if (event.type !== "identify" && event.type !== "group") {
+    const email = event.context?.traits?.email || event.traits?.email;
+    const userId = event.userId;
+    if (!email && !userId) {
+      //doesn't make sense to send event without email or userId, Intercom won't know how to link it to a user
+    }
+    const intercomEvent = {
+      type: "event",
+      event_name: event.type === "track" ? event.event : event.type === "page" ? "page-view" : "unknown",
+      created_at: Math.round(toDate(event.timestamp).getTime() / 1000),
+      user_id: userId || undefined,
+      email: email || undefined,
+      metadata: { ...event.properties, url: event.context?.page?.url || undefined },
+    };
+    await jsonFetch(
+      `https://api.intercom.io/events`,
+      {
         headers: {
-          Authorization: `Bearer ${props.accessToken}`,
+          Authorization: `Bearer ${ctx.props.accessToken}`,
           Accept: "application/json",
           "Content-Type": "application/json",
         },
-        body: {
-          id: intercomCompanyId,
-        },
-      });
-    }
-
-    if (event.type !== "identify" && event.type !== "group") {
-      const email = event.context?.traits?.email || event.traits?.email;
-      const userId = event.userId;
-      if (!email && !userId) {
-        //doesn't make sense to send event without email or userId, Intercom won't know how to link it to a user
-      }
-      const intercomEvent = {
-        type: "event",
-        event_name: event.type === "track" ? event.event : event.type === "page" ? "page-view" : "unknown",
-        created_at: Math.round(toDate(event.timestamp).getTime() / 1000),
-        user_id: userId || undefined,
-        email: email || undefined,
-        metadata: { ...event.properties, url: event.context?.page?.url || undefined },
-      };
-      await jsonFetch(
-        `https://api.intercom.io/events`,
-        {
-          headers: {
-            Authorization: `Bearer ${props.accessToken}`,
-            Accept: "application/json",
-            "Content-Type": "application/json",
-          },
-          body: intercomEvent,
-        },
-        { event }
-      );
-    }
-  };
-  return func;
+        body: intercomEvent,
+      },
+      { event }
+    );
+  }
 };
 
 export default IntercomDestination;

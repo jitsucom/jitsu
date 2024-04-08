@@ -20,7 +20,7 @@ test("hubspot-integration-test", async () => {
   };
   const events = [...eventsSequence(), groupEvent];
   const opts: TestOptions<HubspotCredentials> = {
-    funcWrapper: HubspotDestination,
+    func: HubspotDestination,
     configEnvVar: "TEST_HUBSPOT_DESTINATIONS",
     events: events,
   };

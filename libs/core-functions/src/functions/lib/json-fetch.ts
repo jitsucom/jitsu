@@ -1,5 +1,4 @@
-import { AnyEvent, FunctionLogger } from "@jitsu/protocols/functions";
-import { FetchOpts, FetchResponse } from "./index";
+import { AnyEvent, FunctionLogger, FetchOpts, FetchResponse } from "@jitsu/protocols/functions";
 
 export type JsonFetchOpts = Omit<FetchOpts, "body"> & {
   body?: any;
@@ -39,24 +38,20 @@ export function jsonFetcher(
   fetch: (url: string, opts?: FetchOpts, debug?: { event?: AnyEvent }) => Promise<FetchResponse>,
   { log, debug }: { log: FunctionLogger; debug?: boolean } = { log: console }
 ): JsonFetcher {
-  return async (url: string, options?: JsonFetchOpts, debug?: { event?: AnyEvent }) => {
+  return async (url: string, options?: JsonFetchOpts) => {
     const method = options?.method || (options?.body ? "POST" : "GET");
     const bodyStr =
       typeof options?.body === "string" ? options?.body : options?.body ? JSON.stringify(options?.body) : undefined;
-    const response = await fetch(
-      url,
-      {
-        ...(options || {}),
-        headers: {
-          ...(options?.headers || {}),
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        method,
-        body: bodyStr,
+    const response = await fetch(url, {
+      ...(options || {}),
+      headers: {
+        ...(options?.headers || {}),
+        "Content-Type": "application/json",
+        Accept: "application/json",
       },
-      debug
-    );
+      method,
+      body: bodyStr,
+    });
     let responseText = await response.text();
     if (debug) {
       const message = `${method} ${url} → ${response.ok ? "🟢" : "🔴"}${response.status} ${

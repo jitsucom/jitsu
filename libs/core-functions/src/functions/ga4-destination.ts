@@ -2,7 +2,7 @@ import { JitsuFunction } from "@jitsu/protocols/functions";
 import { RetryError } from "@jitsu/functions-lib";
 import type { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { Ga4Credentials } from "../meta";
-import { createFetchWrapper, createFilter, createFunctionLogger, eventTimeSafeMs, JitsuFunctionWrapper } from "./lib";
+import { createFilter, eventTimeSafeMs } from "./lib";
 
 const ReservedUserProperties = [
   "first_open_time",
@@ -294,82 +294,71 @@ function trackEvent(event: AnalyticsServerEvent): Ga4Event {
   };
 }
 
-const Ga4Destination: JitsuFunctionWrapper<AnalyticsServerEvent, Ga4Credentials> = (chainCtx, funcCtx) => {
-  const log = createFunctionLogger(chainCtx, funcCtx);
-  const fetch = createFetchWrapper(chainCtx, funcCtx);
-  const props = funcCtx.props;
-
-  const func: JitsuFunction<AnalyticsServerEvent> = async (event, ctx) => {
-    if (typeof props.events !== "undefined") {
-      const filter = createFilter(props.events || "");
-      if (!filter(event.type, event.event)) {
-        return;
-      }
+const Ga4Destination: JitsuFunction<AnalyticsServerEvent, Ga4Credentials> = async (event, ctx) => {
+  if (typeof ctx.props.events !== "undefined") {
+    const filter = createFilter(ctx.props.events || "");
+    if (!filter(event.type, event.event)) {
+      return;
     }
-    let gaRequest: Ga4Request | undefined = undefined;
-    try {
-      const clientId = getClientId(event);
-      if (!clientId) {
-        log.info(`Ga4: no client_id found for event ID: ${event.messageId}`);
-        return;
-      }
-      const sessionId = getSessionId(event, props.measurementId);
-      const userProperties = getUserProperties(event);
-      const events: Ga4Event[] = [];
-
-      switch (event.type) {
-        case "page":
-          events.push(pageViewEvent(event));
-          break;
-        case "track":
-        case "alias":
-        case "group":
-        case "identify":
-          events.push(trackEvent(event));
-      }
-      if (events.length === 0) {
-        log.info(`Ga4: no GA4 event is mapped for event type: ${event.type} ID: ${event.messageId}`);
-        return;
-      }
-      const debug = "";
-      //const debug = ctx.props.validationMode ? "/debug" : "";
-      const url = `https://www.google-analytics.com${debug}/mp/collect?measurement_id=${props.measurementId}&api_secret=${props.apiSecret}`;
-
-      gaRequest = {
-        client_id: clientId,
-        user_id: event.userId,
-        timestamp_micros: eventTimeSafeMs(event) * 1000,
-        user_properties: userProperties,
-        events: sessionId ? events.map(e => ({ ...e, params: { ...e.params, session_id: sessionId } })) : events,
-      };
-
-      const result = await fetch(
-        url,
-        {
-          method: "POST",
-          body: JSON.stringify(gaRequest),
-        },
-        { event }
-      );
-
-      // if (ctx.props.validationMode) {
-      //   ctx.log.info(`Ga4:${JSON.stringify(gaRequest)} --> ${result.status}: ${await result.text()}`);
-      // } else
-      if (result.status !== 200 && result.status !== 204) {
-        throw new Error(`Ga4:${JSON.stringify(gaRequest)} --> ${result.status} ${await result.text()}`);
-      } else {
-        log.debug(`Ga4 --> ${result.status} ${await result.text()}`);
-      }
-    } catch (e: any) {
-      throw new RetryError(`Failed to send request to Ga4: ${JSON.stringify(gaRequest)}: ${e?.message}`);
+  }
+  let gaRequest: Ga4Request | undefined = undefined;
+  try {
+    const clientId = getClientId(event);
+    if (!clientId) {
+      ctx.log.info(`Ga4: no client_id found for event ID: ${event.messageId}`);
+      return;
     }
-  };
+    const sessionId = getSessionId(event, ctx.props.measurementId);
+    const userProperties = getUserProperties(event);
+    const events: Ga4Event[] = [];
 
-  func.displayName = "ga4-destination";
+    switch (event.type) {
+      case "page":
+        events.push(pageViewEvent(event));
+        break;
+      case "track":
+      case "alias":
+      case "group":
+      case "identify":
+        events.push(trackEvent(event));
+    }
+    if (events.length === 0) {
+      ctx.log.info(`Ga4: no GA4 event is mapped for event type: ${event.type} ID: ${event.messageId}`);
+      return;
+    }
+    const debug = "";
+    //const debug = ctx.props.validationMode ? "/debug" : "";
+    const url = `https://www.google-analytics.com${debug}/mp/collect?measurement_id=${ctx.props.measurementId}&api_secret=${ctx.props.apiSecret}`;
 
-  func.description =
-    "This functions covers jitsu events and sends them to Google Analytics 4 using The Google Analytics Measurement Protocol";
-  return func;
+    gaRequest = {
+      client_id: clientId,
+      user_id: event.userId,
+      timestamp_micros: eventTimeSafeMs(event) * 1000,
+      user_properties: userProperties,
+      events: sessionId ? events.map(e => ({ ...e, params: { ...e.params, session_id: sessionId } })) : events,
+    };
+
+    const result = await ctx.fetch(url, {
+      method: "POST",
+      body: JSON.stringify(gaRequest),
+    });
+
+    // if (ctx.props.validationMode) {
+    //   ctx.log.info(`Ga4:${JSON.stringify(gaRequest)} --> ${result.status}: ${await result.text()}`);
+    // } else
+    if (result.status !== 200 && result.status !== 204) {
+      throw new Error(`Ga4:${JSON.stringify(gaRequest)} --> ${result.status} ${await result.text()}`);
+    } else {
+      ctx.log.debug(`Ga4: ${result.status} ${await result.text()}`);
+    }
+  } catch (e: any) {
+    throw new RetryError(`Failed to send request to Ga4: ${JSON.stringify(gaRequest)}: ${e?.message}`);
+  }
 };
+
+Ga4Destination.displayName = "ga4-destination";
+
+Ga4Destination.description =
+  "This functions covers jitsu events and sends them to Google Analytics 4 using The Google Analytics Measurement Protocol";
 
 export default Ga4Destination;

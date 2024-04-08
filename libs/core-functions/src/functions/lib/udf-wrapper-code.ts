@@ -31,7 +31,12 @@ export function checkError(chainRes) {
                     functionId: error.functionId || el.functionId
                 }
             } else {
-                _jitsu_log.error.apply(undefined, [{ function: {..._jitsu_funcCtx.function, id:error.functionId || el.functionId }}, \`Function execution failed\`, error.name, error.message], {arguments: {copy: true}});
+                _jitsu_log.error.apply(undefined, [{
+                    function: {
+                        ..._jitsu_funcCtx.function,
+                        id: error.functionId || el.functionId
+                    }
+                }, \`Function execution failed\`, error.name, error.message], {arguments: {copy: true}});
             }
         }
     }
@@ -59,7 +64,7 @@ function deepCopy(o) {
     }
 
     const newO = {}
-    for (const [k,v] of Object.entries(o)) {
+    for (const [k, v] of Object.entries(o)) {
         newO[k] = !v || typeof v !== "object" ? v : deepCopy(v)
     }
     return newO
@@ -141,7 +146,8 @@ const wrappedFunctionChain = async function (event, ctx) {
     return chainRes.events;
 };
 
-const wrappedUserFunction = (id, f, funcCtx) => async function (event, c) {
+const wrappedUserFunction = (id, f, funcCtx) => {
+
     const log = {
         info: (...args) => {
             _jitsu_log.info.apply(undefined, [funcCtx, ...args], {arguments: {copy: true}});
@@ -156,11 +162,12 @@ const wrappedUserFunction = (id, f, funcCtx) => async function (event, c) {
             _jitsu_log.debug.apply(undefined, [funcCtx, ...args], {arguments: {copy: true}});
         },
     }
+
     const store = {
-        set: async (key,value,opts) => {
+        set: async (key, value, opts) => {
             await _jitsu_store.set.apply(undefined, [key, value, opts], {
                 arguments: {copy: true},
-                result: { ignore: true}
+                result: {ignore: true}
             });
         },
         del: async key => {
@@ -183,11 +190,11 @@ const wrappedUserFunction = (id, f, funcCtx) => async function (event, c) {
             });
         },
     }
-    const fetch = async (url, opts) => {
-        const debugEnabled = funcCtx.function.debugTill && funcCtx.function.debugTill > new Date();
+
+    const fetch = async (url, opts, extras) => {
         let res
-        if (debugEnabled) {
-            res = await _jitsu_fetch.apply(undefined, [url, opts, {ctx: funcCtx, event: event}], {
+        if (extras) {
+            res = await _jitsu_fetch.apply(undefined, [url, opts, {ctx: funcCtx, event: extras.event}], {
                 arguments: {copy: true},
                 result: {promise: true}
             });
@@ -221,37 +228,23 @@ const wrappedUserFunction = (id, f, funcCtx) => async function (event, c) {
             },
         };
     }
-    const ctx = {
-        ...c,
-        props: funcCtx.props,
-        log,
-        store,
-        fetch,
-    };
-    const oldConsole = console
-    console = {
-        ...oldConsole,
-        log: ctx.log.info,
-        error: ctx.log.error,
-        warn: ctx.log.warn,
-        debug: ctx.log.debug,
-        info: ctx.log.info,
-        assert: (asrt, ...args) => {
-            if (!asrt) {
-                ctx.log.error("Assertion failed", ...args);
+
+    return async function (event, c) {
+        const debugEnabled = funcCtx.function.debugTill && funcCtx.function.debugTill > new Date();
+        let ftch = fetch
+        if (debugEnabled) {
+            ftch = async(url, opts) => {
+                return fetch(url, opts, {event});
             }
-        },
-    };
-    try {
-        global.log = log
-        global.fetch = fetch
-        global.store = store
+        }
+        const ctx = {
+            ...c,
+            props: funcCtx.props,
+            log,
+            store,
+            fetch: ftch,
+        };
         return await f(event, ctx);
-    } finally {
-        delete global.log
-        delete global.fetch
-        delete global.store
-        console = oldConsole
     }
 };
 

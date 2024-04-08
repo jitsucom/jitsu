@@ -9,7 +9,7 @@ test("posthog-destination-integration", async () => {
     return;
   }
   const opts: TestOptions = {
-    funcWrapper: PosthogDestination,
+    func: PosthogDestination,
     configEnvVar: "TEST_POSTHOG_DESTINATION",
     events: eventsSequence(),
   };

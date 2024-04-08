@@ -1,10 +1,9 @@
-import { FunctionLogger, JitsuFunction } from "@jitsu/protocols/functions";
+import { FullContext, JitsuFunction } from "@jitsu/protocols/functions";
 import { RetryError } from "@jitsu/functions-lib";
 import type { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { getSingleton } from "juava";
 import { MongoClient } from "mongodb";
 import { MongodbDestinationConfig } from "../meta";
-import { createFetchWrapper, createFunctionLogger, JitsuFunctionWrapper } from "./lib";
 
 const buildUrl = (config: MongodbDestinationConfig) => {
   if (!config.hosts) {
@@ -25,9 +24,9 @@ const buildUrl = (config: MongodbDestinationConfig) => {
   return uri;
 };
 
-const createClient = async (config: MongodbDestinationConfig, log: FunctionLogger) => {
+const createClient = async (config: MongodbDestinationConfig, ctx: FullContext) => {
   let uri = config.url ?? buildUrl(config);
-  log.info(`Connecting to MongoDB server: ${config.hosts?.join(",")}`);
+  ctx.log.info(`Connecting to MongoDB server: ${config.hosts?.join(",")}`);
 
   // Create a new MongoClient
   const client = new MongoClient(uri);
@@ -35,41 +34,31 @@ const createClient = async (config: MongodbDestinationConfig, log: FunctionLogge
   await client.connect();
   // Establish and verify connection
   await client.db(config.database).command({ ping: 1 });
-  log.info(`Connected successfully to MongoDB server: ${config.hosts?.join(",")}`);
+  ctx.log.info(`Connected successfully to MongoDB server: ${config.hosts?.join(",")}`);
   return client;
 };
 
-const MongodbDestination: JitsuFunctionWrapper<AnalyticsServerEvent, MongodbDestinationConfig> = (
-  chainCtx,
-  funcCtx
-) => {
-  const log = createFunctionLogger(chainCtx, funcCtx);
-  const props = funcCtx.props;
-
-  const func: JitsuFunction<AnalyticsServerEvent> = async (event, ctx) => {
-    try {
-      const mongodb = getSingleton(
-        `mongodb-client-${ctx.destination?.id}-${ctx.destination?.hash}`,
-        () => {
-          return createClient(props, log);
-        },
-        {
-          ttlSec: 60 * 60 * 24,
-          cleanupFunc: client => client.close(),
-        }
-      );
-      const mongo = await mongodb.waitInit();
-      const collection = mongo.db().collection(props.collection);
-      const res = await collection.insertOne(event);
-      log.debug(`Inserted to MongoDB: ${JSON.stringify(res)}`);
-    } catch (e: any) {
-      throw new RetryError(`Error while sending event to MongoDB: ${e}`);
-    }
-  };
-
-  func.displayName = "mongodb-destination";
-
-  return func;
+const MongodbDestination: JitsuFunction<AnalyticsServerEvent, MongodbDestinationConfig> = async (event, ctx) => {
+  try {
+    const mongodb = getSingleton(
+      `mongodb-client-${ctx.destination?.id}-${ctx.destination?.hash}`,
+      () => {
+        return createClient(ctx.props, ctx);
+      },
+      {
+        ttlSec: 60 * 60 * 24,
+        cleanupFunc: client => client.close(),
+      }
+    );
+    const mongo = await mongodb.waitInit();
+    const collection = mongo.db().collection(ctx.props.collection);
+    const res = await collection.insertOne(event);
+    ctx.log.debug(`Inserted to MongoDB: ${JSON.stringify(res)}`);
+  } catch (e: any) {
+    throw new RetryError(`Error while sending event to MongoDB: ${e}`);
+  }
 };
+
+MongodbDestination.displayName = "mongodb-destination";
 
 export default MongodbDestination;
