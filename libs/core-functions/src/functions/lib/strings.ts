@@ -10,7 +10,8 @@ export function idToSnakeCaseFast(id: string) {
   let res = id[0].toLowerCase();
   let upperIndex = 0;
   let i = 1;
-  let needUnderscore = id.charCodeAt(0) != _Code;
+  const firstChar = id.charCodeAt(0);
+  let needUnderscore = firstChar != _Code;
   for (; i < id.length; i++) {
     const c = id.charCodeAt(i);
     if (c >= aCode && c <= zCode) {
@@ -19,7 +20,7 @@ export function idToSnakeCaseFast(id: string) {
     }
     needUnderscore = c != _Code;
   }
-  if (upperIndex == 0) {
+  if (upperIndex == 0 && !(firstChar >= aCode && firstChar <= zCode)) {
     return id;
   } else if (upperIndex < i) {
     res += id.substring(upperIndex + 1, id.length);

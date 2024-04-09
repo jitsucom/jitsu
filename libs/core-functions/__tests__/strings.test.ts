@@ -11,9 +11,12 @@ const data: Record<string, string> = {
   // simple
   camelCase: "camel_case",
   camelCaseA: "camel_case_a",
+  cCase: "c_case",
 
   // node adding '_' before first
+  Camel: "camel",
   CamelCase: "camel_case",
+  CCamel: "c_camel",
   CCamelCase: "c_camel_case",
 
   // abbreviations. not fixed yet
