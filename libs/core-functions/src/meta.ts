@@ -42,6 +42,12 @@ export const IntercomDestinationCredentials = z.object({
     .describe(
       "Intercom Access Token. You should first create an app in Intercom Developer Hub, and then generate an access token in the app settings. See <a href='https://developers.intercom.com/docs/build-an-integration/getting-started/' target='_blank' rel='noreferrer noopener'>a detailed guide</a>"
     ),
+  updateLastSeenOnEveryEvent: z
+    .boolean()
+    .optional()
+    .describe(
+      "By default, the last seen property will be updated only on .identify() calls. If enabled, the property will be updated on every event. However, enabling this option may lead to higher API usage."
+    ),
 });
 
 export type IntercomDestinationCredentials = z.infer<typeof IntercomDestinationCredentials>;
