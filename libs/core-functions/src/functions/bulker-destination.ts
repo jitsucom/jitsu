@@ -4,6 +4,7 @@ import { AnalyticsServerEvent, DataLayoutType } from "@jitsu/protocols/analytics
 
 import omit from "lodash/omit";
 import { MetricsMeta } from "./lib";
+import { idToSnakeCaseFast } from "./lib/strings";
 
 const TableNameParameter = "JITSU_TABLE_NAME";
 export type MappedEvent = {
@@ -22,17 +23,13 @@ function anonymizeIp(ip: string | undefined) {
   }
 }
 
-function idToSnakeCase(id: string) {
-  return id.replace(/((?<=[a-zA-Z0-9])[A-Z])/g, "_$1").toLowerCase();
-}
-
 function toSnakeCase(param: any): any {
   if (Array.isArray(param)) {
     return param.map(toSnakeCase);
   } else if (typeof param === "object" && param !== null) {
     const r = {};
     for (const [key, value] of Object.entries(param)) {
-      r[idToSnakeCase(key)] = toSnakeCase(value);
+      r[idToSnakeCaseFast(key)] = toSnakeCase(value);
     }
     return r;
   } else {
@@ -240,7 +237,7 @@ function transferAsSnakeCase(target: Record<string, any>, source: any, omit?: st
   }
   for (const [k, v] of Object.entries(source)) {
     if (!omit || !omit.includes(k)) {
-      target[idToSnakeCase(k)] = toSnakeCase(v);
+      target[idToSnakeCaseFast(k)] = toSnakeCase(v);
     }
   }
 }
