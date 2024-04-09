@@ -21,7 +21,7 @@ import {
 } from "@jitsu/protocols/functions";
 import { getErrorMessage, getLog, LogLevel, newError, stopwatch } from "juava";
 
-const log = getLog("functions");
+const log = getLog("functions-context");
 
 /**
  * Store for incoming events, destination results and function log messages
