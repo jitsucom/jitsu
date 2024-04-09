@@ -70,7 +70,9 @@ async function getCompanyByGroupId(
   } else if (response.ok) {
     return await response.json();
   } else {
-    throw new Error(`Intercom: failed to get company by groupId=${groupId}, status ${response.status} ${response.statusText}`);
+    throw new Error(
+      `Intercom: failed to get company by groupId=${groupId}, status ${response.status} ${response.statusText}`
+    );
   }
 }
 
@@ -257,7 +259,13 @@ async function createOrUpdateContact(event: AnalyticsServerEvent, ctx: ExtendedC
     }
     const newContact = await createContactResponse.json();
     const newContactId = newContact.id;
-    log.debug(`Contact with email=${email} and userId=${event.userId} created, id=${newContactId}: ${JSON.stringify(newContact, null, 2)}`);
+    log.debug(
+      `Contact with email=${email} and userId=${event.userId} created, id=${newContactId}: ${JSON.stringify(
+        newContact,
+        null,
+        2
+      )}`
+    );
     return newContactId;
   } else {
     const contact = existingContact;
@@ -370,7 +378,10 @@ const IntercomDestination: JitsuFunction<AnalyticsServerEvent, IntercomDestinati
       body: intercomEvent,
     });
     if (ctx.props.updateLastSeenOnEveryEvent && (email || userId)) {
-      const contact = await getContactByExternalIdOrEmail({email: email as string, externalId: userId}, {...ctx, jsonFetch});
+      const contact = await getContactByExternalIdOrEmail(
+        { email: email as string, externalId: userId },
+        { ...ctx, jsonFetch }
+      );
       if (contact) {
         await jsonFetch(`https://api.intercom.io/contacts/${contact.id}`, {
           method: "PUT",
