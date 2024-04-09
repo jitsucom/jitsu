@@ -349,7 +349,7 @@ const Ga4Destination: JitsuFunction<AnalyticsServerEvent, Ga4Credentials> = asyn
     if (result.status !== 200 && result.status !== 204) {
       throw new Error(`Ga4:${JSON.stringify(gaRequest)} --> ${result.status} ${await result.text()}`);
     } else {
-      ctx.log.debug(`Ga4:${JSON.stringify(gaRequest)} --> ${result.status} ${await result.text()}`);
+      ctx.log.debug(`Ga4: ${result.status} ${await result.text()}`);
     }
   } catch (e: any) {
     throw new RetryError(`Failed to send request to Ga4: ${JSON.stringify(gaRequest)}: ${e?.message}`);

@@ -40,13 +40,14 @@ const SegmentDestination: JitsuFunction<AnalyticsServerEvent, SegmentCredentials
       headers: httpRequest.headers,
       ...(httpRequest.payload ? { body: JSON.stringify(httpRequest.payload) } : {}),
     });
-    const logMessage = `Segment ${httpRequest.method} ${httpRequest.url}:${
-      httpRequest.payload ? `${JSON.stringify(httpRequest.payload)} --> ` : ""
-    }${result.status} ${await result.text()}`;
     if (result.status !== 200) {
-      throw new RetryError(logMessage);
+      throw new RetryError(
+        `Segment ${httpRequest.method} ${httpRequest.url}:${
+          httpRequest.payload ? `${JSON.stringify(httpRequest.payload)} --> ` : ""
+        }${result.status} ${await result.text()}`
+      );
     } else {
-      ctx.log.debug(logMessage);
+      ctx.log.debug(`Segment ${httpRequest.method} ${httpRequest.url}: ${result.status} ${await result.text()}`);
     }
   } catch (e: any) {
     throw new RetryError(

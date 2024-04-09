@@ -1,10 +1,10 @@
-import { FetchOpts, FetchType, FunctionLogger } from "@jitsu/protocols/functions";
+import { AnyEvent, FunctionLogger, FetchOpts, FetchResponse } from "@jitsu/protocols/functions";
 
 export type JsonFetchOpts = Omit<FetchOpts, "body"> & {
   body?: any;
 };
 
-export type JsonFetcher = (url: string, options?: JsonFetchOpts) => Promise<any>;
+export type JsonFetcher = (url: string, options?: JsonFetchOpts, debug?: { event?: AnyEvent }) => Promise<any>;
 
 const maxResponseLen = 300;
 
@@ -35,7 +35,7 @@ export class JsonFetchError extends Error {
 }
 
 export function jsonFetcher(
-  fetch: FetchType,
+  fetch: (url: string, opts?: FetchOpts, debug?: { event?: AnyEvent }) => Promise<FetchResponse>,
   { log, debug }: { log: FunctionLogger; debug?: boolean } = { log: console }
 ): JsonFetcher {
   return async (url: string, options?: JsonFetchOpts) => {
@@ -54,9 +54,9 @@ export function jsonFetcher(
     });
     let responseText = await response.text();
     if (debug) {
-      const message = `${method} ${url} → ${response.ok ? "🟢" : "🔴"}${response.status} ${response.statusText}.${
-        bodyStr ? `\n📨Request body:\n${prettifyJson(bodyStr)}` : ""
-      }\n📩Response body${responseText ? `: \n${prettifyJson(responseText)}` : " is empty"}`;
+      const message = `${method} ${url} → ${response.ok ? "🟢" : "🔴"}${response.status} ${
+        response.statusText
+      }.\n📩Response body${responseText ? `: \n${prettifyJson(responseText)}` : " is empty"}`;
       if (response.ok) {
         log.debug(message);
       } else {

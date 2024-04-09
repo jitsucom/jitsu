@@ -86,9 +86,9 @@ const FacebookConversionsApi: JitsuFunction<AnalyticsServerEvent, FacebookConver
     const responseText = await fetchResult.text();
     const responseJson = tryParse(responseText);
     ctx.log.debug(
-      `Facebook API - ${baseUrl}****\n${toPrettyString(payload)}\n ---------> ${fetchResult.status} ${
-        fetchResult.statusText
-      }:\n${toPrettyString(responseJson)}`
+      `Facebook API - ${baseUrl}**** ---------> ${fetchResult.status} ${fetchResult.statusText}:\n${toPrettyString(
+        responseJson
+      )}`
     );
     if (!fetchResult.ok) {
       throw new RetryError(

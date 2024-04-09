@@ -53,11 +53,7 @@ export type AnyProps = Record<string, any>;
 
 export type FetchResponse = Response;
 
-export type FetchType = (
-  url: string,
-  opts?: FetchOpts,
-  extra?: { log: boolean; udfId?: string }
-) => Promise<FetchResponse>;
+export type FetchType = (url: string, opts?: FetchOpts, extras?: any) => Promise<FetchResponse>;
 
 export type FetchOpts = {
   method?: string;
@@ -73,7 +69,7 @@ export type FunctionLogger<Sync extends boolean = false> = {
 export type FunctionContext = {
   log: FunctionLogger;
   fetch: FetchType;
-  store: Store;
+  store: TTLStore;
   metrics?: Metrics;
 };
 
@@ -161,6 +157,9 @@ export type EventContext = {
     id: string;
     mode?: string;
     options?: any;
+  };
+  workspace: {
+    id: string;
   };
   // number of retries attempted
   retries?: number;

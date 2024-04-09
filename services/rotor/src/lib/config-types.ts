@@ -47,6 +47,7 @@ export type EnrichedConnectionConfig = {
   //destinationType
   type: string;
   options: any;
+  optionsHash: string;
 
   credentials: {
     [key: string]: any;

@@ -60,15 +60,21 @@ export function isDropResult(result: FuncReturn): boolean {
 export * as bulkerDestination from "./functions/bulker-destination";
 export { UDFWrapper, UDFTestRun } from "./functions/udf_wrapper";
 export type { UDFTestRequest, UDFTestResponse, logType } from "./functions/udf_wrapper";
-export { createFullContext, MultiEventsStore, DummyEventsStore } from "./context";
-export type { EventsStore } from "./context";
+export { makeLog, makeFetch, MultiEventsStore, DummyEventsStore, wrapperFunction } from "./functions/lib/index";
 export * as mixpanelDestination from "./functions/mixpanel-destination";
 export * as ga4Destination from "./functions/ga4-destination";
 export * as webhookDestination from "./functions/webhook-destination";
 export * as posthogDestination from "./functions/posthog-destination";
 export * as mongodbDestination from "./functions/mongodb-destination";
 export { mongodb, mongoAnonymousEventsStore } from "./functions/lib/mongodb";
-export type { SystemContext, MetricsMeta } from "./functions/lib/index";
+export type {
+  MetricsMeta,
+  FunctionContext,
+  FunctionChainContext,
+  FetchType,
+  EventsStore,
+  JitsuFunctionWrapper,
+} from "./functions/lib/index";
 export { httpAgent, httpsAgent } from "./functions/lib/http-agent";
 export * from "./functions/lib/store";
 export * from "./functions/lib/ua";

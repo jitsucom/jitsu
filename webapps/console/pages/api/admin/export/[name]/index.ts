@@ -160,8 +160,10 @@ const exports: Export[] = [
               destinationId: to.id,
               usesBulker: !!coreDestinationType?.usesBulker,
               options: data,
+              optionsHash: hash(data),
               updatedAt: dateMax(updatedAt, to.updatedAt),
               credentials: omit(to.config, "destinationType", "type", "name"),
+              credentialsHash: hash(omit(to.config, "destinationType", "type", "name")),
             })
           );
           needComma = true;

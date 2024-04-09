@@ -1,11 +1,22 @@
 import { getLog, LogLevel, sanitize, stopwatch } from "juava";
 import { Isolate, ExternalCopy, Reference, Module, Context } from "isolated-vm";
-import { EventContext, FetchOpts, FuncReturn, JitsuFunction, Store } from "@jitsu/protocols/functions";
+import { EventContext, FuncReturn, Store, TTLStore, FetchOpts } from "@jitsu/protocols/functions";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
-import { createFullContext, EventsStore } from "../context";
-import { createMemoryStore, isDropResult, memoryStoreDump } from "../index";
+
+import {
+  createMemoryStore,
+  EventsStore,
+  FunctionChainContext,
+  FunctionContext,
+  isDropResult,
+  makeFetch,
+  makeLog,
+  memoryStoreDump,
+} from "../index";
 import { functionsLibCode, chainWrapperCode } from "./lib/udf-wrapper-code";
 import { parseUserAgent } from "./lib/ua";
+import { RetryError } from "@jitsu/functions-lib";
+import { JitsuFunctionWrapper } from "./lib";
 
 const log = getLog("udf-wrapper");
 
@@ -18,7 +29,7 @@ export type logType = {
 };
 
 export type UDFWrapperResult = {
-  userFunction: JitsuFunction;
+  userFunction: JitsuFunctionWrapper;
   close: () => void;
 };
 
@@ -28,11 +39,17 @@ export type UDFFunction = {
   code: string;
 };
 
-export const UDFWrapper = (connectionId: string, functions: UDFFunction[]): UDFWrapperResult => {
-  log.atInfo().log(`[${connectionId}] Compiling ${functions.length} UDF functions`);
+export const UDFWrapper = (
+  connectionId: string,
+  chainCtx: FunctionChainContext,
+  funcCtx: FunctionContext,
+  functions: UDFFunction[]
+): UDFWrapperResult => {
+  log.atInfo().log(`[CON:${connectionId}] Compiling ${functions.length} UDF functions`);
   const sw = stopwatch();
   let isolate: Isolate;
   let context: Context;
+  let refs: Reference[] = [];
   try {
     isolate = new Isolate({ memoryLimit: 128 });
     context = isolate.createContextSync();
@@ -41,6 +58,54 @@ export const UDFWrapper = (connectionId: string, functions: UDFFunction[]): UDFW
     // This make the global object available in the context as 'global'. We use 'derefInto()' here
     // because otherwise 'global' would actually be a Reference{} object in the new isolate.
     jail.setSync("global", jail.derefInto());
+
+    jail.setSync("_jitsu_funcCtx", new ExternalCopy(funcCtx).copyInto({ release: true, transferIn: true }));
+    jail.setSync(
+      "_jitsu_log",
+      new ExternalCopy({
+        info: makeReference(refs, chainCtx.log.info),
+        warn: makeReference(refs, chainCtx.log.warn),
+        debug: makeReference(refs, chainCtx.log.debug),
+        error: makeReference(refs, chainCtx.log.error),
+      }).copyInto({ release: true, transferIn: true })
+    );
+    jail.setSync(
+      "_jitsu_fetch",
+      makeReference(refs, async (url: string, opts?: FetchOpts, extra?: any) => {
+        const res = await chainCtx.fetch(url, opts, extra);
+        const headers: any = {};
+        res.headers.forEach((v, k) => {
+          headers[k] = v;
+        });
+        const text = await res.text();
+        const j = {
+          status: res.status,
+          statusText: res.statusText,
+          type: res.type,
+          redirected: res.redirected,
+          body: text,
+          bodyUsed: true,
+          url: res.url,
+          ok: res.ok,
+          headers: headers,
+        };
+        return JSON.stringify(j);
+      })
+    );
+    jail.setSync(
+      "_jitsu_store",
+      new ExternalCopy({
+        get: makeReference(refs, async (key: string) => {
+          const res = await chainCtx.store.get(key);
+          return JSON.stringify(res);
+        }),
+        set: makeReference(refs, chainCtx.store.set),
+        del: makeReference(refs, chainCtx.store.del),
+        ttl: makeReference(refs, async (key: string) => {
+          return await chainCtx.store.ttl(key);
+        }),
+      }).copyInto({ release: true, transferIn: true })
+    );
 
     const functionsLib = isolate.compileModuleSync(functionsLibCode, {
       filename: "functions-lib.js",
@@ -62,7 +127,7 @@ export const UDFWrapper = (connectionId: string, functions: UDFFunction[]): UDFW
         throw new Error(`import is not allowed: ${specifier}`);
       });
       udfModules[moduleName] = udf;
-      log.atDebug().log(`[${connectionId}] [f:${f.id}] UDF function '${f.name}' compiled in ${sw.elapsedPretty()}`);
+      log.atDebug().log(`[CON:${connectionId}] [f:${f.id}] UDF function '${f.name}' compiled in ${sw.elapsedPretty()}`);
     }
 
     let code = chainWrapperCode.replace(
@@ -77,7 +142,7 @@ export const UDFWrapper = (connectionId: string, functions: UDFFunction[]): UDFW
         Object.keys(udfModules)
           .map(m => {
             const id = m.split("_").pop();
-            return `{id: "${id}", meta: ${m}.config, f: wrappedUserFunction("${id}", ${m}.default)}`;
+            return `{id: "${id}", meta: ${m}.config, f: wrappedUserFunction("${id}", ${m}.default, { props: _jitsu_funcCtx.props, function:{ ..._jitsu_funcCtx.function, id: "${id}"}})}`;
           })
           .join(",") +
         "];"
@@ -98,7 +163,7 @@ export const UDFWrapper = (connectionId: string, functions: UDFFunction[]): UDFW
     });
     wrapper.evaluateSync();
     const wrapperFunc = wrap(connectionId, isolate, context, wrapper);
-    log.atInfo().log(`[${connectionId}] total UDF compile time: ${sw.elapsedPretty()}`);
+    log.atInfo().log(`[CON:${connectionId}] total UDF compile time: ${sw.elapsedPretty()}`);
     return wrapperFunc;
   } catch (e) {
     return {
@@ -108,6 +173,9 @@ export const UDFWrapper = (connectionId: string, functions: UDFFunction[]): UDFW
       close: () => {
         try {
           if (isolate) {
+            for (const r of refs) {
+              r.release();
+            }
             context.release();
             isolate.dispose();
             log.atInfo().log(`[${connectionId}] isolate closed`);
@@ -129,52 +197,12 @@ function wrap(connectionId: string, isolate: Isolate, context: Context, wrapper:
   if (!ref || ref.typeof !== "function") {
     throw new Error("Function not found. Please export wrappedFunctionChain function.");
   }
-  const userFunction: JitsuFunction = async (event, ctx) => {
+  const userFunction: JitsuFunctionWrapper = async (event, ctx) => {
     if (isolate.isDisposed) {
-      throw new Error("Isolate is disposed");
+      throw new RetryError("Isolate is disposed", { drop: true });
     }
-    let refs: Reference[] = [];
     const eventCopy = new ExternalCopy(event);
-    const ctxCopy = new ExternalCopy({
-      ...ctx,
-      log: {
-        info: makeReference(refs, ctx.log.info),
-        warn: makeReference(refs, ctx.log.warn),
-        debug: makeReference(refs, ctx.log.debug),
-        error: makeReference(refs, ctx.log.error),
-      },
-      fetch: makeReference(refs, async (url: string, opts?: FetchOpts, extra?: any) => {
-        const res = await ctx.fetch(url, opts, extra);
-        const headers: any = {};
-        res.headers.forEach((v, k) => {
-          headers[k] = v;
-        });
-        const text = await res.text();
-        const j = {
-          status: res.status,
-          statusText: res.statusText,
-          type: res.type,
-          redirected: res.redirected,
-          body: text,
-          bodyUsed: true,
-          url: res.url,
-          ok: res.ok,
-          headers: headers,
-        };
-        return JSON.stringify(j);
-      }),
-      store: {
-        get: makeReference(refs, async (key: string) => {
-          const res = await ctx.store.get(key);
-          return JSON.stringify(res);
-        }),
-        set: makeReference(refs, ctx.store.set),
-        del: makeReference(refs, ctx.store.del),
-        ttl: makeReference(refs, async (key: string) => {
-          return await ctx.store.ttl(key);
-        }),
-      },
-    });
+    const ctxCopy = new ExternalCopy(ctx);
     try {
       const res = await ref.apply(
         undefined,
@@ -199,6 +227,7 @@ function wrap(connectionId: string, isolate: Isolate, context: Context, wrapper:
           return r;
       }
     } catch (e: any) {
+      //console.error(e);
       if (isolate.isDisposed) {
         throw new Error("Isolate is disposed");
       }
@@ -208,10 +237,6 @@ function wrap(connectionId: string, isolate: Isolate, context: Context, wrapper:
       }
       //log.atInfo().log(`ERROR name: ${e.name} message: ${e.message} json: ${e.stack}`);
       throw e;
-    } finally {
-      for (const r of refs) {
-        r.release();
-      }
     }
   };
   return {
@@ -268,6 +293,7 @@ export async function UDFTestRun({
   event,
   config,
   userAgent,
+  workspaceId,
 }: UDFTestRequest): Promise<UDFTestResponse> {
   const logs: logType[] = [];
   let wrapper: UDFWrapperResult | undefined = undefined;
@@ -312,8 +338,11 @@ export async function UDFTestRun({
       connection: {
         id: "functionsDebugger",
       },
+      workspace: {
+        id: workspaceId,
+      },
     };
-    let storeImpl: Store;
+    let storeImpl: TTLStore;
     if (
       typeof store?.set === "function" &&
       typeof store?.get === "function" &&
@@ -354,7 +383,7 @@ export async function UDFTestRun({
             }
             logs.push({
               message: `${msg.method} ${msg.url} :: ${statusText}`,
-              level: msg.error ? "error" : "info",
+              level: msg.error ? "error" : "debug",
               timestamp: new Date(),
               type: "http",
               data: {
@@ -367,13 +396,27 @@ export async function UDFTestRun({
       },
       close() {},
     };
-    const ctx = createFullContext(id, eventsStore, storeImpl, eventContext, {}, config);
+    const chainCtx: FunctionChainContext = {
+      store: storeImpl,
+      fetch: makeFetch("functionsDebugger", eventsStore),
+      log: makeLog("functionsDebugger", eventsStore),
+    };
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    const funcCtx: FunctionContext = {
+      function: {
+        type: "udf",
+        id,
+        debugTill: d,
+      },
+      props: config,
+    };
     if (typeof code === "string") {
-      wrapper = UDFWrapper(id, [{ id, name, code }]);
+      wrapper = UDFWrapper(id, chainCtx, funcCtx, [{ id, name, code }]);
     } else {
       wrapper = code;
     }
-    const result = await wrapper?.userFunction(event, ctx);
+    const result = await wrapper?.userFunction(event, eventContext);
     return {
       dropped: isDropResult(result),
       result: typeof result === "undefined" ? event : result,

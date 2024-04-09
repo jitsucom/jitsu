@@ -3,19 +3,17 @@ import { RetryError } from "@jitsu/functions-lib";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { randomUUID } from "crypto";
 import { AmplitudeDestinationConfig } from "../meta";
-import { requireDefined } from "juava";
-import { eventTimeSafeMs, SystemContext } from "./lib";
+import { eventTimeSafeMs } from "./lib";
 
 const AmplitudeDestination: JitsuFunction<AnalyticsServerEvent, AmplitudeDestinationConfig> = async (
   event,
-  { props, fetch, log, geo, ua, ...ctx }
+  { props, store, fetch, log, geo, ua, ...ctx }
 ) => {
   try {
     const deviceId = event.anonymousId;
     let sessionId: number | undefined = undefined;
     if (deviceId) {
-      const systemContext = requireDefined((ctx as any as SystemContext).$system, `$system context is not available`);
-      const ttlStore = systemContext.store;
+      const ttlStore = store;
       const ttlSec = 60 * (props.sessionWindow ?? 30);
       const sessionKey = `${ctx.source.id}_${deviceId}_sess`;
       const savedSessionValue = await ttlStore.getWithTTL(sessionKey);

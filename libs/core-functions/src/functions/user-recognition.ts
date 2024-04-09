@@ -1,11 +1,9 @@
 import { z } from "zod";
-import { JitsuFunction } from "@jitsu/protocols/functions";
+import { AnonymousEventsStore, JitsuFunction } from "@jitsu/protocols/functions";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
-import { requireDefined } from "juava";
 import get from "lodash/get";
 import set from "lodash/set";
 import merge from "lodash/merge";
-import { SystemContext } from "./lib";
 
 export const UserRecognitionConfig = z.object({
   /**
@@ -36,8 +34,7 @@ const UserRecognitionFunction: JitsuFunction<AnalyticsServerEvent, UserRecogniti
       `Event type ${event.type} is not in the list of event types to process. Message ID:${event.messageId}`
     );
   }
-  const systemContext = requireDefined((ctx as any as SystemContext).$system, `$system context is not available`);
-  const anonEvStore = systemContext.anonymousEventsStore;
+  const anonEvStore = ctx["anonymousEventsStore"] as AnonymousEventsStore;
 
   const collectionName = `UR_${config.collectionId ? `${config.collectionId}_` : ""}${ctx.connection?.id}`;
 

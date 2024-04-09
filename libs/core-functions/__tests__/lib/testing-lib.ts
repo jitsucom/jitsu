@@ -1,10 +1,10 @@
 import { AnalyticsInterface, AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { getLog, logFormat, requireDefined } from "juava";
-import { AnyEvent, EventContext, FuncReturn, FunctionContext, JitsuFunction } from "@jitsu/protocols/functions";
 import nodeFetch from "node-fetch-commonjs";
+import { AnyEvent, EventContext, FuncReturn, JitsuFunction } from "@jitsu/protocols/functions";
 import { createStore } from "./mem-store";
 import * as JSON5 from "json5";
-import { SystemContext } from "../../src";
+import { FunctionChainContext, FunctionContext, InternalFetchType, wrapperFunction } from "../../src/functions/lib";
 
 export type Or<T1, T2> =
   | ({ [P in keyof T1]: T1[P] } & { [P in keyof T2]?: never })
@@ -13,7 +13,8 @@ export type Or<T1, T2> =
 export type TestOptions<T = any> = {
   mockFetch?: boolean;
   func: JitsuFunction<AnalyticsServerEvent, T>;
-  ctx?: EventContext & FunctionContext & { $system?: Partial<SystemContext["$system"]> };
+  chainCtx?: FunctionChainContext;
+  ctx?: EventContext;
 } & Or<{ config: T }, { configEnvVar: string }> &
   Or<{ generateEvents: (jitsu: AnalyticsInterface) => void }, { events: AnalyticsServerEvent[] }>;
 
@@ -47,14 +48,17 @@ export async function testJitsuFunction<T = any>(opts: TestOptions<T>): Promise<
     throw new Error("mockFetch() is not supported yet");
   }
   const events: AnalyticsServerEvent[] = opts.events;
-  const func = opts.func;
-  const fetch = nodeFetch;
   const log = {
-    info: (msg: any, ...args: any[]) => testLogger.atInfo().log(msg, ...args),
-    error: (msg: any, ...args: any[]) => testLogger.atError().log(msg, ...args),
-    debug: (msg: any, ...args: any[]) => testLogger.atDebug().log(msg, ...args),
-    warn: (msg: any, ...args: any[]) => testLogger.atWarn().log(msg, ...args),
+    info: (ctx: FunctionContext, msg: any, ...args: any[]) => testLogger.atInfo().log(msg, ...args),
+    error: (ctx: FunctionContext, msg: any, ...args: any[]) => testLogger.atError().log(msg, ...args),
+    debug: (ctx: FunctionContext, msg: any, ...args: any[]) => testLogger.atDebug().log(msg, ...args),
+    warn: (ctx: FunctionContext, msg: any, ...args: any[]) => testLogger.atWarn().log(msg, ...args),
   };
+  const func = wrapperFunction(
+    { log, fetch: nodeFetch as unknown as InternalFetchType, store: createStore(), ...opts.chainCtx },
+    { function: { id: "test", type: "test" }, props: config },
+    opts.func
+  );
 
   let res: AnyEvent[] = null;
   for (const event of events) {
@@ -65,11 +69,7 @@ export async function testJitsuFunction<T = any>(opts: TestOptions<T>): Promise<
           `📌Testing ${logFormat.bold(event.event || event.type)} message of ${toDate(event.timestamp).toISOString()}`
         );
       const r = await func(event, {
-        props: config,
-        fetch,
-        log,
         headers: {},
-        store: createStore(),
         ...opts.ctx,
       });
       if (r) {

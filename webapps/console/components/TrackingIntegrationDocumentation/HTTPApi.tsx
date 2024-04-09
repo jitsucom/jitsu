@@ -88,7 +88,7 @@ export const HTTPManual: React.FC<{ domain: string; writeKey?: string }> = ({ do
       "search": "",
       "title": "Example page event",
       "url": "https://example.com/",
-      "enconding": "UTF-8"
+      "encoding": "UTF-8"
     },
     "campaign": {
       "name": "example",

@@ -24,6 +24,7 @@ export const examplePageEvent = () => {
         name: "jitsu-js",
         version: "1.0.0",
       },
+      ip: "127.0.0.1",
       userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/111.0",
       locale: "en-US",
       screen: {
@@ -44,7 +45,7 @@ export const examplePageEvent = () => {
         search: "",
         title: "Example page event",
         url: "https://example.com/",
-        enconding: "UTF-8",
+        encoding: "UTF-8",
       },
       campaign: {
         name: "example",
@@ -56,7 +57,7 @@ export const examplePageEvent = () => {
   };
 };
 
-export const exportIdentifyEvent = () => {
+export const exampleIdentifyEvent = () => {
   return {
     type: "identify",
     userId: "user@example.com",
@@ -73,6 +74,7 @@ export const exportIdentifyEvent = () => {
         name: "jitsu-js",
         version: "1.0.0",
       },
+      ip: "127.0.0.1",
       userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/113.0",
       locale: "en-US",
       screen: {
@@ -90,7 +92,7 @@ export const exportIdentifyEvent = () => {
         search: "",
         title: "Example page event",
         url: "https://example.com/",
-        enconding: "UTF-8",
+        encoding: "UTF-8",
       },
       campaign: {
         name: "example",
@@ -120,6 +122,7 @@ export const exampleTrackEvents = () => {
         name: "jitsu-js",
         version: "1.0.0",
       },
+      ip: "127.0.0.1",
       userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/111.0",
       locale: "en-US",
       screen: {
@@ -140,7 +143,7 @@ export const exampleTrackEvents = () => {
         search: "",
         title: "Example page event",
         url: "https://example.com/",
-        enconding: "UTF-8",
+        encoding: "UTF-8",
       },
       campaign: {
         name: "example",

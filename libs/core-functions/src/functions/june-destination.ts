@@ -101,13 +101,14 @@ const JuneDestination: JitsuFunction<AnalyticsServerEvent, JuneCredentials> = as
         headers: httpRequest.headers,
         ...(httpRequest.payload ? { body: JSON.stringify(httpRequest.payload) } : {}),
       });
-      const logMessage = `June.so ${method} ${httpRequest.url}:${
-        httpRequest.payload ? `${JSON.stringify(httpRequest.payload)} --> ` : ""
-      }${result.status} ${await result.text()}`;
       if (result.status !== 200) {
-        throw new Error(logMessage);
+        throw new Error(
+          `June.so ${method} ${httpRequest.url}:${
+            httpRequest.payload ? `${JSON.stringify(httpRequest.payload)} --> ` : ""
+          }${result.status} ${await result.text()}`
+        );
       } else {
-        ctx.log.debug(logMessage);
+        ctx.log.debug(`June.so ${method} ${httpRequest.url}: ${result.status} ${await result.text()}`);
       }
     }
   } catch (e: any) {
