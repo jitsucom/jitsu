@@ -56,22 +56,21 @@ async function getContactByOurUserId(
 
 async function getCompanyByGroupId(
   groupId: string,
-  { jsonFetch, props }: ExtendedCtx
+  { jsonFetch, props, fetch }: ExtendedCtx
 ): Promise<IntercomCompany | undefined> {
-  try {
-    return await jsonFetch(`https://api.intercom.io/companies?company_id=${groupId}`, {
-      headers: {
-        Authorization: `Bearer ${props.accessToken}`,
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      },
-    });
-  } catch (e: any) {
-    if (e.responseStatus === 404) {
-      return undefined;
-    } else {
-      throw e;
-    }
+  const response = await fetch(`https://api.intercom.io/companies?company_id=${groupId}`, {
+    headers: {
+      Authorization: `Bearer ${props.accessToken}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+  });
+  if (response.status === 404) {
+    return undefined;
+  } else if (response.ok) {
+    return await response.json();
+  } else {
+    throw new Error(`Intercom: failed to get company by groupId=${groupId}, status ${response.status} ${response.statusText}`);
   }
 }
 
@@ -206,6 +205,7 @@ async function createOrUpdateContact(event: AnalyticsServerEvent, ctx: ExtendedC
     role: "user",
     external_id: event.userId || undefined,
     email,
+    last_seen_at: toDate(event.timestamp).toISOString(),
     name:
       event.traits?.name ||
       (event.traits?.firstName && event.traits?.lastName
@@ -223,6 +223,7 @@ async function createOrUpdateContact(event: AnalyticsServerEvent, ctx: ExtendedC
       )}`
     );
     const createContactResponse = await fetch(`https://api.intercom.io/contacts`, {
+      method: "POST",
       headers: {
         Authorization: `Bearer ${props.accessToken}`,
         Accept: "application/json",
@@ -254,7 +255,10 @@ async function createOrUpdateContact(event: AnalyticsServerEvent, ctx: ExtendedC
         throw new RetryError(errorMessage, { drop: false });
       }
     }
-    return (await createContactResponse.json()).id;
+    const newContact = await createContactResponse.json();
+    const newContactId = newContact.id;
+    log.debug(`Contact with email=${email} and userId=${event.userId} created, id=${newContactId}: ${JSON.stringify(newContact, null, 2)}`);
+    return newContactId;
   } else {
     const contact = existingContact;
     const forComparison = {
@@ -365,6 +369,22 @@ const IntercomDestination: JitsuFunction<AnalyticsServerEvent, IntercomDestinati
       },
       body: intercomEvent,
     });
+    if (ctx.props.updateLastSeenOnEveryEvent && (email || userId)) {
+      const contact = await getContactByExternalIdOrEmail({email: email as string, externalId: userId}, {...ctx, jsonFetch});
+      if (contact) {
+        await jsonFetch(`https://api.intercom.io/contacts/${contact.id}`, {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${ctx.props.accessToken}`,
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          body: {
+            last_seen_at: Math.round(toDate(event.timestamp).getTime() / 1000),
+          },
+        });
+      }
+    }
   }
 };
 
