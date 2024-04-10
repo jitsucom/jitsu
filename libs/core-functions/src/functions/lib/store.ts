@@ -64,12 +64,24 @@ interface StoreValue {
 
 const MongoCreatedCollections: Record<string, Collection<StoreValue>> = {};
 
-export const createMongoStore = (namespace: string, mongo: MongoClient, fast: boolean): TTLStore => {
+export const createMongoStore = (
+  namespace: string,
+  mongo: MongoClient,
+  useLocalCache: boolean,
+  fast: boolean
+): TTLStore => {
   const localCache: Record<string, StoreValue> = {};
   const readOptions = fast ? { readPreference: ReadPreference.NEAREST } : {};
   const writeOptions = fast ? { writeConcern: { w: 1, journal: false } } : {};
 
   const dbName = `persistent_store`;
+
+  function getFromLocalCache(key: string): StoreValue | undefined {
+    if (!useLocalCache) {
+      return undefined;
+    }
+    return localCache[key];
+  }
 
   async function ensureCollection(): Promise<Collection<StoreValue>> {
     let collection = MongoCreatedCollections[namespace];
@@ -103,7 +115,7 @@ export const createMongoStore = (namespace: string, mongo: MongoClient, fast: bo
   return {
     get: async (key: string) => {
       const res =
-        localCache[key] ||
+        getFromLocalCache(key) ||
         (await ensureCollection()
           .then(c => c.findOne({ _id: key }, readOptions))
           .catch(e => {
@@ -113,7 +125,7 @@ export const createMongoStore = (namespace: string, mongo: MongoClient, fast: bo
     },
     getWithTTL: async (key: string) => {
       const res =
-        localCache[key] ||
+        getFromLocalCache(key) ||
         (await ensureCollection()
           .then(c => c.findOne({ _id: key }, readOptions))
           .catch(e => {
@@ -142,7 +154,9 @@ export const createMongoStore = (namespace: string, mongo: MongoClient, fast: bo
           })
         )
         .then(() => {
-          localCache[key] = colObj;
+          if (useLocalCache) {
+            localCache[key] = colObj;
+          }
         })
         .catch(e => {
           log.atError().withCause(e).log(`Error setting key ${key} from mongo store ${namespace}`);
@@ -152,7 +166,9 @@ export const createMongoStore = (namespace: string, mongo: MongoClient, fast: bo
       await ensureCollection()
         .then(c => c.deleteOne({ _id: key }, writeOptions))
         .then(() => {
-          delete localCache[key];
+          if (useLocalCache) {
+            delete localCache[key];
+          }
         })
         .catch(e => {
           log.atError().withCause(e).log(`Error deleting key ${key} from mongo store ${namespace}`);
@@ -160,7 +176,7 @@ export const createMongoStore = (namespace: string, mongo: MongoClient, fast: bo
     },
     ttl: async (key: string) => {
       const res =
-        localCache[key] ||
+        getFromLocalCache(key) ||
         (await ensureCollection()
           .then(c => c.findOne({ _id: key }, readOptions))
           .catch(e => {

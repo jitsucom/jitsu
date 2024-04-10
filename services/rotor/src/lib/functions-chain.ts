@@ -142,7 +142,12 @@ export function buildFunctionChain(
   }
   let store = rotorContext.dummyPersistentStore;
   if (!store) {
-    store = createMongoStore(connection.workspaceId, mongodb(), fastStoreWorkspaceId.includes(connection.workspaceId));
+    store = createMongoStore(
+      connection.workspaceId,
+      mongodb(),
+      false,
+      fastStoreWorkspaceId.includes(connection.workspaceId)
+    );
     if (rotorContext.redisClient) {
       store = createMultiStore(store, createTtlStore(connection.workspaceId, rotorContext.redisClient));
     }

@@ -13,7 +13,7 @@ const log = getLog("udf_run");
 export const UDFRunHandler = async (req, res) => {
   const body = req.body as UDFTestRequest;
   log.atInfo().log(`Running function: ${body?.functionId} workspace: ${body?.workspaceId}`, JSON.stringify(body));
-  body.store = createMongoStore(body?.workspaceId, mongodb(), false);
+  body.store = createMongoStore(body?.workspaceId, mongodb(), true, false);
   const result = await UDFTestRun(body);
   if (result.error) {
     log

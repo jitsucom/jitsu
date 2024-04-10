@@ -167,13 +167,13 @@ const wrappedUserFunction = (id, f, funcCtx) => {
         set: async (key, value, opts) => {
             await _jitsu_store.set.apply(undefined, [key, value, opts], {
                 arguments: {copy: true},
-                result: {ignore: true}
+                result: {promise: true}
             });
         },
         del: async key => {
             await _jitsu_store.del.apply(undefined, [key], {
                 arguments: {copy: true},
-                result: {ignore: true}
+                result: {promise: true}
             });
         },
         get: async key => {
