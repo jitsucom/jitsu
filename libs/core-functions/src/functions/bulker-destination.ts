@@ -291,20 +291,16 @@ const BulkerDestination: JitsuFunction<AnalyticsServerEvent, BulkerDestinationCo
     let adjustedEvent = event;
     const clientIds = event.context?.clientIds;
     const ga4 = clientIds?.ga4;
-    if (ga4 && (ga4.sessionIds || ga4["sessions"])) {
-      adjustedEvent = {
-        ...event,
-        context: {
-          ...event.context,
-          clientIds: {
-            ...clientIds,
-            ga4: {
-              clientId: ga4.clientId,
-              sessionIds: ga4["sessions"] ? JSON.stringify(ga4["sessions"]) : JSON.stringify(ga4.sessionIds),
-            },
-          },
-        },
-      };
+    if (ga4) {
+      if (ga4.sessionIds) {
+        ga4.sessionIds = JSON.stringify(ga4.sessionIds);
+      } else {
+        const oldSessions = ga4["sessions"];
+        if (oldSessions) {
+          ga4.sessionIds = JSON.stringify(oldSessions);
+          delete ga4["sessions"];
+        }
+      }
     }
     const events = dataLayouts[dataLayout](adjustedEvent);
     for (const { event, table } of Array.isArray(events) ? events : [events]) {
