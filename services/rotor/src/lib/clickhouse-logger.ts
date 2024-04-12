@@ -33,8 +33,8 @@ export function createClickhouseLogger(): EventsStore {
     clickhouse_settings: {
       async_insert: 1,
       wait_for_async_insert: 0,
-      async_insert_max_data_size: "5000000",
-      async_insert_busy_timeout_ms: 5000,
+      async_insert_max_data_size: "10000000",
+      async_insert_busy_timeout_ms: 10000,
       date_time_input_format: "best_effort",
     },
   });
@@ -51,7 +51,7 @@ export function createClickhouseLogger(): EventsStore {
       values: copy,
     });
     if (res.executed) {
-      log.atInfo().log(`Inserted ${copy.length} records.`);
+      log.atDebug().log(`Inserted ${copy.length} records.`);
     } else {
       log.atError().log(`Failed to insert ${copy.length} records: ${JSON.stringify(res)}`);
     }

@@ -130,7 +130,7 @@ export function createMetrics(producer?: Producer): Metrics {
         const copy = [...buffer];
         await flush(copy);
         buffer.length = 0;
-        log.atInfo().log(`Periodic flushing ${copy.length} metrics events took ${sw.elapsedPretty()}`);
+        log.atDebug().log(`Periodic flushing ${copy.length} metrics events took ${sw.elapsedPretty()}`);
       } catch (e) {
         log.atError().withCause(e).log(`Failed to flush metrics`);
       }
