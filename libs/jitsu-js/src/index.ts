@@ -16,7 +16,7 @@ export default function parse(input) {
     if (parseFloat(value) === value) {
       value = parseFloat(value);
     }
-  } catch (e) {}
+  } catch (e) { }
   if (value === null || value === "") {
     return;
   }
@@ -24,7 +24,7 @@ export default function parse(input) {
 }
 
 export const emptyAnalytics: AnalyticsInterface = {
-  setAnonymousId: () => {},
+  setAnonymousId: () => { },
   track: () => Promise.resolve(),
   page: () => Promise.resolve(),
   user: () => ({}),
@@ -123,15 +123,15 @@ function createUnderlyingAnalyticsInstance(
     setAnonymousId: (id: string) => {
       if (opts.debug) {
         console.log("[JITSU DEBUG] Setting anonymous id to " + id);
-        //Workaround for analytics.js bug. Underlying setAnonymousId doesn't work set the id immediately,
-        //so we got to it manually here. See https://github.com/jitsucom/jitsu/issues/1060
-        storage.setItem("__anon_id", id);
-        const userState = analytics.user();
-        if (userState) {
-          userState.anonymousId = id;
-        }
-        (analytics as any).setAnonymousId(id);
       }
+      //Workaround for analytics.js bug. Underlying setAnonymousId doesn't work set the id immediately,
+      //so we got to it manually here. See https://github.com/jitsucom/jitsu/issues/1060
+      storage.setItem("__anon_id", id);
+      const userState = analytics.user();
+      if (userState) {
+        userState.anonymousId = id;
+      }
+      (analytics as any).setAnonymousId(id);
     },
     async group(
       groupId?: ID,
