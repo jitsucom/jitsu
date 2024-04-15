@@ -186,7 +186,7 @@ export function createMetrics(producer?: Producer): Metrics {
         const copy = [...buffer];
         setImmediate(async () =>
           flush(copy)
-            .then(() => log.atInfo().log(`Flushed ${copy.length} metrics events. Took: ${sw.elapsedPretty()}`))
+            .then(() => log.atDebug().log(`Flushed ${copy.length} metrics events. Took: ${sw.elapsedPretty()}`))
             .catch(e => {
               log.atError().withCause(e).log(`Failed to flush metrics`);
             })
