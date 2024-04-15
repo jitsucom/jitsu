@@ -60,7 +60,7 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
       consumer = kafka.consumer({
         groupId: consumerGroupId,
         allowAutoTopicCreation: false,
-        sessionTimeout: 30000,
+        sessionTimeout: 10000,
       });
       await consumer.connect();
       log.atInfo().log("Subscribing to kafka topics: ", kafkaTopics);
