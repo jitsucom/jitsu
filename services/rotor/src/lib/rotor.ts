@@ -11,9 +11,7 @@ import { createMetrics, Metrics } from "./metrics";
 import { FuncChainFilter, FuncChainResult } from "./functions-chain";
 import type { Admin, Consumer, Producer, KafkaMessage } from "kafkajs";
 import { CompressionTypes } from "kafkajs";
-import { GeoResolver } from "./maxmind";
 import { functionFilter, MessageHandlerContext } from "./message-handler";
-import { EventsStore } from "@jitsu/core-functions";
 import { connectionsStore, functionsStore } from "./entity-store";
 
 const log = getLog("kafka-rotor");
@@ -225,7 +223,7 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
       await consumer.run({
         autoCommitInterval: 10000,
         autoCommit: true,
-        partitionsConsumedConcurrently: 4,
+        partitionsConsumedConcurrently: 8,
         eachMessage: async ({ message, topic, partition }) => {
           //make sure that queue has no more entities than concurrency limit (running tasks not included)
           await onSizeLessThan(concurrency);

@@ -1,11 +1,14 @@
 import { FullContext, JitsuFunction } from "@jitsu/protocols/functions";
-import { RetryError } from "@jitsu/functions-lib";
+import { HTTPError, RetryError } from "@jitsu/functions-lib";
 import type { AnalyticsServerEvent, Geo } from "@jitsu/protocols/analytics";
-import { hash } from "juava";
+import { hash, requireDefined } from "juava";
 import { MixpanelCredentials } from "../meta";
-import { eventTimeSafeMs } from "./lib";
+import { eventTimeSafeMs, MetricsMeta } from "./lib";
 import { randomUUID } from "crypto";
 import zlib from "zlib";
+
+const bulkerBase = requireDefined(process.env.BULKER_URL, "env BULKER_URL is not defined");
+const bulkerAuthKey = requireDefined(process.env.BULKER_AUTH_KEY, "env BULKER_AUTH_KEY is not defined");
 
 //See https://help.mixpanel.com/hc/en-us/articles/115004708186-Profile-Properties
 export const specialProperties = [
@@ -21,11 +24,14 @@ export const specialProperties = [
 
 const CLICK_IDS = ["dclid", "fbclid", "gclid", "ko_click_id", "li_fat_id", "msclkid", "ttclid", "twclid", "wbraid"];
 
-export type HttpRequest = {
+export type MixpanelRequest = {
   method?: string;
   url: string;
   payload?: any;
   headers?: Record<string, string>;
+  eventType: string;
+  insertId?: string;
+  skipLogs?: boolean;
 };
 
 // Map and extracts campaign parameters from context.campaign into object with utm properties
@@ -114,7 +120,7 @@ function trackEvent(
   distinctId: string,
   eventType: string,
   event: AnalyticsServerEvent
-): HttpRequest {
+): MixpanelRequest {
   const opts = ctx.props as MixpanelCredentials;
   const analyticsContext = event.context || {};
   const traits = { ...(event.traits || analyticsContext.traits || {}) };
@@ -144,73 +150,96 @@ function trackEvent(
   const device = analyticsContext.device || ({} as any);
   const ua = ctx.ua || ({} as any);
   const uaDevice = ua.device || ({} as any);
-  return {
-    url: `https://api.mixpanel.com/import?strict=1&project_id=${opts.projectId}`,
-    headers: {
-      "Content-type": "application/json",
-      "Content-Encoding": "gzip",
-      Accept: "application/json",
-      Authorization: `Basic ${getAuth(opts)}`,
+  const insertId = randomUUID();
+  const eventPayload = {
+    event: eventType,
+    properties: {
+      ip: analyticsContext.ip,
+      time: eventTimeSafeMs(event),
+      $device_id: deviceId,
+      distinct_id: distinctId,
+      $insert_id: insertId,
+      $user_id: event.userId ? `${event.userId}` : undefined,
+      $browser: ua.browser?.name,
+      $browser_version: ua.browser?.version,
+      $os: analyticsContext.os?.name || ua.os?.name,
+      $os_version: analyticsContext.os?.version || ua.os?.version,
+      $current_url: pageUrl,
+      ...clickParams(pageUrl),
+      current_page_title: evict(customProperties, "title"),
+      $referrer: evict(customProperties, "referrer"),
+      $referring_domain: evict(customProperties, "referring_domain"),
+      $session_id: analyticsContext.sessionId,
+
+      ...geoParams(analyticsContext.geo),
+
+      //mobile
+      $app_namespace: app.namespace,
+      $app_name: app.name,
+      $app_build_number: app.build,
+      $app_release: app.build,
+      $app_version: app.version,
+      $app_version_string: app.version,
+
+      $carrier: network.carrier,
+      $has_telephone: network.cellular,
+      $bluetooth_enabled: network.bluetooth,
+      $wifi: network.wifi,
+
+      $screen_dpi: screen.density,
+      $screen_height: screen.height,
+      $screen_width: screen.width,
+
+      // $bluetooth_version: "ble",
+      // $brand: "google",
+      // $had_persisted_distinct_id: false,
+      // $has_nfc: false,
+      $device_type: device.type || uaDevice.type,
+      $device_name: device.name || uaDevice.model,
+      $manufacturer: device.manufacturer || uaDevice.vendor,
+      $model: device.model || uaDevice.model,
+      advertising_id: device.advertisingId,
+      ad_tracking_enabled: device.adTrackingEnabled,
+
+      ...customProperties,
     },
-    payload: [
-      {
-        event: eventType,
-        properties: {
-          ip: analyticsContext.ip,
-          time: eventTimeSafeMs(event),
-          $device_id: deviceId,
-          distinct_id: distinctId,
-          $insert_id: randomUUID(),
-          $user_id: event.userId ? `${event.userId}` : undefined,
-          $browser: ua.browser?.name,
-          $browser_version: ua.browser?.version,
-          $os: analyticsContext.os?.name || ua.os?.name,
-          $os_version: analyticsContext.os?.version || ua.os?.version,
-          $current_url: pageUrl,
-          ...clickParams(pageUrl),
-          current_page_title: evict(customProperties, "title"),
-          $referrer: evict(customProperties, "referrer"),
-          $referring_domain: evict(customProperties, "referring_domain"),
-          $session_id: analyticsContext.sessionId,
-
-          ...geoParams(analyticsContext.geo),
-
-          //mobile
-          $app_namespace: app.namespace,
-          $app_name: app.name,
-          $app_build_number: app.build,
-          $app_release: app.build,
-          $app_version: app.version,
-          $app_version_string: app.version,
-
-          $carrier: network.carrier,
-          $has_telephone: network.cellular,
-          $bluetooth_enabled: network.bluetooth,
-          $wifi: network.wifi,
-
-          $screen_dpi: screen.density,
-          $screen_height: screen.height,
-          $screen_width: screen.width,
-
-          // $bluetooth_version: "ble",
-          // $brand: "google",
-          // $had_persisted_distinct_id: false,
-          // $has_nfc: false,
-          $device_type: device.type || uaDevice.type,
-          $device_name: device.name || uaDevice.model,
-          $manufacturer: device.manufacturer || uaDevice.vendor,
-          $model: device.model || uaDevice.model,
-          advertising_id: device.advertisingId,
-          ad_tracking_enabled: device.adTrackingEnabled,
-
-          ...customProperties,
-        },
-      },
-    ],
   };
+  if (ctx["connectionOptions"]?.mode === "batch") {
+    const metricsMeta: Omit<MetricsMeta, "messageId"> = {
+      workspaceId: ctx.workspace.id,
+      streamId: ctx.source.id,
+      destinationId: ctx.destination.id,
+      connectionId: ctx.connection.id,
+      functionId: "builtin.destination.bulker",
+    };
+    return {
+      url: `${bulkerBase}/post/${ctx.connection.id}?tableName=import`,
+      eventType,
+      insertId,
+      headers: {
+        Authorization: `Bearer ${bulkerAuthKey}`,
+        metricsMeta: JSON.stringify(metricsMeta),
+      },
+      payload: eventPayload,
+      skipLogs: true,
+    };
+  } else {
+    return {
+      url: `https://api.mixpanel.com/import?strict=1&project_id=${opts.projectId}`,
+      eventType,
+      insertId,
+      headers: {
+        "Content-type": "application/json",
+        "Content-Encoding": "gzip",
+        Accept: "application/json",
+        Authorization: `Basic ${getAuth(opts)}`,
+      },
+      payload: [eventPayload],
+    };
+  }
 }
 
-function setProfileMessage(ctx: FullContext, distinctId: string, event: AnalyticsServerEvent): HttpRequest[] {
+function setProfileMessage(ctx: FullContext, distinctId: string, event: AnalyticsServerEvent): MixpanelRequest[] {
   const opts = ctx.props as MixpanelCredentials;
 
   const analyticsContext = event.context || {};
@@ -249,13 +278,14 @@ function setProfileMessage(ctx: FullContext, distinctId: string, event: Analytic
     };
   }
 
-  const reqs: HttpRequest[] = [
+  const reqs: MixpanelRequest[] = [
     {
       url: "https://api.mixpanel.com/engage?verbose=1#profile-set",
       headers: {
         "Content-type": "application/json",
         Accept: "text-plain",
       },
+      eventType: "profile-set",
       payload: [
         {
           $token: opts.projectToken,
@@ -284,6 +314,7 @@ function setProfileMessage(ctx: FullContext, distinctId: string, event: Analytic
         "Content-type": "application/json",
         Accept: "text-plain",
       },
+      eventType: "profile-set-once",
       payload: [
         {
           $token: opts.projectToken,
@@ -308,6 +339,7 @@ function setProfileMessage(ctx: FullContext, distinctId: string, event: Analytic
     };
     reqs.push({
       url: "https://api.mixpanel.com/engage?verbose=1#profile-union",
+      eventType: "profile-union",
       headers: {
         "Content-type": "application/json",
         Accept: "text-plain",
@@ -318,7 +350,7 @@ function setProfileMessage(ctx: FullContext, distinctId: string, event: Analytic
   return reqs;
 }
 
-function setGroupMessage(event: AnalyticsServerEvent, opts: MixpanelCredentials): HttpRequest {
+function setGroupMessage(event: AnalyticsServerEvent, opts: MixpanelCredentials): MixpanelRequest {
   const props = { ...(event.traits || {}) };
   specialProperties.forEach(prop => {
     if (props[prop]) {
@@ -336,6 +368,7 @@ function setGroupMessage(event: AnalyticsServerEvent, opts: MixpanelCredentials)
 
   return {
     url: "https://api.mixpanel.com/groups?verbose=1#group-set",
+    eventType: "group-set",
     headers: {
       "Content-type": "application/json",
       Accept: "text-plain",
@@ -352,12 +385,14 @@ function getAuth(props: MixpanelCredentials) {
   return base64(`${props.serviceAccountUserName}:${props.serviceAccountPassword}`);
 }
 
-function merge(ctx: FullContext, messageId: string, identifiedId: string, anonymousId: string): HttpRequest[] {
+function merge(ctx: FullContext, messageId: string, identifiedId: string, anonymousId: string): MixpanelRequest[] {
   if (!anonymousId) {
     return [];
   }
   const opts = ctx.props as MixpanelCredentials;
   const basicAuth = getAuth(opts);
+  const insertId = randomUUID();
+
   return [
     {
       url: `https://api.mixpanel.com/import?strict=1&project_id=${opts.projectId}`,
@@ -366,11 +401,13 @@ function merge(ctx: FullContext, messageId: string, identifiedId: string, anonym
         Accept: "text-plain",
         Authorization: `Basic ${basicAuth}`,
       },
+      eventType: "$merge",
+      insertId,
       payload: [
         {
           event: "$merge",
           properties: {
-            $insert_id: randomUUID(),
+            $insert_id: insertId,
             $distinct_ids: [identifiedId, anonymousId],
             token: opts.projectToken,
           },
@@ -380,12 +417,13 @@ function merge(ctx: FullContext, messageId: string, identifiedId: string, anonym
   ];
 }
 
-function alias(ctx: FullContext, messageId: string, identifiedId: string, anonymousId: string): HttpRequest[] {
+function alias(ctx: FullContext, messageId: string, identifiedId: string, anonymousId: string): MixpanelRequest[] {
   if (!anonymousId) {
     return [];
   }
   const opts = ctx.props as MixpanelCredentials;
   const basicAuth = getAuth(opts);
+  const insertId = randomUUID();
   return [
     {
       url: `https://api.mixpanel.com/import?strict=1&project_id=${opts.projectId}`,
@@ -394,11 +432,13 @@ function alias(ctx: FullContext, messageId: string, identifiedId: string, anonym
         Accept: "text-plain",
         Authorization: `Basic ${basicAuth}`,
       },
+      eventType: "$create_alias",
+      insertId,
       payload: [
         {
           event: "$create_alias",
           properties: {
-            $insert_id: randomUUID(),
+            $insert_id: insertId,
             distinct_id: anonymousId,
             alias: identifiedId,
             token: opts.projectToken,
@@ -467,7 +507,7 @@ const MixpanelDestination: JitsuFunction<AnalyticsServerEvent, MixpanelCredentia
     return;
   }
   try {
-    const messages: HttpRequest[] = [];
+    const messages: MixpanelRequest[] = [];
     if (event.type === "identify") {
       if (event.userId) {
         messages.push(...setProfileMessage(ctx, distinctId, event));
@@ -498,21 +538,41 @@ const MixpanelDestination: JitsuFunction<AnalyticsServerEvent, MixpanelCredentia
       const method = message.method || "POST";
       const payload = message.payload ? JSON.stringify(message.payload) : "{}";
       const compressed = message.headers?.["Content-Encoding"] === "gzip" ? zlib.gzipSync(payload) : payload;
-      const result = await ctx.fetch(message.url, {
-        method,
-        headers: message.headers,
-        ...(message.payload ? { body: compressed } : {}),
-      });
+      const result = await ctx.fetch(
+        message.url,
+        {
+          method,
+          headers: message.headers,
+          ...(message.payload ? { body: compressed } : {}),
+        },
+        message.skipLogs ? { log: false } : undefined
+      );
       if (result.status !== 200) {
-        throw new Error(
-          `MixPanel ${method} ${message.url}:${
-            message.payload
-              ? `${JSON.stringify(message.payload)} (size: ${payload.length} compressed: ${compressed.length}) --> `
-              : ""
-          }${result.status} ${await result.text()}`
-        );
+        if (message.skipLogs) {
+          throw new HTTPError(
+            `MixPanel event '${message.eventType}' $insert_id:${message.insertId} Failed to batch event. HTTP Error: ${result.status} ${result.statusText}`,
+            result.status,
+            await result.text()
+          );
+        } else {
+          throw new Error(
+            `MixPanel${message.insertId ? " $insert_id:" + message.insertId : ""} ${method} ${message.url}:${
+              message.payload
+                ? `${JSON.stringify(message.payload)} (size: ${payload.length} compressed: ${compressed.length}) --> `
+                : ""
+            }${result.status} ${await result.text()}`
+          );
+        }
       } else {
-        ctx.log.debug(`MixPanel ${method} ${message.url}: ${result.status} ${await result.text()}`);
+        if (message.skipLogs) {
+          ctx.log.debug(`MixPanel event '${message.eventType}' $insert_id:${message.insertId} added to batch.`);
+        } else {
+          ctx.log.debug(
+            `MixPanel${message.insertId ? " $insert_id:" + message.insertId : ""} ${method} ${message.url}: ${
+              result.status
+            } ${await result.text()}`
+          );
+        }
       }
     }
   } catch (e: any) {

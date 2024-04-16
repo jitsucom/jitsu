@@ -278,7 +278,10 @@ export const EventsBrowser = ({
                   //usesFunctions: Array.isArray(link.data?.functions) && link.data?.functions.length > 0,
                 };
               })
-              .filter(link => (streamType === "bulker" && link.usesBulker) || streamType === "function");
+              .filter(
+                link =>
+                  (streamType === "bulker" && (link.usesBulker || link.mode === "batch")) || streamType === "function"
+              );
           };
         }
 
@@ -782,10 +785,12 @@ const BatchTable = ({ loadEvents, loading, streamType, entityType, actorId, even
       dataIndex: "content",
       render: d =>
         d.error ||
-        "Schema: " +
-          Object.entries(d.representation?.schema || {})
-            .map(([k, v]) => k)
-            .join(", "),
+        (d.representation?.schema
+          ? "Schema: " +
+            Object.entries(d.representation?.schema || {})
+              .map(([k, v]) => k)
+              .join(", ")
+          : d.representation?.response ?? ""),
     },
   ];
 
