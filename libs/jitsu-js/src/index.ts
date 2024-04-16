@@ -16,7 +16,7 @@ export default function parse(input) {
     if (parseFloat(value) === value) {
       value = parseFloat(value);
     }
-  } catch (e) { }
+  } catch (e) {}
   if (value === null || value === "") {
     return;
   }
@@ -24,7 +24,7 @@ export default function parse(input) {
 }
 
 export const emptyAnalytics: AnalyticsInterface = {
-  setAnonymousId: () => { },
+  setAnonymousId: () => {},
   track: () => Promise.resolve(),
   page: () => Promise.resolve(),
   user: () => ({}),

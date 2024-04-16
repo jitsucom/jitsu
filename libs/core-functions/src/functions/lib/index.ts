@@ -84,6 +84,7 @@ export type FunctionChainContext = {
   store: TTLStore;
   anonymousEventsStore?: AnonymousEventsStore;
   metrics?: Metrics;
+  connectionOptions?: any;
 };
 
 export function wrapperFunction<E extends AnyEvent = AnyEvent, P extends AnyProps = AnyProps>(
@@ -112,6 +113,7 @@ export function wrapperFunction<E extends AnyEvent = AnyEvent, P extends AnyProp
       props,
     };
     fullContext["anonymousEventsStore"] = chainCtx.anonymousEventsStore;
+    fullContext["connectionOptions"] = chainCtx.connectionOptions;
     return jitsuFunction(event, fullContext);
   };
 }

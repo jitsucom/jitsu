@@ -98,15 +98,6 @@ export function checkError(chainRes: FuncChainResult) {
     }
   }
 }
-const getCachedOrLoad = (cache: NodeCache, key: string, loader: (key: string) => any) => {
-  const cached = cache.get(key);
-  if (cached) {
-    return cached;
-  }
-  const loaded = loader(key);
-  cache.set(key, loaded);
-  return loaded;
-};
 
 export function buildFunctionChain(
   connection: EnrichedConnectionConfig,
@@ -157,6 +148,7 @@ export function buildFunctionChain(
     log: makeLog(connection.id, rotorContext.eventsLogger),
     store,
     anonymousEventsStore,
+    connectionOptions: connectionData,
   };
 
   const udfFuncs: FunctionConfig[] = (connectionData?.functions || [])

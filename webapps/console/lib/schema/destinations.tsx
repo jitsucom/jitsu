@@ -608,7 +608,11 @@ export const coreDestinations: DestinationType<any>[] = [
     icon: mixpanelIcon,
     title: "Mixpanel",
     tags: "Product Analytics",
-    connectionOptions: CloudDestinationsConnectionOptions,
+    connectionOptions: CloudDestinationsConnectionOptions.merge(BatchModeOptions).merge(
+      z.object({
+        mode: z.enum(["stream", "batch"]).default("stream"),
+      })
+    ),
     credentials: meta.MixpanelCredentials,
     credentialsUi: meta.MixpanelCredentialsUi,
     description: "Mixpanel is a product analytics platform that provides insights into user behavior.",
