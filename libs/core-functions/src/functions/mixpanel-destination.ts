@@ -7,8 +7,8 @@ import { eventTimeSafeMs, MetricsMeta } from "./lib";
 import { randomUUID } from "crypto";
 import zlib from "zlib";
 
-const bulkerBase = requireDefined(process.env.BULKER_URL, "env BULKER_URL is not defined");
-const bulkerAuthKey = requireDefined(process.env.BULKER_AUTH_KEY, "env BULKER_AUTH_KEY is not defined");
+const bulkerBase = process.env.BULKER_URL;
+const bulkerAuthKey = process.env.BULKER_AUTH_KEY;
 
 //See https://help.mixpanel.com/hc/en-us/articles/115004708186-Profile-Properties
 export const specialProperties = [
@@ -204,7 +204,7 @@ function trackEvent(
       ...customProperties,
     },
   };
-  if (ctx["connectionOptions"]?.mode === "batch") {
+  if (ctx["connectionOptions"]?.mode === "batch" && bulkerBase) {
     const metricsMeta: Omit<MetricsMeta, "messageId"> = {
       workspaceId: ctx.workspace.id,
       streamId: ctx.source.id,
@@ -217,7 +217,7 @@ function trackEvent(
       eventType,
       insertId,
       headers: {
-        Authorization: `Bearer ${bulkerAuthKey}`,
+        ...(bulkerAuthKey ? { Authorization: `Bearer ${bulkerAuthKey}` } : {}),
         metricsMeta: JSON.stringify(metricsMeta),
       },
       payload: eventPayload,
