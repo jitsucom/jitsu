@@ -71,7 +71,7 @@ export function DataView() {
     },
     {
       key: "bulker",
-      label: `Batch Events`,
+      label: `Batches & Data Warehouse Events`,
       children: (
         <EventsBrowser
           {...state.viewState.bulker}

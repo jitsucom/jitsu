@@ -611,27 +611,27 @@ function ConnectionEditor({
       ),
     });
   }
-  if (hasZodFields(connectionOptionsZodType, "multithreading")) {
-    configItems.push({
-      group: "Advanced",
-      documentation: (
-        <>
-          Use multiple threads to send data to the endpoint. Faster, but doesn't guarantee order of events. Recommended
-          on high volumes of data.
-        </>
-      ),
-      name: "Multithreading",
-      component: (
-        <SwitchComponent
-          className="max-w-xs"
-          value={connectionOptions.multithreading}
-          onChange={m => {
-            updateOptions({ multithreading: m });
-          }}
-        />
-      ),
-    });
-  }
+  // if (hasZodFields(connectionOptionsZodType, "multithreading")) {
+  //   configItems.push({
+  //     group: "Advanced",
+  //     documentation: (
+  //       <>
+  //         Use multiple threads to send data to the endpoint. Faster, but doesn't guarantee order of events. Recommended
+  //         on high volumes of data.
+  //       </>
+  //     ),
+  //     name: "Multithreading",
+  //     component: (
+  //       <SwitchComponent
+  //         className="max-w-xs"
+  //         value={connectionOptions.multithreading}
+  //         onChange={m => {
+  //           updateOptions({ multithreading: m });
+  //         }}
+  //       />
+  //     ),
+  //   });
+  // }
   return (
     <div className="max-w-5xl grow">
       <div className="flex justify-between pt-6 pb-0 mb-0 items-center">

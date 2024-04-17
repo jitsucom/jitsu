@@ -173,6 +173,8 @@ export type DestinationType<T = any> = {
   title: string;
   isSynchronous?: boolean;
   usesBulker?: boolean;
+  // destinations that relies on both rotor for flexible logic in typescript and bulker for batching
+  hybrid?: boolean;
   tags: string | string[];
   credentials: SomeZodObject;
   connectionOptions: SomeZodObject;
@@ -607,6 +609,7 @@ export const coreDestinations: DestinationType<any>[] = [
     id: "mixpanel",
     icon: mixpanelIcon,
     title: "Mixpanel",
+    hybrid: true,
     tags: "Product Analytics",
     connectionOptions: CloudDestinationsConnectionOptions.merge(BatchModeOptions).merge(
       z.object({

@@ -1,7 +1,5 @@
 import { createInMemoryStore } from "../src/lib/inmem-store";
-import { expect } from "@playwright/test";
 import { getLog } from "juava";
-import { reject } from "lodash";
 import * as path from "path";
 
 const log = getLog("inmem-store-test");

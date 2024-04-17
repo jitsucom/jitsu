@@ -62,7 +62,8 @@ const exports: Export[] = [
         lastId = objects[objects.length - 1].id;
         for (const { data, from, id, to, updatedAt, workspace } of objects) {
           const destinationType = to.config.destinationType;
-          if (getCoreDestinationTypeNonStrict(destinationType)?.usesBulker || data?.mode === "batch") {
+          const coreDestinationType = getCoreDestinationTypeNonStrict(destinationType);
+          if (coreDestinationType?.usesBulker || coreDestinationType?.hybrid) {
             if (needComma) {
               writer.write(",");
             }

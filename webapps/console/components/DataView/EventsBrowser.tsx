@@ -200,6 +200,7 @@ export const EventsBrowser = ({
       level: Level,
       actorId: string,
       dates: DatesRange,
+      bulkerMode?: "stream" | "batch",
       beforeDate?: Date
     ) => {
       try {
@@ -207,13 +208,11 @@ export const EventsBrowser = ({
           let eventsLogStream = streamType as string;
           if (streamType === "bulker") {
             const entity = entitiesMap[actorId];
-            if (entity.mode === "stream") {
-              dispatch({ type: "bulkerMode", value: "stream" });
-              eventsLogStream = "bulker_stream";
-            } else if (entity.mode === "batch") {
-              dispatch({ type: "bulkerMode", value: "batch" });
-              eventsLogStream = "bulker_batch";
+            if (!bulkerMode) {
+              bulkerMode = entity.mode;
+              dispatch({ type: "bulkerMode", value: bulkerMode });
             }
+            eventsLogStream = "bulker_" + bulkerMode;
           }
           dispatch({ type: "eventsLoading", value: true });
           const data = await eventsLogApi.get(
@@ -275,12 +274,12 @@ export const EventsBrowser = ({
                   service: servicesMap[link.fromId],
                   destination: dst,
                   usesBulker: destinationType?.usesBulker || false,
+                  hybrid: destinationType?.hybrid || false,
                   //usesFunctions: Array.isArray(link.data?.functions) && link.data?.functions.length > 0,
                 };
               })
               .filter(
-                link =>
-                  (streamType === "bulker" && (link.usesBulker || link.mode === "batch")) || streamType === "function"
+                link => (streamType === "bulker" && (link.usesBulker || link.hybrid)) || streamType === "function"
               );
           };
         }
@@ -308,8 +307,8 @@ export const EventsBrowser = ({
   }, [streamType, entitiesMap, actorId, workspace.id, patchQueryStringState, entitiesLoading]);
 
   useEffect(() => {
-    loadEvents(streamType, entitiesMap, level, actorId, dates);
-  }, [loadEvents, streamType, entitiesMap, level, actorId, dates, refreshTime]);
+    loadEvents(streamType, entitiesMap, level, actorId, dates, bulkerMode);
+  }, [loadEvents, streamType, entitiesMap, level, actorId, dates, bulkerMode, refreshTime]);
 
   // //load more events on reaching bottom
   // useEffect(() => {
@@ -401,6 +400,7 @@ export const EventsBrowser = ({
                 loading={entitiesLoading}
                 onChange={e => {
                   dispatch({ type: "events", value: [] });
+                  dispatch({ type: "bulkerMode", value: undefined });
                   dispatch({ type: "beforeDate", value: undefined });
                   patchQueryStringState("actorId", e);
                 }}
@@ -411,7 +411,7 @@ export const EventsBrowser = ({
             <div>
               <span>{streamType == "function" ? "Level: " : "Status: "}</span>
               <Select
-                style={{ width: 120 }}
+                style={{ width: 90 }}
                 value={level}
                 onChange={e => {
                   dispatch({ type: "events", value: undefined });
@@ -434,6 +434,25 @@ export const EventsBrowser = ({
                 }
               />
             </div>
+            {streamType === "bulker" && (
+              <div>
+                <span>Mode: </span>
+                <Select
+                  style={{ width: 90 }}
+                  value={bulkerMode}
+                  onChange={e => {
+                    setShownEvents([]);
+                    dispatch({ type: "events", value: undefined });
+                    dispatch({ type: "beforeDate", value: undefined });
+                    dispatch({ type: "bulkerMode", value: e });
+                  }}
+                  options={[
+                    { value: "batch", label: "Batch" },
+                    { value: "stream", label: "Stream" },
+                  ]}
+                />
+              </div>
+            )}
             <div>
               <span>Date range: </span>
               <DatePicker.RangePicker
@@ -471,7 +490,7 @@ export const EventsBrowser = ({
           {streamType === "function" && connection && (
             <Tooltip
               title={
-                "Enables 'debug' level for functions logs and fetch requests verbose logging for a period of 5 minutes."
+                "Enables 'debug' level for functions logs and fetch requests verbose logging for a period of 15 minutes."
               }
             >
               <JitsuButton
@@ -480,7 +499,7 @@ export const EventsBrowser = ({
                 size="small"
                 onClick={e => {
                   const checked = !debugEnabled;
-                  const debugTill = checked ? dayjs().add(5, "minute").toISOString() : undefined;
+                  const debugTill = checked ? dayjs().add(15, "minute").toISOString() : undefined;
                   const newConnection = { ...connection, data: { ...connection.data, debugTill } };
                   setConnection(newConnection);
                   setDebugEnabled(checked);
@@ -518,7 +537,7 @@ export const EventsBrowser = ({
           entityType={entityType}
           actorId={actorId}
           events={shownEvents}
-          loadEvents={() => loadEvents(streamType, entitiesMap, level, actorId, dates, beforeDate)}
+          loadEvents={() => loadEvents(streamType, entitiesMap, level, actorId, dates, bulkerMode, beforeDate)}
         />
       ) : (
         <Alert message={error} type="error" showIcon />
@@ -693,7 +712,7 @@ const StreamEventsTable = ({ loadEvents, loading, streamType, entityType, actorI
       className: "whitespace-nowrap",
       dataIndex: ["content", "original"],
       render: (o: any) => {
-        return o.type || o.event;
+        return o?.type || o?.event;
       },
     },
     {

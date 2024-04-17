@@ -1,7 +1,7 @@
 import { FullContext, JitsuFunction } from "@jitsu/protocols/functions";
 import { HTTPError, RetryError } from "@jitsu/functions-lib";
 import type { AnalyticsServerEvent, Geo } from "@jitsu/protocols/analytics";
-import { hash, requireDefined } from "juava";
+import { hash } from "juava";
 import { MixpanelCredentials } from "../meta";
 import { eventTimeSafeMs, MetricsMeta } from "./lib";
 import { randomUUID } from "crypto";
@@ -150,7 +150,7 @@ function trackEvent(
   const device = analyticsContext.device || ({} as any);
   const ua = ctx.ua || ({} as any);
   const uaDevice = ua.device || ({} as any);
-  const insertId = randomUUID();
+  const insertId = getInsertId(event.messageId, eventType);
   const eventPayload = {
     event: eventType,
     properties: {
@@ -213,7 +213,7 @@ function trackEvent(
       functionId: "builtin.destination.bulker",
     };
     return {
-      url: `${bulkerBase}/post/${ctx.connection.id}?tableName=import`,
+      url: `${bulkerBase}/post/${ctx.connection.id}?tableName=import&modeOverride=batch`,
       eventType,
       insertId,
       headers: {
@@ -385,13 +385,17 @@ function getAuth(props: MixpanelCredentials) {
   return base64(`${props.serviceAccountUserName}:${props.serviceAccountPassword}`);
 }
 
+function getInsertId(messageId: string, eventType: string) {
+  return hash("md5", (messageId || randomUUID()) + "_" + eventType);
+}
+
 function merge(ctx: FullContext, messageId: string, identifiedId: string, anonymousId: string): MixpanelRequest[] {
   if (!anonymousId) {
     return [];
   }
   const opts = ctx.props as MixpanelCredentials;
   const basicAuth = getAuth(opts);
-  const insertId = randomUUID();
+  const insertId = getInsertId(messageId, "merge");
 
   return [
     {
@@ -423,7 +427,7 @@ function alias(ctx: FullContext, messageId: string, identifiedId: string, anonym
   }
   const opts = ctx.props as MixpanelCredentials;
   const basicAuth = getAuth(opts);
-  const insertId = randomUUID();
+  const insertId = getInsertId(messageId, "alias");
   return [
     {
       url: `https://api.mixpanel.com/import?strict=1&project_id=${opts.projectId}`,
