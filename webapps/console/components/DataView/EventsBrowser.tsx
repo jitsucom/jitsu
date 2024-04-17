@@ -46,7 +46,7 @@ type EventsBrowserProps = {
 };
 
 type EventsBrowserState = {
-  bulkerMode: "stream" | "batch";
+  bulkerMode?: "stream" | "batch";
   entitiesLoading: boolean;
   entitiesMap?: Record<string, any>;
   eventsLoading: boolean;
@@ -131,7 +131,7 @@ export const EventsBrowser = ({
   });
 
   const defaultState: EventsBrowserState = {
-    bulkerMode: "stream",
+    bulkerMode: undefined,
     entitiesLoading: false,
     entitiesMap: undefined,
     eventsLoading: false,
