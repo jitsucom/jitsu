@@ -22,7 +22,8 @@ function removeProperties(properties: Record<string, any>, toRemove: string[]): 
 }
 
 type Ga4Request = {
-  client_id: string;
+  app_instance_id?: string;
+  client_id?: string;
   user_id?: string;
   timestamp_micros: number;
   user_properties?: Record<string, any>;
@@ -132,8 +133,12 @@ function getUserProperties(event: AnalyticsServerEvent): Record<string, any> {
   return userProperties;
 }
 
-function getClientId(event: AnalyticsServerEvent): string {
-  return event.context?.clientIds?.ga4?.clientId || event.anonymousId || "";
+function getClientId(event: AnalyticsServerEvent): string | null | undefined {
+  return event.context?.clientIds?.ga4?.clientId || event.anonymousId;
+}
+
+function getFirebaseAppInstanceId(event: AnalyticsServerEvent): string | undefined {
+  return event.context?.clientIds?.firebase?.appInstanceId;
 }
 
 function getSessionId(event: AnalyticsServerEvent, measurementId: string): string | undefined {
@@ -309,6 +314,7 @@ const Ga4Destination: JitsuFunction<AnalyticsServerEvent, Ga4Credentials> = asyn
       return;
     }
     const sessionId = getSessionId(event, ctx.props.measurementId);
+    const firebaseAppInstanceId = getFirebaseAppInstanceId(event);
     const userProperties = getUserProperties(event);
     const events: Ga4Event[] = [];
 
@@ -331,6 +337,7 @@ const Ga4Destination: JitsuFunction<AnalyticsServerEvent, Ga4Credentials> = asyn
     const url = `https://www.google-analytics.com${debug}/mp/collect?measurement_id=${ctx.props.measurementId}&api_secret=${ctx.props.apiSecret}`;
 
     gaRequest = {
+      app_instance_id: firebaseAppInstanceId,
       client_id: clientId,
       user_id: event.userId,
       timestamp_micros: eventTimeSafeMs(event) * 1000,
