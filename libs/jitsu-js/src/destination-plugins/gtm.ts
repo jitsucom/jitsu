@@ -7,6 +7,11 @@ export type GtmDestinationCredentials = {
   dataLayerName?: string;
 } & CommonDestinationCredentials;
 
+function omit(obj: any, ...keys: string[]) {
+  const set = new Set(keys);
+  return Object.fromEntries(Object.entries(obj).filter(([k]) => !set.has(k)));
+}
+
 export const gtmPlugin: InternalPlugin<GtmDestinationCredentials> = {
   id: "gtm",
   async handle(config, payload: AnalyticsClientEvent) {
@@ -16,9 +21,12 @@ export const gtmPlugin: InternalPlugin<GtmDestinationCredentials> = {
     await initGtmIfNeeded(config, payload);
 
     const dataLayer = window[config.dataLayerName || "dataLayer"];
+    const idsFromTraits = payload.traits ? omit(payload.traits, "id", "userId", "user_id", "anonymousId", "userId") : {};
+    console.log("idsFromTraits", idsFromTraits, payload.traits);
     const ids = {
       ...(payload.userId ? { user_id: payload.userId, userId: payload.userId } : {}),
       ...(payload.anonymousId ? { anonymousId: payload.anonymousId } : {}),
+      ...idsFromTraits,
     };
     switch (payload.type) {
       case "page":

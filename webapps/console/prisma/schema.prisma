@@ -60,6 +60,9 @@ model UserProfile {
   userPreferences         UserPreferences[]
   workspaceUserProperties WorkspaceUserProperties[]
   password				  UserPassword?
+
+  @@index(externalId)
+  @@unique([loginProvider, externalId])
 }
 
 model UserPassword {
@@ -89,6 +92,7 @@ model Workspace {
   featuresEnabled         String[]                  @default([])
 
   @@unique(slug)
+  @@index(slug)
   @@index(updatedAt(sort: Desc))
 }
 

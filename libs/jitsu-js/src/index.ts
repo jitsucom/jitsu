@@ -152,7 +152,20 @@ function createUnderlyingAnalyticsInstance(
   } as AnalyticsInterface;
 }
 
-export function jitsuAnalytics(opts: JitsuOptions): AnalyticsInterface {
+/**
+ * Fix common mistakes in jitsu configuration
+ * @param opts
+ */
+function fixOptions(opts: JitsuOptions): JitsuOptions {
+  return {
+    ...opts,
+    host:
+      opts.host.indexOf("https://") !== 0 && opts.host.indexOf("http://") !== 0 ? `https://${opts.host}` : opts.host,
+  };
+}
+
+export function jitsuAnalytics(_opts: JitsuOptions): AnalyticsInterface {
+  const opts = fixOptions(_opts);
   const inBrowser = isInBrowser();
   const rt = opts.runtime || (inBrowser ? windowRuntime(opts) : emptyRuntime(opts));
   return createUnderlyingAnalyticsInstance(opts, rt);

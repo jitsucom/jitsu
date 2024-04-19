@@ -110,7 +110,7 @@ async function initialDataLoad(
     getLog().atInfo().log("@@@@@@@@@@@@@@@@@@@ Loaders", loaders);
     await Promise.all(loaders);
   } catch (e) {
-    getLog().atError().log("@@@@@@@@@@@@@@@@@@@Failed to load initial data", e);
+    getLog().atError().log("@@@@@@@@@@@@@@@@@@@ Failed to load initial data", e);
     throw e;
   }
 

@@ -2,6 +2,8 @@ import { testJitsuFunction, TestOptions } from "./lib/testing-lib";
 import { IntercomDestinationCredentials } from "../src/meta";
 import IntercomDestination from "../src/functions/intercom-destination";
 import { setGlobalLogLevel, setServerLogColoring } from "juava";
+import { JitsuFunction } from "@jitsu/protocols/functions";
+import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 
 setServerLogColoring(true);
 setGlobalLogLevel("debug");
