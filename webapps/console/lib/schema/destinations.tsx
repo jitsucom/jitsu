@@ -93,6 +93,7 @@ export type SchemaUI = Record<string, PropertyUI>;
 
 export const FunctionsConnectionOptions = z.object({
   functions: z.array(z.object({ functionId: z.string(), functionOptions: z.any() })).optional(),
+  debugTill: z.string().optional(),
 });
 
 //Options of any source -> destination connection that are not specific to any particular destination
@@ -613,6 +614,7 @@ export const coreDestinations: DestinationType<any>[] = [
     tags: "Product Analytics",
     connectionOptions: CloudDestinationsConnectionOptions.merge(BatchModeOptions).merge(
       z.object({
+        batchSize: z.number().min(1).max(500).default(500),
         mode: z.enum(["stream", "batch"]).default("stream"),
       })
     ),

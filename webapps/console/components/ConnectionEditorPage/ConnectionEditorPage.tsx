@@ -404,9 +404,9 @@ function ConnectionEditor({
       ),
       component: (
         <InputNumber
-          value={connectionOptions.batchSize || (destinationType.id === "mixpanel" ? 500 : 10000)}
+          value={connectionOptions.batchSize || 10000}
           size="small"
-          defaultValue={destinationType.id === "mixpanel" ? 500 : 10000}
+          defaultValue={10000}
           className="w-36"
           min={100}
           max={destinationType.id === "mixpanel" ? 500 : 1000000}
