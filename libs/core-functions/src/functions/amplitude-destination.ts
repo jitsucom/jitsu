@@ -73,9 +73,13 @@ const AmplitudeDestination: JitsuFunction<AnalyticsServerEvent, AmplitudeDestina
         ],
       };
     } else if (
-      (event.type === "page" || event.type === "track") &&
+      (event.type === "page" || event.type === "track" || event.type === "screen") &&
       (event.userId || props.enableAnonymousUserProfiles)
     ) {
+      const app = event.context?.app || ({} as any);
+      const os = event.context?.os || ({} as any);
+      const device = event.context?.device || ({} as any);
+
       let geoObj: any = {};
       if (geo) {
         geoObj = {
@@ -103,13 +107,17 @@ const AmplitudeDestination: JitsuFunction<AnalyticsServerEvent, AmplitudeDestina
             groups,
             user_properties: event.context?.traits,
             user_id: event.userId,
+
+            app_version: app.version,
+            platform: os.name || ua?.device?.type,
+
             device_id: deviceId ?? undefined,
-            os_name: ua?.os?.name,
-            os_version: ua?.os?.version,
-            device_model: ua?.device?.model,
-            device_manufacturer: ua?.device?.vendor,
-            device_brand: ua?.device?.vendor,
-            platform: ua?.device?.type,
+            os_name: os.name || ua?.os?.name,
+            os_version: os.version || ua?.os?.version,
+            device_model: device.model || ua?.device?.model,
+            device_manufacturer: device.manufacturer || ua?.device?.vendor,
+            device_brand: device.manufacturer || ua?.device?.vendor,
+
             language: event.context?.locale,
             ip: event.context?.ip,
             user_agent: event.context?.userAgent,
