@@ -69,6 +69,7 @@ export const UDFWrapper = (
         error: makeReference(refs, chainCtx.log.error),
       }).copyInto({ release: true, transferIn: true })
     );
+    jail.setSync("_jitsu_fetch_log_level", chainCtx.connectionOptions?.fetchLogLevel || "info");
     jail.setSync(
       "_jitsu_fetch",
       makeReference(refs, async (url: string, opts?: FetchOpts, extra?: any) => {
@@ -398,7 +399,7 @@ export async function UDFTestRun({
     };
     const chainCtx: FunctionChainContext = {
       store: storeImpl,
-      fetch: makeFetch("functionsDebugger", eventsStore),
+      fetch: makeFetch("functionsDebugger", eventsStore, "info"),
       log: makeLog("functionsDebugger", eventsStore),
     };
     const d = new Date();

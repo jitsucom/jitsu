@@ -160,7 +160,10 @@ const exports: Export[] = [
               streamId: from.id,
               destinationId: to.id,
               usesBulker: !!coreDestinationType?.usesBulker,
-              options: data,
+              options: {
+                ...data,
+                ...((workspace.featuresEnabled ?? []).includes("nofetchlogs") ? { fetchLogLevel: "debug" } : {}),
+              },
               optionsHash: hash(data),
               updatedAt: dateMax(updatedAt, to.updatedAt),
               credentials: omit(to.config, "destinationType", "type", "name"),

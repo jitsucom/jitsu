@@ -217,9 +217,9 @@ const wrappedUserFunction = (id, f, funcCtx) => {
     }
 
     return async function (event, c) {
-        const debugEnabled = funcCtx.function.debugTill && funcCtx.function.debugTill > new Date();
+        const fetchLogEnabled = _jitsu_fetch_log_level !== "debug" || (funcCtx.function.debugTill && funcCtx.function.debugTill > new Date());
         let ftch = fetch
-        if (debugEnabled) {
+        if (fetchLogEnabled) {
             ftch = async(url, opts) => {
                 return fetch(url, opts, {event});
             }

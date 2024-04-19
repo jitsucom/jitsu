@@ -144,7 +144,7 @@ export function buildFunctionChain(
     }
   }
   const chainCtx: FunctionChainContext = {
-    fetch: makeFetch(connection.id, rotorContext.eventsLogger, fetchTimeoutMs),
+    fetch: makeFetch(connection.id, rotorContext.eventsLogger, connectionData.fetchLogLevel || "info", fetchTimeoutMs),
     log: makeLog(connection.id, rotorContext.eventsLogger),
     store,
     anonymousEventsStore,

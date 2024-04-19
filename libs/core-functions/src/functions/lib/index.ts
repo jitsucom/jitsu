@@ -93,16 +93,18 @@ export function wrapperFunction<E extends AnyEvent = AnyEvent, P extends AnyProp
   jitsuFunction: JitsuFunction<E, P>
 ): JitsuFunctionWrapper<E> {
   const log = createFunctionLogger(chainCtx, funcCtx);
-  const debugFetch = createFetchWrapper(chainCtx, funcCtx);
+  const fetchWithLog = createFetchWrapper(chainCtx, funcCtx);
   const props = funcCtx.props;
   const store = chainCtx.store;
 
   return async (event: E, ctx: EventContext) => {
     let ftch = chainCtx.fetch;
-    const debugEnabled = funcCtx.function.debugTill && funcCtx.function.debugTill > new Date();
-    if (debugEnabled) {
+    const fetchLogEnabled =
+      chainCtx.connectionOptions?.fetchLogLevel !== "debug" ||
+      (funcCtx.function.debugTill && funcCtx.function.debugTill > new Date());
+    if (fetchLogEnabled) {
       ftch = async (url, opts, extra) => {
-        return debugFetch(url, opts, { ...extra, event });
+        return fetchWithLog(url, opts, { ...extra, event });
       };
     }
     const fullContext: FullContext<P> = {
@@ -293,7 +295,7 @@ export const makeLog = (connectionId: string, eventsStore: EventsStore) => ({
 });
 
 export const makeFetch =
-  (connectionId: string, eventsStore: EventsStore, fetchTimeoutMs: number = 5000) =>
+  (connectionId: string, eventsStore: EventsStore, logLevel: "info" | "debug", fetchTimeoutMs: number = 5000) =>
   async (
     url: string,
     init?: FetchOpts,
@@ -304,10 +306,10 @@ export const makeFetch =
     const ctx = extra?.ctx?.function;
     const id = ctx?.id || "unknown";
     const type = ctx?.type || "unknown";
-    const debugEnabled = ctx?.debugTill && ctx?.debugTill > new Date();
+    const logEnabled = logLevel === "info" || (ctx?.debugTill && ctx?.debugTill > new Date());
     const logToRedis = typeof extra?.log === "boolean" ? extra.log : true;
     const baseInfo =
-      debugEnabled && logToRedis
+      logEnabled && logToRedis
         ? {
             functionId: id,
             functionType: type,
@@ -336,10 +338,10 @@ export const makeFetch =
       if (err.name === "AbortError") {
         err = newError(`Fetch request exceeded timeout ${fetchTimeoutMs}ms and was aborted`, err);
       }
-      if (debugEnabled) {
+      if (logEnabled) {
         const elapsedMs = sw.elapsedMs();
         if (logToRedis) {
-          eventsStore.log(connectionId, "debug", { ...baseInfo, error: getErrorMessage(err), elapsedMs: elapsedMs });
+          eventsStore.log(connectionId, logLevel, { ...baseInfo, error: getErrorMessage(err), elapsedMs: elapsedMs });
         }
         log
           .atDebug()
@@ -352,13 +354,13 @@ export const makeFetch =
       throw err;
     }
 
-    if (debugEnabled) {
+    if (logEnabled) {
       const elapsedMs = sw.elapsedMs();
       //clone response to be able to read it twice
       const cloned = fetchResult.clone();
       const respText = await trimResponse(cloned);
       if (logToRedis) {
-        eventsStore.log(connectionId, "debug", {
+        eventsStore.log(connectionId, logLevel, {
           ...baseInfo,
           status: fetchResult.status,
           statusText: fetchResult.statusText,
