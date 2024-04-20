@@ -3,10 +3,11 @@ import { tagPlugin } from "./tag";
 import { logrocketPlugin } from "./logrocket";
 import { gtmPlugin } from "./gtm";
 import { ga4Plugin } from "./ga4";
+import type { JitsuOptions } from "../jitsu";
 
 export type InternalPlugin<T> = {
   id: string;
-  handle(config: T, payload: AnalyticsClientEvent): Promise<void>;
+  handle(config: T & { debug?: boolean }, payload: AnalyticsClientEvent): Promise<void>;
 };
 
 export type CommonDestinationCredentials = {

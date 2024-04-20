@@ -1,4 +1,4 @@
-import { getLog, LogLevel, rpc, setGlobalLogLevel } from "juava";
+import { getLog, isTruish, LogLevel, rpc, setGlobalLogLevel } from "juava";
 import { AppProps } from "next/app";
 import "../styles/globals.css";
 import { useRouter } from "next/router";
@@ -318,7 +318,7 @@ function AppLoader({ children, pageProps }: PropsWithChildren<any>) {
           trackingHost
             ? {
                 //debug: data?.logLevel === "debug",
-                debug: false,
+                debug: isTruish(process.env.NEXT_PUBLIC_TELEMETRY_DEBUG),
                 host: trackingHost,
               }
             : { disabled: true }
