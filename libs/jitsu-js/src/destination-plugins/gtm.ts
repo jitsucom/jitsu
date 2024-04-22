@@ -8,8 +8,7 @@ export type GtmDestinationCredentials = {
 } & CommonDestinationCredentials;
 
 function omit(obj: any, ...keys: string[]) {
-  const set = new Set(keys);
-  return Object.fromEntries(Object.entries(obj).filter(([k]) => !set.has(k)));
+  return Object.fromEntries(Object.entries(obj).filter(([k]) => !keys.includes(k)));
 }
 
 export const gtmPlugin: InternalPlugin<GtmDestinationCredentials> = {
@@ -46,7 +45,7 @@ export const gtmPlugin: InternalPlugin<GtmDestinationCredentials> = {
     if (debug) {
       console.debug("GTM plugin will set following user-related data layer vars", ids);
     }
-    const pageProperties = payload.properties;
+    const pageProperties = payload.properties || {};
     const pageVariables = {
       page_location: pageProperties.url || payload.context?.page?.url,
       page_title: pageProperties.title || payload.context?.page?.title,
