@@ -426,7 +426,7 @@ async function processDestinations(
       if (plugin) {
         for (const event of newEvents) {
           try {
-            promises.push(plugin.handle(credentials, event));
+            promises.push(plugin.handle({ ...credentials, debug: true }, event));
           } catch (e) {
             console.warn(
               `[JITSU] Error processing event with internal plugin '${destination.deviceOptions.name}': ${e?.message}`,

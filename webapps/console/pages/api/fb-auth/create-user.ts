@@ -18,8 +18,11 @@ export const api: Api = {
           req,
         });
         await linkFirebaseUser(user.externalId, dbUser.id);
+      } else {
+        throw new Error(
+          `Firebase user already has internalId (${user.internalId}), this endpoint should not be called`
+        );
       }
-      return {};
     },
   },
 };

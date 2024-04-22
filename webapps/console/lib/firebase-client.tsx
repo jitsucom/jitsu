@@ -3,6 +3,7 @@ import { initializeApp } from "firebase/app";
 import * as auth from "firebase/auth";
 import { AppConfig, ContextApiResponse } from "./schema";
 import { getLog, randomId, requireDefined, rpc } from "juava";
+import { useJitsu } from "@jitsu/jitsu-react";
 
 type FirebaseClientSettings = Record<string, any>;
 export type FirebaseProviderInstance =
@@ -114,6 +115,7 @@ export async function firebaseSignOut() {
 
 export function useFirebaseSession(): FirebaseSession {
   const config = useFirebaseConfig();
+  const { analytics } = useJitsu();
 
   if (!config.enabled) {
     throw new Error(`Firebase is not enabled, exiting`);
@@ -129,7 +131,9 @@ export function useFirebaseSession(): FirebaseSession {
         } else {
           user = await a.signInWithPopup(a.getAuth(), new auth.GoogleAuthProvider());
         }
-        await getUserFromFirebase(a.getAuth().currentUser!);
+        const firebaseUser = await getUserFromFirebase(a.getAuth().currentUser!);
+        await analytics.identify(firebaseUser.internalId, { email: firebaseUser.email, name: firebaseUser.name });
+        await analytics.track("login");
       } catch (e) {
         log.atError().withCause(e).log(`Can't sign in with ${type}`);
         throw e;
