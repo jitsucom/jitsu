@@ -71,14 +71,14 @@ function restoreTraits(storage: PersistentStorage) {
   if (typeof val === "string") {
     val = safeCall(() => JSON.parse(val), {});
   }
-  if (typeof val !== "object" || val === null) {
+  if (typeof val !== "object" || val === null || Array.isArray(val)) {
     val = {};
   }
   let groupVal = storage.getItem("__group_traits");
   if (typeof groupVal === "string") {
     groupVal = safeCall(() => JSON.parse(groupVal), {});
   }
-  if (typeof groupVal !== "object" || groupVal === null) {
+  if (typeof groupVal !== "object" || groupVal === null || Array.isArray(groupVal)) {
     groupVal = {};
   }
   return {
