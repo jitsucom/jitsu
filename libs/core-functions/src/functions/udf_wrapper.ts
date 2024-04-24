@@ -52,7 +52,7 @@ export const UDFWrapper = (
   let context: Context;
   let refs: Reference[] = [];
   try {
-    isolate = new Isolate({ memoryLimit: 64 });
+    isolate = new Isolate({ memoryLimit: 128 });
     context = isolate.createContextSync();
     const jail = context.global;
 

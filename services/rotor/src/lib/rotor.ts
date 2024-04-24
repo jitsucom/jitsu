@@ -23,7 +23,7 @@ const FUNCTION_ID_HEADER = "function_id";
 export const CONNECTION_IDS_HEADER = "connection_ids";
 
 const concurrency = parseNumber(process.env.CONCURRENCY, 10);
-const fetchTimeoutMs = parseNumber(process.env.FETCH_TIMEOUT_MS, 1000);
+const fetchTimeoutMs = parseNumber(process.env.FETCH_TIMEOUT_MS, 2000);
 
 export type KafkaRotorConfig = {
   credentials: KafkaCredentials;
