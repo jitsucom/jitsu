@@ -1,8 +1,7 @@
-import { getLog, requireDefined } from "juava";
+import { getLog, requireDefined, parseNumber } from "juava";
 import { connectToKafka, deatLetterTopic, KafkaCredentials, retryTopic } from "./kafka-config";
 import Prometheus from "prom-client";
 import PQueue from "p-queue";
-const concurrency = process.env.CONCURRENCY ? parseInt(process.env.CONCURRENCY) : 10;
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 dayjs.extend(utc);
@@ -23,6 +22,9 @@ const ORIGINAL_TOPIC_HEADER = "original_topic";
 const FUNCTION_ID_HEADER = "function_id";
 export const CONNECTION_IDS_HEADER = "connection_ids";
 
+const concurrency = parseNumber(process.env.CONCURRENCY, 10);
+const fetchTimeoutMs = parseNumber(process.env.FETCH_TIMEOUT_MS, 1000);
+
 export type KafkaRotorConfig = {
   credentials: KafkaCredentials;
   consumerGroupId: string;
@@ -35,7 +37,8 @@ export type KafkaRotorConfig = {
     runFuncs: FuncChainFilter,
     headers?,
     retriesEnabled?: boolean,
-    retries?: number
+    retries?: number,
+    fetchTimeoutMs?: number
   ) => Promise<FuncChainResult | undefined>;
 };
 
@@ -145,7 +148,8 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
               [CONNECTION_IDS_HEADER]: connectionId,
             },
             true,
-            retries
+            retries,
+            fetchTimeoutMs
           )
             .then(() => messagesProcessed.inc({ topic, partition }))
             .catch(async e => {
@@ -229,45 +233,6 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
           await onSizeLessThan(concurrency);
           queue.add(async () => onMessage(message, topic, partition));
         },
-        // eachBatch: async ({
-        //   batch,
-        //   resolveOffset,
-        //   heartbeat,
-        //   isRunning,
-        //   isStale,
-        //   commitOffsetsIfNecessary,
-        //   uncommittedOffsets,
-        // }) => {
-        //   const topic = batch.topic;
-        //   const partition = batch.partition;
-        //   const messages = batch.messages;
-        //   const size = batch.messages.length;
-        //   const batchId = `${topic}-${partition}-${messages[0].offset}-${messages[size - 1].offset}`;
-        //   log.atInfo().log(`Processing batch ${batchId} of ${size} messages`);
-        //   const start = dayjs().utc();
-        //   for (const message of messages) {
-        //     if (isStale()) {
-        //       log.atInfo().log(`Batch ${batchId} is stale. Stopping processing.`);
-        //       break;
-        //     }
-        //     if (!isRunning()) {
-        //       log.atInfo().log(`Batch ${batchId} is not running. Stopping processing.`);
-        //       break;
-        //     }
-        //     //make sure that queue has no more entities than concurrency limit (running tasks not included)
-        //     await onSizeLessThan(concurrency);
-        //     await queue.add(async () => onMessage(message, topic, partition));
-        //     resolveOffset(message.offset);
-        //   }
-        //   await commitOffsetsIfNecessary();
-        //   const end = dayjs().utc();
-        //   log
-        //     .atInfo()
-        //     .log(
-        //       `Processed batch ${batchId} of ${size} messages in ${end.diff(start, "millisecond")}ms`,
-        //       JSON.stringify(uncommittedOffsets())
-        //     );
-        // },
       });
 
       return metrics;

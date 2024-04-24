@@ -1,4 +1,4 @@
-import { getLog, getSingleton, requireDefined } from "juava";
+import { getLog, getSingleton, parseNumber, requireDefined } from "juava";
 import { MongoClient, ObjectId } from "mongodb";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { AnonymousEventsStore } from "@jitsu/protocols/functions";
@@ -14,12 +14,13 @@ export const mongodb = getSingleton<MongoClient>("mongodb", createClient, {
 });
 
 async function createClient() {
+  const mongoTimeout = parseNumber(process.env.MONGODB_TIMEOUT_MS, 1000);
   const mongodbURL = requireDefined(process.env.MONGODB_URL, "env MONGODB_URL is not defined");
 
   log.atInfo().log(`Connecting to MongoDB server...`);
 
   // Create a new MongoClient
-  const client = new MongoClient(mongodbURL, { compressors: ["zstd"], maxPoolSize: 32 });
+  const client = new MongoClient(mongodbURL, { compressors: ["zstd"], maxPoolSize: 32, socketTimeoutMS: mongoTimeout });
   // Connect the client to the server (optional starting in v4.7)
   await client.connect();
   // Establish and verify connection

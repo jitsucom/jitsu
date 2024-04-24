@@ -208,9 +208,9 @@ export function buildFunctionChain(
   const udfPipelineFunc = (chainCtx: FunctionChainContext, funcCtx: FunctionContext): JitsuFunctionWrapper => {
     return async (event: AnyEvent, ctx: EventContext) => {
       try {
-        return cached.wrapper.userFunction(event, ctx);
+        return await cached.wrapper.userFunction(event, ctx);
       } catch (e: any) {
-        if (e?.message === "Isolate is disposed") {
+        if ((e?.message ?? "").includes("Isolate is disposed")) {
           log.atError().log(`UDF for con:${connection.id} VM was disposed. Reloading`);
           const wrapper = UDFWrapper(
             connection.id,
@@ -219,7 +219,7 @@ export function buildFunctionChain(
             udfFuncs.map(f => ({ id: f.id, name: f.name, code: f.code }))
           );
           udfCache.set(connection.id, { wrapper, hash });
-          return cached.wrapper.userFunction(event, ctx);
+          return wrapper.userFunction(event, ctx);
         } else {
           throw e;
         }

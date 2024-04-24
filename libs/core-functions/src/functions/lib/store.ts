@@ -1,8 +1,9 @@
-import { SetOpts, Store, TTLStore } from "@jitsu/protocols/functions";
+import { SetOpts, TTLStore } from "@jitsu/protocols/functions";
 import type { Redis } from "ioredis";
 import parse from "parse-duration";
-import { MongoClient, ReadPreference, Collection, ClientSession } from "mongodb";
+import { MongoClient, ReadPreference, Collection } from "mongodb";
 import { getLog } from "juava";
+import { RetryError } from "@jitsu/functions-lib";
 
 export const defaultTTL = 60 * 60 * 24 * 31; // 31 days
 export const maxAllowedTTL = 2147483647; // max allowed value for ttl in redis (68years)
@@ -112,81 +113,87 @@ export const createMongoStore = (
     }
   }
 
+  function storeErr(err: any, text: string) {
+    if ((err.message ?? "").includes("timed out")) {
+      return new RetryError(text + ". Timed out.");
+    }
+    return new RetryError(text);
+  }
+
   return {
     get: async (key: string) => {
-      const res =
-        getFromLocalCache(key) ||
-        (await ensureCollection()
-          .then(c => c.findOne({ _id: key }, readOptions))
-          .catch(e => {
-            log.atError().withCause(e).log(`Error getting key ${key} from mongo store ${namespace}`);
-          }));
-      return res ? res.value : undefined;
+      try {
+        const res =
+          getFromLocalCache(key) || (await ensureCollection().then(c => c.findOne({ _id: key }, readOptions)));
+        return res ? res.value : undefined;
+      } catch (err: any) {
+        throw storeErr(err, `Error getting key ${key} from mongo store ${namespace}`);
+      }
     },
     getWithTTL: async (key: string) => {
-      const res =
-        getFromLocalCache(key) ||
-        (await ensureCollection()
-          .then(c => c.findOne({ _id: key }, readOptions))
-          .catch(e => {
-            log.atError().withCause(e).log(`Error getting key ${key} from mongo store ${namespace}`);
-          }));
-      if (!res) {
-        return undefined;
+      try {
+        const res =
+          getFromLocalCache(key) || (await ensureCollection().then(c => c.findOne({ _id: key }, readOptions)));
+        if (!res) {
+          return undefined;
+        }
+        const ttl = res.expireAt ? Math.max(Math.floor((res.expireAt.getTime() - new Date().getTime()) / 1000), 0) : -1;
+        return { value: res.value, ttl };
+      } catch (err: any) {
+        throw storeErr(err, `Error getting key ${key} from mongo store ${namespace}`);
       }
-      const ttl = res.expireAt ? Math.max(Math.floor((res.expireAt.getTime() - new Date().getTime()) / 1000), 0) : -1;
-      return { value: res.value, ttl };
     },
     set: async (key: string, obj: any, opts?: SetOpts) => {
-      const colObj: any = { value: obj };
-      const ttl = getTtlSec(opts);
-      if (ttl >= 0) {
-        const expireAt = new Date();
-        expireAt.setSeconds(expireAt.getSeconds() + ttl);
-        colObj.expireAt = expireAt;
-      }
+      try {
+        const colObj: any = { value: obj };
+        const ttl = getTtlSec(opts);
+        if (ttl >= 0) {
+          const expireAt = new Date();
+          expireAt.setSeconds(expireAt.getSeconds() + ttl);
+          colObj.expireAt = expireAt;
+        }
 
-      await ensureCollection()
-        .then(c =>
-          c.replaceOne({ _id: key }, colObj, {
-            upsert: true,
-            ...writeOptions,
-          })
-        )
-        .then(() => {
-          if (useLocalCache) {
-            localCache[key] = colObj;
-          }
-        })
-        .catch(e => {
-          log.atError().withCause(e).log(`Error setting key ${key} from mongo store ${namespace}`);
-        });
+        await ensureCollection()
+          .then(c =>
+            c.replaceOne({ _id: key }, colObj, {
+              upsert: true,
+              ...writeOptions,
+            })
+          )
+          .then(() => {
+            if (useLocalCache) {
+              localCache[key] = colObj;
+            }
+          });
+      } catch (err: any) {
+        throw storeErr(err, `Error setting key ${key} in mongo store ${namespace}`);
+      }
     },
     del: async (key: string) => {
-      await ensureCollection()
-        .then(c => c.deleteOne({ _id: key }, writeOptions))
-        .then(() => {
-          if (useLocalCache) {
-            delete localCache[key];
-          }
-        })
-        .catch(e => {
-          log.atError().withCause(e).log(`Error deleting key ${key} from mongo store ${namespace}`);
-        });
+      try {
+        await ensureCollection()
+          .then(c => c.deleteOne({ _id: key }, writeOptions))
+          .then(() => {
+            if (useLocalCache) {
+              delete localCache[key];
+            }
+          });
+      } catch (err: any) {
+        throw storeErr(err, `Error deleting key ${key} from mongo store ${namespace}`);
+      }
     },
     ttl: async (key: string) => {
-      const res =
-        getFromLocalCache(key) ||
-        (await ensureCollection()
-          .then(c => c.findOne({ _id: key }, readOptions))
-          .catch(e => {
-            log.atError().withCause(e).log(`Error getting key ${key} from mongo store ${namespace}`);
-          }));
-      return res
-        ? res.expireAt
-          ? Math.max(Math.floor((res.expireAt.getTime() - new Date().getTime()) / 1000), 0)
-          : -1
-        : -2;
+      try {
+        const res =
+          getFromLocalCache(key) || (await ensureCollection().then(c => c.findOne({ _id: key }, readOptions)));
+        return res
+          ? res.expireAt
+            ? Math.max(Math.floor((res.expireAt.getTime() - new Date().getTime()) / 1000), 0)
+            : -1
+          : -2;
+      } catch (err: any) {
+        throw storeErr(err, `Error getting key ${key} from mongo store ${namespace}`);
+      }
     },
   };
 };

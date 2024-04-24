@@ -1,4 +1,4 @@
-import { getLog, LogLevel, sanitize, stopwatch } from "juava";
+import { getLog, LogLevel, parseNumber, sanitize, stopwatch } from "juava";
 import { Isolate, ExternalCopy, Reference, Module, Context } from "isolated-vm";
 import { EventContext, FuncReturn, Store, TTLStore, FetchOpts } from "@jitsu/protocols/functions";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
@@ -17,6 +17,7 @@ import { functionsLibCode, chainWrapperCode } from "./lib/udf-wrapper-code";
 import { parseUserAgent } from "./lib/ua";
 import { RetryError } from "@jitsu/functions-lib";
 import { JitsuFunctionWrapper } from "./lib";
+import { clearTimeout } from "node:timers";
 
 const log = getLog("udf-wrapper");
 
@@ -51,7 +52,7 @@ export const UDFWrapper = (
   let context: Context;
   let refs: Reference[] = [];
   try {
-    isolate = new Isolate({ memoryLimit: 128 });
+    isolate = new Isolate({ memoryLimit: 64 });
     context = isolate.createContextSync();
     const jail = context.global;
 
@@ -204,6 +205,12 @@ function wrap(connectionId: string, isolate: Isolate, context: Context, wrapper:
     }
     const eventCopy = new ExternalCopy(event);
     const ctxCopy = new ExternalCopy(ctx);
+    const udfTimeoutMs = parseNumber(process.env.UDF_TIMEOUT_MS, 5000);
+    let isTimeout = false;
+    const timer = setTimeout(() => {
+      isTimeout = true;
+      isolate.dispose();
+    }, udfTimeoutMs);
     try {
       const res = await ref.apply(
         undefined,
@@ -230,7 +237,15 @@ function wrap(connectionId: string, isolate: Isolate, context: Context, wrapper:
     } catch (e: any) {
       //console.error(e);
       if (isolate.isDisposed) {
-        throw new Error("Isolate is disposed");
+        if (isTimeout) {
+          throw new RetryError(`Function execution took longer than ${udfTimeoutMs}ms. Isolate is disposed`, {
+            drop: true,
+          });
+        } else {
+          throw new RetryError(`Function execution stopped probably due to high memory usage. Isolate is disposed.`, {
+            drop: true,
+          });
+        }
       }
       const m = e.message;
       if (m.startsWith("{")) {
@@ -238,6 +253,8 @@ function wrap(connectionId: string, isolate: Isolate, context: Context, wrapper:
       }
       //log.atInfo().log(`ERROR name: ${e.name} message: ${e.message} json: ${e.stack}`);
       throw e;
+    } finally {
+      clearTimeout(timer);
     }
   };
   return {
@@ -246,7 +263,9 @@ function wrap(connectionId: string, isolate: Isolate, context: Context, wrapper:
       try {
         if (isolate) {
           context.release();
-          isolate.dispose();
+          if (!isolate.isDisposed) {
+            isolate.dispose();
+          }
           log.atInfo().log(`[${connectionId}] isolate closed.`);
         }
       } catch (e) {
