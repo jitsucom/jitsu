@@ -31,6 +31,7 @@ export type logType = {
 
 export type UDFWrapperResult = {
   userFunction: JitsuFunctionWrapper;
+  isDisposed: () => boolean;
   close: () => void;
 };
 
@@ -52,7 +53,7 @@ export const UDFWrapper = (
   let context: Context;
   let refs: Reference[] = [];
   try {
-    isolate = new Isolate({ memoryLimit: 128 });
+    isolate = new Isolate({ memoryLimit: 64 });
     context = isolate.createContextSync();
     const jail = context.global;
 
@@ -172,6 +173,9 @@ export const UDFWrapper = (
       userFunction: () => {
         throw new Error(`Cannot compile function: ${e}`);
       },
+      isDisposed: () => {
+        return false;
+      },
       close: () => {
         try {
           if (isolate) {
@@ -259,6 +263,12 @@ function wrap(connectionId: string, isolate: Isolate, context: Context, wrapper:
   };
   return {
     userFunction,
+    isDisposed: () => {
+      if (isolate) {
+        return isolate.isDisposed;
+      }
+      return true;
+    },
     close: () => {
       try {
         if (isolate) {

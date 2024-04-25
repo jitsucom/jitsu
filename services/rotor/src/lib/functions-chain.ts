@@ -211,15 +211,22 @@ export function buildFunctionChain(
         return await cached.wrapper.userFunction(event, ctx);
       } catch (e: any) {
         if ((e?.message ?? "").includes("Isolate is disposed")) {
-          log.atError().log(`UDF for con:${connection.id} VM was disposed. Reloading`);
-          const wrapper = UDFWrapper(
-            connection.id,
-            chainCtx,
-            funcCtx,
-            udfFuncs.map(f => ({ id: f.id, name: f.name, code: f.code }))
-          );
-          udfCache.set(connection.id, { wrapper, hash });
-          return wrapper.userFunction(event, ctx);
+          // due to async nature other 'thread' could already replace this isolate. So check it
+          if (cached.wrapper.isDisposed()) {
+            log.atError().log(`UDF for con:${connection.id} VM was disposed. Reloading`);
+            const wrapper = UDFWrapper(
+              connection.id,
+              chainCtx,
+              funcCtx,
+              udfFuncs.map(f => ({ id: f.id, name: f.name, code: f.code }))
+            );
+            cached = { wrapper, hash };
+            udfCache.set(connection.id, cached);
+            return wrapper.userFunction(event, ctx);
+          } else {
+            // we have alive isolate now. try again
+            return await cached.wrapper.userFunction(event, ctx);
+          }
         } else {
           throw e;
         }

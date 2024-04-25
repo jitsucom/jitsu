@@ -321,15 +321,11 @@ export const makeFetch =
             event: extra?.event || {},
           }
         : undefined;
-    const controller = new AbortController();
-    setTimeout(() => {
-      controller.abort();
-    }, fetchTimeoutMs);
 
     let internalInit: RequestInit = {
       ...init,
       keepalive: true,
-      signal: controller.signal,
+      signal: AbortSignal.timeout(fetchTimeoutMs),
     };
     let fetchResult: any = undefined;
     try {
