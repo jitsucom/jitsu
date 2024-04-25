@@ -3,6 +3,7 @@ package storages
 import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/utils"
+	"math"
 
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/templates"
@@ -66,7 +67,7 @@ func NewNpmDestination(config *Config) (storage Storage, err error) {
 		Dir:            config.logEventPath,
 		HTTPConfig:     DefaultHTTPConfiguration,
 		QueueFactory:   config.queueFactory,
-		PoolWorkers:    defaultWorkersPoolSize,
+		PoolWorkers:    int(math.Max(defaultWorkersPoolSize, float64(config.streamingThreadsCount))),
 		DebugLogger:    requestDebugLogger,
 		ErrorHandler:   wh.ErrorEvent,
 		SuccessHandler: wh.SuccessEvent,
