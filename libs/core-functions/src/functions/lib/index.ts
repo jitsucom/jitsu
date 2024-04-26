@@ -331,7 +331,7 @@ export const makeFetch =
     try {
       fetchResult = await fetch(url, internalInit);
     } catch (err: any) {
-      if (err.name === "AbortError") {
+      if (err.name === "TimeoutError") {
         err = newError(`Fetch request exceeded timeout ${fetchTimeoutMs}ms and was aborted`, err);
       }
       if (logEnabled) {

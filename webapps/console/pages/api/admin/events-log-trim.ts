@@ -23,7 +23,7 @@ export default createRoute()
                                         timestamp,
                                         row_number() OVER (PARTITION BY actorId, type ORDER BY timestamp desc) rn
                                  from ${metricsSchema}.events_log
-                                 where xor(level = 'error', {withoutErrors:UInt8})) rows
+                                 where timestamp > now() - interval 1 day and xor(level = 'error', {withoutErrors:UInt8})) rows
                            where rn = {eventsLogSize:UInt32}`;
     const deleteQuery: string = `delete
                              from ${metricsSchema}.events_log
