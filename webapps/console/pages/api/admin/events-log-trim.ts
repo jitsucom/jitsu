@@ -38,18 +38,24 @@ export default createRoute()
     const result: any[] = [];
     for (const trimErrors of [false, true]) {
       const sw = stopwatch();
-      const chResult = (await (
-        await clickhouse.query({
-          query: statQuery,
-          query_params: {
-            eventsLogSize: eventsLogSize,
-            withoutErrors: !trimErrors,
-          },
-          clickhouse_settings: {
-            wait_end_of_query: 1,
-          },
-        })
-      ).json()) as any;
+      let chResult: any = {};
+      try {
+        chResult = (await (
+          await clickhouse.query({
+            query: statQuery,
+            query_params: {
+              eventsLogSize: eventsLogSize,
+              withoutErrors: !trimErrors,
+            },
+            clickhouse_settings: {
+              wait_end_of_query: 1,
+            },
+          })
+        ).json()) as any;
+      } catch (e) {
+        log.atError().withCause(e).log(`Failed to load events log stats. (trim errors: ${trimErrors})`);
+        throw e;
+      }
       log
         .atInfo()
         .log(
@@ -106,5 +112,5 @@ export default createRoute()
   })
   .toNextApiHandler();
 export const config = {
-  maxDuration: 300, //5 mins
+  maxDuration: 600, //10 mins
 };
