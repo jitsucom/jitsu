@@ -71,6 +71,7 @@ export default createRoute()
               timestamp: timestamp,
             },
             clickhouse_settings: {
+              wait_end_of_query: 0,
               enable_lightweight_delete: 1,
             },
           });
