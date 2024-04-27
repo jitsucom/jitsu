@@ -563,6 +563,32 @@ function ConnectionEditor({
       ),
     });
   }
+  if (hasZodFields(connectionOptionsZodType, "schemaFreeze") && existingLink) {
+    configItems.push({
+      group: "Advanced",
+      documentation: (
+        <>
+          By default, Jitsu automatically creates table columns for any new properties in events. If your table is
+          already in desired state and you want to control further table schema changes you can enable{" "}
+          <b>Schema Freeze</b>
+          <br />
+          With <b>Schema Freeze</b> enabled Jitsu will no longer apply changes to table schema, but incoming data for
+          any properties that dont have corresponding columns will be stored in <code>_unmapped_data</code> in JSON
+          format.
+        </>
+      ),
+      name: "Schema Freeze",
+      component: (
+        <SwitchComponent
+          className="max-w-xs"
+          value={connectionOptions.schemaFreeze}
+          onChange={sf => {
+            updateOptions({ schemaFreeze: sf });
+          }}
+        />
+      ),
+    });
+  }
   if (hasZodFields(connectionOptionsZodType, "events")) {
     configItems.push({
       documentation: (

@@ -139,6 +139,7 @@ export const BaseBulkerConnectionOptions = z
     dataLayout: z
       .enum(["segment", "jitsu-legacy", "segment-single-table", "passthrough"])
       .default("segment-single-table"),
+    schemaFreeze: z.boolean().default(false),
   })
   .merge(BatchModeOptions)
   .merge(FunctionsConnectionOptions);
