@@ -3,7 +3,7 @@ import { HTTPError, RetryError } from "@jitsu/functions-lib";
 import type { AnalyticsServerEvent, Geo } from "@jitsu/protocols/analytics";
 import { hash } from "juava";
 import { MixpanelCredentials } from "../meta";
-import { eventTimeSafeMs, MetricsMeta } from "./lib";
+import { eventTimeSafeMs, getPageOrScreenProps, MetricsMeta } from "./lib";
 import { randomUUID } from "crypto";
 import zlib from "zlib";
 
@@ -138,6 +138,7 @@ function trackEvent(
     ...utmFromCampaign(analyticsContext.campaign || {}),
     ...(analyticsContext.page || {}),
     ...traits,
+    ...getPageOrScreenProps(event),
     ...(event.properties || {}),
     ...(groupId ? { [groupKey]: groupId } : {}),
     userAgent: analyticsContext.userAgent,

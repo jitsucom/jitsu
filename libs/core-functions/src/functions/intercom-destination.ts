@@ -5,6 +5,7 @@ import { JsonFetcher, jsonFetcher } from "./lib/json-fetch";
 import { isEqual, pick } from "lodash";
 import { requireDefined } from "juava";
 import { RetryError } from "@jitsu/functions-lib";
+import { getPageOrScreenProps } from "./lib";
 
 type ExtendedCtx = FullContext<IntercomDestinationCredentials> & {
   jsonFetch: JsonFetcher;
@@ -351,6 +352,7 @@ const IntercomDestination: JitsuFunction<AnalyticsServerEvent, IntercomDestinati
       user_id: userId || undefined,
       email: email || undefined,
       metadata: {
+        ...getPageOrScreenProps(event),
         ...event.properties,
         url: event.context?.page?.url || undefined,
         eventName: event.name,

@@ -3,7 +3,7 @@ import { RetryError } from "@jitsu/functions-lib";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { randomUUID } from "crypto";
 import { AmplitudeDestinationConfig } from "../meta";
-import { eventTimeSafeMs } from "./lib";
+import { eventTimeSafeMs, getPageOrScreenProps } from "./lib";
 
 const AmplitudeDestination: JitsuFunction<AnalyticsServerEvent, AmplitudeDestinationConfig> = async (
   event,
@@ -95,15 +95,24 @@ const AmplitudeDestination: JitsuFunction<AnalyticsServerEvent, AmplitudeDestina
       if (event.context?.groupId && props.enableGroupAnalytics) {
         groups = { [groupType]: event.context?.groupId };
       }
+      let eventType: string = event.type;
+      switch (event.type) {
+        case "page":
+          eventType = "pageview";
+          break;
+        case "track":
+          eventType = event.event || "Unknown Event";
+          break;
+      }
       payload = {
         api_key: props.key,
         events: [
           {
             time: eventTimeSafeMs(event),
             insert_id: event.messageId || randomUUID(),
-            event_type: event.type === "page" ? "pageview" : event.event || event.name || "Unknown Event",
+            event_type: eventType,
             session_id: sessionId || -1,
-            event_properties: event.properties,
+            event_properties: { ...getPageOrScreenProps(event), ...event.properties },
             groups,
             user_properties: event.context?.traits,
             user_id: event.userId,

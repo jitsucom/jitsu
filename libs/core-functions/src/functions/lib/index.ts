@@ -183,6 +183,16 @@ const knownPageProps: Record<keyof Required<PageReservedProps>, true> = {
   url: true,
 };
 
+// returns page name or screen name as part of properties object
+export function getPageOrScreenProps(event: AnalyticsServerEvent) {
+  if ((event.type === "page" || event.type === "screen") && event.name) {
+    return {
+      [event.type + "_name"]: event.name,
+    };
+  }
+  return {};
+}
+
 export function getEventCustomProperties(
   event: AnalyticsServerEvent,
   opts?: { exclude?: (obj: Record<string, any>) => void }

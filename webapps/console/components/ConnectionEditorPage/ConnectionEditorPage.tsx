@@ -573,8 +573,8 @@ function ConnectionEditor({
           <b>Schema Freeze</b>
           <br />
           With <b>Schema Freeze</b> enabled Jitsu will no longer apply changes to table schema, but incoming data for
-          any properties that dont have corresponding columns will be stored in <code>_unmapped_data</code> in JSON
-          format.
+          any properties that don't have corresponding columns will be stored in <code>_unmapped_data</code> column in
+          JSON format.
         </>
       ),
       name: "Schema Freeze",
