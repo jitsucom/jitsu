@@ -34,7 +34,7 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
                 max(started_at) as "lastSync"
             from newjitsu.source_task task
                  join newjitsu."ConfigurationObjectLink" sync on task.sync_id = sync."id"
-            where task.status = 'SUCCESS' OR task.status = 'PARTIAL' and "workspaceId" = :workspaceId
+            where (task.status = 'SUCCESS' OR task.status = 'PARTIAL') and "workspaceId" = :workspaceId
               and started_at > now() - interval '24 hour'
             and deleted = false
             group by "workspaceId";`,
