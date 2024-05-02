@@ -138,7 +138,7 @@ export async function docker(dir: string | undefined, args: DockerArgs): Promise
     console.log(`Pushing git tag ${gitTag}...`);
     await git.addTag(gitTag);
     try {
-      await git.pushTags([gitTag]);
+      await git.pushTags("origin", [gitTag]);
     } catch (e: any) {
       throw new Error(`Failed to push git tag ${gitTag}: ${e.message}`);
     }
