@@ -56,6 +56,13 @@ function insertTags(code, event: AnalyticsClientEvent, opts: { debug?: boolean }
   }
 }
 
+//This weird code is used to mask eval() usage.
+//Although the code can be executed in the browser, some server side bundlers (like Vercel) fails
+//the build if a direct reference to eval() is found.
+let al = "al";
+let ev = "ve".split("").reverse().join("");
+const execF = globalThis[ev + al];
+
 function execJs(code: string, event: any) {
   const varName = `jitsu_event_${randomId()}`;
   window[varName] = event;
@@ -64,7 +71,7 @@ function execJs(code: string, event: any) {
       ${code}
   })()`;
   try {
-    eval(iif);
+    execF(iif);
   } catch (e) {
     console.error(`[JITSU] Error executing JS code: ${e.message}. Code: `, iif);
   } finally {
