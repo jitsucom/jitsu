@@ -12,7 +12,13 @@ import { WLink } from "../Workspace/WLink";
 import { DestinationTitle } from "../../pages/[workspaceId]/destinations";
 import ExternalLink from "../Icons/ExternalLink";
 import { AnalyticsContext, AnalyticsServerEvent, Geo as aGeo } from "@jitsu/protocols/analytics";
-import Icon, { GlobalOutlined, LinkOutlined, QuestionCircleOutlined, UserOutlined } from "@ant-design/icons";
+import Icon, {
+  GlobalOutlined,
+  LinkOutlined,
+  QuestionCircleOutlined,
+  UserOutlined,
+  WarningOutlined,
+} from "@ant-design/icons";
 import { get, getConfigApi, useEventsLogApi } from "../../lib/useApi";
 import { FunctionTitle } from "../../pages/[workspaceId]/functions";
 import { DestinationConfig, FunctionConfig, ServiceConfig, StreamConfig } from "../../lib/schema";
@@ -1018,7 +1024,7 @@ export const Geo: React.FC<{ geo?: aGeo }> = ({ geo }) => {
   if (geo?.country?.code) {
     const flag = countries[geo.country.code]?.flag;
     if (!flag) {
-      return <Flag />;
+      return <></>;
     }
     return (
       <Tooltip
@@ -1048,7 +1054,7 @@ export const Geo: React.FC<{ geo?: aGeo }> = ({ geo }) => {
       </Tooltip>
     );
   }
-  return <Flag />;
+  return <></>;
 };
 
 type IncomingEvent = {
@@ -1206,6 +1212,19 @@ const IncomingEventsTable = ({ loadEvents, loading, streamType, entityType, acto
       ellipsis: true,
       key: "summary",
       render: (d: IncomingEvent) => {
+        if (d.status == "SKIPPED" || d.status == "FAILED") {
+          return (
+            <div className={"flex flex-row"}>
+              <Tag
+                color={d.status == "SKIPPED" ? "orange" : "error"}
+                icon={<WarningOutlined />}
+                className={"whitespace-nowrap"}
+              >
+                {d.error}
+              </Tag>
+            </div>
+          );
+        }
         return (
           <div className={"flex flex-row"}>
             <Geo geo={d.context?.geo} />
