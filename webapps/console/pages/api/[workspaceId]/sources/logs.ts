@@ -8,6 +8,7 @@ dayjs.extend(utc);
 import { getServerLog } from "../../../../lib/server/log";
 
 const log = getServerLog("sync-logs");
+const maxResponseSize = 4500000;
 
 export default createRoute()
   .GET({
@@ -34,22 +35,25 @@ export default createRoute()
       });
     }
     try {
-      let lines = 0;
+      let writtenBytes = 0;
       db.prisma().$queryRaw;
       await db.pgHelper().streamQuery(
         `select tl.*
                                 from newjitsu.task_log tl join newjitsu."ConfigurationObjectLink" link on tl.sync_id = link.id
                                 where task_id = :task_id and link."workspaceId" = :workspace_id
-                                order by timestamp`,
+                                order by timestamp desc`,
         { task_id: query.taskId, workspace_id: workspaceId },
         r => {
-          lines++;
-          res.write(
-            `${dayjs(r.timestamp).utc().format("YYYY-MM-DD HH:mm:ss.SSS")} ${r.level} [${r.logger}] ${r.message}\n`
-          );
+          const line = `${dayjs(r.timestamp).utc().format("YYYY-MM-DD HH:mm:ss.SSS")} ${r.level} [${r.logger}] ${
+            r.message
+          }\n`;
+          if (writtenBytes + line.length < maxResponseSize) {
+            res.write(line);
+            writtenBytes += line.length;
+          }
         }
       );
-      if (lines === 0) {
+      if (writtenBytes === 0) {
         const task = await db.prisma().source_task.findFirst({ where: { task_id: query.taskId } });
         if (!task || task.status === "RUNNING") {
           res.write("The task is starting...");

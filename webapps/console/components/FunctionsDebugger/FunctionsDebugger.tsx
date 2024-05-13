@@ -221,7 +221,7 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
             {
               level: "info",
               type: "log",
-              message: `Further processing will be SKIPPED. Function returned: ${JSON.stringify(result)}`,
+              message: `Further processing will be SKIPPED. Function returned: ${JSON.stringify(res.result)}`,
               timestamp: new Date(),
             },
           ]);

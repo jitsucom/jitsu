@@ -63,7 +63,7 @@ function TaskLogs() {
 
   useEffect(() => {
     if (data) {
-      setDisplayText(data);
+      setDisplayText(data.split("\n").reverse().join("\n"));
     }
   }, [data]);
 
