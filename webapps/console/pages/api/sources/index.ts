@@ -60,9 +60,25 @@ const JitsuMongoDBSource: SourceType = {
   updatedAt: new Date(),
 };
 
+const JitsuAttioSource: SourceType = {
+  id: "jitsu-attio-source",
+  logoSvg: `<svg xmlns="http://www.w3.org/2000/svg" height="100%" width="100%" viewBox="0 2 30 30" fill="none"><path fill="black" d="m29.754 22.362-2.512-4.02s-.009-.017-.015-.024l-.198-.316a2.03 2.03 0 0 0-1.726-.96l-4.046-.014-.282.453-4.835 7.736-.267.428L17.9 28.88c.374.602 1.02.961 1.732.961h5.67c.699 0 1.36-.368 1.73-.959l.2-.32s.008-.008.01-.012l2.515-4.025a2.045 2.045 0 0 0 0-2.164h-.002Zm-.766 1.683-2.516 4.025c-.01.02-.024.034-.035.05a.34.34 0 0 1-.544-.05l-2.515-4.027a1.116 1.116 0 0 1-.13-.29 1.127 1.127 0 0 1 .127-.908l2.512-4.02.006-.01c.06-.09.135-.131.2-.144.026-.008.049-.01.067-.013h.028c.058 0 .202.018.292.164l2.511 4.02c.23.366.23.837 0 1.203h-.003ZM22.322 12.636a2.053 2.053 0 0 0 0-2.164l-2.512-4.02-.21-.338a2.031 2.031 0 0 0-1.732-.959h-5.67c-.707 0-1.354.36-1.731.96L.314 22.366a2.03 2.03 0 0 0-.002 2.162l2.723 4.359a2.026 2.026 0 0 0 1.73.959h5.67c.712 0 1.358-.36 1.732-.96l.208-.33v-.004l.003-.007 2.024-3.237 5.999-9.6 1.917-3.07.004-.001Zm-.593-1.082c0 .207-.058.416-.175.601l-9.946 15.918a.34.34 0 0 1-.291.16.342.342 0 0 1-.292-.16l-2.513-4.027a1.141 1.141 0 0 1 0-1.202l9.945-15.913a.339.339 0 0 1 .292-.163c.058 0 .202.017.293.164l2.512 4.02c.117.185.175.394.175.602Z"></path></svg>`,
+  versions: `/api/sources/versions?type=airbyte&package=jitsucom%2Fsource-attio`,
+  packageId: "jitsucom/source-attio",
+  packageType: "airbyte",
+  meta: {
+    name: "Attio",
+    license: "MIT",
+    connectorSubtype: "api",
+  },
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
+
 export const jitsuSources: Record<string, SourceType> = {
   "jitsucom/source-firebase": JitsuFirebaseSource,
   "jitsucom/source-mongodb": JitsuMongoDBSource,
+  "jitsucom/source-attio": JitsuAttioSource,
 };
 
 export const popularConnectors: string[] = [
