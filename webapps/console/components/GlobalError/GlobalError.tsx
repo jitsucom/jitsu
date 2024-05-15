@@ -100,6 +100,33 @@ function maxLen(str: string, maxLen = 200) {
   return str.length <= maxLen - 2 ? str : str.substring(0, maxLen) + "...";
 }
 
+export function SimpleErrorCard(props: { error?: any; title?: string }) {
+  const title = props.title || (props.error ? maxLen(getErrorMessage(props.error), 60) : "Error");
+  const description = (
+    <>
+      {getErrorMessage(props.error) ||
+        `We encountered an error processing your request. Please try refreshing the page, or logging
+        out and back in. If the problem persists, please contact support.`}
+    </>
+  );
+  return (
+    <div
+      className="max-w-screen-md  px-6 py-4 border border-error/20 rounded-xl bg-error/5 w-full overflow-auto mx-auto"
+      style={{ maxHeight: "80vh", maxWidth: "90vw" }}
+    >
+      <div className="text-error text-lg flex items-center">
+        <div className="flex items-center">
+          <FaExclamationCircle className="h-4 w-4 mr-2" />
+          {title}
+        </div>
+      </div>
+      <div className="pl-6 text-sm text-error font-light">
+        <div>{description}</div>
+      </div>
+    </div>
+  );
+}
+
 export function ErrorCard(props: { error?: any; title?: string; hideActions?: boolean; children?: ReactNode }) {
   const title = props.title || (props.error ? maxLen(getErrorMessage(props.error), 60) : "Error");
   const description = (

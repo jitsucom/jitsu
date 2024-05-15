@@ -18,7 +18,7 @@ import hash from "stable-hash";
 import { DestinationTitle } from "../../pages/[workspaceId]/destinations";
 import { ServiceTitle } from "../../pages/[workspaceId]/services";
 import { SwitchComponent } from "../ConnectionEditorPage/ConnectionEditorPage";
-import { ErrorCard } from "../GlobalError/GlobalError";
+import { SimpleErrorCard } from "../GlobalError/GlobalError";
 import { LabelEllipsis } from "../LabelEllipsis/LabelEllipsis";
 import { createDisplayName } from "../../lib/zod";
 import xor from "lodash/xor";
@@ -699,9 +699,8 @@ function SyncEditor({
         key: "streams",
         component: (
           <div className={"pl-4 pr-2"}>
-            <ErrorCard
+            <SimpleErrorCard
               title={"Failed to load catalog"}
-              hideActions={true}
               error={{ message: catalogError || "Unknown error. Please contact support." }}
             />
           </div>
