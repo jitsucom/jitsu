@@ -1245,7 +1245,7 @@ const IncomingEventsTable = ({ loadEvents, loading, streamType, entityType, acto
             {d.userId && !d.email && (
               <Tooltip title={"User ID"}>
                 <Tag color={"green"} icon={<UserOutlined />} className={"whitespace-nowrap"}>
-                  {d.userId}
+                  {d.userId.toString()}
                 </Tag>
               </Tooltip>
             )}
@@ -1259,7 +1259,7 @@ const IncomingEventsTable = ({ loadEvents, loading, streamType, entityType, acto
             {!d.userId && d.anonymousId && (
               <Tooltip title={"Anonymous ID"}>
                 <Tag icon={<QuestionCircleOutlined />} className={"whitespace-nowrap"}>
-                  {d.anonymousId}
+                  {d.anonymousId.toString()}
                 </Tag>
               </Tooltip>
             )}
