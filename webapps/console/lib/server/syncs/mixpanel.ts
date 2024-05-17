@@ -204,8 +204,10 @@ export const mixpanelFacebookAdsSync: SyncFunction<AnyProps, FacebookCredentials
         };
         mixpanelMessages.push(mixPanelMessage);
       }
-      await log.info(`Sending ${mixpanelMessages.length} rows to mixpanel`);
-      await sendMixpanelMessage(destination, mixpanelMessages);
+      if (mixpanelMessages.length > 0) {
+        await log.info(`Sending ${mixpanelMessages.length} rows to mixpanel`);
+        await sendMixpanelMessage(destination, mixpanelMessages);
+      }
       if (!nextPageUrl) {
         break;
       }
