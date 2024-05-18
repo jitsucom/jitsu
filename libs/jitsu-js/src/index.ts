@@ -64,9 +64,9 @@ function createUnderlyingAnalyticsInstance(
     },
     reset() {
       for (const key of [...Object.keys(storageCache)]) {
-        storage.removeItem(key);
         delete storageCache[key];
       }
+      storage.reset();
     },
     removeItem(key: string) {
       if (opts.debug) {
@@ -132,6 +132,16 @@ function createUnderlyingAnalyticsInstance(
         userState.anonymousId = id;
       }
       (analytics as any).setAnonymousId(id);
+    },
+    async reset() {
+      if (opts.debug) {
+        console.log("[JITSU DEBUG] Called reset(). Storage state", storage);
+      }
+      storage.reset();
+      await analytics.reset();
+      if (opts.debug) {
+        console.log("[JITSU DEBUG] User state after reset", JSON.stringify(analytics.user()));
+      }
     },
     async group(
       groupId?: ID,

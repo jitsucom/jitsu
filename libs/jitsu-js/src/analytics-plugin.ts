@@ -10,6 +10,7 @@ import { internalDestinationPlugins } from "./destination-plugins";
 import { jitsuLibraryName, jitsuVersion } from "./version";
 import { getTopLevelDomain } from "./tlds";
 import * as jsondiffpatch from "jsondiffpatch";
+import config from "../playwrite.config";
 
 const diff = jsondiffpatch.create();
 
@@ -171,6 +172,9 @@ const cookieStorage: StorageFactory = (cookieDomain, key2cookie) => {
     removeItem(key: string) {
       removeCookie(key2cookie[key] || key);
     },
+    reset() {
+      Object.values(key2cookie).forEach(removeCookie);
+    },
   };
 };
 
@@ -244,6 +248,9 @@ export const emptyRuntime = (config: JitsuOptions): RuntimeFacade => ({
   store(): PersistentStorage {
     const storage = {};
     return {
+      reset(): void {
+        Object.keys(storage).forEach(key => delete storage[key]);
+      },
       setItem(key: string, val: any) {
         if (config.debug) {
           console.log(`[JITSU EMPTY RUNTIME] Set storage item ${key}=${JSON.stringify(val)}`);
@@ -262,7 +269,7 @@ export const emptyRuntime = (config: JitsuOptions): RuntimeFacade => ({
           console.log(`[JITSU EMPTY RUNTIME] Get storage item ${key}=${storage[key]}`);
         }
         delete storage[key];
-      },
+      }
     };
   },
   language() {
@@ -610,17 +617,20 @@ async function send(
         jitsuConfig.debug ? JSON.stringify(responseJson.destinations, null, 2) : undefined
       );
     } else {
-      if (jitsuConfig.debug) {
-        console.log(`[JITSU] Processing device destinations: `, JSON.stringify(responseJson.destinations, null, 2));
+      //double protection, injest should not return destinations in s2s mode
+      if (typeof window !== "undefined") {
+        if (jitsuConfig.debug) {
+          console.log(`[JITSU] Processing device destinations: `, JSON.stringify(responseJson.destinations, null, 2));
+        }
+        return processDestinations(responseJson.destinations, method, adjustedPayload, !!jitsuConfig.debug, instance);
       }
-      return processDestinations(responseJson.destinations, method, adjustedPayload, !!jitsuConfig.debug, instance);
     }
   }
   return adjustedPayload;
 }
 
 export type JitsuPluginConfig = JitsuOptions & {
-  storageWrapper?: (persistentStorage: PersistentStorage) => PersistentStorage & { reset: () => void };
+  storageWrapper?: (persistentStorage: PersistentStorage) => PersistentStorage;
 };
 const jitsuAnalyticsPlugin = (pluginConfig: JitsuPluginConfig = {}): AnalyticsPlugin => {
   const instanceConfig = {
@@ -672,9 +682,11 @@ const jitsuAnalyticsPlugin = (pluginConfig: JitsuPluginConfig = {}): AnalyticsPl
       return send("identify", payload, config, instance, storage);
     },
     reset: args => {
-      //clear storage cache
-      if (pluginConfig.storageWrapper) {
-        pluginConfig.storageWrapper(args.instance.storage).reset();
+      const { config, instance } = args;
+      const storage = pluginConfig.storageWrapper ? pluginConfig.storageWrapper(instance.storage) : instance.storage;
+      storage?.reset()
+      if (config.debug) {
+        console.log("[JITSU DEBUG] Resetting Jitsu plugin storage");
       }
     },
     methods: {
