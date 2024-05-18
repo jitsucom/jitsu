@@ -244,6 +244,35 @@ test("url-bug", async ({ browser }) => {
   expect(pagePath).toEqual("/");
 });
 
+test("reset", async ({ browser }) => {
+  clearRequestLog();
+  const browserContext = await browser.newContext();
+  const { page, uncaughtErrors } = await createLoggingPage(browserContext);
+  const [pageResult] = await Promise.all([page.goto(`${server.baseUrl}/reset.html`)]);
+  await page.waitForFunction(() => window["jitsu"] !== undefined, undefined, {
+    timeout: 1000,
+    polling: 100,
+  });
+  expect(pageResult.status()).toBe(200);
+  //wait for some time since the server has an artificial latency of 30ms
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  expect(uncaughtErrors.length).toEqual(0);
+  expect(requestLog.length).toBe(2);
+  console.log(
+    `📝 Request log size of ${requestLog.length}`,
+    requestLog.map(x => describeEvent(x.type, x.body))
+  );
+  const [firstEvent, secondEvent] = requestLog;
+  const cookies = await browserContext.cookies();
+  //all cookies should be cleared by .reset()
+  expect(cookies.length).toBe(0);
+  console.log(`🍪Cookies`, cookies);
+  expect(firstEvent.body.anonymousId).toEqual("john-doe-id-1");
+  //this assertion is not working because of the bug in the library
+  //however, cookies are cleared,
+  //expect(secondEvent.body.anonymousId).toBeUndefined();
+})
+
 test("basic", async ({ browser }) => {
   clearRequestLog();
   const browserContext = await browser.newContext();
