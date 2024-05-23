@@ -333,6 +333,7 @@ export async function UDFTestRun({
       geo: {
         country: {
           code: "US",
+          name: "United States",
           isEU: false,
         },
         city: {

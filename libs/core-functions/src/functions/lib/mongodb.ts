@@ -8,6 +8,7 @@ const AnonymousEventsStoreIdField = "_jitsu_anonymous_id_";
 const log = getLog("mongodb");
 
 export const mongodb = getSingleton<MongoClient>("mongodb", createClient, {
+  errorTtlSec: 5,
   cleanupFunc: async (client: MongoClient) => {
     await client.close();
   },
