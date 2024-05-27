@@ -257,7 +257,7 @@ export const makeLog = (connectionId: string, eventsStore: EventsStore) => ({
   },
   warn: (ctx: FunctionContext, message: any, ...args: any[]) => {
     const fid = ctx.function.id;
-    log.atWarn().log(`[CON:${connectionId}]: [f:${fid}][WARN]: ${message}`, ...args);
+    log.atDebug().log(`[CON:${connectionId}]: [f:${fid}][WARN]: ${message}`, ...args);
     eventsStore.log(connectionId, "warn", {
       type: "log-warn",
       functionId: fid,
@@ -279,7 +279,7 @@ export const makeLog = (connectionId: string, eventsStore: EventsStore) => ({
         args,
       },
     });
-    const l = log.atError();
+    const l = log.atDebug();
     if (args?.length > 0) {
       const last = args[args.length - 1];
       if (last.stack) {
@@ -291,7 +291,7 @@ export const makeLog = (connectionId: string, eventsStore: EventsStore) => ({
   },
   info: (ctx: FunctionContext, message: any, ...args: any[]) => {
     const fid = ctx.function.id;
-    log.atInfo().log(`[CON:${connectionId}]: [f:${fid}][INFO]: ${message}`, ...args);
+    log.atDebug().log(`[CON:${connectionId}]: [f:${fid}][INFO]: ${message}`, ...args);
     eventsStore.log(connectionId, "info", {
       type: "log-info",
       functionId: fid,
