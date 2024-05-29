@@ -507,6 +507,7 @@ export async function scheduleSync({
           //v2 multi-stream states
           stateObj = stateRows
             .filter(r => r.stream !== "_LEGACY_STATE" && r.stream != "_GLOBAL_STATE")
+            .filter(r => ((sync.data as any).streams || {})[r.stream]?.sync_mode !== "full_refresh")
             .map(r => {
               const descr = r.stream.split(".");
               let namespace: string | undefined = undefined;
