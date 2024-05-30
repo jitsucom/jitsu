@@ -257,18 +257,25 @@ test("reset", async ({ browser }) => {
   //wait for some time since the server has an artificial latency of 30ms
   await new Promise(resolve => setTimeout(resolve, 1000));
   expect(uncaughtErrors.length).toEqual(0);
-  expect(requestLog.length).toBe(2);
+  expect(requestLog.length).toBe(3);
   console.log(
     `📝 Request log size of ${requestLog.length}`,
     requestLog.map(x => describeEvent(x.type, x.body))
   );
-  const [firstEvent, secondEvent] = requestLog;
+  const [identifyEvent, firstTrack, secondTrack] = requestLog;
+  expect(firstTrack.body.anonymousId).toEqual("john-doe-id-1");
+
   const cookies = await browserContext.cookies();
   //all cookies should be cleared by .reset()
-  expect(cookies.length).toBe(0);
+  expect(cookies.length).toBe(1);
+  expect(cookies[0].name).toEqual("__eventn_id");
+  const newAnonymousId = cookies[0].value;
   console.log(`🍪Cookies`, cookies);
-  expect(firstEvent.body.anonymousId).toEqual("john-doe-id-1");
-  expect(secondEvent.body.anonymousId).toBeNull();
+
+  expect(secondTrack.body.anonymousId).not.toBeNull();
+  expect(secondTrack.body.anonymousId).toBeDefined();
+  expect(secondTrack.body.anonymousId).toEqual(newAnonymousId);
+  expect(secondTrack.body.anonymousId).not.toEqual("john-doe-id-1");
 });
 
 test("basic", async ({ browser }) => {
