@@ -133,8 +133,8 @@ function getUserProperties(event: AnalyticsServerEvent): Record<string, any> {
   return userProperties;
 }
 
-function getClientId(event: AnalyticsServerEvent): string | null | undefined {
-  return event.context?.clientIds?.ga4?.clientId || event.anonymousId;
+function getClientId(event: AnalyticsServerEvent): string | undefined {
+  return event.context?.clientIds?.ga4?.clientId || event.anonymousId || undefined;
 }
 
 function getFirebaseAppInstanceId(event: AnalyticsServerEvent): string | undefined {
