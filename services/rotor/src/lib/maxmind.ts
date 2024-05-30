@@ -107,6 +107,7 @@ export async function initMaxMindClient(licenseKey: string): Promise<GeoResolver
                 country: geo.country
                   ? {
                       code: geo.country.isoCode,
+                      name: geo.country.names.en,
                       isEU: !!geo.country.isInEuropeanUnion,
                     }
                   : undefined,
@@ -131,6 +132,7 @@ export async function initMaxMindClient(licenseKey: string): Promise<GeoResolver
                   ? {
                       latitude: geo.location.latitude,
                       longitude: geo.location.longitude,
+                      timezone: geo.location.timeZone,
                       accuracyRadius: geo.location.accuracyRadius,
                       ...(geo?.country?.isoCode === "US"
                         ? {

@@ -1,6 +1,7 @@
-import { jitsuLegacy, MappedEvent, segmentLayout } from "../src/functions/bulker-destination";
+import { BulkerDestinationConfig, jitsuLegacy, MappedEvent, segmentLayout } from "../src/functions/bulker-destination";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import type { Event as JitsuLegacyEvent } from "@jitsu/sdk-js";
+import { FullContext } from "@jitsu/protocols/functions";
 
 const identify: AnalyticsServerEvent = {
   writeKey: "writeKey",
@@ -66,6 +67,7 @@ const legacyIdentifyExpected: Omit<JitsuLegacyEvent, "local_tz_offset"> & { loca
   src: "jitsu",
   url: "https://localhost:3088/basic.html?utm_source=source&utm_medium=medium&utm_campaign=campaign",
   user: {
+    anonymous_id: "6638caf0-d2c2-4bc0-aecf-8b290b559a37",
     id: "userId2",
     email: "john.doe2@gmail.com",
     case_name: "basic-identify",
@@ -81,6 +83,7 @@ const legacyIdentifyExpected: Omit<JitsuLegacyEvent, "local_tz_offset"> & { loca
     name: "campaign",
     source: "source",
   },
+  screen_resolution: "1280x720",
   vp_size: "1280x720",
 };
 
@@ -154,6 +157,7 @@ const legacyPageExpected = {
   src: "jitsu",
   url: "https://localhost:3088/basic.html?utm_source=source&utm_medium=medium&utm_campaign=campaign",
   user: {
+    anonymous_id: "6638caf0-d2c2-4bc0-aecf-8b290b559a37",
     id: "userId2",
     email: "john.doe3@gmail.com",
     case_name: "identify-without-user-id",
@@ -169,12 +173,13 @@ const legacyPageExpected = {
     name: "campaign",
     source: "source",
   },
+  screen_resolution: "1280x720",
   vp_size: "1280x720",
 };
 
 test("legacy event", () => {
-  const identifyLegacyResult = jitsuLegacy(identify).event;
-  const pageLegacyResult = jitsuLegacy(page).event;
+  const identifyLegacyResult = jitsuLegacy(identify, {} as FullContext<BulkerDestinationConfig>).event;
+  const pageLegacyResult = jitsuLegacy(page, {} as FullContext<BulkerDestinationConfig>).event;
   console.log(JSON.stringify(identifyLegacyResult, null, 2));
   expect(identifyLegacyResult).toStrictEqual(legacyIdentifyExpected);
 

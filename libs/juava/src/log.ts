@@ -36,21 +36,23 @@ export function setServerJsonFormat(enableJson: boolean) {
 export function getLog(_opts?: LoggerOpts | string): LogFactory {
   const opts = typeof _opts === "string" ? { component: _opts } : _opts || {};
   const { level, component = getComponent() } = opts;
+  const minSeverity = levelSeverities[level || globalLogLevel || "info"];
   return {
     atDebug(): LogMessageBuilder {
-      const minSeverity = levelSeverities[level || globalLogLevel || "info"];
       return minSeverity <= levelSeverities.debug ? logMessageBuilder(component, "debug") : noopLogMessageBuilder;
     },
+    inDebug(cb: (l: LogMessageBuilder) => void) {
+      if (minSeverity <= levelSeverities.debug) {
+        cb(logMessageBuilder(component, "debug"));
+      }
+    },
     atError(): LogMessageBuilder {
-      const minSeverity = levelSeverities[level || globalLogLevel || "info"];
       return minSeverity <= levelSeverities.error ? logMessageBuilder(component, "error") : noopLogMessageBuilder;
     },
     atInfo(): LogMessageBuilder {
-      const minSeverity = levelSeverities[level || globalLogLevel || "info"];
       return minSeverity <= levelSeverities.info ? logMessageBuilder(component, "info") : noopLogMessageBuilder;
     },
     atWarn(): LogMessageBuilder {
-      const minSeverity = levelSeverities[level || globalLogLevel || "info"];
       return minSeverity <= levelSeverities.warn ? logMessageBuilder(component, "warn") : noopLogMessageBuilder;
     },
     at(level: string): LogMessageBuilder {
@@ -179,6 +181,7 @@ export type LogFactory = {
   atWarn(): LogMessageBuilder;
   atError(): LogMessageBuilder;
   atDebug(): LogMessageBuilder;
+  inDebug(cb: (l: LogMessageBuilder) => void): void;
   at(level: string): any;
 };
 

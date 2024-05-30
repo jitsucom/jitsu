@@ -2,12 +2,13 @@
 
 cancel_healthcheck="0"
 inited="0"
+export CONSOLE_INIT_TOKEN=$RANDOM$RANDOM$RANDOM$RANDOM
 export my_pid=$$
 
 init() {
   if [ "$inited" = "0" ]; then
     inited="1"
-    curl --silent --output nul --show-error -H "Authorization: Bearer service-admin-account:$CONSOLE_RAW_AUTH_TOKENS" http://$(hostname -f):3000/api/admin/events-log-init
+    curl --silent --output nul --show-error  http://$(hostname -f):3000/api/admin/events-log-init?token=$CONSOLE_INIT_TOKEN
   fi
 }
 

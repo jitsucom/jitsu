@@ -1,4 +1,4 @@
-import { JitsuFunction } from "@jitsu/protocols/functions";
+import { FullContext, JitsuFunction, UserAgent } from "@jitsu/protocols/functions";
 import { HTTPError, RetryError } from "@jitsu/functions-lib";
 import { AnalyticsServerEvent, DataLayoutType } from "@jitsu/protocols/analytics";
 
@@ -11,7 +11,10 @@ export type MappedEvent = {
   event: any;
   table: string;
 };
-export type DataLayoutImpl<T> = (event: AnalyticsServerEvent) => MappedEvent[] | MappedEvent;
+export type DataLayoutImpl<T> = (
+  event: AnalyticsServerEvent,
+  ctx: FullContext<BulkerDestinationConfig>
+) => MappedEvent[] | MappedEvent;
 
 function anonymizeIp(ip: string | undefined) {
   if (!ip) {
@@ -51,52 +54,95 @@ export function removeUndefined(param: any): any {
   }
 }
 
-export function jitsuLegacy(event: AnalyticsServerEvent): MappedEvent {
+export function jitsuLegacy(event: AnalyticsServerEvent, ctx: FullContext<BulkerDestinationConfig>): MappedEvent {
   let url: URL | undefined = undefined;
-  const urlStr = event.context.page?.url || event.properties?.url;
+  const analyticsContext = event.context || {};
+  const urlStr = analyticsContext.page?.url || event.properties?.url;
   try {
     if (urlStr) {
       url = new URL(urlStr as string);
     }
   } catch (e) {}
-
+  const geo = analyticsContext.geo || {};
+  const ua: UserAgent = ctx.ua || ({} as UserAgent);
   const flat = removeUndefined(
     toSnakeCase({
-      anon_ip: event.context?.ip ? anonymizeIp(event.context?.ip) : undefined,
+      anon_ip: analyticsContext.ip ? anonymizeIp(analyticsContext.ip) : undefined,
       api_key: event.writeKey || "",
       click_id: {},
-      doc_encoding: event.context?.page?.encoding || event.properties?.encoding,
+      doc_encoding: analyticsContext.page?.encoding || event.properties?.encoding,
       doc_host: url?.hostname,
       doc_path: url?.pathname,
       doc_search: url?.search,
       eventn_ctx_event_id: event.messageId,
       event_type: event.event || event.type,
-      local_tz_offset: event.context?.page?.timezoneOffset || event.properties?.timezoneOffset,
-      page_title: event.context?.page?.title,
-      referer: event.context?.page?.referrer,
-      screen_resolution: event.context?.page?.screenResolution,
-      source_ip: event.context?.ip,
+      local_tz_offset: analyticsContext.page?.timezoneOffset || event.properties?.timezoneOffset,
+      page_title: analyticsContext.page?.title,
+      referer: analyticsContext.page?.referrer,
+      screen_resolution:
+        Math.max(analyticsContext.screen?.width || 0) + "x" + Math.max(analyticsContext.screen?.height || 0),
+      source_ip: analyticsContext.ip,
       src: "jitsu",
       url: (urlStr || "") as string,
       user: {
         id: event.userId,
-        email: (event.context?.traits?.email || event.traits?.email || undefined) as string | undefined,
-        name: (event.context?.traits?.name || event.traits?.name || undefined) as string | undefined,
+        anonymous_id: event.anonymousId,
+        email: (analyticsContext.traits?.email || event.traits?.email || undefined) as string | undefined,
+        name: (analyticsContext.traits?.name || event.traits?.name || undefined) as string | undefined,
         ...omit(
           {
-            ...(event.context?.traits || {}),
+            ...(analyticsContext.traits || {}),
             ...(event.traits || {}),
           },
           ["email", "name"]
         ),
       },
-      user_agent: event.context.userAgent,
-      user_language: event.context?.locale,
+      location:
+        Object.keys(geo).length > 0
+          ? {
+              city: geo.city?.name,
+              continent: geo.continent?.code,
+              country: geo.country?.code,
+              country_name: geo.country?.name,
+              latitude: geo.location?.latitude,
+              longitude: geo.location?.longitude,
+              region: geo.region?.code,
+              zip: geo.postalCode?.code,
+              timezone: geo.location?.timezone,
+              autonomous_system_number: geo.provider?.as?.num,
+              autonomous_system_organization: geo.provider?.as?.name,
+              isp: geo.provider?.isp,
+              domain: geo.provider?.domain,
+            }
+          : undefined,
+      ids:
+        Object.keys(analyticsContext.clientIds || {}).length > 0
+          ? {
+              ga: analyticsContext.clientIds?.ga4?.clientId,
+              fbp: analyticsContext.clientIds?.fbp,
+              fbc: analyticsContext.clientIds?.fbc,
+            }
+          : undefined,
+      parsed_ua:
+        Object.keys(ua).length > 0
+          ? {
+              os_family: ua.os?.name,
+              os_version: ua.os?.version,
+              ua_family: ua.browser?.name,
+              ua_version: ua.browser?.version,
+              device_brand: ua.device?.vendor,
+              device_type: ua.device?.type,
+              device_model: ua.device?.model,
+              bot: ua.bot,
+            }
+          : undefined,
+      user_agent: analyticsContext.userAgent,
+      user_language: analyticsContext.locale,
       utc_time: event.timestamp,
       _timestamp: event.timestamp,
-      utm: event.context?.campaign,
+      utm: analyticsContext.campaign,
       vp_size:
-        Math.max(event.context?.screen?.innerWidth || 0) + "x" + Math.max(event.context?.screen?.innerHeight || 0),
+        Math.max(analyticsContext.screen?.innerWidth || 0) + "x" + Math.max(analyticsContext.screen?.innerHeight || 0),
       ...(event.type === "track" ? event.properties : {}),
     })
   );
@@ -267,7 +313,7 @@ export function plural(s: string) {
 export const dataLayouts: Record<DataLayoutType, DataLayoutImpl<any>> = {
   segment: event => segmentLayout(event, false),
   "segment-single-table": event => segmentLayout(event, true),
-  "jitsu-legacy": event => jitsuLegacy(event),
+  "jitsu-legacy": jitsuLegacy,
   passthrough: event => ({ event: omit(event, TableNameParameter), table: event[TableNameParameter] ?? "events" }),
 };
 
@@ -302,7 +348,7 @@ const BulkerDestination: JitsuFunction<AnalyticsServerEvent, BulkerDestinationCo
         }
       }
     }
-    const events = dataLayouts[dataLayout](adjustedEvent);
+    const events = dataLayouts[dataLayout](adjustedEvent, ctx);
     for (const { event, table } of Array.isArray(events) ? events : [events]) {
       const res = await ctx.fetch(
         `${bulkerEndpoint}/post/${destinationId}?tableName=${table}`,

@@ -133,8 +133,8 @@ function getUserProperties(event: AnalyticsServerEvent): Record<string, any> {
   return userProperties;
 }
 
-function getClientId(event: AnalyticsServerEvent): string | null | undefined {
-  return event.context?.clientIds?.ga4?.clientId || event.anonymousId;
+function getClientId(event: AnalyticsServerEvent): string | undefined {
+  return event.context?.clientIds?.ga4?.clientId || event.anonymousId || undefined;
 }
 
 function getFirebaseAppInstanceId(event: AnalyticsServerEvent): string | undefined {
@@ -309,12 +309,12 @@ const Ga4Destination: JitsuFunction<AnalyticsServerEvent, Ga4Credentials> = asyn
   let gaRequest: Ga4Request | undefined = undefined;
   try {
     const clientId = getClientId(event);
-    if (!clientId) {
-      ctx.log.info(`Ga4: no client_id found for event ID: ${event.messageId}`);
-      return;
-    }
     const sessionId = getSessionId(event, ctx.props.measurementId);
     const firebaseAppInstanceId = getFirebaseAppInstanceId(event);
+    if (!clientId && !firebaseAppInstanceId) {
+      ctx.log.info(`Ga4: no client_id or app instance id found for event ID: ${event.messageId}`);
+      return;
+    }
     const userProperties = getUserProperties(event);
     const events: Ga4Event[] = [];
 

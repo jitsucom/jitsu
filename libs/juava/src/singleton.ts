@@ -124,7 +124,6 @@ export function getSingleton<T>(
     };
     return result;
   } else if (cachedValue && !cachedValue.success) {
-    cachedValue.debounceCleanup();
     throw newError(
       `${globalName} failed during initialization: ${getErrorMessage(cachedValue.error)}`,
       cachedValue.error

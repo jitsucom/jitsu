@@ -60,11 +60,11 @@ export async function rotorMessageHandler(
     headers && headers[CONNECTION_IDS_HEADER] ? headers[CONNECTION_IDS_HEADER].toString() : message.connectionId;
   const connection = requireDefined(connStore.getObject(connectionId), `Unknown connection: ${connectionId}`);
 
-  log
-    .atDebug()
-    .log(
+  log.inDebug(l =>
+    l.log(
       `Processing ${message.type} Message ID: ${message.messageId} for: ${connection.id} (${connection.streamId} → ${connection.destinationId}(${connection.type}))`
-    );
+    )
+  );
 
   const event = message.httpPayload as AnalyticsServerEvent;
   if (!event.context) {
