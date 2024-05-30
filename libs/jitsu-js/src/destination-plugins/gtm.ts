@@ -129,8 +129,8 @@ async function initGtmIfNeeded(config: GtmDestinationCredentials, payload: Analy
       event: "gtm.js",
     });
     const dl = l != "dataLayer" ? "&l=" + l : "";
-    const scriptSrc = "https://www.googletagmanager.com/gtm.js?id=" + i + dl;
-    loadScript(scriptSrc)
+    const scriptSrc = "googletagmanager.com/gtm";
+    loadScript(scriptSrc, { www: true, js: true, query: "id=" + i + dl })
       .then(() => {
         setGtmState("loaded");
       })

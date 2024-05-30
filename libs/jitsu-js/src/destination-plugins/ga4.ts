@@ -2,7 +2,7 @@ import { loadScript } from "../script-loader";
 import { AnalyticsClientEvent } from "@jitsu/protocols/analytics";
 import { applyFilters, CommonDestinationCredentials, InternalPlugin } from "./index";
 
-const defaultScriptSrc = "https://www.googletagmanager.com/gtag/js";
+const defaultScriptSrc = "googletagmanager.com/gtag/js";
 
 export type Ga4DestinationCredentials = {
   debug?: boolean;
@@ -94,7 +94,6 @@ async function initGa4IfNeeded(config: Ga4DestinationCredentials, payload: Analy
 
   // to work with both GA4 and GTM
   const tagId = config.measurementIds;
-  const scriptSrc = `${defaultScriptSrc}?id=${tagId}${dlParam}`;
 
   window[dlName] = window[dlName] || [];
   const gtag = function () {
@@ -112,7 +111,7 @@ async function initGa4IfNeeded(config: Ga4DestinationCredentials, payload: Analy
     }
   );
 
-  loadScript(scriptSrc)
+  loadScript(defaultScriptSrc, { query: `id=${tagId}${dlParam}`, www: true })
     .then(() => {
       setGa4State("loaded");
     })

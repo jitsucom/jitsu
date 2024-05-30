@@ -3,7 +3,32 @@ function findScript(src: string): HTMLScriptElement | undefined {
   return scripts.find(s => s.src === src);
 }
 
-export function loadScript(src: string, attributes?: Record<string, string>): Promise<HTMLScriptElement> {
+export type ScriptOptions = {
+  attributes?: Record<string, string>;
+  www?: boolean;
+  js?: boolean;
+  min?: boolean;
+  query?: string;
+};
+
+function buildScriptSrc(src: string, options?: ScriptOptions): string {
+  let result = src;
+  if (!result.startsWith("http")) {
+    result = `https://${options?.www ? "www." : ""}${result}`;
+  }
+  if (options?.min) {
+    result = result + ".min.js";
+  } else if (options?.js) {
+    result = result + ".js";
+  }
+
+  if (options?.query) {
+    result += "?" + options.query;
+  }
+  return result;
+}
+
+export function loadScript(src: string, options?: ScriptOptions): Promise<HTMLScriptElement> {
   const found = findScript(src);
 
   if (found !== undefined) {
@@ -25,11 +50,11 @@ export function loadScript(src: string, attributes?: Record<string, string>): Pr
     const script = window.document.createElement("script");
 
     script.type = "text/javascript";
-    script.src = src;
+    script.src = buildScriptSrc(src, options);
     script.async = true;
 
     script.setAttribute("status", "loading");
-    for (const [k, v] of Object.entries(attributes ?? {})) {
+    for (const [k, v] of Object.entries(options?.attributes ?? {})) {
       script.setAttribute(k, v);
     }
 

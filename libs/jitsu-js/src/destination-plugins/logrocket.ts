@@ -6,6 +6,8 @@ export type LogRocketDestinationCredentials = {
   appId: string;
 } & CommonDestinationCredentials;
 
+const cdn = "cdn.lr-ingest.io/";
+
 export const logrocketPlugin: InternalPlugin<LogRocketDestinationCredentials> = {
   id: "logrocket",
   async handle(config, payload: AnalyticsClientEvent) {
@@ -63,7 +65,7 @@ async function initLogrocketIfNeeded(appId: string) {
     return;
   }
   setLogRocketState("loading");
-  loadScript(`https://cdn.lr-ingest.io/LogRocket.min.js`, { crossOrigin: "anonymous" })
+  loadScript(`${cdn}LogRocket`, { min: true, attributes: { crossOrigin: "anonymous" } })
     .then(() => {
       if (window["LogRocket"]) {
         try {
