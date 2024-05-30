@@ -123,8 +123,15 @@ function getGa4Ids(runtime: RuntimeFacade) {
   }
 }
 
-function removeCookie(name: string) {
-  document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:01 GMT;";
+function removeCookie(name: string, { domain, secure }: { domain: string; secure: boolean }) {
+  document.cookie =
+    name +
+    "=;domain=" +
+    domain +
+    ";path=/" +
+    ";expires=Thu, 01 Jan 1970 00:00:01 GMT;SameSite=" +
+    (secure ? "None" : "Lax") +
+    (secure ? ";secure" : "");
 }
 
 function setCookie(name: string, val: string, { domain, secure }: { domain: string; secure: boolean }) {
@@ -169,10 +176,18 @@ const cookieStorage: StorageFactory = (cookieDomain, key2cookie) => {
       return parse(result);
     },
     removeItem(key: string) {
-      removeCookie(key2cookie[key] || key);
+      removeCookie(key2cookie[key] || key, {
+        domain: cookieDomain,
+        secure: window.location.protocol === "https:",
+      });
     },
     reset() {
-      Object.values(key2cookie).forEach(removeCookie);
+      for (const v of Object.values(key2cookie)) {
+        removeCookie(v, {
+          domain: cookieDomain,
+          secure: window.location.protocol === "https:",
+        });
+      }
     },
   };
 };
