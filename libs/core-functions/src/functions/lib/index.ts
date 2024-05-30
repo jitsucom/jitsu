@@ -243,7 +243,7 @@ export const makeLog = (connectionId: string, eventsStore: EventsStore) => ({
   debug: (ctx: FunctionContext, message: any, ...args: any[]) => {
     if (ctx.function.debugTill && ctx.function.debugTill > new Date()) {
       const fid = ctx.function.id;
-      log.atDebug().log(`[CON:${connectionId}]: [f:${fid}][DEBUG]: ${message}`, ...args);
+      log.inDebug(l => l.log(`[CON:${connectionId}]: [f:${fid}][DEBUG]: ${message}`, ...args));
       eventsStore.log(connectionId, "debug", {
         type: "log-debug",
         functionId: fid,
@@ -257,7 +257,7 @@ export const makeLog = (connectionId: string, eventsStore: EventsStore) => ({
   },
   warn: (ctx: FunctionContext, message: any, ...args: any[]) => {
     const fid = ctx.function.id;
-    log.atWarn().log(`[CON:${connectionId}]: [f:${fid}][WARN]: ${message}`, ...args);
+    log.inDebug(l => l.log(`[CON:${connectionId}]: [f:${fid}][WARN]: ${message}`, ...args));
     eventsStore.log(connectionId, "warn", {
       type: "log-warn",
       functionId: fid,
@@ -279,19 +279,20 @@ export const makeLog = (connectionId: string, eventsStore: EventsStore) => ({
         args,
       },
     });
-    const l = log.atError();
-    if (args?.length > 0) {
-      const last = args[args.length - 1];
-      if (last.stack) {
-        l.withCause(last);
-        args = args.slice(0, args.length - 1);
+    log.inDebug(l => {
+      if (args?.length > 0) {
+        const last = args[args.length - 1];
+        if (last.stack) {
+          l.withCause(last);
+          args = args.slice(0, args.length - 1);
+        }
       }
-    }
-    l.log(`[CON:${connectionId}]: [f:${fid}][ERROR]: ${message}`, ...args);
+      l.log(`[CON:${connectionId}]: [f:${fid}][ERROR]: ${message}`, ...args);
+    });
   },
   info: (ctx: FunctionContext, message: any, ...args: any[]) => {
     const fid = ctx.function.id;
-    log.atInfo().log(`[CON:${connectionId}]: [f:${fid}][INFO]: ${message}`, ...args);
+    log.inDebug(l => l.log(`[CON:${connectionId}]: [f:${fid}][INFO]: ${message}`, ...args));
     eventsStore.log(connectionId, "info", {
       type: "log-info",
       functionId: fid,
@@ -349,13 +350,13 @@ export const makeFetch =
         if (logToRedis) {
           eventsStore.log(connectionId, logLevel, { ...baseInfo, error: getErrorMessage(err), elapsedMs: elapsedMs });
         }
-        log
-          .atDebug()
-          .log(
+        log.inDebug(l =>
+          l.log(
             `[CON:${connectionId}]: [f:${id}][ERROR][FETCH]: ${url} Error: ${getErrorMessage(
               err
             )} ElapsedMs: ${elapsedMs}`
-          );
+          )
+        );
       }
       throw err;
     }
@@ -375,11 +376,11 @@ export const makeFetch =
         });
       }
       if (fetchResult.status >= 300) {
-        log
-          .atDebug()
-          .log(
+        log.inDebug(l =>
+          l.log(
             `[CON:${connectionId}]: [f:${id}][ERROR][FETCH]: ${url} Status: ${fetchResult.status} Response: ${respText} ElapsedMs: ${elapsedMs}`
-          );
+          )
+        );
       }
     }
 

@@ -429,7 +429,7 @@ function TasksTable({ tasks, loading, linksMap, servicesMap, destinationsMap, re
         const items: ButtonProps[] = [
           {
             icon: <Edit3 className={"w-5 h-5"} />,
-            href: `/syncs/edit?id=${task.task_id}`,
+            href: `/syncs/edit?id=${task.sync_id}`,
             label: "Edit Sync",
           },
           {
