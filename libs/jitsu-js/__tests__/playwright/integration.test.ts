@@ -268,10 +268,8 @@ test("reset", async ({ browser }) => {
   expect(cookies.length).toBe(0);
   console.log(`🍪Cookies`, cookies);
   expect(firstEvent.body.anonymousId).toEqual("john-doe-id-1");
-  //this assertion is not working because of the bug in the library
-  //however, cookies are cleared,
-  //expect(secondEvent.body.anonymousId).toBeUndefined();
-})
+  expect(secondEvent.body.anonymousId).toBeNull();
+});
 
 test("basic", async ({ browser }) => {
   clearRequestLog();
