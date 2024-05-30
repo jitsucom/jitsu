@@ -10,7 +10,6 @@ import { internalDestinationPlugins } from "./destination-plugins";
 import { jitsuLibraryName, jitsuVersion } from "./version";
 import { getTopLevelDomain } from "./tlds";
 import * as jsondiffpatch from "jsondiffpatch";
-import config from "../playwrite.config";
 
 const diff = jsondiffpatch.create();
 
@@ -269,7 +268,7 @@ export const emptyRuntime = (config: JitsuOptions): RuntimeFacade => ({
           console.log(`[JITSU EMPTY RUNTIME] Get storage item ${key}=${storage[key]}`);
         }
         delete storage[key];
-      }
+      },
     };
   },
   language() {
@@ -617,8 +616,8 @@ async function send(
         jitsuConfig.debug ? JSON.stringify(responseJson.destinations, null, 2) : undefined
       );
     } else {
-      //double protection, injest should not return destinations in s2s mode
-      if (typeof window !== "undefined") {
+      //double protection, ingest should not return destinations in s2s mode
+      if (isInBrowser()) {
         if (jitsuConfig.debug) {
           console.log(`[JITSU] Processing device destinations: `, JSON.stringify(responseJson.destinations, null, 2));
         }
@@ -684,7 +683,7 @@ const jitsuAnalyticsPlugin = (pluginConfig: JitsuPluginConfig = {}): AnalyticsPl
     reset: args => {
       const { config, instance } = args;
       const storage = pluginConfig.storageWrapper ? pluginConfig.storageWrapper(instance.storage) : instance.storage;
-      storage?.reset()
+      storage?.reset();
       if (config.debug) {
         console.log("[JITSU DEBUG] Resetting Jitsu plugin storage");
       }

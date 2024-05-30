@@ -8,10 +8,10 @@
   <title>Tracking page</title>
   <script>
     window.testOnload = async j => {
-      j.setAnonymousId("john-doe-id-1");
-      j.track("pageLoaded", { trackParam: "trackValue" });
-      j.reset();
-      j.track("pageLoaded", { trackParam: "trackValue" });
+      await j.setAnonymousId("john-doe-id-1");
+      await j.track("pageLoaded", { trackParam: "trackValue" });
+      await j.reset();
+      await j.track("pageLoaded", { trackParam: "trackValue" });
     };
   </script>
   <script
