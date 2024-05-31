@@ -6,9 +6,10 @@ export CONSOLE_INIT_TOKEN=$RANDOM$RANDOM$RANDOM$RANDOM
 export my_pid=$$
 
 init() {
-  if [ "$inited" = "0" ]; then
+  if [ $inited = "0" ]; then
+    echo "Initializing console..."
     inited="1"
-    curl --silent --output nul --show-error  http://$(hostname -f):3000/api/admin/events-log-init?token=$CONSOLE_INIT_TOKEN
+    curl --silent --show-error  http://$(hostname -f):3000/api/admin/events-log-init?token=$CONSOLE_INIT_TOKEN
   fi
 }
 
