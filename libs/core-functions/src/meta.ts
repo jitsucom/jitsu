@@ -252,8 +252,8 @@ export const Ga4Credentials = z.object({
   measurementId: z
     .string()
     .describe(
-      "The measurement ID associated with a stream. Found in the Google Analytics UI under:<br/>" +
-        "<b>Admin > Data Streams > choose your stream > Measurement ID</b>"
+      "The measurement ID associated with a stream.<br/><b>For Web:</b> found in the Google Analytics UI under: " +
+        "<b>Admin > Data Streams > choose your stream > Measurement ID</b><br/><b>For Apps</b>: the Firebase App ID, found in the Firebase console under: <b>Project Settings > General > Your Apps > App ID</b>"
     ),
   events: z.string().optional().default("").describe(eventsParamDescription),
   //validationMode: z.boolean().default(false).optional(),
@@ -272,7 +272,13 @@ export const HubspotCredentials = z.object({
   sendPageViewEvents: z
     .boolean()
     .optional()
-    .describe("If on, Jitsu will send page view events to hubspot (only events with a known email). Please note"),
+    .describe("When enabled, Jitsu will send page view events to hubspot (only events with a known email)"),
+  autoCreateCustomProperties: z
+    .boolean()
+    .optional()
+    .describe(
+      "When enabled, Jitsu will automatically create HubSpot <a href='https://knowledge.hubspot.com/properties/create-and-edit-properties'>custom properties</a> for Contacts and Companies to capture every new trait. Otherwise, only known properties are sent."
+    ),
 });
 
 export type HubspotCredentials = z.infer<typeof HubspotCredentials>;

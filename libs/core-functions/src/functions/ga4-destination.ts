@@ -311,10 +311,25 @@ const Ga4Destination: JitsuFunction<AnalyticsServerEvent, Ga4Credentials> = asyn
     const clientId = getClientId(event);
     const sessionId = getSessionId(event, ctx.props.measurementId);
     const firebaseAppInstanceId = getFirebaseAppInstanceId(event);
-    if (!clientId && !firebaseAppInstanceId) {
-      ctx.log.info(`Ga4: no client_id or app instance id found for event ID: ${event.messageId}`);
-      return;
+    const measurementId = ctx.props.measurementId || "";
+    let query = `api_secret=${ctx.props.apiSecret}`;
+    if (measurementId.match(/^\d:\d+:\w+:\w+$/)) {
+      if (!firebaseAppInstanceId) {
+        ctx.log.info(`Ga4: no app instance id found for event ID: ${event.messageId}`);
+        return;
+      }
+      query += `&firebase_app_id=${measurementId}`;
+    } else {
+      if (!clientId) {
+        ctx.log.info(`Ga4: no client_id found for event ID: ${event.messageId}`);
+        return;
+      }
+      if (!measurementId.match(/^G-\w+$/)) {
+        ctx.log.warn(`Ga4: measurement_id is not in the correct format: ${measurementId}`);
+      }
+      query += `&measurement_id=${measurementId}`;
     }
+
     const userProperties = getUserProperties(event);
     const events: Ga4Event[] = [];
 
@@ -334,7 +349,7 @@ const Ga4Destination: JitsuFunction<AnalyticsServerEvent, Ga4Credentials> = asyn
     }
     const debug = "";
     //const debug = ctx.props.validationMode ? "/debug" : "";
-    const url = `https://www.google-analytics.com${debug}/mp/collect?measurement_id=${ctx.props.measurementId}&api_secret=${ctx.props.apiSecret}`;
+    const url = `https://www.google-analytics.com${debug}/mp/collect?${query}`;
 
     gaRequest = {
       app_instance_id: firebaseAppInstanceId,

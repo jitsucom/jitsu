@@ -11,6 +11,7 @@ import { FilterGroup } from "@hubspot/api-client/lib/codegen/crm/contacts/models
 import omit from "lodash/omit";
 import assert from "node:assert";
 import { BehavioralEventHttpCompletionRequest } from "@hubspot/api-client/lib/codegen/events/send/models/BehavioralEventHttpCompletionRequest";
+import { idToSnakeCaseFast } from "./lib/strings";
 
 const JITSU_USER_ID_PROPERTY = "jitsu_user_id";
 
@@ -62,12 +63,41 @@ class HubspotHelper {
     }
   }
 
-  async upsertHubspotCompany(c: {
-    companyId: string;
-    name: string;
-    customProps?: Record<string, any>;
-    doNotUpdate?: boolean;
-  }): Promise<string> {
+  async removeUnknownProperties(
+    customProps: Record<string, any>,
+    opts: PropertyOptions = {}
+  ): Promise<Record<string, any>> {
+    const remoteProps = await this.client.crm.properties.coreApi.getAll(opts.objectType || "contacts");
+    return Object.fromEntries(
+      Object.entries(customProps)
+        .map(([k, v]) => [idToSnakeCaseFast(k), v])
+        .filter(([key]) => remoteProps.results.some(rp => rp.name === key))
+    );
+  }
+
+  async ensurePropertiesExist(
+    customProps: Record<string, any>,
+    opts: PropertyOptions = {}
+  ): Promise<Record<string, any>> {
+    const remoteProps = await this.client.crm.properties.coreApi.getAll(opts.objectType || "contacts");
+    customProps = Object.fromEntries(Object.entries(customProps).map(([k, v]) => [idToSnakeCaseFast(k), v]));
+    const notExistis = Object.keys(customProps).filter(p => !remoteProps.results.some(rp => rp.name === p));
+    for (const propertyName of notExistis) {
+      this.log.info(`Property '${propertyName}' does not exist. Creating...`);
+      await this.createProperty(propertyName, opts);
+    }
+    return customProps;
+  }
+
+  async upsertHubspotCompany(
+    cred: HubspotCredentials,
+    c: {
+      companyId: string;
+      name: string;
+      customProps?: Record<string, any>;
+      doNotUpdate?: boolean;
+    }
+  ): Promise<string> {
     const filterGroup: FilterGroup = {
       filters: [
         {
@@ -84,11 +114,25 @@ class HubspotHelper {
       properties: [],
       sorts: [],
     });
-
+    let customProps = c.customProps;
+    if (customProps && Object.keys(customProps).length > 0) {
+      if (cred.autoCreateCustomProperties) {
+        customProps = await this.ensurePropertiesExist(customProps, {
+          objectType: "company",
+          group: "companyinformation",
+        });
+      } else {
+        customProps = await this.removeUnknownProperties(customProps, {
+          objectType: "company",
+          group: "companyinformation",
+        });
+      }
+    }
     const companyProperties = {
       properties: {
         name: c.name,
         [JITSU_GROUP_ID_PROPERTY]: c.companyId,
+        ...customProps,
       },
     };
 
@@ -109,22 +153,32 @@ class HubspotHelper {
     }
   }
 
-  async upsertHubspotContact(u: {
-    userId: string;
-    name?: string;
-    email: string;
-    customProps?: Record<string, any>;
-  }): Promise<string> {
+  async upsertHubspotContact(
+    cred: HubspotCredentials,
+    u: {
+      userId: string;
+      name?: string;
+      email: string;
+      customProps?: Record<string, any>;
+    }
+  ): Promise<string> {
     const existingContactId = await this.getContactByJitsuId(u.userId, u.email);
-
     const [fistName, lastName] = splitName(u.name);
-
+    let customProps = u.customProps;
+    if (customProps && Object.keys(customProps).length > 0) {
+      if (cred.autoCreateCustomProperties) {
+        customProps = await this.ensurePropertiesExist(customProps, { objectType: "contacts" });
+      } else {
+        customProps = await this.removeUnknownProperties(customProps, { objectType: "contacts" });
+      }
+    }
     const contactProperties = {
       properties: {
         email: u.email,
         firstname: fistName,
         lastname: lastName,
         [JITSU_USER_ID_PROPERTY]: u.userId,
+        ...customProps,
       } as { [key: string]: string },
     };
 
@@ -201,14 +255,14 @@ const HubspotDestination: JitsuFunction<AnalyticsServerEvent, HubspotCredentials
   let contactId: string | undefined = undefined;
   let companyId: string | undefined = undefined;
   if (event.type === "identify" && event.userId && event.traits?.email) {
-    contactId = await helper.upsertHubspotContact({
+    contactId = await helper.upsertHubspotContact(ctx.props, {
       userId: event.userId,
       name: event.traits.name as string | undefined,
       email: event.traits.email as string,
-      customProps: omit(event.traits, "name"),
+      customProps: omit(event.traits, "name", "email"),
     });
     if (event.groupId) {
-      companyId = await helper.upsertHubspotCompany({
+      companyId = await helper.upsertHubspotCompany(ctx.props, {
         companyId: event.groupId,
         name: `Company ${event.groupId}`,
         doNotUpdate: true,
@@ -218,10 +272,10 @@ const HubspotDestination: JitsuFunction<AnalyticsServerEvent, HubspotCredentials
   if (event.type === "group" && event.groupId) {
     const groupName = event.type === "group" ? event.traits?.name : undefined;
 
-    await helper.upsertHubspotCompany({
+    await helper.upsertHubspotCompany(ctx.props, {
       companyId: event.groupId,
       name: (groupName || `Company ${event.groupId}`) as string,
-      customProps: omit(event.traits, "email", "name"),
+      customProps: omit(event.traits, "name"),
     });
     if (event.userId) {
       contactId = await helper.getContactByJitsuId(event.userId);
