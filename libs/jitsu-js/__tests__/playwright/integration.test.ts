@@ -266,7 +266,8 @@ test("reset", async ({ browser }) => {
   expect(firstTrack.body.anonymousId).toEqual("john-doe-id-1");
 
   const cookies = await browserContext.cookies();
-  //all cookies should be cleared by .reset()
+  // all cookies should be cleared by .reset()
+  // but new cookie for new anonymousId should be set
   expect(cookies.length).toBe(1);
   expect(cookies[0].name).toEqual("__eventn_id");
   const newAnonymousId = cookies[0].value;
