@@ -56,6 +56,7 @@ type PersistentStorage = {
   getItem: (key: string, options?: any) => any;
   setItem: (key: string, value: any, options?: any) => void;
   removeItem: (key: string, options?: any) => void;
+  reset: () => void;
 };
 
 type RuntimeFacade = {

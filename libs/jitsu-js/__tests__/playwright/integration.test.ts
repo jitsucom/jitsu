@@ -244,6 +244,41 @@ test("url-bug", async ({ browser }) => {
   expect(pagePath).toEqual("/");
 });
 
+test("reset", async ({ browser }) => {
+  clearRequestLog();
+  const browserContext = await browser.newContext();
+  const { page, uncaughtErrors } = await createLoggingPage(browserContext);
+  const [pageResult] = await Promise.all([page.goto(`${server.baseUrl}/reset.html`)]);
+  await page.waitForFunction(() => window["jitsu"] !== undefined, undefined, {
+    timeout: 1000,
+    polling: 100,
+  });
+  expect(pageResult.status()).toBe(200);
+  //wait for some time since the server has an artificial latency of 30ms
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  expect(uncaughtErrors.length).toEqual(0);
+  expect(requestLog.length).toBe(3);
+  console.log(
+    `📝 Request log size of ${requestLog.length}`,
+    requestLog.map(x => describeEvent(x.type, x.body))
+  );
+  const [identifyEvent, firstTrack, secondTrack] = requestLog;
+  expect(firstTrack.body.anonymousId).toEqual("john-doe-id-1");
+
+  const cookies = await browserContext.cookies();
+  // all cookies should be cleared by .reset()
+  // but new cookie for new anonymousId should be set
+  expect(cookies.length).toBe(1);
+  expect(cookies[0].name).toEqual("__eventn_id");
+  const newAnonymousId = cookies[0].value;
+  console.log(`🍪Cookies`, cookies);
+
+  expect(secondTrack.body.anonymousId).not.toBeNull();
+  expect(secondTrack.body.anonymousId).toBeDefined();
+  expect(secondTrack.body.anonymousId).toEqual(newAnonymousId);
+  expect(secondTrack.body.anonymousId).not.toEqual("john-doe-id-1");
+});
+
 test("basic", async ({ browser }) => {
   clearRequestLog();
   const browserContext = await browser.newContext();

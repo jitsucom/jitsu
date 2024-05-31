@@ -64,9 +64,9 @@ function createUnderlyingAnalyticsInstance(
     },
     reset() {
       for (const key of [...Object.keys(storageCache)]) {
-        storage.removeItem(key);
         delete storageCache[key];
       }
+      storage.reset();
     },
     removeItem(key: string) {
       if (opts.debug) {
@@ -133,6 +133,17 @@ function createUnderlyingAnalyticsInstance(
       }
       (analytics as any).setAnonymousId(id);
     },
+    async reset() {
+      if (opts.debug) {
+        console.log("[JITSU DEBUG] Called reset(). Storage state", JSON.stringify(analytics.user()));
+      }
+      storage.reset();
+      await analytics.reset();
+      this.setAnonymousId(uuid());
+      if (opts.debug) {
+        console.log("[JITSU DEBUG] User state after reset", JSON.stringify(analytics.user()));
+      }
+    },
     async group(
       groupId?: ID,
       traits?: JSONObject | null,
@@ -192,6 +203,23 @@ export function jitsuAnalytics(_opts: JitsuOptions): AnalyticsInterface {
   // } else {
   //   result.loaded(createUnderlyingAnalyticsInstance(opts, rt));
   // }
+}
+
+function uuid() {
+  var u = "",
+    m = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx",
+    i = 0,
+    rb = (Math.random() * 0xffffffff) | 0;
+
+  while (i++ < 36) {
+    var c = m[i - 1],
+      r = rb & 0xf,
+      v = c == "x" ? r : (r & 0x3) | 0x8;
+
+    u += c == "-" || c == "4" ? c : v.toString(16);
+    rb = i % 8 == 0 ? (Math.random() * 0xffffffff) | 0 : rb >> 4;
+  }
+  return u;
 }
 
 export * from "./jitsu";
