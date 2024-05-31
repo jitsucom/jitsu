@@ -6,7 +6,7 @@ export CONSOLE_INIT_TOKEN=$RANDOM$RANDOM$RANDOM$RANDOM
 export my_pid=$$
 
 init() {
-  if [ $inited = "0" ]; then
+  if [ "$inited" = "0" ]; then
     echo "Initializing console..."
     inited="1"
     curl --silent --show-error  http://$(hostname -f):3000/api/admin/events-log-init?token=$CONSOLE_INIT_TOKEN
@@ -36,7 +36,6 @@ wait_for_service() {
         fi
         sleep $interval
     done
-    init
     exit 0
 }
 
@@ -58,7 +57,8 @@ healthcheck() {
         if [ -f healthcheck-result ]; then
             cat healthcheck-result
         fi
-        echo ""
+        echo "Running init..."
+        init
     else
         if [ "$http_code" = "000" ]; then
             echo "❌ ❌ ❌ HEALTHCHECK FAILED $healthcheck_url is not available"
