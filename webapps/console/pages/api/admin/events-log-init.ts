@@ -3,7 +3,7 @@ import { checkRawToken, getLog } from "juava";
 import { clickhouse } from "../../../lib/server/clickhouse";
 import { z } from "zod";
 
-export const log = getLog("events-log-trim");
+export const log = getLog("events-log-init");
 
 export default createRoute()
   .GET({

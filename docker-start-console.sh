@@ -10,6 +10,7 @@ init() {
     echo "Initializing console..."
     inited="1"
     curl --silent --show-error  http://$(hostname -f):3000/api/admin/events-log-init?token=$CONSOLE_INIT_TOKEN
+    echo ""
   fi
 }
 
@@ -57,7 +58,7 @@ healthcheck() {
         if [ -f healthcheck-result ]; then
             cat healthcheck-result
         fi
-        echo "Running init..."
+        echo ""
         init
     else
         if [ "$http_code" = "000" ]; then
