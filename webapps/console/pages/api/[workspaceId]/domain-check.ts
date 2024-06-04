@@ -1,13 +1,7 @@
 import { getServerLog } from "../../../lib/server/log";
 
 import { z } from "zod";
-import {
-  customDomainCnames,
-  isDomainAvailable,
-  resolveCname,
-  checkCname,
-  checkOrAddToIngress,
-} from "../../../lib/server/custom-domains";
+import { customDomainCnames, isDomainAvailable, checkOrAddToIngress } from "../../../lib/server/custom-domains";
 import { DomainCheckResponse } from "../../../lib/shared/domain-check-response";
 import { createRoute, verifyAccess } from "../../../lib/api";
 
@@ -35,12 +29,6 @@ export default createRoute()
           `Domain '${domain}' can't be added to workspace ${workspaceId}. It is used by ${domainAvailability.usedInWorkspace}`
         );
       return { ok: false, reason: "used_by_other_workspace" };
-    }
-    const cname = await resolveCname(domain);
-    const cnameValid = await checkCname(cname);
-    if (!cnameValid) {
-      log.atWarn().log(`Domain ${domain} is not valid`);
-      return { ok: false, reason: "requires_cname_configuration", cnameValue: customDomainCnames[0] };
     }
     try {
       const ingressStatus = await checkOrAddToIngress(domain);
