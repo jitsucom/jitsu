@@ -121,7 +121,7 @@ export const UDFWrapper = (
       const sw = stopwatch();
       const f = functions[i];
       log.atDebug().log(`[CON:${connectionId}]: [f:${f.id}] Compiling UDF function '${f.name}'`);
-      const moduleName = sanitize(f.name, "_") + "_" + f.id;
+      const moduleName = "f_" + sanitize(f.name, "_") + "_" + f.id;
       const udf = isolate.compileModuleSync(f.code, { filename: moduleName + ".js" });
       udf.instantiateSync(context, (specifier: string) => {
         if (specifier === "@jitsu/functions-lib") {
