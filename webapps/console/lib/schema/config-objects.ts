@@ -102,7 +102,7 @@ const configObjectTypes: Record<string, ConfigObjectType> = {
   stream: {
     schema: StreamConfig,
     merge(original: any, patch: Partial<any>): any {
-      return {
+      const merged = {
         ...original,
         ...patch,
         privateKeys: patch.privateKeys
@@ -112,6 +112,11 @@ const configObjectTypes: Record<string, ConfigObjectType> = {
           ? hashKeys(patch.publicKeys, original.publicKeys || [])
           : original.publicKeys || [],
       };
+      // TODO: dirty workaround for not be able to clear authorizedJavaScriptDomains
+      if (!patch.authorizedJavaScriptDomains) {
+        delete merged.authorizedJavaScriptDomains;
+      }
+      return merged;
     },
 
     inputFilter: async obj => {
