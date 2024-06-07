@@ -545,8 +545,7 @@ const StreamsList: React.FC<{}> = () => {
             If this setting is not empty, JavaScript code from the specified domains will be able to post data to
             {noun}. Separate multiple domains by comma. Leave the field empty to allow any domain. If you want to allow
             top level domains, and all subdomains, use wildcard as in{" "}
-            <code>*.mywebsite.com,mywebsite.com,localhost</code>. It makes sense to add <code>localhost</code>, at least
-            for dev environments.
+            <code>*.mywebsite.com,mywebsite.com,localhost</code>.
           </>
         ),
       },
