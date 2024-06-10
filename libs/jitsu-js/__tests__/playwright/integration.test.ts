@@ -214,8 +214,8 @@ test("jitsu-queue-callbacks", async ({ browser }) => {
   expect(requestLog.length).toBe(3);
 });
 
-test("url-bug", async ({ browser }) => {
-  clearRequestLog();
+// Skip this test because jitsu-js no longer relies on canonical URL
+test.skip("url-bug", async ({ browser, context }) => {
   //tests a bug in getanalytics.io where the url without slash provided by
   //<link rel="canonical" ../> causes incorrect page path
   const browserContext = await browser.newContext();
