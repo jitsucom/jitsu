@@ -334,6 +334,19 @@ function fixPath(path: string): string {
   return path;
 }
 
+const hashRegex = /#.*$/;
+
+/**
+ * for compatibility with path produced by analytics.js
+ * @param url
+ */
+function urlPath(url) {
+  const regex = /(http[s]?:\/\/)?([^\/\s]+\/)(.*)/g;
+  const matches = regex.exec(url);
+  const pathMatch = matches && matches[3] ? matches[3].split("?")[0].replace(hashRegex, "") : "";
+  return "/" + pathMatch;
+}
+
 function adjustPayload(
   payload: any,
   config: JitsuOptions,
@@ -346,8 +359,9 @@ function adjustPayload(
   const query = parsedUrl ? parseQuery(parsedUrl.search) : {};
   const properties = payload.properties || {};
 
-  if (properties.path) {
-    properties.path = fixPath(properties.path);
+  if (payload.type === "page") {
+    properties.url = url.replace(hashRegex, "");
+    properties.path = fixPath(urlPath(url));
   }
 
   const customContext = payload.properties?.context || {};
