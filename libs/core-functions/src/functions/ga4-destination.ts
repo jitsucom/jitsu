@@ -120,16 +120,16 @@ function getUserProperties(event: AnalyticsServerEvent): Record<string, any> {
   //   if (prop.value == undefined) delete userProperties[key];
   // }
 
-  // for (const [key, value] of Object.entries(event.context?.traits || {})) {
-  //   if (
-  //     !ReservedUserProperties.includes(key) &&
-  //     !key.startsWith("google_") &&
-  //     !key.startsWith("ga_") &&
-  //     !key.startsWith("firebase_")
-  //   ) {
-  //     userProperties[key] = { value };
-  //   }
-  // }
+  for (const [key, value] of Object.entries((event.type == "identify" ? event.traits : event.context?.traits) || {})) {
+    if (
+      !ReservedUserProperties.includes(key) &&
+      !key.startsWith("google_") &&
+      !key.startsWith("ga_") &&
+      !key.startsWith("firebase_")
+    ) {
+      userProperties[key] = { value };
+    }
+  }
   return userProperties;
 }
 
@@ -146,19 +146,16 @@ function getSessionId(event: AnalyticsServerEvent, measurementId: string): strin
 }
 
 function pageViewEvent(event: AnalyticsServerEvent): Ga4Event {
-  const customProperties = {
+  const pageProperties = {
     ...(event.context?.page || {}),
-    ...(event.traits || {}),
-    ...(event.context?.traits || {}),
     ...(event.properties || {}),
-    userAgent: event.context?.userAgent,
   };
   return {
     name: "page_view",
     params: {
-      page_location: customProperties.url || "",
-      page_referrer: customProperties.referrer || "",
-      page_title: customProperties.title || "",
+      page_location: pageProperties.url || "",
+      page_referrer: pageProperties.referrer || "",
+      page_title: pageProperties.title || "",
       engagement_time_msec: 1,
     },
   };
