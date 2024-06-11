@@ -660,7 +660,7 @@ async function send(
 export type JitsuPluginConfig = JitsuOptions & {
   storageWrapper?: (persistentStorage: PersistentStorage) => PersistentStorage;
 };
-const jitsuAnalyticsPlugin = (pluginConfig: JitsuPluginConfig = {}): AnalyticsPlugin => {
+export const jitsuAnalyticsPlugin = (pluginConfig: JitsuPluginConfig = {}): AnalyticsPlugin => {
   const instanceConfig = {
     ...defaultConfig,
     ...pluginConfig,
@@ -775,5 +775,3 @@ function hash(str: string, seed: number = 0): number {
 
   return 4294967296 * (2097151 & h2) + (h1 >>> 0);
 }
-
-export default jitsuAnalyticsPlugin;
