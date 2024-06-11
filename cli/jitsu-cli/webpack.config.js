@@ -8,6 +8,7 @@ const config = {
     figlet: "require('figlet')",
     "@swc/core": "require('@swc/core')",
     "@swc/wasm": "require('@swc/wasm')",
+    typescript: "require('typescript')",
     //"isolated-vm": "require('isolated-vm')",
     "jest-cli": "require('jest-cli')",
     "../../package.json": "require('../package.json')",

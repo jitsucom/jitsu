@@ -13,7 +13,7 @@
     "clean": "rm -rf ./dist",
     "compile": "tsc -p . ",
     "build": "pnpm compile && webpack",
-    "run": "node dist/main.js",
+    "run": "pnpm build && node dist/main.js",
     "login": "pnpm build && node dist/main.js login",
     "init child": "pnpm build && node dist/main.js init",
     "build child": "pnpm build && node dist/main.js build",
@@ -23,9 +23,9 @@
   },
   "dependencies": {
     "figlet": "^1.6.0",
-    "isolated-vm": "5.0.0",
     "jest-cli": "^29.7.0",
-    "tslib": "^2.6.2"
+    "tslib": "^2.6.2",
+    "typescript": "^5.4.5"
   },
   "devDependencies": {
     "@babel/preset-env": "^7.23.2",
@@ -65,7 +65,6 @@
     "ts-jest": "^29.1.1",
     "ts-loader": "^9.4.4",
     "ts-node": "^10.9.2",
-    "typescript": "^5.3.3",
     "webpack": "^5.91.0",
     "webpack-cli": "^5.1.4"
   }
