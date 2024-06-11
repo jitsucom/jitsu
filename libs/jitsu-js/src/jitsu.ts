@@ -1,5 +1,4 @@
 import type { AnalyticsInterface } from "@jitsu/protocols/analytics";
-import type { AnalyticsPlugin } from "analytics";
 
 type JitsuOptions = {
   /**
@@ -83,7 +82,5 @@ type RuntimeFacade = {
 };
 
 export declare function jitsuAnalytics(opts: JitsuOptions): AnalyticsInterface;
-
-export declare const jitsuAnalyticsPlugin: AnalyticsPlugin;
 
 export { AnalyticsInterface, JitsuOptions, PersistentStorage, RuntimeFacade };
