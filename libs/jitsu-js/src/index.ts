@@ -1,6 +1,6 @@
 import Analytics from "analytics";
 import { AnalyticsInterface, JitsuOptions, PersistentStorage, RuntimeFacade } from "./jitsu";
-import jitsuAnalyticsPlugin, { emptyRuntime, isInBrowser, windowRuntime } from "./analytics-plugin";
+import { jitsuAnalyticsPlugin, emptyRuntime, isInBrowser, windowRuntime } from "./analytics-plugin";
 import { Callback, DispatchedEvent, ID, JSONObject, Options } from "@jitsu/protocols/analytics";
 
 export default function parse(input) {
