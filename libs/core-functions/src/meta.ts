@@ -12,6 +12,13 @@ export const FacebookConversionApiCredentials = z.object({
     .default("website")
     .describe("Action Source"),
   events: z.string().optional().default("").describe(eventsParamDescription),
+  phoneFieldName: z
+    .string()
+    .optional()
+    .default("")
+    .describe(
+      "Name of the field in the event user traits that contains the phone number. Expected format could be <a href='https://en.wikipedia.org/wiki/E.164' target='_blank' rel='noreferrer noopener'>E.164</a> or international format. If empty, phone number hash will not be sent."
+    ),
 });
 
 export const FacebookConversionApiCredentialsUi = {

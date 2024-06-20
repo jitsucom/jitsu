@@ -19,6 +19,12 @@ function sanitizeEmail(em: string) {
   return em.trim().toLowerCase();
 }
 
+function sanitizePhone(ph: string) {
+  let sanitizedPhone = ph.replace(/[^\d]/g, "");
+  sanitizedPhone = sanitizedPhone.replace(/^0+/, "");
+  return sanitizedPhone;
+}
+
 function tryParse(responseText: string) {
   try {
     return JSON.parse(responseText);
@@ -39,11 +45,9 @@ const FacebookConversionsApi: JitsuFunction<AnalyticsServerEvent, FacebookConver
   event,
   ctx
 ) => {
-  if (event.type === "track" || event.type === "page" || event.type === "screen") {
+  if (["track", "page", "screen"].includes(event.type)) {
     const filter = createFilter(ctx.props.events || "");
-    if (!filter(event.type, event.event)) {
-      return;
-    }
+    if (!filter(event.type, event.event)) return;
 
     const fbEvent = {
       event_name: event.type === "track" ? event.event : event.type,
@@ -53,7 +57,10 @@ const FacebookConversionsApi: JitsuFunction<AnalyticsServerEvent, FacebookConver
       event_source_url: event.context?.page?.url,
       user_data: {
         em: event.context.traits?.email ? facebookHash(sanitizeEmail(event.context.traits.email + "")) : undefined,
-        //ph: "" - phone number hash. We don't have a predefined field for phone number. Should be configurable
+        ph:
+          ctx.props?.phoneFieldName && event.context.traits?.[ctx.props.phoneFieldName]
+            ? facebookHash(sanitizePhone(String(event.context.traits[ctx.props.phoneFieldName])))
+            : undefined,
         external_id: reduceArray([event.userId, event.anonymousId].filter(e => !!e)),
         client_ip_address: event.context.ip,
         client_user_agent: event.context.userAgent,
