@@ -366,7 +366,11 @@ export const coreDestinations: DestinationType<any>[] = [
     id: "clickhouse",
     usesBulker: true,
     icon: <ClickhouseIcon />,
-    connectionOptions: BaseBulkerConnectionOptions.describe(
+    connectionOptions: BaseBulkerConnectionOptions.merge(
+      z.object({
+        primaryKey: z.string().default("timestamp,message_id"),
+      })
+    ).describe(
       JSON.stringify({
         limitations: {
           streamModeLocked:
