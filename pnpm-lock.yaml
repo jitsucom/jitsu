@@ -321,8 +321,8 @@ importers:
         specifier: ^5.3.2
         version: 5.3.2
       isolated-vm:
-        specifier: 5.0.0
-        version: 5.0.0
+        specifier: 5.0.1
+        version: 5.0.1
       juava:
         specifier: workspace:*
         version: link:../juava
@@ -330,8 +330,8 @@ importers:
         specifier: ^4.17.21
         version: 4.17.21
       mongodb:
-        specifier: ^6.5.0
-        version: 6.5.0(@mongodb-js/zstd@1.2.0)
+        specifier: ^6.7.0
+        version: 6.7.0(@mongodb-js/zstd@1.2.0)
       node-cache:
         specifier: ^5.1.2
         version: 5.1.2
@@ -11098,8 +11098,8 @@ packages:
     dependencies:
       node-int64: 0.4.0
 
-  /bson@6.5.0:
-    resolution: {integrity: sha512-DXf1BTAS8vKyR90BO4x5v3rKVarmkdkzwOrnYDFdjAY694ILNDkmA3uRh1xXJEl+C1DAh8XCvAQ+Gh3kzubtpg==}
+  /bson@6.7.0:
+    resolution: {integrity: sha512-w2IquM5mYzYZv6rs3uN2DZTOBe2a0zXLj53TGDqwF4l6Sz/XsISrisXOJihArF9+BZ6Cq/GjVht7Sjfmri7ytQ==}
     engines: {node: '>=16.20.1'}
     dev: false
 
@@ -16576,8 +16576,8 @@ packages:
     resolution: {integrity: sha512-WhB9zCku7EGTj/HQQRz5aUQEUeoQZH2bWcltRErOpymJ4boYE6wL9Tbr23krRPSZ+C5zqNSrSw+Cc7sZZ4b7vg==}
     engines: {node: '>=0.10.0'}
 
-  /isolated-vm@5.0.0:
-    resolution: {integrity: sha512-rIMTrIUuwOZ57wK1V3/dmgyXMc1oX4YbGgALAiAH59xHrWoEwOtCQjjvuPZGZwllkMgYlOoNk6hW0+Mg04gJEw==}
+  /isolated-vm@5.0.1:
+    resolution: {integrity: sha512-hs7+ff59Z2zDvavfcjuot/r1gm6Bmpt+GoZxmVfxUmXaX5scOvUq/Rnme+mUtSh5lW41hH8gAuvk/yTJDYO8Fg==}
     engines: {node: '>=18.0.0'}
     requiresBuild: true
     dependencies:
@@ -20210,8 +20210,8 @@ packages:
       whatwg-url: 13.0.0
     dev: false
 
-  /mongodb@6.5.0(@mongodb-js/zstd@1.2.0):
-    resolution: {integrity: sha512-Fozq68InT+JKABGLqctgtb8P56pRrJFkbhW0ux+x1mdHeyinor8oNzJqwLjV/t5X5nJGfTlluxfyMnOXNggIUA==}
+  /mongodb@6.7.0(@mongodb-js/zstd@1.2.0):
+    resolution: {integrity: sha512-TMKyHdtMcO0fYBNORiYdmM25ijsHs+Njs963r4Tro4OQZzqYigAzYQouwWRg4OIaiLRUEGUh/1UAcH5lxdSLIA==}
     engines: {node: '>=16.20.1'}
     peerDependencies:
       '@aws-sdk/credential-providers': ^3.188.0
@@ -20239,7 +20239,7 @@ packages:
     dependencies:
       '@mongodb-js/saslprep': 1.1.5
       '@mongodb-js/zstd': 1.2.0
-      bson: 6.5.0
+      bson: 6.7.0
       mongodb-connection-string-url: 3.0.0
     dev: false
 
