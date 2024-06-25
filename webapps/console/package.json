@@ -60,7 +60,7 @@
     "facebook-nodejs-business-sdk": "^19.0.0",
     "firebase": "^10.4.0",
     "firebase-admin": "^11.11.0",
-    "google-ads-api": "^14.2.0",
+    "google-ads-api": "^16.0.0-rest-beta3",
     "googleapis": "^126.0.1",
     "highlight.js": "^11.6.0",
     "ioredis": "^5.3.2",
