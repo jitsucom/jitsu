@@ -13,8 +13,13 @@ type PaidEdition = "GeoIP2-City" | "GeoIP2-Country" | "GeoIP2-ISP" | "GeoIP2-Dom
 type FreeEditions = "GeoLite2-City" | "GeoLite2-Country" | "GeoLite2-ASN";
 type Edition = PaidEdition | FreeEditions | "NotRequired" | "";
 
-const officialUrl = (licenseKey: string, edition: Edition) =>
-  `https://download.maxmind.com/app/geoip_download?license_key=${licenseKey}&edition_id=${edition}&suffix=tar.gz`;
+const composeURL = (licenseKeyOrURL: string, edition: Edition) => {
+  if (licenseKeyOrURL.startsWith("http")) {
+    return licenseKeyOrURL + (licenseKeyOrURL.endsWith("/") ? "" : "/") + edition + ".tar.gz";
+  } else {
+    return `https://download.maxmind.com/app/geoip_download?license_key=${licenseKeyOrURL}&edition_id=${edition}&suffix=tar.gz`;
+  }
+};
 
 const geoIpCache = new NodeCache({ stdTTL: 60 * 5, checkperiod: 60, useClones: false });
 
@@ -34,9 +39,9 @@ async function test() {
   log.atInfo().log(`IP 209.142.68.29:`, JSON.stringify(await maxMindClient.resolve("209.142.68.29"), null, 2));
 }
 
-export async function initMaxMindClient(licenseKey: string): Promise<GeoResolver> {
-  if (!licenseKey) {
-    log.atError().log("licenseKey is not provided. GeoIP resolution will not work.");
+export async function initMaxMindClient(licenseKeyOrURL: string): Promise<GeoResolver> {
+  if (!licenseKeyOrURL) {
+    log.atError().log("licenseKeyOrURL is not provided. GeoIP resolution will not work.");
     return DummyResolver;
   }
   let cityReader: ReaderModel | undefined;
@@ -46,16 +51,16 @@ export async function initMaxMindClient(licenseKey: string): Promise<GeoResolver
   let domainReader: ReaderModel | undefined;
   let connectionTypeReader: ReaderModel | undefined;
 
-  const cityDb = await downloadOfficial(licenseKey, "GeoIP2-City");
+  const cityDb = await download(licenseKeyOrURL, "GeoIP2-City");
   if (cityDb.reader) {
     cityReader = cityDb.reader;
   }
-  const countryDb = await downloadOfficial(licenseKey, "GeoIP2-Country");
+  const countryDb = await download(licenseKeyOrURL, "GeoIP2-Country");
   if (countryDb.reader) {
     countryReader = countryDb.reader;
   }
 
-  const ispDb = await downloadOfficial(licenseKey, "GeoIP2-ISP");
+  const ispDb = await download(licenseKeyOrURL, "GeoIP2-ISP");
   if (ispDb.reader) {
     if (ispDb.edition === "GeoIP2-ISP") {
       ispReader = ispDb.reader;
@@ -63,11 +68,11 @@ export async function initMaxMindClient(licenseKey: string): Promise<GeoResolver
       asnReader = ispDb.reader;
     }
   }
-  const domainDb = await downloadOfficial(licenseKey, "GeoIP2-Domain");
+  const domainDb = await download(licenseKeyOrURL, "GeoIP2-Domain");
   if (domainDb.reader) {
     domainReader = domainDb.reader;
   }
-  const contTypeDb = await downloadOfficial(licenseKey, "GeoIP2-Connection-Type");
+  const contTypeDb = await download(licenseKeyOrURL, "GeoIP2-Connection-Type");
   if (contTypeDb.reader) {
     connectionTypeReader = contTypeDb.reader;
   }
@@ -192,12 +197,12 @@ export async function initMaxMindClient(licenseKey: string): Promise<GeoResolver
   }
 }
 
-async function downloadOfficial(
-  licenseKey: string,
+async function download(
+  licenseKeyOrURL: string,
   edition: Edition
 ): Promise<{ reader?: ReaderModel; edition: Edition }> {
   try {
-    const b = await loadFromURL(officialUrl(licenseKey, edition));
+    const b = await loadFromURL(composeURL(licenseKeyOrURL, edition));
     const reader = Reader.openBuffer(b);
     log.atInfo().log(`Successfully downloaded ${edition} edition`);
     return { reader, edition };
@@ -214,7 +219,7 @@ async function downloadOfficial(
       .atError()
       .log(`Failed to download ${edition} edition: ${e.message}. Trying to download free ${freeEdition} edition`);
     try {
-      const b = await loadFromURL(officialUrl(licenseKey, freeEdition));
+      const b = await loadFromURL(composeURL(licenseKeyOrURL, freeEdition));
       const reader = Reader.openBuffer(b);
       log.atInfo().log(`Successfully downloaded free ${freeEdition} edition`);
       return { reader, edition: freeEdition };

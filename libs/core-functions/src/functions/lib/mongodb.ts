@@ -24,7 +24,8 @@ async function createClient() {
   const client = new MongoClient(mongodbURL, {
     compressors: ["zstd"],
     serverSelectionTimeoutMS: 60000,
-    maxPoolSize: 32,
+    maxPoolSize: 64,
+    connectTimeoutMS: 60000,
     socketTimeoutMS: mongoTimeout,
   });
   // Connect the client to the server (optional starting in v4.7)
