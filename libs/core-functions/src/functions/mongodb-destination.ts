@@ -46,6 +46,7 @@ const MongodbDestination: JitsuFunction<AnalyticsServerEvent, MongodbDestination
         return createClient(ctx.props, ctx);
       },
       {
+        optional: true,
         ttlSec: 60 * 60 * 24,
         cleanupFunc: client => client.close(),
       }
