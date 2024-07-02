@@ -791,7 +791,7 @@ function SyncEditor({
             type="primary"
             size="large"
             loading={loading}
-            disabled={loading || disableSync}
+            disabled={loading || disableSync || typeof syncOptions !== "object" || loadingCatalog}
             onClick={async () => {
               setLoading(true);
               try {
