@@ -318,6 +318,8 @@ function SyncEditor({
       }
       if (xor(Object.keys(streams), Object.keys(currentStreams)).length > 0) {
         updateOptions({ streams, storageKey });
+      } else {
+        updateOptions({ storageKey });
       }
     },
     [syncOptions?.streams, updateOptions]
