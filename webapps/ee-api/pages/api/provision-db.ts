@@ -114,6 +114,7 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
     return res.status(200).json({
       ...credentials,
       protocol: "clickhouse-secure",
+      loadAsJson: true,
       hosts: chHosts,
     });
   }
@@ -127,6 +128,7 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
   return {
     ...dbCredentials,
     protocol: "clickhouse-secure",
+    loadAsJson: true,
     hosts: chHosts,
   };
 };
