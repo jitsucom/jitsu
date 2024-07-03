@@ -53,7 +53,7 @@ export const UDFWrapper = (
   let context: Context;
   let refs: Reference[] = [];
   try {
-    isolate = new Isolate({ memoryLimit: 64 });
+    isolate = new Isolate({ memoryLimit: 128 });
     context = isolate.createContextSync();
     const jail = context.global;
 
@@ -242,13 +242,19 @@ function wrap(connectionId: string, isolate: Isolate, context: Context, wrapper:
       //console.error(e);
       if (isolate.isDisposed) {
         if (isTimeout) {
-          throw new RetryError(`Function execution took longer than ${udfTimeoutMs}ms. Isolate is disposed`, {
-            drop: true,
-          });
+          throw new RetryError(
+            `[${connectionId}] Function execution took longer than ${udfTimeoutMs}ms. Isolate is disposed`,
+            {
+              drop: true,
+            }
+          );
         } else {
-          throw new RetryError(`Function execution stopped probably due to high memory usage. Isolate is disposed.`, {
-            drop: true,
-          });
+          throw new RetryError(
+            `[${connectionId}] Function execution stopped probably due to high memory usage. Isolate is disposed.`,
+            {
+              drop: true,
+            }
+          );
         }
       }
       const m = e.message;
