@@ -578,7 +578,7 @@ export async function scheduleSync({
     if (!catalog) {
       return {
         ok: false,
-        error: `Catalog not found. Please run Refresh Catalog in Sync settings`,
+        error: `Source catalog not found or outdated. Please run Refresh Catalog in Sync settings`,
       };
     }
     const configuredCatalog = selectStreamsFromCatalog(catalog, (sync.data as any).streams);
@@ -601,6 +601,7 @@ export async function scheduleSync({
         config: await tryManageOauthCreds({ ...serviceConfig, id: sync.fromId }),
         catalog: configuredCatalog,
         ...(stateObj ? { state: stateObj } : {}),
+        destinationConfig,
       },
     });
     if (!res.ok) {
