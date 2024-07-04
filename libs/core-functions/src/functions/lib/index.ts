@@ -305,16 +305,21 @@ export const makeLog = (connectionId: string, eventsStore: EventsStore) => ({
   },
 });
 
-export const makeFetch =
-  (connectionId: string, eventsStore: EventsStore, logLevel: "info" | "debug", fetchTimeoutMs: number = 2000) =>
-  async (
+export const makeFetch = (
+  connectionId: string,
+  eventsStore: EventsStore,
+  logLevel: "info" | "debug",
+  fetchTimeoutMs: number = 2000
+) => {
+  const throttle = connectionId === "clke5lrfm0000ii0gahryc37d-wbyo-5jyq-KIMXwt" ? getThrottle(10000) : noThrottle();
+
+  return async (
     url: string,
     init?: FetchOpts,
     extra?: { log?: boolean; ctx?: FunctionContext; event?: AnyEvent }
   ): Promise<Response> => {
     //capture execution time
     const sw = stopwatch();
-    const throttle = connectionId === "clke5lrfm0000ii0gahryc37d-wbyo-5jyq-KIMXwt" ? getThrottle(10000) : noThrottle();
     const ctx = extra?.ctx?.function;
     const id = ctx?.id || "unknown";
     const type = ctx?.type || "unknown";
@@ -398,6 +403,7 @@ export const makeFetch =
 
     return fetchResult;
   };
+};
 
 function hideSensitiveHeaders(headers: Record<string, string>): Record<string, string> {
   const result: Record<string, string> = {};
