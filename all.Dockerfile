@@ -6,7 +6,7 @@ FROM node:22-slim as base
 
 WORKDIR /app
 RUN apt-get update -y
-RUN apt-get install nano curl bash netcat-traditional procps jq -y
+RUN apt-get install bash -y
 
 FROM base as builder
 
