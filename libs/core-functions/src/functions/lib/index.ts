@@ -306,7 +306,7 @@ export const makeLog = (connectionId: string, eventsStore: EventsStore) => ({
 });
 
 export const makeFetch =
-  (connectionId: string, eventsStore: EventsStore, logLevel: "info" | "debug", fetchTimeoutMs: number = 5000) =>
+  (connectionId: string, eventsStore: EventsStore, logLevel: "info" | "debug", fetchTimeoutMs: number = 2000) =>
   async (
     url: string,
     init?: FetchOpts,
@@ -336,7 +336,7 @@ export const makeFetch =
     let internalInit: RequestInit = {
       ...init,
       keepalive: true,
-      signal: AbortSignal.timeout(fetchTimeoutMs),
+      signal: AbortSignal.timeout(connectionId === "clke5lrfm0000ii0gahryc37d-wbyo-5jyq-KIMXwt" ? 500 : fetchTimeoutMs),
     };
     let fetchResult: any = undefined;
     try {

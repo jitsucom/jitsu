@@ -47,7 +47,7 @@ export async function rotorMessageHandler(
   headers?,
   retriesEnabled: boolean = true,
   retries: number = 0,
-  fetchTimeoutMs: number = 5000
+  fetchTimeoutMs: number = 2000
 ) {
   if (!_message) {
     return;

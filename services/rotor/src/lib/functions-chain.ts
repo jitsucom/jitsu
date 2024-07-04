@@ -104,7 +104,7 @@ export function buildFunctionChain(
   funcStore: EntityStore<FunctionConfig>,
   rotorContext: MessageHandlerContext,
   anonymousEventsStore: AnonymousEventsStore,
-  fetchTimeoutMs: number = 5000
+  fetchTimeoutMs: number = 2000
 ): FuncChain {
   let mainFunction;
   const connectionData = connection.options as any;
