@@ -19,7 +19,7 @@ import {
   Metrics,
   TTLStore,
 } from "@jitsu/protocols/functions";
-import { getErrorMessage, getLog, getThrottle, LogLevel, newError, noThrottle, stopwatch } from "juava";
+import { alwaysThrottle, getErrorMessage, getLog, getThrottle, LogLevel, newError, noThrottle, stopwatch } from "juava";
 
 const log = getLog("functions-context");
 
@@ -311,7 +311,7 @@ export const makeFetch = (
   logLevel: "info" | "debug",
   fetchTimeoutMs: number = 2000
 ) => {
-  const throttle = connectionId === "clke5lrfm0000ii0gahryc37d-wbyo-5jyq-KIMXwt" ? getThrottle(5000) : noThrottle();
+  const throttle = connectionId === "clke5lrfm0000ii0gahryc37d-wbyo-5jyq-KIMXwt" ? alwaysThrottle() : noThrottle();
 
   return async (
     url: string,

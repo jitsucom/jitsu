@@ -12,6 +12,14 @@ export function noThrottle(): Throttle {
   };
 }
 
+export function alwaysThrottle(): Throttle {
+  return {
+    throttle: () => 1,
+    fail: () => {},
+    success: () => {},
+  };
+}
+
 export function getThrottle(calculatePeriodMs: number): Throttle {
   let previousThrottleTime = Date.now();
   let currentThrottle = 0;
