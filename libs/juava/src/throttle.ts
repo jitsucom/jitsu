@@ -20,19 +20,15 @@ export function getThrottle(calculatePeriodMs: number): Throttle {
 
   function recalculateThrottle() {
     const total = fails + successes;
-    if (total < 10) {
-      return;
-    }
     const now = Date.now();
-    if (now - previousThrottleTime < calculatePeriodMs) {
-      return;
-    }
-    previousThrottleTime = now;
+    if (total > 100 || (total >= 10 && now - previousThrottleTime > calculatePeriodMs)) {
+      previousThrottleTime = now;
 
-    const l = Math.min(100, total);
-    currentThrottle = Math.min(fails / total, (l - 1) / l);
-    fails = 0;
-    successes = 0;
+      const l = Math.min(100, total);
+      currentThrottle = Math.min(fails / total, (l - 1) / l);
+      fails = 0;
+      successes = 0;
+    }
   }
 
   return {
