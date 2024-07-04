@@ -19,7 +19,7 @@ import {
   Metrics,
   TTLStore,
 } from "@jitsu/protocols/functions";
-import { getErrorMessage, getLog, LogLevel, newError, stopwatch } from "juava";
+import { getErrorMessage, getLog, getThrottle, LogLevel, newError, noThrottle, stopwatch } from "juava";
 
 const log = getLog("functions-context");
 
@@ -314,6 +314,7 @@ export const makeFetch =
   ): Promise<Response> => {
     //capture execution time
     const sw = stopwatch();
+    const throttle = connectionId === "clke5lrfm0000ii0gahryc37d-wbyo-5jyq-KIMXwt" ? getThrottle(10000) : noThrottle();
     const ctx = extra?.ctx?.function;
     const id = ctx?.id || "unknown";
     const type = ctx?.type || "unknown";
@@ -333,17 +334,28 @@ export const makeFetch =
           }
         : undefined;
 
-    let internalInit: RequestInit = {
-      ...init,
-      keepalive: true,
-      signal: AbortSignal.timeout(connectionId === "clke5lrfm0000ii0gahryc37d-wbyo-5jyq-KIMXwt" ? 500 : fetchTimeoutMs),
-    };
     let fetchResult: any = undefined;
     try {
+      const throttleValue = throttle.throttle();
+      if (throttleValue > 0 && Math.random() < throttleValue) {
+        const e = new Error(`Fetch request throttled because of timeout rate: ${throttleValue}`);
+        e.name = "ThrottleError";
+        throw e;
+      }
+      const internalInit: RequestInit = {
+        ...init,
+        keepalive: true,
+        signal: AbortSignal.timeout(fetchTimeoutMs),
+      };
       fetchResult = await fetch(url, internalInit);
+      throttle.success();
     } catch (err: any) {
       if (err.name === "TimeoutError") {
+        throttle.fail();
         err = newError(`Fetch request exceeded timeout ${fetchTimeoutMs}ms and was aborted`, err);
+      } else if (err.name !== "ThrottleError") {
+        // we throttle only timeout errors. all other cases considered as success here
+        throttle.success();
       }
       if (logEnabled) {
         const elapsedMs = sw.elapsedMs();

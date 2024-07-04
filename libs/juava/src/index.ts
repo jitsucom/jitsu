@@ -12,3 +12,4 @@ export * from "./cache";
 export * from "./sql-params";
 export * from "./boolean";
 export * from "./number";
+export * from "./throttle";
