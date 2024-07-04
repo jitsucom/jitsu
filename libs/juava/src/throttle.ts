@@ -31,7 +31,7 @@ export function getThrottle(calculatePeriodMs: number): Throttle {
       currentThrottle = 0;
       return;
     }
-    const l = Math.min(10, total);
+    const l = Math.min(20, total);
     currentThrottle = Math.min(fails / total, (l - 1) / l);
   }
 
