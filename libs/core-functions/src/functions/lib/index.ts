@@ -311,7 +311,7 @@ export const makeFetch = (
   logLevel: "info" | "debug",
   fetchTimeoutMs: number = 2000
 ) => {
-  const throttle = connectionId === "clke5lrfm0000ii0gahryc37d-wbyo-5jyq-KIMXwt" ? getThrottle(10000) : noThrottle();
+  const throttle = connectionId === "clke5lrfm0000ii0gahryc37d-wbyo-5jyq-KIMXwt" ? getThrottle(5000) : noThrottle();
 
   return async (
     url: string,

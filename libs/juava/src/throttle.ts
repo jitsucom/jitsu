@@ -13,26 +13,26 @@ export function noThrottle(): Throttle {
 }
 
 export function getThrottle(calculatePeriodMs: number): Throttle {
-  let previousThrottle = 0;
   let previousThrottleTime = Date.now();
   let currentThrottle = 0;
   let fails = 0;
   let successes = 0;
 
   function recalculateThrottle() {
+    const total = fails + successes;
+    if (total < 10) {
+      return;
+    }
     const now = Date.now();
     if (now - previousThrottleTime < calculatePeriodMs) {
       return;
     }
     previousThrottleTime = now;
-    previousThrottle = currentThrottle;
-    const total = fails + successes;
-    if (total < 2) {
-      currentThrottle = 0;
-      return;
-    }
-    const l = Math.min(20, total);
+
+    const l = Math.min(100, total);
     currentThrottle = Math.min(fails / total, (l - 1) / l);
+    fails = 0;
+    successes = 0;
   }
 
   return {
@@ -45,7 +45,7 @@ export function getThrottle(calculatePeriodMs: number): Throttle {
       recalculateThrottle();
     },
     throttle: () => {
-      return (previousThrottle + currentThrottle) / 2;
+      return currentThrottle;
     },
   };
 }
