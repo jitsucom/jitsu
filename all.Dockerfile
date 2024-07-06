@@ -2,7 +2,7 @@
 # Build & push it with
 #    docker buildx build --platform linux/amd64 . -f console.Dockerfile --push -t jitsucom/console:latest
 
-FROM node:22-bookworm-slim as base
+FROM node:22-bookworm as base
 
 WORKDIR /app
 RUN apt-get update -y
