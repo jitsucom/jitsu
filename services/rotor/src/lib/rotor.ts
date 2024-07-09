@@ -182,7 +182,7 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
                       // on first retry we create a new key so if more than one destination fails - they will be retried independently
                       key: retries === 0 ? `${message.key}_${connectionId}` : message.key,
                       headers: {
-                        [ERROR_HEADER]: e.message,
+                        [ERROR_HEADER]: e.message?.substring(0, 1024) || "unknown error",
                         [RETRY_COUNT_HEADER]: `${retries}`,
                         [ORIGINAL_TOPIC_HEADER]: topic,
                         [RETRY_TIME_HEADER]: retryTime,

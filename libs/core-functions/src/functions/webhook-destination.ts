@@ -18,9 +18,13 @@ const WebhookDestination: JitsuFunction<AnalyticsServerEvent, WebhookDestination
       },
     });
     if (!res.ok) {
-      throw new HTTPError(`HTTP Error: ${res.status} ${res.statusText}`, res.status, await res.text());
+      throw new HTTPError(
+        `HTTP Error: ${res.status} ${res.statusText}`,
+        res.status,
+        (await res.text())?.substring(0, 255)
+      );
     } else {
-      ctx.log.debug(`HTTP Status: ${res.status} ${res.statusText} Response: ${await res.text()}`);
+      ctx.log.debug(`HTTP Status: ${res.status} ${res.statusText} Response: ${(await res.text())?.substring(0, 255)}`);
     }
     return event;
   } catch (e: any) {
