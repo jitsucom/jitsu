@@ -21,6 +21,20 @@ function colorLogs(data: string): ReactNode {
           {line + "\n"}
         </span>
       );
+    } else if (line.includes("[jitsu]")) {
+      return (
+        <span key={i} className="text-fuchsia-700">
+          <span
+            key={i}
+            dangerouslySetInnerHTML={{
+              __html:
+                line
+                  .replace(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}[.]\d{3})/, '<span style="color: #4f46e5">$1</span>')
+                  .replace(/'([\w_]+)'/, "<b>'$1'</b>") + "\n",
+            }}
+          ></span>
+        </span>
+      );
     } else {
       return (
         <span
