@@ -33,6 +33,7 @@ import { feedbackError, feedbackSuccess, useKeyboard } from "../../../lib/ui";
 import hash from "object-hash";
 import { useConfigObjectLinks, useConfigObjectList } from "../../../lib/store";
 import { ButtonLabel } from "../../../components/ButtonLabel/ButtonLabel";
+import { Spinner } from "../../../components/GlobalLoader/GlobalLoader";
 
 dayjs.extend(utc);
 dayjs.extend(relativeTime);
@@ -77,11 +78,31 @@ type TasksTableProps = {
   refreshCb?: () => void;
 };
 
-function TaskStatus0({ task }: { task: TasksDbModel & TaskStats }) {
-  const router = useRouter();
-  const workspace = useWorkspace();
+function TaskStatus0({ task, loading }: { task: TasksDbModel & TaskStats; loading?: boolean }) {
+  if (loading) {
+    return (
+      <button className={"outline-0"}>
+        <div className={"flex flex-col items-end text-right cursor-pointer"}>
+          <Tag style={{ marginRight: 0 }}>
+            LOADING <Spinner className={"inline ml-0.5 w-3 h-3"} />
+          </Tag>
+          <span className={"text-xxs text-gray-500"}>&nbsp;</span>
+        </div>
+      </button>
+    );
+  }
+  if (!task.status) {
+    return (
+      <button className={"outline-0"}>
+        <div className={"flex flex-col items-end text-right cursor-pointer"}>
+          <Tag style={{ marginRight: 0 }}>NO RUNS</Tag>
+          <span className={"text-xxs text-gray-500"}>&nbsp;</span>
+        </div>
+      </button>
+    );
+  }
 
-  const SyncStatus: React.FC<PropsWithChildren<{ status: "PARTIAL" | "FAILED" | "SUCCESS" }>> = props => {
+  const SyncStatus: React.FC<PropsWithChildren<{ status: "PARTIAL" | "FAILED" | "SUCCESS" | "RUNNING" }>> = props => {
     const [showPopover, setShowPopover] = useState(false);
     const handleOpenChange = (newOpen: boolean) => {
       setShowPopover(newOpen);
@@ -133,6 +154,8 @@ function TaskStatus0({ task }: { task: TasksDbModel & TaskStats }) {
         <CheckCircle2 style={{ color: "green" }} />
       ) : props.status === "PARTIAL" ? (
         <AlertCircle style={{ color: "orange" }} />
+      ) : props.status === "RUNNING" ? (
+        <PlayCircle style={{ color: "blue" }} />
       ) : (
         <XCircle style={{ color: "red" }} />
       );
@@ -164,7 +187,7 @@ function TaskStatus0({ task }: { task: TasksDbModel & TaskStats }) {
         return (
           <SyncStatus status={task.status}>
             <Tag color={"green"} style={{ marginRight: 0 }}>
-              SUCCESS
+              SUCCESS <FaExternalLinkAlt className={"inline ml-0.5 w-2.5 h-2.5"} />
             </Tag>
             <span className={"text-xxs text-gray-500"}>show stats</span>
           </SyncStatus>
@@ -196,24 +219,15 @@ function TaskStatus0({ task }: { task: TasksDbModel & TaskStats }) {
       );
     case "RUNNING":
       return (
-        <div
-          className={"flex flex-col items-end text-right cursor-pointer"}
-          onClick={() => {
-            router.push(`/${workspace.slug || workspace.id}/syncs/logs?taskId=${task.task_id}&syncId=${task.sync_id}`);
-          }}
-        >
+        <SyncStatus status={task.status}>
           <Tag color={"blue"} style={{ marginRight: 0 }}>
             RUNNING <FaExternalLinkAlt className={"inline ml-0.5 w-2.5 h-2.5"} />
           </Tag>
-          <span className={"text-xxs text-gray-500"}>show logs</span>
-        </div>
+          <span className={"text-xxs text-gray-500"}>show stats</span>
+        </SyncStatus>
       );
     default:
-      return (
-        <Tag color={"gray"} style={{ marginRight: 0 }}>
-          {task.status}
-        </Tag>
-      );
+      return <Tag style={{ marginRight: 0 }}>{task.status}</Tag>;
   }
 }
 
@@ -237,6 +251,10 @@ function TaskStatusResultTable({ stats }: { stats: any[] }) {
           return <Tag color="green">SUCCESS</Tag>;
         } else if (record.status === "PARTIAL") {
           return <Tag color="orange">PARTIAL</Tag>;
+        } else if (record.status === "PENDING") {
+          return <Tag>PENDING</Tag>;
+        } else if (record.status === "RUNNING") {
+          return <Tag color="blue">RUNNING</Tag>;
         } else {
           return <Tag color="red">{record.status}</Tag>;
         }
@@ -268,7 +286,7 @@ function TaskStatusResultTable({ stats }: { stats: any[] }) {
       dataSource={stats}
       pagination={false}
       expandable={{
-        rowExpandable: record => record.status !== "SUCCESS",
+        rowExpandable: record => record.status === "FAILED" || record.status === "PARTIAL",
         expandedRowRender: record => {
           return <pre className={"text-xs text-red-600 break-all whitespace-pre-wrap"}>{record.error}</pre>;
         },
@@ -280,7 +298,7 @@ function TaskStatusResultTable({ stats }: { stats: any[] }) {
 export function processTaskStatus(task: TasksDbModel): TasksDbModel & TaskStats {
   let stats: any = undefined;
   try {
-    stats = JSON.parse(task.description || "{}");
+    stats = JSON.parse(task?.description || "{}");
   } catch (e) {}
   //sum des values
   const taskStats: TaskStats = {
@@ -388,7 +406,7 @@ function TasksTable({ tasks, loading, linksMap, servicesMap, destinationsMap, re
       render: (text, task) => {
         if (task.status === "SUCCESS") {
           return <div className={"whitespace-nowrap"}>{task.successStreams}</div>;
-        } else if (task.status === "PARTIAL") {
+        } else if ((task.status === "PARTIAL" || task.status === "RUNNING") && task.totalStreams) {
           return (
             <div>
               {task.successStreams} / {task.totalStreams}

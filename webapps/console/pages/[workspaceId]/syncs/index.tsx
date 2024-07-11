@@ -26,9 +26,8 @@ import {
   XCircle,
 } from "lucide-react";
 import { PlusOutlined } from "@ant-design/icons";
-import { WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
+import { JitsuButton, WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
 import { ErrorCard } from "../../../components/GlobalError/GlobalError";
-import { Spinner } from "../../../components/GlobalLoader/GlobalLoader";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import relativeTime from "dayjs/plugin/relativeTime";
@@ -126,31 +125,33 @@ function SyncsTable({ links, services, destinations }: RemoteEntitiesProps) {
   const workspace = useWorkspace();
   const router = useRouter();
   const [loading, setLoading] = React.useState(false);
+  const [tasksLoading, setTasksLoading] = React.useState(true);
+
   const [sorting, setSorting] = useQueryStringState<SortingSettings>("sorting", {
     defaultValue: { columns: [] },
     ...jsonSerializationBase64,
   });
-  const [tasks, setTasks] = useState<{ loading: boolean; data?: any; error?: any }>({ loading: true });
-
+  const [tasks, setTasks] = useState<{ data?: any; error?: any }>({ data: {} });
   const [runPressed, setRunPressed] = useState<string | undefined>(undefined);
 
+  const [refresh, setRefresh] = useState(0);
   const reloadStore = useStoreReload();
 
   const [apiDocs, setShowAPIDocs] = useQueryStringState<string | undefined>("schedule");
   //useEffect update tasksData every 10 seconds
   useEffect(() => {
-    const fetchTasks = async () => {
+    (async () => {
       try {
+        setTasksLoading(true);
         const data = await rpc(`/api/${workspace.id}/sources/tasks`, { body: links.map(l => l.id) });
-        setTasks({ loading: false, data });
+        setTasks({ data });
       } catch (e) {
-        setTasks({ loading: false, data: {}, error: e });
+        setTasks({ data: {}, error: e });
+      } finally {
+        setTasksLoading(false);
       }
-    };
-    fetchTasks();
-    const interval = setInterval(fetchTasks, 10000);
-    return () => clearInterval(interval);
-  }, [links, workspace.id]);
+    })();
+  }, [links, workspace.id, refresh]);
 
   const deleteSync = async (link: Omit<SyncDbModel, "data">) => {
     if (await confirmOp("Are you sure you want to unlink this service from this destination?")) {
@@ -215,36 +216,35 @@ function SyncsTable({ links, services, destinations }: RemoteEntitiesProps) {
       },
     },
     {
-      title: <div className={"whitespace-nowrap"}>Last Status</div>,
-      className: "text-right",
+      title: (
+        <div className={"whitespace-nowrap content-end"}>
+          Last Status
+          <JitsuButton
+            icon={<RefreshCw className={`w-3.5 h-3.5 ${tasksLoading && refresh > 0 && "animate-spin"}`} />}
+            type="link"
+            size="small"
+            rootClassName={"top-0.5"}
+            onClick={() => {
+              setRefresh(refresh + 1);
+            }}
+          ></JitsuButton>
+        </div>
+      ),
+      className: "text-right whitespace-nowrap",
       width: "4%",
       render: (text, link) => {
         if (tasks.error) {
-          return <div>error obtaining status</div>;
-        }
-        if (tasks.loading) {
-          return (
-            <div className="w-5 h-5">
-              <Spinner />
-            </div>
-          );
+          return <div style={{ height: 41 }}>error</div>;
         }
         const t = tasks.data.tasks?.[link.id];
-        if (!t?.status) {
-          return <Tag style={{ marginRight: 0 }}>NO RUNS</Tag>;
-        }
-        return (
-          <div className="h-5 flex flex-col justify-center">
-            <TaskStatus task={processTaskStatus(t)} />
-          </div>
-        );
+        return <TaskStatus task={processTaskStatus(t)} loading={tasksLoading} />;
       },
     },
     {
       title: <div className={"whitespace-nowrap text-right"}>Updated (UTC)</div>,
       width: "12%",
       render: (text, link) => {
-        if (tasks.error || tasks.loading) {
+        if (tasks.error) {
           return undefined;
         }
         const t = tasks.data.tasks?.[link.id];
@@ -286,7 +286,7 @@ function SyncsTable({ links, services, destinations }: RemoteEntitiesProps) {
               setRunPressed(link.id);
               try {
                 const data = await rpc(`/api/${workspace.id}/sources/tasks`, { body: links.map(l => l.id) });
-                setTasks({ loading: false, data });
+                setTasks({ data });
                 if (data.tasks?.[link.id]?.status === "RUNNING") {
                   toTasks();
                   return;
