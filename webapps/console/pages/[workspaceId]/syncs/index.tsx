@@ -340,7 +340,7 @@ function SyncsTable({ links, services, destinations }: RemoteEntitiesProps) {
               setRunPressed(link.id);
               try {
                 const data = await rpc(`/api/${workspace.id}/sources/tasks`, { body: links.map(l => l.id) });
-                setTasks({ loading: false, data });
+                setTasks({ data });
                 if (data.tasks?.[link.id]?.status === "RUNNING") {
                   toTasks();
                   return;
