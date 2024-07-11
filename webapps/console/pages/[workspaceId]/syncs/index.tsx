@@ -4,7 +4,7 @@ import { get } from "../../../lib/useApi";
 import { DestinationConfig, ServiceConfig } from "../../../lib/schema";
 import { ConfigurationObjectLinkDbModel } from "../../../prisma/schema";
 import { z } from "zod";
-import { Table, Tag, Tooltip } from "antd";
+import { Table, Tooltip } from "antd";
 import { confirmOp, feedbackError, feedbackSuccess } from "../../../lib/ui";
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
