@@ -115,7 +115,7 @@ export async function checkQuota(opts: {
     }
     const quotaCheckResult = await rpc(quotaCheck, {
       method: "POST",
-      query: { workspaceId: opts.workspaceId, opts.trigger }, //db is created, so the slug won't be really used
+      query: { workspaceId: opts.workspaceId, trigger: opts.trigger }, //db is created, so the slug won't be really used
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${eeAuthToken}`,
