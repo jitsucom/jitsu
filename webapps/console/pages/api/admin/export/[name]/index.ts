@@ -7,6 +7,7 @@ import { createJwt, getEeConnection, isEEAvailable } from "../../../../../lib/se
 import omit from "lodash/omit";
 import { NextApiRequest } from "next";
 import hash from "object-hash";
+import { WorkspaceDbModel } from "../../../../../prisma/schema";
 
 interface Writer {
   write(data: string): void;
@@ -247,15 +248,8 @@ const exports: Export[] = [
           if (needComma) {
             writer.write(",");
           }
-          let throttlePercent: number | undefined = undefined;
-          const throttleOpts = (obj.workspace.featuresEnabled ?? []).find(f => f.startsWith("throttle"));
-          if (throttleOpts) {
-            //remove all non-numeric
-            const m = throttleOpts.match(/(\d+)/);
-            if (m && m.length > 1) {
-              throttlePercent = Math.min(100, parseInt(m[1]));
-            }
-          }
+          const throttlePercent = getNumericOption("throttle", obj.workspace);
+          const shardNumber = getNumericOption("shard", obj.workspace);
           writer.write(
             JSON.stringify({
               __debug: {
@@ -279,6 +273,7 @@ const exports: Export[] = [
               },
               backupEnabled: !(obj.workspace.featuresEnabled || []).includes("nobackup"),
               throttle: throttlePercent,
+              shard: shardNumber,
               destinations: obj.toLinks
                 .filter(l => !l.deleted && l.type === "push" && !l.to.deleted)
                 .map(l => ({
@@ -337,6 +332,18 @@ export function notModified(ifModifiedSince: Date | undefined, lastModified: Dat
   // Last-Modified and If-Modified-Since headers are not precise enough, so we need to round it to seconds
   lastModifiedCopy.setMilliseconds(0);
   return ifModifiedSince.getTime() >= lastModifiedCopy.getTime();
+}
+
+function getNumericOption(name: string, workspace: z.infer<typeof WorkspaceDbModel>, defaultValue?: number) {
+  const opt = (workspace.featuresEnabled ?? []).find(f => f.startsWith(name));
+  if (opt) {
+    //remove all non-numeric
+    const m = opt.match(/(\d+)/);
+    if (m && m.length > 1) {
+      return Math.min(100, parseInt(m[1]));
+    }
+  }
+  return defaultValue;
 }
 
 export default createRoute()

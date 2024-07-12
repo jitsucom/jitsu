@@ -53,7 +53,7 @@ const api: Api = {
   POST: {
     auth: true,
     types: {
-      body: WorkspaceDbModel.omit({ id: true, deleted: true }),
+      body: WorkspaceDbModel.omit({ id: true, deleted: true, featuresEnabled: true }),
     },
     handle: async ({ user, body }) => {
       const newWorkspace = await db.prisma().workspace.create({ data: body });
