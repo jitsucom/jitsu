@@ -9,7 +9,7 @@ init() {
   if [ "$inited" = "0" ]; then
     echo "Initializing console..."
     inited="1"
-    curl --silent --show-error  http://$(hostname -f):3000/api/admin/events-log-init?token=$CONSOLE_INIT_TOKEN
+    curl --silent --show-error  http://localhost:3000/api/admin/events-log-init?token=$CONSOLE_INIT_TOKEN
     echo ""
   fi
 }
@@ -42,8 +42,8 @@ wait_for_service() {
 
 healthcheck() {
   pid=$1
-  echo "Waiting for $(hostname -f):3000 to be up..."
-  service_down=$(wait_for_service $(hostname -f):3000 1 10)
+  echo "Waiting for localhost:3000 to be up..."
+  service_down=$(wait_for_service localhost:3000 1 10)
   if [ "$service_down" = "1" ]; then
         echo "❌ ❌ ❌ HEALTHCHECK FAILED - $healthcheck_url is not UP"
         kill -9 $pid
@@ -51,7 +51,7 @@ healthcheck() {
 
   if [ "$cancel_healthcheck" = "0" ]; then
     echo "Running healthcheck..."
-    healthcheck_url="http://$(hostname -f):3000/api/healthcheck"
+    healthcheck_url="http://localhost:3000/api/healthcheck"
     http_code=$(curl -s $healthcheck_url -o healthcheck-result -w '%{http_code}')
     if [ "$http_code" = "200" ]; then
         echo "⚡️⚡️⚡️ HEALTHCHECK PASSED - $http_code from $healthcheck_url. Details:"
