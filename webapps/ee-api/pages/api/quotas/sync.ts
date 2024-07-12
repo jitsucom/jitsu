@@ -16,6 +16,7 @@ export const freePlanLimitations = {
 const handler = async function handler(req: NextApiRequest, res: NextApiResponse) {
   const claims = requireDefined(await auth(req, res), `Auth is required`);
   const workspaceId = requireDefined(req.query.workspaceId as string, "workspaceId GET param is required");
+  const trigger = req.query.trigger as string;
   assertTrue(claims.type === "admin" || claims.workspaceId === workspaceId, "Invalid auth claims");
   const subscription = await getOrCreateCurrentSubscription(workspaceId, () => {
     throw new Error(
@@ -25,6 +26,12 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
   if (subscription.subscriptionStatus.planId !== "free" || subscription.noRestrictions) {
     return { ok: true };
   } else {
+    if (subscription.subscriptionStatus.planId === "free" && trigger === "scheduled") {
+      return {
+        ok: false,
+        error: `Scheduled syncs are not supported for free plan. Please upgrade your plan to enable scheduled syncs.`,
+      };
+    }
     const res = await query(
       pg,
       `

@@ -98,6 +98,7 @@ async function createOrUpdateTask({
 
 export async function checkQuota(opts: {
   user?: SessionUser;
+  trigger: "manual" | "scheduled";
   workspaceId: string;
   syncId: string;
   package: string;
@@ -114,7 +115,7 @@ export async function checkQuota(opts: {
     }
     const quotaCheckResult = await rpc(quotaCheck, {
       method: "POST",
-      query: { workspaceId: opts.workspaceId }, //db is created, so the slug won't be really used
+      query: { workspaceId: opts.workspaceId, trigger }, //db is created, so the slug won't be really used
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${eeAuthToken}`,
@@ -468,6 +469,7 @@ export async function scheduleSync({
     if (isEEAvailable()) {
       const checkResult = await checkQuota({
         user,
+        trigger,
         workspaceId,
         syncId: sync.id,
         package: (service.config as any).package,
