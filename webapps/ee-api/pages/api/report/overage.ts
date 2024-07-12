@@ -114,17 +114,17 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
       const subscription =
         subscriptionCache[subscriptionId] ||
         (subscriptionCache[subscriptionId] = await stripe.subscriptions.retrieve(subscriptionId));
-      if (subscription.status === "canceled") {
-        log
-          .atWarn()
-          .log(
-            `Subscription ${stripeLink("subscriptions", subscription.id)} is canceled. Skipping invoice ${stripeLink(
-              "invoices",
-              invoice.id
-            )}`
-          );
-        continue;
-      }
+      // if (subscription.status === "canceled") {
+      //   log
+      //     .atWarn()
+      //     .log(
+      //       `Subscription ${stripeLink("subscriptions", subscription.id)} is canceled. Skipping invoice ${stripeLink(
+      //         "invoices",
+      //         invoice.id
+      //       )}`
+      //     );
+      //   continue;
+      // }
       const plan = availableProducts.find(p => p.id === product);
       if (!plan) {
         log.atWarn().log(`No plan found for ${product} from invoice ${stripeLink("invoices", invoice.id)}`);
