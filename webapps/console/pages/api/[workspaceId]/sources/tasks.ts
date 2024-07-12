@@ -61,11 +61,11 @@ export default createRoute()
       //get latest source_tasks from db for provided sync ids grouped by sync id
       const rows = await db.pgPool().query(
         `select distinct sync_id as sync_id,
-       last_value(task_id) over ( partition by sync_id order by started_at RANGE BETWEEN unbounded preceding and unbounded following) as task_id,
-       last_value(status) over ( partition by sync_id order by started_at RANGE BETWEEN unbounded preceding and unbounded following) as status,
-       last_value(description) over ( partition by sync_id order by started_at RANGE BETWEEN unbounded preceding and unbounded following) as description,
-       last_value(started_at) over ( partition by sync_id order by started_at RANGE BETWEEN unbounded preceding and unbounded following) as started_at,
-       last_value(updated_at) over ( partition by sync_id order by started_at RANGE BETWEEN unbounded preceding and unbounded following) as updated_at
+       last_value(task_id) over ( partition by sync_id order by case when status = 'SKIPPED' then '2020-01-01' else started_at end RANGE BETWEEN unbounded preceding and unbounded following) as task_id,
+       last_value(status) over ( partition by sync_id order by case when status = 'SKIPPED' then '2020-01-01' else started_at end RANGE BETWEEN unbounded preceding and unbounded following) as status,
+       last_value(description) over ( partition by sync_id order by case when status = 'SKIPPED' then '2020-01-01' else started_at end RANGE BETWEEN unbounded preceding and unbounded following) as description,
+       last_value(started_at) over ( partition by sync_id order by case when status = 'SKIPPED' then '2020-01-01' else started_at end RANGE BETWEEN unbounded preceding and unbounded following) as started_at,
+       last_value(updated_at) over ( partition by sync_id order by case when status = 'SKIPPED' then '2020-01-01' else started_at end RANGE BETWEEN unbounded preceding and unbounded following) as updated_at
 from newjitsu.source_task where sync_id = ANY($1::text[])`,
         [body]
       );

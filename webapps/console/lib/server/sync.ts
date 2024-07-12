@@ -127,7 +127,7 @@ export async function checkQuota(opts: {
         await createOrUpdateTask({
           taskId,
           syncId: opts.syncId,
-          status: "FAILED",
+          status: "SKIPPED",
           description: `Quota exceeded: ${quotaCheckResult.error}`,
         });
         await dbLog({

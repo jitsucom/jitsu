@@ -102,7 +102,9 @@ function TaskStatus0({ task, loading }: { task: TasksDbModel & TaskStats; loadin
     );
   }
 
-  const SyncStatus: React.FC<PropsWithChildren<{ status: "PARTIAL" | "FAILED" | "SUCCESS" | "RUNNING" }>> = props => {
+  const SyncStatus: React.FC<
+    PropsWithChildren<{ status: "PARTIAL" | "FAILED" | "SUCCESS" | "RUNNING" | "SKIPPED" }>
+  > = props => {
     const [showPopover, setShowPopover] = useState(false);
     const handleOpenChange = (newOpen: boolean) => {
       setShowPopover(newOpen);
@@ -156,6 +158,8 @@ function TaskStatus0({ task, loading }: { task: TasksDbModel & TaskStats; loadin
         <AlertCircle style={{ color: "orange" }} />
       ) : props.status === "RUNNING" ? (
         <PlayCircle style={{ color: "blue" }} />
+      ) : props.status === "SKIPPED" ? (
+        <XCircle style={{ color: "orange" }} />
       ) : (
         <XCircle style={{ color: "red" }} />
       );
@@ -206,6 +210,15 @@ function TaskStatus0({ task, loading }: { task: TasksDbModel & TaskStats; loadin
             PARTIAL <FaExternalLinkAlt className={"inline ml-0.5 w-2.5 h-2.5"} />
           </Tag>
           <span className={"text-xxs text-gray-500"}>show stats</span>
+        </SyncStatus>
+      );
+    case "SKIPPED":
+      return (
+        <SyncStatus status={task.status}>
+          <Tag style={{ marginRight: 0 }}>
+            SKIPPED <FaExternalLinkAlt className={"inline ml-0.5 w-2.5 h-2.5"} />
+          </Tag>
+          <span className={"text-xxs text-gray-500"}>show reason</span>
         </SyncStatus>
       );
     case "FAILED":
