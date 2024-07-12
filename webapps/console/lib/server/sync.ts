@@ -635,7 +635,13 @@ export async function syncWithScheduler(baseUrl: string) {
   const googleSchedulerParent = `projects/${googleSchedulerProjectId}/locations/${googleSchedulerLocation}`;
 
   const allSyncs = await db.prisma().configurationObjectLink.findMany({
-    where: { type: "sync", deleted: false },
+    where: {
+      type: "sync",
+      deleted: false,
+      workspace: { deleted: false },
+      from: { deleted: false },
+      to: { deleted: false },
+    },
   });
   const syncs = allSyncs.filter(sync => !!(sync.data as any).schedule);
   const syncsById = syncs.reduce((acc, sync) => {
