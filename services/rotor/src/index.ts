@@ -77,7 +77,11 @@ async function main() {
       process.exit(1);
     }
 
-    geoResolver = await initMaxMindClient(process.env.MAXMIND_LICENSE_KEY || process.env.MAXMIND_URL || "");
+    geoResolver = await initMaxMindClient({
+      licenseKey: process.env.MAXMIND_LICENSE_KEY,
+      url: process.env.MAXMIND_URL,
+      s3Bucket: process.env.MAXMIND_S3_BUCKET,
+    });
     metricsServer = initMetricsServer();
   } catch (e) {
     log.atError().withCause(e).log("Failed to start");

@@ -3,7 +3,8 @@ import * as zlib from "zlib";
 import * as tar from "tar";
 import { Geo } from "@jitsu/protocols/analytics";
 import NodeCache from "node-cache";
-import { getLog } from "juava";
+import { getLog, requireDefined } from "juava";
+import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 
 export const log = getLog("maxmind");
 
@@ -12,6 +13,8 @@ const InvalidLicenseKey = "Invalid license key";
 type PaidEdition = "GeoIP2-City" | "GeoIP2-Country" | "GeoIP2-ISP" | "GeoIP2-Domain" | "GeoIP2-Connection-Type";
 type FreeEditions = "GeoLite2-City" | "GeoLite2-Country" | "GeoLite2-ASN";
 type Edition = PaidEdition | FreeEditions | "NotRequired" | "";
+
+type LoadFunction = (edition: Edition) => Promise<Buffer>;
 
 const composeURL = (licenseKeyOrURL: string, edition: Edition) => {
   if (licenseKeyOrURL.startsWith("http")) {
@@ -34,16 +37,38 @@ const DummyResolver: GeoResolver = {
 };
 
 async function test() {
-  const maxMindClient = await initMaxMindClient(process.env.MAXMIND_LICENSE_KEY || "");
+  const maxMindClient = await initMaxMindClient({
+    licenseKey: process.env.MAXMIND_LICENSE_KEY || "",
+  });
 
   log.atInfo().log(`IP 209.142.68.29:`, JSON.stringify(await maxMindClient.resolve("209.142.68.29"), null, 2));
 }
 
-export async function initMaxMindClient(licenseKeyOrURL: string): Promise<GeoResolver> {
-  if (!licenseKeyOrURL) {
-    log.atError().log("licenseKeyOrURL is not provided. GeoIP resolution will not work.");
+export async function initMaxMindClient(opts: {
+  licenseKey?: string;
+  url?: string;
+  s3Bucket?: string;
+}): Promise<GeoResolver> {
+  const { licenseKey, s3Bucket, url } = opts;
+  if (!licenseKey && !url && !s3Bucket) {
+    log.atError().log("licenseKey, url or s3Bucket must be provided. GeoIP resolution will not work.");
     return DummyResolver;
   }
+  let loadFunc: LoadFunction;
+  let s3client: S3Client = undefined as any as S3Client;
+  if (s3Bucket) {
+    s3client = new S3Client({
+      region: requireDefined(process.env.S3_REGION, "S3_REGION is not provided"),
+      credentials: {
+        accessKeyId: requireDefined(process.env.S3_ACCESS_KEY_ID, "S3_ACCESS_KEY_ID is not provided"),
+        secretAccessKey: requireDefined(process.env.S3_SECRET_ACCESS_KEY, "S3_SECRET_ACCESS_KEY is not provided"),
+      },
+    });
+    loadFunc = (edition: Edition) => loadFromS3(s3client, s3Bucket, edition);
+  } else {
+    loadFunc = (edition: Edition) => loadFromURL(composeURL(licenseKey || url || "", edition));
+  }
+
   let cityReader: ReaderModel | undefined;
   let countryReader: ReaderModel | undefined;
   let ispReader: ReaderModel | undefined;
@@ -51,16 +76,16 @@ export async function initMaxMindClient(licenseKeyOrURL: string): Promise<GeoRes
   let domainReader: ReaderModel | undefined;
   let connectionTypeReader: ReaderModel | undefined;
 
-  const cityDb = await download(licenseKeyOrURL, "GeoIP2-City");
+  const cityDb = await download(loadFunc, "GeoIP2-City");
   if (cityDb.reader) {
     cityReader = cityDb.reader;
   }
-  const countryDb = await download(licenseKeyOrURL, "GeoIP2-Country");
+  const countryDb = await download(loadFunc, "GeoIP2-Country");
   if (countryDb.reader) {
     countryReader = countryDb.reader;
   }
 
-  const ispDb = await download(licenseKeyOrURL, "GeoIP2-ISP");
+  const ispDb = await download(loadFunc, "GeoIP2-ISP");
   if (ispDb.reader) {
     if (ispDb.edition === "GeoIP2-ISP") {
       ispReader = ispDb.reader;
@@ -68,13 +93,17 @@ export async function initMaxMindClient(licenseKeyOrURL: string): Promise<GeoRes
       asnReader = ispDb.reader;
     }
   }
-  const domainDb = await download(licenseKeyOrURL, "GeoIP2-Domain");
+  const domainDb = await download(loadFunc, "GeoIP2-Domain");
   if (domainDb.reader) {
     domainReader = domainDb.reader;
   }
-  const contTypeDb = await download(licenseKeyOrURL, "GeoIP2-Connection-Type");
+  const contTypeDb = await download(loadFunc, "GeoIP2-Connection-Type");
   if (contTypeDb.reader) {
     connectionTypeReader = contTypeDb.reader;
+  }
+
+  if (s3client) {
+    s3client.destroy();
   }
 
   if (!cityReader && !countryReader && !ispReader && !asnReader && !domainReader && !connectionTypeReader) {
@@ -197,12 +226,26 @@ export async function initMaxMindClient(licenseKeyOrURL: string): Promise<GeoRes
   }
 }
 
+async function loadFromS3(client: S3Client, bucket: string, edition: Edition): Promise<Buffer> {
+  try {
+    const command = new GetObjectCommand({ Bucket: bucket, Key: edition + ".tar.gz" });
+    const response = await client.send(command);
+    if (response.Body) {
+      return await untar(Buffer.from(await response.Body.transformToByteArray()));
+    } else {
+      throw new Error(`no response body`);
+    }
+  } catch (e: any) {
+    throw new Error(`Failed to download ${edition} edition from S3 bucket: ${bucket}: ${e.message}`);
+  }
+}
+
 async function download(
-  licenseKeyOrURL: string,
+  loadFunction: LoadFunction,
   edition: Edition
 ): Promise<{ reader?: ReaderModel; edition: Edition }> {
   try {
-    const b = await loadFromURL(composeURL(licenseKeyOrURL, edition));
+    const b = await loadFunction(edition);
     const reader = Reader.openBuffer(b);
     log.atInfo().log(`Successfully downloaded ${edition} edition`);
     return { reader, edition };
@@ -219,7 +262,7 @@ async function download(
       .atError()
       .log(`Failed to download ${edition} edition: ${e.message}. Trying to download free ${freeEdition} edition`);
     try {
-      const b = await loadFromURL(composeURL(licenseKeyOrURL, freeEdition));
+      const b = await loadFunction(freeEdition);
       const reader = Reader.openBuffer(b);
       log.atInfo().log(`Successfully downloaded free ${freeEdition} edition`);
       return { reader, edition: freeEdition };
