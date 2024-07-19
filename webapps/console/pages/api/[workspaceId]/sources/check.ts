@@ -40,7 +40,15 @@ export default createRoute()
     if (syncAuthKey) {
       authHeaders["Authorization"] = `Bearer ${syncAuthKey}`;
     }
-    const config = await tryManageOauthCreds(body as ServiceConfig);
+    const serviceConfig = body as ServiceConfig;
+    const existingService = await db.prisma().configurationObject.findFirst({
+      where: { id: serviceConfig.id },
+    });
+    if (existingService && existingService.workspaceId !== workspaceId) {
+      return { ok: false, error: "invalid service id" };
+    }
+
+    const config = await tryManageOauthCreds(serviceConfig);
 
     try {
       const checkRes = await rpc(syncURL + "/check", {

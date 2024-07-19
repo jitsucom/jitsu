@@ -72,11 +72,13 @@ async function createOrUpdateTask({
   taskId,
   syncId,
   status,
+  startedBy,
   description,
 }: {
   taskId: string;
   syncId: string;
   status: string;
+  startedBy: string;
   description: string;
 }) {
   const taskData = {
@@ -85,6 +87,7 @@ async function createOrUpdateTask({
     status,
     started_at: new Date(),
     updated_at: new Date(),
+    started_by: startedBy,
     description,
     package: "jitsu",
     version: "0.0.1",
@@ -103,6 +106,7 @@ export async function checkQuota(opts: {
   syncId: string;
   package: string;
   version: string;
+  startedBy: string;
 }): Promise<ScheduleSyncError | undefined> {
   try {
     const quotaCheck = `${getEeConnection().host}api/quotas/sync`;
@@ -129,6 +133,7 @@ export async function checkQuota(opts: {
           taskId,
           syncId: opts.syncId,
           status: "SKIPPED",
+          startedBy: opts.startedBy,
           description: `Quota exceeded: ${quotaCheckResult.error}`,
         });
         await dbLog({
@@ -192,6 +197,9 @@ export async function getSyncById(syncId: string, workspaceId: string): Promise<
         workspaceId: workspaceId,
         deleted: false,
         type: "sync",
+        workspace: { deleted: false },
+        from: { deleted: false, workspaceId: workspaceId },
+        to: { deleted: false, workspaceId: workspaceId },
       },
       include: {
         from: true,
@@ -309,16 +317,19 @@ async function runSyncSynchronously({
   destinationConfig,
   destinationType,
   sourceConfig,
+  startedBy,
 }: {
   syncId: string;
   taskId: string;
   destinationType: DestinationType;
   destinationConfig: DestinationConfig;
   sourceConfig: ServiceConfig;
+  startedBy: string;
 }) {
   await createOrUpdateTask({
     taskId,
     syncId,
+    startedBy,
     status: "RUNNING",
     description: "Started",
   });
@@ -327,6 +338,7 @@ async function runSyncSynchronously({
     await createOrUpdateTask({
       taskId,
       syncId,
+      startedBy,
       status: "FAILED",
       description: `Sync function not found for package ${sourceConfig.package}`,
     });
@@ -364,6 +376,7 @@ async function runSyncSynchronously({
   await createOrUpdateTask({
     taskId,
     syncId,
+    startedBy,
     status: "SUCCESS",
     description: "Succesfully finished",
   });
@@ -400,9 +413,11 @@ export async function scheduleSync({
     process.env.SYNCCTL_URL,
     `env SYNCCTL_URL is not set. Sync Controller is required to run sources`
   );
+  const startedBy = JSON.stringify(
+    trigger === "manual" ? (user ? { trigger: "manual", ...user } : { trigger: "manual" }) : { trigger: "scheduled" }
+  );
   const authHeaders: any = {};
   if (syncAuthKey) {
-    trigger = "scheduled";
     authHeaders["Authorization"] = `Bearer ${syncAuthKey}`;
   }
   try {
@@ -474,6 +489,7 @@ export async function scheduleSync({
         syncId: sync.id,
         package: (service.config as any).package,
         version: (service.config as any).version,
+        startedBy,
       });
       if (checkResult) {
         return checkResult;
@@ -542,6 +558,7 @@ export async function scheduleSync({
           destinationConfig,
           destinationType,
           sourceConfig: serviceConfig,
+          startedBy,
         });
         const time = Date.now() - started;
         await dbLog({
@@ -559,6 +576,7 @@ export async function scheduleSync({
           taskId,
           syncId: sync.id,
           status: "FAILED",
+          startedBy,
           description: `Error running sync: ${syncError}`,
         });
         await dbLog({
@@ -597,7 +615,7 @@ export async function scheduleSync({
         taskId,
         syncId: sync.id,
         fullSync: fullSync ? "true" : "false",
-        startedBy: trigger === "manual" ? (user ? user.internalId : "manual") : "scheduled",
+        startedBy,
         tableNamePrefix: sync.data?.["tableNamePrefix"] ?? "",
       },
       body: {

@@ -57,6 +57,17 @@ export default createRoute()
   .handler(async ({ user, query, body }) => {
     const { workspaceId } = query;
     await verifyAccess(user, workspaceId);
+    const syncs = await db.prisma().configurationObjectLink.findMany({
+      where: {
+        id: {
+          in: body,
+        },
+        workspaceId: workspaceId,
+        deleted: false,
+        type: "sync",
+      },
+    });
+    const syncsId = syncs.map(s => s.id);
     try {
       //get latest source_tasks from db for provided sync ids grouped by sync id
       const rows = await db.pgPool().query(
@@ -67,7 +78,7 @@ export default createRoute()
        last_value(started_at) over ( partition by sync_id order by case when status = 'SKIPPED' then '2020-01-01' else started_at end RANGE BETWEEN unbounded preceding and unbounded following) as started_at,
        last_value(updated_at) over ( partition by sync_id order by case when status = 'SKIPPED' then '2020-01-01' else started_at end RANGE BETWEEN unbounded preceding and unbounded following) as updated_at
 from newjitsu.source_task where sync_id = ANY($1::text[])`,
-        [body]
+        [syncsId]
       );
       const tasksRecord = rows.rows.reduce((acc, r) => {
         acc[r.sync_id] = {
@@ -103,7 +114,20 @@ from newjitsu.source_task where sync_id = ANY($1::text[])`,
   .handler(async ({ user, query, req, res }) => {
     const { workspaceId } = query;
     await verifyAccess(user, workspaceId);
-
+    const sync = await db.prisma().configurationObjectLink.findFirst({
+      where: {
+        id: query.syncId,
+        workspaceId: workspaceId,
+        deleted: false,
+        type: "sync",
+      },
+    });
+    if (!sync) {
+      return {
+        ok: false,
+        error: `Sync ${query.syncId} not found`,
+      };
+    }
     try {
       let i = 1;
       let sql: string =

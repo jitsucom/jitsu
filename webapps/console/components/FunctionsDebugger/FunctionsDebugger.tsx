@@ -187,7 +187,6 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
         event: JSON.parse(event),
         config: JSON.parse(config),
         store,
-        workspaceId: workspace.id,
         userAgent: navigator.userAgent,
       };
     } catch (e) {

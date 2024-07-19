@@ -61,10 +61,17 @@ export default createRoute()
           return discoverDbRes;
         }
       }
+      const serviceConfig = body as ServiceConfig;
+      const existingService = await db.prisma().configurationObject.findFirst({
+        where: { id: serviceConfig.id },
+      });
+      if (existingService && existingService.workspaceId !== workspaceId) {
+        return { ok: false, error: "invalid service id" };
+      }
       const discoverQueryRes = await rpc(syncURL + "/discover", {
         method: "POST",
         body: {
-          config: await tryManageOauthCreds(body as ServiceConfig),
+          config: await tryManageOauthCreds(serviceConfig),
         },
         headers: {
           "Content-Type": "application/json",

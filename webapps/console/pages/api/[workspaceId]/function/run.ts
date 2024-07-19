@@ -41,7 +41,6 @@ export const api: Api = {
         event: z.any(),
         config: z.any(),
         store: z.any(),
-        workspaceId: z.string(),
         userAgent: z.string().optional(),
       }),
       result: resultType,
@@ -63,7 +62,10 @@ export const api: Api = {
 
       const res = await rpc(rotorURL + "/udfrun", {
         method: "POST",
-        body: body,
+        body: {
+          ...body,
+          workspaceId,
+        },
         headers,
       });
       return resultType.parse(res);

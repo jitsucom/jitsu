@@ -46,7 +46,9 @@ export const api: Api = {
               where: { workspaceId: workspaceId, toId, fromId, deleted: false },
             })
           : id
-          ? await db.prisma().configurationObjectLink.findFirst({ where: { id, deleted: false } })
+          ? await db
+              .prisma()
+              .configurationObjectLink.findFirst({ where: { workspaceId: workspaceId, id, deleted: false } })
           : undefined;
 
       if (!id && existingLink) {
@@ -71,8 +73,8 @@ export const api: Api = {
       let createdOrUpdated;
       if (existingLink) {
         createdOrUpdated = await db.prisma().configurationObjectLink.update({
-          where: { id: existingLink.id },
-          data: { data, deleted: false },
+          where: { id: existingLink.id, workspaceId },
+          data: { data, deleted: false, workspaceId },
         });
         //try to do asynchronously for edit
         syncWithScheduler(getAppEndpoint(req).baseUrl);
