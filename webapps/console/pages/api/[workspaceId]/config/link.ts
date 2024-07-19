@@ -73,7 +73,7 @@ export const api: Api = {
       let createdOrUpdated;
       if (existingLink) {
         createdOrUpdated = await db.prisma().configurationObjectLink.update({
-          where: { id: existingLink.id, workspaceId },
+          where: { id: existingLink.id },
           data: { data, deleted: false, workspaceId },
         });
         //try to do asynchronously for edit
