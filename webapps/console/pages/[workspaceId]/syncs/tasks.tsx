@@ -3,7 +3,7 @@ import { useWorkspace } from "../../../lib/context";
 import { useApi } from "../../../lib/useApi";
 import { source_taskDbModel } from "../../../prisma/schema";
 import { z } from "zod";
-import { Button, DatePicker, notification, Popover, Select, Table, Tag } from "antd";
+import { DatePicker, notification, Popover, Select, Table, Tag } from "antd";
 import React, { PropsWithChildren, useCallback, useEffect, useMemo, useState } from "react";
 import { useQueryStringState } from "../../../lib/useQueryStringState";
 import { ColumnType } from "antd/es/table/interface";
@@ -32,8 +32,8 @@ import { rpc } from "juava";
 import { feedbackError, feedbackSuccess, useKeyboard } from "../../../lib/ui";
 import hash from "object-hash";
 import { useConfigObjectLinks, useConfigObjectList } from "../../../lib/store";
-import { ButtonLabel } from "../../../components/ButtonLabel/ButtonLabel";
 import { Spinner } from "../../../components/GlobalLoader/GlobalLoader";
+import { MdOutlineCancel } from "react-icons/md";
 
 dayjs.extend(utc);
 dayjs.extend(relativeTime);
@@ -103,7 +103,7 @@ function TaskStatus0({ task, loading }: { task: TasksDbModel & TaskStats; loadin
   }
 
   const SyncStatus: React.FC<
-    PropsWithChildren<{ status: "PARTIAL" | "FAILED" | "SUCCESS" | "RUNNING" | "SKIPPED" }>
+    PropsWithChildren<{ status: "PARTIAL" | "CANCELLED" | "FAILED" | "SUCCESS" | "RUNNING" | "SKIPPED" }>
   > = props => {
     const [showPopover, setShowPopover] = useState(false);
     const handleOpenChange = (newOpen: boolean) => {
@@ -160,6 +160,8 @@ function TaskStatus0({ task, loading }: { task: TasksDbModel & TaskStats; loadin
         <PlayCircle style={{ color: "blue" }} />
       ) : props.status === "SKIPPED" ? (
         <XCircle style={{ color: "orange" }} />
+      ) : props.status === "CANCELLED" ? (
+        <XCircle style={{ color: "gray" }} />
       ) : (
         <XCircle style={{ color: "red" }} />
       );
@@ -208,6 +210,15 @@ function TaskStatus0({ task, loading }: { task: TasksDbModel & TaskStats; loadin
         <SyncStatus status={task.status}>
           <Tag color={"orange"} style={{ marginRight: 0 }}>
             PARTIAL <FaExternalLinkAlt className={"inline ml-0.5 w-2.5 h-2.5"} />
+          </Tag>
+          <span className={"text-xxs text-gray-500"}>show stats</span>
+        </SyncStatus>
+      );
+    case "CANCELLED":
+      return (
+        <SyncStatus status={task.status}>
+          <Tag style={{ marginRight: 0 }}>
+            CANCELLED <FaExternalLinkAlt className={"inline ml-0.5 w-2.5 h-2.5"} />
           </Tag>
           <span className={"text-xxs text-gray-500"}>show stats</span>
         </SyncStatus>
@@ -264,6 +275,8 @@ function TaskStatusResultTable({ stats }: { stats: any[] }) {
           return <Tag color="green">SUCCESS</Tag>;
         } else if (record.status === "PARTIAL") {
           return <Tag color="orange">PARTIAL</Tag>;
+        } else if (record.status === "CANCELLED") {
+          return <Tag>CANCELLED</Tag>;
         } else if (record.status === "PENDING") {
           return <Tag>PENDING</Tag>;
         } else if (record.status === "RUNNING") {
@@ -349,7 +362,34 @@ export function processTaskStatus(task: TasksDbModel): TasksDbModel & TaskStats 
 
 function TasksTable({ tasks, loading, linksMap, servicesMap, destinationsMap, refreshCb }: TasksTableProps) {
   const workspace = useWorkspace();
-
+  const cancelTask = async (taskId: string, syncId: string, pkg: string) => {
+    try {
+      const cancelStatus = await rpc(
+        `/api/${workspace.id}/sources/cancel?taskId=${taskId}&syncId=${syncId}&package=${pkg}`
+      );
+      if (cancelStatus?.error) {
+        displayTaskRunError(workspace, cancelStatus);
+      }
+    } catch (e) {
+      feedbackError("Failed to cancel sync", { error: e, placement: "top" });
+    } finally {
+      refreshCb && refreshCb();
+    }
+  };
+  const rerun = async (syncId: string) => {
+    try {
+      const runStatus = await rpc(`/api/${workspace.id}/sources/run?syncId=${syncId}`);
+      if (runStatus?.error) {
+        displayTaskRunError(workspace, runStatus);
+      } else {
+        feedbackSuccess("Sync started");
+      }
+    } catch (e) {
+      feedbackError("Failed to run sync", { error: e, placement: "top" });
+    } finally {
+      refreshCb && refreshCb();
+    }
+  };
   const tasksMapped = useMemo(() => {
     return tasks.map(task => {
       return {
@@ -419,7 +459,10 @@ function TasksTable({ tasks, loading, linksMap, servicesMap, destinationsMap, re
       render: (text, task) => {
         if (task.status === "SUCCESS") {
           return <div className={"whitespace-nowrap"}>{task.successStreams}</div>;
-        } else if ((task.status === "PARTIAL" || task.status === "RUNNING") && task.totalStreams) {
+        } else if (
+          (task.status === "PARTIAL" || task.status === "RUNNING" || task.status === "CANCELLED") &&
+          task.totalStreams
+        ) {
           return (
             <div>
               {task.successStreams} / {task.totalStreams}
@@ -459,16 +502,37 @@ function TasksTable({ tasks, loading, linksMap, servicesMap, destinationsMap, re
       render: (text, task, index) => {
         const items: ButtonProps[] = [
           {
-            icon: <Edit3 className={"w-5 h-5"} />,
-            href: `/syncs/edit?id=${task.sync_id}`,
-            label: "Edit Sync",
-          },
-          {
             icon: <ListMinusIcon className={"w-5 h-5"} />,
             href: `/syncs/logs?taskId=${task.task_id}&syncId=${task.sync_id}`,
             label: "Show Logs",
           },
+          {
+            icon: <Edit3 className={"w-5 h-5"} />,
+            href: `/syncs/edit?id=${task.sync_id}`,
+            label: "Edit Sync",
+            collapsed: true,
+          },
         ];
+        if (task.status === "RUNNING") {
+          items.push({
+            icon: <MdOutlineCancel className={"w-5 h-5"} />,
+            onClick: async () => {
+              await cancelTask(task.task_id, task.sync_id, task.package);
+            },
+            danger: true,
+            label: "Cancel",
+            collapsed: true,
+          });
+        } else {
+          items.push({
+            icon: <PlayCircle className={"w-5 h-5"} />,
+            onClick: async () => {
+              await rerun(task.sync_id);
+            },
+            label: "Re-run",
+            collapsed: true,
+          });
+        }
         return <ButtonGroup items={items} />;
       },
     },
@@ -488,32 +552,6 @@ function TasksTable({ tasks, loading, linksMap, servicesMap, destinationsMap, re
     </div>
   );
 }
-
-const ReRunButton: React.FC<{ syncId: string; updateStatus: () => void }> = props => {
-  const [loading, setLoading] = useState(false);
-  const workspace = useWorkspace();
-  const rerun = async () => {
-    try {
-      setLoading(true);
-      const runStatus = await rpc(`/api/${workspace.id}/sources/run?syncId=${props.syncId}`);
-      if (runStatus?.error) {
-        displayTaskRunError(workspace, runStatus);
-      } else {
-        feedbackSuccess("Sync started");
-      }
-    } catch (e) {
-      feedbackError("Failed to run sync", { error: e, placement: "top" });
-    } finally {
-      setLoading(false);
-      props.updateStatus();
-    }
-  };
-  return (
-    <Button type="link" size="small" onClick={rerun} disabled={loading}>
-      <ButtonLabel icon={<PlayCircle className={`w-6 h-6 ${loading ? "animate-spin" : ""}`} />}>Re-run</ButtonLabel>
-    </Button>
-  );
-};
 
 export type TasksViewState = {
   dates?: DatesRange;
@@ -713,9 +751,6 @@ function Tasks() {
         </div>
         <div key={"actions"}>
           <div className={"flex flex-row"}>
-            {state.syncId && state.syncId !== "all" && (
-              <ReRunButton syncId={state.syncId} updateStatus={() => setRefresh(refresh + 1)} />
-            )}
             <JitsuButton
               icon={<RefreshCw className={`w-6 h-6 ${isLoading && refresh > 0 && "animate-spin"}`} />}
               type="link"
