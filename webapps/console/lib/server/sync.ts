@@ -78,7 +78,7 @@ async function createOrUpdateTask({
   taskId: string;
   syncId: string;
   status: string;
-  startedBy: string;
+  startedBy: any;
   description: string;
 }) {
   const taskData = {
@@ -106,7 +106,7 @@ export async function checkQuota(opts: {
   syncId: string;
   package: string;
   version: string;
-  startedBy: string;
+  startedBy: any;
 }): Promise<ScheduleSyncError | undefined> {
   try {
     const quotaCheck = `${getEeConnection().host}api/quotas/sync`;
@@ -324,7 +324,7 @@ async function runSyncSynchronously({
   destinationType: DestinationType;
   destinationConfig: DestinationConfig;
   sourceConfig: ServiceConfig;
-  startedBy: string;
+  startedBy: any;
 }) {
   await createOrUpdateTask({
     taskId,
@@ -413,9 +413,8 @@ export async function scheduleSync({
     process.env.SYNCCTL_URL,
     `env SYNCCTL_URL is not set. Sync Controller is required to run sources`
   );
-  const startedBy = JSON.stringify(
-    trigger === "manual" ? (user ? { trigger: "manual", ...user } : { trigger: "manual" }) : { trigger: "scheduled" }
-  );
+  const startedBy =
+    trigger === "manual" ? (user ? { trigger: "manual", ...user } : { trigger: "manual" }) : { trigger: "scheduled" };
   const authHeaders: any = {};
   if (syncAuthKey) {
     authHeaders["Authorization"] = `Bearer ${syncAuthKey}`;
@@ -615,7 +614,7 @@ export async function scheduleSync({
         taskId,
         syncId: sync.id,
         fullSync: fullSync ? "true" : "false",
-        startedBy,
+        startedBy: JSON.stringify(startedBy),
         tableNamePrefix: sync.data?.["tableNamePrefix"] ?? "",
       },
       body: {
