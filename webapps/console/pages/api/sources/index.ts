@@ -52,7 +52,7 @@ const JitsuMongoDBSource: SourceType = {
   packageId: "jitsucom/source-mongodb",
   packageType: "airbyte",
   meta: {
-    name: "MongoDB",
+    name: "MongoDB (alternative version)",
     license: "MIT",
     connectorSubtype: "database",
   },
@@ -77,7 +77,7 @@ const JitsuAttioSource: SourceType = {
 
 export const jitsuSources: Record<string, SourceType> = {
   "jitsucom/source-firebase": JitsuFirebaseSource,
-  "jitsucom/source-mongodb": JitsuMongoDBSource,
+  // "jitsucom/source-mongodb": JitsuMongoDBSource,
   "jitsucom/source-attio": JitsuAttioSource,
 };
 
@@ -118,7 +118,6 @@ export default createRoute()
     const sources: Partial<SourceType>[] = (await db.prisma().connectorPackage.findMany())
       .filter(
         c =>
-          c.packageId !== "airbyte/source-mongodb-v2" &&
           !c.packageId.endsWith("-secure") &&
           !c.packageId.endsWith("source-e2e-test-cloud") &&
           !c.packageId.endsWith("source-e2e-test")
