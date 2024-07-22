@@ -51,8 +51,9 @@ const JitsuMongoDBSource: SourceType = {
   versions: `/api/sources/versions?type=airbyte&package=jitsucom%2Fsource-mongodb`,
   packageId: "jitsucom/source-mongodb",
   packageType: "airbyte",
+  sortIndex: -1000,
   meta: {
-    name: "MongoDB (alternative version)",
+    name: "MongoDb (alternative version)",
     license: "MIT",
     connectorSubtype: "database",
   },
@@ -77,13 +78,12 @@ const JitsuAttioSource: SourceType = {
 
 export const jitsuSources: Record<string, SourceType> = {
   "jitsucom/source-firebase": JitsuFirebaseSource,
-  // "jitsucom/source-mongodb": JitsuMongoDBSource,
+  "jitsucom/source-mongodb": JitsuMongoDBSource,
   "jitsucom/source-attio": JitsuAttioSource,
 };
 
 export const popularConnectors: string[] = [
   "jitsucom/source-firebase",
-  "jitsucom/source-mongodb",
   "airbyte/source-stripe",
   "airbyte/source-google-ads",
   "airbyte/source-facebook-marketing",
@@ -156,7 +156,7 @@ export default createRoute()
         })),
         ...sources,
       ]
-        .map(s => ({ ...s, sortIndex: sortIndexes[s.packageId!] }))
+        .map(s => ({ ...s, sortIndex: sortIndexes[s.packageId!] || s.sortIndex }))
         .sort((a, b) => {
           const res = (b.sortIndex || 0) - (a.sortIndex || 0);
           return res === 0 ? (a?.meta?.name || a?.packageId!).localeCompare(b?.meta?.name || b?.packageId!) : res;
