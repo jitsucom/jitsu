@@ -3,7 +3,7 @@ import { useWorkspace } from "../../../lib/context";
 import { useApi } from "../../../lib/useApi";
 import { source_taskDbModel } from "../../../prisma/schema";
 import { z } from "zod";
-import { DatePicker, notification, Popover, Select, Table, Tag } from "antd";
+import { DatePicker, notification, Popover, Select, Table, Tag, Tooltip } from "antd";
 import React, { PropsWithChildren, useCallback, useEffect, useMemo, useState } from "react";
 import { useQueryStringState } from "../../../lib/useQueryStringState";
 import { ColumnType } from "antd/es/table/interface";
@@ -16,17 +16,19 @@ import { arrayToMap } from "../../../lib/shared/arrays";
 import { JitsuButton, WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
 import {
   AlertCircle,
+  CalendarIcon,
   CheckCircle2,
   ChevronLeft,
   Edit3,
   ListMinusIcon,
   PlayCircle,
   RefreshCw,
+  UserIcon,
   XCircle,
 } from "lucide-react";
 import { FaExternalLinkAlt, FaRegPlayCircle } from "react-icons/fa";
 import { useRouter } from "next/router";
-import { displayTaskRunError, formatDateOnly, formatTime, SyncTitle } from "./index";
+import { displayTaskRunError, formatDate, SyncTitle } from "./index";
 import { ButtonGroup, ButtonProps } from "../../../components/ButtonGroup/ButtonGroup";
 import { rpc } from "juava";
 import { feedbackError, feedbackSuccess, useKeyboard } from "../../../lib/ui";
@@ -400,14 +402,33 @@ function TasksTable({ tasks, loading, linksMap, servicesMap, destinationsMap, re
   }, [tasks]);
   const columns: ColumnType<(typeof tasksMapped)[number]>[] = [
     {
+      title: <></>,
+      key: "started_by",
+      render: (text, t) => {
+        const sb = (t.started_by || {}) as any;
+        const trigger = sb.trigger;
+        const icon =
+          trigger === "manual" ? (
+            <Tooltip title={"Run by " + sb.name || sb.email || ""}>
+              <UserIcon className={"w-4 h-4"} />
+            </Tooltip>
+          ) : (
+            <Tooltip title={"Scheduled run"}>
+              <CalendarIcon className={"w-4 h-4"} />
+            </Tooltip>
+          );
+        return icon;
+      },
+    },
+    {
       title: <div className={"whitespace-nowrap"}>Started (UTC)</div>,
       key: "started_at",
       width: "12%",
       render: (text, t) => {
         return (
-          <div className={"flex flex-col items-start text-xs font-semibold"}>
-            <div>{t ? formatDateOnly(t.started_at) : ""}</div>
-            <div>{t ? formatTime(t.started_at) : ""}</div>
+          <div className={"flex flex-col items-start"}>
+            <span className={"whitespace-nowrap"}>{`${dayjs(t.started_at).fromNow(true)} ago`}</span>
+            <div className={"text-xxs whitespace-nowrap text-gray-500"}>{t ? formatDate(t.started_at) : ""}</div>
           </div>
         );
       },
@@ -705,10 +726,34 @@ function Tasks() {
                     ),
                   },
                   {
+                    value: "SKIPPED",
+                    label: (
+                      <div>
+                        <Tag>SKIPPED</Tag>
+                      </div>
+                    ),
+                  },
+                  {
+                    value: "CANCELLED",
+                    label: (
+                      <div>
+                        <Tag>CANCELLED</Tag>
+                      </div>
+                    ),
+                  },
+                  {
                     value: "SUCCESS",
                     label: (
                       <div>
                         <Tag color={"green"}>SUCCESS</Tag>
+                      </div>
+                    ),
+                  },
+                  {
+                    value: "PARTIAL",
+                    label: (
+                      <div>
+                        <Tag color={"orange"}>PARTIAL</Tag>
                       </div>
                     ),
                   },

@@ -249,10 +249,12 @@ function SyncsTable({ links, services, destinations }: RemoteEntitiesProps) {
         }
         const t = tasks.data.tasks?.[link.id];
         return (
-          <div className={"flex flex-col items-end text-xs font-semibold"}>
-            <div>{t ? formatDateOnly(t.updated_at) : ""}</div>
-            <div>{t ? formatTime(t.updated_at) : ""}</div>
-          </div>
+          t && (
+            <div className={"flex flex-col items-end"}>
+              <span className={"whitespace-nowrap"}>{`${dayjs(t.updated_at).fromNow(true)} ago`}</span>
+              <div className={"text-xxs whitespace-nowrap text-gray-500"}>{t ? formatDate(t.updated_at) : ""}</div>
+            </div>
+          )
         );
       },
     },
