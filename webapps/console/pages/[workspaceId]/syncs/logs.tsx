@@ -6,9 +6,11 @@ import { JitsuButton } from "../../../components/JitsuButton/JitsuButton";
 import { ChevronLeft, FileDown, RefreshCw } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { LoadingAnimation } from "../../../components/GlobalLoader/GlobalLoader";
+import escape from "lodash/escape";
 
 function colorLogs(data: string): ReactNode {
   return data.split("\n").map((line, i) => {
+    line = escape(line);
     if (line.includes(" ERROR [")) {
       return (
         <span key={i} className="text-red-600">
