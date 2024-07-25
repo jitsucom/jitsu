@@ -279,9 +279,11 @@ function setProfileMessage(ctx: FullContext, distinctId: string, event: Analytic
     };
   }
 
+  const ip = analyticsContext.ip;
+  const engageUrl = `https://api.mixpanel.com/engage?verbose=1${ip ? "" : "&ip=0"}`;
   const reqs: MixpanelRequest[] = [
     {
-      url: "https://api.mixpanel.com/engage?verbose=1#profile-set",
+      url: engageUrl + "#profile-set",
       headers: {
         "Content-type": "application/json",
         Accept: "text-plain",
@@ -291,7 +293,7 @@ function setProfileMessage(ctx: FullContext, distinctId: string, event: Analytic
         {
           $token: opts.projectToken,
           $distinct_id: distinctId,
-          $ip: analyticsContext.ip,
+          $ip: ip,
           $set: {
             ...geoParams(analyticsContext.geo),
             ...traits,
@@ -310,7 +312,7 @@ function setProfileMessage(ctx: FullContext, distinctId: string, event: Analytic
       ...extractUtmParams(event.properties || {}, "initial_"),
     };
     reqs.push({
-      url: "https://api.mixpanel.com/engage?verbose=1#profile-set-once",
+      url: engageUrl + "#profile-set-once",
       headers: {
         "Content-type": "application/json",
         Accept: "text-plain",
@@ -320,7 +322,7 @@ function setProfileMessage(ctx: FullContext, distinctId: string, event: Analytic
         {
           $token: opts.projectToken,
           $distinct_id: distinctId,
-          $ip: analyticsContext.ip,
+          $ip: ip,
           $set_once: {
             ...utm,
             $initial_referrer: page?.referrer,
@@ -335,11 +337,11 @@ function setProfileMessage(ctx: FullContext, distinctId: string, event: Analytic
     const unionPayload: any = {
       $token: opts.projectToken,
       $distinct_id: distinctId,
-      $ip: analyticsContext.ip,
+      $ip: ip,
       $union: { [groupKey]: [groupId] },
     };
     reqs.push({
-      url: "https://api.mixpanel.com/engage?verbose=1#profile-union",
+      url: engageUrl + "#profile-union",
       eventType: "profile-union",
       headers: {
         "Content-type": "application/json",
