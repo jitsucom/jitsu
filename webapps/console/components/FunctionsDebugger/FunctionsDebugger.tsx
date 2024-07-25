@@ -4,7 +4,7 @@ import { Badge, Button, Descriptions, Drawer, Dropdown, Input, MenuProps, Select
 import { PlayCircleOutlined } from "@ant-design/icons";
 import { CodeEditor } from "../CodeEditor/CodeEditor";
 import styles from "./FunctionsDebugger.module.css";
-import { Check, Pencil, Settings, X } from "lucide-react";
+import { Check, Pencil, X } from "lucide-react";
 import { getConfigApi, useEventsLogApi } from "../../lib/useApi";
 import { EventsLogRecord } from "../../lib/server/events-log";
 import { useWorkspace } from "../../lib/context";
@@ -138,7 +138,7 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
 
   const workspace = useWorkspace();
   const [showLogs, setShowLogs] = useState(false);
-  const [showConfig, setShowConfig] = useState(false);
+  // const [showConfig, setShowConfig] = useState(false);
   const [showEvents, setShowEvents] = useState(false);
   const [event, setEvent] = useState<any>(JSON.stringify(examplePageEvent(), undefined, 2));
   const [obj, setObj] = useState<Partial<FunctionConfig>>({
@@ -276,14 +276,14 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
                 <Button type="primary" ghost disabled={saving} onClick={() => push(`/${workspace.id}/functions`)}>
                   Cancel
                 </Button>
-                <Button
-                  type="default"
-                  disabled={saving}
-                  onClick={() => setShowConfig(!showConfig)}
-                  icon={<Settings className={"inline-block anticon"} size={"1em"} />}
-                >
-                  Config
-                </Button>
+                {/*<Button*/}
+                {/*  type="default"*/}
+                {/*  disabled={saving}*/}
+                {/*  onClick={() => setShowConfig(!showConfig)}*/}
+                {/*  icon={<Settings className={"inline-block anticon"} size={"1em"} />}*/}
+                {/*>*/}
+                {/*  Config*/}
+                {/*</Button>*/}
                 <Button
                   type="default"
                   loading={running}
@@ -353,16 +353,16 @@ declare class RetryError extends Error {
                   />
                 </div>
               )}
-              <div className={`${styles.editor} ${showConfig ? "block" : "hidden"} flex-auto w-1/3 bg-backgroundLight`}>
-                <div className={"jitsu-label-borderless"}>Config</div>
-                <CodeEditor
-                  width={"99.9%"}
-                  language={"json"}
-                  value={config}
-                  onChange={setConfig}
-                  monacoOptions={{ lineNumbers: "off" }}
-                />
-              </div>
+              {/*<div className={`${styles.editor} ${showConfig ? "block" : "hidden"} flex-auto w-1/3 bg-backgroundLight`}>*/}
+              {/*  <div className={"jitsu-label-borderless"}>Config</div>*/}
+              {/*  <CodeEditor*/}
+              {/*    width={"99.9%"}*/}
+              {/*    language={"json"}*/}
+              {/*    value={config}*/}
+              {/*    onChange={setConfig}*/}
+              {/*    monacoOptions={{ lineNumbers: "off" }}*/}
+              {/*  />*/}
+              {/*</div>*/}
             </div>
           </div>
           <div className={`flex-auto ${obj.origin === "jitsu-cli" ? "" : "basis-2/5"} overflow-auto`}>
