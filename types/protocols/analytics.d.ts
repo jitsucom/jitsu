@@ -231,6 +231,7 @@ interface AnalyticsContext {
     //see https://developers.facebook.com/docs/marketing-api/conversions-api/parameters/customer-information-parameters
     fbc?: string;
     fbp?: string;
+    [key: string]: any;
   };
 
   geo?: Geo;
