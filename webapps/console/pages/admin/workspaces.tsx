@@ -65,6 +65,20 @@ const View = ({ data }) => {
           users: { omit: true },
           events: { type: "number" },
           workspaceSlug: { omit: true },
+          domains: {
+            type: "custom",
+            render: val => {
+              return (
+                <div className="flex flex-col">
+                  {(val || []).map(d => (
+                    <Link className="text-xxs" key={d} href={`https://${d}`}>
+                      {d}
+                    </Link>
+                  ))}
+                </div>
+              );
+            },
+          },
           workspaceName: { type: "link", href: (val, row) => `/${row.workspaceSlug}` },
           billing: {
             type: "custom",
@@ -72,7 +86,7 @@ const View = ({ data }) => {
               if (val?.planId === "enterprise") {
                 return (
                   <Link key="status" href={`/${row.workspaceSlug}/settings/billing`} className="grow">
-                    <div className="border text-center rounded-full text-xs text-orange-400 border-orange-400 bg-orange-400/10">
+                    <div className="border text-center rounded-xl px-2 text-xs text-orange-400 border-orange-400 bg-orange-400/10">
                       ENTERPRISE
                     </div>
                   </Link>
@@ -81,7 +95,7 @@ const View = ({ data }) => {
                 return (
                   <div className="flex flex-nowrap text-success items-center gap-1 text-sm">
                     <Link key="status" href={`/${row.workspaceSlug}/settings/billing`} className="grow">
-                      <div className="border text-center rounded-full text-xs text-success border-success bg-success/10">
+                      <div className="border text-center rounded-xl px-2 text-xs text-success border-success bg-success/10">
                         PAYING
                       </div>
                     </Link>

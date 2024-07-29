@@ -4,6 +4,7 @@ import { ExternalLink } from "lucide-react";
 import { Table } from "antd";
 import hash from "stable-hash";
 import { ReactNode } from "react";
+import styles from "./JsonAsTable.module.css";
 
 function makeNiceName(key: string) {
   return key
@@ -83,6 +84,7 @@ export const JsonAsTable: React.FC<{ rows: any[]; columnOptions: Record<string, 
   return (
     <Table
       size="small"
+      className={styles.jsonTable}
       columns={Object.values(columnsMeta)}
       dataSource={rows.map(r => ({ key: hash(r), ...r }))}
       pagination={{ pageSize: 1000 }}

@@ -22,6 +22,7 @@ export type WorkspaceReportRow = {
   period: ISODate;
   workspaceId: string;
   events: number;
+  syncs: number;
 };
 
 export type ReportParams = {
@@ -45,12 +46,25 @@ function isoDateTOClickhouse(date: ISODate): string {
   return date.replace("T", " ").replace("Z", "").split(".")[0];
 }
 
-async function getClickhousePart({
-  granularity,
-  start,
-  end,
-  workspaceId,
-}: ReportParams): Promise<WorkspaceReportRow[]> {
+async function getSyncs() {
+  return await query(
+    pg,
+    `select
+                "workspaceId",
+                date_trunc('day', started_at) as period,
+
+                count(distinct sync."fromId" || sync."toId") as "activeSyncs"
+            from newjitsu.source_task task
+                 join newjitsu."ConfigurationObjectLink" sync on task.sync_id = sync."id"
+            where (task.status = 'SUCCESS' OR task.status = 'PARTIAL')
+              and started_at > now() - interval '120 days'
+            and deleted = false
+            group by "workspaceId", period
+            order by period desc , "workspaceId";`
+  );
+}
+
+async function getEventsReport({ granularity, start, end, workspaceId }: ReportParams): Promise<WorkspaceReportRow[]> {
   const timer = Date.now();
   const metricsSchema = process.env.CLICKHOUSE_METRICS_SCHEMA || process.env.CLICKHOUSE_DATABASE || "newjitsu_metrics";
   const query = `select
@@ -124,7 +138,30 @@ export async function buildWorkspaceReport(
   granularity: "day",
   workspaceId: string | undefined
 ): Promise<WorkspaceReportRow[]> {
-  return (await getClickhousePart({ start, end, granularity, workspaceId })).map(s => ({ ...s, src: "ch" }));
+  const [eventsReport, syncs] = await Promise.all([
+    getEventsReport({ start, end, granularity, workspaceId }),
+    getSyncs(),
+  ]);
+  const report = new Map<string, WorkspaceReportRow>();
+  eventsReport.forEach(row =>
+    report.set(row.workspaceId + "_" + row.period, {
+      workspaceId: row.workspaceId,
+      period: row.period,
+      events: 0,
+      syncs: 0,
+    })
+  );
+  syncs.forEach(row =>
+    report.set(row.workspaceId + "_" + row.period.toISOString(), {
+      workspaceId: row.workspaceId,
+      period: row.period.toISOString(),
+      events: 0,
+      syncs: 0,
+    })
+  );
+  eventsReport.forEach(row => (report.get(row.workspaceId + "_" + row.period)!.events = row.events));
+  syncs.forEach(row => (report.get(row.workspaceId + "_" + row.period.toISOString())!.syncs = row.activeSyncs));
+  return [...report.values()];
 }
 
 async function extend(reportResult: WorkspaceReportRow[]): Promise<ExtendedWorkspaceReportRow[]> {

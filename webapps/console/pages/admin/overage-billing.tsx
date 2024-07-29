@@ -77,6 +77,16 @@ const View = ({ data, workspaces }) => {
               return <Reference href={`/${workspacesMap[workspaceId]?.slug || workspaceId}`}>{name}</Reference>;
             },
           },
+          monthlyActiveSyncs: {
+            type: "custom",
+            render: (val, row) => {
+              return (
+                <div className={row.monthlyActiveSyncs > row.monthlyActiveSyncs ? "font-bold text-error" : ""}>
+                  {row.monthlyActiveSyncs} / {row.monthlyActiveSyncsLimit}{" "}
+                </div>
+              );
+            },
+          },
           stripeCustomerId: {
             type: "custom",
             render: (customerId, { subscriptionId }) => {
@@ -89,6 +99,7 @@ const View = ({ data, workspaces }) => {
               );
             },
           },
+          monthlyActiveSyncsLimit: { omit: true },
           subscriptionId: { omit: true },
           start: dateFormat,
           roundedPeriod: { omit: true },

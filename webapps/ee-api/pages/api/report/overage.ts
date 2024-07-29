@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { assertTrue, getLog } from "juava";
 import { withErrorHandler } from "../../../lib/error-handler";
 import { auth } from "../../../lib/auth";
-import { store } from "../../../lib/services";
+import { pg, store } from "../../../lib/services";
 import {
   getAvailableProducts,
   getInvoiceEndDate,
@@ -14,7 +14,7 @@ import {
 } from "../../../lib/stripe";
 import Stripe from "stripe";
 import pick from "lodash/pick";
-import { buildWorkspaceReport } from "./workspace-stat";
+import { buildWorkspaceReport, query } from "./workspace-stat";
 import { getServerLog } from "../../../lib/log";
 import dayjs from "dayjs";
 
@@ -24,6 +24,21 @@ function toUTC(date: Date | string) {
   const dateObj = new Date(date);
   const timezoneOffset = dateObj.getTimezoneOffset();
   return new Date(dateObj.getTime() - timezoneOffset * 60000);
+}
+
+async function getSyncsStat(periodStart: Date, periodEnd: Date, workspaceId: string): Promise<{ activeSyncs: number }> {
+  const res = await query(
+    pg,
+    `select
+        count(distinct sync."fromId" || sync."toId") as "activeSyncs"
+     from newjitsu.source_task task
+     join newjitsu."ConfigurationObjectLink" sync on task.sync_id = sync."id"
+     where 
+        (task.status = 'SUCCESS' OR task.status = 'PARTIAL') and deleted = false 
+        and "workspaceId" = :workspaceId and started_at >= :periodStart and started_at < :periodEnd`,
+    { periodStart, periodEnd, workspaceId }
+  );
+  return res[0] as any;
 }
 
 const msPerHour = 1000 * 60 * 60;
@@ -111,33 +126,12 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
         log.atWarn().log(`No subscription found for invoice ${stripeLink("invoices", invoice.id)}, skipping`);
         continue;
       }
-      const subscription =
-        subscriptionCache[subscriptionId] ||
-        (subscriptionCache[subscriptionId] = await stripe.subscriptions.retrieve(subscriptionId));
-      // if (subscription.status === "canceled") {
-      //   log
-      //     .atWarn()
-      //     .log(
-      //       `Subscription ${stripeLink("subscriptions", subscription.id)} is canceled. Skipping invoice ${stripeLink(
-      //         "invoices",
-      //         invoice.id
-      //       )}`
-      //     );
-      //   continue;
-      // }
       const plan = availableProducts.find(p => p.id === product);
       if (!plan) {
         log.atWarn().log(`No plan found for ${product} from invoice ${stripeLink("invoices", invoice.id)}`);
         continue;
       }
-      // log
-      //   .atInfo()
-      //   .log(
-      //     `Processing invoice ${invoice.id} for [${new Date(start).toISOString()}, ${new Date(
-      //       end
-      //     ).toISOString()}] workspace ${workspaceId}, plan ${plan.id}`
-      //   );
-      const { overagePricePer100k, destinationEvensPerMonth } = JSON.parse(plan.metadata.plan_data);
+      const { overagePricePer100k, destinationEvensPerMonth, dailyActiveSyncs } = JSON.parse(plan.metadata.plan_data);
       const overagePricePerEvent = overagePricePer100k / 100_000;
       const startTimestamp = dayjs(start).utc().startOf("day").toDate().getTime();
       const endTimestamp = dayjs(end).utc().startOf("day").add(-1, "millisecond").toDate().getTime();
@@ -157,7 +151,11 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
         (Math.max(0, projectedEvents - destinationEvensPerMonth) / 100_000) *
         overagePricePer100k *
         (1 - discountPercentage / 100);
-
+      getLog().atDebug().log(`Getting sync stat for ${start} - ${end} for workspace ${workspaceId}`);
+      let syncStatTimer = Date.now();
+      const syncStat = await getSyncsStat(start, end, workspaceId);
+      syncStatTimer = Date.now() - syncStatTimer;
+      getLog().atDebug().log(`Got sync stat for ${workspaceId} in ${syncStatTimer}ms`);
       result.push({
         month: start.toLocaleString("en-US", { month: "long", year: "numeric" }),
         baseInvoiceId: invoice.id,
@@ -165,6 +163,8 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
         stripeCustomerId,
         subscriptionId,
         start,
+        monthlyActiveSyncs: syncStat.activeSyncs,
+        monthlyActiveSyncsLimit: dailyActiveSyncs,
         end,
         roundedPeriod: {
           start: dayjs(startTimestamp).utc().toISOString(),
