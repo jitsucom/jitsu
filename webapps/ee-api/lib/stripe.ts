@@ -2,6 +2,7 @@ import Stripe from "stripe";
 import { store } from "./services";
 import { assertDefined, assertTrue, getLog, requireDefined } from "juava";
 import { omit } from "lodash";
+import assert from "assert";
 
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
   apiVersion: "2022-11-15",
@@ -38,6 +39,40 @@ export type StripeDataTableEntry = {
   };
 };
 
+/**
+ * This function assigns a new stripe customer id to a workspace. We had a bug
+ * that assigned duplicate stripe customer ids to workspaces. This function fixes it
+ *
+ * It could be called as /api/billing/rotate-stripe-customer?workspaceId=...&dryRun=true
+ */
+export async function rotateStripeCustomer(workspaceId: string, dryRun: boolean): Promise<void> {
+  const stripeOptions: StripeDataTableEntry = await store.getTable(stripeDataTable).get(workspaceId);
+  if (!stripeOptions) {
+    getLog().atInfo().log(`No stripe customer found for workspace ${workspaceId}`);
+    return;
+  }
+  const stripeCustomerId = stripeOptions.stripeCustomerId;
+  const customerObj = (await stripe.customers.retrieve(stripeCustomerId)) as Stripe.Customer;
+  assert(customerObj);
+  const email = customerObj.email;
+  assert(email);
+  getLog().atInfo().log(`Customer ${stripeCustomerId} found for workspace ${workspaceId}`, customerObj);
+  const createParams = {
+    email: email,
+    name: customerObj.name || email,
+  };
+  getLog().atInfo().log(`Original customer ${stripeCustomerId}`, JSON.stringify(customerObj, null, 2));
+  getLog().atInfo().log(`Creating new customer with params`, JSON.stringify(createParams, null, 2));
+
+  if (dryRun) {
+    getLog().atInfo().log("Dry run, skipping customer creation");
+  } else {
+    const newCustomer = await stripe.customers.create(createParams);
+    getLog().atInfo().log(`New customer created: ${newCustomer.id}`, JSON.stringify(newCustomer, null, 2));
+    await store.getTable(stripeDataTable).put(workspaceId, { stripeCustomerId: newCustomer.id });
+  }
+}
+
 export async function getOrCreateCurrentSubscription(
   workspaceId: string,
   userEmail: () => string,
@@ -51,14 +86,7 @@ export async function getOrCreateCurrentSubscription(
   let stripeOptions: StripeDataTableEntry = await store.getTable(stripeDataTable).get(workspaceId);
   if (!stripeOptions) {
     const email = userEmail();
-    const existingCustomers = await stripe.customers.list({ email });
-    getLog()
-      .atInfo()
-      .log(
-        `${workspaceId} doesn't have a linked stripe customer. Found ${existingCustomers.data.length} customers with email ${email}`
-      );
-    const newCustomer =
-      existingCustomers.data.length > 0 ? existingCustomers.data[0] : await stripe.customers.create({ email });
+    const newCustomer = await stripe.customers.create({ email });
     await store.getTable(stripeDataTable).put(workspaceId, { stripeCustomerId: newCustomer.id });
     stripeOptions = { stripeCustomerId: newCustomer.id };
   }
