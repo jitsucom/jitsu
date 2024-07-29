@@ -348,7 +348,6 @@ const StoreLoader: React.FC<
   }>
 > = ({ workspaceIdOrSlug, children }) => {
   const configObjectsUpdater = useConfigObjectsUpdater(workspaceIdOrSlug);
-  console.log("configObjectsUpdater", configObjectsUpdater);
   if (configObjectsUpdater.error) {
     log
       .atError()

@@ -1,6 +1,6 @@
 import React, { ReactNode, RefObject, useEffect } from "react";
 import { branding } from "../../lib/branding";
-import { requireDefined } from "juava";
+import { getLog, requireDefined } from "juava";
 import Link from "next/link";
 import { useAppConfig, useWorkspace } from "../../lib/context";
 import { ArrowRight, ExternalLink, Inbox } from "lucide-react";
@@ -129,6 +129,7 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({
   });
 
   useEffect(() => {
+    getLog().atInfo().log(`Rendering connections diagram with ${connections.length} connections`);
     if (canvasRef.current == null || logoRef.current == null) {
       return;
     }
@@ -156,7 +157,7 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({
           });
         }
       });
-
+    getLog().atDebug().log(`Rendering ${connectorsRef.current.length} connectors`, connectorsRef.current);
     connectorsRef.current
       .map(r => r.current)
       .filter(r => !!r)
@@ -168,11 +169,14 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({
           mouseOverSrc === source.id ||
           (!!mouseOverDst && !!connections.find(c => c.from === source.id && c.to === mouseOverDst));
         if (connections.find(c => c.from === source.id)) {
+          getLog().atInfo().log(`Adding connector from ${source.id} to logo (select=${selected})`);
           newLines.push({
             from: { top: rel.top + bounds.height / 2, left: rel.left + bounds.width },
             to: { left: logoPosition.left, top: logoPosition.top + logoBounds.height / 2 },
             selected,
           });
+        } else {
+          getLog().atWarn().log(`Source ${source.id} has no connections`);
         }
       });
     dstRefs.current
@@ -240,7 +244,7 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({
 
   srcRefs.current = sources.map((_, i) => srcRefs.current[i] ?? React.createRef());
   dstRefs.current = destinations.map((_, i) => dstRefs.current[i] ?? React.createRef());
-  connectorsRef.current = destinations.map((_, i) => connectorsRef.current[i] ?? React.createRef());
+  connectorsRef.current = connectorSources.map((_, i) => connectorsRef.current[i] ?? React.createRef());
 
   const connectorSection = appConfig.syncs.enabled && (
     <React.Fragment key="connectors">
