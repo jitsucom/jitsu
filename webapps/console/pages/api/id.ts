@@ -46,7 +46,7 @@ function renewCookies(
     cookie = randomUUID();
   }
   const secure = request.headers["x-forwarded-proto"] === "https";
-  const maxAge = 31_536_000; // 1 year in seconds
+  const maxAge = 31_536_000 * 5; // 5 years in seconds
   const domain = getDomain(request);
   response.setHeader("Set-Cookie", [
     ...((response.getHeader("Set-Cookie") as string[]) ?? []),
@@ -63,5 +63,6 @@ function renewCookies(
 export default async function handler(request: NextApiRequest, response: NextApiResponse) {
   renewCookies(request, response, ANON_COOKIE, `${ANON_COOKIE}_srvr`, true);
   renewCookies(request, response, USER_COOKIE, `${USER_COOKIE}_srvr`);
+  response.setHeader("Cache-Control", "must-revalidate,no-cache,no-store");
   response.send("OK");
 }
