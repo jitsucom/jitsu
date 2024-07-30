@@ -689,7 +689,11 @@ export const jitsuAnalyticsPlugin = (pluginConfig: JitsuPluginConfig = {}): Anal
           const fetch = config.fetch || globalThis.fetch;
           const controller = new AbortController();
           setTimeout(() => controller.abort(), 1000);
-          const res = await fetch(config.idEndpoint, { credentials: "include", signal: controller.signal });
+          const domain = config.cookieDomain || getTopLevelDomain(window.location.hostname);
+          const res = await fetch(config.idEndpoint + "?domain=" + encodeURIComponent(domain), {
+            credentials: "include",
+            signal: controller.signal,
+          });
           if (!res.ok) {
             console.error(`[JITSU] Can't fetch idEndpoint: ${res.status} - ${res.statusText}`);
           } else if (config.debug) {
