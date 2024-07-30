@@ -25,6 +25,7 @@ const defaultConfig: Required<JitsuOptions> = {
   runtime: undefined,
   fetchTimeoutMs: undefined,
   s2s: undefined,
+  idEndpoint: undefined,
 };
 
 export const parseQuery = (qs?: string): Record<string, string> => {
@@ -669,7 +670,7 @@ export const jitsuAnalyticsPlugin = (pluginConfig: JitsuPluginConfig = {}): Anal
     name: "jitsu",
     config: instanceConfig,
 
-    initialize: args => {
+    initialize: async args => {
       const { config } = args;
       if (config.debug) {
         console.debug("[JITSU DEBUG] Initializing Jitsu plugin with config: ", JSON.stringify(config, null, 2));
@@ -678,6 +679,26 @@ export const jitsuAnalyticsPlugin = (pluginConfig: JitsuPluginConfig = {}): Anal
         throw new Error("Please specify host variable in jitsu plugin initialization, or set echoEvents to true");
       }
       validateWriteKey(config.writeKey);
+
+      if (config.idEndpoint) {
+        if (!isInBrowser()) {
+          console.error(`[JITSU] 'idEndpoint' option can be used only in browser environment`);
+          return;
+        }
+        try {
+          const fetch = config.fetch || globalThis.fetch;
+          const controller = new AbortController();
+          setTimeout(() => controller.abort(), 1000);
+          const res = await fetch(config.idEndpoint, { credentials: "include", signal: controller.signal });
+          if (!res.ok) {
+            console.error(`[JITSU] Can't fetch idEndpoint: ${res.status} - ${res.statusText}`);
+          } else if (config.debug) {
+            console.log(`[JITSU DEBUG] Fetch idEndpoint: ${res.status}`);
+          }
+        } catch (e) {
+          console.error(`[JITSU] Can't fetch idEndpoint: ${e.message}`);
+        }
+      }
     },
     page: args => {
       const { payload, config, instance } = args;

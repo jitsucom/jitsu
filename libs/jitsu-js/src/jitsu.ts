@@ -49,6 +49,13 @@ type JitsuOptions = {
    * Timeout for fetch requests. Default value: 5000
    */
   fetchTimeoutMs?: number;
+
+  /**
+   * Endpoint that makes sure that Jitsu anonymousId cookie is set as server (httpOnly) cookie.
+   * Endpoint must be hosted on the same domain as the site where Jitsu code is installed.
+   * Required to overcome Safari ITP restrictions.
+   */
+  idEndpoint?: string;
 };
 
 type PersistentStorage = {

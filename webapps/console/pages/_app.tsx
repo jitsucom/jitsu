@@ -319,6 +319,7 @@ function AppLoader({ children, pageProps }: PropsWithChildren<any>) {
             ? {
                 //debug: data?.logLevel === "debug",
                 debug: isTruish(process.env.NEXT_PUBLIC_TELEMETRY_DEBUG),
+                idEndpoint: "/api/id",
                 host: trackingHost,
               }
             : { disabled: true }
