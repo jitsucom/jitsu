@@ -53,7 +53,7 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
   let producer: Producer;
   let admin: Admin;
   let closeQueue: () => Promise<void>;
-  let interval: NodeJS.Timer;
+  let interval: any;
   let metrics: Metrics;
   return {
     start: async () => {

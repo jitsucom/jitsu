@@ -35,9 +35,9 @@
     "husky": "^8.0.3",
     "monorel": "0.4.2",
     "prettier": "^2.8.7",
-    "ts-node": "~10.8.2",
+    "ts-node": "^10.9.2",
     "turbo": "~1.2.16",
-    "typescript": "^5.3.3",
+    "typescript": "^5.5.4",
     "vercel": "^32.3.1"
   },
   "engines": {

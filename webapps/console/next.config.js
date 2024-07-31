@@ -1,5 +1,10 @@
 /** @type {import("next").NextConfig} */
-const withTM = require("next-transpile-modules")(["juava", "@jitsu/protocols", "@jitsu/core-functions"]);
+const withTM = require("next-transpile-modules")([
+  "juava",
+  "@jitsu/protocols",
+  "@jitsu/core-functions",
+  "@ant-design/icons",
+]);
 const nextConfig = withTM({});
 const path = require("path");
 const { withSentryConfig } = require("@sentry/nextjs");

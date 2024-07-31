@@ -30,7 +30,7 @@ export const ButtonGroup: React.FC<ButtonGroupProps> = ({ items, dotsButtonProps
     .filter(item => item.collapsed)
     .map((item, i) => ({
       label: item.href ? (
-        <Link prefetch={false} href={`/${w.slug || w.id}/${item.href}`}>
+        <Link prefetch={false} href={`/${w.slug || w.id}${item.href}`}>
           {item.label}
         </Link>
       ) : (
@@ -55,6 +55,10 @@ export const ButtonGroup: React.FC<ButtonGroupProps> = ({ items, dotsButtonProps
           <JitsuButton
             className="text-lg font-bold p-0"
             icon={<MoreVertical className={"w-4 h-4"} />}
+            onClick={event => {
+              event.preventDefault();
+              event.stopPropagation(); // stop propagation main button
+            }}
             {...dotsButtonProps}
           />
         </Dropdown>

@@ -84,7 +84,7 @@ function Card({
               <ButtonGroup
                 dotsButtonProps={{
                   size: "small",
-                  type: "ghost",
+                  ghost: true,
                   icon: <MoreVertical strokeWidth={2} className="text-textLight w-5 h-5" />,
                 }}
                 items={actions.map(a => ({ ...a, collapsed: true }))}

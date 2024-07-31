@@ -8,7 +8,6 @@ import { useRouter } from "next/router";
 import { useWorkspace } from "../../lib/context";
 
 export type JitsuButtonProps = ButtonProps & {
-  iconPosition?: "left" | "right";
   //set to true if href is relative workspace link
   ws?: boolean;
 };

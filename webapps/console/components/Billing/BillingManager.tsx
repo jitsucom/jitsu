@@ -352,7 +352,7 @@ const AvailablePlans: React.FC<{}> = () => {
           />
           <div className="my-6">
             {planId === billing.settings.planId ? (
-              <JitsuButton icon={<Check />} className="w-full" size="large" type="ghost" disabled={true}>
+              <JitsuButton icon={<Check />} className="w-full" size="large" ghost disabled={true}>
                 Current plan
               </JitsuButton>
             ) : planId === "free" ? (

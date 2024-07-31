@@ -6,10 +6,10 @@
     "allowSyntheticDefaultImports": true,
     "importHelpers": true,
     "removeComments": true,
-    "target": "ES2021",
+    "target": "ESNext",
     "module": "commonjs",
     "lib": [
-      "esnext"
+      "ESNext", "DOM"
     ],
     "allowJs": true,
     "strict": true,
