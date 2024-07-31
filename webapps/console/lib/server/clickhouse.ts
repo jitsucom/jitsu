@@ -12,7 +12,7 @@ function clickhouseHost() {
 }
 
 export const clickhouse = createClient({
-  host: clickhouseHost(),
+  url: clickhouseHost(),
   username: process.env.CLICKHOUSE_USERNAME || "default",
   password: requireDefined(process.env.CLICKHOUSE_PASSWORD, `env CLICKHOUSE_PASSWORD is not defined`),
 });

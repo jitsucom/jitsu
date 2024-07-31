@@ -288,7 +288,7 @@ async function loadFromURL(url: string): Promise<Buffer> {
 async function untar(b: Buffer): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const gunzip = zlib.createGunzip();
-    const tarParser = new tar.Parse();
+    const tarParser = new tar.Parser();
     tarParser.on("entry", entry => {
       if (entry.type === "File" && entry.path.endsWith(".mmdb")) {
         const chunks: Buffer[] = [];

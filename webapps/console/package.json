@@ -24,7 +24,7 @@
   },
   "dependencies": {
     "@ant-design/cssinjs": "^1.5.6",
-    "@clickhouse/client": "^0.2.10",
+    "@clickhouse/client": "^1.4.0",
     "@dnd-kit/core": "^6.0.8",
     "@dnd-kit/modifiers": "^6.0.1",
     "@dnd-kit/sortable": "^7.0.2",
@@ -75,7 +75,7 @@
     "monaco-editor": "^0.50.0",
     "next": "^14.2.5",
     "next-auth": "^4.23.2",
-    "node-fetch-commonjs": "^3.2.4",
+    "node-fetch-commonjs": "^3.3.2",
     "node-sql-parser": "^4.6.5",
     "nodemailer": "^6.8.0",
     "object-hash": "^3.0.0",

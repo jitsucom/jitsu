@@ -15,7 +15,7 @@ export const getClickhouseClient = (workspaceId: string, cred: ClickhouseCredent
   const url = `https://${host}:${port}/`;
   log.atDebug().log(`Connecting to ${url} with ${cred.username}`);
   return createClient({
-    host: url,
+    url: url,
     database: cred.database,
     username: cred.username,
     password: cred.password,

@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.418.0",
-    "@clickhouse/client": "^0.2.10",
+    "@clickhouse/client": "^1.4.0",
     "@types/node": "^18.15.3",
     "@types/react": "18.3.3",
     "@types/react-dom": "18.3.0",
@@ -26,7 +26,7 @@
     "juava": "workspace:*",
     "lodash": "^4.17.21",
     "next": "^14.2.5",
-    "node-fetch-commonjs": "^3.2.4",
+    "node-fetch-commonjs": "^3.3.2",
     "pg": "^8.11.3",
     "react": "18.3.1",
     "react-dom": "18.3.1",

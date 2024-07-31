@@ -12,7 +12,7 @@ export const store = getPostgresStore(pg, { tableName: "newjitsuee.kvstore" });
 export const telemetryDb = createPg(process.env.TELEMETRY_DATABASE_URL || dbUrl, { connectionName: "telemetry" });
 
 export const clickhouse = createClient({
-  host: requireDefined(process.env.CLICKHOUSE_URL, `env CLICKHOUSE_URL is not defined`),
+  url: requireDefined(process.env.CLICKHOUSE_URL, `env CLICKHOUSE_URL is not defined`),
   username: process.env.CLICKHOUSE_USERNAME || "default",
   password: requireDefined(process.env.CLICKHOUSE_PASSWORD, `env CLICKHOUSE_PASSWORD is not defined`),
 });

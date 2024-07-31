@@ -5,9 +5,12 @@
     "declaration": true,
     "esModuleInterop": true,
     "moduleResolution": "node",
-    "target": "ES2019",
+    "target": "ESNext",
     "module": "commonjs",
-    "lib": ["ES2019", "dom"],
+    "lib": [
+      "ESNext",
+      "DOM"
+    ],
     "noEmit": true
   },
   "exclude": [
