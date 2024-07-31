@@ -55,13 +55,13 @@ import { BillingBlockingDialog } from "../Billing/BillingBlockingDialog";
 import { signOut } from "next-auth/react";
 import { firebaseSignOut } from "../../lib/firebase-client";
 import { feedbackError } from "../../lib/ui";
-import { MenuItemType } from "antd/es/menu/hooks/useItems";
 import { useClassicProject } from "./ClassicProjectProvider";
 import { useJitsu } from "@jitsu/jitsu-react";
 import { useSearchParams } from "next/navigation";
 import omit from "lodash/omit";
 import { useBilling, UseBillingResult } from "../Billing/BillingProvider";
 import { useUsage, UseUsageRes } from "../Billing/use-usage";
+import { MenuItemType } from "antd/lib/menu/interface";
 
 export type PageLayoutProps = {
   fullscreen?: boolean;

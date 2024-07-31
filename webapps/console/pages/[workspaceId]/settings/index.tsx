@@ -240,7 +240,7 @@ const WorkspaceSettingsComponent: React.FC<any> = () => {
             <div className="text-lg font-bold pb-6">Plans & Billing</div>
             <div className="flex justify-center">
               <WJitsuButton
-                iconPosition="right"
+                iconPosition="end"
                 icon={<ArrowRight className="-rotate-45 w-4 h-4" />}
                 href={"/settings/billing"}
                 size="large"
@@ -261,7 +261,7 @@ const WorkspaceSettingsComponent: React.FC<any> = () => {
           <div className="text-lg font-bold pb-6">API Access</div>
           <div className="flex justify-center">
             <JitsuButton
-              iconPosition="right"
+              iconPosition="end"
               icon={<ArrowRight className="-rotate-45 w-4 h-4" />}
               href={"/user"}
               size="large"

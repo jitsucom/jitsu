@@ -12,12 +12,12 @@
     "@aws-sdk/client-s3": "^3.418.0",
     "@clickhouse/client": "^0.2.10",
     "@types/node": "^18.15.3",
-    "@types/react": "18.0.28",
-    "@types/react-dom": "18.0.11",
+    "@types/react": "18.3.3",
+    "@types/react-dom": "18.3.0",
     "crypto-js": "^4.1.1",
     "dayjs": "^1.11.10",
     "eslint": "8.29.0",
-    "eslint-config-next": "13.0.0",
+    "eslint-config-next": "14.2.5",
     "firebase-admin": "^11.11.0",
     "intercom-client": "^4.0.0",
     "is-valid-domain": "^0.1.6",
@@ -25,13 +25,13 @@
     "jsonwebtoken": "^9.0.2",
     "juava": "workspace:*",
     "lodash": "^4.17.21",
-    "next": "^13.5.6",
+    "next": "^14.2.5",
     "node-fetch-commonjs": "^3.2.4",
     "pg": "^8.11.3",
-    "react": "18.2.0",
-    "react-dom": "18.2.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
     "stripe": "^11.15.0",
-    "tslib": "^2.4.0"
+    "tslib": "^2.6.3"
   },
   "devDependencies": {
     "@types/crypto-js": "^4.1.1",
@@ -39,10 +39,10 @@
     "@types/lodash": "^4.14.185",
     "@types/pg": "^8.6.5",
     "@types/stripe": "^8.0.417",
-    "raw-loader": "^4.0.2",
     "dotenv": "^16.3.1",
     "next-transpile-modules": "^10.0.1",
+    "raw-loader": "^4.0.2",
     "ts-node": "^10.9.2",
-    "typescript": "^5.3.3"
+    "typescript": "^5.5.4"
   }
 }

@@ -23,6 +23,6 @@
     "node-postgres": "^0.6.2",
     "testcontainers": "^9.0.0",
     "ts-jest": "29.0.5",
-    "tslib": "^2.4.0"
+    "tslib": "^2.6.3"
   }
 }

@@ -4,7 +4,7 @@ export type ButtonLabelProps = {
   icon?: ReactNode;
   children?: ReactNode;
   loading?: boolean;
-  iconPosition?: "left" | "right";
+  iconPosition?: "start" | "end";
   className?: string;
   iconSize?: "default" | "small";
 };
@@ -31,7 +31,7 @@ export const ButtonLabel: React.FC<ButtonLabelProps> = ({
   children,
   icon,
   loading,
-  iconPosition = "left",
+  iconPosition = "start",
   className,
   iconSize = "default",
 }) => {
@@ -39,12 +39,12 @@ export const ButtonLabel: React.FC<ButtonLabelProps> = ({
   return (
     <div className={`relative inline-flex justify-center items-center ${className || ""} ${children ? "" : "h-full"}`}>
       <div className={`flex items-center ${loading ? "invisible" : ""}`}>
-        {icon && iconPosition === "left" && !loading && <span className={iconClass}>{icon}</span>}
+        {icon && iconPosition === "start" && !loading && <span className={iconClass}>{icon}</span>}
         {children && (
           <span
             className={
               icon
-                ? iconPosition === "left"
+                ? iconPosition === "start"
                   ? iconSize === "small"
                     ? "ml-2"
                     : "ml-1"
@@ -57,7 +57,7 @@ export const ButtonLabel: React.FC<ButtonLabelProps> = ({
             {children}
           </span>
         )}
-        {icon && iconPosition === "right" && !loading && <span className={iconClass}>{icon}</span>}
+        {icon && iconPosition === "end" && !loading && <span className={iconClass}>{icon}</span>}
       </div>
       {loading && !icon && (
         <div className="w-full h-full absolute flex justify-center items-center top-0 left-0">

@@ -24,8 +24,8 @@
   "dependencies": {
     "figlet": "^1.6.0",
     "jest-cli": "^29.7.0",
-    "tslib": "^2.6.2",
-    "typescript": "^5.4.5"
+    "tslib": "^2.6.3",
+    "typescript": "^5.5.4"
   },
   "devDependencies": {
     "@babel/preset-env": "^7.23.2",

@@ -218,7 +218,7 @@ function AddButton(props: IconButtonProps) {
       type={"primary"}
       ghost={true}
       onClick={e => {
-        btnProps.onClick && btnProps.onClick(e);
+        btnProps.onClick && btnProps.onClick(e as any);
       }}
     >
       Add parameter

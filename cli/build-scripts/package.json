@@ -21,11 +21,11 @@
     "semver": "^7.5.4",
     "simple-git": "^3.22.0",
     "string-width": "^7.0.0",
-    "tslib": "^2.6.2"
+    "tslib": "^2.6.3"
   },
   "devDependencies": {
     "commander": "^11.0.0",
-    "@types/node": "^20.10.8",
+    "@types/node": "^18.15.3",
     "@types/semver": "^7.5.6",
     "@babel/preset-env": "^7.23.2",
     "@babel/preset-typescript": "^7.23.2",
