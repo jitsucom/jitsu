@@ -75,6 +75,8 @@ function LoadAndBlockIfNeed() {
           </div>
         }
         closable={!!data?.admin}
+        onCancel={() => setShowModal(false)}
+        maskClosable={false}
         footer={
           <div className="w-full">
             <WJitsuButton
