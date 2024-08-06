@@ -1,7 +1,16 @@
 /* global analytics */
 
-import { JitsuOptions, PersistentStorage, RuntimeFacade } from "./jitsu";
-import { AnalyticsClientEvent, Callback, ID, JSONObject, Options } from "@jitsu/protocols/analytics";
+import {
+  DynamicJitsuOptions,
+  JitsuOptions,
+  PersistentStorage,
+  RuntimeFacade,
+  AnalyticsClientEvent,
+  Callback,
+  ID,
+  JSONObject,
+  Options,
+} from "@jitsu/protocols/analytics";
 import parse from "./index";
 
 import { AnalyticsInstance, AnalyticsPlugin } from "analytics";
@@ -26,6 +35,10 @@ const defaultConfig: Required<JitsuOptions> = {
   fetchTimeoutMs: undefined,
   s2s: undefined,
   idEndpoint: undefined,
+  enabled: true,
+  enableAnonymousId: true,
+  enableThirdPartIds: true,
+  ipPolicy: "keep",
 };
 
 export const parseQuery = (qs?: string): Record<string, string> => {
@@ -159,6 +172,13 @@ const defaultCookie2Key = {
 const cookieStorage: StorageFactory = (cookieDomain, key2cookie) => {
   return {
     setItem(key: string, val: any) {
+      if (typeof val === "undefined") {
+        removeCookie(key2cookie[key] || key, {
+          domain: cookieDomain,
+          secure: window.location.protocol === "https:",
+        });
+        return;
+      }
       const strVal = typeof val === "object" && val !== null ? encodeURIComponent(JSON.stringify(val)) : val;
       const cookieName = key2cookie[key] || key;
       setCookie(cookieName, strVal, {
@@ -270,7 +290,11 @@ export const emptyRuntime = (config: JitsuOptions): RuntimeFacade => ({
         if (config.debug) {
           console.log(`[JITSU EMPTY RUNTIME] Set storage item ${key}=${JSON.stringify(val)}`);
         }
-        storage[key] = val;
+        if (typeof val === "undefined") {
+          delete storage[key];
+        } else {
+          storage[key] = val;
+        }
       },
       getItem(key: string) {
         const val = storage[key];
@@ -388,11 +412,13 @@ function adjustPayload(
       url: properties.url || url,
       encoding: properties.encoding || runtime.documentEncoding(),
     },
-    clientIds: {
-      fbc: runtime.getCookie("_fbc"),
-      fbp: runtime.getCookie("_fbp"),
-      ...getGa4Ids(runtime),
-    },
+    clientIds: config.enableThirdPartIds
+      ? {
+          fbc: runtime.getCookie("_fbc"),
+          fbp: runtime.getCookie("_fbp"),
+          ...getGa4Ids(runtime),
+        }
+      : undefined,
     campaign: parseUtms(query),
   };
   const withContext = {
@@ -592,15 +618,19 @@ async function send(
     : undefined;
 
   const authHeader = jitsuConfig.writeKey ? { "X-Write-Key": jitsuConfig.writeKey } : {};
+  const ipHeader =
+    typeof jitsuConfig.ipPolicy === "undefined" || jitsuConfig.ipPolicy === "keep"
+      ? {}
+      : { "X-IP-Policy": jitsuConfig.ipPolicy };
   let fetchResult;
   try {
     fetchResult = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-
         ...authHeader,
         ...debugHeader,
+        ...ipHeader,
       },
       body: JSON.stringify(adjustedPayload),
       signal: abortController?.signal,
@@ -706,6 +736,9 @@ export const jitsuAnalyticsPlugin = (pluginConfig: JitsuPluginConfig = {}): Anal
     },
     page: args => {
       const { payload, config, instance } = args;
+      if (!config.enabled) {
+        return;
+      }
       return send(
         "page",
         payload,
@@ -716,6 +749,9 @@ export const jitsuAnalyticsPlugin = (pluginConfig: JitsuPluginConfig = {}): Anal
     },
     track: args => {
       const { payload, config, instance } = args;
+      if (!config.enabled) {
+        return;
+      }
       return send(
         "track",
         payload,
@@ -726,6 +762,9 @@ export const jitsuAnalyticsPlugin = (pluginConfig: JitsuPluginConfig = {}): Anal
     },
     identify: args => {
       const { payload, config, instance } = args;
+      if (!config.enabled) {
+        return;
+      }
       // Store traits in cache to be able to use them in page and track events that run asynchronously with current identify.
       const storage = pluginConfig.storageWrapper ? pluginConfig.storageWrapper(instance.storage) : instance.storage;
       storage.setItem("__user_id", payload.userId);
@@ -744,17 +783,47 @@ export const jitsuAnalyticsPlugin = (pluginConfig: JitsuPluginConfig = {}): Anal
     },
     methods: {
       //analytics doesn't support group as a base method, so we need to add it manually
+      configure(options: DynamicJitsuOptions) {
+        const anonymousIdWasEnabled = instanceConfig.enableAnonymousId;
+        for (const [key, value] of Object.entries(options)) {
+          if (typeof value === "undefined") {
+            instanceConfig[key] = defaultConfig[key];
+          } else {
+            instanceConfig[key] = value;
+          }
+        }
+        if (instanceConfig.enableAnonymousId && !anonymousIdWasEnabled) {
+          if (instanceConfig.debug) {
+            console.log("[JITSU] Enabling Anonymous ID. Generating new Id.");
+          }
+          const instance = (this as any).instance;
+          const storage = pluginConfig.storageWrapper
+            ? pluginConfig.storageWrapper(instance.storage)
+            : instance.storage;
+
+          const newAnonymousId = uuid();
+          const userState = instance.user();
+          if (userState) {
+            userState.anonymousId = newAnonymousId;
+          }
+          storage.setItem("__anon_id", newAnonymousId);
+          instance.setAnonymousId(newAnonymousId);
+        }
+      },
       group(groupId?: ID, traits?: JSONObject | null, options?: Options, callback?: Callback) {
+        if (!instanceConfig.enabled) {
+          return;
+        }
         if (typeof groupId === "number") {
           //fix potential issues with group id being used incorrectly
           groupId = groupId + "";
         }
 
-        const analyticsInstance = this.instance;
+        const instance = (this as any).instance;
         const cacheWrap = pluginConfig.storageWrapper
-          ? pluginConfig.storageWrapper(analyticsInstance.storage)
-          : analyticsInstance.storage;
-        const user = analyticsInstance.user();
+          ? pluginConfig.storageWrapper(instance.storage)
+          : instance.storage;
+        const user = instance.user();
         const userId = options?.userId || user?.userId;
         const anonymousId = options?.anonymousId || user?.anonymousId || cacheWrap.getItem("__anon_id");
         cacheWrap.setItem("__group_id", groupId);
@@ -765,7 +834,7 @@ export const jitsuAnalyticsPlugin = (pluginConfig: JitsuPluginConfig = {}): Anal
           "group",
           { type: "group", groupId, traits, ...(anonymousId ? { anonymousId } : {}), ...(userId ? { userId } : {}) },
           instanceConfig,
-          analyticsInstance,
+          instance,
           cacheWrap
         );
       },
@@ -784,6 +853,23 @@ export function randomId(hashString: string | undefined = ""): string {
     ((Math.random() * d * hash(hashString ?? "", getSeed())) % Number.MAX_SAFE_INTEGER).toString(36) +
     ((Math.random() * d * hash(hashString ?? "", getSeed())) % Number.MAX_SAFE_INTEGER).toString(36)
   );
+}
+
+export function uuid() {
+  var u = "",
+    m = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx",
+    i = 0,
+    rb = (Math.random() * 0xffffffff) | 0;
+
+  while (i++ < 36) {
+    var c = m[i - 1],
+      r = rb & 0xf,
+      v = c == "x" ? r : (r & 0x3) | 0x8;
+
+    u += c == "-" || c == "4" ? c : v.toString(16);
+    rb = i % 8 == 0 ? (Math.random() * 0xffffffff) | 0 : rb >> 4;
+  }
+  return u;
 }
 
 function hash(str: string, seed: number = 0): number {

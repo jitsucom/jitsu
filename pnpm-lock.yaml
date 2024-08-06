@@ -488,6 +488,9 @@ importers:
       ts-jest:
         specifier: 29.0.5
         version: 29.0.5(@babel/core@7.25.2)(jest@29.7.0)(typescript@5.5.4)
+      tslib:
+        specifier: ^2.6.3
+        version: 2.6.3
       typescript:
         specifier: ^5.5.4
         version: 5.5.4
