@@ -1,4 +1,4 @@
-import type { AnalyticsInterface, JitsuOptions } from "./jitsu";
+import type { AnalyticsInterface, JitsuOptions } from "@jitsu/protocols/analytics";
 import { jitsuAnalytics } from "./index";
 
 export type JitsuBrowserOptions = {
@@ -19,6 +19,10 @@ const booleanParser = (arg: string) => arg === "true" || arg === "1" || arg === 
 
 const parsers: Partial<Record<keyof JitsuBrowserOptions, Parser>> = {
   debug: booleanParser,
+  enableThirdPartIds: booleanParser,
+  enableAnonymousId: booleanParser,
+  enabled: booleanParser,
+  echoEvents: booleanParser,
   initOnly: booleanParser,
 };
 
