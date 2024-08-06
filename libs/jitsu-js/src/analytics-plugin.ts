@@ -39,6 +39,7 @@ const defaultConfig: Required<JitsuOptions> = {
   enableAnonymousId: true,
   enableThirdPartIds: true,
   ipPolicy: "keep",
+  consentCategories: undefined,
 };
 
 export const parseQuery = (qs?: string): Record<string, string> => {
@@ -398,6 +399,11 @@ function adjustPayload(
       version: jitsuVersion,
       env: s2s ? "node" : "browser",
     },
+    consent: config.consentCategories
+      ? {
+          categoryPreferences: config.consentCategories,
+        }
+      : undefined,
     userAgent: runtime.userAgent(),
     locale: runtime.language(),
     screen: runtime.screen(),
