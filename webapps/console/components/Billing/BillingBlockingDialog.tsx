@@ -42,7 +42,7 @@ function LoadAndBlockIfNeed() {
           </div>
         }
         closable={!!data?.admin}
-        onOk={() => setShowModal(false)}
+        onCancel={() => setShowModal(false)}
         maskClosable={false}
         footer={
           <div className="w-full">
