@@ -7,12 +7,14 @@ import { AlertTriangle, ArrowRight } from "lucide-react";
 import { WJitsuButton } from "../JitsuButton/JitsuButton";
 import { useWorkspace, WorkspaceContext } from "../../lib/context";
 import { useApi } from "../../lib/useApi";
+import { useState } from "react";
 
 const log = getLog("billing");
 
 function LoadAndBlockIfNeed() {
   const billing = useBilling();
   const { data } = useApi(`/api/user/properties`);
+  const [showModal, setShowModal] = useState(true);
 
   assertTrue(billing.enabled);
   assertFalse(billing.loading);
@@ -32,7 +34,7 @@ function LoadAndBlockIfNeed() {
     return (
       <Modal
         style={{ minWidth: 1000 }}
-        open={true}
+        open={showModal}
         title={
           <div className="flex items-center space-x-4">
             <AlertTriangle className="w-8 h-8 text-error" />
@@ -40,6 +42,8 @@ function LoadAndBlockIfNeed() {
           </div>
         }
         closable={!!data?.admin}
+        onOk={() => setShowModal(false)}
+        maskClosable={false}
         footer={
           <div className="w-full">
             <WJitsuButton
