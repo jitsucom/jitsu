@@ -372,11 +372,12 @@ export type JitsuOptions = {
   enableAnonymousId?: boolean;
   enableThirdPartIds?: boolean;
   ipPolicy?: "keep" | "remove" | "stripLastOctet";
+  consentCategories?: Record<string, boolean>;
 };
 
 export type DynamicJitsuOptions = Pick<
   JitsuOptions,
-  "enableAnonymousId" | "enableThirdPartIds" | "ipPolicy" | "debug" | "echoEvents" | "enabled"
+  "enableAnonymousId" | "enableThirdPartIds" | "ipPolicy" | "debug" | "echoEvents" | "enabled" | "consentCategories"
 >;
 
 export interface AnalyticsInterface {
