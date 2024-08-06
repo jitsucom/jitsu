@@ -38,7 +38,7 @@
     "ts-node": "^10.9.2",
     "turbo": "~1.2.16",
     "typescript": "^5.5.4",
-    "vercel": "^32.3.1"
+    "vercel": "^35.2.3"
   },
   "engines": {
     "yarn": ">=1000",

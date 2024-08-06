@@ -46,8 +46,8 @@
     "mongodb": "^6.7.0",
     "node-cache": "^5.1.2",
     "parse-duration": "^1.1.0",
-    "posthog-node": "^2.4.0",
+    "posthog-node": "^4.0.1",
     "tslib": "^2.6.3",
-    "zod": "3.21.4"
+    "zod": "^3.23.8"
   }
 }

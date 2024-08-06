@@ -787,11 +787,13 @@ const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
   return (
     <>
       <Modal
-        bodyStyle={{
-          overflowY: "auto",
-          maxHeight: "calc(100vh - 200px)",
-          display: "flex",
-          flexDirection: "column",
+        styles={{
+          body: {
+            overflowY: "auto",
+            maxHeight: "calc(100vh - 200px)",
+            display: "flex",
+            flexDirection: "column",
+          },
         }}
         open={showCatalog}
         width="90vw"

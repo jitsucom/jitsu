@@ -239,13 +239,15 @@ const ServicesList: React.FC<{}> = () => {
   return (
     <>
       <Modal
-        bodyStyle={{
-          overflowY: "auto",
-          maxHeight: "calc(100vh - 200px)",
-          minHeight: "400px",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "center",
+        styles={{
+          body: {
+            overflowY: "auto",
+            maxHeight: "calc(100vh - 200px)",
+            minHeight: "400px",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+          },
         }}
         open={showCatalog}
         style={{ minWidth: 1000 }}

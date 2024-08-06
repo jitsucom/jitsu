@@ -49,7 +49,7 @@ const PromptModal: React.FC<{
       footer={<></>}
       destroyOnClose={true}
       onCancel={() => handleResult(null)}
-      maskStyle={{ backdropFilter: "blur(10px)" }}
+      styles={{ mask: { backdropFilter: "blur(10px)" } }}
     >
       <div>
         <h3 className="font-bold text-lg mb-4">{question || "Dummy question. Would you mind providing an answer?"}</h3>

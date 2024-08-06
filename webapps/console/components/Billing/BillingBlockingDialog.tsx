@@ -6,11 +6,13 @@ import { upgradeRequired } from "./copy";
 import { AlertTriangle, ArrowRight } from "lucide-react";
 import { WJitsuButton } from "../JitsuButton/JitsuButton";
 import { useWorkspace, WorkspaceContext } from "../../lib/context";
+import { useApi } from "../../lib/useApi";
 
 const log = getLog("billing");
 
 function LoadAndBlockIfNeed() {
   const billing = useBilling();
+  const { data } = useApi(`/api/user/properties`);
 
   assertTrue(billing.enabled);
   assertFalse(billing.loading);
@@ -37,7 +39,7 @@ function LoadAndBlockIfNeed() {
             <h2 className="text-4xl">Your subscription is past-due.</h2>
           </div>
         }
-        closable={false}
+        closable={!!data?.admin}
         footer={
           <div className="w-full">
             <WJitsuButton
@@ -68,7 +70,7 @@ function LoadAndBlockIfNeed() {
             <h2 className="text-4xl">Upgrade required</h2>
           </div>
         }
-        closable={false}
+        closable={!!data?.admin}
         footer={
           <div className="w-full">
             <WJitsuButton

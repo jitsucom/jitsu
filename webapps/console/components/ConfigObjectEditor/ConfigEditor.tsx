@@ -83,7 +83,6 @@ export type ConfigEditorProps<T extends { id: string } = { id: string }, M = {}>
   actions?: {
     title: ReactNode;
     icon?: ReactNode;
-    hideLabel?: boolean;
     collapsed?: boolean;
     key?: string;
     action?: (o: T) => void;
@@ -705,7 +704,6 @@ const ObjectsList: React.FC<{ objects: any[]; onDelete: (id: string) => Promise<
             disabled: !!(action.disabled && action.disabled(record)),
             href: action.link ? action.link(record) : undefined,
             label: action.title,
-            hideLabel: action.hideLabel,
             collapsed: action.collapsed,
             onClick: action.action
               ? () => {

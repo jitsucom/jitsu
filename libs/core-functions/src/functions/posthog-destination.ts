@@ -150,7 +150,7 @@ const PosthogDestination: JitsuFunction<AnalyticsServerEvent, PosthogDestination
   } catch (e: any) {
     throw new RetryError(e.message);
   } finally {
-    await client.shutdownAsync();
+    await client.shutdown();
   }
 };
 
