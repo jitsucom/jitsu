@@ -368,17 +368,16 @@ export type JitsuOptions = {
    */
   idEndpoint?: string;
 
-  enabled?: boolean;
-  enableAnonymousId?: boolean;
-  enableThirdPartIds?: boolean;
-  ipPolicy?: "keep" | "remove" | "stripLastOctet";
-  consentCategories?: Record<string, boolean>;
+  privacy?: {
+    dropEvents?: boolean;
+    disableAnonymousId?: boolean;
+    disableThirdPartIds?: boolean;
+    ipPolicy?: "keep" | "remove" | "stripLastOctet";
+    consentCategories?: Record<string, boolean>;
+  };
 };
 
-export type DynamicJitsuOptions = Pick<
-  JitsuOptions,
-  "enableAnonymousId" | "enableThirdPartIds" | "ipPolicy" | "debug" | "echoEvents" | "enabled" | "consentCategories"
->;
+export type DynamicJitsuOptions = Pick<JitsuOptions, "privacy" | "debug" | "echoEvents">;
 
 export interface AnalyticsInterface {
   track(

@@ -91,7 +91,7 @@ function createUnderlyingAnalyticsInstance(
   const analytics = Analytics({
     debug: !!opts.debug,
     storage,
-    plugins: [jitsuAnalyticsPlugin({ ...opts, storageWrapper: cachingStorageWrapper }), ...plugins],
+    plugins: [jitsuAnalyticsPlugin(opts, cachingStorageWrapper), ...plugins],
   } as any);
 
   const a = {
@@ -159,7 +159,7 @@ function createUnderlyingAnalyticsInstance(
       if (opts.debug) {
         console.log("[JITSU DEBUG] Update Jitsu config with", JSON.stringify(options));
       }
-      if (options.enableAnonymousId === false) {
+      if (!!options.privacy?.disableAnonymousId) {
         this.setAnonymousId(undefined);
       }
       for (const plugin of Object.values(analytics.plugins)) {
@@ -185,7 +185,7 @@ function createUnderlyingAnalyticsInstance(
       return results[0];
     },
   } as AnalyticsInterface;
-  if (opts.enableAnonymousId === false) {
+  if (!!opts.privacy?.disableAnonymousId) {
     a.setAnonymousId(undefined);
   }
   return a;
