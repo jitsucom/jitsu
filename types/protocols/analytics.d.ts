@@ -215,6 +215,11 @@ interface AnalyticsContext {
   amp?: {
     id: string;
   };
+
+  consent?: {
+    categoryPreferences?: Record<string, any>;
+  };
+
   /**
    * Other tracking tools client ids
    */
@@ -336,11 +341,11 @@ export type JitsuOptions = {
    */
   fetch?: typeof fetch;
   /**
-   * Which runtime to use. Runtime is used for obtaining context of the event: cookes,
+   * Which runtime to use. Runtime is used for obtaining context of the event: cookies,
    * url, etc. At the moment, Jitsu supports browser runtime and NodeJS runtime, but you
    * can provide your own implementation.
    *
-   * If it's not set, the runtime will be detected automatically by presense of `window` object
+   * If it's not set, the runtime will be detected automatically by presence of `window` object
    */
   runtime?: RuntimeFacade;
   /**
@@ -350,7 +355,7 @@ export type JitsuOptions = {
   echoEvents?: boolean;
 
   /**
-   * If true, events will go to s2s endpoints like ${host}/api/s/s2s/{type}. Otherwise they'll go to ${host}/api/s/{type}.
+   * If true, events will go to s2s endpoints like ${host}/api/s/s2s/{type}. Otherwise, they'll go to ${host}/api/s/{type}.
    *
    * If not set at all, it will be detected automatically by presence of `window` object
    */
@@ -369,9 +374,8 @@ export type JitsuOptions = {
   idEndpoint?: string;
 
   privacy?: {
-    dropEvents?: boolean;
-    disableAnonymousId?: boolean;
-    disableThirdPartIds?: boolean;
+    dontSend?: boolean;
+    disableUserIds?: boolean;
     ipPolicy?: "keep" | "remove" | "stripLastOctet";
     consentCategories?: Record<string, boolean>;
   };

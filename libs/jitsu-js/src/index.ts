@@ -49,8 +49,6 @@ function createUnderlyingAnalyticsInstance(
   rt: RuntimeFacade,
   plugins: any[] = []
 ): AnalyticsInterface {
-  const storage = rt.store();
-
   const storageCache: any = {};
 
   // AnalyticsInstance's storage is async somewhere inside. So if we make 'page' call right after 'identify' call
@@ -58,6 +56,9 @@ function createUnderlyingAnalyticsInstance(
   // to avoid that we use in-memory cache for storage
   const cachingStorageWrapper = (persistentStorage: PersistentStorage) => ({
     setItem(key: string, val: any) {
+      if (opts.privacy?.dontSend || opts.privacy?.disableUserIds) {
+        return;
+      }
       if (opts.debug) {
         console.log(`[JITSU DEBUG] Caching storage setItem: ${key}=${val}`);
       }
@@ -65,6 +66,9 @@ function createUnderlyingAnalyticsInstance(
       persistentStorage.setItem(key, val);
     },
     getItem(key: string) {
+      if (opts.privacy?.dontSend || opts.privacy?.disableUserIds) {
+        return;
+      }
       const value = storageCache[key] || persistentStorage.getItem(key);
       if (opts.debug) {
         console.log(
@@ -77,7 +81,7 @@ function createUnderlyingAnalyticsInstance(
       for (const key of [...Object.keys(storageCache)]) {
         delete storageCache[key];
       }
-      storage.reset();
+      persistentStorage.reset();
     },
     removeItem(key: string) {
       if (opts.debug) {
@@ -87,11 +91,12 @@ function createUnderlyingAnalyticsInstance(
       persistentStorage.removeItem(key);
     },
   });
+  const storage = cachingStorageWrapper(rt.store());
 
   const analytics = Analytics({
     debug: !!opts.debug,
     storage,
-    plugins: [jitsuAnalyticsPlugin(opts, cachingStorageWrapper), ...plugins],
+    plugins: [jitsuAnalyticsPlugin(opts, storage), ...plugins],
   } as any);
 
   const a = {
@@ -159,7 +164,7 @@ function createUnderlyingAnalyticsInstance(
       if (opts.debug) {
         console.log("[JITSU DEBUG] Update Jitsu config with", JSON.stringify(options));
       }
-      if (!!options.privacy?.disableAnonymousId) {
+      if (!!options.privacy?.disableUserIds) {
         this.setAnonymousId(undefined);
       }
       for (const plugin of Object.values(analytics.plugins)) {
@@ -185,7 +190,7 @@ function createUnderlyingAnalyticsInstance(
       return results[0];
     },
   } as AnalyticsInterface;
-  if (!!opts.privacy?.disableAnonymousId) {
+  if (!!opts.privacy?.disableUserIds) {
     a.setAnonymousId(undefined);
   }
   return a;

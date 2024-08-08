@@ -3,7 +3,6 @@ import { jitsuAnalytics } from "./index";
 
 export type JitsuBrowserOptions = {
   namespace?: string;
-  userId?: string;
   onload?: string;
   initOnly?: boolean;
 } & JitsuOptions;
@@ -35,9 +34,8 @@ const booleanParser = (nestedPath: string[] = []) => ({
 
 const parsers: Partial<Record<string, Parser>> = {
   debug: booleanParser(),
-  "privacy-disable-anonymous-id": booleanParser(["privacy"]),
-  "privacy-disable-third-party-id": booleanParser(["privacy"]),
-  "privacy-drop-events": booleanParser(["privacy"]),
+  "privacy-disable-user-ids": booleanParser(["privacy"]),
+  "privacy-dont-send": booleanParser(["privacy"]),
   "privacy-ip-policy": defaultParser(["privacy"]),
   "echo-events": booleanParser(),
   "init-only": booleanParser(),
