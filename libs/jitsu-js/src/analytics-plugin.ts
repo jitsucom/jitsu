@@ -36,9 +36,8 @@ const defaultConfig: Required<JitsuOptions> = {
   s2s: undefined,
   idEndpoint: undefined,
   privacy: {
-    dropEvents: false,
-    disableAnonymousId: false,
-    disableThirdPartIds: false,
+    dontSend: false,
+    disableUserIds: false,
     ipPolicy: "keep",
     consentCategories: undefined,
   },
@@ -55,7 +54,8 @@ const mergeConfig = (current: JitsuOptions, newConfig: JitsuOptions): void => {
           ...current.privacy,
           ...value,
         };
-      } else {
+      } else if (newConfig.hasOwnProperty("privacy") && typeof value === "undefined") {
+        // explicitly set to undefined - reset to default
         current.privacy = { ...defaultConfig.privacy };
       }
     } else if (typeof value === "undefined") {
@@ -446,7 +446,7 @@ function adjustPayload(
       url: properties.url || url,
       encoding: properties.encoding || runtime.documentEncoding(),
     },
-    clientIds: !config.privacy?.disableThirdPartIds
+    clientIds: !config.privacy?.disableUserIds
       ? {
           fbc: runtime.getCookie("_fbc"),
           fbp: runtime.getCookie("_fbp"),
@@ -466,6 +466,12 @@ function adjustPayload(
   };
   delete withContext.meta;
   delete withContext.options;
+  if (config.privacy?.disableUserIds) {
+    delete withContext.userId;
+    delete withContext.anonymousId;
+    delete withContext.context.traits;
+    delete withContext.groupId;
+  }
   return withContext;
 }
 
@@ -722,10 +728,7 @@ async function send(
   return adjustedPayload;
 }
 
-export const jitsuAnalyticsPlugin = (
-  jitsuOptions: JitsuOptions = {},
-  storageWrapper?: (persistentStorage: PersistentStorage) => PersistentStorage
-): AnalyticsPlugin => {
+export const jitsuAnalyticsPlugin = (jitsuOptions: JitsuOptions = {}, storage: PersistentStorage): AnalyticsPlugin => {
   // just to make sure that all undefined values are replaced with defaultConfig values
   mergeConfig(jitsuOptions, jitsuOptions);
   return {
@@ -768,37 +771,24 @@ export const jitsuAnalyticsPlugin = (
     },
     page: args => {
       const { payload, config, instance } = args;
-      if (config.privacy?.dropEvents) {
+      if (config.privacy?.dontSend) {
         return;
       }
-      return send(
-        "page",
-        payload,
-        config,
-        instance,
-        storageWrapper ? storageWrapper(instance.storage) : instance.storage
-      );
+      return send("page", payload, config, instance, storage);
     },
     track: args => {
       const { payload, config, instance } = args;
-      if (config.privacy?.dropEvents) {
+      if (config.privacy?.dontSend) {
         return;
       }
-      return send(
-        "track",
-        payload,
-        config,
-        instance,
-        storageWrapper ? storageWrapper(instance.storage) : instance.storage
-      );
+      return send("track", payload, config, instance, storage);
     },
     identify: args => {
       const { payload, config, instance } = args;
-      if (config.privacy?.dropEvents) {
+      if (config.privacy?.dontSend || config.privacy?.disableUserIds) {
         return;
       }
       // Store traits in cache to be able to use them in page and track events that run asynchronously with current identify.
-      const storage = storageWrapper ? storageWrapper(instance.storage) : instance.storage;
       storage.setItem("__user_id", payload.userId);
       if (payload.traits && typeof payload.traits === "object") {
         storage.setItem("__user_traits", payload.traits);
@@ -807,8 +797,7 @@ export const jitsuAnalyticsPlugin = (
     },
     reset: args => {
       const { config, instance } = args;
-      const storage = storageWrapper ? storageWrapper(instance.storage) : instance.storage;
-      storage?.reset();
+      storage.reset();
       if (config.debug) {
         console.log("[JITSU DEBUG] Resetting Jitsu plugin storage");
       }
@@ -816,14 +805,13 @@ export const jitsuAnalyticsPlugin = (
     methods: {
       //analytics doesn't support group as a base method, so we need to add it manually
       configure(newOptions: DynamicJitsuOptions) {
-        const anonymousIdWasDisabled = !!jitsuOptions.privacy?.disableAnonymousId;
+        const anonymousIdWasDisabled = !!jitsuOptions.privacy?.disableUserIds;
         mergeConfig(jitsuOptions, newOptions);
-        if (!jitsuOptions.privacy?.disableAnonymousId && anonymousIdWasDisabled) {
+        if (!jitsuOptions.privacy?.disableUserIds && anonymousIdWasDisabled) {
           if (jitsuOptions.debug) {
             console.log("[JITSU] Enabling Anonymous ID. Generating new Id.");
           }
           const instance = (this as any).instance;
-          const storage = storageWrapper ? storageWrapper(instance.storage) : instance.storage;
           const newAnonymousId = uuid();
           const userState = instance.user();
           if (userState) {
@@ -834,7 +822,7 @@ export const jitsuAnalyticsPlugin = (
         }
       },
       group(groupId?: ID, traits?: JSONObject | null, options?: Options, callback?: Callback) {
-        if (jitsuOptions.privacy?.dropEvents) {
+        if (jitsuOptions.privacy?.dontSend || jitsuOptions.privacy?.disableUserIds) {
           return;
         }
         if (typeof groupId === "number") {
@@ -843,20 +831,19 @@ export const jitsuAnalyticsPlugin = (
         }
 
         const instance = (this as any).instance;
-        const cacheWrap = storageWrapper ? storageWrapper(instance.storage) : instance.storage;
         const user = instance.user();
         const userId = options?.userId || user?.userId;
-        const anonymousId = options?.anonymousId || user?.anonymousId || cacheWrap.getItem("__anon_id");
-        cacheWrap.setItem("__group_id", groupId);
+        const anonymousId = options?.anonymousId || user?.anonymousId || storage.getItem("__anon_id");
+        storage.setItem("__group_id", groupId);
         if (traits && typeof traits === "object") {
-          cacheWrap.setItem("__group_traits", traits);
+          storage.setItem("__group_traits", traits);
         }
         return send(
           "group",
           { type: "group", groupId, traits, ...(anonymousId ? { anonymousId } : {}), ...(userId ? { userId } : {}) },
           jitsuOptions,
           instance,
-          cacheWrap
+          storage
         );
       },
     },
