@@ -196,6 +196,8 @@ const defaultCookie2Key = {
   __anon_id: "__eventn_id",
   __user_traits: "__eventn_id_usr",
   __user_id: "__eventn_uid",
+  __group_id: "__group_id",
+  __group_traits: "__group_traits",
 };
 
 const cookieStorage: StorageFactory = (cookieDomain, key2cookie) => {
