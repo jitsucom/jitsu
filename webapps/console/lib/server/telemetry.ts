@@ -107,7 +107,7 @@ function createProductAnalytics(analytics: AnalyticsInterface, req?: NextApiRequ
 export type TrackedUser = Pick<SessionUser, "internalId" | "email" | "name" | "externalId" | "loginProvider">;
 
 /**
- * Entry point for all analytics events. The method makes sure that all indentify events
+ * Entry point for all analytics events. The method makes sure that all identify events
  * are properly sent, and calls a `callback` on configured analytics instance.
  */
 export function withProductAnalytics(
