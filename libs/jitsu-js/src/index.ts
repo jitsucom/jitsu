@@ -164,7 +164,7 @@ function createUnderlyingAnalyticsInstance(
       if (opts.debug) {
         console.log("[JITSU DEBUG] Update Jitsu config with", JSON.stringify(options));
       }
-      if (!!options.privacy?.disableUserIds) {
+      if (options.privacy?.disableUserIds || options.privacy?.dontSend) {
         storage.reset();
       }
       for (const plugin of Object.values(analytics.plugins)) {
@@ -190,7 +190,7 @@ function createUnderlyingAnalyticsInstance(
       return results[0];
     },
   } as AnalyticsInterface;
-  if (!!opts.privacy?.disableUserIds) {
+  if (opts.privacy?.disableUserIds || opts.privacy?.dontSend) {
     storage.reset();
   }
   return a;

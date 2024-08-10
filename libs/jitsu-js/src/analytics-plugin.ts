@@ -807,9 +807,10 @@ export const jitsuAnalyticsPlugin = (jitsuOptions: JitsuOptions = {}, storage: P
     methods: {
       //analytics doesn't support group as a base method, so we need to add it manually
       configure(newOptions: DynamicJitsuOptions) {
-        const anonymousIdWasDisabled = !!jitsuOptions.privacy?.disableUserIds;
+        const idsWasDisabled = jitsuOptions.privacy?.disableUserIds || jitsuOptions.privacy?.dontSend;
         mergeConfig(jitsuOptions, newOptions);
-        if (!jitsuOptions.privacy?.disableUserIds && anonymousIdWasDisabled) {
+        const idsDisabledNow = jitsuOptions.privacy?.disableUserIds || jitsuOptions.privacy?.dontSend;
+        if (!idsDisabledNow && idsWasDisabled) {
           if (jitsuOptions.debug) {
             console.log("[JITSU] Enabling Anonymous ID. Generating new Id.");
           }
