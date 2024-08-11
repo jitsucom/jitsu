@@ -5,7 +5,6 @@ import * as path from "path";
 import ejs from "ejs";
 // import chalk from "chalk";
 import * as process from "process";
-import * as console from "console";
 import { AnalyticsClientEvent, AnalyticsInterface } from "@jitsu/protocols/analytics.d";
 
 test.use({
@@ -24,7 +23,7 @@ const app = express();
 
 let server: SimpleSyrup;
 
-let requestLog: { type: string; body: AnalyticsClientEvent }[] = [];
+let requestLog: { type: string; body: AnalyticsClientEvent; headers: any }[] = [];
 
 test.beforeAll(async () => {
   const testCasesHandlers = fs.readdirSync(path.join(__dirname, "cases")).reduce((res, file) => {
@@ -60,6 +59,7 @@ test.beforeAll(async () => {
         res.send({ ok: true });
         requestLog.push({
           type: req.params.type,
+          headers: req.headers,
           body: req.body,
         });
       },
@@ -277,6 +277,174 @@ test("reset", async ({ browser }) => {
   expect(secondTrack.body.anonymousId).toBeDefined();
   expect(secondTrack.body.anonymousId).toEqual(newAnonymousId);
   expect(secondTrack.body.anonymousId).not.toEqual("john-doe-id-1");
+});
+
+const generateEventsForConsentTests = async () => {
+  const analytics = window["jitsu"] as AnalyticsInterface;
+  await analytics.identify("myUserId", { email: "myUserId@example.com" });
+  await analytics.group("myGroupId", { name: "myGroupId" });
+  await analytics.page("myPage");
+};
+
+test("ip-policy", async ({ browser }) => {
+  clearRequestLog();
+  const browserContext = await browser.newContext();
+  const { page, uncaughtErrors } = await createLoggingPage(browserContext);
+  const [pageResult] = await Promise.all([page.goto(`${server.baseUrl}/ip-policy.html`)]);
+  await page.waitForFunction(() => window["jitsu"] !== undefined, undefined, {
+    timeout: 1000,
+    polling: 100,
+  });
+  expect(pageResult?.status()).toBe(200);
+  //wait for some time since the server has an artificial latency of 30ms
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  expect(uncaughtErrors.length).toEqual(0);
+  expect(requestLog.length).toBe(1);
+  const p = requestLog[0];
+  expect(p.headers?.["x-ip-policy"]).toEqual("stripLastOctet");
+});
+
+test("dont-send", async ({ browser }) => {
+  clearRequestLog();
+  const browserContext = await browser.newContext();
+  const { page, uncaughtErrors } = await createLoggingPage(browserContext);
+  const [pageResult] = await Promise.all([page.goto(`${server.baseUrl}/dont-send.html`)]);
+  await page.waitForFunction(() => window["jitsu"] !== undefined, undefined, {
+    timeout: 1000,
+    polling: 100,
+  });
+  expect(pageResult?.status()).toBe(200);
+  //wait for some time since the server has an artificial latency of 30ms
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  expect(uncaughtErrors.length).toEqual(0);
+  expect(requestLog.length).toBe(0);
+  await page.evaluate(generateEventsForConsentTests);
+
+  const cookies = await browserContext.cookies();
+
+  expect(uncaughtErrors.length).toEqual(0);
+  expect(requestLog.length).toBe(0);
+  expect(cookies.length).toBe(0);
+});
+
+test("dont-send-then-consent", async ({ browser }) => {
+  clearRequestLog();
+  const browserContext = await browser.newContext();
+  const { page, uncaughtErrors } = await createLoggingPage(browserContext);
+  const [pageResult] = await Promise.all([page.goto(`${server.baseUrl}/dont-send.html`)]);
+  await page.waitForFunction(() => window["jitsu"] !== undefined, undefined, {
+    timeout: 1000,
+    polling: 100,
+  });
+  expect(pageResult?.status()).toBe(200);
+  //wait for some time since the server has an artificial latency of 30ms
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  expect(uncaughtErrors.length).toEqual(0);
+  expect(requestLog.length).toBe(0);
+
+  await page.evaluate(async () => {
+    const analytics = window["jitsu"] as AnalyticsInterface;
+    analytics.configure({
+      privacy: {
+        dontSend: false,
+        consentCategories: {
+          analytics: true,
+        },
+      },
+    });
+  });
+  await page.evaluate(generateEventsForConsentTests);
+  await new Promise(resolve => setTimeout(resolve, 1000));
+
+  const cookies = await browserContext.cookies();
+  expect(uncaughtErrors.length).toEqual(0);
+  expect(requestLog.length).toBe(3);
+  expect(cookies.length).toBe(5);
+  const p = requestLog[2];
+  expect(p.type).toEqual("page");
+  expect(p.body.userId).toEqual("myUserId");
+  expect(p.body.groupId).toEqual("myGroupId");
+  expect(p.body.context?.traits?.email).toEqual("myUserId@example.com");
+  expect(p.body.context?.consent?.categoryPreferences).toEqual({ analytics: true });
+  expect((p.body.anonymousId ?? "").length).toBeGreaterThan(0);
+});
+
+test("disable-user-ids", async ({ browser }) => {
+  clearRequestLog();
+  const browserContext = await browser.newContext();
+  const { page, uncaughtErrors } = await createLoggingPage(browserContext);
+  const [pageResult] = await Promise.all([page.goto(`${server.baseUrl}/disable-user-ids.html`)]);
+  await page.waitForFunction(() => window["jitsu"] !== undefined, undefined, {
+    timeout: 1000,
+    polling: 100,
+  });
+  expect(pageResult?.status()).toBe(200);
+  //wait for some time since the server has an artificial latency of 30ms
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  expect(uncaughtErrors.length).toEqual(0);
+
+  expect(requestLog.length).toBe(0);
+  await page.evaluate(generateEventsForConsentTests);
+
+  const cookies = await browserContext.cookies();
+
+  expect(uncaughtErrors.length).toEqual(0);
+  expect(cookies.length).toBe(0);
+  expect(requestLog.length).toBe(1);
+  const p = requestLog[0];
+  expect(p.type).toEqual("page");
+  expect(p.body.userId).toBeUndefined();
+  expect(p.body.groupId).toBeUndefined();
+  expect(p.body.context?.traits?.email).toBeUndefined();
+  expect(p.body.anonymousId).toBeUndefined();
+  expect(p.body.properties?.path).toBe("/disable-user-ids.html");
+});
+
+test("disable-user-ids-then-consent", async ({ browser }) => {
+  clearRequestLog();
+  const browserContext = await browser.newContext();
+  const { page, uncaughtErrors } = await createLoggingPage(browserContext);
+  const [pageResult] = await Promise.all([page.goto(`${server.baseUrl}/disable-user-ids.html`)]);
+  await page.waitForFunction(() => window["jitsu"] !== undefined, undefined, {
+    timeout: 1000,
+    polling: 100,
+  });
+  expect(pageResult?.status()).toBe(200);
+  //wait for some time since the server has an artificial latency of 30ms
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  expect(uncaughtErrors.length).toEqual(0);
+  expect(requestLog.length).toBe(0);
+  await page.evaluate(generateEventsForConsentTests);
+  let cookies = await browserContext.cookies();
+  expect(uncaughtErrors.length).toEqual(0);
+  expect(cookies.length).toBe(0);
+  expect(requestLog.length).toBe(1);
+
+  await page.evaluate(async () => {
+    const analytics = window["jitsu"] as AnalyticsInterface;
+    analytics.configure({
+      privacy: {
+        disableUserIds: false,
+        consentCategories: {
+          analytics: true,
+        },
+      },
+    });
+  });
+  await page.evaluate(generateEventsForConsentTests);
+  await new Promise(resolve => setTimeout(resolve, 1000));
+
+  cookies = await browserContext.cookies();
+  expect(uncaughtErrors.length).toEqual(0);
+  expect(requestLog.length).toBe(4);
+  expect(cookies.length).toBe(5);
+  const p = requestLog[3];
+  expect(p.type).toEqual("page");
+  expect(p.body.userId).toEqual("myUserId");
+  expect(p.body.groupId).toEqual("myGroupId");
+  expect(p.body.context?.traits?.email).toEqual("myUserId@example.com");
+  expect(p.body.context?.consent?.categoryPreferences).toEqual({ analytics: true });
+  expect((p.body.anonymousId ?? "").length).toBeGreaterThan(0);
 });
 
 test("basic", async ({ browser }) => {

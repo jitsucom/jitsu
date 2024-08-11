@@ -21,6 +21,7 @@
   },
   "devDependencies": {
     "@jitsu/protocols": "workspace:*",
+    "tslib": "^2.6.3",
     "@playwright/test": "1.39.0",
     "@rollup/plugin-commonjs": "^23.0.2",
     "@rollup/plugin-json": "^5.0.1",

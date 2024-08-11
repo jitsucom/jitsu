@@ -1,7 +1,17 @@
 import Analytics from "analytics";
-import { AnalyticsInterface, JitsuOptions, PersistentStorage, RuntimeFacade } from "./jitsu";
-import { jitsuAnalyticsPlugin, emptyRuntime, isInBrowser, windowRuntime } from "./analytics-plugin";
-import { Callback, DispatchedEvent, ID, JSONObject, Options } from "@jitsu/protocols/analytics";
+import { jitsuAnalyticsPlugin, emptyRuntime, isInBrowser, windowRuntime, uuid } from "./analytics-plugin";
+import {
+  Callback,
+  DispatchedEvent,
+  ID,
+  JSONObject,
+  Options,
+  AnalyticsInterface,
+  JitsuOptions,
+  PersistentStorage,
+  RuntimeFacade,
+  DynamicJitsuOptions,
+} from "@jitsu/protocols/analytics";
 
 export default function parse(input) {
   let value = input;
@@ -31,6 +41,7 @@ export const emptyAnalytics: AnalyticsInterface = {
   identify: () => Promise.resolve({}),
   group: () => Promise.resolve({}),
   reset: () => Promise.resolve({}),
+  configure: () => {},
 };
 
 function createUnderlyingAnalyticsInstance(
@@ -38,8 +49,6 @@ function createUnderlyingAnalyticsInstance(
   rt: RuntimeFacade,
   plugins: any[] = []
 ): AnalyticsInterface {
-  const storage = rt.store();
-
   const storageCache: any = {};
 
   // AnalyticsInstance's storage is async somewhere inside. So if we make 'page' call right after 'identify' call
@@ -47,6 +56,9 @@ function createUnderlyingAnalyticsInstance(
   // to avoid that we use in-memory cache for storage
   const cachingStorageWrapper = (persistentStorage: PersistentStorage) => ({
     setItem(key: string, val: any) {
+      if (opts.privacy?.dontSend || opts.privacy?.disableUserIds) {
+        return;
+      }
       if (opts.debug) {
         console.log(`[JITSU DEBUG] Caching storage setItem: ${key}=${val}`);
       }
@@ -54,6 +66,9 @@ function createUnderlyingAnalyticsInstance(
       persistentStorage.setItem(key, val);
     },
     getItem(key: string) {
+      if (opts.privacy?.dontSend || opts.privacy?.disableUserIds) {
+        return;
+      }
       const value = storageCache[key] || persistentStorage.getItem(key);
       if (opts.debug) {
         console.log(
@@ -66,7 +81,7 @@ function createUnderlyingAnalyticsInstance(
       for (const key of [...Object.keys(storageCache)]) {
         delete storageCache[key];
       }
-      storage.reset();
+      persistentStorage.reset();
     },
     removeItem(key: string) {
       if (opts.debug) {
@@ -76,14 +91,15 @@ function createUnderlyingAnalyticsInstance(
       persistentStorage.removeItem(key);
     },
   });
+  const storage = cachingStorageWrapper(rt.store());
 
   const analytics = Analytics({
     debug: !!opts.debug,
     storage,
-    plugins: [jitsuAnalyticsPlugin({ ...opts, storageWrapper: cachingStorageWrapper }), ...plugins],
+    plugins: [jitsuAnalyticsPlugin(opts, storage), ...plugins],
   } as any);
 
-  return {
+  const a = {
     ...analytics,
     page: (...args) => {
       if (args.length === 2 && typeof args[0] === "string" && typeof args[1] === "object") {
@@ -124,7 +140,7 @@ function createUnderlyingAnalyticsInstance(
       if (opts.debug) {
         console.log("[JITSU DEBUG] Setting anonymous id to " + id);
       }
-      //Workaround for analytics.js bug. Underlying setAnonymousId doesn't work set the id immediately,
+      //Workaround for analytics.js bug. Underlying setAnonymousId doesn't  set the id immediately,
       //so we got to it manually here. See https://github.com/jitsucom/jitsu/issues/1060
       storage.setItem("__anon_id", id);
       const userState = analytics.user();
@@ -144,6 +160,19 @@ function createUnderlyingAnalyticsInstance(
         console.log("[JITSU DEBUG] User state after reset", JSON.stringify(analytics.user()));
       }
     },
+    async configure(options: DynamicJitsuOptions) {
+      if (opts.debug) {
+        console.log("[JITSU DEBUG] Update Jitsu config with", JSON.stringify(options));
+      }
+      if (options.privacy?.disableUserIds || options.privacy?.dontSend) {
+        storage.reset();
+      }
+      for (const plugin of Object.values(analytics.plugins)) {
+        if (typeof plugin["configure"] === "function") {
+          plugin["configure"](options);
+        }
+      }
+    },
     async group(
       groupId?: ID,
       traits?: JSONObject | null,
@@ -161,6 +190,10 @@ function createUnderlyingAnalyticsInstance(
       return results[0];
     },
   } as AnalyticsInterface;
+  if (opts.privacy?.disableUserIds || opts.privacy?.dontSend) {
+    storage.reset();
+  }
+  return a;
 }
 
 /**
@@ -171,7 +204,9 @@ function fixOptions(opts: JitsuOptions): JitsuOptions {
   return {
     ...opts,
     host:
-      opts.host.indexOf("https://") !== 0 && opts.host.indexOf("http://") !== 0 ? `https://${opts.host}` : opts.host,
+      (opts.host ?? "").indexOf("https://") !== 0 && (opts.host ?? "").indexOf("http://") !== 0
+        ? `https://${opts.host}`
+        : opts.host,
   };
 }
 
@@ -205,22 +240,16 @@ export function jitsuAnalytics(_opts: JitsuOptions): AnalyticsInterface {
   // }
 }
 
-function uuid() {
-  var u = "",
-    m = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx",
-    i = 0,
-    rb = (Math.random() * 0xffffffff) | 0;
-
-  while (i++ < 36) {
-    var c = m[i - 1],
-      r = rb & 0xf,
-      v = c == "x" ? r : (r & 0x3) | 0x8;
-
-    u += c == "-" || c == "4" ? c : v.toString(16);
-    rb = i % 8 == 0 ? (Math.random() * 0xffffffff) | 0 : rb >> 4;
-  }
-  return u;
-}
-
-export * from "./jitsu";
+export {
+  Callback,
+  DispatchedEvent,
+  ID,
+  JSONObject,
+  Options,
+  AnalyticsInterface,
+  JitsuOptions,
+  PersistentStorage,
+  RuntimeFacade,
+  DynamicJitsuOptions,
+};
 export * from "./analytics-plugin";

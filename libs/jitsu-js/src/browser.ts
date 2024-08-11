@@ -1,9 +1,8 @@
-import type { AnalyticsInterface, JitsuOptions } from "./jitsu";
+import type { AnalyticsInterface, JitsuOptions } from "@jitsu/protocols/analytics";
 import { jitsuAnalytics } from "./index";
 
 export type JitsuBrowserOptions = {
   namespace?: string;
-  userId?: string;
   onload?: string;
   initOnly?: boolean;
 } & JitsuOptions;
@@ -14,16 +13,47 @@ function snakeToCamel(s: string) {
   });
 }
 
-export type Parser = (arg: string) => any;
-const booleanParser = (arg: string) => arg === "true" || arg === "1" || arg === "yes";
+export type Parser = {
+  path?: (name: string) => string[];
+  parse: (arg: string) => any;
+};
+const trimPrefix = (s: string, prefix: string) => s.replace(new RegExp(`^${prefix}`), "");
 
-const parsers: Partial<Record<keyof JitsuBrowserOptions, Parser>> = {
-  debug: booleanParser,
-  initOnly: booleanParser,
+const defaultParser = (nestedPath: string[] = []) => ({
+  path: (name: string) => [
+    ...nestedPath,
+    snakeToCamel(nestedPath.length > 0 ? trimPrefix(name, nestedPath.join("-") + "-") : name),
+  ],
+  parse: (arg: string) => arg,
+});
+
+const booleanParser = (nestedPath: string[] = []) => ({
+  ...defaultParser(nestedPath),
+  parse: (arg: string) => arg === "true" || arg === "1" || arg === "yes",
+});
+
+const parsers: Partial<Record<string, Parser>> = {
+  debug: booleanParser(),
+  "privacy-disable-user-ids": booleanParser(["privacy"]),
+  "privacy-dont-send": booleanParser(["privacy"]),
+  "privacy-ip-policy": defaultParser(["privacy"]),
+  "echo-events": booleanParser(),
+  "init-only": booleanParser(),
 };
 
-function getParser(name: keyof JitsuBrowserOptions): Parser {
-  return parsers[name] || (x => x);
+function getParser(name: string): Parser {
+  return parsers[name] || defaultParser();
+}
+
+function setPath(obj: any, path: string[], value: any) {
+  let current = obj;
+  let i = 0;
+  for (; i < path.length - 1; i++) {
+    const key = path[i];
+    current[key] = current[key] || {};
+    current = current[key];
+  }
+  current[path[i]] = value;
 }
 
 function getScriptAttributes(scriptElement: HTMLScriptElement) {
@@ -31,13 +61,12 @@ function getScriptAttributes(scriptElement: HTMLScriptElement) {
     .getAttributeNames()
     .filter(name => name.indexOf("data-") === 0)
     .map(name => name.substring("data-".length))
-    .reduce(
-      (res, name) => ({
-        ...res,
-        [snakeToCamel(name)]: getParser(snakeToCamel(name) as any)(scriptElement.getAttribute(`data-${name}`)),
-      }),
-      {}
-    );
+    .reduce((res, name) => {
+      const parser = getParser(name);
+      const path = parser.path(name);
+      setPath(res, path, parser.parse(scriptElement.getAttribute(`data-${name}`)));
+      return res;
+    }, {});
 }
 
 function runCallback(callback: any, jitsu: AnalyticsInterface) {
