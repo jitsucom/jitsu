@@ -528,8 +528,7 @@ const StreamsList: React.FC<{}> = () => {
         documentation: (
           <>
             Those keys are <strong>publicly accessible</strong>. They are used in client-side libraries, such as
-            JavaScript. For additional security, consider limiting domains where those keys can be used by specifying{" "}
-            <strong>Authorized JavaScript Domains</strong> above. <br />
+            JavaScript.
             <br />
             Using public keys is not necessary, if you're using Custom Domains. In this case, {
               branding.productName
