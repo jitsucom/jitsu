@@ -224,7 +224,7 @@ function SyncEditor({
     return array.indexOf(value) === index;
   }
 
-  const legacyMode = !!existingLink && typeof syncOptions.namespace === "undefined";
+  const legacyMode = !!existingLink && typeof syncOptions?.namespace === "undefined";
   const sourceNamespaces: string[] = catalog?.streams?.map((s: any) => s.namespace).filter(onlyUnique) || [];
   const legacyPrefix =
     legacyMode && sourceNamespaces?.length > 0
@@ -236,7 +236,7 @@ function SyncEditor({
   const destinationNamespaces = (sourceNamespaces?.length > 0 ? sourceNamespaces : [""])
     .map(ns => (syncOptions?.namespace ? syncOptions?.namespace.replaceAll("${SOURCE_NAMESPACE}", ns ?? "") : ""))
     .map(ns => ns?.trim())
-    .map(ns => ns || destination?.[namespaceImpl.field] || "")
+    .map(ns => ns || (destination?.[namespaceImpl.field] as string) || "")
     .filter(ns => ns !== "")
     .filter(onlyUnique);
 
