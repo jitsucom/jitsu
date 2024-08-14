@@ -356,6 +356,15 @@ const OneOf: React.FC<{
         break;
       }
     }
+    if (selectedIdx === removeIdx) {
+      for (let i = 0; i < fieldSchema.oneOf.length; i++) {
+        if (i !== removeIdx) {
+          selected = fieldSchema.oneOf[i];
+          selectedIdx = i;
+          break;
+        }
+      }
+    }
   }
 
   const filteredOptions = options.filter((o, i) => i !== removeIdx);
