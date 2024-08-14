@@ -427,7 +427,7 @@ function adjustPayload(
     library: {
       name: jitsuLibraryName,
       version: jitsuVersion,
-      env: s2s ? "node" : "browser",
+      env: isInBrowser() ? "browser" : "node",
     },
     consent: config.privacy?.consentCategories
       ? {
@@ -638,7 +638,7 @@ async function send(
     console.log(`[JITSU DEBUG] sending '${method}' event:`, payload);
     return;
   }
-  const s2s = jitsuConfig.s2s === undefined ? !isInBrowser() : jitsuConfig.s2s;
+  const s2s = !!jitsuConfig.s2s;
   const url = s2s ? `${jitsuConfig.host}/api/s/s2s/${method}` : `${jitsuConfig.host}/api/s/${method}`;
   const fetch = jitsuConfig.fetch || globalThis.fetch;
   if (!fetch) {

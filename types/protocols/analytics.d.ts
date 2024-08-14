@@ -357,7 +357,6 @@ export type JitsuOptions = {
   /**
    * If true, events will go to s2s endpoints like ${host}/api/s/s2s/{type}. Otherwise, they'll go to ${host}/api/s/{type}.
    *
-   * If not set at all, it will be detected automatically by presence of `window` object
    */
   s2s?: boolean;
 
