@@ -140,19 +140,21 @@ const PosthogDestination: JitsuFunction<AnalyticsServerEvent, PosthogDestination
           });
         }
       }
-    } else if (event.type === "page") {
+    } else if (event.type === "page" || event.type === "screen") {
       let groups = {};
       if (event.context?.groupId && props.enableGroupAnalytics) {
         groups = { groups: { [groupType]: event.context?.groupId } };
       }
       const distinctId = event.userId || event.anonymousId || (event.traits?.email as string);
       if (!distinctId) {
-        log.info(`No distinct id found for Page View event ${JSON.stringify(event)}`);
+        log.info(
+          `No distinct id found for ${event.type === "page" ? "Page View" : "Screen"} event ${JSON.stringify(event)}`
+        );
       } else {
         if (event.userId || props.enableAnonymousUserProfiles) {
           client.capture({
             distinctId: distinctId as string,
-            event: "$pageview",
+            event: event.type === "page" ? "$pageview" : "$screen",
             properties: getEventProperties(event),
             ...groups,
           });

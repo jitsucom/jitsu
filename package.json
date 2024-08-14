@@ -27,7 +27,7 @@
     "lint": "turbo run lint --",
     "release": "pnpm build && pnpm test && monorel --filter ./types/protocols --filter ./cli/jitsu-cli --filter ./libs/functions --filter ./libs/jitsu-js --filter ./libs/jitsu-react --npm-tag latest --git-tag 'jitsu-js-libs-v{version}' --push-tag",
     "release:build-scripts": "pnpm build --filter ./cli/build-scripts && monorel --filter ./cli/build-scripts --npm-tag latest --version 0.0.4-dev.{rev}.{time} --publish --git-tag 'jitsu-build-scripts-v{version}'",
-    "release:canary": "monorel --filter ./types/protocols --filter ./cli/jitsu-cli --filter ./libs/functions --filter ./libs/jitsu-js --filter ./libs/jitsu-react --version '1.9.8-canary.{rev}.{time}' --npm-tag canary --git-tag 'jitsu-js-libs-canary-v{version}' --push-tag"
+    "release:canary": "monorel --filter ./types/protocols --filter ./cli/jitsu-cli --filter ./libs/functions --filter ./libs/jitsu-js --filter ./libs/jitsu-react --version '1.9.9-canary.{rev}.{time}' --npm-tag canary --git-tag 'jitsu-js-libs-canary-v{version}' --push-tag"
   },
   "devDependencies": {
     "@playwright/test": "1.39.0",
