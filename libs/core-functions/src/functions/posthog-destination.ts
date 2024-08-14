@@ -95,7 +95,10 @@ const PosthogDestination: JitsuFunction<AnalyticsServerEvent, PosthogDestination
       } else {
         if (props.enableAnonymousUserProfiles) {
           if (event.anonymousId || event.traits?.email) {
-            client.alias({ distinctId: event.anonymousId || event.traits?.email, alias: event.userId as string });
+            client.alias({
+              distinctId: (event.anonymousId || event.traits?.email) as string,
+              alias: event.userId as string,
+            });
           }
         }
         client.identify({
