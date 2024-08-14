@@ -26,6 +26,7 @@ import timezones from "timezones-list";
 import { useBilling } from "../Billing/BillingProvider";
 import { WLink } from "../Workspace/WLink";
 import { useStoreReload } from "../../lib/store";
+import capitalize from "lodash/capitalize";
 
 const log = getLog("SyncEditorPage");
 
@@ -67,6 +68,17 @@ const scheduleOptions = [
   },
 ];
 
+const namespaceImplementation: Record<string, { name: string; field: string }> = {
+  clickhouse: { name: "database", field: "database" },
+  postgres: { name: "schema", field: "defaultSchema" },
+  redshift: { name: "schema", field: "defaultSchema" },
+  bigquery: { name: "dataset", field: "bqDataset" },
+  snowflake: { name: "schema", field: "defaultSchema" },
+  mysql: { name: "database", field: "database" },
+  s3: { name: "folder", field: "folder" },
+  gcs: { name: "folder", field: "folder" },
+};
+
 type SelectorProps<T> = {
   enabled: boolean;
   selected: string;
@@ -77,6 +89,7 @@ type SelectorProps<T> = {
 type SyncOptionsType = {
   storageKey?: string;
   streams?: SelectedStreams;
+  namespace?: string;
   tableNamePrefix?: string;
   schedule?: string;
   timezone?: string;
@@ -196,13 +209,36 @@ function SyncEditor({
     `Destination ${dstId} not found`
   );
   const destinationType = getCoreDestinationType(destination.destinationType);
+  const namespaceImpl = namespaceImplementation[destinationType.id] ?? { name: "namespace", filed: "namespace" };
 
-  const [syncOptions, setSyncOptions] = useState<SyncOptionsType | undefined>(existingLink?.data as SyncOptionsType);
+  const [syncOptions, setSyncOptions] = useState<SyncOptionsType | undefined>(
+    (existingLink?.data || { namespace: "" }) as SyncOptionsType
+  );
   const [catalog, setCatalog] = useState<any>(undefined);
   const [catalogError, setCatalogError] = useState<any>(undefined);
   const [loadingCatalog, setLoadingCatalog] = useState(true);
   const [refreshCatalog, setRefreshCatalog] = useState(0);
   const reloadStore = useStoreReload();
+
+  function onlyUnique(value, index, array) {
+    return array.indexOf(value) === index;
+  }
+
+  const legacyMode = !!existingLink && typeof syncOptions.namespace === "undefined";
+  const sourceNamespaces: string[] = catalog?.streams?.map((s: any) => s.namespace).filter(onlyUnique) || [];
+  const legacyPrefix =
+    legacyMode && sourceNamespaces?.length > 0
+      ? sourceNamespaces?.length === 1
+        ? syncOptions?.tableNamePrefix + sourceNamespaces[0] + "_"
+        : (syncOptions?.tableNamePrefix ?? "") + "${SOURCE_NAMESPACE}_"
+      : undefined;
+
+  const destinationNamespaces = (sourceNamespaces?.length > 0 ? sourceNamespaces : [""])
+    .map(ns => (syncOptions?.namespace ? syncOptions?.namespace.replaceAll("${SOURCE_NAMESPACE}", ns ?? "") : ""))
+    .map(ns => ns?.trim())
+    .map(ns => ns || destination?.[namespaceImpl.field] || "")
+    .filter(ns => ns !== "")
+    .filter(onlyUnique);
 
   const [showCustomSchedule, setShowCustomSchedule] = useState(
     syncOptions?.schedule && !scheduleOptions.find(o => o.value === syncOptions?.schedule)
@@ -454,15 +490,68 @@ function SyncEditor({
     },
     destinationType.usesBulker
       ? {
+          name: `Destination ${capitalize(namespaceImpl.name)}`,
+          documentation: (
+            <>
+              {`It is possible to override the default destination ${namespaceImpl.name} with a custom value or a value defined by the source.`}
+              <br />
+              <br />
+              <b>Source defined: </b>
+              If the source supports namespaces, you can use the macros <code>{"${SOURCE_NAMESPACE}"}</code> which will
+              be replaced with the actual namespace of the specific stream.
+              <br />
+              <br />
+              <b>Default value: </b>
+              {`Empty value will be replaced with ${capitalize(
+                namespaceImpl.name
+              )} setting from the destination config.`}
+            </>
+          ),
+          component: (
+            <div className={"w-80 flex flex-col gap-2"}>
+              <Input
+                disabled={!!existingLink}
+                placeholder={"Destination default"}
+                style={{ color: "black" }}
+                value={syncOptions?.namespace}
+                onChange={e => updateOptions({ namespace: e.target.value })}
+              />
+              {destination && (
+                <div className="text-xs text-textLight">
+                  Current value{destinationNamespaces.length > 1 ? "s" : ""}:{" "}
+                  <>
+                    {destinationNamespaces.map((ns, i) => (
+                      <>
+                        <code key={"ns"}>{ns}</code>
+                        {i < destinationNamespaces.length - 1 ? ", " : ""}
+                      </>
+                    ))}
+                  </>
+                </div>
+              )}
+            </div>
+          ),
+        }
+      : undefined,
+    destinationType.usesBulker
+      ? {
           name: "Table Name Prefix",
-          documentation:
-            "Prefix to add to all table names resulting from this sync. E.g. 'mysrc_'. Useful to avoid table names collisions with other syncs.",
+          documentation: (
+            <>
+              Prefix to add to all table names resulting from this sync. E.g. 'mysrc_'. Useful to avoid table names
+              collisions with other syncs.
+              <br />
+              <br />
+              If the source supports namespaces, you can use the macros <code>{"${SOURCE_NAMESPACE}"}</code> which will
+              be replaced with the actual namespace of the specific stream.
+            </>
+          ),
           component: (
             <div className={"w-80"}>
               <Input
                 disabled={!!existingLink}
                 style={{ color: "black" }}
-                value={syncOptions?.tableNamePrefix}
+                value={legacyPrefix ? legacyPrefix : syncOptions?.tableNamePrefix}
                 onChange={e => updateOptions({ tableNamePrefix: e.target.value })}
               />
             </div>
@@ -598,6 +687,7 @@ function SyncEditor({
     } else if (catalog) {
       for (const stream of catalog.streams ?? []) {
         const name = stream.namespace ? `${stream.namespace}.${stream.name}` : stream.name;
+        const tableName = stream.namespace && legacyMode ? `${stream.namespace}_${stream.name}` : stream.name;
         const syncModeOptions = stream.supported_sync_modes.map(m => ({
           value: m,
           label: createDisplayName(m),
@@ -620,10 +710,11 @@ function SyncEditor({
           group: "Streams",
           key: name,
           name: (
-            <div className={"flex flex-col"}>
+            <div className={"flex flex-col gap-1.5"}>
               <LabelEllipsis maxLen={34} trim={"middle"}>
-                {name}
+                {stream.name}
               </LabelEllipsis>
+              {stream.namespace && <div className={"text-xs text-textLight"}>{stream.namespace}</div>}
             </div>
           ),
           component: (
@@ -686,7 +777,12 @@ function SyncEditor({
                     style={{ minWidth: "15rem" }}
                     disabled={!syncOptions?.streams?.[name]}
                     onChange={e => updateSelectedStream(name, "table_name", e.target.value)}
-                    value={syncOptions?.streams?.[name]?.table_name || (syncOptions?.tableNamePrefix ?? "") + name}
+                    value={
+                      syncOptions?.streams?.[name]?.table_name ||
+                      (syncOptions?.tableNamePrefix
+                        ? syncOptions?.tableNamePrefix.replaceAll("${SOURCE_NAMESPACE}", stream.namespace ?? "")
+                        : "") + tableName
+                    }
                   ></Input>
                 </div>
                 <div className={"w-36"}></div>

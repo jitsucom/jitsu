@@ -110,7 +110,7 @@ const DataLayoutEditor: EditorComponent<DataLayoutType, { fileStorage?: boolean 
         <Radio value="passthrough">
           <div>
             <div className={``}>Original</div>
-            <div className={`text-textLight text-xs`}>Keep original event structure.</div>
+            <div className={`text-textLight text-sm`}>Keep original event structure.</div>
           </div>
         </Radio>
       )}
@@ -128,7 +128,7 @@ const DataLayoutEditor: EditorComponent<DataLayoutType, { fileStorage?: boolean 
       <Radio value="segment">
         <div>
           <div className={``}>Segment</div>
-          <div className={`text-textLight text-xs`}>
+          <div className={`text-textLight text-sm`}>
             This data layout emulates segment tables: <code>pages</code>, <code>identify</code>, etc
           </div>
         </div>
@@ -136,7 +136,7 @@ const DataLayoutEditor: EditorComponent<DataLayoutType, { fileStorage?: boolean 
       <Radio value="jitsu-legacy">
         <div>
           <div className={``}>Legacy Jitsu</div>
-          <div className={`text-textLight text-xs`}>
+          <div className={`text-textLight text-sm`}>
             Table name <code>events</code>. Field names are as in Jitsu 1.0
           </div>
         </div>

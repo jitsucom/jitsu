@@ -615,6 +615,7 @@ export async function scheduleSync({
         syncId: sync.id,
         fullSync: fullSync ? "true" : "false",
         startedBy: JSON.stringify(startedBy),
+        namespace: typeof sync.data?.["namespace"] !== "undefined" ? sync.data?.["namespace"] : "${LEGACY}",
         tableNamePrefix: sync.data?.["tableNamePrefix"] ?? "",
       },
       body: {
