@@ -33,6 +33,7 @@ function getEventProperties(event: AnalyticsServerEvent) {
   const browser = event.context?.userAgent
     ? parseUserAgentLegacy(event.context?.userAgent, event.context?.userAgentVendor)
     : undefined;
+  const geo = event.context?.geo || {};
   return {
     $referrer: event.context?.page?.referrer,
     $referring_domain: event.context?.page?.referring_domain || getHostFromUrl(event.context?.page?.referrer),
@@ -44,6 +45,13 @@ function getEventProperties(event: AnalyticsServerEvent) {
     $device: browser?.deviceType,
     $os: browser?.os,
     $browser_version: browser?.browserVersion,
+
+    $geoip_city_name: geo.city?.name,
+    $geoip_country_name: geo.country?.name,
+    $geoip_country_code: geo.country?.code,
+    $geoip_continent_code: geo.continent?.code,
+    $geoip_postal_code: geo.postalCode,
+    $geoip_time_zone: geo.location?.timezone,
 
     //implement when it's implemented on a client, doesn't seem like a very important data points
     $screen_dpi: event.context?.screen?.density,
@@ -85,16 +93,15 @@ const PosthogDestination: JitsuFunction<AnalyticsServerEvent, PosthogDestination
           });
         }
       } else {
+        if (props.enableAnonymousUserProfiles) {
+          if (event.anonymousId || event.traits?.email) {
+            client.alias({ distinctId: event.anonymousId || event.traits?.email, alias: event.userId as string });
+          }
+        }
         client.identify({
           distinctId: event.userId as string,
           properties: { $anon_distinct_id: event.anonymousId || undefined, ...event.traits },
         });
-        if (event.anonymousId) {
-          client.alias({ distinctId: event.userId as string, alias: event.anonymousId });
-        }
-        if (event.traits?.email) {
-          client.alias({ distinctId: event.userId as string, alias: event.traits.email as string });
-        }
       }
       // if (props.sendIdentifyEvents) {
       //   const distinctId = event.userId || (event.traits?.email as string) || event.anonymousId;
@@ -121,12 +128,14 @@ const PosthogDestination: JitsuFunction<AnalyticsServerEvent, PosthogDestination
       if (!distinctId) {
         log.info(`No distinct id found for event ${JSON.stringify(event)}`);
       } else {
-        client.capture({
-          distinctId: distinctId as string,
-          event: event.event || event.name || "Unknown Event",
-          properties: getEventProperties(event),
-          ...groups,
-        });
+        if (event.userId || props.enableAnonymousUserProfiles) {
+          client.capture({
+            distinctId: distinctId as string,
+            event: event.event || event.name || "Unknown Event",
+            properties: getEventProperties(event),
+            ...groups,
+          });
+        }
       }
     } else if (event.type === "page") {
       let groups = {};
