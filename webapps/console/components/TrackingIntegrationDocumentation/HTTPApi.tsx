@@ -10,15 +10,24 @@ export const HTTPManual: React.FC<{ domain: string; writeKey?: string }> = ({ do
           backend.
         </p>
         <p>In case of using HTTP API you may need to manually ad user's IP address and User Agent to the event.</p>
-        <h2>Ingest endpoint</h2>
-        <p>This endpoint can be used to send events to Jitsu:</p>
-        <p>
-          <b>For requests from user devices:</b>
-        </p>
+        <h2>Ingest endpoint (client mode)</h2>
+        <p>This endpoint can be used to send events to Jitsu from user devices or browsers:</p>
         <code>{`${domain}/api/s/{event-type}`}</code>
         <p>
-          <b>For requests coming from servers:</b>
+          <b>event-type</b> could be:
         </p>
+        <ul>
+          <li>
+            <code>page</code>, <code>track</code>, <code>identify</code> or <code>group</code>
+          </li>
+          <li>
+            Use <code>event</code> as <code>event_type</code> if you want server to take actual event type from{" "}
+            <code>type</code> field of the event payload
+          </li>
+        </ul>
+        <p>The endpoint accepts POST requests with events payload in JSON format.</p>
+        <h2>Ingest endpoint (server mode)</h2>
+        <p>This endpoint can be used to send events to Jitsu from servers:</p>
         <code>{`${domain}/api/s/s2s/{event-type}`}</code>
         <p>
           <b>event-type</b> could be:
