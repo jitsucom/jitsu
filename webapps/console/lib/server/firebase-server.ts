@@ -62,7 +62,7 @@ export function firebase(): admin.app.App {
   return requireDefined(firebaseService(), `Something went wrong, firebaseService is not initialized`);
 }
 
-export const firebaseAuthCookieName = "fb-auth2";
+export const firebaseAuthCookieName = "jitsu-auth";
 
 export type FirebaseToken = { idToken: string; cookieToken?: never } | { idToken?: never; cookieToken: string };
 
