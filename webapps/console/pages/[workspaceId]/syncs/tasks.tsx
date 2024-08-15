@@ -393,7 +393,7 @@ function TasksTable({ tasks, loading, linksMap, servicesMap, destinationsMap, re
     }
   };
   const tasksMapped = useMemo(() => {
-    return tasks.map(task => {
+    return (tasks ?? []).map(task => {
       return {
         key: task.task_id,
         ...processTaskStatus(task),
