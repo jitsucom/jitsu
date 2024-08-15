@@ -91,6 +91,7 @@ type SyncOptionsType = {
   streams?: SelectedStreams;
   namespace?: string;
   tableNamePrefix?: string;
+  toSameCase?: boolean;
   schedule?: string;
   timezone?: string;
 };
@@ -232,6 +233,10 @@ function SyncEditor({
         ? syncOptions?.tableNamePrefix + sourceNamespaces[0] + "_"
         : (syncOptions?.tableNamePrefix ?? "") + "${SOURCE_NAMESPACE}_"
       : undefined;
+
+  const nameTransformer = syncOptions?.toSameCase
+    ? (s: string) => (destinationType.id === "snowflake" ? s.toUpperCase() : s.toLowerCase())
+    : (s: string) => s;
 
   const destinationNamespaces = (sourceNamespaces?.length > 0 ? sourceNamespaces : [""])
     .map(ns => (syncOptions?.namespace ? syncOptions?.namespace.replaceAll("${SOURCE_NAMESPACE}", ns ?? "") : ""))
@@ -558,6 +563,32 @@ function SyncEditor({
           ),
         }
       : undefined,
+    destinationType.usesBulker && destinationType.id !== "s3" && destinationType.id !== "gcs"
+      ? {
+          name: "Normalize Names",
+          documentation: (
+            <>
+              By default, Jitsu syncs table and column names exactly as they appear in the source. For instance, if a
+              source table is named <code>MyTableName</code>, Jitsu will create a table with the same case-sensitive
+              name. This means that when querying in SQL, you’ll need to use quotes, like so:{" "}
+              <code>select * from "MyTableName";</code>
+              <br />
+              <br />
+              However, if you enable tis option, Jitsu will automatically convert all table and column names to{" "}
+              <b>{`${destinationType.id === "snowflake" ? "UPPERCASE" : "lowercase"}`}</b>.
+            </>
+          ),
+          component: (
+            <div className={"w-80"}>
+              <SwitchComponent
+                disabled={!!existingLink}
+                value={syncOptions?.toSameCase}
+                onChange={e => updateOptions({ toSameCase: e })}
+              />
+            </div>
+          ),
+        }
+      : undefined,
   ].filter(Boolean) as EditorItem[];
   if (appConfig.syncs.scheduler.enabled) {
     const disableScheduling =
@@ -777,12 +808,12 @@ function SyncEditor({
                     style={{ minWidth: "15rem" }}
                     disabled={!syncOptions?.streams?.[name]}
                     onChange={e => updateSelectedStream(name, "table_name", e.target.value)}
-                    value={
+                    value={nameTransformer(
                       syncOptions?.streams?.[name]?.table_name ||
-                      (syncOptions?.tableNamePrefix
-                        ? syncOptions?.tableNamePrefix.replaceAll("${SOURCE_NAMESPACE}", stream.namespace ?? "")
-                        : "") + tableName
-                    }
+                        (syncOptions?.tableNamePrefix
+                          ? syncOptions?.tableNamePrefix.replaceAll("${SOURCE_NAMESPACE}", stream.namespace ?? "")
+                          : "") + tableName
+                    )}
                   ></Input>
                 </div>
                 <div className={"w-36"}></div>
