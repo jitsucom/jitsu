@@ -8,7 +8,6 @@ import {
   getInvoiceEndDate,
   getInvoiceStartDate,
   listAllInvoices,
-  stripe,
   stripeDataTable,
   stripeLink,
 } from "../../../lib/stripe";
@@ -83,10 +82,16 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
   const allInvoices = await listAllInvoices();
   const allCustomers = new Set(allWorkspaces.map(w => w.obj.stripeCustomerId));
   const eligibleInvoices = allInvoices.filter(i => allCustomers.has(i.customer)).filter(i => i.lines.data.length > 0);
-  const minDate = eligibleInvoices.map(i => getInvoiceStartDate(i)).sort((a, b) => a.getTime() - b.getTime())[0];
+  const minDate = dayjs().utc().add(-60, "d"); // eligibleInvoices.map(i => getInvoiceStartDate(i)).sort((a, b) => a.getTime() - b.getTime())[0];
 
   const timer = Date.now();
-  const report = await buildWorkspaceReport(minDate.toISOString(), new Date().toISOString(), "day", workspaceId);
+  const report = await buildWorkspaceReport({
+    start: minDate.toISOString(),
+    end: new Date().toISOString(),
+    granularity: "day",
+    workspaceId,
+    useCache: req.query.cache === "true",
+  });
   getLog()
     .atInfo()
     .log(`Build workspace report from ${minDate.toISOString()}. Took ${Date.now() - timer}ms`);
@@ -199,7 +204,7 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
 };
 
 export const config = {
-  maxDuration: 120, //2 mins, mostly becasue of workspace-stat call
+  maxDuration: 180, //2 mins, mostly becasue of workspace-stat call
 };
 
 export default withErrorHandler(handler);

@@ -1,5 +1,4 @@
 import { useApi } from "../../lib/useApi";
-import { useRouter } from "next/router";
 import { ExternalLink } from "lucide-react";
 import { ErrorCard } from "../../components/GlobalError/GlobalError";
 import { ColumnOption, JsonAsTable } from "../../components/JsonAsTable/JsonAsTable";
@@ -38,7 +37,6 @@ const dateFormat: ColumnOption = {
 };
 
 const View = ({ data, workspaces }) => {
-  const router = useRouter();
   const workspacesMap = workspaces.reduce(
     (acc, w) => ({
       ...acc,
@@ -46,7 +44,6 @@ const View = ({ data, workspaces }) => {
     }),
     {}
   );
-  console.log("workspacesMap", workspacesMap);
   return (
     <div className="p-12">
       <div className="flex justify-between mb-12">

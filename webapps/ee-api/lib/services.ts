@@ -15,6 +15,7 @@ export const clickhouse = createClient({
   url: requireDefined(process.env.CLICKHOUSE_URL, `env CLICKHOUSE_URL is not defined`),
   username: process.env.CLICKHOUSE_USERNAME || "default",
   password: requireDefined(process.env.CLICKHOUSE_PASSWORD, `env CLICKHOUSE_PASSWORD is not defined`),
+  request_timeout: 600_000,
 });
 
 export const s3client = new S3Client({
