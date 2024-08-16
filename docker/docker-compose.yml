@@ -148,8 +148,6 @@ services:
       interval: 2s
       timeout: 10s
       retries: 15
-    ports:
-      - "${EXTERNAL_BULKER_PORT:-3042}:3042"
     depends_on:
       console:
         condition: service_healthy
@@ -231,8 +229,6 @@ services:
       SYNCCTL_RAW_AUTH_TOKENS: ${SYNCCTL_TOKEN:-default}
       SYNCCTL_DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD:-default}@127.0.0.1:${EXTERNAL_POSTGRES_PORT:-5432}/postgres?search_path=newjitsu"
       SYNCCTL_SIDECAR_DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD:-default}@${EXTERNAL_POSTGRES_HOST}:${EXTERNAL_POSTGRES_PORT:-5432}/postgres?search_path=newjitsu"
-      SYNCCTL_BULKER_URL: "http://${EXTERNAL_BULKER_HOST}:${EXTERNAL_BULKER_PORT:-3042}"
-      SYNCCTL_BULKER_AUTH_TOKEN: ${BULKER_TOKEN:-default}
       SYNCCTL_KUBERNETES_CLIENT_CONFIG: "${SYNCCTL_KUBERNETES_CLIENT_CONFIG:-local}"
       SYNCCTL_KUBERNETES_CONTEXT: "${SYNCCTL_KUBERNETES_CONTEXT}"
     network_mode: "host"

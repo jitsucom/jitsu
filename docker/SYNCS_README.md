@@ -11,7 +11,6 @@ Jitsu runs sync jobs in kubernetes cluster. So we need to connect `syncctl` serv
 
 * `SYNCS_ENABLED` - set to `true` to enable syncs on UI side
 * `SYNCCTL_KUBERNETES_CLIENT_CONFIG` - path to kubernetes config file or kubernetes config in yaml format
-* `EXTERNAL_BULKER_HOST` - host of `bulker` service as it is reachable from kubernetes cluster
 * `EXTERNAL_POSTGRES_HOST`- host of `postgres` service as it is reachable from kubernetes cluster
 
 # How to run
@@ -38,7 +37,7 @@ Put the modified config payload to `SYNCCTL_KUBERNETES_CLIENT_CONFIG` env variab
 
 **Adjust `.env` config**
 
-* Set `EXTERNAL_BULKER_HOST` and `EXTERNAL_POSTGRES_HOST` to: `host.minikube.internal` as it is how these services will be reachable from minikube
+* Set `EXTERNAL_POSTGRES_HOST` to: `host.minikube.internal` as it is how these services will be reachable from minikube
 * Set `SYNCS_ENABLED` to `true`
 
 **Start Jitsu**
