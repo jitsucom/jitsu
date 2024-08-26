@@ -188,7 +188,7 @@ export function nextJsApiHandler(api: Api): NextApiHandler {
         body = parseResult.data;
       } else if (req.body) {
         try {
-          body = JSON.parse(req.body);
+          body = parseIfNeeded(req.body);
         } catch (e) {
           throw new ApiError(`Body ${req.method} ${req.url} is not a JSON object: ${getErrorMessage(e)}`, {
             body: req.body,
