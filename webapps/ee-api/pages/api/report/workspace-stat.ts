@@ -1,5 +1,13 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { assertDefined, assertTrue, namedParameters, requireDefined, SqlQueryParameters, unrollParams } from "juava";
+import {
+  assertDefined,
+  assertTrue,
+  getErrorMessage,
+  getLog,
+  namedParameters,
+  requireDefined,
+  SqlQueryParameters,
+} from "juava";
 import { withErrorHandler } from "../../../lib/error-handler";
 import { auth } from "../../../lib/auth";
 import { clickhouse, pg, store } from "../../../lib/services";
@@ -64,7 +72,33 @@ async function getSyncs() {
   );
 }
 
-async function getEventsReport({ granularity, start, end, workspaceId }: ReportParams): Promise<WorkspaceReportRow[]> {
+export async function getEventsReportFromCache({
+  start,
+  end,
+  workspaceId,
+}: ReportParams): Promise<WorkspaceReportRow[]> {
+  const sql = `select 
+      period, "workspaceId", events 
+      from newjitsuee.stat_cache 
+      where period >= :start and period <= :end
+      ${workspaceId ? 'and "workspaceId" = {workspaceId:String}' : ""} 
+      order by period;`;
+  log.atInfo().log(`Getting events report from cache for [${start}, ${end}]. Workspace: ${workspaceId || "all"}`);
+  return (
+    (await query(pg, sql, {
+      start,
+      end,
+      workspaceId,
+    })) as any
+  ).map(({ events, ...rest }) => ({ events: Number(events), ...rest }));
+}
+
+export async function getEventsReport({
+  granularity,
+  start,
+  end,
+  workspaceId,
+}: ReportParams): Promise<WorkspaceReportRow[]> {
   const timer = Date.now();
   const metricsSchema = process.env.CLICKHOUSE_METRICS_SCHEMA || process.env.CLICKHOUSE_DATABASE || "newjitsu_metrics";
   const query = `select
@@ -83,28 +117,39 @@ async function getEventsReport({ granularity, start, end, workspaceId }: ReportP
   `;
   const queryParams = removeUndefined({
     start: isoDateTOClickhouse(dayjs(start).utc().startOf("day").toISOString()),
-    end: isoDateTOClickhouse(dayjs(end).utc().endOf("day").add(-1, "millisecond").toISOString()),
+    end: isoDateTOClickhouse(dayjs(end).utc().endOf("day").toISOString()),
     granularity,
     workspaceId,
   });
-  // getLog()
-  //   .atDebug()
-  //   .log(`Running Clickhouse query with ${JSON.stringify(queryParams)} : ${query}`);
-  const resultSet = await clickhouse.query({
-    query,
-    clickhouse_settings: {
-      wait_end_of_query: 1,
-    },
-    query_params: queryParams,
-  });
-  const rows: any[] = ((await resultSet.json()) as any).data;
-  log.atInfo().log(`Clickhouse query took ${Date.now() - timer}ms. Rows in result: ${rows.length}`);
+  getLog()
+    .atDebug()
+    .log(`Running Clickhouse query with ${JSON.stringify(queryParams)} : ${query}`);
+  log.atInfo().log(`Running Clickhouse events report for [${start}, ${end}]. Workspace: ${workspaceId || "all"}`);
+  try {
+    const resultSet = await clickhouse.query({
+      query,
+      clickhouse_settings: {
+        wait_end_of_query: 1,
+        max_execution_time: 600,
+        timeout_overflow_mode: "throw",
+      },
+      query_params: queryParams,
+    });
+    const rows: any[] = ((await resultSet.json()) as any).data;
+    log.atInfo().log(`Clickhouse query took ${Date.now() - timer}ms. Rows in result: ${rows.length}`);
 
-  return rows.map(({ events, period, ...rest }) => ({
-    events: Number(events),
-    period: period.replace(" ", "T") + ".000Z",
-    ...rest,
-  }));
+    return rows.map(({ events, period, ...rest }) => ({
+      events: Number(events),
+      period: period.replace(" ", "T") + ".000Z",
+      ...rest,
+    }));
+  } catch (e) {
+    log
+      .atError()
+      .withCause(e)
+      .log(`Error running Clickhouse query for [${start}, ${end}]: ${getErrorMessage(e)}\n Query:\n${query}`);
+    throw e;
+  }
 }
 
 function getDate(param: string | undefined, defaultVal?: string): Date {
@@ -113,7 +158,7 @@ function getDate(param: string | undefined, defaultVal?: string): Date {
 
 export async function query(pg: PG.Pool, sql: string, params: SqlQueryParameters = []): Promise<Record<string, any>[]> {
   const { query, values } = namedParameters(sql, params);
-  log.atInfo().log(`Querying: ${unrollParams(query, values)}`);
+  //log.atInfo().log(`Querying: ${unrollParams(query, values)}`);
   return await pg.query({ text: query, values }).then(res => {
     return res.rows;
   });
@@ -132,14 +177,17 @@ type WorkspaceInfo = {
 
 type ExtendedWorkspaceReportRow = WorkspaceReportRow & WorkspaceInfo;
 
-export async function buildWorkspaceReport(
-  start: string,
-  end: string,
-  granularity: "day",
-  workspaceId: string | undefined
-): Promise<WorkspaceReportRow[]> {
+export async function buildWorkspaceReport({
+  start,
+  end,
+  granularity,
+  workspaceId,
+  useCache = false,
+}: ReportParams & { useCache?: boolean }): Promise<WorkspaceReportRow[]> {
   const [eventsReport, syncs] = await Promise.all([
-    getEventsReport({ start, end, granularity, workspaceId }),
+    useCache
+      ? getEventsReportFromCache({ start, end, granularity, workspaceId })
+      : getEventsReport({ start, end, granularity, workspaceId }),
     getSyncs(),
   ]);
   const report = new Map<string, WorkspaceReportRow>();
@@ -195,7 +243,13 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
   const granularity = "day"; // = ((req.query.granularity as string) || "day").toLowerCase();
   const timer = Date.now();
   log.atInfo().log("Building workspace report");
-  const reportResult = await buildWorkspaceReport(start, end, granularity, workspaceId);
+  const reportResult = await buildWorkspaceReport({
+    start,
+    end,
+    granularity,
+    workspaceId,
+    useCache: req.query.cache === "true",
+  });
   log.atInfo().log(`Workspace report built in ${Date.now() - timer}ms. Rows in result: ${reportResult.length}`);
   let records = extended ? await extend(reportResult) : reportResult;
   if (req.query.billing === "true") {
