@@ -96,7 +96,10 @@ main() {
   cmd=$1
   export SIGNALS_LYFECICLE=1
   if [ -z "$cmd" ]; then
-    if [ "$UPDATE_DB" = "1" ] || [ "$UPDATE_DB" = "yes" ] || [ "$UPDATE_DB" = "true" ]; then
+    if [ "$FORCE_UPDATE_DB" = "1" ] || [ "$FORCE_UPDATE_DB" = "yes" ] || [ "$FORCE_UPDATE_DB" = "true" ]; then
+      echo "FORCE_UPDATE_DB is set, updating database schema..."
+      prisma db push --skip-generate --schema schema.prisma --accept-data-loss
+    elif [ "$UPDATE_DB" = "1" ] || [ "$UPDATE_DB" = "yes" ] || [ "$UPDATE_DB" = "true" ]; then
       echo "UPDATE_DB is set, updating database schema..."
       prisma db push --skip-generate --schema schema.prisma
     fi

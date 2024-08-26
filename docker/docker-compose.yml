@@ -100,7 +100,7 @@ services:
       CLICKHOUSE_HOST: "clickhouse:8123"
       CLICKHOUSE_PASSWORD: "${CLICKHOUSE_PASSWORD:-default}"
       CLICKHOUSE_DATABASE: "newjitsu_metrics"
-      UPDATE_DB: "true"
+      FORCE_UPDATE_DB: "true"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://console:3000/api/healthcheck"]
       interval: 2s
