@@ -40,6 +40,7 @@ function getEventProperties(event: AnalyticsServerEvent) {
     $current_url: event.context?.page?.url,
     $host: event.context?.page?.host || getHostFromUrl(event.context?.page?.url),
     $pathname: event.context?.page?.path || getPathFromUrl(event.context?.page?.url),
+    $screen_name: event.type === 'screen' ? event.name : undefined,
 
     $browser: browser?.name,
     $device: browser?.deviceType,
