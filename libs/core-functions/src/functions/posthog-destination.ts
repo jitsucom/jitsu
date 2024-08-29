@@ -30,22 +30,24 @@ function getPathFromUrl(url: string | undefined): string | undefined {
 
 function getEventProperties(event: AnalyticsServerEvent) {
   //see https://github.com/PostHog/posthog-js-lite/blob/master/posthog-web/src/context.ts
-  const browser = event.context?.userAgent
-    ? parseUserAgentLegacy(event.context?.userAgent, event.context?.userAgentVendor)
-    : undefined;
-  const geo = event.context?.geo || {};
+  const analyticsContext = event.context || {};
+  const page = analyticsContext.page || {};
+  const browser = analyticsContext.userAgent
+    ? parseUserAgentLegacy(analyticsContext.userAgent, analyticsContext.userAgentVendor)
+    : ({} as any);
+  const geo = analyticsContext.geo || {};
   return {
-    $referrer: event.context?.page?.referrer,
-    $referring_domain: event.context?.page?.referring_domain || getHostFromUrl(event.context?.page?.referrer),
-    $current_url: event.context?.page?.url,
-    $host: event.context?.page?.host || getHostFromUrl(event.context?.page?.url),
-    $pathname: event.context?.page?.path || getPathFromUrl(event.context?.page?.url),
-    $screen_name: event.type === 'screen' ? event.name : undefined,
+    $referrer: page.referrer,
+    $referring_domain: page.referring_domain || getHostFromUrl(page.referrer),
+    $current_url: page.url,
+    $host: page.host || getHostFromUrl(page.url),
+    $pathname: page.path || getPathFromUrl(page.url),
+    ...(event.type === "screen" ? { $screen_name: event.name } : {}),
 
-    $browser: browser?.name,
-    $device: browser?.deviceType,
-    $os: browser?.os,
-    $browser_version: browser?.browserVersion,
+    $browser: browser.name,
+    $device: analyticsContext.device?.type || browser.deviceType,
+    $os: browser.os,
+    $browser_version: browser.browserVersion,
 
     $geoip_city_name: geo.city?.name,
     $geoip_country_name: geo.country?.name,
@@ -55,9 +57,10 @@ function getEventProperties(event: AnalyticsServerEvent) {
     $geoip_time_zone: geo.location?.timezone,
 
     //implement when it's implemented on a client, doesn't seem like a very important data points
-    $screen_dpi: event.context?.screen?.density,
-    $screen_height: event.context?.screen?.height,
-    $screen_width: event.context?.screen?.width,
+    $screen_dpi: analyticsContext.screen?.density,
+    $screen_height: analyticsContext.screen?.height,
+    $screen_width: analyticsContext.screen?.width,
+
     ...getEventCustomProperties(event, {
       exclude: obj => {
         delete obj.referer;
