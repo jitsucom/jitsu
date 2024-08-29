@@ -2,7 +2,7 @@ import { JitsuFunction } from "@jitsu/protocols/functions";
 import { RetryError } from "@jitsu/functions-lib";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { PostHog } from "posthog-node";
-import { getEventCustomProperties } from "./lib";
+import { eventTimeSafeMs, getEventCustomProperties } from "./lib";
 import { parseUserAgentLegacy } from "./lib/browser";
 import { POSTHOG_DEFAULT_HOST, PosthogDestinationConfig } from "../meta";
 
@@ -139,6 +139,7 @@ const PosthogDestination: JitsuFunction<AnalyticsServerEvent, PosthogDestination
           client.capture({
             distinctId: distinctId as string,
             event: event.event || event.name || "Unknown Event",
+            timestamp: new Date(eventTimeSafeMs(event)),
             properties: getEventProperties(event),
             ...groups,
           });
@@ -159,6 +160,7 @@ const PosthogDestination: JitsuFunction<AnalyticsServerEvent, PosthogDestination
           client.capture({
             distinctId: distinctId as string,
             event: event.type === "page" ? "$pageview" : "$screen",
+            timestamp: new Date(eventTimeSafeMs(event)),
             properties: getEventProperties(event),
             ...groups,
           });
