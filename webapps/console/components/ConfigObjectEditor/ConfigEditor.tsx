@@ -95,7 +95,7 @@ export type ConfigEditorProps<T extends { id: string } = { id: string }, M = {}>
   editorComponent?: EditorComponentFactory;
   testConnectionEnabled?: (o: any) => boolean;
   onTest?: (o: T) => Promise<ConfigTestResult>;
-  onChange?: (isNew: boolean, oldData: any, newData: any, id?: string) => void;
+  onChange?: (isNew: boolean, oldData: any, newData: any, id?: string) => Promise<boolean>;
   backTo?: string;
 };
 
@@ -201,7 +201,7 @@ export type ConfigEditorActions = {
   onTest?: (o: any) => Promise<ConfigTestResult>;
   onCancel: (confirm: boolean) => Promise<void>;
   onDelete: () => Promise<void>;
-  onChange?: (isNew: boolean, oldData: any, newData: any, id?: string) => void;
+  onChange?: (isNew: boolean, oldData: any, newData: any, id?: string) => Promise<boolean>;
 };
 
 export type EditorComponentProps = SingleObjectEditorProps &
