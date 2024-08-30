@@ -1,4 +1,13 @@
-import React, { createContext, PropsWithChildren, ReactNode, useContext, useEffect, useState } from "react";
+import React, {
+  createContext,
+  createRef,
+  PropsWithChildren,
+  ReactNode,
+  RefObject,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 import { Button, Col, Form as AntdForm, Input, Row, Switch, Table } from "antd";
 import { FaCaretDown, FaCaretRight, FaClone, FaPlus } from "react-icons/fa";
 import { ZodType } from "zod";
@@ -46,6 +55,7 @@ import cuid from "cuid";
 import { ObjectTitle } from "../ObjectTitle/ObjectTitle";
 import omitBy from "lodash/omitBy";
 import { asConfigType, useConfigObject, useConfigObjectList, useConfigObjectMutation } from "../../lib/store";
+import { IChangeEvent } from "@rjsf/core";
 
 const log = getLog("ConfigEditor");
 
@@ -95,6 +105,13 @@ export type ConfigEditorProps<T extends { id: string } = { id: string }, M = {}>
   editorComponent?: EditorComponentFactory;
   testConnectionEnabled?: (o: any) => boolean;
   onTest?: (o: T) => Promise<ConfigTestResult>;
+  onChange?: (
+    formRef: RefObject<Form>,
+    isNew: boolean,
+    oldData: IChangeEvent,
+    newData: IChangeEvent,
+    id?: string
+  ) => void;
   backTo?: string;
 };
 
@@ -189,7 +206,7 @@ const FormList: React.FC<ObjectFieldTemplateProps> = props => {
   );
 };
 
-const CustomCheckbox = function (props) {
+export const CustomCheckbox = function (props) {
   return <Switch checked={props.value} onClick={() => props.onChange(!props.value)} />;
 };
 
@@ -200,6 +217,13 @@ export type ConfigEditorActions = {
   onTest?: (o: any) => Promise<ConfigTestResult>;
   onCancel: (confirm: boolean) => Promise<void>;
   onDelete: () => Promise<void>;
+  onChange?: (
+    formRef: RefObject<Form>,
+    isNew: boolean,
+    oldData: IChangeEvent,
+    newData: IChangeEvent,
+    id?: string
+  ) => void;
 };
 
 export type EditorComponentProps = SingleObjectEditorProps &
@@ -240,14 +264,18 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
     object,
     isNew,
     subtitle,
+    onChange,
   } = props;
+
+  const formRef = createRef<Form>();
+
   useTitle(`${branding.productName} : ${createNew ? `Create new ${noun}` : `Edit ${noun}`}`);
   const [loading, setLoading] = useState<boolean>(false);
   const objectTypeFactory = asFunction<ZodType, any>(objectType);
   const schema = zodToJsonSchema(objectTypeFactory(object));
   const [formState, setFormState] = useState<any | undefined>(undefined);
   const hasErrors = formState?.errors?.length > 0;
-  const isTouched = formState !== undefined || !!createNew;
+  const [isTouched, setTouched] = useState<boolean>(!!createNew);
   const [testResult, setTestResult] = useState<any>(undefined);
 
   const uiSchema = getUiSchema(schema, fields);
@@ -257,6 +285,7 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
   const onFormChange = state => {
     setFormState(state);
     setTestResult(undefined);
+    setTouched(true);
     log.atDebug().log(`Updating editor form state`, state);
   };
   const withLoading = (fn: () => Promise<void>) => async () => {
@@ -279,23 +308,33 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
       <EditorTitle title={title} subtitle={subtitleComponent} onBack={withLoading(() => onCancel(isTouched))} />
       <EditorComponentContext.Provider value={{ displayInlineErrors: !isNew || submitCount > 0 }}>
         <Form
+          ref={formRef}
           formContext={props}
           templates={{ ObjectFieldTemplate: FormList, ButtonTemplates: { AddButton } }}
           widgets={{ CheckboxWidget: CustomCheckbox }}
           omitExtraData={true}
           liveOmit={true}
           showErrorList={false}
-          onChange={onFormChange}
+          onChange={async (data, id) => {
+            if (onChange) {
+              const touched = isTouched;
+              const saved = await onChange(formRef, isNew, formState?.formData || object, data.formData, id);
+              onFormChange(data);
+              setTouched(saved ? touched : true);
+            } else {
+              onFormChange(data);
+            }
+          }}
           className={styles.editForm}
           schema={schema as any}
           liveValidate={true}
           validator={validator}
           onSubmit={async ({ formData }) => {
-            if (onTest && testConnectionEnabled && testConnectionEnabled(formData || object)) {
+            if (onTest && (typeof testConnectionEnabled === "undefined" || testConnectionEnabled(formData || object))) {
               const testRes = testResult || (await onTest(formState?.formData || object));
               if (!testRes.ok) {
                 modal.confirm({
-                  title: "Connection test failed",
+                  title: "Check failed",
                   content: testRes.error,
                   okText: "Save anyway",
                   okType: "danger",

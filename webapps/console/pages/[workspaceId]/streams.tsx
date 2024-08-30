@@ -1,6 +1,6 @@
 import { WorkspacePageLayout } from "../../components/PageLayout/WorkspacePageLayout";
 import { Button, Input, notification, Tag, Tooltip } from "antd";
-import { ConfigEditor, ConfigEditorProps } from "../../components/ConfigObjectEditor/ConfigEditor";
+import { ConfigEditor, ConfigEditorProps, CustomCheckbox } from "../../components/ConfigObjectEditor/ConfigEditor";
 import { StreamConfig } from "../../lib/schema";
 import { useAppConfig, useWorkspace } from "../../lib/context";
 import React, { PropsWithChildren, useMemo, useState } from "react";
@@ -14,9 +14,9 @@ import { useQuery } from "@tanstack/react-query";
 import { getEeClient } from "../../lib/ee-client";
 import { requireDefined } from "juava";
 import { ReloadOutlined } from "@ant-design/icons";
-import { confirmOp, feedbackError } from "../../lib/ui";
+import { confirmOp, feedbackError, feedbackSuccess } from "../../lib/ui";
 import { getAntdModal, useAntdModal } from "../../lib/modal";
-import { get } from "../../lib/useApi";
+import { get, getConfigApi } from "../../lib/useApi";
 import { Activity, AlertTriangle, Check, Globe, Wrench, Zap } from "lucide-react";
 import { FaviconLoader } from "./index";
 import { ObjectTitle } from "../../components/ObjectTitle/ObjectTitle";
@@ -422,6 +422,28 @@ const StreamsList: React.FC<{}> = () => {
         // </div>
       ),
     objectType: StreamConfig,
+    newObject: () => {
+      return { strict: true };
+    },
+    onChange: async (ref, isNew, olddata, newdata, id) => {
+      if (isNew) {
+        return false;
+      }
+      if (id === "root_privateKeys" && (newdata.privateKeys || []).length > (olddata.privateKeys || []).length) {
+        await getConfigApi(workspace.id, "stream").update(newdata.id, {
+          privateKeys: newdata.privateKeys,
+        });
+        feedbackSuccess("Server Write Key Saved");
+        return true;
+      } else if (id === "root_publicKeys" && (newdata.publicKeys || []).length > (olddata.publicKeys || []).length) {
+        await getConfigApi(workspace.id, "stream").update(newdata.id, {
+          publicKeys: newdata.publicKeys,
+        });
+        feedbackSuccess("Browser Write Key Saved");
+        return true;
+      }
+      return false;
+    },
     icon: s => <FaviconLoader potentialUrl={s.name} />,
     actions: [
       {
@@ -510,9 +532,33 @@ const StreamsList: React.FC<{}> = () => {
         },
       },
     ],
+    onTest: async (stream: StreamConfig) => {
+      if (stream.strict) {
+        if (
+          (!stream.privateKeys || stream.privateKeys.length === 0) &&
+          (!stream.publicKeys || stream.publicKeys.length === 0)
+        ) {
+          return { ok: false, error: "At least one writeKey required in Strict Mode." };
+        }
+      }
+      return { ok: true };
+    },
     fields: {
       type: { constant: "stream" },
       workspaceId: { constant: workspace.id },
+      strict: {
+        editor: CustomCheckbox,
+        displayName: "Strict Mode",
+        advanced: false,
+        documentation: (
+          <>
+            In Strict Mode, Jitsu requires a valid <b>writeKey</b> to ingest events into the current stream.
+            <br />
+            Without Strict Mode, if a correct writeKey is not provided, Jitsu may attempt to identify the stream based
+            on the domain or, if there is only one stream in the workspace, it will automatically select that stream.
+          </>
+        ),
+      },
       privateKeys: {
         editor: BrowserKeysEditor,
         displayName: "Server-to-server Write Keys",

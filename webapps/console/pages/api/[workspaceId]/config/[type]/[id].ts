@@ -62,9 +62,9 @@ export const api: Api = {
       if (!object) {
         throw new ApiError(`${type} with id ${id} does not exist`);
       }
-      const data = parseObject(type, body);
-      const merged = configObjectType.merge(object.config, data);
-      const filtered = await configObjectType.inputFilter(merged, "update");
+      const merged = configObjectType.merge(object.config, { ...body, id, workspaceId });
+      const data = parseObject(type, merged);
+      const filtered = await configObjectType.inputFilter(data, "update");
 
       delete filtered.id;
       delete filtered.workspaceId;
