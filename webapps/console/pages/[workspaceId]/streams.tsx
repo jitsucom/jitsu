@@ -425,7 +425,7 @@ const StreamsList: React.FC<{}> = () => {
     newObject: () => {
       return { strict: true };
     },
-    onChange: async (ref, isNew, olddata, newdata, id) => {
+    onChange: async (isNew, olddata, newdata, id) => {
       if (isNew) {
         return false;
       }
