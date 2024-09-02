@@ -9,6 +9,7 @@ import { WidgetProps } from "@rjsf/utils";
 import { getConfigApi } from "../../lib/useApi";
 import { useWorkspace } from "../../lib/context";
 import { RefreshCw } from "lucide-react";
+import { CustomWidgetProps } from "../ConfigObjectEditor/Editors";
 
 const CopyToClipboard: React.FC<{ text: string }> = ({ text }) => {
   const [copied, setCopied] = useState(false);
