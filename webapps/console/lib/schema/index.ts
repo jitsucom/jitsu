@@ -121,11 +121,11 @@ export type ApiKey = z.infer<typeof ApiKey>;
 export const StreamConfig = ConfigEntityBase.merge(
   z.object({
     name: z.string(),
-    strict: z.boolean().optional(),
     domains: z.array(z.string()).optional(),
     authorizedJavaScriptDomains: z.string().optional(),
     publicKeys: z.array(ApiKey).optional(),
     privateKeys: z.array(ApiKey).optional(),
+    strict: z.boolean().optional(),
   })
 );
 export type StreamConfig = z.infer<typeof StreamConfig>;

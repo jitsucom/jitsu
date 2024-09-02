@@ -9,14 +9,14 @@ import { FaExternalLinkAlt, FaSpinner, FaTrash, FaWrench } from "react-icons/fa"
 import { branding } from "../../lib/branding";
 import { useRouter } from "next/router";
 import { TrackingIntegrationDocumentation } from "../../components/TrackingIntegrationDocumentation/TrackingIntegrationDocumentation";
-import { BrowserKeysEditor } from "../../components/ApiKeyEditor/ApiKeyEditor";
+import { StreamKeysEditor } from "../../components/ApiKeyEditor/ApiKeyEditor";
 import { useQuery } from "@tanstack/react-query";
 import { getEeClient } from "../../lib/ee-client";
 import { requireDefined } from "juava";
 import { ReloadOutlined } from "@ant-design/icons";
-import { confirmOp, feedbackError, feedbackSuccess } from "../../lib/ui";
+import { confirmOp, feedbackError } from "../../lib/ui";
 import { getAntdModal, useAntdModal } from "../../lib/modal";
-import { get, getConfigApi } from "../../lib/useApi";
+import { get } from "../../lib/useApi";
 import { Activity, AlertTriangle, Check, Globe, Wrench, Zap } from "lucide-react";
 import { FaviconLoader } from "./index";
 import { ObjectTitle } from "../../components/ObjectTitle/ObjectTitle";
@@ -422,28 +422,6 @@ const StreamsList: React.FC<{}> = () => {
         // </div>
       ),
     objectType: StreamConfig,
-    newObject: () => {
-      return { strict: true };
-    },
-    onChange: async (isNew, olddata, newdata, id) => {
-      if (isNew) {
-        return false;
-      }
-      if (id === "root_privateKeys" && (newdata.privateKeys || []).length > (olddata.privateKeys || []).length) {
-        await getConfigApi(workspace.id, "stream").update(newdata.id, {
-          privateKeys: newdata.privateKeys,
-        });
-        feedbackSuccess("Server Write Key Saved");
-        return true;
-      } else if (id === "root_publicKeys" && (newdata.publicKeys || []).length > (olddata.publicKeys || []).length) {
-        await getConfigApi(workspace.id, "stream").update(newdata.id, {
-          publicKeys: newdata.publicKeys,
-        });
-        feedbackSuccess("Browser Write Key Saved");
-        return true;
-      }
-      return false;
-    },
     icon: s => <FaviconLoader potentialUrl={s.name} />,
     actions: [
       {
@@ -560,7 +538,7 @@ const StreamsList: React.FC<{}> = () => {
         ),
       },
       privateKeys: {
-        editor: BrowserKeysEditor,
+        editor: StreamKeysEditor,
         displayName: "Server-to-server Write Keys",
         advanced: false,
         documentation: (
@@ -568,7 +546,7 @@ const StreamsList: React.FC<{}> = () => {
         ),
       },
       publicKeys: {
-        editor: BrowserKeysEditor,
+        editor: StreamKeysEditor,
         displayName: "Browser Write Keys",
         advanced: false,
         documentation: (

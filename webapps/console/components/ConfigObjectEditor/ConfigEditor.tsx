@@ -95,7 +95,6 @@ export type ConfigEditorProps<T extends { id: string } = { id: string }, M = {}>
   editorComponent?: EditorComponentFactory;
   testConnectionEnabled?: (o: any) => boolean;
   onTest?: (o: T) => Promise<ConfigTestResult>;
-  onChange?: (isNew: boolean, oldData: any, newData: any, id?: string) => Promise<boolean>;
   backTo?: string;
 };
 
@@ -201,7 +200,6 @@ export type ConfigEditorActions = {
   onTest?: (o: any) => Promise<ConfigTestResult>;
   onCancel: (confirm: boolean) => Promise<void>;
   onDelete: () => Promise<void>;
-  onChange?: (isNew: boolean, oldData: any, newData: any, id?: string) => Promise<boolean>;
 };
 
 export type EditorComponentProps = SingleObjectEditorProps &
@@ -242,7 +240,6 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
     object,
     isNew,
     subtitle,
-    onChange,
   } = props;
   useTitle(`${branding.productName} : ${createNew ? `Create new ${noun}` : `Edit ${noun}`}`);
   const [loading, setLoading] = useState<boolean>(false);
@@ -289,16 +286,7 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
           omitExtraData={true}
           liveOmit={true}
           showErrorList={false}
-          onChange={async (data, id) => {
-            if (onChange) {
-              const touched = isTouched;
-              const saved = await onChange(isNew, formState?.formData || object, data.formData, id);
-              onFormChange(data);
-              setTouched(saved ? touched : true);
-            } else {
-              onFormChange(data);
-            }
-          }}
+          onChange={onFormChange}
           className={styles.editForm}
           schema={schema as any}
           liveValidate={true}
