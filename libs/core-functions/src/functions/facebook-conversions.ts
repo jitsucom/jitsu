@@ -37,6 +37,19 @@ function toPrettyString(responseJson: any) {
   return typeof responseJson === "string" ? responseJson : JSON.stringify(responseJson, null, 2);
 }
 
+// https://developers.facebook.com/docs/meta-pixel/reference#standard-events
+function eventNameFromEvent(event: AnalyticsServerEvent) {
+  switch (event.type) {
+    case "page":
+    case "screen":
+      return "ViewContent";
+    case "track":
+      return event.event;
+    default:
+      return event.type;
+  }
+}
+
 /**
  * See https://developers.facebook.com/docs/marketing-api/conversions-api/using-the-api
  * and https://developers.facebook.com/docs/marketing-api/conversions-api/parameters
@@ -50,7 +63,7 @@ const FacebookConversionsApi: JitsuFunction<AnalyticsServerEvent, FacebookConver
     if (!filter(event.type, event.event)) return;
 
     const fbEvent = {
-      event_name: event.type === "track" ? event.event : event.type,
+      event_name: eventNameFromEvent(event),
       event_time: Math.floor(eventTimeSafeMs(event) / 1000),
       event_id: event.messageId,
       action_source: ctx.props?.actionSource || "website",
