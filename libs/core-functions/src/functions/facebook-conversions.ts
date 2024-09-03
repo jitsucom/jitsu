@@ -59,6 +59,12 @@ const FacebookConversionsApi: JitsuFunction<AnalyticsServerEvent, FacebookConver
   ctx
 ) => {
   if (["track", "page", "screen"].includes(event.type)) {
+    const actionSource = ctx.props?.actionSource || "website";
+    const analyticsContext = event.context || ({} as any);
+    const device = analyticsContext.device || ({} as any);
+    const app = analyticsContext.app || ({} as any);
+    const screen = analyticsContext.screen || ({} as any);
+    const os = (analyticsContext.os?.name ?? "").toLowerCase();
     const filter = createFilter(ctx.props.events || "");
     if (!filter(event.type, event.event)) return;
 
@@ -66,7 +72,32 @@ const FacebookConversionsApi: JitsuFunction<AnalyticsServerEvent, FacebookConver
       event_name: eventNameFromEvent(event),
       event_time: Math.floor(eventTimeSafeMs(event) / 1000),
       event_id: event.messageId,
-      action_source: ctx.props?.actionSource || "website",
+      action_source: actionSource,
+      app_data:
+        actionSource === "app"
+          ? {
+              advertiser_tracking_enabled: 0,
+              application_tracking_enabled: 0,
+              extinfo: [
+                os === "ios" || os === "macos" ? "i2" : "a2",
+                app.namespace ?? "",
+                app.version ?? "",
+                app.version ?? "",
+                analyticsContext.os?.version || ctx.ua?.os?.version || "1.0",
+                device.model ?? "",
+                analyticsContext.locale ?? "",
+                "",
+                "",
+                screen.width ? screen.width.toString() : "",
+                screen.height ? screen.height.toString() : "",
+                screen.density ? screen.density.toString() : "",
+                "",
+                "",
+                "",
+                analyticsContext.timezone ?? "",
+              ],
+            }
+          : undefined,
       event_source_url: event.context?.page?.url,
       user_data: {
         em: event.context.traits?.email ? facebookHash(sanitizeEmail(event.context.traits.email + "")) : undefined,
