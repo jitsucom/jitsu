@@ -134,7 +134,6 @@ func (u *PeriodicUploader) Start() {
 							return
 						}
 					}
-					newTokenLastUpload.LoadOrStore(tokenID, startTime)
 
 					allStorageProxies := u.destinationService.GetBatchStorages(tokenID)
 					if len(allStorageProxies) == 0 {
@@ -155,6 +154,8 @@ func (u *PeriodicUploader) Start() {
 						logFunc("Alive destination storages weren't found for token [%s]", tokenID)
 						return
 					}
+
+					newTokenLastUpload.LoadOrStore(tokenID, startTime)
 
 					for _, filePath := range files {
 						fileStartTime := timestamp.Now()
