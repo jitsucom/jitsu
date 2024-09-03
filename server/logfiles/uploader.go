@@ -41,6 +41,7 @@ type PeriodicUploader struct {
 	statusManager      *StatusManager
 	destinationService *destinations.Service
 	tokenLastUpload    map[string]time.Time
+	activeTokens       sync.Map
 }
 
 // NewUploader returns new configured PeriodicUploader instance
@@ -79,8 +80,8 @@ func (u *PeriodicUploader) Start() {
 				continue
 			}
 			startTime := timestamp.Now()
-			newTokenLastUpload := sync.Map{}
-			postHandlesMap := sync.Map{} //multimap postHandleDestinationId:destinationIds
+			logging.Debugf("Uploader. Start processing files by mask %s", u.fileMask)
+
 			files, err := filepath.Glob(u.fileMask)
 			if err != nil {
 				logging.SystemErrorf("Error finding files by %s mask: %v", u.fileMask, err)
@@ -113,27 +114,36 @@ func (u *PeriodicUploader) Start() {
 				tokenID := regexResult[1]
 				filesByToken[tokenID] = append(filesByToken[tokenID], filePath)
 			}
-			var wg sync.WaitGroup
 			for tokenID, files := range filesByToken {
-				wg.Add(1)
+				token := appconfig.Instance.AuthorizationService.GetToken(tokenID)
+				batchPeriodMin := time.Duration(u.defaultBatchPeriodMin) * time.Minute
+				if token != nil && token.BatchPeriodMin > 0 {
+					batchPeriodMin = time.Duration(token.BatchPeriodMin) * time.Minute
+				}
+				lastUpload, ok := u.tokenLastUpload[tokenID]
+				if ok {
+					if startTime.Sub(lastUpload) < batchPeriodMin {
+						logging.Infof("Period not passed yet: %s. Started: %s Last upload was %s period: %s", tokenID, startTime, lastUpload, batchPeriodMin)
+						continue
+					}
+				}
 
+				_, ok = u.activeTokens.Load(tokenID)
+				if ok {
+					logging.Warnf("Token %s is already processing", tokenID)
+					continue
+				} else {
+					u.activeTokens.Store(tokenID, true)
+				}
+
+				u.tokenLastUpload[tokenID] = startTime
 				go func(tokenID string, files []string) {
-					defer wg.Done()
+					defer u.activeTokens.Delete(tokenID)
+
+					tokenStartTime := timestamp.Now()
+					postHandlesMap := map[string]map[string]struct{}{} //multimap postHandleDestinationId:destinationIds
 
 					logFunc := logging.Warnf
-
-					token := appconfig.Instance.AuthorizationService.GetToken(tokenID)
-					batchPeriodMin := time.Duration(u.defaultBatchPeriodMin) * time.Minute
-					if token != nil && token.BatchPeriodMin > 0 {
-						batchPeriodMin = time.Duration(token.BatchPeriodMin) * time.Minute
-					}
-					lastUpload, ok := u.tokenLastUpload[tokenID]
-					if ok {
-						if startTime.Sub(lastUpload) < batchPeriodMin {
-							logging.Infof("Period not passed yet: %s. Started: %s Last upload was %s period: %s", tokenID, startTime, lastUpload, batchPeriodMin)
-							return
-						}
-					}
 
 					allStorageProxies := u.destinationService.GetBatchStorages(tokenID)
 					if len(allStorageProxies) == 0 {
@@ -154,8 +164,6 @@ func (u *PeriodicUploader) Start() {
 						logFunc("Alive destination storages weren't found for token [%s]", tokenID)
 						return
 					}
-
-					newTokenLastUpload.LoadOrStore(tokenID, startTime)
 
 					for _, filePath := range files {
 						fileStartTime := timestamp.Now()
@@ -272,10 +280,12 @@ func (u *PeriodicUploader) Start() {
 									pHandles := storageProxy.GetPostHandleDestinations()
 									if pHandles != nil && result.RowsCount > 0 {
 										for _, pHandle := range pHandles {
-											mp, _ := postHandlesMap.LoadOrStore(pHandle, &sync.Map{})
-											dests := mp.(*sync.Map)
-											//if destination is already in map, then we don't need to add it again
-											dests.LoadOrStore(storage.ID(), true)
+											mp, ok := postHandlesMap[pHandle]
+											if !ok {
+												mp = map[string]struct{}{}
+												postHandlesMap[pHandle] = mp
+											}
+											mp[storage.ID()] = struct{}{}
 										}
 									}
 									metrics.SuccessTokenEvents(tokenID, storage.Type(), storage.ID(), result.RowsCount)
@@ -298,31 +308,23 @@ func (u *PeriodicUploader) Start() {
 						}
 						logging.Infof("File %s processed with %d events in %s", fileName, len(objects), time.Since(fileStartTime))
 					}
+					u.postHandle(tokenStartTime, timestamp.Now(), postHandlesMap)
+					logging.Infof("Token %s Processing of %d files finished in %s", tokenID, len(files), time.Since(tokenStartTime))
 				}(tokenID, files)
 			}
-			wg.Wait()
 
-			u.postHandle(startTime, timestamp.Now(), &postHandlesMap)
-			logging.Infof("Processing of %d files finished in %s", len(files), time.Since(startTime))
-			newTokenLastUpload.Range(func(key, value interface{}) bool {
-				u.tokenLastUpload[key.(string)] = value.(time.Time)
-				return true
-			})
 			time.Sleep(time.Minute - time.Since(startTime))
 
 		}
 	})
 }
 
-func (u *PeriodicUploader) postHandle(start, end time.Time, postHandlesMap *sync.Map) {
-	postHandlesMap.Range(func(ph, destsRaw interface{}) bool {
-		phID := ph.(string)
-		destsMap := destsRaw.(*sync.Map)
-		dests := make([]string, 0)
-		destsMap.Range(func(dest, _ interface{}) bool {
-			dests = append(dests, dest.(string))
-			return true
-		})
+func (u *PeriodicUploader) postHandle(start, end time.Time, postHandlesMap map[string]map[string]struct{}) {
+	for phID, destsMap := range postHandlesMap {
+		dests := make([]string, 0, len(destsMap))
+		for dest := range destsMap {
+			dests = append(dests, dest)
+		}
 		event := events.Event{
 			"event_type":  storages.DestinationBatchEventType,
 			"source":      dests,
@@ -335,6 +337,5 @@ func (u *PeriodicUploader) postHandle(start, end time.Time, postHandlesMap *sync
 			logging.Error(err)
 		}
 		logging.Infof("Successful run of %v triggered postHandle destination: %s", dests, phID)
-		return true
-	})
+	}
 }
