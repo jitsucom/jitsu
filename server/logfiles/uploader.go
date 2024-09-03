@@ -188,9 +188,6 @@ func (u *PeriodicUploader) Start() {
 							logging.SystemErrorf("Error parsing JSON file [%s] with events: %v", filePath, err)
 							return
 						}
-						defer func() {
-							logging.Infof("File %s processed with %d events in %s", fileName, len(objects), time.Since(fileStartTime))
-						}()
 
 						if len(parsingErrors) > 0 {
 							if len(objects) == 0 {
@@ -299,6 +296,7 @@ func (u *PeriodicUploader) Start() {
 								u.statusManager.CleanUp(fileName)
 							}
 						}
+						logging.Infof("File %s processed with %d events in %s", fileName, len(objects), time.Since(fileStartTime))
 					}
 				}(tokenID, files)
 			}
