@@ -5,7 +5,6 @@ import { BrazeCredentials } from "../meta";
 import { eventTimeSafeMs } from "./lib";
 import omit from "lodash/omit";
 import { pick } from "lodash";
-import { identify } from "../../__tests__/lib/datalayout-test-data";
 
 const endpoints = {
   "US-01 : dashboard-01.braze.com": "https://rest.iad-01.braze.com",
