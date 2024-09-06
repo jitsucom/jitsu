@@ -135,6 +135,48 @@ export const JuneCredentials = z.object({
 });
 export type JuneCredentials = z.infer<typeof JuneCredentials>;
 
+export const BrazeCredentials = z.object({
+  apiKey: z.string().describe(`API Key::Created under Developer Console in the Braze Dashboard.`),
+  endpoint: z
+    .enum([
+      "US-01 : dashboard-01.braze.com",
+      "US-02 : dashboard-02.braze.com",
+      "US-03 : dashboard-03.braze.com",
+      "US-04 : dashboard-04.braze.com",
+      "US-05 : dashboard-05.braze.com",
+      "US-06 : dashboard-06.braze.com",
+      "US-07 : dashboard-07.braze.com",
+      "US-08 : dashboard-08.braze.com",
+      "US-09 : dashboard-09.braze.com",
+      "EU-01 : dashboard-01.braze.eu",
+      "EU-02 : dashboard-02.braze.eu",
+    ])
+    .optional()
+    .default("US-01 : dashboard-01.braze.com")
+    .describe(
+      "Your Braze REST endpoint. <a target='_blank' rel='noopener noreferrer' href='https://www.braze.com/docs/api/basics/#endpoints'>More details</a>"
+    ),
+  appId: z
+    .string()
+    .optional()
+    .describe(
+      "App ID::The app identifier used to reference specific Apps in requests made to the Braze API. Created under Developer Console in the Braze Dashboard."
+    ),
+  useJitsuAnonymousIdAlias: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe(
+      "Use Jitsu <code>anonymousId</code> as an alias for identified and anonymous profiles. Enables support for anonymous (alias-only) profiles."
+    ),
+  sendPageEvents: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe("Send <code>page</code> and <code>screen</code> events as Braze Custom Events"),
+});
+export type BrazeCredentials = z.infer<typeof BrazeCredentials>;
+
 export const SegmentCredentials = z.object({
   apiBase: z.string().default("https://api.segment.io/v1").describe("API Base::Segment API Base"),
   writeKey: z

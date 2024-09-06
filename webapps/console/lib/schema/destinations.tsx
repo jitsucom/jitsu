@@ -10,6 +10,7 @@ import hubspotIcon from "./icons/hubspot";
 import mixpanelIcon from "./icons/mixpanel";
 import facebookIcon from "./icons/facebook";
 import juneIcon from "./icons/june";
+import blazeIcon from "./icons/blaze";
 import mongodbIcon from "./icons/mongodb";
 
 import ga4Icon from "./icons/ga4";
@@ -693,6 +694,15 @@ export const coreDestinations: DestinationType<any>[] = [
     connectionOptions: CloudDestinationsConnectionOptions,
     credentials: meta.JuneCredentials,
     description: "June.so is a product analytics platform that provides insights into user behavior.",
+  },
+  {
+    id: "braze",
+    icon: blazeIcon,
+    title: "Braze",
+    tags: "Product Analytics",
+    connectionOptions: CloudDestinationsConnectionOptions,
+    credentials: meta.BrazeCredentials,
+    description: "Braze is a customer engagement platform used by businesses for multichannel marketing.",
   },
   {
     id: "mongodb",

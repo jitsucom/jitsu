@@ -18,6 +18,7 @@ import AmplitudeDestination from "./functions/amplitude-destination";
 import FacebookConversionsApi from "./functions/facebook-conversions";
 import IntercomDestination from "./functions/intercom-destination";
 import HubspotDestination from "./functions/hubspot-destination";
+import BrazeDestination from "./functions/braze-destination";
 
 const builtinDestinations: Record<BuiltinDestinationFunctionName, JitsuFunction> = {
   "builtin.destination.bulker": BulkerDestination as JitsuFunction,
@@ -25,6 +26,7 @@ const builtinDestinations: Record<BuiltinDestinationFunctionName, JitsuFunction>
   "builtin.destination.intercom": IntercomDestination as JitsuFunction,
   "builtin.destination.segment-proxy": SegmentDestination as JitsuFunction,
   "builtin.destination.june": JuneDestination as JitsuFunction,
+  "builtin.destination.braze": BrazeDestination as JitsuFunction,
   "builtin.destination.ga4": Ga4Destination as JitsuFunction,
   "builtin.destination.webhook": WebhookDestination as JitsuFunction,
   "builtin.destination.posthog": PosthogDestination as JitsuFunction,
