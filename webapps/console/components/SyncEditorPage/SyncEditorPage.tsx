@@ -226,7 +226,11 @@ function SyncEditor({
   }
 
   const legacyMode = !!existingLink && typeof syncOptions?.namespace === "undefined";
-  const sourceNamespaces: string[] = catalog?.streams?.map((s: any) => s.namespace).filter(onlyUnique) || [];
+  const sourceNamespaces: string[] =
+    catalog?.streams
+      ?.map((s: any) => s.namespace)
+      .filter(n => !!n)
+      .filter(onlyUnique) || [];
   const legacyPrefix =
     legacyMode && sourceNamespaces?.length > 0
       ? sourceNamespaces?.length === 1
