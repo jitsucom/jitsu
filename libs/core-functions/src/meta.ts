@@ -167,7 +167,7 @@ export const BrazeCredentials = z.object({
     .optional()
     .default(false)
     .describe(
-      "Use Jitsu <code>anonymousId</code> as an alias for identified and anonymous profiles. Enables support for anonymous (alias-only) profiles."
+      "Use Anonymous Id Alias::Use Jitsu <code>anonymousId</code> as an alias for identified and anonymous profiles. Enables support for anonymous (alias-only) profiles."
     ),
   sendPageEvents: z
     .boolean()
