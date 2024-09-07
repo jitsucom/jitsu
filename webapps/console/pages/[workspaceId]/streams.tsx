@@ -1,6 +1,6 @@
 import { WorkspacePageLayout } from "../../components/PageLayout/WorkspacePageLayout";
 import { Button, Input, notification, Tag, Tooltip } from "antd";
-import { ConfigEditor, ConfigEditorProps } from "../../components/ConfigObjectEditor/ConfigEditor";
+import { ConfigEditor, ConfigEditorProps, CustomCheckbox } from "../../components/ConfigObjectEditor/ConfigEditor";
 import { StreamConfig } from "../../lib/schema";
 import { useAppConfig, useWorkspace } from "../../lib/context";
 import React, { PropsWithChildren, useMemo, useState } from "react";
@@ -9,7 +9,7 @@ import { FaExternalLinkAlt, FaSpinner, FaTrash, FaWrench } from "react-icons/fa"
 import { branding } from "../../lib/branding";
 import { useRouter } from "next/router";
 import { TrackingIntegrationDocumentation } from "../../components/TrackingIntegrationDocumentation/TrackingIntegrationDocumentation";
-import { BrowserKeysEditor } from "../../components/ApiKeyEditor/ApiKeyEditor";
+import { StreamKeysEditor } from "../../components/ApiKeyEditor/ApiKeyEditor";
 import { useQuery } from "@tanstack/react-query";
 import { getEeClient } from "../../lib/ee-client";
 import { requireDefined } from "juava";
@@ -510,11 +510,35 @@ const StreamsList: React.FC<{}> = () => {
         },
       },
     ],
+    onTest: async (stream: StreamConfig) => {
+      if (stream.strict) {
+        if (
+          (!stream.privateKeys || stream.privateKeys.length === 0) &&
+          (!stream.publicKeys || stream.publicKeys.length === 0)
+        ) {
+          return { ok: false, error: "At least one writeKey required in Strict Mode." };
+        }
+      }
+      return { ok: true };
+    },
     fields: {
       type: { constant: "stream" },
       workspaceId: { constant: workspace.id },
+      strict: {
+        editor: CustomCheckbox,
+        displayName: "Strict Mode",
+        advanced: false,
+        documentation: (
+          <>
+            In Strict Mode, Jitsu requires a valid <b>writeKey</b> to ingest events into the current stream.
+            <br />
+            Without Strict Mode, if a correct writeKey is not provided, Jitsu may attempt to identify the stream based
+            on the domain or, if there is only one stream in the workspace, it will automatically select that stream.
+          </>
+        ),
+      },
       privateKeys: {
-        editor: BrowserKeysEditor,
+        editor: StreamKeysEditor,
         displayName: "Server-to-server Write Keys",
         advanced: false,
         documentation: (
@@ -522,7 +546,7 @@ const StreamsList: React.FC<{}> = () => {
         ),
       },
       publicKeys: {
-        editor: BrowserKeysEditor,
+        editor: StreamKeysEditor,
         displayName: "Browser Write Keys",
         advanced: false,
         documentation: (

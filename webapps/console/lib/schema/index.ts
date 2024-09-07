@@ -125,6 +125,7 @@ export const StreamConfig = ConfigEntityBase.merge(
     authorizedJavaScriptDomains: z.string().optional(),
     publicKeys: z.array(ApiKey).optional(),
     privateKeys: z.array(ApiKey).optional(),
+    strict: z.boolean().optional(),
   })
 );
 export type StreamConfig = z.infer<typeof StreamConfig>;

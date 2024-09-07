@@ -189,7 +189,7 @@ const FormList: React.FC<ObjectFieldTemplateProps> = props => {
   );
 };
 
-const CustomCheckbox = function (props) {
+export const CustomCheckbox = function (props) {
   return <Switch checked={props.value} onClick={() => props.onChange(!props.value)} />;
 };
 
@@ -247,7 +247,7 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
   const schema = zodToJsonSchema(objectTypeFactory(object));
   const [formState, setFormState] = useState<any | undefined>(undefined);
   const hasErrors = formState?.errors?.length > 0;
-  const isTouched = formState !== undefined || !!createNew;
+  const [isTouched, setTouched] = useState<boolean>(!!createNew);
   const [testResult, setTestResult] = useState<any>(undefined);
 
   const uiSchema = getUiSchema(schema, fields);
@@ -257,6 +257,7 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
   const onFormChange = state => {
     setFormState(state);
     setTestResult(undefined);
+    setTouched(true);
     log.atDebug().log(`Updating editor form state`, state);
   };
   const withLoading = (fn: () => Promise<void>) => async () => {
@@ -291,11 +292,11 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
           liveValidate={true}
           validator={validator}
           onSubmit={async ({ formData }) => {
-            if (onTest && testConnectionEnabled && testConnectionEnabled(formData || object)) {
+            if (onTest && (typeof testConnectionEnabled === "undefined" || testConnectionEnabled(formData || object))) {
               const testRes = testResult || (await onTest(formState?.formData || object));
               if (!testRes.ok) {
                 modal.confirm({
-                  title: "Connection test failed",
+                  title: "Check failed",
                   content: testRes.error,
                   okText: "Save anyway",
                   okType: "danger",

@@ -1174,7 +1174,7 @@ const IncomingEventsTable = ({ loadEvents, loading, streamType, entityType, acto
       //dataIndex: "type",
       render: (d: IncomingEvent) => {
         const eventName = d.type === "track" ? d.event?.event || d.type : d.type;
-        const isDeviceEvent = d.pagePath;
+        const isDeviceEvent = d.ingestType === "browser";
         return (
           <Tooltip title={eventName}>
             <Tag
