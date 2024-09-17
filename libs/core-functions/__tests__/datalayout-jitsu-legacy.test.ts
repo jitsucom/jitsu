@@ -178,8 +178,8 @@ const legacyPageExpected = {
 };
 
 test("legacy event", () => {
-  const identifyLegacyResult = jitsuLegacy(identify, {} as FullContext<BulkerDestinationConfig>).event;
-  const pageLegacyResult = jitsuLegacy(page, {} as FullContext<BulkerDestinationConfig>).event;
+  const identifyLegacyResult = jitsuLegacy(identify, { props: {} } as FullContext<BulkerDestinationConfig>).event;
+  const pageLegacyResult = jitsuLegacy(page, { props: {} } as FullContext<BulkerDestinationConfig>).event;
   console.log(JSON.stringify(identifyLegacyResult, null, 2));
   expect(identifyLegacyResult).toStrictEqual(legacyIdentifyExpected);
 
