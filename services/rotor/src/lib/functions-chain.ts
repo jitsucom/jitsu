@@ -116,6 +116,7 @@ export function buildFunctionChain(
         destinationId: connection.id,
         authToken: bulkerAuthKey,
         dataLayout: connectionData.dataLayout ?? "segment-single-table",
+        keepOriginalNames: connectionData.keepOriginalNames,
       },
     };
   } else {

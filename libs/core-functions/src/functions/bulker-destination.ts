@@ -55,6 +55,8 @@ export function removeUndefined(param: any): any {
 }
 
 export function jitsuLegacy(event: AnalyticsServerEvent, ctx: FullContext<BulkerDestinationConfig>): MappedEvent {
+  const keepOriginalNames = !!ctx.props.keepOriginalNames;
+  const translateFunc = keepOriginalNames ? (p: any) => p : toSnakeCase;
   let url: URL | undefined = undefined;
   const analyticsContext = event.context || {};
   const urlStr = analyticsContext.page?.url || event.properties?.url;
@@ -66,7 +68,7 @@ export function jitsuLegacy(event: AnalyticsServerEvent, ctx: FullContext<Bulker
   const geo = analyticsContext.geo || {};
   const ua: UserAgent = ctx.ua || ({} as UserAgent);
   const flat = removeUndefined(
-    toSnakeCase({
+    translateFunc({
       anon_ip: analyticsContext.ip ? anonymizeIp(analyticsContext.ip) : undefined,
       api_key: event.writeKey || "",
       click_id: {},
@@ -149,10 +151,17 @@ export function jitsuLegacy(event: AnalyticsServerEvent, ctx: FullContext<Bulker
   return { event: flat, table: event[TableNameParameter] ?? "events" };
 }
 
-export function segmentLayout(event: AnalyticsServerEvent, singleTable: boolean): MappedEvent[] | MappedEvent {
+export function segmentLayout(
+  event: AnalyticsServerEvent,
+  singleTable: boolean,
+  ctx: FullContext<BulkerDestinationConfig>
+): MappedEvent[] | MappedEvent {
   let transformed: any;
   //track without properties for segment multi-table layout, because full track event is stored in the table with event name
   let baseTrackFlat: any;
+  const keepOriginalNames = !!ctx.props.keepOriginalNames;
+  const transferFunc = keepOriginalNames ? transfer : transferAsSnakeCase;
+  const transferValueFunc = keepOriginalNames ? transferValue : transferValueAsSnakeCase;
   switch (event.type) {
     case "identify":
       if (singleTable) {
@@ -161,25 +170,25 @@ export function segmentLayout(event: AnalyticsServerEvent, singleTable: boolean)
             traits: {},
           },
         };
-        transferAsSnakeCase(transformed.context, event.context, ["groupId", "traits"]);
-        transferAsSnakeCase(transformed.context.traits, event.context?.traits, ["groupId"]);
-        transferAsSnakeCase(transformed.context.traits, event.traits, ["groupId"]);
-        transferValueAsSnakeCase(
+        transferFunc(transformed.context, event.context, ["groupId", "traits"]);
+        transferFunc(transformed.context.traits, event.context?.traits, ["groupId"]);
+        transferFunc(transformed.context.traits, event.traits, ["groupId"]);
+        transferValueFunc(
           transformed.context,
           "group_id",
           event.context?.groupId || event.traits?.groupId || event.context?.traits?.groupId
         );
-        transferAsSnakeCase(transformed, event.properties);
-        transferAsSnakeCase(transformed, event, ["context", "properties", "traits", "type", TableNameParameter]);
+        transferFunc(transformed, event.properties);
+        transferFunc(transformed, event, ["context", "properties", "traits", "type", TableNameParameter]);
       } else {
         transformed = {
           context: {},
         };
-        transferAsSnakeCase(transformed.context, event.context, ["traits"]);
-        transferAsSnakeCase(transformed, event.properties);
-        transferAsSnakeCase(transformed, event.context?.traits);
-        transferAsSnakeCase(transformed, event.traits);
-        transferAsSnakeCase(transformed, event, ["context", "properties", "traits", "type", TableNameParameter]);
+        transferFunc(transformed.context, event.context, ["traits"]);
+        transferFunc(transformed, event.properties);
+        transferFunc(transformed, event.context?.traits);
+        transferFunc(transformed, event.traits);
+        transferFunc(transformed, event, ["context", "properties", "traits", "type", TableNameParameter]);
       }
       break;
     case "group":
@@ -189,26 +198,19 @@ export function segmentLayout(event: AnalyticsServerEvent, singleTable: boolean)
             group: {},
           },
         };
-        transferAsSnakeCase(transformed.context, event.context);
-        transferAsSnakeCase(transformed.context.group, event.traits);
-        transferValueAsSnakeCase(transformed.context, "group_id", event.groupId);
-        transferAsSnakeCase(transformed, event.properties);
-        transferAsSnakeCase(transformed, event, [
-          "context",
-          "properties",
-          "traits",
-          "type",
-          "groupId",
-          TableNameParameter,
-        ]);
+        transferFunc(transformed.context, event.context);
+        transferFunc(transformed.context.group, event.traits);
+        transferValueFunc(transformed.context, "group_id", event.groupId);
+        transferFunc(transformed, event.properties);
+        transferFunc(transformed, event, ["context", "properties", "traits", "type", "groupId", TableNameParameter]);
       } else {
         transformed = {
           context: {},
         };
-        transferAsSnakeCase(transformed.context, event.context, ["traits"]);
-        transferAsSnakeCase(transformed, event.properties);
-        transferAsSnakeCase(transformed, event.traits);
-        transferAsSnakeCase(transformed, event, ["context", "properties", "traits", "type", TableNameParameter]);
+        transferFunc(transformed.context, event.context, ["traits"]);
+        transferFunc(transformed, event.properties);
+        transferFunc(transformed, event.traits);
+        transferFunc(transformed, event, ["context", "properties", "traits", "type", TableNameParameter]);
       }
       break;
     case "track":
@@ -218,22 +220,18 @@ export function segmentLayout(event: AnalyticsServerEvent, singleTable: boolean)
             traits: {},
           },
         };
-        transferAsSnakeCase(transformed.context, event.context, ["groupId", "traits"]);
-        transferAsSnakeCase(transformed.context.traits, event.context?.traits, ["groupId"]);
-        transferAsSnakeCase(transformed.context.traits, event.properties?.traits, ["groupId"]);
-        transferValueAsSnakeCase(
-          transformed.context,
-          "group_id",
-          event.context?.groupId || event.context?.traits?.groupId
-        );
-        transferAsSnakeCase(transformed, event.properties, ["traits"]);
-        transferAsSnakeCase(transformed, event, ["context", "properties", "type", TableNameParameter]);
+        transferFunc(transformed.context, event.context, ["groupId", "traits"]);
+        transferFunc(transformed.context.traits, event.context?.traits, ["groupId"]);
+        transferFunc(transformed.context.traits, event.properties?.traits, ["groupId"]);
+        transferValueFunc(transformed.context, "group_id", event.context?.groupId || event.context?.traits?.groupId);
+        transferFunc(transformed, event.properties, ["traits"]);
+        transferFunc(transformed, event, ["context", "properties", "type", TableNameParameter]);
       } else {
         baseTrackFlat = {};
-        transferAsSnakeCase(baseTrackFlat, event, ["properties", "type", TableNameParameter]);
+        transferFunc(baseTrackFlat, event, ["properties", "type", TableNameParameter]);
         transformed = {};
-        transferAsSnakeCase(transformed, event.properties);
-        transferAsSnakeCase(transformed, event, ["properties", "type", TableNameParameter]);
+        transferFunc(transformed, event.properties);
+        transferFunc(transformed, event, ["properties", "type", TableNameParameter]);
       }
       break;
     default:
@@ -243,19 +241,15 @@ export function segmentLayout(event: AnalyticsServerEvent, singleTable: boolean)
             traits: {},
           },
         };
-        transferAsSnakeCase(transformed.context, event.context, ["groupId", "traits"]);
-        transferAsSnakeCase(transformed.context.traits, event.context?.traits, ["groupId"]);
-        transferValueAsSnakeCase(
-          transformed.context,
-          "group_id",
-          event.context?.groupId || event.context?.traits?.groupId
-        );
-        transferAsSnakeCase(transformed, event.properties);
-        transferAsSnakeCase(transformed, event, ["context", "properties", TableNameParameter]);
+        transferFunc(transformed.context, event.context, ["groupId", "traits"]);
+        transferFunc(transformed.context.traits, event.context?.traits, ["groupId"]);
+        transferValueFunc(transformed.context, "group_id", event.context?.groupId || event.context?.traits?.groupId);
+        transferFunc(transformed, event.properties);
+        transferFunc(transformed, event, ["context", "properties", TableNameParameter]);
       } else {
         transformed = {};
-        transferAsSnakeCase(transformed, event.properties);
-        transferAsSnakeCase(transformed, event, ["properties", TableNameParameter]);
+        transferFunc(transformed, event.properties);
+        transferFunc(transformed, event, ["properties", TableNameParameter]);
       }
   }
   if (event[TableNameParameter]) {
@@ -288,11 +282,29 @@ function transferAsSnakeCase(target: Record<string, any>, source: any, omit?: st
   }
 }
 
+function transfer(target: Record<string, any>, source: any, omit?: string[]) {
+  if (typeof source !== "object") {
+    return;
+  }
+  for (const [k, v] of Object.entries(source)) {
+    if (!omit || !omit.includes(k)) {
+      target[k] = v;
+    }
+  }
+}
+
 function transferValueAsSnakeCase(target: Record<string, any>, property: string, source: any) {
   if (typeof source === "undefined") {
     return;
   }
   target[property] = toSnakeCase(source);
+}
+
+function transferValue(target: Record<string, any>, property: string, source: any) {
+  if (typeof source === "undefined") {
+    return;
+  }
+  target[property] = source;
 }
 
 export function plural(s: string) {
@@ -311,8 +323,8 @@ export function plural(s: string) {
 }
 
 export const dataLayouts: Record<DataLayoutType, DataLayoutImpl<any>> = {
-  segment: event => segmentLayout(event, false),
-  "segment-single-table": event => segmentLayout(event, true),
+  segment: (event, ctx) => segmentLayout(event, false, ctx),
+  "segment-single-table": (event, ctx) => segmentLayout(event, true, ctx),
   "jitsu-legacy": jitsuLegacy,
   passthrough: event => ({ event: omit(event, TableNameParameter), table: event[TableNameParameter] ?? "events" }),
 };
@@ -322,6 +334,7 @@ export type BulkerDestinationConfig = {
   destinationId: string;
   authToken: string;
   dataLayout?: DataLayoutType;
+  keepOriginalNames?: boolean;
 };
 
 const BulkerDestination: JitsuFunction<AnalyticsServerEvent, BulkerDestinationConfig> = async (event, ctx) => {

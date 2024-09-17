@@ -7,7 +7,7 @@ import { ConfigurationObjectLinkDbModel } from "../../prisma/schema";
 import { useRouter } from "next/router";
 import { assertTrue, getLog, requireDefined } from "juava";
 import { Disable } from "../Disable/Disable";
-import { Button, Input, InputNumber, Radio, Select, Switch } from "antd";
+import { Button, Input, InputNumber, Radio, Select, Switch, Tooltip } from "antd";
 import { WLink } from "../Workspace/WLink";
 import { FaExternalLinkAlt } from "react-icons/fa";
 import { BaseBulkerConnectionOptions, getCoreDestinationType } from "../../lib/schema/destinations";
@@ -444,13 +444,16 @@ function ConnectionEditor({
         </>
       ),
       component: (
-        <TextEditor
-          className="max-w-xs"
-          value={connectionOptions.primaryKey}
-          onChange={primaryKey => {
-            updateOptions({ primaryKey, ...(primaryKey === "" ? { deduplicate: false } : {}) });
-          }}
-        />
+        <Tooltip title={!!existingLink ? "Can only be configured during the initial connection setup." : undefined}>
+          <TextEditor
+            className="max-w-xs"
+            disabled={!!existingLink}
+            value={connectionOptions.primaryKey}
+            onChange={primaryKey => {
+              updateOptions({ primaryKey, ...(primaryKey === "" ? { deduplicate: false } : {}) });
+            }}
+          />
+        </Tooltip>
       ),
     });
   }
@@ -519,13 +522,16 @@ function ConnectionEditor({
       ),
       name: "Timestamp Column",
       component: (
-        <TextEditor
-          className="max-w-xs"
-          value={connectionOptions.timestampColumn}
-          onChange={timestampColumn => {
-            updateOptions({ timestampColumn });
-          }}
-        />
+        <Tooltip title={!!existingLink ? "Can only be configured during the initial connection setup." : undefined}>
+          <TextEditor
+            disabled={!!existingLink}
+            className="max-w-xs"
+            value={connectionOptions.timestampColumn}
+            onChange={timestampColumn => {
+              updateOptions({ timestampColumn });
+            }}
+          />
+        </Tooltip>
       ),
     });
   }
@@ -586,6 +592,38 @@ function ConnectionEditor({
             updateOptions({ schemaFreeze: sf });
           }}
         />
+      ),
+    });
+  }
+  if (hasZodFields(connectionOptionsZodType, "keepOriginalNames")) {
+    configItems.push({
+      group: "Advanced",
+      documentation: (
+        <>
+          By default, Jitsu translate all event properties to snakeCase, e.g.: <code>myPropertyName</code> is translated
+          to <code>my_property_name</code>.<br />
+          Enable this option if you want to keep original names
+        </>
+      ),
+      name: "Keep Original Names",
+      component: (
+        <Tooltip title={!!existingLink ? "Can only be configured during the initial connection setup." : undefined}>
+          {" "}
+          <SwitchComponent
+            disabled={!!existingLink}
+            className="max-w-xs"
+            value={connectionOptions.keepOriginalNames}
+            onChange={sf => {
+              const opts = { keepOriginalNames: sf };
+              if (sf && connectionOptions.primaryKey === "message_id") {
+                opts.primaryKey = "messageId";
+              } else if (!sf && connectionOptions.primaryKey === "messageId") {
+                opts.primaryKey = "message_id";
+              }
+              updateOptions(opts);
+            }}
+          />
+        </Tooltip>
       ),
     });
   }
