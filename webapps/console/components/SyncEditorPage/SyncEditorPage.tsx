@@ -616,7 +616,7 @@ function SyncEditor({
             const optionDisabled =
               billing.enabled &&
               !billing.loading &&
-              billing.settings.maximumSyncFrequency &&
+              typeof billing.settings.maximumSyncFrequency !== "undefined" &&
               minuteFrequency < billing.settings.maximumSyncFrequency;
             return {
               ...rest,
