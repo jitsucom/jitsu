@@ -614,7 +614,7 @@ function ConnectionEditor({
             className="max-w-xs"
             value={connectionOptions.keepOriginalNames}
             onChange={sf => {
-              const opts = { keepOriginalNames: sf };
+              const opts = { keepOriginalNames: sf } as any;
               if (sf && connectionOptions.primaryKey === "message_id") {
                 opts.primaryKey = "messageId";
               } else if (!sf && connectionOptions.primaryKey === "messageId") {
