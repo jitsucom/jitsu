@@ -178,6 +178,9 @@ export const SchemaForm: React.FC<{
                           case "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{3}Z$":
                             format = "YYYY-MM-DDTHH:mm:ss.SSS[Z]";
                             break;
+                          case "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{6}Z$":
+                            format = "YYYY-MM-DDTHH:mm:ss.SSSSSS[Z]";
+                            break;
                         }
                         return <DateEditor format={format} {...editorProps} />;
                       }
