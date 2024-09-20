@@ -85,7 +85,7 @@ const levelColors: Record<LogLevel, Color> = {
 
 function inBrowser() {
   // @ts-ignore
-  return typeof window !== "undefined";
+  return typeof document !== "undefined" && typeof window !== "undefined";
 }
 
 export const logFormat = {
@@ -107,12 +107,7 @@ export const logFormat = {
 };
 
 //process.stdout is not available on Vercel's edge runtime
-const writeln = process.stdout
-  ? (msg: string) => {
-      process.stdout.write(msg);
-      process.stdout.write("\n");
-    }
-  : console.log;
+const writeln = console.log;
 
 function dispatch(msg: LogMessage) {
   const levelColor = levelColors[msg.level];
