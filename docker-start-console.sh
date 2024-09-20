@@ -78,15 +78,9 @@ healthcheck() {
   fi
 }
 
-start_console() {
-  cd /app/webapps/console
-  HOSTNAME="::" node server.js
-  return $?
-}
-
 main() {
   cmd=$1
-  export SIGNALS_LYFECICLE=1
+  export SIGNALS_LIFECYCLE=1
   if [ -z "$cmd" ]; then
     if [ "$FORCE_UPDATE_DB" = "1" ] || [ "$FORCE_UPDATE_DB" = "yes" ] || [ "$FORCE_UPDATE_DB" = "true" ]; then
       echo "FORCE_UPDATE_DB is set, updating database schema..."
@@ -97,7 +91,11 @@ main() {
     fi
     echo "Starting the app"
     healthcheck $$ &
-    exit_code=$(start_console)
+
+    cd /app/webapps/console
+    HOSTNAME="::" node server.js
+    exit_code=$?
+
     sleep 1000
     cancel_healthcheck="1"
     echo "App stopped with exit code ${exit_code}, exiting..."
