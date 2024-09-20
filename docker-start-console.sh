@@ -72,9 +72,25 @@ healthcheck() {
             fi
             echo ""
         fi
+        kill_console
         kill -9 $$
         exit 1
     fi
+  fi
+}
+
+start_console() {
+  cd /app/webapps/console
+  HOSTNAME="::" node server.js & echo $! > /app/console.pid
+  return $?
+}
+
+kill_console() {
+  if [ -f /app/console.pid ]; then
+    pid=$(cat /app/console.pid)
+    echo "Killing console with pid $pid"
+    kill -9 $pid
+    #rm /app/console.pid
   fi
 }
 
@@ -91,11 +107,7 @@ main() {
     fi
     echo "Starting the app"
     healthcheck $$ &
-
-    cd /app/webapps/console
-    HOSTNAME="::" node server.js
-    exit_code=$?
-
+    exit_code=$(start_console)
     sleep 1000
     cancel_healthcheck="1"
     echo "App stopped with exit code ${exit_code}, exiting..."

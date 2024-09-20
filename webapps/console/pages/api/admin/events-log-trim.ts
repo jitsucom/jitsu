@@ -15,6 +15,7 @@ export default createRoute()
   .handler(async ({ req, res }) => {
     //check if coming from localhost
     const isLocalhost = localIps.includes(req.socket.remoteAddress || "");
+    let admin = false;
     if (!isLocalhost) {
       log.atInfo().log("Check admin user from: " + req.socket.remoteAddress);
       const user = await getUser(res, req);
@@ -23,6 +24,7 @@ export default createRoute()
         return;
       }
       await verifyAdmin(user);
+      admin = true;
     }
     log.atInfo().log(`Trimming events log`);
     const metricsSchema =
@@ -150,7 +152,11 @@ export default createRoute()
       log.atError().withCause(e).log(`Failed to delete partition ${oldPartition}`);
     }
     log.atInfo().log(`Completed in ${sw.elapsedPretty()}`);
-    res.json(result);
+    if (admin) {
+      res.json(result);
+    } else {
+      res.json({ status: "ok" });
+    }
   })
   .toNextApiHandler();
 export const config = {
