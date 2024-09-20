@@ -6,7 +6,7 @@ FROM node:22-bookworm as base
 
 WORKDIR /app
 RUN apt-get update -y
-RUN apt-get install nano curl bash netcat-traditional procps jq -y
+RUN apt-get install nano curl cron bash netcat-traditional procps jq -y
 
 FROM base as builder
 
@@ -42,6 +42,11 @@ COPY --from=builder /app/webapps/console/prisma/schema.prisma ./
 COPY --from=builder /app/webapps/console/.next/standalone ./
 COPY --from=builder /app/webapps/console/.next/static ./webapps/console/.next/static
 COPY --from=builder /app/webapps/console/public ./webapps/console/public
+
+COPY --from=builder /app/console.cron /etc/cron.d/console.cron
+RUN chmod 0644 /etc/cron.d/console.cron
+RUN crontab /etc/cron.d/console.cron
+RUN cron
 
 EXPOSE 3000
 

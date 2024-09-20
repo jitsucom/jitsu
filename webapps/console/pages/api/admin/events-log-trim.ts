@@ -2,6 +2,7 @@ import { createRoute, verifyAdmin } from "../../../lib/api";
 import { getLog, stopwatch } from "juava";
 import { clickhouse } from "../../../lib/server/clickhouse";
 import dayjs from "dayjs";
+import { ApiError } from "../../../lib/shared/errors";
 
 export const log = getLog("events-log-trim");
 
@@ -10,8 +11,13 @@ export default createRoute()
     auth: true,
     streaming: true,
   })
-  .handler(async ({ res, user }) => {
-    await verifyAdmin(user);
+  .handler(async ({ req, res, user }) => {
+    //check if coming from localhost
+    const isLocalhost = req.socket.remoteAddress === "127.0.0.1";
+    if (!isLocalhost) {
+      log.atInfo().log("Check admin user from: " + req.socket.remoteAddress);
+      await verifyAdmin(user);
+    }
     log.atInfo().log(`Trimming events log`);
     const metricsSchema =
       process.env.CLICKHOUSE_METRICS_SCHEMA || process.env.CLICKHOUSE_DATABASE || "newjitsu_metrics";
