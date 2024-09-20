@@ -9,14 +9,17 @@ export default createRoute()
   .GET({
     streaming: true,
   })
-  .handler(async ({ req, res, user }) => {
+  .handler(async ({ req, res }) => {
     //check if coming from localhost
-    const isLocalhost = req.socket.remoteAddress === "127.0.0.1";
+    const isLocalhost =
+      req.socket.remoteAddress === "127.0.0.1" ||
+      req.socket.remoteAddress === "0:0:0:0:0:0:0:1" ||
+      req.socket.remoteAddress === "::1";
     if (!isLocalhost) {
       log.atInfo().log("Check admin user from: " + req.socket.remoteAddress);
       const user = await getUser(res, req);
       if (!user) {
-        res.status(401).send({ error: "Authorization Required" });
+        res.status(401).send({ error: "Authorization Required: " + req.socket.remoteAddress });
         return;
       }
       await verifyAdmin(user);
