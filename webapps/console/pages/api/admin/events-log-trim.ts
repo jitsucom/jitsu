@@ -14,7 +14,7 @@ export default createRoute()
   })
   .handler(async ({ req, res }) => {
     //check if coming from localhost
-    const isLocalhost = localIps.includes(req.socket.remoteAddress);
+    const isLocalhost = localIps.includes(req.socket.remoteAddress || "");
     if (!isLocalhost) {
       log.atInfo().log("Check admin user from: " + req.socket.remoteAddress);
       const user = await getUser(res, req);
