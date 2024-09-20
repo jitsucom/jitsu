@@ -1,9 +1,10 @@
 import { createRoute, getUser, verifyAdmin } from "../../../lib/api";
-import { checkRawToken, getLog } from "juava";
+import { checkRawToken } from "juava";
 import { clickhouse } from "../../../lib/server/clickhouse";
 import { z } from "zod";
+import { getServerLog } from "../../../lib/server/log";
 
-export const log = getLog("events-log-init");
+export const log = getServerLog("events-log-init");
 
 export default createRoute()
   .GET({

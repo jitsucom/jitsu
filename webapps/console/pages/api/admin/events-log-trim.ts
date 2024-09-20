@@ -1,9 +1,10 @@
 import { createRoute, getUser, verifyAdmin } from "../../../lib/api";
-import { getLog, stopwatch } from "juava";
+import { stopwatch } from "juava";
 import { clickhouse } from "../../../lib/server/clickhouse";
 import dayjs from "dayjs";
+import { getServerLog } from "../../../lib/server/log";
 
-export const log = getLog("events-log-trim");
+export const log = getServerLog("events-log-trim");
 
 export default createRoute()
   .GET({
