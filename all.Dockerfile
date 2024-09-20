@@ -46,7 +46,6 @@ COPY --from=builder /app/webapps/console/public ./webapps/console/public
 COPY --from=builder /app/console.cron /etc/cron.d/console.cron
 RUN chmod 0644 /etc/cron.d/console.cron
 RUN crontab /etc/cron.d/console.cron
-RUN cron
 
 EXPOSE 3000
 

@@ -1,4 +1,4 @@
-import { createRoute, verifyAdmin } from "../../../lib/api";
+import { createRoute, getUser, verifyAdmin } from "../../../lib/api";
 import { getLog, stopwatch } from "juava";
 import { clickhouse } from "../../../lib/server/clickhouse";
 import dayjs from "dayjs";
@@ -7,7 +7,6 @@ export const log = getLog("events-log-trim");
 
 export default createRoute()
   .GET({
-    auth: true,
     streaming: true,
   })
   .handler(async ({ req, res, user }) => {
@@ -15,6 +14,11 @@ export default createRoute()
     const isLocalhost = req.socket.remoteAddress === "127.0.0.1";
     if (!isLocalhost) {
       log.atInfo().log("Check admin user from: " + req.socket.remoteAddress);
+      const user = await getUser(res, req);
+      if (!user) {
+        res.status(401).send({ error: "Authorization Required" });
+        return;
+      }
       await verifyAdmin(user);
     }
     log.atInfo().log(`Trimming events log`);

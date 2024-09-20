@@ -10,6 +10,8 @@ init() {
     echo "Initializing console..."
     inited="1"
     curl --silent --show-error  http://localhost:3000/api/admin/events-log-init?token=$CONSOLE_INIT_TOKEN
+    echo "Starting cron..."
+    cron
     echo ""
   fi
 }
