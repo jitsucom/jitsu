@@ -29,7 +29,8 @@ export default createRoute()
     log.atInfo().log(`Trimming events log`);
     const metricsSchema =
       process.env.CLICKHOUSE_METRICS_SCHEMA || process.env.CLICKHOUSE_DATABASE || "newjitsu_metrics";
-    const clickhouseCluster = process.env.CLICKHOUSE_CLUSTER || "jitsu_cluster";
+    const metricsCluster = process.env.CLICKHOUSE_METRICS_CLUSTER || process.env.CLICKHOUSE_CLUSTER;
+    const onCluster = metricsCluster ? ` ON CLUSTER ${metricsCluster}` : "";
     const eventsLogSize = process.env.EVENTS_LOG_SIZE ? parseInt(process.env.EVENTS_LOG_SIZE) : 200000;
     // trim logs to eventsLogSize only after exceeding threshold
     const thresholdSize = Math.floor(eventsLogSize * 1.25);
@@ -49,7 +50,7 @@ export default createRoute()
                                and
                                  timestamp
                                  < {timestamp :DateTime64};`;
-    const dropPartitionQuery: string = `alter table ${metricsSchema}.events_log on cluster ${clickhouseCluster} drop partition {partition:String}`;
+    const dropPartitionQuery: string = `alter table ${metricsSchema}.events_log ${onCluster} drop partition {partition:String}`;
     const result: any[] = [];
     const sw = stopwatch();
     let actorsResult: any = {};
@@ -149,7 +150,7 @@ export default createRoute()
       });
       log.atInfo().log(`Deleted partition ${oldPartition}`);
     } catch (e: any) {
-      log.atError().withCause(e).log(`Failed to delete partition ${oldPartition}`);
+      log.atDebug().withCause(e).log(`Failed to delete partition ${oldPartition}`);
     }
     log.atInfo().log(`Completed in ${sw.elapsedPretty()}`);
     if (admin) {
