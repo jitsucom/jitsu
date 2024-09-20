@@ -72,7 +72,6 @@ healthcheck() {
             fi
             echo ""
         fi
-        kill_console
         kill -9 $$
         exit 1
     fi
@@ -81,17 +80,8 @@ healthcheck() {
 
 start_console() {
   cd /app/webapps/console
-  HOSTNAME="::" node server.js & echo $! > /app/console.pid
+  HOSTNAME="::" node server.js
   return $?
-}
-
-kill_console() {
-  if [ -f /app/console.pid ]; then
-    pid=$(cat /app/console.pid)
-    echo "Killing console with pid $pid"
-    kill -9 $pid
-    #rm /app/console.pid
-  fi
 }
 
 main() {

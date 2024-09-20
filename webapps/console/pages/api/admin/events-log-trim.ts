@@ -6,21 +6,20 @@ import { getServerLog } from "../../../lib/server/log";
 
 export const log = getServerLog("events-log-trim");
 
+const localIps = ["127.0.0.1", "0:0:0:0:0:0:0:1", "::1", "::ffff:127.0.0.1"];
+
 export default createRoute()
   .GET({
     streaming: true,
   })
   .handler(async ({ req, res }) => {
     //check if coming from localhost
-    const isLocalhost =
-      req.socket.remoteAddress === "127.0.0.1" ||
-      req.socket.remoteAddress === "0:0:0:0:0:0:0:1" ||
-      req.socket.remoteAddress === "::1";
+    const isLocalhost = localIps.includes(req.socket.remoteAddress);
     if (!isLocalhost) {
       log.atInfo().log("Check admin user from: " + req.socket.remoteAddress);
       const user = await getUser(res, req);
       if (!user) {
-        res.status(401).send({ error: "Authorization Required: " + req.socket.remoteAddress });
+        res.status(401).send({ error: "Authorization Required" });
         return;
       }
       await verifyAdmin(user);
