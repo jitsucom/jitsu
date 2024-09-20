@@ -241,7 +241,7 @@ function SyncsTable({ links, services, destinations }: RemoteEntitiesProps) {
       },
     },
     {
-      title: <div className={"whitespace-nowrap text-right"}>Updated (UTC)</div>,
+      title: <div className={"whitespace-nowrap text-right"}>Started (UTC)</div>,
       width: "12%",
       render: (text, link) => {
         if (tasks.error) {
@@ -251,8 +251,8 @@ function SyncsTable({ links, services, destinations }: RemoteEntitiesProps) {
         return (
           t && (
             <div className={"flex flex-col items-end"}>
-              <span className={"whitespace-nowrap"}>{`${dayjs(t.updated_at).fromNow(true)} ago`}</span>
-              <div className={"text-xxs whitespace-nowrap text-gray-500"}>{t ? formatDate(t.updated_at) : ""}</div>
+              <span className={"whitespace-nowrap"}>{`${dayjs(t.started_at).fromNow(true)} ago`}</span>
+              <div className={"text-xxs whitespace-nowrap text-gray-500"}>{t ? formatDate(t.started_at) : ""}</div>
             </div>
           )
         );

@@ -460,8 +460,13 @@ function TasksTable({ tasks, loading, linksMap, servicesMap, destinationsMap, re
       key: "duration",
       width: "12%",
       render: (text, task) => {
+        //const hours = dayjs(task.updated_at).diff(dayjs(task.started_at), "hour", true);
         return (
-          <div className={"whitespace-nowrap text-xs"}>{dayjs(task.updated_at).from(dayjs(task.started_at), true)}</div>
+          <Tooltip title={formatDate(task.updated_at) + " UTC"} color={"#888888"}>
+            <div className={"whitespace-nowrap text-xs"}>
+              {dayjs(task.updated_at).from(dayjs(task.started_at), true)}
+            </div>
+          </Tooltip>
         );
       },
     },
