@@ -497,7 +497,7 @@ function SyncEditor({
         />
       ),
     },
-    destinationType.usesBulker
+    destinationType.usesBulker && !destination.provisioned
       ? {
           name: `Destination ${capitalize(namespaceImpl.name)}`,
           documentation: (
