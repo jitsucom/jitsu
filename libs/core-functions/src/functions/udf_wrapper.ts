@@ -18,6 +18,8 @@ import { parseUserAgent } from "./lib/ua";
 import { RetryError } from "@jitsu/functions-lib";
 import { JitsuFunctionWrapper } from "./lib";
 import { clearTimeout } from "node:timers";
+import * as crypto from "node:crypto";
+import { cryptoCode } from "./lib/crypto-code";
 
 const log = getLog("udf-wrapper");
 
@@ -72,6 +74,7 @@ export const UDFWrapper = (
       }).copyInto({ release: true, transferIn: true })
     );
     jail.setSync("_jitsu_fetch_log_level", chainCtx.connectionOptions?.fetchLogLevel || "info");
+    jail.setSync("_jitsu_crypto", new Reference(crypto));
     jail.setSync(
       "_jitsu_fetch",
       makeReference(refs, async (url: string, opts?: FetchOpts, extra?: any) => {
@@ -116,6 +119,12 @@ export const UDFWrapper = (
     functionsLib.instantiateSync(context, (specifier: string) => {
       throw new Error(`import is not allowed: ${specifier}`);
     });
+    const cryptoLib = isolate.compileModuleSync(cryptoCode, {
+      filename: "crypto.js",
+    });
+    cryptoLib.instantiateSync(context, (specifier: string) => {
+      throw new Error(`import is not allowed: ${specifier}`);
+    });
     const udfModules: Record<string, Module> = {};
     for (let i = 0; i < functions.length; i++) {
       const sw = stopwatch();
@@ -126,6 +135,8 @@ export const UDFWrapper = (
       udf.instantiateSync(context, (specifier: string) => {
         if (specifier === "@jitsu/functions-lib") {
           return functionsLib;
+        } else if (specifier === "crypto") {
+          return cryptoLib;
         }
         throw new Error(`import is not allowed: ${specifier}`);
       });
