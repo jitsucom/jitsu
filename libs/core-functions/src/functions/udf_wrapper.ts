@@ -20,6 +20,7 @@ import { JitsuFunctionWrapper } from "./lib";
 import { clearTimeout } from "node:timers";
 import * as crypto from "node:crypto";
 import { cryptoCode } from "./lib/crypto-code";
+import { throws } from "node:assert";
 
 const log = getLog("udf-wrapper");
 
@@ -74,7 +75,10 @@ export const UDFWrapper = (
       }).copyInto({ release: true, transferIn: true })
     );
     jail.setSync("_jitsu_fetch_log_level", chainCtx.connectionOptions?.fetchLogLevel || "info");
-    jail.setSync("_jitsu_crypto", new Reference(crypto));
+    jail.setSync("_jitsu_crypto", makeReference(refs, crypto));
+    jail.setSync("require", () => {
+      throw new Error("'require' is not supported. Please use 'import' instead");
+    });
     jail.setSync(
       "_jitsu_fetch",
       makeReference(refs, async (url: string, opts?: FetchOpts, extra?: any) => {
