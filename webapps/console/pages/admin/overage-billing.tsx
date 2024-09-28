@@ -78,7 +78,7 @@ const View = ({ data, workspaces }) => {
             type: "custom",
             render: (val, row) => {
               return (
-                <div className={row.monthlyActiveSyncs > row.monthlyActiveSyncs ? "font-bold text-error" : ""}>
+                <div className={row.monthlyActiveSyncs > row.monthlyActiveSyncsLimit ? "font-bold text-error" : ""}>
                   {row.monthlyActiveSyncs} / {row.monthlyActiveSyncsLimit}{" "}
                 </div>
               );
