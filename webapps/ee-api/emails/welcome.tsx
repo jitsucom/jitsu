@@ -38,7 +38,8 @@ const WelcomeEmail: EmailComponent<WelcomeEmailProps> = ({ name, unsubscribeLink
         <Text style={{}}>👋 Hi {name || "there"}!</Text>
         <Text>
           I{"'"}m Vladimir, the CEO of <Link href="https://go.jitsu.com">Jitsu</Link>! Thank you for creating account
-          with <a href="https://go.jitsu.com/use">Jitsu Cloud</a>, and I wanted to say thank you for giving it a try! 👍
+          with <a href="https://go.jitsu.com/cloud">Jitsu Cloud</a>, and I wanted to say thank you for giving it a try!
+          👍
         </Text>
         <Text>In order to help you discover Jitsu, I have prepared a list of useful resources for you:</Text>
         <Text style={{ paddingLeft: "2rem" }}>
