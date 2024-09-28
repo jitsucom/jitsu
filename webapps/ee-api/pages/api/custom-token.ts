@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { withErrorHandler } from "../../lib/error-handler";
+import { withErrorHandler } from "../../lib/route-helpers";
 import { createCustomToken } from "../../lib/firebase-auth";
 
 const handler = async function handler(req: NextApiRequest, res: NextApiResponse) {

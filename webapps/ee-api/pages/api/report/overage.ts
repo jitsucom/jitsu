@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { assertTrue, getLog } from "juava";
-import { withErrorHandler } from "../../../lib/error-handler";
+import { withErrorHandler } from "../../../lib/route-helpers";
 import { auth } from "../../../lib/auth";
 import { pg, store } from "../../../lib/services";
 import {

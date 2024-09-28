@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { auth } from "../../../lib/auth";
 import { assertDefined, assertTrue, requireDefined } from "juava";
-import { withErrorHandler } from "../../../lib/error-handler";
+import { withErrorHandler } from "../../../lib/route-helpers";
 import { store } from "../../../lib/services";
 import { getStripeObjectTag, listAllSubscriptions, stripe, stripeDataTable, stripeLink } from "../../../lib/stripe";
 import Stripe from "stripe";
@@ -67,6 +67,7 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
             },
           ];
         }
+
         const customerSubscriptions = subscriptions[w.obj.stripeCustomerId];
         if (!customerSubscriptions) {
           return [w.id, undefined];

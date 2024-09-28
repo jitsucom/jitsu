@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { withErrorHandler } from "../../lib/error-handler";
+import { withErrorHandler } from "../../lib/route-helpers";
 import dayjs from "dayjs";
 import { auth } from "../../lib/auth";
 import { getLog } from "juava";

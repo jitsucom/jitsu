@@ -2,7 +2,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { auth } from "../../../lib/auth";
 import { getActivePlan, getAvailableProducts, getOrCreateCurrentSubscription, stripe } from "../../../lib/stripe";
 import { requireDefined } from "juava";
-import { withErrorHandler } from "../../../lib/error-handler";
+import { withErrorHandler } from "../../../lib/route-helpers";
 import { getServerLog } from "../../../lib/log";
 
 const log = getServerLog("/api/billing/create");

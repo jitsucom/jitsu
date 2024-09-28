@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { auth } from "../../lib/firebase-auth";
-import { withErrorHandler } from "../../lib/error-handler";
+import { withErrorHandler } from "../../lib/route-helpers";
 import { telemetryDb } from "../../lib/services";
 import { getServerLog } from "../../lib/log";
 

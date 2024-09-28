@@ -18,7 +18,7 @@ export function assertTrue<T>(obj: boolean | null | undefined, error?: ErrorLike
   }
 }
 
-export function assertFalse<T>(obj: boolean, error?: ErrorLike): asserts obj is false {
+export function assertFalse(obj: boolean, error?: ErrorLike): asserts obj is false {
   if (obj === true) {
     throw toError(error || "Object is true");
   }

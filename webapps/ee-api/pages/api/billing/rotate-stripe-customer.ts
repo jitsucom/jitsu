@@ -3,7 +3,7 @@ import { ErrorResponse } from "./plans";
 import assert from "assert";
 import { auth } from "../../../lib/auth";
 import { rotateStripeCustomer } from "../../../lib/stripe";
-import { withErrorHandler } from "../../../lib/error-handler";
+import { withErrorHandler } from "../../../lib/route-helpers";
 
 const handler = async function handler(req: NextApiRequest, res: NextApiResponse) {
   const workspaceId = req.query.workspaceId as string | undefined;

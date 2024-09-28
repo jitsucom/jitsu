@@ -76,6 +76,12 @@ export async function sendEmail(mailOptions: Mail.Options) {
   if (!mailOptions.from) {
     mailOptions.from = {
       name: "Jitsu Team",
+      address: "support@notify.jitsu.com",
+    };
+  }
+  if (!mailOptions.replyTo) {
+    mailOptions.replyTo = {
+      name: "Jitsu Team",
       address: "support@jitsu.com",
     };
   }

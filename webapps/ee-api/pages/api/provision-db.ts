@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { auth } from "../../lib/auth";
 import { assertTrue, randomId, requireDefined } from "juava";
-import { withErrorHandler } from "../../lib/error-handler";
+import { withErrorHandler } from "../../lib/route-helpers";
 import { clickhouse, store } from "../../lib/services";
 import { getServerLog } from "../../lib/log";
 

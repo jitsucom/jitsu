@@ -8,6 +8,7 @@ import { getServerLog } from "./server/log";
 import { withProductAnalytics } from "./server/telemetry";
 import { NextApiRequest } from "next";
 import { isTruish } from "./shared/chores";
+import { onUserCreated } from "./server/ee";
 
 const crypto = require("crypto");
 
@@ -125,6 +126,7 @@ export async function getOrCreateUser(opts: {
       user: { email, name, internalId: user.id, externalId, loginProvider },
       req: opts.req,
     });
+    await onUserCreated({ email, name });
   } else if (user.name !== name || user.email !== email) {
     await db.prisma().userProfile.update({ where: { id: user.id }, data: { name, email } });
   }

@@ -8,7 +8,7 @@ import {
   requireDefined,
   SqlQueryParameters,
 } from "juava";
-import { withErrorHandler } from "../../../lib/error-handler";
+import { withErrorHandler } from "../../../lib/route-helpers";
 import { auth } from "../../../lib/auth";
 import { clickhouse, pg, store } from "../../../lib/services";
 import * as PG from "pg";

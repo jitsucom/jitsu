@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "ee-api:dev": "next dev -p 3001",
+    "email:dev": "email dev -p 3901",
     "build": "next build",
     "lint": "next lint",
     "db:update-schema": "dotenv -e ../../.env.local -- ts-node ./scripts/sql-exec.ts ./scripts/sql"
@@ -11,6 +12,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.418.0",
     "@clickhouse/client": "^1.4.0",
+    "@react-email/components": "^0.0.25",
     "@types/node": "^18.15.3",
     "@types/react": "18.3.3",
     "@types/react-dom": "18.3.0",
@@ -30,8 +32,10 @@
     "pg": "^8.11.3",
     "react": "18.3.1",
     "react-dom": "18.3.1",
+    "resend": "^4.0.0",
     "stripe": "^11.15.0",
-    "tslib": "^2.6.3"
+    "tslib": "^2.6.3",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/crypto-js": "^4.1.1",
@@ -42,7 +46,9 @@
     "dotenv": "^16.3.1",
     "next-transpile-modules": "^10.0.1",
     "raw-loader": "^4.0.2",
+    "react-email": "^3.0.1",
     "ts-node": "^10.9.2",
+    "type-fest": "^3.5.7",
     "typescript": "^5.5.4"
   }
 }

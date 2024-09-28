@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { auth } from "../../../lib/auth";
 import { requireDefined } from "juava";
-import { withErrorHandler } from "../../../lib/error-handler";
+import { withErrorHandler } from "../../../lib/route-helpers";
 import { getOrCreatePortalConfiguration, getOrCreateCurrentSubscription, stripe } from "../../../lib/stripe";
 import { getServerLog } from "../../../lib/log";
 

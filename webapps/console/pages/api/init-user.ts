@@ -8,6 +8,7 @@ import { getUserPreferenceService } from "../../lib/server/user-preferences";
 import { ApiError } from "../../lib/shared/errors";
 import { z } from "zod";
 import { initTelemetry, withProductAnalytics } from "../../lib/server/telemetry";
+import { onUserCreated } from "../../lib/server/ee";
 
 function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
@@ -113,6 +114,7 @@ export default createRoute()
           },
         });
         await withProductAnalytics(p => p.track("user_created"), { user: { ...newUser, internalId: newUser.id }, req });
+        await onUserCreated({ email: user.email, name: user.name });
       }
       const newWorkspace = await db
         .prisma()

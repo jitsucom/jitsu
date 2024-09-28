@@ -1,5 +1,5 @@
 import { getErrorMessage } from "juava";
-import { NextApiHandler } from "next";
+import { NextApiHandler, NextApiRequest } from "next";
 import { getServerLog } from "./log";
 
 const log = getServerLog("api-error");
@@ -22,4 +22,14 @@ export function withErrorHandler(handler: NextApiHandler): NextApiHandler {
       }
     }
   };
+}
+
+export function getOrigin(req: NextApiRequest) {
+  const forwardedProto = req.headers["x-forwarded-proto"];
+  const forwardedHost = req.headers["x-forwarded-host"];
+  const forwardedPort = req.headers["x-forwarded-port"];
+  const protocol = forwardedProto || (process.env.NODE_ENV === "production" ? "https" : "http");
+  const host = forwardedHost || req.headers["host"];
+  const port = forwardedPort && !host?.includes(":") ? `:${forwardedPort}` : "";
+  return `${protocol}://${host}${port}`;
 }

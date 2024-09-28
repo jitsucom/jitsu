@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { auth } from "../../../lib/auth";
 import { assertTrue, requireDefined } from "juava";
-import { withErrorHandler } from "../../../lib/error-handler";
+import { withErrorHandler } from "../../../lib/route-helpers";
 import { getOrCreateCurrentSubscription } from "../../../lib/stripe";
 import { pg } from "../../../lib/services";
 import { query } from "../report/workspace-stat";

@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { auth } from "../../lib/auth";
 import { assertTrue } from "juava";
-import { withErrorHandler } from "../../lib/error-handler";
+import { withErrorHandler } from "../../lib/route-helpers";
 import { pg } from "../../lib/services";
 import { getServerLog } from "../../lib/log";
 import pick from "lodash/pick";

@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { getAvailableProducts, stripe } from "../../../lib/stripe";
-import { withErrorHandler } from "../../../lib/error-handler";
+import { withErrorHandler } from "../../../lib/route-helpers";
 import { requireDefined } from "juava";
 
 const handler = async function handler(req: NextApiRequest, res: NextApiResponse) {
