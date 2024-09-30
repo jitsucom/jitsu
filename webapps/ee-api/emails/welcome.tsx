@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
+import { main } from "./styles";
 
 dayjs.extend(utc);
 
@@ -22,12 +23,6 @@ function nextBusinessDay(now: Date): Date {
 
   return day.toDate();
 }
-
-const main = {
-  fontFamily:
-    '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif',
-  backgroundColor: "transparent",
-};
 
 const WelcomeEmail: EmailComponent<WelcomeEmailProps> = ({ name, unsubscribeLink }) => {
   return (

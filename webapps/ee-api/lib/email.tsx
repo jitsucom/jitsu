@@ -1,4 +1,4 @@
-import { store } from "./services";
+import { pg, store } from "./services";
 import dayjs from "dayjs";
 import { z } from "zod";
 import utc from "dayjs/plugin/utc";
@@ -6,6 +6,8 @@ import { Resend } from "resend";
 import { EmailComponent, UnsubscribeLinkProps } from "../components/email-component";
 import WelcomeEmail from "../emails/welcome";
 import { requireDefined } from "juava";
+import Churned from "../emails/churned";
+import ChurnedCustomerEmail from "../emails/churned";
 
 dayjs.extend(utc);
 export const UnsubscribeCodes = z.object({
@@ -75,6 +77,7 @@ export const SendEmailRequest = z.object({
   //Two flags below, of not set, will be inferred from the EmailTemplale.isTransactional property
   allowUnsubscribe: z.boolean().optional(),
   respectUnsubscribe: z.boolean().optional(),
+  dryRun: z.boolean().optional(),
 });
 
 export type Payload = z.infer<typeof SendEmailRequest>;
@@ -83,6 +86,8 @@ export function getComponent(template: string): EmailComponent<UnsubscribeLinkPr
   switch (template) {
     case "welcome":
       return WelcomeEmail;
+    case "churned":
+      return ChurnedCustomerEmail;
     default:
       throw new Error(`Unknown email template: ${template}`);
   }
@@ -124,7 +129,22 @@ function getDomainFromEmail(email: string): string {
   return parseEmailAddress(email).email.split("@")[1];
 }
 
+export async function getWorkspaceInfo(
+  workspaceIdOrSlug: string | undefined
+): Promise<{ workspaceId; workspaceSlug; workspaceName } | undefined> {
+  const query = `select id as "workspaceId", slug as "workspaceSlug", name as "workspaceName" from newjitsu."Workspace" where id = $1 or slug = $1`;
+  const result = await pg.query(query, [workspaceIdOrSlug]);
+  return result.rows?.[0];
+}
+
 export async function sendEmail(payload: Omit<Payload, "to"> & { to: string }) {
+  let workspace;
+  if (payload.workspaceId) {
+    workspace = await getWorkspaceInfo(payload.workspaceId);
+    if (!workspace) {
+      throw new Error(`Workspace not found: ${payload.workspaceId}`);
+    }
+  }
   const env = getEmailEnvSettings();
   const resend = new Resend(env.EMAIL_RESEND_KEY);
   const Component: EmailComponent<UnsubscribeLinkProps> = getComponent(payload.template);
@@ -151,10 +171,16 @@ export async function sendEmail(payload: Omit<Payload, "to"> & { to: string }) {
   const props = {
     name: parseEmailAddress(payload.to).name?.split(" ")[0],
     ...(payload.variables || {}),
+    ...(workspace || {}),
     unsubscribeLink: `https://${domain}/api/unsubscribe?email=${encodeURIComponent(recepient)}&code=${unsubscribeCode}`,
   };
-  const scheduledAt = WelcomeEmail.scheduleAt ? WelcomeEmail.scheduleAt(new Date()).toISOString() : undefined;
-  const subject = typeof Component.subject === "string" ? Component.subject : Component.subject(props);
+  const scheduledAt = Component.scheduleAt ? Component.scheduleAt(new Date()).toISOString() : undefined;
+  let subject = typeof Component.subject === "string" ? Component.subject : Component.subject(props);
+  let to = payload.to;
+  if (payload.dryRun) {
+    subject = `[Test - for ${to}] ${subject}`;
+    to = env.BCC_EMAIL;
+  }
   console.log(
     `Sending email to ${recepient}, scheduled at ${
       scheduledAt || "NOW"
@@ -163,7 +189,7 @@ export async function sendEmail(payload: Omit<Payload, "to"> & { to: string }) {
   const result = await resend.emails.send({
     from,
     replyTo,
-    to: payload.to,
+    to,
     bcc: payload.bcc || getVal(Component.bcc, props) || env.BCC_EMAIL,
     react: <Component {...props} />,
     text: Component.plaintext(props),

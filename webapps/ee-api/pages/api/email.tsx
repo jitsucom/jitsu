@@ -1,12 +1,12 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { getOrigin, withErrorHandler } from "../../lib/route-helpers";
+import { withErrorHandler } from "../../lib/route-helpers";
 import { assertDefined, assertTrue, requireDefined } from "juava";
 import { auth } from "../../lib/auth";
 import { pg } from "../../lib/services";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import { result } from "lodash";
-import { sendEmail, SendEmailRequest } from "../../lib/email";
+import { getWorkspaceInfo, sendEmail, SendEmailRequest } from "../../lib/email";
 
 dayjs.extend(utc);
 
@@ -31,10 +31,16 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
     assertTrue(claims.type === "admin", "Invalid auth claims");
     const payload = SendEmailRequest.parse(req.body);
     if (payload.workspaceId) {
-      const members = await getWorkspaceMembers(payload.workspaceId);
+      const workspace = requireDefined(
+        await getWorkspaceInfo(payload.workspaceId),
+        `Workspace not found: ${payload.workspaceId}`
+      );
+      const members = await getWorkspaceMembers(workspace.workspaceId);
       for (const member of members) {
         try {
-          console.log(`Sending email to ${member.email} of workspace ${payload.workspaceId}`);
+          console.log(
+            `Handling member  ${member.email} of workspace ${workspace.workspaceId} / ${workspace.workspaceSlug}`
+          );
           result[member.email] = await sendEmail({ ...payload, to: makeAddress(member) });
         } catch (e: any) {
           result[member.email] = { error: e?.message };
