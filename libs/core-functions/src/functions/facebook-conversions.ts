@@ -8,16 +8,15 @@ import { RetryError } from "@jitsu/functions-lib";
 import { createFilter, eventTimeSafeMs } from "./lib";
 import { deepMerge } from "juava";
 
-export function facebookHash(email: string) {
-  return crypto.createHash("sha256").update(email.toLowerCase()).digest("hex");
+export function facebookHash(input: string | undefined) {
+  if (!input) {
+    return undefined;
+  }
+  return crypto.createHash("sha256").update(input.trim().toLowerCase()).digest("hex");
 }
 
 function reduceArray(strings: ID[]): ID[] | ID {
   return strings.length === 1 ? strings[0] : strings;
-}
-
-function sanitizeEmail(em: string) {
-  return em.trim().toLowerCase();
 }
 
 function sanitizePhone(ph: string) {
@@ -55,6 +54,16 @@ const FacebookConversionsApi: JitsuFunction<AnalyticsServerEvent, FacebookConver
     const os = (analyticsContext.os?.name ?? "").toLowerCase();
     const filter = createFilter(ctx.props.events || "");
     if (!filter(event.type, event.event)) return;
+    const geo = ctx.geo;
+    let geoUserData = {};
+    if (geo) {
+      geoUserData = {
+        ct: facebookHash(geo.city?.name),
+        st: facebookHash(geo.region?.code),
+        country: facebookHash(geo.country?.code),
+        zp: facebookHash(geo.postalCode?.code),
+      };
+    }
 
     const baseProps = {
       event_name: event.type === "track" ? event.event : event.type,
@@ -62,6 +71,19 @@ const FacebookConversionsApi: JitsuFunction<AnalyticsServerEvent, FacebookConver
       event_id: event.messageId,
       action_source: actionSource,
       event_source_url: event.context?.page?.url,
+      user_data: {
+        em: event.context.traits?.email ? facebookHash(event.context.traits.email as string) : undefined,
+        ph:
+          ctx.props?.phoneFieldName && event.context.traits?.[ctx.props.phoneFieldName]
+            ? facebookHash(sanitizePhone(String(event.context.traits[ctx.props.phoneFieldName])))
+            : undefined,
+        external_id: reduceArray([event.userId, event.anonymousId].filter(e => !!e)),
+        client_ip_address: event.context.ip,
+        client_user_agent: event.context.userAgent,
+        fbc: event.context.clientIds?.fbc,
+        fbp: event.context.clientIds?.fbp,
+        ...geoUserData,
+      },
       app_data:
         actionSource === "app"
           ? {
@@ -94,20 +116,6 @@ const FacebookConversionsApi: JitsuFunction<AnalyticsServerEvent, FacebookConver
         ? deepMerge(baseProps, event.facebookEvent)
         : {
             ...baseProps,
-            user_data: {
-              em: event.context.traits?.email
-                ? facebookHash(sanitizeEmail(event.context.traits.email + ""))
-                : undefined,
-              ph:
-                ctx.props?.phoneFieldName && event.context.traits?.[ctx.props.phoneFieldName]
-                  ? facebookHash(sanitizePhone(String(event.context.traits[ctx.props.phoneFieldName])))
-                  : undefined,
-              external_id: reduceArray([event.userId, event.anonymousId].filter(e => !!e)),
-              client_ip_address: event.context.ip,
-              client_user_agent: event.context.userAgent,
-              fbc: event.context.clientIds?.fbc,
-              fbp: event.context.clientIds?.fbp,
-            },
             custom_data: omit(event.properties, [
               "path",
               "referrer",
