@@ -63,6 +63,9 @@ export async function auth(req: NextApiRequest, res: NextApiResponse): Promise<A
     return undefined;
   }
   const token = authVal.substring(bearerPrefix.length);
+  if (process.env.CRON_SECRET && token === process.env.CRON_SECRET) {
+    return { type: "admin" };
+  }
   if (adminAuthorizer(token)) {
     return { type: "admin" };
   }

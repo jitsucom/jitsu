@@ -20,6 +20,8 @@ export interface KeyValueTable {
   put(key: string, obj: any, opts?: { ttlMs?: number }): Promise<void>;
 
   del(key: string): Promise<void>;
+
+  clear(): Promise<number>;
 }
 
 /**
@@ -151,6 +153,16 @@ export function getPostgresStore(
   return {
     getTable(tableName: string): KeyValueTable {
       return {
+        async clear() {
+          const result = await pgPool.query({
+            text: `DELETE
+                   FROM ${table}
+                   WHERE namespace = $1`,
+            values: [tableName],
+          });
+          return result.rowCount || 0;
+        },
+
         async list(keyPattern?: string) {
           await initIfNeeded();
 

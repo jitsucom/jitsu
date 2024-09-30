@@ -25,6 +25,8 @@ export type Day = `${number}${number}${number}${number}-${number}${number}-${num
 
 //entry of `stripe-settings` / `stripe-settings-test-mode` table
 export type StripeDataTableEntry = {
+  //active subscription of the workspace
+  activeSubscription?: Record<string, any>;
   //always present even if billing is not managed through stripe
   stripeCustomerId: string;
   //if true - no restrictions on workspace, essentially "give everything for free
@@ -152,6 +154,50 @@ export function stripeLink(entity: string, id: string) {
   return `https://dashboard.stripe.com/${entity}/${id}`;
 }
 
+export async function exportSubscriptions(): Promise<Record<string, { customer: any, subscription: any }>> {
+  const result = {};
+  let starting_after: string | undefined = undefined;
+  const products = Object.fromEntries((await getAvailableProducts()).map(p => [p.id, p]));
+  console.log("Products", products)
+  const cus2sub: Record<string, Stripe.Subscription[]> = {}
+  const sub2prod: Record<string, Stripe.Product> = {}
+  while (true) {
+    const subscriptions = await stripe.subscriptions.list({ status: "all", limit: 100, starting_after });
+    for (const sub of subscriptions.data) {
+      const productId = sub.items.data[0].price.product;
+      assertDefined(productId, `Can't get product from subscription ${sub.id}`);
+      assertTrue(typeof productId === "string", `Subscription ${sub.id} should have a string product id`);
+      const product = products[productId];
+      if (!product) {
+        console.warn(`Product ${productId} not found for subscription ${sub.id}. It might be unrelated subscription. Skipping`);
+      } else {
+        cus2sub[sub.customer] = (cus2sub[sub.customer] || []).concat(sub);
+        sub2prod[sub.id] = product;
+      }
+    }
+    if (!subscriptions.has_more) {
+      break;
+    } else {
+      starting_after = subscriptions.data[subscriptions.data.length - 1].id;
+    }
+  }
+
+  for (const [cus, subscriptions] of Object.entries(cus2sub)) {
+    //first, look for active non-legacy plans
+    const activeSubscription = subscriptions.find(sub => sub.status === "active");
+    const pastDueSubscription = subscriptions.find(sub => sub.status === "past_due");
+    const subscription = activeSubscription || pastDueSubscription || subscriptions[0];
+    if (subscription) {
+      result[cus] = {
+        subscription,
+        customer: await stripe.customers.retrieve(cus),
+        product: sub2prod[subscription.id]
+      }
+    }
+  }
+  return result;
+}
+
 export async function getActivePlan(customerId: string): Promise<null | SubscriptionStatus> {
   const subscriptions = await stripe.subscriptions.list({ customer: customerId, status: "all", limit: 10 });
   const sub2product = new Map<string, Stripe.Product>();
@@ -211,30 +257,43 @@ export function getStripeObjectTag() {
   return (process.env.STRIPE_OBJECT_TAG as string) || "jitsu2.0";
 }
 
-/**
- * opts.custom - if custom priced products should be included
- * @param opts
- */
-export async function getAvailableProducts(opts: { custom?: boolean } = {}) {
+export async function getAvailableProducts(opts: { custom?: boolean } = {}): Promise<Stripe.Product[]>{
   const stripeObjectTag = getStripeObjectTag();
-  const products = (await stripe.products.list({ limit: 100 })).data
-    .filter(p => p.metadata?.object_tag === stripeObjectTag)
-    .filter(p => {
-      if (opts.custom) {
-        //include everything
-        return true;
-      } else {
-        //check if product is custom priced
-        const meta = p.metadata?.plan_data ? JSON.parse(p.metadata?.plan_data) : undefined;
-        return !meta?.custom;
-      }
+  let allProducts = [];
+  let hasMore = true;
+  let startingAfter: string | undefined = undefined;
+
+  while (hasMore) {
+    const response = await stripe.products.list({
+      limit: 100,
+      starting_after: startingAfter,
     });
-  if (products.length === 0) {
+
+    const products = response.data
+      .filter(p => p.metadata?.object_tag === stripeObjectTag)
+      .filter(p => {
+        if (opts.custom) {
+          return true; // include everything
+        } else {
+          const meta = p.metadata?.plan_data ? JSON.parse(p.metadata?.plan_data) : undefined;
+          return !meta?.custom; // exclude custom priced products if opts.custom is not set
+        }
+      });
+
+    allProducts = allProducts.concat(products);
+
+    hasMore = response.has_more;
+    if (hasMore) {
+      startingAfter = response.data[response.data.length - 1].id;
+    }
+  }
+
+  if (allProducts.length === 0) {
     throw new Error(`No products with tag ${stripeObjectTag} found`);
   }
-  return products;
-}
 
+  return allProducts;
+}
 export async function getOrCreatePortalConfiguration() {
   const configurations = await stripe.billingPortal.configurations.list({ limit: 10 });
   const stripeObjectTag = getStripeObjectTag();
