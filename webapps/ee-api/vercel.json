@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/billing/export-subscriptions",
-      "schedule": "0 5 * * *"
+      "schedule": "*/1 * * * *"
     }
   ]
 }
