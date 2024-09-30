@@ -154,13 +154,13 @@ export function stripeLink(entity: string, id: string) {
   return `https://dashboard.stripe.com/${entity}/${id}`;
 }
 
-export async function exportSubscriptions(): Promise<Record<string, { customer: any, subscription: any }>> {
+export async function exportSubscriptions(): Promise<Record<string, { customer: any; subscription: any }>> {
   const result = {};
   let starting_after: string | undefined = undefined;
   const products = Object.fromEntries((await getAvailableProducts()).map(p => [p.id, p]));
-  console.log("Products", products)
-  const cus2sub: Record<string, Stripe.Subscription[]> = {}
-  const sub2prod: Record<string, Stripe.Product> = {}
+  console.log("Products", products);
+  const cus2sub: Record<string, Stripe.Subscription[]> = {};
+  const sub2prod: Record<string, Stripe.Product> = {};
   while (true) {
     const subscriptions = await stripe.subscriptions.list({ status: "all", limit: 100, starting_after });
     for (const sub of subscriptions.data) {
@@ -169,7 +169,9 @@ export async function exportSubscriptions(): Promise<Record<string, { customer: 
       assertTrue(typeof productId === "string", `Subscription ${sub.id} should have a string product id`);
       const product = products[productId];
       if (!product) {
-        console.warn(`Product ${productId} not found for subscription ${sub.id}. It might be unrelated subscription. Skipping`);
+        console.warn(
+          `Product ${productId} not found for subscription ${sub.id}. It might be unrelated subscription. Skipping`
+        );
       } else {
         cus2sub[sub.customer] = (cus2sub[sub.customer] || []).concat(sub);
         sub2prod[sub.id] = product;
@@ -191,8 +193,8 @@ export async function exportSubscriptions(): Promise<Record<string, { customer: 
       result[cus] = {
         subscription,
         customer: await stripe.customers.retrieve(cus),
-        product: sub2prod[subscription.id]
-      }
+        product: sub2prod[subscription.id],
+      };
     }
   }
   return result;
@@ -257,7 +259,7 @@ export function getStripeObjectTag() {
   return (process.env.STRIPE_OBJECT_TAG as string) || "jitsu2.0";
 }
 
-export async function getAvailableProducts(opts: { custom?: boolean } = {}): Promise<Stripe.Product[]>{
+export async function getAvailableProducts(opts: { custom?: boolean } = {}): Promise<Stripe.Product[]> {
   const stripeObjectTag = getStripeObjectTag();
   let allProducts = [];
   let hasMore = true;

@@ -6,7 +6,9 @@ import { auth } from "../../../lib/auth";
 import { store } from "../../../lib/services";
 
 const extendedStripeData =
-  (process.env.STRIPE_SECRET_KEY as string)?.indexOf("_live_") >= 0 ? "stripe-customer-info" : "stripe-customer-info-test-mode";
+  (process.env.STRIPE_SECRET_KEY as string)?.indexOf("_live_") >= 0
+    ? "stripe-customer-info"
+    : "stripe-customer-info-test-mode";
 
 const handler = async function handler(req: NextApiRequest, res: NextApiResponse) {
   const claims = await auth(req, res);
@@ -20,7 +22,6 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
     await store.getTable(extendedStripeData).put(data.customer.id, data);
   }
   return res.json(subscriptions);
-
 };
 
 export default withErrorHandler(handler);
