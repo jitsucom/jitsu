@@ -13,3 +13,4 @@ export * from "./sql-params";
 export * from "./boolean";
 export * from "./number";
 export * from "./throttle";
+export * from "./objects";
