@@ -228,6 +228,27 @@ const exports: Export[] = [
     name: "streams-with-destinations",
     lastModified: getLastUpdated,
     data: async writer => {
+      const activeWorkspaces = new Set<string>();
+      try {
+        const rows = await db.pgPool()
+          .query(`with customers as (select obj -> 'customer' ->> 'id'         as customer_id,
+                                            obj -> 'subscription' ->> 'status' as status
+                                     from newjitsuee.kvstore
+                                     where namespace = 'stripe-customer-info'
+                                     order by status),
+                       workspaces
+                         as (select id as workspace_id, obj ->> 'stripeCustomerId' as customer_id
+                             from newjitsuee.kvstore
+                             where namespace = 'stripe-settings')
+                  select workspace_id
+                  from workspaces w
+                         right join customers cus on cus.customer_id = w.customer_id
+                  where status = 'active'`);
+        for (const row of rows.rows) {
+          activeWorkspaces.add(row.workspace_id);
+        }
+        getLog().atInfo().log(`Active workspaces: ${activeWorkspaces.size}`);
+      } catch (error) {}
       writer.write("[");
       let lastId: string | undefined = undefined;
       let needComma = false;
@@ -248,7 +269,9 @@ const exports: Export[] = [
           if (needComma) {
             writer.write(",");
           }
-          const throttlePercent = getNumericOption("throttle", obj.workspace);
+          const throttlePercent = !activeWorkspaces.has(obj.workspace.id)
+            ? getNumericOption("throttle", obj.workspace)
+            : undefined;
           const shardNumber = getNumericOption("shard", obj.workspace);
           writer.write(
             JSON.stringify({
