@@ -231,6 +231,20 @@ export const createMultiStore = (newStore: TTLStore, oldStore: TTLStore): TTLSto
   };
 };
 
+export const createDummyStore = (): TTLStore => ({
+  get: async (key: string) => {
+    return undefined;
+  },
+  set: async (key: string, obj: any, opts) => {},
+  del: async (key: string) => {},
+  ttl: async (key: string) => {
+    return -2;
+  },
+  getWithTTL: async (key: string) => {
+    return undefined;
+  },
+});
+
 export const createMemoryStore = (store: any): TTLStore => ({
   get: async (key: string) => {
     const val = store[key];

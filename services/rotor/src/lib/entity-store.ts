@@ -1,6 +1,6 @@
 import { createInMemoryStore } from "./inmem-store";
 import { getLog } from "juava";
-import { EnrichedConnectionConfig, FunctionConfig } from "./config-types";
+import { EnrichedConnectionConfig, FunctionConfig, Workspace } from "./config-types";
 
 const log = getLog("entity-store");
 
@@ -85,7 +85,7 @@ function refreshFunc<T>(storeId: string) {
 }
 
 function storeFunc<T>(storeId: string) {
-  return createInMemoryStore({
+  return createInMemoryStore<EntityStore<T>>({
     refreshIntervalMillis: process.env.REPOSITORY_REFRESH_PERIOD_SEC
       ? parseInt(process.env.REPOSITORY_REFRESH_PERIOD_SEC) * 1000
       : 2000,
@@ -117,3 +117,4 @@ function storeFunc<T>(storeId: string) {
 
 export const functionsStore = storeFunc<FunctionConfig>("functions");
 export const connectionsStore = storeFunc<EnrichedConnectionConfig>("rotor-connections");
+export const workspaceStore = storeFunc<Workspace>("workspaces-with-profiles");

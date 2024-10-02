@@ -154,7 +154,7 @@ async function main() {
   }
 }
 
-function initHTTP(rotorContext: Omit<MessageHandlerContext, "connectionStore" | "functionsStore">) {
+function initHTTP(rotorContext: Omit<MessageHandlerContext, "connectionStore" | "functionsStore" | "workspaceStore">) {
   http.use((req, res, next) => {
     if (req.path === "/health" || req.path === "/version") {
       return next();

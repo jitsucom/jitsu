@@ -80,3 +80,4 @@ export type {
 export { httpAgent, httpsAgent } from "./functions/lib/http-agent";
 export * from "./functions/lib/store";
 export * from "./functions/lib/ua";
+export * from "./functions/profiles-functions";
