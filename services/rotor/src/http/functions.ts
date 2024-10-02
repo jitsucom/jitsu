@@ -8,7 +8,7 @@ import { parse as semverParse } from "semver";
 import * as jsondiffpatch from "jsondiffpatch";
 
 import Prometheus from "prom-client";
-import { connectionsStore, functionsStore } from "../lib/entity-store";
+import { connectionsStore, functionsStore, workspaceStore } from "../lib/entity-store";
 
 const jsondiffpatchInstance = jsondiffpatch.create();
 const log = getLog("functions_handler");
@@ -20,13 +20,15 @@ const handlerMetric = new Prometheus.Counter({
 });
 
 export const FunctionsHandler =
-  (rotorContext: Omit<MessageHandlerContext, "connectionStore" | "functionsStore">) => async (req, res) => {
+  (rotorContext: Omit<MessageHandlerContext, "connectionStore" | "functionsStore" | "workspaceStore">) =>
+  async (req, res) => {
     const message = req.body as IngestMessage;
     //log.atInfo().log(`Functions handler. Message ID: ${message.messageId} connectionId: ${message.connectionId}`);
     const result = await rotorMessageHandler(message, {
       ...rotorContext,
       connectionStore: requireDefined(connectionsStore.getCurrent(), "Connection store is not initialized"),
       functionsStore: requireDefined(functionsStore.getCurrent(), "Functions store is not initialized"),
+      workspaceStore: requireDefined(workspaceStore.getCurrent(), "Workspace store is not initialized"),
     });
     if (result?.events && result.events.length > 0) {
       res.json(result.events);
@@ -36,7 +38,8 @@ export const FunctionsHandler =
   };
 
 export const FunctionsHandlerMulti =
-  (rotorContext: Omit<MessageHandlerContext, "connectionStore" | "functionsStore">) => async (req, res, next) => {
+  (rotorContext: Omit<MessageHandlerContext, "connectionStore" | "functionsStore" | "workspaceStore">) =>
+  async (req, res, next) => {
     const connectionIds = (req.query.ids ?? "").split(",") as string[];
     const message = req.body as IngestMessage;
     const functionsFetchTimeout = req.headers["x-request-timeout-ms"]
@@ -52,6 +55,7 @@ export const FunctionsHandlerMulti =
             ...rotorContext,
             connectionStore: requireDefined(connectionsStore.getCurrent(), "Connection store is not initialized"),
             functionsStore: requireDefined(functionsStore.getCurrent(), "Functions store is not initialized"),
+            workspaceStore: requireDefined(workspaceStore.getCurrent(), "Workspace store is not initialized"),
           },
           "all",
           { [CONNECTION_IDS_HEADER]: id },

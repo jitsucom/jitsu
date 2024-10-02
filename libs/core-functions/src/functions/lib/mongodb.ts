@@ -41,11 +41,14 @@ export function mongoAnonymousEventsStore(): AnonymousEventsStore {
   return {
     async addEvent(collectionName: string, anonymousId: string, event: AnalyticsServerEvent, ttlDays: number) {
       const mongo = mongodb();
-      await ensureMongoCollection(mongo, collectionName, ttlDays);
+      await ensureMongoCollection(mongo, collectionName, ttlDays, [AnonymousEventsStoreIdField]);
       const res = await mongo
         .db()
         .collection(collectionName)
-        .insertOne({ ...event, [AnonymousEventsStoreIdField]: anonymousId });
+        .insertOne(
+          { ...event, [AnonymousEventsStoreIdField]: anonymousId },
+          { writeConcern: { w: 1, journal: false } }
+        );
       if (res.acknowledged) {
         return;
       } else {
@@ -80,7 +83,12 @@ export function mongoAnonymousEventsStore(): AnonymousEventsStore {
   };
 }
 
-async function ensureMongoCollection(mongo: MongoClient, collectionName: string, ttlDays: number) {
+export async function ensureMongoCollection(
+  mongo: MongoClient,
+  collectionName: string,
+  ttlDays: number,
+  indexFields: string[] = []
+) {
   if (MongoCreatedCollections.has(collectionName)) {
     return;
   }
@@ -102,10 +110,12 @@ async function ensureMongoCollection(mongo: MongoClient, collectionName: string,
         key: { _id: 1 },
         unique: true,
       },
-      writeConcern: { w: 1, j: false },
+      writeConcern: { w: 1, journal: false },
       storageEngine: { wiredTiger: { configString: "block_compressor=zstd" } },
     });
-    await collection.createIndex({ [AnonymousEventsStoreIdField]: 1 });
+    for (const indexField of indexFields) {
+      await collection.createIndex({ [indexField]: 1 });
+    }
     MongoCreatedCollections.add(collectionName);
   } catch (err) {
     throw new Error(`Failed to create collection ${collectionName}: ${err}`);
