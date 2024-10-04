@@ -286,7 +286,7 @@ async function loadFromURL(url: string): Promise<Buffer> {
 }
 
 async function untar(b: Buffer): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
+  return new Promise<Buffer>((resolve, reject) => {
     const gunzip = zlib.createGunzip();
     const tarParser = new tar.Parser();
     tarParser.on("entry", entry => {

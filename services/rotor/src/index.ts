@@ -9,7 +9,7 @@ import { FunctionsHandler, FunctionsHandlerMulti } from "./http/functions";
 import { initMaxMindClient, GeoResolver } from "./lib/maxmind";
 import { MessageHandlerContext, rotorMessageHandler } from "./lib/message-handler";
 import { DummyMetrics, Metrics } from "./lib/metrics";
-import { connectionsStore, functionsStore } from "./lib/entity-store";
+import { connectionsStore, functionsStore } from "./lib/repositories";
 import { Server } from "node:net";
 import { getApplicationVersion, getDiagnostics } from "./lib/version";
 import { createClickhouseLogger } from "./lib/clickhouse-logger";

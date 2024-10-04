@@ -8,7 +8,7 @@ import { parse as semverParse } from "semver";
 import * as jsondiffpatch from "jsondiffpatch";
 
 import Prometheus from "prom-client";
-import { connectionsStore, functionsStore, workspaceStore } from "../lib/entity-store";
+import { connectionsStore, functionsStore, workspaceStore } from "../lib/repositories";
 
 const jsondiffpatchInstance = jsondiffpatch.create();
 const log = getLog("functions_handler");

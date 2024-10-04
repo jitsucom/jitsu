@@ -59,7 +59,7 @@ export const createInMemoryStore = <T>(definition: StoreDefinition<T>): InMemory
   let lastRefresh: Date | undefined = undefined;
   let lastModified: Date | undefined = undefined;
   let stopping: boolean = false;
-  let intervalToClear: NodeJS.Timeout | undefined = undefined;
+  let intervalToClear: NodeJS.Timeout | string | number | undefined = undefined;
 
   function scheduleStoreRefresh() {
     const refresh = async () => {

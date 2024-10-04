@@ -8,6 +8,8 @@ import { ensureMongoCollection } from "./lib/mongodb";
 
 const hash = crypto["hash"];
 
+const partitionIdColumn = "_partition_id";
+
 export const ProfilesConfig = z.object({
   mongoUrl: z.string(),
   enableAnonymousProfiles: z.boolean().optional().default(false),
@@ -38,6 +40,14 @@ const createClient = async (config: ProfilesConfig, ctx: FullContext) => {
   return client;
 };
 
+function hashToInt(value) {
+  // Hash the value using SHA-256 (or another algorithm if desired)
+  const h = hash("sha256", value);
+
+  // Convert the first 8 characters of the hash (or more) to an integer
+  return parseInt(h.substring(0, 8), 16);
+}
+
 export const ProfilesFunction: JitsuFunction<AnalyticsServerEvent, ProfilesConfig> = async (event, ctx) => {
   const config = ProfilesConfig.parse(ctx.props || {});
   if (!config.mongoUrl) {
@@ -65,11 +75,18 @@ export const ProfilesFunction: JitsuFunction<AnalyticsServerEvent, ProfilesConfi
       }
     );
     const mongo = await mongodb.waitInit();
-    await ensureMongoCollection(mongo, config.eventsCollectionName, config.profileWindowDays, ["userId"]);
+    await ensureMongoCollection(mongo, config.eventsCollectionName, config.profileWindowDays, [
+      partitionIdColumn,
+      "userId",
+    ]);
+
+    // 240 has quite enough divisors: 1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 16, 20, 24, 30, 40, 48, 60, 80, 120, 240.
+    const partitionId = hashToInt(userId) % 240;
+
     const res = await mongo
       .db()
       .collection(config.eventsCollectionName)
-      .insertOne(event, { writeConcern: { w: 1, journal: false } });
+      .insertOne({ [partitionIdColumn]: partitionId, ...event }, { writeConcern: { w: 1, journal: false } });
     if (!res.acknowledged) {
       ctx.log.error(`Failed to insert to MongoDB: ${JSON.stringify(res)}`);
     } else {

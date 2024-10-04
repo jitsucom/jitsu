@@ -294,7 +294,7 @@ const exports: Export[] = [
                 ...obj.config,
                 workspaceId: obj.workspace.id,
               },
-              backupEnabled: !(obj.workspace.featuresEnabled || []).includes("nobackup"),
+              backupEnabled: isEEAvailable() && !(obj.workspace.featuresEnabled || []).includes("nobackup"),
               throttle: throttlePercent,
               shard: shardNumber,
               destinations: obj.toLinks

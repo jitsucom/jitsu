@@ -3,7 +3,10 @@ import {
   createMongoStore,
   createMultiStore,
   createTtlStore,
+  EnrichedConnectionConfig,
+  EntityStore,
   FunctionChainContext,
+  FunctionConfig,
   FunctionContext,
   getBuiltinFunction,
   isDropResult,
@@ -22,8 +25,6 @@ import { getLog, newError, requireDefined, stopwatch } from "juava";
 import { retryObject } from "./retries";
 import NodeCache from "node-cache";
 import isEqual from "lodash/isEqual";
-import { EnrichedConnectionConfig, FunctionConfig } from "./config-types";
-import { EntityStore } from "./entity-store";
 import { MessageHandlerContext } from "./message-handler";
 
 const fastStoreWorkspaceId = (process.env.FAST_STORE_WORKSPACE_ID ?? "").split(",").filter(x => x.length > 0);
