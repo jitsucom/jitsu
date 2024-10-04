@@ -1,6 +1,7 @@
-import { createInMemoryStore } from "../src/lib/inmem-store";
 import { getLog } from "juava";
 import * as path from "path";
+import { expect, test } from "@jest/globals";
+import { createInMemoryStore } from "@jitsu/core-functions";
 
 const log = getLog("inmem-store-test");
 test("Test in-mem store", async () => {

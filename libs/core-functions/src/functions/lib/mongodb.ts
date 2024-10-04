@@ -1,4 +1,4 @@
-import { getLog, getSingleton, parseNumber, requireDefined } from "juava";
+import { getLog, getSingleton, index, parseNumber, requireDefined } from "juava";
 import { MongoClient, ObjectId } from "mongodb";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { AnonymousEventsStore } from "@jitsu/protocols/functions";
@@ -113,8 +113,12 @@ export async function ensureMongoCollection(
       writeConcern: { w: 1, journal: false },
       storageEngine: { wiredTiger: { configString: "block_compressor=zstd" } },
     });
-    for (const indexField of indexFields) {
-      await collection.createIndex({ [indexField]: 1 });
+    if (indexFields.length > 0) {
+      const index = {};
+      indexFields.forEach(field => {
+        index[field] = 1;
+      });
+      await collection.createIndex(index);
     }
     MongoCreatedCollections.add(collectionName);
   } catch (err) {

@@ -11,7 +11,7 @@ import { FuncChainFilter, FuncChainResult } from "./functions-chain";
 import type { Admin, Consumer, Producer, KafkaMessage } from "kafkajs";
 import { CompressionTypes } from "kafkajs";
 import { functionFilter, MessageHandlerContext } from "./message-handler";
-import { connectionsStore, functionsStore, workspaceStore } from "./entity-store";
+import { connectionsStore, functionsStore, workspaceStore } from "./repositories";
 
 const log = getLog("kafka-rotor");
 

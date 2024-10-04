@@ -3,7 +3,6 @@ import { Metrics } from "./metrics";
 import { GeoResolver } from "./maxmind";
 import { IngestMessage } from "@jitsu/protocols/async-request";
 import { CONNECTION_IDS_HEADER } from "./rotor";
-import { EntityStore } from "./entity-store";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { EventContext, FetchType, TTLStore } from "@jitsu/protocols/functions";
 import {
@@ -14,10 +13,13 @@ import {
   ProfilesFunction,
   createDummyStore,
   ProfilesConfig,
+  EntityStore,
+  EnrichedConnectionConfig,
+  FunctionConfig,
+  Workspace,
 } from "@jitsu/core-functions";
 import NodeCache from "node-cache";
 import { buildFunctionChain, checkError, FuncChain, FuncChainFilter, runChain } from "./functions-chain";
-import { EnrichedConnectionConfig, FunctionConfig, Workspace } from "./config-types";
 import { Redis } from "ioredis";
 export const log = getLog("rotor");
 

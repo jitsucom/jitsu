@@ -301,6 +301,7 @@ model ProfileBuilder {
   destinationId                  String
   destination                    ConfigurationObject      @relation(fields: [destinationId], references: [id])
   functions                      ProfileBuilderFunction[]
+  version                        Int                      @default(0)
 }
 
 model ProfileBuilderFunction {
@@ -313,7 +314,20 @@ model ProfileBuilderFunction {
   function         ConfigurationObject @relation(fields: [functionId], references: [id])
 }
 
-//
+model ProfileBuilderState {
+  profileBuilderId      String
+  profileBuilderVersion Int
+  instanceIndex         Int
+  totalInstances        Int
+  startedAt             DateTime
+  updatedAt             DateTime
+  lastTimestamp         DateTime
+  processedUsers        Int
+  totalUsers            Int
+  speed                 Float
+
+  @@id([profileBuilderId, profileBuilderVersion, totalInstances, instanceIndex])
+}
 
 //model OauthSecrets {
 //  id        String   @id @default(cuid())
