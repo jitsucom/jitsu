@@ -113,7 +113,8 @@ export const BatchModeOptions = z.object({
     .int()
     .min(1)
     .max(60 * 24)
-    .default(5),
+    .default(5)
+    .nullish(),
 });
 export type BatchModeOptions = z.infer<typeof BatchModeOptions>;
 
