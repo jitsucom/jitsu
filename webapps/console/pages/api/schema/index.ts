@@ -1,10 +1,7 @@
 import { createRoute } from "../../../lib/api";
-import { z } from "zod";
 import { getAllConfigObjectTypeNames } from "../../../lib/schema/config-objects";
 import { coreDestinations } from "../../../lib/schema/destinations";
 import { getAppEndpoint } from "../../../lib/domains";
-
-const BaseLinkType = z.object({ fromId: z.string(), toId: z.string() });
 
 export default createRoute()
   .GET({
@@ -30,24 +27,13 @@ export default createRoute()
           }),
           {}
         );
-      } else if (typeName === "destination") {
-        schema.subTypes = coreDestinations.reduce(
-          (acc, dest) => ({
-            ...acc,
-            [dest.id]: {
-              type: `${dest.id}`,
-              schemaURL: `${publicEndpoints.baseUrl}/api/schema/${typeName}/${dest.id}`,
-            },
-          }),
-          {}
-        );
       }
       result.push(schema);
     }
     result.push({
       type: "link",
       schemaURL: `${publicEndpoints.baseUrl}/api/schema/link`,
-      subTypes: coreDestinations.reduce(
+      subTypes: [{ id: "sync" }, ...coreDestinations].reduce(
         (acc, dest) => ({
           ...acc,
           [dest.id]: {
