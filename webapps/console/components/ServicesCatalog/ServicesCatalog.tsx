@@ -123,7 +123,10 @@ export const ServicesCatalog: React.FC<{ onClick: (packageType, packageId: strin
                       >
                         <div className={`${styles.icon} flex`}>{getServiceIcon(source, sourcesIcons)}</div>
                         <div>
-                          <div className={`text-xl`}>{source.meta.name}</div>
+                          <div>
+                            <div className={`text-xl`}>{source.meta.name}</div>
+                          </div>
+                          <div className="text-xs text-textLight">{source.packageId}</div>
                         </div>
                       </div>
                     );

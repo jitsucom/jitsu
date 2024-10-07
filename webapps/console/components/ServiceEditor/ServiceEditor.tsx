@@ -1,6 +1,6 @@
 import { EditorComponentProps } from "../ConfigObjectEditor/ConfigEditor";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { getErrorMessage, getLog, hash as juavaHash, rpc } from "juava";
+import { getErrorMessage, getLog, rpc } from "juava";
 import { EditorTitle } from "../ConfigObjectEditor/EditorTitle";
 import { EditorBase } from "../ConfigObjectEditor/EditorBase";
 import { LoadingAnimation } from "../GlobalLoader/GlobalLoader";
@@ -23,7 +23,6 @@ import unset from "lodash/unset";
 import { SchemaForm } from "../ConfigObjectEditor/SchemaForm";
 import { TextEditor } from "../ConfigObjectEditor/Editors";
 import { useAntdModal } from "../../lib/modal";
-import hash from "stable-hash";
 import { useStoreReload } from "../../lib/store";
 
 type ServiceEditorProps = {} & EditorComponentProps;
@@ -83,7 +82,9 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
     (async () => {
       setLoadingSpecs(true);
       try {
-        const firstRes = await rpc(`/api/${workspace.id}/sources/spec?package=${obj.package}&version=${obj.version}`);
+        const firstRes = await rpc(
+          `/api/${workspace.id}/sources/spec?package=${obj.package}&version=${obj.version}&force=true`
+        );
         if (firstRes.ok) {
           getLog().atDebug().log("Loaded cached specs", firstRes);
           setSpecs(firstRes.specs);
@@ -95,9 +96,7 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
         } else {
           for (let i = 0; i < 60; i++) {
             await new Promise(resolve => setTimeout(resolve, 2000));
-            const resp = await rpc(
-              `/api/${workspace.id}/sources/spec?package=${obj.package}&version=${obj.version}&after=${firstRes.startedAt}`
-            );
+            const resp = await rpc(`/api/${workspace.id}/sources/spec?package=${obj.package}&version=${obj.version}`);
             if (!resp.pending) {
               if (resp.error) {
                 feedbackError(`Cannot load specs for ${obj.package}:${obj.version}`, {
@@ -169,20 +168,17 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
     const _save = async (testConnectionError?: string) => {
       obj.credentials = credentials;
       obj.testConnectionError = testConnectionError;
-      const storageKey = `${workspace.id}_${obj.id}_${juavaHash("md5", hash(credentials))}`;
-      // trigger loading catalog in background (k8s)
-      await rpc(
-        `/api/${workspace.id}/sources/discover?package=${obj.package}&version=${obj.version}&storageKey=${storageKey}`,
-        {
-          body: obj,
-        }
-      );
+      let res: any = undefined;
       if (props.isNew) {
-        await getConfigApi(workspace.id, "service").create(obj);
+        res = await getConfigApi(workspace.id, "service").create(obj);
       } else if (obj.id) {
-        await getConfigApi(workspace.id, "service").update(obj.id, obj);
+        res = await getConfigApi(workspace.id, "service").update(obj.id, obj);
       } else {
         feedbackError(`Can't save service without id`);
+      }
+      if (res?.success || res?.id) {
+        // trigger loading catalog in background (k8s)
+        await rpc(`/api/${workspace.id}/sources/discover?serviceId=${res?.id || obj.id}`);
       }
       await reloadStore();
       push(`/${workspace.id}/services`);

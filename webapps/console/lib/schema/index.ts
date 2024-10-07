@@ -222,3 +222,24 @@ export const UserWorkspaceRelation = z.object({
 });
 
 export type UserWorkspaceRelation = z.infer<typeof UserWorkspaceRelation>;
+
+export const BaseLinkType = z.object({ fromId: z.string(), toId: z.string() });
+
+export const SelectedStreamSettings = z.object({
+  sync_mode: z.enum(["full_refresh", "incremental"]),
+  table_name: z.string().optional(),
+  cursor_field: z.array(z.string()).optional(),
+});
+
+export type SelectedStreamSettings = z.infer<typeof SelectedStreamSettings>;
+
+export const SyncOptionsType = z.object({
+  streams: z.record(SelectedStreamSettings),
+  namespace: z.string().optional(),
+  tableNamePrefix: z.string().optional(),
+  toSameCase: z.boolean().optional(),
+  schedule: z.union([z.string(), z.enum(["0 0 * * *", "0 * * * *", "*/15 * * * *", "*/5 * * * *", "* * * * *"])]),
+  timezone: z.string().optional(),
+});
+
+export type SyncOptionsType = z.infer<typeof SyncOptionsType>;
