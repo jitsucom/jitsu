@@ -1,6 +1,6 @@
 import { EditorComponentProps } from "../ConfigObjectEditor/ConfigEditor";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { getErrorMessage, getLog, hash as juavaHash, rpc } from "juava";
+import { getErrorMessage, getLog, rpc } from "juava";
 import { EditorTitle } from "../ConfigObjectEditor/EditorTitle";
 import { EditorBase } from "../ConfigObjectEditor/EditorBase";
 import { LoadingAnimation } from "../GlobalLoader/GlobalLoader";
@@ -23,7 +23,6 @@ import unset from "lodash/unset";
 import { SchemaForm } from "../ConfigObjectEditor/SchemaForm";
 import { TextEditor } from "../ConfigObjectEditor/Editors";
 import { useAntdModal } from "../../lib/modal";
-import hash from "stable-hash";
 import { useStoreReload } from "../../lib/store";
 
 type ServiceEditorProps = {} & EditorComponentProps;
