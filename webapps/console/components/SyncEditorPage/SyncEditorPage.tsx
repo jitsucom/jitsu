@@ -1,11 +1,11 @@
 import { useAppConfig, useWorkspace } from "../../lib/context";
 import { get } from "../../lib/useApi";
-import { DestinationConfig, ServiceConfig } from "../../lib/schema";
+import { DestinationConfig, SelectedStreamSettings, ServiceConfig, SyncOptionsType } from "../../lib/schema";
 import React, { useCallback, useEffect, useState } from "react";
 import { z } from "zod";
 import { ConfigurationObjectLinkDbModel } from "../../prisma/schema";
 import { useRouter } from "next/router";
-import { assertTrue, getLog, hash as juavaHash, requireDefined, rpc } from "juava";
+import { assertTrue, getLog, requireDefined, rpc } from "juava";
 import { Disable } from "../Disable/Disable";
 import { Button, Checkbox, Input, Select, Switch, Tooltip } from "antd";
 import { getCoreDestinationType } from "../../lib/schema/destinations";
@@ -14,7 +14,6 @@ import FieldListEditorLayout, { EditorItem } from "../FieldListEditorLayout/Fiel
 import { ChevronLeft, ExternalLink } from "lucide-react";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
 import { LoadingAnimation } from "../GlobalLoader/GlobalLoader";
-import hash from "stable-hash";
 import { DestinationTitle } from "../../pages/[workspaceId]/destinations";
 import { ServiceTitle } from "../../pages/[workspaceId]/services";
 import { SwitchComponent } from "../ConnectionEditorPage/ConnectionEditorPage";
@@ -85,24 +84,6 @@ type SelectorProps<T> = {
   items: T[];
   onSelect: (value: string) => void;
 };
-
-type SyncOptionsType = {
-  storageKey?: string;
-  streams?: SelectedStreams;
-  namespace?: string;
-  tableNamePrefix?: string;
-  toSameCase?: boolean;
-  schedule?: string;
-  timezone?: string;
-};
-
-type SelectedStreamSettings = {
-  sync_mode: "full_refresh" | "incremental";
-  table_name?: string;
-  cursor_field?: string[];
-};
-
-type SelectedStreams = Record<string, SelectedStreamSettings>;
 
 function DestinationSelector(props: SelectorProps<DestinationConfig>) {
   return (
@@ -268,7 +249,10 @@ function SyncEditor({
           ...syncOptions,
           streams: {
             ...syncOptions.streams,
-            [streamName]: { ...syncOptions.streams?.[streamName], [propName]: value } as SelectedStreamSettings,
+            [streamName]: {
+              ...syncOptions.streams?.[streamName],
+              [propName]: value,
+            } as SelectedStreamSettings,
           },
         });
       }
@@ -348,8 +332,8 @@ function SyncEditor({
   };
 
   const initSyncOptions = useCallback(
-    (storageKey: string, catalog: any, force?: boolean) => {
-      const streams: SelectedStreams = {};
+    (catalog: any, force?: boolean) => {
+      const streams: Record<string, SelectedStreamSettings> = {};
       const currentStreams = force ? {} : syncOptions?.streams || {};
       const newSync = typeof syncOptions?.streams === "undefined" || force;
       for (const stream of catalog?.streams ?? []) {
@@ -362,9 +346,7 @@ function SyncEditor({
         }
       }
       if (xor(Object.keys(streams), Object.keys(currentStreams)).length > 0) {
-        updateOptions({ streams, storageKey });
-      } else {
-        updateOptions({ storageKey });
+        updateOptions({ streams });
       }
     },
     [syncOptions?.streams, updateOptions]
@@ -379,10 +361,10 @@ function SyncEditor({
   }, [syncOptions]);
 
   const addAllStreams = useCallback(() => {
-    if (syncOptions?.storageKey && catalog) {
-      initSyncOptions(syncOptions?.storageKey, catalog, true);
+    if (catalog) {
+      initSyncOptions(catalog, true);
     }
-  }, [initSyncOptions, catalog, syncOptions?.storageKey]);
+  }, [initSyncOptions, catalog]);
 
   useEffect(() => {
     if (!service) {
@@ -398,15 +380,8 @@ function SyncEditor({
       setLoadingCatalog(true);
       try {
         const force = refreshCatalog > 0;
-        const h = juavaHash("md5", hash(service.credentials));
-        const storageKey = `${workspace.id}_${service.id}_${h}`;
         const firstRes = await rpc(
-          `/api/${workspace.id}/sources/discover?package=${service.package}&version=${
-            service.version
-          }&storageKey=${storageKey}${force ? "&refresh=true" : ""}`,
-          {
-            body: service,
-          }
+          `/api/${workspace.id}/sources/discover?serviceId=${service.id}${force ? "&refresh=true" : ""}`
         );
         if (cancelled) {
           return;
@@ -416,16 +391,14 @@ function SyncEditor({
         } else if (firstRes.ok) {
           console.log("Loaded cached catalog:", JSON.stringify(firstRes, null, 2));
           setCatalog(firstRes.catalog);
-          initSyncOptions(storageKey, firstRes.catalog);
+          initSyncOptions(firstRes.catalog);
         } else {
           for (let i = 0; i < 600; i++) {
             if (cancelled) {
               return;
             }
             await new Promise(resolve => setTimeout(resolve, 2000));
-            const resp = await rpc(
-              `/api/${workspace.id}/sources/discover?package=${service.package}&version=${service.version}&storageKey=${storageKey}`
-            );
+            const resp = await rpc(`/api/${workspace.id}/sources/discover?serviceId=${service.id}`);
             if (!resp.pending) {
               if (typeof resp.error !== "undefined") {
                 setCatalogError(resp.error);
@@ -433,7 +406,7 @@ function SyncEditor({
               } else {
                 console.log("Loaded catalog:", JSON.stringify(resp, null, 2));
                 setCatalog(resp.catalog);
-                initSyncOptions(storageKey, resp.catalog);
+                initSyncOptions(resp.catalog);
                 return;
               }
             }
