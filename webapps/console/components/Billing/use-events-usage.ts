@@ -31,7 +31,7 @@ function parseThrottle(val: string): number | undefined {
  * @param opts.skipSubscribed - if true, will return bogus data if workspace is subscribed to a paid
  * plan. In some cases, we don't really need usage for subscribed workspaces
  */
-export function useUsage(opts?: { skipSubscribed?: boolean; cacheSeconds?: number }): UseUsageRes {
+export function useEventsUsage(opts?: { skipSubscribed?: boolean; cacheSeconds?: number }): UseUsageRes {
   const workspace = useWorkspace();
   const billing = useBilling();
   assertTrue(billing.enabled, "Billing is not enabled");

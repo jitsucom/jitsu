@@ -10,7 +10,7 @@ import { Check, ChevronRight, Edit2, ExternalLink, Info, XCircle } from "lucide-
 import styles from "./BillingManager.module.css";
 import { useQuery } from "@tanstack/react-query";
 import { ErrorCard } from "../GlobalError/GlobalError";
-import { useUsage } from "./use-usage";
+import { useEventsUsage } from "./use-events-usage";
 import { upgradeRequired } from "./copy";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
 import dayjs from "dayjs";
@@ -58,13 +58,13 @@ const ComparisonSection: React.FC<{
   );
 };
 
-const UsageSection: React.FC<{}> = () => {
+const EventsUsageSection: React.FC<{}> = () => {
   const billing = useBilling();
   const workspace = useWorkspace();
   assertTrue(billing.enabled);
   assertFalse(billing.loading, "Billing must be loaded before using UsageSection component");
 
-  const { isLoading, error, usage, throttle } = useUsage();
+  const { isLoading, error, usage, throttle } = useEventsUsage();
 
   if (isLoading) {
     return <Skeleton active paragraph={{ rows: 1, width: "100%" }} title={false} />;
@@ -103,6 +103,7 @@ const UsageSection: React.FC<{}> = () => {
           <ChevronRight className="h-5" />
         </Link>
       </div>
+
       {billing.settings?.pastDue && (
         <div className="mt-8">
           <Alert
@@ -154,7 +155,7 @@ const UsageSection: React.FC<{}> = () => {
           />
         </div>
       )}
-      {usageIsAboutToExceed && !usageExceeded && !throttle && (
+      {usageIsAboutToExceed && !usageExceeded && !throttle ? (
         <div className="mt-8">
           <Alert
             message={<h4 className="font-bold">Account quota warning!</h4>}
@@ -169,7 +170,7 @@ const UsageSection: React.FC<{}> = () => {
             }
           />
         </div>
-      )}
+      ) : undefined}
       {usage.usagePercentage > 1 && billing.settings.planId !== "free" && !throttle && (
         <div className="mt-8">
           <Alert
@@ -201,6 +202,73 @@ const UsageSection: React.FC<{}> = () => {
             }
             type="info"
             showIcon
+          />
+        </div>
+      )}
+    </div>
+  );
+};
+
+const ConnectorUsageSection: React.FC<{}> = () => {
+  const billing = useBilling();
+  assertTrue(billing.enabled, "Billing is not enabled");
+  assertFalse(billing.loading, "Billing must be loaded before using CurrentSubscription component");
+  const workspace = useWorkspace();
+  const user = useUser();
+  let periodStart: Date;
+  let periodEnd: Date;
+  if (billing.settings.expiresAt) {
+    periodEnd = dayjs(billing.settings.expiresAt).utc().startOf("day").add(-1, "millisecond").toDate();
+    periodStart = dayjs(billing.settings.expiresAt).utc().add(-1, "month").startOf("day").toDate();
+  } else {
+    periodStart = dayjs().utc().startOf("month").toDate();
+    periodEnd = dayjs().utc().endOf("month").add(-1, "millisecond").toDate();
+  }
+  const { isLoading, error, data } = useQuery(
+    ["connector usage", workspace.id],
+    async () => {
+      const report = await rpc(
+        `/api/${workspace.id}/reports/sync-stat?start=${periodStart.toISOString()}&end=${dayjs(periodEnd)
+          .subtract(1, "millisecond")
+          .toISOString()}`
+      );
+      return report;
+    },
+    { retry: false, cacheTime: 0, staleTime: 0 }
+  );
+
+  if (isLoading) {
+    return <Skeleton active paragraph={{ rows: 1, width: "100%" }} title={false} />;
+  } else if (error) {
+    return <ErrorCard error={error} />;
+  }
+
+  const activeSyncs = data.activeSyncs;
+  const maxActiveSyncs = billing.settings.dailyActiveSyncs || 1;
+  const percentage = activeSyncs / maxActiveSyncs;
+
+  return (
+    <div>
+      <Progress percent={percentage * 100} showInfo={false} status={percentage > 1 ? "exception" : undefined} />
+      <div className="flex items-center justify-between">
+        <div>
+          {activeSyncs} / {maxActiveSyncs} monthly active syncs from{" "}
+          <i>{dayjs(periodStart).utc().format("MMM DD, YYYY")}</i> to{" "}
+          <i>{dayjs(periodEnd).utc().format("MMM DD, YYYY")}</i>. The quota will be reset on{" "}
+          <i>{dayjs(periodEnd).add(1, "day").utc().format("MMM DD")}</i>.
+        </div>
+      </div>
+      {percentage > 1 && (
+        <div className="mt-8 w-full">
+          <Alert
+            message={<h4 className="font-bold">Overage fee warning</h4>}
+            description={
+              <>
+                Overage fee of at least $
+                <b>{(billing.settings.dailyActiveSyncsOverage || 0) * (activeSyncs - maxActiveSyncs)}</b> per sync will
+                be added to your next invoice.
+              </>
+            }
           />
         </div>
       )}
@@ -262,7 +330,13 @@ const CurrentSubscription: React.FC<{}> = () => {
         </div>
       </div>
       <h3 className="text-lg text-textLight mt-6 mb-2">Events Usage</h3>
-      <UsageSection />
+      <EventsUsageSection />
+      {billing.settings?.planId !== "free" && (
+        <>
+          <h3 className="text-lg text-textLight mt-6 mb-2">Connectors Usage</h3>
+          <ConnectorUsageSection />
+        </>
+      )}
     </div>
   );
 };

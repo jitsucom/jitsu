@@ -60,7 +60,7 @@ import { useJitsu } from "@jitsu/jitsu-react";
 import { useSearchParams } from "next/navigation";
 import omit from "lodash/omit";
 import { useBilling, UseBillingResult } from "../Billing/BillingProvider";
-import { useUsage, UseUsageRes } from "../Billing/use-usage";
+import { useEventsUsage, UseUsageRes } from "../Billing/use-events-usage";
 import { MenuItemType } from "antd/lib/menu/interface";
 
 export type PageLayoutProps = {
@@ -505,7 +505,7 @@ function usageIsAboutToExceed(billing: UseBillingResult, usage: UseUsageRes) {
 
 const FreePlanQuotaAlert: React.FC<{}> = () => {
   const workspace = useWorkspace();
-  const usage = useUsage({ skipSubscribed: true });
+  const usage = useEventsUsage({ skipSubscribed: true });
   const billing = useBilling();
   const router = useRouter();
   assertTrue(billing.enabled, "Billing should be enabled and loaded");
