@@ -193,7 +193,7 @@ function SyncEditor({
   const destinationType = getCoreDestinationType(destination.destinationType);
   const namespaceImpl = namespaceImplementation[destinationType.id] ?? { name: "namespace", filed: "namespace" };
 
-  const [syncOptions, setSyncOptions] = useState<SyncOptionsType | undefined>(
+  const [syncOptions, setSyncOptions] = useState<SyncOptionsType>(
     (existingLink?.data || { namespace: "" }) as SyncOptionsType
   );
   const [catalog, setCatalog] = useState<any>(undefined);
