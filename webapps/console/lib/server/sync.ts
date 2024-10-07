@@ -1,7 +1,7 @@
 import { CloudSchedulerClient } from "@google-cloud/scheduler";
 import { db } from "./db";
 import { ConfigurationObject, ConfigurationObjectLink } from "@prisma/client";
-import { LogFactory, randomId, requireDefined, rpc, stopwatch } from "juava";
+import { hash as juavaHash, LogFactory, randomId, requireDefined, rpc, stopwatch } from "juava";
 import { google } from "@google-cloud/scheduler/build/protos/protos";
 import { difference } from "lodash";
 import { getServerLog } from "./log";
@@ -16,6 +16,7 @@ import omit from "lodash/omit";
 import { FunctionLogger, SetOpts, Store, SyncFunction } from "@jitsu/protocols/functions";
 import { mixpanelFacebookAdsSync, mixpanelGoogleAdsSync } from "./syncs/mixpanel";
 import IJob = google.cloud.scheduler.v1.IJob;
+import hash from "stable-hash";
 
 const log = getServerLog("sync-scheduler");
 
@@ -593,7 +594,10 @@ export async function scheduleSync({
       };
     }
 
-    const catalog = await catalogFromDb(serviceConfig.package, serviceConfig.version, (sync.data as any).storageKey);
+    const h = juavaHash("md5", hash(serviceConfig.credentials));
+    const versionHash = `${workspaceId}_${serviceConfig.id}_${h}`;
+
+    const catalog = await catalogFromDb(serviceConfig.package, serviceConfig.version, versionHash);
     if (!catalog) {
       return {
         ok: false,
