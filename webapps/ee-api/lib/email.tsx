@@ -10,6 +10,7 @@ import Churned from "../emails/churned";
 import ChurnedCustomerEmail from "../emails/churned";
 import QuotaExceeded from "../emails/quota-exceeded";
 import QuotaAboutToExceed from "../emails/quota-about-to-exceed";
+import ThrottledReminderEmail from "../emails/throttling-reminder";
 
 dayjs.extend(utc);
 export const UnsubscribeCodes = z.object({
@@ -75,7 +76,7 @@ export const SendEmailRequest = z.object({
   to: z.string().optional(),
   workspaceId: z.string().optional(),
   bcc: z.string().optional(),
-  variables: z.record(z.string()).optional(),
+  variables: z.record(z.any()).optional(),
   //Two flags below, of not set, will be inferred from the EmailTemplale.isTransactional property
   allowUnsubscribe: z.boolean().optional(),
   respectUnsubscribe: z.boolean().optional(),
@@ -94,6 +95,8 @@ export function getComponent(template: string): EmailComponent<UnsubscribeLinkPr
       return QuotaExceeded;
     case "quota-about-to-exceed":
       return QuotaAboutToExceed;
+    case "throttling-reminder":
+      return ThrottledReminderEmail;
     default:
       throw new Error(`Unknown email template: ${template}`);
   }

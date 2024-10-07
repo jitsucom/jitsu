@@ -141,7 +141,7 @@ const UsageSection: React.FC<{}> = () => {
       {throttle && (
         <div className="mt-8">
           <Alert
-            message={<h4 className="font-bold">Overage fee warning</h4>}
+            message={<h4 className="font-bold">Throttling warning</h4>}
             description={
               <div>
                 You have repeatedly exceeded your monthly events destination limit, so you're incoming events are
