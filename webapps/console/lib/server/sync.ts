@@ -438,7 +438,7 @@ export async function scheduleSync({
     }
     const destinationConfig = sync.to.config as DestinationConfig;
     const destinationType = getCoreDestinationType(destinationConfig.destinationType);
-    const serviceConfig = { ...service.config, ...service };
+    const serviceConfig = { ...(service.config as any), ...service };
     const running = await db.prisma().source_task.findFirst({
       where: {
         sync_id: syncIdOrModel as string,

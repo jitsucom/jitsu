@@ -17,7 +17,13 @@ const postAndPutCfg = {
       type: z.string().optional(),
     }),
   },
-  handle: async ({ body, user, query: { workspaceId, runSync }, req }) => {
+  handle: async (ctx: any) => {
+    const {
+      body,
+      user,
+      query: { workspaceId, runSync },
+      req,
+    } = ctx;
     const { id, toId, fromId, data = undefined, type = "push" } = body;
     await verifyAccess(user, workspaceId);
     const fromType = type === "sync" ? "service" : "stream";

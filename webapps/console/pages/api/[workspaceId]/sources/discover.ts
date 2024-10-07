@@ -52,13 +52,13 @@ export default createRoute()
     }
 
     try {
-      let existingService = await db.prisma().configurationObject.findFirst({
+      let existingService = (await db.prisma().configurationObject.findFirst({
         where: { id: query.serviceId },
-      });
+      })) as any;
       if (!existingService || existingService.workspaceId !== workspaceId) {
         return { ok: false, error: `Service Connector not found for id: ${query.serviceId}` };
       }
-      existingService = { ...existingService.config, ...existingService };
+      existingService = { ...(existingService.config as any), ...existingService } as any;
       const h = juavaHash("md5", hash(existingService.credentials));
       const storageKey = `${workspaceId}_${existingService.id}_${h}`;
 
