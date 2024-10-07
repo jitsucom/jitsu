@@ -1,13 +1,15 @@
 import { createRoute, verifyAdmin } from "../../../../../lib/api";
 import { db } from "../../../../../lib/server/db";
-import { getErrorMessage, getLog, requireDefined, rpc } from "juava";
+import { getErrorMessage, getLog, hash as juavaHash, requireDefined, rpc } from "juava";
 import { z } from "zod";
 import { getCoreDestinationTypeNonStrict } from "../../../../../lib/schema/destinations";
 import { createJwt, getEeConnection, isEEAvailable } from "../../../../../lib/server/ee";
 import omit from "lodash/omit";
 import { NextApiRequest } from "next";
 import hash from "object-hash";
+import { default as stableHash } from "stable-hash";
 import { WorkspaceDbModel } from "../../../../../prisma/schema";
+import pick from "lodash/pick";
 
 interface Writer {
   write(data: string): void;
@@ -307,6 +309,68 @@ const exports: Export[] = [
                   credentials: omit(l.to.config, "destinationType", "type", "name"),
                   options: l.data,
                 })),
+            })
+          );
+          needComma = true;
+        }
+        if (objects.length < batchSize) {
+          break;
+        }
+      }
+      writer.write("]");
+    },
+  },
+  {
+    name: "syncs-debug",
+    lastModified: getLastUpdated,
+    data: async writer => {
+      writer.write("[");
+
+      let lastId: string | undefined = undefined;
+      let needComma = false;
+      while (true) {
+        const objects = await db.prisma().configurationObjectLink.findMany({
+          where: {
+            deleted: false,
+            type: "sync",
+            workspace: { deleted: false },
+            from: { deleted: false },
+            to: { deleted: false },
+          },
+          include: { from: true, to: true, workspace: true },
+          take: batchSize,
+          cursor: lastId ? { id: lastId } : undefined,
+          orderBy: { id: "asc" },
+        });
+        if (objects.length == 0) {
+          break;
+        }
+        getLog().atDebug().log(`Got batch of ${objects.length} objects for bulker export`);
+        lastId = objects[objects.length - 1].id;
+        for (const { data, from, id, to, updatedAt, workspace } of objects) {
+          const destinationType = to.config.destinationType;
+          const coreDestinationType = getCoreDestinationTypeNonStrict(destinationType);
+          if (!coreDestinationType) {
+            getLog().atError().log(`Unknown destination type: ${destinationType} for connection ${id}`);
+          }
+          if (needComma) {
+            writer.write(",");
+          }
+          const h = juavaHash("md5", stableHash(from.config.credentials));
+          const storageKey = `${workspace.id}_${from.id}_${h}`;
+          writer.write(
+            JSON.stringify({
+              id: id,
+              type: destinationType,
+              workspaceId: workspace.id,
+              streamId: from.id,
+              destinationId: to.id,
+              usesBulker: !!coreDestinationType?.usesBulker,
+              options: {
+                ...pick(data, "storageKey"),
+                versionHash: storageKey,
+              },
+              updatedAt: dateMax(updatedAt, to.updatedAt),
             })
           );
           needComma = true;
