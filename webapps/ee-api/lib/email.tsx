@@ -178,7 +178,9 @@ export async function sendEmail(payload: Omit<Payload, "to"> & { to: string }) {
     name: parseEmailAddress(payload.to).name?.split(" ")[0],
     ...(payload.variables || {}),
     ...(workspace || {}),
-    unsubscribeLink: allowUnsubscribe ? `https://${domain}/api/unsubscribe?email=${encodeURIComponent(recepient)}&code=${unsubscribeCode}` : undefined,
+    unsubscribeLink: allowUnsubscribe
+      ? `https://${domain}/api/unsubscribe?email=${encodeURIComponent(recepient)}&code=${unsubscribeCode}`
+      : undefined,
   };
   const scheduledAt = Component.scheduleAt ? Component.scheduleAt(new Date()).toISOString() : undefined;
   let subject = typeof Component.subject === "string" ? Component.subject : Component.subject(props);
