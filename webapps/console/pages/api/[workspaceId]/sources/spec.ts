@@ -1,7 +1,7 @@
 import { db } from "../../../../lib/server/db";
 import { z } from "zod";
 import { createRoute, verifyAccess } from "../../../../lib/api";
-import { requireDefined, rpc } from "juava";
+import { isTruish, requireDefined, rpc } from "juava";
 import { getServerLog } from "../../../../lib/server/log";
 import { syncError } from "../../../../lib/server/sync";
 
@@ -22,7 +22,7 @@ export default createRoute()
       workspaceId: z.string(),
       package: z.string(),
       version: z.string(),
-      after: z.string().optional(),
+      force: z.string().optional(),
     }),
     result: resultType,
   })
@@ -39,22 +39,13 @@ export default createRoute()
       authHeaders["Authorization"] = `Bearer ${syncAuthKey}`;
     }
     try {
-      let res;
-      if (query.after) {
-        res = await db
-          .pgPool()
-          .query(
-            `select specs, error from newjitsu.source_spec where package = $1 and version = $2 and timestamp >= $3`,
-            [query.package, query.version, new Date(1000 * parseInt(query.after))]
-          );
-      } else {
-        res = await db
-          .pgPool()
-          .query(`select specs, error from newjitsu.source_spec where package = $1 and version = $2`, [
-            query.package,
-            query.version,
-          ]);
-      }
+      const res = await db.pgPool().query(
+        `select specs, error
+                        from newjitsu.source_spec
+                        where package = $1
+                          and version = $2`,
+        [query.package, query.version]
+      );
       let error;
       if (res.rowCount === 1) {
         const specs = res.rows[0].specs;
@@ -65,9 +56,12 @@ export default createRoute()
           };
         } else {
           error = res.rows[0].error ?? "unknown error";
+          if (error === "pending") {
+            return { ok: false, pending: true };
+          }
         }
       }
-      if (!query.after) {
+      if (!res.rowCount || isTruish(query.force)) {
         const checkRes = await rpc(syncURL + "/spec", {
           method: "GET",
           headers: {
@@ -82,13 +76,21 @@ export default createRoute()
         if (!checkRes.ok) {
           return { ok: false, error: checkRes.error ?? "unknown error" };
         } else {
-          return { ok: false, pending: true, startedAt: checkRes.startedAt };
+          await db.pgPool().query(
+            `insert into newjitsu.source_spec as s (package, version, specs, timestamp, error)
+                     values ($1, $2, null, $3, $4)
+                     ON CONFLICT ON CONSTRAINT source_spec_pkey DO UPDATE SET specs = null,
+                                                                              timestamp = $3,
+                                                                              error = $4`,
+            [query.package, query.version, new Date(), "pending"]
+          );
+          return { ok: false, pending: true };
         }
       } else {
         if (error) {
           return { ok: false, error };
         } else {
-          return { ok: false, pending: true, startedAt: parseInt(query.after) };
+          return { ok: false, pending: true };
         }
       }
     } catch (e: any) {
