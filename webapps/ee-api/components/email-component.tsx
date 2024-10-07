@@ -9,7 +9,8 @@ export type EmailComponent<P extends UnsubscribeLinkProps> = React.FC<P> & {
   bcc?: string;
   replyTo?: string;
   plaintext: (props: P) => string;
-  isTransactional?: boolean;
+  allowUnsubscribe?: boolean;
+  respectUnsubscribed?: boolean;
   scheduleAt?: (now: Date) => Date;
 };
 

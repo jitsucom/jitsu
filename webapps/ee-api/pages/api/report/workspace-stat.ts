@@ -279,8 +279,6 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
     }
     const workspacePlans: Record<string, string> = {};
 
-    console.log(`All workspaces`, allWorkspaces);
-
     for (const { id: workspaceId, obj } of allWorkspaces) {
       const { stripeCustomerId, customBilling } = obj;
       if (customBilling) {
@@ -304,8 +302,8 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
         } else {
           workspacePlans[workspaceId] = "free";
         }
+        records = records.map(r => ({ ...r, billingStatus: workspacePlans[r.workspaceId] || "free" }));
       }
-      records = records.map(r => ({ ...r, billingStatus: workspacePlans[r.workspaceId] || "free" }));
     }
   }
   res.send(req.query.format === "array" ? records : { data: records });

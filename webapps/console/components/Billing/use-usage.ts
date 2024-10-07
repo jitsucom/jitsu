@@ -16,9 +16,16 @@ export type Usage = {
   periodEnd: Date;
 };
 
-export type UseUsageRes = { isLoading: boolean; error?: any; usage?: Usage };
+export type UseUsageRes = { isLoading: boolean; error?: any; throttle?: number; usage?: Usage };
 
 export type DestinationReportDataRow = {};
+
+function parseThrottle(val: string): number | undefined {
+  const match = val.match(/throttle=?(\d+)/);
+  if (match) {
+    return parseFloat(match[1]);
+  }
+}
 
 /**
  * @param opts.skipSubscribed - if true, will return bogus data if workspace is subscribed to a paid
@@ -30,6 +37,10 @@ export function useUsage(opts?: { skipSubscribed?: boolean; cacheSeconds?: numbe
   assertTrue(billing.enabled, "Billing is not enabled");
   assertFalse(billing.loading, "Billing must be loaded before using usage hook");
   const cacheSeconds = opts?.cacheSeconds ?? 60 * 5; //5 minutes by default
+  const throttle = workspace.featuresEnabled
+    ?.filter(f => f.startsWith("throttle"))
+    ?.map(parseThrottle)
+    ?.find(t => t);
 
   let periodStart: Date;
   let periodEnd: Date;
@@ -67,6 +78,7 @@ export function useUsage(opts?: { skipSubscribed?: boolean; cacheSeconds?: numbe
   return {
     isLoading,
     error,
+    throttle,
     usage: data
       ? {
           periodStart,

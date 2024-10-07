@@ -64,7 +64,7 @@ const UsageSection: React.FC<{}> = () => {
   assertTrue(billing.enabled);
   assertFalse(billing.loading, "Billing must be loaded before using UsageSection component");
 
-  const { isLoading, error, usage } = useUsage();
+  const { isLoading, error, usage, throttle } = useUsage();
 
   if (isLoading) {
     return <Skeleton active paragraph={{ rows: 1, width: "100%" }} title={false} />;
@@ -138,7 +138,23 @@ const UsageSection: React.FC<{}> = () => {
           />
         </div>
       )}
-      {usageIsAboutToExceed && !usageExceeded && (
+      {throttle && (
+        <div className="mt-8">
+          <Alert
+            message={<h4 className="font-bold">Overage fee warning</h4>}
+            description={
+              <div>
+                You have repeatedly exceeded your monthly events destination limit, so you're incoming events are
+                throttled at rate of <b>{throttle}%</b> events per second. It means that only <b>{100 - throttle}%</b>{" "}
+                of incoming events are processed. Please upgrade your plan to restore the full processing capacity.
+              </div>
+            }
+            type="error"
+            showIcon
+          />
+        </div>
+      )}
+      {usageIsAboutToExceed && !usageExceeded && !throttle && (
         <div className="mt-8">
           <Alert
             message={<h4 className="font-bold">Account quota warning!</h4>}
@@ -154,7 +170,7 @@ const UsageSection: React.FC<{}> = () => {
           />
         </div>
       )}
-      {usage.usagePercentage > 1 && billing.settings.planId !== "free" && (
+      {usage.usagePercentage > 1 && billing.settings.planId !== "free" && !throttle && (
         <div className="mt-8">
           <Alert
             message={<h4 className="font-bold">Overage fee warning</h4>}

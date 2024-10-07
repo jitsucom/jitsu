@@ -23,7 +23,8 @@ select ws.name    as "workspaceName",
        ws.slug    as "workspaceSlug",
        ws."id"    as "workspaceId",
        dm.domains as domains,
-       u.users
+       u.users,
+       (SELECT elem FROM unnest(ws."featuresEnabled") AS elem WHERE elem ILIKE 'throttle%' LIMIT 1) as throttle
 from newjitsu."Workspace" ws
      left join workspace_domains dm on dm.workspaceId = ws.id
      left join workspace_admins u on u.workspaceId = ws.id

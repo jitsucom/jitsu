@@ -24,7 +24,9 @@ import {
   Hammer,
   HelpCircle,
   LayoutDashboard,
+  LineChart,
   Loader2,
+  PackageOpen,
   PlugZap,
   ScrollText,
   SearchCode,
@@ -33,12 +35,10 @@ import {
   Settings,
   Share2,
   ShieldAlert,
+  Terminal,
   User,
   X,
   Zap,
-  PackageOpen,
-  LineChart,
-  Terminal,
 } from "lucide-react";
 
 import { NextRouter, useRouter } from "next/router";
@@ -516,7 +516,20 @@ const FreePlanQuotaAlert: React.FC<{}> = () => {
     return <></>;
   }
 
-  if (usageIsAboutToExceed(billing, usage)) {
+  if (usage.throttle) {
+    return (
+      <AlertView>
+        Your workspace is throttled due to exceeding the free plan quota at rate of <b>{usage.throttle}%</b>
+        <Link
+          className="group inline-flex items-center border-b border-neutral-600"
+          href={`/${workspace.slug}/settings/billing`}
+        >
+          Go to billing to see more details{" "}
+          <ArrowRight className="h-4 group-hover:rotate-45 transition-all duration-500" />
+        </Link>
+      </AlertView>
+    );
+  } else if (usageIsAboutToExceed(billing, usage)) {
     return (
       <AlertView>
         You are projected to exceed your monthly events. Please upgrade your plan to avoid service disruption.{" "}
@@ -529,6 +542,7 @@ const FreePlanQuotaAlert: React.FC<{}> = () => {
       </AlertView>
     );
   }
+
   return <></>;
 };
 
