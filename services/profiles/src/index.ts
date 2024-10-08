@@ -46,36 +46,16 @@ async function main() {
 
   let httpServer: Server;
   let metricsServer: Server | undefined;
-  try {
-    Prometheus.collectDefaultMetrics();
-    await db.pgPool.waitInit();
-
-    const ws = await workspaceStore.get();
-    if (!ws.enabled) {
-      log.atError().log("Connection store is not configured. Rotor will not work");
-      process.exit(1);
-    }
-    const funcStore = await functionsStore.get();
-    if (!funcStore.enabled) {
-      log.atError().log("Functions store is not configured. Rotor will not work");
-      process.exit(1);
-    }
-
-    metricsServer = initMetricsServer();
-  } catch (e) {
-    log.atError().withCause(e).log("Failed to start");
-    process.exit(1);
-  }
-
-  httpServer = initHTTP();
-
-  refreshLoop();
 
   const gracefulShutdown = async () => {
     closed = true;
 
     for (const [pbId, profileBuilder] of profileBuilders) {
-      await profileBuilder.close();
+      await profileBuilder
+        .close()
+        .catch(e =>
+          log.atError().withCause(e).log(`Failed to shutdown profile builder for: ${pbId} v: ${profileBuilder.version}`)
+        );
     }
 
     if (httpServer) {
@@ -106,6 +86,31 @@ async function main() {
       gracefulShutdown();
     });
   });
+
+  try {
+    Prometheus.collectDefaultMetrics();
+    await db.pgPool.waitInit();
+
+    const ws = await workspaceStore.get();
+    if (!ws.enabled) {
+      log.atError().log("Connection store is not configured. Rotor will not work");
+      process.exit(1);
+    }
+    const funcStore = await functionsStore.get();
+    if (!funcStore.enabled) {
+      log.atError().log("Functions store is not configured. Rotor will not work");
+      process.exit(1);
+    }
+
+    metricsServer = initMetricsServer();
+  } catch (e) {
+    log.atError().withCause(e).log("Failed to start");
+    process.exit(1);
+  }
+
+  httpServer = initHTTP();
+
+  refreshLoop();
 }
 
 function refreshLoop() {
@@ -116,22 +121,31 @@ function refreshLoop() {
       const actualProfileBuilders = new Set<string>();
       for (const [workspaceId, workspace] of Object.entries(ws.getAll())) {
         for (const pb of workspace.profileBuilders) {
-          actualProfileBuilders.add(pb.id);
-          const currentPb = profileBuilders.get(pb.id);
-          if (currentPb) {
-            if (pb.version != currentPb.version()) {
-              await currentPb.close();
-              profileBuilders.set(pb.id, profileBuilder(workspaceId, pb));
+          try {
+            const currentPb = profileBuilders.get(pb.id);
+            if (currentPb) {
+              if (pb.version != currentPb.version()) {
+                await currentPb.close();
+                profileBuilders.delete(pb.id);
+                profileBuilders.set(pb.id, await profileBuilder(workspaceId, pb));
+              }
+            } else {
+              profileBuilders.set(pb.id, await profileBuilder(workspaceId, pb));
             }
-          } else {
-            profileBuilders.set(pb.id, profileBuilder(workspaceId, pb));
+            actualProfileBuilders.add(pb.id);
+          } catch (e) {
+            log.atError().withCause(e).log(`Failed to start profile builder for: ${pb.id} v: ${pb.version}`);
           }
         }
       }
-      for (const [pdIb, pb] of profileBuilders) {
-        if (!actualProfileBuilders.has(pdIb)) {
-          await pb.close();
-          profileBuilders.delete(pdIb);
+      for (const [pbId, pb] of profileBuilders) {
+        if (!actualProfileBuilders.has(pbId)) {
+          try {
+            await pb.close();
+            profileBuilders.delete(pbId);
+          } catch (e) {
+            log.atError().withCause(e).log(`Failed to shutdown profile builder for: ${pbId} v: ${pb.version}`);
+          }
         }
       }
       const waitMs = repoUpdateInterval - (Date.now() - started);

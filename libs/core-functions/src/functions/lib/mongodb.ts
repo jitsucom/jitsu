@@ -83,7 +83,7 @@ export function mongoAnonymousEventsStore(): AnonymousEventsStore {
   };
 }
 
-export async function ensureMongoCollection(
+async function ensureMongoCollection(
   mongo: MongoClient,
   collectionName: string,
   ttlDays: number,

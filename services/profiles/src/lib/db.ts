@@ -14,7 +14,7 @@ export type ProfileBuilderState = {
   instanceIndex: number;
   totalInstances: number;
   startedAt: Date;
-  updatedAt: Date;
+  updatedAt?: Date;
   lastTimestamp?: Date;
   processedUsers: number;
   totalUsers: number;
@@ -153,6 +153,7 @@ ON CONFLICT ON CONSTRAINT "ProfileBuilderState_pkey" DO UPDATE SET
 
 export const db = {
   pgPool: getSingleton<Pool>("pg", createPg),
+  pgHelper: () => pgHelper,
 } as const;
 
 export type DatabaseConnection = typeof db;
