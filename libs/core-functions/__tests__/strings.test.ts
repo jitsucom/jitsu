@@ -36,8 +36,29 @@ const data: Record<string, string> = {
   __camelCase: "__camel_case",
 };
 
+const dataWithSpaces: Record<string, string> = {
+  " CamelCase": "_camel_case",
+  "  CamelCase": "__camel_case",
+  "Camel Case": "camel_case",
+  "Camel case": "camel_case",
+  "Camel  Case": "camel__case",
+  "Camel Case ": "camel_case_",
+  "Camel Case  ": "camel_case__",
+  "Camel _ Case": "camel___case",
+  "Camel_ _Case": "camel___case",
+  "_ CamelCase _": "__camel_case__",
+  " _CamelCase_ ": "__camel_case__",
+};
+
 test("test idToSnakeCaseFast", async () => {
   for (const [value, expected] of Object.entries(data)) {
+    const res = idToSnakeCaseFast(value);
+    expect(res).toEqual(expected);
+  }
+});
+
+test("test idToSnakeCaseFast with spaces", async () => {
+  for (const [value, expected] of Object.entries(dataWithSpaces)) {
     const res = idToSnakeCaseFast(value);
     expect(res).toEqual(expected);
   }

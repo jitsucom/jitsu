@@ -2,28 +2,31 @@ export function idToSnakeCaseRegex(id: string) {
   return id.replace(/((?<=[a-zA-Z0-9])[A-Z])/g, "_$1").toLowerCase();
 }
 
-const aCode = "A".charCodeAt(0);
-const zCode = "Z".charCodeAt(0);
+const ACode = "A".charCodeAt(0);
+const ZCode = "Z".charCodeAt(0);
 const _Code = "_".charCodeAt(0);
+const spaceCode = " ".charCodeAt(0);
 
 export function idToSnakeCaseFast(id: string) {
-  let res = id[0].toLowerCase();
-  let upperIndex = 0;
-  let i = 1;
-  const firstChar = id.charCodeAt(0);
-  let needUnderscore = firstChar != _Code;
+  let res = "";
+  let concatIndex = 0;
+  let i = 0;
+  let needUnderscore = false;
   for (; i < id.length; i++) {
     const c = id.charCodeAt(i);
-    if (c >= aCode && c <= zCode) {
-      res += id.substring(upperIndex + 1, i) + (needUnderscore ? "_" : "") + id.charAt(i).toLowerCase();
-      upperIndex = i;
+    if (c >= ACode && c <= ZCode) {
+      res += id.substring(concatIndex, i) + (needUnderscore ? "_" : "") + id.charAt(i).toLowerCase();
+      concatIndex = i + 1;
+    } else if (c == spaceCode) {
+      res += id.substring(concatIndex, i) + "_";
+      concatIndex = i + 1;
     }
-    needUnderscore = c != _Code;
+    needUnderscore = c != _Code && c != spaceCode;
   }
-  if (upperIndex == 0 && !(firstChar >= aCode && firstChar <= zCode)) {
+  if (concatIndex == 0) {
     return id;
-  } else if (upperIndex < i) {
-    res += id.substring(upperIndex + 1, id.length);
+  } else if (concatIndex < i) {
+    res += id.substring(concatIndex, i);
   }
   return res;
 }
