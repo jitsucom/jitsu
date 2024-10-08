@@ -67,7 +67,9 @@ WelcomeEmail.defaultValues = {
 
 WelcomeEmail.from = "Vladimir from Jitsu <vladimir@notify.jitsu.com>";
 WelcomeEmail.replyTo = "Vladimir Klimontovich <vladimir@jitsu.com>";
-WelcomeEmail.isTransactional = true;
+WelcomeEmail.allowUnsubscribe = true;
+//User wouldn't be able to unsubscribe before getting this email
+WelcomeEmail.respectUnsubscribed = false;
 
 WelcomeEmail.subject = "Need any help with Jitsu? Let us know!";
 

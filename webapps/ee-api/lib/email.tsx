@@ -8,6 +8,9 @@ import WelcomeEmail from "../emails/welcome";
 import { requireDefined } from "juava";
 import Churned from "../emails/churned";
 import ChurnedCustomerEmail from "../emails/churned";
+import QuotaExceeded from "../emails/quota-exceeded";
+import QuotaAboutToExceed from "../emails/quota-about-to-exceed";
+import ThrottledReminderEmail from "../emails/throttling-reminder";
 
 dayjs.extend(utc);
 export const UnsubscribeCodes = z.object({
@@ -73,7 +76,7 @@ export const SendEmailRequest = z.object({
   to: z.string().optional(),
   workspaceId: z.string().optional(),
   bcc: z.string().optional(),
-  variables: z.record(z.string()).optional(),
+  variables: z.record(z.any()).optional(),
   //Two flags below, of not set, will be inferred from the EmailTemplale.isTransactional property
   allowUnsubscribe: z.boolean().optional(),
   respectUnsubscribe: z.boolean().optional(),
@@ -88,6 +91,12 @@ export function getComponent(template: string): EmailComponent<UnsubscribeLinkPr
       return WelcomeEmail;
     case "churned":
       return ChurnedCustomerEmail;
+    case "quota-exceeded":
+      return QuotaExceeded;
+    case "quota-about-to-exceed":
+      return QuotaAboutToExceed;
+    case "throttling-reminder":
+      return ThrottledReminderEmail;
     default:
       throw new Error(`Unknown email template: ${template}`);
   }
@@ -137,6 +146,10 @@ export async function getWorkspaceInfo(
   return result.rows?.[0];
 }
 
+function firstDefined<T>(...args: (T | undefined)[]): T {
+  return args.find(arg => arg !== undefined) as T;
+}
+
 export async function sendEmail(payload: Omit<Payload, "to"> & { to: string }) {
   let workspace;
   if (payload.workspaceId) {
@@ -149,20 +162,16 @@ export async function sendEmail(payload: Omit<Payload, "to"> & { to: string }) {
   const resend = new Resend(env.EMAIL_RESEND_KEY);
   const Component: EmailComponent<UnsubscribeLinkProps> = getComponent(payload.template);
   const recepient = parseEmailAddress(payload.to).email.toLowerCase();
-  const allowUnsubscribe =
-    payload.allowUnsubscribe !== undefined ? payload.allowUnsubscribe : !Component.isTransactional;
-  const respectUnsubscribe =
-    payload.allowUnsubscribe !== undefined ? payload.allowUnsubscribe : !Component.isTransactional;
+  const allowUnsubscribe = firstDefined(payload.allowUnsubscribe, Component.allowUnsubscribe, false);
+  const respectUnsubscribe = firstDefined(payload.respectUnsubscribe, Component.respectUnsubscribed, true);
   const from =
-    payload.from ||
-    Component.from ||
-    (!Component.isTransactional || allowUnsubscribe ? env.EMAIL_MARKETING_SENDER : env.EMAIL_TRANSACTIONAL_SENDER);
+    payload.from || Component.from || (allowUnsubscribe ? env.EMAIL_MARKETING_SENDER : env.EMAIL_TRANSACTIONAL_SENDER);
   const replyTo =
     payload.replyTo ||
     Component.replyTo ||
-    (!Component.isTransactional || allowUnsubscribe ? env.EMAIL_MARKETING_SENDER : env.EMAIL_TRANSACTIONAL_SENDER);
+    (allowUnsubscribe ? env.EMAIL_MARKETING_SENDER : env.EMAIL_TRANSACTIONAL_SENDER);
 
-  if (!Component.isTransactional && respectUnsubscribe && (await isUnsubscribed(recepient))) {
+  if (respectUnsubscribe && (await isUnsubscribed(recepient))) {
     console.log(`Not sending email to unsubscribed recipient: ${recepient}`);
     return { unsubscribed: true, recipient: recepient, message: "Recipient is unsubscribed" };
   }
@@ -172,7 +181,9 @@ export async function sendEmail(payload: Omit<Payload, "to"> & { to: string }) {
     name: parseEmailAddress(payload.to).name?.split(" ")[0],
     ...(payload.variables || {}),
     ...(workspace || {}),
-    unsubscribeLink: `https://${domain}/api/unsubscribe?email=${encodeURIComponent(recepient)}&code=${unsubscribeCode}`,
+    unsubscribeLink: allowUnsubscribe
+      ? `https://${domain}/api/unsubscribe?email=${encodeURIComponent(recepient)}&code=${unsubscribeCode}`
+      : undefined,
   };
   const scheduledAt = Component.scheduleAt ? Component.scheduleAt(new Date()).toISOString() : undefined;
   let subject = typeof Component.subject === "string" ? Component.subject : Component.subject(props);

@@ -1,6 +1,6 @@
 import { useBilling, UseBillingResult } from "./BillingProvider";
 import { assertDefined, assertFalse, assertTrue, getLog } from "juava";
-import { useUsage } from "./use-usage";
+import { useEventsUsage } from "./use-events-usage";
 import { Modal } from "antd";
 import { upgradeRequired } from "./copy";
 import { AlertTriangle, ArrowRight } from "lucide-react";
@@ -18,7 +18,7 @@ function LoadAndBlockIfNeed() {
 
   assertTrue(billing.enabled);
   assertFalse(billing.loading);
-  const { isLoading, error, usage } = useUsage({ skipSubscribed: true });
+  const { isLoading, error, usage } = useEventsUsage({ skipSubscribed: true });
   if (!billing.settings?.pastDue && billing.settings?.planId !== "free") {
     //paid project with no past due subscriptions, we never block those
     return <></>;

@@ -27,7 +27,7 @@ export const BillingSettings = z.object({
   customBilling: z.boolean().default(false).optional(),
   pastDue: z.boolean().default(false).optional(),
   dailyActiveSyncs: z.number().default(1).optional(),
-  dailyActiveSyncsOverage: z.number().default(10).optional(),
+  dailyActiveSyncsOverage: z.number().default(20).optional(),
   maximumSyncFrequency: z.number().optional(), //minutes
   planName: z.string().optional(), //if not set - will be taken from planId
   overagePricePer100k: z.number().optional(),

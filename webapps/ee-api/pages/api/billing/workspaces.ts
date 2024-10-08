@@ -66,6 +66,15 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
               pastDue: false,
             },
           ];
+        } else if (w.obj.noRestrictions) {
+          return [
+            w.id,
+            {
+              planId: "billing-disabled",
+              planName: "Billing Disabled",
+              pastDue: false,
+            },
+          ];
         }
 
         const customerSubscriptions = subscriptions[w.obj.stripeCustomerId];

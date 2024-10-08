@@ -54,7 +54,8 @@ ChurnedCustomerEmail.defaultValues = {
 
 ChurnedCustomerEmail.from = "Vladimir from Jitsu <vladimir@notify.jitsu.com>";
 ChurnedCustomerEmail.replyTo = "Vladimir Klimontovich <vladimir@jitsu.com>";
-ChurnedCustomerEmail.isTransactional = true;
+ChurnedCustomerEmail.allowUnsubscribe = true;
+ChurnedCustomerEmail.respectUnsubscribed = true;
 
 ChurnedCustomerEmail.subject = "Let’s Make Jitsu Better for You – We’d Love to Have You Back!";
 
