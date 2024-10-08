@@ -162,7 +162,10 @@ async function profilesHandler(
       try {
         await ProfilesFunction(event, {
           ...ctx,
-          props: builder.intermediateStorageCredentials as ProfilesConfig,
+          props: {
+            ...builder.intermediateStorageCredentials,
+            eventsCollectionName: `profiles-raw-${wp.id}-${builder.id}`,
+          } as ProfilesConfig,
           store: createDummyStore(),
           log: {
             error: (msg, args) => flog.atError().log(msg, ...(args || [])),

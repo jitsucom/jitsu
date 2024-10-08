@@ -296,7 +296,7 @@ const exports: Export[] = [
                 ...obj.config,
                 workspaceId: obj.workspace.id,
               },
-              backupEnabled: !(obj.workspace.featuresEnabled || []).includes("nobackup"),
+              backupEnabled: isEEAvailable() && !(obj.workspace.featuresEnabled || []).includes("nobackup"),
               throttle: throttlePercent,
               shard: shardNumber,
               destinations: obj.toLinks
@@ -309,6 +309,115 @@ const exports: Export[] = [
                   credentials: omit(l.to.config, "destinationType", "type", "name"),
                   options: l.data,
                 })),
+            })
+          );
+          needComma = true;
+        }
+        if (objects.length < batchSize) {
+          break;
+        }
+      }
+      writer.write("]");
+    },
+  },
+  {
+    name: "workspaces-with-profiles",
+    lastModified: async () => {
+      return (
+        (await db.prisma().$queryRaw`
+            select
+              greatest(
+                  (select max("updatedAt") from newjitsu."ProfileBuilder"),
+                  (select max("updatedAt") from newjitsu."ProfileBuilderFunction"),
+                  (select max("updatedAt") from newjitsu."Workspace")
+              ) as "last_updated"`) as any
+      )[0]["last_updated"];
+    },
+    data: async writer => {
+      writer.write("[");
+      let lastId: string | undefined = undefined;
+      let needComma = false;
+      while (true) {
+        const objects = await db.prisma().workspace.findMany({
+          where: {
+            deleted: false,
+            profileBuilders: { some: { NOT: { id: undefined } } },
+          },
+          include: { profileBuilders: { include: { functions: true } } },
+          take: batchSize,
+          cursor: lastId ? { id: lastId } : undefined,
+          orderBy: { id: "asc" },
+        });
+        if (objects.length == 0) {
+          break;
+        }
+        getLog().atDebug().log(`Got batch of ${objects.length} objects for bulker export`);
+        lastId = objects[objects.length - 1].id;
+        for (const row of objects) {
+          if (needComma) {
+            writer.write(",");
+          }
+          writer.write(JSON.stringify(row));
+          needComma = true;
+        }
+        if (objects.length < batchSize) {
+          break;
+        }
+      }
+      writer.write("]");
+    },
+  },
+  {
+    name: "syncs-debug",
+    lastModified: getLastUpdated,
+    data: async writer => {
+      writer.write("[");
+
+      let lastId: string | undefined = undefined;
+      let needComma = false;
+      while (true) {
+        const objects = await db.prisma().configurationObjectLink.findMany({
+          where: {
+            deleted: false,
+            type: "sync",
+            workspace: { deleted: false },
+            from: { deleted: false },
+            to: { deleted: false },
+          },
+          include: { from: true, to: true, workspace: true },
+          take: batchSize,
+          cursor: lastId ? { id: lastId } : undefined,
+          orderBy: { id: "asc" },
+        });
+        if (objects.length == 0) {
+          break;
+        }
+        getLog().atDebug().log(`Got batch of ${objects.length} objects for bulker export`);
+        lastId = objects[objects.length - 1].id;
+        for (const { data, from, id, to, updatedAt, workspace } of objects) {
+          const destinationType = to.config.destinationType;
+          const coreDestinationType = getCoreDestinationTypeNonStrict(destinationType);
+          if (!coreDestinationType) {
+            getLog().atError().log(`Unknown destination type: ${destinationType} for connection ${id}`);
+          }
+          if (needComma) {
+            writer.write(",");
+          }
+          const h = juavaHash("md5", stableHash(from.config.credentials));
+          const storageKey = `${workspace.id}_${from.id}_${h}`;
+          writer.write(
+            JSON.stringify({
+              id: id,
+              type: destinationType,
+              workspaceId: workspace.id,
+              streamId: from.id,
+              destinationId: to.id,
+              usesBulker: !!coreDestinationType?.usesBulker,
+              options: {
+                ...pick(data, "storageKey"),
+                versionHash: storageKey,
+              },
+              updatedAt: dateMax(updatedAt, to.updatedAt),
             })
           );
           needComma = true;
