@@ -1,20 +1,26 @@
 import { get } from "../../lib/useApi";
-import { useRouter } from "next/router";
-import { useQueryStringState } from "../../lib/useQueryStringState";
-import { CircleDollarSign, Loader2, UserCircle2 } from "lucide-react";
+import { CirclePercent, CircleDollarSign, Loader2, ShieldAlert, UserCircle2, XOctagon } from "lucide-react";
 import { ErrorCard } from "../../components/GlobalError/GlobalError";
-import { Button, Switch } from "antd";
+import { Button, Switch, Tooltip } from "antd";
 import omit from "lodash/omit";
 import { useState } from "react";
 import hash from "stable-hash";
 import { JsonAsTable } from "../../components/JsonAsTable/JsonAsTable";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
+import { WorkspaceDbModel } from "../../prisma/schema";
+import { z } from "zod";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+
+dayjs.extend(utc);
+
+function getThrottleVal(throttle: string) {
+  return Number.parseInt(throttle.replaceAll("throttle", "").replace("=", ""));
+}
 
 const View = ({ data }) => {
   const [rollup, setRollup] = useState(false);
-  const router = useRouter();
-  const [loadingGoBack, setLoadingGoBack] = useState(false);
   return (
     <div className="p-12">
       <div className="flex justify-between mb-12">
@@ -62,6 +68,8 @@ const View = ({ data }) => {
         columnOptions={{
           src: { omit: true },
           workspaceId: { omit: true },
+          usageAlerts: { omit: true },
+          throttle: { omit: true },
           users: { omit: true },
           events: { type: "number" },
           workspaceSlug: { omit: true },
@@ -83,7 +91,15 @@ const View = ({ data }) => {
           billing: {
             type: "custom",
             render: (val, row) => {
-              if (val?.planId === "enterprise") {
+              if (val?.planId === "billing-disabled") {
+                return (
+                  <Link key="status" href={`/${row.workspaceSlug}/settings/billing`}>
+                    <div className="border text-center rounded-xl px-2 text-xs text-zinc-200 border-zinc-200 bg-zinc-200/10">
+                      DISABLED
+                    </div>
+                  </Link>
+                );
+              } else if (val?.planId === "enterprise") {
                 return (
                   <Link key="status" href={`/${row.workspaceSlug}/settings/billing`} className="grow">
                     <div className="border text-center rounded-xl px-2 text-xs text-orange-400 border-orange-400 bg-orange-400/10">
@@ -131,8 +147,30 @@ const View = ({ data }) => {
                       FREE
                     </div>
                   </Link>
-                  <UserCircle2 className="text-warning w-4 h-4 invisible" />
-                  <CircleDollarSign className="text-warning w-4 h-4 invisible" />
+                  {row.usageAlerts?.willExceed ? (
+                    <Link href={`/${row.workspaceSlug}/settings/billing`}>
+                      <Tooltip title="Quota is projected to exceed">
+                        <ShieldAlert className="text-warning w-4 h-4 " />
+                      </Tooltip>
+                    </Link>
+                  ) : row.usageAlerts?.exceeded ? (
+                    <Link href={`/${row.workspaceSlug}/settings/billing`}>
+                      <Tooltip title="Quota exceeded">
+                        <XOctagon className="text-error w-4 h-4 " />
+                      </Tooltip>
+                    </Link>
+                  ) : (
+                    <XOctagon className="text-warning w-4 h-4 invisible " />
+                  )}
+                  {row.throttle ? (
+                    <Link href={`/${row.workspaceSlug}/settings/billing`}>
+                      <Tooltip title={`Request throttled at ${getThrottleVal(row.throttle)}%`}>
+                        <CirclePercent className="text-primary w-4 h-4 " />
+                      </Tooltip>
+                    </Link>
+                  ) : (
+                    <XOctagon className="text-warning w-4 h-4 invisible " />
+                  )}
                 </div>
               );
             },
@@ -143,19 +181,81 @@ const View = ({ data }) => {
   );
 };
 
+export type ReportRow = {
+  workspaceId: string;
+  period: string;
+  events: number;
+  workspaceName: string;
+  workspaceSlug: string;
+  [key: string]: any;
+};
+
+function getAlerts(data: ReportRow[], workspaceId: string) {
+  const monthStart = dayjs().utc().startOf("month");
+  const totalEvents = data
+    .filter(r => r.workspaceId === workspaceId && !dayjs(r.period).isBefore(monthStart))
+    .reduce((acc, r) => acc + r.events, 0);
+  const yesterday = dayjs().utc().add(-1, "day").startOf("day");
+  const yesterdayEvents = data
+    .filter(r => r.workspaceId === workspaceId && dayjs(r.period).utc().startOf("day").isSame(yesterday))
+    .reduce((acc, r) => acc + r.events, 0);
+  const daysLeft = dayjs().utc().daysInMonth() - dayjs().utc().date();
+  const projectedEvents = totalEvents + yesterdayEvents * daysLeft;
+  if (totalEvents > 200000) {
+    return { exceeded: true };
+  } else if (projectedEvents > 200000) {
+    return { willExceed: true }; //, projectedEvents, yesterdayEvents, totalEvents, daysLeft };
+  }
+}
+
 export const WorkspacesAdminPage = () => {
   const { data, isLoading, error } = useQuery(
     ["workspaces-admin"],
-    async () => {
-      return await Promise.all([
-        get("/api/$all/ee/report/workspace-stat?extended=true"),
-        get("/api/$all/ee/billing/workspaces"),
+    async ({ signal }) => {
+      console.log("Fetching workspaces admin data");
+      const [report, billing, workspaceList] = await Promise.all([
+        get("/api/$all/ee/report/workspace-stat?extended=true", { signal }) as Promise<{ data: ReportRow[] }>,
+        get("/api/$all/ee/billing/workspaces", { signal }) as Promise<Record<string, any>>,
+        get("/api/workspace", { signal }) as Promise<z.infer<typeof WorkspaceDbModel>[]>,
       ]);
+      const workspaceDict = workspaceList.reduce((acc, w) => {
+        acc[w.id] = w;
+        return acc;
+      }, {});
+      const joinedData: Record<string, ReportRow> = {};
+      const days = [...new Set(report.data.map(w => w.period.split("T")[0]))].sort();
+      const usageAlertsCache = {};
+      console.log(`Populating usage from days ${days.length} days X ${Object.keys(billing).length} workspaces`);
+      for (const day of days) {
+        for (const [workspaceId, billingEntry] of Object.entries(billing)) {
+          const workspace = workspaceDict[workspaceId];
+          joinedData[`${day.split("T")[0]}/${workspaceId}`] = {
+            period: day,
+            workspaceId: workspaceId,
+            workspaceName: workspace.name,
+            billing: billingEntry,
+            workspaceSlug: workspace.slug,
+            events: 0,
+            syncs: 0,
+          };
+        }
+      }
+      console.log(`Populating usage from days ${report.data.length} rows`);
+      for (const row of report.data) {
+        const billingEntry = billing[row.workspaceId];
+        joinedData[`${row.period.split("T")[0]}/${row.workspaceId}`] = {
+          ...row,
+          billing: billingEntry,
+          usageAlerts: billingEntry
+            ? undefined
+            : usageAlertsCache[row.workspaceId] ||
+              (usageAlertsCache[row.workspaceId] = getAlerts(report.data, row.workspaceId)),
+        };
+      }
+      return Object.values(joinedData);
     },
     { retry: false, cacheTime: 0 }
   );
-  const router = useRouter();
-  const [filter, setFilter] = useQueryStringState("filter");
   if (isLoading) {
     return (
       <div className="w-full h-full flex justify-center items-center">
@@ -169,15 +269,7 @@ export const WorkspacesAdminPage = () => {
       </div>
     );
   }
-  const [workspacesList, billing] = data!;
-  const enrichedList = workspacesList.data.map(w => {
-    if (billing[w.workspaceId]) {
-      w.billing = billing[w.workspaceId];
-    }
-    return w;
-  });
-  console.log(enrichedList);
-  return <View data={enrichedList} />;
+  return <View data={data!} />;
 };
 
 export default WorkspacesAdminPage;

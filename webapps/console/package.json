@@ -70,7 +70,7 @@
     "jsonwebtoken": "^9.0.2",
     "juava": "workspace:*",
     "lodash": "^4.17.21",
-    "lucide-react": "^0.263.1",
+    "lucide-react": "^0.447.0",
     "mjml": "^4.15.3",
     "mjml-react": "^2.0.8",
     "monaco-editor": "^0.50.0",
