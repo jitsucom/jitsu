@@ -4,7 +4,8 @@ export function idToSnakeCaseRegex(id: string) {
 
 const ACode = "A".charCodeAt(0);
 const ZCode = "Z".charCodeAt(0);
-const _Code = "_".charCodeAt(0);
+const aCode = "a".charCodeAt(0);
+const zCode = "z".charCodeAt(0);
 const spaceCode = " ".charCodeAt(0);
 
 export function idToSnakeCaseFast(id: string) {
@@ -21,7 +22,9 @@ export function idToSnakeCaseFast(id: string) {
       res += id.substring(concatIndex, i) + "_";
       concatIndex = i + 1;
     }
-    needUnderscore = c != _Code && c != spaceCode;
+    // needUnderscore is used in case next char is a capital latin letter
+    // we add underscore only between latin letters
+    needUnderscore = (c >= aCode && c <= zCode) || (c >= ACode && c <= ZCode);
   }
   if (concatIndex == 0) {
     return id;

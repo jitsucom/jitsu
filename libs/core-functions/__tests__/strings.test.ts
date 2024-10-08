@@ -36,7 +36,7 @@ const data: Record<string, string> = {
   __camelCase: "__camel_case",
 };
 
-const dataWithSpaces: Record<string, string> = {
+const dataExtra: Record<string, string> = {
   " CamelCase": "_camel_case",
   "  CamelCase": "__camel_case",
   "Camel Case": "camel_case",
@@ -48,6 +48,14 @@ const dataWithSpaces: Record<string, string> = {
   "Camel_ _Case": "camel___case",
   "_ CamelCase _": "__camel_case__",
   " _CamelCase_ ": "__camel_case__",
+
+  "Camel-Case": "camel-case",
+  "Camel-case": "camel-case",
+  "$camel-case": "$camel-case",
+  "$Camel-Case": "$camel-case",
+  // bulker will replace SQL unsupported characters with _
+  "$camel##case": "$camel##case",
+  "$Camel##Case#": "$camel##case#",
 };
 
 test("test idToSnakeCaseFast", async () => {
@@ -58,7 +66,7 @@ test("test idToSnakeCaseFast", async () => {
 });
 
 test("test idToSnakeCaseFast with spaces", async () => {
-  for (const [value, expected] of Object.entries(dataWithSpaces)) {
+  for (const [value, expected] of Object.entries(dataExtra)) {
     const res = idToSnakeCaseFast(value);
     expect(res).toEqual(expected);
   }
