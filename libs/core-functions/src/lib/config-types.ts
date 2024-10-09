@@ -69,6 +69,7 @@ export type ProfileBuilder = {
   id: string;
   createdAt: Date;
   updatedAt: Date;
+  debugTill: Date;
   version: number;
   workspaceId: string;
   intermediateStorageCredentials: any;

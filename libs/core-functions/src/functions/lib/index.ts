@@ -19,7 +19,16 @@ import {
   Metrics,
   TTLStore,
 } from "@jitsu/protocols/functions";
-import { alwaysThrottle, getErrorMessage, getLog, getThrottle, LogLevel, newError, noThrottle, stopwatch } from "juava";
+import {
+  getErrorMessage,
+  getLog,
+  getThrottle,
+  LogLevel,
+  LogMessageBuilder,
+  newError,
+  noThrottle,
+  stopwatch,
+} from "juava";
 
 const log = getLog("functions-context");
 
@@ -239,13 +248,35 @@ export function eventTimeSafeMs(event: AnalyticsServerEvent) {
   return Math.min(!isNaN(ts) ? ts : now, !isNaN(receivedAt) ? receivedAt : now, now);
 }
 
-export const makeLog = (connectionId: string, eventsStore: EventsStore) => ({
-  debug: (ctx: FunctionContext, message: any, ...args: any[]) => {
-    if (ctx.function.debugTill && ctx.function.debugTill > new Date()) {
+export const makeLog = (connectionId: string, eventsStore: EventsStore, repeatToLog?: boolean) => {
+  const logFunc = (lb: () => LogMessageBuilder, callback: (l: LogMessageBuilder) => void) => {
+    if (repeatToLog) {
+      callback(lb());
+    } else {
+      log.inDebug(callback);
+    }
+  };
+  return {
+    debug: (ctx: FunctionContext, message: any, ...args: any[]) => {
+      if (ctx.function.debugTill && ctx.function.debugTill > new Date()) {
+        const fid = ctx.function.id;
+        logFunc(log.atDebug, l => l.log(`[CON:${connectionId}]: [f:${fid}][DEBUG]: ${message}`, ...args));
+        eventsStore.log(connectionId, "debug", {
+          type: "log-debug",
+          functionId: fid,
+          functionType: ctx.function.type,
+          message: {
+            text: message,
+            args,
+          },
+        });
+      }
+    },
+    warn: (ctx: FunctionContext, message: any, ...args: any[]) => {
       const fid = ctx.function.id;
-      log.inDebug(l => l.log(`[CON:${connectionId}]: [f:${fid}][DEBUG]: ${message}`, ...args));
-      eventsStore.log(connectionId, "debug", {
-        type: "log-debug",
+      logFunc(log.atWarn, l => l.log(`[CON:${connectionId}]: [f:${fid}][WARN]: ${message}`, ...args));
+      eventsStore.log(connectionId, "warn", {
+        type: "log-warn",
         functionId: fid,
         functionType: ctx.function.type,
         message: {
@@ -253,57 +284,44 @@ export const makeLog = (connectionId: string, eventsStore: EventsStore) => ({
           args,
         },
       });
-    }
-  },
-  warn: (ctx: FunctionContext, message: any, ...args: any[]) => {
-    const fid = ctx.function.id;
-    log.inDebug(l => l.log(`[CON:${connectionId}]: [f:${fid}][WARN]: ${message}`, ...args));
-    eventsStore.log(connectionId, "warn", {
-      type: "log-warn",
-      functionId: fid,
-      functionType: ctx.function.type,
-      message: {
-        text: message,
-        args,
-      },
-    });
-  },
-  error: (ctx: FunctionContext, message: any, ...args: any[]) => {
-    const fid = ctx.function.id;
-    eventsStore.log(connectionId, "error", {
-      type: "log-error",
-      functionId: fid,
-      functionType: ctx.function.type,
-      message: {
-        text: message,
-        args,
-      },
-    });
-    log.inDebug(l => {
-      if (args?.length > 0) {
-        const last = args[args.length - 1];
-        if (last.stack) {
-          l.withCause(last);
-          args = args.slice(0, args.length - 1);
+    },
+    error: (ctx: FunctionContext, message: any, ...args: any[]) => {
+      const fid = ctx.function.id;
+      eventsStore.log(connectionId, "error", {
+        type: "log-error",
+        functionId: fid,
+        functionType: ctx.function.type,
+        message: {
+          text: message,
+          args,
+        },
+      });
+      logFunc(log.atError, l => {
+        if (args?.length > 0) {
+          const last = args[args.length - 1];
+          if (last.stack) {
+            l.withCause(last);
+            args = args.slice(0, args.length - 1);
+          }
         }
-      }
-      l.log(`[CON:${connectionId}]: [f:${fid}][ERROR]: ${message}`, ...args);
-    });
-  },
-  info: (ctx: FunctionContext, message: any, ...args: any[]) => {
-    const fid = ctx.function.id;
-    log.inDebug(l => l.log(`[CON:${connectionId}]: [f:${fid}][INFO]: ${message}`, ...args));
-    eventsStore.log(connectionId, "info", {
-      type: "log-info",
-      functionId: fid,
-      functionType: ctx.function.type,
-      message: {
-        text: message,
-        args,
-      },
-    });
-  },
-});
+        l.log(`[CON:${connectionId}]: [f:${fid}][ERROR]: ${message}`, ...args);
+      });
+    },
+    info: (ctx: FunctionContext, message: any, ...args: any[]) => {
+      const fid = ctx.function.id;
+      logFunc(log.atInfo, l => l.log(`[CON:${connectionId}]: [f:${fid}][INFO]: ${message}`, ...args));
+      eventsStore.log(connectionId, "info", {
+        type: "log-info",
+        functionId: fid,
+        functionType: ctx.function.type,
+        message: {
+          text: message,
+          args,
+        },
+      });
+    },
+  };
+};
 
 export const makeFetch = (
   connectionId: string,

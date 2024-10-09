@@ -17,6 +17,7 @@ export type ProfileBuilderState = {
   updatedAt?: Date;
   lastTimestamp?: Date;
   processedUsers: number;
+  errorUsers: number;
   totalUsers: number;
   speed: number;
 };
@@ -75,15 +76,16 @@ from newjitsu."ProfileBuilderState" where
     await db.pgPool().query(
       `
 insert into newjitsu."ProfileBuilderState" as p ("profileBuilderId", "profileBuilderVersion","instanceIndex",
-"totalInstances", "startedAt", "updatedAt", "lastTimestamp", "processedUsers", "totalUsers", "speed")
-values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+"totalInstances", "startedAt", "updatedAt", "lastTimestamp", "processedUsers", "errorUsers", "totalUsers", "speed")
+values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
 ON CONFLICT ON CONSTRAINT "ProfileBuilderState_pkey" DO UPDATE SET
           "startedAt" = $5::timestamp,
           "updatedAt" = $6::timestamp,
           "lastTimestamp" = $7::timestamp,
           "processedUsers" = $8::integer,
-          "totalUsers" = $9::integer,
-          "speed" = $10::integer`,
+          "errorUsers" = $9::integer,
+          "totalUsers" = $10::integer,
+          "speed" = $11::integer`,
       [
         state.profileBuilderId,
         state.profileBuilderVersion,
@@ -93,6 +95,7 @@ ON CONFLICT ON CONSTRAINT "ProfileBuilderState_pkey" DO UPDATE SET
         state.updatedAt ?? new Date(),
         state.lastTimestamp,
         state.processedUsers ?? 0,
+        state.errorUsers ?? 0,
         state.totalUsers ?? 0,
         state.speed ?? 0,
       ]

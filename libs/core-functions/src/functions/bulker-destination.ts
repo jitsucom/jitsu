@@ -6,7 +6,7 @@ import omit from "lodash/omit";
 import { MetricsMeta } from "./lib";
 import { idToSnakeCaseFast } from "./lib/strings";
 
-const TableNameParameter = "JITSU_TABLE_NAME";
+export const TableNameParameter = "JITSU_TABLE_NAME";
 export type MappedEvent = {
   event: any;
   table: string;
