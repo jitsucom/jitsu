@@ -13,4 +13,4 @@ export type ProfileFunction = (params: {
     anonymousId?: string;
     traits: Record<string, any>;
   };
-}) => Promise<ProfileResult>;
+}) => Promise<ProfileResult | undefined>;

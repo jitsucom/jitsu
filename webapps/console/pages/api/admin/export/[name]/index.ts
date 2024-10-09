@@ -35,6 +35,7 @@ async function getLastUpdated(): Promise<Date | undefined> {
         select
             greatest(
                     (select max("updatedAt") from newjitsu."ConfigurationObjectLink"),
+                    (select max("updatedAt") from newjitsu."ProfileBuilder"),
                     (select max("updatedAt") from newjitsu."ConfigurationObject"),
                     (select max("updatedAt") from newjitsu."Workspace")
             ) as "last_updated"`) as any
@@ -89,6 +90,74 @@ const exports: Export[] = [
           break;
         }
       }
+      lastId = undefined;
+      while (true) {
+        const objects = await db.prisma().profileBuilder.findMany({
+          where: { deleted: false, workspace: { deleted: false }, destination: { deleted: false } },
+          include: { destination: true, workspace: true },
+          take: batchSize,
+          cursor: lastId ? { id: lastId } : undefined,
+          orderBy: { id: "asc" },
+        });
+        if (objects.length == 0) {
+          break;
+        }
+        getLog().atDebug().log(`Got batch of ${objects.length} profilebuilder objects for bulker export`);
+        lastId = objects[objects.length - 1].id;
+        for (const { id, updatedAt, workspace, destination, connectionOptions, ...pb } of objects) {
+          const destinationType = destination.config.destinationType;
+          const coreDestinationType = getCoreDestinationTypeNonStrict(destinationType);
+          if (coreDestinationType?.usesBulker || coreDestinationType?.hybrid) {
+            if (needComma) {
+              writer.write(",");
+            }
+            const schema = {
+              name: "profiles",
+              fields: [
+                {
+                  name: "user_id",
+                  type: 4, //string. See bulker's DataType
+                },
+                {
+                  name: "traits",
+                  type: 6, // json
+                },
+                {
+                  name: "custom_properties",
+                  type: 6, // json
+                },
+                {
+                  name: "updated_at",
+                  type: 5, // timestamp
+                },
+              ],
+            };
+            writer.write(
+              JSON.stringify({
+                __debug: {
+                  workspace: { id: workspace.id, name: workspace.slug },
+                },
+                id: id,
+                type: destinationType,
+                options: {
+                  mode: "batch",
+                  frequency: 1,
+                  ...connectionOptions,
+                  deduplicate: true,
+                  primaryKey: "user_id",
+                  schema: JSON.stringify(schema),
+                },
+                updatedAt: dateMax(updatedAt, destination.updatedAt),
+                credentials: omit(destination.config, "destinationType", "type", "name"),
+              })
+            );
+            needComma = true;
+          }
+        }
+        if (objects.length < batchSize) {
+          break;
+        }
+      }
       if (isEEAvailable()) {
         //stream additional connections from ee
         const eeAuthToken = createJwt(
@@ -113,6 +182,7 @@ const exports: Export[] = [
           needComma = true;
         }
       }
+
       writer.write("]");
     },
   },

@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "mongodb": "^6.9.0",
+    "isolated-vm": "5.0.1",
     "@amplitude/ua-parser-js": "^0.7.33",
     "@jitsu/core-functions": "workspace:*",
     "@jitsu/functions-lib": "workspace:*",

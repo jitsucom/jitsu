@@ -6,6 +6,7 @@ import { getHeapSnapshot } from "node:v8";
 import { functionsStore, workspaceStore } from "./lib/repositories";
 import { db } from "./lib/db";
 import { profileBuilder, ProfileBuilderRunner } from "./builder";
+import { DummyEventsStore, EventsStore, mongodb } from "@jitsu/core-functions";
 
 disableService("mongodb");
 
@@ -44,6 +45,12 @@ async function main() {
     log.atInfo().log(`Process exited with code ${code}`);
   });
 
+  await mongodb.waitInit();
+  let eventsLogger: EventsStore = DummyEventsStore;
+  // if (process.env.CLICKHOUSE_HOST || process.env.CLICKHOUSE_URL) {
+  //   eventsLogger = createClickhouseLogger();
+  // }
+
   let httpServer: Server;
   let metricsServer: Server | undefined;
 
@@ -58,6 +65,9 @@ async function main() {
         );
     }
 
+    if (eventsLogger) {
+      eventsLogger.close();
+    }
     if (httpServer) {
       httpServer.close();
     }
@@ -110,10 +120,10 @@ async function main() {
 
   httpServer = initHTTP();
 
-  refreshLoop();
+  refreshLoop(eventsLogger);
 }
 
-function refreshLoop() {
+function refreshLoop(eventsLogger: EventsStore) {
   (async () => {
     while (!closed) {
       const started = Date.now();
@@ -127,10 +137,10 @@ function refreshLoop() {
               if (pb.version != currentPb.version()) {
                 await currentPb.close();
                 profileBuilders.delete(pb.id);
-                profileBuilders.set(pb.id, await profileBuilder(workspaceId, pb));
+                profileBuilders.set(pb.id, await profileBuilder(workspaceId, pb, eventsLogger));
               }
             } else {
-              profileBuilders.set(pb.id, await profileBuilder(workspaceId, pb));
+              profileBuilders.set(pb.id, await profileBuilder(workspaceId, pb, eventsLogger));
             }
             actualProfileBuilders.add(pb.id);
           } catch (e) {
