@@ -3,15 +3,25 @@ import { Metrics } from "./metrics";
 import { GeoResolver } from "./maxmind";
 import { IngestMessage } from "@jitsu/protocols/async-request";
 import { CONNECTION_IDS_HEADER } from "./rotor";
-import { EntityStore } from "./entity-store";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
-import { EventContext, TTLStore } from "@jitsu/protocols/functions";
-import { MetricsMeta, mongoAnonymousEventsStore, parseUserAgent, EventsStore } from "@jitsu/core-functions";
+import { EventContext, FetchType, TTLStore } from "@jitsu/protocols/functions";
+import {
+  MetricsMeta,
+  mongoAnonymousEventsStore,
+  parseUserAgent,
+  EventsStore,
+  ProfilesFunction,
+  createDummyStore,
+  ProfilesConfig,
+  EntityStore,
+  EnrichedConnectionConfig,
+  FunctionConfig,
+  Workspace,
+} from "@jitsu/core-functions";
 import NodeCache from "node-cache";
 import { buildFunctionChain, checkError, FuncChain, FuncChainFilter, runChain } from "./functions-chain";
-import { EnrichedConnectionConfig, FunctionConfig } from "./config-types";
 import { Redis } from "ioredis";
-export const log = getLog("rotor");
+const log = getLog("rotor");
 
 const anonymousEventsStore = mongoAnonymousEventsStore();
 
@@ -22,6 +32,7 @@ const funcsChainCache = new NodeCache({ stdTTL: funcsChainTTL, checkperiod: 60, 
 export type MessageHandlerContext = {
   connectionStore: EntityStore<EnrichedConnectionConfig>;
   functionsStore: EntityStore<FunctionConfig>;
+  workspaceStore: EntityStore<Workspace>;
   eventsLogger: EventsStore;
   metrics?: Metrics;
   geoResolver?: GeoResolver;
@@ -125,9 +136,47 @@ export async function rotorMessageHandler(
     funcsChainCache.set(cacheKey, funcChain);
   }
 
+  if (retries === 0) {
+    await profilesHandler(rotorContext, ctx, connection, event);
+  }
+
   const chainRes = await runChain(funcChain, event, ctx, metricsMeta, runFuncs, retriesEnabled);
   chainRes.connectionId = connectionId;
   rotorContext.metrics?.logMetrics(chainRes.execLog);
   checkError(chainRes);
   return chainRes;
+}
+
+async function profilesHandler(
+  rotorContext: MessageHandlerContext,
+  ctx: EventContext,
+  connection: EnrichedConnectionConfig,
+  event: AnalyticsServerEvent
+) {
+  const wp = rotorContext.workspaceStore.getObject(connection.workspaceId);
+  if (wp) {
+    const builders = wp.profileBuilders.filter(p => p.destinationId === connection.destinationId);
+    for (const builder of builders) {
+      const flog = getLog(`profile-builder-${connection.workspaceId}-${builder.id}`);
+      try {
+        await ProfilesFunction(event, {
+          ...ctx,
+          props: {
+            ...builder.intermediateStorageCredentials,
+            eventsCollectionName: `profiles-raw-${wp.id}-${builder.id}`,
+          } as ProfilesConfig,
+          store: createDummyStore(),
+          log: {
+            error: (msg, args) => flog.atError().log(msg, ...(args || [])),
+            info: (msg, args) => flog.atInfo().log(msg, ...(args || [])),
+            debug: (msg, args) => flog.atDebug().log(msg, ...(args || [])),
+            warn: (msg, args) => flog.atWarn().log(msg, ...(args || [])),
+          },
+          fetch: fetch as FetchType,
+        });
+      } catch (e: any) {
+        flog.atError().log("Failed to store event: " + e.message);
+      }
+    }
+  }
 }

@@ -2,6 +2,7 @@ import { getLog } from "juava";
 import { connectToKafka } from "../src/lib/kafka-config";
 
 import "@sensejs/kafkajs-zstd-support";
+import { test } from "@jest/globals";
 
 const log = getLog("kafka-test");
 test.skip("Kafka Test", async () => {

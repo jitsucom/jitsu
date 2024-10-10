@@ -1,11 +1,11 @@
 import { createInMemoryStore } from "./inmem-store";
 import { getLog } from "juava";
-import { EnrichedConnectionConfig, FunctionConfig } from "./config-types";
 
 const log = getLog("entity-store");
 
 export type EntityStore<T> = {
-  getObject: (id: string) => T;
+  getObject: (id: string) => T | undefined;
+  getAll: () => Record<string, T>;
   toJSON: () => string;
   enabled: boolean;
   lastModified?: Date;
@@ -14,12 +14,18 @@ export type EntityStore<T> = {
 const DisabledStore: EntityStore<any> = {
   enabled: false,
   getObject: () => undefined,
+  getAll: () => {
+    return {};
+  },
   toJSON: () => "disabled",
 };
 
 const EmptyStore: EntityStore<any> = {
   enabled: true,
   getObject: () => undefined,
+  getAll: () => {
+    return {};
+  },
   toJSON: () => "",
 };
 
@@ -68,6 +74,9 @@ function refreshFunc<T>(storeId: string) {
             getObject: (key: string) => {
               return objs[key];
             },
+            getAll() {
+              return objs;
+            },
             toJSON: () => {
               return JSON.stringify(objs);
             },
@@ -84,8 +93,8 @@ function refreshFunc<T>(storeId: string) {
   };
 }
 
-function storeFunc<T>(storeId: string) {
-  return createInMemoryStore({
+export function storeFunc<T>(storeId: string) {
+  return createInMemoryStore<EntityStore<T>>({
     refreshIntervalMillis: process.env.REPOSITORY_REFRESH_PERIOD_SEC
       ? parseInt(process.env.REPOSITORY_REFRESH_PERIOD_SEC) * 1000
       : 2000,
@@ -103,6 +112,9 @@ function storeFunc<T>(storeId: string) {
           getObject: (key: string): any => {
             return store?.[key];
           },
+          getAll: () => {
+            return store || {};
+          },
           toJSON: () => {
             return store ? JSON.stringify(store) : "";
           },
@@ -114,6 +126,3 @@ function storeFunc<T>(storeId: string) {
     refresh: refreshFunc(storeId),
   });
 }
-
-export const functionsStore = storeFunc<FunctionConfig>("functions");
-export const connectionsStore = storeFunc<EnrichedConnectionConfig>("rotor-connections");

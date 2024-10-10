@@ -80,3 +80,9 @@ export type {
 export { httpAgent, httpsAgent } from "./functions/lib/http-agent";
 export * from "./functions/lib/store";
 export * from "./functions/lib/ua";
+export * from "./functions/lib/clickhouse-logger";
+export * from "./functions/profiles-functions";
+export * from "./functions/lib/crypto-code";
+export * from "./lib/inmem-store";
+export * from "./lib/config-types";
+export * from "./lib/entity-store";

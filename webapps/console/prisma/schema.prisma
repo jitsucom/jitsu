@@ -90,7 +90,7 @@ model Workspace {
   preferences             UserPreferences[]
   workspaceUserProperties WorkspaceUserProperties[]
   featuresEnabled         String[]                  @default([])
-  profileBuilderSettings  ProfileBuilderSettings[]
+  profileBuilders         ProfileBuilder[]
 
   @@unique(slug)
   @@index(slug)
@@ -163,10 +163,10 @@ model ConfigurationObject {
   workspace   Workspace @relation(fields: [workspaceId], references: [id])
   config      Json?
 
-  fromLinks               ConfigurationObjectLink[] @relation("from")
-  toLinks                 ConfigurationObjectLink[] @relation("to")
-  ProfileBuilderSettings  ProfileBuilderSettings[]
-  ProfileBuilderFunctions ProfileBuilderFunctions[]
+  fromLinks              ConfigurationObjectLink[] @relation("from")
+  toLinks                ConfigurationObjectLink[] @relation("to")
+  ProfileBuilder         ProfileBuilder[]
+  ProfileBuilderFunction ProfileBuilderFunction[]
 
   @@index(updatedAt(sort: Desc))
 }
@@ -291,29 +291,47 @@ model task_log {
   @@index(timestamp)
 }
 
-model ProfileBuilderSettings {
-  id                             String                    @id @default(cuid())
-  createdAt                      DateTime                  @default(now()) /// @zod.custom(z.coerce.date())
-  updatedAt                      DateTime                  @default(now()) @updatedAt /// @zod.custom(z.coerce.date())
+model ProfileBuilder {
+  id                             String                   @id @default(cuid())
+  name                           String
+  deleted   Boolean? @default(false)
+  createdAt                      DateTime                 @default(now()) /// @zod.custom(z.coerce.date())
+  updatedAt                      DateTime                 @default(now()) @updatedAt /// @zod.custom(z.coerce.date())
   workspaceId                    String
-  workspace                      Workspace                 @relation(fields: [workspaceId], references: [id])
+  workspace                      Workspace                @relation(fields: [workspaceId], references: [id])
   intermediateStorageCredentials Json
   destinationId                  String
-  destination                    ConfigurationObject       @relation(fields: [destinationId], references: [id])
-  ProfileBuilderFunctions        ProfileBuilderFunctions[]
+  destination                    ConfigurationObject      @relation(fields: [destinationId], references: [id])
+  connectionOptions              Json?
+  functions                      ProfileBuilderFunction[]
+  version                        Int                      @default(0)
 }
 
-model ProfileBuilderFunctions {
-  id                       String                 @id @default(cuid())
-  createdAt                DateTime               @default(now()) /// @zod.custom(z.coerce.date())
-  updatedAt                DateTime               @default(now()) @updatedAt /// @zod.custom(z.coerce.date())
-  profileBuilderSettingsId String
-  profileBuilderSettings   ProfileBuilderSettings @relation(fields: [profileBuilderSettingsId], references: [id])
-  functionId               String
-  function                 ConfigurationObject    @relation(fields: [functionId], references: [id])
+model ProfileBuilderFunction {
+  id               String              @id @default(cuid())
+  createdAt        DateTime            @default(now()) /// @zod.custom(z.coerce.date())
+  updatedAt        DateTime            @default(now()) @updatedAt /// @zod.custom(z.coerce.date())
+  profileBuilderId String
+  profileBuilder   ProfileBuilder      @relation(fields: [profileBuilderId], references: [id])
+  functionId       String
+  function         ConfigurationObject @relation(fields: [functionId], references: [id])
 }
 
-//
+model ProfileBuilderState {
+  profileBuilderId      String
+  profileBuilderVersion Int
+  instanceIndex         Int
+  totalInstances        Int
+  startedAt             DateTime
+  updatedAt             DateTime
+  lastTimestamp         DateTime
+  processedUsers        Int
+  totalUsers            Int
+  errorUsers            Int
+  speed                 Float
+
+  @@id([profileBuilderId, profileBuilderVersion, totalInstances, instanceIndex])
+}
 
 //model OauthSecrets {
 //  id        String   @id @default(cuid())

@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "outDir": "./compiled",
+    "rootDir": ".",
+    "noImplicitAny": false,
+    "allowSyntheticDefaultImports": true,
+    "importHelpers": true,
+    "removeComments": true,
+    "target": "ESNext",
+    "module": "commonjs",
+    "lib": [
+      "ESNext", "DOM"
+    ],
+    "allowJs": true,
+    "strict": true,
+    "esModuleInterop": true,
+    "jsx": "react-jsx",
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+  },
+  "exclude": [
+    "node_modules"
+  ],
+  "include": [
+    "src/**/*"
+  ]
+}
+

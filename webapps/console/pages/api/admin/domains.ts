@@ -5,7 +5,7 @@ import { dataDomains } from "../../../lib/server/data-domains";
 import { z } from "zod";
 import { getLog } from "juava";
 
-export const log = getLog("caddy-domains");
+const log = getLog("caddy-domains");
 //For Caddy to allow issuing certificates for a domain, it must be present in the domains array of a stream object.
 //or it must be a subdomain of the data domain
 export default createRoute()

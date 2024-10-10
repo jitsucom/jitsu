@@ -54,3 +54,29 @@ export type EnrichedConnectionConfig = {
   };
   credentialsHash: string;
 };
+
+export type Workspace = {
+  id: string;
+  createdAt: Date;
+  updatedAt: Date;
+  name: string;
+  slug: string;
+  featuresEnabled: string[];
+  profileBuilders: ProfileBuilder[];
+};
+
+export type ProfileBuilder = {
+  id: string;
+  createdAt: Date;
+  updatedAt: Date;
+  debugTill: Date;
+  version: number;
+  workspaceId: string;
+  intermediateStorageCredentials: any;
+  destinationId: string;
+  functions: [
+    {
+      functionId: string;
+    }
+  ];
+};

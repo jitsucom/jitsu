@@ -16,6 +16,10 @@
       "dependsOn": ["^rotor:dev"],
       "cache": false
     },
+    "profiles:dev": {
+      "dependsOn": ["^profiles:dev"],
+      "cache": false
+    },
     "tool:hash": {
       "dependsOn": ["^tool:hash"],
       "cache": false

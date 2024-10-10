@@ -25,7 +25,7 @@ import { DestinationConfig, FunctionConfig, ServiceConfig, StreamConfig } from "
 import { arrayToMap } from "../../lib/shared/arrays";
 import { Bug, Globe, RefreshCw, Server } from "lucide-react";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
-import { ConnectionTitle } from "../../pages/[workspaceId]/connections";
+import { ConnectionTitle, ProfileBuilderTitle } from "../../pages/[workspaceId]/connections";
 import { StreamTitle } from "../../pages/[workspaceId]/streams";
 import { trimMiddle } from "../../lib/shared/strings";
 import { countries } from "../../lib/shared/countries";
@@ -91,7 +91,7 @@ export const UTCDate: React.FC<{ date: string | Date }> = ({ date }) => {
 export function linksQuery(
   workspaceId: string,
   type: "push" | "sync" | "all" = "push",
-  withFunctions: boolean = false
+  withProfileBuilders: boolean = false
 ) {
   return async () => {
     const promises = [
@@ -102,8 +102,8 @@ export function linksQuery(
         res.links.filter(l => l.type === type || (type === "push" && !l.type) || type === "all")
       ),
     ];
-    if (withFunctions) {
-      promises.push(getConfigApi<FunctionConfig>(workspaceId, "function").list());
+    if (withProfileBuilders) {
+      promises.push(get(`/api/${workspaceId}/config/profile-builder`).then(res => res.profileBuilders));
     }
     return await Promise.all(promises);
   };
@@ -185,6 +185,8 @@ export const EventsBrowser = ({
         if (connection) {
           setConnection(connection);
           setDebugEnabled(new Date(connection.data.debugTill) > new Date());
+        } else {
+          setConnection(undefined);
         }
       })();
     }
@@ -264,29 +266,43 @@ export const EventsBrowser = ({
           query = () => getConfigApi(workspace.id, "stream").list();
         } else {
           query = async () => {
-            const data = await linksQuery(workspace.id, streamType === "bulker" ? "all" : "push")();
+            const data = await linksQuery(workspace.id, streamType === "bulker" ? "all" : "push", true)();
             const streamsMap = arrayToMap(data[0]);
             const servicesMap = arrayToMap(data[1]);
             const dstMap = arrayToMap(data[2]);
-            return data[3]
-              .map(link => {
-                const dst = dstMap[link.toId];
+            const profiles = data[4];
+            return [
+              ...data[3]
+                .map(link => {
+                  const dst = dstMap[link.toId];
+                  const destinationType = coreDestinationsMap[dst?.destinationType];
+                  return {
+                    id: link.id,
+                    name: `${streamsMap[link.fromId]?.name ?? "DELETED"} → ${dstMap[link.toId]?.name ?? "DELETED"}`,
+                    mode: link.type === "sync" ? "batch" : link.data?.mode,
+                    stream: streamsMap[link.fromId],
+                    service: servicesMap[link.fromId],
+                    destination: dst,
+                    usesBulker: destinationType?.usesBulker || false,
+                    hybrid: destinationType?.hybrid || false,
+                    //usesFunctions: Array.isArray(link.data?.functions) && link.data?.functions.length > 0,
+                  };
+                })
+                .filter(
+                  link => (streamType === "bulker" && (link.usesBulker || link.hybrid)) || streamType === "function"
+                ),
+              ...profiles.map(p => {
+                const dst = dstMap[p.destinationId];
                 const destinationType = coreDestinationsMap[dst?.destinationType];
                 return {
-                  id: link.id,
-                  name: `${streamsMap[link.fromId]?.name ?? "DELETED"} → ${dstMap[link.toId]?.name ?? "DELETED"}`,
-                  mode: link.type === "sync" ? "batch" : link.data?.mode,
-                  stream: streamsMap[link.fromId],
-                  service: servicesMap[link.fromId],
+                  ...p,
+                  mode: p.connectionOptions?.mode || "batch",
                   destination: dst,
                   usesBulker: destinationType?.usesBulker || false,
-                  hybrid: destinationType?.hybrid || false,
-                  //usesFunctions: Array.isArray(link.data?.functions) && link.data?.functions.length > 0,
+                  type: "profile-builder",
                 };
-              })
-              .filter(
-                link => (streamType === "bulker" && (link.usesBulker || link.hybrid)) || streamType === "function"
-              );
+              }),
+            ];
           };
         }
 
@@ -354,6 +370,8 @@ export const EventsBrowser = ({
         label:
           entity[1].type === "stream" ? (
             <StreamTitle stream={entity[1]} size={"small"} />
+          ) : entity[1].type === "profile-builder" ? (
+            <ProfileBuilderTitle profileBuilder={entity[1]} destination={entity[1].destination} />
           ) : (
             <ConnectionTitle
               connectionId={entity[0]}

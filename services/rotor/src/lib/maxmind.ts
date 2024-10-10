@@ -6,7 +6,7 @@ import NodeCache from "node-cache";
 import { getLog, requireDefined } from "juava";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 
-export const log = getLog("maxmind");
+const log = getLog("maxmind");
 
 const InvalidLicenseKey = "Invalid license key";
 
@@ -286,7 +286,7 @@ async function loadFromURL(url: string): Promise<Buffer> {
 }
 
 async function untar(b: Buffer): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
+  return new Promise<Buffer>((resolve, reject) => {
     const gunzip = zlib.createGunzip();
     const tarParser = new tar.Parser();
     tarParser.on("entry", entry => {

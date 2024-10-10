@@ -1,7 +1,7 @@
 import { Redis } from "ioredis";
 import { requireDefined, getLog } from "juava";
 
-export const log = getLog("redis");
+const log = getLog("redis");
 
 function hideSensitiveInfoFromURL(url: string) {
   let parsed: URL;
