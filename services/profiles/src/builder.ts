@@ -13,7 +13,7 @@ import {
 } from "@jitsu/core-functions";
 import { MongoClient, ObjectId } from "mongodb";
 import { db, ProfileBuilderState } from "./lib/db";
-import { getLog, getSingleton, hash, LogFactory, requireDefined, stopwatch } from "juava";
+import { getLog, getSingleton, hash, LogFactory, parseNumber, requireDefined, stopwatch } from "juava";
 import PQueue from "p-queue";
 import NodeCache from "node-cache";
 import { functionsStore } from "./lib/repositories";
@@ -25,6 +25,9 @@ import { ProfileUser } from "./lib/profiles-udf-wrapper";
 const bulkerBase = requireDefined(process.env.BULKER_URL, "env BULKER_URL is not defined");
 const bulkerAuthKey = requireDefined(process.env.BULKER_AUTH_KEY, "env BULKER_AUTH_KEY is not defined");
 
+const concurrency = parseNumber(process.env.CONCURRENCY, 10);
+const fetchTimeoutMs = parseNumber(process.env.FETCH_TIMEOUT_MS, 2000);
+
 const instanceIndex = process.env.INSTANCE_INDEX ? parseInt(process.env.INSTANCE_INDEX, 10) : 0;
 const totalInstances = process.env.INSTANCES_COUNT ? parseInt(process.env.INSTANCES_COUNT, 10) : 1;
 const partitionsRange = selectPartitions(profilePartitionsCount, totalInstances, instanceIndex);
@@ -32,6 +35,14 @@ const partitionsRange = selectPartitions(profilePartitionsCount, totalInstances,
 //cache function chains for 1m
 const funcsChainTTL = 60;
 const funcsChainCache = new NodeCache({ stdTTL: funcsChainTTL, checkperiod: 60, useClones: false });
+
+const funcCtx: FunctionContext = {
+  function: {
+    id: "profile-builder",
+    type: "profile-builder",
+  },
+  props: {},
+};
 
 console.log(
   `Starting profile builder with instance index ${instanceIndex} of ${totalInstances} and partitions range ${partitionsRange}`
@@ -49,7 +60,8 @@ export async function profileBuilder(
   profileBuilder: ProfileBuilder,
   eventsLogger: EventsStore
 ): Promise<ProfileBuilderRunner> {
-  const log = getLog(`pb-${workspaceId}-${profileBuilder.id}`);
+  const pbLongId = `${workspaceId}-${profileBuilder.id}-v${profileBuilder.version}`;
+  const log = getLog(`pb-${pbLongId}`);
   let state: ProfileBuilderState = {
     profileBuilderId: profileBuilder.id,
     profileBuilderVersion: profileBuilder.version,
@@ -71,11 +83,11 @@ export async function profileBuilder(
 
   const funcStore = await functionsStore.get();
 
-  const cacheKey = `${profileBuilder.id}_${profileBuilder.version}`;
+  const cacheKey = pbLongId;
   let funcChain: FuncChain | undefined = funcsChainCache.get(cacheKey);
   if (!funcChain) {
-    log.atDebug().log(`[${profileBuilder.id}] Refreshing function chain. version: ${profileBuilder.version}`);
-    funcChain = buildFunctionChain(profileBuilder, funcStore, eventsLogger);
+    log.atInfo().log(`Refreshing function chain`);
+    funcChain = buildFunctionChain(profileBuilder, funcStore, eventsLogger, fetchTimeoutMs);
     funcsChainCache.set(cacheKey, funcChain);
   }
 
@@ -118,7 +130,7 @@ export async function profileBuilder(
 
   log.atInfo().log(`Last timestamp: ${state.lastTimestamp}`);
 
-  const queue = new PQueue({ concurrency: 20 });
+  const queue = new PQueue({ concurrency });
 
   const pb = {
     start: async () => {
@@ -126,30 +138,37 @@ export async function profileBuilder(
       while (!closed) {
         const started = Date.now();
         try {
-          const users = await getUsersHavingEventsSince(mongo, config, state.lastTimestamp);
-          log.atInfo().log(`Found ${users.length} users to process: ${users}`);
-          state.totalUsers = users.length;
-          state.processedUsers = 0;
-          state.errorUsers = 0;
-          state.speed = 0;
-          const timestampEnd = new Date();
-          timestampEnd.setSeconds(timestampEnd.getSeconds() - 1);
-          state.lastTimestamp = timestampEnd;
-
-          for (let i = 0; i < users.length; i++) {
-            if (i % 100) {
-              await db.pgHelper().updateProfileBuilderState(state);
-            }
-            const user = users[i];
-            log.atInfo().log(`Processing user ${i + 1}/${users.length}: ${user}`);
-            await queue.onEmpty();
-            queue.add(async () =>
-              processUser(profileBuilder, state, funcChain!, mongo, log, config, user, timestampEnd)
+          const dateUpperBound = new Date();
+          dateUpperBound.setSeconds(dateUpperBound.getSeconds() - 1);
+          const users = await getUsersHavingEventsSince(mongo, config, dateUpperBound, state.lastTimestamp);
+          if (users.length > 0) {
+            funcChain?.context.log.info(
+              funcCtx,
+              `Found ${users.length} users to process since: ${state.lastTimestamp}`
             );
+            state.totalUsers = users.length;
+            state.processedUsers = 0;
+            state.errorUsers = 0;
+            state.speed = 0;
+            state.lastTimestamp = dateUpperBound;
+
+            for (let i = 0; i < users.length; i++) {
+              if (i % 1000) {
+                await db.pgHelper().updateProfileBuilderState(state);
+              }
+              const user = users[i];
+              log.atInfo().log(`Processing user ${i + 1}/${users.length}: ${user}`);
+              await queue.onEmpty();
+              queue.add(async () =>
+                processUser(profileBuilder, state, funcChain!, mongo, log, config, user, dateUpperBound)
+              );
+            }
+            await queue.onIdle();
+            state.speed = users.length / ((Date.now() - started) / 1000);
+            await db.pgHelper().updateProfileBuilderState(state);
+          } else {
+            funcChain?.context.log.debug(funcCtx, `No users to process since: ${state.lastTimestamp}`);
           }
-          await queue.onIdle();
-          state.speed = users.length / ((Date.now() - started) / 1000);
-          await db.pgHelper().updateProfileBuilderState(state);
         } catch (e) {
           log.atError().withCause(e).log(`Error while running profile builder`);
         }
@@ -163,6 +182,7 @@ export async function profileBuilder(
     close: async () => {
       closed = true;
       await Promise.all([queue.onIdle(), closePromise]);
+      log.atInfo().log("Closed");
     },
     version: () => profileBuilder.version,
     state: () => state,
@@ -184,13 +204,6 @@ async function processUser(
   endTimestamp: Date
 ) {
   const ms = stopwatch();
-  const funcCtx: FunctionContext = {
-    function: {
-      id: "profile-builder",
-      type: "profile-builder",
-    },
-    props: {},
-  };
   try {
     const events = await getUserEvents(mongo, config, userId, endTimestamp);
     const eventsArray = await events.toArray();
@@ -213,7 +226,7 @@ async function processUser(
         custom_properties: result.properties,
         updated_at: new Date(),
       };
-      await sendToBulker(profileBuilder, profile, funcChain.context, funcCtx);
+      await sendToBulker(profileBuilder, profile, funcChain.context);
       funcChain.context.log.info(
         funcCtx,
         `User ${userId} processed in ${ms.elapsedMs()}ms (events: ${eventsArray.length}). Result: ${JSON.stringify(
@@ -233,12 +246,7 @@ async function processUser(
   }
 }
 
-async function sendToBulker(
-  profileBuilder: ProfileBuilder,
-  profile: any,
-  context: FunctionChainContext,
-  funcCtx: FunctionContext
-) {
+async function sendToBulker(profileBuilder: ProfileBuilder, profile: any, context: FunctionChainContext) {
   const ctx: FullContext<bulkerDestination.BulkerDestinationConfig> = {
     log: {
       error: (message: string, ...args: any[]) => {
@@ -294,11 +302,23 @@ async function getUserEvents(mongo: MongoClient, config: ProfilesConfig, userId:
     });
 }
 
-async function getUsersHavingEventsSince(mongo: MongoClient, config: ProfilesConfig, lastTimestamp?: Date) {
-  let dateFilter = {};
+async function getUsersHavingEventsSince(
+  mongo: MongoClient,
+  config: ProfilesConfig,
+  dateUpperBound: Date,
+  lastTimestamp?: Date
+) {
+  let dateFilter: any = {
+    _id: { $lt: new ObjectId(Math.floor(dateUpperBound.getTime() / 1000).toString(16) + "0000000000000000") },
+  };
   if (lastTimestamp) {
     dateFilter = {
-      _id: { $gte: new ObjectId(Math.floor(lastTimestamp.getTime() / 1000).toString(16) + "0000000000000000") },
+      $and: [
+        {
+          _id: { $gte: new ObjectId(Math.floor(lastTimestamp.getTime() / 1000).toString(16) + "0000000000000000") },
+        },
+        dateFilter,
+      ],
     };
   }
   return await mongo

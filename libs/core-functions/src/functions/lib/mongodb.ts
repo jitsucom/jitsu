@@ -1,4 +1,4 @@
-import { getLog, getSingleton, index, parseNumber, requireDefined } from "juava";
+import { getLog, getSingleton, parseNumber, requireDefined } from "juava";
 import { MongoClient, ObjectId } from "mongodb";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { AnonymousEventsStore } from "@jitsu/protocols/functions";

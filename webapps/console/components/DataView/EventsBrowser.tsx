@@ -185,6 +185,8 @@ export const EventsBrowser = ({
         if (connection) {
           setConnection(connection);
           setDebugEnabled(new Date(connection.data.debugTill) > new Date());
+        } else {
+          setConnection(undefined);
         }
       })();
     }
@@ -292,7 +294,6 @@ export const EventsBrowser = ({
               ...profiles.map(p => {
                 const dst = dstMap[p.destinationId];
                 const destinationType = coreDestinationsMap[dst?.destinationType];
-                console.log(p);
                 return {
                   ...p,
                   mode: p.connectionOptions?.mode || "batch",
