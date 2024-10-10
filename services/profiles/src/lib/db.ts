@@ -73,6 +73,7 @@ from newjitsu."ProfileBuilderState" where
     return undefined;
   },
   async updateProfileBuilderState(state: ProfileBuilderState) {
+    state.updatedAt = new Date();
     await db.pgPool().query(
       `
 insert into newjitsu."ProfileBuilderState" as p ("profileBuilderId", "profileBuilderVersion","instanceIndex",
