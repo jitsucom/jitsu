@@ -186,8 +186,8 @@ async function processUser(
   const ms = stopwatch();
   const funcCtx: FunctionContext = {
     function: {
-      id: "PIPELINE",
-      type: "udf",
+      id: "profile-builder",
+      type: "profile-builder",
     },
     props: {},
   };

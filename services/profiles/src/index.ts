@@ -6,11 +6,11 @@ import { getHeapSnapshot } from "node:v8";
 import { functionsStore, workspaceStore } from "./lib/repositories";
 import { db } from "./lib/db";
 import { profileBuilder, ProfileBuilderRunner } from "./builder";
-import { DummyEventsStore, EventsStore, mongodb } from "@jitsu/core-functions";
+import { createClickhouseLogger, DummyEventsStore, EventsStore, mongodb } from "@jitsu/core-functions";
 
 disableService("mongodb");
 
-export const log = getLog("profile-builder");
+const log = getLog("profile-builder");
 
 setServerJsonFormat(process.env.LOG_FORMAT === "json");
 
@@ -47,9 +47,9 @@ async function main() {
 
   await mongodb.waitInit();
   let eventsLogger: EventsStore = DummyEventsStore;
-  // if (process.env.CLICKHOUSE_HOST || process.env.CLICKHOUSE_URL) {
-  //   eventsLogger = createClickhouseLogger();
-  // }
+  if (process.env.CLICKHOUSE_HOST || process.env.CLICKHOUSE_URL) {
+    eventsLogger = createClickhouseLogger();
+  }
 
   let httpServer: Server;
   let metricsServer: Server | undefined;

@@ -6,7 +6,7 @@ import { s3client, store } from "../../lib/services";
 import { CreateBucketCommand, CreateBucketCommandInput } from "@aws-sdk/client-s3";
 import { getServerLog } from "../../lib/log";
 
-export const log = getServerLog("s3-bucket-init");
+const log = getServerLog("s3-bucket-init");
 
 export type Credentials = {
   accessKeyId: string;

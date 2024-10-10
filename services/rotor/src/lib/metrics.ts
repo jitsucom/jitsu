@@ -8,7 +8,7 @@ import type { Producer } from "kafkajs";
 import { getCompressionType } from "./rotor";
 import { Readable } from "stream";
 
-export const log = getLog("metrics");
+const log = getLog("metrics");
 const bulkerBase = requireDefined(process.env.BULKER_URL, "env BULKER_URL is not defined");
 const bulkerAuthKey = requireDefined(process.env.BULKER_AUTH_KEY, "env BULKER_AUTH_KEY is not defined");
 const metricsDestinationId = process.env.METRICS_DESTINATION_ID;

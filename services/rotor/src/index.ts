@@ -1,7 +1,7 @@
 import { checkHash, checkRawToken, disableService, getLog, setServerJsonFormat, isTruish } from "juava";
 import { destinationMessagesTopic, getCredentialsFromEnv, rotorConsumerGroupId } from "./lib/kafka-config";
 import { kafkaRotor } from "./lib/rotor";
-import { DummyEventsStore, EventsStore, mongodb } from "@jitsu/core-functions";
+import { createClickhouseLogger, DummyEventsStore, EventsStore, mongodb } from "@jitsu/core-functions";
 import express from "express";
 import { UDFRunHandler } from "./http/udf";
 import Prometheus from "prom-client";
@@ -12,12 +12,11 @@ import { DummyMetrics, Metrics } from "./lib/metrics";
 import { connectionsStore, functionsStore } from "./lib/repositories";
 import { Server } from "node:net";
 import { getApplicationVersion, getDiagnostics } from "./lib/version";
-import { createClickhouseLogger } from "./lib/clickhouse-logger";
 import { Redis } from "ioredis";
 import { createRedis } from "./lib/redis";
 import * as util from "util";
 import { getHeapSnapshot } from "node:v8";
-export const log = getLog("rotor");
+const log = getLog("rotor");
 
 disableService("prisma");
 disableService("pg");

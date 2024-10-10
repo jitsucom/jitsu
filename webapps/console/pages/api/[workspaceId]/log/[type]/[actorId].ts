@@ -44,7 +44,10 @@ export const api: Api = {
         const link = await db
           .prisma()
           .configurationObjectLink.findFirst({ where: { id: query.actorId, workspaceId: query.workspaceId } });
-        if (!link) {
+        const pb = await db
+          .prisma()
+          .profileBuilder.findFirst({ where: { id: query.actorId, workspaceId: query.workspaceId } });
+        if (!link && !pb) {
           throw new ApiError(`connection doesn't belong to the current workspace`, {}, { status: 403 });
         }
       }

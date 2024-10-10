@@ -293,6 +293,7 @@ model task_log {
 
 model ProfileBuilder {
   id                             String                   @id @default(cuid())
+  name                           String
   deleted   Boolean? @default(false)
   createdAt                      DateTime                 @default(now()) /// @zod.custom(z.coerce.date())
   updatedAt                      DateTime                 @default(now()) @updatedAt /// @zod.custom(z.coerce.date())

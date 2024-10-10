@@ -44,6 +44,7 @@
     "juava": "workspace:*",
     "lodash": "^4.17.21",
     "mongodb": "^6.9.0",
+    "@clickhouse/client": "^1.6.0",
     "node-cache": "^5.1.2",
     "parse-duration": "^1.1.0",
     "posthog-node": "^4.0.1",

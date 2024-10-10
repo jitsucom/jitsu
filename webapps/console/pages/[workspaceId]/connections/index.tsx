@@ -15,7 +15,7 @@ import { useRouter } from "next/router";
 import { jsonSerializationBase64, useQueryStringState } from "../../../lib/useQueryStringState";
 import { TableProps } from "antd/es/table/InternalTable";
 import { ColumnType, SortOrder } from "antd/es/table/interface";
-import { Activity, Edit3, Inbox, XCircle } from "lucide-react";
+import { Activity, Edit3, Inbox, UserIcon, XCircle } from "lucide-react";
 import { PlusOutlined } from "@ant-design/icons";
 import { WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
 import { DestinationTitle } from "../destinations";
@@ -27,6 +27,7 @@ import { toURL } from "../../../lib/shared/url";
 import JSON5 from "json5";
 import { useConfigObjectLinks, useConfigObjectList, useStoreReload } from "../../../lib/store";
 import { ServiceTitle } from "../services";
+import { ObjectTitle } from "../../../components/ObjectTitle/ObjectTitle";
 
 function EmptyLinks() {
   const workspace = useWorkspace();
@@ -70,6 +71,34 @@ export const ConnectionTitle: React.FC<{
           icon={<FaExternalLinkAlt className="w-2.5 h-2.5" />}
         />
       )}
+    </div>
+  );
+};
+
+export const ProfileBuilderTitle: React.FC<{
+  profileBuilder: any;
+  destination: DestinationConfig;
+  showLink?: boolean;
+}> = ({ profileBuilder, destination, showLink = false }) => {
+  return (
+    <div className={"flex flex-row whitespace-nowrap gap-1.5"}>
+      <ObjectTitle
+        icon={<UserIcon className={"w-4 h-4"} />}
+        size={"small"}
+        // href={stream && link ? `/${stream.workspaceId}/streams?id=${stream?.id}` : undefined}
+        title={profileBuilder ? profileBuilder.name : "Unknown stream"}
+      />
+      {"→"}
+      <DestinationTitle size={"small"} destination={destination} />
+      {/*{showLink && (*/}
+      {/*  <WJitsuButton*/}
+      {/*    href={`/connection/edit?id=${connectionId}`}*/}
+      {/*    type="link"*/}
+      {/*    className="link"*/}
+      {/*    size="small"*/}
+      {/*    icon={<FaExternalLinkAlt className="w-2.5 h-2.5" />}*/}
+      {/*  />*/}
+      {/*)}*/}
     </div>
   );
 };
