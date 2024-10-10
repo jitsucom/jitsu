@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 
-pnpm run build-scripts docker ../../ -t console,rotor --push $@
+pnpm run build-scripts docker ../../ -t console,rotor,profiles --push $@
 

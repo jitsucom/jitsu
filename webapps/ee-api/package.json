@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.418.0",
-    "@clickhouse/client": "^1.4.0",
+    "@clickhouse/client": "^1.6.0",
     "@react-email/components": "^0.0.25",
     "@types/node": "^18.15.3",
     "@types/react": "18.3.3",

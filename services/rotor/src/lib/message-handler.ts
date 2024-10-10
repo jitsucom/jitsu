@@ -65,7 +65,6 @@ export async function rotorMessageHandler(
   }
   const connStore = rotorContext.connectionStore;
   const funcStore = rotorContext.functionsStore;
-  const workspaceStore = rotorContext.workspaceStore;
 
   const message = (typeof _message === "string" ? JSON.parse(_message) : _message) as IngestMessage;
   const connectionId =

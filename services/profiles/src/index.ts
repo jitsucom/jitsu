@@ -103,12 +103,12 @@ async function main() {
 
     const ws = await workspaceStore.get();
     if (!ws.enabled) {
-      log.atError().log("Connection store is not configured. Rotor will not work");
+      log.atError().log("Connection store is not configured. Profile Builder will not work");
       process.exit(1);
     }
     const funcStore = await functionsStore.get();
     if (!funcStore.enabled) {
-      log.atError().log("Functions store is not configured. Rotor will not work");
+      log.atError().log("Functions store is not configured. Profile Builder will not work");
       process.exit(1);
     }
 
@@ -252,7 +252,7 @@ function checkAuth(token: string): boolean {
     tokens = process.env.ROTOR_RAW_AUTH_TOKENS.split(",");
     checkFunction = checkRawToken;
   } else {
-    log.atWarn().log("No auth tokens are configured. Rotor is open for everyone.");
+    log.atWarn().log("No auth tokens are configured. Profile Builder is open for everyone.");
     return true;
   }
   if (tokens.length > 0) {
