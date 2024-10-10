@@ -170,6 +170,9 @@ const funcStore: EntityStore<FunctionConfig> = {
   getObject: (id: string) => {
     return functions[id];
   },
+  getAll: () => {
+    return functions as unknown as Record<string, FunctionConfig>;
+  },
   toJSON: () => "",
   enabled: true,
   lastModified: new Date(),
@@ -179,6 +182,9 @@ const connectionStore: EntityStore<EnrichedConnectionConfig> = {
   getObject: (id: string) => {
     return connections[id];
   },
+  getAll: () => {
+    return connections as unknown as Record<string, EnrichedConnectionConfig>;
+  },
   toJSON: () => "",
   enabled: true,
   lastModified: new Date(),
@@ -187,6 +193,9 @@ const connectionStore: EntityStore<EnrichedConnectionConfig> = {
 const workspaceStore: EntityStore<Workspace> = {
   getObject: (id: string) => {
     return undefined;
+  },
+  getAll: () => {
+    return {} as Record<string, Workspace>;
   },
   toJSON: () => "",
   enabled: true,
