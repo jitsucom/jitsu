@@ -21,7 +21,7 @@ import {
 import NodeCache from "node-cache";
 import { buildFunctionChain, checkError, FuncChain, FuncChainFilter, runChain } from "./functions-chain";
 import { Redis } from "ioredis";
-export const log = getLog("rotor");
+const log = getLog("rotor");
 
 const anonymousEventsStore = mongoAnonymousEventsStore();
 

@@ -6,7 +6,7 @@ import NodeCache from "node-cache";
 import { getLog, requireDefined } from "juava";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 
-export const log = getLog("maxmind");
+const log = getLog("maxmind");
 
 const InvalidLicenseKey = "Invalid license key";
 

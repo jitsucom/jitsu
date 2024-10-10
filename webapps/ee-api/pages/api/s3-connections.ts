@@ -6,7 +6,7 @@ import { pg } from "../../lib/services";
 import { getServerLog } from "../../lib/log";
 import pick from "lodash/pick";
 
-export const log = getServerLog("s3-bucket-init");
+const log = getServerLog("s3-bucket-init");
 
 const handler = async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (!process.env.S3_REGION || !process.env.S3_ACCESS_KEY_ID || !process.env.S3_SECRET_ACCESS_KEY) {

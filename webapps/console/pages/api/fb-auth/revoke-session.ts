@@ -4,7 +4,7 @@ import { serialize } from "cookie";
 import { getAppEndpoint } from "../../../lib/domains";
 import { getServerLog } from "../../../lib/server/log";
 
-export const log = getServerLog("firebase");
+const log = getServerLog("firebase");
 
 export default createRoute()
   .GET({ auth: true })

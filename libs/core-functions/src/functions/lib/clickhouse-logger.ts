@@ -1,9 +1,9 @@
 import { getLog, isTruish, LogLevel, requireDefined } from "juava";
 
-export const log = getLog("clickhouseLogger");
+const log = getLog("clickhouseLogger");
 
 import { createClient } from "@clickhouse/client";
-import { EventsStore } from "@jitsu/core-functions";
+import { EventsStore } from "./index";
 
 type LogEntry = {
   actorId: string;

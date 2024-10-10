@@ -2,13 +2,10 @@ import { SetOpts, TTLStore } from "@jitsu/protocols/functions";
 import type { Redis } from "ioredis";
 import parse from "parse-duration";
 import { MongoClient, ReadPreference, Collection } from "mongodb";
-import { getLog } from "juava";
 import { RetryError } from "@jitsu/functions-lib";
 
 export const defaultTTL = 60 * 60 * 24 * 31; // 31 days
 export const maxAllowedTTL = 2147483647; // max allowed value for ttl in redis (68years)
-
-export const log = getLog("store");
 
 function getTtlSec(opts?: SetOpts): number {
   let seconds = defaultTTL;

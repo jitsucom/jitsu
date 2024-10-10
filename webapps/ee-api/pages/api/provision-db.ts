@@ -5,7 +5,7 @@ import { withErrorHandler } from "../../lib/route-helpers";
 import { clickhouse, store } from "../../lib/services";
 import { getServerLog } from "../../lib/log";
 
-export const log = getServerLog("provision-db");
+const log = getServerLog("provision-db");
 
 export type Credentials = {
   username: string;

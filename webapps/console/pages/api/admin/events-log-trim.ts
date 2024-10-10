@@ -4,7 +4,7 @@ import { clickhouse } from "../../../lib/server/clickhouse";
 import dayjs from "dayjs";
 import { getServerLog } from "../../../lib/server/log";
 
-export const log = getServerLog("events-log-trim");
+const log = getServerLog("events-log-trim");
 
 const localIps = ["127.0.0.1", "0:0:0:0:0:0:0:1", "::1", "::ffff:127.0.0.1"];
 

@@ -4,7 +4,7 @@ import { clickhouse } from "../../../lib/server/clickhouse";
 import { z } from "zod";
 import { getServerLog } from "../../../lib/server/log";
 
-export const log = getServerLog("events-log-init");
+const log = getServerLog("events-log-init");
 
 export default createRoute()
   .GET({

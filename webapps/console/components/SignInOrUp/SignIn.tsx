@@ -30,7 +30,7 @@ function Header() {
   );
 }
 
-export const log = getLog("signin");
+const log = getLog("signin");
 
 function handleFirebaseError(error: any): ReactNode {
   const code = error?.code;

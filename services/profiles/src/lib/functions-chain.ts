@@ -90,7 +90,7 @@ export function buildFunctionChain(
       chainCtx,
       {
         function: {
-          id: "PIPELINE",
+          id: "profile-builder",
           type: "udf",
           debugTill: profileBuilder.debugTill ? new Date(profileBuilder.debugTill) : undefined,
         },
@@ -140,7 +140,7 @@ export function buildFunctionChain(
 
   const funcCtx = {
     function: {
-      id: "PIPILINE",
+      id: "profile-builder",
       type: "udf",
       debugTill: profileBuilder.debugTill ? new Date(profileBuilder.debugTill) : undefined,
     },

@@ -7,7 +7,7 @@ import { mainDataDomain } from "./server/data-domains";
 
 export type HttpProtocolVariant = "https" | "http";
 
-export const log = getServerLog("domains");
+const log = getServerLog("domains");
 
 export type PublicEndpoint = {
   //always without port

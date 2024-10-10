@@ -8,7 +8,7 @@ import { getRequestHost } from "../../../lib/server/origin";
 import { getServerLog } from "../../../lib/server/log";
 import { getLog } from "juava";
 
-export const log = getServerLog("firebase");
+const log = getServerLog("firebase");
 
 export const api: Api = {
   url: inferUrl(__filename),
