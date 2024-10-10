@@ -9,6 +9,8 @@
     "format": "prettier --ignore-unknown --write --config ./.prettierrc.json --ignore-path ./.prettierignore $(git diff --name-only --diff-filter d | xargs)",
     "format:all": "prettier --write --config ./.prettierrc.json --ignore-path ./.prettierignore .",
     "tool:hash": "turbo run tool:hash --",
+    "ci:no-test": "pnpm format:check:all && pnpm lint && pnpm build",
+    "ci:all": "pnpm ci:no-test && pnpm test",
     "prepare": "husky install",
     "pre-commit": "pnpm format:check",
     "build": "turbo run build",

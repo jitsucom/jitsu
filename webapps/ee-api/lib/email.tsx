@@ -6,11 +6,12 @@ import { Resend } from "resend";
 import { EmailComponent, UnsubscribeLinkProps } from "../components/email-component";
 import WelcomeEmail from "../emails/welcome";
 import { requireDefined } from "juava";
-import Churned from "../emails/churned";
 import ChurnedCustomerEmail from "../emails/churned";
 import QuotaExceeded from "../emails/quota-exceeded";
 import QuotaAboutToExceed from "../emails/quota-about-to-exceed";
 import ThrottledReminderEmail from "../emails/throttling-reminder";
+import { Simplify } from "type-fest";
+import ThrottlingStarted from "../emails/throttling-started";
 
 dayjs.extend(utc);
 export const UnsubscribeCodes = z.object({
@@ -83,7 +84,7 @@ export const SendEmailRequest = z.object({
   dryRun: z.boolean().optional(),
 });
 
-export type Payload = z.infer<typeof SendEmailRequest>;
+export type SendEmailRequest = z.infer<typeof SendEmailRequest>;
 
 export function getComponent(template: string): EmailComponent<UnsubscribeLinkProps> {
   switch (template) {
@@ -97,6 +98,8 @@ export function getComponent(template: string): EmailComponent<UnsubscribeLinkPr
       return QuotaAboutToExceed;
     case "throttling-reminder":
       return ThrottledReminderEmail;
+    case "throttling-started":
+      return ThrottlingStarted;
     default:
       throw new Error(`Unknown email template: ${template}`);
   }
@@ -138,9 +141,9 @@ function getDomainFromEmail(email: string): string {
   return parseEmailAddress(email).email.split("@")[1];
 }
 
-export async function getWorkspaceInfo(
-  workspaceIdOrSlug: string | undefined
-): Promise<{ workspaceId; workspaceSlug; workspaceName } | undefined> {
+export type WorkspaceInfo = { workspaceId; workspaceSlug; workspaceName };
+
+export async function getWorkspaceInfo(workspaceIdOrSlug: string | undefined): Promise<WorkspaceInfo | undefined> {
   const query = `select id as "workspaceId", slug as "workspaceSlug", name as "workspaceName" from newjitsu."Workspace" where id = $1 or slug = $1`;
   const result = await pg.query(query, [workspaceIdOrSlug]);
   return result.rows?.[0];
@@ -150,7 +153,15 @@ function firstDefined<T>(...args: (T | undefined)[]): T {
   return args.find(arg => arg !== undefined) as T;
 }
 
-export async function sendEmail(payload: Omit<Payload, "to"> & { to: string }) {
+type DiscriminatedUnion<T1, T2> =
+  | (T1 & { [K in Exclude<keyof T2, keyof T1>]?: never })
+  | (T2 & { [K in Exclude<keyof T1, keyof T2>]?: never });
+
+export type EmailSendingResult = Simplify<
+  DiscriminatedUnion<{ sent: false; reasonNotSent: string }, { sent: true; subject: string; messageId: string }>
+>;
+
+export async function sendEmail(payload: Omit<SendEmailRequest, "to"> & { to: string }): Promise<EmailSendingResult> {
   let workspace;
   if (payload.workspaceId) {
     workspace = await getWorkspaceInfo(payload.workspaceId);
@@ -173,7 +184,7 @@ export async function sendEmail(payload: Omit<Payload, "to"> & { to: string }) {
 
   if (respectUnsubscribe && (await isUnsubscribed(recepient))) {
     console.log(`Not sending email to unsubscribed recipient: ${recepient}`);
-    return { unsubscribed: true, recipient: recepient, message: "Recipient is unsubscribed" };
+    return { sent: false, reasonNotSent: `${recepient} is unsubscribed` };
   }
   const domain = getDomainFromEmail(from);
   const unsubscribeCode = await getUnsubscribeCode(recepient, { rotateExpired: true });
@@ -214,8 +225,8 @@ export async function sendEmail(payload: Omit<Payload, "to"> & { to: string }) {
     throw new Error(`Error sending email: ${JSON.stringify(result.error)}`);
   }
   return {
-    unsubscribed: false,
-    recipient: recepient,
-    messageId: result.data?.id,
+    sent: true,
+    subject,
+    messageId: result.data?.id || "",
   };
 }
