@@ -26,7 +26,7 @@
     "@types/pg-cursor": "^2.7.2",
     "@aws-sdk/client-s3": "^3.621.0",
     "dayjs": "^1.11.12",
-    "express": "^4.19.2",
+    "express": "^4.21.1",
     "ioredis": "^5.4.1",
     "json5": "^2.2.3",
     "juava": "workspace:*",

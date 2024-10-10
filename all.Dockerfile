@@ -80,3 +80,26 @@ ENV JITSU_VERSION_DOCKER_TAG=${JITSU_BUILD_DOCKER_TAG}
 ENV JITSU_VERSION_STRING=${JITSU_BUILD_VERSION}
 
 CMD ["--no-node-snapshot", "--max-old-space-size=2048", "main.js"]
+
+FROM base as profiles
+
+ARG JITSU_BUILD_VERSION=dev,
+ARG JITSU_BUILD_DOCKER_TAG=dev,
+ARG JITSU_BUILD_COMMIT_SHA=unknown,
+
+
+WORKDIR /app
+RUN addgroup --system --gid 1001 runner
+RUN adduser --system --uid 1001 runner
+USER runner
+
+EXPOSE 3401
+
+COPY --from=builder /app/services/profiles/dist .
+
+ENV NODE_ENV=production
+ENV JITSU_VERSION_COMMIT_SHA=${JITSU_BUILD_COMMIT_SHA}
+ENV JITSU_VERSION_DOCKER_TAG=${JITSU_BUILD_DOCKER_TAG}
+ENV JITSU_VERSION_STRING=${JITSU_BUILD_VERSION}
+
+CMD ["--no-node-snapshot", "--max-old-space-size=2048", "main.js"]
