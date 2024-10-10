@@ -14,8 +14,7 @@
     "build": "pnpm compile && webpack && pnpm bundle_extenals",
     "start": "dotenv -e ../../.env.local -- node dist/main.js",
     "profiles:dev": "dotenv -e ../../.env.local -- nodemon --watch \"src/**\" --ext \"ts,json,tsx\" --exec \"ts-node src/index.ts\"",
-    "profiles:profile": "dotenv -e ../../.env.local -- nodemon --watch \"src/**\" --ext \"ts,json,tsx\" --exec \"ts-node-dev --inspect -- src/index.ts\"",
-    "test": "tsc -p . && BULKER_URL=dummy BULKER_AUTH_KEY=dummy jest --verbose"
+    "profiles:profile": "dotenv -e ../../.env.local -- nodemon --watch \"src/**\" --ext \"ts,json,tsx\" --exec \"ts-node-dev --inspect -- src/index.ts\""
   },
   "dependencies": {
     "mongodb": "^6.9.0",
