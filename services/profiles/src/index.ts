@@ -8,8 +8,6 @@ import { db } from "./lib/db";
 import { profileBuilder, ProfileBuilderRunner } from "./builder";
 import { createClickhouseLogger, DummyEventsStore, EventsStore, mongodb } from "@jitsu/core-functions";
 
-disableService("mongodb");
-
 const log = getLog("profile-builder");
 
 setServerJsonFormat(process.env.LOG_FORMAT === "json");

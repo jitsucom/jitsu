@@ -49,6 +49,6 @@
     "react-email": "^3.0.1",
     "ts-node": "^10.9.2",
     "type-fest": "^3.5.7",
-    "typescript": "^5.5.4"
+    "typescript": "^5.6.3"
   }
 }

@@ -169,8 +169,8 @@ export async function profileBuilder(
           } else {
             funcChain?.context.log.debug(funcCtx, `No users to process since: ${state.lastTimestamp}`);
           }
-        } catch (e) {
-          log.atError().withCause(e).log(`Error while running profile builder`);
+        } catch (e: any) {
+          funcChain?.context.log.error(funcCtx, `Error while running profile builder: ${e.message}`);
         }
         const waitMs = config.runPeriodSec * 1000 - (Date.now() - started);
         if (waitMs > 0) {
