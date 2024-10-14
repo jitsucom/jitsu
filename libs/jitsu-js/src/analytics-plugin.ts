@@ -416,8 +416,9 @@ function adjustPayload(
   const properties = payload.properties || {};
 
   if (payload.type === "page" && url) {
-    properties.url = url.replace(hashRegex, "");
-    properties.path = fixPath(urlPath(url));
+    const targetUrl = properties.url || url;
+    properties.url = targetUrl.replace(hashRegex, "");
+    properties.path = fixPath(urlPath(targetUrl));
   }
 
   const customContext = payload.properties?.context || {};
