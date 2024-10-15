@@ -1,5 +1,5 @@
 import path from "path";
-import { mkdirSync, readdirSync, writeFileSync, existsSync } from "fs";
+import { mkdirSync, readdirSync, writeFileSync, existsSync, lstatSync } from "fs";
 import typescript from "@rollup/plugin-typescript";
 import resolve from "@rollup/plugin-node-resolve";
 import commonjs from "@rollup/plugin-commonjs";
@@ -8,7 +8,7 @@ import { ModuleFormat, rollup } from "rollup";
 import { exec } from "child_process";
 import { loadPackageJson } from "./shared";
 import { b, green, red } from "../lib/chalk-code-highlight";
-import { CompiledFunction, getFunctionFromFilePath } from "../lib/compiled-function";
+import { getFunctionFromFilePath } from "../lib/compiled-function";
 import * as ts from "typescript";
 
 export async function build({ dir }: { dir?: string }) {
@@ -21,67 +21,11 @@ export async function build({ dir }: { dir?: string }) {
     process.exit(1);
   }
 
-  //list files in src directory
-  const functionsDir = path.resolve(projectDir, "src/functions");
-  const files = readdirSync(functionsDir);
-  if (files.length === 0) {
-    console.error(`No functions found in ${b("/src/functions")} directory`);
-    process.exit(0);
-  }
-  let compiledFunction: CompiledFunction;
-  let lastError: any = undefined;
-  for (const file of files) {
-    try {
-      const funcFile = path.resolve(functionsDir, file);
-
-      process.chdir(projectDir);
-
-      const rollupPlugins = [
-        typescript(),
-        resolve({ preferBuiltins: false }),
-        commonjs(),
-        rollupJson(),
-        // terser(),
-      ];
-
-      const bundle = await rollup({
-        input: [funcFile],
-        plugins: rollupPlugins,
-        external: ["@jitsu/functions-lib"],
-        logLevel: "silent",
-      });
-
-      let format: ModuleFormat = "es";
-      let output = await bundle.generate({
-        dir: projectDir,
-        format: format,
-      });
-
-      mkdirSync(path.resolve(projectDir, "dist/functions"), { recursive: true });
-      const compiledFunctionPath = `dist/functions/${file.replace(".ts", ".js")}`;
-      writeFileSync(path.resolve(projectDir, compiledFunctionPath), output.output[0].code);
-      //to verify that function is readable
-      compiledFunction = await getFunctionFromFilePath(path.resolve(projectDir, compiledFunctionPath));
-      console.log(
-        [`${green(`✓`)} Function ${b(file)} compiled successfully`, `  slug = ${b(compiledFunction.meta.slug)}`]
-          .filter(Boolean)
-          .join("\n")
-      );
-    } catch (e: any) {
-      console.error(
-        [
-          `${red(`⚠`)} Function ${b(file)} failed to compile: ${red(e?.message)}. See details below`,
-          ...(e?.stack?.split("\n") || []).map(s => `  ${s}`),
-        ]
-          .filter(Boolean)
-          .join("\n")
-      );
-      lastError = e;
-    }
-  }
-  if (lastError) {
+  try {
+    await buildFiles(projectDir);
+  } catch (e: any) {
     throw new Error(
-      `Some of the functions failed to compile. See details above. Last error: ${lastError?.message || "unknown"}`
+      `Some of the functions failed to compile. See details above. Last error: ${e.message || "unknown"}`
     );
   }
 
@@ -99,6 +43,79 @@ const run = async cmd => {
   child.stderr?.pipe(process.stderr);
   return new Promise(resolve => child.on("close", resolve));
 };
+
+async function buildFiles(projectDir: string, dir: string = "") {
+  let lastError: any = undefined;
+  const srcDir = path.resolve(projectDir, "src", dir);
+  const files = readdirSync(srcDir);
+  if (files.length === 0) {
+    console.warn(`No functions found in ${b(srcDir)} directory`);
+    return;
+  }
+  for (const file of files) {
+    if (lstatSync(path.resolve(srcDir, file)).isDirectory()) {
+      try {
+        await buildFiles(projectDir, path.join(dir, file));
+      } catch (e: any) {
+        lastError = e;
+      }
+      continue;
+    }
+    try {
+      await buildFile(projectDir, dir, file);
+    } catch (e: any) {
+      console.error(
+        [
+          `${red(`⚠`)} Function ${b(file)} failed to compile: ${red(e?.message)}. See details below`,
+          ...(e?.stack?.split("\n") || []).map(s => `  ${s}`),
+        ]
+          .filter(Boolean)
+          .join("\n")
+      );
+      lastError = e;
+    }
+  }
+  if (lastError) {
+    throw lastError;
+  }
+}
+
+async function buildFile(projectDir: string, dir: string, fileName: string) {
+  const funcFile = path.resolve(projectDir, "src", path.join(dir, fileName));
+  process.chdir(projectDir);
+
+  const rollupPlugins = [
+    typescript(),
+    resolve({ preferBuiltins: false }),
+    commonjs(),
+    rollupJson(),
+    // terser(),
+  ];
+
+  const bundle = await rollup({
+    input: [funcFile],
+    plugins: rollupPlugins,
+    external: ["@jitsu/functions-lib"],
+    logLevel: "silent",
+  });
+
+  let format: ModuleFormat = "es";
+  let output = await bundle.generate({
+    dir: projectDir,
+    format: format,
+  });
+
+  mkdirSync(path.resolve(projectDir, "dist/" + dir), { recursive: true });
+  const compiledFunctionPath = `dist/${dir}/${fileName.replace(".ts", ".js")}`;
+  writeFileSync(path.resolve(projectDir, compiledFunctionPath), output.output[0].code);
+  //to verify that function is readable
+  const compiledFunction = await getFunctionFromFilePath(path.resolve(projectDir, compiledFunctionPath), "function");
+  console.log(
+    [`${green(`✓`)} Function ${b(fileName)} compiled successfully`, `  slug = ${b(compiledFunction.meta.slug)}`]
+      .filter(Boolean)
+      .join("\n")
+  );
+}
 
 function checkTypescript(projectDir: string): string[] | void {
   const tsconfigPath = path.resolve(projectDir, "tsconfig.json");

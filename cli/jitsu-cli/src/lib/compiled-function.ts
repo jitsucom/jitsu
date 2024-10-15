@@ -1,6 +1,6 @@
 import { JitsuFunction } from "@jitsu/protocols/functions";
 import fs from "fs";
-import { ModuleFormat, rollup } from "rollup";
+import { rollup } from "rollup";
 import { assertDefined, assertTrue } from "juava";
 
 export type CompiledFunction = {
@@ -16,7 +16,11 @@ function getSlug(filePath: string) {
   return filePath.split("/").pop()?.replace(".ts", "");
 }
 
-export async function getFunctionFromFilePath(filePath: string): Promise<CompiledFunction> {
+export async function getFunctionFromFilePath(
+  filePath: string,
+  kind: "function" | "profile",
+  profileBuilders: any[] = []
+): Promise<CompiledFunction> {
   if (!fs.existsSync(filePath)) {
     throw new Error(`Cannot load function from file ${filePath}: file doesn't exist`);
   } else if (!fs.statSync(filePath).isFile()) {
@@ -42,11 +46,18 @@ export async function getFunctionFromFilePath(filePath: string): Promise<Compile
   );
   assertTrue(typeof exports.default === "function", `Default export from ${filePath} is not a function`);
 
+  let name = exports.config?.name || exports.config?.slug || getSlug(filePath);
+  if (kind === "profile") {
+    const profileBuilderId = exports.config?.profileBuilderId;
+    const profileBuilder = profileBuilders.find(pb => pb.id === profileBuilderId);
+    name = `${profileBuilder.name} profile function`;
+  }
+
   return {
     func: exports.default,
     meta: {
       slug: exports.config?.slug || getSlug(filePath),
-      name: exports.config?.name,
+      name: name,
       description: exports.config?.description,
     },
   };

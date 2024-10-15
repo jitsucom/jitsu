@@ -60,8 +60,45 @@ export default helloWorldFunction;
 `;
 };
 
+let profileTest = ({ packageName }: TemplateVars) => {
+  return `
+test("${sanitize(packageName)} test", () => {
+  //TODO: implement test
+});
+`;
+};
+
+let profileCode = ({}: TemplateVars) => {
+  return `
+import { ProfileFunction } from "@jitsu/protocols/profile";
+
+export const config = {
+    slug: "profile-example.ts", //id (uniq per workspace) used to identify function in Jitsu
+    profileBuilderId: "", // id of Profile Builder object where this function will be used
+    description: ""
+};
+
+const profileExample: ProfileFunction = async ({ context, events, user}) => {
+  context.log.info("Profile func: " + user.id)
+  const profile = {} as any
+  for (const event of events) {
+     profile.lastMessageDate = Math.max(new Date(event.timestamp).getTime(),profile.lastMessageDate??0)
+  }
+  profile.traits = user.traits
+  profile.anonId = user.anonymousId
+  return {
+    properties: profile
+  }
+};
+
+export default profileExample;
+`;
+};
+
 export const functionProjectTemplate: ProjectTemplate<TemplateVars> = ({ packageName }: TemplateVars) => ({
-  [`__test__/functions/hello.test.ts`]: functionTest,
+  [`__tests__/profiles/profile-example.test.ts`]: profileTest,
+  [`__tests__/functions/hello.test.ts`]: functionTest,
+  [`src/profiles/profile-example.ts`]: profileCode,
   [`src/functions/hello.ts`]: functionCode,
   "package.json": packageJsonTemplate,
   "tsconfig.json": {
