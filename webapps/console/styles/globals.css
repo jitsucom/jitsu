@@ -155,3 +155,8 @@ code {
   border-right-width: 1px;
   box-sizing: border-box;
 }
+
+.full {
+  width: 100%;
+  height: 100%;
+}

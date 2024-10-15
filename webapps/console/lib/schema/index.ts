@@ -38,6 +38,7 @@ export const BillingSettings = z.object({
   renewAfterExpiration: z.boolean().default(false).optional(),
   //if subscription starts some time in the future, for enterprise plans only
   futureSubscriptionDate: z.string().optional(),
+  profileBuilderEnabled: z.boolean().default(false).optional(),
 });
 
 export type BillingSettings = z.infer<typeof BillingSettings>;

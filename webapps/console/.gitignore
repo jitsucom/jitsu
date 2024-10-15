@@ -3,3 +3,5 @@
 
 # Sentry Auth Token
 .sentryclirc
+
+*storybook.log
