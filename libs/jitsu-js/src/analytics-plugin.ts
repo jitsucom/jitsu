@@ -420,13 +420,13 @@ function adjustPayload(
     properties.url = url.replace(hashRegex, "");
   }
   const ctxPage = {
-    path: fixPath(urlPath(url)),
+    path: url ? fixPath(urlPath(url)) : properties.path,
     referrer: referrer,
     referring_domain: safeCall(() => referrer && new URL(referrer).hostname),
     host: parsedUrl && parsedUrl.host,
     search: properties.search || (parsedUrl && parsedUrl.search),
     title: properties.title || runtime.pageTitle(),
-    url: url.replace(hashRegex, ""),
+    url: url ? url.replace(hashRegex, "") : undefined,
     encoding: properties.encoding || runtime.documentEncoding(),
   };
   if (payload.type === "page") {
