@@ -410,19 +410,32 @@ function adjustPayload(
   s2s: boolean
 ): AnalyticsClientEvent {
   const runtime: RuntimeFacade = config.runtime || (isInBrowser() ? windowRuntime(config) : emptyRuntime(config));
-  const url = runtime.pageUrl();
+  const properties = payload.properties || {};
+  const url = properties.url || runtime.pageUrl();
   const parsedUrl = safeCall(() => new URL(url), undefined);
   const query = parsedUrl ? parseQuery(parsedUrl.search) : {};
-  const properties = payload.properties || {};
+  const referrer = runtime.referrer();
 
-  if (payload.type === "page" && url) {
+  if (properties.url) {
     properties.url = url.replace(hashRegex, "");
-    properties.path = fixPath(urlPath(url));
+  }
+  const ctxPage = {
+    path: fixPath(urlPath(url)),
+    referrer: referrer,
+    referring_domain: safeCall(() => referrer && new URL(referrer).hostname),
+    host: parsedUrl && parsedUrl.host,
+    search: properties.search || (parsedUrl && parsedUrl.search),
+    title: properties.title || runtime.pageTitle(),
+    url: url.replace(hashRegex, ""),
+    encoding: properties.encoding || runtime.documentEncoding(),
+  };
+  if (payload.type === "page") {
+    properties.path = ctxPage.path;
+    properties.url = ctxPage.url;
   }
 
   const customContext = payload.properties?.context || {};
   delete payload.properties?.context;
-  const referrer = runtime.referrer();
   const context: AnalyticsClientEvent["context"] = {
     library: {
       name: jitsuLibraryName,
@@ -438,16 +451,7 @@ function adjustPayload(
     locale: runtime.language(),
     screen: runtime.screen(),
     traits: payload.type != "identify" && payload.type != "group" ? { ...(restoreTraits(storage) || {}) } : undefined,
-    page: {
-      path: properties.path || (parsedUrl && parsedUrl.pathname),
-      referrer: referrer,
-      referring_domain: safeCall(() => referrer && new URL(referrer).hostname),
-      host: parsedUrl && parsedUrl.host,
-      search: properties.search || (parsedUrl && parsedUrl.search),
-      title: properties.title || runtime.pageTitle(),
-      url: properties.url || url,
-      encoding: properties.encoding || runtime.documentEncoding(),
-    },
+    page: ctxPage,
     clientIds: !config.privacy?.disableUserIds
       ? {
           fbc: runtime.getCookie("_fbc"),
