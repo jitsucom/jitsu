@@ -1,7 +1,21 @@
 import { WorkspacePageLayout } from "../../components/PageLayout/WorkspacePageLayout";
 import React, { useEffect, useRef, useState } from "react";
 import { Button, Input, Tabs, Tag, Tooltip } from "antd";
-import { Bug, Code2, OctagonAlert, Play, Save, Settings, Terminal, Lock, Hammer, ThumbsUp, LoaderCircle, Braces, Parentheses } from "lucide-react";
+import {
+  Bug,
+  Code2,
+  OctagonAlert,
+  Play,
+  Save,
+  Settings,
+  Terminal,
+  Lock,
+  Hammer,
+  ThumbsUp,
+  LoaderCircle,
+  Braces,
+  Parentheses,
+} from "lucide-react";
 import { CodeEditor } from "../CodeEditor/CodeEditor";
 import { ButtonLabel } from "../ButtonLabel/ButtonLabel";
 import { PropsWithChildrenClassname } from "../../lib/ui";
@@ -13,70 +27,60 @@ import { useBilling } from "../Billing/BillingProvider";
 import { useWorkspace } from "../../lib/context";
 import { ErrorCard } from "../GlobalError/GlobalError";
 import type { PresetColorType, PresetStatusColorType } from "antd/es/_util/colors";
+import { get } from "../../lib/useApi";
 
-
-const statuses: Record<ProfileBuilderStatus | "loading", {
-  title: React.ReactNode;
-  documentation: React.ReactNode;
-  icon: React.ReactNode;
-  color: PresetColorType | PresetStatusColorType
-}> = {
-  "incomplete": {
+const statuses: Record<
+  ProfileBuilderStatus | "loading",
+  {
+    title: React.ReactNode;
+    documentation: React.ReactNode;
+    icon: React.ReactNode;
+    color: PresetColorType | PresetStatusColorType;
+  }
+> = {
+  incomplete: {
     color: "lime",
     title: "INCOMPLETE",
-    documentation: (
-      <>
-        Profile builder is not fully configured. Go to settings section to finish configuration
-      </>
-    ),
+    documentation: <>Profile builder is not fully configured. Go to settings section to finish configuration</>,
     icon: <OctagonAlert className="full" />,
   },
-  "locked": {
+  locked: {
     color: "blue",
     title: "Locked",
     documentation: (
       <>
-        Profile builder is not enabled for your account. You still can define profiles with JavaScript function, and run test. To enable profile builder, please{" "}
-        for your account please <Link href={"/support"}>contact support</Link>
+        Profile builder is not enabled for your account. You still can define profiles with JavaScript function, and run
+        test. To enable profile builder, please for your account please <Link href={"/support"}>contact support</Link>
       </>
     ),
     icon: <Lock className="full" />,
   },
-  "building": {
+  building: {
     color: "yellow",
     title: "BUILDING",
     documentation: (
       <>
-        Profile builder is building initial profiles. In can happen after the first configuration, or after a change has been made in the code.
-        You can monitor the progress in the progress section
+        Profile builder is building initial profiles. In can happen after the first configuration, or after a change has
+        been made in the code. You can monitor the progress in the progress section
       </>
     ),
     icon: <Hammer className="full" />,
   },
-  "ready": {
+  ready: {
     color: "green",
     title: "READY",
-    documentation: (
-      <>
-        Profile builder is ready to use. You can query profiles, from a configured destination
-      </>
-    ),
+    documentation: <>Profile builder is ready to use. You can query profiles, from a configured destination</>,
     icon: <ThumbsUp className="full" />,
   },
-  "loading": {
+  loading: {
     color: "processing",
     title: "LOADING",
-    documentation: (
-      <>
-        Settings are being loaded, please wait
-      </>
-    ),
-    icon: <LoaderCircle  className="full animate-spin" />,
+    documentation: <>Settings are being loaded, please wait</>,
+    icon: <LoaderCircle className="full animate-spin" />,
   },
 };
 
-
-const Header: React.FC<{status: ProfileBuilderStatus | "loading"}> = ({status}) => {
+const Header: React.FC<{ status: ProfileBuilderStatus | "loading" }> = ({ status }) => {
   const statusDetails = statuses[status];
 
   return (
@@ -181,11 +185,15 @@ const VerticalSpacer: React.FC<PropsWithChildrenClassname> = ({ children, classN
 type ProfileBuilderStatus = "incomplete" | "locked" | "building" | "ready";
 type ProfileBuilderData = {
   status: ProfileBuilderStatus;
+  id?: string;
+  name: string;
   code: string;
   settings?: {
     storage: string;
     destinationId: string;
-    tableName: string;
+    connectionOptions?: {
+      tableName?: string;
+    };
   };
 };
 
@@ -199,36 +207,61 @@ function useProfileBuilderData():
   const [data, setData] = useState<ProfileBuilderData | undefined>();
   const billing = useBilling();
   useEffect(() => {
-    if (billing.enabled && billing.loading) {
-      //do nothing, wait for billing to load
-    } else if (billing.enabled && !billing.settings?.profileBuilderEnabled) {
-      //TODO: get code, but the rest should be locked
-      setLoading(false);
-      setData({
-        status: "locked",
-        code: "//TODO - get code from server or inject example code",
-        settings: undefined,
-      });
-    } else {
-      //billing disabled, or profile builder is explicitly enabled
-      setData({
-        status: "locked",
-        code: "//TODO - get code from server or inject example code",
-        settings: undefined,
-      });
-    }
-    //setLoading(true);
+    (async () => {
+      get(`/api/${workspace.id}/config/profile-builder?init=true`)
+        .then(res => res.profileBuilders)
+        .then(profileBuilders => {
+          let status: ProfileBuilderStatus = "locked";
+          if (billing.enabled && billing.loading) {
+            setLoading(true);
+            return;
+          } else if (billing.enabled) {
+            if (billing.settings?.profileBuilderEnabled) {
+              status = "ready";
+            }
+          }
+          if (profileBuilders?.length) {
+            const pb = profileBuilders[0];
+            setLoading(false);
+            setData({
+              status: status,
+              id: pb.id,
+              name: pb.name,
+              code: "//TODO - get code from server or inject example code",
+              settings: {
+                storage: pb.intermediateStorageCredentials,
+                destinationId: pb.destinationId,
+                connectionOptions: pb.connectionOptions,
+              },
+            });
+            return;
+          } else {
+            setLoading(false);
+            setData({
+              status: "incomplete",
+              id: "default",
+              name: "Default",
+              code: "//TODO - get code from server or inject example code",
+            });
+          }
+        });
+
+      //setLoading(true);
+    })();
   }, [billing.enabled, billing.loading, workspace, billing.settings]);
   return { isLoading: loading, error, data } as any;
 }
 
-const Overlay: React.FC<{ children?: React.ReactNode, visible: boolean, className?: string }> = ({ children, visible, className }) => {
+const Overlay: React.FC<{ children?: React.ReactNode; visible: boolean; className?: string }> = ({
+  children,
+  visible,
+  className,
+}) => {
   if (!visible) {
     return <></>;
   }
   return <div className={classNames("absolute top-0 left- w-full h-full z-10", className)}>{children || ""}</div>;
-
-}
+};
 
 export function ProfileBuilderPage() {
   const { data: initialData, error: globalError, isLoading } = useProfileBuilderData();
@@ -238,12 +271,18 @@ export function ProfileBuilderPage() {
   const [activeSecondaryTab, setActiveSecondaryTab] = useState("test");
   return (
     <WorkspacePageLayout noPadding={true}>
-      <div className="mx-12 relative" style={{ paddingTop: `${verticalPaddingPx}px` }} >
-        <Overlay visible={isLoading} className="bg-white bg-opacity-40 backdrop-blur-xs flex flex-col gap-4  items-center justify-center text-lg text-text">
-            <LoaderCircle className="animate-spin w-12 h-12" />
-            <div className="text-center">Configuration loading, please wait...</div>
+      <div className="mx-12 relative" style={{ paddingTop: `${verticalPaddingPx}px` }}>
+        <Overlay
+          visible={isLoading}
+          className="bg-white bg-opacity-40 backdrop-blur-xs flex flex-col gap-4  items-center justify-center text-lg text-text"
+        >
+          <LoaderCircle className="animate-spin w-12 h-12" />
+          <div className="text-center">Configuration loading, please wait...</div>
         </Overlay>
-        <Overlay visible={!!globalError} className="bg-white pt-12 flex flex-col gap-4 items-center justify-start text-lg text-text">
+        <Overlay
+          visible={!!globalError}
+          className="bg-white pt-12 flex flex-col gap-4 items-center justify-start text-lg text-text"
+        >
           <ErrorCard error={new Error("BALALAL")} />
         </Overlay>
         <Header status={isLoading ? "loading" : initialData!.status} />
@@ -257,7 +296,17 @@ export function ProfileBuilderPage() {
                 activePrimaryTab === "code" ? (
                   <div className="flex items-center gap-2">
                     <Button type="text" disabled={isLoading || !!globalError}>
-                      <ButtonLabel icon={<Play className="w-3.4 h-3.5" fill={isLoading || !!globalError ? 'gray' : 'green'} stroke={isLoading || !!globalError ? 'gray' : 'green'} />}>Run</ButtonLabel>
+                      <ButtonLabel
+                        icon={
+                          <Play
+                            className="w-3.4 h-3.5"
+                            fill={isLoading || !!globalError ? "gray" : "green"}
+                            stroke={isLoading || !!globalError ? "gray" : "green"}
+                          />
+                        }
+                      >
+                        Run
+                      </ButtonLabel>
                     </Button>
                     <Button type="text" disabled={isLoading || !!globalError || initialData?.status === "locked"}>
                       <ButtonLabel icon={<Save className="w-3.4 h-3.5" />}>Publish</ButtonLabel>
@@ -298,10 +347,8 @@ export function ProfileBuilderPage() {
                   disabled: isLoading || !!globalError || initialData?.status !== "locked",
                   style: { height: "100%" },
                   key: "build",
-                  label: <ButtonLabel icon={<Hammer  className="w-3.5 h-3.5" />}>Build Progress</ButtonLabel>,
-                  children: (
-                    <TabContent>{" "}</TabContent>
-                  ),
+                  label: <ButtonLabel icon={<Hammer className="w-3.5 h-3.5" />}>Build Progress</ButtonLabel>,
+                  children: <TabContent> </TabContent>,
                 },
               ]}
             />
@@ -332,26 +379,22 @@ export function ProfileBuilderPage() {
                   disabled: isLoading || !!globalError,
                   key: "env",
                   style: { height: "100%" },
-                  label: <ButtonLabel icon={<Parentheses  className="w-3.5 h-3.5" />}>Variables</ButtonLabel>,
+                  label: <ButtonLabel icon={<Parentheses className="w-3.5 h-3.5" />}>Variables</ButtonLabel>,
                   children: <TabContent>Variables</TabContent>,
                 },
                 {
                   style: { height: "100%" },
                   key: "result",
                   disabled: activePrimaryTab !== "code" || isLoading || !!globalError,
-                  label: <ButtonLabel icon={<Braces  className="w-3.5 h-3.5" />}>Last Run Result</ButtonLabel>,
-                  children: (
-                    <TabContent>{" "}</TabContent>
-                  ),
+                  label: <ButtonLabel icon={<Braces className="w-3.5 h-3.5" />}>Last Run Result</ButtonLabel>,
+                  children: <TabContent> </TabContent>,
                 },
                 {
                   style: { height: "100%" },
                   key: "logs",
                   disabled: activePrimaryTab !== "code" || isLoading || !!globalError,
                   label: <ButtonLabel icon={<Terminal className="w-3.5 h-3.5" />}>Logs</ButtonLabel>,
-                  children: (
-                    <TabContent>{" "}</TabContent>
-                  ),
+                  children: <TabContent> </TabContent>,
                 },
               ]}
             />
