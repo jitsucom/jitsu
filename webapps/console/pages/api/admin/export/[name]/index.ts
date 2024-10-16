@@ -105,6 +105,9 @@ const exports: Export[] = [
         getLog().atDebug().log(`Got batch of ${objects.length} profilebuilder objects for bulker export`);
         lastId = objects[objects.length - 1].id;
         for (const { id, updatedAt, workspace, destination, connectionOptions, ...pb } of objects) {
+          if (!destination) {
+            return;
+          }
           const destinationType = destination.config.destinationType;
           const coreDestinationType = getCoreDestinationTypeNonStrict(destinationType);
           if (coreDestinationType?.usesBulker || coreDestinationType?.hybrid) {
