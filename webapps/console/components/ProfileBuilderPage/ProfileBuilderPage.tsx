@@ -1,5 +1,5 @@
 import { WorkspacePageLayout } from "../../components/PageLayout/WorkspacePageLayout";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { Button, Input, Tabs, Tag, Tooltip } from "antd";
 import {
   Bug,
@@ -15,6 +15,7 @@ import {
   LoaderCircle,
   Braces,
   Parentheses,
+  RefreshCw,
 } from "lucide-react";
 import { CodeEditor } from "../CodeEditor/CodeEditor";
 import { ButtonLabel } from "../ButtonLabel/ButtonLabel";
@@ -28,6 +29,20 @@ import { useWorkspace } from "../../lib/context";
 import { ErrorCard } from "../GlobalError/GlobalError";
 import type { PresetColorType, PresetStatusColorType } from "antd/es/_util/colors";
 import { get } from "../../lib/useApi";
+import { useConfigObjectList } from "../../lib/store";
+import { DestinationSelector } from "../Selectors/DestinationSelector";
+import { NumberEditor } from "../ConfigObjectEditor/Editors";
+import { rpc } from "juava";
+
+export const defaultProfileBuilderFunction = `export default async function({ context, events, user }) {
+  context.log.info("Profile userId: " + user.id)
+  const profile = {}
+  profile.traits = user.traits
+  profile.anonId = user.anonymousId
+  return {
+    properties: profile
+  }
+};`;
 
 const statuses: Record<
   ProfileBuilderStatus | "loading",
@@ -46,7 +61,7 @@ const statuses: Record<
   },
   locked: {
     color: "blue",
-    title: "Locked",
+    title: "LOCKED",
     documentation: (
       <>
         Profile builder is not enabled for your account. You still can define profiles with JavaScript function, and run
@@ -98,7 +113,12 @@ const Header: React.FC<{ status: ProfileBuilderStatus | "loading" }> = ({ status
   );
 };
 
-const SettingsTab = () => {
+const SettingsTab: React.FC<{ settings: ProfileBuilderData["settings"]; dispatch: React.Dispatch<PBDataAction> }> = ({
+  settings,
+  dispatch,
+}) => {
+  const destinations = useConfigObjectList("destination");
+
   return (
     <div className={styles.settingsTable}>
       <FieldListEditorLayout
@@ -113,27 +133,57 @@ const SettingsTab = () => {
                 <Link href={"/support"}>contact support</Link>
               </>
             ),
-            component: <Input disabled={true} />,
+            component: (
+              <div className={"max-w-80"}>
+                <Input disabled={true} />
+              </div>
+            ),
           },
           {
             key: "destination",
             name: "Destination",
             documentation: <>Select the destination database where the profiles will be stored</>,
-            component: <Input disabled={true} />,
+            component: (
+              <DestinationSelector
+                selected={settings.destinationId || destinations[0].id}
+                items={destinations}
+                enabled={true}
+                onSelect={d => dispatch({ type: "settings", value: { ...settings, destinationId: d } })}
+              />
+            ),
           },
           {
             key: "table-name",
             name: "Table Name",
             documentation: <>The name of the table where the profiles will be stored</>,
-            component: <Input disabled={true} value={"profiles"} />,
+            component: (
+              <div className={"max-w-80"}>
+                <Input
+                  value={settings.tableName || "profiles"}
+                  onChange={e => dispatch({ type: "settings", value: { ...settings, tableName: e.target.value } })}
+                />
+              </div>
+            ),
+          },
+          {
+            key: "window-days",
+            name: "Profile Window",
+            documentation: (
+              <>The time window, in days, for querying user activity history during profile generation..</>
+            ),
+            component: (
+              <div className={"max-w-80"}>
+                <NumberEditor
+                  max={365}
+                  min={7}
+                  value={settings.profileWindow || 365}
+                  onChange={n => dispatch({ type: "settings", value: { ...settings, profileWindow: n } })}
+                />
+              </div>
+            ),
           },
         ]}
       />
-      <div className="flex justify-end pr-2">
-        <Button type="primary" className="mt-2" size={"large"}>
-          Save
-        </Button>
-      </div>
     </div>
   );
 };
@@ -149,8 +199,8 @@ const Code = () => {
 
 const TabContent = ({ children }) => {
   return (
-    <div className="border-l border-r border-b px-2 py-4" style={{ minHeight: "100%" }}>
-      {children}
+    <div className="border-l border-r border-b px-2 py-4 flex" style={{ minHeight: "100%" }}>
+      <div className="flex-auto">{children}</div>
     </div>
   );
 };
@@ -185,17 +235,49 @@ const VerticalSpacer: React.FC<PropsWithChildrenClassname> = ({ children, classN
 type ProfileBuilderStatus = "incomplete" | "locked" | "building" | "ready";
 type ProfileBuilderData = {
   status: ProfileBuilderStatus;
-  id?: string;
+  id: string | undefined;
   name: string;
-  code: string;
-  settings?: {
-    storage: string;
-    destinationId: string;
-    connectionOptions?: {
-      tableName?: string;
-    };
+  code: string | undefined;
+  version: number | undefined;
+  settings: {
+    storage?: string;
+    destinationId?: string;
+    tableName?: string;
+    profileWindow?: number;
   };
+  createdAt: Date | undefined;
+  updatedAt: Date | undefined;
 };
+
+const defaultProfileBuilderData: ProfileBuilderData = {
+  id: undefined,
+  version: 0,
+  status: "incomplete",
+  name: "Profile Builder",
+  code: undefined,
+  settings: {},
+  createdAt: undefined,
+  updatedAt: undefined,
+};
+
+type PBDataAction =
+  | {
+      [K in keyof ProfileBuilderData]: {
+        type: K;
+        value: ProfileBuilderData[K];
+      };
+    }[keyof ProfileBuilderData]
+  | { type: "replace"; value: ProfileBuilderData };
+
+function pbDataReducer(state: ProfileBuilderData, action: PBDataAction) {
+  if (action.type === "replace") {
+    return action.value;
+  }
+  return {
+    ...state,
+    [action.type]: action?.value,
+  };
+}
 
 function useProfileBuilderData():
   | { isLoading: true; error?: never; data?: never }
@@ -227,21 +309,23 @@ function useProfileBuilderData():
               status: status,
               id: pb.id,
               name: pb.name,
-              code: "//TODO - get code from server or inject example code",
+              version: pb.version,
+              code: pb.functions?.length ? pb.functions[0].function.config.code : defaultProfileBuilderFunction,
               settings: {
                 storage: pb.intermediateStorageCredentials,
                 destinationId: pb.destinationId,
-                connectionOptions: pb.connectionOptions,
+                tableName: pb.connectionOptions?.tableName,
+                profileWindow: pb.connectionOptions?.profileWindow,
               },
+              createdAt: pb.createdAt,
+              updatedAt: pb.updatedAt,
             });
             return;
           } else {
             setLoading(false);
             setData({
-              status: "incomplete",
-              id: "default",
-              name: "Default",
-              code: "//TODO - get code from server or inject example code",
+              ...defaultProfileBuilderData,
+              code: defaultProfileBuilderFunction,
             });
           }
         });
@@ -264,11 +348,43 @@ const Overlay: React.FC<{ children?: React.ReactNode; visible: boolean; classNam
 };
 
 export function ProfileBuilderPage() {
+  const workspace = useWorkspace();
   const { data: initialData, error: globalError, isLoading } = useProfileBuilderData();
-  const [code, setCode] = useState(initialData?.code || "");
-  const [testData, setTestData] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [draftObject, dispatch] = useReducer(pbDataReducer, defaultProfileBuilderData);
   const [activePrimaryTab, setActivePrimaryTab] = useState("code");
   const [activeSecondaryTab, setActiveSecondaryTab] = useState("test");
+
+  useEffect(() => {
+    if (initialData) {
+      dispatch({ type: "replace", value: initialData });
+    }
+  }, [initialData, isLoading]);
+
+  const save = useCallback(() => {
+    setSaving(true);
+    rpc(`/api/${workspace.id}/config/profile-builder`, {
+      body: {
+        profileBuilder: {
+          id: draftObject.id,
+          name: draftObject.name,
+          workspaceId: workspace.id,
+          version: draftObject.version || 0,
+          destinationId: draftObject.settings.destinationId,
+          intermediateStorageCredentials: draftObject.settings.storage || {},
+          connectionOptions: {
+            tableName: draftObject.settings.tableName,
+            profileWindow: draftObject.settings.profileWindow,
+          },
+          createdAt: draftObject.createdAt || new Date(),
+          updatedAt: new Date(),
+        },
+        code: draftObject.code,
+      },
+    })
+      .catch(e => {})
+      .finally(() => setSaving(false));
+  }, [draftObject, workspace.id]);
   return (
     <WorkspacePageLayout noPadding={true}>
       <div className="mx-12 relative" style={{ paddingTop: `${verticalPaddingPx}px` }}>
@@ -293,13 +409,13 @@ export function ProfileBuilderPage() {
               key={"code"}
               onChange={setActivePrimaryTab}
               tabBarExtraContent={
-                activePrimaryTab === "code" ? (
-                  <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2">
+                  {activePrimaryTab === "code" && (
                     <Button type="text" disabled={isLoading || !!globalError}>
                       <ButtonLabel
                         icon={
                           <Play
-                            className="w-3.4 h-3.5"
+                            className="w-3.5 h-3.5"
                             fill={isLoading || !!globalError ? "gray" : "green"}
                             stroke={isLoading || !!globalError ? "gray" : "green"}
                           />
@@ -308,13 +424,30 @@ export function ProfileBuilderPage() {
                         Run
                       </ButtonLabel>
                     </Button>
-                    <Button type="text" disabled={isLoading || !!globalError || initialData?.status === "locked"}>
-                      <ButtonLabel icon={<Save className="w-3.4 h-3.5" />}>Publish</ButtonLabel>
-                    </Button>
-                  </div>
-                ) : (
-                  <></>
-                )
+                  )}
+                  {draftObject.status === "incomplete" ||
+                    (draftObject.status === "locked" && (
+                      <Button type="text" onClick={save} disabled={isLoading || !!globalError}>
+                        <ButtonLabel
+                          icon={
+                            saving ? (
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Save className="w-3.5 h-3.5" />
+                            )
+                          }
+                        >
+                          Save
+                        </ButtonLabel>
+                      </Button>
+                    ))}
+                  {draftObject.status === "ready" ||
+                    (draftObject.status === "building" && (
+                      <Button type="text" disabled={isLoading || !!globalError}>
+                        <ButtonLabel icon={<Save className="w-3.5 h-3.5" />}>Publish</ButtonLabel>
+                      </Button>
+                    ))}
+                </div>
               }
               type={"card"}
               activeKey={activePrimaryTab}
@@ -328,7 +461,13 @@ export function ProfileBuilderPage() {
                   label: <ButtonLabel icon={<Code2 className="w-3.5 h-3.5" />}>Code</ButtonLabel>,
                   children: (
                     <TabContent>
-                      <CodeEditor value={code} height="100%" language="JavaScript" onChange={setCode} />
+                      {typeof draftObject.code !== "undefined" && (
+                        <CodeEditor
+                          value={draftObject.code}
+                          language={"javascript"}
+                          onChange={c => dispatch({ type: "code", value: c })}
+                        />
+                      )}
                     </TabContent>
                   ),
                 },
@@ -339,7 +478,7 @@ export function ProfileBuilderPage() {
                   label: <ButtonLabel icon={<Settings className="w-3.5 h-3.5" />}>Settings</ButtonLabel>,
                   children: (
                     <TabContent>
-                      <SettingsTab />
+                      <SettingsTab settings={draftObject.settings} dispatch={dispatch} />
                     </TabContent>
                   ),
                 },
@@ -354,7 +493,7 @@ export function ProfileBuilderPage() {
             />
           </div>
 
-          <div className={`grow mt-2 ${activePrimaryTab !== "code" ? "border-b" : ""}`}>
+          <div className={`grow mt-2`}>
             <Tabs
               className={classNames(styles.tabsHeightFix)}
               onChange={setActiveSecondaryTab}
@@ -362,11 +501,11 @@ export function ProfileBuilderPage() {
               defaultActiveKey="1"
               size={"small"}
               tabBarStyle={{ marginBottom: 0 }}
-              activeKey={activePrimaryTab !== "code" ? "non-existent" : activeSecondaryTab}
+              activeKey={activeSecondaryTab}
               items={[
                 {
                   style: { height: "100%" },
-                  disabled: activePrimaryTab !== "code" || isLoading || !!globalError,
+                  disabled: isLoading || !!globalError,
                   key: "test",
                   label: <ButtonLabel icon={<Bug className="w-3.5 h-3.5" />}>Test Data</ButtonLabel>,
                   children: (
@@ -385,14 +524,14 @@ export function ProfileBuilderPage() {
                 {
                   style: { height: "100%" },
                   key: "result",
-                  disabled: activePrimaryTab !== "code" || isLoading || !!globalError,
+                  disabled: isLoading || !!globalError,
                   label: <ButtonLabel icon={<Braces className="w-3.5 h-3.5" />}>Last Run Result</ButtonLabel>,
                   children: <TabContent> </TabContent>,
                 },
                 {
                   style: { height: "100%" },
                   key: "logs",
-                  disabled: activePrimaryTab !== "code" || isLoading || !!globalError,
+                  disabled: isLoading || !!globalError,
                   label: <ButtonLabel icon={<Terminal className="w-3.5 h-3.5" />}>Logs</ButtonLabel>,
                   children: <TabContent> </TabContent>,
                 },

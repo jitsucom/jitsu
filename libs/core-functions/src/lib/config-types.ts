@@ -73,6 +73,7 @@ export type ProfileBuilder = {
   version: number;
   workspaceId: string;
   intermediateStorageCredentials: any;
+  connectionOptions: any;
   destinationId: string;
   functions: [
     {
