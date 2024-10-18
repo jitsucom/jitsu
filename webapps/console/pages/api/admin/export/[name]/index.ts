@@ -71,6 +71,17 @@ const exports: Export[] = [
             if (needComma) {
               writer.write(",");
             }
+            const credentials = omit(to.config, "destinationType", "type", "name");
+            if (destinationType === "clickhouse" && data.clickhouseSettings) {
+              const extraParams = Object.fromEntries(
+                (data.clickhouseSettings as string)
+                  .split("\n")
+                  .filter(s => s.includes("="))
+                  .map(s => s.split("="))
+                  .map(([k, v]) => [k.trim(), v.trim()])
+              );
+              credentials.parameters = { ...(credentials.parameters || {}), ...extraParams };
+            }
             writer.write(
               JSON.stringify({
                 __debug: {
@@ -78,9 +89,9 @@ const exports: Export[] = [
                 },
                 id: id,
                 type: destinationType,
-                options: data,
+                options: omit(data, "clickhouseSettings"),
                 updatedAt: dateMax(updatedAt, to.updatedAt),
-                credentials: omit(to.config, "destinationType", "type", "name"),
+                credentials: credentials,
               })
             );
             needComma = true;

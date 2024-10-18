@@ -372,6 +372,7 @@ export const coreDestinations: DestinationType<any>[] = [
     connectionOptions: BaseBulkerConnectionOptions.merge(
       z.object({
         primaryKey: z.string().default("timestamp,message_id"),
+        clickhouseSettings: z.string().default(""),
       })
     ).describe(
       JSON.stringify({
