@@ -2,18 +2,96 @@ import { z } from "zod";
 import { Api, inferUrl, nextJsApiHandler, verifyAccess } from "../../../../lib/api";
 import { db } from "../../../../lib/server/db";
 import { isTruish } from "juava";
+import { ProfileBuilderDbModel } from "../../../../prisma/schema";
+import { safeParseWithDate } from "../../../../lib/zod";
+import { ApiError } from "../../../../lib/shared/errors";
+
+const defaultProfileBuilderFunction = `export default async function({ context, events, user }) {
+  context.log.info("Profile userId: " + user.id)
+  const profile = {}
+  profile.traits = user.traits
+  profile.anonId = user.anonymousId
+  return {
+    properties: profile
+  }
+};`;
 
 const postAndPutCfg = {
   auth: true,
   types: {
     query: z.object({ workspaceId: z.string() }),
     body: z.object({
-      id: z.string().optional(),
-      // TODO
+      profileBuilder: z.any(),
+      code: z.string(),
     }),
   },
   handle: async (ctx: any) => {
-    // TODO
+    const {
+      body,
+      user,
+      query: { workspaceId },
+      req,
+    } = ctx;
+    await verifyAccess(user, workspaceId);
+    console.log("Profile builder: " + JSON.stringify(body.profileBuilder));
+    const parseResult = safeParseWithDate(ProfileBuilderDbModel, body.profileBuilder);
+    if (!parseResult.success) {
+      throw new ApiError(`Failed to validate schema of profile-builder`, { object: body, error: parseResult.error });
+    }
+    const pb = parseResult.data;
+    console.log("PB: " + JSON.stringify(pb));
+
+    const existingPb =
+      pb.id && (await db.prisma().profileBuilder.findFirst({ where: { id: pb.id, deleted: false, workspaceId } }));
+
+    let createdOrUpdated;
+    if (existingPb) {
+      createdOrUpdated = await db.prisma().profileBuilder.update({
+        where: { id: existingPb.id },
+        data: { ...pb, deleted: false, workspaceId },
+      });
+    } else {
+      createdOrUpdated = await db.prisma().profileBuilder.create({
+        data: {
+          ...pb,
+          workspaceId,
+        },
+      });
+    }
+    const withFunc = await db.prisma().profileBuilder.findFirst({
+      include: { functions: { include: { function: true } } },
+      where: { id: createdOrUpdated.id, workspaceId: workspaceId, deleted: false },
+    });
+    if (withFunc && withFunc.functions.length > 0) {
+      const func = withFunc.functions[0];
+      console.log("Updating function: " + JSON.stringify(func));
+      await db.prisma().configurationObject.update({
+        where: { id: func.functionId },
+        data: {
+          config: { ...(func.function.config as any), code: body.code },
+        },
+      });
+    } else {
+      const func = await db.prisma().configurationObject.create({
+        data: {
+          workspaceId,
+          type: "function",
+          config: {
+            kind: "profile",
+            name: "Profile Builder function",
+            code: body.code,
+          },
+        },
+      });
+      await db.prisma().profileBuilderFunction.create({
+        data: {
+          profileBuilderId: createdOrUpdated.id,
+          functionId: func.id,
+        },
+      });
+    }
+
+    return { id: createdOrUpdated.id, created: !existingPb };
   },
 };
 
@@ -38,15 +116,7 @@ export const api: Api = {
             config: {
               kind: "profile",
               name: "Profile Builder function",
-              code: `export default async function({ context, events, user}) => {
-  context.log.info("Profile userId: " + user.id)
-  const profile = {} as any
-  profile.traits = user.traits
-  profile.anonId = user.anonymousId
-  return {
-    properties: profile
-  }
-};`,
+              code: defaultProfileBuilderFunction,
             },
           },
         });
@@ -66,7 +136,7 @@ export const api: Api = {
         });
         return {
           profileBuilders: await db.prisma().profileBuilder.findMany({
-            include: { functions: true },
+            include: { functions: { include: { function: true } } },
             where: { workspaceId: workspaceId, deleted: false },
             orderBy: { createdAt: "asc" },
           }),
@@ -74,7 +144,7 @@ export const api: Api = {
       } else {
         return {
           profileBuilders: await db.prisma().profileBuilder.findMany({
-            include: { functions: true },
+            include: { functions: { include: { function: true } } },
             where: { workspaceId: workspaceId, deleted: false },
             orderBy: { createdAt: "asc" },
           }),
