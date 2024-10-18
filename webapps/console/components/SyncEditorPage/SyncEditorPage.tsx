@@ -14,7 +14,6 @@ import FieldListEditorLayout, { EditorItem } from "../FieldListEditorLayout/Fiel
 import { ChevronLeft, ExternalLink } from "lucide-react";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
 import { LoadingAnimation } from "../GlobalLoader/GlobalLoader";
-import { DestinationTitle } from "../../pages/[workspaceId]/destinations";
 import { ServiceTitle } from "../../pages/[workspaceId]/services";
 import { SwitchComponent } from "../ConnectionEditorPage/ConnectionEditorPage";
 import { SimpleErrorCard } from "../GlobalError/GlobalError";
@@ -26,6 +25,7 @@ import { useBilling } from "../Billing/BillingProvider";
 import { WLink } from "../Workspace/WLink";
 import { useStoreReload } from "../../lib/store";
 import capitalize from "lodash/capitalize";
+import { DestinationSelector, SelectorProps } from "../Selectors/DestinationSelector";
 
 const log = getLog("SyncEditorPage");
 
@@ -78,54 +78,10 @@ const namespaceImplementation: Record<string, { name: string; field: string }> =
   gcs: { name: "folder", field: "folder" },
 };
 
-type SelectorProps<T> = {
-  enabled: boolean;
-  selected: string;
-  items: T[];
-  onSelect: (value: string) => void;
-};
-
-function DestinationSelector(props: SelectorProps<DestinationConfig>) {
-  return (
-    <div className="flex items-center justify-between">
-      <Disable disabled={!props.enabled} disabledReason="Create a new sync if you want to change the source">
-        <Select dropdownMatchSelectWidth={false} className="w-80" value={props.selected} onSelect={props.onSelect}>
-          {props.items.map(destination => {
-            const destinationType = getCoreDestinationType(destination.destinationType);
-            return (
-              <Select.Option dropdownMatchSelectWidth={false} value={destination.id} key={destination.id}>
-                <DestinationTitle
-                  destination={destination}
-                  size={"small"}
-                  title={(d, t) => {
-                    return (
-                      <div className={"flex flex-row items-center"}>
-                        <div className="whitespace-nowrap">{destination.name}</div>
-                        <div className="text-xxs text-gray-500 ml-1">({destinationType.title})</div>
-                      </div>
-                    );
-                  }}
-                />
-              </Select.Option>
-            );
-          })}
-        </Select>
-      </Disable>
-      {/*{!props.enabled && (*/}
-      {/*  <div className="text-lg px-6">*/}
-      {/*    <WLink href={`/destinations?id=${props.selected}`}>*/}
-      {/*      <FaExternalLinkAlt />*/}
-      {/*    </WLink>*/}
-      {/*  </div>*/}
-      {/*)}*/}
-    </div>
-  );
-}
-
 function ServiceSelector(props: SelectorProps<ServiceConfig> & { refreshCatalogCb?: () => void }) {
   return (
     <div className="flex items-center justify-between">
-      <Disable disabled={!props.enabled} disabledReason="Create a new sync if you want to change the service">
+      <Disable disabled={!props.enabled} disabledReason={props.disabledReason}>
         <Select dropdownMatchSelectWidth={false} className="w-80" value={props.selected} onSelect={props.onSelect}>
           {props.items.map(service => (
             <Select.Option dropdownMatchSelectWidth={false} key={service.id} value={service.id}>
@@ -464,6 +420,7 @@ function SyncEditor({
           items={destinations}
           selected={dstId}
           enabled={!existingLink}
+          disabledReason={"Create a new sync if you want to change the source"}
           onSelect={id => {
             setDstId(id);
           }}

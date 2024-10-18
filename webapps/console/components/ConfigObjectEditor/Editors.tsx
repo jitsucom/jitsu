@@ -64,11 +64,13 @@ export const TextEditor: React.FC<{ rows?: number } & CustomWidgetProps<string>>
   }
 };
 
-export const NumberEditor: React.FC<CustomWidgetProps<number | undefined>> = props => {
+export const NumberEditor: React.FC<CustomWidgetProps<number | undefined> & { max?: number; min?: number }> = props => {
   return (
     <Input
       type="number"
       value={props.value}
+      min={props.min}
+      max={props.max}
       onChange={e => {
         const v = parseInt(e.target.value);
         if (isNaN(v)) {
