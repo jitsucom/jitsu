@@ -1,13 +1,13 @@
-import { UDFTestRun, UDFTestRequest, mongodb, createMongoStore } from "@jitsu/core-functions";
+import { mongodb, createMongoStore, ProfileUDFTestRequest, ProfileUDFTestRun } from "@jitsu/core-functions";
 import { getLog } from "juava";
 
-const log = getLog("udf_run");
+const log = getLog("profile-udf-run");
 
-export const UDFRunHandler = async (req, res) => {
-  const body = req.body as UDFTestRequest;
+export const ProfileUDFRunHandler = async (req, res) => {
+  const body = req.body as ProfileUDFTestRequest;
   log.atInfo().log(`Running function: ${body?.functionId} workspace: ${body?.workspaceId}`, JSON.stringify(body));
   body.store = createMongoStore(body?.workspaceId, mongodb(), true, false);
-  const result = await UDFTestRun(body);
+  const result = await ProfileUDFTestRun(body);
   if (result.error) {
     log
       .atError()

@@ -16,6 +16,7 @@
     "build": "turbo run build",
     "ee-api:dev": "dotenv -e .env.local -- turbo run ee-api:dev",
     "console:dev": "dotenv -e .env.local -- turbo run console:dev",
+    "console:storybook": "dotenv -e .env.local -- turbo run console:storybook",
     "rotor:dev": "dotenv -e .env.local -- turbo run rotor:dev",
     "console:start": "dotenv -e .env.local -- pnpm run --filter=console console:start",
     "console:db-prepare": "dotenv -e .env.local -- pnpm run --filter=console db:update-schema",

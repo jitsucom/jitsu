@@ -37,6 +37,7 @@ import {
   ShieldAlert,
   Terminal,
   User,
+  UserRoundPen,
   X,
   Zap,
 } from "lucide-react";
@@ -66,6 +67,7 @@ import { MenuItemType } from "antd/lib/menu/interface";
 export type PageLayoutProps = {
   fullscreen?: boolean;
   onClose?: () => void;
+  noPadding?: boolean;
   className?: string;
   doNotBlockIfUsageExceeded?: boolean;
 };
@@ -578,6 +580,11 @@ function PageHeader() {
         { title: "All Logs", path: "/syncs/tasks", icon: <ScrollText className="w-full h-full" /> },
       ],
     },
+    {
+      title: "Customers",
+      icon: <User className="w-full h-full" />,
+      items: [{ title: "Profile Builder", path: "/profile-builder", icon: <UserRoundPen className="w-full h-full" /> }],
+    },
 
     { title: "Destinations", path: "/destinations", icon: <Server className="w-full h-full" /> },
     {
@@ -631,6 +638,8 @@ function PageHeader() {
     </div>
   );
 }
+//minimum with of the window
+const minWidth = 1024;
 
 /**
  * @param onboarding if the dialog is shown on onboarding page. For onboarding,
@@ -663,7 +672,7 @@ const WorkspaceSettingsModal: React.FC<{ onSuccess: () => void; onboarding: bool
   );
   return (
     <Overlay closable={false}>
-      <div className="flex justify-center" style={{ minWidth: 900 }}>
+      <div className="flex justify-center" style={{ minWidth: minWidth }}>
         <div className="px-6 py-8 max-w-6xl grow relative">
           <h1 className="text-4xl text-center">👋 Let's get started!</h1>
           <div className="text-xl text-textLight py-6">
@@ -705,7 +714,7 @@ const log = getLog("WorkspacePageLayout");
 
 export const VerticalSection: React.FC<PropsWithChildren<{ className?: string }>> = ({ children, className }) => {
   return (
-    <div style={{ minWidth: 1024 }} className={classNames("w-full flex lg:justify-center", className)}>
+    <div style={{ minWidth: minWidth }} className={classNames("w-full flex lg:justify-center", className)}>
       {children}
     </div>
   );
@@ -718,6 +727,7 @@ export const WidthControl: React.FC<PropsWithChildren<{ className?: string }>> =
 export const WorkspacePageLayout: React.FC<PropsWithChildren<PageLayoutProps>> = ({
   className,
   fullscreen,
+  noPadding,
   onClose,
   children,
   doNotBlockIfUsageExceeded,
@@ -729,6 +739,23 @@ export const WorkspacePageLayout: React.FC<PropsWithChildren<PageLayoutProps>> =
   if (!router.query.workspaceId) {
     throw new Error(`${router.asPath} is not a workspace page`);
   }
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const handleKeyDown = (event: KeyboardEvent) => {
+        if (event.ctrlKey && event.shiftKey && event.key === "M") {
+          const userConfirmed = window.confirm(
+            `Do you really want to open a window with minimum width of ${minWidth}px?`
+          );
+          if (userConfirmed) {
+            window.open(window.location.href, "_blank", `width=${minWidth},height=${window.innerHeight}`);
+          }
+        }
+      };
+      window.addEventListener("keydown", handleKeyDown);
+      return () => window.removeEventListener("keydown", handleKeyDown);
+    }
+  }, [window]);
 
   useEffect(() => {
     setShowDrawer(false);
@@ -779,7 +806,7 @@ export const WorkspacePageLayout: React.FC<PropsWithChildren<PageLayoutProps>> =
         ) : (
           pHeader
         )}
-        <VerticalSection className={`flex-auto overflow-auto ${fullscreen ? "py-2" : "py-12"}`}>
+        <VerticalSection className={`flex-auto overflow-auto ${fullscreen ? "py-2" : noPadding ? "" : "py-12"}`}>
           {fullscreen && (
             <button
               className="absolute right-0 top-0 mt-1 mr-2 hover:bg-neutral-100 p-1.5 rounded-lg flex justify-center items-center z-50"
@@ -788,7 +815,7 @@ export const WorkspacePageLayout: React.FC<PropsWithChildren<PageLayoutProps>> =
               <X className="w-8 h-8" />
             </button>
           )}
-          <WidthControl className={"px-8"}>{children}</WidthControl>
+          <WidthControl className={noPadding ? "" : "px-8"}>{children}</WidthControl>
         </VerticalSection>
       </div>
     </div>

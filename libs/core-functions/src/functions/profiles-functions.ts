@@ -8,9 +8,8 @@ import { mongodb } from "./lib/mongodb";
 
 const hash = crypto["hash"];
 
-export const profilePartitionIdColumn = "_partition_id";
-// 240 has quite enough divisors: 1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 16, 20, 24, 30, 40, 48, 60, 80, 120, 240.
-export const profilePartitionsCount = 240;
+export const userIdHashColumn = "_user_id_hash";
+export const userIdHash32MaxValue = 2147483647;
 
 export const ProfilesConfig = z.object({
   mongoUrl: z.string().optional(),
@@ -30,7 +29,7 @@ export const createClient = async (config: ProfilesConfig) => {
 
   // Create a new MongoClient
   const client = new MongoClient(uri, {
-    compressors: ["zstd"],
+    compressors: process.env.MONGODB_NETWORK_COMPRESSION ? process.env.MONGODB_NETWORK_COMPRESSION : ["zstd"],
     serverSelectionTimeoutMS: 60000,
     maxPoolSize: 32,
     connectTimeoutMS: 60000,
@@ -44,12 +43,12 @@ export const createClient = async (config: ProfilesConfig) => {
   return client;
 };
 
-function hashToInt(value) {
+export function int32Hash(value) {
   // Hash the value using SHA-256 (or another algorithm if desired)
   const h = hash("sha256", value);
 
   // Convert the first 8 characters of the hash (or more) to an integer
-  return parseInt(h.substring(0, 8), 16);
+  return parseInt(h.substring(0, 8), 16) % userIdHash32MaxValue;
 }
 
 export const ProfilesFunction: JitsuFunction<AnalyticsServerEvent, ProfilesConfig> = async (event, ctx) => {
@@ -80,16 +79,14 @@ export const ProfilesFunction: JitsuFunction<AnalyticsServerEvent, ProfilesConfi
       : mongodb;
     const mongo = await mongoSingleton.waitInit();
     await pbEnsureMongoCollection(mongo, config.eventsDatabase, config.eventsCollectionName, config.profileWindowDays, [
-      profilePartitionIdColumn,
+      userIdHashColumn,
       "userId",
     ]);
-
-    const partitionId = hashToInt(userId) % profilePartitionsCount;
 
     const res = await mongo
       .db(config.eventsDatabase)
       .collection(config.eventsCollectionName)
-      .insertOne({ [profilePartitionIdColumn]: partitionId, ...event }, { writeConcern: { w: 1, journal: false } });
+      .insertOne({ [userIdHashColumn]: int32Hash(userId), ...event }, { writeConcern: { w: 1, journal: false } });
     if (!res.acknowledged) {
       ctx.log.error(`Failed to insert to MongoDB: ${JSON.stringify(res)}`);
     } else {

@@ -163,6 +163,7 @@ async function profilesHandler(
           ...ctx,
           props: {
             ...builder.intermediateStorageCredentials,
+            profileWindowDays: builder.connectionOptions.profileWindow,
             eventsCollectionName: `profiles-raw-${wp.id}-${builder.id}`,
           } as ProfilesConfig,
           store: createDummyStore(),

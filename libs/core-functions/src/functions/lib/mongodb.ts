@@ -1,5 +1,5 @@
 import { getLog, getSingleton, parseNumber, requireDefined } from "juava";
-import { MongoClient, ObjectId } from "mongodb";
+import { MongoClient, MongoClientOptions, ObjectId } from "mongodb";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { AnonymousEventsStore } from "@jitsu/protocols/functions";
 
@@ -22,7 +22,7 @@ async function createClient() {
 
   // Create a new MongoClient
   const client = new MongoClient(mongodbURL, {
-    compressors: ["zstd"],
+    compressors: process.env.MONGODB_NETWORK_COMPRESSION ? process.env.MONGODB_NETWORK_COMPRESSION : ["zstd"],
     serverSelectionTimeoutMS: 60000,
     maxPoolSize: 32,
     connectTimeoutMS: 60000,

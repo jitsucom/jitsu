@@ -8,6 +8,10 @@
       "dependsOn": ["^console:start"],
       "cache": false
     },
+    "console:storybook": {
+      "dependsOn": ["^console:storybook"],
+      "cache": false
+    },
     "ee-api:dev": {
       "dependsOn": ["^ee-api:dev"],
       "cache": false

@@ -50,7 +50,7 @@ export async function getFunctionFromFilePath(
   if (kind === "profile") {
     const profileBuilderId = exports.config?.profileBuilderId;
     const profileBuilder = profileBuilders.find(pb => pb.id === profileBuilderId);
-    name = `${profileBuilder.name} profile function`;
+    name = `${profileBuilder.name} function`;
   }
 
   return {
