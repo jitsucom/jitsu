@@ -46,6 +46,7 @@ const FunctionsList: React.FC<{}> = () => {
   const config: ConfigEditorProps<FunctionConfig> = {
     editorComponent: () => FunctionsDebugger,
     objectType: FunctionConfig,
+    filter: (f: FunctionConfig) => !f.kind || f.kind !== "profile",
     fields: {
       type: { constant: "function" },
       workspaceId: { constant: workspace.id },
