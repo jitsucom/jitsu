@@ -568,6 +568,35 @@ function ConnectionEditor({
       ),
     });
   }
+  if (hasZodFields(connectionOptionsZodType, "clickhouseSettings") && destinationType.id === "clickhouse") {
+    configItems.push({
+      group: "Advanced",
+      name: "Clickhouse Settings",
+      documentation: (
+        <>
+          <a
+            target={"_blank"}
+            rel={"noreferrer noopener"}
+            href={"https://clickhouse.com/docs/en/operations/settings/settings"}
+          >
+            Clickhouse Settings
+          </a>{" "}
+          are used to configure Clickhouse connection. Format is <code>key=value</code> separated by new line. This
+          settings will be merged with <b>Parameters</b> configured in destination.
+        </>
+      ),
+      component: (
+        <TextEditor
+          className="max-w-xs"
+          rows={2}
+          value={connectionOptions.clickhouseSettings}
+          onChange={clickhouseSettings => {
+            updateOptions({ clickhouseSettings });
+          }}
+        />
+      ),
+    });
+  }
   if (hasZodFields(connectionOptionsZodType, "events")) {
     configItems.push({
       documentation: (

@@ -372,12 +372,13 @@ export const coreDestinations: DestinationType<any>[] = [
     connectionOptions: BaseBulkerConnectionOptions.merge(
       z.object({
         primaryKey: z.string().default("timestamp,message_id"),
+        clickhouseSettings: z.string().default(""),
       })
     ).describe(
       JSON.stringify({
         limitations: {
           streamModeLocked:
-            'Stream mode in ClickHouse is <a href="https://clickhouse.com/docs/knowledgebase/exception-too-many-parts" target="_blank" rel="noopener noreferrer">limited by MergeTree engine capabilities</a>.<br/>ClickHouse is not designed to handle a large number of individual inserts.<br/>Use it only for testing purposes.',
+            'Stream mode in ClickHouse requires async inserts enabled both on client and server level. <a href="https://clickhouse.com/docs/en/optimize/asynchronous-inserts" target="_blank" rel="noopener noreferrer">Read more about async inserts here</a>.<br/>Also, make sure to set async inserts parameters in the advanced section',
         },
       })
     ),
