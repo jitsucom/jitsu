@@ -324,7 +324,7 @@ model ProfileBuilderState {
   totalInstances        Int
   startedAt             DateTime
   updatedAt             DateTime
-  lastTimestamp         DateTime
+  lastTimestamp         DateTime?
   processedUsers        Int
   totalUsers            Int
   errorUsers            Int

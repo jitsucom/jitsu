@@ -147,6 +147,8 @@ export const FunctionConfig = ConfigEntityBase.merge(
   z.object({
     name: z.string(),
     code: z.string(),
+    draft: z.string().optional(),
+    kind: z.enum(["profile", "event"]).optional(),
     description: z.string().optional(),
     version: z.string().optional(),
     origin: z.string().optional(),

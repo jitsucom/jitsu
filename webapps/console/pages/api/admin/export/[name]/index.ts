@@ -145,7 +145,7 @@ const exports: Export[] = [
                 options: {
                   mode: "batch",
                   frequency: 1,
-                  ...connectionOptions,
+                  ...omit(connectionOptions, "tableName", "profileWindow"),
                   deduplicate: true,
                   primaryKey: "user_id",
                   schema: JSON.stringify(schema),
@@ -414,7 +414,7 @@ const exports: Export[] = [
         const objects = await db.prisma().workspace.findMany({
           where: {
             deleted: false,
-            profileBuilders: { some: { NOT: { id: undefined } } },
+            profileBuilders: { some: { version: { gt: 0 } } },
           },
           include: { profileBuilders: { include: { functions: true } } },
           take: batchSize,

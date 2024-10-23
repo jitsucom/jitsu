@@ -10,12 +10,14 @@ import {
   MetricsMeta,
   mongodb,
   ProfileBuilder,
+  ProfileFunctionWrapper,
+  ProfileUDFWrapper,
+  ProfileUser,
 } from "@jitsu/core-functions";
 
 import { getLog, newError } from "juava";
 import NodeCache from "node-cache";
 import isEqual from "lodash/isEqual";
-import { ProfileFunctionWrapper, ProfileUser, UDFWrapper } from "./profiles-udf-wrapper";
 import { ProfileResult } from "@jitsu/protocols/profile";
 
 export type Func = {
@@ -86,7 +88,7 @@ export function buildFunctionChain(
   cached = udfCache.get(pbLongId);
   if (!cached || !isEqual(cached?.hash, hash)) {
     log.atInfo().log(`UDF for connection ${pbLongId} changed (hash ${hash} != ${cached?.hash}). Reloading`);
-    const wrapper = UDFWrapper(
+    const wrapper = ProfileUDFWrapper(
       pbLongId,
       chainCtx,
       {
@@ -119,7 +121,7 @@ export function buildFunctionChain(
           // due to async nature other 'thread' could already replace this isolate. So check it
           if (cached.wrapper.isDisposed()) {
             log.atError().log(`UDF for pb:${pbLongId} VM was disposed. Reloading`);
-            const wrapper = UDFWrapper(
+            const wrapper = ProfileUDFWrapper(
               pbLongId,
               chainCtx,
               funcCtx,

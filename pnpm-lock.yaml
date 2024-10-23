@@ -949,7 +949,7 @@ importers:
         version: 5.16.4(react@18.3.1)
       '@monaco-editor/react':
         specifier: ^4.6.0
-        version: 4.6.0(monaco-editor@0.50.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        version: 4.6.0(monaco-editor@0.52.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@nangohq/frontend':
         specifier: ^0.21.11
         version: 0.21.17
@@ -1050,8 +1050,8 @@ importers:
         specifier: ^2.0.8
         version: 2.0.8(mjml@4.15.3(encoding@0.1.13))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       monaco-editor:
-        specifier: ^0.50.0
-        version: 0.50.0
+        specifier: ^0.52.0
+        version: 0.52.0
       next:
         specifier: ^14.2.5
         version: 14.2.5(@babel/core@7.25.2)(@opentelemetry/api@1.9.0)(@playwright/test@1.39.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -10651,8 +10651,8 @@ packages:
   moment@2.30.1:
     resolution: {integrity: sha512-uEmtNhbDOrWPFS+hdjFCBfy9f2YoyzRpwcl+DqpC6taX21FzsTLQVbMV/W7PzNSX6x/bhC1zA3c2UQ5NzH6how==}
 
-  monaco-editor@0.50.0:
-    resolution: {integrity: sha512-8CclLCmrRRh+sul7C08BmPBP3P8wVWfBHomsTcndxg5NRCEPfu/mc2AGU8k37ajjDVXcXFc12ORAMUkmk+lkFA==}
+  monaco-editor@0.52.0:
+    resolution: {integrity: sha512-OeWhNpABLCeTqubfqLMXGsqf6OmPU6pHM85kF3dhy6kq5hnhuVS1p3VrEW/XhWHc71P2tHyS5JFySD8mgs1crw==}
 
   mongodb-connection-string-url@3.0.1:
     resolution: {integrity: sha512-XqMGwRX0Lgn05TDB4PyG2h2kKO/FfWJyCzYQbIhXUxz7ETt0I/FqHjUeqj37irJ+Dl1ZtU82uYyj14u2XsZKfg==}
@@ -18200,15 +18200,15 @@ snapshots:
       '@types/react': 18.3.3
       react: 18.3.1
 
-  '@monaco-editor/loader@1.4.0(monaco-editor@0.50.0)':
+  '@monaco-editor/loader@1.4.0(monaco-editor@0.52.0)':
     dependencies:
-      monaco-editor: 0.50.0
+      monaco-editor: 0.52.0
       state-local: 1.0.7
 
-  '@monaco-editor/react@4.6.0(monaco-editor@0.50.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@monaco-editor/react@4.6.0(monaco-editor@0.52.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
-      '@monaco-editor/loader': 1.4.0(monaco-editor@0.50.0)
-      monaco-editor: 0.50.0
+      '@monaco-editor/loader': 1.4.0(monaco-editor@0.52.0)
+      monaco-editor: 0.52.0
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
 
@@ -28238,7 +28238,7 @@ snapshots:
 
   moment@2.30.1: {}
 
-  monaco-editor@0.50.0: {}
+  monaco-editor@0.52.0: {}
 
   mongodb-connection-string-url@3.0.1:
     dependencies:

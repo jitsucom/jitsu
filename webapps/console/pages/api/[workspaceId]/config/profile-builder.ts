@@ -68,7 +68,7 @@ const postAndPutCfg = {
       await db.prisma().configurationObject.update({
         where: { id: func.functionId },
         data: {
-          config: { ...(func.function.config as any), code: body.code },
+          config: { ...(func.function.config as any), code: body.code, draft: body.code },
         },
       });
     } else {
@@ -116,13 +116,14 @@ export const api: Api = {
             config: {
               kind: "profile",
               name: "Profile Builder function",
-              code: defaultProfileBuilderFunction,
+              draft: defaultProfileBuilderFunction,
             },
           },
         });
         const pb = await db.prisma().profileBuilder.create({
           data: {
             workspaceId,
+            version: 0,
             name: "Profile Builder",
             intermediateStorageCredentials: {},
             connectionOptions: {},

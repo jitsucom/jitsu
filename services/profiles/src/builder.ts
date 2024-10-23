@@ -4,12 +4,14 @@ import {
   mongodb,
   ProfilesConfig,
   pbEnsureMongoCollection,
-  profilePartitionIdColumn,
-  profilePartitionsCount,
+  userIdHashColumn,
+  int32Hash,
+  userIdHash32MaxValue,
   EventsStore,
   bulkerDestination,
   FunctionContext,
   FunctionChainContext,
+  mergeUserTraits,
 } from "@jitsu/core-functions";
 import { MongoClient, ObjectId } from "mongodb";
 import { db, ProfileBuilderState } from "./lib/db";
@@ -20,7 +22,6 @@ import { functionsStore } from "./lib/repositories";
 import { buildFunctionChain, FuncChain, runChain } from "./lib/functions-chain";
 import { FullContext } from "@jitsu/protocols/functions";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
-import { ProfileUser } from "./lib/profiles-udf-wrapper";
 
 const bulkerBase = requireDefined(process.env.BULKER_URL, "env BULKER_URL is not defined");
 const bulkerAuthKey = requireDefined(process.env.BULKER_AUTH_KEY, "env BULKER_AUTH_KEY is not defined");
@@ -30,7 +31,7 @@ const fetchTimeoutMs = parseNumber(process.env.FETCH_TIMEOUT_MS, 2000);
 
 const instanceIndex = process.env.INSTANCE_INDEX ? parseInt(process.env.INSTANCE_INDEX, 10) : 0;
 const totalInstances = process.env.INSTANCES_COUNT ? parseInt(process.env.INSTANCES_COUNT, 10) : 1;
-const partitionsRange = selectPartitions(profilePartitionsCount, totalInstances, instanceIndex);
+const partitionsRange = selectRange(userIdHash32MaxValue, totalInstances, instanceIndex);
 
 //cache function chains for 1m
 const funcsChainTTL = 60;
@@ -91,10 +92,12 @@ export async function profileBuilder(
     funcsChainCache.set(cacheKey, funcChain);
   }
 
-  const config = ProfilesConfig.parse(profileBuilder.intermediateStorageCredentials || {});
-
-  config.eventsDatabase = `profiles`;
-  config.eventsCollectionName = `profiles-raw-${workspaceId}-${profileBuilder.id}`;
+  const config = ProfilesConfig.parse({
+    ...profileBuilder.intermediateStorageCredentials,
+    profileWindowDays: profileBuilder.connectionOptions.profileWindow,
+    eventsDatabase: `profiles`,
+    eventsCollectionName: `profiles-raw-${workspaceId}-${profileBuilder.id}`,
+  });
 
   const mongoSingleton = config.mongoUrl
     ? getSingleton(
@@ -118,7 +121,7 @@ export async function profileBuilder(
   const mongo = await mongoSingleton.waitInit();
 
   await pbEnsureMongoCollection(mongo, config.eventsDatabase, config.eventsCollectionName, config.profileWindowDays, [
-    profilePartitionIdColumn,
+    userIdHashColumn,
     "userId",
   ]);
 
@@ -150,7 +153,6 @@ export async function profileBuilder(
             state.processedUsers = 0;
             state.errorUsers = 0;
             state.speed = 0;
-            state.lastTimestamp = dateUpperBound;
 
             for (let i = 0; i < users.length; i++) {
               if (i % 1000) {
@@ -164,6 +166,7 @@ export async function profileBuilder(
               );
             }
             await queue.onIdle();
+            state.lastTimestamp = dateUpperBound;
             state.speed = users.length / ((Date.now() - started) / 1000);
             await db.pgHelper().updateProfileBuilderState(state);
           } else {
@@ -207,17 +210,7 @@ async function processUser(
   try {
     const events = await getUserEvents(mongo, config, userId, endTimestamp);
     const eventsArray = await events.toArray();
-    const user = { traits: {}, userId } as ProfileUser;
-    eventsArray
-      .filter(e => e.type === "identify")
-      .forEach(e => {
-        if (e.anonymousId) {
-          user.anonymousId = e.anonymousId;
-        }
-        if (e.traits) {
-          Object.assign(user.traits, e.traits);
-        }
-      });
+    const user = mergeUserTraits(eventsArray as unknown as AnalyticsServerEvent[], userId);
     const result = await runChain(funcChain, eventsArray, user);
     if (result) {
       const profile = {
@@ -286,7 +279,10 @@ async function sendToBulker(profileBuilder: ProfileBuilder, profile: any, contex
     workspace: { id: profileBuilder.workspaceId },
   };
   await bulkerDestination.default(
-    { [bulkerDestination.TableNameParameter]: "profiles", ...profile } as unknown as AnalyticsServerEvent,
+    {
+      [bulkerDestination.TableNameParameter]: profileBuilder.connectionOptions.tableName || "profiles",
+      ...profile,
+    } as unknown as AnalyticsServerEvent,
     ctx
   );
 }
@@ -296,7 +292,7 @@ async function getUserEvents(mongo: MongoClient, config: ProfilesConfig, userId:
     .db(config.eventsDatabase)
     .collection(config.eventsCollectionName)
     .find({
-      [profilePartitionIdColumn]: { $gte: partitionsRange[0], $lte: partitionsRange[1] },
+      [userIdHashColumn]: int32Hash(userId),
       userId: userId,
       _id: { $lt: new ObjectId(Math.floor(endTimestamp.getTime() / 1000).toString(16) + "0000000000000000") },
     });
@@ -328,7 +324,7 @@ async function getUsersHavingEventsSince(
       {
         $match: {
           ...dateFilter,
-          [profilePartitionIdColumn]: { $gte: partitionsRange[0], $lte: partitionsRange[1] },
+          [userIdHashColumn]: { $gte: partitionsRange[0], $lte: partitionsRange[1] },
         },
       },
       {
@@ -341,25 +337,25 @@ async function getUsersHavingEventsSince(
     .toArray();
 }
 
-function selectPartitions(totalPartitions: number, totalInstances: number, instanceIndex: number): [number, number] {
-  const partitionsPerInstance = Math.floor(totalPartitions / totalInstances);
-  const remainderPartitions = totalPartitions % totalInstances;
+function selectRange(rangeWidth: number, totalInstances: number, instanceIndex: number): [number, number] {
+  const rangePerInstance = Math.floor(rangeWidth / totalInstances);
+  const remainderRange = rangeWidth % totalInstances;
 
   const ranges: Array<{ instance: number; partitionRange: [number, number] }> = [];
-  let startPartition = 0;
+  let rangeStart = 0;
 
   for (let i = 0; i < totalInstances; i++) {
-    // Each instance gets at least `partitionsPerInstance` partitions
+    // Each instance gets at least `rangePerInstance` partitions
     // If there are remaining partitions, distribute one extra to some instances
-    const additionalPartition = i < remainderPartitions ? 1 : 0;
-    const endPartition = startPartition + partitionsPerInstance + additionalPartition - 1;
+    const additionalRange = i < remainderRange ? 1 : 0;
+    const rangeEnd = rangeStart + rangePerInstance + additionalRange - 1;
 
     ranges.push({
       instance: i,
-      partitionRange: [startPartition, endPartition],
+      partitionRange: [rangeStart, rangeEnd],
     });
 
-    startPartition = endPartition + 1;
+    rangeStart = rangeEnd + 1;
   }
 
   return ranges[instanceIndex].partitionRange;
