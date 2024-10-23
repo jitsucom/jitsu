@@ -1,11 +1,11 @@
 .tabsHeightFix {
-    height: 100%;
+  height: 100%;
 }
 
 .tabsHeightFix :global(.ant-tabs-content) {
-    height: 100% !important;
+  height: 100% !important;
 }
 
-.settingsTable :global(.ant-tabs-content)  {
-    height: 100% !important;
+.settingsTable :global(.ant-tabs-content) {
+  height: 100% !important;
 }
