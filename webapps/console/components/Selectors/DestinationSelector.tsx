@@ -1,12 +1,11 @@
 import { getCoreDestinationType } from "../../lib/schema/destinations";
-import { DestinationConfig, StreamConfig } from "../../lib/schema";
+import { DestinationConfig } from "../../lib/schema";
 import { Disable } from "../Disable/Disable";
 import { Select } from "antd";
 import { DestinationTitle } from "../../pages/[workspaceId]/destinations";
 import { WLink } from "../Workspace/WLink";
 import { FaExternalLinkAlt } from "react-icons/fa";
 import React from "react";
-import { StreamTitle } from "../../pages/[workspaceId]/streams";
 
 export type SelectorProps<T> = {
   enabled: boolean;

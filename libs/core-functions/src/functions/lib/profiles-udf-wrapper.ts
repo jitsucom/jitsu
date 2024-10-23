@@ -1,61 +1,57 @@
 import { getLog, LogLevel, parseNumber, sanitize, stopwatch } from "juava";
 import { Isolate, ExternalCopy, Reference, Module, Context } from "isolated-vm";
-import { EventContext, FuncReturn, Store, TTLStore, FetchOpts } from "@jitsu/protocols/functions";
+import { FetchOpts, Store, TTLStore } from "@jitsu/protocols/functions";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 
-import {
-  createMemoryStore,
-  EventsStore,
-  FunctionChainContext,
-  FunctionContext,
-  isDropResult,
-  makeFetch,
-  makeLog,
-  memoryStoreDump,
-} from "../index";
-import { functionsLibCode, chainWrapperCode } from "./lib/udf-wrapper-code";
-import { parseUserAgent } from "./lib/ua";
+import { EventsStore, FunctionChainContext, FunctionContext, makeFetch, makeLog } from "./index";
+import { cryptoCode } from "./crypto-code";
 import { RetryError } from "@jitsu/functions-lib";
-import { JitsuFunctionWrapper } from "./lib";
 import { clearTimeout } from "node:timers";
 import * as crypto from "node:crypto";
-import { cryptoCode } from "./lib/crypto-code";
+import { ProfileResult } from "@jitsu/protocols/profile";
+import { chainWrapperCode, functionsLibCode } from "./profiles-udf-wrapper-code";
+import { logType } from "./udf_wrapper";
+import { createMemoryStore, memoryStoreDump } from "./store";
 
 const log = getLog("udf-wrapper");
 
-export type logType = {
-  message: string;
-  level: string;
-  timestamp: Date;
-  type: string;
-  data?: any;
+export type ProfileUser = {
+  userId: string;
+  anonymousId: string;
+  traits: Record<string, any>;
 };
 
-export type UDFWrapperResult = {
-  userFunction: JitsuFunctionWrapper;
+export type ProfileFunctionWrapper = (
+  context: FunctionContext,
+  events: AnalyticsServerEvent[],
+  user: ProfileUser
+) => Promise<ProfileResult | undefined>;
+
+type UDFWrapperResult = {
+  userFunction: ProfileFunctionWrapper;
   isDisposed: () => boolean;
   close: () => void;
 };
 
-export type UDFFunction = {
+type UDFFunction = {
   id: string;
   name: string;
   code: string;
 };
 
-export const UDFWrapper = (
-  connectionId: string,
+export const ProfileUDFWrapper = (
+  profileBulderId: string,
   chainCtx: FunctionChainContext,
   funcCtx: FunctionContext,
   functions: UDFFunction[]
 ): UDFWrapperResult => {
-  log.atInfo().log(`[CON:${connectionId}] Compiling ${functions.length} UDF functions`);
+  log.atInfo().log(`[CON:${profileBulderId}] Compiling ${functions.length} UDF functions`);
   const sw = stopwatch();
   let isolate: Isolate;
   let context: Context;
   let refs: Reference[] = [];
   try {
-    isolate = new Isolate({ memoryLimit: 128 });
+    isolate = new Isolate({ memoryLimit: 512 });
     context = isolate.createContextSync();
     const jail = context.global;
 
@@ -140,7 +136,7 @@ export const UDFWrapper = (
     for (let i = 0; i < functions.length; i++) {
       const sw = stopwatch();
       const f = functions[i];
-      log.atDebug().log(`[CON:${connectionId}]: [f:${f.id}] Compiling UDF function '${f.name}'`);
+      log.atDebug().log(`[CON:${profileBulderId}]: [f:${f.id}] Compiling UDF function '${f.name}'`);
       const moduleName = "f_" + sanitize(f.name, "_") + "_" + f.id;
       const udf = isolate.compileModuleSync(f.code, { filename: moduleName + ".js" });
       udf.instantiateSync(context, (specifier: string) => {
@@ -152,7 +148,9 @@ export const UDFWrapper = (
         throw new Error(`import is not allowed: ${specifier}`);
       });
       udfModules[moduleName] = udf;
-      log.atDebug().log(`[CON:${connectionId}] [f:${f.id}] UDF function '${f.name}' compiled in ${sw.elapsedPretty()}`);
+      log
+        .atDebug()
+        .log(`[CON:${profileBulderId}] [f:${f.id}] UDF function '${f.name}' compiled in ${sw.elapsedPretty()}`);
     }
 
     let code = chainWrapperCode.replace(
@@ -187,12 +185,12 @@ export const UDFWrapper = (
       throw new Error(`import is not allowed: ${specifier}`);
     });
     wrapper.evaluateSync();
-    const wrapperFunc = wrap(connectionId, isolate, context, wrapper);
-    log.atInfo().log(`[CON:${connectionId}] total UDF compile time: ${sw.elapsedPretty()}`);
+    const wrapperFunc = wrap(profileBulderId, isolate, context, wrapper);
+    log.atInfo().log(`[CON:${profileBulderId}] total UDF compile time: ${sw.elapsedPretty()}`);
     return wrapperFunc;
   } catch (e) {
     return {
-      userFunction: (): FuncReturn => {
+      userFunction: (): Promise<ProfileResult> => {
         throw new Error(`Cannot compile function: ${e}`);
       },
       isDisposed: () => {
@@ -206,10 +204,10 @@ export const UDFWrapper = (
             }
             context.release();
             isolate.dispose();
-            log.atInfo().log(`[${connectionId}] isolate closed`);
+            log.atInfo().log(`[${profileBulderId}] isolate closed`);
           }
         } catch (e) {
-          log.atError().log(`[${connectionId}] Error while closing isolate: ${e}`);
+          log.atError().log(`[${profileBulderId}] Error while closing isolate: ${e}`);
         }
       },
     };
@@ -225,12 +223,14 @@ function wrap(connectionId: string, isolate: Isolate, context: Context, wrapper:
   if (!ref || ref.typeof !== "function") {
     throw new Error("Function not found. Please export wrappedFunctionChain function.");
   }
-  const userFunction: JitsuFunctionWrapper = async (event, ctx) => {
+  const userFunction: ProfileFunctionWrapper = async (ctx, events, user): Promise<ProfileResult | undefined> => {
     if (isolate.isDisposed) {
       throw new RetryError("Isolate is disposed", { drop: true });
     }
-    const eventCopy = new ExternalCopy(event);
+    const eventCopy = new ExternalCopy(events);
     const ctxCopy = new ExternalCopy(ctx);
+    const userCopy = new ExternalCopy(user);
+
     const udfTimeoutMs = parseNumber(process.env.UDF_TIMEOUT_MS, 5000);
     let isTimeout = false;
     const timer = setTimeout(() => {
@@ -241,8 +241,9 @@ function wrap(connectionId: string, isolate: Isolate, context: Context, wrapper:
       const res = await ref.apply(
         undefined,
         [
-          eventCopy.copyInto({ release: true, transferIn: true }),
           ctxCopy.copyInto({ release: true, transferIn: true }),
+          eventCopy.copyInto({ release: true, transferIn: true }),
+          userCopy.copyInto({ release: true, transferIn: true }),
         ],
         {
           result: { promise: true },
@@ -250,18 +251,16 @@ function wrap(connectionId: string, isolate: Isolate, context: Context, wrapper:
       );
       switch (typeof res) {
         case "undefined":
-          return undefined;
         case "string":
         case "number":
         case "boolean":
-          return res;
+          return undefined;
         default:
           const r = (res as Reference).copy();
           (res as Reference).release();
           return r;
       }
     } catch (e: any) {
-      //console.error(e);
       if (isolate.isDisposed) {
         if (isTimeout) {
           throw new RetryError(
@@ -319,88 +318,58 @@ function makeReference(refs: Reference[], obj: any): Reference {
   return ref;
 }
 
-export type UDFTestRequest = {
+export function mergeUserTraits(events: AnalyticsServerEvent[], userId?: string): ProfileUser {
+  const user = { traits: {}, userId: userId || events[0]?.userId } as ProfileUser;
+  events
+    .filter(e => e.type === "identify")
+    .forEach(e => {
+      if (e.anonymousId) {
+        user.anonymousId = e.anonymousId;
+      }
+      if (e.traits) {
+        Object.assign(user.traits, e.traits);
+      }
+    });
+  return user;
+}
+
+export type ProfileUDFTestRequest = {
   functionId: string;
   functionName: string;
   code: string | UDFWrapperResult;
-  event: AnalyticsServerEvent;
+  events: AnalyticsServerEvent[];
   config: any;
   store: Store | any;
   workspaceId: string;
   userAgent?: string;
 };
 
-export type UDFTestResponse = {
+export type ProfileUDFTestResponse = {
   error?: {
     message: string;
     stack?: string;
     name: string;
     retryPolicy?: any;
   };
-  dropped?: boolean;
-  result: FuncReturn;
+  result: ProfileResult;
   store: any;
   logs: logType[];
 };
 
-export async function UDFTestRun({
+export async function ProfileUDFTestRun({
   functionId: id,
   functionName: name,
   code,
   store,
-  event,
+  events,
   config,
   userAgent,
   workspaceId,
-}: UDFTestRequest): Promise<UDFTestResponse> {
+}: ProfileUDFTestRequest): Promise<ProfileUDFTestResponse> {
   const logs: logType[] = [];
   let wrapper: UDFWrapperResult | undefined = undefined;
   let realStore = false;
   try {
-    const eventContext: EventContext = {
-      geo: {
-        country: {
-          code: "US",
-          name: "United States",
-          isEU: false,
-        },
-        city: {
-          name: "New York",
-        },
-        region: {
-          code: "NY",
-        },
-        location: {
-          latitude: 40.6808,
-          longitude: -73.9701,
-        },
-        postalCode: {
-          code: "11238",
-        },
-      },
-      ua: parseUserAgent(
-        event.context?.userAgent ||
-          userAgent ||
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36"
-      ),
-      headers: {},
-      source: {
-        id: "functionsDebugger-streamId",
-        type: "browser",
-      },
-      destination: {
-        id: "functionsDebugger-destinationId",
-        type: "clickhouse",
-        updatedAt: new Date(),
-        hash: "hash",
-      },
-      connection: {
-        id: "functionsDebugger",
-      },
-      workspace: {
-        id: workspaceId,
-      },
-    };
     let storeImpl: TTLStore;
     if (
       typeof store?.set === "function" &&
@@ -471,14 +440,13 @@ export async function UDFTestRun({
       props: config,
     };
     if (typeof code === "string") {
-      wrapper = UDFWrapper(id, chainCtx, funcCtx, [{ id, name, code }]);
+      wrapper = ProfileUDFWrapper(id, chainCtx, funcCtx, [{ id, name, code }]);
     } else {
       wrapper = code;
     }
-    const result = await wrapper?.userFunction(event, eventContext);
+    const result = await wrapper?.userFunction(funcCtx, events, mergeUserTraits(events));
     return {
-      dropped: isDropResult(result),
-      result: typeof result === "undefined" ? event : result,
+      result: typeof result === "undefined" ? { properties: {} } : result,
       store: !realStore ? memoryStoreDump(store) : {},
       logs,
     };
@@ -490,7 +458,7 @@ export async function UDFTestRun({
         name: e.name,
         retryPolicy: e.retryPolicy,
       },
-      result: {},
+      result: { properties: {} },
       store: !realStore && store ? memoryStoreDump(store) : {},
       logs,
     };

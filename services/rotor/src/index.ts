@@ -16,6 +16,7 @@ import { Redis } from "ioredis";
 import { createRedis } from "./lib/redis";
 import * as util from "util";
 import { getHeapSnapshot } from "node:v8";
+import { ProfileUDFRunHandler } from "./http/profiles-udf";
 const log = getLog("rotor");
 
 disableService("prisma");
@@ -207,6 +208,7 @@ function initHTTP(rotorContext: Omit<MessageHandlerContext, "connectionStore" | 
     });
   });
   http.post("/udfrun", UDFRunHandler);
+  http.post("/profileudfrun", ProfileUDFRunHandler);
   http.post("/func", FunctionsHandler(rotorContext));
   http.get("/wtf", async (req, res) => {
     res.setHeader("Content-Type", "text/plain");
