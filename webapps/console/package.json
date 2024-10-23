@@ -74,7 +74,7 @@
     "lucide-react": "^0.447.0",
     "mjml": "^4.15.3",
     "mjml-react": "^2.0.8",
-    "monaco-editor": "^0.50.0",
+    "monaco-editor": "^0.52.0",
     "next": "^14.2.5",
     "next-auth": "^4.23.2",
     "node-fetch-commonjs": "^3.3.2",

@@ -60,8 +60,15 @@ export function isDropResult(result: FuncReturn): boolean {
 }
 
 export * as bulkerDestination from "./functions/bulker-destination";
-export { UDFWrapper, UDFTestRun } from "./functions/udf_wrapper";
-export type { UDFTestRequest, UDFTestResponse, logType } from "./functions/udf_wrapper";
+export { UDFWrapper, UDFTestRun } from "./functions/lib/udf_wrapper";
+export type { UDFTestRequest, UDFTestResponse, logType } from "./functions/lib/udf_wrapper";
+export { ProfileUDFWrapper, ProfileUDFTestRun, mergeUserTraits } from "./functions/lib/profiles-udf-wrapper";
+export type {
+  ProfileUDFTestRequest,
+  ProfileUDFTestResponse,
+  ProfileUser,
+  ProfileFunctionWrapper,
+} from "./functions/lib/profiles-udf-wrapper";
 export { makeLog, makeFetch, MultiEventsStore, DummyEventsStore, wrapperFunction } from "./functions/lib/index";
 export * as mixpanelDestination from "./functions/mixpanel-destination";
 export * as ga4Destination from "./functions/ga4-destination";

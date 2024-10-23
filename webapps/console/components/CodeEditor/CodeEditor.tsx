@@ -54,7 +54,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       });
       setMounted(true);
     },
-    [foldLevel, handleChangePosition, value]
+    [extraSuggestions, foldLevel, handleChangePosition, value]
   );
 
   useEffect(() => {
@@ -89,6 +89,9 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       //scroll to the end of the line
       editor.revealPosition({ ...position, column: position.column + positionShift + 100 });
       editor.focus();
+      if (foldLevel) {
+        editor.getAction(`editor.foldLevel${foldLevel}`)?.run();
+      }
     }
   }, [value]);
 
