@@ -58,7 +58,7 @@
     "cuid": "^2.1.8",
     "dayjs": "^1.11.10",
     "facebook-nodejs-business-sdk": "^19.0.0",
-    "firebase": "^10.12.5",
+    "firebase": "^11.0.1",
     "firebase-admin": "^12.3.0",
     "google-ads-api": "^16.0.0-rest-beta3",
     "googleapis": "^126.0.1",
