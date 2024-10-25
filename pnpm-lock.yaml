@@ -1288,8 +1288,8 @@ importers:
         specifier: ^4.0.0
         version: 4.0.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       stripe:
-        specifier: ^11.15.0
-        version: 11.18.0
+        specifier: ^17.2.1
+        version: 17.2.1
       tslib:
         specifier: ^2.6.3
         version: 2.6.3
@@ -3516,6 +3516,7 @@ packages:
   '@playwright/test@1.39.0':
     resolution: {integrity: sha512-3u1iFqgzl7zr004bGPYiN/5EZpRUSFddQBra8Rqll5N0/vfpqlP9I9EXqAoGacuAbX6c9Ulg/Cjqglp5VkK6UQ==}
     engines: {node: '>=16'}
+    deprecated: Please update to the latest version of Playwright to test up-to-date browsers.
     hasBin: true
 
   '@pmmmwh/react-refresh-webpack-plugin@0.5.15':
@@ -7448,6 +7449,7 @@ packages:
   eslint@8.57.0:
     resolution: {integrity: sha512-dZ6+mexnaTIbSBZWgou51U6OmzIhYM2VcNdtiTtI7qPNZm35Akpr0f6vtw3w1Kmn5PYo+tZVfh13WrhpS6oLqQ==}
     engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
+    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
 
   espree@9.6.1:
@@ -9270,7 +9272,6 @@ packages:
     resolution: {integrity: sha512-Quz3MvAwHxVYNXsOByL7xI5EB2WYOeFswqaHIA3qOK3isRWTxiplBEocmmru6XmxDB2L7jDNYtYA4FyimoAFEw==}
     engines: {node: '>=8.17.0'}
     hasBin: true
-    bundledDependencies: []
 
   jsonfile@4.0.0:
     resolution: {integrity: sha512-m6F1R3z8jjlf2imQHS2Qez5sjKWQzbuuhuJ/FKYFRZvPE3PuHcSMVZzfsLhGVOkfd20obL5SWEBew5ShlquNxg==}
@@ -11621,10 +11622,6 @@ packages:
 
       (For a CapTP with native promises, see @endo/eventual-send and @endo/captp)
 
-  qs@6.12.3:
-    resolution: {integrity: sha512-AWJm14H1vVaO/iNZ4/hO+HyaTehuy9nRqVdkTqlJt0HWvBiBIEXFmb4C0DGeYo3Xes9rrEW+TxHsaigCbN5ICQ==}
-    engines: {node: '>=0.6'}
-
   qs@6.13.0:
     resolution: {integrity: sha512-+38qI9SOr8tfZ4QmJNplMUxqjbe7LKvvZgWdExBOmd+egZTtjLB67Gu0HRX3u/XOq7UU2Nx6nsjvS16Z9uwfpg==}
     engines: {node: '>=0.6'}
@@ -12950,8 +12947,8 @@ packages:
     resolution: {integrity: sha512-6fPc+R4ihwqP6N/aIv2f1gMH8lOVtWQHoqC4yK6oSDVVocumAsfCqjkXnqiYMhmMwS/mEHLp7Vehlt3ql6lEig==}
     engines: {node: '>=8'}
 
-  stripe@11.18.0:
-    resolution: {integrity: sha512-OUA32uhNoSoM6wOodyFbV+3IBCoO140uzdXmBArQ0S88D4EbH91xl2v+Ml1sKalcFKUBadHLeHfU/p9AbsOfGw==}
+  stripe@17.2.1:
+    resolution: {integrity: sha512-Mwb0SitV/UjxTLSUiTlUQ0VDE/gfyQ7OHDGdvDdvKIH4CNNqobPKlzlWhoZHFFU0OA/YsZyBtPULK4JG86BAAg==}
     engines: {node: '>=12.*'}
 
   strnum@1.0.5:
@@ -19195,7 +19192,7 @@ snapshots:
 
   '@types/stripe@8.0.417':
     dependencies:
-      stripe: 11.18.0
+      stripe: 17.2.1
 
   '@types/through@0.0.33':
     dependencies:
@@ -22160,7 +22157,7 @@ snapshots:
       eslint: 8.57.0
       eslint-import-resolver-node: 0.3.9
       eslint-import-resolver-typescript: 3.6.1(@typescript-eslint/parser@7.2.0(eslint@8.57.0)(typescript@5.6.3))(eslint-import-resolver-node@0.3.9)(eslint-plugin-import@2.29.1(eslint@8.57.0))(eslint@8.57.0)
-      eslint-plugin-import: 2.29.1(@typescript-eslint/parser@7.2.0(eslint@8.57.0)(typescript@5.6.3))(eslint-import-resolver-typescript@3.6.1(@typescript-eslint/parser@7.2.0(eslint@8.57.0)(typescript@5.6.3))(eslint-import-resolver-node@0.3.9)(eslint-plugin-import@2.29.1(eslint@8.57.0))(eslint@8.57.0))(eslint@8.57.0)
+      eslint-plugin-import: 2.29.1(@typescript-eslint/parser@7.2.0(eslint@8.57.0)(typescript@5.6.3))(eslint-import-resolver-typescript@3.6.1)(eslint@8.57.0)
       eslint-plugin-jsx-a11y: 6.9.0(eslint@8.57.0)
       eslint-plugin-react: 7.35.0(eslint@8.57.0)
       eslint-plugin-react-hooks: 4.6.2(eslint@8.57.0)
@@ -22215,7 +22212,7 @@ snapshots:
       enhanced-resolve: 5.17.1
       eslint: 8.57.0
       eslint-module-utils: 2.8.1(@typescript-eslint/parser@7.2.0(eslint@8.57.0)(typescript@5.6.3))(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.6.1(@typescript-eslint/parser@7.2.0(eslint@8.57.0)(typescript@5.6.3))(eslint-import-resolver-node@0.3.9)(eslint-plugin-import@2.29.1(eslint@8.57.0))(eslint@8.57.0))(eslint@8.57.0)
-      eslint-plugin-import: 2.29.1(@typescript-eslint/parser@7.2.0(eslint@8.57.0)(typescript@5.6.3))(eslint-import-resolver-typescript@3.6.1(@typescript-eslint/parser@7.2.0(eslint@8.57.0)(typescript@5.6.3))(eslint-import-resolver-node@0.3.9)(eslint-plugin-import@2.29.1(eslint@8.57.0))(eslint@8.57.0))(eslint@8.57.0)
+      eslint-plugin-import: 2.29.1(@typescript-eslint/parser@7.2.0(eslint@8.57.0)(typescript@5.6.3))(eslint-import-resolver-typescript@3.6.1)(eslint@8.57.0)
       fast-glob: 3.3.2
       get-tsconfig: 4.7.6
       is-core-module: 2.15.0
@@ -22282,7 +22279,7 @@ snapshots:
       - eslint-import-resolver-webpack
       - supports-color
 
-  eslint-plugin-import@2.29.1(@typescript-eslint/parser@7.2.0(eslint@8.57.0)(typescript@5.6.3))(eslint-import-resolver-typescript@3.6.1(@typescript-eslint/parser@7.2.0(eslint@8.57.0)(typescript@5.6.3))(eslint-import-resolver-node@0.3.9)(eslint-plugin-import@2.29.1(eslint@8.57.0))(eslint@8.57.0))(eslint@8.57.0):
+  eslint-plugin-import@2.29.1(@typescript-eslint/parser@7.2.0(eslint@8.57.0)(typescript@5.6.3))(eslint-import-resolver-typescript@3.6.1)(eslint@8.57.0):
     dependencies:
       array-includes: 3.1.8
       array.prototype.findlastindex: 1.2.5
@@ -23259,7 +23256,7 @@ snapshots:
       extend: 3.0.2
       gaxios: 6.7.0(encoding@0.1.13)
       google-auth-library: 9.12.0(encoding@0.1.13)
-      qs: 6.12.3
+      qs: 6.13.0
       url-template: 2.0.8
       uuid: 9.0.1
     transitivePeerDependencies:
@@ -28162,10 +28159,6 @@ snapshots:
 
   q@1.5.1: {}
 
-  qs@6.12.3:
-    dependencies:
-      side-channel: 1.0.6
-
   qs@6.13.0:
     dependencies:
       side-channel: 1.0.6
@@ -29900,10 +29893,10 @@ snapshots:
 
   strip-json-comments@3.1.1: {}
 
-  stripe@11.18.0:
+  stripe@17.2.1:
     dependencies:
       '@types/node': 18.19.42
-      qs: 6.12.3
+      qs: 6.13.0
 
   strnum@1.0.5: {}
 
