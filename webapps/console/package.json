@@ -41,7 +41,7 @@
     "@loadable/component": "^5.15.3",
     "@monaco-editor/react": "^4.6.0",
     "@nangohq/frontend": "^0.21.11",
-    "@prisma/client": "^5.17.0",
+    "@prisma/client": "^5.21.1",
     "@rjsf/antd": "^5.19.4",
     "@rjsf/core": "5.10.0",
     "@rjsf/utils": "5.10.0",
