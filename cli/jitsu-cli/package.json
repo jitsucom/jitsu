@@ -41,7 +41,7 @@
     "@types/commander": "^2.12.2",
     "@types/express": "^4.17.17",
     "@types/inquirer": "^9.0.3",
-    "@types/jest": "^29.5.5",
+    "@types/jest": "^29.5.14",
     "@types/lodash": "^4.14.198",
     "@types/node": "^18.15.3",
     "@types/webpack": "^5.28.5",
