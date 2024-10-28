@@ -56,7 +56,7 @@ export default udf;
         type: "page",
         context: {},
       },
-      config: {
+      variables: {
         prop1: "test_prop1",
       },
       store: {
