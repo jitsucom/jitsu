@@ -29,6 +29,7 @@ import { CodeBlockLight } from "../CodeBlock/CodeBlockLight";
 import { useStoreReload } from "../../lib/store";
 import { FunctionLogs } from "./FunctionLogs";
 import { FunctionResult } from "./FunctionResult";
+import { FunctionVariables } from "./FunctionVariables";
 
 type FunctionsDebuggerProps = {} & EditorComponentProps;
 
@@ -135,7 +136,7 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
 
   const workspace = useWorkspace();
   const [showLogs, setShowLogs] = useState(false);
-  // const [showConfig, setShowConfig] = useState(false);
+  const [showConfig, setShowConfig] = useState(false);
   const [showEvents, setShowEvents] = useState(false);
   const [event, setEvent] = useState<any>(JSON.stringify(examplePageEvent(), undefined, 2));
   const [obj, setObj] = useState<Partial<FunctionConfig>>({
@@ -143,7 +144,7 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
     code: props.isNew ? defaultFunctionTemplate() : props.object.code ?? "",
   });
 
-  const [config, setConfig] = useState<any>("{}");
+  const [config, setConfig] = useState<any>({});
   const [store, setStore] = useState<any>({});
   const [result, setResult] = useState<any>({});
   const [resultType, setResultType] = useState<"ok" | "drop" | "error">("ok");
@@ -171,7 +172,7 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
     } finally {
       setSaving(false);
     }
-  }, [props.isNew, obj, workspace.id, push]);
+  }, [props.isNew, obj, workspace.id, push, reloadStore]);
 
   const runFunction = useCallback(async () => {
     setRunning(true);
@@ -182,7 +183,7 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
         functionName: obj.name,
         code: obj.code,
         event: JSON.parse(event),
-        config: JSON.parse(config),
+        variables: config,
         store,
         userAgent: navigator.userAgent,
       };
@@ -249,7 +250,7 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
     } finally {
       setRunning(false);
     }
-  }, [workspace.id, obj.code, event, config, store, obj.id, obj.name, showLogs]);
+  }, [workspace.id, obj.code, config, event, store, obj.id, obj.name, showLogs]);
 
   return (
     <div className="flex flex-col h-full">
@@ -277,9 +278,9 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
                 {/*  type="default"*/}
                 {/*  disabled={saving}*/}
                 {/*  onClick={() => setShowConfig(!showConfig)}*/}
-                {/*  icon={<Settings className={"inline-block anticon"} size={"1em"} />}*/}
+                {/*  icon={<Parentheses className={"inline-block anticon"} size={"1em"} />}*/}
                 {/*>*/}
-                {/*  Config*/}
+                {/*  Test Environment Variables*/}
                 {/*</Button>*/}
                 <Button
                   type="default"
@@ -350,16 +351,10 @@ declare class RetryError extends Error {
                   />
                 </div>
               )}
-              {/*<div className={`${styles.editor} ${showConfig ? "block" : "hidden"} flex-auto w-1/3 bg-backgroundLight`}>*/}
-              {/*  <div className={"jitsu-label-borderless"}>Config</div>*/}
-              {/*  <CodeEditor*/}
-              {/*    width={"99.9%"}*/}
-              {/*    language={"json"}*/}
-              {/*    value={config}*/}
-              {/*    onChange={setConfig}*/}
-              {/*    monacoOptions={{ lineNumbers: "off" }}*/}
-              {/*  />*/}
-              {/*</div>*/}
+              <div className={`${styles.editor} ${showConfig ? "block" : "hidden"} flex-auto w-1/3 bg-backgroundLight`}>
+                <div className={"jitsu-label-borderless"}>Test Environment Variables</div>
+                <FunctionVariables value={config ?? {}} onChange={setConfig} className={styles.vars} />
+              </div>
             </div>
           </div>
           <div className={`flex-auto ${obj.origin === "jitsu-cli" ? "" : "basis-2/5"} overflow-auto`}>

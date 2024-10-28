@@ -213,17 +213,11 @@ async function processUser(
     const user = mergeUserTraits(eventsArray as unknown as AnalyticsServerEvent[], userId);
     const result = await runChain(funcChain, eventsArray, user);
     if (result) {
-      const profile = {
-        user_id: userId,
-        traits: user.traits,
-        custom_properties: result.properties,
-        updated_at: new Date(),
-      };
-      await sendToBulker(profileBuilder, profile, funcChain.context);
+      await sendToBulker(profileBuilder, result, funcChain.context);
       funcChain.context.log.info(
         funcCtx,
         `User ${userId} processed in ${ms.elapsedMs()}ms (events: ${eventsArray.length}). Result: ${JSON.stringify(
-          profile
+          result
         )}`
       );
     } else {

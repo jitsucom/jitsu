@@ -156,7 +156,7 @@ const exports: Export[] = [
                 options: {
                   mode: "batch",
                   frequency: 1,
-                  ...omit(connectionOptions, "tableName", "profileWindow"),
+                  ...omit(connectionOptions, "tableName", "profileWindow", "variables"),
                   deduplicate: true,
                   primaryKey: "user_id",
                   schema: JSON.stringify(schema),

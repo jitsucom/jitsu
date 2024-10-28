@@ -66,11 +66,12 @@ export type FunctionLogger<Sync extends boolean = false> = {
   debug: (message: string, ...args: any[]) => void | Promise<void>;
   error: (message: string, ...args: any[]) => void | Promise<void>;
 };
-export type FunctionContext = {
+export type FunctionContext<P extends AnyProps = AnyProps> = {
   log: FunctionLogger;
   fetch: FetchType;
   store: TTLStore;
   metrics?: Metrics;
+  props: P;
 };
 
 export type PrivacyOpts = {
@@ -165,14 +166,10 @@ export type EventContext = {
   retries?: number;
 };
 
-export type FunctionConfigContext<P extends AnyProps = AnyProps> = {
-  props: P;
-};
-
 /**
  * Parameters for a function
  */
-export type FullContext<P extends AnyProps = AnyProps> = EventContext & FunctionContext & FunctionConfigContext<P>;
+export type FullContext<P extends AnyProps = AnyProps> = EventContext & FunctionContext<P>;
 
 //equivalent to returning [] from a function
 export type FunctionCommand = "drop";

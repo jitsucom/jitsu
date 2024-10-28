@@ -62,6 +62,10 @@ export const UDFWrapper = (
     // This make the global object available in the context as 'global'. We use 'derefInto()' here
     // because otherwise 'global' would actually be a Reference{} object in the new isolate.
     jail.setSync("global", jail.derefInto());
+    jail.setSync(
+      "process",
+      new ExternalCopy({ env: funcCtx.props || {} }).copyInto({ release: true, transferIn: true })
+    );
 
     jail.setSync("_jitsu_funcCtx", new ExternalCopy(funcCtx).copyInto({ release: true, transferIn: true }));
     jail.setSync(
@@ -324,7 +328,7 @@ export type UDFTestRequest = {
   functionName: string;
   code: string | UDFWrapperResult;
   event: AnalyticsServerEvent;
-  config: any;
+  variables: any;
   store: Store | any;
   workspaceId: string;
   userAgent?: string;
@@ -349,7 +353,7 @@ export async function UDFTestRun({
   code,
   store,
   event,
-  config,
+  variables,
   userAgent,
   workspaceId,
 }: UDFTestRequest): Promise<UDFTestResponse> {
@@ -468,7 +472,7 @@ export async function UDFTestRun({
         id,
         debugTill: d,
       },
-      props: config,
+      props: variables,
     };
     if (typeof code === "string") {
       wrapper = UDFWrapper(id, chainCtx, funcCtx, [{ id, name, code }]);

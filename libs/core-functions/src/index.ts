@@ -68,6 +68,7 @@ export type {
   ProfileUDFTestResponse,
   ProfileUser,
   ProfileFunctionWrapper,
+  Profile,
 } from "./functions/lib/profiles-udf-wrapper";
 export { makeLog, makeFetch, MultiEventsStore, DummyEventsStore, wrapperFunction } from "./functions/lib/index";
 export * as mixpanelDestination from "./functions/mixpanel-destination";

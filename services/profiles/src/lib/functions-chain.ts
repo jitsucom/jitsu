@@ -9,6 +9,7 @@ import {
   makeLog,
   MetricsMeta,
   mongodb,
+  Profile,
   ProfileBuilder,
   ProfileFunctionWrapper,
   ProfileUDFWrapper,
@@ -69,7 +70,14 @@ export function buildFunctionChain(
     log: makeLog(profileBuilder.id, eventsLogger, true),
     store,
   };
-
+  const funcCtx = {
+    function: {
+      id: "profile-builder",
+      type: "udf",
+      debugTill: profileBuilder.debugTill ? new Date(profileBuilder.debugTill) : undefined,
+    },
+    props: profileBuilder.connectionOptions?.variables || {},
+  };
   const udfFuncs: FunctionConfig[] = (profileBuilder.functions || []).map(f => {
     const functionId = f.functionId;
     const userFunctionObj = funcStore.getObject(functionId);
@@ -91,14 +99,7 @@ export function buildFunctionChain(
     const wrapper = ProfileUDFWrapper(
       pbLongId,
       chainCtx,
-      {
-        function: {
-          id: "profile-builder",
-          type: "udf",
-          debugTill: profileBuilder.debugTill ? new Date(profileBuilder.debugTill) : undefined,
-        },
-        props: {},
-      },
+      funcCtx,
       udfFuncs.map(f => ({ id: f.id, name: f.name, code: f.code }))
     );
     const oldWrapper = cached?.wrapper;
@@ -141,15 +142,6 @@ export function buildFunctionChain(
     };
   };
 
-  const funcCtx = {
-    function: {
-      id: "profile-builder",
-      type: "udf",
-      debugTill: profileBuilder.debugTill ? new Date(profileBuilder.debugTill) : undefined,
-    },
-    props: {},
-  };
-
   const funcs: Func[] = [
     {
       id: "udf.PIPELINE",
@@ -164,13 +156,19 @@ export function buildFunctionChain(
   };
 }
 
-export async function runChain(chain: FuncChain, events: any[], user: ProfileUser): Promise<ProfileResult | undefined> {
+export async function runChain(chain: FuncChain, events: any[], user: ProfileUser): Promise<Profile | undefined> {
   const f = chain.functions[0];
   let result: ProfileResult | undefined = undefined;
   try {
     result = await f.exec(f.context, events, user);
+    return {
+      user_id: user.userId,
+      traits: user.traits,
+      custom_properties: result?.properties || {},
+      updated_at: new Date(),
+    };
   } catch (err: any) {
     throw newError(`Function execution failed`, err);
   }
-  return result;
+  return undefined;
 }

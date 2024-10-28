@@ -3,6 +3,11 @@
   border-color: #d9d9d9;
 }
 
+.vars {
+  @apply overflow-hidden;
+}
+
+
 .logs {
   @apply border rounded-lg overflow-auto;
   border-color: #d9d9d9;

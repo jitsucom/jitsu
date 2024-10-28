@@ -68,7 +68,11 @@ const postAndPutCfg = {
       await db.prisma().configurationObject.update({
         where: { id: func.functionId },
         data: {
-          config: { ...(func.function.config as any), code: body.code, draft: body.code },
+          config: {
+            ...(func.function.config as any),
+            code: body.code,
+            draft: body.code,
+          },
         },
       });
     } else {

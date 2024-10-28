@@ -21,6 +21,13 @@ export type ProfileUser = {
   traits: Record<string, any>;
 };
 
+export type Profile = {
+  user_id: string;
+  traits: Record<string, any>;
+  custom_properties: Record<string, any>;
+  updated_at: Date;
+};
+
 export type ProfileFunctionWrapper = (
   context: FunctionContext,
   events: AnalyticsServerEvent[],
@@ -58,6 +65,10 @@ export const ProfileUDFWrapper = (
     // This make the global object available in the context as 'global'. We use 'derefInto()' here
     // because otherwise 'global' would actually be a Reference{} object in the new isolate.
     jail.setSync("global", jail.derefInto());
+    jail.setSync(
+      "process",
+      new ExternalCopy({ env: funcCtx.props || {} }).copyInto({ release: true, transferIn: true })
+    );
 
     jail.setSync("_jitsu_funcCtx", new ExternalCopy(funcCtx).copyInto({ release: true, transferIn: true }));
     jail.setSync(
@@ -170,6 +181,7 @@ export const ProfileUDFWrapper = (
           .join(",") +
         "];"
     );
+
     const wrapper = isolate.compileModuleSync(code, {
       filename: "jitsu-wrapper.js",
     });
@@ -338,7 +350,7 @@ export type ProfileUDFTestRequest = {
   functionName: string;
   code: string | UDFWrapperResult;
   events: AnalyticsServerEvent[];
-  config: any;
+  variables: any;
   store: Store | any;
   workspaceId: string;
   userAgent?: string;
@@ -351,7 +363,7 @@ export type ProfileUDFTestResponse = {
     name: string;
     retryPolicy?: any;
   };
-  result: ProfileResult;
+  result: Profile;
   store: any;
   logs: logType[];
 };
@@ -362,13 +374,14 @@ export async function ProfileUDFTestRun({
   code,
   store,
   events,
-  config,
+  variables,
   userAgent,
   workspaceId,
 }: ProfileUDFTestRequest): Promise<ProfileUDFTestResponse> {
   const logs: logType[] = [];
   let wrapper: UDFWrapperResult | undefined = undefined;
   let realStore = false;
+  const user = mergeUserTraits(events);
   try {
     let storeImpl: TTLStore;
     if (
@@ -437,16 +450,22 @@ export async function ProfileUDFTestRun({
         id,
         debugTill: d,
       },
-      props: config,
+      props: variables,
     };
     if (typeof code === "string") {
       wrapper = ProfileUDFWrapper(id, chainCtx, funcCtx, [{ id, name, code }]);
     } else {
       wrapper = code;
     }
-    const result = await wrapper?.userFunction(funcCtx, events, mergeUserTraits(events));
+    const result = await wrapper?.userFunction(funcCtx, events, user);
+    const profile = {
+      user_id: user.userId,
+      traits: user.traits,
+      custom_properties: result?.properties || {},
+      updated_at: new Date(),
+    };
     return {
-      result: typeof result === "undefined" ? { properties: {} } : result,
+      result: profile,
       store: !realStore ? memoryStoreDump(store) : {},
       logs,
     };
@@ -458,7 +477,12 @@ export async function ProfileUDFTestRun({
         name: e.name,
         retryPolicy: e.retryPolicy,
       },
-      result: { properties: {} },
+      result: {
+        user_id: user.userId,
+        traits: user.traits,
+        custom_properties: {},
+        updated_at: new Date(),
+      },
       store: !realStore && store ? memoryStoreDump(store) : {},
       logs,
     };

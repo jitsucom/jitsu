@@ -28,7 +28,9 @@ import {
   Braces,
   RefreshCw,
   History,
-  ArrowBigDownDashIcon,
+  Parentheses,
+  SearchCode,
+  Rocket,
 } from "lucide-react";
 import { CodeEditor } from "../CodeEditor/CodeEditor";
 import { ButtonLabel } from "../ButtonLabel/ButtonLabel";
@@ -55,6 +57,9 @@ import { testDataExample } from "./example";
 import { logType } from "@jitsu/core-functions";
 import { FunctionLogs } from "../FunctionsDebugger/FunctionLogs";
 import { FunctionResult } from "../FunctionsDebugger/FunctionResult";
+import { FunctionVariables } from "../FunctionsDebugger/FunctionVariables";
+import omit from "lodash/omit";
+
 dayjs.extend(utc);
 dayjs.extend(relativeTime);
 
@@ -140,6 +145,20 @@ const Header: React.FC<{ status: ProfileBuilderStatus | "loading"; pbEnabled: bo
   );
 };
 
+function Dot() {
+  return (
+    <svg
+      className={"w-1.5 h-1.5"}
+      width={"100%"}
+      height={"100%"}
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <circle cx="12" cy="12" r="12" fill={"#5d70cc"} />
+    </svg>
+  );
+}
+
 const SettingsTab: React.FC<{ profileBuilder: ProfileBuilderData; dispatch: React.Dispatch<PBDataAction> }> = ({
   profileBuilder,
   dispatch,
@@ -221,41 +240,41 @@ const SettingsTab: React.FC<{ profileBuilder: ProfileBuilderData; dispatch: Reac
           },
         ]}
       />
-      <div className="flex justify-end pr-2">
-        <Button
-          onClick={() => {
-            modal.confirm({
-              title: "Publish Profile Builder?",
-              content:
-                status === "incomplete" ? (
-                  <>
-                    Saving the settings will lead to publishing the first version of profile builder.
-                    <br />
-                    <br />
-                    Are you sure you want to proceed?
-                  </>
-                ) : (
-                  <>
-                    Saving the settings will lead to publishing the new version of profile builder and rebuilding all
-                    customers profiles.
-                    <br />
-                    <br />
-                    Are you sure you want to proceed?
-                  </>
-                ),
-              okText: status === "incomplete" ? "Publish the first version" : "Publish",
-              okType: "primary",
-              cancelText: "Cancel",
-              onOk: () => {},
-            });
-          }}
-          type="primary"
-          className="mt-2"
-          size={"large"}
-        >
-          Save
-        </Button>
-      </div>
+      {/*<div className="flex justify-end pr-2">*/}
+      {/*  <Button*/}
+      {/*    onClick={() => {*/}
+      {/*      modal.confirm({*/}
+      {/*        title: "Publish Profile Builder?",*/}
+      {/*        content:*/}
+      {/*          status === "incomplete" ? (*/}
+      {/*            <>*/}
+      {/*              Saving the settings will lead to publishing the first version of profile builder.*/}
+      {/*              <br />*/}
+      {/*              <br />*/}
+      {/*              Are you sure you want to proceed?*/}
+      {/*            </>*/}
+      {/*          ) : (*/}
+      {/*            <>*/}
+      {/*              Saving the settings will lead to publishing the new version of profile builder and rebuilding all*/}
+      {/*              customers profiles.*/}
+      {/*              <br />*/}
+      {/*              <br />*/}
+      {/*              Are you sure you want to proceed?*/}
+      {/*            </>*/}
+      {/*          ),*/}
+      {/*        okText: status === "incomplete" ? "Publish the first version" : "Publish",*/}
+      {/*        okType: "primary",*/}
+      {/*        cancelText: "Cancel",*/}
+      {/*        onOk: () => {},*/}
+      {/*      });*/}
+      {/*    }}*/}
+      {/*    type="primary"*/}
+      {/*    className="mt-2"*/}
+      {/*    size={"large"}*/}
+      {/*  >*/}
+      {/*    Save*/}
+      {/*  </Button>*/}
+      {/*</div>*/}
     </div>
   );
 };
@@ -416,6 +435,7 @@ type ProfileBuilderData = {
     destinationId?: string;
     tableName?: string;
     profileWindow?: number;
+    variables: any;
   };
   createdAt: Date | undefined;
   updatedAt: Date | undefined;
@@ -430,7 +450,9 @@ const defaultProfileBuilderData: ProfileBuilderData = {
   code: undefined,
   draft: undefined,
   draftUpdatedAt: undefined,
-  settings: {},
+  settings: {
+    variables: {},
+  },
   createdAt: undefined,
   updatedAt: undefined,
 };
@@ -523,6 +545,7 @@ function useProfileBuilderData(
                 storage: pb.intermediateStorageCredentials,
                 destinationId: pb.destinationId,
                 tableName: pb.connectionOptions?.tableName,
+                variables: pb.connectionOptions?.variables,
                 profileWindow: pb.connectionOptions?.profileWindow,
               },
               createdAt: pb.createdAt,
@@ -569,7 +592,7 @@ const UserIdDialog: React.FC<{ profileBuilderId: string; setter: (v: string) => 
           hideCallback();
         });
     },
-    [setter, workspace.id, profileBuilderId]
+    [setter, hideCallback, workspace.id, profileBuilderId]
   );
 
   return (
@@ -603,7 +626,7 @@ export function ProfileBuilderPage() {
   const { data: initialData, error: globalError, isLoading, enabled } = useProfileBuilderData(pbRefreshDate);
   const { data: pbState, isLoading: stateLoading } = useProfileBuilderState(initialData!, enabled, stateRefreshDate);
   const [saving, setSaving] = useState(false);
-  const [draftObject, dispatch] = useReducer(pbDataReducer, defaultProfileBuilderData);
+  const [obj, dispatch] = useReducer(pbDataReducer, defaultProfileBuilderData);
   const [activePrimaryTab, setActivePrimaryTab] = useState("code");
   const [activeSecondaryTab, setActiveSecondaryTab] = useState("test");
   const [testData, setTestData] = useState<string>(testDataExample);
@@ -616,9 +639,14 @@ export function ProfileBuilderPage() {
   const [unreadLogs, setUnreadLogs] = useState(0);
   const [running, setRunning] = useState(false);
 
-  const codeChanged = draftObject.draft !== initialData?.draft;
-  const hasUnpublishedDraft = draftObject.code !== draftObject.draft;
-  const hasUnpublishedChanges = hasUnpublishedDraft || !isEqual(draftObject, initialData);
+  const codeChanged = obj.draft !== initialData?.draft;
+  const hasUnpublishedDraft = obj.code !== obj.draft;
+  const hasUnpublishedEnvs = !isEqual(obj.settings.variables ?? {}, initialData?.settings.variables ?? {});
+  const hasUnpublishedSettings = !isEqual(
+    omit(obj.settings ?? {}, "variables"),
+    omit(initialData?.settings ?? {}, "variables")
+  );
+  const hasUnpublishedChanges = hasUnpublishedDraft || !isEqual(obj, initialData);
 
   function handleTabChange(key: string) {
     setActiveSecondaryTab(key);
@@ -635,7 +663,7 @@ export function ProfileBuilderPage() {
   }, [initialData, isLoading]);
 
   const publish = useCallback(async () => {
-    if (!draftObject.settings?.destinationId) {
+    if (!obj.settings?.destinationId) {
       modal.confirm({
         title: "Destination not selected",
         content: (
@@ -657,20 +685,21 @@ export function ProfileBuilderPage() {
       rpc(`/api/${workspace.id}/config/profile-builder`, {
         body: {
           profileBuilder: {
-            id: draftObject.id,
-            name: draftObject.name,
+            id: obj.id,
+            name: obj.name,
             workspaceId: workspace.id,
-            version: (draftObject.version ?? 0) + 1,
-            destinationId: draftObject.settings.destinationId,
-            intermediateStorageCredentials: draftObject.settings.storage || {},
+            version: enabled ? (obj.version ?? 0) + 1 : obj.version ?? 0,
+            destinationId: obj.settings.destinationId,
+            intermediateStorageCredentials: obj.settings.storage || {},
             connectionOptions: {
-              tableName: draftObject.settings.tableName,
-              profileWindow: draftObject.settings.profileWindow,
+              tableName: obj.settings.tableName,
+              profileWindow: obj.settings.profileWindow,
+              variables: obj.settings.variables,
             },
-            createdAt: draftObject.createdAt || new Date(),
+            createdAt: obj.createdAt || new Date(),
             updatedAt: new Date(),
           },
-          code: draftObject.draft,
+          code: obj.draft,
         },
       })
         .then(() => {
@@ -679,12 +708,26 @@ export function ProfileBuilderPage() {
         .catch(e => {})
         .finally(() => setSaving(false));
     }
-  }, [draftObject, workspace.id]);
+  }, [
+    modal,
+    obj.createdAt,
+    obj.draft,
+    obj.id,
+    obj.name,
+    obj.settings.destinationId,
+    obj.settings.profileWindow,
+    obj.settings.storage,
+    obj.settings.tableName,
+    obj.settings.variables,
+    obj.version,
+    enabled,
+    workspace.id,
+  ]);
   const save = useCallback(async () => {
     setSaving(true);
     getConfigApi(workspace.id, "function")
-      .update(draftObject.functionId!, {
-        draft: draftObject.draft,
+      .update(obj.functionId!, {
+        draft: obj.draft,
         type: "function",
       })
       .then(() => {
@@ -692,13 +735,13 @@ export function ProfileBuilderPage() {
       })
       .catch(e => {})
       .finally(() => setSaving(false));
-  }, [draftObject, workspace.id]);
+  }, [obj, workspace.id]);
 
   const rollback = useCallback(async () => {
     setSaving(true);
     getConfigApi(workspace.id, "function")
-      .update(draftObject.functionId!, {
-        draft: draftObject.code,
+      .update(obj.functionId!, {
+        draft: obj.code,
         type: "function",
       })
       .then(() => {
@@ -706,18 +749,18 @@ export function ProfileBuilderPage() {
       })
       .catch(e => {})
       .finally(() => setSaving(false));
-  }, [draftObject, workspace.id]);
+  }, [obj, workspace.id]);
 
   const runFunction = useCallback(async () => {
     setRunning(true);
     let body = {};
     try {
       body = {
-        functionId: draftObject.functionId,
+        functionId: obj.functionId,
         functionName: "Profile Builder",
-        code: draftObject.draft,
+        code: obj.draft,
         events: JSON.parse(testData),
-        config: {},
+        variables: obj.settings.variables,
         store: {},
         userAgent: navigator.userAgent,
       };
@@ -790,7 +833,7 @@ export function ProfileBuilderPage() {
       }
       setRunning(false);
     }
-  }, [workspace.id, draftObject.functionId, draftObject.draft, testData, activeSecondaryTab]);
+  }, [obj.functionId, obj.draft, obj.settings.variables, testData, workspace.id, activeSecondaryTab]);
 
   return (
     <WorkspacePageLayout noPadding={true}>
@@ -814,7 +857,7 @@ export function ProfileBuilderPage() {
               ? "loading"
               : pbState?.status === "building" || pbState?.status === "unknown"
               ? "building"
-              : draftObject.status
+              : obj.status
           }
           pbEnabled={enabled}
         />
@@ -826,11 +869,9 @@ export function ProfileBuilderPage() {
               onChange={setActivePrimaryTab}
               tabBarExtraContent={
                 <div className="flex items-center gap-2">
-                  {activePrimaryTab === "code" && (
+                  {enabled && activePrimaryTab === "code" && (
                     <>
-                      <div className={"text-xs text-textLight"}>
-                        Draft saved: {dayjs(draftObject.draftUpdatedAt).fromNow()}
-                      </div>
+                      <div className={"text-xs text-textLight"}>Draft saved: {dayjs(obj.draftUpdatedAt).fromNow()}</div>
                       <Button
                         type="text"
                         onClick={rollback}
@@ -861,19 +902,22 @@ export function ProfileBuilderPage() {
                           Save Draft
                         </ButtonLabel>
                       </Button>
-                      {enabled && (
-                        <>
-                          <Button
-                            type="text"
-                            onClick={publish}
-                            disabled={isLoading || !!globalError || !hasUnpublishedChanges}
-                          >
-                            <ButtonLabel icon={<Save className="w-3.5 h-3.5" />}>Publish</ButtonLabel>
-                          </Button>
-                        </>
-                      )}
                     </>
                   )}
+
+                  <>
+                    <Button
+                      type="text"
+                      onClick={publish}
+                      disabled={isLoading || !!globalError || !hasUnpublishedChanges}
+                    >
+                      {enabled ? (
+                        <ButtonLabel icon={<Rocket className="w-4 h-4" />}>Publish</ButtonLabel>
+                      ) : (
+                        <ButtonLabel icon={<Save className="w-4 h-4" />}>Save</ButtonLabel>
+                      )}
+                    </Button>
+                  </>
                 </div>
               }
               type={"card"}
@@ -885,12 +929,19 @@ export function ProfileBuilderPage() {
                   disabled: isLoading || !!globalError,
                   key: "code",
                   style: { height: "100%" },
-                  label: <ButtonLabel icon={<Code2 className="w-3.5 h-3.5" />}>Code</ButtonLabel>,
+                  label: (
+                    <ButtonLabel icon={<Code2 className="w-3.5 h-3.5" />}>
+                      <div className={"flex gap-2 items-center"}>
+                        <span>Code</span>
+                        {hasUnpublishedDraft && <Dot />}
+                      </div>
+                    </ButtonLabel>
+                  ),
                   children: (
                     <TabContent>
-                      {!isEqual(draftObject, defaultProfileBuilderData) && (
+                      {!isEqual(obj, defaultProfileBuilderData) && (
                         <CodeEditor
-                          value={draftObject.draft || ""}
+                          value={obj.draft || ""}
                           language={"javascript"}
                           height={"99.9%"}
                           onChange={c => dispatch({ type: "draft", value: c })}
@@ -901,24 +952,54 @@ export function ProfileBuilderPage() {
                 },
                 {
                   disabled: isLoading || !!globalError,
+                  key: "variables",
                   style: { height: "100%" },
-                  key: "settings",
-                  label: <ButtonLabel icon={<Settings className="w-3.5 h-3.5" />}>Settings</ButtonLabel>,
+                  label: (
+                    <ButtonLabel icon={<Parentheses className="w-3.5 h-3.5" />}>
+                      <div className={"flex gap-2 items-center"}>
+                        <span>Environment Variables</span>
+                        {hasUnpublishedEnvs && <Dot />}
+                      </div>
+                    </ButtonLabel>
+                  ),
                   children: (
                     <TabContent>
-                      <SettingsTab profileBuilder={draftObject} dispatch={dispatch} />
+                      <div style={{ minWidth: 500, maxWidth: "60%" }}>
+                        <FunctionVariables
+                          value={obj.settings?.variables ?? {}}
+                          onChange={c => dispatch({ type: "settings", value: { ...obj.settings, variables: c } })}
+                        />
+                      </div>
                     </TabContent>
                   ),
                 },
                 {
-                  disabled: isLoading || !!globalError || !enabled || draftObject.status === "incomplete",
+                  disabled: isLoading || !!globalError,
+                  style: { height: "100%" },
+                  key: "settings",
+                  label: (
+                    <ButtonLabel icon={<Settings className="w-3.5 h-3.5" />}>
+                      <div className={"flex gap-2 items-center"}>
+                        <span>Settings</span>
+                        {hasUnpublishedSettings && <Dot />}
+                      </div>{" "}
+                    </ButtonLabel>
+                  ),
+                  children: (
+                    <TabContent>
+                      <SettingsTab profileBuilder={obj} dispatch={dispatch} />
+                    </TabContent>
+                  ),
+                },
+                {
+                  disabled: isLoading || !!globalError || !enabled || obj.status === "incomplete",
                   style: { height: "100%" },
                   key: "build",
                   label: <ButtonLabel icon={<Hammer className="w-3.5 h-3.5" />}>Build Progress</ButtonLabel>,
                   children: (
                     <TabContent>
                       <BuildProgress
-                        profileBuilder={draftObject}
+                        profileBuilder={obj}
                         state={pbState}
                         loading={stateLoading}
                         refreshTrigger={() => setStateRefreshDate(new Date())}
@@ -937,11 +1018,11 @@ export function ProfileBuilderPage() {
                 <div className="flex items-center gap-2">
                   {activePrimaryTab === "code" && (
                     <>
-                      {draftObject.status !== "incomplete" && activeSecondaryTab === "test" && (
+                      {obj.status !== "incomplete" && activeSecondaryTab === "test" && (
                         <Popover
                           content={
                             <UserIdDialog
-                              profileBuilderId={draftObject.id!}
+                              profileBuilderId={obj.id!}
                               setter={setTestData}
                               hideCallback={() => {
                                 setUserIdDialogOpen(false);
@@ -956,9 +1037,7 @@ export function ProfileBuilderPage() {
                           trigger="click"
                         >
                           <Button type="text" disabled={isLoading || !!globalError}>
-                            <ButtonLabel icon={<ArrowBigDownDashIcon className="w-4 h-4" />}>
-                              Load Test Data
-                            </ButtonLabel>
+                            <ButtonLabel icon={<SearchCode className="w-4 h-4" />}>Load Test Data</ButtonLabel>
                           </Button>
                         </Popover>
                       )}
@@ -1007,13 +1086,6 @@ export function ProfileBuilderPage() {
                     </TabContent>
                   ),
                 },
-                // {
-                //   disabled: isLoading || !!globalError,
-                //   key: "env",
-                //   style: { height: "100%" },
-                //   label: <ButtonLabel icon={<Parentheses className="w-3.5 h-3.5" />}>Variables</ButtonLabel>,
-                //   children: <TabContent>Variables</TabContent>,
-                // },
                 {
                   style: { height: "100%" },
                   key: "result",
