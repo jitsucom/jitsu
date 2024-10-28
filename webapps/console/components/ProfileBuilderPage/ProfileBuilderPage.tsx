@@ -34,7 +34,7 @@ import {
 } from "lucide-react";
 import { CodeEditor } from "../CodeEditor/CodeEditor";
 import { ButtonLabel } from "../ButtonLabel/ButtonLabel";
-import { feedbackError, PropsWithChildrenClassname } from "../../lib/ui";
+import { copyTextToClipboard, feedbackError, feedbackSuccess, PropsWithChildrenClassname } from "../../lib/ui";
 import classNames from "classnames";
 import styles from "./ProfileBuilderPage.module.css";
 import FieldListEditorLayout from "../FieldListEditorLayout/FieldListEditorLayout";
@@ -59,6 +59,7 @@ import { FunctionLogs } from "../FunctionsDebugger/FunctionLogs";
 import { FunctionResult } from "../FunctionsDebugger/FunctionResult";
 import { FunctionVariables } from "../FunctionsDebugger/FunctionVariables";
 import omit from "lodash/omit";
+import { CodeViewer } from "../FunctionsDebugger/CodeViewer";
 
 dayjs.extend(utc);
 dayjs.extend(relativeTime);
@@ -163,9 +164,7 @@ const SettingsTab: React.FC<{ profileBuilder: ProfileBuilderData; dispatch: Reac
   profileBuilder,
   dispatch,
 }) => {
-  const modal = useAntdModal();
   const settings = profileBuilder.settings;
-  const status = profileBuilder.status || "incomplete";
 
   const destinations = useConfigObjectList("destination");
 
@@ -180,6 +179,21 @@ const SettingsTab: React.FC<{ profileBuilder: ProfileBuilderData; dispatch: Reac
       <FieldListEditorLayout
         noBorder={true}
         items={[
+          {
+            key: "id",
+            name: "Profile Builder Id",
+            component: (
+              <div
+                onClick={() => {
+                  copyTextToClipboard(profileBuilder.id);
+                  feedbackSuccess("Profile Builder Id copied to clipboard");
+                }}
+                className={"w-80 border rounded-md py-1 px-2.5 cursor-pointer  text-textLight"}
+              >
+                {profileBuilder.id}
+              </div>
+            ),
+          },
           {
             key: "storage",
             name: "Storage",
@@ -429,6 +443,7 @@ type ProfileBuilderData = {
   draft: string | undefined;
   draftUpdatedAt: Date | undefined;
   code: string | undefined;
+  cli: boolean | undefined;
   version: number | undefined;
   settings: {
     storage?: string;
@@ -448,6 +463,7 @@ const defaultProfileBuilderData: ProfileBuilderData = {
   name: "Profile Builder",
   functionId: undefined,
   code: undefined,
+  cli: undefined,
   draft: undefined,
   draftUpdatedAt: undefined,
   settings: {
@@ -541,6 +557,7 @@ function useProfileBuilderData(
               draft: pb.functions?.length ? pb.functions[0].function.config.draft : defaultProfileBuilderFunction,
               draftUpdatedAt: pb.functions?.length ? pb.functions[0].function.updatedAt : undefined,
               code: pb.functions?.length ? pb.functions[0].function.config.code : defaultProfileBuilderFunction,
+              cli: pb.functions?.length ? !!pb.functions[0].function.config.slug : undefined,
               settings: {
                 storage: pb.intermediateStorageCredentials,
                 destinationId: pb.destinationId,
@@ -933,20 +950,36 @@ export function ProfileBuilderPage() {
                     <ButtonLabel icon={<Code2 className="w-3.5 h-3.5" />}>
                       <div className={"flex gap-2 items-center"}>
                         <span>Code</span>
-                        {hasUnpublishedDraft && <Dot />}
+                        {enabled && hasUnpublishedDraft && <Dot />}
+                        {!enabled && codeChanged && <Dot />}
                       </div>
                     </ButtonLabel>
                   ),
                   children: (
                     <TabContent>
-                      {!isEqual(obj, defaultProfileBuilderData) && (
-                        <CodeEditor
-                          value={obj.draft || ""}
-                          language={"javascript"}
-                          height={"99.9%"}
-                          onChange={c => dispatch({ type: "draft", value: c })}
-                        />
-                      )}
+                      {!isEqual(obj, defaultProfileBuilderData) &&
+                        (obj.cli ? (
+                          <div className="px-2">
+                            <div className="mb-2">
+                              The function is compiled and deployed with{" "}
+                              <Link href="https://docs.jitsu.com/functions/sdk">
+                                <code>jitsu-cli</code>
+                              </Link>{" "}
+                              and can't be edited in the UI.
+                              <br />
+                              However, you can still run it with different events and see the results below. And you can
+                              view the code
+                            </div>
+                            <CodeViewer code={obj.draft as string} />
+                          </div>
+                        ) : (
+                          <CodeEditor
+                            value={obj.draft || ""}
+                            language={"javascript"}
+                            height={"99.9%"}
+                            onChange={c => dispatch({ type: "draft", value: c })}
+                          />
+                        ))}
                     </TabContent>
                   ),
                 },

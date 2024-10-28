@@ -29,9 +29,9 @@ export type Profile = {
 };
 
 export type ProfileFunctionWrapper = (
-  context: FunctionContext,
   events: AnalyticsServerEvent[],
-  user: ProfileUser
+  user: ProfileUser,
+  context: FunctionContext
 ) => Promise<ProfileResult | undefined>;
 
 type UDFWrapperResult = {
@@ -235,7 +235,7 @@ function wrap(connectionId: string, isolate: Isolate, context: Context, wrapper:
   if (!ref || ref.typeof !== "function") {
     throw new Error("Function not found. Please export wrappedFunctionChain function.");
   }
-  const userFunction: ProfileFunctionWrapper = async (ctx, events, user): Promise<ProfileResult | undefined> => {
+  const userFunction: ProfileFunctionWrapper = async (events, user, ctx): Promise<ProfileResult | undefined> => {
     if (isolate.isDisposed) {
       throw new RetryError("Isolate is disposed", { drop: true });
     }
@@ -253,9 +253,9 @@ function wrap(connectionId: string, isolate: Isolate, context: Context, wrapper:
       const res = await ref.apply(
         undefined,
         [
-          ctxCopy.copyInto({ release: true, transferIn: true }),
           eventCopy.copyInto({ release: true, transferIn: true }),
           userCopy.copyInto({ release: true, transferIn: true }),
+          ctxCopy.copyInto({ release: true, transferIn: true }),
         ],
         {
           result: { promise: true },
@@ -457,7 +457,7 @@ export async function ProfileUDFTestRun({
     } else {
       wrapper = code;
     }
-    const result = await wrapper?.userFunction(funcCtx, events, user);
+    const result = await wrapper?.userFunction(events, user, funcCtx);
     const profile = {
       user_id: user.userId,
       traits: user.traits,

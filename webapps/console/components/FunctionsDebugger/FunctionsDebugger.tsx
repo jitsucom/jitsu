@@ -25,11 +25,11 @@ import { FunctionConfig } from "../../lib/schema";
 import { useRouter } from "next/router";
 import { feedbackError } from "../../lib/ui";
 import Link from "next/link";
-import { CodeBlockLight } from "../CodeBlock/CodeBlockLight";
 import { useStoreReload } from "../../lib/store";
 import { FunctionLogs } from "./FunctionLogs";
 import { FunctionResult } from "./FunctionResult";
 import { FunctionVariables } from "./FunctionVariables";
+import { CodeViewer } from "./CodeViewer";
 
 type FunctionsDebuggerProps = {} & EditorComponentProps;
 
@@ -106,26 +106,6 @@ export const EditableTitle: React.FC<{ children: string; onUpdate: (str: string)
             <Pencil className="w-5 h-5" />
           </button>
         </div>
-      )}
-    </div>
-  );
-};
-
-const CodeViewer: React.FC<{ code: string }> = ({ code }) => {
-  const [showCode, setShowCode] = useState(false);
-
-  return (
-    <div>
-      <button className="text-primary" onClick={() => setShowCode(!showCode)}>
-        {showCode ? "Hide code" : "View compiled code"} »
-      </button>
-      {showCode && (
-        <CodeBlockLight
-          className="mt-2 bg-background text-xs py-2 px-3 rounded-lg max-h-60 overflow-y-auto "
-          lang="javascript"
-        >
-          {code}
-        </CodeBlockLight>
       )}
     </div>
   );

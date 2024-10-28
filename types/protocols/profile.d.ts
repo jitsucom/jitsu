@@ -5,12 +5,12 @@ export type ProfileResult = {
   properties: Record<string, any>;
 };
 
-export type ProfileFunction = (params: {
-  context: FunctionContext;
-  events: Iterable<AnalyticsServerEvent>;
+export type ProfileFunction = (
+  events: Iterable<AnalyticsServerEvent>,
   user: {
     id?: string;
     anonymousId?: string;
     traits: Record<string, any>;
-  };
-}) => Promise<ProfileResult | undefined>;
+  },
+  context: FunctionContext
+) => Promise<ProfileResult | undefined>;

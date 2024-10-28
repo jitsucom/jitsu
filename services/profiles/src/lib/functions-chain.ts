@@ -114,9 +114,9 @@ export function buildFunctionChain(
   udfCache.ttl(pbLongId, udfTTL);
 
   const udfPipelineFunc = (chainCtx: FunctionChainContext, funcCtx: FunctionContext): ProfileFunctionWrapper => {
-    return async (ctx, events, user) => {
+    return async (events, user, ctx) => {
       try {
-        return await cached.wrapper.userFunction(ctx, events, user);
+        return await cached.wrapper.userFunction(events, user, ctx);
       } catch (e: any) {
         if ((e?.message ?? "").includes("Isolate is disposed")) {
           // due to async nature other 'thread' could already replace this isolate. So check it
@@ -130,10 +130,10 @@ export function buildFunctionChain(
             );
             cached = { wrapper, hash };
             udfCache.set(pbLongId, cached);
-            return wrapper.userFunction(ctx, events, user);
+            return wrapper.userFunction(events, user, ctx);
           } else {
             // we have alive isolate now. try again
-            return await cached.wrapper.userFunction(ctx, events, user);
+            return await cached.wrapper.userFunction(events, user, ctx);
           }
         } else {
           throw e;
@@ -160,7 +160,7 @@ export async function runChain(chain: FuncChain, events: any[], user: ProfileUse
   const f = chain.functions[0];
   let result: ProfileResult | undefined = undefined;
   try {
-    result = await f.exec(f.context, events, user);
+    result = await f.exec(events, user, f.context);
     return {
       user_id: user.userId,
       traits: user.traits,
