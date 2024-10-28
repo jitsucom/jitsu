@@ -4,6 +4,7 @@ on:
     branches: [newjitsu]
   pull_request:
     branches: [newjitsu]
+  workflow_dispatch:
 
 env:
   #container jitsucom/node18builder:latest has playwright browsers binaries preinstalled on this path:
@@ -16,14 +17,14 @@ jobs:
     timeout-minutes: 60
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Get pnpm store directory
         id: pnpm-cache
         shell: bash
         run: |
           echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
 
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         name: Setup pnpm cache
         with:
           path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
@@ -50,9 +51,11 @@ jobs:
       - name: Notify Slack
         uses: rtCamp/action-slack-notify@v2
         # Do not send notification for PRs, feature branches, or forks
-        if: ${{ secrets.SLACK_DEV_CHANNEL != '' && github.ref == 'refs/heads/newjitsu' }}
+        if: ${{ env.SLACK_WEBHOOK != '' && github.ref == 'refs/heads/newjitsu' }}
         env:
+          SLACK_USERNAME: "GitHub Actions"
           SLACK_WEBHOOK: ${{ secrets.SLACK_DEV_CHANNEL }}
           SLACK_COLOR: ${{ job.status }}
+          MSG_MINIMAL: "true"
           SLACK_ICON_EMOJI: ":github-mark:"
           SLACK_MESSAGE: "${{ job.status }}: Jitsu 2.0 Build: ${{ github.event.head_commit.message }}"
