@@ -1,10 +1,23 @@
 import React, { useCallback, useEffect, useReducer, useState } from "react";
 import { EditorComponentProps } from "../ConfigObjectEditor/ConfigEditor";
-import { Badge, Button, Descriptions, Drawer, Dropdown, Input, MenuProps, Select, Table } from "antd";
-import { PlayCircleOutlined } from "@ant-design/icons";
+import { Badge, Button, Descriptions, Drawer, Dropdown, Input, MenuProps, Select, Splitter, Table, Tabs } from "antd";
 import { CodeEditor } from "../CodeEditor/CodeEditor";
 import styles from "./FunctionsDebugger.module.css";
-import { Check, Pencil, X } from "lucide-react";
+import {
+  Braces,
+  Bug,
+  Check,
+  Code2,
+  Parentheses,
+  Pencil,
+  Play,
+  RefreshCw,
+  Save,
+  SearchCode,
+  Terminal,
+  Undo2,
+  X,
+} from "lucide-react";
 import { getConfigApi, useEventsLogApi } from "../../lib/useApi";
 import { EventsLogRecord } from "../../lib/server/events-log";
 import { useWorkspace } from "../../lib/context";
@@ -14,24 +27,25 @@ import { ColumnsType } from "antd/es/table";
 import { UTCDate, UTCHeader } from "../DataView/EventsBrowser";
 import { examplePageEvent, exampleTrackEvents, exampleIdentifyEvent } from "./example_events";
 import { rpc } from "juava";
-import { logType } from "@jitsu/core-functions";
+import { logType } from "@jitsu/core-functions/src/functions/lib/udf_wrapper";
 import { RetryErrorName, DropRetryErrorName } from "@jitsu/functions-lib";
 
-import Convert from "ansi-to-html";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 dayjs.extend(utc);
 import { defaultFunctionTemplate } from "./code_templates";
 import { FunctionConfig } from "../../lib/schema";
 import { useRouter } from "next/router";
-import { feedbackError } from "../../lib/ui";
-import { Htmlizer } from "../Htmlizer/Htmlizer";
+import { feedbackError, PropsWithChildrenClassname } from "../../lib/ui";
 import Link from "next/link";
-import { CodeBlockLight } from "../CodeBlock/CodeBlockLight";
 import { useStoreReload } from "../../lib/store";
-
-const convert = new Convert({ newline: true });
-const localDate = (date: string | Date) => dayjs(date).format("YYYY-MM-DD HH:mm:ss");
+import { FunctionLogs } from "./FunctionLogs";
+import { FunctionResult } from "./FunctionResult";
+import { FunctionVariables } from "./FunctionVariables";
+import { CodeViewer } from "./CodeViewer";
+import classNames from "classnames";
+import { ButtonLabel } from "../ButtonLabel/ButtonLabel";
+import { Dot } from "../ProfileBuilderPage/ProfileBuilderPage";
 
 type FunctionsDebuggerProps = {} & EditorComponentProps;
 
@@ -49,7 +63,7 @@ export const EditableTitle: React.FC<{ children: string; onUpdate: (str: string)
           <div className="shrink">
             <Input
               value={value}
-              className="text-2xl"
+              className="text-3xl"
               size="large"
               onChange={e => {
                 setValue(e.target.value);
@@ -90,7 +104,7 @@ export const EditableTitle: React.FC<{ children: string; onUpdate: (str: string)
       ) : (
         <div className={"group flex space-x-2"}>
           <h1
-            className="text-2xl my-2 cursor-pointer"
+            className="text-3xl cursor-pointer"
             onDoubleClick={() => {
               setRollbackValue(value);
               setEditing(true);
@@ -113,32 +127,13 @@ export const EditableTitle: React.FC<{ children: string; onUpdate: (str: string)
   );
 };
 
-const CodeViewer: React.FC<{ code: string }> = ({ code }) => {
-  const [showCode, setShowCode] = useState(false);
-
-  return (
-    <div>
-      <button className="text-primary" onClick={() => setShowCode(!showCode)}>
-        {showCode ? "Hide code" : "View compiled code"} »
-      </button>
-      {showCode && (
-        <CodeBlockLight
-          className="mt-2 bg-background text-xs py-2 px-3 rounded-lg max-h-60 overflow-y-auto "
-          lang="javascript"
-        >
-          {code}
-        </CodeBlockLight>
-      )}
-    </div>
-  );
-};
-
 export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
   const { push } = useRouter();
 
   const workspace = useWorkspace();
-  const [showLogs, setShowLogs] = useState(false);
-  // const [showConfig, setShowConfig] = useState(false);
+  const [activePrimaryTab, setActivePrimaryTab] = useState("code");
+  const [activeSecondaryTab, setActiveSecondaryTab] = useState("event");
+  const [newResult, setNewResult] = useState(false);
   const [showEvents, setShowEvents] = useState(false);
   const [event, setEvent] = useState<any>(JSON.stringify(examplePageEvent(), undefined, 2));
   const [obj, setObj] = useState<Partial<FunctionConfig>>({
@@ -146,7 +141,7 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
     code: props.isNew ? defaultFunctionTemplate() : props.object.code ?? "",
   });
 
-  const [config, setConfig] = useState<any>("{}");
+  const [config, setConfig] = useState<any>({});
   const [store, setStore] = useState<any>({});
   const [result, setResult] = useState<any>({});
   const [resultType, setResultType] = useState<"ok" | "drop" | "error">("ok");
@@ -156,6 +151,17 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
   const reloadStore = useStoreReload();
+
+  function handleTabChange(key: string) {
+    setActiveSecondaryTab(key);
+    if (key === "logs") {
+      setUnreadLogs(0);
+      setUnreadErrorLogs(0);
+    }
+    if (key === "result") {
+      setNewResult(false);
+    }
+  }
 
   const save = useCallback(async () => {
     setSaving(true);
@@ -174,7 +180,7 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
     } finally {
       setSaving(false);
     }
-  }, [props.isNew, obj, workspace.id, push]);
+  }, [props.isNew, obj, workspace.id, push, reloadStore]);
 
   const runFunction = useCallback(async () => {
     setRunning(true);
@@ -185,7 +191,7 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
         functionName: obj.name,
         code: obj.code,
         event: JSON.parse(event),
-        config: JSON.parse(config),
+        variables: config,
         store,
         userAgent: navigator.userAgent,
       };
@@ -199,6 +205,9 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
         method: "POST",
         body,
       });
+      if (activeSecondaryTab !== "result") {
+        setNewResult(true);
+      }
       if (res.error) {
         setResult(res.error);
         setResultType("error");
@@ -229,7 +238,7 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
         }
       }
 
-      if (!showLogs) {
+      if (activeSecondaryTab !== "logs") {
         setUnreadLogs(res.logs.length);
         setUnreadErrorLogs(res.logs.filter(l => l.level === "error").length);
       }
@@ -252,95 +261,111 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
     } finally {
       setRunning(false);
     }
-  }, [workspace.id, obj.code, event, config, store, obj.id, obj.name, showLogs]);
+  }, [workspace.id, obj.code, config, event, store, obj.id, obj.name, activeSecondaryTab]);
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="w-full flex-auto  overflow-auto">
-        <div className={"w-full h-full flex flex-col overflow-auto relative rounded-lg"}>
-          <div className={`shrink ${obj.origin === "jitsu-cli" ? "" : "basis-3/5"} overflow-auto flex flex-col`}>
-            <div className="pl-2">
-              <EditableTitle
-                onUpdate={name => {
-                  setObj({ ...obj, name });
-                }}
-              >
-                {obj.name || "New function"}
-              </EditableTitle>
-            </div>
-            <div className={"flex flex-row items-end justify-between mt-2 mb-2"}>
-              <div>
-                <h2 className="text-lg pl-2">{obj.origin === "jitsu-cli" ? "Info:" : "Code:"}</h2>
+    <div className="relative flex flex-col h-full">
+      <Drawer
+        title="Choose Event from Live Stream"
+        placement="right"
+        width={"50%"}
+        mask={false}
+        headerStyle={{ padding: "1em" }}
+        bodyStyle={{ padding: "1em" }}
+        className={"border rounded-r-lg"}
+        style={{ borderColor: "#d9d9d9" }}
+        maskClosable={false}
+        closable={true}
+        onClose={() => setShowEvents(false)}
+        open={showEvents}
+        getContainer={false}
+      >
+        <EventsSelector selectEvent={e => setEvent(JSON.stringify(e, undefined, 2))} />
+      </Drawer>
+      <EditableTitle
+        onUpdate={name => {
+          setObj({ ...obj, name });
+        }}
+      >
+        {obj.name || "New function"}
+      </EditableTitle>
+      <Splitter layout="vertical" className={`flex-auto flex-grow overflow-auto gap-1 ${styles.splitterFix}`}>
+        <Splitter.Panel className={"flex flex-col"}>
+          <Tabs
+            className={classNames(styles.tabsHeightFix)}
+            key={"code"}
+            rootClassName={"flex-auto"}
+            onChange={setActivePrimaryTab}
+            tabBarExtraContent={
+              <div className="flex items-center gap-2">
+                <Button type="text" onClick={() => push(`/${workspace.id}/functions`)} disabled={saving}>
+                  <ButtonLabel icon={<Undo2 className="w-4 h-4" />}>Cancel</ButtonLabel>
+                </Button>
+                <Button type="text" onClick={save} disabled={saving}>
+                  <ButtonLabel icon={<Save className="w-4 h-4" />}>Save</ButtonLabel>
+                </Button>
               </div>
-              <div className={"space-x-4"}>
-                <Button type="primary" ghost disabled={saving} onClick={() => push(`/${workspace.id}/functions`)}>
-                  Cancel
-                </Button>
-                {/*<Button*/}
-                {/*  type="default"*/}
-                {/*  disabled={saving}*/}
-                {/*  onClick={() => setShowConfig(!showConfig)}*/}
-                {/*  icon={<Settings className={"inline-block anticon"} size={"1em"} />}*/}
-                {/*>*/}
-                {/*  Config*/}
-                {/*</Button>*/}
-                <Button
-                  type="default"
-                  loading={running}
-                  disabled={saving}
-                  icon={<PlayCircleOutlined />}
-                  onClick={runFunction}
-                >
-                  Run
-                </Button>
-                <Button type="primary" disabled={saving} onClick={save}>
-                  Save
-                </Button>
-              </div>
-            </div>
-            <div className={"flex-auto flex flex-row h-full gap-x-4 overflow-auto"}>
-              {obj.origin === "jitsu-cli" ? (
-                <Descriptions
-                  bordered
-                  className={`${styles.editor} flex-auto pl-2 bg-backgroundLight`}
-                  contentStyle={{ width: "100%" }}
-                  column={1}
-                  size={"small"}
-                >
-                  <Descriptions.Item label="Slug">
-                    <code>{obj.slug}</code>
-                  </Descriptions.Item>
-                  <Descriptions.Item label="Origin">This function was created with Jitsu CLI</Descriptions.Item>
-                  <Descriptions.Item label="Package Version" className={"whitespace-nowrap"}>
-                    {obj.version}
-                  </Descriptions.Item>
-                  {obj.description && <Descriptions.Item label="Description">{obj.description}</Descriptions.Item>}
-                  {
-                    <Descriptions.Item label="Code">
-                      <div className="text-sm">
-                        <div className="mb-6">
-                          The function is compiled and deployed with{" "}
-                          <Link href="https://docs.jitsu.com/functions/sdk">
-                            <code>jitsu-cli</code>
-                          </Link>{" "}
-                          and can't be edited in the UI. However, you can still run it with different events and see the
-                          results below. And you can view the code
-                        </div>
+            }
+            type={"card"}
+            activeKey={activePrimaryTab}
+            size={"small"}
+            tabBarStyle={{ marginBottom: 0 }}
+            items={[
+              {
+                key: "code",
+                style: { height: "100%" },
+                label: (
+                  <ButtonLabel icon={<Code2 className="w-3.5 h-3.5" />}>
+                    <div className={"flex gap-2 items-center"}>
+                      <span>{obj.origin === "jitsu-cli" ? "Info" : "Code"}</span>
+                      {props.object?.code !== obj.code && <Dot />}
+                    </div>
+                  </ButtonLabel>
+                ),
+                children: (
+                  <TabContent>
+                    {obj.origin === "jitsu-cli" ? (
+                      <Descriptions
+                        bordered
+                        className={`flex-auto`}
+                        contentStyle={{ width: "100%" }}
+                        column={1}
+                        size={"small"}
+                      >
+                        <Descriptions.Item label="Slug">
+                          <code>{obj.slug}</code>
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Origin">This function was created with Jitsu CLI</Descriptions.Item>
+                        <Descriptions.Item label="Package Version" className={"whitespace-nowrap"}>
+                          {obj.version}
+                        </Descriptions.Item>
+                        {obj.description && (
+                          <Descriptions.Item label="Description">{obj.description}</Descriptions.Item>
+                        )}
+                        {
+                          <Descriptions.Item label="Code">
+                            <div className="text-sm">
+                              <div className="mb-6">
+                                The function is compiled and deployed with{" "}
+                                <Link href="https://docs.jitsu.com/functions/sdk">
+                                  <code>jitsu-cli</code>
+                                </Link>{" "}
+                                and can't be edited in the UI. However, you can still run it with different events and
+                                see the results below. And you can view the code
+                              </div>
 
-                        <CodeViewer code={obj.code as string} />
-                      </div>
-                    </Descriptions.Item>
-                  }
-                </Descriptions>
-              ) : (
-                <div className={`${styles.editor} flex-auto pl-2 bg-backgroundLight`}>
-                  <CodeEditor
-                    width={"99.9%"}
-                    language={"javascript"}
-                    value={obj.code ?? ""}
-                    ctrlEnterCallback={runFunction}
-                    ctrlSCallback={save}
-                    extraSuggestions={`
+                              <CodeViewer code={obj.code as string} />
+                            </div>
+                          </Descriptions.Item>
+                        }
+                      </Descriptions>
+                    ) : (
+                      <CodeEditor
+                        language={"javascript"}
+                        value={obj.code ?? ""}
+                        ctrlEnterCallback={runFunction}
+                        ctrlSCallback={save}
+                        extraSuggestions={`
 declare class RetryError extends Error {
   constructor(message, options?: { drop: boolean }) {
     super(message);
@@ -348,189 +373,128 @@ declare class RetryError extends Error {
   }
 }
                     `}
-                    onChange={value => setObj({ ...obj, code: value })}
-                    monacoOptions={{ renderLineHighlight: "none" }}
-                  />
-                </div>
-              )}
-              {/*<div className={`${styles.editor} ${showConfig ? "block" : "hidden"} flex-auto w-1/3 bg-backgroundLight`}>*/}
-              {/*  <div className={"jitsu-label-borderless"}>Config</div>*/}
-              {/*  <CodeEditor*/}
-              {/*    width={"99.9%"}*/}
-              {/*    language={"json"}*/}
-              {/*    value={config}*/}
-              {/*    onChange={setConfig}*/}
-              {/*    monacoOptions={{ lineNumbers: "off" }}*/}
-              {/*  />*/}
-              {/*</div>*/}
-            </div>
-          </div>
-          <div className={`flex-auto ${obj.origin === "jitsu-cli" ? "" : "basis-2/5"} overflow-auto`}>
-            <div className={"flex flex-row h-full gap-x-4"}>
-              <div className={"flex-auto h-full w-1/2 flex flex-col"}>
-                <div className={"flex-auto w-full flex flex-row justify-between mt-2 mb-2 items-end"}>
-                  <div>
-                    <h2 className="text-lg pl-2">Event:</h2>
-                  </div>
-                  <div className={"space-x-2"}>
+                        onChange={value => setObj({ ...obj, code: value })}
+                        monacoOptions={{ renderLineHighlight: "none" }}
+                      />
+                    )}
+                  </TabContent>
+                ),
+              },
+            ]}
+          />
+        </Splitter.Panel>
+        <Splitter.Panel>
+          <Tabs
+            className={classNames(styles.tabsHeightFix)}
+            onChange={handleTabChange}
+            tabBarExtraContent={
+              <div className="flex items-center gap-2">
+                {activeSecondaryTab === "event" && (
+                  <>
                     <ExamplesDropdown selectEvent={e => setEvent(JSON.stringify(e, undefined, 2))} />
-                    <Button type={"primary"} ghost onClick={() => setShowEvents(!showEvents)}>
-                      Get Live Event
+                    <Button type="text" onClick={() => setShowEvents(!showEvents)}>
+                      <ButtonLabel icon={<SearchCode className="w-4 h-4" />}>Get Live Event</ButtonLabel>
                     </Button>
-                  </div>
-                </div>
-                <div className={`${styles.editor} flex-auto bg-backgroundLight w-full pl-2`}>
-                  <CodeEditor
-                    width={"99.9%"}
-                    language={"json"}
-                    value={event}
-                    onChange={setEvent}
-                    monacoOptions={{
-                      renderLineHighlight: "none",
-                      lineDecorationsWidth: 8,
-                      lineNumbers: "off",
-                      folding: false,
-                    }}
-                  />
-                </div>
-              </div>
-              <div className={`flex-auto h-full w-1/2 flex flex-col ${showLogs ? "hidden" : "block"}`}>
-                <div className={"flex-auto w-full flex flex-row flex-shrink justify-between mt-2 mb-2 items-end"}>
-                  <div>
-                    <h2 className="text-lg pl-2">Result:</h2>
-                  </div>
-                  <Badge
-                    offset={[-11, 3]}
-                    count={unreadErrorLogs ? unreadErrorLogs : unreadLogs}
-                    color={unreadErrorLogs ? "#ff0000" : "#4f46e5"}
+                  </>
+                )}
+                <Button onClick={runFunction} type="text" disabled={saving}>
+                  <ButtonLabel
+                    icon={
+                      running ? (
+                        <RefreshCw className={"w-3.5 h-3.5 animate-spin"} />
+                      ) : (
+                        <Play className="w-3.5 h-3.5" fill={"green"} stroke={"green"} />
+                      )
+                    }
                   >
-                    <Button
-                      type={"default"}
-                      onClick={() => {
-                        setShowLogs(true);
-                        setUnreadErrorLogs(0);
-                        setUnreadLogs(0);
-                      }}
-                    >
-                      Show Logs
-                    </Button>
-                  </Badge>
-                </div>
-                <div className={`${styles.editor} flex-auto h-full bg-backgroundLight w-full pl-2`}>
-                  {resultType === "error" && (
-                    <div className={"font-mono p-2 text-xs"}>
-                      <Htmlizer>
-                        {`<span class="text-red-600"><b>${result.name}:</b></span> ` +
-                          convert.toHtml(result.message.replaceAll(" ", "&nbsp;"))}
-                      </Htmlizer>
-                      {result.name === DropRetryErrorName && (
-                        <div className={"pt-1"}>
-                          If such error will happen on an actual event, it will be <b>SKIPPED</b> and retry will be
-                          scheduled in{" "}
-                          {result.retryPolicy?.delays?.[0] ? Math.min(result.retryPolicy.delays[0], 1440) : 5} minutes.
-                        </div>
-                      )}
-                      {result.name === RetryErrorName && (
-                        <div className={"pt-1"}>
-                          If such error will happen on an actual event, this function will be scheduled
-                          <br />
-                          for retry in{" "}
-                          {result.retryPolicy?.delays?.[0] ? Math.min(result.retryPolicy.delays[0], 1440) : 5} minutes,
-                          but event will be processed further.
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {resultType === "drop" && (
-                    <div className={"font-mono p-2 text-xs"}>
-                      Further processing will be <b>SKIPPED</b>. Function returned:{" "}
-                      <code>{JSON.stringify(result)}</code>.
-                    </div>
-                  )}
-                  {resultType === "ok" && (
+                    Run
+                  </ButtonLabel>
+                </Button>
+              </div>
+            }
+            type={"card"}
+            defaultActiveKey="1"
+            size={"small"}
+            tabBarStyle={{ marginBottom: 0 }}
+            activeKey={activeSecondaryTab}
+            items={[
+              {
+                style: { height: "100%" },
+                key: "event",
+                label: <ButtonLabel icon={<Bug className="w-3.5 h-3.5" />}>Event</ButtonLabel>,
+                children: (
+                  <TabContent>
                     <CodeEditor
-                      width={"99.9%"}
-                      language={typeof result !== "string" ? "json" : "text"}
-                      value={typeof result !== "string" ? JSON.stringify(result, null, 2) : result}
-                      onChange={s => {}}
+                      language={"json"}
+                      value={event}
+                      onChange={setEvent}
                       monacoOptions={{
                         renderLineHighlight: "none",
                         lineDecorationsWidth: 8,
                         lineNumbers: "off",
-                        readOnly: true,
                         folding: false,
                       }}
                     />
-                  )}
-                </div>
-              </div>
-              <div className={`flex-auto h-full w-1/2 flex flex-col ${showLogs ? "block" : "hidden"}`}>
-                <div className={"flex-auto w-full flex flex-row justify-between mt-2 mb-2 items-end"}>
-                  <div>
-                    <h2 className="text-lg pl-2">Logs:</h2>
-                  </div>
-                  <Button type={"default"} onClick={() => setShowLogs(false)}>
-                    Show Results
-                  </Button>
-                </div>
-                <div
-                  className={`${styles.logs} flex-auto flex flex-col place-content-start flex-nowrap pb-4 bg-backgroundLight w-full h-full`}
-                >
-                  {logs.map((log, index) => {
-                    const colors = (() => {
-                      switch (log.level) {
-                        case "error":
-                          return { text: "#A4000F", bg: "#FDF3F5", border: "#F8D6DB" };
-                        case "debug":
-                          return { text: "#646464", bg: "#FBF3F5", border: "#FBF3F5" };
-                        case "warn":
-                          return { text: "#705100", bg: "#FFFBD6", border: "#F4E89A" };
-                        default:
-                          return { text: "black", bg: "white", border: "#eaeaea" };
-                      }
-                    })();
-                    return (
-                      <div
-                        key={index}
-                        style={{ borderColor: colors.border, backgroundColor: colors.bg }}
-                        className={"font-mono text-xs shrink-0 gap-x-6 w-full flex flex-row border-b py-0.5 px-3"}
-                      >
-                        {/*<div className={"text-textLight whitespace-nowrap"}>{localDate(log.timestamp)}</div>*/}
-                        <div
-                          style={{ color: colors.text }}
-                          className={"w-10 flex-grow-0 flex-shrink-0 whitespace-nowrap"}
-                        >
-                          {log.level.toUpperCase()}
-                        </div>
-                        <div style={{ color: colors.text }} className={"flex-auto whitespace-pre-wrap break-all"}>
-                          {log.message}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          </div>
-          <Drawer
-            title="Choose Event from Live Stream"
-            placement="right"
-            width={"50%"}
-            mask={false}
-            headerStyle={{ padding: "1em" }}
-            bodyStyle={{ padding: "1em" }}
-            className={"border rounded-r-lg"}
-            style={{ borderColor: "#d9d9d9" }}
-            maskClosable={false}
-            closable={true}
-            onClose={() => setShowEvents(false)}
-            open={showEvents}
-            getContainer={false}
-          >
-            <EventsSelector selectEvent={e => setEvent(JSON.stringify(e, undefined, 2))} />
-          </Drawer>
-        </div>
-      </div>
+                  </TabContent>
+                ),
+              },
+              {
+                key: "variables",
+                style: { height: "100%" },
+                label: (
+                  <ButtonLabel icon={<Parentheses className="w-3.5 h-3.5" />}>
+                    <div className={"flex gap-2 items-center"}>
+                      <span>Test Environment Variables</span>
+                    </div>
+                  </ButtonLabel>
+                ),
+                children: (
+                  <TabContent>
+                    <div style={{ minWidth: 500, maxWidth: "60%" }}>
+                      <FunctionVariables value={config ?? {}} onChange={setConfig} className={styles.vars} />
+                    </div>
+                  </TabContent>
+                ),
+              },
+              {
+                style: { height: "100%" },
+                key: "result",
+                label: (
+                  <ButtonLabel icon={<Braces className="w-3.5 h-3.5" />}>
+                    <div className={"flex gap-2 items-center"}>
+                      <span>Last Run Result</span>
+                      {newResult && <Dot />}
+                    </div>
+                  </ButtonLabel>
+                ),
+                children: (
+                  <TabContent>
+                    <FunctionResult resultType={resultType} result={result} />
+                  </TabContent>
+                ),
+              },
+              {
+                style: { height: "100%" },
+                key: "logs",
+                label: (
+                  <Badge
+                    offset={[16, 0]}
+                    count={unreadErrorLogs ? unreadErrorLogs : unreadLogs}
+                    color={unreadErrorLogs ? "#ff0000" : "#4f46e5"}
+                  >
+                    <ButtonLabel icon={<Terminal className="w-3.5 h-3.5" />}>Logs</ButtonLabel>
+                  </Badge>
+                ),
+                children: (
+                  <TabContent className={"px-0"}>
+                    <FunctionLogs logs={logs} className={"border-y"} showDate />
+                  </TabContent>
+                ),
+              },
+            ]}
+          />
+        </Splitter.Panel>
+      </Splitter>
     </div>
   );
 };
@@ -782,9 +746,20 @@ const ExamplesDropdown = ({ selectEvent }: { selectEvent: (e: any) => void }) =>
 
   return (
     <Dropdown menu={{ items }} trigger={["click"]} placement="top" arrow={false}>
-      <Button type={"primary"} ghost>
-        Sample Event
+      <Button type="text">
+        <ButtonLabel icon={<Bug className="w-3.5 h-3.5" />}>Sample Event</ButtonLabel>
       </Button>
     </Dropdown>
+  );
+};
+
+const TabContent: React.FC<PropsWithChildrenClassname> = ({ children, className }) => {
+  return (
+    <div
+      className={`h-full flex flex-col overflow-auto border-l border-r border-b px-2 py-4 ${className ?? ""}`}
+      style={{ minHeight: "100%" }}
+    >
+      {children}
+    </div>
   );
 };

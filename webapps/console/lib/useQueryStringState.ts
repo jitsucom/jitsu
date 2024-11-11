@@ -37,15 +37,19 @@ export function useQueryStringState<T = string | undefined>(
   const [state, setState] = useState<T>(initialValue as T);
   const updateState = useCallback(
     (val: T) => {
-      setState(val);
-      if (val) {
-        const newQuery = { ...query, [param]: opt.serializer ? opt.serializer(val) : (val as string) };
-        return transition({ query: newQuery }, undefined, { shallow: true });
+      if (val !== state) {
+        setState(val);
+        if (val) {
+          const newQuery = { ...query, [param]: opt.serializer ? opt.serializer(val) : (val as string) };
+          return transition({ query: newQuery }, undefined, { shallow: true });
+        } else {
+          return transition({ query: omit(query, param) }, undefined, { shallow: true });
+        }
       } else {
-        return transition({ query: omit(query, param) }, undefined, { shallow: true });
+        return Promise.resolve(false);
       }
     },
-    [opt, param, query, transition]
+    [state, opt, param, query, transition]
   );
   return [state, updateState];
 }

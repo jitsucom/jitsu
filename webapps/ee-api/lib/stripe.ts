@@ -296,6 +296,7 @@ export async function getAvailableProducts(opts: { custom?: boolean } = {}): Pro
 
   return allProducts;
 }
+
 export async function getOrCreatePortalConfiguration() {
   const configurations = await stripe.billingPortal.configurations.list({ limit: 10 });
   const stripeObjectTag = getStripeObjectTag();
@@ -382,13 +383,32 @@ export async function listAllInvoices() {
     .log(`${allInvoices.length} invoices found. Took ${Date.now() - timer}ms`);
   return allInvoices;
 }
+//for multi-line invoices - try our best to find the line that relates to subscription,
+//so we can get a subscription period
+export function getSubscriptionInvoiceLine(invoice: Stripe.Invoice): Stripe.InvoiceLineItem | undefined {
+  const relevantLines = invoice.lines.data
+    .filter(l => !!l.period.start && !!l.period.end)
+    .filter(l => l.description && l.description.toLowerCase().indexOf("overage") < 0)
+    .filter(l => l.description && l.description.toLowerCase().indexOf("consulting") < 0)
+    .filter(l => l.description && l.description.toLowerCase().indexOf("custom") < 0);
+  if (relevantLines.length >= 1) {
+    if (relevantLines.length > 1) {
+      getLog()
+        .atWarn()
+        .log(`Multiple subscription lines found for invoice ${invoice.id}: ${JSON.stringify(relevantLines, null, 2)}`);
+    }
+    return relevantLines[0];
+  } else {
+    return undefined;
+  }
+}
 
 export function getInvoiceStartDate(invoice: Stripe.Invoice) {
-  return new Date(invoice.lines.data[0].period.start * 1000);
+  return new Date(getSubscriptionInvoiceLine(invoice)!.period.start * 1000);
 }
 
 export function getInvoiceEndDate(invoice: Stripe.Invoice) {
-  return new Date(invoice.lines.data[0].period.end * 1000);
+  return new Date(getSubscriptionInvoiceLine(invoice)!.period.end * 1000);
 }
 
 export async function listAllSubscriptions(): Promise<Stripe.Subscription[]> {

@@ -1,4 +1,17 @@
-//** @UDF_FUNCTIONS_IMPORT **//
+import { DropRetryErrorName, RetryErrorName } from "@jitsu/functions-lib";
+
+export const functionsLibCode = `const DropRetryErrorName = "Drop & RetryError";
+const RetryErrorName = "RetryError";
+class RetryError extends Error {
+    constructor(message, options) {
+        super(message);
+        this.name = options?.drop ? "${DropRetryErrorName}" : "${RetryErrorName}";
+    }
+}
+
+export { DropRetryErrorName, RetryError, RetryErrorName };`;
+
+export const chainWrapperCode = `//** @UDF_FUNCTIONS_IMPORT **//
 import {DropRetryErrorName, RetryError, RetryErrorName} from "@jitsu/functions-lib";
 
 global.RetryError = RetryError;
@@ -13,7 +26,7 @@ export function checkError(chainRes) {
             //         ..._jitsu_funcCtx.function,
             //         id: error.functionId || el.functionId
             //     }
-            // }, `Function execution failed`, error.name, error.message], {arguments: {copy: true}});
+            // }, \`Function execution failed\`, error.name, error.message], {arguments: {copy: true}});
         }
     }
 }
@@ -24,15 +37,15 @@ function isDropResult(result) {
 
 async function runChain(
     chain,
-    ctx,
     events,
-    user
+    user,
+    ctx
 ) {
     const execLog = [];
     const f = chain[0];
     let result = undefined;
     try {
-        result = await f.f(ctx, events, user);
+        result = await f.f(events, user, ctx);
     } catch (err) {
         if (err.name === DropRetryErrorName) {
             result = "drop";
@@ -51,10 +64,69 @@ async function runChain(
     return {result, execLog};
 }
 
-const wrappedFunctionChain = async function (ctx, events, user) {
+const wrappedFunctionChain = async function (eventsProvider, userProvider, ctx) {
     let chain = [];
     //** @UDF_FUNCTIONS_CHAIN **//
-    const chainRes = await runChain(chain, ctx, events, user);
+    const iterator = {
+        [Symbol.iterator]() {
+            return {
+                next() {
+                    const s = eventsProvider.applySyncPromise(undefined, [], {
+                        arguments: {copy: true}
+                    })
+                    if (typeof s === "undefined") {
+                        return {done: true};
+                    } else {
+                        return {done: false, value: JSON.parse(s) };
+                    }
+                },
+            };
+        },
+        get length() {
+            throw new Error("The object doesn't have a \`length\` property, however you can iterate through it with \`for const item of events\` syntax");
+        },
+        filter() {
+            throw new Error("The object doesn't have a \`filter\` method, however you can iterate through it with \`for const item of events\` syntax");
+        },
+        map() {
+            throw new Error("The object doesn't have a \`map\` method, however you can iterate through it with \`for const item of events\` syntax");
+        },
+        find() {
+            throw new Error("The object doesn't have a \`find\` method, however you can iterate through it with \`for const item of events\` syntax");
+        },
+        some() {
+            throw new Error("The object doesn't have a \`some\` method, however you can iterate through it with \`for const item of events\` syntax");
+        },
+        reduce() {
+            throw new Error("The object doesn't have a \`reduce\` method, however you can iterate through it with \`for const item of events\` syntax");
+        },
+        sort() {
+            throw new Error("The object doesn't have a \`sort\` method, however you can iterate through it with \`for const item of events\` syntax");
+        },
+    };
+    let lazyUser;
+    function lazyLoad() {
+        if (!lazyUser) {
+            lazyUser = JSON.parse(userProvider.applySyncPromise(undefined, [], {
+                arguments: {copy: true}
+            }));
+        }
+        return lazyUser;
+    }
+
+    const user = {
+        get anonymousId() {
+            return lazyLoad().anonymousId;
+        },
+        get id() {
+            return lazyLoad().id;
+        },
+        get traits() {
+            return lazyLoad().traits;
+        },
+    };
+
+    const chainRes = await runChain(chain, iterator, user, ctx);
     checkError(chainRes);
     return chainRes.result;
 };
@@ -142,7 +214,7 @@ const wrappedUserFunction = (id, f, funcCtx) => {
         };
     }
 
-    return async function (c, events, user) {
+    return async function (events, user, c) {
         const fetchLogEnabled = _jitsu_fetch_log_level !== "debug" || (funcCtx.function.debugTill && funcCtx.function.debugTill > new Date());
         let ftch = fetch
         if (fetchLogEnabled) {
@@ -156,9 +228,14 @@ const wrappedUserFunction = (id, f, funcCtx) => {
             log,
             store,
             fetch: ftch,
+            profileBuilder: {
+                id: _jitsu_pbId,
+                version: _jitsu_pbVersion,
+            }
         };
-        return await f(ctx, events, user);
+        return await f(events, user, ctx);
     }
 };
 
 export {wrappedFunctionChain};
+`;

@@ -638,7 +638,20 @@ const FunctionsLogTable = ({ loadEvents, loading, streamType, entityType, actorI
                 <FunctionTitle size={"small"} f={funcsMap[d.functionId]} />
               </WLink>
             );
+          case "profile":
+            return (
+              <WLink href={`/profile-builder`}>
+                <ProfileBuilderTitle profileBuilder={{ name: "Profile Builder" }} />
+              </WLink>
+            );
           default:
+            if (d.functionId === "profile-builder") {
+              return (
+                <WLink href={`/profile-builder`}>
+                  <ProfileBuilderTitle profileBuilder={{ name: "Profile Builder" }} />
+                </WLink>
+              );
+            }
             return <FunctionTitle size={"small"} title={() => d.functionId} />;
         }
       },

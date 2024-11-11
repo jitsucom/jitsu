@@ -3,7 +3,28 @@
   border-color: #d9d9d9;
 }
 
+.vars {
+  @apply overflow-hidden;
+}
+
 .logs {
   @apply border rounded-lg overflow-auto;
   border-color: #d9d9d9;
 }
+
+.tabsHeightFix {
+  height: 100%;
+}
+
+.tabsHeightFix :global(.ant-tabs-content) {
+  height: 100% !important;
+}
+
+.settingsTable :global(.ant-tabs-content) {
+  height: 100% !important;
+}
+
+.splitterFix :global(.ant-splitter-bar-dragger::before) {
+  background-color: white !important;
+}
+

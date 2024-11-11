@@ -132,7 +132,6 @@ code {
   padding: 8px 16px;
   width: 100%;
   border-bottom: 1px solid rgba(5, 5, 5, 0.06);
-  margin-bottom: 8px;
   box-sizing: border-box;
 }
 
@@ -154,4 +153,9 @@ code {
   border-right-style: solid;
   border-right-width: 1px;
   box-sizing: border-box;
+}
+
+.full {
+  width: 100%;
+  height: 100%;
 }

@@ -1,5 +1,4 @@
 /prisma/schema/
 /.next/
 
-# Sentry Auth Token
-.sentryclirc
+*storybook.log

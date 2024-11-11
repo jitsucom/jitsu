@@ -2,9 +2,10 @@ import nodemailer from "nodemailer";
 import Mail from "nodemailer/lib/mailer";
 import { getErrorMessage } from "juava";
 import { db } from "./db";
+import mjml2html from "mjml";
 
-import { render } from "mjml-react";
 import { randomUUID } from "crypto";
+import { renderToString } from "react-dom/server";
 
 function parseConnectionString(connectionString: string) {
   if (connectionString.startsWith("smtp://")) {
@@ -107,6 +108,10 @@ export async function sendEmail(mailOptions: Mail.Options) {
   }
 }
 
-export function renderEmailTemplate(Component: React.FC<{ data: any }>, data: any) {
-  return render(<Component data={data} />).html;
+export async function renderEmailTemplate(Component: React.FC<{ data: any }>, data: any) {
+  const str = renderToString(<Component data={data} />);
+  const renderedEmail = await mjml2html(str, {
+    validationLevel: "soft",
+  });
+  return renderedEmail.html;
 }

@@ -1,7 +1,7 @@
 import { createRoute } from "../../../../lib/api";
 import { db } from "../../../../lib/server/db";
 import pick from "lodash/pick";
-import { jitsuSources, SourceType } from "../index";
+import { externalSources, jitsuSources, SourceType } from "../index";
 import { getLog } from "juava";
 
 export default createRoute()
@@ -19,6 +19,10 @@ export default createRoute()
     const jitsuSource = jitsuSources[packageId];
     if (jitsuSource) {
       return jitsuSource;
+    }
+    const externalSource = externalSources[packageId];
+    if (externalSource) {
+      return externalSource;
     }
     const connectorPackage = await db.prisma().connectorPackage.findFirst({ where: { packageType, packageId } });
     if (!connectorPackage) {

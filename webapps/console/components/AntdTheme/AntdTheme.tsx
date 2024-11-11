@@ -9,7 +9,16 @@ export const AntdTheme: React.FC<PropsWithChildren<{}>> = ({ children }) => {
     colorPrimary: theme.primary,
   };
   return (
-    <ConfigProvider theme={{ token: antdColors }}>
+    <ConfigProvider
+      theme={{
+        token: antdColors,
+        components: {
+          Splitter: {
+            splitBarDraggableSize: 40,
+          },
+        },
+      }}
+    >
       <StyleProvider hashPriority="high">{children}</StyleProvider>
     </ConfigProvider>
   );

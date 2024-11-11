@@ -1,6 +1,6 @@
 import { db } from "../../../lib/server/db";
 import { getErrorMessage, getLog, requireDefined } from "juava";
-import { jitsuSources } from "./index";
+import { jitsuSources, externalSources } from "./index";
 
 export default async function handler(req, res) {
   try {
@@ -12,6 +12,13 @@ export default async function handler(req, res) {
       res.setHeader("Content-Type", "image/svg+xml");
       res.setHeader("Cache-Control", "public, max-age=2592000, immutable");
       res.status(200).send(jitsuSource.logoSvg);
+      return;
+    }
+    const externalSource = externalSources[packageId];
+    if (externalSource) {
+      res.setHeader("Content-Type", "image/svg+xml");
+      res.setHeader("Cache-Control", "public, max-age=2592000, immutable");
+      res.status(200).send(externalSource.logoSvg);
       return;
     }
 

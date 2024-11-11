@@ -1,6 +1,5 @@
 import {
   createMongoStore,
-  EntityStore,
   EventsStore,
   FunctionChainContext,
   FunctionConfig,
@@ -9,13 +8,17 @@ import {
   makeLog,
   MetricsMeta,
   mongodb,
+  Profile,
   ProfileBuilder,
+  ProfileFunctionWrapper,
+  ProfileUDFWrapper,
+  EventsProvider,
+  ProfileUserProvider,
 } from "@jitsu/core-functions";
 
 import { getLog, newError } from "juava";
 import NodeCache from "node-cache";
 import isEqual from "lodash/isEqual";
-import { ProfileFunctionWrapper, ProfileUser, UDFWrapper } from "./profiles-udf-wrapper";
 import { ProfileResult } from "@jitsu/protocols/profile";
 
 export type Func = {
@@ -55,7 +58,6 @@ export type FunctionExecLog = FunctionExecRes[];
 
 export function buildFunctionChain(
   profileBuilder: ProfileBuilder,
-  funcStore: EntityStore<FunctionConfig>,
   eventsLogger: EventsStore,
   fetchTimeoutMs: number = 2000
 ): FuncChain {
@@ -67,15 +69,15 @@ export function buildFunctionChain(
     log: makeLog(profileBuilder.id, eventsLogger, true),
     store,
   };
-
-  const udfFuncs: FunctionConfig[] = (profileBuilder.functions || []).map(f => {
-    const functionId = f.functionId;
-    const userFunctionObj = funcStore.getObject(functionId);
-    if (!userFunctionObj || userFunctionObj.workspaceId !== profileBuilder.workspaceId) {
-      throw newError(`Function ${functionId} not found in workspace: ${profileBuilder.workspaceId}`);
-    }
-    return userFunctionObj;
-  });
+  const funcCtx = {
+    function: {
+      id: profileBuilder.id,
+      type: "profile",
+      debugTill: profileBuilder.debugTill ? new Date(profileBuilder.debugTill) : undefined,
+    },
+    props: profileBuilder.connectionOptions?.variables || {},
+  };
+  const udfFuncs: FunctionConfig[] = profileBuilder.functions || [];
   if (udfFuncs.length === 0) {
     throw newError(`No UDF functions found for profile builder ${pbLongId}`);
   }
@@ -86,18 +88,13 @@ export function buildFunctionChain(
   cached = udfCache.get(pbLongId);
   if (!cached || !isEqual(cached?.hash, hash)) {
     log.atInfo().log(`UDF for connection ${pbLongId} changed (hash ${hash} != ${cached?.hash}). Reloading`);
-    const wrapper = UDFWrapper(
+    const wrapper = ProfileUDFWrapper(
+      profileBuilder.id,
+      profileBuilder.version,
       pbLongId,
       chainCtx,
-      {
-        function: {
-          id: "profile-builder",
-          type: "udf",
-          debugTill: profileBuilder.debugTill ? new Date(profileBuilder.debugTill) : undefined,
-        },
-        props: {},
-      },
-      udfFuncs.map(f => ({ id: f.id, name: f.name, code: f.code }))
+      funcCtx,
+      udfFuncs.map(f => ({ id: profileBuilder.id, name: f.name, code: f.code }))
     );
     const oldWrapper = cached?.wrapper;
     if (oldWrapper) {
@@ -110,27 +107,29 @@ export function buildFunctionChain(
   }
   udfCache.ttl(pbLongId, udfTTL);
 
-  const udfPipelineFunc = (chainCtx: FunctionChainContext, funcCtx: FunctionContext): ProfileFunctionWrapper => {
-    return async (ctx, events, user) => {
+  const udfPipelineFunc = (chainCtx: FunctionChainContext): ProfileFunctionWrapper => {
+    return async (events, user, ctx) => {
       try {
-        return await cached.wrapper.userFunction(ctx, events, user);
+        return await cached.wrapper.userFunction(events, user, ctx);
       } catch (e: any) {
         if ((e?.message ?? "").includes("Isolate is disposed")) {
           // due to async nature other 'thread' could already replace this isolate. So check it
           if (cached.wrapper.isDisposed()) {
             log.atError().log(`UDF for pb:${pbLongId} VM was disposed. Reloading`);
-            const wrapper = UDFWrapper(
+            const wrapper = ProfileUDFWrapper(
+              profileBuilder.id,
+              profileBuilder.version,
               pbLongId,
               chainCtx,
               funcCtx,
-              udfFuncs.map(f => ({ id: f.id, name: f.name, code: f.code }))
+              udfFuncs.map(f => ({ id: profileBuilder.id, name: f.name, code: f.code }))
             );
             cached = { wrapper, hash };
             udfCache.set(pbLongId, cached);
-            return wrapper.userFunction(ctx, events, user);
+            return wrapper.userFunction(events, user, ctx);
           } else {
             // we have alive isolate now. try again
-            return await cached.wrapper.userFunction(ctx, events, user);
+            return await cached.wrapper.userFunction(events, user, ctx);
           }
         } else {
           throw e;
@@ -139,20 +138,11 @@ export function buildFunctionChain(
     };
   };
 
-  const funcCtx = {
-    function: {
-      id: "profile-builder",
-      type: "udf",
-      debugTill: profileBuilder.debugTill ? new Date(profileBuilder.debugTill) : undefined,
-    },
-    props: {},
-  };
-
   const funcs: Func[] = [
     {
       id: "udf.PIPELINE",
       context: funcCtx,
-      exec: udfPipelineFunc(chainCtx, funcCtx),
+      exec: udfPipelineFunc(chainCtx),
     },
   ];
 
@@ -162,13 +152,25 @@ export function buildFunctionChain(
   };
 }
 
-export async function runChain(chain: FuncChain, events: any[], user: ProfileUser): Promise<ProfileResult | undefined> {
+export async function runChain(
+  profileBuilder: ProfileBuilder,
+  profileId: string,
+  chain: FuncChain,
+  eventsProvider: EventsProvider,
+  userProvider: ProfileUserProvider
+): Promise<Profile | undefined> {
   const f = chain.functions[0];
   let result: ProfileResult | undefined = undefined;
   try {
-    result = await f.exec(f.context, events, user);
+    result = await f.exec(eventsProvider, userProvider, f.context);
+    return {
+      profile_id: profileId,
+      traits: { ...(await userProvider()).traits, ...result?.traits },
+      version: profileBuilder.version,
+      updated_at: new Date(),
+    };
   } catch (err: any) {
     throw newError(`Function execution failed`, err);
   }
-  return result;
+  return undefined;
 }

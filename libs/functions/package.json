@@ -16,7 +16,7 @@
     "build": "pnpm compile && rollup -c"
   },
   "devDependencies": {
-    "rollup": "^4.1.4",
+    "rollup": "^4.24.3",
     "@rollup/plugin-typescript": "^11.1.5",
     "@types/jest": "^29.1.1",
     "@types/node": "^18.15.3",

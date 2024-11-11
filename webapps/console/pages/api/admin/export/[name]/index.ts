@@ -71,6 +71,17 @@ const exports: Export[] = [
             if (needComma) {
               writer.write(",");
             }
+            const credentials = omit(to.config, "destinationType", "type", "name");
+            if (destinationType === "clickhouse" && data.clickhouseSettings) {
+              const extraParams = Object.fromEntries(
+                (data.clickhouseSettings as string)
+                  .split("\n")
+                  .filter(s => s.includes("="))
+                  .map(s => s.split("="))
+                  .map(([k, v]) => [k.trim(), v.trim()])
+              );
+              credentials.parameters = { ...(credentials.parameters || {}), ...extraParams };
+            }
             writer.write(
               JSON.stringify({
                 __debug: {
@@ -78,9 +89,9 @@ const exports: Export[] = [
                 },
                 id: id,
                 type: destinationType,
-                options: data,
+                options: omit(data, "clickhouseSettings"),
                 updatedAt: dateMax(updatedAt, to.updatedAt),
-                credentials: omit(to.config, "destinationType", "type", "name"),
+                credentials: credentials,
               })
             );
             needComma = true;
@@ -105,6 +116,9 @@ const exports: Export[] = [
         getLog().atDebug().log(`Got batch of ${objects.length} profilebuilder objects for bulker export`);
         lastId = objects[objects.length - 1].id;
         for (const { id, updatedAt, workspace, destination, connectionOptions, ...pb } of objects) {
+          if (!destination) {
+            return;
+          }
           const destinationType = destination.config.destinationType;
           const coreDestinationType = getCoreDestinationTypeNonStrict(destinationType);
           if (coreDestinationType?.usesBulker || coreDestinationType?.hybrid) {
@@ -115,16 +129,16 @@ const exports: Export[] = [
               name: "profiles",
               fields: [
                 {
-                  name: "user_id",
+                  name: "profile_id",
                   type: 4, //string. See bulker's DataType
                 },
                 {
                   name: "traits",
-                  type: 6, // json
+                  type: 6, //json
                 },
                 {
-                  name: "custom_properties",
-                  type: 6, // json
+                  name: "version",
+                  type: 2, //int. See bulker's DataType
                 },
                 {
                   name: "updated_at",
@@ -142,9 +156,9 @@ const exports: Export[] = [
                 options: {
                   mode: "batch",
                   frequency: 1,
-                  ...connectionOptions,
+                  ...omit(connectionOptions, "tableName", "profileWindow", "variables"),
                   deduplicate: true,
-                  primaryKey: "user_id",
+                  primaryKey: "profile_id",
                   schema: JSON.stringify(schema),
                 },
                 updatedAt: dateMax(updatedAt, destination.updatedAt),
@@ -284,7 +298,7 @@ const exports: Export[] = [
             JSON.stringify({
               ...omit(row, "deleted", "config"),
               ...row.config,
-              codeHash: hash(row.config?.code),
+              codeHash: hash(row.config?.code || row.config?.draft || ""),
             })
           );
           needComma = true;
@@ -397,6 +411,7 @@ const exports: Export[] = [
         (await db.prisma().$queryRaw`
             select
               greatest(
+                  (select max("updatedAt") from newjitsu."ConfigurationObject" where type='function'),
                   (select max("updatedAt") from newjitsu."ProfileBuilder"),
                   (select max("updatedAt") from newjitsu."ProfileBuilderFunction"),
                   (select max("updatedAt") from newjitsu."Workspace")
@@ -411,9 +426,9 @@ const exports: Export[] = [
         const objects = await db.prisma().workspace.findMany({
           where: {
             deleted: false,
-            profileBuilders: { some: { NOT: { id: undefined } } },
+            profileBuilders: { some: { version: { gt: 0 } } },
           },
-          include: { profileBuilders: { include: { functions: true } } },
+          include: { profileBuilders: { include: { functions: { include: { function: true } } } } },
           take: batchSize,
           cursor: lastId ? { id: lastId } : undefined,
           orderBy: { id: "asc" },
@@ -427,6 +442,15 @@ const exports: Export[] = [
           if (needComma) {
             writer.write(",");
           }
+          row.profileBuilders = row.profileBuilders.map(pb => {
+            pb.functions = pb.functions.map(f => {
+              return {
+                ...omit(f.function, "config"),
+                ...f.function.config,
+              };
+            });
+            return pb;
+          });
           writer.write(JSON.stringify(row));
           needComma = true;
         }

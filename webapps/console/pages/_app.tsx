@@ -261,7 +261,18 @@ const LoadingBlur: React.FC<{}> = () => {
   );
 };
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: false,
+      cacheTime: 0,
+      staleTime: 0,
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
+    },
+  },
+});
+
 if (typeof window !== "undefined") {
   window["queryClient"] = queryClient;
 }

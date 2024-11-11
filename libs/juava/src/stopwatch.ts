@@ -1,6 +1,7 @@
 export type Stopwatch = {
   startedAt: number;
   elapsedMs(): number;
+  lapMs(): number;
   elapsedPretty(): string;
 };
 
@@ -15,6 +16,8 @@ function formatMs(ms: number) {
 }
 
 export function stopwatch(): Stopwatch {
+  let startedAt = Date.now();
+  let lastLap = startedAt;
   return {
     elapsedPretty(): string {
       return formatMs(this.elapsedMs());
@@ -22,6 +25,12 @@ export function stopwatch(): Stopwatch {
     elapsedMs(): number {
       return Date.now() - this.startedAt;
     },
-    startedAt: Date.now(),
+    lapMs(): number {
+      const now = Date.now();
+      const lap = now - lastLap;
+      lastLap = now;
+      return lap;
+    },
+    startedAt: startedAt,
   };
 }

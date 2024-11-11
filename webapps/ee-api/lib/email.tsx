@@ -12,6 +12,7 @@ import QuotaAboutToExceed from "../emails/quota-about-to-exceed";
 import ThrottledReminderEmail from "../emails/throttling-reminder";
 import { Simplify } from "type-fest";
 import ThrottlingStarted from "../emails/throttling-started";
+import BillingIssueEmail from "../emails/billing-issues";
 
 dayjs.extend(utc);
 export const UnsubscribeCodes = z.object({
@@ -96,6 +97,8 @@ export function getComponent(template: string): EmailComponent<UnsubscribeLinkPr
       return QuotaExceeded;
     case "quota-about-to-exceed":
       return QuotaAboutToExceed;
+    case "billing-issues":
+      return BillingIssueEmail;
     case "throttling-reminder":
       return ThrottledReminderEmail;
     case "throttling-started":

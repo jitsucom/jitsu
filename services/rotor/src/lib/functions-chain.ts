@@ -152,7 +152,14 @@ export function buildFunctionChain(
     anonymousEventsStore,
     connectionOptions: connectionData,
   };
-
+  const funcCtx = {
+    function: {
+      id: "PIPELINE",
+      type: "udf",
+      debugTill: connectionData.debugTill ? new Date(connectionData.debugTill) : undefined,
+    },
+    props: connectionData.functionsEnv || {},
+  };
   const udfFuncs: FunctionConfig[] = (connectionData?.functions || [])
     .filter(f => f.functionId.startsWith("udf."))
     .map(f => {
@@ -180,14 +187,7 @@ export function buildFunctionChain(
       const wrapper = UDFWrapper(
         connection.id,
         chainCtx,
-        {
-          function: {
-            id: "PIPELINE",
-            type: "udf",
-            debugTill: connectionData.debugTill ? new Date(connectionData.debugTill) : undefined,
-          },
-          props: {},
-        },
+        funcCtx,
         udfFuncs.map(f => ({ id: f.id, name: f.name, code: f.code }))
       );
       const oldWrapper = cached?.wrapper;
@@ -207,7 +207,7 @@ export function buildFunctionChain(
     mainFunction,
   ];
 
-  const udfPipelineFunc = (chainCtx: FunctionChainContext, funcCtx: FunctionContext): JitsuFunctionWrapper => {
+  const udfPipelineFunc = (chainCtx: FunctionChainContext): JitsuFunctionWrapper => {
     return async (event: AnyEvent, ctx: EventContext) => {
       try {
         return await cached.wrapper.userFunction(event, ctx);
@@ -262,7 +262,7 @@ export function buildFunctionChain(
       return {
         id: f.functionId as string,
         context: funcCtx,
-        exec: udfPipelineFunc(chainCtx, funcCtx),
+        exec: udfPipelineFunc(chainCtx),
       };
     } else {
       throw newError(`Function of unknown type: ${f.functionId}`);

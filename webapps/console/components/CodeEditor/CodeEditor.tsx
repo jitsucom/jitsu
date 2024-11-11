@@ -22,7 +22,7 @@ type CodeEditorProps = {
 export const CodeEditor: React.FC<CodeEditorProps> = ({
   language,
   height,
-  width = "100%",
+  width,
   onChange,
   value,
   ctrlEnterCallback,
@@ -54,7 +54,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       });
       setMounted(true);
     },
-    [foldLevel, handleChangePosition, value]
+    [extraSuggestions, foldLevel, handleChangePosition, value]
   );
 
   useEffect(() => {
@@ -89,8 +89,11 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       //scroll to the end of the line
       editor.revealPosition({ ...position, column: position.column + positionShift + 100 });
       editor.focus();
+      if (foldLevel) {
+        editor.getAction(`editor.foldLevel${foldLevel}`)?.run();
+      }
     }
-  }, [value]);
+  }, [value, foldLevel]);
 
   return (
     <div className="w-full h-full">
@@ -105,6 +108,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
         onMount={handleEditorDidMount}
         className={styles.editor}
         options={{
+          fixedOverflowWidgets: true,
           automaticLayout: true,
           glyphMargin: false,
           scrollBeyondLastLine: false,

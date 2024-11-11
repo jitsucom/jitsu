@@ -3,7 +3,7 @@ import express from "express";
 import Prometheus from "prom-client";
 import { Server } from "node:net";
 import { getHeapSnapshot } from "node:v8";
-import { functionsStore, workspaceStore } from "./lib/repositories";
+import { profilesStore } from "./lib/repositories";
 import { db } from "./lib/db";
 import { profileBuilder, ProfileBuilderRunner } from "./builder";
 import { createClickhouseLogger, DummyEventsStore, EventsStore, mongodb } from "@jitsu/core-functions";
@@ -70,8 +70,8 @@ async function main() {
       httpServer.close();
     }
 
-    workspaceStore.stop();
-    functionsStore.stop();
+    profilesStore.stop();
+
     await db.pgPool.close();
 
     const extraDelay = process.env.SHUTDOWN_EXTRA_DELAY_SEC
@@ -99,14 +99,9 @@ async function main() {
     Prometheus.collectDefaultMetrics();
     await db.pgPool.waitInit();
 
-    const ws = await workspaceStore.get();
+    const ws = await profilesStore.get();
     if (!ws.enabled) {
       log.atError().log("Connection store is not configured. Profile Builder will not work");
-      process.exit(1);
-    }
-    const funcStore = await functionsStore.get();
-    if (!funcStore.enabled) {
-      log.atError().log("Functions store is not configured. Profile Builder will not work");
       process.exit(1);
     }
 
@@ -125,7 +120,7 @@ function refreshLoop(eventsLogger: EventsStore) {
   (async () => {
     while (!closed) {
       const started = Date.now();
-      const ws = workspaceStore.getCurrent()!;
+      const ws = profilesStore.getCurrent()!;
       const actualProfileBuilders = new Set<string>();
       for (const [workspaceId, workspace] of Object.entries(ws.getAll())) {
         for (const pb of workspace.profileBuilders) {
@@ -195,16 +190,10 @@ function initHTTP() {
     res.json({
       status: "pass",
       workspaceStore: {
-        enabled: workspaceStore.getCurrent()?.enabled || "loading",
-        status: workspaceStore.status(),
-        lastUpdated: workspaceStore.lastRefresh(),
-        lastModified: workspaceStore.lastModified(),
-      },
-      functionsStore: {
-        enabled: functionsStore.getCurrent()?.enabled || "loading",
-        status: functionsStore.status(),
-        lastUpdated: functionsStore.lastRefresh(),
-        lastModified: functionsStore.lastModified(),
+        enabled: profilesStore.getCurrent()?.enabled || "loading",
+        status: profilesStore.status(),
+        lastUpdated: profilesStore.lastRefresh(),
+        lastModified: profilesStore.lastModified(),
       },
     });
   });

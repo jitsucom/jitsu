@@ -4,23 +4,24 @@ import {
   mongodb,
   ProfilesConfig,
   pbEnsureMongoCollection,
-  profilePartitionIdColumn,
-  profilePartitionsCount,
+  profileIdHashColumn,
+  int32Hash,
+  idHash32MaxValue,
   EventsStore,
   bulkerDestination,
   FunctionContext,
   FunctionChainContext,
+  profileIdColumn,
+  ProfileUser,
 } from "@jitsu/core-functions";
-import { MongoClient, ObjectId } from "mongodb";
+import { FindCursor, MongoClient, ObjectId, WithId, Document } from "mongodb";
 import { db, ProfileBuilderState } from "./lib/db";
 import { getLog, getSingleton, hash, LogFactory, parseNumber, requireDefined, stopwatch } from "juava";
 import PQueue from "p-queue";
 import NodeCache from "node-cache";
-import { functionsStore } from "./lib/repositories";
 import { buildFunctionChain, FuncChain, runChain } from "./lib/functions-chain";
 import { FullContext } from "@jitsu/protocols/functions";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
-import { ProfileUser } from "./lib/profiles-udf-wrapper";
 
 const bulkerBase = requireDefined(process.env.BULKER_URL, "env BULKER_URL is not defined");
 const bulkerAuthKey = requireDefined(process.env.BULKER_AUTH_KEY, "env BULKER_AUTH_KEY is not defined");
@@ -30,7 +31,7 @@ const fetchTimeoutMs = parseNumber(process.env.FETCH_TIMEOUT_MS, 2000);
 
 const instanceIndex = process.env.INSTANCE_INDEX ? parseInt(process.env.INSTANCE_INDEX, 10) : 0;
 const totalInstances = process.env.INSTANCES_COUNT ? parseInt(process.env.INSTANCES_COUNT, 10) : 1;
-const partitionsRange = selectPartitions(profilePartitionsCount, totalInstances, instanceIndex);
+const partitionsRange = selectRange(idHash32MaxValue, totalInstances, instanceIndex);
 
 //cache function chains for 1m
 const funcsChainTTL = 60;
@@ -81,20 +82,21 @@ export async function profileBuilder(
     closeResolve = resolve;
   });
 
-  const funcStore = await functionsStore.get();
-
   const cacheKey = pbLongId;
   let funcChain: FuncChain | undefined = funcsChainCache.get(cacheKey);
   if (!funcChain) {
     log.atInfo().log(`Refreshing function chain`);
-    funcChain = buildFunctionChain(profileBuilder, funcStore, eventsLogger, fetchTimeoutMs);
+    funcChain = buildFunctionChain(profileBuilder, eventsLogger, fetchTimeoutMs);
     funcsChainCache.set(cacheKey, funcChain);
   }
 
-  const config = ProfilesConfig.parse(profileBuilder.intermediateStorageCredentials || {});
-
-  config.eventsDatabase = `profiles`;
-  config.eventsCollectionName = `profiles-raw-${workspaceId}-${profileBuilder.id}`;
+  const config = ProfilesConfig.parse({
+    ...profileBuilder.intermediateStorageCredentials,
+    profileWindowDays: profileBuilder.connectionOptions.profileWindow,
+    eventsDatabase: `profiles`,
+    eventsCollectionName: `profiles-raw-${workspaceId}-${profileBuilder.id}`,
+    traitsCollectionName: `profiles-traits-${workspaceId}-${profileBuilder.id}`,
+  });
 
   const mongoSingleton = config.mongoUrl
     ? getSingleton(
@@ -118,9 +120,18 @@ export async function profileBuilder(
   const mongo = await mongoSingleton.waitInit();
 
   await pbEnsureMongoCollection(mongo, config.eventsDatabase, config.eventsCollectionName, config.profileWindowDays, [
-    profilePartitionIdColumn,
-    "userId",
+    profileIdHashColumn,
+    profileIdColumn,
+    "type",
   ]);
+  await pbEnsureMongoCollection(
+    mongo,
+    config.eventsDatabase,
+    config.traitsCollectionName,
+    config.profileWindowDays,
+    [profileIdColumn],
+    true
+  );
 
   const loadedState = await db
     .pgHelper()
@@ -150,7 +161,6 @@ export async function profileBuilder(
             state.processedUsers = 0;
             state.errorUsers = 0;
             state.speed = 0;
-            state.lastTimestamp = dateUpperBound;
 
             for (let i = 0; i < users.length; i++) {
               if (i % 1000) {
@@ -164,6 +174,7 @@ export async function profileBuilder(
               );
             }
             await queue.onIdle();
+            state.lastTimestamp = dateUpperBound;
             state.speed = users.length / ((Date.now() - started) / 1000);
             await db.pgHelper().updateProfileBuilderState(state);
           } else {
@@ -204,45 +215,56 @@ async function processUser(
   endTimestamp: Date
 ) {
   const ms = stopwatch();
+  let cursor: FindCursor<WithId<Document>>;
   try {
-    const events = await getUserEvents(mongo, config, userId, endTimestamp);
-    const eventsArray = await events.toArray();
-    const user = { traits: {}, userId } as ProfileUser;
-    eventsArray
-      .filter(e => e.type === "identify")
-      .forEach(e => {
-        if (e.anonymousId) {
-          user.anonymousId = e.anonymousId;
-        }
-        if (e.traits) {
-          Object.assign(user.traits, e.traits);
-        }
-      });
-    const result = await runChain(funcChain, eventsArray, user);
+    const metrics = { db_events: 0 } as any;
+    cursor = await getUserEvents(mongo, config, userId, endTimestamp);
+    metrics.db_find = ms.lapMs();
+    const userPromise = getProfileUser(mongo, config, userId, metrics);
+    let count = 0;
+    const userProvider = async () => {
+      return await userPromise;
+    };
+
+    const eventsProvider = async () => {
+      const start = Date.now();
+      const next = await cursor.next();
+      metrics.db_events += Date.now() - start;
+      if (next) {
+        count++;
+        return next as unknown as AnalyticsServerEvent;
+      } else {
+        return undefined;
+      }
+    };
+
+    const result = await runChain(profileBuilder, userId, funcChain, eventsProvider, userProvider);
+    metrics.udf = ms.lapMs();
+    metrics.db = metrics.db_events + metrics.db_user + metrics.db_find;
     if (result) {
-      const profile = {
-        user_id: userId,
-        traits: user.traits,
-        custom_properties: result.properties,
-        updated_at: new Date(),
-      };
-      await sendToBulker(profileBuilder, profile, funcChain.context);
+      await sendToBulker(profileBuilder, result, funcChain.context);
+      metrics.bulker = ms.lapMs();
       funcChain.context.log.info(
         funcCtx,
-        `User ${userId} processed in ${ms.elapsedMs()}ms (events: ${eventsArray.length}). Result: ${JSON.stringify(
-          profile
-        )}`
+        `User ${userId} processed in ${ms.elapsedMs()}ms (events: ${count}). Result: ${JSON.stringify(
+          result
+        )} Metrics: ${JSON.stringify(metrics)}`
       );
     } else {
       funcChain.context.log.warn(
         funcCtx,
-        `No profile result for user ${userId}. processed in ${ms.elapsedMs()}ms (events: ${eventsArray.length}).`
+        `No profile result for user ${userId}. processed in ${ms.elapsedMs()}ms (events: ${count}).  Metrics: ${JSON.stringify(
+          metrics
+        )}`
       );
     }
     state.processedUsers++;
   } catch (e: any) {
     state.errorUsers++;
     funcChain.context.log.error(funcCtx, `Error while processing user ${userId}: ${e.message}`);
+  } finally {
+    // @ts-ignore
+    cursor?.close();
   }
 }
 
@@ -286,7 +308,10 @@ async function sendToBulker(profileBuilder: ProfileBuilder, profile: any, contex
     workspace: { id: profileBuilder.workspaceId },
   };
   await bulkerDestination.default(
-    { [bulkerDestination.TableNameParameter]: "profiles", ...profile } as unknown as AnalyticsServerEvent,
+    {
+      [bulkerDestination.TableNameParameter]: profileBuilder.connectionOptions.tableName || "profiles",
+      ...profile,
+    } as unknown as AnalyticsServerEvent,
     ctx
   );
 }
@@ -296,10 +321,37 @@ async function getUserEvents(mongo: MongoClient, config: ProfilesConfig, userId:
     .db(config.eventsDatabase)
     .collection(config.eventsCollectionName)
     .find({
-      [profilePartitionIdColumn]: { $gte: partitionsRange[0], $lte: partitionsRange[1] },
-      userId: userId,
+      [profileIdHashColumn]: int32Hash(userId),
+      [profileIdColumn]: userId,
       _id: { $lt: new ObjectId(Math.floor(endTimestamp.getTime() / 1000).toString(16) + "0000000000000000") },
     });
+}
+
+async function getProfileUser(
+  mongo: MongoClient,
+  config: ProfilesConfig,
+  userId: string,
+  metrics: any
+): Promise<ProfileUser> {
+  const start = Date.now();
+  const u = await mongo
+    .db(config.eventsDatabase)
+    .collection(config.traitsCollectionName)
+    .findOne({ [profileIdColumn]: userId });
+  metrics.db_user = Date.now() - start;
+  if (!u) {
+    return {
+      id: userId,
+      anonymousId: "",
+      traits: {},
+    };
+  } else {
+    return {
+      id: u.userId,
+      anonymousId: u.anonymousId,
+      traits: u.traits,
+    };
+  }
 }
 
 async function getUsersHavingEventsSince(
@@ -328,12 +380,12 @@ async function getUsersHavingEventsSince(
       {
         $match: {
           ...dateFilter,
-          [profilePartitionIdColumn]: { $gte: partitionsRange[0], $lte: partitionsRange[1] },
+          [profileIdHashColumn]: { $gte: partitionsRange[0], $lte: partitionsRange[1] },
         },
       },
       {
         $group: {
-          _id: "$userId",
+          _id: "$" + profileIdColumn,
         },
       },
     ])
@@ -341,25 +393,25 @@ async function getUsersHavingEventsSince(
     .toArray();
 }
 
-function selectPartitions(totalPartitions: number, totalInstances: number, instanceIndex: number): [number, number] {
-  const partitionsPerInstance = Math.floor(totalPartitions / totalInstances);
-  const remainderPartitions = totalPartitions % totalInstances;
+function selectRange(rangeWidth: number, totalInstances: number, instanceIndex: number): [number, number] {
+  const rangePerInstance = Math.floor(rangeWidth / totalInstances);
+  const remainderRange = rangeWidth % totalInstances;
 
   const ranges: Array<{ instance: number; partitionRange: [number, number] }> = [];
-  let startPartition = 0;
+  let rangeStart = 0;
 
   for (let i = 0; i < totalInstances; i++) {
-    // Each instance gets at least `partitionsPerInstance` partitions
+    // Each instance gets at least `rangePerInstance` partitions
     // If there are remaining partitions, distribute one extra to some instances
-    const additionalPartition = i < remainderPartitions ? 1 : 0;
-    const endPartition = startPartition + partitionsPerInstance + additionalPartition - 1;
+    const additionalRange = i < remainderRange ? 1 : 0;
+    const rangeEnd = rangeStart + rangePerInstance + additionalRange - 1;
 
     ranges.push({
       instance: i,
-      partitionRange: [startPartition, endPartition],
+      partitionRange: [rangeStart, rangeEnd],
     });
 
-    startPartition = endPartition + 1;
+    rangeStart = rangeEnd + 1;
   }
 
   return ranges[instanceIndex].partitionRange;

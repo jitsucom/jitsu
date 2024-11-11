@@ -56,19 +56,28 @@ export const StringArray: React.FC<{ options?: string[] } & CustomWidgetProps<st
   );
 };
 
-export const TextEditor: React.FC<{ rows?: number } & CustomWidgetProps<string>> = props => {
+export const TextEditor: React.FC<{ rows?: number; placeholder?: string } & CustomWidgetProps<string>> = props => {
   if (props.rows && props.rows > 1) {
     return <Input.TextArea rows={props.rows} value={props.value} onChange={e => props.onChange(e.target.value)} />;
   } else {
-    return <Input type="text" value={props.value} onChange={e => props.onChange(e.target.value)} />;
+    return (
+      <Input
+        placeholder={props.placeholder}
+        type="text"
+        value={props.value}
+        onChange={e => props.onChange(e.target.value)}
+      />
+    );
   }
 };
 
-export const NumberEditor: React.FC<CustomWidgetProps<number | undefined>> = props => {
+export const NumberEditor: React.FC<CustomWidgetProps<number | undefined> & { max?: number; min?: number }> = props => {
   return (
     <Input
       type="number"
       value={props.value}
+      min={props.min}
+      max={props.max}
       onChange={e => {
         const v = parseInt(e.target.value);
         if (isNaN(v)) {

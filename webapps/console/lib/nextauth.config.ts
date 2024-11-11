@@ -16,7 +16,7 @@ const log = getServerLog("auth");
 
 export const githubLoginEnabled = !!process.env.GITHUB_CLIENT_ID;
 export const credentialsLoginEnabled =
-  isTruish(process.env.ENABLE_CREDETIALS_LOGIN) || !!(process.env.SEED_USER_EMAIL && process.env.SEED_USER_PASSWORD);
+  isTruish(process.env.ENABLE_CREDENTIALS_LOGIN) || !!(process.env.SEED_USER_EMAIL && process.env.SEED_USER_PASSWORD);
 
 const githubProvider = githubLoginEnabled
   ? GithubProvider({

@@ -2,7 +2,7 @@ import { createRoute } from "../../../lib/api";
 import { z } from "zod";
 import { rpc } from "juava";
 import { db } from "../../../lib/server/db";
-import { jitsuSources } from "./index";
+import { externalSources, jitsuSources } from "./index";
 
 export default createRoute()
   .GET({
@@ -19,21 +19,28 @@ export default createRoute()
       throw new Error(`Only airbyte is supported, not ${type}`);
     }
     let error: any = null;
-    let mitVersions: string[] | undefined = undefined;
-    if (!jitsuSources[packageId]) {
-      const connectorPackage = await db
-        .prisma()
-        .connectorPackage.findFirst({ where: { packageType: type, packageId } });
-      mitVersions = (connectorPackage?.meta as any).mitVersions;
+    let isMit = false;
+    const connectorPackage = await db.prisma().connectorPackage.findFirst({ where: { packageType: type, packageId } });
+    if (connectorPackage) {
+      isMit = !!(connectorPackage?.meta as any).mitVersions?.length;
+    } else if (jitsuSources[packageId]) {
+      isMit = true;
+    } else if (externalSources[packageId]) {
+      isMit = externalSources[packageId].meta.license === "MIT";
+      if (Array.isArray(externalSources[packageId].versions)) {
+        return {
+          versions: externalSources[packageId].versions.map(v => ({ name: v, isRelease: true, isMit })),
+        };
+      }
     }
     for (let i = 0; i < 3; i++) {
       // endpoint prone to 500 errors
       try {
-        const tags = (await rpc(`https://hub.docker.com/v2/repositories/${packageId}/tags?page_size=100`)).results.map(
+        const tags = (await rpc(`https://hub.docker.com/v2/repositories/${packageId}/tags?page_size=200`)).results.map(
           ({ name }) => ({
             name,
             isRelease: name.match(/^[0-9.]+$/) !== null,
-            isMit: !mitVersions || mitVersions.includes(name),
+            isMit,
           })
         );
         return {
