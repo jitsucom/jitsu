@@ -8,7 +8,7 @@ import {
   EnrichedConnectionConfig,
   EntityStore,
   FunctionConfig,
-  Workspace,
+  WorkspaceWithProfiles,
 } from "@jitsu/core-functions";
 import { IngestMessage } from "@jitsu/protocols/async-request";
 import { isEqual } from "lodash";
@@ -190,12 +190,12 @@ const connectionStore: EntityStore<EnrichedConnectionConfig> = {
   lastModified: new Date(),
 };
 
-const workspaceStore: EntityStore<Workspace> = {
+const workspaceStore: EntityStore<WorkspaceWithProfiles> = {
   getObject: (id: string) => {
     return undefined;
   },
   getAll: () => {
-    return {} as Record<string, Workspace>;
+    return {} as Record<string, WorkspaceWithProfiles>;
   },
   toJSON: () => "",
   enabled: true,

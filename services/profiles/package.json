@@ -17,7 +17,7 @@
     "profiles:profile": "dotenv -e ../../.env.local -- nodemon --watch \"src/**\" --ext \"ts,json,tsx\" --exec \"ts-node-dev --inspect -- src/index.ts\""
   },
   "dependencies": {
-    "mongodb": "^6.9.0",
+    "mongodb": "^6.10.0",
     "isolated-vm": "5.0.1",
     "@jitsu/core-functions": "workspace:*",
     "@jitsu/functions-lib": "workspace:*",
@@ -57,11 +57,11 @@
     "node-loader": "^2.0.0",
     "nodemon": "^3.1.4",
     "ts-jest": "^29.2.3",
-    "ts-loader": "^9.4.2",
+    "ts-loader": "^9.5.1",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.6.3",
-    "webpack": "^5.93.0",
+    "webpack": "^5.95.0",
     "webpack-cli": "^5.1.4"
   }
 }

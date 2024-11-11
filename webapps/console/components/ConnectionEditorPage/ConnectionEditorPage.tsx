@@ -6,10 +6,7 @@ import { SomeZodObject, z } from "zod";
 import { ConfigurationObjectLinkDbModel } from "../../prisma/schema";
 import { useRouter } from "next/router";
 import { assertTrue, getLog, requireDefined } from "juava";
-import { Disable } from "../Disable/Disable";
-import { Button, Input, InputNumber, Radio, Select, Switch, Tooltip } from "antd";
-import { WLink } from "../Workspace/WLink";
-import { FaExternalLinkAlt } from "react-icons/fa";
+import { Button, Input, InputNumber, Radio, Switch, Tooltip } from "antd";
 import { BaseBulkerConnectionOptions, getCoreDestinationType } from "../../lib/schema/destinations";
 import { confirmOp, feedbackError, feedbackSuccess } from "../../lib/ui";
 import FieldListEditorLayout, { EditorItem } from "../FieldListEditorLayout/FieldListEditorLayout";
@@ -17,83 +14,17 @@ import { DataLayoutType } from "@jitsu/protocols/analytics";
 import { ChevronLeft } from "lucide-react";
 import styles from "./ConnectionEditorPage.module.css";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
-import { StreamTitle } from "../../pages/[workspaceId]/streams";
-import { DestinationTitle } from "../../pages/[workspaceId]/destinations";
 import { Htmlizer } from "../Htmlizer/Htmlizer";
 import { FunctionsSelector } from "../FunctionsSelector/FunctionsSelector";
 import { Expandable } from "../Expandable/Expandable";
 import { useStoreReload } from "../../lib/store";
+import { DestinationSelector } from "../Selectors/DestinationSelector";
+import { SourceSelector } from "../Selectors/SourceSelector";
+import { FunctionVariables } from "../FunctionsDebugger/FunctionVariables";
 
 const log = getLog("ConnectionEditorPage");
 
-type SelectorProps<T> = {
-  enabled: boolean;
-  selected: string;
-  items: T[];
-  onSelect: (value: string) => void;
-};
-
 type ConnectionOptionsType = Partial<BaseBulkerConnectionOptions> & { [key: string]: any };
-
-function DestinationSelector(props: SelectorProps<DestinationConfig>) {
-  return (
-    <div className="flex items-center justify-between">
-      <Disable disabled={!props.enabled} disabledReason="Create a new connection if you want to change the source">
-        <Select dropdownMatchSelectWidth={false} className="w-80" value={props.selected} onSelect={props.onSelect}>
-          {props.items.map(destination => {
-            const destinationType = getCoreDestinationType(destination.destinationType);
-            return (
-              <Select.Option dropdownMatchSelectWidth={false} value={destination.id} key={destination.id}>
-                <DestinationTitle
-                  destination={destination}
-                  size={"small"}
-                  title={(d, t) => {
-                    return (
-                      <div className={"flex flex-row items-center"}>
-                        <div className="whitespace-nowrap">{destination.name}</div>
-                        <div className="text-xxs text-gray-500 ml-1">({destinationType.title})</div>
-                      </div>
-                    );
-                  }}
-                />
-              </Select.Option>
-            );
-          })}
-        </Select>
-      </Disable>
-      {!props.enabled && (
-        <div className="text-lg px-6">
-          <WLink href={`/destinations?id=${props.selected}`}>
-            <FaExternalLinkAlt />
-          </WLink>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function SourceSelector(props: SelectorProps<StreamConfig>) {
-  return (
-    <div className="flex items-center justify-between">
-      <Disable disabled={!props.enabled} disabledReason="Create a new connection if you want to change the source">
-        <Select dropdownMatchSelectWidth={false} className="w-80" value={props.selected} onSelect={props.onSelect}>
-          {props.items.map(stream => (
-            <Select.Option key={stream.id} value={stream.id}>
-              <StreamTitle stream={stream} size={"small"} />
-            </Select.Option>
-          ))}
-        </Select>
-      </Disable>
-      {!props.enabled && (
-        <div className="text-lg px-6">
-          <WLink href={`/streams?id=${props.selected}`}>
-            <FaExternalLinkAlt />
-          </WLink>
-        </div>
-      )}
-    </div>
-  );
-}
 
 type EditorProps<T> = {
   value?: T;
@@ -341,7 +272,16 @@ function ConnectionEditor({
     {
       name: existingLink ? "Select Source" : "Source",
       documentation: "Select destination to connect",
-      component: <SourceSelector items={streams} selected={srcId} enabled={!existingLink} onSelect={setSrcId} />,
+      component: (
+        <SourceSelector
+          items={streams}
+          selected={srcId}
+          showLink={true}
+          enabled={!existingLink}
+          disabledReason={"Create a new connection if you want to change the source"}
+          onSelect={setSrcId}
+        />
+      ),
     },
     {
       name: existingLink ? "Select Destination" : "Destination",
@@ -353,6 +293,8 @@ function ConnectionEditor({
           items={destinations}
           selected={dstId}
           enabled={!existingLink}
+          disabledReason={"Create a new connection if you want to change the source"}
+          showLink={true}
           onSelect={id => {
             setDstId(id);
             updateConnectionOptions(id);
@@ -627,6 +569,35 @@ function ConnectionEditor({
       ),
     });
   }
+  if (hasZodFields(connectionOptionsZodType, "clickhouseSettings") && destinationType.id === "clickhouse") {
+    configItems.push({
+      group: "Advanced",
+      name: "Clickhouse Settings",
+      documentation: (
+        <>
+          <a
+            target={"_blank"}
+            rel={"noreferrer noopener"}
+            href={"https://clickhouse.com/docs/en/operations/settings/settings"}
+          >
+            Clickhouse Settings
+          </a>{" "}
+          are used to configure Clickhouse connection. Format is <code>key=value</code> separated by new line. This
+          settings will be merged with <b>Parameters</b> configured in destination.
+        </>
+      ),
+      component: (
+        <TextEditor
+          className="max-w-xs"
+          rows={2}
+          value={connectionOptions.clickhouseSettings}
+          onChange={clickhouseSettings => {
+            updateOptions({ clickhouseSettings });
+          }}
+        />
+      ),
+    });
+  }
   if (hasZodFields(connectionOptionsZodType, "events")) {
     configItems.push({
       documentation: (
@@ -708,7 +679,6 @@ function ConnectionEditor({
         <FieldListEditorLayout
           groups={{
             Advanced: { expandable: true },
-            Functions: { expandable: true },
           }}
           items={configItems}
         />
@@ -725,8 +695,30 @@ function ConnectionEditor({
             destination={destinations.find(d => d.id === dstId) || destinations[0]}
             selectedFunctions={connectionOptions.functions}
             onChange={enabledFunctions => {
-              updateOptions({ functions: enabledFunctions.map(f => ({ functionId: `udf.${f.id}` })) });
+              const nonUdfs = (connectionOptions.functions ?? []).filter(f => !f.functionId.startsWith("udf."));
+              const enabledF = enabledFunctions.map(f => ({ functionId: `udf.${f.id}` }));
+              if (nonUdfs.length > 0) {
+                enabledF.push(...nonUdfs);
+              }
+              updateOptions({ functions: enabledF });
             }}
+          />
+        </Expandable>
+        <Expandable
+          initiallyExpanded={!!connectionOptions.functions?.length}
+          title={<h2 className="font-bold my-4 text-xl text-textDark">Environment Variables</h2>}
+          hideArrow={false}
+          caretSize="1.5em"
+          contentLeftPadding={false}
+        >
+          <div className={"text-textLight px-1 mb-2"}>
+            Provided variables can be used inside functions via <code>process.env</code> object. For example:{" "}
+            <code>process.env.DEBUG</code>
+          </div>
+          <FunctionVariables
+            className={"!px-0"}
+            value={connectionOptions.functionsEnv || {}}
+            onChange={functionsEnv => updateOptions({ functionsEnv })}
           />
         </Expandable>
       </div>

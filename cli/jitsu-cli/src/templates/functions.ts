@@ -50,7 +50,7 @@ export const config = {
     description: ""
 };
 
-const helloWorldFunction: JitsuFunction<AnalyticsServerEvent, any> = async (event, { log, fetch, props, store, geo, ...meta }) => {
+const helloWorldFunction: JitsuFunction<AnalyticsServerEvent, any> = async (event, { log, fetch, store, geo, ...meta }) => {
     //output "Hello World!" to logs and return unchanged event
     log.info("Hello World!");
     return event
@@ -73,21 +73,20 @@ let profileCode = ({}: TemplateVars) => {
 import { ProfileFunction } from "@jitsu/protocols/profile";
 
 export const config = {
+    profileBuilderId: "", // Required: id of Profile Builder where this function will be used. Can be found in the Profile Builder Settings UI
     slug: "profile-example.ts", //id (uniq per workspace) used to identify function in Jitsu
-    profileBuilderId: "", // id of Profile Builder object where this function will be used
     description: ""
 };
 
-const profileExample: ProfileFunction = async ({ context, events, user}) => {
+const profileExample: ProfileFunction = async (events, user, context) => {
   context.log.info("Profile func: " + user.id)
   const profile = {} as any
   for (const event of events) {
      profile.lastMessageDate = Math.max(new Date(event.timestamp).getTime(),profile.lastMessageDate??0)
   }
-  profile.traits = user.traits
   profile.anonId = user.anonymousId
   return {
-    properties: profile
+    traits: profile
   }
 };
 

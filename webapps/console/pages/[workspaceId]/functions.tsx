@@ -14,13 +14,9 @@ const log = getLog("functions");
 
 const Functions: React.FC<any> = () => {
   const router = useRouter();
+  const editor = router.pathname === "/[workspaceId]/functions" && typeof router.query["id"] !== "undefined";
   return (
-    <WorkspacePageLayout
-      className={`${
-        router.pathname === "/[workspaceId]/functions" && typeof router.query["id"] !== "undefined" ? "h-screen" : ""
-      }`}
-      fullscreen={router.pathname === "/[workspaceId]/functions" && typeof router.query["id"] !== "undefined"}
-    >
+    <WorkspacePageLayout contentClassName={editor ? "!py-6" : ""} screen={editor}>
       <FunctionsList />
     </WorkspacePageLayout>
   );
@@ -46,6 +42,7 @@ const FunctionsList: React.FC<{}> = () => {
   const config: ConfigEditorProps<FunctionConfig> = {
     editorComponent: () => FunctionsDebugger,
     objectType: FunctionConfig,
+    filter: (f: FunctionConfig) => !f.kind || f.kind !== "profile",
     fields: {
       type: { constant: "function" },
       workspaceId: { constant: workspace.id },

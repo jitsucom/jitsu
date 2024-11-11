@@ -1,7 +1,6 @@
-import { PropsWithChildren, ReactNode, useCallback, useEffect, useState } from "react";
+import { PropsWithChildren, ReactNode, useCallback, useEffect } from "react";
 import { notification } from "antd";
 import { NextRouter, useRouter } from "next/router";
-import { assertTrue } from "juava";
 import { ErrorDetails } from "../components/GlobalError/GlobalError";
 import { getAntdModal } from "./modal";
 
@@ -84,28 +83,6 @@ export const serialization = {
   json: { parser: (val: string) => JSON.parse(val), serializer: (val: any) => JSON.stringify(val) },
   bool: { parser: (val: string) => val === "true", serializer: (val: boolean) => val.toString() },
 };
-
-export function useURLPersistedState<T = any>(
-  paramName: string,
-  opts: Serialization<T> & { defaultVal?: T; type?: Serialization<T> } = { type: serialization.json }
-): [T, (val: T) => Promise<boolean>] {
-  const router = useRouter();
-  const parser = opts.parser || opts.type?.parser || serialization.json.parser;
-  const serializer = opts?.serializer || opts.type?.serializer || serialization.json.serializer;
-  const paramValue = router.query[paramName];
-  assertTrue(typeof paramValue !== "object", `Invalid param '${paramName}' type: ${paramValue}`);
-  const [value, setValue] = useState(paramValue ? parser(paramValue as string) : opts?.defaultVal);
-
-  const setPersistedValue = val => {
-    setValue(val);
-    return router.replace({
-      pathname: router.pathname,
-      query: { ...(router.query || {}), [paramName]: serializer(val) },
-    });
-  };
-
-  return [value, setPersistedValue];
-}
 
 export function feedbackSuccess(message: ReactNode) {
   notification.success({

@@ -1,7 +1,7 @@
 ## Install
 
 ```bash
-npm install --save @jitsu/jitsu-react
+npm install --save @jitsu/jitsu-js
 ```
 
 ## Usage

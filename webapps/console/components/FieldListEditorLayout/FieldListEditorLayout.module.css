@@ -1,9 +1,20 @@
+.bordered {
+}
+
+.bordered .editorItemTable {
+  @apply border border-textDisabled rounded-lg overflow-hidden;
+}
+
+.bordered .editorItemRow {
+  @apply border-t border-textDisabled border-collapse;
+}
+
 .editorItemTable {
-  @apply border-textLight border border-textDisabled rounded-lg overflow-hidden;
+  @apply overflow-hidden;
 }
 
 .editorItemRow {
-  @apply border-t border-textDisabled border-collapse flex;
+  @apply flex;
 }
 
 .editorItemRow .name {

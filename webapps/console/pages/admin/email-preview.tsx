@@ -1,11 +1,11 @@
 import { get, useApi } from "../../lib/useApi";
 import { useState } from "react";
-import { useURLPersistedState } from "../../lib/ui";
 import { QueryResponse } from "../../components/QueryResponse/QueryResponse";
 import { Select } from "antd";
 import { Input } from "antd";
 import { AsyncButton } from "../../components/AsyncButton/AsyncButton";
 import { branding } from "../../lib/branding";
+import { useQueryStringState } from "../../lib/useQueryStringState";
 
 function RenderTemplate({ params, template }: { params: string; template: string }) {
   const [renderHtml, setRenderedHtml] = useState<string | undefined>("");
@@ -50,13 +50,13 @@ function RenderTemplate({ params, template }: { params: string; template: string
 
 const EmailPreviewPage = () => {
   const apiRes = useApi<{ templates: string[] }>("/api/admin/email-templates");
-  const [template, setTemplate] = useURLPersistedState<string>("template", {
-    defaultVal: "",
+  const [template, setTemplate] = useQueryStringState<string>("template", {
+    defaultValue: "",
     serializer: val => val || "",
     parser: val => val || "",
   });
-  const [params, setParams] = useURLPersistedState<string>("props", {
-    defaultVal: "{}",
+  const [params, setParams] = useQueryStringState<string>("props", {
+    defaultValue: "{}",
     serializer: val => val || "",
     parser: val => val || "{}",
   });

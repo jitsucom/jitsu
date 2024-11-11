@@ -1,5 +1,6 @@
 .widthControl {
   max-width: 1500px;
+  width: 100%;
   min-width: 1024px;
 }
 
@@ -9,6 +10,16 @@
 }
 
 .topMenu :global li .ant-menu-submenu-title {
+}
+
+.topMenu :global .ant-menu-item {
+  top: 0 !important;
+  margin-top: 0 !important;
+}
+
+.topMenu :global .ant-menu-submenu {
+  top: 0 !important;
+  margin-top: 0 !important;
 }
 
 .topMenu :global li.ant-menu-submenu-selected .ant-menu-submenu-title {

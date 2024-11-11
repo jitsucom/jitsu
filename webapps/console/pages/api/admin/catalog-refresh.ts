@@ -90,7 +90,6 @@ async function processSrc(src: string, initial?: boolean) {
     logger = log.atDebug();
   }
   const mitVersions = new Set<string>();
-  const otherVersions: Record<string, Set<string>> = {};
   const metadataUrl = `https://raw.githubusercontent.com/${repo}/master/${basePath}/${src}/metadata.yaml`;
   const res = await fetch(metadataUrl);
   let packageId: string | undefined = undefined;
@@ -101,41 +100,8 @@ async function processSrc(src: string, initial?: boolean) {
     metadata = yaml.load(await res.text(), { json: true });
 
     const license = metadata.data?.license?.toLowerCase();
-
-    if (!license || license.toLowerCase() !== "mit") {
-      const pageSize = 100; // max supported by github API
-      const commitHistory = `https://api.github.com/repos/${repo}/commits?path=/${basePath}/${src}/metadata.yaml&per_page=${pageSize}`;
-      logger.log(`Source ${src} has ${license} license. Looking for MIT versions at ${commitHistory}`);
-      for (let page = 1; page <= 10; page++) {
-        const commits = await rpc(commitHistory + "&page=" + page);
-        logger.log(`Source ${src} found ${commits.length} commits (page ${page})`);
-        for (const { sha } of commits) {
-          const commitFile = `https://raw.githubusercontent.com/${repo}/${sha}/${basePath}/${src}/metadata.yaml`;
-          const oldYml = await fetch(commitFile);
-          if (oldYml.ok) {
-            const oldMeta = yaml.load(await oldYml.text(), { json: true });
-            const license = oldMeta.data?.license?.toLowerCase() || "unknown-license";
-            if (license === "mit") {
-              const dockerVersion = oldMeta.data?.dockerImageTag;
-              if (!dockerVersion) {
-                logger.log(`MIT version of ${src} doesn't have dockerImageTag: ${commitFile}`);
-              } else {
-                logger.log(`Found MIT version of ${src} --> ${dockerVersion}`);
-                mitVersions.add(dockerVersion);
-              }
-            } else {
-              otherVersions[license] = otherVersions[license] || new Set<string>();
-              otherVersions[license].add(license);
-            }
-          } else {
-            log.atWarn().log(`Failed to load ${commitFile}`);
-          }
-        }
-        if (commits.length < pageSize) {
-          // no more commits
-          break;
-        }
-      }
+    if (license?.includes("mit")) {
+      mitVersions.add(metadata.data.dockerImageTag);
     }
 
     packageId = metadata.data?.dockerRepository || `airbyte/${src}`;
@@ -160,7 +126,6 @@ async function processSrc(src: string, initial?: boolean) {
     meta: {
       ...(metadata?.data || {}),
       ...([...mitVersions].length > 0 ? { mitVersions: [...mitVersions] } : {}),
-      ...(Object.keys(otherVersions).length > 0 ? { otherVersions } : {}),
     },
     logoSvg: icon,
   };

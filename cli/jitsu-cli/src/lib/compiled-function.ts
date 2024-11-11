@@ -7,6 +7,7 @@ export type CompiledFunction = {
   func: JitsuFunction;
   meta: {
     slug: string;
+    id?: string;
     name?: string;
     description?: string;
   };
@@ -47,16 +48,29 @@ export async function getFunctionFromFilePath(
   assertTrue(typeof exports.default === "function", `Default export from ${filePath} is not a function`);
 
   let name = exports.config?.name || exports.config?.slug || getSlug(filePath);
+  let id = exports.config?.id;
   if (kind === "profile") {
     const profileBuilderId = exports.config?.profileBuilderId;
     const profileBuilder = profileBuilders.find(pb => pb.id === profileBuilderId);
-    name = `${profileBuilder.name} profile function`;
+    if (!profileBuilder) {
+      throw new Error(
+        `Cannot find profile builder with id ${profileBuilderId} for profile function ${filePath}. Please setup Profile Builder in UI first.`
+      );
+    }
+    name = name || `${profileBuilder.name} function`;
+    id = id || profileBuilder.functions[0]?.functionId;
+    if (!id) {
+      throw new Error(
+        `Cannot find function id for profile function ${filePath}. Please setup Profile Builder in UI first.`
+      );
+    }
   }
 
   return {
     func: exports.default,
     meta: {
       slug: exports.config?.slug || getSlug(filePath),
+      id: id,
       name: name,
       description: exports.config?.description,
     },

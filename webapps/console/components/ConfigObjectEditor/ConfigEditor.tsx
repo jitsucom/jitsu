@@ -10,7 +10,7 @@ import zodToJsonSchema from "zod-to-json-schema";
 
 import styles from "./ConfigEditor.module.css";
 
-import validator from "@rjsf/validator-ajv6";
+import validator from "@rjsf/validator-ajv8";
 import { Form } from "@rjsf/antd";
 
 import {

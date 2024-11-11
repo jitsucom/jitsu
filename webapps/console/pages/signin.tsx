@@ -44,7 +44,7 @@ function CredentialsForm({}) {
           required
           type="email"
           name="username"
-          value={lastUsedLogin}
+          defaultValue={lastUsedLogin}
           onChange={e => {
             if (e.target.value) {
               localStorage.setItem("last-used-login-email", e.target.value);

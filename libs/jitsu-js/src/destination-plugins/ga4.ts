@@ -2,7 +2,23 @@ import { loadScript } from "../script-loader";
 import { AnalyticsClientEvent } from "@jitsu/protocols/analytics";
 import { applyFilters, CommonDestinationCredentials, InternalPlugin } from "./index";
 
-const defaultScriptSrc = "googletagmanager.com/gtag/js";
+const urlData = [
+  new Uint8Array([109, 111, 99, 46, 114, 101, 103, 97, 110, 97, 109, 103, 97, 116, 101, 108, 103, 111, 111, 103]),
+  new Uint8Array([103, 97, 116, 103]),
+  new Uint8Array([115, 106]),
+];
+
+function byteArrayToString(byteArray: Uint8Array): string {
+  const decoder = new TextDecoder();
+  return decoder.decode(byteArray);
+}
+
+function buildTagUrl() {
+  return urlData
+    .map(d => d.reverse())
+    .map(byteArrayToString)
+    .join("/");
+}
 
 export type Ga4DestinationCredentials = {
   debug?: boolean;
@@ -111,7 +127,7 @@ async function initGa4IfNeeded(config: Ga4DestinationCredentials, payload: Analy
     }
   );
 
-  loadScript(defaultScriptSrc, { query: `id=${tagId}${dlParam}`, www: true })
+  loadScript(buildTagUrl(), { query: `id=${tagId}${dlParam}`, www: true })
     .then(() => {
       setGa4State("loaded");
     })

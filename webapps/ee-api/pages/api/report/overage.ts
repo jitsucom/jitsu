@@ -7,6 +7,7 @@ import {
   getAvailableProducts,
   getInvoiceEndDate,
   getInvoiceStartDate,
+  getSubscriptionInvoiceLine,
   listAllInvoices,
   stripeDataTable,
   stripeLink,
@@ -117,6 +118,10 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
         log.atWarn().log(`No lines found for invoice ${invoice.id}`);
         continue;
       }
+      if (!getSubscriptionInvoiceLine(invoice)) {
+        log.atInfo().log(`Not a subscription invoice - skipping: ${stripeLink("invoices", invoice.id)}`);
+        continue;
+      }
       const start = getInvoiceStartDate(invoice);
       const end = getInvoiceEndDate(invoice);
       const product = invoice.lines.data
@@ -127,16 +132,37 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
         .filter(l => !!l.subscription)
         .map(l => l.subscription)
         .join("");
+      let planData: any = undefined;
       if (subscriptionId === "") {
-        log.atWarn().log(`No subscription found for invoice ${stripeLink("invoices", invoice.id)}, skipping`);
-        continue;
+        //might be an invoice from a customer with a manual billing, check if the custom settings present
+        //for this customer
+        planData = obj?.customSettings;
+        //if no planData.overagePricePer100k, it means that this customer is not on a custom plan
+        //and it's an overage invoice
+        if (!planData || !planData.overagePricePer100k) {
+          log
+            .atWarn()
+            .log(
+              `No subscription data (nor manual, neither automatic) found for invoice ${stripeLink(
+                "invoices",
+                invoice.id
+              )}, skipping`
+            );
+          continue;
+        }
+      } else {
+        const plan = availableProducts.find(p => p.id === product);
+        if (!plan) {
+          log.atWarn().log(`No plan found for ${product} from invoice ${stripeLink("invoices", invoice.id)}`);
+          continue;
+        }
+        if (!plan?.metadata?.plan_data) {
+          log.atWarn().log(`No plan data found for ${product} from invoice ${stripeLink("invoices", invoice.id)}`);
+          continue;
+        }
+        planData = JSON.parse(plan.metadata.plan_data);
       }
-      const plan = availableProducts.find(p => p.id === product);
-      if (!plan) {
-        log.atWarn().log(`No plan found for ${product} from invoice ${stripeLink("invoices", invoice.id)}`);
-        continue;
-      }
-      const { overagePricePer100k, destinationEvensPerMonth, dailyActiveSyncs } = JSON.parse(plan.metadata.plan_data);
+      const { overagePricePer100k, destinationEvensPerMonth, dailyActiveSyncs } = planData;
       const overagePricePerEvent = overagePricePer100k / 100_000;
       const startTimestamp = dayjs(start).utc().startOf("day").toDate().getTime();
       const endTimestamp = dayjs(end).utc().startOf("day").add(-1, "millisecond").toDate().getTime();

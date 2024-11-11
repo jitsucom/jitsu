@@ -191,10 +191,20 @@ async function deployFunction(
       process.exit(1);
     } else {
       const existing = (await res.json()) as any;
-      existingFunctionId = existing.objects.find(f => f.slug === meta.slug)?.id;
+      existingFunctionId = existing.objects.find(f => f.slug === meta.slug || f.id === meta.id)?.id;
     }
   }
-
+  let functionPayload = {};
+  if (kind === "profile") {
+    functionPayload = {
+      draft: code,
+      kind: "profile",
+    };
+  } else {
+    functionPayload = {
+      code,
+    };
+  }
   if (!existingFunctionId) {
     const id = cuid();
     const res = await fetch(`${host}/api/${workspace.id}/config/function`, {
@@ -211,7 +221,9 @@ async function deployFunction(
         description: meta.description,
         version: packageJson.version,
         name: meta.name,
+        // we always add code to the initial function creation
         code,
+        ...functionPayload,
       }),
     });
     if (!res.ok) {
@@ -236,7 +248,7 @@ async function deployFunction(
         description: meta.description,
         version: packageJson.version,
         name: meta.name,
-        code,
+        ...functionPayload,
       }),
     });
     if (!res.ok) {

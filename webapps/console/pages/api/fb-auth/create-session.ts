@@ -2,7 +2,7 @@ import { Api, inferUrl, nextJsApiHandler } from "../../../lib/api";
 import { z } from "zod";
 import { createSessionCookie, firebaseAuthCookieName } from "../../../lib/server/firebase-server";
 import { ApiError } from "../../../lib/shared/errors";
-import { CookieSerializeOptions, serialize } from "cookie";
+import { SerializeOptions, serialize } from "cookie";
 import { getAppEndpoint } from "../../../lib/domains";
 import { getRequestHost } from "../../../lib/server/origin";
 import { getServerLog } from "../../../lib/server/log";
@@ -34,7 +34,7 @@ export const api: Api = {
       //we need to split() since the domain might contain a port, not good for cookies
       const domain = getRequestHost(req).split(":")[0];
       getLog().atDebug().log(`Setting firebase auth cookie for '${domain}': ${cookie}`);
-      const options: CookieSerializeOptions = {
+      const options: SerializeOptions = {
         maxAge: expiresIn,
         httpOnly: true,
         secure,

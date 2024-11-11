@@ -2,8 +2,9 @@ import { Api, nextJsApiHandler } from "../../../../lib/api";
 import * as emailTemplates from "../../../../lib/server/templates";
 import { assertDefined, assertTrue } from "juava";
 import { db } from "../../../../lib/server/db";
-import { render } from "mjml-react";
+import mjml2html from "mjml";
 import { z } from "zod";
+import { renderToString } from "react-dom/server";
 
 export const api: Api = {
   POST: {
@@ -20,9 +21,11 @@ export const api: Api = {
       const userProfile = await db.prisma().userProfile.findFirst({ where: { id: user.internalId } });
       assertDefined(userProfile, "User profile not found");
       assertTrue(userProfile.admin, "Not enough permissions");
-
       const EmailComponent = emailTemplates[query.template];
-      const renderedEmail = render(<EmailComponent {...(body.props || {})} />, { validationLevel: "soft" });
+      const str = renderToString(<EmailComponent {...(body.props || {})} />);
+      const renderedEmail = await mjml2html(str, {
+        validationLevel: "soft",
+      });
       return {
         html: renderedEmail.html,
         allProps: renderedEmail,

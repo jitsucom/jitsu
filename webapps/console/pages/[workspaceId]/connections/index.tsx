@@ -15,7 +15,7 @@ import { useRouter } from "next/router";
 import { jsonSerializationBase64, useQueryStringState } from "../../../lib/useQueryStringState";
 import { TableProps } from "antd/es/table/InternalTable";
 import { ColumnType, SortOrder } from "antd/es/table/interface";
-import { Activity, Edit3, Inbox, UserIcon, XCircle } from "lucide-react";
+import { Activity, Edit3, Inbox, UserRoundPen, XCircle } from "lucide-react";
 import { PlusOutlined } from "@ant-design/icons";
 import { WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
 import { DestinationTitle } from "../destinations";
@@ -77,19 +77,23 @@ export const ConnectionTitle: React.FC<{
 
 export const ProfileBuilderTitle: React.FC<{
   profileBuilder: any;
-  destination: DestinationConfig;
+  destination?: DestinationConfig;
   showLink?: boolean;
 }> = ({ profileBuilder, destination, showLink = false }) => {
   return (
     <div className={"flex flex-row whitespace-nowrap gap-1.5"}>
       <ObjectTitle
-        icon={<UserIcon className={"w-4 h-4"} />}
+        icon={<UserRoundPen color={"black"} className={"w-4 h-4"} />}
         size={"small"}
         // href={stream && link ? `/${stream.workspaceId}/streams?id=${stream?.id}` : undefined}
         title={profileBuilder ? profileBuilder.name : "Unknown stream"}
       />
-      {"→"}
-      <DestinationTitle size={"small"} destination={destination} />
+      {destination && (
+        <>
+          {"→"}
+          <DestinationTitle size={"small"} destination={destination} />
+        </>
+      )}
       {/*{showLink && (*/}
       {/*  <WJitsuButton*/}
       {/*    href={`/connection/edit?id=${connectionId}`}*/}

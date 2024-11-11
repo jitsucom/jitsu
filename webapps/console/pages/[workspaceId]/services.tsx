@@ -6,7 +6,7 @@ import { useRouter } from "next/router";
 import { getLog, hash as jhash, randomId, rpc } from "juava";
 import React from "react";
 import { Modal } from "antd";
-import { serialization, useURLPersistedState } from "../../lib/ui";
+import { serialization } from "../../lib/ui";
 import { getServiceIcon, ServicesCatalog } from "../../components/ServicesCatalog/ServicesCatalog";
 import { SourceType } from "../api/sources";
 import hash from "stable-hash";
@@ -17,6 +17,7 @@ import omit from "lodash/omit";
 import { AlertTriangle, Check, Zap } from "lucide-react";
 import Link from "next/link";
 import { useConfigObjectLinks } from "../../lib/store";
+import { useQueryStringState } from "../../lib/useQueryStringState";
 
 const log = getLog("services");
 
@@ -80,9 +81,9 @@ const ConnectionsHint: React.FC<{ connections: any[]; service: ServiceConfig }> 
 const ServicesList: React.FC<{}> = () => {
   const workspace = useWorkspace();
 
-  const [showCatalog, setShowCatalog] = useURLPersistedState<boolean>("showCatalog", {
-    defaultVal: false,
-    type: serialization.bool,
+  const [showCatalog, setShowCatalog] = useQueryStringState<boolean>("showCatalog", {
+    defaultValue: false,
+    ...serialization.bool,
   });
   const router = useRouter();
   const appconfig = useAppConfig();

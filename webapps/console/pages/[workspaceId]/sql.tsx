@@ -94,8 +94,8 @@ const DataViewPage: React.FC<any> = () => {
     );
   }
   return (
-    <WorkspacePageLayout className={"h-screen"} fullscreen={true}>
-      <div className="flex flex-col h-full pt-12">
+    <WorkspacePageLayout screen contentClassName={"!py-6"}>
+      <div className="flex flex-col h-full">
         <div className="w-full flex-auto overflow-auto">
           <SQLViewer destinationId={destinationId} />
         </div>

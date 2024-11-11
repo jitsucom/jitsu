@@ -1,11 +1,4 @@
-import {
-  UDFTestRun,
-  UDFTestRequest,
-  mongodb,
-  defaultTTL,
-  createMongoStore,
-  createTtlStore,
-} from "@jitsu/core-functions";
+import { UDFTestRun, UDFTestRequest, mongodb, createMongoStore } from "@jitsu/core-functions";
 import { getLog } from "juava";
 
 const log = getLog("udf_run");

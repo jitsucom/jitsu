@@ -8,7 +8,6 @@ import { ErrorCard } from "../GlobalError/GlobalError";
 import { Center } from "../Center/Center";
 import { HtmlManual } from "./Html";
 import { ReactManual } from "./React";
-import { useURLPersistedState } from "../../lib/ui";
 import { ButtonLabel } from "../ButtonLabel/ButtonLabel";
 import { FiMonitor } from "react-icons/fi";
 import { FaGlobe, FaNodeJs, FaReact } from "react-icons/fa";
@@ -19,6 +18,7 @@ import { ReactNode, useState } from "react";
 import { HiSelector } from "react-icons/hi";
 import { HTTPManual } from "./HTTPApi";
 import { Plug } from "lucide-react";
+import { useQueryStringState } from "../../lib/useQueryStringState";
 
 function SegmentLogo() {
   return (
@@ -95,8 +95,8 @@ export const TrackingIntegrationDocumentation: React.FC<{ streamId: string; onCa
     isLoading,
     error,
   } = useQuery(["stream", streamId], () => configApi.get(streamId), { cacheTime: 0, retry: false });
-  const [framework, setFramework] = useURLPersistedState("framework", {
-    defaultVal: "html",
+  const [framework, setFramework] = useQueryStringState("framework", {
+    defaultValue: "html",
     parser: v => v,
     serializer: v => v,
   });

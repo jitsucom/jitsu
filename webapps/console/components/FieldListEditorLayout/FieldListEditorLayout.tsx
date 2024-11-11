@@ -17,6 +17,7 @@ export type EditorItem = {
 
 export type FieldListEditorLayoutProps = {
   items: (EditorItem | undefined | false)[];
+  noBorder?: boolean;
   groups?: Record<
     string,
     | {
@@ -33,11 +34,15 @@ export type FieldListEditorLayoutProps = {
 const FieldListEditorLayout: React.FC<FieldListEditorLayoutProps> = props => {
   const items = props.items.filter(item => !!item) as EditorItem[];
   const groups = new Set(items.map(i => i.group));
-  if (groups.size === 0) {
-    return <EditorItemTable items={items} />;
+  if (groups.size === 0 || (groups.size === 1 && groups.has(undefined))) {
+    return (
+      <div className={props.noBorder ? "" : styles.bordered}>
+        <EditorItemTable items={items} />
+      </div>
+    );
   } else {
     return (
-      <div className="w-full h-full flex flex-col">
+      <div className={`w-full h-full flex flex-col ${props.noBorder ? "" : styles.bordered}`}>
         {[...groups].map(group => {
           const grObj = props?.groups?.[group || ""] || {};
           const expandable = grObj.expandable;

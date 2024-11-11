@@ -294,14 +294,14 @@ model task_log {
 model ProfileBuilder {
   id                             String                   @id @default(cuid())
   name                           String
-  deleted   Boolean? @default(false)
+  deleted                        Boolean?                 @default(false)
   createdAt                      DateTime                 @default(now()) /// @zod.custom(z.coerce.date())
   updatedAt                      DateTime                 @default(now()) @updatedAt /// @zod.custom(z.coerce.date())
   workspaceId                    String
   workspace                      Workspace                @relation(fields: [workspaceId], references: [id])
   intermediateStorageCredentials Json
-  destinationId                  String
-  destination                    ConfigurationObject      @relation(fields: [destinationId], references: [id])
+  destinationId                  String?
+  destination                    ConfigurationObject?     @relation(fields: [destinationId], references: [id])
   connectionOptions              Json?
   functions                      ProfileBuilderFunction[]
   version                        Int                      @default(0)
@@ -324,7 +324,7 @@ model ProfileBuilderState {
   totalInstances        Int
   startedAt             DateTime
   updatedAt             DateTime
-  lastTimestamp         DateTime
+  lastTimestamp         DateTime?
   processedUsers        Int
   totalUsers            Int
   errorUsers            Int
