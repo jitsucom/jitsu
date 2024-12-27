@@ -22,6 +22,7 @@ import NodeCache from "node-cache";
 import { buildFunctionChain, FuncChain, runChain } from "./lib/functions-chain";
 import { FullContext } from "@jitsu/protocols/functions";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
+import { TableNameParameter } from "@jitsu/functions-lib";
 
 const bulkerBase = requireDefined(process.env.BULKER_URL, "env BULKER_URL is not defined");
 const bulkerAuthKey = requireDefined(process.env.BULKER_AUTH_KEY, "env BULKER_AUTH_KEY is not defined");
@@ -309,7 +310,7 @@ async function sendToBulker(profileBuilder: ProfileBuilder, profile: any, contex
   };
   await bulkerDestination.default(
     {
-      [bulkerDestination.TableNameParameter]: profileBuilder.connectionOptions.tableName || "profiles",
+      [TableNameParameter]: profileBuilder.connectionOptions.tableName || "profiles",
       ...profile,
     } as unknown as AnalyticsServerEvent,
     ctx

@@ -21,6 +21,7 @@ import {
 import NodeCache from "node-cache";
 import { buildFunctionChain, checkError, FuncChain, FuncChainFilter, runChain } from "./functions-chain";
 import { Redis } from "ioredis";
+import { fromJitsuClassic } from "@jitsu/functions-lib";
 const log = getLog("rotor");
 
 const anonymousEventsStore = mongoAnonymousEventsStore();
@@ -77,7 +78,10 @@ export async function rotorMessageHandler(
     )
   );
 
-  const event = message.httpPayload as AnalyticsServerEvent;
+  const event = (
+    message.type !== "classic" ? message.httpPayload : fromJitsuClassic(message.httpPayload)
+  ) as AnalyticsServerEvent;
+
   if (!event.context) {
     event.context = {};
   }

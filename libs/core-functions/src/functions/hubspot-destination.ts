@@ -11,7 +11,7 @@ import { FilterGroup } from "@hubspot/api-client/lib/codegen/crm/contacts/models
 import omit from "lodash/omit";
 import assert from "node:assert";
 import { BehavioralEventHttpCompletionRequest } from "@hubspot/api-client/lib/codegen/events/send/models/BehavioralEventHttpCompletionRequest";
-import { idToSnakeCaseFast } from "./lib/strings";
+import { idToSnakeCaseFast } from "@jitsu/functions-lib";
 
 const JITSU_USER_ID_PROPERTY = "jitsu_user_id";
 

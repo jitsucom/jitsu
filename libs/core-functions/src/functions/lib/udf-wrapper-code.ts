@@ -2,6 +2,7 @@ import { DropRetryErrorName, RetryErrorName } from "@jitsu/functions-lib";
 
 export const functionsLibCode = `const DropRetryErrorName = "Drop & RetryError";
 const RetryErrorName = "RetryError";
+const TableNameParameter = "JITSU_TABLE_NAME";
 class RetryError extends Error {
     constructor(message, options) {
         super(message);
@@ -9,12 +10,397 @@ class RetryError extends Error {
     }
 }
 
-export { DropRetryErrorName, RetryError, RetryErrorName };`;
+const ACode = "A".charCodeAt(0);
+const ZCode = "Z".charCodeAt(0);
+const aCode = "a".charCodeAt(0);
+const zCode = "z".charCodeAt(0);
+const spaceCode = " ".charCodeAt(0);
+
+function idToSnakeCaseFast(id) {
+  let res = "";
+  let concatIndex = 0;
+  let i = 0;
+  let needUnderscore = false;
+  for (; i < id.length; i++) {
+    const c = id.charCodeAt(i);
+    if (c >= ACode && c <= ZCode) {
+      res += id.substring(concatIndex, i) + (needUnderscore ? "_" : "") + id.charAt(i).toLowerCase();
+      concatIndex = i + 1;
+    } else if (c == spaceCode) {
+      res += id.substring(concatIndex, i) + "_";
+      concatIndex = i + 1;
+    }
+    // needUnderscore is used in case next char is a capital latin letter
+    // we add underscore only between latin letters
+    needUnderscore = (c >= aCode && c <= zCode) || (c >= ACode && c <= ZCode);
+  }
+  if (concatIndex == 0) {
+    return id;
+  } else if (concatIndex < i) {
+    res += id.substring(concatIndex, i);
+  }
+  return res;
+}
+
+function toSnakeCase(param) {
+  if (Array.isArray(param)) {
+    return param.map(toSnakeCase);
+  } else if (typeof param === "object" && param !== null) {
+    const r = {};
+    for (const [key, value] of Object.entries(param)) {
+      r[idToSnakeCaseFast(key)] = toSnakeCase(value);
+    }
+    return r;
+  } else {
+    return param;
+  }
+}
+
+function removeUndefined(param) {
+  if (Array.isArray(param)) {
+    return param.map(removeUndefined);
+  } else if (typeof param === "object" && param !== null) {
+    for (const [key, value] of Object.entries(param)) {
+      switch (typeof value) {
+        case "undefined":
+          delete param[key];
+          break;
+        case "object":
+          if (value !== null) {
+            removeUndefined(value);
+          }
+          break;
+      }
+    }
+  }
+  return param;
+}
+
+function transferAsSnakeCase(target, source, omit) {
+  if (typeof source !== "object") {
+    return;
+  }
+  for (const [k, v] of Object.entries(source)) {
+    if (!omit || !omit.includes(k)) {
+      target[idToSnakeCaseFast(k)] = toSnakeCase(v);
+    }
+  }
+}
+
+function transferValueAsSnakeCase(target, property, source) {
+  if (typeof source === "undefined") {
+    return;
+  }
+  target[property] = toSnakeCase(source);
+}
+
+function transfer(target, source, omit) {
+  if (typeof source !== "object") {
+    return;
+  }
+  for (const [k, v] of Object.entries(source)) {
+    if (!omit || !omit.includes(k)) {
+      target[k] = v;
+    }
+  }
+}
+
+function transferValue(target, property, source) {
+  if (typeof source === "undefined") {
+    return;
+  }
+  target[property] = source;
+}
+
+
+function anonymizeIp(ip) {
+  if (!ip) {
+    return;
+  }
+  const parts = ip.split(".");
+  if (parts.length === 4) {
+    return \`\${parts[0]}.\${parts[1]}.\${parts[2]}.0\`;
+  }
+}
+
+function toJitsuClassic(event, ctx) {
+  let url = undefined;
+  const analyticsContext = event.context || {};
+  const urlStr = analyticsContext.page?.url || event.properties?.url;
+  const click_id = {};
+  transfer(click_id, analyticsContext.clientIds, ["ga4", "fbp", "fbc"]);
+  let ids = {};
+  if (Object.keys(analyticsContext.clientIds || {}).length > 0) {
+    ids = removeUndefined({
+      ga: analyticsContext.clientIds.ga4?.clientId,
+      fbp: analyticsContext.clientIds.fbp,
+      fbc: analyticsContext.clientIds.fbc,
+    });
+  }
+  const geo = analyticsContext.geo || {};
+  const ua = ctx?.ua || {};
+  const user = removeUndefined({
+    id: event.userId,
+    anonymous_id: event.anonymousId,
+    email: analyticsContext.traits?.email || event.traits?.email || undefined,
+    name: analyticsContext.traits?.name || event.traits?.name || undefined,
+  });
+  transferAsSnakeCase(user, analyticsContext.traits, ["email", "name"]);
+  transferAsSnakeCase(user, event.traits, ["email", "name"]);
+  const classic = {
+    anon_ip: analyticsContext.ip ? anonymizeIp(analyticsContext.ip) : undefined,
+    api_key: event.writeKey || "",
+    click_id: Object.keys(click_id).length > 0 ? click_id : undefined,
+    doc_encoding: analyticsContext.page?.encoding ?? event.properties?.encoding,
+    doc_host: analyticsContext.page?.host ?? event.properties?.host,
+    doc_path: analyticsContext.page?.path ?? event.properties?.path,
+    doc_search: analyticsContext.page?.search ?? event.properties?.search,
+    eventn_ctx_event_id: event.messageId,
+    event_type: event.event || event.type,
+    local_tz_offset: analyticsContext.page?.timezoneOffset ?? event.properties?.timezoneOffset,
+    page_title: analyticsContext.page?.title,
+    referer: analyticsContext.page?.referrer,
+    screen_resolution:
+      Object.keys(analyticsContext.screen || {}).length > 0
+        ? Math.max(analyticsContext.screen.width || 0) + "x" + Math.max(analyticsContext.screen.height || 0)
+        : undefined,
+    source_ip: analyticsContext.ip,
+    src: event.properties?.src || "jitsu",
+    url: urlStr,
+    user: Object.keys(user).length > 0 ? user : undefined,
+    location:
+      Object.keys(geo).length > 0
+        ? {
+            city: geo.city?.name,
+            continent: geo.continent?.code,
+            country: geo.country?.code,
+            country_name: geo.country?.name,
+            latitude: geo.location?.latitude,
+            longitude: geo.location?.longitude,
+            region: geo.region?.code,
+            zip: geo.postalCode?.code,
+            timezone: geo.location?.timezone,
+            autonomous_system_number: geo.provider?.as?.num,
+            autonomous_system_organization: geo.provider?.as?.name,
+            isp: geo.provider?.isp,
+            domain: geo.provider?.domain,
+          }
+        : undefined,
+    ids: Object.keys(ids).length > 0 ? ids : undefined,
+    parsed_ua:
+      Object.keys(ua).length > 0
+        ? {
+            os_family: ua.os?.name,
+            os_version: ua.os?.version,
+            ua_family: ua.browser?.name,
+            ua_version: ua.browser?.version,
+            device_brand: ua.device?.vendor,
+            device_type: ua.device?.type,
+            device_model: ua.device?.model,
+            bot: ua.bot,
+          }
+        : undefined,
+    user_agent: analyticsContext.userAgent,
+    user_language: analyticsContext.locale,
+    utc_time: event.timestamp,
+    _timestamp: event.receivedAt,
+    utm: analyticsContext.campaign,
+    vp_size:
+      Object.keys(analyticsContext.screen || {}).length > 0
+        ? Math.max(analyticsContext.screen.innerWidth || 0) + "x" + Math.max(analyticsContext.screen.innerHeight || 0)
+        : undefined,
+  };
+  if (event.type === "track") {
+    transferAsSnakeCase(classic, event.properties);
+  } else {
+    transferAsSnakeCase(classic, event.properties, [
+      "url",
+      "title",
+      "referrer",
+      "search",
+      "host",
+      "path",
+      "width",
+      "height",
+    ]);
+  }
+
+  return removeUndefined(classic);
+}
+
+function fromJitsuClassic(event) {
+  let type = "track";
+  let eventName = undefined;
+  switch ((event.event_type ?? "").toLowerCase()) {
+    case "pageview":
+    case "page_view":
+    case "page":
+      type = "page";
+      eventName = event.event_type;
+      break;
+    case "identify":
+      type = "identify";
+      break;
+    case "screen":
+      type = "screen";
+      break;
+    case "group":
+      type = "group";
+      break;
+    case "alias":
+      type = "alias";
+      break;
+    default:
+      type = "track";
+      eventName = event.event_type;
+      break;
+  }
+  const clientIds =
+    Object.keys(event.ids || event.click_id || {}).length > 0
+      ? {
+          ga4: event.ids?.ga
+            ? {
+                clientId: event.ids.ga,
+              }
+            : undefined,
+          fbp: event.ids?.fbp,
+          fbc: event.ids?.fbc,
+          ...event.click_id,
+        }
+      : undefined;
+  const loc = event.location || {};
+  const geo =
+    Object.keys(loc).length > 0
+      ? {
+          city: {
+            name: loc.city,
+          },
+          continent: {
+            code: loc.continent,
+          },
+          country: {
+            code: loc.country,
+            name: loc.country_name,
+          },
+          location: {
+            latitude: loc.latitude,
+            longitude: loc.longitude,
+            timezone: loc.timezone,
+          },
+          region: {
+            code: loc.region,
+          },
+          postalCode: {
+            code: loc.zip,
+          },
+          provider: {
+            as: {
+              num: loc.autonomous_system_number,
+              name: loc.autonomous_system_organization,
+            },
+            isp: loc.isp,
+            domain: loc.domain,
+          },
+        }
+      : undefined;
+  const traits = {};
+  transferAsSnakeCase(traits, event.user, ["id", "anonymous_id"]);
+  const properties = {};
+  transferAsSnakeCase(properties, event, [
+    "anon_ip",
+    "api_key",
+    "click_id",
+    "doc_encoding",
+    "doc_host",
+    "doc_path",
+    "doc_search",
+    "eventn_ctx_event_id",
+    "event_type",
+    "local_tz_offset",
+    "page_title",
+    "referer",
+    "screen_resolution",
+    "source_ip",
+    "url",
+    "user",
+    "location",
+    "parsed_ua",
+    "user_agent",
+    "user_language",
+    "utc_time",
+    "_timestamp",
+    "utm",
+    "vp_size",
+  ]);
+  if (type === "page") {
+    properties.url = event.url;
+    properties.title = event.page_title;
+    properties.referrer = event.referer;
+    properties.search = event.doc_search;
+    properties.host = event.doc_host;
+    properties.path = event.doc_path;
+    properties.width = parseInt(event.vp_size?.split("x")[0]);
+    properties.height = parseInt(event.vp_size?.split("x")[1]);
+  }
+  const screen = {};
+  const sr = event.screen_resolution?.split("x");
+  if (sr?.length === 2) {
+    screen.width = parseInt(sr[0]);
+    screen.height = parseInt(sr[1]);
+  }
+  const vs = event.vp_size?.split("x");
+  if (vs?.length === 2) {
+    screen.innerWidth = parseInt(vs[0]);
+    screen.innerHeight = parseInt(vs[1]);
+  }
+
+  return removeUndefined({
+    messageId: event.eventn_ctx_event_id,
+    userId: event.user?.id,
+    anonymousId: event.user?.anonymous_id,
+    timestamp: event.utc_time,
+    receivedAt: event._timestamp,
+    writeKey: event.api_key,
+    type,
+    event: eventName,
+    context: {
+      ip: event.source_ip,
+      locale: event.user_language,
+      userAgent: event.user_agent,
+      page: {
+        url: event.url,
+        title: event.page_title,
+        referrer: event.referer,
+        search: event.doc_search,
+        host: event.doc_host,
+        path: event.doc_path,
+        encoding: event.doc_encoding,
+        timezoneOffset: event.local_tz_offset,
+      },
+      screen: Object.keys(screen).length > 0 ? screen : undefined,
+      clientIds,
+      campaign: event.utm,
+      traits,
+      geo,
+    },
+    properties,
+    traits: type === "identify" || type === "group" ? traits : undefined,
+  });
+}
+
+export { DropRetryErrorName, RetryError, RetryErrorName, TableNameParameter, fromJitsuClassic, toJitsuClassic };`;
 
 export const chainWrapperCode = `//** @UDF_FUNCTIONS_IMPORT **//
-import {DropRetryErrorName, RetryError, RetryErrorName} from "@jitsu/functions-lib";
+import {
+    TableNameParameter, toJitsuClassic, fromJitsuClassic, DropRetryErrorName,
+    RetryError,
+    RetryErrorName,
+} from "@jitsu/functions-lib";
 
 global.RetryError = RetryError;
+global.TableNameParameter = TableNameParameter;
+global.toJitsuClassic = toJitsuClassic;
+global.fromJitsuClassic = fromJitsuClassic;
 
 export function checkError(chainRes) {
     let errObj = undefined;

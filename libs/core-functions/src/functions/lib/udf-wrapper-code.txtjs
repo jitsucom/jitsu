@@ -1,7 +1,14 @@
 //** @UDF_FUNCTIONS_IMPORT **//
-import {DropRetryErrorName, RetryError, RetryErrorName} from "@jitsu/functions-lib";
+import {
+    TableNameParameter, toJitsuClassic, fromJitsuClassic, DropRetryErrorName,
+    RetryError,
+    RetryErrorName,
+} from "@jitsu/functions-lib";
 
 global.RetryError = RetryError;
+global.TableNameParameter = TableNameParameter;
+global.toJitsuClassic = toJitsuClassic;
+global.fromJitsuClassic = fromJitsuClassic;
 
 export function checkError(chainRes) {
     let errObj = undefined;

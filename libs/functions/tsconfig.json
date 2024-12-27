@@ -5,6 +5,7 @@
     "outDir": "./dist",
     "declaration": true,
     "esModuleInterop": true,
+    "moduleResolution": "node",
     "noEmit": true,
     "target": "esnext",
     "skipLibCheck": true

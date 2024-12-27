@@ -13,18 +13,20 @@
   "private": false,
   "scripts": {
     "compile": "tsc -p .",
-    "build": "pnpm compile && rollup -c"
+    "build": "pnpm compile && rollup -c",
+    "test": "tsc -p . &&  jest --verbose"
   },
   "devDependencies": {
+    "@jitsu/protocols": "workspace:*",
     "rollup": "^4.24.3",
     "@rollup/plugin-typescript": "^11.1.5",
+    "@rollup/plugin-node-resolve": "^16.0.0",
+    "@rollup/plugin-commonjs": "^28.0.2",
     "@types/jest": "^29.1.1",
     "@types/node": "^18.15.3",
     "jest": "^29.1.2",
-    "ts-jest": "29.0.5"
-  },
-  "dependencies": {
-    "lodash": "^4.17.21",
-    "tslib": "^2.6.3"
+    "ts-jest": "29.0.5",
+    "tslib": "^2.6.3",
+    "@jitsu/sdk-js": "^3.1.5"
   }
 }

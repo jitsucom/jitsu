@@ -1,7 +1,8 @@
-import { BulkerDestinationConfig, jitsuLegacy, MappedEvent, segmentLayout } from "../src/functions/bulker-destination";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import type { Event as JitsuLegacyEvent } from "@jitsu/sdk-js";
-import { FullContext } from "@jitsu/protocols/functions";
+import { FullContext, UserAgent } from "@jitsu/protocols/functions";
+import { fromJitsuClassic, removeUndefined, TableNameParameter, toJitsuClassic, toSnakeCase } from "../src";
+import { classicEvents } from "./data/classic-events";
 
 const identify: AnalyticsServerEvent = {
   writeKey: "writeKey",
@@ -58,9 +59,7 @@ const legacyIdentifyExpected: Omit<JitsuLegacyEvent, "local_tz_offset"> & { loca
   doc_search: "?utm_source=source&utm_medium=medium&utm_campaign=campaign",
   source_ip: "141.136.89.181",
   api_key: "writeKey",
-
-  click_id: {},
-  doc_host: "localhost",
+  doc_host: "localhost:3088",
   eventn_ctx_event_id: "a6c09b16-c2bc-4193-990f-5e2b694ae610",
   event_type: "identify",
   page_title: "Tracking page",
@@ -148,8 +147,7 @@ const page: AnalyticsServerEvent = {
 const legacyPageExpected = {
   _timestamp: "2022-11-14T08:56:40.000Z",
   api_key: "",
-  click_id: {},
-  doc_host: "localhost",
+  doc_host: "localhost:3088",
   doc_path: "/basic.html",
   doc_search: "?utm_source=source&utm_medium=medium&utm_campaign=campaign",
   eventn_ctx_event_id: "d0c6abf6-97f7-487a-a197-8f236c728fa8",
@@ -175,16 +173,36 @@ const legacyPageExpected = {
     name: "campaign",
     source: "source",
   },
+  case_name: "page-with-name",
+  hash: "",
+  name: "test-page",
   screen_resolution: "1280x720",
   vp_size: "1280x720",
 };
 
 test("legacy event", () => {
-  const identifyLegacyResult = jitsuLegacy(identify, { props: {} } as FullContext<BulkerDestinationConfig>).event;
-  const pageLegacyResult = jitsuLegacy(page, { props: {} } as FullContext<BulkerDestinationConfig>).event;
+  const identifyLegacyResult = toJitsuClassic(identify, { props: {} } as FullContext);
+  const pageLegacyResult = toJitsuClassic(page, { props: {} } as FullContext);
   console.log(JSON.stringify(identifyLegacyResult, null, 2));
   expect(identifyLegacyResult).toStrictEqual(legacyIdentifyExpected);
 
   console.log(JSON.stringify(pageLegacyResult, null, 2));
   expect(pageLegacyResult).toStrictEqual(legacyPageExpected);
+});
+
+test("classic events mapping", () => {
+  //load events from json
+  for (const event of classicEvents) {
+    if (Object.keys(event.click_id || {}).length === 0) {
+      delete event.click_id;
+    }
+    if (Object.keys(event.ids || {}).length === 0) {
+      delete event.ids;
+    }
+    const expected = toSnakeCase(event);
+    const restored = fromJitsuClassic(event);
+    const mapped = toJitsuClassic(restored as AnalyticsServerEvent, { props: {} } as FullContext);
+    delete mapped.anon_ip;
+    expect(mapped).toStrictEqual(expected);
+  }
 });
