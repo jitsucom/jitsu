@@ -1230,7 +1230,7 @@ const IncomingEventsTable = ({
       ? evs.map((ev, i) => {
           let ingestPayload: any = {};
           let unparsedPayload = "";
-          if (typeof ev.content.body === "string") {
+          if (typeof ev.content.body === "string" && ev.content.body.length > 0) {
             unparsedPayload = ev.content.body;
             try {
               ingestPayload = JSON.parse(ev.content.body);

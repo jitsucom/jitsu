@@ -148,6 +148,7 @@ function toJitsuClassic(event, ctx) {
   transferAsSnakeCase(user, analyticsContext.traits, ["email", "name"]);
   transferAsSnakeCase(user, event.traits, ["email", "name"]);
   const classic = {
+    [TableNameParameter]: event[TableNameParameter],
     anon_ip: analyticsContext.ip ? anonymizeIp(analyticsContext.ip) : undefined,
     api_key: event.writeKey || "",
     click_id: Object.keys(click_id).length > 0 ? click_id : undefined,
@@ -307,6 +308,7 @@ function fromJitsuClassic(event) {
   transferAsSnakeCase(traits, event.user, ["id", "anonymous_id"]);
   const properties = {};
   transferAsSnakeCase(properties, event, [
+    TableNameParameter,
     "anon_ip",
     "api_key",
     "click_id",
@@ -355,6 +357,7 @@ function fromJitsuClassic(event) {
   }
 
   return removeUndefined({
+    [TableNameParameter]: event[TableNameParameter],
     messageId: event.eventn_ctx_event_id,
     userId: event.user?.id,
     anonymousId: event.user?.anonymous_id,

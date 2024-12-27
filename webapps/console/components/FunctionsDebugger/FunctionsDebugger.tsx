@@ -641,7 +641,7 @@ const IncomingEventsTable = ({
   const mapEvents = events
     ? events.map(ev => {
         let ingestPayload: any = {};
-        if (typeof ev.content.body === "string") {
+        if (typeof ev.content.body === "string" && ev.content.body.length > 0) {
           try {
             ingestPayload = JSON.parse(ev.content.body);
           } catch (e) {
