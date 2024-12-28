@@ -79,7 +79,7 @@ export async function rotorMessageHandler(
   );
 
   const event = (
-    message.type !== "classic" ? message.httpPayload : fromJitsuClassic(message.httpPayload)
+    message.origin?.classic ? fromJitsuClassic(message.httpPayload) : message.httpPayload
   ) as AnalyticsServerEvent;
 
   if (!event.context) {

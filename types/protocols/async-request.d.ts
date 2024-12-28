@@ -18,6 +18,7 @@ export type IngestMessage = {
     baseUrl: string;
     slug?: string;
     domain?: string;
+    classic?: boolean;
   };
   httpHeaders: Record<string, string>;
   httpPayload: any;
