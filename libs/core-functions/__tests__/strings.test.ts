@@ -1,4 +1,5 @@
-import { idToSnakeCaseFast, idToSnakeCaseRegex } from "../src/functions/lib/strings";
+import { idToSnakeCaseRegex } from "../src/functions/lib/strings";
+import { idToSnakeCaseFast } from "@jitsu/functions-lib";
 
 const data: Record<string, string> = {
   // must be not touched
