@@ -9,11 +9,13 @@ import {
   FunctionConfig,
   ServiceConfig,
   StreamConfig,
+  WorkspaceDomain,
 } from "./index";
 import { assertDefined, createHash, requireDefined } from "juava";
 import { checkOrAddToIngress, isDomainAvailable } from "../server/custom-domains";
 import { ZodType, ZodTypeDef } from "zod";
 import { getServerLog } from "../server/log";
+import { getWildcardDomains } from "../../pages/api/[workspaceId]/domain-check";
 
 const log = getServerLog("config-objects");
 
@@ -129,7 +131,7 @@ const configObjectTypes: Record<string, ConfigObjectType> = {
 
     inputFilter: async obj => {
       const workspaceId = obj.workspaceId;
-      for (const domain of obj.domains || []) {
+      outer: for (const domain of obj.domains || []) {
         const domainAvailability = await isDomainAvailable(domain, workspaceId);
         if (!domainAvailability.available) {
           log
@@ -138,6 +140,17 @@ const configObjectTypes: Record<string, ConfigObjectType> = {
               `Domain ${domain} can't be added to workspace ${workspaceId}, it is already in use by other workspaces: ${domainAvailability.usedInWorkspace}`
             );
           throw new ApiError(`Domain ${domain} is already in use by other workspace`);
+        }
+        const wildcardDomains = await getWildcardDomains(workspaceId);
+        for (const wildcardDomain of wildcardDomains) {
+          if (domain.toLowerCase().endsWith(wildcardDomain.toLowerCase().replace("*", ""))) {
+            log
+              .atInfo()
+              .log(
+                `No need to check ingress status for ${domain} since it is under wildcard domain: ${wildcardDomain}`
+              );
+            continue outer;
+          }
         }
         try {
           const ingressStatus = await checkOrAddToIngress(domain);
@@ -172,5 +185,8 @@ const configObjectTypes: Record<string, ConfigObjectType> = {
   },
   "custom-image": {
     schema: ConnectorImageConfig,
+  },
+  domain: {
+    schema: WorkspaceDomain,
   },
 } as const;

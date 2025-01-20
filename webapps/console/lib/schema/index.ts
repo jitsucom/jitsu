@@ -179,6 +179,13 @@ export const ConnectorImageConfig = ConfigEntityBase.merge(
 );
 export type ConnectorImageConfig = z.infer<typeof ConnectorImageConfig>;
 
+export const WorkspaceDomain = ConfigEntityBase.merge(
+  z.object({
+    name: z.string(),
+  })
+);
+export type WorkspaceDomain = z.infer<typeof WorkspaceDomain>;
+
 /**
  * What happens to an object before it is saved to DB.
  *

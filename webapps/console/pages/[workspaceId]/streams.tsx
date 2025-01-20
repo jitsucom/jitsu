@@ -1,349 +1,29 @@
 import { WorkspacePageLayout } from "../../components/PageLayout/WorkspacePageLayout";
-import { Button, Input, notification, Tag, Tooltip } from "antd";
 import { ConfigEditor, ConfigEditorProps, CustomCheckbox } from "../../components/ConfigObjectEditor/ConfigEditor";
 import { StreamConfig } from "../../lib/schema";
 import { useAppConfig, useWorkspace } from "../../lib/context";
-import React, { PropsWithChildren, useMemo, useState } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
-import { FaExternalLinkAlt, FaSpinner, FaTrash, FaWrench } from "react-icons/fa";
+import { FaExternalLinkAlt } from "react-icons/fa";
 import { branding } from "../../lib/branding";
 import { useRouter } from "next/router";
 import { TrackingIntegrationDocumentation } from "../../components/TrackingIntegrationDocumentation/TrackingIntegrationDocumentation";
 import { StreamKeysEditor } from "../../components/ApiKeyEditor/ApiKeyEditor";
-import { useQuery } from "@tanstack/react-query";
-import { getEeClient } from "../../lib/ee-client";
-import { requireDefined } from "juava";
-import { ReloadOutlined } from "@ant-design/icons";
-import { confirmOp, feedbackError } from "../../lib/ui";
-import { getAntdModal, useAntdModal } from "../../lib/modal";
-import { get } from "../../lib/useApi";
-import { Activity, AlertTriangle, Check, Globe, Wrench, Zap } from "lucide-react";
+import { Activity, AlertTriangle, Check, Wrench, Zap } from "lucide-react";
 import { FaviconLoader } from "./index";
 import { ObjectTitle } from "../../components/ObjectTitle/ObjectTitle";
 import omit from "lodash/omit";
-import { CustomWidgetProps } from "../../components/ConfigObjectEditor/Editors";
 import { toURL } from "../../lib/shared/url";
 import JSON5 from "json5";
 import { EditorToolbar } from "../../components/EditorToolbar/EditorToolbar";
-import { DomainCheckResponse } from "../../lib/shared/domain-check-response";
 import { useConfigObjectLinks, useConfigObjectList } from "../../lib/store";
+import { DomainsEditor } from "../../components/DomainsEditor/DomainsEditor";
 
 const Streams: React.FC<any> = () => {
   return (
     <WorkspacePageLayout>
       <StreamsList />
     </WorkspacePageLayout>
-  );
-};
-
-const StatusBadge: React.FC<
-  PropsWithChildren<{ status: "error" | "warning" | "info" | "success" | "loading"; className?: string }>
-> = ({ status, children, className }) => {
-  let color: string | undefined;
-  let defaultDescription: string;
-  if (status === "error") {
-    color = "red";
-    defaultDescription = "Error";
-  } else if (status === "success") {
-    color = "cyan";
-    defaultDescription = "Success";
-  } else if (status === "info") {
-    color = "geekblue";
-    defaultDescription = "Info";
-  } else if (status === "warning") {
-    color = "orange";
-    defaultDescription = "Warning";
-  } else {
-    color = undefined;
-    defaultDescription = "Loading";
-  }
-  return <Tag color={color}>{children || defaultDescription}</Tag>;
-};
-
-function displayErrorFeedback(opts?: { message?: string; error?: any }) {
-  notification.open({
-    message: "An error occurred while processing your request. Please try again later.",
-    description: `Error: ${opts?.message || opts?.error?.message || opts?.error?.toString() || "Unknown error"}`,
-    onClick: () => {
-      //console.log("Notification Clicked!");
-    },
-  });
-}
-
-const CustomDomain: React.FC<{ domain: string; deleteDomain: () => Promise<void> }> = ({ domain, deleteDomain }) => {
-  const appConfig = useAppConfig();
-  const workspace = useWorkspace();
-
-  const eeClient = useMemo(
-    () => getEeClient(requireDefined(appConfig.ee.host, `EE is not available`), workspace.id),
-    [appConfig.ee.host, workspace.id]
-  );
-  const [reloadTrigger, setReloadTrigger] = useState(0);
-  const [deleting, setDeleting] = useState(false);
-  const { data, isLoading, error, refetch } = useQuery<DomainCheckResponse>(
-    ["domain-status", domain.toLowerCase(), reloadTrigger],
-    async () => {
-      return await get(`/api/${workspace.id}/domain-check?domain=${domain.toLowerCase()}`);
-    },
-    { cacheTime: 0 }
-  );
-  const m = useAntdModal();
-  return (
-    <div className={"rounded-lg border py-2 pl-4 hover:bg-backgroundDark"}>
-      <>
-        <div className="flex items-center">
-          {/*<div>*/}
-          {/*  <FaCaretRight />*/}
-          {/*</div>*/}
-          <div className={"text-blue-600 w-4 h-4 mr-1.5"}>
-            <Globe
-              className={`w-full h-full ${error ? "text-red-600" : data?.ok ? "text-blue-600" : "text-yellow-600"}`}
-            />
-          </div>
-          <div className="font-bold  text-lg">{domain}</div>
-          <div className="flex-grow flex items-center justify-end">
-            <Tooltip title={`Open ${domain} site in a new tab`}>
-              <Button
-                type="text"
-                onClick={() => {
-                  window.open(`https://${domain}`, "_blank");
-                }}
-                disabled={deleting}
-                className="border-0"
-              >
-                <FaExternalLinkAlt />
-              </Button>
-            </Tooltip>
-            {data?.reason === "requires_cname_configuration" && (
-              <Tooltip title="See configuration instructions">
-                <Button
-                  type="text"
-                  danger
-                  disabled={isLoading || deleting}
-                  onClick={() => {
-                    DomainConfigurationInstructions.show({ domain, status: data! });
-                  }}
-                  className="border-0"
-                >
-                  <FaWrench />
-                </Button>
-              </Tooltip>
-            )}
-            <Tooltip title="Re-check domain status">
-              <Button
-                type="text"
-                disabled={isLoading || deleting}
-                onClick={() => {
-                  setReloadTrigger(reloadTrigger + 1);
-                }}
-                className="border-0"
-              >
-                <ReloadOutlined />
-              </Button>
-            </Tooltip>
-            <Button
-              type="text"
-              disabled={deleting}
-              loading={deleting}
-              onClick={async () => {
-                if (await confirmOp(`Are you sure you want to remove domain ${domain}?`)) {
-                  try {
-                    setDeleting(true);
-                    await deleteDomain();
-                  } catch (e) {
-                    displayErrorFeedback({ message: `Can't remove domain ${domain}`, error: e });
-                  } finally {
-                    setDeleting(false);
-                  }
-                }
-              }}
-              className="border-0"
-            >
-              {!deleting && <FaTrash />}
-            </Button>
-          </div>
-        </div>
-        <div className="flex items-center mt-1">
-          <div className={"mr-2"}>Status:</div>
-          {(() => {
-            if (isLoading) {
-              return (
-                <StatusBadge status="loading">
-                  <span className={"flex items-center"}>
-                    <FaSpinner className="animate-spin mr-1" />
-                    Checking Domain Status
-                  </span>
-                </StatusBadge>
-              );
-            } else if (data?.ok) {
-              return <StatusBadge status="success">OK</StatusBadge>;
-            } else if (data?.reason === "requires_cname_configuration") {
-              return <StatusBadge status="warning">Configuration Required</StatusBadge>;
-            } else if (data?.reason === "pending_ssl") {
-              return <StatusBadge status="info">Issuing Certificate</StatusBadge>;
-            } else {
-              return <StatusBadge status="error">{data?.reason || "ERROR"}</StatusBadge>;
-            }
-          })()}
-        </div>
-        {error && (
-          <div className="flex items-start mt-1">
-            <div className={"mr-2"}>Description:</div>
-            <div className="">{`${"Internal error"}`}</div>
-          </div>
-        )}
-        {data?.reason === "requires_cname_configuration" && (
-          <div className="flex items-start mt-1">
-            <div className={"mr-2"}>Description:</div>
-            <div className="">
-              See{" "}
-              <a
-                className={"cursor-pointer"}
-                onClick={() => DomainConfigurationInstructions.show({ domain, status: data! })}
-              >
-                <u>configuration instructions</u>
-              </a>
-            </div>
-          </div>
-        )}
-        {data?.reason === "pending_ssl" && (
-          <div className="flex items-start mt-1">
-            <div className={"mr-2"}>Description:</div>
-            <div className="">Issuing SSL certificate for the domain. It may take up to 10 minutes.</div>
-          </div>
-        )}
-      </>
-    </div>
-  );
-};
-export type DNSRecordTableProps = {
-  records: { domain: string; type: string; value: string }[];
-};
-
-export const DNSRecordTable: React.FC<DNSRecordTableProps> = ({ records }) => {
-  return (
-    <table>
-      <thead>
-        <tr className="font-bold py-4">
-          <td>Type</td>
-          <td>Name</td>
-          <td>Value</td>
-        </tr>
-      </thead>
-      <tbody>
-        {records.map(({ domain, type, value }) => (
-          <tr key={name + type + value} className="font-mono">
-            <td className="pr-4">{type}</td>
-            <td className="pr-4">{domain}</td>
-            <td>{value}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-};
-
-export type DomainInstructionsProps = { domain: string; status: DomainCheckResponse };
-const DomainConfigurationInstructions: React.FC<DomainInstructionsProps> & {
-  show: (p: DomainInstructionsProps) => void;
-} = ({ domain, status }) => {
-  if (status.reason === "requires_cname_configuration") {
-    return (
-      <div>
-        <h3>Set the following record on your DNS provider to continue</h3>
-        <p className="bg-bgLight py-2 my-4">
-          <DNSRecordTable records={[{ type: "CNAME", domain, value: status.cnameValue! }]} />
-        </p>
-      </div>
-    );
-  } else {
-    return <div>Unknown configuration type</div>;
-  }
-};
-
-DomainConfigurationInstructions.show = p => {
-  getAntdModal().info({
-    width: "90vw",
-    style: { maxWidth: "48rem" },
-    title: (
-      <h2 className="text-2xl">
-        <code>{p.domain}</code> configuration instructions
-      </h2>
-    ),
-    content: <DomainConfigurationInstructions {...p} />,
-  });
-};
-
-const DomainsEditor: React.FC<CustomWidgetProps<string[]>> = props => {
-  const [domains, setDomains] = useState<string[]>(props.value || []);
-  const [addValue, setAddValue] = useState<string | undefined>();
-  const [addPending, setAddPending] = useState(false);
-  const workspace = useWorkspace();
-  const add = async () => {
-    setAddPending(true);
-    try {
-      const available: DomainCheckResponse = await get(`/api/${workspace.id}/domain-check?domain=${addValue}`);
-      if (!available.ok) {
-        if (available.reason === "used_by_other_workspace") {
-          feedbackError(
-            <>
-              Domain <code>{addValue}</code> is not available. It is used by other workspace. Contact{" "}
-              <code>support@jitsu.com</code> if you think this is a mistake
-            </>
-          );
-          return;
-        } else if (available.reason === "invalid_domain_name") {
-          feedbackError(
-            <>
-              Invalid domain name <code>{addValue}</code>
-            </>
-          );
-          return;
-        }
-      }
-      const newVal = [...domains, addValue as string];
-      setDomains(newVal);
-      setAddValue(undefined);
-      props.onChange(newVal);
-    } catch (e) {
-      feedbackError(`Can't add domain ${addValue}`, { error: e });
-    } finally {
-      setAddPending(false);
-    }
-  };
-  return (
-    <div>
-      <div className="flex">
-        <Input
-          placeholder="subdomain.mywebsite.com"
-          value={addValue}
-          onChange={e => setAddValue(e.target.value)}
-          onKeyDown={e => {
-            if (e.key === "Enter") {
-              add();
-              e.preventDefault();
-            }
-          }}
-        />
-        <Button disabled={!addValue} className="ml-5" onClick={add} loading={addPending}>
-          Add
-        </Button>
-      </div>
-      <div className="mt-5">
-        {domains.map(domain => (
-          <div key={domain} className="mb-4">
-            <CustomDomain
-              domain={domain}
-              deleteDomain={async () => {
-                const newVal = domains.filter(d => d !== domain);
-                setDomains(newVal);
-                props.onChange(newVal);
-              }}
-            />
-          </div>
-        ))}
-      </div>
-    </div>
   );
 };
 
@@ -369,7 +49,8 @@ const StreamsList: React.FC<{}> = () => {
   const router = useRouter();
   const appConfig = useAppConfig();
 
-  const streams = useConfigObjectList("stream");
+  const workspaceDomains = useConfigObjectList("domain").map(d => d.name);
+  const staticDomains = workspaceDomains.filter(d => !d.includes("*"));
   const connections = useConfigObjectLinks({ type: "push" });
 
   const [implementationDocumentationId, setImplementationDocumentationId] = useState<string | undefined>(
@@ -461,7 +142,10 @@ const StreamsList: React.FC<{}> = () => {
               title: "Domains",
               render: (s: StreamConfig) => (
                 <div>
-                  {[`${s.id}.${appConfig.publicEndpoints.dataHost}`, ...(s.domains || [])].map(domain => (
+                  {[
+                    `${s.id}.${appConfig.publicEndpoints.dataHost}`,
+                    ...new Set([...staticDomains, ...(s.domains ?? [])]),
+                  ].map(domain => (
                     <div key={domain} className="flex items-center space-x-1">
                       <div className="font-mono">{domain}</div>
                       <a href={`https://${domain}`} target={"_blank"} rel={"noreferrer noopener"}>
@@ -574,7 +258,7 @@ const StreamsList: React.FC<{}> = () => {
         ),
       },
       domains: {
-        editor: DomainsEditor,
+        editor: (props: any) => <DomainsEditor workspaceDomains={workspaceDomains} context={"site"} {...props} />,
         hidden: !appConfig.customDomainsEnabled,
         displayName: "Custom Tracking Domains",
         documentation: (

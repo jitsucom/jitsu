@@ -6,7 +6,7 @@ dayjs.extend(utc);
 
 export type CustomWidgetProps<T> = {
   value: T | undefined;
-  onChange: (value: T) => void;
+  onChange: (value: T) => Promise<void> | void;
 };
 export const DateEditor: React.FC<{ format: string } & CustomWidgetProps<string>> = props => {
   return (

@@ -19,6 +19,7 @@ import { HiSelector } from "react-icons/hi";
 import { HTTPManual } from "./HTTPApi";
 import { Plug } from "lucide-react";
 import { useQueryStringState } from "../../lib/useQueryStringState";
+import { useConfigObjectList } from "../../lib/store";
 
 function SegmentLogo() {
   return (
@@ -87,6 +88,8 @@ export const TrackingIntegrationDocumentation: React.FC<{ streamId: string; onCa
   streamId,
   onCancel,
 }) => {
+  const ds = useConfigObjectList("domain");
+  const staticDomains = ds.filter(d => !d.name.includes("*")).map(d => d.name);
   const appConfig = useAppConfig();
   const configApi = useConfigApi<StreamConfig>("stream");
   const [selectedDomain, setSelectedDomain] = useState<string | undefined>();
@@ -115,7 +118,10 @@ export const TrackingIntegrationDocumentation: React.FC<{ streamId: string; onCa
   } else {
     domains = stream
       ? appConfig.publicEndpoints.dataHost || appConfig.ee.available
-        ? [...(stream?.domains ?? []), `${stream.id}.${appConfig.publicEndpoints.dataHost}`]
+        ? [
+            ...new Set([...staticDomains, ...(stream?.domains ?? [])]),
+            `${stream.id}.${appConfig.publicEndpoints.dataHost}`,
+          ]
         : ["{deploy domain}"]
       : [];
   }
