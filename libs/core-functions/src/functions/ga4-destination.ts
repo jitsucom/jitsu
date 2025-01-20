@@ -348,7 +348,7 @@ const Ga4Destination: JitsuFunction<AnalyticsServerEvent, Ga4Credentials> = asyn
       return;
     }
 
-    const baseUrl = ctx.props.url ?? 'https://www.google-analytics.com/mp/collect';
+    const baseUrl = ctx.props.url ?? "https://www.google-analytics.com/mp/collect";
 
     const url = `${baseUrl}?${query}`;
 
