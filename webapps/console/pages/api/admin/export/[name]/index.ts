@@ -339,6 +339,17 @@ const exports: Export[] = [
         }
         getLog().atInfo().log(`Active workspaces: ${activeWorkspaces.size}`);
       } catch (error) {}
+      const domains = await db.prisma().configurationObject.findMany({
+        where: { deleted: false, type: "domain", workspace: { deleted: false } },
+      });
+      const domainsMap = new Map<string, string[]>();
+      for (const domain of domains) {
+        const name = (domain.config as any).name;
+        if (!name.includes("*")) {
+          const d = domainsMap.get(domain.workspaceId) || [];
+          domainsMap.set(domain.workspaceId, [...d, (domain.config as any).name]);
+        }
+      }
       writer.write("[");
       let lastId: string | undefined = undefined;
       let needComma = false;
@@ -381,7 +392,10 @@ const exports: Export[] = [
                   "updatedAt",
                   "workspace"
                 ),
-                ...obj.config,
+                ...{
+                  ...obj.config,
+                  domains: [...new Set([...(domainsMap.get(obj.workspace.id) ?? []), ...(obj.config.domains ?? [])])],
+                },
                 workspaceId: obj.workspace.id,
               },
               backupEnabled: isEEAvailable() && !(obj.workspace.featuresEnabled || []).includes("nobackup"),

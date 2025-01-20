@@ -1,5 +1,4 @@
 import { db } from "./db";
-import { StreamConfig } from "../schema";
 import dns from "dns";
 import { getLog, requireDefined } from "juava";
 import { httpAgent, httpsAgent } from "./http-agent";
@@ -13,17 +12,32 @@ export const customDomainCnames = process.env.CUSTOM_DOMAIN_CNAMES?.split(",");
  * Tells if the given domain is used in other workspaces.
  */
 export async function isDomainAvailable(domain: string, workspaceId: string): Promise<DomainAvailability> {
-  const pattern = `%${domain.toLowerCase()}%`;
+  const domainSuffix = domain.replace(/^[*]/, "");
+  const fullTextPattern = `%${domainSuffix.toLowerCase()}%`;
+  const pattern = `%${domainSuffix.toLowerCase()}`;
   const dirtyList = (await db.prisma().$queryRaw`
-      select "id", "workspaceId", "config"
+      select id,type, "workspaceId", config->'domains' as domains
       from newjitsu."ConfigurationObject"
       where type = 'stream'
-        and config::TEXT ilike ${pattern}
+        and config::TEXT ilike ${fullTextPattern}
         and "workspaceId" <> ${workspaceId}
-  `) as { id: string; workspaceId: string; config: string }[];
-  const list = dirtyList.filter(({ config, ...props }) => {
-    const stream = StreamConfig.parse({ ...(config as any), ...props });
-    return (stream.domains || []).map(d => d.toLowerCase()).includes(domain.toLowerCase());
+        and deleted = false
+      union
+      select id,type, "workspaceId", json_array(config->'name') as domains
+      from newjitsu."ConfigurationObject"
+      where type = 'domain'
+        and (config->>'name' ilike ${pattern} or ${domain.toLowerCase()} ilike REPLACE(config->>'name','*','%') )
+        and "workspaceId" <> ${workspaceId}
+        and deleted = false
+  `) as { id: string; workspaceId: string; domains: string[] }[];
+
+  const list = dirtyList.filter(({ domains }) => {
+    return (
+      (domains || []).filter(d => d.toLowerCase().endsWith(domainSuffix)).length > 0 ||
+      (domains || []).filter(d => {
+        return d.startsWith("*") && domain.toLowerCase().endsWith(d.toLowerCase().replace(/^[*]/, ""));
+      }).length > 0
+    );
   });
 
   if (list.length > 0) {

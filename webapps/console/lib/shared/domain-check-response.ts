@@ -14,12 +14,12 @@ export const DomainCheckResponse = z.union([
       z.literal("pending_ssl"),
       z.literal("internal_error"),
     ]),
-    cnameValue: z.never().optional(),
+    cnames: z.never().optional(),
   }),
   z.object({
     ok: z.literal(false),
     reason: z.literal("requires_cname_configuration"),
-    cnameValue: z.string().optional(),
+    cnames: z.array(z.object({ name: z.string(), value: z.string(), ok: z.boolean() })),
   }),
 ]);
 

@@ -613,6 +613,9 @@ function PageHeader() {
       icon: <Settings className="w-full h-full" />,
       items: [
         { title: "Workspace Settings", path: "/settings", icon: <Hammer className="w-full h-full" /> },
+        appConfig.customDomainsEnabled
+          ? { title: "Domains", path: "/settings/domains", icon: <Globe className="w-full h-full" /> }
+          : undefined,
         { title: "User Settings", path: "/user", icon: <User className="w-full h-full" />, globalPath: true },
         { title: "Billing Settings", path: "/settings/billing", icon: <CreditCard className="w-full h-full" /> },
         billing.enabled && billing.settings?.dataRetentionEditorEnabled

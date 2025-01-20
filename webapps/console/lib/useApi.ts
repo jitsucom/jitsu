@@ -9,7 +9,7 @@ import { EventsLogFilter, EventsLogRecord } from "./server/events-log";
 
 export type ConfigApi<T = any> = {
   get(id: string): Promise<T>;
-  create(obj: Omit<T, "id">): Promise<T>;
+  create(obj: T): Promise<T>;
   update(id: string, obj: Partial<T>): Promise<T>;
   test(obj: Partial<T>): Promise<any>;
   del(id: string): Promise<T>;
