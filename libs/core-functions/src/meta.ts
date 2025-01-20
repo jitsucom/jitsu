@@ -304,7 +304,13 @@ export const Ga4Credentials = z.object({
       "The measurement ID associated with a stream.<br/><b>For Web:</b> found in the Google Analytics UI under: " +
         "<b>Admin > Data Streams > choose your stream > Measurement ID</b><br/><b>For Apps</b>: the Firebase App ID, found in the Firebase console under: <b>Project Settings > General > Your Apps > App ID</b>"
     ),
-  url: z.string().url().describe("Measurement Protocol URL.<br/>Default: <code>https://www.google-analytics.com/mp/collect</code><br/>Default debug url: <code>https://www.google-analytics.com/debug/mp/collect</code>").default('https://www.google-analytics.com/mp/collect'),
+  url: z
+    .string()
+    .url()
+    .describe(
+      "Measurement Protocol URL.<br/>Default: <code>https://www.google-analytics.com/mp/collect</code><br/>Default debug url: <code>https://www.google-analytics.com/debug/mp/collect</code>"
+    )
+    .default("https://www.google-analytics.com/mp/collect"),
   events: z.string().optional().default("").describe(eventsParamDescription),
 });
 export type Ga4Credentials = z.infer<typeof Ga4Credentials>;
