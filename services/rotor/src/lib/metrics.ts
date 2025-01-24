@@ -10,8 +10,7 @@ import {
 } from "@jitsu/core-functions";
 
 import omit from "lodash/omit";
-import type { Producer } from "kafkajs";
-import { getCompressionType } from "./rotor";
+import { KafkaJS } from "@confluentinc/kafka-javascript";
 import { Readable } from "stream";
 import { Counter } from "prom-client";
 
@@ -40,7 +39,7 @@ export const DummyMetrics: RotorMetrics = {
 };
 
 export function createMetrics(
-  producer?: Producer,
+  producer?: KafkaJS.Producer,
   storeCounter?: Counter<"namespace" | "operation" | "status">
 ): RotorMetrics {
   const buffer: MetricsEvent[] = [];
@@ -50,7 +49,6 @@ export function createMetrics(
       await Promise.all([
         producer.send({
           topic: `in.id.metrics.m.batch.t.${metricsTable}`,
-          compression: getCompressionType(),
           messages: buf.map(m => ({
             key: m.key,
             value: JSON.stringify(omit(m, "retries", "messageId", "key")),
@@ -58,7 +56,6 @@ export function createMetrics(
         }),
         producer.send({
           topic: `in.id.metrics.m.batch.t.${billingMetricsTable}`,
-          compression: getCompressionType(),
           messages: buf
             .filter(m => m.functionId.startsWith("builtin.destination.") && m.status !== "dropped")
             .map(m => {

@@ -616,7 +616,7 @@ export async function scheduleSync({
       serviceConfig.package === "airbyte/source-mssql" ||
       serviceConfig.package === "airbyte/source-singlestore"
     ) {
-      // default value 10000 is to low for big tables - leading to very slow syncs
+      // default value 10000 is too low for big tables - leading to very slow syncs
       serviceConfig.credentials.sync_checkpoint_records = 200000;
     }
     const res = await rpc(syncURL + "/read", {

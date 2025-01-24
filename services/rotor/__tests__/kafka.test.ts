@@ -1,21 +1,24 @@
 import { getLog } from "juava";
 import { connectToKafka } from "../src/lib/kafka-config";
-
-import "@sensejs/kafkajs-zstd-support";
 import { test } from "@jest/globals";
 
 const log = getLog("kafka-test");
 test.skip("Kafka Test", async () => {
   const kafka = connectToKafka({ defaultAppId: "test", brokers: "localhost:9092" });
   const consumer = kafka.consumer({
-    groupId: "test",
-    allowAutoTopicCreation: true,
-    sessionTimeout: 10000,
+    kafkaJS: {
+      groupId: "test",
+      allowAutoTopicCreation: true,
+      sessionTimeout: 10000,
+      autoCommitInterval: 10000,
+      autoCommit: true,
+      fromBeginning: true,
+    },
   });
   await consumer.connect();
-  await consumer.subscribe({ topics: ["autocommit-test"], fromBeginning: true });
+  await consumer.subscribe({ topics: ["autocommit-test"] });
 
-  const producer = kafka.producer({ allowAutoTopicCreation: false });
+  const producer = kafka.producer({ kafkaJS: { allowAutoTopicCreation: false } });
   await producer.connect();
 
   for (let i = 0; i < 200; i++) {
@@ -30,8 +33,6 @@ test.skip("Kafka Test", async () => {
   }
 
   await consumer.run({
-    autoCommitInterval: 10000,
-    autoCommit: true,
     partitionsConsumedConcurrently: 8,
     eachMessage: async ({ topic, partition, message }) => {
       log.atInfo().log(`${topic}:${partition}: ${message.offset} => ${message.value?.toString()}`);
