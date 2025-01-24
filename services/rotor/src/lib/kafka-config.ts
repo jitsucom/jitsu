@@ -1,22 +1,18 @@
-import { Kafka, logLevel, CompressionCodecs, CompressionTypes } from "kafkajs";
-import SnappyCodec from "kafkajs-snappy";
-import "@sensejs/kafkajs-zstd-support";
+import { KafkaJS } from "@confluentinc/kafka-javascript";
 
 import { LogMessageBuilder, requireDefined, randomId, getLog } from "juava";
 import JSON5 from "json5";
 const log = getLog("kafka");
 
-CompressionCodecs[CompressionTypes.Snappy] = SnappyCodec;
-
-function translateLevel(l: logLevel): LogMessageBuilder {
+function translateLevel(l: KafkaJS.logLevel): LogMessageBuilder {
   switch (l) {
-    case logLevel.ERROR:
+    case KafkaJS.logLevel.ERROR:
       return log.atError();
-    case logLevel.WARN:
+    case KafkaJS.logLevel.WARN:
       return log.atWarn();
-    case logLevel.INFO:
+    case KafkaJS.logLevel.INFO:
       return log.atDebug();
-    case logLevel.DEBUG:
+    case KafkaJS.logLevel.DEBUG:
       return log.atDebug();
     default:
       return log.atInfo();
@@ -41,30 +37,26 @@ export function getCredentialsFromEnv(): KafkaCredentials {
   };
 }
 
-export function connectToKafka(opts: { defaultAppId: string } & KafkaCredentials): Kafka {
+export function connectToKafka(opts: { defaultAppId: string } & KafkaCredentials): KafkaJS.Kafka {
   const sasl = opts.sasl
     ? {
         sasl: opts.sasl as any,
       }
     : {};
   log.atDebug().log("SASL config", JSON.stringify(opts.sasl));
-  return new Kafka({
-    logLevel: logLevel.ERROR,
-    // logCreator: logLevel => log => {
-    //   translateLevel(logLevel).log(
-    //     `${log.namespace ? `${log.namespace} # ` : ""}${JSON.stringify(omit(log.log, "timestamp", "logger"))}`
-    //   );
-    // },
-    clientId: process.env.APPLICATION_ID || opts.defaultAppId,
-    brokers: typeof opts.brokers === "string" ? opts.brokers.split(",") : opts.brokers,
-    ssl: opts.ssl
-      ? {
-          rejectUnauthorized: false,
-          checkServerIdentity: () => undefined,
-        }
-      : undefined,
-
-    ...sasl,
+  return new KafkaJS.Kafka({
+    kafkaJS: {
+      logLevel: KafkaJS.logLevel.ERROR,
+      // logCreator: logLevel => log => {
+      //   translateLevel(logLevel).log(
+      //     `${log.namespace ? `${log.namespace} # ` : ""}${JSON.stringify(omit(log.log, "timestamp", "logger"))}`
+      //   );
+      // },
+      clientId: process.env.APPLICATION_ID || opts.defaultAppId,
+      brokers: typeof opts.brokers === "string" ? opts.brokers.split(",") : opts.brokers,
+      ...sasl,
+      ...(opts.ssl ? { ssl: true } : {}),
+    },
   });
 }
 

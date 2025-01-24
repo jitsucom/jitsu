@@ -8,8 +8,8 @@ dayjs.extend(utc);
 import { getRetryPolicy, retryBackOffTime, retryLogMessage } from "./retries";
 import { createMetrics } from "./metrics";
 import { FuncChainFilter } from "./functions-chain";
-import type { Admin, Consumer, Producer, KafkaMessage } from "kafkajs";
-import { CompressionTypes } from "kafkajs";
+import { KafkaJS } from "@confluentinc/kafka-javascript";
+
 import { functionFilter, MessageHandlerContext } from "./message-handler";
 import { connectionsStore, functionsStore, workspaceStore } from "./repositories";
 import { RotorMetrics, FuncChainResult } from "@jitsu/core-functions";
@@ -50,9 +50,9 @@ export type KafkaRotor = {
 
 export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
   const { kafkaTopics, consumerGroupId, rotorContext, handle, kafkaClientId = "kafka-rotor" } = cfg;
-  let consumer: Consumer;
-  let producer: Producer;
-  let admin: Admin;
+  let consumer: KafkaJS.Consumer;
+  let producer: KafkaJS.Producer;
+  let admin: KafkaJS.Admin;
   let closeQueue: () => Promise<void>;
   let interval: any;
   let metrics: RotorMetrics;
@@ -60,15 +60,22 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
     start: async () => {
       const kafka = connectToKafka({ defaultAppId: kafkaClientId, ...cfg.credentials });
       consumer = kafka.consumer({
-        groupId: consumerGroupId,
-        allowAutoTopicCreation: false,
-        sessionTimeout: 10000,
+        kafkaJS: {
+          groupId: consumerGroupId,
+          allowAutoTopicCreation: false,
+          fromBeginning: true,
+          autoCommitInterval: 10000,
+          autoCommit: true,
+        },
+        "group.instance.id": process.env.ROTOR_INSTANCE_ID,
       });
       await consumer.connect();
       log.atInfo().log("Subscribing to kafka topics: ", kafkaTopics);
-      await consumer.subscribe({ topics: kafkaTopics, fromBeginning: true });
+      await consumer.subscribe({ topics: kafkaTopics });
 
-      producer = kafka.producer({ allowAutoTopicCreation: false });
+      producer = kafka.producer({
+        kafkaJS: { allowAutoTopicCreation: false, acks: 1, compression: getCompressionType() },
+      });
       await producer.connect();
       const storeErrors = new Prometheus.Counter({
         name: "rotor_store_statuses",
@@ -76,7 +83,8 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
         labelNames: ["namespace", "operation", "status"] as const,
       });
       metrics = createMetrics(producer, storeErrors);
-      admin = kafka.admin();
+      admin = kafka.admin({ kafkaJS: {} });
+      admin.connect();
 
       const topicOffsets = new Prometheus.Gauge({
         name: "rotor_topic_offsets2",
@@ -109,7 +117,10 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
       interval = setInterval(async () => {
         try {
           for (const topic of kafkaTopics) {
-            const watermarks = await admin.fetchTopicOffsets(topic);
+            const watermarks = await admin.fetchTopicOffsets(topic, {
+              timeout: 10000,
+              isolationLevel: KafkaJS.IsolationLevel.READ_COMMITTED,
+            });
             for (const o of watermarks) {
               topicOffsets.set({ topic: topic, partition: o.partition, offset: "high" }, parseInt(o.high));
               topicOffsets.set({ topic: topic, partition: o.partition, offset: "low" }, parseInt(o.low));
@@ -126,7 +137,7 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
         }
       }, 60000);
 
-      async function onMessage(message: KafkaMessage, topic: string, partition: number) {
+      async function onMessage(message: KafkaJS.KafkaMessage, topic: string, partition: number) {
         messagesConsumed.inc({ topic, partition });
         const value = message.value;
         if (!value) {
@@ -180,7 +191,6 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
               try {
                 await producer.send({
                   topic: requeueTopic,
-                  compression: getCompressionType(),
                   messages: [
                     {
                       value: newMessage,
@@ -230,8 +240,6 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
       };
 
       await consumer.run({
-        autoCommitInterval: 10000,
-        autoCommit: true,
         partitionsConsumedConcurrently: 8,
         eachMessage: async ({ message, topic, partition }) => {
           //make sure that queue has no more entities than concurrency limit (running tasks not included)
@@ -262,16 +270,15 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
 export function getCompressionType() {
   switch (process.env.KAFKA_TOPIC_COMPRESSION) {
     case "gzip":
-      return CompressionTypes.GZIP;
+      return KafkaJS.CompressionTypes.GZIP;
     case "snappy":
-      return CompressionTypes.Snappy;
+      return KafkaJS.CompressionTypes.Snappy;
     case "lz4":
-      log.atWarn().log("lz4 compression is not supported. Disabling producer compression.");
-      return undefined;
+      return KafkaJS.CompressionTypes.LZ4;
     case "zstd":
-      return CompressionTypes.ZSTD;
+      return KafkaJS.CompressionTypes.ZSTD;
     case "none":
-      return CompressionTypes.None;
+      return KafkaJS.CompressionTypes.None;
     default:
       return undefined;
   }
