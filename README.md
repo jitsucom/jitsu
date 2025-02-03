@@ -76,7 +76,7 @@ comes with a [FREE ClickHouse instance](https://next.jitsu.com/features/clickhou
 * [React](https://docs.jitsu.com/sending-data/react) (including Next.js)
 * [NPM Package](https://docs.jitsu.com/sending-data/npm). Yes, it's isomorphic and works in server-side Node.js too!
 * [HTTP API](https://docs.jitsu.com/sending-data/http)
-* [Segment Compatible API](https://docs.jitsu.com/sending-data/segment)
+* [Segment Proxy](https://docs.jitsu.com/sending-data/segment-proxy)
 
 # 🚚 Bulker
 
