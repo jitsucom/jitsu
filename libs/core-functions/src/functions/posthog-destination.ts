@@ -86,40 +86,23 @@ const PosthogDestination: JitsuFunction<AnalyticsServerEvent, PosthogDestination
   const client = new PostHog(props.key, { host: props.host || POSTHOG_DEFAULT_HOST, fetch: fetch });
   try {
     if (event.type === "identify") {
-      if (!event.userId) {
-        const distinctId = event.anonymousId || event.traits?.email;
-        if (!distinctId) {
-          log.info(`No distinct id found for event ${JSON.stringify(event)}`);
-        } else if (props.enableAnonymousUserProfiles) {
-          client.identify({
-            distinctId: distinctId as string,
-            properties: { $anon_distinct_id: event.anonymousId || undefined, ...event.traits },
-          });
-        }
-      } else {
-        if (props.enableAnonymousUserProfiles) {
-          if (event.anonymousId || event.traits?.email) {
-            client.alias({
-              distinctId: (event.anonymousId || event.traits?.email) as string,
-              alias: event.userId as string,
-            });
-          }
-        }
-        client.identify({
+      client.identify({
+        distinctId: event.userId as string,
+        properties: { $anon_distinct_id: event.anonymousId || undefined, ...event.traits },
+      });
+
+      /**
+       * If we've been tracking anonymous events under user/"Person" profiles
+       * in Posthog, we should merge the anonymous person with the identified
+       * one, so that the entire user event history is consolidated.
+       */
+      const alias: string | undefined = event.anonymousId || event.traits?.email;
+      if (props.enableAnonymousUserProfiles && alias) {
+        client.alias({
           distinctId: event.userId as string,
-          properties: { $anon_distinct_id: event.anonymousId || undefined, ...event.traits },
+          alias: alias,
         });
       }
-      // if (props.sendIdentifyEvents) {
-      //   const distinctId = event.userId || (event.traits?.email as string) || event.anonymousId;
-      //   // if (distinctId) {
-      //   //   client.capture({
-      //   //     distinctId: distinctId as string,
-      //   //     event: "Identify",
-      //   //     properties: getEventProperties(event),
-      //   //   });
-      //   // }
-      // }
     } else if (event.type === "group" && props.enableGroupAnalytics) {
       client.groupIdentify({
         groupType: groupType,
@@ -135,15 +118,17 @@ const PosthogDestination: JitsuFunction<AnalyticsServerEvent, PosthogDestination
       if (!distinctId) {
         log.info(`No distinct id found for event ${JSON.stringify(event)}`);
       } else {
-        if (event.userId || props.enableAnonymousUserProfiles) {
-          client.capture({
-            distinctId: distinctId as string,
-            event: event.event || event.name || "Unknown Event",
-            timestamp: new Date(eventTimeSafeMs(event)),
-            properties: getEventProperties(event),
-            ...groups,
-          });
-        }
+        client.capture({
+          distinctId: distinctId as string,
+          event: event.event || event.name || "Unknown Event",
+          timestamp: new Date(eventTimeSafeMs(event)),
+          properties: {
+            ...getEventProperties(event),
+            // https://posthog.com/docs/getting-started/person-properties
+            $process_person_profile: props.enableAnonymousUserProfiles || !!event.userId,
+          },
+          ...groups,
+        });
       }
     } else if (event.type === "page" || event.type === "screen") {
       let groups = {};
@@ -156,15 +141,17 @@ const PosthogDestination: JitsuFunction<AnalyticsServerEvent, PosthogDestination
           `No distinct id found for ${event.type === "page" ? "Page View" : "Screen"} event ${JSON.stringify(event)}`
         );
       } else {
-        if (event.userId || props.enableAnonymousUserProfiles) {
-          client.capture({
-            distinctId: distinctId as string,
-            event: event.type === "page" ? "$pageview" : "$screen",
-            timestamp: new Date(eventTimeSafeMs(event)),
-            properties: getEventProperties(event),
-            ...groups,
-          });
-        }
+        client.capture({
+          distinctId: distinctId as string,
+          event: event.type === "page" ? "$pageview" : "$screen",
+          timestamp: new Date(eventTimeSafeMs(event)),
+          properties: {
+            ...getEventProperties(event),
+            // https://posthog.com/docs/getting-started/person-properties
+            $process_person_profile: props.enableAnonymousUserProfiles || !!event.userId,
+          },
+          ...groups,
+        });
       }
     }
   } catch (e: any) {
