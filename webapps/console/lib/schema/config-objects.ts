@@ -8,6 +8,7 @@ import {
   DestinationConfig,
   FunctionConfig,
   MiscEntity,
+  NotificationChannel,
   ServiceConfig,
   StreamConfig,
   WorkspaceDomain,
@@ -215,5 +216,8 @@ const configObjectTypes: Record<string, ConfigObjectType> = {
   },
   misc: {
     schema: MiscEntity,
+  },
+  notification: {
+    schema: NotificationChannel,
   },
 } as const;

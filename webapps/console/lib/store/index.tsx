@@ -6,6 +6,7 @@ import type {
   ServiceConfig,
   StreamConfig,
   WorkspaceDomain,
+  NotificationChannel,
 } from "../schema";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getLog, requireDefined, rpc } from "juava";
@@ -23,6 +24,7 @@ export const allConfigTypes = [
   "custom-image",
   "domain",
   "misc",
+  "notification",
 ] as const;
 
 export type ConfigType = (typeof allConfigTypes)[number];
@@ -35,6 +37,7 @@ export type ConfigTypes = {
   "custom-image": ConnectorImageConfig;
   domain: WorkspaceDomain;
   misc: MiscEntity;
+  notification: NotificationChannel;
 };
 
 export function asConfigType(type: string): ConfigType {

@@ -2,12 +2,15 @@ import { createRoute, verifyAdmin } from "../../../lib/api";
 import { clickhouse, dateToClickhouse } from "../../../lib/server/clickhouse";
 import { db } from "../../../lib/server/db";
 import { getServerLog } from "../../../lib/server/log";
-import { StatusChangeDbModel } from "../../../prisma/schema";
+import { NotificationStateDbModel, StatusChangeDbModel } from "../../../prisma/schema";
 import { z } from "zod";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
-import { stopwatch } from "juava";
-import { getAppEndpoint } from "../../../lib/domains";
+import { rpc, stopwatch } from "juava";
+import { getAppEndpoint, PublicEndpoint } from "../../../lib/domains";
+import { NotificationChannel } from "../../../lib/schema";
+import omit from "lodash/omit";
+import { createJwt, getEeConnection } from "../../../lib/server/ee";
 
 dayjs.extend(utc);
 
@@ -15,18 +18,44 @@ const log = getServerLog("notifications");
 
 const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL;
 
-type StatusChange = Omit<z.infer<typeof StatusChangeDbModel>, "id">;
+type StatusChange = Omit<z.infer<typeof StatusChangeDbModel>, "id"> & { id?: bigint };
+
+type NotificationState = z.infer<typeof NotificationStateDbModel>;
+
+type Status = "SUCCESS" | "FAILED" | "FLAPPING";
+
+const flappingWindowHours = 2;
+
+const flappingThreshold = 4;
+
+const adminChannel: NotificationChannel = {
+  id: "admin",
+  name: "Admin",
+  type: "notification",
+  workspaceId: "admin",
+  channel: "slack",
+  slackWebhookUrl: SLACK_WEBHOOK_URL,
+  events: ["all"],
+  recurringAlertsPeriodHours: 24,
+};
 
 type StatusChangeEntity = StatusChange & {
-  type: "push" | "sync";
+  id: number | bigint;
+  type: "batch" | "sync";
   workspaceName: string;
   slug: string;
   fromName: string;
   toName: string;
+  changesPerHours: number;
+  changesPerDay: number;
 };
 
 function key(actorId: string, tableName?: string) {
-  return tableName ? `${actorId} ${tableName}` : actorId;
+  return tableName ? `${actorId}::${tableName}` : actorId;
+}
+
+function chKey(channelId: string, actorId: string, tableName?: string) {
+  return tableName ? `${channelId}:${actorId}:${tableName}` : `${channelId}:${actorId}`;
 }
 
 export default createRoute()
@@ -39,13 +68,15 @@ export default createRoute()
 
     const currentRunTime = new Date();
     let previousRunTime = new Date();
-    let previousChangeId = 0;
+    let processedTimestamp = new Date();
+    processedTimestamp.setDate(processedTimestamp.getDate() - 1);
+
     let notificationsLastRun = await db.prisma().globalProps.findFirst({ where: { name: "notificationsLastRun" } });
     if (!notificationsLastRun) {
       notificationsLastRun = await db.prisma().globalProps.create({
         data: {
           name: "notificationsLastRun",
-          value: { timestamp: currentRunTime, lastProcessedChangeId: previousChangeId },
+          value: { timestamp: currentRunTime, lastProcessedTimestamp: processedTimestamp },
         },
       });
     } else {
@@ -53,122 +84,311 @@ export default createRoute()
       if (value.timestamp) {
         previousRunTime = new Date(value.timestamp);
       }
-      previousChangeId = value.lastProcessedChangeId || 0;
+      if (value.lastProcessedTimestamp) {
+        processedTimestamp = new Date(value.lastProcessedTimestamp);
+      }
     }
-    let currentChangeId = previousChangeId;
     log
       .atInfo()
-      .log(`Previous run time: ${previousRunTime.toISOString()} Last processed change id: ${previousChangeId}`);
+      .log(`Previous run time: ${previousRunTime.toISOString()} Last processed timestamp: ${processedTimestamp}`);
     // add some overlap to avoid missing status changes
     previousRunTime.setMinutes(previousRunTime.getMinutes() - 10);
 
-    const batches: Record<string, StatusChangeEntity> = {};
-    const batchesByTableName: Record<string, StatusChangeEntity> = {};
+    const entities: Record<string, StatusChangeEntity> = {};
 
     // load all objects which we monitor status changes for along with their last status change
     // noinspection SqlResolve
-    const r = await db.pgPool().query(`with status_changes as (SELECT DISTINCT ON ("actorId","tableName") *
-                                                               FROM newjitsu."StatusChange"
-                                                               ORDER BY "actorId", "tableName", id DESC)
+    const r = await db.pgPool().query(`
+        with last_statuses as (SELECT DISTINCT "actorId",
+                                               "tableName",
+                                               LAST_VALUE(id) OVER (
+                                                   PARTITION BY "actorId","tableName" ORDER BY id
+                                                   ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
+                                                   ) AS id,
+                                               LAST_VALUE(status) OVER (
+                                                   PARTITION BY "actorId","tableName" ORDER BY id
+                                                   ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
+                                                   ) AS status,
+                                               LAST_VALUE(description) OVER (
+                                                   PARTITION BY "actorId","tableName" ORDER BY id
+                                                   ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
+                                                   ) AS description,
+                                               LAST_VALUE(timestamp) OVER (
+                                                   PARTITION BY "actorId","tableName" ORDER BY id
+                                                   ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
+                                                   ) AS timestamp
+                               FROM newjitsu."StatusChange"
+                               ORDER BY "actorId", "tableName", id DESC),
+             status_changes as (SELECT "actorId",
+                                       "tableName",
+                                       coalesce(SUM(CASE WHEN "startedAt" >= CURRENT_DATE - INTERVAL '2 hours' THEN 1 END), 0) AS "changesPerHours",
+                                       coalesce(SUM(CASE WHEN "startedAt" >= CURRENT_DATE - INTERVAL '1 days' THEN 1 END), 0) AS "changesPerDay"
+                                FROM newjitsu."StatusChange"
+                                where "startedAt" >= CURRENT_DATE - INTERVAL '7 days'
+                                group by "actorId", "tableName")
 
-                                       select w.id                          as "workspaceId",
-                                              w.slug                        as slug,
-                                              w.name                        as "workspaceName",
-                                              fr.config->>'name'           as "fromName",
-                                              too.config->>'name'          as "toName",
-                                              coalesce(sc."actorId", cl.id) as "actorId",
-                                              cl.type,
-                                              sc."tableName",
-                                              sc.timestamp,
-                                              sc."status",
-                                              sc."description",
-                                              sc."previousStatus",
-                                              sc."previousTimestamp"
-                                       from newjitsu."ConfigurationObjectLink" cl
-                                                join newjitsu."Workspace" w on w.id = cl."workspaceId"
-                                                join newjitsu."ConfigurationObject" fr on fr.id = cl."fromId"
-                                                join newjitsu."ConfigurationObject" too on too.id = cl."toId"
-                                                left join status_changes sc on sc."actorId" = cl.id
-                                       where ( (cl.type = 'push' and  data ->> 'mode' = 'batch') or cl.type = 'sync' )
-                                         and cl.deleted = 'false' and fr.deleted = false and too.deleted = false
-                                         and w.deleted = false
-                                         `);
+        select w.id                          as "workspaceId",
+               w.slug                        as slug,
+               w.name                        as "workspaceName",
+               fr.config ->> 'name'          as "fromName",
+               too.config ->> 'name'         as "toName",
+               coalesce(sc."actorId", cl.id) as "actorId",
+               REPLACE(cl.type, 'push', 'batch') as type,
+               ls.id,
+               ls."tableName",
+               ls.timestamp,
+               ls.status,
+               ls.description,
+               sc."changesPerHours",
+               sc."changesPerDay"
+        from newjitsu."ConfigurationObjectLink" cl
+                 join newjitsu."Workspace" w on w.id = cl."workspaceId"
+                 join newjitsu."ConfigurationObject" fr on fr.id = cl."fromId"
+                 join newjitsu."ConfigurationObject" too on too.id = cl."toId"
+                 left join last_statuses ls on ls."actorId" = cl.id
+                 left join status_changes sc on sc."actorId" = ls."actorId" and sc."tableName" = ls."tableName"
+        where ((cl.type = 'push' and data ->> 'mode' = 'batch') or cl.type = 'sync')
+          and cl.deleted = 'false'
+          and fr.deleted = false
+          and too.deleted = false
+          and w.deleted = false
+    `);
     for (const row of r.rows) {
-      batches[key(row.actorId)] = row;
-      if (row["tableName"]) {
-        batchesByTableName[key(row.actorId, row["tableName"])] = row;
+      entities[key(row.actorId)] = row;
+      if (row.tableName) {
+        entities[key(row.actorId, row.tableName)] = row;
       }
     }
 
-    const changeId = await loadBatchStatusesChanges(previousRunTime, batches, batchesByTableName);
-    currentChangeId = Math.max(changeId, currentChangeId);
+    await loadBatchStatusesChanges(previousRunTime, entities);
 
-    const changeId2 = await loadSyncStatusesChanges(previousRunTime, batches);
-    currentChangeId = Math.max(changeId2, currentChangeId);
+    await loadSyncStatusesChanges(previousRunTime, entities);
 
-    const statusChanges = await db.prisma().statusChange.findMany({
-      where: {
-        AND: [{ id: { gt: previousChangeId } }],
-        OR: [
-          {
-            previousStatus: { not: null },
-          },
-          {
-            status: { not: "SUCCESS" },
-          },
-        ],
-      },
-      orderBy: [{ actorId: "asc" }, { tableName: "asc" }, { id: "asc" }],
-    });
-
-    log.atInfo().log(`Got ${statusChanges.length} new status changes`);
-
-    const aggrStatues: Record<string, StatusChange[]> = {};
-
-    for (const change of statusChanges) {
-      const k = key(change.actorId, change.tableName);
-
-      const statuses = aggrStatues[k] || [];
-      if (statuses.length == 0) {
-        aggrStatues[k] = statuses;
-      } else if (statuses[statuses.length - 1].status == "SUCCESS") {
-        // we are not interested in intermediate success statuses
-        statuses.pop();
-      }
-      statuses.push(change);
-      currentChangeId = Number(change.id);
-    }
-
-    for (const [k, statuses] of Object.entries(aggrStatues)) {
-      const lastStatus = statuses[statuses.length - 1];
-      const b = batches[key(lastStatus.actorId)];
-      const details = statuses
-        .map(s => `${s.timestamp.toISOString()} ${s.status}${s.description ? " " + s.description : ""}`)
-        .join("\n");
-      if (lastStatus.status == "SUCCESS") {
-        await sendSlackNotification(b, "RECOVERED", lastStatus, details, publicEndpoints.baseUrl);
-      } else {
-        await sendSlackNotification(b, "FAILED", lastStatus, details, publicEndpoints.baseUrl);
-      }
-    }
+    processedTimestamp = await processStatusChanges(processedTimestamp, entities, publicEndpoints);
 
     await db.prisma().globalProps.update({
       where: { id: notificationsLastRun.id },
       data: {
         name: "notificationsLastRun",
-        value: { timestamp: currentRunTime, lastProcessedChangeId: currentChangeId },
+        value: { timestamp: currentRunTime, lastProcessedTimestamp: processedTimestamp },
       },
     });
   })
   .toNextApiHandler();
 
+async function processStatusChanges(
+  processedTimestamp: Date,
+  entities: Record<string, StatusChangeEntity>,
+  publicEndpoints: any
+): Promise<Date> {
+  const channels: Record<string, NotificationChannel[]> = {};
+  const channelStates: Record<string, NotificationState> = {};
+  await db
+    .prisma()
+    .configurationObject.findMany({
+      where: {
+        type: "notification",
+        deleted: false,
+      },
+    })
+    .then(rows => {
+      for (const row of rows) {
+        let channelsByWorkspace = channels[row.workspaceId];
+        if (!channelsByWorkspace) {
+          channelsByWorkspace = [];
+          channels[row.workspaceId] = channelsByWorkspace;
+        }
+        channelsByWorkspace.push({ ...omit(row, "config"), ...(row.config as any) } as unknown as NotificationChannel);
+      }
+    });
+
+  const states = await db.prisma().notificationState.findMany({});
+  for (const state of states) {
+    channelStates[chKey(state.channelId, state.actorId, state.tableName)] = state;
+  }
+
+  log.atInfo().log(`Loading changes from ${processedTimestamp.toISOString()}`);
+
+  const statusChanges = await db.prisma().statusChange.findMany({
+    where: {
+      timestamp: { gt: processedTimestamp },
+    },
+    orderBy: [{ timestamp: "asc" }],
+  });
+
+  log.atInfo().log(`Got ${statusChanges.length} new status changes`);
+
+  const aggrStatues: Record<string, StatusChange[]> = {};
+
+  for (const change of statusChanges) {
+    const k = key(change.actorId, change.tableName);
+    const statuses = aggrStatues[k] || [];
+    if (statuses.length == 0) {
+      aggrStatues[k] = statuses;
+    } else if (statuses[statuses.length - 1].status == "SUCCESS") {
+      // we are not interested in intermediate success statuses
+      statuses.pop();
+    }
+    statuses.push(change);
+    processedTimestamp = change.timestamp;
+  }
+
+  for (const [k, statuses] of Object.entries(aggrStatues)) {
+    const lastStatus = statuses[statuses.length - 1];
+    const entity = entities[key(lastStatus.actorId)];
+    for (const channel of [...(channels[entity.workspaceId] || []), ...(channels["admin"] || [])]) {
+      if (!channel.events.includes(entity.type) && !channel.events.includes("all")) {
+        continue;
+      }
+      const cStatuses = [...statuses];
+      const chkey = chKey(channel.id, lastStatus.actorId, lastStatus.tableName);
+      let state = channelStates[chkey];
+      if (!state?.flappingSince) {
+        if (entity.changesPerHours > flappingThreshold && lastStatus.status !== "SUCCESS") {
+          log
+            .atInfo()
+            .log(`[${chkey}] Flapping started ${lastStatus.timestamp} Changes per hour: ${entity.changesPerHours}`);
+          cStatuses.push({
+            ...lastStatus,
+            status: "FLAPPING",
+            description: `FLAPPING: ${entity.changesPerHours} transitions from SUCCESS to FAILED within a ${flappingWindowHours}-hours window`,
+          });
+        } else {
+          if (
+            lastStatus.id === state?.statusChangeId &&
+            (lastStatus.status === "SUCCESS" ||
+              lastStatus.timestamp.getTime() <=
+                state.lastNotification.getTime() + channel.recurringAlertsPeriodHours * 60 * 60 * 1000)
+          ) {
+            log.atInfo().log(`[${chkey}] No new status changes`);
+            continue;
+          }
+        }
+      } else if (entity.changesPerHours === 0) {
+        log
+          .atInfo()
+          .log(`[${chkey}] Flapping ended ${lastStatus.timestamp} Changes per hour: ${entity.changesPerHours}`);
+      } else if (
+        lastStatus.timestamp.getTime() >
+        state.lastNotification.getTime() + channel.recurringAlertsPeriodHours * 60 * 60 * 1000
+      ) {
+        log
+          .atInfo()
+          .log(`[${chkey}] Flapping recurring ${state.flappingSince} Changes per hour: ${entity.changesPerHours}`);
+        cStatuses.push({
+          ...lastStatus,
+          status: "FLAPPING",
+          description: `FLAPPING RECURRING: ${entity.changesPerHours} transitions from SUCCESS to FAILED within a ${flappingWindowHours}-hours window`,
+        });
+      } else {
+        log
+          .atInfo()
+          .log(`[${chkey}] Flapping ongoing since ${state.flappingSince} Changes per hour: ${entity.changesPerHours}`);
+        continue;
+      }
+
+      await processNotifications(channel, channelStates, cStatuses, entity, publicEndpoints);
+    }
+  }
+
+  return processedTimestamp;
+}
+
+function makeNotificationState(
+  channel: NotificationChannel,
+  statusChange: StatusChange,
+  flappingSince?: Date,
+  error?: string
+): NotificationState {
+  return {
+    workspaceId: statusChange.workspaceId,
+    actorId: statusChange.actorId,
+    tableName: statusChange.tableName,
+    channelId: channel.id,
+    lastNotification: statusChange.timestamp,
+    flappingSince: flappingSince,
+    statusChangeId: statusChange.id!,
+    error: error ? error : "",
+  };
+}
+
+async function updateNotificationState(
+  channelStates: Record<string, NotificationState>,
+  channel: NotificationChannel,
+  lastStatus: StatusChange,
+  flappingSince?: Date,
+  error?: string
+): Promise<NotificationState> {
+  const state = makeNotificationState(channel, lastStatus, flappingSince, error);
+  await db.prisma().notificationState.upsert({
+    where: {
+      channelId_actorId_tableName: {
+        channelId: channel.id,
+        actorId: lastStatus.actorId,
+        tableName: lastStatus.tableName,
+      },
+    },
+    create: state,
+    update: state,
+  });
+  channelStates[chKey(channel.id, lastStatus.actorId, lastStatus.tableName)] = state;
+  return state;
+}
+
+async function processNotifications(
+  channel: NotificationChannel,
+  channelStates: Record<string, NotificationState>,
+  statusChanges: StatusChange[],
+  entity: StatusChangeEntity,
+  publicEndpoints: PublicEndpoint
+) {
+  const chkey = chKey(channel.id, entity.actorId, entity.tableName);
+  let error: string | undefined = undefined;
+  const state = channelStates[chKey(channel.id, entity.actorId, entity.tableName)];
+  const lastStatus = statusChanges[statusChanges.length - 1];
+  let flappingSince: Date | undefined =
+    lastStatus.status === "FLAPPING" ? state.flappingSince || lastStatus.timestamp : undefined;
+  const status = lastStatus.status === "SUCCESS" ? "SUCCESS" : lastStatus.status === "FLAPPING" ? "FLAPPING" : "FAILED";
+  try {
+    if (channel.channel === "slack") {
+      await sendSlackNotification(channel, entity, status, lastStatus, statusChanges, publicEndpoints.baseUrl);
+    } else if (channel.channel === "email") {
+      await sendEmailNotification(channel, entity, status, lastStatus, statusChanges, publicEndpoints.baseUrl);
+    }
+    log
+      .atInfo()
+      .log(
+        `[${chkey}] ${channel.channel} notification sent. Job status: ${status} id: ${entity.id} ts: ${entity.timestamp}`
+      );
+  } catch (e: any) {
+    log
+      .atError()
+      .log(
+        `[${chkey}] Failed to process ${channel.channel} notification. Job status: ${status} id: ${entity.id} ts: ${entity.timestamp}: ${e.message}`
+      );
+    error = e.message;
+  } finally {
+    await db.prisma().notification.create({
+      data: {
+        workspaceId: entity.workspaceId,
+        actorId: entity.actorId,
+        tableName: entity.tableName,
+        channelId: channel.id,
+        statusChangeId: lastStatus.id!,
+        status: error ? "error" : "ok",
+        error,
+      },
+    });
+    await updateNotificationState(channelStates, channel, lastStatus, flappingSince, error);
+  }
+}
+
 async function loadSyncStatusesChanges(
   fromTimestamp: Date,
-  batches: Record<string, Partial<StatusChange>>
-): Promise<number> {
+  entities: Record<string, StatusChangeEntity>
+): Promise<void> {
   const sw = stopwatch();
   let statusChanges = 0;
-  let changeId = 0;
 
   const r = await db.pgPool().query(
     `
@@ -182,50 +402,31 @@ async function loadSyncStatusesChanges(
   );
   log.atInfo().log(`Got ${r.rowCount} sync task records in ${sw.elapsedPretty()}`);
   for (const row of r.rows) {
-    let batch = batches[key(row.sync_id)];
+    let entity = entities[key(row.sync_id)];
     const status = row.status;
-    if (!batch) {
+    if (!entity) {
       log.atWarn().log(`Sync ${row.sync_id} not found`);
       continue;
     }
-    const rowTimestamp = row.updated_at;
     //log.atInfo().log(`SS`, rowTimestamp, typeof rowTimestamp, batch.timestamp, typeof batch.timestamp);
 
-    if (!batch.timestamp || (rowTimestamp.getTime() > batch.timestamp.getTime() && status != batch.status)) {
-      const newBatch: StatusChange = {
-        workspaceId: batch.workspaceId!,
-        actorId: batch.actorId!,
-        tableName: "",
-        timestamp: rowTimestamp,
-        status: status,
-        description: row.error,
-        previousStatus: batch.status,
-        previousTimestamp: batch.timestamp,
-      };
-      const r = await db.prisma().statusChange.create({
-        data: newBatch,
-      });
-      changeId = Number(r.id);
-      batches[key(newBatch.actorId)] = { ...batches[key(newBatch.actorId)], ...newBatch };
+    const chId = await updateStatusChange(entities, entity, row.updated_at, status, row.error);
+    if (chId) {
       statusChanges++;
-      log.atInfo().log(`Sync ${batch.actorId} status changed from ${batch.status} to ${status}`);
     }
   }
   log.atInfo().log(`Sync tasks processed. Status changes: ${statusChanges}. Elapsed: ${sw.elapsedPretty()}`);
-  return changeId;
 }
 
 async function loadBatchStatusesChanges(
   fromTimestamp: Date,
-  batches: Record<string, StatusChangeEntity>,
-  batchesByTable: Record<string, StatusChangeEntity>
-): Promise<number> {
+  entities: Record<string, StatusChangeEntity>
+): Promise<void> {
   const sw = stopwatch();
-  const batchesIds = Object.entries(batches)
-    .filter(([_, b]) => b.type === "push")
+  const actorIds = Object.entries(entities)
+    .filter(([_, b]) => b.type === "batch")
     .map(([id, _]) => id);
   let statusChanges = 0;
-  let changeId = 0;
 
   const metricsSchema = process.env.CLICKHOUSE_METRICS_SCHEMA || process.env.CLICKHOUSE_DATABASE || "newjitsu_metrics";
 
@@ -242,7 +443,7 @@ async function loadBatchStatusesChanges(
       query: eventsLogQuery,
       query_params: {
         fromTimestamp: dateToClickhouse(fromTimestamp),
-        actorIds: batchesIds,
+        actorIds: actorIds,
       },
       clickhouse_settings: {
         wait_end_of_query: 1,
@@ -252,7 +453,7 @@ async function loadBatchStatusesChanges(
   log.atInfo().log(`Got ${eventsLogRes.data.length} events log records in ${sw.elapsedPretty()}`);
   if (eventsLogRes.data && eventsLogRes.data.length > 0) {
     for (const row of eventsLogRes.data) {
-      let batch = batches[key(row.actorId)];
+      let entity = entities[key(row.actorId)];
       const status = row.level === "error" ? "FAILED" : "SUCCESS";
       let message: any = {};
       try {
@@ -263,49 +464,79 @@ async function loadBatchStatusesChanges(
         tableName = tableName
           .replace(/_tmp\d{12,16}$/, "")
           .replace(/_\d{4}_\d{2}_\d{2}T\d{2}_\d{2}_\d{2}(?:_\d+)?[.](?:ndjson|csv)(?:[.]gz)?$/, "");
-        batch = batchesByTable[key(row.actorId, tableName)] || batch;
+        let entityWithTable = entities[key(row.actorId, tableName)];
+        if (!entityWithTable) {
+          entityWithTable = { ...entity, tableName, type: "batch" };
+        }
+        entity = entityWithTable;
       }
-
-      if (!batch) {
+      //log.atInfo().log(`Batch ${row.actorId} ${entity.tableName} ${status} ${row.timestamp} ${entity.timestamp}`);
+      if (!entity) {
         log.atWarn().log(`Batch ${row.actorId} not found`);
         continue;
       }
       const rowTimestamp = dayjs(row.timestamp, { utc: true }).toDate();
-      //log.atInfo().log(`EL`, key(row.actorId, tableName), rowTimestamp, batch.timestamp);
 
-      if (!batch.timestamp || (rowTimestamp.getTime() > batch.timestamp.getTime() && status != batch.status)) {
-        const newBatch: StatusChange = {
-          workspaceId: batch.workspaceId!,
-          actorId: batch.actorId!,
-          tableName: tableName ?? "",
-          timestamp: rowTimestamp,
-          status: status,
-          description: message.error,
-          previousStatus: batch.status,
-          previousTimestamp: batch.timestamp,
-        };
-        const b = await db.prisma().statusChange.create({
-          data: newBatch,
-        });
-        changeId = Number(b.id);
-        if (tableName) {
-          batchesByTable[key(newBatch.actorId, tableName)] = {
-            ...batchesByTable[key(newBatch.actorId, tableName)],
-            ...newBatch,
-          };
-        } else {
-          batches[key(newBatch.actorId)] = { ...batches[key(newBatch.actorId)], ...newBatch };
-        }
+      const chId = await updateStatusChange(entities, entity, rowTimestamp, status, message.error);
+      if (chId) {
         statusChanges++;
-        log.atInfo().log(`Batch ${batch.actorId} ${tableName} status changed from ${batch.status} to ${status}`);
       }
     }
     log.atInfo().log(`Events log processed. Status changes: ${statusChanges}. Elapsed: ${sw.elapsedPretty()}`);
   }
-  return changeId;
 }
 
-type JobStatus = "FAILED" | "RECOVERED";
+async function updateStatusChange(
+  entities: Record<string, StatusChangeEntity>,
+  entity: StatusChangeEntity,
+  timestamp: Date,
+  status: Status,
+  description?: string
+): Promise<boolean> {
+  let changed = false;
+  let newBatch: StatusChange & { id?: bigint | number };
+
+  if (!entity.timestamp || timestamp.getTime() > entity.timestamp.getTime()) {
+    if (status != entity.status) {
+      newBatch = {
+        workspaceId: entity.workspaceId!,
+        actorId: entity.actorId!,
+        tableName: entity.tableName ?? "",
+        timestamp: timestamp,
+        startedAt: timestamp,
+        status: status,
+        description: description,
+        counts: 1,
+      };
+      const b = await db.prisma().statusChange.create({
+        data: newBatch,
+      });
+      newBatch.id = b.id;
+      changed = true;
+      log.atInfo().log(`${entity.actorId} ${entity.tableName} status changed from ${entity.status} to ${status}`);
+    } else {
+      newBatch = await db.prisma().statusChange.update({
+        where: { id: entity.id },
+        data: {
+          counts: { increment: 1 },
+          timestamp: timestamp,
+        },
+      });
+    }
+    entity = {
+      ...entity,
+      ...newBatch,
+      changesPerHours: entity.changesPerHours + (changed ? 1 : 0),
+      changesPerDay: entity.changesPerDay + (changed ? 1 : 0),
+      id: newBatch.id!,
+    };
+    entities[key(entity.actorId, entity.tableName)] = entity;
+    return changed;
+  }
+  return false;
+}
+
+type JobStatus = "FAILED" | "SUCCESS" | "FLAPPING";
 
 type SlackPayload = {
   text: string;
@@ -314,23 +545,29 @@ type SlackPayload = {
 };
 
 async function sendSlackNotification(
+  channel: NotificationChannel,
   entity: StatusChangeEntity,
   status: JobStatus,
   lastStatus: StatusChange,
-  details: string,
+  statusChanges: StatusChange[],
   baseUrl: string
-): Promise<boolean> {
+): Promise<void> {
   const url =
     entity.type == "sync"
       ? `${baseUrl}/${entity.slug}/syncs/tasks?query={syncId:'${entity.actorId}'}`
       : `${baseUrl}/${entity.slug}/data?query={activeView%3A'bulker'%2CviewState%3A{bulker%3A{actorId%3A'${entity.actorId}'}}}`;
   const name = `${entity.fromName} → ${entity.toName}`;
-  const jobName = entity.type == "sync" ? `Sync Task *${name}*` : `Batch *${name}*`;
+  const jobType = entity.type == "sync" ? "Sync Task" : "Batch";
+  const jobName = `<${url}|${name}>`;
   const message =
-    status === "FAILED"
-      ? `:red_circle: FAILED ${jobName} [${entity.workspaceName}]`
-      : `:large_green_circle: RECOVERED ${jobName} [${entity.workspaceName}]`;
-  const color = status === "FAILED" ? "#ff0000" : "#36a64f"; // Red for failed, Green for recovered
+    status === "SUCCESS"
+      ? `:large_green_circle: ${jobType} *SUCCESS* ${jobName} [${entity.workspaceName}]`
+      : `:red_circle: ${jobType} *FAILED* ${jobName} [${entity.workspaceName}]`;
+  const color = status === "SUCCESS" ? "#36a64f" : "#ff0000"; // Red for failed, Green for recovered
+  const details = [...statusChanges]
+    .reverse()
+    .map(s => `${s.timestamp.toISOString()} *${s.status}*${s.description ? ":\n```" + s.description + "```" : ""}\n`)
+    .join("\n");
 
   const payload: SlackPayload = {
     text: message,
@@ -355,60 +592,85 @@ async function sendSlackNotification(
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `Last status: *${lastStatus.status}*\n${
-            lastStatus.tableName ? "Batch Table: *" + lastStatus.tableName + "*\n" : ""
+          text: `Last status: \`${lastStatus.status}\`\n${
+            lastStatus.tableName ? "Batch Table: `" + lastStatus.tableName + "`\n" : ""
           }<${url}|Open in Jitsu...>`,
         },
-      },
-      {
-        type: "context",
-        elements: [
-          {
-            type: "mrkdwn",
-            text: `No additional reports will be sent for this entity unless the status changes.`,
-          },
-        ],
       },
       // {
       //   type: "divider",
       // },
     ],
   };
-
-  try {
-    const res = await fetch(SLACK_WEBHOOK_URL!, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
+  if (channel.recurringAlertsPeriodHours) {
+    payload.blocks!.push({
+      type: "context",
+      elements: [
+        {
+          type: "mrkdwn",
+          text: `No additional reports will be sent for this connection in ${channel.recurringAlertsPeriodHours} hours unless the status changes.`,
+        },
+      ],
     });
-    if (!res.ok) {
-      log
-        .atError()
-        .log(
-          `Failed to send Slack notification: ${status} ${jobName}${
-            lastStatus.tableName ? " t:" + lastStatus.tableName : ""
-          } [${entity.workspaceName}]: ${res.status} ${res.statusText}`
-        );
-      return false;
-    }
-    log
-      .atInfo()
-      .log(
-        `Slack notification sent: ${status} ${jobName}${lastStatus.tableName ? " t:" + lastStatus.tableName : ""} [${
-          entity.workspaceName
-        }]`
-      );
-    return true;
-  } catch (error: any) {
-    log
-      .atError()
-      .log(
-        `Failed to send Slack notification: ${status} ${jobName}${
-          lastStatus.tableName ? " t:" + lastStatus.tableName : ""
-        } [${entity.workspaceName}]: ${error.message}`
-      );
-    return false;
   }
+
+  const res = await fetch(channel.slackWebhookUrl!, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    throw new Error(`HTTP Error: ${res.status}: ${await res.text()}`);
+  }
+}
+
+async function sendEmailNotification(
+  channel: NotificationChannel,
+  entity: StatusChangeEntity,
+  status: JobStatus,
+  lastStatus: StatusChange,
+  statusChanges: StatusChange[],
+  baseUrl: string
+): Promise<void> {
+  const name = `${entity.fromName} → ${entity.toName}`;
+  const details = [...statusChanges]
+    .reverse()
+    .map(
+      s =>
+        `${s.timestamp.toISOString()} <b>${s.status}</b>${
+          s.description ? ":<br/><code className='text-xxs'>" + s.description + "</code>" : ""
+        }<br/>`
+    )
+    .join("\n");
+
+  const eeAuthToken = createJwt("admin-service-account@jitsu.com", "admin-service-account@jitsu.com", "$all", 60).jwt;
+
+  await rpc(`${getEeConnection().host}api/email`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${eeAuthToken}`,
+    },
+    body: {
+      template: status === "SUCCESS" ? "connection-status-success" : "connection-status-failed",
+      workspaceId: entity.workspaceId,
+      variables: {
+        workspaceName: entity.workspaceName,
+        workspaceSlug: entity.slug,
+        entityId: entity.actorId,
+        entityType: entity.type,
+        entityName: name,
+        tableName: entity.tableName,
+        recurringAlertsPeriodHours: channel.recurringAlertsPeriodHours,
+        lastStatus: lastStatus.status,
+        details: details,
+      },
+    },
+  });
+}
+
+function maxDate(a: Date, b: Date): Date {
+  return a.getTime() > b.getTime() ? a : b;
 }

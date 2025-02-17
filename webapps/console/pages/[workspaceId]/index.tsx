@@ -127,7 +127,9 @@ function DestinationCard({ dest, selected }: { dest: DestinationConfig; selected
               },
             ]
       }
-      configLink={!dest.provisioned ? `/${workspace.id}/destinations?id=${dest.id}` : `/${workspace.id}/destinations`}
+      configLink={
+        !dest.provisioned ? `/${workspace.slugOrId}/destinations?id=${dest.id}` : `/${workspace.slugOrId}/destinations`
+      }
     />
   );
   return (
@@ -246,7 +248,7 @@ function WorkspaceOverview(props: {
                       }
                 }
                 title={name || id}
-                configLink={`/${workspace.slug || workspace.id}/services?id=${id}`}
+                configLink={`/${workspace.slugOrId}/services?id=${id}`}
                 actions={[
                   { label: "Edit", href: `/services?id=${id}`, icon: <Edit3 className={"w-4 h-4"} /> },
                   {
@@ -288,7 +290,7 @@ function WorkspaceOverview(props: {
                           "The source is not connected to any destination. Connect it to any destination to start seeing the data",
                       }
                 }
-                configLink={`/${workspace.slug || workspace.id}/streams?id=${id}`}
+                configLink={`/${workspace.slugOrId}/streams?id=${id}`}
                 actions={[
                   { label: "Edit", href: `/streams?id=${id}`, icon: <Edit3 className={"w-4 h-4"} /> },
                   {

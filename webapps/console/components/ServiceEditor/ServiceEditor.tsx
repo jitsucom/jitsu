@@ -186,7 +186,7 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
         await rpc(`/api/${workspace.id}/sources/discover?serviceId=${res?.id || obj.id}`);
       }
       await reloadStore();
-      push(`/${workspace.id}/services`);
+      push(`/${workspace.slugOrId}/services`);
     };
     try {
       if (!validate()) {

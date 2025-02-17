@@ -98,6 +98,7 @@ export type ConfigEditorProps<T extends { id: string } = { id: string }, M = {}>
   testButtonLabel?: string;
   onTest?: (o: T) => Promise<ConfigTestResult>;
   backTo?: string;
+  pathPrefix?: string;
 };
 
 type JsonSchema = any;
@@ -381,8 +382,10 @@ const SingleObjectEditor: React.FC<SingleObjectEditorProps> = props => {
     loadMeta,
     onTest,
     backTo,
+    pathPrefix,
     ...otherProps
   } = props;
+  const pref = pathPrefix ? `/${pathPrefix}` : "";
   const [meta, setMeta] = useState<any>(undefined);
   const isNew = !!(!otherProps.object || createNew);
   const workspace = useWorkspace();
@@ -444,9 +447,9 @@ const SingleObjectEditor: React.FC<SingleObjectEditorProps> = props => {
   const onCancel = async (confirm: boolean) => {
     if (!confirm || (await confirmOp("Are you sure you want to close this page? All unsaved changes will be lost."))) {
       if (backTo) {
-        router.push(`/${workspace.id}${backTo}`);
+        router.push(`/${workspace.slugOrId}${backTo}`);
       } else {
-        router.push(`/${workspace.id}/${type}s`);
+        router.push(`/${workspace.slugOrId}${pref}/${type}s`);
       }
     }
   };
@@ -455,7 +458,7 @@ const SingleObjectEditor: React.FC<SingleObjectEditorProps> = props => {
       try {
         await onDeleteMutation.mutateAsync(undefined);
         feedbackSuccess(`Successfully deleted ${noun}`);
-        router.push(`/${workspace.id}/${type}s`);
+        router.push(`/${workspace.slugOrId}${pref}/${type}s`);
       } catch (error) {
         feedbackError("Failed to delete object", { error });
       }
@@ -465,9 +468,9 @@ const SingleObjectEditor: React.FC<SingleObjectEditorProps> = props => {
     try {
       await onSaveMutation.mutateAsync(newObject);
       if (backTo) {
-        router.push(`/${workspace.id}${backTo}`);
+        router.push(`/${workspace.slugOrId}${backTo}`);
       } else {
-        router.push(`/${workspace.id}/${type}s`);
+        router.push(`/${workspace.slugOrId}${pref}/${type}s`);
       }
     } catch (error) {
       feedbackError("Failed to save object", { error });
@@ -681,7 +684,9 @@ const ObjectsList: React.FC<{ objects: any[]; onDelete: (id: string) => Promise<
   noun,
   icon,
   name = (o: any) => o.name,
+  pathPrefix = "",
 }) => {
+  const pref = pathPrefix ? `/${pathPrefix}` : "";
   const modal = useAntdModal();
   const nameRender = listColumns.find(c => c.title === "name")?.render;
   useTitle(`${branding.productName} : ${plural(noun)}`);
@@ -700,7 +705,7 @@ const ObjectsList: React.FC<{ objects: any[]; onDelete: (id: string) => Promise<
       render:
         nameRender ||
         ((text, record) => (
-          <WLink href={`/${type}s?id=${record.id}`}>
+          <WLink href={`${pref}/${type}s?id=${record.id}`}>
             <ObjectTitle title={name(record)} icon={icon ? icon(record) : undefined} />
           </WLink>
         )),
@@ -718,7 +723,7 @@ const ObjectsList: React.FC<{ objects: any[]; onDelete: (id: string) => Promise<
         const items: ButtonProps[] = [
           {
             label: "Edit",
-            href: `/${type}s?id=${record.id}`,
+            href: `${pref}/${type}s?id=${record.id}`,
             icon: <Edit3 className={"w-4 h-4"} />,
           },
           ...actions.map(action => ({
@@ -735,7 +740,7 @@ const ObjectsList: React.FC<{ objects: any[]; onDelete: (id: string) => Promise<
           })),
           {
             label: "Clone",
-            href: `/${type}s?id=new&clone=${record.id}`,
+            href: `${pref}/${type}s?id=new&clone=${record.id}`,
             collapsed: true,
             icon: <FaClone />,
           },

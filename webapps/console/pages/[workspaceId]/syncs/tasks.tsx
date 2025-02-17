@@ -841,7 +841,7 @@ function Tasks() {
               icon={<ChevronLeft className="w-6 h-6" />}
               type="link"
               size="small"
-              onClick={() => router.push(`/${workspace.slug || workspace.id}/syncs`)}
+              onClick={() => router.push(`/${workspace.slugOrId}/syncs`)}
             >
               Back
             </JitsuButton>

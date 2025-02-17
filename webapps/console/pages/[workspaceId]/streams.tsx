@@ -90,9 +90,9 @@ const StreamsList: React.FC<{}> = () => {
         // <div className="mb-4 flex items-center justify-left">
         //
         //   <Link
-        //     href={`/${workspace.slug || workspace.id}/streams?id=${obj.id}&implementationFor=${obj.id}`}
+        //     href={`/${workspace.slugOrId}/streams?id=${obj.id}&implementationFor=${obj.id}`}
         //     onClick={() => {
-        //       router.replace(`/${workspace.slug || workspace.id}/streams?id=${obj.id}&implementationFor=${obj.id}`);
+        //       router.replace(`/${workspace.slugOrId}/streams?id=${obj.id}&implementationFor=${obj.id}`);
         //       setImplementationDocumentationId(obj.id);
         //     }}
         //     className="flex items-center space-x-2 border border-textLight px-2 py-1 rounded text-textLight text-xs"
@@ -184,7 +184,7 @@ const StreamsList: React.FC<{}> = () => {
                 <Check className="h-4 w-4 mr-1 text-success" />{" "}
                 <span className="text-sm">
                   Connected to{" "}
-                  <Link href={`/${workspace.slug}/connections?source=${s.id}`}>
+                  <Link href={`/${workspace.slugOrId}/connections?source=${s.id}`}>
                     {destinations.length} destination{destinations.length > 1 ? "s" : ""}
                   </Link>
                 </span>

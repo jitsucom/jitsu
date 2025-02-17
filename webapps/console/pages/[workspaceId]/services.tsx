@@ -58,8 +58,8 @@ const ConnectionsHint: React.FC<{ connections: any[]; service: ServiceConfig }> 
       <div className="flex items-center flex-nowrap">
         <AlertTriangle className="h-4 w-4 mr-1 text-warning" />{" "}
         <span className="text-sm">
-          <Link href={`/${workspace.slug}/syncs/edit?serviceId=${service.id}`}>Create sync to any destination</Link> to
-          start seeing data
+          <Link href={`/${workspace.slugOrId}/syncs/edit?serviceId=${service.id}`}>Create sync to any destination</Link>{" "}
+          to start seeing data
         </span>
       </div>
     );
@@ -69,7 +69,7 @@ const ConnectionsHint: React.FC<{ connections: any[]; service: ServiceConfig }> 
         <Check className="h-4 w-4 mr-1 text-success" />{" "}
         <span className="text-sm">
           Connected to{" "}
-          <Link href={`/${workspace.slug}/syncs?source=${service.id}`}>
+          <Link href={`/${workspace.slugOrId}/syncs?source=${service.id}`}>
             {connections.length} destination{connections.length > 1 ? "s" : ""}
           </Link>
         </span>
@@ -266,7 +266,7 @@ const ServicesList: React.FC<{}> = () => {
           onClick={async (packageType, packageId, version) => {
             await setShowCatalog(false).then(() =>
               router.push(
-                `/${workspace.id}/services?id=new&packageType=${packageType}&packageId=${encodeURIComponent(
+                `/${workspace.slugOrId}/services?id=new&packageType=${packageType}&packageId=${encodeURIComponent(
                   packageId
                 )}${version ? `&version=${version}` : ""}`
               )

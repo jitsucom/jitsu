@@ -60,8 +60,8 @@ function EmptyLinks() {
       <div className="flex flex-col items-center">
         <div className="text-xl text-textLight mb-3">
           {" "}
-          You don't have any links between <Link href={`/${workspace.id}/services`}>services</Link> and{" "}
-          <Link href={`/${workspace.id}/destinations`}>destinations</Link>
+          You don't have any links between <Link href={`/${workspace.slugOrId}/services`}>services</Link> and{" "}
+          <Link href={`/${workspace.slugOrId}/destinations`}>destinations</Link>
         </div>
 
         <WJitsuButton href={`/syncs/edit`} type="link">
@@ -264,7 +264,7 @@ function SyncsTable({ links, services, destinations }: RemoteEntitiesProps) {
       render: (text, link) => {
         const toTasks = async () =>
           router.push(
-            `/${workspace.slug || workspace.id}/syncs/tasks?query=${encodeURIComponent(
+            `/${workspace.slugOrId}/syncs/tasks?query=${encodeURIComponent(
               JSON5.stringify({
                 syncId: link.id,
                 notification: "Sync Started",
@@ -301,7 +301,7 @@ function SyncsTable({ links, services, destinations }: RemoteEntitiesProps) {
                   displayTaskRunError(workspace, runStatus);
                 } else {
                   router.push(
-                    `/${workspace.slug || workspace.id}/syncs/tasks?query=${encodeURIComponent(
+                    `/${workspace.slugOrId}/syncs/tasks?query=${encodeURIComponent(
                       JSON5.stringify({
                         syncId: link.id,
                         notification: "Sync Started",
@@ -459,11 +459,11 @@ function Syncs(props: RemoteEntitiesProps) {
         <div className="text-center mt-12 text text-textLight max-w-4xl">
           In order to create a sync please create at least one connector and destination of <b>data warehouse</b> or{" "}
           <b>cloud storage</b> type. Currently, you have{" "}
-          <Link href={`/${workspace.slug || workspace.id}/destinations`} className="underline">
+          <Link href={`/${workspace.slugOrId}/destinations`} className="underline">
             {bulkerDsts.length} destination{bulkerDsts.length === 1 ? "" : "s"}
           </Link>{" "}
           and{" "}
-          <Link href={`/${workspace.slug || workspace.id}/services`} className="underline">
+          <Link href={`/${workspace.slugOrId}/services`} className="underline">
             {services.length} connector{services.length === 1 ? "" : "s"}
           </Link>{" "}
           configured

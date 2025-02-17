@@ -791,7 +791,7 @@ function ConnectionEditor({
             disabled={loading}
             onClick={() => {
               if (router.query.backTo) {
-                router.push(`/${workspace.id}${router.query.backTo}`);
+                router.push(`/${workspace.slugOrId}${router.query.backTo}`);
               } else {
                 router.back();
               }
@@ -818,7 +818,7 @@ function ConnectionEditor({
                 });
                 await reloadStore();
                 if (router.query.backTo) {
-                  router.push(`/${workspace.id}${router.query.backTo}`);
+                  router.push(`/${workspace.slugOrId}${router.query.backTo}`);
                 } else {
                   router.back();
                 }

@@ -57,8 +57,8 @@ const AvailableDestinationsList: React.FC<any> = () => {
             .map(([destinationId, destination]) => (
               <Link
                 className="block border border-textDisabled rounded px-4 py-4 shadow hover:border-primaryDark hover:shadow-primaryLighter flex justify-between items-center hover:text-textPrimary group"
-                key={workspace.slug || workspace.id}
-                href={`/${workspace.slug || workspace.id}/sql?destinationId=${destinationId}`}
+                key={workspace.slugOrId}
+                href={`/${workspace.slugOrId}/sql?destinationId=${destinationId}`}
               >
                 <div className="flex items-center space-x-4">
                   <div className="w-8 h-w-8">

@@ -174,7 +174,7 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
         feedbackError(`Can't save function without id`);
       }
       await reloadStore();
-      push(`/${workspace.id}/functions`);
+      push(`/${workspace.slugOrId}/functions`);
     } catch (error) {
       feedbackError(`Can't save function`, { error });
     } finally {
@@ -298,7 +298,7 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
             onChange={setActivePrimaryTab}
             tabBarExtraContent={
               <div className="flex items-center gap-2">
-                <Button type="text" onClick={() => push(`/${workspace.id}/functions`)} disabled={saving}>
+                <Button type="text" onClick={() => push(`/${workspace.slugOrId}/functions`)} disabled={saving}>
                   <ButtonLabel icon={<Undo2 className="w-4 h-4" />}>Cancel</ButtonLabel>
                 </Button>
                 <Button type="text" onClick={save} disabled={saving}>

@@ -336,32 +336,48 @@ model ProfileBuilderState {
 }
 
 model StatusChange {
-  id                BigInt    @id @default(autoincrement()) @db.BigInt
-  workspaceId       String
-  actorId           String
-  tableName         String
-  timestamp         DateTime  @default(now()) @db.Timestamptz(3) /// @zod.custom(z.coerce.date())
-  status            String
-  previousStatus    String?
-  previousTimestamp DateTime? @default(now()) @db.Timestamptz(3) /// @zod.custom(z.coerce.date())
-  description       String?
+  id          BigInt    @id @default(autoincrement()) @db.BigInt
+  workspaceId String
+  actorId     String
+  tableName   String
+  timestamp   DateTime  @default(now()) @db.Timestamptz(3) /// @zod.custom(z.coerce.date())
+  status      String
+  startedAt   DateTime
+  counts      Int       @default(0)
+  description String?
+
+  @@index([actorId, tableName])
+  @@index(timestamp)
+  @@index(startedAt)
+}
+
+model NotificationState {
+  workspaceId      String
+  actorId          String
+  tableName        String
+  channelId        String
+  flappingSince    DateTime? @db.Timestamptz(3) /// @zod.custom(z.coerce.date())
+  lastNotification DateTime @db.Timestamptz(3) /// @zod.custom(z.coerce.date())
+  statusChangeId   BigInt
+  error            String?
+
+  @@id([channelId, actorId, tableName])
+}
+
+model Notification {
+  id             String   @id @default(uuid()) @db.Uuid
+  workspaceId    String
+  actorId        String
+  tableName      String
+  channelId      String
+  statusChangeId BigInt
+  timestamp      DateTime @default(now()) @db.Timestamptz(3) /// @zod.custom(z.coerce.date())
+  status         String
+  error          String?
 
   @@index([actorId, tableName])
   @@index(timestamp)
 }
-
-//model Notification {
-//  actor_id     String
-//  table_name   String
-//  status  DateTime @default(now()) @db.Timestamptz(3) /// @zod.custom(z.coerce.date())
-//  timestamp    DateTime @default(now()) @db.Timestamptz(3) /// @zod.custom(z.coerce.date())
-//  message      String
-//  channels      String[]
-//
-//  @@index(actor_id, table_name)
-//  @@index(timestamp)
-//
-//}
 
 //model OauthSecrets {
 //  id        String   @id @default(cuid())

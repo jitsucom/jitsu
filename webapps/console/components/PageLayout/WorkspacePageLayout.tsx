@@ -319,7 +319,7 @@ export const TopTabsMenu: React.FC<TopTabsMenuProps> = props => {
           key: subItem!.path,
           label: (
             <MenuLabel icon={subItem!.icon}>
-              <Link href={subItem!.globalPath ? subItem!.path : `/${workspace.slug}${subItem!.path}`}>
+              <Link href={subItem!.globalPath ? subItem!.path : `/${workspace.slugOrId}${subItem!.path}`}>
                 {subItem!.title}
               </Link>
             </MenuLabel>
@@ -331,7 +331,7 @@ export const TopTabsMenu: React.FC<TopTabsMenuProps> = props => {
       return {
         label: (
           <MenuLabel>
-            <Link href={item.globalPath ? item.path : `/${workspace.slug}${item.path}`}>{item.title}</Link>
+            <Link href={item.globalPath ? item.path : `/${workspace.slugOrId}${item.path}`}>{item.title}</Link>
           </MenuLabel>
         ),
         key: item.path,
@@ -529,7 +529,7 @@ const FreePlanQuotaAlert: React.FC<{}> = () => {
         Your workspace is throttled due to exceeding the free plan quota at rate of <b>{usage.throttle}%</b>
         <Link
           className="group inline-flex items-center border-b border-neutral-600"
-          href={`/${workspace.slug}/settings/billing`}
+          href={`/${workspace.slugOrId}/settings/billing`}
         >
           Go to billing to see more details{" "}
           <ArrowRight className="h-4 group-hover:rotate-45 transition-all duration-500" />
@@ -542,7 +542,7 @@ const FreePlanQuotaAlert: React.FC<{}> = () => {
         You are projected to exceed your monthly events. Please upgrade your plan to avoid service disruption.{" "}
         <Link
           className="group inline-flex items-center border-b border-neutral-600"
-          href={`/${workspace.slug}/settings/billing`}
+          href={`/${workspace.slugOrId}/settings/billing`}
         >
           Go to billing <ArrowRight className="h-4 group-hover:rotate-45 transition-all duration-500" />
         </Link>
@@ -619,6 +619,11 @@ function PageHeader() {
           : undefined,
         { title: "User Settings", path: "/user", icon: <User className="w-full h-full" />, globalPath: true },
         { title: "Billing Settings", path: "/settings/billing", icon: <CreditCard className="w-full h-full" /> },
+        // {
+        //   title: "Notification Settings",
+        //   path: "/settings/notifications",
+        //   icon: <BellIcon className="w-full h-full" />,
+        // },
         billing.enabled && billing.settings?.dataRetentionEditorEnabled
           ? {
               title: "Data Retention",
