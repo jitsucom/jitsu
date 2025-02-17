@@ -14,7 +14,7 @@ import { Simplify } from "type-fest";
 import ThrottlingStarted from "../emails/throttling-started";
 import BillingIssueEmail from "../emails/billing-issues";
 import ConnectionStatusFailedEmail from "../emails/connection-status-failed";
-import ConnectionStatusRecoveredEmail from "../emails/connection-status-success";
+import ConnectionStatusSuccessEmail from "../emails/connection-status-success";
 
 dayjs.extend(utc);
 export const UnsubscribeCodes = z.object({
@@ -110,7 +110,7 @@ export function getComponent(template: string): EmailComponent<UnsubscribeLinkPr
       return ConnectionStatusFailedEmail;
     case "connection-status-success":
       // @ts-ignore
-      return ConnectionStatusRecoveredEmail;
+      return ConnectionStatusSuccessEmail;
     default:
       throw new Error(`Unknown email template: ${template}`);
   }
