@@ -127,6 +127,8 @@ function SendEmailForm() {
               "billing-issues",
               "throttling-reminder",
               "throttling-started",
+              "connection-status-failed",
+              "connection-status-success",
             ].map(option => (
               <Select.Option key={option} value={option}>
                 {option}

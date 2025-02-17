@@ -556,7 +556,7 @@ const ProvisionedDestinations = (props: any) => {
               <div className="flex justify-end items-center">
                 <ProvisionedDestinationShowCredentials destination={d} />
                 <Tooltip title={"Run SQL query editor"}>
-                  <Link className="ml-4" href={`/${workspace.slug || workspace.id}/sql?destinationId=${d.id}`}>
+                  <Link className="ml-4" href={`/${workspace.slugOrId}/sql?destinationId=${d.id}`}>
                     <TerminalSquare className="h-5 w-5 text-text" />
                   </Link>
                 </Tooltip>

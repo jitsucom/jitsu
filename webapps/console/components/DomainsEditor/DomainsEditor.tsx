@@ -151,7 +151,7 @@ const CustomDomain: React.FC<{ domain: string; deleteDomain?: () => Promise<void
               <Tag
                 className={"cursor-pointer"}
                 onClick={() => {
-                  router.push(`/${workspace.id}/settings/domains`);
+                  router.push(`/${workspace.slugOrId}/settings/domains`);
                 }}
               >
                 Workspace Domain

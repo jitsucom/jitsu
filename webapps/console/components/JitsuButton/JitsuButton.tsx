@@ -15,7 +15,7 @@ export type JitsuButtonProps = ButtonProps & {
 export const WJitsuButton: React.FC<JitsuButtonProps & Required<Pick<ButtonProps, "href">>> = p => {
   const workspace = useWorkspace();
   const router = useRouter();
-  return <Button0 {...p} onClick={() => router.push(`/${workspace.slug || workspace.id}${p.href}`)} />;
+  return <Button0 {...p} onClick={() => router.push(`/${workspace.slugOrId}${p.href}`)} />;
 };
 
 //href button

@@ -107,6 +107,7 @@ export const ConfigEntityBase = z.object({
   id: z.string(),
   type: z.string(),
   workspaceId: z.string(),
+  name: z.string(),
 });
 export type ConfigEntityBase = z.infer<typeof ConfigEntityBase>;
 
@@ -122,7 +123,6 @@ export type ApiKey = z.infer<typeof ApiKey>;
 
 export const StreamConfig = ConfigEntityBase.merge(
   z.object({
-    name: z.string(),
     domains: z.array(z.string()).optional(),
     authorizedJavaScriptDomains: z.string().optional(),
     publicKeys: z.array(ApiKey).optional(),
@@ -137,7 +137,6 @@ export const DestinationConfig = ConfigEntityBase.merge(
     .object({
       destinationType: z.string(),
       provisioned: z.boolean().optional(),
-      name: z.string(),
       testConnectionError: z.string().optional(),
     })
     .passthrough()
@@ -146,7 +145,6 @@ export type DestinationConfig = z.infer<typeof DestinationConfig>;
 
 export const FunctionConfig = ConfigEntityBase.merge(
   z.object({
-    name: z.string(),
     code: z.string(),
     draft: z.string().optional(),
     kind: z.enum(["profile", "event"]).optional(),
@@ -160,7 +158,6 @@ export type FunctionConfig = z.infer<typeof FunctionConfig>;
 
 export const ServiceConfig = ConfigEntityBase.merge(
   z.object({
-    name: z.string(),
     protocol: z.enum(["airbyte"]).default("airbyte"),
     authorized: z.boolean().optional(),
     package: z.string(),
@@ -173,28 +170,34 @@ export type ServiceConfig = z.infer<typeof ServiceConfig>;
 
 export const ConnectorImageConfig = ConfigEntityBase.merge(
   z.object({
-    name: z.string(),
     package: z.string(),
     version: z.string(),
   })
 );
 export type ConnectorImageConfig = z.infer<typeof ConnectorImageConfig>;
 
-export const WorkspaceDomain = ConfigEntityBase.merge(
-  z.object({
-    name: z.string(),
-  })
-);
+export const WorkspaceDomain = ConfigEntityBase.merge(z.object({}));
 export type WorkspaceDomain = z.infer<typeof WorkspaceDomain>;
 
 export const MiscEntity = ConfigEntityBase.merge(
   z.object({
-    name: z.string(),
     objectType: z.enum(["classic-mapping"]).default("classic-mapping"),
     value: z.string(),
   })
 );
 export type MiscEntity = z.infer<typeof MiscEntity>;
+
+export const NotificationChannel = ConfigEntityBase.merge(
+  z.object({
+    events: z.array(z.enum(["all", "sync", "batch"])).default(["all"]),
+    channel: z.enum(["email", "slack"]).default("email"),
+    slackWebhookUrl: z.string().optional(),
+    // allWorkspaceEmails: z.boolean().default(true).optional(),
+    // emails: z.array(z.string()).optional(),
+    recurringAlertsPeriodHours: z.number().max(720).min(0).default(24),
+  })
+);
+export type NotificationChannel = z.infer<typeof NotificationChannel>;
 
 /**
  * What happens to an object before it is saved to DB.

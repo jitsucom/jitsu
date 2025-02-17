@@ -36,8 +36,8 @@ function EmptyLinks() {
       <div className="flex flex-col items-center">
         <div className="text-xl text-textLight mb-3">
           {" "}
-          You don't have any links between <Link href={`/${workspace.id}/sites`}>sites</Link> and{" "}
-          <Link href={`/${workspace.id}/destinations`}>destinations</Link>
+          You don't have any links between <Link href={`/${workspace.slugOrId}/sites`}>sites</Link> and{" "}
+          <Link href={`/${workspace.slugOrId}/destinations`}>destinations</Link>
         </div>
 
         <WJitsuButton href={`/connections/edit`} type="link">
@@ -236,7 +236,7 @@ function ConnectionsTable({ links, streams, destinations, functions, reloadCallb
                   return (
                     <div
                       className="cursor-pointer"
-                      onClick={e => router.push(`/${workspace.id}/functions?id=${id}`)}
+                      onClick={e => router.push(`/${workspace.slugOrId}/functions?id=${id}`)}
                       key={i}
                     >
                       <FunctionTitle size={"small"} f={func} />
@@ -318,11 +318,11 @@ function Connections(props: RemoteEntitiesProps) {
         <div className="text-center mt-12 text text-textLight max-w-4xl">
           In order to connect site to destination please create at least one destination and one stream. Currently, you
           have{" "}
-          <Link href={`/${workspace.slug || workspace.id}/destinations`} className="underline">
+          <Link href={`/${workspace.slugOrId}/destinations`} className="underline">
             {props.destinations.length} destination{props.destinations.length === 1 ? "" : "s"}
           </Link>{" "}
           and{" "}
-          <Link href={`/${workspace.slug || workspace.id}/streams`} className="underline">
+          <Link href={`/${workspace.slugOrId}/streams`} className="underline">
             {props.streams.length} site{props.streams.length === 1 ? "" : "s"}
           </Link>{" "}
           configured
