@@ -210,13 +210,33 @@ export const PosthogDestinationConfig = z.object({
     .describe(
       "Group type is the abstract type of whatever our group represents (e.g. company, team, chat, post, etc.). <a href='https://posthog.com/docs/getting-started/group-analytics#groups-vs-group-types' target='_blank' rel='noreferrer noopener'>Groups vs. group types.</a>"
     ),
+  sendAnonymousEvents: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe("Send events from anonymous users. If disabled, only events from identified users will be tracked."),
   enableAnonymousUserProfiles: z
     .boolean()
     .optional()
     .default(false)
-    .describe("If enabled, anonymous users will be tracked in Posthog"),
-  //  sendIdentifyEvents: z.boolean().optional().default(false),
+    .describe(
+      "Enable Anonymous Person Profiles::Create <a href='https://posthog.com/docs/getting-started/person-properties' target='_blank' rel='noreferrer noopener'>Person profiles</a> for anonymous users. If disabled, only identified users will have profiles."
+    ),
 });
+
+export const PosthogDestinationConfigUi: Partial<
+  Record<keyof PosthogDestinationConfig, { correction?: any; hidden?: any }>
+> = {
+  sendAnonymousEvents: {
+    // assumes value of this freshly added property from the value of the `enableAnonymousUserProfiles` property
+    correction: obj =>
+      typeof obj?.sendAnonymousEvents === "undefined" ? obj?.enableAnonymousUserProfiles : obj?.sendAnonymousEvents,
+  },
+  enableAnonymousUserProfiles: {
+    hidden: obj =>
+      typeof obj?.sendAnonymousEvents === "undefined" ? !obj.enableAnonymousUserProfiles : !obj.sendAnonymousEvents,
+  },
+};
 
 export type PosthogDestinationConfig = z.infer<typeof PosthogDestinationConfig>;
 
