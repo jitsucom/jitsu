@@ -29,6 +29,7 @@ import {
   noThrottle,
   stopwatch,
 } from "juava";
+import { NodeClickHouseClient } from "@clickhouse/client/dist/client";
 
 const log = getLog("functions-context");
 
@@ -116,6 +117,7 @@ export type FunctionChainContext = {
   };
   fetch: InternalFetchType;
   store: TTLStore;
+  query?: (conId: string, query: string, params?: any) => Promise<any>;
   anonymousEventsStore?: AnonymousEventsStore;
   metrics?: FunctionMetrics;
   connectionOptions?: any;

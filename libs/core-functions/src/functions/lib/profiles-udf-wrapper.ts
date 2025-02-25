@@ -12,6 +12,9 @@ import { ProfileResult } from "@jitsu/protocols/profile";
 import { chainWrapperCode, functionsLibCode } from "./profiles-udf-wrapper-code";
 import { logType } from "./udf_wrapper";
 import { createMemoryStore, memoryStoreDump } from "./store";
+import { warehouseQuery } from "./warehouse-store";
+import { EntityStore } from "../../lib/entity-store";
+import { EnrichedConnectionConfig } from "../../lib/config-types";
 
 const log = getLog("udf-wrapper");
 
@@ -100,6 +103,7 @@ export const ProfileUDFWrapper = (
     jail.setSync("require", () => {
       throw new Error("'require' is not supported. Please use 'import' instead");
     });
+    jail.setSync("_jitsu_query", makeReference(refs, chainCtx.query));
     jail.setSync(
       "_jitsu_fetch",
       makeReference(refs, async (url: string, opts?: FetchOpts, extra?: any) => {
@@ -391,17 +395,10 @@ export type ProfileUDFTestResponse = {
   logs: logType[];
 };
 
-export async function ProfileUDFTestRun({
-  id,
-  name,
-  version,
-  code,
-  store,
-  events,
-  variables,
-  userAgent,
-  workspaceId,
-}: ProfileUDFTestRequest): Promise<ProfileUDFTestResponse> {
+export async function ProfileUDFTestRun(
+  { id, name, version, code, store, events, variables, userAgent, workspaceId }: ProfileUDFTestRequest,
+  connStore?: EntityStore<EnrichedConnectionConfig>
+): Promise<ProfileUDFTestResponse> {
   const logs: logType[] = [];
   let wrapper: UDFWrapperResult | undefined = undefined;
   let realStore = false;
@@ -473,6 +470,13 @@ export async function ProfileUDFTestRun({
     };
     const chainCtx: FunctionChainContext = {
       store: storeImpl,
+      query: async (conId: string, query: string, params: any) => {
+        if (connStore) {
+          return warehouseQuery(connStore, conId, query, params);
+        } else {
+          throw new Error("Connection store is not provided");
+        }
+      },
       fetch: makeFetch("functionsDebugger", eventsStore, "info"),
       log: makeLog("functionsDebugger", eventsStore),
     };

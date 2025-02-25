@@ -242,6 +242,7 @@ const exports: Export[] = [
 
       let lastId: string | undefined = undefined;
       let needComma = false;
+      const writtenDestinationIds = new Set<string>();
       while (true) {
         const objects = await db.prisma().configurationObjectLink.findMany({
           where: {
@@ -267,32 +268,39 @@ const exports: Export[] = [
           if (!coreDestinationType) {
             getLog().atError().log(`Unknown destination type: ${destinationType} for connection ${id}`);
           }
-          if (needComma) {
-            writer.write(",");
+          const ids = [id];
+          if (!writtenDestinationIds.has(to.id)) {
+            ids.push(to.id);
+            writtenDestinationIds.add(to.id);
           }
-          writer.write(
-            JSON.stringify({
-              __debug: {
-                workspace: { id: workspace.id, name: workspace.slug },
-              },
-              id: id,
-              type: destinationType,
-              workspaceId: workspace.id,
-              streamId: from.id,
-              streamName: from.config?.name,
-              destinationId: to.id,
-              usesBulker: !!coreDestinationType?.usesBulker,
-              options: {
-                ...data,
-                ...((workspace.featuresEnabled ?? []).includes("nofetchlogs") ? { fetchLogLevel: "debug" } : {}),
-              },
-              optionsHash: hash(data),
-              updatedAt: dateMax(updatedAt, to.updatedAt),
-              credentials: omit(to.config, "destinationType", "type", "name"),
-              credentialsHash: hash(omit(to.config, "destinationType", "type", "name")),
-            })
-          );
-          needComma = true;
+          for (const id of ids) {
+            if (needComma) {
+              writer.write(",");
+            }
+            writer.write(
+              JSON.stringify({
+                __debug: {
+                  workspace: { id: workspace.id, name: workspace.slug },
+                },
+                id: id,
+                type: destinationType,
+                workspaceId: workspace.id,
+                streamId: from.id,
+                streamName: from.config?.name,
+                destinationId: to.id,
+                usesBulker: !!coreDestinationType?.usesBulker,
+                options: {
+                  ...data,
+                  ...((workspace.featuresEnabled ?? []).includes("nofetchlogs") ? { fetchLogLevel: "debug" } : {}),
+                },
+                optionsHash: hash(data),
+                updatedAt: dateMax(updatedAt, to.updatedAt),
+                credentials: omit(to.config, "destinationType", "type", "name"),
+                credentialsHash: hash(omit(to.config, "destinationType", "type", "name")),
+              })
+            );
+            needComma = true;
+          }
         }
         if (objects.length < batchSize) {
           break;

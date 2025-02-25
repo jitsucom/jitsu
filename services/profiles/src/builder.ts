@@ -13,6 +13,8 @@ import {
   FunctionChainContext,
   profileIdColumn,
   ProfileUser,
+  EntityStore,
+  EnrichedConnectionConfig,
 } from "@jitsu/core-functions";
 import { FindCursor, MongoClient, ObjectId, WithId, Document } from "mongodb";
 import { db, ProfileBuilderState } from "./lib/db";
@@ -23,6 +25,7 @@ import { buildFunctionChain, FuncChain, runChain } from "./lib/functions-chain";
 import { FullContext } from "@jitsu/protocols/functions";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { TableNameParameter } from "@jitsu/functions-lib";
+import { connectionsStore } from "./lib/repositories";
 
 const bulkerBase = requireDefined(process.env.BULKER_URL, "env BULKER_URL is not defined");
 const bulkerAuthKey = requireDefined(process.env.BULKER_AUTH_KEY, "env BULKER_AUTH_KEY is not defined");
@@ -87,7 +90,7 @@ export async function profileBuilder(
   let funcChain: FuncChain | undefined = funcsChainCache.get(cacheKey);
   if (!funcChain) {
     log.atInfo().log(`Refreshing function chain`);
-    funcChain = buildFunctionChain(profileBuilder, eventsLogger, fetchTimeoutMs);
+    funcChain = buildFunctionChain(profileBuilder, connectionsStore.getCurrent()!, eventsLogger, fetchTimeoutMs);
     funcsChainCache.set(cacheKey, funcChain);
   }
 

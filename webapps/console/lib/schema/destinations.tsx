@@ -262,7 +262,9 @@ export const ClickhouseCredentials = z.object({
   cluster: z
     .string()
     .optional()
-    .describe("Name of cluster to use. If clickhouse works in single node mode, leave this field empty"),
+    .describe(
+      "Name of cluster to use.<br/>For <b>ClickHouse Cloud</b> or if clickhouse works in single node mode, leave this field empty."
+    ),
   database: z.string().default("default").describe("Name of the database to use"),
   parameters: z
     .object({})

@@ -83,25 +83,25 @@ const wrappedFunctionChain = async function (eventsProvider, userProvider, ctx) 
             };
         },
         get length() {
-            throw new Error("The object doesn't have a \`length\` property, however you can iterate through it with \`for const item of events\` syntax");
+            throw new Error("The object doesn't have the \`length\` property, however you can iterate through it with \`for const item of events\` syntax");
         },
         filter() {
-            throw new Error("The object doesn't have a \`filter\` method, however you can iterate through it with \`for const item of events\` syntax");
+            throw new Error("The object doesn't have the \`filter\` method, however you can iterate through it with \`for const item of events\` syntax");
         },
         map() {
-            throw new Error("The object doesn't have a \`map\` method, however you can iterate through it with \`for const item of events\` syntax");
+            throw new Error("The object doesn't have the \`map\` method, however you can iterate through it with \`for const item of events\` syntax");
         },
         find() {
-            throw new Error("The object doesn't have a \`find\` method, however you can iterate through it with \`for const item of events\` syntax");
+            throw new Error("The object doesn't have the \`find\` method, however you can iterate through it with \`for const item of events\` syntax");
         },
         some() {
-            throw new Error("The object doesn't have a \`some\` method, however you can iterate through it with \`for const item of events\` syntax");
+            throw new Error("The object doesn't have the \`some\` method, however you can iterate through it with \`for const item of events\` syntax");
         },
         reduce() {
-            throw new Error("The object doesn't have a \`reduce\` method, however you can iterate through it with \`for const item of events\` syntax");
+            throw new Error("The object doesn't have the \`reduce\` method, however you can iterate through it with \`for const item of events\` syntax");
         },
         sort() {
-            throw new Error("The object doesn't have a \`sort\` method, however you can iterate through it with \`for const item of events\` syntax");
+            throw new Error("The object doesn't have the \`sort\` method, however you can iterate through it with \`for const item of events\` syntax");
         },
     };
     let lazyUser;
@@ -176,6 +176,17 @@ const wrappedUserFunction = (id, f, funcCtx) => {
         },
     }
 
+    const getWarehouse = (warehouseId) => {
+        return {
+            query: async (query, opts) => {
+                return await _jitsu_query.apply(undefined, [warehouseId, query, opts], {
+                    arguments: {copy: true},
+                    result: {promise: true, copy: true}
+                });
+            },
+        };
+    }
+
     const fetch = async (url, opts, extras) => {
         let res
         if (extras) {
@@ -226,6 +237,7 @@ const wrappedUserFunction = (id, f, funcCtx) => {
             ...c,
             props: funcCtx.props,
             log,
+            getWarehouse,
             store,
             fetch: ftch,
             profileBuilder: {

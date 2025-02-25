@@ -509,6 +509,17 @@ const wrappedUserFunction = (id, f, funcCtx) => {
         },
     }
 
+    const getWarehouse = (warehouseId) => {
+        return {
+            query: async (query, opts) => {
+                return await _jitsu_query.apply(undefined, [warehouseId, query, opts], {
+                    arguments: {copy: true},
+                    result: {promise: true, copy: true}
+                });
+            },
+        };
+    }
+
     const fetch = async (url, opts, extras) => {
         let res
         if (extras) {
@@ -559,6 +570,7 @@ const wrappedUserFunction = (id, f, funcCtx) => {
             ...c,
             props: funcCtx.props,
             log,
+            getWarehouse,
             store,
             fetch: ftch,
         };

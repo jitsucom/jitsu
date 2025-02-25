@@ -3,7 +3,7 @@ import express from "express";
 import Prometheus from "prom-client";
 import { Server } from "node:net";
 import { getHeapSnapshot } from "node:v8";
-import { profilesStore } from "./lib/repositories";
+import { connectionsStore, profilesStore } from "./lib/repositories";
 import { db } from "./lib/db";
 import { profileBuilder, ProfileBuilderRunner } from "./builder";
 import { createClickhouseLogger, DummyEventsStore, EventsStore, mongodb } from "@jitsu/core-functions";
@@ -71,6 +71,7 @@ async function main() {
     }
 
     profilesStore.stop();
+    connectionsStore.stop();
 
     await db.pgPool.close();
 
@@ -101,6 +102,11 @@ async function main() {
 
     const ws = await profilesStore.get();
     if (!ws.enabled) {
+      log.atError().log("Connection store is not configured. Profile Builder will not work");
+      process.exit(1);
+    }
+    const connStore = await connectionsStore.get();
+    if (!connStore.enabled) {
       log.atError().log("Connection store is not configured. Profile Builder will not work");
       process.exit(1);
     }
@@ -194,6 +200,12 @@ function initHTTP() {
         status: profilesStore.status(),
         lastUpdated: profilesStore.lastRefresh(),
         lastModified: profilesStore.lastModified(),
+      },
+      connectionsStore: {
+        enabled: connectionsStore.getCurrent()?.enabled || "loading",
+        status: connectionsStore.status(),
+        lastUpdated: connectionsStore.lastRefresh(),
+        lastModified: connectionsStore.lastModified(),
       },
     });
   });

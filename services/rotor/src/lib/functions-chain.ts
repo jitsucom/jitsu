@@ -1,5 +1,6 @@
 import { AnonymousEventsStore, AnyEvent, EventContext, FuncReturn } from "@jitsu/protocols/functions";
 import {
+  createClient,
   createMongoStore,
   createMultiStore,
   createTtlStore,
@@ -17,6 +18,8 @@ import {
   makeLog,
   MetricsMeta,
   mongodb,
+  ProfilesConfig,
+  warehouseQuery,
   UDFWrapper,
   UserRecognitionParameter,
   wrapperFunction,
@@ -24,7 +27,7 @@ import {
 import Prometheus from "prom-client";
 import { RetryErrorName, DropRetryErrorName } from "@jitsu/functions-lib";
 
-import { getLog, newError, requireDefined, stopwatch } from "juava";
+import { getLog, getSingleton, hash, newError, requireDefined, Singleton, stopwatch } from "juava";
 import { retryObject } from "./retries";
 import NodeCache from "node-cache";
 import isEqual from "lodash/isEqual";
@@ -86,6 +89,7 @@ export function checkError(chainRes: FuncChainResult) {
 
 export function buildFunctionChain(
   connection: EnrichedConnectionConfig,
+  connStore: EntityStore<EnrichedConnectionConfig>,
   funcStore: EntityStore<FunctionConfig>,
   rotorContext: MessageHandlerContext,
   anonymousEventsStore: AnonymousEventsStore,
@@ -130,10 +134,14 @@ export function buildFunctionChain(
       store = createMultiStore(store, createTtlStore(connection.workspaceId, rotorContext.redisClient));
     }
   }
+
   const chainCtx: FunctionChainContext = {
     fetch: makeFetch(connection.id, rotorContext.eventsLogger, connectionData.fetchLogLevel || "info", fetchTimeoutMs),
     log: makeLog(connection.id, rotorContext.eventsLogger),
     store,
+    query: async (conId: string, query: string, params: any) => {
+      return warehouseQuery(connStore, conId, query, params);
+    },
     anonymousEventsStore,
     connectionOptions: connectionData,
   };

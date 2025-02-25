@@ -94,6 +94,7 @@ export type {
 } from "./functions/lib/index";
 export { httpAgent, httpsAgent } from "./functions/lib/http-agent";
 export * from "./functions/lib/store";
+export * from "./functions/lib/warehouse-store";
 export * from "./functions/lib/ua";
 export * from "./functions/lib/clickhouse-logger";
 export * from "./functions/profiles-functions";
