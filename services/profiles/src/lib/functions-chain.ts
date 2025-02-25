@@ -14,6 +14,9 @@ import {
   ProfileUDFWrapper,
   EventsProvider,
   ProfileUserProvider,
+  EntityStore,
+  EnrichedConnectionConfig,
+  warehouseQuery,
 } from "@jitsu/core-functions";
 
 import { getLog, newError } from "juava";
@@ -58,6 +61,7 @@ export type FunctionExecLog = FunctionExecRes[];
 
 export function buildFunctionChain(
   profileBuilder: ProfileBuilder,
+  connStore: EntityStore<EnrichedConnectionConfig>,
   eventsLogger: EventsStore,
   fetchTimeoutMs: number = 2000
 ): FuncChain {
@@ -68,6 +72,9 @@ export function buildFunctionChain(
     fetch: makeFetch(profileBuilder.id, eventsLogger, "info", fetchTimeoutMs),
     log: makeLog(profileBuilder.id, eventsLogger, true),
     store,
+    query: async (conId: string, query: string, params: any) => {
+      return warehouseQuery(connStore, conId, query, params);
+    },
   };
   const funcCtx = {
     function: {
