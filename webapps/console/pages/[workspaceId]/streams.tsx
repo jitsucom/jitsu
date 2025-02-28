@@ -1,5 +1,10 @@
 import { WorkspacePageLayout } from "../../components/PageLayout/WorkspacePageLayout";
-import { ConfigEditor, ConfigEditorProps, CustomCheckbox } from "../../components/ConfigObjectEditor/ConfigEditor";
+import {
+  ConfigEditor,
+  ConfigEditorProps,
+  CopyConstant,
+  CustomCheckbox,
+} from "../../components/ConfigObjectEditor/ConfigEditor";
 import { StreamConfig } from "../../lib/schema";
 import { useAppConfig, useWorkspace } from "../../lib/context";
 import React, { useState } from "react";
@@ -206,6 +211,10 @@ const StreamsList: React.FC<{}> = () => {
       return { ok: true };
     },
     fields: {
+      id: {
+        hidden: (o, isNew) => !!isNew,
+        editor: CopyConstant,
+      },
       type: { constant: "stream" },
       workspaceId: { constant: workspace.id },
       strict: {

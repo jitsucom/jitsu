@@ -101,8 +101,8 @@ export async function rotorMessageHandler(
     retries,
     source: {
       type: message.ingestType,
-      id: connection.streamId,
-      name: connection.streamName,
+      id: message.origin?.sourceId || connection.streamId,
+      name: message.origin?.sourceName || connection.streamName,
       domain: message.origin?.domain,
     },
     destination: {
@@ -148,49 +148,9 @@ export async function rotorMessageHandler(
     funcsChainCache.set(cacheKey, funcChain);
   }
 
-  if (retries === 0) {
-    await profilesHandler(rotorContext, ctx, connection, event);
-  }
-
   const chainRes = await runChain(funcChain, event, ctx, metricsMeta, runFuncs, retriesEnabled);
   chainRes.connectionId = connectionId;
   rotorContext.metrics?.logMetrics(chainRes.execLog);
   checkError(chainRes);
   return chainRes;
-}
-
-async function profilesHandler(
-  rotorContext: MessageHandlerContext,
-  ctx: EventContext,
-  connection: EnrichedConnectionConfig,
-  event: AnalyticsServerEvent
-) {
-  const wp = rotorContext.workspaceStore.getObject(connection.workspaceId);
-  if (wp) {
-    const builders = wp.profileBuilders.filter(p => p.destinationId === connection.destinationId);
-    for (const builder of builders) {
-      const flog = getLog(`profile-builder-${connection.workspaceId}-${builder.id}`);
-      try {
-        await ProfilesFunction(event, {
-          ...ctx,
-          props: {
-            ...builder.intermediateStorageCredentials,
-            profileWindowDays: builder.connectionOptions.profileWindow,
-            eventsCollectionName: `profiles-raw-${wp.id}-${builder.id}`,
-            traitsCollectionName: `profiles-traits-${wp.id}-${builder.id}`,
-          } as ProfilesConfig,
-          store: createDummyStore(),
-          log: {
-            error: (msg, args) => flog.atError().log(msg, ...(args || [])),
-            info: (msg, args) => flog.atInfo().log(msg, ...(args || [])),
-            debug: (msg, args) => flog.atDebug().log(msg, ...(args || [])),
-            warn: (msg, args) => flog.atWarn().log(msg, ...(args || [])),
-          },
-          fetch: fetch as FetchType,
-        });
-      } catch (e: any) {
-        flog.atError().log("Failed to store event: " + e.message);
-      }
-    }
-  }
 }

@@ -186,10 +186,11 @@ export type BulkerDestinationConfig = {
   authToken: string;
   dataLayout?: DataLayoutType;
   keepOriginalNames?: boolean;
+  streamOptions?: any;
 };
 
 const BulkerDestination: JitsuFunction<AnalyticsServerEvent, BulkerDestinationConfig> = async (event, ctx) => {
-  const { bulkerEndpoint, destinationId, authToken, dataLayout = "segment-single-table" } = ctx.props;
+  const { bulkerEndpoint, destinationId, authToken, dataLayout = "segment-single-table", streamOptions } = ctx.props;
   try {
     const metricsMeta: Omit<MetricsMeta, "messageId"> = {
       workspaceId: ctx.workspace.id,
@@ -223,11 +224,15 @@ const BulkerDestination: JitsuFunction<AnalyticsServerEvent, BulkerDestinationCo
           )}...`
         );
       }
+      const headers = { Authorization: `Bearer ${authToken}`, metricsMeta: JSON.stringify(metricsMeta) };
+      if (streamOptions && Object.keys(streamOptions).length > 0) {
+        headers["streamOptions"] = JSON.stringify(streamOptions);
+      }
       const res = await ctx.fetch(
         `${bulkerEndpoint}/post/${destinationId}?tableName=${table}`,
         {
           method: "POST",
-          headers: { Authorization: `Bearer ${authToken}`, metricsMeta: JSON.stringify(metricsMeta) },
+          headers,
           body: payload,
         },
         { log: false }

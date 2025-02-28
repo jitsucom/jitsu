@@ -75,13 +75,13 @@ export default createRoute()
         .collection(config.eventsCollectionName)
         .find({
           [profileIdHashColumn]: int32Hash(userId),
-          userId: userId,
+          [profileIdColumn]: userId,
         })
         .toArray();
 
       return {
         status: "ok",
-        events: events.map(e => omit(e, ["_id", profileIdHashColumn, profileIdColumn])),
+        events: events.map(e => omit(e, ["_id", profileIdHashColumn])),
       };
     } catch (e: any) {
       log.atError().withCause(e).log(`Error while fetching events from MongoDB: ${e}`);

@@ -31,10 +31,18 @@ import { useAppConfig, useWorkspace } from "../../lib/context";
 import { LoadingAnimation } from "../GlobalLoader/GlobalLoader";
 import { WLink } from "../Workspace/WLink";
 import { DeleteOutlined } from "@ant-design/icons";
-import { Action, confirmOp, doAction, feedbackError, feedbackSuccess, useTitle } from "../../lib/ui";
+import {
+  Action,
+  confirmOp,
+  copyTextToClipboard,
+  doAction,
+  feedbackError,
+  feedbackSuccess,
+  useTitle,
+} from "../../lib/ui";
 import { branding } from "../../lib/branding";
 import { useAntdModal } from "../../lib/modal";
-import { Edit3, Inbox } from "lucide-react";
+import { Copy, Edit3, Inbox } from "lucide-react";
 import { createDisplayName } from "../../lib/zod";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
 import { EditorTitle } from "./EditorTitle";
@@ -46,18 +54,19 @@ import cuid from "cuid";
 import { ObjectTitle } from "../ObjectTitle/ObjectTitle";
 import omitBy from "lodash/omitBy";
 import { asConfigType, useConfigObject, useConfigObjectList, useConfigObjectMutation } from "../../lib/store";
+import { CustomWidgetProps } from "./Editors";
 
 const log = getLog("ConfigEditor");
 
 export type FieldDisplay = {
   isId?: boolean;
-  hidden?: boolean | ((a: any) => boolean);
+  hidden?: boolean | ((a: any, isNew?: boolean) => boolean);
   displayName?: string;
   editor?: any;
   advanced?: boolean;
   documentation?: ReactNode;
-  constant?: any | ((a: any) => any);
-  correction?: any | ((a: any) => any);
+  constant?: any | ((a: any, isNew?: boolean) => any);
+  correction?: any | ((a: any, isNew?: boolean) => any);
   textarea?: boolean;
   password?: boolean;
 };
@@ -103,11 +112,11 @@ export type ConfigEditorProps<T extends { id: string } = { id: string }, M = {}>
 
 type JsonSchema = any;
 
-function getUiWidget(field: FieldDisplay, obj: any) {
+function getUiWidget(field: FieldDisplay, obj: any, isNew: boolean) {
   if (
-    (typeof field?.hidden === "function" && field?.hidden(obj) === true) ||
+    (typeof field?.hidden === "function" && field?.hidden(obj, isNew) === true) ||
     (typeof field?.hidden === "boolean" && field?.hidden === true) ||
-    (typeof field?.constant === "function" && typeof field?.constant(obj) !== "undefined") ||
+    (typeof field?.constant === "function" && typeof field?.constant(obj, isNew) !== "undefined") ||
     (typeof field?.constant !== "function" && typeof field?.constant !== "undefined")
   ) {
     return "hidden";
@@ -122,13 +131,13 @@ function getUiWidget(field: FieldDisplay, obj: any) {
   }
 }
 
-function getUiSchema(schema: JsonSchema, fields: Record<string, FieldDisplay>, object: any): UiSchema {
-  return {
+function getUiSchema(schema: JsonSchema, fields: Record<string, FieldDisplay>, object: any, isNew: boolean): UiSchema {
+  const uiSchema = {
     ...Object.entries((schema as any).properties)
       .map(([name]) => {
         const field = fields[name];
         const fieldProps = {
-          "ui:widget": getUiWidget(field, object),
+          "ui:widget": getUiWidget(field, object, isNew),
           "ui:disabled": field?.constant ? true : undefined,
           "ui:placeholder": field?.constant,
           "ui:title": field?.displayName || createDisplayName(name),
@@ -144,11 +153,14 @@ function getUiSchema(schema: JsonSchema, fields: Record<string, FieldDisplay>, o
         };
       })
       .reduce((a, b) => ({ ...a, ...b }), {}),
-    id: { "ui:widget": "hidden" },
     "ui:submitButtonOptions": {
       norender: true,
     },
   };
+  if (!uiSchema["id"]) {
+    uiSchema["id"] = { "ui:widget": "hidden" };
+  }
+  return uiSchema;
 }
 
 export type SingleObjectEditorProps = ConfigEditorProps & {
@@ -193,6 +205,23 @@ const FormList: React.FC<ObjectFieldTemplateProps> = props => {
           ))}
         </AdvancedConfiguration>
       )}
+    </div>
+  );
+};
+
+export const CopyConstant: React.FC<CustomWidgetProps<string>> = props => {
+  return (
+    <div
+      className={"rounded-md cursor-pointer relative border border-gray-300 bg-gray-50 text-textLight p-1.5 px-2.5"}
+      onClick={() => {
+        copyTextToClipboard(props.value);
+        feedbackSuccess("Copied to clipboard");
+      }}
+    >
+      {props.value}
+      <div className={"absolute right-3 top-2.5 "}>
+        <Copy className="w-3.5 h-3.5" />
+      </div>
     </div>
   );
 };
@@ -259,7 +288,7 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
   const [isTouched, setTouched] = useState<boolean>(!!createNew);
   const [testResult, setTestResult] = useState<any>(undefined);
 
-  const uiSchema = getUiSchema(schema, fields, formState?.formData || object);
+  const uiSchema = getUiSchema(schema, fields, formState?.formData || object, isNew);
 
   const [submitCount, setSubmitCount] = useState(0);
   const modal = useAntdModal();
@@ -445,12 +474,12 @@ const SingleObjectEditor: React.FC<SingleObjectEditorProps> = props => {
   const constants = Object.fromEntries(
     Object.entries(fields)
       .filter(([_, v]) => typeof v.constant !== "undefined")
-      .map(([k, v]) => [k, typeof v.constant === "function" ? v.constant(preObject) : v.constant])
+      .map(([k, v]) => [k, typeof v.constant === "function" ? v.constant(preObject, isNew) : v.constant])
   );
   const corrections = Object.fromEntries(
     Object.entries(fields)
       .filter(([_, v]) => typeof v.correction !== "undefined")
-      .map(([k, v]) => [k, typeof v.correction === "function" ? v.correction(preObject) : v.correction])
+      .map(([k, v]) => [k, typeof v.correction === "function" ? v.correction(preObject, isNew) : v.correction])
   );
 
   const object = { ...preObject, ...constants, ...corrections };

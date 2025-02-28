@@ -171,7 +171,10 @@ export async function runChain(
   try {
     result = await f.exec(eventsProvider, userProvider, f.context);
     return {
-      profile_id: result?.profile_id || profileId,
+      profile_id: result?.profileId || result?.["profile_id"] || profileId,
+      destination_id: result?.destinationId || result?.["destination_id"] || profileBuilder.destinationId,
+      table_name:
+        result?.tableName || result?.["table_name"] || profileBuilder.connectionOptions?.tableName || "profiles",
       traits: { ...(await userProvider()).traits, ...result?.traits },
       version: profileBuilder.version,
       updated_at: new Date(),

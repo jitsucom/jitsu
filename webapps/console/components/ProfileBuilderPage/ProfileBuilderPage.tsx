@@ -1,4 +1,4 @@
-import { WorkspacePageLayout } from "../../components/PageLayout/WorkspacePageLayout";
+import { WorkspacePageLayout } from "../PageLayout/WorkspacePageLayout";
 import React, { useCallback, useEffect, useReducer, useState } from "react";
 import {
   Badge,
@@ -62,6 +62,7 @@ import { FunctionVariables } from "../FunctionsDebugger/FunctionVariables";
 import omit from "lodash/omit";
 import { WLink } from "../Workspace/WLink";
 import { getCoreDestinationTypeNonStrict } from "../../lib/schema/destinations";
+import { FunctionsSelector } from "../FunctionsSelector/FunctionsSelector";
 
 dayjs.extend(utc);
 dayjs.extend(relativeTime);
@@ -215,8 +216,20 @@ const SettingsTab: React.FC<{ profileBuilder: ProfileBuilderData; dispatch: Reac
           },
           {
             key: "destination",
-            name: "Destination",
-            documentation: <>Select the destination database where the profiles will be stored</>,
+            name: "Default Destination",
+            documentation: (
+              <>
+                Select the destination database where the profiles will be stored. Destination can be assigned in{" "}
+                <b>Profile Function</b>:<br />
+                <br />
+                <div className={"whitespace-pre-wrap font-mono text-xs"}>
+                  {`return {
+  destinationId: "cm79123abc"
+  traits: profile
+}`}
+                </div>
+              </>
+            ),
             component: (
               <DestinationSelector
                 selected={settings.destinationId || destinations[0]?.id}
@@ -228,8 +241,20 @@ const SettingsTab: React.FC<{ profileBuilder: ProfileBuilderData; dispatch: Reac
           },
           {
             key: "table-name",
-            name: "Table Name",
-            documentation: <>The name of the table where the profiles will be stored</>,
+            name: "Default Table Name",
+            documentation: (
+              <>
+                The name of the table where the profiles will be stored. Table Name can be assigned in{" "}
+                <b>Profile Function</b>:<br />
+                <br />
+                <div className={"whitespace-pre-wrap font-mono text-xs"}>
+                  {`return {
+  tableName: "my_profiles"
+  traits: profile
+}`}
+                </div>
+              </>
+            ),
             component: (
               <div className={"max-w-80"}>
                 <Input
@@ -431,6 +456,7 @@ type ProfileBuilderData = {
     tableName?: string;
     profileWindow?: number;
     variables: any;
+    functions?: { functionId: string; functionOptions?: any }[];
   };
   createdAt: Date | undefined;
   updatedAt: Date | undefined;
@@ -510,15 +536,16 @@ function useProfileBuilderData(
   const [data, setData] = useState<ProfileBuilderData | undefined>();
   const billing = useBilling();
   useEffect(() => {
+    if (billing.enabled && billing.loading) {
+      setLoading(true);
+      return;
+    }
     (async () => {
       get(`/api/${workspace.id}/config/profile-builder?init=true`)
         .then(res => res.profileBuilders)
         .then(profileBuilders => {
           let status: ProfileBuilderStatus = "incomplete";
-          if (billing.enabled && billing.loading) {
-            setLoading(true);
-            return;
-          } else if (billing.enabled) {
+          if (billing.enabled) {
             if (billing.settings?.profileBuilderEnabled) {
               setEnabled(true);
             }
@@ -543,6 +570,7 @@ function useProfileBuilderData(
                 destinationId: pb.destinationId,
                 tableName: pb.connectionOptions?.tableName,
                 variables: pb.connectionOptions?.variables,
+                functions: pb.connectionOptions?.functions,
                 profileWindow: pb.connectionOptions?.profileWindow,
               },
               createdAt: pb.createdAt,
@@ -594,7 +622,8 @@ const UserIdDialog: React.FC<{ profileBuilderId: string; setter: (v: string) => 
 
   return (
     <div className={"w-96"}>
-      Please enter the <code>userId</code> of the user you want to test the profile builder for:
+      Please enter the <code>profileId</code> or <code>userId</code> of the user you want to test the profile builder
+      for:
       <div className={"flex flex-row gap-2 mt-2"}>
         <Input onChange={e => setUserId(e.target.value)} />
         <Button loading={loading} type={"primary"} onClick={() => load(userId)}>
@@ -618,6 +647,7 @@ const Overlay: React.FC<{ children?: React.ReactNode; visible: boolean; classNam
 
 export function ProfileBuilderPage() {
   const workspace = useWorkspace();
+  const functions = useConfigObjectList("function").filter(f => f.kind !== "profile");
   const [pbRefreshDate, setPbRefreshDate] = useState(new Date());
   const [stateRefreshDate, setStateRefreshDate] = useState(new Date());
   const { data: initialData, error: globalError, isLoading, enabled } = useProfileBuilderData(pbRefreshDate);
@@ -641,9 +671,10 @@ export function ProfileBuilderPage() {
   const codeChanged = obj.draft !== initialData?.draft;
   const hasUnpublishedDraft = obj.code !== obj.draft;
   const hasUnpublishedEnvs = !isEqual(obj.settings.variables ?? {}, initialData?.settings.variables ?? {});
+  const hasUnpublishedFuncs = !isEqual(obj.settings.functions ?? {}, initialData?.settings.functions ?? {});
   const hasUnpublishedSettings = !isEqual(
-    omit(obj.settings ?? {}, "variables"),
-    omit(initialData?.settings ?? {}, "variables")
+    omit(obj.settings ?? {}, "variables", "functions"),
+    omit(initialData?.settings ?? {}, "variables", "functions")
   );
   const hasUnpublishedChanges = hasUnpublishedDraft || !isEqual(obj, initialData);
   const reloadStore = useStoreReload();
@@ -696,6 +727,7 @@ export function ProfileBuilderPage() {
               tableName: obj.settings.tableName,
               profileWindow: obj.settings.profileWindow,
               variables: obj.settings.variables,
+              functions: obj.settings.functions,
             },
             createdAt: obj.createdAt || new Date(),
             updatedAt: new Date(),
@@ -711,19 +743,21 @@ export function ProfileBuilderPage() {
         .finally(() => setSaving(false));
     }
   }, [
-    modal,
-    obj.createdAt,
-    obj.draft,
-    obj.id,
-    obj.name,
     obj.settings.destinationId,
-    obj.settings.profileWindow,
     obj.settings.storage,
     obj.settings.tableName,
+    obj.settings.profileWindow,
     obj.settings.variables,
+    obj.settings.functions,
+    obj.id,
+    obj.name,
     obj.version,
-    enabled,
+    obj.createdAt,
+    obj.draft,
+    modal,
     workspace.id,
+    enabled,
+    reloadStore,
   ]);
   const save = useCallback(async () => {
     setSaving(true);
@@ -761,9 +795,9 @@ export function ProfileBuilderPage() {
         id: obj.id,
         name: obj.name,
         version: obj.version,
+        settings: obj.settings,
         code: obj.draft,
         events: JSON.parse(testData),
-        variables: obj.settings.variables,
         store: {},
         userAgent: navigator.userAgent,
       };
@@ -836,7 +870,7 @@ export function ProfileBuilderPage() {
       }
       setRunning(false);
     }
-  }, [obj.functionId, obj.draft, obj.settings.variables, testData, workspace.id, activeSecondaryTab]);
+  }, [obj.id, obj.name, obj.version, obj.settings, obj.draft, testData, workspace.id, activeSecondaryTab]);
 
   return (
     <WorkspacePageLayout screen={true} contentClassName={"!py-6"}>
@@ -936,7 +970,7 @@ export function ProfileBuilderPage() {
                   label: (
                     <ButtonLabel icon={<Code2 className="w-3.5 h-3.5" />}>
                       <div className={"flex gap-2 items-center"}>
-                        <span>Code</span>
+                        <span>Profile Function</span>
                         {enabled && hasUnpublishedDraft && <Dot />}
                         {!enabled && codeChanged && <Dot />}
                       </div>
@@ -967,6 +1001,34 @@ export function ProfileBuilderPage() {
                             onChange={c => dispatch({ type: "draft", value: c })}
                           />
                         ))}
+                    </TabContent>
+                  ),
+                },
+                {
+                  disabled: isLoading || !!globalError,
+                  style: { height: "100%" },
+                  key: "transform",
+                  label: (
+                    <ButtonLabel icon={<Code2 className="w-3.5 h-3.5" />}>
+                      <div className={"flex gap-2 items-center"}>
+                        <span>Transformation</span>
+                        {hasUnpublishedFuncs && <Dot />}
+                      </div>{" "}
+                    </ButtonLabel>
+                  ),
+                  children: (
+                    <TabContent>
+                      <div className={"px-4"}>
+                        <FunctionsSelector
+                          split={"vertical"}
+                          functions={functions}
+                          selectedFunctions={obj.settings?.functions}
+                          onChange={enabledFunctions => {
+                            const enabledF = enabledFunctions.map(f => ({ functionId: `udf.${f.id}` }));
+                            dispatch({ type: "settings", value: { ...obj.settings, functions: enabledF } });
+                          }}
+                        />
+                      </div>
                     </TabContent>
                   ),
                 },

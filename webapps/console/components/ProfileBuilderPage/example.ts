@@ -1,6 +1,7 @@
 export const testDataExample = JSON.stringify(
   [
     {
+      _profile_id: "clewyinv10000mo0f1o1a8sg7",
       type: "page",
       properties: {
         title: "Jitsu",
@@ -22,6 +23,7 @@ export const testDataExample = JSON.stringify(
       receivedAt: "2024-10-22T15:39:09.458Z",
     },
     {
+      _profile_id: "clewyinv10000mo0f1o1a8sg7",
       type: "track",
       event: "workspace_access",
       properties: {
@@ -39,6 +41,7 @@ export const testDataExample = JSON.stringify(
       receivedAt: "2024-10-22T15:41:24.353Z",
     },
     {
+      _profile_id: "clewyinv10000mo0f1o1a8sg7",
       type: "identify",
       userId: "clewyinv10000mo0f1o1a8sg7",
       traits: {
