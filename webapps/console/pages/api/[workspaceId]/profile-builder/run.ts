@@ -40,7 +40,7 @@ export const api: Api = {
         version: z.number().optional(),
         code: z.string(),
         events: z.array(z.any()),
-        variables: z.any(),
+        settings: z.any(),
         store: z.any(),
         userAgent: z.string().optional(),
       }),

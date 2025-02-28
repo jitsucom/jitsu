@@ -573,7 +573,6 @@ function PageHeader() {
       items: [
         { title: "Sites", path: "/streams", icon: <Globe className="w-full h-full" /> },
         { title: "Connections", path: "/connections", icon: <Share2 className="w-full h-full" /> },
-        { title: "Functions", path: "/functions", icon: <FunctionSquare className="w-full h-full" /> },
       ],
     },
     (appConfig.syncs.enabled || workspace.featuresEnabled?.includes("syncs")) && {
@@ -591,7 +590,7 @@ function PageHeader() {
       icon: <User className="w-full h-full" />,
       items: [{ title: "Profile Builder", path: "/profile-builder", icon: <UserRoundPen className="w-full h-full" /> }],
     },
-
+    { title: "Functions", path: "/functions", icon: <FunctionSquare className="w-full h-full" /> },
     { title: "Destinations", path: "/destinations", icon: <Server className="w-full h-full" /> },
     {
       title: "Data",

@@ -114,6 +114,7 @@ export const api: Api = {
     handle: async ({ user, query: { workspaceId, init } }) => {
       await verifyAccess(user, workspaceId);
       const pbs = await db.prisma().profileBuilder.findMany({
+        include: { functions: { include: { function: true } } },
         where: { workspaceId: workspaceId, deleted: false },
         orderBy: { createdAt: "asc" },
       });
@@ -154,11 +155,7 @@ export const api: Api = {
         };
       } else {
         return {
-          profileBuilders: await db.prisma().profileBuilder.findMany({
-            include: { functions: { include: { function: true } } },
-            where: { workspaceId: workspaceId, deleted: false },
-            orderBy: { createdAt: "asc" },
-          }),
+          profileBuilders: pbs,
         };
       }
     },

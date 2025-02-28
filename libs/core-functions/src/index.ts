@@ -19,6 +19,7 @@ import FacebookConversionsApi from "./functions/facebook-conversions";
 import IntercomDestination from "./functions/intercom-destination";
 import HubspotDestination from "./functions/hubspot-destination";
 import BrazeDestination from "./functions/braze-destination";
+import { ProfilesFunction } from "./functions/profiles-functions";
 
 const builtinDestinations: Record<BuiltinDestinationFunctionName, JitsuFunction> = {
   "builtin.destination.bulker": BulkerDestination as JitsuFunction,
@@ -39,6 +40,7 @@ const builtinDestinations: Record<BuiltinDestinationFunctionName, JitsuFunction>
   "builtin.destination.gtm": () => undefined,
   "builtin.destination.logrocket": () => undefined,
   "builtin.destination.ga4-tag": () => undefined,
+  "builtin.destination.profiles": ProfilesFunction as JitsuFunction,
 } as const;
 
 const builtinTransformations: Record<BuiltinTransformationFunctionName, JitsuFunction> = {

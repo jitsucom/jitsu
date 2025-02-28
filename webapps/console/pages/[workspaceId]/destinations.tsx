@@ -1,6 +1,11 @@
 import { WorkspacePageLayout } from "../../components/PageLayout/WorkspacePageLayout";
 import { Button, Collapse, Modal, Popover, Skeleton, Table, Tabs, Tooltip } from "antd";
-import { ConfigEditor, ConfigEditorProps, FieldDisplay } from "../../components/ConfigObjectEditor/ConfigEditor";
+import {
+  ConfigEditor,
+  ConfigEditorProps,
+  CopyConstant,
+  FieldDisplay,
+} from "../../components/ConfigObjectEditor/ConfigEditor";
 import { DestinationConfig } from "../../lib/schema";
 import { confirmOp, feedbackError, serialization } from "../../lib/ui";
 import {
@@ -737,6 +742,10 @@ const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
       return DestinationConfig.merge(destinationType.credentials as any);
     },
     fields: {
+      id: {
+        hidden: (o, isNew) => !!isNew,
+        editor: CopyConstant,
+      },
       type: { constant: "destination" },
       destinationType: { hidden: true },
       workspaceId: { constant: workspace.id },

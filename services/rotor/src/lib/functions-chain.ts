@@ -97,12 +97,14 @@ export function buildFunctionChain(
 ): FuncChain {
   let mainFunction;
   const connectionData = connection.options as any;
+  const conId = connection.id;
+  const conWorkspaceId = connection.workspaceId;
   if (connection.usesBulker) {
     mainFunction = {
       functionId: "builtin.destination.bulker",
       functionOptions: {
         bulkerEndpoint: bulkerBase,
-        destinationId: connection.id,
+        destinationId: conId,
         authToken: bulkerAuthKey,
         dataLayout: connectionData.dataLayout ?? "segment-single-table",
         keepOriginalNames: connectionData.keepOriginalNames,
@@ -117,27 +119,27 @@ export function buildFunctionChain(
       };
     } else {
       throw newError(
-        `Connection with id ${connection.id} has no functions assigned to it's destination type - ${connection.type}`
+        `Connection with id ${conId} has no functions assigned to it's destination type - ${connection.type}`
       );
     }
   }
   let store = rotorContext.dummyPersistentStore;
   if (!store) {
     store = createMongoStore(
-      connection.workspaceId,
+      conWorkspaceId,
       mongodb,
       false,
-      fastStoreWorkspaceId.includes(connection.workspaceId),
+      fastStoreWorkspaceId.includes(conWorkspaceId),
       rotorContext.metrics
     );
     if (rotorContext.redisClient) {
-      store = createMultiStore(store, createTtlStore(connection.workspaceId, rotorContext.redisClient));
+      store = createMultiStore(store, createTtlStore(conWorkspaceId, rotorContext.redisClient));
     }
   }
 
   const chainCtx: FunctionChainContext = {
-    fetch: makeFetch(connection.id, rotorContext.eventsLogger, connectionData.fetchLogLevel || "info", fetchTimeoutMs),
-    log: makeLog(connection.id, rotorContext.eventsLogger),
+    fetch: makeFetch(conId, rotorContext.eventsLogger, connectionData.fetchLogLevel || "info", fetchTimeoutMs),
+    log: makeLog(conId, rotorContext.eventsLogger),
     store,
     query: async (conId: string, query: string, params: any) => {
       return warehouseQuery(connStore, conId, query, params);
@@ -158,11 +160,11 @@ export function buildFunctionChain(
     .map(f => {
       const functionId = f.functionId.substring(4);
       const userFunctionObj = funcStore.getObject(functionId);
-      if (!userFunctionObj || userFunctionObj.workspaceId !== connection.workspaceId) {
+      if (!userFunctionObj || userFunctionObj.workspaceId !== conWorkspaceId) {
         return {
           id: functionId as string,
           code: `export default async function (event,ctx) {
-            throw newError(\`Function ${functionId} not found in workspace: ${connection.workspaceId}\`);
+            throw newError(\`Function ${functionId} not found in workspace: ${conWorkspaceId}\`);
           }`,
           codeHash: "0",
         };
@@ -174,11 +176,11 @@ export function buildFunctionChain(
   if (udfFuncs.length > 0) {
     hash = udfFuncs.map(f => f.codeHash);
     hash.push(connection.updatedAt);
-    cached = udfCache.get(connection.id);
+    cached = udfCache.get(conId);
     if (!cached || !isEqual(cached?.hash, hash)) {
-      log.atInfo().log(`UDF for connection ${connection.id} changed (hash ${hash} != ${cached?.hash}). Reloading`);
+      log.atInfo().log(`UDF for connection ${conId} changed (hash ${hash} != ${cached?.hash}). Reloading`);
       const wrapper = UDFWrapper(
-        connection.id,
+        conId,
         chainCtx,
         funcCtx,
         udfFuncs.map(f => ({ id: f.id, name: f.name, code: f.code }))
@@ -190,9 +192,9 @@ export function buildFunctionChain(
         }, 10000);
       }
       cached = { wrapper, hash };
-      udfCache.set(connection.id, cached);
+      udfCache.set(conId, cached);
     }
-    udfCache.ttl(connection.id, udfTTL);
+    udfCache.ttl(conId, udfTTL);
   }
   const aggregatedFunctions: any[] = [
     ...(connectionData.functions || []).filter(f => f.functionId.startsWith("builtin.transformation.")),
@@ -208,15 +210,15 @@ export function buildFunctionChain(
         if ((e?.message ?? "").includes("Isolate is disposed")) {
           // due to async nature other 'thread' could already replace this isolate. So check it
           if (cached.wrapper.isDisposed()) {
-            log.atError().log(`UDF for con:${connection.id} VM was disposed. Reloading`);
+            log.atError().log(`UDF for con:${conId} VM was disposed. Reloading`);
             const wrapper = UDFWrapper(
-              connection.id,
+              conId,
               chainCtx,
               funcCtx,
               udfFuncs.map(f => ({ id: f.id, name: f.name, code: f.code }))
             );
             cached = { wrapper, hash };
-            udfCache.set(connection.id, cached);
+            udfCache.set(conId, cached);
             return wrapper.userFunction(event, ctx);
           } else {
             // we have alive isolate now. try again

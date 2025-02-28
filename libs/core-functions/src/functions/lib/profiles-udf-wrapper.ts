@@ -19,7 +19,8 @@ import { EnrichedConnectionConfig } from "../../lib/config-types";
 const log = getLog("udf-wrapper");
 
 export type ProfileUser = {
-  id: string;
+  profileId: string;
+  userId: string;
   anonymousId: string;
   traits: Record<string, any>;
 };
@@ -29,6 +30,8 @@ export type EventsProvider = () => Promise<AnalyticsServerEvent | undefined>;
 
 export type Profile = {
   profile_id: string;
+  destination_id?: string;
+  table_name?: string;
   traits: Record<string, any>;
   version?: number;
   updated_at: Date;
@@ -357,7 +360,7 @@ function makeReference(refs: Reference[], obj: any): Reference {
 }
 
 export async function mergeUserTraits(events: AnalyticsServerEvent[], userId?: string): Promise<ProfileUser> {
-  const user = { traits: {}, id: userId || events[0]?.userId } as ProfileUser;
+  const user = { traits: {}, profileId: events[0]?._profile_id, userId: userId || events[0]?.userId } as ProfileUser;
   for await (const e of events) {
     if (e.type === "identify") {
       if (e.anonymousId) {
@@ -377,7 +380,12 @@ export type ProfileUDFTestRequest = {
   version: number;
   code: string | UDFWrapperResult;
   events: AnalyticsServerEvent[];
-  variables: any;
+  settings: {
+    variables: any;
+    destinationId: string;
+    tableName?: string;
+    [key: string]: any;
+  };
   store: Store | any;
   workspaceId: string;
   userAgent?: string;
@@ -396,10 +404,11 @@ export type ProfileUDFTestResponse = {
 };
 
 export async function ProfileUDFTestRun(
-  { id, name, version, code, store, events, variables, userAgent, workspaceId }: ProfileUDFTestRequest,
+  { id, name, version, code, store, events, settings, userAgent, workspaceId }: ProfileUDFTestRequest,
   connStore?: EntityStore<EnrichedConnectionConfig>
 ): Promise<ProfileUDFTestResponse> {
   const logs: logType[] = [];
+  const { variables, tableName, destinationId } = settings;
   let wrapper: UDFWrapperResult | undefined = undefined;
   let realStore = false;
   const user = await mergeUserTraits(events);
@@ -497,7 +506,9 @@ export async function ProfileUDFTestRun(
     }
     const result = await wrapper?.userFunction(eventsProvider, userProvider, funcCtx);
     const profile = {
-      profile_id: result?.profile_id || user.id,
+      profile_id: result?.profileId || result?.["profile_id"] || user.profileId || user.userId,
+      destination_id: result?.destinationId || result?.["destination_id"] || destinationId,
+      table_name: result?.tableName || result?.["table_name"] || tableName || "profiles",
       traits: { ...user.traits, ...result?.traits },
       version: version,
       updated_at: new Date(),
@@ -516,7 +527,9 @@ export async function ProfileUDFTestRun(
         retryPolicy: e.retryPolicy,
       },
       result: {
-        profile_id: user.id,
+        profile_id: user.profileId || user.userId,
+        destination_id: destinationId,
+        table_name: tableName,
         traits: {},
         updated_at: new Date(),
       },

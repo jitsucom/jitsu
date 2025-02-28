@@ -5,9 +5,12 @@ import { getSingleton, parseNumber } from "juava";
 import { MongoClient } from "mongodb";
 import { createHash } from "crypto";
 import { mongodb } from "./lib/mongodb";
+import { transfer } from "@jitsu/functions-lib";
 
 export const profileIdHashColumn = "_profile_id_hash";
 export const profileIdColumn = "_profile_id";
+export const ProfileIdParameter = "JITSU_PROFILE_ID";
+
 export const idHash32MaxValue = 2147483647;
 
 export const ProfilesConfig = z.object({
@@ -58,9 +61,9 @@ export function int32Hash(value) {
 export const ProfilesFunction: JitsuFunction<AnalyticsServerEvent, ProfilesConfig> = async (event, ctx) => {
   const config = ProfilesConfig.parse(ctx.props || {});
 
-  const userId = event.userId;
-  if (!userId) {
-    ctx.log.debug(`No userId found. Skipping`);
+  const profileId = event[ProfileIdParameter] || event.userId;
+  if (!profileId) {
+    ctx.log.debug(`No profileId found. Skipping`);
     return;
   }
 
@@ -102,13 +105,13 @@ export const ProfilesFunction: JitsuFunction<AnalyticsServerEvent, ProfilesConfi
         .db(config.eventsDatabase)
         .collection(config.traitsCollectionName)
         .findOneAndUpdate(
-          { [profileIdColumn]: userId },
+          { [profileIdColumn]: profileId },
           [
             {
               $set: {
-                [profileIdColumn]: userId,
+                [profileIdColumn]: profileId,
                 userId: {
-                  $ifNull: ["$userId", userId],
+                  $ifNull: ["$userId", event.userId],
                 },
                 anonymousId: {
                   $ifNull: ["$anonymousId", event.anonymousId],
@@ -130,14 +133,16 @@ export const ProfilesFunction: JitsuFunction<AnalyticsServerEvent, ProfilesConfi
         );
       ctx.log.info(`Merged profile: ${JSON.stringify(traits)}`);
     }
+    const obj = {
+      [profileIdHashColumn]: int32Hash(profileId),
+      [profileIdColumn]: profileId,
+    };
+    transfer(obj, event, [ProfileIdParameter]);
 
     const res = await mongo
       .db(config.eventsDatabase)
       .collection(config.eventsCollectionName)
-      .insertOne(
-        { [profileIdHashColumn]: int32Hash(userId), [profileIdColumn]: userId, ...event },
-        { writeConcern: { w: 1, journal: false } }
-      );
+      .insertOne(obj, { writeConcern: { w: 1, journal: false } });
     if (!res.acknowledged) {
       ctx.log.error(`Failed to insert to MongoDB: ${JSON.stringify(res)}`);
     } else {

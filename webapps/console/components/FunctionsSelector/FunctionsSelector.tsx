@@ -15,6 +15,7 @@ import { FunctionTitle } from "../../pages/[workspaceId]/functions";
 import { StreamTitle } from "../../pages/[workspaceId]/streams";
 import { DestinationTitle } from "../../pages/[workspaceId]/destinations";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
+import { WLink } from "../Workspace/WLink";
 
 type SelectedFunction = {
   functionId: string;
@@ -26,8 +27,9 @@ export type FunctionsSelectorProps = {
   functions: FunctionConfig[];
   selectedFunctions?: SelectedFunction[];
   onChange: (selectedFunctions: FunctionConfig[]) => void;
-  stream: StreamConfig;
-  destination: DestinationConfig;
+  split?: "horizontal" | "vertical";
+  stream?: StreamConfig;
+  destination?: DestinationConfig;
 };
 
 const FunctionsSelector0: React.FC<FunctionsSelectorProps> = ({
@@ -36,6 +38,7 @@ const FunctionsSelector0: React.FC<FunctionsSelectorProps> = ({
   onChange,
   stream,
   destination,
+  split = "horizontal",
 }) => {
   const [enabledFunctions, setEnabledFunctions] = useState<FunctionConfig[]>(
     (selectedFunctions ?? [])
@@ -75,51 +78,77 @@ const FunctionsSelector0: React.FC<FunctionsSelectorProps> = ({
     },
     [enabledFunctions, onChange]
   );
+  const Wrapper: React.FC<React.PropsWithChildren> = ({ children }) => {
+    if (split === "vertical") {
+      return <div className={"flex-auto"}>{children}</div>;
+    }
+    return <>{children}</>;
+  };
+
   return (
-    <div className={"w-full flex flex-col items-center"}>
-      {enabledFunctions.length > 0 && (
-        <DndContext
-          sensors={sensors}
-          modifiers={[restrictToVerticalAxis]}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
-          <div className={"w-full flex flex-row px-3 pb-1 justify-center text-gray-500  items-center gap-3"}>
-            Functions pipeline:
-          </div>
-          <div className={"flex flex-row px-3 py-0.5 border rounded justify-center  items-center gap-3"}>
-            <StreamTitle stream={stream} size={"small"} />
-          </div>
-          <ArrowDown className={"text-gray-500 w-3 h-3"} />
-          <SortableContext items={enabledFunctions} strategy={verticalListSortingStrategy}>
-            {enabledFunctions.map(func => (
-              <SortableItem
-                id={func.id}
+    <div className={`w-full flex ${split === "vertical" ? " flex-row items-start gap-4 " : " flex-col items-center"} `}>
+      <Wrapper>
+        {enabledFunctions.length > 0 && (
+          <DndContext
+            sensors={sensors}
+            modifiers={[restrictToVerticalAxis]}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <div className={"w-full flex flex-row px-3 py-1 justify-center text-gray-500  items-center gap-3"}>
+              Functions pipeline:
+            </div>
+            {stream && (
+              <>
+                <div className={"flex flex-row px-3 py-0.5 border rounded justify-center  items-center gap-3"}>
+                  <StreamTitle stream={stream} size={"small"} />
+                </div>
+                <ArrowDown className={"text-gray-500 w-3 h-3"} />
+              </>
+            )}
+            <SortableContext items={enabledFunctions} strategy={verticalListSortingStrategy}>
+              {enabledFunctions.map(func => (
+                <SortableItem
+                  id={func.id}
+                  key={func.id}
+                  func={func}
+                  onDelete={f => saveEnabledFunctions(enabledFunctions.filter(e => e.id !== f.id))}
+                />
+              ))}
+            </SortableContext>
+            {destination && (
+              <>
+                <ArrowDown className={"text-gray-500 w-3 h-3"} />
+                <div className={"flex flex-row px-3 py-0.5 border rounded justify-center  items-center gap-3"}>
+                  <DestinationTitle destination={destination} size={"small"} />
+                </div>
+              </>
+            )}
+          </DndContext>
+        )}
+      </Wrapper>
+      <Wrapper>
+        {split == "horizontal" && <div className={"mt-3"}></div>}
+        <div className={"w-full flex flex-row px-3 py-1 justify-center text-gray-500  items-center gap-3"}>
+          Choose functions to add to this connection
+        </div>
+        <div className={"w-full"}>
+          {disabledFunctions.length ? (
+            disabledFunctions.map(func => (
+              <FunctionCard
                 key={func.id}
                 func={func}
-                onDelete={f => saveEnabledFunctions(enabledFunctions.filter(e => e.id !== f.id))}
+                enabled={false}
+                onAdd={f => saveEnabledFunctions([...enabledFunctions, f])}
               />
-            ))}
-          </SortableContext>
-          <ArrowDown className={"text-gray-500 w-3 h-3"} />
-          <div className={"flex flex-row px-3 py-0.5 border rounded justify-center  items-center gap-3"}>
-            <DestinationTitle destination={destination} size={"small"} />
-          </div>
-        </DndContext>
-      )}
-      <div className={"w-full flex flex-row px-3 py-1 mt-4 justify-center text-gray-500  items-center gap-3"}>
-        Choose functions to add to this connection
-      </div>
-      <div className={"w-full"}>
-        {disabledFunctions.map(func => (
-          <FunctionCard
-            key={func.id}
-            func={func}
-            enabled={false}
-            onAdd={f => saveEnabledFunctions([...enabledFunctions, f])}
-          />
-        ))}
-      </div>
+            ))
+          ) : (
+            <div className={"w-full flex flex-row px-3 py-1 justify-center items-center gap-3"}>
+              No functions added to workspace. <WLink href={"/functions"}>Create Function...</WLink>
+            </div>
+          )}
+        </div>
+      </Wrapper>
     </div>
   );
 };

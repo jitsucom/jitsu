@@ -2,7 +2,9 @@ import { FunctionContext } from "./functions";
 import { AnalyticsServerEvent } from "./analytics";
 
 export type ProfileResult = {
-  profile_id?: string;
+  profileId?: string;
+  destinationId?: string;
+  tableName?: string;
   traits: Record<string, any>;
 };
 

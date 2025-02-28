@@ -209,10 +209,9 @@ const EventsBrowser0 = ({
   const entities = useMemo(() => {
     return streamType == "incoming"
       ? streams
-      : [
-          ...mappedConnections.filter(
-            link => (streamType === "bulker" && (link.usesBulker || link.hybrid)) || streamType === "function"
-          ),
+      : streamType == "function"
+      ? [
+          ...mappedConnections,
           ...profileBuilders.map(p => {
             const dst = destinationsMap[p.destinationId!];
             const destinationType = coreDestinationsMap[dst?.destinationType];
@@ -224,8 +223,26 @@ const EventsBrowser0 = ({
               type: "profile-builder",
             };
           }),
+        ]
+      : [
+          ...mappedConnections.filter(link => link.usesBulker || link.hybrid),
+          ...destinations
+            .filter(dst => {
+              const destinationType = coreDestinationsMap[dst?.destinationType];
+              return destinationType?.usesBulker;
+            })
+            .map(dst => {
+              return {
+                id: dst.id,
+                name: "Profile Builder",
+                mode: "batch",
+                destination: dst,
+                usesBulker: true,
+                type: "profile-builder",
+              };
+            }),
         ];
-  }, [destinationsMap, mappedConnections, profileBuilders, streamType, streams]);
+  }, [destinations, destinationsMap, mappedConnections, profileBuilders, streamType, streams]);
 
   const entitiesMap = useMemo(() => {
     return streamType == "incoming" ? streamsMap : arrayToMap(entities as { id: any }[]);
