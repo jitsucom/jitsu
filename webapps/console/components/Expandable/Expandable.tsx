@@ -36,7 +36,7 @@ export const Expandable: React.FC<PropsWithChildrenClassname<ExpandableProps>> =
         ) : (
           <FaCaretRight style={{ height: caretSize, width: caretSize }} />
         )}
-        <div className="ml-2">{typeof title === "function" ? title(expanded) : title}</div>
+        {title && <div className="ml-2">{typeof title === "function" ? title(expanded) : title}</div>}
       </div>
       {
         <div

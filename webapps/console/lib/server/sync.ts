@@ -659,6 +659,7 @@ export async function scheduleSync({
         catalog: configuredCatalog,
         ...(stateObj ? { state: stateObj } : {}),
         destinationConfig,
+        functionsEnv: sync.data?.["functionsEnv"],
       },
     });
     if (!res.ok) {

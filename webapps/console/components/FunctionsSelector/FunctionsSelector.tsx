@@ -87,46 +87,48 @@ const FunctionsSelector0: React.FC<FunctionsSelectorProps> = ({
 
   return (
     <div className={`w-full flex ${split === "vertical" ? " flex-row items-start gap-4 " : " flex-col items-center"} `}>
-      <Wrapper>
-        {enabledFunctions.length > 0 && (
-          <DndContext
-            sensors={sensors}
-            modifiers={[restrictToVerticalAxis]}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
-            <div className={"w-full flex flex-row px-3 py-1 justify-center text-gray-500  items-center gap-3"}>
-              Functions pipeline:
-            </div>
-            {stream && (
-              <>
-                <div className={"flex flex-row px-3 py-0.5 border rounded justify-center  items-center gap-3"}>
-                  <StreamTitle stream={stream} size={"small"} />
-                </div>
-                <ArrowDown className={"text-gray-500 w-3 h-3"} />
-              </>
-            )}
-            <SortableContext items={enabledFunctions} strategy={verticalListSortingStrategy}>
-              {enabledFunctions.map(func => (
-                <SortableItem
-                  id={func.id}
-                  key={func.id}
-                  func={func}
-                  onDelete={f => saveEnabledFunctions(enabledFunctions.filter(e => e.id !== f.id))}
-                />
-              ))}
-            </SortableContext>
-            {destination && (
-              <>
-                <ArrowDown className={"text-gray-500 w-3 h-3"} />
-                <div className={"flex flex-row px-3 py-0.5 border rounded justify-center  items-center gap-3"}>
-                  <DestinationTitle destination={destination} size={"small"} />
-                </div>
-              </>
-            )}
-          </DndContext>
-        )}
-      </Wrapper>
+      {functions && functions.length > 0 && (
+        <Wrapper>
+          {enabledFunctions.length > 0 && (
+            <DndContext
+              sensors={sensors}
+              modifiers={[restrictToVerticalAxis]}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <div className={"w-full flex flex-row px-3 py-1 justify-center text-gray-500  items-center gap-3"}>
+                Functions pipeline:
+              </div>
+              {stream && (
+                <>
+                  <div className={"flex flex-row px-3 py-0.5 border rounded justify-center  items-center gap-3"}>
+                    <StreamTitle stream={stream} size={"small"} />
+                  </div>
+                  <ArrowDown className={"text-gray-500 w-3 h-3"} />
+                </>
+              )}
+              <SortableContext items={enabledFunctions} strategy={verticalListSortingStrategy}>
+                {enabledFunctions.map(func => (
+                  <SortableItem
+                    id={func.id}
+                    key={func.id}
+                    func={func}
+                    onDelete={f => saveEnabledFunctions(enabledFunctions.filter(e => e.id !== f.id))}
+                  />
+                ))}
+              </SortableContext>
+              {destination && (
+                <>
+                  <ArrowDown className={"text-gray-500 w-3 h-3"} />
+                  <div className={"flex flex-row px-3 py-0.5 border rounded justify-center  items-center gap-3"}>
+                    <DestinationTitle destination={destination} size={"small"} />
+                  </div>
+                </>
+              )}
+            </DndContext>
+          )}
+        </Wrapper>
+      )}
       <Wrapper>
         {split == "horizontal" && <div className={"mt-3"}></div>}
         <div className={"w-full flex flex-row px-3 py-1 justify-center text-gray-500  items-center gap-3"}>
@@ -144,7 +146,10 @@ const FunctionsSelector0: React.FC<FunctionsSelectorProps> = ({
             ))
           ) : (
             <div className={"w-full flex flex-row px-3 py-1 justify-center items-center gap-3"}>
-              No functions added to workspace. <WLink href={"/functions"}>Create Function...</WLink>
+              No functions added to workspace.{" "}
+              <WLink target={"_blank"} href={"/functions"}>
+                Create Function...
+              </WLink>
             </div>
           )}
         </div>

@@ -23,6 +23,9 @@ export type SnippedEditorProps = {
   monacoOptions?: editor.IStandaloneEditorConstructionOptions;
   //automatically fold code on provided level of indentation on editor mount
   foldLevel?: number;
+  syntaxCheck?: {
+    json?: boolean;
+  };
 };
 
 /**
@@ -45,7 +48,9 @@ function parse(val: string) {
 export const SnippedEditor: React.FC<SnippedEditorProps> = props => {
   const [value, setValue] = React.useState<SnippedEditorValue>(props.value);
 
-  const valueParsed = value ? (parse(value) as SnippedEditorParsed) : { lang: "javascript", code: "" };
+  const valueParsed = value
+    ? (parse(value) as SnippedEditorParsed)
+    : { lang: props.languages?.[0] || "text", code: "" };
   const singleLanguage = props.languages && props.languages.length === 1;
   return (
     <div>
@@ -80,6 +85,7 @@ export const SnippedEditor: React.FC<SnippedEditorProps> = props => {
             }
           }}
           foldLevel={props.foldLevel}
+          syntaxCheck={props.syntaxCheck}
           monacoOptions={{
             lineNumbers: "off",
             ...(props.monacoOptions || {}),

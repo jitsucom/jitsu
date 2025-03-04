@@ -16,13 +16,13 @@ import { TableProps } from "antd/es/table/InternalTable";
 import { ColumnType, SortOrder } from "antd/es/table/interface";
 import {
   AlertTriangle,
-  CalendarCheckIcon,
   Edit3,
   ExternalLink,
   Inbox,
   ListMinusIcon,
   Loader2,
   RefreshCw,
+  WrenchIcon,
   XCircle,
 } from "lucide-react";
 import { PlusOutlined } from "@ant-design/icons";
@@ -42,7 +42,7 @@ import omit from "lodash/omit";
 import { toURL } from "../../../lib/shared/url";
 import { useConfigObjectLinks, useConfigObjectList, useStoreReload } from "../../../lib/store";
 import { getCoreDestinationTypeNonStrict } from "../../../lib/schema/destinations";
-import { FaFloppyDisk } from "react-icons/fa6";
+import { FaRegFloppyDisk } from "react-icons/fa6";
 
 dayjs.extend(relativeTime);
 dayjs.extend(utc);
@@ -366,7 +366,7 @@ function SyncsTable({ links, services, destinations }: RemoteEntitiesProps) {
             collapsed: true,
           },
           {
-            icon: <CalendarCheckIcon className={"w-4 h-4"} />,
+            icon: <WrenchIcon className={"w-4 h-4"} />,
             onClick: async () => {
               setShowAPIDocs(link.id);
             },
@@ -374,7 +374,7 @@ function SyncsTable({ links, services, destinations }: RemoteEntitiesProps) {
             collapsed: true,
           },
           {
-            icon: <FaFloppyDisk className={"w-4 h-4"} />,
+            icon: <FaRegFloppyDisk className={"w-4 h-4"} />,
             label: "Saved State",
             href: `/syncs/state?id=${link.id}`,
             collapsed: true,

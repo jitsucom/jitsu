@@ -28,7 +28,10 @@ const Var: React.FC<{
           }}
         />
       ) : (
-        <div onClick={() => setEditing(true)} className={"flex-auto p-2 basis-1/2 border rounded-md "}>
+        <div
+          onClick={() => setEditing(true)}
+          className={"flex-auto overflow-auto scroll- p-2 basis-1/2 border rounded-md "}
+        >
           {value.replaceAll(/./g, "*")}
         </div>
       )}
@@ -85,7 +88,7 @@ export const FunctionVariables: React.FC<{
     <div
       className={`${
         className ?? ""
-      } flex-auto px-4 flex flex-col pt-2 gap-2 place-content-start flex-nowrap pb-4 bg-backgroundLight w-full h-full`}
+      } flex-auto px-4 flex flex-col gap-2 place-content-start flex-nowrap pb-4 bg-backgroundLight w-full h-full`}
     >
       <div className={"flex gap-2"}>
         <div className={"flex-auto text-textLight basis-1/2 px-0.5 text-xs"}>Name</div>

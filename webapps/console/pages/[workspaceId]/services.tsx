@@ -6,7 +6,7 @@ import { useRouter } from "next/router";
 import { getLog, hash as jhash, randomId, rpc } from "juava";
 import React from "react";
 import { Modal } from "antd";
-import { serialization } from "../../lib/ui";
+import { copyTextToClipboard, feedbackSuccess, serialization } from "../../lib/ui";
 import { getServiceIcon, ServicesCatalog } from "../../components/ServicesCatalog/ServicesCatalog";
 import { SourceType } from "../api/sources";
 import hash from "stable-hash";
@@ -14,10 +14,11 @@ import { ServiceEditor } from "../../components/ServiceEditor/ServiceEditor";
 import { ErrorCard } from "../../components/GlobalError/GlobalError";
 import { ObjectTitle } from "../../components/ObjectTitle/ObjectTitle";
 import omit from "lodash/omit";
-import { AlertTriangle, Check, Zap } from "lucide-react";
+import { AlertTriangle, Check, Copy, Zap } from "lucide-react";
 import Link from "next/link";
 import { useConfigObjectLinks } from "../../lib/store";
 import { useQueryStringState } from "../../lib/useQueryStringState";
+import { EditorToolbar } from "../../components/EditorToolbar/EditorToolbar";
 
 const log = getLog("services");
 
@@ -225,14 +226,31 @@ const ServicesList: React.FC<{}> = () => {
       }
       const verb = isNew ? "New" : "Edit";
       return (
-        <div className="flex items-center">
-          <div className="h-12 w-12 mr-4">{getServiceIcon(meta)}</div>
-          {verb} service: {meta.meta.name}
-        </div>
+        <>
+          <div className="flex items-center">
+            <div className="h-12 w-12 mr-4">{getServiceIcon(meta)}</div>
+            {verb} service: {meta.meta.name}
+          </div>
+        </>
       );
     },
     subtitle: (obj: ServiceConfig, isNew: boolean, meta) => {
-      return `${obj.package || meta!.packageId}`;
+      return !isNew ? (
+        <EditorToolbar
+          items={[
+            {
+              title: "ID: " + obj.id,
+              icon: <Copy className="w-full h-full" />,
+              href: "#",
+              onClick: () => {
+                copyTextToClipboard(obj.id);
+                feedbackSuccess("Copied to clipboard");
+              },
+            },
+          ]}
+          className="mb-4"
+        />
+      ) : undefined;
     },
     actions: [
       {
