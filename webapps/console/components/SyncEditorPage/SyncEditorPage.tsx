@@ -9,9 +9,9 @@ import { assertTrue, getLog, requireDefined, rpc } from "juava";
 import { Disable } from "../Disable/Disable";
 import { Button, Checkbox, Input, Select, Switch, Tooltip } from "antd";
 import { getCoreDestinationType } from "../../lib/schema/destinations";
-import { confirmOp, feedbackError, feedbackSuccess } from "../../lib/ui";
+import { confirmOp, copyTextToClipboard, feedbackError, feedbackSuccess } from "../../lib/ui";
 import FieldListEditorLayout, { EditorItem } from "../FieldListEditorLayout/FieldListEditorLayout";
-import { ChevronLeft, ExternalLink } from "lucide-react";
+import { ChevronLeft, Copy, ExternalLink, ListMinusIcon } from "lucide-react";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
 import { LoadingAnimation } from "../GlobalLoader/GlobalLoader";
 import { ServiceTitle } from "../../pages/[workspaceId]/services";
@@ -26,6 +26,10 @@ import { WLink } from "../Workspace/WLink";
 import { useStoreReload } from "../../lib/store";
 import capitalize from "lodash/capitalize";
 import { DestinationSelector, SelectorProps } from "../Selectors/DestinationSelector";
+import { EditorToolbar } from "../EditorToolbar/EditorToolbar";
+import JSON5 from "json5";
+import { FaRegFloppyDisk } from "react-icons/fa6";
+import { FunctionVariables } from "../FunctionsDebugger/FunctionVariables";
 
 const log = getLog("SyncEditorPage");
 
@@ -382,6 +386,7 @@ function SyncEditor({
     };
   }, [workspace.id, service, initSyncOptions, updateOptions, refreshCatalog, catalog]);
 
+  const usesBulker = destinationType.usesBulker || destinationType.id === "webhook";
   const configItems: EditorItem[] = [
     {
       name: existingLink ? "Select Service" : "Service",
@@ -399,7 +404,7 @@ function SyncEditor({
             updateOptions({ streams: undefined });
           }}
           refreshCatalogCb={
-            destinationType.usesBulker
+            usesBulker
               ? () => {
                   setLoadingCatalog(true);
                   setCatalog(undefined);
@@ -427,7 +432,7 @@ function SyncEditor({
         />
       ),
     },
-    destinationType.usesBulker && !destination.provisioned
+    usesBulker && !destination.provisioned && destinationType.id !== "webhook"
       ? {
           name: `Destination ${capitalize(namespaceImpl.name)}`,
           documentation: (
@@ -472,7 +477,7 @@ function SyncEditor({
           ),
         }
       : undefined,
-    destinationType.usesBulker
+    usesBulker && destinationType.id !== "webhook"
       ? {
           name: "Table Name Prefix",
           documentation: (
@@ -497,7 +502,7 @@ function SyncEditor({
           ),
         }
       : undefined,
-    destinationType.usesBulker && destinationType.id !== "s3" && destinationType.id !== "gcs"
+    usesBulker && destinationType.id !== "s3" && destinationType.id !== "gcs" && destinationType.id !== "webhook"
       ? {
           name: "Normalize Names",
           documentation: (
@@ -523,7 +528,7 @@ function SyncEditor({
           ),
         }
       : undefined,
-    destinationType.usesBulker
+    usesBulker && destinationType.id !== "webhook"
       ? {
           name: "Add meta information",
           documentation: (
@@ -536,6 +541,26 @@ function SyncEditor({
           component: (
             <div className={"w-80"}>
               <SwitchComponent value={syncOptions?.addMeta} onChange={e => updateOptions({ addMeta: e })} />
+            </div>
+          ),
+        }
+      : undefined,
+    destinationType.id === "webhook"
+      ? {
+          name: "Template Variables",
+          documentation: (
+            <>
+              Added variables can be referenced in the webhook custom payload template using{" "}
+              <code>{"{{ env.NAME }}"}</code> macros.
+            </>
+          ),
+          component: (
+            <div className={"w-full"}>
+              <FunctionVariables
+                className={"!px-0"}
+                value={syncOptions.functionsEnv || {}}
+                onChange={functionsEnv => updateOptions({ functionsEnv })}
+              />
             </div>
           ),
         }
@@ -623,10 +648,9 @@ function SyncEditor({
     }
   }
   //we should disable sync if non-bulker destination generally supports, but not supported by this service
-  const disableSync =
-    service && !destinationType.usesBulker && destinationType.syncs && !destinationType.syncs[service.package];
+  const disableSync = service && !usesBulker && destinationType.syncs && !destinationType.syncs[service.package];
 
-  if (service && !destinationType.usesBulker && destinationType.syncs) {
+  if (service && !usesBulker && destinationType.syncs) {
     //destination supports sync, so we have two options (see below)
     const syncOptions = destinationType.syncs[service.package];
     if (syncOptions) {
@@ -650,7 +674,7 @@ function SyncEditor({
     }
   }
 
-  if (service && destinationType.usesBulker) {
+  if (service && usesBulker) {
     if (loadingCatalog) {
       configItems.push({
         group: "Streams",
@@ -790,12 +814,42 @@ function SyncEditor({
   }
   return (
     <div className="max-w-5xl grow">
-      <div className="flex justify-between pb-0 mb-0 items-center">
+      <div className="flex justify-between pb-4 mb-0 items-center">
         <h1 className="text-3xl">{(existingLink ? "Edit" : "Create") + " sync"}</h1>
         <JitsuButton icon={<ChevronLeft className="w-6 h-6" />} type="link" size="small" onClick={() => router.back()}>
           Back
         </JitsuButton>
       </div>
+      {existingLink && (
+        <div>
+          <EditorToolbar
+            items={
+              [
+                {
+                  title: "ID: " + existingLink.id,
+                  icon: <Copy className="w-full h-full" />,
+                  href: "#",
+                  onClick: () => {
+                    copyTextToClipboard(existingLink.id);
+                    feedbackSuccess("Copied to clipboard");
+                  },
+                },
+                {
+                  title: "Logs",
+                  icon: <ListMinusIcon className={"w-full h-full"} />,
+                  href: `/${workspace.slugOrId}/syncs/tasks?query=${JSON5.stringify({ syncId: existingLink.id })}`,
+                },
+                {
+                  title: "Saved State",
+                  icon: <FaRegFloppyDisk className={"w-full h-full"} />,
+                  href: `/${workspace.slugOrId}/syncs/state?id=${existingLink.id}`,
+                },
+              ].filter(Boolean) as any
+            }
+            className="mb-4"
+          />
+        </div>
+      )}
       <div className="w-full">
         <FieldListEditorLayout
           groups={{
@@ -803,7 +857,7 @@ function SyncEditor({
               expandable: false,
               title: (
                 <div className="flex flex-row items-center justify-between gap-2 mt-4 mb-3">
-                  <div className={"text-xl"}>Streams {destinationType.usesBulker}</div>
+                  <div className={"text-xl"}>Streams</div>
                   <div className={"flex gap-2 pr-2"}>
                     Switch All
                     <Switch

@@ -905,14 +905,25 @@ export const coreDestinations: DestinationType<any>[] = [
   },
   {
     id: "webhook",
-    connectionOptions: CloudDestinationsConnectionOptions,
     icon: webhookIcon,
     title: "Webhook",
     tags: "Special",
+    hybrid: true,
+    connectionOptions: CloudDestinationsConnectionOptions.merge(BatchModeOptions).merge(
+      z.object({
+        batchSize: z.number().min(1).max(1000).default(100),
+        mode: z.enum(["stream", "batch"]).default("stream"),
+      })
+    ),
     credentials: meta.WebhookDestinationConfig,
     credentialsUi: {
       headers: {
         editor: "StringArrayEditor",
+      },
+      payload: {
+        editor: "SnippedEditor",
+        editorProps: { languages: ["json", "text"], height: "300", syntaxCheck: { json: false } },
+        hidden: obj => !obj.customPayload,
       },
     },
     description:

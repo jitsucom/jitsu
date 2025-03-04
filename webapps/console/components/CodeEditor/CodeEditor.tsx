@@ -19,6 +19,9 @@ type CodeEditorProps = {
   loaderNode?: ReactNode;
   autoFit?: boolean;
   monacoOptions?: Partial<monaco.editor.IStandaloneEditorConstructionOptions>;
+  syntaxCheck?: {
+    json?: boolean;
+  };
 };
 
 export const CodeEditor: React.FC<CodeEditorProps> = ({
@@ -35,6 +38,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   foldLevel,
   loaderNode,
   autoFit,
+  syntaxCheck,
 }) => {
   const editorRef = useRef<any>(null);
   const [mounted, setMounted] = React.useState(false);
@@ -52,6 +56,11 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       }
       if (extraSuggestions) {
         monaco.languages.typescript.javascriptDefaults.setExtraLibs([{ content: extraSuggestions }]);
+      }
+      if (syntaxCheck && typeof syntaxCheck.json !== "undefined") {
+        monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
+          validate: syntaxCheck.json,
+        });
       }
       if (handleChangePosition) {
         editor.onDidChangeCursorPosition(e => {

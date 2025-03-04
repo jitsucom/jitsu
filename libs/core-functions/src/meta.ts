@@ -36,6 +36,12 @@ export const WebhookDestinationConfig = z.object({
     .default("POST")
     .describe("HTTP method. Can be <code>GET</code>, <code>POST</code>, <code>PUT</code>, <code>DELETE</code>"),
   headers: z.array(z.string()).optional().describe("List of headers in format <code>key: value</code>"),
+  customPayload: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe("Enable custom payload. If disabled, the event payload will be sent as is."),
+  payload: z.string().optional().describe("Payload Template::Template for the webhook payload."),
 });
 
 export type WebhookDestinationConfig = z.infer<typeof WebhookDestinationConfig>;

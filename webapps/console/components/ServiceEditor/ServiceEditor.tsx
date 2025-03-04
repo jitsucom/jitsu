@@ -228,9 +228,11 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
       : isNew
       ? `Create new ${noun}`
       : `Edit ${noun}`;
+    const subtitleComponent = props.subtitle && props.subtitle(object, isNew, meta);
+
     return (
       <EditorBase isTouched={isTouched} onCancel={onCancel}>
-        <EditorTitle title={title} onBack={() => onCancel(isTouched)} />
+        <EditorTitle title={title} subtitle={subtitleComponent} onBack={() => onCancel(isTouched)} />
         {oauthConnector && (
           <div className={"flex flex-row items-center gap-3 mb-4"}>
             <div>

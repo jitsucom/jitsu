@@ -1,10 +1,5 @@
 import { WorkspacePageLayout } from "../../components/PageLayout/WorkspacePageLayout";
-import {
-  ConfigEditor,
-  ConfigEditorProps,
-  CopyConstant,
-  CustomCheckbox,
-} from "../../components/ConfigObjectEditor/ConfigEditor";
+import { ConfigEditor, ConfigEditorProps, CustomCheckbox } from "../../components/ConfigObjectEditor/ConfigEditor";
 import { StreamConfig } from "../../lib/schema";
 import { useAppConfig, useWorkspace } from "../../lib/context";
 import React, { useState } from "react";
@@ -12,17 +7,18 @@ import Link from "next/link";
 import { FaExternalLinkAlt } from "react-icons/fa";
 import { branding } from "../../lib/branding";
 import { useRouter } from "next/router";
-import { TrackingIntegrationDocumentation } from "../../components/TrackingIntegrationDocumentation/TrackingIntegrationDocumentation";
 import { StreamKeysEditor } from "../../components/ApiKeyEditor/ApiKeyEditor";
-import { Activity, AlertTriangle, Check, Wrench, Zap } from "lucide-react";
+import { Activity, AlertTriangle, Check, Copy, Wrench, Zap } from "lucide-react";
 import { FaviconLoader } from "./index";
 import { ObjectTitle } from "../../components/ObjectTitle/ObjectTitle";
-import omit from "lodash/omit";
 import { toURL } from "../../lib/shared/url";
 import JSON5 from "json5";
 import { EditorToolbar } from "../../components/EditorToolbar/EditorToolbar";
 import { useConfigObjectLinks, useConfigObjectList } from "../../lib/store";
 import { DomainsEditor } from "../../components/DomainsEditor/DomainsEditor";
+import { TrackingIntegrationDocumentation } from "../../components/TrackingIntegrationDocumentation/TrackingIntegrationDocumentation";
+import omit from "lodash/omit";
+import { copyTextToClipboard, feedbackSuccess } from "../../lib/ui";
 
 const Streams: React.FC<any> = () => {
   return (
@@ -66,6 +62,15 @@ const StreamsList: React.FC<{}> = () => {
       !isNew && (
         <EditorToolbar
           items={[
+            {
+              title: "ID: " + obj.id,
+              icon: <Copy className="w-full h-full" />,
+              href: "#",
+              onClick: () => {
+                copyTextToClipboard(obj.id);
+                feedbackSuccess("Copied to clipboard");
+              },
+            },
             {
               title: "Setup Instructions",
               icon: <Wrench className="w-full h-full" />,
@@ -211,10 +216,6 @@ const StreamsList: React.FC<{}> = () => {
       return { ok: true };
     },
     fields: {
-      id: {
-        hidden: (o, isNew) => !!isNew,
-        editor: CopyConstant,
-      },
       type: { constant: "stream" },
       workspaceId: { constant: workspace.id },
       strict: {

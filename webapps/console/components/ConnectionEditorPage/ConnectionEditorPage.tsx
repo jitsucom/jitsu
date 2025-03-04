@@ -8,10 +8,10 @@ import { useRouter } from "next/router";
 import { assertTrue, getLog, requireDefined } from "juava";
 import { Button, Input, InputNumber, Radio, Switch, Tooltip } from "antd";
 import { BaseBulkerConnectionOptions, getCoreDestinationType } from "../../lib/schema/destinations";
-import { confirmOp, feedbackError, feedbackSuccess } from "../../lib/ui";
+import { confirmOp, copyTextToClipboard, feedbackError, feedbackSuccess } from "../../lib/ui";
 import FieldListEditorLayout, { EditorItem } from "../FieldListEditorLayout/FieldListEditorLayout";
 import { DataLayoutType } from "@jitsu/protocols/analytics";
-import { ChevronLeft } from "lucide-react";
+import { Activity, ChevronLeft, Copy } from "lucide-react";
 import styles from "./ConnectionEditorPage.module.css";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
 import { Htmlizer } from "../Htmlizer/Htmlizer";
@@ -21,6 +21,9 @@ import { useStoreReload } from "../../lib/store";
 import { DestinationSelector } from "../Selectors/DestinationSelector";
 import { SourceSelector } from "../Selectors/SourceSelector";
 import { FunctionVariables } from "../FunctionsDebugger/FunctionVariables";
+import { EditorToolbar } from "../EditorToolbar/EditorToolbar";
+import JSON5 from "json5";
+import { toURL } from "../../lib/shared/url";
 
 const log = getLog("ConnectionEditorPage");
 
@@ -272,6 +275,8 @@ function ConnectionEditor({
       }
     }
   }, [connectionOptionsZodType]);
+
+  const usesBulker = destinationType.usesBulker || destinationType.id === "webhook";
 
   const configItems: EditorItem[] = [
     {
@@ -698,12 +703,42 @@ function ConnectionEditor({
   // }
   return (
     <div className="max-w-5xl grow">
-      <div className="flex justify-between pb-0 mb-0 items-center">
+      <div className="flex justify-between pb-4 mb-0 items-center">
         <h1 className="text-3xl">{(existingLink ? "Edit" : "Create") + " connection"}</h1>
         <JitsuButton icon={<ChevronLeft className="w-6 h-6" />} type="link" size="small" onClick={() => router.back()}>
           Back
         </JitsuButton>
       </div>
+      {existingLink && (
+        <div>
+          <EditorToolbar
+            items={
+              [
+                {
+                  title: "ID: " + existingLink.id,
+                  icon: <Copy className="w-full h-full" />,
+                  href: "#",
+                  onClick: () => {
+                    copyTextToClipboard(existingLink.id);
+                    feedbackSuccess("Copied to clipboard");
+                  },
+                },
+                {
+                  title: "Logs",
+                  icon: <Activity className="w-full h-full" />,
+                  href: toURL(`/${workspace.slugOrId}/data`, {
+                    query: JSON5.stringify({
+                      activeView: usesBulker ? "bulker" : "function",
+                      viewState: { [usesBulker ? "bulker" : "function"]: { actorId: existingLink.id } },
+                    }),
+                  }),
+                },
+              ].filter(Boolean) as any
+            }
+            className="mb-4"
+          />
+        </div>
+      )}
       <div className="w-full">
         <FieldListEditorLayout
           groups={{
@@ -740,7 +775,7 @@ function ConnectionEditor({
           caretSize="1.5em"
           contentLeftPadding={false}
         >
-          <div className={"text-textLight px-1 mb-2"}>
+          <div className={"text-textLight px-1 mb-4"}>
             Provided variables can be used inside functions via <code>process.env</code> object. For example:{" "}
             <code>process.env.DEBUG</code>
           </div>

@@ -153,13 +153,11 @@ function getUiSchema(schema: JsonSchema, fields: Record<string, FieldDisplay>, o
         };
       })
       .reduce((a, b) => ({ ...a, ...b }), {}),
+    id: { "ui:widget": "hidden" },
     "ui:submitButtonOptions": {
       norender: true,
     },
   };
-  if (!uiSchema["id"]) {
-    uiSchema["id"] = { "ui:widget": "hidden" };
-  }
   return uiSchema;
 }
 
