@@ -166,6 +166,23 @@ function adjustName(name: string): string {
   return name.substring(0, 40);
 }
 
+// `0`is falsy so we need to explicitly check for it
+function resolvePossibleValue(...possibleValues: any[]): any {
+  for (const value of possibleValues) {
+    if (typeof value !== "undefined" && value !== null) {
+      return value;
+    }
+  }
+
+  return possibleValues.at(-1);
+}
+
+// typically values are resolved in the following order, however there are
+// a few exceptions.
+function resolveStandardValue(evp: any) {
+  return resolvePossibleValue(evp?.value, evp?.total, evp?.revenue);
+}
+
 function trackEvent(event: AnalyticsServerEvent): Ga4Event {
   const evp = event.properties || {};
   let params: Record<string, any> = {};
@@ -190,7 +207,7 @@ function trackEvent(event: AnalyticsServerEvent): Ga4Event {
     case "Checkout Started":
       name = "begin_checkout";
       params.currency = evp.currency;
-      params.value = evp.value || evp.total || evp.revenue;
+      params.value = resolveStandardValue(evp);
       params.coupon = evp.coupon;
       params.items = getItems(event);
       break;
@@ -198,7 +215,7 @@ function trackEvent(event: AnalyticsServerEvent): Ga4Event {
       name = "refund";
       params.currency = evp.currency;
       params.transaction_id = evp.order_id;
-      params.value = evp.total || evp.value || evp.revenue;
+      params.value = resolvePossibleValue(evp.total, evp.value, evp.revenue);
       params.coupon = evp.coupon;
       params.shipping = evp.shipping;
       params.affiliation = evp.affiliation;
@@ -208,13 +225,13 @@ function trackEvent(event: AnalyticsServerEvent): Ga4Event {
     case "Product Added":
       name = "add_to_cart";
       params.currency = evp.currency;
-      params.value = evp.value || evp.total || evp.revenue;
+      params.value = resolveStandardValue(evp);
       params.items = getItems(event);
       break;
     case "Payment Info Entered":
       name = "add_payment_info";
       params.currency = evp.currency;
-      params.value = evp.value || evp.total || evp.revenue;
+      params.value = resolveStandardValue(evp);
       params.coupon = evp.coupon;
       params.payment_type = evp.payment_method;
       params.items = getItems(event);
@@ -222,13 +239,13 @@ function trackEvent(event: AnalyticsServerEvent): Ga4Event {
     case "Product Added to Wishlist":
       name = "add_to_wishlist";
       params.currency = evp.currency;
-      params.value = evp.value || evp.total || evp.revenue;
+      params.value = resolveStandardValue(evp);
       params.items = getItems(event);
       break;
     case "Product Viewed":
       name = "view_item";
       params.currency = evp.currency;
-      params.value = evp.value || evp.total || evp.revenue;
+      params.value = resolveStandardValue(evp);
       params.items = getItems(event);
       break;
     case "Signed Up":
@@ -239,7 +256,7 @@ function trackEvent(event: AnalyticsServerEvent): Ga4Event {
       name = "purchase";
       params.currency = evp.currency;
       params.transaction_id = evp.order_id;
-      params.value = evp.total || evp.value || evp.revenue;
+      params.value = resolvePossibleValue(evp.total, evp.value, evp.revenue);
       params.coupon = evp.coupon;
       params.shipping = evp.shipping;
       params.affiliation = evp.affiliation;
@@ -258,7 +275,7 @@ function trackEvent(event: AnalyticsServerEvent): Ga4Event {
     case "Cart Viewed":
       name = "view_cart";
       params.currency = evp.currency;
-      params.value = evp.value || evp.total || evp.revenue;
+      params.value = resolveStandardValue(evp);
       params.items = getItems(event);
       break;
     case "Signed In":
@@ -268,7 +285,7 @@ function trackEvent(event: AnalyticsServerEvent): Ga4Event {
     case "Product Removed":
       name = "remove_from_cart";
       params.currency = evp.currency;
-      params.value = evp.value || evp.total || evp.revenue;
+      params.value = resolveStandardValue(evp);
       params.items = getItems(event);
       break;
     case "Products Searched":
@@ -286,7 +303,7 @@ function trackEvent(event: AnalyticsServerEvent): Ga4Event {
       params = { ...evp };
       params = removeProperties(params, StandardProperties);
       params.currency = evp.currency;
-      params.value = evp.value || evp.total || evp.revenue;
+      params.value = resolveStandardValue(evp);
       break;
   }
   params.engagement_time_msec = 1;

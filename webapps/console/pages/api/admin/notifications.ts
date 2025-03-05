@@ -102,59 +102,68 @@ export default createRoute()
     // load all objects which we monitor status changes for along with their last status change
     // noinspection SqlResolve
     const r = await db.pgPool().query(`
-        with last_statuses as (SELECT DISTINCT "actorId",
-                                               "tableName",
-                                               LAST_VALUE(id) OVER (
-                                                   PARTITION BY "actorId","tableName" ORDER BY id
-                                                   ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
-                                                   ) AS id,
-                                               LAST_VALUE(status) OVER (
-                                                   PARTITION BY "actorId","tableName" ORDER BY id
-                                                   ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
-                                                   ) AS status,
-                                               LAST_VALUE(description) OVER (
-                                                   PARTITION BY "actorId","tableName" ORDER BY id
-                                                   ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
-                                                   ) AS description,
-                                               LAST_VALUE(timestamp) OVER (
-                                                   PARTITION BY "actorId","tableName" ORDER BY id
-                                                   ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
-                                                   ) AS timestamp
-                               FROM newjitsu."StatusChange"
-                               ORDER BY "actorId", "tableName", id DESC),
-             status_changes as (SELECT "actorId",
-                                       "tableName",
-                                       coalesce(SUM(CASE WHEN "startedAt" >= CURRENT_TIMESTAMP - INTERVAL '2 hours' THEN 1 END), 0) AS "changesPerHours",
-                                       coalesce(SUM(CASE WHEN "startedAt" >= CURRENT_TIMESTAMP - INTERVAL '1 days' THEN 1 END), 0) AS "changesPerDay"
-                                FROM newjitsu."StatusChange"
-                                where "startedAt" >= CURRENT_TIMESTAMP - INTERVAL '1 days'
-                                group by "actorId", "tableName")
+      with
+        last_statuses as (select distinct
+                            "actorId",
+                            "tableName",
+                            LAST_VALUE(id) OVER (
+                                                   PARTITION by "actorId","tableName" order by id
+                                                   rows between unbounded preceding and unbounded following
+                                                   ) as id, LAST_VALUE(status) OVER (
+                                                   PARTITION by "actorId","tableName" order by id
+                                                   rows between unbounded preceding and unbounded following
+                                                   ) as status, LAST_VALUE(description) OVER (
+                                                   PARTITION by "actorId","tableName" order by id
+                                                   rows between unbounded preceding and unbounded following
+                                                   ) as description, LAST_VALUE(timestamp) OVER (
+                                                   PARTITION by "actorId","tableName" order by id
+                                                   rows between unbounded preceding and unbounded following
+                                                   ) as timestamp
+      from newjitsu."StatusChange"
+      order by "actorId", "tableName", id desc),
+        status_changes as (
+      select
+        "actorId",
+        "tableName",
+        coalesce (
+        sum (
+        case when "startedAt" >= current_timestamp - interval '2 hours' then 1 end), 0) as "changesPerHours",
+        coalesce (
+        sum (
+        case when "startedAt" >= current_timestamp - interval '1 days' then 1 end), 0) as "changesPerDay"
+      from newjitsu."StatusChange"
+      where "startedAt" >= current_timestamp - interval '1 days'
+      group by "actorId", "tableName")
 
-        select w.id                          as "workspaceId",
-               w.slug                        as slug,
-               w.name                        as "workspaceName",
-               fr.config ->> 'name'          as "fromName",
-               too.config ->> 'name'         as "toName",
-               coalesce(sc."actorId", cl.id) as "actorId",
-               REPLACE(cl.type, 'push', 'batch') as type,
-               ls.id,
-               ls."tableName",
-               ls.timestamp,
-               ls.status,
-               ls.description,
-               sc."changesPerHours",
-               sc."changesPerDay"
-        from newjitsu."ConfigurationObjectLink" cl
-                 join newjitsu."Workspace" w on w.id = cl."workspaceId"
-                 join newjitsu."ConfigurationObject" fr on fr.id = cl."fromId"
-                 join newjitsu."ConfigurationObject" too on too.id = cl."toId"
-                 left join last_statuses ls on ls."actorId" = cl.id
-                 left join status_changes sc on sc."actorId" = ls."actorId" and sc."tableName" = ls."tableName"
-        where ((cl.type = 'push' and data ->> 'mode' = 'batch') or cl.type = 'sync')
-          and cl.deleted = 'false'
-          and fr.deleted = false
-          and too.deleted = false
-          and w.deleted = false
+      select
+        w.id as "workspaceId",
+        w.slug as slug,
+        w.name as "workspaceName",
+        fr.config ->> 'name' as "fromName",
+        too.config ->> 'name' as "toName",
+        coalesce (
+        sc."actorId", cl.id) as "actorId",
+        REPLACE(
+        cl.type, 'push', 'batch') as type,
+        ls.id,
+        ls."tableName",
+        ls.timestamp,
+        ls.status,
+        ls.description,
+        sc."changesPerHours",
+        sc."changesPerDay"
+      from newjitsu."ConfigurationObjectLink" cl
+        join newjitsu."Workspace" w
+      on w.id = cl."workspaceId"
+        join newjitsu."ConfigurationObject" fr on fr.id = cl."fromId"
+        join newjitsu."ConfigurationObject" too on too.id = cl."toId"
+        left join last_statuses ls on ls."actorId" = cl.id
+        left join status_changes sc on sc."actorId" = ls."actorId" and sc."tableName" = ls."tableName"
+      where ((cl.type = 'push' and data ->> 'mode' = 'batch') or cl.type = 'sync')
+        and cl.deleted = 'false'
+        and fr.deleted = false
+        and too.deleted = false
+        and w.deleted = false
     `);
     for (const row of r.rows) {
       row.changesPerHours = parseInt(row.changesPerHours);
@@ -171,11 +180,11 @@ export default createRoute()
       const values = Array.from(increments.entries())
         .map(([id, data]) => `(${id}, ${data.counts}, '${data.timestamp.toISOString()}')`)
         .join(",");
-      const query = `UPDATE newjitsu."StatusChange" as s
-                     SET counts    = s.counts + data.counts,
+      const query = `update newjitsu."StatusChange" as s
+                     set counts    = s.counts + data.counts,
                          timestamp = data.timestamp::TIMESTAMPTZ(3)
-                     FROM (VALUES ${values}) AS data(id, counts, timestamp)
-                     WHERE s.id = data.id`;
+                     from (values ${values}) as data (id, counts, timestamp)
+                     where s.id = data.id`;
       const res = await db.pgPool().query(query);
       log.atInfo().log(`Status counts updated for ${res.rowCount} rows.`);
     }
@@ -606,7 +615,7 @@ type SlackPayload = {
 };
 
 export async function sendSlackNotification(
-  channel: NotificationChannel,
+  channel: Pick<NotificationChannel, "recurringAlertsPeriodHours" | "slackWebhookUrl">,
   entity: StatusChangeEntity,
   status: JobStatus,
   statusChanges: StatusChange[],
@@ -620,47 +629,46 @@ export async function sendSlackNotification(
   const name = `${entity.fromName} → ${entity.toName}`;
   const jobType = entity.type == "sync" ? "Sync Task" : "Batch";
   const jobName = `<${url}|${name}>`;
-  const message =
+  const test =
     status === "SUCCESS"
       ? `:large_green_circle: ${jobType} *SUCCESS* ${jobName} [${entity.workspaceName}]`
       : `:red_circle: ${jobType} *FAILED* ${jobName} [${entity.workspaceName}]`;
   const color = status === "SUCCESS" ? "#36a64f" : "#ff0000"; // Red for failed, Green for recovered
   const details = [...statusChanges]
     .reverse()
-    .map(s => `${s.timestamp.toISOString()} *${s.status}*${s.description ? ":\n```" + s.description + "```" : ""}\n`)
+    .map(s => `${s.timestamp.toISOString()} [${s.status}] ${s.description || "Unknown"}`)
     .join("\n");
 
   const payload: SlackPayload = {
-    text: message,
-    attachments: [
-      {
-        color: color,
-        title: "Details",
-        ts: lastStatus.timestamp.getTime() / 1000,
-        title_link: url,
-        text: details, // This can be a very long text body
-      },
-    ],
+    text: test,
     blocks: [
       {
-        type: "section",
+        type: "header",
         text: {
-          type: "mrkdwn",
-          text: message,
+          type: "plain_text",
+          text: status === "SUCCESS" ? `:large_green_circle: ${jobType} succeeded` : `:red_circle: ${jobType} failed`,
         },
       },
       {
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `Last status: \`${lastStatus.status}\`\n${
-            lastStatus.tableName ? "Batch Table: `" + lastStatus.tableName + "`\n" : ""
-          }<${url}|Open in Jitsu...>`,
+          text: [
+            `Jitsu ${entity.status === "sync" ? "Sync Job" : "Data Warehouse Batch Job"} *${
+              status === "SUCCESS" ? "succeded 👍" : "failed 😣"
+            }*. `,
+            ``,
+            `The job was triggered in *<${baseUrl}/${entity.slug}|${entity.workspaceName}>* workspace from *${
+              entity.fromName
+            }* to *${entity.toName}*. ${entity.tableName ? `\nTable: \`${entity.tableName}\`` : ""}`,
+            ``,
+            `*Status change log*:`,
+            "```",
+            `${details}`,
+            "```",
+          ].join("\n"),
         },
       },
-      // {
-      //   type: "divider",
-      // },
     ],
   };
   if (channel.recurringAlertsPeriodHours) {
@@ -677,6 +685,29 @@ export async function sendSlackNotification(
       ],
     });
   }
+  payload.blocks!.push({
+    type: "actions",
+    elements: [
+      {
+        type: "button",
+        text: {
+          type: "plain_text",
+          text: ":house: Open Workspace",
+        },
+        url: `${baseUrl}/${entity.slug}`,
+      },
+      {
+        type: "button",
+        text: {
+          type: "plain_text",
+          text: ":scroll: View Job Logs",
+        },
+        url: `${url}`,
+      },
+    ],
+  });
+
+  console.debug(`Sending slack notification to ${channel.slackWebhookUrl}: ${JSON.stringify(payload, null, 2)}`);
 
   const res = await fetch(channel.slackWebhookUrl!, {
     method: "POST",
@@ -685,6 +716,7 @@ export async function sendSlackNotification(
     },
     body: JSON.stringify(payload),
   });
+
   if (!res.ok) {
     throw new Error(`HTTP Error: ${res.status}: ${await res.text()}`);
   }
