@@ -34,11 +34,12 @@ export const StreamTitle: React.FC<{
   title?: (s: StreamConfig) => string | React.ReactNode;
   link?: boolean;
 }> = ({ stream, title = s => s.name, size = "default", link }) => {
+  const workspace = useWorkspace();
   return (
     <ObjectTitle
       icon={<FaviconLoader potentialUrl={stream?.name} />}
       size={size}
-      href={stream && link ? `/${stream.workspaceId}/streams?id=${stream?.id}` : undefined}
+      href={stream && link ? `/${workspace.slugOrId}/streams?id=${stream?.id}` : undefined}
       title={stream ? title(stream) : "Unknown stream"}
     />
   );

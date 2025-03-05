@@ -4,6 +4,7 @@ import { CheckOutlined, LoadingOutlined } from "@ant-design/icons";
 import { getLog } from "juava";
 import { ConfigTestResult } from "./ConfigEditor";
 import { useAppConfig } from "../../lib/context";
+import { ButtonLabel } from "../ButtonLabel/ButtonLabel";
 
 const log = getLog("ConfigEditor");
 
@@ -75,7 +76,7 @@ export const EditorButtons: React.FC<EditorButtonProps> = ({
     <>
       {!loading && testStatus && testStatus !== "success" && testStatus !== "pending" && (
         <Alert
-          message="Connection test failed"
+          message="Test failed"
           className={"whitespace-pre-wrap"}
           description={testStatus}
           type="error"
@@ -95,7 +96,7 @@ export const EditorButtons: React.FC<EditorButtonProps> = ({
         <div className="flex justify-end space-x-5" ref={buttonDivRef}>
           {onTest &&
             (testStatus === "success" ? (
-              <Popover content={"Connection test passed"} color={"lime"} trigger={"click"} defaultOpen={true}>
+              <Popover content={"Test passed"} color={"lime"} trigger={"click"} defaultOpen={true}>
                 <Button type="link" disabled={loading || testing} size="large" onClick={doTest}>
                   <CheckOutlined />
                   {testButtonLabel}
@@ -104,10 +105,7 @@ export const EditorButtons: React.FC<EditorButtonProps> = ({
             ) : (
               <Button type="link" disabled={loading} size="large" onClick={doTest}>
                 {testStatus === "pending" ? (
-                  <>
-                    <LoadingOutlined />
-                    {testButtonLabel}
-                  </>
+                  <ButtonLabel icon={<LoadingOutlined className="w-4 h-4" />}>{testButtonLabel}</ButtonLabel>
                 ) : (
                   testButtonLabel
                 )}

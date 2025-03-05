@@ -76,6 +76,14 @@ const NotificationChannelList: React.FC<{}> = () => {
       },
       slackWebhookUrl: {
         hidden: a => a.channel !== "slack",
+        documentation: (
+          <>
+            See the slack documentation on how to{" "}
+            <a href="https://api.slack.com/messaging/webhooks" target="_blank" rel="noreferrer">
+              create a webhook URL
+            </a>
+          </>
+        ),
       },
       // allWorkspaceEmails: {
       //   hidden: a => a.channel !== "email",
@@ -84,13 +92,7 @@ const NotificationChannelList: React.FC<{}> = () => {
         displayName: "Recipients",
         editor: FakeEditor,
         hidden: a => a.channel !== "email",
-        documentation: (
-          <>
-            Email notifications are sent to all workspace users.
-            <br />
-            Individual users can unsubscribe from these notifications using the link provided in the email.
-          </>
-        ),
+        documentation: <>Email notifications are sent to all workspace users.</>,
       },
       recurringAlertsPeriodHours: {
         displayName: "Recurring Alerts Period (hours)",

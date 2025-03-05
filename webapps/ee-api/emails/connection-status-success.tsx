@@ -127,8 +127,9 @@ ConnectionStatusSuccessEmail.defaultValues = {
 ConnectionStatusSuccessEmail.from = "Jitsu Support <support@notify.jitsu.com>";
 ConnectionStatusSuccessEmail.replyTo = "Jitsu Support <support@jitsu.com>";
 
-ConnectionStatusSuccessEmail.allowUnsubscribe = true;
-ConnectionStatusSuccessEmail.respectUnsubscribed = true;
+// This is a transactional email
+ConnectionStatusSuccessEmail.allowUnsubscribe = false;
+ConnectionStatusSuccessEmail.respectUnsubscribed = false;
 
 ConnectionStatusSuccessEmail.subject = ({ workspaceName }) => {
   if (!workspaceName?.toLowerCase().endsWith(" workspace")) {

@@ -67,7 +67,7 @@ function LoadAndBlockIfNeed() {
     return (
       <Modal
         style={{ minWidth: 1000 }}
-        open={true}
+        open={showModal}
         title={
           <div className="flex items-center space-x-4">
             <AlertTriangle className="w-8 h-8 text-error" />

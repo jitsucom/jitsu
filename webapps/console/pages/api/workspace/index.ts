@@ -13,11 +13,15 @@ const api: Api = {
         await db.prisma().userProfile.findUnique({ where: { id: user.internalId } }),
         `User ${user.internalId} does not exist`
       );
-
       const baseList = userModel.admin
         ? await db.prisma().workspace.findMany({
             where: { deleted: false },
-            include: { workspaceUserProperties: { where: { userId: userModel.id } } },
+            include: {
+              workspaceUserProperties: { where: { userId: userModel.id } },
+              _count: {
+                select: { configurationObject: { where: { deleted: false } } },
+              },
+            },
             orderBy: { createdAt: "asc" },
           })
         : (
@@ -32,6 +36,7 @@ const api: Api = {
         .map(({ workspaceUserProperties, ...workspace }) => ({
           ...workspace,
           lastUsed: workspaceUserProperties?.[0]?.lastUsed || undefined,
+          entities: userModel.admin ? workspace["_count"]?.configurationObject : undefined,
         }))
         .sort((a, b) => (b.lastUsed?.getTime() || 0) - (a.lastUsed?.getTime() || 0));
     },

@@ -89,6 +89,16 @@ const WorkspacesList = () => {
                     Not configured
                   </Tag>
                 )}
+                {userData?.admin && workspace["entities"] > 0 && (
+                  <Tag color="blue" className="text-xs text-textLight">
+                    objects: {workspace["entities"]}
+                  </Tag>
+                )}
+                {userData?.admin && workspace["active"] && (
+                  <Tag color="green-inverse" className="text-xs text-textLight">
+                    active
+                  </Tag>
+                )}
               </div>
               <div className="invisible group-hover:visible">
                 <ArrowRight className="text-primary" />
