@@ -41,7 +41,12 @@ export const WebhookDestinationConfig = z.object({
     .optional()
     .default(false)
     .describe("Enable custom payload. If disabled, the event payload will be sent as is."),
-  payload: z.string().optional().describe("Payload Template::Template for the webhook payload."),
+  payload: z
+    .string()
+    .optional()
+    .describe(
+      "Payload Template::Template for the webhook payload. The following macros are supported:<ul><li><code>{{ EVENT }}</code> - event json object for stream mode or batches with size=1</li><li><code>{{ EVENTS }}</code> - for batch mode - json array of events</li><li><code>{{ EVENTS_COUNT }}</code> - count of events in batch</li><li><code>{{ NAME }}</code> - event name</li><li><code>{{ env.VAR_NAME }}</code> - value of VAR_NAME environment variable</li></ul>"
+    ),
 });
 
 export type WebhookDestinationConfig = z.infer<typeof WebhookDestinationConfig>;

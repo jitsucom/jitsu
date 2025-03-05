@@ -29,7 +29,6 @@ import {
   noThrottle,
   stopwatch,
 } from "juava";
-import { NodeClickHouseClient } from "@clickhouse/client/dist/client";
 
 const log = getLog("functions-context");
 
