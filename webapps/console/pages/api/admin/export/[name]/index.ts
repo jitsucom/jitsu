@@ -216,7 +216,6 @@ const exports: Export[] = [
 
       let lastId: string | undefined = undefined;
       let needComma = false;
-      const writtenDestinationIds = new Set<string>();
       const profileBuilders = await db.prisma().profileBuilder.findMany({
         where: {
           deleted: false,
@@ -250,35 +249,70 @@ const exports: Export[] = [
           if (!coreDestinationType) {
             getLog().atError().log(`Unknown destination type: ${destinationType} for connection ${id}`);
           }
-          const ids = [id];
-          if (!writtenDestinationIds.has(to.id)) {
-            ids.push(to.id);
-            writtenDestinationIds.add(to.id);
+          if (needComma) {
+            writer.write(",");
           }
-          for (const id of ids) {
+          writer.write(
+            JSON.stringify({
+              __debug: {
+                workspace: { id: workspace.id, name: workspace.slug },
+              },
+              id: id,
+              type: destinationType,
+              workspaceId: workspace.id,
+              streamId: from.id,
+              streamName: from.config?.name,
+              destinationId: to.id,
+              usesBulker: !!coreDestinationType?.usesBulker,
+              options: {
+                ...data,
+                ...((workspace.featuresEnabled ?? []).includes("nofetchlogs") ? { fetchLogLevel: "debug" } : {}),
+              },
+              optionsHash: hash(data),
+              updatedAt: dateMax(updatedAt, to.updatedAt),
+              credentials: omit(to.config, "destinationType", "type", "name"),
+              credentialsHash: hash(omit(to.config, "destinationType", "type", "name")),
+            })
+          );
+          needComma = true;
+        }
+        if (objects.length < batchSize) {
+          break;
+        }
+      }
+      lastId = undefined;
+      while (true) {
+        const objects = await db.prisma().configurationObject.findMany({
+          where: { deleted: false, type: "destination", workspace: { deleted: false } },
+          include: { workspace: true },
+          take: batchSize,
+          cursor: lastId ? { id: lastId } : undefined,
+          orderBy: { id: "asc" },
+        });
+        if (objects.length == 0) {
+          break;
+        }
+        getLog().atDebug().log(`Got batch of ${objects.length} destinations objects for bulker export`);
+        lastId = objects[objects.length - 1].id;
+        for (const { id, workspace, config, updatedAt } of objects) {
+          const destinationType = config?.destinationType;
+          const coreDestinationType = getCoreDestinationTypeNonStrict(destinationType);
+          if (coreDestinationType?.usesBulker || coreDestinationType?.hybrid) {
             if (needComma) {
               writer.write(",");
             }
             writer.write(
               JSON.stringify({
-                __debug: {
-                  workspace: { id: workspace.id, name: workspace.slug },
-                },
                 id: id,
                 type: destinationType,
                 workspaceId: workspace.id,
-                streamId: from.id,
-                streamName: from.config?.name,
-                destinationId: to.id,
+                streamId: id,
+                streamName: config?.name,
+                destinationId: id,
                 usesBulker: !!coreDestinationType?.usesBulker,
-                options: {
-                  ...data,
-                  ...((workspace.featuresEnabled ?? []).includes("nofetchlogs") ? { fetchLogLevel: "debug" } : {}),
-                },
-                optionsHash: hash(data),
-                updatedAt: dateMax(updatedAt, to.updatedAt),
-                credentials: omit(to.config, "destinationType", "type", "name"),
-                credentialsHash: hash(omit(to.config, "destinationType", "type", "name")),
+                updatedAt: updatedAt,
+                credentials: omit(config, "destinationType", "type", "name"),
+                credentialsHash: hash(omit(config, "destinationType", "type", "name")),
               })
             );
             needComma = true;

@@ -20,7 +20,7 @@ export async function warehouseQuery(
 ) {
   const con = connStore.getObject(conId);
   if (!con) {
-    throw newError(`Connection with id ${conId} not found`);
+    throw newError(`Warehouse with id ${conId} not found`);
   }
   if (con.type !== "clickhouse") {
     throw newError(`Only Clickhouse warehouse is currently supported`);
