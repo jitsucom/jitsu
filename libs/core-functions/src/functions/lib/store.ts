@@ -29,32 +29,81 @@ function getTtlSec(opts?: SetOpts): number {
   return Math.min(seconds, maxAllowedTTL);
 }
 
-export const createTtlStore = (namespace: string, redisClient: Redis): TTLStore => ({
+function success(namespace: string, operation: "get" | "set" | "del" | "ttl", metrics?: RotorMetrics) {
+  if (metrics) {
+    metrics.storeStatus(namespace, operation, "success");
+  }
+}
+
+function storeErr(
+  namespace: string,
+  operation: "get" | "set" | "del" | "ttl",
+  err: any,
+  text: string,
+  metrics?: RotorMetrics
+) {
+  log.atError().log(`${text}: ${err.message}`);
+  if (metrics) {
+    metrics.storeStatus(namespace, operation, "error");
+  }
+  if ((err.message ?? "").includes("timed out")) {
+    return new RetryError(text + ": Timed out.");
+  }
+  return new RetryError(text + ": " + err.message);
+}
+
+export const createRedisStore = (namespace: string, redisClient: Redis, metrics?: RotorMetrics): TTLStore => ({
   get: async (key: string) => {
-    const res = await redisClient.get(`store:${namespace}:${key}`);
-    return res ? JSON.parse(res) : undefined;
+    try {
+      const res = await redisClient.get(`store:${namespace}:${key}`);
+      success(namespace, "get", metrics);
+      return res ? JSON.parse(res) : undefined;
+    } catch (err: any) {
+      throw storeErr(namespace, "get", err, `Error getting key ${key} from redis store ${namespace}`);
+    }
   },
   getWithTTL: async (key: string) => {
-    const res = await redisClient.get(`store:${namespace}:${key}`);
-    if (!res) {
-      return undefined;
+    try {
+      const res = await redisClient.get(`store:${namespace}:${key}`);
+      if (!res) {
+        return undefined;
+      }
+      const ttl = await redisClient.ttl(`store:${namespace}:${key}`);
+      success(namespace, "get", metrics);
+      return { value: JSON.parse(res), ttl };
+    } catch (err: any) {
+      throw storeErr(namespace, "get", err, `Error getting key ${key} from redis store ${namespace}`);
     }
-    const ttl = await redisClient.ttl(`store:${namespace}:${key}`);
-    return { value: JSON.parse(res), ttl };
   },
   set: async (key: string, obj: any, opts?: SetOpts) => {
-    const ttl = getTtlSec(opts);
-    if (ttl >= 0) {
-      await redisClient.set(`store:${namespace}:${key}`, JSON.stringify(obj), "EX", ttl);
-    } else {
-      await redisClient.set(`store:${namespace}:${key}`, JSON.stringify(obj));
+    try {
+      const ttl = getTtlSec(opts);
+      if (ttl >= 0) {
+        await redisClient.set(`store:${namespace}:${key}`, JSON.stringify(obj), "EX", ttl);
+      } else {
+        await redisClient.set(`store:${namespace}:${key}`, JSON.stringify(obj));
+      }
+      success(namespace, "set", metrics);
+    } catch (err: any) {
+      throw storeErr(namespace, "set", err, `Error setting key ${key} from redis store ${namespace}`);
     }
   },
   del: async (key: string) => {
-    await redisClient.del(`store:${namespace}:${key}`);
+    try {
+      await redisClient.del(`store:${namespace}:${key}`);
+      success(namespace, "del", metrics);
+    } catch (err: any) {
+      throw storeErr(namespace, "del", err, `Error deleting key ${key} from redis store ${namespace}`);
+    }
   },
   ttl: async (key: string) => {
-    return await redisClient.ttl(`store:${namespace}:${key}`);
+    try {
+      const res = await redisClient.ttl(`store:${namespace}:${key}`);
+      success(namespace, "ttl", metrics);
+      return res;
+    } catch (err: any) {
+      throw storeErr(namespace, "ttl", err, `Error getting key ${key} from redis store ${namespace}`);
+    }
   },
 });
 
@@ -115,32 +164,15 @@ export const createMongoStore = (
     }
   }
 
-  function storeErr(operation: "get" | "set" | "del" | "ttl", err: any, text: string, metrics?: RotorMetrics) {
-    log.atError().log(`${text}: ${err.message}`);
-    if (metrics) {
-      metrics.storeStatus(namespace, operation, "error");
-    }
-    if ((err.message ?? "").includes("timed out")) {
-      return new RetryError(text + ": Timed out.");
-    }
-    return new RetryError(text + ": " + err.message);
-  }
-
-  function success(operation: "get" | "set" | "del" | "ttl", metrics?: RotorMetrics) {
-    if (metrics) {
-      metrics.storeStatus(namespace, operation, "success");
-    }
-  }
-
   return {
     get: async (key: string) => {
       try {
         const res =
           getFromLocalCache(key) || (await ensureCollection().then(c => c.findOne({ _id: key }, readOptions)));
-        success("get", metrics);
+        success(namespace, "get", metrics);
         return res ? res.value : undefined;
       } catch (err: any) {
-        throw storeErr("get", err, `Error getting key ${key} from mongo store ${namespace}`);
+        throw storeErr(namespace, "get", err, `Error getting key ${key} from mongo store ${namespace}`);
       }
     },
     getWithTTL: async (key: string) => {
@@ -151,10 +183,10 @@ export const createMongoStore = (
           return undefined;
         }
         const ttl = res.expireAt ? Math.max(Math.floor((res.expireAt.getTime() - new Date().getTime()) / 1000), 0) : -1;
-        success("get", metrics);
+        success(namespace, "get", metrics);
         return { value: res.value, ttl };
       } catch (err: any) {
-        throw storeErr("get", err, `Error getting key ${key} from mongo store ${namespace}`);
+        throw storeErr(namespace, "get", err, `Error getting key ${key} from mongo store ${namespace}`);
       }
     },
     set: async (key: string, obj: any, opts?: SetOpts) => {
@@ -180,10 +212,10 @@ export const createMongoStore = (
             }
           })
           .then(() => {
-            success("set", metrics);
+            success(namespace, "set", metrics);
           });
       } catch (err: any) {
-        throw storeErr("set", err, `Error setting key ${key} in mongo store ${namespace}`);
+        throw storeErr(namespace, "set", err, `Error setting key ${key} in mongo store ${namespace}`);
       }
     },
     del: async (key: string) => {
@@ -195,23 +227,23 @@ export const createMongoStore = (
               delete localCache[key];
             }
           });
-        success("del", metrics);
+        success(namespace, "del", metrics);
       } catch (err: any) {
-        throw storeErr("del", err, `Error deleting key ${key} from mongo store ${namespace}`);
+        throw storeErr(namespace, "del", err, `Error deleting key ${key} from mongo store ${namespace}`);
       }
     },
     ttl: async (key: string) => {
       try {
         const res =
           getFromLocalCache(key) || (await ensureCollection().then(c => c.findOne({ _id: key }, readOptions)));
-        success("ttl", metrics);
+        success(namespace, "ttl", metrics);
         return res
           ? res.expireAt
             ? Math.max(Math.floor((res.expireAt.getTime() - new Date().getTime()) / 1000), 0)
             : -1
           : -2;
       } catch (err: any) {
-        throw storeErr("ttl", err, `Error getting key ${key} from mongo store ${namespace}`);
+        throw storeErr(namespace, "ttl", err, `Error getting key ${key} from mongo store ${namespace}`);
       }
     },
   };

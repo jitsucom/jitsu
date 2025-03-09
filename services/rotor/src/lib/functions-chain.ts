@@ -1,9 +1,10 @@
-import { AnonymousEventsStore, AnyEvent, EventContext, FuncReturn } from "@jitsu/protocols/functions";
+import { AnonymousEventsStore, AnyEvent, EventContext, FuncReturn, TTLStore } from "@jitsu/protocols/functions";
 import {
   createClient,
+  createDummyStore,
   createMongoStore,
   createMultiStore,
-  createTtlStore,
+  createRedisStore,
   EnrichedConnectionConfig,
   EntityStore,
   FuncChainResult,
@@ -123,17 +124,33 @@ export function buildFunctionChain(
       );
     }
   }
-  let store = rotorContext.dummyPersistentStore;
+  let store: TTLStore | undefined = rotorContext.dummyPersistentStore;
   if (!store) {
-    store = createMongoStore(
-      conWorkspaceId,
-      mongodb,
-      false,
-      fastStoreWorkspaceId.includes(conWorkspaceId),
-      rotorContext.metrics
-    );
+    let mongodbStore: TTLStore | undefined, redisStore: TTLStore | undefined;
+
+    if (process.env.MONGODB_URL) {
+      mongodbStore = createMongoStore(
+        conWorkspaceId,
+        mongodb,
+        false,
+        fastStoreWorkspaceId.includes(conWorkspaceId),
+        rotorContext.metrics
+      );
+    }
+
     if (rotorContext.redisClient) {
-      store = createMultiStore(store, createTtlStore(conWorkspaceId, rotorContext.redisClient));
+      redisStore = createRedisStore(conWorkspaceId, rotorContext.redisClient, rotorContext.metrics);
+    }
+
+    if (mongodbStore && redisStore) {
+      store = createMultiStore(mongodbStore, redisStore);
+    } else if (mongodbStore) {
+      store = mongodbStore;
+    } else if (redisStore) {
+      store = redisStore;
+    } else {
+      store = createDummyStore();
+      log.atWarn().log(`No persistence storage configured. MONGODB_URL or REDIS_URL environment variable is required`);
     }
   }
 

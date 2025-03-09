@@ -10,7 +10,6 @@ import {
   parseUserAgent,
   EventsStore,
   ProfilesFunction,
-  createDummyStore,
   ProfilesConfig,
   EntityStore,
   EnrichedConnectionConfig,
