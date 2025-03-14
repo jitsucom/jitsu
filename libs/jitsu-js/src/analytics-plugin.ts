@@ -942,9 +942,14 @@ export const jitsuAnalyticsPlugin = (jitsuOptions: JitsuOptions = {}, storage: P
   };
 };
 
+let seedCounter = 0;
 function getSeed() {
+  seedCounter = (seedCounter + 1) % Number.MAX_SAFE_INTEGER;
+
   const defaultSeed = Date.now() % 2147483647;
-  return isInBrowser() ? window?.performance?.now() || defaultSeed : defaultSeed;
+  const seed = isInBrowser() ? window?.performance?.now() || defaultSeed : defaultSeed;
+
+  return seed + seedCounter;
 }
 
 export function randomId(hashString: string | undefined = ""): string {
