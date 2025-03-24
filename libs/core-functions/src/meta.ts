@@ -1,8 +1,9 @@
 import { z } from "zod";
+import { PropertyUI } from "./lib/meta-types";
 
 const eventsParamDescription = `
-List of events to send, delimited by comma. Following <code>page</code>, <code>screen</code>, or any arbitrary event (name of <code>track</code> event). 
-Special values: <b>empty string</b> - send only <code>track</code> events, <b>*</b> - send all events useful if you want to filter events with Functions 
+List of events to send, delimited by comma. Following <code>page</code>, <code>screen</code>, or any arbitrary event (name of <code>track</code> event).
+Special values: <b>empty string</b> - send only <code>track</code> events, <b>*</b> - send all events useful if you want to filter events with Functions
 `;
 export const FacebookConversionApiCredentials = z.object({
   pixelId: z.string().describe("Facebook Pixel ID"),
@@ -21,7 +22,7 @@ export const FacebookConversionApiCredentials = z.object({
     ),
 });
 
-export const FacebookConversionApiCredentialsUi = {
+export const FacebookConversionApiCredentialsUi: Partial<Record<keyof FacebookConversionApiCredentials, PropertyUI>> = {
   accessToken: {
     password: true,
   },
@@ -67,6 +68,14 @@ export const IntercomDestinationCredentials = z.object({
       "By default, the last seen property will be updated only on .identify() calls. If enabled, the property will be updated on every event. However, enabling this option may lead to higher API usage."
     ),
 });
+
+export const IntercomDestinationCredentialsUi: Partial<
+  Record<keyof z.infer<typeof IntercomDestinationCredentials>, PropertyUI>
+> = {
+  accessToken: {
+    password: true,
+  },
+};
 
 export type IntercomDestinationCredentials = z.infer<typeof IntercomDestinationCredentials>;
 
@@ -124,9 +133,7 @@ export const MixpanelCredentials = z.object({
 });
 export type MixpanelCredentials = z.infer<typeof MixpanelCredentials>;
 
-export const MixpanelCredentialsUi: Partial<
-  Record<keyof MixpanelCredentials, { documentation?: string; password?: boolean; hidden?: boolean }>
-> = {
+export const MixpanelCredentialsUi: Partial<Record<keyof MixpanelCredentials, PropertyUI>> = {
   serviceAccountPassword: {
     password: true,
   },
@@ -144,6 +151,13 @@ export const JuneCredentials = z.object({
     .default(false)
     .describe("If enabled, anonymous users will be tracked in June"),
 });
+
+export const JuneCredentialsUi: Partial<Record<keyof JuneCredentials, PropertyUI>> = {
+  apiKey: {
+    password: true,
+  },
+};
+
 export type JuneCredentials = z.infer<typeof JuneCredentials>;
 
 export const BrazeCredentials = z.object({
@@ -186,6 +200,13 @@ export const BrazeCredentials = z.object({
     .default(false)
     .describe("Send <code>page</code> and <code>screen</code> events as Braze Custom Events"),
 });
+
+export const BrazeCredentialsUi: Partial<Record<keyof BrazeCredentials, PropertyUI>> = {
+  apiKey: {
+    password: true,
+  },
+};
+
 export type BrazeCredentials = z.infer<typeof BrazeCredentials>;
 
 export const SegmentCredentials = z.object({
@@ -196,6 +217,13 @@ export const SegmentCredentials = z.object({
       `To get an API Key you need to add the HTTP API source to your Segment workspace. Write Key can be found on the HTTP API source Overview page.`
     ),
 });
+
+export const SegmentCredentialsUi: Partial<Record<keyof SegmentCredentials, PropertyUI>> = {
+  writeKey: {
+    password: true,
+  },
+};
+
 export type SegmentCredentials = z.infer<typeof SegmentCredentials>;
 
 export const POSTHOG_DEFAULT_HOST = "https://app.posthog.com";
@@ -235,9 +263,10 @@ export const PosthogDestinationConfig = z.object({
     ),
 });
 
-export const PosthogDestinationConfigUi: Partial<
-  Record<keyof PosthogDestinationConfig, { correction?: any; hidden?: any }>
-> = {
+export const PosthogDestinationConfigUi: Partial<Record<keyof z.infer<typeof PosthogDestinationConfig>, PropertyUI>> = {
+  key: {
+    password: true,
+  },
   sendAnonymousEvents: {
     // assumes value of this freshly added property from the value of the `enableAnonymousUserProfiles` property
     correction: obj =>
@@ -275,6 +304,13 @@ export const AmplitudeDestinationConfig = z.object({
   dataResidency: z.enum(["US", "EU"]).optional().default("US"),
   sessionWindow: z.number().optional().default(30).describe("Session window in minutes"),
 });
+export const AmplitudeDestinationConfigUi: Partial<
+  Record<keyof z.infer<typeof AmplitudeDestinationConfig>, PropertyUI>
+> = {
+  key: {
+    password: true,
+  },
+};
 
 export type AmplitudeDestinationConfig = z.infer<typeof AmplitudeDestinationConfig>;
 
@@ -298,17 +334,7 @@ export const MongodbDestinationConfig = z.object({
   options: z.object({}).catchall(z.string().default("")).optional().describe("Additional MongoDB connection options."),
 });
 
-export const MongodbDestinationConfigUi: Partial<
-  Record<
-    keyof MongodbDestinationConfig,
-    {
-      documentation?: string;
-      editor?: string;
-      hidden?: boolean;
-      password?: boolean;
-    }
-  >
-> = {
+export const MongodbDestinationConfigUi: Partial<Record<keyof MongodbDestinationConfig, PropertyUI>> = {
   hosts: {
     editor: "StringArrayEditor",
   },
@@ -344,6 +370,13 @@ export const Ga4Credentials = z.object({
     .default("https://www.google-analytics.com/mp/collect"),
   events: z.string().optional().default("").describe(eventsParamDescription),
 });
+
+export const Ga4CredentialsUi: Partial<Record<keyof z.infer<typeof Ga4Credentials>, PropertyUI>> = {
+  apiSecret: {
+    password: true,
+  },
+};
+
 export type Ga4Credentials = z.infer<typeof Ga4Credentials>;
 
 export const HubspotCredentials = z.object({
@@ -366,5 +399,11 @@ export const HubspotCredentials = z.object({
       "When enabled, Jitsu will automatically create HubSpot <a href='https://knowledge.hubspot.com/properties/create-and-edit-properties'>custom properties</a> for Contacts and Companies to capture every new trait. Otherwise, only known properties are sent."
     ),
 });
+
+export const HubspotCredentialsConfigUi: Partial<Record<keyof z.infer<typeof HubspotCredentials>, PropertyUI>> = {
+  accessToken: {
+    password: true,
+  },
+};
 
 export type HubspotCredentials = z.infer<typeof HubspotCredentials>;

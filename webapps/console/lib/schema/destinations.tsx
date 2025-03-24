@@ -1,6 +1,8 @@
 import { SomeZodObject, z } from "zod";
 import React, { ReactNode } from "react";
 
+import type { PropertyUI } from "@jitsu/core-functions/src/lib/meta-types";
+
 import amplitudeIcon from "./icons/amplitude";
 import bigqueryIcon from "./icons/bigquery";
 import ClickhouseIcon from "./icons/clickhouse";
@@ -28,7 +30,6 @@ import intercomIcon from "./icons/intercom";
 import webhookIcon from "./icons/webhook";
 import { branding } from "../branding";
 import * as meta from "@jitsu/core-functions/src/meta";
-import { HubspotCredentials } from "@jitsu/core-functions/src/meta";
 
 const s3Regions = [
   "us-west-1",
@@ -55,49 +56,6 @@ const s3Regions = [
   "us-gov-east-1",
   "us-gov-west-1",
 ] as const;
-
-/**
- * UI for property
- */
-export type PropertyUI = {
-  /**
-   * Optional human-friendly name of the field
-   */
-  displayName?: string;
-  /**
-   * If string field should be treated as textarea (multiline input)
-   */
-  textarea?: boolean;
-  /**
-   * If string field should be treated as password
-   */
-  password?: boolean;
-  /**
-   * If the field should not be displayed. That field must have a default value
-   */
-  hidden?: boolean | ((obj: any) => boolean);
-  /**
-   * If the field should be a constant
-   */
-  constant?: any | ((obj: any) => any);
-  /**
-   * correction to field value. e.g: set default value for property that was missing before
-   */
-  correction?: any | ((obj: any) => any);
-
-  /**
-   * Documentation for the field
-   */
-  documentation?: string;
-  /**
-   * Name of custom editor component. See getEditorComponent() function from `[workspaceId]/destinations.txt`
-   */
-  editor?: string;
-  /**
-   * Properties of an editor component (not implemented yet, reserved for the future)
-   */
-  editorProps?: any;
-};
 
 export type SchemaUI = Record<string, PropertyUI>;
 
@@ -790,6 +748,7 @@ export const coreDestinations: DestinationType<any>[] = [
     title: "Intercom",
     tags: "Product Analytics",
     credentials: meta.IntercomDestinationCredentials,
+    credentialsUi: meta.IntercomDestinationCredentialsUi,
     connectionOptions: CloudDestinationsConnectionOptions,
     description: (
       <>
@@ -815,6 +774,7 @@ export const coreDestinations: DestinationType<any>[] = [
     tags: "Product Analytics",
     connectionOptions: CloudDestinationsConnectionOptions,
     credentials: meta.JuneCredentials,
+    credentialsUi: meta.JuneCredentialsUi,
     description: "June.so is a product analytics platform that provides insights into user behavior.",
   },
   {
@@ -824,6 +784,7 @@ export const coreDestinations: DestinationType<any>[] = [
     tags: "Product Analytics",
     connectionOptions: CloudDestinationsConnectionOptions,
     credentials: meta.BrazeCredentials,
+    credentialsUi: meta.BrazeCredentialsUi,
     description: "Braze is a customer engagement platform used by businesses for multichannel marketing.",
   },
   {
@@ -844,6 +805,7 @@ export const coreDestinations: DestinationType<any>[] = [
     tags: "Product Analytics",
     connectionOptions: CloudDestinationsConnectionOptions,
     credentials: meta.Ga4Credentials,
+    credentialsUi: meta.Ga4CredentialsUi,
     description:
       "Google Analytics 4 is a service offered by Google that reports website traffic data and marketing trends.",
   },
@@ -854,6 +816,7 @@ export const coreDestinations: DestinationType<any>[] = [
     tags: "Product Analytics",
     connectionOptions: CloudDestinationsConnectionOptions,
     credentials: meta.PosthogDestinationConfig,
+    credentialsUi: meta.PosthogDestinationConfigUi,
     description:
       "Posthog is an open-source product analytics tool. Jitsu supports both self-hosted Posthog and Posthog Cloud.",
   },
@@ -864,6 +827,7 @@ export const coreDestinations: DestinationType<any>[] = [
     title: "Amplitude",
     tags: "Product Analytics",
     credentials: meta.AmplitudeDestinationConfig,
+    credentialsUi: meta.AmplitudeDestinationConfigUi,
     description: "Amplitude is a product analytics platform",
   },
   {
@@ -872,7 +836,8 @@ export const coreDestinations: DestinationType<any>[] = [
     connectionOptions: CloudDestinationsConnectionOptions,
     title: "Hubspot",
     tags: "CRM",
-    credentials: HubspotCredentials,
+    credentials: meta.HubspotCredentials,
+    credentialsUi: meta.HubspotCredentialsConfigUi,
     description: "Hubspot is a CRM. Jitsu sends data to Hubspot API and updates contacts and company records",
     documentation: (
       <>
@@ -921,6 +886,7 @@ export const coreDestinations: DestinationType<any>[] = [
     title: "Segment",
     tags: "Special",
     credentials: meta.SegmentCredentials,
+    credentialsUi: meta.SegmentCredentialsUi,
     description: (
       <>
         Forward events for to Segment-compatible endpoint. It's useful if you want to use {branding.productName} for

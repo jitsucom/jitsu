@@ -8,8 +8,8 @@ import {
   coreDestinationsMap,
   DestinationType,
   getCoreDestinationType,
-  PropertyUI,
 } from "../../lib/schema/destinations";
+import type { PropertyUI } from "@jitsu/core-functions/src/lib/meta-types";
 import { DestinationCatalog, getDestinationIcon } from "../../components/DestinationsCatalog/DestinationsCatalog";
 import { useAppConfig, useWorkspace } from "../../lib/context";
 import { useRouter } from "next/router";
