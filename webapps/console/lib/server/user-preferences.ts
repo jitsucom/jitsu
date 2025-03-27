@@ -5,7 +5,7 @@ import { z } from "zod";
 export const UserNotificationsPreferences = z.object({
   batches: z.boolean().default(true),
   syncs: z.boolean().default(true),
-  recurringAlertsPeriodHours: z.number().max(720).min(0).default(24),
+  recurringAlertsPeriodHours: z.coerce.number().max(720).min(0).default(24),
   subscriptionCode: z.string().optional(),
 });
 
