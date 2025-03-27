@@ -1,12 +1,14 @@
 import { WorkspacePageLayout } from "../../../components/PageLayout/WorkspacePageLayout";
 import { ConfigEditor, ConfigEditorProps } from "../../../components/ConfigObjectEditor/ConfigEditor";
-import { useWorkspace } from "../../../lib/context";
+import { useUser, useWorkspace } from "../../../lib/context";
 import React from "react";
 import { NotificationChannel } from "../../../lib/schema";
 import { CustomWidgetProps } from "../../../components/ConfigObjectEditor/Editors";
 import { Select } from "antd";
 import { BellIcon, MailIcon, Slack } from "lucide-react";
 import { rpc } from "juava";
+import { UserNotificationSettings } from "../../../components/UserNotificationSettings/UserNotificationSettings";
+import { useRouter } from "next/router";
 
 const Misc: React.FC<any> = () => {
   return (
@@ -41,6 +43,8 @@ export const StringArrayEditor: React.FC<{ schema: any } & CustomWidgetProps<str
 
 const NotificationChannelList: React.FC<{}> = () => {
   const workspace = useWorkspace();
+  const router = useRouter();
+  const user = useUser();
 
   const config: ConfigEditorProps<NotificationChannel> = {
     listColumns: [
@@ -74,6 +78,9 @@ const NotificationChannelList: React.FC<{}> = () => {
       events: {
         editor: StringArrayEditor,
       },
+      channel: {
+        constant: "slack",
+      },
       slackWebhookUrl: {
         hidden: a => a.channel !== "slack",
         documentation: (
@@ -103,8 +110,9 @@ const NotificationChannelList: React.FC<{}> = () => {
         ),
       },
     },
-    noun: "Notification Channel",
+    noun: "Slack Notification Channel",
     type: "notification",
+    listTitle: "Workspace Slack Notifications",
     explanation: "Notification Channel settings",
     testConnectionEnabled: obj => (obj.channel === "slack" && !!obj.slackWebhookUrl ? "manual" : false),
     testButtonLabel: "Send test notification",
@@ -125,7 +133,7 @@ const NotificationChannelList: React.FC<{}> = () => {
           <div className="h-12 w-12 mr-4">
             <BellIcon className="w-full h-full" />
           </div>
-          {verb} notification channel
+          {verb} Slack Notification channel
         </div>
       );
     },
@@ -133,6 +141,25 @@ const NotificationChannelList: React.FC<{}> = () => {
   return (
     <>
       <ConfigEditor {...(config as any)} />
+      {!router.query.id && (
+        <>
+          <h1 className={"text-3xl mt-12"}>My Email Notifications</h1>
+          <UserNotificationSettings
+            className={"mb-12 mt-6"}
+            workspace={workspace}
+            title={
+              <div className={"flex flex-row items-start gap-1.5"}>
+                <div className={"text-textLight"}>Email notification preferences for the current user:</div>
+                <div className={"text-black font-black"}>{user.email}</div>
+                <div className={"text-textLight"}>
+                  for events only in the workspace:{" "}
+                  <span className={"text-black font-black"}>{workspace.name || workspace.slug}</span>
+                </div>
+              </div>
+            }
+          />
+        </>
+      )}
     </>
   );
 };

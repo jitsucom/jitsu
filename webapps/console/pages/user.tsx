@@ -11,6 +11,7 @@ import { QueryResponse } from "../components/QueryResponse/QueryResponse";
 import { JitsuButton } from "../components/JitsuButton/JitsuButton";
 import { ButtonLabel } from "../components/ButtonLabel/ButtonLabel";
 import { rpc } from "juava";
+import { UserNotificationSettings } from "../components/UserNotificationSettings/UserNotificationSettings";
 
 function ApiKeys() {
   const apiRes = useApi<ApiKey[]>("/api/user/keys");
@@ -153,10 +154,13 @@ const UserPage = (props: any) => {
             <label htmlFor="email" className="text-lg font-bold">
               Email
             </label>
-            <Input id="email" value={user.email} className="border-error" />
-            <p className="text-textDisabled">
-              You can't change email, since you logged in with an external user provider - {user.loginProvider}
-            </p>
+            <div className="mt-3">
+              <Input id="email" value={user.email} className="border-error" />
+
+              <p className="text-textDisabled">
+                You can't change email, since you logged in with an external user provider - {user.loginProvider}
+              </p>
+            </div>
           </div>
           {user.loginProvider === "credentials" && <ChangePassword />}
           <div className="px-8 py-6 border border-textDisabled rounded-lg mt-6">

@@ -2,19 +2,22 @@ import { Api, inferUrl, nextJsApiHandler, verifyAccess } from "../../../../lib/a
 import { z } from "zod";
 import { db } from "../../../../lib/server/db";
 import { ApiError } from "../../../../lib/shared/errors";
-import { getUserPreferenceService } from "../../../../lib/server/user-preferences";
+import {
+  DefaultUserNotificationsPreferences,
+  getUserPreferenceService,
+  PreferencesObj,
+} from "../../../../lib/server/user-preferences";
 import { getServerLog } from "../../../../lib/server/log";
 import { SessionUser } from "../../../../lib/schema";
 import { initTelemetry, withProductAnalytics } from "../../../../lib/server/telemetry";
+import { isEqual } from "juava";
+import { randomUUID } from "crypto";
 
 const log = getServerLog();
 
 async function savePreferences(user: SessionUser, workspace): Promise<void> {
   await Promise.all([
-    getUserPreferenceService(db.prisma()).savePreference(
-      { userId: user.internalId },
-      { lastUsedWorkspaceId: workspace.id }
-    ),
+    ensureUserPreferences(user, workspace),
     db.prisma().workspaceUserProperties.upsert({
       where: {
         workspaceId_userId: { userId: user.internalId, workspaceId: workspace.id },
@@ -29,6 +32,49 @@ async function savePreferences(user: SessionUser, workspace): Promise<void> {
       },
     }),
   ]);
+}
+
+async function ensureUserPreferences(user: SessionUser, workspace): Promise<void> {
+  const [globalPreferences, workspacePreferences] = await Promise.all([
+    getUserPreferenceService(db.prisma()).getPreferences({ userId: user.internalId }),
+    getUserPreferenceService(db.prisma()).getPreferences({ userId: user.internalId, workspaceId: workspace.id }),
+  ]);
+  const newGlobalPreferences = {
+    ...globalPreferences,
+    lastUsedWorkspaceId: workspace.id,
+  };
+  if (!newGlobalPreferences.notifications) {
+    newGlobalPreferences.notifications = {
+      ...DefaultUserNotificationsPreferences,
+      subscriptionCode: randomUUID(),
+    };
+  }
+  const savePromises: Promise<PreferencesObj>[] = [];
+  if (!isEqual(globalPreferences, newGlobalPreferences)) {
+    savePromises.push(
+      getUserPreferenceService(db.prisma()).savePreference({ userId: user.internalId }, newGlobalPreferences)
+    );
+  }
+  if (!workspacePreferences.notifications) {
+    const newWorkspacePreferences = {
+      ...workspacePreferences,
+      notifications: {
+        // global notification preferences works as default values for fresh workspaces
+        ...newGlobalPreferences.notifications,
+        subscriptionCode: randomUUID(),
+      },
+    };
+    savePromises.push(
+      getUserPreferenceService(db.prisma()).savePreference(
+        { userId: user.internalId, workspaceId: workspace.id },
+        newWorkspacePreferences
+      )
+    );
+  }
+  if (savePromises.length > 0) {
+    log.atInfo().log(`Saving user preferences for user ${user.internalId} and workspace ${workspace.id}`);
+    await Promise.all(savePromises);
+  }
 }
 
 export const api: Api = {

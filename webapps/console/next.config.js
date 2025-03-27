@@ -5,7 +5,7 @@ const withBundleAnalyzer = require('@next/bundle-analyzer')({
 });
 
 module.exports = withBundleAnalyzer({
-  transpilePackages: ["juava", "@jitsu/protocols", "@jitsu/core-functions"],
+  transpilePackages: ["juava", "@jitsu/protocols", "@jitsu/core-functions", "@jitsu-internal/webapps-shared"],
   experimental: {
     turbo: {
       rules: {

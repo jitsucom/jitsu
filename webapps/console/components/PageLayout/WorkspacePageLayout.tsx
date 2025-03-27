@@ -666,10 +666,10 @@ const minWidth = 1024;
  * @param onboarding if the dialog is shown on onboarding page. For onboarding,
  * we should issue an event that onboarding is completed
  */
-const WorkspaceSettingsModal: React.FC<{ onSuccess: () => void; onboarding: boolean }> = ({
-  onSuccess,
-  onboarding,
-}) => {
+const WorkspaceSettingsModal: React.FC<{
+  onSuccess: (newVals: { name: string; slug: string }) => void;
+  onboarding: boolean;
+}> = ({ onSuccess, onboarding }) => {
   const appConfig = useAppConfig();
   const domains = getDomains(appConfig);
   const { analytics } = useJitsu();
@@ -797,8 +797,12 @@ export const WorkspacePageLayout: React.FC<PropsWithChildren<PageLayoutProps>> =
         {!workspace.slug && (
           <WorkspaceSettingsModal
             onboarding={true}
-            onSuccess={() => {
-              router.reload();
+            onSuccess={({ slug }) => {
+              if (slug) {
+                router.push(`/${slug}`);
+              } else {
+                router.reload();
+              }
             }}
           />
         )}

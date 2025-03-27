@@ -191,7 +191,7 @@ export type MiscEntity = z.infer<typeof MiscEntity>;
 export const NotificationChannel = ConfigEntityBase.merge(
   z.object({
     events: z.array(z.enum(["all", "sync", "batch"])).default(["all"]),
-    channel: z.enum(["email", "slack"]).default("email"),
+    channel: z.enum(["email", "slack"]).default("slack"),
     slackWebhookUrl: z.string().optional(),
     // allWorkspaceEmails: z.boolean().default(true).optional(),
     emails: z.array(z.string()).optional(),
