@@ -13,6 +13,7 @@
     "lint": "next lint",
     "console:dev": "next dev --turbo",
     "console:start": "next start",
+    "email:dev": "email dev --dir pages/api/admin/email-templates -p 3901",
     "dev:rotor": "ts-node service/rotor.ts",
     "build": "prisma generate && next build",
     "clean": "rm -rf ./.next ./.turbo",
@@ -25,6 +26,9 @@
     "console:storybook": "storybook dev -p 3010 --no-open"
   },
   "dependencies": {
+    "@jitsu-internal/webapps-shared": "workspace:*",
+    "@react-email/components": "^0.0.33",
+    "@react-email/render": "^1.0.5",
     "@ant-design/cssinjs": "^1.21.1",
     "@clickhouse/client": "^1.10.1",
     "@dnd-kit/core": "^6.0.8",
@@ -97,6 +101,7 @@
     "zod-to-json-schema": "^3.23.2"
   },
   "devDependencies": {
+    "react-email": "^3.0.7",
     "@ant-design/icons": "^5.5.1",
     "@next/bundle-analyzer": "^15.2.3",
     "@chromatic-com/storybook": "^1.9.0",

@@ -75,7 +75,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       }
       setMounted(true);
     },
-    [autoFit, extraSuggestions, foldLevel, handleChangePosition, value]
+    [autoFit, extraSuggestions, foldLevel, handleChangePosition, syntaxCheck, value]
   );
 
   useEffect(() => {

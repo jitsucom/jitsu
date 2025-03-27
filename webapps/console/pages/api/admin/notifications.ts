@@ -6,11 +6,14 @@ import { NotificationStateDbModel, StatusChangeDbModel } from "../../../prisma/s
 import { z } from "zod";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
-import { rpc, stopwatch } from "juava";
+import { stopwatch } from "juava";
 import { getAppEndpoint, PublicEndpoint } from "../../../lib/domains";
 import { NotificationChannel } from "../../../lib/schema";
 import omit from "lodash/omit";
-import { createJwt, getEeConnection } from "../../../lib/server/ee";
+import { ConnectionStatusSuccessEmail } from "./email-templates/connection-status-success";
+import { ConnectionStatusFailedEmail } from "./email-templates/connection-status-failed";
+import { sendEmail } from "@jitsu-internal/webapps-shared";
+import { DefaultUserNotificationsPreferences } from "../../../lib/server/user-preferences";
 
 dayjs.extend(utc);
 
@@ -212,15 +215,10 @@ export default createRoute()
   })
   .toNextApiHandler();
 
-async function processStatusChanges(
-  processedTimestamp: Date,
-  entities: Record<string, StatusChangeEntity>,
-  publicEndpoints: any
-): Promise<Date> {
+async function loadNotificationsChannels() {
   const channels: Record<string, NotificationChannel[]> = {
     admin: [adminChannel],
   };
-  const channelStates: Record<string, NotificationState> = {};
   await db
     .prisma()
     .configurationObject.findMany({
@@ -240,13 +238,50 @@ async function processStatusChanges(
       }
     });
 
-  const states = await db.prisma().notificationState.findMany({});
-  for (const state of states) {
-    channelStates[chKey(state.channelId, state.actorId, state.tableName)] = state;
+  const res = await db.pgPool()
+    .query(`select wa."workspaceId", wa."userId", u.email, u.name, upw.preferences "workspacePref", upg.preferences "globalPref" from newjitsu."WorkspaceAccess" wa
+                                left join newjitsu."UserProfile" u on u.id = wa."userId"
+                                left join newjitsu."Workspace" w on w.id = wa."workspaceId" and w.deleted = false
+                                left outer join newjitsu."UserPreferences" upw on  upw."userId" = wa."userId" and upw."workspaceId" = wa."workspaceId"
+                                left outer join newjitsu."UserPreferences" upg on upg."userId" = wa."userId" and upg."workspaceId" is null`);
+  for (const row of res.rows) {
+    const settings = {
+      ...DefaultUserNotificationsPreferences,
+      ...row.globalPref?.notifications,
+      ...row.workspacePref?.notifications,
+    };
+    const events: ("all" | "sync" | "batch")[] = [];
+    if (settings.syncs) {
+      events.push("sync");
+    }
+    if (settings.batches) {
+      events.push("batch");
+    }
+    let channelsByWorkspace = channels[row.workspaceId];
+    if (!channelsByWorkspace) {
+      channelsByWorkspace = [];
+      channels[row.workspaceId] = channelsByWorkspace;
+    }
+    channelsByWorkspace.push({
+      id: "user:" + row.userId,
+      channel: "email",
+      events: events,
+      name: row.name,
+      emails: [row.email],
+      recurringAlertsPeriodHours: row.recurringAlertsPeriodHours,
+      type: "notification",
+      workspaceId: row.workspaceId,
+    });
   }
+  return channels;
+}
 
+async function processStatusChanges(
+  processedTimestamp: Date,
+  entities: Record<string, StatusChangeEntity>,
+  publicEndpoints: any
+): Promise<Date> {
   log.atInfo().log(`Loading changes from ${processedTimestamp.toISOString()}`);
-
   const statusChanges = await db.prisma().statusChange.findMany({
     where: {
       timestamp: { gt: processedTimestamp },
@@ -256,8 +291,19 @@ async function processStatusChanges(
 
   log.atInfo().log(`Got ${statusChanges.length} new status changes`);
 
-  const aggrStatues: Record<string, StatusChange[]> = {};
+  if (statusChanges.length === 0) {
+    return processedTimestamp;
+  }
 
+  const channels = await loadNotificationsChannels();
+
+  const channelStates: Record<string, NotificationState> = {};
+  const states = await db.prisma().notificationState.findMany({});
+  for (const state of states) {
+    channelStates[chKey(state.channelId, state.actorId, state.tableName)] = state;
+  }
+
+  const aggrStatues: Record<string, StatusChange[]> = {};
   for (const change of statusChanges) {
     const k = key(change.actorId, change.tableName);
     const statuses = aggrStatues[k] || [];
@@ -300,7 +346,11 @@ async function processStatusChanges(
         } else {
           if (!state) {
             if (lastStatus.status !== "SUCCESS" || lastStatus.counts === 0) {
-              log.atInfo().log(`[${chkey}] First SUCCESS for ${entity.actorId} ${entity.tableName}`);
+              log
+                .atInfo()
+                .log(
+                  `[${chkey}] First status on channel: ${lastStatus.status} for ${entity.actorId} ${entity.tableName}`
+                );
               // first status change. report SUCCESS only if it is the first observed run of this entity
               doNotify = true;
             }
@@ -631,7 +681,7 @@ type SlackPayload = {
 };
 
 export async function sendSlackNotification(
-  channel: Pick<NotificationChannel, "recurringAlertsPeriodHours" | "slackWebhookUrl">,
+  channel: NotificationChannel,
   entity: StatusChangeEntity,
   status: JobStatus,
   statusChanges: StatusChange[],
@@ -645,7 +695,7 @@ export async function sendSlackNotification(
   const name = `${entity.fromName} → ${entity.toName}`;
   const jobType = entity.type == "sync" ? "Sync Task" : "Batch";
   const jobName = `<${url}|${name}>`;
-  const test =
+  const text =
     status === "SUCCESS"
       ? `:large_green_circle: ${jobType} *SUCCESS* ${jobName} [${entity.workspaceName}]`
       : `:red_circle: ${jobType} *FAILED* ${jobName} [${entity.workspaceName}]`;
@@ -656,7 +706,7 @@ export async function sendSlackNotification(
     .join("\n");
 
   const payload: SlackPayload = {
-    text: test,
+    text: text,
     blocks: [
       {
         type: "header",
@@ -723,7 +773,7 @@ export async function sendSlackNotification(
     ],
   });
 
-  console.debug(`Sending slack notification to ${channel.slackWebhookUrl}: ${JSON.stringify(payload, null, 2)}`);
+  console.debug(`Sending slack notification to ${channel.id} (${channel.name}): ${text}`);
 
   const res = await fetch(channel.slackWebhookUrl!, {
     method: "POST",
@@ -757,30 +807,21 @@ export async function sendEmailNotification(
     )
     .join("\n");
 
-  const eeAuthToken = createJwt("admin-service-account@jitsu.com", "admin-service-account@jitsu.com", "$all", 60).jwt;
-
-  await rpc(`${getEeConnection().host}api/email`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${eeAuthToken}`,
-    },
-    body: {
-      template: status === "SUCCESS" ? "connection-status-success" : "connection-status-failed",
-      workspaceId: entity.workspaceId,
-      variables: {
-        workspaceName: entity.workspaceName,
-        workspaceSlug: entity.slug,
-        entityId: entity.actorId,
-        entityType: entity.type,
-        entityName: name,
-        tableName: entity.tableName,
-        recurringAlertsPeriodHours: channel.recurringAlertsPeriodHours,
-        lastStatus: lastStatus.status,
-        details: details,
-      },
-    },
-  });
+  const template = status === "SUCCESS" ? ConnectionStatusSuccessEmail : ConnectionStatusFailedEmail;
+  const props = {
+    name: channel.name,
+    workspaceName: entity.workspaceName,
+    workspaceSlug: entity.slug,
+    entityId: entity.actorId,
+    entityType: entity.type,
+    entityName: name,
+    tableName: entity.tableName,
+    recurringAlertsPeriodHours: channel.recurringAlertsPeriodHours,
+    lastStatus: lastStatus.status,
+    details: details,
+    unsubscribeLink: `${baseUrl}/${entity.slug}/settings/notifications`,
+  };
+  await sendEmail(template, props, channel.emails!);
 }
 
 export const config = {
