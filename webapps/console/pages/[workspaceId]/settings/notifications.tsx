@@ -112,7 +112,7 @@ const NotificationChannelList: React.FC<{}> = () => {
     },
     noun: "Slack Notification Channel",
     type: "notification",
-    listTitle: "Workspace Slack Notifications",
+    listTitle: "Slack Notifications",
     explanation: "Notification Channel settings",
     testConnectionEnabled: obj => (obj.channel === "slack" && !!obj.slackWebhookUrl ? "manual" : false),
     testButtonLabel: "Send test notification",
@@ -144,20 +144,7 @@ const NotificationChannelList: React.FC<{}> = () => {
       {!router.query.id && (
         <>
           <h1 className={"text-3xl mt-12"}>My Email Notifications</h1>
-          <UserNotificationSettings
-            className={"mb-12 mt-6"}
-            workspace={workspace}
-            title={
-              <div className={"flex flex-row items-start gap-1.5"}>
-                <div className={"text-textLight"}>Email notification preferences for the current user:</div>
-                <div className={"text-black font-black"}>{user.email}</div>
-                <div className={"text-textLight"}>
-                  for events only in the workspace:{" "}
-                  <span className={"text-black font-black"}>{workspace.name || workspace.slug}</span>
-                </div>
-              </div>
-            }
-          />
+          <UserNotificationSettings className={"mt-6"} workspace={workspace} />
         </>
       )}
     </>
