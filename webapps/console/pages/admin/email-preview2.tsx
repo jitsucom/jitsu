@@ -18,6 +18,8 @@ const EmailPreviewPage = () => {
   const [template, setTemplate] = useState("");
   const [previewValues, setPreviewValues] = useState<any>({});
   const [plainText, setPlainText] = useState("");
+  const [subject, setSubject] = useState("");
+
   // useStates returns functions as objects so they cannot be rendered. So put func as object property
   const [component, setComponent] = useState<{
     reactFC: EmailTemplate<any>;
@@ -44,6 +46,7 @@ const EmailPreviewPage = () => {
           ? component.reactFC.plaintext(previewValues)
           : await render(<MailBody {...previewValues} />, { plainText: true })
       );
+      setSubject(component.reactFC.subject(previewValues));
     })();
   }, [component, previewValues]);
 
@@ -78,6 +81,12 @@ const EmailPreviewPage = () => {
               }}
               value={JSON.stringify(previewValues, null, 2)}
             ></CodeEditor>
+          </div>
+        </div>
+        <div className={"flex-grow-0 flex flex-row items-center gap-2 mt-2"}>
+          <div>Subject: </div>
+          <div className={"bg-white py-2 px-4 border rounded-lg"} style={{ minWidth: 540 }}>
+            {subject}
           </div>
         </div>
         <div className={"flex-grow flex flex-row gap-4"}>
