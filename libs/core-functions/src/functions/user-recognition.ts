@@ -1,114 +1,131 @@
-import { z } from "zod";
 import { AnonymousEventsStore, JitsuFunction } from "@jitsu/protocols/functions";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
-import get from "lodash/get";
-import set from "lodash/set";
-import merge from "lodash/merge";
+import { transfer } from "@jitsu/functions-lib";
 
 export const UserRecognitionParameter = "_JITSU_UR_MESSAGE_ID";
 
-export const UserRecognitionConfig = z.object({
-  /**
-   * Where to look for anonymous id, an array of JSON paths
-   * ["anonymousId", "context.AnonymousId"]
-   */
-  anonymousIdFields: z.array(z.string()).default(["anonymousId"]),
-  identifierFields: z.array(z.string()).default(["userId", "context.traits"]),
-  eventTypes: z.array(z.string()).default(["page", "track", "screen"]),
-  lookbackWindowDays: z.number().default(30),
-  collectionId: z.string().default(""),
-});
+const IDENTIFYING_TRAITS_ENV = "IDENTIFYING_TRAITS";
 
-export type UserRecognitionConfig = z.infer<typeof UserRecognitionConfig>;
+const lookbackWindowDays = 30;
+const eventTypes = ["page", "track", "screen"];
 
-// const DefaultConfig: UserRecognitionConfig = UserRecognitionConfig.parse({});
-
-const UserRecognitionFunction: JitsuFunction<AnalyticsServerEvent, UserRecognitionConfig> = async (event, ctx) => {
-  if (!ctx.connection?.options.deduplicate || !ctx.connection?.options.primaryKey) {
+const UserRecognitionFunction: JitsuFunction<AnalyticsServerEvent, any> = async (event, ctx) => {
+  if (!ctx.connection.options.deduplicate || !ctx.connection.options.primaryKey) {
     ctx.log.error(
       `User Recognition function requires connection to be configured with 'deduplicate' and 'primaryKey' options.`
     );
     return event;
   }
-  const config = UserRecognitionConfig.parse(ctx.props || {});
-  if (!config.eventTypes.includes(event.type)) {
-    ctx.log.debug(
-      `Event type ${event.type} is not in the list of event types to process. Message ID:${event.messageId}`
-    );
-  }
-  const anonEvStore = ctx["anonymousEventsStore"] as AnonymousEventsStore;
-
-  const collectionName = `UR_${config.collectionId ? `${config.collectionId}_` : ""}${ctx.connection?.id}`;
-
-  const anonId = getAnonId(event, config.anonymousIdFields);
+  const anonId = event.anonymousId;
   if (!anonId) {
     ctx.log.warn(`No anonymous id found. Message ID:${event.messageId}`);
     return event;
   }
-  const identifiedFields = getIdentifiedFields(event, config.identifierFields);
-  if (!identifiedFields) {
-    try {
-      await anonEvStore.addEvent(collectionName, anonId, event, config.lookbackWindowDays);
+  const userId = event.userId;
+  const identifyingTraits = ctx.connection.options?.functionsEnv?.[IDENTIFYING_TRAITS_ENV]
+    ? ctx.connection.options.functionsEnv[IDENTIFYING_TRAITS_ENV].split(",").map((t: string) => t.trim())
+    : [];
+  let identifiedEvent = !!userId;
+
+  const anonEvStore = ctx["anonymousEventsStore"] as AnonymousEventsStore;
+  const collectionName = `UR_${ctx.connection?.id}`;
+
+  if (event.type === "identify") {
+    if (!identifiedEvent && identifyingTraits.length > 0) {
+      const traits = event.traits || {};
+      for (const trait of identifyingTraits) {
+        if (traits[trait]) {
+          identifiedEvent = true;
+          break;
+        }
+      }
+    }
+    if (identifiedEvent) {
+      const identifiedFields = {
+        userId,
+        context: {
+          traits: event.traits,
+        },
+      };
+      // evict anonymous events from user_recognition collection
+      const res = await anonEvStore.evictEvents(collectionName, anonId).then(evs => {
+        return evs.map(anonEvent => {
+          //merge anonymous event with identified fields
+          anonEvent.userId = userId;
+          anonEvent.context = anonEvent.context || {};
+          if (!anonEvent.context.traits) {
+            anonEvent.context.traits = event.traits || {};
+          } else {
+            transfer(anonEvent.context.traits, event.traits);
+          }
+          anonEvent[UserRecognitionParameter] = event.messageId;
+          return anonEvent;
+        });
+      });
+      if (res.length === 0) {
+        ctx.log.debug(
+          `No events found for anonymous id: ${anonId} with identified fields: ${JSON.stringify(
+            identifiedFields
+          )} Message ID:${event.messageId}`
+        );
+      } else {
+        ctx.log.info(
+          `${res.length} events for anonymous id: ${anonId} was updated with id fields: ${JSON.stringify(
+            identifiedFields
+          )} by Message ID:${event.messageId}`
+        );
+        return [event, ...res];
+      }
+    } else {
       ctx.log.debug(
-        `Event for for anonymous id: ${anonId} inserted to User Recognition collection. Message ID:${event.messageId}`
-      );
-    } catch (e) {
-      ctx.log.error(
-        `Failed to insert anonymous event for anonymous id: ${anonId} to User Recognition collection. Message ID:${event.messageId} Error: ${e}`
+        `Identify event with not enough identifying information. UserId: ${userId} and traits: ${JSON.stringify(
+          event.traits
+        )}. Message ID:${event.messageId}`
       );
     }
-    return event;
-  }
-  // evict anonymous events from user_recognition collection
-  const res = await anonEvStore.evictEvents(collectionName, anonId).then(evs => {
-    return evs.map(anonEvent => {
-      //merge anonymous event with identified fields
-      const merged = merge(anonEvent, identifiedFields);
-      merged[UserRecognitionParameter] = event.messageId;
-      return merged;
-    });
-  });
-  if (res.length === 0) {
-    ctx.log.debug(
-      `No events found for anonymous id: ${anonId} with identified fields: ${JSON.stringify(
-        identifiedFields
-      )} Message ID:${event.messageId}`
-    );
-    return event;
+  } else if (eventTypes.includes(event.type)) {
+    if (!identifiedEvent && identifyingTraits.length > 0) {
+      const traits = event.context?.traits || {};
+      for (const trait of identifyingTraits) {
+        if (traits[trait]) {
+          identifiedEvent = true;
+          break;
+        }
+      }
+    }
+    if (!identifiedEvent) {
+      try {
+        await anonEvStore.addEvent(collectionName, anonId, event, lookbackWindowDays);
+        ctx.log.debug(
+          `Event for for anonymous id: ${anonId} inserted to User Recognition collection. Message ID:${event.messageId}`
+        );
+      } catch (e) {
+        ctx.log.error(
+          `Failed to insert anonymous event for anonymous id: ${anonId} to User Recognition collection. Message ID:${event.messageId} Error: ${e}`
+        );
+      }
+    }
   } else {
-    ctx.log.info(
-      `${res.length} events for anonymous id: ${anonId} was updated with id fields: ${JSON.stringify(
-        identifiedFields
-      )} by Message ID:${event.messageId}`
+    ctx.log.debug(
+      `Event type ${event.type} is not in the list of event types to process. Message ID:${event.messageId}`
     );
-    return [event, ...res];
   }
 };
 
-function getAnonId(event: AnalyticsServerEvent, anonymousId: string[]): string | undefined {
-  for (const path of anonymousId) {
-    const id = get(event, path);
-    if (id) {
-      return id;
-    }
-  }
-  return undefined;
-}
-
-function getIdentifiedFields(event: AnalyticsServerEvent, identifierFields: string[]): any | undefined {
-  const res = {};
-  let found = false;
-  for (const path of identifierFields) {
-    const f = get(event, path);
-    if (f && !(typeof f === "object" && Object.keys(f).length === 0)) {
-      found = true;
-      set(res, path, f);
-    }
-  }
-  if (!found) {
-    return undefined;
-  }
-  return res;
-}
+// function getIdentifiedFields(event: AnalyticsServerEvent, identifierFields: string[]): any | undefined {
+//   const res = {};
+//   let found = false;
+//   for (const path of identifierFields) {
+//     const f = get(event, path);
+//     if (f && !(typeof f === "object" && Object.keys(f).length === 0)) {
+//       found = true;
+//       set(res, path, f);
+//     }
+//   }
+//   if (!found) {
+//     return undefined;
+//   }
+//   return res;
+// }
 
 export default UserRecognitionFunction;

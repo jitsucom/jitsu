@@ -117,14 +117,20 @@ async function runChain(
             }
             if (!isDropResult(result)) {
                 if (result) {
-                    // @ts-ignore
-                    newEvents.push(...(Array.isArray(result) ? result : [result]));
+                    if (Array.isArray(result)) {
+                        newEvents.push(...result);
+                    } else {
+                        newEvents.push(result);
+                    }
                 } else {
                     newEvents.push(event);
                 }
             }
         }
         events = newEvents;
+        if (events.length === 0) {
+            break;
+        }
     }
     return {events, execLog};
 }

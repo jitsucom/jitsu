@@ -24,6 +24,7 @@ import {
   UDFWrapper,
   UserRecognitionParameter,
   wrapperFunction,
+  FunctionExecRes,
 } from "@jitsu/core-functions";
 import Prometheus from "prom-client";
 import { RetryErrorName, DropRetryErrorName } from "@jitsu/functions-lib";
@@ -164,7 +165,7 @@ export function buildFunctionChain(
     anonymousEventsStore,
     connectionOptions: connectionData,
   };
-  const funcCtx = {
+  const udfFuncCtx = {
     function: {
       id: "PIPELINE",
       type: "udf",
@@ -199,7 +200,7 @@ export function buildFunctionChain(
       const wrapper = UDFWrapper(
         conId,
         chainCtx,
-        funcCtx,
+        udfFuncCtx,
         udfFuncs.map(f => ({ id: f.id, name: f.name, code: f.code }))
       );
       const oldWrapper = cached?.wrapper;
@@ -231,7 +232,7 @@ export function buildFunctionChain(
             const wrapper = UDFWrapper(
               conId,
               chainCtx,
-              funcCtx,
+              udfFuncCtx,
               udfFuncs.map(f => ({ id: f.id, name: f.name, code: f.code }))
             );
             cached = { wrapper, hash };
@@ -310,13 +311,14 @@ export async function runChain(
         }
         break;
     }
+    const metricsLabels = { connectionId: eventContext.connection?.id ?? "", functionId: f.id };
     const newEvents: AnyEvent[] = [];
     for (let i = 0; i < events.length; i++) {
-      functionsInFlight.inc({ connectionId: eventContext.connection?.id ?? "", functionId: f.id });
+      functionsInFlight.inc(metricsLabels);
       const event = events[i];
       let result: FuncReturn = undefined;
       const sw = stopwatch();
-      const execLogMeta = {
+      const execLogEvent: Partial<FunctionExecRes> = {
         // we don't multiply active incoming metrics for events produced by user recognition
         eventIndex: event[UserRecognitionParameter] ? 0 : i,
         receivedAt: !isNaN(eventContext.receivedAt.getTime()) ? eventContext.receivedAt : new Date(),
@@ -325,32 +327,12 @@ export async function runChain(
       };
       try {
         result = await f.exec(event, eventContext);
-        const ms = sw.elapsedMs();
-        functionsTime.observe({ connectionId: eventContext.connection?.id ?? "", functionId: f.id }, ms);
-        // if (ms > 100) {
-        //   console.log(`Function ${f.id} took ${ms}ms to execute`);
-        // }
-        execLog.push({
-          ...execLogMeta,
-          ms,
-          dropped: isDropResult(result),
-        });
       } catch (err: any) {
         if (err.name === DropRetryErrorName) {
           result = "drop";
         }
-        const ms = sw.elapsedMs();
-        // if (ms > 100) {
-        //   console.log(`Function ${f.id} took ${ms}ms to execute`);
-        // }
-        execLog.push({
-          ...execLogMeta,
-          event,
-          error: err,
-          ms,
-          dropped: isDropResult(result),
-        });
-        functionsTime.observe({ connectionId: eventContext.connection?.id ?? "", functionId: f.id }, ms);
+        execLogEvent.event = event;
+        execLogEvent.error = err;
         const args = [err?.name, err?.message];
         const r = retriesEnabled ? retryObject(err, eventContext.retries ?? 0) : undefined;
         if (r) {
@@ -363,24 +345,41 @@ export async function runChain(
         }
         if (f.id === "udf.PIPELINE") {
           if (err.name !== DropRetryErrorName && err.event) {
+            const errEvent = err.event;
             // if udf pipeline failed  w/o drop error pass partial result of pipeline to the destination function
-            newEvents.push(...(Array.isArray(err.event) ? err.event : [err.event]));
+            if (Array.isArray(errEvent)) {
+              newEvents.push(...errEvent);
+            } else {
+              newEvents.push(errEvent);
+            }
             continue;
           }
         }
       } finally {
-        functionsInFlight.dec({ connectionId: eventContext.connection?.id ?? "", functionId: f.id });
+        const ms = sw.elapsedMs();
+        functionsTime.observe(metricsLabels, ms);
+        execLogEvent.ms = ms;
+        execLogEvent.dropped = isDropResult(result);
+        execLog.push(execLogEvent as FunctionExecRes);
+        functionsInFlight.dec(metricsLabels);
       }
-      if (!isDropResult(result)) {
+      if (!execLogEvent.dropped) {
         if (result) {
-          // @ts-ignore
-          newEvents.push(...(Array.isArray(result) ? result : [result]));
+          if (Array.isArray(result)) {
+            newEvents.push(...result);
+          } else {
+            // @ts-ignore
+            newEvents.push(result);
+          }
         } else {
           newEvents.push(event);
         }
       }
     }
     events = newEvents;
+    if (events.length === 0) {
+      break;
+    }
   }
   return { events, execLog };
 }
