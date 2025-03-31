@@ -340,7 +340,12 @@ const exports: Export[] = [
         };
         const opts = {
           functionsEnv: (pb.connectionOptions ?? ({} as any)).variables,
-          functions: (pb.connectionOptions ?? ({} as any)).functions,
+          functions: [
+            {
+              functionId: "builtin.transformation.user-recognition",
+            },
+            ...((pb.connectionOptions ?? ({} as any)).functions || []),
+          ],
         };
         writer.write(
           JSON.stringify({
