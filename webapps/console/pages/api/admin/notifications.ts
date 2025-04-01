@@ -186,14 +186,17 @@ export default createRoute()
       const values = Array.from(increments.entries())
         .map(
           ([id, data]) =>
-            `(${id}, ${data.counts}, '${data.timestamp.toISOString()}', '${data.description.replaceAll("'", "''")}')`
+            `(${id}, ${data.counts}, '${data.timestamp.toISOString()}', '${data.description.replaceAll("'", "''")}', ${
+              data.queueSize
+            })`
         )
         .join(",");
       const query = `update newjitsu."StatusChange" as s
                      set counts    = s.counts + data.counts,
                          description = data.description,
+                         "queueSize" = data."queueSize",
                          timestamp = data.timestamp::TIMESTAMPTZ(3)
-                     from (values ${values}) as data (id, counts, timestamp, description)
+                     from (values ${values}) as data (id, counts, timestamp, description, "queueSize")
                      where s.id = data.id`;
       const res = await db.pgPool().query(query);
       log.atInfo().log(`Status counts updated for ${res.rowCount} rows.`);
@@ -502,7 +505,7 @@ async function loadSyncStatusesChanges(
         return;
       }
       //log.atInfo().log(`SS`, rowTimestamp, typeof rowTimestamp, batch.timestamp, typeof batch.timestamp);
-      const chId = await updateStatusChange(entities, entity, row.updated_at, status, row.error, increments);
+      const chId = await updateStatusChange(entities, entity, row.updated_at, status, row.error, 0, increments);
       if (chId) {
         statusChanges++;
       }
@@ -518,7 +521,7 @@ async function loadSyncStatusesChanges(
 
 // StatusRepeats - optimization. we have batches that runs way too often.
 // to avoid multiple db updates we can accumulate changes and write them in a single query
-type StatusRepeats = { counts: number; timestamp: Date; description: string };
+type StatusRepeats = { counts: number; timestamp: Date; description: string; queueSize: number };
 
 async function loadBatchStatusesChanges(
   fromTimestamp: Date,
@@ -575,6 +578,7 @@ async function loadBatchStatusesChanges(
         }
         entity = entityWithTable;
       }
+      const queueSize = message.queueSize || 0;
       //log.atInfo().log(`Batch ${row.actorId} ${entity.tableName} ${status} ${row.timestamp} ${entity.timestamp}`);
       if (!entity) {
         log.atWarn().log(`Batch ${row.actorId} not found`);
@@ -582,7 +586,15 @@ async function loadBatchStatusesChanges(
       }
       const rowTimestamp = dayjs(row.timestamp, { utc: true }).toDate();
 
-      const chId = await updateStatusChange(entities, entity, rowTimestamp, status, message.error, increments);
+      const chId = await updateStatusChange(
+        entities,
+        entity,
+        rowTimestamp,
+        status,
+        message.error,
+        queueSize,
+        increments
+      );
       if (chId) {
         statusChanges++;
       }
@@ -600,6 +612,7 @@ async function updateStatusChange(
   timestamp: Date,
   status: string,
   description?: string,
+  queueSize?: number,
   increments?: Map<bigint, StatusRepeats>
 ): Promise<boolean> {
   let changed = false;
@@ -609,9 +622,14 @@ async function updateStatusChange(
     if (status != entity.status) {
       if (status === "SUCCESS") {
         if (!entity.timestamp) {
-          description = "First run.";
+          description = JSON.stringify({ type: "INITIAL_RUN" });
         } else {
-          description = `Recovered from ${entity.status} of ${entity.timestamp.toISOString()}.`;
+          description = JSON.stringify({
+            type: "RECOVERY",
+            incidentStatus: entity.status,
+            incidentStartedAt: entity.startedAt,
+            incidentDescription: entity.description,
+          });
         }
       }
       newEntity = {
@@ -624,6 +642,7 @@ async function updateStatusChange(
         description: description,
         // 0 - means that this is the first status of connection
         counts: entity.timestamp ? 1 : 0,
+        queueSize: queueSize,
       };
       const b = await db.prisma().statusChange.create({
         data: newEntity,
@@ -637,17 +656,19 @@ async function updateStatusChange(
         // optimization. we have batches that runs way too often. to avoid multiple db updates we can accumulate changes and write them in a single query
         let increment = increments.get(entity.id);
         if (!increment) {
-          increment = { counts: 1, timestamp, description: newDescription };
+          increment = { counts: 1, timestamp, description: newDescription, queueSize };
           increments.set(entity.id, increment);
         } else {
           increment.counts++;
           increment.description = newDescription;
           increment.timestamp = timestamp;
+          increment.queueSize = queueSize;
         }
         newEntity = {
           ...entity,
           description: newDescription,
           counts: entity.counts + 1,
+          queueSize: queueSize,
           timestamp: timestamp,
         };
       } else {
@@ -656,6 +677,7 @@ async function updateStatusChange(
           data: {
             description: newDescription,
             counts: { increment: 1 },
+            queueSize: queueSize,
             timestamp: timestamp,
           },
         });

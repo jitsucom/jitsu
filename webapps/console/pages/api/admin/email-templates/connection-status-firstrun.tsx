@@ -1,32 +1,14 @@
-import {
-  EmailTemplate,
-  UnsubscribeLink,
-  UnsubscribeLinkProps,
-  WorkspaceEmailProps,
-} from "@jitsu-internal/webapps-shared";
+import { EmailTemplate, UnsubscribeLink } from "@jitsu-internal/webapps-shared";
 import { Body, Container, Html, Preview, Section, Text } from "@react-email/components";
 import React from "react";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import { main } from "./styles";
+import { ConnectionStatusSharedEmailProps } from "./connection-status-failed";
 
 dayjs.extend(utc);
 
-export type ConnectionStatusSharedEmailProps = {
-  entityId: string;
-  entityType: "batch" | "sync";
-  entityName: string;
-  tableName?: string;
-  incidentStatus: string;
-  incidentStartedAt?: string;
-  incidentResolvedAt?: string;
-  incidentDetails: string;
-  queueSize?: number;
-  recurringAlertsPeriodHours: number;
-} & WorkspaceEmailProps &
-  UnsubscribeLinkProps;
-
-export const ConnectionStatusFailedEmail: EmailTemplate<ConnectionStatusSharedEmailProps> = props => {
+export const ConnectionStatusFirstRunEmail: EmailTemplate<ConnectionStatusSharedEmailProps> = props => {
   let {
     name,
     workspaceName,
@@ -35,14 +17,11 @@ export const ConnectionStatusFailedEmail: EmailTemplate<ConnectionStatusSharedEm
     entityType,
     entityName,
     tableName,
-    incidentDetails,
-    incidentStatus,
-    incidentStartedAt,
-    incidentResolvedAt,
-    queueSize,
+    details,
     recurringAlertsPeriodHours,
     unsubscribeLink,
   } = props;
+
   const url =
     entityType == "sync"
       ? `https://use.jitsu.com/${workspaceSlug}/syncs/tasks?query={syncId:'${entityId}'}`
@@ -54,16 +33,17 @@ export const ConnectionStatusFailedEmail: EmailTemplate<ConnectionStatusSharedEm
 
   return (
     <Html>
-      <Preview>[Jitsu Support] 🚨 Connection errors in {workspaceName || "Your Jitsu Workspace"}</Preview>
+      <Preview>[Jitsu Support] ✅️ Connection success in {workspaceName || "Your Jitsu Workspace"}</Preview>
       <Body style={main}>
         <Container>
           <Section style={{ textAlign: "center", margin: "20px 0" }}>
             <Text style={{ fontSize: "20px", fontWeight: "bold", color: "#333" }}>
-              🚨 The last job of the connection{" "}
+              ✅️️The last job of the connection{" "}
               <a style={{ fontWeight: "bold", color: "#0070f3", textDecoration: "none" }} href={url}>
                 {entityName}
               </a>{" "}
-              has <b>FAILED</b>
+              has been <b>SUCCESSFUL</b>
+              <br />
             </Text>
           </Section>
           <Text>👋 Hi {name || "there"}!</Text>
@@ -73,7 +53,7 @@ export const ConnectionStatusFailedEmail: EmailTemplate<ConnectionStatusSharedEm
             <a style={{ fontWeight: "bold", color: "#0070f3", textDecoration: "none" }} href={url}>
               {entityName}
             </a>{" "}
-            has <b>FAILED</b>{" "}
+            has been <b>SUCCESSFUL</b>.{" "}
             {workspaceName ? (
               <>
                 in the{" "}
@@ -90,22 +70,6 @@ export const ConnectionStatusFailedEmail: EmailTemplate<ConnectionStatusSharedEm
             .
           </Text>
           <Text>
-            <span>
-              <b>Last Status: </b> {incidentStatus}
-            </span>
-            {incidentStartedAt && Date.now() - new Date(incidentStartedAt).getTime() > 60 * 60 * 1000 && (
-              <span>
-                <br />
-                <b>Incident Started At: </b> {dayjs(incidentStartedAt).utc().format("YYYY-MM-DD HH:mm:ss")} UTC
-              </span>
-            )}
-            {queueSize && (
-              <span>
-                <br />
-                <b>Events Queue Size: </b> {queueSize}
-              </span>
-            )}
-            <br />
             {tableName && (
               <span>
                 <b>Table Name: </b> {tableName}
@@ -114,20 +78,11 @@ export const ConnectionStatusFailedEmail: EmailTemplate<ConnectionStatusSharedEm
             <br />
             <b>Details: </b>
             <br />
-            <span dangerouslySetInnerHTML={{ __html: incidentDetails }}></span>
-          </Text>
-
-          <Text>
-            <a style={{ fontWeight: "bold", color: "#0070f3", textDecoration: "none" }} href={url}>
-              Check logs
-            </a>
+            <span dangerouslySetInnerHTML={{ __html: details }}></span>
           </Text>
 
           {recurringAlertsPeriodHours && (
-            <Text>
-              No additional reports will be sent for this connection in {recurringAlertsPeriodHours} hours unless the
-              status changes.
-            </Text>
+            <Text>No additional reports will be sent for this connection unless the status changes.</Text>
           )}
 
           <Text>
@@ -147,32 +102,29 @@ export const ConnectionStatusFailedEmail: EmailTemplate<ConnectionStatusSharedEm
   );
 };
 
-ConnectionStatusFailedEmail.subject = ({ workspaceName }) => {
+ConnectionStatusFirstRunEmail.subject = ({ workspaceName }) => {
   if (!workspaceName?.toLowerCase().endsWith(" workspace")) {
     workspaceName += " workspace";
   }
-  return `[Jitsu Support] 🚨 Connection errors in ${workspaceName || "Your Jitsu Workspace"}`;
+  return `[Jitsu Support] ✅️️ Connection success in ${workspaceName || "Your Jitsu Workspace"}`;
 };
 
-ConnectionStatusFailedEmail.from = "Jitsu Support <support@notify.jitsu.com>";
-ConnectionStatusFailedEmail.replyTo = "Jitsu Support <support@jitsu.com>";
-ConnectionStatusFailedEmail.isMarketingEmail = true;
+ConnectionStatusFirstRunEmail.from = "Jitsu Support <support@notify.jitsu.com>";
+ConnectionStatusFirstRunEmail.replyTo = "Jitsu Support <support@jitsu.com>";
+ConnectionStatusFirstRunEmail.isMarketingEmail = true;
 
-ConnectionStatusFailedEmail.PreviewProps = {
+ConnectionStatusFirstRunEmail.PreviewProps = {
   name: "John",
   entityId: "entity-id",
   entityType: "batch",
   entityName: "Entity Name",
   tableName: "",
-  incidentDetails:
-    "2025-03-31T12:06:43.161Z [FAILED] failed to setup s3 client: s3 bucket access error: operation error S3: HeadBucket, https response error StatusCode: 0, RequestID: , HostID: , canceled, context deadline exceeded",
-  incidentStatus: "FAILED",
-  incidentStartedAt: dayjs().subtract(1, "hour").toISOString(),
-  queueSize: 132422,
+  details: "",
+  lastStatus: "SUCCESS",
   workspaceSlug: "workspace-slug",
   workspaceName: "Workspace Name",
   recurringAlertsPeriodHours: 24,
   unsubscribeLink: "https://example.com/unsubscribe",
 };
 
-export default ConnectionStatusFailedEmail;
+export default ConnectionStatusFirstRunEmail;
