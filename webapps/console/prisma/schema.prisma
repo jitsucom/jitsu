@@ -344,6 +344,7 @@ model StatusChange {
   startedAt   DateTime
   counts      Int      @default(0)
   description String?
+  queueSize   Int      @default(0)
 
   @@index([actorId, tableName])
   @@index(timestamp)

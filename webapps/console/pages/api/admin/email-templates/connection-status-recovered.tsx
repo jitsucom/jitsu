@@ -8,7 +8,7 @@ import { ConnectionStatusSharedEmailProps } from "./connection-status-failed";
 
 dayjs.extend(utc);
 
-export const ConnectionStatusSuccessEmail: EmailTemplate<ConnectionStatusSharedEmailProps> = props => {
+export const ConnectionStatusRecoveredEmail: EmailTemplate<ConnectionStatusSharedEmailProps> = props => {
   let {
     name,
     workspaceName,
@@ -102,18 +102,18 @@ export const ConnectionStatusSuccessEmail: EmailTemplate<ConnectionStatusSharedE
   );
 };
 
-ConnectionStatusSuccessEmail.subject = ({ workspaceName }) => {
+ConnectionStatusRecoveredEmail.subject = ({ workspaceName }) => {
   if (!workspaceName?.toLowerCase().endsWith(" workspace")) {
     workspaceName += " workspace";
   }
   return `[Jitsu Support] ✅️️ Connection success in ${workspaceName || "Your Jitsu Workspace"}`;
 };
 
-ConnectionStatusSuccessEmail.from = "Jitsu Support <support@notify.jitsu.com>";
-ConnectionStatusSuccessEmail.replyTo = "Jitsu Support <support@jitsu.com>";
-ConnectionStatusSuccessEmail.isMarketingEmail = true;
+ConnectionStatusRecoveredEmail.from = "Jitsu Support <support@notify.jitsu.com>";
+ConnectionStatusRecoveredEmail.replyTo = "Jitsu Support <support@jitsu.com>";
+ConnectionStatusRecoveredEmail.isMarketingEmail = true;
 
-ConnectionStatusSuccessEmail.PreviewProps = {
+ConnectionStatusRecoveredEmail.PreviewProps = {
   name: "John",
   entityId: "entity-id",
   entityType: "batch",
@@ -127,4 +127,4 @@ ConnectionStatusSuccessEmail.PreviewProps = {
   unsubscribeLink: "https://example.com/unsubscribe",
 };
 
-export default ConnectionStatusSuccessEmail;
+export default ConnectionStatusRecoveredEmail;

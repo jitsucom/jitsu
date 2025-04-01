@@ -1,6 +1,8 @@
 import { ConnectionStatusFailedEmail } from "../api/admin/email-templates/connection-status-failed";
+import { ConnectionStatusRecoveredEmail } from "../api/admin/email-templates/connection-status-recovered";
+import { ConnectionStatusFirstRunEmail } from "../api/admin/email-templates/connection-status-firstrun";
+
 import { Select } from "antd";
-import { ConnectionStatusSuccessEmail } from "../api/admin/email-templates/connection-status-success";
 import { useState, useEffect } from "react";
 import { EmailTemplate } from "@jitsu-internal/webapps-shared";
 import { CodeEditor } from "../../components/CodeEditor/CodeEditor";
@@ -8,7 +10,8 @@ import { render } from "@react-email/render";
 
 const templates = {
   "connection-status-failed": ConnectionStatusFailedEmail,
-  "connection-status-success": ConnectionStatusSuccessEmail,
+  "connection-status-recovered": ConnectionStatusRecoveredEmail,
+  "connection-status-firstrun": ConnectionStatusFirstRunEmail,
 };
 
 const defaultComponent = p => <div>Please select template</div>;
