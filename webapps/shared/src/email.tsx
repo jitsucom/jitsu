@@ -3,7 +3,7 @@ import { z } from "zod";
 import utc from "dayjs/plugin/utc";
 import { Resend } from "resend";
 import { render } from "@react-email/render";
-import { EmailTemplate, UnsubscribeLinkProps } from "./email-template";
+import { EmailTemplate, UnsubscribeLinkProps } from "./types";
 import { requireDefined } from "juava";
 import { Simplify } from "type-fest";
 

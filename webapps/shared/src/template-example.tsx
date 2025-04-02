@@ -1,4 +1,5 @@
-import { EmailTemplate, UnsubscribeLink, UnsubscribeLinkProps, WorkspaceEmailProps } from "./email-template";
+import { UnsubscribeLink } from "./email-template";
+import { EmailTemplate, UnsubscribeLinkProps, WorkspaceEmailProps } from "./types";
 import { Body, Button, Container, Html, Preview, Section, Text } from "@react-email/components";
 import React from "react";
 import dayjs from "dayjs";
