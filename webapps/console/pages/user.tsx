@@ -11,7 +11,6 @@ import { QueryResponse } from "../components/QueryResponse/QueryResponse";
 import { JitsuButton } from "../components/JitsuButton/JitsuButton";
 import { ButtonLabel } from "../components/ButtonLabel/ButtonLabel";
 import { rpc } from "juava";
-import { UserNotificationSettings } from "../components/UserNotificationSettings/UserNotificationSettings";
 
 function ApiKeys() {
   const apiRes = useApi<ApiKey[]>("/api/user/keys");
