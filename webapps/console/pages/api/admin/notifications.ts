@@ -284,28 +284,30 @@ async function loadNotificationsChannels() {
       ...row.globalPref?.notifications,
       ...row.workspacePref?.notifications,
     };
-    const events: ("all" | "sync" | "batch")[] = [];
-    if (settings.syncs) {
-      events.push("sync");
+    if (settings.syncs || settings.batches) {
+      const events: ("all" | "sync" | "batch")[] = [];
+      if (settings.syncs) {
+        events.push("sync");
+      }
+      if (settings.batches) {
+        events.push("batch");
+      }
+      let channelsByWorkspace = channels[row.workspaceId];
+      if (!channelsByWorkspace) {
+        channelsByWorkspace = [];
+        channels[row.workspaceId] = channelsByWorkspace;
+      }
+      channelsByWorkspace.push({
+        id: "user:" + row.userId,
+        channel: "email",
+        events: events,
+        name: row.name,
+        emails: [row.email],
+        recurringAlertsPeriodHours: row.recurringAlertsPeriodHours,
+        type: "notification",
+        workspaceId: row.workspaceId,
+      });
     }
-    if (settings.batches) {
-      events.push("batch");
-    }
-    let channelsByWorkspace = channels[row.workspaceId];
-    if (!channelsByWorkspace) {
-      channelsByWorkspace = [];
-      channels[row.workspaceId] = channelsByWorkspace;
-    }
-    channelsByWorkspace.push({
-      id: "user:" + row.userId,
-      channel: "email",
-      events: events,
-      name: row.name,
-      emails: [row.email],
-      recurringAlertsPeriodHours: row.recurringAlertsPeriodHours,
-      type: "notification",
-      workspaceId: row.workspaceId,
-    });
   }
   return channels;
 }

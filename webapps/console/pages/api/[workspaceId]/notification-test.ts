@@ -3,7 +3,7 @@ import { getServerLog } from "../../../lib/server/log";
 import { z } from "zod";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
-import { sendSlackNotification, StatusChange, StatusChangeEntity } from "../admin/notifications";
+import { _J_PREF, sendSlackNotification, StatusChange, StatusChangeEntity } from "../admin/notifications";
 import { NotificationChannel } from "../../../lib/schema";
 import { requireDefined } from "juava";
 import { db } from "../../../lib/server/db";
@@ -60,7 +60,7 @@ export default createRoute()
         name: "Test Slack Channel",
       };
       const statusChange: StatusChange = {
-        status: "FAILED",
+        status: "SUCCESS",
         id: BigInt(1),
         actorId: con?.id || "test",
         startedAt: new Date(),
@@ -68,7 +68,7 @@ export default createRoute()
         counts: 1,
         workspaceId: workspaceId,
         tableName: con?.type === "sync" ? "" : "notification-test",
-        description: "asdasd",
+        description: _J_PREF + JSON.stringify({ status: "FIRST_RUN" }),
         queueSize: 123,
       };
       const entity: StatusChangeEntity = {
@@ -85,8 +85,7 @@ export default createRoute()
       await sendSlackNotification(channel, entity, [statusChange], publicEndpoints.baseUrl);
       return { ok: true };
     } catch (e: any) {
-      //print error
-      console.error("Error sending test notification", e);
+      log.atError().withCause(e).log("Error sending test notification");
       return { ok: false, error: e.message };
     }
   })
