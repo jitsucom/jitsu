@@ -4,7 +4,7 @@ import { Body, Container, Html, Preview, Section, Text } from "@react-email/comp
 import React from "react";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
-import { main } from "../pages/api/admin/email-templates/styles";
+import { main } from "./styles";
 import { CheckJobStatusButton, Details, Footer, MetaList } from "./shared";
 import capitalize from "lodash/capitalize";
 import { ConnectionStatusNotificationProps } from "../pages/api/admin/notifications";
