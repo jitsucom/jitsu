@@ -60,7 +60,7 @@ export default createRoute()
         name: "Test Slack Channel",
       };
       const statusChange: StatusChange = {
-        status: "SUCCESS",
+        status: "FAILED",
         id: BigInt(1),
         actorId: con?.id || "test",
         startedAt: new Date(),
@@ -68,7 +68,8 @@ export default createRoute()
         counts: 1,
         workspaceId: workspaceId,
         tableName: con?.type === "sync" ? "" : "notification-test",
-        description: "Test notification",
+        description: "asdasd",
+        queueSize: 123,
       };
       const entity: StatusChangeEntity = {
         ...statusChange,
@@ -81,9 +82,11 @@ export default createRoute()
         changesPerHours: 1,
         changesPerDay: 1,
       };
-      await sendSlackNotification(channel, entity, "SUCCESS", [statusChange], publicEndpoints.baseUrl);
+      await sendSlackNotification(channel, entity, [statusChange], publicEndpoints.baseUrl);
       return { ok: true };
     } catch (e: any) {
+      //print error
+      console.error("Error sending test notification", e);
       return { ok: false, error: e.message };
     }
   })
