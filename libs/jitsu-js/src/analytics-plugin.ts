@@ -483,6 +483,7 @@ function adjustPayload(
     userAgent: runtime.userAgent(),
     locale: runtime.language(),
     screen: runtime.screen(),
+    ip: runtime.ip ? runtime.ip() : undefined,
     traits: payload.type != "identify" && payload.type != "group" ? { ...(restoreTraits(storage) || {}) } : undefined,
     page: {
       path: properties.path || (parsedUrl && parsedUrl.pathname),

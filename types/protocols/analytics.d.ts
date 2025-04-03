@@ -328,6 +328,7 @@ export type RuntimeFacade = {
     | undefined;
   referrer(): string | undefined;
   pageTitle(): string | undefined;
+  ip?(): string | undefined;
 };
 
 export type ErrorHandler = (message: string, ...args: any[]) => void;
@@ -440,18 +441,33 @@ export type Traits = {
    */
   $doNotSend?: boolean;
 };
+/**
+ * If context is passed along with properties, it gets a special treatment. It is merged with
+ * default payload context and with properties. This type works as a type hint for TypeScript
+ */
+export type PropertiesWithContext = {
+  context?: AnalyticsContext;
+} & JSONObject;
+
+/**
+ * If context is passed along with properties, it gets a special treatment. It is merged with
+ * default payload context and with properties. This type works as a type hint for TypeScript
+ */
+export type TraitsWithContext = {
+  context?: AnalyticsContext;
+} & Traits;
 
 export interface AnalyticsInterface {
   track(
     eventName: string | JSONObject,
-    properties?: JSONObject | Callback,
+    properties?: JSONObject | Callback | PropertiesWithContext,
     options?: Options | Callback,
     callback?: Callback
   ): Promise<DispatchedEvent>;
 
   page(
-    category?: string | object,
-    name?: string | object | Callback,
+    category?: string | object | PropertiesWithContext,
+    name?: string | object | Callback | PropertiesWithContext,
     properties?: object | Options | Callback | null,
     options?: Options | Callback,
     callback?: Callback
@@ -459,12 +475,16 @@ export interface AnalyticsInterface {
 
   group(
     groupId?: ID | object,
-    traits?: Traits | null,
+    traits?: Traits | TraitsWithContext | null,
     options?: Options,
     callback?: Callback
   ): Promise<DispatchedEvent>;
 
-  identify(id?: ID | Traits, traits?: Traits | Callback | null, callback?: Callback): Promise<DispatchedEvent>;
+  identify(
+    id?: ID | Traits | TraitsWithContext,
+    traits?: Traits | TraitsWithContext | Callback | null,
+    callback?: Callback
+  ): Promise<DispatchedEvent>;
 
   reset(callback?: (...params: any[]) => any): Promise<any>;
 
