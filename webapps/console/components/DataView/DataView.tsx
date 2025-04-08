@@ -96,6 +96,7 @@ export function DataView() {
       destroyInactiveTabPane={true}
       type="line"
       items={items}
+      className="w-full"
     />
   );
 }

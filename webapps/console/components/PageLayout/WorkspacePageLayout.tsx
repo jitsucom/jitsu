@@ -85,16 +85,16 @@ export const WorkspaceMenu: React.FC<{ closeMenu: () => void; classicProject?: s
       <div className="border-t border-textDisabled px-4 py-2 flex flex-col">
         {classicToken && (
           <Link
-            key={"classic"}
+            key="classic"
             href={`${appConfig.jitsuClassicUrl}/?token=${classicToken}`}
-            target={"_blank"}
-            rel={"noopener noreferrer"}
+            target="_blank"
+            rel="noopener noreferrer"
             className="cursor-pointer"
           >
             <Button
-              type={"dashed"}
-              className={"w-full mt-1.5"}
-              icon={<span className={"anticon w-4 h-4"}>{branding.classicLogo}</span>}
+              type="dashed"
+              className="w-full mt-1.5"
+              icon={<span className="anticon w-4 h-4">{branding.classicLogo}</span>}
             >
               Switch to Jitsu Classic
             </Button>
@@ -524,7 +524,7 @@ function PageHeader() {
     { title: "Destinations", path: "/destinations", icon: <Server className="w-full h-full" /> },
     {
       title: "Data",
-      icon: <SearchCode className={"w-full h-full"} />,
+      icon: <SearchCode className="w-full h-full" />,
       items: [
         { title: "Live Events", path: "/data", icon: <Activity className="w-full h-full" /> },
         { title: "Query Data", path: "/sql", icon: <Terminal className="w-full h-full" />, hidden: !appConfig?.ee },
@@ -714,7 +714,7 @@ export const WorkspacePageLayout: React.FC<PropsWithChildren<PageLayoutProps>> =
 
   const pHeader = (
     <VerticalSection className="header border-b border-neutral-300 bg-neutral-50 z-40" key="header">
-      <WidthControl className={"px-4"}>
+      <WidthControl className="px-4">
         <PageHeader />
       </WidthControl>
     </VerticalSection>
@@ -738,17 +738,17 @@ export const WorkspacePageLayout: React.FC<PropsWithChildren<PageLayoutProps>> =
         {fullscreen ? (
           <>
             <div className="flex justify-center fixed w-screen z-50 pointer-events-none">
-              <div className={"z-50 cursor-pointer pointer-events-auto px-2"}>
+              <div className="z-50 cursor-pointer pointer-events-auto px-2">
                 <button
                   className="border-l border-b border-r rounded-b-md px-8 py-0 shadow"
                   onClick={() => setShowDrawer(!showDrawer)}
                 >
-                  <ChevronUp className={"w-6 h-6 block rotate-180"} />
+                  <ChevronUp className="w-6 h-6 block rotate-180" />
                 </button>
               </div>
             </div>
             <Drawer
-              height={"auto"}
+              height="auto"
               bodyStyle={{ padding: 0, minWidth: 1024 }}
               open={showDrawer}
               placement={"top"}
@@ -770,7 +770,7 @@ export const WorkspacePageLayout: React.FC<PropsWithChildren<PageLayoutProps>> =
               <X className="w-8 h-8" />
             </button>
           )}
-          <WidthControl className={"px-8"}>{children}</WidthControl>
+          <WidthControl className="px-8">{children}</WidthControl>
         </VerticalSection>
       </div>
     </div>

@@ -249,7 +249,7 @@ const EventsBrowser0 = ({
         value: entity[0],
         label:
           entity[1].type === "stream" ? (
-            <StreamTitle stream={entity[1]} size={"small"} />
+            <StreamTitle stream={entity[1]} size="small" />
           ) : entity[1].type === "profile-builder" ? (
             <ProfileBuilderTitle profileBuilder={entity[1]} destination={entity[1].destination} />
           ) : (
@@ -482,9 +482,9 @@ const EventsBrowser0 = ({
   })();
   return (
     <>
-      <div className={"flex flex-row justify-between items-center pb-3.5"}>
-        <div key={"left"}>
-          <div className={"flex flex-row gap-3 mr-2"}>
+      <div className="flex flex-row justify-between items-center pb-3.5">
+        <div key="left">
+          <div className="flex flex-row gap-3 mr-2">
             <div>
               <span>{entityType == "stream" ? "Site: " : "Connection: "}</span>
               <Select
@@ -572,8 +572,8 @@ const EventsBrowser0 = ({
                 />
               </div>
             )}
-            <div className={"flex flex-row items-baseline flex-wrap"}>
-              <span className={"whitespace-nowrap"}>Date range:&nbsp;</span>
+            <div className="flex flex-row items-baseline flex-wrap">
+              <span className="whitespace-nowrap">Date range:&nbsp;</span>
               <div style={{ width: 270 }}>
                 <DatePicker.RangePicker
                   value={
@@ -620,7 +620,7 @@ const EventsBrowser0 = ({
             </div>
           </div>
         </div>
-        <div key={"right"} className={"flex flex-row"}>
+        <div key="right" className="flex flex-row">
           {streamType === "function" && connection && (
             <Tooltip
               title={
@@ -663,7 +663,7 @@ const EventsBrowser0 = ({
         </div>
       </div>
       {debugEnabled && (
-        <div className={"w-full rounded-lg border mb-3.5 p-2 bg-amber-100"}>
+        <div className="w-full rounded-lg border mb-3.5 p-2 bg-amber-100">
           Debug logging is enabled on the selected connection for{" "}
           <RelativeDate date={connection?.data.debugTill} fromNow={false} />.
         </div>
@@ -763,7 +763,7 @@ const FunctionsLogTable = ({ loadEvents, loading, streamType, entityType, actorI
           case "udf":
             return (
               <WLink href={`/functions?id=${d.functionId}`}>
-                <FunctionTitle size={"small"} f={funcsMap[d.functionId]} />
+                <FunctionTitle size="small" f={funcsMap[d.functionId]} />
               </WLink>
             );
           case "profile":
@@ -780,7 +780,7 @@ const FunctionsLogTable = ({ loadEvents, loading, streamType, entityType, actorI
                 </WLink>
               );
             }
-            return <FunctionTitle size={"small"} title={() => d.functionId} />;
+            return <FunctionTitle size="small" title={() => d.functionId} />;
         }
       },
     },
@@ -791,15 +791,15 @@ const FunctionsLogTable = ({ loadEvents, loading, streamType, entityType, actorI
       render: d => {
         switch (d) {
           case "error":
-            return <Tag color={"red"}>ERROR</Tag>;
+            return <Tag color="red">ERROR</Tag>;
           case "info":
-            return <Tag color={"cyan"}>INFO</Tag>;
+            return <Tag color="cyan">INFO</Tag>;
           case "debug":
             return <Tag>DEBUG</Tag>;
           case "warn":
-            return <Tag color={"orange"}>WARN</Tag>;
+            return <Tag color="orange">WARN</Tag>;
           default:
-            return <Tag color={"cyan"}>{d.status}</Tag>;
+            return <Tag color="cyan">{d.status}</Tag>;
         }
       },
     },
@@ -1039,7 +1039,7 @@ const IncomingEventDrawer = ({
     if (event) {
       const DestinationsList = (props: { mappedConnections: Record<string, any>; destinationIds: string[] }) => {
         return (
-          <div className={"flex flex-row flex-wrap gap-4"}>
+          <div className="flex flex-row flex-wrap gap-4">
             {props.destinationIds
               .map(d => props.mappedConnections[d]?.destination)
               .filter(d => typeof d !== "undefined")
@@ -1064,13 +1064,12 @@ const IncomingEventDrawer = ({
         value: (st => {
           switch (st) {
             case "FAILED":
-              return <Tag color={"red"}>{st}</Tag>;
+              return <Tag color="red">{st}</Tag>;
             case "SUCCESS":
-              return <Tag color={"cyan"}>{st}</Tag>;
+              return <Tag color="cyan">{st}</Tag>;
             case "SKIPPED":
-              return <Tag color={"orange"}>{st}</Tag>;
+              return <Tag color="orange">{st}</Tag>;
             default:
-              return <Tag>{st}</Tag>;
           }
         })(event.status),
       });
@@ -1087,9 +1086,9 @@ const IncomingEventDrawer = ({
       drawerData.push({
         name: "Page URL",
         value: (
-          <div className={"break-all"}>
-            <a href={event.pageURL} target={"_blank"} rel={"noreferrer nopener"}>
-              <ExternalLink className={"w-4 h-4"} />{" "}
+          <div className="break-all">
+            <a href={event.pageURL} target="_blank" rel="noreferrer nopener">
+              <ExternalLink className="w-4 h-4" />{" "}
             </a>
             {event.pageURL}
           </div>
@@ -1107,14 +1106,14 @@ const IncomingEventDrawer = ({
       drawerData.push({
         name: "HTTP Headers",
         value: (
-          <Collapse className={"headers-collapse"} size={"small"} ghost={true}>
+          <Collapse className="headers-collapse" size="small" ghost={true}>
             <Collapse.Panel header="HTTP headers" key="1" showArrow={true}>
               <Table
                 showHeader={false}
-                className={"headers-table"}
-                rowKey={"name"}
+                className="headers-table"
+                rowKey="name"
                 bordered={true}
-                size={"small"}
+                size="small"
                 pagination={false}
                 columns={[
                   { dataIndex: "name", width: "14em", className: "font-mono" },
@@ -1148,9 +1147,9 @@ const IncomingEventDrawer = ({
   return event ? (
     <Table
       bordered={true}
-      size={"middle"}
+      size="middle"
       showHeader={false}
-      rowKey={"name"}
+      rowKey="name"
       pagination={false}
       columns={drawerColumns}
       dataSource={drawerData}
@@ -1182,7 +1181,7 @@ export const Geo: React.FC<{ geo?: aGeo }> = ({ geo }) => {
     }
     return (
       <Tooltip
-        key={"geo"}
+        key="geo"
         title={
           <div className="whitespace-pre">
             {[
@@ -1218,19 +1217,15 @@ type IncomingEvent = {
   ingestType: string;
   status: string;
   error: string;
-
   ingestPayload: any;
   unparsedPayload: string;
-
   messageId: string;
   type?: string;
   originDomain: string;
   writeKey: string;
   httpHeaders: Record<string, string>;
-
   event?: AnalyticsServerEvent;
   context?: AnalyticsContext;
-
   host?: string;
   pagePath?: string;
   pageURL?: string;
@@ -1239,7 +1234,6 @@ type IncomingEvent = {
   email?: string;
   anonymousId?: string;
   referringDomain?: string;
-
   destinations: string[];
 };
 
@@ -1273,13 +1267,10 @@ const IncomingEventsTable = ({
             id: ev.date + "_" + i,
             date: ev.date,
             ingestType: ingestPayload.ingestType,
-
             status: ev.content.status,
             error: ev.content.error,
-
             ingestPayload: ingestPayload,
             unparsedPayload: unparsedPayload,
-
             messageId: ingestPayload.messageId,
             type: ingestPayload.type,
             originDomain:
@@ -1289,10 +1280,8 @@ const IncomingEventsTable = ({
                 : ingestPayload.httpHeaders?.["x-forwarded-host"] || appConfig.publicEndpoints.dataHost),
             writeKey: ingestPayload.writeKey,
             httpHeaders: ingestPayload.httpHeaders,
-
             event: event,
             context: context,
-
             host: context?.page?.host,
             pageURL: context?.page?.url,
             pagePath: context?.page?.path,
@@ -1300,9 +1289,7 @@ const IncomingEventsTable = ({
             userId: event?.userId,
             email: context?.traits?.email || event?.traits?.email,
             anonymousId: event?.anonymousId,
-
             referringDomain: context?.page?.referring_domain,
-
             destinations: [...(ev.content.asyncDestinations ?? []), ...(ev.content.tags ?? [])],
           } as IncomingEvent;
         })
@@ -1316,11 +1303,11 @@ const IncomingEventsTable = ({
       render: d => {
         switch (d) {
           case "FAILED":
-            return <Tag color={"red"}>&nbsp;</Tag>;
+            return <Tag color="red">&nbsp;</Tag>;
           case "SUCCESS":
-            return <Tag color={"cyan"}>&nbsp;</Tag>;
+            return <Tag color="cyan">&nbsp;</Tag>;
           case "SKIPPED":
-            return <Tag color={"orange"}>&nbsp;</Tag>;
+            return <Tag color="orange">&nbsp;</Tag>;
           default:
             return <Tag>&nbsp;</Tag>;
         }
@@ -1350,7 +1337,7 @@ const IncomingEventsTable = ({
                   component={() => (isDeviceEvent ? <Globe className="w-3 h-3" /> : <Server className="w-3 h-3" />)}
                 />
               }
-              className={"whitespace-nowrap"}
+              className="whitespace-nowrap"
             >
               {trimMiddle(eventName || "", 16)}
             </Tag>
@@ -1365,9 +1352,9 @@ const IncomingEventsTable = ({
       key: "pagePath",
       render: (d: IncomingEvent) =>
         d.pageURL && (
-          <div className={"whitespace-nowrap"}>
-            <a href={d.pageURL} target={"_blank"} rel={"noreferrer noopener"}>
-              <ExternalLink className={"w-3.5 h-3.5"} />{" "}
+          <div className="whitespace-nowrap">
+            <a href={d.pageURL} target="_blank" rel="noreferrer noopener">
+              <ExternalLink className="w-3.5 h-3.5" />{" "}
             </a>
             {d.pagePath}
           </div>
@@ -1380,11 +1367,11 @@ const IncomingEventsTable = ({
       render: (d: IncomingEvent) => {
         if (d.status == "SKIPPED" || d.status == "FAILED") {
           return (
-            <div className={"flex flex-row"}>
+            <div className="flex flex-row">
               <Tag
                 color={d.status == "SKIPPED" ? "orange" : "error"}
                 icon={<WarningOutlined />}
-                className={"whitespace-nowrap"}
+                className="whitespace-nowrap"
               >
                 {d.error}
               </Tag>
@@ -1392,39 +1379,39 @@ const IncomingEventsTable = ({
           );
         }
         return (
-          <div className={"flex flex-row"}>
+          <div className="flex flex-row">
             <Geo geo={d.context?.geo} />
             {d.host && (
-              <Tooltip title={"Host"} key={"host"}>
-                <Tag color={"geekblue"} icon={<GlobalOutlined />} className={"whitespace-nowrap"}>
+              <Tooltip title="Host" key="host">
+                <Tag color="geekblue" icon={<GlobalOutlined />} className="whitespace-nowrap">
                   {d.host}
                 </Tag>
               </Tooltip>
             )}
             {d.email && (
-              <Tooltip title={"Email"} key={"email"}>
-                <Tag color={"green"} icon={<UserOutlined />} className={"whitespace-nowrap"}>
+              <Tooltip title="Email" key="email">
+                <Tag color="green" icon={<UserOutlined />} className="whitespace-nowrap">
                   {d.email}
                 </Tag>
               </Tooltip>
             )}
             {d.userId && !d.email && (
-              <Tooltip title={"User ID"} key={"userId"}>
-                <Tag color={"green"} icon={<UserOutlined />} className={"whitespace-nowrap"}>
+              <Tooltip title="User ID" key="userId">
+                <Tag color="green" icon={<UserOutlined />} className="whitespace-nowrap">
                   {d.userId.toString()}
                 </Tag>
               </Tooltip>
             )}
             {d.referringDomain && d.host !== d.referringDomain && (
-              <Tooltip title={"Referring Domain"} key={"rDomain"}>
-                <Tag color={"purple"} icon={<LinkOutlined />} className={"whitespace-nowrap"}>
+              <Tooltip title="Referring Domain" key="rDomain">
+                <Tag color="purple" icon={<LinkOutlined />} className="whitespace-nowrap">
                   {d.referringDomain}
                 </Tag>
               </Tooltip>
             )}
             {!d.userId && d.anonymousId && (
-              <Tooltip title={"Anonymous ID"} key={"anonymousId"}>
-                <Tag icon={<QuestionCircleOutlined />} className={"whitespace-nowrap"}>
+              <Tooltip title="Anonymous ID" key="anonymousId">
+                <Tag icon={<QuestionCircleOutlined />} className="whitespace-nowrap">
                   {d.anonymousId.toString()}
                 </Tag>
               </Tooltip>
