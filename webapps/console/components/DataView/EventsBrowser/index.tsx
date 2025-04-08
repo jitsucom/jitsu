@@ -1,16 +1,16 @@
 import dayjs, { Dayjs } from "dayjs";
 import utc from "dayjs/plugin/utc";
 import relativeTime from "dayjs/plugin/relativeTime";
-import { EventsLogRecord } from "../../lib/server/events-log";
+import { EventsLogRecord } from "../../../lib/server/events-log";
 import { ColumnsType } from "antd/es/table";
 import { Alert, Collapse, DatePicker, Input, Select, Table, Tag, Tooltip } from "antd";
-import { TableWithDrawer } from "./TableWithDrawer";
-import { JSONView } from "./JSONView";
-import { useAppConfig, useWorkspace } from "../../lib/context";
+import { TableWithDrawer } from "../TableWithDrawer";
+import { JSONView } from "../JSONView";
+import { useAppConfig, useWorkspace } from "../../../lib/context";
 import React, { ReactNode, useCallback, useEffect, useMemo, useReducer, useState } from "react";
-import { WLink } from "../Workspace/WLink";
-import { DestinationTitle } from "../../pages/[workspaceId]/destinations";
-import ExternalLink from "../Icons/ExternalLink";
+import { WLink } from "../../Workspace/WLink";
+import { DestinationTitle } from "../../../pages/[workspaceId]/destinations";
+import ExternalLink from "../../Icons/ExternalLink";
 import { AnalyticsContext, AnalyticsServerEvent, Geo as aGeo } from "@jitsu/protocols/analytics";
 import Icon, {
   GlobalOutlined,
@@ -19,16 +19,16 @@ import Icon, {
   UserOutlined,
   WarningOutlined,
 } from "@ant-design/icons";
-import { get, getConfigApi, useEventsLogApi } from "../../lib/useApi";
-import { FunctionTitle } from "../../pages/[workspaceId]/functions";
-import { FunctionConfig } from "../../lib/schema";
-import { arrayToMap } from "../../lib/shared/arrays";
+import { get, getConfigApi, useEventsLogApi } from "../../../lib/useApi";
+import { FunctionTitle } from "../../../pages/[workspaceId]/functions";
+import { FunctionConfig } from "../../../lib/schema";
+import { arrayToMap } from "../../../lib/shared/arrays";
 import { Bug, Globe, RefreshCw, Server } from "lucide-react";
-import { JitsuButton } from "../JitsuButton/JitsuButton";
-import { ConnectionTitle, ProfileBuilderTitle } from "../../pages/[workspaceId]/connections";
-import { StreamTitle } from "../../pages/[workspaceId]/streams";
-import { trimMiddle } from "../../lib/shared/strings";
-import { countries } from "../../lib/shared/countries";
+import { JitsuButton } from "../../JitsuButton/JitsuButton";
+import { ConnectionTitle, ProfileBuilderTitle } from "../../../pages/[workspaceId]/connections";
+import { StreamTitle } from "../../../pages/[workspaceId]/streams";
+import { trimMiddle } from "../../../lib/shared/strings";
+import { countries } from "../../../lib/shared/countries";
 import type { RefSelectProps } from "antd/es/select";
 
 import zlib from "zlib";
@@ -38,47 +38,15 @@ import {
   useConfigObjectLinks,
   useConfigObjectList,
   useProfileBuilders,
-} from "../../lib/store";
-import { coreDestinationsMap } from "../../lib/schema/destinations";
+} from "../../../lib/store";
+import { coreDestinationsMap } from "../../../lib/schema/destinations";
 import debounce from "lodash/debounce";
+import { defaultState, EventsBrowserState, EventsBrowserProps } from "./types";
 
 dayjs.extend(utc);
 dayjs.extend(relativeTime);
 
 const formatDate = (date: string | Date | Dayjs) => dayjs(date).utc().format("YYYY-MM-DD HH:mm:ss");
-
-type StreamType = "incoming" | "function" | "bulker";
-type Level = "all" | "error" | "info" | "debug" | "warn";
-type DatesRange = [string | null, string | null];
-
-type EventsBrowserProps = {
-  streamType: StreamType;
-  level: Level;
-  actorId: string;
-  dates: DatesRange;
-  search?: string;
-  patchQueryStringState: (key: string, value: any) => void;
-};
-
-type EventsBrowserState = {
-  bulkerMode?: "stream" | "batch";
-  eventsLoading: boolean;
-  events?: EventsLogRecord[];
-  initDate: Date;
-  refreshTime: Date;
-  previousRefreshTime?: Date;
-  beforeDate?: Date;
-  error?: string;
-};
-
-const defaultState: EventsBrowserState = {
-  bulkerMode: undefined,
-  eventsLoading: false,
-  events: undefined,
-  beforeDate: undefined,
-  refreshTime: new Date(),
-  initDate: new Date(),
-};
 
 function eventStreamReducer(state: EventsBrowserState, action: any) {
   if (action.type === "patch") {
