@@ -673,7 +673,7 @@ type TableProps = {
   loadEvents: () => void;
 };
 
-const FunctionsLogTable = ({ loadEvents, loading, streamType, entityType, actorId, events }: TableProps) => {
+const FunctionsLogTable = ({ loadEvents, loading, events }: TableProps) => {
   const workspace = useWorkspace();
   const [funcsMap, setFuncsMap] = useState<Record<string, FunctionConfig>>({});
 
@@ -817,7 +817,7 @@ const FunctionsLogTable = ({ loadEvents, loading, streamType, entityType, actorI
   );
 };
 
-const StreamEventsTable = ({ loadEvents, loading, streamType, entityType, actorId, events }: TableProps) => {
+const StreamEventsTable = ({ loadEvents, loading, events }: TableProps) => {
   const streamEvents = events
     ? events.map((e, i) => {
         e = {
@@ -913,7 +913,7 @@ const StreamEventsTable = ({ loadEvents, loading, streamType, entityType, actorI
   );
 };
 
-const BatchTable = ({ loadEvents, loading, streamType, entityType, actorId, events }: TableProps) => {
+const BatchTable = ({ loadEvents, loading, events }: TableProps) => {
   const batchEvents = (events || ([] as EventsLogRecord[])).map((e, i) => ({
     ...e,
     id: e.date + "_" + i,
