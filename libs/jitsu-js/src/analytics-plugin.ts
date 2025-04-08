@@ -339,6 +339,38 @@ export function windowRuntime(opts: JitsuOptions): RuntimeFacade {
   };
 }
 
+export function createInMemoryStore(debug?: boolean) {
+  const storage = {};
+  return {
+    reset(): void {
+      Object.keys(storage).forEach(key => delete storage[key]);
+    },
+    setItem(key: string, val: any) {
+      if (debug) {
+        console.log(`[JITSU EMPTY RUNTIME] Set storage item ${key}=${JSON.stringify(val)}`);
+      }
+      if (typeof val === "undefined") {
+        delete storage[key];
+      } else {
+        storage[key] = val;
+      }
+    },
+    getItem(key: string) {
+      const val = storage[key];
+      if (debug) {
+        console.log(`[JITSU EMPTY RUNTIME] Get storage item ${key}=${JSON.stringify(val)}`);
+      }
+      return val;
+    },
+    removeItem(key: string) {
+      if (debug) {
+        console.log(`[JITSU EMPTY RUNTIME] Get storage item ${key}=${storage[key]}`);
+      }
+      delete storage[key];
+    },
+  };
+}
+
 export const emptyRuntime = (config: JitsuOptions): RuntimeFacade => ({
   documentEncoding(): string | undefined {
     return undefined;
@@ -354,35 +386,7 @@ export const emptyRuntime = (config: JitsuOptions): RuntimeFacade => ({
   },
 
   store(): PersistentStorage {
-    const storage = {};
-    return {
-      reset(): void {
-        Object.keys(storage).forEach(key => delete storage[key]);
-      },
-      setItem(key: string, val: any) {
-        if (config.debug) {
-          console.log(`[JITSU EMPTY RUNTIME] Set storage item ${key}=${JSON.stringify(val)}`);
-        }
-        if (typeof val === "undefined") {
-          delete storage[key];
-        } else {
-          storage[key] = val;
-        }
-      },
-      getItem(key: string) {
-        const val = storage[key];
-        if (config.debug) {
-          console.log(`[JITSU EMPTY RUNTIME] Get storage item ${key}=${JSON.stringify(val)}`);
-        }
-        return val;
-      },
-      removeItem(key: string) {
-        if (config.debug) {
-          console.log(`[JITSU EMPTY RUNTIME] Get storage item ${key}=${storage[key]}`);
-        }
-        delete storage[key];
-      },
-    };
+    return createInMemoryStore(config.debug);
   },
   language() {
     return undefined;
