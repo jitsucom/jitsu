@@ -1237,15 +1237,7 @@ type IncomingEvent = {
   destinations: string[];
 };
 
-const IncomingEventsTable = ({
-  loadEvents,
-  loading,
-  streamType,
-  entityType,
-  actorId,
-  events,
-  mappedConnections,
-}: TableProps) => {
+const IncomingEventsTable = ({ loadEvents, loading, events, mappedConnections }: TableProps) => {
   const appConfig = useAppConfig();
   const mapEvents = evs =>
     evs
