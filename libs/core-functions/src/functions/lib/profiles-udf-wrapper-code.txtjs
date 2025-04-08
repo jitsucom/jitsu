@@ -1,22 +1,4 @@
 //** @UDF_FUNCTIONS_IMPORT **//
-import {DropRetryErrorName, RetryError, RetryErrorName} from "@jitsu/functions-lib";
-
-global.RetryError = RetryError;
-
-export function checkError(chainRes) {
-    for (const el of chainRes.execLog) {
-        const error = el.error;
-        if (error) {
-            throw error;
-            // _jitsu_log.error.apply(undefined, [{
-            //     function: {
-            //         ..._jitsu_funcCtx.function,
-            //         id: error.functionId || el.functionId
-            //     }
-            // }, `Function execution failed`, error.name, error.message], {arguments: {copy: true}});
-        }
-    }
-}
 
 function isDropResult(result) {
     return result === "drop" || (Array.isArray(result) && result.length === 0) || result === null || result === false;
@@ -28,27 +10,16 @@ async function runChain(
     user,
     ctx
 ) {
-    const execLog = [];
     const f = chain[0];
-    let result = undefined;
     try {
-        result = await f.f(events, user, ctx);
+        const result = await f.f(events, user, ctx);
+        if (isDropResult(result)) {
+            return undefined
+        }
+        return result
     } catch (err) {
-        if (err.name === DropRetryErrorName) {
-            result = "drop";
-        }
-        if (f.meta?.retryPolicy) {
-            err.retryPolicy = f.meta.retryPolicy;
-        }
-        execLog.push({
-            functionId: f.id,
-            error: err,
-        });
+       throw err;
     }
-    if (isDropResult(result)) {
-        result = undefined
-    }
-    return {result, execLog};
 }
 
 const wrappedFunctionChain = async function (eventsProvider, userProvider, ctx) {
@@ -116,9 +87,7 @@ const wrappedFunctionChain = async function (eventsProvider, userProvider, ctx) 
         },
     };
 
-    const chainRes = await runChain(chain, iterator, user, ctx);
-    checkError(chainRes);
-    return chainRes.result;
+    return runChain(chain, iterator, user, ctx);
 };
 
 const wrappedUserFunction = (id, f, funcCtx) => {

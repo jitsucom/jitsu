@@ -344,8 +344,8 @@ export async function runChain(
           chain.context.log.error(f.context, `Function execution failed`, ...args);
         }
         if (f.id === "udf.PIPELINE") {
-          if (err.name !== DropRetryErrorName && err.event) {
-            const errEvent = err.event;
+          if (err.name !== DropRetryErrorName) {
+            const errEvent = err.event || event;
             // if udf pipeline failed  w/o drop error pass partial result of pipeline to the destination function
             if (Array.isArray(errEvent)) {
               newEvents.push(...errEvent);

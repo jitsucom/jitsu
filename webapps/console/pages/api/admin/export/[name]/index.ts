@@ -273,6 +273,7 @@ const exports: Export[] = [
               options: {
                 ...data,
                 ...((workspace.featuresEnabled ?? []).includes("nofetchlogs") ? { fetchLogLevel: "debug" } : {}),
+                ...((workspace.featuresEnabled ?? []).includes("fastFunctions") ? { fastFunctions: true } : {}),
               },
               optionsHash: hash(data),
               updatedAt: dateMax(updatedAt, to.updatedAt),
