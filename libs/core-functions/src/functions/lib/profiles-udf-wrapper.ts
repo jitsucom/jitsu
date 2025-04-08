@@ -282,7 +282,7 @@ function wrap(connectionId: string, isolate: Isolate, context: Context, wrapper:
         undefined,
         [eventsProviderRef, userProviderRef, ctxCopy.copyInto({ release: true, transferIn: true })],
         {
-          result: { promise: true },
+          result: { promise: true, copy: true },
         }
       );
       switch (typeof res) {
@@ -292,9 +292,7 @@ function wrap(connectionId: string, isolate: Isolate, context: Context, wrapper:
         case "boolean":
           return undefined;
         default:
-          const r = (res as Reference).copy();
-          (res as Reference).release();
-          return r;
+          return res as any;
       }
     } catch (e: any) {
       if (isolate.isDisposed) {

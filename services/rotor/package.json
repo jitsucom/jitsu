@@ -18,6 +18,7 @@
     "test": "tsc -p . && BULKER_URL=dummy BULKER_AUTH_KEY=dummy jest --verbose"
   },
   "dependencies": {
+    "undici": "^6.21.2",
     "@amplitude/ua-parser-js": "^0.7.33",
     "@aws-sdk/client-s3": "^3.621.0",
     "@clickhouse/client": "^1.10.1",

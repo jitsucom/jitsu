@@ -11,11 +11,24 @@ import {
 } from "@jitsu/functions-lib";
 import { AnalyticsServerEvent, DataLayoutType } from "@jitsu/protocols/analytics";
 
+import { request, Agent } from "undici";
 import omit from "lodash/omit";
 import { MetricsMeta } from "./lib";
 import { UserRecognitionParameter } from "./user-recognition";
+import { parseNumber } from "juava";
 
 const JitsuInternalProperties = [TableNameParameter, UserRecognitionParameter];
+
+const concurrency = parseNumber(process.env.CONCURRENCY, 10);
+const fetchTimeoutMs = parseNumber(process.env.FETCH_TIMEOUT_MS, 2000);
+
+export const undiciAgent = new Agent({
+  connections: concurrency, // Limit concurrent kept-alive connections to not run out of resources
+  maxRequestsPerClient: 60000,
+  headersTimeout: fetchTimeoutMs,
+  connectTimeout: fetchTimeoutMs,
+  bodyTimeout: fetchTimeoutMs,
+});
 
 export type MappedEvent = {
   event: any;
@@ -228,19 +241,18 @@ const BulkerDestination: JitsuFunction<AnalyticsServerEvent, BulkerDestinationCo
       if (streamOptions && Object.keys(streamOptions).length > 0) {
         headers["streamOptions"] = JSON.stringify(streamOptions);
       }
-      const res = await ctx.fetch(
-        `${bulkerEndpoint}/post/${destinationId}?tableName=${table}`,
-        {
-          method: "POST",
-          headers,
-          body: payload,
-        },
-        { log: false }
-      );
-      if (!res.ok) {
-        throw new HTTPError(`HTTP Error: ${res.status} ${res.statusText}`, res.status, await res.text());
+      const res = await request(`${bulkerEndpoint}/post/${destinationId}?tableName=${table}`, {
+        method: "POST",
+        headers,
+        body: payload,
+        bodyTimeout: fetchTimeoutMs,
+        headersTimeout: fetchTimeoutMs,
+        dispatcher: undiciAgent,
+      });
+      if (res.statusCode != 200) {
+        throw new HTTPError(`HTTP Error: ${res.statusCode}`, res.statusCode, await res.body.text());
       } else {
-        ctx.log.debug(`HTTP Status: ${res.status} ${res.statusText} Response: ${await res.text()}`);
+        ctx.log.debug(`HTTP Status: ${res.statusCode} Response: ${await res.body.text()}`);
       }
     }
     return event;

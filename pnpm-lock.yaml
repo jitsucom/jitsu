@@ -395,6 +395,9 @@ importers:
       ts-jest:
         specifier: ^29.2.3
         version: 29.2.5(@babel/core@7.26.0)(@jest/transform@29.7.0)(@jest/types@29.6.3)(babel-jest@29.7.0(@babel/core@7.26.0))(jest@29.7.0(@types/node@18.19.61)(ts-node@10.9.2(@swc/core@1.11.10(@swc/helpers@0.5.15))(@types/node@22.13.10)(typescript@5.6.3)))(typescript@5.6.3)
+      undici:
+        specifier: ^6.21.2
+        version: 6.21.2
 
   libs/functions:
     devDependencies:
@@ -825,6 +828,9 @@ importers:
       tslib:
         specifier: ^2.6.3
         version: 2.8.0
+      undici:
+        specifier: ^6.21.2
+        version: 6.21.2
     devDependencies:
       '@babel/preset-env':
         specifier: ^7.25.2
@@ -14219,8 +14225,8 @@ packages:
   undici-types@6.20.0:
     resolution: {integrity: sha512-Ny6QZ2Nju20vw1SRHe3d9jVu6gJ+4e3+MMpqu7pqE5HT6WsTSlce++GQmK5UXS8mzV8DSYHrQH+Xrf2jVcuKNg==}
 
-  undici@6.20.1:
-    resolution: {integrity: sha512-AjQF1QsmqfJys+LXfGTNum+qw4S88CojRInG/6t31W/1fk6G59s92bnAvGz5Cmur+kQv2SURXEvvudLmbrE8QA==}
+  undici@6.21.2:
+    resolution: {integrity: sha512-uROZWze0R0itiAKVPsYhFov9LxrPMHLMEQFszeI2gCN6bnIIZ8twzBCJcN2LJrBBLfrP0t1FW0g+JmKVl8Vk1g==}
     engines: {node: '>=18.17'}
 
   unfetch@3.1.2:
@@ -21850,7 +21856,7 @@ snapshots:
       parse5: 7.2.1
       parse5-htmlparser2-tree-adapter: 7.1.0
       parse5-parser-stream: 7.1.2
-      undici: 6.20.1
+      undici: 6.21.2
       whatwg-mimetype: 4.0.0
 
   cheerio@1.0.0-rc.12:
@@ -32104,7 +32110,7 @@ snapshots:
 
   undici-types@6.20.0: {}
 
-  undici@6.20.1: {}
+  undici@6.21.2: {}
 
   unfetch@3.1.2: {}
 
