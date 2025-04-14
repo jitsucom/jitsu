@@ -20,3 +20,4 @@ node_modules
 /cli/build-scripts/dist/
 /libs/jsondiffpatch/coverage/
 /libs/jsondiffpatch/dist/
+/devenv-*

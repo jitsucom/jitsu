@@ -271,6 +271,17 @@ const WorkspaceSettingsComponent: React.FC<any> = () => {
             </JitsuButton>
           </div>
         </div>
+
+        <div className="px-8 py-6 border border-error rounded-lg mt-12 mb-12">
+          <div className="pb-6">
+            <p className="text-lg font-bold text-error">DANGER ZONE</p>
+          </div>
+          <div className="flex justify-center">
+            <JitsuButton size="large" type="primary" danger={true} onClick={_ => _}>
+              Delete this Workspace
+            </JitsuButton>
+          </div>
+        </div>
       </div>
     </div>
   );
