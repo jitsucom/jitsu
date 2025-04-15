@@ -239,7 +239,9 @@ describe("Test Functions Chain", () => {
       if (isEqual(req.body, expectedEvents[`${testName}_${counter}`])) {
         res.send({ ok: true });
       } else {
-        lastError = new Error(`${testName}_${counter} unexpected request:\n${JSON.stringify(req.body, null, 2)}`);
+        lastError = new Error(
+          `${testName}_${counter} unexpected webhook request:\n${JSON.stringify(req.body, null, 2)}`
+        );
         res.status(444).send({ ok: false });
       }
       counters[testName]++;
