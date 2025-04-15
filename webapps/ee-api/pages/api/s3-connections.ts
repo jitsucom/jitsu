@@ -40,6 +40,7 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
       frequency: 60,
       batchSize: 1_000_000,
     },
+    updatedAt: w.updatedAt,
     credentials: {
       region: process.env.S3_REGION,
       accessKeyId: process.env.S3_ACCESS_KEY_ID,

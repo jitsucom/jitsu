@@ -18,7 +18,6 @@ import {
   AlertCircle,
   CalendarIcon,
   CheckCircle2,
-  ChevronLeft,
   ClockAlert,
   Edit3,
   ListMinusIcon,
@@ -38,6 +37,7 @@ import { useConfigObjectLinks, useConfigObjectList } from "../../../lib/store";
 import { Spinner } from "../../../components/GlobalLoader/GlobalLoader";
 import { MdOutlineCancel } from "react-icons/md";
 import escape from "lodash/escape";
+import { BackButton } from "../../../components/BackButton/BackButton";
 
 dayjs.extend(utc);
 dayjs.extend(relativeTime);
@@ -837,14 +837,7 @@ function Tasks() {
             >
               Refresh
             </JitsuButton>
-            <JitsuButton
-              icon={<ChevronLeft className="w-6 h-6" />}
-              type="link"
-              size="small"
-              onClick={() => router.push(`/${workspace.slugOrId}/syncs`)}
-            >
-              Back
-            </JitsuButton>
+            <BackButton href={`/${workspace.slugOrId}/syncs`} />
           </div>
         </div>
       </div>

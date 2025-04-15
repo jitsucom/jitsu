@@ -3,6 +3,10 @@ import { store } from "./services";
 import { assertDefined, assertTrue, getLog, requireDefined } from "juava";
 import { omit } from "lodash";
 import assert from "assert";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+
+dayjs.extend(utc);
 
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
   apiVersion: "2022-11-15",
@@ -19,6 +23,10 @@ export type SubscriptionStatus = {
   planId: string;
   isLegacyPlan?: boolean;
   expiresAt?: string;
+  currentPeriod?: {
+    start: string;
+    end: string;
+  };
   renewAfterExpiration?: boolean;
 } & Record<string, any>;
 
@@ -129,12 +137,20 @@ export async function getOrCreateCurrentSubscription(
       expiresAt.setUTCMonth(expiresAt.getUTCMonth() + 1);
     }
 
+    // Calculate current period start (one month before expiresAt). Assuming monthly subscription
+    const currentPeriodStart = new Date(expiresAt);
+    currentPeriodStart.setUTCMonth(currentPeriodStart.getUTCMonth() - 1);
+
     return {
       stripeCustomerId: stripeOptions.stripeCustomerId,
       subscriptionStatus: {
         customBilling: true,
         planId: "$custom",
         expiresAt: expiresAt.toISOString(),
+        currentPeriod: {
+          start: dayjs(currentPeriodStart).utc().startOf("day").toISOString(),
+          end: dayjs(expiresAt).utc().endOf("day").toISOString(),
+        },
         renewAfterExpiration: true,
         ...stripeOptions.customSettings,
       },
@@ -230,10 +246,20 @@ export async function getActivePlan(customerId: string): Promise<null | Subscrip
       `Can't find product for subscription ${subscription.id}`
     );
     return {
-      planId: requireDefined(product.metadata?.jitsu_plan_id),
+      planId: requireDefined(product.metadata?.jitsu_plan_id, `jitsu_plan_id is not defined`),
       planName: product.name,
       isLegacyPlan: product.metadata?.is_legacy === "true" || product.metadata?.is_legacy === "1",
       expiresAt: new Date(subscription.current_period_end * 1000).toISOString(),
+      currentPeriod: {
+        start: dayjs(subscription.current_period_start * 1000)
+          .utc()
+          .startOf("day")
+          .toISOString(),
+        end: dayjs(subscription.current_period_end * 1000)
+          .utc()
+          .endOf("day")
+          .toISOString(),
+      },
       renewAfterExpiration: !subscription.cancel_at_period_end,
       pastDue: pastDueSubscription && !activeSubscription,
       //omit token field that might be considered as sensitive

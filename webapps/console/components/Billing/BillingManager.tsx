@@ -223,9 +223,9 @@ const ConnectorUsageSection: React.FC<{}> = () => {
   const user = useUser();
   let periodStart: Date;
   let periodEnd: Date;
-  if (billing.settings.expiresAt) {
-    periodEnd = dayjs(billing.settings.expiresAt).utc().startOf("day").add(-1, "millisecond").toDate();
-    periodStart = dayjs(billing.settings.expiresAt).utc().add(-1, "month").startOf("day").toDate();
+  if (billing.settings?.currentPeriod) {
+    periodEnd = new Date(billing.settings?.currentPeriod.end);
+    periodStart = new Date(billing.settings?.currentPeriod.start);
   } else {
     periodStart = dayjs().utc().startOf("month").toDate();
     periodEnd = dayjs().utc().endOf("month").add(-1, "millisecond").toDate();

@@ -10,7 +10,6 @@ import styles from "./WorkspacePageLayout.module.css";
 import {
   Activity,
   AlertCircle,
-  ArrowLeftRight,
   ArrowRight,
   BellIcon,
   ChevronDown,
@@ -50,14 +49,12 @@ import { get, useApi } from "../../lib/useApi";
 
 import { Overlay } from "../Overlay/Overlay";
 import { WorkspaceNameAndSlugEditor } from "../WorkspaceNameAndSlugEditor/WorkspaceNameAndSlugEditor";
-import { assertDefined, assertTrue, getLog, requireDefined } from "juava";
+import { assertDefined, assertTrue, getLog } from "juava";
 import classNames from "classnames";
-import { getEeClient } from "../../lib/ee-client";
 import { BillingBlockingDialog } from "../Billing/BillingBlockingDialog";
 import { signOut } from "next-auth/react";
 import { firebaseSignOut } from "../../lib/firebase-client";
 import { feedbackError } from "../../lib/ui";
-import { useClassicProject } from "./ClassicProjectProvider";
 import { useJitsu } from "@jitsu/jitsu-react";
 import { useSearchParams } from "next/navigation";
 import omit from "lodash/omit";
@@ -197,42 +194,6 @@ function WorkspacesMenu(props: { jitsuClassicAvailable: boolean }) {
             }
           },
         },
-        ...(props.jitsuClassicAvailable
-          ? [
-              {
-                key: "switch",
-                label: (
-                  <ButtonLabel
-                    iconSize="small"
-                    icon={
-                      classicLoading ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        <ArrowLeftRight className="h-4 w-4 mr-2" />
-                      )
-                    }
-                  >
-                    Switch to Jitsu Classic
-                  </ButtonLabel>
-                ),
-                onClick: async () => {
-                  setClassicLoading(true);
-                  try {
-                    const eeClient = getEeClient(
-                      requireDefined(appConfig.ee.host, `EE is not available`),
-                      workspace.id
-                    );
-                    const customToken = await eeClient.createCustomToken();
-                    window.location.href = `${appConfig.jitsuClassicUrl}/?token=${customToken}`;
-                  } catch (e) {
-                    feedbackError(`Can't navigate to Jitsu.Classic`, { error: e });
-                  } finally {
-                    //setClassicLoading(false);
-                  }
-                },
-              },
-            ]
-          : []),
         ...additionalMenuItems,
       ]}
     />
@@ -355,8 +316,6 @@ export const TopTabsMenu: React.FC<TopTabsMenuProps> = props => {
 
 function Breadcrumbs() {
   const workspace = useWorkspace();
-  const appConfig = useAppConfig();
-  const classicProject = useClassicProject();
 
   return (
     <div className="flex py-4 items-center">
@@ -371,36 +330,6 @@ function Breadcrumbs() {
       <div>
         <WorkspaceSelector currentTitle={workspace.name} />
       </div>
-      {classicProject.active && !!classicProject.project && (
-        <>
-          <div className="pl-2 w-8 h-8 text-textLight">
-            <svg fill="none" height="100%" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" width="100%">
-              <path d="M16.88 3.549L7.12 20.451" />
-            </svg>
-          </div>
-          <div>
-            <button
-              className={"h-8 ml-3.5 mr-1.5 outline-0"}
-              onClick={async () => {
-                try {
-                  const eeClient = getEeClient(requireDefined(appConfig.ee.host, `EE is not available`), workspace.id);
-                  const customToken = await eeClient.createCustomToken();
-                  window.location.href = `${appConfig.jitsuClassicUrl}/?token=${customToken}`;
-                } catch (e) {
-                  feedbackError(`Can't navigate to Jitsu.Classic`, { error: e });
-                }
-              }}
-            >
-              <img alt={""} src="/logo-classic-gray.svg" className="h-5 w-5 mr-2" /> Switch to Jitsu Classic
-            </button>
-          </div>
-          <div className={""}>
-            <a target={"_blank"} rel={"noreferrer noopener"} href="https://jitsu.com/blog/jitsu-next#migration-faq">
-              ( <u>Read about migration</u> )
-            </a>
-          </div>
-        </>
-      )}
     </div>
   );
 }

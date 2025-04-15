@@ -11,9 +11,8 @@ import { BaseBulkerConnectionOptions, getCoreDestinationType } from "../../lib/s
 import { confirmOp, copyTextToClipboard, feedbackError, feedbackSuccess } from "../../lib/ui";
 import FieldListEditorLayout, { EditorItem } from "../FieldListEditorLayout/FieldListEditorLayout";
 import { DataLayoutType } from "@jitsu/protocols/analytics";
-import { Activity, ChevronLeft, Copy } from "lucide-react";
+import { Activity, Copy } from "lucide-react";
 import styles from "./ConnectionEditorPage.module.css";
-import { JitsuButton } from "../JitsuButton/JitsuButton";
 import { Htmlizer } from "../Htmlizer/Htmlizer";
 import { FunctionsSelector } from "../FunctionsSelector/FunctionsSelector";
 import { Expandable } from "../Expandable/Expandable";
@@ -24,6 +23,7 @@ import { FunctionVariables } from "../FunctionsDebugger/FunctionVariables";
 import { EditorToolbar } from "../EditorToolbar/EditorToolbar";
 import JSON5 from "json5";
 import { toURL } from "../../lib/shared/url";
+import { BackButton } from "../BackButton/BackButton";
 
 const log = getLog("ConnectionEditorPage");
 
@@ -707,9 +707,7 @@ function ConnectionEditor({
     <div className="max-w-5xl grow">
       <div className="flex justify-between pb-4 mb-0 items-center">
         <h1 className="text-3xl">{(existingLink ? "Edit" : "Create") + " connection"}</h1>
-        <JitsuButton icon={<ChevronLeft className="w-6 h-6" />} type="link" size="small" onClick={() => router.back()}>
-          Back
-        </JitsuButton>
+        <BackButton href={`/${workspace.slugOrId}/connections`} />
       </div>
       {existingLink && (
         <div>

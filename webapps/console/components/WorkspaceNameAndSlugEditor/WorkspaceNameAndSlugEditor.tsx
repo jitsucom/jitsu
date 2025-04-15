@@ -1,14 +1,9 @@
-import { useAppConfig, useUser, useWorkspace } from "../../lib/context";
+import { useUser, useWorkspace } from "../../lib/context";
 import React, { useState } from "react";
 import { Button, Input } from "antd";
 import { get } from "../../lib/useApi";
 import { copyTextToClipboard, feedbackError, feedbackSuccess } from "../../lib/ui";
 import { publicEmailDomains } from "../../lib/shared/email-domains";
-import { getEeClient } from "../../lib/ee-client";
-import { requireDefined } from "juava";
-import { useClassicProject } from "../PageLayout/ClassicProjectProvider";
-import { JitsuButton } from "../JitsuButton/JitsuButton";
-import { QuestionCircleOutlined } from "@ant-design/icons";
 
 function ensureLength(res): string {
   return res.length < 5 ? res + "project" : res;
@@ -44,8 +39,6 @@ export function WorkspaceNameAndSlugEditor({
   onboarding?: boolean;
 }) {
   const workspace = useWorkspace();
-  const appConfig = useAppConfig();
-  const classicProject = useClassicProject();
   const user = useUser();
   const [name, setName] = useState(workspace.name);
   const [slug, setSlug] = useState(workspace.slug || pickSlug(user.email, workspace.name));
@@ -95,41 +88,7 @@ export function WorkspaceNameAndSlugEditor({
         </>
       )}
       <div className="pt-6 flex justify-between">
-        <div className={"flex items-end"}>
-          {offerClassic && classicProject.active && !!classicProject.project && (
-            <>
-              <div>
-                <JitsuButton
-                  type={"primary"}
-                  ghost={true}
-                  icon={<img alt={""} src="/logo-classic.svg" className="h-5 w-5 mr-2" />}
-                  onClick={async () => {
-                    try {
-                      const eeClient = getEeClient(
-                        requireDefined(appConfig.ee.host, `EE is not available`),
-                        workspace.id
-                      );
-                      const customToken = await eeClient.createCustomToken();
-                      window.location.href = `${appConfig.jitsuClassicUrl}/?token=${customToken}`;
-                    } catch (e) {
-                      feedbackError(`Can't navigate to Jitsu.Classic`, { error: e });
-                    }
-                  }}
-                >
-                  Switch to Jitsu Classic
-                </JitsuButton>
-              </div>
-              <div className={"pl-2"}>
-                <JitsuButton
-                  icon={<QuestionCircleOutlined className={"mr-1"} />}
-                  onClick={() => window.open("https://jitsu.com/blog/jitsu-next#migration-faq", "_blank")}
-                >
-                  Read about migration
-                </JitsuButton>
-              </div>
-            </>
-          )}
-        </div>
+        <div className={"flex items-end"}></div>
         <Button
           type="primary"
           loading={loading}
