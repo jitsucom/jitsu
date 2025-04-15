@@ -25,6 +25,7 @@ export const CONNECTION_IDS_HEADER = "connection_ids";
 
 const concurrency = parseNumber(process.env.CONCURRENCY, 10);
 const fetchTimeoutMs = parseNumber(process.env.FETCH_TIMEOUT_MS, 2000);
+const rotorIndex = parseNumber(process.env.INSTANCE_INDEX, 0);
 
 export type KafkaRotorConfig = {
   credentials: KafkaCredentials;
@@ -106,25 +107,27 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
         labelNames: ["topic"] as const,
       });
 
-      interval = setInterval(async () => {
-        try {
-          for (const topic of kafkaTopics) {
-            const watermarks = await admin.fetchTopicOffsets(topic);
-            for (const o of watermarks) {
-              topicOffsets.set({ topic: topic, partition: o.partition, offset: "high" }, parseInt(o.high));
-              topicOffsets.set({ topic: topic, partition: o.partition, offset: "low" }, parseInt(o.low));
+      if (rotorIndex === 0) {
+        interval = setInterval(async () => {
+          try {
+            for (const topic of kafkaTopics) {
+              const watermarks = await admin.fetchTopicOffsets(topic);
+              for (const o of watermarks) {
+                topicOffsets.set({ topic: topic, partition: o.partition, offset: "high" }, parseInt(o.high));
+                topicOffsets.set({ topic: topic, partition: o.partition, offset: "low" }, parseInt(o.low));
+              }
             }
-          }
-          const offsets = await admin.fetchOffsets({ groupId: consumerGroupId, topics: kafkaTopics });
-          for (const o of offsets) {
-            for (const p of o.partitions) {
-              topicOffsets.set({ topic: o.topic, partition: p.partition, offset: "offset" }, parseInt(p.offset));
+            const offsets = await admin.fetchOffsets({ groupId: consumerGroupId, topics: kafkaTopics });
+            for (const o of offsets) {
+              for (const p of o.partitions) {
+                topicOffsets.set({ topic: o.topic, partition: p.partition, offset: "offset" }, parseInt(p.offset));
+              }
             }
+          } catch (e) {
+            log.atError().withCause(e).log("Failed to commit offsets");
           }
-        } catch (e) {
-          log.atError().withCause(e).log("Failed to commit offsets");
-        }
-      }, 60000);
+        }, 60000);
+      }
 
       async function onMessage(message: KafkaMessage, topic: string, partition: number) {
         messagesConsumed.inc({ topic, partition });

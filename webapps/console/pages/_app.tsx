@@ -28,9 +28,9 @@ import { FirebaseProvider, useFirebaseSession } from "../lib/firebase-client";
 import { SignIn } from "../components/SignInOrUp/SignIn";
 import { JitsuButton } from "../components/JitsuButton/JitsuButton";
 import { BillingProvider } from "../components/Billing/BillingProvider";
-import { ClassicProjectProvider } from "../components/PageLayout/ClassicProjectProvider";
 import { useConfigObjectList, useConfigObjectsUpdater, useLoadedWorkspace } from "../lib/store";
 import { Redirect } from "../components/Redirect/Redirect";
+import { PreviousRouteContextProvider } from "../lib/previous-route";
 
 const log = getLog("app");
 
@@ -465,7 +465,7 @@ const WorkspaceLoader: React.FC<
   return (
     <WorkspaceContextProvider workspace={{ ...workspace, slugOrId: workspace?.slug || workspace?.id }}>
       <BillingProvider sendAnalytics={true} enabled={appConfig.billingEnabled}>
-        <ClassicProjectProvider>{children}</ClassicProjectProvider>
+        <PreviousRouteContextProvider>{children}</PreviousRouteContextProvider>
       </BillingProvider>
     </WorkspaceContextProvider>
   );

@@ -3,10 +3,11 @@ import { useWorkspace } from "../../../lib/context";
 import React, { ReactNode, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import { JitsuButton } from "../../../components/JitsuButton/JitsuButton";
-import { ChevronLeft, FileDown, RefreshCw } from "lucide-react";
+import { FileDown, RefreshCw } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { LoadingAnimation } from "../../../components/GlobalLoader/GlobalLoader";
 import escape from "lodash/escape";
+import { BackButton } from "../../../components/BackButton/BackButton";
 
 function colorLogs(data: string[]): ReactNode {
   return data.map((line, i) => {
@@ -113,14 +114,7 @@ function TaskLogs() {
           >
             Refresh
           </JitsuButton>
-          <JitsuButton
-            icon={<ChevronLeft className="w-6 h-6" />}
-            type="link"
-            size="small"
-            onClick={() => router.back()}
-          >
-            Back
-          </JitsuButton>
+          <BackButton href={`/${workspace.slugOrId}/syncs/tasks?query={syncId:'${router.query.syncId}'}`} />
         </div>
       </div>
       <div

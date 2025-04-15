@@ -1,12 +1,10 @@
-import React, { PropsWithChildren, useMemo, useState } from "react";
+import React, { PropsWithChildren, useState } from "react";
 import { CustomWidgetProps } from "../ConfigObjectEditor/Editors";
-import { useAppConfig, useWorkspace } from "../../lib/context";
+import { useWorkspace } from "../../lib/context";
 import { DomainCheckResponse } from "../../lib/shared/domain-check-response";
 import { get } from "../../lib/useApi";
 import { confirmOp, feedbackError } from "../../lib/ui";
 import { Button, Input, notification, Tag, Tooltip } from "antd";
-import { getEeClient } from "../../lib/ee-client";
-import { requireDefined } from "juava";
 import { useQuery } from "@tanstack/react-query";
 import { getAntdModal, useAntdModal } from "../../lib/modal";
 import { Globe } from "lucide-react";
@@ -54,14 +52,9 @@ const CustomDomain: React.FC<{ domain: string; deleteDomain?: () => Promise<void
   deleteDomain,
   workspaceDomain,
 }) => {
-  const appConfig = useAppConfig();
   const workspace = useWorkspace();
   const router = useRouter();
 
-  const eeClient = useMemo(
-    () => getEeClient(requireDefined(appConfig.ee.host, `EE is not available`), workspace.id),
-    [appConfig.ee.host, workspace.id]
-  );
   const [reloadTrigger, setReloadTrigger] = useState(0);
   const [deleting, setDeleting] = useState(false);
   const { data, isLoading, error, refetch } = useQuery<DomainCheckResponse>(

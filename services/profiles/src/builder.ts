@@ -17,7 +17,7 @@ import {
   EnrichedConnectionConfig,
   Profile,
 } from "@jitsu/core-functions";
-import { FindCursor, MongoClient, ObjectId, WithId, Document } from "mongodb";
+import { FindCursor, MongoClient, ObjectId, WithId, Document, ReadPreference } from "mongodb";
 import { db, ProfileBuilderState } from "./lib/db";
 import { getLog, getSingleton, hash, LogFactory, parseNumber, requireDefined, stopwatch } from "juava";
 import PQueue from "p-queue";
@@ -354,11 +354,14 @@ async function getProfileEvents(mongo: MongoClient, config: ProfilesConfig, prof
   return mongo
     .db(config.eventsDatabase)
     .collection(config.eventsCollectionName)
-    .find({
-      [profileIdHashColumn]: int32Hash(profileId),
-      [profileIdColumn]: profileId,
-      _id: { $lt: new ObjectId(Math.floor(endTimestamp.getTime() / 1000).toString(16) + "0000000000000000") },
-    });
+    .find(
+      {
+        [profileIdHashColumn]: int32Hash(profileId),
+        [profileIdColumn]: profileId,
+        _id: { $lt: new ObjectId(Math.floor(endTimestamp.getTime() / 1000).toString(16) + "0000000000000000") },
+      },
+      { readPreference: ReadPreference.NEAREST }
+    );
 }
 
 async function getProfileUser(
@@ -371,7 +374,7 @@ async function getProfileUser(
   const u = await mongo
     .db(config.eventsDatabase)
     .collection(config.traitsCollectionName)
-    .findOne({ [profileIdColumn]: profileId });
+    .findOne({ [profileIdColumn]: profileId }, { readPreference: ReadPreference.NEAREST });
   metrics.db_user = Date.now() - start;
   if (!u) {
     return {
@@ -425,6 +428,7 @@ async function getProfilesHavingEventsSince(
         },
       },
     ])
+    .withReadPreference(ReadPreference.NEAREST)
     .map(e => e._id as string)
     .toArray();
 }

@@ -5,13 +5,12 @@ import { useWorkspace } from "../../../lib/context";
 import { requireDefined, rpc } from "juava";
 import { useConfigObjectLinks, useConfigObjectList } from "../../../lib/store";
 import { Button } from "antd";
-import { ChevronLeft } from "lucide-react";
 import { LoadingAnimation } from "../../../components/GlobalLoader/GlobalLoader";
 import { CodeEditor } from "../../../components/CodeEditor/CodeEditor";
 import { SimpleErrorCard } from "../../../components/GlobalError/GlobalError";
-import { JitsuButton } from "../../../components/JitsuButton/JitsuButton";
 import { ConnectionTitle } from "../connections";
 import { feedbackError } from "../../../lib/ui";
+import { BackButton } from "../../../components/BackButton/BackButton";
 
 function StateEditor() {
   const router = useRouter();
@@ -147,9 +146,7 @@ function StateEditor() {
     <div className="max-w-5xl grow">
       <div className="flex justify-between pb-0 mb-0 items-start">
         <ConnectionTitle connectionId={existingLink.id} destination={destination} service={service} showLink={false} />
-        <JitsuButton icon={<ChevronLeft className="w-6 h-6" />} type="link" size="small" onClick={() => router.back()}>
-          Back
-        </JitsuButton>
+        <BackButton useHistory={true} href={`/${workspace.slugOrId}/syncs/edit?id=${existingLink.id}`} />
       </div>
       <div className="w-full">
         <div className="flex flex-row items-center justify-between gap-2 mt-4 mb-3">

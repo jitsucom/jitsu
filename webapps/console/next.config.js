@@ -1,18 +1,16 @@
 /** @type {import("next").NextConfig} */
 
-const withBundleAnalyzer = require('@next/bundle-analyzer')({
-  enabled: process.env.ANALYZE === 'true',
+const withBundleAnalyzer = require("@next/bundle-analyzer")({
+  enabled: process.env.ANALYZE === "true",
 });
 
 module.exports = withBundleAnalyzer({
   transpilePackages: ["juava", "@jitsu/protocols", "@jitsu/core-functions", "@jitsu-internal/webapps-shared"],
-  experimental: {
-    turbo: {
-      rules: {
-        '*.txt': {
-          loaders: ['raw-loader'],
-          as: '*.js',
-        },
+  turbopack: {
+    rules: {
+      "*.txt": {
+        loaders: ["raw-loader"],
+        as: "*.js",
       },
     },
   },
@@ -65,8 +63,8 @@ module.exports = withBundleAnalyzer({
   },
   ...(process.env.NEXTJS_STANDALONE_BUILD === "1"
     ? {
-        output: "standalone",
-      }
+      output: "standalone",
+    }
     : {}),
   webpack: (config, opts) => {
     // Fixes npm packages that depend on `fs` and 'dns' module
@@ -82,7 +80,7 @@ module.exports = withBundleAnalyzer({
       config.plugins.push(new opts.webpack.IgnorePlugin({ resourceRegExp: /^posthog-node$/ }));
     }
     if (!opts.dev) {
-      config.devtool = 'source-map'
+      config.devtool = "source-map";
     }
     config.externals["isolated-vm"] = "require('isolated-vm')";
     config.module.rules.push({

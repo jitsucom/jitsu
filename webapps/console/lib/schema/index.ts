@@ -35,6 +35,16 @@ export const BillingSettings = z.object({
   dataRetentionEditorEnabled: z.boolean().default(false).optional(),
   destinationEvensPerMonth: z.number().default(200_000),
   expiresAt: z.string().optional(),
+  /**
+   * Subscription period. For monthly subscriptions it will be [expiresAt - 1 month, expiresAt]. For annual subscriptions - current
+   * month adjusted to a correct billing start date
+   */
+  currentPeriod: z
+    .object({
+      end: z.string(),
+      start: z.string(),
+    })
+    .optional(),
   renewAfterExpiration: z.boolean().default(false).optional(),
   //if subscription starts some time in the future, for enterprise plans only
   futureSubscriptionDate: z.string().optional(),

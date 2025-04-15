@@ -11,8 +11,7 @@ import { Button, Checkbox, Input, Select, Switch, Tooltip } from "antd";
 import { getCoreDestinationType } from "../../lib/schema/destinations";
 import { confirmOp, copyTextToClipboard, feedbackError, feedbackSuccess } from "../../lib/ui";
 import FieldListEditorLayout, { EditorItem } from "../FieldListEditorLayout/FieldListEditorLayout";
-import { ChevronLeft, Copy, ExternalLink, ListMinusIcon } from "lucide-react";
-import { JitsuButton } from "../JitsuButton/JitsuButton";
+import { Copy, ExternalLink, ListMinusIcon } from "lucide-react";
 import { LoadingAnimation } from "../GlobalLoader/GlobalLoader";
 import { ServiceTitle } from "../../pages/[workspaceId]/services";
 import { SwitchComponent } from "../ConnectionEditorPage/ConnectionEditorPage";
@@ -30,6 +29,9 @@ import { EditorToolbar } from "../EditorToolbar/EditorToolbar";
 import JSON5 from "json5";
 import { FaRegFloppyDisk } from "react-icons/fa6";
 import { FunctionVariables } from "../FunctionsDebugger/FunctionVariables";
+import { BackButton } from "../BackButton/BackButton";
+import { JitsuButton } from "../JitsuButton/JitsuButton";
+import { FaExternalLinkAlt } from "react-icons/fa";
 
 const log = getLog("SyncEditorPage");
 
@@ -82,7 +84,7 @@ const namespaceImplementation: Record<string, { name: string; field: string }> =
   gcs: { name: "folder", field: "folder" },
 };
 
-function ServiceSelector(props: SelectorProps<ServiceConfig> & { refreshCatalogCb?: () => void }) {
+function ServiceSelector(props: SelectorProps<ServiceConfig>) {
   return (
     <div className="flex items-center justify-between">
       <Disable disabled={!props.enabled} disabledReason={props.disabledReason}>
@@ -105,17 +107,12 @@ function ServiceSelector(props: SelectorProps<ServiceConfig> & { refreshCatalogC
           ))}
         </Select>
       </Disable>
-      {props.refreshCatalogCb && (
-        <Button
-          className={"mb-2"}
-          type={"primary"}
-          ghost={true}
-          onClick={() => {
-            props.refreshCatalogCb?.();
-          }}
-        >
-          Refresh Catalog
-        </Button>
+      {!props.enabled && props.showLink && (
+        <div className="text-lg px-6">
+          <WLink href={`/services?id=${props.selected}`}>
+            <FaExternalLinkAlt />
+          </WLink>
+        </div>
       )}
     </div>
   );
@@ -396,6 +393,7 @@ function SyncEditor({
           items={services}
           selected={srvId}
           enabled={!existingLink}
+          showLink
           onSelect={v => {
             setLoadingCatalog(true);
             setSrvId(v);
@@ -403,15 +401,6 @@ function SyncEditor({
             setCatalog(undefined);
             updateOptions({ streams: undefined });
           }}
-          refreshCatalogCb={
-            usesBulker
-              ? () => {
-                  setLoadingCatalog(true);
-                  setCatalog(undefined);
-                  setRefreshCatalog(refreshCatalog + 1);
-                }
-              : undefined
-          }
         />
       ),
     },
@@ -424,6 +413,7 @@ function SyncEditor({
         <DestinationSelector
           items={destinations}
           selected={dstId}
+          showLink
           enabled={!existingLink}
           disabledReason={"Create a new sync if you want to change the source"}
           onSelect={id => {
@@ -816,9 +806,7 @@ function SyncEditor({
     <div className="max-w-5xl grow">
       <div className="flex justify-between pb-4 mb-0 items-center">
         <h1 className="text-3xl">{(existingLink ? "Edit" : "Create") + " sync"}</h1>
-        <JitsuButton icon={<ChevronLeft className="w-6 h-6" />} type="link" size="small" onClick={() => router.back()}>
-          Back
-        </JitsuButton>
+        <BackButton href={`/${workspace.slugOrId}/syncs`} />
       </div>
       {existingLink && (
         <div>
@@ -858,18 +846,33 @@ function SyncEditor({
               title: (
                 <div className="flex flex-row items-center justify-between gap-2 mt-4 mb-3">
                   <div className={"text-xl"}>Streams</div>
-                  <div className={"flex gap-2 pr-2"}>
-                    Switch All
-                    <Switch
-                      checked={Object.keys(syncOptions?.streams || {}).length > 0}
-                      onChange={ch => {
-                        if (ch) {
-                          addAllStreams();
-                        } else {
-                          deleteAllStreams();
-                        }
-                      }}
-                    />
+                  <div className={"flex items-center gap-5"}>
+                    {usesBulker && (
+                      <JitsuButton
+                        type="primary"
+                        ghost
+                        onClick={() => {
+                          setLoadingCatalog(true);
+                          setCatalog(undefined);
+                          setRefreshCatalog(refreshCatalog + 1);
+                        }}
+                      >
+                        Refresh Catalog
+                      </JitsuButton>
+                    )}
+                    <div className={"flex gap-2 pr-2"}>
+                      Switch All
+                      <Switch
+                        checked={Object.keys(syncOptions?.streams || {}).length > 0}
+                        onChange={ch => {
+                          if (ch) {
+                            addAllStreams();
+                          } else {
+                            deleteAllStreams();
+                          }
+                        }}
+                      />
+                    </div>
                   </div>
                 </div>
               ),
