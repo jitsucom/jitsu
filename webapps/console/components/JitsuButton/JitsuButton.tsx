@@ -10,6 +10,7 @@ import { useWorkspace } from "../../lib/context";
 export type JitsuButtonProps = ButtonProps & {
   //set to true if href is relative workspace link
   ws?: boolean;
+  className?: string;
 };
 
 export const WJitsuButton: React.FC<JitsuButtonProps & Required<Pick<ButtonProps, "href">>> = p => {
@@ -26,7 +27,7 @@ const HJitsuButton: React.FC<JitsuButtonProps & Required<Pick<ButtonProps, "href
 
 function Button0(props: JitsuButtonProps) {
   return (
-    <Button {...omit(props, "href", "children", "icon", "iconPosition")} className={"pr-1"}>
+    <Button {...omit(props, "href", "children", "icon", "iconPosition")} className={`pr-1 ${props.className}`}>
       {props.icon ? (
         <ButtonLabel icon={props.icon} iconPosition={props.iconPosition} loading={!!props.loading}>
           {props.children}
