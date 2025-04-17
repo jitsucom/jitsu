@@ -232,7 +232,6 @@ const Members: React.FC<any> = () => {
 const WorkspaceSettingsComponent: React.FC<any> = () => {
   const config = useAppConfig();
   const workspace = useWorkspace();
-  console.log(workspace);
   return (
     <div className="flex justify-center">
       <div className="w-full max-w-4xl grow">
@@ -275,7 +274,7 @@ const WorkspaceSettingsComponent: React.FC<any> = () => {
 
         <div className="px-8 py-6 border border-error rounded-lg mt-12 mb-12">
           <p className="text-lg mb-6 font-bold text-error uppercase">danger zone</p>
-          <JitsuButton size="large" type="primary" danger={true} onClick={_ => _} className="capitalize">
+          <JitsuButton size="large" type="primary" danger={true} onClick={_ => _} className="capitalize !flex mx-auto">
             delete this workspace
           </JitsuButton>
         </div>
