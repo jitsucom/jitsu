@@ -873,6 +873,12 @@ const StreamEventsTable = ({ loadEvents, loading, streamType, entityType, actorI
       render: d => <UTCDate date={d} />,
     },
     {
+      title: "Queue size",
+      width: "7em",
+      dataIndex: ["content", "queueSize"],
+      key: "queue",
+    },
+    {
       title: "Type",
       width: "11em",
       ellipsis: true,

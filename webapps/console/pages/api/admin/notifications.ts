@@ -135,63 +135,55 @@ export default createRoute()
     // load all objects which we monitor status changes for along with their last status change
     // noinspection SqlResolve
     const r = await db.pgPool().query(`
-      with
-        last_statuses as (select distinct
-                            "actorId",
-                            "tableName",
-                            LAST_VALUE(id) OVER (
-                                                   PARTITION by "actorId","tableName" order by id
-                                                   rows between unbounded preceding and unbounded following
-                                                   ) as id, LAST_VALUE(status) OVER (
-                                                   PARTITION by "actorId","tableName" order by id
-                                                   rows between unbounded preceding and unbounded following
-                                                   ) as status, LAST_VALUE(description) OVER (
-                                                   PARTITION by "actorId","tableName" order by id
-                                                   rows between unbounded preceding and unbounded following
-                                                   ) as description, LAST_VALUE(timestamp) OVER (
-                                                   PARTITION by "actorId","tableName" order by id
-                                                   rows between unbounded preceding and unbounded following
-                                                   ) as timestamp
-      from newjitsu."StatusChange"
-      order by "actorId", "tableName", id desc),
-        status_changes as (
-      select
-        "actorId",
-        "tableName",
-        coalesce (
-        sum (
-        case when "startedAt" >= current_timestamp - interval '${flappingWindowHours} hours' then 1 end), 0) as "changesPerHours",
-        coalesce (
-        sum (
-        case when "startedAt" >= current_timestamp - interval '1 days' then 1 end), 0) as "changesPerDay"
-      from newjitsu."StatusChange"
-      where "startedAt" >= current_timestamp - interval '1 days'
-      group by "actorId", "tableName")
+      with last_statuses as (select DISTINCT ON ("actorId", "tableName") "actorId",
+                                                                         "tableName",
+                                                                         id,
+                                                                         status,
+                                                                         description,
+                                                                         timestamp,
+                                                                         "startedAt"
+                             from newjitsu."StatusChange"
+                             order by "actorId", "tableName", id desc),
+        
+           status_changes as (select "actorId",
+                                     "tableName",
+                                     coalesce(
+                                       sum(
+                                         case
+                                           when "startedAt" >= current_timestamp - interval '${flappingWindowHours} hours'
+                                             then 1 end), 0) as "changesPerHours",
+                                     coalesce(
+                                       sum(
+                                         case when "startedAt" >= current_timestamp - interval '1 days' then 1 end),
+                                       0)                    as "changesPerDay"
+                              from newjitsu."StatusChange"
+                              where "startedAt" >= current_timestamp - interval '1 days'
+                              group by "actorId", "tableName")
 
-      select
-        w.id as "workspaceId",
-        w.slug as slug,
-        w.name as "workspaceName",
-        fr.config ->> 'name' as "fromName",
-        too.config ->> 'name' as "toName",
-        coalesce (
-        sc."actorId", cl.id) as "actorId",
-        REPLACE(
-        cl.type, 'push', 'batch') as type,
-        ls.id,
-        ls."tableName",
-        ls.timestamp,
-        ls.status,
-        ls.description,
-        sc."changesPerHours",
-        sc."changesPerDay"
+      select w.id                        as "workspaceId",
+             w.slug                      as slug,
+             w.name                      as "workspaceName",
+             fr.config ->> 'name'        as "fromName",
+             too.config ->> 'name'       as "toName",
+             coalesce(
+               sc."actorId", cl.id)      as "actorId",
+             REPLACE(
+               cl.type, 'push', 'batch') as type,
+             ls.id,
+             ls."tableName",
+             ls.timestamp,
+             ls."startedAt",
+             ls.status,
+             ls.description,
+             sc."changesPerHours",
+             sc."changesPerDay"
       from newjitsu."ConfigurationObjectLink" cl
-        join newjitsu."Workspace" w
-      on w.id = cl."workspaceId"
-        join newjitsu."ConfigurationObject" fr on fr.id = cl."fromId"
-        join newjitsu."ConfigurationObject" too on too.id = cl."toId"
-        left join last_statuses ls on ls."actorId" = cl.id
-        left join status_changes sc on sc."actorId" = ls."actorId" and sc."tableName" = ls."tableName"
+             join newjitsu."Workspace" w
+                  on w.id = cl."workspaceId"
+             join newjitsu."ConfigurationObject" fr on fr.id = cl."fromId"
+             join newjitsu."ConfigurationObject" too on too.id = cl."toId"
+             left join last_statuses ls on ls."actorId" = cl.id
+             left join status_changes sc on sc."actorId" = ls."actorId" and sc."tableName" = ls."tableName"
       where ((cl.type = 'push' and data ->> 'mode' = 'batch') or cl.type = 'sync')
         and cl.deleted = 'false'
         and fr.deleted = false
@@ -418,7 +410,7 @@ async function processStatusChanges(
               });
           }
         }
-      } else if (entity.changesPerHours === 0) {
+      } else if (!entity.changesPerHours) {
         log
           .atInfo()
           .log(`[${chkey}] Flapping ended ${lastStatus.timestamp} Changes per hour: ${entity.changesPerHours}`);

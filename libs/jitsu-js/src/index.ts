@@ -1,5 +1,12 @@
 import Analytics from "analytics";
-import { jitsuAnalyticsPlugin, emptyRuntime, isInBrowser, windowRuntime, uuid } from "./analytics-plugin";
+import {
+  jitsuAnalyticsPlugin,
+  emptyRuntime,
+  isInBrowser,
+  windowRuntime,
+  uuid,
+  createInMemoryStorage,
+} from "./analytics-plugin";
 import {
   Callback,
   DispatchedEvent,
@@ -91,7 +98,7 @@ function createUnderlyingAnalyticsInstance(
       persistentStorage.removeItem(key);
     },
   });
-  const storage = cachingStorageWrapper(rt.store());
+  const storage = cachingStorageWrapper(rt.store?.() || createInMemoryStorage(opts.debug));
 
   const analytics = Analytics({
     debug: !!opts.debug,

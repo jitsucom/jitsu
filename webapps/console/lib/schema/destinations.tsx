@@ -764,7 +764,7 @@ export const coreDestinations: DestinationType<any>[] = [
     connectionOptions: CloudDestinationsConnectionOptions.merge(BatchModeOptions).merge(
       z.object({
         batchSize: z.number().min(1).max(2000).default(1000),
-        batchSizeBytes: z.number().min(1).max(2000000).default(2000000),
+        batchSizeBytes: z.number().min(1).max(10_000_000).default(9_000_000),
         mode: z.enum(["stream", "batch"]).default("stream"),
       })
     ),

@@ -457,42 +457,45 @@ export async function scheduleSync({
     const destinationConfig = sync.to.config as DestinationConfig;
     const destinationType = getCoreDestinationType(destinationConfig.destinationType);
     const serviceConfig = { ...(service.config as any), ...service };
-    const running = await db.prisma().source_task.findFirst({
-      where: {
-        sync_id: syncIdOrModel as string,
-        status: "RUNNING",
-      },
-    });
+    const runSynchronously = !(destinationType.usesBulker || destinationType.id === "webhook") && destinationType.syncs;
+    // for normal scheduled syncs syncctl handles 'already running' case
+    if (trigger === "manual" || runSynchronously) {
+      const running = await db.prisma().source_task.findFirst({
+        where: {
+          sync_id: syncIdOrModel as string,
+          status: "RUNNING",
+        },
+      });
 
-    const runSynchronously = !destinationType.usesBulker && destinationType.syncs;
-    if (running) {
-      const msInMin = 1000 * 60;
-      if (ignoreRunning || (runSynchronously && Date.now() - running.updated_at.getTime() >= 2 * msInMin)) {
-        await dbLog({
-          taskId: running.task_id,
-          syncId: sync.id,
-          message: `Synchronous task ${running.task_id} was running due to timeout`,
-          level: "ERROR",
-        });
-        await db.prisma().source_task.update({
-          where: {
-            task_id: running.task_id,
-          },
-          data: {
-            status: "FAILED",
-            updated_at: new Date(),
-          },
-        });
-      } else {
-        return {
-          ok: false,
-          error: `Sync is already running`,
-          runningTask: {
+      if (running) {
+        const msInMin = 1000 * 60;
+        if (ignoreRunning || (runSynchronously && Date.now() - running.updated_at.getTime() >= 2 * msInMin)) {
+          await dbLog({
             taskId: running.task_id,
-            status: `${appBase}/api/${workspaceId}/sources/tasks?taskId=${running.task_id}&syncId=${syncIdOrModel}`,
-            logs: `${appBase}/api/${workspaceId}/sources/logs?taskId=${running.task_id}&syncId=${syncIdOrModel}`,
-          },
-        };
+            syncId: sync.id,
+            message: `Synchronous task ${running.task_id} was running due to timeout`,
+            level: "ERROR",
+          });
+          await db.prisma().source_task.update({
+            where: {
+              task_id: running.task_id,
+            },
+            data: {
+              status: "FAILED",
+              updated_at: new Date(),
+            },
+          });
+        } else {
+          return {
+            ok: false,
+            error: `Sync is already running`,
+            runningTask: {
+              taskId: running.task_id,
+              status: `${appBase}/api/${workspaceId}/sources/tasks?taskId=${running.task_id}&syncId=${syncIdOrModel}`,
+              logs: `${appBase}/api/${workspaceId}/sources/logs?taskId=${running.task_id}&syncId=${syncIdOrModel}`,
+            },
+          };
+        }
       }
     }
 

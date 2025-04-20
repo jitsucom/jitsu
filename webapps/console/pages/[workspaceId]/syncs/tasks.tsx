@@ -803,22 +803,26 @@ function Tasks() {
               <span>Date range: </span>
               <DatePicker.RangePicker
                 value={
-                  (state.dates ?? [null, null]).map(d => (d ? dayjs(d, "YYYY-MM-DD") : null)).slice(0, 2) as [
+                  (state.dates ?? [null, null]).map(d => (d ? dayjs(d).utc() : null)).slice(0, 2) as [
                     Dayjs | null,
                     Dayjs | null
                   ]
                 }
+                disabledDate={d => false}
                 allowEmpty={[true, true]}
+                showTime={{
+                  format: "HH:mm",
+                  defaultValue: [dayjs("00:00:00.000", "HH:mm:ss.SSS"), dayjs("23:59.59.999", "HH:mm:ss.SSS")],
+                }}
+                format={date => date.format("MMM DD, HH:mm")}
                 onChange={d => {
                   if (d) {
-                    const dates = [d[0] ? d[0].format("YYYY-MM-DD") : null, d[1] ? d[1].format("YYYY-MM-DD") : null];
-                    if (dates[0] === null && dates[1] === null) {
-                      patchQueryStringState("dates", null);
-                    } else {
-                      patchQueryStringState("dates", dates);
-                    }
+                    patchQueryStringState("dates", [
+                      d[0] ? d[0].utc(true).set("millisecond", 0).toISOString() : null,
+                      d[1] ? d[1].utc(true).set("millisecond", 999).toISOString() : null,
+                    ]);
                   } else {
-                    patchQueryStringState("dates", null);
+                    patchQueryStringState("dates", [null, null]);
                   }
                 }}
               />

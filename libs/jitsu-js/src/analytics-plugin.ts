@@ -339,6 +339,38 @@ export function windowRuntime(opts: JitsuOptions): RuntimeFacade {
   };
 }
 
+export function createInMemoryStorage(debug?: boolean): PersistentStorage {
+  const storage = {};
+  return {
+    reset(): void {
+      Object.keys(storage).forEach(key => delete storage[key]);
+    },
+    setItem(key: string, val: any) {
+      if (debug) {
+        console.log(`[JITSU EMPTY RUNTIME] Set storage item ${key}=${JSON.stringify(val)}`);
+      }
+      if (typeof val === "undefined") {
+        delete storage[key];
+      } else {
+        storage[key] = val;
+      }
+    },
+    getItem(key: string) {
+      const val = storage[key];
+      if (debug) {
+        console.log(`[JITSU EMPTY RUNTIME] Get storage item ${key}=${JSON.stringify(val)}`);
+      }
+      return val;
+    },
+    removeItem(key: string) {
+      if (debug) {
+        console.log(`[JITSU EMPTY RUNTIME] Get storage item ${key}=${storage[key]}`);
+      }
+      delete storage[key];
+    },
+  };
+}
+
 export const emptyRuntime = (config: JitsuOptions): RuntimeFacade => ({
   documentEncoding(): string | undefined {
     return undefined;
@@ -354,35 +386,7 @@ export const emptyRuntime = (config: JitsuOptions): RuntimeFacade => ({
   },
 
   store(): PersistentStorage {
-    const storage = {};
-    return {
-      reset(): void {
-        Object.keys(storage).forEach(key => delete storage[key]);
-      },
-      setItem(key: string, val: any) {
-        if (config.debug) {
-          console.log(`[JITSU EMPTY RUNTIME] Set storage item ${key}=${JSON.stringify(val)}`);
-        }
-        if (typeof val === "undefined") {
-          delete storage[key];
-        } else {
-          storage[key] = val;
-        }
-      },
-      getItem(key: string) {
-        const val = storage[key];
-        if (config.debug) {
-          console.log(`[JITSU EMPTY RUNTIME] Get storage item ${key}=${JSON.stringify(val)}`);
-        }
-        return val;
-      },
-      removeItem(key: string) {
-        if (config.debug) {
-          console.log(`[JITSU EMPTY RUNTIME] Get storage item ${key}=${storage[key]}`);
-        }
-        delete storage[key];
-      },
-    };
+    return createInMemoryStorage(config.debug);
   },
   language() {
     return undefined;
@@ -480,10 +484,17 @@ function adjustPayload(
           categoryPreferences: config.privacy.consentCategories,
         }
       : undefined,
-    userAgent: runtime.userAgent(),
-    locale: runtime.language(),
-    screen: runtime.screen(),
-    traits: payload.type != "identify" && payload.type != "group" ? { ...(restoreTraits(storage) || {}) } : undefined,
+    userAgent: runtime.userAgent?.(),
+    locale: runtime.language?.(),
+    screen: runtime.screen?.(),
+    ip: runtime?.ip?.(),
+    traits:
+      payload.type != "identify" && payload.type != "group"
+        ? {
+            ...(restoreTraits(storage) || {}),
+            ...(payload?.options?.traits || {}),
+          }
+        : undefined,
     page: {
       path: properties.path || (parsedUrl && parsedUrl.pathname),
       referrer: referrer,
@@ -499,11 +510,13 @@ function adjustPayload(
   };
   const withContext = {
     ...payload,
+    userId: payload?.options?.userId || payload?.userId,
+    anonymousId: payload?.options?.anonymousId || payload?.anonymousId,
+    groupId: payload?.options?.groupId || storage.getItem("__group_id"),
     timestamp: new Date().toISOString(),
     sentAt: new Date().toISOString(),
     messageId: randomId(properties.path || (parsedUrl && parsedUrl.pathname)),
     writeKey: maskWriteKey(config.writeKey),
-    groupId: storage.getItem("__group_id"),
     context: deepMerge(context, customContext),
   };
   delete withContext.meta;
@@ -690,11 +703,13 @@ async function send(
   instance: AnalyticsInstance,
   store: PersistentStorage
 ): Promise<any> {
+  const s2s = !!jitsuConfig.s2s;
+  const debugHeader = jitsuConfig.debug ? { "X-Enable-Debug": "true" } : {};
+  const adjustedPayload = adjustPayload(payload, jitsuConfig, store, s2s);
   if (jitsuConfig.echoEvents) {
-    console.log(`[JITSU DEBUG] sending '${method}' event:`, payload);
+    console.log(`[JITSU DEBUG] sending '${method}' event:`, adjustedPayload);
     return;
   }
-  const s2s = !!jitsuConfig.s2s;
   const url = s2s ? `${jitsuConfig.host}/api/s/s2s/${method}` : `${jitsuConfig.host}/api/s/${method}`;
   const fetch = jitsuConfig.fetch || globalThis.fetch;
   if (!fetch) {
@@ -703,12 +718,6 @@ async function send(
       "Please specify fetch function in jitsu plugin initialization, fetch isn't available in global scope"
     );
   }
-  const debugHeader = jitsuConfig.debug ? { "X-Enable-Debug": "true" } : {};
-
-  // if (jitsuConfig.debug) {
-  //   console.log(`[JITSU] Sending event to ${url}: `, JSON.stringify(payload, null, 2));
-  // }
-  const adjustedPayload = adjustPayload(payload, jitsuConfig, store, s2s);
   const abortController = jitsuConfig.fetchTimeoutMs ? new AbortController() : undefined;
   const abortTimeout = jitsuConfig.fetchTimeoutMs
     ? setTimeout(() => {
@@ -793,6 +802,7 @@ async function send(
 }
 
 const controllingTraits = ["$doNotSend"] as const;
+
 /**
  * Remove all members of traits that controls identify/group behavior (see analytics.d.ts), and should not be recorded. Returns
  * copy of the object with these members removed.
@@ -943,6 +953,7 @@ export const jitsuAnalyticsPlugin = (jitsuOptions: JitsuOptions = {}, storage: P
 };
 
 let seedCounter = 0;
+
 function getSeed() {
   seedCounter = (seedCounter + 1) % Number.MAX_SAFE_INTEGER;
 
