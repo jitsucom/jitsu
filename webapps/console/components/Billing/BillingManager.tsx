@@ -276,8 +276,8 @@ const ConnectorUsageSection: React.FC<{}> = () => {
             description={
               <>
                 Overage fee of at least $
-                <b>{(billing.settings.dailyActiveSyncsOverage || 0) * (activeSyncs - maxActiveSyncs)}</b> per sync will
-                be added to your next invoice.
+                <b>{(billing.settings.dailyActiveSyncsOverage || 0) * (activeSyncs - maxActiveSyncs)}</b> will be added
+                to your next invoice.
               </>
             }
           />

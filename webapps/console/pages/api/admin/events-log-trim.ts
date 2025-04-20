@@ -8,6 +8,8 @@ const log = getServerLog("events-log-trim");
 
 const localIps = ["127.0.0.1", "0:0:0:0:0:0:0:1", "::1", "::ffff:127.0.0.1"];
 
+const largeLogSizeIds = ["cm3fnw0m50003bnco4pfy8p74", "cm3fnymo10003bjn24ejeygf3"];
+
 type DeleteRequest = {
   actorId: string;
   type: string;
@@ -38,6 +40,8 @@ export default createRoute()
     const metricsCluster = process.env.CLICKHOUSE_METRICS_CLUSTER || process.env.CLICKHOUSE_CLUSTER;
     const onCluster = metricsCluster ? ` ON CLUSTER ${metricsCluster}` : "";
     const eventsLogSize = process.env.EVENTS_LOG_SIZE ? parseInt(process.env.EVENTS_LOG_SIZE) : 200000;
+    const eventsLogSizeLarge = 20_000_000;
+
     // trim logs to eventsLogSize only after exceeding threshold
     const thresholdSize = Math.floor(eventsLogSize * 1.5);
     const actorsQuery: string = `select actorId, type, count(*) from ${metricsSchema}.events_log
@@ -47,6 +51,10 @@ export default createRoute()
                                from ${metricsSchema}.events_log
                                where actorId = {actorId:String} and type = {type:String} and xor(level = 'error', {withoutErrors:UInt8})
                                order by timestamp desc LIMIT 1 OFFSET ${eventsLogSize}`;
+    const statQueryLarge: string = `select timestamp
+                               from ${metricsSchema}.events_log
+                               where actorId = {actorId:String} and type = {type:String} and xor(level = 'error', {withoutErrors:UInt8})
+                               order by timestamp desc LIMIT 1 OFFSET ${eventsLogSizeLarge}`;
     const dropPartitionQuery: string = `alter table ${metricsSchema}.events_log ${onCluster} drop partition {partition:String}`;
     const oldPartition = dayjs().subtract(2, "month").format("YYYYMM");
     try {
@@ -95,9 +103,10 @@ export default createRoute()
         const type = row.type;
         let timestamp: any = undefined;
         try {
+          const q = largeLogSizeIds.includes(actorId) ? statQueryLarge : statQuery;
           const tsResult = (await (
             await clickhouse.query({
-              query: statQuery,
+              query: q,
               query_params: {
                 actorId: actorId,
                 type: type,

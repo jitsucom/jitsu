@@ -156,6 +156,7 @@ export type Integrations = {
 export type Options = {
   integrations?: Integrations;
   userId?: ID;
+  groupId?: ID;
   anonymousId?: ID;
   timestamp?: Date | string;
   context?: AnalyticsContext;
@@ -203,7 +204,7 @@ interface AnalyticsContext {
 
   locale?: string;
 
-  xlibrary?: {
+  library?: {
     name: string;
     version: string;
     //allow to add custom fields
@@ -308,7 +309,7 @@ type PersistentStorage = {
 };
 
 export type RuntimeFacade = {
-  store(): PersistentStorage;
+  store?(): PersistentStorage;
   userAgent(): string | undefined;
   language(): string | undefined;
   pageUrl(): string | undefined;
@@ -317,6 +318,7 @@ export type RuntimeFacade = {
   getCookies(): Record<string, string>;
 
   timezoneOffset(): number | undefined;
+  ip?(): string | undefined;
   screen():
     | {
         width: number;

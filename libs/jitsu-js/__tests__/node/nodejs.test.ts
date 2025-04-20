@@ -211,6 +211,7 @@ describe("Test Jitsu NodeJS client", () => {
     expect(p.body.groupId).toEqual("myGroupId");
     expect(p.body.context?.traits?.email).toEqual("myUserId@example.com");
     expect(p.body.context?.consent?.categoryPreferences).toEqual({ analytics: true });
+
     expect((p.body.anonymousId ?? "").length).toBeGreaterThan(0);
   });
 
@@ -241,7 +242,7 @@ describe("Test Jitsu NodeJS client", () => {
     expect(requestLog[2].body.context.awesome.nestedKey).toBe("awesome-key");
   });
 
-  test("node js", async () => {
+  test("node-js", async () => {
     const jitsu: AnalyticsInterface = jitsuAnalytics({
       writeKey: "key:secret",
       host: server.baseUrl,
@@ -267,8 +268,18 @@ describe("Test Jitsu NodeJS client", () => {
         },
       },
     });
+    await jitsu.track(
+      "email.open",
+      {},
+      {
+        userId: "myUserId",
+        traits: {
+          email: "john.doe@gmail.com",
+        },
+      }
+    );
     await new Promise(resolve => setTimeout(resolve, 1000));
-    expect(requestLog.length).toBe(4);
+    expect(requestLog.length).toBe(5);
     expect(requestLog[0].type).toBe("track");
     expect(requestLog[1].type).toBe("identify");
     expect(requestLog[2].type).toBe("group");
@@ -293,6 +304,10 @@ describe("Test Jitsu NodeJS client", () => {
 
     const pagePayload = requestLog[0].body;
     console.log("pagePayload", pagePayload);
+
+    const emailOpenPayload = requestLog[4].body;
+    console.log("emailOpenPayload", emailOpenPayload);
+    expect(emailOpenPayload.userId).toBe("myUserId");
   });
 
   test("tld", async () => {

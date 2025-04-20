@@ -440,13 +440,13 @@ importers:
 
   libs/jitsu-js:
     dependencies:
+      '@jitsu/protocols':
+        specifier: workspace:*
+        version: link:../../types/protocols
       analytics:
         specifier: 0.8.9
         version: 0.8.9(@types/dlv@1.1.4)
     devDependencies:
-      '@jitsu/protocols':
-        specifier: workspace:*
-        version: link:../../types/protocols
       '@playwright/test':
         specifier: 1.39.0
         version: 1.39.0
@@ -1091,7 +1091,7 @@ importers:
         version: 15.3.0(@babel/core@7.26.0)(@opentelemetry/api@1.9.0)(@playwright/test@1.39.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       next-auth:
         specifier: ^4.24.11
-        version: 4.24.11(next@15.3.0(@babel/core@7.26.0)(@opentelemetry/api@1.9.0)(@playwright/test@1.39.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(nodemailer@6.9.16)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        version: 4.24.11(next@15.3.0(@babel/core@7.26.0)(@opentelemetry/api@1.9.0)(@playwright/test@1.39.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(nodemailer@6.10.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       node-fetch-commonjs:
         specifier: ^3.3.2
         version: 3.3.2
@@ -1099,8 +1099,8 @@ importers:
         specifier: ^4.6.5
         version: 4.18.0
       nodemailer:
-        specifier: ^6.8.0
-        version: 6.9.16
+        specifier: ^6.10.1
+        version: 6.10.1
       object-hash:
         specifier: ^3.0.0
         version: 3.0.0
@@ -1208,8 +1208,8 @@ importers:
         specifier: ^18.15.3
         version: 18.19.61
       '@types/nodemailer':
-        specifier: ^6.4.6
-        version: 6.4.16
+        specifier: ^6.4.17
+        version: 6.4.17
       '@types/pg':
         specifier: ^8.6.5
         version: 8.11.10
@@ -1433,15 +1433,15 @@ importers:
       lodash:
         specifier: ^4.17.21
         version: 4.17.21
+      nodemailer:
+        specifier: ^6.10.1
+        version: 6.10.1
       react:
         specifier: ^18.3.1
         version: 18.3.1
       react-dom:
         specifier: 18.3.1
         version: 18.3.1(react@18.3.1)
-      resend:
-        specifier: ^4.0.0
-        version: 4.0.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       tslib:
         specifier: ^2.6.3
         version: 2.8.0
@@ -1452,6 +1452,9 @@ importers:
       '@types/lodash':
         specifier: ^4.14.185
         version: 4.17.13
+      '@types/nodemailer':
+        specifier: ^6.4.17
+        version: 6.4.17
       eslint:
         specifier: ^8.57.0
         version: 8.57.1
@@ -5597,8 +5600,8 @@ packages:
   '@types/node@22.8.4':
     resolution: {integrity: sha512-SpNNxkftTJOPk0oN+y2bIqurEXHTA2AOZ3EJDDKeJ5VzkvvORSvmQXGQarcOzWV1ac7DCaPBEdMDxBsM+d8jWw==}
 
-  '@types/nodemailer@6.4.16':
-    resolution: {integrity: sha512-uz6hN6Pp0upXMcilM61CoKyjT7sskBoOWpptkjjJp8jIMlTdc3xG01U7proKkXzruMS4hS0zqtHNkNPFB20rKQ==}
+  '@types/nodemailer@6.4.17':
+    resolution: {integrity: sha512-I9CCaIp6DTldEg7vyUTZi8+9Vo0hi1/T8gv3C89yk1rSAAzoKQ8H8ki/jBYJSFoH/BisgLP8tkZMlQ91CIquww==}
 
   '@types/normalize-package-data@2.4.4':
     resolution: {integrity: sha512-37i+OaWTh9qeK4LSHPsyRC7NahnGotNuZvjLSgcPzblpHB3rrCJxAOgI5gCdKm7coonsaX1Of0ILiTcnZjbfxA==}
@@ -10976,8 +10979,8 @@ packages:
     resolution: {integrity: sha512-2YEOR5qlI1zUFbGMLKNfsrR5JUvFg9LxIRVE+xJe962pfVLH0rnItqLzv96XVs1Y1UIR8FxsXAuvX/lYAWZ2BQ==}
     engines: {node: '>=8'}
 
-  nodemailer@6.9.16:
-    resolution: {integrity: sha512-psAuZdTIRN08HKVd/E8ObdV6NO7NTBY3KsC30F7M4H1OnmLCUNaS56FpYxyb26zWLSyYF9Ozch9KYHhHegsiOQ==}
+  nodemailer@6.10.1:
+    resolution: {integrity: sha512-Z+iLaBGVaSjbIzQ4pX6XV41HrooLsQ10ZWPUehGmuantvzWoDVBnmsdUcOIDM1t+yPor5pDhVlDESgOMEGxhHA==}
     engines: {node: '>=6.0.0'}
 
   nodemon@3.1.7:
@@ -20639,7 +20642,7 @@ snapshots:
     dependencies:
       undici-types: 6.19.8
 
-  '@types/nodemailer@6.4.16':
+  '@types/nodemailer@6.4.17':
     dependencies:
       '@types/node': 18.19.61
 
@@ -28155,7 +28158,7 @@ snapshots:
     dependencies:
       '@segment/isodate': 1.0.3
 
-  next-auth@4.24.11(next@15.3.0(@babel/core@7.26.0)(@opentelemetry/api@1.9.0)(@playwright/test@1.39.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(nodemailer@6.9.16)(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
+  next-auth@4.24.11(next@15.3.0(@babel/core@7.26.0)(@opentelemetry/api@1.9.0)(@playwright/test@1.39.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(nodemailer@6.10.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
     dependencies:
       '@babel/runtime': 7.26.0
       '@panva/hkdf': 1.2.1
@@ -28170,7 +28173,7 @@ snapshots:
       react-dom: 18.3.1(react@18.3.1)
       uuid: 8.3.2
     optionalDependencies:
-      nodemailer: 6.9.16
+      nodemailer: 6.10.1
 
   next@15.1.2(@babel/core@7.24.5)(@opentelemetry/api@1.9.0)(@playwright/test@1.39.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
     dependencies:
@@ -28404,7 +28407,7 @@ snapshots:
     dependencies:
       big-integer: 1.6.52
 
-  nodemailer@6.9.16: {}
+  nodemailer@6.10.1: {}
 
   nodemon@3.1.7:
     dependencies:

@@ -69,9 +69,9 @@ ConnectionStatusFirstRunEmail.subject = ({ workspaceName, entityType, entityName
   return `[${workspaceName || "Your Jitsu Workspace"}] 🎉 Successful initial run of ${entityType} job: ${entityName}`;
 };
 
-ConnectionStatusFirstRunEmail.from = "Jitsu Support <support@notify.jitsu.com>";
+ConnectionStatusFirstRunEmail.from = "Jitsu Support <support@use.jitsu.com>";
 ConnectionStatusFirstRunEmail.replyTo = "Jitsu Support <support@jitsu.com>";
-ConnectionStatusFirstRunEmail.isMarketingEmail = true;
+ConnectionStatusFirstRunEmail.isMarketingEmail = false;
 
 ConnectionStatusFirstRunEmail.PreviewProps = {
   status: "FIRST_RUN",

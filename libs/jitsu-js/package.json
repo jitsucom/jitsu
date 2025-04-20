@@ -4,6 +4,7 @@
   "description": "",
   "author": "Jitsu Dev Team <dev@jitsu.com>",
   "main": "dist/jitsu.cjs.js",
+  "files": ["dist"],
   "module": "dist/jitsu.es.js",
   "types": "dist/index.d.ts",
   "publishConfig": {
@@ -20,7 +21,6 @@
     "build": "tsc -p . && rollup -c && cp compiled/src/*.d.ts dist"
   },
   "devDependencies": {
-    "@jitsu/protocols": "workspace:*",
     "tslib": "^2.6.3",
     "@playwright/test": "1.39.0",
     "@rollup/plugin-commonjs": "^28.0.2",
@@ -45,6 +45,9 @@
     "ts-jest": "29.0.5",
     "typescript": "^5.6.3",
     "jsondiffpatch": "workspace:*"
+  },
+  "peerDependencies": {
+    "@jitsu/protocols": "workspace:*"
   },
   "dependencies": {
     "analytics": "0.8.9"
