@@ -400,17 +400,10 @@ async function getProfilesHavingEventsSince(
   dateUpperBound: Date,
   lastTimestamp?: Date
 ) {
-  let dateFilter: any = {
-    _id: { $lt: new ObjectId(Math.floor(dateUpperBound.getTime() / 1000).toString(16) + "0000000000000000") },
-  };
+  let dateFilter: any = {};
   if (lastTimestamp) {
     dateFilter = {
-      $and: [
-        {
-          _id: { $gte: new ObjectId(Math.floor(lastTimestamp.getTime() / 1000).toString(16) + "0000000000000000") },
-        },
-        dateFilter,
-      ],
+      _id: { $gte: new ObjectId(Math.floor(lastTimestamp.getTime() / 1000).toString(16) + "0000000000000000") },
     };
   }
   return await mongo
