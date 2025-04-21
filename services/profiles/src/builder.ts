@@ -77,7 +77,8 @@ const bulkerSchema = {
 };
 
 export type ProfileBuilderRunner = {
-  start: () => Promise<void>;
+  startFullRebuilder: () => Promise<void>;
+  startConsumer: () => Promise<void>;
   close: () => Promise<void>;
   version: () => number;
   state: () => ProfileBuilderState;
@@ -171,8 +172,8 @@ export async function profileBuilder(
   const queue = new PQueue({ concurrency });
 
   const pb = {
-    start: async () => {
-      log.atInfo().log("Started");
+    startFullRebuilder: async () => {
+      log.atInfo().log("Starting full rebuilder");
       while (!closed) {
         const started = Date.now();
         try {
