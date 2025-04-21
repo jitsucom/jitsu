@@ -13,25 +13,22 @@ import {
   FunctionChainContext,
   profileIdColumn,
   ProfileUser,
-  EntityStore,
-  EnrichedConnectionConfig,
   Profile,
 } from "@jitsu/core-functions";
 import { FindCursor, MongoClient, ObjectId, WithId, Document, ReadPreference } from "mongodb";
 import { db, ProfileBuilderState } from "./lib/db";
 import { getLog, getSingleton, hash, LogFactory, parseNumber, requireDefined, stopwatch } from "juava";
-import PQueue from "p-queue";
 import NodeCache from "node-cache";
 import { buildFunctionChain, FuncChain, runChain } from "./lib/functions-chain";
 import { FullContext } from "@jitsu/protocols/functions";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { TableNameParameter, transfer } from "@jitsu/functions-lib";
 import { connectionsStore } from "./lib/repositories";
+import { KafkaJS, HighLevelProducer } from "@confluentinc/kafka-javascript";
 
 const bulkerBase = requireDefined(process.env.BULKER_URL, "env BULKER_URL is not defined");
 const bulkerAuthKey = requireDefined(process.env.BULKER_AUTH_KEY, "env BULKER_AUTH_KEY is not defined");
 
-const concurrency = parseNumber(process.env.CONCURRENCY, 10);
 const fetchTimeoutMs = parseNumber(process.env.FETCH_TIMEOUT_MS, 2000);
 
 const instanceIndex = process.env.INSTANCE_INDEX ? parseInt(process.env.INSTANCE_INDEX, 10) : 0;
@@ -161,30 +158,51 @@ export async function profileBuilder(
     true
   );
 
-  const loadedState = await db
-    .pgHelper()
-    .getProfileBuilderState(profileBuilder.id, profileBuilder.version, totalInstances, instanceIndex);
-
-  state.lastTimestamp = loadedState?.lastTimestamp;
-
-  log.atInfo().log(`Last timestamp: ${state.lastTimestamp}`);
-
-  const queue = new PQueue({ concurrency });
-
   const pb = {
+    startConsumer: async () => {
+      const consumer = new KafkaJS.Kafka({}).consumer({
+        "bootstrap.servers": kafkaCred.brokers.join(","),
+        "group.id": "profile-builder-" + profileBuilder.id, // Mandatory property for a consumer - the consumer group id.
+      });
+
+      await consumer.connect();
+      await consumer.subscribe({ topics: ["test-topic"] });
+
+      consumer.run({
+        eachMessage: async ({ topic, partition, message }) => {
+          console.log({
+            topic,
+            partition,
+            headers: message.headers,
+            offset: message.offset,
+            key: message.key?.toString(),
+            value: message.value.toString(),
+          });
+        },
+      });
+
+      // Whenever we're done consuming, maybe after user input or a signal:
+      await consumer.disconnect();
+    },
     startFullRebuilder: async () => {
       log.atInfo().log("Starting full rebuilder");
       while (!closed) {
         const started = Date.now();
+        const loadedState = await db
+          .pgHelper()
+          .getProfileBuilderState(profileBuilder.id, profileBuilder.version, totalInstances, instanceIndex);
+
+        if (loadedState && loadedState.processedUsers >= loadedState.totalUsers) {
+          // sleep 15 sec
+          await new Promise(resolve => setTimeout(resolve, 15 * 1000));
+        }
         try {
           const dateUpperBound = new Date();
           dateUpperBound.setSeconds(dateUpperBound.getSeconds() - 1);
-          const profileIds = await getProfilesHavingEventsSince(mongo, config, dateUpperBound, state.lastTimestamp);
+
+          const profileIds = await getProfileIds(mongo, config);
           if (profileIds.length > 0) {
-            funcChain?.context.log.info(
-              funcCtx,
-              `Found ${profileIds.length} users to process since: ${state.lastTimestamp}`
-            );
+            funcChain?.context.log.info(funcCtx, `Found ${profileIds.length} users to process.`);
             state.totalUsers = profileIds.length;
             state.processedUsers = 0;
             state.errorUsers = 0;
@@ -197,24 +215,19 @@ export async function profileBuilder(
               const profileId = profileIds[i];
               log.atInfo().log(`Processing user ${i + 1}/${profileIds.length}: ${profileId}`);
               await queue.onEmpty();
-              queue.add(async () =>
-                processProfile(profileBuilder, state, funcChain!, mongo, log, config, profileId, dateUpperBound)
-              );
+              queue.add(async () => processProfile(profileBuilder, state, funcChain!, mongo, log, config, profileId));
             }
             await queue.onIdle();
             state.lastTimestamp = dateUpperBound;
             state.speed = profileIds.length / ((Date.now() - started) / 1000);
             await db.pgHelper().updateProfileBuilderState(state);
           } else {
-            funcChain?.context.log.debug(funcCtx, `No users to process since: ${state.lastTimestamp}`);
+            funcChain?.context.log.debug(funcCtx, `No users to process.`);
           }
         } catch (e: any) {
           funcChain?.context.log.error(funcCtx, `Error while running profile builder: ${e.message}`);
         }
-        const waitMs = config.runPeriodSec * 1000 - (Date.now() - started);
-        if (waitMs > 0) {
-          await new Promise(resolve => setTimeout(resolve, waitMs));
-        }
+        await new Promise(resolve => setTimeout(resolve, 15 * 1000));
       }
       closeResolve();
     },
@@ -227,7 +240,7 @@ export async function profileBuilder(
     state: () => state,
   };
 
-  setImmediate(pb.start);
+  setImmediate(pb.startFullRebuilder);
 
   return pb;
 }
@@ -239,14 +252,13 @@ async function processProfile(
   mongo: MongoClient,
   log: LogFactory,
   config: ProfilesConfig,
-  profileId: string,
-  endTimestamp: Date
+  profileId: string
 ) {
   const ms = stopwatch();
   let cursor: FindCursor<WithId<Document>>;
   try {
     const metrics = { db_events: 0 } as any;
-    cursor = await getProfileEvents(mongo, config, profileId, endTimestamp);
+    cursor = await getProfileEvents(mongo, config, profileId);
     metrics.db_find = ms.lapMs();
     const userPromise = getProfileUser(mongo, config, profileId, metrics);
     let count = 0;
@@ -351,7 +363,7 @@ async function sendToBulker(profileBuilder: ProfileBuilder, profile: Profile, co
   await bulkerDestination.default(payload as unknown as AnalyticsServerEvent, ctx);
 }
 
-async function getProfileEvents(mongo: MongoClient, config: ProfilesConfig, profileId: string, endTimestamp: Date) {
+async function getProfileEvents(mongo: MongoClient, config: ProfilesConfig, profileId: string) {
   return mongo
     .db(config.eventsDatabase)
     .collection(config.eventsCollectionName)
@@ -359,7 +371,6 @@ async function getProfileEvents(mongo: MongoClient, config: ProfilesConfig, prof
       {
         [profileIdHashColumn]: int32Hash(profileId),
         [profileIdColumn]: profileId,
-        _id: { $lt: new ObjectId(Math.floor(endTimestamp.getTime() / 1000).toString(16) + "0000000000000000") },
       },
       { readPreference: ReadPreference.NEAREST }
     );
@@ -394,25 +405,13 @@ async function getProfileUser(
   }
 }
 
-async function getProfilesHavingEventsSince(
-  mongo: MongoClient,
-  config: ProfilesConfig,
-  dateUpperBound: Date,
-  lastTimestamp?: Date
-) {
-  let dateFilter: any = {};
-  if (lastTimestamp) {
-    dateFilter = {
-      _id: { $gte: new ObjectId(Math.floor(lastTimestamp.getTime() / 1000).toString(16) + "0000000000000000") },
-    };
-  }
+async function getProfileIds(mongo: MongoClient, config: ProfilesConfig) {
   return await mongo
     .db(config.eventsDatabase)
     .collection(config.eventsCollectionName)
     .aggregate([
       {
         $match: {
-          ...dateFilter,
           [profileIdHashColumn]: { $gte: partitionsRange[0], $lte: partitionsRange[1] },
         },
       },

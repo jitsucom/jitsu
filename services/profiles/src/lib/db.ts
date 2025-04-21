@@ -51,25 +51,6 @@ const pgHelper: PgHelper = {
     if (rows.rowCount) {
       return rows.rows[0];
     }
-    rows = await db.pgPool().query(
-      `select "profileBuilderId", "profileBuilderVersion", "totalInstances", count("instanceIndex"), min("lastTimestamp") as lastTimestamp 
-from newjitsu."ProfileBuilderState" where
-      "profileBuilderId" = $1::text and
-      "profileBuilderVersion" = $2::integer
-                                    group by "profileBuilderId", "profileBuilderVersion", "totalInstances"
-                                    having "totalInstances"=count("instanceIndex")
-                                    order by min("lastTimestamp") desc`,
-      [profileBuilderId, profileBuilderVersion]
-    );
-    if (rows.rowCount) {
-      const row = rows.rows[0];
-      return {
-        ...row,
-        instanceIndex: -1,
-        startedAt: new Date(),
-        updatedAt: new Date(),
-      };
-    }
     return undefined;
   },
   async updateProfileBuilderState(state: ProfileBuilderState) {
