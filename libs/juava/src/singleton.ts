@@ -96,10 +96,7 @@ export function getSingleton<T>(
     global[`singletons_${globalName}`] = {
       success: false,
       error,
-      debounceCleanup:
-        opts.errorTtlSec && opts.errorTtlSec > 0
-          ? debounce(() => clearSingleton(globalName, opts.cleanupFunc), 1000 * opts.errorTtlSec)
-          : () => {},
+      debounceCleanup: () => {},
     };
     if (
       !opts.optional &&
@@ -107,6 +104,9 @@ export function getSingleton<T>(
     ) {
       log.atInfo().log("❌ ❌ ❌ Shutting down the application");
       process.exit(1);
+    }
+    if (opts.errorTtlSec && opts.errorTtlSec > 0) {
+      setTimeout(() => clearSingleton(globalName, opts.cleanupFunc), 1000 * opts.errorTtlSec);
     }
     return error;
   };
@@ -130,8 +130,8 @@ export function getSingleton<T>(
     );
   }
   log.atDebug().log(`Creating ${globalName} connection...`);
-  let newInstance: Promise<T> | T;
-  const startedAtTs = Date.now();
+  let newInstance: Promise<T> | T | undefined;
+  let startedAtTs = Date.now();
   try {
     newInstance = factory();
   } catch (error) {
@@ -141,14 +141,9 @@ export function getSingleton<T>(
     return singleton as Singleton<T>;
   }
   if (newInstance instanceof Promise) {
-    const awaiter = newInstance.then(instance => handleSuccess(instance, startedAtTs)).catch(handleError);
-    const result = () => {
-      const globalInstance = requireDefined(
-        global[`singletons_${globalName}`],
-        `The ${globalName} connection isn't ready yet`
-      );
-      globalInstance.debounceCleanup();
+    const resultFunc = (globalInstance: any) => {
       if (globalInstance.success) {
+        globalInstance.debounceCleanup();
         return globalInstance.value;
       } else {
         throw newError(
@@ -157,7 +152,33 @@ export function getSingleton<T>(
         );
       }
     };
-    result.waitInit = () => awaiter;
+    const result = () => {
+      const globalInstance = requireDefined(
+        global[`singletons_${globalName}`],
+        `The ${globalName} connection isn't ready yet`
+      );
+      return resultFunc(globalInstance);
+    };
+    result.waitInit = () => {
+      const globalInstance = global[`singletons_${globalName}`];
+      if (globalInstance) {
+        return Promise.resolve(resultFunc(globalInstance));
+      } else {
+        if (!(newInstance instanceof Promise)) {
+          startedAtTs = Date.now();
+          newInstance = Promise.resolve(factory());
+        }
+        return newInstance
+          .then(instance => handleSuccess(instance, startedAtTs))
+          .catch(e => {
+            handleError(e);
+            throw e;
+          })
+          .finally(() => {
+            newInstance = undefined;
+          });
+      }
+    };
     result.close = () => {
       const globalInstance = global[`singletons_${globalName}`];
       if (opts.cleanupFunc && globalInstance.success) {

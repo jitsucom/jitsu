@@ -5,6 +5,6 @@
     "undici": "^6.21.2",
     "isolated-vm": "5.0.1",
     "@sensejs/kafkajs-zstd-support": "^0.11.0",
-    "@mongodb-js/zstd": "^1.2.2"
+    "@mongodb-js/zstd": "^2.0.1"
   }
 }

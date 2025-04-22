@@ -29,11 +29,16 @@ async function createClient() {
     connectTimeoutMS: 60000,
     socketTimeoutMS: mongoTimeout,
   });
-  // Connect the client to the server (optional starting in v4.7)
-  await client.connect();
-  // Establish and verify connection
-  await client.db().command({ ping: 1 });
-  return client;
+  try {
+    // Connect the client to the server (optional starting in v4.7)
+    await client.connect();
+    // Establish and verify connection
+    await client.db().admin().ping();
+    return client;
+  } catch (e) {
+    client.close(true);
+    throw e;
+  }
 }
 
 const MongoCreatedCollections = new Set<string>();

@@ -201,7 +201,17 @@ function initHTTP(rotorContext: Omit<MessageHandlerContext, "connectionStore" | 
       diagnostics: isTruish(process.env.__DANGEROUS_ENABLE_FULL_DIAGNOSTICS) ? getDiagnostics() : undefined,
     });
   });
-  http.get("/health", (req, res) => {
+  http.get("/health", async (req, res) => {
+    const mongoRequired = (process.env.REQUIRED_STORES ?? "").split(",").includes("mongodb");
+    if (mongoRequired) {
+      try {
+        await pingMongo();
+      } catch (e: any) {
+        log.atError().withCause(e).log("MongoDB is not healthy");
+        res.status(500).json({ error: "MongoDB is not healthy" });
+        return;
+      }
+    }
     res.json({
       status: "pass",
       connectionsStore: {
@@ -263,6 +273,10 @@ function initMetricsServer() {
     log.atError().withCause(e).log("Failed to start metrics server");
   });
   return metricsServer;
+}
+
+async function pingMongo() {
+  await mongodb.waitInit().then(c => c.connect().then(c => c.db().admin().ping()));
 }
 
 function checkAuth(token: string): boolean {

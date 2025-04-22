@@ -17,7 +17,7 @@
     "profiles:profile": "dotenv -e ../../.env.local -- nodemon --watch \"src/**\" --ext \"ts,json,tsx\" --exec \"ts-node-dev --inspect -- src/index.ts\""
   },
   "dependencies": {
-    "mongodb": "^6.10.0",
+    "mongodb": "^6.16.0",
     "isolated-vm": "5.0.1",
     "@jitsu/core-functions": "workspace:*",
     "@jitsu/functions-lib": "workspace:*",

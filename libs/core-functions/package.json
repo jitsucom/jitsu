@@ -35,7 +35,7 @@
   "dependencies": {
     "@amplitude/ua-parser-js": "^0.7.33",
     "@hubspot/api-client": "^11.1.0",
-    "@mongodb-js/zstd": "^1.2.2",
+    "@mongodb-js/zstd": "^2.0.1",
     "undici": "^6.21.2",
     "agentkeepalive": "4.3.0",
     "dayjs": "^1.11.10",
@@ -44,7 +44,7 @@
     "isolated-vm": "5.0.1",
     "juava": "workspace:*",
     "lodash": "^4.17.21",
-    "mongodb": "^6.10.0",
+    "mongodb": "^6.16.0",
     "@clickhouse/client": "^1.10.1",
     "node-cache": "^5.1.2",
     "parse-duration": "^1.1.2",
