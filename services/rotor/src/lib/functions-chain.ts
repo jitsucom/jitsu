@@ -1,6 +1,5 @@
 import { AnonymousEventsStore, AnyEvent, EventContext, FuncReturn, TTLStore } from "@jitsu/protocols/functions";
 import {
-  createClient,
   createDummyStore,
   createMongoStore,
   createMultiStore,
@@ -29,7 +28,7 @@ import {
 import Prometheus from "prom-client";
 import { RetryErrorName, DropRetryErrorName } from "@jitsu/functions-lib";
 
-import { getLog, getSingleton, hash, newError, requireDefined, Singleton, stopwatch } from "juava";
+import { getLog, newError, requireDefined, stopwatch } from "juava";
 import { retryObject } from "./retries";
 import NodeCache from "node-cache";
 import isEqual from "lodash/isEqual";
