@@ -186,6 +186,7 @@ export function getSingleton<T>(
       }
       return Promise.resolve();
     };
+    result.waitInit().catch(e => {});
     return result;
   } else {
     handleSuccess(newInstance, startedAtTs);
