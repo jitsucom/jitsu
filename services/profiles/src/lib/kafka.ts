@@ -12,7 +12,7 @@ export type KafkaCredentials = {
   };
 };
 
-export function getKafkaCredentialsFromEnv(): KafkaCredentials {
+function getKafkaCredentialsFromEnv(): KafkaCredentials {
   const ssl = isTruish(process.env.KAFKA_SSL);
   const sslSkipVerify = isTruish(process.env.KAFKA_SSL_SKIP_VERIFY);
 
@@ -47,6 +47,12 @@ export function getKafkaCredentialsFromEnv(): KafkaCredentials {
     sasl: process.env.KAFKA_SASL ? JSON.parse(process.env.KAFKA_SASL) : undefined,
   };
 }
+
+export function topicName(profileBuilderId: string, priority: number): string {
+  return `profile-builder-${profileBuilderId}-pr${priority}`;
+}
+
+export const kafkaCredentials = getKafkaCredentialsFromEnv();
 
 export const kafkaAdmin = AdminClient.create({
   "bootstrap.servers": getKafkaCredentialsFromEnv().brokers.join(","),

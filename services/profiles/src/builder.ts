@@ -15,7 +15,7 @@ import {
   ProfileUser,
   Profile,
 } from "@jitsu/core-functions";
-import { FindCursor, MongoClient, ObjectId, WithId, Document, ReadPreference } from "mongodb";
+import { FindCursor, MongoClient, WithId, Document, ReadPreference } from "mongodb";
 import { db, ProfileBuilderState } from "./lib/db";
 import { getLog, getSingleton, hash, LogFactory, parseNumber, requireDefined, stopwatch } from "juava";
 import NodeCache from "node-cache";
@@ -24,7 +24,9 @@ import { FullContext } from "@jitsu/protocols/functions";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { TableNameParameter, transfer } from "@jitsu/functions-lib";
 import { connectionsStore } from "./lib/repositories";
-import { KafkaJS, HighLevelProducer } from "@confluentinc/kafka-javascript";
+import { HighLevelProducer } from "@confluentinc/kafka-javascript";
+import { createPriorityConsumer } from "./lib/priority-consumer";
+import { kafkaCredentials, topicName } from "./lib/kafka";
 
 const bulkerBase = requireDefined(process.env.BULKER_URL, "env BULKER_URL is not defined");
 const bulkerAuthKey = requireDefined(process.env.BULKER_AUTH_KEY, "env BULKER_AUTH_KEY is not defined");
@@ -158,34 +160,21 @@ export async function profileBuilder(
     true
   );
 
+  const priorityConsumer = createPriorityConsumer(profileBuilder, 3, (profileId: string) => {
+    return () => processProfile(profileBuilder, state, funcChain!, mongo, log, config, profileId);
+  });
+
   const pb = {
     startConsumer: async () => {
-      const consumer = new KafkaJS.Kafka({}).consumer({
-        "bootstrap.servers": kafkaCred.brokers.join(","),
-        "group.id": "profile-builder-" + profileBuilder.id, // Mandatory property for a consumer - the consumer group id.
-      });
-
-      await consumer.connect();
-      await consumer.subscribe({ topics: ["test-topic"] });
-
-      consumer.run({
-        eachMessage: async ({ topic, partition, message }) => {
-          console.log({
-            topic,
-            partition,
-            headers: message.headers,
-            offset: message.offset,
-            key: message.key?.toString(),
-            value: message.value.toString(),
-          });
-        },
-      });
-
-      // Whenever we're done consuming, maybe after user input or a signal:
-      await consumer.disconnect();
+      log.atInfo().log("Starting consumer");
+      return priorityConsumer.start();
     },
     startFullRebuilder: async () => {
       log.atInfo().log("Starting full rebuilder");
+      const producer = new HighLevelProducer({
+        "bootstrap.servers": kafkaCredentials.brokers.join(","),
+      });
+      const topic = topicName(profileBuilder.id, 2);
       while (!closed) {
         const started = Date.now();
         const loadedState = await db
@@ -197,9 +186,6 @@ export async function profileBuilder(
           await new Promise(resolve => setTimeout(resolve, 15 * 1000));
         }
         try {
-          const dateUpperBound = new Date();
-          dateUpperBound.setSeconds(dateUpperBound.getSeconds() - 1);
-
           const profileIds = await getProfileIds(mongo, config);
           if (profileIds.length > 0) {
             funcChain?.context.log.info(funcCtx, `Found ${profileIds.length} users to process.`);
@@ -209,18 +195,19 @@ export async function profileBuilder(
             state.speed = 0;
 
             for (let i = 0; i < profileIds.length; i++) {
-              if (i % 1000) {
-                await db.pgHelper().updateProfileBuilderState(state);
-              }
               const profileId = profileIds[i];
-              log.atInfo().log(`Processing user ${i + 1}/${profileIds.length}: ${profileId}`);
-              await queue.onEmpty();
-              queue.add(async () => processProfile(profileBuilder, state, funcChain!, mongo, log, config, profileId));
+              producer.produce(topic, null, null, profileId, Date.now(), (err, offset) => {
+                if (err) {
+                  log.atError().log(`ProfileID: ${profileId} Error while producing message to Kafka: ${err.message}`);
+                } else {
+                  log.atInfo().log(`ProfileID: ${profileId} Produced message to Kafka with offset: ${offset}`);
+                }
+              });
+              state.processedUsers++;
             }
-            await queue.onIdle();
-            state.lastTimestamp = dateUpperBound;
-            state.speed = profileIds.length / ((Date.now() - started) / 1000);
+            state.lastTimestamp = new Date();
             await db.pgHelper().updateProfileBuilderState(state);
+            log.atInfo().log(`Queued ${state.processedUsers} users in ${Date.now() - started}ms`);
           } else {
             funcChain?.context.log.debug(funcCtx, `No users to process.`);
           }
@@ -233,7 +220,7 @@ export async function profileBuilder(
     },
     close: async () => {
       closed = true;
-      await Promise.all([queue.onIdle(), closePromise]);
+      await Promise.all([priorityConsumer.close(), closePromise]);
       log.atInfo().log("Closed");
     },
     version: () => profileBuilder.version,
@@ -241,6 +228,7 @@ export async function profileBuilder(
   };
 
   setImmediate(pb.startFullRebuilder);
+  setImmediate(pb.startConsumer);
 
   return pb;
 }
