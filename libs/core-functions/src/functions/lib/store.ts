@@ -59,7 +59,7 @@ export const createRedisStore = (namespace: string, redisClient: Redis, metrics?
       success(namespace, "get", metrics);
       return res ? JSON.parse(res) : undefined;
     } catch (err: any) {
-      throw storeErr(namespace, "get", err, `Error getting key ${key} from redis store ${namespace}`);
+      throw storeErr(namespace, "get", err, `Error getting key ${key} from redis store ${namespace}`, metrics);
     }
   },
   getWithTTL: async (key: string) => {
@@ -72,7 +72,7 @@ export const createRedisStore = (namespace: string, redisClient: Redis, metrics?
       success(namespace, "get", metrics);
       return { value: JSON.parse(res), ttl };
     } catch (err: any) {
-      throw storeErr(namespace, "get", err, `Error getting key ${key} from redis store ${namespace}`);
+      throw storeErr(namespace, "get", err, `Error getting key ${key} from redis store ${namespace}`, metrics);
     }
   },
   set: async (key: string, obj: any, opts?: SetOpts) => {
@@ -85,7 +85,7 @@ export const createRedisStore = (namespace: string, redisClient: Redis, metrics?
       }
       success(namespace, "set", metrics);
     } catch (err: any) {
-      throw storeErr(namespace, "set", err, `Error setting key ${key} from redis store ${namespace}`);
+      throw storeErr(namespace, "set", err, `Error setting key ${key} from redis store ${namespace}`, metrics);
     }
   },
   del: async (key: string) => {
@@ -93,7 +93,7 @@ export const createRedisStore = (namespace: string, redisClient: Redis, metrics?
       await redisClient.del(`store:${namespace}:${key}`);
       success(namespace, "del", metrics);
     } catch (err: any) {
-      throw storeErr(namespace, "del", err, `Error deleting key ${key} from redis store ${namespace}`);
+      throw storeErr(namespace, "del", err, `Error deleting key ${key} from redis store ${namespace}`, metrics);
     }
   },
   ttl: async (key: string) => {
@@ -102,7 +102,7 @@ export const createRedisStore = (namespace: string, redisClient: Redis, metrics?
       success(namespace, "ttl", metrics);
       return res;
     } catch (err: any) {
-      throw storeErr(namespace, "ttl", err, `Error getting key ${key} from redis store ${namespace}`);
+      throw storeErr(namespace, "ttl", err, `Error getting key ${key} from redis store ${namespace}`, metrics);
     }
   },
 });
@@ -172,7 +172,7 @@ export const createMongoStore = (
         success(namespace, "get", metrics);
         return res ? res.value : undefined;
       } catch (err: any) {
-        throw storeErr(namespace, "get", err, `Error getting key ${key} from mongo store ${namespace}`);
+        throw storeErr(namespace, "get", err, `Error getting key ${key} from mongo store ${namespace}`, metrics);
       }
     },
     getWithTTL: async (key: string) => {
@@ -186,7 +186,7 @@ export const createMongoStore = (
         success(namespace, "get", metrics);
         return { value: res.value, ttl };
       } catch (err: any) {
-        throw storeErr(namespace, "get", err, `Error getting key ${key} from mongo store ${namespace}`);
+        throw storeErr(namespace, "get", err, `Error getting key ${key} from mongo store ${namespace}`, metrics);
       }
     },
     set: async (key: string, obj: any, opts?: SetOpts) => {
@@ -215,7 +215,7 @@ export const createMongoStore = (
             success(namespace, "set", metrics);
           });
       } catch (err: any) {
-        throw storeErr(namespace, "set", err, `Error setting key ${key} in mongo store ${namespace}`);
+        throw storeErr(namespace, "set", err, `Error setting key ${key} in mongo store ${namespace}`, metrics);
       }
     },
     del: async (key: string) => {
@@ -229,7 +229,7 @@ export const createMongoStore = (
           });
         success(namespace, "del", metrics);
       } catch (err: any) {
-        throw storeErr(namespace, "del", err, `Error deleting key ${key} from mongo store ${namespace}`);
+        throw storeErr(namespace, "del", err, `Error deleting key ${key} from mongo store ${namespace}`, metrics);
       }
     },
     ttl: async (key: string) => {
@@ -243,7 +243,7 @@ export const createMongoStore = (
             : -1
           : -2;
       } catch (err: any) {
-        throw storeErr(namespace, "ttl", err, `Error getting key ${key} from mongo store ${namespace}`);
+        throw storeErr(namespace, "ttl", err, `Error getting key ${key} from mongo store ${namespace}`, metrics);
       }
     },
   };
