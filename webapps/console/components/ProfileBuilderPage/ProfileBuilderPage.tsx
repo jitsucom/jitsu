@@ -7,7 +7,6 @@ import {
   DescriptionsProps,
   Input,
   Popover,
-  Progress,
   Splitter,
   Statistic,
   Tabs,
@@ -63,6 +62,8 @@ import omit from "lodash/omit";
 import { WLink } from "../Workspace/WLink";
 import { getCoreDestinationTypeNonStrict } from "../../lib/schema/destinations";
 import { FunctionsSelector } from "../FunctionsSelector/FunctionsSelector";
+import { ButtonGroup, ButtonProps } from "../ButtonGroup/ButtonGroup";
+import PriorityQueueBar from "../PriorityQueueBar/PriorityQueueBar";
 
 dayjs.extend(utc);
 dayjs.extend(relativeTime);
@@ -325,11 +326,10 @@ const SettingsTab: React.FC<{ profileBuilder: ProfileBuilderData; dispatch: Reac
 type ProfileBuilderState = {
   status: "ready" | "building" | "unknown" | "error";
   error?: string;
-  startedAt?: Date;
-  totalUsers?: number;
-  processedUsers?: number;
-  errorUsers?: number;
-  speed?: number;
+  updatedAt?: Date;
+  fullRebuildInfo?: any;
+  queuesInfo?: any;
+  metrics?: any;
 };
 
 const BuildProgress: React.FC<{
@@ -388,38 +388,47 @@ const BuildProgress: React.FC<{
       label: "Published",
       children: <div>{new Date(profileBuilder.updatedAt!).toLocaleString()}</div>,
     });
-  }
-  if (status === "building") {
-    items.push(
-      {
-        key: "progress",
-        label: "Progress",
-        children: (
-          <Progress
-            size={{ height: 15 }}
-            percent={floorToTwo((100 * (state?.processedUsers ?? 0)) / (state?.totalUsers ?? 1))}
-            status="active"
-            strokeColor={{ from: "#108ee9", to: "#a405f5" }}
-          />
-        ),
-      },
-      {
+    if (state?.fullRebuildInfo?.timestamp) {
+      items.push({
+        key: "rebuilt",
+        label: "Full Rebuild - Date",
+        children: <div>{new Date(state?.fullRebuildInfo?.timestamp!).toLocaleString()}</div>,
+      });
+      items.push({
+        key: "rebuilt",
+        label: "Full Rebuild - Version",
+        children: <div>{state?.fullRebuildInfo?.version ?? "-"}</div>,
+      });
+      items.push({
         key: "total",
-        label: "Total Users",
-        children: <Statistic valueStyle={{ fontSize: "1em" }} value={state?.totalUsers} />,
-      },
-      {
-        key: "processed",
-        label: "Processed Users",
-        children: <Statistic valueStyle={{ fontSize: "1em" }} value={state?.processedUsers} />,
-      },
-      {
-        key: "errors",
-        label: "Errors",
-        children: <Statistic valueStyle={{ fontSize: "1em" }} value={state?.errorUsers} />,
-      }
-    );
+        label: "Full Rebuild - Total Users",
+        children: state?.fullRebuildInfo?.profilesCount ? (
+          <Statistic valueStyle={{ fontSize: "1em" }} value={state?.fullRebuildInfo?.profilesCount} />
+        ) : (
+          <div>Initiating...</div>
+        ),
+      });
+    }
   }
+  items.push(
+    {
+      key: "queue",
+      label: "Queue Size",
+      children: (
+        <PriorityQueueBar
+          maxTotalSize={state?.fullRebuildInfo?.profilesCount}
+          queueSizes={Object.values(state?.queuesInfo.queues)
+            .sort((a: any, b: any) => a.priority - b.priority)
+            .map((q: any) => q.size)}
+        />
+      ),
+    }
+    // {
+    //   key: "errors",
+    //   label: "Errors",
+    //   children: <Statistic valueStyle={{ fontSize: "1em" }} value={state?.errorUsers} />,
+    // }
+  );
 
   return (
     <div className={styles.settingsTable}>
@@ -510,9 +519,7 @@ function useProfileBuilderState(
   useEffect(() => {
     if (pbEnabled) {
       setLoading(true);
-      get(
-        `/api/${workspace.id}/profile-builder/stats?profileBuilderId=${profileBuilder.id}&version=${profileBuilder.version}`
-      )
+      get(`/api/${workspace.id}/profile-builder/state?profileBuilderId=${profileBuilder.id}`)
         .then(res => {
           setData(res);
         })
@@ -773,6 +780,18 @@ export function ProfileBuilderPage() {
       .finally(() => setSaving(false));
   }, [obj, workspace.id]);
 
+  const rebuild = useCallback(async () => {
+    get(`/api/${workspace.id}/profile-builder/state?profileBuilderId=${obj.id}`, {
+      method: "POST",
+    })
+      .then(() => {
+        feedbackSuccess("Full rebuild is triggered");
+      })
+      .catch(e => {
+        feedbackError("Failed to trigger full rebuild of profile builder", { error: e });
+      });
+  }, [obj.id, workspace.id]);
+
   const rollback = useCallback(async () => {
     setSaving(true);
     getConfigApi(workspace.id, "function")
@@ -872,6 +891,28 @@ export function ProfileBuilderPage() {
     }
   }, [obj.id, obj.name, obj.version, obj.settings, obj.draft, testData, workspace.id, activeSecondaryTab]);
 
+  const items: ButtonProps[] = [];
+  if (activePrimaryTab === "code") {
+    items.push({
+      icon: <History className="w-3.5 h-3.5" />,
+      label: "Rollback Draft",
+      onClick: rollback,
+      disabled: isLoading || !!globalError || !hasUnpublishedDraft,
+      loading: isLoading,
+      collapsed: true,
+    });
+  }
+  if (obj?.version) {
+    items.push({
+      icon: <RefreshCw className="w-3.5 h-3.5" />,
+      label: "Full Rebuild",
+      onClick: rebuild,
+      disabled: isLoading || !!globalError,
+      loading: isLoading,
+      collapsed: true,
+    });
+  }
+
   return (
     <WorkspacePageLayout screen={true} contentClassName={"!py-6"}>
       <div className="relative flex flex-col h-full">
@@ -910,23 +951,6 @@ export function ProfileBuilderPage() {
                   {enabled && activePrimaryTab === "code" && (
                     <>
                       <div className={"text-xs text-textLight"}>Draft saved: {dayjs(obj.draftUpdatedAt).fromNow()}</div>
-                      <Button
-                        type="text"
-                        onClick={rollback}
-                        disabled={isLoading || !!globalError || !hasUnpublishedDraft}
-                      >
-                        <ButtonLabel
-                          icon={
-                            saving ? (
-                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                              <History className="w-3.5 h-3.5" />
-                            )
-                          }
-                        >
-                          Rollback
-                        </ButtonLabel>
-                      </Button>
                       <Button type="text" onClick={save} disabled={isLoading || !!globalError || !codeChanged}>
                         <ButtonLabel
                           icon={
@@ -943,19 +967,16 @@ export function ProfileBuilderPage() {
                     </>
                   )}
 
-                  <>
-                    <Button
-                      type="text"
-                      onClick={publish}
-                      disabled={isLoading || !!globalError || !hasUnpublishedChanges}
-                    >
-                      {enabled ? (
-                        <ButtonLabel icon={<Rocket className="w-4 h-4" />}>Publish</ButtonLabel>
-                      ) : (
-                        <ButtonLabel icon={<Save className="w-4 h-4" />}>Save</ButtonLabel>
-                      )}
-                    </Button>
-                  </>
+                  <Button type="text" onClick={publish} disabled={isLoading || !!globalError || !hasUnpublishedChanges}>
+                    {enabled ? (
+                      <ButtonLabel icon={<Rocket className="w-4 h-4" />}>Publish</ButtonLabel>
+                    ) : (
+                      <ButtonLabel icon={<Save className="w-4 h-4" />}>Save</ButtonLabel>
+                    )}
+                  </Button>
+                  {enabled && (
+                    <ButtonGroup items={items} dotsButtonProps={{ type: "text" }} dotsOrientation={"horizontal"} />
+                  )}
                 </div>
               }
               type={"card"}

@@ -334,6 +334,16 @@ model ProfileBuilderState {
   @@id([profileBuilderId, profileBuilderVersion, totalInstances, instanceIndex])
 }
 
+model ProfileBuilderState2 {
+  profileBuilderId String
+  updatedAt        DateTime
+  fullRebuildInfo  Json?
+  queuesInfo       Json?
+  metrics          Json?
+
+  @@id([profileBuilderId])
+}
+
 model StatusChange {
   id          BigInt   @id @default(autoincrement()) @db.BigInt
   workspaceId String

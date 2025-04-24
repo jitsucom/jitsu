@@ -336,6 +336,7 @@ const exports: Export[] = [
         const cred = {
           ...(pb.intermediateStorageCredentials ?? ({} as any)),
           profileWindowDays: (pb.connectionOptions ?? ({} as any)).profileWindow,
+          profileBuilderId: pb.id,
           eventsCollectionName: `profiles-raw-${pb.workspaceId}-${pb.id}`,
           traitsCollectionName: `profiles-traits-${pb.workspaceId}-${pb.id}`,
         };
@@ -563,6 +564,7 @@ const exports: Export[] = [
                   credentials: {
                     ...pb.intermediateStorageCredentials,
                     profileWindowDays: pb.connectionOptions.profileWindow,
+                    profileBuilderId: pb.id,
                     eventsCollectionName: `profiles-raw-${obj.workspace.id}-${pb.id}`,
                     traitsCollectionName: `profiles-traits-${obj.workspace.id}-${pb.id}`,
                   },
@@ -621,15 +623,17 @@ const exports: Export[] = [
           if (needComma) {
             writer.write(",");
           }
-          row.profileBuilders = row.profileBuilders.map(pb => {
-            pb.functions = pb.functions.map(f => {
-              return {
-                ...omit(f.function, "config"),
-                ...f.function.config,
-              };
+          row.profileBuilders = row.profileBuilders
+            .filter(pb => pb.version > 0)
+            .map(pb => {
+              pb.functions = pb.functions.map(f => {
+                return {
+                  ...omit(f.function, "config"),
+                  ...f.function.config,
+                };
+              });
+              return pb;
             });
-            return pb;
-          });
           writer.write(JSON.stringify(row));
           needComma = true;
         }
