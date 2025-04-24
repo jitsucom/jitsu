@@ -24,7 +24,7 @@ const fetchTimeoutMs = parseNumber(process.env.FETCH_TIMEOUT_MS, 2000);
 
 export const undiciAgent = new Agent({
   connections: concurrency, // Limit concurrent kept-alive connections to not run out of resources
-  maxRequestsPerClient: 5000,
+  maxRequestsPerClient: 3000,
   headersTimeout: fetchTimeoutMs,
   connectTimeout: fetchTimeoutMs,
   bodyTimeout: fetchTimeoutMs,
