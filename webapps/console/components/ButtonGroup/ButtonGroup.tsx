@@ -4,7 +4,7 @@ import { JitsuButton } from "../JitsuButton/JitsuButton";
 import { BaseButtonProps } from "antd/lib/button/button";
 import styles from "./ButtonGroup.module.css";
 import { useWorkspace } from "../../lib/context";
-import { MoreVertical } from "lucide-react";
+import { MoreHorizontal, MoreVertical } from "lucide-react";
 import Link from "next/link";
 
 const AntButtonGroup = Button.Group;
@@ -21,9 +21,10 @@ export type ButtonProps = Omit<BaseButtonProps, "children" | "type"> & {
 export type ButtonGroupProps = {
   items: ButtonProps[];
   dotsButtonProps?: BaseButtonProps;
+  dotsOrientation?: "horizontal" | "vertical";
 };
 
-export const ButtonGroup: React.FC<ButtonGroupProps> = ({ items, dotsButtonProps }) => {
+export const ButtonGroup: React.FC<ButtonGroupProps> = ({ items, dotsButtonProps, dotsOrientation = "vertical" }) => {
   const w = useWorkspace();
   const shownItems = items.filter(item => !item.collapsed);
   const dropdownItems: MenuProps["items"] = items
@@ -54,7 +55,13 @@ export const ButtonGroup: React.FC<ButtonGroupProps> = ({ items, dotsButtonProps
         <Dropdown trigger={["click"]} menu={{ items: dropdownItems }}>
           <JitsuButton
             className="text-lg font-bold p-0"
-            icon={<MoreVertical className={"w-4 h-4"} />}
+            icon={
+              dotsOrientation === "vertical" ? (
+                <MoreVertical className={"w-4 h-4"} />
+              ) : (
+                <MoreHorizontal className={"w-4 h-4"} />
+              )
+            }
             onClick={event => {
               event.preventDefault();
               event.stopPropagation(); // stop propagation main button

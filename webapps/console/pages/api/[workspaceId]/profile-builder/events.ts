@@ -43,6 +43,7 @@ export default createRoute()
     }
     try {
       const config = ProfilesConfig.parse({
+        profileBuilderId: profileBuilder.id,
         ...(profileBuilder.intermediateStorageCredentials || ({} as any)),
         profileWindowDays: (profileBuilder.connectionOptions || ({} as any)).profileWindow,
         eventsDatabase: `profiles`,
@@ -55,8 +56,8 @@ export default createRoute()
             () => {
               log.atInfo().log(`Connecting to MongoDB server.`);
               const cl = createClient({
-                mongoUrl: config.mongoUrl,
-              } as ProfilesConfig);
+                mongoUrl: config.mongoUrl!,
+              });
               log.atInfo().log(`Connected successfully to MongoDB server.`);
               return cl;
             },

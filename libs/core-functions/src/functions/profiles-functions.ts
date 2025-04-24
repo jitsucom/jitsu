@@ -5,15 +5,23 @@ import { getSingleton, parseNumber } from "juava";
 import { MongoClient } from "mongodb";
 import { createHash } from "crypto";
 import { mongodb } from "./lib/mongodb";
-import { transfer } from "@jitsu/functions-lib";
+import { HTTPError, transfer } from "@jitsu/functions-lib";
+import { undiciAgent } from "./bulker-destination";
+import { request } from "undici";
+
+const bulkerBase = process.env.BULKER_URL;
+const bulkerAuthKey = process.env.BULKER_AUTH_KEY;
+const fetchTimeoutMs = parseNumber(process.env.FETCH_TIMEOUT_MS, 2000);
 
 export const profileIdHashColumn = "_profile_id_hash";
 export const profileIdColumn = "_profile_id";
 export const ProfileIdParameter = "JITSU_PROFILE_ID";
+export const ProfilePriorityParameter = "__PROFILE_PROCESSING_PRIORITY";
 
 export const idHash32MaxValue = 2147483647;
 
 export const ProfilesConfig = z.object({
+  profileBuilderId: z.string(),
   mongoUrl: z.string().optional(),
   enableAnonymousProfiles: z.boolean().optional().default(false),
   profileWindowDays: z.number().optional().default(365),
@@ -26,7 +34,7 @@ export const ProfilesConfig = z.object({
 const MongoCreatedCollections = new Set<string>();
 export type ProfilesConfig = z.infer<typeof ProfilesConfig>;
 
-export const createClient = async (config: ProfilesConfig) => {
+export const createClient = async (config: { mongoUrl: string }) => {
   const mongoTimeout = parseNumber(process.env.MONGODB_TIMEOUT_MS, 1000);
   let uri = config.mongoUrl!;
 
@@ -73,7 +81,7 @@ export const ProfilesFunction: JitsuFunction<AnalyticsServerEvent, ProfilesConfi
           `profiles-mongodb-${ctx.connection?.id}-${hash("md5", config.mongoUrl)}`,
           () => {
             ctx.log.info(`Connecting to MongoDB server.`);
-            const cl = createClient(config);
+            const cl = createClient({ mongoUrl: config.mongoUrl! });
             ctx.log.info(`Connected successfully to MongoDB server.`);
             return cl;
           },
@@ -150,6 +158,24 @@ export const ProfilesFunction: JitsuFunction<AnalyticsServerEvent, ProfilesConfi
     }
   } catch (e: any) {
     throw new Error(`Error while sending event to MongoDB: ${e}`);
+  }
+
+  const priority = event[ProfilePriorityParameter] || 0;
+
+  const bulkerRes = await request(
+    `${bulkerBase}/profiles/${config.profileBuilderId}/${priority}?profileId=${encodeURIComponent(profileId)}`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${bulkerAuthKey}` },
+      bodyTimeout: fetchTimeoutMs,
+      headersTimeout: fetchTimeoutMs,
+      dispatcher: undiciAgent,
+    }
+  );
+  if (bulkerRes.statusCode != 200) {
+    throw new HTTPError(`HTTP Error: ${bulkerRes.statusCode}`, bulkerRes.statusCode, await bulkerRes.body.text());
+  } else {
+    ctx.log.debug(`HTTP Status: ${bulkerRes.statusCode} Response: ${await bulkerRes.body.text()}`);
   }
 };
 

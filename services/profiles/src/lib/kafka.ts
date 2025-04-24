@@ -1,4 +1,4 @@
-import { isTruish, requireDefined } from "juava";
+import { isTruish, parseNumber, requireDefined } from "juava";
 import { readFileSync } from "fs";
 import { AdminClient } from "@confluentinc/kafka-javascript";
 
@@ -10,6 +10,13 @@ export type KafkaCredentials = {
     username: string;
     password: string;
   };
+};
+
+export type KafkaSettings = {
+  topicPrefix?: string;
+  topicReplicationFactor: number;
+  topicRetentionMs: number;
+  topicSegmentMs: number;
 };
 
 function getKafkaCredentialsFromEnv(): KafkaCredentials {
@@ -48,13 +55,23 @@ function getKafkaCredentialsFromEnv(): KafkaCredentials {
   };
 }
 
-export function topicName(profileBuilderId: string, priority: number): string {
-  return `profile-builder-${profileBuilderId}-pr${priority}`;
+function getKafkaSettingsFromEnv(): KafkaSettings {
+  return {
+    topicPrefix: process.env.KAFKA_TOPIC_PREFIX,
+    topicReplicationFactor: parseNumber(process.env.KAFKA_TOPIC_REPLICATION_FACTOR, 1),
+    topicRetentionMs: parseNumber(process.env.KAFKA_TOPIC_RETENTION_HOURS, 48) * 60 * 60 * 1000,
+    topicSegmentMs: parseNumber(process.env.KAFKA_TOPIC_SEGMENT_HOURS, 24) * 60 * 60 * 1000,
+  };
 }
 
+export function topicName(profileBuilderId: string, priority: number): string {
+  return `${kafkaSettings.topicPrefix ?? ""}in.id.${profileBuilderId}.m.profiles.t.${priority}`;
+}
+
+export const kafkaSettings = getKafkaSettingsFromEnv();
 export const kafkaCredentials = getKafkaCredentialsFromEnv();
 
 export const kafkaAdmin = AdminClient.create({
-  "bootstrap.servers": getKafkaCredentialsFromEnv().brokers.join(","),
+  "bootstrap.servers": kafkaCredentials.brokers.join(","),
   "client.id": "profile-builder-" + process.env.INSTANCE_INDEX,
 });

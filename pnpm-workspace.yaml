@@ -7,9 +7,10 @@ packages:
   - cli/*
   - libs/*
 onlyBuiltDependencies:
-  - "@firebase/util"
-  - "@prisma/client"
-  - "@prisma/engines"
+  - '@confluentinc/kafka-javascript'
+  - '@firebase/util'
+  - '@prisma/client'
+  - '@prisma/engines'
   - core-js
   - core-js-pure
   - cpu-features
