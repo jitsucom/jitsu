@@ -2,7 +2,7 @@ import { WorkspacePageLayout } from "../../../components/PageLayout/WorkspacePag
 import { Button, Input } from "antd";
 import { useAppConfig, useUser, useWorkspace } from "../../../lib/context";
 import React, { useState } from "react";
-import { confirmOp, feedbackError } from "../../../lib/ui";
+import { confirmOp, feedbackError, feedbackSuccess, confirmOpWithInput } from "../../../lib/ui";
 import { get, useApi } from "../../../lib/useApi";
 import { QueryResponse } from "../../../components/QueryResponse/QueryResponse";
 import { SafeUserProfile, UserWorkspaceRelation } from "../../../lib/schema";
@@ -16,6 +16,7 @@ import { AntdModal, useAntdModal } from "../../../lib/modal";
 import { FiMail } from "react-icons/fi";
 import { ArrowRight, Copy } from "lucide-react";
 import { JitsuButton, WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
+import { Spinner } from "../../../components/GlobalLoader/GlobalLoader";
 
 const InviteUserForm: React.FC<{ invite: (email: string) => Promise<void> }> = ({ invite }) => {
   const [inputVisible, setInputVisible] = useState(false);
@@ -232,6 +233,35 @@ const Members: React.FC<any> = () => {
 const WorkspaceSettingsComponent: React.FC<any> = () => {
   const config = useAppConfig();
   const workspace = useWorkspace();
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const handleDeleteWorkspace = async () => {
+    setDeleteLoading(true);
+    if (await confirmOp("Are you sure you want to delete this workspace?")) {
+      if (
+        await confirmOp(
+          `This will permanently delete the ${workspace.name} workspace. I understand that this action cannot be undone.`
+        )
+      ) {
+        if (await confirmOpWithInput(`To confirm, type "${workspace.name}" in the box below`, workspace.name)) {
+          const res = await get("/api/workspace", {
+            method: "DELETE",
+            body: {
+              workspaceId: workspace.id,
+            },
+          });
+          if (res.status != 200) {
+            feedbackError(`Failed to delete workspace ${res.message}`);
+          } else {
+            feedbackSuccess(`Workspace ${workspace.name} deleted successfully`);
+            window.location.href = `/workspaces`;
+          }
+        }
+      }
+    }
+
+    setDeleteLoading(false);
+  };
   return (
     <div className="flex justify-center">
       <div className="w-full max-w-4xl grow">
@@ -242,11 +272,11 @@ const WorkspaceSettingsComponent: React.FC<any> = () => {
               <WJitsuButton
                 iconPosition="end"
                 icon={<ArrowRight className="-rotate-45 w-4 h-4" />}
-                href={"/settings/billing"}
+                href="/settings/billing"
                 size="large"
                 type="primary"
               >
-                Manage Billing {"&"} Plan
+                Manage Billing & Plan
               </WJitsuButton>
             </div>
           </div>
@@ -263,7 +293,7 @@ const WorkspaceSettingsComponent: React.FC<any> = () => {
             <JitsuButton
               iconPosition="end"
               icon={<ArrowRight className="-rotate-45 w-4 h-4" />}
-              href={"/user"}
+              href="/user"
               size="large"
               type="primary"
             >
@@ -274,8 +304,14 @@ const WorkspaceSettingsComponent: React.FC<any> = () => {
 
         <div className="px-8 py-6 border border-error rounded-lg mt-12 mb-12">
           <p className="text-lg mb-6 font-bold text-error uppercase">danger zone</p>
-          <JitsuButton size="large" type="primary" danger={true} onClick={_ => _} className="capitalize !flex mx-auto">
-            delete this workspace
+          <JitsuButton
+            size="large"
+            type="primary"
+            danger={true}
+            onClick={handleDeleteWorkspace}
+            className="capitalize !flex mx-auto"
+          >
+            {deleteLoading ? <Spinner /> : "Delete this workspace"}
           </JitsuButton>
         </div>
       </div>

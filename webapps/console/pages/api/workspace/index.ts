@@ -55,6 +55,40 @@ const api: Api = {
       return { id: newWorkspace.id };
     },
   },
+  DELETE: {
+    auth: true,
+    types: {
+      body: z.object({ workspaceId: z.string() }),
+    },
+    handle: async ({ body }) => {
+      const workspace = await db.prisma().workspace.findUnique({
+        where: { id: body.workspaceId, deleted: false },
+      });
+
+      if (!workspace) {
+        return { message: `Error Workspace ${body.workspaceId} not found`, status: 500 };
+      }
+
+      const connections = await db.prisma().configurationObjectLink.findMany({
+        where: { workspaceId: body.workspaceId, deleted: false },
+        include: { from: true, to: true, workspace: true },
+      });
+
+      if (connections.length > 0) {
+        return {
+          message: `Error: Workspace ${workspace.name} has active connections. Please remove all connections on this workspace before attempting to delete again.`,
+          status: 500,
+        };
+      }
+
+      await db.prisma().workspace.update({
+        where: { id: body.workspaceId },
+        data: { deleted: true },
+      });
+
+      return { message: `${workspace.name} deleted successfully`, status: 200 };
+    },
+  },
 };
 
 export default nextJsApiHandler(api);
