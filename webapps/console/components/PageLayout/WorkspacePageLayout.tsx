@@ -712,6 +712,11 @@ export const WorkspacePageLayout: React.FC<PropsWithChildren<PageLayoutProps>> =
     setShowDrawer(false);
   }, [fullscreen]);
 
+  if (workspace.deleted) {
+    window.location.href = "/workspaces";
+    return <p>This workspace was deleted, redirecting...</p>;
+  }
+
   const pHeader = (
     <VerticalSection className="header border-b border-neutral-300 bg-neutral-50 z-40" key="header">
       <WidthControl className={"px-4"}>
@@ -719,6 +724,7 @@ export const WorkspacePageLayout: React.FC<PropsWithChildren<PageLayoutProps>> =
       </WidthControl>
     </VerticalSection>
   );
+
   return (
     <div className={`flex flex-col ${screen ? "h-screen" : ""} ${className}`}>
       {!doNotBlockIfUsageExceeded && <BillingBlockingDialog />}

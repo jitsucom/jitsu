@@ -83,7 +83,7 @@ const api: Api = {
 
       await db.prisma().workspace.update({
         where: { id: body.workspaceId },
-        data: { deleted: true },
+        data: { deleted: true, updatedAt: new Date() },
       });
 
       return { message: `${workspace.name} deleted successfully`, status: 200 };

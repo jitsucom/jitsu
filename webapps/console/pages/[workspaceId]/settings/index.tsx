@@ -238,11 +238,7 @@ const WorkspaceSettingsComponent: React.FC<any> = () => {
   const handleDeleteWorkspace = async () => {
     setDeleteLoading(true);
     if (await confirmOp("Are you sure you want to delete this workspace?")) {
-      if (
-        await confirmOp(
-          `This will permanently delete the ${workspace.name} workspace. I understand that this action cannot be undone.`
-        )
-      ) {
+      if (await confirmOp(`This will delete ${workspace.name}. I understand the consequences of this action.`)) {
         if (await confirmOpWithInput(`To confirm, type "${workspace.name}" in the box below`, workspace.name)) {
           const res = await get("/api/workspace", {
             method: "DELETE",
@@ -254,7 +250,7 @@ const WorkspaceSettingsComponent: React.FC<any> = () => {
             feedbackError(`Failed to delete workspace ${res.message}`);
           } else {
             feedbackSuccess(`Workspace ${workspace.name} deleted successfully`);
-            window.location.href = `/workspaces`;
+            window.location.href = "/workspaces";
           }
         }
       }
