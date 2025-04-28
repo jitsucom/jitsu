@@ -713,7 +713,7 @@ export const WorkspacePageLayout: React.FC<PropsWithChildren<PageLayoutProps>> =
   }, [fullscreen]);
 
   if (workspace.deleted) {
-    window.location.href = "/workspaces";
+    router.push("/workspaces");
     return <p>This workspace was deleted, redirecting...</p>;
   }
 

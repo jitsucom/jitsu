@@ -78,7 +78,7 @@ export function confirmOp(message: ReactNode) {
 }
 
 export function confirmOpWithInput(message: ReactNode, messageToMatch: string) {
-  return new Promise<{ confirmed: boolean }>(resolve => {
+  return new Promise(resolve => {
     const modal = getAntdModal().confirm({
       title: message,
       content: (

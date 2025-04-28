@@ -17,6 +17,7 @@ import { FiMail } from "react-icons/fi";
 import { ArrowRight, Copy } from "lucide-react";
 import { JitsuButton, WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
 import { Spinner } from "../../../components/GlobalLoader/GlobalLoader";
+import { useRouter } from "next/router";
 
 const InviteUserForm: React.FC<{ invite: (email: string) => Promise<void> }> = ({ invite }) => {
   const [inputVisible, setInputVisible] = useState(false);
@@ -234,30 +235,36 @@ const WorkspaceSettingsComponent: React.FC<any> = () => {
   const config = useAppConfig();
   const workspace = useWorkspace();
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const router = useRouter();
 
   const handleDeleteWorkspace = async () => {
     setDeleteLoading(true);
-    if (await confirmOp("Are you sure you want to delete this workspace?")) {
-      if (await confirmOp(`This will delete ${workspace.name}. I understand the consequences of this action.`)) {
-        if (await confirmOpWithInput(`To confirm, type "${workspace.name}" in the box below`, workspace.name)) {
-          const res = await get("/api/workspace", {
-            method: "DELETE",
-            body: {
-              workspaceId: workspace.id,
-            },
-          });
-          if (res.status != 200) {
-            feedbackError(`Failed to delete workspace ${res.message}`);
-          } else {
-            feedbackSuccess(`Workspace ${workspace.name} deleted successfully`);
-            window.location.href = "/workspaces";
+    try {
+      if (await confirmOp("Are you sure you want to delete this workspace?")) {
+        if (await confirmOp(`This will delete ${workspace.name}. I understand the consequences of this action.`)) {
+          if (await confirmOpWithInput(`To confirm, type "${workspace.name}" in the box below`, workspace.name)) {
+            const res = await get("/api/workspace", {
+              method: "DELETE",
+              body: {
+                workspaceId: workspace.id,
+              },
+            });
+            if (res.status != 200) {
+              feedbackError(`Failed to delete workspace ${res.message}`);
+            } else {
+              feedbackSuccess(`Workspace ${workspace.name} deleted successfully`);
+              router.push("/workspaces");
+            }
           }
         }
       }
+    } catch (e) {
+      feedbackError(`Failed to delete workspace ${e}`);
+    } finally {
+      setDeleteLoading(false);
     }
-
-    setDeleteLoading(false);
   };
+
   return (
     <div className="flex justify-center">
       <div className="w-full max-w-4xl grow">

@@ -66,7 +66,7 @@ const api: Api = {
       });
 
       if (activeWorkspacesCount === 1) {
-        return { message: `This is your only workspace, it cannot be deleted.`, status: 500 };
+        return { message: `This is your only workspace, it cannot be deleted.`, status: 400 };
       }
 
       const workspace = await db.prisma().workspace.findUnique({
@@ -74,7 +74,7 @@ const api: Api = {
       });
 
       if (!workspace) {
-        return { message: `Error Workspace ${body.workspaceId} not found`, status: 500 };
+        return { message: `Error Workspace ${body.workspaceId} not found`, status: 404 };
       }
 
       const connections = await db.prisma().configurationObjectLink.findMany({
