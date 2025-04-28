@@ -61,6 +61,14 @@ const api: Api = {
       body: z.object({ workspaceId: z.string() }),
     },
     handle: async ({ body }) => {
+      const activeWorkspacesCount = await db.prisma().workspace.count({
+        where: { deleted: false },
+      });
+
+      if (activeWorkspacesCount === 1) {
+        return { message: `This is your only workspace, it cannot be deleted.`, status: 500 };
+      }
+
       const workspace = await db.prisma().workspace.findUnique({
         where: { id: body.workspaceId, deleted: false },
       });
