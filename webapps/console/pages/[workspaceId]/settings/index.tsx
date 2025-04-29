@@ -306,15 +306,16 @@ const WorkspaceSettingsComponent: React.FC<any> = () => {
         </div>
 
         <div className="px-8 py-6 border border-error rounded-lg mt-12 mb-12">
-          <p className="text-lg mb-6 font-bold text-error uppercase">danger zone</p>
+          <p className="text-lg mb-6 font-bold">Delete Project</p>
+          <p className="text-mg">This workspace will be deleted and will no longer be available.</p>
           <JitsuButton
             size="large"
             type="primary"
             danger={true}
             onClick={handleDeleteWorkspace}
-            className="capitalize !flex mx-auto"
+            className="capitalize !flex ml-auto"
           >
-            {deleteLoading ? <Spinner /> : "Delete this workspace"}
+            {deleteLoading ? <Spinner /> : "Delete"}
           </JitsuButton>
         </div>
       </div>
