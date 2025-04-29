@@ -99,8 +99,8 @@ export function confirmOpWithInput(message: ReactNode, messageToMatch: string) {
         disabled: true,
       },
 
-      onOk: () => resolve({ confirmed: true }),
-      onCancel: () => resolve({ confirmed: false }),
+      onOk: () => resolve(true),
+      onCancel: () => resolve(false),
     });
   });
 }
