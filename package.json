@@ -50,6 +50,7 @@
   },
   "pnpm": {
     "overrides": {
+      "zstd-napi": "^0.0.10",
       "nth-check": "2.1.1",
       "nanoid": "3.3.8",
       "postcss": "^8.4.47",

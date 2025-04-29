@@ -26,6 +26,7 @@
     "@jitsu/functions-lib": "workspace:*",
     "@maxmind/geoip2-node": "^5.0.0",
     "@sensejs/kafkajs-zstd-support": "^0.11.0",
+    "zstd-napi": "^0.0.10",
     "@types/pg-cursor": "^2.7.2",
     "dayjs": "^1.11.12",
     "express": "^4.21.2",
