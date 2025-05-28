@@ -46,52 +46,54 @@ export function WorkspaceNameAndSlugEditor({
   const [loading, setLoading] = useState(false);
   const [slugError, setSlugError] = useState<string | undefined>();
   return (
-    <div className="px-8 py-6 border border-textDisabled rounded-lg">
-      <div className="text-lg font-bold text-textLight pb-2">Workspace Name</div>
-      <Input
-        value={name}
-        size="large"
-        onChange={e => {
-          setName(e.target.value);
-          setChanged(true);
-        }}
-      />
-      <div className="text-lg text-textLight font-bold pt-4 pb-2">Workspace Slug</div>
-      <Input
-        value={slug}
-        size="large"
-        onChange={e => {
-          //setSlug(e.target.value ? e.target.value.toLowerCase().replaceAll(/[^a-z0-9-]/g, "") : "");
-          setSlug(e.target.value);
-          setChanged(true);
-        }}
-      />
-      <div className={"text-sm text-red-600 p-0.5"}>{slugError}</div>
-      {displayId && (
-        <>
-          <div className="text-lg text-textLight font-bold pt-4 pb-2">Workspace Id</div>
-          <div
-            className="cursor-pointer bg-textInverted text-textLight px-2 py-2 rounded-lg border border-textDisabled font-mono"
-            onClick={() => {
-              copyTextToClipboard(workspace.id);
-              feedbackSuccess("Workspace id copied to clipboard");
-            }}
-          >
-            {workspace.id}
-          </div>
-          <div key="workspace-hint" className="text-xs text-textLight ml-0.5 pt-1">
-            You'll need this id for making{" "}
-            <a className="underline" href="https://docs.jitsu.com/api">
-              API calls
-            </a>{" "}
-          </div>
-        </>
-      )}
-      <div className="pt-6 flex justify-between">
-        <div className={"flex items-end"}></div>
+    <>
+      <div className="px-6 py-6 border-t border-x border-textDisabled rounded-t-lg">
+        <div className="text-lg font-bold text-textLight pb-2">Workspace Name</div>
+        <Input
+          value={name}
+          size="large"
+          onChange={e => {
+            setName(e.target.value);
+            setChanged(true);
+          }}
+        />
+        <div className="text-lg text-textLight font-bold pt-4 pb-2">Workspace Slug</div>
+        <Input
+          value={slug}
+          size="large"
+          onChange={e => {
+            //setSlug(e.target.value ? e.target.value.toLowerCase().replaceAll(/[^a-z0-9-]/g, "") : "");
+            setSlug(e.target.value);
+            setChanged(true);
+          }}
+        />
+        <div className={"text-sm text-red-600 p-0.5"}>{slugError}</div>
+        {displayId && (
+          <>
+            <div className="text-lg text-textLight font-bold pt-4 pb-2">Workspace Id</div>
+            <div
+              className="cursor-pointer bg-textInverted text-textLight px-2 py-2 rounded-lg border border-textDisabled font-mono"
+              onClick={() => {
+                copyTextToClipboard(workspace.id);
+                feedbackSuccess("Workspace id copied to clipboard");
+              }}
+            >
+              {workspace.id}
+            </div>
+            <div key="workspace-hint" className="text-xs text-textLight ml-0.5 pt-1">
+              You'll need this id for making{" "}
+              <a className="underline" href="https://docs.jitsu.com/api">
+                API calls
+              </a>{" "}
+            </div>
+          </>
+        )}
+      </div>
+      <div className="px-6 py-4 border border-textDisabled bg-gray-100 rounded-b-lg flex justify-end">
         <Button
           type="primary"
           loading={loading}
+          className="w-20"
           onClick={async () => {
             if (!slug) {
               feedbackError("Slug cannot be empty");
@@ -127,6 +129,6 @@ export function WorkspaceNameAndSlugEditor({
           Save
         </Button>
       </div>
-    </div>
+    </>
   );
 }

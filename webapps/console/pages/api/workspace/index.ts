@@ -1,4 +1,4 @@
-import { Api, inferUrl, nextJsApiHandler } from "../../../lib/api";
+import { Api, inferUrl, nextJsApiHandler, verifyAccess } from "../../../lib/api";
 import { z } from "zod";
 import { db } from "../../../lib/server/db";
 import { requireDefined } from "juava";
@@ -60,38 +60,22 @@ const api: Api = {
     types: {
       body: z.object({ workspaceId: z.string() }),
     },
-    handle: async ({ body }) => {
-      const activeWorkspacesCount = await db.prisma().workspace.count({
-        where: { deleted: false },
-      });
+    handle: async ({ body, user }) => {
+      const workspaceId = body.workspaceId;
 
-      if (activeWorkspacesCount === 1) {
-        return { message: `This is your only workspace, it cannot be deleted.`, status: 400 };
-      }
+      await verifyAccess(user, workspaceId);
 
       const workspace = await db.prisma().workspace.findUnique({
-        where: { id: body.workspaceId, deleted: false },
+        where: { id: workspaceId, deleted: false },
       });
 
       if (!workspace) {
-        return { message: `Error Workspace ${body.workspaceId} not found`, status: 404 };
-      }
-
-      const connections = await db.prisma().configurationObjectLink.findMany({
-        where: { workspaceId: body.workspaceId, deleted: false },
-        include: { from: true, to: true, workspace: true },
-      });
-
-      if (connections.length > 0) {
-        return {
-          message: `Error: Workspace ${workspace.name} has active connections. Please remove all connections on this workspace before attempting to delete again.`,
-          status: 500,
-        };
+        return { message: `Error Workspace ${workspaceId} not found`, status: 404 };
       }
 
       await db.prisma().workspace.update({
-        where: { id: body.workspaceId },
-        data: { deleted: true, updatedAt: new Date() },
+        where: { id: workspaceId },
+        data: { deleted: true },
       });
 
       return { message: `${workspace.name} deleted successfully`, status: 200 };
