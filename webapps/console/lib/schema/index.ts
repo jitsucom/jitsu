@@ -282,10 +282,12 @@ export type SelectedStreamSettings = z.infer<typeof SelectedStreamSettings>;
 
 export const SyncOptionsType = z.object({
   streams: z.record(SelectedStreamSettings),
+  disabledStreams: z.record(SelectedStreamSettings),
   namespace: z.string().optional(),
   tableNamePrefix: z.string().optional(),
   toSameCase: z.boolean().optional(),
   addMeta: z.boolean().optional(),
+  schemaChanges: z.enum(["manual", "fields", "streams"]).optional(),
   functionsEnv: z.any().optional(),
   schedule: z.union([z.string(), z.enum(["0 0 * * *", "0 * * * *", "*/15 * * * *", "*/5 * * * *", "* * * * *"])]),
   timezone: z.string().optional(),

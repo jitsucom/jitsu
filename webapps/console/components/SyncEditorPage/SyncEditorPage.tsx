@@ -32,6 +32,7 @@ import { FunctionVariables } from "../FunctionsDebugger/FunctionVariables";
 import { BackButton } from "../BackButton/BackButton";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
 import { FaExternalLinkAlt } from "react-icons/fa";
+import { initStream } from "../../lib/sources";
 
 const log = getLog("SyncEditorPage");
 
@@ -93,10 +94,10 @@ function ServiceSelector(props: SelectorProps<ServiceConfig>) {
             <Select.Option popupMatchSelectWidth={false} key={service.id} value={service.id}>
               <ServiceTitle
                 service={service}
-                size={"small"}
+                size="small"
                 title={s => {
                   return (
-                    <div className={"flex flex-row items-center"}>
+                    <div className="flex flex-row items-center">
                       <div className="whitespace-nowrap">{s.name}</div>
                       <div className="text-xxs text-gray-500 ml-1">({s.package.replaceAll(s.protocol + "/", "")})</div>
                     </div>
@@ -141,6 +142,7 @@ function SyncEditor({
     existingLink?.toId || (router.query.destinationId as string) || destinations[0].id
   );
   const [srvId, setSrvId] = useState(existingLink?.fromId || (router.query.serviceId as string) || services[0].id);
+  const [connectorSubtype, setConnectorSubtype] = useState<string | undefined>(undefined);
 
   const service = services.find(s => s.id === srvId);
   const destination = requireDefined(
@@ -163,7 +165,7 @@ function SyncEditor({
     return array.indexOf(value) === index;
   }
 
-  const legacyMode = !!existingLink && typeof syncOptions?.namespace === "undefined";
+  const legacyMode = !!existingLink && typeof syncOptions.namespace === "undefined";
   const sourceNamespaces: string[] =
     catalog?.streams
       ?.map((s: any) => s.namespace)
@@ -172,28 +174,28 @@ function SyncEditor({
   const legacyPrefix =
     legacyMode && sourceNamespaces?.length > 0
       ? sourceNamespaces?.length === 1
-        ? syncOptions?.tableNamePrefix + sourceNamespaces[0] + "_"
-        : (syncOptions?.tableNamePrefix ?? "") + "${SOURCE_NAMESPACE}_"
+        ? syncOptions.tableNamePrefix + sourceNamespaces[0] + "_"
+        : (syncOptions.tableNamePrefix ?? "") + "${SOURCE_NAMESPACE}_"
       : undefined;
 
-  const nameTransformer = syncOptions?.toSameCase
+  const nameTransformer = syncOptions.toSameCase
     ? (s: string) => (destinationType.id === "snowflake" ? s.toUpperCase() : s.toLowerCase())
     : (s: string) => s;
 
   const destinationNamespaces = (sourceNamespaces?.length > 0 ? sourceNamespaces : [""])
-    .map(ns => (syncOptions?.namespace ? syncOptions?.namespace.replaceAll("${SOURCE_NAMESPACE}", ns ?? "") : ""))
+    .map(ns => (syncOptions.namespace ? syncOptions.namespace.replaceAll("${SOURCE_NAMESPACE}", ns ?? "") : ""))
     .map(ns => ns?.trim())
     .map(ns => ns || (destination?.[namespaceImpl.field] as string) || "")
     .filter(ns => ns !== "")
     .filter(onlyUnique);
 
   const [showCustomSchedule, setShowCustomSchedule] = useState(
-    syncOptions?.schedule && !scheduleOptions.find(o => o.value === syncOptions?.schedule)
+    syncOptions.schedule && !scheduleOptions.find(o => o.value === syncOptions.schedule)
   );
 
   const updateOptions = useCallback(
     (patch: Partial<SyncOptionsType>) => {
-      log.atInfo().log("Patching sync options with", patch, " existing options", syncOptions);
+      // log.atDebug().log("Patching sync options with", patch, " existing options", syncOptions);
       setSyncOptions({ ...syncOptions, ...patch });
     },
     [syncOptions]
@@ -201,127 +203,143 @@ function SyncEditor({
 
   const updateSelectedStream = useCallback(
     <K extends keyof SelectedStreamSettings>(streamName: string, propName: K, value: SelectedStreamSettings[K]) => {
-      if (syncOptions) {
-        setSyncOptions({
-          ...syncOptions,
-          streams: {
-            ...syncOptions.streams,
-            [streamName]: {
-              ...syncOptions.streams?.[streamName],
-              [propName]: value,
-            } as SelectedStreamSettings,
-          },
-        });
-      }
+      updateOptions({
+        streams: {
+          ...syncOptions.streams,
+          [streamName]: {
+            ...syncOptions.streams[streamName],
+            [propName]: value,
+          } as SelectedStreamSettings,
+        },
+      });
     },
-    [syncOptions]
+    [updateOptions, syncOptions.streams]
   );
 
-  const deleteSelectedStream = useCallback(
+  const disableSelectedStream = useCallback(
     <K extends keyof SelectedStreamSettings>(streamName: string) => {
-      if (syncOptions) {
-        const streams = { ...syncOptions.streams };
-        delete streams[streamName];
-        setSyncOptions({
-          ...syncOptions,
-          streams: streams,
-        });
-      }
+      const stream = catalog.streams.find((s: any) =>
+        streamName === s.namespace ? s.namespace + "." + s.name : s.name
+      );
+      const streams = { ...syncOptions.streams };
+      const disabledStream = streams[streamName] || (stream ? initStream(stream) : {});
+      delete streams[streamName];
+      updateOptions({
+        streams: streams,
+        disabledStreams: {
+          ...syncOptions.disabledStreams,
+          [streamName]: disabledStream,
+        },
+      });
     },
-    [syncOptions]
+    [syncOptions.streams, syncOptions.disabledStreams, updateOptions, catalog]
   );
 
-  const addStream = useCallback(
+  const enableStream = useCallback(
     (streamName: string) => {
-      if (syncOptions) {
-        const stream = catalog.streams.find((s: any) =>
-          streamName === s.namespace ? s.namespace + "." + s.name : s.name
-        );
-        if (!stream) {
-          log.atError().log("Stream not found in catalog", streamName);
-          return;
-        }
-        const initedStream = initStream(stream);
-        setSyncOptions({
-          ...syncOptions,
-          streams: {
-            ...syncOptions.streams,
-            [streamName]: initedStream,
-          },
-        });
+      const stream = catalog.streams.find((s: any) =>
+        streamName === s.namespace ? s.namespace + "." + s.name : s.name
+      );
+      if (!stream) {
+        log.atError().log("Stream not found in catalog", streamName);
+        return;
       }
-    },
-    [syncOptions, catalog]
-  );
+      const disabledStreams = { ...syncOptions.disabledStreams };
+      const initedStream = disabledStreams[streamName] || initStream(stream);
+      delete disabledStreams[streamName];
 
-  const initStream = (stream: any): SelectedStreamSettings => {
-    const supportedModes = stream.supported_sync_modes;
-    let sync_mode: "full_refresh" | "incremental" = "full_refresh";
-    let cursor_field: string[] | undefined = undefined;
-    if (supportedModes.includes("incremental")) {
-      if (stream.source_defined_cursor) {
-        sync_mode = "incremental";
-      }
-      if (stream.default_cursor_field?.length > 0) {
-        sync_mode = "incremental";
-        cursor_field = stream.default_cursor_field;
-      } else {
-        const props = Object.entries(stream.json_schema.properties as Record<string, any>);
-        const dateProps = props.filter(([_, p]) => p.format === "date-time");
-        const cursorField =
-          dateProps.find(([name, _]) => name.startsWith("updated")) ||
-          dateProps.find(([name, _]) => name.startsWith("created")) ||
-          dateProps.find(([name, _]) => name === "timestamp") ||
-          props.find(
-            ([name, p]) =>
-              name === "id" && (p.type === "integer" || (Array.isArray(p.type) && p.type.includes("integer")))
-          );
-        if (cursorField) {
-          sync_mode = "incremental";
-          cursor_field = [cursorField[0]];
-        }
-      }
-    }
-    return {
-      sync_mode,
-      cursor_field,
-    };
-  };
+      updateOptions({
+        streams: {
+          ...syncOptions.streams,
+          [streamName]: initedStream,
+        },
+        disabledStreams: disabledStreams,
+      });
+    },
+    [syncOptions.streams, syncOptions.disabledStreams, updateOptions, catalog]
+  );
 
   const initSyncOptions = useCallback(
-    (catalog: any, force?: boolean) => {
+    (catalog: any) => {
       const streams: Record<string, SelectedStreamSettings> = {};
-      const currentStreams = force ? {} : syncOptions?.streams || {};
-      const newSync = typeof syncOptions?.streams === "undefined" || force;
+      const currentStreams = syncOptions.streams || {};
+      const hasIncremental = Object.values(currentStreams).some((s: any) => s.sync_mode === "incremental");
+      const disabledStreams = { ...syncOptions.disabledStreams };
+      const newSync = typeof syncOptions.streams === "undefined";
       for (const stream of catalog?.streams ?? []) {
         const name = stream.namespace ? `${stream.namespace}.${stream.name}` : stream.name;
         const currentStream = currentStreams[name];
+        const disabledStream = disabledStreams[name];
         if (currentStream) {
           streams[name] = currentStream;
         } else if (newSync) {
           streams[name] = initStream(stream);
+        } else if (!disabledStream) {
+          if (syncOptions.schemaChanges === "streams") {
+            streams[name] = initStream(stream, hasIncremental ? "incremental" : "full_refresh");
+          } else {
+            disabledStreams[name] = initStream(stream, hasIncremental ? "incremental" : "full_refresh");
+          }
         }
       }
-      if (xor(Object.keys(streams), Object.keys(currentStreams)).length > 0) {
-        updateOptions({ streams });
+      if (
+        xor(Object.keys(streams), Object.keys(currentStreams)).length > 0 ||
+        xor(Object.keys(disabledStreams), Object.keys(syncOptions.disabledStreams || {})).length > 0
+      ) {
+        updateOptions({ streams, disabledStreams });
       }
     },
-    [syncOptions?.streams, updateOptions]
+    [syncOptions.streams, syncOptions.disabledStreams, syncOptions.schemaChanges, updateOptions]
   );
+
+  useEffect(() => {
+    if (catalog) {
+      initSyncOptions(catalog);
+    }
+  }, [catalog, initSyncOptions, syncOptions.schemaChanges]);
 
   const [runSyncAfterSave, setRunSyncAfterSave] = useState(!existingLink);
 
-  const deleteAllStreams = useCallback(() => {
-    if (syncOptions) {
-      setSyncOptions({ ...syncOptions, streams: {} });
-    }
-  }, [syncOptions]);
-
-  const addAllStreams = useCallback(() => {
+  const disableAllStreams = useCallback(() => {
     if (catalog) {
-      initSyncOptions(catalog, true);
+      const streams: Record<string, SelectedStreamSettings> = {};
+      for (const stream of catalog?.streams ?? []) {
+        const name = stream.namespace ? `${stream.namespace}.${stream.name}` : stream.name;
+        const currentStream = syncOptions.streams?.[name] || syncOptions.disabledStreams?.[name];
+        if (currentStream) {
+          streams[name] = currentStream;
+        } else {
+          streams[name] = initStream(stream);
+        }
+      }
+      updateOptions({ disabledStreams: streams, streams: {} });
     }
-  }, [initSyncOptions, catalog]);
+  }, [catalog, syncOptions.streams, syncOptions.disabledStreams, updateOptions]);
+
+  const enableAllStreams = useCallback(() => {
+    if (catalog) {
+      const streams: Record<string, SelectedStreamSettings> = {};
+      for (const stream of catalog?.streams ?? []) {
+        const name = stream.namespace ? `${stream.namespace}.${stream.name}` : stream.name;
+        const currentStream = syncOptions.streams?.[name] || syncOptions.disabledStreams?.[name];
+        if (currentStream) {
+          streams[name] = currentStream;
+        } else {
+          streams[name] = initStream(stream);
+        }
+      }
+      updateOptions({ streams: streams, disabledStreams: {} });
+    }
+  }, [catalog, syncOptions.disabledStreams, syncOptions.streams, updateOptions]);
+
+  useEffect(() => {
+    if (service?.package) {
+      (async () => {
+        const sourceType = await rpc(`/api/sources/airbyte/${encodeURIComponent(service.package)}`);
+        setConnectorSubtype(sourceType?.meta?.connectorSubtype);
+      })();
+    }
+  }, [service?.package]);
 
   useEffect(() => {
     if (!service) {
@@ -346,9 +364,7 @@ function SyncEditor({
         if (typeof firstRes.error !== "undefined") {
           setCatalogError(firstRes.error);
         } else if (firstRes.ok) {
-          console.log("Loaded cached catalog:", JSON.stringify(firstRes, null, 2));
           setCatalog(firstRes.catalog);
-          initSyncOptions(firstRes.catalog);
         } else {
           for (let i = 0; i < 600; i++) {
             if (cancelled) {
@@ -361,9 +377,7 @@ function SyncEditor({
                 setCatalogError(resp.error);
                 return;
               } else {
-                console.log("Loaded catalog:", JSON.stringify(resp, null, 2));
                 setCatalog(resp.catalog);
-                initSyncOptions(resp.catalog);
                 return;
               }
             }
@@ -384,6 +398,7 @@ function SyncEditor({
   }, [workspace.id, service, initSyncOptions, updateOptions, refreshCatalog, catalog]);
 
   const usesBulker = destinationType.usesBulker || destinationType.id === "webhook";
+  // @ts-ignore
   const configItems: EditorItem[] = [
     {
       name: existingLink ? "Select Service" : "Service",
@@ -415,7 +430,7 @@ function SyncEditor({
           selected={dstId}
           showLink
           enabled={!existingLink}
-          disabledReason={"Create a new sync if you want to change the source"}
+          disabledReason="Create a new sync if you want to change the source"
           onSelect={id => {
             setDstId(id);
           }}
@@ -442,12 +457,12 @@ function SyncEditor({
             </>
           ),
           component: (
-            <div className={"w-80 flex flex-col gap-2"}>
+            <div className="w-80 flex flex-col gap-2">
               <Input
                 disabled={!!existingLink}
-                placeholder={"Destination default"}
+                placeholder="Destination default"
                 style={{ color: "black" }}
-                value={syncOptions?.namespace}
+                value={syncOptions.namespace}
                 onChange={e => updateOptions({ namespace: e.target.value })}
               />
               {destination && (
@@ -456,7 +471,7 @@ function SyncEditor({
                   <>
                     {destinationNamespaces.map((ns, i) => (
                       <>
-                        <code key={"ns"}>{ns}</code>
+                        <code key="ns">{ns}</code>
                         {i < destinationNamespaces.length - 1 ? ", " : ""}
                       </>
                     ))}
@@ -481,11 +496,11 @@ function SyncEditor({
             </>
           ),
           component: (
-            <div className={"w-80"}>
+            <div className="w-80">
               <Input
                 disabled={!!existingLink}
                 style={{ color: "black" }}
-                value={legacyPrefix ? legacyPrefix : syncOptions?.tableNamePrefix}
+                value={legacyPrefix ? legacyPrefix : syncOptions.tableNamePrefix}
                 onChange={e => updateOptions({ tableNamePrefix: e.target.value })}
               />
             </div>
@@ -495,6 +510,7 @@ function SyncEditor({
     usesBulker && destinationType.id !== "s3" && destinationType.id !== "gcs" && destinationType.id !== "webhook"
       ? {
           name: "Normalize Names",
+          group: "Advanced",
           documentation: (
             <>
               By default, Jitsu syncs table and column names exactly as they appear in the source. For instance, if a
@@ -508,10 +524,10 @@ function SyncEditor({
             </>
           ),
           component: (
-            <div className={"w-80"}>
+            <div className="w-80">
               <SwitchComponent
                 disabled={!!existingLink}
-                value={syncOptions?.toSameCase}
+                value={syncOptions.toSameCase}
                 onChange={e => updateOptions({ toSameCase: e })}
               />
             </div>
@@ -521,6 +537,7 @@ function SyncEditor({
     usesBulker && destinationType.id !== "webhook"
       ? {
           name: "Add meta information",
+          group: "Advanced",
           documentation: (
             <>
               Add additional fields with meta information to each record. Meta information includes:
@@ -529,8 +546,39 @@ function SyncEditor({
             </>
           ),
           component: (
-            <div className={"w-80"}>
-              <SwitchComponent value={syncOptions?.addMeta} onChange={e => updateOptions({ addMeta: e })} />
+            <div className="w-80">
+              <SwitchComponent value={syncOptions.addMeta} onChange={e => updateOptions({ addMeta: e })} />
+            </div>
+          ),
+        }
+      : undefined,
+    usesBulker && (connectorSubtype === "database" || connectorSubtype === "file")
+      ? {
+          name: "Schema Changes",
+          group: "Advanced",
+          documentation: (
+            <>
+              Update streams catalog upon sync start:
+              <br />
+              <b>Fields only</b> - reflect changes in stream schemas.
+              <br />
+              <b>Fields and Streams</b> - automatically enables new streams.
+              <br />
+              <b>Manual</b> - no automatic updates.
+            </>
+          ),
+          component: (
+            <div className="w-80">
+              <Select
+                value={syncOptions.schemaChanges}
+                defaultValue="manual"
+                onChange={e => updateOptions({ schemaChanges: e as typeof syncOptions.schemaChanges })}
+                className="w-80"
+              >
+                <Select.Option value="manual">Manual</Select.Option>
+                <Select.Option value="fields">Fields only</Select.Option>
+                <Select.Option value="streams">Fields and Streams</Select.Option>
+              </Select>
             </div>
           ),
         }
@@ -545,9 +593,9 @@ function SyncEditor({
             </>
           ),
           component: (
-            <div className={"w-full"}>
+            <div className="w-full">
               <FunctionVariables
-                className={"!px-0"}
+                className="!px-0"
                 value={syncOptions.functionsEnv || {}}
                 onChange={functionsEnv => updateOptions({ functionsEnv })}
               />
@@ -573,7 +621,7 @@ function SyncEditor({
       ) : (
         <Select
           disabled={disableScheduling}
-          className={"w-80"}
+          className="w-80"
           options={scheduleOptions.map(({ minuteFrequency, ...rest }) => {
             const optionDisabled =
               billing.enabled &&
@@ -586,7 +634,7 @@ function SyncEditor({
               disabled: !!optionDisabled,
             };
           })}
-          value={showCustomSchedule ? "custom" : syncOptions?.schedule || ""}
+          value={showCustomSchedule ? "custom" : syncOptions.schedule || ""}
           onSelect={id => {
             if (id === "custom") {
               setShowCustomSchedule(true);
@@ -608,13 +656,13 @@ function SyncEditor({
           </>
         ),
         component: (
-          <div className={"w-80"}>
-            <Input value={syncOptions?.schedule} onChange={e => updateOptions({ schedule: e.target.value })} />
+          <div className="w-80">
+            <Input value={syncOptions.schedule} onChange={e => updateOptions({ schedule: e.target.value })} />
           </div>
         ),
       });
     }
-    if (syncOptions?.schedule) {
+    if (syncOptions.schedule) {
       configItems.push({
         name: "Scheduler Timezone",
         documentation:
@@ -623,12 +671,12 @@ function SyncEditor({
           <Select
             showSearch={true}
             popupMatchSelectWidth={false}
-            className={"w-80"}
+            className="w-80"
             options={[
               { value: "Etc/UTC", label: "UTC" },
               ...timezones.map(tz => ({ value: tz.tzCode, label: tz.label })),
             ]}
-            value={syncOptions?.timezone || "Etc/UTC"}
+            value={syncOptions.timezone || "Etc/UTC"}
             onSelect={tz => {
               updateOptions({ timezone: tz });
             }}
@@ -642,13 +690,13 @@ function SyncEditor({
 
   if (service && !usesBulker && destinationType.syncs) {
     //destination supports sync, so we have two options (see below)
-    const syncOptions = destinationType.syncs[service.package];
-    if (syncOptions) {
+    const syncOpts = destinationType.syncs[service.package];
+    if (syncOpts) {
       //destination and service (source) are compatible, show description (later we might want to implement options)
       configItems.push({
         group: "Options",
         key: "options",
-        component: <div className="prose max-w-none text-sm pl-3">{syncOptions.description}</div>,
+        component: <div className="prose max-w-none text-sm pl-3">{syncOpts.description}</div>,
       });
     } else {
       //destination and service (source) are not compatible, show error message
@@ -672,16 +720,16 @@ function SyncEditor({
         component: (
           <>
             <LoadingAnimation
-              className={"h-96"}
-              title={"Loading connector catalog..."}
+              className="h-96"
+              title="Loading connector catalog..."
               longLoadingThresholdSeconds={4}
-              longLoadingTitle={"It may take a little longer if it happens for the first time or catalog is too big."}
+              longLoadingTitle="It may take a little longer if it happens for the first time or catalog is too big."
             />
           </>
         ),
       });
     } else if (catalog) {
-      for (const stream of catalog.streams ?? []) {
+      for (let stream of catalog.streams ?? []) {
         const name = stream.namespace ? `${stream.namespace}.${stream.name}` : stream.name;
         const tableName = stream.namespace && legacyMode ? `${stream.namespace}_${stream.name}` : stream.name;
         const syncModeOptions = stream.supported_sync_modes.map(m => ({
@@ -701,87 +749,87 @@ function SyncEditor({
             // )
             .map(([name, _]) => ({ value: name, label: name }));
         }
+        const disabled = !syncOptions.streams?.[name];
+        stream = {
+          ...stream,
+          ...(syncOptions.streams?.[name] || syncOptions.disabledStreams?.[name]),
+        };
 
         configItems.push({
           group: "Streams",
           key: name,
           name: (
-            <div className={"flex flex-col gap-1.5"}>
-              <LabelEllipsis maxLen={34} trim={"middle"}>
+            <div className="flex flex-col gap-1.5">
+              <LabelEllipsis maxLen={34} trim="middle">
                 {stream.name}
               </LabelEllipsis>
-              {stream.namespace && <div className={"text-xs text-textLight"}>{stream.namespace}</div>}
+              {stream.namespace && <div className="text-xs text-textLight">{stream.namespace}</div>}
             </div>
           ),
           component: (
-            <div className={"flex flex-col gap-1.5"}>
-              <div className={"flex flex-row justify-between items-center"}>
+            <div className="flex flex-col gap-1.5">
+              <div className="flex flex-row justify-between items-center">
                 <div>
                   Mode:{" "}
                   <Select
-                    size={"middle"}
-                    disabled={!syncOptions?.streams?.[name] || syncModeOptions.length === 1}
-                    className={"w-52"}
+                    size="middle"
+                    disabled={disabled || syncModeOptions.length === 1}
+                    className="w-52"
                     style={{ minWidth: "15rem" }}
                     options={syncModeOptions}
-                    value={syncOptions?.streams?.[name]?.sync_mode}
+                    value={stream.sync_mode}
                     onChange={v => updateSelectedStream(name, "sync_mode", v)}
                   />
                 </div>
-                <div className={"w-72"}>
-                  {stream.supported_sync_modes.includes("incremental") &&
-                    syncOptions?.streams?.[name]?.sync_mode === "incremental" && (
-                      <>
-                        Cursor field:{" "}
-                        <Tooltip title={stream.source_defined_cursor ? "Cursor field is defined by source" : undefined}>
-                          <Select
-                            size={"middle"}
-                            className={"w-44"}
-                            popupMatchSelectWidth={false}
-                            disabled={!syncOptions?.streams?.[name] || stream.source_defined_cursor}
-                            options={!stream.source_defined_cursor ? cursorFieldOptions : []}
-                            value={
-                              !stream.source_defined_cursor
-                                ? syncOptions?.streams?.[name]?.cursor_field?.[0]
-                                : undefined
-                            }
-                            onChange={v => {
-                              updateSelectedStream(name, "cursor_field", v ? [v] : undefined);
-                            }}
-                          />
-                        </Tooltip>
-                      </>
-                    )}
+                <div className="w-72">
+                  {stream.supported_sync_modes.includes("incremental") && stream.sync_mode === "incremental" && (
+                    <>
+                      Cursor field:{" "}
+                      <Tooltip title={stream.source_defined_cursor ? "Cursor field is defined by source" : undefined}>
+                        <Select
+                          size="middle"
+                          className="w-44"
+                          popupMatchSelectWidth={false}
+                          disabled={disabled || stream.source_defined_cursor}
+                          options={!stream.source_defined_cursor ? cursorFieldOptions : []}
+                          value={!stream.source_defined_cursor ? stream.cursor_field?.[0] : undefined}
+                          onChange={v => {
+                            updateSelectedStream(name, "cursor_field", v ? [v] : undefined);
+                          }}
+                        />
+                      </Tooltip>
+                    </>
+                  )}
                 </div>
                 <SwitchComponent
                   className="max-w-xs"
-                  value={!!syncOptions?.streams?.[name]}
+                  value={!disabled}
                   onChange={enabled => {
                     if (enabled) {
-                      addStream(name);
+                      enableStream(name);
                     } else {
-                      deleteSelectedStream(name);
+                      disableSelectedStream(name);
                     }
                   }}
                 />
               </div>
-              <div className={"flex flex-row justify-between items-center"}>
-                <div className={"flex flex-row items-center gap-1"}>
+              <div className="flex flex-row justify-between items-center">
+                <div className="flex flex-row items-center gap-1">
                   Table: <br />
                   <Input
-                    size={"middle"}
+                    size="middle"
                     style={{ minWidth: "15rem" }}
-                    disabled={!syncOptions?.streams?.[name]}
+                    disabled={disabled}
                     onChange={e => updateSelectedStream(name, "table_name", e.target.value)}
                     value={nameTransformer(
-                      syncOptions?.streams?.[name]?.table_name ||
-                        (syncOptions?.tableNamePrefix
-                          ? syncOptions?.tableNamePrefix.replaceAll("${SOURCE_NAMESPACE}", stream.namespace ?? "")
+                      stream.table_name ||
+                        (syncOptions.tableNamePrefix
+                          ? syncOptions.tableNamePrefix.replaceAll("${SOURCE_NAMESPACE}", stream.namespace ?? "")
                           : "") + tableName
                     )}
                   ></Input>
                 </div>
-                <div className={"w-36"}></div>
+                <div className="w-36"></div>
               </div>
             </div>
           ),
@@ -792,9 +840,9 @@ function SyncEditor({
         group: "Streams",
         key: "streams",
         component: (
-          <div className={"pl-4 pr-2"}>
+          <div className="pl-4 pr-2">
             <SimpleErrorCard
-              title={"Failed to load catalog"}
+              title="Failed to load catalog"
               error={{ message: catalogError || "Unknown error. Please contact support." }}
             />
           </div>
@@ -824,12 +872,12 @@ function SyncEditor({
                 },
                 {
                   title: "Logs",
-                  icon: <ListMinusIcon className={"w-full h-full"} />,
+                  icon: <ListMinusIcon className="w-full h-full" />,
                   href: `/${workspace.slugOrId}/syncs/tasks?query=${JSON5.stringify({ syncId: existingLink.id })}`,
                 },
                 {
                   title: "Saved State",
-                  icon: <FaRegFloppyDisk className={"w-full h-full"} />,
+                  icon: <FaRegFloppyDisk className="w-full h-full" />,
                   href: `/${workspace.slugOrId}/syncs/state?id=${existingLink.id}`,
                 },
               ].filter(Boolean) as any
@@ -841,12 +889,17 @@ function SyncEditor({
       <div className="w-full">
         <FieldListEditorLayout
           groups={{
+            Advanced: {
+              expandable: true,
+              initiallyExpanded: false,
+              title: <div className="text-lg my-3">Advanced settings</div>,
+            },
             Streams: {
               expandable: false,
               title: (
                 <div className="flex flex-row items-center justify-between gap-2 mt-4 mb-3">
-                  <div className={"text-xl"}>Streams</div>
-                  <div className={"flex items-center gap-5"}>
+                  <div className="text-xl pl-1">Streams</div>
+                  <div className="flex items-center gap-5">
                     {usesBulker && (
                       <JitsuButton
                         type="primary"
@@ -860,15 +913,15 @@ function SyncEditor({
                         Refresh Catalog
                       </JitsuButton>
                     )}
-                    <div className={"flex gap-2 pr-2"}>
+                    <div className="flex gap-2 pr-2">
                       Switch All
                       <Switch
-                        checked={Object.keys(syncOptions?.streams || {}).length > 0}
+                        checked={Object.keys(syncOptions.streams || {}).length > 0}
                         onChange={ch => {
                           if (ch) {
-                            addAllStreams();
+                            enableAllStreams();
                           } else {
-                            deleteAllStreams();
+                            disableAllStreams();
                           }
                         }}
                       />
@@ -961,7 +1014,7 @@ function SyncEditor({
 function CursorFieldSelector(props: { onAdd: (value: string) => void }) {
   const [name, setName] = useState("");
   return (
-    <div className={"flex flex-row px-1 pt-1.5 gap-2"}>
+    <div className="flex flex-row px-1 pt-1.5 gap-2">
       <Input placeholder="Set custom cursor field" value={name} onChange={e => setName(e.target.value)} />
       <Button
         type="primary"

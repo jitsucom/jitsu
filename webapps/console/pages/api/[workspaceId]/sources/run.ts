@@ -32,6 +32,9 @@ export default createRoute()
       syncId: z.string(),
       fullSync: z.string().optional(),
       ignoreRunning: z.coerce.boolean().optional(),
+      skipRefresh: z.coerce.boolean().optional(),
+      nodelay: z.coerce.boolean().optional(),
+      taskId: z.string().optional(),
     }),
     result: resultType,
   })
@@ -60,6 +63,9 @@ export default createRoute()
       fullSync: query.fullSync === "true" || query.fullSync === "1",
       syncIdOrModel: query.syncId as string,
       ignoreRunning: !!query.ignoreRunning,
+      skipRefresh: !!query.skipRefresh,
+      nodelay: !!query.nodelay,
+      taskId: query.taskId,
     });
   })
   .toNextApiHandler();

@@ -15,10 +15,12 @@ import { DestinationType, getCoreDestinationType } from "../schema/destinations"
 import omit from "lodash/omit";
 import { FunctionLogger, SetOpts, Store, SyncFunction } from "@jitsu/protocols/functions";
 import { mixpanelFacebookAdsSync, mixpanelGoogleAdsSync } from "./syncs/mixpanel";
-import IJob = google.cloud.scheduler.v1.IJob;
 import hash from "stable-hash";
 import { clickhouse } from "./clickhouse";
 import { SyncDbModel } from "../../pages/api/[workspaceId]/config/link";
+import IJob = google.cloud.scheduler.v1.IJob;
+import { initStream } from "../sources";
+
 const metricsSchema = process.env.CLICKHOUSE_METRICS_SCHEMA || process.env.CLICKHOUSE_DATABASE || "newjitsu_metrics";
 const clickhouseUploadS3Bucket = process.env.CLICKHOUSE_UPLOAD_S3_BUCKET;
 const s3Region = process.env.S3_REGION;
@@ -175,13 +177,14 @@ export async function checkQuota(opts: {
 }
 
 export async function catalogFromDb(packageName: string, version: string, storageKey: string) {
-  const res = await db
-    .pgPool()
-    .query(`select catalog from newjitsu.source_catalog where key = $1 and package = $2 and version = $3`, [
-      storageKey,
-      packageName,
-      version,
-    ]);
+  const res = await db.pgPool().query(
+    `select catalog
+            from newjitsu.source_catalog
+            where key = $1
+              and package = $2
+              and version = $3`,
+    [storageKey, packageName, version]
+  );
   if (res.rowCount === 1) {
     return res.rows[0].catalog;
   } else {
@@ -189,11 +192,23 @@ export async function catalogFromDb(packageName: string, version: string, storag
   }
 }
 
-export function selectStreamsFromCatalog(catalog: any, selectedStreams: any): any {
+export function selectStreamsFromCatalog(catalog: any, syncOptions: any): any {
+  const selectedStreams: Record<string, any> = syncOptions?.streams || {};
+  const disabledStreams: Record<string, any> = syncOptions?.disabledStreams || {};
+  const schemaChanges = syncOptions?.schemaChanges;
+  const hasIncremental = Object.values(selectedStreams).some((s: any) => s.sync_mode === "incremental");
+
   const streams = catalog.streams
-    .filter((s: any) => !!selectedStreams[s.namespace ? s.namespace + "." + s.name : s.name])
+    .filter((s: any) => {
+      const name = s.namespace ? s.namespace + "." + s.name : s.name;
+      return !!selectedStreams[name] || (schemaChanges === "streams" && !disabledStreams[name]);
+    })
     .map((s: any) => {
-      const stream = selectedStreams[s.namespace ? s.namespace + "." + s.name : s.name];
+      const name = s.namespace ? s.namespace + "." + s.name : s.name;
+      let stream = selectedStreams[name];
+      if (!stream) {
+        stream = initStream(s, hasIncremental ? "incremental" : "full_refresh");
+      }
       return {
         ...omit(stream, "table_name"),
         destination_sync_mode: "overwrite",
@@ -397,7 +412,7 @@ async function runSyncSynchronously({
     syncId,
     startedBy,
     status: "SUCCESS",
-    description: "Succesfully finished",
+    description: "Successfully finished",
   });
 }
 
@@ -417,6 +432,9 @@ export async function scheduleSync({
   req,
   fullSync,
   ignoreRunning,
+  skipRefresh,
+  nodelay,
+  taskId,
 }: {
   workspaceId: string;
   syncIdOrModel: string | SyncDatabaseModel;
@@ -425,9 +443,12 @@ export async function scheduleSync({
   req: NextApiRequest;
   fullSync?: boolean;
   ignoreRunning?: boolean;
+  skipRefresh?: boolean;
+  nodelay?: boolean;
+  taskId?: string;
 }): Promise<ScheduleSyncResult> {
   const syncAuthKey = process.env.SYNCCTL_AUTH_KEY ?? "";
-  const taskId = randomUUID();
+  taskId = taskId || randomUUID();
   const syncURL = requireDefined(
     process.env.SYNCCTL_URL,
     `env SYNCCTL_URL is not set. Sync Controller is required to run sources`
@@ -521,51 +542,7 @@ export async function scheduleSync({
         },
       });
     } else {
-      //load state from db
-      const stateRows = await db.prisma().source_state.findMany({
-        where: {
-          sync_id: sync.id,
-        },
-      });
-      if (stateRows.length > 0) {
-        if (stateRows.length === 1 && stateRows[0].stream === "_LEGACY_STATE") {
-          //legacy state
-          stateObj = stateRows[0].state;
-        } else if (stateRows.length === 1 && stateRows[0].stream === "_GLOBAL_STATE") {
-          //v2 global state
-          stateObj = [
-            {
-              type: "GLOBAL",
-              global: stateRows[0].state,
-            },
-          ];
-        } else {
-          //v2 multi-stream states
-          stateObj = stateRows
-            .filter(r => r.stream !== "_LEGACY_STATE" && r.stream != "_GLOBAL_STATE")
-            .filter(r => ((sync.data as any).streams || {})[r.stream]?.sync_mode !== "full_refresh")
-            .map(r => {
-              const descr = r.stream.split(".");
-              let namespace: string | undefined = undefined;
-              let name: string | undefined = undefined;
-              if (descr.length === 1) {
-                name = descr[0];
-              } else if (descr.length === 2) {
-                namespace = descr[0];
-                name = descr[1];
-              } else {
-                throw new Error(`Invalid stream name ${r.stream}`);
-              }
-              return {
-                type: "STREAM",
-                stream: {
-                  stream_descriptor: { name: name, namespace: namespace },
-                  stream_state: r.state,
-                },
-              };
-            });
-        }
-      }
+      stateObj = await loadState(sync);
     }
     if (runSynchronously) {
       const started = Date.now();
@@ -611,17 +588,8 @@ export async function scheduleSync({
         logs: `${appBase}/api/${workspaceId}/sources/logs?taskId=${taskId}&syncId=${syncIdOrModel}`,
       };
     }
-    if (
-      destinationType.id === "clickhouse" &&
-      destinationConfig.loadAsJson &&
-      !destinationConfig.provisioned &&
-      clickhouseS3Configured
-    ) {
-      destinationConfig.s3Region = s3Region;
-      destinationConfig.s3AccessKeyId = s3AccessKeyId;
-      destinationConfig.s3SecretAccessKey = s3SecretAccessKey;
-      destinationConfig.s3Bucket = clickhouseUploadS3Bucket;
-      destinationConfig.s3UsePresignedURL = true;
+    if (destinationType.id === "clickhouse" && !destinationConfig.provisioned) {
+      destinationConfig.loadAsJson = false;
     }
 
     const h = juavaHash("md5", hash(serviceConfig.credentials));
@@ -634,7 +602,7 @@ export async function scheduleSync({
         error: `Source catalog not found or outdated. Please run Refresh Catalog in Sync settings`,
       };
     }
-    const configuredCatalog = selectStreamsFromCatalog(catalog, (sync.data as any).streams);
+    const configuredCatalog = selectStreamsFromCatalog(catalog, sync.data);
     if (
       serviceConfig.package === "airbyte/source-postgres" ||
       serviceConfig.package === "airbyte/source-mssql" ||
@@ -643,35 +611,71 @@ export async function scheduleSync({
       // default value 10000 is to low for big tables - leading to very slow syncs
       serviceConfig.credentials.sync_checkpoint_records = 200000;
     }
-    const res = await rpc(syncURL + "/read", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...authHeaders,
-      },
-      query: {
-        package: serviceConfig.package,
-        version: serviceConfig.version,
-        taskId,
-        syncId: sync.id,
-        fullSync: fullSync ? "true" : "false",
-        startedBy: JSON.stringify(startedBy),
-        namespace: typeof sync.data?.["namespace"] !== "undefined" ? sync.data?.["namespace"] : "${LEGACY}",
-        toSameCase: sync.data?.["toSameCase"] ? "true" : "false",
-        addMeta: sync.data?.["addMeta"] ? "true" : "false",
-        tableNamePrefix: sync.data?.["tableNamePrefix"] ?? "",
-      },
-      body: {
-        config: await tryManageOauthCreds({ ...serviceConfig, id: sync.fromId }),
-        catalog: configuredCatalog,
-        ...(stateObj ? { state: stateObj } : {}),
-        destinationConfig,
-        functionsEnv: sync.data?.["functionsEnv"],
-      },
-    });
+    let res: any;
+    const schemaChanges = (sync.data as any).schemaChanges;
+    if (!skipRefresh && (schemaChanges === "fields" || schemaChanges === "streams")) {
+      res = await rpc(syncURL + "/discover", {
+        method: "POST",
+        body: {
+          config: await tryManageOauthCreds({ ...serviceConfig, id: sync.fromId }),
+        },
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders,
+        },
+        query: {
+          package: serviceConfig.package,
+          version: serviceConfig.version,
+          storageKey: versionHash,
+          thenRun: "true",
+          taskId,
+          syncId: sync.id,
+          workspaceId: workspaceId,
+          fullSync: fullSync ? "true" : "false",
+          startedBy: JSON.stringify(startedBy),
+        },
+      });
+    } else {
+      res = await rpc(syncURL + "/read", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders,
+        },
+        query: {
+          package: serviceConfig.package,
+          version: serviceConfig.version,
+          taskId,
+          syncId: sync.id,
+          fullSync: fullSync ? "true" : "false",
+          startedBy: JSON.stringify(startedBy),
+          namespace: typeof sync.data?.["namespace"] !== "undefined" ? sync.data?.["namespace"] : "${LEGACY}",
+          toSameCase: sync.data?.["toSameCase"] ? "true" : "false",
+          addMeta: sync.data?.["addMeta"] ? "true" : "false",
+          nodelay: nodelay ? "true" : "false",
+          tableNamePrefix: sync.data?.["tableNamePrefix"] ?? "",
+        },
+        body: {
+          config: await tryManageOauthCreds({ ...serviceConfig, id: sync.fromId }),
+          catalog: configuredCatalog,
+          ...(stateObj ? { state: stateObj } : {}),
+          destinationConfig,
+          functionsEnv: sync.data?.["functionsEnv"],
+        },
+      });
+    }
     if (!res.ok) {
       return { ok: false, error: res.error ?? "unknown error", taskId };
     } else {
+      if (trigger === "manual") {
+        await createOrUpdateTask({
+          taskId,
+          syncId: sync.id,
+          startedBy,
+          status: "RUNNING",
+          description: "Started",
+        });
+      }
       return {
         ok: true,
         taskId,
@@ -682,6 +686,55 @@ export async function scheduleSync({
   } catch (e: any) {
     return syncError(log, `Error running sync`, e, false, `sync: ${syncIdOrModel} workspace: ${workspaceId}`);
   }
+}
+
+async function loadState(sync: SyncDatabaseModel): Promise<any> {
+  //load state from db
+  const stateRows = await db.prisma().source_state.findMany({
+    where: {
+      sync_id: sync.id,
+    },
+  });
+  if (stateRows.length > 0) {
+    if (stateRows.length === 1 && stateRows[0].stream === "_LEGACY_STATE") {
+      //legacy state
+      return stateRows[0].state;
+    } else if (stateRows.length === 1 && stateRows[0].stream === "_GLOBAL_STATE") {
+      //v2 global state
+      return [
+        {
+          type: "GLOBAL",
+          global: stateRows[0].state,
+        },
+      ];
+    } else {
+      //v2 multi-stream states
+      return stateRows
+        .filter(r => r.stream !== "_LEGACY_STATE" && r.stream != "_GLOBAL_STATE")
+        .filter(r => ((sync.data as any).streams || {})[r.stream]?.sync_mode !== "full_refresh")
+        .map(r => {
+          const descr = r.stream.split(".");
+          let namespace: string | undefined = undefined;
+          let name: string | undefined = undefined;
+          if (descr.length === 1) {
+            name = descr[0];
+          } else if (descr.length === 2) {
+            namespace = descr[0];
+            name = descr[1];
+          } else {
+            throw new Error(`Invalid stream name ${r.stream}`);
+          }
+          return {
+            type: "STREAM",
+            stream: {
+              stream_descriptor: { name: name, namespace: namespace },
+              stream_state: r.state,
+            },
+          };
+        });
+    }
+  }
+  return undefined;
 }
 
 export async function updateScheduler(baseUrl: string, sync: SyncDbModel) {
