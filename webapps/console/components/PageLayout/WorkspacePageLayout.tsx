@@ -631,7 +631,7 @@ const WorkspaceSettingsModal: React.FC<{
               {domains.appBase}/<span className="text-textDark">your-slug</span>
             </code>{" "}
           </div>
-          <WorkspaceNameAndSlugEditor onSuccess={onSuccess} offerClassic={false} onboarding={onboarding} />
+          <WorkspaceNameAndSlugEditor onSuccess={onSuccess} onboarding={onboarding} />
           <div className="text-center my-4">
             Got here by mistake?{" "}
             <a

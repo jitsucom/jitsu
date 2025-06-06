@@ -1,5 +1,5 @@
 import { branding } from "../../lib/branding";
-import { Alert, Button, Collapse, Input } from "antd";
+import { Alert, Button, Input } from "antd";
 import React, { PropsWithChildren, ReactNode, useState } from "react";
 import { GithubOutlined, GoogleOutlined } from "@ant-design/icons";
 import { useModalPrompt } from "../../lib/modal";
@@ -8,6 +8,7 @@ import Link from "next/link";
 import { useQueryStringCopy } from "./use-query-string-copy";
 import { useRouter } from "next/router";
 import { BaseRouter } from "next/dist/shared/lib/router/router";
+import { EmailFirstLogin } from "./EmailFirstLogin";
 
 const theme = require("../../theme.config");
 
@@ -267,19 +268,9 @@ export const SignIn: React.FC<SigninProps> = props => {
       <SocialLogin onSocialLogin={onSocialLogin} />
       {enablePassword && (
         <>
-          {/*<div className="border-t border-backgroundDark relative flex justify-center text-xs uppercase mt-12">*/}
-          {/*  <span className="bg-backgroundLight text-textLight px-2 -mt-2.5 text-gray-500">*/}
-          {/*    Or continue with password*/}
-          {/*  </span>*/}
-          {/*</div>*/}
           <div className="mt-6">
-            <Collapse bordered={false}>
-              <Collapse.Panel header="Login with email and password" key="1">
-                <PasswordForm {...props} />
-              </Collapse.Panel>
-            </Collapse>
+            <EmailFirstLogin onPasswordLogin={props.onPasswordLogin} onSocialLogin={onSocialLogin} />
           </div>
-          {/*{showPasswordLogin && <PasswordForm {...props} />}*/}
         </>
       )}
     </SigninLayout>

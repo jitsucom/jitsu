@@ -1,8 +1,9 @@
-import { createContext, PropsWithChildren, useContext } from "react";
+import React, { createContext, PropsWithChildren, useContext } from "react";
 import { z } from "zod";
 import { AppConfig, ContextApiResponse } from "./schema";
 import { WorkspaceDbModel } from "../prisma/schema";
 import omit from "lodash/omit";
+import { Analytics } from "../pages/_app";
 
 export type WorkspaceContext = z.infer<typeof WorkspaceDbModel> & {
   slugOrId: string;
@@ -65,7 +66,12 @@ const UserContext0 = createContext<UserContextProperties>(null!);
 
 export const UserContextProvider: React.FC<PropsWithChildren<UserContextProperties>> = ({ children, ...props }) => {
   const Context = UserContext0;
-  return <Context.Provider value={props}>{children}</Context.Provider>;
+  return (
+    <Context.Provider value={props}>
+      {props.user && <Analytics user={props.user} />}
+      {children}
+    </Context.Provider>
+  );
 };
 
 export function useUser(): ContextApiResponse["user"] {
@@ -74,6 +80,11 @@ export function useUser(): ContextApiResponse["user"] {
     throw new Error(`No current user`);
   }
   return props.user;
+}
+
+export function useUserSafe(): ContextApiResponse["user"] | undefined | null {
+  const props = useContext(UserContext0);
+  return props?.user;
 }
 
 export function useUserSessionControls(): { logout: () => Promise<void> } {
