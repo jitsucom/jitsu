@@ -13,6 +13,7 @@ import {
   useAppConfig,
   UserContextProvider,
   useUser,
+  useUserSafe,
   useWorkspace,
   WorkspaceContextProvider,
 } from "../lib/context";
@@ -31,6 +32,7 @@ import { BillingProvider } from "../components/Billing/BillingProvider";
 import { useConfigObjectList, useConfigObjectsUpdater, useLoadedWorkspace } from "../lib/store";
 import { Redirect } from "../components/Redirect/Redirect";
 import { PreviousRouteContextProvider } from "../lib/previous-route";
+import { OidcAuthorizer } from "../components/OidcAuthorizer/OidcAuthorizer";
 
 const log = getLog("app");
 
@@ -38,7 +40,7 @@ function getUserFromNextJsSession(session: any): ContextApiResponse["user"] {
   return session && session?.data ? ({ ...session.data, ...session.data?.user } as any) : undefined;
 }
 
-function Analytics({ user }: { user?: SessionUser }) {
+export function Analytics({ user }: { user?: SessionUser }) {
   const { analytics } = useJitsu();
   const router = useRouter();
   /* eslint-disable react-hooks/exhaustive-deps  */
@@ -105,7 +107,6 @@ const FirebaseAuthorizer: React.FC<PropsWithChildren<{}>> = ({ children }) => {
           await session.signOut();
         }}
       >
-        <Analytics user={user} />
         {children}
       </UserContextProvider>
     );
@@ -139,6 +140,9 @@ const FirebaseAuthorizer: React.FC<PropsWithChildren<{}>> = ({ children }) => {
                 loginProvider: "firebase/email",
                 message: e?.message || "Unknown error",
               });
+              if (e.code === "auth/user-not-found" || e.code === "auth/wrong-password") {
+                e = new Error("Invalid email or password");
+              }
               throw e;
             }
           }}
@@ -171,13 +175,29 @@ const FirebaseAuthorizer: React.FC<PropsWithChildren<{}>> = ({ children }) => {
   }
 };
 
+// Combined authorizer that handles both Firebase and OIDC authentication
+const CombinedAuthorizer: React.FC<PropsWithChildren<{}>> = ({ children }) => {
+  return (
+    <OidcAuthorizer>
+      <SecondAuthorizer>{children}</SecondAuthorizer>
+    </OidcAuthorizer>
+  );
+};
+
+const SecondAuthorizer: React.FC<PropsWithChildren<{}>> = ({ children }) => {
+  const user = useUserSafe();
+  if (user) {
+    return children;
+  }
+  return <FirebaseAuthorizer>{children}</FirebaseAuthorizer>;
+};
+
 const NextJsAuthorizer: React.FC<PropsWithChildren<{}>> = ({ children }) => {
   const session = useSession();
   if (session && session.data) {
     const user = getUserFromNextJsSession(session);
     return (
       <UserContextProvider user={user} logout={signOut}>
-        <Analytics user={user} />
         {children}
       </UserContextProvider>
     );
@@ -199,7 +219,7 @@ function LoginWrapper(props: PropsWithChildren<{ requiresLogin: boolean }>) {
   } else if (appConfig.auth?.firebasePublic) {
     return (
       <FirebaseProvider appConfig={appConfig}>
-        <FirebaseAuthorizer>{props.children}</FirebaseAuthorizer>
+        <CombinedAuthorizer>{props.children}</CombinedAuthorizer>
       </FirebaseProvider>
     );
   } else {

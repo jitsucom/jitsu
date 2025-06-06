@@ -147,6 +147,31 @@ export async function getUser(
     }
   }
 
+  // Check for OIDC session cookie (for API requests from OIDC-authenticated users)
+  const oidcSessionCookie = req.cookies?.['oidc-session'];
+  if (oidcSessionCookie) {
+    try {
+      const jwt = require('jsonwebtoken');
+      const { nextAuthConfig } = require('./nextauth.config');
+      
+      // Verify the OIDC session token
+      const payload = jwt.verify(oidcSessionCookie, nextAuthConfig.secret);
+      
+      // Convert OIDC session to SessionUser format
+      return {
+        internalId: payload.userId,
+        externalUsername: payload.email,
+        externalId: payload.externalId,
+        loginProvider: payload.loginProvider,
+        email: payload.email,
+        name: payload.name,
+      };
+    } catch (error) {
+      log.atWarn().withCause(error).log("Invalid OIDC session cookie");
+      // Continue to other auth methods
+    }
+  }
+
   if (isFirebaseEnabled()) {
     return await getFirebaseUser(req, checkRevoked);
   }

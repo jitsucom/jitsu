@@ -14,6 +14,17 @@ const log = getLog("index");
 function WorkspaceRedirect() {
   const router = useRouter();
   const projectName = localStorage.getItem("projectName");
+  
+  // Check if this is an OIDC completion redirect
+  React.useEffect(() => {
+    if (router.query['oidc-complete'] === 'true') {
+      // OIDC completion is now handled by OidcAuthorizer
+      // We just need to clean up the URL parameter
+      const cleanUrl = window.location.pathname + window.location.search.replace(/[?&]oidc-complete=true/, '');
+      window.history.replaceState({}, '', cleanUrl);
+    }
+  }, [router.query]);
+  
   const params = {
     projectName: projectName || undefined,
     invite: (router.query.invite as string) || undefined,
