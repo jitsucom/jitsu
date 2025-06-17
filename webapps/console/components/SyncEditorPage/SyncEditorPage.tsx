@@ -153,7 +153,7 @@ function SyncEditor({
   const namespaceImpl = namespaceImplementation[destinationType.id] ?? { name: "namespace", filed: "namespace" };
 
   const [syncOptions, setSyncOptions] = useState<SyncOptionsType>(
-    (existingLink?.data || { namespace: "" }) as SyncOptionsType
+    (existingLink?.data || { namespace: "", deduplicate: true }) as SyncOptionsType
   );
   const [catalog, setCatalog] = useState<any>(undefined);
   const [catalogError, setCatalogError] = useState<any>(undefined);
@@ -502,6 +502,27 @@ function SyncEditor({
                 style={{ color: "black" }}
                 value={legacyPrefix ? legacyPrefix : syncOptions.tableNamePrefix}
                 onChange={e => updateOptions({ tableNamePrefix: e.target.value })}
+              />
+            </div>
+          ),
+        }
+      : undefined,
+    usesBulker && destinationType.id !== "webhook"
+      ? {
+          name: "Deduplicate",
+          group: "Advanced",
+          documentation: (
+            <>
+              Deduplicate events with repeated values of 'Primary Key' if stream has 'Primary Key' defined.
+              <br />
+              If disabled Jitsu won't create primary keys in destination tables.
+            </>
+          ),
+          component: (
+            <div className="w-80">
+              <SwitchComponent
+                value={syncOptions.deduplicate ?? true}
+                onChange={e => updateOptions({ deduplicate: e })}
               />
             </div>
           ),

@@ -95,12 +95,16 @@ async function createOrUpdateTask({
   status,
   startedBy,
   description,
+  pkg = "jitsu",
+  version = "0.0.1",
 }: {
   taskId: string;
   syncId: string;
   status: string;
   startedBy: any;
   description: string;
+  pkg?: string;
+  version?: string;
 }) {
   const taskData = {
     sync_id: syncId,
@@ -110,8 +114,8 @@ async function createOrUpdateTask({
     updated_at: new Date(),
     started_by: startedBy,
     description,
-    package: "jitsu",
-    version: "0.0.1",
+    package: pkg,
+    version: version,
   };
   await db.prisma().source_task.upsert({
     where: { task_id: taskId },
@@ -156,6 +160,8 @@ export async function checkQuota(opts: {
           status: "SKIPPED",
           startedBy: opts.startedBy,
           description: `Quota exceeded: ${quotaCheckResult.error}`,
+          pkg: opts.package,
+          version: opts.version,
         });
         await dbLog({
           taskId,
@@ -366,6 +372,8 @@ async function runSyncSynchronously({
     startedBy,
     status: "RUNNING",
     description: "Started",
+    pkg: sourceConfig.package,
+    version: sourceConfig.version,
   });
   const syncConfig = destinationType?.syncs?.[sourceConfig.package];
   if (!syncConfig) {
@@ -375,6 +383,8 @@ async function runSyncSynchronously({
       startedBy,
       status: "FAILED",
       description: `Sync function not found for package ${sourceConfig.package}`,
+      pkg: sourceConfig.package,
+      version: sourceConfig.version,
     });
     return;
   }
@@ -413,6 +423,8 @@ async function runSyncSynchronously({
     startedBy,
     status: "SUCCESS",
     description: "Successfully finished",
+    pkg: sourceConfig.package,
+    version: sourceConfig.version,
   });
 }
 
@@ -573,6 +585,8 @@ export async function scheduleSync({
           status: "FAILED",
           startedBy,
           description: `Error running sync: ${syncError}`,
+          pkg: serviceConfig.package,
+          version: serviceConfig.version,
         });
         await dbLog({
           taskId,
@@ -652,6 +666,7 @@ export async function scheduleSync({
           namespace: typeof sync.data?.["namespace"] !== "undefined" ? sync.data?.["namespace"] : "${LEGACY}",
           toSameCase: sync.data?.["toSameCase"] ? "true" : "false",
           addMeta: sync.data?.["addMeta"] ? "true" : "false",
+          deduplicate: sync.data?.["deduplicate"] ?? true ? "true" : "false",
           nodelay: nodelay ? "true" : "false",
           tableNamePrefix: sync.data?.["tableNamePrefix"] ?? "",
         },
@@ -674,6 +689,8 @@ export async function scheduleSync({
           startedBy,
           status: "RUNNING",
           description: "Started",
+          pkg: serviceConfig.package,
+          version: serviceConfig.version,
         });
       }
       return {
