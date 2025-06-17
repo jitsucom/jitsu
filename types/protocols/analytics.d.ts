@@ -474,6 +474,10 @@ export interface AnalyticsInterface {
 
   setAnonymousId(id: string | undefined): void;
 
+  setContextProperty(name: string, value: JSONValue): void;
+
+  getContextProperty(name: string): JSONValue;
+
   configure(options: DynamicJitsuOptions): void;
 
   // alias(

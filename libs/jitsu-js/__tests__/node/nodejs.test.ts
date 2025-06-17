@@ -215,6 +215,38 @@ describe("Test Jitsu NodeJS client", () => {
     expect((p.body.anonymousId ?? "").length).toBeGreaterThan(0);
   });
 
+  test("test setContextProperty", async () => {
+    const config = {
+      host: server.baseUrl,
+      writeKey: "key:secret",
+      debug: true,
+    };
+    const client = jitsuAnalytics(config);
+    expect(requestLog.length).toBe(0);
+    await client.track("myEvent", { prop1: "value1" });
+    client.setContextProperty("awesomeIdentifier", "awesome-identifier");
+    client.setContextProperty("awesome", {
+      nestedKey: "awesome-key",
+    });
+    await client.track("myEvent2", { prop1: "value2" });
+    const v = client.getContextProperty("awesomeIdentifier");
+    expect(v).toBe("awesome-identifier");
+    client.setContextProperty("awesomeIdentifier", undefined);
+    client.setContextProperty("awesome", {
+      nestedKey: "awesome-key2",
+    });
+    await client.track("myEvent3", { prop1: "value3" });
+
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    expect(requestLog.length).toBe(3);
+    expect(requestLog[0].body.context.awesomeIdentifier).toBeUndefined();
+    expect(requestLog[0].body.context.awesome).toBeUndefined();
+    expect(requestLog[1].body.context.awesomeIdentifier).toBe("awesome-identifier");
+    expect(requestLog[1].body.context.awesome.nestedKey).toBe("awesome-key");
+    expect(requestLog[2].body.context.awesomeIdentifier).toBeUndefined();
+    expect(requestLog[2].body.context.awesome.nestedKey).toBe("awesome-key2");
+  });
+
   test("test defaultPayloadContext", async () => {
     const config = {
       host: server.baseUrl,
