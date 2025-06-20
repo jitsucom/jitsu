@@ -5,6 +5,7 @@ import { getServerLog } from "../../../lib/server/log";
 import { firebase } from "../../../lib/server/firebase-server";
 import { credentialsLoginEnabled, githubLoginEnabled, oidcLoginEnabled } from "../../../lib/nextauth.config";
 import { isTruish } from "juava";
+import { UserProfileDbModel } from "../../../prisma/schema";
 
 const log = getServerLog("api/auth/check-email");
 
@@ -39,26 +40,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const dynamicOidcEnabled = isTruish(process.env.DYNAMIC_OIDC_ENABLED);
 
     if (firebaseEnabled) {
-      try {
-        const firebaseUser = await firebase().auth().getUserByEmail(email);
-
-        // Check provider data to determine auth method
-        if (firebaseUser.providerData && firebaseUser.providerData.length > 0) {
-          const providers = firebaseUser.providerData.map(p => p.providerId);
-
-          if (providers.includes("password")) {
-            return res.json({ type: "firebase-password" } as AuthMethod);
-          } else if (providers.includes("google.com")) {
-            return res.json({ type: "firebase-google" } as AuthMethod);
-          } else if (providers.includes("github.com")) {
-            return res.json({ type: "firebase-github" } as AuthMethod);
-          }
-        }
-      } catch (error: any) {
-        // User not found in Firebase, continue to check other methods
-        if (error.code !== "auth/user-not-found") {
-          log.atError().withCause(error).log("Error checking Firebase user");
-        }
+      const authMethod = await checkFirebaseUser(email);
+      if (authMethod) {
+        return res.json(authMethod);
       }
     }
 
@@ -71,95 +55,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // If user exists, check their login provider
     if (existingUser && !firebaseEnabled) {
-      const loginProvider = existingUser.loginProvider;
       // Check for nextauth login providers
-      if (["github", "credentials", "oidc"].includes(loginProvider)) {
+      // TODO: we should replace hardcoded login providers with a dynamic list from nextauth config
+      if (["github", "credentials", "oidc"].includes(existingUser.loginProvider)) {
         return res.json({
-          type: "nextauth-" + loginProvider,
-        } as AuthMethod);
+          type: "nextauth-" + existingUser.loginProvider,
+        });
       }
     }
 
     if (dynamicOidcEnabled) {
-      // Check for dynamic OIDC providers
-      const dynamicOidcProviders = await db.prisma().oidcProvider.findMany({
-        where: { enabled: true },
-        select: {
-          id: true,
-          name: true,
-        },
-      });
-      if (dynamicOidcProviders.length > 0) {
-        if (existingUser && existingUser.loginProvider.startsWith("oidc:")) {
-          const providerId = existingUser.loginProvider.split(":")[1];
-          const workspaceAccess = await db.prisma().workspaceAccess.findMany({
-            where: {
-              userId: existingUser.id,
-            },
-            include: {
-              workspace: {
-                include: {
-                  oidcLoginGroups: {
-                    where: {
-                      oidcProviderId: providerId,
-                      oidcProvider: {
-                        enabled: true,
-                      },
-                    },
-                    include: {
-                      oidcProvider: true,
-                    },
-                  },
-                },
-              },
-            },
-          });
-          const workspaceWithOidc = workspaceAccess.find(wa => wa.workspace.oidcLoginGroups.length > 0);
-          if (workspaceWithOidc) {
-            const oidcGroup = workspaceWithOidc.workspace.oidcLoginGroups[0];
-            if (oidcGroup) {
-              return res.json({
-                type: "dynamic-oidc",
-                oidcProviderId: oidcGroup.oidcProvider.id,
-                oidcProviderName: oidcGroup.oidcProvider.name,
-              } as AuthMethod);
-            }
-          }
-        }
-        const invitation = await db.prisma().invitationToken.findFirst({
-          where: {
-            email: email.toLowerCase(),
-            usedBy: null, // Only unused invitations
-          },
-          orderBy: {
-            createdAt: "desc",
-          },
-        });
-        if (invitation) {
-          // Check if the workspace has OIDC configured
-          const workspace = await db.prisma().workspace.findUnique({
-            where: {
-              id: invitation.workspaceId,
-            },
-            include: {
-              oidcLoginGroups: {
-                include: {
-                  oidcProvider: true,
-                },
-              },
-            },
-          });
-          if (workspace && workspace.oidcLoginGroups.length > 0) {
-            const oidcGroup = workspace.oidcLoginGroups.find(group => group.oidcProvider.enabled);
-            if (oidcGroup) {
-              return res.json({
-                type: "dynamic-oidc",
-                oidcProviderId: oidcGroup.oidcProvider.id,
-                oidcProviderName: oidcGroup.oidcProvider.name,
-              } as AuthMethod);
-            }
-          }
-        }
+      const authMethod = await checkDynamicOidcUser(email, existingUser);
+      if (authMethod) {
+        return res.json(authMethod);
       }
     }
 
@@ -174,15 +82,123 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       defaultType = "nextauth-github";
     } else if (oidcLoginEnabled) {
       defaultType = "nextauth-oidc";
-    } else if (dynamicOidcEnabled) {
-      defaultType = "dynamic-oidc";
     }
 
     return res.json({
       type: defaultType,
-    } as AuthMethod);
+    });
   } catch (error: any) {
     log.atError().withCause(error).log("Error checking email auth method");
     return res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+async function checkFirebaseUser(email: string): Promise<AuthMethod | undefined> {
+  try {
+    const firebaseUser = await firebase().auth().getUserByEmail(email);
+    // Check provider data to determine auth method
+    if (firebaseUser.providerData && firebaseUser.providerData.length > 0) {
+      const providers = firebaseUser.providerData.map(p => p.providerId);
+      if (providers.includes("password")) {
+        return { type: "firebase-password" };
+      } else if (providers.includes("google.com")) {
+        return { type: "firebase-google" };
+      } else if (providers.includes("github.com")) {
+        return { type: "firebase-github" };
+      }
+    }
+  } catch (error: any) {
+    // User not found in Firebase, continue to check other methods
+    if (error.code !== "auth/user-not-found") {
+      log.atError().withCause(error).log("Error checking Firebase user");
+    }
+  }
+}
+
+type UserProfileDbModel = z.infer<typeof UserProfileDbModel>;
+
+async function checkDynamicOidcUser(
+  email: string,
+  existingUser: UserProfileDbModel | null | undefined
+): Promise<AuthMethod | undefined> {
+  // Check for dynamic OIDC providers
+  const dynamicOidcProviders = await db.prisma().oidcProvider.findMany({
+    where: { enabled: true },
+    select: {
+      id: true,
+      name: true,
+    },
+  });
+  if (dynamicOidcProviders.length > 0) {
+    if (existingUser && existingUser.loginProvider.startsWith("oidc:")) {
+      const providerId = existingUser.loginProvider.split(":")[1];
+      const workspaceAccess = await db.prisma().workspaceAccess.findMany({
+        where: {
+          userId: existingUser.id,
+        },
+        include: {
+          workspace: {
+            include: {
+              oidcLoginGroups: {
+                where: {
+                  oidcProviderId: providerId,
+                  oidcProvider: {
+                    enabled: true,
+                  },
+                },
+                include: {
+                  oidcProvider: true,
+                },
+              },
+            },
+          },
+        },
+      });
+      const workspaceWithOidc = workspaceAccess.find(wa => wa.workspace.oidcLoginGroups.length > 0);
+      if (workspaceWithOidc) {
+        const oidcGroup = workspaceWithOidc.workspace.oidcLoginGroups[0];
+        if (oidcGroup) {
+          return {
+            type: "dynamic-oidc",
+            oidcProviderId: oidcGroup.oidcProvider.id,
+            oidcProviderName: oidcGroup.oidcProvider.name,
+          };
+        }
+      }
+    }
+    const invitation = await db.prisma().invitationToken.findFirst({
+      where: {
+        email: email.toLowerCase(),
+        usedBy: null, // Only unused invitations
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+    if (invitation) {
+      // Check if the workspace has OIDC configured
+      const workspace = await db.prisma().workspace.findUnique({
+        where: {
+          id: invitation.workspaceId,
+        },
+        include: {
+          oidcLoginGroups: {
+            include: {
+              oidcProvider: true,
+            },
+          },
+        },
+      });
+      if (workspace && workspace.oidcLoginGroups.length > 0) {
+        const oidcGroup = workspace.oidcLoginGroups.find(group => group.oidcProvider.enabled);
+        if (oidcGroup) {
+          return {
+            type: "dynamic-oidc",
+            oidcProviderId: oidcGroup.oidcProvider.id,
+            oidcProviderName: oidcGroup.oidcProvider.name,
+          };
+        }
+      }
+    }
   }
 }
