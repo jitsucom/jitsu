@@ -396,32 +396,33 @@ model OidcProvider {
   id                String             @id @default(cuid())
   createdAt         DateTime           @default(now()) /// @zod.custom(z.coerce.date())
   updatedAt         DateTime           @default(now()) @updatedAt /// @zod.custom(z.coerce.date())
-  
+
   // Display name for the provider
   name              String
-  
+
   // OIDC configuration
   issuer            String             // OIDC issuer URL (e.g., https://auth.company.com)
   clientId          String
   clientSecret      String             // Should be encrypted in production
-  
+
   // OIDC endpoints - if autoDiscovery is true, these will be fetched from /.well-known/openid-configuration
   authorizationUrl  String?
   tokenUrl          String?
   userInfoUrl       String?
   jwksUri           String?            // JSON Web Key Set URI for token validation
-  
+
   // OAuth scopes to request
   scopes            String[]           @default(["openid", "profile", "email"])
-  
+
   // Claims mapping - which OIDC claims to use for user properties
   usernameClaim     String             @default("email")     // Claim to use as username
   emailClaim        String             @default("email")     // Claim to use for email
   nameClaim         String             @default("name")      // Claim to use for display name
-  
+  groupClaim        String             @default("groups")    // Which claim contains user's groups
+
   enabled           Boolean            @default(true)
   autoDiscovery     Boolean            @default(true)        // Whether to use OIDC discovery endpoint
-  
+
   oidcLoginGroups   OidcLoginGroup[]
 
   @@unique([issuer, clientId])
@@ -432,16 +433,15 @@ model OidcLoginGroup {
   id            String       @id @default(cuid())
   createdAt     DateTime     @default(now()) /// @zod.custom(z.coerce.date())
   updatedAt     DateTime     @default(now()) @updatedAt /// @zod.custom(z.coerce.date())
-  
+
   workspaceId   String
   workspace     Workspace    @relation(fields: [workspaceId], references: [id])
   oidcProviderId String
   oidcProvider  OidcProvider @relation(fields: [oidcProviderId], references: [id])
-  
+
   // Group-based access control
-  groupClaim    String       @default("groups")    // Which claim contains user's groups
   groupValue    String?      // Required group value (e.g., "engineering", "admins")
-  
+
   // If true, all authenticated users from this OIDC provider can access the workspace
   // If false, only users with matching groupValue in their groupClaim can access
   allowAllUsers Boolean      @default(false)

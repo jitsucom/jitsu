@@ -19,25 +19,28 @@ import {
 } from "../lib/context";
 import { AppConfig, ContextApiResponse, SessionUser } from "../lib/schema";
 import { ErrorBoundary, GlobalError, GlobalOverlay } from "../components/GlobalError/GlobalError";
-import { feedbackError, useTitle } from "../lib/ui";
+import { useTitle } from "../lib/ui";
 import { useApi } from "../lib/useApi";
 import { AntdTheme } from "../components/AntdTheme/AntdTheme";
 import { AntdModalProvider } from "../lib/modal";
 import Head from "next/head";
 import { JitsuProvider, useJitsu } from "@jitsu/jitsu-react";
 import { FirebaseProvider, useFirebaseSession } from "../lib/firebase-client";
-import { SignIn } from "../components/SignInOrUp/SignIn";
 import { JitsuButton } from "../components/JitsuButton/JitsuButton";
 import { BillingProvider } from "../components/Billing/BillingProvider";
 import { useConfigObjectList, useConfigObjectsUpdater, useLoadedWorkspace } from "../lib/store";
-import { Redirect } from "../components/Redirect/Redirect";
+import { RedirectToSignIn } from "../components/Redirect/Redirect";
 import { PreviousRouteContextProvider } from "../lib/previous-route";
 import { OidcAuthorizer } from "../components/OidcAuthorizer/OidcAuthorizer";
 
 const log = getLog("app");
 
 function getUserFromNextJsSession(session: any): ContextApiResponse["user"] {
-  return session && session?.data ? ({ ...session.data, ...session.data?.user } as any) : undefined;
+  if (session && session?.data) {
+    return { ...session.data, ...session.data?.user } as any;
+  } else {
+    throw new Error("Session data is not available");
+  }
 }
 
 export function Analytics({ user }: { user?: SessionUser }) {
@@ -73,7 +76,6 @@ const FirebaseAuthorizer: React.FC<PropsWithChildren<{}>> = ({ children }) => {
   const [loading, setLoading] = useState<boolean>(true);
   const [authError, setAuthError] = useState<any>(undefined);
   const router = useRouter();
-  const { analytics } = useJitsu();
 
   /* eslint-disable react-hooks/exhaustive-deps  */
   //following the rule and adding session to deps will create an
@@ -103,127 +105,94 @@ const FirebaseAuthorizer: React.FC<PropsWithChildren<{}>> = ({ children }) => {
       <UserContextProvider
         user={user}
         logout={async () => {
-          setUser(null);
-          await session.signOut();
+          await session.signOut().then(() => {
+            setUser(null);
+          });
+          router.push("/signin");
         }}
       >
         {children}
       </UserContextProvider>
     );
   } else {
-    return (
-      <>
-        <Analytics />
-        <SignIn
-          engine="firebase"
-          variant="signin"
-          enablePassword={true}
-          onPasswordLogin={async (email, password) => {
-            try {
-              await session.signIn(email, password);
-              const user = await session.resolveUser().user;
-              if (!user) {
-                feedbackError(`Signin failed`);
-                await analytics.track("login_error", {
-                  traits: { email, type: "password", loginProvider: "firebase/email" },
-                });
-              } else {
-                setUser(user);
-                await analytics.track("login", {
-                  traits: { ...user, type: "password", loginProvider: "firebase/email" },
-                });
-              }
-            } catch (e: any) {
-              await analytics.track("login_error", {
-                email,
-                type: "password",
-                loginProvider: "firebase/email",
-                message: e?.message || "Unknown error",
-              });
-              if (e.code === "auth/user-not-found" || e.code === "auth/wrong-password") {
-                e = new Error("Invalid email or password");
-              }
-              throw e;
-            }
-          }}
-          onSocialLogin={async type => {
-            try {
-              await session.signInWith(type);
-              const user = await session.resolveUser().user;
-              if (!user) {
-                feedbackError(`Signin failed`);
-                await analytics.track("login_error", { traits: { type: "social", loginProvider: `firebase/${type}` } });
-              } else {
-                setUser(user);
-                await analytics.track("login", {
-                  traits: { ...user, type: "social", loginProvider: `firebase/${type}` },
-                });
-              }
-            } catch (e: any) {
-              await analytics.track("login_error", {
-                type: "social",
-                loginProvider: `firebase/${type}`,
-                message: e?.message || "Unknown error",
-                details: e?.stack || undefined,
-              });
-              throw e;
-            }
-          }}
-        />
-      </>
-    );
+    return <RedirectToSignIn href="/signin" />;
   }
 };
 
 // Combined authorizer that handles both Firebase and OIDC authentication
-const CombinedAuthorizer: React.FC<PropsWithChildren<{}>> = ({ children }) => {
-  return (
-    <OidcAuthorizer>
-      <SecondAuthorizer>{children}</SecondAuthorizer>
-    </OidcAuthorizer>
-  );
+const CombinedAuthorizer: React.FC<
+  PropsWithChildren<{ authorizer: "firebase" | "nextauth"; dynamicOidcEnabled: boolean }>
+> = ({ children, authorizer, dynamicOidcEnabled }) => {
+  if (dynamicOidcEnabled) {
+    return (
+      <OidcAuthorizer>
+        <NestedAuthorizer authorizer={authorizer}>{children}</NestedAuthorizer>
+      </OidcAuthorizer>
+    );
+  } else if (authorizer === "nextauth") {
+    return <NextJsAuthorizer>{children}</NextJsAuthorizer>;
+  } else if (authorizer === "firebase") {
+    return <FirebaseAuthorizer>{children}</FirebaseAuthorizer>;
+  }
 };
 
-const SecondAuthorizer: React.FC<PropsWithChildren<{}>> = ({ children }) => {
+const NestedAuthorizer: React.FC<PropsWithChildren<{ authorizer: "firebase" | "nextauth" }>> = ({
+  children,
+  authorizer,
+}) => {
   const user = useUserSafe();
   if (user) {
     return children;
   }
-  return <FirebaseAuthorizer>{children}</FirebaseAuthorizer>;
+  if (authorizer === "nextauth") {
+    return <NextJsAuthorizer>{children}</NextJsAuthorizer>;
+  } else if (authorizer === "firebase") {
+    return <FirebaseAuthorizer>{children}</FirebaseAuthorizer>;
+  }
 };
 
 const NextJsAuthorizer: React.FC<PropsWithChildren<{}>> = ({ children }) => {
   const session = useSession();
+  const router = useRouter();
+
   if (session && session.data) {
     const user = getUserFromNextJsSession(session);
     return (
-      <UserContextProvider user={user} logout={signOut}>
+      <UserContextProvider
+        user={user}
+        logout={async () => {
+          signOut().then(() => router.push("/signin"));
+        }}
+      >
         {children}
       </UserContextProvider>
     );
   } else if (session.status === "loading") {
     return <GlobalLoader title={"Authorizing..."} />;
   }
-  return <Redirect href={"/signin"} />;
+  return <RedirectToSignIn href={"/signin"} />;
 };
 
 function LoginWrapper(props: PropsWithChildren<{ requiresLogin: boolean }>) {
   const appConfig = useAppConfig();
   if (!props.requiresLogin) {
     return (
-      <>
+      <FirebaseProvider appConfig={appConfig}>
         <Analytics />
         {props.children}
-      </>
-    );
-  } else if (appConfig.auth?.firebasePublic) {
-    return (
-      <FirebaseProvider appConfig={appConfig}>
-        <CombinedAuthorizer>{props.children}</CombinedAuthorizer>
       </FirebaseProvider>
     );
   } else {
-    return <NextJsAuthorizer>{props.children}</NextJsAuthorizer>;
+    return (
+      <FirebaseProvider appConfig={appConfig}>
+        <CombinedAuthorizer
+          authorizer={appConfig.auth?.firebasePublic ? "firebase" : "nextauth"}
+          dynamicOidcEnabled={!!appConfig.auth?.dynamicOidc}
+        >
+          {props.children}
+        </CombinedAuthorizer>
+      </FirebaseProvider>
+    );
   }
 }
 

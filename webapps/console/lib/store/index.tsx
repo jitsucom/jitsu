@@ -101,7 +101,9 @@ async function initialDataLoad(
 ): Promise<{ workspaceId: string }> {
   const loaders: Promise<void>[] = [];
 
-  const workspaceDbModel = WorkspaceDbModel.parse(await rpc(`/api/workspace/${workspaceIdOrSlug}`, { signal }));
+  const data = await rpc(`/api/workspace/${workspaceIdOrSlug}`, { signal });
+  const workspaceDbModel = WorkspaceDbModel.parse(data) as any;
+  workspaceDbModel.oidcLoginGroups = data.oidcLoginGroups;
 
   await queryClient.prefetchQuery(getWorkspaceCacheKey(workspaceIdOrSlug), async () => workspaceDbModel, foreverCache);
   const workspace = requireDefined(

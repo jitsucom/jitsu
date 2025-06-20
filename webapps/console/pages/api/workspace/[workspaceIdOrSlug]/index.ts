@@ -86,9 +86,27 @@ export const api: Api = {
     handle: async ({ req, query: { workspaceIdOrSlug }, user }) => {
       //we need to initialize telemetry to get deploymentId for old deployments. Not an optimal solution, because of additional query. But guarantees to work
       await initTelemetry();
-      const workspace = await db
-        .prisma()
-        .workspace.findFirst({ where: { OR: [{ id: workspaceIdOrSlug }, { slug: workspaceIdOrSlug }] } });
+      const workspace = await db.prisma().workspace.findFirst({
+        where: { OR: [{ id: workspaceIdOrSlug }, { slug: workspaceIdOrSlug }] },
+        include: {
+          oidcLoginGroups: {
+            where: {
+              oidcProvider: {
+                enabled: true,
+              },
+            },
+            include: {
+              oidcProvider: {
+                select: {
+                  id: true,
+                  name: true,
+                  enabled: true,
+                },
+              },
+            },
+          },
+        },
+      });
       if (!workspace) {
         throw new ApiError(`Workspace '${workspaceIdOrSlug}' not found`, { status: 404 });
       }
