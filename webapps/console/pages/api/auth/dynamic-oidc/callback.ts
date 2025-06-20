@@ -213,7 +213,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Create or update user
     const user = await getOrCreateUser({
       externalId: userInfo.sub,
-      loginProvider: `oidc:${stateData.providerId}`,
+      loginProvider: `dynamic-oidc/${stateData.providerId}`,
       email: email.toLowerCase(),
       name: name,
       req: req,
