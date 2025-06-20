@@ -4,14 +4,12 @@ import { getLog } from "juava";
 import { ContextApiResponse } from "../../lib/schema";
 import { UserContextProvider } from "../../lib/context";
 import { GlobalLoader } from "../GlobalLoader/GlobalLoader";
-import { GlobalError } from "../GlobalError/GlobalError";
 
 const log = getLog("oidc-authorizer");
 
 export const OidcAuthorizer: React.FC<PropsWithChildren<{}>> = ({ children }) => {
   const [user, setUser] = useState<ContextApiResponse["user"] | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const [authError, setAuthError] = useState<any>(undefined);
   const router = useRouter();
 
   useEffect(() => {
@@ -24,7 +22,6 @@ export const OidcAuthorizer: React.FC<PropsWithChildren<{}>> = ({ children }) =>
         });
 
         if (!response.ok) {
-          setLoading(false);
           return false;
         }
 
@@ -53,25 +50,37 @@ export const OidcAuthorizer: React.FC<PropsWithChildren<{}>> = ({ children }) =>
           };
 
           log.atInfo().log("OIDC user authenticated", { email: oidcUser.email, provider: oidcUser.loginProvider });
-
           setUser(oidcUser);
-          setLoading(false);
           return true;
+        } else {
+          log.atWarn().log("OIDC session not authenticated");
         }
       } catch (error) {
         log.atError().withCause(error).log("Error checking OIDC session");
-        setAuthError(error);
+      } finally {
+        setLoading(false);
       }
-
-      setLoading(false);
       return false;
     };
 
     // Initial check
-    checkAndRenewSession();
+    const okPromis = checkAndRenewSession();
 
     // Set up periodic renewal check (every 30 minutes)
-    const renewalInterval = setInterval(checkAndRenewSession, 30 * 60 * 1000);
+    const renewalInterval = setInterval(async () => {
+      let ok = await okPromis;
+      if (!ok) {
+        // we don't have a user, so we don't need to renew
+        clearInterval(renewalInterval);
+        return;
+      }
+      ok = await checkAndRenewSession();
+      if (!ok) {
+        log.atWarn().log("OIDC session renewal failed");
+        // renew may be failed do to network issues or server errors, so we don't clear user here
+        // oidc-session cookie will die after 24 hours anyway
+      }
+    }, 30 * 60 * 1000);
 
     return () => clearInterval(renewalInterval);
   }, []);
@@ -85,8 +94,6 @@ export const OidcAuthorizer: React.FC<PropsWithChildren<{}>> = ({ children }) =>
   // If we have a user, provide the context
   if (loading) {
     return <GlobalLoader title={"Authorizing"} />;
-  } else if (authError) {
-    return <GlobalError error={authError} title={"Authorization error"} />;
   } else if (user) {
     return (
       <UserContextProvider

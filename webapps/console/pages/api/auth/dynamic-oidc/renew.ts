@@ -6,6 +6,7 @@ import { nextAuthConfig } from "../../../../lib/nextauth.config";
 
 const log = getServerLog("api/auth/renew-oidc");
 
+//TODO: renew should better do refresh token exchange with OIDC provider
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -36,14 +37,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(401).json({ error: "Invalid session token" });
     }
 
-    const timeUntilExpiry = sessionData.exp - Math.floor(Date.now() / 1000);
-    // Only renew if less than 2 hours remaining
-    if (timeUntilExpiry > 2 * 60 * 60) {
-      return res.status(200).json({
-        success: true,
-        message: "Session still valid, no renewal needed",
-      });
-    }
     // Create a new session token with updated timestamp
     const newSessionData = {
       ...sessionData,
