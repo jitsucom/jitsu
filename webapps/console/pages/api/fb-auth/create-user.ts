@@ -12,6 +12,7 @@ export const api: Api = {
       if (!user.internalId) {
         const dbUser = await getOrCreateUser({
           externalId: user.externalId,
+          // TODO: fill with user.loginProvider and update all existing users
           loginProvider: "firebase",
           email: user.email,
           name: user.name || user.email,

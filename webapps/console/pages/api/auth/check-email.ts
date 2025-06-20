@@ -130,8 +130,8 @@ async function checkDynamicOidcUser(
     },
   });
   if (dynamicOidcProviders.length > 0) {
-    if (existingUser && existingUser.loginProvider.startsWith("oidc:")) {
-      const providerId = existingUser.loginProvider.split(":")[1];
+    if (existingUser && existingUser.loginProvider.startsWith("dynamic-oidc/")) {
+      const providerId = existingUser.loginProvider.split("/")[1];
       const workspaceAccess = await db.prisma().workspaceAccess.findMany({
         where: {
           userId: existingUser.id,
