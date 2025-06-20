@@ -14,7 +14,7 @@ import { FaExternalLinkAlt, FaGithub, FaGoogle, FaUser } from "react-icons/fa";
 import Link from "next/link";
 import { AntdModal, useAntdModal } from "../../../lib/modal";
 import { FiMail } from "react-icons/fi";
-import { ArrowRight, Copy, Trash2 } from "lucide-react";
+import { ArrowRight, Copy, Trash2, Key } from "lucide-react";
 import { JitsuButton, WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
 import { useRouter } from "next/router";
 
@@ -254,6 +254,34 @@ const Members: React.FC<any> = () => {
   );
 };
 
+const OidcProviders: React.FC<any> = () => {
+  const workspace = useWorkspace();
+
+  const oidcGroups = workspace.oidcLoginGroups || [];
+  if (oidcGroups.length == 0) {
+    return <></>;
+  }
+
+  return (
+    <div className="bg-backgroundLight border border-textDisabled rounded-lg overflow-hidden">
+      <div className="px-6 py-4 bg-background border-b border-textDisabled">
+        <h3 className="text-lg font-semibold text-textDark">OIDC Providers</h3>
+        <p className="text-sm text-textSecondary mt-1">Single sign-on providers configured for this workspace</p>
+      </div>
+      <div className="divide-y divide-textDisabled">
+        {oidcGroups.map(group => (
+          <div key={group.id} className="px-6 py-4 hover:bg-background/50 transition-colors">
+            <div className="flex items-center space-x-3">
+              <Key className="w-5 h-5 text-primary" />
+              <span className="font-medium text-textDark">{group.oidcProvider.name}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const WorkspaceSettingsComponent: React.FC<any> = () => {
   const config = useAppConfig();
   const workspace = useWorkspace();
@@ -335,6 +363,9 @@ const WorkspaceSettingsComponent: React.FC<any> = () => {
             onSuccess={({ slug }) => (window.location.href = `/${slug}/settings`)}
           />
         </div>
+
+        {/* OIDC Providers Section */}
+        <OidcProviders />
 
         {/* Members Section */}
         <Members />

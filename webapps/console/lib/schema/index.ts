@@ -90,6 +90,14 @@ export const AppConfig = z.object({
   auth: z
     .object({
       firebasePublic: z.any(),
+      nextauth: z
+        .object({
+          github: z.boolean().optional(),
+          credentials: z.boolean().optional(),
+          oidc: z.boolean().optional(),
+        })
+        .optional(),
+      dynamicOidc: z.boolean().optional(),
     })
     .optional(),
   frontendTelemetry: z.object({

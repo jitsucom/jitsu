@@ -1,6 +1,6 @@
 import { ZodType } from "zod";
 import { NextApiHandler, NextApiRequest, NextApiResponse } from "next";
-import { assertDefined, checkHash, checkRawToken, getErrorMessage, requireDefined, tryJson } from "juava";
+import { assertDefined, checkHash, checkRawToken, getErrorMessage, isTruish, requireDefined, tryJson } from "juava";
 import { getServerSession, Session } from "next-auth";
 import { nextAuthConfig } from "./nextauth.config";
 import { SessionUser } from "./schema";
@@ -147,28 +147,31 @@ export async function getUser(
     }
   }
 
-  // Check for OIDC session cookie (for API requests from OIDC-authenticated users)
-  const oidcSessionCookie = req.cookies?.['oidc-session'];
-  if (oidcSessionCookie) {
-    try {
-      const jwt = require('jsonwebtoken');
-      const { nextAuthConfig } = require('./nextauth.config');
-      
-      // Verify the OIDC session token
-      const payload = jwt.verify(oidcSessionCookie, nextAuthConfig.secret);
-      
-      // Convert OIDC session to SessionUser format
-      return {
-        internalId: payload.userId,
-        externalUsername: payload.email,
-        externalId: payload.externalId,
-        loginProvider: payload.loginProvider,
-        email: payload.email,
-        name: payload.name,
-      };
-    } catch (error) {
-      log.atWarn().withCause(error).log("Invalid OIDC session cookie");
-      // Continue to other auth methods
+  const dynamicOidcEnabled = isTruish(process.env.DYNAMIC_OIDC_ENABLED);
+  if (dynamicOidcEnabled) {
+    // Check for OIDC session cookie (for API requests from OIDC-authenticated users)
+    const oidcSessionCookie = req.cookies?.["oidc-session"];
+    if (oidcSessionCookie) {
+      try {
+        const jwt = require("jsonwebtoken");
+        const { nextAuthConfig } = require("./nextauth.config");
+
+        // Verify the OIDC session token
+        const payload = jwt.verify(oidcSessionCookie, nextAuthConfig.secret);
+
+        // Convert OIDC session to SessionUser format
+        return {
+          internalId: payload.userId,
+          externalUsername: payload.email,
+          externalId: payload.externalId,
+          loginProvider: payload.loginProvider,
+          email: payload.email,
+          name: payload.name,
+        };
+      } catch (error) {
+        log.atWarn().withCause(error).log("Invalid OIDC session cookie");
+        // Continue to other auth methods
+      }
     }
   }
 

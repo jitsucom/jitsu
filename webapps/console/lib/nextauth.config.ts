@@ -106,7 +106,7 @@ export async function getOrCreateUser(opts: {
   email: string;
   // we only need this for product analytics, so it's optional
   req?: NextApiRequest;
-}): Promise<User> {
+}): Promise<User & { loginProvider: string; externalId: string; admin: boolean | null }> {
   const { externalId, loginProvider, email, name = email } = opts;
   let user = await db.prisma().userProfile.findFirst({ where: { externalId, loginProvider } });
   if (!user) {

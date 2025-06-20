@@ -15,64 +15,54 @@ export const OidcAuthorizer: React.FC<PropsWithChildren<{}>> = ({ children }) =>
   const router = useRouter();
 
   useEffect(() => {
-    const getCookie = (name: string): string | null => {
-      const cookies = document.cookie.split(";").reduce((acc, cookie) => {
-        const [key, value] = cookie.trim().split("=");
-        acc[key] = value;
-        return acc;
-      }, {} as Record<string, string>);
-      return cookies[name] || null;
-    };
+    const checkAndRenewSession = async () => {
+      try {
+        // Check session via secure API endpoint
+        const response = await fetch("/api/auth/dynamic-oidc/session", {
+          method: "GET",
+          credentials: "include",
+        });
 
-    const checkAndRenewSession = () => {
-      const oidcSessionToken = getCookie("oidc-session");
-      if (oidcSessionToken) {
-        try {
-          // Decode the OIDC session token (no verification needed on frontend)
-          const base64Payload = oidcSessionToken.split(".")[1];
-          const payload = JSON.parse(atob(base64Payload));
+        if (!response.ok) {
+          setLoading(false);
+          return false;
+        }
 
-          // Check if token is close to expiring (within 1 hour)
-          const tokenExp = payload.exp * 1000; // Convert to milliseconds
-          const now = Date.now();
-          const timeUntilExpiry = tokenExp - now;
-          const oneHour = 60 * 60 * 1000;
+        const data = await response.json();
 
-          if (timeUntilExpiry < oneHour && timeUntilExpiry > 0) {
-            // Token is close to expiring, try to renew it
-            fetch("/api/auth/renew-oidc", {
-              method: "POST",
-              credentials: "include",
-            }).catch(error => {
-              log.atWarn().withCause(error).log("Failed to renew OIDC session");
-            });
+        if (data.authenticated && data.user) {
+          // Check if we need to renew the session
+          const renewResponse = await fetch("/api/auth/dynamic-oidc/renew", {
+            method: "POST",
+            credentials: "include",
+          });
+
+          if (!renewResponse.ok) {
+            log.atWarn().log("Failed to renew OIDC session");
           }
 
-          // Convert OIDC session to user format
+          // Convert to user format
           const oidcUser: ContextApiResponse["user"] = {
-            email: payload.email,
-            externalId: payload.externalId,
-            externalUsername: payload.email,
+            email: data.user.email,
+            externalId: data.user.externalId,
+            externalUsername: data.user.email,
             image: null,
-            internalId: payload.userId,
-            loginProvider: payload.loginProvider,
-            name: payload.name,
+            internalId: data.user.internalId,
+            loginProvider: data.user.loginProvider,
+            name: data.user.name,
           };
 
           log.atInfo().log("OIDC user authenticated", { email: oidcUser.email, provider: oidcUser.loginProvider });
 
           setUser(oidcUser);
           setLoading(false);
-          return true; // OIDC session handled
-        } catch (error) {
-          log.atError().withCause(error).log("Error processing OIDC session");
-          setAuthError(error);
-          setLoading(false);
-          return false;
+          return true;
         }
+      } catch (error) {
+        log.atError().withCause(error).log("Error checking OIDC session");
+        setAuthError(error);
       }
 
-      // No OIDC session found
       setLoading(false);
       return false;
     };
@@ -102,9 +92,17 @@ export const OidcAuthorizer: React.FC<PropsWithChildren<{}>> = ({ children }) =>
       <UserContextProvider
         user={user}
         logout={async () => {
-          setUser(null);
-          // Clear the OIDC session cookie
-          document.cookie = "oidc-session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+          // Call logout endpoint to clear httpOnly cookie
+          try {
+            await fetch("/api/auth/dynamic-oidc/logout", {
+              method: "POST",
+              credentials: "include",
+            });
+            setUser(null);
+            router.push("/signin");
+          } catch (error) {
+            log.atError().withCause(error).log("Error during OIDC logout");
+          }
         }}
       >
         {children}

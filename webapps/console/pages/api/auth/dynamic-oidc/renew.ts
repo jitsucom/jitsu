@@ -1,12 +1,11 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import jwt from "jsonwebtoken";
-import { getServerLog } from "../../../lib/server/log";
+import { getServerLog } from "../../../../lib/server/log";
 import { serialize } from "cookie";
-import { nextAuthConfig } from "../../../lib/nextauth.config";
+import { nextAuthConfig } from "../../../../lib/nextauth.config";
 
 const log = getServerLog("api/auth/renew-oidc");
 
-// TODO: Use proper OIDC refresh token flow when available
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -27,6 +26,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       loginProvider: string;
       externalId: string;
       timestamp: number;
+      exp: number;
     };
 
     try {
@@ -36,24 +36,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(401).json({ error: "Invalid session token" });
     }
 
+    const timeUntilExpiry = sessionData.exp - Math.floor(Date.now() / 1000);
+    // Only renew if less than 2 hours remaining
+    if (timeUntilExpiry > 2 * 60 * 60) {
+      return res.status(200).json({
+        success: true,
+        message: "Session still valid, no renewal needed",
+      });
+    }
     // Create a new session token with updated timestamp
     const newSessionData = {
       ...sessionData,
       timestamp: Date.now(),
+      exp: Math.floor(Date.now() / 1000) + 24 * 60 * 60, // 24 hours from now
     };
 
-    const newSessionToken = jwt.sign(newSessionData, nextAuthConfig.secret as string, {
-      expiresIn: "24h",
-    });
+    const newSessionToken = jwt.sign(newSessionData, nextAuthConfig.secret as string);
 
     // Set the renewed cookie
     res.setHeader(
       "Set-Cookie",
       serialize("oidc-session", newSessionToken, {
-        httpOnly: false,
+        httpOnly: true, // Protect from XSS - we'll use a separate mechanism for frontend
         secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: 24 * 60 * 60, // 24 hours
+        sameSite: "strict", // Strict for better CSRF protection
+        maxAge: 24 * 60 * 60, // 24 hour
         path: "/",
       })
     );

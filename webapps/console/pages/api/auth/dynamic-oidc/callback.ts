@@ -3,6 +3,9 @@ import { db } from "../../../../lib/server/db";
 import jwt from "jsonwebtoken";
 import { getOrCreateUser, nextAuthConfig } from "../../../../lib/nextauth.config";
 import { getServerLog } from "../../../../lib/server/log";
+import { trimSuffix } from "juava";
+import { serialize } from "cookie";
+import { validateReturnUrl } from "../../../../lib/auth-redirect";
 
 const log = getServerLog("api/auth/dynamic-oidc/callback");
 
@@ -37,7 +40,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     // Verify and decode state using the same secret as NextAuth
-    let stateData: { providerId: string; timestamp: number; csrfToken: string };
+    let stateData: {
+      providerId: string;
+      timestamp: number;
+      csrfToken: string;
+      codeVerifier?: string;
+      nonce?: string;
+      returnUrl?: string;
+    };
     try {
       stateData = jwt.verify(state as string, nextAuthConfig.secret as string) as any;
     } catch (err) {
@@ -71,6 +81,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const baseUrl = process.env.NEXTAUTH_URL || process.env.JITSU_PUBLIC || `${protocol}://${req.headers.host}`;
     const redirectUri = `${baseUrl}/api/auth/dynamic-oidc/callback`;
 
+    // Build token request parameters
+    const tokenParams: Record<string, string> = {
+      grant_type: "authorization_code",
+      code: code as string,
+      redirect_uri: redirectUri,
+      client_id: oidcProvider.clientId,
+    };
+
+    // Add PKCE verifier if present
+    if (stateData.codeVerifier) {
+      tokenParams.code_verifier = stateData.codeVerifier;
+    }
+
     const tokenResponse = await fetch(tokenUrl, {
       method: "POST",
       headers: {
@@ -79,12 +102,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           "base64"
         )}`,
       },
-      body: new URLSearchParams({
-        grant_type: "authorization_code",
-        code: code as string,
-        redirect_uri: redirectUri,
-        client_id: oidcProvider.clientId,
-      }).toString(),
+      body: new URLSearchParams(tokenParams).toString(),
     });
 
     if (!tokenResponse.ok) {
@@ -99,9 +117,42 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let userInfo: OidcUserInfo;
 
     if (tokens.id_token) {
-      // Decode ID token (in production, verify the signature against JWKS)
-      const decoded = jwt.decode(tokens.id_token) as OidcUserInfo;
-      userInfo = decoded;
+      // Decode and validate ID token
+      const decoded = jwt.decode(tokens.id_token, { complete: true }) as any;
+
+      if (!decoded) {
+        log.atError().log("Failed to decode ID token");
+        return res.redirect("/?error=invalid_id_token");
+      }
+
+      // Validate token claims
+      const payload = decoded.payload;
+
+      // Check issuer
+      if (trimSuffix(payload.iss as string, "/") !== trimSuffix(oidcProvider.issuer as string, "/")) {
+        log.atError().log(`Invalid issuer: ${payload.iss} !== ${oidcProvider.issuer}`);
+        return res.redirect("/?error=invalid_issuer");
+      }
+
+      // Check audience
+      if (payload.aud !== oidcProvider.clientId && !payload.aud?.includes(oidcProvider.clientId)) {
+        log.atError().log(`Invalid audience: ${payload.aud}`);
+        return res.redirect("/?error=invalid_audience");
+      }
+
+      // Check nonce if present in state
+      if (stateData.nonce && payload.nonce !== stateData.nonce) {
+        log.atError().log(`Invalid nonce: ${payload.nonce} !== ${stateData.nonce}`);
+        return res.redirect("/?error=invalid_nonce");
+      }
+
+      // Check token expiration
+      if (payload.exp && payload.exp < Date.now() / 1000) {
+        log.atError().log("ID token has expired");
+        return res.redirect("/?error=token_expired");
+      }
+
+      userInfo = payload;
     } else if (oidcProvider.userInfoUrl) {
       // Fetch from userinfo endpoint
       const userInfoResponse = await fetch(oidcProvider.userInfoUrl, {
@@ -168,43 +219,47 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       req: req,
     });
 
-    // Grant access to workspaces
-    for (const group of accessibleWorkspaces) {
-      await db.prisma().workspaceAccess.upsert({
-        where: {
-          userId_workspaceId: {
-            userId: user.id,
-            workspaceId: group.workspaceId,
-          },
-        },
-        create: {
-          userId: user.id,
-          workspaceId: group.workspaceId,
-        },
-        update: {},
-      });
-    }
+    // Create OIDC session data
+    const sessionData = {
+      userId: user.id,
+      email: user.email,
+      name: user.name,
+      loginProvider: user.loginProvider,
+      externalId: user.externalId,
+      timestamp: Date.now(),
+    };
 
-    // For NextAuth environments, we need to create a session
-    // This is a bit tricky since NextAuth expects to handle the full OAuth flow
-    // One approach is to redirect to a special page that triggers NextAuth signin
+    // Create session token
+    const sessionToken = jwt.sign(sessionData, nextAuthConfig.secret as string, {
+      expiresIn: "8h",
+    });
 
-    // Create a temporary token to pass user info using the same secret as NextAuth
-    const tempToken = jwt.sign(
-      {
-        userId: user.id,
-        email: user.email,
-        name: user.name,
-        loginProvider: user.loginProvider,
-        externalId: user.externalId,
-      },
-      nextAuthConfig.secret as string,
-      { expiresIn: "1m" }
+    // Set secure session cookie
+    res.setHeader(
+      "Set-Cookie",
+      serialize("oidc-session", sessionToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        maxAge: 24 * 60 * 60, // 8 hours
+        path: "/",
+      })
     );
 
-    // Redirect to a page that will complete the signin
-    const workspace = accessibleWorkspaces[0].workspace;
-    res.redirect(`/api/auth/complete-oidc?token=${tempToken}&workspace=${workspace.slug || workspace.id}`);
+    // Determine where to redirect after successful authentication
+    let redirectUrl = stateData.returnUrl;
+    // Validate the return URL for security
+    if (redirectUrl) {
+      redirectUrl = validateReturnUrl(redirectUrl);
+    }
+
+    // If no valid return URL, redirect to the user's first accessible workspace
+    if (!redirectUrl) {
+      const workspace = accessibleWorkspaces[0].workspace;
+      redirectUrl = `/${workspace.slug || workspace.id}`;
+    }
+
+    res.redirect(redirectUrl);
   } catch (error: any) {
     log.atError().withCause(error).log("Error handling OIDC callback");
     return res.redirect("/?error=internal_error");

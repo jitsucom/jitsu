@@ -162,7 +162,7 @@ export default createRoute()
         clickhouse_settings: {
           wait_end_of_query: 0,
           http_wait_end_of_query: 0,
-          lightweight_deletes_sync: 0,
+          lightweight_deletes_sync: "0",
           enable_lightweight_delete: 1,
         },
       });

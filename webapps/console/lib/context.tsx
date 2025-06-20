@@ -7,6 +7,7 @@ import { Analytics } from "../pages/_app";
 
 export type WorkspaceContext = z.infer<typeof WorkspaceDbModel> & {
   slugOrId: string;
+  oidcLoginGroups?: any[];
 };
 
 const WorkspaceContext0 = createContext<WorkspaceContext | null>(null);
