@@ -8,7 +8,7 @@ const log = getServerLog("events-log-trim");
 
 const localIps = ["127.0.0.1", "0:0:0:0:0:0:0:1", "::1", "::ffff:127.0.0.1"];
 
-const largeLogSizeIds = ["cm3fnw0m50003bnco4pfy8p74", "cm3fnymo10003bjn24ejeygf3"];
+const largeLogSizeIds = []; //["cm3fnw0m50003bnco4pfy8p74", "cm3fnymo10003bjn24ejeygf3"];
 
 type DeleteRequest = {
   actorId: string;
