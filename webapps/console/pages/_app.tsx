@@ -16,6 +16,7 @@ import {
   useUserSafe,
   useWorkspace,
   WorkspaceContextProvider,
+  UserWorkspaceRole,
 } from "../lib/context";
 import { AppConfig, ContextApiResponse, SessionUser } from "../lib/schema";
 import { ErrorBoundary, GlobalError, GlobalOverlay } from "../components/GlobalError/GlobalError";
@@ -29,6 +30,9 @@ import { FirebaseProvider, useFirebaseSession } from "../lib/firebase-client";
 import { JitsuButton } from "../components/JitsuButton/JitsuButton";
 import { BillingProvider } from "../components/Billing/BillingProvider";
 import { useConfigObjectList, useConfigObjectsUpdater, useLoadedWorkspace } from "../lib/store";
+import { useQuery } from "@tanstack/react-query";
+import { get } from "../lib/useApi";
+import { WorkspaceRoleType, hasPermission } from "../lib/workspace-roles";
 import { RedirectToSignIn } from "../components/Redirect/Redirect";
 import { PreviousRouteContextProvider } from "../lib/previous-route";
 import { OidcAuthorizer } from "../components/OidcAuthorizer/OidcAuthorizer";
@@ -408,6 +412,29 @@ const WorkspaceLoader: React.FC<
 
   const workspace = useLoadedWorkspace(workspaceIdOrSlug);
 
+  // Fetch user role for the workspace
+  const { data: users } = useQuery<{ role?: string }[]>({
+    queryKey: ["workspace-users", workspace?.id],
+    queryFn: async () => {
+      if (!workspace?.id) return [];
+      return (await get(`/api/workspace/${workspace.id}/users`)) as { role?: string }[];
+    },
+    enabled: !!workspace?.id,
+  });
+
+  // Find current user's role
+  const currentUserData = users?.find((u: any) => u.user?.id === user.internalId);
+  const role = (currentUserData?.role || "owner") as WorkspaceRoleType;
+
+  const userRole: UserWorkspaceRole = {
+    role,
+    createEntities: hasPermission(role, "createEntities"),
+    editEntities: hasPermission(role, "editEntities"),
+    deleteEntities: hasPermission(role, "deleteEntities"),
+    manageUsers: hasPermission(role, "manageUsers"),
+    viewData: hasPermission(role, "viewData"),
+  };
+
   useEffect(() => {
     if (workspace?.name) {
       const newTitle = `Jitsu - ${workspace.name}`;
@@ -452,7 +479,10 @@ const WorkspaceLoader: React.FC<
   /* eslint-enable */
 
   return (
-    <WorkspaceContextProvider workspace={{ ...workspace, slugOrId: workspace?.slug || workspace?.id }}>
+    <WorkspaceContextProvider
+      workspace={{ ...workspace, slugOrId: workspace?.slug || workspace?.id }}
+      userRole={userRole}
+    >
       <BillingProvider sendAnalytics={true} enabled={appConfig.billingEnabled}>
         <PreviousRouteContextProvider>{children}</PreviousRouteContextProvider>
       </BillingProvider>

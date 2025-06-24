@@ -58,6 +58,7 @@ export function ProvisionDatabaseButton(props) {
           icon={dbCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
           type="default"
           onClick={createDbHandler}
+          requiredPermission={"createEntities"}
           disabled={dbCreating}
         >
           Create Database

@@ -11,6 +11,7 @@ import { SimpleErrorCard } from "../../../components/GlobalError/GlobalError";
 import { ConnectionTitle } from "../connections";
 import { feedbackError } from "../../../lib/ui";
 import { BackButton } from "../../../components/BackButton/BackButton";
+import { JitsuButton } from "../../../components/JitsuButton/JitsuButton";
 
 function StateEditor() {
   const router = useRouter();
@@ -254,12 +255,13 @@ function StateEditor() {
                       {stateShown[name] ? "Cancel" : "Edit"}
                     </Button>
                     {stateShown[name] && (
-                      <Button
+                      <JitsuButton
                         style={{ width: 82 }}
                         loading={stateSaving[name]}
                         type={"primary"}
                         disabled={editedState[name] === state[name]}
                         ghost
+                        requiredPermission={"editEntities"}
                         size={"small"}
                         onClick={async () => {
                           const saved = await saveState(name, editedState[name]);
@@ -269,7 +271,7 @@ function StateEditor() {
                         }}
                       >
                         Save
-                      </Button>
+                      </JitsuButton>
                     )}
                   </div>
                 </div>

@@ -906,6 +906,7 @@ export function ProfileBuilderPage() {
     items.push({
       icon: <History className="w-3.5 h-3.5" />,
       label: "Rollback Draft",
+      requiredPermission: "editEntities",
       onClick: rollback,
       disabled: isLoading || !!globalError || !hasUnpublishedDraft,
       loading: isLoading,
@@ -916,6 +917,7 @@ export function ProfileBuilderPage() {
     items.push({
       icon: <RefreshCw className="w-3.5 h-3.5" />,
       label: "Full Rebuild",
+      requiredPermission: "editEntities",
       onClick: rebuild,
       disabled: isLoading || !!globalError,
       loading: isLoading,
@@ -961,7 +963,12 @@ export function ProfileBuilderPage() {
                   {enabled && activePrimaryTab === "code" && (
                     <>
                       <div className={"text-xs text-textLight"}>Draft saved: {dayjs(obj.draftUpdatedAt).fromNow()}</div>
-                      <Button type="text" onClick={save} disabled={isLoading || !!globalError || !codeChanged}>
+                      <JitsuButton
+                        requiredPermission={"editEntities"}
+                        type="text"
+                        onClick={save}
+                        disabled={isLoading || !!globalError || !codeChanged}
+                      >
                         <ButtonLabel
                           icon={
                             saving ? (
@@ -973,17 +980,22 @@ export function ProfileBuilderPage() {
                         >
                           Save Draft
                         </ButtonLabel>
-                      </Button>
+                      </JitsuButton>
                     </>
                   )}
 
-                  <Button type="text" onClick={publish} disabled={isLoading || !!globalError || !hasUnpublishedChanges}>
+                  <JitsuButton
+                    requiredPermission={"editEntities"}
+                    type="text"
+                    onClick={publish}
+                    disabled={isLoading || !!globalError || !hasUnpublishedChanges}
+                  >
                     {enabled ? (
                       <ButtonLabel icon={<Rocket className="w-4 h-4" />}>Publish</ButtonLabel>
                     ) : (
                       <ButtonLabel icon={<Save className="w-4 h-4" />}>Save</ButtonLabel>
                     )}
-                  </Button>
+                  </JitsuButton>
                   {enabled && (
                     <ButtonGroup items={items} dotsButtonProps={{ type: "text" }} dotsOrientation={"horizontal"} />
                   )}

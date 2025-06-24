@@ -263,6 +263,7 @@ function ConnectionsTable({ links, streams, destinations, functions, reloadCallb
             icon: <Edit3 className={"w-4 h-4"} />,
             label: "Edit",
             href: `/connections/edit?id=${link.id}`,
+            requiredPermission: "editEntities",
           },
           {
             icon: <Activity className="w-4 h-4" />,
@@ -283,6 +284,7 @@ function ConnectionsTable({ links, streams, destinations, functions, reloadCallb
             },
             danger: true,
             label: "Delete",
+            requiredPermission: "deleteEntities",
           },
         ];
         return <ButtonGroup items={items} />;
@@ -328,10 +330,15 @@ function Connections(props: RemoteEntitiesProps) {
           configured
         </div>
         <div className="flex space-x-4 items-center mt-4">
-          <WJitsuButton href={"/destinations"} type="default" icon={<PlusOutlined />}>
+          <WJitsuButton
+            href={"/destinations"}
+            type="default"
+            icon={<PlusOutlined />}
+            requiredPermission="createEntities"
+          >
             Create Destination
           </WJitsuButton>
-          <WJitsuButton href={"/streams"} type="default" icon={<PlusOutlined />}>
+          <WJitsuButton href={"/streams"} type="default" icon={<PlusOutlined />} requiredPermission="createEntities">
             Create Site
           </WJitsuButton>
         </div>
@@ -363,7 +370,13 @@ function Connections(props: RemoteEntitiesProps) {
           )}
         </div>
         <div>
-          <WJitsuButton href={`/connections/edit`} type="primary" size="large" icon={<FaPlus className="anticon" />}>
+          <WJitsuButton
+            href={`/connections/edit`}
+            type="primary"
+            size="large"
+            icon={<FaPlus className="anticon" />}
+            requiredPermission="createEntities"
+          >
             Connect site and destination
           </WJitsuButton>
         </div>

@@ -55,6 +55,7 @@ import { ObjectTitle } from "../ObjectTitle/ObjectTitle";
 import omitBy from "lodash/omitBy";
 import { asConfigType, useConfigObject, useConfigObjectList, useConfigObjectMutation } from "../../lib/store";
 import { CustomWidgetProps } from "./Editors";
+import { WorkspacePermissionsType } from "../../lib/workspace-roles";
 
 const log = getLog("ConfigEditor");
 
@@ -763,6 +764,7 @@ const ObjectsList: React.FC<{ objects: any[]; onDelete: (id: string) => Promise<
             label: "Edit",
             href: `${pref}/${type}s?id=${record.id}`,
             icon: <Edit3 className={"w-4 h-4"} />,
+            requiredPermission: "editEntities" as WorkspacePermissionsType,
           },
           ...actions.map(action => ({
             disabled: !!(action.disabled && action.disabled(record)),
@@ -781,6 +783,7 @@ const ObjectsList: React.FC<{ objects: any[]; onDelete: (id: string) => Promise<
             href: `${pref}/${type}s?id=new&clone=${record.id}`,
             collapsed: true,
             icon: <FaClone />,
+            requiredPermission: "createEntities" as WorkspacePermissionsType,
           },
           {
             label: "Delete",
@@ -788,6 +791,7 @@ const ObjectsList: React.FC<{ objects: any[]; onDelete: (id: string) => Promise<
             collapsed: true,
             onClick: () => deleteObject(record.id),
             icon: <DeleteOutlined />,
+            requiredPermission: "deleteEntities" as WorkspacePermissionsType,
           },
         ].filter(i => !!i);
         return <ButtonGroup items={items} />;
@@ -814,6 +818,7 @@ const ObjectListEditor: React.FC<ConfigEditorProps> = props => {
   const router = useRouter();
   const pluralNoun = props.nounPlural || plural(props.noun);
   const addAction = props.addAction || (() => router.push(`${router.asPath}?id=new`));
+
   const onDeleteMutation = useConfigObjectMutation(props.type as any, async (id: string) => {
     await getConfigApi(workspace.id, props.type).del(id);
   });
@@ -832,7 +837,13 @@ const ObjectListEditor: React.FC<ConfigEditorProps> = props => {
           <div className="text-3xl">{props.listTitle || `Edit ${pluralNoun}`}</div>
         </div>
         <div>
-          <JitsuButton onClick={() => doAction(router, addAction)} type="primary" size="large" icon={<FaPlus />}>
+          <JitsuButton
+            onClick={() => doAction(router, addAction)}
+            type="primary"
+            size="large"
+            icon={<FaPlus />}
+            requiredPermission="createEntities"
+          >
             Add new {props.noun}
           </JitsuButton>
         </div>
@@ -844,9 +855,13 @@ const ObjectListEditor: React.FC<ConfigEditorProps> = props => {
               <Inbox className="h-16 w-16 my-6 text-neutral-200" />
               <div className="text text-textLight mb-6">You don't have any {props.noun}s configured.</div>
 
-              <Button type="default" onClick={() => doAction(router, addAction)}>
+              <JitsuButton
+                type="default"
+                onClick={() => doAction(router, addAction)}
+                requiredPermission="createEntities"
+              >
                 {props.createKeyword || "Create"} your first {props.noun}
-              </Button>
+              </JitsuButton>
             </div>
           </div>
         )}

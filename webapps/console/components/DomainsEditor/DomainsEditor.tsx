@@ -12,6 +12,7 @@ import { FaExternalLinkAlt, FaSpinner, FaTrash, FaWrench } from "react-icons/fa"
 import { ReloadOutlined } from "@ant-design/icons";
 import { useRouter } from "next/router";
 import { WLink } from "../Workspace/WLink";
+import { JitsuButton } from "../JitsuButton/JitsuButton";
 
 const StatusBadge: React.FC<
   PropsWithChildren<{ status: "error" | "warning" | "info" | "success" | "loading"; className?: string }>
@@ -338,9 +339,16 @@ export const DomainsEditor: React.FC<
             }
           }}
         />
-        <Button disabled={!addValue} type={"primary"} className="ml-5" onClick={add} loading={addPending}>
+        <JitsuButton
+          requiredPermission={"createEntities"}
+          disabled={!addValue}
+          type={"primary"}
+          className="ml-5"
+          onClick={add}
+          loading={addPending}
+        >
           Add
-        </Button>
+        </JitsuButton>
       </div>
       <div className="mt-5">
         {(workspaceDomains ?? [])

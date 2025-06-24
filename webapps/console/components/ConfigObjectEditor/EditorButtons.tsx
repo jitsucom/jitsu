@@ -5,6 +5,7 @@ import { getLog } from "juava";
 import { ConfigTestResult } from "./ConfigEditor";
 import { useAppConfig } from "../../lib/context";
 import { ButtonLabel } from "../ButtonLabel/ButtonLabel";
+import { JitsuButton } from "../JitsuButton/JitsuButton";
 
 const log = getLog("ConfigEditor");
 
@@ -88,9 +89,17 @@ export const EditorButtons: React.FC<EditorButtonProps> = ({
       <div className="flex justify-between mt-4">
         <div>
           {!isNew && (
-            <Button disabled={loading || readOnly} type="primary" ghost danger size="large" onClick={onDelete}>
+            <JitsuButton
+              disabled={loading || readOnly}
+              type="primary"
+              ghost
+              danger
+              size="large"
+              onClick={onDelete}
+              requiredPermission="deleteEntities"
+            >
               Delete
-            </Button>
+            </JitsuButton>
           )}
         </div>
         <div className="flex justify-end space-x-5" ref={buttonDivRef}>
@@ -114,16 +123,17 @@ export const EditorButtons: React.FC<EditorButtonProps> = ({
           <Button type="primary" ghost size="large" onClick={onCancel} disabled={loading}>
             Cancel
           </Button>
-          <Button
+          <JitsuButton
             type="primary"
             size="large"
             loading={loading}
             disabled={(isTouched !== undefined && !isTouched) || readOnly}
             htmlType={isTouched && !hasErrors ? "submit" : "button"}
             onClick={onSave}
+            requiredPermission="editEntities"
           >
             Save
-          </Button>
+          </JitsuButton>
         </div>
       </div>
     </>

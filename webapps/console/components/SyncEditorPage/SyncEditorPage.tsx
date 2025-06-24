@@ -958,12 +958,13 @@ function SyncEditor({
       <div className="flex justify-between pt-6">
         <div>
           {existingLink && (
-            <Button
+            <JitsuButton
               loading={loading}
               type="primary"
               ghost
               danger
               size="large"
+              requiredPermission="deleteEntities"
               onClick={async () => {
                 if (await confirmOp("Are you sure you want to unlink this service from this destination?")) {
                   setLoading(true);
@@ -984,7 +985,7 @@ function SyncEditor({
               }}
             >
               Delete
-            </Button>
+            </JitsuButton>
           )}
         </div>
         <div className="flex justify-end space-x-5 items-center">
@@ -998,11 +999,12 @@ function SyncEditor({
           <Button type="primary" ghost size="large" disabled={loading || disableSync} onClick={() => router.back()}>
             Cancel
           </Button>
-          <Button
+          <JitsuButton
             type="primary"
             size="large"
             loading={loading}
             disabled={loading || disableSync || typeof syncOptions !== "object" || loadingCatalog}
+            requiredPermission="editEntities"
             onClick={async () => {
               setLoading(true);
               try {
@@ -1025,7 +1027,7 @@ function SyncEditor({
             }}
           >
             Save
-          </Button>
+          </JitsuButton>
         </div>
       </div>
     </div>

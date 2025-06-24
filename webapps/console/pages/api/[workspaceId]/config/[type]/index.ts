@@ -1,4 +1,4 @@
-import { Api, inferUrl, nextJsApiHandler, verifyAccess } from "../../../../../lib/api";
+import { Api, inferUrl, nextJsApiHandler, verifyAccess, verifyAccessWithRole } from "../../../../../lib/api";
 import { z } from "zod";
 import { db } from "../../../../../lib/server/db";
 import { assertDefined, requireDefined } from "juava";
@@ -50,7 +50,7 @@ export const api: Api = {
       body: z.any(),
     },
     handle: async ({ req, body, user, query: { workspaceId, type } }) => {
-      await verifyAccess(user, workspaceId);
+      await verifyAccessWithRole(user, workspaceId, "createEntities");
       if (isReadOnly) {
         throw new ApiError("Console is in read-only mode. Modifications of objects are not allowed");
       }
