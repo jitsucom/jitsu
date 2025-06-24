@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Api, inferUrl, nextJsApiHandler, verifyAccess } from "../../../../lib/api";
+import { Api, inferUrl, nextJsApiHandler, verifyAccess, verifyAccessWithRole } from "../../../../lib/api";
 import { db } from "../../../../lib/server/db";
 import { randomId } from "juava";
 import { createScheduler, deleteScheduler, scheduleSync, updateScheduler } from "../../../../lib/server/sync";
@@ -32,7 +32,7 @@ const postAndPutCfg = {
       req,
     } = ctx;
     const { id, toId, fromId, data = undefined, type = "push" } = body;
-    await verifyAccess(user, workspaceId);
+    await verifyAccessWithRole(user, workspaceId, "createEntities");
     const fromType = type === "sync" ? "service" : "stream";
 
     // we allow duplicates of service=>dst links because they may have different streams and scheduling
@@ -139,7 +139,7 @@ export const api: Api = {
       ]),
     },
     handle: async ({ user, query: { workspaceId, fromId, toId, id }, req }) => {
-      await verifyAccess(user, workspaceId);
+      await verifyAccessWithRole(user, workspaceId, "deleteEntities");
       if (id) {
         if (fromId || toId) {
           throw new ApiError("You can't specify 'fromId' or 'toId' with 'id'", {}, { status: 400 });

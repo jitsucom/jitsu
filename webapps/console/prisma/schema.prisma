@@ -110,6 +110,12 @@ model WorkspaceOptions {
   @@index([workspaceId, namespace])
 }
 
+enum WorkspaceRole {
+  owner
+  editor
+  analyst
+}
+
 model WorkspaceAccess {
   workspaceId String
   createdAt   DateTime    @default(now()) /// @zod.custom(z.coerce.date())
@@ -117,6 +123,7 @@ model WorkspaceAccess {
   userId      String
   workspace   Workspace   @relation(fields: [workspaceId], references: [id])
   user        UserProfile @relation(fields: [userId], references: [id])
+  role        WorkspaceRole      @default(owner)
 
   @@id([userId, workspaceId])
 }
@@ -151,6 +158,7 @@ model InvitationToken {
   updatedAt DateTime @default(now()) @updatedAt /// @zod.custom(z.coerce.date())
   token     String
   usedBy    String?
+  role      WorkspaceRole   @default(owner)
 }
 
 model ConfigurationObject {

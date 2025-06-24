@@ -1,9 +1,10 @@
 import { useUser, useWorkspace } from "../../lib/context";
 import React, { useState } from "react";
-import { Button, Input } from "antd";
+import { Input } from "antd";
 import { get } from "../../lib/useApi";
 import { copyTextToClipboard, feedbackError, feedbackSuccess } from "../../lib/ui";
 import { publicEmailDomains } from "../../lib/shared/email-domains";
+import { JitsuButton } from "../JitsuButton/JitsuButton";
 
 function ensureLength(res): string {
   return res.length < 5 ? res + "project" : res;
@@ -99,9 +100,10 @@ export function WorkspaceNameAndSlugEditor({
       </div>
 
       <div className="px-6 py-4 bg-background border-t border-textDisabled flex justify-end">
-        <Button
+        <JitsuButton
           type="primary"
           loading={loading}
+          requiredPermission={!onboarding ? "editEntities" : undefined}
           disabled={!changed && !onboarding}
           onClick={async () => {
             if (!slug) {
@@ -137,7 +139,7 @@ export function WorkspaceNameAndSlugEditor({
           }}
         >
           Save Changes
-        </Button>
+        </JitsuButton>
       </div>
     </div>
   );

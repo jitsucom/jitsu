@@ -1,4 +1,4 @@
-import { Api, inferUrl, nextJsApiHandler, verifyAccess } from "../../../../../lib/api";
+import { Api, inferUrl, nextJsApiHandler, verifyAccess, verifyAccessWithRole } from "../../../../../lib/api";
 import { SessionUser, UserWorkspaceRelation } from "../../../../../lib/schema";
 import { z } from "zod";
 import { assertDefined, requireDefined, randomId } from "juava";
@@ -8,6 +8,7 @@ import { isMailAvailable, sendEmail } from "../../../../../lib/server/mail";
 import { ApiError } from "../../../../../lib/shared/errors";
 import pick from "lodash/pick";
 import { branding } from "../../../../../lib/branding";
+import { WorkspaceRolesZodType, WorkspaceRoleType } from "../../../../../lib/workspace-roles";
 
 async function sendInvitationEmail<Req>(
   email: string,
@@ -49,13 +50,18 @@ const api: Api = {
       }
       await verifyAccess(user, workspace.id);
       const currentUsers: UserWorkspaceRelation[] = (
-        await db.prisma().workspaceAccess.findMany({ where: { workspaceId: workspace.id }, include: { user: true } })
+        await db.prisma().workspaceAccess.findMany({
+          where: { workspaceId: workspace.id },
+          include: { user: true },
+          orderBy: { createdAt: "asc" },
+        })
       ).map(
         res =>
           ({
             workspaceId: workspace.id,
             user: pick(res.user, "id", "name", "loginProvider", "externalId", "externalUsername", "email"),
-          } as UserWorkspaceRelation)
+            role: res.role || "owner",
+          } as UserWorkspaceRelation & { role: string })
       );
 
       const invitations: UserWorkspaceRelation[] = (
@@ -65,6 +71,7 @@ const api: Api = {
         invitationLink: `${whoamiUrl(req)}/accept?invite=${res.token}`,
         invitationEmail: res.email,
         canSendEmail: isMailAvailable(),
+        role: (res.role as WorkspaceRoleType) || "owner",
       }));
       return [...currentUsers, ...invitations] as any;
     },
@@ -72,7 +79,12 @@ const api: Api = {
   POST: {
     auth: true,
     types: {
-      body: z.object({ email: z.string(), resend: z.boolean().optional(), cancel: z.boolean().optional() }),
+      body: z.object({
+        email: z.string(),
+        resend: z.boolean().optional(),
+        cancel: z.boolean().optional(),
+        role: WorkspaceRolesZodType.optional(),
+      }),
       query: z.object({ workspaceIdOrSlug: z.string() }),
     },
     handle: async ({ user, req, body, query: { workspaceIdOrSlug } }) => {
@@ -80,7 +92,7 @@ const api: Api = {
         await getWorkspace(workspaceIdOrSlug),
         `Can't find workspace ${workspaceIdOrSlug}`
       );
-      await verifyAccess(user, workspace.id);
+      await verifyAccessWithRole(user, workspace.id, "manageUsers");
       const existingInvitation = await db.prisma().invitationToken.findFirst({
         where: { email: body.email, workspaceId: workspace.id, usedBy: null },
       });
@@ -99,7 +111,12 @@ const api: Api = {
           throw new Error(`User ${body.email} is already invited`);
         }
         const token = await db.prisma().invitationToken.create({
-          data: { email: body.email, workspaceId: workspace.id, token: randomId(12) },
+          data: {
+            email: body.email,
+            workspaceId: workspace.id,
+            token: randomId(12),
+            role: body.role || "owner",
+          },
         });
         if (isMailAvailable()) {
           await sendInvitationEmail(body.email, user, workspace.name, whoamiUrl(req), token.token);
@@ -122,7 +139,7 @@ const api: Api = {
         await getWorkspace(workspaceIdOrSlug),
         `Can't find workspace ${workspaceIdOrSlug}`
       );
-      await verifyAccess(user, workspace.id);
+      await verifyAccessWithRole(user, workspace.id, "manageUsers");
       if (email) {
         await db.prisma().invitationToken.deleteMany({ where: { email, workspaceId: workspace.id } });
       } else if (userId) {

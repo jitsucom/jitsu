@@ -326,6 +326,7 @@ function SyncsTable({ links, services, destinations }: RemoteEntitiesProps) {
             icon: <Edit3 className={"w-4 h-4"} />,
             label: "Edit",
             href: `/syncs/edit?id=${link.id}`,
+            requiredPermission: "editEntities",
           },
           {
             disabled: t?.status === "RUNNING" || !!runPressed,
@@ -387,6 +388,7 @@ function SyncsTable({ links, services, destinations }: RemoteEntitiesProps) {
             danger: true,
             label: "Delete",
             collapsed: true,
+            requiredPermission: "deleteEntities",
           },
         ];
         return <ButtonGroup items={items} />;
@@ -469,10 +471,15 @@ function Syncs(props: RemoteEntitiesProps) {
           configured
         </div>
         <div className="flex space-x-4 items-center mt-4">
-          <WJitsuButton href={"/services"} type="default" icon={<PlusOutlined />}>
+          <WJitsuButton href={"/services"} type="default" icon={<PlusOutlined />} requiredPermission="createEntities">
             Create Connector
           </WJitsuButton>
-          <WJitsuButton href={"/destinations"} type="default" icon={<PlusOutlined />}>
+          <WJitsuButton
+            href={"/destinations"}
+            type="default"
+            icon={<PlusOutlined />}
+            requiredPermission="createEntities"
+          >
             Create Destination
           </WJitsuButton>
         </div>
@@ -503,7 +510,13 @@ function Syncs(props: RemoteEntitiesProps) {
         </div>
 
         <div>
-          <WJitsuButton href={`/syncs/edit`} type="primary" size="large" icon={<FaPlus className="anticon" />}>
+          <WJitsuButton
+            href={`/syncs/edit`}
+            type="primary"
+            size="large"
+            icon={<FaPlus className="anticon" />}
+            requiredPermission="createEntities"
+          >
             Connect service and destination
           </WJitsuButton>
         </div>

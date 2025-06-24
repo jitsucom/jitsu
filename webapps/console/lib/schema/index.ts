@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { UserProfileDbModel, WorkspaceDbModel } from "../../prisma/schema";
+import { WorkspaceRolesZodType } from "../workspace-roles";
 
 export const SessionUser = z.object({
   name: z.string(),
@@ -274,6 +275,7 @@ export const UserWorkspaceRelation = z.object({
   invitationLink: z.string().optional(),
   invitationEmail: z.string().optional(),
   canSendEmail: z.boolean().optional(),
+  role: WorkspaceRolesZodType,
 });
 
 export type UserWorkspaceRelation = z.infer<typeof UserWorkspaceRelation>;

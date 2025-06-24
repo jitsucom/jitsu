@@ -50,7 +50,9 @@ export default createRoute()
       await db.prisma().workspace.findFirst({ where: { id: token.workspaceId } }),
       `workspace with id ${token.workspaceId} not found`
     );
-    await db.prisma().workspaceAccess.create({ data: { userId: user.internalId, workspaceId: token.workspaceId } });
+    await db.prisma().workspaceAccess.create({
+      data: { userId: user.internalId, workspaceId: token.workspaceId, role: token.role || "owner" },
+    });
     await db.prisma().invitationToken.update({ where: { id: token.id }, data: { usedBy: user.internalId } });
     return { accepted: true, workspaceName: workspace.name, workspaceId: workspace.id };
   })

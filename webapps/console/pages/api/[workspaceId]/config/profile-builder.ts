@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Api, inferUrl, nextJsApiHandler, verifyAccess } from "../../../../lib/api";
+import { Api, inferUrl, nextJsApiHandler, verifyAccess, verifyAccessWithRole } from "../../../../lib/api";
 import { db } from "../../../../lib/server/db";
 import { isTruish } from "juava";
 import { ProfileBuilderDbModel } from "../../../../prisma/schema";
@@ -71,7 +71,7 @@ const postAndPutCfg = {
       query: { workspaceId },
       req,
     } = ctx;
-    await verifyAccess(user, workspaceId);
+    await verifyAccessWithRole(user, workspaceId, "createEntities");
     console.log("Profile builder: " + JSON.stringify(body.profileBuilder));
     const parseResult = safeParseWithDate(ProfileBuilderDbModel, body.profileBuilder);
     if (!parseResult.success) {
@@ -168,7 +168,7 @@ export const api: Api = {
       query: z.object({ workspaceId: z.string(), id: z.string() }),
     },
     handle: async ({ user, query: { workspaceId, id }, req }) => {
-      await verifyAccess(user, workspaceId);
+      await verifyAccessWithRole(user, workspaceId, "deleteEntities");
       const existingPB = await db.prisma().profileBuilder.findFirst({
         where: { workspaceId: workspaceId, id, deleted: false },
       });

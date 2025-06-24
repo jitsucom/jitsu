@@ -24,6 +24,7 @@ import { EditorToolbar } from "../EditorToolbar/EditorToolbar";
 import JSON5 from "json5";
 import { toURL } from "../../lib/shared/url";
 import { BackButton } from "../BackButton/BackButton";
+import { JitsuButton } from "../JitsuButton/JitsuButton";
 
 const log = getLog("ConnectionEditorPage");
 
@@ -789,11 +790,12 @@ function ConnectionEditor({
       <div className="flex justify-between pt-6">
         <div>
           {existingLink && (
-            <Button
+            <JitsuButton
               loading={loading}
               type="primary"
               ghost
               danger
+              requiredPermission={"deleteEntities"}
               size="large"
               onClick={async () => {
                 if (await confirmOp("Are you sure you want to unlink this site from this destination?")) {
@@ -815,7 +817,7 @@ function ConnectionEditor({
               }}
             >
               Delete
-            </Button>
+            </JitsuButton>
           )}
         </div>
         <div className="flex justify-end space-x-5">
@@ -834,9 +836,10 @@ function ConnectionEditor({
           >
             Cancel
           </Button>
-          <Button
+          <JitsuButton
             type="primary"
             size="large"
+            requiredPermission={"editEntities"}
             loading={loading}
             disabled={loading}
             onClick={async () => {
@@ -865,7 +868,7 @@ function ConnectionEditor({
             }}
           >
             Save
-          </Button>
+          </JitsuButton>
         </div>
       </div>
     </div>
