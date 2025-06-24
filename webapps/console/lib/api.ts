@@ -9,6 +9,17 @@ import { prepareZodObjectForDeserialization, safeParseWithDate } from "./zod";
 import { ApiError } from "./shared/errors";
 import { getServerLog } from "./server/log";
 import { getFirebaseUser, isFirebaseEnabled } from "./server/firebase-server";
+import jwt from "jsonwebtoken";
+import { serialize } from "cookie";
+import {
+  validateJwtToken,
+  introspectToken,
+  isJwtToken,
+  isTokenExpired,
+  refreshAccessToken,
+} from "./server/oidc-token-service";
+import { OidcSessionData } from "./server/oidc-types";
+import { isSecure } from "./server/origin";
 const adminServiceAccountEmail = "admin-service-account@jitsu.com";
 
 type HandlerOpts<Req = void, Query = void, RequireAuth extends boolean = boolean> = {
@@ -110,6 +121,126 @@ function findServiceAccount({ keyId, secret }): SessionUser | undefined {
   }
 }
 
+async function getUserFromOidcSession(req: NextApiRequest, res?: NextApiResponse): Promise<SessionUser | undefined> {
+  const dynamicOidcEnabled = isTruish(process.env.DYNAMIC_OIDC_ENABLED);
+  if (!dynamicOidcEnabled) {
+    return undefined;
+  }
+
+  // Check for OIDC session cookie (for API requests from OIDC-authenticated users)
+  const oidcSessionCookie = req.cookies?.["oidc-session"];
+  if (!oidcSessionCookie) {
+    return undefined;
+  }
+
+  try {
+    // Verify the OIDC session token
+    let sessionData: OidcSessionData = jwt.verify(oidcSessionCookie, nextAuthConfig.secret) as OidcSessionData;
+    let tokensRefreshed = false;
+
+    // Validate OIDC tokens if present
+    const providerId = sessionData.providerId;
+    if (sessionData.tokens && providerId) {
+      const { accessToken, refreshToken, expiresAt } = sessionData.tokens;
+
+      // Check if access token is expired
+      if (isTokenExpired(expiresAt)) {
+        log.atInfo().log("Access token expired in API request, attempting refresh", { userId: sessionData.userId });
+
+        // Try to refresh the token if we have a refresh token
+        if (refreshToken) {
+          const refreshResult = await refreshAccessToken(refreshToken, providerId);
+
+          if (refreshResult.success && refreshResult.tokens) {
+            log.atInfo().log("Successfully refreshed access token in API request", { userId: sessionData.userId });
+
+            // Update session data with new tokens
+            sessionData = {
+              ...sessionData,
+              timestamp: Date.now(),
+              tokens: refreshResult.tokens,
+            };
+            tokensRefreshed = true;
+          } else {
+            log.atWarn().log("Failed to refresh access token in API request", {
+              userId: sessionData.userId,
+              error: refreshResult.error,
+            });
+            return undefined; // Cannot refresh, need re-authentication
+          }
+        } else {
+          log.atWarn().log("No refresh token available for expired access token", { userId: sessionData.userId });
+          return undefined; // No refresh token, need re-authentication
+        }
+      }
+
+      // Validate the (possibly refreshed) access token
+      const currentAccessToken = sessionData.tokens!.accessToken;
+      let tokenValid = false;
+
+      if (isJwtToken(currentAccessToken)) {
+        // Validate JWT token using JWKS
+        const validation = await validateJwtToken(currentAccessToken, providerId);
+        tokenValid = validation.valid;
+
+        if (!tokenValid) {
+          log.atWarn().log("JWT token validation failed in API request", {
+            userId: sessionData.userId,
+            error: validation.error,
+          });
+        }
+      } else {
+        // Use token introspection for opaque tokens
+        const introspection = await introspectToken(currentAccessToken, providerId);
+        tokenValid = introspection.valid;
+
+        if (!tokenValid) {
+          log.atWarn().log("Token introspection failed in API request", {
+            userId: sessionData.userId,
+            error: introspection.error,
+          });
+        }
+      }
+
+      if (!tokenValid) {
+        log.atWarn().log("OIDC token validation failed in API request", { userId: sessionData.userId });
+        return undefined; // Invalid token, need re-authentication
+      }
+
+      // If tokens were refreshed, update the session cookie
+      if (tokensRefreshed && res) {
+        const newSessionToken = jwt.sign(sessionData, nextAuthConfig.secret);
+
+        res.setHeader(
+          "Set-Cookie",
+          serialize("oidc-session", newSessionToken, {
+            httpOnly: true,
+            secure: isSecure(req),
+            sameSite: "strict",
+            maxAge: 7 * 24 * 60 * 60, // 7 days
+            path: "/",
+          })
+        );
+
+        log.atInfo().log("Updated session cookie with refreshed tokens", { userId: sessionData.userId });
+      }
+    }
+
+    // Convert OIDC session to SessionUser format
+    return {
+      internalId: sessionData.userId,
+      externalUsername: sessionData.email || sessionData.name || "unknown",
+      externalId: sessionData.externalId,
+      loginProvider: sessionData.loginProvider,
+      email: sessionData.email || "unknown",
+      name: sessionData.name || "Unknown",
+    };
+  } catch (error) {
+    log.atWarn().withCause(error).log("Invalid OIDC session cookie");
+    return undefined;
+  }
+}
+
 export async function getUser(
   res: NextApiResponse,
   req: NextApiRequest,
@@ -147,32 +278,9 @@ export async function getUser(
     }
   }
 
-  const dynamicOidcEnabled = isTruish(process.env.DYNAMIC_OIDC_ENABLED);
-  if (dynamicOidcEnabled) {
-    // Check for OIDC session cookie (for API requests from OIDC-authenticated users)
-    const oidcSessionCookie = req.cookies?.["oidc-session"];
-    if (oidcSessionCookie) {
-      try {
-        const jwt = require("jsonwebtoken");
-        const { nextAuthConfig } = require("./nextauth.config");
-
-        // Verify the OIDC session token
-        const payload = jwt.verify(oidcSessionCookie, nextAuthConfig.secret);
-
-        // Convert OIDC session to SessionUser format
-        return {
-          internalId: payload.userId,
-          externalUsername: payload.email,
-          externalId: payload.externalId,
-          loginProvider: payload.loginProvider,
-          email: payload.email,
-          name: payload.name,
-        };
-      } catch (error) {
-        log.atWarn().withCause(error).log("Invalid OIDC session cookie");
-        // Continue to other auth methods
-      }
-    }
+  const oidcUser = await getUserFromOidcSession(req, res);
+  if (oidcUser) {
+    return oidcUser;
   }
 
   if (isFirebaseEnabled()) {

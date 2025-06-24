@@ -3,28 +3,13 @@ import { db } from "../../../../lib/server/db";
 import jwt from "jsonwebtoken";
 import { getOrCreateUser, nextAuthConfig } from "../../../../lib/nextauth.config";
 import { getServerLog } from "../../../../lib/server/log";
-import { trimSuffix } from "juava";
 import { serialize } from "cookie";
 import { validateReturnUrl } from "../../../../lib/auth-redirect";
+import { OidcTokenResponse, OidcUserInfo, OidcSessionData } from "../../../../lib/server/oidc-types";
+import { getOidcProvider } from "../../../../lib/server/oidc-token-service";
+import { isSecure } from "../../../../lib/server/origin";
 
 const log = getServerLog("api/auth/dynamic-oidc/callback");
-
-interface OidcTokenResponse {
-  access_token: string;
-  token_type: string;
-  id_token?: string;
-  refresh_token?: string;
-  expires_in?: number;
-}
-
-interface OidcUserInfo {
-  sub: string;
-  email?: string;
-  name?: string;
-  preferred_username?: string;
-  groups?: string[];
-  [key: string]: any;
-}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { code, state, error } = req.query;
@@ -61,19 +46,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Fetch OIDC provider configuration
-    const oidcProvider = await db.prisma().oidcProvider.findUnique({
-      where: {
-        id: stateData.providerId,
-        enabled: true,
-      },
-    });
+    const oidcProvider = await getOidcProvider(stateData.providerId);
 
     if (!oidcProvider) {
       return res.redirect("/?error=provider_not_found");
     }
 
     // Exchange code for tokens
-    const tokenUrl = oidcProvider.tokenUrl || `${oidcProvider.issuer}/token`;
+    const tokenEndpoint = oidcProvider.tokenEndpoint || `${oidcProvider.issuer}/token`;
     const protocol =
       req.headers["x-forwarded-proto"] ||
       req.headers["x-forwarded-protocol"] ||
@@ -89,12 +69,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       client_id: oidcProvider.clientId,
     };
 
+    // Add audience if configured
+    if (oidcProvider.audience) {
+      tokenParams.audience = oidcProvider.audience;
+    }
+
     // Add PKCE verifier if present
     if (stateData.codeVerifier) {
       tokenParams.code_verifier = stateData.codeVerifier;
     }
 
-    const tokenResponse = await fetch(tokenUrl, {
+    const tokenResponse = await fetch(tokenEndpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
@@ -104,7 +89,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
       body: new URLSearchParams(tokenParams).toString(),
     });
-
     if (!tokenResponse.ok) {
       const errorText = await tokenResponse.text();
       log.atError().log(`Failed to exchange code for tokens: ${errorText}`);
@@ -112,7 +96,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const tokens: OidcTokenResponse = await tokenResponse.json();
-
+    log.atInfo().log("Exchanging code for tokens", tokens);
     // Get user info
     let userInfo: OidcUserInfo;
 
@@ -129,7 +113,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const payload = decoded.payload;
 
       // Check issuer
-      if (trimSuffix(payload.iss as string, "/") !== trimSuffix(oidcProvider.issuer as string, "/")) {
+      if (payload.iss !== oidcProvider.issuer) {
         log.atError().log(`Invalid issuer: ${payload.iss} !== ${oidcProvider.issuer}`);
         return res.redirect("/?error=invalid_issuer");
       }
@@ -153,9 +137,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
 
       userInfo = payload;
-    } else if (oidcProvider.userInfoUrl) {
+    } else if (oidcProvider.userinfoEndpoint) {
       // Fetch from userinfo endpoint
-      const userInfoResponse = await fetch(oidcProvider.userInfoUrl, {
+      const userInfoResponse = await fetch(oidcProvider.userinfoEndpoint, {
         headers: {
           Authorization: `Bearer ${tokens.access_token}`,
         },
@@ -219,29 +203,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       req: req,
     });
 
-    // Create OIDC session data
-    const sessionData = {
+    // Create OIDC session data with tokens
+    const sessionData: OidcSessionData = {
       userId: user.id,
       email: user.email,
       name: user.name,
       loginProvider: user.loginProvider,
       externalId: user.externalId,
+      providerId: stateData.providerId,
       timestamp: Date.now(),
+      tokens: {
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token,
+        idToken: tokens.id_token,
+        expiresAt: Date.now() + (tokens.expires_in || 3600) * 1000,
+      },
+      exp: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60, // 7 days`
     };
 
     // Create session token
-    const sessionToken = jwt.sign(sessionData, nextAuthConfig.secret as string, {
-      expiresIn: "8h",
-    });
+    const sessionToken = jwt.sign(sessionData, nextAuthConfig.secret as string);
 
     // Set secure session cookie
     res.setHeader(
       "Set-Cookie",
       serialize("oidc-session", sessionToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
+        secure: isSecure(req),
         sameSite: "strict",
-        maxAge: 24 * 60 * 60, // 8 hours
+        maxAge: 7 * 24 * 60 * 60, // 7 days`
         path: "/",
       })
     );
