@@ -99,7 +99,9 @@
     "tslib": "^2.6.3",
     "use-debounce": "^10.0.4",
     "zod": "^3.23.8",
-    "zod-to-json-schema": "^3.23.2"
+    "zod-to-json-schema": "^3.23.2",
+    "node-cache": "^5.1.2",
+    "jwks-rsa": "^3.2.0"
   },
   "devDependencies": {
     "@ant-design/icons": "^5.5.1",

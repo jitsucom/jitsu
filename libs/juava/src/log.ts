@@ -122,7 +122,25 @@ function dispatch(msg: LogMessage) {
     const fullArgs = [...(msg.args || []), ...(msg.errorCause ? [msg.errorCause] : [])];
     console.log(`%c${logPrefix}${msg.message}`, `color: ${color}`, ...fullArgs);
   } else {
-    const lines = [...`${logPrefix}${msg.message}${msg.args ? " " + msg.args.join(" ") : ""}`.split("\n")];
+    const lines = [
+      ...`${logPrefix}${msg.message}${
+        msg.args
+          ? " " +
+            msg.args
+              .map(a => {
+                if (typeof a === "object" && a !== null) {
+                  try {
+                    return JSON.stringify(a);
+                  } catch (e) {
+                    return String(a);
+                  }
+                }
+                return String(a);
+              })
+              .join(" ")
+          : ""
+      }`.split("\n"),
+    ];
     if (msg.errorCause) {
       if (msg.errorCause.message && !msg.errorCause.stack) {
         lines.push("Error! - " + msg.errorCause.message);

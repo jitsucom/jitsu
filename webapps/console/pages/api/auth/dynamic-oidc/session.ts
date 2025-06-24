@@ -2,6 +2,13 @@ import { NextApiRequest, NextApiResponse } from "next";
 import jwt from "jsonwebtoken";
 import { getServerLog } from "../../../../lib/server/log";
 import { nextAuthConfig } from "../../../../lib/nextauth.config";
+import {
+  validateJwtToken,
+  introspectToken,
+  isJwtToken,
+  isTokenExpired,
+} from "../../../../lib/server/oidc-token-service";
+import { OidcSessionData } from "../../../../lib/server/oidc-types";
 
 const log = getServerLog("api/auth/oidc-session");
 
@@ -19,21 +26,55 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Verify the session token
-    let sessionData: {
-      userId: string;
-      email: string;
-      name: string;
-      loginProvider: string;
-      externalId: string;
-      timestamp: number;
-      exp: number;
-    };
+    let sessionData: OidcSessionData;
 
     try {
       sessionData = jwt.verify(oidcSessionCookie, nextAuthConfig.secret as string) as any;
     } catch (err) {
       log.atError().withCause(err).log("Invalid OIDC session token");
       return res.status(200).json({ authenticated: false });
+    }
+
+    // Validate OIDC tokens if present
+    if (sessionData.tokens && sessionData.providerId) {
+      const { accessToken, expiresAt } = sessionData.tokens;
+      // Check if access token is expired
+      if (isTokenExpired(expiresAt)) {
+        log.atInfo().log("Access token expired, need refresh", { userId: sessionData.userId });
+        return res.status(200).json({ authenticated: false, needsRefresh: true });
+      }
+
+      // Validate the access token
+      let tokenValid = false;
+
+      if (isJwtToken(accessToken)) {
+        // Validate JWT token using JWKS
+        const validation = await validateJwtToken(accessToken, sessionData.providerId);
+        tokenValid = validation.valid;
+
+        if (!tokenValid) {
+          log.atWarn().log("JWT token validation failed", {
+            userId: sessionData.userId,
+            error: validation.error,
+          });
+        }
+      } else {
+        // Use token introspection for opaque tokens
+        const introspection = await introspectToken(accessToken, sessionData.providerId);
+        tokenValid = introspection.valid;
+
+        if (!tokenValid) {
+          log.atWarn().log("Token introspection failed", {
+            userId: sessionData.userId,
+            error: introspection.error,
+          });
+        }
+      }
+
+      if (!tokenValid) {
+        log.atWarn().log("OIDC token validation failed", { userId: sessionData.userId });
+        return res.status(200).json({ authenticated: false, needsRefresh: true });
+      }
     }
 
     // Return user data (without sensitive information)

@@ -28,16 +28,6 @@ export const OidcAuthorizer: React.FC<PropsWithChildren<{}>> = ({ children }) =>
         const data = await response.json();
 
         if (data.authenticated && data.user) {
-          // Check if we need to renew the session
-          const renewResponse = await fetch("/api/auth/dynamic-oidc/renew", {
-            method: "POST",
-            credentials: "include",
-          });
-
-          if (!renewResponse.ok) {
-            log.atWarn().log("Failed to renew OIDC session");
-          }
-
           // Convert to user format
           const oidcUser: ContextApiResponse["user"] = {
             email: data.user.email,
@@ -52,6 +42,45 @@ export const OidcAuthorizer: React.FC<PropsWithChildren<{}>> = ({ children }) =>
           log.atInfo().log("OIDC user authenticated", { email: oidcUser.email, provider: oidcUser.loginProvider });
           setUser(oidcUser);
           return true;
+        } else if (data.needsRefresh) {
+          // Token needs refresh, try to renew the session
+          log.atInfo().log("OIDC session needs refresh, attempting renewal");
+          
+          const renewResponse = await fetch("/api/auth/dynamic-oidc/renew", {
+            method: "POST",
+            credentials: "include",
+          });
+
+          if (renewResponse.ok) {
+            // After successful renewal, check session again
+            const secondCheckResponse = await fetch("/api/auth/dynamic-oidc/session", {
+              method: "GET",
+              credentials: "include",
+            });
+
+            if (secondCheckResponse.ok) {
+              const secondData = await secondCheckResponse.json();
+              
+              if (secondData.authenticated && secondData.user) {
+                const oidcUser: ContextApiResponse["user"] = {
+                  email: secondData.user.email,
+                  externalId: secondData.user.externalId,
+                  externalUsername: secondData.user.email,
+                  image: null,
+                  internalId: secondData.user.internalId,
+                  loginProvider: secondData.user.loginProvider,
+                  name: secondData.user.name,
+                };
+
+                log.atInfo().log("OIDC session successfully refreshed", { email: oidcUser.email });
+                setUser(oidcUser);
+                return true;
+              }
+            }
+          }
+          
+          log.atWarn().log("Failed to refresh OIDC session, user needs to re-authenticate");
+          return false;
         } else {
           log.atWarn().log("OIDC session not authenticated");
         }
