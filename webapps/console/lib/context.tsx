@@ -91,7 +91,7 @@ export function useUserSafe(): ContextApiResponse["user"] | undefined | null {
 export function useUserSessionControls(): { logout: () => Promise<void> } {
   const props = useContext(UserContext0);
   if (!props) {
-    throw new Error(`useUserSessionControls() should be called inside <UserContextProvider /> `);
+    return { logout: async () => {} };
   }
   return omit(props, "user");
 }

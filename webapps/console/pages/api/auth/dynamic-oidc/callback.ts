@@ -8,6 +8,7 @@ import { validateReturnUrl } from "../../../../lib/auth-redirect";
 import { OidcTokenResponse, OidcUserInfo, OidcSessionData } from "../../../../lib/server/oidc-types";
 import { getOidcProvider } from "../../../../lib/server/oidc-token-service";
 import { isSecure } from "../../../../lib/server/origin";
+import { redirectWithOidcError, OidcErrors } from "../../../../lib/server/oidc-error-handler";
 
 const log = getServerLog("api/auth/dynamic-oidc/callback");
 
@@ -16,40 +17,45 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (error) {
     log.atError().log(`OIDC authorization error: ${error}`);
-    return res.redirect(`/?error=oidc_auth_error&message=${encodeURIComponent(error as string)}`);
+    return redirectWithOidcError(res, {
+      error: OidcErrors.AUTH_ERROR,
+      message: error as string,
+    });
   }
 
   if (!code || !state) {
-    return res.redirect("/?error=missing_params");
+    return redirectWithOidcError(res, {
+      error: OidcErrors.MISSING_PARAMS,
+    });
   }
-
+  let stateData: any = undefined;
   try {
     // Verify and decode state using the same secret as NextAuth
-    let stateData: {
-      providerId: string;
-      timestamp: number;
-      csrfToken: string;
-      codeVerifier?: string;
-      nonce?: string;
-      returnUrl?: string;
-    };
     try {
       stateData = jwt.verify(state as string, nextAuthConfig.secret as string) as any;
     } catch (err) {
       log.atError().withCause(err).log("Invalid state token");
-      return res.redirect("/?error=invalid_state");
+      return redirectWithOidcError(res, {
+        error: OidcErrors.INVALID_STATE,
+      });
     }
 
     // Check if state is not too old (10 minutes)
     if (Date.now() - stateData.timestamp > 10 * 60 * 1000) {
-      return res.redirect("/?error=state_expired");
+      return redirectWithOidcError(res, {
+        error: OidcErrors.STATE_EXPIRED,
+        returnUrl: stateData.returnUrl,
+      });
     }
 
     // Fetch OIDC provider configuration
     const oidcProvider = await getOidcProvider(stateData.providerId);
 
     if (!oidcProvider) {
-      return res.redirect("/?error=provider_not_found");
+      return redirectWithOidcError(res, {
+        error: OidcErrors.PROVIDER_NOT_FOUND,
+        returnUrl: stateData.returnUrl,
+      });
     }
 
     // Exchange code for tokens
@@ -92,7 +98,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!tokenResponse.ok) {
       const errorText = await tokenResponse.text();
       log.atError().log(`Failed to exchange code for tokens: ${errorText}`);
-      return res.redirect("/?error=token_exchange_failed");
+      return redirectWithOidcError(res, {
+        error: OidcErrors.TOKEN_EXCHANGE_FAILED,
+        returnUrl: stateData.returnUrl,
+      });
     }
 
     const tokens: OidcTokenResponse = await tokenResponse.json();
@@ -106,7 +115,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       if (!decoded) {
         log.atError().log("Failed to decode ID token");
-        return res.redirect("/?error=invalid_id_token");
+        return redirectWithOidcError(res, {
+          error: OidcErrors.INVALID_ID_TOKEN,
+          returnUrl: stateData.returnUrl,
+        });
       }
 
       // Validate token claims
@@ -115,25 +127,37 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Check issuer
       if (payload.iss !== oidcProvider.issuer) {
         log.atError().log(`Invalid issuer: ${payload.iss} !== ${oidcProvider.issuer}`);
-        return res.redirect("/?error=invalid_issuer");
+        return redirectWithOidcError(res, {
+          error: OidcErrors.INVALID_ISSUER,
+          returnUrl: stateData.returnUrl,
+        });
       }
 
       // Check audience
       if (payload.aud !== oidcProvider.clientId && !payload.aud?.includes(oidcProvider.clientId)) {
         log.atError().log(`Invalid audience: ${payload.aud}`);
-        return res.redirect("/?error=invalid_audience");
+        return redirectWithOidcError(res, {
+          error: OidcErrors.INVALID_AUDIENCE,
+          returnUrl: stateData.returnUrl,
+        });
       }
 
       // Check nonce if present in state
       if (stateData.nonce && payload.nonce !== stateData.nonce) {
         log.atError().log(`Invalid nonce: ${payload.nonce} !== ${stateData.nonce}`);
-        return res.redirect("/?error=invalid_nonce");
+        return redirectWithOidcError(res, {
+          error: OidcErrors.INVALID_NONCE,
+          returnUrl: stateData.returnUrl,
+        });
       }
 
       // Check token expiration
       if (payload.exp && payload.exp < Date.now() / 1000) {
         log.atError().log("ID token has expired");
-        return res.redirect("/?error=token_expired");
+        return redirectWithOidcError(res, {
+          error: OidcErrors.TOKEN_EXPIRED,
+          returnUrl: stateData.returnUrl,
+        });
       }
 
       userInfo = payload;
@@ -147,13 +171,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       if (!userInfoResponse.ok) {
         log.atError().log("Failed to fetch user info");
-        return res.redirect("/?error=userinfo_fetch_failed");
+        return redirectWithOidcError(res, {
+          error: OidcErrors.USERINFO_FETCH_FAILED,
+          returnUrl: stateData.returnUrl,
+        });
       }
 
       userInfo = await userInfoResponse.json();
     } else {
       log.atError().log("No ID token or userinfo endpoint available");
-      return res.redirect("/?error=no_user_info");
+      return redirectWithOidcError(res, {
+        error: OidcErrors.NO_USER_INFO,
+        returnUrl: stateData.returnUrl,
+      });
     }
 
     // Extract user details based on claim mappings
@@ -163,7 +193,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (!email) {
       log.atError().log("No email found in OIDC response");
-      return res.redirect("/?error=no_email");
+      return redirectWithOidcError(res, {
+        error: OidcErrors.NO_EMAIL,
+        returnUrl: stateData.returnUrl,
+      });
     }
 
     // Check if user has access to any workspace via OidcLoginGroup
@@ -191,7 +224,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (accessibleWorkspaces.length === 0) {
       log.atWarn().log(`User ${email} has no access to any workspace`);
-      return res.redirect("/?error=no_workspace_access");
+      return redirectWithOidcError(res, {
+        error: OidcErrors.NO_WORKSPACE_ACCESS,
+        returnUrl: stateData.returnUrl,
+      });
     }
 
     // Create or update user
@@ -252,6 +288,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.redirect(redirectUrl);
   } catch (error: any) {
     log.atError().withCause(error).log("Error handling OIDC callback");
-    return res.redirect("/?error=internal_error");
+    return redirectWithOidcError(res, {
+      error: OidcErrors.INTERNAL_ERROR,
+      returnUrl: stateData?.returnUrl,
+    });
   }
 }

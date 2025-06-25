@@ -7,8 +7,6 @@ import { ArrowRight, Loader2 } from "lucide-react";
 import { EmbeddedErrorMessage } from "../components/GlobalError/GlobalError";
 import { getLog } from "juava";
 import Link from "next/link";
-import { signOut } from "next-auth/react";
-import { firebaseSignOut } from "../lib/firebase-client";
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import { feedbackError } from "../lib/ui";
 import { JitsuButton } from "../components/JitsuButton/JitsuButton";
@@ -17,6 +15,7 @@ import { useQueryStringState } from "../lib/useQueryStringState";
 import { branding } from "../lib/branding";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useDebounce } from "use-debounce";
+import { useUserSessionControls } from "../lib/context";
 
 const log = getLog("worspaces");
 
@@ -302,6 +301,7 @@ const WorkspacesList = () => {
 
 const WorkspaceSelectionPage = (props: any) => {
   const router = useRouter();
+  const sessionControl = useUserSessionControls();
   const [creatingWorkspace, setCreatingWorkspace] = useState(false);
   return (
     <div>
@@ -316,14 +316,7 @@ const WorkspaceSelectionPage = (props: any) => {
                 type="text"
                 size="small"
                 className="text-textLight hover:text-textDark"
-                onClick={async () => {
-                  signOut().catch(err => {
-                    log.atWarn().withCause(err).log(`Can't sign out from next-auth`);
-                  });
-                  firebaseSignOut().catch(err => {
-                    log.atWarn().withCause(err).log(`Can't sign out from firebase`);
-                  });
-                }}
+                onClick={sessionControl.logout}
               >
                 Sign out
               </Button>
@@ -356,19 +349,7 @@ const WorkspaceSelectionPage = (props: any) => {
       </div>
       <div key="mistake" className="text-center my-4">
         Got here by mistake?{" "}
-        <a
-          className="cursor-pointer text-primary underline"
-          onClick={async () => {
-            //we can't use current session here, since the error can be originated
-            //from auth layer. Try to logout using all methods
-            signOut().catch(err => {
-              log.atWarn().withCause(err).log(`Can't sign out from next-auth`);
-            });
-            firebaseSignOut().catch(err => {
-              log.atWarn().withCause(err).log(`Can't sign out from next-auth`);
-            });
-          }}
-        >
+        <a className="cursor-pointer text-primary underline" onClick={sessionControl.logout}>
           Sign out
         </a>{" "}
       </div>
