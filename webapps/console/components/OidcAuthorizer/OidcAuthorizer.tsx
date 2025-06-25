@@ -45,7 +45,7 @@ export const OidcAuthorizer: React.FC<PropsWithChildren<{}>> = ({ children }) =>
         } else if (data.needsRefresh) {
           // Token needs refresh, try to renew the session
           log.atInfo().log("OIDC session needs refresh, attempting renewal");
-          
+
           const renewResponse = await fetch("/api/auth/dynamic-oidc/renew", {
             method: "POST",
             credentials: "include",
@@ -60,7 +60,7 @@ export const OidcAuthorizer: React.FC<PropsWithChildren<{}>> = ({ children }) =>
 
             if (secondCheckResponse.ok) {
               const secondData = await secondCheckResponse.json();
-              
+
               if (secondData.authenticated && secondData.user) {
                 const oidcUser: ContextApiResponse["user"] = {
                   email: secondData.user.email,
@@ -78,7 +78,7 @@ export const OidcAuthorizer: React.FC<PropsWithChildren<{}>> = ({ children }) =>
               }
             }
           }
-          
+
           log.atWarn().log("Failed to refresh OIDC session, user needs to re-authenticate");
           return false;
         } else {
