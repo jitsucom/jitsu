@@ -5,14 +5,15 @@ import React from "react";
 import { useApi } from "../lib/useApi";
 import { ContextApiResponse } from "../lib/schema";
 import { Button, Modal } from "antd";
-import { signOut } from "next-auth/react";
-import { firebaseSignOut } from "../lib/firebase-client";
 import { encrypt, getLog, randomId, rpc } from "juava";
+import { useUserSessionControls } from "../lib/context";
 
 const log = getLog("index");
 
 function WorkspaceRedirect() {
   const router = useRouter();
+  const sessionControl = useUserSessionControls();
+
   const projectName = localStorage.getItem("projectName");
 
   const params = {
@@ -42,19 +43,7 @@ function WorkspaceRedirect() {
           <EmbeddedErrorMessage
             className="max-w-4xl mx-auto"
             actions={
-              <Button
-                type="primary"
-                onClick={async () => {
-                  //we can't use current session here, since the error can be originated
-                  //from auth layer. Try to logout using all methods
-                  signOut().catch(err => {
-                    log.atWarn().withCause(err).log(`Can't sign out from next-auth`);
-                  });
-                  firebaseSignOut().catch(err => {
-                    log.atWarn().withCause(err).log(`Can't sign out from firebase`);
-                  });
-                }}
-              >
+              <Button type="primary" onClick={sessionControl.logout}>
                 Go back
               </Button>
             }

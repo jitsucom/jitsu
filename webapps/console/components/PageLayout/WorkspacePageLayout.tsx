@@ -52,8 +52,6 @@ import { WorkspaceNameAndSlugEditor } from "../WorkspaceNameAndSlugEditor/Worksp
 import { assertDefined, assertTrue, getLog } from "juava";
 import classNames from "classnames";
 import { BillingBlockingDialog } from "../Billing/BillingBlockingDialog";
-import { signOut } from "next-auth/react";
-import { firebaseSignOut } from "../../lib/firebase-client";
 import { feedbackError } from "../../lib/ui";
 import { useJitsu } from "@jitsu/jitsu-react";
 import { useSearchParams } from "next/navigation";
@@ -353,7 +351,6 @@ function UserProfileMenu({ user }: { user: { name: string; email: string } }) {
           onClick={async () => {
             await sessionControl.logout();
             analytics.reset();
-            router.push("/", undefined, { shallow: true });
           }}
         >
           <ButtonLabel icon={<FaSignOutAlt />}>Logout</ButtonLabel>
@@ -605,6 +602,7 @@ const WorkspaceSettingsModal: React.FC<{
   const { push, query } = useRouter();
   const searchParams = useSearchParams();
   const welcome = searchParams.get("welcome");
+  const sessionControl = useUserSessionControls();
 
   useEffect(() => {
     if (welcome) {
@@ -634,19 +632,7 @@ const WorkspaceSettingsModal: React.FC<{
           <WorkspaceNameAndSlugEditor onSuccess={onSuccess} onboarding={onboarding} />
           <div className="text-center my-4">
             Got here by mistake?{" "}
-            <a
-              className="cursor-pointer text-primary underline"
-              onClick={async () => {
-                //we can't use current session here, since the error can be originated
-                //from auth layer. Try to logout using all methods
-                signOut().catch(err => {
-                  log.atWarn().withCause(err).log(`Can't sign out from next-auth`);
-                });
-                firebaseSignOut().catch(err => {
-                  log.atWarn().withCause(err).log(`Can't sign out from next-auth`);
-                });
-              }}
-            >
+            <a className="cursor-pointer text-primary underline" onClick={sessionControl.logout}>
               Sign out
             </a>{" "}
             or{" "}
