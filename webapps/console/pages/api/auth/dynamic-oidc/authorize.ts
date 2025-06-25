@@ -5,6 +5,7 @@ import { getServerLog } from "../../../../lib/server/log";
 import { nextAuthConfig } from "../../../../lib/nextauth.config";
 import crypto from "crypto";
 import { extractReturnUrl } from "../../../../lib/auth-redirect";
+import { getOidcProvider } from "../../../../lib/server/oidc-token-service";
 
 const log = getServerLog("api/auth/dynamic-oidc/authorize");
 
@@ -28,12 +29,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     // Fetch OIDC provider configuration
-    const oidcProvider = await db.prisma().oidcProvider.findUnique({
-      where: {
-        id: providerId,
-        enabled: true,
-      },
-    });
+    const oidcProvider = await getOidcProvider(providerId);
 
     if (!oidcProvider) {
       return res.status(404).json({ error: "OIDC provider not found or disabled" });
@@ -71,26 +67,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const redirectUri = `${baseUrl}/api/auth/dynamic-oidc/callback`;
 
     // Get authorization URL
-    let authorizationUrl = oidcProvider.authorizationUrl;
+    let authorizationEndpoint = oidcProvider.authorizationEndpoint;
 
     // Handle auto-discovery if needed
-    if (oidcProvider.autoDiscovery && !authorizationUrl) {
+    if (oidcProvider.autoDiscovery && !authorizationEndpoint) {
       try {
         const wellKnownUrl = `${oidcProvider.issuer}/.well-known/openid-configuration`;
         const wellKnownResponse = await fetch(wellKnownUrl);
 
         if (wellKnownResponse.ok) {
           const discovery = await wellKnownResponse.json();
-          authorizationUrl = discovery.authorization_endpoint;
+          authorizationEndpoint = discovery.authorization_endpoint;
 
           // Update provider with discovered endpoints
           await db.prisma().oidcProvider.update({
             where: { id: providerId },
             data: {
-              authorizationUrl: discovery.authorization_endpoint,
-              tokenUrl: discovery.token_endpoint,
-              userInfoUrl: discovery.userinfo_endpoint,
+              authorizationEndpoint: discovery.authorization_endpoint,
+              tokenEndpoint: discovery.token_endpoint,
+              userinfoEndpoint: discovery.userinfo_endpoint,
               jwksUri: discovery.jwks_uri,
+              introspectionEndpoint: discovery.introspection_endpoint,
             },
           });
         }
@@ -100,8 +97,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    if (!authorizationUrl) {
-      return res.status(500).json({ error: "Authorization URL not configured" });
+    if (!authorizationEndpoint) {
+      return res.status(500).json({ error: "Authorization endpoint not configured" });
     }
 
     // Build authorization URL with PKCE and security parameters
@@ -111,16 +108,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       response_type: "code",
       scope: oidcProvider.scopes.join(" "),
       state: state,
+      // Use audience from provider config if set
+      ...(oidcProvider.audience ? { audience: oidcProvider.audience } : {}),
       // PKCE parameters
       code_challenge: pkce.codeChallenge,
       code_challenge_method: pkce.codeChallengeMethod,
       // Additional security parameters
       nonce: nonce,
-      prompt: "login", // Force login to prevent session reuse
+      // Use prompt from provider config, default to "login" for security
+      prompt: oidcProvider.prompt || "login",
       ...(loginHint ? { login_hint: loginHint as string } : {}),
     });
 
-    const authUrl = `${authorizationUrl}?${params.toString()}`;
+    const authUrl = `${authorizationEndpoint}?${params.toString()}`;
 
     // Redirect to OIDC provider
     res.redirect(authUrl);

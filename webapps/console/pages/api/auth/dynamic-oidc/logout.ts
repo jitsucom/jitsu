@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { serialize } from "cookie";
 import { getServerLog } from "../../../../lib/server/log";
+import { isSecure } from "../../../../lib/server/origin";
 
 const log = getServerLog("api/auth/oidc-logout");
 
@@ -15,7 +16,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       "Set-Cookie",
       serialize("oidc-session", "", {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
+        secure: isSecure(req),
         sameSite: "strict",
         expires: new Date(0), // Expire immediately
         path: "/",
