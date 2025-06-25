@@ -115,7 +115,7 @@ const FirebaseAuthorizer: React.FC<PropsWithChildren<{}>> = ({ children }) => {
       </UserContextProvider>
     );
   } else {
-    return <RedirectToSignIn href="/signin" />;
+    return <RedirectToSignIn />;
   }
 };
 
@@ -170,7 +170,7 @@ const NextJsAuthorizer: React.FC<PropsWithChildren<{}>> = ({ children }) => {
   } else if (session.status === "loading") {
     return <GlobalLoader title={"Authorizing..."} />;
   }
-  return <RedirectToSignIn href={"/signin"} />;
+  return <RedirectToSignIn />;
 };
 
 function LoginWrapper(props: PropsWithChildren<{ requiresLogin: boolean }>) {
