@@ -1,11 +1,11 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { db } from "../../../../lib/server/db";
 import jwt from "jsonwebtoken";
 import { getServerLog } from "../../../../lib/server/log";
 import { nextAuthConfig } from "../../../../lib/nextauth.config";
 import crypto from "crypto";
 import { extractReturnUrl } from "../../../../lib/auth-redirect";
 import { getOidcProvider } from "../../../../lib/server/oidc-token-service";
+import { performAutoDiscovery } from "../../../../lib/server/oidc-discovery";
 
 const log = getServerLog("api/auth/dynamic-oidc/authorize");
 
@@ -70,30 +70,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let authorizationEndpoint = oidcProvider.authorizationEndpoint;
 
     // Handle auto-discovery if needed
-    if (oidcProvider.autoDiscovery && !authorizationEndpoint) {
-      try {
-        const wellKnownUrl = `${oidcProvider.issuer}/.well-known/openid-configuration`;
-        const wellKnownResponse = await fetch(wellKnownUrl);
-
-        if (wellKnownResponse.ok) {
-          const discovery = await wellKnownResponse.json();
-          authorizationEndpoint = discovery.authorization_endpoint;
-
-          // Update provider with discovered endpoints
-          await db.prisma().oidcProvider.update({
-            where: { id: providerId },
-            data: {
-              authorizationEndpoint: discovery.authorization_endpoint,
-              tokenEndpoint: discovery.token_endpoint,
-              userinfoEndpoint: discovery.userinfo_endpoint,
-              jwksUri: discovery.jwks_uri,
-              introspectionEndpoint: discovery.introspection_endpoint,
-            },
-          });
-        }
-      } catch (error: any) {
-        log.atError().withCause(error).log("Failed to fetch OIDC discovery document");
-        return res.status(500).json({ error: "Failed to fetch OIDC configuration" });
+    if (!authorizationEndpoint) {
+      const discovery = await performAutoDiscovery(oidcProvider);
+      if (discovery) {
+        authorizationEndpoint = discovery.authorization_endpoint;
       }
     }
 
