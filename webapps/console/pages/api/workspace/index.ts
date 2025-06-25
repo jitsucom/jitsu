@@ -1,10 +1,9 @@
-import { Api, inferUrl, nextJsApiHandler, verifyAccess, verifyAccessWithRole } from "../../../lib/api";
+import { Api, inferUrl, nextJsApiHandler, verifyAccessWithRole } from "../../../lib/api";
 import { z } from "zod";
 import { db } from "../../../lib/server/db";
 import { requireDefined } from "juava";
 import { withProductAnalytics } from "../../../lib/server/telemetry";
 import { WorkspaceDbModel } from "../../../prisma/schema";
-import { WorkspaceRoleType } from "../../../lib/workspace-roles";
 
 const MAX_LIMIT = 1_000_000;
 

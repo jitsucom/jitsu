@@ -48,7 +48,7 @@ export const WorkspaceRoleLabels: Record<WorkspaceRoleType, string> = {
 export const WorkspaceRoleDescriptions: Record<WorkspaceRoleType, string> = {
   owner: "Can create, edit workspace entities and manage workspace users",
   editor: "Can create and edit workspace entities",
-  analyst: "Read-only access to workspace data",
+  analyst: "Read-only access to workspace data. Can trigger Syncs tasks runs.",
 };
 
 export const WorkspaceRoleConfig: Record<
