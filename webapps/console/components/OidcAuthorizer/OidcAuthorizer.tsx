@@ -146,6 +146,6 @@ export const OidcAuthorizer: React.FC<PropsWithChildren<{}>> = ({ children }) =>
     );
   }
   // If loading or no user, return children without user context
-  // This allows the parent component to handle the auth state
+  // This allows the next component to handle the auth state
   return children;
 };

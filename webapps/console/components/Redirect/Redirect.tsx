@@ -11,13 +11,13 @@ export const Redirect: React.FC<{ href: string; title?: string }> = ({ title, hr
   return <LoadingAnimation title={title ?? `Redirecting...`} />;
 };
 
-export const RedirectToSignIn: React.FC<{ href: string; title?: string }> = ({ title, href }) => {
+export const RedirectToSignIn: React.FC<{ title?: string }> = ({ title }) => {
   const router = useRouter();
   useEffect(() => {
     const returnUrl = captureReturnUrl(router);
-    const signinUrlWithReturn = addReturnUrlToSignin(href, returnUrl);
+    const signinUrlWithReturn = addReturnUrlToSignin("/signin", returnUrl);
     router.push(signinUrlWithReturn);
-  }, [href, router]);
+  }, [router]);
 
   return <LoadingAnimation title={title ?? `Redirecting...`} />;
 };
