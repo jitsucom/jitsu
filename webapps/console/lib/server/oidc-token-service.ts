@@ -43,7 +43,7 @@ const introspectionCache = new NodeCache({ stdTTL: 120, checkperiod: 30 }); // 2
 
 const oidcProviderCache = new NodeCache({ stdTTL: 300, checkperiod: 60 }); // 5 minutes TTL for OIDC provider data
 
-type OidcProviderDbModel = z.infer<typeof OidcProviderDbModel>;
+export type OidcProviderDbModel = z.infer<typeof OidcProviderDbModel>;
 
 export async function getOidcProvider(providerId: string): Promise<OidcProviderDbModel | null> {
   const cached = oidcProviderCache.get(providerId);
@@ -106,20 +106,6 @@ export async function validateJwtToken(
     // Get JWKS URI from provider configuration or discovery
     let jwksUri = oidcProvider.jwksUri;
     if (!jwksUri) {
-      // Try to get from well-known configuration
-      const wellKnownUrl = `${oidcProvider.issuer}/.well-known/openid-configuration`;
-      try {
-        const response = await fetch(wellKnownUrl);
-        if (response.ok) {
-          const config = await response.json();
-          jwksUri = config.jwks_uri;
-        }
-      } catch (error) {
-        log.atWarn().withCause(error).log("Failed to fetch OIDC configuration", { providerId });
-      }
-    }
-
-    if (!jwksUri) {
       return { valid: false, error: "JWKS URI not available" };
     }
 
@@ -162,20 +148,6 @@ export async function introspectToken(
     }
 
     let introspectionEndpoint = oidcProvider.introspectionEndpoint;
-    if (!introspectionEndpoint) {
-      // Try to get from well-known configuration
-      const wellKnownUrl = `${oidcProvider.issuer}/.well-known/openid-configuration`;
-      try {
-        const response = await fetch(wellKnownUrl);
-        if (response.ok) {
-          const config = await response.json();
-          introspectionEndpoint = config.introspection_endpoint;
-        }
-      } catch (error) {
-        log.atWarn().withCause(error).log("Failed to fetch OIDC configuration for introspection", { providerId });
-      }
-    }
-
     if (!introspectionEndpoint) {
       return { valid: false, error: "Token introspection endpoint not available" };
     }

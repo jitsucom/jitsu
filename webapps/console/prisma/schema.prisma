@@ -413,7 +413,7 @@ model OidcProvider {
   introspectionEndpoint  String?       // maps to introspection_endpoint
 
   // OAuth scopes to request
-  scopes            String[]           @default(["openid", "profile", "email"])
+  scopes            String[]           @default(["openid", "profile", "email", "offline_access"])
 
   // OAuth/OIDC parameters
   audience          String?            // The audience parameter for the authorization request (defaults to clientId)

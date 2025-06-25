@@ -6,8 +6,7 @@ import { getErrorMessage, getLog } from "juava";
 import { PropsWithChildrenClassname } from "../../lib/ui";
 import { AlertCircle } from "lucide-react";
 import classNames from "classnames";
-import { signOut } from "next-auth/react";
-import { firebaseSignOut } from "../../lib/firebase-client";
+import { useUserSessionControls } from "../../lib/context";
 
 export type GlobalErrorProps = {
   error?: any;
@@ -128,6 +127,8 @@ export function SimpleErrorCard(props: { error?: any; title?: string }) {
 }
 
 export function ErrorCard(props: { error?: any; title?: string; hideActions?: boolean; children?: ReactNode }) {
+  const sessionControl = useUserSessionControls();
+
   const title = props.title || (props.error ? maxLen(getErrorMessage(props.error), 60) : "Error");
   const description = (
     <>
@@ -136,16 +137,6 @@ export function ErrorCard(props: { error?: any; title?: string; hideActions?: bo
     </>
   );
   const [detailsVisible, setDetailsVisible] = React.useState(false);
-  const universalSignOut = async () => {
-    //we can't use current session here, since the error can be originated
-    //from auth layer. Try to logout using all methods
-    signOut().catch(err => {
-      log.atWarn().withCause(err).log(`Can't sign out from next-auth`);
-    });
-    firebaseSignOut().catch(err => {
-      log.atWarn().withCause(err).log(`Can't sign out from next-auth`);
-    });
-  };
   return (
     <div
       className="max-w-screen-md  px-6 py-4 border border-error/20 rounded-xl bg-error/5 w-full overflow-auto mx-auto"
@@ -161,7 +152,7 @@ export function ErrorCard(props: { error?: any; title?: string; hideActions?: bo
         <div>{description}</div>
         {!props.hideActions && (
           <div className="pt-2 -ml-2 flex items-center justify-start gap-2">
-            <Button size="small" type="link" onClick={universalSignOut}>
+            <Button size="small" type="link" onClick={sessionControl.logout}>
               Logout
             </Button>
             <Button size="small" type="link" onClick={() => window.location.reload()} className="mt-0.5">
