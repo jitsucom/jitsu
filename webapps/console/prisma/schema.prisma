@@ -414,13 +414,18 @@ model OidcProvider {
   clientSecret      String             // Should be encrypted in production
 
   // OIDC endpoints - if autoDiscovery is true, these will be fetched from /.well-known/openid-configuration
-  authorizationUrl  String?
-  tokenUrl          String?
-  userInfoUrl       String?
-  jwksUri           String?            // JSON Web Key Set URI for token validation
+  authorizationEndpoint  String?       // maps to authorization_endpoint
+  tokenEndpoint          String?       // maps to token_endpoint
+  userinfoEndpoint       String?       // maps to userinfo_endpoint
+  jwksUri                String?       // maps to jwks_uri
+  introspectionEndpoint  String?       // maps to introspection_endpoint
 
   // OAuth scopes to request
   scopes            String[]           @default(["openid", "profile", "email"])
+
+  // OAuth/OIDC parameters
+  audience          String?            // The audience parameter for the authorization request (defaults to clientId)
+  prompt            String?            // The prompt parameter for the authorization request (e.g., "login", "consent")
 
   // Claims mapping - which OIDC claims to use for user properties
   usernameClaim     String             @default("email")     // Claim to use as username
