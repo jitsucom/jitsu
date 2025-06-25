@@ -1,4 +1,4 @@
-import { Api, inferUrl, nextJsApiHandler, verifyAccess } from "../../../../lib/api";
+import { Api, inferUrl, nextJsApiHandler, verifyAccess, verifyAccessWithRole } from "../../../../lib/api";
 import { z } from "zod";
 import { db } from "../../../../lib/server/db";
 import { ApiError } from "../../../../lib/shared/errors";
@@ -161,7 +161,7 @@ export const api: Api = {
       }),
     },
     handle: async ({ req, query: { workspaceIdOrSlug, onboarding }, body, user }) => {
-      await verifyAccess(user, workspaceIdOrSlug);
+      await verifyAccessWithRole(user, workspaceIdOrSlug, "editEntities");
       const workspace = await db
         .prisma()
         .workspace.update({ where: { id: workspaceIdOrSlug }, data: { name: body.name, slug: body.slug } });
