@@ -46,6 +46,7 @@ import { CodeViewer } from "./CodeViewer";
 import classNames from "classnames";
 import { ButtonLabel } from "../ButtonLabel/ButtonLabel";
 import { Dot } from "../ProfileBuilderPage/ProfileBuilderPage";
+import { JitsuButton } from "../JitsuButton/JitsuButton";
 
 type FunctionsDebuggerProps = {} & EditorComponentProps;
 
@@ -301,9 +302,14 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
                 <Button type="text" onClick={() => push(`/${workspace.slugOrId}/functions`)} disabled={saving}>
                   <ButtonLabel icon={<Undo2 className="w-4 h-4" />}>Cancel</ButtonLabel>
                 </Button>
-                <Button type="text" onClick={save} disabled={saving}>
+                <JitsuButton
+                  type="text"
+                  onClick={save}
+                  disabled={saving}
+                  requiredPermission={props.isNew ? "createEntities" : "editEntities"}
+                >
                   <ButtonLabel icon={<Save className="w-4 h-4" />}>Save</ButtonLabel>
-                </Button>
+                </JitsuButton>
               </div>
             }
             type={"card"}

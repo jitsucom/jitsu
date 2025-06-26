@@ -1,4 +1,4 @@
-import { Api, inferUrl, nextJsApiHandler, verifyAccess } from "../../../../../lib/api";
+import { Api, inferUrl, nextJsApiHandler, verifyAccess, verifyAccessWithRole } from "../../../../../lib/api";
 import { z } from "zod";
 import { getServerLog } from "../../../../../lib/server/log";
 import { assertTrue, requireDefined, rpc } from "juava";
@@ -58,7 +58,7 @@ export const api: Api = {
     handle: async ({ user, query }) => {
       assertTrue(isEEAvailable(), `EE server URL is not set, DB can't be provisioned`);
       const { workspaceId } = query;
-      await verifyAccess(user, workspaceId);
+      await verifyAccessWithRole(user, workspaceId, "createEntities");
       const provisionedDestination = await findProvisionedDestination(workspaceId);
 
       if (provisionedDestination) {

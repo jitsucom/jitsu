@@ -432,7 +432,6 @@ const WorkspaceLoader: React.FC<
     editEntities: hasPermission(role, "editEntities"),
     deleteEntities: hasPermission(role, "deleteEntities"),
     manageUsers: hasPermission(role, "manageUsers"),
-    viewData: hasPermission(role, "viewData"),
   };
 
   useEffect(() => {
