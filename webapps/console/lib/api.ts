@@ -500,7 +500,7 @@ export async function verifyAccessWithRole(
     );
   }
 
-  const role = (access.role || "editor") as WorkspaceRoleType;
+  const role = (access.role || "owner") as WorkspaceRoleType;
 
   if (!hasPermission(role, requiredPermission)) {
     throw new ApiError(
@@ -512,39 +512,6 @@ export async function verifyAccessWithRole(
 
   return role;
 }
-
-export async function getUserWorkspaceRole(user: SessionUser, workspaceId: string): Promise<WorkspaceRoleType> {
-  if (user.internalId === adminServiceAccountEmail && user.loginProvider === "admin/token") {
-    return "owner";
-  }
-
-  if (!looksLikeCuid(workspaceId)) {
-    const w = await db.prisma().workspace.findFirst({ where: { slug: workspaceId } });
-    if (w) {
-      workspaceId = w.id;
-    }
-  }
-
-  const userId = requireDefined(user.internalId, `internalId is not defined`);
-  const access = await db.prisma().workspaceAccess.findFirst({
-    where: { userId, workspaceId },
-  });
-
-  if (!access) {
-    // Check if user is admin
-    if ((await db.prisma().userProfile.findFirst({ where: { id: user.internalId } }))?.admin) {
-      return "owner";
-    }
-    throw new ApiError(
-      `User ${userId} doesn't have access to workspace ${workspaceId}`,
-      { workspaceId, userId },
-      { status: 403 }
-    );
-  }
-
-  return (access.role || "editor") as WorkspaceRoleType;
-}
-
 //new type-safe route builder
 
 export type RouteBuilderBase = {
