@@ -152,7 +152,7 @@ const api: Api = {
     },
     handle: async ({ body, user }) => {
       const workspaceId = body.workspaceId;
-
+      // "manageUsers" permission belongs to owners. Owners can delete the workspace.
       await verifyAccessWithRole(user, workspaceId, "manageUsers");
 
       const workspace = await db.prisma().workspace.findUnique({
