@@ -171,6 +171,7 @@ const Members: React.FC<any> = () => {
   const m = useAntdModal();
   const [currentUserRole, setCurrentUserRole] = useState<WorkspaceRoleType>("owner");
   const [changingRoleUserId, setChangingRoleUserId] = useState<string | null>(null);
+  const [shownPopover, setShownPopover] = useState<string | undefined>();
 
   const {
     data: relations,
@@ -273,7 +274,7 @@ const Members: React.FC<any> = () => {
           <div className="divide-y divide-textDisabled">
             {relations.map(r => {
               const isChangingRole = changingRoleUserId === r.user?.id;
-              const canChangeRole = r.role && currentUserRole === "owner" && r.user?.id !== user.internalId;
+              const canChangeRole = r.role && currentUserRole === "owner" && r.user && r.user?.id !== user.internalId;
               const roleConfig = WorkspaceRoleConfig[r.role as WorkspaceRoleType];
 
               return (
@@ -296,85 +297,88 @@ const Members: React.FC<any> = () => {
                   {/* Role column */}
                   <div className="flex items-start w-32">
                     {canChangeRole ? (
-                      isChangingRole ? (
-                        <div className="flex items-center rounded px-3 py-1 border w-28" style={roleConfig?.style}>
-                          {getRoleIcon(r.role as WorkspaceRoleType, "w-3 h-3 mr-2")}
-                          <span className="text-sm">{WorkspaceRoleLabels[r.role as WorkspaceRoleType]}</span>
-                          <Loader2 className="w-3 h-3 ml-2 animate-spin" />
-                        </div>
-                      ) : (
-                        <Popover
-                          content={
-                            <div className="w-80">
-                              <div className="mb-3 font-medium text-textDark">Select Role</div>
-                              <div className="space-y-2">
-                                {Object.keys(WorkspaceRolePermissions).map(value => (
-                                  <div
-                                    key={value}
-                                    className={`p-3 rounded-lg border cursor-pointer transition-all ${
-                                      r.role === value
-                                        ? ""
-                                        : "border-textDisabled/30 hover:border-gray-300 hover:bg-gray-50"
-                                    }`}
-                                    style={
-                                      r.role === value ? WorkspaceRoleConfig[value as WorkspaceRoleType]?.style : {}
+                      <Popover
+                        open={shownPopover === (r.user?.id || r.invitationLink)}
+                        onOpenChange={visible => {
+                          if (!visible) {
+                            setShownPopover(undefined);
+                          }
+                        }}
+                        content={
+                          <div className="w-80">
+                            <div className="mb-3 font-medium text-textDark">Select Role</div>
+                            <div className="space-y-2">
+                              {Object.keys(WorkspaceRolePermissions).map(value => (
+                                <div
+                                  key={value}
+                                  className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                                    r.role === value
+                                      ? ""
+                                      : "border-textDisabled/30 hover:border-gray-300 hover:bg-gray-50"
+                                  }`}
+                                  style={r.role === value ? WorkspaceRoleConfig[value as WorkspaceRoleType]?.style : {}}
+                                  onClick={() => {
+                                    if (r.role !== value) {
+                                      handleChangeRole(r.user!.id, value as WorkspaceRoleType);
                                     }
-                                    onClick={() => {
-                                      if (r.role !== value) {
-                                        handleChangeRole(r.user!.id, value as WorkspaceRoleType);
-                                      }
-                                    }}
-                                  >
-                                    <div className="flex items-center space-x-3 mb-2">
+                                    setShownPopover(undefined);
+                                  }}
+                                >
+                                  <div className="flex items-center space-x-3 mb-2">
+                                    <div
+                                      className="w-8 h-8 rounded-full flex items-center justify-center"
+                                      style={{
+                                        backgroundColor:
+                                          WorkspaceRoleConfig[value as WorkspaceRoleType]?.style.backgroundColor,
+                                      }}
+                                    >
                                       <div
-                                        className="w-8 h-8 rounded-full flex items-center justify-center"
                                         style={{
-                                          backgroundColor:
-                                            WorkspaceRoleConfig[value as WorkspaceRoleType]?.style.backgroundColor,
+                                          color: WorkspaceRoleConfig[value as WorkspaceRoleType]?.style.color,
                                         }}
                                       >
-                                        <div
-                                          style={{
-                                            color: WorkspaceRoleConfig[value as WorkspaceRoleType]?.style.color,
-                                          }}
-                                        >
-                                          {getRoleIcon(value as WorkspaceRoleType, "w-4 h-4")}
-                                        </div>
+                                        {getRoleIcon(value as WorkspaceRoleType, "w-4 h-4")}
                                       </div>
-                                      <span className="font-medium text-textDark">
-                                        {WorkspaceRoleLabels[value as WorkspaceRoleType]}
-                                      </span>
-                                      {r.role === value && (
-                                        <div
-                                          className="ml-auto w-2 h-2 rounded-full"
-                                          style={{
-                                            backgroundColor:
-                                              WorkspaceRoleConfig[value as WorkspaceRoleType]?.style.color,
-                                          }}
-                                        />
-                                      )}
                                     </div>
-                                    <div className="text-sm text-textSecondary ml-7">
-                                      {WorkspaceRoleDescriptions[value as WorkspaceRoleType]}
-                                    </div>
+                                    <span className="font-medium text-textDark">
+                                      {WorkspaceRoleLabels[value as WorkspaceRoleType]}
+                                    </span>
+                                    {r.role === value && (
+                                      <div
+                                        className="ml-auto w-2 h-2 rounded-full"
+                                        style={{
+                                          backgroundColor: WorkspaceRoleConfig[value as WorkspaceRoleType]?.style.color,
+                                        }}
+                                      />
+                                    )}
                                   </div>
-                                ))}
-                              </div>
+                                  <div className="text-sm text-textSecondary ml-7">
+                                    {WorkspaceRoleDescriptions[value as WorkspaceRoleType]}
+                                  </div>
+                                </div>
+                              ))}
                             </div>
-                          }
-                          trigger="click"
-                          placement="bottomLeft"
-                        >
-                          <div
-                            className="flex items-center rounded px-3 py-1 w-28 cursor-pointer border transition-colors hover:opacity-80"
-                            style={roleConfig?.style}
-                          >
-                            {getRoleIcon(r.role as WorkspaceRoleType, "w-3 h-3 mr-2")}
-                            <span className="text-sm">{WorkspaceRoleLabels[r.role as WorkspaceRoleType]}</span>
-                            <ChevronDown className="w-3 h-3 ml-2" />
                           </div>
-                        </Popover>
-                      )
+                        }
+                        trigger="click"
+                        placement="bottomLeft"
+                      >
+                        <div
+                          className="flex items-center rounded px-3 py-1 w-28 cursor-pointer border transition-colors hover:opacity-80"
+                          style={roleConfig?.style}
+                          onClick={() => {
+                            setShownPopover(r.user?.id || r.invitationLink);
+                          }}
+                        >
+                          {getRoleIcon(r.role as WorkspaceRoleType, "w-3 h-3 mr-2")}
+                          <span className="text-sm">{WorkspaceRoleLabels[r.role as WorkspaceRoleType]}</span>
+                          {isChangingRole ? (
+                            <Loader2 className="w-3 h-3 ml-2 animate-spin" />
+                          ) : (
+                            <ChevronDown className="w-3 h-3 ml-2" />
+                          )}
+                        </div>
+                      </Popover>
                     ) : r.role ? (
                       <Tooltip title={WorkspaceRoleDescriptions[r.role as WorkspaceRoleType]}>
                         <div className="flex items-center rounded px-3 py-1 border w-28" style={roleConfig?.style}>
