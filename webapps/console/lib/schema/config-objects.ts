@@ -18,6 +18,7 @@ import { checkDomain, checkOrAddToIngress, isDomainAvailable } from "../server/c
 import { ZodType, ZodTypeDef } from "zod";
 import { getServerLog } from "../server/log";
 import { getWildcardDomains } from "../../pages/api/[workspaceId]/domain-check";
+import { getDestinationSecretPaths, getServiceSecretPaths, maskSecrets, removeMaskedValues } from "./secrets";
 
 const log = getServerLog("config-objects");
 
@@ -70,10 +71,10 @@ export const getConfigObjectType: (type: string) => Required<ConfigObjectType> =
     inputFilter: async function (val: any) {
       return val;
     },
-    merge: function (original: any, patch: Partial<any>) {
+    merge: async function (original: any, patch: Partial<any>) {
       return { ...original, ...patch };
     },
-    outputFilter: function (original: any) {
+    outputFilter: async function (original: any) {
       return original;
     },
   };
@@ -84,25 +85,34 @@ export const getConfigObjectType: (type: string) => Required<ConfigObjectType> =
 const configObjectTypes: Record<string, ConfigObjectType> = {
   destination: {
     schema: DestinationConfig,
-    outputFilter: (obj: DestinationConfig) => {
+    outputFilter: async (obj: DestinationConfig) => {
       const newObject = { ...obj };
       if (newObject.provisioned) {
         delete (newObject as any).credentials;
+      } else {
+        // Mask secrets for non-provisioned destinations
+        const secretPaths = getDestinationSecretPaths(obj.destinationType);
+        return maskSecrets(newObject, secretPaths);
       }
       return newObject;
     },
-    merge(original: DestinationConfig, patch: Partial<DestinationConfig>): any {
+    merge: async (original: DestinationConfig, patch: Partial<DestinationConfig>): Promise<any> => {
       if (patch.provisioned) {
         throw new ApiError(`Can't set destination to provisioned destination through API (${original.id})`);
       }
-      return { ...original, ...patch };
+      // Remove masked values before merge
+      const secretPaths = getDestinationSecretPaths(original.destinationType);
+      const cleanedPatch = removeMaskedValues(patch, secretPaths);
+      return { ...original, ...cleanedPatch };
     },
 
     inputFilter: async (obj: DestinationConfig, context) => {
       if (context === "create" && obj.provisioned) {
         throw new ApiError(`Can't create provisioned destination through API (${obj.id})`);
       }
-      return obj;
+      // Remove masked values
+      const secretPaths = getDestinationSecretPaths(obj.destinationType);
+      return removeMaskedValues(obj, secretPaths);
     },
     narrowSchema: obj => {
       const type = obj.destinationType;
@@ -176,7 +186,7 @@ const configObjectTypes: Record<string, ConfigObjectType> = {
         publicKeys: hashKeys(obj.publicKeys || [], []),
       };
     },
-    outputFilter: (original: StreamConfig) => {
+    outputFilter: async (original: StreamConfig) => {
       return {
         ...original,
         domains: original.domains?.map(d => d.trim().toLowerCase()),
@@ -190,6 +200,22 @@ const configObjectTypes: Record<string, ConfigObjectType> = {
   },
   service: {
     schema: ServiceConfig,
+    outputFilter: async (obj: ServiceConfig) => {
+      // Mask secrets for services
+      const secretPaths = await getServiceSecretPaths(obj.package, obj.version);
+      return maskSecrets(obj, secretPaths);
+    },
+    merge: async (original: ServiceConfig, patch: Partial<ServiceConfig>): Promise<any> => {
+      // Remove masked values before merge
+      const secretPaths = await getServiceSecretPaths(original.package, original.version);
+      const cleanedPatch = removeMaskedValues(patch, secretPaths);
+      return { ...original, ...cleanedPatch };
+    },
+    inputFilter: async (obj: ServiceConfig) => {
+      // Remove masked values
+      const secretPaths = await getServiceSecretPaths(obj.package, obj.version);
+      return removeMaskedValues(obj, secretPaths);
+    },
   },
   "custom-image": {
     schema: ConnectorImageConfig,
@@ -207,7 +233,7 @@ const configObjectTypes: Record<string, ConfigObjectType> = {
         name: domainToCheck,
       };
     },
-    outputFilter: (original: WorkspaceDomain) => {
+    outputFilter: async (original: WorkspaceDomain) => {
       return {
         ...original,
         name: original.name.trim().toLowerCase(),

@@ -41,7 +41,7 @@ export const api: Api = {
         throw new ApiError(`${type} with id ${id} does not exist`, {}, { status: 400 });
       }
       const preFilter = { ...((object.config as any) || {}), workspaceId, id, type };
-      return configObjectType.outputFilter(preFilter);
+      return await configObjectType.outputFilter(preFilter);
     },
   },
   PUT: {
@@ -67,7 +67,7 @@ export const api: Api = {
       if (!object) {
         throw new ApiError(`${type} with id ${id} does not exist`);
       }
-      const merged = configObjectType.merge(object.config, { ...body, id, workspaceId });
+      const merged = await configObjectType.merge(object.config, { ...body, id, workspaceId });
       const data = parseObject(type, merged);
       const filtered = await configObjectType.inputFilter(data, "update", workspace);
 
