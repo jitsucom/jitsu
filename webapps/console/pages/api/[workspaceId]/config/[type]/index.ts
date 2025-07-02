@@ -31,15 +31,17 @@ export const api: Api = {
         where: { workspaceId: workspaceId, type, deleted: false },
         orderBy: { createdAt: "asc" },
       });
+      const mappedObjects = objects.map(({ id, workspaceId, config }) => ({
+        ...(config as any),
+        id,
+        workspaceId,
+        type,
+      }));
+
+      const filteredObjects = await Promise.all(mappedObjects.map(obj => configObjectType.outputFilter(obj)));
+
       return {
-        objects: objects
-          .map(({ id, workspaceId, config }) => ({
-            ...(config as any),
-            id,
-            workspaceId,
-            type,
-          }))
-          .map(configObjectType.outputFilter),
+        objects: filteredObjects,
       };
     },
   },
