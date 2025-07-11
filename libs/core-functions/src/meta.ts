@@ -146,6 +146,20 @@ export const JuneCredentials = z.object({
 });
 export type JuneCredentials = z.infer<typeof JuneCredentials>;
 
+export const SalesforceCredentials = z.object({
+  authorized: z.boolean().optional().default(false),
+  oauthIntegrationId: z.string().optional().default("jitsu-cloud-dst-salesforce"),
+  oauthConnectionId: z.string().optional(),
+  isSandbox: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe(
+      "Sandbox Instance::You can log in to a sandbox by switching the login form to use Custom Domain, and providing the login URL of your sandbox, e.g.: <b>MyDomainName--SandboxName.sandbox.my.salesforce.com</b><br/><br/>Alternatively, you can use the general login form by appending the sandbox name to your Salesforce username. For example, if the production username is <b>user@example.com</b> and the sandbox is named <b>sndbx</b>, the sandbox username would be: <b>user@example.com.sndbx</b><br/><br/>If you are already authenticated, please <b>Re-Sign In</b> with your sandbox username."
+    ),
+});
+export type SalesforceCredentials = z.infer<typeof SalesforceCredentials>;
+
 export const BrazeCredentials = z.object({
   apiKey: z.string().describe(`API Key::Created under Developer Console in the Braze Dashboard.`),
   endpoint: z

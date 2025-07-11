@@ -113,9 +113,9 @@ const EventsUsageSection: React.FC<{}> = () => {
       {billing.settings?.pastDue && (
         <div className="mt-8">
           <Alert
-            message={<h4 className="text-xl">You have unpaid invoices!</h4>}
+            message={<h4>You have unpaid invoices!</h4>}
             description={
-              <div className="text-lg">
+              <div>
                 Please{" "}
                 <Link
                   prefetch={false}
@@ -123,7 +123,7 @@ const EventsUsageSection: React.FC<{}> = () => {
                   href={`/api/${workspace.id}/ee/billing/manage?returnUrl=${encodeURIComponent(window.location.href)}`}
                 >
                   <span className="inline-flex items-center space-x-1">
-                    <span>update your payment method</span>
+                    <span>update your payment method and pay outstanding invoices</span>
                     <ExternalLink className="w-5 h-5" />
                   </span>
                 </Link>{" "}
@@ -519,7 +519,7 @@ const BillingManager0: React.FC<{}> = () => {
   return (
     <div>
       <CurrentSubscription />
-      {billing.settings?.customBilling ? (
+      {billing.settings?.customBilling || billing.settings?.custom ? (
         <div className="text-center text-textLight mt-12">
           You're using a custom plan. To downgrade to standard plan or cancel your supbscription, please reach out to
           our{" "}

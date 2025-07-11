@@ -55,7 +55,7 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
   const [nangoError, setNangoError] = useState<string | undefined>(undefined);
   const [loadingSpecs, setLoadingSpecs] = useState<boolean>(true);
   const [specs, setSpecs] = useState<any>(undefined);
-  const oauthConnector = appConfig.nango ? oauthDecorators.find(d => d.packageId === obj.package) : "";
+  const oauthConnector = appConfig.nango ? oauthDecorators.find(d => d.packageId === obj.package) : undefined;
   const [manualAuth, setManualAuth] = useState(typeof oauthConnector === "undefined");
   const ajv = useMemo(() => {
     const ajv = new Ajv({ allErrors: true, strictSchema: false, useDefaults: true, allowUnionTypes: true });

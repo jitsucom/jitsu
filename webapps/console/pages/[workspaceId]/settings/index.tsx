@@ -1,6 +1,6 @@
 import { WorkspacePageLayout } from "../../../components/PageLayout/WorkspacePageLayout";
-import { Alert, Button, Input, Spin, Tooltip, Select, Popover } from "antd";
-import { useAppConfig, useUser, useWorkspace } from "../../../lib/context";
+import { Alert, Button, Input, Popover, Select, Spin, Tooltip } from "antd";
+import { useAppConfig, useUser, useWorkspace, useWorkspaceRole } from "../../../lib/context";
 import React, { useState } from "react";
 import { confirmOp, confirmOpWithInput, feedbackError, feedbackSuccess } from "../../../lib/ui";
 import { get } from "../../../lib/useApi";
@@ -16,25 +16,25 @@ import { AntdModal, useAntdModal } from "../../../lib/modal";
 import { FiMail } from "react-icons/fi";
 import {
   ArrowRight,
-  Copy,
-  Trash2,
-  Key,
-  Shield,
+  BarChart3,
   ChevronDown,
-  Loader2,
+  Copy,
   Crown,
   Edit3,
-  BarChart3,
+  Key,
+  Loader2,
+  Shield,
+  Trash2,
   User,
 } from "lucide-react";
 import { JitsuButton, WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
 import { useRouter } from "next/router";
 import {
-  WorkspaceRoleType,
-  WorkspaceRoleLabels,
-  WorkspaceRoleDescriptions,
   WorkspaceRoleConfig,
+  WorkspaceRoleDescriptions,
+  WorkspaceRoleLabels,
   WorkspaceRolePermissions,
+  WorkspaceRoleType,
 } from "../../../lib/workspace-roles";
 
 const InviteUserForm: React.FC<{ invite: (email: string, role?: WorkspaceRoleType) => Promise<void> }> = ({
@@ -169,9 +169,9 @@ const Members: React.FC<any> = () => {
   const workspace = useWorkspace();
   const user = useUser();
   const m = useAntdModal();
-  const [currentUserRole, setCurrentUserRole] = useState<WorkspaceRoleType>("owner");
   const [changingRoleUserId, setChangingRoleUserId] = useState<string | null>(null);
   const [shownPopover, setShownPopover] = useState<string | undefined>();
+  const currentUserRole = useWorkspaceRole();
 
   const {
     data: relations,
@@ -181,15 +181,9 @@ const Members: React.FC<any> = () => {
   } = useQuery<(UserWorkspaceRelation & { role?: string })[], Error>({
     queryKey: ["workspace-users", workspace.id],
     queryFn: async () => {
-      const users = (await get(`/api/workspace/${workspace.id}/users`)) as (UserWorkspaceRelation & {
+      return (await get(`/api/workspace/${workspace.id}/users`)) as (UserWorkspaceRelation & {
         role?: string;
       })[];
-      // Find current user's role
-      const currentUser = users.find(u => u.user?.id === user.internalId);
-      if (currentUser?.role) {
-        setCurrentUserRole(currentUser.role as WorkspaceRoleType);
-      }
-      return users;
     },
   });
 
@@ -274,7 +268,7 @@ const Members: React.FC<any> = () => {
           <div className="divide-y divide-textDisabled">
             {relations.map(r => {
               const isChangingRole = changingRoleUserId === r.user?.id;
-              const canChangeRole = r.role && currentUserRole === "owner" && r.user && r.user?.id !== user.internalId;
+              const canChangeRole = r.role && currentUserRole.manageUsers && r.user && r.user?.id !== user.internalId;
               const roleConfig = WorkspaceRoleConfig[r.role as WorkspaceRoleType];
 
               return (
@@ -471,6 +465,7 @@ const OidcProviders: React.FC<any> = () => {
 const WorkspaceSettingsComponent: React.FC<any> = () => {
   const config = useAppConfig();
   const workspace = useWorkspace();
+  const userRole = useWorkspaceRole();
   const [deleteLoading, setDeleteLoading] = useState(false);
   const router = useRouter();
 
@@ -557,24 +552,26 @@ const WorkspaceSettingsComponent: React.FC<any> = () => {
         <Members />
 
         {/* Danger Zone */}
-        <div className="bg-backgroundLight border border-error/50 rounded-lg overflow-hidden">
-          <div className="px-6 py-4 bg-error/5">
-            <h3 className="text-lg font-semibold text-error">Danger Zone</h3>
-          </div>
-          <div className="p-6">
-            <div className="flex items-start justify-between">
-              <div>
-                <h4 className="font-medium text-error mb-1">Delete Project</h4>
-                <p className="text-sm text-textLight">
-                  This workspace will be permanently deleted and cannot be recovered.
-                </p>
+        {userRole.role === "owner" && (
+          <div className="bg-backgroundLight border border-error/50 rounded-lg overflow-hidden">
+            <div className="px-6 py-4 bg-error/5">
+              <h3 className="text-lg font-semibold text-error">Danger Zone</h3>
+            </div>
+            <div className="p-6">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h4 className="font-medium text-error mb-1">Delete Project</h4>
+                  <p className="text-sm text-textLight">
+                    This workspace will be permanently deleted and cannot be recovered.
+                  </p>
+                </div>
+                <JitsuButton type="primary" danger={true} onClick={handleDeleteWorkspace} loading={deleteLoading}>
+                  Delete Workspace
+                </JitsuButton>
               </div>
-              <JitsuButton type="primary" danger={true} onClick={handleDeleteWorkspace} loading={deleteLoading}>
-                Delete Workspace
-              </JitsuButton>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

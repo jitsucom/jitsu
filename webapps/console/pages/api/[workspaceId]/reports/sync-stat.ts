@@ -28,8 +28,7 @@ export default createRoute()
                  join newjitsu."ConfigurationObjectLink" sync on task.sync_id = sync."id"
             where (task.status = 'SUCCESS' OR task.status = 'PARTIAL')
               and "workspaceId" = $1
-              and started_at >= $2 and started_at < $3
-            and deleted = false`,
+              and started_at >= $2 and started_at < $3`,
       [workspaceId, start, end]
     );
 

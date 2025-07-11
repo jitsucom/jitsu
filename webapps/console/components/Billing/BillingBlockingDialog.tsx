@@ -30,7 +30,7 @@ function LoadAndBlockIfNeed() {
     return <></>;
   }
   assertDefined(usage);
-  if (billing.settings?.pastDue) {
+  if (billing.settings?.pastDue && billing.settings?.planKind !== "enterprise") {
     return (
       <Modal
         style={{ minWidth: 1000 }}
