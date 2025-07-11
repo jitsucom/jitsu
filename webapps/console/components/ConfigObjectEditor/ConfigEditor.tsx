@@ -1,4 +1,4 @@
-import React, { createContext, PropsWithChildren, ReactNode, useContext, useEffect, useState } from "react";
+import React, { createContext, PropsWithChildren, ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { Button, Col, Form as AntdForm, Input, Row, Switch, Table } from "antd";
 import { FaCaretDown, FaCaretRight, FaClone, FaPlus } from "react-icons/fa";
 import { ZodType } from "zod";
@@ -30,7 +30,7 @@ import { ConfigEntityBase } from "../../lib/schema";
 import { useAppConfig, useWorkspace } from "../../lib/context";
 import { LoadingAnimation } from "../GlobalLoader/GlobalLoader";
 import { WLink } from "../Workspace/WLink";
-import { DeleteOutlined } from "@ant-design/icons";
+import { CheckCircleTwoTone, DeleteOutlined, InfoCircleTwoTone } from "@ant-design/icons";
 import {
   Action,
   confirmOp,

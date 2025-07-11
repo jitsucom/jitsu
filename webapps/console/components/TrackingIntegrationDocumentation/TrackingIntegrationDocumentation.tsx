@@ -58,7 +58,7 @@ export const DomainSelector: React.FC<{
         trigger={["click"]}
         placement="bottomRight"
         arrow
-        popupRender={() => (
+        dropdownRender={() => (
           <div className="shadow px-4 py-4 bg-backgroundLight">
             {props.domains.map(d => (
               <div
