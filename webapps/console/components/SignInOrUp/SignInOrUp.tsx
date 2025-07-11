@@ -242,15 +242,6 @@ export const SignInOrUp: React.FC<SigninProps> = ({ signup }) => {
             <Alert type="error" message={`Authentication error: ${router.query.error}`} closable />
           </div>
         )}
-
-        {!appConfig.disableSignup && !signup && (
-          <div className="mx-auto max-w-[350px] mt-4">
-            <p className="text-center text-textLight text-xs">
-              Automatic signup is enabled for this instance. If you don't have an account, a new account will be created
-              automatically.
-            </p>
-          </div>
-        )}
       </SigninLayout>
     </>
   );

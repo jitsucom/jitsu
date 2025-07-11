@@ -20,6 +20,7 @@ import IntercomDestination from "./functions/intercom-destination";
 import HubspotDestination from "./functions/hubspot-destination";
 import BrazeDestination from "./functions/braze-destination";
 import { ProfilesFunction } from "./functions/profiles-functions";
+import SalesforceDestination from "./functions/salesforce-destination";
 
 const builtinDestinations: Record<BuiltinDestinationFunctionName, JitsuFunction> = {
   "builtin.destination.bulker": BulkerDestination as JitsuFunction,
@@ -35,6 +36,7 @@ const builtinDestinations: Record<BuiltinDestinationFunctionName, JitsuFunction>
   "builtin.destination.amplitude": AmplitudeDestination as JitsuFunction,
   "builtin.destination.facebook-conversions": FacebookConversionsApi as JitsuFunction,
   "builtin.destination.hubspot": HubspotDestination as JitsuFunction,
+  "builtin.destination.salesforce": SalesforceDestination as JitsuFunction,
   "builtin.destination.devnull": () => undefined,
   "builtin.destination.tag": () => undefined,
   "builtin.destination.gtm": () => undefined,

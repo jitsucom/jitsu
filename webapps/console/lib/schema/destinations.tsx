@@ -11,6 +11,7 @@ import mixpanelIcon from "./icons/mixpanel";
 import facebookIcon from "./icons/facebook";
 import juneIcon from "./icons/june";
 import blazeIcon from "./icons/blaze";
+import salesforceIcon from "./icons/salesforce";
 import mongodbIcon from "./icons/mongodb";
 
 import ga4Icon from "./icons/ga4";
@@ -424,10 +425,24 @@ export const coreDestinations: DestinationType<any>[] = [
     tags: "Datawarehouse",
     connectionOptions: BaseBulkerConnectionOptions,
     credentials: z.object({
-      host: z.string().describe("Postgres host"),
-      port: z.number().default(5432).describe("Postgres port"),
+      authenticationMethod: z
+        .enum(["password", "google-psc"])
+        .optional()
+        .default("password")
+        .describe(
+          "Authentication Method::Standard username/password or <a target='_blank' rel='noreferrer noopener' href='https://docs.jitsu.com/destinations/warehouse/postgres#advanced-private-service-connect-for-google-cloud-sql'>Private Service Connect</a> for Google-managed postgres instances only."
+        ),
+      instanceConnectionName: z
+        .string()
+        .optional()
+        .describe(
+          "Instance Connection Name::Google SQL instance Connection Name in the format <code>project-name:region:instance-name</code>. <a target='_blank' rel='noreferrer noopener' href='https://docs.jitsu.com/destinations/warehouse/postgres#provide-jitsu-with-cloud-sql-instance-details'>How to obtain</a>."
+        ),
+      host: z.string().optional().describe("Postgres host"),
+      port: z.number().optional().default(5432).describe("Postgres port"),
       sslMode: z
         .enum(["disable", "require", "verify-ca", "verify-full"])
+        .optional()
         .default("require")
         .describe(
           "SSL Mode::SSL mode for Postgres connection: <code>disable</code>,<code>require</code>,<code>verify-ca</code>,<code>verify-full</code>"
@@ -436,13 +451,32 @@ export const coreDestinations: DestinationType<any>[] = [
       sslClientCert: z.string().optional().describe("SSL Client Cert::"),
       sslClientKey: z.string().optional().describe("SSL Client Key::"),
       database: z.string().describe("Postgres database name"),
-      username: z.string().describe("Postgres username"),
-      password: z.string().describe("Postgres password"),
+      username: z.string().optional().describe("Postgres username"),
+      password: z.string().optional().describe("Postgres password"),
       defaultSchema: z.string().default("public").describe("Schema::Postgres schema"),
     }),
     credentialsUi: {
+      authenticationMethod: {
+        correction: obj => obj.authenticationMethod || "password",
+      },
+      instanceConnectionName: {
+        hidden: obj => obj.authenticationMethod !== "google-psc",
+      },
+      username: {
+        hidden: obj => obj.authenticationMethod === "google-psc",
+      },
       password: {
         password: true,
+        hidden: obj => obj.authenticationMethod === "google-psc",
+      },
+      host: {
+        hidden: obj => obj.authenticationMethod === "google-psc",
+      },
+      port: {
+        hidden: obj => obj.authenticationMethod === "google-psc",
+      },
+      sslMode: {
+        hidden: obj => obj.authenticationMethod === "google-psc",
       },
       sslServerCA: {
         textarea: true,
@@ -871,6 +905,26 @@ export const coreDestinations: DestinationType<any>[] = [
     connectionOptions: CloudDestinationsConnectionOptions,
     credentials: meta.BrazeCredentials,
     description: "Braze is a customer engagement platform used by businesses for multichannel marketing.",
+  },
+  {
+    id: "salesforce",
+    icon: salesforceIcon,
+    title: "Salesforce",
+    tags: "Product Analytics",
+    connectionOptions: CloudDestinationsConnectionOptions,
+    credentials: meta.SalesforceCredentials,
+    credentialsUi: {
+      authorized: {
+        hidden: true,
+      },
+      oauthIntegrationId: {
+        hidden: true,
+      },
+      oauthConnectionId: {
+        hidden: true,
+      },
+    },
+    description: "Salesforce is the world's leading customer relationship management technology.",
   },
   {
     id: "mongodb",

@@ -56,6 +56,8 @@ import omitBy from "lodash/omitBy";
 import { asConfigType, useConfigObject, useConfigObjectList, useConfigObjectMutation } from "../../lib/store";
 import { CustomWidgetProps } from "./Editors";
 import { WorkspacePermissionsType } from "../../lib/workspace-roles";
+import { oauthDecorators } from "../../lib/server/oauth/destinations";
+import Nango from "@nangohq/frontend";
 
 const log = getLog("ConfigEditor");
 
@@ -265,6 +267,7 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
   const {
     noun,
     createNew,
+    type,
     objectType,
     meta,
     fields,
@@ -278,6 +281,8 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
     subtitle,
   } = props;
   useTitle(`${branding.productName} : ${createNew ? `Create new ${noun}` : `Edit ${noun}`}`);
+  const appConfig = useAppConfig();
+  const formRef = useRef<any>();
   const [loading, setLoading] = useState<boolean>(false);
   const [testing, setTesting] = useState<boolean>(false);
   const objectTypeFactory = asFunction<ZodType, any>(objectType);
@@ -286,11 +291,22 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
   const hasErrors = formState?.errors?.length > 0;
   const [isTouched, setTouched] = useState<boolean>(!!createNew);
   const [testResult, setTestResult] = useState<any>(undefined);
+  const [nangoLoading, setNangoLoading] = useState<boolean>(false);
+  const [nangoError, setNangoError] = useState<string | undefined>(undefined);
+  const oauthConnector =
+    type === "destination" && appConfig.nango ? oauthDecorators[object.destinationType] : undefined;
 
   const uiSchema = getUiSchema(schema, fields, formState?.formData || object, isNew);
 
   const [submitCount, setSubmitCount] = useState(0);
   const modal = useAntdModal();
+
+  useEffect(() => {
+    if (formRef.current) {
+      setFormState(formRef.current.state);
+    }
+  }, []);
+
   const onFormChange = state => {
     setFormState(state);
     setTestResult(undefined);
@@ -315,8 +331,75 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
   return (
     <EditorBase onCancel={onCancel} isTouched={isTouched}>
       <EditorTitle title={title} subtitle={subtitleComponent} onBack={withLoading(() => onCancel(isTouched))} />
+      {oauthConnector && (
+        <div className={"flex flex-row items-center gap-3 mb-4"}>
+          <div>
+            <JitsuButton
+              type={"primary"}
+              size={"large"}
+              ghost={true}
+              loading={nangoLoading}
+              onClick={() => {
+                const nango = new Nango({
+                  publicKey: appConfig.nango!.publicKey,
+                  host: appConfig.nango!.host,
+                });
+                setNangoLoading(true);
+                const oauthIntegrationId = oauthConnector.nangoIntegrationId(formState?.formData || object);
+                const oauthConnectionId = `destination.${object?.id}`;
+                nango
+                  .auth(oauthIntegrationId, oauthConnectionId)
+                  .then(result => {
+                    if (formState) {
+                      formState.formData = {
+                        ...formState.formData,
+                        authorized: true,
+                        oauthIntegrationId,
+                        oauthConnectionId,
+                      };
+                      setTouched(true);
+                    }
+                    setNangoError(undefined);
+                  })
+                  .catch(err => {
+                    setNangoError(getErrorMessage(err));
+                    getLog().atError().log("Failed to add oauth connection", err);
+                    if (formState) {
+                      formState.formData = { ...formState.formData, authorized: false };
+                      setTouched(true);
+                    }
+                  })
+                  .finally(() => setNangoLoading(false));
+              }}
+            >
+              {(formState?.formData || object).authorized ? "Re-Sign In" : "Authorize"}
+            </JitsuButton>
+          </div>
+          <div className={"w-full flex flex-row items-center py-1 px-2 text-text"} style={{ minHeight: 32 }}>
+            {nangoError ? (
+              <span className={"text-red-600"}>OAuth2 error: {nangoError}</span>
+            ) : (formState?.formData || object).authorized ? (
+              <>
+                <CheckCircleTwoTone twoToneColor={"#1fcc00"} className={"mr-2"} />
+                Authorized
+              </>
+            ) : (
+              <>
+                <InfoCircleTwoTone className={"mr-2"} />
+                Click "Authorize" to open OAuth2.0 authorization popup
+              </>
+            )}
+          </div>
+          <div>
+            {/*<JitsuButton onClick={() => setManualAuth(!manualAuth)}>*/}
+            {/*  {manualAuth ? "Hide authorization settings" : "Manually setup authorization"}*/}
+            {/*</JitsuButton>*/}
+          </div>
+        </div>
+      )}
       <EditorComponentContext.Provider value={{ displayInlineErrors: !isNew || submitCount > 0 }}>
         <Form
+          ref={formRef}
           formContext={props}
           templates={{ ObjectFieldTemplate: FormList, ButtonTemplates: { AddButton } }}
           widgets={{ CheckboxWidget: CustomCheckbox }}

@@ -66,7 +66,6 @@ async function getSyncs() {
                  join newjitsu."ConfigurationObjectLink" sync on task.sync_id = sync."id"
             where (task.status = 'SUCCESS' OR task.status = 'PARTIAL')
               and started_at > now() - interval '120 days'
-            and deleted = false
             group by "workspaceId", period
             order by period desc , "workspaceId";`
   );

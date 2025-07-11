@@ -27,6 +27,10 @@ export const BillingSettings = z.object({
   //if plan has a custom pricing prepared for a particular workspace
   customBilling: z.boolean().default(false).optional(),
   pastDue: z.boolean().default(false).optional(),
+  //Can be "self-service" or "enterprise". Enterprise plans doesn't block workspace on overage, but requires manual billing.
+  planKind: z.string().default("self-service").optional(),
+  //similar to customBilling, but indicates that plan is custom. custom flag comes from stripe plan metadata
+  custom: z.boolean().default(false).optional(),
   dailyActiveSyncs: z.number().default(1).optional(),
   dailyActiveSyncsOverage: z.number().default(20).optional(),
   maximumSyncFrequency: z.number().optional(), //minutes

@@ -2,7 +2,7 @@
 # Build & push it with
 #    docker buildx build --platform linux/amd64 . -f console.Dockerfile --push -t jitsucom/console:latest
 
-FROM node:22.8-bookworm as base
+FROM node:24-bookworm as base
 
 WORKDIR /app
 RUN apt-get update -y
@@ -79,7 +79,7 @@ ENV JITSU_VERSION_COMMIT_SHA=${JITSU_BUILD_COMMIT_SHA}
 ENV JITSU_VERSION_DOCKER_TAG=${JITSU_BUILD_DOCKER_TAG}
 ENV JITSU_VERSION_STRING=${JITSU_BUILD_VERSION}
 
-CMD ["--inspect", "--no-node-snapshot", "--max-old-space-size=2048", "main.js"]
+CMD ["--no-node-snapshot", "--max-old-space-size=2048", "main.js"]
 
 FROM base as profiles
 

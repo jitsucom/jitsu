@@ -54,10 +54,29 @@
       "nth-check": "2.1.1",
       "nanoid": "3.3.8",
       "postcss": "^8.4.47",
-      "elliptic" : "^6.6.1",
+      "elliptic": "^6.6.1",
       "cross-spawn": "^7.0.6",
       "path-to-regexp": "^0.1.12"
-    }
+    },
+    "onlyBuiltDependencies": [
+      "@confluentinc/kafka-javascript",
+      "@firebase/util",
+      "@mongodb-js/zstd",
+      "@prisma/client",
+      "@prisma/engines",
+      "@swc/core",
+      "core-js",
+      "core-js-pure",
+      "cpu-features",
+      "esbuild",
+      "isolated-vm",
+      "prisma",
+      "protobufjs",
+      "sharp",
+      "ssh2",
+      "turbo",
+      "zstd-napi"
+    ]
   },
   "workspaces": [
     "examples/*",

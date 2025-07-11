@@ -245,6 +245,9 @@ export async function getActivePlan(customerId: string): Promise<null | Subscrip
       sub2product.get(subscription.id),
       `Can't find product for subscription ${subscription.id}`
     );
+    const planData = JSON.parse(
+      requireDefined(product.metadata?.plan_data, `Can't find plan data for product ${product.id}`)
+    );
     return {
       planId: requireDefined(product.metadata?.jitsu_plan_id, `jitsu_plan_id is not defined`),
       planName: product.name,
@@ -262,11 +265,10 @@ export async function getActivePlan(customerId: string): Promise<null | Subscrip
       },
       renewAfterExpiration: !subscription.cancel_at_period_end,
       pastDue: pastDueSubscription && !activeSubscription,
+      planKind: planData.planKind,
+
       //omit token field that might be considered as sensitive
-      ...omit(
-        JSON.parse(requireDefined(product.metadata?.plan_data, `Can't find plan data for product ${product.id}`)),
-        "token"
-      ),
+      ...omit(planData, "token"),
       subscriptionId: subscription.id,
     };
   }
