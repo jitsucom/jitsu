@@ -204,7 +204,7 @@ export const WorkspaceSelector: React.FC<WorkspaceSelectorProps> = props => {
 
   return (
     <Dropdown
-      popupRender={() => <WorkspacesMenu jitsuClassicAvailable={false} />}
+      dropdownRender={() => <WorkspacesMenu jitsuClassicAvailable={false} />}
       trigger={["click"]}
       open={open}
       onOpenChange={open => setOpen(open)}
@@ -364,7 +364,7 @@ const UserProfileButton: React.FC<{}> = () => {
   const user = useUser();
   return (
     <Dropdown
-      popupRender={() => (
+      dropdownRender={() => (
         <UserProfileMenu
           user={{
             email: user.email,
