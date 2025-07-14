@@ -120,7 +120,8 @@ const CustomDomain: React.FC<{ domain: string; deleteDomain?: () => Promise<void
               </Button>
             </Tooltip>
             {deleteDomain && (
-              <Button
+              <JitsuButton
+                requiredPermission={"deleteEntities"}
                 type="text"
                 disabled={deleting}
                 loading={deleting}
@@ -139,7 +140,7 @@ const CustomDomain: React.FC<{ domain: string; deleteDomain?: () => Promise<void
                 className="border-0"
               >
                 {!deleting && <FaTrash />}
-              </Button>
+              </JitsuButton>
             )}
             {workspaceDomain && (
               <Tag
@@ -268,7 +269,7 @@ DomainConfigurationInstructions.show = p => {
 
 export const DomainsEditor: React.FC<
   { context: "site" | "workspace"; workspaceDomains?: string[] } & CustomWidgetProps<string[]>
-> = ({ onChange, value: domains, workspaceDomains, context }) => {
+> = ({ onChange, value: domains, workspaceDomains, context, disabled }) => {
   const [addValue, setAddValue] = useState<string | undefined>();
   const [addPending, setAddPending] = useState(false);
   const workspace = useWorkspace();
@@ -330,6 +331,7 @@ export const DomainsEditor: React.FC<
       <div className="flex">
         <Input
           placeholder="subdomain.mywebsite.com"
+          disabled={disabled}
           value={addValue}
           onChange={e => setAddValue(e.target.value)}
           onKeyDown={e => {
@@ -340,7 +342,7 @@ export const DomainsEditor: React.FC<
           }}
         />
         <JitsuButton
-          requiredPermission={"createEntities"}
+          requiredPermission={"editEntities"}
           disabled={!addValue}
           type={"primary"}
           className="ml-5"

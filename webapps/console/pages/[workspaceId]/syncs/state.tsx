@@ -1,7 +1,7 @@
 import { WorkspacePageLayout } from "../../../components/PageLayout/WorkspacePageLayout";
 import React, { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/router";
-import { useWorkspace } from "../../../lib/context";
+import { useWorkspace, useWorkspaceRole } from "../../../lib/context";
 import { requireDefined, rpc } from "juava";
 import { useConfigObjectLinks, useConfigObjectList } from "../../../lib/store";
 import { Button } from "antd";
@@ -17,6 +17,8 @@ function StateEditor() {
   const router = useRouter();
   const links = useConfigObjectLinks({ withData: true });
   const workspace = useWorkspace();
+  const role = useWorkspaceRole();
+  const canEdit = role.editEntities;
 
   const existingLink = requireDefined(
     router.query.id ? links.find(link => link.id === router.query.id) : undefined,
@@ -233,8 +235,10 @@ function StateEditor() {
                         className={"flex-auto max-h-2xs border overflow-scroll border-textDisabled rounded"}
                         style={{ maxHeight: "220px" }}
                         onClick={() => {
-                          setEditedState({ ...editedState, [name]: state[name] });
-                          setStateShown({ [name]: !stateShown[name] });
+                          if (canEdit) {
+                            setEditedState({ ...editedState, [name]: state[name] });
+                            setStateShown({ [name]: !stateShown[name] });
+                          }
                         }}
                       >
                         {stateCode}
@@ -242,7 +246,8 @@ function StateEditor() {
                     )}
                   </div>
                   <div className={"flex flex-col justify-between gap-2"}>
-                    <Button
+                    <JitsuButton
+                      requiredPermission={"editEntities"}
                       style={{ width: 82 }}
                       //ghost={!stateShown[name]}
                       size={"small"}
@@ -253,7 +258,7 @@ function StateEditor() {
                       }}
                     >
                       {stateShown[name] ? "Cancel" : "Edit"}
-                    </Button>
+                    </JitsuButton>
                     {stateShown[name] && (
                       <JitsuButton
                         style={{ width: 82 }}

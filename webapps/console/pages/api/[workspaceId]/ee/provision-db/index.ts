@@ -58,7 +58,7 @@ export const api: Api = {
     handle: async ({ user, query }) => {
       assertTrue(isEEAvailable(), `EE server URL is not set, DB can't be provisioned`);
       const { workspaceId } = query;
-      await verifyAccessWithRole(user, workspaceId, "createEntities");
+      await verifyAccessWithRole(user, workspaceId, "editEntities");
       const provisionedDestination = await findProvisionedDestination(workspaceId);
 
       if (provisionedDestination) {

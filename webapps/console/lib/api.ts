@@ -20,7 +20,13 @@ import {
 } from "./server/oidc-token-service";
 import { OidcSessionData } from "./server/oidc-types";
 import { isSecure } from "./server/origin";
-import { WorkspaceRoleType, hasPermission, WorkspacePermissionsType } from "./workspace-roles";
+import {
+  WorkspaceRoleType,
+  hasPermission,
+  WorkspacePermissionsType,
+  WorkspaceRoleWithPermissions,
+  WorkspaceRolePermissions,
+} from "./workspace-roles";
 const adminServiceAccountEmail = "admin-service-account@jitsu.com";
 
 type HandlerOpts<Req = void, Query = void, RequireAuth extends boolean = boolean> = {
@@ -471,9 +477,12 @@ export async function verifyAccessWithRole(
   user: SessionUser,
   workspaceId: string,
   requiredPermission: WorkspacePermissionsType
-): Promise<WorkspaceRoleType> {
+): Promise<WorkspaceRoleWithPermissions> {
   if (user.internalId === adminServiceAccountEmail && user.loginProvider === "admin/token") {
-    return "owner";
+    return {
+      role: "owner",
+      ...WorkspaceRolePermissions["owner"],
+    };
   }
 
   if (!looksLikeCuid(workspaceId)) {
@@ -491,7 +500,10 @@ export async function verifyAccessWithRole(
   if (!access) {
     // Check if user is admin
     if ((await db.prisma().userProfile.findFirst({ where: { id: user.internalId } }))?.admin) {
-      return "owner";
+      return {
+        role: "owner",
+        ...WorkspaceRolePermissions["owner"],
+      };
     }
     throw new ApiError(
       `User ${userId} doesn't have access to workspace ${workspaceId}`,
@@ -510,7 +522,10 @@ export async function verifyAccessWithRole(
     );
   }
 
-  return role;
+  return {
+    role,
+    ...WorkspaceRolePermissions[role],
+  };
 }
 //new type-safe route builder
 

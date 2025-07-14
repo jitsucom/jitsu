@@ -1,11 +1,14 @@
-import { coreDestinationsMap } from "./destinations";
+import { coreDestinationsMap, MASKED_SECRET } from "./destinations";
 import { PropertyUI } from "./destinations";
 import { db } from "../server/db";
 import { getServerLog } from "../server/log";
+import get from "lodash/get";
+import set from "lodash/set";
+import unset from "lodash/unset";
+
+import isPlainObject from "lodash/isPlainObject";
 
 const log = getServerLog("secrets");
-
-export const MASKED_SECRET = "__MASKED_BY_JITSU__";
 
 /**
  * Get all secret field paths for a destination type
@@ -23,7 +26,7 @@ export function getDestinationSecretPaths(destinationType: string): string[] {
   Object.entries(credentialsUi).forEach(([fieldName, fieldUi]) => {
     const ui = fieldUi as PropertyUI;
     if (ui.password) {
-      secretPaths.push(`credentials.${fieldName}`);
+      secretPaths.push(fieldName);
     }
   });
 
@@ -100,23 +103,12 @@ export function maskSecrets(obj: any, secretPaths: string[]): any {
 
   const result = JSON.parse(JSON.stringify(obj)); // Deep clone
 
-  secretPaths.forEach(path => {
-    const parts = path.split(".");
-    let current = result;
-
-    for (let i = 0; i < parts.length - 1; i++) {
-      if (current && typeof current === "object" && parts[i] in current) {
-        current = current[parts[i]];
-      } else {
-        return; // Path doesn't exist
-      }
+  for (const path of secretPaths) {
+    const value = get(obj, path);
+    if (typeof value !== "undefined") {
+      set(result, path, MASKED_SECRET); // We don't mask non-set values
     }
-
-    const lastPart = parts[parts.length - 1];
-    if (current && typeof current === "object" && lastPart in current) {
-      current[lastPart] = MASKED_SECRET;
-    }
-  });
+  }
 
   return result;
 }
@@ -131,27 +123,102 @@ export function removeMaskedValues(obj: any, secretPaths: string[]): any {
 
   const result = JSON.parse(JSON.stringify(obj)); // Deep clone
 
-  secretPaths.forEach(path => {
-    const parts = path.split(".");
-    let current = result;
-    let parent = null;
-    let lastKey = "";
-
-    for (let i = 0; i < parts.length; i++) {
-      if (current && typeof current === "object" && parts[i] in current) {
-        parent = current;
-        lastKey = parts[i];
-        current = current[parts[i]];
-      } else {
-        return; // Path doesn't exist
-      }
+  for (const path of secretPaths) {
+    const value = get(obj, path);
+    if (value === MASKED_SECRET) {
+      unset(result, path); // Remove the masked value
     }
-
-    // If the value is masked, remove it from the object
-    if (current === MASKED_SECRET && parent && lastKey) {
-      delete parent[lastKey];
-    }
-  });
+  }
 
   return result;
+}
+
+/**
+ * Recursively replaces all occurrences of MASKED_SECRET in testData with actual values from dbEntity.
+ * This is used when testing connections to ensure masked secrets are replaced with real values.
+ *
+ * @param testData - The data being sent for testing (may contain MASKED_SECRET values)
+ * @param dbEntity - The original entity from database containing real secret values
+ * @returns A new object with masked secrets replaced by real values
+ */
+export function unmaskSecretsForTest(testData: any, dbEntity: any): any {
+  if (!testData || !dbEntity) {
+    return testData;
+  }
+
+  // Deep clone testData to avoid mutating the original
+  const result = JSON.parse(JSON.stringify(testData));
+
+  // Recursively find and replace masked secrets
+  replaceMaskedSecrets(result, dbEntity, []);
+
+  return result;
+}
+
+/**
+ * Recursively walks through an object and replaces MASKED_SECRET values with actual values from dbEntity
+ *
+ * @param obj - Current object being processed
+ * @param dbEntity - Original entity from database
+ * @param path - Current path in the object structure
+ */
+function replaceMaskedSecrets(obj: any, dbEntity: any, path: (string | number)[]): void {
+  if (!isPlainObject(obj) && !Array.isArray(obj)) {
+    return;
+  }
+
+  if (Array.isArray(obj)) {
+    obj.forEach((item, index) => {
+      if (item === MASKED_SECRET) {
+        // Replace masked value with value from db at the same path
+        const dbValue = get(dbEntity, [...path, index]);
+        if (dbValue !== undefined) {
+          obj[index] = dbValue;
+        }
+      } else if (isPlainObject(item) || Array.isArray(item)) {
+        replaceMaskedSecrets(item, dbEntity, [...path, index]);
+      }
+    });
+  } else {
+    Object.keys(obj).forEach(key => {
+      const value = obj[key];
+      const currentPath = [...path, key];
+
+      if (value === MASKED_SECRET) {
+        // Replace masked value with value from db at the same path
+        const dbValue = get(dbEntity, currentPath);
+        if (dbValue !== undefined) {
+          obj[key] = dbValue;
+        }
+      } else if (isPlainObject(value) || Array.isArray(value)) {
+        replaceMaskedSecrets(value, dbEntity, currentPath);
+      }
+    });
+  }
+}
+
+/**
+ * Checks if an object contains any masked secrets
+ *
+ * @param obj - Object to check for masked secrets
+ * @returns true if object contains MASKED_SECRET values
+ */
+export function containsMaskedSecrets(obj: any): boolean {
+  if (!obj) {
+    return false;
+  }
+
+  if (obj === MASKED_SECRET) {
+    return true;
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.some(item => containsMaskedSecrets(item));
+  }
+
+  if (isPlainObject(obj)) {
+    return Object.values(obj).some(value => containsMaskedSecrets(value));
+  }
+
+  return false;
 }

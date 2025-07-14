@@ -16,7 +16,6 @@ import {
   useUserSafe,
   useWorkspace,
   WorkspaceContextProvider,
-  UserWorkspaceRole,
 } from "../lib/context";
 import { AppConfig, ContextApiResponse, SessionUser } from "../lib/schema";
 import { ErrorBoundary, GlobalError, GlobalOverlay } from "../components/GlobalError/GlobalError";
@@ -32,7 +31,7 @@ import { BillingProvider } from "../components/Billing/BillingProvider";
 import { useConfigObjectList, useConfigObjectsUpdater, useLoadedWorkspace } from "../lib/store";
 import { useQuery } from "@tanstack/react-query";
 import { get } from "../lib/useApi";
-import { WorkspaceRoleType, hasPermission } from "../lib/workspace-roles";
+import { WorkspaceRoleType, WorkspaceRoleWithPermissions, WorkspaceRolePermissions } from "../lib/workspace-roles";
 import { RedirectToSignIn } from "../components/Redirect/Redirect";
 import { PreviousRouteContextProvider } from "../lib/previous-route";
 import { OidcAuthorizer } from "../components/OidcAuthorizer/OidcAuthorizer";
@@ -426,12 +425,9 @@ const WorkspaceLoader: React.FC<
   const currentUserData = users?.find((u: any) => u.user?.id === user.internalId);
   const role = (currentUserData?.role || "owner") as WorkspaceRoleType;
 
-  const userRole: UserWorkspaceRole = {
+  const userRole: WorkspaceRoleWithPermissions = {
     role,
-    createEntities: hasPermission(role, "createEntities"),
-    editEntities: hasPermission(role, "editEntities"),
-    deleteEntities: hasPermission(role, "deleteEntities"),
-    manageUsers: hasPermission(role, "manageUsers"),
+    ...WorkspaceRolePermissions[role],
   };
 
   useEffect(() => {

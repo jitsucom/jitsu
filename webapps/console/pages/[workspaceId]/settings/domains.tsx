@@ -1,5 +1,5 @@
 import React, { useCallback } from "react";
-import { useWorkspace } from "../../../lib/context";
+import { useWorkspace, useWorkspaceRole } from "../../../lib/context";
 import { WorkspacePageLayout } from "../../../components/PageLayout/WorkspacePageLayout";
 import { useBilling } from "../../../components/Billing/BillingProvider";
 import { LoadingAnimation } from "../../../components/GlobalLoader/GlobalLoader";
@@ -15,6 +15,7 @@ const WorkspaceDomainsComponent: React.FC<any> = () => {
   const domains = domainsRaw.map((d: any) => d.name);
   const configApi = useConfigApi<WorkspaceDomain>("domain");
   const workspace = useWorkspace();
+  const role = useWorkspaceRole();
   const billing = useBilling();
 
   const onSaveMutation = useConfigObjectMutation("domain", async (newObject: any) => {
@@ -70,7 +71,12 @@ const WorkspaceDomainsComponent: React.FC<any> = () => {
             </p>
           </div>
           <div className="mt-6">
-            <DomainsEditor context={"workspace"} value={domains} onChange={updateDomains} />
+            <DomainsEditor
+              disabled={!role.editEntities}
+              context={"workspace"}
+              value={domains}
+              onChange={updateDomains}
+            />
           </div>
         </div>
       </div>

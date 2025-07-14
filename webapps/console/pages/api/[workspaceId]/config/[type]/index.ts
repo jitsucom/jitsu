@@ -52,7 +52,7 @@ export const api: Api = {
       body: z.any(),
     },
     handle: async ({ req, body, user, query: { workspaceId, type } }) => {
-      await verifyAccessWithRole(user, workspaceId, "createEntities");
+      await verifyAccessWithRole(user, workspaceId, "editEntities");
       if (isReadOnly) {
         throw new ApiError("Console is in read-only mode. Modifications of objects are not allowed");
       }

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Api, inferUrl, nextJsApiHandler, verifyAccess, verifyAccessWithRole } from "../../../../lib/api";
+import { Api, inferUrl, nextJsApiHandler, verifyAccessWithRole } from "../../../../lib/api";
 import { db } from "../../../../lib/server/db";
 import { randomId } from "juava";
 import { createScheduler, deleteScheduler, scheduleSync, updateScheduler } from "../../../../lib/server/sync";
@@ -7,6 +7,7 @@ import { getAppEndpoint } from "../../../../lib/domains";
 import { ConfigurationObjectLinkDbModel } from "../../../../prisma/schema";
 import { SyncOptionsType } from "../../../../lib/schema";
 import { ApiError } from "../../../../lib/shared/errors";
+import { MASKED_SECRET } from "../../../../lib/schema/destinations";
 
 export type SyncDbModel = Omit<z.infer<typeof ConfigurationObjectLinkDbModel>, "data"> & {
   data?: SyncOptionsType;
@@ -32,7 +33,7 @@ const postAndPutCfg = {
       req,
     } = ctx;
     const { id, toId, fromId, data = undefined, type = "push" } = body;
-    await verifyAccessWithRole(user, workspaceId, "createEntities");
+    await verifyAccessWithRole(user, workspaceId, "editEntities");
     const fromType = type === "sync" ? "service" : "stream";
 
     // we allow duplicates of service=>dst links because they may have different streams and scheduling
@@ -119,12 +120,23 @@ export const api: Api = {
       query: z.object({ workspaceId: z.string() }),
     },
     handle: async ({ user, query: { workspaceId } }) => {
-      await verifyAccess(user, workspaceId);
+      const role = await verifyAccessWithRole(user, workspaceId, "readEntities");
+      const links = await db.prisma().configurationObjectLink.findMany({
+        where: { workspaceId: workspaceId, deleted: false },
+        orderBy: { createdAt: "asc" },
+      });
+      if (!role.editEntities) {
+        for (const link of links) {
+          const functionsEnv = link.data?.["functionsEnv"];
+          if (typeof functionsEnv === "object" && functionsEnv !== null) {
+            for (const key in functionsEnv) {
+              functionsEnv[key] = MASKED_SECRET;
+            }
+          }
+        }
+      }
       return {
-        links: await db.prisma().configurationObjectLink.findMany({
-          where: { workspaceId: workspaceId, deleted: false },
-          orderBy: { createdAt: "asc" },
-        }),
+        links,
       };
     },
   },

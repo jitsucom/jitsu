@@ -40,7 +40,7 @@ import styles from "./ProfileBuilderPage.module.css";
 import FieldListEditorLayout from "../FieldListEditorLayout/FieldListEditorLayout";
 import Link from "next/link";
 import { useBilling } from "../Billing/BillingProvider";
-import { useWorkspace } from "../../lib/context";
+import { useWorkspace, useWorkspaceRole } from "../../lib/context";
 import { ErrorCard } from "../GlobalError/GlobalError";
 import type { PresetColorType, PresetStatusColorType } from "antd/es/_util/colors";
 import { get, getConfigApi } from "../../lib/useApi";
@@ -163,10 +163,11 @@ export function Dot() {
   );
 }
 
-const SettingsTab: React.FC<{ profileBuilder: ProfileBuilderData; dispatch: React.Dispatch<PBDataAction> }> = ({
-  profileBuilder,
-  dispatch,
-}) => {
+const SettingsTab: React.FC<{
+  profileBuilder: ProfileBuilderData;
+  dispatch: React.Dispatch<PBDataAction>;
+  disabled?: boolean;
+}> = ({ profileBuilder, disabled, dispatch }) => {
   const settings = profileBuilder.settings;
 
   const destinations = useConfigObjectList("destination").filter(d => {
@@ -235,7 +236,7 @@ const SettingsTab: React.FC<{ profileBuilder: ProfileBuilderData; dispatch: Reac
               <DestinationSelector
                 selected={settings.destinationId || destinations[0]?.id}
                 items={destinations}
-                enabled={true}
+                enabled={!disabled}
                 onSelect={d => dispatch({ type: "settings", value: { ...settings, destinationId: d } })}
               />
             ),
@@ -259,6 +260,7 @@ const SettingsTab: React.FC<{ profileBuilder: ProfileBuilderData; dispatch: Reac
             component: (
               <div className={"max-w-80"}>
                 <Input
+                  disabled={disabled}
                   value={settings.tableName || "profiles"}
                   onChange={e => dispatch({ type: "settings", value: { ...settings, tableName: e.target.value } })}
                 />
@@ -274,6 +276,7 @@ const SettingsTab: React.FC<{ profileBuilder: ProfileBuilderData; dispatch: Reac
             component: (
               <div className={"max-w-80"}>
                 <NumberEditor
+                  disabled={disabled}
                   max={365}
                   min={7}
                   value={settings.profileWindow || 365}
@@ -664,6 +667,8 @@ const Overlay: React.FC<{ children?: React.ReactNode; visible: boolean; classNam
 
 export function ProfileBuilderPage() {
   const workspace = useWorkspace();
+  const role = useWorkspaceRole();
+  const canEdit = role.editEntities;
   const functions = useConfigObjectList("function").filter(f => f.kind !== "profile");
   const [pbRefreshDate, setPbRefreshDate] = useState(new Date());
   const [stateRefreshDate, setStateRefreshDate] = useState(new Date());
@@ -1063,6 +1068,7 @@ export function ProfileBuilderPage() {
                     <TabContent>
                       <div className={"px-4"}>
                         <FunctionsSelector
+                          disabled={!canEdit}
                           split={"vertical"}
                           functions={functions}
                           selectedFunctions={obj.settings?.functions}
@@ -1112,7 +1118,7 @@ export function ProfileBuilderPage() {
                   ),
                   children: (
                     <TabContent>
-                      <SettingsTab profileBuilder={obj} dispatch={dispatch} />
+                      <SettingsTab disabled={!canEdit} profileBuilder={obj} dispatch={dispatch} />
                     </TabContent>
                   ),
                 },
@@ -1165,7 +1171,12 @@ export function ProfileBuilderPage() {
                         </Button>
                       </Popover>
                     )}
-                    <Button onClick={runFunction} type="text" disabled={isLoading || !!globalError}>
+                    <JitsuButton
+                      requiredPermission={"editEntities"}
+                      onClick={runFunction}
+                      type="text"
+                      disabled={isLoading || !!globalError}
+                    >
                       <ButtonLabel
                         icon={
                           running ? (
@@ -1181,7 +1192,7 @@ export function ProfileBuilderPage() {
                       >
                         Run
                       </ButtonLabel>
-                    </Button>
+                    </JitsuButton>
                   </>
                 </div>
               }

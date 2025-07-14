@@ -7,6 +7,7 @@ import { httpAgent, httpsAgent } from "../../../../../lib/server/http-agent";
 import { getErrorMessage, requireDefined } from "juava";
 import nodeFetch from "node-fetch-commonjs";
 import { db } from "../../../../../lib/server/db";
+import { unmaskSecretsForTest, containsMaskedSecrets } from "../../../../../lib/schema/secrets";
 
 const log = getServerLog("test-connection");
 
@@ -39,7 +40,20 @@ export const api: Api = {
         `Workspace ${workspaceId} not found`
       );
       const configObjectTypes = getConfigObjectType(type);
-      const object = await configObjectTypes.inputFilter(parseObject(type, body), "create", workspace);
+      let object = parseObject(type, body);
+      if (containsMaskedSecrets(object)) {
+        const existingEntity = await db.prisma().configurationObject.findFirst({
+          where: { id: body.id, workspaceId },
+        });
+        // Unmask secrets for testing if this is an existing entity with masked values
+        if (existingEntity?.config) {
+          log.atInfo().log(`Unmasking secrets for ${type} test: ${body.id}`);
+          const dbConfig = existingEntity.config as any;
+          object = unmaskSecretsForTest(object, dbConfig);
+        }
+      }
+      object = await configObjectTypes.inputFilter(object, "create", workspace);
+
       const payload = JSON.stringify(object);
       log.atDebug().log("payload", payload);
       // Options object

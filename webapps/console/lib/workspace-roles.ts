@@ -4,26 +4,30 @@ export type WorkspaceRoleType = "owner" | "editor" | "analyst";
 
 export const WorkspaceRolesZodType = z.enum(["owner", "editor", "analyst"]);
 
-export type WorkspacePermissionsType = "createEntities" | "editEntities" | "deleteEntities" | "manageUsers";
+export type WorkspacePermissionsType = "readEntities" | "editEntities" | "deleteEntities" | "manageUsers";
+
+export type WorkspaceRoleWithPermissions = {
+  role: WorkspaceRoleType;
+} & Record<WorkspacePermissionsType, boolean>;
 
 export const WorkspaceRolePermissions: Record<WorkspaceRoleType, Record<WorkspacePermissionsType, boolean>> = {
   owner: {
-    createEntities: true,
     editEntities: true,
     deleteEntities: true,
     manageUsers: true,
+    readEntities: true,
   },
   editor: {
-    createEntities: true,
     editEntities: true,
     deleteEntities: true,
     manageUsers: false,
+    readEntities: true,
   },
   analyst: {
-    createEntities: false,
     editEntities: false,
     deleteEntities: false,
     manageUsers: false,
+    readEntities: true,
   },
 } as const;
 
