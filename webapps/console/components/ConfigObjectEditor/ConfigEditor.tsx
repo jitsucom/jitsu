@@ -27,7 +27,7 @@ import {
 } from "@rjsf/utils";
 
 import { ConfigEntityBase } from "../../lib/schema";
-import { useAppConfig, useWorkspace } from "../../lib/context";
+import { useAppConfig, useWorkspace, useWorkspaceRole } from "../../lib/context";
 import { LoadingAnimation } from "../GlobalLoader/GlobalLoader";
 import { WLink } from "../Workspace/WLink";
 import { CheckCircleTwoTone, DeleteOutlined, InfoCircleTwoTone } from "@ant-design/icons";
@@ -54,7 +54,7 @@ import cuid from "cuid";
 import { ObjectTitle } from "../ObjectTitle/ObjectTitle";
 import omitBy from "lodash/omitBy";
 import { asConfigType, useConfigObject, useConfigObjectList, useConfigObjectMutation } from "../../lib/store";
-import { CustomWidgetProps } from "./Editors";
+import { CustomWidgetProps, PasswordEditor } from "./Editors";
 import { WorkspacePermissionsType } from "../../lib/workspace-roles";
 import { oauthDecorators } from "../../lib/server/oauth/destinations";
 import Nango from "@nangohq/frontend";
@@ -125,10 +125,10 @@ function getUiWidget(field: FieldDisplay, obj: any, isNew: boolean) {
     return "hidden";
   } else if (field?.editor) {
     return field?.editor;
-  } else if (field?.textarea) {
-    return "textarea";
   } else if (field?.password) {
     return "password";
+  } else if (field?.textarea) {
+    return "textarea";
   } else {
     return undefined;
   }
@@ -147,6 +147,7 @@ function getUiSchema(schema: JsonSchema, fields: Record<string, FieldDisplay>, o
           "ui:FieldTemplate": FieldTemplate,
           "ui:ObjectFieldTemplate": NestedObjectTemplate,
           "ui:help": field?.documentation || undefined,
+          "ui:options": field?.password && field?.textarea ? { rows: 4 } : undefined,
           additionalProperties: {
             "ui:FieldTemplate": NestedObjectFieldTemplate,
           },
@@ -228,7 +229,7 @@ export const CopyConstant: React.FC<CustomWidgetProps<string>> = props => {
 };
 
 export const CustomCheckbox = function (props) {
-  return <Switch checked={props.value} onClick={() => props.onChange(!props.value)} />;
+  return <Switch checked={props.value} disabled={props.disabled} onClick={() => props.onChange(!props.value)} />;
 };
 
 export type ConfigTestResult = { ok: true } | { ok: false; error: string };
@@ -283,6 +284,7 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
   useTitle(`${branding.productName} : ${createNew ? `Create new ${noun}` : `Edit ${noun}`}`);
   const appConfig = useAppConfig();
   const formRef = useRef<any>();
+  const role = useWorkspaceRole();
   const [loading, setLoading] = useState<boolean>(false);
   const [testing, setTesting] = useState<boolean>(false);
   const objectTypeFactory = asFunction<ZodType, any>(objectType);
@@ -402,9 +404,10 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
           ref={formRef}
           formContext={props}
           templates={{ ObjectFieldTemplate: FormList, ButtonTemplates: { AddButton } }}
-          widgets={{ CheckboxWidget: CustomCheckbox }}
+          widgets={{ CheckboxWidget: CustomCheckbox, password: PasswordEditor }}
           omitExtraData={true}
           liveOmit={true}
+          disabled={!role.editEntities}
           showErrorList={false}
           onChange={onFormChange}
           className={styles.editForm}
@@ -866,7 +869,7 @@ const ObjectsList: React.FC<{ objects: any[]; onDelete: (id: string) => Promise<
             href: `${pref}/${type}s?id=new&clone=${record.id}`,
             collapsed: true,
             icon: <FaClone />,
-            requiredPermission: "createEntities" as WorkspacePermissionsType,
+            requiredPermission: "editEntities" as WorkspacePermissionsType,
           },
           {
             label: "Delete",
@@ -925,7 +928,7 @@ const ObjectListEditor: React.FC<ConfigEditorProps> = props => {
             type="primary"
             size="large"
             icon={<FaPlus />}
-            requiredPermission="createEntities"
+            requiredPermission="editEntities"
           >
             Add new {props.noun}
           </JitsuButton>
@@ -938,11 +941,7 @@ const ObjectListEditor: React.FC<ConfigEditorProps> = props => {
               <Inbox className="h-16 w-16 my-6 text-neutral-200" />
               <div className="text text-textLight mb-6">You don't have any {props.noun}s configured.</div>
 
-              <JitsuButton
-                type="default"
-                onClick={() => doAction(router, addAction)}
-                requiredPermission="createEntities"
-              >
+              <JitsuButton type="default" onClick={() => doAction(router, addAction)} requiredPermission="editEntities">
                 {props.createKeyword || "Create"} your first {props.noun}
               </JitsuButton>
             </div>

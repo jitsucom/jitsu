@@ -634,6 +634,7 @@ const EventsBrowser0 = ({
             >
               <JitsuButton
                 icon={<Bug className={`w-6 h-6`} />}
+                requiredPermission={"editEntities"}
                 type="link"
                 size="small"
                 onClick={e => {

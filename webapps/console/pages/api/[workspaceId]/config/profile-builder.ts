@@ -5,6 +5,7 @@ import { isTruish } from "juava";
 import { ProfileBuilderDbModel } from "../../../../prisma/schema";
 import { safeParseWithDate } from "../../../../lib/zod";
 import { ApiError } from "../../../../lib/shared/errors";
+import { MASKED_SECRET } from "../../../../lib/schema/destinations";
 
 const defaultProfileBuilderFunction = `export default async function(events, user, context) {
   context.log.info("Profile userId: " + user.id)
@@ -71,7 +72,7 @@ const postAndPutCfg = {
       query: { workspaceId },
       req,
     } = ctx;
-    await verifyAccessWithRole(user, workspaceId, "createEntities");
+    await verifyAccessWithRole(user, workspaceId, "editEntities");
     console.log("Profile builder: " + JSON.stringify(body.profileBuilder));
     const parseResult = safeParseWithDate(ProfileBuilderDbModel, body.profileBuilder);
     if (!parseResult.success) {
@@ -112,13 +113,13 @@ export const api: Api = {
       query: z.object({ workspaceId: z.string(), init: z.string().optional() }),
     },
     handle: async ({ user, query: { workspaceId, init } }) => {
-      await verifyAccess(user, workspaceId);
+      const role = await verifyAccessWithRole(user, workspaceId, "readEntities");
       const pbs = await db.prisma().profileBuilder.findMany({
         include: { functions: { include: { function: true } } },
         where: { workspaceId: workspaceId, deleted: false },
         orderBy: { createdAt: "asc" },
       });
-      if (pbs.length === 0 && isTruish(init)) {
+      if (pbs.length === 0 && isTruish(init) && role.editEntities) {
         const func = await db.prisma().configurationObject.create({
           data: {
             workspaceId,
@@ -154,6 +155,16 @@ export const api: Api = {
           }),
         };
       } else {
+        if (!role.editEntities) {
+          for (const pb of pbs) {
+            const functionsEnv = pb.connectionOptions?.["variables"];
+            if (typeof functionsEnv === "object" && functionsEnv !== null) {
+              for (const key in functionsEnv) {
+                functionsEnv[key] = MASKED_SECRET;
+              }
+            }
+          }
+        }
         return {
           profileBuilders: pbs,
         };

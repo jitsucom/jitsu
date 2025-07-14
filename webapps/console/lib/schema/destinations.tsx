@@ -58,6 +58,8 @@ const s3Regions = [
   "us-gov-west-1",
 ] as const;
 
+export const MASKED_SECRET = "__MASKED_BY_JITSU__";
+
 /**
  * UI for property
  */
@@ -480,14 +482,17 @@ export const coreDestinations: DestinationType<any>[] = [
       },
       sslServerCA: {
         textarea: true,
+        password: true,
         hidden: obj => obj.sslMode === "disable" || obj.sslMode === "require",
       },
       sslClientCert: {
         textarea: true,
+        password: true,
         hidden: obj => obj.sslMode === "disable" || obj.sslMode === "require",
       },
       sslClientKey: {
         textarea: true,
+        password: true,
         hidden: obj => obj.sslMode === "disable" || obj.sslMode === "require",
       },
     },
@@ -527,12 +532,8 @@ export const coreDestinations: DestinationType<any>[] = [
     }),
     credentialsUi: {
       keyFile: {
-        editor: "CodeEditor",
-        editorProps: {
-          language: "json",
-          height: "250px",
-          monacoOptions: { lineNumbers: "off" },
-        },
+        password: true,
+        textarea: true,
       },
     },
   },
@@ -811,6 +812,12 @@ export const coreDestinations: DestinationType<any>[] = [
         bucket: z.string().describe("GCS Bucket Name::GCS Bucket Name"),
       })
       .merge(blockStorageSettings),
+    credentialsUi: {
+      accessKey: {
+        textarea: true,
+        password: true,
+      },
+    },
     description: "Google Cloud Storage is a cloud file storage service by Google",
   },
   {

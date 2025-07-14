@@ -13,7 +13,7 @@ import {
   StreamConfig,
   WorkspaceDomain,
 } from "./index";
-import { assertDefined, createHash, requireDefined } from "juava";
+import { assertDefined, createHash, deepMerge, requireDefined } from "juava";
 import { checkDomain, checkOrAddToIngress, isDomainAvailable } from "../server/custom-domains";
 import { ZodType, ZodTypeDef } from "zod";
 import { getServerLog } from "../server/log";
@@ -72,7 +72,7 @@ export const getConfigObjectType: (type: string) => Required<ConfigObjectType> =
       return val;
     },
     merge: async function (original: any, patch: Partial<any>) {
-      return { ...original, ...patch };
+      return deepMerge(original, patch);
     },
     outputFilter: async function (original: any) {
       return original;
@@ -103,7 +103,7 @@ const configObjectTypes: Record<string, ConfigObjectType> = {
       // Remove masked values before merge
       const secretPaths = getDestinationSecretPaths(original.destinationType);
       const cleanedPatch = removeMaskedValues(patch, secretPaths);
-      return { ...original, ...cleanedPatch };
+      return deepMerge(original, cleanedPatch);
     },
 
     inputFilter: async (obj: DestinationConfig, context) => {
@@ -209,7 +209,7 @@ const configObjectTypes: Record<string, ConfigObjectType> = {
       // Remove masked values before merge
       const secretPaths = await getServiceSecretPaths(original.package, original.version);
       const cleanedPatch = removeMaskedValues(patch, secretPaths);
-      return { ...original, ...cleanedPatch };
+      return deepMerge(original, cleanedPatch);
     },
     inputFilter: async (obj: ServiceConfig) => {
       // Remove masked values

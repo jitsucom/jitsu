@@ -4,23 +4,19 @@ import { AppConfig, ContextApiResponse } from "./schema";
 import { WorkspaceDbModel } from "../prisma/schema";
 import omit from "lodash/omit";
 import { Analytics } from "../pages/_app";
-import { WorkspacePermissionsType, WorkspaceRoleType } from "./workspace-roles";
+import type { WorkspaceRoleWithPermissions } from "./workspace-roles";
 
 export type WorkspaceContext = z.infer<typeof WorkspaceDbModel> & {
   slugOrId: string;
   oidcLoginGroups?: any[];
 };
 
-export type UserWorkspaceRole = {
-  role: WorkspaceRoleType;
-} & Record<WorkspacePermissionsType, boolean>;
-
 const WorkspaceContext0 = createContext<WorkspaceContext | null>(null);
-const WorkspaceRoleContext0 = createContext<UserWorkspaceRole | null>(null);
+const WorkspaceRoleContext0 = createContext<WorkspaceRoleWithPermissions | null>(null);
 
 export const WorkspaceContextProvider: React.FC<{
   workspace: WorkspaceContext;
-  userRole: UserWorkspaceRole;
+  userRole: WorkspaceRoleWithPermissions;
   children: React.ReactNode;
 }> = ({ children, workspace, userRole }) => {
   const Context = WorkspaceContext0;
@@ -94,7 +90,7 @@ export function useUser(): ContextApiResponse["user"] {
   return props.user;
 }
 
-export function useWorkspaceRole(): UserWorkspaceRole {
+export function useWorkspaceRole(): WorkspaceRoleWithPermissions {
   const context = useContext(WorkspaceRoleContext0);
   if (!context) {
     return {
@@ -103,6 +99,7 @@ export function useWorkspaceRole(): UserWorkspaceRole {
       editEntities: false,
       deleteEntities: false,
       manageUsers: false,
+      readEntities: true,
     };
   }
   return context;

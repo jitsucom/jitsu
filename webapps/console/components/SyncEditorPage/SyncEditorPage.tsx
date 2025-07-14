@@ -1,4 +1,4 @@
-import { useAppConfig, useWorkspace } from "../../lib/context";
+import { useAppConfig, useWorkspace, useWorkspaceRole } from "../../lib/context";
 import { get } from "../../lib/useApi";
 import { DestinationConfig, SelectedStreamSettings, ServiceConfig, SyncOptionsType } from "../../lib/schema";
 import React, { useCallback, useEffect, useState } from "react";
@@ -138,6 +138,8 @@ function SyncEditor({
 
   const [loading, setLoading] = useState(false);
   const workspace = useWorkspace();
+  const role = useWorkspaceRole();
+  const canEdit = role.editEntities;
   const [dstId, setDstId] = useState(
     existingLink?.toId || (router.query.destinationId as string) || destinations[0].id
   );
@@ -407,7 +409,7 @@ function SyncEditor({
         <ServiceSelector
           items={services}
           selected={srvId}
-          enabled={!existingLink}
+          enabled={canEdit && !existingLink}
           showLink
           onSelect={v => {
             setLoadingCatalog(true);
@@ -429,7 +431,7 @@ function SyncEditor({
           items={destinations}
           selected={dstId}
           showLink
-          enabled={!existingLink}
+          enabled={canEdit && !existingLink}
           disabledReason="Create a new sync if you want to change the source"
           onSelect={id => {
             setDstId(id);
@@ -459,7 +461,7 @@ function SyncEditor({
           component: (
             <div className="w-80 flex flex-col gap-2">
               <Input
-                disabled={!!existingLink}
+                disabled={!canEdit || !!existingLink}
                 placeholder="Destination default"
                 style={{ color: "black" }}
                 value={syncOptions.namespace}
@@ -498,7 +500,7 @@ function SyncEditor({
           component: (
             <div className="w-80">
               <Input
-                disabled={!!existingLink}
+                disabled={!canEdit || !!existingLink}
                 style={{ color: "black" }}
                 value={legacyPrefix ? legacyPrefix : syncOptions.tableNamePrefix}
                 onChange={e => updateOptions({ tableNamePrefix: e.target.value })}
@@ -521,6 +523,7 @@ function SyncEditor({
           component: (
             <div className="w-80">
               <SwitchComponent
+                disabled={!canEdit}
                 value={syncOptions.deduplicate ?? true}
                 onChange={e => updateOptions({ deduplicate: e })}
               />
@@ -547,7 +550,7 @@ function SyncEditor({
           component: (
             <div className="w-80">
               <SwitchComponent
-                disabled={!!existingLink}
+                disabled={!canEdit || !!existingLink}
                 value={syncOptions.toSameCase}
                 onChange={e => updateOptions({ toSameCase: e })}
               />
@@ -568,7 +571,11 @@ function SyncEditor({
           ),
           component: (
             <div className="w-80">
-              <SwitchComponent value={syncOptions.addMeta} onChange={e => updateOptions({ addMeta: e })} />
+              <SwitchComponent
+                disabled={!canEdit}
+                value={syncOptions.addMeta}
+                onChange={e => updateOptions({ addMeta: e })}
+              />
             </div>
           ),
         }
@@ -591,6 +598,7 @@ function SyncEditor({
           component: (
             <div className="w-80">
               <Select
+                disabled={!canEdit}
                 value={syncOptions.schemaChanges}
                 defaultValue="manual"
                 onChange={e => updateOptions({ schemaChanges: e as typeof syncOptions.schemaChanges })}
@@ -616,6 +624,7 @@ function SyncEditor({
           component: (
             <div className="w-full">
               <FunctionVariables
+                disabled={!canEdit}
                 className="!px-0"
                 value={syncOptions.functionsEnv || {}}
                 onChange={functionsEnv => updateOptions({ functionsEnv })}
@@ -641,7 +650,7 @@ function SyncEditor({
         </div>
       ) : (
         <Select
-          disabled={disableScheduling}
+          disabled={!canEdit || disableScheduling}
           className="w-80"
           options={scheduleOptions.map(({ minuteFrequency, ...rest }) => {
             const optionDisabled =
@@ -690,6 +699,7 @@ function SyncEditor({
           "Select timezone for scheduler. E.g. 'Every day' setting runs sync at 00:00 in selected timezone",
         component: (
           <Select
+            disabled={!canEdit}
             showSearch={true}
             popupMatchSelectWidth={false}
             className="w-80"
@@ -794,7 +804,7 @@ function SyncEditor({
                   Mode:{" "}
                   <Select
                     size="middle"
-                    disabled={disabled || syncModeOptions.length === 1}
+                    disabled={!canEdit || disabled || syncModeOptions.length === 1}
                     className="w-52"
                     style={{ minWidth: "15rem" }}
                     options={syncModeOptions}
@@ -811,7 +821,7 @@ function SyncEditor({
                           size="middle"
                           className="w-44"
                           popupMatchSelectWidth={false}
-                          disabled={disabled || stream.source_defined_cursor}
+                          disabled={!canEdit || disabled || stream.source_defined_cursor}
                           options={!stream.source_defined_cursor ? cursorFieldOptions : []}
                           value={!stream.source_defined_cursor ? stream.cursor_field?.[0] : undefined}
                           onChange={v => {
@@ -824,6 +834,7 @@ function SyncEditor({
                 </div>
                 <SwitchComponent
                   className="max-w-xs"
+                  disabled={!canEdit}
                   value={!disabled}
                   onChange={enabled => {
                     if (enabled) {
@@ -840,7 +851,7 @@ function SyncEditor({
                   <Input
                     size="middle"
                     style={{ minWidth: "15rem" }}
-                    disabled={disabled}
+                    disabled={!canEdit || disabled}
                     onChange={e => updateSelectedStream(name, "table_name", e.target.value)}
                     value={nameTransformer(
                       stream.table_name ||
@@ -923,6 +934,7 @@ function SyncEditor({
                   <div className="flex items-center gap-5">
                     {usesBulker && (
                       <JitsuButton
+                        requiredPermission={"editEntities"}
                         type="primary"
                         ghost
                         onClick={() => {
@@ -937,6 +949,7 @@ function SyncEditor({
                     <div className="flex gap-2 pr-2">
                       Switch All
                       <Switch
+                        disabled={!canEdit}
                         checked={Object.keys(syncOptions.streams || {}).length > 0}
                         onChange={ch => {
                           if (ch) {

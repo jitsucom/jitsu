@@ -10,7 +10,7 @@ import { Select } from "antd";
 import { EditorButtons } from "../ConfigObjectEditor/EditorButtons";
 import { getConfigApi } from "../../lib/useApi";
 import { feedbackError } from "../../lib/ui";
-import { useAppConfig, useWorkspace } from "../../lib/context";
+import { useAppConfig, useWorkspace, useWorkspaceRole } from "../../lib/context";
 import { useRouter } from "next/router";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
 import Nango from "@nangohq/frontend";
@@ -27,19 +27,22 @@ import { useStoreReload } from "../../lib/store";
 
 type ServiceEditorProps = {} & EditorComponentProps;
 
-const VersionSelector: React.FC<{ versions: string[]; onChange: (v: string) => void; value: string }> = ({
-  versions,
-  onChange,
-  value,
-}) => {
+const VersionSelector: React.FC<{
+  versions: string[];
+  onChange: (v: string) => void;
+  value: string;
+  disabled?: boolean;
+}> = ({ versions, onChange, value, disabled }) => {
   const options = versions.map(v => ({ label: v, value: v }));
-  return <Select onChange={onChange} value={value} options={options} className={"w-full"} />;
+  return <Select disabled={disabled} onChange={onChange} value={value} options={options} className={"w-full"} />;
 };
 
 export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
   const { object, meta, createNew, onCancel, onDelete, onTest, isNew, noun, loadMeta } = props;
   const appConfig = useAppConfig();
   const workspace = useWorkspace();
+  const role = useWorkspaceRole();
+  const canEdit = role.editEntities;
   const { push, query } = useRouter();
   const [obj, setObj] = useState<Partial<ServiceConfig>>({
     ...props.object,
@@ -302,7 +305,7 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
           errors={!obj.name && showErrors ? "Required" : undefined}
           required={true}
         >
-          <TextEditor value={obj.name} onChange={change.bind(null, "name")} />
+          <TextEditor disabled={!canEdit} value={obj.name} onChange={change.bind(null, "name")} />
         </EditorField>
         <EditorField
           key={"version"}
@@ -316,6 +319,7 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
           required={true}
         >
           <VersionSelector
+            disabled={!canEdit}
             value={obj.version ?? ""}
             onChange={v => {
               change.bind(null, "version")(v);
@@ -337,6 +341,7 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
             <>
               <SchemaForm
                 hiddenFields={!manualAuth && oauthConnector ? oauthConnector.stripSchema({}) : undefined}
+                disabled={!canEdit}
                 jsonSchema={specs.connectionSpecification}
                 showErrors={showErrors}
                 onChange={(n, v) => {

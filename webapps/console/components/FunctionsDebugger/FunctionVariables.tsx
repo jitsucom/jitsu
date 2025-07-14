@@ -2,18 +2,21 @@ import React, { useCallback, useEffect } from "react";
 import { CirclePlusIcon, EyeIcon, EyeOffIcon, Trash2 } from "lucide-react";
 import { Button, Input } from "antd";
 import { isEqual } from "juava";
+import { useWorkspaceRole } from "../../lib/context";
 
 const Var: React.FC<{
   name: string;
   value: string;
+  disabled?: boolean;
   onChange: (name: string, value: string | undefined) => void;
-}> = ({ name, value, onChange }) => {
+}> = ({ name, value, onChange, disabled }) => {
   const [editing, setEditing] = React.useState(false);
 
   return (
     <div className={"flex gap-2"}>
       <Input
         value={name}
+        disabled={disabled}
         className={"flex-auto h-10 p-2 basis-1/2 border "}
         onChange={e => {
           onChange(e.target.value, value);
@@ -22,6 +25,7 @@ const Var: React.FC<{
       {editing ? (
         <Input
           value={value}
+          disabled={disabled}
           className={"flex-auto h-10 p-2 basis-1/2 border "}
           onChange={e => {
             onChange(name, e.target.value);
@@ -29,30 +33,34 @@ const Var: React.FC<{
         />
       ) : (
         <div
-          onClick={() => setEditing(true)}
-          className={"flex-auto overflow-auto scroll- p-2 basis-1/2 border rounded-md "}
+          onClick={!disabled ? () => setEditing(true) : undefined}
+          className={`flex-auto   overflow-auto p-2 basis-1/2 border rounded-md ${
+            disabled ? "bg-gray-100 text-gray-300" : ""
+          } `}
         >
           {value.replaceAll(/./g, "*")}
         </div>
       )}
-      <div className={"w-16 flex-shrink-0 pt-0.5"}>
-        <Button
-          type={"text"}
-          icon={
-            editing ? (
-              <EyeOffIcon color={"grey"} className={"w-4 h-4"} />
-            ) : (
-              <EyeIcon color={"grey"} className={"w-4 h-4"} />
-            )
-          }
-          onClick={() => setEditing(!editing)}
-        />
-        <Button
-          type={"text"}
-          icon={<Trash2 color={"grey"} className={"w-4 h-4"} />}
-          onClick={() => onChange(name, undefined)}
-        />
-      </div>
+      {!disabled && (
+        <div className={"w-16 flex-shrink-0 pt-0.5"}>
+          <Button
+            type={"text"}
+            icon={
+              editing ? (
+                <EyeOffIcon color={"grey"} className={"w-4 h-4"} />
+              ) : (
+                <EyeIcon color={"grey"} className={"w-4 h-4"} />
+              )
+            }
+            onClick={() => setEditing(!editing)}
+          />
+          <Button
+            type={"text"}
+            icon={<Trash2 color={"grey"} className={"w-4 h-4"} />}
+            onClick={() => onChange(name, undefined)}
+          />
+        </div>
+      )}
     </div>
   );
 };
@@ -60,8 +68,12 @@ const Var: React.FC<{
 export const FunctionVariables: React.FC<{
   value: Record<string, string>;
   onChange: (r: Record<string, string>) => void;
+  disabled?: boolean;
   className?: string;
-}> = ({ value, onChange, className }) => {
+}> = ({ value, onChange, className, disabled }) => {
+  const userRole = useWorkspaceRole();
+  const canEdit = userRole.editEntities;
+
   const [array, setArray] = React.useState<[string, string][]>(Object.entries(value));
 
   const change = useCallback(
@@ -96,17 +108,27 @@ export const FunctionVariables: React.FC<{
         <div className={"w-16 flex-shrink-0"}></div>
       </div>
       {array.map(([n, v], index) => {
-        return <Var key={index} name={n} value={v} onChange={(nm, vl) => change(index, nm, vl)} />;
+        return (
+          <Var
+            key={index}
+            name={n}
+            value={v}
+            disabled={!canEdit || disabled}
+            onChange={(nm, vl) => change(index, nm, vl)}
+          />
+        );
       })}
-      <div className="flex justify-start">
-        <Button
-          icon={<CirclePlusIcon className={"w-4 h-4"} />}
-          onClick={() => setArray([...array, ["", ""]])}
-          type="default"
-        >
-          Add Variable
-        </Button>
-      </div>
+      {canEdit && !disabled && (
+        <div className="flex justify-start">
+          <Button
+            icon={<CirclePlusIcon className={"w-4 h-4"} />}
+            onClick={() => setArray([...array, ["", ""]])}
+            type="default"
+          >
+            Add Variable
+          </Button>
+        </div>
+      )}
     </div>
   );
 };

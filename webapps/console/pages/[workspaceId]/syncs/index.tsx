@@ -43,6 +43,7 @@ import { toURL } from "../../../lib/shared/url";
 import { useConfigObjectLinks, useConfigObjectList, useStoreReload } from "../../../lib/store";
 import { getCoreDestinationTypeNonStrict } from "../../../lib/schema/destinations";
 import { FaRegFloppyDisk } from "react-icons/fa6";
+import { WLink } from "../../../components/Workspace/WLink";
 
 dayjs.extend(relativeTime);
 dayjs.extend(utc);
@@ -199,7 +200,13 @@ function SyncsTable({ links, services, destinations }: RemoteEntitiesProps) {
       },
       render: (text, link) => {
         const service = servicesById[link.fromId];
-        return service ? <ServiceTitle service={service} link /> : <NotFound id={link.fromId} type={"service"} />;
+        return service ? (
+          <WLink href={`/syncs/edit?id=${link.id}`}>
+            <ServiceTitle service={service} />
+          </WLink>
+        ) : (
+          <NotFound id={link.fromId} type={"service"} />
+        );
       },
     },
     {
@@ -213,7 +220,13 @@ function SyncsTable({ links, services, destinations }: RemoteEntitiesProps) {
       },
       render: (text, link) => {
         const destination = destinationsById[link.toId];
-        return destination ? <DestinationTitle destination={destination} link /> : "Not Found";
+        return destination ? (
+          <WLink href={`/syncs/edit?id=${link.id}`}>
+            <DestinationTitle destination={destination} />
+          </WLink>
+        ) : (
+          "Not Found"
+        );
       },
     },
     {
@@ -471,15 +484,10 @@ function Syncs(props: RemoteEntitiesProps) {
           configured
         </div>
         <div className="flex space-x-4 items-center mt-4">
-          <WJitsuButton href={"/services"} type="default" icon={<PlusOutlined />} requiredPermission="createEntities">
+          <WJitsuButton href={"/services"} type="default" icon={<PlusOutlined />} requiredPermission="editEntities">
             Create Connector
           </WJitsuButton>
-          <WJitsuButton
-            href={"/destinations"}
-            type="default"
-            icon={<PlusOutlined />}
-            requiredPermission="createEntities"
-          >
+          <WJitsuButton href={"/destinations"} type="default" icon={<PlusOutlined />} requiredPermission="editEntities">
             Create Destination
           </WJitsuButton>
         </div>
@@ -515,7 +523,7 @@ function Syncs(props: RemoteEntitiesProps) {
             type="primary"
             size="large"
             icon={<FaPlus className="anticon" />}
-            requiredPermission="createEntities"
+            requiredPermission="editEntities"
           >
             Connect service and destination
           </WJitsuButton>

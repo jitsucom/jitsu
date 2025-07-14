@@ -6,6 +6,7 @@ import { requireDefined, rpc } from "juava";
 import { tryManageOauthCreds } from "../../../../lib/server/oauth/services";
 import { getServerLog } from "../../../../lib/server/log";
 import { syncError } from "../../../../lib/server/sync";
+import { unmaskSecretsForTest, containsMaskedSecrets } from "../../../../lib/schema/secrets";
 
 const log = getServerLog("sync-check");
 
@@ -48,7 +49,15 @@ export default createRoute()
       return { ok: false, error: "invalid service id" };
     }
 
-    const config = await tryManageOauthCreds(serviceConfig);
+    // Unmask secrets for testing if this is an existing service with masked values
+    let configForTesting = serviceConfig;
+    if (existingService && containsMaskedSecrets(serviceConfig)) {
+      log.atInfo().log(`Unmasking secrets for service test: ${serviceConfig.id}`);
+      const dbServiceConfig = existingService.config as ServiceConfig;
+      configForTesting = unmaskSecretsForTest(serviceConfig, dbServiceConfig);
+    }
+
+    const config = await tryManageOauthCreds(configForTesting);
 
     try {
       const checkRes = await rpc(syncURL + "/check", {

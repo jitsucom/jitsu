@@ -28,6 +28,7 @@ import JSON5 from "json5";
 import { useConfigObjectLinks, useConfigObjectList, useStoreReload } from "../../../lib/store";
 import { ServiceTitle } from "../services";
 import { ObjectTitle } from "../../../components/ObjectTitle/ObjectTitle";
+import { WLink } from "../../../components/Workspace/WLink";
 
 function EmptyLinks() {
   const workspace = useWorkspace();
@@ -64,7 +65,7 @@ export const ConnectionTitle: React.FC<{
       <DestinationTitle size={"small"} destination={destination} />
       {showLink && (
         <WJitsuButton
-          href={`/connection/edit?id=${connectionId}`}
+          href={`/connections/edit?id=${connectionId}`}
           type="link"
           className="link"
           size="small"
@@ -190,9 +191,9 @@ function ConnectionsTable({ links, streams, destinations, functions, reloadCallb
           return <div>Stream not found</div>;
         }
         return (
-          <div className="flex items-center">
-            <StreamTitle stream={stream} link />
-          </div>
+          <WLink href={`/connections/edit?id=${link.id}`}>
+            <StreamTitle stream={stream} />
+          </WLink>
         );
       },
     },
@@ -212,9 +213,9 @@ function ConnectionsTable({ links, streams, destinations, functions, reloadCallb
           return <div>Destination not found</div>;
         }
         return (
-          <div className="flex items-center">
-            <DestinationTitle destination={destination} link />
-          </div>
+          <WLink href={`/connections/edit?id=${link.id}`}>
+            <DestinationTitle destination={destination} />
+          </WLink>
         );
       },
     },
@@ -330,15 +331,10 @@ function Connections(props: RemoteEntitiesProps) {
           configured
         </div>
         <div className="flex space-x-4 items-center mt-4">
-          <WJitsuButton
-            href={"/destinations"}
-            type="default"
-            icon={<PlusOutlined />}
-            requiredPermission="createEntities"
-          >
+          <WJitsuButton href={"/destinations"} type="default" icon={<PlusOutlined />} requiredPermission="editEntities">
             Create Destination
           </WJitsuButton>
-          <WJitsuButton href={"/streams"} type="default" icon={<PlusOutlined />} requiredPermission="createEntities">
+          <WJitsuButton href={"/streams"} type="default" icon={<PlusOutlined />} requiredPermission="editEntities">
             Create Site
           </WJitsuButton>
         </div>
@@ -375,7 +371,7 @@ function Connections(props: RemoteEntitiesProps) {
             type="primary"
             size="large"
             icon={<FaPlus className="anticon" />}
-            requiredPermission="createEntities"
+            requiredPermission="editEntities"
           >
             Connect site and destination
           </WJitsuButton>

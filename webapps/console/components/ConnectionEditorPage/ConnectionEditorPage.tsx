@@ -1,4 +1,4 @@
-import { useWorkspace } from "../../lib/context";
+import { useWorkspace, useWorkspaceRole } from "../../lib/context";
 import { get } from "../../lib/useApi";
 import { DestinationConfig, FunctionConfig, StreamConfig } from "../../lib/schema";
 import React, { useEffect, useState } from "react";
@@ -115,7 +115,7 @@ export const BatchOrStreamEditor: EditorComponent<ConnectionOptionsType["mode"],
       onChange={e => onChange(e.target.value)}
     >
       <div className={"flex flex-col gap-2"}>
-        <Radio value="stream" disabled={streamModeState !== "allowed"}>
+        <Radio value="stream" disabled={disabled || streamModeState !== "allowed"}>
           <div>
             <div className={``}>
               Stream
@@ -228,6 +228,8 @@ function ConnectionEditor({
 
   const [loading, setLoading] = useState(false);
   const workspace = useWorkspace();
+  const role = useWorkspaceRole();
+  const canEdit = role.editEntities;
   const [dstId, setDstId] = useState(existingLink?.toId || destinations[0].id);
   const [srcId, setSrcId] = useState(existingLink?.fromId || streams[0].id);
 
@@ -288,7 +290,7 @@ function ConnectionEditor({
           items={streams}
           selected={srcId}
           showLink={true}
-          enabled={!existingLink}
+          enabled={canEdit && !existingLink}
           disabledReason={"Create a new connection if you want to change the source"}
           onSelect={setSrcId}
         />
@@ -303,7 +305,7 @@ function ConnectionEditor({
         <DestinationSelector
           items={destinations}
           selected={dstId}
-          enabled={!existingLink}
+          enabled={canEdit && !existingLink}
           disabledReason={"Create a new connection if you want to change the source"}
           showLink={true}
           onSelect={id => {
@@ -331,6 +333,7 @@ function ConnectionEditor({
       component: (
         <BatchOrStreamEditor
           value={connectionOptions.mode}
+          disabled={!canEdit}
           limitations={limitations}
           onChange={mode => updateOptions({ mode })}
         />
@@ -342,6 +345,7 @@ function ConnectionEditor({
       name: "Sync Frequency",
       component: (
         <SyncFrequencyEditor
+          disabled={!canEdit}
           value={connectionOptions.frequency || 60}
           onChange={frequency => updateOptions({ frequency })}
         />
@@ -359,6 +363,7 @@ function ConnectionEditor({
         <InputNumber
           value={connectionOptions.batchSize || 10000}
           size="small"
+          disabled={!canEdit}
           defaultValue={10000}
           className="w-36"
           min={100}
@@ -376,7 +381,7 @@ function ConnectionEditor({
         <Tooltip title={!!existingLink ? "Can only be configured during the initial connection setup." : undefined}>
           {" "}
           <DataLayoutEditor
-            disabled={!!existingLink}
+            disabled={!canEdit || !!existingLink}
             fileStorage={destinationType.id === "gcs" || destinationType.id === "s3"}
             onChange={dataLayout => {
               if (existingLink) updateOptions({ dataLayout });
@@ -423,7 +428,7 @@ function ConnectionEditor({
           {" "}
           <TextEditor
             className="max-w-xs"
-            disabled={!!existingLink}
+            disabled={!canEdit || !!existingLink}
             value={connectionOptions.primaryKey}
             onChange={primaryKey => {
               updateOptions({ primaryKey, ...(primaryKey === "" ? { deduplicate: false } : {}) });
@@ -446,7 +451,7 @@ function ConnectionEditor({
       component: (
         <SwitchComponent
           className="max-w-xs"
-          disabled={connectionOptions.primaryKey === ""}
+          disabled={!canEdit || connectionOptions.primaryKey === ""}
           value={connectionOptions.deduplicate}
           onChange={deduplicate => {
             let functions = connectionOptions.functions ?? [];
@@ -478,6 +483,7 @@ function ConnectionEditor({
         <InputNumber
           value={connectionOptions.deduplicateWindow || 31}
           disabled={
+            !canEdit ||
             connectionOptions.primaryKey === "" ||
             !connectionOptions.deduplicate ||
             connectionOptions.timestampColumn === ""
@@ -503,7 +509,7 @@ function ConnectionEditor({
         <Tooltip title={!!existingLink ? "Can only be configured during the initial connection setup." : undefined}>
           {" "}
           <TextEditor
-            disabled={!!existingLink}
+            disabled={!canEdit || !!existingLink}
             className="max-w-xs"
             value={connectionOptions.timestampColumn}
             onChange={timestampColumn => {
@@ -526,7 +532,7 @@ function ConnectionEditor({
       name: "Identity Stitching",
       component: (
         <SwitchComponent
-          disabled={connectionOptions.primaryKey === "" || !connectionOptions.deduplicate}
+          disabled={!canEdit || connectionOptions.primaryKey === "" || !connectionOptions.deduplicate}
           className="max-w-xs"
           value={
             typeof (connectionOptions.functions ?? []).find(
@@ -566,6 +572,7 @@ function ConnectionEditor({
       component: (
         <SwitchComponent
           className="max-w-xs"
+          disabled={!canEdit}
           value={connectionOptions.schemaFreeze}
           onChange={sf => {
             updateOptions({ schemaFreeze: sf });
@@ -589,7 +596,7 @@ function ConnectionEditor({
         <Tooltip title={!!existingLink ? "Can only be configured during the initial connection setup." : undefined}>
           {" "}
           <SwitchComponent
-            disabled={!!existingLink}
+            disabled={!canEdit || !!existingLink}
             className="max-w-xs"
             value={connectionOptions.keepOriginalNames}
             onChange={sf => {
@@ -625,6 +632,7 @@ function ConnectionEditor({
       ),
       component: (
         <TextEditor
+          disabled={!canEdit}
           className="max-w-xs"
           rows={2}
           value={connectionOptions.clickhouseSettings}
@@ -649,6 +657,7 @@ function ConnectionEditor({
       component: (
         <TextEditor
           className="max-w-xs"
+          disabled={!canEdit}
           rows={5}
           value={connectionOptions.events}
           onChange={events => {
@@ -673,6 +682,7 @@ function ConnectionEditor({
       name: "Hosts Allowlist",
       component: (
         <TextEditor
+          disabled={!canEdit}
           className="max-w-xs"
           rows={3}
           value={connectionOptions.hosts}
@@ -755,6 +765,7 @@ function ConnectionEditor({
           contentLeftPadding={false}
         >
           <FunctionsSelector
+            disabled={!canEdit}
             functions={functions}
             stream={streams.find(s => s.id === srcId) || streams[0]}
             destination={destinations.find(d => d.id === dstId) || destinations[0]}
