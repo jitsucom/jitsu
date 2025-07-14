@@ -86,9 +86,9 @@ const InviteUserForm: React.FC<{ invite: (email: string, role?: WorkspaceRoleTyp
             </Select>
           </>
         )}
-        <Button loading={pending} type="primary" onClick={onSubmit}>
+        <JitsuButton requiredPermission={"manageUsers"} loading={pending} type="primary" onClick={onSubmit}>
           {inputVisible ? "Send invitation" : "Add user to the workspace"}
-        </Button>
+        </JitsuButton>
       </div>
       {errorMessage && <div className="text-error">{errorMessage || "-"}</div>}
     </>
@@ -167,6 +167,9 @@ function getRoleIcon(role: WorkspaceRoleType, className: string) {
 
 const Members: React.FC<any> = () => {
   const workspace = useWorkspace();
+  const role = useWorkspaceRole();
+  const canEdit = role.editEntities;
+
   const user = useUser();
   const m = useAntdModal();
   const [changingRoleUserId, setChangingRoleUserId] = useState<string | null>(null);
@@ -385,7 +388,7 @@ const Members: React.FC<any> = () => {
 
                   {/* Actions column */}
                   <div className="flex items-center space-x-2 justify-end min-w-52">
-                    {r.invitationEmail && r.canSendEmail && (
+                    {canEdit && r.invitationEmail && r.canSendEmail && (
                       <AsyncButton
                         errorMessage="Failed to resend invitation"
                         successMessage="Invitation has been resent"
@@ -396,7 +399,7 @@ const Members: React.FC<any> = () => {
                         Resend
                       </AsyncButton>
                     )}
-                    {r.invitationLink && (
+                    {canEdit && r.invitationLink && (
                       <Button type="link" size="small" onClick={() => showInvitationLink(m, r.invitationLink || "")}>
                         Show Link
                       </Button>
@@ -406,7 +409,7 @@ const Members: React.FC<any> = () => {
                         <User className="w-3 h-3 mr-2" />
                         <span className="text-sm">You</span>
                       </div>
-                    ) : (
+                    ) : canEdit ? (
                       <Tooltip title="Remove member">
                         <AsyncButton
                           type="text"
@@ -416,6 +419,8 @@ const Members: React.FC<any> = () => {
                           onClick={() => handleRemoveUser(r)}
                         />
                       </Tooltip>
+                    ) : (
+                      <></>
                     )}
                   </div>
                 </div>

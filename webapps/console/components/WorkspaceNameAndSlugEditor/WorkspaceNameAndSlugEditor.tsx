@@ -1,4 +1,4 @@
-import { useUser, useWorkspace } from "../../lib/context";
+import { useUser, useWorkspace, useWorkspaceRole } from "../../lib/context";
 import React, { useState } from "react";
 import { Input } from "antd";
 import { get } from "../../lib/useApi";
@@ -39,6 +39,8 @@ export function WorkspaceNameAndSlugEditor({
   onboarding?: boolean;
 }) {
   const workspace = useWorkspace();
+  const role = useWorkspaceRole();
+  const canEdit = role.editEntities;
   const user = useUser();
   const [name, setName] = useState(workspace.name);
   const [slug, setSlug] = useState(workspace.slug || pickSlug(user.email, workspace.name));
@@ -55,6 +57,7 @@ export function WorkspaceNameAndSlugEditor({
         <div>
           <label className="block text-base font-medium text-textDark mb-2">Workspace Name</label>
           <Input
+            disabled={!canEdit}
             value={name}
             size="large"
             onChange={e => {
@@ -67,6 +70,7 @@ export function WorkspaceNameAndSlugEditor({
         <div>
           <label className="block text-base font-medium text-textDark mb-2">Workspace Slug</label>
           <Input
+            disabled={!canEdit}
             value={slug}
             size="large"
             onChange={e => {
