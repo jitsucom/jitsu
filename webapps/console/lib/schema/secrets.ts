@@ -134,20 +134,19 @@ export function removeMaskedValues(obj: any, secretPaths: string[]): any {
 }
 
 /**
- * Recursively replaces all occurrences of MASKED_SECRET in testData with actual values from dbEntity.
- * This is used when testing connections to ensure masked secrets are replaced with real values.
+ * Recursively replaces all occurrences of MASKED_SECRET in object with actual values from dbEntity.
  *
- * @param testData - The data being sent for testing (may contain MASKED_SECRET values)
+ * @param object - The d object being sent
  * @param dbEntity - The original entity from database containing real secret values
- * @returns A new object with masked secrets replaced by real values
+ * @returns A new object with masked secrets replaced by values from db
  */
-export function unmaskSecretsForTest(testData: any, dbEntity: any): any {
-  if (!testData || !dbEntity) {
-    return testData;
+export function unmaskSecretsFromOriginal(object: any, dbEntity: any): any {
+  if (!object || !dbEntity) {
+    return object;
   }
 
-  // Deep clone testData to avoid mutating the original
-  const result = JSON.parse(JSON.stringify(testData));
+  // Deep clone object to avoid mutating the original
+  const result = JSON.parse(JSON.stringify(object));
 
   // Recursively find and replace masked secrets
   replaceMaskedSecrets(result, dbEntity, []);

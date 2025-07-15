@@ -1,6 +1,6 @@
 import React, { createContext, PropsWithChildren, ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { Button, Col, Form as AntdForm, Input, Row, Switch, Table } from "antd";
-import { FaCaretDown, FaCaretRight, FaPlus } from "react-icons/fa";
+import { FaCaretDown, FaCaretRight, FaClone, FaPlus } from "react-icons/fa";
 import { ZodType } from "zod";
 import { getConfigApi } from "../../lib/useApi";
 import { useRouter } from "next/router";
@@ -753,7 +753,7 @@ const FieldTemplate = props => {
   );
 };
 
-const SingleObjectEditorLoader: React.FC<ConfigEditorProps & { id: string; clone?: boolean }> = ({
+const SingleObjectEditorLoader: React.FC<ConfigEditorProps & { id: string; clone?: string }> = ({
   id,
   clone,
   ...rest
@@ -768,6 +768,7 @@ const SingleObjectEditorLoader: React.FC<ConfigEditorProps & { id: string; clone
           ? {
               ...data,
               id: cuid(),
+              cloneId: clone,
               name: `${data.name} (copy)`,
             }
           : data
@@ -784,7 +785,7 @@ const ConfigEditor: React.FC<ConfigEditorProps> = props => {
   if (id) {
     if (id === "new") {
       if (clone) {
-        return <SingleObjectEditorLoader {...props} id={clone} backTo={backTo} clone={true} />;
+        return <SingleObjectEditorLoader {...props} id={clone} backTo={backTo} clone={clone} />;
       } else {
         return <SingleObjectEditor {...props} backTo={backTo} />;
       }
@@ -864,14 +865,13 @@ const ObjectsList: React.FC<{ objects: any[]; onDelete: (id: string) => Promise<
               : undefined,
             icon: <div className="w-4 h-4">{action.icon}</div>,
           })),
-          // TODO: disabled due to frontend doesnt receive passwords from API anymore
-          // {
-          //   label: "Clone",
-          //   href: `${pref}/${type}s?id=new&clone=${record.id}`,
-          //   collapsed: true,
-          //   icon: <FaClone />,
-          //   requiredPermission: "editEntities" as WorkspacePermissionsType,
-          // },
+          {
+            label: "Clone",
+            href: `${pref}/${type}s?id=new&clone=${record.id}`,
+            collapsed: true,
+            icon: <FaClone />,
+            requiredPermission: "editEntities" as WorkspacePermissionsType,
+          },
           {
             label: "Delete",
             danger: true,

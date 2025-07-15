@@ -6,7 +6,7 @@ import { requireDefined, rpc } from "juava";
 import { tryManageOauthCreds } from "../../../../lib/server/oauth/services";
 import { getServerLog } from "../../../../lib/server/log";
 import { syncError } from "../../../../lib/server/sync";
-import { unmaskSecretsForTest, containsMaskedSecrets } from "../../../../lib/schema/secrets";
+import { unmaskSecretsFromOriginal, containsMaskedSecrets } from "../../../../lib/schema/secrets";
 
 const log = getServerLog("sync-check");
 
@@ -22,12 +22,13 @@ export default createRoute()
     query: z.object({
       workspaceId: z.string(),
       storageKey: z.string(),
+      cloneId: z.string().optional(),
     }),
     body: ServiceConfig,
     result: resultType,
   })
   .handler(async ({ user, query, body, req }) => {
-    const { workspaceId } = query;
+    const { workspaceId, cloneId } = query;
     await verifyAccess(user, workspaceId);
     const syncURL = requireDefined(
       process.env.SYNCCTL_URL,
@@ -43,7 +44,7 @@ export default createRoute()
     }
     const serviceConfig = body as ServiceConfig;
     const existingService = await db.prisma().configurationObject.findFirst({
-      where: { id: serviceConfig.id },
+      where: { id: cloneId || serviceConfig.id },
     });
     if (existingService && existingService.workspaceId !== workspaceId) {
       return { ok: false, error: "invalid service id" };
@@ -54,7 +55,7 @@ export default createRoute()
     if (existingService && containsMaskedSecrets(serviceConfig)) {
       log.atInfo().log(`Unmasking secrets for service test: ${serviceConfig.id}`);
       const dbServiceConfig = existingService.config as ServiceConfig;
-      configForTesting = unmaskSecretsForTest(serviceConfig, dbServiceConfig);
+      configForTesting = unmaskSecretsFromOriginal(serviceConfig, dbServiceConfig);
     }
 
     const config = await tryManageOauthCreds(configForTesting);
