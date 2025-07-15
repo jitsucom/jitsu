@@ -112,6 +112,7 @@ export const destinationMappings: Record<string, DestinationMapping> = {
   amplitude: {
     credentialsFunc: _formData => {
       const amplitudeCred: AmplitudeDestinationConfig = {
+        minIdLength: 5,
         key: _formData.apiKey,
         dataResidency: _formData.endpoint?.includes("api.eu.amplitude.com") ? "EU" : "US",
         sessionWindow: 30,

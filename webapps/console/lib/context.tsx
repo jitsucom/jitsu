@@ -95,7 +95,6 @@ export function useWorkspaceRole(): WorkspaceRoleWithPermissions {
   if (!context) {
     return {
       role: "analyst",
-      createEntities: false,
       editEntities: false,
       deleteEntities: false,
       manageUsers: false,

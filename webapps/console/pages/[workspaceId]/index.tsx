@@ -218,7 +218,7 @@ function WorkspaceOverview(props: {
   const appConfig = useAppConfig();
   const workspace = useWorkspace();
   const { destinations, streams, links, connectors } = props;
-  const { createEntities } = useWorkspaceRole();
+  const { editEntities } = useWorkspaceRole();
   useTitle(`${branding.productName} : ${workspace.name}`);
   return (
     <div>
@@ -226,9 +226,9 @@ function WorkspaceOverview(props: {
         <ConnectionsDiagram
           connectorSourcesActions={{
             title: "Connectors",
-            newLink: createEntities ? `/services?showCatalog=true` : undefined,
+            newLink: editEntities ? `/services?showCatalog=true` : undefined,
             editLink: `/services`,
-            newLinkTooltip: !createEntities ? "You don't have permission to create connectors" : undefined,
+            newLinkTooltip: !editEntities ? "You don't have permission to create connectors" : undefined,
           }}
           connectorSources={connectors.map(({ id, name, ...cfg }) => ({
             id,
@@ -274,15 +274,15 @@ function WorkspaceOverview(props: {
           }))}
           srcActions={{
             title: "Sites",
-            newLink: createEntities ? `/streams?id=new` : undefined,
+            newLink: editEntities ? `/streams?id=new` : undefined,
             editLink: `/streams`,
-            newLinkTooltip: !createEntities ? "You don't have permission to create sites" : undefined,
+            newLinkTooltip: !editEntities ? "You don't have permission to create sites" : undefined,
           }}
           dstActions={{
             title: "Destinations",
-            newLink: createEntities ? `/destinations?showCatalog=true` : undefined,
+            newLink: editEntities ? `/destinations?showCatalog=true` : undefined,
             editLink: `/destinations`,
-            newLinkTooltip: !createEntities ? "You don't have permission to create destinations" : undefined,
+            newLinkTooltip: !editEntities ? "You don't have permission to create destinations" : undefined,
           }}
           sources={streams.map(({ id, name }) => ({
             id: id,
