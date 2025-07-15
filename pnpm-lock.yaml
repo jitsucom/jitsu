@@ -533,13 +533,13 @@ importers:
         specifier: workspace:*
         version: link:../jitsu-js
       '@types/react':
-        specifier: 15.x || 16.x || 17.x || 18.x
+        specifier: 15.x || 16.x || 17.x || 18.x || 19.x
         version: 18.3.3
       react:
-        specifier: 15.x || 16.x || 17.x || 18.x
+        specifier: 15.x || 16.x || 17.x || 18.x || 19.x
         version: 18.3.1
       react-router-dom:
-        specifier: 5.x || 6.x
+        specifier: 5.x || 6.x || 7.x
         version: 6.27.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
     devDependencies:
       '@babel/plugin-transform-regenerator':
