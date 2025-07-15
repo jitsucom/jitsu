@@ -288,6 +288,11 @@ export const AmplitudeDestinationConfig = z.object({
     .describe("If enabled, anonymous users will be tracked in Amplitude"),
   dataResidency: z.enum(["US", "EU"]).optional().default("US"),
   sessionWindow: z.number().optional().default(30).describe("Session window in minutes"),
+  minIdLength: z
+    .number()
+    .optional()
+    .default(5)
+    .describe("Minimum ID Length::Overrides the Amplitude's default minimum ID length of 5 characters."),
 });
 
 export type AmplitudeDestinationConfig = z.infer<typeof AmplitudeDestinationConfig>;

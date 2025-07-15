@@ -12,6 +12,13 @@ const AmplitudeDestination: JitsuFunction<AnalyticsServerEvent, AmplitudeDestina
   try {
     const deviceId = event.anonymousId;
     let sessionId: number | undefined = undefined;
+    const optionsPart = props.minIdLength
+      ? {
+          options: {
+            min_id_length: props.minIdLength,
+          },
+        }
+      : {};
     if (deviceId) {
       const ttlStore = store;
       const ttlSec = 60 * (props.sessionWindow ?? 30);
@@ -56,6 +63,7 @@ const AmplitudeDestination: JitsuFunction<AnalyticsServerEvent, AmplitudeDestina
             },
           },
         ],
+        ...optionsPart,
       };
     } else if (event.type === "group" && props.enableGroupAnalytics && event.userId) {
       payload = {
@@ -76,6 +84,7 @@ const AmplitudeDestination: JitsuFunction<AnalyticsServerEvent, AmplitudeDestina
             },
           },
         ],
+        ...optionsPart,
       };
     } else if (
       (event.type === "page" || event.type === "track" || event.type === "screen") &&
@@ -138,6 +147,7 @@ const AmplitudeDestination: JitsuFunction<AnalyticsServerEvent, AmplitudeDestina
             ...geoObj,
           },
         ],
+        ...optionsPart,
       };
     }
     if (payload) {

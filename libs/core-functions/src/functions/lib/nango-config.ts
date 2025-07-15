@@ -8,7 +8,7 @@ export type NangoParams = {
   nangoApiHost: string;
 };
 
-export type NangoConfig = 
+export type NangoConfig =
   | ({ enabled: false } & { [k in keyof NangoParams]?: never })
   | ({ enabled: true } & NangoParams);
 
