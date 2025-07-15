@@ -1,6 +1,6 @@
 import React, { createContext, PropsWithChildren, ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { Button, Col, Form as AntdForm, Input, Row, Switch, Table } from "antd";
-import { FaCaretDown, FaCaretRight, FaClone, FaPlus } from "react-icons/fa";
+import { FaCaretDown, FaCaretRight, FaPlus } from "react-icons/fa";
 import { ZodType } from "zod";
 import { getConfigApi } from "../../lib/useApi";
 import { useRouter } from "next/router";
@@ -864,13 +864,14 @@ const ObjectsList: React.FC<{ objects: any[]; onDelete: (id: string) => Promise<
               : undefined,
             icon: <div className="w-4 h-4">{action.icon}</div>,
           })),
-          {
-            label: "Clone",
-            href: `${pref}/${type}s?id=new&clone=${record.id}`,
-            collapsed: true,
-            icon: <FaClone />,
-            requiredPermission: "editEntities" as WorkspacePermissionsType,
-          },
+          // TODO: disabled due to frontend doesnt receive passwords from API anymore
+          // {
+          //   label: "Clone",
+          //   href: `${pref}/${type}s?id=new&clone=${record.id}`,
+          //   collapsed: true,
+          //   icon: <FaClone />,
+          //   requiredPermission: "editEntities" as WorkspacePermissionsType,
+          // },
           {
             label: "Delete",
             danger: true,
