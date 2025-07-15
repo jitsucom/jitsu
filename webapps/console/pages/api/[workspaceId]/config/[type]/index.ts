@@ -83,6 +83,7 @@ export const api: Api = {
       const id = object.id;
       delete object.id;
       delete object.workspaceId;
+      delete object.cloneId;
       const created = await db.prisma().configurationObject.create({
         data: { id, workspaceId: workspaceId, config: object, type },
       });
