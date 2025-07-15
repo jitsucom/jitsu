@@ -46,6 +46,7 @@ const FunctionsList: React.FC<{}> = () => {
     fields: {
       type: { constant: "function" },
       workspaceId: { constant: workspace.id },
+      cloneId: { hidden: true },
       code: { textarea: true },
     },
     noun: "function",

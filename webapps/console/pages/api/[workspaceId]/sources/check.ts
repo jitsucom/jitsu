@@ -22,13 +22,12 @@ export default createRoute()
     query: z.object({
       workspaceId: z.string(),
       storageKey: z.string(),
-      cloneId: z.string().optional(),
     }),
     body: ServiceConfig,
     result: resultType,
   })
   .handler(async ({ user, query, body, req }) => {
-    const { workspaceId, cloneId } = query;
+    const { workspaceId } = query;
     await verifyAccess(user, workspaceId);
     const syncURL = requireDefined(
       process.env.SYNCCTL_URL,
@@ -44,7 +43,7 @@ export default createRoute()
     }
     const serviceConfig = body as ServiceConfig;
     const existingService = await db.prisma().configurationObject.findFirst({
-      where: { id: cloneId || serviceConfig.id },
+      where: { id: serviceConfig.cloneId || serviceConfig.id },
     });
     if (existingService && existingService.workspaceId !== workspaceId) {
       return { ok: false, error: "invalid service id" };

@@ -75,6 +75,7 @@ const NotificationChannelList: React.FC<{}> = () => {
     fields: {
       type: { constant: "notification" },
       workspaceId: { constant: workspace.id },
+      cloneId: { hidden: true },
       events: {
         editor: StringArrayEditor,
       },

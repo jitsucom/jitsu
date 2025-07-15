@@ -129,6 +129,7 @@ const ServicesList: React.FC<{}> = () => {
     fields: {
       type: { constant: "service" },
       workspaceId: { constant: workspace.id },
+      cloneId: { hidden: true },
       protocol: { hidden: true },
       package: { hidden: true },
     },

@@ -219,6 +219,7 @@ const StreamsList: React.FC<{}> = () => {
     fields: {
       type: { constant: "stream" },
       workspaceId: { constant: workspace.id },
+      cloneId: { hidden: true },
       strict: {
         editor: CustomCheckbox,
         displayName: "Strict Mode",
