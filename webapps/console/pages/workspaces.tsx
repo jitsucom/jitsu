@@ -3,27 +3,27 @@ import { FaArrowLeft, FaPlus } from "react-icons/fa";
 import { get } from "../lib/useApi";
 import { z } from "zod";
 import { WorkspaceDbModel } from "../prisma/schema";
-import { ArrowRight, Loader2 } from "lucide-react";
+import { ArrowRight, Loader2, CheckCircle, XCircle, Mail } from "lucide-react";
 import { EmbeddedErrorMessage } from "../components/GlobalError/GlobalError";
 import { getLog } from "juava";
 import Link from "next/link";
 import React, { useState, useMemo, useRef, useEffect } from "react";
-import { feedbackError } from "../lib/ui";
+import { feedbackError, feedbackSuccess } from "../lib/ui";
 import { JitsuButton } from "../components/JitsuButton/JitsuButton";
 import { Input, Tag, Button, Skeleton } from "antd";
 import { useQueryStringState } from "../lib/useQueryStringState";
 import { branding } from "../lib/branding";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDebounce } from "use-debounce";
 import { useUserSessionControls } from "../lib/context";
 
 const log = getLog("worspaces");
 
 // Header component with title and subtitle
-const WorkspaceHeader: React.FC<{ subtitle: string }> = ({ subtitle }) => (
-  <div className="text-center py-6">
-    <h1 className="text-3xl mb-2">👋 Select workspace</h1>
-    <p className="text-lg text-textLight">{subtitle}</p>
+const WorkspaceHeader: React.FC<{ subtitle?: string }> = ({ subtitle }) => (
+  <div className="text-center pt-6 pb-4">
+    <h1 className="text-2xl mb-2">👋 Select workspace</h1>
+    {subtitle && <p className="text-lg text-textLight">{subtitle}</p>}
   </div>
 );
 
@@ -226,19 +226,14 @@ const WorkspacesList = () => {
   if (displayCount === 0 && !isLoading) {
     return (
       <div className="flex flex-col gap-5 items-center h-full mb-6 mt-12">
-        <div className="text-3xl flex items-center justify-center gap-2">
-          <span className="w-8 h-8 inline-block">{branding.logo}</span> No workspaces found.
+        <div className="text-2xl flex items-center justify-center gap-2">
+          <span className="w-5 h-5 inline-block">{branding.logo}</span> No active workspaces
         </div>
         <JitsuButton
           size="large"
           type="primary"
           onClick={async () => {
-            try {
-              const { id } = await get("/api/workspace", { method: "POST", body: {} });
-              await router.push(`/${id}`);
-            } catch (e) {
-              feedbackError(`Can't create new workspace`, { error: e });
-            }
+            await router.push("/new-workspace");
           }}
         >
           Create New Workspace
@@ -251,7 +246,11 @@ const WorkspacesList = () => {
   return (
     <>
       <WorkspaceHeader
-        subtitle={`${displayCount.toLocaleString()} workspace${displayCount === 1 ? "" : "s"} available`}
+        subtitle={
+          displayCount > 10
+            ? `${displayCount.toLocaleString()} workspace${displayCount === 1 ? "" : "s"} available`
+            : undefined
+        }
       />
       <div className="flex flex-col space-y-4 w-full mx-auto">
         <div>
@@ -299,10 +298,140 @@ const WorkspacesList = () => {
   );
 };
 
+// Pending invitations component
+const PendingInvitations: React.FC = () => {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const [processingToken, setProcessingToken] = useState<string | null>(null);
+
+  const {
+    data: invitations,
+    isLoading,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ["pending-invitations"],
+    queryFn: async () => {
+      const response = await get("/api/user/invitations");
+      return response as Array<{
+        id: string;
+        token: string;
+        workspaceId: string;
+        workspaceName: string;
+        email: string;
+        role: string;
+        createdAt: string;
+      }>;
+    },
+  });
+
+  const handleAccept = async (token: string, workspaceId: string) => {
+    setProcessingToken(token);
+    try {
+      const result = await get("/api/user/accept", {
+        method: "POST",
+        body: { invitationToken: token },
+      });
+
+      if (result.accepted) {
+        feedbackSuccess(`Successfully joined ${result.workspaceName}`);
+        // Redirect to the new workspace
+        router.push(`/${result.workspaceId}`);
+      } else {
+        feedbackError(result.details || "Failed to accept invitation");
+      }
+    } catch (e) {
+      feedbackError("Failed to accept invitation", { error: e });
+    } finally {
+      setProcessingToken(null);
+    }
+  };
+
+  const handleReject = async (token: string) => {
+    setProcessingToken(token);
+    try {
+      const result = await get("/api/user/reject", {
+        method: "POST",
+        body: { invitationToken: token },
+      });
+
+      if (result.rejected) {
+        feedbackSuccess("Invitation rejected");
+        // Refresh invitations list
+        await refetch();
+      } else {
+        feedbackError(result.details || "Failed to reject invitation");
+      }
+    } catch (e) {
+      feedbackError("Failed to reject invitation", { error: e });
+    } finally {
+      setProcessingToken(null);
+    }
+  };
+
+  if (isLoading) {
+    return <></>;
+  }
+
+  if (error) {
+    return null; // Silently fail for invitations
+  }
+
+  if (!invitations || invitations.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="mb-2">
+      <div className="text-center mt-6 mb-4">
+        <h2 className="text-2xl text-textDark flex items-center justify-center gap-2">
+          <Mail className="w-5 h-5" />
+          Workspace Invitations
+        </h2>
+      </div>
+      <div className="flex flex-col space-y-4">
+        {invitations.map(invitation => (
+          <div
+            key={invitation.id}
+            className="border border-textDisabled rounded px-4 py-4 shadow hover:border-primaryDark hover:shadow-primaryLighter flex justify-between items-center hover:text-textPrimary group"
+          >
+            <div className="flex-1">
+              <div className="font-medium">{invitation.workspaceName}</div>
+              <div className="text-sm text-textLight mt-1">
+                Role: <span className="font-medium">{invitation.role}</span> • Invited{" "}
+                {new Date(invitation.createdAt).toLocaleDateString()}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                type="primary"
+                icon={<CheckCircle className="w-4 h-4" />}
+                loading={processingToken === invitation.token}
+                disabled={processingToken !== null && processingToken !== invitation.token}
+                onClick={() => handleAccept(invitation.token, invitation.workspaceId)}
+              >
+                Accept
+              </Button>
+              <Button
+                danger
+                icon={<XCircle className="w-4 h-4" />}
+                loading={processingToken === invitation.token}
+                disabled={processingToken !== null && processingToken !== invitation.token}
+                onClick={() => handleReject(invitation.token)}
+              >
+                Reject
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const WorkspaceSelectionPage = (props: any) => {
   const router = useRouter();
   const sessionControl = useUserSessionControls();
-  const [creatingWorkspace, setCreatingWorkspace] = useState(false);
   return (
     <div>
       <div className="flex justify-center">
@@ -325,24 +454,15 @@ const WorkspaceSelectionPage = (props: any) => {
               size="large"
               type="default"
               onClick={async () => {
-                setCreatingWorkspace(true);
-                try {
-                  const { id } = await get("/api/workspace", { method: "POST", body: {} });
-                  await router.push(`/${id}`);
-                } catch (e) {
-                  feedbackError(`Can't create new workspace`, { error: e });
-                } finally {
-                  setCreatingWorkspace(false);
-                }
+                await router.push("/new-workspace");
               }}
-              loading={creatingWorkspace}
               icon={<FaPlus />}
-              disabled={creatingWorkspace}
             >
               New Workspace
             </JitsuButton>
           </div>
           <div className="w-full grow">
+            <PendingInvitations />
             <WorkspacesList />
           </div>
         </div>

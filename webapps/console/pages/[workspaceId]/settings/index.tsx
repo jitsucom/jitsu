@@ -80,15 +80,22 @@ const InviteUserForm: React.FC<{ invite: (email: string, role?: WorkspaceRoleTyp
             <Select value={selectedRole} onChange={setSelectedRole} className="w-32" disabled={pending}>
               {Object.keys(WorkspaceRolePermissions).map(value => (
                 <Select.Option key={value} value={value}>
-                  {WorkspaceRoleLabels[value as WorkspaceRoleType]}
+                  <Tooltip title={WorkspaceRoleDescriptions[value as WorkspaceRoleType]}>
+                    <div className={"flex flex-row items-center"}>
+                      {getRoleIcon(value as WorkspaceRoleType, "w-3 h-3 mr-2")}
+                      <span className="text-sm">{WorkspaceRoleLabels[value as WorkspaceRoleType]}</span>
+                    </div>
+                  </Tooltip>
                 </Select.Option>
               ))}
             </Select>
           </>
         )}
-        <JitsuButton requiredPermission={"manageUsers"} loading={pending} type="primary" onClick={onSubmit}>
-          {inputVisible ? "Send invitation" : "Add user to the workspace"}
-        </JitsuButton>
+        <div className={"min-w-52 flex justify-end"}>
+          <JitsuButton requiredPermission={"manageUsers"} loading={pending} type="primary" onClick={onSubmit}>
+            {inputVisible ? "Send invitation" : "Add user to the workspace"}
+          </JitsuButton>
+        </div>
       </div>
       {errorMessage && <div className="text-error">{errorMessage || "-"}</div>}
     </>
@@ -125,7 +132,7 @@ function getIcon(provider: string) {
   } else if (provider.indexOf("google") >= 0 || provider === "firebase") {
     return <FaGoogle />;
   } else if (provider.startsWith("dynamic-oidc/")) {
-    return <Key />;
+    return <Key className={"w-4 h-4"} />;
   }
   return <FaUser />;
 }
@@ -170,7 +177,7 @@ function getRoleIcon(role: WorkspaceRoleType, className: string) {
 const Members: React.FC<any> = () => {
   const workspace = useWorkspace();
   const role = useWorkspaceRole();
-  const canEdit = role.editEntities;
+  const canManageUsers = role.manageUsers;
 
   const user = useUser();
   const m = useAntdModal();
@@ -363,7 +370,7 @@ const Members: React.FC<any> = () => {
                         placement="bottomLeft"
                       >
                         <div
-                          className="flex items-center rounded px-3 py-1 w-28 cursor-pointer border transition-colors hover:opacity-80"
+                          className="flex items-center rounded px-3 py-1 w-32 cursor-pointer border transition-colors hover:opacity-80"
                           style={roleConfig?.style}
                           onClick={() => {
                             setShownPopover(r.user?.id || r.invitationLink);
@@ -380,7 +387,7 @@ const Members: React.FC<any> = () => {
                       </Popover>
                     ) : r.role ? (
                       <Tooltip title={WorkspaceRoleDescriptions[r.role as WorkspaceRoleType]}>
-                        <div className="flex items-center rounded px-3 py-1 border w-28" style={roleConfig?.style}>
+                        <div className="flex items-center rounded px-3 py-1 border w-32" style={roleConfig?.style}>
                           {getRoleIcon(r.role as WorkspaceRoleType, "w-3 h-3 mr-2")}
                           <span className="text-sm">{WorkspaceRoleLabels[r.role as WorkspaceRoleType]}</span>
                         </div>
@@ -390,7 +397,7 @@ const Members: React.FC<any> = () => {
 
                   {/* Actions column */}
                   <div className="flex items-center space-x-2 justify-end min-w-52">
-                    {canEdit && r.invitationEmail && r.canSendEmail && (
+                    {canManageUsers && r.invitationEmail && r.canSendEmail && (
                       <AsyncButton
                         errorMessage="Failed to resend invitation"
                         successMessage="Invitation has been resent"
@@ -401,7 +408,7 @@ const Members: React.FC<any> = () => {
                         Resend
                       </AsyncButton>
                     )}
-                    {canEdit && r.invitationLink && (
+                    {canManageUsers && r.invitationLink && (
                       <Button type="link" size="small" onClick={() => showInvitationLink(m, r.invitationLink || "")}>
                         Show Link
                       </Button>
@@ -411,7 +418,7 @@ const Members: React.FC<any> = () => {
                         <User className="w-3 h-3 mr-2" />
                         <span className="text-sm">You</span>
                       </div>
-                    ) : canEdit ? (
+                    ) : canManageUsers ? (
                       <Tooltip title="Remove member">
                         <AsyncButton
                           type="text"
@@ -547,6 +554,8 @@ const WorkspaceSettingsComponent: React.FC<any> = () => {
         {/* Workspace Configuration */}
         <div>
           <WorkspaceNameAndSlugEditor
+            workspace={workspace}
+            canEdit={userRole.editEntities}
             displayId={true}
             onSuccess={({ slug }) => (window.location.href = `/${slug}/settings`)}
           />

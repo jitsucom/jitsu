@@ -1,83 +1,23 @@
 import { createRoute } from "../../lib/api";
-import { SessionUser } from "../../lib/schema";
 import { db } from "../../lib/server/db";
 import { requireDefined } from "juava";
 import { getServerLog } from "../../lib/server/log";
-import { publicEmailDomains } from "../../lib/shared/email-domains";
 import { getUserPreferenceService } from "../../lib/server/user-preferences";
 import { ApiError } from "../../lib/shared/errors";
-import { z } from "zod";
 import { initTelemetry, withProductAnalytics } from "../../lib/server/telemetry";
 import { onUserCreated } from "../../lib/server/ee";
-
-function capitalize(s: string) {
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
-
-function pickWorkspaceName(projectName: string | undefined, user: SessionUser) {
-  if (projectName) {
-    return projectName;
-  }
-  if (!user.email) {
-    return `${user.name}'s workspace`;
-  }
-  const [username, domain] = user.email.split("@");
-  if (publicEmailDomains.includes(domain.toLowerCase())) {
-    return `${username}'s workspace`;
-  } else {
-    const [company, ...rest] = domain.split(".");
-    return `${capitalize(company)}'s workspace`;
-  }
-}
 
 export default createRoute()
   .GET({
     auth: true,
-    query: z.object({
-      projectName: z.string().optional(),
-      invite: z.string().optional(),
-    }),
   })
   .handler(async ({ req, query, user }) => {
     await initTelemetry();
-    if (query.invite) {
-      const token = await db.prisma().invitationToken.findFirst({ where: { token: query.invite } });
-      if (!token) {
-        getServerLog().atWarn().log(`Token ${query.invite} for user ${user.internalId} (${user.email}) was not found`);
-      } else if (token.usedBy) {
-        getServerLog()
-          .atWarn()
-          .log(`Token ${query.invite} is used ${token.usedBy}. Current user: ${user.internalId} (${user.email})`);
-      } else {
-        const currentAccess = await db.prisma().workspaceAccess.findFirst({
-          where: { userId: user.internalId, workspaceId: token.workspaceId },
-          include: { workspace: true },
-        });
-        if (currentAccess) {
-          getServerLog()
-            .atWarn()
-            .log(
-              `User ${user.internalId} (${user.email}) already has an access to ${currentAccess.workspace.name} workspace. Token: ${query.invite}`
-            );
-          return { user: user, firstWorkspaceId: currentAccess.workspaceId, firstWorkspaceSlug: null };
-        } else {
-          const workspace = requireDefined(
-            await db.prisma().workspace.findFirst({ where: { id: token.workspaceId } }),
-            `Invalid invitation token. Workspace with id ${token.workspaceId} not found`
-          );
-          await db
-            .prisma()
-            .workspaceAccess.create({ data: { userId: user.internalId, workspaceId: token.workspaceId } });
-          await db.prisma().invitationToken.update({ where: { id: token.id }, data: { usedBy: user.internalId } });
-          return { user: user, firstWorkspaceId: token.workspaceId, firstWorkspaceSlug: null };
-        }
-      }
-    }
     const workspaceAccess = await db.prisma().workspaceAccess.findFirst({
       where: { userId: requireDefined(user.internalId, `internal id is not defined`) },
     });
     if (!workspaceAccess) {
-      getServerLog().atInfo().log(`User ${user.internalId} has no access to any workspace. Creating a new one for him`);
+      getServerLog().atInfo().log(`User ${user.internalId} has no access to any workspace. Checking for invitations`);
       let dbUser = await db.prisma().userProfile.findFirst({ where: { id: user.internalId } });
       if (!dbUser) {
         //This could happen by two reasons
@@ -117,15 +57,25 @@ export default createRoute()
         await onUserCreated({ email: user.email, name: user.name });
       }
 
-      const newWorkspace = await db
-        .prisma()
-        .workspace.create({ data: { name: pickWorkspaceName(query.projectName, user) } });
-      await withProductAnalytics(p => p.track("workspace_created"), { req, user, workspace: newWorkspace });
-      await db.prisma().workspaceAccess.create({ data: { userId: user.internalId, workspaceId: newWorkspace.id } });
-      getServerLog()
-        .atInfo()
-        .log(`Created a new workspace ${newWorkspace.id} for user ${user.internalId} (${user.email}).`);
-      return { user: user, firstWorkspaceId: newWorkspace.id, firstWorkspaceSlug: null, newUser: true };
+      // Check if user has pending invitations
+      const pendingInvitations = await db.prisma().invitationToken.findMany({
+        where: {
+          email: user.email,
+          usedBy: null, // Only unused invitations
+        },
+      });
+
+      if (pendingInvitations.length > 0) {
+        getServerLog()
+          .atInfo()
+          .log(
+            `User ${user.internalId} has ${pendingInvitations.length} pending invitations. Redirecting to workspaces page`
+          );
+        return { user: user, redirect: "/workspaces" };
+      }
+
+      // Return a redirect to new workspace creation page
+      return { user: user, redirect: "/new-workspace" };
     }
 
     const lastUsedWorkspaceId = (
