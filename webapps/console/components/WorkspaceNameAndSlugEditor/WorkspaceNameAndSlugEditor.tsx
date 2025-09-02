@@ -5,6 +5,7 @@ import { get } from "../../lib/useApi";
 import { copyTextToClipboard, feedbackError, feedbackSuccess } from "../../lib/ui";
 import { publicEmailDomains } from "../../lib/shared/email-domains";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
+import { ContextApiResponse } from "../../lib/schema";
 
 function ensureLength(res): string {
   return res.length < 5 ? res + "project" : res;
@@ -22,6 +23,23 @@ function pickSlug(email, name): string {
     return ensureLength(company.toLowerCase());
   }
   return ensureLength(username.replace(/[^a-z0-9]/g, ""));
+}
+
+function capitalize(s: string) {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function pickWorkspaceName(user: ContextApiResponse["user"]) {
+  if (!user.email) {
+    return `${user.name}'s workspace`;
+  }
+  const [username, domain] = user.email.split("@");
+  if (publicEmailDomains.includes(domain.toLowerCase())) {
+    return `${username}'s workspace`;
+  } else {
+    const [company, ...rest] = domain.split(".");
+    return `${capitalize(company)}'s workspace`;
+  }
 }
 
 /**
@@ -43,7 +61,7 @@ export function WorkspaceNameAndSlugEditor({
   canEdit?: boolean;
 }) {
   const user = useUser();
-  const [name, setName] = useState(workspace?.name || `${user.name || user.email}'s workspace`);
+  const [name, setName] = useState(workspace?.name || pickWorkspaceName(user));
   const [slug, setSlug] = useState(workspace?.slug || pickSlug(user.email, workspace?.name || name));
   const [changed, setChanged] = useState(false);
   const [loading, setLoading] = useState(false);
