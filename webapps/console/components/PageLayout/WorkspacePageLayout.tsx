@@ -25,7 +25,6 @@ import {
   HelpCircle,
   LayoutDashboard,
   LineChart,
-  Loader2,
   PackageOpen,
   PlugZap,
   ScrollText,
@@ -45,14 +44,13 @@ import {
 import { NextRouter, useRouter } from "next/router";
 import Link from "next/link";
 import { getDomains, useAppConfig, useUser, useUserSessionControls, useWorkspace } from "../../lib/context";
-import { get, useApi } from "../../lib/useApi";
+import { useApi } from "../../lib/useApi";
 
 import { Overlay } from "../Overlay/Overlay";
 import { WorkspaceNameAndSlugEditor } from "../WorkspaceNameAndSlugEditor/WorkspaceNameAndSlugEditor";
 import { assertDefined, assertTrue, getLog } from "juava";
 import classNames from "classnames";
 import { BillingBlockingDialog } from "../Billing/BillingBlockingDialog";
-import { feedbackError } from "../../lib/ui";
 import { useJitsu } from "@jitsu/jitsu-react";
 import { useSearchParams } from "next/navigation";
 import omit from "lodash/omit";
@@ -106,7 +104,6 @@ export const WorkspaceMenu: React.FC<{ closeMenu: () => void; classicProject?: s
 function WorkspacesMenu(props: { jitsuClassicAvailable: boolean }) {
   const router = useRouter();
   const [classicLoading, setClassicLoading] = useState(false);
-  const [adding, setAdding] = useState(false);
 
   const workspace = useWorkspace();
   const appConfig = useAppConfig();
@@ -170,26 +167,13 @@ function WorkspacesMenu(props: { jitsuClassicAvailable: boolean }) {
           key: "new-workspace",
           label: (
             <div className="flex items-center">
-              <ButtonLabel
-                iconSize="small"
-                icon={
-                  adding ? <Loader2 className="h-full w-full animate-spin" /> : <FilePlus className="h-full w-full" />
-                }
-              >
+              <ButtonLabel iconSize="small" icon={<FilePlus className="h-full w-full" />}>
                 Create new workspace
               </ButtonLabel>
             </div>
           ),
           onClick: async () => {
-            setAdding(true);
-            try {
-              const { id } = await get("/api/workspace", { method: "POST", body: {} });
-              await router.push(`/${id}`);
-            } catch (e) {
-              feedbackError(`Can't create new workspace`, { error: e });
-            } finally {
-              setAdding(false);
-            }
+            await router.push("/new-workspace");
           },
         },
         ...additionalMenuItems,
@@ -603,6 +587,7 @@ const WorkspaceSettingsModal: React.FC<{
   const searchParams = useSearchParams();
   const welcome = searchParams.get("welcome");
   const sessionControl = useUserSessionControls();
+  const workspace = useWorkspace();
 
   useEffect(() => {
     if (welcome) {
@@ -629,7 +614,7 @@ const WorkspaceSettingsModal: React.FC<{
               {domains.appBase}/<span className="text-textDark">your-slug</span>
             </code>{" "}
           </div>
-          <WorkspaceNameAndSlugEditor onSuccess={onSuccess} onboarding={onboarding} />
+          <WorkspaceNameAndSlugEditor workspace={workspace} onSuccess={onSuccess} onboarding={onboarding} />
           <div className="text-center my-4">
             Got here by mistake?{" "}
             <a className="cursor-pointer text-primary underline" onClick={sessionControl.logout}>

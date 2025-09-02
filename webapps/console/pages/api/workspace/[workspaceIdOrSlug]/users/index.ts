@@ -48,7 +48,7 @@ const api: Api = {
       if (!workspace) {
         throw new ApiError(`Workspace '${workspaceIdOrSlug}' not found`, { status: 404 });
       }
-      await verifyAccess(user, workspace.id);
+      const role = await verifyAccessWithRole(user, workspace.id, "readEntities");
       const currentUsers: UserWorkspaceRelation[] = (
         await db.prisma().workspaceAccess.findMany({
           where: { workspaceId: workspace.id },
@@ -68,7 +68,7 @@ const api: Api = {
         await db.prisma().invitationToken.findMany({ where: { workspaceId: workspace.id, usedBy: null } })
       ).map(res => ({
         workspaceId: workspace.id,
-        invitationLink: `${whoamiUrl(req)}/accept?invite=${res.token}`,
+        invitationLink: role.manageUsers ? `${whoamiUrl(req)}/accept?invite=${res.token}` : undefined,
         invitationEmail: res.email,
         canSendEmail: isMailAvailable(),
         role: (res.role as WorkspaceRoleType) || "owner",

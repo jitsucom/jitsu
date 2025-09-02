@@ -17,7 +17,7 @@ export const ContextApiResponse = z.object({
   user: SessionUser,
   firstWorkspaceId: z.string().nullish().optional(),
   firstWorkspaceSlug: z.string().nullish().optional(),
-  newUser: z.boolean().optional(),
+  redirect: z.string().optional(),
 });
 export type ContextApiResponse = z.infer<typeof ContextApiResponse>;
 

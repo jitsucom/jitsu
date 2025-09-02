@@ -1,7 +1,6 @@
 import { Api, inferUrl, nextJsApiHandler } from "../../../lib/api";
 import { z } from "zod";
 import { db } from "../../../lib/server/db";
-import { WorkspaceDbModel } from "../../../prisma/schema";
 
 async function suggestSlug(slug: string): Promise<string> {
   let counter = 1;
@@ -48,17 +47,6 @@ const api: Api = {
         };
       }
       return { valid: true };
-    },
-  },
-  POST: {
-    auth: true,
-    types: {
-      body: WorkspaceDbModel.omit({ id: true, deleted: true, featuresEnabled: true }),
-    },
-    handle: async ({ user, body }) => {
-      const newWorkspace = await db.prisma().workspace.create({ data: body });
-      await db.prisma().workspaceAccess.create({ data: { userId: user.internalId, workspaceId: newWorkspace.id } });
-      return { id: newWorkspace.id };
     },
   },
 };

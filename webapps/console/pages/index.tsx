@@ -14,25 +14,9 @@ function WorkspaceRedirect() {
   const router = useRouter();
   const sessionControl = useUserSessionControls();
 
-  const projectName = localStorage.getItem("projectName");
-
-  const params = {
-    projectName: projectName || undefined,
-    invite: (router.query.invite as string) || undefined,
-  };
-  const { data, isLoading, error } = useApi<ContextApiResponse>(
-    "/api/init-user" +
-      (Object.entries(params).length > 0
-        ? "?" +
-          Object.entries(params)
-            .filter(([, v]) => v !== undefined && v !== null)
-            .map(([k, v]) => `${k}=${encodeURIComponent(v as string)}`)
-            .join("&")
-        : ""),
-    {
-      outputType: ContextApiResponse,
-    }
-  );
+  const { data, isLoading, error } = useApi<ContextApiResponse>("/api/init-user", {
+    outputType: ContextApiResponse,
+  });
 
   if (isLoading) {
     return <GlobalLoader title={"Redirecting..."} />;
@@ -101,11 +85,14 @@ function WorkspaceRedirect() {
           Do you want to authorize Jitsu CLI to use your account?
         </Modal>
       );
+    } else if (data.redirect) {
+      // Redirect to specified path
+      router.push(data.redirect);
     } else if (data.firstWorkspaceSlug || data.firstWorkspaceId) {
-      router.push(`/${data.firstWorkspaceSlug || data.firstWorkspaceId}${data.newUser ? "?welcome=true" : ""}`);
+      router.push(`/${data.firstWorkspaceSlug || data.firstWorkspaceId}`);
     } else {
-      //TODO: seems like we don't need this anymore and there is no such page
-      router.push(`/create-workspace?welcome=true`);
+      // Fallback to workspaces page if no specific workspace is identified
+      router.push("/workspaces");
     }
     //return <GlobalLoader title={"Redirecting..."} />;
   }

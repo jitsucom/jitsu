@@ -1,4 +1,4 @@
-import { useUser, useWorkspace, useWorkspaceRole } from "../../lib/context";
+import { useUser } from "../../lib/context";
 import React, { useState } from "react";
 import { Input } from "antd";
 import { get } from "../../lib/useApi";
@@ -32,18 +32,19 @@ export function WorkspaceNameAndSlugEditor({
   onSuccess,
   displayId,
   onboarding,
+  workspace,
+  canEdit = true,
 }: {
-  onSuccess?: (newVals: { name: string; slug: string }) => void;
+  onSuccess?: (newVals: { name: string; slug: string; id?: string }) => void;
   displayId?: boolean;
   offerClassic?: boolean;
   onboarding?: boolean;
+  workspace?: { id?: string; name?: string; slug?: string | null };
+  canEdit?: boolean;
 }) {
-  const workspace = useWorkspace();
-  const role = useWorkspaceRole();
-  const canEdit = role.editEntities;
   const user = useUser();
-  const [name, setName] = useState(workspace.name);
-  const [slug, setSlug] = useState(workspace.slug || pickSlug(user.email, workspace.name));
+  const [name, setName] = useState(workspace?.name || `${user.name || user.email}'s workspace`);
+  const [slug, setSlug] = useState(workspace?.slug || pickSlug(user.email, workspace?.name || name));
   const [changed, setChanged] = useState(false);
   const [loading, setLoading] = useState(false);
   const [slugError, setSlugError] = useState<string | undefined>();
@@ -81,13 +82,13 @@ export function WorkspaceNameAndSlugEditor({
           {slugError && <div className="text-sm text-error mt-1">{slugError}</div>}
         </div>
 
-        {displayId && (
+        {displayId && workspace?.id && (
           <div>
             <label className="block text-base font-medium text-textDark mb-2">Workspace ID</label>
             <div
               className="cursor-pointer bg-background text-textDark px-3 py-2 rounded-lg border border-textDisabled font-mono hover:bg-backgroundLight transition-colors"
               onClick={() => {
-                copyTextToClipboard(workspace.id);
+                copyTextToClipboard(workspace.id!);
                 feedbackSuccess("Workspace ID copied to clipboard");
               }}
             >
@@ -107,8 +108,7 @@ export function WorkspaceNameAndSlugEditor({
         <JitsuButton
           type="primary"
           loading={loading}
-          requiredPermission={!onboarding ? "editEntities" : undefined}
-          disabled={!changed && !onboarding}
+          disabled={(workspace?.id && !changed && !onboarding) || !canEdit}
           onClick={async () => {
             if (!slug) {
               feedbackError("Slug cannot be empty");
@@ -116,33 +116,52 @@ export function WorkspaceNameAndSlugEditor({
             }
             setLoading(true);
             try {
-              if (workspace.slug !== slug) {
+              // Check slug validity
+              if (!workspace?.id || workspace.slug !== slug) {
                 const { valid, reason, suggestedSlug } = await get(`/api/workspace/slug-check`, { query: { slug } });
                 if (!valid) {
                   setSlugError(reason);
                   if (suggestedSlug) {
                     setSlug(suggestedSlug);
                   }
+                  setLoading(false);
                   return;
                 }
               }
-              await get(`/api/workspace/${workspace.id}?onboarding=${!!onboarding}`, {
-                method: "PUT",
-                body: { name, slug },
-              });
-              feedbackSuccess("Workspace settings have been saved");
+
+              let workspaceId = workspace?.id;
+
+              // Create new workspace if no ID exists
+              if (!workspaceId) {
+                const { id } = await get(`/api/workspace${onboarding ? "?onboarding=true" : ""}`, {
+                  method: "POST",
+                  body: { name, slug },
+                });
+                workspaceId = id;
+                feedbackSuccess("Workspace created successfully");
+              } else {
+                // Update existing workspace
+                await get(`/api/workspace/${workspaceId}?onboarding=${!!onboarding}`, {
+                  method: "PUT",
+                  body: { name, slug },
+                });
+                feedbackSuccess("Workspace settings have been saved");
+              }
+
               setChanged(false);
               if (onSuccess) {
-                onSuccess({ name, slug });
+                onSuccess({ name, slug, id: workspaceId });
               }
             } catch (e) {
-              feedbackError(`Failed to save workspace settings`, { error: e });
+              feedbackError(`Failed to ${workspace?.id ? "save workspace settings" : "create workspace"}`, {
+                error: e,
+              });
             } finally {
               setLoading(false);
             }
           }}
         >
-          Save Changes
+          {workspace?.id ? "Save Changes" : "Create Workspace"}
         </JitsuButton>
       </div>
     </div>

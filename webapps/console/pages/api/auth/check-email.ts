@@ -41,25 +41,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const dynamicOidcEnabled = isTruish(process.env.DYNAMIC_OIDC_ENABLED);
 
     // Check if user exists in database with any login provider
-    const existingUser = await db.prisma().userProfile.findFirst({
+    const existingUsers = await db.prisma().userProfile.findMany({
       where: {
         email: email.toLowerCase(),
       },
     });
 
     if (dynamicOidcEnabled) {
-      authMethods.push(...(await checkDynamicOidcUser(email, existingUser)));
+      authMethods.push(...(await checkDynamicOidcUser(email, existingUsers)));
     }
 
     if (firebaseEnabled) {
       authMethods.push(...(await checkFirebaseUser(email)));
-    } else if (existingUser) {
+    } else if (existingUsers.length > 0) {
       // Check for nextauth login providers
       // TODO: we should replace hardcoded login providers with a dynamic list from nextauth config
-      if (["github", "credentials", "oidc"].includes(existingUser.loginProvider)) {
-        authMethods.push({
-          type: "nextauth-" + existingUser.loginProvider,
-        } as AuthMethod);
+      for (const existingUser of existingUsers) {
+        if (["github", "credentials", "oidc"].includes(existingUser.loginProvider)) {
+          authMethods.push({
+            type: "nextauth-" + existingUser.loginProvider,
+          } as AuthMethod);
+        }
       }
     }
 
@@ -119,10 +121,27 @@ async function checkFirebaseUser(email: string): Promise<AuthMethod[]> {
 
 type UserProfileDbModel = z.infer<typeof UserProfileDbModel>;
 
-async function checkDynamicOidcUser(
-  email: string,
-  existingUser: UserProfileDbModel | null | undefined
-): Promise<AuthMethod[]> {
+async function checkDynamicOidcUser(email: string, existingUsers: UserProfileDbModel[]): Promise<AuthMethod[]> {
+  const authMethods: AuthMethod[] = [];
+  for (const existingUser of existingUsers) {
+    if (existingUser.loginProvider.startsWith("dynamic-oidc/")) {
+      const providerId = existingUser.loginProvider.split("/")[1];
+      if (providerId) {
+        const provider = await db.prisma().oidcProvider.findFirst({
+          where: { id: providerId, enabled: true },
+          select: { id: true, name: true },
+        });
+        if (provider) {
+          authMethods.push({
+            type: "dynamic-oidc",
+            oidcProviderId: provider.id,
+            oidcProviderName: provider.name,
+          });
+        }
+      }
+    }
+  }
+
   // Check for dynamic OIDC providers
   const dynamicOidcProviders = await db.prisma().oidcProvider.findMany({
     where: { enabled: true },
@@ -134,7 +153,6 @@ async function checkDynamicOidcUser(
   if (dynamicOidcProviders.length === 0) {
     return [];
   }
-  const authMethods: AuthMethod[] = [];
   const invitation = await db.prisma().invitationToken.findFirst({
     where: {
       email: email.toLowerCase(),
@@ -160,42 +178,6 @@ async function checkDynamicOidcUser(
     });
     if (workspace && workspace.oidcLoginGroups.length > 0) {
       const oidcGroup = workspace.oidcLoginGroups.find(group => group.oidcProvider.enabled);
-      if (oidcGroup) {
-        authMethods.push({
-          type: "dynamic-oidc",
-          oidcProviderId: oidcGroup.oidcProvider.id,
-          oidcProviderName: oidcGroup.oidcProvider.name,
-        });
-      }
-    }
-  }
-  if (existingUser && existingUser.loginProvider.startsWith("dynamic-oidc/")) {
-    const providerId = existingUser.loginProvider.split("/")[1];
-    const workspaceAccess = await db.prisma().workspaceAccess.findMany({
-      where: {
-        userId: existingUser.id,
-      },
-      include: {
-        workspace: {
-          include: {
-            oidcLoginGroups: {
-              where: {
-                oidcProviderId: providerId,
-                oidcProvider: {
-                  enabled: true,
-                },
-              },
-              include: {
-                oidcProvider: true,
-              },
-            },
-          },
-        },
-      },
-    });
-    const workspaceWithOidc = workspaceAccess.find(wa => wa.workspace.oidcLoginGroups.length > 0);
-    if (workspaceWithOidc) {
-      const oidcGroup = workspaceWithOidc.workspace.oidcLoginGroups[0];
       if (oidcGroup) {
         authMethods.push({
           type: "dynamic-oidc",
