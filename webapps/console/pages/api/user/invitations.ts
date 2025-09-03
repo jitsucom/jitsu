@@ -34,7 +34,7 @@ export default createRoute()
     const invitationsWithWorkspace = await Promise.all(
       invitations.map(async invitation => {
         const workspace = await db.prisma().workspace.findUnique({
-          where: { id: invitation.workspaceId },
+          where: { id: invitation.workspaceId, deleted: false },
           select: { name: true },
         });
 

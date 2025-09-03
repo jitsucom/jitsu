@@ -4,6 +4,7 @@ import { db } from "../../../lib/server/db";
 import { requireDefined } from "juava";
 import { withProductAnalytics } from "../../../lib/server/telemetry";
 import { WorkspaceDbModel } from "../../../prisma/schema";
+import { validateSlug, validateWorkspaceName } from "./validate";
 
 const MAX_LIMIT = 1_000_000;
 
@@ -143,10 +144,20 @@ const api: Api = {
         .optional(),
     },
     handle: async ({ req, user, body, query }) => {
+      // Validate workspace name to prevent HTML injection
+      const nameResult = validateWorkspaceName(body.name || "");
+      if (!nameResult.valid) {
+        return { message: `Invalid workspace name: ${nameResult.reason}`, status: 400 };
+      }
+      const slugResult = await validateSlug(body.slug || "", undefined);
+      if (!slugResult.valid) {
+        return { message: `Invalid workspace slug: ${slugResult.reason}`, status: 400 };
+      }
+
       const newWorkspace = await db.prisma().workspace.create({
         data: {
-          name: body.name || `${user.name || user.email || user.externalId}'s new workspace`,
-          slug: body.slug,
+          name: body.name.trim(),
+          slug: body.slug.trim(),
         },
       });
       await db.prisma().workspaceAccess.create({

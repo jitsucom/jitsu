@@ -12,6 +12,7 @@ import { SessionUser } from "../../../../lib/schema";
 import { initTelemetry, withProductAnalytics } from "../../../../lib/server/telemetry";
 import { isEqual } from "juava";
 import { randomUUID } from "crypto";
+import { validateSlug, validateWorkspaceName } from "../validate";
 
 const log = getServerLog();
 
@@ -162,9 +163,21 @@ export const api: Api = {
     },
     handle: async ({ req, query: { workspaceIdOrSlug, onboarding }, body, user }) => {
       await verifyAccessWithRole(user, workspaceIdOrSlug, "editEntities");
-      const workspace = await db
-        .prisma()
-        .workspace.update({ where: { id: workspaceIdOrSlug }, data: { name: body.name, slug: body.slug } });
+
+      // Validate workspace name to prevent HTML injection
+      const nameResult = validateWorkspaceName(body.name || "");
+      if (!nameResult.valid) {
+        return { message: `Invalid workspace name: ${nameResult.reason}`, status: 400 };
+      }
+      const slugResult = await validateSlug(body.slug || "", workspaceIdOrSlug);
+      if (!slugResult.valid) {
+        return { message: `Invalid workspace slug: ${slugResult.reason}`, status: 400 };
+      }
+
+      const workspace = await db.prisma().workspace.update({
+        where: { id: workspaceIdOrSlug },
+        data: { name: body.name.trim(), slug: body.slug.trim() },
+      });
       if (onboarding === "true") {
         await withProductAnalytics(callback => callback.track("workspace_onboarded"), { user, workspace, req });
       }
