@@ -1,4 +1,4 @@
-import { Api, inferUrl, nextJsApiHandler, verifyAccess, verifyAccessWithRole } from "../../../../../lib/api";
+import { Api, inferUrl, nextJsApiHandler, verifyAccessWithRole } from "../../../../../lib/api";
 import { SessionUser, UserWorkspaceRelation } from "../../../../../lib/schema";
 import { z } from "zod";
 import { assertDefined, requireDefined, randomId } from "juava";
