@@ -5,7 +5,7 @@ import { get } from "../../lib/useApi";
 import { copyTextToClipboard, feedbackError, feedbackSuccess } from "../../lib/ui";
 import { publicEmailDomains } from "../../lib/shared/email-domains";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
-import { ContextApiResponse } from "../../lib/schema";
+import type { ContextApiResponse } from "../../lib/schema";
 
 function ensureLength(res): string {
   return res.length < 5 ? res + "project" : res;
@@ -34,7 +34,7 @@ function pickWorkspaceName(user: ContextApiResponse["user"]) {
     return `${user.name}'s workspace`;
   }
   const [username, domain] = user.email.split("@");
-  if (publicEmailDomains.includes(domain.toLowerCase())) {
+  if (publicEmailDomains.includes((domain ?? "").toLowerCase())) {
     return `${username}'s workspace`;
   } else {
     const [company, ...rest] = domain.split(".");

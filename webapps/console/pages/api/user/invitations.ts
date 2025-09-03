@@ -33,10 +33,13 @@ export default createRoute()
     // Get workspace information for each invitation
     const invitationsWithWorkspace = await Promise.all(
       invitations.map(async invitation => {
-        const workspace = await db.prisma().workspace.findUnique({
+        const workspace = await db.prisma().workspace.findFirst({
           where: { id: invitation.workspaceId, deleted: false },
           select: { name: true },
         });
+        if (!workspace) {
+          return null;
+        }
 
         return {
           id: invitation.id,
@@ -50,6 +53,6 @@ export default createRoute()
       })
     );
 
-    return invitationsWithWorkspace;
+    return invitationsWithWorkspace.filter(invitation => invitation !== null);
   })
   .toNextApiHandler();
