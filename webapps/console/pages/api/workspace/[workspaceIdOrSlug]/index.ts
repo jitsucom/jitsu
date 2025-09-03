@@ -167,11 +167,11 @@ export const api: Api = {
       // Validate workspace name to prevent HTML injection
       const nameResult = validateWorkspaceName(body.name || "");
       if (!nameResult.valid) {
-        return { message: `Invalid workspace name: ${nameResult.reason}`, status: 400 };
+        throw new ApiError(`Invalid workspace name: ${nameResult.reason}`, { status: 400 });
       }
       const slugResult = await validateSlug(body.slug || "", workspaceIdOrSlug);
       if (!slugResult.valid) {
-        return { message: `Invalid workspace slug: ${slugResult.reason}`, status: 400 };
+        throw new ApiError(`Invalid workspace slug: ${slugResult.reason}`, { status: 400 });
       }
 
       const workspace = await db.prisma().workspace.update({

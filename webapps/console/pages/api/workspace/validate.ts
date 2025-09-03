@@ -42,7 +42,7 @@ export function validateWorkspaceName(name: string): { valid: boolean; reason?: 
 
   // Only allow safe characters: letters, numbers, spaces, hyphens, underscores, apostrophes
   // This alone prevents HTML injection and other security issues
-  const safeNamePattern = /^[a-zA-Z0-9\s\-_']+$/;
+  const safeNamePattern = /^[a-zA-Z0-9 \-_']+$/;
 
   if (!safeNamePattern.test(trimmedName)) {
     return {
