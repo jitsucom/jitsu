@@ -66,6 +66,7 @@ export function WorkspaceNameAndSlugEditor({
   const [changed, setChanged] = useState(false);
   const [loading, setLoading] = useState(false);
   const [slugError, setSlugError] = useState<string | undefined>();
+  const [nameError, setNameError] = useState<string | undefined>();
   return (
     <div className="bg-backgroundLight border border-textDisabled rounded-lg overflow-hidden">
       <div className="px-6 py-4 bg-background border-b border-textDisabled">
@@ -82,8 +83,10 @@ export function WorkspaceNameAndSlugEditor({
             onChange={e => {
               setName(e.target.value);
               setChanged(true);
+              setNameError(undefined); // Clear error on change
             }}
           />
+          {nameError && <div className="text-sm text-error mt-1">{nameError}</div>}
         </div>
 
         <div>
@@ -95,6 +98,7 @@ export function WorkspaceNameAndSlugEditor({
             onChange={e => {
               setSlug(e.target.value);
               setChanged(true);
+              setSlugError(undefined); // Clear error on change
             }}
           />
           {slugError && <div className="text-sm text-error mt-1">{slugError}</div>}
@@ -128,23 +132,33 @@ export function WorkspaceNameAndSlugEditor({
           loading={loading}
           disabled={(workspace?.id && !changed && !onboarding) || !canEdit}
           onClick={async () => {
-            if (!slug) {
-              feedbackError("Slug cannot be empty");
-              return;
-            }
             setLoading(true);
             try {
-              // Check slug validity
-              if (!workspace?.id || workspace.slug !== slug) {
-                const { valid, reason, suggestedSlug } = await get(`/api/workspace/slug-check`, { query: { slug } });
-                if (!valid) {
-                  setSlugError(reason);
-                  if (suggestedSlug) {
-                    setSlug(suggestedSlug);
-                  }
-                  setLoading(false);
-                  return;
+              // Validate both name and slug together
+              const validation = await get(`/api/workspace/validate`, {
+                query: {
+                  name,
+                  slug,
+                  ...(workspace?.id ? { workspaceId: workspace?.id } : {}),
+                },
+              });
+
+              // Handle validation results
+              if (!validation.allValid) {
+                if (!validation.name.valid) {
+                  setNameError(validation.name.reason);
                 }
+
+                if (!validation.slug.valid) {
+                  setSlugError(validation.slug.reason);
+                  // // Auto-suggest a slug if available
+                  // if (validation.slug.suggestedSlug) {
+                  //   setSlug(validation.slug.suggestedSlug);
+                  // }
+                }
+
+                setLoading(false);
+                return;
               }
 
               let workspaceId = workspace?.id;
