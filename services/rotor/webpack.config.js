@@ -6,6 +6,7 @@ const config = {
   target: "node",
   externals: {
     "isolated-vm": "require('isolated-vm')",
+    "@confluentinc/kafka-javascript": "require('@confluentinc/kafka-javascript')",
   },
   node: {
     __dirname: false,
