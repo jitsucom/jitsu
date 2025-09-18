@@ -76,6 +76,7 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
           autoCommitInterval: 10000,
           autoCommit: true,
         },
+        "group.protocol": process.env.CONSUMER_PROTOCOL ? "consumer" : undefined,
         "group.instance.id": process.env.INSTANCE_ID || process.env.ROTOR_INSTANCE_ID,
       });
       await consumer.connect();
