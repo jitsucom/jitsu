@@ -11,12 +11,14 @@ import mixpanelIcon from "./icons/mixpanel";
 import facebookIcon from "./icons/facebook";
 import juneIcon from "./icons/june";
 import blazeIcon from "./icons/blaze";
+import salesforceIcon from "./icons/salesforce";
 import mongodbIcon from "./icons/mongodb";
 
 import ga4Icon from "./icons/ga4";
 import gtmIcon from "./icons/gtm";
 import postgresIcon from "./icons/postgres";
 import mysqlIcon from "./icons/mysql";
+import motherduckIcon from "./icons/motherduck";
 import redshiftIcon from "./icons/redshift";
 import posthogIcon from "./icons/posthog";
 import segmentIcon from "./icons/segment";
@@ -55,6 +57,8 @@ const s3Regions = [
   "us-gov-east-1",
   "us-gov-west-1",
 ] as const;
+
+export const MASKED_SECRET = "__MASKED_BY_JITSU__";
 
 /**
  * UI for property
@@ -111,6 +115,9 @@ export const FunctionsConnectionOptions = z.object({
 export const CloudDestinationsConnectionOptions = z
   .object({
     multithreading: z.boolean().optional(),
+    threadsCount: z.number().optional(),
+    disabled: z.boolean().optional(),
+    noretry: z.boolean().optional(),
   })
   .merge(FunctionsConnectionOptions);
 export type CloudDestinationsConnectionOptions = z.infer<typeof CloudDestinationsConnectionOptions>;
@@ -123,7 +130,8 @@ export const BatchModeOptions = z.object({
     .int()
     .min(1)
     .max(60 * 24)
-    .default(5),
+    .default(5)
+    .nullish(),
 });
 export type BatchModeOptions = z.infer<typeof BatchModeOptions>;
 
@@ -142,6 +150,7 @@ export type DeviceDestinationsConnectionOptions = z.infer<typeof DeviceDestinati
 //All possible options for Bulker based source -> destination connection
 export const BaseBulkerConnectionOptions = z
   .object({
+    disabled: z.boolean().optional(),
     mode: z.enum(["stream", "batch"]).default("batch"),
     primaryKey: z.string().default("message_id"),
     deduplicate: z.boolean().default(true),
@@ -152,6 +161,9 @@ export const BaseBulkerConnectionOptions = z
       .default("segment-single-table"),
     schemaFreeze: z.boolean().default(false),
     keepOriginalNames: z.boolean().default(false),
+    multithreading: z.boolean().optional(),
+    threadsCount: z.number().optional(),
+    spreadTablesSchedule: z.boolean().optional(),
   })
   .merge(BatchModeOptions)
   .merge(FunctionsConnectionOptions);
@@ -262,7 +274,7 @@ export const ClickhouseCredentials = z.object({
   cluster: z
     .string()
     .optional()
-    .describe("Name of cluster to use. If clickhouse works in single node mode, leave this field empty"),
+    .describe("Name of cluster to use.<br/>For <b>ClickHouse Cloud</b> or single-node setups, leave this field empty."),
   database: z.string().default("default").describe("Name of the database to use"),
   parameters: z
     .object({})
@@ -275,7 +287,7 @@ export const ClickhouseCredentials = z.object({
     .boolean()
     .default(false)
     .describe(
-      "Load data in JSONEachRow. May offer better performance. May not work properly on old ClickHouse versions."
+      "Use JSONEachRow format::Load data in the <a href='https://clickhouse.com/docs/en/interfaces/formats' rel='noreferrer noopener' target='_blank'>JSONEachRow</a> format. This method offers better performance but may not work correctly on older ClickHouse versions."
     ),
 });
 
@@ -406,11 +418,11 @@ export const coreDestinations: DestinationType<any>[] = [
       hosts: {
         editor: "StringArrayEditor",
       },
-      password: {
-        password: true,
-      },
       loadAsJson: {
         hidden: true,
+      },
+      password: {
+        password: true,
       },
     },
   },
@@ -422,20 +434,73 @@ export const coreDestinations: DestinationType<any>[] = [
     tags: "Datawarehouse",
     connectionOptions: BaseBulkerConnectionOptions,
     credentials: z.object({
-      host: z.string().describe("Postgres host"),
-      port: z.number().default(5432).describe("Postgres port"),
+      authenticationMethod: z
+        .enum(["password", "google-psc"])
+        .optional()
+        .default("password")
+        .describe(
+          "Authentication Method::Standard username/password or <a target='_blank' rel='noreferrer noopener' href='https://docs.jitsu.com/destinations/warehouse/postgres#advanced-private-service-connect-for-google-cloud-sql'>Private Service Connect</a> for Google-managed postgres instances only."
+        ),
+      instanceConnectionName: z
+        .string()
+        .optional()
+        .describe(
+          "Instance Connection Name::Google SQL instance Connection Name in the format <code>project-name:region:instance-name</code>. <a target='_blank' rel='noreferrer noopener' href='https://docs.jitsu.com/destinations/warehouse/postgres#provide-jitsu-with-cloud-sql-instance-details'>How to obtain</a>."
+        ),
+      host: z.string().optional().describe("Postgres host"),
+      port: z.number().optional().default(5432).describe("Postgres port"),
       sslMode: z
-        .enum(["disable", "require"])
+        .enum(["disable", "require", "verify-ca", "verify-full"])
+        .optional()
         .default("require")
-        .describe("SSL Mode::SSL mode for Postgres connection: <code>disable</code> or <code>require</code>"),
+        .describe(
+          "SSL Mode::SSL mode for Postgres connection: <code>disable</code>,<code>require</code>,<code>verify-ca</code>,<code>verify-full</code>"
+        ),
+      sslServerCA: z.string().optional().describe("SSL Server CA::"),
+      sslClientCert: z.string().optional().describe("SSL Client Cert::"),
+      sslClientKey: z.string().optional().describe("SSL Client Key::"),
       database: z.string().describe("Postgres database name"),
-      username: z.string().describe("Postgres username"),
-      password: z.string().describe("Postgres password"),
+      username: z.string().optional().describe("Postgres username"),
+      password: z.string().optional().describe("Postgres password"),
       defaultSchema: z.string().default("public").describe("Schema::Postgres schema"),
     }),
     credentialsUi: {
+      authenticationMethod: {
+        correction: obj => obj.authenticationMethod || "password",
+      },
+      instanceConnectionName: {
+        hidden: obj => obj.authenticationMethod !== "google-psc",
+      },
+      username: {
+        hidden: obj => obj.authenticationMethod === "google-psc",
+      },
       password: {
         password: true,
+        hidden: obj => obj.authenticationMethod === "google-psc",
+      },
+      host: {
+        hidden: obj => obj.authenticationMethod === "google-psc",
+      },
+      port: {
+        hidden: obj => obj.authenticationMethod === "google-psc",
+      },
+      sslMode: {
+        hidden: obj => obj.authenticationMethod === "google-psc",
+      },
+      sslServerCA: {
+        textarea: true,
+        password: true,
+        hidden: obj => obj.sslMode === "disable" || obj.sslMode === "require",
+      },
+      sslClientCert: {
+        textarea: true,
+        password: true,
+        hidden: obj => obj.sslMode === "disable" || obj.sslMode === "require",
+      },
+      sslClientKey: {
+        textarea: true,
+        password: true,
+        hidden: obj => obj.sslMode === "disable" || obj.sslMode === "require",
       },
     },
     description: "Postgres is a powerful, open source object-relational database system.",
@@ -474,12 +539,8 @@ export const coreDestinations: DestinationType<any>[] = [
     }),
     credentialsUi: {
       keyFile: {
-        editor: "CodeEditor",
-        editorProps: {
-          language: "json",
-          height: "250px",
-          monacoOptions: { lineNumbers: "off" },
-        },
+        password: true,
+        textarea: true,
       },
     },
   },
@@ -489,12 +550,26 @@ export const coreDestinations: DestinationType<any>[] = [
     title: "Snowflake",
     tags: "Datawarehouse",
     credentials: z.object({
+      authenticationMethod: z
+        .enum(["key-pair", "password"])
+        .optional()
+        .default("key-pair")
+        .describe(
+          "Authentication Method::Snowflake authentication method: <a target='_blank' rel='noopener noreferrer' href='https://docs.snowflake.com/en/user-guide/key-pair-auth'>Key-pair</a> or username/password"
+        ),
+      username: z.string().optional().describe("Snowflake username"),
+      password: z.string().optional().describe("Snowflake password"),
+      privateKey: z
+        .string()
+        .optional()
+        .describe(
+          "Private Key::Snowflake private key. <a target='_blank' rel='noopener noreferrer' href='https://docs.snowflake.com/en/user-guide/key-pair-auth'>Generate the private key</a>"
+        ),
+      privateKeyPassphrase: z.string().optional(),
       account: z.string().describe("Snowflake account name"),
+      warehouse: z.string().describe("Snowflake warehouse name"),
       database: z.string().describe("Snowflake database name"),
       defaultSchema: z.string().default("PUBLIC").describe("Schema::Snowflake schema"),
-      username: z.string().describe("Snowflake username"),
-      password: z.string().describe("Snowflake password"),
-      warehouse: z.string().describe("Snowflake warehouse name"),
       parameters: z
         .object({})
         .catchall(z.string().default(""))
@@ -502,7 +577,20 @@ export const coreDestinations: DestinationType<any>[] = [
         .describe("Additional Snowflake connection parameters"),
     }),
     credentialsUi: {
+      authenticationMethod: {
+        correction: (obj, isNew) => (isNew ? "key-pair" : obj.authenticationMethod || "password"),
+      },
       password: {
+        password: true,
+        hidden: obj => obj.authenticationMethod === "key-pair",
+      },
+      privateKey: {
+        hidden: obj => obj.authenticationMethod !== "key-pair",
+        textarea: true,
+        password: true,
+      },
+      privateKeyPassphrase: {
+        hidden: obj => obj.authenticationMethod !== "key-pair",
         password: true,
       },
     },
@@ -594,6 +682,29 @@ export const coreDestinations: DestinationType<any>[] = [
     },
     description:
       "Amazon Redshift is a cloud data warehouse that is optimized for the analytical workloads of business intelligence (BI) and data warehousing (DWH). Jitsu supports both Serverless and Classic Redshift",
+  },
+  {
+    id: "duckdb",
+    usesBulker: true,
+    icon: motherduckIcon,
+    title: "MotherDuck (DuckDB)",
+    tags: "Datawarehouse",
+    connectionOptions: BaseBulkerConnectionOptions,
+    credentials: z.object({
+      database: z.string().describe("MotherDuck database name"),
+      motherduckToken: z
+        .string()
+        .describe(
+          "MotherDuck token::MotherDuck token can be obtained in the MotherDuck's <a target='_blank' rel='noopener noreferrer' href='https://app.motherduck.com/settings/tokens'>Settings -> Access Tokens</a> section"
+        ),
+      defaultSchema: z.string().default("main").describe("Schema::Database schema"),
+    }),
+    credentialsUi: {
+      motherduckToken: {
+        password: true,
+      },
+    },
+    description: "DuckDB-powered cloud data warehouse scaling to terabytes with ease.",
   },
   {
     id: "mysql",
@@ -708,6 +819,12 @@ export const coreDestinations: DestinationType<any>[] = [
         bucket: z.string().describe("GCS Bucket Name::GCS Bucket Name"),
       })
       .merge(blockStorageSettings),
+    credentialsUi: {
+      accessKey: {
+        textarea: true,
+        password: true,
+      },
+    },
     description: "Google Cloud Storage is a cloud file storage service by Google",
   },
   {
@@ -718,7 +835,8 @@ export const coreDestinations: DestinationType<any>[] = [
     tags: "Product Analytics",
     connectionOptions: CloudDestinationsConnectionOptions.merge(BatchModeOptions).merge(
       z.object({
-        batchSize: z.number().min(1).max(500).default(500),
+        batchSize: z.number().min(1).max(2000).default(1000),
+        batchSizeBytes: z.number().min(1).max(10_000_000).default(9_000_000),
         mode: z.enum(["stream", "batch"]).default("stream"),
       })
     ),
@@ -801,6 +919,26 @@ export const coreDestinations: DestinationType<any>[] = [
     connectionOptions: CloudDestinationsConnectionOptions,
     credentials: meta.BrazeCredentials,
     description: "Braze is a customer engagement platform used by businesses for multichannel marketing.",
+  },
+  {
+    id: "salesforce",
+    icon: salesforceIcon,
+    title: "Salesforce",
+    tags: "Product Analytics",
+    connectionOptions: CloudDestinationsConnectionOptions,
+    credentials: meta.SalesforceCredentials,
+    credentialsUi: {
+      authorized: {
+        hidden: true,
+      },
+      oauthIntegrationId: {
+        hidden: true,
+      },
+      oauthConnectionId: {
+        hidden: true,
+      },
+    },
+    description: "Salesforce is the world's leading customer relationship management technology.",
   },
   {
     id: "mongodb",
@@ -906,14 +1044,25 @@ export const coreDestinations: DestinationType<any>[] = [
   },
   {
     id: "webhook",
-    connectionOptions: CloudDestinationsConnectionOptions,
     icon: webhookIcon,
     title: "Webhook",
     tags: "Special",
+    hybrid: true,
+    connectionOptions: CloudDestinationsConnectionOptions.merge(BatchModeOptions).merge(
+      z.object({
+        batchSize: z.number().min(1).max(1000).default(100),
+        mode: z.enum(["stream", "batch"]).default("stream"),
+      })
+    ),
     credentials: meta.WebhookDestinationConfig,
     credentialsUi: {
       headers: {
         editor: "StringArrayEditor",
+      },
+      payload: {
+        editor: "SnippedEditor",
+        editorProps: { languages: ["json", "text"], height: "300", syntaxCheck: { json: false } },
+        hidden: obj => !obj.customPayload,
       },
     },
     description:

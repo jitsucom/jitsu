@@ -1,9 +1,17 @@
 import { z } from "zod";
-import { Api, inferUrl, nextJsApiHandler, verifyAccess } from "../../../../lib/api";
+import { Api, inferUrl, nextJsApiHandler, verifyAccessWithRole } from "../../../../lib/api";
 import { db } from "../../../../lib/server/db";
 import { randomId } from "juava";
-import { scheduleSync, syncWithScheduler } from "../../../../lib/server/sync";
+import { createScheduler, deleteScheduler, scheduleSync, updateScheduler } from "../../../../lib/server/sync";
 import { getAppEndpoint } from "../../../../lib/domains";
+import { ConfigurationObjectLinkDbModel } from "../../../../prisma/schema";
+import { SyncOptionsType } from "../../../../lib/schema";
+import { ApiError } from "../../../../lib/shared/errors";
+import { MASKED_SECRET } from "../../../../lib/schema/destinations";
+
+export type SyncDbModel = Omit<z.infer<typeof ConfigurationObjectLinkDbModel>, "data"> & {
+  data?: SyncOptionsType;
+};
 
 const postAndPutCfg = {
   auth: true,
@@ -25,7 +33,7 @@ const postAndPutCfg = {
       req,
     } = ctx;
     const { id, toId, fromId, data = undefined, type = "push" } = body;
-    await verifyAccess(user, workspaceId);
+    await verifyAccessWithRole(user, workspaceId, "editEntities");
     const fromType = type === "sync" ? "service" : "stream";
 
     // we allow duplicates of service=>dst links because they may have different streams and scheduling
@@ -59,16 +67,24 @@ const postAndPutCfg = {
     ) {
       throw new Error(`Destination object with id '${toId}' not found in the workspace '${workspaceId}'`);
     }
-    let createdOrUpdated;
+    let createdOrUpdated: SyncDbModel;
     if (existingLink) {
-      createdOrUpdated = await db.prisma().configurationObjectLink.update({
+      createdOrUpdated = (await db.prisma().configurationObjectLink.update({
         where: { id: existingLink.id },
         data: { data, deleted: false, workspaceId },
-      });
-      //try to do asynchronously for edit
-      syncWithScheduler(getAppEndpoint(req).baseUrl);
+      })) as SyncDbModel;
+      if (
+        (type === "sync" && data.schedule !== existingLink!.data?.["schedule"]) ||
+        data.timezone !== existingLink!.data?.["timezone"]
+      ) {
+        if (!data.schedule) {
+          await deleteScheduler(createdOrUpdated.id);
+        } else {
+          await updateScheduler(getAppEndpoint(req).baseUrl, createdOrUpdated);
+        }
+      }
     } else {
-      createdOrUpdated = await db.prisma().configurationObjectLink.create({
+      createdOrUpdated = (await db.prisma().configurationObjectLink.create({
         data: {
           id: `${workspaceId}-${fromId.substring(fromId.length - 4)}-${toId.substring(toId.length - 4)}-${randomId(6)}`,
           workspaceId,
@@ -77,9 +93,11 @@ const postAndPutCfg = {
           data,
           type,
         },
-      });
-      //sync scheduler immediately, so if it fails, user sees the error
-      await syncWithScheduler(getAppEndpoint(req).baseUrl);
+      })) as SyncDbModel;
+      if (type == "sync" && data.schedule) {
+        //sync scheduler immediately, so if it fails, user sees the error
+        await createScheduler(getAppEndpoint(req).baseUrl, createdOrUpdated);
+      }
     }
     if (type === "sync" && (runSync === "true" || runSync === "1")) {
       await scheduleSync({
@@ -102,12 +120,23 @@ export const api: Api = {
       query: z.object({ workspaceId: z.string() }),
     },
     handle: async ({ user, query: { workspaceId } }) => {
-      await verifyAccess(user, workspaceId);
+      const role = await verifyAccessWithRole(user, workspaceId, "readEntities");
+      const links = await db.prisma().configurationObjectLink.findMany({
+        where: { workspaceId: workspaceId, deleted: false },
+        orderBy: { createdAt: "asc" },
+      });
+      if (!role.editEntities) {
+        for (const link of links) {
+          const functionsEnv = link.data?.["functionsEnv"];
+          if (typeof functionsEnv === "object" && functionsEnv !== null) {
+            for (const key in functionsEnv) {
+              functionsEnv[key] = MASKED_SECRET;
+            }
+          }
+        }
+      }
       return {
-        links: await db.prisma().configurationObjectLink.findMany({
-          where: { workspaceId: workspaceId, deleted: false },
-          orderBy: { createdAt: "asc" },
-        }),
+        links,
       };
     },
   },
@@ -116,19 +145,44 @@ export const api: Api = {
   DELETE: {
     auth: true,
     types: {
-      query: z.object({ workspaceId: z.string(), type: z.string().optional(), toId: z.string(), fromId: z.string() }),
+      query: z.union([
+        z.object({ workspaceId: z.string(), type: z.string().optional(), toId: z.string(), fromId: z.string() }),
+        z.object({ workspaceId: z.string(), type: z.string().optional(), id: z.string() }),
+      ]),
     },
-    handle: async ({ user, query: { workspaceId, fromId, toId }, req }) => {
-      await verifyAccess(user, workspaceId);
-      const existingLink = await db.prisma().configurationObjectLink.findFirst({
-        where: { workspaceId: workspaceId, toId, fromId, deleted: false },
-      });
-      if (!existingLink) {
+    handle: async ({ user, query: { workspaceId, fromId, toId, id }, req }) => {
+      await verifyAccessWithRole(user, workspaceId, "deleteEntities");
+      if (id) {
+        if (fromId || toId) {
+          throw new ApiError("You can't specify 'fromId' or 'toId' with 'id'", {}, { status: 400 });
+        }
+        const updatedLink = await db
+          .prisma()
+          .configurationObjectLink.update({ where: { workspaceId, id }, data: { deleted: true } });
+        if (!updatedLink) {
+          return { deleted: false };
+        }
+        if (updatedLink.type == "sync") {
+          await deleteScheduler(updatedLink.id);
+        }
+        return { deleted: true };
+      } else if (fromId && toId) {
+        if (id) {
+          throw new ApiError("You can't specify 'id' with 'fromId' and 'toId'", {}, { status: 400 });
+        }
+        const updatedLinks = await db.prisma().configurationObjectLink.updateManyAndReturn({
+          where: { workspaceId, toId, fromId, deleted: false },
+          data: { deleted: true },
+        });
+        for (const updatedLink of updatedLinks) {
+          if (updatedLink.type == "sync") {
+            await deleteScheduler(updatedLink.id);
+          }
+        }
+        return { deleted: updatedLinks.length > 0 };
+      } else {
         return { deleted: false };
       }
-      await db.prisma().configurationObjectLink.update({ where: { id: existingLink.id }, data: { deleted: true } });
-      await syncWithScheduler(getAppEndpoint(req).baseUrl);
-      return { deleted: true };
     },
   },
 };

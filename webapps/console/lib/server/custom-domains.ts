@@ -3,6 +3,9 @@ import dns from "dns";
 import { getLog, requireDefined } from "juava";
 import { httpAgent, httpsAgent } from "./http-agent";
 import nodeFetch from "node-fetch-commonjs";
+import { z } from "zod";
+import { WorkspaceDbModel } from "../../prisma/schema";
+import { Prisma } from "@prisma/client";
 
 type DomainAvailability = { available: true; usedInWorkspaces?: never } | { available: false; usedInWorkspace: string };
 
@@ -14,7 +17,16 @@ export function checkDomain(domain: string): boolean {
 /**
  * Tells if the given domain is used in other workspaces.
  */
-export async function isDomainAvailable(domain: string, workspaceId: string): Promise<DomainAvailability> {
+export async function isDomainAvailable(
+  domain: string,
+  workspace: z.infer<typeof WorkspaceDbModel>
+): Promise<DomainAvailability> {
+  const workspaceId = workspace.id;
+  const siblings = (workspace.featuresEnabled ?? [])
+    .filter(f => f.startsWith("sibling="))
+    .flatMap(f => f.replace("sibling=", "").split(","));
+  siblings.push(workspaceId);
+
   const domainSuffix = domain.replace(/^[*]/, "");
   const fullTextPattern = `%${domainSuffix.toLowerCase()}%`;
   const pattern = `%${domainSuffix.toLowerCase()}`;
@@ -23,14 +35,14 @@ export async function isDomainAvailable(domain: string, workspaceId: string): Pr
       from newjitsu."ConfigurationObject"
       where type = 'stream'
         and config::TEXT ilike ${fullTextPattern}
-        and "workspaceId" <> ${workspaceId}
+        and "workspaceId" not in (${Prisma.join(siblings)})
         and deleted = false
       union
       select id,type, "workspaceId", jsonb_build_array(config->'name') as domains
       from newjitsu."ConfigurationObject"
       where type = 'domain'
         and (config->>'name' ilike ${pattern} or ${domain.toLowerCase()} ilike REPLACE(config->>'name','*','%') )
-        and "workspaceId" <> ${workspaceId}
+        and "workspaceId" not in (${Prisma.join(siblings)})
         and deleted = false
   `) as { id: string; workspaceId: string; domains: string[] }[];
 

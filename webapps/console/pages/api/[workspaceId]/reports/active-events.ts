@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { createRoute, verifyAccess, getWorkspace } from "../../../../lib/api";
-import { clickhouse } from "../../../../lib/server/clickhouse";
+import { clickhouse, dateToClickhouse } from "../../../../lib/server/clickhouse";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import { getServerLog } from "../../../../lib/server/log";
@@ -33,15 +33,15 @@ export default createRoute()
     await verifyAccess(user, workspace.id);
     const metricsSchema =
       process.env.CLICKHOUSE_METRICS_SCHEMA || process.env.CLICKHOUSE_DATABASE || "newjitsu_metrics";
-    const end = query.end ? query.end.toISOString() : new Date().toISOString();
-    const start = query.start ? query.start.toISOString() : dayjs(end).subtract(1, "month").toDate().toISOString();
+    const end = query.end || new Date();
+    const start = query.start || dayjs(end).subtract(1, "month").toDate();
 
     const sql = `
         select
             date_trunc({granularity:String}, timestamp) as period,
-            uniqMerge(count) as "activeEvents",
+            sum(count) as "activeEvents",
             count(*) as "srcSize"
-        from ${metricsSchema}.mv_active_incoming2
+        from ${metricsSchema}.active_incoming_agg_view
         where 
             timestamp >= toDateTime({start:String}, 'UTC') and
             timestamp <= toDateTime({end:String}, 'UTC') and 
@@ -54,8 +54,8 @@ export default createRoute()
       await clickhouse.query({
         query: sql,
         query_params: {
-          start: isoDateTOClickhouse(start),
-          end: isoDateTOClickhouse(end),
+          start: dateToClickhouse(start),
+          end: dateToClickhouse(end),
           workspace: workspace.id,
           granularity: query.granularity,
         },
@@ -77,7 +77,3 @@ export default createRoute()
     };
   })
   .toNextApiHandler();
-
-function isoDateTOClickhouse(date: string): string {
-  return date.replace("T", " ").replace("Z", "").split(".")[0];
-}

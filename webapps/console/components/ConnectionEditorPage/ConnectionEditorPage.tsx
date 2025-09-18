@@ -1,4 +1,4 @@
-import { useWorkspace } from "../../lib/context";
+import { useWorkspace, useWorkspaceRole } from "../../lib/context";
 import { get } from "../../lib/useApi";
 import { DestinationConfig, FunctionConfig, StreamConfig } from "../../lib/schema";
 import React, { useEffect, useState } from "react";
@@ -8,12 +8,11 @@ import { useRouter } from "next/router";
 import { assertTrue, getLog, requireDefined } from "juava";
 import { Button, Input, InputNumber, Radio, Switch, Tooltip } from "antd";
 import { BaseBulkerConnectionOptions, getCoreDestinationType } from "../../lib/schema/destinations";
-import { confirmOp, feedbackError, feedbackSuccess } from "../../lib/ui";
+import { confirmOp, copyTextToClipboard, feedbackError, feedbackSuccess } from "../../lib/ui";
 import FieldListEditorLayout, { EditorItem } from "../FieldListEditorLayout/FieldListEditorLayout";
 import { DataLayoutType } from "@jitsu/protocols/analytics";
-import { ChevronLeft } from "lucide-react";
+import { Activity, Copy } from "lucide-react";
 import styles from "./ConnectionEditorPage.module.css";
-import { JitsuButton } from "../JitsuButton/JitsuButton";
 import { Htmlizer } from "../Htmlizer/Htmlizer";
 import { FunctionsSelector } from "../FunctionsSelector/FunctionsSelector";
 import { Expandable } from "../Expandable/Expandable";
@@ -21,6 +20,11 @@ import { useStoreReload } from "../../lib/store";
 import { DestinationSelector } from "../Selectors/DestinationSelector";
 import { SourceSelector } from "../Selectors/SourceSelector";
 import { FunctionVariables } from "../FunctionsDebugger/FunctionVariables";
+import { EditorToolbar } from "../EditorToolbar/EditorToolbar";
+import JSON5 from "json5";
+import { toURL } from "../../lib/shared/url";
+import { BackButton } from "../BackButton/BackButton";
+import { JitsuButton } from "../JitsuButton/JitsuButton";
 
 const log = getLog("ConnectionEditorPage");
 
@@ -111,7 +115,7 @@ export const BatchOrStreamEditor: EditorComponent<ConnectionOptionsType["mode"],
       onChange={e => onChange(e.target.value)}
     >
       <div className={"flex flex-col gap-2"}>
-        <Radio value="stream" disabled={streamModeState !== "allowed"}>
+        <Radio value="stream" disabled={disabled || streamModeState !== "allowed"}>
           <div>
             <div className={``}>
               Stream
@@ -224,6 +228,8 @@ function ConnectionEditor({
 
   const [loading, setLoading] = useState(false);
   const workspace = useWorkspace();
+  const role = useWorkspaceRole();
+  const canEdit = role.editEntities;
   const [dstId, setDstId] = useState(existingLink?.toId || destinations[0].id);
   const [srcId, setSrcId] = useState(existingLink?.fromId || streams[0].id);
 
@@ -273,7 +279,20 @@ function ConnectionEditor({
     }
   }, [connectionOptionsZodType]);
 
+  const usesBulker = destinationType.usesBulker || destinationType.id === "webhook";
+
   const configItems: EditorItem[] = [
+    {
+      name: "Enabled",
+      component: (
+        <SwitchComponent
+          value={!connectionOptions.disabled}
+          onChange={enabled => {
+            updateOptions({ disabled: !enabled });
+          }}
+        />
+      ),
+    },
     {
       name: existingLink ? "Select Source" : "Source",
       documentation: "Select destination to connect",
@@ -282,7 +301,7 @@ function ConnectionEditor({
           items={streams}
           selected={srcId}
           showLink={true}
-          enabled={!existingLink}
+          enabled={canEdit && !existingLink}
           disabledReason={"Create a new connection if you want to change the source"}
           onSelect={setSrcId}
         />
@@ -297,7 +316,7 @@ function ConnectionEditor({
         <DestinationSelector
           items={destinations}
           selected={dstId}
-          enabled={!existingLink}
+          enabled={canEdit && !existingLink}
           disabledReason={"Create a new connection if you want to change the source"}
           showLink={true}
           onSelect={id => {
@@ -325,6 +344,7 @@ function ConnectionEditor({
       component: (
         <BatchOrStreamEditor
           value={connectionOptions.mode}
+          disabled={!canEdit}
           limitations={limitations}
           onChange={mode => updateOptions({ mode })}
         />
@@ -336,6 +356,7 @@ function ConnectionEditor({
       name: "Sync Frequency",
       component: (
         <SyncFrequencyEditor
+          disabled={!canEdit}
           value={connectionOptions.frequency || 60}
           onChange={frequency => updateOptions({ frequency })}
         />
@@ -353,10 +374,11 @@ function ConnectionEditor({
         <InputNumber
           value={connectionOptions.batchSize || 10000}
           size="small"
+          disabled={!canEdit}
           defaultValue={10000}
           className="w-36"
           min={100}
-          max={destinationType.id === "mixpanel" ? 500 : 1000000}
+          max={destinationType.id === "mixpanel" ? 2000 : 1000000}
           onChange={batchSize => updateOptions({ batchSize: batchSize ?? 10000 })}
         />
       ),
@@ -370,7 +392,7 @@ function ConnectionEditor({
         <Tooltip title={!!existingLink ? "Can only be configured during the initial connection setup." : undefined}>
           {" "}
           <DataLayoutEditor
-            disabled={!!existingLink}
+            disabled={!canEdit || !!existingLink}
             fileStorage={destinationType.id === "gcs" || destinationType.id === "s3"}
             onChange={dataLayout => {
               if (existingLink) updateOptions({ dataLayout });
@@ -417,7 +439,7 @@ function ConnectionEditor({
           {" "}
           <TextEditor
             className="max-w-xs"
-            disabled={!!existingLink}
+            disabled={!canEdit || !!existingLink}
             value={connectionOptions.primaryKey}
             onChange={primaryKey => {
               updateOptions({ primaryKey, ...(primaryKey === "" ? { deduplicate: false } : {}) });
@@ -440,7 +462,7 @@ function ConnectionEditor({
       component: (
         <SwitchComponent
           className="max-w-xs"
-          disabled={connectionOptions.primaryKey === ""}
+          disabled={!canEdit || connectionOptions.primaryKey === ""}
           value={connectionOptions.deduplicate}
           onChange={deduplicate => {
             let functions = connectionOptions.functions ?? [];
@@ -454,15 +476,17 @@ function ConnectionEditor({
       ),
     });
   }
-  if (hasZodFields(connectionOptionsZodType, "deduplicateWindow") && destinationType.id === "bigquery") {
+  if (
+    hasZodFields(connectionOptionsZodType, "deduplicateWindow") &&
+    (destinationType.id === "bigquery" || destinationType.id === "redshift")
+  ) {
     configItems.push({
       group: "Advanced",
       documentation: (
         <>
-          Limits date range on which deduplication is performed by reducing lookup to historic data. In BigQuery that
-          means that only data from partitions that are in that range will be processed for deduplication. That may
-          significantly reduce cost of data processing during inserting batches with 'Deduplicate' option. 'Timestamp
-          Column' is used as a parameter that defines date range.
+          Limits date range on which deduplication is performed by reducing lookup to historic data. That may
+          significantly reduce cost or duration of data processing during inserting batches with 'Deduplicate' option.
+          'Timestamp Column' is used as a parameter that defines date range.
         </>
       ),
       name: "Deduplicate Window",
@@ -470,6 +494,7 @@ function ConnectionEditor({
         <InputNumber
           value={connectionOptions.deduplicateWindow || 31}
           disabled={
+            !canEdit ||
             connectionOptions.primaryKey === "" ||
             !connectionOptions.deduplicate ||
             connectionOptions.timestampColumn === ""
@@ -495,7 +520,7 @@ function ConnectionEditor({
         <Tooltip title={!!existingLink ? "Can only be configured during the initial connection setup." : undefined}>
           {" "}
           <TextEditor
-            disabled={!!existingLink}
+            disabled={!canEdit || !!existingLink}
             className="max-w-xs"
             value={connectionOptions.timestampColumn}
             onChange={timestampColumn => {
@@ -518,7 +543,7 @@ function ConnectionEditor({
       name: "Identity Stitching",
       component: (
         <SwitchComponent
-          disabled={connectionOptions.primaryKey === "" || !connectionOptions.deduplicate}
+          disabled={!canEdit || connectionOptions.primaryKey === "" || !connectionOptions.deduplicate}
           className="max-w-xs"
           value={
             typeof (connectionOptions.functions ?? []).find(
@@ -558,6 +583,7 @@ function ConnectionEditor({
       component: (
         <SwitchComponent
           className="max-w-xs"
+          disabled={!canEdit}
           value={connectionOptions.schemaFreeze}
           onChange={sf => {
             updateOptions({ schemaFreeze: sf });
@@ -581,7 +607,7 @@ function ConnectionEditor({
         <Tooltip title={!!existingLink ? "Can only be configured during the initial connection setup." : undefined}>
           {" "}
           <SwitchComponent
-            disabled={!!existingLink}
+            disabled={!canEdit || !!existingLink}
             className="max-w-xs"
             value={connectionOptions.keepOriginalNames}
             onChange={sf => {
@@ -617,6 +643,7 @@ function ConnectionEditor({
       ),
       component: (
         <TextEditor
+          disabled={!canEdit}
           className="max-w-xs"
           rows={2}
           value={connectionOptions.clickhouseSettings}
@@ -641,6 +668,7 @@ function ConnectionEditor({
       component: (
         <TextEditor
           className="max-w-xs"
+          disabled={!canEdit}
           rows={5}
           value={connectionOptions.events}
           onChange={events => {
@@ -665,6 +693,7 @@ function ConnectionEditor({
       name: "Hosts Allowlist",
       component: (
         <TextEditor
+          disabled={!canEdit}
           className="max-w-xs"
           rows={3}
           value={connectionOptions.hosts}
@@ -698,12 +727,40 @@ function ConnectionEditor({
   // }
   return (
     <div className="max-w-5xl grow">
-      <div className="flex justify-between pb-0 mb-0 items-center">
+      <div className="flex justify-between pb-4 mb-0 items-center">
         <h1 className="text-3xl">{(existingLink ? "Edit" : "Create") + " connection"}</h1>
-        <JitsuButton icon={<ChevronLeft className="w-6 h-6" />} type="link" size="small" onClick={() => router.back()}>
-          Back
-        </JitsuButton>
+        <BackButton href={`/${workspace.slugOrId}/connections`} />
       </div>
+      {existingLink && (
+        <div>
+          <EditorToolbar
+            items={
+              [
+                {
+                  title: "ID: " + existingLink.id,
+                  icon: <Copy className="w-full h-full" />,
+                  href: "#",
+                  onClick: () => {
+                    copyTextToClipboard(existingLink.id);
+                    feedbackSuccess("Copied to clipboard");
+                  },
+                },
+                {
+                  title: "Logs",
+                  icon: <Activity className="w-full h-full" />,
+                  href: toURL(`/${workspace.slugOrId}/data`, {
+                    query: JSON5.stringify({
+                      activeView: usesBulker ? "bulker" : "function",
+                      viewState: { [usesBulker ? "bulker" : "function"]: { actorId: existingLink.id } },
+                    }),
+                  }),
+                },
+              ].filter(Boolean) as any
+            }
+            className="mb-4"
+          />
+        </div>
+      )}
       <div className="w-full">
         <FieldListEditorLayout
           groups={{
@@ -719,6 +776,7 @@ function ConnectionEditor({
           contentLeftPadding={false}
         >
           <FunctionsSelector
+            disabled={!canEdit}
             functions={functions}
             stream={streams.find(s => s.id === srcId) || streams[0]}
             destination={destinations.find(d => d.id === dstId) || destinations[0]}
@@ -740,7 +798,7 @@ function ConnectionEditor({
           caretSize="1.5em"
           contentLeftPadding={false}
         >
-          <div className={"text-textLight px-1 mb-2"}>
+          <div className={"text-textLight px-1 mb-4"}>
             Provided variables can be used inside functions via <code>process.env</code> object. For example:{" "}
             <code>process.env.DEBUG</code>
           </div>
@@ -754,11 +812,12 @@ function ConnectionEditor({
       <div className="flex justify-between pt-6">
         <div>
           {existingLink && (
-            <Button
+            <JitsuButton
               loading={loading}
               type="primary"
               ghost
               danger
+              requiredPermission={"deleteEntities"}
               size="large"
               onClick={async () => {
                 if (await confirmOp("Are you sure you want to unlink this site from this destination?")) {
@@ -766,7 +825,7 @@ function ConnectionEditor({
                   try {
                     await get(`/api/${workspace.id}/config/link`, {
                       method: "DELETE",
-                      query: { fromId: existingLink.fromId, toId: existingLink.toId },
+                      query: { id: existingLink.id },
                     });
                     await reloadStore();
                     feedbackSuccess("Successfully unliked");
@@ -780,7 +839,7 @@ function ConnectionEditor({
               }}
             >
               Delete
-            </Button>
+            </JitsuButton>
           )}
         </div>
         <div className="flex justify-end space-x-5">
@@ -791,7 +850,7 @@ function ConnectionEditor({
             disabled={loading}
             onClick={() => {
               if (router.query.backTo) {
-                router.push(`/${workspace.id}${router.query.backTo}`);
+                router.push(`/${workspace.slugOrId}${router.query.backTo}`);
               } else {
                 router.back();
               }
@@ -799,9 +858,10 @@ function ConnectionEditor({
           >
             Cancel
           </Button>
-          <Button
+          <JitsuButton
             type="primary"
             size="large"
+            requiredPermission={"editEntities"}
             loading={loading}
             disabled={loading}
             onClick={async () => {
@@ -818,7 +878,7 @@ function ConnectionEditor({
                 });
                 await reloadStore();
                 if (router.query.backTo) {
-                  router.push(`/${workspace.id}${router.query.backTo}`);
+                  router.push(`/${workspace.slugOrId}${router.query.backTo}`);
                 } else {
                   router.back();
                 }
@@ -830,7 +890,7 @@ function ConnectionEditor({
             }}
           >
             Save
-          </Button>
+          </JitsuButton>
         </div>
       </div>
     </div>

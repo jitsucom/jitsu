@@ -1,4 +1,4 @@
-import React, { createContext, PropsWithChildren, ReactNode, useContext, useEffect, useState } from "react";
+import React, { createContext, PropsWithChildren, ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { Button, Col, Form as AntdForm, Input, Row, Switch, Table } from "antd";
 import { FaCaretDown, FaCaretRight, FaClone, FaPlus } from "react-icons/fa";
 import { ZodType } from "zod";
@@ -27,14 +27,22 @@ import {
 } from "@rjsf/utils";
 
 import { ConfigEntityBase } from "../../lib/schema";
-import { useAppConfig, useWorkspace } from "../../lib/context";
+import { useAppConfig, useWorkspace, useWorkspaceRole } from "../../lib/context";
 import { LoadingAnimation } from "../GlobalLoader/GlobalLoader";
 import { WLink } from "../Workspace/WLink";
-import { DeleteOutlined } from "@ant-design/icons";
-import { Action, confirmOp, doAction, feedbackError, feedbackSuccess, useTitle } from "../../lib/ui";
+import { CheckCircleTwoTone, DeleteOutlined, InfoCircleTwoTone } from "@ant-design/icons";
+import {
+  Action,
+  confirmOp,
+  copyTextToClipboard,
+  doAction,
+  feedbackError,
+  feedbackSuccess,
+  useTitle,
+} from "../../lib/ui";
 import { branding } from "../../lib/branding";
 import { useAntdModal } from "../../lib/modal";
-import { Edit3, Inbox } from "lucide-react";
+import { Copy, Edit3, Inbox } from "lucide-react";
 import { createDisplayName } from "../../lib/zod";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
 import { EditorTitle } from "./EditorTitle";
@@ -46,18 +54,22 @@ import cuid from "cuid";
 import { ObjectTitle } from "../ObjectTitle/ObjectTitle";
 import omitBy from "lodash/omitBy";
 import { asConfigType, useConfigObject, useConfigObjectList, useConfigObjectMutation } from "../../lib/store";
+import { CustomWidgetProps, PasswordEditor } from "./Editors";
+import { WorkspacePermissionsType } from "../../lib/workspace-roles";
+import { oauthDecorators } from "../../lib/server/oauth/destinations";
+import Nango from "@nangohq/frontend";
 
 const log = getLog("ConfigEditor");
 
 export type FieldDisplay = {
   isId?: boolean;
-  hidden?: boolean | ((a: any) => boolean);
+  hidden?: boolean | ((a: any, isNew?: boolean) => boolean);
   displayName?: string;
   editor?: any;
   advanced?: boolean;
   documentation?: ReactNode;
-  constant?: any | ((a: any) => any);
-  correction?: any | ((a: any) => any);
+  constant?: any | ((a: any, isNew?: boolean) => any);
+  correction?: any | ((a: any, isNew?: boolean) => any);
   textarea?: boolean;
   password?: boolean;
 };
@@ -94,46 +106,48 @@ export type ConfigEditorProps<T extends { id: string } = { id: string }, M = {}>
   newObject?: (meta?: M) => Partial<T>;
   //for providing custom editor component
   editorComponent?: EditorComponentFactory;
-  testConnectionEnabled?: (o: any) => boolean;
+  testConnectionEnabled?: (o: any) => boolean | "manual";
   testButtonLabel?: string;
   onTest?: (o: T) => Promise<ConfigTestResult>;
   backTo?: string;
+  pathPrefix?: string;
 };
 
 type JsonSchema = any;
 
-function getUiWidget(field: FieldDisplay, obj: any) {
+function getUiWidget(field: FieldDisplay, obj: any, isNew: boolean) {
   if (
-    (typeof field?.hidden === "function" && field?.hidden(obj) === true) ||
+    (typeof field?.hidden === "function" && field?.hidden(obj, isNew) === true) ||
     (typeof field?.hidden === "boolean" && field?.hidden === true) ||
-    (typeof field?.constant === "function" && typeof field?.constant(obj) !== "undefined") ||
+    (typeof field?.constant === "function" && typeof field?.constant(obj, isNew) !== "undefined") ||
     (typeof field?.constant !== "function" && typeof field?.constant !== "undefined")
   ) {
     return "hidden";
   } else if (field?.editor) {
     return field?.editor;
-  } else if (field?.textarea) {
-    return "textarea";
   } else if (field?.password) {
     return "password";
+  } else if (field?.textarea) {
+    return "textarea";
   } else {
     return undefined;
   }
 }
 
-function getUiSchema(schema: JsonSchema, fields: Record<string, FieldDisplay>, object: any): UiSchema {
-  return {
+function getUiSchema(schema: JsonSchema, fields: Record<string, FieldDisplay>, object: any, isNew: boolean): UiSchema {
+  const uiSchema = {
     ...Object.entries((schema as any).properties)
       .map(([name]) => {
         const field = fields[name];
         const fieldProps = {
-          "ui:widget": getUiWidget(field, object),
+          "ui:widget": getUiWidget(field, object, isNew),
           "ui:disabled": field?.constant ? true : undefined,
           "ui:placeholder": field?.constant,
           "ui:title": field?.displayName || createDisplayName(name),
           "ui:FieldTemplate": FieldTemplate,
           "ui:ObjectFieldTemplate": NestedObjectTemplate,
           "ui:help": field?.documentation || undefined,
+          "ui:options": field?.password && field?.textarea ? { rows: 4 } : undefined,
           additionalProperties: {
             "ui:FieldTemplate": NestedObjectFieldTemplate,
           },
@@ -148,6 +162,7 @@ function getUiSchema(schema: JsonSchema, fields: Record<string, FieldDisplay>, o
       norender: true,
     },
   };
+  return uiSchema;
 }
 
 export type SingleObjectEditorProps = ConfigEditorProps & {
@@ -158,7 +173,7 @@ export type SingleObjectEditorProps = ConfigEditorProps & {
 export const AdvancedConfiguration: React.FC<PropsWithChildren<{}>> = ({ children }) => {
   const [expanded, setExpanded] = useState(false);
   return (
-    <div className={`w-full h-full mb-6`}>
+    <div className="w-full h-full mb-6">
       <div
         className={`text-lg flex items-center cursor-pointer ${!expanded && "border-b border-backgroundDark pb-3"}`}
         onClick={() => setExpanded(!expanded)}
@@ -196,8 +211,25 @@ const FormList: React.FC<ObjectFieldTemplateProps> = props => {
   );
 };
 
+export const CopyConstant: React.FC<CustomWidgetProps<string>> = props => {
+  return (
+    <div
+      className={"rounded-md cursor-pointer relative border border-gray-300 bg-gray-50 text-textLight p-1.5 px-2.5"}
+      onClick={() => {
+        copyTextToClipboard(props.value);
+        feedbackSuccess("Copied to clipboard");
+      }}
+    >
+      {props.value}
+      <div className={"absolute right-3 top-2.5 "}>
+        <Copy className="w-3.5 h-3.5" />
+      </div>
+    </div>
+  );
+};
+
 export const CustomCheckbox = function (props) {
-  return <Switch checked={props.value} onClick={() => props.onChange(!props.value)} />;
+  return <Switch checked={props.value} disabled={props.disabled} onClick={() => props.onChange(!props.value)} />;
 };
 
 export type ConfigTestResult = { ok: true } | { ok: false; error: string };
@@ -236,6 +268,7 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
   const {
     noun,
     createNew,
+    type,
     objectType,
     meta,
     fields,
@@ -249,18 +282,33 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
     subtitle,
   } = props;
   useTitle(`${branding.productName} : ${createNew ? `Create new ${noun}` : `Edit ${noun}`}`);
+  const appConfig = useAppConfig();
+  const formRef = useRef<any>();
+  const role = useWorkspaceRole();
   const [loading, setLoading] = useState<boolean>(false);
+  const [testing, setTesting] = useState<boolean>(false);
   const objectTypeFactory = asFunction<ZodType, any>(objectType);
   const schema = zodToJsonSchema(objectTypeFactory(object));
   const [formState, setFormState] = useState<any | undefined>(undefined);
   const hasErrors = formState?.errors?.length > 0;
   const [isTouched, setTouched] = useState<boolean>(!!createNew);
   const [testResult, setTestResult] = useState<any>(undefined);
+  const [nangoLoading, setNangoLoading] = useState<boolean>(false);
+  const [nangoError, setNangoError] = useState<string | undefined>(undefined);
+  const oauthConnector =
+    type === "destination" && appConfig.nango ? oauthDecorators[object.destinationType] : undefined;
 
-  const uiSchema = getUiSchema(schema, fields, formState?.formData || object);
+  const uiSchema = getUiSchema(schema, fields, formState?.formData || object, isNew);
 
   const [submitCount, setSubmitCount] = useState(0);
   const modal = useAntdModal();
+
+  useEffect(() => {
+    if (formRef.current) {
+      setFormState(formRef.current.state);
+    }
+  }, []);
+
   const onFormChange = state => {
     setFormState(state);
     setTestResult(undefined);
@@ -285,13 +333,81 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
   return (
     <EditorBase onCancel={onCancel} isTouched={isTouched}>
       <EditorTitle title={title} subtitle={subtitleComponent} onBack={withLoading(() => onCancel(isTouched))} />
+      {oauthConnector && (
+        <div className={"flex flex-row items-center gap-3 mb-4"}>
+          <div>
+            <JitsuButton
+              type={"primary"}
+              size={"large"}
+              ghost={true}
+              loading={nangoLoading}
+              onClick={() => {
+                const nango = new Nango({
+                  publicKey: appConfig.nango!.publicKey,
+                  host: appConfig.nango!.host,
+                });
+                setNangoLoading(true);
+                const oauthIntegrationId = oauthConnector.nangoIntegrationId(formState?.formData || object);
+                const oauthConnectionId = `destination.${object?.id}`;
+                nango
+                  .auth(oauthIntegrationId, oauthConnectionId)
+                  .then(result => {
+                    if (formState) {
+                      formState.formData = {
+                        ...formState.formData,
+                        authorized: true,
+                        oauthIntegrationId,
+                        oauthConnectionId,
+                      };
+                      setTouched(true);
+                    }
+                    setNangoError(undefined);
+                  })
+                  .catch(err => {
+                    setNangoError(getErrorMessage(err));
+                    getLog().atError().log("Failed to add oauth connection", err);
+                    if (formState) {
+                      formState.formData = { ...formState.formData, authorized: false };
+                      setTouched(true);
+                    }
+                  })
+                  .finally(() => setNangoLoading(false));
+              }}
+            >
+              {(formState?.formData || object).authorized ? "Re-Sign In" : "Authorize"}
+            </JitsuButton>
+          </div>
+          <div className={"w-full flex flex-row items-center py-1 px-2 text-text"} style={{ minHeight: 32 }}>
+            {nangoError ? (
+              <span className={"text-red-600"}>OAuth2 error: {nangoError}</span>
+            ) : (formState?.formData || object).authorized ? (
+              <>
+                <CheckCircleTwoTone twoToneColor={"#1fcc00"} className={"mr-2"} />
+                Authorized
+              </>
+            ) : (
+              <>
+                <InfoCircleTwoTone className={"mr-2"} />
+                Click "Authorize" to open OAuth2.0 authorization popup
+              </>
+            )}
+          </div>
+          <div>
+            {/*<JitsuButton onClick={() => setManualAuth(!manualAuth)}>*/}
+            {/*  {manualAuth ? "Hide authorization settings" : "Manually setup authorization"}*/}
+            {/*</JitsuButton>*/}
+          </div>
+        </div>
+      )}
       <EditorComponentContext.Provider value={{ displayInlineErrors: !isNew || submitCount > 0 }}>
         <Form
+          ref={formRef}
           formContext={props}
           templates={{ ObjectFieldTemplate: FormList, ButtonTemplates: { AddButton } }}
-          widgets={{ CheckboxWidget: CustomCheckbox }}
+          widgets={{ CheckboxWidget: CustomCheckbox, password: PasswordEditor }}
           omitExtraData={true}
           liveOmit={true}
+          disabled={!role.editEntities}
           showErrorList={false}
           onChange={onFormChange}
           className={styles.editForm}
@@ -299,17 +415,26 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
           liveValidate={true}
           validator={validator}
           onSubmit={async ({ formData }) => {
-            if (onTest && (typeof testConnectionEnabled === "undefined" || testConnectionEnabled(formData || object))) {
-              const testRes = testResult || (await onTest(formState?.formData || object));
-              if (!testRes.ok) {
+            if (
+              onTest &&
+              (typeof testConnectionEnabled === "undefined" || testConnectionEnabled(formData || object) === true)
+            ) {
+              setTesting(true);
+              let testRes: any;
+              try {
+                testRes = testResult || (await onTest(formState?.formData || object));
+              } finally {
+                setTesting(false);
+              }
+              if (!testRes?.ok) {
                 modal.confirm({
                   title: "Check failed",
-                  content: testRes.error,
+                  content: testRes?.error,
                   okText: "Save anyway",
                   okType: "danger",
                   cancelText: "Cancel",
                   onOk: () => {
-                    withLoading(() => onSave({ ...formData, testConnectionError: testRes.error }))();
+                    withLoading(() => onSave({ ...formData, testConnectionError: testRes?.error }))();
                   },
                 });
                 return;
@@ -324,6 +449,7 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
         >
           <EditorButtons
             loading={loading}
+            testing={testing}
             isNew={isNew}
             isTouched={isTouched}
             hasErrors={hasErrors}
@@ -381,8 +507,10 @@ const SingleObjectEditor: React.FC<SingleObjectEditorProps> = props => {
     loadMeta,
     onTest,
     backTo,
+    pathPrefix = "",
     ...otherProps
   } = props;
+  const pref = pathPrefix;
   const [meta, setMeta] = useState<any>(undefined);
   const isNew = !!(!otherProps.object || createNew);
   const workspace = useWorkspace();
@@ -431,12 +559,12 @@ const SingleObjectEditor: React.FC<SingleObjectEditorProps> = props => {
   const constants = Object.fromEntries(
     Object.entries(fields)
       .filter(([_, v]) => typeof v.constant !== "undefined")
-      .map(([k, v]) => [k, typeof v.constant === "function" ? v.constant(preObject) : v.constant])
+      .map(([k, v]) => [k, typeof v.constant === "function" ? v.constant(preObject, isNew) : v.constant])
   );
   const corrections = Object.fromEntries(
     Object.entries(fields)
       .filter(([_, v]) => typeof v.correction !== "undefined")
-      .map(([k, v]) => [k, typeof v.correction === "function" ? v.correction(preObject) : v.correction])
+      .map(([k, v]) => [k, typeof v.correction === "function" ? v.correction(preObject, isNew) : v.correction])
   );
 
   const object = { ...preObject, ...constants, ...corrections };
@@ -444,9 +572,9 @@ const SingleObjectEditor: React.FC<SingleObjectEditorProps> = props => {
   const onCancel = async (confirm: boolean) => {
     if (!confirm || (await confirmOp("Are you sure you want to close this page? All unsaved changes will be lost."))) {
       if (backTo) {
-        router.push(`/${workspace.id}${backTo}`);
+        router.push(`/${workspace.slugOrId}${backTo}`);
       } else {
-        router.push(`/${workspace.id}/${type}s`);
+        router.push(`/${workspace.slugOrId}${pref}/${type}s`);
       }
     }
   };
@@ -455,7 +583,7 @@ const SingleObjectEditor: React.FC<SingleObjectEditorProps> = props => {
       try {
         await onDeleteMutation.mutateAsync(undefined);
         feedbackSuccess(`Successfully deleted ${noun}`);
-        router.push(`/${workspace.id}/${type}s`);
+        router.push(`/${workspace.slugOrId}${pref}/${type}s`);
       } catch (error) {
         feedbackError("Failed to delete object", { error });
       }
@@ -465,9 +593,9 @@ const SingleObjectEditor: React.FC<SingleObjectEditorProps> = props => {
     try {
       await onSaveMutation.mutateAsync(newObject);
       if (backTo) {
-        router.push(`/${workspace.id}${backTo}`);
+        router.push(`/${workspace.slugOrId}${backTo}`);
       } else {
-        router.push(`/${workspace.id}/${type}s`);
+        router.push(`/${workspace.slugOrId}${pref}/${type}s`);
       }
     } catch (error) {
       feedbackError("Failed to save object", { error });
@@ -625,7 +753,7 @@ const FieldTemplate = props => {
   );
 };
 
-const SingleObjectEditorLoader: React.FC<ConfigEditorProps & { id: string; clone?: boolean }> = ({
+const SingleObjectEditorLoader: React.FC<ConfigEditorProps & { id: string; clone?: string }> = ({
   id,
   clone,
   ...rest
@@ -640,6 +768,7 @@ const SingleObjectEditorLoader: React.FC<ConfigEditorProps & { id: string; clone
           ? {
               ...data,
               id: cuid(),
+              cloneId: clone,
               name: `${data.name} (copy)`,
             }
           : data
@@ -656,7 +785,7 @@ const ConfigEditor: React.FC<ConfigEditorProps> = props => {
   if (id) {
     if (id === "new") {
       if (clone) {
-        return <SingleObjectEditorLoader {...props} id={clone} backTo={backTo} clone={true} />;
+        return <SingleObjectEditorLoader {...props} id={clone} backTo={backTo} clone={clone} />;
       } else {
         return <SingleObjectEditor {...props} backTo={backTo} />;
       }
@@ -681,7 +810,9 @@ const ObjectsList: React.FC<{ objects: any[]; onDelete: (id: string) => Promise<
   noun,
   icon,
   name = (o: any) => o.name,
+  pathPrefix = "",
 }) => {
+  const pref = pathPrefix;
   const modal = useAntdModal();
   const nameRender = listColumns.find(c => c.title === "name")?.render;
   useTitle(`${branding.productName} : ${plural(noun)}`);
@@ -700,7 +831,7 @@ const ObjectsList: React.FC<{ objects: any[]; onDelete: (id: string) => Promise<
       render:
         nameRender ||
         ((text, record) => (
-          <WLink href={`/${type}s?id=${record.id}`}>
+          <WLink href={`${pref}/${type}s?id=${record.id}`}>
             <ObjectTitle title={name(record)} icon={icon ? icon(record) : undefined} />
           </WLink>
         )),
@@ -718,8 +849,9 @@ const ObjectsList: React.FC<{ objects: any[]; onDelete: (id: string) => Promise<
         const items: ButtonProps[] = [
           {
             label: "Edit",
-            href: `/${type}s?id=${record.id}`,
+            href: `${pref}/${type}s?id=${record.id}`,
             icon: <Edit3 className={"w-4 h-4"} />,
+            requiredPermission: "editEntities" as WorkspacePermissionsType,
           },
           ...actions.map(action => ({
             disabled: !!(action.disabled && action.disabled(record)),
@@ -735,9 +867,10 @@ const ObjectsList: React.FC<{ objects: any[]; onDelete: (id: string) => Promise<
           })),
           {
             label: "Clone",
-            href: `/${type}s?id=new&clone=${record.id}`,
+            href: `${pref}/${type}s?id=new&clone=${record.id}`,
             collapsed: true,
             icon: <FaClone />,
+            requiredPermission: "editEntities" as WorkspacePermissionsType,
           },
           {
             label: "Delete",
@@ -745,6 +878,7 @@ const ObjectsList: React.FC<{ objects: any[]; onDelete: (id: string) => Promise<
             collapsed: true,
             onClick: () => deleteObject(record.id),
             icon: <DeleteOutlined />,
+            requiredPermission: "deleteEntities" as WorkspacePermissionsType,
           },
         ].filter(i => !!i);
         return <ButtonGroup items={items} />;
@@ -771,6 +905,7 @@ const ObjectListEditor: React.FC<ConfigEditorProps> = props => {
   const router = useRouter();
   const pluralNoun = props.nounPlural || plural(props.noun);
   const addAction = props.addAction || (() => router.push(`${router.asPath}?id=new`));
+
   const onDeleteMutation = useConfigObjectMutation(props.type as any, async (id: string) => {
     await getConfigApi(workspace.id, props.type).del(id);
   });
@@ -789,7 +924,13 @@ const ObjectListEditor: React.FC<ConfigEditorProps> = props => {
           <div className="text-3xl">{props.listTitle || `Edit ${pluralNoun}`}</div>
         </div>
         <div>
-          <JitsuButton onClick={() => doAction(router, addAction)} type="primary" size="large" icon={<FaPlus />}>
+          <JitsuButton
+            onClick={() => doAction(router, addAction)}
+            type="primary"
+            size="large"
+            icon={<FaPlus />}
+            requiredPermission="editEntities"
+          >
             Add new {props.noun}
           </JitsuButton>
         </div>
@@ -801,9 +942,9 @@ const ObjectListEditor: React.FC<ConfigEditorProps> = props => {
               <Inbox className="h-16 w-16 my-6 text-neutral-200" />
               <div className="text text-textLight mb-6">You don't have any {props.noun}s configured.</div>
 
-              <Button type="default" onClick={() => doAction(router, addAction)}>
+              <JitsuButton type="default" onClick={() => doAction(router, addAction)} requiredPermission="editEntities">
                 {props.createKeyword || "Create"} your first {props.noun}
-              </Button>
+              </JitsuButton>
             </div>
           </div>
         )}

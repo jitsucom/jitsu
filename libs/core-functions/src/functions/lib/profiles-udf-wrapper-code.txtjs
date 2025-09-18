@@ -1,22 +1,4 @@
 //** @UDF_FUNCTIONS_IMPORT **//
-import {DropRetryErrorName, RetryError, RetryErrorName} from "@jitsu/functions-lib";
-
-global.RetryError = RetryError;
-
-export function checkError(chainRes) {
-    for (const el of chainRes.execLog) {
-        const error = el.error;
-        if (error) {
-            throw error;
-            // _jitsu_log.error.apply(undefined, [{
-            //     function: {
-            //         ..._jitsu_funcCtx.function,
-            //         id: error.functionId || el.functionId
-            //     }
-            // }, `Function execution failed`, error.name, error.message], {arguments: {copy: true}});
-        }
-    }
-}
 
 function isDropResult(result) {
     return result === "drop" || (Array.isArray(result) && result.length === 0) || result === null || result === false;
@@ -28,27 +10,16 @@ async function runChain(
     user,
     ctx
 ) {
-    const execLog = [];
     const f = chain[0];
-    let result = undefined;
     try {
-        result = await f.f(events, user, ctx);
+        const result = await f.f(events, user, ctx);
+        if (isDropResult(result)) {
+            return undefined
+        }
+        return result
     } catch (err) {
-        if (err.name === DropRetryErrorName) {
-            result = "drop";
-        }
-        if (f.meta?.retryPolicy) {
-            err.retryPolicy = f.meta.retryPolicy;
-        }
-        execLog.push({
-            functionId: f.id,
-            error: err,
-        });
+       throw err;
     }
-    if (isDropResult(result)) {
-        result = undefined
-    }
-    return {result, execLog};
 }
 
 const wrappedFunctionChain = async function (eventsProvider, userProvider, ctx) {
@@ -70,25 +41,25 @@ const wrappedFunctionChain = async function (eventsProvider, userProvider, ctx) 
             };
         },
         get length() {
-            throw new Error("The object doesn't have the `length` property, however you can iterate through it with `for const item of events` syntax");
+            throw new Error("The 'events' object doesn't have the `length` property, however you can iterate through it with `for (const item of events)` syntax");
         },
         filter() {
-            throw new Error("The object doesn't have the `filter` method, however you can iterate through it with `for const item of events` syntax");
+            throw new Error("The 'events' object doesn't have the `filter` method, however you can iterate through it with `for (const item of events)` syntax");
         },
         map() {
-            throw new Error("The object doesn't have the `map` method, however you can iterate through it with `for const item of events` syntax");
+            throw new Error("The 'events' object doesn't have the `map` method, however you can iterate through it with `for (const item of events)` syntax");
         },
         find() {
-            throw new Error("The object doesn't have the `find` method, however you can iterate through it with `for const item of events` syntax");
+            throw new Error("The 'events' object doesn't have the `find` method, however you can iterate through it with `for (const item of events)` syntax");
         },
         some() {
-            throw new Error("The object doesn't have the `some` method, however you can iterate through it with `for const item of events` syntax");
+            throw new Error("The 'events' object doesn't have the `some` method, however you can iterate through it with `for (const item of events)` syntax");
         },
         reduce() {
-            throw new Error("The object doesn't have the `reduce` method, however you can iterate through it with `for const item of events` syntax");
+            throw new Error("The 'events' object doesn't have the `reduce` method, however you can iterate through it with `for (const item of events)` syntax");
         },
         sort() {
-            throw new Error("The object doesn't have the `sort` method, however you can iterate through it with `for const item of events` syntax");
+            throw new Error("The 'events' object doesn't have the `sort` method, however you can iterate through it with `for (const item of events)` syntax");
         },
     };
     let lazyUser;
@@ -105,17 +76,18 @@ const wrappedFunctionChain = async function (eventsProvider, userProvider, ctx) 
         get anonymousId() {
             return lazyLoad().anonymousId;
         },
-        get id() {
-            return lazyLoad().id;
+        get userId() {
+            return lazyLoad().userId;
+        },
+        get profileId() {
+            return lazyLoad().profileId;
         },
         get traits() {
             return lazyLoad().traits;
         },
     };
 
-    const chainRes = await runChain(chain, iterator, user, ctx);
-    checkError(chainRes);
-    return chainRes.result;
+    return runChain(chain, iterator, user, ctx);
 };
 
 const wrappedUserFunction = (id, f, funcCtx) => {
@@ -161,6 +133,17 @@ const wrappedUserFunction = (id, f, funcCtx) => {
                 result: {promise: true}
             });
         },
+    }
+
+    const getWarehouse = (warehouseId) => {
+        return {
+            query: async (query, opts) => {
+                return await _jitsu_query.apply(undefined, [warehouseId, query, opts], {
+                    arguments: {copy: true},
+                    result: {promise: true, copy: true}
+                });
+            },
+        };
     }
 
     const fetch = async (url, opts, extras) => {
@@ -213,6 +196,7 @@ const wrappedUserFunction = (id, f, funcCtx) => {
             ...c,
             props: funcCtx.props,
             log,
+            getWarehouse,
             store,
             fetch: ftch,
             profileBuilder: {

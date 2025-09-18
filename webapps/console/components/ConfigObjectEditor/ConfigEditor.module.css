@@ -18,12 +18,12 @@
   border-color: rgb(255, 0, 0);
 }
 
-.listTable :global th.ant-table-cell {
+.listTable :global(th.ant-table-cell) {
   @apply text-textLight font-bold;
   text-transform: uppercase;
 }
 
-.listTable :global th.ant-table-cell::before {
+.listTable :global(th.ant-table-cell::before) {
   content: none !important;
 }
 
@@ -35,11 +35,11 @@
   text-decoration: underline;
 }
 
-.nestedObjectField :global .ant-form-item-label {
+.nestedObjectField :global(.ant-form-item-label) {
   max-width: 33.8% !important;
   text-transform: capitalize;
 }
 
-.nestedObjectField :global .ant-form-item-control {
+.nestedObjectField :global(.ant-form-item-control) {
   max-width: 66.2% !important;
 }

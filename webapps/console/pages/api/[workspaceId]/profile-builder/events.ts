@@ -5,13 +5,12 @@ import { getServerLog } from "../../../../lib/server/log";
 import {
   ProfilesConfig,
   createClient,
-  int32Hash,
   profileIdHashColumn,
   profileIdColumn,
 } from "@jitsu/core-functions/src/functions/profiles-functions";
 import { mongodb } from "@jitsu/core-functions/src/functions/lib/mongodb";
 
-import { getSingleton, hash } from "juava";
+import { getSingleton, hash, int32Hash } from "juava";
 import omit from "lodash/omit";
 
 const log = getServerLog("profile-builder-events");
@@ -43,6 +42,7 @@ export default createRoute()
     }
     try {
       const config = ProfilesConfig.parse({
+        profileBuilderId: profileBuilder.id,
         ...(profileBuilder.intermediateStorageCredentials || ({} as any)),
         profileWindowDays: (profileBuilder.connectionOptions || ({} as any)).profileWindow,
         eventsDatabase: `profiles`,
@@ -55,14 +55,14 @@ export default createRoute()
             () => {
               log.atInfo().log(`Connecting to MongoDB server.`);
               const cl = createClient({
-                mongoUrl: config.mongoUrl,
-              } as ProfilesConfig);
+                mongoUrl: config.mongoUrl!,
+              });
               log.atInfo().log(`Connected successfully to MongoDB server.`);
               return cl;
             },
             {
               optional: true,
-              ttlSec: 60 * 60 * 24,
+              ttlSec: 60 * 60,
               cleanupFunc: client => client.close(),
             }
           )
@@ -75,13 +75,13 @@ export default createRoute()
         .collection(config.eventsCollectionName)
         .find({
           [profileIdHashColumn]: int32Hash(userId),
-          userId: userId,
+          [profileIdColumn]: userId,
         })
         .toArray();
 
       return {
         status: "ok",
-        events: events.map(e => omit(e, ["_id", profileIdHashColumn, profileIdColumn])),
+        events: events.map(e => omit(e, ["_id", profileIdHashColumn])),
       };
     } catch (e: any) {
       log.atError().withCause(e).log(`Error while fetching events from MongoDB: ${e}`);

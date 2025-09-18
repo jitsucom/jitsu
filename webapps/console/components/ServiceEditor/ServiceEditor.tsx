@@ -10,7 +10,7 @@ import { Select } from "antd";
 import { EditorButtons } from "../ConfigObjectEditor/EditorButtons";
 import { getConfigApi } from "../../lib/useApi";
 import { feedbackError } from "../../lib/ui";
-import { useAppConfig, useWorkspace } from "../../lib/context";
+import { useAppConfig, useWorkspace, useWorkspaceRole } from "../../lib/context";
 import { useRouter } from "next/router";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
 import Nango from "@nangohq/frontend";
@@ -27,19 +27,22 @@ import { useStoreReload } from "../../lib/store";
 
 type ServiceEditorProps = {} & EditorComponentProps;
 
-const VersionSelector: React.FC<{ versions: string[]; onChange: (v: string) => void; value: string }> = ({
-  versions,
-  onChange,
-  value,
-}) => {
+const VersionSelector: React.FC<{
+  versions: string[];
+  onChange: (v: string) => void;
+  value: string;
+  disabled?: boolean;
+}> = ({ versions, onChange, value, disabled }) => {
   const options = versions.map(v => ({ label: v, value: v }));
-  return <Select onChange={onChange} value={value} options={options} className={"w-full"} />;
+  return <Select disabled={disabled} onChange={onChange} value={value} options={options} className={"w-full"} />;
 };
 
 export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
   const { object, meta, createNew, onCancel, onDelete, onTest, isNew, noun, loadMeta } = props;
   const appConfig = useAppConfig();
   const workspace = useWorkspace();
+  const role = useWorkspaceRole();
+  const canEdit = role.editEntities;
   const { push, query } = useRouter();
   const [obj, setObj] = useState<Partial<ServiceConfig>>({
     ...props.object,
@@ -50,16 +53,18 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
   const [testResult, setTestResult] = useState<any>(undefined);
   const [showErrors, setShowErrors] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
+  const [testing, setTesting] = useState<boolean>(false);
   const [nangoLoading, setNangoLoading] = useState<boolean>(false);
   const [nangoError, setNangoError] = useState<string | undefined>(undefined);
   const [loadingSpecs, setLoadingSpecs] = useState<boolean>(true);
   const [specs, setSpecs] = useState<any>(undefined);
-  const oauthConnector = appConfig.nango ? oauthDecorators.find(d => d.packageId === obj.package) : "";
+  const oauthConnector = appConfig.nango ? oauthDecorators.find(d => d.packageId === obj.package) : undefined;
   const [manualAuth, setManualAuth] = useState(typeof oauthConnector === "undefined");
-  const ajv = useMemo(
-    () => new Ajv({ allErrors: true, strictSchema: false, useDefaults: true, allowUnionTypes: true }),
-    []
-  );
+  const ajv = useMemo(() => {
+    const ajv = new Ajv({ allErrors: true, strictSchema: false, useDefaults: true, allowUnionTypes: true });
+    ///ajv.addMetaSchema(draft7MetaSchema);
+    return ajv;
+  }, []);
   const modal = useAntdModal();
   const reloadStore = useStoreReload();
 
@@ -127,6 +132,10 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
       errors.push("Source specification was not loaded");
       return;
     }
+    // ajv doesn't expect schema identifiers to use https:// prefix. But such identifiers started to appear in connectors specs
+    if (specs.connectionSpecification.$schema) {
+      specs.connectionSpecification.$schema = specs.connectionSpecification.$schema.replace("https://", "http://");
+    }
     const validate = ajv.compile(specs.connectionSpecification);
     const valid = validate(credentials);
     if (!obj.name) {
@@ -181,13 +190,15 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
         await rpc(`/api/${workspace.id}/sources/discover?serviceId=${res?.id || obj.id}`);
       }
       await reloadStore();
-      push(`/${workspace.id}/services`);
+      push(`/${workspace.slugOrId}/services`);
     };
     try {
       if (!validate()) {
         return;
       }
+      setTesting(true);
       const testRes = testResult || (await onTest!({ ...obj, credentials: credentials }));
+      setTesting(false);
       if (!testRes.ok) {
         modal.confirm({
           title: "Connection test failed",
@@ -207,6 +218,7 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
     } catch (error) {
       feedbackError(`Can't save service`, { error });
     } finally {
+      setTesting(false);
       setLoading(false);
     }
   }, [obj, credentials, workspace.id, props.isNew, push, validate, testResult, onTest, modal]);
@@ -219,9 +231,11 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
       : isNew
       ? `Create new ${noun}`
       : `Edit ${noun}`;
+    const subtitleComponent = props.subtitle && props.subtitle(object, isNew, meta);
+
     return (
       <EditorBase isTouched={isTouched} onCancel={onCancel}>
-        <EditorTitle title={title} onBack={() => onCancel(isTouched)} />
+        <EditorTitle title={title} subtitle={subtitleComponent} onBack={() => onCancel(isTouched)} />
         {oauthConnector && (
           <div className={"flex flex-row items-center gap-3 mb-4"}>
             <div>
@@ -291,7 +305,7 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
           errors={!obj.name && showErrors ? "Required" : undefined}
           required={true}
         >
-          <TextEditor value={obj.name} onChange={change.bind(null, "name")} />
+          <TextEditor disabled={!canEdit} value={obj.name} onChange={change.bind(null, "name")} />
         </EditorField>
         <EditorField
           key={"version"}
@@ -305,6 +319,7 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
           required={true}
         >
           <VersionSelector
+            disabled={!canEdit}
             value={obj.version ?? ""}
             onChange={v => {
               change.bind(null, "version")(v);
@@ -326,6 +341,7 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
             <>
               <SchemaForm
                 hiddenFields={!manualAuth && oauthConnector ? oauthConnector.stripSchema({}) : undefined}
+                disabled={!canEdit}
                 jsonSchema={specs.connectionSpecification}
                 showErrors={showErrors}
                 onChange={(n, v) => {
@@ -352,6 +368,7 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
         <EditorButtons
           isNew={isNew}
           loading={loading}
+          testing={testing}
           onDelete={onDelete}
           onCancel={() => onCancel(isTouched)}
           onSave={save}

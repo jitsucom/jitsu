@@ -1,8 +1,9 @@
-import { AnonymousEventsStore, AnyEvent, EventContext, FuncReturn } from "@jitsu/protocols/functions";
+import { AnonymousEventsStore, AnyEvent, EventContext, FuncReturn, TTLStore } from "@jitsu/protocols/functions";
 import {
+  createDummyStore,
   createMongoStore,
   createMultiStore,
-  createTtlStore,
+  createRedisStore,
   EnrichedConnectionConfig,
   EntityStore,
   FuncChainResult,
@@ -10,6 +11,7 @@ import {
   FunctionConfig,
   FunctionContext,
   FunctionExecLog,
+  FunctionExecRes,
   getBuiltinFunction,
   isDropResult,
   JitsuFunctionWrapper,
@@ -18,16 +20,18 @@ import {
   MetricsMeta,
   mongodb,
   UDFWrapper,
+  UserRecognitionParameter,
+  warehouseQuery,
   wrapperFunction,
 } from "@jitsu/core-functions";
-import Prometheus from "prom-client";
-import { RetryErrorName, DropRetryErrorName } from "@jitsu/functions-lib";
+import { DropRetryErrorName, RetryErrorName } from "@jitsu/functions-lib";
 
 import { getLog, newError, requireDefined, stopwatch } from "juava";
 import { retryObject } from "./retries";
 import NodeCache from "node-cache";
 import isEqual from "lodash/isEqual";
 import { MessageHandlerContext } from "./message-handler";
+import { promFunctionsInFlight, promFunctionsTime } from "./metrics";
 
 const fastStoreWorkspaceId = (process.env.FAST_STORE_WORKSPACE_ID ?? "").split(",").filter(x => x.length > 0);
 
@@ -48,20 +52,6 @@ export type FuncChainFilter = "all" | "udf-n-dst" | "dst-only";
 const log = getLog("functions-chain");
 const bulkerBase = requireDefined(process.env.BULKER_URL, "env BULKER_URL is not defined");
 const bulkerAuthKey = requireDefined(process.env.BULKER_AUTH_KEY, "env BULKER_AUTH_KEY is not defined");
-
-const functionsInFlight = new Prometheus.Gauge({
-  name: "rotor_functions_in_flight",
-  help: "Functions in flight",
-  // add `as const` here to enforce label names
-  labelNames: ["connectionId", "functionId"] as const,
-});
-const functionsTime = new Prometheus.Histogram({
-  name: "rotor_functions_time",
-  help: "Functions execution time in ms",
-  buckets: [1, 10, 100, 200, 1000, 2000, 3000, 4000, 5000],
-  // add `as const` here to enforce label names
-  labelNames: ["connectionId", "functionId"] as const,
-});
 
 //cache compiled udfs for 5min
 const udfTTL = 60 * 10;
@@ -85,6 +75,7 @@ export function checkError(chainRes: FuncChainResult) {
 
 export function buildFunctionChain(
   connection: EnrichedConnectionConfig,
+  connStore: EntityStore<EnrichedConnectionConfig>,
   funcStore: EntityStore<FunctionConfig>,
   rotorContext: MessageHandlerContext,
   anonymousEventsStore: AnonymousEventsStore,
@@ -92,12 +83,14 @@ export function buildFunctionChain(
 ): FuncChain {
   let mainFunction;
   const connectionData = connection.options as any;
+  const conId = connection.id;
+  const conWorkspaceId = connection.workspaceId;
   if (connection.usesBulker) {
     mainFunction = {
       functionId: "builtin.destination.bulker",
       functionOptions: {
         bulkerEndpoint: bulkerBase,
-        destinationId: connection.id,
+        destinationId: conId,
         authToken: bulkerAuthKey,
         dataLayout: connectionData.dataLayout ?? "segment-single-table",
         keepOriginalNames: connectionData.keepOriginalNames,
@@ -112,31 +105,51 @@ export function buildFunctionChain(
       };
     } else {
       throw newError(
-        `Connection with id ${connection.id} has no functions assigned to it's destination type - ${connection.type}`
+        `Connection with id ${conId} has no functions assigned to it's destination type - ${connection.type}`
       );
     }
   }
-  let store = rotorContext.dummyPersistentStore;
+  let store: TTLStore | undefined = rotorContext.dummyPersistentStore;
   if (!store) {
-    store = createMongoStore(
-      connection.workspaceId,
-      mongodb,
-      false,
-      fastStoreWorkspaceId.includes(connection.workspaceId),
-      rotorContext.metrics
-    );
+    let mongodbStore: TTLStore | undefined, redisStore: TTLStore | undefined;
+
+    if (process.env.MONGODB_URL) {
+      mongodbStore = createMongoStore(
+        conWorkspaceId,
+        mongodb,
+        false,
+        fastStoreWorkspaceId.includes(conWorkspaceId),
+        rotorContext.metrics
+      );
+    }
+
     if (rotorContext.redisClient) {
-      store = createMultiStore(store, createTtlStore(connection.workspaceId, rotorContext.redisClient));
+      redisStore = createRedisStore(conWorkspaceId, rotorContext.redisClient, rotorContext.metrics);
+    }
+
+    if (mongodbStore && redisStore) {
+      store = createMultiStore(mongodbStore, redisStore);
+    } else if (mongodbStore) {
+      store = mongodbStore;
+    } else if (redisStore) {
+      store = redisStore;
+    } else {
+      store = createDummyStore();
+      log.atWarn().log(`No persistence storage configured. MONGODB_URL or REDIS_URL environment variable is required`);
     }
   }
+
   const chainCtx: FunctionChainContext = {
-    fetch: makeFetch(connection.id, rotorContext.eventsLogger, connectionData.fetchLogLevel || "info", fetchTimeoutMs),
-    log: makeLog(connection.id, rotorContext.eventsLogger),
+    fetch: makeFetch(conId, rotorContext.eventsLogger, connectionData.fetchLogLevel || "info", fetchTimeoutMs),
+    log: makeLog(conId, rotorContext.eventsLogger),
     store,
+    query: async (conId: string, query: string, params: any) => {
+      return warehouseQuery(conWorkspaceId, connStore, conId, query, params, rotorContext.metrics);
+    },
     anonymousEventsStore,
     connectionOptions: connectionData,
   };
-  const funcCtx = {
+  const udfFuncCtx = {
     function: {
       id: "PIPELINE",
       type: "udf",
@@ -149,11 +162,11 @@ export function buildFunctionChain(
     .map(f => {
       const functionId = f.functionId.substring(4);
       const userFunctionObj = funcStore.getObject(functionId);
-      if (!userFunctionObj || userFunctionObj.workspaceId !== connection.workspaceId) {
+      if (!userFunctionObj || userFunctionObj.workspaceId !== conWorkspaceId) {
         return {
           id: functionId as string,
           code: `export default async function (event,ctx) {
-            throw newError(\`Function ${functionId} not found in workspace: ${connection.workspaceId}\`);
+            throw newError(\`Function ${functionId} not found in workspace: ${conWorkspaceId}\`);
           }`,
           codeHash: "0",
         };
@@ -165,13 +178,13 @@ export function buildFunctionChain(
   if (udfFuncs.length > 0) {
     hash = udfFuncs.map(f => f.codeHash);
     hash.push(connection.updatedAt);
-    cached = udfCache.get(connection.id);
+    cached = udfCache.get(conId);
     if (!cached || !isEqual(cached?.hash, hash)) {
-      log.atInfo().log(`UDF for connection ${connection.id} changed (hash ${hash} != ${cached?.hash}). Reloading`);
+      log.atInfo().log(`UDF for connection ${conId} changed (hash ${hash} != ${cached?.hash}). Reloading`);
       const wrapper = UDFWrapper(
-        connection.id,
+        conId,
         chainCtx,
-        funcCtx,
+        udfFuncCtx,
         udfFuncs.map(f => ({ id: f.id, name: f.name, code: f.code }))
       );
       const oldWrapper = cached?.wrapper;
@@ -181,9 +194,9 @@ export function buildFunctionChain(
         }, 10000);
       }
       cached = { wrapper, hash };
-      udfCache.set(connection.id, cached);
+      udfCache.set(conId, cached);
     }
-    udfCache.ttl(connection.id, udfTTL);
+    udfCache.ttl(conId, udfTTL);
   }
   const aggregatedFunctions: any[] = [
     ...(connectionData.functions || []).filter(f => f.functionId.startsWith("builtin.transformation.")),
@@ -199,15 +212,15 @@ export function buildFunctionChain(
         if ((e?.message ?? "").includes("Isolate is disposed")) {
           // due to async nature other 'thread' could already replace this isolate. So check it
           if (cached.wrapper.isDisposed()) {
-            log.atError().log(`UDF for con:${connection.id} VM was disposed. Reloading`);
+            log.atError().log(`UDF for con:${conId} VM was disposed. Reloading`);
             const wrapper = UDFWrapper(
-              connection.id,
+              conId,
               chainCtx,
-              funcCtx,
+              udfFuncCtx,
               udfFuncs.map(f => ({ id: f.id, name: f.name, code: f.code }))
             );
             cached = { wrapper, hash };
-            udfCache.set(connection.id, cached);
+            udfCache.set(conId, cached);
             return wrapper.userFunction(event, ctx);
           } else {
             // we have alive isolate now. try again
@@ -282,47 +295,28 @@ export async function runChain(
         }
         break;
     }
+    const metricsLabels = { connectionId: eventContext.connection?.id ?? "", functionId: f.id };
     const newEvents: AnyEvent[] = [];
     for (let i = 0; i < events.length; i++) {
-      functionsInFlight.inc({ connectionId: eventContext.connection?.id ?? "", functionId: f.id });
+      promFunctionsInFlight.inc(metricsLabels);
       const event = events[i];
       let result: FuncReturn = undefined;
       const sw = stopwatch();
-      const rat = new Date(event.receivedAt) as any;
-      const execLogMeta = {
-        eventIndex: i,
-        receivedAt: rat && rat != "Invalid Date" ? rat : new Date(),
+      const execLogEvent: Partial<FunctionExecRes> = {
+        // we don't multiply active incoming metrics for events produced by user recognition
+        eventIndex: event[UserRecognitionParameter] ? 0 : i,
+        receivedAt: !isNaN(eventContext.receivedAt.getTime()) ? eventContext.receivedAt : new Date(),
         functionId: f.id,
         metricsMeta: metricsMeta,
       };
       try {
         result = await f.exec(event, eventContext);
-        const ms = sw.elapsedMs();
-        functionsTime.observe({ connectionId: eventContext.connection?.id ?? "", functionId: f.id }, ms);
-        // if (ms > 100) {
-        //   console.log(`Function ${f.id} took ${ms}ms to execute`);
-        // }
-        execLog.push({
-          ...execLogMeta,
-          ms,
-          dropped: isDropResult(result),
-        });
       } catch (err: any) {
         if (err.name === DropRetryErrorName) {
           result = "drop";
         }
-        const ms = sw.elapsedMs();
-        // if (ms > 100) {
-        //   console.log(`Function ${f.id} took ${ms}ms to execute`);
-        // }
-        execLog.push({
-          ...execLogMeta,
-          event,
-          error: err,
-          ms,
-          dropped: isDropResult(result),
-        });
-        functionsTime.observe({ connectionId: eventContext.connection?.id ?? "", functionId: f.id }, ms);
+        execLogEvent.event = event;
+        execLogEvent.error = err;
         const args = [err?.name, err?.message];
         const r = retriesEnabled ? retryObject(err, eventContext.retries ?? 0) : undefined;
         if (r) {
@@ -334,25 +328,42 @@ export async function runChain(
           chain.context.log.error(f.context, `Function execution failed`, ...args);
         }
         if (f.id === "udf.PIPELINE") {
-          if (err.name !== DropRetryErrorName && err.event) {
+          if (err.name !== DropRetryErrorName) {
+            const errEvent = err.event || event;
             // if udf pipeline failed  w/o drop error pass partial result of pipeline to the destination function
-            newEvents.push(...(Array.isArray(err.event) ? err.event : [err.event]));
+            if (Array.isArray(errEvent)) {
+              newEvents.push(...errEvent);
+            } else {
+              newEvents.push(errEvent);
+            }
             continue;
           }
         }
       } finally {
-        functionsInFlight.dec({ connectionId: eventContext.connection?.id ?? "", functionId: f.id });
+        const ms = sw.elapsedMs();
+        promFunctionsTime.observe(metricsLabels, ms);
+        execLogEvent.ms = ms;
+        execLogEvent.dropped = isDropResult(result);
+        execLog.push(execLogEvent as FunctionExecRes);
+        promFunctionsInFlight.dec(metricsLabels);
       }
-      if (!isDropResult(result)) {
+      if (!execLogEvent.dropped) {
         if (result) {
-          // @ts-ignore
-          newEvents.push(...(Array.isArray(result) ? result : [result]));
+          if (Array.isArray(result)) {
+            newEvents.push(...result);
+          } else {
+            // @ts-ignore
+            newEvents.push(result);
+          }
         } else {
           newEvents.push(event);
         }
       }
     }
     events = newEvents;
+    if (events.length === 0) {
+      break;
+    }
   }
   return { events, execLog };
 }

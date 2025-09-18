@@ -27,7 +27,6 @@ import { Bug, Globe, RefreshCw, Server } from "lucide-react";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
 import { ConnectionTitle, ProfileBuilderTitle } from "../../pages/[workspaceId]/connections";
 import { StreamTitle } from "../../pages/[workspaceId]/streams";
-import { trimMiddle } from "../../lib/shared/strings";
 import { countries } from "../../lib/shared/countries";
 import type { RefSelectProps } from "antd/es/select";
 
@@ -41,6 +40,7 @@ import {
 } from "../../lib/store";
 import { coreDestinationsMap } from "../../lib/schema/destinations";
 import debounce from "lodash/debounce";
+import { trimMiddle } from "juava";
 
 dayjs.extend(utc);
 dayjs.extend(relativeTime);
@@ -184,6 +184,7 @@ const EventsBrowser0 = ({
   const destinations = useConfigObjectList("destination");
   const destinationsMap = useMap(destinations);
   const profileBuilders = useProfileBuilders();
+  const hasActiveProfileBuilder = profileBuilders.some(p => p.version > 0);
   const mappedConnections = useMemo(
     () =>
       connections
@@ -209,23 +210,39 @@ const EventsBrowser0 = ({
   const entities = useMemo(() => {
     return streamType == "incoming"
       ? streams
+      : streamType == "function"
+      ? [
+          ...mappedConnections,
+          ...profileBuilders
+            .filter(p => p.version > 0)
+            .map(p => {
+              return {
+                ...p,
+                type: "profile-builder",
+              };
+            }),
+        ]
       : [
-          ...mappedConnections.filter(
-            link => (streamType === "bulker" && (link.usesBulker || link.hybrid)) || streamType === "function"
-          ),
-          ...profileBuilders.map(p => {
-            const dst = destinationsMap[p.destinationId!];
-            const destinationType = coreDestinationsMap[dst?.destinationType];
-            return {
-              ...p,
-              mode: p.connectionOptions?.["mode"] || "batch",
-              destination: dst,
-              usesBulker: destinationType?.usesBulker || false,
-              type: "profile-builder",
-            };
-          }),
+          ...mappedConnections.filter(link => link.usesBulker || link.hybrid),
+          ...(hasActiveProfileBuilder
+            ? destinations
+                .filter(dst => {
+                  const destinationType = coreDestinationsMap[dst?.destinationType];
+                  return destinationType?.usesBulker;
+                })
+                .map(dst => {
+                  return {
+                    id: dst.id,
+                    name: "Profile Builder",
+                    mode: "batch",
+                    destination: dst,
+                    usesBulker: true,
+                    type: "profile-builder",
+                  };
+                })
+            : []),
         ];
-  }, [destinationsMap, mappedConnections, profileBuilders, streamType, streams]);
+  }, [destinations, destinationsMap, mappedConnections, profileBuilders, streamType, streams]);
 
   const entitiesMap = useMemo(() => {
     return streamType == "incoming" ? streamsMap : arrayToMap(entities as { id: any }[]);
@@ -617,6 +634,7 @@ const EventsBrowser0 = ({
             >
               <JitsuButton
                 icon={<Bug className={`w-6 h-6`} />}
+                requiredPermission={"editEntities"}
                 type="link"
                 size="small"
                 onClick={e => {
@@ -861,6 +879,12 @@ const StreamEventsTable = ({ loadEvents, loading, streamType, entityType, actorI
       render: d => <UTCDate date={d} />,
     },
     {
+      title: "Queue size",
+      width: "7em",
+      dataIndex: ["content", "queueSize"],
+      key: "queue",
+    },
+    {
       title: "Type",
       width: "11em",
       ellipsis: true,
@@ -898,7 +922,9 @@ const StreamEventsTable = ({ loadEvents, loading, streamType, entityType, actorI
       title: "Table name",
       width: "12em",
       ellipsis: true,
-      dataIndex: ["content", "representation", "name"],
+      key: "table_name",
+      dataIndex: ["content", "representation"],
+      render: (d: any) => d?.targetName || d?.name,
     },
     {
       title: "Summary",
@@ -945,19 +971,31 @@ const BatchTable = ({ loadEvents, loading, streamType, entityType, actorId, even
       key: "size",
     },
     {
+      title: "Queue size",
+      width: "7em",
+      dataIndex: ["content", "queueSize"],
+      key: "queue",
+    },
+    {
       title: "Status",
       width: "8em",
-      dataIndex: ["content", "status"],
+      dataIndex: "content",
       key: "status",
-      render: (d: string) => {
-        return <Tag color={d === "COMPLETED" ? "cyan" : "red"}>{d}</Tag>;
+      render: (d: any) => {
+        return (
+          <Tag color={d.status === "COMPLETED" ? (d.representation?.status === 400 ? "orange" : "cyan") : "red"}>
+            {d.status}
+          </Tag>
+        );
       },
     },
     {
       title: "Table name",
       width: "20em",
       ellipsis: true,
-      dataIndex: ["content", "representation", "name"],
+      key: "table_name",
+      dataIndex: ["content", "representation"],
+      render: (d: any) => d?.targetName || d?.name,
     },
     {
       title: "Summary",
@@ -980,8 +1018,60 @@ const BatchTable = ({ loadEvents, loading, streamType, entityType, actorId, even
       loading={loading}
       loadEvents={loadEvents}
       events={batchEvents}
-      drawerNode={event => <JSONView data={event.event.content} />}
+      drawerNode={event =>
+        event.event.content.representation?.response ? (
+          <BulkerAPIResponseDrawer event={event.event} />
+        ) : (
+          <JSONView data={event.event.content} />
+        )
+      }
       columns={columns}
+    />
+  );
+};
+
+const BulkerAPIResponseDrawer = ({ event }: { event: any }) => {
+  if (!event) {
+    return <></>;
+  }
+  const drawerColumns: ColumnsType<any> = [
+    {
+      title: "Name",
+      dataIndex: "name",
+      width: "10em",
+      className: "align-top whitespace-nowrap",
+    },
+    {
+      title: "Value",
+      dataIndex: "value",
+    },
+  ];
+
+  const drawerData: { name: ReactNode; value: ReactNode }[] = [];
+  drawerData.push({ name: <UTCHeader />, value: <UTCDate date={event.date} /> });
+  drawerData.push({ name: "Response status", value: event.content.representation?.status });
+  drawerData.push({
+    name: "Response text",
+    value: (
+      <span className={"whitespace-pre-wrap break-all font-mono text-xs"}>
+        {event.content.representation?.response}
+      </span>
+    ),
+  });
+  drawerData.push({
+    name: "Full Info",
+    value: <JSONView data={event.content} />,
+  });
+
+  return (
+    <Table
+      bordered={true}
+      size={"middle"}
+      showHeader={false}
+      rowKey={"name"}
+      pagination={false}
+      columns={drawerColumns}
+      dataSource={drawerData}
     />
   );
 };

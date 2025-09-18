@@ -13,6 +13,8 @@ import ThrottledReminderEmail from "../emails/throttling-reminder";
 import { Simplify } from "type-fest";
 import ThrottlingStarted from "../emails/throttling-started";
 import BillingIssueEmail from "../emails/billing-issues";
+import ConnectionStatusFailedEmail from "../emails/connection-status-failed";
+import ConnectionStatusSuccessEmail from "../emails/connection-status-success";
 
 dayjs.extend(utc);
 export const UnsubscribeCodes = z.object({
@@ -103,6 +105,12 @@ export function getComponent(template: string): EmailComponent<UnsubscribeLinkPr
       return ThrottledReminderEmail;
     case "throttling-started":
       return ThrottlingStarted;
+    case "connection-status-failed":
+      // @ts-ignore
+      return ConnectionStatusFailedEmail;
+    case "connection-status-success":
+      // @ts-ignore
+      return ConnectionStatusSuccessEmail;
     default:
       throw new Error(`Unknown email template: ${template}`);
   }

@@ -1,8 +1,8 @@
 import { WorkspacePageLayout } from "../../components/PageLayout/WorkspacePageLayout";
-import { Button, Collapse, Modal, Popover, Skeleton, Table, Tabs, Tooltip } from "antd";
+import { Button, Modal, Popover, Skeleton, Table, Tabs, Tooltip } from "antd";
 import { ConfigEditor, ConfigEditorProps, FieldDisplay } from "../../components/ConfigObjectEditor/ConfigEditor";
 import { DestinationConfig } from "../../lib/schema";
-import { confirmOp, feedbackError, serialization } from "../../lib/ui";
+import { confirmOp, copyTextToClipboard, feedbackError, feedbackSuccess, serialization } from "../../lib/ui";
 import {
   coreDestinations,
   coreDestinationsMap,
@@ -152,6 +152,20 @@ export const ArrayTextareaEditor: React.FC<CustomWidgetProps<string[]>> = props 
         const lines = e.target.value.split("\n").map(line => line.trim());
         props.onChange(lines);
         setValue(lines);
+      }}
+    />
+  );
+};
+
+export const TextareaEditor: React.FC<CustomWidgetProps<string>> = props => {
+  const [value, setValue] = useState<string>(props.value || "");
+  return (
+    <TextArea
+      rows={10}
+      value={value}
+      onChange={e => {
+        props.onChange(e.target.value);
+        setValue(e.target.value);
       }}
     />
   );
@@ -542,7 +556,7 @@ const ProvisionedDestinations = (props: any) => {
               <div className="flex justify-end items-center">
                 <ProvisionedDestinationShowCredentials destination={d} />
                 <Tooltip title={"Run SQL query editor"}>
-                  <Link className="ml-4" href={`/${workspace.slug || workspace.id}/sql?destinationId=${d.id}`}>
+                  <Link className="ml-4" href={`/${workspace.slugOrId}/sql?destinationId=${d.id}`}>
                     <TerminalSquare className="h-5 w-5 text-text" />
                   </Link>
                 </Tooltip>
@@ -726,6 +740,7 @@ const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
       type: { constant: "destination" },
       destinationType: { hidden: true },
       workspaceId: { constant: workspace.id },
+      cloneId: { hidden: true },
       provisioned: { hidden: true },
       testConnectionError: { hidden: true },
       ...extraFields,
@@ -760,6 +775,15 @@ const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
         <EditorToolbar
           items={
             [
+              {
+                title: "ID: " + obj.id,
+                icon: <Copy className="w-full h-full" />,
+                href: "#",
+                onClick: () => {
+                  copyTextToClipboard(obj.id);
+                  feedbackSuccess("Copied to clipboard");
+                },
+              },
               obj.provisioned || obj.destinationType === "clickhouse"
                 ? {
                     title: "SQL Query Editor",
@@ -767,16 +791,6 @@ const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
                     href: `/${workspace.slugOrId}/sql?destinationId=${obj.id}`,
                   }
                 : undefined,
-              {
-                title: "Connected Sources",
-                icon: <Zap className="w-full h-full" />,
-                href: `/${workspace.slugOrId}/connections?destination=${obj.id}`,
-              },
-              {
-                title: "Syncs",
-                icon: <Share2 className="w-full h-full" />,
-                href: `/${workspace.slugOrId}/syncs?destination=${obj.id}`,
-              },
             ].filter(Boolean) as any
           }
           className="mb-4"
@@ -805,7 +819,7 @@ const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
         <DestinationCatalog
           onClick={async destination => {
             const url = `/${
-              workspace.id
+              workspace.slugOrId
             }/destinations?id=new&destinationType=${destination}&backTo=${encodeURIComponent(
               (router.query.backTo ?? "") as string
             )}`;
@@ -829,20 +843,20 @@ const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
         editorComponent={props => {
           return customEditors[props.object.destinationType];
         }}
-        subtitle={object => {
-          const destinationDocs = getCoreDestinationType((object as any).destinationType)?.documentation;
-          if (destinationDocs) {
-            // eslint-disable-next-line react/jsx-no-undef
-            return (
-              <Collapse ghost>
-                <Collapse.Panel header="Show destination documentation" key="1">
-                  <div className="prose-sm bg-neutral-100 rounded-lg px-5 py-4">{destinationDocs}</div>
-                </Collapse.Panel>
-              </Collapse>
-            );
-          }
-          return undefined;
-        }}
+        // subtitle={object => {
+        // const destinationDocs = getCoreDestinationType((object as any).destinationType)?.documentation;
+        //   if (destinationDocs) {
+        //     // eslint-disable-next-line react/jsx-no-undef
+        //     return (
+        //       <Collapse ghost>
+        //         <Collapse.Panel header="Show destination documentation" key="1">
+        //           <div className="prose-sm bg-neutral-100 rounded-lg px-5 py-4">{destinationDocs}</div>
+        //         </Collapse.Panel>
+        //       </Collapse>
+        //     );
+        //   }
+        //   return undefined;
+        // }}
       />
     </>
   );

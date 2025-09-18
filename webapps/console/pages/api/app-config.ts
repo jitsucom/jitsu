@@ -10,6 +10,7 @@ import { readOnlyUntil } from "../../lib/server/read-only-mode";
 import { productTelemetryEnabled, productTelemetryHost } from "../../lib/server/telemetry";
 import { mainDataDomain } from "../../lib/server/data-domains";
 import { customDomainCnames } from "../../lib/server/custom-domains";
+import { credentialsLoginEnabled, githubLoginEnabled, oidcLoginEnabled } from "../../lib/nextauth.config";
 
 export default createRoute()
   .GET({ result: AppConfig, auth: false })
@@ -17,7 +18,24 @@ export default createRoute()
     const publicEndpoints = getAppEndpoint(req);
     const dataHost = mainDataDomain;
     const ingestUrl = process.env.JITSU_INGEST_PUBLIC_URL;
-
+    const nextAuth = credentialsLoginEnabled || githubLoginEnabled || oidcLoginEnabled;
+    const auth = {
+      ...(isFirebaseEnabled()
+        ? {
+            firebasePublic: requireFirebaseOptions().client,
+          }
+        : {}),
+      ...(nextAuth
+        ? {
+            nextauth: {
+              github: githubLoginEnabled,
+              oidc: oidcLoginEnabled,
+              credentials: credentialsLoginEnabled,
+            },
+          }
+        : {}),
+      dynamicOidc: isTruish(process.env.DYNAMIC_OIDC_ENABLED),
+    };
     return {
       docsUrl: process.env.JITSU_DOCUMENTATION_URL || "https://docs-jitsu-com.staging.jitsu.com/",
       readOnlyUntil: readOnlyUntil?.toISOString(),
@@ -26,11 +44,7 @@ export default createRoute()
         host: isEEAvailable() ? getEeConnection().host : undefined,
       },
       disableSignup: process.env.DISABLE_SIGNUP === "true" || process.env.DISABLE_SIGNUP === "1",
-      auth: isFirebaseEnabled()
-        ? {
-            firebasePublic: requireFirebaseOptions().client,
-          }
-        : undefined,
+      auth,
       billingEnabled: isEEAvailable(),
       customDomainsEnabled: customDomainCnames && customDomainCnames.length > 0,
       syncs: {

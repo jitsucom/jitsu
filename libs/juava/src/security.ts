@@ -1,5 +1,7 @@
 const crypto = require("crypto");
 
+export const idHash32MaxValue = 2147483647;
+
 const defaultSeed = "dea42a58-acf4-45af-85bb-e77e94bd5025";
 
 const globalSeed: string[] = (
@@ -19,6 +21,14 @@ export function hash(algorithm: string, value: string): string {
   const hash = crypto.createHash(algorithm);
   hash.update(value);
   return hash.digest("hex");
+}
+
+export function int32Hash(value) {
+  // Hash the value using SHA-256 (or another algorithm if desired)
+  const h = hash("sha256", value);
+
+  // Convert the first 8 characters of the hash (or more) to an integer
+  return parseInt(h.substring(0, 8), 16) % idHash32MaxValue;
 }
 
 export function hint(key: string) {

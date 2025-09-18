@@ -146,7 +146,8 @@ export function toJitsuClassic(event: AnalyticsServerEvent, ctx: FullContext): A
         : undefined,
     ids: Object.keys(ids).length > 0 ? ids : undefined,
     parsed_ua:
-      Object.keys(ua).length > 0
+      event.parsed_ua ||
+      (Object.keys(ua).length > 0
         ? {
             os_family: ua.os?.name,
             os_version: ua.os?.version,
@@ -157,7 +158,7 @@ export function toJitsuClassic(event: AnalyticsServerEvent, ctx: FullContext): A
             device_model: ua.device?.model,
             bot: ua.bot,
           }
-        : undefined,
+        : undefined),
     user_agent: analyticsContext.userAgent,
     user_language: analyticsContext.locale,
     utc_time: event.timestamp,

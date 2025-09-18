@@ -153,12 +153,21 @@ const UserPage = (props: any) => {
             <label htmlFor="email" className="text-lg font-bold">
               Email
             </label>
-            <Input id="email" value={user.email} className="border-error" />
-            <p className="text-textDisabled">
-              You can't change email, since you logged in with an external user provider - {user.loginProvider}
-            </p>
+            <div className="mt-3">
+              <Input id="email" value={user.email} className="border-error" />
+
+              <p className="text-textDisabled">
+                You can't change email, since you logged in with an external user provider - {user.loginProvider}
+              </p>
+            </div>
           </div>
           {user.loginProvider === "credentials" && <ChangePassword />}
+          {/*<div className={"mt-6"}>*/}
+          {/*  <div className="px-8 py-6 border border-textDisabled rounded-lg">*/}
+          {/*    <div className="text-lg font-bold">Default Notification Settings</div>*/}
+          {/*    <UserNotificationSettings />*/}
+          {/*  </div>*/}
+          {/*</div>*/}
           <div className="px-8 py-6 border border-textDisabled rounded-lg mt-6">
             <ApiKeys />
           </div>

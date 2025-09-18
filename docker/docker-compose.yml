@@ -142,7 +142,7 @@ services:
       BULKER_CONFIG_SOURCE_HTTP_AUTH_TOKEN: "service-admin-account:${CONSOLE_TOKEN:-default}"
       BULKER_CACHE_DIR: "/tmp/cache"
       BULKER_INTERNAL_TASK_LOG: '{"id":"task_log","metricsKeyPrefix":"syncs","usesBulker":true,"type":"postgres","options":{"mode":"stream"},"credentials":{"host":"postgres","port":5432,"sslMode":"disable","database":"postgres","password":"${POSTGRES_PASSWORD:-default}","username":"postgres","defaultSchema":"newjitsu"}}'
-      BULKER_CLICKHOUSE_HOST: "clickhouse:9000"
+      BULKER_CLICKHOUSE_HOST: "clickhouse:8123"
       BULKER_CLICKHOUSE_PASSWORD: "${CLICKHOUSE_PASSWORD:-default}"
       BULKER_CLICKHOUSE_DATABASE: "newjitsu_metrics"
     healthcheck:
@@ -201,7 +201,7 @@ services:
       INGEST_CACHE_DIR: "/tmp/cache"
       INGEST_ROTOR_URL: "http://rotor:3401"
       INGEST_ROTOR_AUTH_KEY: ${BULKER_TOKEN:-default}
-      INGEST_CLICKHOUSE_HOST: "clickhouse:9000"
+      INGEST_CLICKHOUSE_HOST: "clickhouse:8123"
       INGEST_CLICKHOUSE_PASSWORD: "${CLICKHOUSE_PASSWORD:-default}"
       INGEST_CLICKHOUSE_DATABASE: "newjitsu_metrics"
     healthcheck:

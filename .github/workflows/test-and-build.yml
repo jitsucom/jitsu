@@ -42,7 +42,7 @@ jobs:
         run: pnpm build
       - name: Run Tests
         run: pnpm test
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         if: always()
         with:
           path: libs/jitsu-js/playwright/artifacts

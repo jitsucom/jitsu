@@ -6,7 +6,7 @@ import { useRouter } from "next/router";
 import { getLog, hash as jhash, randomId, rpc } from "juava";
 import React from "react";
 import { Modal } from "antd";
-import { serialization } from "../../lib/ui";
+import { copyTextToClipboard, feedbackSuccess, serialization } from "../../lib/ui";
 import { getServiceIcon, ServicesCatalog } from "../../components/ServicesCatalog/ServicesCatalog";
 import { SourceType } from "../api/sources";
 import hash from "stable-hash";
@@ -14,10 +14,11 @@ import { ServiceEditor } from "../../components/ServiceEditor/ServiceEditor";
 import { ErrorCard } from "../../components/GlobalError/GlobalError";
 import { ObjectTitle } from "../../components/ObjectTitle/ObjectTitle";
 import omit from "lodash/omit";
-import { AlertTriangle, Check, Zap } from "lucide-react";
+import { AlertTriangle, Check, Copy, Zap } from "lucide-react";
 import Link from "next/link";
 import { useConfigObjectLinks } from "../../lib/store";
 import { useQueryStringState } from "../../lib/useQueryStringState";
+import { EditorToolbar } from "../../components/EditorToolbar/EditorToolbar";
 
 const log = getLog("services");
 
@@ -58,8 +59,8 @@ const ConnectionsHint: React.FC<{ connections: any[]; service: ServiceConfig }> 
       <div className="flex items-center flex-nowrap">
         <AlertTriangle className="h-4 w-4 mr-1 text-warning" />{" "}
         <span className="text-sm">
-          <Link href={`/${workspace.slug}/syncs/edit?serviceId=${service.id}`}>Create sync to any destination</Link> to
-          start seeing data
+          <Link href={`/${workspace.slugOrId}/syncs/edit?serviceId=${service.id}`}>Create sync to any destination</Link>{" "}
+          to start seeing data
         </span>
       </div>
     );
@@ -69,7 +70,7 @@ const ConnectionsHint: React.FC<{ connections: any[]; service: ServiceConfig }> 
         <Check className="h-4 w-4 mr-1 text-success" />{" "}
         <span className="text-sm">
           Connected to{" "}
-          <Link href={`/${workspace.slug}/syncs?source=${service.id}`}>
+          <Link href={`/${workspace.slugOrId}/syncs?source=${service.id}`}>
             {connections.length} destination{connections.length > 1 ? "s" : ""}
           </Link>
         </span>
@@ -128,6 +129,7 @@ const ServicesList: React.FC<{}> = () => {
     fields: {
       type: { constant: "service" },
       workspaceId: { constant: workspace.id },
+      cloneId: { hidden: true },
       protocol: { hidden: true },
       package: { hidden: true },
     },
@@ -225,14 +227,31 @@ const ServicesList: React.FC<{}> = () => {
       }
       const verb = isNew ? "New" : "Edit";
       return (
-        <div className="flex items-center">
-          <div className="h-12 w-12 mr-4">{getServiceIcon(meta)}</div>
-          {verb} service: {meta.meta.name}
-        </div>
+        <>
+          <div className="flex items-center">
+            <div className="h-12 w-12 mr-4">{getServiceIcon(meta)}</div>
+            {verb} service: {meta.meta.name}
+          </div>
+        </>
       );
     },
     subtitle: (obj: ServiceConfig, isNew: boolean, meta) => {
-      return `${obj.package || meta!.packageId}`;
+      return !isNew ? (
+        <EditorToolbar
+          items={[
+            {
+              title: "ID: " + obj.id,
+              icon: <Copy className="w-full h-full" />,
+              href: "#",
+              onClick: () => {
+                copyTextToClipboard(obj.id);
+                feedbackSuccess("Copied to clipboard");
+              },
+            },
+          ]}
+          className="mb-4"
+        />
+      ) : undefined;
     },
     actions: [
       {
@@ -266,7 +285,7 @@ const ServicesList: React.FC<{}> = () => {
           onClick={async (packageType, packageId, version) => {
             await setShowCatalog(false).then(() =>
               router.push(
-                `/${workspace.id}/services?id=new&packageType=${packageType}&packageId=${encodeURIComponent(
+                `/${workspace.slugOrId}/services?id=new&packageType=${packageType}&packageId=${encodeURIComponent(
                   packageId
                 )}${version ? `&version=${version}` : ""}`
               )

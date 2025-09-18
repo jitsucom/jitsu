@@ -39,7 +39,7 @@ export default createRoute()
         const tags = (await rpc(`https://hub.docker.com/v2/repositories/${packageId}/tags?page_size=200`)).results.map(
           ({ name }) => ({
             name,
-            isRelease: name.match(/^[0-9.]+$/) !== null,
+            isRelease: name.match(/^[0-9.]+$|^latest$/) !== null,
             isMit,
           })
         );

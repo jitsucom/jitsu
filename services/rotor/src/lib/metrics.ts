@@ -1,22 +1,13 @@
-import { getLog, requireDefined, stopwatch } from "juava";
-import fetch from "node-fetch-commonjs";
-import {
-  FunctionExecLog,
-  FunctionExecRes,
-  MetricsMeta,
-  httpAgent,
-  httpsAgent,
-  RotorMetrics,
-} from "@jitsu/core-functions";
+import { getLog, isTruish, requireDefined, stopwatch } from "juava";
+import { FunctionExecLog, FunctionExecRes, RotorMetrics } from "@jitsu/core-functions";
 
 import omit from "lodash/omit";
 import { KafkaJS } from "@confluentinc/kafka-javascript";
 import { Readable } from "stream";
-import { Counter } from "prom-client";
+import { Counter, Gauge, Histogram } from "prom-client";
+import { createClient } from "@clickhouse/client";
 
 const log = getLog("metrics");
-const bulkerBase = requireDefined(process.env.BULKER_URL, "env BULKER_URL is not defined");
-const bulkerAuthKey = requireDefined(process.env.BULKER_AUTH_KEY, "env BULKER_AUTH_KEY is not defined");
 const metricsDestinationId = process.env.METRICS_DESTINATION_ID;
 const billingMetricsTable = "active_incoming";
 const metricsTable = "metrics";
@@ -24,108 +15,193 @@ const metricsTable = "metrics";
 const max_batch_size = 10000;
 const flush_interval_ms = 60000;
 
-type MetricsEvent = MetricsMeta & {
-  key: string;
-  functionId: string;
-  timestamp: Date;
-  status: string;
-  events: number;
-};
+export const promStoreStatuses = new Counter({
+  name: "rotor_store_statuses",
+  help: "rotor store statuses",
+  labelNames: ["namespace", "operation", "status"] as const,
+});
+export const promWarehouseStatuses = new Histogram({
+  name: "rotor_warehouse_statuses",
+  help: "rotor warehouse statuses",
+  labelNames: ["id", "table", "status"] as const,
+  buckets: [0.02, 0.05, 0.2, 0.5, 1, 2], // durations in seconds
+});
+export const promTopicOffsets = new Gauge({
+  name: "rotor_topic_offsets2",
+  help: "topic offsets",
+  // add `as const` here to enforce label names
+  labelNames: ["topic", "partition", "offset"] as const,
+});
+export const promMessagesConsumed = new Counter({
+  name: "rotor_messages_consumed",
+  help: "messages consumed",
+  // add `as const` here to enforce label names
+  labelNames: ["topic", "partition"] as const,
+});
+export const promMessagesProcessed = new Counter({
+  name: "rotor_messages_processed",
+  help: "messages processed",
+  labelNames: ["topic", "partition"] as const,
+});
+export const promMessagesRequeued = new Counter({
+  name: "rotor_messages_requeued",
+  help: "messages requeued",
+  labelNames: ["topic"] as const,
+});
+export const promMessagesDeadLettered = new Counter({
+  name: "rotor_messages_dead_lettered",
+  help: "messages dead lettered",
+  labelNames: ["topic"] as const,
+});
+export const promConnectionMessageStatuses = new Counter({
+  name: "connection_message_statuses",
+  help: "connection message statuses",
+  labelNames: ["destinationId", "tableName", "status"] as const,
+});
+export const promFunctionsInFlight = new Gauge({
+  name: "rotor_functions_in_flight",
+  help: "Functions in flight",
+  // add `as const` here to enforce label names
+  labelNames: ["connectionId", "functionId"] as const,
+});
+export const promFunctionsTime = new Histogram({
+  name: "rotor_functions_time",
+  help: "Functions execution time in ms",
+  buckets: [1, 10, 100, 200, 1000, 2000, 3000, 4000, 5000],
+  // add `as const` here to enforce label names
+  labelNames: ["connectionId", "functionId"] as const,
+});
+
+export const promHandlerMetric = new Counter({
+  name: "rotor_function_handler",
+  help: "function handler status",
+  labelNames: ["connectionId", "status"] as const,
+});
+
+const _EpochTime = 0;
+const _MessageId = 1;
+const _WorkspaceId = 2;
+const _StreamId = 3;
+const _ConnectionId = 4;
+const _FunctionId = 5;
+const _DestinationId = 6;
+const _Status = 7;
+const _Count = 8;
+const _EventIndex = 9;
+
+type MetricsEvent = [number, string, string, string, string, string, string, string, number, number];
 
 export const DummyMetrics: RotorMetrics = {
   logMetrics: () => {},
   storeStatus: () => {},
+  warehouseStatus: () => {},
   close: () => {},
 };
 
-export function createMetrics(
-  producer?: KafkaJS.Producer,
-  storeCounter?: Counter<"namespace" | "operation" | "status">
-): RotorMetrics {
+export function createMetrics(producer?: KafkaJS.Producer): RotorMetrics {
   const buffer: MetricsEvent[] = [];
+  const metricsSchema = process.env.CLICKHOUSE_METRICS_SCHEMA || process.env.CLICKHOUSE_DATABASE || "newjitsu_metrics";
 
-  const flush = async (buf: MetricsEvent[]) => {
+  const clickhouse = createClient({
+    url: clickhouseHost(),
+    username: process.env.CLICKHOUSE_USERNAME || "default",
+    password: requireDefined(process.env.CLICKHOUSE_PASSWORD, `env CLICKHOUSE_PASSWORD is not defined`),
+    clickhouse_settings: {
+      async_insert: 1,
+      wait_for_async_insert: 0,
+      async_insert_busy_timeout_ms: 30000,
+      date_time_input_format: "best_effort",
+    },
+  });
+
+  const flushBillingMetrics = async (buf: MetricsEvent[]) => {
     if (producer) {
-      await Promise.all([
-        producer.send({
-          topic: `in.id.metrics.m.batch.t.${metricsTable}`,
-          messages: buf.map(m => ({
-            key: m.key,
-            value: JSON.stringify(omit(m, "retries", "messageId", "key")),
-          })),
-        }),
-        producer.send({
+      const asyncWrite = async () => {
+        return producer.send({
           topic: `in.id.metrics.m.batch.t.${billingMetricsTable}`,
           messages: buf
-            .filter(m => m.functionId.startsWith("builtin.destination.") && m.status !== "dropped")
+            .filter(m => m[_FunctionId].startsWith("builtin.destination.") && m[_Status] !== "dropped")
             .map(m => {
-              const d = new Date(m.timestamp);
-              d.setMinutes(0);
+              const hourTrunc = Math.floor(m[_EpochTime] / 3600) * 3600;
+              const d = new Date(hourTrunc * 1000);
+              const key = m[_MessageId] + "_" + m[_EventIndex] + "_" + (m[_EpochTime] - hourTrunc);
               return {
-                key: m.key,
+                key: key,
                 value: JSON.stringify({
                   timestamp: d,
-                  workspaceId: m.workspaceId,
-                  messageId: m.messageId,
+                  workspaceId: m[_WorkspaceId],
+                  // to count active events use composed key: messageId_eventIndex_receivedAt
+                  messageId: key,
                 }),
               };
             }),
-        }),
-      ]);
+        });
+      };
+      return asyncWrite().catch(e => {
+        log.atError().withCause(e).log(`Failed to flush billing metrics`);
+      });
     } else {
-      //create readable stream
-      const streamOld = new Readable();
-      const resOld = fetch(`${bulkerBase}/bulk/${metricsDestinationId}?tableName=${billingMetricsTable}&mode=batch`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${bulkerAuthKey}` },
-        body: streamOld,
-        agent: (bulkerBase.startsWith("https://") ? httpsAgent : httpAgent)(),
+      const billingStream = new Readable({ objectMode: true });
+      const billingResponse = clickhouse.insert({
+        table: metricsSchema + "." + billingMetricsTable,
+        format: "JSONCompactEachRow",
+        values: billingStream,
       });
-      const stream = new Readable();
-      const res = fetch(`${bulkerBase}/bulk/${metricsDestinationId}?tableName=${metricsTable}&mode=batch`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${bulkerAuthKey}` },
-        body: stream,
-        agent: (bulkerBase.startsWith("https://") ? httpsAgent : httpAgent)(),
-      });
-      buf.forEach(e => {
-        if (e.functionId.startsWith("builtin.destination.") && e.status !== "dropped") {
-          streamOld.push(
-            JSON.stringify({
-              timestamp: e.timestamp,
-              workspaceId: e.workspaceId,
-              messageId: e.messageId,
-            })
-          );
-          streamOld.push("\n");
+
+      const asyncWrite = async () => {
+        for (let i = 0; i < buf.length; i++) {
+          const m = buf[i];
+          if (m[_FunctionId].startsWith("builtin.destination.") && m[_Status] !== "dropped") {
+            const hourTrunc = Math.floor(m[_EpochTime] / 3600) * 3600;
+            const key = m[_MessageId] + "_" + m[_EventIndex] + "_" + (m[_EpochTime] - hourTrunc);
+            billingStream.push([hourTrunc, m[_WorkspaceId], key]);
+          }
         }
-        stream.push(JSON.stringify(omit(e, "retries", "messageId")));
-        stream.push("\n");
-      });
-      //close stream
-      streamOld.push(null);
-      stream.push(null);
-      await Promise.all([
-        resOld
-          .then(async r => {
-            if (!r.ok) {
-              log.atError().log(`Failed to flush metrics events(old): ${r.status} ${r.statusText}`);
-            }
-          })
-          .catch(e => {
-            log.atError().withCause(e).log(`Failed to flush metrics events(old)`);
-          }),
-        res
-          .then(async r => {
-            if (!r.ok) {
-              log.atError().log(`Failed to flush metrics events: ${r.status} ${r.statusText}`);
-            }
-          })
-          .catch(e => {
-            log.atError().withCause(e).log(`Failed to flush metrics events`);
-          }),
-      ]);
+        billingStream.push(null);
+        return billingResponse;
+      };
+      return asyncWrite()
+        .then(async r => {
+          if (!r.executed) {
+            log.atError().log(`Failed to insert ${buf.length} billing metrics: ${JSON.stringify(r)}`);
+          }
+        })
+        .catch(e => {
+          log.atError().withCause(e).log(`Failed to insert billing metrics.`);
+        });
     }
+  };
+
+  const flush = async (buf: MetricsEvent[]) => {
+    const promises: Promise<any>[] = [flushBillingMetrics(buf)];
+
+    const metricsStream = new Readable({ objectMode: true });
+    const metricsResponse = clickhouse.insert({
+      table: metricsSchema + "." + metricsTable,
+      format: "JSONCompactEachRow",
+      values: metricsStream,
+    });
+    const asyncWrite = async () => {
+      for (let i = 0; i < buf.length; i++) {
+        metricsStream.push(buf[i]);
+      }
+      metricsStream.push(null);
+      return metricsResponse;
+    };
+
+    promises.push(
+      asyncWrite()
+        .then(async r => {
+          if (!r.executed) {
+            log.atError().log(`Failed to insert ${buf.length} records: ${JSON.stringify(r)}`);
+          }
+        })
+        .catch(e => {
+          log.atError().withCause(e).log(`Failed to flush metrics events`);
+        })
+    );
+
+    await Promise.all(promises);
   };
 
   const interval = setInterval(async () => {
@@ -133,9 +209,9 @@ export function createMetrics(
     if (length > 0) {
       const sw = stopwatch();
       try {
-        const copy = [...buffer];
-        await flush(copy);
+        const copy = buffer.slice();
         buffer.length = 0;
+        await flush(copy);
         log.atDebug().log(`Periodic flushing ${copy.length} metrics events took ${sw.elapsedPretty()}`);
       } catch (e) {
         log.atError().withCause(e).log(`Failed to flush metrics`);
@@ -149,17 +225,19 @@ export function createMetrics(
         return;
       }
 
-      for (const el of execLog) {
+      for (let i = 0; i < execLog.length; i++) {
+        const el = execLog[i];
         if (!el.metricsMeta) {
           continue;
         }
-        const d = el.receivedAt || new Date();
-        d.setMilliseconds(0);
-        d.setSeconds(0);
-        // console.log(
-        //   `${el.metricsMeta.connectionId} ${el.metricsMeta.messageId} ${el.functionId} ${el.error} ${el.dropped} ${el.metricsMeta.retries}`
-        // );
         const status = ((el: FunctionExecRes) => {
+          if (el.metricsMeta?.retries) {
+            promConnectionMessageStatuses.inc({
+              destinationId: el.metricsMeta!.connectionId,
+              tableName: "_all_",
+              status: "retry",
+            });
+          }
           let prefix = el.functionId.startsWith("builtin.destination.")
             ? ""
             : el.functionId.startsWith("builtin.transformation.")
@@ -170,27 +248,55 @@ export function createMetrics(
             if (el.metricsMeta?.retries) {
               prefix = prefix + "retry_";
             }
+            promConnectionMessageStatuses.inc({
+              destinationId: el.metricsMeta!.connectionId,
+              tableName: "_all_",
+              status: "error",
+            });
             status = "error";
+            if (el.dropped) {
+              promConnectionMessageStatuses.inc({
+                destinationId: el.metricsMeta!.connectionId,
+                tableName: "_all_",
+                status: "drop",
+              });
+            }
           } else if (el.dropped) {
             prefix = "";
             status = "dropped";
+            promConnectionMessageStatuses.inc({
+              destinationId: el.metricsMeta!.connectionId,
+              tableName: "_all_",
+              status: "drop",
+            });
           } else if (el.functionId === "builtin.destination.bulker") {
             status = "processed";
+          } else {
+            promConnectionMessageStatuses.inc({
+              destinationId: el.metricsMeta!.connectionId,
+              tableName: "_all_",
+              status: "success",
+            });
           }
           return prefix + status;
         })(el);
-        buffer.push({
-          key: crypto.randomUUID(),
-          timestamp: d,
-          ...omit(el.metricsMeta, "retries"),
-          functionId: el.functionId,
+        buffer.push([
+          Math.floor((el.receivedAt ? el.receivedAt.getTime() : Date.now()) / 1000),
+          el.metricsMeta.messageId,
+          el.metricsMeta.workspaceId,
+          el.metricsMeta.streamId,
+          el.metricsMeta.connectionId,
+          el.functionId,
+          el.metricsMeta.destinationId,
           status,
-          events: 1,
-        });
+          1,
+          el.eventIndex,
+        ]);
       }
       if (buffer.length >= max_batch_size) {
         const sw = stopwatch();
-        const copy = [...buffer];
+        const copy = buffer.slice();
+        buffer.length = 0;
         setImmediate(async () =>
           flush(copy)
             .then(() => log.atDebug().log(`Flushed ${copy.length} metrics events. Took: ${sw.elapsedPretty()}`))
@@ -198,16 +304,27 @@ export function createMetrics(
               log.atError().withCause(e).log(`Failed to flush metrics`);
             })
         );
-        buffer.length = 0;
       }
     },
     storeStatus: (namespace: string, operation: string, status: string) => {
-      if (storeCounter) {
-        storeCounter.labels(namespace, operation, status).inc();
-      }
+      promStoreStatuses.labels(namespace, operation, status).inc();
+    },
+    warehouseStatus: (id: string, table: string, status: string, timeMs: number) => {
+      promWarehouseStatuses.labels(id, table, status).observe(timeMs / 1000);
     },
     close: () => {
       clearInterval(interval);
+      clickhouse.close();
     },
   };
+}
+
+function clickhouseHost() {
+  if (process.env.CLICKHOUSE_URL) {
+    return process.env.CLICKHOUSE_URL;
+  }
+  return `${isTruish(process.env.CLICKHOUSE_SSL) ? "https://" : "http://"}${requireDefined(
+    process.env.CLICKHOUSE_HOST,
+    "env CLICKHOUSE_HOST is not defined"
+  )}`;
 }

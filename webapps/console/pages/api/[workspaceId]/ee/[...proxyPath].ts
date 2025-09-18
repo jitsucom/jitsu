@@ -66,7 +66,7 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
       Accept: "application/json",
     },
     redirect: "manual",
-    body: req.body || undefined,
+    body: req.body ? JSON.stringify(req.body) : undefined,
   });
   if (response.status >= 301 && response.status <= 308) {
     const location = response.headers.get("location") || response.headers.get("Location");

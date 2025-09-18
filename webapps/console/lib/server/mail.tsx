@@ -75,16 +75,14 @@ export function isMailAvailable() {
 
 export async function sendEmail(mailOptions: Mail.Options) {
   if (!mailOptions.from) {
-    mailOptions.from = {
-      name: "Jitsu Team",
-      address: "support@notify.jitsu.com",
-    };
+    mailOptions.from = process.env.EMAIL_TRANSACTIONAL_SENDER
+      ? process.env.EMAIL_TRANSACTIONAL_SENDER.replace("Jitsu Support", "Jitsu Team")
+      : undefined;
   }
   if (!mailOptions.replyTo) {
-    mailOptions.replyTo = {
-      name: "Jitsu Team",
-      address: "support@jitsu.com",
-    };
+    mailOptions.replyTo = process.env.EMAIL_TRANSACTIONAL_REPLY_TO
+      ? process.env.EMAIL_TRANSACTIONAL_REPLY_TO.replace("Jitsu Support", "Jitsu Team")
+      : undefined;
   }
   const logEntry = await db.prisma().emailLog.create({
     data: { id: randomUUID(), status: "PENDING", email: JSON.parse(JSON.stringify(mailOptions)) },

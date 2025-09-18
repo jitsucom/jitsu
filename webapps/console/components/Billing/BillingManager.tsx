@@ -92,6 +92,12 @@ const EventsUsageSection: React.FC<{}> = () => {
           events used from <i>{dayjs(usage.periodStart).utc().format("MMM DD, YYYY")}</i> to{" "}
           <i>{dayjs(usage.periodEnd).utc().format("MMM DD, YYYY")}</i>. The quota will be reset on{" "}
           <i>{dayjs(usage.periodEnd).add(1, "day").utc().format("MMM DD")}</i>.
+          <br />
+          {billing?.settings?.overagePricePer100k && (
+            <div className="text-textLight text-xs">
+              Overage fee: ${billing.settings.overagePricePer100k * 10} per 1,000,000 events
+            </div>
+          )}
         </div>
         <Link
           href={`/${
@@ -107,9 +113,9 @@ const EventsUsageSection: React.FC<{}> = () => {
       {billing.settings?.pastDue && (
         <div className="mt-8">
           <Alert
-            message={<h4 className="text-xl">You have unpaid invoices!</h4>}
+            message={<h4>You have unpaid invoices!</h4>}
             description={
-              <div className="text-lg">
+              <div>
                 Please{" "}
                 <Link
                   prefetch={false}
@@ -117,7 +123,7 @@ const EventsUsageSection: React.FC<{}> = () => {
                   href={`/api/${workspace.id}/ee/billing/manage?returnUrl=${encodeURIComponent(window.location.href)}`}
                 >
                   <span className="inline-flex items-center space-x-1">
-                    <span>update your payment method</span>
+                    <span>update your payment method and pay outstanding invoices</span>
                     <ExternalLink className="w-5 h-5" />
                   </span>
                 </Link>{" "}
@@ -217,9 +223,9 @@ const ConnectorUsageSection: React.FC<{}> = () => {
   const user = useUser();
   let periodStart: Date;
   let periodEnd: Date;
-  if (billing.settings.expiresAt) {
-    periodEnd = dayjs(billing.settings.expiresAt).utc().startOf("day").add(-1, "millisecond").toDate();
-    periodStart = dayjs(billing.settings.expiresAt).utc().add(-1, "month").startOf("day").toDate();
+  if (billing.settings?.currentPeriod) {
+    periodEnd = new Date(billing.settings?.currentPeriod.end);
+    periodStart = new Date(billing.settings?.currentPeriod.start);
   } else {
     periodStart = dayjs().utc().startOf("month").toDate();
     periodEnd = dayjs().utc().endOf("month").add(-1, "millisecond").toDate();
@@ -256,6 +262,11 @@ const ConnectorUsageSection: React.FC<{}> = () => {
           <i>{dayjs(periodStart).utc().format("MMM DD, YYYY")}</i> to{" "}
           <i>{dayjs(periodEnd).utc().format("MMM DD, YYYY")}</i>. The quota will be reset on{" "}
           <i>{dayjs(periodEnd).add(1, "day").utc().format("MMM DD")}</i>.
+          {billing?.settings?.dailyActiveSyncsOverage && (
+            <div className="text-textLight text-xs">
+              Overage fee: ${billing?.settings?.dailyActiveSyncsOverage} per extra daily active sync
+            </div>
+          )}
         </div>
       </div>
       {percentage > 1 && (
@@ -265,8 +276,8 @@ const ConnectorUsageSection: React.FC<{}> = () => {
             description={
               <>
                 Overage fee of at least $
-                <b>{(billing.settings.dailyActiveSyncsOverage || 0) * (activeSyncs - maxActiveSyncs)}</b> per sync will
-                be added to your next invoice.
+                <b>{(billing.settings.dailyActiveSyncsOverage || 0) * (activeSyncs - maxActiveSyncs)}</b> will be added
+                to your next invoice.
               </>
             }
           />
@@ -353,6 +364,11 @@ const AvailablePlans: React.FC<{}> = () => {
   const { isLoading, error, data } = useQuery(
     ["availablePlans", workspace.id],
     async () => {
+      if (billing.settings?.isLegacyPlan) {
+        return {
+          plans: {},
+        };
+      }
       const plans = await rpc(`/api/${workspace.id}/ee/billing/plans`);
       assertDefined(billing.settings.planId, `planId is not defined in ${JSON.stringify(billing.settings)}`);
 
@@ -391,13 +407,25 @@ const AvailablePlans: React.FC<{}> = () => {
     },
     { cacheTime: 0, retry: false }
   );
+  //if (billing.settings?.customBilling)
   if (isLoading) {
     return <Skeleton active />;
   } else if (error) {
     return <ErrorCard error={error} title="Failed to load available plans" />;
   }
   assertDefined(data, "Data is not defined");
-
+  if (billing.settings?.isLegacyPlan) {
+    return (
+      <div className="text-center">
+        <div className="text-textLight mt-6">
+          You're using a legacy plan. To upgrade to a new plan or cancel your subscription, please reach out to our{" "}
+          <Link className="text-primary underline" href={`/${workspace.slugOrId}/support`}>
+            Support Team
+          </Link>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="flex flex-row flex-nowrap justify-center space-x-6">
       {Object.entries(data.plans).map(([planId, plan]) => (
@@ -491,7 +519,7 @@ const BillingManager0: React.FC<{}> = () => {
   return (
     <div>
       <CurrentSubscription />
-      {billing.settings?.customBilling ? (
+      {billing.settings?.customBilling || billing.settings?.custom ? (
         <div className="text-center text-textLight mt-12">
           You're using a custom plan. To downgrade to standard plan or cancel your supbscription, please reach out to
           our{" "}

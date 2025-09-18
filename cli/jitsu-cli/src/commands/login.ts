@@ -35,7 +35,9 @@ export async function logout({ force }: { force?: boolean }) {
 }
 
 export async function login({ host, apikey, force }: { host: string; apikey?: string; force?: boolean }) {
-  const jitsuFile = `${homedir()}/.jitsu/jitsu-cli.json`;
+  const jitsuDir = `${homedir()}/.jitsu`;
+  fs.mkdirSync(jitsuDir, { recursive: true });
+  const jitsuFile = `${jitsuDir}/jitsu-cli.json`;
   if (fs.existsSync(jitsuFile) && !force) {
     const loginInfo = JSON.parse(readFileSync(jitsuFile, { encoding: "utf-8" }));
     console.error(

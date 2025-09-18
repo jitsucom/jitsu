@@ -1,20 +1,19 @@
 /** @type {import("next").NextConfig} */
-const withTM = require("next-transpile-modules")([
-  "juava",
-  "@jitsu/protocols",
-  "@jitsu/core-functions",
-  "@ant-design/icons",
-]);
-const nextConfig = withTM({});
-const path = require("path");
 
-module.exports = nextConfig;
+const withBundleAnalyzer = require("@next/bundle-analyzer")({
+  enabled: process.env.ANALYZE === "true",
+});
 
-const prevWebpack = module.exports.webpack;
-
-const packageRoot = path.join(__dirname, "../../");
-console.log("packageRoot", packageRoot);
-module.exports = {
+module.exports = withBundleAnalyzer({
+  transpilePackages: ["juava", "@jitsu/protocols", "@jitsu/core-functions", "@jitsu-internal/webapps-shared"],
+  turbopack: {
+    rules: {
+      "*.txt": {
+        loaders: ["raw-loader"],
+        as: "*.js",
+      },
+    },
+  },
   // modularizeImports: {
   //   // "lucide-react": {
   //   //   transform: "Use <JLucideIcon name=\"{{ kebabCase member }}\" /> instead of importing from 'lucide-react'",
@@ -64,13 +63,10 @@ module.exports = {
   },
   ...(process.env.NEXTJS_STANDALONE_BUILD === "1"
     ? {
-        output: "standalone",
-      }
+      output: "standalone",
+    }
     : {}),
   webpack: (config, opts) => {
-    if (prevWebpack) {
-      prevWebpack(config, opts);
-    }
     // Fixes npm packages that depend on `fs` and 'dns' module
     if (!opts.isServer) {
       config.resolve.fallback = {
@@ -83,9 +79,9 @@ module.exports = {
       config.plugins.push(new opts.webpack.IgnorePlugin({ resourceRegExp: /^mongodb$/ }));
       config.plugins.push(new opts.webpack.IgnorePlugin({ resourceRegExp: /^posthog-node$/ }));
     }
-    //    if (opts.isServer) {
-    config.devtool = "source-map";
-    //    }
+    if (!opts.dev) {
+      config.devtool = "source-map";
+    }
     config.externals["isolated-vm"] = "require('isolated-vm')";
     config.module.rules.push({
       test: /\.sql$/,
@@ -102,4 +98,4 @@ module.exports = {
     config.resolve.extensions.push(".node");
     return config;
   },
-};
+});

@@ -1,16 +1,24 @@
 import { z } from "zod";
 import { JitsuFunction } from "@jitsu/protocols/functions";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
-import { getSingleton, parseNumber } from "juava";
+import { getSingleton, parseDate, parseNumber, int32Hash, hash } from "juava";
 import { MongoClient } from "mongodb";
-import { createHash } from "crypto";
 import { mongodb } from "./lib/mongodb";
+import { HTTPError, transfer } from "@jitsu/functions-lib";
+import { undiciAgent } from "./bulker-destination";
+import { request } from "undici";
+
+const bulkerBase = process.env.BULKER_URL;
+const bulkerAuthKey = process.env.BULKER_AUTH_KEY;
+const fetchTimeoutMs = parseNumber(process.env.FETCH_TIMEOUT_MS, 2000);
 
 export const profileIdHashColumn = "_profile_id_hash";
 export const profileIdColumn = "_profile_id";
-export const idHash32MaxValue = 2147483647;
+export const ProfileIdParameter = "JITSU_PROFILE_ID";
+export const ProfilePriorityParameter = "__PROFILE_PROCESSING_PRIORITY";
 
 export const ProfilesConfig = z.object({
+  profileBuilderId: z.string(),
   mongoUrl: z.string().optional(),
   enableAnonymousProfiles: z.boolean().optional().default(false),
   profileWindowDays: z.number().optional().default(365),
@@ -23,7 +31,7 @@ export const ProfilesConfig = z.object({
 const MongoCreatedCollections = new Set<string>();
 export type ProfilesConfig = z.infer<typeof ProfilesConfig>;
 
-export const createClient = async (config: ProfilesConfig) => {
+export const createClient = async (config: { mongoUrl: string }) => {
   const mongoTimeout = parseNumber(process.env.MONGODB_TIMEOUT_MS, 1000);
   let uri = config.mongoUrl!;
 
@@ -43,24 +51,12 @@ export const createClient = async (config: ProfilesConfig) => {
   return client;
 };
 
-export function hash(algorithm: string, value: string) {
-  return createHash(algorithm).update(value).digest("hex");
-}
-
-export function int32Hash(value) {
-  // Hash the value using SHA-256 (or another algorithm if desired)
-  const h = hash("sha256", value);
-
-  // Convert the first 8 characters of the hash (or more) to an integer
-  return parseInt(h.substring(0, 8), 16) % idHash32MaxValue;
-}
-
 export const ProfilesFunction: JitsuFunction<AnalyticsServerEvent, ProfilesConfig> = async (event, ctx) => {
   const config = ProfilesConfig.parse(ctx.props || {});
 
-  const userId = event.userId;
-  if (!userId) {
-    ctx.log.debug(`No userId found. Skipping`);
+  const profileId = event[ProfileIdParameter] || event.userId;
+  if (!profileId) {
+    ctx.log.debug(`No profileId found. Skipping`);
     return;
   }
 
@@ -70,7 +66,7 @@ export const ProfilesFunction: JitsuFunction<AnalyticsServerEvent, ProfilesConfi
           `profiles-mongodb-${ctx.connection?.id}-${hash("md5", config.mongoUrl)}`,
           () => {
             ctx.log.info(`Connecting to MongoDB server.`);
-            const cl = createClient(config);
+            const cl = createClient({ mongoUrl: config.mongoUrl! });
             ctx.log.info(`Connected successfully to MongoDB server.`);
             return cl;
           },
@@ -93,6 +89,7 @@ export const ProfilesFunction: JitsuFunction<AnalyticsServerEvent, ProfilesConfi
       config.traitsCollectionName,
       config.profileWindowDays,
       [profileIdColumn],
+      "updatedAt",
       true
     );
 
@@ -102,13 +99,13 @@ export const ProfilesFunction: JitsuFunction<AnalyticsServerEvent, ProfilesConfi
         .db(config.eventsDatabase)
         .collection(config.traitsCollectionName)
         .findOneAndUpdate(
-          { [profileIdColumn]: userId },
+          { [profileIdColumn]: profileId },
           [
             {
               $set: {
-                [profileIdColumn]: userId,
+                [profileIdColumn]: profileId,
                 userId: {
-                  $ifNull: ["$userId", userId],
+                  $ifNull: ["$userId", event.userId],
                 },
                 anonymousId: {
                   $ifNull: ["$anonymousId", event.anonymousId],
@@ -130,14 +127,17 @@ export const ProfilesFunction: JitsuFunction<AnalyticsServerEvent, ProfilesConfi
         );
       ctx.log.info(`Merged profile: ${JSON.stringify(traits)}`);
     }
+    const obj = {
+      [profileIdHashColumn]: int32Hash(profileId),
+      [profileIdColumn]: profileId,
+    };
+    transfer(obj, event, [ProfileIdParameter]);
+    obj["timestamp"] = parseDate(event.timestamp, new Date());
 
     const res = await mongo
       .db(config.eventsDatabase)
       .collection(config.eventsCollectionName)
-      .insertOne(
-        { [profileIdHashColumn]: int32Hash(userId), [profileIdColumn]: userId, ...event },
-        { writeConcern: { w: 1, journal: false } }
-      );
+      .insertOne(obj, { writeConcern: { w: 1, journal: false } });
     if (!res.acknowledged) {
       ctx.log.error(`Failed to insert to MongoDB: ${JSON.stringify(res)}`);
     } else {
@@ -145,6 +145,24 @@ export const ProfilesFunction: JitsuFunction<AnalyticsServerEvent, ProfilesConfi
     }
   } catch (e: any) {
     throw new Error(`Error while sending event to MongoDB: ${e}`);
+  }
+
+  const priority = event[ProfilePriorityParameter] || 0;
+
+  const bulkerRes = await request(
+    `${bulkerBase}/profiles/${config.profileBuilderId}/${priority}?profileId=${encodeURIComponent(profileId)}`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${bulkerAuthKey}` },
+      bodyTimeout: fetchTimeoutMs,
+      headersTimeout: fetchTimeoutMs,
+      dispatcher: undiciAgent,
+    }
+  );
+  if (bulkerRes.statusCode != 200) {
+    throw new HTTPError(`HTTP Error: ${bulkerRes.statusCode}`, bulkerRes.statusCode, await bulkerRes.body.text());
+  } else {
+    ctx.log.debug(`HTTP Status: ${bulkerRes.statusCode} Response: ${await bulkerRes.body.text()}`);
   }
 };
 
@@ -154,6 +172,7 @@ export async function pbEnsureMongoCollection(
   collectionName: string,
   ttlDays: number,
   indexFields: string[] = [],
+  ttlColumn: string = "timestamp",
   unique?: boolean
 ) {
   if (MongoCreatedCollections.has(collectionName)) {
@@ -172,7 +191,6 @@ export async function pbEnsureMongoCollection(
       return;
     }
     const collection = await db.createCollection(collectionName, {
-      expireAfterSeconds: 60 * 60 * 24 * ttlDays,
       clusteredIndex: {
         key: { _id: 1 },
         unique: true,
@@ -180,6 +198,7 @@ export async function pbEnsureMongoCollection(
       writeConcern: { w: 1, journal: false },
       storageEngine: { wiredTiger: { configString: "block_compressor=zstd" } },
     });
+    await collection.createIndex({ [ttlColumn]: 1 }, { expireAfterSeconds: 60 * 60 * 24 * ttlDays });
     if (indexFields.length > 0) {
       const index = {};
       indexFields.forEach(field => {

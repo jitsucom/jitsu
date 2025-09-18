@@ -6,6 +6,7 @@ import { requireDefined, rpc } from "juava";
 import { tryManageOauthCreds } from "../../../../lib/server/oauth/services";
 import { getServerLog } from "../../../../lib/server/log";
 import { syncError } from "../../../../lib/server/sync";
+import { unmaskSecretsFromOriginal, containsMaskedSecrets } from "../../../../lib/schema/secrets";
 
 const log = getServerLog("sync-check");
 
@@ -42,13 +43,21 @@ export default createRoute()
     }
     const serviceConfig = body as ServiceConfig;
     const existingService = await db.prisma().configurationObject.findFirst({
-      where: { id: serviceConfig.id },
+      where: { id: serviceConfig.cloneId || serviceConfig.id },
     });
     if (existingService && existingService.workspaceId !== workspaceId) {
       return { ok: false, error: "invalid service id" };
     }
 
-    const config = await tryManageOauthCreds(serviceConfig);
+    // Unmask secrets for testing if this is an existing service with masked values
+    let configForTesting = serviceConfig;
+    if (existingService && containsMaskedSecrets(serviceConfig)) {
+      log.atInfo().log(`Unmasking secrets for service test: ${serviceConfig.id}`);
+      const dbServiceConfig = existingService.config as ServiceConfig;
+      configForTesting = unmaskSecretsFromOriginal(serviceConfig, dbServiceConfig);
+    }
+
+    const config = await tryManageOauthCreds(configForTesting);
 
     try {
       const checkRes = await rpc(syncURL + "/check", {

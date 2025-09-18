@@ -1,5 +1,12 @@
 import Analytics from "analytics";
-import { jitsuAnalyticsPlugin, emptyRuntime, isInBrowser, windowRuntime, uuid } from "./analytics-plugin";
+import {
+  jitsuAnalyticsPlugin,
+  emptyRuntime,
+  isInBrowser,
+  windowRuntime,
+  uuid,
+  createInMemoryStorage,
+} from "./analytics-plugin";
 import {
   Callback,
   DispatchedEvent,
@@ -11,6 +18,7 @@ import {
   PersistentStorage,
   RuntimeFacade,
   DynamicJitsuOptions,
+  JSONValue,
 } from "@jitsu/protocols/analytics";
 
 export default function parse(input) {
@@ -35,6 +43,10 @@ export default function parse(input) {
 
 export const emptyAnalytics: AnalyticsInterface = {
   setAnonymousId: () => {},
+  setContextProperty(name: string, value: JSONValue) {},
+  getContextProperty(name: string): JSONValue {
+    return undefined;
+  },
   track: () => Promise.resolve(),
   page: () => Promise.resolve(),
   user: () => ({}),
@@ -42,6 +54,9 @@ export const emptyAnalytics: AnalyticsInterface = {
   group: () => Promise.resolve({}),
   reset: () => Promise.resolve({}),
   configure: () => {},
+  getConfiguration(): JitsuOptions {
+    return {};
+  },
 };
 
 function createUnderlyingAnalyticsInstance(
@@ -91,7 +106,7 @@ function createUnderlyingAnalyticsInstance(
       persistentStorage.removeItem(key);
     },
   });
-  const storage = cachingStorageWrapper(rt.store());
+  const storage = cachingStorageWrapper(rt.store?.() || createInMemoryStorage(opts.debug));
 
   const analytics = Analytics({
     debug: !!opts.debug,
@@ -135,6 +150,24 @@ function createUnderlyingAnalyticsInstance(
         storageWrapper.setItem("__user_traits", args[1]);
       }
       return (analytics.identify as any)(...args);
+    },
+    setContextProperty(name: string, value: JSONValue) {
+      if (opts.debug) {
+        console.log(`[JITSU DEBUG] Setting context property '${name}':${JSON.stringify(value)}`);
+      }
+      if (!opts.defaultPayloadContext) {
+        opts.defaultPayloadContext = {
+          [name]: value,
+        };
+      } else {
+        opts.defaultPayloadContext[name] = value;
+      }
+    },
+    getContextProperty(name: string): JSONValue {
+      if (opts.debug) {
+        console.log(`[JITSU DEBUG] Getting context property '${name}'`);
+      }
+      return opts.defaultPayloadContext?.[name];
     },
     setAnonymousId: (id: string) => {
       if (opts.debug) {
@@ -188,6 +221,9 @@ function createUnderlyingAnalyticsInstance(
       //It's incorrect at many levels. First, it's not a dispatched event. Second, we take a first result
       //However, since returned values are used for debugging purposes only, it's ok
       return results[0];
+    },
+    getConfiguration(): JitsuOptions {
+      return opts;
     },
   } as AnalyticsInterface;
   if (opts.privacy?.disableUserIds || opts.privacy?.dontSend) {

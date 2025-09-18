@@ -2,7 +2,7 @@
 # Build & push it with
 #    docker buildx build --platform linux/amd64 . -f console.Dockerfile --push -t jitsucom/console:latest
 
-FROM node:22.8-bookworm as base
+FROM node:24-bookworm as base
 
 WORKDIR /app
 RUN apt-get update -y
@@ -12,7 +12,7 @@ FROM base as builder
 
 RUN apt-get update -y
 RUN apt-get install git openssl1.1 procps python3 make g++ -y
-RUN npm -g install pnpm
+RUN npm -g install pnpm@^9.0.0
 
 # Create app directory
 WORKDIR /app

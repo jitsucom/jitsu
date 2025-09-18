@@ -3,11 +3,12 @@
   "compilerOptions": {
     "target": "esnext",
     "module": "commonjs",
-
+    "importHelpers": false,
     "lib": ["dom", "dom.iterable", "esnext", "ES6", "ES2015"],
     "rootDir": ".",
     "allowJs": true,
     "skipLibCheck": true,
+    "allowSyntheticDefaultImports": true,
     "strict": true,
     "forceConsistentCasingInFileNames": true,
     "noEmit": true,

@@ -3,7 +3,7 @@ import * as zlib from "zlib";
 import * as tar from "tar";
 import { Geo } from "@jitsu/protocols/analytics";
 import NodeCache from "node-cache";
-import { getLog, requireDefined } from "juava";
+import { getLog, isTruish, requireDefined } from "juava";
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 
 const log = getLog("maxmind");
@@ -38,6 +38,34 @@ const DummyResolver: GeoResolver = {
   },
 };
 
+const createS3Client = () => {
+  const region = requireDefined(
+    process.env.MAXMIND_S3_REGION ?? process.env.S3_REGION,
+    "MAXMIND_S3_REGION or S3_REGION is not provided"
+  );
+  const accessKeyId = requireDefined(
+    process.env.MAXMIND_S3_ACCESS_KEY_ID ?? process.env.S3_ACCESS_KEY_ID,
+    "MAXMIND_S3_ACCESS_KEY_ID or S3_ACCESS_KEY_ID is not provided"
+  );
+  const secretAccessKey = requireDefined(
+    process.env.MAXMIND_S3_SECRET_ACCESS_KEY ?? process.env.S3_SECRET_ACCESS_KEY,
+    "MAXMIND_S3_SECRET_ACCESS_KEY or S3_SECRET_ACCESS_KEY is not provided"
+  );
+
+  const endpoint = process.env.MAXMIND_S3_ENDPOINT; // Optional: AWS S3 will be used if not provided
+  const forcePathStyle = isTruish(process.env.MAXMIND_S3_FORCE_PATH_STYLE); // Optional: virtual-hosted style is used by default
+
+  return new S3Client({
+    credentials: {
+      accessKeyId,
+      secretAccessKey,
+    },
+    endpoint,
+    forcePathStyle,
+    region,
+  });
+};
+
 async function test() {
   const maxMindClient = await initMaxMindClient({
     licenseKey: process.env.MAXMIND_LICENSE_KEY || "",
@@ -59,13 +87,7 @@ export async function initMaxMindClient(opts: {
   let loadFunc: LoadFunction;
   let s3client: S3Client = undefined as any as S3Client;
   if (s3Bucket) {
-    s3client = new S3Client({
-      region: requireDefined(process.env.S3_REGION, "S3_REGION is not provided"),
-      credentials: {
-        accessKeyId: requireDefined(process.env.S3_ACCESS_KEY_ID, "S3_ACCESS_KEY_ID is not provided"),
-        secretAccessKey: requireDefined(process.env.S3_SECRET_ACCESS_KEY, "S3_SECRET_ACCESS_KEY is not provided"),
-      },
-    });
+    s3client = createS3Client();
     loadFunc = (edition: Edition) => loadFromS3(s3client, s3Bucket, edition);
   } else {
     loadFunc = (edition: Edition) => loadFromURL(composeURL(licenseKey || url || "", edition));

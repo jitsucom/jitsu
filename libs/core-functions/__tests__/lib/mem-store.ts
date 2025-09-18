@@ -21,10 +21,9 @@ export function createStore(): TTLStore {
   };
 }
 
-type EventsByAnonId = Record<string, AnalyticsServerEvent[]>;
-const eventsStore: Record<string, EventsByAnonId> = {};
+export type EventsByAnonId = Record<string, AnalyticsServerEvent[]>;
 
-export function createAnonymousEventsStore(): AnonymousEventsStore {
+export function createAnonymousEventsStore(eventsStore: Record<string, EventsByAnonId>): AnonymousEventsStore {
   return {
     async addEvent(collectionName: string, anonymousId: string, event: AnalyticsServerEvent, ttlDays: number) {
       let collection = eventsStore[collectionName];

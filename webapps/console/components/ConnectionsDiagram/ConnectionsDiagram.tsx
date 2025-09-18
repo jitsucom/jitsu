@@ -4,11 +4,13 @@ import { getLog, requireDefined } from "juava";
 import Link from "next/link";
 import { useAppConfig, useWorkspace } from "../../lib/context";
 import { ArrowRight, ExternalLink, Inbox } from "lucide-react";
-import { Button } from "antd";
+import { Tooltip } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
 import classNames from "classnames";
 import { isTruish } from "../../lib/shared/chores";
 import { useRouter } from "next/router";
+import { WJitsuButton } from "../JitsuButton/JitsuButton";
+import { WLink } from "../Workspace/WLink";
 
 export type ConnectorNode = {
   id: string;
@@ -16,8 +18,9 @@ export type ConnectorNode = {
 };
 export type Actions = {
   title: ReactNode;
-  newLink: string;
+  newLink?: string;
   editLink: string;
+  newLinkTooltip?: string;
 };
 export type ConnectionDiagramProps = {
   sources: ConnectorNode[];
@@ -57,16 +60,18 @@ const Header: React.FC<Actions & { className?: string; hasData: boolean }> = p =
   return (
     <div className={classNames(`flex items-center justify-between`, p.className)}>
       <h1 className="text-2xl">
-        <Link href={p.editLink}>{p.title}</Link>
+        <WLink href={p.editLink}>{p.title}</WLink>
       </h1>
       <div className="gap-2 flex items-center">
-        <Link type="ghost" href={p.editLink} className="group flex items-center flex-nowrap whitespace-nowrap ml-12">
+        <WLink href={p.editLink} className="group flex items-center flex-nowrap whitespace-nowrap ml-12">
           View All <ArrowRight className="h-4 group-hover:-rotate-12 transition-all duration-500" />
-        </Link>
-        {p.hasData && (
-          <Button type="primary" ghost={true} icon={<PlusOutlined />} href={p.newLink}>
-            Add
-          </Button>
+        </WLink>
+        {p.hasData && p.newLink && (
+          <Tooltip title={p.newLinkTooltip}>
+            <WJitsuButton type="primary" ghost={true} icon={<PlusOutlined />} href={p.newLink} disabled={!p.newLink}>
+              Add
+            </WJitsuButton>
+          </Tooltip>
         )}
       </div>
     </div>
@@ -81,7 +86,7 @@ export function EmptyList({
 }: {
   children: ReactNode;
   title: ReactNode;
-  createLink: string;
+  createLink?: string;
   footer?: ReactNode;
 }) {
   return (
@@ -89,9 +94,11 @@ export function EmptyList({
       <Inbox className="h-12 w-12 my-3 text-neutral-200" />
       <h4 className="text-lg font-bold text-center">{title}</h4>
       <p className="font-light text-sm text-center mt-2 text-neutral-600">{children}</p>
-      <Button type="primary" href={createLink} className="mt-4">
-        Create
-      </Button>
+      <Tooltip title={!createLink ? "You don't have permission to create this resource" : undefined}>
+        <WJitsuButton type="primary" href={createLink || "#"} className="mt-4" disabled={!createLink}>
+          Create
+        </WJitsuButton>
+      </Tooltip>
       {footer}
     </div>
   );

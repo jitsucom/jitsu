@@ -1,4 +1,4 @@
-import { WorkspacePageLayout } from "../../components/PageLayout/WorkspacePageLayout";
+import { WorkspacePageLayout } from "../PageLayout/WorkspacePageLayout";
 import React, { useCallback, useEffect, useReducer, useState } from "react";
 import {
   Badge,
@@ -7,7 +7,6 @@ import {
   DescriptionsProps,
   Input,
   Popover,
-  Progress,
   Splitter,
   Statistic,
   Tabs,
@@ -41,7 +40,7 @@ import styles from "./ProfileBuilderPage.module.css";
 import FieldListEditorLayout from "../FieldListEditorLayout/FieldListEditorLayout";
 import Link from "next/link";
 import { useBilling } from "../Billing/BillingProvider";
-import { useWorkspace } from "../../lib/context";
+import { useWorkspace, useWorkspaceRole } from "../../lib/context";
 import { ErrorCard } from "../GlobalError/GlobalError";
 import type { PresetColorType, PresetStatusColorType } from "antd/es/_util/colors";
 import { get, getConfigApi } from "../../lib/useApi";
@@ -62,6 +61,9 @@ import { FunctionVariables } from "../FunctionsDebugger/FunctionVariables";
 import omit from "lodash/omit";
 import { WLink } from "../Workspace/WLink";
 import { getCoreDestinationTypeNonStrict } from "../../lib/schema/destinations";
+import { FunctionsSelector } from "../FunctionsSelector/FunctionsSelector";
+import { ButtonGroup, ButtonProps } from "../ButtonGroup/ButtonGroup";
+import PriorityQueueBar from "../PriorityQueueBar/PriorityQueueBar";
 
 dayjs.extend(utc);
 dayjs.extend(relativeTime);
@@ -147,7 +149,7 @@ const Header: React.FC<{ status: ProfileBuilderStatus | "loading"; pbEnabled: bo
   );
 };
 
-export function Dot() {
+export function Dot(props: { color?: string }) {
   return (
     <svg
       className={"w-1.5 h-1.5"}
@@ -156,27 +158,22 @@ export function Dot() {
       viewBox="0 0 24 24"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <circle cx="12" cy="12" r="12" fill={"#5d70cc"} />
+      <circle cx="12" cy="12" r="12" fill={props.color || "#5d70cc"} />
     </svg>
   );
 }
 
-const SettingsTab: React.FC<{ profileBuilder: ProfileBuilderData; dispatch: React.Dispatch<PBDataAction> }> = ({
-  profileBuilder,
-  dispatch,
-}) => {
+const SettingsTab: React.FC<{
+  profileBuilder: ProfileBuilderData;
+  dispatch: React.Dispatch<PBDataAction>;
+  disabled?: boolean;
+}> = ({ profileBuilder, disabled, dispatch }) => {
   const settings = profileBuilder.settings;
 
   const destinations = useConfigObjectList("destination").filter(d => {
     const dest = getCoreDestinationTypeNonStrict(d.destinationType);
     return dest?.usesBulker;
   });
-
-  useEffect(() => {
-    if (destinations.length && !settings.destinationId) {
-      dispatch({ type: "settings", value: { ...settings, destinationId: destinations[0].id } });
-    }
-  }, [destinations, dispatch, settings]);
 
   return (
     <div className={styles.settingsTable}>
@@ -199,40 +196,54 @@ const SettingsTab: React.FC<{ profileBuilder: ProfileBuilderData; dispatch: Reac
             ),
           },
           {
-            key: "storage",
-            name: "Storage",
+            key: "destination",
+            name: settings.destinationId ? (
+              "Default Destination"
+            ) : (
+              <span className={"text-red-600"}>Default Destination</span>
+            ),
             documentation: (
               <>
-                The host name of the profile storage. To make changes, please{" "}
-                <WLink href={"/support"}>contact support</WLink>
+                Select the destination database where the profiles will be stored. Destination can be assigned in{" "}
+                <b>Profile Function</b>:<br />
+                <br />
+                <div className={"whitespace-pre-wrap font-mono text-xs"}>
+                  {`return {
+  destinationId: "cm79123abc"
+  traits: profile
+}`}
+                </div>
               </>
             ),
             component: (
-              <div className={"max-w-80"}>
-                <Input disabled={true} />
-              </div>
-            ),
-          },
-          {
-            key: "destination",
-            name: "Destination",
-            documentation: <>Select the destination database where the profiles will be stored</>,
-            component: (
               <DestinationSelector
-                selected={settings.destinationId || destinations[0]?.id}
+                selected={settings.destinationId}
                 items={destinations}
-                enabled={true}
+                enabled={!disabled}
                 onSelect={d => dispatch({ type: "settings", value: { ...settings, destinationId: d } })}
               />
             ),
           },
           {
             key: "table-name",
-            name: "Table Name",
-            documentation: <>The name of the table where the profiles will be stored</>,
+            name: "Default Table Name",
+            documentation: (
+              <>
+                The name of the table where the profiles will be stored. Table Name can be assigned in{" "}
+                <b>Profile Function</b>:<br />
+                <br />
+                <div className={"whitespace-pre-wrap font-mono text-xs"}>
+                  {`return {
+  tableName: "my_profiles"
+  traits: profile
+}`}
+                </div>
+              </>
+            ),
             component: (
               <div className={"max-w-80"}>
                 <Input
+                  disabled={disabled}
                   value={settings.tableName || "profiles"}
                   onChange={e => dispatch({ type: "settings", value: { ...settings, tableName: e.target.value } })}
                 />
@@ -248,11 +259,27 @@ const SettingsTab: React.FC<{ profileBuilder: ProfileBuilderData; dispatch: Reac
             component: (
               <div className={"max-w-80"}>
                 <NumberEditor
+                  disabled={disabled}
                   max={365}
                   min={7}
                   value={settings.profileWindow || 365}
                   onChange={n => dispatch({ type: "settings", value: { ...settings, profileWindow: n } })}
                 />
+              </div>
+            ),
+          },
+          {
+            key: "storage",
+            name: "Storage",
+            documentation: (
+              <>
+                The host name of the profile storage. To make changes, please{" "}
+                <WLink href={"/support"}>contact support</WLink>
+              </>
+            ),
+            component: (
+              <div className={"max-w-80"}>
+                <Input disabled={true} />
               </div>
             ),
           },
@@ -300,11 +327,10 @@ const SettingsTab: React.FC<{ profileBuilder: ProfileBuilderData; dispatch: Reac
 type ProfileBuilderState = {
   status: "ready" | "building" | "unknown" | "error";
   error?: string;
-  startedAt?: Date;
-  totalUsers?: number;
-  processedUsers?: number;
-  errorUsers?: number;
-  speed?: number;
+  updatedAt?: Date;
+  fullRebuildInfo?: any;
+  queuesInfo?: any;
+  metrics?: any;
 };
 
 const BuildProgress: React.FC<{
@@ -363,37 +389,56 @@ const BuildProgress: React.FC<{
       label: "Published",
       children: <div>{new Date(profileBuilder.updatedAt!).toLocaleString()}</div>,
     });
-  }
-  if (status === "building") {
-    items.push(
-      {
-        key: "progress",
-        label: "Progress",
-        children: (
-          <Progress
-            size={{ height: 15 }}
-            percent={(100 * (state?.processedUsers ?? 0)) / (state?.totalUsers ?? 1)}
-            status="active"
-            strokeColor={{ from: "#108ee9", to: "#a405f5" }}
-          />
-        ),
-      },
-      {
+    if (state?.fullRebuildInfo?.timestamp) {
+      items.push({
+        key: "rebuilt",
+        label: "Full Rebuild - Date",
+        children: <div>{new Date(state?.fullRebuildInfo?.timestamp!).toLocaleString()}</div>,
+      });
+      items.push({
+        key: "rebuilt",
+        label: "Full Rebuild - Version",
+        children: <div>{state?.fullRebuildInfo?.version ?? "-"}</div>,
+      });
+      items.push({
         key: "total",
-        label: "Total Users",
-        children: <Statistic valueStyle={{ fontSize: "1em" }} value={state?.totalUsers} />,
-      },
-      {
-        key: "processed",
-        label: "Processed Users",
-        children: <Statistic valueStyle={{ fontSize: "1em" }} value={state?.processedUsers} />,
-      },
-      {
-        key: "errors",
-        label: "Errors",
-        children: <Statistic valueStyle={{ fontSize: "1em" }} value={state?.errorUsers} />,
-      }
-    );
+        label: "Full Rebuild - Total Users",
+        children:
+          typeof state?.fullRebuildInfo?.profilesCount !== "undefined" ? (
+            <Statistic valueStyle={{ fontSize: "1em" }} value={state?.fullRebuildInfo?.profilesCount} />
+          ) : (
+            <div>Initiating...</div>
+          ),
+      });
+    }
+  }
+  items.push({
+    key: "queue",
+    label: "Queue Size",
+    children: (
+      <PriorityQueueBar
+        maxTotalSize={state?.fullRebuildInfo?.profilesCount}
+        queueSizes={Object.values(state?.queuesInfo.queues)
+          .sort((a: any, b: any) => a.priority - b.priority)
+          .map((q: any) => q.size)}
+      />
+    ),
+  });
+  if (state?.queuesInfo.intervalSec) {
+    items.push({
+      key: "speed",
+      label: "Processing Speed",
+      children: (
+        <div>
+          {(
+            (Object.values(state?.queuesInfo.queues)
+              .map((q: any) => q.processed)
+              .reduce((a: any, b: any) => a + b, 0) || 0) / state?.queuesInfo.intervalSec
+          ).toLocaleString()}{" "}
+          events/sec
+        </div>
+      ),
+    });
   }
 
   return (
@@ -431,6 +476,7 @@ type ProfileBuilderData = {
     tableName?: string;
     profileWindow?: number;
     variables: any;
+    functions?: { functionId: string; functionOptions?: any }[];
   };
   createdAt: Date | undefined;
   updatedAt: Date | undefined;
@@ -484,9 +530,7 @@ function useProfileBuilderState(
   useEffect(() => {
     if (pbEnabled) {
       setLoading(true);
-      get(
-        `/api/${workspace.id}/profile-builder/stats?profileBuilderId=${profileBuilder.id}&version=${profileBuilder.version}`
-      )
+      get(`/api/${workspace.id}/profile-builder/state?profileBuilderId=${profileBuilder.id}`)
         .then(res => {
           setData(res);
         })
@@ -510,15 +554,16 @@ function useProfileBuilderData(
   const [data, setData] = useState<ProfileBuilderData | undefined>();
   const billing = useBilling();
   useEffect(() => {
+    if (billing.enabled && billing.loading) {
+      setLoading(true);
+      return;
+    }
     (async () => {
       get(`/api/${workspace.id}/config/profile-builder?init=true`)
         .then(res => res.profileBuilders)
         .then(profileBuilders => {
           let status: ProfileBuilderStatus = "incomplete";
-          if (billing.enabled && billing.loading) {
-            setLoading(true);
-            return;
-          } else if (billing.enabled) {
+          if (billing.enabled) {
             if (billing.settings?.profileBuilderEnabled) {
               setEnabled(true);
             }
@@ -543,6 +588,7 @@ function useProfileBuilderData(
                 destinationId: pb.destinationId,
                 tableName: pb.connectionOptions?.tableName,
                 variables: pb.connectionOptions?.variables,
+                functions: pb.connectionOptions?.functions,
                 profileWindow: pb.connectionOptions?.profileWindow,
               },
               createdAt: pb.createdAt,
@@ -559,7 +605,7 @@ function useProfileBuilderData(
         .catch(e => setError(e))
         .finally(() => setLoading(false));
     })();
-  }, [billing.enabled, billing.loading, workspace, billing.settings, refreshDate]);
+  }, [billing.enabled, billing.loading, workspace, billing.settings, refreshDate.getTime()]);
   return { isLoading: loading, error, data, enabled } as any;
 }
 
@@ -594,7 +640,8 @@ const UserIdDialog: React.FC<{ profileBuilderId: string; setter: (v: string) => 
 
   return (
     <div className={"w-96"}>
-      Please enter the <code>userId</code> of the user you want to test the profile builder for:
+      Please enter the <code>profileId</code> or <code>userId</code> of the user you want to test the profile builder
+      for:
       <div className={"flex flex-row gap-2 mt-2"}>
         <Input onChange={e => setUserId(e.target.value)} />
         <Button loading={loading} type={"primary"} onClick={() => load(userId)}>
@@ -618,12 +665,15 @@ const Overlay: React.FC<{ children?: React.ReactNode; visible: boolean; classNam
 
 export function ProfileBuilderPage() {
   const workspace = useWorkspace();
+  const role = useWorkspaceRole();
+  const canEdit = role.editEntities;
+  const functions = useConfigObjectList("function").filter(f => f.kind !== "profile");
   const [pbRefreshDate, setPbRefreshDate] = useState(new Date());
   const [stateRefreshDate, setStateRefreshDate] = useState(new Date());
+  const [obj, dispatch] = useReducer(pbDataReducer, defaultProfileBuilderData);
   const { data: initialData, error: globalError, isLoading, enabled } = useProfileBuilderData(pbRefreshDate);
   const { data: pbState, isLoading: stateLoading } = useProfileBuilderState(initialData!, enabled, stateRefreshDate);
   const [saving, setSaving] = useState(false);
-  const [obj, dispatch] = useReducer(pbDataReducer, defaultProfileBuilderData);
   const [editorShown, setEditorShown] = useState(false);
 
   const [activePrimaryTab, setActivePrimaryTab] = useState("code");
@@ -641,9 +691,10 @@ export function ProfileBuilderPage() {
   const codeChanged = obj.draft !== initialData?.draft;
   const hasUnpublishedDraft = obj.code !== obj.draft;
   const hasUnpublishedEnvs = !isEqual(obj.settings.variables ?? {}, initialData?.settings.variables ?? {});
+  const hasUnpublishedFuncs = !isEqual(obj.settings.functions ?? {}, initialData?.settings.functions ?? {});
   const hasUnpublishedSettings = !isEqual(
-    omit(obj.settings ?? {}, "variables"),
-    omit(initialData?.settings ?? {}, "variables")
+    omit(obj.settings ?? {}, "variables", "functions"),
+    omit(initialData?.settings ?? {}, "variables", "functions")
   );
   const hasUnpublishedChanges = hasUnpublishedDraft || !isEqual(obj, initialData);
   const reloadStore = useStoreReload();
@@ -696,6 +747,7 @@ export function ProfileBuilderPage() {
               tableName: obj.settings.tableName,
               profileWindow: obj.settings.profileWindow,
               variables: obj.settings.variables,
+              functions: obj.settings.functions,
             },
             createdAt: obj.createdAt || new Date(),
             updatedAt: new Date(),
@@ -711,19 +763,21 @@ export function ProfileBuilderPage() {
         .finally(() => setSaving(false));
     }
   }, [
-    modal,
-    obj.createdAt,
-    obj.draft,
-    obj.id,
-    obj.name,
     obj.settings.destinationId,
-    obj.settings.profileWindow,
     obj.settings.storage,
     obj.settings.tableName,
+    obj.settings.profileWindow,
     obj.settings.variables,
+    obj.settings.functions,
+    obj.id,
+    obj.name,
     obj.version,
-    enabled,
+    obj.createdAt,
+    obj.draft,
+    modal,
     workspace.id,
+    enabled,
+    reloadStore,
   ]);
   const save = useCallback(async () => {
     setSaving(true);
@@ -738,6 +792,18 @@ export function ProfileBuilderPage() {
       .catch(e => {})
       .finally(() => setSaving(false));
   }, [obj, workspace.id]);
+
+  const rebuild = useCallback(async () => {
+    get(`/api/${workspace.id}/profile-builder/state?profileBuilderId=${obj.id}`, {
+      method: "POST",
+    })
+      .then(() => {
+        feedbackSuccess("Full rebuild is triggered");
+      })
+      .catch(e => {
+        feedbackError("Failed to trigger full rebuild of profile builder", { error: e });
+      });
+  }, [obj.id, workspace.id]);
 
   const rollback = useCallback(async () => {
     setSaving(true);
@@ -761,9 +827,9 @@ export function ProfileBuilderPage() {
         id: obj.id,
         name: obj.name,
         version: obj.version,
+        settings: obj.settings,
         code: obj.draft,
         events: JSON.parse(testData),
-        variables: obj.settings.variables,
         store: {},
         userAgent: navigator.userAgent,
       };
@@ -836,7 +902,31 @@ export function ProfileBuilderPage() {
       }
       setRunning(false);
     }
-  }, [obj.functionId, obj.draft, obj.settings.variables, testData, workspace.id, activeSecondaryTab]);
+  }, [obj.id, obj.name, obj.version, obj.settings, obj.draft, testData, workspace.id, activeSecondaryTab]);
+
+  const items: ButtonProps[] = [];
+  if (activePrimaryTab === "code") {
+    items.push({
+      icon: <History className="w-3.5 h-3.5" />,
+      label: "Rollback Draft",
+      requiredPermission: "editEntities",
+      onClick: rollback,
+      disabled: isLoading || !!globalError || !hasUnpublishedDraft,
+      loading: isLoading,
+      collapsed: true,
+    });
+  }
+  if (obj?.version) {
+    items.push({
+      icon: <RefreshCw className="w-3.5 h-3.5" />,
+      label: "Full Rebuild",
+      requiredPermission: "editEntities",
+      onClick: rebuild,
+      disabled: isLoading || !!globalError,
+      loading: isLoading,
+      collapsed: true,
+    });
+  }
 
   return (
     <WorkspacePageLayout screen={true} contentClassName={"!py-6"}>
@@ -855,13 +945,7 @@ export function ProfileBuilderPage() {
           <ErrorCard error={new Error(globalError?.message)} />
         </Overlay>
         <Header
-          status={
-            isLoading
-              ? "loading"
-              : pbState?.status === "building" || pbState?.status === "unknown"
-              ? "building"
-              : obj.status
-          }
+          status={isLoading ? "loading" : pbState?.status === "building" ? "building" : obj.status}
           pbEnabled={enabled}
         />
         <Splitter layout="vertical" className={`flex-auto flex-grow overflow-auto gap-1 ${styles.splitterFix}`}>
@@ -876,24 +960,12 @@ export function ProfileBuilderPage() {
                   {enabled && activePrimaryTab === "code" && (
                     <>
                       <div className={"text-xs text-textLight"}>Draft saved: {dayjs(obj.draftUpdatedAt).fromNow()}</div>
-                      <Button
+                      <JitsuButton
+                        requiredPermission={"editEntities"}
                         type="text"
-                        onClick={rollback}
-                        disabled={isLoading || !!globalError || !hasUnpublishedDraft}
+                        onClick={save}
+                        disabled={isLoading || !!globalError || !codeChanged}
                       >
-                        <ButtonLabel
-                          icon={
-                            saving ? (
-                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                              <History className="w-3.5 h-3.5" />
-                            )
-                          }
-                        >
-                          Rollback
-                        </ButtonLabel>
-                      </Button>
-                      <Button type="text" onClick={save} disabled={isLoading || !!globalError || !codeChanged}>
                         <ButtonLabel
                           icon={
                             saving ? (
@@ -905,23 +977,25 @@ export function ProfileBuilderPage() {
                         >
                           Save Draft
                         </ButtonLabel>
-                      </Button>
+                      </JitsuButton>
                     </>
                   )}
 
-                  <>
-                    <Button
-                      type="text"
-                      onClick={publish}
-                      disabled={isLoading || !!globalError || !hasUnpublishedChanges}
-                    >
-                      {enabled ? (
-                        <ButtonLabel icon={<Rocket className="w-4 h-4" />}>Publish</ButtonLabel>
-                      ) : (
-                        <ButtonLabel icon={<Save className="w-4 h-4" />}>Save</ButtonLabel>
-                      )}
-                    </Button>
-                  </>
+                  <JitsuButton
+                    requiredPermission={"editEntities"}
+                    type="text"
+                    onClick={publish}
+                    disabled={isLoading || !!globalError || !hasUnpublishedChanges}
+                  >
+                    {enabled ? (
+                      <ButtonLabel icon={<Rocket className="w-4 h-4" />}>Publish</ButtonLabel>
+                    ) : (
+                      <ButtonLabel icon={<Save className="w-4 h-4" />}>Save</ButtonLabel>
+                    )}
+                  </JitsuButton>
+                  {enabled && (
+                    <ButtonGroup items={items} dotsButtonProps={{ type: "text" }} dotsOrientation={"horizontal"} />
+                  )}
                 </div>
               }
               type={"card"}
@@ -936,7 +1010,7 @@ export function ProfileBuilderPage() {
                   label: (
                     <ButtonLabel icon={<Code2 className="w-3.5 h-3.5" />}>
                       <div className={"flex gap-2 items-center"}>
-                        <span>Code</span>
+                        <span>Profile Function</span>
                         {enabled && hasUnpublishedDraft && <Dot />}
                         {!enabled && codeChanged && <Dot />}
                       </div>
@@ -972,6 +1046,35 @@ export function ProfileBuilderPage() {
                 },
                 {
                   disabled: isLoading || !!globalError,
+                  style: { height: "100%" },
+                  key: "transform",
+                  label: (
+                    <ButtonLabel icon={<Code2 className="w-3.5 h-3.5" />}>
+                      <div className={"flex gap-2 items-center"}>
+                        <span>Transformation</span>
+                        {hasUnpublishedFuncs && <Dot />}
+                      </div>{" "}
+                    </ButtonLabel>
+                  ),
+                  children: (
+                    <TabContent>
+                      <div className={"px-4"}>
+                        <FunctionsSelector
+                          disabled={!canEdit}
+                          split={"vertical"}
+                          functions={functions}
+                          selectedFunctions={obj.settings?.functions}
+                          onChange={enabledFunctions => {
+                            const enabledF = enabledFunctions.map(f => ({ functionId: `udf.${f.id}` }));
+                            dispatch({ type: "settings", value: { ...obj.settings, functions: enabledF } });
+                          }}
+                        />
+                      </div>
+                    </TabContent>
+                  ),
+                },
+                {
+                  disabled: isLoading || !!globalError,
                   key: "variables",
                   style: { height: "100%" },
                   label: (
@@ -1001,13 +1104,19 @@ export function ProfileBuilderPage() {
                     <ButtonLabel icon={<Settings className="w-3.5 h-3.5" />}>
                       <div className={"flex gap-2 items-center"}>
                         <span>Settings</span>
-                        {hasUnpublishedSettings && <Dot />}
+                        {!obj.settings.destinationId ? (
+                          <Dot color={"#dc2626"} />
+                        ) : hasUnpublishedSettings ? (
+                          <Dot />
+                        ) : (
+                          <></>
+                        )}
                       </div>{" "}
                     </ButtonLabel>
                   ),
                   children: (
                     <TabContent>
-                      <SettingsTab profileBuilder={obj} dispatch={dispatch} />
+                      <SettingsTab disabled={!canEdit} profileBuilder={obj} dispatch={dispatch} />
                     </TabContent>
                   ),
                 },
@@ -1060,7 +1169,12 @@ export function ProfileBuilderPage() {
                         </Button>
                       </Popover>
                     )}
-                    <Button onClick={runFunction} type="text" disabled={isLoading || !!globalError}>
+                    <JitsuButton
+                      requiredPermission={"editEntities"}
+                      onClick={runFunction}
+                      type="text"
+                      disabled={isLoading || !!globalError}
+                    >
                       <ButtonLabel
                         icon={
                           running ? (
@@ -1076,7 +1190,7 @@ export function ProfileBuilderPage() {
                       >
                         Run
                       </ButtonLabel>
-                    </Button>
+                    </JitsuButton>
                   </>
                 </div>
               }

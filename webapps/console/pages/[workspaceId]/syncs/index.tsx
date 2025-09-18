@@ -16,13 +16,13 @@ import { TableProps } from "antd/es/table/InternalTable";
 import { ColumnType, SortOrder } from "antd/es/table/interface";
 import {
   AlertTriangle,
-  CalendarCheckIcon,
   Edit3,
   ExternalLink,
   Inbox,
   ListMinusIcon,
   Loader2,
   RefreshCw,
+  WrenchIcon,
   XCircle,
 } from "lucide-react";
 import { PlusOutlined } from "@ant-design/icons";
@@ -42,6 +42,8 @@ import omit from "lodash/omit";
 import { toURL } from "../../../lib/shared/url";
 import { useConfigObjectLinks, useConfigObjectList, useStoreReload } from "../../../lib/store";
 import { getCoreDestinationTypeNonStrict } from "../../../lib/schema/destinations";
+import { FaRegFloppyDisk } from "react-icons/fa6";
+import { WLink } from "../../../components/Workspace/WLink";
 
 dayjs.extend(relativeTime);
 dayjs.extend(utc);
@@ -59,8 +61,8 @@ function EmptyLinks() {
       <div className="flex flex-col items-center">
         <div className="text-xl text-textLight mb-3">
           {" "}
-          You don't have any links between <Link href={`/${workspace.id}/services`}>services</Link> and{" "}
-          <Link href={`/${workspace.id}/destinations`}>destinations</Link>
+          You don't have any links between <Link href={`/${workspace.slugOrId}/services`}>services</Link> and{" "}
+          <Link href={`/${workspace.slugOrId}/destinations`}>destinations</Link>
         </div>
 
         <WJitsuButton href={`/syncs/edit`} type="link">
@@ -159,7 +161,7 @@ function SyncsTable({ links, services, destinations }: RemoteEntitiesProps) {
       try {
         await get(`/api/${workspace.id}/config/link`, {
           method: "DELETE",
-          query: { fromId: link.fromId, toId: link.toId },
+          query: { id: link.id },
         });
         await reloadStore();
         feedbackSuccess("Successfully unliked");
@@ -198,7 +200,13 @@ function SyncsTable({ links, services, destinations }: RemoteEntitiesProps) {
       },
       render: (text, link) => {
         const service = servicesById[link.fromId];
-        return service ? <ServiceTitle service={service} link /> : <NotFound id={link.fromId} type={"service"} />;
+        return service ? (
+          <WLink href={`/syncs/edit?id=${link.id}`}>
+            <ServiceTitle service={service} />
+          </WLink>
+        ) : (
+          <NotFound id={link.fromId} type={"service"} />
+        );
       },
     },
     {
@@ -212,7 +220,13 @@ function SyncsTable({ links, services, destinations }: RemoteEntitiesProps) {
       },
       render: (text, link) => {
         const destination = destinationsById[link.toId];
-        return destination ? <DestinationTitle destination={destination} link /> : "Not Found";
+        return destination ? (
+          <WLink href={`/syncs/edit?id=${link.id}`}>
+            <DestinationTitle destination={destination} />
+          </WLink>
+        ) : (
+          "Not Found"
+        );
       },
     },
     {
@@ -263,7 +277,7 @@ function SyncsTable({ links, services, destinations }: RemoteEntitiesProps) {
       render: (text, link) => {
         const toTasks = async () =>
           router.push(
-            `/${workspace.slug || workspace.id}/syncs/tasks?query=${encodeURIComponent(
+            `/${workspace.slugOrId}/syncs/tasks?query=${encodeURIComponent(
               JSON5.stringify({
                 syncId: link.id,
                 notification: "Sync Started",
@@ -300,7 +314,7 @@ function SyncsTable({ links, services, destinations }: RemoteEntitiesProps) {
                   displayTaskRunError(workspace, runStatus);
                 } else {
                   router.push(
-                    `/${workspace.slug || workspace.id}/syncs/tasks?query=${encodeURIComponent(
+                    `/${workspace.slugOrId}/syncs/tasks?query=${encodeURIComponent(
                       JSON5.stringify({
                         syncId: link.id,
                         notification: "Sync Started",
@@ -325,10 +339,11 @@ function SyncsTable({ links, services, destinations }: RemoteEntitiesProps) {
             icon: <Edit3 className={"w-4 h-4"} />,
             label: "Edit",
             href: `/syncs/edit?id=${link.id}`,
+            requiredPermission: "editEntities",
           },
           {
             disabled: t?.status === "RUNNING" || !!runPressed,
-            tooltip: t?.status === "RUNNING" ? "Sync is already runPressed" : undefined,
+            tooltip: t?.status === "RUNNING" ? "Sync is already running" : undefined,
             icon:
               runPressed == link.id ? (
                 <Loader2 className="animate-spin w-3.5 h-3.5" />
@@ -365,11 +380,17 @@ function SyncsTable({ links, services, destinations }: RemoteEntitiesProps) {
             collapsed: true,
           },
           {
-            icon: <CalendarCheckIcon className={"w-4 h-4"} />,
+            icon: <WrenchIcon className={"w-4 h-4"} />,
             onClick: async () => {
               setShowAPIDocs(link.id);
             },
             label: "API",
+            collapsed: true,
+          },
+          {
+            icon: <FaRegFloppyDisk className={"w-4 h-4"} />,
+            label: "Saved State",
+            href: `/syncs/state?id=${link.id}`,
             collapsed: true,
           },
           {
@@ -380,6 +401,7 @@ function SyncsTable({ links, services, destinations }: RemoteEntitiesProps) {
             danger: true,
             label: "Delete",
             collapsed: true,
+            requiredPermission: "deleteEntities",
           },
         ];
         return <ButtonGroup items={items} />;
@@ -395,6 +417,28 @@ function SyncsTable({ links, services, destinations }: RemoteEntitiesProps) {
         columns={columns}
         className="border border-backgroundDark rounded-lg"
         pagination={false}
+        // expandable={{
+        //   expandedRowRender: link => {
+        //     console.log("link", link);
+        //     const task = processTaskStatus(tasks.data.tasks?.[link.id]);
+        //     console.log("task", task);
+        //     return (
+        //       <TaskStatusResultTable
+        //         error={task.error ?? ""}
+        //         stats={Object.entries(task.stats).reduce((arr, v) => {
+        //           const o = { key: v[0], stream: v[0], ...(v[1] as any) };
+        //           arr.push(o);
+        //           return arr;
+        //         }, [] as any[])}
+        //       />
+        //     );
+        //   },
+        //   rowExpandable: link => {
+        //     const t = tasks.data.tasks?.[link.id];
+        //     return !!t && t.status !== "SKIPPED";
+        //   },
+        //   // expandIcon: () => undefined,
+        // }}
         loading={loading}
         onChange={onChange}
       />
@@ -430,20 +474,20 @@ function Syncs(props: RemoteEntitiesProps) {
         <div className="text-center mt-12 text text-textLight max-w-4xl">
           In order to create a sync please create at least one connector and destination of <b>data warehouse</b> or{" "}
           <b>cloud storage</b> type. Currently, you have{" "}
-          <Link href={`/${workspace.slug || workspace.id}/destinations`} className="underline">
+          <Link href={`/${workspace.slugOrId}/destinations`} className="underline">
             {bulkerDsts.length} destination{bulkerDsts.length === 1 ? "" : "s"}
           </Link>{" "}
           and{" "}
-          <Link href={`/${workspace.slug || workspace.id}/services`} className="underline">
+          <Link href={`/${workspace.slugOrId}/services`} className="underline">
             {services.length} connector{services.length === 1 ? "" : "s"}
           </Link>{" "}
           configured
         </div>
         <div className="flex space-x-4 items-center mt-4">
-          <WJitsuButton href={"/services"} type="default" icon={<PlusOutlined />}>
+          <WJitsuButton href={"/services"} type="default" icon={<PlusOutlined />} requiredPermission="editEntities">
             Create Connector
           </WJitsuButton>
-          <WJitsuButton href={"/destinations"} type="default" icon={<PlusOutlined />}>
+          <WJitsuButton href={"/destinations"} type="default" icon={<PlusOutlined />} requiredPermission="editEntities">
             Create Destination
           </WJitsuButton>
         </div>
@@ -474,7 +518,13 @@ function Syncs(props: RemoteEntitiesProps) {
         </div>
 
         <div>
-          <WJitsuButton href={`/syncs/edit`} type="primary" size="large" icon={<FaPlus className="anticon" />}>
+          <WJitsuButton
+            href={`/syncs/edit`}
+            type="primary"
+            size="large"
+            icon={<FaPlus className="anticon" />}
+            requiredPermission="editEntities"
+          >
             Connect service and destination
           </WJitsuButton>
         </div>

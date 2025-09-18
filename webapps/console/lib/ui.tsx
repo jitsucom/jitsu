@@ -3,6 +3,7 @@ import { notification } from "antd";
 import { NextRouter, useRouter } from "next/router";
 import { ErrorDetails } from "../components/GlobalError/GlobalError";
 import { getAntdModal } from "./modal";
+import { Input } from "antd";
 
 import * as _useTitle from "react-use/lib/useTitle";
 import { NotificationPlacement } from "antd/es/notification/interface";
@@ -70,6 +71,34 @@ export function confirmOp(message: ReactNode) {
   return new Promise(resolve => {
     getAntdModal().confirm({
       title: message,
+      onOk: () => resolve(true),
+      onCancel: () => resolve(false),
+    });
+  });
+}
+
+export function confirmOpWithInput(message: ReactNode, messageToMatch: string) {
+  return new Promise(resolve => {
+    const modal = getAntdModal().confirm({
+      title: message,
+      content: (
+        <Input
+          type="text"
+          onChange={e => {
+            modal.update({
+              okButtonProps: {
+                disabled: e.target.value !== messageToMatch,
+              },
+            });
+          }}
+          style={{ width: "100%", marginTop: "1rem" }}
+        />
+      ),
+
+      okButtonProps: {
+        disabled: true,
+      },
+
       onOk: () => resolve(true),
       onCancel: () => resolve(false),
     });

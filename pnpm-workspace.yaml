@@ -1,8 +1,24 @@
 packages:
-  - "e2e"
-  - "examples/*"
-  - "types/*"
-  - "webapps/*"
-  - "services/*"
-  - "cli/*"
-  - "libs/*"
+  - e2e
+  - examples/*
+  - types/*
+  - webapps/*
+  - services/*
+  - cli/*
+  - libs/*
+onlyBuiltDependencies:
+  - "@confluentinc/kafka-javascript"
+  - "@firebase/util"
+  - "@prisma/client"
+  - "@prisma/engines"
+  - core-js
+  - core-js-pure
+  - cpu-features
+  - esbuild
+  - isolated-vm
+  - prisma
+  - protobufjs
+  - sharp
+  - ssh2
+  - turbo
+  - zstd-napi

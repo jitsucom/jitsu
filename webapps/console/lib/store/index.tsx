@@ -1,10 +1,12 @@
 import type {
   ConnectorImageConfig,
+  MiscEntity,
   DestinationConfig,
   FunctionConfig,
   ServiceConfig,
   StreamConfig,
   WorkspaceDomain,
+  NotificationChannel,
 } from "../schema";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getLog, requireDefined, rpc } from "juava";
@@ -14,7 +16,16 @@ import { z } from "zod";
 import { ConfigurationObjectLinkDbModel, ProfileBuilderDbModel, WorkspaceDbModel } from "../../prisma/schema";
 import { UseMutationResult } from "@tanstack/react-query/src/types";
 
-export const allConfigTypes = ["stream", "service", "function", "destination", "custom-image", "domain"] as const;
+export const allConfigTypes = [
+  "stream",
+  "service",
+  "function",
+  "destination",
+  "custom-image",
+  "domain",
+  "misc",
+  "notification",
+] as const;
 
 export type ConfigType = (typeof allConfigTypes)[number];
 
@@ -25,6 +36,8 @@ export type ConfigTypes = {
   destination: DestinationConfig;
   "custom-image": ConnectorImageConfig;
   domain: WorkspaceDomain;
+  misc: MiscEntity;
+  notification: NotificationChannel;
 };
 
 export function asConfigType(type: string): ConfigType {
@@ -88,7 +101,9 @@ async function initialDataLoad(
 ): Promise<{ workspaceId: string }> {
   const loaders: Promise<void>[] = [];
 
-  const workspaceDbModel = WorkspaceDbModel.parse(await rpc(`/api/workspace/${workspaceIdOrSlug}`, { signal }));
+  const data = await rpc(`/api/workspace/${workspaceIdOrSlug}`, { signal });
+  const workspaceDbModel = WorkspaceDbModel.parse(data) as any;
+  workspaceDbModel.oidcLoginGroups = data.oidcLoginGroups;
 
   await queryClient.prefetchQuery(getWorkspaceCacheKey(workspaceIdOrSlug), async () => workspaceDbModel, foreverCache);
   const workspace = requireDefined(
@@ -221,12 +236,15 @@ export function useConfigObjectsUpdater(workspaceIdOrSlug: string): UseConfigObj
         interval = setInterval(async () => {
           if (!document.hidden) {
             try {
-              const ifModified = await fetch(`/api/${res.workspaceId}/listen?maxWaitMs=0`, {
-                signal: abortController.signal,
-                headers: {
-                  "If-Modified-Since": modifiedSince.toUTCString(),
-                },
-              });
+              const ifModified = await fetch(
+                `/api/${res.workspaceId}/listen?maxWaitMs=0&ifModifiedSince=${modifiedSince.toISOString()}`,
+                {
+                  signal: abortController.signal,
+                  headers: {
+                    "If-Modified-Since": modifiedSince.toUTCString(),
+                  },
+                }
+              );
               if (ifModified.status === 304) {
                 //do nothing
               } else if (ifModified.status === 200) {

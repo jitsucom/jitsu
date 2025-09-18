@@ -19,6 +19,8 @@ import FacebookConversionsApi from "./functions/facebook-conversions";
 import IntercomDestination from "./functions/intercom-destination";
 import HubspotDestination from "./functions/hubspot-destination";
 import BrazeDestination from "./functions/braze-destination";
+import { ProfilesFunction } from "./functions/profiles-functions";
+import SalesforceDestination from "./functions/salesforce-destination";
 
 const builtinDestinations: Record<BuiltinDestinationFunctionName, JitsuFunction> = {
   "builtin.destination.bulker": BulkerDestination as JitsuFunction,
@@ -34,11 +36,13 @@ const builtinDestinations: Record<BuiltinDestinationFunctionName, JitsuFunction>
   "builtin.destination.amplitude": AmplitudeDestination as JitsuFunction,
   "builtin.destination.facebook-conversions": FacebookConversionsApi as JitsuFunction,
   "builtin.destination.hubspot": HubspotDestination as JitsuFunction,
+  "builtin.destination.salesforce": SalesforceDestination as JitsuFunction,
   "builtin.destination.devnull": () => undefined,
   "builtin.destination.tag": () => undefined,
   "builtin.destination.gtm": () => undefined,
   "builtin.destination.logrocket": () => undefined,
   "builtin.destination.ga4-tag": () => undefined,
+  "builtin.destination.profiles": ProfilesFunction as JitsuFunction,
 } as const;
 
 const builtinTransformations: Record<BuiltinTransformationFunctionName, JitsuFunction> = {
@@ -60,6 +64,7 @@ export function isDropResult(result: FuncReturn): boolean {
 }
 
 export * as bulkerDestination from "./functions/bulker-destination";
+export { UserRecognitionParameter } from "./functions/user-recognition";
 export { UDFWrapper, UDFTestRun } from "./functions/lib/udf_wrapper";
 export type { UDFTestRequest, UDFTestResponse, logType } from "./functions/lib/udf_wrapper";
 export { ProfileUDFWrapper, ProfileUDFTestRun, mergeUserTraits } from "./functions/lib/profiles-udf-wrapper";
@@ -82,6 +87,7 @@ export { mongodb, mongoAnonymousEventsStore } from "./functions/lib/mongodb";
 export type {
   MetricsMeta,
   RotorMetrics,
+  StoreMetrics,
   FuncChainResult,
   FunctionExecLog,
   FunctionExecRes,
@@ -93,6 +99,7 @@ export type {
 } from "./functions/lib/index";
 export { httpAgent, httpsAgent } from "./functions/lib/http-agent";
 export * from "./functions/lib/store";
+export * from "./functions/lib/warehouse-store";
 export * from "./functions/lib/ua";
 export * from "./functions/lib/clickhouse-logger";
 export * from "./functions/profiles-functions";

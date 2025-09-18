@@ -6,21 +6,14 @@ import { AnyEvent } from "@jitsu/protocols/functions";
 import isEqual from "lodash/isEqual";
 import { parse as semverParse } from "semver";
 import * as jsondiffpatch from "jsondiffpatch";
-
-import Prometheus from "prom-client";
-import { connectionsStore, functionsStore, workspaceStore } from "../lib/repositories";
+import { connectionsStore, functionsStore, streamsStore } from "../lib/repositories";
+import { promHandlerMetric } from "../lib/metrics";
 
 const jsondiffpatchInstance = jsondiffpatch.create();
 const log = getLog("functions_handler");
 
-const handlerMetric = new Prometheus.Counter({
-  name: "rotor_function_handler",
-  help: "function handler status",
-  labelNames: ["connectionId", "status"] as const,
-});
-
 export const FunctionsHandler =
-  (rotorContext: Omit<MessageHandlerContext, "connectionStore" | "functionsStore" | "workspaceStore">) =>
+  (rotorContext: Omit<MessageHandlerContext, "connectionStore" | "functionsStore" | "streamsStore">) =>
   async (req, res) => {
     const message = req.body as IngestMessage;
     //log.atInfo().log(`Functions handler. Message ID: ${message.messageId} connectionId: ${message.connectionId}`);
@@ -28,7 +21,7 @@ export const FunctionsHandler =
       ...rotorContext,
       connectionStore: requireDefined(connectionsStore.getCurrent(), "Connection store is not initialized"),
       functionsStore: requireDefined(functionsStore.getCurrent(), "Functions store is not initialized"),
-      workspaceStore: requireDefined(workspaceStore.getCurrent(), "Workspace store is not initialized"),
+      streamsStore: requireDefined(streamsStore.getCurrent(), "Streams store is not initialized"),
     });
     if (result?.events && result.events.length > 0) {
       res.json(result.events);
@@ -38,7 +31,7 @@ export const FunctionsHandler =
   };
 
 export const FunctionsHandlerMulti =
-  (rotorContext: Omit<MessageHandlerContext, "connectionStore" | "functionsStore" | "workspaceStore">) =>
+  (rotorContext: Omit<MessageHandlerContext, "connectionStore" | "functionsStore" | "streamsStore">) =>
   async (req, res, next) => {
     const connectionIds = (req.query.ids ?? "").split(",") as string[];
     const message = req.body as IngestMessage;
@@ -55,7 +48,7 @@ export const FunctionsHandlerMulti =
             ...rotorContext,
             connectionStore: requireDefined(connectionsStore.getCurrent(), "Connection store is not initialized"),
             functionsStore: requireDefined(functionsStore.getCurrent(), "Functions store is not initialized"),
-            workspaceStore: requireDefined(workspaceStore.getCurrent(), "Workspace store is not initialized"),
+            streamsStore: requireDefined(streamsStore.getCurrent(), "Streams store is not initialized"),
           },
           "all",
           { [CONNECTION_IDS_HEADER]: id },
@@ -67,7 +60,7 @@ export const FunctionsHandlerMulti =
     await Promise.all(prom)
       .then(results => {
         connectionIds.forEach((id, i) => {
-          handlerMetric.inc({ connectionId: id, status: "success" }, 1);
+          promHandlerMetric.inc({ connectionId: id, status: "success" }, 1);
         });
         const events = Object.fromEntries(
           results.map(result => [result?.connectionId, mapDiff(message, result?.events)])
@@ -76,7 +69,7 @@ export const FunctionsHandlerMulti =
       })
       .catch(e => {
         connectionIds.forEach((id, i) => {
-          handlerMetric.inc({ connectionId: id, status: "error" }, 1);
+          promHandlerMetric.inc({ connectionId: id, status: "error" }, 1);
         });
         next(`[${connectionIds}] Error processing functions: ${e.name}: ${e.message}`);
       });

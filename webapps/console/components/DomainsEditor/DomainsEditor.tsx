@@ -1,12 +1,10 @@
-import React, { PropsWithChildren, useMemo, useState } from "react";
+import React, { PropsWithChildren, useState } from "react";
 import { CustomWidgetProps } from "../ConfigObjectEditor/Editors";
-import { useAppConfig, useWorkspace } from "../../lib/context";
+import { useWorkspace } from "../../lib/context";
 import { DomainCheckResponse } from "../../lib/shared/domain-check-response";
 import { get } from "../../lib/useApi";
 import { confirmOp, feedbackError } from "../../lib/ui";
 import { Button, Input, notification, Tag, Tooltip } from "antd";
-import { getEeClient } from "../../lib/ee-client";
-import { requireDefined } from "juava";
 import { useQuery } from "@tanstack/react-query";
 import { getAntdModal, useAntdModal } from "../../lib/modal";
 import { Globe } from "lucide-react";
@@ -14,6 +12,7 @@ import { FaExternalLinkAlt, FaSpinner, FaTrash, FaWrench } from "react-icons/fa"
 import { ReloadOutlined } from "@ant-design/icons";
 import { useRouter } from "next/router";
 import { WLink } from "../Workspace/WLink";
+import { JitsuButton } from "../JitsuButton/JitsuButton";
 
 const StatusBadge: React.FC<
   PropsWithChildren<{ status: "error" | "warning" | "info" | "success" | "loading"; className?: string }>
@@ -54,14 +53,9 @@ const CustomDomain: React.FC<{ domain: string; deleteDomain?: () => Promise<void
   deleteDomain,
   workspaceDomain,
 }) => {
-  const appConfig = useAppConfig();
   const workspace = useWorkspace();
   const router = useRouter();
 
-  const eeClient = useMemo(
-    () => getEeClient(requireDefined(appConfig.ee.host, `EE is not available`), workspace.id),
-    [appConfig.ee.host, workspace.id]
-  );
   const [reloadTrigger, setReloadTrigger] = useState(0);
   const [deleting, setDeleting] = useState(false);
   const { data, isLoading, error, refetch } = useQuery<DomainCheckResponse>(
@@ -126,7 +120,8 @@ const CustomDomain: React.FC<{ domain: string; deleteDomain?: () => Promise<void
               </Button>
             </Tooltip>
             {deleteDomain && (
-              <Button
+              <JitsuButton
+                requiredPermission={"deleteEntities"}
                 type="text"
                 disabled={deleting}
                 loading={deleting}
@@ -145,13 +140,13 @@ const CustomDomain: React.FC<{ domain: string; deleteDomain?: () => Promise<void
                 className="border-0"
               >
                 {!deleting && <FaTrash />}
-              </Button>
+              </JitsuButton>
             )}
             {workspaceDomain && (
               <Tag
                 className={"cursor-pointer"}
                 onClick={() => {
-                  router.push(`/${workspace.id}/settings/domains`);
+                  router.push(`/${workspace.slugOrId}/settings/domains`);
                 }}
               >
                 Workspace Domain
@@ -274,7 +269,7 @@ DomainConfigurationInstructions.show = p => {
 
 export const DomainsEditor: React.FC<
   { context: "site" | "workspace"; workspaceDomains?: string[] } & CustomWidgetProps<string[]>
-> = ({ onChange, value: domains, workspaceDomains, context }) => {
+> = ({ onChange, value: domains, workspaceDomains, context, disabled }) => {
   const [addValue, setAddValue] = useState<string | undefined>();
   const [addPending, setAddPending] = useState(false);
   const workspace = useWorkspace();
@@ -336,6 +331,7 @@ export const DomainsEditor: React.FC<
       <div className="flex">
         <Input
           placeholder="subdomain.mywebsite.com"
+          disabled={disabled}
           value={addValue}
           onChange={e => setAddValue(e.target.value)}
           onKeyDown={e => {
@@ -345,9 +341,16 @@ export const DomainsEditor: React.FC<
             }
           }}
         />
-        <Button disabled={!addValue} type={"primary"} className="ml-5" onClick={add} loading={addPending}>
+        <JitsuButton
+          requiredPermission={"editEntities"}
+          disabled={!addValue}
+          type={"primary"}
+          className="ml-5"
+          onClick={add}
+          loading={addPending}
+        >
           Add
-        </Button>
+        </JitsuButton>
       </div>
       <div className="mt-5">
         {(workspaceDomains ?? [])

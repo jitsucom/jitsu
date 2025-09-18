@@ -117,7 +117,8 @@ function toJitsuClassic(event, ctx) {
         : undefined,
     ids: Object.keys(ids).length > 0 ? ids : undefined,
     parsed_ua:
-      Object.keys(ua).length > 0
+      event.parsed_ua || 
+      (Object.keys(ua).length > 0
         ? {
             os_family: ua.os?.name,
             os_version: ua.os?.version,
@@ -128,7 +129,7 @@ function toJitsuClassic(event, ctx) {
             device_model: ua.device?.model,
             bot: ua.bot,
           }
-        : undefined,
+        : undefined),
     user_agent: analyticsContext.userAgent,
     user_language: analyticsContext.locale,
     utc_time: event.timestamp,
@@ -391,12 +392,41 @@ function isDropResult(result) {
     return result === "drop" || (Array.isArray(result) && result.length === 0) || result === null || result === false;
 }
 
+async function runSingle(
+  f,
+  event,
+  ctx
+) {
+    let execLog = [];
+    let events = [];
+    let result = undefined;
+    try {
+        result = await f.f(event, ctx);
+    } catch (err) {
+        if (err.name === DropRetryErrorName) {
+            result = "drop";
+        }
+        if (f.meta?.retryPolicy) {
+            err.retryPolicy = f.meta.retryPolicy;
+        }
+        execLog = [{
+            functionId: f.id,
+            error: err,
+        }];
+    }
+    if (!isDropResult(result)) {
+        events = result;
+    }
+    return {events, execLog};
+}
+
 async function runChain(
     chain,
     event,
     ctx
 ) {
     const execLog = [];
+    const fastFunctions = !!ctx.connection?.options?.fastFunctions
     let events = [event];
     for (let k = 0; k < chain.length; k++) {
         const f = chain[k];
@@ -405,24 +435,14 @@ async function runChain(
         for (let i = 0; i < events.length; i++) {
             const event = events[i];
             let result = undefined;
-            // const execLogMeta = {
-            //     eventIndex: i,
-            //     receivedAt: rat && rat != "Invalid Date" ? rat : new Date(),
-            //     functionId: f.id,
-            // };
             try {
-                result = await f.f(deepCopy(event), ctx);
+                result = await f.f(fastFunctions ? event : deepCopy(event), ctx);
 
                 if (k < chain.length - 1 && Array.isArray(result) && result.length > 1) {
                     const l = result.length;
                     result = undefined;
                     throw new Error("Got " + l + " events as result of function #" + (k + 1) + " of " + chain.length + ". Only the last function in a chain is allowed to multiply events.");
                 }
-                // execLog.push({
-                //     ...execLogMeta,
-                //     ms: Date.now() - sw,
-                //     dropped: isDropResult(result),
-                // });
             } catch (err) {
                 if (err.name === DropRetryErrorName) {
                     result = "drop";
@@ -433,21 +453,24 @@ async function runChain(
                 execLog.push({
                     functionId: f.id,
                     error: err,
-                    //event,
-                    // ms: Date.now() - sw,
-                    // dropped: isDropResult(result),
                 });
             }
             if (!isDropResult(result)) {
                 if (result) {
-                    // @ts-ignore
-                    newEvents.push(...(Array.isArray(result) ? result : [result]));
+                    if (Array.isArray(result)) {
+                        newEvents.push(...result);
+                    } else {
+                        newEvents.push(result);
+                    }
                 } else {
                     newEvents.push(event);
                 }
             }
         }
         events = newEvents;
+        if (events.length === 0) {
+            break;
+        }
     }
     return {events, execLog};
 }
@@ -455,7 +478,8 @@ async function runChain(
 const wrappedFunctionChain = async function (event, ctx) {
     let chain = [];
     //** @UDF_FUNCTIONS_CHAIN **//
-    const chainRes = await runChain(chain, event, ctx);
+
+    const chainRes = chain.length === 1 ? await runSingle(chain[0], event, ctx) : await runChain(chain, event, ctx);
     checkError(chainRes);
     if (Array.isArray(chainRes.events) && chainRes.events.length === 1) {
         return chainRes.events[0];
@@ -508,6 +532,17 @@ const wrappedUserFunction = (id, f, funcCtx) => {
         },
     }
 
+    const getWarehouse = (warehouseId) => {
+        return {
+            query: async (query, opts) => {
+                return await _jitsu_query.apply(undefined, [warehouseId, query, opts], {
+                    arguments: {copy: true},
+                    result: {promise: true, copy: true}
+                });
+            },
+        };
+    }
+
     const fetch = async (url, opts, extras) => {
         let res
         if (extras) {
@@ -558,6 +593,7 @@ const wrappedUserFunction = (id, f, funcCtx) => {
             ...c,
             props: funcCtx.props,
             log,
+            getWarehouse,
             store,
             fetch: ftch,
         };

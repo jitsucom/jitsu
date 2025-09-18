@@ -36,6 +36,17 @@ export const WebhookDestinationConfig = z.object({
     .default("POST")
     .describe("HTTP method. Can be <code>GET</code>, <code>POST</code>, <code>PUT</code>, <code>DELETE</code>"),
   headers: z.array(z.string()).optional().describe("List of headers in format <code>key: value</code>"),
+  customPayload: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe("Enable custom payload. If disabled, the event payload will be sent as is."),
+  payload: z
+    .string()
+    .optional()
+    .describe(
+      "Payload Template::Template for the webhook payload. The following macros are supported:<ul><li><code>{{ EVENT }}</code> - event json object for stream mode or batches with size=1</li><li><code>{{ EVENTS }}</code> - for batch mode - json array of events</li><li><code>{{ EVENTS_COUNT }}</code> - count of events in batch</li><li><code>{{ NAME }}</code> - event name</li><li><code>{{ env.VAR_NAME }}</code> - value of VAR_NAME environment variable</li></ul>"
+    ),
 });
 
 export type WebhookDestinationConfig = z.infer<typeof WebhookDestinationConfig>;
@@ -60,6 +71,7 @@ export const IntercomDestinationCredentials = z.object({
 export type IntercomDestinationCredentials = z.infer<typeof IntercomDestinationCredentials>;
 
 export const MixpanelCredentials = z.object({
+  dataResidency: z.enum(["US", "EU"]).optional().default("US"),
   simplifiedIdMerge: z
     .boolean()
     .optional()
@@ -134,6 +146,20 @@ export const JuneCredentials = z.object({
     .describe("If enabled, anonymous users will be tracked in June"),
 });
 export type JuneCredentials = z.infer<typeof JuneCredentials>;
+
+export const SalesforceCredentials = z.object({
+  authorized: z.boolean().optional().default(false),
+  oauthIntegrationId: z.string().optional().default("jitsu-cloud-dst-salesforce"),
+  oauthConnectionId: z.string().optional(),
+  isSandbox: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe(
+      "Sandbox Instance::You can log in to a sandbox by switching the login form to use Custom Domain, and providing the login URL of your sandbox, e.g.: <b>MyDomainName--SandboxName.sandbox.my.salesforce.com</b><br/><br/>Alternatively, you can use the general login form by appending the sandbox name to your Salesforce username. For example, if the production username is <b>user@example.com</b> and the sandbox is named <b>sndbx</b>, the sandbox username would be: <b>user@example.com.sndbx</b><br/><br/>If you are already authenticated, please <b>Re-Sign In</b> with your sandbox username."
+    ),
+});
+export type SalesforceCredentials = z.infer<typeof SalesforceCredentials>;
 
 export const BrazeCredentials = z.object({
   apiKey: z.string().describe(`API Key::Created under Developer Console in the Braze Dashboard.`),
@@ -210,13 +236,33 @@ export const PosthogDestinationConfig = z.object({
     .describe(
       "Group type is the abstract type of whatever our group represents (e.g. company, team, chat, post, etc.). <a href='https://posthog.com/docs/getting-started/group-analytics#groups-vs-group-types' target='_blank' rel='noreferrer noopener'>Groups vs. group types.</a>"
     ),
+  sendAnonymousEvents: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe("Send events from anonymous users. If disabled, only events from identified users will be tracked."),
   enableAnonymousUserProfiles: z
     .boolean()
     .optional()
     .default(false)
-    .describe("If enabled, anonymous users will be tracked in Posthog"),
-  //  sendIdentifyEvents: z.boolean().optional().default(false),
+    .describe(
+      "Enable Anonymous Person Profiles::Create <a href='https://posthog.com/docs/getting-started/person-properties' target='_blank' rel='noreferrer noopener'>Person profiles</a> for anonymous users. If disabled, only identified users will have profiles."
+    ),
 });
+
+export const PosthogDestinationConfigUi: Partial<
+  Record<keyof PosthogDestinationConfig, { correction?: any; hidden?: any }>
+> = {
+  sendAnonymousEvents: {
+    // assumes value of this freshly added property from the value of the `enableAnonymousUserProfiles` property
+    correction: obj =>
+      typeof obj?.sendAnonymousEvents === "undefined" ? obj?.enableAnonymousUserProfiles : obj?.sendAnonymousEvents,
+  },
+  enableAnonymousUserProfiles: {
+    hidden: obj =>
+      typeof obj?.sendAnonymousEvents === "undefined" ? !obj.enableAnonymousUserProfiles : !obj.sendAnonymousEvents,
+  },
+};
 
 export type PosthogDestinationConfig = z.infer<typeof PosthogDestinationConfig>;
 
@@ -243,6 +289,11 @@ export const AmplitudeDestinationConfig = z.object({
     .describe("If enabled, anonymous users will be tracked in Amplitude"),
   dataResidency: z.enum(["US", "EU"]).optional().default("US"),
   sessionWindow: z.number().optional().default(30).describe("Session window in minutes"),
+  minIdLength: z
+    .number()
+    .optional()
+    .default(5)
+    .describe("Minimum ID Length::Overrides the Amplitude's default minimum ID length of 5 characters."),
 });
 
 export type AmplitudeDestinationConfig = z.infer<typeof AmplitudeDestinationConfig>;

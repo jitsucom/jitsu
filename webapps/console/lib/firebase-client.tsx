@@ -118,7 +118,23 @@ export function useFirebaseSession(): FirebaseSession {
   const { analytics } = useJitsu();
 
   if (!config.enabled) {
-    throw new Error(`Firebase is not enabled, exiting`);
+    return {
+      signIn: async () => {
+        throw new Error("Firebase auth is not enabled");
+      },
+      signInWith: async () => {
+        throw new Error("Firebase auth is not enabled");
+      },
+      signOut: async () => {
+        throw new Error("Firebase auth is not enabled");
+      },
+      resetPassword: async () => {
+        throw new Error("Firebase auth is not enabled");
+      },
+      resolveUser: () => {
+        throw new Error("Firebase auth is not enabled");
+      },
+    };
   }
   const a = getFirebaseAuth(config);
 

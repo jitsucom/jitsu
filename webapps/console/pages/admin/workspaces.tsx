@@ -1,5 +1,5 @@
 import { get } from "../../lib/useApi";
-import { CirclePercent, CircleDollarSign, Loader2, ShieldAlert, UserCircle2, XOctagon } from "lucide-react";
+import { CirclePercent, CircleDollarSign, Loader2, ShieldAlert, UserCircle2, XOctagon, Mail } from "lucide-react";
 import { ErrorCard } from "../../components/GlobalError/GlobalError";
 import { Button, Switch, Tooltip } from "antd";
 import omit from "lodash/omit";
@@ -12,6 +12,7 @@ import { WorkspaceDbModel } from "../../prisma/schema";
 import { z } from "zod";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
+import { requireDefined } from "juava";
 
 dayjs.extend(utc);
 
@@ -140,6 +141,7 @@ const View = ({ data }) => {
                   </div>
                 );
               }
+              const showEmail = row.usageAlerts?.willExceed || row.usageAlerts?.exceeded || row.throttle;
               return (
                 <div className="flex flex-nowrap text-textLight items-center gap-1 text-sm">
                   <Link key="status" href={`/${row.workspaceSlug}/settings/billing`} className="grow">
@@ -170,6 +172,13 @@ const View = ({ data }) => {
                     </Link>
                   ) : (
                     <XOctagon className="text-warning w-4 h-4 invisible " />
+                  )}
+                  {showEmail && (
+                    <Link href={`/admin/${row.workspaceSlug}/email`}>
+                      <Tooltip title={`View or send email`}>
+                        <Mail className="w-4 h-4 " />
+                      </Tooltip>
+                    </Link>
                   )}
                 </div>
               );
@@ -228,7 +237,10 @@ export const WorkspacesAdminPage = () => {
       console.log(`Populating usage from days ${days.length} days X ${Object.keys(billing).length} workspaces`);
       for (const day of days) {
         for (const [workspaceId, billingEntry] of Object.entries(billing)) {
-          const workspace = workspaceDict[workspaceId];
+          const workspace = requireDefined(
+            workspaceDict[workspaceId],
+            `Workspace ${workspaceId} not found in workspaceList`
+          );
           joinedData[`${day.split("T")[0]}/${workspaceId}`] = {
             period: day,
             workspaceId: workspaceId,

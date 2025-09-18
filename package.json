@@ -16,7 +16,6 @@
     "build": "turbo run build",
     "ee-api:dev": "dotenv -e .env.local -- turbo run ee-api:dev",
     "console:dev": "dotenv -e .env.local -- turbo run console:dev",
-    "console:storybook": "dotenv -e .env.local -- turbo run console:storybook",
     "rotor:dev": "dotenv -e .env.local -- turbo run rotor:dev",
     "console:start": "dotenv -e .env.local -- turbo run console:start",
     "console:db-prepare": "dotenv -e .env.local -- pnpm run --filter=console db:update-schema",
@@ -28,9 +27,9 @@
     "factory-reset": "pnpm clean ; pnpm clean:turbo ; rm -rf `find . -type d -name node_modules`",
     "clean": "turbo run clean || exit 0",
     "lint": "turbo run lint --",
-    "release": "pnpm build && pnpm test && monorel --filter ./types/protocols --filter ./cli/jitsu-cli --filter ./libs/functions --filter ./libs/jitsu-js --filter ./libs/jitsu-react --npm-tag latest --git-tag 'jitsu-js-libs-v{version}' --push-tag",
+    "release": "pnpm build && pnpm test && monorel --filter ./types/protocols --filter ./cli/jitsu-cli --filter ./libs/functions --filter ./libs/jitsu-js --filter ./libs/jitsu-react --npm-tag latest --git-tag 'jitsu-js-libs-v{version}' --push-tag --version '1.10.4'",
     "release:build-scripts": "pnpm build --filter ./cli/build-scripts && monorel --filter ./cli/build-scripts --npm-tag latest --version 0.0.4-dev.{rev}.{time} --publish --git-tag 'jitsu-build-scripts-v{version}'",
-    "release:canary": "monorel --filter ./types/protocols --filter ./cli/jitsu-cli --filter ./libs/functions --filter ./libs/jitsu-js --filter ./libs/jitsu-react --version '1.9.13-canary.{rev}.{time}' --npm-tag canary --git-tag 'jitsu-js-libs-canary-v{version}' --push-tag"
+    "release:canary": "monorel --filter ./types/protocols --filter ./cli/jitsu-cli --filter ./libs/functions --filter ./libs/jitsu-js --filter ./libs/jitsu-react --version '1.10.5-canary.{rev}.{time}' --npm-tag canary --git-tag 'jitsu-js-libs-canary-v{version}' --push-tag"
   },
   "devDependencies": {
     "@playwright/test": "1.39.0",
@@ -50,13 +49,34 @@
   },
   "pnpm": {
     "overrides": {
+      "form-data": "^4.0.4",
+      "zstd-napi": "^0.0.10",
       "nth-check": "2.1.1",
       "nanoid": "3.3.8",
       "postcss": "^8.4.47",
-      "elliptic" : "^6.6.0",
+      "elliptic": "^6.6.1",
       "cross-spawn": "^7.0.6",
       "path-to-regexp": "^0.1.12"
-    }
+    },
+    "onlyBuiltDependencies": [
+      "@confluentinc/kafka-javascript",
+      "@firebase/util",
+      "@mongodb-js/zstd",
+      "@prisma/client",
+      "@prisma/engines",
+      "@swc/core",
+      "core-js",
+      "core-js-pure",
+      "cpu-features",
+      "esbuild",
+      "isolated-vm",
+      "prisma",
+      "protobufjs",
+      "sharp",
+      "ssh2",
+      "turbo",
+      "zstd-napi"
+    ]
   },
   "workspaces": [
     "examples/*",

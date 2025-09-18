@@ -144,7 +144,7 @@ export default createRoute()
       .map(({ id, logoSvg, packageId, meta, ...rest }) => ({
         id,
         packageId,
-        logoSvg: includeIcons ? (logoSvg ? logoSvg.toString() : undefined) : undefined,
+        logoSvg: includeIcons ? (logoSvg ? Buffer.from(logoSvg).toString() : undefined) : undefined,
         ...(includeMeta ? rest : {}),
         versions: includeMeta
           ? `/api/sources/versions?type=${encodeURIComponent(rest.packageType)}&package=${encodeURIComponent(

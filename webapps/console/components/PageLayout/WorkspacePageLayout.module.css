@@ -9,20 +9,20 @@
   border-bottom: 0 !important;
 }
 
-.topMenu :global li .ant-menu-submenu-title {
+.topMenu li :global(.ant-menu-submenu-title) {
 }
 
-.topMenu :global .ant-menu-item {
+.topMenu :global(.ant-menu-item) {
   top: 0 !important;
   margin-top: 0 !important;
 }
 
-.topMenu :global .ant-menu-submenu {
+.topMenu :global(.ant-menu-submenu) {
   top: 0 !important;
   margin-top: 0 !important;
 }
 
-.topMenu :global li.ant-menu-submenu-selected .ant-menu-submenu-title {
+.topMenu :global(li.ant-menu-submenu-selected) :global(.ant-menu-submenu-title) {
   /*background-color: white !important;*/
   /*padding-left: 0.5rem;*/
   /*padding-right: 0.5rem;*/
@@ -30,7 +30,7 @@
   /*border-bottom: 0 !important;*/
 }
 
-.topMenu :global li.ant-menu-submenu-selected .ant-menu-submenu::after {
+.topMenu :global(li.ant-menu-submenu-selected) :global(.ant-menu-submenu::after) {
   all: unset;
 }
 

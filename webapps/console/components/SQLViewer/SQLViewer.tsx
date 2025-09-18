@@ -1,12 +1,11 @@
 import { Alert, Button, Empty, Layout, Table, Tooltip, Tree } from "antd";
-import { rpc } from "juava";
+import { rpc, trimMiddle } from "juava";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useWorkspace } from "../../lib/context";
 import { SQLResultType } from "../../pages/api/[workspaceId]/sql/query";
 import { SQLSchemaType } from "../../pages/api/[workspaceId]/sql/schema";
 import { BorderOutlined, LeftOutlined, RightOutlined, TableOutlined } from "@ant-design/icons";
 import { LoadingAnimation } from "../GlobalLoader/GlobalLoader";
-import { trimMiddle } from "../../lib/shared/strings";
 import { LabelEllipsis } from "../LabelEllipsis/LabelEllipsis";
 import { SortOrder } from "antd/es/table/interface";
 import { ExpandableButton } from "../ExpandableButton/ExpandableButton";

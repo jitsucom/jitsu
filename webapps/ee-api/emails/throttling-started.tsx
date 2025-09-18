@@ -16,7 +16,6 @@ export type ThrottlingStartedEmailProps = {
 
 const ThrottlingStartedEmail: EmailComponent<ThrottlingStartedEmailProps> = ({
   name,
-  workspaceName,
   workspaceSlug,
   throttled,
   unsubscribeLink,

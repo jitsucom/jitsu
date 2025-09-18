@@ -10,6 +10,7 @@ import { getConfigApi } from "../../lib/useApi";
 import { useWorkspace } from "../../lib/context";
 import { RefreshCw } from "lucide-react";
 import { CustomWidgetProps } from "../ConfigObjectEditor/Editors";
+import { JitsuButton } from "../JitsuButton/JitsuButton";
 
 const CopyToClipboard: React.FC<{ text: string }> = ({ text }) => {
   const [copied, setCopied] = useState(false);
@@ -224,7 +225,8 @@ export const StreamKeysEditor: React.FC<WidgetProps<ApiKey[]>> = props => {
       }
       return (
         <div>
-          <Button
+          <JitsuButton
+            requiredPermission={"editEntities"}
             type="text"
             onClick={async () => {
               if (
@@ -238,7 +240,7 @@ export const StreamKeysEditor: React.FC<WidgetProps<ApiKey[]>> = props => {
             }}
           >
             <FaTrash />
-          </Button>
+          </JitsuButton>
         </div>
       );
     },
@@ -266,7 +268,8 @@ export const StreamKeysEditor: React.FC<WidgetProps<ApiKey[]>> = props => {
         ) : (
           <div></div>
         )}
-        <Button
+        <JitsuButton
+          requiredPermission={"editEntities"}
           type="text"
           onClick={async () => {
             try {
@@ -290,7 +293,7 @@ export const StreamKeysEditor: React.FC<WidgetProps<ApiKey[]>> = props => {
           }}
         >
           {loading ? <RefreshCw className={"w-4 h-4 animate-spin"} /> : <FaPlus />}
-        </Button>
+        </JitsuButton>
       </div>
     </div>
   );

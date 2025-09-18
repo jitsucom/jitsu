@@ -1,21 +1,30 @@
-import { createContext, PropsWithChildren, useContext } from "react";
+import React, { createContext, PropsWithChildren, useContext } from "react";
 import { z } from "zod";
 import { AppConfig, ContextApiResponse } from "./schema";
 import { WorkspaceDbModel } from "../prisma/schema";
 import omit from "lodash/omit";
+import { Analytics } from "../pages/_app";
+import type { WorkspaceRoleWithPermissions } from "./workspace-roles";
 
 export type WorkspaceContext = z.infer<typeof WorkspaceDbModel> & {
   slugOrId: string;
+  oidcLoginGroups?: any[];
 };
 
 const WorkspaceContext0 = createContext<WorkspaceContext | null>(null);
+const WorkspaceRoleContext0 = createContext<WorkspaceRoleWithPermissions | null>(null);
 
-export const WorkspaceContextProvider: React.FC<{ workspace: WorkspaceContext; children: React.ReactNode }> = ({
-  children,
-  workspace,
-}) => {
+export const WorkspaceContextProvider: React.FC<{
+  workspace: WorkspaceContext;
+  userRole: WorkspaceRoleWithPermissions;
+  children: React.ReactNode;
+}> = ({ children, workspace, userRole }) => {
   const Context = WorkspaceContext0;
-  return <Context.Provider value={workspace}>{children}</Context.Provider>;
+  return (
+    <Context.Provider value={workspace}>
+      <WorkspaceRoleContext0.Provider value={userRole}>{children}</WorkspaceRoleContext0.Provider>
+    </Context.Provider>
+  );
 };
 
 export function useWorkspace(): WorkspaceContext {
@@ -65,7 +74,12 @@ const UserContext0 = createContext<UserContextProperties>(null!);
 
 export const UserContextProvider: React.FC<PropsWithChildren<UserContextProperties>> = ({ children, ...props }) => {
   const Context = UserContext0;
-  return <Context.Provider value={props}>{children}</Context.Provider>;
+  return (
+    <Context.Provider value={props}>
+      {props.user && <Analytics user={props.user} />}
+      {children}
+    </Context.Provider>
+  );
 };
 
 export function useUser(): ContextApiResponse["user"] {
@@ -76,10 +90,29 @@ export function useUser(): ContextApiResponse["user"] {
   return props.user;
 }
 
+export function useWorkspaceRole(): WorkspaceRoleWithPermissions {
+  const context = useContext(WorkspaceRoleContext0);
+  if (!context) {
+    return {
+      role: "analyst",
+      editEntities: false,
+      deleteEntities: false,
+      manageUsers: false,
+      readEntities: true,
+    };
+  }
+  return context;
+}
+
+export function useUserSafe(): ContextApiResponse["user"] | undefined | null {
+  const props = useContext(UserContext0);
+  return props?.user;
+}
+
 export function useUserSessionControls(): { logout: () => Promise<void> } {
   const props = useContext(UserContext0);
   if (!props) {
-    throw new Error(`useUserSessionControls() should be called inside <UserContextProvider /> `);
+    return { logout: async () => {} };
   }
   return omit(props, "user");
 }

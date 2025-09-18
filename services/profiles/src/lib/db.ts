@@ -1,6 +1,6 @@
 import { Pool, PoolClient } from "pg";
 import Cursor from "pg-cursor";
-import { getSingleton, namedParameters, newError, requireDefined, stopwatch, getLog, hideSensitiveInfo } from "juava";
+import { getLog, getSingleton, hideSensitiveInfo, namedParameters, newError, requireDefined, stopwatch } from "juava";
 
 export type Handler = (row: Record<string, any>) => Promise<void> | void;
 
@@ -10,96 +10,80 @@ const log = getLog("db");
 
 export type ProfileBuilderState = {
   profileBuilderId: string;
-  profileBuilderVersion: number;
-  instanceIndex: number;
-  totalInstances: number;
-  startedAt: Date;
   updatedAt?: Date;
-  lastTimestamp?: Date;
-  processedUsers: number;
-  errorUsers: number;
-  totalUsers: number;
-  speed: number;
+  fullRebuildInfo?: any;
+  queuesInfo?: any;
+  metrics?: any;
+};
+
+export type ProfileBuilderFullRebuildInfo = {
+  version: number;
+  timestamp: Date;
+  profilesCount: number;
+};
+
+export type ProfileBuilderQueueInfo = {
+  intervalSec?: number;
+  timestamp: Date;
+  queues: Record<
+    number,
+    {
+      priority: number;
+      size: number;
+      processed?: number;
+    }
+  >;
 };
 
 type PgHelper = {
-  getProfileBuilderState(
-    profileBuilderId: string,
-    profileBuilderVersion: number,
-    totalInstances: number,
-    instanceIndex: number
-  ): Promise<ProfileBuilderState | undefined>;
-  updateProfileBuilderState(state: ProfileBuilderState);
+  getProfileBuilderState(profileBuilderId: string): Promise<ProfileBuilderState | undefined>;
+  updateProfileBuilderFullRebuildInfo(profileBuilderId: string, info: ProfileBuilderFullRebuildInfo): Promise<void>;
+  updateProfileBuilderQueuesInfo(profileBuilderId: string, info: ProfileBuilderQueueInfo): Promise<void>;
+  updateProfileBuilderMetrics(profileBuilderId: string, metrics: any): Promise<void>;
   streamQuery(query: string, values?: ParamValues | Handler, handler?: Handler | undefined): Promise<{ rows: number }>;
 };
 
 const pgHelper: PgHelper = {
-  async getProfileBuilderState(
-    profileBuilderId: string,
-    profileBuilderVersion: number,
-    totalInstances: number,
-    instanceIndex: number
-  ): Promise<ProfileBuilderState | undefined> {
+  async getProfileBuilderState(profileBuilderId: string): Promise<ProfileBuilderState | undefined> {
     let rows = await db.pgPool().query(
-      `select * from newjitsu."ProfileBuilderState" where
-                                               "profileBuilderId" = $1::text and
-      "profileBuilderVersion" = $2::integer and
-      "totalInstances" = $3::integer and
-      "instanceIndex" = $4::integer`,
-      [profileBuilderId, profileBuilderVersion, totalInstances, instanceIndex]
+      `select *
+       from newjitsu."ProfileBuilderState2"
+       where "profileBuilderId" = $1::text`,
+      [profileBuilderId]
     );
     if (rows.rowCount) {
       return rows.rows[0];
     }
-    rows = await db.pgPool().query(
-      `select "profileBuilderId", "profileBuilderVersion", "totalInstances", count("instanceIndex"), min("lastTimestamp") as lastTimestamp 
-from newjitsu."ProfileBuilderState" where
-      "profileBuilderId" = $1::text and
-      "profileBuilderVersion" = $2::integer
-                                    group by "profileBuilderId", "profileBuilderVersion", "totalInstances"
-                                    having "totalInstances"=count("instanceIndex")
-                                    order by min("lastTimestamp") desc`,
-      [profileBuilderId, profileBuilderVersion]
-    );
-    if (rows.rowCount) {
-      const row = rows.rows[0];
-      return {
-        ...row,
-        instanceIndex: -1,
-        startedAt: new Date(),
-        updatedAt: new Date(),
-      };
-    }
     return undefined;
   },
-  async updateProfileBuilderState(state: ProfileBuilderState) {
-    state.updatedAt = new Date();
+  async updateProfileBuilderFullRebuildInfo(profileBuilderId: string, info: ProfileBuilderFullRebuildInfo) {
     await db.pgPool().query(
       `
-insert into newjitsu."ProfileBuilderState" as p ("profileBuilderId", "profileBuilderVersion","instanceIndex",
-"totalInstances", "startedAt", "updatedAt", "lastTimestamp", "processedUsers", "errorUsers", "totalUsers", "speed")
-values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-ON CONFLICT ON CONSTRAINT "ProfileBuilderState_pkey" DO UPDATE SET
-          "startedAt" = $5::timestamp,
-          "updatedAt" = $6::timestamp,
-          "lastTimestamp" = $7::timestamp,
-          "processedUsers" = $8::integer,
-          "errorUsers" = $9::integer,
-          "totalUsers" = $10::integer,
-          "speed" = $11::integer`,
-      [
-        state.profileBuilderId,
-        state.profileBuilderVersion,
-        state.instanceIndex,
-        state.totalInstances,
-        state.startedAt ?? new Date(),
-        state.updatedAt ?? new Date(),
-        state.lastTimestamp,
-        state.processedUsers ?? 0,
-        state.errorUsers ?? 0,
-        state.totalUsers ?? 0,
-        state.speed ?? 0,
-      ]
+        insert into newjitsu."ProfileBuilderState2"
+        values ($1, now(), $2, null, null)
+        ON CONFLICT ON CONSTRAINT "ProfileBuilderState2_pkey" DO UPDATE SET "updatedAt"       = now(),
+                                                                            "fullRebuildInfo" = $2`,
+      [profileBuilderId, info]
+    );
+  },
+  async updateProfileBuilderQueuesInfo(profileBuilderId: string, info: ProfileBuilderQueueInfo) {
+    await db.pgPool().query(
+      `
+        insert into newjitsu."ProfileBuilderState2"
+        values ($1, now(), null, $2, null)
+        ON CONFLICT ON CONSTRAINT "ProfileBuilderState2_pkey" DO UPDATE SET "updatedAt"  = now(),
+                                                                            "queuesInfo" = $2`,
+      [profileBuilderId, info]
+    );
+  },
+  async updateProfileBuilderMetrics(profileBuilderId: string, metrics: any) {
+    await db.pgPool().query(
+      `
+        insert into newjitsu."ProfileBuilderState2"
+        values ($1, now(), null, null, $2)
+        ON CONFLICT ON CONSTRAINT "ProfileBuilderState2_pkey" DO UPDATE SET "updatedAt" = now(),
+                                                                            "metrics"   = $2`,
+      [profileBuilderId, metrics]
     );
   },
   async streamQuery(
@@ -187,7 +171,6 @@ export function createPg(): Pool {
 
   const pool = new Pool({
     max: 20,
-    min: 3,
     idleTimeoutMillis: 600000,
     connectionString: requireDefined(process.env.DATABASE_URL, "env.DATABASE_URL is not defined"),
     ssl: sslMode === "no-verify" ? { rejectUnauthorized: false } : undefined,

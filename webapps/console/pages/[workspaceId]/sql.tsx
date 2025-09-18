@@ -34,20 +34,16 @@ const AvailableDestinationsList: React.FC<any> = () => {
       <div className="w-3/4 mx-auto">
         <h1 className="text-2xl font-bold mb-4">Start SQL Query Editor</h1>
         <div className="font-light text-textLight font-sm">
-          You can run SQL queries against following destinations. We support ClickHouse destinations connected via HTTPS
-          interface, including{" "}
-          <Link
-            className="underline"
-            href={appConfig.docsUrl ? concatUrl(appConfig.docsUrl, "/features/provisioned-warehouse") : "/"}
-          >
-            provision ClickHouse database
-          </Link>
+          We support ClickHouse destinations. <br />
+          SQL Query Editor connects to ClickHouse by HTTPS interface.
+          <br />
+          HTTPS port ( <code>8443</code> by default ) should be open in your ClickHouse server.
         </div>
         {Object.entries(data).length == 0 && (
           <>
             <div className="flex flex-col items-center">
               <Inbox className="h-16 w-16 my-6 text-neutral-200" />
-              <div className="text text-textLight mb-6">You don't any destinations available for SQL</div>
+              <div className="text text-textLight mb-6">You don't have any destinations available for SQL</div>
             </div>
           </>
         )}
@@ -57,8 +53,8 @@ const AvailableDestinationsList: React.FC<any> = () => {
             .map(([destinationId, destination]) => (
               <Link
                 className="block border border-textDisabled rounded px-4 py-4 shadow hover:border-primaryDark hover:shadow-primaryLighter flex justify-between items-center hover:text-textPrimary group"
-                key={workspace.slug || workspace.id}
-                href={`/${workspace.slug || workspace.id}/sql?destinationId=${destinationId}`}
+                key={workspace.slugOrId}
+                href={`/${workspace.slugOrId}/sql?destinationId=${destinationId}`}
               >
                 <div className="flex items-center space-x-4">
                   <div className="w-8 h-w-8">

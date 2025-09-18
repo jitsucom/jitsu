@@ -64,8 +64,12 @@ function getIdPart(event: AnalyticsServerEvent, ctx: FullContext<BrazeCredential
   } else if (braze_id) {
     idPart.braze_id = braze_id;
   }
-  idPart.email = traits.email;
-  idPart.phone = traits.phone;
+  if (traits.email) {
+    idPart.email = traits.email;
+  }
+  if (traits.phone) {
+    idPart.phone = traits.phone;
+  }
   if (Object.keys(idPart).length === 0) {
     throw new Error('One of "external_id", "user_alias", "braze_id", "email" or "phone" is required.');
   }
@@ -73,6 +77,7 @@ function getIdPart(event: AnalyticsServerEvent, ctx: FullContext<BrazeCredential
 }
 
 function trackEvent(event: AnalyticsServerEvent, ctx: FullContext<BrazeCredentials>): any {
+  const reservedKeys = ["currency", "price", "quantity", "time", "event_name"];
   return {
     events: [
       {
@@ -80,7 +85,7 @@ function trackEvent(event: AnalyticsServerEvent, ctx: FullContext<BrazeCredentia
         app_id: ctx.props.appId,
         name: event.event,
         time: new Date(eventTimeSafeMs(event)).toISOString(),
-        properties: event.properties,
+        properties: omit(event.properties, reservedKeys),
         _update_existing_only: false,
       },
     ],
@@ -92,7 +97,7 @@ function trackPurchase(event: AnalyticsServerEvent, ctx: FullContext<BrazeCreden
   if (!products || !products.length) {
     return;
   }
-  const reservedKeys = ["product_id", "currency", "price", "quantity"];
+  const reservedKeys = ["product_id", "currency", "price", "quantity", "time", "event_name"];
   const event_properties = omit(event.properties, ["products"]);
   const base = {
     ...getIdPart(event, ctx),
@@ -109,7 +114,7 @@ function trackPurchase(event: AnalyticsServerEvent, ctx: FullContext<BrazeCreden
       quantity: product.quantity,
       properties: {
         ...omit(product, reservedKeys),
-        ...event_properties,
+        ...omit(event_properties, reservedKeys),
       },
     })),
   };
