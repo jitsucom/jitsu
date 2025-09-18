@@ -2,7 +2,7 @@ version: "3.8"
 services:
   kafka:
     tty: true
-    image: "bitnami/kafka:3.6.0"
+    image: bitnamilegacy/kafka:3.6.0
     environment:
       TERM: "xterm-256color"
       KAFKA_CFG_NODE_ID: 0
