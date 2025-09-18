@@ -76,7 +76,7 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
           autoCommitInterval: 10000,
           autoCommit: true,
         },
-        "group.instance.id": process.env.ROTOR_INSTANCE_ID,
+        "group.instance.id": process.env.INSTANCE_ID || process.env.ROTOR_INSTANCE_ID,
       });
       await consumer.connect();
       log.atInfo().log("Subscribing to kafka topics: ", kafkaTopics);
@@ -95,11 +95,11 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
           try {
             for (const topic of kafkaTopics) {
               const watermarks = await admin.fetchTopicOffsets(topic, {
-              timeout: 10000,
-              isolationLevel: KafkaJS.IsolationLevel.READ_COMMITTED,
-            });
-            for (const o of watermarks) {
-              promTopicOffsets.set({ topic: topic, partition: o.partition, offset: "high" }, parseInt(o.high));
+                timeout: 10000,
+                isolationLevel: KafkaJS.IsolationLevel.READ_COMMITTED,
+              });
+              for (const o of watermarks) {
+                promTopicOffsets.set({ topic: topic, partition: o.partition, offset: "high" }, parseInt(o.high));
                 promTopicOffsets.set({ topic: topic, partition: o.partition, offset: "low" }, parseInt(o.low));
               }
             }
