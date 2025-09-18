@@ -1,0 +1,30 @@
+.passwordTextareaMasked {
+  -webkit-text-security: disc;
+  text-security: disc;
+  font-family: monospace;
+  padding-right: 50px;
+}
+
+.passwordTextareaVisible {
+  font-family: monospace;
+  padding-right: 50px;
+}
+
+.passwordExtraButton {
+  position: absolute !important;
+  right: 3px;
+  z-index: 1;
+}
+
+.passwordInput {
+  padding-right: 50px;
+}
+
+/* Fallback for browsers that don't support text-security */
+@supports not ((-webkit-text-security: disc) or (text-security: disc)) {
+  .passwordTextareaMasked {
+    color: transparent;
+    padding-right: 50px;
+    text-shadow: 0 0 0 #000;
+  }
+}

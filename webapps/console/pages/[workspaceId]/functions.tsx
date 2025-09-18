@@ -25,13 +25,29 @@ const Functions: React.FC<any> = () => {
 export const FunctionTitle: React.FC<{
   f?: FunctionConfig;
   size?: "small" | "default" | "large";
+  showDescription?: boolean;
   title?: (d?: FunctionConfig) => string | React.ReactNode;
-}> = ({ f, title = d => d?.name ?? "unknown function", size = "default" }) => {
+}> = ({ f, title, showDescription, size = "default" }) => {
+  let titleNode: string | React.ReactNode = "unknown function";
+  if (title) {
+    titleNode = title(f);
+  } else if (f?.name) {
+    if (showDescription && f?.description) {
+      titleNode = (
+        <>
+          <h2>{f?.name}</h2>
+          <div className="pt-0.5 text-xs text-gray-500 font-normal whitespace-break-spaces">{f?.description}</div>
+        </>
+      );
+    } else {
+      titleNode = f?.name;
+    }
+  }
   return (
     <ObjectTitle
       icon={f ? <FunctionSquare className={"text-text w-full h-full"} /> : undefined}
       size={size}
-      title={title ? title(f) : "unknown function"}
+      title={titleNode}
     />
   );
 };
@@ -46,6 +62,7 @@ const FunctionsList: React.FC<{}> = () => {
     fields: {
       type: { constant: "function" },
       workspaceId: { constant: workspace.id },
+      cloneId: { hidden: true },
       code: { textarea: true },
     },
     noun: "function",
@@ -55,13 +72,27 @@ const FunctionsList: React.FC<{}> = () => {
         render: (f: FunctionConfig) => {
           return (
             <Link className="flex items-center text-text" href={`/${workspace.slugOrId}/functions?id=${f.id}`}>
-              <ObjectTitle title={f.name} icon={<FunctionSquare className={"text-text"} />} />
-              {f.origin === "jitsu-cli" && (
-                <div className="bg-background border border-backgroundDark px-0.5 py-0.2 rounded textLight flex items-center gap-1 ml-2 text-text">
-                  <HardDrive className="w-3 h-3" />
-                  <span className="font-mono text-xs text-text">deployed from CLI</span>
-                </div>
-              )}
+              <FunctionTitle
+                f={f}
+                title={() => (
+                  <>
+                    <div className={"flex gap-1"}>
+                      <h2>{f.name}</h2>
+                      {f.origin === "jitsu-cli" && (
+                        <div className="bg-background border border-backgroundDark px-0.5 py-0.2 rounded textLight flex items-center gap-1 ml-2 text-text">
+                          <HardDrive className="w-3 h-3" />
+                          <span className="font-mono text-xxs text-text font-light">deployed from CLI</span>
+                        </div>
+                      )}
+                    </div>
+                    {f.description && (
+                      <div className="pt-0.5 text-xs text-gray-500 font-normal whitespace-break-spaces">
+                        {f.description}
+                      </div>
+                    )}
+                  </>
+                )}
+              />
             </Link>
           );
         },

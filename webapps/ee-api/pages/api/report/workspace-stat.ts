@@ -66,7 +66,6 @@ async function getSyncs() {
                  join newjitsu."ConfigurationObjectLink" sync on task.sync_id = sync."id"
             where (task.status = 'SUCCESS' OR task.status = 'PARTIAL')
               and started_at > now() - interval '120 days'
-            and deleted = false
             group by "workspaceId", period
             order by period desc , "workspaceId";`
   );
@@ -104,8 +103,8 @@ export async function getEventsReport({
   const query = `select
                    date_trunc('${granularity}', timestamp) as period,
                    workspaceId as "workspaceId",
-                   uniqMerge(count) as events
-                 from ${metricsSchema}.mv_active_incoming2
+                   sum(count) as events
+                 from ${metricsSchema}.active_incoming_agg_view
                  where
                    timestamp >= toDateTime('2023-07-28 00:00:00', 'UTC') and
                    timestamp >= toDateTime({start :String}, 'UTC') and

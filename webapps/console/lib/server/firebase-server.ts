@@ -1,7 +1,7 @@
 import { SessionUser } from "../schema";
 import { NextApiRequest } from "next";
 
-import * as admin from "firebase-admin";
+import admin from "firebase-admin";
 import * as JSON5 from "json5";
 import { getErrorMessage, getSingleton, requireDefined, Singleton } from "juava";
 import { getServerLog } from "./log";

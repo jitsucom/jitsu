@@ -28,9 +28,10 @@ export const SchemaForm: React.FC<{
   jsonSchema: any;
   hiddenFields?: any;
   showErrors?: boolean;
+  disabled?: boolean;
   onChange: (path: string[], v: any) => void;
   obj: any;
-}> = ({ jsonSchema, path, onChange, obj, hiddenFields, showErrors }) => {
+}> = ({ jsonSchema, path, onChange, obj, hiddenFields, showErrors, disabled }) => {
   const required = useMemo(() => (jsonSchema.required as string[]) || [], [jsonSchema.required]);
   const properties = useMemo(() => (jsonSchema.properties || {}) as Record<string, any>, [jsonSchema.properties]);
 
@@ -110,7 +111,7 @@ export const SchemaForm: React.FC<{
           };
           let value = obj?.[n];
 
-          const editorProps = { value, onChange: change };
+          const editorProps = { value, onChange: change, disabled };
 
           if (f.airbyte_hidden) {
             return null;
@@ -151,6 +152,7 @@ export const SchemaForm: React.FC<{
                           hiddenFields={hiddenFields}
                           fieldSchema={f}
                           onChange={onChange}
+                          disabled={editorProps.disabled}
                           value={value}
                         />
                       );
@@ -160,6 +162,7 @@ export const SchemaForm: React.FC<{
                         hiddenFields={hiddenFields}
                         key={newPath.join(".")}
                         path={newPath}
+                        disabled={editorProps.disabled}
                         showErrors={showErrors}
                         jsonSchema={f}
                         onChange={onChange}
@@ -205,11 +208,11 @@ export const SchemaForm: React.FC<{
                           />
                         );
                       }
+                      if (f.airbyte_secret) {
+                        return <PasswordEditor rows={f.multiline ? 4 : undefined} {...editorProps} />;
+                      }
                       if (f.multiline) {
                         return <TextEditor rows={4} {...editorProps} />;
-                      }
-                      if (f.airbyte_secret) {
-                        return <PasswordEditor {...editorProps} />;
                       }
 
                       return <TextEditor {...editorProps} />;
@@ -223,6 +226,7 @@ export const SchemaForm: React.FC<{
                             path={newPath}
                             fieldSchema={f}
                             onChange={onChange}
+                            disabled={editorProps.disabled}
                             value={value}
                             showErrors={showErrors}
                             hiddenFields={hiddenFields}
@@ -282,8 +286,9 @@ const ArrayOfObjects: React.FC<{
   value?: any;
   hiddenFields?: any;
   showErrors?: boolean;
+  disabled?: boolean;
   onChange: (path: string[], v: any) => void;
-}> = ({ fieldSchema, value, hiddenFields, name, path, onChange, showErrors }) => {
+}> = ({ fieldSchema, value, hiddenFields, name, path, onChange, showErrors, disabled }) => {
   const items = !value
     ? []
     : value.map((v, i) => {
@@ -296,6 +301,7 @@ const ArrayOfObjects: React.FC<{
               <SchemaForm
                 hiddenFields={hiddenFields}
                 showErrors={showErrors}
+                disabled={disabled}
                 path={arrPath}
                 jsonSchema={fieldSchema.items}
                 onChange={onChange}
@@ -323,8 +329,9 @@ const OneOf: React.FC<{
   value?: any;
   hiddenFields?: any;
   showErrors?: boolean;
+  disabled?: boolean;
   onChange: (path: string[], v: any) => void;
-}> = ({ fieldSchema, value, hiddenFields, name, path, onChange, showErrors }) => {
+}> = ({ fieldSchema, value, hiddenFields, name, path, onChange, showErrors, disabled }) => {
   const options = (fieldSchema.oneOf as any[]).map((o, i) => ({
     label: o.title,
     value: i,
@@ -397,6 +404,7 @@ const OneOf: React.FC<{
               fieldSchema.oneOf[v].properties[discriminatorKey].enum?.[0],
           });
         }}
+        disabled={disabled}
         options={filteredOptions}
       />
       {selected && (
@@ -405,6 +413,7 @@ const OneOf: React.FC<{
           key={selectedIdx + "." + path.join(".")}
           showErrors={showErrors}
           path={path}
+          disabled={disabled}
           jsonSchema={selected}
           onChange={onChange}
           obj={value}

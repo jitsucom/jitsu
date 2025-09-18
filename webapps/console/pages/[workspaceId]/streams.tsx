@@ -7,17 +7,18 @@ import Link from "next/link";
 import { FaExternalLinkAlt } from "react-icons/fa";
 import { branding } from "../../lib/branding";
 import { useRouter } from "next/router";
-import { TrackingIntegrationDocumentation } from "../../components/TrackingIntegrationDocumentation/TrackingIntegrationDocumentation";
 import { StreamKeysEditor } from "../../components/ApiKeyEditor/ApiKeyEditor";
-import { Activity, AlertTriangle, Check, Wrench, Zap } from "lucide-react";
+import { Activity, AlertTriangle, Check, Copy, Wrench, Zap } from "lucide-react";
 import { FaviconLoader } from "./index";
 import { ObjectTitle } from "../../components/ObjectTitle/ObjectTitle";
-import omit from "lodash/omit";
 import { toURL } from "../../lib/shared/url";
 import JSON5 from "json5";
 import { EditorToolbar } from "../../components/EditorToolbar/EditorToolbar";
 import { useConfigObjectLinks, useConfigObjectList } from "../../lib/store";
 import { DomainsEditor } from "../../components/DomainsEditor/DomainsEditor";
+import { TrackingIntegrationDocumentation } from "../../components/TrackingIntegrationDocumentation/TrackingIntegrationDocumentation";
+import omit from "lodash/omit";
+import { copyTextToClipboard, feedbackSuccess } from "../../lib/ui";
 
 const Streams: React.FC<any> = () => {
   return (
@@ -33,11 +34,12 @@ export const StreamTitle: React.FC<{
   title?: (s: StreamConfig) => string | React.ReactNode;
   link?: boolean;
 }> = ({ stream, title = s => s.name, size = "default", link }) => {
+  const workspace = useWorkspace();
   return (
     <ObjectTitle
       icon={<FaviconLoader potentialUrl={stream?.name} />}
       size={size}
-      href={stream && link ? `/${stream.workspaceId}/streams?id=${stream?.id}` : undefined}
+      href={stream && link ? `/${workspace.slugOrId}/streams?id=${stream?.id}` : undefined}
       title={stream ? title(stream) : "Unknown stream"}
     />
   );
@@ -61,6 +63,15 @@ const StreamsList: React.FC<{}> = () => {
       !isNew && (
         <EditorToolbar
           items={[
+            {
+              title: "ID: " + obj.id,
+              icon: <Copy className="w-full h-full" />,
+              href: "#",
+              onClick: () => {
+                copyTextToClipboard(obj.id);
+                feedbackSuccess("Copied to clipboard");
+              },
+            },
             {
               title: "Setup Instructions",
               icon: <Wrench className="w-full h-full" />,
@@ -90,9 +101,9 @@ const StreamsList: React.FC<{}> = () => {
         // <div className="mb-4 flex items-center justify-left">
         //
         //   <Link
-        //     href={`/${workspace.slug || workspace.id}/streams?id=${obj.id}&implementationFor=${obj.id}`}
+        //     href={`/${workspace.slugOrId}/streams?id=${obj.id}&implementationFor=${obj.id}`}
         //     onClick={() => {
-        //       router.replace(`/${workspace.slug || workspace.id}/streams?id=${obj.id}&implementationFor=${obj.id}`);
+        //       router.replace(`/${workspace.slugOrId}/streams?id=${obj.id}&implementationFor=${obj.id}`);
         //       setImplementationDocumentationId(obj.id);
         //     }}
         //     className="flex items-center space-x-2 border border-textLight px-2 py-1 rounded text-textLight text-xs"
@@ -184,7 +195,7 @@ const StreamsList: React.FC<{}> = () => {
                 <Check className="h-4 w-4 mr-1 text-success" />{" "}
                 <span className="text-sm">
                   Connected to{" "}
-                  <Link href={`/${workspace.slug}/connections?source=${s.id}`}>
+                  <Link href={`/${workspace.slugOrId}/connections?source=${s.id}`}>
                     {destinations.length} destination{destinations.length > 1 ? "s" : ""}
                   </Link>
                 </span>
@@ -208,6 +219,7 @@ const StreamsList: React.FC<{}> = () => {
     fields: {
       type: { constant: "stream" },
       workspaceId: { constant: workspace.id },
+      cloneId: { hidden: true },
       strict: {
         editor: CustomCheckbox,
         displayName: "Strict Mode",

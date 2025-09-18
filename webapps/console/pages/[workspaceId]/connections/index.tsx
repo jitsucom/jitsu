@@ -15,7 +15,7 @@ import { useRouter } from "next/router";
 import { jsonSerializationBase64, useQueryStringState } from "../../../lib/useQueryStringState";
 import { TableProps } from "antd/es/table/InternalTable";
 import { ColumnType, SortOrder } from "antd/es/table/interface";
-import { Activity, Edit3, Inbox, UserRoundPen, XCircle } from "lucide-react";
+import { Activity, Edit3, Inbox, UserRoundPen, XCircle, Power, PowerOff } from "lucide-react";
 import { PlusOutlined } from "@ant-design/icons";
 import { WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
 import { DestinationTitle } from "../destinations";
@@ -25,9 +25,16 @@ import { FunctionTitle } from "../functions";
 import omit from "lodash/omit";
 import { toURL } from "../../../lib/shared/url";
 import JSON5 from "json5";
-import { useConfigObjectLinks, useConfigObjectList, useStoreReload } from "../../../lib/store";
+import {
+  useConfigObjectLinks,
+  useConfigObjectList,
+  useStoreReload,
+  useConfigObjectLinkMutation,
+} from "../../../lib/store";
 import { ServiceTitle } from "../services";
 import { ObjectTitle } from "../../../components/ObjectTitle/ObjectTitle";
+import { WLink } from "../../../components/Workspace/WLink";
+import { useAntdModal } from "../../../lib/modal";
 
 function EmptyLinks() {
   const workspace = useWorkspace();
@@ -36,8 +43,8 @@ function EmptyLinks() {
       <div className="flex flex-col items-center">
         <div className="text-xl text-textLight mb-3">
           {" "}
-          You don't have any links between <Link href={`/${workspace.id}/sites`}>sites</Link> and{" "}
-          <Link href={`/${workspace.id}/destinations`}>destinations</Link>
+          You don't have any links between <Link href={`/${workspace.slugOrId}/sites`}>sites</Link> and{" "}
+          <Link href={`/${workspace.slugOrId}/destinations`}>destinations</Link>
         </div>
 
         <WJitsuButton href={`/connections/edit`} type="link">
@@ -60,11 +67,11 @@ export const ConnectionTitle: React.FC<{
       {service && <ServiceTitle size={"small"} service={service} />}
       {stream && <StreamTitle size={"small"} stream={stream} />}
       {!stream && !service && "DELETED "}
-      {"→"}
+      {"➞"}
       <DestinationTitle size={"small"} destination={destination} />
       {showLink && (
         <WJitsuButton
-          href={`/connection/edit?id=${connectionId}`}
+          href={`/connections/edit?id=${connectionId}`}
           type="link"
           className="link"
           size="small"
@@ -125,6 +132,7 @@ function ConnectionsTable({ links, streams, destinations, functions, reloadCallb
   const streamsById = index(streams, "id");
   const destinationsById = index(destinations, "id");
   const functionsById = index(functions, "id");
+  const modal = useAntdModal();
 
   const workspace = useWorkspace();
   const router = useRouter();
@@ -136,13 +144,19 @@ function ConnectionsTable({ links, streams, destinations, functions, reloadCallb
   });
   const reloadStore = useStoreReload();
 
+  const onSaveMutation = useConfigObjectLinkMutation(async (obj: any) => {
+    await get(`/api/${workspace.id}/config/link`, {
+      body: obj,
+    });
+  });
+
   const deleteConnection = async (link: Omit<ConfigurationLinkDbModel, "data">) => {
     if (await confirmOp("Are you sure you want to unlink this site from this destination?")) {
       setLoading(true);
       try {
         await get(`/api/${workspace.id}/config/link`, {
           method: "DELETE",
-          query: { fromId: link.fromId, toId: link.toId },
+          query: { id: link.id },
         });
         await reloadStore();
         feedbackSuccess("Successfully unliked");
@@ -190,9 +204,9 @@ function ConnectionsTable({ links, streams, destinations, functions, reloadCallb
           return <div>Stream not found</div>;
         }
         return (
-          <div className="flex items-center">
-            <StreamTitle stream={stream} link />
-          </div>
+          <WLink href={`/connections/edit?id=${link.id}`}>
+            <StreamTitle stream={stream} />
+          </WLink>
         );
       },
     },
@@ -212,9 +226,9 @@ function ConnectionsTable({ links, streams, destinations, functions, reloadCallb
           return <div>Destination not found</div>;
         }
         return (
-          <div className="flex items-center">
-            <DestinationTitle destination={destination} link />
-          </div>
+          <WLink href={`/connections/edit?id=${link.id}`}>
+            <DestinationTitle destination={destination} />
+          </WLink>
         );
       },
     },
@@ -236,7 +250,7 @@ function ConnectionsTable({ links, streams, destinations, functions, reloadCallb
                   return (
                     <div
                       className="cursor-pointer"
-                      onClick={e => router.push(`/${workspace.id}/functions?id=${id}`)}
+                      onClick={e => router.push(`/${workspace.slugOrId}/functions?id=${id}`)}
                       key={i}
                     >
                       <FunctionTitle size={"small"} f={func} />
@@ -251,7 +265,9 @@ function ConnectionsTable({ links, streams, destinations, functions, reloadCallb
       title: <span onClick={() => setShowId(!showId)}>Actions</span>,
       key: "actions",
       render: (text, link) => {
+        const stream = streamsById[link.fromId];
         const dst = destinationsById[link.toId];
+        const isEnabled = !link.data?.disabled;
         let type = "function";
         try {
           if (getCoreDestinationType(dst.destinationType).usesBulker) {
@@ -260,9 +276,51 @@ function ConnectionsTable({ links, streams, destinations, functions, reloadCallb
         } catch (e) {}
         const items: ButtonProps[] = [
           {
+            icon: isEnabled ? <PowerOff className={"w-4 h-4"} /> : <Power className={"w-4 h-4"} />,
+            label: isEnabled ? "Disable connection" : "Enable connection",
+            collapsed: true,
+            onClick: async () => {
+              modal.confirm({
+                title: `Are you sure you want to ${!isEnabled ? "enable" : "disable"} this connection?`,
+                content: (
+                  <>
+                    This will <b>{isEnabled ? "disable" : "enable"}</b> the connection between
+                    <br />
+                    <b>{stream.name}</b> and <b>{dst.name}</b>
+                  </>
+                ),
+                okType: isEnabled ? "danger" : "primary",
+                okText: !isEnabled ? "Enable" : "Disable",
+                cancelText: "Cancel",
+                onOk: async () => {
+                  setLoading(true);
+                  try {
+                    const updatedLink = {
+                      ...link,
+                      data: {
+                        ...link.data,
+                        disabled: isEnabled,
+                      },
+                    };
+                    await onSaveMutation.mutateAsync(updatedLink);
+                    await reloadStore();
+                    feedbackSuccess(`Connection ${!isEnabled ? "enabled" : "disabled"}`);
+                    reloadCallback();
+                  } catch (e) {
+                    feedbackError(`Failed to ${!isEnabled ? "enable" : "disable"} connection`, { error: e });
+                  } finally {
+                    setLoading(false);
+                  }
+                },
+              });
+            },
+            requiredPermission: "editEntities",
+          },
+          {
             icon: <Edit3 className={"w-4 h-4"} />,
             label: "Edit",
             href: `/connections/edit?id=${link.id}`,
+            requiredPermission: "editEntities",
           },
           {
             icon: <Activity className="w-4 h-4" />,
@@ -283,6 +341,7 @@ function ConnectionsTable({ links, streams, destinations, functions, reloadCallb
             },
             danger: true,
             label: "Delete",
+            requiredPermission: "deleteEntities",
           },
         ];
         return <ButtonGroup items={items} />;
@@ -296,7 +355,10 @@ function ConnectionsTable({ links, streams, destinations, functions, reloadCallb
         dataSource={links}
         sortDirections={["ascend", "descend"]}
         columns={columns}
-        className="border border-backgroundDark rounded-lg"
+        rowClassName={link => {
+          return link.data?.disabled ? "opacity-50" : "";
+        }}
+        className="border border-backgroundDark rounded-lg "
         pagination={false}
         loading={loading}
         onChange={onChange}
@@ -318,20 +380,20 @@ function Connections(props: RemoteEntitiesProps) {
         <div className="text-center mt-12 text text-textLight max-w-4xl">
           In order to connect site to destination please create at least one destination and one stream. Currently, you
           have{" "}
-          <Link href={`/${workspace.slug || workspace.id}/destinations`} className="underline">
+          <Link href={`/${workspace.slugOrId}/destinations`} className="underline">
             {props.destinations.length} destination{props.destinations.length === 1 ? "" : "s"}
           </Link>{" "}
           and{" "}
-          <Link href={`/${workspace.slug || workspace.id}/streams`} className="underline">
+          <Link href={`/${workspace.slugOrId}/streams`} className="underline">
             {props.streams.length} site{props.streams.length === 1 ? "" : "s"}
           </Link>{" "}
           configured
         </div>
         <div className="flex space-x-4 items-center mt-4">
-          <WJitsuButton href={"/destinations"} type="default" icon={<PlusOutlined />}>
+          <WJitsuButton href={"/destinations"} type="default" icon={<PlusOutlined />} requiredPermission="editEntities">
             Create Destination
           </WJitsuButton>
-          <WJitsuButton href={"/streams"} type="default" icon={<PlusOutlined />}>
+          <WJitsuButton href={"/streams"} type="default" icon={<PlusOutlined />} requiredPermission="editEntities">
             Create Site
           </WJitsuButton>
         </div>
@@ -363,7 +425,13 @@ function Connections(props: RemoteEntitiesProps) {
           )}
         </div>
         <div>
-          <WJitsuButton href={`/connections/edit`} type="primary" size="large" icon={<FaPlus className="anticon" />}>
+          <WJitsuButton
+            href={`/connections/edit`}
+            type="primary"
+            size="large"
+            icon={<FaPlus className="anticon" />}
+            requiredPermission="editEntities"
+          >
             Connect site and destination
           </WJitsuButton>
         </div>

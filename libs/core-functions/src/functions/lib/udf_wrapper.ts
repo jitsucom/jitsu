@@ -1,10 +1,12 @@
 import { getLog, LogLevel, parseNumber, sanitize, stopwatch } from "juava";
-import { Isolate, ExternalCopy, Reference, Module, Context } from "isolated-vm";
-import { EventContext, FuncReturn, Store, TTLStore, FetchOpts } from "@jitsu/protocols/functions";
+import { Context, ExternalCopy, Isolate, Module, Reference } from "isolated-vm";
+import { EventContext, FetchOpts, FuncReturn, Store, TTLStore } from "@jitsu/protocols/functions";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 
 import {
   createMemoryStore,
+  EnrichedConnectionConfig,
+  EntityStore,
   EventsStore,
   FunctionChainContext,
   FunctionContext,
@@ -12,8 +14,9 @@ import {
   makeFetch,
   makeLog,
   memoryStoreDump,
+  warehouseQuery,
 } from "../../index";
-import { functionsLibCode, chainWrapperCode } from "./udf-wrapper-code";
+import { chainWrapperCode, functionsLibCode } from "./udf-wrapper-code";
 import { parseUserAgent } from "./ua";
 import { RetryError } from "@jitsu/functions-lib";
 import { JitsuFunctionWrapper } from "./index";
@@ -90,6 +93,7 @@ export const UDFWrapper = (
     jail.setSync("require", () => {
       throw new Error("'require' is not supported. Please use 'import' instead");
     });
+    jail.setSync("_jitsu_query", makeReference(refs, chainCtx.query));
     jail.setSync(
       "_jitsu_fetch",
       makeReference(refs, async (url: string, opts?: FetchOpts, extra?: any) => {
@@ -251,7 +255,7 @@ function wrap(connectionId: string, isolate: Isolate, context: Context, wrapper:
           ctxCopy.copyInto({ release: true, transferIn: true }),
         ],
         {
-          result: { promise: true },
+          result: { promise: true, copy: true },
         }
       );
       switch (typeof res) {
@@ -262,9 +266,7 @@ function wrap(connectionId: string, isolate: Isolate, context: Context, wrapper:
         case "boolean":
           return res;
         default:
-          const r = (res as Reference).copy();
-          (res as Reference).release();
-          return r;
+          return res;
       }
     } catch (e: any) {
       //console.error(e);
@@ -352,21 +354,16 @@ export type UDFTestResponse = {
   logs: logType[];
 };
 
-export async function UDFTestRun({
-  functionId: id,
-  functionName: name,
-  code,
-  store,
-  event,
-  variables,
-  userAgent,
-  workspaceId,
-}: UDFTestRequest): Promise<UDFTestResponse> {
+export async function UDFTestRun(
+  { functionId: id, functionName: name, code, store, event, variables, userAgent, workspaceId }: UDFTestRequest,
+  connStore?: EntityStore<EnrichedConnectionConfig>
+): Promise<UDFTestResponse> {
   const logs: logType[] = [];
   let wrapper: UDFWrapperResult | undefined = undefined;
   let realStore = false;
   try {
     const eventContext: EventContext = {
+      receivedAt: new Date(),
       geo: {
         country: {
           code: "US",
@@ -396,6 +393,7 @@ export async function UDFTestRun({
       headers: {},
       source: {
         id: "functionsDebugger-streamId",
+        name: "Functions Debugger Stream",
         type: "browser",
       },
       destination: {
@@ -407,6 +405,15 @@ export async function UDFTestRun({
       connection: {
         id: "functionsDebugger",
       },
+      allConnections: [
+        {
+          id: "functionsDebugger",
+          destinationId: "functionsDebugger-destinationId",
+          destinationName: "Functions Debugger Destination",
+          type: "clickhouse",
+          mode: "batch",
+        },
+      ],
       workspace: {
         id: workspaceId,
       },
@@ -467,6 +474,13 @@ export async function UDFTestRun({
     };
     const chainCtx: FunctionChainContext = {
       store: storeImpl,
+      query: async (conId: string, query: string, params: any) => {
+        if (connStore) {
+          return warehouseQuery(workspaceId, connStore, conId, query, params);
+        } else {
+          throw new Error("Connection store is not provided");
+        }
+      },
       fetch: makeFetch("functionsDebugger", eventsStore, "info"),
       log: makeLog("functionsDebugger", eventsStore),
     };

@@ -1,3 +1,5 @@
+"use client";
+
 import * as React from "react";
 import { PropsWithChildren, useMemo } from "react";
 import JitsuContext, { JitsuInstance } from "./JitsuContext";

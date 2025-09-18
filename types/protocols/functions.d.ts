@@ -66,10 +66,16 @@ export type FunctionLogger<Sync extends boolean = false> = {
   debug: (message: string, ...args: any[]) => void | Promise<void>;
   error: (message: string, ...args: any[]) => void | Promise<void>;
 };
+
+interface Warehouse {
+  query: (sql: string, params?: Record<string, any>) => Promise<any[]>;
+}
+
 export type FunctionContext<P extends AnyProps = AnyProps> = {
   log: FunctionLogger;
   fetch: FetchType;
   store: TTLStore;
+  getWarehouse: (destinationId: string) => Warehouse;
   metrics?: FunctionMetrics;
   props: P;
 };
@@ -159,9 +165,19 @@ export type EventContext = {
     mode?: string;
     options?: any;
   };
+  // available in Profile Builder transformations
+  allConnections?: {
+    id: string;
+    destinationId: string;
+    destinationName: string;
+    type: string;
+    mode: string;
+  }[];
   workspace: {
     id: string;
   };
+  // original receivedAt as it stamped by the ingest service;
+  receivedAt: Date;
   // number of retries attempted
   retries?: number;
 };

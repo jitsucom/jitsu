@@ -94,7 +94,7 @@ async function processSrc(src: string, initial?: boolean) {
   const res = await fetch(metadataUrl);
   let packageId: string | undefined = undefined;
   let metadata: any = {};
-  let icon: Buffer | undefined = undefined;
+  let icon: Uint8Array | undefined = undefined;
   logger.log(`Processing ${src}: ${metadataUrl}`);
   if (res.ok) {
     metadata = yaml.load(await res.text(), { json: true });
@@ -114,7 +114,7 @@ async function processSrc(src: string, initial?: boolean) {
     const iconUrl = `https://raw.githubusercontent.com/${repo}/master/${basePath}/${src}/icon.svg`;
     const iconRes = await fetch(iconUrl);
     if (iconRes.ok) {
-      icon = Buffer.from(await iconRes.arrayBuffer());
+      icon = new Uint8Array(await iconRes.arrayBuffer());
     } else {
       logger.log(`Source ${src} icon file ${metadata.data?.icon} doesn't exist at ${iconUrl}`);
     }

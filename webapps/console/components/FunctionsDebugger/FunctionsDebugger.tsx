@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { getConfigApi, useEventsLogApi } from "../../lib/useApi";
 import { EventsLogRecord } from "../../lib/server/events-log";
-import { useWorkspace } from "../../lib/context";
+import { useWorkspace, useWorkspaceRole } from "../../lib/context";
 import { arrayToMap } from "../../lib/shared/arrays";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { ColumnsType } from "antd/es/table";
@@ -46,12 +46,14 @@ import { CodeViewer } from "./CodeViewer";
 import classNames from "classnames";
 import { ButtonLabel } from "../ButtonLabel/ButtonLabel";
 import { Dot } from "../ProfileBuilderPage/ProfileBuilderPage";
+import { JitsuButton } from "../JitsuButton/JitsuButton";
 
 type FunctionsDebuggerProps = {} & EditorComponentProps;
 
-export const EditableTitle: React.FC<{ children: string; onUpdate: (str: string) => void }> = ({
+export const EditableTitle: React.FC<{ children: string; onUpdate: (str: string) => void; disabled?: boolean }> = ({
   children,
   onUpdate,
+  disabled,
 }) => {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(children);
@@ -106,21 +108,25 @@ export const EditableTitle: React.FC<{ children: string; onUpdate: (str: string)
           <h1
             className="text-3xl cursor-pointer"
             onDoubleClick={() => {
-              setRollbackValue(value);
-              setEditing(true);
+              if (!disabled) {
+                setRollbackValue(value);
+                setEditing(true);
+              }
             }}
           >
             {value}
           </h1>
-          <button
-            className="hover:bg-neutral-100 py-1.5 px-2 rounded invisible group-hover:visible flex-grow-0 cursor-pointer"
-            onClick={() => {
-              setRollbackValue(value);
-              setEditing(true);
-            }}
-          >
-            <Pencil className="w-5 h-5" />
-          </button>
+          {!disabled && (
+            <button
+              className="hover:bg-neutral-100 py-1.5 px-2 rounded invisible group-hover:visible flex-grow-0 cursor-pointer"
+              onClick={() => {
+                setRollbackValue(value);
+                setEditing(true);
+              }}
+            >
+              <Pencil className="w-5 h-5" />
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -131,6 +137,8 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
   const { push } = useRouter();
 
   const workspace = useWorkspace();
+  const role = useWorkspaceRole();
+  const canEdit = role.editEntities;
   const [activePrimaryTab, setActivePrimaryTab] = useState("code");
   const [activeSecondaryTab, setActiveSecondaryTab] = useState("event");
   const [newResult, setNewResult] = useState(false);
@@ -174,7 +182,7 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
         feedbackError(`Can't save function without id`);
       }
       await reloadStore();
-      push(`/${workspace.id}/functions`);
+      push(`/${workspace.slugOrId}/functions`);
     } catch (error) {
       feedbackError(`Can't save function`, { error });
     } finally {
@@ -283,6 +291,7 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
         <EventsSelector selectEvent={e => setEvent(JSON.stringify(e, undefined, 2))} />
       </Drawer>
       <EditableTitle
+        disabled={!canEdit}
         onUpdate={name => {
           setObj({ ...obj, name });
         }}
@@ -298,12 +307,12 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
             onChange={setActivePrimaryTab}
             tabBarExtraContent={
               <div className="flex items-center gap-2">
-                <Button type="text" onClick={() => push(`/${workspace.id}/functions`)} disabled={saving}>
+                <Button type="text" onClick={() => push(`/${workspace.slugOrId}/functions`)} disabled={saving}>
                   <ButtonLabel icon={<Undo2 className="w-4 h-4" />}>Cancel</ButtonLabel>
                 </Button>
-                <Button type="text" onClick={save} disabled={saving}>
+                <JitsuButton type="text" onClick={save} disabled={saving} requiredPermission={"editEntities"}>
                   <ButtonLabel icon={<Save className="w-4 h-4" />}>Save</ButtonLabel>
-                </Button>
+                </JitsuButton>
               </div>
             }
             type={"card"}
@@ -397,7 +406,7 @@ declare class RetryError extends Error {
                     </Button>
                   </>
                 )}
-                <Button onClick={runFunction} type="text" disabled={saving}>
+                <JitsuButton requiredPermission={"editEntities"} onClick={runFunction} type="text" disabled={saving}>
                   <ButtonLabel
                     icon={
                       running ? (
@@ -409,7 +418,7 @@ declare class RetryError extends Error {
                   >
                     Run
                   </ButtonLabel>
-                </Button>
+                </JitsuButton>
               </div>
             }
             type={"card"}

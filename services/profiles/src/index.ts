@@ -1,9 +1,9 @@
-import { checkHash, checkRawToken, disableService, getLog, setServerJsonFormat } from "juava";
+import { checkHash, checkRawToken, getLog, setServerJsonFormat } from "juava";
 import express from "express";
 import Prometheus from "prom-client";
 import { Server } from "node:net";
 import { getHeapSnapshot } from "node:v8";
-import { profilesStore } from "./lib/repositories";
+import { connectionsStore, profilesStore } from "./lib/repositories";
 import { db } from "./lib/db";
 import { profileBuilder, ProfileBuilderRunner } from "./builder";
 import { createClickhouseLogger, DummyEventsStore, EventsStore, mongodb } from "@jitsu/core-functions";
@@ -71,6 +71,7 @@ async function main() {
     }
 
     profilesStore.stop();
+    connectionsStore.stop();
 
     await db.pgPool.close();
 
@@ -104,6 +105,11 @@ async function main() {
       log.atError().log("Connection store is not configured. Profile Builder will not work");
       process.exit(1);
     }
+    const connStore = await connectionsStore.get();
+    if (!connStore.enabled) {
+      log.atError().log("Connection store is not configured. Profile Builder will not work");
+      process.exit(1);
+    }
 
     metricsServer = initMetricsServer();
   } catch (e) {
@@ -128,11 +134,15 @@ function refreshLoop(eventsLogger: EventsStore) {
             const currentPb = profileBuilders.get(pb.id);
             if (currentPb) {
               if (pb.version != currentPb.version()) {
+                log
+                  .atInfo()
+                  .log(`Profile builder version changed for: ${pb.id} v: ${pb.version} old: ${currentPb.version()}`);
                 await currentPb.close();
                 profileBuilders.delete(pb.id);
                 profileBuilders.set(pb.id, await profileBuilder(workspaceId, pb, eventsLogger));
               }
             } else {
+              log.atInfo().log(`Starting profile builder for: ${pb.id} v: ${pb.version}`);
               profileBuilders.set(pb.id, await profileBuilder(workspaceId, pb, eventsLogger));
             }
             actualProfileBuilders.add(pb.id);
@@ -144,6 +154,7 @@ function refreshLoop(eventsLogger: EventsStore) {
       for (const [pbId, pb] of profileBuilders) {
         if (!actualProfileBuilders.has(pbId)) {
           try {
+            log.atInfo().log(`Deleting profile builder for: ${pbId} v: ${pb.version}`);
             await pb.close();
             profileBuilders.delete(pbId);
           } catch (e) {
@@ -157,7 +168,7 @@ function refreshLoop(eventsLogger: EventsStore) {
       }
     }
   })().catch(async e => {
-    log.atError().withCause(e).log("Failed");
+    log.atError().withCause(e).log("Failed refresh loop");
     process.kill(process.pid, "SIGTERM");
   });
 }
@@ -194,6 +205,12 @@ function initHTTP() {
         status: profilesStore.status(),
         lastUpdated: profilesStore.lastRefresh(),
         lastModified: profilesStore.lastModified(),
+      },
+      connectionsStore: {
+        enabled: connectionsStore.getCurrent()?.enabled || "loading",
+        status: connectionsStore.status(),
+        lastUpdated: connectionsStore.lastRefresh(),
+        lastModified: connectionsStore.lastModified(),
       },
     });
   });

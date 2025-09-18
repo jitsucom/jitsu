@@ -12,11 +12,15 @@ import { ProfileResult } from "@jitsu/protocols/profile";
 import { chainWrapperCode, functionsLibCode } from "./profiles-udf-wrapper-code";
 import { logType } from "./udf_wrapper";
 import { createMemoryStore, memoryStoreDump } from "./store";
+import { warehouseQuery } from "./warehouse-store";
+import { EntityStore } from "../../lib/entity-store";
+import { EnrichedConnectionConfig } from "../../lib/config-types";
 
 const log = getLog("udf-wrapper");
 
 export type ProfileUser = {
-  id: string;
+  profileId: string;
+  userId: string;
   anonymousId: string;
   traits: Record<string, any>;
 };
@@ -26,6 +30,8 @@ export type EventsProvider = () => Promise<AnalyticsServerEvent | undefined>;
 
 export type Profile = {
   profile_id: string;
+  destination_id?: string;
+  table_name?: string;
   traits: Record<string, any>;
   version?: number;
   updated_at: Date;
@@ -100,6 +106,7 @@ export const ProfileUDFWrapper = (
     jail.setSync("require", () => {
       throw new Error("'require' is not supported. Please use 'import' instead");
     });
+    jail.setSync("_jitsu_query", makeReference(refs, chainCtx.query));
     jail.setSync(
       "_jitsu_fetch",
       makeReference(refs, async (url: string, opts?: FetchOpts, extra?: any) => {
@@ -275,7 +282,7 @@ function wrap(connectionId: string, isolate: Isolate, context: Context, wrapper:
         undefined,
         [eventsProviderRef, userProviderRef, ctxCopy.copyInto({ release: true, transferIn: true })],
         {
-          result: { promise: true },
+          result: { promise: true, copy: true },
         }
       );
       switch (typeof res) {
@@ -285,9 +292,7 @@ function wrap(connectionId: string, isolate: Isolate, context: Context, wrapper:
         case "boolean":
           return undefined;
         default:
-          const r = (res as Reference).copy();
-          (res as Reference).release();
-          return r;
+          return res as any;
       }
     } catch (e: any) {
       if (isolate.isDisposed) {
@@ -353,7 +358,7 @@ function makeReference(refs: Reference[], obj: any): Reference {
 }
 
 export async function mergeUserTraits(events: AnalyticsServerEvent[], userId?: string): Promise<ProfileUser> {
-  const user = { traits: {}, id: userId || events[0]?.userId } as ProfileUser;
+  const user = { traits: {}, profileId: events[0]?._profile_id, userId: userId || events[0]?.userId } as ProfileUser;
   for await (const e of events) {
     if (e.type === "identify") {
       if (e.anonymousId) {
@@ -373,7 +378,12 @@ export type ProfileUDFTestRequest = {
   version: number;
   code: string | UDFWrapperResult;
   events: AnalyticsServerEvent[];
-  variables: any;
+  settings: {
+    variables: any;
+    destinationId: string;
+    tableName?: string;
+    [key: string]: any;
+  };
   store: Store | any;
   workspaceId: string;
   userAgent?: string;
@@ -391,18 +401,12 @@ export type ProfileUDFTestResponse = {
   logs: logType[];
 };
 
-export async function ProfileUDFTestRun({
-  id,
-  name,
-  version,
-  code,
-  store,
-  events,
-  variables,
-  userAgent,
-  workspaceId,
-}: ProfileUDFTestRequest): Promise<ProfileUDFTestResponse> {
+export async function ProfileUDFTestRun(
+  { id, name, version, code, store, events, settings, userAgent, workspaceId }: ProfileUDFTestRequest,
+  connStore?: EntityStore<EnrichedConnectionConfig>
+): Promise<ProfileUDFTestResponse> {
   const logs: logType[] = [];
+  const { variables, tableName, destinationId } = settings;
   let wrapper: UDFWrapperResult | undefined = undefined;
   let realStore = false;
   const user = await mergeUserTraits(events);
@@ -473,6 +477,13 @@ export async function ProfileUDFTestRun({
     };
     const chainCtx: FunctionChainContext = {
       store: storeImpl,
+      query: async (conId: string, query: string, params: any) => {
+        if (connStore) {
+          return warehouseQuery(workspaceId, connStore, conId, query, params);
+        } else {
+          throw new Error("Connection store is not provided");
+        }
+      },
       fetch: makeFetch("functionsDebugger", eventsStore, "info"),
       log: makeLog("functionsDebugger", eventsStore),
     };
@@ -493,7 +504,9 @@ export async function ProfileUDFTestRun({
     }
     const result = await wrapper?.userFunction(eventsProvider, userProvider, funcCtx);
     const profile = {
-      profile_id: user.id,
+      profile_id: result?.profileId || result?.["profile_id"] || user.profileId || user.userId,
+      destination_id: result?.destinationId || result?.["destination_id"] || destinationId,
+      table_name: result?.tableName || result?.["table_name"] || tableName || "profiles",
       traits: { ...user.traits, ...result?.traits },
       version: version,
       updated_at: new Date(),
@@ -512,7 +525,9 @@ export async function ProfileUDFTestRun({
         retryPolicy: e.retryPolicy,
       },
       result: {
-        profile_id: user.id,
+        profile_id: user.profileId || user.userId,
+        destination_id: destinationId,
+        table_name: tableName,
         traits: {},
         updated_at: new Date(),
       },

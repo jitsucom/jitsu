@@ -85,7 +85,9 @@ export default createRoute()
         for (const rw of rs) {
           const r = rw.json() as any;
           if (gzip.bytesWritten < maxStreamingResponseSize) {
-            const line = `${dayjs(r[0]).utc().format("YYYY-MM-DD HH:mm:ss.SSS")} ${r[1]} [${r[2]}] ${r[3]}\n`;
+            const line = `${dayjs(r[0]).utc().format("YYYY-MM-DD HH:mm:ss.SSS")} ${r[1]} [${r[2]}] ${r[3]}${
+              query.download ? "\n" : "#ENDLINE#"
+            }`;
             gzip.write(line);
           } else {
             stream.destroy();
@@ -115,7 +117,7 @@ export default createRoute()
           r => {
             const line = `${dayjs(r.timestamp).utc().format("YYYY-MM-DD HH:mm:ss.SSS")} ${r.level} [${r.logger}] ${
               r.message
-            }\n`;
+            }${query.download ? "\n" : "#ENDLINE#"}`;
             if (gzip.bytesWritten < maxResponseSize) {
               gzip.write(line);
             }

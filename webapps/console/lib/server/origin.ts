@@ -11,3 +11,11 @@ export function getTopLevelDomain(requestDomain: string): string {
   }
   return parts.slice(-2).join(".");
 }
+
+export function isSecure(req: NextApiRequest) {
+  const forwardedProto = req.headers["x-forwarded-proto"];
+  if (forwardedProto === "https") {
+    return true;
+  }
+  return !!((req.socket || {}) as any).encrypted;
+}

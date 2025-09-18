@@ -1,28 +1,16 @@
-/**
- * Shortened destination config for that is saved to store. It contains only information needed
- * to serve destination on the edge.
- *
- * See {@link DestinationConfig} for full destination config.
- */
-export type ShortDestinationConfig = SyncShortDestinationConfig | AsyncShortDestinationConfig;
-
-export type CommonShortDestinationConfig = {
+export type ShortDestinationConfig = {
   id: string;
   connectionId: string;
   destinationType: string;
+  name: string;
   credentials: any;
   options: any;
 };
 
-export type SyncShortDestinationConfig = { isSynchronous: true } & CommonShortDestinationConfig;
-
-export type AsyncShortDestinationConfig = { isSynchronous: false } & CommonShortDestinationConfig;
-
 export type StreamWithDestinations = {
   stream: any;
   backupEnabled: boolean;
-  synchronousDestinations: ShortDestinationConfig[];
-  asynchronousDestinations: ShortDestinationConfig[];
+  destinations: ShortDestinationConfig[];
 };
 
 export type FunctionConfig = {
@@ -42,6 +30,7 @@ export type EnrichedConnectionConfig = {
   updatedAt?: Date;
   destinationId: string;
   streamId: string;
+  streamName?: string;
   metricsKeyPrefix: string;
   usesBulker: boolean;
   //destinationType

@@ -211,7 +211,40 @@ describe("Test Jitsu NodeJS client", () => {
     expect(p.body.groupId).toEqual("myGroupId");
     expect(p.body.context?.traits?.email).toEqual("myUserId@example.com");
     expect(p.body.context?.consent?.categoryPreferences).toEqual({ analytics: true });
+
     expect((p.body.anonymousId ?? "").length).toBeGreaterThan(0);
+  });
+
+  test("test setContextProperty", async () => {
+    const config = {
+      host: server.baseUrl,
+      writeKey: "key:secret",
+      debug: true,
+    };
+    const client = jitsuAnalytics(config);
+    expect(requestLog.length).toBe(0);
+    await client.track("myEvent", { prop1: "value1" });
+    client.setContextProperty("awesomeIdentifier", "awesome-identifier");
+    client.setContextProperty("awesome", {
+      nestedKey: "awesome-key",
+    });
+    await client.track("myEvent2", { prop1: "value2" });
+    const v = client.getContextProperty("awesomeIdentifier");
+    expect(v).toBe("awesome-identifier");
+    client.setContextProperty("awesomeIdentifier", undefined);
+    client.setContextProperty("awesome", {
+      nestedKey: "awesome-key2",
+    });
+    await client.track("myEvent3", { prop1: "value3" });
+
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    expect(requestLog.length).toBe(3);
+    expect(requestLog[0].body.context.awesomeIdentifier).toBeUndefined();
+    expect(requestLog[0].body.context.awesome).toBeUndefined();
+    expect(requestLog[1].body.context.awesomeIdentifier).toBe("awesome-identifier");
+    expect(requestLog[1].body.context.awesome.nestedKey).toBe("awesome-key");
+    expect(requestLog[2].body.context.awesomeIdentifier).toBeUndefined();
+    expect(requestLog[2].body.context.awesome.nestedKey).toBe("awesome-key2");
   });
 
   test("test defaultPayloadContext", async () => {
@@ -241,7 +274,7 @@ describe("Test Jitsu NodeJS client", () => {
     expect(requestLog[2].body.context.awesome.nestedKey).toBe("awesome-key");
   });
 
-  test("node js", async () => {
+  test("node-js", async () => {
     const jitsu: AnalyticsInterface = jitsuAnalytics({
       writeKey: "key:secret",
       host: server.baseUrl,
@@ -267,8 +300,18 @@ describe("Test Jitsu NodeJS client", () => {
         },
       },
     });
+    await jitsu.track(
+      "email.open",
+      {},
+      {
+        userId: "myUserId",
+        traits: {
+          email: "john.doe@gmail.com",
+        },
+      }
+    );
     await new Promise(resolve => setTimeout(resolve, 1000));
-    expect(requestLog.length).toBe(4);
+    expect(requestLog.length).toBe(5);
     expect(requestLog[0].type).toBe("track");
     expect(requestLog[1].type).toBe("identify");
     expect(requestLog[2].type).toBe("group");
@@ -293,6 +336,10 @@ describe("Test Jitsu NodeJS client", () => {
 
     const pagePayload = requestLog[0].body;
     console.log("pagePayload", pagePayload);
+
+    const emailOpenPayload = requestLog[4].body;
+    console.log("emailOpenPayload", emailOpenPayload);
+    expect(emailOpenPayload.userId).toBe("myUserId");
   });
 
   test("tld", async () => {

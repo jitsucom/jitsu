@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="canonical" href="<%=trackingBase%>" />
+    <title>SPA Navigation Test</title>
+    <script>
+      window.jitsuConfig = {
+        debug: true,
+      };
+
+      window.testOnload = async j => {
+        window.jitsu = j;
+
+        j.page();
+        j.track("test-loaded");
+
+        function simulateNavigation(path, query, hash) {
+          const url = new URL(window.location.href);
+          url.pathname = path;
+          url.search = query;
+          url.hash = hash;
+
+          window.history.pushState({}, "", url.toString());
+          j.page();
+          j.track("navigation");
+        }
+
+        setTimeout(() => {
+          simulateNavigation("/page1", "", "");
+        }, 100);
+
+        setTimeout(() => {
+          simulateNavigation("/page2", "?param1=value1", "");
+        }, 200);
+
+        setTimeout(() => {
+          simulateNavigation("/page3", "?param1=value1&param2=value2", "#section1");
+        }, 300);
+
+        setTimeout(() => {
+          simulateNavigation("/page4/subpage", "", "#section2");
+        }, 400);
+
+        setTimeout(() => {
+          simulateNavigation("/final", "?utm_source=test&utm_medium=spa", "#top");
+        }, 500);
+
+        setTimeout(() => {
+          window.__spaTestComplete = true;
+        }, 600);
+      };
+    </script>
+    <script
+      type="text/javascript"
+      src="<%=trackingBase%>/p.js"
+      data-onload="testOnload"
+      data-init-only="true"
+      data-debug="true"
+      defer
+    ></script>
+  </head>
+  <body>
+    <h1>SPA Navigation Test</h1>
+    <div id="content">
+      <p>This page simulates a Single Page Application navigation</p>
+    </div>
+  </body>
+</html>

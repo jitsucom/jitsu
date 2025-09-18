@@ -29,13 +29,18 @@ function toUTC(date: Date | string) {
 async function getSyncsStat(periodStart: Date, periodEnd: Date, workspaceId: string): Promise<{ activeSyncs: number }> {
   const res = await query(
     pg,
-    `select
-        count(distinct sync."fromId" || sync."toId") as "activeSyncs"
-     from newjitsu.source_task task
-     join newjitsu."ConfigurationObjectLink" sync on task.sync_id = sync."id"
-     where 
-        (task.status = 'SUCCESS' OR task.status = 'PARTIAL') and deleted = false 
-        and "workspaceId" = :workspaceId and started_at >= :periodStart and started_at < :periodEnd`,
+    `
+      select count(distinct a."metaId") as "activeSyncs"
+      from (select sync."fromId" || sync."toId" as "metaId",
+                   (select task_id
+                    from newjitsu.source_task
+                    where sync_id = sync.id
+                      and (status = 'PARTIAL' or status = 'SUCCESS' )
+                      and started_at >= :periodStart and started_at < :periodEnd
+                    limit 1)                    as "taskId"
+            from newjitsu."ConfigurationObjectLink" sync
+            where "workspaceId" = :workspaceId and type = 'sync') a
+      where a."taskId" is not null`,
     { periodStart, periodEnd, workspaceId }
   );
   return res[0] as any;

@@ -13,32 +13,40 @@ import {
   useAppConfig,
   UserContextProvider,
   useUser,
+  useUserSafe,
   useWorkspace,
   WorkspaceContextProvider,
 } from "../lib/context";
 import { AppConfig, ContextApiResponse, SessionUser } from "../lib/schema";
 import { ErrorBoundary, GlobalError, GlobalOverlay } from "../components/GlobalError/GlobalError";
-import { feedbackError, useTitle } from "../lib/ui";
+import { useTitle } from "../lib/ui";
 import { useApi } from "../lib/useApi";
 import { AntdTheme } from "../components/AntdTheme/AntdTheme";
 import { AntdModalProvider } from "../lib/modal";
 import Head from "next/head";
 import { JitsuProvider, useJitsu } from "@jitsu/jitsu-react";
 import { FirebaseProvider, useFirebaseSession } from "../lib/firebase-client";
-import { SignIn } from "../components/SignInOrUp/SignIn";
 import { JitsuButton } from "../components/JitsuButton/JitsuButton";
 import { BillingProvider } from "../components/Billing/BillingProvider";
-import { ClassicProjectProvider } from "../components/PageLayout/ClassicProjectProvider";
 import { useConfigObjectList, useConfigObjectsUpdater, useLoadedWorkspace } from "../lib/store";
-import { Redirect } from "../components/Redirect/Redirect";
+import { useQuery } from "@tanstack/react-query";
+import { get } from "../lib/useApi";
+import { WorkspaceRoleType, WorkspaceRoleWithPermissions, WorkspaceRolePermissions } from "../lib/workspace-roles";
+import { RedirectToSignIn } from "../components/Redirect/Redirect";
+import { PreviousRouteContextProvider } from "../lib/previous-route";
+import { OidcAuthorizer } from "../components/OidcAuthorizer/OidcAuthorizer";
 
 const log = getLog("app");
 
 function getUserFromNextJsSession(session: any): ContextApiResponse["user"] {
-  return session && session?.data ? ({ ...session.data, ...session.data?.user } as any) : undefined;
+  if (session && session?.data) {
+    return { ...session.data, ...session.data?.user } as any;
+  } else {
+    throw new Error("Session data is not available");
+  }
 }
 
-function Analytics({ user }: { user?: SessionUser }) {
+export function Analytics({ user }: { user?: SessionUser }) {
   const { analytics } = useJitsu();
   const router = useRouter();
   /* eslint-disable react-hooks/exhaustive-deps  */
@@ -71,7 +79,6 @@ const FirebaseAuthorizer: React.FC<PropsWithChildren<{}>> = ({ children }) => {
   const [loading, setLoading] = useState<boolean>(true);
   const [authError, setAuthError] = useState<any>(undefined);
   const router = useRouter();
-  const { analytics } = useJitsu();
 
   /* eslint-disable react-hooks/exhaustive-deps  */
   //following the rule and adding session to deps will create an
@@ -101,109 +108,94 @@ const FirebaseAuthorizer: React.FC<PropsWithChildren<{}>> = ({ children }) => {
       <UserContextProvider
         user={user}
         logout={async () => {
-          setUser(null);
-          await session.signOut();
+          await session.signOut().then(() => {
+            setUser(null);
+          });
+          router.push("/signin");
         }}
       >
-        <Analytics user={user} />
         {children}
       </UserContextProvider>
     );
   } else {
+    return <RedirectToSignIn />;
+  }
+};
+
+// Combined authorizer that handles both Firebase and OIDC authentication
+const CombinedAuthorizer: React.FC<
+  PropsWithChildren<{ authorizer: "firebase" | "nextauth"; dynamicOidcEnabled: boolean }>
+> = ({ children, authorizer, dynamicOidcEnabled }) => {
+  if (dynamicOidcEnabled) {
     return (
-      <>
-        <Analytics />
-        <SignIn
-          engine="firebase"
-          variant="signin"
-          enablePassword={true}
-          onPasswordLogin={async (email, password) => {
-            try {
-              await session.signIn(email, password);
-              const user = await session.resolveUser().user;
-              if (!user) {
-                feedbackError(`Signin failed`);
-                await analytics.track("login_error", {
-                  traits: { email, type: "password", loginProvider: "firebase/email" },
-                });
-              } else {
-                setUser(user);
-                await analytics.track("login", {
-                  traits: { ...user, type: "password", loginProvider: "firebase/email" },
-                });
-              }
-            } catch (e: any) {
-              await analytics.track("login_error", {
-                email,
-                type: "password",
-                loginProvider: "firebase/email",
-                message: e?.message || "Unknown error",
-              });
-              throw e;
-            }
-          }}
-          onSocialLogin={async type => {
-            try {
-              await session.signInWith(type);
-              const user = await session.resolveUser().user;
-              if (!user) {
-                feedbackError(`Signin failed`);
-                await analytics.track("login_error", { traits: { type: "social", loginProvider: `firebase/${type}` } });
-              } else {
-                setUser(user);
-                await analytics.track("login", {
-                  traits: { ...user, type: "social", loginProvider: `firebase/${type}` },
-                });
-              }
-            } catch (e: any) {
-              await analytics.track("login_error", {
-                type: "social",
-                loginProvider: `firebase/${type}`,
-                message: e?.message || "Unknown error",
-                details: e?.stack || undefined,
-              });
-              throw e;
-            }
-          }}
-        />
-      </>
+      <OidcAuthorizer>
+        <NestedAuthorizer authorizer={authorizer}>{children}</NestedAuthorizer>
+      </OidcAuthorizer>
     );
+  } else if (authorizer === "nextauth") {
+    return <NextJsAuthorizer>{children}</NextJsAuthorizer>;
+  } else if (authorizer === "firebase") {
+    return <FirebaseAuthorizer>{children}</FirebaseAuthorizer>;
+  }
+};
+
+const NestedAuthorizer: React.FC<PropsWithChildren<{ authorizer: "firebase" | "nextauth" }>> = ({
+  children,
+  authorizer,
+}) => {
+  const user = useUserSafe();
+  if (user) {
+    return children;
+  }
+  if (authorizer === "nextauth") {
+    return <NextJsAuthorizer>{children}</NextJsAuthorizer>;
+  } else if (authorizer === "firebase") {
+    return <FirebaseAuthorizer>{children}</FirebaseAuthorizer>;
   }
 };
 
 const NextJsAuthorizer: React.FC<PropsWithChildren<{}>> = ({ children }) => {
   const session = useSession();
+  const router = useRouter();
+
   if (session && session.data) {
     const user = getUserFromNextJsSession(session);
     return (
-      <UserContextProvider user={user} logout={signOut}>
-        <Analytics user={user} />
+      <UserContextProvider
+        user={user}
+        logout={async () => {
+          signOut().then(() => router.push("/signin"));
+        }}
+      >
         {children}
       </UserContextProvider>
     );
   } else if (session.status === "loading") {
     return <GlobalLoader title={"Authorizing..."} />;
   }
-  return <Redirect href={"/signin"} />;
+  return <RedirectToSignIn />;
 };
 
 function LoginWrapper(props: PropsWithChildren<{ requiresLogin: boolean }>) {
   const appConfig = useAppConfig();
   if (!props.requiresLogin) {
     return (
-      <>
+      <FirebaseProvider appConfig={appConfig}>
         <Analytics />
         {props.children}
-      </>
-    );
-  } else if (appConfig.auth?.firebasePublic) {
-    return (
-      <FirebaseProvider appConfig={appConfig}>
-        <FirebaseAuthorizer>{props.children}</FirebaseAuthorizer>
       </FirebaseProvider>
     );
   } else {
-    return <NextJsAuthorizer>{props.children}</NextJsAuthorizer>;
+    return (
+      <FirebaseProvider appConfig={appConfig}>
+        <CombinedAuthorizer
+          authorizer={appConfig.auth?.firebasePublic ? "firebase" : "nextauth"}
+          dynamicOidcEnabled={!!appConfig.auth?.dynamicOidc}
+        >
+          {props.children}
+        </CombinedAuthorizer>
+      </FirebaseProvider>
+    );
   }
 }
 
@@ -234,32 +226,6 @@ const ProgressBar0: React.FC<{ className?: string }> = ({ className }) => {
 };
 
 const ProgressBar = React.memo(ProgressBar0);
-
-const LoadingBlur: React.FC<{}> = () => {
-  const [showAnimation, setShowAnimation] = useState(false);
-  useEffect(() => {
-    setTimeout(() => setShowAnimation(true), 1000);
-  }, []);
-  return (
-    <div
-      className="absolute top-0 flex flex-col left-0 m-0 p-0 overflow-hidden"
-      style={{ height: "100vh", width: "100vw", maxWidth: "100%" }}
-    >
-      <div className={"z-50"}>
-        <ProgressBar className="bg-primary text-xxs p-0.5" />
-      </div>
-      <div
-        className={`flex justify-center items-center text-primary flex-auto relative z-40 ${
-          showAnimation ? "backdrop-blur" : ""
-        }`}
-      >
-        <div className="flex flex-col items-center justify-center">
-          <GlobalLoader title="Loading page..." />
-        </div>
-      </div>
-    </div>
-  );
-};
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -445,6 +411,34 @@ const WorkspaceLoader: React.FC<
 
   const workspace = useLoadedWorkspace(workspaceIdOrSlug);
 
+  // Fetch user role for the workspace
+  const { data: users } = useQuery<{ role?: string }[]>({
+    queryKey: ["workspace-users", workspace?.id],
+    queryFn: async () => {
+      if (!workspace?.id) return [];
+      return (await get(`/api/workspace/${workspace.id}/users`)) as { role?: string }[];
+    },
+    enabled: !!workspace?.id,
+  });
+
+  // Find current user's role
+  const currentUserData = users?.find((u: any) => u.user?.id === user.internalId);
+  const role = (currentUserData?.role || "owner") as WorkspaceRoleType;
+
+  const userRole: WorkspaceRoleWithPermissions = {
+    role,
+    ...WorkspaceRolePermissions[role],
+  };
+
+  useEffect(() => {
+    if (workspace?.name) {
+      const newTitle = `Jitsu - ${workspace.name}`;
+      if (document.title !== newTitle) {
+        document.title = newTitle;
+      }
+    }
+  });
+
   useEffect(() => {
     if (workspace?.id) {
       analytics.page("Workspace Page", {
@@ -480,9 +474,12 @@ const WorkspaceLoader: React.FC<
   /* eslint-enable */
 
   return (
-    <WorkspaceContextProvider workspace={{ ...workspace, slugOrId: workspace?.slug || workspace?.id }}>
+    <WorkspaceContextProvider
+      workspace={{ ...workspace, slugOrId: workspace?.slug || workspace?.id }}
+      userRole={userRole}
+    >
       <BillingProvider sendAnalytics={true} enabled={appConfig.billingEnabled}>
-        <ClassicProjectProvider>{children}</ClassicProjectProvider>
+        <PreviousRouteContextProvider>{children}</PreviousRouteContextProvider>
       </BillingProvider>
     </WorkspaceContextProvider>
   );

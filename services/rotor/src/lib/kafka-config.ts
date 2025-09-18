@@ -1,6 +1,7 @@
 import { KafkaJS } from "@confluentinc/kafka-javascript";
 
-import { LogMessageBuilder, requireDefined, randomId, getLog } from "juava";
+import { readFileSync } from "fs";
+import { isTruish, LogMessageBuilder, requireDefined, randomId, getLog } from "juava";
 import JSON5 from "json5";
 const log = getLog("kafka");
 
@@ -21,7 +22,7 @@ function translateLevel(l: KafkaJS.logLevel): LogMessageBuilder {
 
 export type KafkaCredentials = {
   brokers: string[] | string;
-  ssl?: boolean;
+  ssl?: boolean | Record<string, any>;
   sasl?: {
     mechanism: "scram-sha-256" | "scram-sha-512";
     username: string;
@@ -30,9 +31,37 @@ export type KafkaCredentials = {
 };
 
 export function getCredentialsFromEnv(): KafkaCredentials {
+  const ssl = isTruish(process.env.KAFKA_SSL);
+  const sslSkipVerify = isTruish(process.env.KAFKA_SSL_SKIP_VERIFY);
+
+  let sslOption: KafkaCredentials["ssl"] = undefined;
+
+  if (ssl) {
+    if (sslSkipVerify) {
+      // TLS enabled, but server TLS certificate is not verified
+      sslOption = {
+        rejectUnauthorized: false,
+        checkServerIdentity: () => undefined,
+      };
+    } else if (process.env.KAFKA_SSL_CA) {
+      // TLS enabled, server TLS certificate is verified using a custom CA certificate
+      sslOption = {
+        ca: process.env.KAFKA_SSL_CA,
+      };
+    } else if (process.env.KAFKA_SSL_CA_FILE) {
+      // TLS enabled, server TLS certificate is verified using a custom CA certificate (loaded from a local file)
+      sslOption = {
+        ca: readFileSync(process.env.KAFKA_SSL_CA_FILE, "utf-8"),
+      };
+    } else {
+      // TLS enabled, no extra configurations
+      sslOption = true;
+    }
+  }
+
   return {
     brokers: requireDefined(process.env.KAFKA_BOOTSTRAP_SERVERS, "env KAFKA_BOOTSTRAP_SERVERS is required").split(","),
-    ssl: process.env.KAFKA_SSL === "true" || process.env.KAFKA_SSL === "1",
+    ssl: sslOption,
     sasl: process.env.KAFKA_SASL ? JSON5.parse(process.env.KAFKA_SASL) : undefined,
   };
 }
@@ -54,8 +83,8 @@ export function connectToKafka(opts: { defaultAppId: string } & KafkaCredentials
       // },
       clientId: process.env.APPLICATION_ID || opts.defaultAppId,
       brokers: typeof opts.brokers === "string" ? opts.brokers.split(",") : opts.brokers,
+      ssl: opts.ssl,
       ...sasl,
-      ...(opts.ssl ? { ssl: true } : {}),
     },
   });
 }

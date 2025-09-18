@@ -1,5 +1,5 @@
 import { WorkspacePageLayout } from "../../components/PageLayout/WorkspacePageLayout";
-import { useAppConfig, useWorkspace } from "../../lib/context";
+import { useAppConfig, useWorkspace, useWorkspaceRole } from "../../lib/context";
 import { DestinationConfig, ServiceConfig, StreamConfig } from "../../lib/schema";
 import { branding } from "../../lib/branding";
 import { Badge, Tooltip } from "antd";
@@ -21,6 +21,7 @@ import JSON5 from "json5";
 import { ButtonGroup } from "../../components/ButtonGroup/ButtonGroup";
 import { useConfigObjectLinks, useConfigObjectList } from "../../lib/store";
 import Link from "next/link";
+import { WorkspacePermissionsType } from "../../lib/workspace-roles";
 
 function HoverBorder({ children, forceHover }: { children: ReactNode; forceHover?: boolean }) {
   const [_hover, setHover] = useState(false);
@@ -62,7 +63,7 @@ function Card({
   title: string;
   configLink?: string;
   icon: ReactNode;
-  actions?: { label: ReactNode; icon?: ReactNode; href: string }[];
+  actions?: { label: ReactNode; icon?: ReactNode; href: string; requiredPermission?: WorkspacePermissionsType }[];
   selected?: boolean;
   badge?: {
     icon: ReactNode;
@@ -111,8 +112,12 @@ function DestinationCard({ dest, selected }: { dest: DestinationConfig; selected
         dest.provisioned
           ? []
           : [
-              { label: "Edit", href: `/destinations?id=${dest.id}`, icon: <Edit3 className="w-4 h-4" /> },
-
+              {
+                label: "Edit",
+                href: `/destinations?id=${dest.id}`,
+                icon: <Edit3 className="w-4 h-4" />,
+                requiredPermission: "editEntities",
+              },
               {
                 label: "View Connected Streams",
                 icon: <Zap className="w-4 h-4" />,
@@ -127,7 +132,9 @@ function DestinationCard({ dest, selected }: { dest: DestinationConfig; selected
               },
             ]
       }
-      configLink={!dest.provisioned ? `/${workspace.id}/destinations?id=${dest.id}` : `/${workspace.id}/destinations`}
+      configLink={
+        !dest.provisioned ? `/${workspace.slugOrId}/destinations?id=${dest.id}` : `/${workspace.slugOrId}/destinations`
+      }
     />
   );
   return (
@@ -211,6 +218,7 @@ function WorkspaceOverview(props: {
   const appConfig = useAppConfig();
   const workspace = useWorkspace();
   const { destinations, streams, links, connectors } = props;
+  const { editEntities } = useWorkspaceRole();
   useTitle(`${branding.productName} : ${workspace.name}`);
   return (
     <div>
@@ -218,8 +226,9 @@ function WorkspaceOverview(props: {
         <ConnectionsDiagram
           connectorSourcesActions={{
             title: "Connectors",
-            newLink: `/${workspace.slugOrId}/services?showCatalog=true`,
-            editLink: `/${workspace.slugOrId}/services`,
+            newLink: editEntities ? `/services?showCatalog=true` : undefined,
+            editLink: `/services`,
+            newLinkTooltip: !editEntities ? "You don't have permission to create connectors" : undefined,
           }}
           connectorSources={connectors.map(({ id, name, ...cfg }) => ({
             id,
@@ -246,9 +255,14 @@ function WorkspaceOverview(props: {
                       }
                 }
                 title={name || id}
-                configLink={`/${workspace.slug || workspace.id}/services?id=${id}`}
+                configLink={`/${workspace.slugOrId}/services?id=${id}`}
                 actions={[
-                  { label: "Edit", href: `/services?id=${id}`, icon: <Edit3 className={"w-4 h-4"} /> },
+                  {
+                    label: "Edit",
+                    href: `/services?id=${id}`,
+                    icon: <Edit3 className={"w-4 h-4"} />,
+                    requiredPermission: "editEntities",
+                  },
                   {
                     label: "View Syncs",
                     icon: <Share2 className="w-4 h-4" />,
@@ -260,13 +274,15 @@ function WorkspaceOverview(props: {
           }))}
           srcActions={{
             title: "Sites",
-            newLink: `/${workspace.slugOrId}/streams?id=new`,
-            editLink: `/${workspace.slugOrId}/streams`,
+            newLink: editEntities ? `/streams?id=new` : undefined,
+            editLink: `/streams`,
+            newLinkTooltip: !editEntities ? "You don't have permission to create sites" : undefined,
           }}
           dstActions={{
             title: "Destinations",
-            newLink: `/${workspace.slugOrId}/destinations?showCatalog=true`,
-            editLink: `/${workspace.slugOrId}/destinations`,
+            newLink: editEntities ? `/destinations?showCatalog=true` : undefined,
+            editLink: `/destinations`,
+            newLinkTooltip: !editEntities ? "You don't have permission to create destinations" : undefined,
           }}
           sources={streams.map(({ id, name }) => ({
             id: id,
@@ -288,9 +304,14 @@ function WorkspaceOverview(props: {
                           "The source is not connected to any destination. Connect it to any destination to start seeing the data",
                       }
                 }
-                configLink={`/${workspace.slug || workspace.id}/streams?id=${id}`}
+                configLink={`/${workspace.slugOrId}/streams?id=${id}`}
                 actions={[
-                  { label: "Edit", href: `/streams?id=${id}`, icon: <Edit3 className={"w-4 h-4"} /> },
+                  {
+                    label: "Edit",
+                    href: `/streams?id=${id}`,
+                    icon: <Edit3 className={"w-4 h-4"} />,
+                    requiredPermission: "editEntities",
+                  },
                   {
                     label: "Live Events",
                     icon: <Activity className="w-4 h-4" />,

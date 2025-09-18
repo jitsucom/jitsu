@@ -60,7 +60,7 @@ export async function testJitsuFunction<T = any>(opts: TestOptions<T>): Promise<
     opts.func
   );
 
-  let res: AnyEvent[] = null;
+  let res: AnyEvent[] = [];
   for (const event of events) {
     try {
       testLogger
@@ -75,9 +75,6 @@ export async function testJitsuFunction<T = any>(opts: TestOptions<T>): Promise<
       if (r) {
         if (r === "drop") {
           break;
-        }
-        if (res == null) {
-          res = [];
         }
         if (Array.isArray(r)) {
           res.push(...r);

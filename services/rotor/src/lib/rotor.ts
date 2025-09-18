@@ -1,18 +1,26 @@
-import { getLog, requireDefined, parseNumber } from "juava";
+import { getLog, parseNumber, requireDefined } from "juava";
 import { connectToKafka, deatLetterTopic, KafkaCredentials, retryTopic } from "./kafka-config";
-import Prometheus from "prom-client";
 import PQueue from "p-queue";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
-dayjs.extend(utc);
 import { getRetryPolicy, retryBackOffTime, retryLogMessage } from "./retries";
-import { createMetrics } from "./metrics";
+import {
+  createMetrics,
+  promMessagesConsumed,
+  promMessagesDeadLettered,
+  promMessagesProcessed,
+  promMessagesRequeued,
+  promConnectionMessageStatuses,
+  promTopicOffsets,
+} from "./metrics";
 import { FuncChainFilter } from "./functions-chain";
 import { KafkaJS } from "@confluentinc/kafka-javascript";
 
 import { functionFilter, MessageHandlerContext } from "./message-handler";
-import { connectionsStore, functionsStore, workspaceStore } from "./repositories";
-import { RotorMetrics, FuncChainResult } from "@jitsu/core-functions";
+import { connectionsStore, functionsStore, streamsStore } from "./repositories";
+import { FuncChainResult, RotorMetrics } from "@jitsu/core-functions";
+
+dayjs.extend(utc);
 
 const log = getLog("kafka-rotor");
 
@@ -25,13 +33,14 @@ export const CONNECTION_IDS_HEADER = "connection_ids";
 
 const concurrency = parseNumber(process.env.CONCURRENCY, 10);
 const fetchTimeoutMs = parseNumber(process.env.FETCH_TIMEOUT_MS, 2000);
+const rotorIndex = parseNumber(process.env.INSTANCE_INDEX, 0);
 
 export type KafkaRotorConfig = {
   credentials: KafkaCredentials;
   consumerGroupId: string;
   kafkaTopics: string[];
   kafkaClientId?: string;
-  rotorContext: Omit<MessageHandlerContext, "connectionStore" | "functionsStore" | "workspaceStore" | "metrics">;
+  rotorContext: Omit<MessageHandlerContext, "connectionStore" | "functionsStore" | "streamsStore" | "metrics">;
   handle: (
     message: string,
     rotorContext: MessageHandlerContext,
@@ -77,68 +86,37 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
         kafkaJS: { allowAutoTopicCreation: false, acks: 1, compression: getCompressionType() },
       });
       await producer.connect();
-      const storeErrors = new Prometheus.Counter({
-        name: "rotor_store_statuses",
-        help: "rotor store statuses",
-        labelNames: ["namespace", "operation", "status"] as const,
-      });
-      metrics = createMetrics(producer, storeErrors);
+      metrics = createMetrics(producer);
       admin = kafka.admin({ kafkaJS: {} });
       admin.connect();
 
-      const topicOffsets = new Prometheus.Gauge({
-        name: "rotor_topic_offsets2",
-        help: "topic offsets",
-        // add `as const` here to enforce label names
-        labelNames: ["topic", "partition", "offset"] as const,
-      });
-      const messagesConsumed = new Prometheus.Counter({
-        name: "rotor_messages_consumed",
-        help: "messages consumed",
-        // add `as const` here to enforce label names
-        labelNames: ["topic", "partition"] as const,
-      });
-      const messagesProcessed = new Prometheus.Counter({
-        name: "rotor_messages_processed",
-        help: "messages processed",
-        labelNames: ["topic", "partition"] as const,
-      });
-      const messagesRequeued = new Prometheus.Counter({
-        name: "rotor_messages_requeued",
-        help: "messages requeued",
-        labelNames: ["topic"] as const,
-      });
-      const messagesDeadLettered = new Prometheus.Counter({
-        name: "rotor_messages_dead_lettered",
-        help: "messages dead lettered",
-        labelNames: ["topic"] as const,
-      });
-
-      interval = setInterval(async () => {
-        try {
-          for (const topic of kafkaTopics) {
-            const watermarks = await admin.fetchTopicOffsets(topic, {
+      if (rotorIndex === 0) {
+        interval = setInterval(async () => {
+          try {
+            for (const topic of kafkaTopics) {
+              const watermarks = await admin.fetchTopicOffsets(topic, {
               timeout: 10000,
               isolationLevel: KafkaJS.IsolationLevel.READ_COMMITTED,
             });
             for (const o of watermarks) {
-              topicOffsets.set({ topic: topic, partition: o.partition, offset: "high" }, parseInt(o.high));
-              topicOffsets.set({ topic: topic, partition: o.partition, offset: "low" }, parseInt(o.low));
+              promTopicOffsets.set({ topic: topic, partition: o.partition, offset: "high" }, parseInt(o.high));
+                promTopicOffsets.set({ topic: topic, partition: o.partition, offset: "low" }, parseInt(o.low));
+              }
             }
-          }
-          const offsets = await admin.fetchOffsets({ groupId: consumerGroupId, topics: kafkaTopics });
-          for (const o of offsets) {
-            for (const p of o.partitions) {
-              topicOffsets.set({ topic: o.topic, partition: p.partition, offset: "offset" }, parseInt(p.offset));
+            const offsets = await admin.fetchOffsets({ groupId: consumerGroupId, topics: kafkaTopics });
+            for (const o of offsets) {
+              for (const p of o.partitions) {
+                promTopicOffsets.set({ topic: o.topic, partition: p.partition, offset: "offset" }, parseInt(p.offset));
+              }
             }
+          } catch (e) {
+            log.atError().withCause(e).log("Failed to commit offsets");
           }
-        } catch (e) {
-          log.atError().withCause(e).log("Failed to commit offsets");
-        }
-      }, 60000);
+        }, 60000);
+      }
 
       async function onMessage(message: KafkaJS.KafkaMessage, topic: string, partition: number) {
-        messagesConsumed.inc({ topic, partition });
+        promMessagesConsumed.inc({ topic, partition });
         const value = message.value;
         if (!value) {
           return;
@@ -155,7 +133,7 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
               ...rotorContext,
               connectionStore: requireDefined(connectionsStore.getCurrent(), "Connection store is not initialized"),
               functionsStore: requireDefined(functionsStore.getCurrent(), "Functions store is not initialized"),
-              workspaceStore: requireDefined(workspaceStore.getCurrent(), "Workspace store is not initialized"),
+              streamsStore: requireDefined(streamsStore.getCurrent(), "Streams store is not initialized"),
               metrics,
             },
             functionFilter(retriedFunctionId),
@@ -167,7 +145,9 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
             retries,
             fetchTimeoutMs
           )
-            .then(() => messagesProcessed.inc({ topic, partition }))
+            .then(() => {
+              promMessagesProcessed.inc({ topic, partition });
+            })
             .catch(async e => {
               const retryPolicy = getRetryPolicy(e);
               const retryTime = retryBackOffTime(retryPolicy, retries + 1);
@@ -183,9 +163,14 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
                   }. ${retryLogMessage(retryPolicy, retries)}`
                 );
               if (!retryTime) {
-                messagesDeadLettered.inc({ topic });
+                promMessagesDeadLettered.inc({ topic });
+                promConnectionMessageStatuses.inc({
+                  destinationId: connectionId,
+                  tableName: "_all_",
+                  status: "deadLettered",
+                });
               } else {
-                messagesRequeued.inc({ topic });
+                promMessagesRequeued.inc({ topic });
               }
               const requeueTopic = retryTime ? retryTopic() : deatLetterTopic();
               try {

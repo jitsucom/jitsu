@@ -33,6 +33,7 @@ const defaultConfig: Required<JitsuOptions> = {
   fetch: null,
   echoEvents: false,
   cookieDomain: undefined,
+  cookieNames: {},
   cookieCapture: {},
   runtime: undefined,
   fetchTimeoutMs: undefined,
@@ -44,7 +45,7 @@ const defaultConfig: Required<JitsuOptions> = {
     dontSend: false,
     disableUserIds: false,
     ipPolicy: "keep",
-    consentCategories: undefined,
+    consentCategories: {},
   },
 };
 
@@ -56,12 +57,19 @@ const mergeConfig = (current: JitsuOptions, newConfig: JitsuOptions): void => {
       if (typeof value === "object") {
         current.privacy = {
           ...defaultConfig.privacy,
+          consentCategories: { ...defaultConfig.privacy.consentCategories },
           ...current.privacy,
           ...value,
         };
-      } else if (newConfig.hasOwnProperty("privacy") && typeof value === "undefined") {
-        // explicitly set to undefined - reset to default
-        current.privacy = { ...defaultConfig.privacy };
+      } else if (typeof value === "undefined") {
+        if (newConfig.hasOwnProperty("privacy") || !current.hasOwnProperty("privacy")) {
+          // explicitly set to undefined - reset to default
+          // or was not set at all - set to default
+          current.privacy = {
+            ...defaultConfig.privacy,
+            consentCategories: { ...defaultConfig.privacy.consentCategories },
+          };
+        }
       }
     } else if (typeof value === "undefined") {
       if (newConfig.hasOwnProperty(key) || !current.hasOwnProperty(key)) {
@@ -135,7 +143,7 @@ function restoreTraits(storage: PersistentStorage) {
   };
 }
 
-export type StorageFactory = (cookieDomain: string, cookie2key: Record<string, string>) => PersistentStorage;
+export type StorageFactory = (cookieDomain: string, key2Cookie: (key: string) => string) => PersistentStorage;
 
 function getCookie(name: string) {
   const value = `; ${document.cookie}`;
@@ -159,6 +167,19 @@ function getClientIds(runtime: RuntimeFacade, customCookieCapture: Record<string
   };
 }
 
+function parseGa4SessionId(cookieValue: string) {
+  if (typeof cookieValue !== "string") {
+    return undefined;
+  }
+  if (cookieValue.startsWith("GA1") || cookieValue.startsWith("GS1")) {
+    return cookieValue.split(".")[2];
+  } else {
+    // parse new GA4 cookie format, e.g.: GS2.1.s1747323152$o28$g0$t1747323152$j60$l0$h69286059
+    const match = cookieValue.match(/^GS\d+\.\d+\.(?:[\w_-]+[$])*s(\d+)(?:$|[$])/);
+    return match ? match[1] : undefined;
+  }
+}
+
 function getGa4Ids(runtime: RuntimeFacade) {
   const allCookies = runtime.getCookies();
   const clientId = allCookies["_ga"]?.split(".").slice(-2).join(".");
@@ -168,14 +189,11 @@ function getGa4Ids(runtime: RuntimeFacade) {
       ? Object.fromEntries(
           gaSessionCookies
             .map(([key, value]) => {
-              if (typeof value !== "string") {
+              const sessionId = parseGa4SessionId(value);
+              if (!sessionId) {
                 return null;
               }
-              const parts = value.split(".");
-              if (parts.length < 3) {
-                return null;
-              }
-              return [key.substring("_ga_".length), parts[2]];
+              return [key.substring("_ga_".length), sessionId];
             })
             .filter(v => v !== null)
         )
@@ -215,8 +233,8 @@ function setCookie(name: string, val: string, { domain, secure }: { domain: stri
 
 const defaultCookie2Key = {
   __anon_id: "__eventn_id",
-  __user_traits: "__eventn_id_usr",
   __user_id: "__eventn_uid",
+  __user_traits: "__eventn_id_usr",
   __group_id: "__group_id",
   __group_traits: "__group_traits",
 };
@@ -224,22 +242,22 @@ const defaultCookie2Key = {
 const cookieStorage: StorageFactory = (cookieDomain, key2cookie) => {
   return {
     setItem(key: string, val: any) {
+      const cookieName = key2cookie(key) || key;
       if (typeof val === "undefined") {
-        removeCookie(key2cookie[key] || key, {
+        removeCookie(cookieName, {
           domain: cookieDomain,
           secure: window.location.protocol === "https:",
         });
         return;
       }
       const strVal = typeof val === "object" && val !== null ? encodeURIComponent(JSON.stringify(val)) : val;
-      const cookieName = key2cookie[key] || key;
       setCookie(cookieName, strVal, {
         domain: cookieDomain,
         secure: window.location.protocol === "https:",
       });
     },
     getItem(key: string) {
-      const cookieName = key2cookie[key] || key;
+      const cookieName = key2cookie(key) || key;
       const result = getCookie(cookieName);
       if (key === "__anon_id") {
         //anonymous id must always be a string, so we don't parse it to preserve its exact value
@@ -247,20 +265,20 @@ const cookieStorage: StorageFactory = (cookieDomain, key2cookie) => {
       }
       if (typeof result === "undefined" && key === "__user_id") {
         //backward compatibility with old jitsu cookie. get user id if from traits
-        const traits = parse(getCookie("__eventn_id_usr")) || {};
+        const traits = parse(getCookie(key2cookie("__user_traits") || "__eventn_id_usr")) || {};
         return traits.internal_id || traits.user_id || traits.id || traits.userId;
       }
       return parse(result);
     },
     removeItem(key: string) {
-      removeCookie(key2cookie[key] || key, {
+      removeCookie(key2cookie(key) || key, {
         domain: cookieDomain,
         secure: window.location.protocol === "https:",
       });
     },
     reset() {
-      for (const v of Object.values(key2cookie)) {
-        removeCookie(v, {
+      for (const key of Object.keys(defaultCookie2Key)) {
+        removeCookie(key2cookie(key) || key, {
           domain: cookieDomain,
           secure: window.location.protocol === "https:",
         });
@@ -270,6 +288,22 @@ const cookieStorage: StorageFactory = (cookieDomain, key2cookie) => {
 };
 
 export function windowRuntime(opts: JitsuOptions): RuntimeFacade {
+  const key2Cookie = (key: string) => {
+    switch (key) {
+      case "__anon_id":
+        return opts.cookieNames?.anonymousId || defaultCookie2Key.__anon_id;
+      case "__user_id":
+        return opts.cookieNames?.userId || defaultCookie2Key.__user_id;
+      case "__user_traits":
+        return opts.cookieNames?.userTraits || defaultCookie2Key.__user_traits;
+      case "__group_id":
+        return opts.cookieNames?.groupId || defaultCookie2Key.__group_id;
+      case "__group_traits":
+        return opts.cookieNames?.groupTraits || defaultCookie2Key.__group_traits;
+      default:
+        return key;
+    }
+  };
   return {
     getCookie(name: string): string | undefined {
       const value = `; ${document.cookie}`;
@@ -292,7 +326,7 @@ export function windowRuntime(opts: JitsuOptions): RuntimeFacade {
       return new Date().getTimezoneOffset();
     },
     store(): PersistentStorage {
-      return cookieStorage(opts.cookieDomain || getTopLevelDomain(window.location.hostname), defaultCookie2Key);
+      return cookieStorage(opts.cookieDomain || getTopLevelDomain(window.location.hostname), key2Cookie);
     },
 
     language(): string {
@@ -322,6 +356,38 @@ export function windowRuntime(opts: JitsuOptions): RuntimeFacade {
   };
 }
 
+export function createInMemoryStorage(debug?: boolean): PersistentStorage {
+  const storage = {};
+  return {
+    reset(): void {
+      Object.keys(storage).forEach(key => delete storage[key]);
+    },
+    setItem(key: string, val: any) {
+      if (debug) {
+        console.log(`[JITSU EMPTY RUNTIME] Set storage item ${key}=${JSON.stringify(val)}`);
+      }
+      if (typeof val === "undefined") {
+        delete storage[key];
+      } else {
+        storage[key] = val;
+      }
+    },
+    getItem(key: string) {
+      const val = storage[key];
+      if (debug) {
+        console.log(`[JITSU EMPTY RUNTIME] Get storage item ${key}=${JSON.stringify(val)}`);
+      }
+      return val;
+    },
+    removeItem(key: string) {
+      if (debug) {
+        console.log(`[JITSU EMPTY RUNTIME] Get storage item ${key}=${storage[key]}`);
+      }
+      delete storage[key];
+    },
+  };
+}
+
 export const emptyRuntime = (config: JitsuOptions): RuntimeFacade => ({
   documentEncoding(): string | undefined {
     return undefined;
@@ -337,35 +403,7 @@ export const emptyRuntime = (config: JitsuOptions): RuntimeFacade => ({
   },
 
   store(): PersistentStorage {
-    const storage = {};
-    return {
-      reset(): void {
-        Object.keys(storage).forEach(key => delete storage[key]);
-      },
-      setItem(key: string, val: any) {
-        if (config.debug) {
-          console.log(`[JITSU EMPTY RUNTIME] Set storage item ${key}=${JSON.stringify(val)}`);
-        }
-        if (typeof val === "undefined") {
-          delete storage[key];
-        } else {
-          storage[key] = val;
-        }
-      },
-      getItem(key: string) {
-        const val = storage[key];
-        if (config.debug) {
-          console.log(`[JITSU EMPTY RUNTIME] Get storage item ${key}=${JSON.stringify(val)}`);
-        }
-        return val;
-      },
-      removeItem(key: string) {
-        if (config.debug) {
-          console.log(`[JITSU EMPTY RUNTIME] Get storage item ${key}=${storage[key]}`);
-        }
-        delete storage[key];
-      },
-    };
+    return createInMemoryStorage(config.debug);
   },
   language() {
     return undefined;
@@ -386,6 +424,16 @@ export const emptyRuntime = (config: JitsuOptions): RuntimeFacade => ({
     return undefined;
   },
 });
+
+function deepCopy(o) {
+  if (typeof o !== "object") {
+    return o;
+  }
+  if (!o) {
+    return o;
+  }
+  return JSON.parse(JSON.stringify(o));
+}
 
 function deepMerge(target: any, source: any) {
   if (typeof source !== "object" || source === null) {
@@ -428,6 +476,27 @@ function urlPath(url) {
   return "/" + pathMatch;
 }
 
+function canonicalUrl() {
+  if (!isInBrowser()) return;
+  const tags = document.getElementsByTagName("link");
+  for (var i = 0, tag; (tag = tags[i]); i++) {
+    if (tag.getAttribute("rel") === "canonical") {
+      return tag.getAttribute("href");
+    }
+  }
+}
+
+/**
+ * bugged analytics.js logic that produces 'url' parameter by concating canonical URL with current search part
+ * I produces broken results in some cases like SPA where path is changed but canonical URL is not updated
+ */
+function analyticsJsUrl() {
+  if (!isInBrowser()) return;
+  const canonical = canonicalUrl();
+  if (!canonical) return window.location.href.replace(hashRegex, "");
+  return canonical.match(/\?/) ? canonical : canonical + window.location.search;
+}
+
 function adjustPayload(
   payload: any,
   config: JitsuOptions,
@@ -441,9 +510,16 @@ function adjustPayload(
   const properties = payload.properties || {};
 
   if (payload.type === "page" && (properties.url || url)) {
-    const targetUrl = properties.url || url;
+    // we don't trust analytics.js URL logic since it's sticks with canonical URL on SPA pages
+    let targetUrl = url || properties.url;
+    if (properties.url && properties.url !== analyticsJsUrl()) {
+      // properties.url is not the same as provided by analytics.js
+      // it means that it was not overridden by user and we should use it
+      targetUrl = properties.url;
+    }
     properties.url = targetUrl.replace(hashRegex, "");
     properties.path = fixPath(urlPath(targetUrl));
+    // other properties are correctly based on window.location in analytics.js
   }
 
   const customContext = deepMerge(
@@ -458,15 +534,23 @@ function adjustPayload(
       version: jitsuVersion,
       env: isInBrowser() ? "browser" : "node",
     },
-    consent: config.privacy?.consentCategories
-      ? {
-          categoryPreferences: config.privacy.consentCategories,
-        }
-      : undefined,
-    userAgent: runtime.userAgent(),
-    locale: runtime.language(),
-    screen: runtime.screen(),
-    traits: payload.type != "identify" && payload.type != "group" ? { ...(restoreTraits(storage) || {}) } : undefined,
+    consent:
+      typeof config.privacy?.consentCategories === "object" && Object.keys(config.privacy?.consentCategories).length
+        ? {
+            categoryPreferences: config.privacy.consentCategories,
+          }
+        : undefined,
+    userAgent: runtime.userAgent?.(),
+    locale: runtime.language?.(),
+    screen: runtime.screen?.(),
+    ip: runtime?.ip?.(),
+    traits:
+      payload.type != "identify" && payload.type != "group"
+        ? {
+            ...(restoreTraits(storage) || {}),
+            ...(payload?.options?.traits || {}),
+          }
+        : undefined,
     page: {
       path: properties.path || (parsedUrl && parsedUrl.pathname),
       referrer: referrer,
@@ -482,11 +566,13 @@ function adjustPayload(
   };
   const withContext = {
     ...payload,
+    userId: payload?.options?.userId || payload?.userId,
+    anonymousId: payload?.options?.anonymousId || payload?.anonymousId,
+    groupId: payload?.options?.groupId || storage.getItem("__group_id"),
     timestamp: new Date().toISOString(),
     sentAt: new Date().toISOString(),
     messageId: randomId(properties.path || (parsedUrl && parsedUrl.pathname)),
     writeKey: maskWriteKey(config.writeKey),
-    groupId: storage.getItem("__group_id"),
     context: deepMerge(context, customContext),
   };
   delete withContext.meta;
@@ -536,15 +622,17 @@ async function processDestinations(
   const promises: Promise<any>[] = [];
 
   for (const destination of destinations) {
-    let newEvents = [originalEvent];
+    let newEvents: AnalyticsClientEvent[] = [];
     if (destination.newEvents) {
       try {
         newEvents = destination.newEvents.map(e =>
-          e === "same" ? originalEvent : isDiff(e) ? diff.patch(originalEvent, e.__diff) : e
+          e === "same" ? deepCopy(originalEvent) : isDiff(e) ? diff.patch(deepCopy(originalEvent), e.__diff) : e
         );
       } catch (e) {
         console.error(`[JITSU] Error applying '${destination.id}' changes to event: ${e?.message}`, e);
       }
+    } else {
+      newEvents = [deepCopy(originalEvent)];
     }
     const credentials = { ...destination.credentials, ...destination.options };
 
@@ -673,11 +761,13 @@ async function send(
   instance: AnalyticsInstance,
   store: PersistentStorage
 ): Promise<any> {
+  const s2s = !!jitsuConfig.s2s;
+  const debugHeader = jitsuConfig.debug ? { "X-Enable-Debug": "true" } : {};
+  const adjustedPayload = adjustPayload(payload, jitsuConfig, store, s2s);
   if (jitsuConfig.echoEvents) {
-    console.log(`[JITSU DEBUG] sending '${method}' event:`, payload);
+    console.log(`[JITSU DEBUG] sending '${method}' event:`, adjustedPayload);
     return;
   }
-  const s2s = !!jitsuConfig.s2s;
   const url = s2s ? `${jitsuConfig.host}/api/s/s2s/${method}` : `${jitsuConfig.host}/api/s/${method}`;
   const fetch = jitsuConfig.fetch || globalThis.fetch;
   if (!fetch) {
@@ -686,12 +776,6 @@ async function send(
       "Please specify fetch function in jitsu plugin initialization, fetch isn't available in global scope"
     );
   }
-  const debugHeader = jitsuConfig.debug ? { "X-Enable-Debug": "true" } : {};
-
-  // if (jitsuConfig.debug) {
-  //   console.log(`[JITSU] Sending event to ${url}: `, JSON.stringify(payload, null, 2));
-  // }
-  const adjustedPayload = adjustPayload(payload, jitsuConfig, store, s2s);
   const abortController = jitsuConfig.fetchTimeoutMs ? new AbortController() : undefined;
   const abortTimeout = jitsuConfig.fetchTimeoutMs
     ? setTimeout(() => {
@@ -776,6 +860,7 @@ async function send(
 }
 
 const controllingTraits = ["$doNotSend"] as const;
+
 /**
  * Remove all members of traits that controls identify/group behavior (see analytics.d.ts), and should not be recorded. Returns
  * copy of the object with these members removed.
@@ -925,9 +1010,15 @@ export const jitsuAnalyticsPlugin = (jitsuOptions: JitsuOptions = {}, storage: P
   };
 };
 
+let seedCounter = 0;
+
 function getSeed() {
+  seedCounter = (seedCounter + 1) % Number.MAX_SAFE_INTEGER;
+
   const defaultSeed = Date.now() % 2147483647;
-  return isInBrowser() ? window?.performance?.now() || defaultSeed : defaultSeed;
+  const seed = isInBrowser() ? window?.performance?.now() || defaultSeed : defaultSeed;
+
+  return seed + seedCounter;
 }
 
 export function randomId(hashString: string | undefined = ""): string {

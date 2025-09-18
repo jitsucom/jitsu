@@ -4,26 +4,27 @@
   "description": "",
   "author": "Jitsu Dev Team <dev@jitsu.com>",
   "main": "dist/jitsu.cjs.js",
+  "files": ["dist"],
   "module": "dist/jitsu.es.js",
-  "types": "dist/index.d.ts",
+  "types": "dist/jitsu.d.ts",
   "publishConfig": {
     "access": "public"
   },
   "license": "MIT",
   "private": false,
   "scripts": {
-    "clean": "rm -rf ./dist",
+    "clean": "rm -rf ./dist ./compiled",
     "test:node": "jest",
     "test:playwright": "playwright test ./__tests__/playwright",
     "test": "pnpm run test:node && pnpm run test:playwright",
     "compile": "tsc -p .",
-    "build": "tsc -p . && rollup -c && cp compiled/src/*.d.ts dist"
+    "build": "pnpm run clean && pnpm run compile && rollup -c"
   },
   "devDependencies": {
-    "@jitsu/protocols": "workspace:*",
     "tslib": "^2.6.3",
     "@playwright/test": "1.39.0",
     "@rollup/plugin-commonjs": "^28.0.2",
+    "rollup-plugin-dts": "^6.2.1",
     "@rollup/plugin-json": "^5.0.1",
     "@rollup/plugin-multi-entry": "^6.0.0",
     "@rollup/plugin-node-resolve": "^16.0.0",
@@ -45,6 +46,9 @@
     "ts-jest": "29.0.5",
     "typescript": "^5.6.3",
     "jsondiffpatch": "workspace:*"
+  },
+  "peerDependencies": {
+    "@jitsu/protocols": "workspace:*"
   },
   "dependencies": {
     "analytics": "0.8.9"

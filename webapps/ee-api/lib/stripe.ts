@@ -3,6 +3,10 @@ import { store } from "./services";
 import { assertDefined, assertTrue, getLog, requireDefined } from "juava";
 import { omit } from "lodash";
 import assert from "assert";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+
+dayjs.extend(utc);
 
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
   apiVersion: "2022-11-15",
@@ -17,7 +21,12 @@ export const stripeDataTable =
 
 export type SubscriptionStatus = {
   planId: string;
+  isLegacyPlan?: boolean;
   expiresAt?: string;
+  currentPeriod?: {
+    start: string;
+    end: string;
+  };
   renewAfterExpiration?: boolean;
 } & Record<string, any>;
 
@@ -83,6 +92,7 @@ export async function getOrCreateCurrentSubscription(
   stripeCustomerId: string;
   customBilling?: boolean;
   noRestrictions?: boolean;
+  isLegacyPlan?: boolean;
   subscriptionStatus: SubscriptionStatus;
 }> {
   let stripeOptions: StripeDataTableEntry = await store.getTable(stripeDataTable).get(workspaceId);
@@ -127,12 +137,20 @@ export async function getOrCreateCurrentSubscription(
       expiresAt.setUTCMonth(expiresAt.getUTCMonth() + 1);
     }
 
+    // Calculate current period start (one month before expiresAt). Assuming monthly subscription
+    const currentPeriodStart = new Date(expiresAt);
+    currentPeriodStart.setUTCMonth(currentPeriodStart.getUTCMonth() - 1);
+
     return {
       stripeCustomerId: stripeOptions.stripeCustomerId,
       subscriptionStatus: {
         customBilling: true,
         planId: "$custom",
         expiresAt: expiresAt.toISOString(),
+        currentPeriod: {
+          start: dayjs(currentPeriodStart).utc().startOf("day").toISOString(),
+          end: dayjs(expiresAt).utc().endOf("day").toISOString(),
+        },
         renewAfterExpiration: true,
         ...stripeOptions.customSettings,
       },
@@ -143,6 +161,7 @@ export async function getOrCreateCurrentSubscription(
   return {
     stripeCustomerId: stripeOptions.stripeCustomerId,
     noRestrictions: !!stripeOptions.noRestrictions,
+    isLegacyPlan: !!stripeOptions.activeSubscription,
     subscriptionStatus: {
       ...plan,
       ...(stripeOptions.customSettings || {}),
@@ -226,17 +245,30 @@ export async function getActivePlan(customerId: string): Promise<null | Subscrip
       sub2product.get(subscription.id),
       `Can't find product for subscription ${subscription.id}`
     );
+    const planData = JSON.parse(
+      requireDefined(product.metadata?.plan_data, `Can't find plan data for product ${product.id}`)
+    );
     return {
-      planId: requireDefined(product.metadata?.jitsu_plan_id),
+      planId: requireDefined(product.metadata?.jitsu_plan_id, `jitsu_plan_id is not defined`),
       planName: product.name,
+      isLegacyPlan: product.metadata?.is_legacy === "true" || product.metadata?.is_legacy === "1",
       expiresAt: new Date(subscription.current_period_end * 1000).toISOString(),
+      currentPeriod: {
+        start: dayjs(subscription.current_period_start * 1000)
+          .utc()
+          .startOf("day")
+          .toISOString(),
+        end: dayjs(subscription.current_period_end * 1000)
+          .utc()
+          .endOf("day")
+          .toISOString(),
+      },
       renewAfterExpiration: !subscription.cancel_at_period_end,
       pastDue: pastDueSubscription && !activeSubscription,
+      planKind: planData.planKind,
+
       //omit token field that might be considered as sensitive
-      ...omit(
-        JSON.parse(requireDefined(product.metadata?.plan_data, `Can't find plan data for product ${product.id}`)),
-        "token"
-      ),
+      ...omit(planData, "token"),
       subscriptionId: subscription.id,
     };
   }
@@ -277,8 +309,12 @@ export async function getAvailableProducts(opts: { custom?: boolean } = {}): Pro
         if (opts.custom) {
           return true; // include everything
         } else {
-          const meta = p.metadata?.plan_data ? JSON.parse(p.metadata?.plan_data) : undefined;
-          return !meta?.custom; // exclude custom priced products if opts.custom is not set
+          try {
+            const meta = p.metadata?.plan_data ? JSON.parse(p.metadata?.plan_data) : undefined;
+            return !meta?.custom; // exclude custom priced products if opts.custom is not set
+          } catch (e) {
+            throw new Error(`Malformed plan_data for product ${p.id}`);
+          }
         }
       });
 
@@ -340,7 +376,7 @@ export async function getOrCreatePortalConfiguration() {
       payment_method_update: { enabled: true },
       subscription_update: {
         default_allowed_updates: ["price"],
-        enabled: true,
+        enabled: false,
         products: allowedProducts,
         proration_behavior: "always_invoice",
       },

@@ -12,7 +12,7 @@ export default createRoute()
       token: z.string().optional(),
     }),
   })
-  .handler(async ({ req, res, query, user }) => {
+  .handler(async ({ req, res, query }) => {
     let initTokenUsed = false;
     if (process.env.CONSOLE_INIT_TOKEN && query.token) {
       if (checkRawToken(process.env.CONSOLE_INIT_TOKEN, query.token)) {

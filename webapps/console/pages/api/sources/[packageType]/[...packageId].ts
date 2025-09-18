@@ -52,7 +52,7 @@ export default createRoute()
     return {
       id,
       ...rest,
-      logoSvg,
+      logoSvg: logoSvg ? Buffer.from(logoSvg) : undefined,
       versions: `/api/sources/versions?type=${encodeURIComponent(rest.packageType)}&package=${encodeURIComponent(
         rest.packageId
       )}`,

@@ -6,6 +6,7 @@
   "rules": {
     "no-unused-vars": "off",
     "unused-imports/no-unused-imports": "error",
+    "react/jsx-curly-brace-presence": ["off", { "props": "never" }],
 //    "unused-imports/no-unused-vars": [
 //      "warn",
 //      {

@@ -129,7 +129,7 @@ export const mixpanelFacebookAdsSync: SyncFunction<AnyProps, FacebookCredentials
     "adset_name",
     "adset_id",
   ];
-  const baseUrl = `https://graph.facebook.com/v21.0/act_${source.credentials.account_ids[0]}/insights`;
+  const baseUrl = `https://graph.facebook.com/v23.0/act_${source.credentials.account_ids[0]}/insights`;
   let nextPageUrl: string | undefined = undefined;
   for (const day of Object.entries(daysToSync)
     .filter(([day, val]) => val === null)

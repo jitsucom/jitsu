@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { getErrorMessage, getSingleton, requireDefined, Singleton } from "juava";
 
-import * as admin from "firebase-admin";
+import admin from "firebase-admin";
 import * as JSON5 from "json5";
 import { getServerLog } from "./log";
 

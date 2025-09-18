@@ -130,7 +130,7 @@ const FacebookConversionsApi: JitsuFunction<AnalyticsServerEvent, FacebookConver
             ]),
           };
 
-    const baseUrl = `https://graph.facebook.com/v21.0/${ctx.props.pixelId}/events?access_token=`;
+    const baseUrl = `https://graph.facebook.com/v23.0/${ctx.props.pixelId}/events?access_token=`;
     const payload = { data: [fbEvent] };
     const fetchResult = await ctx.fetch(`${baseUrl}${ctx.props.accessToken}`, {
       method: "POST",

@@ -11,7 +11,17 @@ const SQLQueryDefaultLimit = 50;
 const log = getServerLog("sql-query");
 
 export const getClickhouseClient = (workspaceId: string, cred: ClickhouseCredentials) => {
-  const [host, port = "8443"] = cred.hosts[0].split(":");
+  let [host, port] = cred.hosts[0].split(":");
+  switch (cred.protocol) {
+    case "http":
+      port = port || "8123";
+      break;
+    case "https":
+      port = port || "8443";
+      break;
+    default:
+      port = "8443";
+  }
   const url = `https://${host}:${port}/`;
   log.atDebug().log(`Connecting to ${url} with ${cred.username}`);
   return createClient({
@@ -62,11 +72,7 @@ export default createRoute()
     );
     try {
       const cred = ClickhouseCredentials.parse(destination.config);
-      if (!destination?.config?.["provisioned"] && cred.protocol !== "https") {
-        throw new Error(
-          `At this moment, queries are only supported for HTTPS ClickHouse. Destination ${destinationId} uses ${cred.protocol} `
-        );
-      }
+
       const clickhouse = getClickhouseClient(workspaceId, cred);
 
       const adjustedQuery = adjustQuery(body.query, body.limit || SQLQueryDefaultLimit, body.offset);
@@ -105,10 +111,7 @@ export default createRoute()
     });
     const result = {};
     for (const destination of destinations) {
-      if (
-        destination.config?.["destinationType"] === "clickhouse" &&
-        (ClickhouseCredentials.parse(destination.config).protocol === "https" || !!destination.config?.["provisioned"])
-      ) {
+      if (destination.config?.["destinationType"] === "clickhouse") {
         result[destination.id] = {
           destinationId: destination.id,
           name: (destination?.config as any).name,

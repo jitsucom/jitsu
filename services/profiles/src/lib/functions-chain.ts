@@ -14,12 +14,16 @@ import {
   ProfileUDFWrapper,
   EventsProvider,
   ProfileUserProvider,
+  EntityStore,
+  EnrichedConnectionConfig,
+  warehouseQuery,
 } from "@jitsu/core-functions";
 
 import { getLog, newError } from "juava";
 import NodeCache from "node-cache";
 import isEqual from "lodash/isEqual";
 import { ProfileResult } from "@jitsu/protocols/profile";
+import { metrics } from "./metrics";
 
 export type Func = {
   id: string;
@@ -58,16 +62,20 @@ export type FunctionExecLog = FunctionExecRes[];
 
 export function buildFunctionChain(
   profileBuilder: ProfileBuilder,
+  connStore: EntityStore<EnrichedConnectionConfig>,
   eventsLogger: EventsStore,
   fetchTimeoutMs: number = 2000
 ): FuncChain {
   const pbLongId = `${profileBuilder.workspaceId}-${profileBuilder.id}-v${profileBuilder.version}`;
-  const store = createMongoStore(profileBuilder.workspaceId, mongodb, false, true);
+  const store = createMongoStore(profileBuilder.workspaceId, mongodb, false, true, metrics);
 
   const chainCtx: FunctionChainContext = {
     fetch: makeFetch(profileBuilder.id, eventsLogger, "info", fetchTimeoutMs),
-    log: makeLog(profileBuilder.id, eventsLogger, true),
+    log: makeLog(profileBuilder.id, eventsLogger, false),
     store,
+    query: async (conId: string, query: string, params: any) => {
+      return warehouseQuery(profileBuilder.workspaceId, connStore, conId, query, params, metrics);
+    },
   };
   const funcCtx = {
     function: {
@@ -164,7 +172,10 @@ export async function runChain(
   try {
     result = await f.exec(eventsProvider, userProvider, f.context);
     return {
-      profile_id: profileId,
+      profile_id: result?.profileId || result?.["profile_id"] || profileId,
+      destination_id: result?.destinationId || result?.["destination_id"] || profileBuilder.destinationId,
+      table_name:
+        result?.tableName || result?.["table_name"] || profileBuilder.connectionOptions?.tableName || "profiles",
       traits: { ...(await userProvider()).traits, ...result?.traits },
       version: profileBuilder.version,
       updated_at: new Date(),
@@ -172,5 +183,4 @@ export async function runChain(
   } catch (err: any) {
     throw newError(`Function execution failed`, err);
   }
-  return undefined;
 }

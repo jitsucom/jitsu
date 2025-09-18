@@ -10,6 +10,7 @@ import {
 import { DomainCheckResponse } from "../../../lib/shared/domain-check-response";
 import { createRoute, verifyAccess } from "../../../lib/api";
 import { db } from "../../../lib/server/db";
+import { requireDefined } from "juava";
 
 const log = getServerLog("custom-domains");
 
@@ -27,23 +28,27 @@ export default createRoute()
       throw new Error(`CUSTOM_DOMAIN_CNAMES is not set`);
     }
     await verifyAccess(user, workspaceId);
+    const workspace = requireDefined(
+      await db.prisma().workspace.findFirst({ where: { id: workspaceId } }),
+      `Workspace ${workspaceId} not found`
+    );
     let domainToCheck = domain.trim().toLowerCase();
     if (!checkDomain(domainToCheck)) {
       log.atWarn().log(`Domain '${domainToCheck}' is not a valid domain name`);
       return { ok: false, reason: "invalid_domain_name" };
     }
 
-    const domainAvailability = await isDomainAvailable(domainToCheck, workspaceId);
+    const domainAvailability = await isDomainAvailable(domainToCheck, workspace);
     if (!domainAvailability.available) {
       log
         .atWarn()
         .log(
-          `Domain '${domainToCheck}' can't be added to workspace ${workspaceId}. It is used by ${domainAvailability.usedInWorkspace}`
+          `Domain '${domainToCheck}' can't be added to workspace ${workspace.id}. It is used by ${domainAvailability.usedInWorkspace}`
         );
       return { ok: false, reason: "used_by_other_workspace" };
     }
     if (!domainToCheck.startsWith("*")) {
-      const wildcardDomains = await getWildcardDomains(workspaceId);
+      const wildcardDomains = await getWildcardDomains(workspace.id);
       for (const wildcardDomain of wildcardDomains) {
         if (
           domainToCheck.endsWith(wildcardDomain.toLowerCase().replace("*", "")) &&

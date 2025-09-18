@@ -156,6 +156,7 @@ export type Integrations = {
 export type Options = {
   integrations?: Integrations;
   userId?: ID;
+  groupId?: ID;
   anonymousId?: ID;
   timestamp?: Date | string;
   context?: AnalyticsContext;
@@ -203,7 +204,7 @@ interface AnalyticsContext {
 
   locale?: string;
 
-  xlibrary?: {
+  library?: {
     name: string;
     version: string;
     //allow to add custom fields
@@ -308,7 +309,7 @@ type PersistentStorage = {
 };
 
 export type RuntimeFacade = {
-  store(): PersistentStorage;
+  store?(): PersistentStorage;
   userAgent(): string | undefined;
   language(): string | undefined;
   pageUrl(): string | undefined;
@@ -317,6 +318,7 @@ export type RuntimeFacade = {
   getCookies(): Record<string, string>;
 
   timezoneOffset(): number | undefined;
+  ip?(): string | undefined;
   screen():
     | {
         width: number;
@@ -361,6 +363,16 @@ export type JitsuOptions = {
    * set to ".example.com". If it lives on "example.com", cookie domain will be set to ".example.com" too
    */
   cookieDomain?: string;
+  /**
+   * Name of cookies
+   */
+  cookieNames?: {
+    anonymousId?: string;
+    userId?: string;
+    userTraits?: string;
+    groupId?: string;
+    groupTraits?: string;
+  };
   /**
    * Additional cookies to capture, where the keys are cookie names and
    * the values are the corresponding cookie values. By default, the following cookies are captured:
@@ -462,7 +474,13 @@ export interface AnalyticsInterface {
 
   setAnonymousId(id: string | undefined): void;
 
+  setContextProperty(name: string, value: JSONValue): void;
+
+  getContextProperty(name: string): JSONValue;
+
   configure(options: DynamicJitsuOptions): void;
+
+  getConfiguration(): JitsuOptions;
 
   // alias(
   //   to: string | number,

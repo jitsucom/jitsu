@@ -1,13 +1,31 @@
 import { z } from "zod";
 import { createRoute, verifyAccess, getWorkspace } from "../../../../lib/api";
-import { clickhouse } from "../../../../lib/server/clickhouse";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import { getServerLog } from "../../../../lib/server/log";
+import { requireDefined, rpc } from "juava";
+import { db } from "../../../../lib/server/db";
 
 dayjs.extend(utc);
 
 const log = getServerLog("workspace-metrics");
+type MetricsAlias = {
+  name: string;
+  type: string;
+  help: string;
+};
+const metricsAliases: Record<string, MetricsAlias> = {
+  bulkerapp_consumer_queue_size: {
+    name: "jitsu_queue_size",
+    type: "gauge",
+    help: "queue size for each connection",
+  },
+  connection_message_statuses: {
+    name: "jitsu_message_statuses_total",
+    type: "counter",
+    help: "total number of messages in each status",
+  },
+};
 
 export default createRoute()
   .GET({
@@ -21,45 +39,74 @@ export default createRoute()
     const { workspaceId } = query;
     const workspace = await getWorkspace(workspaceId);
     await verifyAccess(user, workspace.id);
-    const metricsSchema =
-      process.env.CLICKHOUSE_METRICS_SCHEMA || process.env.CLICKHOUSE_DATABASE || "newjitsu_metrics";
-    const sql = `
-        select
-            connectionId,
-            streamId,
-            destinationId,
-            functionId,
-            status,
-            sumMerge(events) as eventsCount
-        from ${metricsSchema}.mv_metrics
-        where
-            timestamp >= date_trunc('day', now()) and
-            workspaceId = {workspace:String}
-        group by connectionId, status, streamId, destinationId, functionId
-        order by connectionId desc`;
     try {
-      const chResult = (await (
-        await clickhouse.query({
-          query: sql,
-          query_params: {
-            workspace: workspace.id,
-          },
-          clickhouse_settings: {
-            wait_end_of_query: 1,
-          },
-        })
-      ).json()) as any;
-
+      const links = await db.prisma().configurationObjectLink.findMany({
+        where: {
+          deleted: false,
+          OR: [{ type: "push" }, { type: null }],
+          workspaceId: workspace.id,
+          workspace: { deleted: false },
+          from: { deleted: false },
+          to: { deleted: false },
+        },
+        include: { from: true, to: true, workspace: true },
+      });
+      const connections = links
+        .map(link => ({
+          connectionId: link.id,
+          connectionName: `${link.from.config?.["name"]} -> ${link.to.config?.["name"]}`,
+          destinationId: link.to.id,
+          destinationName: link.to.config?.["name"],
+          sourceId: link.from.id,
+          sourceName: link.from.config?.["name"],
+        }))
+        .reduce((acc, link) => {
+          acc[link.connectionId] = link;
+          return acc;
+        }, {});
       res.writeHead(200, {
         "Content-Type": "text/plain",
       });
-      res.write(`# HELP jitsu_connection_statuses Number of event status by connectionId, sourceId, destinationId, functionId
-# TYPE jitsu_connection_statuses counter\n`);
-      chResult.data.forEach((row: any) => {
-        res.write(
-          `jitsu_connection_statuses{connectionId="${row.connectionId}",sourceId="${row.streamId}",destinationId="${row.destinationId}",functionId="${row.functionId}",status="${row.status}"} ${row.eventsCount}\n`
-        );
+      const bulkerURLEnv = requireDefined(process.env.BULKER_URL, "env BULKER_URL is not defined");
+      const bulkerAuthKey = process.env.BULKER_AUTH_KEY ?? "";
+      // access prometheus API
+      const url = bulkerURLEnv + "/connections-metrics/" + workspace.id;
+      const promMetrics = await rpc(url, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${bulkerAuthKey}`,
+        },
       });
+      const helpWritten: Record<string, boolean> = {};
+
+      if (promMetrics.status === "success" && promMetrics.data?.resultType === "vector") {
+        for (const metric of promMetrics.data.result) {
+          const rawLabels = metric.metric;
+          const metricsAlias = metricsAliases[rawLabels.__name__];
+          const metricName = metricsAlias?.name ?? rawLabels.__name__;
+          if (!helpWritten[metricName] && metricsAlias) {
+            res.write(`# HELP ${metricName} ${metricsAlias.help}
+# TYPE ${metricName} ${metricsAlias.type}\n`);
+            helpWritten[metricName] = true;
+          }
+          const con = connections[rawLabels.destinationId];
+          const labels: Record<string, string> = {
+            ...con,
+            connectionId: rawLabels.destinationId,
+            tableName: rawLabels.tableName,
+          };
+          if (rawLabels.mode) {
+            labels.mode = rawLabels.mode;
+          }
+          if (rawLabels.status) {
+            labels.status = rawLabels.status;
+          }
+          const labelsStr = Object.entries(labels)
+            .map(([key, value]) => `${key}="${value ? value.replaceAll(/"/g, '\\"') : ""}"`)
+            .join(",");
+          res.write(`${metricName}{${labelsStr}} ${metric.value[1]}\n`);
+        }
+      }
     } catch (e) {
       res.writeHead(500, {
         "Content-Type": "text/plain",

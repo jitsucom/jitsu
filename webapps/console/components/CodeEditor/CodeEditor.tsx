@@ -1,5 +1,5 @@
 import Editor from "@monaco-editor/react";
-import React, { useCallback, useEffect, useRef } from "react";
+import React, { ReactNode, useCallback, useEffect, useRef } from "react";
 import { LoadingAnimation } from "../GlobalLoader/GlobalLoader";
 import debounce from "lodash/debounce";
 import * as monaco from "monaco-editor";
@@ -16,7 +16,12 @@ type CodeEditorProps = {
   ctrlSCallback?: (value: string) => void;
   foldLevel?: number;
   extraSuggestions?: string;
+  loaderNode?: ReactNode;
+  autoFit?: boolean;
   monacoOptions?: Partial<monaco.editor.IStandaloneEditorConstructionOptions>;
+  syntaxCheck?: {
+    json?: boolean;
+  };
 };
 
 export const CodeEditor: React.FC<CodeEditorProps> = ({
@@ -31,6 +36,9 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   monacoOptions,
   extraSuggestions,
   foldLevel,
+  loaderNode,
+  autoFit,
+  syntaxCheck,
 }) => {
   const editorRef = useRef<any>(null);
   const [mounted, setMounted] = React.useState(false);
@@ -49,14 +57,25 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       if (extraSuggestions) {
         monaco.languages.typescript.javascriptDefaults.setExtraLibs([{ content: extraSuggestions }]);
       }
+      if (syntaxCheck && typeof syntaxCheck.json !== "undefined") {
+        monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
+          validate: syntaxCheck.json,
+        });
+      }
       if (handleChangePosition) {
         editor.onDidChangeCursorPosition(e => {
           handleChangePosition?.(editor.getModel().getOffsetAt(e.position));
         });
       }
+      if (autoFit) {
+        editor.layout({
+          width: 200,
+          height: Math.max(editor.getContentHeight(), 50),
+        });
+      }
       setMounted(true);
     },
-    [extraSuggestions, foldLevel, handleChangePosition, value]
+    [autoFit, extraSuggestions, foldLevel, handleChangePosition, syntaxCheck, value]
   );
 
   useEffect(() => {
@@ -85,7 +104,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     const editor = editorRef.current;
     if (editor && editor.getValue() !== value) {
       const positionShift = value.length - editor.getValue().length;
-      if (Math.abs(positionShift) > 2) {
+      if (Math.abs(positionShift) > 2 || monacoOptions?.readOnly) {
         // we respect prop.value change only if it's more than 2 characters
         // otherwise, it's probably user is typing, and we don't want to rollback what he typed due to delay in props update
         const position = editor.getPosition();
@@ -99,7 +118,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
         }
       }
     }
-  }, [value, foldLevel]);
+  }, [value, foldLevel, monacoOptions?.readOnly]);
 
   return (
     <div className="w-full h-full">
@@ -107,7 +126,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
         onChange={v => {
           handleChange(v || "");
         }}
-        loading={<LoadingAnimation />}
+        loading={loaderNode || <LoadingAnimation />}
         language={language}
         height={height}
         width={width}

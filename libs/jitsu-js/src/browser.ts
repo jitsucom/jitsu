@@ -32,6 +32,18 @@ const booleanParser = (nestedPath: string[] = []) => ({
   parse: (arg: string) => arg === "true" || arg === "1" || arg === "yes",
 });
 
+const jsonParser = (nestedPath: string[] = []) => ({
+  ...defaultParser(nestedPath),
+  parse: (arg: string) => {
+    try {
+      return JSON.parse(arg);
+    } catch (e) {
+      console.error(`Can't parse Jitsu Option as JSON: ${arg}`);
+      return {};
+    }
+  },
+});
+
 const parsers: Partial<Record<string, Parser>> = {
   debug: booleanParser(),
   "privacy-disable-user-ids": booleanParser(["privacy"]),
@@ -39,6 +51,9 @@ const parsers: Partial<Record<string, Parser>> = {
   "privacy-ip-policy": defaultParser(["privacy"]),
   "echo-events": booleanParser(),
   "init-only": booleanParser(),
+  "cookie-names": jsonParser(),
+  "cookie-capture": jsonParser(),
+  "default-payload-context": jsonParser(),
 };
 
 function getParser(name: string): Parser {

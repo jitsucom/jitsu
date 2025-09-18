@@ -28,7 +28,7 @@ export default async function handler(req, res) {
     if (data?.logoSvg) {
       res.setHeader("Content-Type", "image/svg+xml");
       res.setHeader("Cache-Control", "public, max-age=2592000, immutable");
-      res.status(200).send(data.logoSvg.toString());
+      res.status(200).send(Buffer.from(data.logoSvg).toString());
     } else {
       res.setHeader("Content-Type", "image/svg+xml");
       res.setHeader("Cache-Control", "public, max-age=2592000, immutable");

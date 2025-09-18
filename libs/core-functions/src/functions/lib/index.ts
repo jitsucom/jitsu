@@ -23,14 +23,25 @@ import {
   getErrorMessage,
   getLog,
   getThrottle,
+  int32Hash,
+  isTruish,
   LogLevel,
   LogMessageBuilder,
   newError,
   noThrottle,
   stopwatch,
 } from "juava";
+import * as dns from "node:dns";
+import ip from "ip";
+import NodeCache from "node-cache";
 
 const log = getLog("functions-context");
+
+const fetchForbidLocal = isTruish(process.env.FETCH_FORBID_LOCAL);
+const fetchLocalWhitelist = process.env.FETCH_LOCAL_WHITELIST
+  ? process.env.FETCH_LOCAL_WHITELIST.split(",").map(h => h.trim().toLowerCase())
+  : [];
+const publicHostnamesCache = new NodeCache({ stdTTL: 300, checkperiod: 60, useClones: false });
 
 /**
  * Store for incoming events, destination results and function log messages
@@ -77,7 +88,7 @@ export type FuncChainResult = {
 };
 
 export type FunctionExecRes = {
-  receivedAt?: any;
+  receivedAt?: Date;
   eventIndex: number;
   event?: any;
   metricsMeta?: MetricsMeta;
@@ -89,9 +100,13 @@ export type FunctionExecRes = {
 
 export type FunctionExecLog = FunctionExecRes[];
 
-export interface RotorMetrics {
-  logMetrics: (execLog: FunctionExecLog) => void;
+export interface StoreMetrics {
   storeStatus: (namespace: string, operation: string, status: string) => void;
+  warehouseStatus: (id: string, table: string, status: string, timeMs: number) => void;
+}
+
+export interface RotorMetrics extends StoreMetrics {
+  logMetrics: (execLog: FunctionExecLog) => void;
   close: () => void;
 }
 
@@ -116,6 +131,7 @@ export type FunctionChainContext = {
   };
   fetch: InternalFetchType;
   store: TTLStore;
+  query?: (conId: string, query: string, params?: any) => Promise<any>;
   anonymousEventsStore?: AnonymousEventsStore;
   metrics?: FunctionMetrics;
   connectionOptions?: any;
@@ -145,6 +161,9 @@ export function wrapperFunction<E extends AnyEvent = AnyEvent, P extends AnyProp
       ...ctx,
       log,
       fetch: ftch,
+      getWarehouse: () => {
+        throw newError("Warehouse API is not available in builtin functions");
+      },
       store,
       props,
     };
@@ -267,7 +286,7 @@ export function createFilter(filter: string): (eventType: string, eventName?: st
 }
 
 export function eventTimeSafeMs(event: AnalyticsServerEvent) {
-  const now = new Date().getTime();
+  const now = Date.now();
   const ts = event.timestamp ? new Date(event.timestamp as string).getTime() : NaN;
   const receivedAt = event.receivedAt ? new Date(event.receivedAt as string).getTime() : NaN;
   return Math.min(!isNaN(ts) ? ts : now, !isNaN(receivedAt) ? receivedAt : now, now);
@@ -356,6 +375,26 @@ export const makeFetch = (
 ) => {
   const throttle = connectionId === "clke5lrfm0000ii0gahryc37d-wbyo-5jyq-KIMXwt" ? getThrottle(5000) : noThrottle();
 
+  async function isPublic(hostname: string) {
+    const cached = publicHostnamesCache.get(hostname);
+    if (typeof cached !== "undefined") {
+      return cached as boolean;
+    }
+    const addresses = await dns.promises.lookup(hostname, { all: true });
+    if (addresses.length === 0) {
+      publicHostnamesCache.set(hostname, false);
+      return false;
+    }
+    for (const addr of addresses) {
+      if (ip.isPrivate(addr.address)) {
+        publicHostnamesCache.set(hostname, false);
+        return false;
+      }
+    }
+    publicHostnamesCache.set(hostname, true);
+    return true;
+  }
+
   return async (
     url: string,
     init?: FetchOpts,
@@ -384,6 +423,10 @@ export const makeFetch = (
 
     let fetchResult: any = undefined;
     try {
+      const host = new URL(url).hostname; //this will throw if url is invalid
+      if (fetchForbidLocal && !fetchLocalWhitelist.includes(host.toLowerCase()) && !(await isPublic(host))) {
+        throw newError(`fetch failed`);
+      }
       const throttleValue = throttle.throttle();
       if (throttleValue > 0 && Math.random() < throttleValue) {
         const e = new Error(`Fetch request throttled because of timeout rate: ${throttleValue}`);
@@ -470,4 +513,18 @@ function tryJson(text: string, maxLen: number = 1000): any {
   } catch (err) {
     return text;
   }
+}
+
+export function bulkerPartitionParam(ctx: FullContext, event: AnalyticsServerEvent): string {
+  let partitionParam = "";
+  if (ctx["connectionOptions"]?.multithreading) {
+    const threadsCount = ctx["connectionOptions"]?.threadsCount || 2;
+    const thread = event.messageId
+      ? int32Hash(event.messageId) % threadsCount
+      : Math.floor(Math.random() * threadsCount);
+    if (thread > 0) {
+      partitionParam = `&partition=${thread}`;
+    }
+  }
+  return partitionParam;
 }

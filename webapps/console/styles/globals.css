@@ -66,7 +66,7 @@ code {
   font-family: var(--font-mono);
   line-height: normal;
   background: rgba(135, 131, 120, 0.15);
-  //color: #EB5757;
+  /*color: #EB5757;*/
   font-weight: bold;
   white-space: nowrap;
   border-radius: 3px;

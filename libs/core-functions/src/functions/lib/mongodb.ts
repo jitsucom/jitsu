@@ -1,4 +1,4 @@
-import { getLog, getSingleton, parseNumber, requireDefined } from "juava";
+import { getLog, getSingleton, parseDate, parseNumber, requireDefined } from "juava";
 import { MongoClient, MongoClientOptions, ObjectId } from "mongodb";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { AnonymousEventsStore } from "@jitsu/protocols/functions";
@@ -29,11 +29,16 @@ async function createClient() {
     connectTimeoutMS: 60000,
     socketTimeoutMS: mongoTimeout,
   });
-  // Connect the client to the server (optional starting in v4.7)
-  await client.connect();
-  // Establish and verify connection
-  await client.db().command({ ping: 1 });
-  return client;
+  try {
+    // Connect the client to the server (optional starting in v4.7)
+    await client.connect();
+    // Establish and verify connection
+    await client.db().admin().ping();
+    return client;
+  } catch (e) {
+    client.close(true);
+    throw e;
+  }
 }
 
 const MongoCreatedCollections = new Set<string>();
@@ -47,7 +52,7 @@ export function mongoAnonymousEventsStore(): AnonymousEventsStore {
         .db()
         .collection(collectionName)
         .insertOne(
-          { ...event, [AnonymousEventsStoreIdField]: anonymousId },
+          { ...event, timestamp: parseDate(event.timestamp, new Date()), [AnonymousEventsStoreIdField]: anonymousId },
           { writeConcern: { w: 1, journal: false } }
         );
       if (res.acknowledged) {
@@ -106,7 +111,6 @@ async function ensureMongoCollection(
       return;
     }
     const collection = await db.createCollection(collectionName, {
-      expireAfterSeconds: 60 * 60 * 24 * ttlDays,
       clusteredIndex: {
         key: { _id: 1 },
         unique: true,
@@ -114,6 +118,7 @@ async function ensureMongoCollection(
       writeConcern: { w: 1, journal: false },
       storageEngine: { wiredTiger: { configString: "block_compressor=zstd" } },
     });
+    await collection.createIndex({ timestamp: 1 }, { expireAfterSeconds: 60 * 60 * 24 * ttlDays });
     if (indexFields.length > 0) {
       const index = {};
       indexFields.forEach(field => {

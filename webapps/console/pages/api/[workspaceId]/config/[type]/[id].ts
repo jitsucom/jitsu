@@ -1,4 +1,4 @@
-import { Api, inferUrl, nextJsApiHandler, verifyAccess } from "../../../../../lib/api";
+import { Api, inferUrl, nextJsApiHandler, verifyAccess, verifyAccessWithRole } from "../../../../../lib/api";
 import { z } from "zod";
 import { db } from "../../../../../lib/server/db";
 import { getServerLog } from "../../../../../lib/server/log";
@@ -8,6 +8,7 @@ import { prepareZodObjectForDeserialization } from "../../../../../lib/zod";
 import { isReadOnly } from "../../../../../lib/server/read-only-mode";
 import { enableAuditLog } from "../../../../../lib/server/audit-log";
 import { trackTelemetryEvent } from "../../../../../lib/server/telemetry";
+import { requireDefined } from "juava";
 
 function defaultMerge(a, b) {
   return { ...a, ...b };
@@ -40,7 +41,7 @@ export const api: Api = {
         throw new ApiError(`${type} with id ${id} does not exist`, {}, { status: 400 });
       }
       const preFilter = { ...((object.config as any) || {}), workspaceId, id, type };
-      return configObjectType.outputFilter(preFilter);
+      return await configObjectType.outputFilter(preFilter);
     },
   },
   PUT: {
@@ -54,7 +55,11 @@ export const api: Api = {
       if (isReadOnly) {
         throw new ApiError("Console is in read-only mode. Modifications of objects are not allowed");
       }
-      await verifyAccess(user, workspaceId);
+      await verifyAccessWithRole(user, workspaceId, "editEntities");
+      const workspace = requireDefined(
+        await db.prisma().workspace.findFirst({ where: { id: workspaceId } }),
+        `Workspace ${workspaceId} not found`
+      );
       const configObjectType = getConfigObjectType(type);
       const object = await db.prisma().configurationObject.findFirst({
         where: { workspaceId: workspaceId, id, deleted: false },
@@ -62,9 +67,9 @@ export const api: Api = {
       if (!object) {
         throw new ApiError(`${type} with id ${id} does not exist`);
       }
-      const merged = configObjectType.merge(object.config, { ...body, id, workspaceId });
+      const merged = await configObjectType.merge(object.config, { ...body, id, workspaceId });
       const data = parseObject(type, merged);
-      const filtered = await configObjectType.inputFilter(data, "update");
+      const filtered = await configObjectType.inputFilter(data, "update", workspace);
 
       delete filtered.id;
       delete filtered.workspaceId;
@@ -94,7 +99,7 @@ export const api: Api = {
     },
     handle: async ({ user, body, query }) => {
       const { id, workspaceId, type } = query;
-      await verifyAccess(user, workspaceId);
+      await verifyAccessWithRole(user, workspaceId, "deleteEntities");
       if (isReadOnly) {
         throw new ApiError("Console is in read-only mode. Modifications of objects are not allowed");
       }

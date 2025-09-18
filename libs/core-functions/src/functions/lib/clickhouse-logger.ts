@@ -4,14 +4,10 @@ const log = getLog("clickhouseLogger");
 
 import { createClient } from "@clickhouse/client";
 import { EventsStore } from "./index";
+import { Readable } from "stream";
 
-type LogEntry = {
-  actorId: string;
-  type: string;
-  timestamp: Date;
-  level: LogLevel;
-  message: any;
-};
+type LogEntry = [number, string, string, LogLevel, any];
+
 function clickhouseHost() {
   if (process.env.CLICKHOUSE_URL) {
     return process.env.CLICKHOUSE_URL;
@@ -42,18 +38,32 @@ export function createClickhouseLogger(): EventsStore {
     if (buffer.length === 0) {
       return;
     }
-    const copy = [...buffer];
+    const copy = buffer.slice();
     buffer.length = 0;
-    const res = await clickhouse.insert<LogEntry>({
+    const eventsStream = new Readable({ objectMode: true });
+    const res = clickhouse.insert<LogEntry>({
       table: metricsSchema + ".events_log",
-      format: "JSONEachRow",
-      values: copy,
+      format: "JSONCompactEachRow",
+      values: eventsStream,
     });
-    if (res.executed) {
-      log.atDebug().log(`Inserted ${copy.length} records.`);
-    } else {
-      log.atError().log(`Failed to insert ${copy.length} records: ${JSON.stringify(res)}`);
-    }
+    const asyncWrite = async () => {
+      for (let i = 0; i < copy.length; i++) {
+        eventsStream.push(copy[i]);
+      }
+      eventsStream.push(null);
+      return res;
+    };
+    return asyncWrite()
+      .then(res => {
+        if (res.executed) {
+          log.atDebug().log(`Inserted ${copy.length} records.`);
+        } else {
+          log.atError().log(`Failed to insert ${copy.length} records: ${JSON.stringify(res)}`);
+        }
+      })
+      .catch(e => {
+        log.atError().withCause(e).log(`Failed to insert ${copy.length} records`);
+      });
   };
 
   const interval = setInterval(async () => {
@@ -65,13 +75,7 @@ export function createClickhouseLogger(): EventsStore {
 
   return {
     log: (connectionId: string, level: LogLevel, message) => {
-      const logEntry = {
-        actorId: connectionId,
-        type: "function",
-        timestamp: new Date(),
-        level,
-        message,
-      };
+      const logEntry: LogEntry = [Date.now(), connectionId, "function", level, message];
       buffer.push(logEntry);
     },
     close: () => {

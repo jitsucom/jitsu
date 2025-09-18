@@ -10,8 +10,8 @@ import styles from "./WorkspacePageLayout.module.css";
 import {
   Activity,
   AlertCircle,
-  ArrowLeftRight,
   ArrowRight,
+  BellIcon,
   ChevronDown,
   ChevronUp,
   CircleDollarSign,
@@ -25,7 +25,6 @@ import {
   HelpCircle,
   LayoutDashboard,
   LineChart,
-  Loader2,
   PackageOpen,
   PlugZap,
   ScrollText,
@@ -45,24 +44,20 @@ import {
 import { NextRouter, useRouter } from "next/router";
 import Link from "next/link";
 import { getDomains, useAppConfig, useUser, useUserSessionControls, useWorkspace } from "../../lib/context";
-import { get, useApi } from "../../lib/useApi";
+import { useApi } from "../../lib/useApi";
 
 import { Overlay } from "../Overlay/Overlay";
 import { WorkspaceNameAndSlugEditor } from "../WorkspaceNameAndSlugEditor/WorkspaceNameAndSlugEditor";
-import { assertDefined, assertTrue, getLog, requireDefined } from "juava";
+import { assertDefined, assertTrue, getLog } from "juava";
 import classNames from "classnames";
-import { getEeClient } from "../../lib/ee-client";
 import { BillingBlockingDialog } from "../Billing/BillingBlockingDialog";
-import { signOut } from "next-auth/react";
-import { firebaseSignOut } from "../../lib/firebase-client";
-import { feedbackError } from "../../lib/ui";
-import { useClassicProject } from "./ClassicProjectProvider";
 import { useJitsu } from "@jitsu/jitsu-react";
 import { useSearchParams } from "next/navigation";
 import omit from "lodash/omit";
 import { useBilling, UseBillingResult } from "../Billing/BillingProvider";
 import { useEventsUsage, UseUsageRes } from "../Billing/use-events-usage";
 import { MenuItemType } from "antd/lib/menu/interface";
+import { FaGear } from "react-icons/fa6";
 
 export type PageLayoutProps = {
   fullscreen?: boolean;
@@ -109,7 +104,6 @@ export const WorkspaceMenu: React.FC<{ closeMenu: () => void; classicProject?: s
 function WorkspacesMenu(props: { jitsuClassicAvailable: boolean }) {
   const router = useRouter();
   const [classicLoading, setClassicLoading] = useState(false);
-  const [adding, setAdding] = useState(false);
 
   const workspace = useWorkspace();
   const appConfig = useAppConfig();
@@ -173,64 +167,15 @@ function WorkspacesMenu(props: { jitsuClassicAvailable: boolean }) {
           key: "new-workspace",
           label: (
             <div className="flex items-center">
-              <ButtonLabel
-                iconSize="small"
-                icon={
-                  adding ? <Loader2 className="h-full w-full animate-spin" /> : <FilePlus className="h-full w-full" />
-                }
-              >
+              <ButtonLabel iconSize="small" icon={<FilePlus className="h-full w-full" />}>
                 Create new workspace
               </ButtonLabel>
             </div>
           ),
           onClick: async () => {
-            setAdding(true);
-            try {
-              const { id } = await get("/api/workspace", { method: "POST", body: {} });
-              await router.push(`/${id}`);
-            } catch (e) {
-              feedbackError(`Can't create new workspace`, { error: e });
-            } finally {
-              setAdding(false);
-            }
+            await router.push("/new-workspace");
           },
         },
-        ...(props.jitsuClassicAvailable
-          ? [
-              {
-                key: "switch",
-                label: (
-                  <ButtonLabel
-                    iconSize="small"
-                    icon={
-                      classicLoading ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        <ArrowLeftRight className="h-4 w-4 mr-2" />
-                      )
-                    }
-                  >
-                    Switch to Jitsu Classic
-                  </ButtonLabel>
-                ),
-                onClick: async () => {
-                  setClassicLoading(true);
-                  try {
-                    const eeClient = getEeClient(
-                      requireDefined(appConfig.ee.host, `EE is not available`),
-                      workspace.id
-                    );
-                    const customToken = await eeClient.createCustomToken();
-                    window.location.href = `${appConfig.jitsuClassicUrl}/?token=${customToken}`;
-                  } catch (e) {
-                    feedbackError(`Can't navigate to Jitsu.Classic`, { error: e });
-                  } finally {
-                    //setClassicLoading(false);
-                  }
-                },
-              },
-            ]
-          : []),
         ...additionalMenuItems,
       ]}
     />
@@ -318,7 +263,7 @@ export const TopTabsMenu: React.FC<TopTabsMenuProps> = props => {
           key: subItem!.path,
           label: (
             <MenuLabel icon={subItem!.icon}>
-              <Link href={subItem!.globalPath ? subItem!.path : `/${workspace.slug}${subItem!.path}`}>
+              <Link href={subItem!.globalPath ? subItem!.path : `/${workspace.slugOrId}${subItem!.path}`}>
                 {subItem!.title}
               </Link>
             </MenuLabel>
@@ -330,7 +275,7 @@ export const TopTabsMenu: React.FC<TopTabsMenuProps> = props => {
       return {
         label: (
           <MenuLabel>
-            <Link href={item.globalPath ? item.path : `/${workspace.slug}${item.path}`}>{item.title}</Link>
+            <Link href={item.globalPath ? item.path : `/${workspace.slugOrId}${item.path}`}>{item.title}</Link>
           </MenuLabel>
         ),
         key: item.path,
@@ -353,8 +298,6 @@ export const TopTabsMenu: React.FC<TopTabsMenuProps> = props => {
 
 function Breadcrumbs() {
   const workspace = useWorkspace();
-  const appConfig = useAppConfig();
-  const classicProject = useClassicProject();
 
   return (
     <div className="flex py-4 items-center">
@@ -369,36 +312,6 @@ function Breadcrumbs() {
       <div>
         <WorkspaceSelector currentTitle={workspace.name} />
       </div>
-      {classicProject.active && !!classicProject.project && (
-        <>
-          <div className="pl-2 w-8 h-8 text-textLight">
-            <svg fill="none" height="100%" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" width="100%">
-              <path d="M16.88 3.549L7.12 20.451" />
-            </svg>
-          </div>
-          <div>
-            <button
-              className={"h-8 ml-3.5 mr-1.5 outline-0"}
-              onClick={async () => {
-                try {
-                  const eeClient = getEeClient(requireDefined(appConfig.ee.host, `EE is not available`), workspace.id);
-                  const customToken = await eeClient.createCustomToken();
-                  window.location.href = `${appConfig.jitsuClassicUrl}/?token=${customToken}`;
-                } catch (e) {
-                  feedbackError(`Can't navigate to Jitsu.Classic`, { error: e });
-                }
-              }}
-            >
-              <img alt={""} src="/logo-classic-gray.svg" className="h-5 w-5 mr-2" /> Switch to Jitsu Classic
-            </button>
-          </div>
-          <div className={""}>
-            <a target={"_blank"} rel={"noreferrer noopener"} href="https://jitsu.com/blog/jitsu-next#migration-faq">
-              ( <u>Read about migration</u> )
-            </a>
-          </div>
-        </>
-      )}
     </div>
   );
 }
@@ -422,7 +335,6 @@ function UserProfileMenu({ user }: { user: { name: string; email: string } }) {
           onClick={async () => {
             await sessionControl.logout();
             analytics.reset();
-            router.push("/", undefined, { shallow: true });
           }}
         >
           <ButtonLabel icon={<FaSignOutAlt />}>Logout</ButtonLabel>
@@ -528,7 +440,7 @@ const FreePlanQuotaAlert: React.FC<{}> = () => {
         Your workspace is throttled due to exceeding the free plan quota at rate of <b>{usage.throttle}%</b>
         <Link
           className="group inline-flex items-center border-b border-neutral-600"
-          href={`/${workspace.slug}/settings/billing`}
+          href={`/${workspace.slugOrId}/settings/billing`}
         >
           Go to billing to see more details{" "}
           <ArrowRight className="h-4 group-hover:rotate-45 transition-all duration-500" />
@@ -541,7 +453,7 @@ const FreePlanQuotaAlert: React.FC<{}> = () => {
         You are projected to exceed your monthly events. Please upgrade your plan to avoid service disruption.{" "}
         <Link
           className="group inline-flex items-center border-b border-neutral-600"
-          href={`/${workspace.slug}/settings/billing`}
+          href={`/${workspace.slugOrId}/settings/billing`}
         >
           Go to billing <ArrowRight className="h-4 group-hover:rotate-45 transition-all duration-500" />
         </Link>
@@ -572,7 +484,6 @@ function PageHeader() {
       items: [
         { title: "Sites", path: "/streams", icon: <Globe className="w-full h-full" /> },
         { title: "Connections", path: "/connections", icon: <Share2 className="w-full h-full" /> },
-        { title: "Functions", path: "/functions", icon: <FunctionSquare className="w-full h-full" /> },
       ],
     },
     (appConfig.syncs.enabled || workspace.featuresEnabled?.includes("syncs")) && {
@@ -590,7 +501,7 @@ function PageHeader() {
       icon: <User className="w-full h-full" />,
       items: [{ title: "Profile Builder", path: "/profile-builder", icon: <UserRoundPen className="w-full h-full" /> }],
     },
-
+    { title: "Functions", path: "/functions", icon: <FunctionSquare className="w-full h-full" /> },
     { title: "Destinations", path: "/destinations", icon: <Server className="w-full h-full" /> },
     {
       title: "Data",
@@ -618,11 +529,23 @@ function PageHeader() {
           : undefined,
         { title: "User Settings", path: "/user", icon: <User className="w-full h-full" />, globalPath: true },
         { title: "Billing Settings", path: "/settings/billing", icon: <CreditCard className="w-full h-full" /> },
+        {
+          title: "Notification Settings",
+          path: "/settings/notifications",
+          icon: <BellIcon className="w-full h-full" />,
+        },
         billing.enabled && billing.settings?.dataRetentionEditorEnabled
           ? {
               title: "Data Retention",
               path: "/settings/data-retention",
               icon: <PackageOpen className="w-full h-full" />,
+            }
+          : undefined,
+        workspace.featuresEnabled?.includes("misc")
+          ? {
+              title: "Miscellaneous Settings",
+              path: "/miscs",
+              icon: <FaGear className="w-full h-full" />,
             }
           : undefined,
       ],
@@ -653,16 +576,18 @@ const minWidth = 1024;
  * @param onboarding if the dialog is shown on onboarding page. For onboarding,
  * we should issue an event that onboarding is completed
  */
-const WorkspaceSettingsModal: React.FC<{ onSuccess: () => void; onboarding: boolean }> = ({
-  onSuccess,
-  onboarding,
-}) => {
+const WorkspaceSettingsModal: React.FC<{
+  onSuccess: (newVals: { name: string; slug: string }) => void;
+  onboarding: boolean;
+}> = ({ onSuccess, onboarding }) => {
   const appConfig = useAppConfig();
   const domains = getDomains(appConfig);
   const { analytics } = useJitsu();
   const { push, query } = useRouter();
   const searchParams = useSearchParams();
   const welcome = searchParams.get("welcome");
+  const sessionControl = useUserSessionControls();
+  const workspace = useWorkspace();
 
   useEffect(() => {
     if (welcome) {
@@ -689,22 +614,10 @@ const WorkspaceSettingsModal: React.FC<{ onSuccess: () => void; onboarding: bool
               {domains.appBase}/<span className="text-textDark">your-slug</span>
             </code>{" "}
           </div>
-          <WorkspaceNameAndSlugEditor onSuccess={onSuccess} offerClassic={false} onboarding={onboarding} />
+          <WorkspaceNameAndSlugEditor workspace={workspace} onSuccess={onSuccess} onboarding={onboarding} />
           <div className="text-center my-4">
             Got here by mistake?{" "}
-            <a
-              className="cursor-pointer text-primary underline"
-              onClick={async () => {
-                //we can't use current session here, since the error can be originated
-                //from auth layer. Try to logout using all methods
-                signOut().catch(err => {
-                  log.atWarn().withCause(err).log(`Can't sign out from next-auth`);
-                });
-                firebaseSignOut().catch(err => {
-                  log.atWarn().withCause(err).log(`Can't sign out from next-auth`);
-                });
-              }}
-            >
+            <a className="cursor-pointer text-primary underline" onClick={sessionControl.logout}>
               Sign out
             </a>{" "}
             or{" "}
@@ -770,6 +683,11 @@ export const WorkspacePageLayout: React.FC<PropsWithChildren<PageLayoutProps>> =
     setShowDrawer(false);
   }, [fullscreen]);
 
+  if (workspace.deleted) {
+    router.push("/workspaces");
+    return <p>This workspace was deleted, redirecting...</p>;
+  }
+
   const pHeader = (
     <VerticalSection className="header border-b border-neutral-300 bg-neutral-50 z-40" key="header">
       <WidthControl className={"px-4"}>
@@ -777,6 +695,7 @@ export const WorkspacePageLayout: React.FC<PropsWithChildren<PageLayoutProps>> =
       </WidthControl>
     </VerticalSection>
   );
+
   return (
     <div className={`flex flex-col ${screen ? "h-screen" : ""} ${className}`}>
       {!doNotBlockIfUsageExceeded && <BillingBlockingDialog />}
@@ -784,8 +703,12 @@ export const WorkspacePageLayout: React.FC<PropsWithChildren<PageLayoutProps>> =
         {!workspace.slug && (
           <WorkspaceSettingsModal
             onboarding={true}
-            onSuccess={() => {
-              router.reload();
+            onSuccess={({ slug }) => {
+              if (slug) {
+                router.push(`/${slug}`);
+              } else {
+                router.reload();
+              }
             }}
           />
         )}

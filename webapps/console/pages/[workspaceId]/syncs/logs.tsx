@@ -3,39 +3,46 @@ import { useWorkspace } from "../../../lib/context";
 import React, { ReactNode, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import { JitsuButton } from "../../../components/JitsuButton/JitsuButton";
-import { ChevronLeft, FileDown, RefreshCw } from "lucide-react";
+import { FileDown, RefreshCw } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { LoadingAnimation } from "../../../components/GlobalLoader/GlobalLoader";
 import escape from "lodash/escape";
+import { BackButton } from "../../../components/BackButton/BackButton";
 
-function colorLogs(data: string): ReactNode {
-  return data.split("\n").map((line, i) => {
+function colorLogs(data: string[]): ReactNode {
+  return data.map((line, i) => {
     line = escape(line);
-    if (line.includes(" ERROR [")) {
+    if (line.includes(" ERROR [") || line.includes(" FATAL [") || line.includes(" ERRSTD [")) {
       return (
-        <span key={i} className="text-red-600">
-          {line + "\n"}
-        </span>
+        <span
+          key={i}
+          className="text-red-600"
+          dangerouslySetInnerHTML={{
+            __html: line + "\n",
+          }}
+        />
       );
     } else if (line.includes(" WARN [")) {
       return (
-        <span key={i} className="text-yellow-800">
-          {line + "\n"}
-        </span>
+        <span
+          key={i}
+          className="text-orange-800"
+          dangerouslySetInnerHTML={{
+            __html: line + "\n",
+          }}
+        />
       );
     } else if (line.includes("[jitsu]")) {
       return (
-        <span key={i} className="text-fuchsia-700">
-          <span
-            key={i}
-            dangerouslySetInnerHTML={{
-              __html:
-                line
-                  .replace(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}[.]\d{3})/, '<span style="color: #4f46e5">$1</span>')
-                  .replace(/'([\w_]+)'/, "<b>'$1'</b>") + "\n",
-            }}
-          ></span>
-        </span>
+        <span
+          key={i}
+          className="text-fuchsia-700"
+          dangerouslySetInnerHTML={{
+            __html:
+              line.replace(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}[.]\d{3})/, '<span style="color: #4f46e5">$1</span>') +
+              "\n",
+          }}
+        ></span>
       );
     } else {
       return (
@@ -69,7 +76,7 @@ function TaskLogs() {
     { cacheTime: 0, retry: false }
   );
 
-  const [displayText, setDisplayText] = useState<string | undefined>(undefined);
+  const [displayText, setDisplayText] = useState<string[] | undefined>(undefined);
 
   useEffect(() => {
     if (divRef.current) {
@@ -79,7 +86,7 @@ function TaskLogs() {
 
   useEffect(() => {
     if (data) {
-      setDisplayText(data.split("\n").reverse().join("\n"));
+      setDisplayText(data.split("#ENDLINE#").reverse());
     }
   }, [data]);
 
@@ -107,14 +114,7 @@ function TaskLogs() {
           >
             Refresh
           </JitsuButton>
-          <JitsuButton
-            icon={<ChevronLeft className="w-6 h-6" />}
-            type="link"
-            size="small"
-            onClick={() => router.back()}
-          >
-            Back
-          </JitsuButton>
+          <BackButton href={`/${workspace.slugOrId}/syncs/tasks?query={syncId:'${router.query.syncId}'}`} />
         </div>
       </div>
       <div

@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { UserProfileDbModel } from "../../prisma/schema";
+import { UserProfileDbModel, WorkspaceDbModel } from "../../prisma/schema";
+import { WorkspaceRolesZodType } from "../workspace-roles";
 
 export const SessionUser = z.object({
   name: z.string(),
@@ -16,7 +17,7 @@ export const ContextApiResponse = z.object({
   user: SessionUser,
   firstWorkspaceId: z.string().nullish().optional(),
   firstWorkspaceSlug: z.string().nullish().optional(),
-  newUser: z.boolean().optional(),
+  redirect: z.string().optional(),
 });
 export type ContextApiResponse = z.infer<typeof ContextApiResponse>;
 
@@ -26,6 +27,10 @@ export const BillingSettings = z.object({
   //if plan has a custom pricing prepared for a particular workspace
   customBilling: z.boolean().default(false).optional(),
   pastDue: z.boolean().default(false).optional(),
+  //Can be "self-service" or "enterprise". Enterprise plans doesn't block workspace on overage, but requires manual billing.
+  planKind: z.string().default("self-service").optional(),
+  //similar to customBilling, but indicates that plan is custom. custom flag comes from stripe plan metadata
+  custom: z.boolean().default(false).optional(),
   dailyActiveSyncs: z.number().default(1).optional(),
   dailyActiveSyncsOverage: z.number().default(20).optional(),
   maximumSyncFrequency: z.number().optional(), //minutes
@@ -35,10 +40,21 @@ export const BillingSettings = z.object({
   dataRetentionEditorEnabled: z.boolean().default(false).optional(),
   destinationEvensPerMonth: z.number().default(200_000),
   expiresAt: z.string().optional(),
+  /**
+   * Subscription period. For monthly subscriptions it will be [expiresAt - 1 month, expiresAt]. For annual subscriptions - current
+   * month adjusted to a correct billing start date
+   */
+  currentPeriod: z
+    .object({
+      end: z.string(),
+      start: z.string(),
+    })
+    .optional(),
   renewAfterExpiration: z.boolean().default(false).optional(),
   //if subscription starts some time in the future, for enterprise plans only
   futureSubscriptionDate: z.string().optional(),
   profileBuilderEnabled: z.boolean().default(false).optional(),
+  isLegacyPlan: z.boolean().default(false).optional(),
 });
 
 export type BillingSettings = z.infer<typeof BillingSettings>;
@@ -51,6 +67,7 @@ export const noRestrictions: BillingSettings = {
   dailyActiveSyncs: 100,
   dailyActiveSyncsOverage: 100,
   destinationEvensPerMonth: 100_000_000_000,
+  profileBuilderEnabled: true,
 };
 
 export const AppConfig = z.object({
@@ -78,6 +95,14 @@ export const AppConfig = z.object({
   auth: z
     .object({
       firebasePublic: z.any(),
+      nextauth: z
+        .object({
+          github: z.boolean().optional(),
+          credentials: z.boolean().optional(),
+          oidc: z.boolean().optional(),
+        })
+        .optional(),
+      dynamicOidc: z.boolean().optional(),
     })
     .optional(),
   frontendTelemetry: z.object({
@@ -106,6 +131,8 @@ export const ConfigEntityBase = z.object({
   id: z.string(),
   type: z.string(),
   workspaceId: z.string(),
+  name: z.string(),
+  cloneId: z.string().optional(),
 });
 export type ConfigEntityBase = z.infer<typeof ConfigEntityBase>;
 
@@ -121,7 +148,6 @@ export type ApiKey = z.infer<typeof ApiKey>;
 
 export const StreamConfig = ConfigEntityBase.merge(
   z.object({
-    name: z.string(),
     domains: z.array(z.string()).optional(),
     authorizedJavaScriptDomains: z.string().optional(),
     publicKeys: z.array(ApiKey).optional(),
@@ -136,7 +162,6 @@ export const DestinationConfig = ConfigEntityBase.merge(
     .object({
       destinationType: z.string(),
       provisioned: z.boolean().optional(),
-      name: z.string(),
       testConnectionError: z.string().optional(),
     })
     .passthrough()
@@ -145,7 +170,6 @@ export type DestinationConfig = z.infer<typeof DestinationConfig>;
 
 export const FunctionConfig = ConfigEntityBase.merge(
   z.object({
-    name: z.string(),
     code: z.string(),
     draft: z.string().optional(),
     kind: z.enum(["profile", "event"]).optional(),
@@ -159,7 +183,6 @@ export type FunctionConfig = z.infer<typeof FunctionConfig>;
 
 export const ServiceConfig = ConfigEntityBase.merge(
   z.object({
-    name: z.string(),
     protocol: z.enum(["airbyte"]).default("airbyte"),
     authorized: z.boolean().optional(),
     package: z.string(),
@@ -172,19 +195,34 @@ export type ServiceConfig = z.infer<typeof ServiceConfig>;
 
 export const ConnectorImageConfig = ConfigEntityBase.merge(
   z.object({
-    name: z.string(),
     package: z.string(),
     version: z.string(),
   })
 );
 export type ConnectorImageConfig = z.infer<typeof ConnectorImageConfig>;
 
-export const WorkspaceDomain = ConfigEntityBase.merge(
+export const WorkspaceDomain = ConfigEntityBase.merge(z.object({}));
+export type WorkspaceDomain = z.infer<typeof WorkspaceDomain>;
+
+export const MiscEntity = ConfigEntityBase.merge(
   z.object({
-    name: z.string(),
+    objectType: z.enum(["classic-mapping"]).default("classic-mapping"),
+    value: z.string(),
   })
 );
-export type WorkspaceDomain = z.infer<typeof WorkspaceDomain>;
+export type MiscEntity = z.infer<typeof MiscEntity>;
+
+export const NotificationChannel = ConfigEntityBase.merge(
+  z.object({
+    events: z.array(z.enum(["all", "sync", "batch"])).default(["all"]),
+    channel: z.enum(["email", "slack"]).default("slack"),
+    slackWebhookUrl: z.string().optional(),
+    // allWorkspaceEmails: z.boolean().default(true).optional(),
+    emails: z.array(z.string()).optional(),
+    recurringAlertsPeriodHours: z.number().max(720).min(0).default(24),
+  })
+);
+export type NotificationChannel = z.infer<typeof NotificationChannel>;
 
 /**
  * What happens to an object before it is saved to DB.
@@ -192,7 +230,11 @@ export type WorkspaceDomain = z.infer<typeof WorkspaceDomain>;
  * opts.original — original of the object, if object is being updated
  * opts.patch — patch of the object, if object is being updated. Or full object, if object is being created
  */
-export type InputFilter<T = any> = (val: T, context: "create" | "update") => Promise<T>;
+export type InputFilter<T = any> = (
+  val: T,
+  context: "create" | "update",
+  workspace: z.infer<typeof WorkspaceDbModel>
+) => Promise<T>;
 export type OutputFilter<T = any> = (original: T) => T;
 
 /**
@@ -213,12 +255,12 @@ export type ConfigObjectType<T = any> = {
   /**
    * Custom merge logic. By default, it's just shallow merge - {...original, ...patch}.
    */
-  merge?: (original: T, patch: Partial<T>) => T;
+  merge?: (original: T, patch: Partial<T>) => T | Promise<T>;
 
   /**
    * Clean object before sending to client. Can remove fields, hide values etc
    */
-  outputFilter?: OutputFilter<T>;
+  outputFilter?: OutputFilter<T> | ((original: T) => Promise<T>);
 };
 
 const SafeUserProfile = UserProfileDbModel.pick({
@@ -238,6 +280,7 @@ export const UserWorkspaceRelation = z.object({
   invitationLink: z.string().optional(),
   invitationEmail: z.string().optional(),
   canSendEmail: z.boolean().optional(),
+  role: WorkspaceRolesZodType,
 });
 
 export type UserWorkspaceRelation = z.infer<typeof UserWorkspaceRelation>;
@@ -254,10 +297,14 @@ export type SelectedStreamSettings = z.infer<typeof SelectedStreamSettings>;
 
 export const SyncOptionsType = z.object({
   streams: z.record(SelectedStreamSettings),
+  disabledStreams: z.record(SelectedStreamSettings),
   namespace: z.string().optional(),
   tableNamePrefix: z.string().optional(),
   toSameCase: z.boolean().optional(),
   addMeta: z.boolean().optional(),
+  deduplicate: z.boolean().optional().default(true),
+  schemaChanges: z.enum(["manual", "fields", "streams"]).optional(),
+  functionsEnv: z.any().optional(),
   schedule: z.union([z.string(), z.enum(["0 0 * * *", "0 * * * *", "*/15 * * * *", "*/5 * * * *", "* * * * *"])]),
   timezone: z.string().optional(),
 });

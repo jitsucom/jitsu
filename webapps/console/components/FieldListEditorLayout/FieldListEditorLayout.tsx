@@ -47,7 +47,8 @@ const FieldListEditorLayout: React.FC<FieldListEditorLayoutProps> = props => {
           const grObj = props?.groups?.[group || ""] || {};
           const expandable = grObj.expandable;
           const list = <EditorItemTable className={grObj.className} items={items.filter(i => i.group === group)} />;
-          const title = grObj.title || <h2 className="font-bold my-4 text-xl text-textDark">{group}</h2>;
+          const title =
+            grObj.title || (group ? <h2 className="font-bold my-4 text-xl text-textDark">{group}</h2> : undefined);
           return expandable ? (
             <Expandable
               initiallyExpanded={grObj.initiallyExpanded}

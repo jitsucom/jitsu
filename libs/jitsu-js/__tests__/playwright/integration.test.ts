@@ -482,6 +482,164 @@ test("anonymous-id-bug", async ({ browser }) => {
   expect(p.body.anonymousId).toEqual(anonymousId);
 });
 
+test("cookie-names", async ({ browser }) => {
+  clearRequestLog();
+  const browserContext = await browser.newContext();
+  const { page, uncaughtErrors } = await createLoggingPage(browserContext);
+  const pageResult = await page.goto(`${server.baseUrl}/cookie-names.html`);
+  await page.waitForFunction(() => window["jitsu"] !== undefined, undefined, {
+    timeout: 1000,
+    polling: 100,
+  });
+  expect(pageResult.status()).toBe(200);
+  const cookies = (await browserContext.cookies()).reduce(
+    (res, cookie) => ({
+      ...res,
+      [cookie.name]: cookie.value,
+    }),
+    {}
+  );
+  console.log("🍪 Jitsu Cookies", cookies);
+  expect(cookies).toHaveProperty("my_anon_ck");
+  const anonymousId = cookies["my_anon_ck"];
+
+  //wait for some time since the server has an artificial latency of 30ms
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  expect(uncaughtErrors.length).toEqual(0);
+  console.log(
+    `📝 Request log size of ${requestLog.length}`,
+    requestLog.map(x => describeEvent(x.type, x.body))
+  );
+  expect(requestLog[0].body.anonymousId).toEqual(anonymousId);
+
+  const { page: secondPage } = await createLoggingPage(browserContext);
+  const pageResult2 = await secondPage.goto(
+    `${server.baseUrl}/cookie-names.html?utm_source=source&utm_medium=medium&utm_campaign=campaign`
+  );
+  await secondPage.waitForFunction(() => window["jitsu"] !== undefined, undefined, {
+    timeout: 1000,
+    polling: 100,
+  });
+  expect(pageResult2.status()).toBe(200);
+  const cookies2 = (await browserContext.cookies()).reduce(
+    (res, cookie) => ({
+      ...res,
+      [cookie.name]: cookie.value,
+    }),
+    {}
+  );
+  console.log("🍪 Jitsu Cookies", cookies2);
+  expect(cookies2).toHaveProperty("my_anon_ck");
+  expect(cookies["my_anon_ck"]).toEqual(anonymousId);
+
+  //wait for some time since the server has an artificial latency of 30ms
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  expect(uncaughtErrors.length).toEqual(0);
+  console.log(
+    `📝 Request log size of ${requestLog.length}`,
+    requestLog.map(x => describeEvent(x.type, x.body))
+  );
+  expect(requestLog[1].body.anonymousId).toEqual(anonymousId);
+});
+
+test("spa-navigation", async ({ browser }) => {
+  clearRequestLog();
+  const browserContext = await browser.newContext();
+  const { page, uncaughtErrors } = await createLoggingPage(browserContext);
+
+  const initialUrl = `${server.baseUrl}/spa-navigation.html`;
+  const pageResult = await page.goto(initialUrl);
+
+  await page.waitForFunction(() => window["jitsu"] !== undefined, undefined, {
+    timeout: 1000,
+    polling: 100,
+  });
+
+  expect(pageResult.status()).toBe(200);
+
+  await page.waitForFunction(() => window["__spaTestComplete"] === true, undefined, {
+    timeout: 2000,
+    polling: 100,
+  });
+
+  await new Promise(resolve => setTimeout(resolve, 500));
+
+  expect(uncaughtErrors.length).toEqual(0);
+
+  console.log(
+    `📝 Request log size of ${requestLog.length}`,
+    requestLog.map(x => describeEvent(x.type, x.body))
+  );
+
+  const pageEvents = requestLog.filter(x => x.type === "page");
+  const trackEvents = requestLog.filter(x => x.type === "track");
+
+  expect(pageEvents.length).toBe(6);
+  expect(trackEvents.length).toBe(6);
+
+  //expect(pageEvents[0].body.name).toBe("initial-page");
+  expect(pageEvents[0].body.properties.path).toBe("/spa-navigation.html");
+  expect(pageEvents[0].body.properties.url).toContain("/spa-navigation.html");
+  expect(pageEvents[0].body.context.page.path).toBe("/spa-navigation.html");
+  expect(pageEvents[0].body.context.page.url).toContain("/spa-navigation.html");
+
+  expect(pageEvents[1].body.properties.path).toBe("/page1");
+  expect(pageEvents[1].body.properties.url).toContain("/page1");
+  expect(pageEvents[1].body.properties.search).toBe("");
+  expect(pageEvents[1].body.properties.hash).toBe("");
+  expect(pageEvents[1].body.context.page.path).toBe("/page1");
+  expect(pageEvents[1].body.context.page.url).toContain("/page1");
+  expect(pageEvents[1].body.context.page.search).toBe("");
+
+  expect(pageEvents[2].body.properties.path).toBe("/page2");
+  expect(pageEvents[2].body.properties.url).toContain("/page2?param1=value1");
+  expect(pageEvents[2].body.properties.search).toBe("?param1=value1");
+  expect(pageEvents[2].body.properties.hash).toBe("");
+  expect(pageEvents[2].body.context.page.path).toBe("/page2");
+  expect(pageEvents[2].body.context.page.url).toContain("/page2?param1=value1");
+  expect(pageEvents[2].body.context.page.search).toBe("?param1=value1");
+
+  expect(pageEvents[3].body.properties.path).toBe("/page3");
+  expect(pageEvents[3].body.properties.url).toContain("/page3?param1=value1&param2=value2");
+  expect(pageEvents[3].body.properties.search).toBe("?param1=value1&param2=value2");
+  expect(pageEvents[3].body.properties.hash).toBe("#section1");
+  expect(pageEvents[3].body.context.page.path).toBe("/page3");
+  expect(pageEvents[3].body.context.page.url).toContain("/page3?param1=value1&param2=value2");
+  expect(pageEvents[3].body.context.page.search).toBe("?param1=value1&param2=value2");
+
+  expect(pageEvents[4].body.properties.path).toBe("/page4/subpage");
+  expect(pageEvents[4].body.properties.url).toContain("/page4/subpage");
+  expect(pageEvents[4].body.properties.search).toBe("");
+  expect(pageEvents[4].body.properties.hash).toBe("#section2");
+  expect(pageEvents[4].body.context.page.path).toBe("/page4/subpage");
+  expect(pageEvents[4].body.context.page.url).toContain("/page4/subpage");
+  expect(pageEvents[4].body.context.page.search).toBe("");
+
+  expect(pageEvents[5].body.properties.path).toBe("/final");
+  expect(pageEvents[5].body.properties.url).toContain("/final?utm_source=test&utm_medium=spa");
+  expect(pageEvents[5].body.properties.search).toBe("?utm_source=test&utm_medium=spa");
+  expect(pageEvents[5].body.properties.hash).toBe("#top");
+  expect(pageEvents[5].body.context.page.path).toBe("/final");
+  expect(pageEvents[5].body.context.page.url).toContain("/final?utm_source=test&utm_medium=spa");
+  expect(pageEvents[5].body.context.page.search).toBe("?utm_source=test&utm_medium=spa");
+
+  const navTrackEvents = trackEvents.filter(x => x.body.event === "navigation");
+  expect(navTrackEvents.length).toBe(5);
+
+  expect(navTrackEvents[0].body.context.page.path).toBe("/page1");
+  expect(navTrackEvents[1].body.context.page.url).toContain("/page2?param1=value1");
+  expect(navTrackEvents[1].body.context.page.path).toBe("/page2");
+  expect(navTrackEvents[1].body.context.page.search).toBe("?param1=value1");
+  expect(navTrackEvents[2].body.context.page.url).toContain("/page3?param1=value1&param2=value2#section1");
+  expect(navTrackEvents[2].body.context.page.path).toBe("/page3");
+  expect(navTrackEvents[2].body.context.page.search).toBe("?param1=value1&param2=value2");
+  expect(navTrackEvents[3].body.context.page.url).toContain("/page4/subpage#section2");
+  expect(navTrackEvents[3].body.context.page.path).toBe("/page4/subpage");
+  expect(navTrackEvents[4].body.context.page.url).toContain("/final?utm_source=test&utm_medium=spa#top");
+  expect(navTrackEvents[4].body.context.page.path).toBe("/final");
+  expect(navTrackEvents[4].body.context.page.search).toBe("?utm_source=test&utm_medium=spa");
+});
+
 test("basic", async ({ browser }) => {
   clearRequestLog();
   const browserContext = await browser.newContext();
@@ -577,4 +735,45 @@ test("basic", async ({ browser }) => {
     );
     fs.writeFileSync(file, JSON.stringify(sortKeysRecursively(payload), null, 2));
   });
+});
+
+test("ga4_cookies", async ({ browser }) => {
+  clearRequestLog();
+  const browserContext = await browser.newContext();
+  await browserContext.addCookies([
+    // client id cookie
+    { name: "_ga", value: "GA1.1.808865741.1700468121", url: server.baseUrl },
+    // old session id cookies
+    { name: "_ga_OLDDEFGHI1", value: "GS1.1.1711045472.9.0.1711045472.0.0.0", url: server.baseUrl },
+    // new session id cookies
+    { name: "_ga_NEWDEFGHI2", value: "GS2.1.s1756461685$o733$g1$t1756461704$j41$l0$h0", url: server.baseUrl },
+    { name: "_ga_NEWDEFGHI3", value: "GS2.1.o733$g1$t1756461704$j41$l0$h0$s1756461686", url: server.baseUrl },
+  ]);
+
+  const { page: firstPage, uncaughtErrors: firstPageErrors } = await createLoggingPage(browserContext);
+  const [pageResult] = await Promise.all([
+    firstPage.goto(`${server.baseUrl}/basic.html?utm_source=source&utm_medium=medium&utm_campaign=campaign`),
+  ]);
+
+  await firstPage.waitForFunction(() => window["jitsu"] !== undefined, undefined, {
+    timeout: 1000,
+    polling: 100,
+  });
+  expect(pageResult.status()).toBe(200);
+  await new Promise(resolve => setTimeout(resolve, 1000));
+
+  console.log(
+    `📝 Request log size of ${requestLog.length}`,
+    requestLog.map(x => describeEvent(x.type, x.body))
+  );
+  let pages = requestLog.filter(x => x.type === "page");
+  expect(pages.length).toBe(1);
+
+  const page = pages[0].body as AnalyticsClientEvent;
+
+  console.log(chalk.bold("📝 Checking page event"), JSON.stringify(page, null, 3));
+  expect(page.context.clientIds.ga4.clientId).toBe("808865741.1700468121");
+  expect(page.context.clientIds.ga4.sessionIds).toHaveProperty("OLDDEFGHI1", "1711045472");
+  expect(page.context.clientIds.ga4.sessionIds).toHaveProperty("NEWDEFGHI2", "1756461685");
+  expect(page.context.clientIds.ga4.sessionIds).toHaveProperty("NEWDEFGHI3", "1756461686");
 });

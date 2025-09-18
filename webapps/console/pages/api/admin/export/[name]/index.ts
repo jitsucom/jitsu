@@ -10,6 +10,13 @@ import hash from "object-hash";
 import { default as stableHash } from "stable-hash";
 import { WorkspaceDbModel } from "../../../../../prisma/schema";
 import pick from "lodash/pick";
+import { ProfileBuilder } from "@jitsu/core-functions";
+
+export const config = {
+  api: {
+    responseLimit: false,
+  },
+};
 
 interface Writer {
   write(data: string): void;
@@ -21,7 +28,17 @@ export type Export = {
   data: (writer: Writer) => Promise<void>;
 };
 
+type ClassicKeys = {
+  publicKeys: { plaintext: string }[];
+  privateKeys: { plaintext: string }[];
+};
+
 const batchSize = 1000;
+const clickhouseUploadS3Bucket = process.env.CLICKHOUSE_UPLOAD_S3_BUCKET;
+const s3Region = process.env.S3_REGION;
+const s3AccessKeyId = process.env.S3_ACCESS_KEY_ID;
+const s3SecretAccessKey = process.env.S3_SECRET_ACCESS_KEY;
+const clickhouseS3Configured = clickhouseUploadS3Bucket && s3Region && s3AccessKeyId && s3SecretAccessKey;
 
 const safeLastModified = new Date(2024, 0, 1, 0, 0, 0, 0);
 
@@ -53,7 +70,13 @@ const exports: Export[] = [
       let needComma = false;
       while (true) {
         const objects = await db.prisma().configurationObjectLink.findMany({
-          where: { deleted: false, workspace: { deleted: false }, from: { deleted: false }, to: { deleted: false } },
+          where: {
+            deleted: false,
+            OR: [{ type: "push" }, { type: null }],
+            workspace: { deleted: false },
+            from: { deleted: false },
+            to: { deleted: false },
+          },
           include: { from: true, to: true, workspace: true },
           take: batchSize,
           cursor: lastId ? { id: lastId } : undefined,
@@ -65,6 +88,9 @@ const exports: Export[] = [
         getLog().atDebug().log(`Got batch of ${objects.length} objects for bulker export`);
         lastId = objects[objects.length - 1].id;
         for (const { data, from, id, to, updatedAt, workspace } of objects) {
+          if (data?.disabled) {
+            continue; // skip disabled connections
+          }
           const destinationType = to.config.destinationType;
           const coreDestinationType = getCoreDestinationTypeNonStrict(destinationType);
           if (coreDestinationType?.usesBulker || coreDestinationType?.hybrid) {
@@ -72,16 +98,33 @@ const exports: Export[] = [
               writer.write(",");
             }
             const credentials = omit(to.config, "destinationType", "type", "name");
-            if (destinationType === "clickhouse" && data.clickhouseSettings) {
-              const extraParams = Object.fromEntries(
-                (data.clickhouseSettings as string)
-                  .split("\n")
-                  .filter(s => s.includes("="))
-                  .map(s => s.split("="))
-                  .map(([k, v]) => [k.trim(), v.trim()])
-              );
-              credentials.parameters = { ...(credentials.parameters || {}), ...extraParams };
+            if (destinationType === "clickhouse") {
+              if ((data as any).clickhouseSettings) {
+                const extraParams = Object.fromEntries(
+                  ((data as any).clickhouseSettings as string)
+                    .split("\n")
+                    .filter(s => s.includes("="))
+                    .map(s => s.split("="))
+                    .map(([k, v]) => [k.trim(), v.trim()])
+                );
+                credentials.parameters = { ...(credentials.parameters || {}), ...extraParams };
+              }
+              if (!credentials.provisioned) {
+                credentials.loadAsJson = false;
+              }
+              if (credentials.loadAsJson && !credentials.provisioned && clickhouseS3Configured) {
+                credentials.s3Region = s3Region;
+                credentials.s3AccessKeyId = s3AccessKeyId;
+                credentials.s3SecretAccessKey = s3SecretAccessKey;
+                credentials.s3Bucket = clickhouseUploadS3Bucket;
+                credentials.s3UsePresignedURL = true;
+              }
             }
+            // if (data.timestampColumn) {
+            //   // use timestampColumn field as discriminator field when doing local deduplication
+            //   // inside batch of two rows having the same messageId(pk) will be chosen the one with the highest timestampColumn value
+            //   data.discriminatorField = [data.timestampColumn];
+            // }
             writer.write(
               JSON.stringify({
                 __debug: {
@@ -89,7 +132,7 @@ const exports: Export[] = [
                 },
                 id: id,
                 type: destinationType,
-                options: omit(data, "clickhouseSettings"),
+                options: omit(data as any, "clickhouseSettings"),
                 updatedAt: dateMax(updatedAt, to.updatedAt),
                 credentials: credentials,
               })
@@ -103,9 +146,9 @@ const exports: Export[] = [
       }
       lastId = undefined;
       while (true) {
-        const objects = await db.prisma().profileBuilder.findMany({
-          where: { deleted: false, workspace: { deleted: false }, destination: { deleted: false } },
-          include: { destination: true, workspace: true },
+        const objects = await db.prisma().configurationObject.findMany({
+          where: { deleted: false, type: "destination", workspace: { deleted: false } },
+          include: { workspace: true },
           take: batchSize,
           cursor: lastId ? { id: lastId } : undefined,
           orderBy: { id: "asc" },
@@ -113,39 +156,15 @@ const exports: Export[] = [
         if (objects.length == 0) {
           break;
         }
-        getLog().atDebug().log(`Got batch of ${objects.length} profilebuilder objects for bulker export`);
+        getLog().atDebug().log(`Got batch of ${objects.length} destinations objects for bulker export`);
         lastId = objects[objects.length - 1].id;
-        for (const { id, updatedAt, workspace, destination, connectionOptions, ...pb } of objects) {
-          if (!destination) {
-            return;
-          }
-          const destinationType = destination.config.destinationType;
+        for (const { id, workspace, config, updatedAt } of objects) {
+          const destinationType = config.destinationType;
           const coreDestinationType = getCoreDestinationTypeNonStrict(destinationType);
           if (coreDestinationType?.usesBulker || coreDestinationType?.hybrid) {
             if (needComma) {
               writer.write(",");
             }
-            const schema = {
-              name: "profiles",
-              fields: [
-                {
-                  name: "profile_id",
-                  type: 4, //string. See bulker's DataType
-                },
-                {
-                  name: "traits",
-                  type: 6, //json
-                },
-                {
-                  name: "version",
-                  type: 2, //int. See bulker's DataType
-                },
-                {
-                  name: "updated_at",
-                  type: 5, // timestamp
-                },
-              ],
-            };
             writer.write(
               JSON.stringify({
                 __debug: {
@@ -156,13 +175,10 @@ const exports: Export[] = [
                 options: {
                   mode: "batch",
                   frequency: 1,
-                  ...omit(connectionOptions, "tableName", "profileWindow", "variables"),
                   deduplicate: true,
-                  primaryKey: "profile_id",
-                  schema: JSON.stringify(schema),
                 },
-                updatedAt: dateMax(updatedAt, destination.updatedAt),
-                credentials: omit(destination.config, "destinationType", "type", "name"),
+                updatedAt: updatedAt,
+                credentials: omit(config, "destinationType", "type", "name"),
               })
             );
             needComma = true;
@@ -212,6 +228,14 @@ const exports: Export[] = [
 
       let lastId: string | undefined = undefined;
       let needComma = false;
+      const profileBuilders = await db.prisma().profileBuilder.findMany({
+        where: {
+          deleted: false,
+          workspace: { deleted: false },
+          version: { gt: 0 },
+        },
+        orderBy: { id: "asc" },
+      });
       while (true) {
         const objects = await db.prisma().configurationObjectLink.findMany({
           where: {
@@ -232,6 +256,9 @@ const exports: Export[] = [
         getLog().atDebug().log(`Got batch of ${objects.length} objects for bulker export`);
         lastId = objects[objects.length - 1].id;
         for (const { data, from, id, to, updatedAt, workspace } of objects) {
+          if (data?.disabled) {
+            continue; // skip disabled connections
+          }
           const destinationType = to.config.destinationType;
           const coreDestinationType = getCoreDestinationTypeNonStrict(destinationType);
           if (!coreDestinationType) {
@@ -249,11 +276,16 @@ const exports: Export[] = [
               type: destinationType,
               workspaceId: workspace.id,
               streamId: from.id,
+              streamName: from.config?.name,
               destinationId: to.id,
               usesBulker: !!coreDestinationType?.usesBulker,
               options: {
                 ...data,
-                ...((workspace.featuresEnabled ?? []).includes("nofetchlogs") ? { fetchLogLevel: "debug" } : {}),
+                ...((workspace.featuresEnabled ?? []).includes("nofetchlogs") &&
+                data?.functionsEnv?.FETCH_LOGS_ENABLED !== "true"
+                  ? { fetchLogLevel: "debug" }
+                  : {}),
+                ...((workspace.featuresEnabled ?? []).includes("fastFunctions") ? { fastFunctions: true } : {}),
               },
               optionsHash: hash(data),
               updatedAt: dateMax(updatedAt, to.updatedAt),
@@ -266,6 +298,89 @@ const exports: Export[] = [
         if (objects.length < batchSize) {
           break;
         }
+      }
+      lastId = undefined;
+      while (true) {
+        const objects = await db.prisma().configurationObject.findMany({
+          where: { deleted: false, type: "destination", workspace: { deleted: false } },
+          include: { workspace: true },
+          take: batchSize,
+          cursor: lastId ? { id: lastId } : undefined,
+          orderBy: { id: "asc" },
+        });
+        if (objects.length == 0) {
+          break;
+        }
+        getLog().atDebug().log(`Got batch of ${objects.length} destinations objects for bulker export`);
+        lastId = objects[objects.length - 1].id;
+        for (const { id, workspace, config, updatedAt } of objects) {
+          const destinationType = config?.destinationType;
+          const coreDestinationType = getCoreDestinationTypeNonStrict(destinationType);
+          if (coreDestinationType?.usesBulker || coreDestinationType?.hybrid) {
+            if (needComma) {
+              writer.write(",");
+            }
+            writer.write(
+              JSON.stringify({
+                id: id,
+                type: destinationType,
+                workspaceId: workspace.id,
+                streamId: id,
+                streamName: config?.name,
+                destinationId: id,
+                usesBulker: !!coreDestinationType?.usesBulker,
+                updatedAt: updatedAt,
+                credentials: omit(config, "destinationType", "type", "name"),
+                credentialsHash: hash(omit(config, "destinationType", "type", "name")),
+              })
+            );
+            needComma = true;
+          }
+        }
+        if (objects.length < batchSize) {
+          break;
+        }
+      }
+      for (const pb of profileBuilders) {
+        if (needComma) {
+          writer.write(",");
+        }
+        const cred = {
+          ...(pb.intermediateStorageCredentials ?? ({} as any)),
+          profileWindowDays: (pb.connectionOptions ?? ({} as any)).profileWindow,
+          profileBuilderId: pb.id,
+          eventsCollectionName: `profiles-raw-${pb.workspaceId}-${pb.id}`,
+          traitsCollectionName: `profiles-traits-${pb.workspaceId}-${pb.id}`,
+        };
+        const opts = {
+          functionsEnv: (pb.connectionOptions ?? ({} as any)).variables,
+          functions: [
+            {
+              functionId: "builtin.transformation.user-recognition",
+            },
+            ...((pb.connectionOptions ?? ({} as any)).functions || []),
+          ],
+        };
+        writer.write(
+          JSON.stringify({
+            __debug: {
+              workspace: { id: pb.workspaceId },
+            },
+            id: pb.id,
+            type: "profiles",
+            workspaceId: pb.workspaceId,
+            streamId: pb.id,
+            streamName: "profiles",
+            destinationId: pb.destinationId,
+            usesBulker: false,
+            options: opts,
+            optionsHash: hash(opts),
+            updatedAt: pb.updatedAt,
+            credentials: cred,
+            credentialsHash: hash(cred),
+          })
+        );
+        needComma = true;
       }
       writer.write("]");
     },
@@ -350,6 +465,44 @@ const exports: Export[] = [
           domainsMap.set(domain.workspaceId, [...d, (domain.config as any).name]);
         }
       }
+      const classicMappings = await db.prisma().configurationObject.findMany({
+        where: {
+          deleted: false,
+          type: "misc",
+          config: { path: ["objectType"], equals: "classic-mapping" },
+          workspace: { deleted: false },
+        },
+      });
+      const classicKeysMap: Record<string, ClassicKeys> = {};
+      classicMappings
+        .filter(c => c.config && c.config["value"])
+        .flatMap(c => c.config!["value"].split("\n"))
+        .forEach(line => {
+          const [source, apikey] = line.split(/=(.*)/s).map((s: string) => s.trim());
+          if (source && apikey) {
+            const keys = classicKeysMap[source] || { publicKeys: [], privateKeys: [] };
+            if (apikey.startsWith("s2s.")) {
+              keys.privateKeys.push({ plaintext: apikey });
+            } else {
+              keys.publicKeys.push({ plaintext: apikey });
+            }
+            classicKeysMap[source] = keys;
+          }
+        });
+      const profileBuilders = await db.prisma().profileBuilder.findMany({
+        where: {
+          deleted: false,
+          workspace: { deleted: false },
+          version: { gt: 0 },
+        },
+        orderBy: { id: "asc" },
+      });
+      const pbMap = new Map<string, ProfileBuilder[]>();
+      for (const pb of profileBuilders) {
+        const pbs = pbMap.get(pb.workspaceId) || [];
+        pbMap.set(pb.workspaceId, [...pbs, pb as unknown as ProfileBuilder]);
+      }
+
       writer.write("[");
       let lastId: string | undefined = undefined;
       let needComma = false;
@@ -374,6 +527,7 @@ const exports: Export[] = [
             ? getNumericOption("throttle", obj.workspace)
             : undefined;
           const shardNumber = getNumericOption("shard", obj.workspace);
+          const classicKeys = classicKeysMap[obj.id] || ({} as ClassicKeys);
           writer.write(
             JSON.stringify({
               __debug: {
@@ -394,6 +548,8 @@ const exports: Export[] = [
                 ),
                 ...{
                   ...obj.config,
+                  publicKeys: [classicKeys.publicKeys ?? [], obj.config.publicKeys ?? []].flat(),
+                  privateKeys: [classicKeys.privateKeys ?? [], obj.config.privateKeys ?? []].flat(),
                   domains: [...new Set([...(domainsMap.get(obj.workspace.id) ?? []), ...(obj.config.domains ?? [])])],
                 },
                 workspaceId: obj.workspace.id,
@@ -401,16 +557,35 @@ const exports: Export[] = [
               backupEnabled: isEEAvailable() && !(obj.workspace.featuresEnabled || []).includes("nobackup"),
               throttle: throttlePercent,
               shard: shardNumber,
-              destinations: obj.toLinks
-                .filter(l => !l.deleted && l.type === "push" && !l.to.deleted)
-                .map(l => ({
-                  id: l.to.id,
-                  connectionId: l.id,
-                  destinationType: l.to.config.destinationType,
-                  name: l.to.config.name,
-                  credentials: omit(l.to.config, "destinationType", "type", "name"),
-                  options: l.data,
+              destinations: [
+                ...obj.toLinks
+                  .filter(l => !l.deleted && l.type === "push" && !l.data?.disabled && !l.to.deleted)
+                  .map(l => ({
+                    id: l.to.id,
+                    connectionId: l.id,
+                    destinationType: (l.to.config ?? {}).destinationType,
+                    name: (l.to.config ?? {}).name,
+                    credentials: omit(l.to.config, "destinationType", "type", "name"),
+                    options: l.data,
+                  })),
+                ...(pbMap.get(obj.workspace.id) ?? []).map(pb => ({
+                  id: pb.id,
+                  connectionId: pb.id,
+                  destinationType: "profiles",
+                  name: "profiles",
+                  credentials: {
+                    ...pb.intermediateStorageCredentials,
+                    profileWindowDays: pb.connectionOptions.profileWindow,
+                    profileBuilderId: pb.id,
+                    eventsCollectionName: `profiles-raw-${obj.workspace.id}-${pb.id}`,
+                    traitsCollectionName: `profiles-traits-${obj.workspace.id}-${pb.id}`,
+                  },
+                  options: {
+                    functionsEnv: pb.connectionOptions?.variables,
+                    functions: pb.connectionOptions?.functions,
+                  },
                 })),
+              ],
             })
           );
           needComma = true;
@@ -460,15 +635,17 @@ const exports: Export[] = [
           if (needComma) {
             writer.write(",");
           }
-          row.profileBuilders = row.profileBuilders.map(pb => {
-            pb.functions = pb.functions.map(f => {
-              return {
-                ...omit(f.function, "config"),
-                ...f.function.config,
-              };
+          row.profileBuilders = row.profileBuilders
+            .filter(pb => pb.version > 0)
+            .map(pb => {
+              pb.functions = pb.functions.map(f => {
+                return {
+                  ...omit(f.function, "config"),
+                  ...f.function.config,
+                };
+              });
+              return pb;
             });
-            return pb;
-          });
           writer.write(JSON.stringify(row));
           needComma = true;
         }

@@ -10,7 +10,7 @@ import React from "react";
 export type SelectorProps<T> = {
   enabled: boolean;
   disabledReason?: string;
-  selected: string;
+  selected?: string;
   items: T[];
   onSelect: (value: string) => void;
   showLink?: boolean;

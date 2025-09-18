@@ -5,32 +5,18 @@ import React from "react";
 import { useApi } from "../lib/useApi";
 import { ContextApiResponse } from "../lib/schema";
 import { Button, Modal } from "antd";
-import { signOut } from "next-auth/react";
-import { firebaseSignOut } from "../lib/firebase-client";
 import { encrypt, getLog, randomId, rpc } from "juava";
+import { useUserSessionControls } from "../lib/context";
 
 const log = getLog("index");
 
 function WorkspaceRedirect() {
   const router = useRouter();
-  const projectName = localStorage.getItem("projectName");
-  const params = {
-    projectName: projectName || undefined,
-    invite: (router.query.invite as string) || undefined,
-  };
-  const { data, isLoading, error } = useApi<ContextApiResponse>(
-    "/api/init-user" +
-      (Object.entries(params).length > 0
-        ? "?" +
-          Object.entries(params)
-            .filter(([, v]) => v !== undefined && v !== null)
-            .map(([k, v]) => `${k}=${encodeURIComponent(v as string)}`)
-            .join("&")
-        : ""),
-    {
-      outputType: ContextApiResponse,
-    }
-  );
+  const sessionControl = useUserSessionControls();
+
+  const { data, isLoading, error } = useApi<ContextApiResponse>("/api/init-user", {
+    outputType: ContextApiResponse,
+  });
 
   if (isLoading) {
     return <GlobalLoader title={"Redirecting..."} />;
@@ -41,19 +27,7 @@ function WorkspaceRedirect() {
           <EmbeddedErrorMessage
             className="max-w-4xl mx-auto"
             actions={
-              <Button
-                type="primary"
-                onClick={async () => {
-                  //we can't use current session here, since the error can be originated
-                  //from auth layer. Try to logout using all methods
-                  signOut().catch(err => {
-                    log.atWarn().withCause(err).log(`Can't sign out from next-auth`);
-                  });
-                  firebaseSignOut().catch(err => {
-                    log.atWarn().withCause(err).log(`Can't sign out from firebase`);
-                  });
-                }}
-              >
+              <Button type="primary" onClick={sessionControl.logout}>
                 Go back
               </Button>
             }
@@ -111,11 +85,14 @@ function WorkspaceRedirect() {
           Do you want to authorize Jitsu CLI to use your account?
         </Modal>
       );
+    } else if (data.redirect) {
+      // Redirect to specified path
+      router.push(data.redirect);
     } else if (data.firstWorkspaceSlug || data.firstWorkspaceId) {
-      router.push(`/${data.firstWorkspaceSlug || data.firstWorkspaceId}${data.newUser ? "?welcome=true" : ""}`);
+      router.push(`/${data.firstWorkspaceSlug || data.firstWorkspaceId}`);
     } else {
-      //TODO: seems like we don't need this anymore and there is no such page
-      router.push(`/create-workspace?welcome=true`);
+      // Fallback to workspaces page if no specific workspace is identified
+      router.push("/workspaces");
     }
     //return <GlobalLoader title={"Redirecting..."} />;
   }

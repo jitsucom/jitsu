@@ -12,6 +12,13 @@ const AmplitudeDestination: JitsuFunction<AnalyticsServerEvent, AmplitudeDestina
   try {
     const deviceId = event.anonymousId;
     let sessionId: number | undefined = undefined;
+    const optionsPart = props.minIdLength
+      ? {
+          options: {
+            min_id_length: props.minIdLength,
+          },
+        }
+      : {};
     if (deviceId) {
       const ttlStore = store;
       const ttlSec = 60 * (props.sessionWindow ?? 30);
@@ -35,7 +42,12 @@ const AmplitudeDestination: JitsuFunction<AnalyticsServerEvent, AmplitudeDestina
     const endpoint =
       props.dataResidency === "EU" ? "https://api.eu.amplitude.com/2/httpapi" : "https://api2.amplitude.com/2/httpapi";
     let payload: any = undefined;
-    if (event.type === "identify" && event.userId) {
+    if (event.amplitudeEvent && typeof event.amplitudeEvent === "object") {
+      payload = {
+        api_key: props.key,
+        events: Array.isArray(event.amplitudeEvent) ? event.amplitudeEvent : [event.amplitudeEvent],
+      };
+    } else if (event.type === "identify" && event.userId) {
       payload = {
         api_key: props.key,
         events: [
@@ -51,6 +63,7 @@ const AmplitudeDestination: JitsuFunction<AnalyticsServerEvent, AmplitudeDestina
             },
           },
         ],
+        ...optionsPart,
       };
     } else if (event.type === "group" && props.enableGroupAnalytics && event.userId) {
       payload = {
@@ -71,6 +84,7 @@ const AmplitudeDestination: JitsuFunction<AnalyticsServerEvent, AmplitudeDestina
             },
           },
         ],
+        ...optionsPart,
       };
     } else if (
       (event.type === "page" || event.type === "track" || event.type === "screen") &&
@@ -133,6 +147,7 @@ const AmplitudeDestination: JitsuFunction<AnalyticsServerEvent, AmplitudeDestina
             ...geoObj,
           },
         ],
+        ...optionsPart,
       };
     }
     if (payload) {

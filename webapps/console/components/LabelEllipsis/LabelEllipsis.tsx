@@ -1,5 +1,5 @@
 import { Tooltip } from "antd";
-import { trimEnd, trimMiddle } from "../../lib/shared/strings";
+import { trimEnd, trimMiddle } from "juava";
 
 export type LabelEllipsisProps = {
   maxLen: number;

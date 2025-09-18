@@ -49,6 +49,10 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
   const products = await getAvailableProducts();
   const result: Product[] = [];
   for (const product of products) {
+    const isLegacy = product.metadata?.is_legacy === "true" || product.metadata?.is_legacy === "1";
+    if (isLegacy) {
+      continue;
+    }
     const prices = await stripe.prices.list({ product: product.id, active: true, limit: 10 });
     const monthly = requireDefined(
       prices.data.find(p => p.recurring?.interval === "month"),
@@ -56,15 +60,17 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
     );
     const annual = prices.data.find(p => p.recurring?.interval === "year");
     const planData = JSON.parse(requireDefined(product.metadata?.plan_data, `No data for ${product.id}`));
-    result.push({
-      id: product.metadata?.jitsu_plan_id,
-      data: planData,
-      name: product.name,
-      monthlyPrice: requireDefined(monthly.unit_amount, `No unit_amount on monthly price for ${product.id}`) / 100,
-      annualPrice: annual
-        ? requireDefined(annual?.unit_amount, `No unit_amount on annual price for ${product.id}`) / 100
-        : undefined,
-    });
+    if (!isLegacy) {
+      result.push({
+        id: product.metadata?.jitsu_plan_id,
+        data: planData,
+        name: product.name,
+        monthlyPrice: requireDefined(monthly.unit_amount, `No unit_amount on monthly price for ${product.id}`) / 100,
+        annualPrice: annual
+          ? requireDefined(annual?.unit_amount, `No unit_amount on annual price for ${product.id}`) / 100
+          : undefined,
+      });
+    }
   }
 
   return { products: result };

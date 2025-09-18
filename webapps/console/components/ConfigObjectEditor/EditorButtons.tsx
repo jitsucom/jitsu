@@ -4,12 +4,15 @@ import { CheckOutlined, LoadingOutlined } from "@ant-design/icons";
 import { getLog } from "juava";
 import { ConfigTestResult } from "./ConfigEditor";
 import { useAppConfig } from "../../lib/context";
+import { ButtonLabel } from "../ButtonLabel/ButtonLabel";
+import { JitsuButton } from "../JitsuButton/JitsuButton";
 
 const log = getLog("ConfigEditor");
 
 export type EditorButtonProps<T extends { id: string } = { id: string }> = {
   isNew: boolean;
   loading: boolean;
+  testing: boolean;
   onDelete: () => void;
   onTest?: () => Promise<ConfigTestResult>;
   onCancel: () => void;
@@ -23,6 +26,7 @@ export type EditorButtonProps<T extends { id: string } = { id: string }> = {
 export const EditorButtons: React.FC<EditorButtonProps> = ({
   isNew,
   loading,
+  testing,
   onCancel,
   onDelete,
   onTest,
@@ -73,7 +77,7 @@ export const EditorButtons: React.FC<EditorButtonProps> = ({
     <>
       {!loading && testStatus && testStatus !== "success" && testStatus !== "pending" && (
         <Alert
-          message="Connection test failed"
+          message="Test failed"
           className={"whitespace-pre-wrap"}
           description={testStatus}
           type="error"
@@ -81,20 +85,28 @@ export const EditorButtons: React.FC<EditorButtonProps> = ({
           closable
         />
       )}
-      {loading && onTest && <Alert message="Testing connection..." type="info" />}
+      {testing && <Alert message="Testing connection..." type="info" />}
       <div className="flex justify-between mt-4">
         <div>
           {!isNew && (
-            <Button disabled={loading || readOnly} type="primary" ghost danger size="large" onClick={onDelete}>
+            <JitsuButton
+              disabled={loading || readOnly}
+              type="primary"
+              ghost
+              danger
+              size="large"
+              onClick={onDelete}
+              requiredPermission="deleteEntities"
+            >
               Delete
-            </Button>
+            </JitsuButton>
           )}
         </div>
         <div className="flex justify-end space-x-5" ref={buttonDivRef}>
           {onTest &&
             (testStatus === "success" ? (
-              <Popover content={"Connection test passed"} color={"lime"} trigger={"hover"}>
-                <Button type="link" disabled={loading} size="large" onClick={doTest}>
+              <Popover content={"Test passed"} color={"lime"} trigger={"click"} defaultOpen={true}>
+                <Button type="link" disabled={loading || testing} size="large" onClick={doTest}>
                   <CheckOutlined />
                   {testButtonLabel}
                 </Button>
@@ -102,10 +114,7 @@ export const EditorButtons: React.FC<EditorButtonProps> = ({
             ) : (
               <Button type="link" disabled={loading} size="large" onClick={doTest}>
                 {testStatus === "pending" ? (
-                  <>
-                    <LoadingOutlined />
-                    {testButtonLabel}
-                  </>
+                  <ButtonLabel icon={<LoadingOutlined className="w-4 h-4" />}>{testButtonLabel}</ButtonLabel>
                 ) : (
                   testButtonLabel
                 )}
@@ -114,16 +123,17 @@ export const EditorButtons: React.FC<EditorButtonProps> = ({
           <Button type="primary" ghost size="large" onClick={onCancel} disabled={loading}>
             Cancel
           </Button>
-          <Button
+          <JitsuButton
             type="primary"
             size="large"
             loading={loading}
             disabled={(isTouched !== undefined && !isTouched) || readOnly}
             htmlType={isTouched && !hasErrors ? "submit" : "button"}
             onClick={onSave}
+            requiredPermission="editEntities"
           >
             Save
-          </Button>
+          </JitsuButton>
         </div>
       </div>
     </>

@@ -22,7 +22,8 @@ export async function build({ dir }: { dir?: string }) {
   }
 
   try {
-    await buildFiles(projectDir);
+    await buildFiles(projectDir, "functions");
+    await buildFiles(projectDir, "profiles");
   } catch (e: any) {
     throw new Error(
       `Some of the functions failed to compile. See details above. Last error: ${e.message || "unknown"}`
@@ -47,6 +48,10 @@ const run = async cmd => {
 async function buildFiles(projectDir: string, dir: string = "") {
   let lastError: any = undefined;
   const srcDir = path.resolve(projectDir, "src", dir);
+  if (!existsSync(srcDir)) {
+    console.info(`${b(dir)} directory not found in ${b(path.resolve(projectDir, "src"))}`);
+    return;
+  }
   const files = readdirSync(srcDir);
   if (files.length === 0) {
     console.warn(`No functions found in ${b(srcDir)} directory`);

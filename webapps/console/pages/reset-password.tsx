@@ -1,4 +1,4 @@
-import { SigninLayout } from "../components/SignInOrUp/SignIn";
+import { SigninLayout } from "../components/SignInOrUp/SignInOrUp";
 import { Button, Input } from "antd";
 import React, { useState } from "react";
 import { useRouter } from "next/router";

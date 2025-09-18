@@ -71,15 +71,11 @@ export type GlobalLoaderProps = {
 };
 
 export const GlobalLoader: React.FC<GlobalLoaderProps> = ({ title }) => {
-  const [showAnimation, setShowAnimation] = useState(false);
-  useEffect(() => {
-    setTimeout(() => setShowAnimation(true), 1000);
-  }, []);
   return (
     <div className="absolute top-0 flex justify-center flex-col left-0 m-0 p-0 z-50 overflow-hidden w-screen h-screen">
       <div className="flex justify-center items-center text-primary flex-grow">
         <div className="flex flex-col items-center justify-center">
-          {showAnimation && <LoadingAnimation title={title || "Loading..."} />}
+          <LoadingAnimation title={title || "Loading..."} />
         </div>
       </div>
     </div>

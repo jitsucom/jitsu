@@ -48,9 +48,6 @@ const pgHelper: PgHelper = {
         }
         rows = await cursor.read(100);
       }
-      let queryResult;
-
-      queryResult = await db.pgPool().query(processedQuery, processedParams);
     } catch (e) {
       log
         .atError()
@@ -106,7 +103,6 @@ export function createPg(): Pool {
 
   const pool = new Pool({
     max: 20,
-    min: 3,
     idleTimeoutMillis: 600000,
     connectionString: requireDefined(process.env.DATABASE_URL, "env.DATABASE_URL is not defined"),
     ssl: sslMode === "no-verify" ? { rejectUnauthorized: false } : undefined,

@@ -8,8 +8,8 @@ import Prometheus from "prom-client";
 import { FunctionsHandler, FunctionsHandlerMulti } from "./http/functions";
 import { initMaxMindClient, GeoResolver } from "./lib/maxmind";
 import { MessageHandlerContext, rotorMessageHandler } from "./lib/message-handler";
-import { DummyMetrics } from "./lib/metrics";
-import { connectionsStore, functionsStore } from "./lib/repositories";
+import { createMetrics } from "./lib/metrics";
+import { connectionsStore, functionsStore, streamsStore } from "./lib/repositories";
 import { Server } from "node:net";
 import { getApplicationVersion, getDiagnostics } from "./lib/version";
 import { Redis } from "ioredis";
@@ -149,16 +149,18 @@ async function main() {
       });
     });
   } else {
-    httpServer = initHTTP({ eventsLogger, metrics: DummyMetrics, geoResolver, redisClient });
+    const metrics = createMetrics();
+    httpServer = initHTTP({ eventsLogger, metrics: metrics, geoResolver, redisClient });
     signalTraps.forEach(type => {
       process.once(type, () => {
         gracefulShutdown();
+        metrics.close();
       });
     });
   }
 }
 
-function initHTTP(rotorContext: Omit<MessageHandlerContext, "connectionStore" | "functionsStore" | "workspaceStore">) {
+function initHTTP(rotorContext: Omit<MessageHandlerContext, "connectionStore" | "functionsStore" | "streamsStore">) {
   http.use((req, res, next) => {
     if (req.path === "/health" || req.path === "/version") {
       return next();
@@ -194,7 +196,17 @@ function initHTTP(rotorContext: Omit<MessageHandlerContext, "connectionStore" | 
       diagnostics: isTruish(process.env.__DANGEROUS_ENABLE_FULL_DIAGNOSTICS) ? getDiagnostics() : undefined,
     });
   });
-  http.get("/health", (req, res) => {
+  http.get("/health", async (req, res) => {
+    const mongoRequired = (process.env.REQUIRED_STORES ?? "").split(",").includes("mongodb");
+    if (mongoRequired) {
+      try {
+        await pingMongo();
+      } catch (e: any) {
+        log.atError().withCause(e).log("MongoDB is not healthy");
+        res.status(500).json({ error: "MongoDB is not healthy" });
+        return;
+      }
+    }
     res.json({
       status: "pass",
       connectionsStore: {
@@ -208,6 +220,12 @@ function initHTTP(rotorContext: Omit<MessageHandlerContext, "connectionStore" | 
         status: functionsStore.status(),
         lastUpdated: functionsStore.lastRefresh(),
         lastModified: functionsStore.lastModified(),
+      },
+      streamsStore: {
+        enabled: streamsStore.getCurrent()?.enabled || "loading",
+        status: streamsStore.status(),
+        lastUpdated: streamsStore.lastRefresh(),
+        lastModified: streamsStore.lastModified(),
       },
     });
   });
@@ -239,17 +257,21 @@ function initHTTP(rotorContext: Omit<MessageHandlerContext, "connectionStore" | 
 
 function initMetricsServer() {
   metricsHttp.get("/metrics", async (req, res) => {
-    res.set("Content-Type", Prometheus.register.contentType);
+    res.writeHead(200, { "Content-Type": Prometheus.register.contentType });
     const result = await Prometheus.register.metrics();
     res.end(result);
   });
-  const metricsServer = metricsHttp.listen(rotorMetricsPort, () => {
+  const metricsServer = metricsHttp.listen(parseInt(rotorMetricsPort + ""), () => {
     log.atInfo().log(`Listening metrics on port ${rotorMetricsPort}`);
   });
   metricsServer.on("error", e => {
     log.atError().withCause(e).log("Failed to start metrics server");
   });
   return metricsServer;
+}
+
+async function pingMongo() {
+  await mongodb.waitInit().then(c => c.connect().then(c => c.db().admin().ping()));
 }
 
 function checkAuth(token: string): boolean {

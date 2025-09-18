@@ -20,7 +20,8 @@ const aggregatedResultType = z.object({
         sync_id: z.string(),
         task_id: z.string(),
         status: z.string(),
-        description: z.string(),
+        description: z.string().nullish(),
+        error: z.string().nullish(),
         started_by: z.any().optional(),
         started_at: z.date(),
         updated_at: z.date(),
@@ -72,13 +73,9 @@ export default createRoute()
     try {
       //get latest source_tasks from db for provided sync ids grouped by sync id
       const rows = await db.pgPool().query(
-        `select distinct sync_id as sync_id,
-       last_value(task_id) over ( partition by sync_id order by case when status = 'SKIPPED' then '2020-01-01' else started_at end RANGE BETWEEN unbounded preceding and unbounded following) as task_id,
-       last_value(status) over ( partition by sync_id order by case when status = 'SKIPPED' then '2020-01-01' else started_at end RANGE BETWEEN unbounded preceding and unbounded following) as status,
-       last_value(description) over ( partition by sync_id order by case when status = 'SKIPPED' then '2020-01-01' else started_at end RANGE BETWEEN unbounded preceding and unbounded following) as description,
-       last_value(started_at) over ( partition by sync_id order by case when status = 'SKIPPED' then '2020-01-01' else started_at end RANGE BETWEEN unbounded preceding and unbounded following) as started_at,
-       last_value(updated_at) over ( partition by sync_id order by case when status = 'SKIPPED' then '2020-01-01' else started_at end RANGE BETWEEN unbounded preceding and unbounded following) as updated_at
-from newjitsu.source_task where sync_id = ANY($1::text[])`,
+        `select DISTINCT ON (sync_id) sync_id, task_id, status, error, description, started_at, updated_at
+         from newjitsu.source_task where sync_id = ANY($1::text[]) and status != 'SKIPPED'
+         order by sync_id, started_at desc`,
         [syncsId]
       );
       const tasksRecord = rows.rows.reduce((acc, r) => {
@@ -87,6 +84,7 @@ from newjitsu.source_task where sync_id = ANY($1::text[])`,
           task_id: r.task_id,
           status: r.status,
           description: r.description,
+          error: r.error,
           started_at: r.started_at,
           updated_at: r.updated_at,
         };
@@ -106,8 +104,8 @@ from newjitsu.source_task where sync_id = ANY($1::text[])`,
       workspaceId: z.string(),
       syncId: z.string().optional(),
       taskId: z.string().optional(),
-      from: z.string().optional(),
-      to: z.string().optional(),
+      from: z.coerce.date().optional(),
+      to: z.coerce.date().optional(),
       status: z.string().optional(),
     }),
     result: tasksResultType,
@@ -151,10 +149,10 @@ from newjitsu.source_task where sync_id = ANY($1::text[])`,
         args.push(query.status);
       }
       if (query.from) {
-        args.push(dayjs(query.from, "YYYY-MM-DD").utc(true).toDate());
+        args.push(dayjs(query.from).utc().toDate());
       }
       if (query.to) {
-        args.push(dayjs(query.to, "YYYY-MM-DD").utc(true).add(1, "d").toDate());
+        args.push(dayjs(query.to).utc().toDate());
       }
       const tasks = await db.prisma().$queryRawUnsafe<source_task[]>(sql, ...args);
       if (query.taskId) {
