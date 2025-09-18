@@ -32,7 +32,7 @@
     "json5": "^2.2.3",
     "jsondiffpatch": "workspace:*",
     "juava": "workspace:*",
-    "@confluentinc/kafka-javascript": "^1.2.0",
+    "@confluentinc/kafka-javascript": "^1.4.1",
     "node-cache": "^5.1.2",
     "node-fetch-commonjs": "^3.3.2",
     "object-hash": "^3.0.0",

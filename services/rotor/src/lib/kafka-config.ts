@@ -1,6 +1,5 @@
-import { KafkaJS } from "@confluentinc/kafka-javascript";
+import { KafkaJS, GlobalConfig } from "@confluentinc/kafka-javascript";
 
-import { readFileSync } from "fs";
 import { isTruish, LogMessageBuilder, requireDefined, randomId, getLog } from "juava";
 import JSON5 from "json5";
 const log = getLog("kafka");
@@ -21,41 +20,30 @@ function translateLevel(l: KafkaJS.logLevel): LogMessageBuilder {
 }
 
 export type KafkaCredentials = {
-  brokers: string[] | string;
-  ssl?: boolean | Record<string, any>;
-  sasl?: {
-    mechanism: "scram-sha-256" | "scram-sha-512";
-    username: string;
-    password: string;
-  };
+  brokers: KafkaJS.KafkaConfig["brokers"];
+  ssl?: GlobalConfig;
+  sasl?: KafkaJS.KafkaConfig["sasl"];
 };
 
 export function getCredentialsFromEnv(): KafkaCredentials {
   const ssl = isTruish(process.env.KAFKA_SSL);
   const sslSkipVerify = isTruish(process.env.KAFKA_SSL_SKIP_VERIFY);
-
   let sslOption: KafkaCredentials["ssl"] = undefined;
 
   if (ssl) {
+    sslOption = {
+      "security.protocol": process.env.KAFKA_SASL ? "sasl_ssl" : "ssl",
+    };
     if (sslSkipVerify) {
       // TLS enabled, but server TLS certificate is not verified
-      sslOption = {
-        rejectUnauthorized: false,
-        checkServerIdentity: () => undefined,
-      };
+      sslOption["ssl.endpoint.identification.algorithm"] = "none";
+      sslOption["enable.ssl.certificate.verification"] = false;
     } else if (process.env.KAFKA_SSL_CA) {
       // TLS enabled, server TLS certificate is verified using a custom CA certificate
-      sslOption = {
-        ca: process.env.KAFKA_SSL_CA,
-      };
+      sslOption["ssl.ca.pem"] = process.env.KAFKA_SSL_CA;
     } else if (process.env.KAFKA_SSL_CA_FILE) {
       // TLS enabled, server TLS certificate is verified using a custom CA certificate (loaded from a local file)
-      sslOption = {
-        ca: readFileSync(process.env.KAFKA_SSL_CA_FILE, "utf-8"),
-      };
-    } else {
-      // TLS enabled, no extra configurations
-      sslOption = true;
+      sslOption["ssl.ca.location"] = process.env.KAFKA_SSL_CA_FILE;
     }
   }
 
@@ -82,10 +70,11 @@ export function connectToKafka(opts: { defaultAppId: string } & KafkaCredentials
       //   );
       // },
       clientId: process.env.APPLICATION_ID || opts.defaultAppId,
-      brokers: typeof opts.brokers === "string" ? opts.brokers.split(",") : opts.brokers,
-      ssl: opts.ssl,
+      brokers: typeof opts.brokers === "string" ? (opts.brokers as string).split(",") : opts.brokers,
+      ...(opts.ssl ? { ssl: true } : {}),
       ...sasl,
     },
+    ...opts.ssl,
   });
 }
 

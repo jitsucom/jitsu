@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "dependencies": {
     "isolated-vm": "6.0.0",
-    "@confluentinc/kafka-javascript": "^1.4.0",
+    "@confluentinc/kafka-javascript": "^1.4.1",
     "@mongodb-js/zstd": "^2.0.1"
   }
 }

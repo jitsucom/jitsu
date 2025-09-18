@@ -1,7 +1,6 @@
 import { getLog, isTruish, requireDefined, stopwatch } from "juava";
 import { FunctionExecLog, FunctionExecRes, RotorMetrics } from "@jitsu/core-functions";
 
-import omit from "lodash/omit";
 import { KafkaJS } from "@confluentinc/kafka-javascript";
 import { Readable } from "stream";
 import { Counter, Gauge, Histogram } from "prom-client";

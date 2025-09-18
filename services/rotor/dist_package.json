@@ -4,12 +4,7 @@
   "dependencies": {
     "undici": "^7.11.0",
     "isolated-vm": "6.0.0",
-    "@sensejs/kafkajs-zstd-support": "^0.11.0",
+    "@confluentinc/kafka-javascript": "^1.4.1",
     "@mongodb-js/zstd": "^2.0.1"
-  },
-  "overrides": {
-    "@sensejs/kafkajs-zstd-support": {
-      "zstd-napi": "^0.0.10"
-    }
   }
 }
