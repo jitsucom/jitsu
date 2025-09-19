@@ -1,4 +1,4 @@
-import { getLog, parseNumber, requireDefined } from "juava";
+import { getLog, isTruish, parseNumber, requireDefined } from "juava";
 import { connectToKafka, deatLetterTopic, KafkaCredentials, retryTopic } from "./kafka-config";
 import PQueue from "p-queue";
 import dayjs from "dayjs";
@@ -76,7 +76,7 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
           autoCommitInterval: 10000,
           autoCommit: true,
         },
-        "group.protocol": process.env.CONSUMER_PROTOCOL ? "consumer" : undefined,
+        "group.protocol": isTruish(process.env.CONSUMER_PROTOCOL) ? "consumer" : undefined,
         "group.instance.id": process.env.INSTANCE_ID || process.env.ROTOR_INSTANCE_ID,
       });
       await consumer.connect();
