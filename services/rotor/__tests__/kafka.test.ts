@@ -4,7 +4,7 @@ import { test } from "@jest/globals";
 
 const log = getLog("kafka-test");
 test.skip("Kafka Test", async () => {
-  const kafka = connectToKafka({ defaultAppId: "test", brokers: "localhost:9092" });
+  const kafka = connectToKafka({ defaultAppId: "test", brokers: ["localhost:9092"] });
   const consumer = kafka.consumer({
     kafkaJS: {
       groupId: "test",
