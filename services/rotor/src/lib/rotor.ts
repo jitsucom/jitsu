@@ -93,7 +93,7 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
       await producer.connect();
       metrics = createMetrics(producer);
       admin = kafka.admin({ kafkaJS: {} });
-      admin.connect();
+      await admin.connect();
 
       if (rotorIndex === 0) {
         interval = setInterval(async () => {
