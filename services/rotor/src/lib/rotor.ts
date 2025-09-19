@@ -245,12 +245,12 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
       await consumer?.disconnect();
       await admin?.disconnect();
       await closeQueue?.();
+      if (metrics) {
+        metrics.close();
+      }
       await producer?.disconnect();
       if (interval) {
         clearInterval(interval);
-      }
-      if (metrics) {
-        metrics.close();
       }
       log.atInfo().log("Kafka-rotor closed gracefully. 💜");
     },
