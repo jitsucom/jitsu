@@ -65,7 +65,7 @@ comes with a [FREE ClickHouse instance](https://next.jitsu.com/features/clickhou
 ## 2. Configure Jitsu
 
 * Follow [Quick Start Guide](https://docs.jitsu.com/)
-* Get yourself familiar with [Jitsu Concepts](https://docs.jitsu.com/concepts)
+* Get yourself familiar with [Jitsu Concepts](https://docs.jitsu.com/core-concepts/)
 * Browse [Destination Catalog](https://next.jitsu.com/integrations/destinations)
 
 ## 3. Send events
