@@ -229,7 +229,7 @@ jobs:
         with:
           slack_webhook_url: ${{ secrets.CI_SLACK_WEBHOOK }}
           color: ${{ job.status == 'success' && '#36a64f' || '#ff0000' }}
-          header: "${{ job.status == 'success' && '✅' || '❌' }} Jitsu Services `${{ needs.version.outputs.channel || 'unknown' }}` build ${{ job.status == 'success' && 'SUCCEEDED' || 'FAILED' }}"
+          header: "${{ job.status == 'success' && '✅' || '❌' }} 🐳 Jitsu Services `${{ needs.version.outputs.channel || 'unknown' }}` build ${{ job.status == 'success' && 'SUCCEEDED' || 'FAILED' }}"
           blocks: |
             - title: Branch
               value: ${{ github.ref_name }}
@@ -256,6 +256,7 @@ jobs:
     permissions:
       contents: read
       packages: read
+      id-token: write
 
     steps:
       - name: 📥 Checkout code
@@ -264,45 +265,38 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: 🔧 Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
+      - name: 🐳 Pull and start builder container
+        run: |
+          docker pull ghcr.io/jitsucom/jitsu-builder:latest
+          docker run -d --name builder -v ${{ github.workspace }}:/workspace -w /workspace -e CI=true ghcr.io/jitsucom/jitsu-builder:latest tail -f /dev/null
 
-      - name: 📦 Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
+      - name: 📦 Fetch dependencies from store
+        run: |
+          docker exec builder sh -c 'echo "pnpm store path: $(pnpm store path)"'
+          docker exec builder pnpm fetch
 
       - name: 📦 Install dependencies
         if: ${{ !inputs.skip_install }}
-        run: pnpm install --frozen-lockfile
+        run: docker exec builder pnpm install --frozen-lockfile --offline
 
       - name: 🧪 Run typecheck
-        run: pnpm typecheck
+        run: docker exec builder pnpm typecheck
 
       - name: 📝 Update CLI package.json version
         env:
           VERSION: ${{ needs.version.outputs.version }}
         run: |
           echo "Updating jitsu-cli package.json to version ${VERSION}"
-          cd cli/jitsu-cli
-          jq --arg version "${VERSION}" '.version = $version' package.json > package.json.tmp && mv package.json.tmp package.json
-          cat package.json | grep version
+          docker exec builder sh -c "cd cli/jitsu-cli && jq --arg version \"${VERSION}\" '.version = \$version' package.json > package.json.tmp && mv package.json.tmp package.json"
+          docker exec builder sh -c "cd cli/jitsu-cli && cat package.json | grep version"
 
       - name: 🏗️ Build CLI
-        run: |
-          cd cli/jitsu-cli
-          pnpm run build
+        run: docker exec builder sh -c "cd cli/jitsu-cli && pnpm run build"
 
       - name: 📤 Publish to NPM
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           CHANNEL: ${{ needs.version.outputs.channel }}
         run: |
-          cd cli/jitsu-cli
-
           # Determine NPM tag based on channel
           if [ "${CHANNEL}" = "stable" ]; then
             NPM_TAG="latest"
@@ -311,7 +305,14 @@ jobs:
           fi
 
           echo "Publishing jitsu-cli to NPM with tag: ${NPM_TAG}"
-          npm publish --tag ${NPM_TAG} --access public
+          docker exec \
+            -e ACTIONS_ID_TOKEN_REQUEST_URL \
+            -e ACTIONS_ID_TOKEN_REQUEST_TOKEN \
+            builder sh -c "cd cli/jitsu-cli && npm publish --provenance --tag ${NPM_TAG} --access public"
+
+      - name: 🧹 Cleanup container
+        if: always()
+        run: docker stop builder && docker rm builder
 
       - name: 📝 Get short SHA
         if: always()
@@ -324,7 +325,7 @@ jobs:
         with:
           slack_webhook_url: ${{ secrets.CI_SLACK_WEBHOOK }}
           color: ${{ job.status == 'success' && '#36a64f' || '#ff0000' }}
-          header: "${{ job.status == 'success' && '✅' || '❌' }} Jitsu CLI `${{ needs.version.outputs.channel || 'unknown' }}` publish ${{ job.status == 'success' && 'SUCCEEDED' || 'FAILED' }}"
+          header: "${{ job.status == 'success' && '✅' || '❌' }} 📦 Jitsu CLI `${{ needs.version.outputs.channel || 'unknown' }}` publish ${{ job.status == 'success' && 'SUCCEEDED' || 'FAILED' }}"
           blocks: |
             - title: Branch
               value: ${{ github.ref_name }}
