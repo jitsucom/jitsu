@@ -18,7 +18,7 @@ jobs:
   lint-and-format:
     name: ✨ Lint & Test
     timeout-minutes: 20
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     permissions:
       contents: write
       issues: write
@@ -91,7 +91,7 @@ jobs:
     name: 📢 Notify
     needs: [lint-and-format]
     if: always() && github.ref == 'refs/heads/newjitsu'
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     permissions:
       contents: write
       issues: write
