@@ -6,7 +6,9 @@
   "license": "MIT",
   "private": true,
   "main": "tsconfig.json",
+  "types": "index.d.ts",
   "files": [
-    "tsconfig.json"
+    "tsconfig.json",
+    "index.d.ts"
   ]
 }

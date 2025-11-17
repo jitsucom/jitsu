@@ -17,7 +17,8 @@
     "test:node": "jest",
     "test:playwright": "playwright test ./__tests__/playwright",
     "test": "pnpm run test:node",
-    "typecheck": "tsc --noEmit",
+    "//typecheck": "Build is required because types are generated during build",
+    "typecheck": "pnpm run build",
     "build": "pnpm run clean && tsc -p . && rollup -c"
   },
   "devDependencies": {

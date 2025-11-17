@@ -56,6 +56,9 @@ jobs:
       - name: ✨ Check code format
         run: docker exec builder pnpm format:check:all
 
+      - name: 🔧 Run codegen
+        run: docker exec builder pnpm codegen
+
       - name: 🧪️ Run Typecheck
         run: docker exec builder pnpm typecheck
 

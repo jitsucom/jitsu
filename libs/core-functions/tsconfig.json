@@ -7,9 +7,9 @@
     "noEmit": true,
     "strictNullChecks": false
   },
+  "include": ["src/**/*"],
   "exclude": [
     "__tests__",
-    "node_modules",
     "dist",
     "test_projects",
     "test",

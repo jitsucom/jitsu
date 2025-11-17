@@ -13,5 +13,6 @@
     "removeComments": true,
     "skipLibCheck": true
   },
+  "files": ["index.d.ts"],
   "exclude": ["node_modules"]
 }

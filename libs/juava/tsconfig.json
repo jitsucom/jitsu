@@ -5,9 +5,9 @@
     "declaration": true,
     "noEmit": true
   },
+  "include": ["src/**/*"],
   "exclude": [
     "__tests__",
-    "node_modules",
     "dist",
     "test_projects",
     "test",
