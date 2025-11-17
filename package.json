@@ -29,6 +29,7 @@
     "test": "turbo run test",
     "test:no-turbo": "pnpm -r run test",
     "test:playwright": "turbo run test:playwright",
+    "test:playwright:no-turbo": "pnpm -r run test:playwright",
     "jitsu-cli": "turbo run build --filter=jitsu-cli && node --enable-source-maps core/jitsu-cli/lib/index.js",
     "clean:turbo": "rm -rf `find . -type d -name .turbo`",
     "factory-reset": "pnpm clean ; pnpm clean:turbo ; rm -rf `find . -type d -name node_modules`",

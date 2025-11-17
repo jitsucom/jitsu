@@ -24,15 +24,20 @@
       "outputs": ["coverage/**"],
       "inputs": ["src/**", "lib/**", "__tests__/**", "*.config.js", "*.config.ts"]
     },
+    // Builds packages with 'main: dist/*' (jsondiffpatch, jitsu-js, jitsu-react, functions)
+    "build-deps": {
+      "outputs": ["dist/**"],
+      "inputs": ["src/**", "tsconfig.json", "package.json"]
+    },
+    // Needs ^build-deps for .d.ts files from workspace dependencies
     "typecheck": {
-      "// NOTE": "Depends on ^build because TypeScript needs .d.ts files from workspace dependencies",
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build-deps"],
       "outputs": [],
       "inputs": ["src/**", "lib/**", "pages/**", "components/**", "tsconfig.json"]
     },
+    // Needs ^build-deps to import built workspace packages
     "test:playwright": {
-      "// NOTE": "Depends on ^build because tests import built workspace packages",
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build-deps"],
       "outputs": ["playwright/artifacts/**"],
       "cache": false
     },
@@ -43,48 +48,48 @@
     "clean": {
       "cache": false
     },
+    // Needs ^build-deps for workspace package imports
     "console:dev": {
-      "// NOTE": "Depends on ^build because Next.js imports workspace packages at runtime",
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build-deps"],
       "cache": false,
       "persistent": true
     },
+    // Needs ^build-deps for workspace package imports
     "console:start": {
-      "// NOTE": "Depends on ^build because Next.js imports workspace packages at runtime",
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build-deps"],
       "cache": false,
       "persistent": true
     },
+    // Needs ^build-deps for workspace package imports
     "console:storybook": {
-      "// NOTE": "Depends on ^build because Storybook imports workspace packages",
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build-deps"],
       "cache": false,
       "persistent": true
     },
+    // Needs ^build-deps for workspace package imports
     "ee-api:dev": {
-      "// NOTE": "Depends on ^build because API imports workspace packages at runtime",
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build-deps"],
       "cache": false,
       "persistent": true
     },
+    // Needs ^build-deps for workspace package imports
     "rotor:dev": {
-      "// NOTE": "Depends on ^build because service imports workspace packages at runtime",
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build-deps"],
       "cache": false,
       "persistent": true
     },
+    // Needs ^build-deps for workspace package imports
     "profiles:dev": {
-      "// NOTE": "Depends on ^build because service imports workspace packages at runtime",
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build-deps"],
       "cache": false,
       "persistent": true
     },
     "tool:hash": {
       "cache": false
     },
+    // Needs ^build-deps for workspace package imports
     "dev": {
-      "// NOTE": "Depends on ^build because dev servers import workspace packages at runtime",
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build-deps"],
       "cache": false,
       "persistent": true
     }

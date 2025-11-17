@@ -19,7 +19,9 @@
     "test": "pnpm run test:node",
     "//typecheck": "Build is required because types are generated during build",
     "typecheck": "pnpm run build",
-    "build": "pnpm run clean && tsc -p . && rollup -c"
+    "build": "pnpm run clean && tsc -p . && rollup -c",
+    "//build-deps": "Required by turbo ^build-deps - builds dist/ for workspace packages that import this",
+    "build-deps": "pnpm run build"
   },
   "devDependencies": {
     "@jitsu/common-config": "workspace:*",

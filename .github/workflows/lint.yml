@@ -81,7 +81,7 @@ jobs:
 
       - name: 🎭 Run Playwright tests
         if: steps.changes.outputs.playwright == 'true'
-        run: docker exec builder pnpm test:playwright
+        run: docker exec builder pnpm test:playwright:no-turbo
 
       - name: 🧹 Cleanup container
         if: always()

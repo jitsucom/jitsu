@@ -12,6 +12,8 @@
   "license": "MIT",
   "private": false,
   "scripts": {
+    "//build-deps": "Required by turbo ^build-deps - builds dist/ for workspace packages that import this",
+    "build-deps": "pnpm run build",
     "//typecheck": "Since this module generates types, we should run build during typecheck",
     "typecheck": "tsc -p . && rollup -c",
     "build": "tsc -p . && rollup -c",
