@@ -106,6 +106,13 @@ jobs:
       - name: 🏗️ Build libraries
         run: docker exec builder pnpm --filter @jitsu/protocols --filter @jitsu/js --filter @jitsu/jitsu-react build
 
+      - name: 🔐 Configure npm authentication
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}
+        run: |
+          docker exec -e NPM_TOKEN builder sh -c "echo '//registry.npmjs.org/:_authToken=\${NPM_TOKEN}' > ~/.npmrc"
+          echo "npm authentication configured"
+
       - name: 📤 Publish to NPM
         env:
           CHANNEL: ${{ needs.version.outputs.channel }}
@@ -118,28 +125,18 @@ jobs:
           fi
 
           echo "Publishing client libraries to NPM with tag: ${NPM_TAG}"
-          echo "Using trusted publishers (OIDC authentication)"
 
           # Publish @jitsu/protocols
           echo "Publishing @jitsu/protocols..."
-          docker exec \
-            -e ACTIONS_ID_TOKEN_REQUEST_URL \
-            -e ACTIONS_ID_TOKEN_REQUEST_TOKEN \
-            builder sh -c "cd types/protocols && npm publish --provenance --tag ${NPM_TAG} --access public"
+          docker exec builder sh -c "cd types/protocols && npm publish --tag ${NPM_TAG} --access public"
 
           # Publish @jitsu/js
           echo "Publishing @jitsu/js..."
-          docker exec \
-            -e ACTIONS_ID_TOKEN_REQUEST_URL \
-            -e ACTIONS_ID_TOKEN_REQUEST_TOKEN \
-            builder sh -c "cd libs/jitsu-js && npm publish --provenance --tag ${NPM_TAG} --access public"
+          docker exec builder sh -c "cd libs/jitsu-js && npm publish --tag ${NPM_TAG} --access public"
 
           # Publish @jitsu/jitsu-react
           echo "Publishing @jitsu/jitsu-react..."
-          docker exec \
-            -e ACTIONS_ID_TOKEN_REQUEST_URL \
-            -e ACTIONS_ID_TOKEN_REQUEST_TOKEN \
-            builder sh -c "cd libs/jitsu-react && npm publish --provenance --tag ${NPM_TAG} --access public"
+          docker exec builder sh -c "cd libs/jitsu-react && npm publish --tag ${NPM_TAG} --access public"
 
       - name: 🧹 Cleanup container
         if: always()

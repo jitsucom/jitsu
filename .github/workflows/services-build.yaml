@@ -38,7 +38,7 @@ concurrency:
 jobs:
   version:
     name: 🏷️ Generate Version
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     outputs:
       version: ${{ steps.manual.outputs.version || steps.generated.outputs.version }}
       channel: ${{ steps.manual.outputs.channel || steps.generated.outputs.channel }}
@@ -71,7 +71,7 @@ jobs:
     if: ${{ inputs.scope == 'all' || inputs.scope == 'docker' }}
     name: 🚀 Build and Release Backend Docker Images
     timeout-minutes: 60
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     permissions:
       contents: write
       issues: write
@@ -264,7 +264,7 @@ jobs:
     if: ${{ inputs.scope == 'all' || inputs.scope == 'npm' }}
     name: 📦 Build and Publish NPM Packages
     timeout-minutes: 30
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     permissions:
       contents: read
       packages: read
@@ -310,6 +310,13 @@ jobs:
       - name: 🏗️ Build packages
         run: docker exec builder pnpm --filter jitsu-cli --filter @jitsu/functions-lib build
 
+      - name: 🔐 Configure npm authentication
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}
+        run: |
+          docker exec -e NPM_TOKEN builder sh -c "echo '//registry.npmjs.org/:_authToken=\${NPM_TOKEN}' > ~/.npmrc"
+          echo "npm authentication configured"
+
       - name: 📤 Publish to NPM
         env:
           CHANNEL: ${{ needs.version.outputs.channel }}
@@ -322,21 +329,14 @@ jobs:
           fi
 
           echo "Publishing packages to NPM with tag: ${NPM_TAG}"
-          echo "Using trusted publishers (OIDC authentication)"
 
           # Publish jitsu-cli
           echo "Publishing jitsu-cli..."
-          docker exec \
-            -e ACTIONS_ID_TOKEN_REQUEST_URL \
-            -e ACTIONS_ID_TOKEN_REQUEST_TOKEN \
-            builder sh -c "cd cli/jitsu-cli && npm publish --provenance --tag ${NPM_TAG} --access public"
+          docker exec builder sh -c "cd cli/jitsu-cli && npm publish --tag ${NPM_TAG} --access public"
 
           # Publish @jitsu/functions-lib
           echo "Publishing @jitsu/functions-lib..."
-          docker exec \
-            -e ACTIONS_ID_TOKEN_REQUEST_URL \
-            -e ACTIONS_ID_TOKEN_REQUEST_TOKEN \
-            builder sh -c "cd libs/functions && npm publish --provenance --tag ${NPM_TAG} --access public"
+          docker exec builder sh -c "cd libs/functions && npm publish --tag ${NPM_TAG} --access public"
 
       - name: 🧹 Cleanup container
         if: always()
