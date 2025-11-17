@@ -7,7 +7,9 @@
   "publishConfig": {
     "access": "public"
   },
-  "bin": "./bin/jitsu-cli",
+  "bin": {
+    "jitsu-cli": "./bin/jitsu-cli"
+  },
   "license": "MIT",
   "private": false,
   "scripts": {

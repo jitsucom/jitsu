@@ -277,10 +277,33 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      - name: 🔍 Validate NPM token
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}
+        run: |
+          echo "Validating NPM token..."
+          WHOAMI=$(curl -s -H "Authorization: Bearer ${NPM_TOKEN}" https://registry.npmjs.org/-/whoami)
+          echo "Authenticated as: ${WHOAMI}"
+          if [ -z "${WHOAMI}" ] || [ "${WHOAMI}" = "null" ]; then
+            echo "ERROR: Invalid NPM token"
+            exit 1
+          fi
+
       - name: 🐳 Pull and start builder container
         run: |
           docker pull ghcr.io/jitsucom/jitsu-builder:latest
           docker run -d --name builder -v ${{ github.workspace }}:/workspace -w /workspace -e CI=true ghcr.io/jitsucom/jitsu-builder:latest tail -f /dev/null
+
+      - name: 🔐 Configure npm authentication
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}
+        run: |
+          docker exec -e NPM_TOKEN builder sh -c "echo '//registry.npmjs.org/:_authToken=\${NPM_TOKEN}' > ~/.npmrc"
+          echo "npm authentication configured"
+
+      - name: 🔐 Validate npm authentication 
+        run: |
+          docker exec npm whoami
 
       - name: 📦 Fetch dependencies from store
         run: |
@@ -310,12 +333,6 @@ jobs:
       - name: 🏗️ Build packages
         run: docker exec builder pnpm --filter jitsu-cli --filter @jitsu/functions-lib build
 
-      - name: 🔐 Configure npm authentication
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}
-        run: |
-          docker exec -e NPM_TOKEN builder sh -c "echo '//registry.npmjs.org/:_authToken=\${NPM_TOKEN}' > ~/.npmrc"
-          echo "npm authentication configured"
 
       - name: 📤 Publish to NPM
         env:
