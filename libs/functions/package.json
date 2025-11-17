@@ -26,10 +26,10 @@
     "@rollup/plugin-typescript": "^11.1.5",
     "@rollup/plugin-node-resolve": "^16.0.0",
     "@rollup/plugin-commonjs": "^28.0.2",
-    "@types/node": "^18.15.3",
-    "@vitest/ui": "^2.1.8",
-    "tslib": "^2.6.3",
+    "@types/node": "catalog:",
+    "@vitest/ui": "catalog:",
+    "tslib": "catalog:",
     "@jitsu/sdk-js": "^3.1.5",
-    "vitest": "^2.1.8"
+    "vitest": "catalog:"
   }
 }

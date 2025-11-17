@@ -38,9 +38,9 @@
     "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^14.4.3",
     "@types/jest": "^29.2.3",
-    "@types/node": "^18.15.3",
+    "@types/node": "catalog:",
     "microbundle": "^0.15.1",
-    "typescript": "^5.6.3",
+    "typescript": "catalog:",
     "@babel/plugin-transform-regenerator": "^7.22.10"
   },
   "files": [
