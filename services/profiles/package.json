@@ -11,7 +11,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "bundle_extenals": "cp dist_package.json ./dist/package.json && cd ./dist/ && npm install",
-    "build": "rm -rf ./dist && tsc -p . && webpack && pnpm bundle_extenals",
+    "build": "rm -rf ./dist && tsc -p . && webpack && bun bundle_extenals",
     "start": "dotenv -e ../../.env.local -- node dist/main.js",
     "profiles:dev": "dotenv -e ../../.env.local -- nodemon --watch \"src/**\" --ext \"ts,json,tsx\" --exec \"ts-node src/index.ts\"",
     "profiles:profile": "dotenv -e ../../.env.local -- nodemon --watch \"src/**\" --ext \"ts,json,tsx\" --exec \"ts-node-dev --inspect -- src/index.ts\""

@@ -13,7 +13,7 @@
   "scripts": {
     "build": "tsc -p . && microbundle build --jsx React.createElement --no-compress --format es,cjs",
     "//build-deps": "Required by turbo ^build-deps - builds dist/ for workspace packages that import this",
-    "build-deps": "pnpm run build",
+    "build-deps": "bun run build",
     "//typecheck": "Not a bug below, we need to build it for typecheck pipeline",
     "typecheck": "tsc -p . && microbundle build --jsx React.createElement --no-compress --format es,cjs",
     "clean": "rm -rf dist"

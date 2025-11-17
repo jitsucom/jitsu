@@ -47,7 +47,7 @@ jobs:
           path: |
             .turbo
             **/node_modules/.cache
-          key: ${{ runner.os }}-turbo-lint-${{ hashFiles('**/pnpm-lock.yaml') }}
+          key: ${{ runner.os }}-turbo-lint-${{ hashFiles('**/bun.lockb') }}
           restore-keys: |
             ${{ runner.os }}-turbo-lint-
 
@@ -56,32 +56,32 @@ jobs:
           docker pull ghcr.io/jitsucom/jitsu-builder:latest
           docker run -d --name builder -v ${{ github.workspace }}:/workspace -w /workspace -e CI=true ghcr.io/jitsucom/jitsu-builder:latest tail -f /dev/null
 
-      - name: 📦 Fetch dependencies from store
+      - name: 📦 Fetch dependencies with bun
         run: |
-          docker exec builder sh -c 'echo "pnpm store path: $(pnpm store path)"'
-          docker exec builder pnpm fetch
+          docker exec builder sh -c 'echo "bun version: $(bun --version)"'
+          docker exec builder bun install --frozen-lockfile --ignore-scripts
 
       - name: 📦 Install dependencies
-        run: docker exec builder pnpm install --frozen-lockfile --offline
+        run: docker exec builder bun install --frozen-lockfile
 
       - name: ✨ Check code format
-        run: docker exec builder pnpm format:check:all
+        run: docker exec builder bun run format:check:all
 
       - name: 🔧 Run codegen
-        run: docker exec builder pnpm codegen
+        run: docker exec builder bun codegen
 
       - name: 🧪️ Run Typecheck
-        run: docker exec builder pnpm typecheck
+        run: docker exec builder bun typecheck
 
       - name: 🧪 Run linter
-        run: docker exec builder pnpm lint
+        run: docker exec builder bun lint
 
       - name: 🧪 Run tests
-        run: docker exec builder pnpm test
+        run: docker exec builder bun test
 
       - name: 🎭 Run Playwright tests
         if: steps.changes.outputs.playwright == 'true'
-        run: docker exec builder pnpm test:playwright
+        run: docker exec builder bun test:playwright
 
       - name: 🧹 Cleanup container
         if: always()

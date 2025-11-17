@@ -35,8 +35,8 @@ RUN apt-get update && \
 # BUILDER STAGE - Build all TypeScript/JavaScript code
 # ============================================================================
 # Uses jitsu-builder image which has:
-# - Node.js 24, pnpm 10, build tools (g++, make, python)
-# - Pre-populated pnpm store with all dependencies at /pnpm-store
+# - Node.js 24, bun 1.3.2+, pnpm 10 (backward compat), build tools (g++, make, python)
+# - Pre-populated bun cache and pnpm store with all dependencies
 # - Playwright browsers pre-installed
 FROM ghcr.io/jitsucom/jitsu-builder:latest AS builder
 
@@ -46,13 +46,14 @@ WORKDIR /app
 
 # STEP 1: Copy lockfiles and workspace config (smallest possible layer)
 # This layer only invalidates when dependency versions change
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY bunfig.toml package.json ./
+COPY pnpm-workspace.yaml ./
 
-# STEP 2: Fetch dependencies into pnpm store
-# The builder image already has most packages cached at /pnpm-store
-# This step verifies the store and fetches any new/updated packages
+# STEP 2: Fetch dependencies into bun cache
+# The builder image already has most packages cached
+# This step verifies the cache and fetches any new/updated packages
 # --ignore-scripts: Skip postinstall scripts (they run during install step)
-RUN echo "pnpm store path: $(pnpm store path)" && pnpm fetch --ignore-scripts
+RUN echo "bun version: $(bun --version)" && bun install --frozen-lockfile --ignore-scripts
 
 # STEP 3: Copy only package.json files (not source code yet!)
 # This optimization allows the install layer to be cached independently from source changes
@@ -77,11 +78,8 @@ RUN cd /tmp/src && \
 # STEP 4: Install dependencies (THIS LAYER IS CACHED!)
 # This layer only invalidates when lockfile or any package.json changes
 # Flags:
-#   -r: install all workspace packages recursively
 #   --frozen-lockfile: fail if lockfile needs updates (ensures reproducibility)
-#   --prefer-offline: use cache when possible, but allow downloads for native modules
-#   --unsafe-perm: allow postinstall scripts to run as root (needed for native module compilation)
-RUN pnpm install -r --frozen-lockfile --prefer-offline --unsafe-perm
+RUN bun install --frozen-lockfile
 
 # STEP 5: Copy source code
 # This layer invalidates on ANY source file change, but the install layer above remains cached
@@ -96,7 +94,7 @@ RUN rm -f .env*
 #   CI: some packages behave differently in CI (e.g., disable interactive prompts)
 ENV NEXTJS_STANDALONE_BUILD=1
 ENV CI=${CI}
-RUN pnpm build
+RUN bun run build
 
 # ============================================================================
 # CONSOLE STAGE - Next.js web application with Prisma ORM

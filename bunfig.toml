@@ -1,0 +1,9 @@
+# Bun configuration for isolated installs (migrated from pnpm)
+# This configVersion enables isolated linking which is conceptually similar to pnpm's approach
+# Bun uses symlinks in node_modules while maintaining compatibility with the pnpm workflow
+
+configVersion = 1
+
+[install]
+# Use isolated linker for pnpm-like behavior with symlinks
+linker = "isolated"

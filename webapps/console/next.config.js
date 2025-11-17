@@ -6,6 +6,10 @@ const withBundleAnalyzer = require("@next/bundle-analyzer")({
 
 module.exports = withBundleAnalyzer({
   transpilePackages: ["juava", "@jitsu/protocols", "@jitsu/core-functions", "@jitsu-internal/webapps-shared"],
+  //serverExternalPackages: ["mongodb", "@mongodb-js/zstd", "aws4"],
+  experimental: {
+    legacyReact: true
+  },
   turbopack: {
     rules: {
       "*.txt": {
@@ -83,6 +87,10 @@ module.exports = withBundleAnalyzer({
       config.devtool = "source-map";
     }
     config.externals["isolated-vm"] = "require('isolated-vm')";
+    // Externalize mongodb and native dependencies for server-side only
+    if (opts.isServer) {
+      config.externals.push("mongodb", "@mongodb-js/zstd", "aws4");
+    }
     config.module.rules.push({
       test: /\.sql$/,
       use: "raw-loader",
@@ -91,11 +99,7 @@ module.exports = withBundleAnalyzer({
       test: /\.txt$/,
       use: "raw-loader",
     });
-    config.module.rules.push({
-      test: /\.node$/,
-      loader: "node-loader",
-    });
-    config.resolve.extensions.push(".node");
+    // .node files are handled by serverExternalPackages, no loader needed
     return config;
   },
 });

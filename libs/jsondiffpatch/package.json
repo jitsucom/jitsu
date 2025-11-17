@@ -14,10 +14,10 @@
   "scripts": {
     "build": "tsc",
     "//build-deps": "Required by turbo ^build-deps - builds dist/ for workspace packages that import this",
-    "build-deps": "pnpm run build",
+    "build-deps": "bun run build",
     "clean": "rm -rf ./dist",
     "//typecheck": "Build is required because types are generated during build",
-    "typecheck": "pnpm run build",
+    "typecheck": "bun run build",
     "lint": "eslint . --ext .ts",
     "test": "jest --coverage",
     "prepack": "pnpm build",

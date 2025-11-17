@@ -386,7 +386,7 @@ const EditorComponent: React.FC<EditorComponentProps> = props => {
   } = props;
   useTitle(`${branding.productName} : ${createNew ? `Create new ${noun}` : `Edit ${noun}`}`);
   const appConfig = useAppConfig();
-  const formRef = useRef<any>();
+  const formRef = useRef<any>(null);
   const role = useWorkspaceRole();
   const [loading, setLoading] = useState<boolean>(false);
   const [testing, setTesting] = useState<boolean>(false);
