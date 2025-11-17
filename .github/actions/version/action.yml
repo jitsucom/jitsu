@@ -92,6 +92,19 @@ runs:
           VERSION="${BASE_VERSION}-canary.${DATE}.${SHORT_SHA}"
         fi
 
+        # Normalize VERSION to valid semver (x.y.z) for NPM compatibility
+        # Stable: x.y.0, x.y.1, etc. (already 3 components) - leave as is
+        # Beta/Canary: x.y-beta.0, x.y-canary.xxx -> x.y.0-beta.0, x.y.0-canary.xxx
+        if [[ "$VERSION" =~ ^([0-9]+\.[0-9]+)(\.[0-9]+)(.*)$ ]]; then
+          # Already has 3 numeric components (x.y.z), keep as is
+          :
+        elif [[ "$VERSION" =~ ^([0-9]+\.[0-9]+)(-.*)?$ ]]; then
+          # Only 2 components (x.y), add .0
+          BASE_PART="${BASH_REMATCH[1]}"
+          SUFFIX_PART="${BASH_REMATCH[2]}"
+          VERSION="${BASE_PART}.0${SUFFIX_PART}"
+        fi
+
         TAG="${TAG_PREFIX}${VERSION}"
 
         echo "Generated version: $VERSION"
