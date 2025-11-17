@@ -14,7 +14,8 @@
   "scripts": {
     "build": "tsc",
     "clean": "rm -rf ./dist",
-    "type-check": "tsc --noEmit",
+    "//typecheck": "Build is required because types are generated during build",
+    "typecheck": "pnpm run build",
     "lint": "eslint . --ext .ts",
     "test": "jest --coverage",
     "prepack": "pnpm build",
