@@ -42,7 +42,7 @@ jobs:
               - '**/playwright.config.ts'
 
       - name: 🚀 Setup Turbo cache
-        uses: actions/cache@v4Ca
+        uses: actions/cache@v4
         with:
           path: |
             .turbo
