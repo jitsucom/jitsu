@@ -303,7 +303,7 @@ jobs:
 
       - name: 🔐 Validate npm authentication 
         run: |
-          docker exec npm whoami
+          docker exec builder npm whoami
 
       - name: 📦 Fetch dependencies from store
         run: |
