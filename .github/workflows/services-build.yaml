@@ -38,7 +38,7 @@ concurrency:
 jobs:
   version:
     name: 🏷️ Generate Version
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.manual.outputs.version || steps.generated.outputs.version }}
       channel: ${{ steps.manual.outputs.channel || steps.generated.outputs.channel }}
@@ -71,7 +71,7 @@ jobs:
     if: ${{ inputs.scope == 'all' || inputs.scope == 'docker' }}
     name: 🚀 Build and Release Backend Docker Images
     timeout-minutes: 60
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     permissions:
       contents: write
       issues: write
@@ -264,7 +264,7 @@ jobs:
     if: ${{ inputs.scope == 'all' || inputs.scope == 'npm' }}
     name: 📦 Build and Publish NPM Packages
     timeout-minutes: 30
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: read
