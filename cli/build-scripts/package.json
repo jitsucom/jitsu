@@ -11,8 +11,8 @@
   "private": false,
   "scripts": {
     "clean": "rm -rf ./dist",
-    "compile": "tsc -p . ",
-    "build": "pnpm compile && webpack",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p . && webpack",
     "exec": "ts-node src/index.ts"
   },
   "dependencies": {
@@ -24,6 +24,7 @@
     "tslib": "^2.6.3"
   },
   "devDependencies": {
+    "@jitsu/common-config": "workspace:*",
     "commander": "^11.0.0",
     "@types/node": "^18.15.3",
     "@types/semver": "^7.5.6",

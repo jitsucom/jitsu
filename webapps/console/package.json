@@ -17,7 +17,7 @@
     "dev:rotor": "ts-node service/rotor.ts",
     "build": "prisma generate && next build",
     "clean": "rm -rf ./.next ./.turbo",
-    "compile": "tsc -p .",
+    "typecheck": "tsc --noEmit",
     "tool:hash": "ts-node scripts/password-hash.ts",
     "db:code-gen": "prisma generate",
     "db:update-schema": "dotenv -e ../../.env.local -- prisma db push",
@@ -102,6 +102,7 @@
     "jwks-rsa": "^3.2.0"
   },
   "devDependencies": {
+    "@jitsu/common-config": "workspace:*",
     "@ant-design/icons": "^5.5.1",
     "@next/bundle-analyzer": "^15.5.6",
     "@tailwindcss/typography": "^0.5.15",

@@ -104,8 +104,11 @@ jobs:
       - name: 📦 Install dependencies
         run: docker exec builder pnpm install --frozen-lockfile --offline
 
-      - name: 🏗️ Build
-        run: docker exec builder pnpm build
+      - name: 🧪️ Run Typecheck
+        run: docker exec builder pnpm typecheck
+
+      - name: 🧪️ Run Lint
+        run: docker exec builder pnpm lint
 
       - name: 🧪 Run tests
         run: docker exec builder pnpm test

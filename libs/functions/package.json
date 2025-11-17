@@ -12,11 +12,12 @@
   "license": "MIT",
   "private": false,
   "scripts": {
-    "compile": "tsc -p .",
-    "build": "pnpm compile && rollup -c",
-    "test": "tsc -p . &&  jest --verbose"
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p . && rollup -c",
+    "test": "tsc -p . && jest --verbose"
   },
   "devDependencies": {
+    "@jitsu/common-config": "workspace:*",
     "@jitsu/protocols": "workspace:*",
     "rollup": "^4.24.3",
     "@rollup/plugin-typescript": "^11.1.5",

@@ -14,7 +14,7 @@ import { useWorkspace } from "../context";
 import { QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { ConfigurationObjectLinkDbModel, ProfileBuilderDbModel, WorkspaceDbModel } from "../../prisma/schema";
-import { UseMutationResult } from "@tanstack/react-query/src/types";
+import { UseMutationResult } from "@tanstack/react-query";
 import { useRouter } from "next/router";
 
 export const allConfigTypes = [

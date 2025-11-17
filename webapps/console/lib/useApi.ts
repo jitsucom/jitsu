@@ -1,6 +1,6 @@
 import { ZodType } from "zod";
 import { useQuery } from "@tanstack/react-query";
-import { UseQueryResult } from "@tanstack/react-query/src/types";
+import { UseQueryResult } from "@tanstack/react-query";
 import { useState } from "react";
 import { ApiResponseError, getCached, rpc, RpcFunc, tryJson } from "juava";
 import { useWorkspace } from "./context";

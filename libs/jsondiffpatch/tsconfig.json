@@ -1,13 +1,11 @@
 {
+  "extends": "@jitsu/common-config/tsconfig.json",
   "compilerOptions": {
     "target": "ES2015",
     "declaration": true,
     "outDir": "dist",
     "isolatedModules": true,
-    "moduleResolution": "node",
-    "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
-    "strict": true,
     "skipLibCheck": false
   },
   "include": ["src"]

@@ -17,10 +17,11 @@
     "test:node": "jest",
     "test:playwright": "playwright test ./__tests__/playwright",
     "test": "pnpm run test:node",
-    "compile": "tsc -p .",
-    "build": "pnpm run clean && pnpm run compile && rollup -c"
+    "typecheck": "tsc --noEmit",
+    "build": "pnpm run clean && tsc -p . && rollup -c"
   },
   "devDependencies": {
+    "@jitsu/common-config": "workspace:*",
     "tslib": "^2.6.3",
     "@playwright/test": "1.39.0",
     "@rollup/plugin-commonjs": "^28.0.2",

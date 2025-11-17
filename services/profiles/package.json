@@ -9,9 +9,9 @@
   "license": "MIT",
   "private": false,
   "scripts": {
-    "compile": "rm -rf ./dist && tsc -p . ",
+    "typecheck": "tsc --noEmit",
     "bundle_extenals": "cp dist_package.json ./dist/package.json && cd ./dist/ && npm install",
-    "build": "pnpm compile && webpack && pnpm bundle_extenals",
+    "build": "rm -rf ./dist && tsc -p . && webpack && pnpm bundle_extenals",
     "start": "dotenv -e ../../.env.local -- node dist/main.js",
     "profiles:dev": "dotenv -e ../../.env.local -- nodemon --watch \"src/**\" --ext \"ts,json,tsx\" --exec \"ts-node src/index.ts\"",
     "profiles:profile": "dotenv -e ../../.env.local -- nodemon --watch \"src/**\" --ext \"ts,json,tsx\" --exec \"ts-node-dev --inspect -- src/index.ts\""
@@ -33,6 +33,7 @@
     "@clickhouse/client": "^1.10.1"
   },
   "devDependencies": {
+    "@jitsu/common-config": "workspace:*",
     "@babel/preset-env": "^7.25.2",
     "@babel/preset-react": "^7.24.7",
     "@babel/preset-typescript": "^7.24.7",

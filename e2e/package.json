@@ -9,9 +9,11 @@
   "license": "MIT",
   "private": false,
   "scripts": {
+    "typecheck": "tsc --noEmit",
     "test": "exit 0 || jest --verbose"
   },
   "devDependencies": {
+    "@jitsu/common-config": "workspace:*",
     "@jest/globals": "^29.3.1",
     "@jitsu-internal/console": "workspace:*",
     "@types/jest": "^29.1.1",

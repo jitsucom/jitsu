@@ -2,6 +2,7 @@
   "name": "jitsu-cli",
   "version": "0.0.0",
   "description": "",
+  "type": "module",
   "author": "Jitsu Dev Team <dev@jitsu.com>",
   "publishConfig": {
     "access": "public"
@@ -11,8 +12,8 @@
   "private": false,
   "scripts": {
     "clean": "rm -rf ./dist",
-    "compile": "tsc -p . ",
-    "build": "pnpm compile && webpack",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p . && webpack",
     "run": "pnpm build && node dist/main.js",
     "login": "pnpm build && node dist/main.js login",
     "init child": "pnpm build && node dist/main.js init",
@@ -30,6 +31,7 @@
   "devDependencies": {
     "@babel/preset-env": "^7.23.2",
     "@babel/preset-typescript": "^7.23.2",
+    "@jitsu/common-config": "workspace:*",
     "@jitsu/functions-lib": "workspace:*",
     "@jitsu/protocols": "workspace:*",
     "@rollup/plugin-commonjs": "^28.0.2",

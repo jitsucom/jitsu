@@ -21,9 +21,12 @@
       ]
     },
     "test": {
-      "dependsOn": ["^build"],
       "outputs": ["coverage/**"],
       "inputs": ["src/**", "lib/**", "__tests__/**", "*.config.js", "*.config.ts"]
+    },
+    "typecheck": {
+      "outputs": [],
+      "inputs": ["src/**", "lib/**", "pages/**", "components/**", "tsconfig.json"]
     },
     "test:playwright": {
       "dependsOn": ["^build"],

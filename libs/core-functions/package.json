@@ -15,11 +15,12 @@
   "private": false,
   "scripts": {
     "build": "tsc -p .",
-    "compile": "tsc -p .",
+    "typecheck": "tsc --noEmit",
     "clean": "rm -rf ./dist",
-    "test": "tsc -p . &&  jest --verbose"
+    "test": "tsc -p . && jest --verbose"
   },
   "devDependencies": {
+    "@jitsu/common-config": "workspace:*",
     "@jitsu/functions-lib": "workspace:*",
     "@jitsu/protocols": "workspace:*",
     "@jitsu/sdk-js": "^3.1.5",
