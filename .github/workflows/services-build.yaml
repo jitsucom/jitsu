@@ -9,6 +9,15 @@ on:
         type: boolean
         default: false
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Manual version override (e.g., 1.2.3-canary.1)"
+        required: false
+        type: string
+      tag:
+        description: "Manual tag/channel override (canary, beta, stable)"
+        required: false
+        type: string
 
 concurrency:
   # Use a shared concurrency group for both direct runs and calls from lint.yml
@@ -17,7 +26,38 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  version:
+    name: 🏷️ Generate Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.manual.outputs.version || steps.generated.outputs.version }}
+      channel: ${{ steps.manual.outputs.channel || steps.generated.outputs.channel }}
+      tag: ${{ steps.manual.outputs.tag || steps.generated.outputs.tag }}
+    steps:
+      - name: 📥 Checkout code
+        if: ${{ !inputs.version }}
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: 🏷️ Generate version
+        if: ${{ !inputs.version }}
+        id: generated
+        uses: ./.github/actions/version
+        with:
+          version_file: .services.version.json
+
+      - name: 📝 Use manual version
+        if: ${{ inputs.version }}
+        id: manual
+        run: |
+          echo "version=${{ inputs.version }}" >> $GITHUB_OUTPUT
+          echo "channel=${{ inputs.tag || 'canary' }}" >> $GITHUB_OUTPUT
+          echo "tag=${{ inputs.version }}" >> $GITHUB_OUTPUT
+
   build:
+    needs: [version]
     name: 🚀 Build and Release Backend Docker Images
     timeout-minutes: 60
     runs-on: ubuntu-latest
@@ -34,12 +74,6 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: 🏷️ Generate version
-        id: version
-        uses: ./.github/actions/version
-        with:
-          version_file: .services.version.json
-
       - name: 🐳 Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -47,9 +81,9 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: 📝 Update versions
-        if: steps.version.outputs.channel != 'canary'
+        if: needs.version.outputs.channel != 'canary'
         env:
-          VERSION: ${{ steps.version.outputs.version }}
+          VERSION: ${{ needs.version.outputs.version }}
         run: |
           echo "Updating all package.json files to version ${VERSION}"
           find . -name "package.json" -type f ! -path "*/node_modules/*" | while read -r file; do
@@ -66,8 +100,8 @@ jobs:
 
       - name: 🏗️ Build and push Docker images
         env:
-          VERSION: ${{ steps.version.outputs.version }}
-          CHANNEL: ${{ steps.version.outputs.channel }}
+          VERSION: ${{ needs.version.outputs.version }}
+          CHANNEL: ${{ needs.version.outputs.channel }}
           BRANCH: ${{ github.ref_name }}
           COMMIT_SHA: ${{ github.sha }}
         run: |
@@ -120,10 +154,10 @@ jobs:
           done
 
       - name: 🏷️ Create and push git tag
-        if: steps.version.outputs.channel != 'canary'
+        if: needs.version.outputs.channel != 'canary'
         run: |
-          TAG="${{ steps.version.outputs.tag }}"
-          VERSION="${{ steps.version.outputs.version }}"
+          TAG="${{ needs.version.outputs.tag }}"
+          VERSION="${{ needs.version.outputs.version }}"
 
           # Configure git user
           git config user.name "github-actions[bot]"
@@ -138,13 +172,13 @@ jobs:
           echo "Created and pushed tag: $TAG"
 
       - name: 📝 Create GitHub release
-        if: steps.version.outputs.channel != 'canary'
+        if: needs.version.outputs.channel != 'canary'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG="${{ steps.version.outputs.tag }}"
-          VERSION="${{ steps.version.outputs.version }}"
-          CHANNEL="${{ steps.version.outputs.channel }}"
+          TAG="${{ needs.version.outputs.tag }}"
+          VERSION="${{ needs.version.outputs.version }}"
+          CHANNEL="${{ needs.version.outputs.channel }}"
 
           # Determine if prerelease
           PRERELEASE_FLAG=""
@@ -166,8 +200,8 @@ jobs:
             --repo jitsucom/jitsu-cloud-infra \
             --ref main \
             -f release_type=jitsu-services \
-            -f channel=${{ steps.version.outputs.channel }} \
-            -f version=${{ steps.version.outputs.version }} \
+            -f channel=${{ needs.version.outputs.channel }} \
+            -f version=${{ needs.version.outputs.version }} \
             -f triggerAuthor=${{ github.actor }} \
             -f triggerUrl=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
@@ -195,12 +229,12 @@ jobs:
         with:
           slack_webhook_url: ${{ secrets.CI_SLACK_WEBHOOK }}
           color: ${{ job.status == 'success' && '#36a64f' || '#ff0000' }}
-          header: "${{ job.status == 'success' && '✅' || '❌' }} Jitsu Services `${{ steps.version.outputs.channel || 'unknown' }}` build ${{ job.status == 'success' && 'SUCCEEDED' || 'FAILED' }}"
+          header: "${{ job.status == 'success' && '✅' || '❌' }} Jitsu Services `${{ needs.version.outputs.channel || 'unknown' }}` build ${{ job.status == 'success' && 'SUCCEEDED' || 'FAILED' }}"
           blocks: |
             - title: Branch
               value: ${{ github.ref_name }}
             - title: Version
-              value: ${{ steps.version.outputs.version || 'N/A' }}
+              value: ${{ needs.version.outputs.version || 'N/A' }}
             - title: Commit
               value: ${{ steps.short-sha.outputs.sha }}
               url: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
@@ -213,3 +247,99 @@ jobs:
             - title: ${{ job.status == 'success' && 'Deploy lifecycle' || 'Triggered by' }}
               value: ${{ job.status == 'success' && 'View deployment run' || github.actor }}
               url: ${{ job.status == 'success' && steps.notify.outputs.deploy_run_url || '' }}
+
+  cli-publish:
+    needs: [version]
+    name: 📦 Build and Publish CLI
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: 📦 Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: 📦 Install dependencies
+        if: ${{ !inputs.skip_install }}
+        run: pnpm install --frozen-lockfile
+
+      - name: 🧪 Run typecheck
+        run: pnpm typecheck
+
+      - name: 📝 Update CLI package.json version
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          echo "Updating jitsu-cli package.json to version ${VERSION}"
+          cd cli/jitsu-cli
+          jq --arg version "${VERSION}" '.version = $version' package.json > package.json.tmp && mv package.json.tmp package.json
+          cat package.json | grep version
+
+      - name: 🏗️ Build CLI
+        run: |
+          cd cli/jitsu-cli
+          pnpm run build
+
+      - name: 📤 Publish to NPM
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          CHANNEL: ${{ needs.version.outputs.channel }}
+        run: |
+          cd cli/jitsu-cli
+
+          # Determine NPM tag based on channel
+          if [ "${CHANNEL}" = "stable" ]; then
+            NPM_TAG="latest"
+          else
+            NPM_TAG="${CHANNEL}"
+          fi
+
+          echo "Publishing jitsu-cli to NPM with tag: ${NPM_TAG}"
+          npm publish --tag ${NPM_TAG} --access public
+
+      - name: 📝 Get short SHA
+        if: always()
+        id: short-sha
+        run: echo "sha=$(git rev-parse --short=7 HEAD)" >> $GITHUB_OUTPUT
+
+      - name: 💬 Send notification to Slack
+        if: always()
+        uses: ./.github/actions/slack-notify
+        with:
+          slack_webhook_url: ${{ secrets.CI_SLACK_WEBHOOK }}
+          color: ${{ job.status == 'success' && '#36a64f' || '#ff0000' }}
+          header: "${{ job.status == 'success' && '✅' || '❌' }} Jitsu CLI `${{ needs.version.outputs.channel || 'unknown' }}` publish ${{ job.status == 'success' && 'SUCCEEDED' || 'FAILED' }}"
+          blocks: |
+            - title: Branch
+              value: ${{ github.ref_name }}
+            - title: Version
+              value: ${{ needs.version.outputs.version || 'N/A' }}
+            - title: NPM Tag
+              value: ${{ needs.version.outputs.channel == 'stable' && 'latest' || needs.version.outputs.channel }}
+            - title: Commit
+              value: ${{ steps.short-sha.outputs.sha }}
+              url: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
+            - title: Commit message
+              value: ${{ github.event.head_commit.message && toJSON(github.event.head_commit.message) || 'N/A' }}
+              is_code: true
+            - title: Workflow run
+              value: ${{ job.status == 'success' && 'View workflow run' || 'View failed run' }}
+              url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            - title: Triggered by
+              value: ${{ github.actor }}
