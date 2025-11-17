@@ -299,13 +299,6 @@ jobs:
           NPM_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}
         run: |
           docker exec -e NPM_TOKEN builder sh -c "echo '//registry.npmjs.org/:_authToken='\${NPM_TOKEN} >> /workspace/.npmrc"
-          echo "npm authentication configured"
-
-          echo "Verifying .npmrc contents (with token redacted)..."
-          docker exec builder sh -c "cat /workspace/.npmrc | sed 's/authToken=.*/authToken=***REDACTED***/'"
-
-          echo "Checking npm config..."
-          docker exec builder npm config list
 
       - name: 🔐 Validate npm authentication
         run: |
