@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   lint-and-format:
-    name: ✨ Lint & Format
+    name: ✨ Lint & Test
     timeout-minutes: 20
     runs-on: ubuntu-latest
     permissions:
