@@ -9,6 +9,11 @@
   "types": "index.d.ts",
   "files": [
     "tsconfig.json",
-    "index.d.ts"
-  ]
+    "index.d.ts",
+    "vitest.config.ts",
+    "vitest.setup.ts"
+  ],
+  "devDependencies": {
+    "vitest": "^2.1.8"
+  }
 }

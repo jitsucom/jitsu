@@ -1,6 +1,6 @@
 import { getLog } from "juava";
 import { connectToKafka } from "../src/lib/kafka-config";
-import { test } from "@jest/globals";
+import { test } from "vitest";
 
 const log = getLog("kafka-test");
 test.skip("Kafka Test", async () => {

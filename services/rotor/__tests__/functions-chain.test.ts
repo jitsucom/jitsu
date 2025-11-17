@@ -13,7 +13,7 @@ import {
 import { IngestMessage } from "@jitsu/protocols/async-request";
 import { isEqual } from "lodash";
 import { functions, connections } from "./functions-chain-data";
-import { expect, test, describe, beforeAll, afterAll } from "@jest/globals";
+import { expect, test, describe, beforeAll, afterAll } from "vitest";
 import { FuncChainFilter } from "../src/lib/functions-chain";
 
 const log = getLog("functions-chain-test");
