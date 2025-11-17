@@ -11,7 +11,7 @@
   "license": "MIT",
   "private": false,
   "scripts": {
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc -p .",
     "build": "tsc -p .",
     "test": "tsc -p . && jest --verbose"
   },

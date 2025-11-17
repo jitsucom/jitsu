@@ -12,7 +12,8 @@
   },
   "scripts": {
     "build": "tsc -p . && microbundle build --jsx React.createElement --no-compress --format es,cjs",
-    "typecheck": "tsc --noEmit",
+    "//typecheck": "Not a bug below, we need to build it for typecheck pipeline",
+    "typecheck": "tsc -p . && microbundle build --jsx React.createElement --no-compress --format es,cjs",
     "clean": "rm -rf dist"
   },
   "dependencies": {

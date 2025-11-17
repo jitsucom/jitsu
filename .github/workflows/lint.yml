@@ -30,6 +30,17 @@ jobs:
         with:
           fetch-depth: 2
 
+      - name: 🔍 Check changed files
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            playwright:
+              - 'libs/jitsu-js/**'
+              - '**/playwright/**'
+              - '**/*.spec.ts'
+              - '**/playwright.config.ts'
+
       - name: 🚀 Setup Turbo cache
         uses: actions/cache@v4
         with:
@@ -65,128 +76,20 @@ jobs:
       - name: 🧪 Run linter
         run: docker exec builder pnpm lint
 
-      - name: 🧹 Cleanup container
-        if: always()
-        run: docker stop builder && docker rm builder
-
-  build-and-test:
-    name: 🏗️ Run Test
-    timeout-minutes: 40
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      issues: write
-      pull-requests: write
-      packages: write
-    steps:
-      - name: 📥 Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-
-      - name: 🚀 Setup Turbo cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            .turbo
-            **/node_modules/.cache
-          key: ${{ runner.os }}-turbo-build-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-turbo-build-
-
-      - name: 🐳 Pull builder image
-        run: |
-          docker pull ghcr.io/jitsucom/jitsu-builder:latest
-
-      - name: 🐳 Start builder container
-        run: |
-          docker run -d --name builder -v ${{ github.workspace }}:/workspace -w /workspace -e CI=true ghcr.io/jitsucom/jitsu-builder:latest tail -f /dev/null
-
-      - name: 📦 Fetch dependencies from store
-        run: |
-          docker exec builder sh -c 'echo "pnpm store path: $(pnpm store path)"'
-          docker exec builder pnpm fetch
-
-      - name: 📦 Install dependencies
-        run: docker exec builder pnpm install --frozen-lockfile --offline
-
       - name: 🧪 Run tests
         run: docker exec builder pnpm test:no-turbo
-
-      - name: 🧹 Cleanup container
-        if: always()
-        run: docker stop builder && docker rm builder
-
-  playwright:
-    name: 🎭 E2E Tests
-    timeout-minutes: 30
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      issues: write
-      pull-requests: write
-      packages: write
-    steps:
-      - name: 📥 Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-
-      - name: 🔍 Check changed files
-        id: changes
-        uses: dorny/paths-filter@v3
-        with:
-          filters: |
-            playwright:
-              - 'libs/jitsu-js/**'
-              - '**/playwright/**'
-              - '**/*.spec.ts'
-              - '**/playwright.config.ts'
-
-      - name: 🚀 Setup Turbo cache
-        if: steps.changes.outputs.playwright == 'true'
-        uses: actions/cache@v4
-        with:
-          path: |
-            .turbo
-            **/node_modules/.cache
-          key: ${{ runner.os }}-turbo-playwright-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-turbo-playwright-
-
-      - name: 🐳 Pull and start builder container
-        if: steps.changes.outputs.playwright == 'true'
-        run: |
-          docker pull ghcr.io/jitsucom/jitsu-builder:latest
-          docker run -d --name builder -v ${{ github.workspace }}:/workspace -w /workspace -e PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright -e CI=true ghcr.io/jitsucom/jitsu-builder:latest tail -f /dev/null
-
-      - name: 📦 Install dependencies
-        if: steps.changes.outputs.playwright == 'true'
-        run: docker exec builder pnpm install --frozen-lockfile --prefer-offline
-
-      - name: 🏗️ Build (for Playwright)
-        if: steps.changes.outputs.playwright == 'true'
-        run: docker exec builder sh -c 'pnpm turbo run build --filter="!@jitsu-internal/console" --filter="!@jitsu-ee/ee-api"'
 
       - name: 🎭 Run Playwright tests
         if: steps.changes.outputs.playwright == 'true'
         run: docker exec builder pnpm test:playwright
 
-      - name: 📤 Upload artifacts
-        uses: actions/upload-artifact@v4
-        if: always() && steps.changes.outputs.playwright == 'true'
-        with:
-          path: libs/jitsu-js/playwright/artifacts
-          name: artifacts/@jitsu/js
-          retention-days: 30
-
       - name: 🧹 Cleanup container
-        if: always() && steps.changes.outputs.playwright == 'true'
+        if: always()
         run: docker stop builder && docker rm builder
 
   notify:
     name: 📢 Notify
-    needs: [lint-and-format, build-and-test, playwright]
+    needs: [lint-and-format]
     if: always() && github.ref == 'refs/heads/newjitsu'
     runs-on: ubuntu-latest
     permissions:
@@ -205,7 +108,7 @@ jobs:
       - name: 🔍 Check job statuses
         id: status
         run: |
-          if [[ "${{ needs.lint-and-format.result }}" == "success" && "${{ needs.build-and-test.result }}" == "success" && ("${{ needs.playwright.result }}" == "success" || "${{ needs.playwright.result }}" == "skipped") ]]; then
+          if [[ "${{ needs.lint-and-format.result }}" == "success" ]]; then
             echo "success=true" >> $GITHUB_OUTPUT
             echo "color=#36a64f" >> $GITHUB_OUTPUT
             echo "header=✅ Lint & Test on branch \`${{ github.ref_name }}\` SUCCEEDED" >> $GITHUB_OUTPUT
@@ -236,7 +139,7 @@ jobs:
 
   deploy:
     name: 🐳 Build Docker Images
-    needs: [lint-and-format, build-and-test, playwright]
+    needs: [lint-and-format]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/newjitsu' || github.ref == 'refs/heads/stable-services')
     permissions:
       contents: write
