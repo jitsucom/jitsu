@@ -12,7 +12,8 @@
   "license": "MIT",
   "private": false,
   "scripts": {
-    "typecheck": "tsc --noEmit",
+    "//typecheck": "Since this module generates types, we should run build during typecheck",
+    "typecheck": "tsc -p . && rollup -c",
     "build": "tsc -p . && rollup -c",
     "test": "tsc -p . && jest --verbose"
   },

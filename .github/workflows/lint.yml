@@ -70,7 +70,7 @@ jobs:
         run: docker stop builder && docker rm builder
 
   build-and-test:
-    name: 🏗️ Build & Test
+    name: 🏗️ Run Test
     timeout-minutes: 40
     runs-on: ubuntu-latest
     permissions:
@@ -111,7 +111,7 @@ jobs:
         run: docker exec builder pnpm install --frozen-lockfile --offline
 
       - name: 🧪 Run tests
-        run: docker exec builder pnpm test
+        run: docker exec builder pnpm test:no-turbo
 
       - name: 🧹 Cleanup container
         if: always()
