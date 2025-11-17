@@ -74,7 +74,7 @@ jobs:
         run: docker exec builder pnpm typecheck:no-turbo
 
       - name: 🧪 Run linter
-        run: docker exec builder pnpm lint
+        run: docker exec builder pnpm lint:no-turbo
 
       - name: 🧪 Run tests
         run: docker exec builder pnpm test:no-turbo

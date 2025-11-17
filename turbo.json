@@ -25,16 +25,18 @@
       "inputs": ["src/**", "lib/**", "__tests__/**", "*.config.js", "*.config.ts"]
     },
     "typecheck": {
+      "// NOTE": "Depends on ^build because TypeScript needs .d.ts files from workspace dependencies",
+      "dependsOn": ["^build"],
       "outputs": [],
       "inputs": ["src/**", "lib/**", "pages/**", "components/**", "tsconfig.json"]
     },
     "test:playwright": {
+      "// NOTE": "Depends on ^build because tests import built workspace packages",
       "dependsOn": ["^build"],
       "outputs": ["playwright/artifacts/**"],
       "cache": false
     },
     "lint": {
-      "dependsOn": ["^build"],
       "outputs": [],
       "inputs": ["src/**", "lib/**", "pages/**", "components/**", ".eslintrc*", "*.config.js"]
     },
@@ -42,40 +44,46 @@
       "cache": false
     },
     "console:dev": {
+      "// NOTE": "Depends on ^build because Next.js imports workspace packages at runtime",
       "dependsOn": ["^build"],
       "cache": false,
       "persistent": true
     },
     "console:start": {
+      "// NOTE": "Depends on ^build because Next.js imports workspace packages at runtime",
       "dependsOn": ["^build"],
       "cache": false,
       "persistent": true
     },
     "console:storybook": {
+      "// NOTE": "Depends on ^build because Storybook imports workspace packages",
       "dependsOn": ["^build"],
       "cache": false,
       "persistent": true
     },
     "ee-api:dev": {
+      "// NOTE": "Depends on ^build because API imports workspace packages at runtime",
       "dependsOn": ["^build"],
       "cache": false,
       "persistent": true
     },
     "rotor:dev": {
+      "// NOTE": "Depends on ^build because service imports workspace packages at runtime",
       "dependsOn": ["^build"],
       "cache": false,
       "persistent": true
     },
     "profiles:dev": {
+      "// NOTE": "Depends on ^build because service imports workspace packages at runtime",
       "dependsOn": ["^build"],
       "cache": false,
       "persistent": true
     },
     "tool:hash": {
-      "dependsOn": ["^build"],
       "cache": false
     },
     "dev": {
+      "// NOTE": "Depends on ^build because dev servers import workspace packages at runtime",
       "dependsOn": ["^build"],
       "cache": false,
       "persistent": true
