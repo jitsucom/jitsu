@@ -42,7 +42,7 @@ jobs:
               - '**/playwright.config.ts'
 
       - name: 🚀 Setup Turbo cache
-        uses: actions/cache@v4
+        uses: actions/cache@v4Ca
         with:
           path: |
             .turbo
@@ -147,5 +147,19 @@ jobs:
       pull-requests: write
       packages: write
     uses: ./.github/workflows/services-build.yaml
+    secrets: inherit
+    # Note: skip_install doesn't work as packages are installed inside docker
+
+  deploy-client-libraries:
+    name: 📦 Build Client Libraries
+    needs: [lint-and-format]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/newjitsu' || github.ref == 'refs/heads/stable-jsclient')
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      packages: read
+      id-token: write
+    uses: ./.github/workflows/client-libraries-build.yaml
     secrets: inherit
     # Note: skip_install doesn't work as packages are installed inside docker

@@ -1,4 +1,4 @@
-name: 🐳 Services Docker Build
+name: 🐳 Build Docker Images and CLI tools
 
 on:
   workflow_call:
@@ -8,6 +8,11 @@ on:
         required: false
         type: boolean
         default: false
+      scope:
+        description: "Build scope: all, docker, npm"
+        required: false
+        type: string
+        default: "all"
   workflow_dispatch:
     inputs:
       version:
@@ -18,6 +23,11 @@ on:
         description: "Manual tag/channel override (canary, beta, stable)"
         required: false
         type: string
+      scope:
+        description: "Build scope: all, docker, npm"
+        required: false
+        type: string
+        default: "all"
 
 concurrency:
   # Use a shared concurrency group for both direct runs and calls from lint.yml
@@ -58,6 +68,7 @@ jobs:
 
   build:
     needs: [version]
+    if: ${{ inputs.scope == 'all' || inputs.scope == 'docker' }}
     name: 🚀 Build and Release Backend Docker Images
     timeout-minutes: 60
     runs-on: ubuntu-latest
@@ -248,9 +259,10 @@ jobs:
               value: ${{ job.status == 'success' && 'View deployment run' || github.actor }}
               url: ${{ job.status == 'success' && steps.notify.outputs.deploy_run_url || '' }}
 
-  cli-publish:
+  npm-publish:
     needs: [version]
-    name: 📦 Build and Publish CLI
+    if: ${{ inputs.scope == 'all' || inputs.scope == 'npm' }}
+    name: 📦 Build and Publish NPM Packages
     timeout-minutes: 30
     runs-on: ubuntu-latest
     permissions:
@@ -279,19 +291,24 @@ jobs:
         if: ${{ !inputs.skip_install }}
         run: docker exec builder pnpm install --frozen-lockfile --offline
 
-      - name: 🧪 Run typecheck
-        run: docker exec builder sh -c "pnpm codegen && pnpm typecheck"
-
-      - name: 📝 Update CLI package.json version
+      - name: 📝 Update package versions
         env:
           VERSION: ${{ needs.version.outputs.version }}
         run: |
-          echo "Updating jitsu-cli package.json to version ${VERSION}"
-          docker exec builder sh -c "cd cli/jitsu-cli && jq --arg version \"${VERSION}\" '.version = \$version' package.json > package.json.tmp && mv package.json.tmp package.json"
-          docker exec builder sh -c "cd cli/jitsu-cli && cat package.json | grep version"
+          echo "Updating package.json files to version ${VERSION}"
 
-      - name: 🏗️ Build CLI
-        run: docker exec builder sh -c "cd cli/jitsu-cli && pnpm run build"
+          # Update CLI
+          docker exec builder sh -c "cd cli/jitsu-cli && jq --arg version \"${VERSION}\" '.version = \$version' package.json > package.json.tmp && mv package.json.tmp package.json"
+
+          # Update Functions Library
+          docker exec builder sh -c "cd libs/functions && jq --arg version \"${VERSION}\" '.version = \$version' package.json > package.json.tmp && mv package.json.tmp package.json"
+
+          echo "Updated versions:"
+          docker exec builder sh -c "cd cli/jitsu-cli && cat package.json | grep version"
+          docker exec builder sh -c "cd libs/functions && cat package.json | grep version"
+
+      - name: 🏗️ Build packages
+        run: docker exec builder pnpm --filter jitsu-cli --filter @jitsu/functions-lib build
 
       - name: 📤 Publish to NPM
         env:
@@ -304,11 +321,21 @@ jobs:
             NPM_TAG="${CHANNEL}"
           fi
 
-          echo "Publishing jitsu-cli to NPM with tag: ${NPM_TAG}"
+          echo "Publishing packages to NPM with tag: ${NPM_TAG}"
+
+          # Publish jitsu-cli
+          echo "Publishing jitsu-cli..."
           docker exec \
             -e ACTIONS_ID_TOKEN_REQUEST_URL \
             -e ACTIONS_ID_TOKEN_REQUEST_TOKEN \
             builder sh -c "cd cli/jitsu-cli && npm publish --provenance --tag ${NPM_TAG} --access public"
+
+          # Publish @jitsu/functions-lib
+          echo "Publishing @jitsu/functions-lib..."
+          docker exec \
+            -e ACTIONS_ID_TOKEN_REQUEST_URL \
+            -e ACTIONS_ID_TOKEN_REQUEST_TOKEN \
+            builder sh -c "cd libs/functions && npm publish --provenance --tag ${NPM_TAG} --access public"
 
       - name: 🧹 Cleanup container
         if: always()
@@ -325,7 +352,7 @@ jobs:
         with:
           slack_webhook_url: ${{ secrets.CI_SLACK_WEBHOOK }}
           color: ${{ job.status == 'success' && '#36a64f' || '#ff0000' }}
-          header: "${{ job.status == 'success' && '✅' || '❌' }} 📦 Jitsu CLI `${{ needs.version.outputs.channel || 'unknown' }}` publish ${{ job.status == 'success' && 'SUCCEEDED' || 'FAILED' }}"
+          header: "${{ job.status == 'success' && '✅' || '❌' }} 📦 NPM Packages `${{ needs.version.outputs.channel || 'unknown' }}` publish ${{ job.status == 'success' && 'SUCCEEDED' || 'FAILED' }}"
           blocks: |
             - title: Branch
               value: ${{ github.ref_name }}
@@ -333,6 +360,8 @@ jobs:
               value: ${{ needs.version.outputs.version || 'N/A' }}
             - title: NPM Tag
               value: ${{ needs.version.outputs.channel == 'stable' && 'latest' || needs.version.outputs.channel }}
+            - title: Packages
+              value: "jitsu-cli, @jitsu/functions-lib"
             - title: Commit
               value: ${{ steps.short-sha.outputs.sha }}
               url: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
