@@ -56,7 +56,10 @@ jobs:
       - name: ✨ Check code format
         run: docker exec builder pnpm format:check:all
 
-      - name: 🔍 Run linter
+      - name: 🧪️ Run Typecheck
+        run: docker exec builder pnpm typecheck
+
+      - name: 🧪 Run linter
         run: docker exec builder pnpm lint
 
       - name: 🧹 Cleanup container
@@ -103,12 +106,6 @@ jobs:
 
       - name: 📦 Install dependencies
         run: docker exec builder pnpm install --frozen-lockfile --offline
-
-      - name: 🧪️ Run Typecheck
-        run: docker exec builder pnpm typecheck
-
-      - name: 🧪️ Run Lint
-        run: docker exec builder pnpm lint
 
       - name: 🧪 Run tests
         run: docker exec builder pnpm test
