@@ -118,6 +118,7 @@ jobs:
           fi
 
           echo "Publishing client libraries to NPM with tag: ${NPM_TAG}"
+          echo "Using trusted publishers (OIDC authentication)"
 
           # Publish @jitsu/protocols
           echo "Publishing @jitsu/protocols..."

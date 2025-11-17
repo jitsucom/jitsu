@@ -146,6 +146,7 @@ jobs:
       issues: write
       pull-requests: write
       packages: write
+      id-token: write
     uses: ./.github/workflows/services-build.yaml
     secrets: inherit
     # Note: skip_install doesn't work as packages are installed inside docker

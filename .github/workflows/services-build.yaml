@@ -322,6 +322,7 @@ jobs:
           fi
 
           echo "Publishing packages to NPM with tag: ${NPM_TAG}"
+          echo "Using trusted publishers (OIDC authentication)"
 
           # Publish jitsu-cli
           echo "Publishing jitsu-cli..."
