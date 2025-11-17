@@ -280,7 +280,7 @@ jobs:
         run: docker exec builder pnpm install --frozen-lockfile --offline
 
       - name: 🧪 Run typecheck
-        run: docker exec builder pnpm typecheck
+        run: docker exec builder sh -c "pnpm codegen && pnpm typecheck"
 
       - name: 📝 Update CLI package.json version
         env:
