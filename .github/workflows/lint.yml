@@ -71,17 +71,17 @@ jobs:
         run: docker exec builder pnpm codegen
 
       - name: 🧪️ Run Typecheck
-        run: docker exec builder pnpm typecheck:no-turbo
+        run: docker exec builder pnpm typecheck
 
       - name: 🧪 Run linter
-        run: docker exec builder pnpm lint:no-turbo
+        run: docker exec builder pnpm lint
 
       - name: 🧪 Run tests
-        run: docker exec builder pnpm test:no-turbo
+        run: docker exec builder pnpm test
 
       - name: 🎭 Run Playwright tests
         if: steps.changes.outputs.playwright == 'true'
-        run: docker exec builder pnpm test:playwright:no-turbo
+        run: docker exec builder pnpm test:playwright
 
       - name: 🧹 Cleanup container
         if: always()
