@@ -9,7 +9,6 @@
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "resolveJsonModule": true,
-    "importHelpers": true,
     "removeComments": true,
     "skipLibCheck": true
   },

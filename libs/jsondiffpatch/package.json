@@ -32,7 +32,6 @@
   "dependencies": {
   },
   "devDependencies": {
-    "@jitsu/common-config": "workspace:*",
     "@types/jest": "^29.5.10",
     "@typescript-eslint/eslint-plugin": "^8.12.2",
     "@typescript-eslint/parser": "^8.12.2",

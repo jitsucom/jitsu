@@ -326,7 +326,7 @@ importers:
         version: 18.3.0
       react-scripts:
         specifier: ^5.0.1
-        version: 5.0.1(@babel/plugin-syntax-flow@7.26.0(@babel/core@7.26.0))(@babel/plugin-transform-react-jsx@7.25.9(@babel/core@7.26.0))(@swc/core@1.11.10(@swc/helpers@0.5.15))(@types/babel__core@7.20.5)(@types/webpack@5.28.5(@swc/core@1.11.10(@swc/helpers@0.5.15)))(eslint@8.57.1)(react@18.3.1)(ts-node@10.9.2(@swc/core@1.11.10(@swc/helpers@0.5.15))(@types/node@18.19.61)(typescript@5.6.3))(type-fest@4.41.0)(typescript@5.6.3)(webpack-hot-middleware@2.26.1)
+        version: 5.0.1(@babel/plugin-syntax-flow@7.26.0(@babel/core@7.26.10))(@babel/plugin-transform-react-jsx@7.25.9(@babel/core@7.26.10))(@swc/core@1.11.10(@swc/helpers@0.5.15))(@types/babel__core@7.20.5)(@types/webpack@5.28.5(@swc/core@1.11.10(@swc/helpers@0.5.15)))(eslint@8.57.1)(react@18.3.1)(ts-node@10.9.2(@swc/core@1.11.10(@swc/helpers@0.5.15))(@types/node@18.19.61)(typescript@5.6.3))(type-fest@4.41.0)(typescript@5.6.3)(webpack-hot-middleware@2.26.1)
       tailwindcss:
         specifier: ^3.4.14
         version: 3.4.14(ts-node@10.9.2(@swc/core@1.11.10(@swc/helpers@0.5.15))(@types/node@18.19.61)(typescript@5.6.3))
@@ -614,9 +614,6 @@ importers:
 
   libs/jsondiffpatch:
     devDependencies:
-      '@jitsu/common-config':
-        specifier: workspace:*
-        version: link:../common-config
       '@types/jest':
         specifier: ^29.5.10
         version: 29.5.14
@@ -16781,6 +16778,11 @@ snapshots:
       '@babel/core': 7.26.0
       '@babel/helper-plugin-utils': 7.25.9
 
+  '@babel/plugin-syntax-flow@7.26.0(@babel/core@7.26.10)':
+    dependencies:
+      '@babel/core': 7.26.10
+      '@babel/helper-plugin-utils': 7.25.9
+
   '@babel/plugin-syntax-import-assertions@7.26.0(@babel/core@7.26.0)':
     dependencies:
       '@babel/core': 7.26.0
@@ -22486,7 +22488,7 @@ snapshots:
       webpack: 5.95.0(@swc/core@1.11.10(@swc/helpers@0.5.15))(webpack-cli@5.1.4)
       webpack-cli: 5.1.4(@webpack-cli/generators@3.0.7)(webpack@5.95.0)
 
-  '@webpack-cli/configtest@3.0.1(webpack-cli@6.0.1)(webpack@5.99.5)':
+  '@webpack-cli/configtest@3.0.1(webpack-cli@6.0.1(webpack@5.99.5))(webpack@5.99.5)':
     dependencies:
       webpack: 5.99.5(@swc/core@1.11.10(@swc/helpers@0.5.15))(webpack-cli@6.0.1)
       webpack-cli: 6.0.1(webpack@5.99.5)
@@ -22524,7 +22526,7 @@ snapshots:
       webpack: 5.95.0(@swc/core@1.11.10(@swc/helpers@0.5.15))(webpack-cli@5.1.4)
       webpack-cli: 5.1.4(@webpack-cli/generators@3.0.7)(webpack@5.95.0)
 
-  '@webpack-cli/info@3.0.1(webpack-cli@6.0.1)(webpack@5.99.5)':
+  '@webpack-cli/info@3.0.1(webpack-cli@6.0.1(webpack@5.99.5))(webpack@5.99.5)':
     dependencies:
       webpack: 5.99.5(@swc/core@1.11.10(@swc/helpers@0.5.15))(webpack-cli@6.0.1)
       webpack-cli: 6.0.1(webpack@5.99.5)
@@ -22534,7 +22536,7 @@ snapshots:
       webpack: 5.95.0(@swc/core@1.11.10(@swc/helpers@0.5.15))(webpack-cli@5.1.4)
       webpack-cli: 5.1.4(@webpack-cli/generators@3.0.7)(webpack@5.95.0)
 
-  '@webpack-cli/serve@3.0.1(webpack-cli@6.0.1)(webpack@5.99.5)':
+  '@webpack-cli/serve@3.0.1(webpack-cli@6.0.1(webpack@5.99.5))(webpack@5.99.5)':
     dependencies:
       webpack: 5.99.5(@swc/core@1.11.10(@swc/helpers@0.5.15))(webpack-cli@6.0.1)
       webpack-cli: 6.0.1(webpack@5.99.5)
@@ -25074,7 +25076,7 @@ snapshots:
     dependencies:
       eslint: 8.57.1
 
-  eslint-config-react-app@7.0.1(@babel/plugin-syntax-flow@7.26.0(@babel/core@7.26.0))(@babel/plugin-transform-react-jsx@7.25.9(@babel/core@7.26.0))(eslint@8.57.1)(jest@27.5.1(ts-node@10.9.2(@swc/core@1.11.10(@swc/helpers@0.5.15))(@types/node@18.19.61)(typescript@5.6.3)))(typescript@5.6.3):
+  eslint-config-react-app@7.0.1(@babel/plugin-syntax-flow@7.26.0(@babel/core@7.26.10))(@babel/plugin-transform-react-jsx@7.25.9(@babel/core@7.26.10))(eslint@8.57.1)(jest@27.5.1(ts-node@10.9.2(@swc/core@1.11.10(@swc/helpers@0.5.15))(@types/node@18.19.61)(typescript@5.6.3)))(typescript@5.6.3):
     dependencies:
       '@babel/core': 7.26.0
       '@babel/eslint-parser': 7.25.9(@babel/core@7.26.0)(eslint@8.57.1)
@@ -25084,7 +25086,7 @@ snapshots:
       babel-preset-react-app: 10.0.1
       confusing-browser-globals: 1.0.11
       eslint: 8.57.1
-      eslint-plugin-flowtype: 8.0.3(@babel/plugin-syntax-flow@7.26.0(@babel/core@7.26.0))(@babel/plugin-transform-react-jsx@7.25.9(@babel/core@7.26.0))(eslint@8.57.1)
+      eslint-plugin-flowtype: 8.0.3(@babel/plugin-syntax-flow@7.26.0(@babel/core@7.26.10))(@babel/plugin-transform-react-jsx@7.25.9(@babel/core@7.26.10))(eslint@8.57.1)
       eslint-plugin-import: 2.31.0(@typescript-eslint/parser@5.62.0(eslint@8.57.1)(typescript@5.6.3))(eslint@8.57.1)
       eslint-plugin-jest: 25.7.0(@typescript-eslint/eslint-plugin@5.62.0(@typescript-eslint/parser@5.62.0(eslint@8.57.1)(typescript@5.6.3))(eslint@8.57.1)(typescript@5.6.3))(eslint@8.57.1)(jest@27.5.1(ts-node@10.9.2(@swc/core@1.11.10(@swc/helpers@0.5.15))(@types/node@18.19.61)(typescript@5.6.3)))(typescript@5.6.3)
       eslint-plugin-jsx-a11y: 6.10.2(eslint@8.57.1)
@@ -25149,10 +25151,10 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  eslint-plugin-flowtype@8.0.3(@babel/plugin-syntax-flow@7.26.0(@babel/core@7.26.0))(@babel/plugin-transform-react-jsx@7.25.9(@babel/core@7.26.0))(eslint@8.57.1):
+  eslint-plugin-flowtype@8.0.3(@babel/plugin-syntax-flow@7.26.0(@babel/core@7.26.10))(@babel/plugin-transform-react-jsx@7.25.9(@babel/core@7.26.10))(eslint@8.57.1):
     dependencies:
-      '@babel/plugin-syntax-flow': 7.26.0(@babel/core@7.26.0)
-      '@babel/plugin-transform-react-jsx': 7.25.9(@babel/core@7.26.0)
+      '@babel/plugin-syntax-flow': 7.26.0(@babel/core@7.26.10)
+      '@babel/plugin-transform-react-jsx': 7.25.9(@babel/core@7.26.10)
       eslint: 8.57.1
       lodash: 4.17.21
       string-natural-compare: 3.0.1
@@ -31873,7 +31875,7 @@ snapshots:
       '@remix-run/router': 1.20.0
       react: 18.3.1
 
-  react-scripts@5.0.1(@babel/plugin-syntax-flow@7.26.0(@babel/core@7.26.0))(@babel/plugin-transform-react-jsx@7.25.9(@babel/core@7.26.0))(@swc/core@1.11.10(@swc/helpers@0.5.15))(@types/babel__core@7.20.5)(@types/webpack@5.28.5(@swc/core@1.11.10(@swc/helpers@0.5.15)))(eslint@8.57.1)(react@18.3.1)(ts-node@10.9.2(@swc/core@1.11.10(@swc/helpers@0.5.15))(@types/node@18.19.61)(typescript@5.6.3))(type-fest@4.41.0)(typescript@5.6.3)(webpack-hot-middleware@2.26.1):
+  react-scripts@5.0.1(@babel/plugin-syntax-flow@7.26.0(@babel/core@7.26.10))(@babel/plugin-transform-react-jsx@7.25.9(@babel/core@7.26.10))(@swc/core@1.11.10(@swc/helpers@0.5.15))(@types/babel__core@7.20.5)(@types/webpack@5.28.5(@swc/core@1.11.10(@swc/helpers@0.5.15)))(eslint@8.57.1)(react@18.3.1)(ts-node@10.9.2(@swc/core@1.11.10(@swc/helpers@0.5.15))(@types/node@18.19.61)(typescript@5.6.3))(type-fest@4.41.0)(typescript@5.6.3)(webpack-hot-middleware@2.26.1):
     dependencies:
       '@babel/core': 7.26.0
       '@pmmmwh/react-refresh-webpack-plugin': 0.5.15(@types/webpack@5.28.5(@swc/core@1.11.10(@swc/helpers@0.5.15)))(react-refresh@0.11.0)(type-fest@4.41.0)(webpack-dev-server@4.15.2(webpack@5.99.5(@swc/core@1.11.10(@swc/helpers@0.5.15))))(webpack-hot-middleware@2.26.1)(webpack@5.99.5(@swc/core@1.11.10(@swc/helpers@0.5.15)))
@@ -31891,7 +31893,7 @@ snapshots:
       dotenv: 10.0.0
       dotenv-expand: 5.1.0
       eslint: 8.57.1
-      eslint-config-react-app: 7.0.1(@babel/plugin-syntax-flow@7.26.0(@babel/core@7.26.0))(@babel/plugin-transform-react-jsx@7.25.9(@babel/core@7.26.0))(eslint@8.57.1)(jest@27.5.1(ts-node@10.9.2(@swc/core@1.11.10(@swc/helpers@0.5.15))(@types/node@18.19.61)(typescript@5.6.3)))(typescript@5.6.3)
+      eslint-config-react-app: 7.0.1(@babel/plugin-syntax-flow@7.26.0(@babel/core@7.26.10))(@babel/plugin-transform-react-jsx@7.25.9(@babel/core@7.26.10))(eslint@8.57.1)(jest@27.5.1(ts-node@10.9.2(@swc/core@1.11.10(@swc/helpers@0.5.15))(@types/node@18.19.61)(typescript@5.6.3)))(typescript@5.6.3)
       eslint-webpack-plugin: 3.2.0(eslint@8.57.1)(webpack@5.99.5(@swc/core@1.11.10(@swc/helpers@0.5.15)))
       file-loader: 6.2.0(webpack@5.99.5(@swc/core@1.11.10(@swc/helpers@0.5.15)))
       fs-extra: 10.1.0
@@ -34376,9 +34378,9 @@ snapshots:
   webpack-cli@6.0.1(webpack@5.99.5):
     dependencies:
       '@discoveryjs/json-ext': 0.6.3
-      '@webpack-cli/configtest': 3.0.1(webpack-cli@6.0.1)(webpack@5.99.5)
-      '@webpack-cli/info': 3.0.1(webpack-cli@6.0.1)(webpack@5.99.5)
-      '@webpack-cli/serve': 3.0.1(webpack-cli@6.0.1)(webpack@5.99.5)
+      '@webpack-cli/configtest': 3.0.1(webpack-cli@6.0.1(webpack@5.99.5))(webpack@5.99.5)
+      '@webpack-cli/info': 3.0.1(webpack-cli@6.0.1(webpack@5.99.5))(webpack@5.99.5)
+      '@webpack-cli/serve': 3.0.1(webpack-cli@6.0.1(webpack@5.99.5))(webpack@5.99.5)
       colorette: 2.0.20
       commander: 12.1.0
       cross-spawn: 7.0.6

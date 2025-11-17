@@ -87,6 +87,14 @@ Bulker can be used as a standalone tool, if you're comfortable working with low-
 
 Please see our [contributing guidelines](CONTRIBUTING.md).
 
+## Development Notes
+
+### TypeScript Configuration
+
+Third-party libraries (e.g., `libs/jsondiffpatch`) should NOT extend `@jitsu/common-config/tsconfig.json`.
+They should maintain their own standalone TypeScript configuration to preserve their original compilation
+settings and avoid strict lint rules designed for first-party code.
+
 
 
 

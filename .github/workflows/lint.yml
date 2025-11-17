@@ -60,7 +60,7 @@ jobs:
         run: docker exec builder pnpm codegen
 
       - name: 🧪️ Run Typecheck
-        run: docker exec builder pnpm typecheck
+        run: docker exec builder pnpm typecheck:no-turbo
 
       - name: 🧪 Run linter
         run: docker exec builder pnpm lint
