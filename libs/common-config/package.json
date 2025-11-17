@@ -1,0 +1,12 @@
+{
+  "name": "@jitsu/common-config",
+  "version": "0.0.0",
+  "description": "Shared TypeScript configuration for Jitsu monorepo",
+  "author": "Jitsu Dev Team <dev@jitsu.com>",
+  "license": "MIT",
+  "private": true,
+  "main": "tsconfig.json",
+  "files": [
+    "tsconfig.json"
+  ]
+}
