@@ -15,6 +15,7 @@ export type IngestMessage = {
   origin: {
     baseUrl: string;
     slug?: string;
+    workspaceId?: string;
     sourceId?: string;
     sourceName?: string;
     domain?: string;

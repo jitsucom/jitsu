@@ -118,12 +118,12 @@ enum WorkspaceRole {
 
 model WorkspaceAccess {
   workspaceId String
-  createdAt   DateTime    @default(now()) /// @zod.custom(z.coerce.date())
-  updatedAt   DateTime    @default(now()) @updatedAt /// @zod.custom(z.coerce.date())
+  createdAt   DateTime      @default(now()) /// @zod.custom(z.coerce.date())
+  updatedAt   DateTime      @default(now()) @updatedAt /// @zod.custom(z.coerce.date())
   userId      String
-  workspace   Workspace   @relation(fields: [workspaceId], references: [id])
-  user        UserProfile @relation(fields: [userId], references: [id])
-  role        WorkspaceRole      @default(owner)
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id])
+  user        UserProfile   @relation(fields: [userId], references: [id])
+  role        WorkspaceRole @default(owner)
 
   @@id([userId, workspaceId])
 }
@@ -154,11 +154,11 @@ model InvitationToken {
   workspaceId String
 
   email     String
-  createdAt DateTime @default(now()) /// @zod.custom(z.coerce.date())
-  updatedAt DateTime @default(now()) @updatedAt /// @zod.custom(z.coerce.date())
+  createdAt DateTime      @default(now()) /// @zod.custom(z.coerce.date())
+  updatedAt DateTime      @default(now()) @updatedAt /// @zod.custom(z.coerce.date())
   token     String
   usedBy    String?
-  role      WorkspaceRole   @default(owner)
+  role      WorkspaceRole @default(owner)
 }
 
 model ConfigurationObject {
@@ -218,7 +218,7 @@ model AuditLog {
   workspaceId String?
   objectId    String?
   changes     Json?
-  authType     String?
+  authType    String?
 
   @@index(timestamp)
   @@index(type)
@@ -359,6 +359,7 @@ model StatusChange {
   id          BigInt   @id @default(autoincrement()) @db.BigInt
   workspaceId String
   actorId     String
+  type        String
   tableName   String
   timestamp   DateTime @default(now()) @db.Timestamptz(3) /// @zod.custom(z.coerce.date())
   status      String
@@ -367,7 +368,7 @@ model StatusChange {
   description String?
   queueSize   Int      @default(0)
 
-  @@index([actorId, tableName])
+  @@index([actorId, type, tableName])
   @@index(timestamp)
   @@index(startedAt)
 }
@@ -375,6 +376,7 @@ model StatusChange {
 model NotificationState {
   workspaceId      String
   actorId          String
+  type             String
   tableName        String
   channelId        String
   flappingSince    DateTime? @db.Timestamptz(3) /// @zod.custom(z.coerce.date())
@@ -382,13 +384,14 @@ model NotificationState {
   statusChangeId   BigInt
   error            String?
 
-  @@id([channelId, actorId, tableName])
+  @@id([channelId, actorId, type, tableName])
 }
 
 model Notification {
   id             String   @id @default(uuid()) @db.Uuid
   workspaceId    String
   actorId        String
+  type           String
   tableName      String
   channelId      String
   statusChangeId BigInt
@@ -396,69 +399,69 @@ model Notification {
   status         String
   error          String?
 
-  @@index([actorId, tableName])
+  @@index([actorId, type, tableName])
   @@index(timestamp)
 }
 
 // OIDC Provider configuration for custom authentication
 model OidcProvider {
-  id                String             @id @default(cuid())
-  createdAt         DateTime           @default(now()) /// @zod.custom(z.coerce.date())
-  updatedAt         DateTime           @default(now()) @updatedAt /// @zod.custom(z.coerce.date())
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) /// @zod.custom(z.coerce.date())
+  updatedAt DateTime @default(now()) @updatedAt /// @zod.custom(z.coerce.date())
 
   // Display name for the provider
-  name              String
+  name String
 
   // OIDC configuration
-  issuer            String             // OIDC issuer URL (e.g., https://auth.company.com)
-  clientId          String
-  clientSecret      String             // Should be encrypted in production
+  issuer       String // OIDC issuer URL (e.g., https://auth.company.com)
+  clientId     String
+  clientSecret String // Should be encrypted in production
 
   // OIDC endpoints - if autoDiscovery is true, these will be fetched from /.well-known/openid-configuration
-  authorizationEndpoint  String?       // maps to authorization_endpoint
-  tokenEndpoint          String?       // maps to token_endpoint
-  userinfoEndpoint       String?       // maps to userinfo_endpoint
-  jwksUri                String?       // maps to jwks_uri
-  introspectionEndpoint  String?       // maps to introspection_endpoint
+  authorizationEndpoint String? // maps to authorization_endpoint
+  tokenEndpoint         String? // maps to token_endpoint
+  userinfoEndpoint      String? // maps to userinfo_endpoint
+  jwksUri               String? // maps to jwks_uri
+  introspectionEndpoint String? // maps to introspection_endpoint
 
   // OAuth scopes to request
-  scopes            String[]           @default(["openid", "profile", "email", "offline_access"])
+  scopes String[] @default(["openid", "profile", "email", "offline_access"])
 
   // OAuth/OIDC parameters
-  audience          String?            // The audience parameter for the authorization request (defaults to clientId)
-  prompt            String?            // The prompt parameter for the authorization request (e.g., "login", "consent")
+  audience String? // The audience parameter for the authorization request (defaults to clientId)
+  prompt   String? // The prompt parameter for the authorization request (e.g., "login", "consent")
 
   // Claims mapping - which OIDC claims to use for user properties
-  usernameClaim     String             @default("email")     // Claim to use as username
-  emailClaim        String             @default("email")     // Claim to use for email
-  nameClaim         String             @default("name")      // Claim to use for display name
-  groupClaim        String             @default("groups")    // Which claim contains user's groups
+  usernameClaim String @default("email") // Claim to use as username
+  emailClaim    String @default("email") // Claim to use for email
+  nameClaim     String @default("name") // Claim to use for display name
+  groupClaim    String @default("groups") // Which claim contains user's groups
 
-  enabled           Boolean            @default(true)
-  autoDiscovery     Boolean            @default(true)        // Whether to use OIDC discovery endpoint
+  enabled       Boolean @default(true)
+  autoDiscovery Boolean @default(true) // Whether to use OIDC discovery endpoint
 
-  oidcLoginGroups   OidcLoginGroup[]
+  oidcLoginGroups OidcLoginGroup[]
 
   @@unique([issuer, clientId])
 }
 
 // Links OIDC providers to workspaces with access control rules
 model OidcLoginGroup {
-  id            String       @id @default(cuid())
-  createdAt     DateTime     @default(now()) /// @zod.custom(z.coerce.date())
-  updatedAt     DateTime     @default(now()) @updatedAt /// @zod.custom(z.coerce.date())
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) /// @zod.custom(z.coerce.date())
+  updatedAt DateTime @default(now()) @updatedAt /// @zod.custom(z.coerce.date())
 
-  workspaceId   String
-  workspace     Workspace    @relation(fields: [workspaceId], references: [id])
+  workspaceId    String
+  workspace      Workspace    @relation(fields: [workspaceId], references: [id])
   oidcProviderId String
-  oidcProvider  OidcProvider @relation(fields: [oidcProviderId], references: [id])
+  oidcProvider   OidcProvider @relation(fields: [oidcProviderId], references: [id])
 
   // Group-based access control
-  groupValue    String?      // Required group value (e.g., "engineering", "admins")
+  groupValue String? // Required group value (e.g., "engineering", "admins")
 
   // If true, all authenticated users from this OIDC provider can access the workspace
   // If false, only users with matching groupValue in their groupClaim can access
-  allowAllUsers Boolean      @default(false)
+  allowAllUsers Boolean @default(false)
 
   @@unique([workspaceId, oidcProviderId])
   @@index(workspaceId)

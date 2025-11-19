@@ -96,6 +96,33 @@ export default createRoute()
       log.atError().withCause(e).log(`Failed to create ${metricsSchema}.task_log table.`);
       errors.push(new Error(`Failed to create ${metricsSchema}.task_log table.`));
     }
+    const createDeadLetterTableQuery: string = `create table IF NOT EXISTS ${metricsSchema}.dead_letter ${onCluster}
+         (
+           timestamp DateTime64(3),
+           workspaceId LowCardinality(String),
+           actorId LowCardinality(String),
+           type LowCardinality(String),
+           payload String,
+           error   String
+         )
+         engine = ${
+           metricsCluster
+             ? "ReplicatedMergeTree('/clickhouse/tables/{shard}/" + metricsSchema + "/dead_letter', '{replica}')"
+             : "MergeTree()"
+         } 
+        PARTITION BY toYYYYMM(timestamp)
+        ORDER BY (workspaceId, actorId, timestamp)
+        TTL toDateTime(timestamp) + INTERVAL 1 MONTH DELETE`;
+
+    try {
+      await clickhouse.command({
+        query: createDeadLetterTableQuery,
+      });
+      log.atInfo().log(`Table ${metricsSchema}.dead_letter or already exists`);
+    } catch (e: any) {
+      log.atError().withCause(e).log(`Failed to create ${metricsSchema}.dead_letter table.`);
+      errors.push(new Error(`Failed to create ${metricsSchema}.dead_letter table.`));
+    }
     if (errors.length > 0) {
       throw new Error("Failed to initialize tables: " + errors.map(e => e.message).join(", "));
     }

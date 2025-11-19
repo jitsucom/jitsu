@@ -1,12 +1,20 @@
-import { DropRetryErrorName, RetryErrorName } from "@jitsu/functions-lib";
+import { DropRetryErrorName, RetryErrorName, NoRetryErrorName } from "@jitsu/functions-lib";
 
 export const functionsLibCode = `const DropRetryErrorName = "Drop & RetryError";
 const RetryErrorName = "RetryError";
+const NoRetryErrorName = "NoRetryError";
 const TableNameParameter = "JITSU_TABLE_NAME";
 class RetryError extends Error {
     constructor(message, options) {
         super(message);
         this.name = options?.drop ? "${DropRetryErrorName}" : "${RetryErrorName}";
+    }
+}
+
+class NoRetryError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = "${NoRetryErrorName}";
     }
 }
 
@@ -320,16 +328,19 @@ function fromJitsuClassic(event) {
   });
 }
 
-export { DropRetryErrorName, RetryError, RetryErrorName, TableNameParameter, fromJitsuClassic, toJitsuClassic };`;
+export { DropRetryErrorName, RetryError, RetryErrorName, NoRetryError, NoRetryErrorName, TableNameParameter, fromJitsuClassic, toJitsuClassic };`;
 
 export const chainWrapperCode = `//** @UDF_FUNCTIONS_IMPORT **//
 import {
     TableNameParameter, toJitsuClassic, fromJitsuClassic, DropRetryErrorName,
     RetryError,
+    NoRetryError,
+    NoRetryErrorName,
     RetryErrorName,
 } from "@jitsu/functions-lib";
 
 global.RetryError = RetryError;
+global.NoRetryError = NoRetryError
 global.TableNameParameter = TableNameParameter;
 global.toJitsuClassic = toJitsuClassic;
 global.fromJitsuClassic = fromJitsuClassic;
@@ -339,7 +350,7 @@ export function checkError(chainRes) {
     for (const el of chainRes.execLog) {
         const error = el.error;
         if (error) {
-            if (!errObj && (error.name === DropRetryErrorName || error.name === RetryErrorName)) {
+            if (!errObj && (error.name === DropRetryErrorName || error.name === RetryErrorName || error.name === NoRetryErrorName)) {
                 errObj = {
                     name: error.name,
                     message: error.message,
@@ -403,7 +414,7 @@ async function runSingle(
     try {
         result = await f.f(event, ctx);
     } catch (err) {
-        if (err.name === DropRetryErrorName) {
+        if (err.name === DropRetryErrorName || err.name === NoRetryErrorName) {
             result = "drop";
         }
         if (f.meta?.retryPolicy) {
@@ -441,10 +452,10 @@ async function runChain(
                 if (k < chain.length - 1 && Array.isArray(result) && result.length > 1) {
                     const l = result.length;
                     result = undefined;
-                    throw new Error("Got " + l + " events as result of function #" + (k + 1) + " of " + chain.length + ". Only the last function in a chain is allowed to multiply events.");
+                    throw new NoRetryError("Got " + l + " events as result of function #" + (k + 1) + " of " + chain.length + ". Only the last function in a chain is allowed to multiply events.");
                 }
             } catch (err) {
-                if (err.name === DropRetryErrorName) {
+                if (err.name === DropRetryErrorName || err.name === NoRetryErrorName) {
                     result = "drop";
                 }
                 if (f.meta?.retryPolicy) {

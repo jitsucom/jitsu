@@ -218,6 +218,13 @@ function ingestMessage(connectionId: string, messageId: string, event: any): Ing
   };
 }
 
+function testName() {
+  const currentTestName = expect.getState().currentTestName as string;
+  return currentTestName.replace("Test Functions Chain", "").trim();
+}
+
+const messageId = "message1";
+
 describe("Test Functions Chain", () => {
   let server: SimpleSyrup;
   let lastError: any;
@@ -254,6 +261,7 @@ describe("Test Functions Chain", () => {
         "/error": handlerF("error"),
         "/retry": handlerF("retry"),
         "/drop_retry": handlerF("drop_retry"),
+        "/no_retry": handlerF("no_retry"),
         "/dst_retry": handlerF("dst_retry"),
         "/multi": handlerF("multi"),
         "/multi_middle": handlerF("multi_middle"),
@@ -270,9 +278,10 @@ describe("Test Functions Chain", () => {
   });
 
   test("simple", async () => {
+    const currentTestName = testName();
     try {
       const res = await rotorMessageHandler(
-        ingestMessage("simple", "message1", incomingEvent),
+        ingestMessage(currentTestName, messageId, incomingEvent),
         {
           connectionStore: connectionStore,
           functionsStore: funcStore,
@@ -281,24 +290,24 @@ describe("Test Functions Chain", () => {
           dummyPersistentStore: createMemoryStore({}),
         },
         "all",
-        { [CONNECTION_IDS_HEADER]: "simple" },
+        { [CONNECTION_IDS_HEADER]: currentTestName },
         true,
         0,
         5000
       );
       //log.atInfo().log("Result: ", JSON.stringify(res, null, 2));
+      expect(lastError).toBeUndefined();
+      expect(counters[currentTestName]).toEqual(1);
     } catch (e: any) {
-      if (e.message === "HTTP Error: 444 unknown") {
-        expect(e.event).toEqual(expectedEvents.simple_0);
-      }
       throw e;
     }
   });
 
   test("error", async () => {
+    const currentTestName = testName();
     try {
       await rotorMessageHandler(
-        ingestMessage("error", "message1", incomingEvent),
+        ingestMessage(currentTestName, messageId, incomingEvent),
         {
           connectionStore: connectionStore,
           functionsStore: funcStore,
@@ -307,24 +316,24 @@ describe("Test Functions Chain", () => {
           dummyPersistentStore: createMemoryStore({}),
         },
         "all",
-        { [CONNECTION_IDS_HEADER]: "error" },
+        { [CONNECTION_IDS_HEADER]: currentTestName },
         true,
         0,
         5000
       );
+      expect(lastError).toBeUndefined();
+      expect(counters[currentTestName]).toEqual(1);
     } catch (e: any) {
-      if (e.message === "HTTP Error: 444 unknown") {
-        expect(e.event).toEqual(expectedEvents.error_0);
-      }
       throw e;
     }
   });
 
   test("retry", async () => {
-    const iMessage = ingestMessage("retry", "message1", incomingEvent);
+    const currentTestName = testName();
+    const iMessage = ingestMessage(currentTestName, messageId, incomingEvent);
     let filter: FuncChainFilter = "all";
     try {
-      await rotorMessageHandler(
+      const res = await rotorMessageHandler(
         iMessage,
         {
           connectionStore: connectionStore,
@@ -334,15 +343,18 @@ describe("Test Functions Chain", () => {
           dummyPersistentStore: createMemoryStore({}),
         },
         filter,
-        { [CONNECTION_IDS_HEADER]: "retry" },
+        { [CONNECTION_IDS_HEADER]: currentTestName },
         true,
         0,
         5000
       );
+      // Should not reach here - RetryError should be thrown
+      expect(res).toEqual("unexpected success");
     } catch (e: any) {
       expect(e.name).toEqual("RetryError");
       expect(e.message).toEqual("Function runs successfully only on 2nd attempt");
       expect(lastError).toBeUndefined();
+      expect(counters[currentTestName]).toEqual(1);
       filter = functionFilter(e.functionId);
       iMessage.httpPayload = e.event;
     }
@@ -358,21 +370,21 @@ describe("Test Functions Chain", () => {
           dummyPersistentStore: createMemoryStore({}),
         },
         filter,
-        { [CONNECTION_IDS_HEADER]: "retry" },
+        { [CONNECTION_IDS_HEADER]: currentTestName },
         true,
         1,
         5000
       );
+      expect(lastError).toBeUndefined();
+      expect(counters[currentTestName]).toEqual(2);
     } catch (e: any) {
-      if (e.message === "HTTP Error: 444 unknown") {
-        expect(e.event).toEqual(expectedEvents.retry_1);
-      }
       throw e;
     }
   });
 
   test("drop_retry", async () => {
-    const iMessage = ingestMessage("drop_retry", "message1", incomingEvent);
+    const currentTestName = testName();
+    const iMessage = ingestMessage(currentTestName, messageId, incomingEvent);
     let filter: FuncChainFilter = "all";
     try {
       const res = await rotorMessageHandler(
@@ -385,16 +397,18 @@ describe("Test Functions Chain", () => {
           dummyPersistentStore: createMemoryStore({}),
         },
         filter,
-        { [CONNECTION_IDS_HEADER]: "drop_retry" },
+        { [CONNECTION_IDS_HEADER]: currentTestName },
         true,
         0,
         5000
       );
-      expect(res?.events).toHaveLength(0);
+      // Should not reach here - RetryError should be thrown
+      expect(res).toEqual("unexpected success");
     } catch (e: any) {
       expect(e.name).toEqual("Drop & RetryError");
       expect(e.message).toEqual("Function runs successfully only on 2nd attempt");
       expect(lastError).toBeUndefined();
+      expect(counters[currentTestName]).toBeUndefined();
       filter = functionFilter(e.functionId);
       iMessage.httpPayload = e.event;
     }
@@ -410,24 +424,64 @@ describe("Test Functions Chain", () => {
           dummyPersistentStore: createMemoryStore({}),
         },
         filter,
-        { [CONNECTION_IDS_HEADER]: "drop_retry" },
+        { [CONNECTION_IDS_HEADER]: currentTestName },
         true,
         1,
         5000
       );
+      expect(lastError).toBeUndefined();
+      expect(counters[currentTestName]).toEqual(1);
     } catch (e: any) {
-      if (e.message === "HTTP Error: 444 unknown") {
-        expect(e.event).toEqual(expectedEvents.drop_retry_0);
-      }
       throw e;
     }
   });
 
+  test("no_retry", async () => {
+    const currentTestName = testName();
+    const iMessage = ingestMessage(currentTestName, messageId, incomingEvent);
+    try {
+      const res = await rotorMessageHandler(
+        iMessage,
+        {
+          connectionStore: connectionStore,
+          functionsStore: funcStore,
+          streamsStore: streamsStore,
+          eventsLogger: DummyEventsStore,
+          dummyPersistentStore: createMemoryStore({}),
+        },
+        "all",
+        { [CONNECTION_IDS_HEADER]: currentTestName },
+        true,
+        0,
+        5000
+      );
+      // Should not reach here - NoRetryError should be thrown
+      expect(res).toEqual("unexpected success");
+    } catch (e: any) {
+      // Verify NoRetryError was thrown
+      expect(e.name).toEqual("NoRetryError");
+      expect(e.message).toEqual("Invalid data format - permanent failure");
+
+      const event = e.event;
+
+      // Verify that all UDF chain changes are dropped
+      expect(event.properties.first).toBeUndefined();
+      expect(event.properties.second).toBeUndefined();
+      expect(event.properties.counter).toBeUndefined();
+      expect(event.properties.third).toBeUndefined(); // function3 should not have run
+
+      // Verify no webhook was called (event didn't reach destination)
+      expect(lastError).toBeUndefined();
+      expect(counters[currentTestName]).toBeUndefined();
+    }
+  });
+
   test("dst_retry", async () => {
-    const iMessage = ingestMessage("dst_retry", "message1", incomingEvent);
+    const currentTestName = testName();
+    const iMessage = ingestMessage(currentTestName, messageId, incomingEvent);
     let filter: FuncChainFilter = "all";
     try {
-      await rotorMessageHandler(
+      const res = await rotorMessageHandler(
         iMessage,
         {
           connectionStore: connectionStore,
@@ -437,14 +491,19 @@ describe("Test Functions Chain", () => {
           dummyPersistentStore: createMemoryStore({}),
         },
         filter,
-        { [CONNECTION_IDS_HEADER]: "dst_retry" },
+        { [CONNECTION_IDS_HEADER]: currentTestName },
         true,
         0,
         5000
       );
+      // Should not reach here - RetryError should be thrown
+      expect(res).toEqual("unexpected success");
     } catch (e: any) {
       expect(e.name).toEqual("RetryError");
       expect(e.message).toEqual("HTTP Error: 444 unknown");
+      expect(counters[currentTestName]).toEqual(1);
+      expect(lastError).toBeDefined();
+      expect(lastError.message).toContain("dst_retry_0 unexpected webhook request");
       filter = functionFilter(e.functionId);
       iMessage.httpPayload = e.event;
     }
@@ -460,22 +519,24 @@ describe("Test Functions Chain", () => {
           dummyPersistentStore: createMemoryStore({}),
         },
         filter,
-        { [CONNECTION_IDS_HEADER]: "dst_retry" },
+        { [CONNECTION_IDS_HEADER]: currentTestName },
         true,
         1,
         5000
       );
       //log.atInfo().log("Result: ", JSON.stringify(res, null, 2));
+      expect(counters[currentTestName]).toEqual(2);
+      expect(lastError).toBeUndefined();
     } catch (e: any) {
       throw e;
     }
-    expect(lastError).toBeUndefined();
   });
 
   test("multi", async () => {
+    const currentTestName = testName();
     try {
       const res = await rotorMessageHandler(
-        ingestMessage("multi", "message1", incomingEvent),
+        ingestMessage(currentTestName, messageId, incomingEvent),
         {
           connectionStore: connectionStore,
           functionsStore: funcStore,
@@ -484,22 +545,24 @@ describe("Test Functions Chain", () => {
           dummyPersistentStore: createMemoryStore({}),
         },
         "all",
-        { [CONNECTION_IDS_HEADER]: "multi" },
+        { [CONNECTION_IDS_HEADER]: currentTestName },
         true,
         0,
         5000
       );
       expect(res?.events).toHaveLength(2);
+      expect(counters[currentTestName]).toEqual(2);
+      expect(lastError).toBeUndefined();
     } catch (e: any) {
       throw e;
     }
-    expect(lastError).toBeUndefined();
   });
 
   test("multi_middle", async () => {
+    const currentTestName = testName();
     try {
       const res = await rotorMessageHandler(
-        ingestMessage("multi_middle", "message1", incomingEvent),
+        ingestMessage(currentTestName, messageId, incomingEvent),
         {
           connectionStore: connectionStore,
           functionsStore: funcStore,
@@ -508,21 +571,36 @@ describe("Test Functions Chain", () => {
           dummyPersistentStore: createMemoryStore({}),
         },
         "all",
-        { [CONNECTION_IDS_HEADER]: "multi_middle" },
+        { [CONNECTION_IDS_HEADER]: currentTestName },
         true,
         0,
         5000
       );
+      // Should not reach here - RetryError should be thrown
+      expect(res).toEqual("unexpected success");
     } catch (e: any) {
-      if (e.message === "HTTP Error: 444 unknown") {
-        expect(e.event).toEqual(expectedEvents.multi_middle_0);
-      }
-      throw e;
+      expect(e.name).toEqual("NoRetryError");
+      expect(e.message).toEqual(
+        "Got 2 events as result of function #2 of 3. Only the last function in a chain is allowed to multiply events."
+      );
+
+      const event = e.event;
+
+      // Verify that all UDF chain changes are dropped
+      expect(event.properties.first).toBeUndefined();
+      expect(event.properties.second).toBeUndefined();
+      expect(event.properties.counter).toBeUndefined();
+      expect(event.properties.third).toBeUndefined(); // function3 should not have run
+
+      // Verify no webhook was called (event didn't reach destination)
+      expect(lastError).toBeUndefined();
+      expect(counters[currentTestName]).toBeUndefined();
     }
   });
 
   test("multi_retry", async () => {
-    const iMessage = ingestMessage("multi_retry", "message1", incomingEvent);
+    const currentTestName = testName();
+    const iMessage = ingestMessage(currentTestName, messageId, incomingEvent);
     let filter: FuncChainFilter = "all";
     try {
       const res = await rotorMessageHandler(
@@ -535,7 +613,7 @@ describe("Test Functions Chain", () => {
           dummyPersistentStore: createMemoryStore({}),
         },
         filter,
-        { [CONNECTION_IDS_HEADER]: "multi_retry" },
+        { [CONNECTION_IDS_HEADER]: currentTestName },
         true,
         0,
         5000
@@ -545,6 +623,7 @@ describe("Test Functions Chain", () => {
       expect(e.name).toEqual("RetryError");
       expect(e.message).toEqual("Function runs successfully only on 2nd attempt");
       expect(lastError).toBeUndefined();
+      expect(counters[currentTestName]).toEqual(1);
       filter = functionFilter(e.functionId);
       iMessage.httpPayload = e.event;
     }
@@ -560,15 +639,16 @@ describe("Test Functions Chain", () => {
           dummyPersistentStore: createMemoryStore({}),
         },
         filter,
-        { [CONNECTION_IDS_HEADER]: "multi_retry" },
+        { [CONNECTION_IDS_HEADER]: currentTestName },
         true,
         1,
         5000
       );
       expect(res?.events).toHaveLength(2);
+      expect(counters[currentTestName]).toEqual(3);
+      expect(lastError).toBeUndefined();
     } catch (e: any) {
       throw e;
     }
-    expect(lastError).toBeUndefined();
   });
 });

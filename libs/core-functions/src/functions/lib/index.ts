@@ -48,11 +48,13 @@ const publicHostnamesCache = new NodeCache({ stdTTL: 300, checkperiod: 60, useCl
  */
 export interface EventsStore {
   log(connectionId: string, level: LogLevel, msg: Record<string, any>): void;
+  deadLetter(workspaceId: string, connectionId: string, type: string, payload: any, error: any): void;
   close(): void;
 }
 
 export const DummyEventsStore: EventsStore = {
   log(connectionId: string, level: LogLevel, msg: Record<string, any>): void {},
+  deadLetter(workspaceId: string, connectionId: string, type: string, payload: any, error: any): void {},
   close(): void {},
 };
 
@@ -61,6 +63,11 @@ export function MultiEventsStore(stores: EventsStore[]): EventsStore {
     log(connectionId: string, level: LogLevel, msg: Record<string, any>): void {
       for (const store of stores) {
         store.log(connectionId, level, msg);
+      }
+    },
+    deadLetter(workspaceId: string, connectionId: string, type: string, payload: any, error: any): void {
+      for (const store of stores) {
+        store.deadLetter(workspaceId, connectionId, type, payload, error);
       }
     },
     close(): void {

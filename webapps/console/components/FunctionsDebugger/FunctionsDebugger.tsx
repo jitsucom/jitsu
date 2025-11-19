@@ -28,7 +28,7 @@ import { UTCDate, UTCHeader } from "../DataView/EventsBrowser";
 import { examplePageEvent, exampleTrackEvents, exampleIdentifyEvent } from "./example_events";
 import { rpc } from "juava";
 import { logType } from "@jitsu/core-functions/src/functions/lib/udf_wrapper";
-import { RetryErrorName, DropRetryErrorName } from "@jitsu/functions-lib";
+import { RetryErrorName, DropRetryErrorName, NoRetryErrorName } from "@jitsu/functions-lib";
 
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
@@ -379,6 +379,12 @@ declare class RetryError extends Error {
   constructor(message, options?: { drop: boolean }) {
     super(message);
     this.name = options?.drop ? "${DropRetryErrorName}" : "${RetryErrorName}";
+  }
+}
+declare class NoRetryError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "${NoRetryErrorName}";
   }
 }
                     `}

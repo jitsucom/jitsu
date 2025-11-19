@@ -2,6 +2,7 @@ import dayjs, { Dayjs } from "dayjs";
 import utc from "dayjs/plugin/utc";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { EventsLogRecord } from "../../lib/server/events-log";
+import { DeadLetterRecord } from "../../lib/server/dead-letter";
 import { ColumnsType } from "antd/es/table";
 import { Alert, Collapse, DatePicker, Input, Select, Table, Tag, Tooltip } from "antd";
 import { TableWithDrawer } from "./TableWithDrawer";
@@ -19,9 +20,9 @@ import Icon, {
   UserOutlined,
   WarningOutlined,
 } from "@ant-design/icons";
-import { get, getConfigApi, useEventsLogApi } from "../../lib/useApi";
+import { get, getConfigApi, useEventsLogApi, useDeadLetterApi } from "../../lib/useApi";
 import { FunctionTitle } from "../../pages/[workspaceId]/functions";
-import { FunctionConfig } from "../../lib/schema";
+import { DestinationConfig, FunctionConfig } from "../../lib/schema";
 import { arrayToMap } from "../../lib/shared/arrays";
 import { Bug, Globe, RefreshCw, Server } from "lucide-react";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
@@ -47,7 +48,7 @@ dayjs.extend(relativeTime);
 
 const formatDate = (date: string | Date | Dayjs) => dayjs(date).utc().format("YYYY-MM-DD HH:mm:ss");
 
-type StreamType = "incoming" | "function" | "bulker";
+type StreamType = "incoming" | "function" | "bulker" | "dead-letter";
 type Level = "all" | "error" | "info" | "debug" | "warn";
 type DatesRange = [string | null, string | null];
 
@@ -63,7 +64,7 @@ type EventsBrowserProps = {
 type EventsBrowserState = {
   bulkerMode?: "stream" | "batch";
   eventsLoading: boolean;
-  events?: EventsLogRecord[];
+  events?: EventsLogRecord[] | DeadLetterRecord[];
   initDate: Date;
   refreshTime: Date;
   previousRefreshTime?: Date;
@@ -222,6 +223,19 @@ const EventsBrowser0 = ({
               };
             }),
         ]
+      : streamType == "dead-letter"
+      ? [
+          { id: "all", name: "All Connections", type: "all" },
+          ...mappedConnections,
+          ...profileBuilders
+            .filter(p => p.version > 0)
+            .map(p => {
+              return {
+                ...p,
+                type: "profile-builder",
+              };
+            }),
+        ]
       : [
           ...mappedConnections.filter(link => link.usesBulker || link.hybrid),
           ...(hasActiveProfileBuilder
@@ -257,6 +271,8 @@ const EventsBrowser0 = ({
             <StreamTitle stream={entity[1]} size={"small"} />
           ) : entity[1].type === "profile-builder" ? (
             <ProfileBuilderTitle profileBuilder={entity[1]} destination={entity[1].destination} />
+          ) : entity[1].type === "all" ? (
+            <span>{entity[1].name}</span>
           ) : (
             <ConnectionTitle
               connectionId={entity[0]}
@@ -269,6 +285,8 @@ const EventsBrowser0 = ({
           ? [entity[1].name]
           : entity[1].type === "profile-builder"
           ? [entity[1].name, entity[1].destination?.name]
+          : entity[1].type === "all"
+          ? [entity[1].name]
           : [entity[1].stream?.name, entity[1].service?.name, entity[1].destination?.name]
         )
           .filter(s => s !== undefined)
@@ -310,6 +328,7 @@ const EventsBrowser0 = ({
   });
 
   const eventsLogApi = useEventsLogApi();
+  const deadLetterApi = useDeadLetterApi();
 
   const entitySelectRef = React.createRef<RefSelectProps>();
 
@@ -361,37 +380,59 @@ const EventsBrowser0 = ({
         (async () => {
           let error = "";
           let newBeforeDate: Date | undefined = undefined;
-          let events: EventsLogRecord[] | undefined = undefined;
-          let addEvents: EventsLogRecord[] | undefined = undefined;
+          let events: EventsLogRecord[] | DeadLetterRecord[] | undefined = undefined;
+          let addEvents: EventsLogRecord[] | DeadLetterRecord[] | undefined = undefined;
           try {
-            let eventsLogStream = streamType as string;
-            if (streamType === "bulker") {
-              if (!bulkerMode) {
-                const entity = entitiesMap[actorId];
-                dispatch({ type: "bulkerMode", value: entity.mode });
-                return;
+            if (streamType === "dead-letter") {
+              const data = await deadLetterApi.get(
+                actorId,
+                {
+                  start: dates && dates[0] ? new Date(dates[0]) : undefined,
+                  end: beforeDate || (dates && dates[1] ? new Date(dates[1]) : undefined),
+                },
+                100,
+                undefined,
+                search
+              );
+              if (beforeDate) {
+                addEvents = data;
+              } else {
+                events = data;
               }
-              eventsLogStream = "bulker_" + bulkerMode;
-            }
-            const data = await eventsLogApi.get(
-              `${eventsLogStream}`,
-              level === "all" ? "all" : [level],
-              actorId,
-              {
-                start: dates && dates[0] ? new Date(dates[0]) : undefined,
-                end: beforeDate || (dates && dates[1] ? new Date(dates[1]) : undefined),
-              },
-              100,
-              search
-            );
-            if (beforeDate) {
-              addEvents = data;
+              if (data.length > 0) {
+                const d = dayjs(data[data.length - 1].date);
+                newBeforeDate = d.toDate();
+              }
             } else {
-              events = data;
-            }
-            if (data.length > 0) {
-              const d = dayjs(data[data.length - 1].date);
-              newBeforeDate = d.toDate();
+              let eventsLogStream = streamType as string;
+              if (streamType === "bulker") {
+                if (!bulkerMode) {
+                  const entity = entitiesMap[actorId];
+                  dispatch({ type: "bulkerMode", value: entity.mode });
+                  return;
+                }
+                eventsLogStream = "bulker_" + bulkerMode;
+              }
+              const data = await eventsLogApi.get(
+                `${eventsLogStream}`,
+                level === "all" ? "all" : [level],
+                actorId,
+                {
+                  start: dates && dates[0] ? new Date(dates[0]) : undefined,
+                  end: beforeDate || (dates && dates[1] ? new Date(dates[1]) : undefined),
+                },
+                100,
+                search
+              );
+              if (beforeDate) {
+                addEvents = data;
+              } else {
+                events = data;
+              }
+              if (data.length > 0) {
+                const d = dayjs(data[data.length - 1].date);
+                newBeforeDate = d.toDate();
+              }
             }
           } catch (e) {
             console.error("Error while loading events", e);
@@ -481,6 +522,8 @@ const EventsBrowser0 = ({
         } else {
           return StreamEventsTable;
         }
+      case "dead-letter":
+        return DeadLetterTable;
       default:
         return IncomingEventsTable;
     }
@@ -500,6 +543,8 @@ const EventsBrowser0 = ({
                     <div>Project doesn't have Sites</div>
                   ) : streamType === "function" ? (
                     <div>Project doesn't have Connections using Functions</div>
+                  ) : streamType === "dead-letter" ? (
+                    <div>Project doesn't have Connections</div>
                   ) : (
                     <div>Project doesn't have data warehouse Connections</div>
                   )
@@ -527,34 +572,36 @@ const EventsBrowser0 = ({
                 onDropdownVisibleChange={o => !o && entitySelectRef.current?.blur()}
               />
             </div>
-            <div>
-              <span>{streamType == "function" ? "Level: " : "Status: "}</span>
-              <Select
-                style={{ width: 90 }}
-                value={level}
-                onChange={e => {
-                  dispatch({
-                    type: "resetAndPatch",
-                    value: {},
-                  });
-                  patchQueryStringState("level", e);
-                }}
-                options={
-                  streamType == "function"
-                    ? [
-                        { value: "all", label: "All" },
-                        { value: "error", label: "ERROR" },
-                        { value: "warn", label: "WARN" },
-                        { value: "info", label: "INFO" },
-                        { value: "debug", label: "DEBUG" },
-                      ]
-                    : [
-                        { value: "all", label: "All" },
-                        { value: "error", label: "Errors" },
-                      ]
-                }
-              />
-            </div>
+            {streamType !== "dead-letter" && (
+              <div>
+                <span>{streamType == "function" ? "Level: " : "Status: "}</span>
+                <Select
+                  style={{ width: 90 }}
+                  value={level}
+                  onChange={e => {
+                    dispatch({
+                      type: "resetAndPatch",
+                      value: {},
+                    });
+                    patchQueryStringState("level", e);
+                  }}
+                  options={
+                    streamType == "function"
+                      ? [
+                          { value: "all", label: "All" },
+                          { value: "error", label: "ERROR" },
+                          { value: "warn", label: "WARN" },
+                          { value: "info", label: "INFO" },
+                          { value: "debug", label: "DEBUG" },
+                        ]
+                      : [
+                          { value: "all", label: "All" },
+                          { value: "error", label: "Errors" },
+                        ]
+                  }
+                />
+              </div>
+            )}
             {streamType === "bulker" && (
               <div>
                 <span>Mode: </span>
@@ -778,6 +825,13 @@ const FunctionsLogTable = ({ loadEvents, loading, streamType, entityType, actorI
                 <ProfileBuilderTitle profileBuilder={{ name: "Profile Builder" }} />
               </WLink>
             );
+          case "builtin.destination":
+            return (
+              <DestinationTitle
+                size={"small"}
+                destination={{ name: d.functionId, destinationType: d.functionId } as DestinationConfig}
+              />
+            );
           default:
             if (d.functionId === "profile-builder") {
               return (
@@ -982,11 +1036,7 @@ const BatchTable = ({ loadEvents, loading, streamType, entityType, actorId, even
       dataIndex: "content",
       key: "status",
       render: (d: any) => {
-        return (
-          <Tag color={d.status === "COMPLETED" ? (d.representation?.status === 400 ? "orange" : "cyan") : "red"}>
-            {d.status}
-          </Tag>
-        );
+        return <Tag color={d.status === "COMPLETED" ? "cyan" : "red"}>{d.status}</Tag>;
       },
     },
     {
@@ -1303,6 +1353,198 @@ type IncomingEvent = {
   referringDomain?: string;
 
   destinations: string[];
+};
+
+const DeadLetterTable = ({
+  loadEvents,
+  loading,
+  streamType,
+  entityType,
+  actorId,
+  events,
+  mappedConnections,
+}: TableProps) => {
+  const workspace = useWorkspace();
+  const [funcsMap, setFuncsMap] = useState<Record<string, FunctionConfig>>({});
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const funcs = await getConfigApi(workspace.id, "function").list();
+        setFuncsMap(arrayToMap(funcs));
+      } catch (e) {}
+    })();
+  }, [workspace.id]);
+
+  const deadLetterEvents = (events || ([] as DeadLetterRecord[])).map((e, i) => ({
+    ...e,
+    id: e.date + "_" + i,
+  }));
+
+  const renderFunction = (functionId: string) => {
+    if (!functionId) {
+      return null;
+    }
+    let functionType = "";
+    const functionIdParts = functionId.split(".");
+    if (functionIdParts.length > 1) {
+      functionId = functionIdParts[functionIdParts.length - 1];
+      functionType = functionIdParts.slice(0, functionIdParts.length - 1).join(".");
+    } else {
+      functionType = "udf";
+      functionId = functionIdParts[0];
+    }
+
+    switch (functionType) {
+      case "udf":
+        return (
+          <WLink href={`/functions?id=${functionId}`}>
+            <FunctionTitle size={"small"} f={funcsMap[functionId]} />
+          </WLink>
+        );
+      case "profile":
+        return (
+          <WLink href={`/profile-builder`}>
+            <ProfileBuilderTitle profileBuilder={{ name: "Profile Builder" }} />
+          </WLink>
+        );
+      case "builtin.destination":
+        return (
+          <DestinationTitle
+            size={"small"}
+            destination={{ name: functionId, destinationType: functionId } as DestinationConfig}
+          />
+        );
+      default:
+        if (functionId === "profile-builder") {
+          return (
+            <WLink href={`/profile-builder`}>
+              <ProfileBuilderTitle profileBuilder={{ name: "Profile Builder" }} />
+            </WLink>
+          );
+        }
+        return <FunctionTitle size={"small"} title={() => functionId} />;
+    }
+  };
+
+  const columns: ColumnsType<DeadLetterRecord & { id: string }> = [
+    {
+      title: <UTCHeader />,
+      dataIndex: "date",
+      width: "13em",
+      render: d => <UTCDate date={d} />,
+    },
+    ...(actorId === "all"
+      ? [
+          {
+            title: "Connection",
+            width: "20em",
+            ellipsis: true,
+            dataIndex: "actorId",
+            render: (actorId: string) => {
+              const connection = mappedConnections?.[actorId];
+              if (connection) {
+                return (
+                  <ConnectionTitle
+                    connectionId={actorId}
+                    stream={connection.stream}
+                    service={connection.service}
+                    destination={connection.destination}
+                  />
+                );
+              }
+              return <span className="font-mono text-xs">{actorId}</span>;
+            },
+          } as any,
+        ]
+      : []),
+    {
+      title: "Function",
+      width: "14em",
+      dataIndex: ["error", "functionId"],
+      key: "func",
+      className: "whitespace-nowrap",
+      render: renderFunction,
+    },
+    {
+      title: "Error",
+      ellipsis: true,
+      dataIndex: "error",
+      render: d => (
+        <span className="text-red-600">
+          {d.error}
+        </span>
+      ),
+    },
+  ];
+
+  return (
+    <TableWithDrawer
+      className="border border-backgroundDark rounded-lg"
+      loading={loading}
+      loadEvents={loadEvents}
+      events={deadLetterEvents}
+      drawerNode={event => {
+        const connection = mappedConnections?.[event.event.actorId];
+        const functionElement = renderFunction(event.event.error.functionId);
+
+        return (
+          <Table
+            bordered={true}
+            size={"middle"}
+            showHeader={false}
+            rowKey={"name"}
+            pagination={false}
+            columns={[
+              {
+                title: "Name",
+                dataIndex: "name",
+                width: "10em",
+                className: "align-top whitespace-nowrap",
+              },
+              {
+                title: "Value",
+                dataIndex: "value",
+              },
+            ]}
+            dataSource={[
+              { name: <UTCHeader />, value: <UTCDate date={event.event.date} /> },
+              {
+                name: "Connection",
+                value: connection ? (
+                  <ConnectionTitle
+                    connectionId={event.event.actorId}
+                    stream={connection.stream}
+                    service={connection.service}
+                    destination={connection.destination}
+                  />
+                ) : (
+                  <span className="font-mono text-xs">{event.event.actorId}</span>
+                ),
+              },
+              ...(functionElement
+                ? [
+                    {
+                      name: "Function",
+                      value: functionElement,
+                    },
+                  ]
+                : []),
+              {
+                name: "Error",
+                value: <span className="text-red-600 whitespace-pre-wrap break-all">{event.event.error.error}</span>,
+              },
+              {
+                name: "Payload",
+                value: <JSONView data={event.event.payload} />,
+              },
+            ]}
+          />
+        );
+      }}
+      columns={columns}
+    />
+  );
 };
 
 const IncomingEventsTable = ({

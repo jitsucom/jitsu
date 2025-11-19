@@ -72,9 +72,9 @@ const adminChannel: NotificationChannel = {
   recurringAlertsPeriodHours: 24,
 };
 
-export type StatusChangeEntity = StatusChange & {
+export type StatusChangeEntity = Omit<StatusChange, "type"> & {
   id: number | bigint;
-  type: "batch" | "sync";
+  type: "batch" | "sync" | "dead";
   workspaceName: string;
   slug: string;
   fromName: string;
@@ -83,12 +83,12 @@ export type StatusChangeEntity = StatusChange & {
   changesPerDay: number;
 };
 
-function key(actorId: string, tableName?: string) {
-  return tableName ? `${actorId}::${tableName}` : actorId;
+function key(actorId: string, type: string, tableName?: string) {
+  return tableName ? `${actorId}::${type}:${tableName}` : `${actorId}::${type}`;
 }
 
-function chKey(channelId: string, actorId: string, tableName?: string) {
-  return tableName ? `${channelId}:${actorId}:${tableName}` : `${channelId}:${actorId}`;
+function chKey(channelId: string, actorId: string, type: string, tableName?: string) {
+  return tableName ? `${channelId}::${actorId}::${type}:${tableName}` : `${channelId}::${actorId}::${type}`;
 }
 
 export default createRoute()
@@ -135,17 +135,19 @@ export default createRoute()
     // load all objects which we monitor status changes for along with their last status change
     // noinspection SqlResolve
     const r = await db.pgPool().query(`
-      with last_statuses as (select DISTINCT ON ("actorId", "tableName") "actorId",
-                                                                         "tableName",
-                                                                         id,
-                                                                         status,
-                                                                         description,
-                                                                         timestamp,
-                                                                         "startedAt"
+      with last_statuses as (select DISTINCT ON ("actorId", type, "tableName") "actorId",
+                                                                               type,
+                                                                               "tableName",
+                                                                               id,
+                                                                               status,
+                                                                               description,
+                                                                               timestamp,
+                                                                               "startedAt"
                              from newjitsu."StatusChange"
-                             order by "actorId", "tableName", id desc),
-        
+                             order by "actorId",type, "tableName", id desc),
+
            status_changes as (select "actorId",
+                                     type,
                                      "tableName",
                                      coalesce(
                                        sum(
@@ -158,7 +160,20 @@ export default createRoute()
                                        0)                    as "changesPerDay"
                               from newjitsu."StatusChange"
                               where "startedAt" >= current_timestamp - interval '1 days'
-                              group by "actorId", "tableName")
+                              group by "actorId", type, "tableName"),
+
+           actors as (select id, unnest(type) as type, "workspaceId", "fromId", "toId"
+                      from (select id,
+                                   case
+                                     when type = 'sync' then array ['sync']
+                                     when (type = 'push' and data ->> 'mode' = 'batch') then array ['batch','dead']
+                                     else array ['dead']
+                                     end type,
+                                   "workspaceId",
+                                   "fromId",
+                                   "toId"
+                            from newjitsu."ConfigurationObjectLink"
+                            where deleted = 'false') l)
 
       select w.id                        as "workspaceId",
              w.slug                      as slug,
@@ -167,8 +182,7 @@ export default createRoute()
              too.config ->> 'name'       as "toName",
              coalesce(
                sc."actorId", cl.id)      as "actorId",
-             REPLACE(
-               cl.type, 'push', 'batch') as type,
+             cl.type as type,
              ls.id,
              ls."tableName",
              ls.timestamp,
@@ -177,30 +191,29 @@ export default createRoute()
              ls.description,
              sc."changesPerHours",
              sc."changesPerDay"
-      from newjitsu."ConfigurationObjectLink" cl
+      from actors cl
              join newjitsu."Workspace" w
                   on w.id = cl."workspaceId"
              join newjitsu."ConfigurationObject" fr on fr.id = cl."fromId"
              join newjitsu."ConfigurationObject" too on too.id = cl."toId"
-             left join last_statuses ls on ls."actorId" = cl.id
-             left join status_changes sc on sc."actorId" = ls."actorId" and sc."tableName" = ls."tableName"
-      where ((cl.type = 'push' and data ->> 'mode' = 'batch') or cl.type = 'sync')
-        and cl.deleted = 'false'
-        and fr.deleted = false
+             left join last_statuses ls on ls."actorId" = cl.id and ls.type = cl.type
+             left join status_changes sc on sc."actorId" = ls."actorId" and sc.type = ls.type and sc."tableName" = ls."tableName"
+      where fr.deleted = false
         and too.deleted = false
         and w.deleted = false
     `);
     for (const row of r.rows) {
       row.changesPerHours = parseInt(row.changesPerHours);
       row.changesPerDay = parseInt(row.changesPerDay);
-      entities[key(row.actorId)] = row;
+      entities[key(row.actorId, row.type)] = row;
       if (row.tableName) {
-        entities[key(row.actorId, row.tableName)] = row;
+        entities[key(row.actorId, row.type, row.tableName)] = row;
       }
     }
     const incrms = await Promise.all([
       loadBatchStatusesChanges(previousRunTime, entities),
       loadSyncStatusesChanges(previousRunTime, entities),
+      loadDeadStatusesChanges(currentRunTime, entities),
     ]);
     const increments = new Map<bigint, StatusRepeats>([...incrms[0], ...incrms[1]]);
     // optimization. we have batches that runs way too often. to avoid multiple db updates we can accumulate changes and write them in a single query
@@ -327,12 +340,12 @@ async function processStatusChanges(
   const channelStates: Record<string, NotificationState> = {};
   const states = await db.prisma().notificationState.findMany({});
   for (const state of states) {
-    channelStates[chKey(state.channelId, state.actorId, state.tableName)] = state;
+    channelStates[chKey(state.channelId, state.actorId, state.type, state.tableName)] = state;
   }
 
   const aggrStatues: Record<string, StatusChange[]> = {};
   for (const change of statusChanges) {
-    const k = key(change.actorId, change.tableName);
+    const k = key(change.actorId, change.type, change.tableName);
     const statuses = aggrStatues[k] || [];
     if (statuses.length == 0) {
       aggrStatues[k] = statuses;
@@ -352,7 +365,7 @@ async function processStatusChanges(
         continue;
       }
       const cStatuses = [...statuses];
-      const chkey = chKey(channel.id, lastStatus.actorId, lastStatus.tableName);
+      const chkey = chKey(channel.id, lastStatus.actorId, lastStatus.type, lastStatus.tableName);
       let state = channelStates[chkey];
       const sendRecurringTime =
         (state?.lastNotification?.getTime() || 0) + channel.recurringAlertsPeriodHours * 60 * 60 * 1000;
@@ -457,6 +470,7 @@ function makeNotificationState(
   return {
     workspaceId: statusChange.workspaceId,
     actorId: statusChange.actorId,
+    type: statusChange.type,
     tableName: statusChange.tableName,
     channelId: channel.id,
     lastNotification: statusChange.timestamp,
@@ -476,16 +490,17 @@ async function updateNotificationState(
   const state = makeNotificationState(channel, lastStatus, flappingSince, error);
   await db.prisma().notificationState.upsert({
     where: {
-      channelId_actorId_tableName: {
+      channelId_actorId_type_tableName: {
         channelId: channel.id,
         actorId: lastStatus.actorId,
+        type: lastStatus.type,
         tableName: lastStatus.tableName,
       },
     },
     create: state,
     update: state,
   });
-  channelStates[chKey(channel.id, lastStatus.actorId, lastStatus.tableName)] = state;
+  channelStates[chKey(channel.id, lastStatus.actorId, lastStatus.type, lastStatus.tableName)] = state;
   return state;
 }
 
@@ -496,9 +511,9 @@ async function processNotifications(
   entity: StatusChangeEntity,
   publicEndpoints: PublicEndpoint
 ) {
-  const chkey = chKey(channel.id, entity.actorId, entity.tableName);
+  const chkey = chKey(channel.id, entity.actorId, entity.type, entity.tableName);
   let error: string | undefined = undefined;
-  const state = channelStates[chKey(channel.id, entity.actorId, entity.tableName)];
+  const state = channelStates[chKey(channel.id, entity.actorId, entity.type, entity.tableName)];
   const lastStatus = statusChanges[statusChanges.length - 1];
   let flappingSince: Date | null =
     lastStatus.status === "FLAPPING" ? state?.flappingSince || lastStatus.timestamp : null;
@@ -521,6 +536,7 @@ async function processNotifications(
       data: {
         workspaceId: entity.workspaceId,
         actorId: entity.actorId,
+        type: entity.type,
         tableName: entity.tableName || "",
         channelId: channel.id,
         statusChangeId: lastStatus.id!,
@@ -550,7 +566,7 @@ async function loadSyncStatusesChanges(
     `,
     [fromTimestamp],
     async row => {
-      let entity = entities[key(row.sync_id)];
+      let entity = entities[key(row.sync_id, "sync")];
       const status = row.status;
       if (!entity) {
         log.atWarn().log(`Sync ${row.sync_id} not found`);
@@ -609,7 +625,7 @@ async function loadBatchStatusesChanges(
     ...new Set(
       Object.entries(entities)
         .filter(([_, b]) => b.type === "batch")
-        .map(([id, _]) => id.split("::")[0])
+        .map(([_, s]) => s.actorId)
     ),
   ];
   let processed = 0;
@@ -640,7 +656,7 @@ async function loadBatchStatusesChanges(
     for (const r of rows) {
       processed++;
       const row = r.json() as any;
-      let entity = entities[key(row.actorId)];
+      let entity = entities[key(row.actorId, "batch")];
       const status = row.level === "error" ? "FAILED" : "SUCCESS";
       let message: any = {};
       try {
@@ -651,10 +667,10 @@ async function loadBatchStatusesChanges(
         tableName = tableName
           .replace(/_tmp\d{12,16}$/, "")
           .replace(/_\d{4}_\d{2}_\d{2}T\d{2}_\d{2}_\d{2}(?:_\d+)?[.](?:ndjson|csv)(?:[.]gz)?$/, "");
-        let entityWithTable = entities[key(row.actorId, tableName)];
+        let entityWithTable = entities[key(row.actorId, "batch", tableName)];
         if (!entityWithTable) {
           entityWithTable = { ...entity, tableName, type: "batch" };
-          entities[key(row.actorId, tableName)] = entityWithTable;
+          entities[key(row.actorId, "batch", tableName)] = entityWithTable;
         }
         entity = entityWithTable;
       }
@@ -686,6 +702,83 @@ async function loadBatchStatusesChanges(
   return increments;
 }
 
+async function loadDeadStatusesChanges(
+  currentRunTime: Date,
+  entities: Record<string, StatusChangeEntity>
+): Promise<Map<bigint, StatusRepeats>> {
+  const increments: Map<bigint, StatusRepeats> = new Map();
+  const sw = stopwatch();
+  const actorIds = [
+    ...new Set(
+      Object.entries(entities)
+        .filter(([_, b]) => b.type === "dead")
+        .map(([_, s]) => s.actorId)
+    ),
+  ];
+  let processed = 0;
+  let statusChanges = 0;
+
+  const metricsSchema = process.env.CLICKHOUSE_METRICS_SCHEMA || process.env.CLICKHOUSE_DATABASE || "newjitsu_metrics";
+
+  // noinspection SqlResolve
+  const eventsLogQuery: string = `select workspaceId, actorId, type, 
+                                    count() cnt,  
+                                    argMax(error, timestamp) as last_error, 
+                                    max(timestamp) as last_failed_at
+                                  from ${metricsSchema}.dead_letter
+                                  where has({actorIds:Array(String)}, actorId)
+                                  GROUP BY workspaceId, actorId, type`;
+  const chResult = await clickhouse.query({
+    query: eventsLogQuery,
+    query_params: {
+      // fromTimestamp: dateToClickhouse(fromTimestamp),
+      actorIds: actorIds,
+    },
+    format: "JSONEachRow",
+    clickhouse_settings: {
+      wait_end_of_query: 1,
+    },
+  });
+  for await (const rows of chResult.stream()) {
+    for (const r of rows) {
+      processed++;
+      const row = r.json() as any;
+      const rowTimestamp = dayjs(row.last_failed_at, { utc: true }).toDate();
+      const hoursSinceLastFailure = (currentRunTime.getTime() - rowTimestamp.getTime()) / 36e5;
+      log
+        .atInfo()
+        .log(
+          `Dead letter ${
+            row.actorId
+          } last failed at ${rowTimestamp.toISOString()} hours since last failure: ${hoursSinceLastFailure}`
+        );
+      const status = hoursSinceLastFailure >= 24 ? "SUCCESS" : "FAILED";
+
+      let entity = entities[key(row.actorId, "dead")];
+      if (!entity) {
+        log.atWarn().log(`Dead-letter ${row.actorId} not found`);
+        continue;
+      }
+      const queueSize = parseInt(row.cnt);
+
+      let errrorObj: any = {};
+      try {
+        errrorObj = JSON.parse(row.last_error);
+      } catch (e) {}
+      let description = errrorObj.error || row.last_error;
+
+      const chId = await updateStatusChange(entities, entity, rowTimestamp, status, queueSize, description, increments);
+      if (chId) {
+        statusChanges++;
+      }
+    }
+  }
+  log
+    .atInfo()
+    .log(`Dead log processed. Rows: ${processed}. Status changes: ${statusChanges}. Elapsed: ${sw.elapsedPretty()}`);
+  return increments;
+}
+
 async function updateStatusChange(
   entities: Record<string, StatusChangeEntity>,
   entity: StatusChangeEntity,
@@ -697,8 +790,16 @@ async function updateStatusChange(
 ): Promise<boolean> {
   let changed = false;
   let newEntity: StatusChange & { id?: bigint | number };
+  log
+    .atInfo()
+    .log(
+      `Dead letter ${entity.actorId} last failed at ${timestamp.toISOString()} : ${entity.timestamp.toISOString()} `
+    );
 
   if (!entity.timestamp || timestamp.getTime() > entity.timestamp.getTime()) {
+    log
+      .atInfo()
+      .log(`Updating status for ${entity.actorId} from ${entity.status} to ${status} at ${timestamp.toISOString()}`);
     if (status != entity.status) {
       if (status === "SUCCESS") {
         if (!entity.timestamp) {
@@ -717,6 +818,7 @@ async function updateStatusChange(
       newEntity = {
         workspaceId: entity.workspaceId!,
         actorId: entity.actorId!,
+        type: entity.type!,
         tableName: entity.tableName ?? "",
         timestamp: timestamp,
         startedAt: timestamp,
@@ -771,8 +873,8 @@ async function updateStatusChange(
       changesPerHours: entity.changesPerHours + (changed ? 1 : 0),
       changesPerDay: entity.changesPerDay + (changed ? 1 : 0),
       id: newEntity.id!,
-    };
-    entities[key(entity.actorId, entity.tableName)] = entity;
+    } as StatusChangeEntity;
+    entities[key(entity.actorId, entity.type, entity.tableName)] = entity;
     return changed;
   }
   return false;

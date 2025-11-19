@@ -32,7 +32,15 @@ export const retryDefaultPolicy: retryPolicy = {
   delays: retryDefaultDelays,
 };
 
+export const noRetryPolicy: retryPolicy = {
+  retries: 0,
+  delays: [],
+};
+
 export function getRetryPolicy(e: Error & { retryPolicy?: retryPolicy }): retryPolicy {
+  if (e.name !== DropRetryErrorName && e.name !== RetryErrorName) {
+    return noRetryPolicy;
+  }
   let retryPolicy = retryDefaultPolicy;
   if (e.retryPolicy) {
     retryPolicy = { ...retryPolicy, ...e.retryPolicy };

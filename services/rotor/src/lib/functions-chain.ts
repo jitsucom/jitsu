@@ -24,7 +24,7 @@ import {
   warehouseQuery,
   wrapperFunction,
 } from "@jitsu/core-functions";
-import { DropRetryErrorName, RetryErrorName } from "@jitsu/functions-lib";
+import { NoRetryErrorName, DropRetryErrorName } from "@jitsu/functions-lib";
 
 import { getLog, newError, requireDefined, stopwatch } from "juava";
 import { retryObject } from "./retries";
@@ -63,7 +63,7 @@ udfCache.on("del", (key, value) => {
 
 export function checkError(chainRes: FuncChainResult) {
   for (const el of chainRes.execLog) {
-    if (el.error && (el.error.name === DropRetryErrorName || el.error.name === RetryErrorName)) {
+    if (el.error) {
       // throw retry errors above to schedule retry
       const err = el.error;
       err.event = el.event;
@@ -312,7 +312,7 @@ export async function runChain(
       try {
         result = await f.exec(event, eventContext);
       } catch (err: any) {
-        if (err.name === DropRetryErrorName) {
+        if (err.name === DropRetryErrorName || err.name === NoRetryErrorName) {
           result = "drop";
         }
         execLogEvent.event = event;
@@ -322,13 +322,18 @@ export async function runChain(
         if (r) {
           args.push(r);
         }
+        const fctx = { ...f.context };
+        if (err.functionId) {
+          fctx.function.id = err.functionId;
+          fctx.function.type = "udf";
+        }
         if (r?.retry?.left ?? 0 > 0) {
           chain.context.log.warn(f.context, `Function execution failed`, ...args);
         } else {
           chain.context.log.error(f.context, `Function execution failed`, ...args);
         }
         if (f.id === "udf.PIPELINE") {
-          if (err.name !== DropRetryErrorName) {
+          if (err.name !== DropRetryErrorName && err.name !== NoRetryErrorName) {
             const errEvent = err.event || event;
             // if udf pipeline failed  w/o drop error pass partial result of pipeline to the destination function
             if (Array.isArray(errEvent)) {

@@ -289,7 +289,11 @@ function wrap(connectionId: string, isolate: Isolate, context: Context, wrapper:
       }
       const m = e.message;
       if (m.startsWith("{")) {
-        throw JSON.parse(m);
+        const newE = JSON.parse(m);
+        newE.toString = () => {
+          return `${newE.name}: ${newE.message}`;
+        };
+        throw newE;
       }
       //log.atInfo().log(`ERROR name: ${e.name} message: ${e.message} json: ${e.stack}`);
       throw e;
@@ -470,6 +474,7 @@ export async function UDFTestRun(
             });
         }
       },
+      deadLetter(workspaceId: string, connectionId: string, type: string, payload: any, error: string) {},
       close() {},
     };
     const chainCtx: FunctionChainContext = {

@@ -50,8 +50,18 @@ export const functions = {
      event.properties.counter = (event.properties.counter || 0) + 1
      if (retries < 1) {
        throw new RetryError("Function runs successfully only on 2nd attempt", { drop: true })
-     } 
+     }
      return event
+}`,
+  },
+  function2noretry: {
+    id: "function2noretry",
+    workspaceId: "workspace1",
+    name: "Function 2",
+    code: `export default async function(event, { log, fetch, store, retries, props: config }) {
+     event.properties.second = "2nd"
+     event.properties.counter = (event.properties.counter || 0) + 1
+     throw new NoRetryError("Invalid data format - permanent failure")
 }`,
   },
   function3: {
@@ -190,6 +200,33 @@ export const connections = {
     },
     credentials: {
       url: "http://localhost:3089/drop_retry",
+      method: "POST",
+      headers: [],
+    },
+  },
+  no_retry: {
+    id: "no_retry",
+    workspaceId: "workspace1",
+    updatedAt: new Date(),
+    destinationId: "destination1",
+    streamId: "stream1",
+    usesBulker: false,
+    type: "webhook",
+    options: {
+      functions: [
+        {
+          functionId: "udf.function1",
+        },
+        {
+          functionId: "udf.function2noretry",
+        },
+        {
+          functionId: "udf.function3",
+        },
+      ],
+    },
+    credentials: {
+      url: "http://localhost:3089/no_retry",
       method: "POST",
       headers: [],
     },

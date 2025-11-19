@@ -473,6 +473,7 @@ export async function ProfileUDFTestRun(
             });
         }
       },
+      deadLetter(workspaceId: string, connectionId: string, type: string, payload: any, error: string) {},
       close() {},
     };
     const chainCtx: FunctionChainContext = {

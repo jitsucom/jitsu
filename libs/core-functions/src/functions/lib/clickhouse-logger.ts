@@ -7,8 +7,9 @@ import { EventsStore } from "./index";
 import { Readable } from "stream";
 
 type LogEntry = [number, string, string, LogLevel, any];
+type DeadLetterEntry = [number, string, string, string, any, any];
 
-function clickhouseHost() {
+export function clickhouseHost() {
   if (process.env.CLICKHOUSE_URL) {
     return process.env.CLICKHOUSE_URL;
   }
@@ -19,7 +20,8 @@ function clickhouseHost() {
 }
 
 export function createClickhouseLogger(): EventsStore {
-  const buffer: LogEntry[] = [];
+  const logBuffer: LogEntry[] = [];
+  const deadLetterBuffer: DeadLetterEntry[] = [];
   const metricsSchema = process.env.CLICKHOUSE_METRICS_SCHEMA || process.env.CLICKHOUSE_DATABASE || "newjitsu_metrics";
 
   const clickhouse = createClient({
@@ -34,12 +36,12 @@ export function createClickhouseLogger(): EventsStore {
     },
   });
 
-  const flush = async () => {
-    if (buffer.length === 0) {
+  const flushLog = async () => {
+    if (logBuffer.length === 0) {
       return;
     }
-    const copy = buffer.slice();
-    buffer.length = 0;
+    const copy = logBuffer.slice();
+    logBuffer.length = 0;
     const eventsStream = new Readable({ objectMode: true });
     const res = clickhouse.insert<LogEntry>({
       table: metricsSchema + ".events_log",
@@ -66,17 +68,51 @@ export function createClickhouseLogger(): EventsStore {
       });
   };
 
-  const interval = setInterval(async () => {
-    if (Object.keys(buffer).length === 0) {
+  const flushDeadLetter = async () => {
+    if (deadLetterBuffer.length === 0) {
       return;
     }
-    await flush();
+    const copy = deadLetterBuffer.slice();
+    deadLetterBuffer.length = 0;
+    const eventsStream = new Readable({ objectMode: true });
+    const res = clickhouse.insert<DeadLetterEntry>({
+      table: metricsSchema + ".dead_letter",
+      format: "JSONCompactEachRow",
+      values: eventsStream,
+    });
+    const asyncWrite = async () => {
+      for (let i = 0; i < copy.length; i++) {
+        eventsStream.push(copy[i]);
+      }
+      eventsStream.push(null);
+      return res;
+    };
+    return asyncWrite()
+      .then(res => {
+        if (res.executed) {
+          log.atDebug().log(`Inserted ${copy.length} deadletter records.`);
+        } else {
+          log.atError().log(`Failed to insert ${copy.length} deadletter records: ${JSON.stringify(res)}`);
+        }
+      })
+      .catch(e => {
+        log.atError().withCause(e).log(`Failed to insert ${copy.length} deadletter records`);
+      });
+  };
+
+  const interval = setInterval(async () => {
+    if (Object.keys(logBuffer).length === 0 && Object.keys(deadLetterBuffer).length === 0) {
+      return;
+    }
+    await Promise.all([flushLog(), flushDeadLetter()]);
   }, 5000);
 
   return {
     log: (connectionId: string, level: LogLevel, message) => {
-      const logEntry: LogEntry = [Date.now(), connectionId, "function", level, message];
-      buffer.push(logEntry);
+      logBuffer.push([Date.now(), connectionId, "function", level, message]);
+    },
+    deadLetter: (workspaceId: string, connectionId: string, type: string, message: any, error: any) => {
+      deadLetterBuffer.push([Date.now(), workspaceId, connectionId, type, message, error]);
     },
     close: () => {
       clearInterval(interval);

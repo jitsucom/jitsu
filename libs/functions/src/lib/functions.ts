@@ -6,6 +6,7 @@ export const TableNameParameter = "JITSU_TABLE_NAME";
 
 export const DropRetryErrorName = "Drop & RetryError";
 export const RetryErrorName = "RetryError";
+export const NoRetryErrorName = "NoRetryError";
 
 export class RetryError extends Error {
   status: number;
@@ -22,6 +23,32 @@ export class RetryError extends Error {
       this.message = message;
     }
     this.name = options?.drop ? `${DropRetryErrorName}` : `${RetryErrorName}`;
+  }
+  toJSON() {
+    return {
+      name: this.name,
+      message: this.message,
+      status: this.status,
+      response: this.response,
+    };
+  }
+}
+
+export class NoRetryError extends Error {
+  status: number;
+  response: string;
+  message: string;
+  constructor(message?: any) {
+    if (typeof message === "object") {
+      super(message.message);
+      this.message = message.message;
+      this.status = message.status;
+      this.response = message.response;
+    } else {
+      super(message);
+      this.message = message;
+    }
+    this.name = "NoRetryError";
   }
   toJSON() {
     return {

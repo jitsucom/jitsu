@@ -6,6 +6,7 @@ import { ApiResponseError, getCached, rpc, RpcFunc, tryJson } from "juava";
 import { useWorkspace } from "./context";
 import { safeParseWithDate } from "./zod";
 import { EventsLogFilter, EventsLogRecord } from "./server/events-log";
+import { DeadLetterFilter, DeadLetterRecord } from "./server/dead-letter";
 
 export type ConfigApiDeleteOptions = {
   strict?: boolean;
@@ -53,6 +54,41 @@ export function getEventsLogApi(workspaceId: string): EventsLogApi {
         }${filter.end ? "&end=" + filter.end.toISOString() : ""}${
           levels !== "all" ? `&levels=${levels.join(",")}` : ""
         }${search ? `&search=${encodeURIComponent(search)}` : ""}`
+      );
+    },
+  };
+}
+
+export type DeadLetterApi = {
+  get(
+    actorId: string | "all",
+    filter: DeadLetterFilter,
+    limit: number,
+    type?: string,
+    search?: string
+  ): Promise<DeadLetterRecord[]>;
+};
+
+export function useDeadLetterApi(): DeadLetterApi {
+  const workspace = useWorkspace();
+  return getCached("dead-letter-api", w => getDeadLetterApi(w), workspace.id);
+}
+
+export function getDeadLetterApi(workspaceId: string): DeadLetterApi {
+  return {
+    get(
+      actorId: string | "all",
+      filter: DeadLetterFilter,
+      limit: number,
+      type?: string,
+      search?: string
+    ): Promise<DeadLetterRecord[]> {
+      return rpc(
+        `/api/${workspaceId}/dead-letter/${actorId}?limit=${limit}${
+          filter.start ? "&start=" + filter.start.toISOString() : ""
+        }${filter.end ? "&end=" + filter.end.toISOString() : ""}${type ? `&type=${encodeURIComponent(type)}` : ""}${
+          search ? `&search=${encodeURIComponent(search)}` : ""
+        }`
       );
     },
   };

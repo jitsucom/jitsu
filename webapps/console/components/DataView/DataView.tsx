@@ -3,10 +3,11 @@ import JSON5 from "json5";
 import { Tabs, TabsProps } from "antd";
 import React, { useCallback } from "react";
 import { EventsBrowser } from "./EventsBrowser";
+import { ArrowDownCircle, Database, Layers, XCircle } from "lucide-react";
 
 export type DataViewState = {
-  activeView: "incoming" | "function" | "bulker";
-  viewState: Record<"incoming" | "function" | "bulker", any>;
+  activeView: "incoming" | "function" | "bulker" | "dead-letter";
+  viewState: Record<"incoming" | "function" | "bulker" | "dead-letter", any>;
 };
 
 export function DataView() {
@@ -17,6 +18,7 @@ export function DataView() {
       incoming: {},
       function: {},
       bulker: {},
+      "dead-letter": {},
     },
   };
   const [state, setState] = useQueryStringState<DataViewState>(`query`, {
@@ -52,7 +54,12 @@ export function DataView() {
   const items: TabsProps["items"] = [
     {
       key: "incoming",
-      label: `Incoming Events`,
+      label: (
+        <span className="flex items-center gap-2">
+          <ArrowDownCircle className="w-4 h-4" />
+          Incoming Events
+        </span>
+      ),
       children: (
         <EventsBrowser
           {...state.viewState.incoming}
@@ -63,7 +70,12 @@ export function DataView() {
     },
     {
       key: "function",
-      label: `API Destinations & Functions Logs`,
+      label: (
+        <span className="flex items-center gap-2">
+          <Layers className="w-4 h-4" />
+          API Destinations & Functions Logs
+        </span>
+      ),
       children: (
         <EventsBrowser
           {...state.viewState.function}
@@ -74,11 +86,32 @@ export function DataView() {
     },
     {
       key: "bulker",
-      label: `Batches & Data Warehouse Events`,
+      label: (
+        <span className="flex items-center gap-2">
+          <Database className="w-4 h-4" />
+          Batches & Data Warehouse Events
+        </span>
+      ),
       children: (
         <EventsBrowser
           {...state.viewState.bulker}
           streamType={"bulker"}
+          patchQueryStringState={patchQueryStringState}
+        />
+      ),
+    },
+    {
+      key: "dead-letter",
+      label: (
+        <span className="flex items-center gap-2">
+          <XCircle className="w-4 h-4" />
+          Unrecoverable Events
+        </span>
+      ),
+      children: (
+        <EventsBrowser
+          {...state.viewState["dead-letter"]}
+          streamType={"dead-letter"}
           patchQueryStringState={patchQueryStringState}
         />
       ),

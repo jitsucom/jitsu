@@ -1,6 +1,6 @@
 import React from "react";
 import { Htmlizer } from "../Htmlizer/Htmlizer";
-import { DropRetryErrorName, RetryErrorName } from "@jitsu/functions-lib";
+import { NoRetryErrorName, DropRetryErrorName, RetryErrorName } from "@jitsu/functions-lib";
 import { CodeEditor } from "../CodeEditor/CodeEditor";
 import Convert from "ansi-to-html";
 const convert = new Convert({ newline: true });
@@ -20,13 +20,19 @@ export const FunctionResult: React.FC<{ resultType: "ok" | "drop" | "error"; res
           </Htmlizer>
           {result.name === DropRetryErrorName && (
             <div className={"pt-1"}>
-              If such error will happen on an actual event, it will be <b>SKIPPED</b> and retry will be scheduled in{" "}
+              If such an error occurs on an actual event, it will be <b>SKIPPED</b> and retry will be scheduled in{" "}
               {result.retryPolicy?.delays?.[0] ? Math.min(result.retryPolicy.delays[0], 1440) : 5} minutes.
+            </div>
+          )}
+          {result.name === NoRetryErrorName && (
+            <div className={"pt-1"}>
+              If such an error occurs on an actual event, the event will be dropped and immediately moved to{" "}
+              <b>dead-letter</b> log. No retry attempts will be made.
             </div>
           )}
           {result.name === RetryErrorName && (
             <div className={"pt-1"}>
-              If such error will happen on an actual event, this function will be scheduled
+              If such an error occurs on an actual event, this function will be scheduled
               <br />
               for retry in {result.retryPolicy?.delays?.[0] ? Math.min(result.retryPolicy.delays[0], 1440) : 5} minutes,
               but event will be processed further.

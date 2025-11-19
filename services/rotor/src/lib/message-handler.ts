@@ -50,7 +50,7 @@ export function functionFilter(errorFunctionId?: string) {
 }
 
 export async function rotorMessageHandler(
-  _message: string | object | undefined,
+  message: IngestMessage,
   rotorContext: MessageHandlerContext,
   runFuncs: FuncChainFilter = "all",
   headers?,
@@ -58,14 +58,13 @@ export async function rotorMessageHandler(
   retries: number = 0,
   fetchTimeoutMs: number = 2000
 ) {
-  if (!_message) {
+  if (!message) {
     return;
   }
   const connStore = rotorContext.connectionStore;
   const funcStore = rotorContext.functionsStore;
   const streamsStore = rotorContext.streamsStore;
 
-  const message = (typeof _message === "string" ? JSON.parse(_message) : _message) as IngestMessage;
   const connectionId =
     headers && headers[CONNECTION_IDS_HEADER] ? headers[CONNECTION_IDS_HEADER].toString() : message.connectionId;
   const connection = requireDefined(connStore.getObject(connectionId), `Unknown connection: ${connectionId}`);

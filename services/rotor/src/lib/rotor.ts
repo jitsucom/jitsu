@@ -19,6 +19,7 @@ import { KafkaJS } from "@confluentinc/kafka-javascript";
 import { functionFilter, MessageHandlerContext } from "./message-handler";
 import { connectionsStore, functionsStore, streamsStore } from "./repositories";
 import { FuncChainResult, RotorMetrics } from "@jitsu/core-functions";
+import { IngestMessage } from "@jitsu/protocols/async-request";
 
 dayjs.extend(utc);
 
@@ -42,7 +43,7 @@ export type KafkaRotorConfig = {
   kafkaClientId?: string;
   rotorContext: Omit<MessageHandlerContext, "connectionStore" | "functionsStore" | "streamsStore" | "metrics">;
   handle: (
-    message: string,
+    message: IngestMessage,
     rotorContext: MessageHandlerContext,
     runFuncs: FuncChainFilter,
     headers?,
@@ -126,6 +127,7 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
         if (!value) {
           return;
         }
+        const stringValue = value.toString();
         const headers = message.headers || {};
         const retries = headers[RETRY_COUNT_HEADER] ? parseInt(headers[RETRY_COUNT_HEADER].toString()) : 0;
         const retriedFunctionId = headers[FUNCTION_ID_HEADER] ? headers[FUNCTION_ID_HEADER].toString() : "";
@@ -133,7 +135,7 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
           headers && headers[CONNECTION_IDS_HEADER] ? headers[CONNECTION_IDS_HEADER].toString().split(",") : [""];
         const conProms = connectionIds.map(connectionId =>
           handle(
-            value.toString(),
+            JSON.parse(stringValue) as IngestMessage,
             {
               ...rotorContext,
               connectionStore: requireDefined(connectionsStore.getCurrent(), "Connection store is not initialized"),
@@ -154,11 +156,10 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
               promMessagesProcessed.inc({ topic, partition });
             })
             .catch(async e => {
+              const ingestMessage: IngestMessage = JSON.parse(stringValue);
               const retryPolicy = getRetryPolicy(e);
               const retryTime = retryBackOffTime(retryPolicy, retries + 1);
-              const newMessage = e.event
-                ? JSON.stringify({ ...JSON.parse(value.toString()), httpPayload: e.event })
-                : value;
+              const newMessage = e.event ? JSON.stringify({ ...ingestMessage, httpPayload: e.event }) : value;
               log
                 .atError()
                 .withCause(e)
@@ -197,6 +198,18 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
                     },
                   ],
                 });
+                if (!retryTime) {
+                  rotorContext.eventsLogger.deadLetter(
+                    ingestMessage.origin.workspaceId || "",
+                    connectionId,
+                    "function",
+                    newMessage.toString(),
+                    {
+                      functionId: e.functionId,
+                      error: e.toString(),
+                    }
+                  );
+                }
               } catch (e) {
                 log.atDebug().withCause(e).log(`Failed to put message to ${topic}: ${message.value}`);
               }
