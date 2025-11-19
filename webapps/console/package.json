@@ -11,7 +11,7 @@
   "scripts": {
     "prisma": "prisma",
     "lint": "next lint",
-    "console:dev": "next dev",
+    "console:dev": "dotenv -e ../../.env.local next dev",
     "console:start": "next start",
     "email:dev": "email dev -p 3901",
     "dev:rotor": "ts-node service/rotor.ts",
