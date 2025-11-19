@@ -2,8 +2,6 @@
   "extends": "@jitsu/common-config/tsconfig.json",
   "compilerOptions": {
     "outDir": "./compiled",
-    "module": "commonjs",
-    "moduleResolution": "node",
     "rootDir": ".",
     "allowJs": true,
     "jsx": "react-jsx"

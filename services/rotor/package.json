@@ -11,10 +11,10 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "bundle_extenals": "cp dist_package.json ./dist/package.json && cd ./dist/ && npm install",
-    "build": "rm -rf ./dist && tsc -p . && webpack && pnpm bundle_extenals",
+    "build": "webpack && pnpm bundle_extenals",
     "start": "dotenv -e ../../.env.local -- node dist/main.js",
-    "rotor:dev": "dotenv -e ../../.env.local -- nodemon --watch \"src/**\" --ext \"ts,json,tsx\" --exec \"ts-node src/index.ts\"",
-    "rotor:profile": "dotenv -e ../../.env.local -- nodemon --watch \"src/**\" --ext \"ts,json,tsx\" --exec \"ts-node-dev --inspect -- src/index.ts\"",
+    "rotor:dev": "dotenv -e ../../.env.local -- nodemon --watch \"src/**\" --ext \"ts,json,tsx\" --exec \"node -r @swc-node/register src/index.ts\"",
+    "rotor:profile": "dotenv -e ../../.env.local -- nodemon --watch \"src/**\" --ext \"ts,json,tsx\" --exec \"node --inspect -r @swc-node/register src/index.ts\"",
     "test": "BULKER_URL=dummy BULKER_AUTH_KEY=dummy MONGODB_URL=mongodb://dummy:27017/dummy vitest run"
   },
   "dependencies": {
@@ -45,12 +45,11 @@
     "undici": "^7.11.0"
   },
   "devDependencies": {
-    "@babel/preset-env": "^7.25.2",
-    "@babel/preset-react": "^7.24.7",
-    "@babel/preset-typescript": "^7.24.7",
     "@jitsu/common-config": "workspace:*",
     "@jitsu/protocols": "workspace:*",
+    "@swc-node/register": "catalog:",
     "@swc/core": "catalog:",
+    "swc-loader": "catalog:",
     "@types/express": "^4.17.21",
     "@types/lodash": "catalog:",
     "@types/node": "catalog:",
@@ -59,7 +58,6 @@
     "@types/webpack": "^5.28.5",
     "@vitest/ui": "catalog:",
     "@webpack-cli/generators": "^3.0.7",
-    "babel-loader": "^9.1.3",
     "clean-webpack-plugin": "^4.0.0",
     "copy-webpack-plugin": "^12.0.2",
     "declaration-bundler-webpack-plugin": "^1.0.3",
@@ -68,7 +66,6 @@
     "node-forge": "^1.3.1",
     "node-loader": "^2.0.0",
     "nodemon": "^3.1.4",
-    "swc-loader": "catalog:",
     "ts-loader": "^9.5.1",
     "ts-node": "catalog:",
     "ts-node-dev": "^2.0.0",

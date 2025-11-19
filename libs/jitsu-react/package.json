@@ -40,8 +40,7 @@
     "@types/jest": "^29.2.3",
     "@types/node": "catalog:",
     "microbundle": "^0.15.1",
-    "typescript": "catalog:",
-    "@babel/plugin-transform-regenerator": "^7.22.10"
+    "typescript": "catalog:"
   },
   "files": [
     "dist"

@@ -128,7 +128,6 @@ function checkTypescript(projectDir: string): string[] | void {
     console.info(`No ${b("tsconfig.json")} file found in ${b(projectDir)}. Assuming JavaScript project`);
     return;
   }
-  console.log(`Checking TypeScript files in ${b(projectDir)}`);
   let compilerOptions: ts.CompilerOptions = {};
   let filenames: string[] = [];
   const tsconfig = ts.readConfigFile(tsconfigPath, ts.sys.readFile);
@@ -137,6 +136,7 @@ function checkTypescript(projectDir: string): string[] | void {
     typeRoots: [path.resolve(projectDir, "node_modules", "@types")],
     checkJs: true,
     allowJs: true,
+    skipLibCheck: true,
     noEmit: true,
     esModuleInterop: typeof compilerOptions.esModuleInterop !== "undefined" ? compilerOptions.esModuleInterop : true,
     moduleResolution:
