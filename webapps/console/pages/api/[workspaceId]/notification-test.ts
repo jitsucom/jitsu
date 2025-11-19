@@ -60,6 +60,7 @@ export default createRoute()
         name: "Test Slack Channel",
       };
       const statusChange: StatusChange = {
+        type: con?.type === "sync" ? "sync" : "batch",
         status: "SUCCESS",
         id: BigInt(1),
         actorId: con?.id || "test",

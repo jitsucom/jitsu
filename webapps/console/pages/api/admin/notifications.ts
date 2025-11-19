@@ -20,6 +20,7 @@ import { ConnectionStatusPartialEmail } from "../../../emails/connection-status-
 import { sendEmail, UnsubscribeLinkProps, WorkspaceEmailProps } from "@jitsu-internal/webapps-shared";
 import { DefaultUserNotificationsPreferences } from "../../../lib/server/user-preferences";
 import pick from "lodash/pick";
+import ConnectionDeadLettered from "../../../emails/connection-dead-lettered";
 
 dayjs.extend(utc);
 
@@ -39,7 +40,7 @@ export const _J_PREF = "_j:";
 
 export type ConnectionStatusNotificationProps = {
   entityId: string;
-  entityType: "batch" | "sync";
+  entityType: "batch" | "sync" | "dead";
   entityName: string;
   entityFrom: string;
   entityTo: string;
@@ -215,7 +216,7 @@ export default createRoute()
       loadSyncStatusesChanges(previousRunTime, entities),
       loadDeadStatusesChanges(currentRunTime, entities),
     ]);
-    const increments = new Map<bigint, StatusRepeats>([...incrms[0], ...incrms[1]]);
+    const increments = new Map<bigint, StatusRepeats>([...incrms[0], ...incrms[1], ...incrms[2]]);
     // optimization. we have batches that runs way too often. to avoid multiple db updates we can accumulate changes and write them in a single query
     if (increments.size > 0) {
       const values = Array.from(increments.entries())
@@ -518,12 +519,15 @@ async function processNotifications(
   let flappingSince: Date | null =
     lastStatus.status === "FLAPPING" ? state?.flappingSince || lastStatus.timestamp : null;
   try {
+    let sent = false;
     if (channel.channel === "slack") {
-      await sendSlackNotification(channel, entity, statusChanges, publicEndpoints.baseUrl);
+      sent = await sendSlackNotification(channel, entity, statusChanges, publicEndpoints.baseUrl);
     } else if (channel.channel === "email") {
-      await sendEmailNotification(channel, entity, statusChanges, publicEndpoints.baseUrl);
+      sent = await sendEmailNotification(channel, entity, statusChanges, publicEndpoints.baseUrl);
     }
-    log.atInfo().log(`[${chkey}] ${channel.channel} notification sent. Id: ${entity.id} ts: ${entity.timestamp}`);
+    if (sent) {
+      log.atInfo().log(`[${chkey}] ${channel.channel} notification sent. Id: ${entity.id} ts: ${entity.timestamp}`);
+    }
   } catch (e: any) {
     log
       .atError()
@@ -790,16 +794,8 @@ async function updateStatusChange(
 ): Promise<boolean> {
   let changed = false;
   let newEntity: StatusChange & { id?: bigint | number };
-  log
-    .atInfo()
-    .log(
-      `Dead letter ${entity.actorId} last failed at ${timestamp.toISOString()} : ${entity.timestamp.toISOString()} `
-    );
 
   if (!entity.timestamp || timestamp.getTime() > entity.timestamp.getTime()) {
-    log
-      .atInfo()
-      .log(`Updating status for ${entity.actorId} from ${entity.status} to ${status} at ${timestamp.toISOString()}`);
     if (status != entity.status) {
       if (status === "SUCCESS") {
         if (!entity.timestamp) {
@@ -1032,15 +1028,37 @@ const ConnectionStatusPartialSlack: SlackTemplate = {
       : "",
 };
 
+const DeadLetteredMessages: SlackTemplate = {
+  text: props => `:red_circle: Unrecoverable Errors in the connection ${props.entityName} [${props.workspaceName}]`,
+  header: props => `:red_circle: Unrecoverable Errors in the connection ${props.entityName} [${props.workspaceName}]`,
+  description: props => [
+    `*Unrecoverable Errors* occurred in the connection from *${props.entityFrom}* to *${props.entityTo}* :persevere:.`,
+    ``,
+    `Connection from *${props.entityFrom}* to *${props.entityTo}* in *<${props.baseUrl}/${props.workspaceSlug}|${props.workspaceName}>* workspace has accumulated *${props.queueSize}* unrecoverable errors.`,
+  ],
+  metaBlock: props => "",
+  footer: props =>
+    props.recurringAlertsPeriodHours
+      ? `No additional reports will be sent for this connection in ${props.recurringAlertsPeriodHours} hours.`
+      : "",
+};
+
 export async function sendSlackNotification(
   channel: NotificationChannel,
   entity: StatusChangeEntity,
   statusChanges: StatusChange[],
   baseUrl: string
-): Promise<void> {
+): Promise<boolean> {
   const props = fillNotificationProps(channel, entity, statusChanges, baseUrl);
 
   const selectTemplate = (status: string) => {
+    if (entity.type === "dead") {
+      if (status === "FAILED" || status === "ONGOING") {
+        return DeadLetteredMessages;
+      } else {
+        return;
+      }
+    }
     switch (status) {
       case "FIRST_RUN":
         return ConnectionStatusFirstRunSlack;
@@ -1059,7 +1077,10 @@ export async function sendSlackNotification(
   };
 
   const template = selectTemplate(props.status);
-
+  if (!template) {
+    console.debug(`No Slack template for status ${props.status}, skipping notification.`);
+    return false;
+  }
   const payload: SlackPayload = {
     text: template.text(props),
     blocks: [
@@ -1149,6 +1170,7 @@ export async function sendSlackNotification(
   if (!res.ok) {
     throw new Error(`HTTP Error: ${res.status}: ${await res.text()}`);
   }
+  return true;
 }
 
 export async function sendEmailNotification(
@@ -1156,10 +1178,17 @@ export async function sendEmailNotification(
   entity: StatusChangeEntity,
   statusChanges: StatusChange[],
   baseUrl: string
-): Promise<void> {
+): Promise<boolean> {
   const props = fillNotificationProps(channel, entity, statusChanges, baseUrl);
 
   const selectTemplate = (status: string) => {
+    if (entity.type === "dead") {
+      if (status === "FAILED" || status === "ONGOING") {
+        return ConnectionDeadLettered;
+      } else {
+        return;
+      }
+    }
     switch (status) {
       case "FIRST_RUN":
         return ConnectionStatusFirstRunEmail;
@@ -1178,8 +1207,12 @@ export async function sendEmailNotification(
   };
 
   const template = selectTemplate(props.status);
-
+  if (!template) {
+    console.debug(`No Email template for status ${props.status}, skipping notification.`);
+    return false;
+  }
   await sendEmail(template, props, channel.emails!);
+  return true;
 }
 
 function fillNotificationProps(
