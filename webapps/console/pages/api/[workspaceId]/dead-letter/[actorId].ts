@@ -126,13 +126,19 @@ export const api: Api = {
           } catch (e) {
             errorObj = { error: row.error };
           }
+          let payloadObj: any = {};
+          try {
+            payloadObj = JSON.parse(row.payload);
+          } catch (e) {
+            payloadObj = { payload: row.payload };
+          }
           if (gzip.bytesWritten < maxStreamingResponseSize) {
             const line = JSON.stringify({
               date: dayjs(row.date).utc(true).toDate(),
               workspaceId: row.workspaceId,
               actorId: row.actorId,
               type: row.type,
-              payload: JSON.parse(row.payload),
+              payload: payloadObj.httpPayload || payloadObj,
               error: errorObj,
             });
             gzip.write(line + "\n");

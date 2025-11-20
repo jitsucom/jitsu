@@ -6,7 +6,7 @@ import { NotificationStateDbModel, StatusChangeDbModel } from "../../../prisma/s
 import { z } from "zod";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
-import { stopwatch, trimMiddle } from "juava";
+import { isTruish, stopwatch, trimMiddle } from "juava";
 import { getAppEndpoint, PublicEndpoint } from "../../../lib/domains";
 import { NotificationChannel } from "../../../lib/schema";
 import omit from "lodash/omit";
@@ -95,8 +95,12 @@ function chKey(channelId: string, actorId: string, type: string, tableName?: str
 export default createRoute()
   .GET({
     auth: true,
+    query: z.object({
+      dryRun: z.string().optional(),
+    }),
   })
-  .handler(async ({ req, user }) => {
+  .handler(async ({ req, user, query }) => {
+    const dryRun = isTruish(query.dryRun);
     const sw = stopwatch();
     await verifyAdmin(user);
     const publicEndpoints = getAppEndpoint(req);
@@ -126,7 +130,7 @@ export default createRoute()
     log
       .atInfo()
       .log(
-        `Previous run time: ${previousRunTime.toISOString()} Last processed timestamp: ${processedTimestamp.toISOString()}`
+        `Previous run time: ${previousRunTime.toISOString()} Last processed timestamp: ${processedTimestamp.toISOString()} Dry run: ${dryRun}`
       );
     // add some overlap to avoid missing status changes
     previousRunTime.setMinutes(previousRunTime.getMinutes() - 10);
@@ -238,19 +242,23 @@ export default createRoute()
       log.atInfo().log(`Status counts updated for ${res.rowCount} rows.`);
     }
 
-    processedTimestamp = await processStatusChanges(processedTimestamp, entities, publicEndpoints);
+    const res = await processStatusChanges(processedTimestamp, entities, publicEndpoints, dryRun);
+    processedTimestamp = res.date;
 
-    await db.prisma().globalProps.update({
-      where: { id: notificationsLastRun.id },
-      data: {
-        name: "notificationsLastRun",
-        value: { timestamp: currentRunTime, lastProcessedTimestamp: processedTimestamp },
-      },
-    });
+    if (!dryRun) {
+      await db.prisma().globalProps.update({
+        where: { id: notificationsLastRun.id },
+        data: {
+          name: "notificationsLastRun",
+          value: { timestamp: currentRunTime, lastProcessedTimestamp: processedTimestamp },
+        },
+      });
 
-    log
-      .atInfo()
-      .log(`Done. Last processed timestamp: ${processedTimestamp.toISOString()} Elapsed: ${sw.elapsedPretty()}`);
+      log
+        .atInfo()
+        .log(`Done. Last processed timestamp: ${processedTimestamp.toISOString()} Elapsed: ${sw.elapsedPretty()}`);
+    }
+    return res.statuses;
   })
   .toNextApiHandler();
 
@@ -320,9 +328,11 @@ async function loadNotificationsChannels() {
 async function processStatusChanges(
   processedTimestamp: Date,
   entities: Record<string, StatusChangeEntity>,
-  publicEndpoints: any
-): Promise<Date> {
+  publicEndpoints: any,
+  dryRun: boolean
+): Promise<{ date: Date; statuses: SendStatus[] }> {
   log.atInfo().log(`Loading changes from ${processedTimestamp.toISOString()}`);
+  const sendStatuses: SendStatus[] = [];
   const statusChanges = await db.prisma().statusChange.findMany({
     where: {
       timestamp: { gt: processedTimestamp },
@@ -333,7 +343,7 @@ async function processStatusChanges(
   log.atInfo().log(`Got ${statusChanges.length} new status changes`);
 
   if (statusChanges.length === 0) {
-    return processedTimestamp;
+    return { date: processedTimestamp, statuses: sendStatuses };
   }
 
   const channels = await loadNotificationsChannels();
@@ -454,12 +464,15 @@ async function processStatusChanges(
           .log(`[${chkey}] Flapping ongoing since ${state.flappingSince} Changes per hour: ${entity.changesPerHours}`);
       }
       if (doNotify) {
-        await processNotifications(channel, channelStates, cStatuses, entity, publicEndpoints);
+        const st = await processNotification(channel, channelStates, cStatuses, entity, publicEndpoints, dryRun);
+        if (st) {
+          sendStatuses.push(st);
+        }
       }
     }
   }
 
-  return processedTimestamp;
+  return { date: processedTimestamp, statuses: sendStatuses };
 }
 
 function makeNotificationState(
@@ -505,12 +518,13 @@ async function updateNotificationState(
   return state;
 }
 
-async function processNotifications(
+async function processNotification(
   channel: NotificationChannel,
   channelStates: Record<string, NotificationState>,
   statusChanges: StatusChange[],
   entity: StatusChangeEntity,
-  publicEndpoints: PublicEndpoint
+  publicEndpoints: PublicEndpoint,
+  dryRun: boolean
 ) {
   const chkey = chKey(channel.id, entity.actorId, entity.type, entity.tableName);
   let error: string | undefined = undefined;
@@ -518,15 +532,22 @@ async function processNotifications(
   const lastStatus = statusChanges[statusChanges.length - 1];
   let flappingSince: Date | null =
     lastStatus.status === "FLAPPING" ? state?.flappingSince || lastStatus.timestamp : null;
+  let status: SendStatus | undefined = undefined;
+
   try {
-    let sent = false;
     if (channel.channel === "slack") {
-      sent = await sendSlackNotification(channel, entity, statusChanges, publicEndpoints.baseUrl);
+      status = await sendSlackNotification(channel, entity, statusChanges, publicEndpoints.baseUrl, dryRun);
     } else if (channel.channel === "email") {
-      sent = await sendEmailNotification(channel, entity, statusChanges, publicEndpoints.baseUrl);
+      status = await sendEmailNotification(channel, entity, statusChanges, publicEndpoints.baseUrl, dryRun);
     }
-    if (sent) {
-      log.atInfo().log(`[${chkey}] ${channel.channel} notification sent. Id: ${entity.id} ts: ${entity.timestamp}`);
+    if (status) {
+      log
+        .atInfo()
+        .log(
+          `[${chkey}] ${channel.channel} notification ${status.dryRun ? "dry run" : "sent"}. Id: ${entity.id} ts: ${
+            entity.timestamp
+          }`
+        );
     }
   } catch (e: any) {
     log
@@ -536,20 +557,23 @@ async function processNotifications(
       );
     error = e.message;
   } finally {
-    await db.prisma().notification.create({
-      data: {
-        workspaceId: entity.workspaceId,
-        actorId: entity.actorId,
-        type: entity.type,
-        tableName: entity.tableName || "",
-        channelId: channel.id,
-        statusChangeId: lastStatus.id!,
-        status: error ? "error" : "ok",
-        error,
-      },
-    });
-    await updateNotificationState(channelStates, channel, lastStatus, flappingSince, error);
+    if (!dryRun) {
+      await db.prisma().notification.create({
+        data: {
+          workspaceId: entity.workspaceId,
+          actorId: entity.actorId,
+          type: entity.type,
+          tableName: entity.tableName || "",
+          channelId: channel.id,
+          statusChangeId: lastStatus.id!,
+          status: error ? "error" : "ok",
+          error,
+        },
+      });
+      await updateNotificationState(channelStates, channel, lastStatus, flappingSince, error);
+    }
   }
+  return status;
 }
 
 async function loadSyncStatusesChanges(
@@ -1043,12 +1067,21 @@ const DeadLetteredMessages: SlackTemplate = {
       : "",
 };
 
+type SendStatus = {
+  type: string;
+  dryRun: boolean;
+  address: string | string[];
+  channelId: string;
+  payload: any;
+};
+
 export async function sendSlackNotification(
   channel: NotificationChannel,
   entity: StatusChangeEntity,
   statusChanges: StatusChange[],
-  baseUrl: string
-): Promise<boolean> {
+  baseUrl: string,
+  dryRun: boolean
+): Promise<SendStatus | undefined> {
   const props = fillNotificationProps(channel, entity, statusChanges, baseUrl);
 
   const selectTemplate = (status: string) => {
@@ -1079,7 +1112,7 @@ export async function sendSlackNotification(
   const template = selectTemplate(props.status);
   if (!template) {
     console.debug(`No Slack template for status ${props.status}, skipping notification.`);
-    return false;
+    return;
   }
   const payload: SlackPayload = {
     text: template.text(props),
@@ -1157,28 +1190,36 @@ export async function sendSlackNotification(
     });
   }
 
-  console.debug(`Sending slack notification to ${channel.id} (${channel.name}): ${payload.text}`);
+  if (!dryRun) {
+    console.debug(`Sending slack notification to ${channel.id} (${channel.name}): ${payload.text}`);
+    const res = await fetch(channel.slackWebhookUrl!, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
 
-  const res = await fetch(channel.slackWebhookUrl!, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    throw new Error(`HTTP Error: ${res.status}: ${await res.text()}`);
+    if (!res.ok) {
+      throw new Error(`HTTP Error: ${res.status}: ${await res.text()}`);
+    }
   }
-  return true;
+  return {
+    type: channel.type,
+    dryRun,
+    address: channel.slackWebhookUrl!,
+    channelId: channel.id,
+    payload: payload,
+  };
 }
 
 export async function sendEmailNotification(
   channel: NotificationChannel,
   entity: StatusChangeEntity,
   statusChanges: StatusChange[],
-  baseUrl: string
-): Promise<boolean> {
+  baseUrl: string,
+  dryRun: boolean
+): Promise<SendStatus | undefined> {
   const props = fillNotificationProps(channel, entity, statusChanges, baseUrl);
 
   const selectTemplate = (status: string) => {
@@ -1209,10 +1250,20 @@ export async function sendEmailNotification(
   const template = selectTemplate(props.status);
   if (!template) {
     console.debug(`No Email template for status ${props.status}, skipping notification.`);
-    return false;
+    return;
   }
-  await sendEmail(template, props, channel.emails!);
-  return true;
+  const res = await sendEmail(template, props, channel.emails!, { dryRun });
+  if (!res.sent) {
+    return;
+  }
+
+  return {
+    type: "email",
+    dryRun: !!res.dryRun,
+    address: channel.emails!,
+    channelId: channel.id,
+    payload: res,
+  };
 }
 
 function fillNotificationProps(
@@ -1237,11 +1288,15 @@ function fillNotificationProps(
     })
     .join("\n");
 
-  const detailsUrl =
-    entity.type == "sync"
-      ? `${baseUrl}/${entity.slug}/syncs/tasks?query={syncId:'${entity.actorId}'}`
-      : `${baseUrl}/${entity.slug}/data?query={activeView%3A'bulker'%2CviewState%3A{bulker%3A{actorId%3A'${entity.actorId}'}}}`;
-
+  let detailsUrl = `${baseUrl}/${entity.slug}/data?query={activeView%3A'bulker'%2CviewState%3A{bulker%3A{actorId%3A'${entity.actorId}'}}}`;
+  switch (entity.type) {
+    case "dead":
+      detailsUrl = `${baseUrl}/${entity.slug}/data?query={activeView%3A'dead-letter'%2CviewState%3A{dead-letter%3A{actorId%3A'${entity.actorId}'}}}`;
+      break;
+    case "sync":
+      detailsUrl = `${baseUrl}/${entity.slug}/syncs/tasks?query={syncId:'${entity.actorId}'}`;
+      break;
+  }
   return {
     name: channel.name,
     workspaceName: entity.workspaceName,

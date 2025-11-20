@@ -61,14 +61,17 @@ type DiscriminatedUnion<T1, T2> =
   | (T2 & { [K in Exclude<keyof T1, keyof T2>]?: never });
 
 export type EmailSendingResult = Simplify<
-  DiscriminatedUnion<{ sent: false; reasonNotSent: string }, { sent: true; subject: string; messageId: string }>
+  DiscriminatedUnion<
+    { sent: false; reasonNotSent: string },
+    { sent: true; subject: string; text: string; messageId?: string; dryRun?: boolean }
+  >
 >;
 
 export async function sendEmail<P extends UnsubscribeLinkProps>(
   template: EmailTemplate<P>,
   props: P,
   to: string | string[],
-  opts: { dryRun: boolean } = { dryRun: false }
+  opts: { testToBcc?: boolean; dryRun?: boolean } = { testToBcc: false, dryRun: false }
 ): Promise<EmailSendingResult> {
   if (!isEmailAvailable()) {
     console.warn("Email is not available, skipping sending email");
@@ -86,7 +89,7 @@ export async function sendEmail<P extends UnsubscribeLinkProps>(
   // const scheduledAt = template.scheduleAt ? template.scheduleAt(new Date()) : undefined;
 
   let subject = template.subject(props);
-  if (opts?.dryRun) {
+  if (opts?.testToBcc) {
     subject = `[Test - for ${to}] ${subject}`;
     to = env.BCC_EMAIL ?? "";
   }
@@ -111,14 +114,22 @@ export async function sendEmail<P extends UnsubscribeLinkProps>(
     html,
     text,
   };
-
-  const res = await transport!.sendMail(options);
-
-  return {
-    sent: true,
-    subject,
-    messageId: res.messageId || "",
-  };
+  if (!opts.dryRun) {
+    const res = await transport!.sendMail(options);
+    return {
+      sent: true,
+      subject,
+      text,
+      messageId: res.messageId || "",
+    };
+  } else {
+    return {
+      sent: true,
+      dryRun: true,
+      subject,
+      text,
+    };
+  }
 }
 
 function initNodeMailer() {
