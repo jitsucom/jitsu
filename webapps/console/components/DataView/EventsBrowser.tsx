@@ -1470,11 +1470,7 @@ const DeadLetterTable = ({
       title: "Error",
       ellipsis: true,
       dataIndex: "error",
-      render: d => (
-        <span className="text-red-600">
-          {d.error}
-        </span>
-      ),
+      render: d => <span className="text-red-600">{d.error}</span>,
     },
   ];
 
