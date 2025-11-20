@@ -1,21 +1,15 @@
 {
+  "extends": "@jitsu/common-config/tsconfig.json",
   "compilerOptions": {
     "rootDir": "./src",
     "outDir": "./dist",
     "declaration": true,
-    "esModuleInterop": true,
-    "moduleResolution": "node",
-    "target": "ESNext",
-    "module": "commonjs",
-    "lib": [
-      "ESNext",
-      "DOM"
-    ],
-    "noEmit": true
+    "noEmit": true,
+    "strictNullChecks": false
   },
+  "include": ["src/**/*"],
   "exclude": [
     "__tests__",
-    "node_modules",
     "dist",
     "test_projects",
     "test",

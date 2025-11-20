@@ -1,0 +1,6 @@
+{
+  "version": "1.11",
+  "tag_prefix": "jsclient",
+  "stable_branch": "stable-jsclient",
+  "beta_branch": "newjitsu"
+}

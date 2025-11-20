@@ -13,8 +13,11 @@
   ],
   "scripts": {
     "build": "tsc",
+    "//build-deps": "Required by turbo ^build-deps - builds dist/ for workspace packages that import this",
+    "build-deps": "pnpm run build",
     "clean": "rm -rf ./dist",
-    "type-check": "tsc --noEmit",
+    "//typecheck": "Build is required because types are generated during build",
+    "typecheck": "pnpm run build",
     "lint": "eslint . --ext .ts",
     "test": "jest --coverage",
     "prepack": "pnpm build",
@@ -35,12 +38,12 @@
     "@types/jest": "^29.5.10",
     "@typescript-eslint/eslint-plugin": "^8.12.2",
     "@typescript-eslint/parser": "^8.12.2",
-    "eslint": "^8.57.0",
+    "eslint": "catalog:",
     "eslint-config-prettier": "^9.1.0",
     "jest": "^29.7.0",
     "ts-jest": "^29.1.1",
-    "tslib": "^2.6.3",
-    "typescript": "^5.6.3"
+    "tslib": "catalog:",
+    "typescript": "catalog:"
   },
   "license": "MIT",
   "engines": {

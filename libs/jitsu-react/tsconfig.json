@@ -1,21 +1,17 @@
 {
+  "extends": "@jitsu/common-config/tsconfig.json",
   "compilerOptions": {
     "outDir": "dist",
-    "module": "esnext",
     "lib": ["dom", "esnext"],
-    "moduleResolution": "node",
     "jsx": "react",
     "sourceMap": true,
     "declaration": true,
-    "esModuleInterop": true,
     "noImplicitReturns": true,
     "noImplicitThis": true,
-    "noImplicitAny": false,
     "strictNullChecks": true,
     "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "allowSyntheticDefaultImports": true
+    "noUnusedParameters": true
   },
   "include": ["src"],
-  "exclude": ["node_modules", "dist"]
+  "exclude": ["dist"]
 }

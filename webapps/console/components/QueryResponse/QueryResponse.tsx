@@ -1,4 +1,4 @@
-import { UseQueryResult } from "@tanstack/react-query/src/types";
+import { UseQueryResult } from "@tanstack/react-query";
 import { ReactNode, useEffect } from "react";
 import { LoadingAnimation } from "../GlobalLoader/GlobalLoader";
 import { GlobalError } from "../GlobalError/GlobalError";

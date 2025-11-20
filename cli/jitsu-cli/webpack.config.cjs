@@ -27,8 +27,12 @@ const config = {
     rules: [
       {
         test: /\.(ts|tsx)$/i,
+        exclude: /node_modules/,
         use: {
-          loader: "babel-loader",
+          loader: "swc-loader",
+          options: {
+            configFile: path.resolve(__dirname, "../../libs/common-config/swc.config.json"),
+          },
         },
       },
       {

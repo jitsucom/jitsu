@@ -1,14 +1,13 @@
 {
+  "extends": "@jitsu/common-config/tsconfig.json",
   "compilerOptions": {
-    "lib": ["es2015", "dom", "es2017"],
     "rootDir": "./src",
     "declaration": true,
-    "esModuleInterop": true,
     "noEmit": true
   },
+  "include": ["src/**/*"],
   "exclude": [
     "__tests__",
-    "node_modules",
     "dist",
     "test_projects",
     "test",

@@ -1,0 +1,48 @@
+name: Test Slack Notification
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: 🧪 Test All Block Types
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 💬 Send notification with all block types
+        uses: ./.github/actions/slack-notify
+        with:
+          slack_webhook_url: ${{ secrets.CI_SLACK_WEBHOOK }}
+          color: good
+          header: "Test: All Block Types"
+          blocks: |
+            - title: Simple text
+              value: Hello from GitHub Actions
+            - title: Commit with link
+              value: ${{ github.sha }}
+              url: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
+            - title: Workflow run
+              value: View current run
+              url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            - title: Multiline code
+              value: |
+                function hello() {
+                  console.log("Hello, World!");
+                  return 42;
+                }
+              is_code: true
+            - title: Single line command
+              value: npm install && npm test
+              is_code: true
+            - title: JSON example
+              value: |
+                {
+                  "name": "test",
+                  "version": "1.0.0",
+                  "status": "success"
+                }
+              is_code: true
+            - title: Triggered by
+              value: ${{ github.actor }}

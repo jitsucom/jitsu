@@ -1,0 +1,166 @@
+name: 🧪Lint and Test
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  # The jitsu-builder container has Playwright browsers binaries preinstalled on this path:
+  PLAYWRIGHT_BROWSERS_PATH: /root/.cache/ms-playwright
+  BETA_BRANCH: newjitsu
+  STABLE_BRANCH: stable-services
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-format:
+    name: ✨ Lint & Test
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      packages: write
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: 🔍 Check changed files
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            playwright:
+              - 'libs/jitsu-js/**'
+              - '**/playwright/**'
+              - '**/*.spec.ts'
+              - '**/playwright.config.ts'
+
+      - name: 🚀 Setup Turbo cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            .turbo
+            **/node_modules/.cache
+          key: ${{ runner.os }}-turbo-lint-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-lint-
+
+      - name: 🐳 Pull and start builder container
+        run: |
+          docker pull ghcr.io/jitsucom/jitsu-builder:latest
+          docker run -d --name builder -v ${{ github.workspace }}:/workspace -w /workspace -e CI=true ghcr.io/jitsucom/jitsu-builder:latest tail -f /dev/null
+
+      - name: 📦 Fetch dependencies from store
+        run: |
+          docker exec builder sh -c 'echo "pnpm store path: $(pnpm store path)"'
+          docker exec builder pnpm fetch
+
+      - name: 📦 Install dependencies
+        run: docker exec builder pnpm install --frozen-lockfile --offline
+
+      - name: ✨ Check code format
+        run: docker exec builder pnpm format:check:all
+
+      - name: 🔧 Run codegen
+        run: docker exec builder pnpm codegen
+
+      - name: 🧪️ Run Typecheck
+        run: docker exec builder pnpm typecheck
+
+      - name: 🧪 Run linter
+        run: docker exec builder pnpm lint
+
+      - name: 🧪 Run tests
+        run: docker exec builder pnpm test
+
+      - name: 🎭 Run Playwright tests
+        if: steps.changes.outputs.playwright == 'true'
+        run: docker exec builder pnpm test:playwright
+
+      - name: 🧹 Cleanup container
+        if: always()
+        run: docker stop builder && docker rm builder
+
+  notify:
+    name: 📢 Notify
+    needs: [lint-and-format]
+    if: always() && github.ref == 'refs/heads/newjitsu'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      packages: write
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 📝 Get short SHA
+        id: short-sha
+        run: echo "sha=$(git rev-parse --short=7 HEAD)" >> $GITHUB_OUTPUT
+
+      - name: 🔍 Check job statuses
+        id: status
+        run: |
+          if [[ "${{ needs.lint-and-format.result }}" == "success" ]]; then
+            echo "success=true" >> $GITHUB_OUTPUT
+            echo "color=#36a64f" >> $GITHUB_OUTPUT
+            echo "header=✅ Lint & Test on branch \`${{ github.ref_name }}\` SUCCEEDED" >> $GITHUB_OUTPUT
+          else
+            echo "success=false" >> $GITHUB_OUTPUT
+            echo "color=#ff0000" >> $GITHUB_OUTPUT
+            echo "header=❌ Lint & Test on branch \`${{ github.ref_name }}\` FAILED" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 💬 Send notification to Slack
+        uses: ./.github/actions/slack-notify
+        with:
+          slack_webhook_url: ${{ secrets.CI_SLACK_WEBHOOK }}
+          color: ${{ steps.status.outputs.color }}
+          header: ${{ steps.status.outputs.header }}
+          blocks: |
+            - title: Commit
+              value: ${{ steps.short-sha.outputs.sha }}
+              url: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
+            - title: Commit message
+              value: ${{ toJSON(github.event.head_commit.message) }}
+              is_code: true
+            - title: Workflow run
+              value: ${{ steps.status.outputs.success == 'true' && 'View workflow run' || 'View failed run' }}
+              url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            - title: Triggered by
+              value: ${{ github.actor }}
+
+  deploy:
+    name: 🐳 Build Docker Images
+    needs: [lint-and-format]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/newjitsu' || github.ref == 'refs/heads/stable-services')
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      packages: write
+      id-token: write
+    uses: ./.github/workflows/services-build.yaml
+    secrets: inherit
+    # Note: skip_install doesn't work as packages are installed inside docker
+
+  deploy-client-libraries:
+    name: 📦 Build Client Libraries
+    needs: [lint-and-format]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/newjitsu' || github.ref == 'refs/heads/stable-jsclient')
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      packages: read
+      id-token: write
+    uses: ./.github/workflows/client-libraries-build.yaml
+    secrets: inherit
+    # Note: skip_install doesn't work as packages are installed inside docker

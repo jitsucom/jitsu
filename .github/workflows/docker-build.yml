@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    name: Build Project
+    name: 🐳 Build Docker Images
     timeout-minutes: 60
     runs-on: ubuntu-latest
     steps:
@@ -17,12 +17,12 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: 18
+          node-version: 24
 
       - name: Install pnpm
         uses: pnpm/action-setup@v2
         with:
-          version: 8
+          version: 10
 
       - uses: actions/checkout@v3
       - name: Get pnpm store directory

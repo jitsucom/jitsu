@@ -6,6 +6,28 @@ packages:
   - services/*
   - cli/*
   - libs/*
+
+catalog:
+  typescript: ^5.6.3
+  tslib: ^2.6.3
+  "@types/node": ^18.15.3
+  vitest: ^2.1.8
+  "@vitest/ui": ^2.1.8
+  lodash: ^4.17.21
+  "@types/lodash": ^4.17.7
+  ts-node: ^10.9.2
+  react: ^18.3.1
+  "react-dom": ^18.3.1
+  "@types/react": ^18.3.3
+  "@types/react-dom": ^18.3.0
+  eslint: ^8.57.0
+  webpack: ^5.99.5
+  "webpack-cli": ^6.0.1
+  tailwindcss: ^3.4.14
+  "@swc/core": ^1.15.2
+  "@swc-node/register": ^1.11.1
+  "swc-loader": ^0.2.6
+
 onlyBuiltDependencies:
   - "@confluentinc/kafka-javascript"
   - "@firebase/util"

@@ -5,6 +5,7 @@ on:
 
 jobs:
   close-issues:
+    name: 🧹 Close Stale Issues
     runs-on: ubuntu-latest
     permissions:
       issues: write

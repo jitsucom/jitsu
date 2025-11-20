@@ -1,0 +1,115 @@
+name: Generate Version
+description: Generate version number based on current branch and git tags
+
+inputs:
+  version_file:
+    description: "Path to version file"
+    required: false
+    default: ".version.json"
+
+outputs:
+  version:
+    description: "Generated version"
+    value: ${{ steps.generate.outputs.version }}
+  tag:
+    description: "Git tag for this version"
+    value: ${{ steps.generate.outputs.tag }}
+  channel:
+    description: "Detected release channel (stable, beta, or canary)"
+    value: ${{ steps.generate.outputs.channel }}
+
+runs:
+  using: composite
+  steps:
+    - name: Generate version
+      id: generate
+      shell: bash
+      run: |
+        VERSION_FILE="${{ inputs.version_file }}"
+
+        # Read version file
+        if [ ! -f "$VERSION_FILE" ]; then
+          echo "Error: Version file $VERSION_FILE not found"
+          exit 1
+        fi
+
+        BASE_VERSION=$(jq -r '.version' "$VERSION_FILE")
+        TAG_PREFIX=$(jq -r '.tag_prefix' "$VERSION_FILE")
+        STABLE_BRANCH=$(jq -r '.stable_branch' "$VERSION_FILE")
+        BETA_BRANCH=$(jq -r '.beta_branch' "$VERSION_FILE")
+
+        # Get current branch
+        CURRENT_BRANCH="${GITHUB_REF_NAME}"
+
+        # Determine channel based on branch
+        if [ "$CURRENT_BRANCH" = "$STABLE_BRANCH" ]; then
+          CHANNEL="stable"
+        elif [ "$CURRENT_BRANCH" = "$BETA_BRANCH" ]; then
+          CHANNEL="beta"
+        else
+          CHANNEL="canary"
+        fi
+
+        echo "Current branch: $CURRENT_BRANCH"
+        echo "Base version: $BASE_VERSION"
+        echo "Tag prefix: $TAG_PREFIX"
+        echo "Channel: $CHANNEL"
+
+        if [ "$CHANNEL" = "stable" ]; then
+          # Find highest tag matching TAG_PREFIX-BASE_VERSION.*
+          PATTERN="${TAG_PREFIX}${BASE_VERSION}.*"
+          LATEST_TAG=$(git tag -l "$PATTERN" | sort -V | tail -n1)
+
+          if [ -z "$LATEST_TAG" ]; then
+            # No existing tag, start at .0
+            VERSION="${BASE_VERSION}.0"
+          else
+            # Extract patch version and increment
+            PATCH=$(echo "$LATEST_TAG" | sed "s|${TAG_PREFIX}${BASE_VERSION}.||")
+            NEW_PATCH=$((PATCH + 1))
+            VERSION="${BASE_VERSION}.${NEW_PATCH}"
+          fi
+
+        elif [ "$CHANNEL" = "beta" ]; then
+          # Find highest tag matching TAG_PREFIX-BASE_VERSION-beta.*
+          PATTERN="${TAG_PREFIX}${BASE_VERSION}-beta.*"
+          LATEST_TAG=$(git tag -l "$PATTERN" | sort -V | tail -n1)
+
+          if [ -z "$LATEST_TAG" ]; then
+            # No existing tag, start at beta.0
+            VERSION="${BASE_VERSION}-beta.0"
+          else
+            # Extract beta number and increment
+            BETA_NUM=$(echo "$LATEST_TAG" | sed "s|${TAG_PREFIX}${BASE_VERSION}-beta.||")
+            NEW_BETA=$((BETA_NUM + 1))
+            VERSION="${BASE_VERSION}-beta.${NEW_BETA}"
+          fi
+
+        else
+          # Canary: BASE_VERSION-canary.DATE.SHORT_SHA
+          SHORT_SHA=$(git rev-parse --short=7 HEAD)
+          DATE=$(date +%Y%m%d)
+          VERSION="${BASE_VERSION}-canary.${DATE}.${SHORT_SHA}"
+        fi
+
+        # Normalize VERSION to valid semver (x.y.z) for NPM compatibility
+        # Stable: x.y.0, x.y.1, etc. (already 3 components) - leave as is
+        # Beta/Canary: x.y-beta.0, x.y-canary.xxx -> x.y.0-beta.0, x.y.0-canary.xxx
+        if [[ "$VERSION" =~ ^([0-9]+\.[0-9]+)(\.[0-9]+)(.*)$ ]]; then
+          # Already has 3 numeric components (x.y.z), keep as is
+          :
+        elif [[ "$VERSION" =~ ^([0-9]+\.[0-9]+)(-.*)?$ ]]; then
+          # Only 2 components (x.y), add .0
+          BASE_PART="${BASH_REMATCH[1]}"
+          SUFFIX_PART="${BASH_REMATCH[2]}"
+          VERSION="${BASE_PART}.0${SUFFIX_PART}"
+        fi
+
+        TAG="${TAG_PREFIX}${VERSION}"
+
+        echo "Generated version: $VERSION"
+        echo "Generated tag: $TAG"
+
+        echo "version=${VERSION}" >> $GITHUB_OUTPUT
+        echo "tag=${TAG}" >> $GITHUB_OUTPUT
+        echo "channel=${CHANNEL}" >> $GITHUB_OUTPUT

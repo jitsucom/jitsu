@@ -15,22 +15,22 @@
   "private": false,
   "scripts": {
     "build": "tsc -p .",
-    "compile": "tsc -p .",
+    "typecheck": "tsc -p .",
     "clean": "rm -rf ./dist",
-    "test": "tsc -p . &&  jest --verbose"
+    "test": "vitest run"
   },
   "devDependencies": {
+    "@jitsu/common-config": "workspace:*",
     "@jitsu/functions-lib": "workspace:*",
     "@jitsu/protocols": "workspace:*",
     "@jitsu/sdk-js": "^3.1.5",
-    "@types/jest": "^29.5.12",
-    "@types/lodash": "^4.14.185",
-    "@types/node": "^18.15.3",
+    "@types/lodash": "catalog:",
+    "@types/node": "catalog:",
+    "@vitest/ui": "catalog:",
     "express": "^4.21.2",
-    "jest": "^29.7.0",
     "json5": "^2.1.0",
     "node-fetch-commonjs": "^3.3.2",
-    "ts-jest": "^29.2.3"
+    "vitest": "catalog:"
   },
   "dependencies": {
     "@amplitude/ua-parser-js": "^0.7.33",
@@ -44,14 +44,14 @@
     "ioredis": "^5.3.2",
     "isolated-vm": "6.0.0",
     "juava": "workspace:*",
-    "lodash": "^4.17.21",
+    "lodash": "catalog:",
     "mongodb": "^6.16.0",
     "@clickhouse/client": "^1.10.1",
     "node-cache": "^5.1.2",
     "parse-duration": "^1.1.2",
     "axios": "1.8.2",
     "posthog-node": "^4.2.1",
-    "tslib": "^2.6.3",
+    "tslib": "catalog:",
     "zod": "^3.23.8",
     "node-sql-parser": "^5.3.8"
   }

@@ -144,7 +144,7 @@ async function getUserFromOidcSession(req: NextApiRequest, res?: NextApiResponse
 
   try {
     // Verify the OIDC session token
-    let sessionData: OidcSessionData = jwt.verify(oidcSessionCookie, nextAuthConfig.secret) as OidcSessionData;
+    let sessionData: OidcSessionData = jwt.verify(oidcSessionCookie, nextAuthConfig.secret!) as OidcSessionData;
     let tokensRefreshed = false;
 
     // Validate OIDC tokens if present
@@ -218,7 +218,7 @@ async function getUserFromOidcSession(req: NextApiRequest, res?: NextApiResponse
 
       // If tokens were refreshed, update the session cookie
       if (tokensRefreshed && res) {
-        const newSessionToken = jwt.sign(sessionData, nextAuthConfig.secret);
+        const newSessionToken = jwt.sign(sessionData, nextAuthConfig.secret!);
 
         res.setHeader(
           "Set-Cookie",

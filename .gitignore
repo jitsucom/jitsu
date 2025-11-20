@@ -21,3 +21,14 @@ node_modules
 /libs/jsondiffpatch/coverage/
 /libs/jsondiffpatch/dist/
 /devenv-*
+
+# Ignore compiled .js files next to .ts source files
+libs/**/src/**/*.js
+libs/**/__tests__/**/*.js
+services/**/__tests__/**/*.js
+webapps/**/__tests__/**/*.js
+
+# Ignore build outputs
+libs/jitsu-js/package/
+libs/jsondiffpatch/lib/
+.pnpm-store

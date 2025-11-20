@@ -1,0 +1,97 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": [".env", ".env.local", "tsconfig.json", "package.json"],
+  "globalEnv": ["NODE_ENV", "CI", "NEXTJS_STANDALONE_BUILD"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", "compiled/**", "build/**", ".next/**", "!.next/cache/**"],
+      "inputs": [
+        "src/**",
+        "lib/**",
+        "pages/**",
+        "components/**",
+        "styles/**",
+        "public/**",
+        "prisma/**",
+        "package.json",
+        "tsconfig.json",
+        "*.config.js",
+        "*.config.ts"
+      ]
+    },
+    "test": {
+      "outputs": ["coverage/**"],
+      "inputs": ["src/**", "lib/**", "__tests__/**", "*.config.js", "*.config.ts"]
+    },
+    // Builds packages with 'main: dist/*' (jsondiffpatch, jitsu-js, jitsu-react, functions)
+    "build-deps": {
+      "outputs": ["dist/**"],
+      "inputs": ["src/**", "tsconfig.json", "package.json"]
+    },
+    // Needs ^build-deps for .d.ts files from workspace dependencies
+    "typecheck": {
+      "dependsOn": ["^build-deps"],
+      "outputs": [],
+      "inputs": ["src/**", "lib/**", "pages/**", "components/**", "tsconfig.json"]
+    },
+    // Needs ^build-deps to import built workspace packages
+    "test:playwright": {
+      "dependsOn": ["^build-deps"],
+      "outputs": ["playwright/artifacts/**"],
+      "cache": false
+    },
+    "lint": {
+      "outputs": [],
+      "inputs": ["src/**", "lib/**", "pages/**", "components/**", ".eslintrc*", "*.config.js"]
+    },
+    "clean": {
+      "cache": false
+    },
+    // Needs ^build-deps for workspace package imports
+    "console:dev": {
+      "dependsOn": ["^build-deps"],
+      "cache": false,
+      "persistent": true
+    },
+    // Needs ^build-deps for workspace package imports
+    "console:start": {
+      "dependsOn": ["^build-deps"],
+      "cache": false,
+      "persistent": true
+    },
+    // Needs ^build-deps for workspace package imports
+    "console:storybook": {
+      "dependsOn": ["^build-deps"],
+      "cache": false,
+      "persistent": true
+    },
+    // Needs ^build-deps for workspace package imports
+    "ee-api:dev": {
+      "dependsOn": ["^build-deps"],
+      "cache": false,
+      "persistent": true
+    },
+    // Needs ^build-deps for workspace package imports
+    "rotor:dev": {
+      "dependsOn": ["^build-deps"],
+      "cache": false,
+      "persistent": true
+    },
+    // Needs ^build-deps for workspace package imports
+    "profiles:dev": {
+      "dependsOn": ["^build-deps"],
+      "cache": false,
+      "persistent": true
+    },
+    "tool:hash": {
+      "cache": false
+    },
+    // Needs ^build-deps for workspace package imports
+    "dev": {
+      "dependsOn": ["^build-deps"],
+      "cache": false,
+      "persistent": true
+    }
+  }
+}

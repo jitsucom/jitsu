@@ -9,7 +9,8 @@
  * NOTE: This as mostly a copy of webapps/console/scripts/sql-exec.ts, since ee-api and console doesn't have a common dependency where we
  * can put this script. A little copy-paste is not a big deal!
  */
-import { Client } from "pg";
+import pkg from "pg";
+const { Client } = pkg;
 import * as fs from "fs";
 import path from "path";
 

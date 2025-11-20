@@ -1,1 +1,66 @@
+# Dependencies
+node_modules
+**/node_modules
+.pnpm-store
+
+# Build outputs
+.next
+**/.next
+.turbo
+**/.turbo
+dist
+**/dist
+build
+**/build
+compiled
+**/compiled
+
+# Testing
+coverage
+**/coverage
+playwright/artifacts
+**/__tests__
+.playwright
+
+# Git
+.git
+.github
 .gitignore
+.gitattributes
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Environment files
+.env*
+!.env.example
+
+# Development
+.vercel
+devenv-*
+cache
+
+# Documentation
+*.md
+!README.md
+docs
+
+# CI/CD artifacts
+.cache
+tmp
+temp
+
+# OS files
+.DS_Store
+Thumbs.db

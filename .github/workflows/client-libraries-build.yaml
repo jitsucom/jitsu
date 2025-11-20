@@ -1,0 +1,212 @@
+name: 📦 Client Libraries Build
+
+on:
+  workflow_call:
+    inputs:
+      skip_install:
+        description: "Skip dependency installation (already done in calling workflow)"
+        required: false
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Manual version override (e.g., 1.11.0-canary.1)"
+        required: false
+        type: string
+      tag:
+        description: "Manual tag/channel override (canary, beta, stable)"
+        required: false
+        type: string
+
+concurrency:
+  group: client-libraries-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  version:
+    name: 🏷️ Generate Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.manual.outputs.version || steps.generated.outputs.version }}
+      channel: ${{ steps.manual.outputs.channel || steps.generated.outputs.channel }}
+      tag: ${{ steps.manual.outputs.tag || steps.generated.outputs.tag }}
+    steps:
+      - name: 📥 Checkout code
+        if: ${{ !inputs.version }}
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: 🏷️ Generate version
+        if: ${{ !inputs.version }}
+        id: generated
+        uses: ./.github/actions/version
+        with:
+          version_file: .jsclient.version.json
+
+      - name: 📝 Use manual version
+        if: ${{ inputs.version }}
+        id: manual
+        run: |
+          echo "version=${{ inputs.version }}" >> $GITHUB_OUTPUT
+          echo "channel=${{ inputs.tag || 'canary' }}" >> $GITHUB_OUTPUT
+          echo "tag=${{ inputs.version }}" >> $GITHUB_OUTPUT
+
+  build:
+    needs: [version]
+    name: 🚀 Build and Publish Client Libraries
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      packages: read
+      id-token: write
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: 🐳 Pull and start builder container
+        run: |
+          docker pull ghcr.io/jitsucom/jitsu-builder:latest
+          docker run -d --name builder -v ${{ github.workspace }}:/workspace -w /workspace -e CI=true ghcr.io/jitsucom/jitsu-builder:latest tail -f /dev/null
+
+      - name: 📦 Fetch dependencies from store
+        run: |
+          docker exec builder sh -c 'echo "pnpm store path: $(pnpm store path)"'
+          docker exec builder pnpm fetch
+
+      - name: 📦 Install dependencies
+        if: ${{ !inputs.skip_install }}
+        run: docker exec builder pnpm install --frozen-lockfile --offline
+
+      - name: 📝 Update package versions
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          echo "Updating client library package.json files to version ${VERSION}"
+
+          # Update all client library packages
+          docker exec builder sh -c "cd types/protocols && jq --arg version \"${VERSION}\" '.version = \$version' package.json > package.json.tmp && mv package.json.tmp package.json"
+          docker exec builder sh -c "cd libs/jitsu-js && jq --arg version \"${VERSION}\" '.version = \$version' package.json > package.json.tmp && mv package.json.tmp package.json"
+          docker exec builder sh -c "cd libs/jitsu-react && jq --arg version \"${VERSION}\" '.version = \$version' package.json > package.json.tmp && mv package.json.tmp package.json"
+
+          echo "Updated versions:"
+          docker exec builder sh -c "cd types/protocols && cat package.json | grep version"
+          docker exec builder sh -c "cd libs/jitsu-js && cat package.json | grep version"
+          docker exec builder sh -c "cd libs/jitsu-react && cat package.json | grep version"
+
+      - name: 🏗️ Build libraries
+        run: docker exec builder pnpm --filter @jitsu/protocols --filter @jitsu/js --filter @jitsu/jitsu-react build
+
+      - name: 🔐 Configure npm authentication
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}
+        run: |
+          docker exec -e NPM_TOKEN builder sh -c "echo '//registry.npmjs.org/:_authToken=\${NPM_TOKEN}' > ~/.npmrc"
+          echo "npm authentication configured"
+
+      - name: 📤 Publish to NPM
+        env:
+          CHANNEL: ${{ needs.version.outputs.channel }}
+        run: |
+          # Determine NPM tag based on channel
+          if [ "${CHANNEL}" = "stable" ]; then
+            NPM_TAG="latest"
+          else
+            NPM_TAG="${CHANNEL}"
+          fi
+
+          echo "Publishing client libraries to NPM with tag: ${NPM_TAG}"
+
+          # Publish @jitsu/protocols
+          echo "Publishing @jitsu/protocols..."
+          docker exec builder sh -c "cd types/protocols && npm publish --tag ${NPM_TAG} --access public"
+
+          # Publish @jitsu/js
+          echo "Publishing @jitsu/js..."
+          docker exec builder sh -c "cd libs/jitsu-js && npm publish --tag ${NPM_TAG} --access public"
+
+          # Publish @jitsu/jitsu-react
+          echo "Publishing @jitsu/jitsu-react..."
+          docker exec builder sh -c "cd libs/jitsu-react && npm publish --tag ${NPM_TAG} --access public"
+
+      - name: 🧹 Cleanup container
+        if: always()
+        run: docker stop builder && docker rm builder
+
+      - name: 🏷️ Create and push git tag
+        if: needs.version.outputs.channel != 'canary'
+        run: |
+          TAG="${{ needs.version.outputs.tag }}"
+          VERSION="${{ needs.version.outputs.version }}"
+
+          # Configure git user
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Create annotated tag
+          git tag -a "$TAG" -m "Release $VERSION"
+
+          # Push tag using GITHUB_TOKEN
+          git push origin "$TAG"
+
+          echo "Created and pushed tag: $TAG"
+
+      - name: 📝 Create GitHub release
+        if: needs.version.outputs.channel != 'canary'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ needs.version.outputs.tag }}"
+          VERSION="${{ needs.version.outputs.version }}"
+          CHANNEL="${{ needs.version.outputs.channel }}"
+
+          # Determine if prerelease
+          PRERELEASE_FLAG=""
+          if [ "$CHANNEL" = "beta" ]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
+
+          # Create release without notes
+          gh release create "$TAG" --notes "$VERSION ($CHANNEL)" --title "Release $VERSION" $PRERELEASE_FLAG
+
+          echo "Created GitHub release: $TAG"
+
+      - name: 📝 Get short SHA
+        if: always()
+        id: short-sha
+        run: echo "sha=$(git rev-parse --short=7 HEAD)" >> $GITHUB_OUTPUT
+
+      - name: 💬 Send notification to Slack
+        if: always()
+        uses: ./.github/actions/slack-notify
+        with:
+          slack_webhook_url: ${{ secrets.CI_SLACK_WEBHOOK }}
+          color: ${{ job.status == 'success' && '#36a64f' || '#ff0000' }}
+          header: "${{ job.status == 'success' && '✅' || '❌' }} 📦 Client Libraries `${{ needs.version.outputs.channel || 'unknown' }}` build ${{ job.status == 'success' && 'SUCCEEDED' || 'FAILED' }}"
+          blocks: |
+            - title: Branch
+              value: ${{ github.ref_name }}
+            - title: Version
+              value: ${{ needs.version.outputs.version || 'N/A' }}
+            - title: NPM Tag
+              value: ${{ needs.version.outputs.channel == 'stable' && 'latest' || needs.version.outputs.channel }}
+            - title: Commit
+              value: ${{ steps.short-sha.outputs.sha }}
+              url: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
+            - title: Commit message
+              value: ${{ github.event.head_commit.message && toJSON(github.event.head_commit.message) || 'N/A' }}
+              is_code: true
+            - title: Workflow run
+              value: ${{ job.status == 'success' && 'View workflow run' || 'View failed run' }}
+              url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            - title: Triggered by
+              value: ${{ github.actor }}

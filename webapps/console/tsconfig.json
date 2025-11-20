@@ -1,8 +1,6 @@
 {
-  "extends": "../../tsconfig.base.json",
+  "extends": "@jitsu/common-config/tsconfig.json",
   "compilerOptions": {
-    "target": "esnext",
-    "module": "commonjs",
     "importHelpers": false,
     "lib": ["dom", "dom.iterable", "esnext", "ES6", "ES2015"],
     "rootDir": ".",
@@ -13,13 +11,11 @@
     "forceConsistentCasingInFileNames": true,
     "noEmit": true,
     "esModuleInterop": true,
-    "moduleResolution": "node",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,
     "sourceMap": true
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules"]
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"]
 }

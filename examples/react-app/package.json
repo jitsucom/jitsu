@@ -4,17 +4,18 @@
   "private": true,
   "dependencies": {
     "@jitsu/jitsu-react": "workspace:*",
-    "@types/node": "^18.15.3",
-    "lodash": "^4.17.21",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "@types/node": "catalog:",
+    "lodash": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
     "react-router": "^6.25.1",
     "react-router-dom": "^6.25.1",
     "web-vitals": "^2.1.4"
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build"
+    "build": "react-scripts build",
+    "typecheck": "tsc --noEmit"
   },
   "browserslist": {
     "production": [
@@ -29,11 +30,12 @@
     ]
   },
   "devDependencies": {
+    "@jitsu/common-config": "workspace:*",
     "react-scripts": "^5.0.1",
-    "typescript": "^5.6.3",
-    "@types/react-dom": "^18.3.0",
-    "@types/react": "^18.3.3",
-    "@types/lodash": "^4.14.185",
-    "tailwindcss": "^3.4.14"
+    "typescript": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@types/react": "catalog:",
+    "@types/lodash": "catalog:",
+    "tailwindcss": "catalog:"
   }
 }

@@ -1,0 +1,6 @@
+{
+  "version": "2.14",
+  "tag_prefix": "jitsu-services",
+  "stable_branch": "stable-services",
+  "beta_branch": "newjitsu"
+}

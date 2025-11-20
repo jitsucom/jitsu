@@ -1,19 +1,17 @@
 {
   "compilerOptions": {
     "target": "ES2021",
-    "module": "commonjs",
-    "lib": ["ES6", "ES2015"],
-    "outDir": "dist",
-    "rootDir": "src",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "lib": ["esnext"],
     "strict": true,
     "noImplicitAny": false,
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
-    "moduleResolution": "node",
     "resolveJsonModule": true,
-    "importHelpers": true,
     "removeComments": true,
     "skipLibCheck": true
   },
-  "exclude": ["node_modules", "dist", "test_projects", "test", "templates"]
+  "files": ["index.d.ts"],
+  "exclude": ["node_modules"]
 }

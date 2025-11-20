@@ -11,8 +11,11 @@
     "node": ">=10"
   },
   "scripts": {
-    "build": "pnpm compile && microbundle build --jsx React.createElement --no-compress --format es,cjs",
-    "compile": "tsc -p .",
+    "build": "tsc -p . && microbundle build --jsx React.createElement --no-compress --format es,cjs",
+    "//build-deps": "Required by turbo ^build-deps - builds dist/ for workspace packages that import this",
+    "build-deps": "pnpm run build",
+    "//typecheck": "Not a bug below, we need to build it for typecheck pipeline",
+    "typecheck": "tsc -p . && microbundle build --jsx React.createElement --no-compress --format es,cjs",
     "clean": "rm -rf dist"
   },
   "dependencies": {
@@ -29,15 +32,15 @@
     }
   },
   "devDependencies": {
+    "@jitsu/common-config": "workspace:*",
     "ts-toolbelt": "^9.6.0",
     "@testing-library/jest-dom": "^6.1.3",
     "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^14.4.3",
     "@types/jest": "^29.2.3",
-    "@types/node": "^18.15.3",
+    "@types/node": "catalog:",
     "microbundle": "^0.15.1",
-    "typescript": "^5.6.3",
-    "@babel/plugin-transform-regenerator": "^7.22.10"
+    "typescript": "catalog:"
   },
   "files": [
     "dist"
