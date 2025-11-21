@@ -35,13 +35,13 @@ export const ConnectionDeadLettered: EmailTemplate<ConnectionStatusNotificationP
   return (
     <Html>
       <Preview>
-        🚨 Unrecoverable errors in the connection ${entityName} of the workspace ${workspaceName}
+        🚨 Unrecoverable errors in the connection "{entityName}" of the ${workspaceName}
       </Preview>
       <Body style={main}>
         <Container>
           <Section style={{ textAlign: "center", margin: "20px 0" }}>
             <Text style={{ fontSize: "20px", color: "#333" }}>
-              🚨 Unrecoverable errors in the connection ${entityName} of the workspace ${workspaceName}
+              🚨 Unrecoverable errors in the connection <b>{entityName}</b>
             </Text>
           </Section>
           <Text>Hi {name || "there"}!</Text>
@@ -75,7 +75,7 @@ ConnectionDeadLettered.subject = ({ workspaceName, entityType, entityName }) => 
   if (!workspaceName?.toLowerCase().endsWith(" workspace")) {
     workspaceName += " workspace";
   }
-  return `[${workspaceName || "Your Jitsu Workspace"}] 🚨 Unrecoverable Errors* in the connection ${entityName}`;
+  return `[${workspaceName || "Your Jitsu Workspace"}] 🚨 Unrecoverable Errors in the connection ${entityName}`;
 };
 
 ConnectionDeadLettered.isMarketingEmail = false;

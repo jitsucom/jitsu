@@ -4,6 +4,7 @@ import { ConnectionStatusFlappingEmail } from "../../emails/connection-status-fl
 import { ConnectionStatusRecoveredEmail } from "../../emails/connection-status-recovered";
 import { ConnectionStatusFirstRunEmail } from "../../emails/connection-status-firstrun";
 import { ConnectionStatusPartialEmail } from "../../emails/connection-status-partial";
+import { ConnectionDeadLettered } from "../../emails/connection-dead-lettered";
 
 import { Select } from "antd";
 import { useState, useEffect } from "react";
@@ -18,6 +19,7 @@ const templates = {
   "connection-status-recovered": ConnectionStatusRecoveredEmail,
   "connection-status-firstrun": ConnectionStatusFirstRunEmail,
   "connection-status-partial": ConnectionStatusPartialEmail,
+  "connection-dead-lettered": ConnectionDeadLettered,
 };
 
 const defaultComponent = p => <div>Please select template</div>;
