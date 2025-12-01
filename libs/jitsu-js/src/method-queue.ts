@@ -56,10 +56,10 @@ export function delayMethodExec<T>(methods: Record<keyof T, boolean>): Interface
           if (typeof result.then === "function") {
             result.then(resolve).catch(reject);
           } else {
-            resolve(result);
+            resolve?.(result);
           }
         } catch (e) {
-          reject(e);
+          reject?.(e);
         }
       }
       for (const method of Object.keys(methods)) {

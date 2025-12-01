@@ -4,8 +4,10 @@ import { rpc } from "juava";
 import { z } from "zod";
 import { getServerLog } from "../../../lib/server/log";
 import { isTruish } from "../../../lib/shared/chores";
+import { getServerEnv } from "../../../lib/server/serverEnv";
 
 const log = getServerLog("catalog-refresh");
+const serverEnv = getServerEnv();
 const yaml = require("js-yaml");
 const branch = `master`;
 const repo = `airbytehq/airbyte`;
@@ -32,7 +34,7 @@ export default createRoute()
     query: z.object({ limit: z.string().optional(), source: z.string().optional(), initial: z.string().optional() }),
   })
   .handler(async ({ user, req, query }) => {
-    if (!process.env.SYNCS_ENABLED) {
+    if (!serverEnv.SYNCS_ENABLED) {
       return;
     }
     await verifyAdmin(user);

@@ -6,8 +6,10 @@ import { getServerLog } from "../../../../lib/server/log";
 
 import { cleanupTasksLogs, scheduleSync } from "../../../../lib/server/sync";
 import { stopwatch } from "juava";
+import { getServerEnv } from "../../../../lib/server/serverEnv";
 
 const log = getServerLog("sync-run");
+const serverEnv = getServerEnv();
 
 const resultType = z.object({
   ok: z.boolean(),
@@ -44,7 +46,7 @@ export default createRoute()
       const { workspaceId } = query;
       //Since we need custom auth for request coming from scheduler, we need to set auth: false,
       //and add custom auth logic here
-      const syncAuthKey = process.env.SYNCCTL_AUTH_KEY ?? "";
+      const syncAuthKey = serverEnv.SYNCCTL_AUTH_KEY ?? "";
       const token = req.headers.authorization ?? "";
       let user: SessionUser | undefined;
       let trigger: "scheduled" | "manual" = "scheduled";

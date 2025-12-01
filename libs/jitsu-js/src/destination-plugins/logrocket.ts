@@ -49,13 +49,15 @@ function flushLogRocketQueue(lr: LogRocket) {
 
   while (queue.length > 0) {
     const method = queue.shift();
-    try {
-      const res = method(lr);
-      if (res) {
-        res.catch(e => console.warn(`Async LogRocket method failed: ${e.message}`, e));
+    if (method) {
+      try {
+        const res = method(lr);
+        if (res) {
+          res.catch(e => console.warn(`Async LogRocket method failed: ${e.message}`, e));
+        }
+      } catch (e) {
+        console.warn(`LogRocket method failed: ${e.message}`, e);
       }
-    } catch (e) {
-      console.warn(`LogRocket method failed: ${e.message}`, e);
     }
   }
 }

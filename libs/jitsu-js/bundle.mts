@@ -1,0 +1,91 @@
+import * as esbuild from "esbuild";
+import { execSync } from "child_process";
+import { mkdirSync } from "fs";
+
+// Ensure directories exist
+mkdirSync("./dist/web", { recursive: true });
+
+
+// Common external packages for library builds
+const libraryExternals = ["@jitsu/protocols"];
+
+// Build configurations
+const builds = [
+  // ESM with externals
+  {
+    entryPoints: ["./src/index.ts"],
+    bundle: true,
+    platform: "neutral",
+    mainFields: ["module", "main"],
+    target: "es2015",
+    format: "esm",
+    outfile: "./dist/jitsu.es.js",
+    external: libraryExternals,
+    sourcemap: true,
+  },
+  // CJS with externals
+  {
+    entryPoints: ["./src/index.ts"],
+    bundle: true,
+    platform: "node",
+    target: "es2015",
+    format: "cjs",
+    outfile: "./dist/jitsu.cjs.js",
+    external: libraryExternals,
+    sourcemap: true,
+  },
+  // ESM without externals (bundles everything except peer deps)
+  {
+    entryPoints: ["./src/index.ts"],
+    bundle: true,
+    platform: "neutral",
+    mainFields: ["module", "main"],
+    target: "es2015",
+    format: "esm",
+    outfile: "./dist/jitsu-no-ext.es.js",
+    external: libraryExternals, // Keep peer deps external
+    sourcemap: true,
+  },
+  // CJS without externals (bundles everything except peer deps)
+  {
+    entryPoints: ["./src/index.ts"],
+    bundle: true,
+    platform: "node",
+    target: "es2015",
+    format: "cjs",
+    outfile: "./dist/jitsu-no-ext.cjs.js",
+    external: libraryExternals, // Keep peer deps external
+    sourcemap: true,
+  },
+  // Browser IIFE bundle (minified)
+  {
+    entryPoints: ["./src/index.ts"],
+    bundle: true,
+    platform: "browser",
+    target: "es2015",
+    format: "iife",
+    globalName: "jitsu",
+    outfile: "./dist/web/p.js.txt",
+    external: libraryExternals, // Keep peer deps external
+    minify: true,
+    sourcemap: false,
+  },
+];
+
+// Run all builds
+console.log("Building with esbuild...");
+for (const config of builds) {
+  await esbuild.build({
+    ...config,
+    logLevel: "info",
+  });
+}
+
+console.log("\nBuild complete!");
+console.log("Generated:");
+console.log("  - dist/jitsu.es.js (ESM with externals)");
+console.log("  - dist/jitsu.cjs.js (CJS with externals)");
+console.log("  - dist/jitsu-no-ext.es.js (ESM bundled)");
+console.log("  - dist/jitsu-no-ext.cjs.js (CJS bundled)");
+console.log("  - dist/web/p.js.txt (Browser IIFE)");
+console.log("  - dist/*.d.ts (TypeScript declarations)");

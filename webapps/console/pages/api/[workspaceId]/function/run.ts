@@ -2,6 +2,7 @@ import { getServerLog } from "../../../../lib/server/log";
 import { z } from "zod";
 import { Api, inferUrl, nextJsApiHandler, verifyAccessWithRole } from "../../../../lib/api";
 import { requireDefined, rpc } from "juava";
+import { getServerEnv } from "../../../../lib/server/serverEnv";
 
 const log = getServerLog("function-run");
 
@@ -48,11 +49,12 @@ export const api: Api = {
     handle: async ({ user, query, body }) => {
       const { workspaceId } = query;
       await verifyAccessWithRole(user, workspaceId, "editEntities");
+      const serverEnv = getServerEnv();
       const rotorURL = requireDefined(
-        process.env.ROTOR_URL,
+        serverEnv.ROTOR_URL,
         `env ROTOR_URL is not set. Rotor is required to run functions`
       );
-      const rotorAuthKey = process.env.ROTOR_AUTH_KEY;
+      const rotorAuthKey = serverEnv.ROTOR_AUTH_KEY;
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
       };

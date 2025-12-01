@@ -5,6 +5,7 @@ import { getSingleton, namedParameters, newError, requireDefined, stopwatch, hid
 import { getServerLog } from "./log";
 import { isReadOnly } from "./read-only-mode";
 import { isTruish } from "../shared/chores";
+import { getServerEnv } from "./serverEnv";
 
 export type Handler = (row: Record<string, any>) => Promise<boolean | undefined | void> | (boolean | undefined | void);
 
@@ -81,6 +82,7 @@ export type DatabaseConnection = typeof db;
 export type PrismaSSLMode = "disable" | "prefer" | "require" | "no-verify";
 
 export function createPg(): Pool {
+  const serverEnv = getServerEnv();
   const connectionUrl = getApplicationDatabaseUrl();
   const parsedUrl = new URL(connectionUrl);
   const schema = parsedUrl.searchParams.get("schema");
@@ -104,7 +106,7 @@ export function createPg(): Pool {
   const pool = new Pool({
     max: 20,
     idleTimeoutMillis: 600000,
-    connectionString: requireDefined(process.env.DATABASE_URL, "env.DATABASE_URL is not defined"),
+    connectionString: requireDefined(serverEnv.DATABASE_URL, "env.DATABASE_URL is not defined"),
     ssl: sslMode === "no-verify" ? { rejectUnauthorized: false } : undefined,
     application_name: (parsedUrl.searchParams.get("application_name") || "console") + "-raw-pg",
   });
@@ -141,8 +143,9 @@ function blockPrismaMutations() {
 }
 
 export function getApplicationDatabaseUrl(): string {
+  const serverEnv = getServerEnv();
   return requireDefined(
-    process.env.APP_DATABASE_URL || process.env.DATABASE_URL,
+    serverEnv.APP_DATABASE_URL || serverEnv.DATABASE_URL,
     "neither env.DATABASE_URL, nor env.APP_DATABASE_URL is not defined"
   );
 }
@@ -152,6 +155,7 @@ export function isUsingPgBouncer() {
 }
 
 export function createPrisma(): PrismaClient {
+  const serverEnv = getServerEnv();
   // @ts-ignore
   if (typeof window !== "undefined") {
     log
@@ -216,7 +220,7 @@ export function createPrisma(): PrismaClient {
   //   return result
   // })
   prisma.$on("query", e => {
-    if (isTruish(process.env.CONSOLE_DATABASE_DEBUG)) {
+    if (serverEnv.CONSOLE_DATABASE_DEBUG) {
       log
         .atDebug()
         .log(

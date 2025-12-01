@@ -4,8 +4,8 @@ import { z } from "zod";
 import { getServerLog } from "../../../lib/server/log";
 import { firebase } from "../../../lib/server/firebase-server";
 import { credentialsLoginEnabled, githubLoginEnabled, oidcLoginEnabled } from "../../../lib/nextauth.config";
-import { isTruish } from "juava";
 import { UserProfileDbModel } from "../../../prisma/schema";
+import { getServerEnv } from "../../../lib/server/serverEnv";
 
 const log = getServerLog("api/auth/check-email");
 
@@ -36,9 +36,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const authMethods: AuthMethod[] = [];
     const payload = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
     const { email } = CheckEmailRequest.parse(payload);
+    const serverEnv = getServerEnv();
     // First, check if Firebase auth is enabled
-    const firebaseEnabled = !!process.env.FIREBASE_AUTH;
-    const dynamicOidcEnabled = isTruish(process.env.DYNAMIC_OIDC_ENABLED);
+    const firebaseEnabled = !!serverEnv.FIREBASE_AUTH;
+    const dynamicOidcEnabled = serverEnv.DYNAMIC_OIDC_ENABLED;
 
     // Check if user exists in database with any login provider
     const existingUsers = await db.prisma().userProfile.findMany({

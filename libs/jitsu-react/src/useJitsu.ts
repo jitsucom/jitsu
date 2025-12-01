@@ -26,7 +26,7 @@ function useJitsu(opts?: ExtendedJitsuOptions): { analytics: AnalyticsInterface 
     return { analytics: emptyAnalytics };
   }
   if (!jitsuInstance) {
-    if (opts?.host || opts?.echoEvents) {
+    if (opts?.host || (opts && 'echoEvents' in opts && opts.echoEvents)) {
       return { analytics: jitsuAnalytics(opts) };
     } else {
       const msg =
@@ -34,7 +34,7 @@ function useJitsu(opts?: ExtendedJitsuOptions): { analytics: AnalyticsInterface 
       console.error(`%c${msg}`, "color: red; font-weight: bold;");
       return { analytics: emptyAnalytics };
     }
-  } else if (opts?.host || opts?.echoEvents) {
+  } else if (opts?.host || (opts && 'echoEvents' in opts && opts.echoEvents)) {
     throw new Error(
       "Jitsu client already set up with <JitsuProvider /> and cannot be overridden. Read more in http://jitsu.com/docs/sending-data/js-sdk/react"
     );
@@ -47,4 +47,4 @@ function useJitsu(opts?: ExtendedJitsuOptions): { analytics: AnalyticsInterface 
 }
 
 export default useJitsu;
-export { AnalyticsInterface, JitsuOptions };
+export type { AnalyticsInterface, JitsuOptions };

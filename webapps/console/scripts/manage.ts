@@ -18,6 +18,7 @@ import minimist from "minimist";
 import { seedDemoConnections, seedUserAndWorkspace } from "../lib/server/seed";
 import { createHash, randomId } from "juava";
 import { getServerLog } from "../lib/server/log";
+import { getServerEnv } from "../lib/server/serverEnv";
 
 const log = getServerLog("manage");
 
@@ -49,11 +50,12 @@ const commands: Record<string, Command> = {
         log.atInfo().log("No secret provided, generating a random one");
       }
 
+      const serverEnv = getServerEnv();
       log
         .atInfo()
         .log(
           `Calculating password hash. Using ${
-            process.env.GLOBAL_HASH_SECRET || process.env.CONSOLE_TOKEN_SECRET
+            serverEnv.GLOBAL_HASH_SECRET || serverEnv.CONSOLE_TOKEN_SECRET
               ? "custom token secret"
               : "default hash secret"
           }`

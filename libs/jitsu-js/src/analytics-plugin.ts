@@ -24,13 +24,13 @@ import * as jsondiffpatch from "jsondiffpatch";
 
 const diff = jsondiffpatch.create();
 
-const defaultConfig: Required<JitsuOptions> = {
+const defaultConfig = {
   /* Your segment writeKey */
-  writeKey: null,
+  writeKey: undefined,
   /* Disable anonymous MTU */
-  host: null,
+  host: undefined,
   debug: false,
-  fetch: null,
+  fetch: undefined,
   echoEvents: false,
   cookieDomain: undefined,
   cookieNames: {},
@@ -39,12 +39,12 @@ const defaultConfig: Required<JitsuOptions> = {
   fetchTimeoutMs: undefined,
   s2s: undefined,
   idEndpoint: undefined,
-  errorPolicy: "log",
+  errorPolicy: "log" as const,
   defaultPayloadContext: {},
   privacy: {
     dontSend: false,
     disableUserIds: false,
-    ipPolicy: "keep",
+    ipPolicy: "keep" as const,
     consentCategories: {},
   },
 };
@@ -148,7 +148,7 @@ export type StorageFactory = (cookieDomain: string, key2Cookie: (key: string) =>
 function getCookie(name: string) {
   const value = `; ${document.cookie}`;
   const parts = value.split(`; ${name}=`);
-  return parts.length === 2 ? parts.pop().split(";").shift() : undefined;
+  return parts.length === 2 ? parts.pop()?.split(";").shift() : undefined;
 }
 
 function getClientIds(runtime: RuntimeFacade, customCookieCapture: Record<string, string>) {
@@ -308,7 +308,7 @@ export function windowRuntime(opts: JitsuOptions): RuntimeFacade {
     getCookie(name: string): string | undefined {
       const value = `; ${document.cookie}`;
       const parts = value.split(`; ${name}=`);
-      return parts.length === 2 ? parts.pop().split(";").shift() : undefined;
+      return parts.length === 2 ? parts.pop()?.split(";").shift() : undefined;
     },
     getCookies(): Record<string, string> {
       const value = `; ${document.cookie}`;
@@ -505,7 +505,7 @@ function adjustPayload(
 ): AnalyticsClientEvent {
   const runtime: RuntimeFacade = config.runtime || (isInBrowser() ? windowRuntime(config) : emptyRuntime(config));
   const url = runtime.pageUrl();
-  const parsedUrl = safeCall(() => new URL(url), undefined);
+  const parsedUrl = url ? safeCall(() => new URL(url), undefined) : undefined;
   const query = parsedUrl ? parseQuery(parsedUrl.search) : {};
   const properties = payload.properties || {};
 
@@ -561,7 +561,7 @@ function adjustPayload(
       url: properties.url || url,
       encoding: properties.encoding || runtime.documentEncoding(),
     },
-    clientIds: !config.privacy?.disableUserIds ? getClientIds(runtime, config.cookieCapture) : undefined,
+    clientIds: !config.privacy?.disableUserIds ? getClientIds(runtime, config.cookieCapture || {}) : undefined,
     campaign: parseUtms(query),
   };
   const withContext = {
@@ -779,7 +779,7 @@ async function send(
   const abortController = jitsuConfig.fetchTimeoutMs ? new AbortController() : undefined;
   const abortTimeout = jitsuConfig.fetchTimeoutMs
     ? setTimeout(() => {
-        abortController.abort();
+        abortController?.abort();
       }, jitsuConfig.fetchTimeoutMs)
     : undefined;
 
@@ -797,7 +797,7 @@ async function send(
         ...authHeader,
         ...debugHeader,
         ...ipHeader,
-      },
+      } as HeadersInit,
       body: JSON.stringify(adjustedPayload),
       signal: abortController?.signal,
     });

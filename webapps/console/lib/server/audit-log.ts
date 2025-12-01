@@ -1,8 +1,8 @@
-import { isTruish } from "../shared/chores";
 import { db } from "./db";
 import { SessionUser } from "../schema";
+import { getServerEnv } from "./serverEnv";
 
-const enableAuditLog = isTruish(process.env.CONSOLE_ENABLE_AUDIT_LOG);
+const enableAuditLog = getServerEnv().CONSOLE_ENABLE_AUDIT_LOG;
 
 export async function configObjectAuditLog(
   user: SessionUser,

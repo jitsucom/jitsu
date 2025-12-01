@@ -4,8 +4,10 @@ import { requireDefined, rpc } from "juava";
 import { getServerLog } from "../../../../lib/server/log";
 import { syncError } from "../../../../lib/server/sync";
 import { db } from "../../../../lib/server/db";
+import { getServerEnv } from "../../../../lib/server/serverEnv";
 
 const log = getServerLog("sync-spec");
+const serverEnv = getServerEnv();
 
 export default createRoute()
   .GET({
@@ -22,10 +24,10 @@ export default createRoute()
     const { workspaceId } = query;
     await verifyAccess(user, workspaceId);
     const syncURL = requireDefined(
-      process.env.SYNCCTL_URL,
+      serverEnv.SYNCCTL_URL,
       `env SYNCCTL_URL is not set. Sync Controller is required to run sources`
     );
-    const syncAuthKey = process.env.SYNCCTL_AUTH_KEY ?? "";
+    const syncAuthKey = serverEnv.SYNCCTL_AUTH_KEY ?? "";
     const authHeaders: any = {};
     if (syncAuthKey) {
       authHeaders["Authorization"] = `Bearer ${syncAuthKey}`;

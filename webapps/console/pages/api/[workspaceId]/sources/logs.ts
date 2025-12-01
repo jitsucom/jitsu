@@ -9,9 +9,11 @@ import { getServerLog } from "../../../../lib/server/log";
 import zlib from "zlib";
 import { pipeline } from "node:stream";
 import { clickhouse } from "../../../../lib/server/clickhouse";
+import { getServerEnv } from "../../../../lib/server/serverEnv";
 
 const log = getServerLog("sync-logs");
-const metricsSchema = process.env.CLICKHOUSE_METRICS_SCHEMA || process.env.CLICKHOUSE_DATABASE || "newjitsu_metrics";
+const serverEnv = getServerEnv();
+const metricsSchema = serverEnv.CLICKHOUSE_METRICS_SCHEMA || serverEnv.CLICKHOUSE_DATABASE || "newjitsu_metrics";
 
 //Vercel Limit:  https://vercel.com/docs/functions/streaming-functions#limitations-for-streaming-edge-functions
 const maxStreamingResponseSize = 100_000_000;

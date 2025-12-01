@@ -6,10 +6,11 @@ import nodeFetch from "node-fetch-commonjs";
 import { z } from "zod";
 import { WorkspaceDbModel } from "../../prisma/schema";
 import { Prisma } from "@prisma/client";
+import { getServerEnv } from "./serverEnv";
 
 type DomainAvailability = { available: true; usedInWorkspaces?: never } | { available: false; usedInWorkspace: string };
 
-export const customDomainCnames = process.env.CUSTOM_DOMAIN_CNAMES?.split(",");
+export const customDomainCnames = getServerEnv().CUSTOM_DOMAIN_CNAMES?.split(",");
 
 export function checkDomain(domain: string): boolean {
   return !!domain.match(/^(?:[*][.])?(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63}$/);
@@ -107,8 +108,9 @@ export async function checkCname(cname?: string): Promise<boolean> {
 }
 
 export async function checkOrAddToIngress(domain: string): Promise<any> {
-  const ingmgrURLEnv = requireDefined(process.env.INGMGR_URL, "env INGMGR_URL is not defined");
-  const ingmgrAuthKey = process.env.INGMGR_AUTH_KEY ?? "";
+  const serverEnv = getServerEnv();
+  const ingmgrURLEnv = requireDefined(serverEnv.INGMGR_URL, "env INGMGR_URL is not defined");
+  const ingmgrAuthKey = serverEnv.INGMGR_AUTH_KEY ?? "";
   const isHttps = ingmgrURLEnv.startsWith("https://");
   const options = {
     agent: (isHttps ? httpsAgent : httpAgent)(),

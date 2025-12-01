@@ -1,31 +1,35 @@
 {
   "name": "@jitsu/functions-lib",
   "version": "0.0.0",
-  "main": "dist/index.cjs.js",
-  "module": "dist/index.es.js",
-  "types": "dist/index.d.ts",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
   "description": "",
   "author": "Jitsu Dev Team <dev@jitsu.com>",
   "publishConfig": {
+    "main": "dist/index.cjs.js",
+    "module": "dist/index.es.js",
+    "types": "dist/index.d.ts",
     "access": "public"
   },
+  "files": [
+    "dist",
+    "package.json"
+  ],
   "license": "MIT",
   "private": false,
   "scripts": {
     "//build-deps": "Required by turbo ^build-deps - builds dist/ for workspace packages that import this",
     "build-deps": "pnpm run build",
-    "//typecheck": "Since this module generates types, we should run build during typecheck",
-    "typecheck": "tsc -p . && rollup -c",
-    "build": "tsc -p . && rollup -c",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc && tsx bundle.mts",
+    "prepublishOnly": "pnpm run build",
     "test": "vitest run"
   },
   "devDependencies": {
     "@jitsu/common-config": "workspace:*",
     "@jitsu/protocols": "workspace:*",
-    "rollup": "^4.24.3",
-    "@rollup/plugin-typescript": "^11.1.5",
-    "@rollup/plugin-node-resolve": "^16.0.0",
-    "@rollup/plugin-commonjs": "^28.0.2",
+    "esbuild": "^0.24.2",
+    "tsx": "^4.19.2",
     "@types/node": "catalog:",
     "@vitest/ui": "catalog:",
     "tslib": "catalog:",

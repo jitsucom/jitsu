@@ -9,6 +9,7 @@ import { OidcTokenResponse, OidcUserInfo, OidcSessionData } from "../../../../li
 import { getOidcProvider } from "../../../../lib/server/oidc-token-service";
 import { isSecure } from "../../../../lib/server/origin";
 import { redirectWithOidcError, OidcErrors } from "../../../../lib/server/oidc-error-handler";
+import { getServerEnv } from "../../../../lib/server/serverEnv";
 
 const log = getServerLog("api/auth/dynamic-oidc/callback");
 
@@ -64,7 +65,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       req.headers["x-forwarded-proto"] ||
       req.headers["x-forwarded-protocol"] ||
       (req.url?.startsWith("https") ? "https" : "http");
-    const baseUrl = process.env.NEXTAUTH_URL || process.env.JITSU_PUBLIC || `${protocol}://${req.headers.host}`;
+    const serverEnv = getServerEnv();
+    const baseUrl = serverEnv.NEXTAUTH_URL || serverEnv.JITSU_PUBLIC || `${protocol}://${req.headers.host}`;
     const redirectUri = `${baseUrl}/api/auth/dynamic-oidc/callback`;
 
     // Build token request parameters

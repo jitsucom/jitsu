@@ -3,6 +3,7 @@ import { checkRawToken } from "juava";
 import { clickhouse } from "../../../lib/server/clickhouse";
 import { z } from "zod";
 import { getServerLog } from "../../../lib/server/log";
+import { getServerEnv } from "../../../lib/server/serverEnv";
 
 const log = getServerLog("events-log-init");
 
@@ -13,10 +14,10 @@ export default createRoute()
     }),
   })
   .handler(async ({ req, res, query }) => {
+    const serverEnv = getServerEnv();
     let initTokenUsed = false;
-    if (process.env.CONSOLE_INIT_TOKEN && query.token) {
-      if (checkRawToken(process.env.CONSOLE_INIT_TOKEN, query.token)) {
-        process.env.CONSOLE_INIT_TOKEN = undefined;
+    if (serverEnv.CONSOLE_INIT_TOKEN && query.token) {
+      if (checkRawToken(serverEnv.CONSOLE_INIT_TOKEN, query.token)) {
         initTokenUsed = true;
       }
     }
@@ -30,8 +31,8 @@ export default createRoute()
     }
     log.atInfo().log(`Init events log`);
     const metricsSchema =
-      process.env.CLICKHOUSE_METRICS_SCHEMA || process.env.CLICKHOUSE_DATABASE || "newjitsu_metrics";
-    const metricsCluster = process.env.CLICKHOUSE_METRICS_CLUSTER || process.env.CLICKHOUSE_CLUSTER;
+      serverEnv.CLICKHOUSE_METRICS_SCHEMA || serverEnv.CLICKHOUSE_DATABASE || "newjitsu_metrics";
+    const metricsCluster = serverEnv.CLICKHOUSE_METRICS_CLUSTER || serverEnv.CLICKHOUSE_CLUSTER;
     const onCluster = metricsCluster ? ` ON CLUSTER ${metricsCluster}` : "";
     const createDbQuery: string = `create database IF NOT EXISTS ${metricsSchema}${onCluster}`;
     try {

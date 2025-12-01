@@ -5,10 +5,12 @@ import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import { getServerLog } from "../../../../lib/server/log";
 import { Report } from "../../../../lib/shared/reporting";
+import { getServerEnv } from "../../../../lib/server/serverEnv";
 
 dayjs.extend(utc);
 
 const log = getServerLog("report-query");
+const serverEnv = getServerEnv();
 
 function toISOString(period: string) {
   const [date, time] = period.split(" ");
@@ -32,7 +34,7 @@ export default createRoute()
     const workspace = await getWorkspace(workspaceId);
     await verifyAccess(user, workspace.id);
     const metricsSchema =
-      process.env.CLICKHOUSE_METRICS_SCHEMA || process.env.CLICKHOUSE_DATABASE || "newjitsu_metrics";
+      serverEnv.CLICKHOUSE_METRICS_SCHEMA || serverEnv.CLICKHOUSE_DATABASE || "newjitsu_metrics";
     const start = query.start
       ? new Date(query.start).toISOString()
       : dayjs().subtract(1, "month").toDate().toISOString();

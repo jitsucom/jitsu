@@ -55,17 +55,19 @@ export const ga4Plugin: InternalPlugin<Ga4DestinationCredentials> = {
           break;
         }
         const { properties: pageProperties, context } = payload;
-        const pageEvent = {
-          page_location: pageProperties.url,
-          page_title: pageProperties.title,
-          page_path: pageProperties.path,
-          page_hash: pageProperties.hash,
-          page_search: pageProperties.search,
-          page_referrer: context?.page?.referrer ?? "",
-          ...ids,
-        };
-        // @ts-ignore
-        gtag("event", "page_view", pageEvent);
+        if (pageProperties) {
+          const pageEvent = {
+            page_location: pageProperties.url,
+            page_title: pageProperties.title,
+            page_path: pageProperties.path,
+            page_hash: pageProperties.hash,
+            page_search: pageProperties.search,
+            page_referrer: context?.page?.referrer ?? "",
+            ...ids,
+          };
+          // @ts-ignore
+          gtag("event", "page_view", pageEvent);
+        }
         break;
       case "track":
         const { properties: trackProperties } = payload;

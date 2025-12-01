@@ -3,6 +3,7 @@ import { stopwatch } from "juava";
 import { clickhouse } from "../../../lib/server/clickhouse";
 import dayjs from "dayjs";
 import { getServerLog } from "../../../lib/server/log";
+import { getServerEnv } from "../../../lib/server/serverEnv";
 
 const log = getServerLog("events-log-trim");
 
@@ -35,11 +36,12 @@ export default createRoute()
       await verifyAdmin(user);
     }
     log.atInfo().log(`Trimming events log`);
+    const serverEnv = getServerEnv();
     const metricsSchema =
-      process.env.CLICKHOUSE_METRICS_SCHEMA || process.env.CLICKHOUSE_DATABASE || "newjitsu_metrics";
-    const metricsCluster = process.env.CLICKHOUSE_METRICS_CLUSTER || process.env.CLICKHOUSE_CLUSTER;
+      serverEnv.CLICKHOUSE_METRICS_SCHEMA || serverEnv.CLICKHOUSE_DATABASE || "newjitsu_metrics";
+    const metricsCluster = serverEnv.CLICKHOUSE_METRICS_CLUSTER || serverEnv.CLICKHOUSE_CLUSTER;
     const onCluster = metricsCluster ? ` ON CLUSTER ${metricsCluster}` : "";
-    const eventsLogSize = process.env.EVENTS_LOG_SIZE ? parseInt(process.env.EVENTS_LOG_SIZE) : 200000;
+    const eventsLogSize = serverEnv.EVENTS_LOG_SIZE ?? 200000;
     const eventsLogSizeLarge = 20_000_000;
 
     // trim logs to eventsLogSize only after exceeding threshold

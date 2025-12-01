@@ -9,16 +9,18 @@ import { useQuery } from "@tanstack/react-query";
 import { rpc } from "juava";
 import { ActiveEventsReport } from "../../lib/shared/reporting";
 import { Chart } from "chart.js/auto";
+import { getClientEnv } from "../../lib/shared/clientEnv";
 
 export const ChartView: React.FC<{ data: ActiveEventsReport }> = ({ data }) => {
   const wrapperRef = React.useRef<HTMLDivElement>(null);
+  const clientEnv = getClientEnv();
   useEffect(() => {
     if (wrapperRef.current) {
       const chart = new Chart(wrapperRef.current.getElementsByTagName("canvas").item(0)!, {
         type: "bar",
         options: {
           //for dev env double animation due to double rendering is just annoying
-          animation: process.env.NODE_ENV === "development" ? false : undefined,
+          animation: clientEnv.NODE_ENV === "development" ? false : undefined,
           maintainAspectRatio: false,
           plugins: {
             legend: {

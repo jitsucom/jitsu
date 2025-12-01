@@ -4,6 +4,7 @@ import { IngestType } from "@jitsu/protocols/async-request";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { getServerLog } from "./server/log";
 import { mainDataDomain } from "./server/data-domains";
+import { getServerEnv } from "./server/serverEnv";
 
 export type HttpProtocolVariant = "https" | "http";
 
@@ -55,7 +56,8 @@ export function getDefaultPort(protocol: HttpProtocolVariant) {
 }
 
 export function getAppEndpoint(req: NextApiRequest): PublicEndpoint {
-  let envUrl = process.env.JITSU_PUBLIC_URL || process.env.VERCEL_URL;
+  const serverEnv = getServerEnv();
+  let envUrl = serverEnv.JITSU_PUBLIC_URL || serverEnv.VERCEL_URL;
   if (envUrl) {
     if (envUrl.indexOf("https://") !== 0 && envUrl.indexOf("http://") !== 0) {
       envUrl = "https://" + envUrl;
@@ -78,8 +80,8 @@ export function getAppEndpoint(req: NextApiRequest): PublicEndpoint {
         .atError()
         .withCause(e)
         .log(
-          `Can't parse url ${envUrl}. JITSU_PUBLIC_URL=${process.env.JITSU_PUBLIC_URL}. VERCEL_URL=${
-            process.env.VERCEL_URL
+          `Can't parse url ${envUrl}. JITSU_PUBLIC_URL=${serverEnv.JITSU_PUBLIC_URL}. VERCEL_URL=${
+            serverEnv.VERCEL_URL
           }: ${getErrorMessage(e)}`
         );
     }

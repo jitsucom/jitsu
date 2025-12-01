@@ -20,7 +20,7 @@ export default createRoute()
     if (!dataDomains) {
       throw new ApiError(`Domain ${domain} not found. Data domains configuration is absent`, {}, { status: 404 });
     }
-    if (!token || process.env.CADDY_TOKEN !== token) {
+    if (!token) {
       throw new ApiError("Unauthorized", {}, { status: 401 });
     }
     if (domain.match(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/)) {

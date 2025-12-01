@@ -6,6 +6,7 @@ import crypto from "crypto";
 import { extractReturnUrl } from "../../../../lib/auth-redirect";
 import { getOidcProvider } from "../../../../lib/server/oidc-token-service";
 import { performAutoDiscovery } from "../../../../lib/server/oidc-discovery";
+import { getServerEnv } from "../../../../lib/server/serverEnv";
 
 const log = getServerLog("api/auth/dynamic-oidc/authorize");
 
@@ -63,7 +64,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       req.headers["x-forwarded-proto"] ||
       req.headers["x-forwarded-protocol"] ||
       (req.url?.startsWith("https") ? "https" : "http");
-    const baseUrl = process.env.NEXTAUTH_URL || process.env.JITSU_PUBLIC_URL || `${protocol}://${req.headers.host}`;
+    const serverEnv = getServerEnv();
+    const baseUrl = serverEnv.NEXTAUTH_URL || serverEnv.JITSU_PUBLIC_URL || `${protocol}://${req.headers.host}`;
     const redirectUri = `${baseUrl}/api/auth/dynamic-oidc/callback`;
 
     // Get authorization URL

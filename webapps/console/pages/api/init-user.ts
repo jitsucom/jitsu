@@ -6,6 +6,9 @@ import { getUserPreferenceService } from "../../lib/server/user-preferences";
 import { ApiError } from "../../lib/shared/errors";
 import { initTelemetry, withProductAnalytics } from "../../lib/server/telemetry";
 import { onUserCreated } from "../../lib/server/ee";
+import { getServerEnv } from "../../lib/server/serverEnv";
+
+const serverEnv = getServerEnv();
 
 export default createRoute()
   .GET({
@@ -27,7 +30,7 @@ export default createRoute()
 
         //we'll try to remedy a situation, but it's not going to work for all cases
         getServerLog().atInfo().log(`User ${user.internalId} has no profile in db. Creating a new one`);
-        if (process.env.DISABLE_SIGNUP === "true" || process.env.DISABLE_SIGNUP === "1") {
+        if (serverEnv.DISABLE_SIGNUP) {
           throw new ApiError("Sign up is disabled", { code: "signup-disabled" });
         }
         if (!user.loginProvider && !user.externalId) {

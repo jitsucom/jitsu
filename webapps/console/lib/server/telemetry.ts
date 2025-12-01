@@ -1,28 +1,30 @@
 import { db } from "./db";
 import { getLog, randomId } from "juava";
-import { isTruish } from "../shared/chores";
-import { AnalyticsInterface, emptyAnalytics, jitsuAnalytics } from "@jitsu/js/compiled/src";
+import { AnalyticsInterface, emptyAnalytics, jitsuAnalytics } from "@jitsu/js";
 import { SessionUser } from "../schema";
 import { Workspace } from "@prisma/client";
 import { NextApiRequest } from "next";
 import { AnalyticsContext } from "@jitsu/protocols/analytics";
+import { getServerEnv } from "./serverEnv";
+
+const serverEnv = getServerEnv();
 
 /**
  * Server telemetry is enabled by default. We need it to see the usage
  * of self-hosted instance. It's disabled for Jitsu Cloud.
  */
-export const anonymousTelemetryEnabled = !isTruish(process.env.JITSU_DISABLE_ANONYMOUS_TELEMETRY);
+export const anonymousTelemetryEnabled = !serverEnv.JITSU_DISABLE_ANONYMOUS_TELEMETRY;
 export const anonymousTelemetryJitsuKey =
-  process.env.JITSU_SERVER_ANONYMOUS_TELEMETRY_KEY ||
+  serverEnv.JITSU_SERVER_ANONYMOUS_TELEMETRY_KEY ||
   "mxPhV4KmCQasdEsGr98TzX4hq12VuEaN:etEKNhKx5Gy2Ib8gVu4CSWGF6oRgyckG";
 
 /**
  * Frontend telemetry is opposite from server telemetry. It's disabled by default,
  * since we need it ONLY for Jitsu Cloud. We don't need to track UI usage of self-hosted instances
  */
-export const productTelemetryHost = process.env.JITSU_PRODUCT_TELEMETRY_HOST; //support old and new env vars
+export const productTelemetryHost = serverEnv.JITSU_PRODUCT_TELEMETRY_HOST; //support old and new env vars
 export const productTelemetryEnabled = !!productTelemetryHost;
-export const productTelemetryBackendKey = process.env.JITSU_PRODUCT_BACKEND_TELEMETRY_WRITE_KEY;
+export const productTelemetryBackendKey = serverEnv.JITSU_PRODUCT_BACKEND_TELEMETRY_WRITE_KEY;
 
 const log = getLog("telemetry");
 
@@ -178,8 +180,8 @@ export async function trackTelemetryEvent(event: string, props: any = {}): Promi
       deploymentId,
       source: "console",
       nodeVersion: process.versions.node,
-      host: process.env.HOST,
-      onVercel: isTruish(process.env.VERCEL),
+      host: serverEnv.HOST,
+      onVercel: serverEnv.VERCEL,
     });
     log.atDebug().log(`Sent ${event} to telemetry server. Result`, JSON.stringify(result, null, 2));
   } catch (e) {

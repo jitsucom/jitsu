@@ -15,7 +15,7 @@
   "private": false,
   "scripts": {
     "build": "exit 0",
-    "typecheck": "tsc -p .",
+    "typecheck": "tsc --noEmit",
     "clean": "rm -rf ./dist",
     "test": "vitest run"
   },

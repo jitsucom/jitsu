@@ -8,6 +8,7 @@ import { getErrorMessage, requireDefined } from "juava";
 import nodeFetch from "node-fetch-commonjs";
 import { db } from "../../../../../lib/server/db";
 import { unmaskSecretsFromOriginal, containsMaskedSecrets } from "../../../../../lib/schema/secrets";
+import { getServerEnv } from "../../../../../lib/server/serverEnv";
 
 const log = getServerLog("test-connection");
 
@@ -30,8 +31,9 @@ export const api: Api = {
     auth: true,
     handle: async ({ user, body, query }) => {
       log.atDebug().log("POST", JSON.stringify({ body, query }, null, 2));
-      const bulkerURLEnv = requireDefined(process.env.BULKER_URL, "env BULKER_URL is not defined");
-      const bulkerAuthKey = process.env.BULKER_AUTH_KEY ?? "";
+      const serverEnv = getServerEnv();
+      const bulkerURLEnv = requireDefined(serverEnv.BULKER_URL, "env BULKER_URL is not defined");
+      const bulkerAuthKey = serverEnv.BULKER_AUTH_KEY ?? "";
       const isHttps = bulkerURLEnv.startsWith("https://");
       const { workspaceId, type } = query;
       await verifyAccess(user, workspaceId);

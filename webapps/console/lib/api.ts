@@ -1,6 +1,6 @@
 import { ZodType } from "zod";
 import { NextApiHandler, NextApiRequest, NextApiResponse } from "next";
-import { assertDefined, checkHash, checkRawToken, getErrorMessage, isTruish, requireDefined, tryJson } from "juava";
+import { assertDefined, checkHash, checkRawToken, getErrorMessage, requireDefined, tryJson } from "juava";
 import { getServerSession, Session } from "next-auth";
 import { nextAuthConfig } from "./nextauth.config";
 import { SessionUser } from "./schema";
@@ -27,6 +27,7 @@ import {
   WorkspaceRoleWithPermissions,
   WorkspaceRolePermissions,
 } from "./workspace-roles";
+import { getServerEnv } from "./server/serverEnv";
 const adminServiceAccountEmail = "admin-service-account@jitsu.com";
 
 type HandlerOpts<Req = void, Query = void, RequireAuth extends boolean = boolean> = {
@@ -104,13 +105,14 @@ export function getAuthBearerToken(req: NextApiRequest): string | undefined {
 }
 
 function findServiceAccount({ keyId, secret }): SessionUser | undefined {
+  const serverEnv = getServerEnv();
   let tokens: string[] = [];
   let checkFunction: (token: string, secret: string) => boolean = () => false;
-  if (process.env.CONSOLE_AUTH_TOKENS) {
-    tokens = process.env.CONSOLE_AUTH_TOKENS.split(",");
+  if (serverEnv.CONSOLE_AUTH_TOKENS) {
+    tokens = serverEnv.CONSOLE_AUTH_TOKENS.split(",");
     checkFunction = checkHash;
-  } else if (process.env.CONSOLE_RAW_AUTH_TOKENS) {
-    tokens = process.env.CONSOLE_RAW_AUTH_TOKENS.split(",");
+  } else if (serverEnv.CONSOLE_RAW_AUTH_TOKENS) {
+    tokens = serverEnv.CONSOLE_RAW_AUTH_TOKENS.split(",");
     checkFunction = checkRawToken;
   }
   if (tokens.length > 0) {
@@ -131,8 +133,8 @@ function findServiceAccount({ keyId, secret }): SessionUser | undefined {
 }
 
 async function getUserFromOidcSession(req: NextApiRequest, res?: NextApiResponse): Promise<SessionUser | undefined> {
-  const dynamicOidcEnabled = isTruish(process.env.DYNAMIC_OIDC_ENABLED);
-  if (!dynamicOidcEnabled) {
+  const serverEnv = getServerEnv();
+  if (!serverEnv.DYNAMIC_OIDC_ENABLED) {
     return undefined;
   }
 

@@ -9,8 +9,8 @@ export const RetryErrorName = "RetryError";
 export const NoRetryErrorName = "NoRetryError";
 
 export class RetryError extends Error {
-  status: number;
-  response: string;
+  status!: number;
+  response!: string;
   message: string;
   constructor(message?: any, options?: { drop: boolean }) {
     if (typeof message === "object") {
@@ -21,6 +21,8 @@ export class RetryError extends Error {
     } else {
       super(message);
       this.message = message;
+      this.status = 0;
+      this.response = "";
     }
     this.name = options?.drop ? `${DropRetryErrorName}` : `${RetryErrorName}`;
   }
@@ -35,8 +37,8 @@ export class RetryError extends Error {
 }
 
 export class NoRetryError extends Error {
-  status: number;
-  response: string;
+  status!: number;
+  response!: string;
   message: string;
   constructor(message?: any) {
     if (typeof message === "object") {
@@ -47,6 +49,8 @@ export class NoRetryError extends Error {
     } else {
       super(message);
       this.message = message;
+      this.status = 0;
+      this.response = "";
     }
     this.name = "NoRetryError";
   }
@@ -116,9 +120,9 @@ export function toJitsuClassic(event: AnalyticsServerEvent, ctx: FullContext): A
   let ids: any = {};
   if (Object.keys(analyticsContext.clientIds || {}).length > 0) {
     ids = removeUndefined({
-      ga: analyticsContext.clientIds.ga4?.clientId,
-      fbp: analyticsContext.clientIds.fbp,
-      fbc: analyticsContext.clientIds.fbc,
+      ga: analyticsContext.clientIds?.ga4?.clientId,
+      fbp: analyticsContext.clientIds?.fbp,
+      fbc: analyticsContext.clientIds?.fbc,
     });
   }
   const geo = analyticsContext.geo || {};
@@ -147,7 +151,7 @@ export function toJitsuClassic(event: AnalyticsServerEvent, ctx: FullContext): A
     referer: analyticsContext.page?.referrer,
     screen_resolution:
       Object.keys(analyticsContext.screen || {}).length > 0
-        ? Math.max(analyticsContext.screen.width || 0) + "x" + Math.max(analyticsContext.screen.height || 0)
+        ? Math.max(analyticsContext.screen?.width || 0) + "x" + Math.max(analyticsContext.screen?.height || 0)
         : undefined,
     source_ip: analyticsContext.ip,
     src: event.properties?.src || "jitsu",
@@ -193,7 +197,7 @@ export function toJitsuClassic(event: AnalyticsServerEvent, ctx: FullContext): A
     utm: analyticsContext.campaign,
     vp_size:
       Object.keys(analyticsContext.screen || {}).length > 0
-        ? Math.max(analyticsContext.screen.innerWidth || 0) + "x" + Math.max(analyticsContext.screen.innerHeight || 0)
+        ? Math.max(analyticsContext.screen?.innerWidth || 0) + "x" + Math.max(analyticsContext.screen?.innerHeight || 0)
         : undefined,
   };
   if (event.type === "track") {

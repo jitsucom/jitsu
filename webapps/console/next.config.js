@@ -1,11 +1,13 @@
 /** @type {import("next").NextConfig} */
 
+// In next.config.js (build-time config), we use process.env directly since this runs during build
+// The serverEnv module with validation is for runtime (API routes, server-side rendering)
 const withBundleAnalyzer = require("@next/bundle-analyzer")({
   enabled: process.env.ANALYZE === "true",
 });
 
 module.exports = withBundleAnalyzer({
-  transpilePackages: ["juava", "@jitsu/protocols", "@jitsu/core-functions", "@jitsu-internal/webapps-shared"],
+  transpilePackages: ["juava", "@jitsu/protocols", "@jitsu/core-functions", "@jitsu-internal/webapps-shared", "@jitsu/js"],
   turbopack: {
     rules: {
       "*.txt": {
@@ -63,8 +65,8 @@ module.exports = withBundleAnalyzer({
   },
   ...(process.env.NEXTJS_STANDALONE_BUILD === "1"
     ? {
-      output: "standalone",
-    }
+        output: "standalone",
+      }
     : {}),
   webpack: (config, opts) => {
     // Fixes npm packages that depend on `fs` and 'dns' module

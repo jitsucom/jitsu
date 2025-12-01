@@ -8,23 +8,25 @@ import { ApiError } from "./shared/errors";
 import { getServerLog } from "./server/log";
 import { withProductAnalytics } from "./server/telemetry";
 import { NextApiRequest } from "next";
-import { isTruish } from "./shared/chores";
 import { onUserCreated } from "./server/ee";
+import { getServerEnv } from "./server/serverEnv";
 
 const crypto = require("crypto");
 
 const log = getServerLog("auth");
 
-export const githubLoginEnabled = !!process.env.GITHUB_CLIENT_ID;
-export const oidcLoginEnabled = !!process.env.AUTH_OIDC_PROVIDER;
-export const oidcLoginConfig = ParseJSONConfigFromEnv(process.env.AUTH_OIDC_PROVIDER as string);
+const serverEnv = getServerEnv();
+
+export const githubLoginEnabled = !!serverEnv.GITHUB_CLIENT_ID;
+export const oidcLoginEnabled = !!serverEnv.AUTH_OIDC_PROVIDER;
+export const oidcLoginConfig = ParseJSONConfigFromEnv(serverEnv.AUTH_OIDC_PROVIDER as string);
 export const credentialsLoginEnabled =
-  isTruish(process.env.ENABLE_CREDENTIALS_LOGIN) || !!(process.env.SEED_USER_EMAIL && process.env.SEED_USER_PASSWORD);
+  serverEnv.ENABLE_CREDENTIALS_LOGIN || !!(serverEnv.SEED_USER_EMAIL && serverEnv.SEED_USER_PASSWORD);
 
 const githubProvider = githubLoginEnabled
   ? GithubProvider({
-      clientId: process.env.GITHUB_CLIENT_ID as string,
-      clientSecret: process.env.GITHUB_CLIENT_SECRET as string,
+      clientId: serverEnv.GITHUB_CLIENT_ID as string,
+      clientSecret: serverEnv.GITHUB_CLIENT_SECRET as string,
     })
   : undefined;
 
@@ -83,7 +85,7 @@ export async function getOrCreateUser(opts: {
     include: { password: true },
   });
   if (!user) {
-    if (process.env.DISABLE_SIGNUP === "true" || process.env.DISABLE_SIGNUP === "1") {
+    if (serverEnv.DISABLE_SIGNUP) {
       throw new ApiError("Sign up is disabled", { code: "signup-disabled" });
     }
     //first user is admin
@@ -141,13 +143,13 @@ export const nextAuthConfig: NextAuthOptions = {
   },
 
   secret:
-    process.env.JWT_SECRET ||
+    serverEnv.JWT_SECRET ||
+    //if there's no explicit JWT_SECRET, we need to generate a secret based on some values that are unique for an installation
     generateSecret([
       "v2",
-      process.env.GITHUB_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.DATABASE_URL,
-      process.env.REDIS_URL,
+      serverEnv.GITHUB_CLIENT_ID,
+      serverEnv.GOOGLE_CLIENT_ID,
+      serverEnv.DATABASE_URL,
     ]),
   callbacks: {
     jwt: async props => {

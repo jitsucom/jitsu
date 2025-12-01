@@ -1,15 +1,16 @@
 {
   "extends": "@jitsu/common-config/tsconfig.json",
   "compilerOptions": {
-    "rootDir": ".",
-    "outDir": "./compiled",
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "strict": true,
     "declaration": true,
     "target": "ES2015",
     "lib": ["dom", "esnext"],
     //this makes typescript igore @types/node during compilation
+    "emitDeclarationOnly": true,
     "types": [],
-    "strictNullChecks": false,
-    "noImplicitThis": false,
+    "isolatedModules": true,
     "useUnknownInCatchVariables": false
   },
   "include": ["./src", "./__tests__"],

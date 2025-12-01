@@ -1,6 +1,9 @@
 import { getLog } from "juava";
+import { getServerEnv } from "./serverEnv";
 
-export const isReadOnly = !!process.env.JITSU_CONSOLE_READ_ONLY_UNTIL;
+const serverEnv = getServerEnv();
+
+export const isReadOnly = !!serverEnv.JITSU_CONSOLE_READ_ONLY_UNTIL;
 
 export const readOnlyUntil = getReadOnlyUntil();
 
@@ -10,12 +13,12 @@ function getReadOnlyUntil(): Date | undefined {
   }
   let readOnlyUntil;
   try {
-    readOnlyUntil = new Date(process.env.JITSU_CONSOLE_READ_ONLY_UNTIL!);
+    readOnlyUntil = new Date(serverEnv.JITSU_CONSOLE_READ_ONLY_UNTIL!);
   } catch (e) {
     getLog()
       .atWarn()
       .log(
-        `Read only until is not a valid date: ${process.env.JITSU_CONSOLE_READ_ONLY_UNTIL}. Setting a date 2 hours from now`
+        `Read only until is not a valid date: ${serverEnv.JITSU_CONSOLE_READ_ONLY_UNTIL}. Setting a date 2 hours from now`
       );
     readOnlyUntil = new Date(Date.now() + 2 * 60 * 60 * 1000);
   }

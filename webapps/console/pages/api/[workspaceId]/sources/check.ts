@@ -7,8 +7,10 @@ import { tryManageOauthCreds } from "../../../../lib/server/oauth/services";
 import { getServerLog } from "../../../../lib/server/log";
 import { syncError } from "../../../../lib/server/sync";
 import { unmaskSecretsFromOriginal, containsMaskedSecrets } from "../../../../lib/schema/secrets";
+import { getServerEnv } from "../../../../lib/server/serverEnv";
 
 const log = getServerLog("sync-check");
+const serverEnv = getServerEnv();
 
 const resultType = z.object({
   ok: z.boolean(),
@@ -30,13 +32,13 @@ export default createRoute()
     const { workspaceId } = query;
     await verifyAccess(user, workspaceId);
     const syncURL = requireDefined(
-      process.env.SYNCCTL_URL,
+      serverEnv.SYNCCTL_URL,
       `env SYNCCTL_URL is not set. Sync Controller is required to run sources`
     );
     if (!query.storageKey.startsWith(workspaceId)) {
       return { ok: false, error: "storageKey doesn't belong to the current workspace" };
     }
-    const syncAuthKey = process.env.SYNCCTL_AUTH_KEY ?? "";
+    const syncAuthKey = serverEnv.SYNCCTL_AUTH_KEY ?? "";
     const authHeaders: any = {};
     if (syncAuthKey) {
       authHeaders["Authorization"] = `Bearer ${syncAuthKey}`;

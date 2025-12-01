@@ -15,7 +15,9 @@
     "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,
-    "sourceMap": true
+    "sourceMap": true,
+    "useUnknownInCatchVariables": false
+
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"]
 }

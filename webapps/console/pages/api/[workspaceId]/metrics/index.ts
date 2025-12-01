@@ -5,6 +5,7 @@ import utc from "dayjs/plugin/utc";
 import { getServerLog } from "../../../../lib/server/log";
 import { requireDefined, rpc } from "juava";
 import { db } from "../../../../lib/server/db";
+import { getServerEnv } from "../../../../lib/server/serverEnv";
 
 dayjs.extend(utc);
 
@@ -67,8 +68,9 @@ export default createRoute()
       res.writeHead(200, {
         "Content-Type": "text/plain",
       });
-      const bulkerURLEnv = requireDefined(process.env.BULKER_URL, "env BULKER_URL is not defined");
-      const bulkerAuthKey = process.env.BULKER_AUTH_KEY ?? "";
+      const serverEnv = getServerEnv();
+      const bulkerURLEnv = requireDefined(serverEnv.BULKER_URL, "env BULKER_URL is not defined");
+      const bulkerAuthKey = serverEnv.BULKER_AUTH_KEY ?? "";
       // access prometheus API
       const url = bulkerURLEnv + "/connections-metrics/" + workspace.id;
       const promMetrics = await rpc(url, {

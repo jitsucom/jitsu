@@ -3,19 +3,23 @@
   "version": "0.0.0",
   "description": "",
   "license": "MIT",
-  "main": "dist/index.js",
-  "module": "dist/index.modern.js",
-  "types": "dist/index.d.ts",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
   "source": "src/index.ts",
+  "publishConfig": {
+    "main": "dist/index.js",
+    "module": "dist/index.modern.js",
+    "types": "dist/index.d.ts"
+  },
   "engines": {
     "node": ">=10"
   },
   "scripts": {
-    "build": "tsc -p . && microbundle build --jsx React.createElement --no-compress --format es,cjs",
+    "build": "tsc && tsx bundle.mts",
     "//build-deps": "Required by turbo ^build-deps - builds dist/ for workspace packages that import this",
     "build-deps": "pnpm run build",
-    "//typecheck": "Not a bug below, we need to build it for typecheck pipeline",
-    "typecheck": "tsc -p . && microbundle build --jsx React.createElement --no-compress --format es,cjs",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "pnpm run build",
     "clean": "rm -rf dist"
   },
   "dependencies": {
@@ -39,8 +43,11 @@
     "@testing-library/user-event": "^14.4.3",
     "@types/jest": "^29.2.3",
     "@types/node": "catalog:",
-    "microbundle": "^0.15.1",
-    "typescript": "catalog:"
+    "esbuild": "^0.24.2",
+    "tsx": "^4.19.2",
+    "typescript": "catalog:",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
   "files": [
     "dist"

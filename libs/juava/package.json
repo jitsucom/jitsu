@@ -11,8 +11,8 @@
   "license": "MIT",
   "private": false,
   "scripts": {
-    "typecheck": "tsc -p .",
-    "build": "tsc -p .",
+    "typecheck": "tsc --noEmit",
+    "build": "exit 0",
     "test": "vitest run"
   },
   "devDependencies": {

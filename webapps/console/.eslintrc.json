@@ -18,6 +18,22 @@
 //    ],
     "react/no-unescaped-entities": 0,
     "@next/next/no-img-element": 0,
-    "import/no-anonymous-default-export": 0
-  }
+    "import/no-anonymous-default-export": 0,
+    "no-restricted-properties": [
+      "error",
+      {
+        "object": "process",
+        "property": "env",
+        "message": "Direct access to process.env is not allowed. Use serverEnv from lib/server/serverEnv.ts or clientEnv from lib/shared/clientEnv.ts instead."
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["lib/server/serverEnv.ts", "lib/shared/clientEnv.ts", "next.config.js"],
+      "rules": {
+        "no-restricted-properties": "off"
+      }
+    }
+  ]
 }

@@ -36,6 +36,7 @@ import { RedirectToSignIn } from "../components/Redirect/Redirect";
 import { PreviousRouteContextProvider } from "../lib/previous-route";
 import { OidcAuthorizer } from "../components/OidcAuthorizer/OidcAuthorizer";
 import { ChangePassword } from "../components/ChangePassword/ChangePassword";
+import { getClientEnv } from "../lib/shared/clientEnv";
 
 const log = getLog("app");
 
@@ -302,6 +303,7 @@ function AppLoader({ children, pageProps }: PropsWithChildren<any>) {
     );
   }
 
+  const clientEnv = getClientEnv();
   const trackingHost = data!.frontendTelemetry.enabled ? data!.frontendTelemetry.host : undefined;
   return (
     <AppConfigContextProvider config={data!}>
@@ -313,7 +315,7 @@ function AppLoader({ children, pageProps }: PropsWithChildren<any>) {
           trackingHost
             ? {
                 //debug: data?.logLevel === "debug",
-                debug: isTruish(process.env.NEXT_PUBLIC_TELEMETRY_DEBUG),
+                debug: isTruish(clientEnv.NEXT_PUBLIC_TELEMETRY_DEBUG),
                 idEndpoint: "/api/id",
                 host: trackingHost,
               }
@@ -329,7 +331,8 @@ function AppLoader({ children, pageProps }: PropsWithChildren<any>) {
 }
 
 function configureLogging() {
-  setGlobalLogLevel((process.env.NEXT_PUBLIC_LOG_LEVEL || "info") as LogLevel);
+  const clientEnv = getClientEnv();
+  setGlobalLogLevel((clientEnv.NEXT_PUBLIC_LOG_LEVEL || "info") as LogLevel);
   if (typeof window !== "undefined") {
     window["jitsu"] = {
       ...(window["jitsu"] || {}),

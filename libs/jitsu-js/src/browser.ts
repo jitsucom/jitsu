@@ -78,8 +78,11 @@ function getScriptAttributes(scriptElement: HTMLScriptElement) {
     .map(name => name.substring("data-".length))
     .reduce((res, name) => {
       const parser = getParser(name);
-      const path = parser.path(name);
-      setPath(res, path, parser.parse(scriptElement.getAttribute(`data-${name}`)));
+      const path = parser.path?.(name) || [name];
+      const attrValue = scriptElement.getAttribute(`data-${name}`);
+      if (attrValue !== null) {
+        setPath(res, path, parser.parse(attrValue));
+      }
       return res;
     }, {});
 }

@@ -1,8 +1,10 @@
 import { getErrorMessage, getLog, requireDefined, rpc } from "juava";
 import jwt from "jsonwebtoken";
+import { getServerEnv } from "./serverEnv";
 
 export function isEEAvailable(): boolean {
-  return !!process.env.EE_CONNECTION;
+  const serverEnv = getServerEnv();
+  return !!serverEnv.EE_CONNECTION;
 }
 
 export type EeConnection = {
@@ -14,7 +16,8 @@ export function getEeConnection(): EeConnection {
   if (!isEEAvailable()) {
     throw new Error("EE is not available");
   }
-  const url = new URL(requireDefined(process.env.EE_CONNECTION, `env EE_CONNECTION is not set. Call isEEAvailable()`));
+  const serverEnv = getServerEnv();
+  const url = new URL(requireDefined(serverEnv.EE_CONNECTION, `env EE_CONNECTION is not set. Call isEEAvailable()`));
   const jwtSecret = url.searchParams.get("jwtSecret");
   if (!jwtSecret) {
     throw new Error("EE connection URL must contain jwtSecret param");

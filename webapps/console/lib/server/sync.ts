@@ -1,7 +1,7 @@
 import { CloudSchedulerClient } from "@google-cloud/scheduler";
 import { db } from "./db";
 import { ConfigurationObject, ConfigurationObjectLink } from "@prisma/client";
-import { hash as juavaHash, LogFactory, parseNumber, randomId, requireDefined, rpc, stopwatch } from "juava";
+import { hash as juavaHash, LogFactory, randomId, requireDefined, rpc, stopwatch } from "juava";
 import { google } from "@google-cloud/scheduler/build/protos/protos";
 import { difference } from "lodash";
 import { getServerLog } from "./log";
@@ -20,17 +20,20 @@ import { clickhouse } from "./clickhouse";
 import { SyncDbModel } from "../../pages/api/[workspaceId]/config/link";
 import IJob = google.cloud.scheduler.v1.IJob;
 import { initStream } from "../sources";
+import { getServerEnv } from "./serverEnv";
 
-const metricsSchema = process.env.CLICKHOUSE_METRICS_SCHEMA || process.env.CLICKHOUSE_DATABASE || "newjitsu_metrics";
-const clickhouseUploadS3Bucket = process.env.CLICKHOUSE_UPLOAD_S3_BUCKET;
-const s3Region = process.env.S3_REGION;
-const s3AccessKeyId = process.env.S3_ACCESS_KEY_ID;
-const s3SecretAccessKey = process.env.S3_SECRET_ACCESS_KEY;
+const serverEnv = getServerEnv();
+
+const metricsSchema = serverEnv.CLICKHOUSE_METRICS_SCHEMA || serverEnv.CLICKHOUSE_DATABASE || "newjitsu_metrics";
+const clickhouseUploadS3Bucket = serverEnv.CLICKHOUSE_UPLOAD_S3_BUCKET;
+const s3Region = serverEnv.S3_REGION;
+const s3AccessKeyId = serverEnv.S3_ACCESS_KEY_ID;
+const s3SecretAccessKey = serverEnv.S3_SECRET_ACCESS_KEY;
 const clickhouseS3Configured = clickhouseUploadS3Bucket && s3Region && s3AccessKeyId && s3SecretAccessKey;
 
 const log = getServerLog("sync-scheduler");
 
-const googleSchedulerLocation = process.env.GOOGLE_SCHEDULER_LOCATION || "us-central1";
+const googleSchedulerLocation = serverEnv.GOOGLE_SCHEDULER_LOCATION || "us-central1";
 const googleScheduler = createGoogleSchedulerClient();
 
 export type ScheduleSyncError = { ok: false; error: string; [key: string]: any };
@@ -90,8 +93,8 @@ async function dbLog({
 }
 
 export async function cleanupTasksLogs(syncId: string) {
-  const syncTaskLogAge = parseNumber(process.env.SYNC_TASK_LOG_AGE, 60);
-  const syncTaskLogSize = parseNumber(process.env.SYNC_TASK_LOG_SIZE, 3000);
+  const syncTaskLogAge = serverEnv.SYNC_TASK_LOG_AGE ?? 60;
+  const syncTaskLogSize = serverEnv.SYNC_TASK_LOG_SIZE ?? 3000;
 
   await db.pgPool().query(
     `DELETE FROM newjitsu.source_task t
@@ -480,10 +483,10 @@ export async function scheduleSync({
   nodelay?: boolean;
   taskId?: string;
 }): Promise<ScheduleSyncResult> {
-  const syncAuthKey = process.env.SYNCCTL_AUTH_KEY ?? "";
+  const syncAuthKey = serverEnv.SYNCCTL_AUTH_KEY ?? "";
   taskId = taskId || randomUUID();
   const syncURL = requireDefined(
-    process.env.SYNCCTL_URL,
+    serverEnv.SYNCCTL_URL,
     `env SYNCCTL_URL is not set. Sync Controller is required to run sources`
   );
   const startedBy =
@@ -690,7 +693,7 @@ export async function scheduleSync({
           deduplicate: sync.data?.["deduplicate"] ?? true ? "true" : "false",
           nodelay: nodelay ? "true" : "false",
           tableNamePrefix: sync.data?.["tableNamePrefix"] ?? "",
-          ...(process.env.DEBUG_SYNCS === "true" ? { debug: "true" } : {}),
+          ...(serverEnv.DEBUG_SYNCS ? { debug: "true" } : {}),
         },
         body: {
           config: await tryManageOauthCreds({ ...serviceConfig, id: sync.fromId }),
@@ -789,7 +792,7 @@ export async function updateScheduler(baseUrl: string, sync: SyncDbModel) {
     httpTarget: {
       uri: `${baseUrl}/api/${sync.workspaceId}/sources/run?syncId=${sync.id}`,
       headers: {
-        Authorization: `Bearer ${process.env.SYNCCTL_AUTH_KEY}`,
+        Authorization: `Bearer ${serverEnv.SYNCCTL_AUTH_KEY}`,
       },
       httpMethod: "GET",
     },
@@ -823,7 +826,7 @@ export async function createScheduler(baseUrl: string, sync: SyncDbModel) {
     httpTarget: {
       uri: `${baseUrl}/api/${sync.workspaceId}/sources/run?syncId=${sync.id}`,
       headers: {
-        Authorization: `Bearer ${process.env.SYNCCTL_AUTH_KEY}`,
+        Authorization: `Bearer ${serverEnv.SYNCCTL_AUTH_KEY}`,
       },
       httpMethod: "GET",
     },
@@ -914,7 +917,7 @@ export async function syncWithScheduler(baseUrl: string) {
       httpTarget: {
         uri: `${baseUrl}/api/${sync.workspaceId}/sources/run?syncId=${sync.id}`,
         headers: {
-          Authorization: `Bearer ${process.env.SYNCCTL_AUTH_KEY}`,
+          Authorization: `Bearer ${serverEnv.SYNCCTL_AUTH_KEY}`,
         },
         httpMethod: "GET",
       },
@@ -970,7 +973,7 @@ export async function syncWithScheduler(baseUrl: string) {
 }
 
 function createGoogleSchedulerClient(): CloudSchedulerClient | undefined {
-  const googleSchedulerKeyJson = process.env.GOOGLE_SCHEDULER_KEY;
+  const googleSchedulerKeyJson = serverEnv.GOOGLE_SCHEDULER_KEY;
   if (!googleSchedulerKeyJson) {
     log.atWarn().log(`GoogleCloudScheduler sync: GOOGLE_SCHEDULER_KEY is not defined. Sync scheduler is disabled`);
     return;

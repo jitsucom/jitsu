@@ -1,0 +1,418 @@
+import { z } from "zod";
+import { ClientEnvSchema, isBuilding, wrapZodError } from "../shared/clientEnv";
+
+/**
+ * Server-side environment variables schema.
+ * Extends client environment variables since NEXT_PUBLIC_* vars are also available on server.
+ * Contains sensitive configuration that should NEVER be exposed to the browser.
+ */
+const ServerEnvSchema = ClientEnvSchema.extend({
+  // ============================================
+  // Database & Data Storage
+  // ============================================
+
+  // PostgreSQL connection string for main database (required)
+  DATABASE_URL: z.string(),
+
+  // Optional separate database for application data (falls back to DATABASE_URL)
+  APP_DATABASE_URL: z.string().optional(),
+
+  // Enable database query debugging - logs all SQL queries to console
+  CONSOLE_DATABASE_DEBUG: z.coerce.boolean().optional().default(false),
+
+  // ============================================
+  // ClickHouse Configuration
+  // ============================================
+
+  // ClickHouse connection URL (preferred over individual settings)
+  CLICKHOUSE_URL: z.string().optional(),
+
+  // ClickHouse hostname (fallback if CLICKHOUSE_URL not set)
+  CLICKHOUSE_HOST: z.string().optional(),
+
+  // Enable SSL for ClickHouse connection
+  CLICKHOUSE_SSL: z.coerce.boolean().optional().default(false),
+
+  // ClickHouse authentication username
+  CLICKHOUSE_USERNAME: z.string().optional().default("default"),
+
+  // ClickHouse authentication password
+  CLICKHOUSE_PASSWORD: z.string().optional().default(""),
+
+  // Main ClickHouse database name for events and analytics data
+  CLICKHOUSE_DATABASE: z.string().optional(),
+
+  // Metrics schema name (falls back to CLICKHOUSE_DATABASE)
+  CLICKHOUSE_METRICS_SCHEMA: z.string().optional(),
+
+  // ClickHouse cluster identifier for distributed queries
+  CLICKHOUSE_CLUSTER: z.string().optional(),
+
+  // Metrics cluster identifier (falls back to CLICKHOUSE_CLUSTER)
+  CLICKHOUSE_METRICS_CLUSTER: z.string().optional(),
+
+  // S3 bucket for ClickHouse data uploads and exports
+  CLICKHOUSE_UPLOAD_S3_BUCKET: z.string().optional(),
+
+  // ============================================
+  // S3 Storage Configuration
+  // ============================================
+
+  // AWS region for S3 operations
+  S3_REGION: z.string().optional(),
+
+  // AWS access key ID for S3 authentication
+  S3_ACCESS_KEY_ID: z.string().optional(),
+
+  // AWS secret access key for S3 authentication
+  S3_SECRET_ACCESS_KEY: z.string().optional(),
+
+  // ============================================
+  // Sync Engine (Syncctl)
+  // ============================================
+
+  // Syncctl service endpoint URL
+  SYNCCTL_URL: z.string().optional(),
+
+  //k8s injected variables, can be used instead bulker URL
+  SYNCCTL_PORT: z.coerce.number().optional(),
+  SYNCCTL_SERVICE_HOST: z.string().optional(),
+
+
+  // Authentication key for syncctl API calls
+  SYNCCTL_AUTH_KEY: z.string().optional(),
+
+  // Enable/disable syncs feature globally
+  SYNCS_ENABLED: z.coerce.boolean().optional().default(false),
+
+  // Sync task log retention age in days
+  SYNC_TASK_LOG_AGE: z.coerce.number().optional().default(60),
+
+  // Maximum sync task log size
+  SYNC_TASK_LOG_SIZE: z.coerce.number().optional().default(3000),
+
+  // Enable debug mode for sync operations
+  DEBUG_SYNCS: z.coerce.boolean().optional().default(false),
+
+  // ============================================
+  // Google Cloud Services
+  // ============================================
+
+  // Google Cloud Scheduler service account key (JSON)
+  GOOGLE_SCHEDULER_KEY: z.string().optional(),
+
+  // Google Cloud region for scheduler
+  GOOGLE_SCHEDULER_LOCATION: z.string().optional().default("us-central1"),
+
+  // Google Ads API developer token
+  GOOGLE_ADS_DEVELOPER_TOKEN: z.string().optional(),
+
+  // ============================================
+  // Authentication & OAuth
+  // ============================================
+
+  // GitHub OAuth application client ID
+  GITHUB_CLIENT_ID: z.string().optional(),
+
+  // GitHub OAuth application client secret
+  GITHUB_CLIENT_SECRET: z.string().optional(),
+
+  // Google OAuth application client ID
+  GOOGLE_CLIENT_ID: z.string().optional(),
+
+  // JWT signing secret for NextAuth sessions (required)
+  JWT_SECRET: z.string(),
+
+  // NextAuth callback URL (auto-detected in most cases)
+  NEXTAUTH_URL: z.string().optional(),
+
+  // Public URL of Jitsu console
+  JITSU_PUBLIC_URL: z.string().optional(),
+  JITSU_PUBLIC: z.string().optional(), // Alias for JITSU_PUBLIC_URL
+
+  // OIDC provider configuration (JSON format)
+  AUTH_OIDC_PROVIDER: z.string().optional(),
+
+  // Enable dynamic OIDC provider support
+  DYNAMIC_OIDC_ENABLED: z.coerce.boolean().optional().default(false),
+
+  // Enable email/password login
+  ENABLE_CREDENTIALS_LOGIN: z.coerce.boolean().optional().default(false),
+
+  // Firebase authentication configuration (JSON)
+  FIREBASE_AUTH: z.string().optional(),
+
+  // Firebase admin SDK configuration (JSON)
+  FIREBASE_ADMIN: z.string().optional(),
+
+  // Firebase client-side configuration (JSON)
+  FIREBASE_CLIENT_CONFIG: z.string().optional(),
+
+  // ============================================
+  // OAuth Integration Services (Nango)
+  // ============================================
+
+  // Nango integration platform host URL
+  NANGO_APP_HOST: z.string().optional(),
+
+  // Nango API host URL (required for Nango integration)
+  NANGO_API_HOST: z.string().optional(),
+
+  // Nango secret key for authentication
+  NANGO_SECRET_KEY: z.string().optional(),
+
+  // Nango public key
+  NANGO_PUBLIC_KEY: z.string().optional(),
+
+  // Nango OAuth callback URL
+  NANGO_CALLBACK: z.string().optional(),
+
+  // Nango host (used to construct callback URL)
+  NANGO_HOST: z.string().optional(),
+
+  // ============================================
+  // Data Ingestion & Processing
+  // ============================================
+
+  // Public URL for event ingestion API
+  JITSU_INGEST_PUBLIC_URL: z.string().optional(),
+
+  // Bulker (data warehouse connector) service URL
+  BULKER_URL: z.string().optional(),
+  
+  //k8s injected variables, can be used instead bulker URL
+  BULKER_PORT: z.coerce.number().optional(),
+  BULKER_SERVICE_HOST: z.string().optional(),
+  
+  
+
+  // Authentication key for bulker API
+  BULKER_AUTH_KEY: z.string().optional(),
+
+  // Rotor service endpoint for profile/function execution
+  ROTOR_URL: z.string().optional(),
+  //k8s injected variables, can be used instead bulker URL
+  ROTOR_PORT: z.coerce.number().optional(),
+  ROTOR_SERVICE_HOST: z.string().optional(),
+
+  // Authentication key for rotor API
+  ROTOR_AUTH_KEY: z.string().optional(),
+
+  // ============================================
+  // Email Configuration
+  // ============================================
+
+  // SMTP server connection string (format: host:port:user:password)
+  SMTP_CONNECTION_STRING: z.string().optional(),
+
+  // From email address for transactional emails
+  EMAIL_TRANSACTIONAL_SENDER: z.string().optional(),
+
+  // Reply-to email address for transactional emails
+  EMAIL_TRANSACTIONAL_REPLY_TO: z.string().optional(),
+
+  // ============================================
+  // Admin & Management
+  // ============================================
+
+  // Admin email for system notifications
+  ADMIN_EMAIL: z.string().optional(),
+
+  // Comma-separated list of auth tokens for API access
+  CONSOLE_AUTH_TOKENS: z.string().optional(),
+
+  // Raw auth tokens (alternative to hashed tokens)
+  CONSOLE_RAW_AUTH_TOKENS: z.string().optional(),
+
+  // One-time initialization token (set to undefined after use)
+  CONSOLE_INIT_TOKEN: z.string().optional(),
+
+  // Secret for hashing console tokens (falls back to GLOBAL_HASH_SECRET)
+  CONSOLE_TOKEN_SECRET: z.string().optional(),
+
+  // Global secret for hashing operations
+  GLOBAL_HASH_SECRET: z.string().optional(),
+
+  // Enable audit logging for security and compliance
+  CONSOLE_ENABLE_AUDIT_LOG: z.coerce.boolean().optional().default(false),
+
+  // ============================================
+  // Features & Flags
+  // ============================================
+
+  // Disable new user registration
+  DISABLE_SIGNUP: z.coerce.boolean().optional().default(false),
+
+  // Enable MIT-compliant mode (disables proprietary features)
+  MIT_COMPLIANT: z.coerce.boolean().optional().default(false),
+
+  // Connection string for Enterprise Edition features
+  EE_CONNECTION: z.string().optional(),
+
+  // ============================================
+  // Logging & Debugging
+  // ============================================
+
+  // Server-side log level (debug, info, warn, error)
+  LOG_LEVEL: z.string().optional().default("info"),
+
+  // Frontend log level (falls back to LOG_LEVEL)
+  FRONTEND_LOG_LEVEL: z.string().optional(),
+
+  // Disable ANSI color codes in server logs
+  DISABLE_SERVER_LOGS_ANSI_COLORING: z.coerce.boolean().optional().default(false),
+
+  // Log format ("json" for structured JSON logs, "text" for plain text)
+  LOG_FORMAT: z.string().optional(),
+
+  // ============================================
+  // Telemetry
+  // ============================================
+
+  // Disable anonymous usage telemetry
+  JITSU_DISABLE_ANONYMOUS_TELEMETRY: z.coerce.boolean().optional().default(false),
+
+  // Custom telemetry API key (overrides default)
+  JITSU_SERVER_ANONYMOUS_TELEMETRY_KEY: z.string().optional(),
+
+  // Product telemetry backend host (Jitsu Cloud only)
+  JITSU_PRODUCT_TELEMETRY_HOST: z.string().optional(),
+
+  // Write key for product telemetry
+  JITSU_PRODUCT_BACKEND_TELEMETRY_WRITE_KEY: z.string().optional(),
+
+  // ============================================
+  // Seeding & Demo
+  // ============================================
+
+  // Demo/seed user email for initial setup
+  SEED_USER_EMAIL: z.string().optional(),
+
+  // Demo/seed user password for initial setup
+  SEED_USER_PASSWORD: z.string().optional(),
+
+  // Enable seeding of demo configuration
+  SEED_DEMO_CONFIGURATION: z.coerce.boolean().optional().default(false),
+
+  // Schema for demo destination
+  DEMO_DESTINATION_SCHEMA: z.string().optional().default("jitsu-data"),
+
+  // ============================================
+  // Version & Infrastructure
+  // ============================================
+
+  // Git commit SHA for current version
+  JITSU_VERSION_COMMIT_SHA: z.string().optional(),
+
+  // Docker tag/version stream
+  JITSU_VERSION_DOCKER_TAG: z.string().optional(),
+
+  // Full version string
+  JITSU_VERSION_STRING: z.string().optional(),
+
+  // Vercel deployment git commit SHA
+  VERCEL_GIT_COMMIT_SHA: z.string().optional(),
+
+  // Vercel deployment URL
+  VERCEL_URL: z.string().optional(),
+
+  // Flag indicating running on Vercel platform
+  VERCEL: z.coerce.boolean().optional().default(false),
+
+  // Node environment (development/production/test)
+  NODE_ENV: z.string().optional().default("development"),
+
+  // Hostname for telemetry reporting
+  HOST: z.string().optional(),
+
+  // ============================================
+  // Custom Domains & Infrastructure
+  // ============================================
+
+  // Comma-separated list of allowed CNAME values for custom domains
+  CUSTOM_DOMAIN_CNAMES: z.string().optional(),
+
+  // Ingestion manager service URL
+  INGMGR_URL: z.string().optional(),
+
+  //k8s injected variables, can be used instead bulker URL
+  INGMGR_PORT: z.coerce.number().optional(),
+  INGMGR_SERVICE_HOST: z.string().optional(),
+  
+  // Authentication key for ingestion manager
+  INGMGR_AUTH_KEY: z.string().optional(),
+
+  // Default CNAME for custom domains
+  CNAME: z.string().optional().default("cname.jitsu.com"),
+
+  // ============================================
+  // Miscellaneous Settings
+  // ============================================
+
+
+  // CORS allowed origins pattern
+  ALLOWED_API_ORIGINS: z.string().optional(),
+
+  // Comma-separated list of data domains
+  DATA_DOMAIN: z.string().optional(),
+
+  // ISO date string for read-only mode expiration
+  JITSU_CONSOLE_READ_ONLY_UNTIL: z.string().optional(),
+
+  // Documentation website URL
+  JITSU_DOCUMENTATION_URL: z.string().optional().default("https://docs.jitsu.com/"),
+
+  // ClickHouse events log size limit
+  EVENTS_LOG_SIZE: z.coerce.number().optional().default(200000),
+
+  // Slack webhook URL for notifications
+  SLACK_WEBHOOK_URL: z.string().optional(),
+
+  // Enable full environment diagnostics (dangerous - exposes all env vars!)
+  __DANGEROUS_ENABLE_FULL_DIAGNOSTICS: z.coerce.boolean().default(false),
+});
+
+export type ServerEnv = z.infer<typeof ServerEnvSchema>;
+
+let serverEnvCache: ServerEnv | undefined;
+
+/**
+ * Gets validated server environment variables.
+ * Includes all client environment variables plus server-only configuration.
+ * This function caches the result to avoid repeated validation.
+ */
+export function getServerEnv(): ServerEnv {
+  if (isBuilding()) {
+    //bogus env
+    return {} as ServerEnv;
+  }
+  if (serverEnvCache) {
+    return serverEnvCache;
+  }
+
+  const result = ServerEnvSchema.safeParse(process.env);
+
+  if (!result.success) {
+    throw wrapZodError(result)
+  }
+  
+  if (!result.data.BULKER_URL && result.data.BULKER_PORT && result.data.BULKER_SERVICE_HOST) {
+    result.data.BULKER_URL = `http://${result.data.BULKER_SERVICE_HOST}:${result.data.BULKER_PORT}`;
+  }
+
+  if (!result.data.ROTOR_URL && result.data.ROTOR_PORT && result.data.ROTOR_SERVICE_HOST) {
+    result.data.ROTOR_URL = `http://${result.data.ROTOR_SERVICE_HOST}:${result.data.ROTOR_PORT}`;
+  }
+
+  if (!result.data.SYNCCTL_URL && result.data.SYNCCTL_PORT && result.data.SYNCCTL_SERVICE_HOST) {
+    result.data.SYNCCTL_URL = `http://${result.data.SYNCCTL_SERVICE_HOST}:${result.data.SYNCCTL_PORT}`;
+  }
+
+  if (!result.data.INGMGR_URL && result.data.INGMGR_PORT && result.data.INGMGR_SERVICE_HOST) {
+    result.data.INGMGR_URL = `http://${result.data.INGMGR_SERVICE_HOST}:${result.data.INGMGR_PORT}`;
+  }
+
+  serverEnvCache = result.data;
+  return serverEnvCache;
+}
+

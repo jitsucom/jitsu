@@ -6,11 +6,11 @@
     "jsx": "react",
     "sourceMap": true,
     "declaration": true,
-    "noImplicitReturns": true,
-    "noImplicitThis": true,
-    "strictNullChecks": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true
+    "emitDeclarationOnly": true,
+    "strict": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "useUnknownInCatchVariables": false
   },
   "include": ["src"],
   "exclude": ["dist"]

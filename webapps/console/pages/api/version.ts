@@ -1,14 +1,17 @@
 import { createRoute } from "../../lib/api";
 import { getApplicationVersion } from "../../lib/version";
 import { isTruish } from "juava";
+import { getServerEnv } from "../../lib/server/serverEnv";
 
 function sortByKey(dict: Record<string, any>): Record<string, any> {
   return Object.fromEntries(Object.entries(dict).sort(([a], [b]) => a.localeCompare(b)));
 }
 
 function getDiagnostics() {
-  if (isTruish(process.env.__DANGEROUS_ENABLE_FULL_DIAGNOSTICS)) {
+  const serverEnv = getServerEnv();
+  if (isTruish(serverEnv.__DANGEROUS_ENABLE_FULL_DIAGNOSTICS)) {
     return {
+      // eslint-disable-next-line no-restricted-properties
       env: sortByKey(process.env),
       proc: {
         config: sortByKey(process.config),
@@ -25,13 +28,14 @@ export default createRoute()
     auth: false,
   })
   .handler(async () => {
+    const serverEnv = getServerEnv();
     return {
       ...getApplicationVersion(),
       node: {
         version: process.version,
         platform: process.platform,
         arch: process.arch,
-        env: process.env.NODE_ENV,
+        env: serverEnv.NODE_ENV,
       },
       diagnostics: getDiagnostics(),
     };

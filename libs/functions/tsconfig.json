@@ -3,11 +3,11 @@
   "compilerOptions": {
     "lib": ["dom", "esnext"],
     "rootDir": "./src",
+    "strict": true,
     "outDir": "./dist",
     "declaration": true,
-    "noEmit": true,
-    "strictPropertyInitialization": false,
-    "strictNullChecks": false
+    "emitDeclarationOnly": true,
+    "noEmit": false
   },
   "include": ["src/**/*"],
   "exclude": [
