@@ -83,7 +83,7 @@ jobs:
         if: steps.changes.outputs.playwright == 'true'
         # Note: build of @jitsu/js and all it's dep is required for playwright tests to work
         run: |
-          docker exec pnpm --filter jsondiffpatch --filter @jitsu/js builde
+          docker exec builder pnpm --filter jsondiffpatch --filter @jitsu/js build
           docker exec builder pnpm test:playwright
 
       - name: 🧹 Cleanup container
