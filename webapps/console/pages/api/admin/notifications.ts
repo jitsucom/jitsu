@@ -664,8 +664,7 @@ async function loadBatchStatusesChanges(
   let statusChanges = 0;
 
   const serverEnv = getServerEnv();
-  const metricsSchema = serverEnv.CLICKHOUSE_METRICS_SCHEMA ||
-    serverEnv.CLICKHOUSE_DATABASE || "newjitsu_metrics";
+  const metricsSchema = serverEnv.CLICKHOUSE_METRICS_SCHEMA || serverEnv.CLICKHOUSE_DATABASE || "newjitsu_metrics";
 
   // noinspection SqlResolve
   const eventsLogQuery: string = `select actorId, level, timestamp, message
@@ -764,8 +763,7 @@ async function loadDeadStatusesChanges(
   let statusChanges = 0;
 
   const serverEnv = getServerEnv();
-  const metricsSchema = serverEnv.CLICKHOUSE_METRICS_SCHEMA ||
-    serverEnv.CLICKHOUSE_DATABASE || "newjitsu_metrics";
+  const metricsSchema = serverEnv.CLICKHOUSE_METRICS_SCHEMA || serverEnv.CLICKHOUSE_DATABASE || "newjitsu_metrics";
 
   // noinspection SqlResolve
   const eventsLogQuery: string = `select workspaceId, actorId, type, 

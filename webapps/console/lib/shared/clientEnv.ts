@@ -23,7 +23,6 @@ export function isBuilding() {
   return process.env.NEXT_PHASE && process.env.NEXT_PHASE.includes("build");
 }
 
-
 export function wrapZodError(result: SafeParseError<any>) {
   const errors: string[] = [];
 

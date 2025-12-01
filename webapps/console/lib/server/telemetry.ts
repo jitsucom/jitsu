@@ -15,8 +15,7 @@ const serverEnv = getServerEnv();
  */
 export const anonymousTelemetryEnabled = !serverEnv.JITSU_DISABLE_ANONYMOUS_TELEMETRY;
 export const anonymousTelemetryJitsuKey =
-  serverEnv.JITSU_SERVER_ANONYMOUS_TELEMETRY_KEY ||
-  "mxPhV4KmCQasdEsGr98TzX4hq12VuEaN:etEKNhKx5Gy2Ib8gVu4CSWGF6oRgyckG";
+  serverEnv.JITSU_SERVER_ANONYMOUS_TELEMETRY_KEY || "mxPhV4KmCQasdEsGr98TzX4hq12VuEaN:etEKNhKx5Gy2Ib8gVu4CSWGF6oRgyckG";
 
 /**
  * Frontend telemetry is opposite from server telemetry. It's disabled by default,

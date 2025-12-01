@@ -145,12 +145,7 @@ export const nextAuthConfig: NextAuthOptions = {
   secret:
     serverEnv.JWT_SECRET ||
     //if there's no explicit JWT_SECRET, we need to generate a secret based on some values that are unique for an installation
-    generateSecret([
-      "v2",
-      serverEnv.GITHUB_CLIENT_ID,
-      serverEnv.GOOGLE_CLIENT_ID,
-      serverEnv.DATABASE_URL,
-    ]),
+    generateSecret(["v2", serverEnv.GITHUB_CLIENT_ID, serverEnv.GOOGLE_CLIENT_ID, serverEnv.DATABASE_URL]),
   callbacks: {
     jwt: async props => {
       const loginProvider = (props.account?.provider || props.token.loginProvider || "credentials") as string;

@@ -78,7 +78,6 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   SYNCCTL_PORT: z.coerce.number().optional(),
   SYNCCTL_SERVICE_HOST: z.string().optional(),
 
-
   // Authentication key for syncctl API calls
   SYNCCTL_AUTH_KEY: z.string().optional(),
 
@@ -179,12 +178,10 @@ const ServerEnvSchema = ClientEnvSchema.extend({
 
   // Bulker (data warehouse connector) service URL
   BULKER_URL: z.string().optional(),
-  
+
   //k8s injected variables, can be used instead bulker URL
   BULKER_PORT: z.coerce.number().optional(),
   BULKER_SERVICE_HOST: z.string().optional(),
-  
-  
 
   // Authentication key for bulker API
   BULKER_AUTH_KEY: z.string().optional(),
@@ -338,7 +335,7 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   //k8s injected variables, can be used instead bulker URL
   INGMGR_PORT: z.coerce.number().optional(),
   INGMGR_SERVICE_HOST: z.string().optional(),
-  
+
   // Authentication key for ingestion manager
   INGMGR_AUTH_KEY: z.string().optional(),
 
@@ -348,7 +345,6 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   // ============================================
   // Miscellaneous Settings
   // ============================================
-
 
   // CORS allowed origins pattern
   ALLOWED_API_ORIGINS: z.string().optional(),
@@ -393,9 +389,9 @@ export function getServerEnv(): ServerEnv {
   const result = ServerEnvSchema.safeParse(process.env);
 
   if (!result.success) {
-    throw wrapZodError(result)
+    throw wrapZodError(result);
   }
-  
+
   if (!result.data.BULKER_URL && result.data.BULKER_PORT && result.data.BULKER_SERVICE_HOST) {
     result.data.BULKER_URL = `http://${result.data.BULKER_SERVICE_HOST}:${result.data.BULKER_PORT}`;
   }
@@ -415,4 +411,3 @@ export function getServerEnv(): ServerEnv {
   serverEnvCache = result.data;
   return serverEnvCache;
 }
-

@@ -5,7 +5,6 @@ import { mkdirSync } from "fs";
 // Ensure directories exist
 mkdirSync("./dist/web", { recursive: true });
 
-
 // Common external packages for library builds
 const libraryExternals = ["@jitsu/protocols"];
 

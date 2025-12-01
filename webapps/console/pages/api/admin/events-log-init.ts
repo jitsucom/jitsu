@@ -30,8 +30,7 @@ export default createRoute()
       await verifyAdmin(user);
     }
     log.atInfo().log(`Init events log`);
-    const metricsSchema =
-      serverEnv.CLICKHOUSE_METRICS_SCHEMA || serverEnv.CLICKHOUSE_DATABASE || "newjitsu_metrics";
+    const metricsSchema = serverEnv.CLICKHOUSE_METRICS_SCHEMA || serverEnv.CLICKHOUSE_DATABASE || "newjitsu_metrics";
     const metricsCluster = serverEnv.CLICKHOUSE_METRICS_CLUSTER || serverEnv.CLICKHOUSE_CLUSTER;
     const onCluster = metricsCluster ? ` ON CLUSTER ${metricsCluster}` : "";
     const createDbQuery: string = `create database IF NOT EXISTS ${metricsSchema}${onCluster}`;

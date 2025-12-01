@@ -1,15 +1,8 @@
 import * as esbuild from "esbuild";
 import { execSync } from "child_process";
 
-
 // External dependencies that shouldn't be bundled
-const external = [
-  "@jitsu/js",
-  "react",
-  "react-dom",
-  "react-router-dom",
-  "@types/react"
-];
+const external = ["@jitsu/js", "react", "react-dom", "react-router-dom", "@types/react"];
 
 // Build configurations
 const builds = [
@@ -27,8 +20,8 @@ const builds = [
     jsxFactory: "React.createElement",
     jsxFragment: "React.Fragment",
     banner: {
-      js: '"use client";'
-    }
+      js: '"use client";',
+    },
   },
   // CJS
   {
@@ -44,8 +37,8 @@ const builds = [
     jsxFactory: "React.createElement",
     jsxFragment: "React.Fragment",
     banner: {
-      js: '"use client";'
-    }
+      js: '"use client";',
+    },
   },
 ];
 

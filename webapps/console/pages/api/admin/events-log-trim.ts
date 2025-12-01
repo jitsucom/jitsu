@@ -37,8 +37,7 @@ export default createRoute()
     }
     log.atInfo().log(`Trimming events log`);
     const serverEnv = getServerEnv();
-    const metricsSchema =
-      serverEnv.CLICKHOUSE_METRICS_SCHEMA || serverEnv.CLICKHOUSE_DATABASE || "newjitsu_metrics";
+    const metricsSchema = serverEnv.CLICKHOUSE_METRICS_SCHEMA || serverEnv.CLICKHOUSE_DATABASE || "newjitsu_metrics";
     const metricsCluster = serverEnv.CLICKHOUSE_METRICS_CLUSTER || serverEnv.CLICKHOUSE_CLUSTER;
     const onCluster = metricsCluster ? ` ON CLUSTER ${metricsCluster}` : "";
     const eventsLogSize = serverEnv.EVENTS_LOG_SIZE ?? 200000;

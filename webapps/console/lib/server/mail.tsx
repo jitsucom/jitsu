@@ -46,10 +46,7 @@ function initNodeMailer() {
       //console.log("SMTP credentials", credentials)
       return nodemailer.createTransport(credentials);
     } catch (e) {
-      console.error(
-        `Error initializing SMTP transport ${serverEnv.SMTP_CONNECTION_STRING}: ${getErrorMessage(e)}`,
-        e
-      );
+      console.error(`Error initializing SMTP transport ${serverEnv.SMTP_CONNECTION_STRING}: ${getErrorMessage(e)}`, e);
       throw new Error(`Can't connect to SMTP server`);
     }
   } else {
