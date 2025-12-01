@@ -51,22 +51,6 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   // Metrics cluster identifier (falls back to CLICKHOUSE_CLUSTER)
   CLICKHOUSE_METRICS_CLUSTER: z.string().optional(),
 
-  // S3 bucket for ClickHouse data uploads and exports
-  CLICKHOUSE_UPLOAD_S3_BUCKET: z.string().optional(),
-
-  // ============================================
-  // S3 Storage Configuration
-  // ============================================
-
-  // AWS region for S3 operations
-  S3_REGION: z.string().optional(),
-
-  // AWS access key ID for S3 authentication
-  S3_ACCESS_KEY_ID: z.string().optional(),
-
-  // AWS secret access key for S3 authentication
-  S3_SECRET_ACCESS_KEY: z.string().optional(),
-
   // ============================================
   // Sync Engine (Syncctl)
   // ============================================
@@ -103,9 +87,6 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   // Google Cloud region for scheduler
   GOOGLE_SCHEDULER_LOCATION: z.string().optional().default("us-central1"),
 
-  // Google Ads API developer token
-  GOOGLE_ADS_DEVELOPER_TOKEN: z.string().optional(),
-
   // ============================================
   // Authentication & OAuth
   // ============================================
@@ -118,6 +99,9 @@ const ServerEnvSchema = ClientEnvSchema.extend({
 
   // Google OAuth application client ID
   GOOGLE_CLIENT_ID: z.string().optional(),
+
+  // Google Ads API developer token
+  GOOGLE_ADS_DEVELOPER_TOKEN: z.string().optional(),
 
   // JWT signing secret for NextAuth sessions (required)
   JWT_SECRET: z.string(),

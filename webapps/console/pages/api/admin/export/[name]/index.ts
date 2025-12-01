@@ -11,7 +11,6 @@ import { default as stableHash } from "stable-hash";
 import { WorkspaceDbModel } from "../../../../../prisma/schema";
 import pick from "lodash/pick";
 import { ProfileBuilder } from "@jitsu/core-functions";
-import { getServerEnv } from "../../../../../lib/server/serverEnv";
 
 export const config = {
   api: {
@@ -35,12 +34,6 @@ type ClassicKeys = {
 };
 
 const batchSize = 1000;
-const serverEnv = getServerEnv();
-const clickhouseUploadS3Bucket = serverEnv.CLICKHOUSE_UPLOAD_S3_BUCKET;
-const s3Region = serverEnv.S3_REGION;
-const s3AccessKeyId = serverEnv.S3_ACCESS_KEY_ID;
-const s3SecretAccessKey = serverEnv.S3_SECRET_ACCESS_KEY;
-const clickhouseS3Configured = clickhouseUploadS3Bucket && s3Region && s3AccessKeyId && s3SecretAccessKey;
 
 const safeLastModified = new Date(2024, 0, 1, 0, 0, 0, 0);
 
@@ -113,13 +106,6 @@ const exports: Export[] = [
               }
               if (!credentials.provisioned) {
                 credentials.loadAsJson = false;
-              }
-              if (credentials.loadAsJson && !credentials.provisioned && clickhouseS3Configured) {
-                credentials.s3Region = s3Region;
-                credentials.s3AccessKeyId = s3AccessKeyId;
-                credentials.s3SecretAccessKey = s3SecretAccessKey;
-                credentials.s3Bucket = clickhouseUploadS3Bucket;
-                credentials.s3UsePresignedURL = true;
               }
             }
             // if (data.timestampColumn) {

@@ -25,11 +25,6 @@ import { getServerEnv } from "./serverEnv";
 const serverEnv = getServerEnv();
 
 const metricsSchema = serverEnv.CLICKHOUSE_METRICS_SCHEMA || serverEnv.CLICKHOUSE_DATABASE || "newjitsu_metrics";
-const clickhouseUploadS3Bucket = serverEnv.CLICKHOUSE_UPLOAD_S3_BUCKET;
-const s3Region = serverEnv.S3_REGION;
-const s3AccessKeyId = serverEnv.S3_ACCESS_KEY_ID;
-const s3SecretAccessKey = serverEnv.S3_SECRET_ACCESS_KEY;
-const clickhouseS3Configured = clickhouseUploadS3Bucket && s3Region && s3AccessKeyId && s3SecretAccessKey;
 
 const log = getServerLog("sync-scheduler");
 
