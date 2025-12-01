@@ -1,8 +1,8 @@
 import { createServer, SimpleSyrup } from "../simple-syrup";
 import { AnalyticsClientEvent, AnalyticsInterface } from "@jitsu/protocols/analytics";
 import { getTopLevelDomain } from "../../src/tlds";
+import { jitsuAnalytics } from "../../src";
 
-const jitsuAnalytics = require("../../dist/jitsu.cjs.js").jitsuAnalytics;
 const fetchImpl = require("node-fetch-commonjs");
 
 describe("Test Jitsu NodeJS client", () => {
