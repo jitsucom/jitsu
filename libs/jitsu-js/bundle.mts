@@ -57,15 +57,14 @@ const builds = [
     sourcemap: true,
   },
   // Browser IIFE bundle (minified)
+  // Note: No globalName because browser.ts manages window assignment itself via window[namespace] = jitsu
   {
-    entryPoints: ["./src/index.ts"],
+    entryPoints: ["./src/browser.ts"],
     bundle: true,
     platform: "browser",
     target: "es2015",
     format: "iife",
-    globalName: "jitsu",
     outfile: "./dist/web/p.js.txt",
-    external: libraryExternals, // Keep peer deps external
     minify: true,
     sourcemap: false,
   },
