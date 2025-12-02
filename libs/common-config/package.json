@@ -14,8 +14,6 @@
     "vitest.setup.ts"
   ],
   "devDependencies": {
-    "vitest": "catalog:",
-    "unplugin-swc": "catalog:",
-    "@swc/core": "catalog:"
+    "vitest": "catalog:"
   }
 }

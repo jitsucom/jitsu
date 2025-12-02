@@ -28,7 +28,7 @@
   "devDependencies": {
     "@jitsu/common-config": "workspace:*",
     "@jitsu/protocols": "workspace:*",
-    "esbuild": "^0.24.2",
+    "esbuild": "catalog:",
     "tsx": "^4.19.2",
     "@types/node": "catalog:",
     "@vitest/ui": "catalog:",

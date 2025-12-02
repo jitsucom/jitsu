@@ -1,6 +1,5 @@
 import { availableParallelism } from "os";
 import { defineConfig } from "vitest/config";
-import swc from "unplugin-swc";
 
 const numCores = availableParallelism();
 

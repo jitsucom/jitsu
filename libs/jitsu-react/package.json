@@ -43,7 +43,7 @@
     "@testing-library/user-event": "^14.4.3",
     "@types/jest": "^29.2.3",
     "@types/node": "catalog:",
-    "esbuild": "^0.24.2",
+    "esbuild": "catalog:",
     "tsx": "^4.19.2",
     "typescript": "catalog:",
     "react": "^18.3.1",
