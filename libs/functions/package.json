@@ -29,7 +29,7 @@
     "@jitsu/common-config": "workspace:*",
     "@jitsu/protocols": "workspace:*",
     "esbuild": "catalog:",
-    "tsx": "^4.19.2",
+    "tsx": "catalog:",
     "@types/node": "catalog:",
     "@vitest/ui": "catalog:",
     "tslib": "catalog:",

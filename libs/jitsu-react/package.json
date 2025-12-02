@@ -44,7 +44,7 @@
     "@types/jest": "^29.2.3",
     "@types/node": "catalog:",
     "esbuild": "catalog:",
-    "tsx": "^4.19.2",
+    "tsx": "catalog:",
     "typescript": "catalog:",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"

@@ -3,8 +3,6 @@ import { AnalyticsClientEvent, AnalyticsInterface } from "@jitsu/protocols/analy
 import { getTopLevelDomain } from "../../src/tlds";
 import { jitsuAnalytics } from "../../src";
 
-const fetchImpl = require("node-fetch-commonjs");
-
 describe("Test Jitsu NodeJS client", () => {
   let server: SimpleSyrup;
 
@@ -279,7 +277,6 @@ describe("Test Jitsu NodeJS client", () => {
       writeKey: "key:secret",
       host: server.baseUrl,
       debug: true,
-      fetch: fetchImpl,
     });
     await jitsu.track("testTrack");
 

@@ -3,7 +3,6 @@ import { homedir } from "os";
 import inquirer from "inquirer";
 import { existsSync, readdirSync, readFileSync } from "fs";
 import { loadPackageJson } from "./shared";
-import fetch from "node-fetch";
 import cuid from "cuid";
 import { b, green, red } from "../lib/chalk-code-highlight";
 import { getFunctionFromFilePath } from "../lib/compiled-function";
@@ -151,6 +150,7 @@ async function deployFunctions(
       })`
     );
     await deployFunction(
+      projectDir,
       { host, apikey },
       packageJson,
       workspace,
@@ -162,6 +162,7 @@ async function deployFunctions(
 }
 
 async function deployFunction(
+  projectDir: string,
   { host, apikey }: Args,
   packageJson: any,
   workspace: Workspace,
@@ -171,7 +172,7 @@ async function deployFunction(
 ) {
   const code = readFileSync(file, "utf-8");
 
-  const wrapped = await getFunctionFromFilePath(file, kind, profileBuilders);
+  const wrapped = await getFunctionFromFilePath(projectDir, file, kind, profileBuilders);
   const meta = wrapped.meta;
   if (meta) {
     console.log(`  meta: slug=${meta.slug}, name=${meta.name || "not set"}`);

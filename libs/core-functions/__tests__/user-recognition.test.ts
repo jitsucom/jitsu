@@ -2,7 +2,6 @@ import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import UserRecognitionFunction from "../src/functions/user-recognition";
 import { prefixLogMessage, testJitsuFunction, TestOptions } from "./lib/testing-lib";
 import { createAnonymousEventsStore, createStore, EventsByAnonId } from "./lib/mem-store";
-import nodeFetch from "node-fetch-commonjs";
 import { FunctionContext } from "../src";
 import { InternalFetchType } from "../src/functions/lib";
 
@@ -163,7 +162,7 @@ test("user-recognition-test", async () => {
   const options: TestOptions = {
     func: UserRecognitionFunction,
     chainCtx: {
-      fetch: nodeFetch as unknown as InternalFetchType,
+      fetch: fetch as unknown as InternalFetchType,
       store: store,
       log: {
         info: (ctx: FunctionContext, msg: any, ...args: any[]) => console.log(prefixLogMessage("INFO", msg), args),
@@ -223,7 +222,7 @@ test("user-recognition-test-email-only", async () => {
   const options: TestOptions = {
     func: UserRecognitionFunction,
     chainCtx: {
-      fetch: nodeFetch as unknown as InternalFetchType,
+      fetch: fetch as unknown as InternalFetchType,
       store: store,
       log: {
         info: (ctx: FunctionContext, msg: any, ...args: any[]) => console.log(prefixLogMessage("INFO", msg), args),

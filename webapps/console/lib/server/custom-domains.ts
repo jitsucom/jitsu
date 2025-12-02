@@ -2,7 +2,6 @@ import { db } from "./db";
 import dns from "dns";
 import { getLog, requireDefined } from "juava";
 import { httpAgent, httpsAgent } from "./http-agent";
-import nodeFetch from "node-fetch-commonjs";
 import { z } from "zod";
 import { WorkspaceDbModel } from "../../prisma/schema";
 import { Prisma } from "@prisma/client";
@@ -120,7 +119,7 @@ export async function checkOrAddToIngress(domain: string): Promise<any> {
     options.headers["Authorization"] = `Bearer ${ingmgrAuthKey}`;
   }
   try {
-    const response = await nodeFetch(ingmgrURLEnv + "/api/domain?name=" + domain, options);
+    const response = await fetch(ingmgrURLEnv + "/api/domain?name=" + domain, options);
     return await response.json();
   } catch (e: any) {
     return { error: e.message };

@@ -26,7 +26,6 @@
     "@jitsu/common-config": "workspace:*",
     "eslint": "catalog:",
     "@types/lodash": "catalog:",
-    "ts-node": "catalog:",
     "type-fest": "^3.5.7",
     "typescript": "catalog:",
     "@types/nodemailer": "^6.4.17"

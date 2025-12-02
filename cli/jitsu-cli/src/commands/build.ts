@@ -1,10 +1,6 @@
 import path from "path";
-import { mkdirSync, readdirSync, writeFileSync, existsSync, lstatSync } from "fs";
-import typescript from "@rollup/plugin-typescript";
-import resolve from "@rollup/plugin-node-resolve";
-import commonjs from "@rollup/plugin-commonjs";
-import rollupJson from "@rollup/plugin-json";
-import { ModuleFormat, rollup } from "rollup";
+import { mkdirSync, readdirSync, existsSync, lstatSync } from "fs";
+import * as esbuild from "esbuild";
 import { exec } from "child_process";
 import { loadPackageJson } from "./shared";
 import { b, green, red } from "../lib/chalk-code-highlight";
@@ -89,32 +85,31 @@ async function buildFile(projectDir: string, dir: string, fileName: string) {
   const funcFile = path.resolve(projectDir, "src", path.join(dir, fileName));
   process.chdir(projectDir);
 
-  const rollupPlugins = [
-    typescript(),
-    resolve({ preferBuiltins: false }),
-    commonjs(),
-    rollupJson(),
-    // terser(),
-  ];
-
-  const bundle = await rollup({
-    input: [funcFile],
-    plugins: rollupPlugins,
-    external: ["@jitsu/functions-lib"],
-    logLevel: "silent",
-  });
-
-  let format: ModuleFormat = "es";
-  let output = await bundle.generate({
-    dir: projectDir,
-    format: format,
-  });
-
   mkdirSync(path.resolve(projectDir, "dist/" + dir), { recursive: true });
   const compiledFunctionPath = `dist/${dir}/${fileName.replace(".ts", ".js")}`;
-  writeFileSync(path.resolve(projectDir, compiledFunctionPath), output.output[0].code);
+
+  await esbuild.build({
+    entryPoints: [funcFile],
+    absWorkingDir: projectDir,
+    bundle: true,
+    platform: "neutral",
+    format: "esm",
+    outfile: path.resolve(projectDir, compiledFunctionPath),
+    external: ["@jitsu/functions-lib"],
+    logLevel: "silent",
+    loader: {
+      ".json": "json",
+    },
+    // Resolve dependencies from the user's project node_modules
+    nodePaths: [path.resolve(projectDir, "node_modules")],
+  });
+
   //to verify that function is readable
-  const compiledFunction = await getFunctionFromFilePath(path.resolve(projectDir, compiledFunctionPath), "function");
+  const compiledFunction = await getFunctionFromFilePath(
+    projectDir,
+    path.resolve(projectDir, compiledFunctionPath),
+    "function"
+  );
   console.log(
     [`${green(`✓`)} Function ${b(fileName)} compiled successfully`, `  slug = ${b(compiledFunction.meta.slug)}`]
       .filter(Boolean)

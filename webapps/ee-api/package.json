@@ -8,7 +8,7 @@
     "build": "next build",
     "typecheck": "tsc --noEmit",
     "lint": "next lint",
-    "db:update-schema": "dotenv -e ../../.env.local -- ts-node ./scripts/sql-exec.ts ./scripts/sql"
+    "db:update-schema": "dotenv -e ../../.env.local -- tsx ./scripts/sql-exec.ts ./scripts/sql"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.418.0",
@@ -27,7 +27,6 @@
     "juava": "workspace:*",
     "lodash": "catalog:",
     "next": "^15.5.6",
-    "node-fetch-commonjs": "^3.3.2",
     "pg": "~8.11.6",
     "react": "catalog:",
     "react-dom": "catalog:",
@@ -49,7 +48,7 @@
     "@types/stripe": "^8.0.417",
     "dotenv": "^16.3.1",
     "raw-loader": "^4.0.2",
-    "ts-node": "catalog:",
+    "tsx": "catalog:",
     "type-fest": "^3.5.7",
     "typescript": "catalog:"
   }

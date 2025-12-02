@@ -46,8 +46,7 @@
     "esbuild": "catalog:",
     "lodash": "catalog:",
     "nodemon": "^3.1.4",
-    "ts-node": "catalog:",
-    "tsx": "^4.19.2",
+    "tsx": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

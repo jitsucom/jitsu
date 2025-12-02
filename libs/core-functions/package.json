@@ -29,7 +29,6 @@
     "@vitest/ui": "catalog:",
     "express": "^4.21.2",
     "json5": "^2.1.0",
-    "node-fetch-commonjs": "^3.3.2",
     "vitest": "catalog:"
   },
   "dependencies": {

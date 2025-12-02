@@ -5,7 +5,6 @@ import { ApiError } from "../../../../../lib/shared/errors";
 import { getConfigObjectType, parseObject } from "../../../../../lib/schema/config-objects";
 import { httpAgent, httpsAgent } from "../../../../../lib/server/http-agent";
 import { getErrorMessage, requireDefined } from "juava";
-import nodeFetch from "node-fetch-commonjs";
 import { db } from "../../../../../lib/server/db";
 import { unmaskSecretsFromOriginal, containsMaskedSecrets } from "../../../../../lib/schema/secrets";
 import { getServerEnv } from "../../../../../lib/server/serverEnv";
@@ -71,7 +70,7 @@ export const api: Api = {
         options.headers["Authorization"] = `Bearer ${bulkerAuthKey}`;
       }
       try {
-        const response = await nodeFetch(bulkerURLEnv + "/test", options);
+        const response = await fetch(bulkerURLEnv + "/test", options);
         const json = await response.json();
         log.atInfo().log(`StatusCode: ${response.status} Response Body: ${JSON.stringify(json)}`);
         return json;

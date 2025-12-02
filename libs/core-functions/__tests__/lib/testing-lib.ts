@@ -1,6 +1,5 @@
 import { AnalyticsInterface, AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { getLog, logFormat, requireDefined } from "juava";
-import nodeFetch from "node-fetch-commonjs";
 import { AnyEvent, EventContext, FuncReturn, JitsuFunction } from "@jitsu/protocols/functions";
 import { createStore } from "./mem-store";
 import * as JSON5 from "json5";
@@ -55,7 +54,7 @@ export async function testJitsuFunction<T = any>(opts: TestOptions<T>): Promise<
     warn: (ctx: FunctionContext, msg: any, ...args: any[]) => testLogger.atWarn().log(msg, ...args),
   };
   const func = wrapperFunction(
-    { log, fetch: nodeFetch as unknown as InternalFetchType, store: createStore(), ...opts.chainCtx },
+    { log, fetch: fetch as unknown as InternalFetchType, store: createStore(), ...opts.chainCtx },
     { function: { id: "test", type: "test" }, props: config },
     opts.func
   );

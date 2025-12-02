@@ -1,7 +1,8 @@
 import { JitsuFunction } from "@jitsu/protocols/functions";
 import fs from "fs";
-import { rollup } from "rollup";
+import * as esbuild from "esbuild";
 import { assertDefined, assertTrue } from "juava";
+import path from "path";
 
 export type CompiledFunction = {
   func: JitsuFunction;
@@ -14,10 +15,11 @@ export type CompiledFunction = {
 };
 
 function getSlug(filePath: string) {
-  return filePath.split("/").pop()?.replace(".ts", "");
+  return filePath.split("/").pop()?.replace(".ts", "").replace(".js", "");
 }
 
 export async function getFunctionFromFilePath(
+  projectDir: string,
   filePath: string,
   kind: "function" | "profile",
   profileBuilders: any[] = []
@@ -28,29 +30,34 @@ export async function getFunctionFromFilePath(
     throw new Error(`Cannot load function from file ${filePath}: path is not a file`);
   }
 
-  const bundle = await rollup({
-    input: [filePath],
-    external: ["@jitsu/functions-lib"],
-    logLevel: "silent",
+  // Transform ESM to CJS without bundling - just convert the module format
+  // This avoids resolving dependencies which may be symlinked
+  const result = await esbuild.transform(fs.readFileSync(filePath, "utf-8"), {
+    loader: filePath.endsWith(".ts") ? "ts" : "js",
+    format: "cjs",
+    platform: "node",
   });
 
-  const output = await bundle.generate({
-    file: filePath,
-    format: "commonjs",
-  });
-
-  const exports: Record<string, any> = {} as Record<string, any>;
-  eval(output.output[0].code);
+  const code = result.code;
+  const module: { exports: Record<string, any> } = { exports: {} };
+  const exports = module.exports;
+  // Provide require stub for external imports that we mock out
+  const require = (id: string) => {
+    // External dependencies are not needed for config extraction
+    return {};
+  };
+  eval(code);
+  // After eval, module.exports contains the actual exports
+  const moduleExports = module.exports;
   assertDefined(
-    exports.default,
-    `Function from ${filePath} doesn't have default export. Exported symbols: ${Object.keys(exports)}`
+    moduleExports.default,
+    `Function from ${filePath} doesn't have default export. Exported symbols: ${Object.keys(moduleExports)}`
   );
-  assertTrue(typeof exports.default === "function", `Default export from ${filePath} is not a function`);
-
-  let name = exports.config?.name || exports.config?.slug || getSlug(filePath);
-  let id = exports.config?.id;
+  assertTrue(typeof moduleExports.default === "function", `Default export from ${filePath} is not a function`);
+  let name = moduleExports.config?.name || moduleExports.config?.slug || getSlug(filePath);
+  let id = moduleExports.config?.id;
   if (kind === "profile") {
-    const profileBuilderId = exports.config?.profileBuilderId;
+    const profileBuilderId = moduleExports.config?.profileBuilderId;
     const profileBuilder = profileBuilders.find(pb => pb.id === profileBuilderId);
     if (!profileBuilder) {
       throw new Error(
@@ -67,12 +74,12 @@ export async function getFunctionFromFilePath(
   }
 
   return {
-    func: exports.default,
+    func: moduleExports.default,
     meta: {
-      slug: exports.config?.slug || getSlug(filePath),
+      slug: moduleExports.config?.slug || getSlug(filePath),
       id: id,
       name: name,
-      description: exports.config?.description,
+      description: moduleExports.config?.description,
     },
   };
 }
