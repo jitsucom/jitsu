@@ -28,7 +28,7 @@ WORKDIR /app
 # - procps: process management (ps, top, etc.)
 # - jq: JSON parsing for extracting package versions
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends nano curl cron bash netcat-traditional procps jq && \
+    apt-get install -y --no-install-recommends ca-certificates nano curl cron bash netcat-traditional procps jq && \
     rm -rf /var/lib/apt/lists/*
 
 # ============================================================================

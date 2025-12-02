@@ -2,7 +2,6 @@
   "name": "root",
   "version": "0.0.0",
   "private": false,
-  "packageManager": "pnpm@10.22.0",
   "scripts": {
     "build-scripts": "pnpm --filter ./cli/build-scripts run exec",
     "codegen": "pnpm --filter @jitsu-internal/console prisma generate",

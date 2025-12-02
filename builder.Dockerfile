@@ -8,13 +8,15 @@ RUN apt-get update && \
     npm -g install pnpm@10 && \
     npm cache clean --force
 
+#print current user
+RUN whoami && echo "Current user is $(whoami)"
+
 # Set up pnpm global bin directory (for global package installs like Playwright)
 # Note: This does NOT affect the store location, which remains at /root/.local/share/pnpm/store
 ENV PNPM_HOME=/root/.local/share/pnpm
 ENV PATH="${PNPM_HOME}:${PATH}"
 # Override pnpm store location to avoid workspace-local stores
 ENV NPM_CONFIG_STORE_DIR=/pnpm-store
-ENV NODE_OPTIONS="--max-old-space-size=16384"
 
 # Copy only the files needed for dependency fetching and Playwright version extraction
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
