@@ -26,28 +26,6 @@ ENV NODE_OPTIONS="--max-old-space-size=16384"
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY libs/jitsu-js/package.json ./libs/jitsu-js/package.json
 
-# Install minimal Chromium dependencies manually
-RUN apt-get update && \
-    apt-get install -y \
-    libnss3 \
-    libnspr4 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libcups2 \
-    libdrm2 \
-    libdbus-1-3 \
-    libxkbcommon0 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxfixes3 \
-    libxrandr2 \
-    libgbm1 \
-    libpango-1.0-0 \
-    libcairo2 \
-    libasound2 \
-    libatspi2.0-0 \
-    && rm -rf /var/lib/apt/lists/*
-
 # Extract Playwright version before cleanup
 RUN PLAYWRIGHT_VERSION=$(jq -r '.devDependencies["@playwright/test"]' ./libs/jitsu-js/package.json) && \
     echo "${PLAYWRIGHT_VERSION}" > /tmp/playwright-version.txt && \
@@ -64,7 +42,7 @@ RUN rm -rf /package.json /pnpm-lock.yaml /pnpm-workspace.yaml /libs
 RUN PLAYWRIGHT_VERSION=$(cat /tmp/playwright-version.txt) && \
     echo "Installing Playwright version: ${PLAYWRIGHT_VERSION}" && \
     pnpm add --global playwright@${PLAYWRIGHT_VERSION} && \
-    playwright install chromium
+    playwright install chromium  --with-deps --only-shell
 
 # Clean up any leftover node_modules
 RUN rm -rf /node_modules
