@@ -15,7 +15,7 @@ export type UserNotificationsPreferences = z.infer<typeof UserNotificationsPrefe
 export const DefaultUserNotificationsPreferences: UserNotificationsPreferences = {
   batches: true,
   syncs: true,
-  dead: false,
+  dead: true,
   recurringAlertsPeriodHours: 168,
 };
 
