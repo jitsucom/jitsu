@@ -56,7 +56,7 @@ export default createRoute()
         workspaceId: workspaceId,
         slackWebhookUrl,
         events: ["all"],
-        recurringAlertsPeriodHours: recurringAlertsPeriodHours || 24,
+        recurringAlertsPeriodHours: recurringAlertsPeriodHours || 168,
         name: "Test Slack Channel",
       };
       const statusChange: StatusChange = {

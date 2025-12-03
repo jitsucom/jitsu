@@ -104,7 +104,7 @@ ConnectionStatusOngoingEmail.PreviewProps = {
   queueSize: 132422,
   workspaceSlug: "workspace-slug",
   workspaceName: "Integration Tests",
-  recurringAlertsPeriodHours: 24,
+  recurringAlertsPeriodHours: 168,
   recurring: true,
   flappingWindowHours: 2,
   changesPerHours: 0,

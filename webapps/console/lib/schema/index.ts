@@ -222,7 +222,7 @@ export const NotificationChannel = ConfigEntityBase.merge(
     slackWebhookUrl: z.string().optional(),
     // allWorkspaceEmails: z.boolean().default(true).optional(),
     emails: z.array(z.string()).optional(),
-    recurringAlertsPeriodHours: z.number().max(720).min(0).default(24),
+    recurringAlertsPeriodHours: z.number().max(720).min(0).default(168),
   })
 );
 export type NotificationChannel = z.infer<typeof NotificationChannel>;

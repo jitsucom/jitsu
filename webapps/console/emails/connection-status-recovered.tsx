@@ -97,7 +97,7 @@ ConnectionStatusRecoveredEmail.PreviewProps = {
   incidentStartedAt: dayjs().subtract(5, "day").toISOString(),
   workspaceSlug: "workspace-slug",
   workspaceName: "Integration Tests",
-  recurringAlertsPeriodHours: 24,
+  recurringAlertsPeriodHours: 168,
   recurring: false,
   flappingWindowHours: 2,
   changesPerHours: 0,

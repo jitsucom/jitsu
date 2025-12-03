@@ -2,9 +2,44 @@ package types
 
 import (
 	"fmt"
-	"github.com/jitsucom/bulker/jitsubase/utils"
 	"strings"
+
+	"github.com/jitsucom/bulker/jitsubase/utils"
 )
+
+type BatchErrorEventStatus struct {
+	Index       int
+	Description string
+	Payload     []byte
+	Retriable   bool
+}
+type BatchError struct {
+	Type         string
+	Code         int
+	Description  string
+	SuccessCount int
+	FailedCount  int
+	Errors       []BatchErrorEventStatus
+}
+
+func (be *BatchError) Error() string {
+	return be.Description
+}
+
+func (be *BatchError) FullError() string {
+	if len(be.Errors) == 0 {
+		return be.Description
+	}
+	var builder strings.Builder
+	builder.WriteString(fmt.Sprintf("%s:\n\n", be.Description))
+	for _, failedRecord := range be.Errors {
+		builder.WriteString(failedRecord.Description)
+		builder.WriteString("Event:\n")
+		builder.Write(failedRecord.Payload)
+		builder.WriteString("\n\n")
+	}
+	return builder.String()
+}
 
 type ErrorPayload struct {
 	Dataset         string

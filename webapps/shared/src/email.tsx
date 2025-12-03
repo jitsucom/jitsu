@@ -73,7 +73,7 @@ export async function sendEmail<P extends UnsubscribeLinkProps>(
   to: string | string[],
   opts: { testToBcc?: boolean; dryRun?: boolean } = { testToBcc: false, dryRun: false }
 ): Promise<EmailSendingResult> {
-  if (!isEmailAvailable()) {
+  if (!isEmailAvailable() && !opts.dryRun) {
     console.warn("Email is not available, skipping sending email");
     return { sent: false, reasonNotSent: "Email is not available" };
   }

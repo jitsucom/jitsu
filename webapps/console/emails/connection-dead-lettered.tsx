@@ -97,7 +97,7 @@ ConnectionDeadLettered.PreviewProps = {
   queueSize: 13222,
   workspaceSlug: "workspace-slug",
   workspaceName: "Integration Tests",
-  recurringAlertsPeriodHours: 24,
+  recurringAlertsPeriodHours: 168,
   recurring: false,
   flappingWindowHours: 2,
   changesPerHours: 0,

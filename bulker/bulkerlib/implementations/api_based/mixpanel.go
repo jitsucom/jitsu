@@ -152,16 +152,20 @@ func (mp *MixpanelBulker) Upload(reader io.Reader, eventsName string, _ int, _ m
 					if err1 != nil {
 						return statusCode, respBody, nil
 					}
-					var builder strings.Builder
-					builder.WriteString(fmt.Sprintf("Some data points in the request failed validation. Imported records: %d Failed records: %d:\n", validationError.NumRecordsImported, len(validationError.FailedRecords)))
+					var batchError types2.BatchError
+					batchError.SuccessCount = validationError.NumRecordsImported
+					batchError.FailedCount = len(validationError.FailedRecords)
+					batchError.Code = statusCode
+					batchError.Description = fmt.Sprintf("Some data points in the request failed validation. Imported records: %d Failed records: %d", validationError.NumRecordsImported, len(validationError.FailedRecords))
 					for _, failedRecord := range validationError.FailedRecords {
-						builder.WriteString(fmt.Sprintf("$insert_id:%s %s:%s\n",
-							failedRecord.InsertId, failedRecord.Field, failedRecord.Message))
-						builder.WriteString("Event:\n")
-						builder.Write(utils.SubstringBetweenSeparators(ndjson, '\n', failedRecord.Index))
-						builder.WriteString("\n\n")
+						batchError.Errors = append(batchError.Errors, types2.BatchErrorEventStatus{
+							Index:   failedRecord.Index,
+							Payload: utils.SubstringBetweenSeparators(ndjson, '\n', failedRecord.Index),
+							Description: fmt.Sprintf("$insert_id:%s %s:%s\n",
+								failedRecord.InsertId, failedRecord.Field, failedRecord.Message),
+						})
 					}
-					return statusCode, builder.String(), nil
+					return statusCode, respBody, &batchError
 				} else {
 					return statusCode, respBody, mp.NewError("http status: %v%s", statusCode, errText)
 				}

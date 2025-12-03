@@ -287,7 +287,7 @@ async function loadNotificationsChannels() {
     });
 
   const res = await db.pgPool()
-    .query(`select wa."workspaceId", wa."userId", u.email, u.name, upw.preferences "workspacePref", upg.preferences "globalPref" from newjitsu."WorkspaceAccess" wa
+    .query(`select distinct wa."workspaceId", wa."userId", u.email, u.name, upw.preferences "workspacePref", upg.preferences "globalPref" from newjitsu."WorkspaceAccess" wa
                                 join newjitsu."UserProfile" u on u.id = wa."userId" --and u.email like '%@jitsu.com'
                                 join newjitsu."Workspace" w on w.id = wa."workspaceId" and w.deleted = false
                                 left outer join newjitsu."UserPreferences" upw on  upw."userId" = wa."userId" and upw."workspaceId" = wa."workspaceId"
@@ -320,7 +320,9 @@ async function loadNotificationsChannels() {
         events: events,
         name: row.name,
         emails: [row.email],
-        recurringAlertsPeriodHours: row.recurringAlertsPeriodHours,
+        recurringAlertsPeriodHours: settings.recurringAlertsPeriodHours
+          ? Number(settings.recurringAlertsPeriodHours)
+          : 168,
         type: "notification",
         workspaceId: row.workspaceId,
       });

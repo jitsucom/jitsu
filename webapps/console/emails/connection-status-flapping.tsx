@@ -99,7 +99,7 @@ ConnectionStatusFlappingEmail.PreviewProps = {
   flappingWindowHours: 6,
   workspaceSlug: "workspace-slug",
   workspaceName: "Integration Tests",
-  recurringAlertsPeriodHours: 24,
+  recurringAlertsPeriodHours: 168,
   recurring: true,
   flappingSince: "",
   streamsFailed: "",

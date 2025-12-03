@@ -120,7 +120,7 @@ ConnectionStatusSuccessEmail.defaultValues = {
   details: "",
   workspaceSlug: "workspace-slug",
   workspaceName: "Workspace Name",
-  recurringAlertsPeriodHours: 24,
+  recurringAlertsPeriodHours: 168,
   unsubscribeLink: "https://example.com/unsubscribe",
 };
 

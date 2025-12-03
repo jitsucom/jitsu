@@ -1,8 +1,8 @@
 export function deepMerge(target: any, source: any) {
-  if (typeof source !== "object" || source === null) {
+  if (typeof source !== "object" || source === null || Array.isArray(source) || source instanceof Date) {
     return source;
   }
-  if (typeof target !== "object" || target === null) {
+  if (typeof target !== "object" || target === null || Array.isArray(target) || target instanceof Date) {
     return source;
   }
   return Object.entries(source).reduce((acc, [key, value]) => {

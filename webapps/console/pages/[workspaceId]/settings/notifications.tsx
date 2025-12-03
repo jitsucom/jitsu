@@ -1,10 +1,10 @@
 import { WorkspacePageLayout } from "../../../components/PageLayout/WorkspacePageLayout";
 import { ConfigEditor, ConfigEditorProps } from "../../../components/ConfigObjectEditor/ConfigEditor";
 import { useUser, useWorkspace } from "../../../lib/context";
-import React from "react";
+import React, { ReactNode } from "react";
 import { NotificationChannel } from "../../../lib/schema";
 import { CustomWidgetProps } from "../../../components/ConfigObjectEditor/Editors";
-import { Select } from "antd";
+import { Select, Tooltip } from "antd";
 import { BellIcon, MailIcon, Slack } from "lucide-react";
 import { rpc } from "juava";
 import { UserNotificationSettings } from "../../../components/UserNotificationSettings/UserNotificationSettings";
@@ -37,6 +37,66 @@ export const StringArrayEditor: React.FC<{ schema: any } & CustomWidgetProps<str
       onChange={v => {
         props.onChange(v);
       }}
+    />
+  );
+};
+
+export const eventTypeLabels: Record<string, { label: string; description: ReactNode }> = {
+  all: { label: "All Events", description: "Send notifications for all event types" },
+  sync: {
+    label: "Connector Sync statuses",
+    description: "Send notifications on failed or partially successful sync runs and their recoveries.",
+  },
+  batch: {
+    label: "Events Batches statuses",
+    description: "Send notifications on events batch processing failures and recoveries.",
+  },
+  dead: {
+    label: "Unrecoverable Functions Errors",
+    description: (
+      <>
+        Send notifications when the number of{" "}
+        <a
+          target={"_blank"}
+          rel="noopener noreferrer"
+          href={"https://docs.jitsu.com/functions/pipeline#unrecoverable-errors"}
+        >
+          Unrecoverable Errors
+        </a>{" "}
+        in a connection functions pipeline increases.
+      </>
+    ),
+  },
+};
+
+export const EventTypeEditor: React.FC<{ schema: any } & CustomWidgetProps<string[]>> = props => {
+  // If "all" is present, only show "all"
+  const displayValue = props.value?.includes("all") ? ["all"] : [...(props.value || [])];
+  const handleChange = (newValue: string[]) => {
+    if (displayValue.includes("all") && newValue.find(v => v !== "all")) {
+      // If another value was selected while "all" is present, remove "all"
+      props.onChange(newValue.filter(v => v !== "all"));
+    } else if (newValue.includes("all")) {
+      // If "all" was just selected, remove all other values
+      props.onChange(["all"]);
+    } else {
+      // Otherwise, just use the new value
+      props.onChange(newValue);
+    }
+  };
+
+  return (
+    <Select
+      mode="multiple"
+      allowClear
+      style={{ width: "100%" }}
+      value={displayValue}
+      showSearch={false}
+      options={Object.entries(eventTypeLabels).map(([value, label]) => ({
+        value,
+        label: <Tooltip title={label.description}>{label.label}</Tooltip>,
+      }))}
+      onChange={handleChange}
     />
   );
 };
@@ -77,7 +137,7 @@ const NotificationChannelList: React.FC<{}> = () => {
       workspaceId: { constant: workspace.id },
       cloneId: { hidden: true },
       events: {
-        editor: StringArrayEditor,
+        editor: EventTypeEditor,
       },
       channel: {
         constant: "slack",

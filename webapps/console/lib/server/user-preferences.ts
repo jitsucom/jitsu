@@ -5,7 +5,8 @@ import { z } from "zod";
 export const UserNotificationsPreferences = z.object({
   batches: z.boolean().default(true),
   syncs: z.boolean().default(true),
-  recurringAlertsPeriodHours: z.coerce.number().max(720).min(0).default(24),
+  dead: z.boolean().default(true),
+  recurringAlertsPeriodHours: z.coerce.number().max(720).min(0).default(168),
   subscriptionCode: z.string().optional(),
 });
 
@@ -14,7 +15,8 @@ export type UserNotificationsPreferences = z.infer<typeof UserNotificationsPrefe
 export const DefaultUserNotificationsPreferences: UserNotificationsPreferences = {
   batches: true,
   syncs: true,
-  recurringAlertsPeriodHours: 24,
+  dead: false,
+  recurringAlertsPeriodHours: 168,
 };
 
 export type PreferencesObj = {

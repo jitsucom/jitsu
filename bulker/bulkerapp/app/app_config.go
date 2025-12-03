@@ -1,13 +1,14 @@
 package app
 
 import (
+	"os"
+	"strings"
+
 	"github.com/jitsucom/bulker/eventslog"
 	"github.com/jitsucom/bulker/jitsubase/appbase"
 	"github.com/jitsucom/bulker/jitsubase/utils"
 	"github.com/jitsucom/bulker/kafkabase"
 	"github.com/spf13/viper"
-	"os"
-	"strings"
 )
 
 // Config is a struct for bulker app configuration
@@ -64,7 +65,7 @@ type Config struct {
 	BatchRunnerDefaultRetryBatchFraction float64 `mapstructure:"BATCH_RUNNER_DEFAULT_RETRY_BATCH_FRACTION" default:"0.1"`
 	MessagesRetryCount                   int     `mapstructure:"MESSAGES_RETRY_COUNT" default:"5"`
 	// MessagesRetryBackoffBase defines base for exponential backoff in minutes.
-	// For example, if retry count is 3 and base is 5, then retry delays will be 5, 25, 125 minutes.
+	// For example, if retry count is 5 and base is 5, then retry delays will be 5, 25, 125, 625 minutes.
 	// Default: 5
 	MessagesRetryBackoffBase float64 `mapstructure:"MESSAGES_RETRY_BACKOFF_BASE" default:"5"`
 	// MessagesRetryBackoffMaxDelay defines maximum possible retry delay in minutes. Default: 1440 minutes = 24 hours

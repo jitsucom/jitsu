@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -214,8 +215,37 @@ func (bc *BatchConsumerImpl) processBatchImpl(destination *Destination, batchNum
 		state.ProcessedBytes = consumedBytes
 		state.ProcessingTimeSec = time.Since(startTime).Seconds()
 		if err != nil {
-			failedPosition = &latestMessage.TopicPartition
-			return counters, state, false, bc.NewError("Failed to commit bulker stream to %s: %v", destination.config.BulkerType, err)
+			var batchErr *types.BatchError
+			if errors.As(err, &batchErr) && batchErr.SuccessCount > 0 {
+				extraState := bulker.State{
+					Status:        bulker.Failed,
+					Mode:          bulker.Batch,
+					ProcessedRows: len(batchErr.Errors),
+				}
+				extraState.SetError(err)
+				extraState.Representation = map[string]any{
+					"name":     destination.config.BulkerType,
+					"status":   batchErr.Code,
+					"response": batchErr.FullError(),
+				}
+				bc.SendMetrics(kafkabase.GetKafkaHeader(latestMessage, MetricsMetaHeader), "error", len(batchErr.Errors))
+				bc.postEventsLog(extraState, nil, err)
+				err = nil
+				processed = batchErr.SuccessCount
+				state.Status = bulker.Completed
+				state.LastErrorText = ""
+				state.LastError = nil
+				state.ProcessedRows = processed
+				state.SuccessfulRows = processed
+				state.Representation = map[string]any{
+					"name":     destination.config.BulkerType,
+					"status":   batchErr.Code,
+					"response": fmt.Sprintf("%s:\nA detailed error breakdown can be found in the adjacent log entry.", batchErr.Error()),
+				}
+			} else {
+				failedPosition = &latestMessage.TopicPartition
+				return counters, state, false, bc.NewError("Failed to commit bulker stream to %s: %v", destination.config.BulkerType, err)
+			}
 		}
 		counters.processed = processed
 		counters.processedBytes = consumedBytes

@@ -5,15 +5,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"os"
+	"time"
+
 	bulker "github.com/jitsucom/bulker/bulkerlib"
 	types2 "github.com/jitsucom/bulker/bulkerlib/types"
 	"github.com/jitsucom/bulker/jitsubase/errorj"
 	"github.com/jitsucom/bulker/jitsubase/jsonorder"
 	"github.com/jitsucom/bulker/jitsubase/logging"
 	"github.com/jitsucom/bulker/jitsubase/utils"
-	"io"
-	"os"
-	"time"
 )
 
 type ApiImplementation interface {
@@ -156,7 +157,7 @@ func (ps *ApiBasedStream) flushBatchFile(ctx context.Context) (err error) {
 		loadTime := time.Now()
 		status, resp, err := ps.implementation.Upload(batch, ps.eventsName, ps.eventsInBatch, ps.env)
 		if err != nil {
-			return fmt.Errorf("failed to upload data to %s code: %d resp: %s error: %v", ps.implementation.Type(), status, resp, err)
+			return fmt.Errorf("failed to upload data to %s code: %d resp: %s error: %w", ps.implementation.Type(), status, resp, err)
 		} else {
 			ps.state.Representation = map[string]any{
 				"name":     ps.implementation.Type(),
