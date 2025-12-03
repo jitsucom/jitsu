@@ -18,8 +18,8 @@ const ServerEnvSchema = z.object({
   CLICKHOUSE_SSL: z.string().optional().default("false"),
   CLICKHOUSE_USERNAME: z.string().optional().default("default"),
   CLICKHOUSE_PASSWORD: z.string().optional(),
-  CLICKHOUSE_DATABASE: z.string().optional(),
-  CLICKHOUSE_METRICS_SCHEMA: z.string().optional(),
+  CLICKHOUSE_DATABASE: z.string().optional().default("newjitsu_metrics"),
+  CLICKHOUSE_METRICS_SCHEMA: z.string().optional().default("newjitsu_metrics"),
 
   // Redis Configuration
   REDIS_URL: z.string().optional(),
@@ -50,7 +50,7 @@ const ServerEnvSchema = z.object({
   KAFKA_DESTINATIONS_RETRY_TOPIC_NAME: z.string().optional().default("destination-messages-retry"),
   KAFKA_DESTINATIONS_MT_TOPIC_NAME: z.string().optional().default("destination-messages-mt"),
   KAFKA_CONSUMER_GROUP_ID: z.string().optional(),
-  KAFKA_TOPIC_COMPRESSION: z.string().optional(),
+  KAFKA_TOPIC_COMPRESSION: z.string().optional().default("snappy"),
   CONSUMER_PROTOCOL: z.string().optional(),
 
   // Bulker Configuration

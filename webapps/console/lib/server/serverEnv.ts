@@ -40,10 +40,10 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   CLICKHOUSE_PASSWORD: z.string().optional().default(""),
 
   // Main ClickHouse database name for events and analytics data
-  CLICKHOUSE_DATABASE: z.string().optional(),
+  CLICKHOUSE_DATABASE: z.string().optional().default("newjitsu_metrics"),
 
   // Metrics schema name (falls back to CLICKHOUSE_DATABASE)
-  CLICKHOUSE_METRICS_SCHEMA: z.string().optional(),
+  CLICKHOUSE_METRICS_SCHEMA: z.string().optional().default("newjitsu_metrics"),
 
   // ClickHouse cluster identifier for distributed queries
   CLICKHOUSE_CLUSTER: z.string().optional(),
@@ -58,7 +58,7 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   // Syncctl service endpoint URL
   SYNCCTL_URL: z.string().optional(),
 
-  //k8s injected variables, can be used instead bulker URL
+  //k8s injected variables, can be used instead sync URL
   SYNCCTL_PORT: z.coerce.number().optional(),
   SYNCCTL_SERVICE_HOST: z.string().optional(),
 
@@ -172,7 +172,7 @@ const ServerEnvSchema = ClientEnvSchema.extend({
 
   // Rotor service endpoint for profile/function execution
   ROTOR_URL: z.string().optional(),
-  //k8s injected variables, can be used instead bulker URL
+  //k8s injected variables, can be used instead rotor URL
   ROTOR_PORT: z.coerce.number().optional(),
   ROTOR_SERVICE_HOST: z.string().optional(),
 
@@ -316,7 +316,7 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   // Ingestion manager service URL
   INGMGR_URL: z.string().optional(),
 
-  //k8s injected variables, can be used instead bulker URL
+  //k8s injected variables, can be used instead ingmgr URL
   INGMGR_PORT: z.coerce.number().optional(),
   INGMGR_SERVICE_HOST: z.string().optional(),
 
