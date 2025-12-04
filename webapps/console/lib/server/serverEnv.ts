@@ -374,12 +374,9 @@ export function getServerEnv(): ServerEnv {
     return serverEnvCache;
   }
 
-  console.log("Validating server environment variables...", JSON.stringify(process.env));
   const result = ServerEnvSchema.safeParse(process.env);
 
   if (!result.success) {
-    console.error("env:", process.env.DATABASE_URL);
-    console.error("env:", JSON.stringify(result.data));
     throw wrapZodError(result);
   }
 
