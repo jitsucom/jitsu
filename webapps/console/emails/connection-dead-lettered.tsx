@@ -1,5 +1,5 @@
 import { EmailTemplate } from "@jitsu-internal/webapps-shared";
-import { Body, Container, Html, Preview, Section, Text } from "@react-email/components";
+import { Body, Container, Html, Preview, Section, Text, Link } from "@react-email/components";
 
 import React from "react";
 import dayjs from "dayjs";
@@ -46,8 +46,14 @@ export const ConnectionDeadLettered: EmailTemplate<ConnectionStatusNotificationP
           </Section>
           <Text>Hi {name || "there"}!</Text>
           <Text>
-            Unrecoverable errors occurred in the connection from <b>{entityFrom}</b> to <b>{entityTo}</b> in the{" "}
-            <b>{workspaceName}</b>
+            <Link
+              target={"_blank"}
+              rel="noopener noreferrer"
+              href={"https://docs.jitsu.com/functions/pipeline#unrecoverable-errors"}
+            >
+              Unrecoverable Errors
+            </Link>{" "}
+            occurred in the connection from <b>{entityFrom}</b> to <b>{entityTo}</b> in the <b>{workspaceName}</b>
           </Text>
           <Text>
             <span>

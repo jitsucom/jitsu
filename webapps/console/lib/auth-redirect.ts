@@ -1,7 +1,4 @@
 import { NextRouter } from "next/router";
-import { getServerLog } from "./server/log";
-
-const log = getServerLog("auth-redirect");
 
 /**
  * Utility functions for handling return URLs during authentication flows
@@ -69,7 +66,7 @@ export function safeRedirect(router: NextRouter, returnUrl: string | null): void
   const validatedUrl = validateReturnUrl(returnUrl || "/");
   const finalUrl = validatedUrl || "/";
 
-  log.atInfo().log(`Redirecting to: ${finalUrl}`);
+  console.log(`Redirecting to: ${finalUrl}`);
 
   router.push(finalUrl);
 }

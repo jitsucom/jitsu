@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ClientEnvSchema, isBuilding, wrapZodError } from "../shared/clientEnv";
+import { ClientEnvSchema, getClientEnv, isBuilding, wrapZodError } from "../shared/clientEnv";
 
 /**
  * Server-side environment variables schema.
@@ -366,13 +366,20 @@ export function getServerEnv(): ServerEnv {
     //bogus env
     return {} as ServerEnv;
   }
+  // check is in browser context
+  if (typeof window !== "undefined" && typeof window.document !== "undefined") {
+    return getClientEnv() as unknown as ServerEnv;
+  }
   if (serverEnvCache) {
     return serverEnvCache;
   }
 
+  console.log("Validating server environment variables...", JSON.stringify(process.env));
   const result = ServerEnvSchema.safeParse(process.env);
 
   if (!result.success) {
+    console.error("env:", process.env.DATABASE_URL);
+    console.error("env:", JSON.stringify(result.data));
     throw wrapZodError(result);
   }
 
