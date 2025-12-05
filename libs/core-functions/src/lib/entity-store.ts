@@ -1,5 +1,5 @@
 import { createInMemoryStore } from "./inmem-store";
-import { getLog } from "juava";
+import { getLog, parseNumber } from "juava";
 
 const log = getLog("entity-store");
 
@@ -98,11 +98,9 @@ function refreshFunc<T>(storeId: string) {
   };
 }
 
-export function storeFunc<T>(storeId: string) {
+export function storeFunc<T>(storeId: string, noRefresh?: boolean) {
   return createInMemoryStore<EntityStore<T>>({
-    refreshIntervalMillis: process.env.REPOSITORY_REFRESH_PERIOD_SEC
-      ? parseInt(process.env.REPOSITORY_REFRESH_PERIOD_SEC) * 1000
-      : 2000,
+    refreshIntervalMillis: noRefresh ? 0 : parseNumber(process.env.REPOSITORY_REFRESH_PERIOD_SEC, 2) * 1000,
     name: `${storeId}-store`,
     localDir: process.env.REPOSITORY_CACHE_DIR,
     serializer: (store: EntityStore<T>) => (store.enabled ? store.toJSON() : ""),

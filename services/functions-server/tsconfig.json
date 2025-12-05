@@ -1,0 +1,11 @@
+{
+  "extends": "@jitsu/common-config/tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./compiled",
+    "rootDir": ".",
+    "allowJs": true
+  },
+  "include": [
+    "src/**/*"
+  ]
+}

@@ -1,4 +1,4 @@
-import { getErrorMessage, getLog } from "juava";
+import { getErrorMessage, getLog, setFixedInterval } from "juava";
 import fs from "fs";
 import path from "path";
 
@@ -59,43 +59,27 @@ export const createInMemoryStore = <T>(definition: StoreDefinition<T>): InMemory
   let lastRefresh: Date | undefined = undefined;
   let lastModified: Date | undefined = undefined;
   let stopping: boolean = false;
-  let intervalToClear: NodeJS.Timeout | string | number | undefined = undefined;
 
   function scheduleStoreRefresh() {
-    const refresh = async () => {
-      try {
-        const newDef = await definition.refresh(lastModified);
-        if (newDef !== "not_modified") {
-          saveLocalCache(definition, newDef.store);
-          if (newDef.lastModified) {
-            lastModified = newDef.lastModified;
-          }
-          instance = newDef.store;
-        }
-        status = "ok";
-        lastRefresh = new Date();
-      } catch (e) {
-        log.atWarn().withCause(e).log(`Failed to refresh store ${definition.name}. Using an old value`);
-        status = "outdated";
-      }
-    };
     if (definition.refreshIntervalMillis > 0) {
-      intervalToClear = setInterval(async () => {
-        if (stopping) {
-          return;
+      const refresh = async () => {
+        try {
+          const newDef = await definition.refresh(lastModified);
+          if (newDef !== "not_modified") {
+            saveLocalCache(definition, newDef.store);
+            if (newDef.lastModified) {
+              lastModified = newDef.lastModified;
+            }
+            instance = newDef.store;
+          }
+          status = "ok";
+          lastRefresh = new Date();
+        } catch (e) {
+          log.atWarn().withCause(e).log(`Failed to refresh store ${definition.name}. Using an old value`);
+          status = "outdated";
         }
-        await refresh();
-      }, definition.refreshIntervalMillis);
-    } else {
-      (function loop() {
-        if (stopping) {
-          return;
-        }
-        setTimeout(async () => {
-          await refresh();
-          loop();
-        }, 1);
-      })();
+      };
+      setFixedInterval(refresh, definition.refreshIntervalMillis, () => stopping);
     }
   }
 
@@ -164,9 +148,6 @@ export const createInMemoryStore = <T>(definition: StoreDefinition<T>): InMemory
     stop: () => {
       log.atInfo().log(`Stopping store ${definition.name}`);
       stopping = true;
-      if (intervalToClear) {
-        clearInterval(intervalToClear);
-      }
       status = "stopped";
     },
   };
