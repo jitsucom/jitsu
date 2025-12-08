@@ -1,7 +1,9 @@
-import { getLog, getSingleton, parseDate, parseNumber, requireDefined } from "juava";
-import { MongoClient, MongoClientOptions, ObjectId } from "mongodb";
+import { getLog, getSingleton, parseDate, parseNumber, requireDefined, Singleton } from "juava";
+import { MongoClient, Collection, ObjectId, ReadPreference } from "mongodb";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
-import { AnonymousEventsStore } from "@jitsu/protocols/functions";
+import { AnonymousEventsStore, SetOpts, TTLStore } from "@jitsu/protocols/functions";
+import { getTtlSec, StoreMetrics } from "@jitsu/core-functions-lib";
+import { storeErr } from "./store";
 
 const AnonymousEventsStoreIdField = "_jitsu_anonymous_id_";
 
@@ -41,7 +43,7 @@ async function createClient() {
   }
 }
 
-const MongoCreatedCollections = new Set<string>();
+const MongoCreatedCollections: Record<string, Collection<any>> = {};
 
 export function mongoAnonymousEventsStore(): AnonymousEventsStore {
   return {
@@ -95,19 +97,19 @@ async function ensureMongoCollection(
   ttlDays: number,
   indexFields: string[] = []
 ) {
-  if (MongoCreatedCollections.has(collectionName)) {
+  if (MongoCreatedCollections.hasOwnProperty(collectionName)) {
     return;
   }
   try {
     const db = mongo.db();
-    const collStatus = await db
-      .collection(collectionName)
+    const col = db.collection(collectionName);
+    const collStatus = await col
       .aggregate([{ $collStats: { count: {} } }])
       .next()
       .catch(e => {});
     if (collStatus) {
       //collection already exists
-      MongoCreatedCollections.add(collectionName);
+      MongoCreatedCollections[collectionName] = col;
       return;
     }
     const collection = await db.createCollection(collectionName, {
@@ -126,8 +128,158 @@ async function ensureMongoCollection(
       });
       await collection.createIndex(index);
     }
-    MongoCreatedCollections.add(collectionName);
+    MongoCreatedCollections[collectionName] = collection;
   } catch (err) {
     throw new Error(`Failed to create collection ${collectionName}: ${err}`);
   }
 }
+
+function success(namespace: string, operation: "get" | "set" | "del" | "ttl", metrics?: StoreMetrics) {
+  if (metrics) {
+    metrics.storeStatus(namespace, operation, "success");
+  }
+}
+
+interface StoreValue {
+  _id: string;
+  value: any;
+  expireAt: Date;
+}
+
+export const createMongoStore = (
+  namespace: string,
+  mongo: Singleton<MongoClient>,
+  useLocalCache: boolean,
+  fast: boolean,
+  metrics?: StoreMetrics
+): TTLStore => {
+  const localCache: Record<string, StoreValue> = {};
+  const readOptions = fast ? { readPreference: ReadPreference.NEAREST } : {};
+  const writeOptions = fast ? { writeConcern: { w: 1, journal: false } } : {};
+
+  const dbName = `persistent_store`;
+
+  function getFromLocalCache(key: string): StoreValue | undefined {
+    if (!useLocalCache) {
+      return undefined;
+    }
+    return localCache[key];
+  }
+
+  async function ensureCollection(): Promise<Collection<StoreValue>> {
+    let collection = MongoCreatedCollections[namespace];
+    if (collection) {
+      return collection;
+    }
+    try {
+      const db = mongo().db(dbName);
+
+      const col = db.collection<StoreValue>(namespace);
+      const collStatus = await col
+        .aggregate([{ $collStats: { count: {} } }])
+        .next()
+        .catch(e => {});
+      if (collStatus) {
+        //collection already exists
+        MongoCreatedCollections[namespace] = col;
+        return col;
+      }
+      collection = await db.createCollection<StoreValue>(namespace, {
+        clusteredIndex: {
+          key: { _id: 1 },
+          unique: true,
+        },
+        storageEngine: { wiredTiger: { configString: "block_compressor=zstd" } },
+      });
+      await collection.createIndex({ expireAt: 1 }, { expireAfterSeconds: 0 });
+      MongoCreatedCollections[namespace] = collection;
+      return collection;
+    } catch (err) {
+      throw new Error(`Failed to create collection ${namespace}: ${err}`);
+    }
+  }
+
+  return {
+    get: async (key: string) => {
+      try {
+        const res =
+          getFromLocalCache(key) || (await ensureCollection().then(c => c.findOne({ _id: key }, readOptions)));
+        success(namespace, "get", metrics);
+        return res ? res.value : undefined;
+      } catch (err: any) {
+        throw storeErr(namespace, "get", err, `Error getting key ${key} from mongo store ${namespace}`, metrics);
+      }
+    },
+    getWithTTL: async (key: string) => {
+      try {
+        const res =
+          getFromLocalCache(key) || (await ensureCollection().then(c => c.findOne({ _id: key }, readOptions)));
+        if (!res) {
+          return undefined;
+        }
+        const ttl = res.expireAt ? Math.max(Math.floor((res.expireAt.getTime() - new Date().getTime()) / 1000), 0) : -1;
+        success(namespace, "get", metrics);
+        return { value: res.value, ttl };
+      } catch (err: any) {
+        throw storeErr(namespace, "get", err, `Error getting key ${key} from mongo store ${namespace}`, metrics);
+      }
+    },
+    set: async (key: string, obj: any, opts?: SetOpts) => {
+      try {
+        const colObj: any = { value: obj };
+        const ttl = getTtlSec(opts);
+        if (ttl >= 0) {
+          const expireAt = new Date();
+          expireAt.setSeconds(expireAt.getSeconds() + ttl);
+          colObj.expireAt = expireAt;
+        }
+
+        await ensureCollection()
+          .then(c =>
+            c.replaceOne({ _id: key }, colObj, {
+              upsert: true,
+              ...writeOptions,
+            })
+          )
+          .then(() => {
+            if (useLocalCache) {
+              localCache[key] = colObj;
+            }
+          })
+          .then(() => {
+            success(namespace, "set", metrics);
+          });
+      } catch (err: any) {
+        throw storeErr(namespace, "set", err, `Error setting key ${key} in mongo store ${namespace}`, metrics);
+      }
+    },
+    del: async (key: string) => {
+      try {
+        await ensureCollection()
+          .then(c => c.deleteOne({ _id: key }, writeOptions))
+          .then(() => {
+            if (useLocalCache) {
+              delete localCache[key];
+            }
+          });
+        success(namespace, "del", metrics);
+      } catch (err: any) {
+        throw storeErr(namespace, "del", err, `Error deleting key ${key} from mongo store ${namespace}`, metrics);
+      }
+    },
+    ttl: async (key: string) => {
+      try {
+        const res =
+          getFromLocalCache(key) || (await ensureCollection().then(c => c.findOne({ _id: key }, readOptions)));
+        success(namespace, "ttl", metrics);
+        return res
+          ? res.expireAt
+            ? Math.max(Math.floor((res.expireAt.getTime() - new Date().getTime()) / 1000), 0)
+            : -1
+          : -2;
+      } catch (err: any) {
+        throw storeErr(namespace, "ttl", err, `Error getting key ${key} from mongo store ${namespace}`, metrics);
+      }
+    },
+  };
+};

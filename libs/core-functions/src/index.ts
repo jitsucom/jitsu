@@ -79,7 +79,6 @@ export type {
   ProfileFunctionWrapper,
   Profile,
 } from "./functions/lib/profiles-udf-wrapper";
-export { makeLog, makeFetch, MultiEventsStore, DummyEventsStore, wrapperFunction } from "./functions/lib/index";
 export * as mixpanelDestination from "./functions/mixpanel-destination";
 export * as ga4Destination from "./functions/ga4-destination";
 export * as webhookDestination from "./functions/webhook-destination";
@@ -87,26 +86,11 @@ export * as posthogDestination from "./functions/posthog-destination";
 export * as mongodbDestination from "./functions/mongodb-destination";
 export * as statsigDestination from "./functions/statsig-destination";
 export { mongodb, mongoAnonymousEventsStore } from "./functions/lib/mongodb";
-export type {
-  MetricsMeta,
-  RotorMetrics,
-  StoreMetrics,
-  FuncChainResult,
-  FunctionExecLog,
-  FunctionExecRes,
-  FunctionContext,
-  FunctionChainContext,
-  FetchType,
-  EventsStore,
-  JitsuFunctionWrapper,
-} from "./functions/lib/index";
 export { httpAgent, httpsAgent } from "./functions/lib/http-agent";
 export * from "./functions/lib/store";
 export * from "./functions/lib/warehouse-store";
-export * from "./functions/lib/ua";
 export * from "./functions/lib/clickhouse-logger";
 export * from "./functions/profiles-functions";
 export * from "./functions/lib/crypto-code";
-export * from "./lib/inmem-store";
-export * from "./lib/config-types";
-export * from "./lib/entity-store";
+export * from "@jitsu/core-functions-lib";
+export { createMongoStore } from "./functions/lib/mongodb";

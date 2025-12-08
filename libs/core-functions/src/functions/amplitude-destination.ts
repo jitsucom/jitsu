@@ -3,7 +3,7 @@ import { RetryError } from "@jitsu/functions-lib";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { randomUUID } from "crypto";
 import { AmplitudeDestinationConfig } from "../meta";
-import { eventTimeSafeMs, getPageOrScreenProps } from "./lib";
+import { eventTimeSafeMs, getPageOrScreenProps } from "@jitsu/core-functions-lib";
 
 const AmplitudeDestination: JitsuFunction<AnalyticsServerEvent, AmplitudeDestinationConfig> = async (
   event,

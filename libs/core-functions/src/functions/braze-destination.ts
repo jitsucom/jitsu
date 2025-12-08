@@ -2,9 +2,8 @@ import { FullContext, JitsuFunction } from "@jitsu/protocols/functions";
 import { RetryError } from "@jitsu/functions-lib";
 import type { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { BrazeCredentials } from "../meta";
-import { eventTimeSafeMs } from "./lib";
+import { eventTimeSafeMs } from "@jitsu/core-functions-lib";
 import omit from "lodash/omit";
-import { pick } from "lodash";
 
 const endpoints = {
   "US-01 : dashboard-01.braze.com": "https://rest.iad-01.braze.com",

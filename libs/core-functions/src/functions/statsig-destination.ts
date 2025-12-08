@@ -2,7 +2,7 @@ import { JitsuFunction } from "@jitsu/protocols/functions";
 import { RetryError } from "@jitsu/functions-lib";
 import type { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { StatsigDestinationConfig } from "../meta";
-import { eventTimeSafeMs, getPageOrScreenProps } from "./lib";
+import { eventTimeSafeMs, getPageOrScreenProps } from "@jitsu/core-functions-lib";
 import omit from "lodash/omit";
 
 const STATSIG_API_ENDPOINT = "https://events.statsigapi.net/v1/log_event";

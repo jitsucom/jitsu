@@ -17,7 +17,7 @@
     "dev": "tsx --watch src/index.ts"
   },
   "dependencies": {
-    "@jitsu/core-functions": "workspace:*",
+    "@jitsu/core-functions-lib": "workspace:*",
     "@jitsu/protocols": "workspace:*",
     "juava": "workspace:*",
     "tslib": "catalog:",

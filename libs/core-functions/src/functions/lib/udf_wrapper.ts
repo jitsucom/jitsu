@@ -3,6 +3,11 @@ import { Context, ExternalCopy, Isolate, Module, Reference } from "isolated-vm";
 import { EventContext, FetchOpts, FuncReturn, Store, TTLStore } from "@jitsu/protocols/functions";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 
+import { chainWrapperCode, functionsLibCode } from "./udf-wrapper-code";
+import { RetryError } from "@jitsu/functions-lib";
+import { clearTimeout } from "node:timers";
+import * as crypto from "node:crypto";
+import { cryptoCode } from "./crypto-code";
 import {
   createMemoryStore,
   EnrichedConnectionConfig,
@@ -11,18 +16,13 @@ import {
   FunctionChainContext,
   FunctionContext,
   isDropResult,
+  JitsuFunctionWrapper,
   makeFetch,
   makeLog,
   memoryStoreDump,
-  warehouseQuery,
-} from "../../index";
-import { chainWrapperCode, functionsLibCode } from "./udf-wrapper-code";
-import { parseUserAgent } from "./ua";
-import { RetryError } from "@jitsu/functions-lib";
-import { JitsuFunctionWrapper } from "./index";
-import { clearTimeout } from "node:timers";
-import * as crypto from "node:crypto";
-import { cryptoCode } from "./crypto-code";
+  parseUserAgent,
+} from "@jitsu/core-functions-lib";
+import { warehouseQuery } from "./warehouse-store";
 
 const log = getLog("udf-wrapper");
 

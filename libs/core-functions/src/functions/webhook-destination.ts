@@ -2,7 +2,8 @@ import { JitsuFunction } from "@jitsu/protocols/functions";
 import { HTTPError, RetryError } from "@jitsu/functions-lib";
 import type { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { WebhookDestinationConfig } from "../meta";
-import { bulkerPartitionParam, MetricsMeta } from "./lib";
+import { MetricsMeta } from "@jitsu/core-functions-lib";
+import { bulkerPartitionParam } from "./bulker-destination";
 
 const bulkerBase = process.env.BULKER_URL;
 const bulkerAuthKey = process.env.BULKER_AUTH_KEY;

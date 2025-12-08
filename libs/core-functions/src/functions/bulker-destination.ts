@@ -13,14 +13,28 @@ import { AnalyticsServerEvent, DataLayoutType } from "@jitsu/protocols/analytics
 
 import { request, Agent } from "undici";
 import omit from "lodash/omit";
-import { bulkerPartitionParam, MetricsMeta } from "./lib";
 import { UserRecognitionParameter } from "./user-recognition";
-import { parseNumber } from "juava";
+import { int32Hash, parseNumber } from "juava";
+import { MetricsMeta } from "@jitsu/core-functions-lib";
 
 const JitsuInternalProperties = [TableNameParameter, UserRecognitionParameter];
 
 const concurrency = parseNumber(process.env.CONCURRENCY, 10);
 const fetchTimeoutMs = parseNumber(process.env.FETCH_TIMEOUT_MS, 2000);
+
+export function bulkerPartitionParam(ctx: FullContext, event: AnalyticsServerEvent): string {
+  let partitionParam = "";
+  if (ctx["connectionOptions"]?.multithreading) {
+    const threadsCount = ctx["connectionOptions"]?.threadsCount || 2;
+    const thread = event.messageId
+      ? int32Hash(event.messageId) % threadsCount
+      : Math.floor(Math.random() * threadsCount);
+    if (thread > 0) {
+      partitionParam = `&partition=${thread}`;
+    }
+  }
+  return partitionParam;
+}
 
 export const undiciAgent = new Agent({
   connections: concurrency, // Limit concurrent kept-alive connections to not run out of resources

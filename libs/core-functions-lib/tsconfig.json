@@ -1,0 +1,17 @@
+{
+  "extends": "@jitsu/common-config/tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "declaration": true,
+    "noEmit": true,
+    "strictNullChecks": false
+  },
+  "include": ["src/**/*"],
+  "exclude": [
+    "dist",
+    "test_projects",
+    "test",
+    "templates"
+  ]
+}

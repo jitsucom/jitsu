@@ -3,9 +3,10 @@ import { HTTPError, RetryError } from "@jitsu/functions-lib";
 import type { AnalyticsServerEvent, Geo } from "@jitsu/protocols/analytics";
 import { hash } from "juava";
 import { MixpanelCredentials } from "../meta";
-import { bulkerPartitionParam, eventTimeSafeMs, getPageOrScreenProps, MetricsMeta } from "./lib";
+import { eventTimeSafeMs, getPageOrScreenProps, MetricsMeta } from "@jitsu/core-functions-lib";
 import { randomUUID } from "crypto";
 import zlib from "zlib";
+import { bulkerPartitionParam } from "./bulker-destination";
 
 const bulkerBase = process.env.BULKER_URL;
 const bulkerAuthKey = process.env.BULKER_AUTH_KEY;

@@ -1,11 +1,10 @@
 import { FullContext, JitsuFunction } from "@jitsu/protocols/functions";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { IntercomDestinationCredentials } from "../meta";
-import { JsonFetcher, jsonFetcher } from "./lib/json-fetch";
 import { isEqual, pick } from "lodash";
 import { requireDefined } from "juava";
 import { RetryError } from "@jitsu/functions-lib";
-import { getPageOrScreenProps } from "./lib";
+import { getPageOrScreenProps, jsonFetcher, JsonFetcher } from "@jitsu/core-functions-lib";
 
 type ExtendedCtx = FullContext<IntercomDestinationCredentials> & {
   jsonFetch: JsonFetcher;

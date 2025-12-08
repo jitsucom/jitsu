@@ -18,20 +18,22 @@ const externalModules = [
 ];
 
 // Bundle the CLI
-await esbuild.build({
-  entryPoints: ["./src/index.ts"],
-  bundle: true,
-  platform: "node",
-  target: "node20",
-  format: "cjs",
-  outfile: "./dist/main.js",
-  sourcemap: true,
-  minify: false,
-  external: externalModules,
-  logLevel: "info",
-  loader: {
-    ".json": "json",
-  },
-});
-
-console.log("\nBuild complete!");
+esbuild
+  .build({
+    entryPoints: ["./src/index.ts"],
+    bundle: true,
+    platform: "node",
+    target: "node20",
+    format: "cjs",
+    outfile: "./dist/main.js",
+    sourcemap: true,
+    minify: false,
+    external: externalModules,
+    logLevel: "info",
+    loader: {
+      ".json": "json",
+    },
+  })
+  .then(() => {
+    console.log("\nBuild complete!");
+  });

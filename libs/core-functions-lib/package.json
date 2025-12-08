@@ -1,5 +1,5 @@
 {
-  "name": "@jitsu/core-functions",
+  "name": "@jitsu/core-functions-lib",
   "version": "0.0.0",
   "main": "src/index.ts",
   "types": "src/index.ts",
@@ -32,27 +32,14 @@
     "vitest": "catalog:"
   },
   "dependencies": {
-    "@jitsu/core-functions-lib": "workspace:*",
     "@amplitude/ua-parser-js": "^0.7.33",
-    "@hubspot/api-client": "^11.1.0",
-    "@mongodb-js/zstd": "^2.0.1",
-    "undici": "^7.11.0",
     "ip": "^2.0.1",
-    "agentkeepalive": "4.3.0",
     "dayjs": "^1.11.10",
-    "google-ads-api": "^17.1.0-rest-beta",
-    "ioredis": "^5.3.2",
-    "isolated-vm": "6.0.0",
     "juava": "workspace:*",
     "lodash": "catalog:",
-    "mongodb": "^6.16.0",
-    "@clickhouse/client": "^1.10.1",
     "node-cache": "^5.1.2",
     "parse-duration": "^1.1.2",
-    "axios": "1.8.2",
-    "posthog-node": "^4.2.1",
     "tslib": "catalog:",
-    "zod": "^3.23.8",
-    "node-sql-parser": "^5.3.8"
+    "zod": "^3.23.8"
   }
 }

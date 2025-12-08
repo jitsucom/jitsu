@@ -12,6 +12,7 @@ use (
 	./ingress-manager
 	./jitsubase
 	./kafkabase
+	./operator
 	./reprocessing-worker
 	./sync-controller
 	./sync-sidecar

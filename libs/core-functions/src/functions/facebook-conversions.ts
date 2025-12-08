@@ -5,7 +5,7 @@ import { FacebookConversionApiCredentials } from "../meta";
 import crypto from "crypto";
 import omit from "lodash/omit";
 import { RetryError } from "@jitsu/functions-lib";
-import { createFilter, eventTimeSafeMs } from "./lib";
+import { createFilter, eventTimeSafeMs } from "@jitsu/core-functions-lib";
 import { deepMerge } from "juava";
 
 export function facebookHash(input: string | undefined) {
@@ -130,7 +130,7 @@ const FacebookConversionsApi: JitsuFunction<AnalyticsServerEvent, FacebookConver
             ]),
           };
 
-    const baseUrl = `https://graph.facebook.com/v23.0/${ctx.props.pixelId}/events?access_token=`;
+    const baseUrl = `https://graph.facebook.com/v24.0/${ctx.props.pixelId}/events?access_token=`;
     const payload = { data: [fbEvent] };
     const fetchResult = await ctx.fetch(`${baseUrl}${ctx.props.accessToken}`, {
       method: "POST",

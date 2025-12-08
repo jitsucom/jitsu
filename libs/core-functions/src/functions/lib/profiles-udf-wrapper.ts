@@ -3,7 +3,6 @@ import { Isolate, ExternalCopy, Reference, Module, Context } from "isolated-vm";
 import { FetchOpts, Store, TTLStore } from "@jitsu/protocols/functions";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 
-import { EventsStore, FunctionChainContext, FunctionContext, makeFetch, makeLog } from "./index";
 import { cryptoCode } from "./crypto-code";
 import { RetryError } from "@jitsu/functions-lib";
 import { clearTimeout } from "node:timers";
@@ -11,10 +10,18 @@ import * as crypto from "node:crypto";
 import { ProfileResult } from "@jitsu/protocols/profile";
 import { chainWrapperCode, functionsLibCode } from "./profiles-udf-wrapper-code";
 import { logType } from "./udf_wrapper";
-import { createMemoryStore, memoryStoreDump } from "./store";
 import { warehouseQuery } from "./warehouse-store";
-import { EntityStore } from "../../lib/entity-store";
-import { EnrichedConnectionConfig } from "../../lib/config-types";
+import {
+  createMemoryStore,
+  EnrichedConnectionConfig,
+  EntityStore,
+  EventsStore,
+  FunctionChainContext,
+  FunctionContext,
+  makeFetch,
+  makeLog,
+  memoryStoreDump,
+} from "@jitsu/core-functions-lib";
 
 const log = getLog("udf-wrapper");
 

@@ -1,9 +1,7 @@
 import { createClient } from "@clickhouse/client";
 import { getLog, getSingleton, newError, parseNumber, Singleton } from "juava";
-import { EntityStore } from "../../lib/entity-store";
-import { EnrichedConnectionConfig } from "../../lib/config-types";
-import { StoreMetrics } from "./index";
 import { Parser } from "node-sql-parser";
+import { EnrichedConnectionConfig, EntityStore, StoreMetrics } from "@jitsu/core-functions-lib";
 const parser = new Parser();
 
 const log = getLog("warehouseStore");

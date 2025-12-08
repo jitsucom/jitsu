@@ -1,7 +1,11 @@
 import http from "http";
 import path from "path";
 import fs from "fs";
+import zlib from "zlib";
+import { promisify } from "util";
 import { AnyEvent, EventContext, FuncReturn, FullContext, JitsuFunction, TTLStore } from "@jitsu/protocols/functions";
+
+const gunzip = promisify(zlib.gunzip);
 import { getLog, stopwatch } from "juava";
 import {
   EnrichedConnectionConfig,
@@ -11,7 +15,7 @@ import {
   FunctionExecRes,
   FunctionExecLog,
   storeFunc,
-} from "@jitsu/core-functions";
+} from "@jitsu/core-functions-lib";
 import { getServerEnv } from "./server-env";
 
 const log = getLog("functions-server");
@@ -118,7 +122,14 @@ function createCollectingLogger(functionId: string, logEntries: LogEntry[]) {
       timestamp: new Date(),
     });
     // Also log to console
-    const logFn = level === "error" ? log.atError() : level === "warn" ? log.atWarn() : level === "debug" ? log.atDebug() : log.atInfo();
+    const logFn =
+      level === "error"
+        ? log.atError()
+        : level === "warn"
+        ? log.atWarn()
+        : level === "debug"
+        ? log.atDebug()
+        : log.atInfo();
     logFn.log(`[${functionId}] ${message}`, ...args);
   };
 
@@ -130,8 +141,13 @@ function createCollectingLogger(functionId: string, logEntries: LogEntry[]) {
   };
 }
 
-// Load JSON config file
-function loadJsonFile<T>(filePath: string): T {
+// Load JSON config file (supports .json and .json.gz)
+async function loadJsonFile<T>(filePath: string): Promise<T> {
+  if (filePath.endsWith(".gz")) {
+    const compressed = fs.readFileSync(filePath);
+    const decompressed = await gunzip(compressed);
+    return JSON.parse(decompressed.toString("utf-8")) as T;
+  }
   const content = fs.readFileSync(filePath, "utf-8");
   return JSON.parse(content) as T;
 }
@@ -145,6 +161,28 @@ async function compileUdfFunction(code: string, functionId: string): Promise<Jit
     throw new Error(`Default export from function ${functionId} is not a function`);
   }
   return func;
+}
+
+// Check if file is a JSON config file (.json or .json.gz)
+function isJsonConfigFile(filename: string): boolean {
+  return filename.endsWith(".json") || filename.endsWith(".json.gz");
+}
+
+// Load function configs from a directory
+async function loadFunctionsFromDir(dir: string, functions: Map<string, FunctionConfig>): Promise<void> {
+  if (!fs.existsSync(dir)) return;
+
+  for (const file of fs.readdirSync(dir)) {
+    if (!isJsonConfigFile(file)) continue;
+    try {
+      const config = await loadJsonFile<FunctionConfig>(path.join(dir, file));
+      functions.set(config.id, config);
+      const compressed = file.endsWith(".gz") ? " (compressed)" : "";
+      log.atInfo().log(`✓ Loaded function: ${config.id} (${config.name})${compressed}`);
+    } catch (e: any) {
+      log.atError().log(`✗ Failed to load function ${file}: ${e.message}`);
+    }
+  }
 }
 
 // Load configs from filesystem
@@ -161,9 +199,9 @@ async function loadConfigsFromFiles(configDir: string): Promise<{
   // Load connection configs
   if (fs.existsSync(connectionsDir)) {
     for (const file of fs.readdirSync(connectionsDir)) {
-      if (!file.endsWith(".json")) continue;
+      if (!isJsonConfigFile(file)) continue;
       try {
-        const config = loadJsonFile<EnrichedConnectionConfig>(path.join(connectionsDir, file));
+        const config = await loadJsonFile<EnrichedConnectionConfig>(path.join(connectionsDir, file));
         connections.set(config.id, config);
         log.atInfo().log(`✓ Loaded connection: ${config.id}`);
       } catch (e: any) {
@@ -172,16 +210,16 @@ async function loadConfigsFromFiles(configDir: string): Promise<{
     }
   }
 
-  // Load function configs
+  // Load function configs from main functions directory
+  await loadFunctionsFromDir(functionsDir, functions);
+
+  // Also check for partitioned function directories (functions/part-0, functions/part-1, etc.)
   if (fs.existsSync(functionsDir)) {
-    for (const file of fs.readdirSync(functionsDir)) {
-      if (!file.endsWith(".json")) continue;
-      try {
-        const config = loadJsonFile<FunctionConfig>(path.join(functionsDir, file));
-        functions.set(config.id, config);
-        log.atInfo().log(`✓ Loaded function: ${config.id} (${config.name})`);
-      } catch (e: any) {
-        log.atError().log(`✗ Failed to load function ${file}: ${e.message}`);
+    for (const entry of fs.readdirSync(functionsDir, { withFileTypes: true })) {
+      if (entry.isDirectory() && entry.name.startsWith("part-")) {
+        const partDir = path.join(functionsDir, entry.name);
+        log.atInfo().log(`Loading functions from partition: ${entry.name}`);
+        await loadFunctionsFromDir(partDir, functions);
       }
     }
   }

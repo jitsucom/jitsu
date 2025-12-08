@@ -2,8 +2,7 @@ import { JitsuFunction } from "@jitsu/protocols/functions";
 import { RetryError } from "@jitsu/functions-lib";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { PostHog } from "posthog-node";
-import { eventTimeSafeMs, getEventCustomProperties } from "./lib";
-import { parseUserAgentLegacy } from "./lib/browser";
+import { eventTimeSafeMs, getEventCustomProperties, parseUserAgentLegacy } from "@jitsu/core-functions-lib";
 import { POSTHOG_DEFAULT_HOST, PosthogDestinationConfig } from "../meta";
 
 function getHostFromUrl(url: string | undefined): string | undefined {

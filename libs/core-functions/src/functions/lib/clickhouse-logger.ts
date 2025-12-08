@@ -3,8 +3,8 @@ import { getLog, isTruish, LogLevel, requireDefined } from "juava";
 const log = getLog("clickhouseLogger");
 
 import { createClient } from "@clickhouse/client";
-import { EventsStore } from "./index";
 import { Readable } from "stream";
+import { EventsStore } from "@jitsu/core-functions-lib";
 
 type LogEntry = [number, string, string, LogLevel, any];
 type DeadLetterEntry = [number, string, string, string, any, any];
