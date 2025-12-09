@@ -125,7 +125,7 @@ jobs:
           BRANCH: ${{ github.ref_name }}
           COMMIT_SHA: ${{ github.sha }}
         run: |
-          TARGETS="console rotor profiles functions-server"
+          TARGETS="console rotor"
           REGISTRY="${{ secrets.DOCKERHUB_USERNAME }}"
           SHORT_SHA=$(git rev-parse --short=7 HEAD)
 

@@ -134,18 +134,25 @@ function refreshLoop(eventsLogger: EventsStore) {
             const currentPb = profileBuilders.get(pb.id);
             if (currentPb) {
               if (pb.version != currentPb.version()) {
-                log
-                  .atInfo()
-                  .log(`Profile builder version changed for: ${pb.id} v: ${pb.version} old: ${currentPb.version()}`);
-                await currentPb.close();
-                profileBuilders.delete(pb.id);
-                profileBuilders.set(pb.id, await profileBuilder(workspaceId, pb, eventsLogger));
+                if (pb.version) {
+                  log
+                    .atInfo()
+                    .log(`Profile builder version changed for: ${pb.id} v: ${pb.version} old: ${currentPb.version()}`);
+                  await currentPb.close();
+                  profileBuilders.delete(pb.id);
+                  profileBuilders.set(pb.id, await profileBuilder(workspaceId, pb, eventsLogger));
+                  actualProfileBuilders.add(pb.id);
+                } else {
+                  log.atInfo().log(`Deleting profile builder for: ${pb.id} as version is removed`);
+                  await currentPb.close();
+                  profileBuilders.delete(pb.id);
+                }
               }
-            } else {
+            } else if (pb.version) {
               log.atInfo().log(`Starting profile builder for: ${pb.id} v: ${pb.version}`);
               profileBuilders.set(pb.id, await profileBuilder(workspaceId, pb, eventsLogger));
+              actualProfileBuilders.add(pb.id);
             }
-            actualProfileBuilders.add(pb.id);
           } catch (e) {
             log.atError().withCause(e).log(`Failed to start profile builder for: ${pb.id} v: ${pb.version}`);
           }

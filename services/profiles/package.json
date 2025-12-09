@@ -17,7 +17,7 @@
     "profiles:profile": "tsx --env-file=../../.env --env-file=../../.env.local --watch --inspect src/index.ts"
   },
   "dependencies": {
-    "mongodb": "^6.16.0",
+    "mongodb": "^7.0.0",
     "isolated-vm": "6.0.0",
     "@jitsu/core-functions": "workspace:*",
     "@jitsu/functions-lib": "workspace:*",

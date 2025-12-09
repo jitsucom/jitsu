@@ -190,6 +190,7 @@ EXPOSE 3401
 # Copy compiled JavaScript from builder stage
 # The /dist folder contains the bundled Node.js application
 COPY --from=builder /app/services/rotor/dist .
+COPY --from=builder /app/services/rotor/entrypoint.sh .
 
 # Runtime environment configuration
 ENV NODE_ENV=production
@@ -197,81 +198,5 @@ ENV JITSU_VERSION_COMMIT_SHA=${JITSU_BUILD_COMMIT_SHA}
 ENV JITSU_VERSION_DOCKER_TAG=${JITSU_BUILD_DOCKER_TAG}
 ENV JITSU_VERSION_STRING=${JITSU_BUILD_VERSION}
 
-# CMD provides flags to node binary (ENTRYPOINT would be "node" if specified)
-# Flags:
-#   --no-node-snapshot: Disable V8 snapshot (can cause issues in containers)
-#   --max-old-space-size=2048: Limit heap to 2GB (prevents OOM in constrained environments)
-#   main.js: The application entry point
-CMD ["--no-node-snapshot", "--max-old-space-size=2048", "main.js"]
 
-# ============================================================================
-# PROFILES STAGE - User profile management service
-# ============================================================================
-# Node.js service for managing user profiles and identity resolution
-FROM base AS profiles
-
-# Build arguments for version information
-ARG JITSU_BUILD_VERSION=dev,
-ARG JITSU_BUILD_DOCKER_TAG=dev,
-ARG JITSU_BUILD_COMMIT_SHA=unknown,
-
-WORKDIR /app
-
-# Create non-root user for security (same as rotor)
-RUN addgroup --system --gid 1001 runner
-RUN adduser --system --uid 1001 runner
-USER runner
-
-EXPOSE 3401
-
-# Copy compiled JavaScript from builder stage
-COPY --from=builder /app/services/profiles/dist .
-
-# Runtime environment configuration
-ENV NODE_ENV=production
-ENV JITSU_VERSION_COMMIT_SHA=${JITSU_BUILD_COMMIT_SHA}
-ENV JITSU_VERSION_DOCKER_TAG=${JITSU_BUILD_DOCKER_TAG}
-ENV JITSU_VERSION_STRING=${JITSU_BUILD_VERSION}
-
-# Node.js runtime flags (see rotor stage for detailed explanation)
-CMD ["--no-node-snapshot", "--max-old-space-size=2048", "main.js"]
-
-# ============================================================================
-# ROTOR STAGE - Data ingestion and routing service
-# ============================================================================
-# High-throughput Node.js service for processing incoming events
-FROM base AS functions-server
-
-# Build arguments for version information
-ARG JITSU_BUILD_VERSION=dev,
-ARG JITSU_BUILD_DOCKER_TAG=dev,
-ARG JITSU_BUILD_COMMIT_SHA=unknown,
-
-WORKDIR /app
-
-# Create non-root user for security best practices
-# Why: Running as root in containers is a security risk
-# GID/UID 1001: Arbitrary non-privileged IDs (common convention)
-# --system: Creates a system user (no password, no login shell)
-RUN addgroup --system --gid 1001 runner
-RUN adduser --system --uid 1001 runner
-USER runner
-
-EXPOSE 3401
-
-# Copy compiled JavaScript from builder stage
-# The /dist folder contains the bundled Node.js application
-COPY --from=builder /app/services/functions-server/dist .
-
-# Runtime environment configuration
-ENV NODE_ENV=production
-ENV JITSU_VERSION_COMMIT_SHA=${JITSU_BUILD_COMMIT_SHA}
-ENV JITSU_VERSION_DOCKER_TAG=${JITSU_BUILD_DOCKER_TAG}
-ENV JITSU_VERSION_STRING=${JITSU_BUILD_VERSION}
-
-# CMD provides flags to node binary (ENTRYPOINT would be "node" if specified)
-# Flags:
-#   --no-node-snapshot: Disable V8 snapshot (can cause issues in containers)
-#   --max-old-space-size=2048: Limit heap to 2GB (prevents OOM in constrained environments)
-#   main.js: The application entry point
-CMD ["--no-node-snapshot", "--max-old-space-size=2048", "main.js"]
+ENTRYPOINT ["/entrypoint.sh"]

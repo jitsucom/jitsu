@@ -23,10 +23,24 @@ esbuild
     target: "node20",
     format: "cjs",
     outfile: "./dist/main.js",
-    sourcemap: true,
-    minify: false,
+    sourcemap: false,
+    minify: true,
     external: externalModules,
     logLevel: "info",
+  })
+  .then(() => {
+    return esbuild.build({
+      entryPoints: ["./src/functions-server.ts"],
+      bundle: true,
+      platform: "node",
+      target: "node20",
+      format: "cjs",
+      outfile: "./dist/functions-server.js",
+      sourcemap: false,
+      minify: true,
+      external: externalModules,
+      logLevel: "info",
+    });
   })
   .then(() => {
     mkdirSync("dist", { recursive: true });

@@ -646,7 +646,6 @@ const exports: Export[] = [
         const objects = await db.prisma().workspace.findMany({
           where: {
             deleted: false,
-            profileBuilders: { some: { version: { gt: 0 } } },
           },
           include: { profileBuilders: { include: { functions: { include: { function: true } } } } },
           take: batchSize,
