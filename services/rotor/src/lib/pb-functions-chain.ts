@@ -1,5 +1,4 @@
 import {
-  createMongoStore,
   EventsStore,
   FunctionChainContext,
   FunctionConfig,
@@ -7,16 +6,9 @@ import {
   makeFetch,
   makeLog,
   MetricsMeta,
-  mongodb,
-  Profile,
   ProfileBuilder,
-  ProfileFunctionWrapper,
-  ProfileUDFWrapper,
-  EventsProvider,
-  ProfileUserProvider,
   EntityStore,
   EnrichedConnectionConfig,
-  warehouseQuery,
 } from "@jitsu/core-functions";
 
 import { getLog, newError } from "juava";
@@ -24,6 +16,15 @@ import NodeCache from "node-cache";
 import isEqual from "lodash/isEqual";
 import { ProfileResult } from "@jitsu/protocols/profile";
 import { metrics } from "./metrics";
+import {
+  EventsProvider,
+  Profile,
+  ProfileFunctionWrapper,
+  ProfileUDFWrapper,
+  ProfileUserProvider,
+} from "./profiles-udf-wrapper";
+import { createMongoStore, mongodb } from "./mongodb";
+import { warehouseQuery } from "./warehouse-store";
 
 export type Func = {
   id: string;

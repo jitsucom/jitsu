@@ -1,17 +1,9 @@
 import {
-  createClient,
   ProfileBuilder,
-  mongodb,
-  ProfilesConfig,
-  pbEnsureMongoCollection,
-  profileIdHashColumn,
   EventsStore,
   bulkerDestination,
   FunctionContext,
   FunctionChainContext,
-  profileIdColumn,
-  ProfileUser,
-  Profile,
 } from "@jitsu/core-functions";
 import { FindCursor, AggregationCursor, MongoClient, WithId, Document, ReadPreference } from "mongodb";
 import { db, ProfileBuilderQueueInfo } from "./db";
@@ -27,6 +19,15 @@ import { createPriorityConsumer, TopicsReport } from "./priority-consumer";
 import { kafkaAdmin, kafkaCredentials, topicName } from "./kafka";
 import { promProfileStatuses, promQueueProcessed, promQueueSize } from "./metrics";
 import { getServerEnv } from "../serverEnv";
+import {
+  createClient,
+  pbEnsureMongoCollection,
+  profileIdColumn,
+  profileIdHashColumn,
+  ProfilesConfig,
+} from "./profiles-functions";
+import { mongodb } from "./mongodb";
+import { Profile, ProfileUser } from "./profiles-udf-wrapper";
 
 const serverEnv = getServerEnv();
 

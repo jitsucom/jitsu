@@ -1,6 +1,6 @@
 import { Isolate } from "isolated-vm";
-import { UDFTestRun, UDFWrapper } from "../src";
 import express from "express";
+import { UDFTestRun } from "../src/lib/udf_wrapper";
 
 test("UDFWrapper", async () => {
   let server: any = undefined;

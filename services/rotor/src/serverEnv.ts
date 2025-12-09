@@ -148,7 +148,12 @@ const ServerEnvSchema = z.object({
 
 export type ServerEnv = z.infer<typeof ServerEnvSchema>;
 
+let serverEnvCache: ServerEnv | undefined;
+
 export function getServerEnv(): ServerEnv {
+  if (serverEnvCache) {
+    return serverEnvCache;
+  }
   const result = ServerEnvSchema.safeParse(process.env);
 
   if (!result.success) {
@@ -170,6 +175,6 @@ export function getServerEnv(): ServerEnv {
 
     throw new Error(`Following env vars are misconfigured:\n${errors.join("\n")}`);
   }
-
-  return result.data;
+  serverEnvCache = result.data;
+  return serverEnvCache;
 }

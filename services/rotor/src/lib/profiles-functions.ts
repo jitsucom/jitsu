@@ -3,14 +3,16 @@ import { JitsuFunction } from "@jitsu/protocols/functions";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { getSingleton, parseDate, parseNumber, int32Hash, hash } from "juava";
 import { MongoClient } from "mongodb";
-import { mongodb } from "./lib/mongodb";
+import { mongodb } from "./mongodb";
+import { bulkerDestination } from "@jitsu/core-functions";
 import { HTTPError, transfer } from "@jitsu/functions-lib";
-import { undiciAgent } from "./bulker-destination";
 import { request } from "undici";
+import { getServerEnv } from "../serverEnv";
 
-const bulkerBase = process.env.BULKER_URL;
-const bulkerAuthKey = process.env.BULKER_AUTH_KEY;
-const fetchTimeoutMs = parseNumber(process.env.FETCH_TIMEOUT_MS, 2000);
+const serverEnv = getServerEnv();
+const bulkerBase = serverEnv.BULKER_URL;
+const bulkerAuthKey = serverEnv.BULKER_AUTH_KEY;
+const fetchTimeoutMs = parseNumber(serverEnv.FETCH_TIMEOUT_MS, 2000);
 
 export const profileIdHashColumn = "_profile_id_hash";
 export const profileIdColumn = "_profile_id";
@@ -32,12 +34,12 @@ const MongoCreatedCollections = new Set<string>();
 export type ProfilesConfig = z.infer<typeof ProfilesConfig>;
 
 export const createClient = async (config: { mongoUrl: string }) => {
-  const mongoTimeout = parseNumber(process.env.MONGODB_TIMEOUT_MS, 1000);
+  const mongoTimeout = parseNumber(serverEnv.MONGODB_TIMEOUT_MS, 1000);
   let uri = config.mongoUrl!;
 
   // Create a new MongoClient
   const client = new MongoClient(uri, {
-    compressors: process.env.MONGODB_NETWORK_COMPRESSION ? process.env.MONGODB_NETWORK_COMPRESSION : ["zstd"],
+    compressors: serverEnv.MONGODB_NETWORK_COMPRESSION ? serverEnv.MONGODB_NETWORK_COMPRESSION : ["zstd"],
     serverSelectionTimeoutMS: 60000,
     maxPoolSize: 32,
     connectTimeoutMS: 60000,
@@ -156,7 +158,7 @@ export const ProfilesFunction: JitsuFunction<AnalyticsServerEvent, ProfilesConfi
       headers: { Authorization: `Bearer ${bulkerAuthKey}` },
       bodyTimeout: fetchTimeoutMs,
       headersTimeout: fetchTimeoutMs,
-      dispatcher: undiciAgent,
+      dispatcher: bulkerDestination.undiciAgent,
     }
   );
   if (bulkerRes.statusCode != 200) {

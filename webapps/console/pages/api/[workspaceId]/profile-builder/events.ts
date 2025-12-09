@@ -2,16 +2,8 @@ import { db } from "../../../../lib/server/db";
 import { z } from "zod";
 import { createRoute, verifyAccess } from "../../../../lib/api";
 import { getServerLog } from "../../../../lib/server/log";
-import {
-  ProfilesConfig,
-  createClient,
-  profileIdHashColumn,
-  profileIdColumn,
-} from "@jitsu/core-functions/src/functions/profiles-functions";
-import { mongodb } from "@jitsu/core-functions/src/functions/lib/mongodb";
-
-import { getSingleton, hash, int32Hash } from "juava";
-import omit from "lodash/omit";
+import { requireDefined, rpc } from "juava";
+import { getServerEnv } from "../../../../lib/server/serverEnv";
 
 const log = getServerLog("profile-builder-events");
 
@@ -27,6 +19,12 @@ export default createRoute()
   .handler(async ({ user, query }) => {
     const { workspaceId, profileBuilderId, userId } = query;
     await verifyAccess(user, workspaceId);
+    const serverEnv = getServerEnv();
+    const rotorURL = requireDefined(
+      serverEnv.ROTOR_URL,
+      `env ROTOR_URL is not set. Rotor is required to run functions`
+    );
+    const rotorAuthKey = serverEnv.ROTOR_AUTH_KEY;
 
     const profileBuilder = await db.prisma().profileBuilder.findFirst({
       where: {
@@ -41,48 +39,22 @@ export default createRoute()
       };
     }
     try {
-      const config = ProfilesConfig.parse({
-        profileBuilderId: profileBuilder.id,
-        ...(profileBuilder.intermediateStorageCredentials || ({} as any)),
-        profileWindowDays: (profileBuilder.connectionOptions || ({} as any)).profileWindow,
-        eventsDatabase: `profiles`,
-        eventsCollectionName: `profiles-raw-${workspaceId}-${profileBuilder.id}`,
-      });
-
-      const mongoSingleton = config.mongoUrl
-        ? getSingleton(
-            `profiles-mongodb-${profileBuilder.id}-${hash("md5", config.mongoUrl)}`,
-            () => {
-              log.atInfo().log(`Connecting to MongoDB server.`);
-              const cl = createClient({
-                mongoUrl: config.mongoUrl!,
-              });
-              log.atInfo().log(`Connected successfully to MongoDB server.`);
-              return cl;
-            },
-            {
-              optional: true,
-              ttlSec: 60 * 60,
-              cleanupFunc: client => client.close(),
-            }
-          )
-        : mongodb;
-
-      const mongo = await mongoSingleton.waitInit();
-
-      const events = await mongo
-        .db(config.eventsDatabase)
-        .collection(config.eventsCollectionName)
-        .find({
-          [profileIdHashColumn]: int32Hash(userId),
-          [profileIdColumn]: userId,
-        })
-        .toArray();
-
-      return {
-        status: "ok",
-        events: events.map(e => omit(e, ["_id", profileIdHashColumn])),
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
       };
+      if (rotorAuthKey) {
+        headers["Authorization"] = `Bearer ${rotorAuthKey}`;
+      }
+      const res = await rpc(rotorURL + "/profileevents", {
+        method: "POST",
+        body: {
+          profileBuilderId,
+          workspaceId,
+          userId,
+        },
+        headers,
+      });
+      return res;
     } catch (e: any) {
       log.atError().withCause(e).log(`Error while fetching events from MongoDB: ${e}`);
       return {

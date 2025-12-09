@@ -4,10 +4,12 @@ import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { AnonymousEventsStore, SetOpts, TTLStore } from "@jitsu/protocols/functions";
 import { getTtlSec, StoreMetrics } from "@jitsu/core-functions-lib";
 import { storeErr } from "./store";
+import { getServerEnv } from "../serverEnv";
 
 const AnonymousEventsStoreIdField = "_jitsu_anonymous_id_";
 
 const log = getLog("mongodb");
+const serverEnv = getServerEnv();
 
 export const mongodb = getSingleton<MongoClient>("mongodb", createClient, {
   errorTtlSec: 5,
@@ -18,14 +20,14 @@ export const mongodb = getSingleton<MongoClient>("mongodb", createClient, {
 });
 
 async function createClient() {
-  const mongoTimeout = parseNumber(process.env.MONGODB_TIMEOUT_MS, 1000);
-  const mongodbURL = requireDefined(process.env.MONGODB_URL, "env MONGODB_URL is not defined");
+  const mongoTimeout = parseNumber(serverEnv.MONGODB_TIMEOUT_MS, 1000);
+  const mongodbURL = requireDefined(serverEnv.MONGODB_URL, "env MONGODB_URL is not defined");
 
   log.atInfo().log(`Connecting to MongoDB server...`);
 
   // Create a new MongoClient
   const client = new MongoClient(mongodbURL, {
-    compressors: process.env.MONGODB_NETWORK_COMPRESSION ? process.env.MONGODB_NETWORK_COMPRESSION : ["zstd"],
+    compressors: serverEnv.MONGODB_NETWORK_COMPRESSION ? serverEnv.MONGODB_NETWORK_COMPRESSION : ["zstd"],
     serverSelectionTimeoutMS: 60000,
     maxPoolSize: 32,
     connectTimeoutMS: 60000,

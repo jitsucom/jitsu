@@ -107,6 +107,14 @@ export type FunctionExecRes = {
 
 export type FunctionExecLog = FunctionExecRes[];
 
+export type logType = {
+  message: string;
+  level: string;
+  timestamp: Date;
+  type: string;
+  data?: any;
+};
+
 export interface StoreMetrics {
   storeStatus: (namespace: string, operation: string, status: string) => void;
   warehouseStatus: (id: string, table: string, status: string, timeMs: number) => void;

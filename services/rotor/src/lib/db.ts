@@ -2,6 +2,7 @@ import { Pool, PoolClient } from "pg";
 import Cursor from "pg-cursor";
 import { getLog, getSingleton, hideSensitiveInfo, namedParameters, newError, requireDefined, stopwatch } from "juava";
 import { getServerEnv } from "../serverEnv";
+import { ProfileBuilder } from "@jitsu/core-functions-lib";
 
 export type Handler = (row: Record<string, any>) => Promise<void> | void;
 
@@ -38,6 +39,7 @@ export type ProfileBuilderQueueInfo = {
 };
 
 type PgHelper = {
+  getProfileBuilder(workspaceId: string, profileBuilderId: string): Promise<ProfileBuilder | undefined>;
   getProfileBuilderState(profileBuilderId: string): Promise<ProfileBuilderState | undefined>;
   updateProfileBuilderFullRebuildInfo(profileBuilderId: string, info: ProfileBuilderFullRebuildInfo): Promise<void>;
   updateProfileBuilderQueuesInfo(profileBuilderId: string, info: ProfileBuilderQueueInfo): Promise<void>;
@@ -46,6 +48,18 @@ type PgHelper = {
 };
 
 const pgHelper: PgHelper = {
+  async getProfileBuilder(workspaceId: string, profileBuilderId: string): Promise<ProfileBuilder | undefined> {
+    let rows = await db.pgPool().query(
+      `select *
+       from newjitsu."ProfileBuilder"
+       where id = $1::text and "workspaceId" = $2::text`,
+      [profileBuilderId, workspaceId]
+    );
+    if (rows.rowCount) {
+      return rows.rows[0];
+    }
+    return undefined;
+  },
   async getProfileBuilderState(profileBuilderId: string): Promise<ProfileBuilderState | undefined> {
     let rows = await db.pgPool().query(
       `select *

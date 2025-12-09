@@ -2,8 +2,7 @@ import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import UserRecognitionFunction from "../src/functions/user-recognition";
 import { prefixLogMessage, testJitsuFunction, TestOptions } from "./lib/testing-lib";
 import { createAnonymousEventsStore, createStore, EventsByAnonId } from "./lib/mem-store";
-import { FunctionContext } from "../src";
-import { InternalFetchType } from "../src/functions/lib";
+import { FunctionContext, InternalFetchType } from "../src";
 
 const anonymousEvents: AnalyticsServerEvent[] = [
   {

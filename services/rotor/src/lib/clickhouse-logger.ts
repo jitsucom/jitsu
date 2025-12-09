@@ -5,16 +5,19 @@ const log = getLog("clickhouseLogger");
 import { createClient } from "@clickhouse/client";
 import { Readable } from "stream";
 import { EventsStore } from "@jitsu/core-functions-lib";
+import { getServerEnv } from "../serverEnv";
 
 type LogEntry = [number, string, string, LogLevel, any];
 type DeadLetterEntry = [number, string, string, string, any, any];
 
+const serverEnv = getServerEnv();
+
 export function clickhouseHost() {
-  if (process.env.CLICKHOUSE_URL) {
-    return process.env.CLICKHOUSE_URL;
+  if (serverEnv.CLICKHOUSE_URL) {
+    return serverEnv.CLICKHOUSE_URL;
   }
-  return `${isTruish(process.env.CLICKHOUSE_SSL) ? "https://" : "http://"}${requireDefined(
-    process.env.CLICKHOUSE_HOST,
+  return `${isTruish(serverEnv.CLICKHOUSE_SSL) ? "https://" : "http://"}${requireDefined(
+    serverEnv.CLICKHOUSE_HOST,
     "env CLICKHOUSE_HOST is not defined"
   )}`;
 }
@@ -22,12 +25,12 @@ export function clickhouseHost() {
 export function createClickhouseLogger(): EventsStore {
   const logBuffer: LogEntry[] = [];
   const deadLetterBuffer: DeadLetterEntry[] = [];
-  const metricsSchema = process.env.CLICKHOUSE_METRICS_SCHEMA || process.env.CLICKHOUSE_DATABASE || "newjitsu_metrics";
+  const metricsSchema = serverEnv.CLICKHOUSE_METRICS_SCHEMA || serverEnv.CLICKHOUSE_DATABASE || "newjitsu_metrics";
 
   const clickhouse = createClient({
     url: clickhouseHost(),
-    username: process.env.CLICKHOUSE_USERNAME || "default",
-    password: requireDefined(process.env.CLICKHOUSE_PASSWORD, `env CLICKHOUSE_PASSWORD is not defined`),
+    username: serverEnv.CLICKHOUSE_USERNAME || "default",
+    password: requireDefined(serverEnv.CLICKHOUSE_PASSWORD, `env CLICKHOUSE_PASSWORD is not defined`),
     clickhouse_settings: {
       async_insert: 1,
       wait_for_async_insert: 0,

@@ -1,4 +1,4 @@
-import { logType } from "@jitsu/core-functions";
+import { logType } from "@jitsu/core-functions-lib";
 import React from "react";
 import dayjs from "dayjs";
 

@@ -1,7 +1,7 @@
 import { checkHash, checkRawToken, disableService, getLog, setServerJsonFormat, isTruish } from "juava";
 import { destinationMessagesTopic, getCredentialsFromEnv, rotorConsumerGroupId } from "./lib/kafka-config";
 import { kafkaRotor } from "./lib/rotor";
-import { createClickhouseLogger, DummyEventsStore, EventsStore, mongodb } from "@jitsu/core-functions";
+import { DummyEventsStore, EventsStore } from "@jitsu/core-functions";
 import express from "express";
 import { UDFRunHandler } from "./http/udf";
 import Prometheus from "prom-client";
@@ -20,6 +20,9 @@ import { ProfileUDFRunHandler } from "./http/profiles-udf";
 import { getServerEnv } from "./serverEnv";
 import { profileBuilder, ProfileBuilderRunner } from "./lib/builder";
 import { db } from "./lib/db";
+import { ProfileEventsHandler } from "./http/profile-events";
+import { mongodb } from "./lib/mongodb";
+import { createClickhouseLogger } from "./lib/clickhouse-logger";
 const log = getLog("rotor");
 
 disableService("prisma");
@@ -277,6 +280,7 @@ function initHTTP(rotorContext: Omit<MessageHandlerContext, "connectionStore" | 
   });
   http.post("/udfrun", UDFRunHandler);
   http.post("/profileudfrun", ProfileUDFRunHandler);
+  http.post("/profileevents", ProfileEventsHandler);
   http.post("/func", FunctionsHandler(rotorContext));
   http.get("/wtf", async (req, res) => {
     res.setHeader("Content-Type", "text/plain");

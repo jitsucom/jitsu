@@ -1,9 +1,9 @@
 import { AnalyticsInterface, AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { getLog, logFormat, requireDefined } from "juava";
-import { AnyEvent, EventContext, FuncReturn, JitsuFunction } from "@jitsu/protocols/functions";
+import { AnyEvent, EventContext, FuncReturn, FunctionContext, JitsuFunction } from "@jitsu/protocols/functions";
 import { createStore } from "./mem-store";
 import * as JSON5 from "json5";
-import { FunctionChainContext, FunctionContext, InternalFetchType, wrapperFunction } from "../../src/functions/lib";
+import { FunctionChainContext, InternalFetchType, wrapperFunction } from "@jitsu/core-functions-lib";
 
 export type Or<T1, T2> =
   | ({ [P in keyof T1]: T1[P] } & { [P in keyof T2]?: never })

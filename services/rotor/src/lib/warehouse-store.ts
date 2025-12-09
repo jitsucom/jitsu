@@ -2,13 +2,15 @@ import { createClient } from "@clickhouse/client";
 import { getLog, getSingleton, newError, parseNumber, Singleton } from "juava";
 import { Parser } from "node-sql-parser";
 import { EnrichedConnectionConfig, EntityStore, StoreMetrics } from "@jitsu/core-functions-lib";
+import { getServerEnv } from "../serverEnv";
 const parser = new Parser();
 
 const log = getLog("warehouseStore");
+const serverEnv = getServerEnv();
 
 const warehouses: Record<string, Singleton<any>> = {};
 
-const warehouseTimeoutMs = parseNumber(process.env.WAREHOUSE_TIMEOUT_MS, 1000);
+const warehouseTimeoutMs = parseNumber(serverEnv.WAREHOUSE_TIMEOUT_MS, 1000);
 
 interface WarehouseStore {
   query: (query: string, params?: Record<string, any>) => Promise<any[]>;

@@ -27,7 +27,6 @@
     "@types/lodash": "catalog:",
     "@types/node": "catalog:",
     "@vitest/ui": "catalog:",
-    "express": "^4.21.2",
     "json5": "^2.1.0",
     "vitest": "catalog:"
   },
@@ -35,24 +34,12 @@
     "@jitsu/core-functions-lib": "workspace:*",
     "@amplitude/ua-parser-js": "^0.7.33",
     "@hubspot/api-client": "^11.1.0",
-    "@mongodb-js/zstd": "^7.0.0",
-    "mongodb": "^7.0.0",
     "undici": "^7.11.0",
-    "ip": "^2.0.1",
-    "agentkeepalive": "4.3.0",
-    "dayjs": "^1.11.10",
-    "google-ads-api": "^17.1.0-rest-beta",
-    "ioredis": "^5.3.2",
-    "isolated-vm": "6.0.0",
     "juava": "workspace:*",
-    "lodash": "catalog:",
-    "@clickhouse/client": "^1.10.1",
     "node-cache": "^5.1.2",
-    "parse-duration": "^1.1.2",
-    "axios": "1.8.2",
+    "lodash": "catalog:",
     "posthog-node": "^4.2.1",
     "tslib": "catalog:",
-    "zod": "^3.23.8",
-    "node-sql-parser": "^5.3.8"
+    "zod": "^3.23.8"
   }
 }

@@ -1,10 +1,4 @@
-import {
-  BuiltinDestinationFunctionName,
-  BuiltinFunctionName,
-  BuiltinTransformationFunctionName,
-  FuncReturn,
-  JitsuFunction,
-} from "@jitsu/protocols/functions";
+import { FuncReturn } from "@jitsu/protocols/functions";
 
 export function isDropResult(result: FuncReturn): boolean {
   return result === "drop" || (Array.isArray(result) && result.length === 0) || result === null || result === false;
@@ -35,8 +29,11 @@ export type {
   FetchType,
   EventsStore,
   JitsuFunctionWrapper,
+  InternalFetchType,
+  logType,
 } from "./functions/lib/index";
 export * from "./functions/lib/store";
+export * from "./functions/lib/strings";
 export * from "./functions/lib/ua";
 export * from "./functions/lib/browser";
 export * from "./functions/lib/json-fetch";
