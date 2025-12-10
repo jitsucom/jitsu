@@ -1,5 +1,5 @@
 import { getLog, isTruish, requireDefined, stopwatch } from "juava";
-import { FunctionExecLog, FunctionExecRes, RotorMetrics, StoreMetrics } from "@jitsu/core-functions";
+import { FunctionExecLog, FunctionExecRes, RotorMetrics, StoreMetrics } from "@jitsu/destination-functions";
 
 import { KafkaJS } from "@confluentinc/kafka-javascript";
 import { Readable } from "stream";

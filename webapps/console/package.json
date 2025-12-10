@@ -36,7 +36,7 @@
     "@fontsource/roboto-mono": "^4.5.8",
     "@google-cloud/scheduler": "^4.0.0",
     "@jitsu-internal/webapps-shared": "workspace:*",
-    "@jitsu/core-functions": "workspace:*",
+    "@jitsu/destination-functions": "workspace:*",
     "@jitsu/core-functions-lib": "workspace:*",
     "@jitsu/functions-lib": "workspace:*",
     "@jitsu/jitsu-react": "workspace:*",

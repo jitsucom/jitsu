@@ -9,7 +9,7 @@ import {
   ProfileBuilder,
   EntityStore,
   EnrichedConnectionConfig,
-} from "@jitsu/core-functions";
+} from "@jitsu/destination-functions";
 
 import { getLog, newError } from "juava";
 import NodeCache from "node-cache";

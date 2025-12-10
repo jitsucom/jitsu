@@ -10,7 +10,7 @@ import hash from "object-hash";
 import { default as stableHash } from "stable-hash";
 import { WorkspaceDbModel } from "../../../../../prisma/schema";
 import pick from "lodash/pick";
-import { ProfileBuilder } from "@jitsu/core-functions";
+import { ProfileBuilder } from "@jitsu/destination-functions";
 
 export const config = {
   api: {

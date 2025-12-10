@@ -1,4 +1,4 @@
-import { ProfileBuilder } from "@jitsu/core-functions";
+import { ProfileBuilder } from "@jitsu/destination-functions";
 import { kafkaAdmin, kafkaCredentials, kafkaSettings, topicName } from "./kafka";
 import PQueue from "p-queue";
 import { getLog, parseNumber } from "juava";

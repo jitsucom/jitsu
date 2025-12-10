@@ -217,7 +217,7 @@ jobs:
           BRANCH: ${{ github.ref_name }}
           COMMIT_SHA: ${{ github.sha }}
         run: |
-          TARGETS="bulker ingest sidecar syncctl ingmgr cfgkpr admin reprocessing-worker"
+          TARGETS="bulker ingest sidecar syncctl operator ingmgr cfgkpr admin reprocessing-worker"
           REGISTRY="${{ secrets.DOCKERHUB_USERNAME }}"
           SHORT_SHA=$(git rev-parse --short=7 HEAD)
           BUILD_TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")

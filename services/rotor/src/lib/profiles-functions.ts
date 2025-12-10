@@ -4,7 +4,7 @@ import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { getSingleton, parseDate, parseNumber, int32Hash, hash } from "juava";
 import { MongoClient } from "mongodb";
 import { mongodb } from "./mongodb";
-import { bulkerDestination } from "@jitsu/core-functions";
+import { bulkerDestination } from "@jitsu/destination-functions";
 import { HTTPError, transfer } from "@jitsu/functions-lib";
 import { request } from "undici";
 import { getServerEnv } from "../serverEnv";

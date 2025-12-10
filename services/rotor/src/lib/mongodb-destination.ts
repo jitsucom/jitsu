@@ -3,7 +3,7 @@ import { RetryError } from "@jitsu/functions-lib";
 import type { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { getSingleton } from "juava";
 import { MongoClient } from "mongodb";
-import { MongodbDestinationConfig } from "@jitsu/core-functions/src/meta";
+import { MongodbDestinationConfig } from "@jitsu/destination-functions/src/meta";
 
 const buildUrl = (config: MongodbDestinationConfig) => {
   if (!config.hosts) {

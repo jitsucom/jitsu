@@ -29,7 +29,7 @@
     "@clickhouse/client": "^1.10.1",
     "node-sql-parser": "^5.3.13",
     "@confluentinc/kafka-javascript": "^1.4.1",
-    "@jitsu/core-functions": "workspace:*",
+    "@jitsu/destination-functions": "workspace:*",
     "@jitsu/core-functions-lib": "workspace:*",
     "@jitsu/functions-lib": "workspace:*",
     "@maxmind/geoip2-node": "^5.0.0",

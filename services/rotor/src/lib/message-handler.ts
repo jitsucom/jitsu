@@ -13,7 +13,7 @@ import {
   FunctionConfig,
   RotorMetrics,
   StreamWithDestinations,
-} from "@jitsu/core-functions";
+} from "@jitsu/destination-functions";
 import NodeCache from "node-cache";
 import { buildFunctionChain, checkError, FuncChain, FuncChainFilter, runChain } from "./functions-chain";
 import { Redis } from "ioredis";

@@ -5,7 +5,7 @@ RUN apt-get install -y ca-certificates curl
 
 ENV TZ=UTC
 
-FROM golang:1.24.9-bullseye as build
+FROM golang:1.25-bullseye as build
 
 RUN apt-get install gcc libc6-dev
 

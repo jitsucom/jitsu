@@ -30,8 +30,8 @@ import logRocketIcon from "./icons/logrocket";
 import intercomIcon from "./icons/intercom";
 import webhookIcon from "./icons/webhook";
 import { branding } from "../branding";
-import * as meta from "@jitsu/core-functions/src/meta";
-import { HubspotCredentials } from "@jitsu/core-functions/src/meta";
+import * as meta from "@jitsu/destination-functions/src/meta";
+import { HubspotCredentials } from "@jitsu/destination-functions/src/meta";
 
 const s3Regions = [
   "us-west-1",

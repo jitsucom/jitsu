@@ -4,7 +4,7 @@ import {
   bulkerDestination,
   FunctionContext,
   FunctionChainContext,
-} from "@jitsu/core-functions";
+} from "@jitsu/destination-functions";
 import { FindCursor, AggregationCursor, MongoClient, WithId, Document, ReadPreference } from "mongodb";
 import { db, ProfileBuilderQueueInfo } from "./db";
 import { getLog, getSingleton, hash, LogFactory, parseNumber, requireDefined, stopwatch, int32Hash } from "juava";

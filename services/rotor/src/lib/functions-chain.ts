@@ -25,7 +25,7 @@ import {
   MetricsMeta,
   UserRecognitionParameter,
   wrapperFunction,
-} from "@jitsu/core-functions";
+} from "@jitsu/destination-functions";
 import { NoRetryErrorName, DropRetryErrorName } from "@jitsu/functions-lib";
 
 import { getLog, newError, requireDefined, stopwatch } from "juava";

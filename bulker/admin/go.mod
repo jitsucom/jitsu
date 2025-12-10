@@ -1,6 +1,6 @@
 module github.com/jitsucom/bulker/admin
 
-go 1.24
+go 1.25
 
 require (
 	cloud.google.com/go/cloudsqlconn v1.17.2

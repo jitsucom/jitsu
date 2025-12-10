@@ -1,7 +1,7 @@
 import { getLog } from "juava";
 import * as path from "path";
 import { expect, test } from "vitest";
-import { createInMemoryStore } from "@jitsu/core-functions";
+import { createInMemoryStore } from "@jitsu/destination-functions";
 
 const log = getLog("inmem-store-test");
 test("Test in-mem store", async () => {

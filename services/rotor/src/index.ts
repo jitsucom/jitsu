@@ -1,7 +1,7 @@
 import { checkHash, checkRawToken, disableService, getLog, setServerJsonFormat, isTruish } from "juava";
 import { destinationMessagesTopic, getCredentialsFromEnv, rotorConsumerGroupId } from "./lib/kafka-config";
 import { kafkaRotor } from "./lib/rotor";
-import { DummyEventsStore, EventsStore } from "@jitsu/core-functions";
+import { DummyEventsStore, EventsStore } from "@jitsu/destination-functions";
 import express from "express";
 import { UDFRunHandler } from "./http/udf";
 import Prometheus from "prom-client";
