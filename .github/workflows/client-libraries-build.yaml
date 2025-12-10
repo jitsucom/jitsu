@@ -147,15 +147,15 @@ jobs:
 
           # Publish @jitsu/protocols
           echo "Publishing @jitsu/protocols..."
-          docker exec builder sh -c "cd types/protocols && npm publish --tag ${NPM_TAG} --access public"
+          docker exec builder sh -c "cd types/protocols && pnpm publish --tag ${NPM_TAG} --access public"
 
           # Publish @jitsu/js
           echo "Publishing @jitsu/js..."
-          docker exec builder sh -c "cd libs/jitsu-js && npm publish --tag ${NPM_TAG} --access public"
+          docker exec builder sh -c "cd libs/jitsu-js && pnpm publish --tag ${NPM_TAG} --access public"
 
           # Publish @jitsu/jitsu-react
           echo "Publishing @jitsu/jitsu-react..."
-          docker exec builder sh -c "cd libs/jitsu-react && npm publish --tag ${NPM_TAG} --access public"
+          docker exec builder sh -c "cd libs/jitsu-react && pnpm publish --tag ${NPM_TAG} --access public"
 
       - name: 🧹 Cleanup container
         if: always()
