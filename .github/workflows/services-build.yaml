@@ -444,12 +444,16 @@ jobs:
 
           # Update CLI
           docker exec builder sh -c "cd cli/jitsu-cli && jq --arg version \"${VERSION}\" '.version = \$version' package.json > package.json.tmp && mv package.json.tmp package.json"
+          
+          # Update Types
+          docker exec builder sh -c "cd types/protocols && jq --arg version \"${VERSION}\" '.version = \$version' package.json > package.json.tmp && mv package.json.tmp package.json"
 
           # Update Functions Library
           docker exec builder sh -c "cd libs/functions && jq --arg version \"${VERSION}\" '.version = \$version' package.json > package.json.tmp && mv package.json.tmp package.json"
 
           echo "Updated versions:"
           docker exec builder sh -c "cd cli/jitsu-cli && cat package.json | grep version"
+          docker exec builder sh -c "cd types/protocols && cat package.json | grep version"
           docker exec builder sh -c "cd libs/functions && cat package.json | grep version"
 
       - name: 🏗️ Build packages
