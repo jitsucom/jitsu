@@ -480,7 +480,11 @@ jobs:
           # Publish jitsu-cli
           echo "Publishing jitsu-cli..."
           docker exec builder sh -c "cd cli/jitsu-cli && pnpm publish --tag ${NPM_TAG} --access public ${DRY_RUN_FLAG}"
-
+          
+          # Publish @jitsu/protocols
+          echo "Publishing @jitsu/protocols..."
+          docker exec builder sh -c "cd types/protocols && pnpm publish --tag ${NPM_TAG} --access public ${DRY_RUN_FLAG}"
+          
           # Publish @jitsu/functions-lib
           echo "Publishing @jitsu/functions-lib..."
           docker exec builder sh -c "cd libs/functions && pnpm publish --tag ${NPM_TAG} --access public ${DRY_RUN_FLAG}"
