@@ -40,8 +40,18 @@ jobs:
               - '**/playwright/**'
               - '**/*.spec.ts'
               - '**/playwright.config.ts'
+            nodejs:
+              - 'cli/**'
+              - 'libs/**'
+              - 'services/**'
+              - 'types/**'
+              - 'webapps/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
 
       - name: 🚀 Setup Turbo cache
+        if: steps.changes.outputs.nodejs == 'true'
         uses: actions/cache@v4
         with:
           path: |
@@ -52,42 +62,50 @@ jobs:
             ${{ runner.os }}-turbo-lint-
 
       - name: 🐳 Pull and start builder container
+        if: steps.changes.outputs.nodejs == 'true'
         run: |
           docker pull jitsucom/jitsu-builder:latest
           docker run -d --name builder -v ${{ github.workspace }}:/workspace -w /workspace -e CI=true jitsucom/jitsu-builder:latest tail -f /dev/null
 
       - name: 📦 Fetch dependencies from store
+        if: steps.changes.outputs.nodejs == 'true'
         run: |
           docker exec builder sh -c 'echo "pnpm store path: $(pnpm store path)"'
           docker exec builder pnpm fetch
 
       - name: 📦 Install dependencies
+        if: steps.changes.outputs.nodejs == 'true'
         run: docker exec builder pnpm install --frozen-lockfile --offline
 
       - name: ✨ Check code format
+        if: steps.changes.outputs.nodejs == 'true'
         run: docker exec builder pnpm format:check:all
 
       - name: 🔧 Run codegen
+        if: steps.changes.outputs.nodejs == 'true'
         run: docker exec builder pnpm codegen
 
       - name: 🧪️ Run Typecheck
+        if: steps.changes.outputs.nodejs == 'true'
         run: docker exec builder pnpm typecheck
 
       - name: 🧪 Run linter
+        if: steps.changes.outputs.nodejs == 'true'
         run: docker exec builder pnpm lint
 
       - name: 🧪 Run tests
+        if: steps.changes.outputs.nodejs == 'true'
         run: docker exec builder pnpm test
 
       - name: 🎭 Run Playwright tests
-        if: steps.changes.outputs.playwright == 'true'
+        if: steps.changes.outputs.nodejs == 'true' && steps.changes.outputs.playwright == 'true'
         # Note: build of @jitsu/js and all it's dep is required for playwright tests to work
         run: |
           docker exec builder pnpm --filter jsondiffpatch --filter @jitsu/js build
           docker exec builder pnpm test:playwright
 
       - name: 🧹 Cleanup container
-        if: always()
+        if: always() && steps.changes.outputs.nodejs == 'true'
         run: docker stop builder && docker rm builder
 
   bulker-test:
@@ -103,40 +121,52 @@ jobs:
           fetch-depth: 0
           submodules: true
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - name: 🔍 Check changed files
+        id: changes
+        uses: dorny/paths-filter@v3
         with:
-          go-version: '1.24.9'
-          cache: false
+          filters: |
+            bulker:
+              - 'bulker/**'
+
+      - name: Set up Go
+        if: steps.changes.outputs.bulker == 'true'
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.25'
+          cache-dependency-path: "bulker/**/*.sum"
+          check-latest: true
+#          cache: false
 
       - name: 🧪 Run Bulker tests
+        if: steps.changes.outputs.bulker == 'true'
         working-directory: ./bulker
-#        env:
-#          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-#          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-#          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
-#          BULKER_TEST_BIGQUERY: ${{ secrets.BULKER_TEST_BIGQUERY }}
-#          BULKER_TEST_REDSHIFT_IAM: ${{ secrets.BULKER_TEST_REDSHIFT_IAM }}
-#          BULKER_TEST_S3: ${{ secrets.BULKER_TEST_S3 }}
-#          BULKER_TEST_MOTHERDUCK: ${{ secrets.BULKER_TEST_MOTHERDUCK }}
-#          BULKER_TEST_REDSHIFT_SERVERLESS: ${{ secrets.BULKER_TEST_REDSHIFT_SERVERLESS }}
-#          BULKER_TEST_SNOWFLAKE: ${{ secrets.BULKER_TEST_SNOWFLAKE }}
-#          BULKER_TEST_MILLION_ROWS_BATCHED: postgres
-#          TESTCONTAINERS_RYUK_DISABLED: true
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+          BULKER_TEST_BIGQUERY: ${{ secrets.BULKER_TEST_BIGQUERY }}
+          BULKER_TEST_REDSHIFT_IAM: ${{ secrets.BULKER_TEST_REDSHIFT_IAM }}
+          BULKER_TEST_S3: ${{ secrets.BULKER_TEST_S3 }}
+          BULKER_TEST_MOTHERDUCK: ${{ secrets.BULKER_TEST_MOTHERDUCK }}
+          # BULKER_TEST_REDSHIFT: ${{ secrets.BULKER_TEST_REDSHIFT }}
+          BULKER_TEST_REDSHIFT_SERVERLESS: ${{ secrets.BULKER_TEST_REDSHIFT_SERVERLESS }}
+          BULKER_TEST_SNOWFLAKE: ${{ secrets.BULKER_TEST_SNOWFLAKE }}
+          BULKER_TEST_MILLION_ROWS_BATCHED: postgres
+          TESTCONTAINERS_RYUK_DISABLED: true
         run: |
-           exit 0
-#          go test -parallel=10 -timeout 60m -json ./jitsubase/... ./kafkabase/... ./eventslog/... ./bulkerlib/... ./bulkerapp/... > test_report.json
+           go test -parallel=10 -timeout 60m -json ./jitsubase/... ./kafkabase/... ./eventslog/... ./bulkerlib/... ./bulkerapp/... > test_report.json
 
 
       - name: 📊 Generate test report
-        if: always()
+        if: always() && steps.changes.outputs.bulker == 'true'
         working-directory: ./bulker
         run: |
           go install github.com/vakenbolt/go-test-report@latest
           cat test_report.json | ~/go/bin/go-test-report
 
       - name: 📤 Upload test artifacts
-        if: always()
+        if: always() && steps.changes.outputs.bulker == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: bulker-test-report

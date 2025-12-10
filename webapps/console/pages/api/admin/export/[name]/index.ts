@@ -10,7 +10,7 @@ import hash from "object-hash";
 import { default as stableHash } from "stable-hash";
 import { WorkspaceDbModel } from "../../../../../prisma/schema";
 import pick from "lodash/pick";
-import { ProfileBuilder } from "@jitsu/core-functions";
+import { ProfileBuilder } from "@jitsu/destination-functions";
 
 export const config = {
   api: {
@@ -586,6 +586,45 @@ const exports: Export[] = [
     },
   },
   {
+    name: "workspaces",
+    lastModified: async () => {
+      return (
+        (await db.prisma().$queryRaw`select max("updatedAt") as "last_updated" from newjitsu."Workspace"`) as any
+      )[0]["last_updated"];
+    },
+    data: async writer => {
+      writer.write("[");
+      let lastId: string | undefined = undefined;
+      let needComma = false;
+      while (true) {
+        const objects = await db.prisma().workspace.findMany({
+          where: {
+            deleted: false,
+          },
+          take: batchSize,
+          cursor: lastId ? { id: lastId } : undefined,
+          orderBy: { id: "asc" },
+        });
+        if (objects.length == 0) {
+          break;
+        }
+        getLog().atDebug().log(`Got batch of ${objects.length} objects for bulker export`);
+        lastId = objects[objects.length - 1].id;
+        for (const row of objects) {
+          if (needComma) {
+            writer.write(",");
+          }
+          writer.write(JSON.stringify(row));
+          needComma = true;
+        }
+        if (objects.length < batchSize) {
+          break;
+        }
+      }
+      writer.write("]");
+    },
+  },
+  {
     name: "workspaces-with-profiles",
     lastModified: async () => {
       return (
@@ -607,7 +646,6 @@ const exports: Export[] = [
         const objects = await db.prisma().workspace.findMany({
           where: {
             deleted: false,
-            profileBuilders: { some: { version: { gt: 0 } } },
           },
           include: { profileBuilders: { include: { functions: { include: { function: true } } } } },
           take: batchSize,

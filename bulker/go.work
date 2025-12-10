@@ -1,4 +1,4 @@
-go 1.24
+go 1.25
 
 use (
 	./admin
@@ -12,6 +12,7 @@ use (
 	./ingress-manager
 	./jitsubase
 	./kafkabase
+	./operator
 	./reprocessing-worker
 	./sync-controller
 	./sync-sidecar

@@ -6,7 +6,6 @@ import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { EventContext, TTLStore } from "@jitsu/protocols/functions";
 import {
   MetricsMeta,
-  mongoAnonymousEventsStore,
   parseUserAgent,
   EventsStore,
   EntityStore,
@@ -14,11 +13,12 @@ import {
   FunctionConfig,
   RotorMetrics,
   StreamWithDestinations,
-} from "@jitsu/core-functions";
+} from "@jitsu/destination-functions";
 import NodeCache from "node-cache";
 import { buildFunctionChain, checkError, FuncChain, FuncChainFilter, runChain } from "./functions-chain";
 import { Redis } from "ioredis";
 import { fromJitsuClassic } from "@jitsu/functions-lib";
+import { mongoAnonymousEventsStore } from "./mongodb";
 const log = getLog("rotor");
 
 const anonymousEventsStore = mongoAnonymousEventsStore();

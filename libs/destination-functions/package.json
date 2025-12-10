@@ -1,0 +1,45 @@
+{
+  "name": "@jitsu/destination-functions",
+  "version": "0.0.0",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "description": "",
+  "author": "Jitsu Dev Team <dev@jitsu.com>",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "src/meta.ts"
+  ],
+  "license": "MIT",
+  "private": false,
+  "scripts": {
+    "build": "exit 0",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf ./dist",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@jitsu/common-config": "workspace:*",
+    "@jitsu/functions-lib": "workspace:*",
+    "@jitsu/protocols": "workspace:*",
+    "@jitsu/sdk-js": "^3.1.5",
+    "@types/lodash": "catalog:",
+    "@types/node": "catalog:",
+    "@vitest/ui": "catalog:",
+    "json5": "^2.1.0",
+    "vitest": "catalog:"
+  },
+  "dependencies": {
+    "@jitsu/core-functions-lib": "workspace:*",
+    "@amplitude/ua-parser-js": "^0.7.33",
+    "@hubspot/api-client": "^11.1.0",
+    "undici": "^7.11.0",
+    "juava": "workspace:*",
+    "node-cache": "^5.1.2",
+    "lodash": "catalog:",
+    "posthog-node": "^4.2.1",
+    "tslib": "catalog:",
+    "zod": "^3.23.8"
+  }
+}

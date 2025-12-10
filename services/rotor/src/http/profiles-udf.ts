@@ -1,6 +1,7 @@
-import { mongodb, createMongoStore, ProfileUDFTestRequest, ProfileUDFTestRun } from "@jitsu/core-functions";
 import { getLog } from "juava";
 import { connectionsStore } from "../lib/repositories";
+import { ProfileUDFTestRequest, ProfileUDFTestRun } from "../lib/profiles-udf-wrapper";
+import { createMongoStore, mongodb } from "../lib/mongodb";
 
 const log = getLog("profile-udf-run");
 

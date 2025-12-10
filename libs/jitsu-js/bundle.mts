@@ -20,7 +20,7 @@ const builds = [
     format: "esm",
     outfile: "./dist/jitsu.es.js",
     external: libraryExternals,
-    sourcemap: true,
+    sourcemap: false,
   },
   // CJS with externals
   {
@@ -31,7 +31,7 @@ const builds = [
     format: "cjs",
     outfile: "./dist/jitsu.cjs.js",
     external: libraryExternals,
-    sourcemap: true,
+    sourcemap: false,
   },
   // ESM without externals (bundles everything except peer deps)
   {
@@ -43,7 +43,7 @@ const builds = [
     format: "esm",
     outfile: "./dist/jitsu-no-ext.es.js",
     external: libraryExternals, // Keep peer deps external
-    sourcemap: true,
+    sourcemap: false,
   },
   // CJS without externals (bundles everything except peer deps)
   {
@@ -54,7 +54,7 @@ const builds = [
     format: "cjs",
     outfile: "./dist/jitsu-no-ext.cjs.js",
     external: libraryExternals, // Keep peer deps external
-    sourcemap: true,
+    sourcemap: false,
   },
   // Browser IIFE bundle (minified)
   // Note: No globalName because browser.ts manages window assignment itself via window[namespace] = jitsu

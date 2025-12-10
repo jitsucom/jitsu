@@ -54,7 +54,7 @@ import relativeTime from "dayjs/plugin/relativeTime";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
 import { useAntdModal } from "../../lib/modal";
 import { testDataExample } from "./example";
-import { logType } from "@jitsu/core-functions";
+import { logType } from "@jitsu/core-functions-lib";
 import { FunctionLogs } from "../FunctionsDebugger/FunctionLogs";
 import { FunctionResult } from "../FunctionsDebugger/FunctionResult";
 import { FunctionVariables } from "../FunctionsDebugger/FunctionVariables";
@@ -1146,7 +1146,7 @@ export function ProfileBuilderPage() {
               tabBarExtraContent={
                 <div className="flex items-center gap-2">
                   <>
-                    {obj.status !== "incomplete" && enabled && activeSecondaryTab === "test" && (
+                    {activeSecondaryTab === "test" && (
                       <Popover
                         content={
                           <UserIdDialog

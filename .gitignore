@@ -33,3 +33,5 @@ libs/jitsu-js/package/
 libs/jsondiffpatch/lib/
 .pnpm-store
 **/tsconfig.tsbuildinfo
+/services/functions-server/data/
+/services/functions-server/dist/

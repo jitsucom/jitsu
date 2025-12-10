@@ -27,7 +27,7 @@ import { ColumnsType } from "antd/es/table";
 import { UTCDate, UTCHeader } from "../DataView/EventsBrowser";
 import { examplePageEvent, exampleTrackEvents, exampleIdentifyEvent } from "./example_events";
 import { rpc } from "juava";
-import { logType } from "@jitsu/core-functions/src/functions/lib/udf_wrapper";
+import { logType } from "@jitsu/core-functions-lib";
 import { RetryErrorName, DropRetryErrorName, NoRetryErrorName } from "@jitsu/functions-lib";
 
 import dayjs from "dayjs";

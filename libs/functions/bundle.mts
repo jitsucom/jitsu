@@ -13,7 +13,7 @@ await esbuild.build({
   target: "es2020",
   format: "esm",
   outfile: "./dist/index.es.js",
-  sourcemap: true,
+  sourcemap: false,
   minify: false,
   external: [], // Add any runtime dependencies here
   logLevel: "info",
@@ -27,7 +27,7 @@ await esbuild.build({
   target: "es2020",
   format: "cjs",
   outfile: "./dist/index.cjs.js",
-  sourcemap: true,
+  sourcemap: false,
   minify: false,
   external: [], // Add any runtime dependencies here
   logLevel: "info",

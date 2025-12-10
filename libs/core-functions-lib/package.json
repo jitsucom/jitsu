@@ -1,0 +1,45 @@
+{
+  "name": "@jitsu/core-functions-lib",
+  "version": "0.0.0",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "description": "",
+  "author": "Jitsu Dev Team <dev@jitsu.com>",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "src/meta.ts"
+  ],
+  "license": "MIT",
+  "private": false,
+  "scripts": {
+    "build": "exit 0",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf ./dist",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@jitsu/common-config": "workspace:*",
+    "@jitsu/functions-lib": "workspace:*",
+    "@jitsu/protocols": "workspace:*",
+    "@jitsu/sdk-js": "^3.1.5",
+    "@types/lodash": "catalog:",
+    "@types/node": "catalog:",
+    "@vitest/ui": "catalog:",
+    "express": "^4.21.2",
+    "json5": "^2.1.0",
+    "vitest": "catalog:"
+  },
+  "dependencies": {
+    "@amplitude/ua-parser-js": "^0.7.33",
+    "ip": "^2.0.1",
+    "dayjs": "^1.11.10",
+    "juava": "workspace:*",
+    "lodash": "catalog:",
+    "node-cache": "^5.1.2",
+    "parse-duration": "^1.1.2",
+    "tslib": "catalog:",
+    "zod": "^3.23.8"
+  }
+}

@@ -18,7 +18,7 @@ import { KafkaJS } from "@confluentinc/kafka-javascript";
 
 import { functionFilter, MessageHandlerContext } from "./message-handler";
 import { connectionsStore, functionsStore, streamsStore } from "./repositories";
-import { FuncChainResult, RotorMetrics } from "@jitsu/core-functions";
+import { FuncChainResult, RotorMetrics } from "@jitsu/destination-functions";
 import { IngestMessage } from "@jitsu/protocols/async-request";
 import { getServerEnv } from "../serverEnv";
 

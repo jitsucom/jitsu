@@ -1,5 +1,5 @@
 import { getLog, isTruish, requireDefined, stopwatch } from "juava";
-import { FunctionExecLog, FunctionExecRes, RotorMetrics } from "@jitsu/core-functions";
+import { FunctionExecLog, FunctionExecRes, RotorMetrics, StoreMetrics } from "@jitsu/destination-functions";
 
 import { KafkaJS } from "@confluentinc/kafka-javascript";
 import { Readable } from "stream";
@@ -72,11 +72,27 @@ export const promFunctionsTime = new Histogram({
   // add `as const` here to enforce label names
   labelNames: ["connectionId", "functionId"] as const,
 });
-
 export const promHandlerMetric = new Counter({
   name: "rotor_function_handler",
   help: "function handler status",
   labelNames: ["connectionId", "status"] as const,
+});
+export const promQueueSize = new Gauge({
+  name: "profiles_queue_size",
+  help: "profiles queue size",
+  // add `as const` here to enforce label names
+  labelNames: ["builderId", "priority"] as const,
+});
+export const promQueueProcessed = new Counter({
+  name: "profiles_queue_processed",
+  help: "profiles queuue processed",
+  labelNames: ["builderId", "priority"] as const,
+});
+export const promProfileStatuses = new Histogram({
+  name: "profiles_statuses",
+  help: "profiles statuses",
+  buckets: [0.2, 1, 2, 5, 10, 60, 300], // durations in seconds
+  labelNames: ["builderId", "priority", "status"] as const,
 });
 
 const _EpochTime = 0;
@@ -329,3 +345,12 @@ function clickhouseHost() {
     "env CLICKHOUSE_HOST is not defined"
   )}`;
 }
+
+export const metrics: StoreMetrics = {
+  storeStatus: (namespace: string, operation: string, status: string) => {
+    promStoreStatuses.labels(namespace, operation, status).inc();
+  },
+  warehouseStatus: (id: string, table: string, status: string, timeMs: number) => {
+    promWarehouseStatuses.labels(id, table, status).observe(timeMs / 1000);
+  },
+};

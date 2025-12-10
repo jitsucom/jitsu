@@ -9,7 +9,7 @@ import {
   EntityStore,
   FunctionConfig,
   StreamWithDestinations,
-} from "@jitsu/core-functions";
+} from "@jitsu/destination-functions";
 import { IngestMessage } from "@jitsu/protocols/async-request";
 import { isEqual } from "lodash";
 import { functions, connections } from "./functions-chain-data";

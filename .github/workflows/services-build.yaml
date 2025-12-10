@@ -125,7 +125,7 @@ jobs:
           BRANCH: ${{ github.ref_name }}
           COMMIT_SHA: ${{ github.sha }}
         run: |
-          TARGETS="console rotor profiles"
+          TARGETS="console rotor"
           REGISTRY="${{ secrets.DOCKERHUB_USERNAME }}"
           SHORT_SHA=$(git rev-parse --short=7 HEAD)
 
@@ -217,7 +217,7 @@ jobs:
           BRANCH: ${{ github.ref_name }}
           COMMIT_SHA: ${{ github.sha }}
         run: |
-          TARGETS="bulker ingest sidecar syncctl ingmgr cfgkpr admin reprocessing-worker"
+          TARGETS="bulker ingest sidecar syncctl operator ingmgr cfgkpr admin reprocessing-worker"
           REGISTRY="${{ secrets.DOCKERHUB_USERNAME }}"
           SHORT_SHA=$(git rev-parse --short=7 HEAD)
           BUILD_TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -444,12 +444,16 @@ jobs:
 
           # Update CLI
           docker exec builder sh -c "cd cli/jitsu-cli && jq --arg version \"${VERSION}\" '.version = \$version' package.json > package.json.tmp && mv package.json.tmp package.json"
+          
+          # Update Types
+          docker exec builder sh -c "cd types/protocols && jq --arg version \"${VERSION}\" '.version = \$version' package.json > package.json.tmp && mv package.json.tmp package.json"
 
           # Update Functions Library
           docker exec builder sh -c "cd libs/functions && jq --arg version \"${VERSION}\" '.version = \$version' package.json > package.json.tmp && mv package.json.tmp package.json"
 
           echo "Updated versions:"
           docker exec builder sh -c "cd cli/jitsu-cli && cat package.json | grep version"
+          docker exec builder sh -c "cd types/protocols && cat package.json | grep version"
           docker exec builder sh -c "cd libs/functions && cat package.json | grep version"
 
       - name: 🏗️ Build packages
@@ -479,11 +483,15 @@ jobs:
 
           # Publish jitsu-cli
           echo "Publishing jitsu-cli..."
-          docker exec builder sh -c "cd cli/jitsu-cli && npm publish --tag ${NPM_TAG} --access public ${DRY_RUN_FLAG}"
-
+          docker exec builder sh -c "cd cli/jitsu-cli && pnpm publish --tag ${NPM_TAG} --access public ${DRY_RUN_FLAG}"
+          
+          # Publish @jitsu/protocols
+          echo "Publishing @jitsu/protocols..."
+          docker exec builder sh -c "cd types/protocols && pnpm publish --tag ${NPM_TAG} --access public ${DRY_RUN_FLAG}"
+          
           # Publish @jitsu/functions-lib
           echo "Publishing @jitsu/functions-lib..."
-          docker exec builder sh -c "cd libs/functions && npm publish --tag ${NPM_TAG} --access public ${DRY_RUN_FLAG}"
+          docker exec builder sh -c "cd libs/functions && pnpm publish --tag ${NPM_TAG} --access public ${DRY_RUN_FLAG}"
 
       - name: 🧹 Cleanup container
         if: always()

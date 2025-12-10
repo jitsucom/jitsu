@@ -1,9 +1,14 @@
-import { AnonymousEventsStore, AnyEvent, EventContext, FuncReturn, TTLStore } from "@jitsu/protocols/functions";
+import {
+  AnonymousEventsStore,
+  AnyEvent,
+  EventContext,
+  FuncReturn,
+  JitsuFunction,
+  TTLStore,
+} from "@jitsu/protocols/functions";
 import {
   createDummyStore,
-  createMongoStore,
   createMultiStore,
-  createRedisStore,
   EnrichedConnectionConfig,
   EntityStore,
   FuncChainResult,
@@ -12,18 +17,15 @@ import {
   FunctionContext,
   FunctionExecLog,
   FunctionExecRes,
-  getBuiltinFunction,
+  getBuiltinFunction as _getBuiltinFunction,
   isDropResult,
   JitsuFunctionWrapper,
   makeFetch,
   makeLog,
   MetricsMeta,
-  mongodb,
-  UDFWrapper,
   UserRecognitionParameter,
-  warehouseQuery,
   wrapperFunction,
-} from "@jitsu/core-functions";
+} from "@jitsu/destination-functions";
 import { NoRetryErrorName, DropRetryErrorName } from "@jitsu/functions-lib";
 
 import { getLog, newError, requireDefined, stopwatch } from "juava";
@@ -33,9 +35,25 @@ import isEqual from "lodash/isEqual";
 import { MessageHandlerContext } from "./message-handler";
 import { promFunctionsInFlight, promFunctionsTime } from "./metrics";
 import { getServerEnv } from "../serverEnv";
+import { ProfilesFunction } from "./profiles-functions";
+import { createMongoStore, mongodb } from "./mongodb";
+import { createRedisStore } from "./store";
+import { UDFWrapper } from "./udf_wrapper";
+import { warehouseQuery } from "./warehouse-store";
+import { MongodbDestination } from "./mongodb-destination";
 
 const serverEnv = getServerEnv();
 const fastStoreWorkspaceId = (serverEnv.FAST_STORE_WORKSPACE_ID ?? "").split(",").filter(x => x.length > 0);
+
+function getBuiltinFunction(id: string): JitsuFunction | undefined {
+  if (id === "builtin.destination.profiles") {
+    return ProfilesFunction as JitsuFunction;
+  }
+  if (id === "builtin.destination.mongodb") {
+    return MongodbDestination as JitsuFunction;
+  }
+  return _getBuiltinFunction(id);
+}
 
 export type Func = {
   id: string;
