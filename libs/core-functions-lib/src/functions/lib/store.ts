@@ -1,11 +1,8 @@
 import { SetOpts, TTLStore } from "@jitsu/protocols/functions";
 import parse from "parse-duration";
-import { getLog, Singleton } from "juava";
 
 export const defaultTTL = 60 * 60 * 24 * 31; // 31 days
 export const maxAllowedTTL = 2147483647; // max allowed value for ttl in redis (68years)
-
-const log = getLog("store");
 
 export function getTtlSec(opts?: SetOpts): number {
   let seconds = defaultTTL;

@@ -1,7 +1,7 @@
 import { SetOpts, TTLStore } from "@jitsu/protocols/functions";
 import type { Redis } from "ioredis";
 import { RetryError } from "@jitsu/functions-lib";
-import { getLog, Singleton } from "juava";
+import { getLog } from "juava";
 import { getTtlSec, StoreMetrics } from "@jitsu/core-functions-lib";
 
 const log = getLog("store");
