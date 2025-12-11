@@ -65,7 +65,7 @@ const builds = [
     target: "es2015",
     format: "iife",
     outfile: "./dist/web/p.js.txt",
-    minify: true,
+    minify: false,
     sourcemap: false,
   },
 ];
