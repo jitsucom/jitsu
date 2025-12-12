@@ -61,12 +61,6 @@
       "persistent": true
     },
     // Needs ^build-deps for workspace package imports
-    "console:storybook": {
-      "dependsOn": ["^build-deps"],
-      "cache": false,
-      "persistent": true
-    },
-    // Needs ^build-deps for workspace package imports
     "ee-api:dev": {
       "dependsOn": ["^build-deps"],
       "cache": false,

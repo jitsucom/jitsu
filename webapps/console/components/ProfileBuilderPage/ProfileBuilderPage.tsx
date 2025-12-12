@@ -108,8 +108,8 @@ const statuses: Record<
     title: "BUILDING",
     documentation: (
       <>
-        Profile builder is building initial profiles. In can happen after the first configuration, or after a change has
-        been made in the code. You can monitor the progress in the progress section
+        Profile builder is processing the queue of profiles. You can monitor the progress in the <b>Build Progress</b>{" "}
+        section
       </>
     ),
     icon: <Hammer className="full" />,
@@ -137,7 +137,7 @@ const Header: React.FC<{ status: ProfileBuilderStatus | "loading"; pbEnabled: bo
   return (
     <div className="flex items-center gap-2 mb-4">
       <h3 className="text-3xl">Profile Builder</h3>
-      <Tag className="h-6 text-2xl" color={"blue"} rootClassName="cursor-pointer">
+      <Tag className="text-2xl" variant={"outlined"} color={"blue"} rootClassName="cursor-pointer">
         <Tooltip title={statusDetails.documentation}>
           <div className="flex justify-between gap-2 items-center">
             <div className="w-4 h-4">{statusDetails.icon}</div>

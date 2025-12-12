@@ -42,7 +42,7 @@ export const UserNotificationSettings: React.FC<{
         initialValues={data}
         onValuesChange={async newValues => {
           console.log("newValues", newValues);
-          setNotificationPreference({ ...notificationPreference, ...newValues });
+          setNotificationPreference({ ...notificationPreference, ...newValues } as UserNotificationsPreferences);
         }}
       >
         <div className="flex flex-col mt-4 w-full">

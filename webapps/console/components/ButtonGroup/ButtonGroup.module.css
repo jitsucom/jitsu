@@ -1,3 +1,31 @@
-/*.buttonGroup > :global(.ant-btn) {*/
-/*  margin-inline-start: 0 !important;*/
-/*}*/
+.buttonGroup {
+  display: inline-flex;
+  align-items: center;
+}
+
+.groupedButton:global(.ant-btn) {
+  border-radius: 0;
+  margin-inline-start: -1px;
+}
+
+.firstButton:global(.ant-btn) {
+  border-start-start-radius: 6px;
+  border-end-start-radius: 6px;
+  margin-inline-start: 0;
+}
+
+.lastButton:global(.ant-btn) {
+  border-start-end-radius: 6px;
+  border-end-end-radius: 6px;
+}
+
+.onlyButton:global(.ant-btn) {
+  border-radius: 6px;
+  margin-inline-start: 0;
+}
+
+.groupedButton:global(.ant-btn):hover,
+.groupedButton:global(.ant-btn):focus {
+  z-index: 1;
+  position: relative;
+}

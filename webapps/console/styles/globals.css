@@ -164,3 +164,13 @@ code {
   width: 100%;
   height: 100%;
 }
+
+/* Restore Tag margins removed in Ant Design 6 */
+.ant-tag {
+  margin-inline-end: 8px;
+}
+
+/* Restore Tabs padding reduced in Ant Design 6 (only for card type, not line) */
+.ant-tabs-card .ant-tabs-tab {
+  padding: 6px 14px !important;
+}

@@ -1,4 +1,4 @@
-import { Button, Dropdown, MenuProps, Tooltip } from "antd";
+import { Dropdown, MenuProps, Tooltip } from "antd";
 import React from "react";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
 import { BaseButtonProps } from "antd/lib/button/button";
@@ -7,8 +7,6 @@ import { useWorkspace, useWorkspaceRole } from "../../lib/context";
 import { MoreHorizontal, MoreVertical } from "lucide-react";
 import Link from "next/link";
 import { hasPermission, WorkspacePermissionsType } from "../../lib/workspace-roles";
-
-const AntButtonGroup = Button.Group;
 
 export type ButtonProps = Omit<BaseButtonProps, "children" | "type"> & {
   href?: string;
@@ -49,17 +47,25 @@ export const ButtonGroup: React.FC<ButtonGroupProps> = ({ items, dotsButtonProps
       onClick: item.onClick,
     }));
 
+  const totalItems = shownItems.length + (dropdownItems.length > 0 ? 1 : 0);
+
   return (
-    <AntButtonGroup className={styles.buttonGroup}>
+    <div className={styles.buttonGroup}>
       {shownItems.map((item, i) => (
         <Tooltip title={typeof item.label === "string" ? item.label : item.tooltip} key={i}>
-          <JitsuButton {...item} key={i} ws={!!item.href} requiredPermission={item.requiredPermission} />
+          <JitsuButton
+            {...item}
+            key={i}
+            ws={!!item.href}
+            requiredPermission={item.requiredPermission}
+            className={`${item.className || ""} ${styles.groupedButton} ${i === 0 ? styles.firstButton : ""} ${i === totalItems - 1 && dropdownItems.length === 0 ? styles.lastButton : ""} ${totalItems === 1 ? styles.onlyButton : ""}`.trim()}
+          />
         </Tooltip>
       ))}
       {dropdownItems.length > 0 && (
         <Dropdown trigger={["click"]} menu={{ items: dropdownItems }}>
           <JitsuButton
-            className="text-lg font-bold p-0"
+            className={`text-lg font-bold ${styles.groupedButton} ${shownItems.length === 0 ? styles.onlyButton : styles.lastButton}`}
             icon={
               dotsOrientation === "vertical" ? (
                 <MoreVertical className={"w-4 h-4"} />
@@ -75,6 +81,6 @@ export const ButtonGroup: React.FC<ButtonGroupProps> = ({ items, dotsButtonProps
           />
         </Dropdown>
       )}
-    </AntButtonGroup>
+    </div>
   );
 };

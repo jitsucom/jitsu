@@ -2,7 +2,7 @@ import type { ButtonProps } from "antd/es/button/button";
 import { Button, Tooltip } from "antd";
 import omit from "lodash/omit";
 
-import React from "react";
+import React, { forwardRef } from "react";
 import { ButtonLabel } from "../ButtonLabel/ButtonLabel";
 import { useRouter } from "next/router";
 import { useWorkspace, useWorkspaceRole } from "../../lib/context";
@@ -17,19 +17,25 @@ export type JitsuButtonProps = ButtonProps & {
   disabledReason?: string;
 };
 
-export const WJitsuButton: React.FC<JitsuButtonProps & Required<Pick<ButtonProps, "href">>> = p => {
-  const workspace = useWorkspace();
-  const router = useRouter();
-  return <Button0 {...p} onClick={() => router.push(`/${workspace.slugOrId}${p.href}`)} />;
-};
+type ButtonRef = HTMLButtonElement | HTMLAnchorElement;
+
+export const WJitsuButton = forwardRef<ButtonRef, JitsuButtonProps & Required<Pick<ButtonProps, "href">>>(
+  (p, ref) => {
+    const workspace = useWorkspace();
+    const router = useRouter();
+    return <Button0 ref={ref} {...p} onClick={() => router.push(`/${workspace.slugOrId}${p.href}`)} />;
+  }
+);
+WJitsuButton.displayName = "WJitsuButton";
 
 //href button
-const HJitsuButton: React.FC<JitsuButtonProps & Required<Pick<ButtonProps, "href">>> = p => {
+const HJitsuButton = forwardRef<ButtonRef, JitsuButtonProps & Required<Pick<ButtonProps, "href">>>((p, ref) => {
   const router = useRouter();
-  return <Button0 {...p} onClick={() => router.push(p.href)} />;
-};
+  return <Button0 ref={ref} {...p} onClick={() => router.push(p.href)} />;
+});
+HJitsuButton.displayName = "HJitsuButton";
 
-function Button0(props: JitsuButtonProps) {
+const Button0 = forwardRef<ButtonRef, JitsuButtonProps>((props, ref) => {
   const workspaceRole = useWorkspaceRole();
   const hasPerm = props.requiredPermission ? hasPermission(workspaceRole.role, props.requiredPermission) : true;
 
@@ -43,31 +49,38 @@ function Button0(props: JitsuButtonProps) {
   // Button is disabled if explicitly disabled, no permission, or disabledReason is set
   const isDisabled = props.disabled || !hasPerm || !!props.disabledReason;
 
-  return (
-    <Tooltip title={tooltipTitle}>
-      <Button
-        {...omit(props, "href", "children", "icon", "iconPosition", "disabledReason")}
-        disabled={isDisabled}
-        className={`pr-1 ${props.className}`}
-      >
-        {props.icon ? (
-          <ButtonLabel icon={props.icon} iconPosition={props.iconPosition} loading={!!props.loading}>
-            {props.children}
-          </ButtonLabel>
-        ) : (
-          props.children
-        )}
-      </Button>
-    </Tooltip>
+  const button = (
+    <Button
+      ref={ref}
+      {...omit(props, "href", "children", "icon", "iconPosition", "disabledReason")}
+      disabled={isDisabled}
+      className={`${props.className}`}
+    >
+      {props.icon ? (
+        <ButtonLabel icon={props.icon} iconPosition={props.iconPosition} loading={!!props.loading}>
+          {props.children}
+        </ButtonLabel>
+      ) : (
+        props.children
+      )}
+    </Button>
   );
-}
 
-export const JitsuButton: React.FC<JitsuButtonProps> = p => {
+  if (tooltipTitle) {
+    return <Tooltip title={tooltipTitle}>{button}</Tooltip>;
+  }
+
+  return button;
+});
+Button0.displayName = "Button0";
+
+export const JitsuButton = forwardRef<ButtonRef, JitsuButtonProps>((p, ref) => {
   if (!p.href) {
-    return <Button0 {...p} />;
+    return <Button0 ref={ref} {...p} />;
   }
   if (p.ws) {
-    return <WJitsuButton {...omit(p, "ws")} href={p.href} />;
+    return <WJitsuButton ref={ref} {...omit(p, "ws")} href={p.href} />;
   }
-  return <HJitsuButton {...p} href={p.href} />;
-};
+  return <HJitsuButton ref={ref} {...p} href={p.href} />;
+});
+JitsuButton.displayName = "JitsuButton";

@@ -35,7 +35,7 @@ const StatusBadge: React.FC<
     color = undefined;
     defaultDescription = "Loading";
   }
-  return <Tag color={color}>{children || defaultDescription}</Tag>;
+  return <Tag variant="outlined" color={color}>{children || defaultDescription}</Tag>;
 };
 
 function displayErrorFeedback(opts?: { message?: string; error?: any }) {
@@ -144,6 +144,7 @@ const CustomDomain: React.FC<{ domain: string; deleteDomain?: () => Promise<void
             )}
             {workspaceDomain && (
               <Tag
+                variant="outlined"
                 className={"cursor-pointer"}
                 onClick={() => {
                   router.push(`/${workspace.slugOrId}/settings/domains`);

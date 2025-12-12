@@ -14,6 +14,10 @@ module.exports = withBundleAnalyzer({
         loaders: ["raw-loader"],
         as: "*.js",
       },
+      "*.sql": {
+        loaders: ["raw-loader"],
+        as: "*.js",
+      },
     },
   },
   // modularizeImports: {

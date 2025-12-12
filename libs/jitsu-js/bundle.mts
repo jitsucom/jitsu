@@ -9,7 +9,7 @@ mkdirSync("./dist/web", { recursive: true });
 const libraryExternals = ["@jitsu/protocols"];
 
 // Build configurations
-const builds = [
+const builds: esbuild.BuildOptions[] = [
   // ESM with externals
   {
     entryPoints: ["./src/index.ts"],
@@ -72,18 +72,20 @@ const builds = [
 
 // Run all builds
 console.log("Building with esbuild...");
-for (const config of builds) {
-  await esbuild.build({
+const promises = builds.map(config =>
+  esbuild.build({
     ...config,
     logLevel: "info",
-  });
-}
+  })
+);
 
-console.log("\nBuild complete!");
-console.log("Generated:");
-console.log("  - dist/jitsu.es.js (ESM with externals)");
-console.log("  - dist/jitsu.cjs.js (CJS with externals)");
-console.log("  - dist/jitsu-no-ext.es.js (ESM bundled)");
-console.log("  - dist/jitsu-no-ext.cjs.js (CJS bundled)");
-console.log("  - dist/web/p.js.txt (Browser IIFE)");
-console.log("  - dist/*.d.ts (TypeScript declarations)");
+Promise.all(promises).then(() => {
+  console.log("\nBuild complete!");
+  console.log("Generated:");
+  console.log("  - dist/jitsu.es.js (ESM with externals)");
+  console.log("  - dist/jitsu.cjs.js (CJS with externals)");
+  console.log("  - dist/jitsu-no-ext.es.js (ESM bundled)");
+  console.log("  - dist/jitsu-no-ext.cjs.js (CJS bundled)");
+  console.log("  - dist/web/p.js.txt (Browser IIFE)");
+  console.log("  - dist/*.d.ts (TypeScript declarations)");
+});

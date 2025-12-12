@@ -46,9 +46,11 @@ function ConditionalBadge({ icon, tooltip, children }: { icon?: ReactNode; toolt
     return <>{children}</>;
   }
   return (
-    <Badge className="w-full block min-w-full" count={tooltip ? <Tooltip title={tooltip}>{icon}</Tooltip> : icon}>
-      {children}
-    </Badge>
+    <Tooltip title={tooltip} placement={"topRight"}>
+      <Badge className="w-full block min-w-full" count={icon}>
+        {children}
+      </Badge>
+    </Tooltip>
   );
 }
 
