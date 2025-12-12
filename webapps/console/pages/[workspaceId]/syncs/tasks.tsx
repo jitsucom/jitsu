@@ -99,7 +99,9 @@ function TaskStatus0({ task, loading }: { task: TasksDbModel & TaskStats; loadin
     return (
       <button className={"outline-0"}>
         <div className={"flex flex-col items-end text-right cursor-pointer"}>
-          <Tag variant="outlined" style={{ marginRight: 0 }}>NO RUNS</Tag>
+          <Tag variant="outlined" style={{ marginRight: 0 }}>
+            NO RUNS
+          </Tag>
           <span className={"text-xxs text-gray-500"}>&nbsp;</span>
         </div>
       </button>
@@ -261,7 +263,11 @@ function TaskStatus0({ task, loading }: { task: TasksDbModel & TaskStats; loadin
         </SyncStatus>
       );
     default:
-      return <Tag variant="outlined" style={{ marginRight: 0 }}>{task.status}</Tag>;
+      return (
+        <Tag variant="outlined" style={{ marginRight: 0 }}>
+          {task.status}
+        </Tag>
+      );
   }
 }
 
@@ -282,19 +288,39 @@ export function TaskStatusResultTable({ stats, error }: { stats: any[]; error?: 
       key: "status",
       render: (text, record) => {
         if (record.status === "SUCCESS") {
-          return <Tag variant="outlined" color="green">SUCCESS</Tag>;
+          return (
+            <Tag variant="outlined" color="green">
+              SUCCESS
+            </Tag>
+          );
         } else if (record.status === "PARTIAL") {
-          return <Tag variant="outlined" color="orange">{record.status}</Tag>;
+          return (
+            <Tag variant="outlined" color="orange">
+              {record.status}
+            </Tag>
+          );
         } else if (record.status === "TIME_EXCEEDED") {
-          return <Tag variant="outlined" color="volcano">{record.status}</Tag>;
+          return (
+            <Tag variant="outlined" color="volcano">
+              {record.status}
+            </Tag>
+          );
         } else if (record.status === "CANCELLED") {
           return <Tag variant="outlined">{record.status}</Tag>;
         } else if (record.status === "PENDING") {
           return <Tag variant="outlined">PENDING</Tag>;
         } else if (record.status === "RUNNING") {
-          return <Tag variant="outlined" color="blue">RUNNING</Tag>;
+          return (
+            <Tag variant="outlined" color="blue">
+              RUNNING
+            </Tag>
+          );
         } else {
-          return <Tag variant="outlined" color="red">{record.status}</Tag>;
+          return (
+            <Tag variant="outlined" color="red">
+              {record.status}
+            </Tag>
+          );
         }
       },
     },
@@ -752,7 +778,9 @@ function Tasks() {
                     value: "FAILED",
                     label: (
                       <div>
-                        <Tag variant="outlined" color={"red"}>FAILED</Tag>
+                        <Tag variant="outlined" color={"red"}>
+                          FAILED
+                        </Tag>
                       </div>
                     ),
                   },
@@ -776,7 +804,9 @@ function Tasks() {
                     value: "SUCCESS",
                     label: (
                       <div>
-                        <Tag variant="outlined" color={"green"}>SUCCESS</Tag>
+                        <Tag variant="outlined" color={"green"}>
+                          SUCCESS
+                        </Tag>
                       </div>
                     ),
                   },
@@ -784,7 +814,9 @@ function Tasks() {
                     value: "PARTIAL",
                     label: (
                       <div>
-                        <Tag variant="outlined" color={"orange"}>PARTIAL</Tag>
+                        <Tag variant="outlined" color={"orange"}>
+                          PARTIAL
+                        </Tag>
                       </div>
                     ),
                   },
@@ -792,7 +824,9 @@ function Tasks() {
                     value: "RUNNING",
                     label: (
                       <div>
-                        <Tag variant="outlined" color={"blue"}>RUNNING</Tag>
+                        <Tag variant="outlined" color={"blue"}>
+                          RUNNING
+                        </Tag>
                       </div>
                     ),
                   },

@@ -35,7 +35,11 @@ const StatusBadge: React.FC<
     color = undefined;
     defaultDescription = "Loading";
   }
-  return <Tag variant="outlined" color={color}>{children || defaultDescription}</Tag>;
+  return (
+    <Tag variant="outlined" color={color}>
+      {children || defaultDescription}
+    </Tag>
+  );
 };
 
 function displayErrorFeedback(opts?: { message?: string; error?: any }) {

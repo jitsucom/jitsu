@@ -19,13 +19,11 @@ export type JitsuButtonProps = ButtonProps & {
 
 type ButtonRef = HTMLButtonElement | HTMLAnchorElement;
 
-export const WJitsuButton = forwardRef<ButtonRef, JitsuButtonProps & Required<Pick<ButtonProps, "href">>>(
-  (p, ref) => {
-    const workspace = useWorkspace();
-    const router = useRouter();
-    return <Button0 ref={ref} {...p} onClick={() => router.push(`/${workspace.slugOrId}${p.href}`)} />;
-  }
-);
+export const WJitsuButton = forwardRef<ButtonRef, JitsuButtonProps & Required<Pick<ButtonProps, "href">>>((p, ref) => {
+  const workspace = useWorkspace();
+  const router = useRouter();
+  return <Button0 ref={ref} {...p} onClick={() => router.push(`/${workspace.slugOrId}${p.href}`)} />;
+});
 WJitsuButton.displayName = "WJitsuButton";
 
 //href button

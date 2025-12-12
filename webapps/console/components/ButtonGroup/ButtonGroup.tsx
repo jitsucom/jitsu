@@ -58,14 +58,18 @@ export const ButtonGroup: React.FC<ButtonGroupProps> = ({ items, dotsButtonProps
             key={i}
             ws={!!item.href}
             requiredPermission={item.requiredPermission}
-            className={`${item.className || ""} ${styles.groupedButton} ${i === 0 ? styles.firstButton : ""} ${i === totalItems - 1 && dropdownItems.length === 0 ? styles.lastButton : ""} ${totalItems === 1 ? styles.onlyButton : ""}`.trim()}
+            className={`${item.className || ""} ${styles.groupedButton} ${i === 0 ? styles.firstButton : ""} ${
+              i === totalItems - 1 && dropdownItems.length === 0 ? styles.lastButton : ""
+            } ${totalItems === 1 ? styles.onlyButton : ""}`.trim()}
           />
         </Tooltip>
       ))}
       {dropdownItems.length > 0 && (
         <Dropdown trigger={["click"]} menu={{ items: dropdownItems }}>
           <JitsuButton
-            className={`text-lg font-bold ${styles.groupedButton} ${shownItems.length === 0 ? styles.onlyButton : styles.lastButton}`}
+            className={`text-lg font-bold ${styles.groupedButton} ${
+              shownItems.length === 0 ? styles.onlyButton : styles.lastButton
+            }`}
             icon={
               dotsOrientation === "vertical" ? (
                 <MoreVertical className={"w-4 h-4"} />

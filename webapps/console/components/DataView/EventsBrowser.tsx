@@ -851,15 +851,31 @@ const FunctionsLogTable = ({ loadEvents, loading, streamType, entityType, actorI
       render: d => {
         switch (d) {
           case "error":
-            return <Tag variant="outlined" color={"red"}>ERROR</Tag>;
+            return (
+              <Tag variant="outlined" color={"red"}>
+                ERROR
+              </Tag>
+            );
           case "info":
-            return <Tag variant="outlined" color={"cyan"}>INFO</Tag>;
+            return (
+              <Tag variant="outlined" color={"cyan"}>
+                INFO
+              </Tag>
+            );
           case "debug":
             return <Tag variant="outlined">DEBUG</Tag>;
           case "warn":
-            return <Tag variant="outlined" color={"orange"}>WARN</Tag>;
+            return (
+              <Tag variant="outlined" color={"orange"}>
+                WARN
+              </Tag>
+            );
           default:
-            return <Tag variant="outlined" color={"cyan"}>{d.status}</Tag>;
+            return (
+              <Tag variant="outlined" color={"cyan"}>
+                {d.status}
+              </Tag>
+            );
         }
       },
     },
@@ -885,7 +901,9 @@ const FunctionsLogTable = ({ loadEvents, loading, streamType, entityType, actorI
           case "http-request":
             return (
               <>
-                <Tag variant="outlined" color={d.status >= 200 && d.status < 300 ? "cyan" : "orange"}>{d.status ?? "ERROR"}</Tag>
+                <Tag variant="outlined" color={d.status >= 200 && d.status < 300 ? "cyan" : "orange"}>
+                  {d.status ?? "ERROR"}
+                </Tag>
                 <span>{`HTTP ${d.method} `}</span>
                 <span>{d.url}</span>
               </>
@@ -962,7 +980,11 @@ const StreamEventsTable = ({ loadEvents, loading, streamType, entityType, actorI
       dataIndex: ["content", "status"],
       key: "status_color",
       render: (d: string) => {
-        return <Tag variant="outlined" color={d === "SUCCESS" ? "cyan" : "red"}>{d}</Tag>;
+        return (
+          <Tag variant="outlined" color={d === "SUCCESS" ? "cyan" : "red"}>
+            {d}
+          </Tag>
+        );
       },
     },
     // {
@@ -1036,7 +1058,11 @@ const BatchTable = ({ loadEvents, loading, streamType, entityType, actorId, even
       dataIndex: "content",
       key: "status",
       render: (d: any) => {
-        return <Tag variant="outlined" color={d.status === "COMPLETED" ? "cyan" : "red"}>{d.status}</Tag>;
+        return (
+          <Tag variant="outlined" color={d.status === "COMPLETED" ? "cyan" : "red"}>
+            {d.status}
+          </Tag>
+        );
       },
     },
     {
@@ -1176,11 +1202,23 @@ const IncomingEventDrawer = ({
         value: (st => {
           switch (st) {
             case "FAILED":
-              return <Tag variant="outlined" color={"red"}>{st}</Tag>;
+              return (
+                <Tag variant="outlined" color={"red"}>
+                  {st}
+                </Tag>
+              );
             case "SUCCESS":
-              return <Tag variant="outlined" color={"cyan"}>{st}</Tag>;
+              return (
+                <Tag variant="outlined" color={"cyan"}>
+                  {st}
+                </Tag>
+              );
             case "SKIPPED":
-              return <Tag variant="outlined" color={"orange"}>{st}</Tag>;
+              return (
+                <Tag variant="outlined" color={"orange"}>
+                  {st}
+                </Tag>
+              );
             default:
               return <Tag variant="outlined">{st}</Tag>;
           }
@@ -1616,11 +1654,23 @@ const IncomingEventsTable = ({
       render: d => {
         switch (d) {
           case "FAILED":
-            return <Tag variant="outlined" color={"red"}>&nbsp;</Tag>;
+            return (
+              <Tag variant="outlined" color={"red"}>
+                &nbsp;
+              </Tag>
+            );
           case "SUCCESS":
-            return <Tag variant="outlined" color={"cyan"}>&nbsp;</Tag>;
+            return (
+              <Tag variant="outlined" color={"cyan"}>
+                &nbsp;
+              </Tag>
+            );
           case "SKIPPED":
-            return <Tag variant="outlined" color={"orange"}>&nbsp;</Tag>;
+            return (
+              <Tag variant="outlined" color={"orange"}>
+                &nbsp;
+              </Tag>
+            );
           default:
             return <Tag variant="outlined">&nbsp;</Tag>;
         }
