@@ -1,6 +1,5 @@
-import { ButtonProps } from "antd/lib/button/button";
 import { useState } from "react";
-import { Button } from "antd";
+import { Button, ButtonProps } from "antd";
 import { feedbackError, feedbackSuccess } from "../../lib/ui";
 
 export type AsyncButtonProps = ButtonProps & {

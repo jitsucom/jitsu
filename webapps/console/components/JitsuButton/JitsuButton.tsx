@@ -1,5 +1,4 @@
-import type { ButtonProps } from "antd/es/button/button";
-import { Button, Tooltip } from "antd";
+import { Button, Tooltip, ButtonProps } from "antd";
 import omit from "lodash/omit";
 
 import React, { forwardRef } from "react";

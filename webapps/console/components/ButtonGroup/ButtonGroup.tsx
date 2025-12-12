@@ -1,14 +1,13 @@
-import { Dropdown, MenuProps, Tooltip } from "antd";
+import { Dropdown, MenuProps, Tooltip, ButtonProps } from "antd";
 import React from "react";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
-import { BaseButtonProps } from "antd/lib/button/button";
 import styles from "./ButtonGroup.module.css";
 import { useWorkspace, useWorkspaceRole } from "../../lib/context";
 import { MoreHorizontal, MoreVertical } from "lucide-react";
 import Link from "next/link";
 import { hasPermission, WorkspacePermissionsType } from "../../lib/workspace-roles";
 
-export type ButtonProps = Omit<BaseButtonProps, "children" | "type"> & {
+export type JButtonProps = Omit<ButtonProps, "children" | "type"> & {
   href?: string;
   label?: React.ReactNode;
   collapsed?: boolean;
@@ -19,8 +18,8 @@ export type ButtonProps = Omit<BaseButtonProps, "children" | "type"> & {
 };
 
 export type ButtonGroupProps = {
-  items: ButtonProps[];
-  dotsButtonProps?: BaseButtonProps;
+  items: JButtonProps[];
+  dotsButtonProps?: ButtonProps;
   dotsOrientation?: "horizontal" | "vertical";
 };
 
