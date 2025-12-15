@@ -23,7 +23,7 @@ const eslintConfig = defineConfig([
       "react/no-unescaped-entities": 0,
       "@next/next/no-img-element": 0,
       "import/no-anonymous-default-export": 0,
-
+      "react-hooks/set-state-in-effect": 0,
       "no-restricted-properties": [
         "error",
         {

@@ -254,10 +254,8 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({
         selected: false,
       });
     }
-    setTimeout(() => {
-      setLines(newLines);
-      updateSelected(mouseOverSrc, mouseOverDst);
-    }, 0);
+    setLines(newLines);
+    updateSelected(mouseOverSrc, mouseOverDst);
   }, [
     connections,
     connectorSources,

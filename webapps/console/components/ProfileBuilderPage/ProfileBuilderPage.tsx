@@ -529,15 +529,13 @@ function useProfileBuilderState(
 
   useEffect(() => {
     if (pbEnabled) {
-      (async () => {
-        setLoading(true);
-        get(`/api/${workspace.id}/profile-builder/state?profileBuilderId=${profileBuilder.id}`)
-          .then(res => {
-            setData(res);
-          })
-          .catch(e => setData({ status: "error", error: e.message }))
-          .finally(() => setLoading(false));
-      })();
+      setLoading(true);
+      get(`/api/${workspace.id}/profile-builder/state?profileBuilderId=${profileBuilder.id}`)
+        .then(res => {
+          setData(res);
+        })
+        .catch(e => setData({ status: "error", error: e.message }))
+        .finally(() => setLoading(false));
     }
   }, [profileBuilder, refreshDate, workspace.id, pbEnabled]);
   return { isLoading: loading, data } as any;
@@ -556,57 +554,55 @@ function useProfileBuilderData(
   const [data, setData] = useState<ProfileBuilderData | undefined>();
   const billing = useBilling();
   useEffect(() => {
-    (async () => {
-      if (billing.enabled && billing.loading) {
-        setLoading(true);
-        return;
-      }
-      get(`/api/${workspace.id}/config/profile-builder?init=true`)
-        .then(res => res.profileBuilders)
-        .then(profileBuilders => {
-          let status: ProfileBuilderStatus = "incomplete";
-          if (billing.enabled) {
-            if (billing.settings?.profileBuilderEnabled) {
-              setEnabled(true);
-            }
+    if (billing.enabled && billing.loading) {
+      setLoading(true);
+      return;
+    }
+    get(`/api/${workspace.id}/config/profile-builder?init=true`)
+      .then(res => res.profileBuilders)
+      .then(profileBuilders => {
+        let status: ProfileBuilderStatus = "incomplete";
+        if (billing.enabled) {
+          if (billing.settings?.profileBuilderEnabled) {
+            setEnabled(true);
           }
-          if (profileBuilders?.length) {
-            const pb = profileBuilders[0];
-            if (pb.version > 0 && pb.destinationId) {
-              status = "ready";
-            }
-            setData({
-              status: status,
-              id: pb.id,
-              name: pb.name,
-              version: pb.version,
-              functionId: pb.functions?.length ? pb.functions[0].functionId : undefined,
-              draft: pb.functions?.length ? pb.functions[0].function.config.draft : defaultProfileBuilderFunction,
-              draftUpdatedAt: pb.functions?.length ? pb.functions[0].function.updatedAt : undefined,
-              code: pb.functions?.length ? pb.functions[0].function.config.code : defaultProfileBuilderFunction,
-              cli: pb.functions?.length ? !!pb.functions[0].function.config.slug : undefined,
-              settings: {
-                storage: pb.intermediateStorageCredentials,
-                destinationId: pb.destinationId,
-                tableName: pb.connectionOptions?.tableName,
-                variables: pb.connectionOptions?.variables,
-                functions: pb.connectionOptions?.functions,
-                profileWindow: pb.connectionOptions?.profileWindow,
-              },
-              createdAt: pb.createdAt,
-              updatedAt: pb.updatedAt,
-            });
-            return;
-          } else {
-            setData({
-              ...defaultProfileBuilderData,
-              draft: defaultProfileBuilderFunction,
-            });
+        }
+        if (profileBuilders?.length) {
+          const pb = profileBuilders[0];
+          if (pb.version > 0 && pb.destinationId) {
+            status = "ready";
           }
-        })
-        .catch(e => setError(e))
-        .finally(() => setLoading(false));
-    })();
+          setData({
+            status: status,
+            id: pb.id,
+            name: pb.name,
+            version: pb.version,
+            functionId: pb.functions?.length ? pb.functions[0].functionId : undefined,
+            draft: pb.functions?.length ? pb.functions[0].function.config.draft : defaultProfileBuilderFunction,
+            draftUpdatedAt: pb.functions?.length ? pb.functions[0].function.updatedAt : undefined,
+            code: pb.functions?.length ? pb.functions[0].function.config.code : defaultProfileBuilderFunction,
+            cli: pb.functions?.length ? !!pb.functions[0].function.config.slug : undefined,
+            settings: {
+              storage: pb.intermediateStorageCredentials,
+              destinationId: pb.destinationId,
+              tableName: pb.connectionOptions?.tableName,
+              variables: pb.connectionOptions?.variables,
+              functions: pb.connectionOptions?.functions,
+              profileWindow: pb.connectionOptions?.profileWindow,
+            },
+            createdAt: pb.createdAt,
+            updatedAt: pb.updatedAt,
+          });
+          return;
+        } else {
+          setData({
+            ...defaultProfileBuilderData,
+            draft: defaultProfileBuilderFunction,
+          });
+        }
+      })
+      .catch(e => setError(e))
+      .finally(() => setLoading(false));
   }, [billing.enabled, billing.loading, workspace, billing.settings, refreshDate.getTime()]);
   return { isLoading: loading, error, data, enabled } as any;
 }

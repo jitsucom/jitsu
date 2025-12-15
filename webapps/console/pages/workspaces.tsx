@@ -146,9 +146,7 @@ const WorkspacesList = () => {
   // Update stable count only when we have actual data
   useEffect(() => {
     if (totalCount > 0) {
-      (async () => {
-        setCachedTotalCount(totalCount);
-      })();
+      setCachedTotalCount(totalCount);
     }
   }, [totalCount]);
 

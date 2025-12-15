@@ -657,6 +657,10 @@ export const WorkspacePageLayout: React.FC<PropsWithChildren<PageLayoutProps>> =
     }
   }, []);
 
+  useEffect(() => {
+    setShowDrawer(false);
+  }, [fullscreen]);
+
   if (workspace.deleted) {
     router.push("/workspaces");
     return <p>This workspace was deleted, redirecting...</p>;
