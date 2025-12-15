@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 import { DestinationConfig, FunctionConfig, StreamConfig } from "../../lib/schema";
 import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
@@ -27,6 +27,13 @@ export type FunctionsSelectorProps = {
   disabled?: boolean;
 };
 
+const Wrapper: React.FC<React.PropsWithChildren<{ split: "horizontal" | "vertical" }>> = ({ children, split }) => {
+  if (split === "vertical") {
+    return <div className={"flex-auto max-w-[50%]"}>{children}</div>;
+  }
+  return <>{children}</>;
+};
+
 const FunctionsSelector0: React.FC<FunctionsSelectorProps> = ({
   functions,
   selectedFunctions,
@@ -36,22 +43,26 @@ const FunctionsSelector0: React.FC<FunctionsSelectorProps> = ({
   disabled,
   split = "horizontal",
 }) => {
-  const [enabledFunctions, setEnabledFunctions] = useState<FunctionConfig[]>(
-    (selectedFunctions ?? [])
+  const [enabledFunctionsObj, setEnabledFunctionsObj] = useState<{
+    enabledFunctions: FunctionConfig[];
+    disabledFunctions: FunctionConfig[];
+  }>({
+    enabledFunctions: (selectedFunctions ?? [])
       .map(s => functions.find(f => s.functionId === "udf." + f.id))
-      .filter(f => typeof f !== "undefined") as FunctionConfig[]
-  );
-  const [disabledFunctions, setDisabledFunctions] = useState<FunctionConfig[]>([]);
-  useEffect(() => {
-    setDisabledFunctions(functions.filter(f => !enabledFunctions.find(e => e.id === f.id)));
-  }, [enabledFunctions, functions, onChange]);
+      .filter(f => typeof f !== "undefined") as FunctionConfig[],
+    disabledFunctions: functions.filter(f => !(selectedFunctions ?? []).find(e => e.functionId === f.id)),
+  });
+  const { enabledFunctions, disabledFunctions } = enabledFunctionsObj;
 
   const saveEnabledFunctions = useCallback(
     f => {
-      setEnabledFunctions(f);
+      setEnabledFunctionsObj({
+        enabledFunctions: f,
+        disabledFunctions: functions.filter(func => !f.find((ef: FunctionConfig) => ef.id === func.id)),
+      });
       onChange(f);
     },
-    [enabledFunctions, onChange]
+    [functions, onChange]
   );
 
   const sensors = useSensors(useSensor(PointerSensor));
@@ -64,23 +75,20 @@ const FunctionsSelector0: React.FC<FunctionsSelectorProps> = ({
         const newIndex = enabledFunctions.findIndex(i => i.id === over.id);
         if (oldIndex === newIndex) return;
         const reordered = arrayMove(enabledFunctions, oldIndex, newIndex);
-        setEnabledFunctions(reordered);
+        setEnabledFunctionsObj({
+          enabledFunctions: reordered,
+          disabledFunctions: disabledFunctions,
+        });
         onChange(reordered);
       }
     },
-    [enabledFunctions, onChange]
+    [disabledFunctions, enabledFunctions, onChange]
   );
-  const Wrapper: React.FC<React.PropsWithChildren> = ({ children }) => {
-    if (split === "vertical") {
-      return <div className={"flex-auto max-w-[50%]"}>{children}</div>;
-    }
-    return <>{children}</>;
-  };
 
   return (
     <div className={`w-full flex ${split === "vertical" ? " flex-row items-start gap-4 " : " flex-col items-center"} `}>
       {functions && functions.length > 0 && (
-        <Wrapper>
+        <Wrapper split={split}>
           {enabledFunctions.length > 0 && (
             <DndContext
               sensors={sensors}
@@ -123,7 +131,7 @@ const FunctionsSelector0: React.FC<FunctionsSelectorProps> = ({
         </Wrapper>
       )}
       {!disabled && (
-        <Wrapper>
+        <Wrapper split={split}>
           {split == "horizontal" && <div className={"mt-3"}></div>}
           <div className={"w-full flex flex-row px-3 py-1 justify-center text-gray-500  items-center gap-3"}>
             Choose functions to add to this connection

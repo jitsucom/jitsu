@@ -741,7 +741,9 @@ function Tasks() {
 
   useEffect(() => {
     if (data) {
-      setShownData(data);
+      (async () => {
+        setShownData(data);
+      })();
     }
   }, [data]);
 

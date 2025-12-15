@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Button, Container, Hr, Text } from "@react-email/components";
 import dayjs from "dayjs";
 
@@ -19,6 +19,8 @@ export const MetaList: React.FC<MetaListProps> = ({
   streamsFailed,
   queueSize,
 }) => {
+  const date = useMemo(() => new Date(), []);
+
   return (
     <Text>
       {tableName ? (
@@ -53,7 +55,8 @@ export const MetaList: React.FC<MetaListProps> = ({
       ) : (
         <></>
       )}
-      {incidentStartedAt && (Date.now() - new Date(incidentStartedAt).getTime() > 5 * 60 * 1000 || recoveredFrom) ? (
+      {incidentStartedAt &&
+      (date.getTime() - new Date(incidentStartedAt).getTime() > 5 * 60 * 1000 || recoveredFrom) ? (
         <span>
           <b>Incident Started At: </b> {dayjs(incidentStartedAt).toLocaleString()}
           <br />

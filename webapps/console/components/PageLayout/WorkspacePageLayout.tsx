@@ -4,7 +4,6 @@ import { HiSelector } from "react-icons/hi";
 import { FaDocker, FaSignOutAlt, FaUserCircle } from "react-icons/fa";
 import { FiSettings } from "react-icons/fi";
 import { Drawer, Dropdown, Menu, MenuProps } from "antd";
-import MenuItem from "antd/lib/menu/MenuItem";
 import { ButtonLabel } from "../ButtonLabel/ButtonLabel";
 import styles from "./WorkspacePageLayout.module.css";
 import {
@@ -656,11 +655,7 @@ export const WorkspacePageLayout: React.FC<PropsWithChildren<PageLayoutProps>> =
       window.addEventListener("keydown", handleKeyDown);
       return () => window.removeEventListener("keydown", handleKeyDown);
     }
-  }, [window]);
-
-  useEffect(() => {
-    setShowDrawer(false);
-  }, [fullscreen]);
+  }, []);
 
   if (workspace.deleted) {
     router.push("/workspaces");

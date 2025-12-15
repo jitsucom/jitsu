@@ -56,7 +56,7 @@ export const ChartView: React.FC<{ data: ActiveEventsReport }> = ({ data }) => {
         chart.destroy();
       };
     }
-  }, [data]);
+  }, [clientEnv.NODE_ENV, data]);
   return (
     <div ref={wrapperRef} className="h-full relative">
       <div className="absolute -translate-y-full pb-8">

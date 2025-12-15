@@ -188,7 +188,7 @@ export const FunctionsDebugger: React.FC<FunctionsDebuggerProps> = props => {
     } finally {
       setSaving(false);
     }
-  }, [props.isNew, obj, workspace.id, push, reloadStore]);
+  }, [props.isNew, obj, reloadStore, push, workspace.slugOrId, workspace.id]);
 
   const runFunction = useCallback(async () => {
     setRunning(true);

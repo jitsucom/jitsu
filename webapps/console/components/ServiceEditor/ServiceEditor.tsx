@@ -221,7 +221,19 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
       setTesting(false);
       setLoading(false);
     }
-  }, [obj, credentials, workspace.id, props.isNew, push, validate, testResult, onTest, modal]);
+  }, [
+    obj,
+    credentials,
+    props.isNew,
+    reloadStore,
+    push,
+    workspace.slugOrId,
+    workspace.id,
+    validate,
+    testResult,
+    onTest,
+    modal,
+  ]);
 
   if (meta === undefined) {
     return <LoadingAnimation />;

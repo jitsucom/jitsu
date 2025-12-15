@@ -1,4 +1,4 @@
-import React, { ReactNode, RefObject, useEffect } from "react";
+import React, { ReactNode, useCallback, useEffect } from "react";
 import { branding } from "../../lib/branding";
 import { getLog, requireDefined } from "juava";
 import Link from "next/link";
@@ -112,9 +112,9 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({
   ...p
 }) => {
   const canvasRef = React.useRef<HTMLDivElement>(null);
-  const srcRefs = React.useRef<RefObject<HTMLElement>[]>([]);
-  const dstRefs = React.useRef<RefObject<HTMLElement>[]>([]);
-  const connectorsRef = React.useRef<RefObject<HTMLElement>[]>([]);
+  const srcRefs = sources.map((_, i) => React.createRef<HTMLElement>());
+  const dstRefs = destinations.map((_, i) => React.createRef<HTMLElement>());
+  const connectorsRef = connectorSources.map((_, i) => React.createRef<HTMLElement>());
   const logoRef = React.useRef<HTMLAnchorElement>(null);
   const [windowSize, setWindowSize] = React.useState<{ width: number; height: number } | undefined>();
   const [lines, setLines] = React.useState<ConnectorLine[]>([]);
@@ -135,6 +135,22 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({
     return () => window.removeEventListener("resize", resizeListener);
   });
 
+  const updateSelected = useCallback(
+    (mouseOverSrc?: string, mouseOverDst?: string) => {
+      if (mouseOverSrc) {
+        setForceSelectSource([mouseOverSrc]);
+        setForceSelectDestination(connections.filter(c => c.from === mouseOverSrc).map(c => c.to));
+      } else if (mouseOverDst) {
+        setForceSelectDestination([mouseOverDst]);
+        setForceSelectSource(connections.filter(c => c.to === mouseOverDst).map(c => c.from));
+      } else {
+        setForceSelectDestination([]);
+        setForceSelectSource([]);
+      }
+    },
+    [connections]
+  );
+
   useEffect(() => {
     getLog().atInfo().log(`Rendering connections diagram with ${connections.length} connections`);
     if (canvasRef.current == null || logoRef.current == null) {
@@ -146,7 +162,7 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({
     );
     const logoBounds = logoRef.current.getBoundingClientRect();
     const newLines: ConnectorLine[] = [];
-    srcRefs.current
+    srcRefs
       .map(r => r.current)
       .filter(r => !!r)
       .forEach((r, idx) => {
@@ -164,8 +180,8 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({
           });
         }
       });
-    getLog().atDebug().log(`Rendering ${connectorsRef.current.length} connectors`, connectorsRef.current);
-    connectorsRef.current
+    getLog().atDebug().log(`Rendering ${connectorsRef.length} connectors`, connectorsRef);
+    connectorsRef
       .map(r => r.current)
       .filter(r => !!r)
       .forEach((r, idx) => {
@@ -186,7 +202,7 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({
           getLog().atWarn().log(`Source ${source.id} has no connections`);
         }
       });
-    dstRefs.current
+    dstRefs
       .map(r => r.current)
       .filter(r => !!r)
       .forEach((r, idx) => {
@@ -235,23 +251,23 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({
         selected: false,
       });
     }
-    setLines(newLines);
-
-    if (mouseOverSrc) {
-      setForceSelectSource([mouseOverSrc]);
-      setForceSelectDestination(connections.filter(c => c.from === mouseOverSrc).map(c => c.to));
-    } else if (mouseOverDst) {
-      setForceSelectDestination([mouseOverDst]);
-      setForceSelectSource(connections.filter(c => c.to === mouseOverDst).map(c => c.from));
-    } else {
-      setForceSelectDestination([]);
-      setForceSelectSource([]);
-    }
-  }, [connections, sources, destinations, windowSize, mouseOverSrc, mouseOverDst]);
-
-  srcRefs.current = sources.map((_, i) => srcRefs.current[i] ?? React.createRef());
-  dstRefs.current = destinations.map((_, i) => dstRefs.current[i] ?? React.createRef());
-  connectorsRef.current = connectorSources.map((_, i) => connectorsRef.current[i] ?? React.createRef());
+    setTimeout(() => {
+      setLines(newLines);
+      updateSelected(mouseOverSrc, mouseOverDst);
+    }, 0);
+  }, [
+    connections,
+    connectorSources,
+    connectorsRef,
+    sources,
+    srcRefs,
+    destinations,
+    dstRefs,
+    updateSelected,
+    windowSize,
+    mouseOverSrc,
+    mouseOverDst,
+  ]);
 
   const connectorSection = appConfig.syncs.enabled && (
     <React.Fragment key="connectors">
@@ -261,7 +277,7 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({
           {connectorSources.map((s, idx) => (
             <div
               key={s.id}
-              ref={connectorsRef.current[idx] as any}
+              ref={connectorsRef[idx] as any}
               className="cursor-pointer mb-4"
               onMouseOver={() => {
                 setMouseOverSrc(s.id);
@@ -289,7 +305,7 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({
           {sources.map((s, idx) => (
             <div
               key={s.id}
-              ref={srcRefs.current[idx] as any}
+              ref={srcRefs[idx] as any}
               className="cursor-pointer mb-4"
               onMouseOver={() => {
                 setMouseOverSrc(s.id);
@@ -342,7 +358,7 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({
             <div
               className="cursor-pointer mb-4"
               key={dest.id}
-              ref={dstRefs.current[idx] as any}
+              ref={dstRefs[idx] as any}
               onMouseOver={() => {
                 setMouseOverDst(dest.id);
               }}

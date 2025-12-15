@@ -156,7 +156,6 @@ type UseApiOpts<Req, Res, Query> = {
   mockResponse?: Res;
 };
 
-/* eslint-disable */
 export function useApi<Res = any, Req = any, Query extends Record<string, any> = Record<string, any>>(
   url: string,
   opts?: UseApiOpts<Req, Res, Query>

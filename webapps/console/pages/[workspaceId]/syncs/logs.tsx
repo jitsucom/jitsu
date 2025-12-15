@@ -86,7 +86,9 @@ function TaskLogs() {
 
   useEffect(() => {
     if (data) {
-      setDisplayText(data.split("#ENDLINE#").reverse());
+      (async () => {
+        setDisplayText(data.split("#ENDLINE#").reverse());
+      })();
     }
   }, [data]);
 

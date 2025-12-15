@@ -154,7 +154,7 @@ function SyncsTable({ links, services, destinations }: RemoteEntitiesProps) {
         setTasksLoading(false);
       }
     })();
-  }, [links, workspace.id, refresh]);
+  }, [links, workspace.id, refresh, validLinks]);
 
   const deleteSync = async (link: Omit<SyncDbModel, "data">) => {
     if (await confirmOp("Are you sure you want to unlink this service from this destination?")) {

@@ -91,21 +91,18 @@ export const BatchOrStreamEditor: EditorComponent<ConnectionOptionsType["mode"],
   onChange,
   limitations,
 }) => {
-  const [streamModeState, setStreamModeState] = useState<"locked" | "disabled" | "allowed">("allowed");
-  const [streamModeCaveats, setStreamModeCaveats] = useState<string>();
-
-  useEffect(() => {
-    if (limitations?.streamModeLocked) {
-      setStreamModeState(value !== "stream" ? "locked" : "allowed");
-      setStreamModeCaveats(limitations?.streamModeLocked);
-    } else if (limitations?.streamModeDisabled) {
-      setStreamModeState("disabled");
-      setStreamModeCaveats(limitations?.streamModeDisabled);
-    } else {
-      setStreamModeState("allowed");
-      setStreamModeCaveats(undefined);
-    }
-  }, [limitations, value]);
+  const [streamModeState, setStreamModeState] = useState<"locked" | "disabled" | "allowed">(
+    limitations?.streamModeLocked
+      ? value !== "stream"
+        ? "locked"
+        : "allowed"
+      : limitations?.streamModeDisabled
+      ? "disabled"
+      : "allowed"
+  );
+  const [streamModeCaveats, setStreamModeCaveats] = useState<string>(
+    limitations?.streamModeLocked || limitations?.streamModeDisabled
+  );
 
   return (
     <Radio.Group

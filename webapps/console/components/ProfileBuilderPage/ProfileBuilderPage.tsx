@@ -529,13 +529,15 @@ function useProfileBuilderState(
 
   useEffect(() => {
     if (pbEnabled) {
-      setLoading(true);
-      get(`/api/${workspace.id}/profile-builder/state?profileBuilderId=${profileBuilder.id}`)
-        .then(res => {
-          setData(res);
-        })
-        .catch(e => setData({ status: "error", error: e.message }))
-        .finally(() => setLoading(false));
+      (async () => {
+        setLoading(true);
+        get(`/api/${workspace.id}/profile-builder/state?profileBuilderId=${profileBuilder.id}`)
+          .then(res => {
+            setData(res);
+          })
+          .catch(e => setData({ status: "error", error: e.message }))
+          .finally(() => setLoading(false));
+      })();
     }
   }, [profileBuilder, refreshDate, workspace.id, pbEnabled]);
   return { isLoading: loading, data } as any;
@@ -554,11 +556,11 @@ function useProfileBuilderData(
   const [data, setData] = useState<ProfileBuilderData | undefined>();
   const billing = useBilling();
   useEffect(() => {
-    if (billing.enabled && billing.loading) {
-      setLoading(true);
-      return;
-    }
     (async () => {
+      if (billing.enabled && billing.loading) {
+        setLoading(true);
+        return;
+      }
       get(`/api/${workspace.id}/config/profile-builder?init=true`)
         .then(res => res.profileBuilders)
         .then(profileBuilders => {
@@ -605,7 +607,7 @@ function useProfileBuilderData(
         .catch(e => setError(e))
         .finally(() => setLoading(false));
     })();
-  }, [billing.enabled, billing.loading, workspace, billing.settings, refreshDate.getTime()]);
+  }, [billing.enabled, billing.loading, workspace, billing.settings, refreshDate]);
   return { isLoading: loading, error, data, enabled } as any;
 }
 

@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo } from "react";
 import { Checkbox, Radio, Select, Skeleton, Tooltip } from "antd";
 import { QuestionCircleFilled } from "@ant-design/icons";
 import { useQueryStringState } from "../../lib/useQueryStringState";
@@ -222,12 +222,13 @@ export const ChartView: React.FC<{
         chart.destroy();
       };
     }
-  }, [data]);
+  }, [clientEnv.NODE_ENV, data, dateFormat, status]);
 
   return <canvas ref={wrapperRef} className="w-full h-full my-12"></canvas>;
 };
 
 export const EventStatPage: React.FC = () => {
+  const date = useMemo(() => new Date(), []);
   const workspace = useWorkspace();
   const [period, setPeriod] = useQueryStringState("period", {
     defaultValue: "24h",
@@ -241,13 +242,13 @@ export const EventStatPage: React.FC = () => {
   const [start, end, granularity] = (() => {
     switch (period) {
       case "24h":
-        return [new Date(Date.now() - 24 * 60 * 60 * 1000), new Date(), "hour"];
+        return [new Date(date.getTime() - 24 * 60 * 60 * 1000), new Date(), "hour"];
       case "7d":
-        return [new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), new Date(), "day"];
+        return [new Date(date.getTime() - 7 * 24 * 60 * 60 * 1000), new Date(), "day"];
       case "1m":
-        const monthAgo = new Date();
+        const monthAgo = new Date(date.getTime());
         monthAgo.setMonth(monthAgo.getMonth() - 1);
-        return [monthAgo, new Date(), "day"];
+        return [monthAgo, new Date(date.getTime()), "day"];
       default:
         throw new Error(`Unknown period '${period}'`);
     }

@@ -7,7 +7,7 @@
     "email:dev": "email dev -p 3901",
     "build": "next build",
     "typecheck": "tsc --noEmit",
-    "lint": "next lint",
+    "lint": "eslint .",
     "db:update-schema": "dotenv -e ../../.env.local -- tsx ./scripts/sql-exec.ts ./scripts/sql"
   },
   "dependencies": {

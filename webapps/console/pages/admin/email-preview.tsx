@@ -39,14 +39,16 @@ const EmailPreviewPage = () => {
   });
 
   useEffect(() => {
-    const component = templates[template];
-    if (component) {
-      setComponent({ reactFC: component });
-      setPreviewValues(component.PreviewProps || {});
-    } else {
-      setComponent({ reactFC: defaultComponent });
-      setPreviewValues({});
-    }
+    (async () => {
+      const component = templates[template];
+      if (component) {
+        setComponent({ reactFC: component });
+        setPreviewValues(component.PreviewProps || {});
+      } else {
+        setComponent({ reactFC: defaultComponent });
+        setPreviewValues({});
+      }
+    })();
   }, [template]);
 
   useEffect(() => {
