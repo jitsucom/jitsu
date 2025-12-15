@@ -132,8 +132,6 @@ jobs:
           BRANCH_SANITIZED=$(echo "${BRANCH}" | tr '[:upper:]' '[:lower:]' | sed 's/[\/\_]/-/g' | sed 's/[^a-z0-9.-]//g')
 
           for TARGET in $TARGETS; do
-            echo "🚀 Building ${TARGET} for AMD64 and ARM64..."
-
             # Build tags list
             # 1. Version tag (e.g., 1.2.3-canary.1.20251113.abc1234)
             TAGS="-t ${REGISTRY}/${TARGET}:${VERSION}"
@@ -149,15 +147,16 @@ jobs:
             # 3. Branch + commit tag (e.g., feat-a.abc1234)
             TAGS="${TAGS} -t ${REGISTRY}/${TARGET}:${BRANCH_SANITIZED}.${SHORT_SHA}"
 
-            PLATFORM="linux/amd64,linux/arm64"
-
             # Add --push flag only if we're publishing
             if [ "${{ inputs.dont_publish }}" != "true" ]; then
               GOAL_FLAG="--push"
+              PLATFORM="linux/amd64,linux/arm64"
             else
-              GOAL_FLAG="--output type=oci,dest=images/${TARGET}.oci"
+              GOAL_FLAG=""
               PLATFORM="linux/arm64"
             fi
+          
+            echo "🚀 Building ${TARGET} for ${PLATFORM}..."
 
             docker buildx build \
               --target ${TARGET} \
@@ -171,12 +170,6 @@ jobs:
               ${GOAL_FLAG} \
               .
           done
-      - name: 📤 Upload build OCI artifacts
-        if: inputs.dont_publish == 'true'
-        uses: actions/upload-artifact@v6
-        with:
-          name: OCI Artifacts
-          path: images/*.oci
 
   build_bulker:
     needs: [version]
@@ -226,8 +219,6 @@ jobs:
           BRANCH_SANITIZED=$(echo "${BRANCH}" | tr '[:upper:]' '[:lower:]' | sed 's/[\/\_]/-/g' | sed 's/[^a-z0-9.-]//g')
 
           for TARGET in $TARGETS; do
-            echo "🚀 Building ${TARGET} for AMD64 and ARM64..."
-
             # Build tags list
             # 1. Version tag (e.g., 1.2.3-canary.1.20251113.abc1234)
             TAGS="-t ${REGISTRY}/${TARGET}:${VERSION}"
@@ -242,16 +233,17 @@ jobs:
 
             # 3. Branch + commit tag (e.g., feat-a.abc1234)
             TAGS="${TAGS} -t ${REGISTRY}/${TARGET}:${BRANCH_SANITIZED}.${SHORT_SHA}"
-
-            PLATFORM="linux/amd64,linux/arm64"
             
             # Add --push flag only if we're publishing
             if [ "${{ inputs.dont_publish }}" != "true" ]; then
               GOAL_FLAG="--push"
+              PLATFORM="linux/amd64,linux/arm64"
             else
-              GOAL_FLAG="--output type=oci,dest=images/${TARGET}.oci"
+              GOAL_FLAG=""
               PLATFORM="linux/arm64"
             fi
+          
+            echo "🚀 Building ${TARGET} for ${PLATFORM}..."
 
             docker buildx build \
               --target ${TARGET} \
@@ -263,12 +255,6 @@ jobs:
               ${GOAL_FLAG} \
               ./bulker
           done
-      - name: 📤 Upload build OCI artifacts
-        if: inputs.dont_publish == 'true'
-        uses: actions/upload-artifact@v6
-        with:
-          name: OCI Artifacts
-          path: images/*.oci
 
 
   finalize_release:
