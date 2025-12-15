@@ -49,7 +49,7 @@ import { EditorTitle } from "./EditorTitle";
 import { EditorBase } from "./EditorBase";
 import { EditorField } from "./EditorField";
 import { EditorButtons } from "./EditorButtons";
-import { ButtonGroup, JButtonProps } from "../ButtonGroup/ButtonGroup";
+import { ButtonGroup, ButtonProps } from "../ButtonGroup/ButtonGroup";
 import cuid from "cuid";
 import { ObjectTitle } from "../ObjectTitle/ObjectTitle";
 import omitBy from "lodash/omitBy";
@@ -966,7 +966,7 @@ const ObjectsList: React.FC<{ objects: any[]; onDelete: (id: string) => Promise<
       title: "",
       className: "text-right",
       render: (text, record) => {
-        const items: JButtonProps[] = [
+        const items: ButtonProps[] = [
           {
             label: "Edit",
             href: `${pref}/${type}s?id=${record.id}`,

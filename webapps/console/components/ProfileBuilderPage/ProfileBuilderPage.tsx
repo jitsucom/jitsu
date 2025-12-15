@@ -62,7 +62,7 @@ import omit from "lodash/omit";
 import { WLink } from "../Workspace/WLink";
 import { getCoreDestinationTypeNonStrict } from "../../lib/schema/destinations";
 import { FunctionsSelector } from "../FunctionsSelector/FunctionsSelector";
-import { ButtonGroup, JButtonProps } from "../ButtonGroup/ButtonGroup";
+import { ButtonGroup, ButtonProps } from "../ButtonGroup/ButtonGroup";
 import PriorityQueueBar from "../PriorityQueueBar/PriorityQueueBar";
 
 dayjs.extend(utc);
@@ -902,7 +902,7 @@ export function ProfileBuilderPage() {
     }
   }, [obj.id, obj.name, obj.version, obj.settings, obj.draft, testData, workspace.id, activeSecondaryTab]);
 
-  const items: JButtonProps[] = [];
+  const items: ButtonProps[] = [];
   if (activePrimaryTab === "code") {
     items.push({
       icon: <History className="w-3.5 h-3.5" />,

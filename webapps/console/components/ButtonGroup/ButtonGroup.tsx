@@ -1,4 +1,4 @@
-import { Dropdown, MenuProps, Tooltip, ButtonProps } from "antd";
+import { Dropdown, MenuProps, Tooltip, ButtonProps as AntButtonProps } from "antd";
 import React from "react";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
 import styles from "./ButtonGroup.module.css";
@@ -7,7 +7,7 @@ import { MoreHorizontal, MoreVertical } from "lucide-react";
 import Link from "next/link";
 import { hasPermission, WorkspacePermissionsType } from "../../lib/workspace-roles";
 
-export type JButtonProps = Omit<ButtonProps, "children" | "type"> & {
+export type ButtonProps = Omit<AntButtonProps, "children" | "type"> & {
   href?: string;
   label?: React.ReactNode;
   collapsed?: boolean;
@@ -18,8 +18,8 @@ export type JButtonProps = Omit<ButtonProps, "children" | "type"> & {
 };
 
 export type ButtonGroupProps = {
-  items: JButtonProps[];
-  dotsButtonProps?: ButtonProps;
+  items: ButtonProps[];
+  dotsButtonProps?: AntButtonProps;
   dotsOrientation?: "horizontal" | "vertical";
 };
 

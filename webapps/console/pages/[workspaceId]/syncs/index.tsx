@@ -34,7 +34,7 @@ import relativeTime from "dayjs/plugin/relativeTime";
 import { ServiceTitle } from "../services";
 import { DestinationTitle } from "../destinations";
 import JSON5 from "json5";
-import { ButtonGroup, JButtonProps } from "../../../components/ButtonGroup/ButtonGroup";
+import { ButtonGroup, ButtonProps } from "../../../components/ButtonGroup/ButtonGroup";
 import { Overlay } from "../../../components/Overlay/Overlay";
 import { CodeBlock } from "../../../components/CodeBlock/CodeBlock";
 import { processTaskStatus, TaskStatus } from "./tasks";
@@ -286,7 +286,7 @@ function SyncsTable({ links, services, destinations }: RemoteEntitiesProps) {
             )}`
           );
         const t = tasks?.data?.tasks?.[link.id];
-        const items: JButtonProps[] = [
+        const items: ButtonProps[] = [
           {
             disabled: t?.status === "RUNNING" || !!runPressed,
             tooltip: t?.status === "RUNNING" ? "Sync is already runPressed" : undefined,

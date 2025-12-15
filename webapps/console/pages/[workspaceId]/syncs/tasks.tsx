@@ -29,7 +29,7 @@ import {
 import { FaExternalLinkAlt, FaRegPlayCircle } from "react-icons/fa";
 import { useRouter } from "next/router";
 import { displayTaskRunError, formatDate, SyncTitle } from "./index";
-import { ButtonGroup, JButtonProps } from "../../../components/ButtonGroup/ButtonGroup";
+import { ButtonGroup, ButtonProps } from "../../../components/ButtonGroup/ButtonGroup";
 import { rpc } from "juava";
 import { feedbackError, feedbackSuccess, useKeyboard } from "../../../lib/ui";
 import hash from "object-hash";
@@ -552,7 +552,7 @@ function TasksTable({ tasks, loading, linksMap, servicesMap, destinationsMap, re
       title: <div className={"text-right"}>Actions</div>,
       key: "actions",
       render: (text, task, index) => {
-        const items: JButtonProps[] = [
+        const items: ButtonProps[] = [
           {
             icon: <ListMinusIcon className={"w-5 h-5"} />,
             href: `/syncs/logs?taskId=${task.task_id}&syncId=${task.sync_id}`,

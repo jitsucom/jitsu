@@ -19,7 +19,7 @@ import { Activity, Edit3, Inbox, UserRoundPen, XCircle, Power, PowerOff } from "
 import { PlusOutlined } from "@ant-design/icons";
 import { WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
 import { DestinationTitle } from "../destinations";
-import { ButtonGroup, JButtonProps } from "../../../components/ButtonGroup/ButtonGroup";
+import { ButtonGroup, ButtonProps } from "../../../components/ButtonGroup/ButtonGroup";
 import { StreamTitle } from "../streams";
 import { FunctionTitle } from "../functions";
 import omit from "lodash/omit";
@@ -275,7 +275,7 @@ function ConnectionsTable({ links, streams, destinations, functions, reloadCallb
             type = "bulker";
           }
         } catch (e) {}
-        const items: JButtonProps[] = [
+        const items: ButtonProps[] = [
           {
             icon: isEnabled ? <PowerOff className={"w-4 h-4"} /> : <Power className={"w-4 h-4"} />,
             label: isEnabled ? "Disable connection" : "Enable connection",
