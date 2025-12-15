@@ -50,7 +50,7 @@ const FunctionsSelector0: React.FC<FunctionsSelectorProps> = ({
     enabledFunctions: (selectedFunctions ?? [])
       .map(s => functions.find(f => s.functionId === "udf." + f.id))
       .filter(f => typeof f !== "undefined") as FunctionConfig[],
-    disabledFunctions: functions.filter(f => !(selectedFunctions ?? []).find(e => e.functionId === f.id)),
+    disabledFunctions: functions.filter(f => !(selectedFunctions ?? []).find(e => e.functionId === "udf." + f.id)),
   });
   const { enabledFunctions, disabledFunctions } = enabledFunctionsObj;
 

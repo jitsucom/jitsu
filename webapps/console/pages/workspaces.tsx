@@ -60,21 +60,19 @@ const WorkspaceCard: React.FC<{
     <div className="flex items-center justify-start gap-2">
       <div>{workspace.name || workspace.slug || workspace.id}</div>
       <div className="text-textLight">/{workspace.slug || workspace.id}</div>
-      <Tag variant="outlined" className="text-xs text-textLight">
-        {workspace.id}
-      </Tag>
+      <Tag className="text-xs text-textLight">{workspace.id}</Tag>
       {!workspace.slug && (
-        <Tag variant="outlined" color="lime" className="text-xs text-textLight">
+        <Tag color="lime" className="text-xs text-textLight">
           Not configured
         </Tag>
       )}
       {userData?.admin && workspace["entities"] > 0 && (
-        <Tag variant="outlined" color="blue" className="text-xs text-textLight">
+        <Tag color="blue" className="text-xs text-textLight">
           objects: {workspace["entities"]}
         </Tag>
       )}
       {userData?.admin && workspace["active"] && (
-        <Tag variant="outlined" color="green-inverse" className="text-xs text-textLight">
+        <Tag color="green-inverse" className="text-xs text-textLight">
           active
         </Tag>
       )}

@@ -87,7 +87,7 @@ function TaskStatus0({ task, loading }: { task: TasksDbModel & TaskStats; loadin
     return (
       <button className={"outline-0"}>
         <div className={"flex flex-col items-end text-right cursor-pointer"}>
-          <Tag variant="outlined" style={{ marginRight: 0 }}>
+          <Tag style={{ marginRight: 0 }}>
             LOADING <Spinner className={"inline ml-0.5 w-3 h-3"} />
           </Tag>
           <span className={"text-xxs text-gray-500"}>&nbsp;</span>
@@ -99,9 +99,7 @@ function TaskStatus0({ task, loading }: { task: TasksDbModel & TaskStats; loadin
     return (
       <button className={"outline-0"}>
         <div className={"flex flex-col items-end text-right cursor-pointer"}>
-          <Tag variant="outlined" style={{ marginRight: 0 }}>
-            NO RUNS
-          </Tag>
+          <Tag style={{ marginRight: 0 }}>NO RUNS</Tag>
           <span className={"text-xxs text-gray-500"}>&nbsp;</span>
         </div>
       </button>
@@ -203,7 +201,7 @@ function TaskStatus0({ task, loading }: { task: TasksDbModel & TaskStats; loadin
       if (task.stats) {
         return (
           <SyncStatus status={task.status}>
-            <Tag variant="outlined" color={"green"} style={{ marginRight: 0 }}>
+            <Tag color={"green"} style={{ marginRight: 0 }}>
               SUCCESS <FaExternalLinkAlt className={"inline ml-0.5 w-2.5 h-2.5"} />
             </Tag>
             <span className={"text-xxs text-gray-500"}>show stats</span>
@@ -211,7 +209,7 @@ function TaskStatus0({ task, loading }: { task: TasksDbModel & TaskStats; loadin
         );
       } else {
         return (
-          <Tag variant="outlined" color={"green"} style={{ marginRight: 0 }}>
+          <Tag color={"green"} style={{ marginRight: 0 }}>
             SUCCESS
           </Tag>
         );
@@ -219,7 +217,7 @@ function TaskStatus0({ task, loading }: { task: TasksDbModel & TaskStats; loadin
     case "PARTIAL":
       return (
         <SyncStatus status={task.status}>
-          <Tag variant="outlined" color={"orange"} style={{ marginRight: 0 }}>
+          <Tag color={"orange"} style={{ marginRight: 0 }}>
             PARTIAL <FaExternalLinkAlt className={"inline ml-0.5 w-2.5 h-2.5"} />
           </Tag>
           <span className={"text-xxs text-gray-500"}>show stats</span>
@@ -228,7 +226,7 @@ function TaskStatus0({ task, loading }: { task: TasksDbModel & TaskStats; loadin
     case "TIME_EXCEEDED":
       return (
         <SyncStatus status={task.status}>
-          <Tag variant="outlined" color={"volcano"} style={{ marginRight: 0 }}>
+          <Tag color={"volcano"} style={{ marginRight: 0 }}>
             {task.status} <FaExternalLinkAlt className={"inline ml-0.5 w-2.5 h-2.5"} />
           </Tag>
           <span className={"text-xxs text-gray-500"}>show stats</span>
@@ -238,7 +236,7 @@ function TaskStatus0({ task, loading }: { task: TasksDbModel & TaskStats; loadin
     case "SKIPPED":
       return (
         <SyncStatus status={task.status}>
-          <Tag variant="outlined" style={{ marginRight: 0 }}>
+          <Tag style={{ marginRight: 0 }}>
             {task.status} <FaExternalLinkAlt className={"inline ml-0.5 w-2.5 h-2.5"} />
           </Tag>
           <span className={"text-xxs text-gray-500"}>show reason</span>
@@ -247,7 +245,7 @@ function TaskStatus0({ task, loading }: { task: TasksDbModel & TaskStats; loadin
     case "FAILED":
       return (
         <SyncStatus status={task.status}>
-          <Tag variant="outlined" color={"red"} style={{ marginRight: 0 }}>
+          <Tag color={"red"} style={{ marginRight: 0 }}>
             FAILED <FaExternalLinkAlt className={"inline ml-0.5 w-2.5 h-2.5"} />
           </Tag>
           <span className={"text-xxs text-gray-500"}>show details</span>
@@ -256,18 +254,14 @@ function TaskStatus0({ task, loading }: { task: TasksDbModel & TaskStats; loadin
     case "RUNNING":
       return (
         <SyncStatus status={task.status}>
-          <Tag variant="outlined" color={"blue"} style={{ marginRight: 0 }}>
+          <Tag color={"blue"} style={{ marginRight: 0 }}>
             RUNNING <FaExternalLinkAlt className={"inline ml-0.5 w-2.5 h-2.5"} />
           </Tag>
           <span className={"text-xxs text-gray-500"}>show stats</span>
         </SyncStatus>
       );
     default:
-      return (
-        <Tag variant="outlined" style={{ marginRight: 0 }}>
-          {task.status}
-        </Tag>
-      );
+      return <Tag style={{ marginRight: 0 }}>{task.status}</Tag>;
   }
 }
 
@@ -288,39 +282,19 @@ export function TaskStatusResultTable({ stats, error }: { stats: any[]; error?: 
       key: "status",
       render: (text, record) => {
         if (record.status === "SUCCESS") {
-          return (
-            <Tag variant="outlined" color="green">
-              SUCCESS
-            </Tag>
-          );
+          return <Tag color="green">SUCCESS</Tag>;
         } else if (record.status === "PARTIAL") {
-          return (
-            <Tag variant="outlined" color="orange">
-              {record.status}
-            </Tag>
-          );
+          return <Tag color="orange">{record.status}</Tag>;
         } else if (record.status === "TIME_EXCEEDED") {
-          return (
-            <Tag variant="outlined" color="volcano">
-              {record.status}
-            </Tag>
-          );
+          return <Tag color="volcano">{record.status}</Tag>;
         } else if (record.status === "CANCELLED") {
-          return <Tag variant="outlined">{record.status}</Tag>;
+          return <Tag>{record.status}</Tag>;
         } else if (record.status === "PENDING") {
-          return <Tag variant="outlined">PENDING</Tag>;
+          return <Tag>PENDING</Tag>;
         } else if (record.status === "RUNNING") {
-          return (
-            <Tag variant="outlined" color="blue">
-              RUNNING
-            </Tag>
-          );
+          return <Tag color="blue">RUNNING</Tag>;
         } else {
-          return (
-            <Tag variant="outlined" color="red">
-              {record.status}
-            </Tag>
-          );
+          return <Tag color="red">{record.status}</Tag>;
         }
       },
     },
@@ -780,9 +754,7 @@ function Tasks() {
                     value: "FAILED",
                     label: (
                       <div>
-                        <Tag variant="outlined" color={"red"}>
-                          FAILED
-                        </Tag>
+                        <Tag color={"red"}>FAILED</Tag>
                       </div>
                     ),
                   },
@@ -790,7 +762,7 @@ function Tasks() {
                     value: "SKIPPED",
                     label: (
                       <div>
-                        <Tag variant="outlined">SKIPPED</Tag>
+                        <Tag>SKIPPED</Tag>
                       </div>
                     ),
                   },
@@ -798,7 +770,7 @@ function Tasks() {
                     value: "CANCELLED",
                     label: (
                       <div>
-                        <Tag variant="outlined">CANCELLED</Tag>
+                        <Tag>CANCELLED</Tag>
                       </div>
                     ),
                   },
@@ -806,9 +778,7 @@ function Tasks() {
                     value: "SUCCESS",
                     label: (
                       <div>
-                        <Tag variant="outlined" color={"green"}>
-                          SUCCESS
-                        </Tag>
+                        <Tag color={"green"}>SUCCESS</Tag>
                       </div>
                     ),
                   },
@@ -816,9 +786,7 @@ function Tasks() {
                     value: "PARTIAL",
                     label: (
                       <div>
-                        <Tag variant="outlined" color={"orange"}>
-                          PARTIAL
-                        </Tag>
+                        <Tag color={"orange"}>PARTIAL</Tag>
                       </div>
                     ),
                   },
@@ -826,9 +794,7 @@ function Tasks() {
                     value: "RUNNING",
                     label: (
                       <div>
-                        <Tag variant="outlined" color={"blue"}>
-                          RUNNING
-                        </Tag>
+                        <Tag color={"blue"}>RUNNING</Tag>
                       </div>
                     ),
                   },

@@ -100,9 +100,7 @@ export const BatchOrStreamEditor: EditorComponent<ConnectionOptionsType["mode"],
       ? "disabled"
       : "allowed"
   );
-  const [streamModeCaveats, setStreamModeCaveats] = useState<string>(
-    limitations?.streamModeLocked || limitations?.streamModeDisabled
-  );
+  const streamModeCaveats = limitations?.streamModeLocked || limitations?.streamModeDisabled;
 
   return (
     <Radio.Group

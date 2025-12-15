@@ -112,9 +112,12 @@ export const ConnectionsDiagram: React.FC<ConnectionDiagramProps> = ({
   ...p
 }) => {
   const canvasRef = React.useRef<HTMLDivElement>(null);
-  const srcRefs = sources.map((_, i) => React.createRef<HTMLElement>());
-  const dstRefs = destinations.map((_, i) => React.createRef<HTMLElement>());
-  const connectorsRef = connectorSources.map((_, i) => React.createRef<HTMLElement>());
+  const srcRefs = React.useMemo(() => sources.map((_, i) => React.createRef<HTMLElement>()), [sources]);
+  const dstRefs = React.useMemo(() => destinations.map((_, i) => React.createRef<HTMLElement>()), [destinations]);
+  const connectorsRef = React.useMemo(
+    () => connectorSources.map((_, i) => React.createRef<HTMLElement>()),
+    [connectorSources]
+  );
   const logoRef = React.useRef<HTMLAnchorElement>(null);
   const [windowSize, setWindowSize] = React.useState<{ width: number; height: number } | undefined>();
   const [lines, setLines] = React.useState<ConnectorLine[]>([]);

@@ -137,7 +137,7 @@ const Header: React.FC<{ status: ProfileBuilderStatus | "loading"; pbEnabled: bo
   return (
     <div className="flex items-center gap-2 mb-4">
       <h3 className="text-3xl">Profile Builder</h3>
-      <Tag className="text-2xl" variant={"outlined"} color={"blue"} rootClassName="cursor-pointer">
+      <Tag className="text-2xl" color={"blue"} rootClassName="cursor-pointer">
         <Tooltip title={statusDetails.documentation}>
           <div className="flex justify-between gap-2 items-center">
             <div className="w-4 h-4">{statusDetails.icon}</div>
@@ -607,7 +607,7 @@ function useProfileBuilderData(
         .catch(e => setError(e))
         .finally(() => setLoading(false));
     })();
-  }, [billing.enabled, billing.loading, workspace, billing.settings, refreshDate]);
+  }, [billing.enabled, billing.loading, workspace, billing.settings, refreshDate.getTime()]);
   return { isLoading: loading, error, data, enabled } as any;
 }
 

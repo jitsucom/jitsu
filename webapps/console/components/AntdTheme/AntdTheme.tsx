@@ -10,6 +10,12 @@ export const AntdTheme: React.FC<PropsWithChildren<{}>> = ({ children }) => {
   };
   return (
     <ConfigProvider
+      tag={{
+        variant: "outlined",
+      }}
+      wave={{
+        disabled: true,
+      }}
       theme={{
         token: antdColors,
         components: {
