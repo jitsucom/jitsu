@@ -149,20 +149,14 @@ jobs:
             # 3. Branch + commit tag (e.g., feat-a.abc1234)
             TAGS="${TAGS} -t ${REGISTRY}/${TARGET}:${BRANCH_SANITIZED}.${SHORT_SHA}"
 
-            # Use AMD64 only for canary (faster), multi-arch for stable/beta
-            if [ "${CHANNEL}" = "canary" ]; then
-              PLATFORM="linux/amd64,linux/arm64"
-            else
-              #PLATFORM="linux/amd64"
-              PLATFORM="linux/amd64,linux/arm64"
-            fi
+            PLATFORM="linux/amd64,linux/arm64"
 
             # Add --push flag only if we're publishing
-            GOAL_FLAG=""
             if [ "${{ inputs.dont_publish }}" != "true" ]; then
               GOAL_FLAG="--push"
             else
               GOAL_FLAG="--output type=oci,dest=images/${TARGET}.oci"
+              PLATFORM="linux/arm64"
             fi
 
             docker buildx build \
@@ -249,19 +243,14 @@ jobs:
             # 3. Branch + commit tag (e.g., feat-a.abc1234)
             TAGS="${TAGS} -t ${REGISTRY}/${TARGET}:${BRANCH_SANITIZED}.${SHORT_SHA}"
 
-            # Use AMD64 only for canary (faster), multi-arch for stable/beta
-            if [ "${CHANNEL}" = "canary" ]; then
-              PLATFORM="linux/amd64,linux/arm64"
-            else
-              PLATFORM="linux/amd64,linux/arm64"
-            fi
-
+            PLATFORM="linux/amd64,linux/arm64"
+            
             # Add --push flag only if we're publishing
-            GOAL_FLAG=""
             if [ "${{ inputs.dont_publish }}" != "true" ]; then
               GOAL_FLAG="--push"
             else
               GOAL_FLAG="--output type=oci,dest=images/${TARGET}.oci"
+              PLATFORM="linux/arm64"
             fi
 
             docker buildx build \
