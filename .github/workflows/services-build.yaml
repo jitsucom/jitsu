@@ -158,9 +158,9 @@ jobs:
             fi
 
             # Add --push flag only if we're publishing
-            PUSH_FLAG=""
+            GOAL_FLAG="--load"
             if [ "${{ inputs.dont_publish }}" != "true" ]; then
-              PUSH_FLAG="--push"
+              GOAL_FLAG="--push"
             fi
 
             docker buildx build \
@@ -172,7 +172,7 @@ jobs:
               --build-arg CI=true \
               ${TAGS} \
               -f all.Dockerfile \
-              ${PUSH_FLAG} \
+              ${GOAL_FLAG} \
               .
           done
 
@@ -249,9 +249,9 @@ jobs:
             fi
 
             # Add --push flag only if we're publishing
-            PUSH_FLAG=""
+            GOAL_FLAG="--load"
             if [ "${{ inputs.dont_publish }}" != "true" ]; then
-              PUSH_FLAG="--push"
+              GOAL_FLAG="--push"
             fi
 
             docker buildx build \
@@ -261,7 +261,7 @@ jobs:
               --build-arg BUILD_TIMESTAMP=${BUILD_TIMESTAMP} \
               ${TAGS} \
               -f bulker/all.Dockerfile \
-              ${PUSH_FLAG} \
+              ${GOAL_FLAG} \
               ./bulker
           done
 
