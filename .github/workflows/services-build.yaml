@@ -158,9 +158,11 @@ jobs:
             fi
 
             # Add --push flag only if we're publishing
-            GOAL_FLAG="--load"
+            GOAL_FLAG=""
             if [ "${{ inputs.dont_publish }}" != "true" ]; then
               GOAL_FLAG="--push"
+            else
+              GOAL_FLAG="--output type=oci,dest=images/${TARGET}.oci"
             fi
 
             docker buildx build \
@@ -175,6 +177,12 @@ jobs:
               ${GOAL_FLAG} \
               .
           done
+      - name: 📤 Upload build OCI artifacts
+        if: inputs.dont_publish == 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: OCI Artifacts
+          path: images/*.oci
 
   build_bulker:
     needs: [version]
@@ -249,9 +257,11 @@ jobs:
             fi
 
             # Add --push flag only if we're publishing
-            GOAL_FLAG="--load"
+            GOAL_FLAG=""
             if [ "${{ inputs.dont_publish }}" != "true" ]; then
               GOAL_FLAG="--push"
+            else
+              GOAL_FLAG="--output type=oci,dest=images/${TARGET}.oci"
             fi
 
             docker buildx build \
@@ -264,6 +274,12 @@ jobs:
               ${GOAL_FLAG} \
               ./bulker
           done
+      - name: 📤 Upload build OCI artifacts
+        if: inputs.dont_publish == 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: OCI Artifacts
+          path: images/*.oci
 
 
   finalize_release:
