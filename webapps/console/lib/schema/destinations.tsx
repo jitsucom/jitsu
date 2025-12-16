@@ -510,16 +510,16 @@ export const coreDestinations: DestinationType<any>[] = [
     id: "bigquery",
     usesBulker: true,
     icon: bigqueryIcon,
-    connectionOptions: BaseBulkerConnectionOptions.describe(
+    connectionOptions: BaseBulkerConnectionOptions.merge(
+      z.object({
+        deduplicate: z.boolean().default(false),
+      })
+    ).describe(
       JSON.stringify({
         limitations: {
           streamModeDisabled:
             "It's possible to implement stream mode for BigQuery, but data Deduplication cannot be supported in this mode. So it is currently disabled in Jitsu.",
         },
-      })
-    ).merge(
-      z.object({
-        deduplicate: z.boolean().default(false),
       })
     ),
     title: "BigQuery",
