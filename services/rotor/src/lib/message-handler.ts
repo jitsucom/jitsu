@@ -13,6 +13,7 @@ import {
   FunctionConfig,
   RotorMetrics,
   StreamWithDestinations,
+  WorkspaceWithProfiles,
 } from "@jitsu/destination-functions";
 import NodeCache from "node-cache";
 import { buildFunctionChain, checkError, FuncChain, FuncChainFilter, runChain } from "./functions-chain";
@@ -30,6 +31,7 @@ const funcsChainCache = new NodeCache({ stdTTL: funcsChainTTL, checkperiod: 60, 
 export type MessageHandlerContext = {
   connectionStore: EntityStore<EnrichedConnectionConfig>;
   functionsStore: EntityStore<FunctionConfig>;
+  workspacesStore: EntityStore<WorkspaceWithProfiles>;
   streamsStore: EntityStore<StreamWithDestinations>;
   eventsLogger: EventsStore;
   metrics?: RotorMetrics;
@@ -148,6 +150,7 @@ export async function rotorMessageHandler(
       connection,
       connStore,
       funcStore,
+      rotorContext.workspacesStore,
       rotorContext,
       anonymousEventsStore,
       fetchTimeoutMs

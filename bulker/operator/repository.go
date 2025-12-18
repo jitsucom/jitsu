@@ -231,7 +231,7 @@ func CalculateWorkspaceData(
 	}
 
 	// Calculate config hash for change detection
-	configHash := calculateConfigHash(connections, functions)
+	configHash := CalculateConfigHash(connections, functions)
 
 	return &WorkspaceData{
 		WorkspaceID:    workspaceID,
@@ -243,7 +243,7 @@ func CalculateWorkspaceData(
 	}
 }
 
-func calculateConfigHash(connections []*EnrichedConnectionConfig, functions []*FunctionConfig) string {
+func CalculateConfigHash(connections []*EnrichedConnectionConfig, functions []*FunctionConfig) string {
 	h := sha256.New()
 
 	// Sort and hash connections

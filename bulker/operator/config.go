@@ -28,8 +28,13 @@ type Config struct {
 	FunctionsServerImage string `mapstructure:"FUNCTIONS_SERVER_IMAGE" default:"jitsucom/functions-server:latest"`
 	FunctionsServerPort  int    `mapstructure:"FUNCTIONS_SERVER_PORT" default:"3456"`
 
-	// Feature flag to look for in workspace
-	DedicatedFeatureFlag string `mapstructure:"DEDICATED_FEATURE_FLAG" default:"functionsServer=dedicated"`
+	// Service configuration
+	ServiceType string `mapstructure:"SERVICE_TYPE" default:"ClusterIP"`
+
+	// Feature flag to look for in workspace (values: dedicated, free, legacy)
+	FunctionsClassFeatureFlag string `mapstructure:"FUNCTIONS_CLASS_FEATURE_FLAG" default:"functionsClass"`
+	// Default functions class for workspaces without the feature flag (dedicated, free, legacy, or empty to ignore)
+	DefaultFunctionsClass string `mapstructure:"DEFAULT_FUNCTIONS_CLASS" default:""`
 }
 
 func init() {

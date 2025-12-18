@@ -2,6 +2,7 @@ import {
   AnonymousEventsStore,
   AnyEvent,
   EventContext,
+  FullContext,
   FuncReturn,
   JitsuFunction,
   TTLStore,
@@ -25,6 +26,7 @@ import {
   MetricsMeta,
   UserRecognitionParameter,
   wrapperFunction,
+  WorkspaceWithProfiles,
 } from "@jitsu/destination-functions";
 import { NoRetryErrorName, DropRetryErrorName } from "@jitsu/functions-lib";
 
@@ -41,6 +43,7 @@ import { createRedisStore } from "./store";
 import { UDFWrapper } from "./udf_wrapper";
 import { warehouseQuery } from "./warehouse-store";
 import { MongodbDestination } from "./mongodb-destination";
+import { createFunctionsServerWrapper, getFunctionsClass, shouldUseFunctionsServer } from "./functions-server-client";
 
 const serverEnv = getServerEnv();
 const fastStoreWorkspaceId = (serverEnv.FAST_STORE_WORKSPACE_ID ?? "").split(",").filter(x => x.length > 0);
@@ -97,6 +100,7 @@ export function buildFunctionChain(
   connection: EnrichedConnectionConfig,
   connStore: EntityStore<EnrichedConnectionConfig>,
   funcStore: EntityStore<FunctionConfig>,
+  workspacesStore: EntityStore<WorkspaceWithProfiles>,
   rotorContext: MessageHandlerContext,
   anonymousEventsStore: AnonymousEventsStore,
   fetchTimeoutMs: number = 2000
@@ -105,6 +109,11 @@ export function buildFunctionChain(
   const connectionData = connection.options as any;
   const conId = connection.id;
   const conWorkspaceId = connection.workspaceId;
+
+  // Check workspace's functions class to determine UDF execution mode
+  const functionsClass = getFunctionsClass(conWorkspaceId, workspacesStore);
+  const useFunctionsServer = shouldUseFunctionsServer(functionsClass);
+
   if (connection.usesBulker) {
     mainFunction = {
       functionId: "builtin.destination.bulker",
@@ -177,9 +186,19 @@ export function buildFunctionChain(
     },
     props: connectionData.functionsEnv || {},
   };
-  const udfFuncs: FunctionConfig[] = (connectionData?.functions || [])
-    .filter(f => f.functionId.startsWith("udf."))
-    .map(f => {
+
+  // Check if there are any UDF functions configured
+  const udfFunctionRefs = (connectionData?.functions || []).filter((f: any) => f.functionId.startsWith("udf."));
+  const hasUdfFunctions = udfFunctionRefs.length > 0;
+
+  // Variables for local UDF execution (legacy mode)
+  let cached: any;
+  let hash: any[];
+  let udfFuncs: FunctionConfig[] = [];
+
+  // Only load UDF functions locally if NOT using functions server
+  if (hasUdfFunctions && !useFunctionsServer) {
+    udfFuncs = udfFunctionRefs.map((f: any) => {
       const functionId = f.functionId.substring(4);
       const userFunctionObj = funcStore.getObject(functionId);
       if (!userFunctionObj || userFunctionObj.workspaceId !== conWorkspaceId) {
@@ -193,9 +212,7 @@ export function buildFunctionChain(
       }
       return userFunctionObj;
     });
-  let cached: any;
-  let hash: any[];
-  if (udfFuncs.length > 0) {
+
     hash = udfFuncs.map(f => f.codeHash);
     hash.push(connection.updatedAt);
     cached = udfCache.get(conId);
@@ -218,12 +235,14 @@ export function buildFunctionChain(
     }
     udfCache.ttl(conId, udfTTL);
   }
+
   const aggregatedFunctions: any[] = [
-    ...(connectionData.functions || []).filter(f => f.functionId.startsWith("builtin.transformation.")),
-    ...(udfFuncs.length > 0 ? [{ functionId: "udf.PIPELINE" }] : []),
+    ...(connectionData.functions || []).filter((f: any) => f.functionId.startsWith("builtin.transformation.")),
+    ...(hasUdfFunctions ? [{ functionId: "udf.PIPELINE", useFunctionsServer }] : []),
     mainFunction,
   ];
 
+  // Local UDF pipeline function (legacy mode)
   const udfPipelineFunc = (chainCtx: FunctionChainContext): JitsuFunctionWrapper => {
     return async (event: AnyEvent, ctx: EventContext) => {
       try {
@@ -253,6 +272,14 @@ export function buildFunctionChain(
     };
   };
 
+  // Functions server pipeline function (dedicated/free mode)
+  const functionsServerPipelineFunc = (chainCtx: FunctionChainContext, funcCtx: FunctionContext): JitsuFunctionWrapper => {
+    const wrapper = createFunctionsServerWrapper(conWorkspaceId, conId, chainCtx, funcCtx);
+    return async (event: AnyEvent, ctx: EventContext) => {
+      return wrapper(event, ctx);
+    };
+  };
+
   const funcs: Func[] = aggregatedFunctions.map(f => {
     const ar = f.functionId.split(".");
     const id = ar.pop();
@@ -279,7 +306,7 @@ export function buildFunctionChain(
       return {
         id: f.functionId as string,
         context: funcCtx,
-        exec: udfPipelineFunc(chainCtx),
+        exec: f.useFunctionsServer ? functionsServerPipelineFunc(chainCtx, funcCtx) : udfPipelineFunc(chainCtx),
       };
     } else {
       throw newError(`Function of unknown type: ${f.functionId}`);

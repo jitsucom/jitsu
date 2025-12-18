@@ -2,14 +2,16 @@ import { mergeConfig } from "vitest/config";
 import baseConfig from "@jitsu/common-config/vitest.config";
 
 // Note: Tests do not support parallelism due to shared state/resources
+// Using 'forks' pool to avoid V8 isolate crashes with isolated-vm (used by UDF wrapper)
 export default mergeConfig(baseConfig, {
   test: {
     setupFiles: ["@jitsu/common-config/vitest.setup.ts"],
     fileParallelism: false,
     maxConcurrency: 1,
+    pool: "forks",
     poolOptions: {
-      threads: {
-        singleThread: true,
+      forks: {
+        singleFork: true,
       },
     },
     env: {

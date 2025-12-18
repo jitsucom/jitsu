@@ -9,12 +9,24 @@ import {
   EntityStore,
   FunctionConfig,
   StreamWithDestinations,
+  WorkspaceWithProfiles,
 } from "@jitsu/destination-functions";
 import { IngestMessage } from "@jitsu/protocols/async-request";
 import { isEqual } from "lodash";
 import { functions, connections } from "./functions-chain-data";
-import { expect, test, describe, beforeAll, afterAll } from "vitest";
+import { expect, test, describe, beforeAll, afterAll, beforeEach } from "vitest";
 import { FuncChainFilter } from "../src/lib/functions-chain";
+import {
+  writeTestConfigs,
+  startTestFunctionsServer,
+  cleanupTestConfigs,
+  TestFunctionsServer,
+} from "./functions-server-helper";
+import { resetServerEnvCache } from "../src/serverEnv";
+// @ts-ignore
+import path from "path";
+// @ts-ignore
+import os from "os";
 
 const log = getLog("functions-chain-test");
 
@@ -30,6 +42,26 @@ const expectedEvents = {
       retries: 0,
       first: "1st",
       counter: 3,
+      second: "2nd",
+      third: "3rd",
+    },
+    context: {},
+  },
+  env_0: {
+    type: "track",
+    properties: {
+      retries: 0,
+      first: "1st-from-env",
+      counter: 3,
+      second: "2nd",
+      third: "3rd",
+    },
+    context: {},
+  },
+  noreturn_0: {
+    type: "track",
+    properties: {
+      counter: 2,
       second: "2nd",
       third: "3rd",
     },
@@ -190,6 +222,42 @@ const connectionStore: EntityStore<EnrichedConnectionConfig> = {
   lastModified: new Date(),
 };
 
+// Workspaces store factory - creates store with specified functions class
+function createWorkspacesStore(functionsClass: string): EntityStore<WorkspaceWithProfiles> {
+  return {
+    getObject: (id: string) => {
+      if (id === "workspace1") {
+        return {
+          id: "workspace1",
+          name: "Test Workspace",
+          slug: "test-workspace",
+          featuresEnabled: functionsClass ? [`functionsClass=${functionsClass}`] : [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          profileBuilders: [],
+        } as WorkspaceWithProfiles;
+      }
+      return undefined;
+    },
+    getAll: () => {
+      return {
+        workspace1: {
+          id: "workspace1",
+          name: "Test Workspace",
+          slug: "test-workspace",
+          featuresEnabled: functionsClass ? [`functionsClass=${functionsClass}`] : [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          profileBuilders: [],
+        },
+      } as Record<string, WorkspaceWithProfiles>;
+    },
+    toJSON: () => "",
+    enabled: true,
+    lastModified: new Date(),
+  };
+}
+
 const streamsStore: EntityStore<StreamWithDestinations> = {
   getObject: (id: string) => {
     return undefined;
@@ -218,19 +286,58 @@ function ingestMessage(connectionId: string, messageId: string, event: any): Ing
   };
 }
 
-function testName() {
-  const currentTestName = expect.getState().currentTestName as string;
-  return currentTestName.replace("Test Functions Chain > ", "").trim();
-}
-
 const messageId = "message1";
 
-describe("Test Functions Chain", () => {
-  let server: SimpleSyrup;
+// Test modes to run
+const testModes: Array<{ name: string; functionsClass: string }> = [
+  { name: "legacy", functionsClass: "legacy" },
+  { name: "free", functionsClass: "free" },
+];
+
+describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName, functionsClass }) => {
+  let webhookServer: SimpleSyrup;
+  let functionsServer: TestFunctionsServer | null = null;
   let lastError: any;
   const counters: Record<string, number> = {};
+  let workspacesStore: EntityStore<WorkspaceWithProfiles>;
+  let originalEnv: string | undefined;
+
+  function testName() {
+    const currentTestName = expect.getState().currentTestName as string;
+    // Extract just the test name, removing the describe block prefix
+    const match = currentTestName.match(/> ([^>]+)$/);
+    return match ? match[1].trim() : currentTestName;
+  }
 
   beforeAll(async () => {
+    // Create workspaces store for this mode
+    workspacesStore = createWorkspacesStore(functionsClass);
+
+    // Save original env
+    originalEnv = process.env.FUNCTIONS_SERVER_URL_TEMPLATE;
+
+    // Set up functions server for "free" mode
+    if (functionsClass === "free") {
+      const configDir = path.join(os.tmpdir(), `rotor-test-${Date.now()}`);
+
+      // Write test configs
+      await writeTestConfigs(
+        configDir,
+        connections as unknown as Record<string, EnrichedConnectionConfig>,
+        functions as unknown as Record<string, FunctionConfig>
+      );
+
+      // Start functions server
+      const fsPort = 3457 + Math.floor(Math.random() * 100);
+      functionsServer = await startTestFunctionsServer(configDir, fsPort);
+
+      // Configure rotor to use the test functions server
+      process.env.FUNCTIONS_SERVER_URL_TEMPLATE = `http://localhost:${fsPort}`;
+      // Reset cache so new env value is picked up
+      resetServerEnvCache();
+    }
+
+    // Set up webhook server for all tests
     let handlerF = (testName: string) => (req, res) => {
       lastError = undefined;
       if (!counters[testName]) {
@@ -249,15 +356,18 @@ describe("Test Functions Chain", () => {
         lastError = new Error(
           `${testName}_${counter} unexpected webhook request:\n${JSON.stringify(req.body, null, 2)}`
         );
-        res.status(444).send({ ok: false });
+        res.status(444).send({ ok: false, reason: "unexpected webhook request" });
       }
       counters[testName]++;
     };
-    server = await createServer({
-      port: 3089,
+
+    webhookServer = await createServer({
+      port: 3089 + (functionsClass === "free" ? 100 : 0), // Use different port for each mode
       https: false,
       handlers: {
         "/simple": handlerF("simple"),
+        "/env": handlerF("env"),
+        "/noreturn": handlerF("noreturn"),
         "/error": handlerF("error"),
         "/retry": handlerF("retry"),
         "/drop_retry": handlerF("drop_retry"),
@@ -268,23 +378,85 @@ describe("Test Functions Chain", () => {
         "/multi_retry": handlerF("multi_retry"),
       },
     });
-    console.log("Running on " + server.baseUrl);
-  });
+    console.log(`[${modeName}] Webhook server running on ${webhookServer.baseUrl}`);
+  }, 90000); // Increase timeout to 90s for functions server startup (ts-node compilation is slow)
 
   afterAll(async () => {
-    console.log("Shutting down server " + server.baseUrl);
-    await server.close();
-    console.log("Server is down " + server.baseUrl);
+    // Restore original env
+    if (originalEnv !== undefined) {
+      process.env.FUNCTIONS_SERVER_URL_TEMPLATE = originalEnv;
+    } else {
+      delete process.env.FUNCTIONS_SERVER_URL_TEMPLATE;
+    }
+    // Reset cache so original env value is restored
+    resetServerEnvCache();
+
+    // Stop functions server if running
+    if (functionsServer) {
+      await functionsServer.close();
+      cleanupTestConfigs(functionsServer.configDir);
+    }
+
+    // Stop webhook server
+    console.log(`[${modeName}] Shutting down webhook server`);
+    await webhookServer?.close();
+    console.log(`[${modeName}] Servers stopped`);
+  }, 30000); // Increase timeout to 30s for cleanup
+
+  beforeEach(() => {
+    // Reset counters and errors for each test
+    lastError = undefined;
   });
+
+  // Update connection URLs to use the correct webhook server port
+  function getConnectionStoreForMode(): EntityStore<EnrichedConnectionConfig> {
+    const portOffset = functionsClass === "free" ? 100 : 0;
+    return {
+      getObject: (id: string) => {
+        const conn = connections[id];
+        if (!conn) return undefined;
+        // Update the URL to use the correct port
+        return {
+          ...conn,
+          credentials: {
+            ...conn.credentials,
+            url: conn.credentials.url.replace(":3089", `:${3089 + portOffset}`),
+          },
+          // we need to prevent usage of cached functions chain
+          updatedAt: new Date(),
+        } as EnrichedConnectionConfig;
+      },
+      getAll: () => {
+        const result: Record<string, EnrichedConnectionConfig> = {};
+        for (const [id, conn] of Object.entries(connections)) {
+          result[id] = {
+            ...conn,
+            credentials: {
+              ...conn.credentials,
+              url: conn.credentials.url.replace(":3089", `:${3089 + portOffset}`),
+            },
+            // we need to prevent usage of cached functions chain
+            updatedAt: new Date(),
+          } as unknown as EnrichedConnectionConfig;
+        }
+        return result;
+      },
+      toJSON: () => "",
+      enabled: true,
+      lastModified: new Date(),
+    };
+  }
 
   test("simple", async () => {
     const currentTestName = testName();
+    const connStore = getConnectionStoreForMode();
     try {
       const res = await rotorMessageHandler(
         ingestMessage(currentTestName, messageId, incomingEvent),
         {
-          connectionStore: connectionStore,
+          connectionStore: connStore,
           functionsStore: funcStore,
+          workspacesStore,
           streamsStore: streamsStore,
           eventsLogger: DummyEventsStore,
           dummyPersistentStore: createMemoryStore({}),
@@ -295,7 +467,60 @@ describe("Test Functions Chain", () => {
         0,
         5000
       );
-      //log.atInfo().log("Result: ", JSON.stringify(res, null, 2));
+      expect(lastError).toBeUndefined();
+      expect(counters[currentTestName]).toEqual(1);
+    } catch (e: any) {
+      throw e;
+    }
+  });
+
+  test("env", async () => {
+    const currentTestName = testName();
+    const connStore = getConnectionStoreForMode();
+    try {
+      const res = await rotorMessageHandler(
+        ingestMessage(currentTestName, messageId, incomingEvent),
+        {
+          connectionStore: connStore,
+          functionsStore: funcStore,
+          workspacesStore,
+          streamsStore: streamsStore,
+          eventsLogger: DummyEventsStore,
+          dummyPersistentStore: createMemoryStore({}),
+        },
+        "all",
+        { [CONNECTION_IDS_HEADER]: currentTestName },
+        true,
+        0,
+        5000
+      );
+      expect(lastError).toBeUndefined();
+      expect(counters[currentTestName]).toEqual(1);
+    } catch (e: any) {
+      throw e;
+    }
+  });
+
+  test("noreturn", async () => {
+    const currentTestName = testName();
+    const connStore = getConnectionStoreForMode();
+    try {
+      const res = await rotorMessageHandler(
+        ingestMessage(currentTestName, messageId, incomingEvent),
+        {
+          connectionStore: connStore,
+          functionsStore: funcStore,
+          workspacesStore,
+          streamsStore: streamsStore,
+          eventsLogger: DummyEventsStore,
+          dummyPersistentStore: createMemoryStore({}),
+        },
+        "all",
+        { [CONNECTION_IDS_HEADER]: currentTestName },
+        true,
+        0,
+        5000
+      );
       expect(lastError).toBeUndefined();
       expect(counters[currentTestName]).toEqual(1);
     } catch (e: any) {
@@ -305,12 +530,14 @@ describe("Test Functions Chain", () => {
 
   test("error", async () => {
     const currentTestName = testName();
+    const connStore = getConnectionStoreForMode();
     try {
       await rotorMessageHandler(
         ingestMessage(currentTestName, messageId, incomingEvent),
         {
-          connectionStore: connectionStore,
+          connectionStore: connStore,
           functionsStore: funcStore,
+          workspacesStore,
           streamsStore: streamsStore,
           eventsLogger: DummyEventsStore,
           dummyPersistentStore: createMemoryStore({}),
@@ -330,14 +557,16 @@ describe("Test Functions Chain", () => {
 
   test("retry", async () => {
     const currentTestName = testName();
+    const connStore = getConnectionStoreForMode();
     const iMessage = ingestMessage(currentTestName, messageId, incomingEvent);
     let filter: FuncChainFilter = "all";
     try {
       const res = await rotorMessageHandler(
         iMessage,
         {
-          connectionStore: connectionStore,
+          connectionStore: connStore,
           functionsStore: funcStore,
+          workspacesStore,
           streamsStore: streamsStore,
           eventsLogger: DummyEventsStore,
           dummyPersistentStore: createMemoryStore({}),
@@ -353,6 +582,7 @@ describe("Test Functions Chain", () => {
     } catch (e: any) {
       expect(e.name).toEqual("RetryError");
       expect(e.message).toEqual("Function runs successfully only on 2nd attempt");
+      expect(e.retryPolicy).toEqual({ attempts: 2, delays: [60, 1440] });
       expect(lastError).toBeUndefined();
       expect(counters[currentTestName]).toEqual(1);
       filter = functionFilter(e.functionId);
@@ -363,8 +593,9 @@ describe("Test Functions Chain", () => {
       await rotorMessageHandler(
         iMessage,
         {
-          connectionStore: connectionStore,
+          connectionStore: connStore,
           functionsStore: funcStore,
+          workspacesStore,
           streamsStore: streamsStore,
           eventsLogger: DummyEventsStore,
           dummyPersistentStore: createMemoryStore({}),
@@ -384,14 +615,16 @@ describe("Test Functions Chain", () => {
 
   test("drop_retry", async () => {
     const currentTestName = testName();
+    const connStore = getConnectionStoreForMode();
     const iMessage = ingestMessage(currentTestName, messageId, incomingEvent);
     let filter: FuncChainFilter = "all";
     try {
       const res = await rotorMessageHandler(
         iMessage,
         {
-          connectionStore: connectionStore,
+          connectionStore: connStore,
           functionsStore: funcStore,
+          workspacesStore,
           streamsStore: streamsStore,
           eventsLogger: DummyEventsStore,
           dummyPersistentStore: createMemoryStore({}),
@@ -417,8 +650,9 @@ describe("Test Functions Chain", () => {
       await rotorMessageHandler(
         iMessage,
         {
-          connectionStore: connectionStore,
+          connectionStore: connStore,
           functionsStore: funcStore,
+          workspacesStore,
           streamsStore: streamsStore,
           eventsLogger: DummyEventsStore,
           dummyPersistentStore: createMemoryStore({}),
@@ -438,13 +672,15 @@ describe("Test Functions Chain", () => {
 
   test("no_retry", async () => {
     const currentTestName = testName();
+    const connStore = getConnectionStoreForMode();
     const iMessage = ingestMessage(currentTestName, messageId, incomingEvent);
     try {
       const res = await rotorMessageHandler(
         iMessage,
         {
-          connectionStore: connectionStore,
+          connectionStore: connStore,
           functionsStore: funcStore,
+          workspacesStore,
           streamsStore: streamsStore,
           eventsLogger: DummyEventsStore,
           dummyPersistentStore: createMemoryStore({}),
@@ -478,14 +714,16 @@ describe("Test Functions Chain", () => {
 
   test("dst_retry", async () => {
     const currentTestName = testName();
+    const connStore = getConnectionStoreForMode();
     const iMessage = ingestMessage(currentTestName, messageId, incomingEvent);
     let filter: FuncChainFilter = "all";
     try {
       const res = await rotorMessageHandler(
         iMessage,
         {
-          connectionStore: connectionStore,
+          connectionStore: connStore,
           functionsStore: funcStore,
+          workspacesStore,
           streamsStore: streamsStore,
           eventsLogger: DummyEventsStore,
           dummyPersistentStore: createMemoryStore({}),
@@ -512,8 +750,9 @@ describe("Test Functions Chain", () => {
       const res = await rotorMessageHandler(
         iMessage,
         {
-          connectionStore: connectionStore,
+          connectionStore: connStore,
           functionsStore: funcStore,
+          workspacesStore,
           streamsStore: streamsStore,
           eventsLogger: DummyEventsStore,
           dummyPersistentStore: createMemoryStore({}),
@@ -524,7 +763,6 @@ describe("Test Functions Chain", () => {
         1,
         5000
       );
-      //log.atInfo().log("Result: ", JSON.stringify(res, null, 2));
       expect(counters[currentTestName]).toEqual(2);
       expect(lastError).toBeUndefined();
     } catch (e: any) {
@@ -534,12 +772,14 @@ describe("Test Functions Chain", () => {
 
   test("multi", async () => {
     const currentTestName = testName();
+    const connStore = getConnectionStoreForMode();
     try {
       const res = await rotorMessageHandler(
         ingestMessage(currentTestName, messageId, incomingEvent),
         {
-          connectionStore: connectionStore,
+          connectionStore: connStore,
           functionsStore: funcStore,
+          workspacesStore,
           streamsStore: streamsStore,
           eventsLogger: DummyEventsStore,
           dummyPersistentStore: createMemoryStore({}),
@@ -560,12 +800,14 @@ describe("Test Functions Chain", () => {
 
   test("multi_middle", async () => {
     const currentTestName = testName();
+    const connStore = getConnectionStoreForMode();
     try {
       const res = await rotorMessageHandler(
         ingestMessage(currentTestName, messageId, incomingEvent),
         {
-          connectionStore: connectionStore,
+          connectionStore: connStore,
           functionsStore: funcStore,
+          workspacesStore,
           streamsStore: streamsStore,
           eventsLogger: DummyEventsStore,
           dummyPersistentStore: createMemoryStore({}),
@@ -600,14 +842,16 @@ describe("Test Functions Chain", () => {
 
   test("multi_retry", async () => {
     const currentTestName = testName();
+    const connStore = getConnectionStoreForMode();
     const iMessage = ingestMessage(currentTestName, messageId, incomingEvent);
     let filter: FuncChainFilter = "all";
     try {
       const res = await rotorMessageHandler(
         iMessage,
         {
-          connectionStore: connectionStore,
+          connectionStore: connStore,
           functionsStore: funcStore,
+          workspacesStore,
           streamsStore: streamsStore,
           eventsLogger: DummyEventsStore,
           dummyPersistentStore: createMemoryStore({}),
@@ -632,8 +876,9 @@ describe("Test Functions Chain", () => {
       const res = await rotorMessageHandler(
         iMessage,
         {
-          connectionStore: connectionStore,
+          connectionStore: connStore,
           functionsStore: funcStore,
+          workspacesStore,
           streamsStore: streamsStore,
           eventsLogger: DummyEventsStore,
           dummyPersistentStore: createMemoryStore({}),

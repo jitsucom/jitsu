@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { Button, DatePicker } from "antd";
+import { DatePicker } from "antd";
 import { AlertTriangle, ArrowLeft, Loader2 } from "lucide-react";
 import { ButtonLabel } from "../ButtonLabel/ButtonLabel";
 import { useWorkspace } from "../../lib/context";
@@ -10,6 +10,7 @@ import { rpc } from "juava";
 import { ActiveEventsReport } from "../../lib/shared/reporting";
 import { Chart } from "chart.js/auto";
 import { getClientEnv } from "../../lib/shared/clientEnv";
+import { WJitsuButton } from "../JitsuButton/JitsuButton";
 
 export const ChartView: React.FC<{ data: ActiveEventsReport }> = ({ data }) => {
   const wrapperRef = React.useRef<HTMLDivElement>(null);
@@ -130,9 +131,9 @@ export const BillingDetails: React.FC = () => {
       <div className="flex items-center justify-between">
         <h1 className="text-3xl mb-6">Billing Details</h1>
         <div>
-          <Button href={`/${workspace.slugOrId}/settings/billing`} type="primary" size="large">
+          <WJitsuButton href={`/settings/billing`} type="primary" size="large">
             <ButtonLabel icon={<ArrowLeft className="ant-icon" />}>Back to billing page</ButtonLabel>
-          </Button>
+          </WJitsuButton>
         </div>
       </div>
       <div>

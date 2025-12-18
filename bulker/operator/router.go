@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -50,17 +51,22 @@ func (r *Router) StatusHandler(c *gin.Context) {
 		return
 	}
 
-	op.mu.RLock()
-	defer op.mu.RUnlock()
+	// Query K8s for existing deployments
+	existingDeployments, err := op.getExistingDeployments(context.Background())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "error": err.Error()})
+		return
+	}
 
-	deployedWorkspaces := make([]map[string]any, 0, len(op.deployedWorkspaces))
-	for workspaceID, wsData := range op.deployedWorkspaces {
-		deployedWorkspaces = append(deployedWorkspaces, map[string]any{
-			"workspaceId":  workspaceID,
-			"configHash":   wsData.ConfigHash,
-			"maxUpdatedAt": wsData.MaxUpdatedAt,
-			"connections":  len(wsData.Connections),
-			"functions":    len(wsData.Functions),
+	deployedDeployments := make([]map[string]any, 0, len(existingDeployments))
+	for deploymentID, data := range existingDeployments {
+		deployedDeployments = append(deployedDeployments, map[string]any{
+			"deploymentId":       deploymentID,
+			"functionsClass":     data.FunctionsClass,
+			"workspaceIds":       data.WorkspaceIDs,
+			"configHash":         data.ConfigHash,
+			"connectionsCMCount": data.ConnectionsConfigMapCount,
+			"functionsCMCount":   data.FunctionsConfigMapCount,
 		})
 	}
 
@@ -80,6 +86,6 @@ func (r *Router) StatusHandler(c *gin.Context) {
 				"lastSuccess": op.workspacesRepo.LastSuccess(),
 			},
 		},
-		"deployedWorkspaces": deployedWorkspaces,
+		"deployedDeployments": deployedDeployments,
 	})
 }

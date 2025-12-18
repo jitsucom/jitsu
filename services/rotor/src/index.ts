@@ -203,7 +203,7 @@ async function main() {
   }
 }
 
-function initHTTP(rotorContext: Omit<MessageHandlerContext, "connectionStore" | "functionsStore" | "streamsStore">) {
+function initHTTP(rotorContext: Omit<MessageHandlerContext, "connectionStore" | "functionsStore" | "workspacesStore" | "streamsStore">) {
   http.use((req, res, next) => {
     if (req.path === "/health" || req.path === "/version") {
       return next();

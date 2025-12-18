@@ -1,4 +1,5 @@
 import { Isolate } from "isolated-vm";
+// @ts-ignore
 import express from "express";
 import { UDFTestRun } from "../src/lib/udf_wrapper";
 

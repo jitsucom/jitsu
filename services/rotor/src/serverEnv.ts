@@ -76,6 +76,13 @@ const ServerEnvSchema = z.object({
 
   // Functions Configuration
   FAST_STORE_WORKSPACE_ID: z.string().optional(),
+  // Functions class configuration (dedicated, free, legacy)
+  DEFAULT_FUNCTIONS_CLASS: z.string().optional().default("legacy"),
+  FUNCTIONS_CLASS_FEATURE_FLAG: z.string().optional().default("functionsClass"),
+  // Functions server service URL template (use ${workspaceId} as placeholder)
+  // Service name uses prefix to ensure it starts with letter (workspaceId may start with number)
+  FUNCTIONS_SERVER_URL_TEMPLATE: z.string().optional().default("http://fs-${workspaceId}:3456"),
+  FUNCTIONS_SERVER_TIMEOUT_MS: z.string().optional().default("30000"),
 
   // Authentication Configuration
   ROTOR_AUTH_TOKENS: z.string().optional(),
@@ -140,10 +147,6 @@ const ServerEnvSchema = z.object({
 
   // Functions Server settings
   CONFIG_DIR: z.string().optional().default("./data"),
-  INIT_FILES: z
-    .string()
-    .optional()
-    .transform(v => v === "true" || v === "1"),
 });
 
 export type ServerEnv = z.infer<typeof ServerEnvSchema>;
@@ -177,4 +180,11 @@ export function getServerEnv(): ServerEnv {
   }
   serverEnvCache = result.data;
   return serverEnvCache;
+}
+
+/**
+ * Reset the serverEnv cache. Use this in tests when you need to change environment variables.
+ */
+export function resetServerEnvCache(): void {
+  serverEnvCache = undefined;
 }

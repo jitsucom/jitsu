@@ -17,7 +17,7 @@ const MESSAGES_RETRY_BACKOFF_MAX_DELAY = serverEnv.MESSAGES_RETRY_BACKOFF_MAX_DE
   : 1440;
 
 export type retryPolicy = {
-  retries: number;
+  attempts: number;
   delays: number[];
 };
 
@@ -30,12 +30,12 @@ const retryDefaultDelays = (() => {
 })();
 
 export const retryDefaultPolicy: retryPolicy = {
-  retries: MESSAGES_RETRY_COUNT,
+  attempts: MESSAGES_RETRY_COUNT,
   delays: retryDefaultDelays,
 };
 
 export const noRetryPolicy: retryPolicy = {
-  retries: 0,
+  attempts: 0,
   delays: [],
 };
 
@@ -46,14 +46,14 @@ export function getRetryPolicy(e: Error & { retryPolicy?: retryPolicy }): retryP
   let retryPolicy = retryDefaultPolicy;
   if (e.retryPolicy) {
     retryPolicy = { ...retryPolicy, ...e.retryPolicy };
-    retryPolicy.retries = Math.min(MESSAGES_RETRY_COUNT, retryPolicy.retries);
+    retryPolicy.attempts = Math.min(MESSAGES_RETRY_COUNT, retryPolicy.attempts);
     retryPolicy.delays = retryPolicy.delays.map(d => Math.min(MESSAGES_RETRY_BACKOFF_MAX_DELAY, d));
   }
   return retryPolicy;
 }
 
 export function retryBackOffTime(retryPolicy: retryPolicy, attempt: number) {
-  if (attempt > retryPolicy.retries) {
+  if (attempt > retryPolicy.attempts) {
     return "";
   }
   const delays = retryPolicy?.delays?.length > 0 ? retryPolicy.delays : retryDefaultDelays;
@@ -63,7 +63,7 @@ export function retryBackOffTime(retryPolicy: retryPolicy, attempt: number) {
 
 export function retryLogMessage(retryPolicy: retryPolicy, retries: number): string {
   const retryTime = retryBackOffTime(retryPolicy, retries + 1);
-  return `${retries > 0 ? `Retry attempt: ${retries} of ${retryPolicy.retries}. ` : ""}${
+  return `${retries > 0 ? `Retry attempt: ${retries} of ${retryPolicy.attempts}. ` : ""}${
     retryTime ? `Scheduled retry time: ${retryTime}` : "Putting to dead-letter queue."
   }`;
 }
@@ -71,8 +71,9 @@ export function retryLogMessage(retryPolicy: retryPolicy, retries: number): stri
 export function retryObject(e: Error & { retryPolicy?: retryPolicy }, retries: number) {
   if (e.name === DropRetryErrorName || e.name === RetryErrorName) {
     const retryPolicy = getRetryPolicy(e);
+    console.log("Retry policy: " + JSON.stringify(retryPolicy));
     const retryTime = retryBackOffTime(retryPolicy, retries + 1);
-    return { retry: { left: retryPolicy.retries - retries, ...(retryTime ? { time: retryTime } : {}) } };
+    return { retry: { left: retryPolicy.attempts - retries, ...(retryTime ? { time: retryTime } : {}) } };
   } else {
     return undefined;
   }

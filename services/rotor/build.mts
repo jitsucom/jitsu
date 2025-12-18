@@ -8,6 +8,8 @@ const nativeDeps = {
   "isolated-vm": "6.0.0",
   "@confluentinc/kafka-javascript": "1.4.1",
   "@mongodb-js/zstd": "2.0.0",
+  esbuild: "0.27.0",
+  "@jitsu/functions-lib": "2.14.0-beta.19",
   mongodb: "6.12.0",
 };
 

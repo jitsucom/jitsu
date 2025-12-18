@@ -118,7 +118,7 @@
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "ansi-to-html": "^0.7.2",
-    "antd": "^6.1.0",
+    "antd": "^6.1.1",
     "autoprefixer": "^10.4.20",
     "dotenv-cli": "^6.0.0",
     "esbuild": "catalog:",

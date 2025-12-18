@@ -49,7 +49,8 @@
     "tar": "^7.4.3",
     "tslib": "catalog:",
     "undici": "^7.11.0",
-    "zod": "^3.23.8"
+    "zod": "^3.23.8",
+    "esbuild": "catalog:"
   },
   "devDependencies": {
     "@jitsu/common-config": "workspace:*",
@@ -63,7 +64,6 @@
     "@typescript-eslint/parser": "^8.20.0",
     "@vitest/ui": "catalog:",
     "dotenv-cli": "^7.4.2",
-    "esbuild": "catalog:",
     "express": "^4.21.2",
     "eslint": "^9.18.0",
     "lodash": "catalog:",
