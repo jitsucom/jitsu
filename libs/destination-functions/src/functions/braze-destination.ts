@@ -1,5 +1,5 @@
 import { FullContext, JitsuFunction } from "@jitsu/protocols/functions";
-import { RetryError } from "@jitsu/functions-lib";
+import { NoRetryError, RetryError } from "@jitsu/functions-lib";
 import type { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { BrazeCredentials } from "../meta";
 import { eventTimeSafeMs } from "@jitsu/core-functions-lib";
@@ -191,7 +191,7 @@ function identifyUser(event: AnalyticsServerEvent, ctx: FullContext<BrazeCredent
 const BrazeDestination: JitsuFunction<AnalyticsServerEvent, BrazeCredentials> = async (event, ctx) => {
   const endpoint = endpoints[ctx.props.endpoint];
   if (!endpoint) {
-    throw new Error(`Unknown endpoint ${ctx.props.endpoint}`);
+    throw new NoRetryError(`Unknown endpoint ${ctx.props.endpoint}`);
   }
   try {
     let httpRequests: HttpRequest[] = [];
@@ -245,8 +245,7 @@ const BrazeDestination: JitsuFunction<AnalyticsServerEvent, BrazeCredentials> = 
         });
       }
     } catch (e: any) {
-      ctx.log.error(e);
-      return false;
+      throw new NoRetryError(`Failed to compose braze request: ${e.message}`);
     }
 
     for (const httpRequest of httpRequests) {
