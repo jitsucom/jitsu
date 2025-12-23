@@ -35,6 +35,14 @@ type Config struct {
 	FunctionsClassFeatureFlag string `mapstructure:"FUNCTIONS_CLASS_FEATURE_FLAG" default:"functionsClass"`
 	// Default functions class for workspaces without the feature flag (dedicated, free, legacy, or empty to ignore)
 	DefaultFunctionsClass string `mapstructure:"DEFAULT_FUNCTIONS_CLASS" default:""`
+
+	// MongoDB configuration for functions-server persistent store
+	// If set, mongobetween sidecar will be added to proxy MongoDB connections
+	MongoDBURL string `mapstructure:"MONGODB_URL"`
+	// Mongobetween image to use as sidecar
+	MongobetweenImage string `mapstructure:"MONGOBETWEEN_IMAGE" default:"jitsucom/mongobetween:0.0.1"`
+	// Port for mongobetween to listen on (functions-server connects to this)
+	MongobetweenPort int `mapstructure:"MONGOBETWEEN_PORT" default:"27017"`
 }
 
 func init() {

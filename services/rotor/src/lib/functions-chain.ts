@@ -27,6 +27,7 @@ import {
   UserRecognitionParameter,
   wrapperFunction,
   WorkspaceWithProfiles,
+  EventsStore,
 } from "@jitsu/destination-functions";
 import { NoRetryErrorName, DropRetryErrorName } from "@jitsu/functions-lib";
 
@@ -273,8 +274,12 @@ export function buildFunctionChain(
   };
 
   // Functions server pipeline function (dedicated/free mode)
-  const functionsServerPipelineFunc = (chainCtx: FunctionChainContext, funcCtx: FunctionContext): JitsuFunctionWrapper => {
-    const wrapper = createFunctionsServerWrapper(conWorkspaceId, conId, chainCtx, funcCtx);
+  const functionsServerPipelineFunc = (
+    chainCtx: FunctionChainContext,
+    funcCtx: FunctionContext,
+    eventsLogger: EventsStore
+  ): JitsuFunctionWrapper => {
+    const wrapper = createFunctionsServerWrapper(conWorkspaceId, conId, chainCtx, funcCtx, eventsLogger);
     return async (event: AnyEvent, ctx: EventContext) => {
       return wrapper(event, ctx);
     };
@@ -306,7 +311,9 @@ export function buildFunctionChain(
       return {
         id: f.functionId as string,
         context: funcCtx,
-        exec: f.useFunctionsServer ? functionsServerPipelineFunc(chainCtx, funcCtx) : udfPipelineFunc(chainCtx),
+        exec: f.useFunctionsServer
+          ? functionsServerPipelineFunc(chainCtx, funcCtx, rotorContext.eventsLogger)
+          : udfPipelineFunc(chainCtx),
       };
     } else {
       throw newError(`Function of unknown type: ${f.functionId}`);

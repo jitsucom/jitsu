@@ -4,11 +4,20 @@ import fs from "fs";
 import os from "os";
 import zlib from "zlib";
 import { promisify } from "util";
-import { AnyEvent, EventContext, FuncReturn, FullContext, JitsuFunction, TTLStore } from "@jitsu/protocols/functions";
+import {
+  AnyEvent,
+  EventContext,
+  FuncReturn,
+  FullContext,
+  JitsuFunction,
+  TTLStore,
+  AnonymousEventsStore,
+  FunctionMetrics,
+} from "@jitsu/protocols/functions";
 import * as esbuild from "esbuild";
 
 const gunzip = promisify(zlib.gunzip);
-import { getLog, stopwatch } from "juava";
+import { getLog, LogLevel, parseNumber, stopwatch } from "juava";
 import {
   EnrichedConnectionConfig,
   FunctionConfig,
@@ -17,18 +26,18 @@ import {
   FunctionExecRes,
   FunctionExecLog,
   storeFunc,
+  FunctionContext,
+  InternalFetchType,
+  makeFetch,
+  makeLog,
+  EventsStore,
 } from "@jitsu/core-functions-lib";
 import { getServerEnv } from "./serverEnv";
-import {
-  DropRetryErrorName,
-  NoRetryErrorName,
-  RetryErrorName,
-  TableNameParameter,
-  RetryError,
-  NoRetryError,
-  toJitsuClassic,
-  fromJitsuClassic,
-} from "@jitsu/functions-lib";
+import { DropRetryErrorName, NoRetryErrorName, NoRetryError } from "@jitsu/functions-lib";
+import { mongodb, createMongoStore } from "./lib/mongodb";
+import { warehouseQuery } from "./lib/warehouse-store";
+
+const env = getServerEnv();
 
 const log = getLog("functions-server");
 
@@ -112,11 +121,24 @@ function createWhitelistPlugin(allowedPackages: string[]): esbuild.Plugin {
 type LoadedFunction = {
   id: string;
   exec: JitsuFunction;
-  env?: any;
   config?: any;
 };
 
+type FunctionChainContext = {
+  // log: {
+  //   info: (ctx: FunctionContext, message: string, ...args: any[]) => void | Promise<void>;
+  //   warn: (ctx: FunctionContext, message: string, ...args: any[]) => void | Promise<void>;
+  //   debug: (ctx: FunctionContext, message: string, ...args: any[]) => void | Promise<void>;
+  //   error: (ctx: FunctionContext, message: string, ...args: any[]) => void | Promise<void>;
+  // };
+  store: TTLStore;
+  query?: (conId: string, query: string, params?: any) => Promise<any>;
+  metrics?: FunctionMetrics;
+  connectionOptions?: any;
+};
+
 type FunctionChain = {
+  context: FunctionChainContext;
   connectionId: string;
   functions: LoadedFunction[];
 };
@@ -196,7 +218,7 @@ type LogEntry = {
   level: "info" | "warn" | "debug" | "error";
   functionId: string;
   functionType: string;
-  message: string;
+  message: any;
   args?: any[];
   timestamp: Date;
 };
@@ -448,7 +470,6 @@ async function buildFunctionChain(
         funcs.push({
           id: f.functionId,
           exec: udfFunc.default,
-          env: connectionData.functionsEnv || {},
           config: udfFunc.config,
         });
         log.atInfo().log(`  ✓ Compiled UDF: ${functionId}`);
@@ -461,7 +482,6 @@ async function buildFunctionChain(
           exec: async () => {
             throw new NoRetryError(compilationError);
           },
-          env: connectionData.functionsEnv || {},
           config: undefined,
         });
         log.atInfo().log(`  ⚠ Added error-throwing placeholder for UDF: ${functionId}`);
@@ -474,14 +494,31 @@ async function buildFunctionChain(
         exec: async () => {
           throw new NoRetryError(`Function ${functionId} not found or has no code`);
         },
-        env: connectionData.functionsEnv || {},
         config: undefined,
       });
       log.atInfo().log(`  ⚠ Added error-throwing placeholder for missing UDF: ${functionId}`);
     }
   }
+  // Create shared store - use MongoDB if MONGODB_URL is provided, otherwise fall back to in-memory
+  let store: TTLStore;
+  if (env.MONGODB_URL) {
+    await log.atInfo().log(`Using MongoDB store (MONGODB_URL is set)`);
+    store = createMongoStore(connection.workspaceId, mongodb, false, true);
+  } else {
+    log.atInfo().log(`Using in-memory store (MONGODB_URL not set)`);
+    store = createMemoryStore();
+  }
+
+  const chainCtx: FunctionChainContext = {
+    store,
+    query: async (conId: string, query: string, params: any) => {
+      throw new Error("Warehouse API is not enabled. Please contact support@jitsu.com");
+    },
+    connectionOptions: connectionData,
+  };
 
   return {
+    context: chainCtx,
     connectionId: connection.id,
     functions: funcs,
   };
@@ -521,12 +558,12 @@ function deepCopy<T>(o: T): T {
 async function runChain(
   chain: FunctionChain,
   event: AnyEvent,
-  eventContext: EventContext,
-  store: TTLStore
+  eventContext: EventContext
 ): Promise<FuncChainResultWithLogs> {
   const execLog: FunctionExecLog = [];
   const logs: LogEntry[] = [];
   let events: AnyEvent[] = [event];
+  const chainCtx = chain.context;
 
   for (let k = 0; k < chain.functions.length; k++) {
     const func = chain.functions[k];
@@ -555,12 +592,35 @@ async function runChain(
         const fullContext: FullContext = {
           ...eventContext,
           log: createCollectingLogger(id, functionType, logs),
-          fetch: fetch,
-          store,
-          props: func.env,
+          fetch: makeFetch(
+            chain.connectionId,
+            {
+              log(connectionId: string, level: LogLevel, msg: Record<string, any>) {
+                logs.push({
+                  level,
+                  functionId: id,
+                  functionType,
+                  message: {
+                    ...msg,
+                    functionId: id,
+                    functionType,
+                  },
+                  timestamp: new Date(),
+                });
+              },
+              close() {},
+              deadLetter(workspaceId: string, connectionId: string, type: string, payload: any, error: any) {
+                throw new Error("deadLetter method must never be called inside functions server.");
+              },
+            },
+            chainCtx.connectionOptions.fetchLogLevel || "info",
+            parseNumber(env.FETCH_TIMEOUT_MS, 2000)
+          ),
+          store: chainCtx.store,
+          props: chainCtx.connectionOptions.functionsEnv || {},
           retries,
           getWarehouse: () => {
-            throw new Error("Warehouse API is not available in functions-server");
+            throw new Error("Warehouse API is not enabled. Please contact support@jitsu.com");
           },
         };
 
@@ -678,7 +738,9 @@ function createEventContext(req: http.IncomingMessage, connection: EnrichedConne
 }
 
 async function main() {
-  const env = getServerEnv();
+  if (env.MONGODB_URL) {
+    await mongodb.waitInit();
+  }
   const port = parseInt(env.PORT);
   const configDir = path.resolve(env.CONFIG_DIR);
 
@@ -731,9 +793,6 @@ async function main() {
     chains = new Map();
     log.atInfo().log("Chains cache cleared");
   }
-
-  // Create shared store
-  const store = createMemoryStore();
 
   // Create HTTP server
   const server = http.createServer(async (req, res) => {
@@ -853,7 +912,7 @@ async function main() {
 
       log.atInfo().log(`→ ${connectionId} processing event (${chain.functions.length} functions)`);
 
-      const result = await runChain(chain, event, eventContext, store);
+      const result = await runChain(chain, event, eventContext);
 
       const totalMs = result.execLog.reduce((sum, e) => sum + (e.ms || 0), 0);
       log.atInfo().log(`← ${connectionId} completed in ${totalMs}ms`);

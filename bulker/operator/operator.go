@@ -379,6 +379,63 @@ func (o *Operator) getFunctionsClass(ws *WorkspaceConfig) string {
 	return o.config.DefaultFunctionsClass
 }
 
+// createOrUpdateMongobetweenConfigMap creates/updates the mongobetween config ConfigMap
+// containing the allowed-collections.txt file
+func (o *Operator) createOrUpdateMongobetweenConfigMap(ctx context.Context, data *DeploymentData) error {
+	if o.config.MongoDBURL == "" {
+		return nil // MongoDB not configured, skip
+	}
+
+	cmName := fmt.Sprintf("%s-mongobetween", data.DeploymentID)
+	allowedCollections := o.buildAllowedCollectionsFileContent(data.WorkspaceIDs)
+
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      cmName,
+			Namespace: o.config.KubernetesNamespace,
+			Labels: map[string]string{
+				labelApp:            appName,
+				labelFunctionsClass: data.FunctionsClass,
+				labelConfigType:     "mongobetween",
+			},
+			Annotations: map[string]string{
+				labelWorkspaceIDs: strings.Join(data.WorkspaceIDs, ","),
+			},
+		},
+		Data: map[string]string{
+			"allowed-collections.txt": allowedCollections,
+		},
+	}
+
+	_, err := o.clientset.CoreV1().ConfigMaps(o.config.KubernetesNamespace).Get(ctx, cmName, metav1.GetOptions{})
+	if err != nil {
+		if errors.IsNotFound(err) {
+			_, err = o.clientset.CoreV1().ConfigMaps(o.config.KubernetesNamespace).Create(ctx, cm, metav1.CreateOptions{})
+		}
+	} else {
+		_, err = o.clientset.CoreV1().ConfigMaps(o.config.KubernetesNamespace).Update(ctx, cm, metav1.UpdateOptions{})
+	}
+	if err != nil {
+		return fmt.Errorf("failed to create/update mongobetween configmap %s: %v", cmName, err)
+	}
+
+	return nil
+}
+
+// deleteMongobetweenConfigMap deletes the mongobetween config ConfigMap
+func (o *Operator) deleteMongobetweenConfigMap(ctx context.Context, deploymentID string) error {
+	if o.config.MongoDBURL == "" {
+		return nil // MongoDB not configured, skip
+	}
+
+	cmName := fmt.Sprintf("%s-mongobetween", deploymentID)
+	err := o.clientset.CoreV1().ConfigMaps(o.config.KubernetesNamespace).Delete(ctx, cmName, metav1.DeleteOptions{})
+	if err != nil && !errors.IsNotFound(err) {
+		return fmt.Errorf("failed to delete mongobetween configmap %s: %v", cmName, err)
+	}
+	return nil
+}
+
 func (o *Operator) createDeploymentFromData(data *DeploymentData) error {
 	ctx := context.Background()
 
@@ -395,6 +452,11 @@ func (o *Operator) createDeploymentFromData(data *DeploymentData) error {
 		return fmt.Errorf("failed to create functions configmaps: %v", err)
 	}
 	data.FunctionsConfigMapCount = numFunctionsCMs
+
+	// Create mongobetween ConfigMap if MongoDB is configured
+	if err := o.createOrUpdateMongobetweenConfigMap(ctx, data); err != nil {
+		return fmt.Errorf("failed to create mongobetween configmap: %v", err)
+	}
 
 	// Create Deployment
 	deployment := o.buildDeploymentFromData(data)
@@ -476,6 +538,11 @@ func (o *Operator) updateDeploymentFromData(data *DeploymentData, existing *Depl
 	}
 	data.FunctionsConfigMapCount = numFunctionsCMs
 
+	// Update mongobetween ConfigMap if MongoDB is configured
+	if err := o.createOrUpdateMongobetweenConfigMap(ctx, data); err != nil {
+		return fmt.Errorf("failed to update mongobetween configmap: %v", err)
+	}
+
 	// Update Deployment
 	deployment := o.buildDeploymentFromData(data)
 	_, err = o.clientset.AppsV1().Deployments(o.config.KubernetesNamespace).Update(ctx, deployment, metav1.UpdateOptions{})
@@ -546,6 +613,11 @@ func (o *Operator) deleteDeploymentByID(deploymentID string, existing *Deploymen
 		if err != nil && !errors.IsNotFound(err) {
 			logging.Warnf("Failed to delete functions configmap %s: %v", cmName, err)
 		}
+	}
+
+	// Delete mongobetween ConfigMap if MongoDB is configured
+	if err := o.deleteMongobetweenConfigMap(ctx, deploymentID); err != nil {
+		logging.Warnf("Failed to delete mongobetween configmap: %v", err)
 	}
 
 	return nil
@@ -978,6 +1050,16 @@ func (o *Operator) createOrUpdateDedicatedService(ctx context.Context, workspace
 	return err
 }
 
+// buildAllowedCollectionsFileContent builds the allowed collections file content for mongobetween
+// based on workspaces in this deployment. Format: one db.collection per line
+func (o *Operator) buildAllowedCollectionsFileContent(workspaceIDs []string) string {
+	builder := strings.Builder{}
+	for _, wsID := range workspaceIDs {
+		builder.WriteString(fmt.Sprintf("persistent_store.%s\n", wsID))
+	}
+	return builder.String()
+}
+
 func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deployment {
 	var deploymentName string
 	labels := map[string]string{
@@ -1047,56 +1129,143 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 		})
 	}
 
-	podSpec := corev1.PodSpec{
-		Containers: []corev1.Container{
-			{
-				Name:            appName,
-				Image:           o.config.FunctionsServerImage,
-				ImagePullPolicy: corev1.PullAlways,
-				Ports: []corev1.ContainerPort{
-					{
-						ContainerPort: int32(o.config.FunctionsServerPort),
-						Protocol:      corev1.ProtocolTCP,
+	// Build environment variables for functions-server
+	envVars := []corev1.EnvVar{
+		{
+			Name:  "CONFIG_DIR",
+			Value: "/data",
+		},
+		{
+			Name:  "ROTOR_MODE",
+			Value: "functions",
+		},
+		{
+			Name:  "PORT",
+			Value: fmt.Sprintf("%d", o.config.FunctionsServerPort),
+		},
+	}
+
+	// Build containers list
+	containers := []corev1.Container{}
+
+	// Add mongobetween sidecar if MongoDB is configured
+	if o.config.MongoDBURL != "" {
+		// Add MONGODB_URL pointing to mongobetween sidecar
+		envVars = append(envVars, corev1.EnvVar{
+			Name:  "MONGODB_URL",
+			Value: fmt.Sprintf("mongodb://localhost:%d", o.config.MongobetweenPort),
+		})
+
+		// Add volume for mongobetween allowed collections config
+		mongobetweenConfigVolName := "mongobetween-config"
+		mongobetweenConfigCMName := fmt.Sprintf("%s-mongobetween", data.DeploymentID)
+		volumes = append(volumes, corev1.Volume{
+			Name: mongobetweenConfigVolName,
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: mongobetweenConfigCMName,
 					},
-				},
-				Env: []corev1.EnvVar{
-					{
-						Name:  "CONFIG_DIR",
-						Value: "/data",
-					},
-					{
-						Name:  "ROTOR_MODE",
-						Value: "functions",
-					},
-					{
-						Name:  "PORT",
-						Value: fmt.Sprintf("%d", o.config.FunctionsServerPort),
-					},
-				},
-				VolumeMounts: volumeMounts,
-				LivenessProbe: &corev1.Probe{
-					ProbeHandler: corev1.ProbeHandler{
-						HTTPGet: &corev1.HTTPGetAction{
-							Path: "/health",
-							Port: intstr.FromInt(o.config.FunctionsServerPort),
-						},
-					},
-					InitialDelaySeconds: 10,
-					PeriodSeconds:       30,
-				},
-				ReadinessProbe: &corev1.Probe{
-					ProbeHandler: corev1.ProbeHandler{
-						HTTPGet: &corev1.HTTPGetAction{
-							Path: "/health",
-							Port: intstr.FromInt(o.config.FunctionsServerPort),
-						},
-					},
-					InitialDelaySeconds: 5,
-					PeriodSeconds:       10,
 				},
 			},
+		})
+
+		// mongobetween sidecar container using environment variables
+		mongobetweenEnvVars := []corev1.EnvVar{
+			{
+				Name:  "MONGOBETWEEN_LOGLEVEL",
+				Value: "info",
+			},
+			{
+				Name:  "MONGOBETWEEN_ADDRESSES",
+				Value: fmt.Sprintf(":%d=%s", o.config.MongobetweenPort, o.config.MongoDBURL),
+			},
+			{
+				Name:  "MONGOBETWEEN_ALLOWED_COLLECTIONS_FILE",
+				Value: "/etc/mongobetween/allowed-collections.txt",
+			},
+		}
+
+		mongobetweenVolumeMounts := []corev1.VolumeMount{
+			{
+				Name:      mongobetweenConfigVolName,
+				MountPath: "/etc/mongobetween",
+				ReadOnly:  true,
+			},
+		}
+
+		containers = append(containers, corev1.Container{
+			Name:            "mongobetween",
+			Image:           o.config.MongobetweenImage,
+			ImagePullPolicy: corev1.PullAlways,
+			Env:             mongobetweenEnvVars,
+			VolumeMounts:    mongobetweenVolumeMounts,
+			Ports: []corev1.ContainerPort{
+				{
+					ContainerPort: int32(o.config.MongobetweenPort),
+					Protocol:      corev1.ProtocolTCP,
+				},
+			},
+			// Simple TCP liveness check for mongobetween
+			LivenessProbe: &corev1.Probe{
+				ProbeHandler: corev1.ProbeHandler{
+					TCPSocket: &corev1.TCPSocketAction{
+						Port: intstr.FromInt(o.config.MongobetweenPort),
+					},
+				},
+				InitialDelaySeconds: 5,
+				PeriodSeconds:       30,
+			},
+			ReadinessProbe: &corev1.Probe{
+				ProbeHandler: corev1.ProbeHandler{
+					TCPSocket: &corev1.TCPSocketAction{
+						Port: intstr.FromInt(o.config.MongobetweenPort),
+					},
+				},
+				InitialDelaySeconds: 2,
+				PeriodSeconds:       10,
+			},
+		})
+	}
+
+	// Add functions-server container
+	containers = append(containers, corev1.Container{
+		Name:            appName,
+		Image:           o.config.FunctionsServerImage,
+		ImagePullPolicy: corev1.PullAlways,
+		Ports: []corev1.ContainerPort{
+			{
+				ContainerPort: int32(o.config.FunctionsServerPort),
+				Protocol:      corev1.ProtocolTCP,
+			},
 		},
-		Volumes: volumes,
+		Env:          envVars,
+		VolumeMounts: volumeMounts,
+		LivenessProbe: &corev1.Probe{
+			ProbeHandler: corev1.ProbeHandler{
+				HTTPGet: &corev1.HTTPGetAction{
+					Path: "/health",
+					Port: intstr.FromInt(o.config.FunctionsServerPort),
+				},
+			},
+			InitialDelaySeconds: 10,
+			PeriodSeconds:       30,
+		},
+		ReadinessProbe: &corev1.Probe{
+			ProbeHandler: corev1.ProbeHandler{
+				HTTPGet: &corev1.HTTPGetAction{
+					Path: "/health",
+					Port: intstr.FromInt(o.config.FunctionsServerPort),
+				},
+			},
+			InitialDelaySeconds: 5,
+			PeriodSeconds:       10,
+		},
+	})
+
+	podSpec := corev1.PodSpec{
+		Containers: containers,
+		Volumes:    volumes,
 	}
 
 	// Add service account if configured

@@ -1,13 +1,14 @@
 import { AnyEvent, EventContext, FullContext } from "@jitsu/protocols/functions";
 import {
   EntityStore,
+  EventsStore,
   FuncChainResult,
   FunctionChainContext,
   FunctionContext,
   WorkspaceWithProfiles,
 } from "@jitsu/destination-functions";
 import { DropRetryErrorName, RetryErrorName, NoRetryErrorName } from "@jitsu/functions-lib";
-import { getLog } from "juava";
+import { getLog, LogLevel } from "juava";
 import { getServerEnv } from "../serverEnv";
 
 const log = getLog("functions-server-client");
@@ -73,7 +74,7 @@ export type FunctionsServerResult = {
     level: string;
     functionId: string;
     functionType?: string;
-    message: string;
+    message: any;
     args?: any[];
     timestamp: Date;
   }>;
@@ -87,8 +88,9 @@ export async function callFunctionsServer(
   connectionId: string,
   event: AnyEvent,
   eventContext: EventContext,
-  chainCtx?: FunctionChainContext,
-  funcCtx?: FunctionContext
+  chainCtx: FunctionChainContext,
+  funcCtx: FunctionContext,
+  eventsLogger: EventsStore
 ): Promise<FunctionsServerResult> {
   const serverEnv = getServerEnv();
   const url = getFunctionsServerUrl(workspaceId, connectionId);
@@ -136,16 +138,19 @@ export async function callFunctionsServer(
           },
           props: funcCtx?.props || {},
         };
-
-        const logFn =
-          logEntry.level === "error"
-            ? chainCtx.log.error
-            : logEntry.level === "warn"
-            ? chainCtx.log.warn
-            : logEntry.level === "debug"
-            ? chainCtx.log.debug
-            : chainCtx.log.info;
-        logFn(logFuncCtx, logEntry.message, ...(logEntry.args || []));
+        if (typeof logEntry.message === "object" && logEntry.message.type === "http-request") {
+          eventsLogger.log(connectionId, logEntry.level as LogLevel, logEntry.message);
+        } else {
+          const logFn =
+            logEntry.level === "error"
+              ? chainCtx.log.error
+              : logEntry.level === "warn"
+              ? chainCtx.log.warn
+              : logEntry.level === "debug"
+              ? chainCtx.log.debug
+              : chainCtx.log.info;
+          logFn(logFuncCtx, logEntry.message as string, ...(logEntry.args || []));
+        }
       }
     }
 
@@ -168,11 +173,12 @@ export function createFunctionsServerWrapper(
   workspaceId: string,
   connectionId: string,
   chainCtx: FunctionChainContext,
-  funcCtx: FunctionContext
+  funcCtx: FunctionContext,
+  eventsLogger: EventsStore
 ): (event: AnyEvent, ctx: EventContext) => Promise<AnyEvent | AnyEvent[] | "drop" | undefined> {
   return async (event: AnyEvent, ctx: EventContext) => {
     try {
-      const result = await callFunctionsServer(workspaceId, connectionId, event, ctx, chainCtx, funcCtx);
+      const result = await callFunctionsServer(workspaceId, connectionId, event, ctx, chainCtx, funcCtx, eventsLogger);
 
       // Check for errors in execLog - similar to checkError in udf-wrapper-code.txtjs
       let errObj: any = undefined;
