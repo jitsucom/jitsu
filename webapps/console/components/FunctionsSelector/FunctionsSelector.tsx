@@ -148,9 +148,9 @@ const FunctionsSelector0: React.FC<FunctionsSelectorProps> = ({
               ))
             ) : (
               <div className={"w-full flex flex-row px-3 py-1 justify-center items-center gap-3"}>
-                No functions added to workspace.{" "}
+                {enabledFunctions.length === 0 ? "No functions added to workspace." : "All functions are added."}{" "}
                 <WLink target={"_blank"} href={"/functions"}>
-                  Create Function...
+                  Create New Function...
                 </WLink>
               </div>
             )}

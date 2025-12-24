@@ -31,6 +31,7 @@ import {
   makeFetch,
   makeLog,
   EventsStore,
+  EntityStore,
 } from "@jitsu/core-functions-lib";
 import { getServerEnv } from "./serverEnv";
 import { DropRetryErrorName, NoRetryErrorName, NoRetryError } from "@jitsu/functions-lib";
@@ -132,7 +133,7 @@ type FunctionChainContext = {
   //   error: (ctx: FunctionContext, message: string, ...args: any[]) => void | Promise<void>;
   // };
   store: TTLStore;
-  query?: (conId: string, query: string, params?: any) => Promise<any>;
+  query: (conId: string, query: string, params?: any) => Promise<any>;
   metrics?: FunctionMetrics;
   connectionOptions?: any;
 };
@@ -453,6 +454,7 @@ async function loadConfigsFromFiles(configDir: string): Promise<{
 
 // Build function chain for a connection (UDF functions only)
 async function buildFunctionChain(
+  conEntityStore: EntityStore<EnrichedConnectionConfig>,
   connection: EnrichedConnectionConfig,
   functionsStore: Map<string, FunctionConfig>
 ): Promise<FunctionChain> {
@@ -512,7 +514,7 @@ async function buildFunctionChain(
   const chainCtx: FunctionChainContext = {
     store,
     query: async (conId: string, query: string, params: any) => {
-      throw new Error("Warehouse API is not enabled. Please contact support@jitsu.com");
+      return warehouseQuery(connection.workspaceId, conEntityStore, conId, query, params);
     },
     connectionOptions: connectionData,
   };
@@ -619,8 +621,10 @@ async function runChain(
           store: chainCtx.store,
           props: chainCtx.connectionOptions.functionsEnv || {},
           retries,
-          getWarehouse: () => {
-            throw new Error("Warehouse API is not enabled. Please contact support@jitsu.com");
+          getWarehouse: (destinationId: string) => {
+            return {
+              query: (sql: string, params?: Record<string, any>) => chainCtx.query(destinationId, sql, params),
+            };
           },
         };
 
@@ -748,6 +752,18 @@ async function main() {
   log.atInfo().log(`Loading configs from files: ${configDir}`);
 
   let { connections, functions } = await loadConfigsFromFiles(configDir);
+  const conEntityStore: EntityStore<EnrichedConnectionConfig> = {
+    getObject: (id: string) => {
+      return connections.get(id);
+    },
+    getAll() {
+      return Object.fromEntries(connections);
+    },
+    toJSON() {
+      return JSON.stringify(Object.fromEntries(connections));
+    },
+    enabled: true,
+  };
 
   // Reload function re-reads files
   const reloadFn = async () => {
@@ -778,7 +794,7 @@ async function main() {
     }
 
     try {
-      const chain = await buildFunctionChain(connection, functions);
+      const chain = await buildFunctionChain(conEntityStore, connection, functions);
       chains.set(connectionId, chain);
       log.atInfo().log(`✓ Built chain for connection: ${connectionId} (${chain.functions.length} functions)`);
       return chain;

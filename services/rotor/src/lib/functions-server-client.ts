@@ -185,7 +185,7 @@ export function createFunctionsServerWrapper(
       for (const entry of result.execLog) {
         const error = entry.error;
         if (error) {
-          console.log("Function execution error entry: " + JSON.stringify(entry, null, 2));
+          // console.log("Function execution error entry: " + JSON.stringify(entry, null, 2));
           const errorName = error.name || "Error";
           // Check if it's a special error type (RetryError, NoRetryError, DropRetryError)
           if (

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -217,16 +218,25 @@ func CalculateWorkspaceData(
 	hasDedicatedFS bool,
 ) *WorkspaceData {
 	var maxUpdatedAt time.Time
-
-	for _, conn := range connections {
-		if conn.UpdatedAt != nil && conn.UpdatedAt.After(maxUpdatedAt) {
-			maxUpdatedAt = *conn.UpdatedAt
-		}
-	}
+	var usesWarehouseAPI bool
 
 	for _, fn := range functions {
 		if fn.UpdatedAt.After(maxUpdatedAt) {
 			maxUpdatedAt = fn.UpdatedAt
+			if !usesWarehouseAPI && strings.Contains(fn.Code, "getWarehouse") {
+				usesWarehouseAPI = true
+			}
+		}
+	}
+	filteredConnections := make([]*EnrichedConnectionConfig, 0, len(connections))
+	for _, conn := range connections {
+		if !usesWarehouseAPI && conn.ID == conn.StreamID && conn.ID == conn.DestinationID {
+			// Skip bulker-internal connections unless warehouse API is used
+			continue
+		}
+		filteredConnections = append(filteredConnections, conn)
+		if conn.UpdatedAt != nil && conn.UpdatedAt.After(maxUpdatedAt) {
+			maxUpdatedAt = *conn.UpdatedAt
 		}
 	}
 
@@ -234,12 +244,13 @@ func CalculateWorkspaceData(
 	configHash := CalculateConfigHash(connections, functions)
 
 	return &WorkspaceData{
-		WorkspaceID:    workspaceID,
-		MaxUpdatedAt:   maxUpdatedAt,
-		Connections:    connections,
-		Functions:      functions,
-		HasDedicatedFS: hasDedicatedFS,
-		ConfigHash:     configHash,
+		WorkspaceID:      workspaceID,
+		MaxUpdatedAt:     maxUpdatedAt,
+		Connections:      filteredConnections,
+		Functions:        functions,
+		UsesWarehouseAPI: usesWarehouseAPI,
+		HasDedicatedFS:   hasDedicatedFS,
+		ConfigHash:       configHash,
 	}
 }
 
@@ -259,9 +270,10 @@ func CalculateConfigHash(connections []*EnrichedConnectionConfig, functions []*F
 		conn := connMap[id]
 		h.Write([]byte(conn.ID))
 		h.Write([]byte(conn.OptionsHash))
-		if conn.UpdatedAt != nil {
-			h.Write([]byte(conn.UpdatedAt.Format(time.RFC3339)))
-		}
+		h.Write([]byte(conn.CredentialsHash))
+		//if conn.UpdatedAt != nil {
+		//	h.Write([]byte(conn.UpdatedAt.Format(time.RFC3339)))
+		//}
 	}
 
 	// Sort and hash functions
@@ -277,7 +289,7 @@ func CalculateConfigHash(connections []*EnrichedConnectionConfig, functions []*F
 		fn := fnMap[id]
 		h.Write([]byte(fn.ID))
 		h.Write([]byte(fn.CodeHash))
-		h.Write([]byte(fn.UpdatedAt.Format(time.RFC3339)))
+		//h.Write([]byte(fn.UpdatedAt.Format(time.RFC3339)))
 	}
 
 	return hex.EncodeToString(h.Sum(nil))[:16]
