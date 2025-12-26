@@ -765,13 +765,6 @@ async function main() {
     enabled: true,
   };
 
-  // Reload function re-reads files
-  const reloadFn = async () => {
-    const loaded = await loadConfigsFromFiles(configDir);
-    connections = loaded.connections;
-    functions = loaded.functions;
-  };
-
   if (connections.size === 0) {
     log.atWarn().log("No connections found");
   }
@@ -804,12 +797,6 @@ async function main() {
     }
   }
 
-  // Clear chains cache (used on reload)
-  function clearChainsCache() {
-    chains = new Map();
-    log.atInfo().log("Chains cache cleared");
-  }
-
   // Create HTTP server
   const server = http.createServer(async (req, res) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
@@ -836,28 +823,6 @@ async function main() {
           cachedChains: Array.from(chains.keys()),
         })
       );
-      return;
-    }
-
-    // Reload configs
-    if (pathname === "/_reload") {
-      log.atInfo().log("Reloading configs...");
-      try {
-        await reloadFn();
-        clearChainsCache();
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(
-          JSON.stringify({
-            status: "ok",
-            connections: Array.from(connections.keys()),
-            cachedChains: Array.from(chains.keys()),
-          })
-        );
-      } catch (e: any) {
-        log.atError().log(`Reload failed: ${e.message}`);
-        res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: e.message }));
-      }
       return;
     }
 

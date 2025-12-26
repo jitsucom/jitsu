@@ -18,7 +18,6 @@ export default mergeConfig(baseConfig, {
       //The variables from below should exist, but their values are actually not being used
       KAFKA_BOOTSTRAP_SERVERS: "dummy",
       BULKER_URL: "http://dummy",
-      MONGODB_URL: "mongodb://dummy",
       BULKER_AUTH_KEY: "dummy",
       REPOSITORY_BASE_URL: "",
     },
