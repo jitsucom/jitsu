@@ -43,7 +43,10 @@ export type KafkaRotorConfig = {
   consumerGroupId: string;
   kafkaTopics: string[];
   kafkaClientId?: string;
-  rotorContext: Omit<MessageHandlerContext, "connectionStore" | "functionsStore" | "workspacesStore" | "streamsStore" | "metrics">;
+  rotorContext: Omit<
+    MessageHandlerContext,
+    "connectionStore" | "functionsStore" | "workspacesStore" | "streamsStore" | "metrics"
+  >;
   handle: (
     message: IngestMessage,
     rotorContext: MessageHandlerContext,

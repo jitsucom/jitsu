@@ -13,7 +13,9 @@ const jsondiffpatchInstance = jsondiffpatch.create();
 const log = getLog("functions_handler");
 
 export const FunctionsHandler =
-  (rotorContext: Omit<MessageHandlerContext, "connectionStore" | "functionsStore" | "workspacesStore" | "streamsStore">) =>
+  (
+    rotorContext: Omit<MessageHandlerContext, "connectionStore" | "functionsStore" | "workspacesStore" | "streamsStore">
+  ) =>
   async (req, res) => {
     const message = req.body as IngestMessage;
     //log.atInfo().log(`Functions handler. Message ID: ${message.messageId} connectionId: ${message.connectionId}`);
@@ -32,7 +34,9 @@ export const FunctionsHandler =
   };
 
 export const FunctionsHandlerMulti =
-  (rotorContext: Omit<MessageHandlerContext, "connectionStore" | "functionsStore" | "workspacesStore" | "streamsStore">) =>
+  (
+    rotorContext: Omit<MessageHandlerContext, "connectionStore" | "functionsStore" | "workspacesStore" | "streamsStore">
+  ) =>
   async (req, res, next) => {
     const connectionIds = (req.query.ids ?? "").split(",") as string[];
     const message = req.body as IngestMessage;
