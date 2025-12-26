@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hjson/hjson-go/v4"
 	"github.com/jitsucom/bulker/jitsubase/appbase"
 	"github.com/jitsucom/bulker/jitsubase/logging"
 	"github.com/jitsucom/bulker/jitsubase/safego"
@@ -1075,6 +1076,15 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 		labels[labelWorkspaceID] = data.DeploymentID
 	}
 
+	var nodeSelector map[string]string
+	if o.config.KubernetesNodeSelector != "" {
+		nodeSelector = map[string]string{}
+		err := hjson.Unmarshal([]byte(o.config.KubernetesNodeSelector), &nodeSelector)
+		if err != nil {
+			o.Errorf("failed to parse node selector from string: %s\nIngoring it. Error: %v", o.config.KubernetesNodeSelector, err)
+		}
+	}
+
 	replicas := int32(1)
 	volumes := make([]corev1.Volume, 0)
 	volumeMounts := make([]corev1.VolumeMount, 0)
@@ -1264,8 +1274,9 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 	})
 
 	podSpec := corev1.PodSpec{
-		Containers: containers,
-		Volumes:    volumes,
+		Containers:   containers,
+		Volumes:      volumes,
+		NodeSelector: nodeSelector,
 	}
 
 	// Add service account if configured
