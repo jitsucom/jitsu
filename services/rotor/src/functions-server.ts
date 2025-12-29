@@ -842,7 +842,6 @@ async function main() {
       res.end(
         JSON.stringify({
           error: `Connection '${connectionId}' not found`,
-          available: Array.from(connections.keys()),
         })
       );
       return;

@@ -34,7 +34,7 @@ type Config struct {
 	ServiceType string `mapstructure:"SERVICE_TYPE" default:"ClusterIP"`
 
 	// Feature flag to look for in workspace (values: dedicated, free, legacy)
-	FunctionsClassFeatureFlag string `mapstructure:"FUNCTIONS_CLASS_FEATURE_FLAG" default:"functionsClass"`
+	FunctionsClassFeatureFlag string `mapstructure:"FUNCTIONS_CLASS_FEATURE_FLAG" default:"functionsClasses"`
 	// Default functions class for workspaces without the feature flag (dedicated, free, legacy, or empty to ignore)
 	DefaultFunctionsClass string `mapstructure:"DEFAULT_FUNCTIONS_CLASS" default:""`
 

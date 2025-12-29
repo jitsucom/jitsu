@@ -7,12 +7,13 @@ import {
   FunctionContext,
   WorkspaceWithProfiles,
 } from "@jitsu/destination-functions";
-import { DropRetryErrorName, RetryErrorName, NoRetryErrorName } from "@jitsu/functions-lib";
+import { DropRetryErrorName, RetryErrorName, NoRetryErrorName, RetryError } from "@jitsu/functions-lib";
 import { getLog, LogLevel } from "juava";
 import { getServerEnv } from "../serverEnv";
 
 const log = getLog("functions-server-client");
 
+export type FunctionsClass = "dedicated" | "free" | "legacy";
 // Functions class constants (must match operator values)
 export const FunctionsClassDedicated = "dedicated";
 export const FunctionsClassFree = "free";
@@ -22,37 +23,46 @@ export const FunctionsClassLegacy = "legacy";
  * Get the functions class for a workspace from its feature flags.
  * Format: ${FUNCTIONS_CLASS_FEATURE_FLAG}=<value> (e.g., functionsClass=dedicated)
  */
-export function getFunctionsClass(workspaceId: string, workspacesStore: EntityStore<WorkspaceWithProfiles>): string {
+export function getFunctionsClasses(workspace: WorkspaceWithProfiles): FunctionsClass[] {
   const serverEnv = getServerEnv();
-  const workspace = workspacesStore.getObject(workspaceId);
-  if (!workspace) {
-    return serverEnv.DEFAULT_FUNCTIONS_CLASS;
-  }
 
   const prefix = serverEnv.FUNCTIONS_CLASS_FEATURE_FLAG + "=";
   for (const feature of workspace.featuresEnabled || []) {
     if (feature.startsWith(prefix)) {
-      return feature.substring(prefix.length);
+      const classes = feature
+        .substring(prefix.length)
+        .split(",")
+        .map(f => f.trim())
+        .filter(
+          f => f === FunctionsClassDedicated || f === FunctionsClassFree || f === FunctionsClassLegacy
+        ) as FunctionsClass[];
+      if (classes.length > 0) {
+        return classes;
+      }
     }
   }
 
-  return serverEnv.DEFAULT_FUNCTIONS_CLASS;
+  return [serverEnv.DEFAULT_FUNCTIONS_CLASS] as FunctionsClass[];
 }
 
 /**
  * Check if a workspace should use the functions server (not legacy)
  */
-export function shouldUseFunctionsServer(functionsClass: string): boolean {
-  return functionsClass !== FunctionsClassLegacy && functionsClass !== "";
+export function shouldUseFunctionsServer(functionsClasses: string[]): boolean {
+  return !functionsClasses.includes(FunctionsClassLegacy) && !functionsClasses.includes("");
 }
 
 /**
  * Get the functions server URL for a workspace
  */
-export function getFunctionsServerUrl(workspaceId: string, connectionId: string): string {
+export function getFunctionsServerUrl(
+  workspaceId: string,
+  connectionId: string,
+  functionsClass: "free" | "dedicated"
+): string {
   const serverEnv = getServerEnv();
   const template = serverEnv.FUNCTIONS_SERVER_URL_TEMPLATE;
-  const baseUrl = template.replace("${workspaceId}", workspaceId);
+  const baseUrl = template.replace("${workspaceId}", functionsClass === "dedicated" ? workspaceId : "free");
   return `${baseUrl}/connection/${connectionId}`;
 }
 
@@ -86,6 +96,7 @@ export type FunctionsServerResult = {
 export async function callFunctionsServer(
   workspaceId: string,
   connectionId: string,
+  functionsClass: "free" | "dedicated",
   event: AnyEvent,
   eventContext: EventContext,
   chainCtx: FunctionChainContext,
@@ -93,7 +104,7 @@ export async function callFunctionsServer(
   eventsLogger: EventsStore
 ): Promise<FunctionsServerResult> {
   const serverEnv = getServerEnv();
-  const url = getFunctionsServerUrl(workspaceId, connectionId);
+  const url = getFunctionsServerUrl(workspaceId, connectionId, functionsClass);
   const timeoutMs = parseInt(serverEnv.FUNCTIONS_SERVER_TIMEOUT_MS);
 
   const controller = new AbortController();
@@ -121,7 +132,7 @@ export async function callFunctionsServer(
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Functions server returned ${response.status}: ${errorText}`);
+      throw new RetryError(`Functions server returned ${response.status}: ${errorText}`);
     }
 
     const result = (await response.json()) as FunctionsServerResult;
@@ -159,7 +170,7 @@ export async function callFunctionsServer(
     if (e.name === "AbortError") {
       throw new Error(`Functions server request timed out after ${timeoutMs}ms`);
     }
-    throw e;
+    throw new RetryError(`Functions server request failed: ${e.message}`);
   } finally {
     clearTimeout(timeoutId);
   }
@@ -172,13 +183,23 @@ export async function callFunctionsServer(
 export function createFunctionsServerWrapper(
   workspaceId: string,
   connectionId: string,
+  functionsClass: "free" | "dedicated",
   chainCtx: FunctionChainContext,
   funcCtx: FunctionContext,
   eventsLogger: EventsStore
 ): (event: AnyEvent, ctx: EventContext) => Promise<AnyEvent | AnyEvent[] | "drop" | undefined> {
   return async (event: AnyEvent, ctx: EventContext) => {
     try {
-      const result = await callFunctionsServer(workspaceId, connectionId, event, ctx, chainCtx, funcCtx, eventsLogger);
+      const result = await callFunctionsServer(
+        workspaceId,
+        connectionId,
+        functionsClass,
+        event,
+        ctx,
+        chainCtx,
+        funcCtx,
+        eventsLogger
+      );
 
       // Check for errors in execLog - similar to checkError in udf-wrapper-code.txtjs
       let errObj: any = undefined;

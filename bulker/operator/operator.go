@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/jitsucom/bulker/jitsubase/appbase"
 	"github.com/jitsucom/bulker/jitsubase/logging"
 	"github.com/jitsucom/bulker/jitsubase/safego"
+	"github.com/jitsucom/bulker/jitsubase/utils"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -46,6 +48,7 @@ const (
 
 	// Special deployment name for free tier
 	freeDeploymentName = "free-fs"
+	freeServiceName    = "fs-free"
 )
 
 type Operator struct {
@@ -166,10 +169,10 @@ func (o *Operator) reconcile() {
 	freeWorkspaces := make([]*WorkspaceData, 0)
 
 	for _, ws := range wsData.workspaces {
-		functionsClass := o.getFunctionsClass(ws)
+		functionsClasses := o.getFunctionsClasses(ws)
 
 		// Skip legacy and unknown classes
-		if functionsClass == FunctionsClassLegacy || functionsClass == "" {
+		if !slices.Contains(functionsClasses, FunctionsClassDedicated) && !slices.Contains(functionsClasses, FunctionsClassFree) {
 			continue
 		}
 
@@ -183,10 +186,10 @@ func (o *Operator) reconcile() {
 
 		wsWorkspaceData := CalculateWorkspaceData(ws.ID, connections, functions, true)
 
-		switch functionsClass {
-		case FunctionsClassDedicated:
+		if slices.Contains(functionsClasses, FunctionsClassDedicated) {
 			dedicatedWorkspaces[ws.ID] = wsWorkspaceData
-		case FunctionsClassFree:
+		}
+		if slices.Contains(functionsClasses, FunctionsClassFree) {
 			freeWorkspaces = append(freeWorkspaces, wsWorkspaceData)
 		}
 	}
@@ -306,7 +309,6 @@ func (o *Operator) getExistingDeployments(ctx context.Context) (map[string]*Depl
 				continue
 			}
 			workspaceIDs = []string{deploymentID}
-			functionsClass = FunctionsClassDedicated
 		}
 
 		// Get config hash from pod template annotations
@@ -366,18 +368,18 @@ func (o *Operator) buildFreeDeploymentData(workspaces []*WorkspaceData) *Deploym
 	}
 }
 
-// getFunctionsClass returns the functions class for a workspace based on feature flags.
+// getFunctionsClasses returns the functions class for a workspace based on feature flags.
 // Format: ${FunctionsClassFeatureFlag}=<value> where value is dedicated, free, or legacy.
 // Returns empty string if no matching feature flag is found (uses default).
-func (o *Operator) getFunctionsClass(ws *WorkspaceConfig) string {
+func (o *Operator) getFunctionsClasses(ws *WorkspaceConfig) []string {
 	prefix := o.config.FunctionsClassFeatureFlag + "="
 	for _, feature := range ws.FeaturesEnabled {
 		if strings.HasPrefix(feature, prefix) {
-			return strings.TrimPrefix(feature, prefix)
+			return utils.ArrayMap(strings.Split(strings.TrimPrefix(feature, prefix), ","), strings.TrimSpace)
 		}
 	}
 	// Return default if no feature flag found
-	return o.config.DefaultFunctionsClass
+	return []string{o.config.DefaultFunctionsClass}
 }
 
 // createOrUpdateMongobetweenConfigMap creates/updates the mongobetween config ConfigMap
@@ -888,12 +890,12 @@ func (o *Operator) createOrUpdateServiceFromData(ctx context.Context, data *Depl
 		if err := o.createOrUpdateFreeService(ctx, data); err != nil {
 			return err
 		}
-		// Also create per-workspace ExternalName Services pointing to free-fs
-		for _, wsID := range data.WorkspaceIDs {
-			if err := o.createOrUpdateWorkspaceExternalNameService(ctx, wsID); err != nil {
-				return fmt.Errorf("failed to create ExternalName service for workspace %s: %v", wsID, err)
-			}
-		}
+		//// Also create per-workspace ExternalName Services pointing to free-fs
+		//for _, wsID := range data.WorkspaceIDs {
+		//	if err := o.createOrUpdateWorkspaceExternalNameService(ctx, wsID); err != nil {
+		//		return fmt.Errorf("failed to create ExternalName service for workspace %s: %v", wsID, err)
+		//	}
+		//}
 		return nil
 	}
 
@@ -903,7 +905,7 @@ func (o *Operator) createOrUpdateServiceFromData(ctx context.Context, data *Depl
 
 // createOrUpdateFreeService creates/updates the shared free-fs Service
 func (o *Operator) createOrUpdateFreeService(ctx context.Context, data *DeploymentData) error {
-	serviceName := freeDeploymentName
+	serviceName := freeServiceName
 	labels := map[string]string{
 		labelApp:            appName,
 		labelFunctionsClass: FunctionsClassFree,
@@ -956,7 +958,7 @@ func (o *Operator) createOrUpdateFreeService(ctx context.Context, data *Deployme
 func (o *Operator) createOrUpdateWorkspaceExternalNameService(ctx context.Context, workspaceID string) error {
 	serviceName := servicePrefix + workspaceID
 	// ExternalName target: free-fs.<namespace>.svc.cluster.local
-	externalName := fmt.Sprintf("%s.%s.svc.cluster.local", freeDeploymentName, o.config.KubernetesNamespace)
+	externalName := fmt.Sprintf("%s.%s.svc.cluster.local", freeServiceName, o.config.KubernetesNamespace)
 
 	service := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{

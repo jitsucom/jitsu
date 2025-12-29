@@ -78,7 +78,7 @@ const ServerEnvSchema = z.object({
   FAST_STORE_WORKSPACE_ID: z.string().optional(),
   // Functions class configuration (dedicated, free, legacy)
   DEFAULT_FUNCTIONS_CLASS: z.string().optional().default("legacy"),
-  FUNCTIONS_CLASS_FEATURE_FLAG: z.string().optional().default("functionsClass"),
+  FUNCTIONS_CLASS_FEATURE_FLAG: z.string().optional().default("functionsClasses"),
   // Functions server service URL template (use ${workspaceId} as placeholder)
   // Service name uses prefix to ensure it starts with letter (workspaceId may start with number)
   FUNCTIONS_SERVER_URL_TEMPLATE: z.string().optional().default("http://fs-${workspaceId}:3456"),

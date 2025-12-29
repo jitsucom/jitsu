@@ -44,7 +44,14 @@ import { createRedisStore } from "./store";
 import { UDFWrapper } from "./udf_wrapper";
 import { warehouseQuery } from "./warehouse-store";
 import { MongodbDestination } from "./mongodb-destination";
-import { createFunctionsServerWrapper, getFunctionsClass, shouldUseFunctionsServer } from "./functions-server-client";
+import {
+  createFunctionsServerWrapper,
+  FunctionsClass,
+  FunctionsClassFree,
+  FunctionsClassLegacy,
+  getFunctionsClasses,
+  shouldUseFunctionsServer,
+} from "./functions-server-client";
 
 const serverEnv = getServerEnv();
 const fastStoreWorkspaceId = (serverEnv.FAST_STORE_WORKSPACE_ID ?? "").split(",").filter(x => x.length > 0);
@@ -98,10 +105,11 @@ export function checkError(chainRes: FuncChainResult) {
 }
 
 export function buildFunctionChain(
+  useFunctionsServer: boolean,
+  functionsClasses: FunctionsClass[],
   connection: EnrichedConnectionConfig,
   connStore: EntityStore<EnrichedConnectionConfig>,
   funcStore: EntityStore<FunctionConfig>,
-  workspacesStore: EntityStore<WorkspaceWithProfiles>,
   rotorContext: MessageHandlerContext,
   anonymousEventsStore: AnonymousEventsStore,
   fetchTimeoutMs: number = 2000
@@ -110,10 +118,6 @@ export function buildFunctionChain(
   const connectionData = connection.options as any;
   const conId = connection.id;
   const conWorkspaceId = connection.workspaceId;
-
-  // Check workspace's functions class to determine UDF execution mode
-  const functionsClass = getFunctionsClass(conWorkspaceId, workspacesStore);
-  const useFunctionsServer = shouldUseFunctionsServer(functionsClass);
 
   if (connection.usesBulker) {
     mainFunction = {
@@ -239,7 +243,7 @@ export function buildFunctionChain(
 
   const aggregatedFunctions: any[] = [
     ...(connectionData.functions || []).filter((f: any) => f.functionId.startsWith("builtin.transformation.")),
-    ...(hasUdfFunctions ? [{ functionId: "udf.PIPELINE", useFunctionsServer }] : []),
+    ...(hasUdfFunctions ? [{ functionId: "udf.PIPELINE" }] : []),
     mainFunction,
   ];
 
@@ -275,11 +279,20 @@ export function buildFunctionChain(
 
   // Functions server pipeline function (dedicated/free mode)
   const functionsServerPipelineFunc = (
+    functionsClasses: FunctionsClass[],
     chainCtx: FunctionChainContext,
     funcCtx: FunctionContext,
     eventsLogger: EventsStore
   ): JitsuFunctionWrapper => {
-    const wrapper = createFunctionsServerWrapper(conWorkspaceId, conId, chainCtx, funcCtx, eventsLogger);
+    const functionsClass = functionsClasses.filter(fc => fc !== FunctionsClassLegacy)[0];
+    const wrapper = createFunctionsServerWrapper(
+      conWorkspaceId,
+      conId,
+      functionsClass,
+      chainCtx,
+      funcCtx,
+      eventsLogger
+    );
     return async (event: AnyEvent, ctx: EventContext) => {
       return wrapper(event, ctx);
     };
@@ -311,8 +324,8 @@ export function buildFunctionChain(
       return {
         id: f.functionId as string,
         context: funcCtx,
-        exec: f.useFunctionsServer
-          ? functionsServerPipelineFunc(chainCtx, funcCtx, rotorContext.eventsLogger)
+        exec: useFunctionsServer
+          ? functionsServerPipelineFunc(functionsClasses, chainCtx, funcCtx, rotorContext.eventsLogger)
           : udfPipelineFunc(chainCtx),
       };
     } else {
