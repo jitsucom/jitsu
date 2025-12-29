@@ -6,7 +6,7 @@ import { ConfigurationObjectLinkDbModel } from "../../../prisma/schema";
 import { z } from "zod";
 import { Table, Tooltip } from "antd";
 import { confirmOp, feedbackError, feedbackSuccess } from "../../../lib/ui";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { FaExternalLinkAlt, FaPlay, FaPlus, FaTrash } from "react-icons/fa";
 import { getLog, index, rpc } from "juava";
@@ -121,10 +121,13 @@ export const NotFound: React.FC<{ id: string; type: string }> = ({ id, type }) =
 };
 
 function SyncsTable({ links, services, destinations }: RemoteEntitiesProps) {
-  const servicesById = index(services, "id");
-  const destinationsById = index(destinations, "id");
-  const validLinks = links.filter(l => servicesById[l.fromId] && destinationsById[l.toId]);
-  const linksById = index(validLinks, "id");
+  const servicesById = useMemo(() => index(services, "id"), [services]);
+  const destinationsById = useMemo(() => index(destinations, "id"), [destinations]);
+  const validLinks = useMemo(
+    () => links.filter(l => servicesById[l.fromId] && destinationsById[l.toId]),
+    [links, servicesById, destinationsById]
+  );
+  const linksById = useMemo(() => index(validLinks, "id"), [validLinks]);
   const workspace = useWorkspace();
   const router = useRouter();
   const [loading, setLoading] = React.useState(false);
