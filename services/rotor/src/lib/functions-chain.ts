@@ -36,7 +36,7 @@ import { retryObject } from "./retries";
 import NodeCache from "node-cache";
 import isEqual from "lodash/isEqual";
 import { MessageHandlerContext } from "./message-handler";
-import { promFunctionsInFlight, promFunctionsTime } from "./metrics";
+import { promFunctionsChainStatuses, promFunctionsInFlight, promFunctionsTime } from "./metrics";
 import { getServerEnv } from "../serverEnv";
 import { ProfilesFunction } from "./profiles-functions";
 import { createMongoStore, mongodb } from "./mongodb";
@@ -181,6 +181,15 @@ export function buildFunctionChain(
       return warehouseQuery(conWorkspaceId, connStore, conId, query, params, rotorContext.metrics);
     },
     anonymousEventsStore,
+    metrics: {
+      status(component: string, status: "error" | "ok", errorType: string = ""): { inc: (value: number) => void } {
+        return {
+          inc: (value: number) => {
+            promFunctionsChainStatuses.labels({ connectionId: conId, component, status, errorType }).inc(value);
+          },
+        };
+      },
+    },
     connectionOptions: connectionData,
   };
   const udfFuncCtx = {

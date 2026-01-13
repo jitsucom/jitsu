@@ -22,15 +22,19 @@ export interface Store {
 }
 
 export interface FunctionMetrics {
-  counter(name: string): {
+  status(
+    component: string,
+    status: "error" | "ok",
+    errorType?: string
+  ): {
     //increment / decrement counter. Supports negative values
     inc: (value: number) => void;
   };
-  gauge(name: string): {
-    set: (value: number) => void;
-    //increment / decrement counter. Supports negative values
-    inc: (value: number) => void;
-  };
+  // gauge(name: string): {
+  //   set: (value: number) => void;
+  //   //increment / decrement counter. Supports negative values
+  //   inc: (value: number) => void;
+  // };
 }
 
 export interface TTLStore extends Store {

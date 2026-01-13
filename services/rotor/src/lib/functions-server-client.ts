@@ -168,9 +168,11 @@ export async function callFunctionsServer(
     return result;
   } catch (e: any) {
     if (e.name === "AbortError") {
-      throw new Error(`Functions server request timed out after ${timeoutMs}ms`);
+      chainCtx.metrics?.status("functions_server", "error", "timeout").inc(1);
+      throw new RetryError(`Functions processing timed out after ${timeoutMs}ms.`);
     }
-    throw new RetryError(`Functions server request failed: ${e.message}`);
+    chainCtx.metrics?.status("functions_server", "error", "other").inc(1);
+    throw new RetryError(`Functions processing failed: ${e.message}`);
   } finally {
     clearTimeout(timeoutId);
   }

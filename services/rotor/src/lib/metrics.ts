@@ -94,6 +94,11 @@ export const promProfileStatuses = new Histogram({
   buckets: [0.2, 1, 2, 5, 10, 60, 300], // durations in seconds
   labelNames: ["builderId", "priority", "status"] as const,
 });
+export const promFunctionsChainStatuses = new Counter({
+  name: "functions_chain_status",
+  help: "functions chain statuses",
+  labelNames: ["connectionId", "component", "status", "errorType"] as const,
+});
 
 const _EpochTime = 0;
 const _MessageId = 1;
