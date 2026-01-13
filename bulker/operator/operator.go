@@ -1104,7 +1104,7 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 		}
 	}
 
-	replicas := int32(1)
+	replicas := int32(2)
 	volumes := make([]corev1.Volume, 0)
 	volumeMounts := make([]corev1.VolumeMount, 0)
 
@@ -1167,6 +1167,10 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 		{
 			Name:  "ROTOR_MODE",
 			Value: "functions",
+		},
+		{
+			Name:  "LOG_FORMAT",
+			Value: "json",
 		},
 		{
 			Name:  "PORT",
