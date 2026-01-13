@@ -1239,25 +1239,25 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 					Protocol:      corev1.ProtocolTCP,
 				},
 			},
-			// Simple TCP liveness check for mongobetween
-			LivenessProbe: &corev1.Probe{
-				ProbeHandler: corev1.ProbeHandler{
-					TCPSocket: &corev1.TCPSocketAction{
-						Port: intstr.FromInt(o.config.MongobetweenPort),
-					},
-				},
-				InitialDelaySeconds: 5,
-				PeriodSeconds:       30,
-			},
-			ReadinessProbe: &corev1.Probe{
-				ProbeHandler: corev1.ProbeHandler{
-					TCPSocket: &corev1.TCPSocketAction{
-						Port: intstr.FromInt(o.config.MongobetweenPort),
-					},
-				},
-				InitialDelaySeconds: 2,
-				PeriodSeconds:       2,
-			},
+			//// Simple TCP liveness check for mongobetween
+			//LivenessProbe: &corev1.Probe{
+			//	ProbeHandler: corev1.ProbeHandler{
+			//		TCPSocket: &corev1.TCPSocketAction{
+			//			Port: intstr.FromInt(o.config.MongobetweenPort),
+			//		},
+			//	},
+			//	InitialDelaySeconds: 5,
+			//	PeriodSeconds:       30,
+			//},
+			//ReadinessProbe: &corev1.Probe{
+			//	ProbeHandler: corev1.ProbeHandler{
+			//		TCPSocket: &corev1.TCPSocketAction{
+			//			Port: intstr.FromInt(o.config.MongobetweenPort),
+			//		},
+			//	},
+			//	InitialDelaySeconds: 2,
+			//	PeriodSeconds:       2,
+			//},
 		})
 	}
 
