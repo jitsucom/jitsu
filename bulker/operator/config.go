@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 
@@ -56,4 +58,22 @@ func (c *Config) PostInit(settings *appbase.AppSettings) error {
 		return fmt.Errorf("%sREPOSITORY_URL is required", settings.EnvPrefixWithUnderscore())
 	}
 	return c.Config.PostInit(settings)
+}
+
+// CalculateOperatorConfigHash calculates a hash of Config fields that affect deployments.
+// When this hash changes, deployments should be updated to reflect the new configuration.
+func (c *Config) CalculateOperatorConfigHash() string {
+	h := sha256.New()
+
+	// Include all config fields that affect deployment specs
+	h.Write([]byte(c.FunctionsServerImage))
+	h.Write([]byte(fmt.Sprintf("%d", c.FunctionsServerPort)))
+	h.Write([]byte(c.ServiceType))
+	h.Write([]byte(c.KubernetesNodeSelector))
+	h.Write([]byte(c.PodsServiceAccount))
+	h.Write([]byte(c.MongoDBURL))
+	h.Write([]byte(c.MongobetweenImage))
+	h.Write([]byte(fmt.Sprintf("%d", c.MongobetweenPort)))
+
+	return hex.EncodeToString(h.Sum(nil))[:16]
 }

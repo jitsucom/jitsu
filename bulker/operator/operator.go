@@ -25,18 +25,19 @@ import (
 )
 
 const (
-	labelApp            = "app"
-	labelWorkspaceID    = "jitsu.com/workspace-id"
-	labelWorkspaceIDs   = "jitsu.com/workspace-ids" // For multi-workspace deployments (annotation, comma-separated)
-	labelConfigHash     = "jitsu.com/config-hash"
-	labelConfigType     = "jitsu.com/config-type"
-	labelFunctionsClass = "jitsu.com/functions-class"
-	labelConfigPartIdx  = "jitsu.com/config-part"
-	appName             = "functions-server"
-	connectionsCMSuffix = "-fs-connections"
-	functionsCMSuffix   = "-fs-functions"
-	deploymentSuffix    = "-fs"
-	servicePrefix       = "fs-" // Prefix to ensure service name starts with letter (workspaceId may start with number)
+	labelApp                = "app"
+	labelWorkspaceID        = "jitsu.com/workspace-id"
+	labelWorkspaceIDs       = "jitsu.com/workspace-ids" // For multi-workspace deployments (annotation, comma-separated)
+	labelConfigHash         = "jitsu.com/config-hash"
+	labelOperatorConfigHash = "jitsu.com/operator-config-hash"
+	labelConfigType         = "jitsu.com/config-type"
+	labelFunctionsClass     = "jitsu.com/functions-class"
+	labelConfigPartIdx      = "jitsu.com/config-part"
+	appName                 = "functions-server"
+	connectionsCMSuffix     = "-fs-connections"
+	functionsCMSuffix       = "-fs-functions"
+	deploymentSuffix        = "-fs"
+	servicePrefix           = "fs-" // Prefix to ensure service name starts with letter (workspaceId may start with number)
 
 	// ConfigMap size limit (1MB with some buffer for metadata)
 	maxConfigMapSize = 900 * 1024
@@ -196,22 +197,25 @@ func (o *Operator) reconcile() {
 
 	// Build desired deployments map
 	desiredDeployments := make(map[string]*DeploymentData)
+	operatorConfigHash := o.config.CalculateOperatorConfigHash()
 
 	// Add dedicated deployments (one per workspace)
 	for workspaceID, wsData := range dedicatedWorkspaces {
 		desiredDeployments[workspaceID] = &DeploymentData{
-			DeploymentID:   workspaceID,
-			FunctionsClass: FunctionsClassDedicated,
-			WorkspaceIDs:   []string{workspaceID},
-			Connections:    wsData.Connections,
-			Functions:      wsData.Functions,
-			ConfigHash:     wsData.ConfigHash,
+			DeploymentID:       workspaceID,
+			FunctionsClass:     FunctionsClassDedicated,
+			WorkspaceIDs:       []string{workspaceID},
+			Connections:        wsData.Connections,
+			Functions:          wsData.Functions,
+			ConfigHash:         wsData.ConfigHash,
+			OperatorConfigHash: operatorConfigHash,
 		}
 	}
 
 	// Add free deployment (all free workspaces share one deployment)
 	if len(freeWorkspaces) > 0 {
 		freeDeployment := o.buildFreeDeploymentData(freeWorkspaces)
+		freeDeployment.OperatorConfigHash = operatorConfigHash
 		desiredDeployments[FunctionsClassFree] = freeDeployment
 	}
 
@@ -229,11 +233,21 @@ func (o *Operator) reconcile() {
 			}
 		} else {
 			// Update existing deployment
-			logging.Infof("Updating deployment %s (hash changed: %s -> %s)",
-				deploymentID, existing.ConfigHash, deploymentData.ConfigHash)
-			if err := o.updateDeploymentFromData(deploymentData, existing); err != nil {
-				logging.Errorf("Failed to update deployment %s: %v", deploymentID, err)
-				continue
+			needDeploy := false
+			if existing.ConfigHash != deploymentData.ConfigHash {
+				needDeploy = true
+				logging.Infof("Updating deployment %s (hash changed: %s -> %s)",
+					deploymentID, existing.ConfigHash, deploymentData.ConfigHash)
+			} else if existing.OperatorConfigHash != deploymentData.OperatorConfigHash {
+				needDeploy = true
+				logging.Infof("Updating deployment %s (operator config changed: %s -> %s)",
+					deploymentID, existing.OperatorConfigHash, deploymentData.OperatorConfigHash)
+			}
+			if needDeploy {
+				if err := o.updateDeploymentFromData(deploymentData, existing); err != nil {
+					logging.Errorf("Failed to update deployment %s: %v", deploymentID, err)
+					continue
+				}
 			}
 		}
 	}
@@ -313,8 +327,10 @@ func (o *Operator) getExistingDeployments(ctx context.Context) (map[string]*Depl
 
 		// Get config hash from pod template annotations
 		configHash := ""
+		operatorConfigHash := ""
 		if deployment.Spec.Template.Annotations != nil {
 			configHash = deployment.Spec.Template.Annotations[labelConfigHash]
+			operatorConfigHash = deployment.Spec.Template.Annotations[labelOperatorConfigHash]
 		}
 
 		// Get ConfigMap counts for this deployment
@@ -332,6 +348,7 @@ func (o *Operator) getExistingDeployments(ctx context.Context) (map[string]*Depl
 			FunctionsClass:            functionsClass,
 			WorkspaceIDs:              workspaceIDs,
 			ConfigHash:                configHash,
+			OperatorConfigHash:        operatorConfigHash,
 			ConnectionsConfigMapCount: connsCMCount,
 			FunctionsConfigMapCount:   funcsCMCount,
 		}
@@ -1235,7 +1252,7 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 					},
 				},
 				InitialDelaySeconds: 2,
-				PeriodSeconds:       10,
+				PeriodSeconds:       2,
 			},
 		})
 	}
@@ -1253,6 +1270,13 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 		},
 		Env:          envVars,
 		VolumeMounts: volumeMounts,
+		Lifecycle: &corev1.Lifecycle{
+			PreStop: &corev1.LifecycleHandler{
+				Exec: &corev1.ExecAction{
+					Command: []string{"/bin/sleep", "20"},
+				},
+			},
+		},
 		LivenessProbe: &corev1.Probe{
 			ProbeHandler: corev1.ProbeHandler{
 				HTTPGet: &corev1.HTTPGetAction{
@@ -1261,7 +1285,7 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 				},
 			},
 			InitialDelaySeconds: 10,
-			PeriodSeconds:       30,
+			PeriodSeconds:       10,
 		},
 		ReadinessProbe: &corev1.Probe{
 			ProbeHandler: corev1.ProbeHandler{
@@ -1271,14 +1295,15 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 				},
 			},
 			InitialDelaySeconds: 5,
-			PeriodSeconds:       10,
+			PeriodSeconds:       5,
 		},
 	})
-
+	sec30 := int64(30)
 	podSpec := corev1.PodSpec{
-		Containers:   containers,
-		Volumes:      volumes,
-		NodeSelector: nodeSelector,
+		TerminationGracePeriodSeconds: &sec30,
+		Containers:                    containers,
+		Volumes:                       volumes,
+		NodeSelector:                  nodeSelector,
 	}
 
 	// Add service account if configured
@@ -1292,7 +1317,8 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 			Namespace: o.config.KubernetesNamespace,
 			Labels:    labels,
 			Annotations: map[string]string{
-				labelWorkspaceIDs: strings.Join(data.WorkspaceIDs, ","),
+				labelWorkspaceIDs:       strings.Join(data.WorkspaceIDs, ","),
+				labelOperatorConfigHash: data.OperatorConfigHash,
 			},
 		},
 		Spec: appsv1.DeploymentSpec{
@@ -1304,8 +1330,9 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: labels,
 					Annotations: map[string]string{
-						labelConfigHash:   data.ConfigHash,
-						labelWorkspaceIDs: strings.Join(data.WorkspaceIDs, ","),
+						labelConfigHash:         data.ConfigHash,
+						labelOperatorConfigHash: data.OperatorConfigHash,
+						labelWorkspaceIDs:       strings.Join(data.WorkspaceIDs, ","),
 					},
 				},
 				Spec: podSpec,

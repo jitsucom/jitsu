@@ -63,6 +63,7 @@ type DeploymentData struct {
 	Connections               []*EnrichedConnectionConfig
 	Functions                 []*FunctionConfig
 	ConfigHash                string // Hash of all connections + functions for change detection
+	OperatorConfigHash        string // Hash of operator Config for detecting config changes
 	ConnectionsConfigMapCount int    // Number of connections ConfigMaps (for splitting large data)
 	FunctionsConfigMapCount   int    // Number of functions ConfigMaps (for splitting large data)
 }
