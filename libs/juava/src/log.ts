@@ -26,11 +26,16 @@ export function setGlobalLogLevel(level: LogLevel) {
 }
 
 export function setServerLogColoring(enableColoring: boolean) {
-  enableServerLogsColoring = enableColoring;
+  if (!enableJsonFormat) {
+    enableServerLogsColoring = enableColoring;
+  }
 }
 
 export function setServerJsonFormat(enableJson: boolean) {
   enableJsonFormat = enableJson;
+  if (enableJson) {
+    enableServerLogsColoring = false;
+  }
 }
 
 export function getLog(_opts?: LoggerOpts | string): LogFactory {
