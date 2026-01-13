@@ -17,7 +17,7 @@ import {
 import * as esbuild from "esbuild";
 
 const gunzip = promisify(zlib.gunzip);
-import { getLog, LogLevel, parseNumber, stopwatch } from "juava";
+import { disableService, getLog, LogLevel, parseNumber, setServerJsonFormat, stopwatch } from "juava";
 import {
   EnrichedConnectionConfig,
   FunctionConfig,
@@ -25,12 +25,7 @@ import {
   FuncChainResult,
   FunctionExecRes,
   FunctionExecLog,
-  storeFunc,
-  FunctionContext,
-  InternalFetchType,
   makeFetch,
-  makeLog,
-  EventsStore,
   EntityStore,
 } from "@jitsu/core-functions-lib";
 import { getServerEnv } from "./serverEnv";
@@ -39,6 +34,11 @@ import { mongodb, createMongoStore } from "./lib/mongodb";
 import { warehouseQuery } from "./lib/warehouse-store";
 
 const env = getServerEnv();
+
+disableService("prisma");
+disableService("pg");
+
+setServerJsonFormat(env.LOG_FORMAT === "json");
 
 const log = getLog("functions-server");
 
