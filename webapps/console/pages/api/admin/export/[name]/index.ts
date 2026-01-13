@@ -1,6 +1,6 @@
 import { createRoute, verifyAdmin } from "../../../../../lib/api";
 import { db } from "../../../../../lib/server/db";
-import { getErrorMessage, getLog, hash as juavaHash, requireDefined, rpc } from "juava";
+import { getErrorMessage, getLog, hash as juavaHash, isTruish, requireDefined, rpc } from "juava";
 import { z } from "zod";
 import { getCoreDestinationTypeNonStrict } from "../../../../../lib/schema/destinations";
 import { createJwt, getEeConnection, isEEAvailable } from "../../../../../lib/server/ee";
@@ -770,7 +770,7 @@ export const ExportQueryParams = z.object({
   name: z.string(),
   listen: z.string().optional(),
   timeoutMs: z.coerce.number().optional().default(10_000),
-  dateOnly: z.coerce.boolean().optional().default(false),
+  dateOnly: z.string().default("false").transform(isTruish),
 });
 
 export function notModified(ifModifiedSince: Date | undefined, lastModified: Date | undefined) {

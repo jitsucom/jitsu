@@ -5,7 +5,7 @@ import { ApiError } from "../../../../lib/shared/errors";
 import { getServerLog } from "../../../../lib/server/log";
 
 import { cleanupTasksLogs, scheduleSync } from "../../../../lib/server/sync";
-import { stopwatch } from "juava";
+import { isTruish, stopwatch } from "juava";
 import { getServerEnv } from "../../../../lib/server/serverEnv";
 
 const log = getServerLog("sync-run");
@@ -34,9 +34,9 @@ export default createRoute()
       workspaceId: z.string(),
       syncId: z.string(),
       fullSync: z.string().optional(),
-      ignoreRunning: z.coerce.boolean().optional(),
-      skipRefresh: z.coerce.boolean().optional(),
-      nodelay: z.coerce.boolean().optional(),
+      ignoreRunning: z.string().transform(isTruish).optional(),
+      skipRefresh: z.string().transform(isTruish).optional(),
+      nodelay: z.string().transform(isTruish).optional(),
       taskId: z.string().optional(),
     }),
     result: resultType,
@@ -64,7 +64,7 @@ export default createRoute()
         user,
         trigger,
         workspaceId,
-        fullSync: query.fullSync === "true" || query.fullSync === "1",
+        fullSync: isTruish(query.fullSync),
         syncIdOrModel: query.syncId as string,
         ignoreRunning: !!query.ignoreRunning,
         skipRefresh: !!query.skipRefresh,

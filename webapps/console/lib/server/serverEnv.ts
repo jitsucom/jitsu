@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ClientEnvSchema, getClientEnv, isBuilding, wrapZodError } from "../shared/clientEnv";
+import { isTruish } from "juava";
 
 /**
  * Server-side environment variables schema.
@@ -18,7 +19,7 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   APP_DATABASE_URL: z.string().optional(),
 
   // Enable database query debugging - logs all SQL queries to console
-  CONSOLE_DATABASE_DEBUG: z.coerce.boolean().optional().default(false),
+  CONSOLE_DATABASE_DEBUG: z.string().default("false").transform(isTruish),
 
   // ============================================
   // ClickHouse Configuration
@@ -31,7 +32,7 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   CLICKHOUSE_HOST: z.string().optional(),
 
   // Enable SSL for ClickHouse connection
-  CLICKHOUSE_SSL: z.coerce.boolean().optional().default(false),
+  CLICKHOUSE_SSL: z.string().default("false").transform(isTruish),
 
   // ClickHouse authentication username
   CLICKHOUSE_USERNAME: z.string().optional().default("default"),
@@ -66,7 +67,7 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   SYNCCTL_AUTH_KEY: z.string().optional(),
 
   // Enable/disable syncs feature globally
-  SYNCS_ENABLED: z.coerce.boolean().optional().default(false),
+  SYNCS_ENABLED: z.string().default("false").transform(isTruish),
 
   // Sync task log retention age in days
   SYNC_TASK_LOG_AGE: z.coerce.number().optional().default(60),
@@ -75,7 +76,7 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   SYNC_TASK_LOG_SIZE: z.coerce.number().optional().default(3000),
 
   // Enable debug mode for sync operations
-  DEBUG_SYNCS: z.coerce.boolean().optional().default(false),
+  DEBUG_SYNCS: z.string().default("false").transform(isTruish),
 
   // ============================================
   // Google Cloud Services
@@ -117,10 +118,10 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   AUTH_OIDC_PROVIDER: z.string().optional(),
 
   // Enable dynamic OIDC provider support
-  DYNAMIC_OIDC_ENABLED: z.coerce.boolean().optional().default(false),
+  DYNAMIC_OIDC_ENABLED: z.string().default("false").transform(isTruish),
 
   // Enable email/password login
-  ENABLE_CREDENTIALS_LOGIN: z.coerce.boolean().optional().default(false),
+  ENABLE_CREDENTIALS_LOGIN: z.string().default("false").transform(isTruish),
 
   // Firebase authentication configuration (JSON)
   FIREBASE_AUTH: z.string().optional(),
@@ -215,17 +216,17 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   GLOBAL_HASH_SECRET: z.string().optional(),
 
   // Enable audit logging for security and compliance
-  CONSOLE_ENABLE_AUDIT_LOG: z.coerce.boolean().optional().default(false),
+  CONSOLE_ENABLE_AUDIT_LOG: z.string().default("false").transform(isTruish),
 
   // ============================================
   // Features & Flags
   // ============================================
 
   // Disable new user registration
-  DISABLE_SIGNUP: z.coerce.boolean().optional().default(false),
+  DISABLE_SIGNUP: z.string().default("false").transform(isTruish),
 
   // Enable MIT-compliant mode (disables proprietary features)
-  MIT_COMPLIANT: z.coerce.boolean().optional().default(false),
+  MIT_COMPLIANT: z.string().default("false").transform(isTruish),
 
   // Connection string for Enterprise Edition features
   EE_CONNECTION: z.string().optional(),
@@ -241,7 +242,7 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   FRONTEND_LOG_LEVEL: z.string().optional(),
 
   // Disable ANSI color codes in server logs
-  DISABLE_SERVER_LOGS_ANSI_COLORING: z.coerce.boolean().optional().default(false),
+  DISABLE_SERVER_LOGS_ANSI_COLORING: z.string().default("false").transform(isTruish),
 
   // Log format ("json" for structured JSON logs, "text" for plain text)
   LOG_FORMAT: z.string().optional(),
@@ -251,7 +252,7 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   // ============================================
 
   // Disable anonymous usage telemetry
-  JITSU_DISABLE_ANONYMOUS_TELEMETRY: z.coerce.boolean().optional().default(false),
+  JITSU_DISABLE_ANONYMOUS_TELEMETRY: z.string().default("false").transform(isTruish),
 
   // Custom telemetry API key (overrides default)
   JITSU_SERVER_ANONYMOUS_TELEMETRY_KEY: z.string().optional(),
@@ -273,7 +274,7 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   SEED_USER_PASSWORD: z.string().optional(),
 
   // Enable seeding of demo configuration
-  SEED_DEMO_CONFIGURATION: z.coerce.boolean().optional().default(false),
+  SEED_DEMO_CONFIGURATION: z.string().default("false").transform(isTruish),
 
   // Schema for demo destination
   DEMO_DESTINATION_SCHEMA: z.string().optional().default("jitsu-data"),
@@ -298,7 +299,7 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   VERCEL_URL: z.string().optional(),
 
   // Flag indicating running on Vercel platform
-  VERCEL: z.coerce.boolean().optional().default(false),
+  VERCEL: z.string().default("false").transform(isTruish),
 
   // Node environment (development/production/test)
   NODE_ENV: z.string().optional().default("development"),
