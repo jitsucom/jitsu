@@ -194,6 +194,16 @@ String prefixed to all destination topic names.
 
 e.g. if `BULKER_KAFKA_TOPIC_PREFIX=some.prefix.`, then a full topic name could be `some.prefix.in.id.clyzlw-.m.batch.t.events`
 
+### `BULKER_TOPIC_MANAGER_ALL_TABLE_TOKEN`
+
+*Optional, default value: `_all_`*
+
+It allows overwriting default suffix to topics for all tables in a destination, such as 
+`dead` and `retries` topics
+
+e.g. if `BULKER_TOPIC_MANAGER_ALL_TABLE_TOKEN=all`, then a retry topic for destination `clyzlw-` would be
+`in.id.clyzlw-.m.retry.t.all`
+
 ### `BULKER_KAFKA_TOPIC_RETENTION_HOURS`
 
 *Optional, default value: `48` (2 days)*
