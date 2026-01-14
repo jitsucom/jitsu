@@ -9,6 +9,8 @@ import (
 	"github.com/mitchellh/mapstructure"
 )
 
+const annotationPromScrape = "prometheus.io/scrape"
+
 type TaskDescriptor struct {
 	TaskID          string `json:"taskId"`
 	TaskType        string `json:"taskType"` //spec, discover, read, check
@@ -47,6 +49,7 @@ func (t *TaskDescriptor) ExtractAnnotations() map[string]string {
 	rawAnnotations := map[string]string{}
 	_ = mapstructure.Decode(t, &rawAnnotations)
 	annotations := make(map[string]string, len(rawAnnotations))
+	annotations[annotationPromScrape] = "false"
 	for k, v := range rawAnnotations {
 		if v != "" {
 			annotations[k] = v
