@@ -1,6 +1,7 @@
 import http from "http";
 import path from "path";
 import fs from "fs";
+import fsp from "fs/promises";
 import os from "os";
 import zlib from "zlib";
 import { promisify } from "util";
@@ -287,9 +288,11 @@ globalThis.fromJitsuClassic = _fromJitsuClassic;
 const UDF_TEMP_DIR = path.join(os.tmpdir(), "jitsu-udf");
 
 // Ensure UDF temp directory exists
-function ensureUdfTempDir(): void {
-  if (!fs.existsSync(UDF_TEMP_DIR)) {
-    fs.mkdirSync(UDF_TEMP_DIR, { recursive: true });
+async function ensureUdfTempDir(): Promise<void> {
+  try {
+    await fsp.access(UDF_TEMP_DIR);
+  } catch {
+    await fsp.mkdir(UDF_TEMP_DIR, { recursive: true });
   }
 }
 
@@ -328,11 +331,11 @@ async function compileUdfFunction(code: string, functionId: string, env: any): P
     }
 
     // Write to temp file for readable stack traces
-    ensureUdfTempDir();
+    await ensureUdfTempDir();
     const sanitizedId = sanitizeFunctionId(functionId);
     const tempFile = path.join(UDF_TEMP_DIR, `${sanitizedId}.mjs`);
     const bundledCode = result.outputFiles[0].text;
-    fs.writeFileSync(tempFile, bundledCode);
+    await fsp.writeFile(tempFile, bundledCode);
 
     // Import from file path (gives readable stack traces)
     const module = await import(tempFile);
@@ -909,13 +912,7 @@ async function main() {
   server.listen(port, () => {
     log.atInfo().log(`\nServer running at http://localhost:${port}`);
     log.atInfo().log(`Config directory: ${configDir}`);
-    log.atInfo().log(`\nEndpoints:`);
-    log.atInfo().log(`  GET  /           - Health check & list connections`);
-    log.atInfo().log(`  GET  /_reload    - Reload configs`);
-    log.atInfo().log(`\nAvailable connections (chains built lazily on first request):`);
-    for (const id of connections.keys()) {
-      log.atInfo().log(`  POST /connection/${id}`);
-    }
+    log.atInfo().log(`\nAvailable connections: ${connections.size} (chains built lazily on first request):`);
   });
 
   // Graceful shutdown handler

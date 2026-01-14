@@ -1250,15 +1250,6 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 				InitialDelaySeconds: 5,
 				PeriodSeconds:       30,
 			},
-			ReadinessProbe: &corev1.Probe{
-				ProbeHandler: corev1.ProbeHandler{
-					TCPSocket: &corev1.TCPSocketAction{
-						Port: intstr.FromInt(o.config.MongobetweenPort),
-					},
-				},
-				InitialDelaySeconds: 2,
-				PeriodSeconds:       2,
-			},
 		})
 	}
 
@@ -1291,6 +1282,8 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 			},
 			InitialDelaySeconds: 10,
 			PeriodSeconds:       10,
+			TimeoutSeconds:      5,
+			FailureThreshold:    5,
 		},
 		ReadinessProbe: &corev1.Probe{
 			ProbeHandler: corev1.ProbeHandler{
@@ -1301,6 +1294,7 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 			},
 			InitialDelaySeconds: 5,
 			PeriodSeconds:       5,
+			TimeoutSeconds:      3,
 		},
 	})
 	sec30 := int64(30)
