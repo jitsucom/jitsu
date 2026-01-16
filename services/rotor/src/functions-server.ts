@@ -342,7 +342,11 @@ async function compileUdfFunction(code: string, functionId: string, env: any): P
 
     const func = module.default;
     if (typeof func !== "function") {
-      throw new Error(`Default export from function ${functionId} is not a function`);
+      throw new Error(
+        `Default export from function ${functionId} is not a function: ${typeof module.default} module: ${JSON.stringify(
+          module
+        )}`
+      );
     }
     return module;
   } catch (e: any) {
@@ -373,7 +377,7 @@ async function loadFunctionsFromDir(dir: string, functions: Map<string, Function
       const config = await loadJsonFile<FunctionConfig>(path.join(dir, file));
       functions.set(config.id, config);
       const compressed = file.endsWith(".gz") ? " (compressed)" : "";
-      log.atInfo().log(`✓ Loaded function: ${config.id} (${config.name})${compressed}`);
+      log.atDebug().log(`✓ Loaded function: ${config.id} (${config.name})${compressed}`);
     } catch (e: any) {
       log.atError().log(`✗ Failed to load function ${file}: ${e.message}`);
     }

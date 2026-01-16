@@ -1104,6 +1104,13 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 			o.Errorf("failed to parse node selector from string: %s\nIngoring it. Error: %v", o.config.KubernetesNodeSelector, err)
 		}
 	}
+	var tolerations []corev1.Toleration
+	if o.config.PodsTolerations != "" {
+		err := hjson.Unmarshal([]byte(o.config.PodsTolerations), &tolerations)
+		if err != nil {
+			o.Errorf("failed to parse tolerations from string: %s\nIngoring it. Error: %v", o.config.PodsTolerations, err)
+		}
+	}
 
 	replicas := int32(2)
 	volumes := make([]corev1.Volume, 0)
@@ -1303,6 +1310,7 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 		Containers:                    containers,
 		Volumes:                       volumes,
 		NodeSelector:                  nodeSelector,
+		Tolerations:                   tolerations,
 	}
 
 	// Add service account if configured

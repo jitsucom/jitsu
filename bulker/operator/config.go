@@ -27,6 +27,7 @@ type Config struct {
 	// nodeSelector for sync pods in json format, e.g: {"disktype": "ssd"}
 	KubernetesNodeSelector string `mapstructure:"KUBERNETES_NODE_SELECTOR"`
 	PodsServiceAccount     string `mapstructure:"PODS_SERVICE_ACCOUNT"`
+	PodsTolerations        string `mapstructure:"PODS_TOLERATIONS"` // tolerations for sync pods in json format
 
 	// Functions server configuration
 	FunctionsServerImage string `mapstructure:"FUNCTIONS_SERVER_IMAGE" default:"jitsucom/functions-server:latest"`
@@ -70,6 +71,7 @@ func (c *Config) CalculateOperatorConfigHash() string {
 	h.Write([]byte(fmt.Sprintf("%d", c.FunctionsServerPort)))
 	h.Write([]byte(c.ServiceType))
 	h.Write([]byte(c.KubernetesNodeSelector))
+	h.Write([]byte(c.PodsTolerations))
 	h.Write([]byte(c.PodsServiceAccount))
 	h.Write([]byte(c.MongoDBURL))
 	h.Write([]byte(c.MongobetweenImage))
