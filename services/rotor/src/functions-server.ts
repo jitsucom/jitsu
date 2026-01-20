@@ -30,7 +30,7 @@ import {
   EntityStore,
 } from "@jitsu/core-functions-lib";
 import { getServerEnv } from "./serverEnv";
-import { DropRetryErrorName, NoRetryErrorName, NoRetryError } from "@jitsu/functions-lib";
+import { DropRetryErrorName, NoRetryErrorName, NoRetryError, RetryError } from "@jitsu/functions-lib";
 import { mongodb, createMongoStore } from "./lib/mongodb";
 import { warehouseQuery } from "./lib/warehouse-store";
 
@@ -489,7 +489,7 @@ async function buildFunctionChain(
         funcs.push({
           id: f.functionId,
           exec: async () => {
-            throw new NoRetryError(compilationError);
+            throw new RetryError(compilationError);
           },
           config: undefined,
         });
@@ -501,7 +501,7 @@ async function buildFunctionChain(
       funcs.push({
         id: f.functionId,
         exec: async () => {
-          throw new NoRetryError(`Function ${functionId} not found or has no code`);
+          throw new RetryError(`Function ${functionId} not found or has no code`);
         },
         config: undefined,
       });
@@ -776,32 +776,33 @@ async function main() {
     log.atWarn().log("No connections found");
   }
 
-  // Function chains cache - built lazily on first request
-  let chains = new Map<string, FunctionChain>();
+  // Function chains cache - stores promises to avoid parallel builds for the same connection
+  let chains = new Map<string, Promise<FunctionChain | undefined>>();
 
-  // Get or build chain for a connection (lazy loading)
+  // Get or build chain for a connection (lazy loading with single-flight pattern)
   async function getOrBuildChain(connectionId: string): Promise<FunctionChain | undefined> {
-    // Return cached chain if available
-    const cached = chains.get(connectionId);
-    if (cached) {
-      return cached;
-    }
-
-    // Build chain on-demand
     const connection = connections.get(connectionId);
     if (!connection) {
       return undefined;
     }
 
-    try {
-      const chain = await buildFunctionChain(conEntityStore, connection, functions);
-      chains.set(connectionId, chain);
-      log.atInfo().log(`✓ Built chain for connection: ${connectionId} (${chain.functions.length} functions)`);
-      return chain;
-    } catch (e: any) {
-      log.atError().log(`✗ Failed to build chain for ${connectionId}: ${e.message}`);
-      return undefined;
+    const cached = chains.get(connectionId);
+    if (cached) {
+      return cached;
     }
+
+    const buildPromise = buildFunctionChain(conEntityStore, connection, functions)
+      .then(chain => {
+        log.atInfo().log(`✓ Built chain for connection: ${connectionId} (${chain.functions.length} functions)`);
+        return chain;
+      })
+      .catch(e => {
+        log.atError().log(`✗ Failed to build chain for ${connectionId}: ${e.message}`);
+        return undefined;
+      });
+
+    chains.set(connectionId, buildPromise);
+    return buildPromise;
   }
 
   // Create HTTP server
