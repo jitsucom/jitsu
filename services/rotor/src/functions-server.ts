@@ -897,12 +897,12 @@ async function main() {
         ...customContext,
       } as EventContext & { retries?: number };
 
-      log.atInfo().log(`→ ${connectionId} processing event (${chain.functions.length} functions)`);
+      //log.atInfo().log(`→ ${connectionId} processing event (${chain.functions.length} functions)`);
 
       const result = await runChain(chain, event, eventContext);
 
       const totalMs = result.execLog.reduce((sum, e) => sum + (e.ms || 0), 0);
-      log.atInfo().log(`← ${connectionId} completed in ${totalMs}ms`);
+      log.atInfo().log(`← ${connectionId} (${chain.functions.length} functions) completed in ${totalMs}ms`);
 
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify(result, null, 2));

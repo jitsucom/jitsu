@@ -17,6 +17,7 @@ import (
 	"github.com/jitsucom/bulker/jitsubase/safego"
 	"github.com/jitsucom/bulker/jitsubase/utils"
 	appsv1 "k8s.io/api/apps/v1"
+	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -51,6 +52,8 @@ const (
 	// Special deployment name for free tier
 	freeDeploymentName = "free-fs"
 	freeServiceName    = "fs-free"
+	// HPA suffix
+	hpaSuffix = "-fs-hpa"
 )
 
 type Operator struct {
@@ -496,6 +499,11 @@ func (o *Operator) createDeploymentFromData(data *DeploymentData) error {
 		return fmt.Errorf("failed to create service: %v", err)
 	}
 
+	// Create HPA if enabled
+	if err := o.createOrUpdateHPA(ctx, data); err != nil {
+		return fmt.Errorf("failed to create HPA: %v", err)
+	}
+
 	return nil
 }
 
@@ -576,6 +584,11 @@ func (o *Operator) updateDeploymentFromData(data *DeploymentData, existing *Depl
 		return fmt.Errorf("failed to update service: %v", err)
 	}
 
+	// Update HPA if enabled
+	if err := o.createOrUpdateHPA(ctx, data); err != nil {
+		return fmt.Errorf("failed to update HPA: %v", err)
+	}
+
 	return nil
 }
 
@@ -639,6 +652,11 @@ func (o *Operator) deleteDeploymentByID(deploymentID string, existing *Deploymen
 	// Delete mongobetween ConfigMap if MongoDB is configured
 	if err := o.deleteMongobetweenConfigMap(ctx, deploymentID); err != nil {
 		logging.Warnf("Failed to delete mongobetween configmap: %v", err)
+	}
+
+	// Delete HPA
+	if err := o.deleteHPA(ctx, deploymentID, existing.FunctionsClass); err != nil {
+		logging.Warnf("Failed to delete HPA: %v", err)
 	}
 
 	return nil
@@ -1112,7 +1130,19 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 		}
 	}
 
+	var resources corev1.ResourceRequirements
+	if o.config.PodsResources != "" {
+		err := hjson.Unmarshal([]byte(o.config.PodsResources), &resources)
+		if err != nil {
+			o.Errorf("failed to parse resources from string: %s\nIngoring it. Error: %v", o.config.PodsResources, err)
+		}
+	}
+
+	// Use HPA min replicas when HPA is enabled, otherwise default to 2
 	replicas := int32(2)
+	if o.config.HPAEnabled {
+		replicas = o.config.HPAMinReplicas
+	}
 	volumes := make([]corev1.Volume, 0)
 	volumeMounts := make([]corev1.VolumeMount, 0)
 
@@ -1271,6 +1301,7 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 				Protocol:      corev1.ProtocolTCP,
 			},
 		},
+		Resources:    resources,
 		Env:          envVars,
 		VolumeMounts: volumeMounts,
 		Lifecycle: &corev1.Lifecycle{
@@ -1347,4 +1378,140 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 			},
 		},
 	}
+}
+
+// createOrUpdateHPA creates or updates a HorizontalPodAutoscaler for a deployment
+func (o *Operator) createOrUpdateHPA(ctx context.Context, data *DeploymentData) error {
+	if !o.config.HPAEnabled {
+		return nil
+	}
+
+	var deploymentName string
+	var hpaName string
+
+	if data.FunctionsClass == FunctionsClassFree {
+		deploymentName = freeDeploymentName
+		hpaName = freeDeploymentName + hpaSuffix
+	} else {
+		deploymentName = data.DeploymentID + deploymentSuffix
+		hpaName = data.DeploymentID + hpaSuffix
+	}
+
+	labels := map[string]string{
+		labelApp:            appName,
+		labelFunctionsClass: data.FunctionsClass,
+	}
+	if data.FunctionsClass == FunctionsClassDedicated {
+		labels[labelWorkspaceID] = data.DeploymentID
+	}
+
+	minReplicas := o.config.HPAMinReplicas
+	scaleDownStabilization := o.config.HPAScaleDownStabilizationSeconds
+	scaleUpStabilization := o.config.HPAScaleUpStabilizationSeconds
+
+	// Scale down policy: 1 pod per 120 seconds
+	scaleDownPodValue := int32(1)
+	scaleDownPeriod := int32(120)
+
+	// Scale up policy: 8 pods per 30 seconds
+	scaleUpPodValue := int32(2)
+	scaleUpPeriod := int32(30)
+
+	selectPolicyMax := autoscalingv2.MaxChangePolicySelect
+
+	hpa := &autoscalingv2.HorizontalPodAutoscaler{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      hpaName,
+			Namespace: o.config.KubernetesNamespace,
+			Labels:    labels,
+			Annotations: map[string]string{
+				labelWorkspaceIDs: strings.Join(data.WorkspaceIDs, ","),
+			},
+		},
+		Spec: autoscalingv2.HorizontalPodAutoscalerSpec{
+			ScaleTargetRef: autoscalingv2.CrossVersionObjectReference{
+				APIVersion: "apps/v1",
+				Kind:       "Deployment",
+				Name:       deploymentName,
+			},
+			MinReplicas: &minReplicas,
+			MaxReplicas: o.config.HPAMaxReplicas,
+			Behavior: &autoscalingv2.HorizontalPodAutoscalerBehavior{
+				ScaleDown: &autoscalingv2.HPAScalingRules{
+					StabilizationWindowSeconds: &scaleDownStabilization,
+					Policies: []autoscalingv2.HPAScalingPolicy{
+						{
+							Type:          autoscalingv2.PodsScalingPolicy,
+							Value:         scaleDownPodValue,
+							PeriodSeconds: scaleDownPeriod,
+						},
+					},
+				},
+				ScaleUp: &autoscalingv2.HPAScalingRules{
+					StabilizationWindowSeconds: &scaleUpStabilization,
+					SelectPolicy:               &selectPolicyMax,
+					Policies: []autoscalingv2.HPAScalingPolicy{
+						{
+							Type:          autoscalingv2.PodsScalingPolicy,
+							Value:         scaleUpPodValue,
+							PeriodSeconds: scaleUpPeriod,
+						},
+					},
+				},
+			},
+			Metrics: []autoscalingv2.MetricSpec{
+				{
+					Type: autoscalingv2.ResourceMetricSourceType,
+					Resource: &autoscalingv2.ResourceMetricSource{
+						Name: corev1.ResourceCPU,
+						Target: autoscalingv2.MetricTarget{
+							Type:               autoscalingv2.UtilizationMetricType,
+							AverageUtilization: &o.config.HPATargetCPUUtilization,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	existing, err := o.clientset.AutoscalingV2().HorizontalPodAutoscalers(o.config.KubernetesNamespace).Get(ctx, hpaName, metav1.GetOptions{})
+	if err != nil {
+		if errors.IsNotFound(err) {
+			_, err = o.clientset.AutoscalingV2().HorizontalPodAutoscalers(o.config.KubernetesNamespace).Create(ctx, hpa, metav1.CreateOptions{})
+			if err != nil {
+				return fmt.Errorf("failed to create HPA %s: %v", hpaName, err)
+			}
+			logging.Infof("Created HPA %s", hpaName)
+			return nil
+		}
+		return fmt.Errorf("failed to get HPA %s: %v", hpaName, err)
+	}
+
+	// Update existing HPA
+	hpa.ResourceVersion = existing.ResourceVersion
+	_, err = o.clientset.AutoscalingV2().HorizontalPodAutoscalers(o.config.KubernetesNamespace).Update(ctx, hpa, metav1.UpdateOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to update HPA %s: %v", hpaName, err)
+	}
+	logging.Infof("Updated HPA %s", hpaName)
+	return nil
+}
+
+// deleteHPA deletes the HorizontalPodAutoscaler for a deployment
+func (o *Operator) deleteHPA(ctx context.Context, deploymentID string, functionsClass string) error {
+	var hpaName string
+	if functionsClass == FunctionsClassFree {
+		hpaName = freeDeploymentName + hpaSuffix
+	} else {
+		hpaName = deploymentID + hpaSuffix
+	}
+
+	err := o.clientset.AutoscalingV2().HorizontalPodAutoscalers(o.config.KubernetesNamespace).Delete(ctx, hpaName, metav1.DeleteOptions{})
+	if err != nil && !errors.IsNotFound(err) {
+		return fmt.Errorf("failed to delete HPA %s: %v", hpaName, err)
+	}
+	if err == nil {
+		logging.Infof("Deleted HPA %s", hpaName)
+	}
+	return nil
 }
