@@ -34,6 +34,13 @@ type Config struct {
 
 	RepositoryURL       string `mapstructure:"REPOSITORY_URL"`
 	RepositoryAuthToken string `mapstructure:"REPOSITORY_AUTH_TOKEN"`
+
+	// # CLICKHOUSE CONFIG - for dead letter reprocessing
+	ClickhouseHost     string `mapstructure:"CLICKHOUSE_HOST"`
+	ClickhouseDatabase string `mapstructure:"CLICKHOUSE_DATABASE" default:"newjitsu_metrics"`
+	ClickhouseUsername string `mapstructure:"CLICKHOUSE_USERNAME" default:"default"`
+	ClickhousePassword string `mapstructure:"CLICKHOUSE_PASSWORD"`
+	ClickhouseSSL      bool   `mapstructure:"CLICKHOUSE_SSL" default:"false"`
 }
 
 func init() {
