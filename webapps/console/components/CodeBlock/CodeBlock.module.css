@@ -5,3 +5,106 @@
   @apply text-background !important;
   font-family: var(--font-mono) !important;
 }
+
+/* Scoped github-dark theme for highlight.js */
+.blockWrapper :global(pre code.hljs) {
+  display: block;
+  overflow-x: auto;
+  padding: 1em;
+}
+
+.blockWrapper :global(code.hljs) {
+  padding: 3px 5px;
+}
+
+.blockWrapper :global(.hljs) {
+  color: #c9d1d9;
+  background: #0d1117;
+}
+
+.blockWrapper :global(.hljs-doctag),
+.blockWrapper :global(.hljs-keyword),
+.blockWrapper :global(.hljs-meta .hljs-keyword),
+.blockWrapper :global(.hljs-template-tag),
+.blockWrapper :global(.hljs-template-variable),
+.blockWrapper :global(.hljs-type),
+.blockWrapper :global(.hljs-variable.language_) {
+  color: #ff7b72;
+}
+
+.blockWrapper :global(.hljs-title),
+.blockWrapper :global(.hljs-title.class_),
+.blockWrapper :global(.hljs-title.class_.inherited__),
+.blockWrapper :global(.hljs-title.function_) {
+  color: #d2a8ff;
+}
+
+.blockWrapper :global(.hljs-attr),
+.blockWrapper :global(.hljs-attribute),
+.blockWrapper :global(.hljs-literal),
+.blockWrapper :global(.hljs-meta),
+.blockWrapper :global(.hljs-number),
+.blockWrapper :global(.hljs-operator),
+.blockWrapper :global(.hljs-variable),
+.blockWrapper :global(.hljs-selector-attr),
+.blockWrapper :global(.hljs-selector-class),
+.blockWrapper :global(.hljs-selector-id) {
+  color: #79c0ff;
+}
+
+.blockWrapper :global(.hljs-regexp),
+.blockWrapper :global(.hljs-string),
+.blockWrapper :global(.hljs-meta .hljs-string) {
+  color: #a5d6ff;
+}
+
+.blockWrapper :global(.hljs-built_in),
+.blockWrapper :global(.hljs-symbol) {
+  color: #ffa657;
+}
+
+.blockWrapper :global(.hljs-comment),
+.blockWrapper :global(.hljs-code),
+.blockWrapper :global(.hljs-formula) {
+  color: #8b949e;
+}
+
+.blockWrapper :global(.hljs-name),
+.blockWrapper :global(.hljs-quote),
+.blockWrapper :global(.hljs-selector-tag),
+.blockWrapper :global(.hljs-selector-pseudo) {
+  color: #7ee787;
+}
+
+.blockWrapper :global(.hljs-subst) {
+  color: #c9d1d9;
+}
+
+.blockWrapper :global(.hljs-section) {
+  color: #1f6feb;
+  font-weight: bold;
+}
+
+.blockWrapper :global(.hljs-bullet) {
+  color: #f2cc60;
+}
+
+.blockWrapper :global(.hljs-emphasis) {
+  color: #c9d1d9;
+  font-style: italic;
+}
+
+.blockWrapper :global(.hljs-strong) {
+  color: #c9d1d9;
+  font-weight: bold;
+}
+
+.blockWrapper :global(.hljs-addition) {
+  color: #aff5b4;
+  background-color: #033a16;
+}
+
+.blockWrapper :global(.hljs-deletion) {
+  color: #ffdcd7;
+  background-color: #67060c;
+}

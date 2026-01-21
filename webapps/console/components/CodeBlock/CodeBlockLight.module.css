@@ -1,0 +1,107 @@
+.blockWrapper {
+}
+
+/* Scoped xcode theme for highlight.js */
+.blockWrapper :global(pre code.hljs) {
+  display: block;
+  overflow-x: auto;
+  padding: 1em;
+}
+
+.blockWrapper :global(code.hljs) {
+  padding: 3px 5px;
+}
+
+.blockWrapper :global(.hljs) {
+  background: #fff;
+  color: black;
+}
+
+.blockWrapper :global(.xml .hljs-meta) {
+  color: #c0c0c0;
+}
+
+.blockWrapper :global(.hljs-comment),
+.blockWrapper :global(.hljs-quote) {
+  color: #007400;
+}
+
+.blockWrapper :global(.hljs-tag),
+.blockWrapper :global(.hljs-attribute),
+.blockWrapper :global(.hljs-keyword),
+.blockWrapper :global(.hljs-selector-tag),
+.blockWrapper :global(.hljs-literal),
+.blockWrapper :global(.hljs-name) {
+  color: #aa0d91;
+}
+
+.blockWrapper :global(.hljs-variable),
+.blockWrapper :global(.hljs-template-variable) {
+  color: #3F6E74;
+}
+
+.blockWrapper :global(.hljs-code),
+.blockWrapper :global(.hljs-string),
+.blockWrapper :global(.hljs-meta .hljs-string) {
+  color: #c41a16;
+}
+
+.blockWrapper :global(.hljs-regexp),
+.blockWrapper :global(.hljs-link) {
+  color: #0E0EFF;
+}
+
+.blockWrapper :global(.hljs-title),
+.blockWrapper :global(.hljs-symbol),
+.blockWrapper :global(.hljs-bullet),
+.blockWrapper :global(.hljs-number) {
+  color: #1c00cf;
+}
+
+.blockWrapper :global(.hljs-section),
+.blockWrapper :global(.hljs-meta) {
+  color: #643820;
+}
+
+.blockWrapper :global(.hljs-title.class_),
+.blockWrapper :global(.hljs-class .hljs-title),
+.blockWrapper :global(.hljs-type),
+.blockWrapper :global(.hljs-built_in),
+.blockWrapper :global(.hljs-params) {
+  color: #5c2699;
+}
+
+.blockWrapper :global(.hljs-attr) {
+  color: #836C28;
+}
+
+.blockWrapper :global(.hljs-subst) {
+  color: #000;
+}
+
+.blockWrapper :global(.hljs-formula) {
+  background-color: #eee;
+  font-style: italic;
+}
+
+.blockWrapper :global(.hljs-addition) {
+  background-color: #baeeba;
+}
+
+.blockWrapper :global(.hljs-deletion) {
+  background-color: #ffc8bd;
+}
+
+.blockWrapper :global(.hljs-selector-id),
+.blockWrapper :global(.hljs-selector-class) {
+  color: #9b703f;
+}
+
+.blockWrapper :global(.hljs-doctag),
+.blockWrapper :global(.hljs-strong) {
+  font-weight: bold;
+}
+
+.blockWrapper :global(.hljs-emphasis) {
+  font-style: italic;
+}

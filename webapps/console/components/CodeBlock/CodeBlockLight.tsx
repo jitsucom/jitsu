@@ -2,11 +2,14 @@ import { useEffect, useRef } from "react";
 import { PropsWithChildrenClassname } from "../../lib/ui";
 import { assertDefined } from "juava";
 
+import hljs from "highlight.js/lib/common";
 import javascript from "highlight.js/lib/languages/javascript";
 import json from "highlight.js/lib/languages/json";
 import yaml from "highlight.js/lib/languages/yaml";
 import htmlLang from "highlight.js/lib/languages/xml";
 import typescript from "highlight.js/lib/languages/typescript";
+
+import styles from "./CodeBlockLight.module.css";
 
 export type SupportedLang = "html" | "javascript" | "json" | "yaml" | "typescript" | "tsx" | "jsx";
 const langMap: Record<SupportedLang, any> = {
@@ -21,9 +24,6 @@ const langMap: Record<SupportedLang, any> = {
 
 Object.entries(langMap).map(([lang, module]) => hljs.registerLanguage(lang, module));
 
-import hljs from "highlight.js/lib/common";
-import "highlight.js/styles/xcode.css";
-
 export const CodeBlockLight: React.FC<PropsWithChildrenClassname<{ lang?: string }>> = ({
   lang,
   children,
@@ -37,7 +37,7 @@ export const CodeBlockLight: React.FC<PropsWithChildrenClassname<{ lang?: string
     }
   }, [lang, children]);
   return (
-    <div className={`relative group ${className}`}>
+    <div className={`relative group ${styles.blockWrapper} ${className}`}>
       <pre
         ref={codeRef}
         className={`whitespace-pre-wrap break-all rounded-lg language-${lang}`}

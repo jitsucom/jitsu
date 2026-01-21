@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { PropsWithChildrenClassname } from "../../lib/ui";
 import { assertDefined } from "juava";
 
+import hljs from "highlight.js/lib/common";
 import javascript from "highlight.js/lib/languages/javascript";
 import json from "highlight.js/lib/languages/json";
 import yaml from "highlight.js/lib/languages/yaml";
@@ -36,9 +37,6 @@ const langMap: Record<SupportedLang, any> = {
 
 Object.entries(langMap).map(([lang, module]) => hljs.registerLanguage(lang, module));
 
-import "highlight.js/styles/github-dark.css";
-
-import hljs from "highlight.js/lib/common";
 import { CopyButton } from "../CopyButton/CopyButton";
 import { Copy } from "lucide-react";
 
@@ -52,7 +50,7 @@ export const CodeBlock: React.FC<PropsWithChildrenClassname<{ lang?: string; bre
   const codeRef = useRef(null);
   useEffect(() => {
     if (lang && codeRef.current) {
-      hljs.highlightBlock(codeRef.current);
+      hljs.highlightElement(codeRef.current);
     }
   }, [lang, children]);
   return (
