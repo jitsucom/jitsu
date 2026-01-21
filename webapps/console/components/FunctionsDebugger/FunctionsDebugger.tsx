@@ -65,8 +65,7 @@ export const EditableTitle: React.FC<{ children: string; onUpdate: (str: string)
           <div className="shrink">
             <Input
               value={value}
-              className="text-3xl"
-              size="large"
+              className="text-3xl font-main p-0 m-0"
               onChange={e => {
                 setValue(e.target.value);
                 onUpdate(e.target.value);
@@ -107,7 +106,7 @@ export const EditableTitle: React.FC<{ children: string; onUpdate: (str: string)
         <div className={"group flex space-x-2"}>
           <h1
             className="text-3xl cursor-pointer"
-            onDoubleClick={() => {
+            onClick={() => {
               if (!disabled) {
                 setRollbackValue(value);
                 setEditing(true);
