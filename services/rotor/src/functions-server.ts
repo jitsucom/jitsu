@@ -779,6 +779,34 @@ async function main() {
   // Function chains cache - stores promises to avoid parallel builds for the same connection
   let chains = new Map<string, Promise<FunctionChain | undefined>>();
 
+  // Prebuild function chains for all connections at startup (for non-free tier servers)
+  // This ensures UDF compilation happens during startup rather than on first request
+  const functionsClass = env.FUNCTIONS_CLASS;
+  if (functionsClass && functionsClass !== "free" && connections.size > 0) {
+    log
+      .atInfo()
+      .log(`Prebuilding function chains for ${connections.size} connections (functions class: ${functionsClass})...`);
+    const prebuildStart = Date.now();
+    const prebuildPromises: Promise<void>[] = [];
+
+    for (const [connectionId, connection] of connections) {
+      const buildPromise = buildFunctionChain(conEntityStore, connection, functions)
+        .then(chain => {
+          log.atInfo().log(`✓ Prebuilt chain for connection: ${connectionId} (${chain.functions.length} functions)`);
+          chains.set(connectionId, Promise.resolve(chain));
+        })
+        .catch(e => {
+          log.atError().log(`✗ Failed to prebuild chain for ${connectionId}: ${e.message}`);
+          chains.set(connectionId, Promise.resolve(undefined));
+        });
+      prebuildPromises.push(buildPromise);
+    }
+
+    await Promise.all(prebuildPromises);
+    const prebuildMs = Date.now() - prebuildStart;
+    log.atInfo().log(`Prebuilt ${chains.size} function chains in ${prebuildMs}ms`);
+  }
+
   // Get or build chain for a connection (lazy loading with single-flight pattern)
   async function getOrBuildChain(connectionId: string): Promise<FunctionChain | undefined> {
     const connection = connections.get(connectionId);

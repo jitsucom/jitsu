@@ -147,6 +147,8 @@ const ServerEnvSchema = z.object({
 
   // Functions Server settings
   CONFIG_DIR: z.string().optional().default("./data"),
+  // Functions class for this server instance (dedicated, free, premium)
+  FUNCTIONS_CLASS: z.string().optional().default(""),
 });
 
 export type ServerEnv = z.infer<typeof ServerEnvSchema>;
