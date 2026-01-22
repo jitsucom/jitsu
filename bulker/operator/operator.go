@@ -47,6 +47,7 @@ const (
 	// Functions class values
 	FunctionsClassDedicated = "dedicated" // One deployment per workspace
 	FunctionsClassFree      = "free"      // All workspaces share one deployment
+	FunctionsClassPremium   = "premium"   // Premium tier with dedicated resources
 	FunctionsClassLegacy    = "legacy"    // Ignored by operator
 
 	// Special deployment name for free tier
@@ -177,7 +178,7 @@ func (o *Operator) reconcile() {
 		functionsClasses := o.getFunctionsClasses(ws)
 
 		// Skip legacy and unknown classes
-		if !slices.Contains(functionsClasses, FunctionsClassDedicated) && !slices.Contains(functionsClasses, FunctionsClassFree) {
+		if !slices.Contains(functionsClasses, FunctionsClassPremium) && !slices.Contains(functionsClasses, FunctionsClassDedicated) && !slices.Contains(functionsClasses, FunctionsClassFree) {
 			continue
 		}
 
@@ -191,8 +192,10 @@ func (o *Operator) reconcile() {
 
 		wsWorkspaceData := CalculateWorkspaceData(ws.ID, connections, functions, true)
 
-		if slices.Contains(functionsClasses, FunctionsClassDedicated) {
-			dedicatedWorkspaces[ws.ID] = wsWorkspaceData
+		if slices.Contains(functionsClasses, FunctionsClassPremium) || slices.Contains(functionsClasses, FunctionsClassDedicated) {
+			wData := *wsWorkspaceData // Copy
+			wData.FunctionsClass = utils.Ternary(slices.Contains(functionsClasses, FunctionsClassPremium), FunctionsClassPremium, FunctionsClassDedicated)
+			dedicatedWorkspaces[ws.ID] = &wData
 		}
 		if slices.Contains(functionsClasses, FunctionsClassFree) {
 			freeWorkspaces = append(freeWorkspaces, wsWorkspaceData)
@@ -207,7 +210,7 @@ func (o *Operator) reconcile() {
 	for workspaceID, wsData := range dedicatedWorkspaces {
 		desiredDeployments[workspaceID] = &DeploymentData{
 			DeploymentID:       workspaceID,
-			FunctionsClass:     FunctionsClassDedicated,
+			FunctionsClass:     wsData.FunctionsClass,
 			WorkspaceIDs:       []string{workspaceID},
 			Connections:        wsData.Connections,
 			Functions:          wsData.Functions,
@@ -936,7 +939,7 @@ func (o *Operator) createOrUpdateServiceFromData(ctx context.Context, data *Depl
 	}
 
 	// Dedicated: create ClusterIP service for the workspace
-	return o.createOrUpdateDedicatedService(ctx, data.DeploymentID)
+	return o.createOrUpdateDedicatedService(ctx, data)
 }
 
 // createOrUpdateFreeService creates/updates the shared free-fs Service
@@ -1028,16 +1031,16 @@ func (o *Operator) createOrUpdateWorkspaceExternalNameService(ctx context.Contex
 }
 
 // createOrUpdateDedicatedService creates/updates a ClusterIP Service for a dedicated workspace
-func (o *Operator) createOrUpdateDedicatedService(ctx context.Context, workspaceID string) error {
-	serviceName := servicePrefix + workspaceID
+func (o *Operator) createOrUpdateDedicatedService(ctx context.Context, data *DeploymentData) error {
+	serviceName := servicePrefix + data.DeploymentID
 	labels := map[string]string{
 		labelApp:            appName,
-		labelWorkspaceID:    workspaceID,
+		labelWorkspaceID:    data.DeploymentID,
 		labelFunctionsClass: FunctionsClassDedicated,
 	}
 	selector := map[string]string{
 		labelApp:         appName,
-		labelWorkspaceID: workspaceID,
+		labelWorkspaceID: data.DeploymentID,
 	}
 
 	service := &corev1.Service{
@@ -1131,10 +1134,14 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 	}
 
 	var resources corev1.ResourceRequirements
-	if o.config.PodsResources != "" {
-		err := hjson.Unmarshal([]byte(o.config.PodsResources), &resources)
+	resourcesConfig := o.config.PodsResources
+	if data.FunctionsClass == FunctionsClassPremium && o.config.PodsResourcesPremium != "" {
+		resourcesConfig = o.config.PodsResourcesPremium
+	}
+	if resourcesConfig != "" {
+		err := hjson.Unmarshal([]byte(resourcesConfig), &resources)
 		if err != nil {
-			o.Errorf("failed to parse resources from string: %s\nIngoring it. Error: %v", o.config.PodsResources, err)
+			o.Errorf("failed to parse resources from string: %s\nIgnoring it. Error: %v", resourcesConfig, err)
 		}
 	}
 
@@ -1213,6 +1220,10 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 		{
 			Name:  "PORT",
 			Value: fmt.Sprintf("%d", o.config.FunctionsServerPort),
+		},
+		{
+			Name:  "FUNCTIONS_CLASS",
+			Value: data.FunctionsClass,
 		},
 	}
 

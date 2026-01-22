@@ -37,7 +37,7 @@
 
 .blockWrapper :global(.hljs-variable),
 .blockWrapper :global(.hljs-template-variable) {
-  color: #3F6E74;
+  color: #3f6e74;
 }
 
 .blockWrapper :global(.hljs-code),
@@ -48,7 +48,7 @@
 
 .blockWrapper :global(.hljs-regexp),
 .blockWrapper :global(.hljs-link) {
-  color: #0E0EFF;
+  color: #0e0eff;
 }
 
 .blockWrapper :global(.hljs-title),
@@ -72,7 +72,7 @@
 }
 
 .blockWrapper :global(.hljs-attr) {
-  color: #836C28;
+  color: #836c28;
 }
 
 .blockWrapper :global(.hljs-subst) {

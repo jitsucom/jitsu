@@ -13,9 +13,10 @@ import { getServerEnv } from "../serverEnv";
 
 const log = getLog("functions-server-client");
 
-export type FunctionsClass = "dedicated" | "free" | "legacy";
+export type FunctionsClass = "premium" | "dedicated" | "free" | "legacy";
 // Functions class constants (must match operator values)
 export const FunctionsClassDedicated = "dedicated";
+export const FunctionsClassPremium = "premium";
 export const FunctionsClassFree = "free";
 export const FunctionsClassLegacy = "legacy";
 
@@ -34,7 +35,11 @@ export function getFunctionsClasses(workspace: WorkspaceWithProfiles): Functions
         .split(",")
         .map(f => f.trim())
         .filter(
-          f => f === FunctionsClassDedicated || f === FunctionsClassFree || f === FunctionsClassLegacy
+          f =>
+            f === FunctionsClassPremium ||
+            f === FunctionsClassDedicated ||
+            f === FunctionsClassFree ||
+            f === FunctionsClassLegacy
         ) as FunctionsClass[];
       if (classes.length > 0) {
         return classes;
@@ -58,11 +63,11 @@ export function shouldUseFunctionsServer(functionsClasses: string[]): boolean {
 export function getFunctionsServerUrl(
   workspaceId: string,
   connectionId: string,
-  functionsClass: "free" | "dedicated"
+  functionsClass: Omit<FunctionsClass, "legacy">
 ): string {
   const serverEnv = getServerEnv();
   const template = serverEnv.FUNCTIONS_SERVER_URL_TEMPLATE;
-  const baseUrl = template.replace("${workspaceId}", functionsClass === "dedicated" ? workspaceId : "free");
+  const baseUrl = template.replace("${workspaceId}", functionsClass === "free" ? "free" : workspaceId);
   return `${baseUrl}/connection/${connectionId}`;
 }
 
@@ -96,7 +101,7 @@ export type FunctionsServerResult = {
 export async function callFunctionsServer(
   workspaceId: string,
   connectionId: string,
-  functionsClass: "free" | "dedicated",
+  functionsClass: Omit<FunctionsClass, "legacy">,
   event: AnyEvent,
   eventContext: EventContext,
   chainCtx: FunctionChainContext,
@@ -185,7 +190,7 @@ export async function callFunctionsServer(
 export function createFunctionsServerWrapper(
   workspaceId: string,
   connectionId: string,
-  functionsClass: "free" | "dedicated",
+  functionsClass: Omit<FunctionsClass, "legacy">,
   chainCtx: FunctionChainContext,
   funcCtx: FunctionContext,
   eventsLogger: EventsStore
