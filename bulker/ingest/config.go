@@ -49,9 +49,11 @@ type Config struct {
 	RedisTLSCA       string `mapstructure:"REDIS_TLS_CA"`
 	EventsLogMaxSize int    `mapstructure:"EVENTS_LOG_MAX_SIZE" default:"1000"`
 
-	RotorURL                 string `mapstructure:"ROTOR_URL"`
-	RotorAuthKey             string `mapstructure:"ROTOR_AUTH_KEY"`
-	DeviceFunctionsTimeoutMs int    `mapstructure:"DEVICE_FUNCTIONS_TIMEOUT_MS" default:"200"`
+	RotorURL                   string `mapstructure:"ROTOR_URL"`
+	RotorAuthKey               string `mapstructure:"ROTOR_AUTH_KEY"`
+	FunctionsServerURLTemplate string `mapstructure:"FUNCTIONS_SERVER_URL_TEMPLATE" default:"http://fs-${workspaceId}:3456"`
+	DefaultFunctionsClass      string `mapstructure:"DEFAULT_FUNCTIONS_CLASS" default:"legacy"`
+	DeviceFunctionsTimeoutMs   int    `mapstructure:"DEVICE_FUNCTIONS_TIMEOUT_MS" default:"200"`
 
 	MetricsPort int `mapstructure:"METRICS_PORT" default:"9091"`
 
