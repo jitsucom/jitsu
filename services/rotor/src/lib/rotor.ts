@@ -17,7 +17,7 @@ import { FuncChainFilter } from "./functions-chain";
 import { KafkaJS } from "@confluentinc/kafka-javascript";
 
 import { functionFilter, MessageHandlerContext } from "./message-handler";
-import { connectionsStore, functionsStore, streamsStore, workspacesStore } from "./repositories";
+import { connectionsStore, functionsStore, streamsStore } from "./repositories";
 import { FuncChainResult, RotorMetrics } from "@jitsu/destination-functions";
 import { IngestMessage } from "@jitsu/protocols/async-request";
 import { getServerEnv } from "../serverEnv";
@@ -43,10 +43,7 @@ export type KafkaRotorConfig = {
   consumerGroupId: string;
   kafkaTopics: string[];
   kafkaClientId?: string;
-  rotorContext: Omit<
-    MessageHandlerContext,
-    "connectionStore" | "functionsStore" | "workspacesStore" | "streamsStore" | "metrics"
-  >;
+  rotorContext: Omit<MessageHandlerContext, "connectionStore" | "functionsStore" | "streamsStore" | "metrics">;
   handle: (
     message: IngestMessage,
     rotorContext: MessageHandlerContext,
@@ -145,7 +142,6 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
               ...rotorContext,
               connectionStore: requireDefined(connectionsStore.getCurrent(), "Connection store is not initialized"),
               functionsStore: requireDefined(functionsStore.getCurrent(), "Functions store is not initialized"),
-              workspacesStore: requireDefined(workspacesStore.getCurrent(), "Workspaces store is not initialized"),
               streamsStore: requireDefined(streamsStore.getCurrent(), "Streams store is not initialized"),
               metrics,
             },

@@ -41,6 +41,21 @@ function dateMax(...dates: (Date | undefined)[]): Date | undefined {
   return dates.reduce((acc, d) => (d && (!acc || d.getTime() > acc.getTime()) ? d : acc), undefined);
 }
 
+// Extract functionsClasses from workspace featuresEnabled array
+// Looks for feature like "functionsClass=dedicated" or "functionsClass=premium,dedicated"
+function extractFunctionsClasses(featuresEnabled: string[]): string[] {
+  const prefix = "functionsClasses=";
+  for (const feature of featuresEnabled) {
+    if (feature.startsWith(prefix)) {
+      return feature
+        .substring(prefix.length)
+        .split(",")
+        .map(f => f.trim());
+    }
+  }
+  return [];
+}
+
 async function getLastUpdated(): Promise<Date | undefined> {
   return (
     (await db.prisma().$queryRaw`
@@ -274,6 +289,8 @@ const exports: Export[] = [
                   ? { fetchLogLevel: "debug" }
                   : {}),
                 ...((workspace.featuresEnabled ?? []).includes("fastFunctions") ? { fastFunctions: true } : {}),
+                functionsClasses: extractFunctionsClasses(workspace.featuresEnabled ?? []),
+                workspaceUpdatedAt: workspace.updatedAt,
               },
               optionsHash: hash(data),
               updatedAt: dateMax(updatedAt, to.updatedAt),
@@ -554,7 +571,10 @@ const exports: Export[] = [
                     destinationType: (l.to.config ?? {}).destinationType,
                     name: (l.to.config ?? {}).name,
                     credentials: omit(l.to.config, "destinationType", "type", "name"),
-                    options: l.data,
+                    options: {
+                      ...(l.data ?? {}),
+                      functionsClasses: extractFunctionsClasses(obj.workspace.featuresEnabled ?? []),
+                    },
                   })),
                 ...(pbMap.get(obj.workspace.id) ?? []).map(pb => ({
                   id: pb.id,

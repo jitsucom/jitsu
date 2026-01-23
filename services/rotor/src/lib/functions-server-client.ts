@@ -23,6 +23,7 @@ export const FunctionsClassLegacy = "legacy";
 /**
  * Get the functions class for a workspace from its feature flags.
  * Format: ${FUNCTIONS_CLASS_FEATURE_FLAG}=<value> (e.g., functionsClass=dedicated)
+ * @deprecated Use getFunctionsClassesFromOptions instead - functionsClasses is now passed in connection options
  */
 export function getFunctionsClasses(workspace: WorkspaceWithProfiles): FunctionsClass[] {
   const serverEnv = getServerEnv();
@@ -44,6 +45,29 @@ export function getFunctionsClasses(workspace: WorkspaceWithProfiles): Functions
       if (classes.length > 0) {
         return classes;
       }
+    }
+  }
+
+  return [serverEnv.DEFAULT_FUNCTIONS_CLASS] as FunctionsClass[];
+}
+
+/**
+ * Get the functions classes from connection options.
+ * functionsClasses is set during connection export from workspace.featuresEnabled.
+ */
+export function getFunctionsClassesFromOptions(options: any): FunctionsClass[] {
+  const serverEnv = getServerEnv();
+
+  if (options?.functionsClasses && Array.isArray(options.functionsClasses) && options.functionsClasses.length > 0) {
+    const classes = options.functionsClasses.filter(
+      (f: string) =>
+        f === FunctionsClassPremium ||
+        f === FunctionsClassDedicated ||
+        f === FunctionsClassFree ||
+        f === FunctionsClassLegacy
+    ) as FunctionsClass[];
+    if (classes.length > 0) {
+      return classes;
     }
   }
 

@@ -13,14 +13,13 @@ import {
   FunctionConfig,
   RotorMetrics,
   StreamWithDestinations,
-  WorkspaceWithProfiles,
 } from "@jitsu/destination-functions";
 import NodeCache from "node-cache";
 import { buildFunctionChain, checkError, FuncChain, FuncChainFilter, runChain } from "./functions-chain";
 import { Redis } from "ioredis";
 import { fromJitsuClassic } from "@jitsu/functions-lib";
 import { mongoAnonymousEventsStore } from "./mongodb";
-import { getFunctionsClasses, shouldUseFunctionsServer } from "./functions-server-client";
+import { getFunctionsClassesFromOptions, shouldUseFunctionsServer } from "./functions-server-client";
 const log = getLog("rotor");
 
 const anonymousEventsStore = mongoAnonymousEventsStore();
@@ -32,7 +31,6 @@ const funcsChainCache = new NodeCache({ stdTTL: funcsChainTTL, checkperiod: 60, 
 export type MessageHandlerContext = {
   connectionStore: EntityStore<EnrichedConnectionConfig>;
   functionsStore: EntityStore<FunctionConfig>;
-  workspacesStore: EntityStore<WorkspaceWithProfiles>;
   streamsStore: EntityStore<StreamWithDestinations>;
   eventsLogger: EventsStore;
   metrics?: RotorMetrics;
@@ -65,7 +63,6 @@ export async function rotorMessageHandler(
     return;
   }
   const connStore = rotorContext.connectionStore;
-  const workspacesStore = rotorContext.workspacesStore;
   const funcStore = rotorContext.functionsStore;
   const streamsStore = rotorContext.streamsStore;
 
@@ -140,17 +137,13 @@ export async function rotorMessageHandler(
     retries,
   };
 
-  const workspace = requireDefined(
-    workspacesStore.getObject(connection.workspaceId),
-    "Unknown workspace: " + connection.workspaceId
-  );
-  // Check workspace's functions class to determine UDF execution mode
-  const functionsClasses = getFunctionsClasses(workspace);
+  // Get functionsClasses from connection options (set during export)
+  const functionsClasses = getFunctionsClassesFromOptions(connection.options);
   const useFunctionsServer = shouldUseFunctionsServer(functionsClasses);
 
   let lastUpdated = Math.max(
     new Date(connection.updatedAt || 0).getTime(),
-    new Date(workspace.updatedAt || 0).getTime(),
+    new Date(connection.options?.workspaceUpdatedAt || 0).getTime(),
     useFunctionsServer ? 0 : new Date(funcStore.lastModified || 0).getTime()
   );
   const cacheKey = `${connection.id}_${lastUpdated}`;

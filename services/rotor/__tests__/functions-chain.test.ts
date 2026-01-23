@@ -9,7 +9,6 @@ import {
   EntityStore,
   FunctionConfig,
   StreamWithDestinations,
-  WorkspaceWithProfiles,
 } from "@jitsu/destination-functions";
 import { IngestMessage } from "@jitsu/protocols/async-request";
 import { isEqual } from "lodash";
@@ -222,42 +221,6 @@ const connectionStore: EntityStore<EnrichedConnectionConfig> = {
   lastModified: new Date(),
 };
 
-// Workspaces store factory - creates store with specified functions class
-function createWorkspacesStore(functionsClass: string): EntityStore<WorkspaceWithProfiles> {
-  return {
-    getObject: (id: string) => {
-      if (id === "workspace1") {
-        return {
-          id: "workspace1",
-          name: "Test Workspace",
-          slug: "test-workspace",
-          featuresEnabled: functionsClass ? [`functionsClass=${functionsClass}`] : [],
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          profileBuilders: [],
-        } as WorkspaceWithProfiles;
-      }
-      return undefined;
-    },
-    getAll: () => {
-      return {
-        workspace1: {
-          id: "workspace1",
-          name: "Test Workspace",
-          slug: "test-workspace",
-          featuresEnabled: functionsClass ? [`functionsClass=${functionsClass}`] : [],
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          profileBuilders: [],
-        },
-      } as Record<string, WorkspaceWithProfiles>;
-    },
-    toJSON: () => "",
-    enabled: true,
-    lastModified: new Date(),
-  };
-}
-
 const streamsStore: EntityStore<StreamWithDestinations> = {
   getObject: (id: string) => {
     return undefined;
@@ -299,7 +262,6 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
   let functionsServer: TestFunctionsServer | null = null;
   let lastError: any;
   const counters: Record<string, number> = {};
-  let workspacesStore: EntityStore<WorkspaceWithProfiles>;
   let originalEnv: string | undefined;
 
   function testName() {
@@ -310,9 +272,6 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
   }
 
   beforeAll(async () => {
-    // Create workspaces store for this mode
-    workspacesStore = createWorkspacesStore(functionsClass);
-
     // Save original env
     originalEnv = process.env.FUNCTIONS_SERVER_URL_TEMPLATE;
 
@@ -408,19 +367,23 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
     lastError = undefined;
   });
 
-  // Update connection URLs to use the correct webhook server port
+  // Update connection URLs to use the correct webhook server port and add functionsClasses
   function getConnectionStoreForMode(): EntityStore<EnrichedConnectionConfig> {
     const portOffset = functionsClass === "free" ? 100 : 0;
     return {
       getObject: (id: string) => {
         const conn = connections[id];
         if (!conn) return undefined;
-        // Update the URL to use the correct port
+        // Update the URL to use the correct port and add functionsClasses to options
         return {
           ...conn,
           credentials: {
             ...conn.credentials,
             url: conn.credentials.url.replace(":3089", `:${3089 + portOffset}`),
+          },
+          options: {
+            ...conn.options,
+            functionsClasses: [functionsClass],
           },
           // we need to prevent usage of cached functions chain
           updatedAt: new Date(),
@@ -434,6 +397,10 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
             credentials: {
               ...conn.credentials,
               url: conn.credentials.url.replace(":3089", `:${3089 + portOffset}`),
+            },
+            options: {
+              ...conn.options,
+              functionsClasses: [functionsClass],
             },
             // we need to prevent usage of cached functions chain
             updatedAt: new Date(),
@@ -456,7 +423,6 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         {
           connectionStore: connStore,
           functionsStore: funcStore,
-          workspacesStore,
           streamsStore: streamsStore,
           eventsLogger: DummyEventsStore,
           dummyPersistentStore: createMemoryStore({}),
@@ -483,7 +449,6 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         {
           connectionStore: connStore,
           functionsStore: funcStore,
-          workspacesStore,
           streamsStore: streamsStore,
           eventsLogger: DummyEventsStore,
           dummyPersistentStore: createMemoryStore({}),
@@ -510,7 +475,6 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         {
           connectionStore: connStore,
           functionsStore: funcStore,
-          workspacesStore,
           streamsStore: streamsStore,
           eventsLogger: DummyEventsStore,
           dummyPersistentStore: createMemoryStore({}),
@@ -537,7 +501,6 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         {
           connectionStore: connStore,
           functionsStore: funcStore,
-          workspacesStore,
           streamsStore: streamsStore,
           eventsLogger: DummyEventsStore,
           dummyPersistentStore: createMemoryStore({}),
@@ -566,7 +529,6 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         {
           connectionStore: connStore,
           functionsStore: funcStore,
-          workspacesStore,
           streamsStore: streamsStore,
           eventsLogger: DummyEventsStore,
           dummyPersistentStore: createMemoryStore({}),
@@ -595,7 +557,6 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         {
           connectionStore: connStore,
           functionsStore: funcStore,
-          workspacesStore,
           streamsStore: streamsStore,
           eventsLogger: DummyEventsStore,
           dummyPersistentStore: createMemoryStore({}),
@@ -624,7 +585,6 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         {
           connectionStore: connStore,
           functionsStore: funcStore,
-          workspacesStore,
           streamsStore: streamsStore,
           eventsLogger: DummyEventsStore,
           dummyPersistentStore: createMemoryStore({}),
@@ -652,7 +612,6 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         {
           connectionStore: connStore,
           functionsStore: funcStore,
-          workspacesStore,
           streamsStore: streamsStore,
           eventsLogger: DummyEventsStore,
           dummyPersistentStore: createMemoryStore({}),
@@ -680,7 +639,6 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         {
           connectionStore: connStore,
           functionsStore: funcStore,
-          workspacesStore,
           streamsStore: streamsStore,
           eventsLogger: DummyEventsStore,
           dummyPersistentStore: createMemoryStore({}),
@@ -723,7 +681,6 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         {
           connectionStore: connStore,
           functionsStore: funcStore,
-          workspacesStore,
           streamsStore: streamsStore,
           eventsLogger: DummyEventsStore,
           dummyPersistentStore: createMemoryStore({}),
@@ -752,7 +709,6 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         {
           connectionStore: connStore,
           functionsStore: funcStore,
-          workspacesStore,
           streamsStore: streamsStore,
           eventsLogger: DummyEventsStore,
           dummyPersistentStore: createMemoryStore({}),
@@ -779,7 +735,6 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         {
           connectionStore: connStore,
           functionsStore: funcStore,
-          workspacesStore,
           streamsStore: streamsStore,
           eventsLogger: DummyEventsStore,
           dummyPersistentStore: createMemoryStore({}),
@@ -807,7 +762,6 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         {
           connectionStore: connStore,
           functionsStore: funcStore,
-          workspacesStore,
           streamsStore: streamsStore,
           eventsLogger: DummyEventsStore,
           dummyPersistentStore: createMemoryStore({}),
@@ -851,7 +805,6 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         {
           connectionStore: connStore,
           functionsStore: funcStore,
-          workspacesStore,
           streamsStore: streamsStore,
           eventsLogger: DummyEventsStore,
           dummyPersistentStore: createMemoryStore({}),
@@ -878,7 +831,6 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         {
           connectionStore: connStore,
           functionsStore: funcStore,
-          workspacesStore,
           streamsStore: streamsStore,
           eventsLogger: DummyEventsStore,
           dummyPersistentStore: createMemoryStore({}),

@@ -33,8 +33,14 @@ import { getServerEnv } from "./serverEnv";
 import { DropRetryErrorName, NoRetryErrorName, NoRetryError, RetryError } from "@jitsu/functions-lib";
 import { mongodb, createMongoStore } from "./lib/mongodb";
 import { warehouseQuery } from "./lib/warehouse-store";
+import { parse as semverParse } from "semver";
+import * as jsondiffpatch from "jsondiffpatch";
+import isEqual from "lodash/isEqual";
+import { IngestMessage } from "@jitsu/protocols/async-request";
+import { parseUserAgent } from "@jitsu/core-functions-lib";
 
 const env = getServerEnv();
+const jsondiffpatchInstance = jsondiffpatch.create();
 
 disableService("prisma");
 disableService("pg");
@@ -567,7 +573,8 @@ function deepCopy<T>(o: T): T {
 async function runChain(
   chain: FunctionChain,
   event: AnyEvent,
-  eventContext: EventContext
+  eventContext: EventContext,
+  fetchTimeoutMs: number = 2000
 ): Promise<FuncChainResultWithLogs> {
   const execLog: FunctionExecLog = [];
   const logs: LogEntry[] = [];
@@ -623,7 +630,7 @@ async function runChain(
               },
             },
             chainCtx.connectionOptions.fetchLogLevel || "info",
-            parseNumber(env.FETCH_TIMEOUT_MS, 2000)
+            fetchTimeoutMs
           ),
           store: chainCtx.store,
           props: chainCtx.connectionOptions.functionsEnv || {},
@@ -695,6 +702,42 @@ async function runChain(
   return { events, execLog, logs };
 }
 
+// Map diff helper - optimizes response size by sending diffs when possible
+function mapDiff(originalEvent: AnyEvent, newEvents?: AnyEvent[]) {
+  if (!newEvents) {
+    return [];
+  }
+
+  return newEvents.map(e => {
+    if (isEqual(originalEvent, e)) {
+      return "same";
+    }
+    let supportsDiff = false;
+    const library = (originalEvent as any)?.context?.library;
+    if (library?.name === "@jitsu/js") {
+      const semver = semverParse(library.version);
+      if (semver && semver.major >= 2) {
+        supportsDiff = true;
+      }
+    }
+    if (!supportsDiff) {
+      return e;
+    }
+
+    const originalSize = JSON.stringify(originalEvent).length;
+    const diff = jsondiffpatchInstance.diff(originalEvent, e);
+    if (!diff) {
+      return "same";
+    }
+    const diffSize = JSON.stringify(diff).length;
+    if (diffSize > originalSize) {
+      return e;
+    } else {
+      return { __diff: diff };
+    }
+  });
+}
+
 // Parse request body
 async function parseBody(req: http.IncomingMessage): Promise<any> {
   return new Promise((resolve, reject) => {
@@ -745,6 +788,40 @@ function createEventContext(req: http.IncomingMessage, connection: EnrichedConne
       id: connection.workspaceId,
     },
     receivedAt: new Date(),
+  };
+}
+
+// Create event context from IngestMessage and connection (compatible with FunctionsHandlerMulti)
+function createEventContextFromMessage(
+  message: IngestMessage,
+  connection: EnrichedConnectionConfig,
+  retries: number = 0
+): EventContext & { retries: number } {
+  return {
+    receivedAt: new Date(message.messageCreated),
+    headers: message.httpHeaders,
+    geo: message.geo,
+    ua: parseUserAgent((message.httpPayload as any)?.context?.userAgent),
+    retries,
+    source: {
+      type: message.ingestType,
+      id: message.origin?.sourceId || connection.streamId,
+      name: message.origin?.sourceName || connection.streamName,
+      domain: message.origin?.domain,
+    },
+    destination: {
+      id: connection.destinationId,
+      type: connection.type,
+      updatedAt: connection.updatedAt,
+      hash: connection.optionsHash,
+    },
+    connection: {
+      id: connection.id,
+      options: connection.options,
+    },
+    workspace: {
+      id: connection.workspaceId,
+    },
   };
 }
 
@@ -833,6 +910,145 @@ async function main() {
     return buildPromise;
   }
 
+  // HTTP response helpers
+  function sendJson(res: http.ServerResponse, status: number, data: any): void {
+    res.writeHead(status, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(data));
+  }
+
+  function sendError(res: http.ServerResponse, status: number, error: string): void {
+    sendJson(res, status, { error });
+  }
+
+  // Health check handler: GET /health or GET /
+  function handleHealth(res: http.ServerResponse): void {
+    sendJson(res, 200, {
+      status: "ok",
+      configDir,
+      connections: Array.from(connections.keys()),
+      cachedChains: Array.from(chains.keys()),
+    });
+  }
+
+  // Multi connection handler: POST /multi?ids=conn1,conn2,conn3
+  // Compatible with FunctionsHandlerMulti in rotor
+  // Expects IngestMessage as body payload
+  async function handleMulti(req: http.IncomingMessage, res: http.ServerResponse, url: URL): Promise<void> {
+    if (req.method !== "POST") {
+      sendError(res, 405, "Method not allowed. Use POST.");
+      return;
+    }
+
+    const connectionIds = (url.searchParams.get("ids") ?? "").split(",").filter(id => !!id);
+    if (connectionIds.length === 0) {
+      sendError(res, 400, "No connection IDs provided. Use ?ids=conn1,conn2,...");
+      return;
+    }
+
+    const message = (await parseBody(req)) as IngestMessage;
+
+    // Extract event from IngestMessage (handle classic format conversion)
+    const event = message.httpPayload;
+
+    // Ensure event has context
+    if (!event.context) {
+      event.context = {};
+    }
+
+    // Process all connections in parallel
+    const promises = connectionIds.map(async connectionId => {
+      const connection = connections.get(connectionId);
+      if (!connection) {
+        log.atWarn().log(`[multi] Connection '${connectionId}' not found`);
+        return { connectionId, events: undefined };
+      }
+
+      const chain = await getOrBuildChain(connectionId);
+      if (!chain) {
+        log.atError().log(`[multi] Failed to build chain for connection '${connectionId}'`);
+        return { connectionId, events: undefined };
+      }
+
+      // Create EventContext from IngestMessage (same as message-handler.ts)
+      const eventContext = createEventContextFromMessage(message, connection, 0);
+      const functionsFetchTimeout = req.headers["x-request-timeout-ms"]
+        ? parseNumber(req.headers["x-request-timeout-ms"] as string, 2000)
+        : 2000;
+      try {
+        const result = await runChain(chain, event, eventContext, functionsFetchTimeout);
+        return { connectionId, events: result.events };
+      } catch (e: any) {
+        log.atError().log(`[multi] Error processing connection ${connectionId}: ${e.message}`);
+        return { connectionId, events: undefined };
+      }
+    });
+
+    const results = await Promise.all(promises);
+
+    // Build response in the same format as FunctionsHandlerMulti
+    // Map connectionId -> processed events (with diff optimization)
+    const events = Object.fromEntries(
+      results.map(result => [result.connectionId, mapDiff(message.httpPayload, result.events)])
+    );
+
+    sendJson(res, 200, events);
+  }
+
+  // Single connection handler: POST /connection/<connection-id>
+  async function handleConnection(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+    connectionId: string
+  ): Promise<void> {
+    const connection = connections.get(connectionId);
+    if (!connection) {
+      sendError(res, 404, `Connection '${connectionId}' not found`);
+      return;
+    }
+
+    const chain = await getOrBuildChain(connectionId);
+    if (!chain) {
+      sendError(res, 500, `Failed to build chain for connection '${connectionId}'`);
+      return;
+    }
+
+    if (req.method !== "POST") {
+      sendError(res, 405, "Method not allowed. Use POST.");
+      return;
+    }
+
+    const body = await parseBody(req);
+
+    let event: AnyEvent;
+    let customContext: Partial<EventContext> = {};
+
+    if (body.event && typeof body.event === "object") {
+      event = body.event;
+      if (body.context) {
+        customContext = body.context;
+      }
+    } else {
+      event = body;
+    }
+
+    // Parse receivedAt from string if needed (JSON serialization converts Date to string)
+    if (customContext.receivedAt && typeof customContext.receivedAt === "string") {
+      customContext.receivedAt = new Date(customContext.receivedAt);
+    }
+
+    const eventContext: EventContext = {
+      ...createEventContext(req, connection),
+      ...customContext,
+    } as EventContext & { retries?: number };
+
+    const result = await runChain(chain, event, eventContext, parseNumber(env.FETCH_TIMEOUT_MS, 2000));
+
+    const totalMs = result.execLog.reduce((sum, e) => sum + (e.ms || 0), 0);
+    log.atInfo().log(`← ${connectionId} (${chain.functions.length} functions) completed in ${totalMs}ms`);
+
+    sendJson(res, 200, result);
+  }
+
   // Create HTTP server
   const server = http.createServer(async (req, res) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
@@ -848,97 +1064,31 @@ async function main() {
     const url = new URL(req.url || "/", `http://localhost:${port}`);
     const pathname = url.pathname;
 
-    // Health check
-    if (pathname === "/health" || pathname === "/") {
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(
-        JSON.stringify({
-          status: "ok",
-          configDir,
-          connections: Array.from(connections.keys()),
-          cachedChains: Array.from(chains.keys()),
-        })
-      );
-      return;
-    }
-
-    // Execute chain: /connection/<connection-id>
-    const match = pathname.match(/^\/connection\/([^\/]+)$/);
-    if (!match) {
-      res.writeHead(404, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Not found. Use /connection/<connection-id>" }));
-      return;
-    }
-
-    const connectionId = match[1];
-    const connection = connections.get(connectionId);
-
-    if (!connection) {
-      res.writeHead(404, { "Content-Type": "application/json" });
-      res.end(
-        JSON.stringify({
-          error: `Connection '${connectionId}' not found`,
-        })
-      );
-      return;
-    }
-
-    // Build chain lazily on first request
-    const chain = await getOrBuildChain(connectionId);
-    if (!chain) {
-      res.writeHead(500, { "Content-Type": "application/json" });
-      res.end(
-        JSON.stringify({
-          error: `Failed to build chain for connection '${connectionId}'`,
-        })
-      );
-      return;
-    }
-
-    if (req.method !== "POST") {
-      res.writeHead(405, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Method not allowed. Use POST." }));
-      return;
-    }
-
     try {
-      const body = await parseBody(req);
-
-      let event: AnyEvent;
-      let customContext: Partial<EventContext> = {};
-
-      if (body.event && typeof body.event === "object") {
-        event = body.event;
-        if (body.context) {
-          customContext = body.context;
-        }
-      } else {
-        event = body;
+      // Health check
+      if (pathname === "/health" || pathname === "/") {
+        handleHealth(res);
+        return;
       }
 
-      // Parse receivedAt from string if needed (JSON serialization converts Date to string)
-      if (customContext.receivedAt && typeof customContext.receivedAt === "string") {
-        customContext.receivedAt = new Date(customContext.receivedAt);
+      // Multi connection handler
+      if (pathname === "/multi") {
+        await handleMulti(req, res, url);
+        return;
       }
 
-      const eventContext: EventContext = {
-        ...createEventContext(req, connection),
-        ...customContext,
-      } as EventContext & { retries?: number };
+      // Single connection handler
+      const match = pathname.match(/^\/connection\/([^\/]+)$/);
+      if (match) {
+        await handleConnection(req, res, match[1]);
+        return;
+      }
 
-      //log.atInfo().log(`→ ${connectionId} processing event (${chain.functions.length} functions)`);
-
-      const result = await runChain(chain, event, eventContext);
-
-      const totalMs = result.execLog.reduce((sum, e) => sum + (e.ms || 0), 0);
-      log.atInfo().log(`← ${connectionId} (${chain.functions.length} functions) completed in ${totalMs}ms`);
-
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify(result, null, 2));
+      // Not found
+      sendError(res, 404, "Not found. Use /connection/<connection-id> or /multi?ids=conn1,conn2,...");
     } catch (e: any) {
       log.atError().log(`Error processing request:`, e);
-      res.writeHead(500, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: e.message }));
+      sendError(res, 500, e.message);
     }
   });
 
