@@ -2,10 +2,11 @@ package main
 
 import (
 	"fmt"
+	"os"
+
 	"github.com/jitsucom/bulker/jitsubase/appbase"
 	"github.com/jitsucom/bulker/jitsubase/utils"
 	"github.com/spf13/viper"
-	"os"
 )
 
 type Config struct {
@@ -33,7 +34,7 @@ func init() {
 
 func (c *Config) PostInit(settings *appbase.AppSettings) error {
 	if c.KubernetesClientConfig == "" {
-		return fmt.Errorf("%sKUBERNETES_CLIENT_CONFIG is required", settings.EnvPrefixWithUnderscore())
+		return fmt.Errorf("KUBERNETES_CLIENT_CONFIG is required")
 	}
 	return c.Config.PostInit(settings)
 }

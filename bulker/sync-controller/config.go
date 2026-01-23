@@ -53,7 +53,7 @@ func init() {
 
 func (c *Config) PostInit(settings *appbase.AppSettings) error {
 	if c.KubernetesClientConfig == "" {
-		return fmt.Errorf("%sKUBERNETES_CLIENT_CONFIG is required", settings.EnvPrefixWithUnderscore())
+		return fmt.Errorf("KUBERNETES_CLIENT_CONFIG is required")
 	}
 	return c.Config.PostInit(settings)
 }

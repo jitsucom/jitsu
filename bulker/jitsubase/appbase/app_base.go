@@ -2,9 +2,6 @@ package appbase
 
 import (
 	"fmt"
-	"github.com/jitsucom/bulker/jitsubase/logging"
-	"github.com/jitsucom/bulker/jitsubase/uuid"
-	"github.com/spf13/viper"
 	"io/fs"
 	"net/http"
 	"os"
@@ -14,6 +11,10 @@ import (
 	"reflect"
 	"strings"
 	"syscall"
+
+	"github.com/jitsucom/bulker/jitsubase/logging"
+	"github.com/jitsucom/bulker/jitsubase/uuid"
+	"github.com/spf13/viper"
 )
 
 // DefaultSeed is a default seed for hex encoded hashed tokens
@@ -92,7 +93,7 @@ type InstanceConfig interface {
 	PostInit(settings *AppSettings) error
 }
 
-func initViperVariables[C InstanceConfig](appConfig C) {
+func initViperVariables[C InstanceConfig](appConfig C, settings *AppSettings) {
 	elem := reflect.ValueOf(appConfig).Elem()
 	tp := elem.Type()
 	fieldsCount := tp.NumField()
@@ -101,7 +102,7 @@ func initViperVariables[C InstanceConfig](appConfig C) {
 		modelType := reflect.TypeOf((*InstanceConfig)(nil)).Elem()
 		//fmt.Println("field", field.Name, field.Type, "implements", reflect.PointerTo(field.Type).Implements(modelType))
 		if reflect.PointerTo(field.Type).Implements(modelType) {
-			initViperVariables(elem.Field(i).Addr().Interface().(InstanceConfig))
+			initViperVariables(elem.Field(i).Addr().Interface().(InstanceConfig), settings)
 		} else if field.Type.Kind() == reflect.Struct {
 			logging.Fatalf("Application config has incorrect struct field '%s': all structs nested in config must implement interface 'InstanceConfig'", field.Name)
 		}
@@ -110,8 +111,10 @@ func initViperVariables[C InstanceConfig](appConfig C) {
 			defaultValue := field.Tag.Get("default")
 			if defaultValue != "" {
 				viper.SetDefault(variable, defaultValue)
-			} else {
-				_ = viper.BindEnv(variable)
+			}
+			err := viper.BindEnv(variable, settings.EnvPrefixWithUnderscore()+variable, variable)
+			if err != nil {
+				logging.Fatalf("error binding env variable for config field '%s': %s", field.Name, err)
 			}
 		}
 	}
@@ -123,11 +126,9 @@ func InitAppConfig[C InstanceConfig](appConfig C, settings *AppSettings) error {
 	if configPath == "" {
 		configPath = "."
 	}
-	initViperVariables(appConfig)
+	initViperVariables(appConfig, settings)
 	viper.SetConfigFile(path.Join(configPath, fmt.Sprintf("%s.%s", settings.ConfigName, settings.ConfigType)))
 	viper.SetConfigType(settings.ConfigType)
-	viper.SetEnvPrefix(settings.EnvPrefix)
-	viper.AutomaticEnv()
 
 	if err := viper.ReadInConfig(); err != nil {
 		//it is ok to not have config file

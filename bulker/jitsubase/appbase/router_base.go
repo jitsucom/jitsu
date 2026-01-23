@@ -73,7 +73,7 @@ func NewRouterBase(config Config, noAuthPaths []string) *Router {
 	}
 	for _, authToken := range authTokens {
 		if !strings.Contains(authToken, ".") {
-			base.Fatalf("Invalid auth token: %s Should be in format ${salt}.${hash} or %sRAW_AUTH_TOKENS config variable must be used instead", authToken, config.AppSetting.EnvPrefixWithUnderscore())
+			base.Fatalf("Invalid auth token: %s Should be in format ${salt}.${hash} or RAW_AUTH_TOKENS config variable must be used instead", authToken)
 		}
 	}
 

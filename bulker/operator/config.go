@@ -72,7 +72,7 @@ func init() {
 
 func (c *Config) PostInit(settings *appbase.AppSettings) error {
 	if c.RepositoryBaseURL == "" {
-		return fmt.Errorf("%sREPOSITORY_URL is required", settings.EnvPrefixWithUnderscore())
+		return fmt.Errorf("REPOSITORY_URL is required")
 	}
 	return c.Config.PostInit(settings)
 }
