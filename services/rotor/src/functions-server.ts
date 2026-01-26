@@ -989,6 +989,10 @@ async function main() {
         : 2000;
       try {
         const result = await runChain(chain, event, eventContext, functionsFetchTimeout);
+
+        const totalMs = result.execLog.reduce((sum, e) => sum + (e.ms || 0), 0);
+        log.atInfo().log(`← ${connectionId} (${chain.functions.length} functions) completed in ${totalMs}ms`);
+
         return { connectionId, events: result.events, execLog: result.execLog, logs: result.logs };
       } catch (e: any) {
         log.atError().log(`[multi] Error processing connection ${connectionId}: ${e.message}`);
