@@ -1,0 +1,27 @@
+# Persistent Volume Claims for build caching
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: go-cache
+  labels:
+    {{- include "jitsu-dev.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: node-cache
+  labels:
+    {{- include "jitsu-dev.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
