@@ -1146,10 +1146,7 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 	}
 
 	// Use HPA min replicas when HPA is enabled, otherwise default to 2
-	replicas := int32(2)
-	if o.config.HPAEnabled {
-		replicas = o.config.HPAMinReplicas
-	}
+	replicas := o.config.MinReplicas
 	volumes := make([]corev1.Volume, 0)
 	volumeMounts := make([]corev1.VolumeMount, 0)
 
@@ -1277,11 +1274,10 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 		}
 
 		containers = append(containers, corev1.Container{
-			Name:            "mongobetween",
-			Image:           o.config.MongobetweenImage,
-			ImagePullPolicy: corev1.PullAlways,
-			Env:             mongobetweenEnvVars,
-			VolumeMounts:    mongobetweenVolumeMounts,
+			Name:         "mongobetween",
+			Image:        o.config.MongobetweenImage,
+			Env:          mongobetweenEnvVars,
+			VolumeMounts: mongobetweenVolumeMounts,
 			Ports: []corev1.ContainerPort{
 				{
 					ContainerPort: int32(o.config.MongobetweenPort),
@@ -1303,9 +1299,8 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 
 	// Add functions-server container
 	containers = append(containers, corev1.Container{
-		Name:            appName,
-		Image:           o.config.FunctionsServerImage,
-		ImagePullPolicy: corev1.PullAlways,
+		Name:  appName,
+		Image: o.config.FunctionsServerImage,
 		Ports: []corev1.ContainerPort{
 			{
 				ContainerPort: int32(o.config.FunctionsServerPort),
@@ -1416,7 +1411,7 @@ func (o *Operator) createOrUpdateHPA(ctx context.Context, data *DeploymentData) 
 		labels[labelWorkspaceID] = data.DeploymentID
 	}
 
-	minReplicas := o.config.HPAMinReplicas
+	minReplicas := o.config.MinReplicas
 	scaleDownStabilization := o.config.HPAScaleDownStabilizationSeconds
 	scaleUpStabilization := o.config.HPAScaleUpStabilizationSeconds
 

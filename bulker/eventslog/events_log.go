@@ -25,6 +25,7 @@ const (
 	EventTypeIncoming  EventType = "incoming"
 	EventTypeProcessed EventType = "bulker_stream"
 	EventTypeBatch     EventType = "bulker_batch"
+	EventTypeFunction  EventType = "function"
 )
 
 type EventsLogFilter struct {

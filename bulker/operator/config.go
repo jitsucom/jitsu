@@ -51,11 +51,11 @@ type Config struct {
 	// Port for mongobetween to listen on (functions-server connects to this)
 	MongobetweenPort int `mapstructure:"MONGOBETWEEN_PORT" default:"27017"`
 
+	// Minimum number of replicas
+	MinReplicas int32 `mapstructure:"MIN_REPLICAS" default:"2"`
 	// HPA configuration
 	// Enable HPA for functions-server deployments
 	HPAEnabled bool `mapstructure:"HPA_ENABLED" default:"false"`
-	// Minimum number of replicas
-	HPAMinReplicas int32 `mapstructure:"HPA_MIN_REPLICAS" default:"2"`
 	// Maximum number of replicas
 	HPAMaxReplicas int32 `mapstructure:"HPA_MAX_REPLICAS" default:"10"`
 	// Target CPU utilization percentage
@@ -97,7 +97,7 @@ func (c *Config) CalculateOperatorConfigHash() string {
 
 	// HPA config
 	h.Write([]byte(fmt.Sprintf("%t", c.HPAEnabled)))
-	h.Write([]byte(fmt.Sprintf("%d", c.HPAMinReplicas)))
+	h.Write([]byte(fmt.Sprintf("%d", c.MinReplicas)))
 	h.Write([]byte(fmt.Sprintf("%d", c.HPAMaxReplicas)))
 	h.Write([]byte(fmt.Sprintf("%d", c.HPATargetCPUUtilization)))
 	h.Write([]byte(fmt.Sprintf("%d", c.HPAScaleDownStabilizationSeconds)))

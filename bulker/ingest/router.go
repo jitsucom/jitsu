@@ -489,18 +489,17 @@ func (r *Router) processSyncDestination(message *IngestMessage, stream *StreamWi
 
 		// Determine endpoint: check first destination's functionsClasses
 		// All destinations in a stream have the same functionsClasses
-		var endpointURL string
 		classes := getFunctionsClasses(functionDestinations[0].Options, r.config.DefaultFunctionsClass)
 		if shouldUseFunctionsServer(classes) {
-			// Use functions server
+			// Use functions server (new format with execLog)
 			fsURL := getFunctionsServerURL(r.config.FunctionsServerURLTemplate, stream.Stream.WorkspaceId, classes)
-			endpointURL = fsURL + "/multi"
+			endpointURL := fsURL + "/multi"
+			r.callFunctionsEndpoint(functionDestinations, endpointURL, messageBytes, functionsResults)
 		} else {
-			// Use rotor (legacy)
-			endpointURL = r.config.RotorURL + "/func/multi"
+			// Use rotor (legacy format)
+			endpointURL := r.config.RotorURL + "/func/multi"
+			r.callRotorEndpoint(functionDestinations, endpointURL, messageBytes, functionsResults)
 		}
-		r.Infof("Calling functions endpoint %s for connections: %s", endpointURL, utils.ArrayMap(functionDestinations, func(d *ShortDestinationConfig) string { return d.ConnectionId }))
-		r.callFunctionsEndpoint(functionDestinations, endpointURL, messageBytes, functionsResults)
 	}
 	data := make([]*SyncDestinationsData, 0, len(filteredDestinations))
 	for _, d := range filteredDestinations {
@@ -518,9 +517,7 @@ func (r *Router) processSyncDestination(message *IngestMessage, stream *StreamWi
 	return &SyncDestinationsResponse{Destinations: data, OK: true}
 }
 
-// callFunctionsEndpoint sends a request to functions endpoint (rotor or functions server)
-// and merges results into functionsResults map
-func (r *Router) callFunctionsEndpoint(destinations []*ShortDestinationConfig, baseURL string, messageBytes []byte, functionsResults map[string]any) {
+func (r *Router) callRotorEndpoint(destinations []*ShortDestinationConfig, baseURL string, messageBytes []byte, functionsResults map[string]any) {
 	if len(destinations) == 0 {
 		return
 	}
@@ -575,6 +572,161 @@ func (r *Router) callFunctionsEndpoint(destinations []*ShortDestinationConfig, b
 	// Merge results
 	for k, v := range result {
 		functionsResults[k] = v
+	}
+}
+
+// FunctionExecLogEntry represents a single function execution log entry
+type FunctionExecLogEntry struct {
+	EventIndex int    `json:"eventIndex"`
+	FunctionId string `json:"functionId"`
+	Error      *struct {
+		Name    string `json:"name"`
+		Message string `json:"message"`
+	} `json:"error,omitempty"`
+	Dropped bool    `json:"dropped,omitempty"`
+	Ms      float64 `json:"ms"`
+}
+
+// FunctionLogEntry represents a console log entry from function execution
+type FunctionLogEntry struct {
+	Level        string `json:"level"`
+	FunctionId   string `json:"functionId"`
+	FunctionType string `json:"functionType,omitempty"`
+	Message      any    `json:"message"`
+	Args         []any  `json:"args,omitempty"`
+	Timestamp    string `json:"timestamp,omitempty"`
+}
+
+// ConnectionChainResult is the new response format from functions endpoint (with execLog)
+type ConnectionChainResult struct {
+	Events  []any                  `json:"events"`
+	ExecLog []FunctionExecLogEntry `json:"execLog"`
+	Logs    []FunctionLogEntry     `json:"logs,omitempty"`
+}
+
+// callFunctionsEndpoint sends a request to functions endpoint and expects new format with execLog
+// Response format: map[connectionId]{ events: [], execLog: [] }
+func (r *Router) callFunctionsEndpoint(destinations []*ShortDestinationConfig, baseURL string, messageBytes []byte, functionsResults map[string]any) {
+	if len(destinations) == 0 {
+		return
+	}
+
+	ids := utils.ArrayMap(destinations, func(d *ShortDestinationConfig) string { return d.ConnectionId })
+	var err error
+	defer func() {
+		for _, id := range ids {
+			if err != nil {
+				DeviceFunctions(id, "error").Inc()
+				DeviceFunctions("total", "error").Inc()
+			} else {
+				DeviceFunctions(id, "success").Inc()
+				DeviceFunctions("total", "success").Inc()
+			}
+		}
+	}()
+
+	url := baseURL + "?ids=" + strings.Join(ids, ",")
+	req, err := http.NewRequest("POST", url, bytes.NewReader(messageBytes))
+	if err != nil {
+		r.Errorf("failed to create functions request for connections: %s: %v", ids, err)
+		return
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Request-Timeout-Ms", strconv.Itoa(r.config.DeviceFunctionsTimeoutMs))
+	if r.config.RotorAuthKey != "" {
+		req.Header.Set("Authorization", "Bearer "+r.config.RotorAuthKey)
+	}
+
+	res, err := r.httpClient.Do(req)
+	if err != nil {
+		r.Errorf("failed to send functions request for connections: %s: %v", ids, err)
+		return
+	}
+	defer res.Body.Close()
+
+	body, err := io.ReadAll(res.Body)
+	if res.StatusCode != 200 || err != nil {
+		r.Errorf("Failed to send functions request for connections: %s: status: %v body: %s", ids, res.StatusCode, string(body))
+		return
+	}
+	var result map[string]ConnectionChainResult
+	err = jsoniter.Unmarshal(body, &result)
+	if err != nil {
+		r.Errorf("Failed to unmarshal functions response for connections: %s: %v", ids, err)
+		return
+	}
+
+	// Process results - extract events and process execLog + logs
+	for connectionId, chainResult := range result {
+		functionsResults[connectionId] = chainResult.Events
+		r.processExecLog(connectionId, chainResult.ExecLog, chainResult.Logs)
+	}
+}
+
+// processExecLog processes the execution log and function logs from functions server
+func (r *Router) processExecLog(connectionId string, execLog []FunctionExecLogEntry, logs []FunctionLogEntry) {
+	// Process execution log entries (errors and dropped events)
+	for _, el := range execLog {
+		if el.Error != nil {
+			r.Warnf("[%s] Function %s error: %s: %s", connectionId, el.FunctionId, el.Error.Name, el.Error.Message)
+			DeviceFunctions(connectionId, "function_error").Inc()
+			// Log to eventsLogService similar to how rotor sends to clickhouse logger
+			logEvent := map[string]any{
+				"functionId":   el.FunctionId,
+				"functionType": "udf",
+				"eventIndex":   el.EventIndex,
+				"error":        fmt.Sprintf("%s: %s", el.Error.Name, el.Error.Message),
+				"ms":           el.Ms,
+			}
+			r.eventsLogService.PostAsync(&eventslog.ActorEvent{
+				EventType: eventslog.EventTypeFunction,
+				Level:     eventslog.LevelError,
+				ActorId:   connectionId,
+				Event:     logEvent,
+			})
+		}
+		if el.Dropped {
+			DeviceFunctions(connectionId, "dropped").Inc()
+		}
+	}
+
+	// Process function console logs
+	for _, logEntry := range logs {
+		level := eventslog.LevelInfo
+		switch logEntry.Level {
+		case "error":
+			level = eventslog.LevelError
+		case "warn":
+			level = eventslog.LevelWarning
+		case "debug":
+			level = eventslog.LevelDebug
+		}
+		var logEvent map[string]any
+		if httpEvent, ok := logEntry.Message.(map[string]any); ok {
+			logEvent = httpEvent
+		} else {
+			logEvent = map[string]any{
+				"functionId": logEntry.FunctionId,
+				"type":       "log-" + logEntry.Level,
+				"message": map[string]any{
+					"text": logEntry.Message,
+					"args": logEntry.Args,
+				},
+			}
+		}
+		if logEntry.FunctionType != "" {
+			logEvent["functionType"] = logEntry.FunctionType
+		}
+		if len(logEntry.Args) > 0 {
+			logEvent["args"] = logEntry.Args
+		}
+		r.eventsLogService.PostAsync(&eventslog.ActorEvent{
+			EventType: eventslog.EventTypeFunction,
+			Level:     level,
+			ActorId:   connectionId,
+			Event:     logEvent,
+		})
 	}
 }
 
