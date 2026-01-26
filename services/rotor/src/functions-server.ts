@@ -308,7 +308,7 @@ function sanitizeFunctionId(functionId: string): string {
 }
 
 // Compile UDF function from code string using esbuild
-async function compileUdfFunction(code: string, functionId: string, env: any): Promise<any> {
+async function compileUdfFunction(connectionId: string, code: string, functionId: string, env: any): Promise<any> {
   try {
     const envs = `
     const process = { env: ${JSON.stringify(env || {})}}
@@ -338,7 +338,7 @@ async function compileUdfFunction(code: string, functionId: string, env: any): P
 
     // Write to temp file for readable stack traces
     await ensureUdfTempDir();
-    const sanitizedId = sanitizeFunctionId(functionId);
+    const sanitizedId = sanitizeFunctionId(connectionId + "-" + functionId);
     const tempFile = path.join(UDF_TEMP_DIR, `${sanitizedId}.mjs`);
     const bundledCode = result.outputFiles[0].text;
     await fsp.writeFile(tempFile, bundledCode);
@@ -481,7 +481,12 @@ async function buildFunctionChain(
     const funcConfig = functionsStore.get(functionId);
     if (funcConfig && funcConfig.code) {
       try {
-        const udfFunc = await compileUdfFunction(funcConfig.code, functionId, connectionData.functionsEnv);
+        const udfFunc = await compileUdfFunction(
+          connection.id,
+          funcConfig.code,
+          functionId,
+          connectionData.functionsEnv
+        );
         funcs.push({
           id: f.functionId,
           exec: udfFunc.default,
@@ -517,7 +522,6 @@ async function buildFunctionChain(
   // Create shared store - use MongoDB if MONGODB_URL is provided, otherwise fall back to in-memory
   let store: TTLStore;
   if (env.MONGODB_URL) {
-    await log.atInfo().log(`Using MongoDB store (MONGODB_URL is set)`);
     store = createMongoStore(connection.workspaceId, mongodb, false, true);
   } else {
     log.atInfo().log(`Using in-memory store (MONGODB_URL not set)`);
@@ -867,7 +871,7 @@ async function main() {
     const prebuildPromises: Promise<void>[] = [];
 
     for (const [connectionId, connection] of connections) {
-      const buildPromise = buildFunctionChain(conEntityStore, connection, functions)
+      await buildFunctionChain(conEntityStore, connection, functions)
         .then(chain => {
           log.atInfo().log(`✓ Prebuilt chain for connection: ${connectionId} (${chain.functions.length} functions)`);
           chains.set(connectionId, Promise.resolve(chain));
@@ -876,10 +880,8 @@ async function main() {
           log.atError().log(`✗ Failed to prebuild chain for ${connectionId}: ${e.message}`);
           chains.set(connectionId, Promise.resolve(undefined));
         });
-      prebuildPromises.push(buildPromise);
     }
 
-    await Promise.all(prebuildPromises);
     const prebuildMs = Date.now() - prebuildStart;
     log.atInfo().log(`Prebuilt ${chains.size} function chains in ${prebuildMs}ms`);
   }
@@ -1014,6 +1016,7 @@ async function main() {
         {
           events: fullEvents ? result.events || [] : mapDiff(message.httpPayload, result.events),
           execLog: result.execLog,
+          logs: result.logs || [],
         },
       ])
     );
@@ -1120,9 +1123,9 @@ async function main() {
   });
 
   server.listen(port, () => {
-    log.atInfo().log(`\nServer running at http://localhost:${port}`);
+    log.atInfo().log(`Server running at http://localhost:${port}`);
     log.atInfo().log(`Config directory: ${configDir}`);
-    log.atInfo().log(`\nAvailable connections: ${connections.size} (chains built lazily on first request):`);
+    log.atInfo().log(`Available connections: ${connections.size} (chains built lazily on first request):`);
   });
 
   // Graceful shutdown handler
