@@ -930,9 +930,12 @@ async function main() {
     });
   }
 
-  // Multi connection handler: POST /multi?ids=conn1,conn2,conn3
+  // Multi connection handler: POST /multi?ids=conn1,conn2,conn3&fullEvents=true
   // Compatible with FunctionsHandlerMulti in rotor
   // Expects IngestMessage as body payload
+  // Query params:
+  //   - ids: comma-separated connection IDs (required)
+  //   - fullEvents: if "true", return full events instead of diffs
   async function handleMulti(req: http.IncomingMessage, res: http.ServerResponse, url: URL): Promise<void> {
     if (req.method !== "POST") {
       sendError(res, 405, "Method not allowed. Use POST.");
@@ -940,6 +943,8 @@ async function main() {
     }
 
     const connectionIds = (url.searchParams.get("ids") ?? "").split(",").filter(id => !!id);
+    const fullEvents = url.searchParams.get("fullEvents") === "true";
+
     if (connectionIds.length === 0) {
       sendError(res, 400, "No connection IDs provided. Use ?ids=conn1,conn2,...");
       return;
@@ -960,13 +965,21 @@ async function main() {
       const connection = connections.get(connectionId);
       if (!connection) {
         log.atWarn().log(`[multi] Connection '${connectionId}' not found`);
-        return { connectionId, events: undefined };
+        return {
+          connectionId,
+          execLog: [{ error: { message: `Connection '${connectionId}' not found`, name: "Connection Not Found" } }],
+          events: [],
+        };
       }
 
       const chain = await getOrBuildChain(connectionId);
       if (!chain) {
         log.atError().log(`[multi] Failed to build chain for connection '${connectionId}'`);
-        return { connectionId, events: undefined };
+        return {
+          connectionId,
+          execLog: [{ error: { message: "Internal Functions Error: please contact support", name: "Internal Error" } }],
+          events: [],
+        };
       }
 
       // Create EventContext from IngestMessage (same as message-handler.ts)
@@ -976,22 +989,32 @@ async function main() {
         : 2000;
       try {
         const result = await runChain(chain, event, eventContext, functionsFetchTimeout);
-        return { connectionId, events: result.events };
+        return { connectionId, events: result.events, execLog: result.execLog, logs: result.logs };
       } catch (e: any) {
         log.atError().log(`[multi] Error processing connection ${connectionId}: ${e.message}`);
-        return { connectionId, events: undefined };
+        return {
+          connectionId,
+          execLog: [{ error: { message: e.message, name: e.name } }],
+          events: [],
+        };
       }
     });
 
     const results = await Promise.all(promises);
 
-    // Build response in the same format as FunctionsHandlerMulti
-    // Map connectionId -> processed events (with diff optimization)
-    const events = Object.fromEntries(
-      results.map(result => [result.connectionId, mapDiff(message.httpPayload, result.events)])
+    // Build response with events and execLog
+    // Map connectionId -> { events, execLog }
+    const response = Object.fromEntries(
+      results.map(result => [
+        result.connectionId,
+        {
+          events: fullEvents ? result.events || [] : mapDiff(message.httpPayload, result.events),
+          execLog: result.execLog,
+        },
+      ])
     );
 
-    sendJson(res, 200, events);
+    sendJson(res, 200, response);
   }
 
   // Single connection handler: POST /connection/<connection-id>
