@@ -53,6 +53,9 @@ spec:
             - name: metrics
               containerPort: {{ .Values.bulker.metricsPort }}
               protocol: TCP
+          envFrom:
+            - secretRef:
+                name: jitsu-secrets
           env:
             - name: HTTP_PORT
               value: {{ .Values.bulker.port | quote }}
@@ -60,7 +63,6 @@ spec:
             {{- include "jitsu-dev.commonEnv" . | nindent 12 }}
             {{- include "jitsu-dev.serviceUrls" . | nindent 12 }}
             {{- include "jitsu-dev.clickhouseEnv" . | nindent 12 }}
-            {{- include "jitsu-dev.secretsEnv" . | nindent 12 }}
             {{- range $key, $value := .Values.bulker.env }}
             - name: {{ $key }}
               value: {{ $value | quote }}

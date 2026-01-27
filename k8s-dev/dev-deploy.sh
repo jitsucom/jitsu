@@ -122,7 +122,13 @@ deploy() {
     # Build helm args
     local helm_args=()
 
-    # Check for secrets file
+    # Check for custom config file (non-secret overrides like ClickHouse host, etc.)
+    if [ -f "$CHART_DIR/values-custom.yaml" ]; then
+        log_info "Using custom config from values-custom.yaml"
+        helm_args+=("-f" "$CHART_DIR/values-custom.yaml")
+    fi
+
+    # Check for secrets file (applied last to override any values)
     if [ -f "$CHART_DIR/values-secrets.yaml" ]; then
         log_info "Using secrets from values-secrets.yaml"
         helm_args+=("-f" "$CHART_DIR/values-secrets.yaml")

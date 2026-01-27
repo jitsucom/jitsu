@@ -1,0 +1,24 @@
+# Custom Configuration
+# Copy this file to values-custom.yaml for environment-specific config
+# This file is for non-secret values (hosts, URLs, database names, etc.)
+#
+# Usage:
+#   cp values-custom.example.yaml values-custom.yaml
+#   # Edit values-custom.yaml
+#   # Then deploy - it will be picked up automatically
+
+# ClickHouse configuration
+clickhouse:
+  host: "your-clickhouse-host:8443"
+  url: "https://your-clickhouse-host:8443/"
+  username: "your-username"
+  database: "your-database"
+  metricsSchema: "your-metrics-schema"
+  ssl: "true"
+
+# Override host services if needed
+# hostServices:
+#   kafka:
+#     brokers: your-kafka-host:9092
+#   console:
+#     url: http://your-console-host:3000

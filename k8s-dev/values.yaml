@@ -18,11 +18,6 @@ images:
 # Use 'host.minikube.internal' to access services on the host machine
 # Requires: minikube mount $PROJECT_ROOT:/project
 hostServices:
-  postgres:
-    host: host.minikube.internal
-    port: 5432
-    database: newjitsu
-    user: newjitsu
   kafka:
     brokers: host.minikube.internal:9094
   console:
@@ -38,8 +33,7 @@ ingest:
   binaryName: ingest
   # Set to LoadBalancer + minikube tunnel for localhost access
   serviceType: LoadBalancer
-  env:
-    DEVICE_FUNCTIONS_TIMEOUT_MS: "2000"
+  env: {}
 
 # Operator service
 operator:
@@ -64,10 +58,8 @@ rotor:
   sourcePath: services/rotor
   # Set to LoadBalancer + minikube tunnel for localhost access
   serviceType: LoadBalancer
-  env:
-    ROTOR_HTTP_PORT: "3401"
-    ROTOR_METRICS_PORT: "9091"
-    METRICS_DESTINATION_ID: metrics
+  env: {}
+
 
 # Bulker service
 bulker:
@@ -106,9 +98,9 @@ commonEnv:
 clickhouse:
   host: ""
   url: ""
-  username: ""
-  database: ""
-  metricsSchema: ""
+  username: "default"
+  database: "newjitsu_metrics"
+  metricsSchema: "newjitsu_metrics"
   ssl: "true"
 
 # =============================================================================
@@ -132,8 +124,8 @@ secrets:
   authToken: ""
   # Console API auth token (format: username:token)
   consoleAuthToken: ""
-  # PostgreSQL password
-  postgresPassword: ""
+  # PostgreSQL connection URL (full connection string)
+  databaseUrl: ""
   # ClickHouse password
   clickhousePassword: ""
   # MongoDB connection URL (includes credentials)

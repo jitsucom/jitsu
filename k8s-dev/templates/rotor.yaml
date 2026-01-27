@@ -90,12 +90,14 @@ spec:
             - name: metrics
               containerPort: {{ .Values.rotor.metricsPort }}
               protocol: TCP
+          envFrom:
+            - secretRef:
+                name: jitsu-secrets
           env:
             {{- include "jitsu-dev.hostEnv" . | nindent 12 }}
             {{- include "jitsu-dev.commonEnv" . | nindent 12 }}
             {{- include "jitsu-dev.serviceUrls" . | nindent 12 }}
             {{- include "jitsu-dev.clickhouseEnv" . | nindent 12 }}
-            {{- include "jitsu-dev.secretsEnv" . | nindent 12 }}
             {{- range $key, $value := .Values.rotor.env }}
             - name: {{ $key }}
               value: {{ $value | quote }}
