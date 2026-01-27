@@ -43,6 +43,9 @@ var eventTypesSet = types.NewSet("page", "identify", "track", "group", "alias", 
 
 var messageIdUnsupportedChars = regexp.MustCompile(`[^a-zA-Z0-9._-]`)
 
+// trustedIPHeadersList is set during router initialization from config
+var trustedIPHeadersList []string
+
 type eventPatchFunc func(c *gin.Context, messageId string, event types.Json, tp string, ingestType IngestType, analyticContext types.Json, defaultEventName string) error
 
 type Router struct {
@@ -146,6 +149,9 @@ func NewRouter(appContext *Context, partitionSelector kafkabase.PartitionSelecto
 		dataHosts:         dataHosts,
 		partitionSelector: partitionSelector,
 	}
+	// Initialize trusted IP headers from config
+	trustedIPHeadersList = appContext.config.TrustedIPHeadersList
+	base.Infof("Trusted IP headers: %v", trustedIPHeadersList)
 	engine := router.Engine()
 	// get global Monitor object
 	m := ginmetrics.GetMonitor()
@@ -319,7 +325,7 @@ func patchEvent(c *gin.Context, messageId string, ev types.Json, tp string, inge
 			ev.SetIfAbsent("event", eventName)
 		}
 	}
-	ip := strings.TrimSpace(strings.Split(utils.NvlString(c.GetHeader("X-Real-Ip"), c.GetHeader("X-Forwarded-For"), c.ClientIP()), ",")[0])
+	ip := getClientIP(c)
 	ipPolicy := c.GetHeader("X-IP-Policy")
 	switch ipPolicy {
 	case "stripLastOctet":
@@ -407,6 +413,17 @@ func ipStripLastOctet(ip string) string {
 		return strings.Join(parts[:3], ".") + ".0"
 	}
 	return ip
+}
+
+// getClientIP extracts client IP from request headers based on configured trusted headers list
+func getClientIP(c *gin.Context) string {
+	for _, header := range trustedIPHeadersList {
+		if val := c.GetHeader(header); val != "" {
+			// Handle comma-separated values (e.g., X-Forwarded-For can contain multiple IPs)
+			return strings.TrimSpace(strings.Split(val, ",")[0])
+		}
+	}
+	return c.ClientIP()
 }
 
 type SyncDestinationsResponse struct {
