@@ -17,65 +17,53 @@ Development Helm chart for deploying Jitsu services to Minikube. Services are bu
 # 1. Start minikube
 minikube start
 
-# 2. Configure secrets
-cp values-secrets.example.yaml values-secrets.yaml
-# Edit values-secrets.yaml with your credentials
+# 2. Configure secrets (interactive prompt)
+./dev-deploy.sh secrets
 
-# 3. (Optional) Configure external services
-cp values-custom.example.yaml values-custom.yaml
-# Edit values-custom.yaml with ClickHouse host, etc.
-
-# 4. Deploy
+# 3. Deploy
 ./dev-deploy.sh deploy
 
-# 5. Start tunnel for localhost access (in separate terminal)
+# 4. Start tunnel for localhost access (in separate terminal)
 ./dev-deploy.sh tunnel
 ```
 
-## Configuration Files
+## Configuration
 
-| File | Purpose | Committed to Git |
-|------|---------|------------------|
-| `values.yaml` | Default configuration | ✅ Yes |
-| `values-custom.yaml` | Custom config overrides (hosts, URLs, etc.) | ❌ No |
-| `values-secrets.yaml` | Secrets (passwords, tokens) | ❌ No |
+### Secrets
 
-Files are loaded in order: `values.yaml` → `values-custom.yaml` → `values-secrets.yaml`
-
-### Required Secrets
-
-Create `values-secrets.yaml` from the example:
+Secrets are stored in a Kubernetes Secret (not in files). Configure them interactively:
 
 ```bash
-cp values-secrets.example.yaml values-secrets.yaml
+./dev-deploy.sh secrets
 ```
 
-Required values:
+This prompts for all required credentials and creates/updates the `jitsu-secrets` K8s Secret.
 
 | Secret | Description |
 |--------|-------------|
-| `secrets.authToken` | Inter-service auth token. Generate with: `openssl rand -hex 16` |
-| `secrets.consoleAuthToken` | Console API token (format: `username:token`) |
-| `secrets.databaseUrl` | PostgreSQL connection URL (e.g., `postgresql://user:pass@host:5432/db`) |
-| `secrets.clickhousePassword` | ClickHouse password |
-| `secrets.mongodbUrl` | MongoDB connection URL (includes credentials) |
+| `AUTH_TOKEN` | Inter-service auth token. Generate with: `openssl rand -hex 16` |
+| `CONSOLE_AUTH_TOKEN` | Console API token (format: `username:token`) |
+| `DATABASE_URL` | PostgreSQL connection URL (e.g., `postgresql://user:pass@host:5432/db`) |
+| `CLICKHOUSE_URL` | ClickHouse connection URL (e.g., `https://user:pass@host:8443/database`) |
+| `MONGODB_URL` | MongoDB connection URL (includes credentials) |
 
-### External Configuration
-
-Create `values-custom.yaml` for environment-specific non-secret config:
-
+Check secrets status:
 ```bash
-cp values-custom.example.yaml values-custom.yaml
+./dev-deploy.sh secrets-status
 ```
 
+### Custom Configuration (Optional)
+
+Create `values-custom.yaml` for environment-specific overrides:
+
 ```yaml
-clickhouse:
-  host: "your-clickhouse-host:8443"
-  url: "https://your-clickhouse-host:8443/"
-  username: "your-username"
-  database: "your-database"
-  metricsSchema: "your-metrics-schema"
-  ssl: "true"
+scaling:
+  ingest:
+    replicas: 2
+
+env:
+  common:
+    LOG_FORMAT: "json"
 ```
 
 ## Commands
@@ -86,8 +74,10 @@ clickhouse:
 
 | Command | Description |
 |---------|-------------|
+| `secrets` | Configure secrets interactively (creates K8s Secret) |
+| `secrets-status` | Show secrets configuration status |
 | `deploy` | Deploy/upgrade Helm chart (auto-starts mount) |
-| `mount` | Start minikube mount (project → /project) |
+| `mount` | Start minikube mount (project -> /project) |
 | `mount-stop` | Stop minikube mount |
 | `restart` | Restart all pods (triggers rebuild) |
 | `restart <service>` | Restart specific service |
@@ -188,10 +178,9 @@ Ensure tunnel is running:
 ./dev-deploy.sh tunnel
 ```
 
-### Secret errors on deploy
+### Missing secrets
 
-Ensure `values-secrets.yaml` exists and has all required values:
+Configure secrets before deploying:
 ```bash
-cp values-secrets.example.yaml values-secrets.yaml
-# Edit and fill in all values
+./dev-deploy.sh secrets
 ```

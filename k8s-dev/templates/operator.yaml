@@ -1,4 +1,4 @@
-{{- if .Values.operator.enabled }}
+{{- if gt (int .Values.scaling.operator.replicas) 0 }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -7,7 +7,7 @@ metadata:
     {{- include "jitsu-dev.labels" . | nindent 4 }}
     app.kubernetes.io/name: operator
 spec:
-  replicas: {{ .Values.operator.replicas }}
+  replicas: {{ .Values.scaling.operator.replicas }}
   selector:
     matchLabels:
       app.kubernetes.io/name: operator
@@ -21,14 +21,14 @@ spec:
       serviceAccountName: operator
       initContainers:
         - name: build
-          image: {{ .Values.images.goBuild }}
-          workingDir: /project/{{ .Values.operator.sourcePath }}
+          image: golang:1.25-bookworm
+          workingDir: /project/bulker/operator
           command:
             - sh
             - -c
             - |
-              echo "Building {{ .Values.operator.binaryName }}..."
-              go build -buildvcs=false -o /build/{{ .Values.operator.binaryName }} .
+              echo "Building operator..."
+              go build -buildvcs=false -o /build/operator .
               echo "Build complete"
           volumeMounts:
             - name: project
@@ -45,26 +45,24 @@ spec:
               value: /go-cache/mod
       containers:
         - name: operator
-          image: {{ .Values.images.goRun }}
-          command: ["/build/{{ .Values.operator.binaryName }}"]
+          image: debian:bookworm-slim
+          command: ["/build/operator"]
           ports:
             - name: http
-              containerPort: {{ .Values.operator.port }}
+              containerPort: 3052
               protocol: TCP
             - name: metrics
-              containerPort: {{ .Values.operator.metricsPort }}
+              containerPort: 9091
               protocol: TCP
           envFrom:
             - secretRef:
                 name: jitsu-secrets
           env:
             - name: HTTP_PORT
-              value: {{ .Values.operator.port | quote }}
-            {{- include "jitsu-dev.hostEnv" . | nindent 12 }}
+              value: "3052"
             {{- include "jitsu-dev.commonEnv" . | nindent 12 }}
             {{- include "jitsu-dev.serviceUrls" . | nindent 12 }}
-            {{- include "jitsu-dev.clickhouseEnv" . | nindent 12 }}
-            {{- range $key, $value := .Values.operator.env }}
+            {{- range $key, $value := .Values.env.operator }}
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}
@@ -105,11 +103,11 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    - port: {{ .Values.operator.port }}
+    - port: 3052
       targetPort: http
       protocol: TCP
       name: http
-    - port: {{ .Values.operator.metricsPort }}
+    - port: 9091
       targetPort: metrics
       protocol: TCP
       name: metrics

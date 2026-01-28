@@ -7,18 +7,9 @@
 #   # Edit values-custom.yaml
 #   # Then deploy - it will be picked up automatically
 
-# ClickHouse configuration
-clickhouse:
-  host: "your-clickhouse-host:8443"
-  url: "https://your-clickhouse-host:8443/"
-  username: "your-username"
-  database: "your-database"
-  metricsSchema: "your-metrics-schema"
-  ssl: "true"
-
-# Override host services if needed
-# hostServices:
-#   kafka:
-#     brokers: your-kafka-host:9092
-#   console:
-#     url: http://your-console-host:3000
+env:
+  common:
+    CONSOLE_URL: http://host.minikube.internal:3000
+    KAFKA_BOOTSTRAP_SERVERS: host.minikube.internal:9094
+  ingest:
+    DEVICE_FUNCTIONS_TIMEOUT_MS: "2000"

@@ -119,22 +119,19 @@ deploy() {
     log_info "Deploying to Kubernetes..."
     ensure_namespace
 
+    # Check if secrets exist
+    if ! kubectl get secret jitsu-secrets -n "$NAMESPACE" &>/dev/null; then
+        log_error "Secret 'jitsu-secrets' not found. Run '$0 secrets' first to configure credentials."
+        exit 1
+    fi
+
     # Build helm args
     local helm_args=()
 
-    # Check for custom config file (non-secret overrides like ClickHouse host, etc.)
+    # Check for custom config file (non-secret overrides)
     if [ -f "$CHART_DIR/values-custom.yaml" ]; then
         log_info "Using custom config from values-custom.yaml"
         helm_args+=("-f" "$CHART_DIR/values-custom.yaml")
-    fi
-
-    # Check for secrets file (applied last to override any values)
-    if [ -f "$CHART_DIR/values-secrets.yaml" ]; then
-        log_info "Using secrets from values-secrets.yaml"
-        helm_args+=("-f" "$CHART_DIR/values-secrets.yaml")
-    else
-        log_warn "No values-secrets.yaml found. Copy values-secrets.example.yaml and fill in credentials."
-        log_warn "  cp $CHART_DIR/values-secrets.example.yaml $CHART_DIR/values-secrets.yaml"
     fi
 
     helm upgrade --install "$RELEASE_NAME" "$CHART_DIR" \
@@ -284,6 +281,91 @@ expose() {
     fi
 }
 
+# Configure secrets interactively
+configure_secrets() {
+    check_minikube
+    ensure_namespace
+
+    log_info "Configuring Jitsu secrets..."
+    echo ""
+    echo "This will create/update the 'jitsu-secrets' Kubernetes Secret."
+    echo "All values are required."
+    echo ""
+
+    # Prompt for each secret
+    local auth_token console_auth_token database_url clickhouse_url mongodb_url
+
+    echo "Auth token for inter-service communication"
+    echo "  Generate with: openssl rand -hex 16"
+    read -p "  AUTH_TOKEN: " auth_token
+
+    echo ""
+    echo "Console API auth token"
+    read -p "  CONSOLE_AUTH_TOKEN: " console_auth_token
+
+    echo ""
+    echo "PostgreSQL connection URL"
+    echo "  Example: postgresql://user:pass@host:5432/database"
+    read -p "  DATABASE_URL: " database_url
+
+    echo ""
+    echo "ClickHouse connection URL (includes credentials)"
+    echo "  Example: https://user:password@host:8443/database"
+    read -p "  CLICKHOUSE_URL: " clickhouse_url
+
+    echo ""
+    echo "MongoDB connection URL (includes credentials)"
+    echo "  Example: mongodb+srv://user:password@cluster.mongodb.net/database"
+    read -p "  MONGODB_URL: " mongodb_url
+
+    # Validate required fields
+    local missing=""
+    [ -z "$auth_token" ] && missing="$missing AUTH_TOKEN"
+    [ -z "$console_auth_token" ] && missing="$missing CONSOLE_AUTH_TOKEN"
+    [ -z "$database_url" ] && missing="$missing DATABASE_URL"
+    [ -z "$clickhouse_url" ] && missing="$missing CLICKHOUSE_URL"
+    [ -z "$mongodb_url" ] && missing="$missing MONGODB_URL"
+
+    if [ -n "$missing" ]; then
+        log_error "Missing required secrets:$missing"
+        exit 1
+    fi
+
+    # Create the secret
+    log_info "Creating/updating Kubernetes secret..."
+
+    kubectl create secret generic jitsu-secrets \
+        --namespace "$NAMESPACE" \
+        --from-literal="RAW_AUTH_TOKENS=$auth_token" \
+        --from-literal="BULKER_AUTH_KEY=$auth_token" \
+        --from-literal="ROTOR_AUTH_KEY=$auth_token" \
+        --from-literal="REPOSITORY_AUTH_TOKEN=$console_auth_token" \
+        --from-literal="CONSOLE_TOKEN=$console_auth_token" \
+        --from-literal="CONFIG_SOURCE_HTTP_AUTH_TOKEN=$console_auth_token" \
+        --from-literal="DATABASE_URL=$database_url" \
+        --from-literal="CLICKHOUSE_URL=$clickhouse_url" \
+        --from-literal="MONGODB_URL=$mongodb_url" \
+        --dry-run=client -o yaml | kubectl apply -f -
+
+    log_success "Secret 'jitsu-secrets' configured in namespace $NAMESPACE"
+}
+
+# Show secrets status
+secrets_status() {
+    check_minikube
+
+    if kubectl get secret jitsu-secrets -n "$NAMESPACE" &>/dev/null; then
+        log_success "Secret 'jitsu-secrets' exists in namespace $NAMESPACE"
+        echo ""
+        log_info "Configured keys:"
+        kubectl get secret jitsu-secrets -n "$NAMESPACE" -o jsonpath='{.data}' | \
+            grep -o '"[^"]*":' | tr -d '":' | sed 's/^/  - /'
+    else
+        log_warn "Secret 'jitsu-secrets' not found in namespace $NAMESPACE"
+        log_info "Run '$0 secrets' to configure secrets"
+    fi
+}
+
 # Clear build caches
 clear_cache() {
     local cache_type="${1:-all}"
@@ -350,6 +432,8 @@ show_help() {
     echo "Usage: $0 <command> [options]"
     echo ""
     echo "Commands:"
+    echo "  secrets            Configure secrets interactively (creates K8s Secret)"
+    echo "  secrets-status     Show secrets configuration status"
     echo "  deploy             Deploy/upgrade Helm chart (auto-starts mount)"
     echo "  mount              Start minikube mount (project -> /project)"
     echo "  mount-stop         Stop minikube mount"
@@ -384,6 +468,12 @@ show_help() {
 
 # Main
 case "${1:-help}" in
+    secrets)
+        configure_secrets
+        ;;
+    secrets-status)
+        secrets_status
+        ;;
     deploy)
         shift
         deploy "$@"

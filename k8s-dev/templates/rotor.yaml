@@ -1,4 +1,4 @@
-{{- if .Values.rotor.enabled }}
+{{- if gt (int .Values.scaling.rotor.replicas) 0 }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -7,7 +7,7 @@ metadata:
     {{- include "jitsu-dev.labels" . | nindent 4 }}
     app.kubernetes.io/name: rotor
 spec:
-  replicas: {{ .Values.rotor.replicas }}
+  replicas: {{ .Values.scaling.rotor.replicas }}
   selector:
     matchLabels:
       app.kubernetes.io/name: rotor
@@ -20,7 +20,7 @@ spec:
     spec:
       initContainers:
         - name: install
-          image: {{ .Values.images.node }}
+          image: node:24-bookworm-slim
           workingDir: /cache/workspace
           command:
             - sh
@@ -80,25 +80,23 @@ spec:
               value: /cache/pnpm
       containers:
         - name: rotor
-          image: {{ .Values.images.node }}
-          workingDir: /cache/workspace/{{ .Values.rotor.sourcePath }}
+          image: node:24-bookworm-slim
+          workingDir: /cache/workspace/services/rotor
           command: ["node", "--no-node-snapshot", "--max-old-space-size=2048", "dist/main.js"]
           ports:
             - name: http
-              containerPort: {{ .Values.rotor.port }}
+              containerPort: 3401
               protocol: TCP
             - name: metrics
-              containerPort: {{ .Values.rotor.metricsPort }}
+              containerPort: 9091
               protocol: TCP
           envFrom:
             - secretRef:
                 name: jitsu-secrets
           env:
-            {{- include "jitsu-dev.hostEnv" . | nindent 12 }}
             {{- include "jitsu-dev.commonEnv" . | nindent 12 }}
             {{- include "jitsu-dev.serviceUrls" . | nindent 12 }}
-            {{- include "jitsu-dev.clickhouseEnv" . | nindent 12 }}
-            {{- range $key, $value := .Values.rotor.env }}
+            {{- range $key, $value := .Values.env.rotor }}
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}
@@ -135,13 +133,13 @@ metadata:
     {{- include "jitsu-dev.labels" . | nindent 4 }}
     app.kubernetes.io/name: rotor
 spec:
-  type: {{ .Values.rotor.serviceType | default "ClusterIP" }}
+  type: LoadBalancer
   ports:
-    - port: {{ .Values.rotor.port }}
+    - port: 3401
       targetPort: http
       protocol: TCP
       name: http
-    - port: {{ .Values.rotor.metricsPort }}
+    - port: 9091
       targetPort: metrics
       protocol: TCP
       name: metrics

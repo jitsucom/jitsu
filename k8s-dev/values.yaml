@@ -5,128 +5,29 @@
 # This will be mounted into containers
 projectRoot: /Users/ildarnurislamov/Projects/newjitsu
 
-# Base images
-images:
-  # For building Go services
-  goBuild: golang:1.25-bookworm
-  # For running Go services
-  goRun: debian:bookworm-slim
-  # For Node.js services (build + run)
-  node: node:24-bookworm-slim
+# Environment variables
+env:
+  # Common to all services
+  common:
+    LOG_FORMAT: "text"
+    CONSOLE_URL: http://host.minikube.internal:3000
+    KAFKA_BOOTSTRAP_SERVERS: host.minikube.internal:9094
+  # Per-service overrides
+  ingest: {}
+  bulker: {}
+  rotor: {}
+  syncctl: {}
+  operator: {}
 
-# Host services (running on bare metal, accessed from within Minikube)
-# Use 'host.minikube.internal' to access services on the host machine
-# Requires: minikube mount $PROJECT_ROOT:/project
-hostServices:
-  kafka:
-    brokers: host.minikube.internal:9094
-  console:
-    url: http://host.minikube.internal:3000
-
-# Ingest service
-ingest:
-  enabled: true
-  replicas: 1
-  port: 3049
-  metricsPort: 9091
-  sourcePath: bulker/ingest
-  binaryName: ingest
-  # Set to LoadBalancer + minikube tunnel for localhost access
-  serviceType: LoadBalancer
-  env: {}
-
-# Operator service
-operator:
-  enabled: true
-  replicas: 1
-  port: 3052
-  metricsPort: 9091
-  sourcePath: bulker/operator
-  binaryName: operator
-  env:
-    FUNCTIONS_SERVER_IMAGE: jitsucom/rotor:devfs2
-    MIN_REPLICAS: 1
-    MONGOBETWEEN_IMAGE: "jitsucom/mongobetween:0.0.3"
-    DEFAULT_FUNCTIONS_CLASS: free
-
-# Rotor service
-rotor:
-  enabled: true
-  replicas: 1
-  port: 3401
-  metricsPort: 9091
-  sourcePath: services/rotor
-  # Set to LoadBalancer + minikube tunnel for localhost access
-  serviceType: LoadBalancer
-  env: {}
-
-
-# Bulker service
-bulker:
-  enabled: true
-  replicas: 1
-  port: 3042
-  metricsPort: 9091
-  sourcePath: bulker/bulkerapp
-  binaryName: bulker
-  # Set to LoadBalancer + minikube tunnel for localhost access
-  serviceType: LoadBalancer
-  env: {}
-
-# Syncctl service
-syncctl:
-  enabled: true
-  replicas: 1
-  port: 3043
-  metricsPort: 9091
-  sourcePath: bulker/sync-controller
-  binaryName: syncctl
-  env: {}
-
-# Common environment variables for all services
-commonEnv:
-  # Logging
-  LOG_FORMAT: "text"
-  METRICS_PORT: "9091"
-
-  # Kafka config (used by ingest, rotor, bulker)
-  # Note: KAFKA_BOOTSTRAP_SERVERS is auto-generated from hostServices.kafka.brokers
-  KAFKA_TOPIC_COMPRESSION: zstd
-  KAFKA_DESTINATIONS_TOPIC_NAME: functions-pipeline
-
-# ClickHouse configuration (non-secret values)
-clickhouse:
-  host: ""
-  url: ""
-  username: "default"
-  database: "newjitsu_metrics"
-  metricsSchema: "newjitsu_metrics"
-  ssl: "true"
-
-# =============================================================================
-# SECRETS - Required credentials (must be provided via --set or secrets file)
-# =============================================================================
-# These values have no defaults and MUST be provided at deploy time.
-#
-# Option 1: Create a secrets file (DO NOT commit to git!)
-#   cp values-secrets.example.yaml values-secrets.yaml
-#   # Edit values-secrets.yaml with your credentials
-#   helm install jitsu . -f values-secrets.yaml
-#
-# Option 2: Pass via --set flags
-#   helm install jitsu . \
-#     --set secrets.authToken="your-token" \
-#     --set secrets.clickhousePassword="your-password" \
-#     --set secrets.mongodbUrl="mongodb://..."
-#
-secrets:
-  # Auth token for inter-service communication (generate with: openssl rand -hex 16)
-  authToken: ""
-  # Console API auth token (format: username:token)
-  consoleAuthToken: ""
-  # PostgreSQL connection URL (full connection string)
-  databaseUrl: ""
-  # ClickHouse password
-  clickhousePassword: ""
-  # MongoDB connection URL (includes credentials)
-  mongodbUrl: ""
+# Service scaling (set replicas to 0 to disable)
+scaling:
+  ingest:
+    replicas: 1
+  bulker:
+    replicas: 1
+  rotor:
+    replicas: 1
+  syncctl:
+    replicas: 1
+  operator:
+    replicas: 1
