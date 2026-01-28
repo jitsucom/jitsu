@@ -33,12 +33,19 @@ func (r *ClickhouseEventsLog) Id() string {
 
 func NewClickhouseEventsLog(config EventsLogConfig) (EventsLogService, error) {
 	base := appbase.NewServiceBase(chEventsLogServiceName)
+
+	// Parse configuration from URL and env vars
+	chConfig, err := utils.GetClickhouseConfig(&config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse clickhouse config: %w", err)
+	}
+
 	opts := &clickhouse.Options{
-		Addr: []string{config.ClickhouseHost},
+		Addr: []string{chConfig.GetAddr()},
 		Auth: clickhouse.Auth{
-			Database: config.ClickhouseDatabase,
-			Username: utils.NvlString(config.ClickhouseUsername, "default"),
-			Password: config.ClickhousePassword,
+			Database: chConfig.Database,
+			Username: chConfig.Username,
+			Password: chConfig.Password,
 		},
 		Settings: clickhouse.Settings{
 			"async_insert":                 1,
@@ -52,7 +59,7 @@ func NewClickhouseEventsLog(config EventsLogConfig) (EventsLogService, error) {
 		Protocol:    clickhouse.HTTP,
 		DialTimeout: time.Second * 5,
 	}
-	if config.ClickhouseSSL {
+	if chConfig.SSL {
 		opts.TLS = &tls.Config{
 			InsecureSkipVerify: true,
 		}

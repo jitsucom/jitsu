@@ -33,7 +33,6 @@ export default createRoute()
     const { workspaceId } = query;
     const workspace = await getWorkspace(workspaceId);
     await verifyAccess(user, workspace.id);
-    const metricsSchema = serverEnv.CLICKHOUSE_METRICS_SCHEMA || serverEnv.CLICKHOUSE_DATABASE || "newjitsu_metrics";
     const end = query.end || new Date();
     const start = query.start || dayjs(end).subtract(1, "month").toDate();
 
@@ -42,7 +41,7 @@ export default createRoute()
             date_trunc({granularity:String}, timestamp) as period,
             sum(count) as "activeEvents",
             count(*) as "srcSize"
-        from ${metricsSchema}.active_incoming_agg_view
+        from active_incoming_agg_view
         where 
             timestamp >= toDateTime({start:String}, 'UTC') and
             timestamp <= toDateTime({end:String}, 'UTC') and 

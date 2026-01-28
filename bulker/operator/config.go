@@ -32,7 +32,7 @@ type Config struct {
 	PodsResourcesPremium   string `mapstructure:"PODS_RESOURCES_PREMIUM"` // resource requests/limits for premium tier pods in json format
 
 	// Functions server configuration
-	FunctionsServerImage string `mapstructure:"FUNCTIONS_SERVER_IMAGE" default:"jitsucom/functions-server:latest"`
+	FunctionsServerImage string `mapstructure:"FUNCTIONS_SERVER_IMAGE" default:"jitsucom/rotor:latest"`
 	FunctionsServerPort  int    `mapstructure:"FUNCTIONS_SERVER_PORT" default:"3456"`
 
 	// Service configuration
@@ -47,7 +47,7 @@ type Config struct {
 	// If set, mongobetween sidecar will be added to proxy MongoDB connections
 	MongoDBURL string `mapstructure:"MONGODB_URL"`
 	// Mongobetween image to use as sidecar
-	MongobetweenImage string `mapstructure:"MONGOBETWEEN_IMAGE" default:"jitsucom/mongobetween:0.0.1"`
+	MongobetweenImage string `mapstructure:"MONGOBETWEEN_IMAGE" default:"jitsucom/mongobetween:0.0.3"`
 	// Port for mongobetween to listen on (functions-server connects to this)
 	MongobetweenPort int `mapstructure:"MONGOBETWEEN_PORT" default:"27017"`
 

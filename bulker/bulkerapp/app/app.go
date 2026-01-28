@@ -62,7 +62,7 @@ func (a *Context) InitContext(settings *appbase.AppSettings) error {
 
 	a.eventsLogService = &eventslog.DummyEventsLogService{}
 
-	if a.config.ClickhouseHost != "" {
+	if a.config.ClickhouseURL != "" || a.config.ClickhouseHost != "" {
 		a.eventsLogService, err = eventslog.NewClickhouseEventsLog(a.config.EventsLogConfig)
 		if err != nil {
 			return err

@@ -1,26 +1,15 @@
 import { createClient } from "@clickhouse/client";
-import { getServerLog } from "./log";
+import { getClickhouseConfig } from "juava";
 import { getServerEnv } from "./serverEnv";
 
-const log = getServerLog("clickhouse");
-
-function clickhouseHost() {
-  const serverEnv = getServerEnv();
-  if (serverEnv.CLICKHOUSE_URL) {
-    return serverEnv.CLICKHOUSE_URL;
-  }
-  if (!serverEnv.CLICKHOUSE_HOST) {
-    log.atError().log("env CLICKHOUSE_HOST is not defined, using default 'localhost'");
-    return "http://localhost";
-  }
-  return `${serverEnv.CLICKHOUSE_SSL ? "https://" : "http://"}${serverEnv.CLICKHOUSE_HOST}`;
-}
-
 const serverEnv = getServerEnv();
+const chConfig = getClickhouseConfig(serverEnv);
+
 export const clickhouse = createClient({
-  url: clickhouseHost(),
-  username: serverEnv.CLICKHOUSE_USERNAME || "default",
-  password: serverEnv.CLICKHOUSE_PASSWORD || "",
+  url: chConfig.url,
+  username: chConfig.username,
+  password: chConfig.password,
+  database: chConfig.database,
   request_timeout: 180000,
   compression: {
     response: true,

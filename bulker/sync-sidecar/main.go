@@ -104,9 +104,11 @@ func main() {
 		startedAt:        startedAt,
 		taskTimeoutHours: taskTimeoutHours,
 	}
+	clickhouseURL := os.Getenv("CLICKHOUSE_URL")
 	clickhouseHost := os.Getenv("CLICKHOUSE_HOST")
-	if clickhouseHost != "" {
+	if clickhouseURL != "" || clickhouseHost != "" {
 		eventsLogConfig := eventslog.EventsLogConfig{
+			ClickhouseURL:      clickhouseURL,
 			ClickhouseHost:     clickhouseHost,
 			ClickhouseDatabase: os.Getenv("CLICKHOUSE_DATABASE"),
 			ClickhouseUsername: os.Getenv("CLICKHOUSE_USERNAME"),

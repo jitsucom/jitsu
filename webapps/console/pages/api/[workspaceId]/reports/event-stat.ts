@@ -33,7 +33,6 @@ export default createRoute()
     const { workspaceId } = query;
     const workspace = await getWorkspace(workspaceId);
     await verifyAccess(user, workspace.id);
-    const metricsSchema = serverEnv.CLICKHOUSE_METRICS_SCHEMA || serverEnv.CLICKHOUSE_DATABASE || "newjitsu_metrics";
     const start = query.start
       ? new Date(query.start).toISOString()
       : dayjs().subtract(1, "month").toDate().toISOString();
@@ -47,7 +46,7 @@ export default createRoute()
             status,
             sumMerge(events) as events,
             count(*) as "srcSize"
-        from ${metricsSchema}.mv_metrics
+        from mv_metrics
         where 
             timestamp >= toDateTime({start:String}, 'UTC') and
             timestamp < toDateTime({end:String}, 'UTC') and 

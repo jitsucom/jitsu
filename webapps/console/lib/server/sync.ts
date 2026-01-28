@@ -24,8 +24,6 @@ import { getServerEnv } from "./serverEnv";
 
 const serverEnv = getServerEnv();
 
-const metricsSchema = serverEnv.CLICKHOUSE_METRICS_SCHEMA || serverEnv.CLICKHOUSE_DATABASE || "newjitsu_metrics";
-
 const log = getServerLog("sync-scheduler");
 
 const googleSchedulerLocation = serverEnv.GOOGLE_SCHEDULER_LOCATION || "us-central1";
@@ -69,7 +67,7 @@ async function dbLog({
 }) {
   log.at(level).log(`Task ${taskId} sync ${syncId}: ${message}`);
   await clickhouse.insert({
-    table: metricsSchema + ".task_log",
+    table: "task_log",
     format: "JSON",
     clickhouse_settings: {
       async_insert_busy_timeout_ms: 1000,

@@ -37,7 +37,6 @@ export default createRoute()
     }
     log.atInfo().log(`Trimming events log`);
     const serverEnv = getServerEnv();
-    const metricsSchema = serverEnv.CLICKHOUSE_METRICS_SCHEMA || serverEnv.CLICKHOUSE_DATABASE || "newjitsu_metrics";
     const metricsCluster = serverEnv.CLICKHOUSE_METRICS_CLUSTER || serverEnv.CLICKHOUSE_CLUSTER;
     const onCluster = metricsCluster ? ` ON CLUSTER ${metricsCluster}` : "";
     const eventsLogSize = serverEnv.EVENTS_LOG_SIZE ?? 200000;
@@ -45,18 +44,18 @@ export default createRoute()
 
     // trim logs to eventsLogSize only after exceeding threshold
     const thresholdSize = Math.floor(eventsLogSize * 1.5);
-    const actorsQuery: string = `select actorId, type, count(*) from ${metricsSchema}.events_log
+    const actorsQuery: string = `select actorId, type, count(*) from events_log
                                  group by actorId, type
                                  having count(*) > ${thresholdSize}`;
     const statQuery: string = `select timestamp
-                               from ${metricsSchema}.events_log
+                               from events_log
                                where actorId = {actorId:String} and type = {type:String} and xor(level = 'error', {withoutErrors:UInt8})
                                order by timestamp desc LIMIT 1 OFFSET ${eventsLogSize}`;
     const statQueryLarge: string = `select timestamp
-                               from ${metricsSchema}.events_log
+                               from events_log
                                where actorId = {actorId:String} and type = {type:String} and xor(level = 'error', {withoutErrors:UInt8})
                                order by timestamp desc LIMIT 1 OFFSET ${eventsLogSizeLarge}`;
-    const dropPartitionQuery: string = `alter table ${metricsSchema}.events_log ${onCluster} drop partition {partition:String}`;
+    const dropPartitionQuery: string = `alter table events_log ${onCluster} drop partition {partition:String}`;
     const oldPartition = dayjs().subtract(2, "month").format("YYYYMM");
     try {
       await clickhouse.command({
@@ -150,7 +149,7 @@ export default createRoute()
       return;
     }
     const deleteQuery =
-      `delete from ${metricsSchema}.events_log where\n` +
+      `delete from events_log where\n` +
       deleteRequests
         .map((req, i) => {
           return `(actorId = '${req.actorId}' and type ='${req.type}' and xor(level = 'error', ${req.withoutErrors}) and timestamp < '${req.timestamp}')`;

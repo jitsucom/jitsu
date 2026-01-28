@@ -665,12 +665,9 @@ async function loadBatchStatusesChanges(
   let processed = 0;
   let statusChanges = 0;
 
-  const serverEnv = getServerEnv();
-  const metricsSchema = serverEnv.CLICKHOUSE_METRICS_SCHEMA || serverEnv.CLICKHOUSE_DATABASE || "newjitsu_metrics";
-
   // noinspection SqlResolve
   const eventsLogQuery: string = `select actorId, level, timestamp, message
-                                  from ${metricsSchema}.events_log
+                                  from events_log
                                   where type = 'bulker_batch'
                                     and timestamp > toDateTime({fromTimestamp:String}, 'UTC')
                                     and has({actorIds:Array(String)}, actorId)
@@ -765,14 +762,13 @@ async function loadDeadStatusesChanges(
   let statusChanges = 0;
 
   const serverEnv = getServerEnv();
-  const metricsSchema = serverEnv.CLICKHOUSE_METRICS_SCHEMA || serverEnv.CLICKHOUSE_DATABASE || "newjitsu_metrics";
 
   // noinspection SqlResolve
   const eventsLogQuery: string = `select workspaceId, actorId, type, 
                                     count() cnt,  
                                     argMax(error, timestamp) as last_error, 
                                     max(timestamp) as last_failed_at
-                                  from ${metricsSchema}.dead_letter
+                                  from dead_letter
                                   where has({actorIds:Array(String)}, actorId)
                                   GROUP BY workspaceId, actorId, type`;
   const processChunk = async (chunk: string[]) => {

@@ -13,7 +13,6 @@ import { getServerEnv } from "../../../../lib/server/serverEnv";
 
 const log = getServerLog("sync-logs");
 const serverEnv = getServerEnv();
-const metricsSchema = serverEnv.CLICKHOUSE_METRICS_SCHEMA || serverEnv.CLICKHOUSE_DATABASE || "newjitsu_metrics";
 
 //Vercel Limit:  https://vercel.com/docs/functions/streaming-functions#limitations-for-streaming-edge-functions
 const maxStreamingResponseSize = 100_000_000;
@@ -70,7 +69,7 @@ export default createRoute()
         }
         responsePromiseResolve();
       });
-      const sqlQuery = `select timestamp, level, logger, message from ${metricsSchema}.task_log where task_id = {taskId:String} AND sync_id = {syncId:String} order by timestamp desc`;
+      const sqlQuery = `select timestamp, level, logger, message from task_log where task_id = {taskId:String} AND sync_id = {syncId:String} order by timestamp desc`;
       const chResult = await clickhouse.query({
         query: sqlQuery,
         query_params: {

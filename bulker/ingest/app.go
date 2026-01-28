@@ -36,7 +36,7 @@ func (a *Context) InitContext(settings *appbase.AppSettings) error {
 	a.repository = NewStreamsRepository(a.config.RepositoryURL, a.config.RepositoryAuthToken, a.config.RepositoryRefreshPeriodSec, a.config.CacheDir)
 	a.scriptRepository = NewScriptRepository(a.config.ScriptOrigin, a.config.CacheDir)
 	a.eventsLogService = &eventslog.DummyEventsLogService{}
-	if a.config.ClickhouseHost != "" {
+	if a.config.ClickhouseURL != "" || a.config.ClickhouseHost != "" {
 		a.eventsLogService, err = eventslog.NewClickhouseEventsLog(a.config.EventsLogConfig)
 		if err != nil {
 			return err

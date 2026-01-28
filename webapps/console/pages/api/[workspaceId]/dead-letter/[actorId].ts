@@ -13,7 +13,6 @@ dayjs.extend(utc);
 
 const log = getServerLog("dead-letter");
 const serverEnv = getServerEnv();
-const metricsSchema = serverEnv.CLICKHOUSE_METRICS_SCHEMA || serverEnv.CLICKHOUSE_DATABASE || "newjitsu_metrics";
 
 //Vercel Limit:  https://vercel.com/docs/functions/streaming-functions#limitations-for-streaming-edge-functions
 const maxStreamingResponseSize = 100_000_000;
@@ -68,7 +67,7 @@ export const api: Api = {
           type,
           payload,
           error
-        from ${metricsSchema}.dead_letter
+        from dead_letter
         where
           workspaceId = {workspaceId:String}
           ${query.actorId !== "all" ? "and actorId = {actorId:String}" : ""}

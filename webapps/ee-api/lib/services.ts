@@ -1,4 +1,4 @@
-import { requireDefined } from "juava";
+import { requireDefined, getClickhouseConfig, ClickhouseEnvVars } from "juava";
 import { createPg, getPostgresStore } from "./store";
 import { createClient } from "@clickhouse/client";
 import { S3Client } from "@aws-sdk/client-s3";
@@ -11,10 +11,13 @@ export const store = getPostgresStore(pg, { tableName: "newjitsuee.kvstore" });
 
 export const telemetryDb = createPg(process.env.TELEMETRY_DATABASE_URL || dbUrl, { connectionName: "telemetry" });
 
+const chConfig = getClickhouseConfig(process.env as ClickhouseEnvVars);
+
 export const clickhouse = createClient({
-  url: requireDefined(process.env.CLICKHOUSE_URL, `env CLICKHOUSE_URL is not defined`),
-  username: process.env.CLICKHOUSE_USERNAME || "default",
-  password: requireDefined(process.env.CLICKHOUSE_PASSWORD, `env CLICKHOUSE_PASSWORD is not defined`),
+  url: chConfig.url,
+  database: chConfig.database,
+  username: chConfig.username,
+  password: chConfig.password,
   request_timeout: 600_000,
 });
 

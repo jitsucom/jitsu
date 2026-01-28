@@ -10,6 +10,7 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/jitsucom/bulker/jitsubase/appbase"
+	"github.com/jitsucom/bulker/jitsubase/utils"
 	"github.com/jitsucom/bulker/jitsubase/uuid"
 	"github.com/jitsucom/bulker/kafkabase"
 )
@@ -56,17 +57,23 @@ type DeadLetterReprocessor struct {
 func NewDeadLetterReprocessor(config *Config) (*DeadLetterReprocessor, error) {
 	base := appbase.NewServiceBase("deadletter-reprocessor")
 
-	if config.ClickhouseHost == "" {
-		return nil, fmt.Errorf("CLICKHOUSE_HOST is required for dead letter reprocessor")
+	// Parse ClickHouse configuration from URL and env vars
+	chConfig, err := utils.GetClickhouseConfig(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse clickhouse config: %w", err)
+	}
+
+	if chConfig.Host == "" {
+		return nil, fmt.Errorf("CLICKHOUSE_URL or CLICKHOUSE_HOST is required for dead letter reprocessor")
 	}
 
 	// Initialize ClickHouse connection
 	opts := &clickhouse.Options{
-		Addr: []string{config.ClickhouseHost},
+		Addr: []string{chConfig.GetAddr()},
 		Auth: clickhouse.Auth{
-			Database: config.ClickhouseDatabase,
-			Username: config.ClickhouseUsername,
-			Password: config.ClickhousePassword,
+			Database: chConfig.Database,
+			Username: chConfig.Username,
+			Password: chConfig.Password,
 		},
 		Settings: clickhouse.Settings{
 			"date_time_input_format": "best_effort",
@@ -77,7 +84,7 @@ func NewDeadLetterReprocessor(config *Config) (*DeadLetterReprocessor, error) {
 		Protocol:    clickhouse.HTTP,
 		DialTimeout: time.Second * 10,
 	}
-	if config.ClickhouseSSL {
+	if chConfig.SSL {
 		opts.TLS = &tls.Config{
 			InsecureSkipVerify: true,
 		}

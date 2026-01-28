@@ -36,12 +36,21 @@ type Config struct {
 	RepositoryAuthToken string `mapstructure:"REPOSITORY_AUTH_TOKEN"`
 
 	// # CLICKHOUSE CONFIG - for dead letter reprocessing
+	ClickhouseURL      string `mapstructure:"CLICKHOUSE_URL"`
 	ClickhouseHost     string `mapstructure:"CLICKHOUSE_HOST"`
 	ClickhouseDatabase string `mapstructure:"CLICKHOUSE_DATABASE" default:"newjitsu_metrics"`
 	ClickhouseUsername string `mapstructure:"CLICKHOUSE_USERNAME" default:"default"`
 	ClickhousePassword string `mapstructure:"CLICKHOUSE_PASSWORD"`
 	ClickhouseSSL      bool   `mapstructure:"CLICKHOUSE_SSL" default:"false"`
 }
+
+// Implement ClickhouseEnvVars interface
+func (c *Config) GetClickhouseURL() string      { return c.ClickhouseURL }
+func (c *Config) GetClickhouseHost() string     { return c.ClickhouseHost }
+func (c *Config) GetClickhouseUsername() string { return c.ClickhouseUsername }
+func (c *Config) GetClickhousePassword() string { return c.ClickhousePassword }
+func (c *Config) GetClickhouseDatabase() string { return c.ClickhouseDatabase }
+func (c *Config) GetClickhouseSSL() bool        { return c.ClickhouseSSL }
 
 func init() {
 	viper.SetDefault("HTTP_PORT", utils.NvlString(os.Getenv("PORT"), "3049"))

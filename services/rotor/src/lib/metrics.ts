@@ -1,4 +1,4 @@
-import { getLog, isTruish, requireDefined, stopwatch } from "juava";
+import { getLog, stopwatch, getClickhouseConfig } from "juava";
 import { FunctionExecLog, FunctionExecRes, RotorMetrics, StoreMetrics } from "@jitsu/destination-functions";
 
 import { KafkaJS } from "@confluentinc/kafka-javascript";
@@ -122,12 +122,13 @@ export const DummyMetrics: RotorMetrics = {
 
 export function createMetrics(producer?: KafkaJS.Producer): RotorMetrics {
   const buffer: MetricsEvent[] = [];
-  const metricsSchema = serverEnv.CLICKHOUSE_METRICS_SCHEMA || serverEnv.CLICKHOUSE_DATABASE || "newjitsu_metrics";
+  const chConfig = getClickhouseConfig(serverEnv);
 
   const clickhouse = createClient({
-    url: clickhouseHost(),
-    username: serverEnv.CLICKHOUSE_USERNAME || "default",
-    password: requireDefined(serverEnv.CLICKHOUSE_PASSWORD, `env CLICKHOUSE_PASSWORD is not defined`),
+    url: chConfig.url,
+    username: chConfig.username,
+    password: chConfig.password,
+    database: chConfig.database,
     clickhouse_settings: {
       async_insert: 1,
       wait_for_async_insert: 0,
@@ -165,7 +166,7 @@ export function createMetrics(producer?: KafkaJS.Producer): RotorMetrics {
     } else {
       const billingStream = new Readable({ objectMode: true });
       const billingResponse = clickhouse.insert({
-        table: metricsSchema + "." + billingMetricsTable,
+        table: billingMetricsTable,
         format: "JSONCompactEachRow",
         values: billingStream,
       });
@@ -199,7 +200,7 @@ export function createMetrics(producer?: KafkaJS.Producer): RotorMetrics {
 
     const metricsStream = new Readable({ objectMode: true });
     const metricsResponse = clickhouse.insert({
-      table: metricsSchema + "." + metricsTable,
+      table: metricsTable,
       format: "JSONCompactEachRow",
       values: metricsStream,
     });
@@ -339,16 +340,6 @@ export function createMetrics(producer?: KafkaJS.Producer): RotorMetrics {
       clickhouse.close();
     },
   };
-}
-
-function clickhouseHost() {
-  if (serverEnv.CLICKHOUSE_URL) {
-    return serverEnv.CLICKHOUSE_URL;
-  }
-  return `${isTruish(serverEnv.CLICKHOUSE_SSL) ? "https://" : "http://"}${requireDefined(
-    serverEnv.CLICKHOUSE_HOST,
-    "env CLICKHOUSE_HOST is not defined"
-  )}`;
 }
 
 export const metrics: StoreMetrics = {

@@ -1,5 +1,5 @@
 import { createRoute, getUser, verifyAdmin } from "../../../lib/api";
-import { checkRawToken } from "juava";
+import { checkRawToken, getClickhouseConfig } from "juava";
 import { clickhouse } from "../../../lib/server/clickhouse";
 import { z } from "zod";
 import { getServerLog } from "../../../lib/server/log";
@@ -30,7 +30,7 @@ export default createRoute()
       await verifyAdmin(user);
     }
     log.atInfo().log(`Init events log`);
-    const metricsSchema = serverEnv.CLICKHOUSE_METRICS_SCHEMA || serverEnv.CLICKHOUSE_DATABASE || "newjitsu_metrics";
+    const metricsSchema = getClickhouseConfig(serverEnv).database;
     const metricsCluster = serverEnv.CLICKHOUSE_METRICS_CLUSTER || serverEnv.CLICKHOUSE_CLUSTER;
     const onCluster = metricsCluster ? ` ON CLUSTER ${metricsCluster}` : "";
     const createDbQuery: string = `create database IF NOT EXISTS ${metricsSchema}${onCluster}`;

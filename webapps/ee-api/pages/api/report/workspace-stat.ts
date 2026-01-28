@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import {
   assertDefined,
   assertTrue,
+  getClickhouseConfig,
   getErrorMessage,
   getLog,
   namedParameters,

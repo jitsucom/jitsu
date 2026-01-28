@@ -742,8 +742,13 @@ func (j *JobRunner) createPod(podName string, task TaskDescriptor, configuration
 	if task.StorageKey != "" {
 		sideCarEnv["STORAGE_KEY"] = task.StorageKey
 	}
-	if j.config.ClickhouseHost != "" {
-		sideCarEnv["CLICKHOUSE_HOST"] = j.config.ClickhouseHost
+	if j.config.ClickhouseURL != "" || j.config.ClickhouseHost != "" {
+		if j.config.ClickhouseURL != "" {
+			sideCarEnv["CLICKHOUSE_URL"] = j.config.ClickhouseURL
+		}
+		if j.config.ClickhouseHost != "" {
+			sideCarEnv["CLICKHOUSE_HOST"] = j.config.ClickhouseHost
+		}
 		sideCarEnv["CLICKHOUSE_DATABASE"] = j.config.ClickhouseDatabase
 		sideCarEnv["CLICKHOUSE_USERNAME"] = j.config.ClickhouseUsername
 		sideCarEnv["CLICKHOUSE_PASSWORD"] = j.config.ClickhousePassword

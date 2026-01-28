@@ -1,4 +1,4 @@
-import { getLog, isTruish, LogLevel, requireDefined } from "juava";
+import { getLog, LogLevel, getClickhouseConfig } from "juava";
 
 const log = getLog("clickhouseLogger");
 
@@ -12,25 +12,16 @@ type DeadLetterEntry = [number, string, string, string, any, any];
 
 const serverEnv = getServerEnv();
 
-export function clickhouseHost() {
-  if (serverEnv.CLICKHOUSE_URL) {
-    return serverEnv.CLICKHOUSE_URL;
-  }
-  return `${isTruish(serverEnv.CLICKHOUSE_SSL) ? "https://" : "http://"}${requireDefined(
-    serverEnv.CLICKHOUSE_HOST,
-    "env CLICKHOUSE_HOST is not defined"
-  )}`;
-}
-
 export function createClickhouseLogger(): EventsStore {
   const logBuffer: LogEntry[] = [];
   const deadLetterBuffer: DeadLetterEntry[] = [];
-  const metricsSchema = serverEnv.CLICKHOUSE_METRICS_SCHEMA || serverEnv.CLICKHOUSE_DATABASE || "newjitsu_metrics";
+  const chConfig = getClickhouseConfig(serverEnv);
 
   const clickhouse = createClient({
-    url: clickhouseHost(),
-    username: serverEnv.CLICKHOUSE_USERNAME || "default",
-    password: requireDefined(serverEnv.CLICKHOUSE_PASSWORD, `env CLICKHOUSE_PASSWORD is not defined`),
+    url: chConfig.url,
+    username: chConfig.username,
+    password: chConfig.password,
+    database: chConfig.database,
     clickhouse_settings: {
       async_insert: 1,
       wait_for_async_insert: 0,
@@ -47,7 +38,7 @@ export function createClickhouseLogger(): EventsStore {
     logBuffer.length = 0;
     const eventsStream = new Readable({ objectMode: true });
     const res = clickhouse.insert<LogEntry>({
-      table: metricsSchema + ".events_log",
+      table: "events_log",
       format: "JSONCompactEachRow",
       values: eventsStream,
     });
@@ -79,7 +70,7 @@ export function createClickhouseLogger(): EventsStore {
     deadLetterBuffer.length = 0;
     const eventsStream = new Readable({ objectMode: true });
     const res = clickhouse.insert<DeadLetterEntry>({
-      table: metricsSchema + ".dead_letter",
+      table: "dead_letter",
       format: "JSONCompactEachRow",
       values: eventsStream,
     });
