@@ -51,6 +51,9 @@ type Config struct {
 
 	// TopicManagerRefreshPeriodSec how often topic manager will check for new topics
 	TopicManagerRefreshPeriodSec int `mapstructure:"TOPIC_MANAGER_REFRESH_PERIOD_SEC" default:"5"`
+	// TopicManagerAllTableToken allows overwriting default suffix to topics for all tables in a destination, such as
+	// `dead` and `retries`
+	TopicManagerAllTableToken string `mapstructure:"TOPIC_MANAGER_ALL_TABLE_TOKEN" default:"_all_"`
 
 	// # BATCHING
 

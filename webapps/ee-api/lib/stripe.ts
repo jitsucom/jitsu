@@ -220,7 +220,11 @@ export async function exportSubscriptions(): Promise<Record<string, { customer: 
 }
 
 export async function getActivePlan(customerId: string): Promise<null | SubscriptionStatus> {
-  const subscriptions = await stripe.subscriptions.list({ customer: customerId, status: "all", limit: 10 });
+  const [subscriptions, invoices] = await Promise.all([
+    stripe.subscriptions.list({ customer: customerId, status: "all", limit: 10 }),
+    stripe.invoices.list({ customer: customerId, limit: 10 }),
+  ]);
+  const hasPastDueInvoices = invoices.data.some(inv => !["paid", "void", "draft"].includes(inv.status ?? ""));
   const sub2product = new Map<string, Stripe.Product>();
   for (const sub of subscriptions.data) {
     const productId = sub.items.data[0].price.product;
@@ -264,7 +268,7 @@ export async function getActivePlan(customerId: string): Promise<null | Subscrip
           .toISOString(),
       },
       renewAfterExpiration: !subscription.cancel_at_period_end,
-      pastDue: pastDueSubscription && !activeSubscription,
+      pastDue: hasPastDueInvoices,
       planKind: planData.planKind,
 
       //omit token field that might be considered as sensitive
@@ -402,7 +406,6 @@ export async function listAllInvoices() {
   do {
     const result = await stripe.invoices.list({
       limit: 100,
-      status: "paid",
       starting_after: starting_after,
       created: {
         //invoices for past 90 days
@@ -411,7 +414,7 @@ export async function listAllInvoices() {
     });
     starting_after = result?.data[result.data.length - 1]?.id;
     if (result?.data) {
-      allInvoices.push(...result?.data);
+      allInvoices.push(...result?.data?.filter(i => i.status === "paid" || i.status === "open"));
     }
   } while (starting_after);
   getLog()

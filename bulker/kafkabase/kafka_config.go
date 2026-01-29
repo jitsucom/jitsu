@@ -48,7 +48,7 @@ type KafkaConfig struct {
 	ProducerBatchSize          int     `mapstructure:"PRODUCER_BATCH_SIZE" default:"65535"`
 	ProducerLingerMs           int     `mapstructure:"PRODUCER_LINGER_MS" default:"1000"`
 	ProducerWaitForDeliveryMs  int     `mapstructure:"PRODUCER_WAIT_FOR_DELIVERY_MS" default:"1000"`
-	
+
 	// Failover logger configuration
 	FailoverLoggerEnvConfig `mapstructure:",squash"`
 }
@@ -56,7 +56,7 @@ type KafkaConfig struct {
 // GetKafkaConfig returns kafka config
 func (ac *KafkaConfig) GetKafkaConfig() *kafka.ConfigMap {
 	if ac.KafkaBootstrapServers == "" {
-		panic("❗️Kafka bootstrap servers are not set. Please set BULKER_KAFKA_BOOTSTRAP_SERVERS env variable")
+		panic("❗️Kafka bootstrap servers are not set. Please set KAFKA_BOOTSTRAP_SERVERS env variable")
 	}
 	kafkaConfig := &kafka.ConfigMap{
 		"client.id":                "bulkerapp",

@@ -24,12 +24,14 @@ const (
 	deadTopicMode     = "dead"
 	profilesTopicMode = "profiles"
 
-	allTablesToken = "_all_"
-
 	topicLengthLimit = 249
 )
 
-var topicPattern = regexp.MustCompile(`^in[.]id[.](.*)[.]m[.](.*)[.](t|b64)[.](.*)$`)
+var (
+	topicPattern = regexp.MustCompile(`^in[.]id[.](.*)[.]m[.](.*)[.](t|b64)[.](.*)$`)
+
+	allTablesToken = "_all_"
+)
 
 type TopicManager struct {
 	appbase.Service
@@ -77,6 +79,9 @@ func NewTopicManager(appContext *Context) (*TopicManager, error) {
 	if err != nil {
 		return nil, base.NewError("Error creating kafka admin client: %v", err)
 	}
+
+	allTablesToken = appContext.config.TopicManagerAllTableToken
+
 	return &TopicManager{
 		Service:              base,
 		config:               appContext.config,
