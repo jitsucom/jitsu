@@ -500,6 +500,8 @@ func (o *Operator) createDeploymentFromData(data *DeploymentData) error {
 	// Create Service
 	if err := o.createOrUpdateServiceFromData(ctx, data); err != nil {
 		return fmt.Errorf("failed to create service: %v", err)
+	} else {
+		o.Infof("Service for deployment %s created/updated", data.DeploymentID)
 	}
 
 	// Create HPA if enabled
@@ -585,6 +587,8 @@ func (o *Operator) updateDeploymentFromData(data *DeploymentData, existing *Depl
 	// Update Service
 	if err := o.createOrUpdateServiceFromData(ctx, data); err != nil {
 		return fmt.Errorf("failed to update service: %v", err)
+	} else {
+		o.Infof("Service for deployment %s created/updated", data.DeploymentID)
 	}
 
 	// Update HPA if enabled

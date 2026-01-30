@@ -71,7 +71,6 @@ export function retryLogMessage(retryPolicy: retryPolicy, retries: number): stri
 export function retryObject(e: Error & { retryPolicy?: retryPolicy }, retries: number) {
   if (e.name === DropRetryErrorName || e.name === RetryErrorName) {
     const retryPolicy = getRetryPolicy(e);
-    console.log("Retry policy: " + JSON.stringify(retryPolicy));
     const retryTime = retryBackOffTime(retryPolicy, retries + 1);
     return { retry: { left: retryPolicy.attempts - retries, ...(retryTime ? { time: retryTime } : {}) } };
   } else {

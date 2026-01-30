@@ -39,7 +39,7 @@ esbuild
       format: "cjs",
       outfile: "./dist/functions-server.js",
       sourcemap: false,
-      // minify: true,
+      minify: true,
       external: externalModules,
       logLevel: "info",
     });
