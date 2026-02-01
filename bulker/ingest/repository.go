@@ -197,7 +197,7 @@ func (s *ShortDestinationConfig) CloneForJsLib() *ShortDestinationConfig {
 		Id:                   s.Id,
 		DestinationType:      s.DestinationType,
 		Options: utils.MapFilter(s.Options, func(s string, _ any) bool {
-			return s != "functions"
+			return s != "functions" && s != "functionsClasses"
 		}),
 		Credentials: s.Credentials,
 	}

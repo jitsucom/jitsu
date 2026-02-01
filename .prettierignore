@@ -9,7 +9,7 @@
 
 jitsu
 # configs -- will keep multi-line json arrays
-k8s-dev/*
+helm/*
 .eslintrc.json
 package.json
 tsconfig.json
