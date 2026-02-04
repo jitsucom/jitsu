@@ -2,7 +2,6 @@ package sql
 
 import (
 	"fmt"
-	"time"
 
 	bulker "github.com/jitsucom/bulker/bulkerlib"
 	"github.com/jitsucom/bulker/bulkerlib/types"
@@ -83,16 +82,15 @@ func init() {
 }
 
 type S3OptionConfig struct {
-	AuthenticationMethod string        `mapstructure:"authenticationMethod,omitempty" json:"authenticationMethod,omitempty" yaml:"authenticationMethod,omitempty"`
-	AccessKeyID          string        `mapstructure:"accessKeyId,omitempty" json:"accessKeyId,omitempty" yaml:"accessKeyId,omitempty"`
-	SecretAccessKey      string        `mapstructure:"secretAccessKey,omitempty" json:"secretAccessKey,omitempty" yaml:"secretAccessKey,omitempty"`
-	RoleARN              string        `mapstructure:"roleARN,omitempty" json:"roleARN,omitempty" yaml:"roleARN,omitempty"`
-	RoleARNExpiry        time.Duration `mapstructure:"roleARNExpiry,omitempty" json:"roleARNExpiry,omitempty" yaml:"roleARNExpiry,omitempty"`
-	ExternalID           string        `mapstructure:"externalID,omitempty" json:"externalID,omitempty" yaml:"externalID,omitempty"`
-	Bucket               string        `mapstructure:"bucket,omitempty" json:"bucket,omitempty" yaml:"bucket,omitempty"`
-	Region               string        `mapstructure:"region,omitempty" json:"region,omitempty" yaml:"region,omitempty"`
-	Folder               string        `mapstructure:"folder,omitempty" json:"folder,omitempty" yaml:"folder,omitempty"`
-	UsePresignedURL      bool          `mapstructure:"usePresignedURL,omitempty" json:"usePresignedURL,omitempty" yaml:"usePresignedURL,omitempty"`
+	AuthenticationMethod string `mapstructure:"authenticationMethod,omitempty" json:"authenticationMethod,omitempty" yaml:"authenticationMethod,omitempty"`
+	AccessKeyID          string `mapstructure:"accessKeyId,omitempty" json:"accessKeyId,omitempty" yaml:"accessKeyId,omitempty"`
+	SecretAccessKey      string `mapstructure:"secretAccessKey,omitempty" json:"secretAccessKey,omitempty" yaml:"secretAccessKey,omitempty"`
+	RoleARN              string `mapstructure:"roleARN,omitempty" json:"roleARN,omitempty" yaml:"roleARN,omitempty"`
+	ExternalID           string `mapstructure:"externalID,omitempty" json:"externalID,omitempty" yaml:"externalID,omitempty"`
+	Bucket               string `mapstructure:"bucket,omitempty" json:"bucket,omitempty" yaml:"bucket,omitempty"`
+	Region               string `mapstructure:"region,omitempty" json:"region,omitempty" yaml:"region,omitempty"`
+	Folder               string `mapstructure:"folder,omitempty" json:"folder,omitempty" yaml:"folder,omitempty"`
+	UsePresignedURL      bool   `mapstructure:"usePresignedURL,omitempty" json:"usePresignedURL,omitempty" yaml:"usePresignedURL,omitempty"`
 }
 
 func WithOmitNils() bulker.StreamOption {

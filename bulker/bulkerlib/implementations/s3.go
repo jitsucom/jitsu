@@ -5,6 +5,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"time"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
@@ -15,8 +18,6 @@ import (
 	"github.com/jitsucom/bulker/jitsubase/errorj"
 	"github.com/jitsucom/bulker/jitsubase/logging"
 	"go.uber.org/atomic"
-	"io"
-	"time"
 )
 
 const (
@@ -35,9 +36,8 @@ type S3Config struct {
 	Endpoint             string `mapstructure:"endpoint,omitempty" json:"endpoint,omitempty" yaml:"endpoint,omitempty"`
 	UsePresignedURL      bool   `mapstructure:"usePresignedURL,omitempty" json:"usePresignedURL,omitempty" yaml:"usePresignedURL,omitempty"`
 
-	RoleARN       string        `mapstructure:"roleARN" json:"roleARN" yaml:"roleARN"`
-	RoleARNExpiry time.Duration `json:"roleARNExpiry"` // default: 15m
-	ExternalID    string        `mapstructure:"externalID" json:"externalID" yaml:"externalID"`
+	RoleARN    string `mapstructure:"roleARN" json:"roleARN" yaml:"roleARN"`
+	ExternalID string `mapstructure:"externalID" json:"externalID" yaml:"externalID"`
 }
 
 // Validate returns err if invalid
@@ -122,8 +122,10 @@ func NewS3(s3Config *S3Config) (*S3, error) {
 					o.ExternalID = aws.String(s3Config.ExternalID)
 				}
 				o.RoleSessionName = roleSessionName
-				o.Duration = s3Config.RoleARNExpiry
-			})))
+				o.Duration = 60 * time.Minute
+			})), config.WithCredentialsCacheOptions(func(o *aws.CredentialsCacheOptions) {
+				o.ExpiryWindow = 2 * time.Minute
+			}))
 		}
 		awsCfg, err := config.LoadDefaultConfig(context.Background(), opts...)
 		if err != nil {

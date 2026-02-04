@@ -6,6 +6,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"os"
+	"path"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+
 	bulker "github.com/jitsucom/bulker/bulkerlib"
 	implementations2 "github.com/jitsucom/bulker/bulkerlib/implementations"
 	types2 "github.com/jitsucom/bulker/bulkerlib/types"
@@ -14,12 +22,6 @@ import (
 	"github.com/jitsucom/bulker/jitsubase/logging"
 	"github.com/jitsucom/bulker/jitsubase/types"
 	"github.com/jitsucom/bulker/jitsubase/utils"
-	"io"
-	"os"
-	"path"
-	"sort"
-	"strings"
-	"time"
 )
 
 var fileStorageDefaultFlattener = implementations2.NewFlattener(nil, false, false)
@@ -37,13 +39,15 @@ type AbstractFileStorageStream struct {
 	pkColumns       []string
 	timestampColumn string
 
-	batchFile          *os.File
-	marshaller         types2.Marshaller
-	targetMarshaller   types2.Marshaller
-	eventsInBatch      int
-	batchFileLinesByPK map[string]*DeduplicationLine
-	batchFileSkipLines types.Set[int]
-	csvHeader          types.Set[string]
+	batchFile              *os.File
+	marshaller             types2.Marshaller
+	marshallerHeaderRows   uint32
+	targetMarshaller       types2.Marshaller
+	eventsInBatch          uint32
+	batchFileLinesByPKDisc map[string]DeduplicationLine
+	batchFileLinesByPK     map[string]uint32
+	batchFileSkipLines     types.Set[uint32]
+	csvHeader              types.Set[string]
 
 	firstEventTime time.Time
 	lastEventTime  time.Time
@@ -59,7 +63,7 @@ type AbstractFileStorageStream struct {
 }
 
 type DeduplicationLine struct {
-	lineNumber    int
+	lineNumber    uint32
 	discriminator any
 }
 
@@ -81,8 +85,9 @@ func newAbstractFileStorageStream(id string, p implementations2.FileAdapter, fil
 		ps.flatten = true
 	}
 	if ps.merge {
-		ps.batchFileLinesByPK = make(map[string]*DeduplicationLine)
-		ps.batchFileSkipLines = types.NewSet[int]()
+		ps.batchFileLinesByPK = make(map[string]uint32)
+		ps.batchFileLinesByPKDisc = make(map[string]DeduplicationLine)
+		ps.batchFileSkipLines = types.NewSet[uint32]()
 		discriminatorField := bulker.DiscriminatorFieldOption.Get(&ps.options)
 		if len(discriminatorField) > 0 {
 			if ps.flatten {
@@ -119,6 +124,7 @@ func (ps *AbstractFileStorageStream) init(ctx context.Context) error {
 			//without merge we can write file with compression - no need to convert
 			ps.marshaller, _ = types2.NewMarshaller(ps.fileAdapter.Format(), ps.fileAdapter.Compression())
 		}
+		ps.marshallerHeaderRows = utils.Ternary(ps.marshaller.NeedHeader(), uint32(1), 0)
 	}
 	ps.inited = true
 	return nil
@@ -155,6 +161,11 @@ func (ps *AbstractFileStorageStream) postComplete(err error) (bulker.State, erro
 		_ = ps.batchFile.Close()
 		_ = os.Remove(ps.batchFile.Name())
 	}
+	if ps.merge {
+		ps.batchFileLinesByPK = nil
+		ps.batchFileLinesByPKDisc = nil
+		ps.batchFileSkipLines = nil
+	}
 	if err != nil {
 		ps.state.SetError(err)
 		ps.state.Status = bulker.Failed
@@ -167,10 +178,13 @@ func (ps *AbstractFileStorageStream) postComplete(err error) (bulker.State, erro
 }
 
 func (ps *AbstractFileStorageStream) flushBatchFile(ctx context.Context) (err error) {
+	if ps.merge {
+		ps.batchFileLinesByPK = make(map[string]uint32)
+		ps.batchFileLinesByPKDisc = make(map[string]DeduplicationLine)
+	}
 	defer func() {
 		if ps.merge {
-			ps.batchFileLinesByPK = make(map[string]*DeduplicationLine)
-			ps.batchFileSkipLines = types.NewSet[int]()
+			ps.batchFileSkipLines = types.NewSet[uint32]()
 		}
 		_ = ps.batchFile.Close()
 		_ = os.Remove(ps.batchFile.Name())
@@ -233,7 +247,7 @@ func (ps *AbstractFileStorageStream) flushBatchFile(ctx context.Context) (err er
 			}()
 			scanner := bufio.NewScanner(file)
 			scanner.Buffer(make([]byte, 1024*10), 1024*1024*50)
-			i := 0
+			var i uint32
 			for scanner.Scan() {
 				if !ps.batchFileSkipLines.Contains(i) {
 					if needToConvert {
@@ -301,14 +315,31 @@ func (ps *AbstractFileStorageStream) getPKValue(object types2.Object) (string, e
 	}
 	if l == 1 {
 		pkValue := object.GetN(pkColumns[0])
+		if str, ok := pkValue.(string); ok {
+			return str, nil
+		}
 		return fmt.Sprint(pkValue), nil
 	}
-	pkArr := make([]string, 0, l)
-	for _, col := range pkColumns {
+	var buf strings.Builder
+	buf.Grow(48)
+	for i, col := range pkColumns {
+		if i > 0 {
+			buf.WriteByte('\x00')
+		}
 		pkValue := object.GetN(col)
-		pkArr = append(pkArr, fmt.Sprint(pkValue))
+		switch v := pkValue.(type) {
+		case nil:
+			buf.WriteString("<nil>")
+		case string:
+			buf.WriteString(v)
+		case time.Time:
+			var tmp [8]byte
+			buf.Write(strconv.AppendInt(tmp[:0], v.UnixMilli(), 36))
+		default:
+			fmt.Fprint(&buf, v)
+		}
 	}
-	return strings.Join(pkArr, "_###_"), nil
+	return buf.String(), nil
 }
 
 func (ps *AbstractFileStorageStream) writeToBatchFile(ctx context.Context, processedObject types2.Object) error {
@@ -318,27 +349,27 @@ func (ps *AbstractFileStorageStream) writeToBatchFile(ctx context.Context, proce
 		if err != nil {
 			return err
 		}
-		var newDiscriminator any
+		lineNumber := ps.eventsInBatch + ps.marshallerHeaderRows
 		if ps.useDiscriminator {
-			newDiscriminator = processedObject.GetPathN(ps.discriminatorColumn)
-		}
-		lineNumber := ps.eventsInBatch + utils.Ternary(ps.marshaller.NeedHeader(), 1, 0)
-		prevLine, ok := ps.batchFileLinesByPK[pk]
-		if ok {
-			if !ps.useDiscriminator {
-				ps.batchFileSkipLines.Put(prevLine.lineNumber)
-				ps.batchFileLinesByPK[pk] = &DeduplicationLine{lineNumber, newDiscriminator}
-			} else {
+			var newDiscriminator = processedObject.GetPathN(ps.discriminatorColumn)
+			prevLine, ok := ps.batchFileLinesByPKDisc[pk]
+			if ok {
 				cmpr := utils.CompareAny(newDiscriminator, prevLine.discriminator)
 				if cmpr >= 0 {
 					ps.batchFileSkipLines.Put(prevLine.lineNumber)
-					ps.batchFileLinesByPK[pk] = &DeduplicationLine{lineNumber, newDiscriminator}
+					ps.batchFileLinesByPKDisc[pk] = DeduplicationLine{lineNumber, newDiscriminator}
 				} else {
 					ps.batchFileSkipLines.Put(lineNumber)
 				}
+			} else {
+				ps.batchFileLinesByPKDisc[pk] = DeduplicationLine{lineNumber, newDiscriminator}
 			}
 		} else {
-			ps.batchFileLinesByPK[pk] = &DeduplicationLine{lineNumber, newDiscriminator}
+			prevLineNumber, ok := ps.batchFileLinesByPK[pk]
+			if ok {
+				ps.batchFileSkipLines.Put(prevLineNumber)
+			}
+			ps.batchFileLinesByPK[pk] = lineNumber
 		}
 	}
 	err := ps.marshaller.Marshal(processedObject)
@@ -400,6 +431,11 @@ func (ps *AbstractFileStorageStream) Abort(ctx context.Context) (state bulker.St
 	if ps.batchFile != nil {
 		_ = ps.batchFile.Close()
 		_ = os.Remove(ps.batchFile.Name())
+	}
+	if ps.merge {
+		ps.batchFileLinesByPK = nil
+		ps.batchFileLinesByPKDisc = nil
+		ps.batchFileSkipLines = nil
 	}
 	ps.state.Status = bulker.Aborted
 	return ps.state

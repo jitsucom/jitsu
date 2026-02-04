@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 	"time"
 
@@ -28,19 +29,21 @@ type AbstractTransactionalSQLStream struct {
 	tx       *TxSQLAdapter
 	tmpTable *Table
 	//function that generate tmp table schema based on target table schema
-	tmpTableFunc          func(ctx context.Context, tableForObject *Table, object types.Object) (table *Table)
-	dstTable              *Table
-	temporaryBatchSize    int
-	temporaryBatchCounter int
-	localBatchFileName    string
-	batchFile             *os.File
-	marshaller            types.Marshaller
-	targetMarshaller      types.Marshaller
-	eventsInBatch         int
-	minTimestampInBatch   *time.Time
-	s3                    *implementations.S3
-	batchFileLinesByPK    map[string]*DeduplicationLine
-	batchFileSkipLines    types2.Set[int]
+	tmpTableFunc           func(ctx context.Context, tableForObject *Table, object types.Object) (table *Table)
+	dstTable               *Table
+	temporaryBatchSize     uint32
+	temporaryBatchCounter  int
+	localBatchFileName     string
+	batchFile              *os.File
+	marshaller             types.Marshaller
+	marshallerHeaderRows   uint32
+	targetMarshaller       types.Marshaller
+	eventsInBatch          uint32
+	minTimestampInBatch    *time.Time
+	s3                     *implementations.S3
+	batchFileLinesByPK     map[string]uint32
+	batchFileLinesByPKDisc map[string]DeduplicationLine
+	batchFileSkipLines     types2.Set[uint32]
 	// path to discriminator field in object
 	discriminatorColumn string
 	useDiscriminator    bool
@@ -49,7 +52,7 @@ type AbstractTransactionalSQLStream struct {
 }
 
 type DeduplicationLine struct {
-	lineNumber    int
+	lineNumber    uint32
 	discriminator any
 }
 
@@ -62,8 +65,9 @@ func newAbstractTransactionalStream(id string, p SQLAdapter, tableName string, m
 	ps.AbstractSQLStream = abs
 	ps.existingTable = &Table{}
 	if ps.merge {
-		ps.batchFileLinesByPK = make(map[string]*DeduplicationLine)
-		ps.batchFileSkipLines = types2.NewSet[int]()
+		ps.batchFileLinesByPKDisc = make(map[string]DeduplicationLine)
+		ps.batchFileLinesByPK = make(map[string]uint32)
+		ps.batchFileSkipLines = types2.NewSet[uint32]()
 		discriminatorField := bulker.DiscriminatorFieldOption.Get(&ps.options)
 		if len(discriminatorField) > 0 {
 			ps.discriminatorColumn = p.ColumnName(strings.Join(discriminatorField, "_"))
@@ -71,7 +75,7 @@ func newAbstractTransactionalStream(id string, p SQLAdapter, tableName string, m
 		}
 	}
 	ps.localBatchFileName = localBatchFileOption.Get(&ps.options)
-	ps.temporaryBatchSize = bulker.TemporaryBatchSizeOption.Get(&ps.options)
+	ps.temporaryBatchSize = uint32(bulker.TemporaryBatchSizeOption.Get(&ps.options))
 	return &ps, nil
 }
 
@@ -88,6 +92,7 @@ func (ps *AbstractTransactionalSQLStream) initTmpFile(_ context.Context) (err er
 			return err
 		}
 		ps.batchFile, err = os.CreateTemp("", ps.localBatchFileName+"_*"+ps.marshaller.FileExtension())
+		ps.marshallerHeaderRows = utils.Ternary(ps.marshaller.NeedHeader(), uint32(1), 0)
 	}
 	return
 }
@@ -105,7 +110,6 @@ func (ps *AbstractTransactionalSQLStream) init(ctx context.Context) (err error) 
 			Bucket:               s3.Bucket,
 			Region:               s3.Region,
 			RoleARN:              s3.RoleARN,
-			RoleARNExpiry:        s3.RoleARNExpiry,
 			ExternalID:           s3.ExternalID,
 			UsePresignedURL:      s3.UsePresignedURL,
 			FileConfig: implementations.FileConfig{Format: ps.sqlAdapter.GetBatchFileFormat(),
@@ -178,6 +182,7 @@ func (ps *AbstractTransactionalSQLStream) postComplete(ctx context.Context, err 
 	}
 	if ps.merge {
 		ps.batchFileLinesByPK = nil
+		ps.batchFileLinesByPKDisc = nil
 		ps.batchFileSkipLines = nil
 	}
 	if err != nil {
@@ -207,10 +212,13 @@ func (ps *AbstractTransactionalSQLStream) postComplete(ctx context.Context, err 
 
 func (ps *AbstractTransactionalSQLStream) flushBatchFile(ctx context.Context) (state bulker.WarehouseState, err error) {
 	tmpTable := ps.tmpTable
+	if ps.merge {
+		ps.batchFileLinesByPKDisc = make(map[string]DeduplicationLine)
+		ps.batchFileLinesByPK = make(map[string]uint32)
+	}
 	defer func() {
 		if ps.merge {
-			ps.batchFileLinesByPK = make(map[string]*DeduplicationLine)
-			ps.batchFileSkipLines = types2.NewSet[int]()
+			ps.batchFileSkipLines = types2.NewSet[uint32]()
 		}
 		_ = ps.batchFile.Close()
 		_ = os.Remove(ps.batchFile.Name())
@@ -296,7 +304,7 @@ func (ps *AbstractTransactionalSQLStream) flushBatchFile(ctx context.Context) (s
 			}()
 			scanner := bufio.NewScanner(file)
 			scanner.Buffer(make([]byte, 1024*10), 50*1024*1024)
-			i := 0
+			var i uint32
 			for scanner.Scan() {
 				if !ps.batchFileSkipLines.Contains(i) {
 					if needToConvert {
@@ -464,27 +472,27 @@ func (ps *AbstractTransactionalSQLStream) writeToBatchFile(ctx context.Context, 
 		if err != nil {
 			return err
 		}
-		var newDiscriminator any
+		lineNumber := ps.eventsInBatch + ps.marshallerHeaderRows
 		if ps.useDiscriminator {
-			newDiscriminator = processedObject.GetN(ps.discriminatorColumn)
-		}
-		lineNumber := ps.eventsInBatch + utils.Ternary(ps.marshaller.NeedHeader(), 1, 0)
-		prevLine, ok := ps.batchFileLinesByPK[pk]
-		if ok {
-			if !ps.useDiscriminator {
-				ps.batchFileSkipLines.Put(prevLine.lineNumber)
-				ps.batchFileLinesByPK[pk] = &DeduplicationLine{lineNumber, newDiscriminator}
-			} else {
+			var newDiscriminator = processedObject.GetN(ps.discriminatorColumn)
+			prevLine, ok := ps.batchFileLinesByPKDisc[pk]
+			if ok {
 				cmpr := utils.CompareAny(newDiscriminator, prevLine.discriminator)
 				if cmpr >= 0 {
 					ps.batchFileSkipLines.Put(prevLine.lineNumber)
-					ps.batchFileLinesByPK[pk] = &DeduplicationLine{lineNumber, newDiscriminator}
+					ps.batchFileLinesByPKDisc[pk] = DeduplicationLine{lineNumber, newDiscriminator}
 				} else {
 					ps.batchFileSkipLines.Put(lineNumber)
 				}
+			} else {
+				ps.batchFileLinesByPKDisc[pk] = DeduplicationLine{lineNumber, newDiscriminator}
 			}
 		} else {
-			ps.batchFileLinesByPK[pk] = &DeduplicationLine{lineNumber, newDiscriminator}
+			prevLineNumber, ok := ps.batchFileLinesByPK[pk]
+			if ok {
+				ps.batchFileSkipLines.Put(prevLineNumber)
+			}
+			ps.batchFileLinesByPK[pk] = lineNumber
 		}
 	}
 	err = ps.marshaller.Marshal(processedObject)
@@ -571,6 +579,7 @@ func (ps *AbstractTransactionalSQLStream) Abort(ctx context.Context) (state bulk
 	}
 	if ps.merge {
 		ps.batchFileLinesByPK = nil
+		ps.batchFileLinesByPKDisc = nil
 		ps.batchFileSkipLines = nil
 	}
 	if ps.tx != nil {
@@ -596,14 +605,31 @@ func (ps *AbstractTransactionalSQLStream) getPKValue(object types.Object) (strin
 	}
 	if l == 1 {
 		pkValue := object.GetN(pkColumns[0])
+		if str, ok := pkValue.(string); ok {
+			return str, nil
+		}
 		return fmt.Sprint(pkValue), nil
 	}
-	pkArr := make([]string, 0, l)
-	for _, col := range pkColumns {
+	var buf strings.Builder
+	buf.Grow(48)
+	for i, col := range pkColumns {
+		if i > 0 {
+			buf.WriteByte('\x00')
+		}
 		pkValue := object.GetN(col)
-		pkArr = append(pkArr, fmt.Sprint(pkValue))
+		switch v := pkValue.(type) {
+		case nil:
+			buf.WriteString("<nil>")
+		case string:
+			buf.WriteString(v)
+		case time.Time:
+			var tmp [8]byte
+			buf.Write(strconv.AppendInt(tmp[:0], v.UnixMilli(), 36))
+		default:
+			fmt.Fprint(&buf, v)
+		}
 	}
-	return strings.Join(pkArr, "_###_"), nil
+	return buf.String(), nil
 }
 
 func (ps *AbstractTransactionalSQLStream) getTimestampColumnValue(object types.Object) (time.Time, bool) {

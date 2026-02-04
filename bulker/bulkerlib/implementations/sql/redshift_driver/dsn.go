@@ -151,7 +151,9 @@ func (cfg *RedshiftConfig) LoadOpts(ctx context.Context) ([]func(*config.LoadOpt
 			}
 			o.RoleSessionName = roleSessionName
 			o.Duration = cfg.RoleARNExpiry
-		})))
+		})), config.WithCredentialsCacheOptions(func(o *aws.CredentialsCacheOptions) {
+			o.ExpiryWindow = 2 * time.Minute
+		}))
 	}
 	opts = append(opts, config.WithRetryMaxAttempts(cfg.GetRetryMaxAttempts()))
 	return opts, nil

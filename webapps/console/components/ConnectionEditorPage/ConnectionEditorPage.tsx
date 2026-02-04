@@ -483,39 +483,6 @@ function ConnectionEditor({
       ),
     });
   }
-  if (
-    hasZodFields(connectionOptionsZodType, "deduplicateWindow") &&
-    (destinationType.id === "bigquery" || destinationType.id === "redshift")
-  ) {
-    configItems.push({
-      group: "Advanced",
-      documentation: (
-        <>
-          Limits date range on which deduplication is performed by reducing lookup to historic data. That may
-          significantly reduce cost or duration of data processing during inserting batches with 'Deduplicate' option.
-          'Timestamp Column' is used as a parameter that defines date range.
-        </>
-      ),
-      name: "Deduplicate Window",
-      component: (
-        <InputNumber
-          value={connectionOptions.deduplicateWindow || 31}
-          disabled={
-            !canEdit ||
-            connectionOptions.primaryKey === "" ||
-            !connectionOptions.deduplicate ||
-            connectionOptions.timestampColumn === ""
-          }
-          size="small"
-          defaultValue={31}
-          className="w-36"
-          min={1}
-          max={1000000}
-          onChange={deduplicateWindow => updateOptions({ deduplicateWindow: deduplicateWindow ?? 31 })}
-        />
-      ),
-    });
-  }
   if (hasZodFields(connectionOptionsZodType, "timestampColumn")) {
     configItems.push({
       group: "Advanced",
@@ -535,6 +502,42 @@ function ConnectionEditor({
             }}
           />
         </Tooltip>
+      ),
+    });
+  }
+  if (
+    hasZodFields(connectionOptionsZodType, "deduplicateWindow") &&
+    (destinationType.id === "bigquery" || destinationType.id === "redshift" || destinationType.id === "snowflake")
+  ) {
+    configItems.push({
+      group: "Advanced",
+      documentation: (
+        <>
+          To optimize query performance, Jitsu detects the timestamp range of each incoming batch and checks for
+          duplicates only within that range in the historical data.
+          <br />
+          <br />
+          This setting limits the maximum date range over which deduplication is applied. It can reduce processing time
+          and costs when ingesting batches with a wide range of timestamps, by skipping deduplication for older records.
+        </>
+      ),
+      name: "Deduplicate Window",
+      component: (
+        <InputNumber
+          value={connectionOptions.deduplicateWindow || 365}
+          disabled={
+            !canEdit ||
+            connectionOptions.primaryKey === "" ||
+            !connectionOptions.deduplicate ||
+            connectionOptions.timestampColumn === ""
+          }
+          size="small"
+          defaultValue={31}
+          className="w-36"
+          min={1}
+          max={1000000}
+          onChange={deduplicateWindow => updateOptions({ deduplicateWindow: deduplicateWindow ?? 365 })}
+        />
       ),
     });
   }

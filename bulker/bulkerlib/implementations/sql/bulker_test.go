@@ -24,6 +24,7 @@ import (
 )
 
 var constantTime = timestamp.MustParseTime(time.RFC3339Nano, "2022-08-18T14:17:22.375Z")
+var constantTime2 = timestamp.MustParseTime(time.RFC3339Nano, "2022-08-18T15:17:22.375Z")
 
 const forceLeaveResultingTables = false
 
@@ -394,6 +395,27 @@ func TestBasics(t *testing.T) {
 			},
 			expectedErrors: map[string]any{"create_stream_bigquery_stream": BigQueryAutocommitUnsupported},
 			configIds:      allBulkerConfigs,
+			orderBy:        []string{"id", "id2"},
+			streamOptions:  []bulker.StreamOption{bulker.WithPrimaryKey("id", "id2"), bulker.WithDeduplicate()},
+		},
+		{
+			name:              "multi_pk_ts",
+			modes:             []bulker.BulkMode{bulker.Batch, bulker.Stream, bulker.ReplaceTable, bulker.ReplacePartition},
+			expectPartitionId: true,
+			dataFile:          "test_data/repeated_ids_multi_ts.ndjson",
+			expectedTable: ExpectedTable{
+				PKFields: []string{"id", "id2"},
+				Columns:  justColumns("_timestamp", "id", "id2", "name"),
+			},
+			expectedRows: []map[string]any{
+				{"_timestamp": constantTime, "id": 1, "id2": constantTime, "name": "test8"},
+				{"_timestamp": constantTime, "id": 2, "id2": constantTime, "name": "test1"},
+				{"_timestamp": constantTime, "id": 3, "id2": constantTime, "name": "test7"},
+				{"_timestamp": constantTime, "id": 4, "id2": constantTime, "name": "test5"},
+				{"_timestamp": constantTime, "id": 4, "id2": constantTime2, "name": "test6"},
+			},
+			expectedErrors: map[string]any{"create_stream_bigquery_stream": BigQueryAutocommitUnsupported},
+			configIds:      utils.ArrayIntersection(allBulkerConfigs, []string{PostgresBulkerTypeId, ClickHouseBulkerTypeId}),
 			orderBy:        []string{"id", "id2"},
 			streamOptions:  []bulker.StreamOption{bulker.WithPrimaryKey("id", "id2"), bulker.WithDeduplicate()},
 		},

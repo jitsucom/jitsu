@@ -35,7 +35,7 @@ const (
 
 	sfTableExistenceQuery        = `SELECT count(*) from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA = ? and TABLE_NAME = ?`
 	sfDescTableQuery             = `desc table %s%s`
-	sfAlterClusteringKeyTemplate = `ALTER TABLE %s%s CLUSTER BY (DATE_TRUNC('MONTH', %s))`
+	sfAlterClusteringKeyTemplate = `ALTER TABLE %s%s CLUSTER BY (TO_DATE(%s))`
 
 	sfCopyStatement = `COPY INTO %s%s (%s) from @~/%s FILE_FORMAT=(TYPE= 'CSV', FIELD_OPTIONALLY_ENCLOSED_BY = '"' ESCAPE_UNENCLOSED_FIELD = NONE SKIP_HEADER = 1) `
 
@@ -503,7 +503,7 @@ func (s *Snowflake) CopyTables(ctx context.Context, targetTable *Table, sourceTa
 	if mergeWindow <= 0 {
 		return s.copy(ctx, targetTable, sourceTable)
 	} else {
-		return s.copyOrMerge(ctx, targetTable, sourceTable, sfMergeQueryTemplate, "T", "S")
+		return s.copyOrMerge(ctx, targetTable, sourceTable, sfMergeQueryTemplate, "T", "S", mergeWindow)
 	}
 }
 

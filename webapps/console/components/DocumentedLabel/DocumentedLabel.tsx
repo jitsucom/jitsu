@@ -15,7 +15,9 @@ export const DocumentedLabel: React.FC<DocumentedLabelProps> = ({ name, doc }) =
     <div className="flex items-center">
       <div className={`pr-1`}>{name}</div>
       <Tooltip title={doc}>
-        <FaInfoCircle />
+        <span className="flex items-center">
+          <FaInfoCircle />
+        </span>
       </Tooltip>
     </div>
   );

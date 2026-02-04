@@ -367,7 +367,7 @@ func (p *Postgres) CopyTables(ctx context.Context, targetTable *Table, sourceTab
 	if mergeWindow <= 0 {
 		return p.copy(ctx, targetTable, sourceTable)
 	} else {
-		return p.copyOrMerge(ctx, targetTable, sourceTable, pgBulkMergeQueryTemplate, "T", pgBulkMergeSourceAlias)
+		return p.copyOrMerge(ctx, targetTable, sourceTable, pgBulkMergeQueryTemplate, "T", pgBulkMergeSourceAlias, mergeWindow)
 	}
 }
 

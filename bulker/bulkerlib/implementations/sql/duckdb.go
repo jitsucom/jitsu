@@ -333,7 +333,7 @@ func (d *DuckDB) CopyTables(ctx context.Context, targetTable *Table, sourceTable
 	if mergeWindow <= 0 {
 		return d.copy(ctx, targetTable, sourceTable)
 	} else {
-		return d.copyOrMerge(ctx, targetTable, sourceTable, duckDBBulkMergeQueryTemplate, "T", pgBulkMergeSourceAlias)
+		return d.copyOrMerge(ctx, targetTable, sourceTable, duckDBBulkMergeQueryTemplate, "T", pgBulkMergeSourceAlias, mergeWindow)
 	}
 }
 

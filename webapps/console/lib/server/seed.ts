@@ -287,7 +287,6 @@ export async function seedDemoConnections(): Promise<void> {
             mode: "batch",
             primaryKey: "message_id",
             deduplicate: true,
-            deduplicateWindow: 31,
             timestampColumn: "timestamp",
             dataLayout: "segment-single-table",
             batchSize: 10000,

@@ -23,21 +23,22 @@ import (
 const unmappedDataColumn = "_unmapped_data"
 
 type AbstractSQLStream struct {
-	id                string
-	sqlAdapter        SQLAdapter
-	stringifyObjects  bool
-	mode              bulker.BulkMode
-	options           bulker.StreamOptions
-	tableName         string
-	namespace         string
-	nameTransformer   func(string) string
-	merge             bool
-	mergeWindow       int
-	omitNils          bool
-	schemaFreeze      bool
-	maxColumnsCount   int
-	schemaFromOptions *Table
-	notFlatteningKeys types2.Set[string]
+	id                  string
+	sqlAdapter          SQLAdapter
+	stringifyObjects    bool
+	mode                bulker.BulkMode
+	options             bulker.StreamOptions
+	tableName           string
+	namespace           string
+	nameTransformer     func(string) string
+	nameTransformerUsed bool
+	merge               bool
+	mergeWindow         int
+	omitNils            bool
+	schemaFreeze        bool
+	maxColumnsCount     int
+	schemaFromOptions   *Table
+	notFlatteningKeys   types2.Set[string]
 
 	state    bulker.State
 	inited   bool
@@ -72,6 +73,7 @@ func newAbstractStream(id string, p SQLAdapter, tableName string, mode bulker.Bu
 		} else {
 			ps.nameTransformer = strings.ToLower
 		}
+		ps.nameTransformerUsed = true
 		ps.tableName = p.TableName(ps.nameTransformer(tableName))
 	} else {
 		ps.nameTransformer = func(s string) string { return s }
@@ -247,9 +249,15 @@ func (ps *AbstractSQLStream) _mapForDwh(key string, value types.Object, dwhEnvel
 	for el := value.Front(); el != nil; el = el.Next() {
 		var newKey string
 		if key != "" {
-			newKey = key + "_" + ps.nameTransformer(el.Key)
-		} else {
+			if ps.nameTransformerUsed {
+				newKey = key + "_" + ps.nameTransformer(el.Key)
+			} else {
+				newKey = key + "_" + el.Key
+			}
+		} else if ps.nameTransformerUsed {
 			newKey = ps.nameTransformer(el.Key)
+		} else {
+			newKey = el.Key
 		}
 		elv := el.Value
 		if elv == nil {

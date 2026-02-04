@@ -155,7 +155,7 @@ export const BaseBulkerConnectionOptions = z
     mode: z.enum(["stream", "batch"]).default("batch"),
     primaryKey: z.string().default("message_id"),
     deduplicate: z.boolean().default(true),
-    deduplicateWindow: z.number().default(31),
+    deduplicateWindow: z.number().default(365),
     timestampColumn: z.string().default("timestamp"),
     dataLayout: z
       .enum(["segment", "jitsu-legacy", "segment-single-table", "passthrough"])
@@ -513,6 +513,7 @@ export const coreDestinations: DestinationType<any>[] = [
     connectionOptions: BaseBulkerConnectionOptions.merge(
       z.object({
         deduplicate: z.boolean().default(false),
+        deduplicateWindow: z.number().default(31),
       })
     ).describe(
       JSON.stringify({
@@ -608,7 +609,11 @@ export const coreDestinations: DestinationType<any>[] = [
     usesBulker: true,
     icon: redshiftIcon,
     title: "Redshift",
-    connectionOptions: BaseBulkerConnectionOptions.describe(
+    connectionOptions: BaseBulkerConnectionOptions.merge(
+      z.object({
+        deduplicateWindow: z.number().default(31),
+      })
+    ).describe(
       JSON.stringify({
         limitations: {
           streamModeLocked:

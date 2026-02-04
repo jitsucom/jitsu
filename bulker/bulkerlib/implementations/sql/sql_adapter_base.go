@@ -4,18 +4,20 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strconv"
+	"strings"
+	"text/template"
+	"time"
+
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/bulker/bulkerlib"
 	types2 "github.com/jitsucom/bulker/bulkerlib/types"
 	"github.com/jitsucom/bulker/jitsubase/appbase"
 	"github.com/jitsucom/bulker/jitsubase/errorj"
 	"github.com/jitsucom/bulker/jitsubase/logging"
+	"github.com/jitsucom/bulker/jitsubase/timestamp"
 	"github.com/jitsucom/bulker/jitsubase/utils"
 	"github.com/jitsucom/bulker/jitsubase/uuid"
-	"strconv"
-	"strings"
-	"text/template"
-	"time"
 )
 
 const (
@@ -493,10 +495,10 @@ func (b *SQLAdapterBase[T]) insertOrMerge(ctx context.Context, table *Table, obj
 }
 
 func (b *SQLAdapterBase[T]) copy(ctx context.Context, targetTable *Table, sourceTable *Table) (state bulkerlib.WarehouseState, err error) {
-	return b.copyOrMerge(ctx, targetTable, sourceTable, nil, "", "")
+	return b.copyOrMerge(ctx, targetTable, sourceTable, nil, "", "", 365)
 }
 
-func (b *SQLAdapterBase[T]) copyOrMerge(ctx context.Context, targetTable *Table, sourceTable *Table, mergeQuery *template.Template, targetAlias string, sourceAlias string) (state bulkerlib.WarehouseState, err error) {
+func (b *SQLAdapterBase[T]) copyOrMerge(ctx context.Context, targetTable *Table, sourceTable *Table, mergeQuery *template.Template, targetAlias string, sourceAlias string, mergeWindow int) (state bulkerlib.WarehouseState, err error) {
 	startTime := time.Now()
 	quotedSchema := b.namespacePrefix(targetTable.Namespace)
 	quotedSchemaFrom := b.namespacePrefix(sourceTable.Namespace)
@@ -521,6 +523,12 @@ func (b *SQLAdapterBase[T]) copyOrMerge(ctx context.Context, targetTable *Table,
 			pkName := b.quotedColumnName(pkField)
 			joinConditions = append(joinConditions, fmt.Sprintf("%s.%s = %s.%s", targetAlias, pkName, sourceAlias, pkName))
 		})
+		if mergeWindow > 0 && targetTable.TimestampColumn != "" {
+			startDate := timestamp.Now().AddDate(0, 0, -mergeWindow).UTC()
+			timestampColName := b.quotedColumnName(targetTable.TimestampColumn)
+			// for now only snowflake using it so dialect is only snowflake compatible
+			joinConditions = append(joinConditions, fmt.Sprintf("%s.%s >= TO_TIMESTAMP_TZ('%s')", targetAlias, timestampColName, startDate.Format(time.RFC3339)))
+		}
 	}
 	insertPayload := QueryPayload{
 		Namespace:      quotedSchema,
