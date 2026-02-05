@@ -386,7 +386,8 @@ export const makeFetch = (
   connectionId: string,
   eventsStore: EventsStore,
   logLevel: "info" | "debug",
-  fetchTimeoutMs: number = 2000
+  fetchTimeoutMs: number = 2000,
+  responses?: Response[]
 ) => {
   const throttle = connectionId === "clke5lrfm0000ii0gahryc37d-wbyo-5jyq-KIMXwt" ? getThrottle(5000) : noThrottle();
 
@@ -455,6 +456,9 @@ export const makeFetch = (
       };
       fetchResult = await fetch(url, internalInit);
       throttle.success();
+      if (responses) {
+        responses.push(fetchResult);
+      }
     } catch (err: any) {
       if (err.name === "TimeoutError") {
         throttle.fail();

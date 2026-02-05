@@ -25,6 +25,7 @@ func newReplaceTableStream(id string, p SQLAdapter, tableName string, streamOpti
 
 	var err error
 	ps.AbstractTransactionalSQLStream, err = newAbstractTransactionalStream(id, p, tableName, bulker.ReplaceTable, streamOptions...)
+	ps.doLocalDeduplication = true
 	if err != nil {
 		return nil, err
 	}

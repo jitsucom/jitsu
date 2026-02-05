@@ -85,6 +85,7 @@ type SQLAdapterBase[T any] struct {
 	batchFileCompression types2.FileCompression
 	temporaryTables      bool
 	tmpTableUsePK        bool
+	doLocalDeduplication bool
 	renameToSchemaless   bool
 	// stringifyObjects objects types like JSON, array will be stringified before sent to warehouse (warehouse will parse them back)
 	stringifyObjects bool
@@ -120,6 +121,7 @@ func newSQLAdapterBase[T any](id string, typeId string, config *T, namespace str
 	}
 	s.temporaryTables = true
 	s.tmpTableUsePK = true
+	s.doLocalDeduplication = true
 	s.batchFileFormat = types2.FileFormatNDJSON
 	s.batchFileCompression = types2.FileCompressionNONE
 	var err error
@@ -413,13 +415,15 @@ func (b *SQLAdapterBase[T]) DeleteAll(ctx context.Context, namespace, tableName 
 }
 
 type QueryPayload struct {
-	Namespace      string
-	NamespaceFrom  string
-	TableName      string
-	Columns        string
-	Placeholders   string
-	PrimaryKeyName string
-	UpdateSet      string
+	Namespace         string
+	NamespaceFrom     string
+	TableName         string
+	Columns           string
+	Placeholders      string
+	PrimaryKeyName    string
+	PrimaryKeyColumns string
+	Discriminator     string
+	UpdateSet         string
 
 	TableTo        string
 	TableFrom      string
@@ -495,10 +499,10 @@ func (b *SQLAdapterBase[T]) insertOrMerge(ctx context.Context, table *Table, obj
 }
 
 func (b *SQLAdapterBase[T]) copy(ctx context.Context, targetTable *Table, sourceTable *Table) (state bulkerlib.WarehouseState, err error) {
-	return b.copyOrMerge(ctx, targetTable, sourceTable, nil, "", "", 365)
+	return b.copyOrMerge(ctx, targetTable, sourceTable, nil, "", "", 365, "")
 }
 
-func (b *SQLAdapterBase[T]) copyOrMerge(ctx context.Context, targetTable *Table, sourceTable *Table, mergeQuery *template.Template, targetAlias string, sourceAlias string, mergeWindow int) (state bulkerlib.WarehouseState, err error) {
+func (b *SQLAdapterBase[T]) copyOrMerge(ctx context.Context, targetTable *Table, sourceTable *Table, mergeQuery *template.Template, targetAlias string, sourceAlias string, mergeWindow int, discriminator string) (state bulkerlib.WarehouseState, err error) {
 	startTime := time.Now()
 	quotedSchema := b.namespacePrefix(targetTable.Namespace)
 	quotedSchemaFrom := b.namespacePrefix(sourceTable.Namespace)
@@ -511,6 +515,8 @@ func (b *SQLAdapterBase[T]) copyOrMerge(ctx context.Context, targetTable *Table,
 	var updateColumns []string
 	var insertColumns []string
 	var joinConditions []string
+	var pkColumns []string
+
 	if mergeQuery != nil {
 		updateColumns = make([]string, count)
 		insertColumns = make([]string, count)
@@ -523,6 +529,7 @@ func (b *SQLAdapterBase[T]) copyOrMerge(ctx context.Context, targetTable *Table,
 			pkName := b.quotedColumnName(pkField)
 			joinConditions = append(joinConditions, fmt.Sprintf("%s.%s = %s.%s", targetAlias, pkName, sourceAlias, pkName))
 		})
+		pkColumns = utils.ArrayMap(targetTable.GetPKFields(), b.quotedColumnName)
 		if mergeWindow > 0 && targetTable.TimestampColumn != "" {
 			startDate := timestamp.Now().AddDate(0, 0, -mergeWindow).UTC()
 			timestampColName := b.quotedColumnName(targetTable.TimestampColumn)
@@ -531,15 +538,17 @@ func (b *SQLAdapterBase[T]) copyOrMerge(ctx context.Context, targetTable *Table,
 		}
 	}
 	insertPayload := QueryPayload{
-		Namespace:      quotedSchema,
-		NamespaceFrom:  quotedSchemaFrom,
-		TableTo:        quotedTargetTableName,
-		TableFrom:      quotedSourceTableName,
-		Columns:        strings.Join(columnNames, ","),
-		PrimaryKeyName: targetTable.PrimaryKeyName,
-		JoinConditions: strings.Join(joinConditions, " AND "),
-		SourceColumns:  strings.Join(insertColumns, ", "),
-		UpdateSet:      strings.Join(updateColumns, ","),
+		Namespace:         quotedSchema,
+		NamespaceFrom:     quotedSchemaFrom,
+		TableTo:           quotedTargetTableName,
+		TableFrom:         quotedSourceTableName,
+		Columns:           strings.Join(columnNames, ","),
+		PrimaryKeyName:    targetTable.PrimaryKeyName,
+		PrimaryKeyColumns: strings.Join(pkColumns, ","),
+		Discriminator:     discriminator,
+		JoinConditions:    strings.Join(joinConditions, " AND "),
+		SourceColumns:     strings.Join(insertColumns, ", "),
+		UpdateSet:         strings.Join(updateColumns, ","),
 	}
 	buf := strings.Builder{}
 	queryTemplate := insertFromSelectQueryTemplate
@@ -853,6 +862,10 @@ func (b *SQLAdapterBase[T]) TmpNamespace(targetNamespace string) string {
 
 func (b *SQLAdapterBase[T]) TmpTableUsePK() bool {
 	return b.tmpTableUsePK
+}
+
+func (b *SQLAdapterBase[T]) DoLocalDeduplication() bool {
+	return b.doLocalDeduplication
 }
 
 func match(target, pattern string) bool {

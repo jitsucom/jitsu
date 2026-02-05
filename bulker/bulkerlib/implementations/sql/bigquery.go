@@ -194,7 +194,7 @@ func (bq *BigQuery) validateOptions(streamOptions []bulker.StreamOption) error {
 	return nil
 }
 
-func (bq *BigQuery) CopyTables(ctx context.Context, targetTable *Table, sourceTable *Table, mergeWindow int) (state bulker.WarehouseState, err error) {
+func (bq *BigQuery) CopyTables(ctx context.Context, targetTable *Table, sourceTable *Table, mergeWindow int, discriminatorColumn string) (state bulker.WarehouseState, err error) {
 	namespace := bq.NamespaceName(targetTable.Namespace)
 	if mergeWindow <= 0 {
 		defer func() {
@@ -1132,6 +1132,10 @@ func (bq *BigQuery) TmpTableUsePK() bool {
 
 func (bq *BigQuery) NamespaceName(namespace string) string {
 	return bq.tableHelper.TableName(utils.DefaultString(namespace, bq.config.Dataset))
+}
+
+func (bq *BigQuery) DoLocalDeduplication() bool {
+	return true
 }
 
 type JobRunner interface {

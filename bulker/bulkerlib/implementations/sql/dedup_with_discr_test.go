@@ -1,10 +1,11 @@
 package sql
 
 import (
-	bulker "github.com/jitsucom/bulker/bulkerlib"
-	"github.com/jitsucom/bulker/jitsubase/timestamp"
 	"testing"
 	"time"
+
+	bulker "github.com/jitsucom/bulker/bulkerlib"
+	"github.com/jitsucom/bulker/jitsubase/timestamp"
 )
 
 var constantTimeA = timestamp.MustParseTime(time.RFC3339Nano, "2022-08-10T14:17:22.375Z")
@@ -22,7 +23,7 @@ func TestDeduplicateWithDiscriminator(t *testing.T) {
 				{"_timestamp": constantTimeA, "id": 2, "name": "A", "int1": 1, "float1": 1.1},
 				{"_timestamp": constantTime, "id": 3, "name": "C", "int1": 3, "float1": 3.3},
 			},
-			configIds:     []string{PostgresBulkerTypeId},
+			configIds:     []string{PostgresBulkerTypeId, SnowflakeBulkerTypeId},
 			streamOptions: []bulker.StreamOption{bulker.WithPrimaryKey("id"), bulker.WithDeduplicate()},
 		},
 		{
@@ -34,7 +35,7 @@ func TestDeduplicateWithDiscriminator(t *testing.T) {
 				{"_timestamp": constantTime, "id": 2, "name": "C", "int1": 3, "float1": 3.3},
 				{"_timestamp": constantTime, "id": 3, "name": "C", "int1": 3, "float1": 3.3},
 			},
-			configIds:     []string{PostgresBulkerTypeId},
+			configIds:     []string{PostgresBulkerTypeId, SnowflakeBulkerTypeId},
 			streamOptions: []bulker.StreamOption{bulker.WithPrimaryKey("id"), bulker.WithDeduplicate(), bulker.WithDiscriminatorField([]string{"_timestamp"})},
 		},
 		{
@@ -46,7 +47,7 @@ func TestDeduplicateWithDiscriminator(t *testing.T) {
 				{"_timestamp": constantTime, "id": 2, "name": "C", "int1": 3, "float1": 3.3},
 				{"_timestamp": constantTime, "id": 3, "name": "C", "int1": 3, "float1": 3.3},
 			},
-			configIds:     []string{PostgresBulkerTypeId},
+			configIds:     []string{PostgresBulkerTypeId, SnowflakeBulkerTypeId},
 			streamOptions: []bulker.StreamOption{bulker.WithPrimaryKey("id"), bulker.WithDeduplicate(), bulker.WithDiscriminatorField([]string{"name"})},
 		},
 		{
@@ -58,7 +59,7 @@ func TestDeduplicateWithDiscriminator(t *testing.T) {
 				{"_timestamp": constantTime, "id": 2, "name": "C", "int1": 3, "float1": 3.3},
 				{"_timestamp": constantTime, "id": 3, "name": "C", "int1": 3, "float1": 3.3},
 			},
-			configIds:     []string{PostgresBulkerTypeId},
+			configIds:     []string{PostgresBulkerTypeId, SnowflakeBulkerTypeId},
 			streamOptions: []bulker.StreamOption{bulker.WithPrimaryKey("id"), bulker.WithDeduplicate(), bulker.WithDiscriminatorField([]string{"int1"})},
 		},
 		{
@@ -70,7 +71,7 @@ func TestDeduplicateWithDiscriminator(t *testing.T) {
 				{"_timestamp": constantTime, "id": 2, "name": "C", "int1": 3, "float1": 3.3},
 				{"_timestamp": constantTime, "id": 3, "name": "C", "int1": 3, "float1": 3.3},
 			},
-			configIds:     []string{PostgresBulkerTypeId},
+			configIds:     []string{PostgresBulkerTypeId, SnowflakeBulkerTypeId},
 			streamOptions: []bulker.StreamOption{bulker.WithPrimaryKey("id"), bulker.WithDeduplicate(), bulker.WithDiscriminatorField([]string{"float1"})},
 		},
 	}

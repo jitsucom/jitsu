@@ -130,19 +130,19 @@ export async function callFunctionsServer(
   eventContext: EventContext,
   chainCtx: FunctionChainContext,
   funcCtx: FunctionContext,
-  eventsLogger: EventsStore
+  eventsLogger: EventsStore,
+  fetchTimeoutMs?: number
 ): Promise<FunctionsServerResult> {
   const serverEnv = getServerEnv();
   const url = getFunctionsServerUrl(workspaceId, connectionId, functionsClass);
   const timeoutMs = parseInt(serverEnv.FUNCTIONS_SERVER_TIMEOUT_MS);
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...(fetchTimeoutMs ? { "x-request-timeout-ms": String(fetchTimeoutMs) } : {}),
       },
       body: JSON.stringify({
         event,
@@ -156,7 +156,7 @@ export async function callFunctionsServer(
           retries: eventContext.retries ?? 0,
         },
       }),
-      signal: controller.signal,
+      signal: AbortSignal.timeout(timeoutMs),
     });
 
     if (!response.ok) {
@@ -202,8 +202,6 @@ export async function callFunctionsServer(
     }
     chainCtx.metrics?.status("functions_server", "error", "other").inc(1);
     throw new RetryError(`Functions processing failed: ${e.message}`);
-  } finally {
-    clearTimeout(timeoutId);
   }
 }
 
@@ -217,7 +215,8 @@ export function createFunctionsServerWrapper(
   functionsClass: Omit<FunctionsClass, "legacy">,
   chainCtx: FunctionChainContext,
   funcCtx: FunctionContext,
-  eventsLogger: EventsStore
+  eventsLogger: EventsStore,
+  fetchTimeoutMs?: number
 ): (event: AnyEvent, ctx: EventContext) => Promise<AnyEvent | AnyEvent[] | "drop" | undefined> {
   return async (event: AnyEvent, ctx: EventContext) => {
     try {
@@ -229,7 +228,8 @@ export function createFunctionsServerWrapper(
         ctx,
         chainCtx,
         funcCtx,
-        eventsLogger
+        eventsLogger,
+        fetchTimeoutMs
       );
 
       // Check for errors in execLog - similar to checkError in udf-wrapper-code.txtjs

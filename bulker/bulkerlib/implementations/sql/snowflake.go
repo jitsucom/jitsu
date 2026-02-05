@@ -39,7 +39,7 @@ const (
 
 	sfCopyStatement = `COPY INTO %s%s (%s) from @~/%s FILE_FORMAT=(TYPE= 'CSV', FIELD_OPTIONALLY_ENCLOSED_BY = '"' ESCAPE_UNENCLOSED_FIELD = NONE SKIP_HEADER = 1) `
 
-	sfMergeStatement = `MERGE INTO {{.Namespace}}{{.TableTo}} T USING (SELECT {{.Columns}} FROM {{.NamespaceFrom}}{{.TableFrom}} ) S ON {{.JoinConditions}} WHEN MATCHED THEN UPDATE SET {{.UpdateSet}} WHEN NOT MATCHED THEN INSERT ({{.Columns}}) VALUES ({{.SourceColumns}})`
+	sfMergeStatement = `MERGE INTO {{.Namespace}}{{.TableTo}} T USING (SELECT {{.Columns}} FROM (SELECT {{.Columns}}, ROW_NUMBER() OVER (PARTITION BY {{.PrimaryKeyColumns}}{{.Discriminator}}) rn FROM {{.NamespaceFrom}}{{.TableFrom}}) QUALIFY rn = MAX(rn) OVER (PARTITION BY {{.PrimaryKeyColumns}}) ) S ON {{.JoinConditions}} WHEN MATCHED THEN UPDATE SET {{.UpdateSet}} WHEN NOT MATCHED THEN INSERT ({{.Columns}}) VALUES ({{.SourceColumns}})`
 
 	sfCreateSchemaIfNotExistsTemplate = `CREATE SCHEMA IF NOT EXISTS %s`
 
@@ -202,6 +202,7 @@ func NewSnowflake(bulkerConfig bulker.Config) (bulker.Bulker, error) {
 	}
 	sqlAdapter, err := newSQLAdapterBase(bulkerConfig.Id, SnowflakeBulkerTypeId, config, config.Schema, dbConnectFunction, snowflakeTypes, queryLogger, typecastFunc, QuestionMarkParameterPlaceholder, sfColumnDDL, unmappedValue, checkErr, false)
 	s := &Snowflake{sqlAdapter}
+	s.doLocalDeduplication = false
 	s.batchFileFormat = types2.FileFormatCSV
 	s.batchFileCompression = types2.FileCompressionGZIP
 	s.valueMappingFunction = func(value any, valuePresent bool, column types2.SQLColumn) any {
@@ -499,11 +500,11 @@ func (s *Snowflake) Insert(ctx context.Context, table *Table, merge bool, object
 	return nil
 }
 
-func (s *Snowflake) CopyTables(ctx context.Context, targetTable *Table, sourceTable *Table, mergeWindow int) (bulker.WarehouseState, error) {
+func (s *Snowflake) CopyTables(ctx context.Context, targetTable *Table, sourceTable *Table, mergeWindow int, discriminatorColumn string) (bulker.WarehouseState, error) {
 	if mergeWindow <= 0 {
 		return s.copy(ctx, targetTable, sourceTable)
 	} else {
-		return s.copyOrMerge(ctx, targetTable, sourceTable, sfMergeQueryTemplate, "T", "S", mergeWindow)
+		return s.copyOrMerge(ctx, targetTable, sourceTable, sfMergeQueryTemplate, "T", "S", mergeWindow, utils.Ternary(discriminatorColumn != "", " ORDER BY "+s.quotedColumnName(discriminatorColumn)+" ASC", " ORDER BY 1"))
 	}
 }
 

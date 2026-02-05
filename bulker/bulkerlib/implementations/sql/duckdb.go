@@ -329,11 +329,11 @@ func (d *DuckDB) Insert(ctx context.Context, table *Table, merge bool, objects .
 	}
 }
 
-func (d *DuckDB) CopyTables(ctx context.Context, targetTable *Table, sourceTable *Table, mergeWindow int) (bulker.WarehouseState, error) {
+func (d *DuckDB) CopyTables(ctx context.Context, targetTable *Table, sourceTable *Table, mergeWindow int, discriminatorColumn string) (bulker.WarehouseState, error) {
 	if mergeWindow <= 0 {
 		return d.copy(ctx, targetTable, sourceTable)
 	} else {
-		return d.copyOrMerge(ctx, targetTable, sourceTable, duckDBBulkMergeQueryTemplate, "T", pgBulkMergeSourceAlias, mergeWindow)
+		return d.copyOrMerge(ctx, targetTable, sourceTable, duckDBBulkMergeQueryTemplate, "T", pgBulkMergeSourceAlias, mergeWindow, discriminatorColumn)
 	}
 }
 
@@ -414,7 +414,7 @@ func (d *DuckDB) LoadTable(ctx context.Context, targetTable *Table, loadSource *
 	if err = appender.Flush(); err != nil {
 		return state, err
 	}
-	s2, err := d.CopyTables(ctx, targetTable, memoryTable, 0)
+	s2, err := d.CopyTables(ctx, targetTable, memoryTable, 0, "")
 	state.Merge(s2)
 	if err != nil {
 		return state, err
@@ -528,7 +528,7 @@ func (d *DuckDB) ReplaceTable(ctx context.Context, targetTableName string, repla
 	if err != nil {
 		return err
 	}
-	_, err = d.CopyTables(ctx1, targetTable, replacementTable, 0)
+	_, err = d.CopyTables(ctx1, targetTable, replacementTable, 0, "")
 	if err != nil {
 		return err
 	}

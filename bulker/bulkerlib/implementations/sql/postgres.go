@@ -363,11 +363,11 @@ func (p *Postgres) Insert(ctx context.Context, table *Table, merge bool, objects
 	}
 }
 
-func (p *Postgres) CopyTables(ctx context.Context, targetTable *Table, sourceTable *Table, mergeWindow int) (bulker.WarehouseState, error) {
+func (p *Postgres) CopyTables(ctx context.Context, targetTable *Table, sourceTable *Table, mergeWindow int, discriminatorColumn string) (bulker.WarehouseState, error) {
 	if mergeWindow <= 0 {
 		return p.copy(ctx, targetTable, sourceTable)
 	} else {
-		return p.copyOrMerge(ctx, targetTable, sourceTable, pgBulkMergeQueryTemplate, "T", pgBulkMergeSourceAlias, mergeWindow)
+		return p.copyOrMerge(ctx, targetTable, sourceTable, pgBulkMergeQueryTemplate, "T", pgBulkMergeSourceAlias, mergeWindow, discriminatorColumn)
 	}
 }
 
@@ -574,7 +574,7 @@ func (p *Postgres) ReplaceTable(ctx context.Context, targetTableName string, rep
 	if err != nil {
 		return err
 	}
-	_, err = p.CopyTables(ctx, targetTable, replacementTable, 0)
+	_, err = p.CopyTables(ctx, targetTable, replacementTable, 0, "")
 	if err != nil {
 		return err
 	}

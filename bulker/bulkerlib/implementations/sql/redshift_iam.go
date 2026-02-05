@@ -470,7 +470,7 @@ func (p *RedshiftIAM) deleteThenCopy(ctx context.Context, targetTable *Table, so
 	}, err
 }
 
-func (p *RedshiftIAM) CopyTables(ctx context.Context, targetTable *Table, sourceTable *Table, mergeWindow int) (state bulker.WarehouseState, err error) {
+func (p *RedshiftIAM) CopyTables(ctx context.Context, targetTable *Table, sourceTable *Table, mergeWindow int, discriminatorColumn string) (state bulker.WarehouseState, err error) {
 	if mergeWindow <= 0 {
 		return p.copy(ctx, targetTable, sourceTable)
 	} else {

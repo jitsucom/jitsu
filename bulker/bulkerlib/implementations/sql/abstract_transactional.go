@@ -45,8 +45,9 @@ type AbstractTransactionalSQLStream struct {
 	batchFileLinesByPKDisc map[string]DeduplicationLine
 	batchFileSkipLines     types2.Set[uint32]
 	// path to discriminator field in object
-	discriminatorColumn string
-	useDiscriminator    bool
+	discriminatorColumn  string
+	useDiscriminator     bool
+	doLocalDeduplication bool
 	// loadExistingTable whether to load an existing table schema on init
 	loadExistingTable bool
 }
@@ -74,6 +75,7 @@ func newAbstractTransactionalStream(id string, p SQLAdapter, tableName string, m
 			ps.useDiscriminator = true
 		}
 	}
+	ps.doLocalDeduplication = p.DoLocalDeduplication()
 	ps.localBatchFileName = localBatchFileOption.Get(&ps.options)
 	ps.temporaryBatchSize = uint32(bulker.TemporaryBatchSizeOption.Get(&ps.options))
 	return &ps, nil
@@ -81,8 +83,8 @@ func newAbstractTransactionalStream(id string, p SQLAdapter, tableName string, m
 
 func (ps *AbstractTransactionalSQLStream) initTmpFile(_ context.Context) (err error) {
 	if ps.batchFile == nil {
-		if !ps.merge && ps.sqlAdapter.GetBatchFileFormat() == types.FileFormatNDJSON {
-			//without merge we can write file with compression - no need to convert
+		if (!ps.merge || !ps.doLocalDeduplication) && ps.sqlAdapter.GetBatchFileFormat() == types.FileFormatNDJSON {
+			//without local deduplication we can write file with compression - no need to convert
 			ps.marshaller, _ = types.NewMarshaller(ps.sqlAdapter.GetBatchFileFormat(), ps.sqlAdapter.GetBatchFileCompression())
 		} else {
 			ps.marshaller, _ = types.NewMarshaller(types.FileFormatNDJSON, types.FileCompressionNONE)
@@ -467,7 +469,7 @@ func (ps *AbstractTransactionalSQLStream) writeToBatchFile(ctx context.Context, 
 	if err != nil {
 		return err
 	}
-	if ps.merge {
+	if ps.merge && ps.doLocalDeduplication {
 		pk, err := ps.getPKValue(processedObject)
 		if err != nil {
 			return err

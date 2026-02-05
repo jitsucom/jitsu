@@ -300,7 +300,8 @@ export function buildFunctionChain(
       functionsClass,
       chainCtx,
       funcCtx,
-      eventsLogger
+      eventsLogger,
+      fetchTimeoutMs
     );
     return async (event: AnyEvent, ctx: EventContext) => {
       return wrapper(event, ctx);

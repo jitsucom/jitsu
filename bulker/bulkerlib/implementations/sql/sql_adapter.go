@@ -39,7 +39,7 @@ type SQLAdapter interface {
 	TableHelper() *TableHelper
 	GetTableSchema(ctx context.Context, namespace string, tableName string) (*Table, error)
 	CreateTable(ctx context.Context, schemaToCreate *Table) (*Table, error)
-	CopyTables(ctx context.Context, targetTable *Table, sourceTable *Table, mergeWindow int) (state bulker.WarehouseState, err error)
+	CopyTables(ctx context.Context, targetTable *Table, sourceTable *Table, mergeWindow int, discriminatorColumn string) (state bulker.WarehouseState, err error)
 	LoadTable(ctx context.Context, targetTable *Table, loadSource *LoadSource) (state bulker.WarehouseState, err error)
 	PatchTableSchema(ctx context.Context, patchTable *Table) (*Table, error)
 	TruncateTable(ctx context.Context, namespace string, tableName string) error
@@ -65,6 +65,7 @@ type SQLAdapter interface {
 	// TmpTableUsePK Create temporary tables with primary key.
 	// May be useful for Merge performance in some warehouses
 	TmpTableUsePK() bool
+	DoLocalDeduplication() bool
 }
 
 type LoadSourceType string
@@ -163,9 +164,9 @@ func (tx *TxSQLAdapter) CreateTable(ctx context.Context, schemaToCreate *Table) 
 	ctx = tx.enrichContext(ctx)
 	return tx.sqlAdapter.CreateTable(ctx, schemaToCreate)
 }
-func (tx *TxSQLAdapter) CopyTables(ctx context.Context, targetTable *Table, sourceTable *Table, mergeWindow int) (bulker.WarehouseState, error) {
+func (tx *TxSQLAdapter) CopyTables(ctx context.Context, targetTable *Table, sourceTable *Table, mergeWindow int, discriminatorColumn string) (bulker.WarehouseState, error) {
 	ctx = tx.enrichContext(ctx)
-	return tx.sqlAdapter.CopyTables(ctx, targetTable, sourceTable, mergeWindow)
+	return tx.sqlAdapter.CopyTables(ctx, targetTable, sourceTable, mergeWindow, discriminatorColumn)
 }
 func (tx *TxSQLAdapter) LoadTable(ctx context.Context, targetTable *Table, loadSource *LoadSource) (bulker.WarehouseState, error) {
 	ctx = tx.enrichContext(ctx)
@@ -236,4 +237,8 @@ func (tx *TxSQLAdapter) TableName(identifier string) string {
 
 func (tx *TxSQLAdapter) NamespaceName(namespace string) string {
 	return tx.sqlAdapter.NamespaceName(namespace)
+}
+
+func (tx *TxSQLAdapter) DoLocalDeduplication() bool {
+	return tx.sqlAdapter.DoLocalDeduplication()
 }

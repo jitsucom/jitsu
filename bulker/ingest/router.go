@@ -117,7 +117,7 @@ func NewRouter(appContext *Context, partitionSelector kafkabase.PartitionSelecto
 	})
 
 	httpClient := &http.Client{
-		Timeout: time.Duration(appContext.config.DeviceFunctionsTimeoutMs) * time.Millisecond,
+		Timeout: time.Duration(int64(float64(appContext.config.DeviceFunctionsTimeoutMs)*1.1)) * time.Millisecond,
 	}
 
 	var dataHosts []string
@@ -494,7 +494,7 @@ func (r *Router) processSyncDestination(message *IngestMessage, stream *StreamWi
 			// Use functions server (new format with execLog)
 			fsURL := getFunctionsServerURL(r.config.FunctionsServerURLTemplate, stream.Stream.WorkspaceId, classes)
 			endpointURL := fsURL + "/multi"
-			r.callFunctionsEndpoint(functionDestinations, endpointURL, messageBytes, functionsResults)
+			r.callFunctionsEndpoint(stream, functionDestinations, endpointURL, messageBytes, functionsResults)
 		} else {
 			// Use rotor (legacy format)
 			endpointURL := r.config.RotorURL + "/func/multi"
@@ -606,7 +606,7 @@ type ConnectionChainResult struct {
 
 // callFunctionsEndpoint sends a request to functions endpoint and expects new format with execLog
 // Response format: map[connectionId]{ events: [], execLog: [] }
-func (r *Router) callFunctionsEndpoint(destinations []*ShortDestinationConfig, baseURL string, messageBytes []byte, functionsResults map[string]any) {
+func (r *Router) callFunctionsEndpoint(stream *StreamWithDestinations, destinations []*ShortDestinationConfig, baseURL string, messageBytes []byte, functionsResults map[string]any) {
 	if len(destinations) == 0 {
 		return
 	}
@@ -614,11 +614,15 @@ func (r *Router) callFunctionsEndpoint(destinations []*ShortDestinationConfig, b
 	ids := utils.ArrayMap(destinations, func(d *ShortDestinationConfig) string { return d.ConnectionId })
 	var err error
 	defer func() {
-		for _, id := range ids {
-			if err != nil {
+		if err != nil {
+			obj := map[string]any{"body": string(messageBytes), "error": "Functions server ", "status": "FS_ERROR"}
+			r.eventsLogService.PostAsync(&eventslog.ActorEvent{EventType: eventslog.EventTypeIncoming, Level: eventslog.LevelError, ActorId: stream.Stream.Id, Event: obj})
+			for _, id := range ids {
 				DeviceFunctions(id, "error").Inc()
 				DeviceFunctions("total", "error").Inc()
-			} else {
+			}
+		} else {
+			for _, id := range ids {
 				DeviceFunctions(id, "success").Inc()
 				DeviceFunctions("total", "success").Inc()
 			}
@@ -641,6 +645,7 @@ func (r *Router) callFunctionsEndpoint(destinations []*ShortDestinationConfig, b
 	res, err := r.httpClient.Do(req)
 	if err != nil {
 		r.Errorf("failed to send functions request for connections: %s: %v", ids, err)
+		err = fmt.Errorf("functions request error: %v", err)
 		return
 	}
 	defer res.Body.Close()
@@ -648,12 +653,14 @@ func (r *Router) callFunctionsEndpoint(destinations []*ShortDestinationConfig, b
 	body, err := io.ReadAll(res.Body)
 	if res.StatusCode != 200 || err != nil {
 		r.Errorf("Failed to send functions request for connections: %s: status: %v body: %s", ids, res.StatusCode, string(body))
+		err = fmt.Errorf("functions response error: status %d err: %v", res.StatusCode, err)
 		return
 	}
 	var result map[string]ConnectionChainResult
 	err = jsoniter.Unmarshal(body, &result)
 	if err != nil {
 		r.Errorf("Failed to unmarshal functions response for connections: %s: %v", ids, err)
+		err = fmt.Errorf("functions response error: %v", err)
 		return
 	}
 

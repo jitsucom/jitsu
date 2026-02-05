@@ -215,11 +215,11 @@ func (m *MySQL) Insert(ctx context.Context, table *Table, merge bool, objects ..
 	}
 }
 
-func (m *MySQL) CopyTables(ctx context.Context, targetTable *Table, sourceTable *Table, mergeWindow int) (bulker.WarehouseState, error) {
+func (m *MySQL) CopyTables(ctx context.Context, targetTable *Table, sourceTable *Table, mergeWindow int, discriminatorColumn string) (bulker.WarehouseState, error) {
 	if mergeWindow <= 0 {
 		return m.copy(ctx, targetTable, sourceTable)
 	} else {
-		return m.copyOrMerge(ctx, targetTable, sourceTable, mySQLBulkMergeQueryTemplate, "T", "S", mergeWindow)
+		return m.copyOrMerge(ctx, targetTable, sourceTable, mySQLBulkMergeQueryTemplate, "T", "S", mergeWindow, discriminatorColumn)
 	}
 }
 

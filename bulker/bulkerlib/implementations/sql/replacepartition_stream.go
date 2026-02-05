@@ -124,7 +124,7 @@ func (ps *ReplacePartitionStream) Complete(ctx context.Context) (state bulker.St
 				}
 				logging.Infof("[%s] Merge window set to %d days. Min ts: %s", ps.id, mergeWindowDays, ps.minTimestampInBatch.Format(time.RFC3339))
 			}
-			ws, err := ps.tx.CopyTables(ctx, ps.dstTable, ps.tmpTable, mergeWindowDays)
+			ws, err := ps.tx.CopyTables(ctx, ps.dstTable, ps.tmpTable, mergeWindowDays, ps.discriminatorColumn)
 			ps.state.AddWarehouseState(ws)
 			if err != nil {
 				return ps.state, err

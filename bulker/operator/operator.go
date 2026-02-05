@@ -1226,6 +1226,10 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 			Name:  "FUNCTIONS_CLASS",
 			Value: data.FunctionsClass,
 		},
+		{
+			Name:  "FETCH_FORBID_LOCAL",
+			Value: "true",
+		},
 	}
 
 	// Build containers list
