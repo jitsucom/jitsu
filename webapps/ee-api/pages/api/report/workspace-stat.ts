@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import {
   assertDefined,
   assertTrue,
+  ClickhouseEnvVars,
   getClickhouseConfig,
   getErrorMessage,
   getLog,
@@ -22,6 +23,7 @@ import utc from "dayjs/plugin/utc";
 dayjs.extend(utc);
 
 const log = getServerLog("/api/report");
+const clickhouseConfig = getClickhouseConfig(process.env as ClickhouseEnvVars);
 
 const workspaceStatSql = require("../../../lib/sql/workspace-info.sql").default;
 
@@ -100,7 +102,7 @@ export async function getEventsReport({
   workspaceId,
 }: ReportParams): Promise<WorkspaceReportRow[]> {
   const timer = Date.now();
-  const metricsSchema = process.env.CLICKHOUSE_METRICS_SCHEMA || process.env.CLICKHOUSE_DATABASE || "newjitsu_metrics";
+  const metricsSchema = clickhouseConfig.database;
   const query = `select
                    date_trunc('${granularity}', timestamp) as period,
                    workspaceId as "workspaceId",

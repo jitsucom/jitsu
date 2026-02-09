@@ -107,7 +107,7 @@ export function getClickhouseConfig(env: ClickhouseEnvVars): ClickhouseConfig {
   // Fall back to individual env vars for missing components
   username = username ?? env.CLICKHOUSE_USERNAME ?? "default";
   password = password ?? env.CLICKHOUSE_PASSWORD ?? "";
-  database = database ?? env.CLICKHOUSE_METRICS_SCHEMA ?? env.CLICKHOUSE_DATABASE;
+  database = database ?? env.CLICKHOUSE_METRICS_SCHEMA ?? env.CLICKHOUSE_DATABASE ?? "newjitsu_metrics";
 
   // Determine protocol from CLICKHOUSE_SSL if not in URL
   if (!protocol) {
