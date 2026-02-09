@@ -35,6 +35,10 @@ spec:
 
               if [ -d "/cache/workspace/node_modules" ] && [ "$LOCK_HASH" = "$CACHED_HASH" ]; then
                 echo "Cache hit! Syncing source files..."
+                # Install build tools needed for native modules (isolated-vm)
+                apt-get update && \
+                apt-get install -y ca-certificates python3 g++ make && \
+                rm -rf /var/lib/apt/lists/*
                 npm install -g pnpm
                 # Copy only source files that changed
                 cd /project && tar --exclude='node_modules' --exclude='.[^/]*' --exclude='*/node_modules' --exclude='docker/data' --exclude='*.log' -cf - . | tar -xf - -C /cache/workspace

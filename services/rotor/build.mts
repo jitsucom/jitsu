@@ -1,5 +1,5 @@
 import * as esbuild from "esbuild";
-import { writeFileSync, mkdirSync, statSync, readdirSync } from "fs";
+import { writeFileSync, mkdirSync, rmSync, statSync, readdirSync } from "fs";
 import { execSync } from "child_process";
 import { join } from "path";
 
@@ -46,6 +46,8 @@ esbuild
   })
   .then(() => {
     mkdirSync("dist", { recursive: true });
+    // Remove old node_modules to force recompilation of native addons for current platform
+    rmSync("dist/node_modules", { recursive: true, force: true });
     writeFileSync("dist/package.json", JSON.stringify({ dependencies: nativeDeps }, null, 2));
 
     // Install native deps
