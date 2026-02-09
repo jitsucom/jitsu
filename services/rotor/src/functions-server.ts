@@ -682,9 +682,7 @@ async function runChain(
       } finally {
         // Close fetch responses
         for (const resp of fetchResponses) {
-          try {
-            resp.body?.cancel();
-          } catch {}
+          safeCloseResponse(resp);
         }
       }
 
@@ -712,6 +710,16 @@ async function runChain(
   }
 
   return { events, execLog, logs };
+}
+
+function safeCloseResponse(res: Response) {
+  try {
+    if (res?.body && !res.bodyUsed) {
+      res.body.cancel?.();
+    }
+  } catch (_) {
+    // ignore
+  }
 }
 
 // Map diff helper - optimizes response size by sending diffs when possible

@@ -676,7 +676,7 @@ func (r *Router) processExecLog(connectionId string, execLog []FunctionExecLogEn
 	// Process execution log entries (errors and dropped events)
 	for _, el := range execLog {
 		if el.Error != nil {
-			r.Warnf("[%s] Function %s error: %s: %s", connectionId, el.FunctionId, el.Error.Name, el.Error.Message)
+			//r.Warnf("[%s] Function %s error: %s: %s", connectionId, el.FunctionId, el.Error.Name, el.Error.Message)
 			DeviceFunctions(connectionId, "function_error").Inc()
 			// Log to eventsLogService similar to how rotor sends to clickhouse logger
 			logEvent := map[string]any{
