@@ -136,7 +136,7 @@ async function ensureMongoCollection(
   }
 }
 
-function success(namespace: string, operation: "get" | "set" | "del" | "ttl", metrics?: StoreMetrics) {
+function success(namespace: string, operation: "get" | "set" | "del" | "ttl" | "getOrSet", metrics?: StoreMetrics) {
   if (metrics) {
     metrics.storeStatus(namespace, operation, "success");
   }
@@ -145,7 +145,7 @@ function success(namespace: string, operation: "get" | "set" | "del" | "ttl", me
 interface StoreValue {
   _id: string;
   value: any;
-  expireAt: Date;
+  expireAt?: Date;
 }
 
 export const createMongoStore = (
@@ -210,6 +210,41 @@ export const createMongoStore = (
         return res ? res.value : undefined;
       } catch (err: any) {
         throw storeErr(namespace, "get", err, `Error getting key ${key} from mongo store ${namespace}`, metrics);
+      }
+    },
+    getOrSet: async (key: string, value: any, opts?: SetOpts) => {
+      try {
+        const ttl = getTtlSec(opts);
+        const expireAt = ttl >= 0 ? new Date(Date.now() + ttl * 1000) : undefined;
+        const colObj: StoreValue = { _id: key, value, expireAt };
+        const res = await ensureCollection().then(c =>
+          c.findOneAndUpdate(
+            { _id: key },
+            { $setOnInsert: colObj, $set: { expireAt: expireAt } },
+            {
+              upsert: true,
+              returnDocument: "after",
+              ...writeOptions,
+            }
+          )
+        );
+        if (res) {
+          if (useLocalCache) {
+            localCache[key] = res;
+          }
+          success(namespace, "getOrSet", metrics);
+          return res.value;
+        } else {
+          throw new Error(`Failed to get or set key ${key} in mongo store ${namespace}`);
+        }
+      } catch (err: any) {
+        throw storeErr(
+          namespace,
+          "getOrSet",
+          err,
+          `Error getting or setting key ${key} from mongo store ${namespace}`,
+          metrics
+        );
       }
     },
     getWithTTL: async (key: string) => {

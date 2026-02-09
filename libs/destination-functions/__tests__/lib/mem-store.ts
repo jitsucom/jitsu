@@ -12,6 +12,9 @@ export function createStore(): TTLStore {
     getWithTTL(key: string): Promise<{ value: any; ttl: number } | undefined> {
       throw new Error("Method not implemented.");
     },
+    getOrSet(key: string, value: any, opts?: SetOpts): Promise<any> {
+      throw new Error("Method not implemented.");
+    },
     set(key: string, value: any, opts?: SetOpts): Promise<void> {
       throw new Error("Method not implemented.");
     },

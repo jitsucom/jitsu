@@ -39,6 +39,7 @@ export interface FunctionMetrics {
 
 export interface TTLStore extends Store {
   getWithTTL(key: string): Promise<{ value: any; ttl: number } | undefined>;
+  getOrSet(key: string, value: any, opts?: SetOpts): Promise<any>;
 }
 
 /**

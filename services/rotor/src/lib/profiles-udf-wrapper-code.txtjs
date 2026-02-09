@@ -127,6 +127,13 @@ const wrappedUserFunction = (id, f, funcCtx) => {
             });
             return res ? JSON.parse(res) : undefined;
         },
+        getOrSet: async (key, value, opts) => {
+            const res = await _jitsu_store.getOrSet.apply(undefined, [key, value, opts], {
+                arguments: {copy: true},
+                result: {promise: true}
+            });
+            return res ? JSON.parse(res) : undefined;
+        },
         ttl: async key => {
             return await _jitsu_store.ttl.apply(undefined, [key], {
                 arguments: {copy: true},

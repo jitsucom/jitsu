@@ -6,7 +6,7 @@ import { getTtlSec, StoreMetrics } from "@jitsu/core-functions-lib";
 
 const log = getLog("store");
 
-function success(namespace: string, operation: "get" | "set" | "del" | "ttl", metrics?: StoreMetrics) {
+function success(namespace: string, operation: "get" | "set" | "del" | "ttl" | "getOrSet", metrics?: StoreMetrics) {
   if (metrics) {
     metrics.storeStatus(namespace, operation, "success");
   }
@@ -14,7 +14,7 @@ function success(namespace: string, operation: "get" | "set" | "del" | "ttl", me
 
 export function storeErr(
   namespace: string,
-  operation: "get" | "set" | "del" | "ttl",
+  operation: "get" | "set" | "del" | "ttl" | "getOrSet",
   err: any,
   text: string,
   metrics?: StoreMetrics
@@ -37,6 +37,28 @@ export const createRedisStore = (namespace: string, redisClient: Redis, metrics?
       return res ? JSON.parse(res) : undefined;
     } catch (err: any) {
       throw storeErr(namespace, "get", err, `Error getting key ${key} from redis store ${namespace}`, metrics);
+    }
+  },
+  getOrSet: async (key: string, value: any, opts?: SetOpts) => {
+    try {
+      const ttl = getTtlSec(opts);
+      const setRes = await redisClient.set(`store:${namespace}:${key}`, JSON.stringify(value), "EX", ttl, "NX");
+      if (setRes) {
+        success(namespace, "getOrSet", metrics);
+        return value;
+      } else {
+        const res = await redisClient.get(`store:${namespace}:${key}`);
+        success(namespace, "getOrSet", metrics);
+        return res ? JSON.parse(res) : undefined;
+      }
+    } catch (err: any) {
+      throw storeErr(
+        namespace,
+        "getOrSet",
+        err,
+        `Error getting or setting key ${key} from redis store ${namespace}`,
+        metrics
+      );
     }
   },
   getWithTTL: async (key: string) => {

@@ -208,8 +208,8 @@ importers:
         specifier: ^2.0.0
         version: 2.0.0
       ioredis:
-        specifier: ^5.3.2
-        version: 5.4.1
+        specifier: ^5.9.2
+        version: 5.9.2
       jest:
         specifier: ^29.3.1
         version: 29.7.0(@types/node@22.14.1)(ts-node@10.9.2(@swc/core@1.15.2)(@types/node@22.14.1)(typescript@5.6.3))
@@ -603,8 +603,8 @@ importers:
         specifier: ^4.21.2
         version: 4.21.2
       ioredis:
-        specifier: ^5.8.2
-        version: 5.8.2
+        specifier: ^5.9.2
+        version: 5.9.2
       isolated-vm:
         specifier: ^6.0.2
         version: 6.0.2
@@ -844,8 +844,8 @@ importers:
         specifier: ^11.11.1
         version: 11.11.1
       ioredis:
-        specifier: ^5.3.2
-        version: 5.4.1
+        specifier: ^5.9.2
+        version: 5.9.2
       js-yaml:
         specifier: ^4.1.1
         version: 4.1.1
@@ -2674,11 +2674,8 @@ packages:
     resolution: {integrity: sha512-m+Trk77mp54Zma6xLkLuY+mvanPxlE4A7yNKs2HBiyZ4UkVs28Mv5c/pgWrHeInx+USHeX/WEPzjrWrcJiQgjw==}
     engines: {node: '>=18'}
 
-  '@ioredis/commands@1.2.0':
-    resolution: {integrity: sha512-Sx1pU8EM64o2BrqNpEO1CNLtKQwyhuXuqyfH7oGKCk+1a33d2r5saW8zNwm3j6BTExtjrv2BxTgzzkMwts6vGg==}
-
-  '@ioredis/commands@1.4.0':
-    resolution: {integrity: sha512-aFT2yemJJo+TZCmieA7qnYGQooOS7QfNmYrzGtsYd3g9j5iDP8AimYYAesf79ohjbLG12XxC4nG5DyEnC88AsQ==}
+  '@ioredis/commands@1.5.0':
+    resolution: {integrity: sha512-eUgLqrMf8nJkZxT24JvVRrQya1vZkQh8BBeYNwGDqa5I0VUi8ACx7uFvAaLxintokpTenkK6DASvo/bvNbBGow==}
 
   '@isaacs/balanced-match@4.0.1':
     resolution: {integrity: sha512-yzMTt9lEb8Gv7zRioUilSglI0c0smZ9k5D65677DLWLtWJaXIS3CqcGyUFByYKlnUj6TkjLVs54fBl6+TiGQDQ==}
@@ -7029,12 +7026,8 @@ packages:
     resolution: {integrity: sha512-2dYz766i9HprMBasCMvHMuazJ7u4WzhJwo5kb3iPSiW/iRYV6uPari3zHoqZlnuaR7V1bEiNMxikhp37rdBXbw==}
     engines: {node: '>=12'}
 
-  ioredis@5.4.1:
-    resolution: {integrity: sha512-2YZsvl7jopIa1gaePkeMtd9rAcSjOOjPtpcLlOeusyO+XH2SK5ZcT+UCrElPP+WVIInh2TzeI4XW9ENaSLVVHA==}
-    engines: {node: '>=12.22.0'}
-
-  ioredis@5.8.2:
-    resolution: {integrity: sha512-C6uC+kleiIMmjViJINWk80sOQw5lEzse1ZmvD+S/s8p8CWapftSaC+kocGTx6xrbrJ4WmYQGC08ffHLr6ToR6Q==}
+  ioredis@5.9.2:
+    resolution: {integrity: sha512-tAAg/72/VxOUW7RQSX1pIxJVucYKcjFjfvj60L57jrZpYCHC3XN0WCQ3sNYL4Gmvv+7GPvTAjc+KSdeNuE8oWQ==}
     engines: {node: '>=12.22.0'}
 
   ip6addr@0.2.5:
@@ -12913,9 +12906,7 @@ snapshots:
 
   '@inquirer/figures@1.0.7': {}
 
-  '@ioredis/commands@1.2.0': {}
-
-  '@ioredis/commands@1.4.0': {}
+  '@ioredis/commands@1.5.0': {}
 
   '@isaacs/balanced-match@4.0.1': {}
 
@@ -18545,23 +18536,9 @@ snapshots:
       from2: 2.3.0
       p-is-promise: 3.0.0
 
-  ioredis@5.4.1:
+  ioredis@5.9.2:
     dependencies:
-      '@ioredis/commands': 1.2.0
-      cluster-key-slot: 1.1.2
-      debug: 4.3.7(supports-color@5.5.0)
-      denque: 2.1.0
-      lodash.defaults: 4.2.0
-      lodash.isarguments: 3.1.0
-      redis-errors: 1.2.0
-      redis-parser: 3.0.0
-      standard-as-callback: 2.1.0
-    transitivePeerDependencies:
-      - supports-color
-
-  ioredis@5.8.2:
-    dependencies:
-      '@ioredis/commands': 1.4.0
+      '@ioredis/commands': 1.5.0
       cluster-key-slot: 1.1.2
       debug: 4.4.3
       denque: 2.1.0

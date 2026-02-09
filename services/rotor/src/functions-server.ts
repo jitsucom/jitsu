@@ -12,7 +12,6 @@ import {
   FullContext,
   JitsuFunction,
   TTLStore,
-  AnonymousEventsStore,
   FunctionMetrics,
 } from "@jitsu/protocols/functions";
 import * as esbuild from "esbuild";
@@ -28,6 +27,7 @@ import {
   FunctionExecLog,
   makeFetch,
   EntityStore,
+  createMemoryStore,
 } from "@jitsu/core-functions-lib";
 import { getServerEnv } from "./serverEnv";
 import { DropRetryErrorName, NoRetryErrorName, NoRetryError, RetryError } from "@jitsu/functions-lib";
@@ -150,76 +150,6 @@ type FunctionChain = {
   connectionId: string;
   functions: LoadedFunction[];
 };
-
-// Simple in-memory store implementation
-function createMemoryStore(): TTLStore {
-  const store = new Map<string, { value: any; expireAt?: number }>();
-
-  return {
-    async get(key: string): Promise<any> {
-      const entry = store.get(key);
-      if (!entry) return undefined;
-      if (entry.expireAt && Date.now() > entry.expireAt) {
-        store.delete(key);
-        return undefined;
-      }
-      return entry.value;
-    },
-    async getWithTTL(key: string): Promise<{ value: any; ttl: number } | undefined> {
-      const entry = store.get(key);
-      if (!entry) return undefined;
-      if (entry.expireAt && Date.now() > entry.expireAt) {
-        store.delete(key);
-        return undefined;
-      }
-      const ttl = entry.expireAt ? Math.max(0, Math.floor((entry.expireAt - Date.now()) / 1000)) : -1;
-      return { value: entry.value, ttl };
-    },
-    async set(key: string, value: any, opts?: number | string | { ttl: number }): Promise<void> {
-      let ttlSeconds: number | undefined;
-      if (typeof opts === "number") {
-        ttlSeconds = opts;
-      } else if (typeof opts === "string") {
-        const match = opts.match(/^(\d+)([dhms])$/);
-        if (match) {
-          const num = parseInt(match[1]);
-          const unit = match[2];
-          switch (unit) {
-            case "d":
-              ttlSeconds = num * 86400;
-              break;
-            case "h":
-              ttlSeconds = num * 3600;
-              break;
-            case "m":
-              ttlSeconds = num * 60;
-              break;
-            case "s":
-              ttlSeconds = num;
-              break;
-          }
-        }
-      } else if (opts && typeof opts === "object") {
-        ttlSeconds = opts.ttl;
-      }
-
-      store.set(key, {
-        value,
-        expireAt: ttlSeconds ? Date.now() + ttlSeconds * 1000 : undefined,
-      });
-    },
-    async del(key: string): Promise<void> {
-      store.delete(key);
-    },
-    async ttl(key: string): Promise<number> {
-      const entry = store.get(key);
-      if (!entry) return -2;
-      if (!entry.expireAt) return -1;
-      const ttl = Math.floor((entry.expireAt - Date.now()) / 1000);
-      return ttl > 0 ? ttl : -2;
-    },
-  };
-}
 
 // Log entry type
 type LogEntry = {
@@ -525,7 +455,7 @@ async function buildFunctionChain(
     store = createMongoStore(connection.workspaceId, mongodb, false, true);
   } else {
     log.atInfo().log(`Using in-memory store (MONGODB_URL not set)`);
-    store = createMemoryStore();
+    store = createMemoryStore({});
   }
 
   const chainCtx: FunctionChainContext = {

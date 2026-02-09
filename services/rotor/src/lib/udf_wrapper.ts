@@ -119,6 +119,10 @@ export const UDFWrapper = (
           const res = await chainCtx.store.get(key);
           return JSON.stringify(res);
         }),
+        getOrSet: makeReference(refs, async (key: string, value: any, opts?: any) => {
+          const res = await chainCtx.store.getOrSet(key, value, opts);
+          return JSON.stringify(res);
+        }),
         set: makeReference(refs, chainCtx.store.set),
         del: makeReference(refs, chainCtx.store.del),
         ttl: makeReference(refs, async (key: string) => {

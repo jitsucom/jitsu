@@ -45,6 +45,13 @@ export const createMultiStore = (newStore: TTLStore, oldStore: TTLStore): TTLSto
       }
       return await oldStore.ttl(key);
     },
+    getOrSet: async (key: string, value: any, opts?: SetOpts): Promise<any> => {
+      const res = await newStore.getOrSet(key, value, opts);
+      if (res) {
+        return res;
+      }
+      return await oldStore.getOrSet(key, value, opts);
+    },
     getWithTTL: async (key: string) => {
       const res = await newStore.getWithTTL(key);
       if (res) {
@@ -65,6 +72,9 @@ export const createDummyStore = (): TTLStore => ({
     return -2;
   },
   getWithTTL: async (key: string) => {
+    return undefined;
+  },
+  getOrSet: async (key: string, value: any, opts?: SetOpts): Promise<any> => {
     return undefined;
   },
 });
@@ -116,6 +126,27 @@ export const createMemoryStore = (store: any): TTLStore => ({
       value: val.obj,
       ttl: Math.floor(diff),
     };
+  },
+  getOrSet: async (key: string, value: any, opts?: SetOpts): Promise<any> => {
+    const val = store[key];
+    if (val) {
+      const diff = (val.expireAt - new Date().getTime()) / 1000;
+      if (diff < 0) {
+        store[key] = {
+          obj: value,
+          expireAt: new Date().getTime() + getTtlSec(opts) * 1000,
+        };
+        return value;
+      } else {
+        return val.obj;
+      }
+    } else {
+      store[key] = {
+        obj: value,
+        expireAt: new Date().getTime() + getTtlSec(opts) * 1000,
+      };
+      return value;
+    }
   },
 });
 
