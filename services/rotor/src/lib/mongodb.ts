@@ -216,11 +216,16 @@ export const createMongoStore = (
       try {
         const ttl = getTtlSec(opts);
         const expireAt = ttl >= 0 ? new Date(Date.now() + ttl * 1000) : undefined;
-        const colObj: StoreValue = { _id: key, value, expireAt };
         const res = await ensureCollection().then(c =>
           c.findOneAndUpdate(
             { _id: key },
-            { $setOnInsert: colObj, $set: { expireAt: expireAt } },
+            {
+              $setOnInsert: {
+                _id: key,
+                value,
+              },
+              $set: { expireAt: expireAt },
+            },
             {
               upsert: true,
               returnDocument: "after",
