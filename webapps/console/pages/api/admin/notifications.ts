@@ -390,7 +390,7 @@ async function processStatusChanges(
 
       // no flapping state or no saved state for this entity at all
       if (!state?.flappingSince) {
-        if (entity.changesPerHours > flappingThreshold && lastStatus.status !== "SUCCESS") {
+        if (entity.changesPerHours > flappingThreshold && (lastStatus.status !== "SUCCESS" || statuses.length > 1)) {
           log
             .atInfo()
             .log(`[${chkey}] Flapping started ${lastStatus.timestamp} Changes per hour: ${entity.changesPerHours}`);
@@ -445,7 +445,10 @@ async function processStatusChanges(
           .atInfo()
           .log(`[${chkey}] Flapping ended ${lastStatus.timestamp} Changes per hour: ${entity.changesPerHours}`);
         doNotify = true;
-      } else if (lastStatus.timestamp.getTime() > sendRecurringTime && lastStatus.status !== "SUCCESS") {
+      } else if (
+        lastStatus.timestamp.getTime() > sendRecurringTime &&
+        (lastStatus.status !== "SUCCESS" || statuses.length > 1)
+      ) {
         log
           .atInfo()
           .log(`[${chkey}] Flapping recurring ${state.flappingSince} Changes per hour: ${entity.changesPerHours}`);
