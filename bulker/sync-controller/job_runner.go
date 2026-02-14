@@ -841,19 +841,17 @@ func (j *JobRunner) createPod(podName string, task TaskDescriptor, configuration
 					Command: []string{"sh", "-c", fmt.Sprintf("eval \"$AIRBYTE_ENTRYPOINT %s\" 2> /pipes/stderr > /pipes/stdout", command)},
 					Env: []v1.EnvVar{{Name: "USE_STREAM_CAPABLE_STATE", Value: "true"},
 						{Name: "AUTO_DETECT_SCHEMA", Value: "true"},
-						{Name: "JAVA_OPTS", Value: "-Xmx7000m"}},
+						{Name: "JAVA_OPTS", Value: j.config.SourceJavaOpts}},
 
 					VolumeMounts: volumeMounts,
 					Resources: v1.ResourceRequirements{
 						Limits: v1.ResourceList{
-							v1.ResourceCPU: *resource.NewMilliQuantity(int64(1000), resource.DecimalSI),
-							// 8Gi
-							v1.ResourceMemory: *resource.NewQuantity(int64(math.Pow(2, 33)), resource.BinarySI),
+							v1.ResourceCPU:    *resource.NewMilliQuantity(int64(j.config.SourceCPULimit), resource.DecimalSI),
+							v1.ResourceMemory: *resource.NewQuantity(int64(float64(j.config.SourceMemoryLimit)*math.Pow(2, 20)), resource.BinarySI),
 						},
 						Requests: v1.ResourceList{
-							v1.ResourceCPU: *resource.NewMilliQuantity(int64(100), resource.DecimalSI),
-							// 256Mi
-							v1.ResourceMemory: *resource.NewQuantity(int64(math.Pow(2, 28)), resource.BinarySI),
+							v1.ResourceCPU:    *resource.NewMilliQuantity(int64(j.config.SourceCPURequest), resource.DecimalSI),
+							v1.ResourceMemory: *resource.NewQuantity(int64(float64(j.config.SourceMemoryRequest)*math.Pow(2, 20)), resource.BinarySI),
 						},
 					},
 				},
@@ -865,14 +863,12 @@ func (j *JobRunner) createPod(podName string, task TaskDescriptor, configuration
 					VolumeMounts:    volumeMounts,
 					Resources: v1.ResourceRequirements{
 						Limits: v1.ResourceList{
-							v1.ResourceCPU: *resource.NewMilliQuantity(int64(500), resource.DecimalSI),
-							// 4Gi
-							v1.ResourceMemory: *resource.NewQuantity(int64(math.Pow(2, 32)), resource.BinarySI),
+							v1.ResourceCPU:    *resource.NewMilliQuantity(int64(j.config.SidecarCPULimit), resource.DecimalSI),
+							v1.ResourceMemory: *resource.NewQuantity(int64(float64(j.config.SidecarMemoryLimit)*math.Pow(2, 20)), resource.BinarySI),
 						},
 						Requests: v1.ResourceList{
-							v1.ResourceCPU: *resource.NewMilliQuantity(int64(0), resource.DecimalSI),
-							// 256
-							v1.ResourceMemory: *resource.NewQuantity(int64(0), resource.BinarySI),
+							v1.ResourceCPU:    *resource.NewMilliQuantity(int64(j.config.SidecarCPURequest), resource.DecimalSI),
+							v1.ResourceMemory: *resource.NewQuantity(int64(float64(j.config.SidecarMemoryRequest)*math.Pow(2, 20)), resource.BinarySI),
 						},
 					},
 				},
