@@ -119,6 +119,13 @@ export const DummyMetrics: RotorMetrics = {
 };
 
 export function createMetrics(producer?: KafkaJS.Producer): RotorMetrics {
+  const hasCH = Boolean(serverEnv.CLICKHOUSE_URL || serverEnv.CLICKHOUSE_HOST);
+
+  if (!hasCH) {
+    log.atWarn().log("ClickHouse is not configured (no CLICKHOUSE_URL/CLICKHOUSE_HOST). Metrics disabled.");
+    return DummyMetrics;
+  }
+
   const buffer: MetricsEvent[] = [];
   const chConfig = getClickhouseConfig(serverEnv);
 
