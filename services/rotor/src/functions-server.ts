@@ -1,7 +1,6 @@
 import http from "http";
 import path from "path";
 import fs from "fs";
-import fsp from "fs/promises";
 import os from "os";
 import zlib from "zlib";
 import { promisify } from "util";
@@ -14,7 +13,6 @@ import {
   TTLStore,
   FunctionMetrics,
 } from "@jitsu/protocols/functions";
-import * as esbuild from "esbuild";
 import Prometheus from "prom-client";
 
 const gunzip = promisify(zlib.gunzip);
@@ -42,6 +40,8 @@ import { IngestMessage } from "@jitsu/protocols/async-request";
 import { parseUserAgent } from "@jitsu/core-functions-lib";
 import type { MongoClient } from "mongodb";
 import { Agent, setGlobalDispatcher } from "undici";
+import { runUdfInWorker } from "./lib/udf-worker-runner";
+import { compileUdfFunction } from "./lib/udf-shared";
 
 setGlobalDispatcher(
   new Agent({
@@ -165,82 +165,6 @@ function setupMongoPoolMetrics(client: MongoClient) {
 
 const metricsPort = parseInt(env.ROTOR_METRICS_PORT || "9091");
 
-// Whitelist of packages that UDF code is allowed to import (will be bundled)
-const ALLOWED_PACKAGES = ["@jitsu/functions-lib"];
-
-// Node.js built-in modules (marked as external - available at runtime)
-const NODE_BUILTINS = [
-  "assert",
-  "buffer",
-  "child_process",
-  "cluster",
-  "console",
-  "constants",
-  "crypto",
-  "dgram",
-  "dns",
-  "domain",
-  "events",
-  "fs",
-  "http",
-  "https",
-  "module",
-  "net",
-  "os",
-  "path",
-  "punycode",
-  "querystring",
-  "readline",
-  "repl",
-  "stream",
-  "string_decoder",
-  "sys",
-  "timers",
-  "tls",
-  "tty",
-  "url",
-  "util",
-  "vm",
-  "zlib",
-];
-
-// esbuild plugin to whitelist allowed imports
-function createWhitelistPlugin(allowedPackages: string[]): esbuild.Plugin {
-  return {
-    name: "whitelist-imports",
-    setup(build) {
-      // Intercept all bare module imports (not relative/absolute paths)
-      build.onResolve({ filter: /^[^./]/ }, args => {
-        // Extract package name (handle scoped packages like @scope/package)
-        const packageName = args.path.startsWith("@")
-          ? args.path.split("/").slice(0, 2).join("/")
-          : args.path.split("/")[0];
-
-        // Allow whitelisted packages - let esbuild resolve and bundle them
-        if (allowedPackages.includes(packageName)) {
-          return null;
-        }
-
-        // Node built-ins - mark as external (available at runtime)
-        if (NODE_BUILTINS.includes(packageName) || args.path.startsWith("node:")) {
-          return { path: args.path, external: true };
-        }
-
-        // Everything else - error
-        return {
-          errors: [
-            {
-              text: `Import "${packageName}" is not allowed in UDF functions. Allowed packages: ${allowedPackages.join(
-                ", "
-              )}`,
-            },
-          ],
-        };
-      });
-    },
-  };
-}
-
 // Types
 type LoadedFunction = {
   id: string;
@@ -329,98 +253,6 @@ async function loadJsonFile<T>(filePath: string): Promise<T> {
   }
   const content = fs.readFileSync(filePath, "utf-8");
   return JSON.parse(content) as T;
-}
-
-// Preamble code to set up globals for backward compatibility with web interface UDFs
-// These globals are available without explicit imports
-const UDF_GLOBALS_PREAMBLE = `
-import {
-  RetryError as _RetryError,
-  NoRetryError as _NoRetryError,
-  TableNameParameter as _TableNameParameter,
-  toJitsuClassic as _toJitsuClassic,
-  fromJitsuClassic as _fromJitsuClassic,
-} from "@jitsu/functions-lib";
-globalThis.RetryError = _RetryError;
-globalThis.NoRetryError = _NoRetryError;
-globalThis.TableNameParameter = _TableNameParameter;
-globalThis.toJitsuClassic = _toJitsuClassic;
-globalThis.fromJitsuClassic = _fromJitsuClassic;
-`;
-
-// Directory for compiled UDF files (for readable stack traces)
-const UDF_TEMP_DIR = path.join(os.tmpdir(), "jitsu-udf");
-
-// Ensure UDF temp directory exists
-async function ensureUdfTempDir(): Promise<void> {
-  try {
-    await fsp.access(UDF_TEMP_DIR);
-  } catch {
-    await fsp.mkdir(UDF_TEMP_DIR, { recursive: true });
-  }
-}
-
-// Sanitize function ID for use in filename
-function sanitizeFunctionId(functionId: string): string {
-  return functionId.replace(/[^a-zA-Z0-9_-]/g, "_");
-}
-
-// Compile UDF function from code string using esbuild
-async function compileUdfFunction(connectionId: string, code: string, functionId: string, env: any): Promise<any> {
-  try {
-    const envs = `
-    const process = { env: ${JSON.stringify(env || {})}}
-    `;
-    // Prepend globals preamble to user code so it gets bundled together
-    const fullCode = UDF_GLOBALS_PREAMBLE + envs + code;
-
-    const result = await esbuild.build({
-      stdin: {
-        contents: fullCode,
-        loader: "js",
-        resolveDir: process.cwd(), // Needed for resolving node_modules
-      },
-      bundle: true,
-      write: false,
-      format: "esm",
-      platform: "node",
-      target: "node20",
-      plugins: [createWhitelistPlugin(ALLOWED_PACKAGES)],
-      logLevel: "silent", // We'll handle errors ourselves
-    });
-
-    if (result.errors.length > 0) {
-      const errorMessages = result.errors.map(e => e.text).join("\n");
-      throw new Error(`Failed to compile function ${functionId}:\n${errorMessages}`);
-    }
-
-    // Write to temp file for readable stack traces
-    await ensureUdfTempDir();
-    const sanitizedId = sanitizeFunctionId(connectionId + "-" + functionId);
-    const tempFile = path.join(UDF_TEMP_DIR, `${sanitizedId}.mjs`);
-    const bundledCode = result.outputFiles[0].text;
-    await fsp.writeFile(tempFile, bundledCode);
-
-    // Import from file path (gives readable stack traces)
-    const module = await import(tempFile);
-
-    const func = module.default;
-    if (typeof func !== "function") {
-      throw new Error(
-        `Default export from function ${functionId} is not a function: ${typeof module.default} module: ${JSON.stringify(
-          module
-        )}`
-      );
-    }
-    return module;
-  } catch (e: any) {
-    // Handle esbuild build failures (e.g., syntax errors)
-    if (e.errors && Array.isArray(e.errors)) {
-      const errorMessages = e.errors.map((err: any) => err.text).join("\n");
-      throw new Error(`Failed to compile function ${functionId}:\n${errorMessages}`);
-    }
-    throw e;
-  }
 }
 
 // Check if file is a JSON config file (.json or .json.gz)
@@ -845,47 +677,12 @@ async function parseBody(req: http.IncomingMessage): Promise<any> {
   });
 }
 
-// Create event context from request and connection
-function createEventContext(req: http.IncomingMessage, connection: EnrichedConnectionConfig): EventContext {
-  const headers: Record<string, string> = {};
-  for (const [key, value] of Object.entries(req.headers)) {
-    if (typeof value === "string") {
-      headers[key] = value;
-    } else if (Array.isArray(value)) {
-      headers[key] = value.join(", ");
-    }
-  }
-
-  return {
-    headers,
-    source: {
-      id: connection.streamId,
-      name: connection.streamName,
-      type: "s2s",
-    },
-    destination: {
-      id: connection.destinationId,
-      type: connection.type,
-      updatedAt: connection.updatedAt,
-      hash: connection.optionsHash,
-    },
-    connection: {
-      id: connection.id,
-      options: connection.options,
-    },
-    workspace: {
-      id: connection.workspaceId,
-    },
-    receivedAt: new Date(),
-  };
-}
-
 // Create event context from IngestMessage and connection (compatible with FunctionsHandlerMulti)
 function createEventContextFromMessage(
   message: IngestMessage,
   connection: EnrichedConnectionConfig,
   retries: number = 0
-): EventContext & { retries: number } {
+): EventContext {
   return {
     receivedAt: new Date(message.messageCreated),
     headers: message.httpHeaders,
@@ -1159,27 +956,16 @@ async function main() {
 
     const body = await parseBody(req);
 
-    let event: AnyEvent;
-    let customContext: Partial<EventContext> = {};
-
-    if (body.event && typeof body.event === "object") {
-      event = body.event;
-      if (body.context) {
-        customContext = body.context;
-      }
-    } else {
-      event = body;
-    }
+    const event = body.event as AnyEvent;
+    const eventContext = body.context as EventContext;
 
     // Parse receivedAt from string if needed (JSON serialization converts Date to string)
-    if (customContext.receivedAt && typeof customContext.receivedAt === "string") {
-      customContext.receivedAt = new Date(customContext.receivedAt);
+    if (eventContext?.receivedAt && typeof eventContext.receivedAt === "string") {
+      eventContext.receivedAt = new Date(eventContext.receivedAt);
     }
-
-    const eventContext: EventContext = {
-      ...createEventContext(req, connection),
-      ...customContext,
-    } as EventContext & { retries?: number };
+    if (eventContext?.destination?.updatedAt && typeof eventContext.destination.updatedAt === "string") {
+      eventContext.destination.updatedAt = new Date(eventContext.destination.updatedAt);
+    }
 
     const functionsFetchTimeout = req.headers["x-request-timeout-ms"]
       ? parseNumber(req.headers["x-request-timeout-ms"] as string, 2000)
@@ -1236,6 +1022,26 @@ async function main() {
           return;
         }
 
+        // UDF test runner
+        if (pathname === "/udfrun" && req.method === "POST") {
+          const body = await parseBody(req);
+          log.atInfo().log(`[udfrun] Running function: ${body?.functionId} workspace: ${body?.workspaceId}`);
+          const udfStore = env.MONGODB_URL
+            ? createMongoStore(body.workspaceId, mongodb, true, false)
+            : createMemoryStore(body.store || {});
+          const result = await runUdfInWorker(body, udfStore, conEntityStore);
+          if (result.error) {
+            log
+              .atError()
+              .log(
+                `[udfrun] Error running function: ${body?.functionId} workspace: ${body?.workspaceId}\n${result.error.name}: ${result.error.message}`
+              );
+          }
+          result.backend = "functions-server";
+          sendJson(res, 200, result);
+          return;
+        }
+
         // Single connection handler
         const match = pathname.match(/^\/connection\/([^\/]+)$/);
         if (match) {
@@ -1244,7 +1050,7 @@ async function main() {
         }
 
         // Not found
-        sendError(res, 404, "Not found. Use /connection/<connection-id> or /multi?ids=conn1,conn2,...");
+        sendError(res, 404, "Not found. Use /connection/<connection-id>, /multi?ids=conn1,conn2,..., or /udfrun");
       } finally {
         promConcurrentRequests.labels(deploymentId, endpoint).dec();
         promRequestDuration.labels(deploymentId, endpoint, actorId).observe(sw.elapsedMs());

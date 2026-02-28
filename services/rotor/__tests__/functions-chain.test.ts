@@ -26,12 +26,50 @@ import { resetServerEnvCache } from "../src/serverEnv";
 import path from "path";
 // @ts-ignore
 import os from "os";
+import { Geo } from "@jitsu/protocols/analytics";
 
 const log = getLog("functions-chain-test");
+
+const context = {
+  userAgent:
+    "Mozilla/5.0 (Linux; Android 16; SM-S931B Build/BP2A.250605.031.A3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.7559.59 Mobile Safari/537.36",
+};
+
+const staticGeo: Geo = {
+  country: {
+    code: "US",
+    name: "United States",
+    isEU: false,
+  },
+  continent: {
+    code: "NA",
+    name: "North America",
+  },
+  region: {
+    code: "CA",
+    name: "California",
+  },
+  city: {
+    name: "San Francisco",
+  },
+  location: {
+    latitude: 47.6109,
+    longitude: -122.3303,
+    timezone: "America/Los_Angeles",
+    accuracyRadius: 1000,
+    usaData: {},
+  },
+  provider: {
+    as: { num: 8075, name: "Microsoft Corporation" },
+    isp: "Microsoft Azure",
+    domain: "msn.com",
+  },
+};
 
 const incomingEvent = {
   type: "track",
   properties: {},
+  context,
 };
 
 const expectedEvents = {
@@ -44,7 +82,7 @@ const expectedEvents = {
       second: "2nd",
       third: "3rd",
     },
-    context: {},
+    context,
   },
   env_0: {
     type: "track",
@@ -55,7 +93,7 @@ const expectedEvents = {
       second: "2nd",
       third: "3rd",
     },
-    context: {},
+    context,
   },
   noreturn_0: {
     type: "track",
@@ -64,7 +102,7 @@ const expectedEvents = {
       second: "2nd",
       third: "3rd",
     },
-    context: {},
+    context,
   },
   error_0: {
     type: "track",
@@ -74,7 +112,7 @@ const expectedEvents = {
       counter: 2,
       third: "3rd",
     },
-    context: {},
+    context,
   },
   retry_0: {
     type: "track",
@@ -84,7 +122,7 @@ const expectedEvents = {
       counter: 2,
       third: "3rd",
     },
-    context: {},
+    context,
   },
   retry_1: {
     type: "track",
@@ -95,7 +133,7 @@ const expectedEvents = {
       second: "2nd",
       third: "3rd",
     },
-    context: {},
+    context,
   },
   drop_retry_0: {
     type: "track",
@@ -106,7 +144,7 @@ const expectedEvents = {
       second: "2nd",
       third: "3rd",
     },
-    context: {},
+    context,
   },
   dst_retry_0: {
     type: "INTENTIONALY_INCORRECT",
@@ -117,7 +155,7 @@ const expectedEvents = {
       second: "2nd",
       third: "3rd",
     },
-    context: {},
+    context,
   },
   dst_retry_1: {
     type: "track",
@@ -129,7 +167,7 @@ const expectedEvents = {
       second: "2nd",
       third: "3rd",
     },
-    context: {},
+    context,
   },
   multi_0: {
     n: 1,
@@ -140,7 +178,7 @@ const expectedEvents = {
       counter: 2,
       second: "2nd",
     },
-    context: {},
+    context,
   },
   multi_1: {
     n: 2,
@@ -151,7 +189,7 @@ const expectedEvents = {
       counter: 2,
       second: "2nd",
     },
-    context: {},
+    context,
   },
   multi_middle_0: {
     type: "track",
@@ -161,7 +199,7 @@ const expectedEvents = {
       counter: 2,
       second: "2nd",
     },
-    context: {},
+    context,
   },
   multi_retry_0: {
     type: "track",
@@ -171,7 +209,7 @@ const expectedEvents = {
       counter: 2,
       second: "2nd",
     },
-    context: {},
+    context,
   },
   multi_retry_1: {
     n: 1,
@@ -182,7 +220,7 @@ const expectedEvents = {
       counter: 2,
       second: "2nd",
     },
-    context: {},
+    context,
   },
   multi_retry_2: {
     n: 2,
@@ -193,7 +231,40 @@ const expectedEvents = {
       counter: 2,
       second: "2nd",
     },
-    context: {},
+    context,
+  },
+  ua_geo_0: {
+    type: "track",
+    properties: {
+      geo: staticGeo,
+      ua: {
+        browser: {
+          name: "Chrome",
+          version: "144.0.7559.59",
+          major: "144",
+        },
+        engine: {
+          name: "Blink",
+          version: "144.0.7559.59",
+        },
+        os: {
+          name: "Android",
+          version: "16",
+        },
+        device: {
+          vendor: "Samsung",
+          model: "SM-S931B",
+          type: "mobile",
+        },
+        cpu: {},
+        bot: false,
+      },
+    },
+    context: {
+      ...context,
+      ip: "165.165.165.165",
+      geo: staticGeo,
+    },
   },
 };
 
@@ -232,6 +303,25 @@ const streamsStore: EntityStore<StreamWithDestinations> = {
   enabled: true,
   lastModified: new Date(),
 };
+
+function rotorContext(
+  connStore: EntityStore<EnrichedConnectionConfig>,
+  funcStore: EntityStore<FunctionConfig>,
+  streamsStore: EntityStore<StreamWithDestinations>
+) {
+  return {
+    connectionStore: connStore,
+    functionsStore: funcStore,
+    streamsStore: streamsStore,
+    eventsLogger: DummyEventsStore,
+    dummyPersistentStore: createMemoryStore({}),
+    geoResolver: {
+      resolve: async (ip: string): Promise<Geo> => {
+        return staticGeo;
+      },
+    },
+  };
+}
 
 function ingestMessage(connectionId: string, messageId: string, event: any): IngestMessage {
   return {
@@ -315,7 +405,9 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         lastError = new Error(
           `${testName}_${counter} unexpected webhook request:\n${JSON.stringify(req.body, null, 2)}`
         );
-        res.status(444).send({ ok: false, reason: "unexpected webhook request" });
+        res
+          .status(444)
+          .send({ ok: false, reason: `unexpected webhook request:\n${JSON.stringify(req.body, null, 2)}` });
       }
       counters[testName]++;
     };
@@ -335,6 +427,7 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         "/multi": handlerF("multi"),
         "/multi_middle": handlerF("multi_middle"),
         "/multi_retry": handlerF("multi_retry"),
+        "/ua_geo": handlerF("ua_geo"),
       },
     });
     console.log(`[${modeName}] Webhook server running on ${webhookServer.baseUrl}`);
@@ -420,13 +513,7 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
     try {
       const res = await rotorMessageHandler(
         ingestMessage(currentTestName, messageId, incomingEvent),
-        {
-          connectionStore: connStore,
-          functionsStore: funcStore,
-          streamsStore: streamsStore,
-          eventsLogger: DummyEventsStore,
-          dummyPersistentStore: createMemoryStore({}),
-        },
+        rotorContext(connStore, funcStore, streamsStore),
         "all",
         { [CONNECTION_IDS_HEADER]: currentTestName },
         true,
@@ -446,13 +533,7 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
     try {
       const res = await rotorMessageHandler(
         ingestMessage(currentTestName, messageId, incomingEvent),
-        {
-          connectionStore: connStore,
-          functionsStore: funcStore,
-          streamsStore: streamsStore,
-          eventsLogger: DummyEventsStore,
-          dummyPersistentStore: createMemoryStore({}),
-        },
+        rotorContext(connStore, funcStore, streamsStore),
         "all",
         { [CONNECTION_IDS_HEADER]: currentTestName },
         true,
@@ -472,13 +553,7 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
     try {
       const res = await rotorMessageHandler(
         ingestMessage(currentTestName, messageId, incomingEvent),
-        {
-          connectionStore: connStore,
-          functionsStore: funcStore,
-          streamsStore: streamsStore,
-          eventsLogger: DummyEventsStore,
-          dummyPersistentStore: createMemoryStore({}),
-        },
+        rotorContext(connStore, funcStore, streamsStore),
         "all",
         { [CONNECTION_IDS_HEADER]: currentTestName },
         true,
@@ -498,13 +573,7 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
     try {
       await rotorMessageHandler(
         ingestMessage(currentTestName, messageId, incomingEvent),
-        {
-          connectionStore: connStore,
-          functionsStore: funcStore,
-          streamsStore: streamsStore,
-          eventsLogger: DummyEventsStore,
-          dummyPersistentStore: createMemoryStore({}),
-        },
+        rotorContext(connStore, funcStore, streamsStore),
         "all",
         { [CONNECTION_IDS_HEADER]: currentTestName },
         true,
@@ -526,13 +595,7 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
     try {
       const res = await rotorMessageHandler(
         iMessage,
-        {
-          connectionStore: connStore,
-          functionsStore: funcStore,
-          streamsStore: streamsStore,
-          eventsLogger: DummyEventsStore,
-          dummyPersistentStore: createMemoryStore({}),
-        },
+        rotorContext(connStore, funcStore, streamsStore),
         filter,
         { [CONNECTION_IDS_HEADER]: currentTestName },
         true,
@@ -554,13 +617,7 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
     try {
       await rotorMessageHandler(
         iMessage,
-        {
-          connectionStore: connStore,
-          functionsStore: funcStore,
-          streamsStore: streamsStore,
-          eventsLogger: DummyEventsStore,
-          dummyPersistentStore: createMemoryStore({}),
-        },
+        rotorContext(connStore, funcStore, streamsStore),
         filter,
         { [CONNECTION_IDS_HEADER]: currentTestName },
         true,
@@ -582,13 +639,7 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
     try {
       const res = await rotorMessageHandler(
         iMessage,
-        {
-          connectionStore: connStore,
-          functionsStore: funcStore,
-          streamsStore: streamsStore,
-          eventsLogger: DummyEventsStore,
-          dummyPersistentStore: createMemoryStore({}),
-        },
+        rotorContext(connStore, funcStore, streamsStore),
         filter,
         { [CONNECTION_IDS_HEADER]: currentTestName },
         true,
@@ -609,13 +660,7 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
     try {
       await rotorMessageHandler(
         iMessage,
-        {
-          connectionStore: connStore,
-          functionsStore: funcStore,
-          streamsStore: streamsStore,
-          eventsLogger: DummyEventsStore,
-          dummyPersistentStore: createMemoryStore({}),
-        },
+        rotorContext(connStore, funcStore, streamsStore),
         filter,
         { [CONNECTION_IDS_HEADER]: currentTestName },
         true,
@@ -636,13 +681,7 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
     try {
       const res = await rotorMessageHandler(
         iMessage,
-        {
-          connectionStore: connStore,
-          functionsStore: funcStore,
-          streamsStore: streamsStore,
-          eventsLogger: DummyEventsStore,
-          dummyPersistentStore: createMemoryStore({}),
-        },
+        rotorContext(connStore, funcStore, streamsStore),
         "all",
         { [CONNECTION_IDS_HEADER]: currentTestName },
         true,
@@ -678,13 +717,7 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
     try {
       const res = await rotorMessageHandler(
         iMessage,
-        {
-          connectionStore: connStore,
-          functionsStore: funcStore,
-          streamsStore: streamsStore,
-          eventsLogger: DummyEventsStore,
-          dummyPersistentStore: createMemoryStore({}),
-        },
+        rotorContext(connStore, funcStore, streamsStore),
         filter,
         { [CONNECTION_IDS_HEADER]: currentTestName },
         true,
@@ -706,13 +739,7 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
     try {
       const res = await rotorMessageHandler(
         iMessage,
-        {
-          connectionStore: connStore,
-          functionsStore: funcStore,
-          streamsStore: streamsStore,
-          eventsLogger: DummyEventsStore,
-          dummyPersistentStore: createMemoryStore({}),
-        },
+        rotorContext(connStore, funcStore, streamsStore),
         filter,
         { [CONNECTION_IDS_HEADER]: currentTestName },
         true,
@@ -732,13 +759,7 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
     try {
       const res = await rotorMessageHandler(
         ingestMessage(currentTestName, messageId, incomingEvent),
-        {
-          connectionStore: connStore,
-          functionsStore: funcStore,
-          streamsStore: streamsStore,
-          eventsLogger: DummyEventsStore,
-          dummyPersistentStore: createMemoryStore({}),
-        },
+        rotorContext(connStore, funcStore, streamsStore),
         "all",
         { [CONNECTION_IDS_HEADER]: currentTestName },
         true,
@@ -759,13 +780,7 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
     try {
       const res = await rotorMessageHandler(
         ingestMessage(currentTestName, messageId, incomingEvent),
-        {
-          connectionStore: connStore,
-          functionsStore: funcStore,
-          streamsStore: streamsStore,
-          eventsLogger: DummyEventsStore,
-          dummyPersistentStore: createMemoryStore({}),
-        },
+        rotorContext(connStore, funcStore, streamsStore),
         "all",
         { [CONNECTION_IDS_HEADER]: currentTestName },
         true,
@@ -802,13 +817,7 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
     try {
       const res = await rotorMessageHandler(
         iMessage,
-        {
-          connectionStore: connStore,
-          functionsStore: funcStore,
-          streamsStore: streamsStore,
-          eventsLogger: DummyEventsStore,
-          dummyPersistentStore: createMemoryStore({}),
-        },
+        rotorContext(connStore, funcStore, streamsStore),
         filter,
         { [CONNECTION_IDS_HEADER]: currentTestName },
         true,
@@ -828,13 +837,7 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
     try {
       const res = await rotorMessageHandler(
         iMessage,
-        {
-          connectionStore: connStore,
-          functionsStore: funcStore,
-          streamsStore: streamsStore,
-          eventsLogger: DummyEventsStore,
-          dummyPersistentStore: createMemoryStore({}),
-        },
+        rotorContext(connStore, funcStore, streamsStore),
         filter,
         { [CONNECTION_IDS_HEADER]: currentTestName },
         true,
@@ -844,6 +847,33 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
       expect(res?.events).toHaveLength(2);
       expect(counters[currentTestName]).toEqual(3);
       expect(lastError).toBeUndefined();
+    } catch (e: any) {
+      throw e;
+    }
+  });
+
+  test("ua_geo", async () => {
+    const currentTestName = testName();
+    const connStore = getConnectionStoreForMode();
+    const event = {
+      ...incomingEvent,
+      context: {
+        ...incomingEvent.context,
+        ip: "165.165.165.165",
+      },
+    };
+    try {
+      const res = await rotorMessageHandler(
+        ingestMessage(currentTestName, messageId, event),
+        rotorContext(connStore, funcStore, streamsStore),
+        "all",
+        { [CONNECTION_IDS_HEADER]: currentTestName },
+        true,
+        0,
+        5000
+      );
+      expect(lastError).toBeUndefined();
+      expect(counters[currentTestName]).toEqual(1);
     } catch (e: any) {
       throw e;
     }

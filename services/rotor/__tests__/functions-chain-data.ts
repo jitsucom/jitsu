@@ -130,6 +130,17 @@ export default async function(event, { log, fetch, store, retries, props: config
   return
 }`,
   },
+  functionUaGeo: {
+    id: "functionUaGeo",
+    workspaceId: "workspace1",
+    name: "Function UA&Geo",
+    codeHash: "functionUaGeo-hash",
+    code: `export default async function(event, { log, fetch, retries, store, ua, geo, props: config }) {
+  event.properties.ua = ua
+  event.properties.geo = geo
+  return event
+  }`,
+  },
 };
 
 export const connections = {
@@ -429,6 +440,27 @@ export const connections = {
     },
     credentials: {
       url: "http://localhost:3089/multi_retry",
+      method: "POST",
+      headers: [],
+    },
+  },
+  ua_geo: {
+    id: "ua_geo",
+    workspaceId: "workspace1",
+    updatedAt: new Date(),
+    destinationId: "destination1",
+    streamId: "stream1",
+    usesBulker: false,
+    type: "webhook",
+    options: {
+      functions: [
+        {
+          functionId: "udf.functionUaGeo",
+        },
+      ],
+    },
+    credentials: {
+      url: "http://localhost:3089/ua_geo",
       method: "POST",
       headers: [],
     },

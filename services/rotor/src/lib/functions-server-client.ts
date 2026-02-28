@@ -128,15 +128,7 @@ export async function callFunctionsServer(
       },
       body: JSON.stringify({
         event,
-        context: {
-          headers: eventContext.headers,
-          source: eventContext.source,
-          destination: eventContext.destination,
-          connection: eventContext.connection,
-          workspace: eventContext.workspace,
-          receivedAt: eventContext.receivedAt,
-          retries: eventContext.retries ?? 0,
-        },
+        context: eventContext,
       }),
       bodyTimeout: fsTimeoutMs,
       headersTimeout: fsTimeoutMs,

@@ -22,6 +22,7 @@ import { getDestinationSecretPaths, getServiceSecretPaths, maskSecrets, removeMa
 import { db } from "../server/db";
 import { deleteScheduler } from "../server/sync";
 import { ConfigApiDeleteOptions } from "../useApi";
+import pick from "lodash/pick";
 
 const log = getServerLog("config-objects");
 
@@ -147,15 +148,13 @@ const configObjectTypes: Record<string, ConfigObjectType> = {
   destination: {
     schema: DestinationConfig,
     outputFilter: async (obj: DestinationConfig) => {
-      const newObject = { ...obj };
-      if (newObject.provisioned) {
-        delete (newObject as any).credentials;
+      if (obj.provisioned) {
+        return pick(obj, "id", "type", "workspaceId", "name", "destinationType", "provisioned");
       } else {
         // Mask secrets for non-provisioned destinations
         const secretPaths = getDestinationSecretPaths(obj.destinationType);
-        return maskSecrets(newObject, secretPaths);
+        return maskSecrets(obj, secretPaths);
       }
-      return newObject;
     },
     merge: async (original: DestinationConfig, patch: Partial<DestinationConfig>): Promise<any> => {
       if (patch.provisioned) {

@@ -25,7 +25,7 @@ export default createRoute()
     const { workspaceId, syncId } = query;
     await verifyAccess(user, workspaceId);
     try {
-      const sync = db.prisma().configurationObjectLink.findFirst({
+      const sync = await db.prisma().configurationObjectLink.findFirst({
         where: {
           workspaceId,
           type: "sync",
@@ -67,7 +67,7 @@ export default createRoute()
     const { workspaceId, syncId, stream } = query;
     await verifyAccess(user, workspaceId);
     try {
-      const sync = db.prisma().configurationObjectLink.findFirst({
+      const sync = await db.prisma().configurationObjectLink.findFirst({
         where: {
           workspaceId,
           type: "sync",

@@ -39,6 +39,20 @@ esbuild
       format: "cjs",
       outfile: "./dist/functions-server.js",
       sourcemap: false,
+      minify: false,
+      external: externalModules,
+      logLevel: "info",
+    });
+  })
+  .then(() => {
+    return esbuild.build({
+      entryPoints: ["./src/lib/udf-worker.ts"],
+      bundle: true,
+      platform: "node",
+      target: "node20",
+      format: "cjs",
+      outfile: "./dist/udf-worker.js",
+      sourcemap: false,
       minify: true,
       external: externalModules,
       logLevel: "info",

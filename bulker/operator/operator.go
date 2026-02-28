@@ -1410,12 +1410,10 @@ func (o *Operator) createOrUpdateHPA(ctx context.Context, data *DeploymentData) 
 	scaleDownStabilization := o.config.HPAScaleDownStabilizationSeconds
 	scaleUpStabilization := o.config.HPAScaleUpStabilizationSeconds
 
-	// Scale down policy: 1 pod per 120 seconds
 	scaleDownPodValue := int32(1)
 	scaleDownPeriod := int32(120)
 
-	// Scale up policy: 8 pods per 30 seconds
-	scaleUpPodValue := int32(2)
+	scaleUpPodValue := int32(o.config.MinReplicas * 2)
 	scaleUpPeriod := int32(15)
 
 	selectPolicyMax := autoscalingv2.MaxChangePolicySelect
