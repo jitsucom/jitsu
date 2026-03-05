@@ -163,6 +163,9 @@ export const nextAuthConfig: NextAuthOptions = {
         mustChangePassword: user.mustChangePassword,
         externalUsername: props.profile?.["login"],
         loginProvider: loginProvider,
+        // Propagate avatar from OIDC/GitHub profile to the JWT token.
+        // Google OIDC uses "picture", GitHub uses "avatar_url".
+        picture: props.token.picture || props.profile?.["picture"] || props.profile?.["avatar_url"],
         ...props.token,
       };
     },
@@ -174,6 +177,11 @@ export const nextAuthConfig: NextAuthOptions = {
         loginProvider: token.loginProvider,
         externalId: token.externalId,
         externalUsername: token.externalUsername,
+        // Pass avatar URL to session so UI can render provider profile photos
+        user: {
+          ...session.user,
+          image: (token.picture as string | undefined) || session.user?.image,
+        },
       };
     },
   },
