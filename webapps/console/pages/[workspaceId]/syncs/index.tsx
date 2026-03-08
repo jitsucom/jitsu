@@ -4,7 +4,7 @@ import { get } from "../../../lib/useApi";
 import { DestinationConfig, ServiceConfig } from "../../../lib/schema";
 import { ConfigurationObjectLinkDbModel } from "../../../prisma/schema";
 import { z } from "zod";
-import { Table, Tooltip } from "antd";
+import { Input, Table, Tooltip } from "antd";
 import { confirmOp, feedbackError, feedbackSuccess } from "../../../lib/ui";
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -20,6 +20,7 @@ import {
   ExternalLink,
   Inbox,
   ListMinusIcon,
+  Search,
   Loader2,
   RefreshCw,
   WrenchIcon,
@@ -466,6 +467,7 @@ function Syncs(props: RemoteEntitiesProps) {
   const destinationFilter = router.query.destination as string | undefined;
   const srcFilter = router.query.source as string | undefined;
   const workspace = useWorkspace();
+  const [searchQuery, setSearchQuery] = useQueryStringState("search", { defaultValue: "", skipHistory: true });
   const bulkerDsts = destinations.filter(d => {
     const dest = getCoreDestinationTypeNonStrict(d.destinationType);
     return dest && (dest.usesBulker || dest.syncs);
@@ -501,8 +503,17 @@ function Syncs(props: RemoteEntitiesProps) {
   return (
     <div>
       <div className="flex justify-between pb-6">
-        <div className="flex items-center">
+        <div className="flex items-center gap-6">
           <div className="text-3xl">Syncs</div>
+          <Input
+            placeholder="Filter by ID or name..."
+            prefix={<Search className="w-3.5 h-3.5 text-textDisabled" />}
+            allowClear
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="w-96 mt-0.5"
+            size="small"
+          />
           {destinationFilter && (
             <div className="mt-1 ml-4 rounded-full bg-textDisabled/50 px-4 py-1 flex flex-nowrap items-center">
               <DestinationTitle size="small" destination={destinations.find(d => d.id === destinationFilter)} />
@@ -539,7 +550,20 @@ function Syncs(props: RemoteEntitiesProps) {
           <SyncsTable
             links={links
               .filter(l => !destinationFilter || l.toId === destinationFilter)
-              .filter(l => !srcFilter || l.fromId === srcFilter)}
+              .filter(l => !srcFilter || l.fromId === srcFilter)
+              .filter(l => {
+                if (!searchQuery) return true;
+                const q = searchQuery.trim().toLowerCase();
+                const service = services.find(s => s.id === l.fromId);
+                const destination = destinations.find(d => d.id === l.toId);
+                return (
+                  l.id.toLowerCase().includes(q) ||
+                  l.fromId.toLowerCase().includes(q) ||
+                  l.toId.toLowerCase().includes(q) ||
+                  (service?.name || "").toLowerCase().includes(q) ||
+                  (destination?.name || "").toLowerCase().includes(q)
+                );
+              })}
             services={services}
             destinations={destinations}
           />

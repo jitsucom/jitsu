@@ -6,6 +6,7 @@ import {
   windowRuntime,
   uuid,
   createInMemoryStorage,
+  ensureAnonymousId,
 } from "./analytics-plugin";
 import {
   Callback,
@@ -75,7 +76,7 @@ function createUnderlyingAnalyticsInstance(
         return;
       }
       if (opts.debug) {
-        console.log(`[JITSU DEBUG] Caching storage setItem: ${key}=${val}`);
+        console.log(`[JITSU DEBUG] [Caching storage] setItem: ${key}=${val}`);
       }
       storageCache[key] = val;
       persistentStorage.setItem(key, val);
@@ -86,9 +87,7 @@ function createUnderlyingAnalyticsInstance(
       }
       const value = storageCache[key] || persistentStorage.getItem(key);
       if (opts.debug) {
-        console.log(
-          `[JITSU DEBUG] Caching storage getItem: ${key}=${value}. Evicted from cache: ${!storageCache[key]}`
-        );
+        console.log(`[JITSU DEBUG] [Caching storage] getItem: ${key}=${value}. From cache: ${!!storageCache[key]}`);
       }
       return value;
     },
@@ -248,6 +247,9 @@ function fixOptions(opts: JitsuOptions): JitsuOptions {
 
 export function jitsuAnalytics(_opts: JitsuOptions): AnalyticsInterface {
   const opts = fixOptions(_opts);
+  if (opts.preInitAnonymousId) {
+    ensureAnonymousId(opts);
+  }
   const inBrowser = isInBrowser();
   const rt = opts.runtime || (inBrowser ? windowRuntime(opts) : emptyRuntime(opts));
   return createUnderlyingAnalyticsInstance(opts, rt);

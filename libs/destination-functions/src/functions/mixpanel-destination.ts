@@ -6,7 +6,7 @@ import { MixpanelCredentials } from "../meta";
 import { eventTimeSafeMs, getPageOrScreenProps, MetricsMeta } from "@jitsu/core-functions-lib";
 import { randomUUID } from "crypto";
 import zlib from "zlib";
-import { bulkerPartitionParam } from "./bulker-destination";
+import { bulkerFetch, bulkerPartitionParam } from "./bulker-destination";
 
 const bulkerBase = process.env.BULKER_URL;
 const bulkerAuthKey = process.env.BULKER_AUTH_KEY;
@@ -53,6 +53,7 @@ export type MixpanelRequest = {
   eventType: string;
   insertId?: string;
   skipLogs?: boolean;
+  bulker?: boolean;
 };
 
 // Map and extracts campaign parameters from context.campaign into object with utm properties
@@ -245,6 +246,7 @@ function trackEvent(
         metricsMeta: JSON.stringify(metricsMeta),
       },
       payload: eventPayload,
+      bulker: true,
       skipLogs: true,
     };
   } else {
@@ -597,15 +599,20 @@ const MixpanelDestination: JitsuFunction<AnalyticsServerEvent, MixpanelCredentia
       const method = message.method || "POST";
       const payload = message.payload ? JSON.stringify(message.payload) : "{}";
       const compressed = message.headers?.["Content-Encoding"] === "gzip" ? zlib.gzipSync(payload) : payload;
-      const result = await ctx.fetch(
-        message.url,
-        {
-          method,
-          headers: message.headers,
-          ...(message.payload ? { body: compressed } : {}),
-        },
-        message.skipLogs ? { log: false } : undefined
-      );
+      let result: Response;
+      if (message.bulker) {
+        result = await bulkerFetch(message.url, payload, message.headers);
+      } else {
+        result = await ctx.fetch(
+          message.url,
+          {
+            method,
+            headers: message.headers,
+            ...(message.payload ? { body: compressed } : {}),
+          },
+          message.skipLogs ? { log: false } : undefined
+        );
+      }
       if (result.status !== 200) {
         if (message.skipLogs) {
           throw new HTTPError(

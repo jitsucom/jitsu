@@ -3,14 +3,15 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"time"
+
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/jitsucom/bulker/eventslog"
 	"github.com/jitsucom/bulker/jitsubase/appbase"
 	"github.com/jitsucom/bulker/jitsubase/logging"
 	"github.com/jitsucom/bulker/jitsubase/utils"
 	"github.com/jitsucom/bulker/kafkabase"
-	"net/http"
-	"time"
 )
 
 type Context struct {
@@ -54,6 +55,7 @@ func (a *Context) InitContext(settings *appbase.AppSettings) error {
 		"batch.size":                   a.config.ProducerBatchSize,
 		"linger.ms":                    a.config.ProducerLingerMs,
 		"compression.type":             a.config.KafkaTopicCompression,
+		"delivery.timeout.ms":          a.config.ProducerDeliveryTimeoutMs,
 	}, *a.kafkaConfig))
 	var partitionSelector kafkabase.PartitionSelector = &kafkabase.DummyPartitionSelector{}
 	if a.config.WeightedPartitionSelectorLagThreshold > 0 {

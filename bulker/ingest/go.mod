@@ -1,6 +1,6 @@
 module github.com/jitsucom/bulker/ingest
 
-go 1.25
+go 1.26
 
 require (
 	github.com/confluentinc/confluent-kafka-go/v2 v2.11.0

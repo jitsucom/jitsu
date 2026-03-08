@@ -19,6 +19,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
+	policyv1 "k8s.io/api/policy/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -54,6 +55,8 @@ const (
 	freeServiceName    = "fs-free"
 	// HPA suffix
 	hpaSuffix = "-fs-hpa"
+	// PDB suffix
+	pdbSuffix = "-fs-pdb"
 )
 
 type Operator struct {
@@ -527,6 +530,11 @@ func (o *Operator) createDeploymentFromData(data *DeploymentData) error {
 		return fmt.Errorf("failed to create HPA: %v", err)
 	}
 
+	// Create PDB
+	if err := o.createOrUpdatePDB(ctx, data); err != nil {
+		return fmt.Errorf("failed to create PDB: %v", err)
+	}
+
 	return nil
 }
 
@@ -598,6 +606,11 @@ func (o *Operator) updateDeploymentFromData(data *DeploymentData, existing *Depl
 		return fmt.Errorf("failed to update HPA: %v", err)
 	}
 
+	// Update PDB
+	if err := o.createOrUpdatePDB(ctx, data); err != nil {
+		return fmt.Errorf("failed to update PDB: %v", err)
+	}
+
 	return nil
 }
 
@@ -657,6 +670,11 @@ func (o *Operator) deleteDeploymentByID(deploymentID string, existing *Deploymen
 	// Delete HPA
 	if err := o.deleteHPA(ctx, deploymentID, existing.FunctionsClass); err != nil {
 		logging.Warnf("Failed to delete HPA: %v", err)
+	}
+
+	// Delete PDB
+	if err := o.deletePDB(ctx, deploymentID, existing.FunctionsClass); err != nil {
+		logging.Warnf("Failed to delete PDB: %v", err)
 	}
 
 	return nil
@@ -1096,6 +1114,9 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 
 	// Use HPA min replicas when HPA is enabled, otherwise default to 2
 	replicas := o.config.MinReplicas
+	if data.FunctionsClass == FunctionsClassPremium {
+		replicas = o.config.MinReplicasPremium
+	}
 	volumes := make([]corev1.Volume, 0)
 	volumeMounts := make([]corev1.VolumeMount, 0)
 
@@ -1406,14 +1427,14 @@ func (o *Operator) createOrUpdateHPA(ctx context.Context, data *DeploymentData) 
 		labels[labelWorkspaceID] = data.DeploymentID
 	}
 
-	minReplicas := o.config.MinReplicas
+	minReplicas := utils.Ternary(data.FunctionsClass == FunctionsClassPremium, o.config.MinReplicasPremium, o.config.MinReplicas)
 	scaleDownStabilization := o.config.HPAScaleDownStabilizationSeconds
 	scaleUpStabilization := o.config.HPAScaleUpStabilizationSeconds
 
 	scaleDownPodValue := int32(1)
 	scaleDownPeriod := int32(120)
 
-	scaleUpPodValue := int32(o.config.MinReplicas * 2)
+	scaleUpPodValue := utils.Ternary(data.FunctionsClass == FunctionsClassPremium, o.config.MinReplicasPremium, o.config.MinReplicas) * 2
 	scaleUpPeriod := int32(15)
 
 	selectPolicyMax := autoscalingv2.MaxChangePolicySelect
@@ -1511,6 +1532,84 @@ func (o *Operator) deleteHPA(ctx context.Context, deploymentID string, functions
 	}
 	if err == nil {
 		logging.Infof("Deleted HPA %s", hpaName)
+	}
+	return nil
+}
+
+// createOrUpdatePDB creates or updates a PodDisruptionBudget for a deployment
+func (o *Operator) createOrUpdatePDB(ctx context.Context, data *DeploymentData) error {
+	var pdbName string
+
+	labels := map[string]string{
+		labelApp:            appName,
+		labelFunctionsClass: data.FunctionsClass,
+	}
+
+	if data.FunctionsClass == FunctionsClassFree {
+		pdbName = freeDeploymentName + pdbSuffix
+	} else {
+		pdbName = data.DeploymentID + pdbSuffix
+		labels[labelWorkspaceID] = data.DeploymentID
+	}
+
+	matchLabels := map[string]string{
+		"jitsu.com/deployment-id": data.DeploymentID,
+	}
+
+	maxUnavailable := intstr.FromInt(1)
+
+	pdb := &policyv1.PodDisruptionBudget{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      pdbName,
+			Namespace: o.config.KubernetesNamespace,
+			Labels:    labels,
+		},
+		Spec: policyv1.PodDisruptionBudgetSpec{
+			MaxUnavailable: &maxUnavailable,
+			Selector: &metav1.LabelSelector{
+				MatchLabels: matchLabels,
+			},
+		},
+	}
+
+	existing, err := o.clientset.PolicyV1().PodDisruptionBudgets(o.config.KubernetesNamespace).Get(ctx, pdbName, metav1.GetOptions{})
+	if err != nil {
+		if errors.IsNotFound(err) {
+			_, err = o.clientset.PolicyV1().PodDisruptionBudgets(o.config.KubernetesNamespace).Create(ctx, pdb, metav1.CreateOptions{})
+			if err != nil {
+				return fmt.Errorf("failed to create PDB %s: %v", pdbName, err)
+			}
+			logging.Infof("Created PDB %s", pdbName)
+			return nil
+		}
+		return fmt.Errorf("failed to get PDB %s: %v", pdbName, err)
+	}
+
+	// Update existing PDB
+	pdb.ResourceVersion = existing.ResourceVersion
+	_, err = o.clientset.PolicyV1().PodDisruptionBudgets(o.config.KubernetesNamespace).Update(ctx, pdb, metav1.UpdateOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to update PDB %s: %v", pdbName, err)
+	}
+	logging.Infof("Updated PDB %s", pdbName)
+	return nil
+}
+
+// deletePDB deletes the PodDisruptionBudget for a deployment
+func (o *Operator) deletePDB(ctx context.Context, deploymentID string, functionsClass string) error {
+	var pdbName string
+	if functionsClass == FunctionsClassFree {
+		pdbName = freeDeploymentName + pdbSuffix
+	} else {
+		pdbName = deploymentID + pdbSuffix
+	}
+
+	err := o.clientset.PolicyV1().PodDisruptionBudgets(o.config.KubernetesNamespace).Delete(ctx, pdbName, metav1.DeleteOptions{})
+	if err != nil && !errors.IsNotFound(err) {
+		return fmt.Errorf("failed to delete PDB %s: %v", pdbName, err)
+	}
+	if err == nil {
+		logging.Infof("Deleted PDB %s", pdbName)
 	}
 	return nil
 }

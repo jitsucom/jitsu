@@ -4,7 +4,7 @@ import { get } from "../../../lib/useApi";
 import { DestinationConfig, FunctionConfig, ServiceConfig, StreamConfig } from "../../../lib/schema";
 import { ConfigurationObjectLinkDbModel } from "../../../prisma/schema";
 import { z } from "zod";
-import { Table } from "antd";
+import { Input, Table } from "antd";
 import { confirmOp, feedbackError, feedbackSuccess } from "../../../lib/ui";
 import React, { useState } from "react";
 import Link from "next/link";
@@ -15,7 +15,7 @@ import { useRouter } from "next/router";
 import { jsonSerializationBase64, useQueryStringState } from "../../../lib/useQueryStringState";
 import { TableProps } from "antd/es/table/InternalTable";
 import { ColumnType, SortOrder } from "antd/es/table/interface";
-import { Activity, Edit3, Inbox, UserRoundPen, XCircle, Power, PowerOff } from "lucide-react";
+import { Activity, Edit3, Inbox, Search, UserRoundPen, XCircle, Power, PowerOff } from "lucide-react";
 import { PlusOutlined } from "@ant-design/icons";
 import { WJitsuButton } from "../../../components/JitsuButton/JitsuButton";
 import { DestinationTitle } from "../destinations";
@@ -374,6 +374,7 @@ function Connections(props: RemoteEntitiesProps) {
   const destinationFilter = router.query.destination as string | undefined;
   const srcFilter = router.query.source as string | undefined;
   const workspace = useWorkspace();
+  const [searchQuery, setSearchQuery] = useQueryStringState("search", { defaultValue: "", skipHistory: true });
   if (props.streams.length == 0 || props.destinations.length == 0) {
     return (
       <div className="flex flex-col justify-center items-center ">
@@ -404,8 +405,17 @@ function Connections(props: RemoteEntitiesProps) {
   return (
     <div>
       <div className="flex justify-between pb-6">
-        <div className="flex items-center">
+        <div className="flex items-center gap-6">
           <div className="text-3xl">Edit connections</div>
+          <Input
+            placeholder="Filter by ID or name..."
+            prefix={<Search className="w-3.5 h-3.5 text-textDisabled" />}
+            allowClear
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="w-96 mt-0.5"
+            size="small"
+          />
           {destinationFilter && (
             <div className="mt-1 ml-4 rounded-full bg-textDisabled/50 px-4 py-1 flex flex-nowrap items-center">
               {/*<span className="mr-2 ">to</span>*/}
@@ -443,7 +453,20 @@ function Connections(props: RemoteEntitiesProps) {
           <ConnectionsTable
             links={links
               .filter(l => !destinationFilter || l.toId === destinationFilter)
-              .filter(l => !srcFilter || l.fromId === srcFilter)}
+              .filter(l => !srcFilter || l.fromId === srcFilter)
+              .filter(l => {
+                if (!searchQuery) return true;
+                const q = searchQuery.trim().toLowerCase();
+                const stream = streams.find(s => s.id === l.fromId);
+                const destination = destinations.find(d => d.id === l.toId);
+                return (
+                  l.id.toLowerCase().includes(q) ||
+                  l.fromId.toLowerCase().includes(q) ||
+                  l.toId.toLowerCase().includes(q) ||
+                  (stream?.name || "").toLowerCase().includes(q) ||
+                  (destination?.name || "").toLowerCase().includes(q)
+                );
+              })}
             functions={functions}
             streams={streams}
             destinations={destinations}

@@ -1,6 +1,7 @@
 package kafkabase
 
 import (
+	"encoding/json"
 	"fmt"
 	"sync/atomic"
 	"time"
@@ -30,19 +31,52 @@ func (dps *DummyPartitionSelector) SelectPartition() int32 {
 
 type Producer struct {
 	appbase.Service
-	producer *kafka.Producer
-
+	producer             *kafka.Producer
+	config               *KafkaConfig
 	reportQueueLength    bool
 	asyncDeliveryChannel chan kafka.Event
 	waitForDelivery      time.Duration
 	closed               atomic.Bool
 	metricsLabelFunc     MetricsLabelsFunc
 	failoverLogger       *FailoverLogger
+
+	// previous cumulative values from librdkafka stats for delta computation
+	prevTxMsgs     float64
+	prevTxMsgBytes float64
+	prevTx         float64
+	prevTxBytes    float64
+}
+
+// producerStats represents a subset of librdkafka statistics JSON
+type producerStats struct {
+	MsgCnt     float64                `json:"msg_cnt"`
+	MsgSize    float64                `json:"msg_size"`
+	TxMsgs     float64                `json:"txmsgs"`
+	TxMsgBytes float64                `json:"txmsg_bytes"`
+	Tx         float64                `json:"tx"`
+	TxBytes    float64                `json:"tx_bytes"`
+	Brokers    map[string]brokerStats `json:"brokers"`
+}
+
+type brokerStats struct {
+	Name        string   `json:"name"`
+	Nodeid      int      `json:"nodeid"`
+	State       string   `json:"state"`
+	OutbufCnt   float64  `json:"outbuf_cnt"`
+	WaitrespCnt float64  `json:"waitresp_cnt"`
+	Rtt         rttStats `json:"rtt"`
+}
+
+type rttStats struct {
+	Avg float64 `json:"avg"`
 }
 
 // NewProducer creates new Producer
 func NewProducer(config *KafkaConfig, kafkaConfig *kafka.ConfigMap, reportQueueLength bool, metricsLabelFunc MetricsLabelsFunc) (*Producer, error) {
 	base := appbase.NewServiceBase("producer")
+	if config.ProducerStatisticsIntervalMs > 0 {
+		_ = kafkaConfig.SetKey("statistics.interval.ms", config.ProducerStatisticsIntervalMs)
+	}
 	producer, err := kafka.NewProducer(kafkaConfig)
 	if err != nil {
 		return nil, base.NewError("error creating kafka producer: %v", err)
@@ -70,6 +104,7 @@ func NewProducer(config *KafkaConfig, kafkaConfig *kafka.ConfigMap, reportQueueL
 	return &Producer{
 		Service:              base,
 		producer:             producer,
+		config:               config,
 		reportQueueLength:    reportQueueLength,
 		asyncDeliveryChannel: make(chan kafka.Event, 1000),
 		waitForDelivery:      time.Millisecond * time.Duration(config.ProducerWaitForDeliveryMs),
@@ -109,6 +144,8 @@ func (p *Producer) Start() {
 						p.Errorf("Failed to log message to failover logger: %v", err)
 					}
 				}
+			case *kafka.Stats:
+				p.handleStats(ev)
 			case *kafka.Error, kafka.Error:
 				p.Errorf("Producer error: %v", ev)
 			}
@@ -223,7 +260,7 @@ func (p *Producer) Close() error {
 		return nil
 	}
 	p.closed.Store(true)
-	notProduced := p.producer.Flush(10000)
+	notProduced := p.producer.Flush(p.config.ProducerDeliveryTimeoutMs)
 	if notProduced > 0 {
 		p.Errorf("%d message left unsent in producer queue.", notProduced)
 		//TODO: suck p.producer.ProduceChannel() and store to fallback file or some retry queue
@@ -252,6 +289,47 @@ func (p *Producer) QueueSize() (int, error) {
 	}
 
 	return p.producer.Len(), nil
+}
+
+func (p *Producer) handleStats(ev *kafka.Stats) {
+	var stats producerStats
+	if err := json.Unmarshal([]byte(ev.String()), &stats); err != nil {
+		p.Errorf("Failed to parse producer stats: %v", err)
+		return
+	}
+	// Gauges for current state metrics
+	ProducerStatsMsgCnt.Set(stats.MsgCnt)
+	ProducerStatsMsgSize.Set(stats.MsgSize)
+
+	// Counters for cumulative metrics — add only the delta since last stats callback
+	if delta := stats.TxMsgs - p.prevTxMsgs; delta > 0 {
+		ProducerStatsTxMsgs.Add(delta)
+	}
+	p.prevTxMsgs = stats.TxMsgs
+
+	if delta := stats.TxMsgBytes - p.prevTxMsgBytes; delta > 0 {
+		ProducerStatsTxMsgBytes.Add(delta)
+	}
+	p.prevTxMsgBytes = stats.TxMsgBytes
+
+	if delta := stats.Tx - p.prevTx; delta > 0 {
+		ProducerStatsTx.Add(delta)
+	}
+	p.prevTx = stats.Tx
+
+	if delta := stats.TxBytes - p.prevTxBytes; delta > 0 {
+		ProducerStatsTxBytes.Add(delta)
+	}
+	p.prevTxBytes = stats.TxBytes
+
+	for _, broker := range stats.Brokers {
+		if broker.Nodeid < 0 {
+			continue // skip internal brokers
+		}
+		ProducerStatsBrokerRtt(broker.Name).Set(broker.Rtt.Avg)
+		ProducerStatsBrokerOutbufCnt(broker.Name).Set(broker.OutbufCnt)
+		ProducerStatsBrokerWaitrespCnt(broker.Name).Set(broker.WaitrespCnt)
+	}
 }
 
 func defaultMetricsLabelFunc(topicId string, status, errText string) (topic, destinationId, mode, tableName, st string, err string) {

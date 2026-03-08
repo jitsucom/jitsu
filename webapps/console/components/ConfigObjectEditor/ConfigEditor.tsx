@@ -42,8 +42,9 @@ import {
 } from "../../lib/ui";
 import { branding } from "../../lib/branding";
 import { useAntdModal } from "../../lib/modal";
-import { Copy, Edit3, Inbox } from "lucide-react";
+import { Copy, Edit3, Inbox, Search } from "lucide-react";
 import { createDisplayName } from "../../lib/zod";
+import { useQueryStringState } from "../../lib/useQueryStringState";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
 import { EditorTitle } from "./EditorTitle";
 import { EditorBase } from "./EditorBase";
@@ -1027,6 +1028,7 @@ const ObjectListEditor: React.FC<ConfigEditorProps> = props => {
   const pluralNoun = props.nounPlural || plural(props.noun);
   const addAction = props.addAction || (() => router.push(`${router.asPath}?id=new`));
   const reloadStore = useStoreReload();
+  const [searchQuery, setSearchQuery] = useQueryStringState("search", { defaultValue: "", skipHistory: true });
 
   const onDeleteMutation = useConfigObjectMutation(
     props.type as any,
@@ -1051,12 +1053,25 @@ const ObjectListEditor: React.FC<ConfigEditorProps> = props => {
       },
     });
   };
-  const list = data.filter(props.filter || (() => true)) || [];
+  const list = (data.filter(props.filter || (() => true)) || []).filter(obj => {
+    if (!searchQuery) return true;
+    const q = searchQuery.trim().toLowerCase();
+    return obj.id?.toLowerCase().includes(q) || (obj as any).name?.toLowerCase().includes(q);
+  });
   return (
     <div>
       <div className="flex justify-between pb-6">
-        <div className="flex items-center">
+        <div className="flex items-center gap-6">
           <div className="text-3xl">{props.listTitle || `Edit ${pluralNoun}`}</div>
+          <Input
+            placeholder="Filter by ID or name..."
+            prefix={<Search className="w-3.5 h-3.5 text-textDisabled" />}
+            allowClear
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="w-96 mt-0.5"
+            size="small"
+          />
         </div>
         <div>
           <JitsuButton

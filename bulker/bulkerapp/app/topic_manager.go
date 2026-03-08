@@ -57,6 +57,8 @@ type TopicManager struct {
 	staleTopics         types.Set[string]
 	allTopics           types.Set[string]
 
+	topicCache sync.Map // map[string]bool
+
 	//batch consumers by destinationId
 	batchConsumers  map[string][]BatchConsumer
 	retryConsumers  map[string][]BatchConsumer
@@ -104,33 +106,35 @@ func NewTopicManager(appContext *Context) (*TopicManager, error) {
 		allTopics:            types.NewSet[string](),
 		closed:               make(chan struct{}),
 		refreshChan:          make(chan bool, 1),
-		startedAt:            time.Now(),
 	}, nil
 }
 
 // Start starts TopicManager
 func (tm *TopicManager) Start() {
-	tm.Infof("Starting topic manager. Shard Number: %d", tm.shardNumber)
-	tm.LoadMetadata()
-	safego.RunWithRestart(func() {
-		ticker := time.NewTicker(time.Duration(tm.config.TopicManagerRefreshPeriodSec) * time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-tm.closed:
-				return
-			case changes := <-tm.repository.ChangesChannel():
-				// listener for destination changes
-				tm.changeListener(changes)
-			case <-ticker.C:
-				// refresh metadata every 10 seconds
-				tm.LoadMetadata()
-			case <-tm.refreshChan:
-				// refreshes triggered by destination changes
-				tm.LoadMetadata()
+	if tm.config.EnableConsumers {
+		tm.Infof("Starting topic manager. Shard Number: %d", tm.shardNumber)
+		tm.startedAt = time.Now()
+		tm.LoadMetadata()
+		safego.RunWithRestart(func() {
+			ticker := time.NewTicker(time.Duration(tm.config.TopicManagerRefreshPeriodSec) * time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-tm.closed:
+					return
+				case changes := <-tm.repository.ChangesChannel():
+					// listener for destination changes
+					tm.changeListener(changes)
+				case <-ticker.C:
+					// refresh metadata every 10 seconds
+					tm.LoadMetadata()
+				case <-tm.refreshChan:
+					// refreshes triggered by destination changes
+					tm.LoadMetadata()
+				}
 			}
-		}
-	})
+		})
+	}
 }
 
 func (tm *TopicManager) LoadMetadata() {
@@ -530,16 +534,41 @@ func (tm *TopicManager) UpdatedAt() time.Time {
 
 // EnsureDestinationTopic creates destination topic if it doesn't exist
 func (tm *TopicManager) EnsureDestinationTopic(topicId string) error {
-	tm.Lock()
-	if !tm.allTopics.Contains(topicId) {
-		tm.Unlock()
-		err := tm.createDestinationTopic(topicId, nil)
-		time.Sleep(500 * time.Millisecond) // wait for topic to be propagated
+	if !tm.config.EnableConsumers {
+		_, ok := tm.topicCache.Load(topicId)
+		if ok {
+			return nil
+		}
+		tm.Lock()
+		defer tm.Unlock()
+		meta, err := tm.kaftaAdminClient.GetMetadata(&topicId, false, tm.config.KafkaAdminMetadataTimeoutMs)
+		if err != nil {
+			tm.SystemErrorf("Error getting metadata for topic %s: %v", topicId, err)
+		}
+		m, ok := meta.Topics[topicId]
+		if ok && len(m.Partitions) > 0 && m.Error.Code() == kafka.ErrNoError {
+			tm.topicCache.Store(topicId, true)
+			return nil
+		}
+		err = tm.createDestinationTopic(topicId, nil)
+		if err == nil {
+			time.Sleep(500 * time.Millisecond) // wait for topic to be propagated
+			tm.topicCache.Store(topicId, true)
+			return nil
+		}
 		return err
 	} else {
-		tm.Unlock()
+		tm.Lock()
+		if !tm.allTopics.Contains(topicId) {
+			tm.Unlock()
+			err := tm.createDestinationTopic(topicId, nil)
+			time.Sleep(500 * time.Millisecond) // wait for topic to be propagated
+			return err
+		} else {
+			tm.Unlock()
+		}
+		return nil
 	}
-	return nil
 }
 
 // ensureTopic creates topic if it doesn't exist
@@ -696,9 +725,11 @@ func (tm *TopicManager) RetryTopicConfig() map[string]string {
 }
 
 func (tm *TopicManager) Refresh() {
-	select {
-	case tm.refreshChan <- true:
-	default:
+	if tm.config.EnableConsumers {
+		select {
+		case tm.refreshChan <- true:
+		default:
+		}
 	}
 }
 

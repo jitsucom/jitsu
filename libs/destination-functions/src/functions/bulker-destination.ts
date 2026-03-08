@@ -1,4 +1,4 @@
-import { FullContext, JitsuFunction, UserAgent } from "@jitsu/protocols/functions";
+import { FetchResponse, FullContext, JitsuFunction } from "@jitsu/protocols/functions";
 import {
   HTTPError,
   RetryError,
@@ -293,6 +293,32 @@ const BulkerDestination: JitsuFunction<AnalyticsServerEvent, BulkerDestinationCo
     throw new RetryError(e);
   }
 };
+
+export async function bulkerFetch(url: string, body: string, headers?: Record<string, string>): Promise<FetchResponse> {
+  let res: Awaited<ReturnType<typeof request>> | undefined;
+  try {
+    res = await request(url, {
+      method: "POST",
+      headers,
+      body,
+      bodyTimeout: bulkerTimeoutMs,
+      headersTimeout: bulkerTimeoutMs,
+      dispatcher: undiciAgent,
+    });
+    const responseText = await res.body.text();
+    return {
+      ok: res.statusCode >= 200 && res.statusCode < 300,
+      status: res.statusCode,
+      statusText: `${res.statusCode}`,
+      text: async () => responseText,
+      json: async () => JSON.parse(responseText),
+    } as FetchResponse;
+  } finally {
+    if (res?.body && !res.body.destroyed) {
+      res.body.destroy();
+    }
+  }
+}
 
 BulkerDestination.displayName = "Bulker Destination";
 

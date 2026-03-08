@@ -1,6 +1,6 @@
 module github.com/jitsucom/bulker/admin
 
-go 1.25
+go 1.26
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.39.0
@@ -17,6 +17,7 @@ require (
 	k8s.io/apimachinery v0.34.1
 	k8s.io/client-go v0.34.1
 	k8s.io/utils v0.0.0-20250604170112-4c0f3b243397
+	github.com/IBM/sarama v1.47.0
 )
 
 require (

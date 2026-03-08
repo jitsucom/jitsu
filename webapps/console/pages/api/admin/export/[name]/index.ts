@@ -531,7 +531,7 @@ const exports: Export[] = [
           const throttlePercent = !activeWorkspaces.has(obj.workspace.id)
             ? getNumericOption("throttle", obj.workspace)
             : undefined;
-          const shardNumber = getNumericOption("shard", obj.workspace);
+          const shardNumber = obj.config.shard || getNumericOption("shard", obj.workspace);
           const classicKeys = classicKeysMap[obj.id] || ({} as ClassicKeys);
           writer.write(
             JSON.stringify({
@@ -552,7 +552,7 @@ const exports: Export[] = [
                   "workspace"
                 ),
                 ...{
-                  ...obj.config,
+                  ...omit(obj.config, "shard"),
                   publicKeys: [classicKeys.publicKeys ?? [], obj.config.publicKeys ?? []].flat(),
                   privateKeys: [classicKeys.privateKeys ?? [], obj.config.privateKeys ?? []].flat(),
                   domains: [...new Set([...(domainsMap.get(obj.workspace.id) ?? []), ...(obj.config.domains ?? [])])],

@@ -453,6 +453,32 @@ export function isInBrowser() {
 }
 
 /**
+ * Synchronously checks for the presence of the anonymous ID cookie and creates one if not present.
+ * This should be called at the earliest possible stage to ensure the cookie is available
+ * immediately (e.g., for server-side reading on the very first page load).
+ */
+export function ensureAnonymousId(opts: JitsuOptions): string | undefined {
+  if (!isInBrowser()) {
+    return undefined;
+  }
+  const cookieName = opts.cookieNames?.anonymousId || defaultCookie2Key.__anon_id;
+  const existing = getCookie(cookieName);
+  if (existing) {
+    return existing;
+  }
+  const id = uuid();
+  const domain = opts.cookieDomain || getTopLevelDomain(window.location.hostname);
+  setCookie(cookieName, id, {
+    domain,
+    secure: window.location.protocol === "https:",
+  });
+  if (opts.debug) {
+    console.log(`[JITSU DEBUG] preInitAnonymousId: created anonymous ID cookie '${cookieName}'=${id} on domain '${domain}'`);
+  }
+  return id;
+}
+
+/**
  * Fixes a weird bug in analytics URL where path
  * of https://test.com becomes //test.com
  */

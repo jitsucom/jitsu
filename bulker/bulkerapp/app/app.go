@@ -3,6 +3,10 @@ package app
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"runtime/debug"
+	"time"
+
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/jitsucom/bulker/bulkerapp/metrics"
 	"github.com/jitsucom/bulker/eventslog"
@@ -10,9 +14,6 @@ import (
 	"github.com/jitsucom/bulker/jitsubase/logging"
 	"github.com/jitsucom/bulker/jitsubase/safego"
 	"github.com/jitsucom/bulker/jitsubase/utils"
-	"net/http"
-	"runtime/debug"
-	"time"
 )
 
 type Context struct {
@@ -87,6 +88,7 @@ func (a *Context) InitContext(settings *appbase.AppSettings) error {
 			"batch.size":                   a.config.ProducerBatchSize,
 			"linger.ms":                    a.config.ProducerLingerMs,
 			"compression.type":             a.config.KafkaTopicCompression,
+			"delivery.timeout.ms":          a.config.ProducerDeliveryTimeoutMs,
 		}, *a.kafkaConfig))
 		a.batchProducer, err = NewProducer(&a.config.KafkaConfig, &batchProducerConfig, true)
 		if err != nil {
@@ -94,14 +96,17 @@ func (a *Context) InitContext(settings *appbase.AppSettings) error {
 		}
 		a.batchProducer.Start()
 
-		streamProducerConfig := kafka.ConfigMap(utils.MapPutAll(kafka.ConfigMap{
-			"compression.type": a.config.KafkaTopicCompression,
-		}, *a.kafkaConfig))
-		a.streamProducer, err = NewProducer(&a.config.KafkaConfig, &streamProducerConfig, false)
-		if err != nil {
-			return err
+		if a.config.EnableConsumers {
+			streamProducerConfig := kafka.ConfigMap(utils.MapPutAll(kafka.ConfigMap{
+				"compression.type":    a.config.KafkaTopicCompression,
+				"delivery.timeout.ms": a.config.ProducerDeliveryTimeoutMs,
+			}, *a.kafkaConfig))
+			a.streamProducer, err = NewProducer(&a.config.KafkaConfig, &streamProducerConfig, false)
+			if err != nil {
+				return err
+			}
+			a.streamProducer.Start()
 		}
-		a.streamProducer.Start()
 
 		a.topicManager, err = NewTopicManager(a)
 		if err != nil {

@@ -24,6 +24,71 @@ var (
 		Subsystem: "producer",
 		Name:      "queue_length",
 	})
+
+	// librdkafka internal statistics
+	ProducerStatsMsgCnt = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "bulkerapp",
+		Subsystem: "producer",
+		Name:      "stats_msg_cnt",
+		Help:      "Current number of messages in producer queues",
+	})
+	ProducerStatsMsgSize = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "bulkerapp",
+		Subsystem: "producer",
+		Name:      "stats_msg_size_bytes",
+		Help:      "Current total size of messages in producer queues",
+	})
+	ProducerStatsTxMsgs = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "bulkerapp",
+		Subsystem: "producer",
+		Name:      "stats_txmsgs_total",
+		Help:      "Total number of messages transmitted (produced) to Kafka brokers",
+	})
+	ProducerStatsTxMsgBytes = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "bulkerapp",
+		Subsystem: "producer",
+		Name:      "stats_txmsg_bytes_total",
+		Help:      "Total number of message bytes transmitted to Kafka brokers",
+	})
+	ProducerStatsTx = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "bulkerapp",
+		Subsystem: "producer",
+		Name:      "stats_tx_total",
+		Help:      "Total number of requests sent to Kafka brokers",
+	})
+	ProducerStatsTxBytes = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "bulkerapp",
+		Subsystem: "producer",
+		Name:      "stats_tx_bytes_total",
+		Help:      "Total number of bytes transmitted to Kafka brokers",
+	})
+	producerStatsBrokerRtt = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "bulkerapp",
+		Subsystem: "producer",
+		Name:      "stats_broker_rtt_avg_us",
+		Help:      "Broker round-trip time average in microseconds",
+	}, []string{"broker"})
+	ProducerStatsBrokerRtt = func(broker string) prometheus.Gauge {
+		return producerStatsBrokerRtt.WithLabelValues(broker)
+	}
+	producerStatsBrokerOutbufCnt = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "bulkerapp",
+		Subsystem: "producer",
+		Name:      "stats_broker_outbuf_cnt",
+		Help:      "Number of requests awaiting transmission to broker",
+	}, []string{"broker"})
+	ProducerStatsBrokerOutbufCnt = func(broker string) prometheus.Gauge {
+		return producerStatsBrokerOutbufCnt.WithLabelValues(broker)
+	}
+	producerStatsBrokerWaitrespCnt = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "bulkerapp",
+		Subsystem: "producer",
+		Name:      "stats_broker_waitresp_cnt",
+		Help:      "Number of requests in-flight to broker awaiting response",
+	}, []string{"broker"})
+	ProducerStatsBrokerWaitrespCnt = func(broker string) prometheus.Gauge {
+		return producerStatsBrokerWaitrespCnt.WithLabelValues(broker)
+	}
 )
 
 func KafkaErrorCode(err error) string {

@@ -258,7 +258,7 @@ const ServicesList: React.FC<{}> = () => {
         icon: <Zap className="w-full h-full" />,
         title: "Connected Destinations",
         collapsed: true,
-        link: s => `/syncs?source=${s.id}`,
+        link: s => `/syncs?search=${encodeURIComponent(s.name)}`,
       },
     ],
   };

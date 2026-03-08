@@ -7,7 +7,7 @@ ENV TZ=UTC
 
 WORKDIR /app
 
-FROM golang:1.25-bookworm as builder
+FROM golang:1.26-bookworm as builder
 
 ARG VERSION
 ENV VERSION $VERSION

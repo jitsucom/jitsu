@@ -93,7 +93,7 @@ const StreamsList: React.FC<{}> = () => {
             {
               title: "Connected Destinations",
               icon: <Zap className="w-full h-full" />,
-              href: `/${workspace.slugOrId}/connections?source=${obj.id}`,
+              href: `/${workspace.slugOrId}/connections?search=${encodeURIComponent(obj.name)}`,
             },
           ]}
           className="mb-4"
@@ -143,7 +143,7 @@ const StreamsList: React.FC<{}> = () => {
         icon: <Zap className="w-4 h-4" />,
         title: "Connected Destinations",
         collapsed: true,
-        link: stream => `/connections?source=${stream.id}`,
+        link: stream => `/connections?search=${encodeURIComponent(stream.name)}`,
       },
     ],
     listColumns: [
@@ -257,6 +257,9 @@ const StreamsList: React.FC<{}> = () => {
             will authorize requests based on the domain name.
           </>
         ),
+      },
+      shard: {
+        hidden: true,
       },
       authorizedJavaScriptDomains: {
         hidden: true,

@@ -55,7 +55,9 @@ type Config struct {
 	FastStoreWorkspaceIDs string `mapstructure:"FAST_STORE_WORKSPACE_IDS"` // comma-separated list of workspace IDs that should use mongobetween sidecar
 
 	// Minimum number of replicas
-	MinReplicas int32 `mapstructure:"MIN_REPLICAS" default:"2"`
+	MinReplicas        int32 `mapstructure:"MIN_REPLICAS" default:"2"`
+	MinReplicasPremium int32 `mapstructure:"MIN_REPLICAS_PREMIUM" default:"4"`
+
 	// HPA configuration
 	// Enable HPA for functions-server deployments
 	HPAEnabled bool `mapstructure:"HPA_ENABLED" default:"false"`

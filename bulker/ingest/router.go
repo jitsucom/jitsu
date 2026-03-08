@@ -90,6 +90,7 @@ func (sc *StreamCredentials) String() string {
 func NewRouter(appContext *Context, partitionSelector kafkabase.PartitionSelector) *Router {
 	base := appbase.NewRouterBase(appContext.config.Config, []string{
 		"/health",
+		"/ready",
 		"/robots.txt",
 		"/p.js",
 		"/v1/projects/:writeKey/settings",
@@ -197,6 +198,7 @@ func NewRouter(appContext *Context, partitionSelector kafkabase.PartitionSelecto
 	fast.Match([]string{"GET", "HEAD", "OPTIONS"}, "/p.js", router.ScriptHandler)
 
 	engine.GET("/health", router.Health)
+	engine.GET("/ready", router.Ready)
 	engine.GET("/robots.txt", func(c *gin.Context) {
 		c.Data(http.StatusOK, "text/plain", []byte("User-agent: *\nDisallow: /\n"))
 	})
@@ -246,6 +248,36 @@ func (r *Router) Health(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"status": "pass"})
 	return
+}
+
+func (r *Router) Ready(c *gin.Context) {
+	if r.kafkaConfig == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"status": "fail", "output": "kafka config is missing"})
+		return
+	}
+	scriptOrigin := r.config.ScriptOrigin
+	if scriptOrigin != "" {
+		req, err := http.NewRequest("GET", scriptOrigin, nil)
+		if err != nil {
+			logging.Errorf("Ready check: failed to create request to %s: %v", scriptOrigin, err)
+			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "fail", "output": fmt.Sprintf("failed to create request to script origin: %v", err)})
+			return
+		}
+		client := &http.Client{Timeout: 1 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			logging.Errorf("Ready check: failed to fetch script origin %s: %v", scriptOrigin, err)
+			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "fail", "output": fmt.Sprintf("failed to fetch script origin: %v", err)})
+			return
+		}
+		resp.Body.Close()
+		if resp.StatusCode >= 400 {
+			logging.Errorf("Ready check: script origin %s returned status %d", scriptOrigin, resp.StatusCode)
+			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "fail", "output": fmt.Sprintf("script origin returned status %d", resp.StatusCode)})
+			return
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "pass"})
 }
 
 type BatchPayload struct {

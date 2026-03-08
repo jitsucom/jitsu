@@ -132,12 +132,12 @@ function DestinationCard({ dest, selected }: { dest: DestinationConfig; selected
                 icon: <Zap className="w-4 h-4" />,
                 href: `/connections?sorting=${encodeURIComponent(
                   btoa(JSON.stringify({ columns: [{ field: "Source", order: "ascend" }] }))
-                )}&destination=${encodeURIComponent(dest.id)}`,
+                )}&search=${encodeURIComponent(dest.name)}`,
               },
               {
                 label: "View Syncs",
                 icon: <Share2 className="w-4 h-4" />,
-                href: `/syncs?destination=${encodeURIComponent(dest.id)}`,
+                href: `/syncs?search=${encodeURIComponent(dest.name)}`,
               },
             ]
       }
@@ -275,7 +275,7 @@ function WorkspaceOverview(props: {
                   {
                     label: "View Syncs",
                     icon: <Share2 className="w-4 h-4" />,
-                    href: `/syncs?source=${encodeURIComponent(id)}`,
+                    href: `/syncs?search=${encodeURIComponent(name)}`,
                   },
                 ]}
               />
@@ -336,7 +336,7 @@ function WorkspaceOverview(props: {
                     icon: <Zap className="w-4 h-4" />,
                     href: `/connections?sorting=${encodeURIComponent(
                       btoa(JSON.stringify({ columns: [{ field: "Source", order: "ascend" }] }))
-                    )}&source=${encodeURIComponent(id)}`,
+                    )}&search=${encodeURIComponent(name)}`,
                   },
                   {
                     label: "Setup Instructions",

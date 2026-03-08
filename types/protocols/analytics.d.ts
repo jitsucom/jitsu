@@ -418,6 +418,13 @@ export type JitsuOptions = {
   idEndpoint?: string;
 
   /**
+   * If true, synchronously checks for the anonymous ID cookie and creates one immediately
+   * if not present. This happens at the earliest possible stage during jitsuAnalytics() initialization,
+   * before any async plugin setup.
+   */
+  preInitAnonymousId?: boolean;
+
+  /**
    * What to do with errors. It can log it, rethrow or run a custom handler. Default value: "log"
    */
   errorPolicy?: ErrorHandler | "rethrow" | "log";

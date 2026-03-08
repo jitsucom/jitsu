@@ -155,6 +155,7 @@ export const StreamConfig = ConfigEntityBase.merge(
     publicKeys: z.array(ApiKey).optional(),
     privateKeys: z.array(ApiKey).optional(),
     strict: z.boolean().optional(),
+    shard: z.number().optional(),
     deduplicateWindowMs: z.number().optional(),
   })
 );
