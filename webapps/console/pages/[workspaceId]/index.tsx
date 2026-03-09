@@ -21,9 +21,7 @@ import { toURL } from "../../lib/shared/url";
 import JSON5 from "json5";
 import { ButtonGroup } from "../../components/ButtonGroup/ButtonGroup";
 import {
-  useConfigObjectLinks,
   useConfigObjectLinksLoader,
-  useConfigObjectList,
   useConfigObjectListLoader,
 } from "../../lib/store";
 import Link from "next/link";
@@ -388,10 +386,10 @@ function WorkspaceOverviewLoader() {
     return <GlobalLoader title={"Loading workspace data..."} />;
   }
 
-  const streams = streamsLoader.data;
-  const destinations = destinationsLoader.data;
-  const services = servicesLoader.data;
-  const links = linksLoader.data;
+  const streams = streamsLoader.data!;
+  const destinations = destinationsLoader.data!;
+  const services = servicesLoader.data!;
+  const links = linksLoader.data!;
 
   return <WorkspaceOverview streams={streams} destinations={destinations} links={links} connectors={services} />;
 }
