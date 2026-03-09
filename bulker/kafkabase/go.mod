@@ -6,7 +6,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.39.0
 	github.com/aws/aws-sdk-go-v2/config v1.31.8
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.88.1
-	github.com/confluentinc/confluent-kafka-go/v2 v2.11.0
+	github.com/confluentinc/confluent-kafka-go/v2 v2.13.3
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hjson/hjson-go/v4 v4.4.0
 	github.com/prometheus/client_golang v1.23.2

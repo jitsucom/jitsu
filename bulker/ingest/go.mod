@@ -3,7 +3,7 @@ module github.com/jitsucom/bulker/ingest
 go 1.26
 
 require (
-	github.com/confluentinc/confluent-kafka-go/v2 v2.11.0
+	github.com/confluentinc/confluent-kafka-go/v2 v2.13.3
 	github.com/gin-gonic/gin v1.10.0
 	github.com/mroth/weightedrand/v2 v2.1.0
 	github.com/penglongli/gin-metrics v0.1.10

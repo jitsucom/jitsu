@@ -142,7 +142,9 @@ func (a *Context) Cleanup() error {
 	_ = a.eventsLogService.Close()
 	_ = a.fastStore.Close()
 	_ = a.batchProducer.Close()
-	_ = a.streamProducer.Close()
+	if a.streamProducer != nil {
+		_ = a.streamProducer.Close()
+	}
 	if a.config.ShutdownExtraDelay > 0 {
 		logging.Infof("Waiting %d seconds before http server shutdown...", a.config.ShutdownExtraDelay)
 		time.Sleep(time.Duration(a.config.ShutdownExtraDelay) * time.Second)
