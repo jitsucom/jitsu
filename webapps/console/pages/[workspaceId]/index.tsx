@@ -1,4 +1,5 @@
 import { WorkspacePageLayout } from "../../components/PageLayout/WorkspacePageLayout";
+import { GlobalLoader } from "../../components/GlobalLoader/GlobalLoader";
 import { useAppConfig, useWorkspace, useWorkspaceRole } from "../../lib/context";
 import { DestinationConfig, ServiceConfig, StreamConfig } from "../../lib/schema";
 import { branding } from "../../lib/branding";
@@ -19,7 +20,12 @@ import classNames from "classnames";
 import { toURL } from "../../lib/shared/url";
 import JSON5 from "json5";
 import { ButtonGroup } from "../../components/ButtonGroup/ButtonGroup";
-import { useConfigObjectLinks, useConfigObjectList } from "../../lib/store";
+import {
+  useConfigObjectLinks,
+  useConfigObjectLinksLoader,
+  useConfigObjectList,
+  useConfigObjectListLoader,
+} from "../../lib/store";
 import Link from "next/link";
 import { WorkspacePermissionsType } from "../../lib/workspace-roles";
 
@@ -367,10 +373,25 @@ function WorkspaceOverview(props: {
 }
 
 function WorkspaceOverviewLoader() {
-  const streams = useConfigObjectList("stream");
-  const destinations = useConfigObjectList("destination");
-  const services = useConfigObjectList("service");
-  const links = useConfigObjectLinks();
+  const streamsLoader = useConfigObjectListLoader("stream");
+  const destinationsLoader = useConfigObjectListLoader("destination");
+  const servicesLoader = useConfigObjectListLoader("service");
+  const linksLoader = useConfigObjectLinksLoader();
+
+  const error =
+    streamsLoader.error ?? destinationsLoader.error ?? servicesLoader.error ?? linksLoader.error;
+  if (error) {
+    throw error;
+  }
+
+  if (streamsLoader.isLoading || destinationsLoader.isLoading || servicesLoader.isLoading || linksLoader.isLoading) {
+    return <GlobalLoader title={"Loading workspace data..."} />;
+  }
+
+  const streams = streamsLoader.data;
+  const destinations = destinationsLoader.data;
+  const services = servicesLoader.data;
+  const links = linksLoader.data;
 
   return <WorkspaceOverview streams={streams} destinations={destinations} links={links} connectors={services} />;
 }
