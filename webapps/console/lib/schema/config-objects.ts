@@ -20,7 +20,6 @@ import { getServerLog } from "../server/log";
 import { getWildcardDomains } from "../../pages/api/[workspaceId]/domain-check";
 import { getDestinationSecretPaths, getServiceSecretPaths, maskSecrets, removeMaskedValues } from "./secrets";
 import { db } from "../server/db";
-import { deleteScheduler } from "../server/sync";
 import { ConfigApiDeleteOptions } from "../useApi";
 import pick from "lodash/pick";
 
@@ -76,6 +75,7 @@ export async function handleLinkedConnections(
 
       // Delete scheduler if it's a sync
       if (link.type === "sync") {
+        const { deleteScheduler } = await import("../server/sync");
         await deleteScheduler(link.id);
       }
     }
