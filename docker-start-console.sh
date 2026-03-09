@@ -5,14 +5,22 @@ inited="0"
 export CONSOLE_INIT_TOKEN=$RANDOM$RANDOM$RANDOM$RANDOM
 export my_pid=$$
 
+is_clickhouse_enabled() {
+  [ -n "${CLICKHOUSE_URL:-}" ] || [ -n "${CLICKHOUSE_HOST:-}" ]
+}
+
 init() {
   if [ "$inited" = "0" ]; then
     echo "Initializing console..."
     inited="1"
-    curl --silent --show-error  http://localhost:3000/api/admin/events-log-init?token=$CONSOLE_INIT_TOKEN
-    echo ""
-    echo "Starting cron..."
-    cron
+    if is_clickhouse_enabled; then
+      curl --silent --show-error http://localhost:3000/api/admin/events-log-init?token=$CONSOLE_INIT_TOKEN
+      echo ""
+      echo "Starting cron..."
+      cron
+    else
+      echo "ClickHouse is not configured. Skipping events log initialization and cron."
+    fi
   fi
 }
 
