@@ -1,4 +1,4 @@
-FROM debian:bullseye-slim as main
+FROM debian:bookworm-slim as main
 
 RUN apt-get update -y
 RUN apt-get install -y ca-certificates curl
