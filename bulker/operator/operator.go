@@ -1207,6 +1207,10 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 			Value: utils.Ternary(fastStoreEnabled, "true", "false"),
 		},
 		{
+			Name:  "MONGODB_TIMEOUT_MS",
+			Value: fmt.Sprint(o.config.MongoDBTimeoutMs),
+		},
+		{
 			Name:  "MONGODB_MAX_POOL_SIZE",
 			Value: fmt.Sprint(utils.Ternary(data.FunctionsClass == FunctionsClassPremium, o.config.MongoDBMaxPoolSizePremium, o.config.MongoDBMaxPoolSize)),
 		},
