@@ -49,8 +49,9 @@ type Config struct {
 	MongobetweenImage string `mapstructure:"MONGOBETWEEN_IMAGE" default:"jitsucom/mongobetween:0.0.3"`
 	// Port for mongobetween to listen on (functions-server connects to this)
 	MongobetweenPort          int `mapstructure:"MONGOBETWEEN_PORT" default:"27017"`
-	MongoDBMaxPoolSize        int `mapstructure:"MONGODB_MAX_POOL_SIZE" default:"20"`
-	MongoDBMaxPoolSizePremium int `mapstructure:"MONGODB_MAX_POOL_SIZE_PREMIUM" default:"50"`
+	MongoDBTimeoutMs          int `mapstructure:"MONGODB_TIMEOUT_MS" default:"1000"`
+	MongoDBMaxPoolSize        int `mapstructure:"MONGODB_MAX_POOL_SIZE" default:"5"`
+	MongoDBMaxPoolSizePremium int `mapstructure:"MONGODB_MAX_POOL_SIZE_PREMIUM" default:"20"`
 
 	FastStoreWorkspaceIDs string `mapstructure:"FAST_STORE_WORKSPACE_IDS"` // comma-separated list of workspace IDs that should use mongobetween sidecar
 
@@ -100,6 +101,7 @@ func (c *Config) CalculateOperatorConfigHash() string {
 	h.Write([]byte(c.MongoDBURL))
 	h.Write([]byte(c.MongobetweenImage))
 	h.Write([]byte(fmt.Sprintf("%d", c.MongobetweenPort)))
+	h.Write([]byte(fmt.Sprintf("%d", c.MongoDBTimeoutMs)))
 	h.Write([]byte(fmt.Sprintf("%d", c.MongoDBMaxPoolSize)))
 	h.Write([]byte(fmt.Sprintf("%d", c.MongoDBMaxPoolSizePremium)))
 	h.Write([]byte(c.FastStoreWorkspaceIDs))

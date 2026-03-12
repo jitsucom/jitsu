@@ -86,9 +86,6 @@ export function createPg(url: string, opts: { defaultSchema?: string; connection
   const parsedUrl = new URL(url);
   const schema = opts.defaultSchema || parsedUrl.searchParams.get("schema") || "public";
   const sslMode = parsedUrl.searchParams.get("sslmode") || "disable";
-  if (sslMode === "require" || sslMode === "prefer") {
-    throw new Error(`sslmode=${sslMode} is not supported`);
-  }
 
   const pool = new PG.Pool({
     connectionString: url,

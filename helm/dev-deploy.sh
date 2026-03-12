@@ -271,6 +271,7 @@ tunnel() {
     log_info "Starting minikube tunnel (requires sudo)..."
     log_info "Services will be accessible at:"
     echo ""
+    echo "  Console: http://localhost:3000"
     echo "  Ingest:  http://localhost:3049"
     echo "  Bulker:  http://localhost:3042"
     echo "  Rotor:   http://localhost:3401"
@@ -283,6 +284,7 @@ tunnel() {
 expose() {
     log_info "LoadBalancer services (requires 'minikube tunnel' running):"
     echo ""
+    echo "  Console: http://localhost:3000"
     echo "  Ingest:  http://localhost:3049"
     echo "  Bulker:  http://localhost:3042"
     echo "  Rotor:   http://localhost:3401"
@@ -309,15 +311,11 @@ configure_secrets() {
     echo ""
 
     # Prompt for each secret
-    local auth_token console_auth_token database_url clickhouse_url mongodb_url
+    local auth_token database_url clickhouse_url mongodb_url
 
     echo "Auth token for inter-service communication"
     echo "  Generate with: openssl rand -hex 16"
     read -p "  AUTH_TOKEN: " auth_token
-
-    echo ""
-    echo "Console API auth token"
-    read -p "  CONSOLE_AUTH_TOKEN: " console_auth_token
 
     echo ""
     echo "PostgreSQL connection URL"
@@ -337,7 +335,6 @@ configure_secrets() {
     # Validate required fields
     local missing=""
     [ -z "$auth_token" ] && missing="$missing AUTH_TOKEN"
-    [ -z "$console_auth_token" ] && missing="$missing CONSOLE_AUTH_TOKEN"
     [ -z "$database_url" ] && missing="$missing DATABASE_URL"
     [ -z "$clickhouse_url" ] && missing="$missing CLICKHOUSE_URL"
     [ -z "$mongodb_url" ] && missing="$missing MONGODB_URL"
@@ -355,9 +352,10 @@ configure_secrets() {
         --from-literal="RAW_AUTH_TOKENS=$auth_token" \
         --from-literal="BULKER_AUTH_KEY=$auth_token" \
         --from-literal="ROTOR_AUTH_KEY=$auth_token" \
-        --from-literal="REPOSITORY_AUTH_TOKEN=$console_auth_token" \
-        --from-literal="CONSOLE_TOKEN=$console_auth_token" \
-        --from-literal="CONFIG_SOURCE_HTTP_AUTH_TOKEN=$console_auth_token" \
+        --from-literal="CONSOLE_RAW_AUTH_TOKENS=$auth_token" \
+        --from-literal="REPOSITORY_AUTH_TOKEN=service-admin-account:$auth_token" \
+        --from-literal="CONSOLE_TOKEN=service-admin-account:$auth_token" \
+        --from-literal="CONFIG_SOURCE_HTTP_AUTH_TOKEN=service-admin-account:$auth_token" \
         --from-literal="DATABASE_URL=$database_url" \
         --from-literal="CLICKHOUSE_URL=$clickhouse_url" \
         --from-literal="MONGODB_URL=$mongodb_url" \

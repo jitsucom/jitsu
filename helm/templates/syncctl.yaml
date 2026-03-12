@@ -21,7 +21,7 @@ spec:
       serviceAccountName: syncctl
       initContainers:
         - name: build
-          image: golang:1.25-bookworm
+          image: golang:1.26-bookworm
           workingDir: /src/sync-controller
           command:
             - sh

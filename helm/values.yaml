@@ -18,6 +18,10 @@ env:
   rotor: {}
   syncctl: {}
   operator: {}
+  console:
+    NEXTAUTH_URL: "http://localhost:3000"
+    JITSU_PUBLIC_URL: "http://localhost:3000"
+    JWT_SECRET: "dev-jwt-secret-change-in-production"
 
 # Service scaling (set replicas to 0 to disable)
 scaling:
@@ -30,4 +34,6 @@ scaling:
   syncctl:
     replicas: 1
   operator:
+    replicas: 1
+  console:
     replicas: 1

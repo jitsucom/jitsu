@@ -1,0 +1,84 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: install-{{ .Release.Revision }}
+  labels:
+    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    app.kubernetes.io/name: install
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: install
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: install
+          image: node:24-bookworm
+          workingDir: /cache/workspace
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              mkdir -p /cache/workspace
+
+              # Check if we need to rebuild by comparing pnpm-lock.yaml hash
+              LOCK_HASH=$(md5sum /project/pnpm-lock.yaml 2>/dev/null | cut -d' ' -f1 || echo "none")
+              CACHED_HASH=$(cat /cache/lock-hash 2>/dev/null || echo "")
+
+              if [ -d "/cache/workspace/node_modules" ] && [ "$LOCK_HASH" = "$CACHED_HASH" ]; then
+                echo "Cache hit! Syncing source files..."
+                npm install -g pnpm
+                # Copy only source files that changed
+                cd /project && tar --exclude='node_modules' --exclude='.[^/]*' --exclude='*/node_modules' --exclude='docker/data' --exclude='*.log' -cf - . | tar -xf - -C /cache/workspace
+                cd /cache/workspace
+                echo "Generating Prisma client..."
+                cd webapps/console && npx prisma generate && cd /cache/workspace
+              else
+                echo "Cache miss or lockfile changed. Full rebuild..."
+
+                echo "Copying project files..."
+                rm -rf /cache/workspace/*
+                cd /project && tar --exclude='node_modules' --exclude='.[^/]*' --exclude='*/node_modules' --exclude='docker/data' --exclude='*.log' -cf - . | tar -xf - -C /cache/workspace
+
+                echo "Installing pnpm..."
+                npm install -g pnpm
+                cd /cache/workspace
+
+                echo "Running pnpm install..."
+                pnpm install
+
+                echo "Generating Prisma client..."
+                cd webapps/console && npx prisma generate && cd /cache/workspace
+
+                # Save lock hash for next time
+                echo "$LOCK_HASH" > /cache/lock-hash
+              fi
+
+              echo "Install complete"
+          volumeMounts:
+            - name: project
+              mountPath: /project
+              readOnly: true
+            - name: node-cache
+              mountPath: /cache
+          env:
+            - name: npm_config_cache
+              value: /cache/npm
+            - name: PNPM_HOME
+              value: /cache/pnpm
+      volumes:
+        - name: project
+          hostPath:
+            path: {{ .Values.projectRoot }}
+            type: Directory
+        - name: node-cache
+          persistentVolumeClaim:
+            claimName: node-cache
