@@ -109,6 +109,7 @@ func NewRouter(appContext *Context, partitionSelector kafkabase.PartitionSelecto
 		"/api/s/:tp",
 		"/api/px/:tp",
 		"/api/s/s2s/:tp",
+		"/api/funcs/:conId",
 		// classic compat
 		"/s/lib.js",
 		"/api/v1/s2s/event",
@@ -185,6 +186,7 @@ func NewRouter(appContext *Context, partitionSelector kafkabase.PartitionSelecto
 	fast.Match([]string{"OPTIONS", "POST"}, "/api/s/:tp", router.IngestHandler)
 	fast.Match([]string{"OPTIONS", "GET"}, "/api/px/:tp", router.PixelHandler)
 	fast.Match([]string{"OPTIONS", "POST"}, "/api/s/s2s/:tp", router.IngestHandler)
+	fast.Match([]string{"OPTIONS", "POST"}, "/api/funcs/:conId", router.FuncsHandler)
 
 	// classic compat
 	fast.Match([]string{"GET", "HEAD", "OPTIONS"}, "/s/lib.js", router.ClassicScriptHandler)
@@ -411,15 +413,19 @@ func patchEvent(c *gin.Context, messageId string, ev types.Json, tp string, inge
 func (r *Router) getDataLocator(c *gin.Context, ingestType IngestType, writeKeyExtractor func() string) (cred StreamCredentials, err error) {
 	cred.IngestType = ingestType
 	if w := c.GetHeader("Authorization"); w != "" {
-		wk := strings.TrimPrefix(w, "Basic ")
-		//decode base64
-		wkDecoded, err := base64.StdEncoding.DecodeString(wk)
-		if err != nil {
-			return cred, fmt.Errorf("failed to decode writeKey from Authorization header as base64: %v", err)
+		if strings.HasPrefix(w, "Bearer ") {
+			cred.WriteKey = strings.TrimPrefix(w, "Bearer ")
+		} else {
+			wk := strings.TrimPrefix(w, "Basic ")
+			//decode base64
+			wkDecoded, err := base64.StdEncoding.DecodeString(wk)
+			if err != nil {
+				return cred, fmt.Errorf("failed to decode writeKey from Authorization header as base64: %v", err)
+			}
+			//remove trailing :
+			wkDecoded = bytes.TrimSuffix(wkDecoded, []byte(":"))
+			cred.WriteKey = string(wkDecoded)
 		}
-		//remove trailing :
-		wkDecoded = bytes.TrimSuffix(wkDecoded, []byte(":"))
-		cred.WriteKey = string(wkDecoded)
 	} else if w := c.GetHeader("X-Write-Key"); w != "" {
 		cred.WriteKey = w
 	} else if w := c.Query("writekey"); w != "" {
@@ -536,7 +542,7 @@ func (r *Router) processSyncDestination(message *IngestMessage, stream *StreamWi
 			// Use functions server (new format with execLog)
 			fsURL := getFunctionsServerURL(r.config.FunctionsServerURLTemplate, stream.Stream.WorkspaceId, classes)
 			endpointURL := fsURL + "/multi"
-			r.callFunctionsEndpoint(stream, functionDestinations, endpointURL, messageBytes, functionsResults)
+			r.callFunctionsEndpoint(stream, functionDestinations, endpointURL, messageBytes, functionsResults, false)
 		} else {
 			// Use rotor (legacy format)
 			endpointURL := r.config.RotorURL + "/func/multi"
@@ -648,13 +654,12 @@ type ConnectionChainResult struct {
 
 // callFunctionsEndpoint sends a request to functions endpoint and expects new format with execLog
 // Response format: map[connectionId]{ events: [], execLog: [] }
-func (r *Router) callFunctionsEndpoint(stream *StreamWithDestinations, destinations []*ShortDestinationConfig, baseURL string, messageBytes []byte, functionsResults map[string]any) {
+func (r *Router) callFunctionsEndpoint(stream *StreamWithDestinations, destinations []*ShortDestinationConfig, baseURL string, messageBytes []byte, functionsResults map[string]any, fullEvents bool) (result map[string]ConnectionChainResult, err error) {
 	if len(destinations) == 0 {
 		return
 	}
 
 	ids := utils.ArrayMap(destinations, func(d *ShortDestinationConfig) string { return d.ConnectionId })
-	var err error
 	defer func() {
 		if err != nil {
 			obj := map[string]any{"error": err.Error()}
@@ -677,6 +682,9 @@ func (r *Router) callFunctionsEndpoint(stream *StreamWithDestinations, destinati
 	}()
 
 	url := baseURL + "?ids=" + strings.Join(ids, ",")
+	if fullEvents {
+		url += "&fullEvents=true"
+	}
 	req, err := http.NewRequest("POST", url, bytes.NewReader(messageBytes))
 	if err != nil {
 		r.Errorf("failed to create functions request for connections: %s: %v", ids, err)
@@ -709,7 +717,6 @@ func (r *Router) callFunctionsEndpoint(stream *StreamWithDestinations, destinati
 		err = fmt.Errorf("functions server error code: %d", res.StatusCode)
 		return
 	}
-	var result map[string]ConnectionChainResult
 	err = jsoniter.Unmarshal(body, &result)
 	if err != nil {
 		r.Errorf("Failed to unmarshal functions response for connections: %s: %v", ids, err)
@@ -722,6 +729,7 @@ func (r *Router) callFunctionsEndpoint(stream *StreamWithDestinations, destinati
 		functionsResults[connectionId] = chainResult.Events
 		r.processExecLog(connectionId, chainResult.ExecLog, chainResult.Logs)
 	}
+	return result, nil
 }
 
 // processExecLog processes the execution log and function logs from functions server

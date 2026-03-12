@@ -99,9 +99,6 @@ export function createPg(): Pool {
     throw new Error(`Invalid schema ${schema} in database connection URL. Expected 'newjitsu' schema.`);
   }
   const sslMode = parsedUrl.searchParams.get("sslmode") || ("disable" as PrismaSSLMode);
-  if (sslMode === "require" || sslMode === "prefer") {
-    throw new Error(`sslmode=${sslMode} is not supported`);
-  }
 
   const pool = new Pool({
     max: 20,

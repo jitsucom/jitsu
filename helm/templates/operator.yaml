@@ -21,7 +21,7 @@ spec:
       serviceAccountName: operator
       initContainers:
         - name: build
-          image: golang:1.25-bookworm
+          image: golang:1.26-bookworm
           workingDir: /src/operator
           command:
             - sh

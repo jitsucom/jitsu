@@ -46,31 +46,45 @@ app.kubernetes.io/instance: {{ .release }}
 {{- end }}
 
 {{/*
+Computed console URL: use in-cluster service when console is deployed, otherwise fall back to env.common.CONSOLE_URL
+*/}}
+{{- define "jitsu-dev.consoleUrl" -}}
+{{- if gt (int .Values.scaling.console.replicas) 0 -}}
+http://console:3000
+{{- else -}}
+{{ .Values.env.common.CONSOLE_URL }}
+{{- end -}}
+{{- end }}
+
+{{/*
 Common environment variables
 */}}
 {{- define "jitsu-dev.commonEnv" -}}
+{{- $consoleUrl := include "jitsu-dev.consoleUrl" . -}}
 {{- range $key, $value := .Values.env.common }}
+{{- if ne $key "CONSOLE_URL" }}
 - name: {{ $key }}
   value: {{ $value | quote }}
 {{- end }}
-{{- with .Values.env.common }}
-- name: CONSOLE_URL
-  value: {{ .CONSOLE_URL | quote }}
-- name: REPOSITORY_URL
-  value: "{{ .CONSOLE_URL }}/api/admin/export/streams-with-destinations"
-- name: REPOSITORY_BASE_URL
-  value: "{{ .CONSOLE_URL }}/api/admin/export"
-- name: SCRIPT_ORIGIN
-  value: "{{ .CONSOLE_URL }}/api/s/javascript-library"
-- name: CONFIG_SOURCE
-  value: "{{ .CONSOLE_URL }}/api/admin/export/bulker-connections"
 {{- end }}
+- name: CONSOLE_URL
+  value: {{ $consoleUrl | quote }}
+- name: REPOSITORY_URL
+  value: "{{ $consoleUrl }}/api/admin/export/streams-with-destinations"
+- name: REPOSITORY_BASE_URL
+  value: "{{ $consoleUrl }}/api/admin/export"
+- name: SCRIPT_ORIGIN
+  value: "{{ $consoleUrl }}/api/s/javascript-library"
+- name: CONFIG_SOURCE
+  value: "{{ $consoleUrl }}/api/admin/export/bulker-connections"
 {{- end }}
 
 {{/*
 Inter-service URLs (k8s service discovery)
 */}}
 {{- define "jitsu-dev.serviceUrls" -}}
+- name: CONSOLE_URL
+  value: {{ include "jitsu-dev.consoleUrl" . | quote }}
 - name: ROTOR_URL
   value: "http://rotor:3401"
 - name: BULKER_URL
@@ -80,5 +94,3 @@ Inter-service URLs (k8s service discovery)
 - name: SYNCCTL_URL
   value: "http://syncctl:3043"
 {{- end }}
-
-

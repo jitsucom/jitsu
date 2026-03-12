@@ -22,6 +22,7 @@ export function createClickhouseLogger(): EventsStore {
     username: chConfig.username,
     password: chConfig.password,
     database: chConfig.database,
+    request_timeout: 120_000,
     clickhouse_settings: {
       async_insert: 1,
       wait_for_async_insert: 0,

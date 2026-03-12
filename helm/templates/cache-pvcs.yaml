@@ -1,4 +1,5 @@
 # Persistent Volume Claims for build caching
+# These are pre-install hooks so they exist before the install job runs
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -6,6 +7,10 @@ metadata:
   name: go-cache
   labels:
     {{- include "jitsu-dev.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-install
+    "helm.sh/hook-weight": "-10"
+    "helm.sh/resource-policy": keep
 spec:
   accessModes:
     - ReadWriteOnce
@@ -19,6 +24,10 @@ metadata:
   name: node-cache
   labels:
     {{- include "jitsu-dev.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-install
+    "helm.sh/hook-weight": "-10"
+    "helm.sh/resource-policy": keep
 spec:
   accessModes:
     - ReadWriteOnce

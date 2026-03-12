@@ -50,8 +50,8 @@ type Config struct {
 	// Port for mongobetween to listen on (functions-server connects to this)
 	MongobetweenPort          int `mapstructure:"MONGOBETWEEN_PORT" default:"27017"`
 	MongoDBTimeoutMs          int `mapstructure:"MONGODB_TIMEOUT_MS" default:"1000"`
-	MongoDBMaxPoolSize        int `mapstructure:"MONGODB_MAX_POOL_SIZE" default:"20"`
-	MongoDBMaxPoolSizePremium int `mapstructure:"MONGODB_MAX_POOL_SIZE_PREMIUM" default:"50"`
+	MongoDBMaxPoolSize        int `mapstructure:"MONGODB_MAX_POOL_SIZE" default:"5"`
+	MongoDBMaxPoolSizePremium int `mapstructure:"MONGODB_MAX_POOL_SIZE_PREMIUM" default:"20"`
 
 	FastStoreWorkspaceIDs string `mapstructure:"FAST_STORE_WORKSPACE_IDS"` // comma-separated list of workspace IDs that should use mongobetween sidecar
 

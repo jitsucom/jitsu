@@ -18,75 +18,11 @@ spec:
         app.kubernetes.io/name: rotor
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
-      initContainers:
-        - name: install
-          image: node:24-bookworm-slim
-          workingDir: /cache/workspace
-          command:
-            - sh
-            - -c
-            - |
-              set -e
-              mkdir -p /cache/workspace
-
-              # Check if we need to rebuild by comparing pnpm-lock.yaml hash
-              LOCK_HASH=$(md5sum /project/pnpm-lock.yaml 2>/dev/null | cut -d' ' -f1 || echo "none")
-              CACHED_HASH=$(cat /cache/lock-hash 2>/dev/null || echo "")
-
-              if [ -d "/cache/workspace/node_modules" ] && [ "$LOCK_HASH" = "$CACHED_HASH" ]; then
-                echo "Cache hit! Syncing source files..."
-                # Install build tools needed for native modules (isolated-vm)
-                apt-get update && \
-                apt-get install -y ca-certificates python3 g++ make && \
-                rm -rf /var/lib/apt/lists/*
-                npm install -g pnpm
-                # Copy only source files that changed
-                cd /project && tar --exclude='node_modules' --exclude='.[^/]*' --exclude='*/node_modules' --exclude='docker/data' --exclude='*.log' -cf - . | tar -xf - -C /cache/workspace
-                cd /cache/workspace
-                echo "Rebuilding rotor..."
-                pnpm --filter=@jitsu-internal/rotor... run build
-              else
-                echo "Cache miss or lockfile changed. Full rebuild..."
-                echo "Installing build dependencies..."
-                apt-get update && \
-                apt-get install -y ca-certificates gnupg git curl python3 g++ make && \
-                rm -rf /var/lib/apt/lists/*
-
-                echo "Copying project files..."
-                rm -rf /cache/workspace/*
-                cd /project && tar --exclude='node_modules' --exclude='.[^/]*' --exclude='*/node_modules' --exclude='docker/data' --exclude='*.log' -cf - . | tar -xf - -C /cache/workspace
-
-                echo "Installing pnpm..."
-                npm install -g pnpm
-                cd /cache/workspace
-
-                echo "Running pnpm install..."
-                pnpm install
-
-                echo "Building rotor..."
-                pnpm --filter=@jitsu-internal/rotor... run build
-
-                # Save lock hash for next time
-                echo "$LOCK_HASH" > /cache/lock-hash
-              fi
-
-              echo "Install complete"
-          volumeMounts:
-            - name: project
-              mountPath: /project
-              readOnly: true
-            - name: node-cache
-              mountPath: /cache
-          env:
-            - name: npm_config_cache
-              value: /cache/npm
-            - name: PNPM_HOME
-              value: /cache/pnpm
       containers:
         - name: rotor
-          image: node:24-bookworm-slim
+          image: node:24-bookworm
           workingDir: /cache/workspace/services/rotor
-          command: ["node", "--no-node-snapshot", "--max-old-space-size=2048", "dist/main.js"]
+          command: ["npx", "tsx", "--no-node-snapshot", "--max-old-space-size=2048", "src/index.ts"]
           ports:
             - name: http
               containerPort: 3401
@@ -107,7 +43,6 @@ spec:
           volumeMounts:
             - name: node-cache
               mountPath: /cache
-              readOnly: true
           livenessProbe:
             httpGet:
               path: /health
@@ -121,10 +56,6 @@ spec:
             initialDelaySeconds: 30
             periodSeconds: 10
       volumes:
-        - name: project
-          hostPath:
-            path: {{ .Values.projectRoot }}
-            type: Directory
         - name: node-cache
           persistentVolumeClaim:
             claimName: node-cache

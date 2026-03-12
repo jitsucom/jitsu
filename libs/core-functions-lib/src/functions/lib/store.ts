@@ -148,6 +148,7 @@ export const createMemoryStore = (store: any): TTLStore => ({
       return value;
     }
   },
+  dump: () => memoryStoreDump(store),
 });
 
 export const memoryStoreDump = (store: any): any => {

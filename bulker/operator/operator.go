@@ -1255,6 +1255,10 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 				Name:  "MONGOBETWEEN_ALLOWED_COLLECTIONS_FILE",
 				Value: "/etc/mongobetween/allowed-collections.txt",
 			},
+			{
+				Name:  "MONGOBETWEEN_MAX_POOL_SIZE",
+				Value: fmt.Sprint(utils.Ternary(data.FunctionsClass == FunctionsClassPremium, o.config.MongoDBMaxPoolSizePremium, o.config.MongoDBMaxPoolSize)),
+			},
 		}
 
 		mongobetweenVolumeMounts := []corev1.VolumeMount{

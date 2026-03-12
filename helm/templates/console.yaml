@@ -1,0 +1,127 @@
+{{- if gt (int .Values.scaling.console.replicas) 0 }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: console
+  labels:
+    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    app.kubernetes.io/name: console
+spec:
+  replicas: {{ .Values.scaling.console.replicas }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: console
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: console
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: console
+          image: node:24-bookworm
+          workingDir: /cache/workspace/webapps/console
+          command:
+            - sh
+            - -c
+            - |
+              apt-get update -qq && apt-get install -y -qq rsync > /dev/null 2>&1
+
+              # Background rsync: every 2s, sync only actually changed files
+              (while true; do
+                sleep 2
+                rsync -a --checksum \
+                  --exclude='node_modules' --exclude='.next' --exclude='.turbo' \
+                  --exclude='docker/data' --exclude='*.log' \
+                  /project/webapps/ /cache/workspace/webapps/
+                rsync -a --checksum \
+                  --exclude='node_modules' \
+                  /project/libs/ /cache/workspace/libs/
+                rsync -a --checksum \
+                  --exclude='node_modules' \
+                  /project/types/ /cache/workspace/types/
+              done) &
+
+              cd /cache/workspace/webapps/console
+              exec npx next dev -H 0.0.0.0 -p 3000
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: jitsu-secrets
+          env:
+            {{- include "jitsu-dev.commonEnv" . | nindent 12 }}
+            {{- include "jitsu-dev.serviceUrls" . | nindent 12 }}
+            # Override K8s-injected *_PORT vars (tcp://...) that break zod number coercion
+            - name: BULKER_PORT
+              value: ""
+            - name: ROTOR_PORT
+              value: ""
+            - name: SYNCCTL_PORT
+              value: ""
+            - name: INGMGR_PORT
+              value: ""
+            {{- range $key, $value := .Values.env.console }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+          volumeMounts:
+            - name: project
+              mountPath: /project
+              readOnly: true
+            - name: node-cache
+              mountPath: /cache
+          livenessProbe:
+            httpGet:
+              path: /api/healthcheck
+              port: http
+            initialDelaySeconds: 120
+            periodSeconds: 15
+            timeoutSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /api/healthcheck
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 10
+          startupProbe:
+            httpGet:
+              path: /api/healthcheck
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 30
+      volumes:
+        - name: project
+          hostPath:
+            path: {{ .Values.projectRoot }}
+            type: Directory
+        - name: node-cache
+          persistentVolumeClaim:
+            claimName: node-cache
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: console
+  labels:
+    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    app.kubernetes.io/name: console
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 3000
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: console
+    app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
