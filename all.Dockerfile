@@ -16,7 +16,7 @@
 # ============================================================================
 # This stage provides the minimal Node.js runtime environment
 # Shared by all final service images (console, rotor, profiles)
-FROM node:24-bookworm-slim AS base
+FROM node:24-trixie-slim AS base
 
 WORKDIR /app
 
