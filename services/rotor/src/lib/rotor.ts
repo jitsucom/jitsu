@@ -263,6 +263,7 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
       if (metrics) {
         metrics.close();
       }
+      await producer?.flush({ timeout: 20000 });
       await producer?.disconnect();
       if (interval) {
         clearInterval(interval);

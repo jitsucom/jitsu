@@ -3,6 +3,7 @@ import { z } from "zod";
 import { Api, inferUrl, nextJsApiHandler, verifyAccessWithRole } from "../../../../lib/api";
 import { requireDefined, rpc } from "juava";
 import { getServerEnv } from "../../../../lib/server/serverEnv";
+import { db } from "../../../../lib/server/db";
 
 const log = getServerLog("function-run");
 
@@ -23,9 +24,42 @@ const resultType = z.object({
   store: z.record(z.any()),
   logs: z.array(z.any()),
   meta: z.any().nullish(),
+  backend: z.string().optional(),
 });
 
 export type FunctionRunType = z.infer<typeof resultType>;
+
+function extractFunctionsClasses(featuresEnabled: string[], defaultClass: string): string[] {
+  const prefix = "functionsClasses=";
+  for (const feature of featuresEnabled) {
+    if (feature.startsWith(prefix)) {
+      return feature
+        .substring(prefix.length)
+        .split(",")
+        .map(f => f.trim());
+    }
+  }
+  return [defaultClass];
+}
+
+function getUdfRunUrl(
+  workspaceId: string,
+  functionsClasses: string[],
+  serverEnv: ReturnType<typeof getServerEnv>
+): string {
+  const isLegacy = functionsClasses.includes("legacy") || functionsClasses.includes("");
+  if (isLegacy) {
+    const rotorURL = requireDefined(
+      serverEnv.ROTOR_URL,
+      `env ROTOR_URL is not set. Rotor is required to run functions`
+    );
+    return rotorURL + "/udfrun";
+  }
+  const functionsClass = functionsClasses[0];
+  const template = serverEnv.FUNCTIONS_SERVER_URL_TEMPLATE;
+  const baseUrl = template.replace("${workspaceId}", functionsClass === "free" ? "free" : workspaceId);
+  return baseUrl + "/udfrun";
+}
 
 export const api: Api = {
   url: inferUrl(__filename),
@@ -50,10 +84,25 @@ export const api: Api = {
       const { workspaceId } = query;
       await verifyAccessWithRole(user, workspaceId, "editEntities");
       const serverEnv = getServerEnv();
-      const rotorURL = requireDefined(
-        serverEnv.ROTOR_URL,
-        `env ROTOR_URL is not set. Rotor is required to run functions`
+
+      const workspace = await db.prisma().workspace.findFirst({
+        where: { id: workspaceId },
+        select: { featuresEnabled: true },
+      });
+      const functionsClasses = extractFunctionsClasses(
+        workspace?.featuresEnabled ?? [],
+        serverEnv.DEFAULT_FUNCTIONS_CLASS
       );
+      const url = getUdfRunUrl(workspaceId, functionsClasses, serverEnv);
+
+      log
+        .atInfo()
+        .log(
+          `Running function ${
+            body.functionId
+          } for workspace ${workspaceId} via ${url} (classes: ${functionsClasses.join(",")})`
+        );
+
       const rotorAuthKey = serverEnv.ROTOR_AUTH_KEY;
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
@@ -62,7 +111,7 @@ export const api: Api = {
         headers["Authorization"] = `Bearer ${rotorAuthKey}`;
       }
 
-      const res = await rpc(rotorURL + "/udfrun", {
+      const res = await rpc(url, {
         method: "POST",
         body: {
           ...body,

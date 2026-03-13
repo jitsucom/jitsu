@@ -1118,9 +1118,9 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 		replicas = o.config.MinReplicasPremium
 	}
 	volumes := make([]corev1.Volume, 0)
-	volumeMounts := make([]corev1.VolumeMount, 0)
+	initVolumeMounts := make([]corev1.VolumeMount, 0)
 
-	// Mount connections ConfigMaps as parts
+	// ConfigMap volumes are only mounted by the init container
 	// Files are stored with keys like ${workspaceId}__connections.json.gz
 	for i := 0; i < data.ConnectionsConfigMapCount; i++ {
 		volName := fmt.Sprintf("connections-%d", i)
@@ -1137,10 +1137,10 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 			},
 		})
 
-		// Mount connections ConfigMaps to /data/connections/part-{n}
-		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+		// Init container reads from /config-src/connections/part-{n}
+		initVolumeMounts = append(initVolumeMounts, corev1.VolumeMount{
 			Name:      volName,
-			MountPath: fmt.Sprintf("/data/connections/part-%d", i),
+			MountPath: fmt.Sprintf("/config-src/connections/part-%d", i),
 			ReadOnly:  true,
 		})
 	}
@@ -1162,12 +1162,32 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 			},
 		})
 
-		// Mount functions ConfigMaps to /data/functions/part-{n}
-		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+		// Init container reads from /config-src/functions/part-{n}
+		initVolumeMounts = append(initVolumeMounts, corev1.VolumeMount{
 			Name:      volName,
-			MountPath: fmt.Sprintf("/data/functions/part-%d", i),
+			MountPath: fmt.Sprintf("/config-src/functions/part-%d", i),
 			ReadOnly:  true,
 		})
+	}
+
+	// Writable emptyDir volume for config data (used by init container and main container)
+	volumes = append(volumes, corev1.Volume{
+		Name: "config-data",
+		VolumeSource: corev1.VolumeSource{
+			EmptyDir: &corev1.EmptyDirVolumeSource{},
+		},
+	})
+	// Init container writes to /data, main container reads from /data
+	initVolumeMounts = append(initVolumeMounts, corev1.VolumeMount{
+		Name:      "config-data",
+		MountPath: "/data",
+	})
+	// Main container only mounts the writable emptyDir - no ConfigMaps
+	volumeMounts := []corev1.VolumeMount{
+		{
+			Name:      "config-data",
+			MountPath: "/data",
+		},
 	}
 
 	_, fastStoreEnabled := o.fastStoreWorkspaceIDs[data.DeploymentID]
@@ -1213,6 +1233,31 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 		{
 			Name:  "MONGODB_MAX_POOL_SIZE",
 			Value: fmt.Sprint(utils.Ternary(data.FunctionsClass == FunctionsClassPremium, o.config.MongoDBMaxPoolSizePremium, o.config.MongoDBMaxPoolSize)),
+		},
+	}
+
+	// Init container: copies config data from ConfigMap volumes to writable emptyDir
+	// This allows the main container to delete config data after prebuilding function chains
+	initCopyScript := `#!/bin/sh
+set -e
+mkdir -p /data/connections /data/functions
+# Copy connections from all parts
+for dir in /config-src/connections/part-*; do
+  [ -d "$dir" ] && cp "$dir"/* /data/connections/ 2>/dev/null || true
+done
+# Copy functions from all parts
+for dir in /config-src/functions/part-*; do
+  [ -d "$dir" ] && cp "$dir"/* /data/functions/ 2>/dev/null || true
+done
+echo "Config data copied to /data"
+ls -la /data/connections/ /data/functions/ 2>/dev/null || true
+`
+	initContainers := []corev1.Container{
+		{
+			Name:         "copy-config",
+			Image:        "busybox:1.37",
+			Command:      []string{"sh", "-c", initCopyScript},
+			VolumeMounts: initVolumeMounts,
 		},
 	}
 
@@ -1351,6 +1396,7 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 	sec60 := int64(60)
 	podSpec := corev1.PodSpec{
 		TerminationGracePeriodSeconds: &sec60,
+		InitContainers:                initContainers,
 		Containers:                    containers,
 		Volumes:                       volumes,
 		NodeSelector:                  nodeSelector,

@@ -39,15 +39,17 @@ import isEqual from "lodash/isEqual";
 import { IngestMessage } from "@jitsu/protocols/async-request";
 import { parseUserAgent } from "@jitsu/core-functions-lib";
 import type { MongoClient } from "mongodb";
-import { Agent, setGlobalDispatcher } from "undici";
-import { runUdfInWorker } from "./lib/udf-worker-runner";
-import { compileUdfFunction } from "./lib/udf-shared";
-
-setGlobalDispatcher(
-  new Agent({
-    connections: 500, // per origin
-  })
-);
+import { compileUdfFunction, compileUdfToIIFE, UDF_TEMP_DIR } from "./lib/udf-shared";
+import type {
+  InitMessage,
+  ExecMessage,
+  ProxyResponseMessage,
+  WorkerConnectionInit,
+  WorkerFunctionInit,
+  ResultMessage,
+  WorkerToMainMessage,
+  StrippedConnectionConfig,
+} from "./lib/worker-protocol";
 
 const env = getServerEnv();
 const deploymentId = env.DEPLOYMENT_ID || os.hostname();
@@ -160,7 +162,7 @@ function setupMongoPoolMetrics(client: MongoClient) {
     } catch (_) {
       // ignore - topology may not be ready
     }
-  }, 5000).unref();
+  }, 5000);
 }
 
 const metricsPort = parseInt(env.ROTOR_METRICS_PORT || "9091");
@@ -173,12 +175,6 @@ type LoadedFunction = {
 };
 
 type FunctionChainContext = {
-  // log: {
-  //   info: (ctx: FunctionContext, message: string, ...args: any[]) => void | Promise<void>;
-  //   warn: (ctx: FunctionContext, message: string, ...args: any[]) => void | Promise<void>;
-  //   debug: (ctx: FunctionContext, message: string, ...args: any[]) => void | Promise<void>;
-  //   error: (ctx: FunctionContext, message: string, ...args: any[]) => void | Promise<void>;
-  // };
   store: TTLStore;
   query: (conId: string, query: string, params?: any) => Promise<any>;
   metrics?: FunctionMetrics;
@@ -188,6 +184,7 @@ type FunctionChainContext = {
 type FunctionChain = {
   context: FunctionChainContext;
   connectionId: string;
+  connection: StrippedConnectionConfig;
   functions: LoadedFunction[];
 };
 
@@ -281,7 +278,6 @@ async function loadFunctionsFromDir(dir: string, functions: Map<string, Function
 }
 
 // Load connections from a directory
-// Supports files with format: ${workspaceId}__connections.json.gz
 async function loadConnectionsFromDir(dir: string, connections: Map<string, EnrichedConnectionConfig>): Promise<void> {
   if (!fs.existsSync(dir)) return;
 
@@ -355,7 +351,34 @@ async function loadConfigsFromFiles(configDir: string): Promise<{
   return { connections, functions };
 }
 
-// Build function chain for a connection (UDF functions only)
+// Clear all contents of a directory (files and subdirectories)
+async function clearDirectory(dir: string, label: string): Promise<void> {
+  try {
+    if (!fs.existsSync(dir)) return;
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        fs.rmSync(fullPath, { recursive: true, force: true });
+      } else {
+        fs.unlinkSync(fullPath);
+      }
+    }
+    log.atInfo().log(`Cleared ${label}: ${dir} (${entries.length} entries removed)`);
+  } catch (e: any) {
+    log.atWarn().log(`Failed to clear ${label} (${dir}): ${e.message}`);
+  }
+}
+
+// Strip credentials from connection config (safe to store in chain / send to worker)
+function stripConnection(connection: EnrichedConnectionConfig): StrippedConnectionConfig {
+  const { credentials, credentialsHash, ...connWithoutCreds } = connection;
+  const strippedOptions = { ...connWithoutCreds.options };
+  delete strippedOptions.functionsEnv;
+  return { ...connWithoutCreds, options: strippedOptions };
+}
+
+// Build function chain for a connection (UDF functions only) — runs in main process
 async function buildFunctionChain(
   conEntityStore: EntityStore<EnrichedConnectionConfig>,
   connection: EnrichedConnectionConfig,
@@ -424,17 +447,23 @@ async function buildFunctionChain(
     store = createMemoryStore({});
   }
 
+  const isFreeClass = env.FUNCTIONS_CLASS === "free";
   const chainCtx: FunctionChainContext = {
     store,
-    query: async (conId: string, query: string, params: any) => {
-      return warehouseQuery(connection.workspaceId, conEntityStore, conId, query, params, storeMetrics);
-    },
+    query: isFreeClass
+      ? async () => {
+          throw new Error("Warehouse queries are not available on the free plan. Please upgrade to use this feature.");
+        }
+      : async (conId: string, query: string, params: any) => {
+          return warehouseQuery(connection.workspaceId, conEntityStore, conId, query, params, storeMetrics);
+        },
     connectionOptions: connectionData,
   };
 
   return {
     context: chainCtx,
     connectionId: connection.id,
+    connection: stripConnection(connection),
     functions: funcs,
   };
 }
@@ -613,16 +642,6 @@ async function runChain(
   return { connectionId: chain.connectionId, events, execLog, logs };
 }
 
-function safeCloseResponse(res: Response) {
-  try {
-    if (res?.body && !res.bodyUsed) {
-      res.body.cancel?.();
-    }
-  } catch (_) {
-    // ignore
-  }
-}
-
 // Map diff helper - optimizes response size by sending diffs when possible
 function mapDiff(originalEvent: AnyEvent, newEvents?: AnyEvent[]) {
   if (!newEvents) {
@@ -680,7 +699,7 @@ async function parseBody(req: http.IncomingMessage): Promise<any> {
 // Create event context from IngestMessage and connection (compatible with FunctionsHandlerMulti)
 function createEventContextFromMessage(
   message: IngestMessage,
-  connection: EnrichedConnectionConfig,
+  connection: StrippedConnectionConfig,
   retries: number = 0
 ): EventContext {
   return {
@@ -709,6 +728,392 @@ function createEventContextFromMessage(
       id: connection.workspaceId,
     },
   };
+}
+
+// ── Workspace Worker management (Deno Web Workers with permissions: "none") ──
+
+type WorkspaceWorker = {
+  worker: Worker;
+  pending: Map<string, { resolve: (v: any) => void; reject: (e: Error) => void }>;
+  ready: Promise<void>;
+};
+
+const workspaceWorkers = new Map<string, WorkspaceWorker>();
+// connectionId → workspaceId mapping (for free tier worker dispatch)
+const connectionToWorkspace = new Map<string, string>();
+
+function getWorkerUrl(): string {
+  return new URL("./workspace-worker.mjs", import.meta.url).href;
+}
+
+function createWorkspaceWorker(
+  workspaceId: string,
+  connections: WorkerConnectionInit[],
+  store: TTLStore,
+  conEntityStore: EntityStore<EnrichedConnectionConfig>
+): WorkspaceWorker {
+  const worker = new Worker(getWorkerUrl(), {
+    type: "module",
+    // @ts-ignore Deno-specific option for sandboxing
+    deno: { permissions: "none" },
+  });
+
+  const pendingExec = new Map<string, { resolve: (v: any) => void; reject: (e: Error) => void }>();
+  let readyResolve: () => void;
+  const readyPromise = new Promise<void>(resolve => {
+    readyResolve = resolve;
+  });
+
+  const fetchImpl = makeFetch(
+    `ws-${workspaceId}`,
+    { log() {}, close() {}, deadLetter() {} },
+    "info",
+    parseNumber(env.FETCH_TIMEOUT_MS, 2000)
+  );
+
+  worker.onmessage = async (e: MessageEvent<WorkerToMainMessage>) => {
+    const msg = e.data;
+
+    if (msg.type === "ready") {
+      readyResolve!();
+      return;
+    }
+
+    if (msg.type === "result") {
+      const p = pendingExec.get(msg.requestId);
+      if (p) {
+        pendingExec.delete(msg.requestId);
+        p.resolve(msg);
+      }
+      return;
+    }
+
+    if (msg.type === "log") {
+      return; // fire-and-forget
+    }
+
+    if (msg.type === "debug") {
+      log.atInfo().log(`[Worker ${workspaceId} DEBUG] ${JSON.stringify(msg.value)}`);
+      return; // fire-and-forget
+    }
+
+    if (msg.type === "proxyRequest") {
+      const { callId, method, args } = msg;
+      try {
+        let result: any;
+        if (method.startsWith("store.")) {
+          const op = method.split(".")[1];
+          result = await (store as any)[op](...args);
+        } else if (method === "fetch") {
+          const [url, init] = args;
+          const res = await fetchImpl(url, init);
+          const headers: Record<string, string> = {};
+          res.headers.forEach((v: string, k: string) => {
+            headers[k] = v;
+          });
+          result = {
+            status: res.status,
+            statusText: res.statusText,
+            ok: res.ok,
+            url: res.url,
+            type: res.type,
+            redirected: res.redirected,
+            headers,
+            body: await res.text(),
+          };
+        } else if (method === "warehouse.query") {
+          const [destinationId, sql, params] = args;
+          const storeMetrics: StoreMetrics = {
+            storeStatus: (ns, op, st) => promStoreStatuses.labels(deploymentId, ns, op, st).inc(),
+            warehouseStatus: (id, tbl, st, ms) =>
+              promWarehouseStatuses.labels(deploymentId, id, tbl, st).observe(ms / 1000),
+          };
+          result = await warehouseQuery(workspaceId, conEntityStore, destinationId, sql, params, storeMetrics);
+        }
+        const response: ProxyResponseMessage = { type: "proxyResponse", callId, result };
+        worker.postMessage(response);
+      } catch (err: any) {
+        const response: ProxyResponseMessage = { type: "proxyResponse", callId, error: err.message };
+        worker.postMessage(response);
+      }
+    }
+  };
+
+  worker.onerror = e => {
+    log.atError().log(`Worker error for workspace ${workspaceId}: ${e.message}`);
+  };
+
+  // Send init message
+  const initMsg: InitMessage = { type: "init", connections };
+  worker.postMessage(initMsg);
+
+  return { worker, pending: pendingExec, ready: readyPromise };
+}
+
+async function execInWorker(
+  ws: WorkspaceWorker,
+  connectionId: string,
+  event: AnyEvent,
+  eventContext: EventContext,
+  fetchTimeoutMs: number
+): Promise<ResultMessage> {
+  await ws.ready;
+  const requestId = crypto.randomUUID();
+  return new Promise((resolve, reject) => {
+    ws.pending.set(requestId, { resolve, reject });
+    const execMsg: ExecMessage = {
+      type: "exec",
+      requestId,
+      connectionId,
+      event,
+      eventContext: JSON.parse(JSON.stringify(eventContext)),
+      fetchTimeoutMs,
+    };
+    ws.worker.postMessage(execMsg);
+  });
+}
+
+// ── /udfrun: run a single UDF in a temporary Deno Web Worker ──
+async function runUdfInWorker(
+  request: any,
+  store: TTLStore,
+  conEntityStore: EntityStore<EnrichedConnectionConfig>
+): Promise<any> {
+  const logs: any[] = [];
+  const udfTimeoutMs = parseNumber(env.UDF_TIMEOUT_MS, 5000);
+  const dumpStore = () => (typeof (store as any).dump === "function" ? (store as any).dump() : {});
+
+  try {
+    const iifeCode = await compileUdfToIIFE(request.code, request.functionId, request.variables);
+
+    const eventContext: EventContext = {
+      receivedAt: new Date(),
+      geo: {
+        country: { code: "US", name: "United States", isEU: false },
+        city: { name: "New York" },
+        region: { code: "NY", name: "New York" },
+        location: { latitude: 40.6808, longitude: -73.9701 },
+        postalCode: { code: "11238" },
+      },
+      ua: parseUserAgent(
+        request.event?.context?.userAgent ||
+          request.userAgent ||
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36"
+      ),
+      headers: {
+        host: "example.com",
+        "user-agent":
+          request.event?.context?.userAgent ||
+          request.userAgent ||
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36",
+        accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "accept-language": "en-US,en;q=0.9",
+        "accept-encoding": "gzip, deflate, br",
+        connection: "keep-alive",
+        referer: "https://example.com/",
+        origin: "https://example.com",
+      },
+      source: {
+        id: "functionsDebugger-streamId",
+        name: "Functions Debugger Stream",
+        type: "browser",
+      },
+      destination: {
+        id: "functionsDebugger-destinationId",
+        type: "clickhouse",
+        updatedAt: new Date(),
+        hash: "hash",
+      },
+      connection: {
+        id: "functionsDebugger",
+      },
+      workspace: {
+        id: request.workspaceId,
+      },
+    };
+
+    const connectionInit: WorkerConnectionInit = {
+      connectionId: "udfrun",
+      connection: {
+        id: "udfrun",
+        workspaceId: request.workspaceId,
+        streamId: "udfrun-stream",
+        streamName: "UDF Runner",
+        destinationId: "udfrun-dest",
+        type: "clickhouse",
+        updatedAt: new Date(),
+        usesBulker: false,
+        metricsKeyPrefix: "udfrun",
+        options: {},
+        optionsHash: "",
+      },
+      functions: [{ id: `udf.${request.functionId}`, iifeCode }],
+      warehouseEnabled: env.FUNCTIONS_CLASS !== "free",
+      props: request.variables || {},
+    };
+
+    const worker = new Worker(getWorkerUrl(), {
+      type: "module",
+      // @ts-ignore Deno-specific
+      deno: { permissions: "none" },
+    });
+
+    const fetchImpl = makeFetch(
+      "functionsDebugger",
+      {
+        log(connectionId: string, level: LogLevel, msg: Record<string, any>) {
+          let statusText;
+          if (msg.error) {
+            statusText = `${msg.error}`;
+          } else {
+            statusText = `${msg.statusText ?? ""}${msg.status ? `(${msg.status})` : ""}`;
+          }
+          logs.push({
+            message: `${msg.method} ${msg.url} :: ${statusText}`,
+            level: msg.error ? "error" : "debug",
+            timestamp: new Date(),
+            type: "http",
+          });
+        },
+        close() {},
+        deadLetter() {},
+      },
+      "info"
+    );
+
+    const result = await new Promise<any>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        worker.terminate();
+        resolve({
+          error: { message: `Function execution timed out after ${udfTimeoutMs}ms`, name: "TimeoutError" },
+          result: {},
+          store: dumpStore(),
+          logs,
+        });
+      }, udfTimeoutMs);
+
+      worker.onmessage = async (e: MessageEvent) => {
+        const msg = e.data;
+
+        if (msg.type === "ready") {
+          worker.postMessage({
+            type: "exec",
+            requestId: "udfrun-1",
+            connectionId: "udfrun",
+            event: request.event,
+            eventContext: JSON.parse(JSON.stringify(eventContext)),
+            fetchTimeoutMs: parseNumber(env.FETCH_TIMEOUT_MS, 2000),
+          } as ExecMessage);
+          return;
+        }
+
+        if (msg.type === "log") {
+          logs.push({
+            message: msg.message + (Array.isArray(msg.args) && msg.args.length > 0 ? `, ${msg.args.join(",")}` : ""),
+            level: msg.level,
+            timestamp: new Date(msg.timestamp),
+            type: "log",
+          });
+          return;
+        }
+
+        if (msg.type === "result") {
+          clearTimeout(timer);
+          worker.terminate();
+          const hasError = msg.execLog?.some((e: any) => e.error);
+          if (hasError) {
+            const err = msg.execLog.find((e: any) => e.error)?.error;
+            resolve({
+              error: { message: err.message, stack: err.stack, name: err.name, retryPolicy: err.retryPolicy },
+              result: {},
+              store: dumpStore(),
+              logs,
+            });
+          } else {
+            const dropped = msg.events.length === 0;
+            resolve({
+              dropped,
+              result: dropped ? {} : msg.events.length === 1 ? msg.events[0] : msg.events,
+              store: dumpStore(),
+              logs,
+            });
+          }
+          return;
+        }
+
+        if (msg.type === "proxyRequest") {
+          const { callId, method, args } = msg;
+          try {
+            let result: any;
+            if (method.startsWith("store.")) {
+              const op = method.split(".")[1];
+              result = await (store as any)[op](...args);
+            } else if (method === "fetch") {
+              const [url, init] = args;
+              const res = await fetchImpl(url, init);
+              const responseHeaders: Record<string, string> = {};
+              res.headers.forEach((v: string, k: string) => {
+                responseHeaders[k] = v;
+              });
+              result = {
+                status: res.status,
+                statusText: res.statusText,
+                ok: res.ok,
+                url: res.url,
+                type: res.type,
+                redirected: res.redirected,
+                headers: responseHeaders,
+                body: await res.text(),
+              };
+            } else if (method === "warehouse.query") {
+              if (env.FUNCTIONS_CLASS === "free") {
+                throw new Error("Warehouse queries are not available on the free plan.");
+              }
+              const [destinationId, sql, params] = args;
+              result = await warehouseQuery(request.workspaceId, conEntityStore, destinationId, sql, params);
+            }
+            worker.postMessage({ type: "proxyResponse", callId, result } as ProxyResponseMessage);
+          } catch (err: any) {
+            worker.postMessage({ type: "proxyResponse", callId, error: err.message } as ProxyResponseMessage);
+          }
+          return;
+        }
+      };
+
+      worker.onerror = (err: ErrorEvent) => {
+        clearTimeout(timer);
+        resolve({
+          error: { message: err.message, name: "WorkerError" },
+          result: {},
+          store: dumpStore(),
+          logs,
+        });
+      };
+
+      worker.postMessage({ type: "init", connections: [connectionInit] } as InitMessage);
+    });
+
+    return result;
+  } catch (e: any) {
+    if (e.errors && Array.isArray(e.errors)) {
+      const errorMessages = e.errors.map((err: any) => err.text).join("\n");
+      return {
+        error: {
+          message: `Failed to compile function ${request.functionId}:\n${errorMessages}`,
+          name: "CompilationError",
+        },
+        result: {},
+        store: dumpStore(),
+        logs,
+      };
+    }
+    return {
+      error: { message: e.message, name: e.name || "Error", stack: e.stack },
+      result: {},
+      store: dumpStore(),
+      logs,
+    };
+  }
 }
 
 async function main() {
@@ -743,55 +1148,117 @@ async function main() {
   // Function chains cache - stores promises to avoid parallel builds for the same connection
   let chains = new Map<string, Promise<FunctionChain | undefined>>();
 
-  // Prebuild function chains for all connections at startup (for non-free tier servers)
-  // This ensures UDF compilation happens during startup rather than on first request
-  const functionsClass = env.FUNCTIONS_CLASS;
-  if (functionsClass && functionsClass !== "free" && connections.size > 0) {
-    log
-      .atInfo()
-      .log(`Prebuilding function chains for ${connections.size} connections (functions class: ${functionsClass})...`);
-    const prebuildStart = Date.now();
+  const isFreeClass = env.FUNCTIONS_CLASS === "free";
+
+  if (isFreeClass) {
+    // Free tier: compile UDFs to IIFE strings and spawn one Deno Web Worker per workspace.
+    // Workers run with permissions: "none" — all I/O is proxied back to the main process.
+    const workspaceConnections = new Map<string, WorkerConnectionInit[]>();
 
     for (const [connectionId, connection] of connections) {
-      await buildFunctionChain(conEntityStore, connection, functions)
-        .then(chain => {
-          log.atInfo().log(`✓ Prebuilt chain for connection: ${connectionId} (${chain.functions.length} functions)`);
-          chains.set(connectionId, Promise.resolve(chain));
-        })
-        .catch(e => {
-          log.atError().log(`✗ Failed to prebuild chain for ${connectionId}: ${e.message}`);
-          chains.set(connectionId, Promise.resolve(undefined));
-        });
-    }
+      const wsId = connection.workspaceId;
+      if (!workspaceConnections.has(wsId)) {
+        workspaceConnections.set(wsId, []);
+      }
 
-    const prebuildMs = Date.now() - prebuildStart;
-    log.atInfo().log(`Prebuilt ${chains.size} function chains in ${prebuildMs}ms`);
-  }
+      const connectionData = connection.options as any;
+      const udfs = (connectionData?.functions || []).filter((f: any) => f.functionId.startsWith("udf."));
+      const workerFuncs: WorkerFunctionInit[] = [];
 
-  // Get or build chain for a connection (lazy loading with single-flight pattern)
-  async function getOrBuildChain(connectionId: string): Promise<FunctionChain | undefined> {
-    const connection = connections.get(connectionId);
-    if (!connection) {
-      return undefined;
-    }
+      for (const f of udfs) {
+        const functionId = f.functionId.substring(4);
+        const funcConfig = functions.get(functionId);
+        if (funcConfig && funcConfig.code) {
+          try {
+            const iifeCode = await compileUdfToIIFE(funcConfig.code, functionId, connectionData.functionsEnv);
+            workerFuncs.push({ id: f.functionId, iifeCode });
+            log.atDebug().log(`  ✓ Compiled UDF to IIFE: ${functionId}`);
+          } catch (e: any) {
+            log.atError().log(`  ✗ Failed to compile UDF ${functionId}: ${e.message}`);
+            const errorIife = `var __udf = { default: async function() { throw new Error(${JSON.stringify(
+              e.message
+            )}); } };`;
+            workerFuncs.push({ id: f.functionId, iifeCode: errorIife });
+          }
+        } else {
+          const msg = `Function ${functionId} not found or has no code`;
+          log.atWarn().log(msg);
+          const errorIife = `var __udf = { default: async function() { throw new Error(${JSON.stringify(msg)}); } };`;
+          workerFuncs.push({ id: f.functionId, iifeCode: errorIife });
+        }
+      }
 
-    const cached = chains.get(connectionId);
-    if (cached) {
-      return cached;
-    }
-
-    const buildPromise = buildFunctionChain(conEntityStore, connection, functions)
-      .then(chain => {
-        log.atInfo().log(`✓ Built chain for connection: ${connectionId} (${chain.functions.length} functions)`);
-        return chain;
-      })
-      .catch(e => {
-        log.atError().log(`✗ Failed to build chain for ${connectionId}: ${e.message}`);
-        return undefined;
+      workspaceConnections.get(wsId)!.push({
+        connectionId,
+        connection: stripConnection(connection),
+        functions: workerFuncs,
+        warehouseEnabled: false,
+        debugTill: connectionData?.debugTill,
+        fetchLogLevel: connectionData?.fetchLogLevel,
+        props: connectionData?.functionsEnv || {},
       });
 
-    chains.set(connectionId, buildPromise);
-    return buildPromise;
+      connectionToWorkspace.set(connectionId, wsId);
+    }
+
+    // Spawn one worker per workspace
+    for (const [wsId, conns] of workspaceConnections) {
+      log.atInfo().log(`Spawning worker for workspace ${wsId} (${conns.length} connections)`);
+      const storeMetrics: StoreMetrics = {
+        storeStatus: (ns, op, st) => promStoreStatuses.labels(deploymentId, ns, op, st).inc(),
+        warehouseStatus: (id, tbl, st, ms) =>
+          promWarehouseStatuses.labels(deploymentId, id, tbl, st).observe(ms / 1000),
+      };
+      const store = env.MONGODB_URL
+        ? createMongoStore(wsId, mongodb, false, isTruish(env.FAST_STORE), storeMetrics)
+        : createMemoryStore({});
+
+      try {
+        const ws = createWorkspaceWorker(wsId, conns, store, conEntityStore);
+        workspaceWorkers.set(wsId, ws);
+      } catch (e: any) {
+        log.atError().log(`Failed to spawn worker for workspace ${wsId}: ${e.message}`);
+      }
+    }
+
+    log.atInfo().log(`Spawned ${workspaceWorkers.size} workspace workers`);
+  } else {
+    // Non-free: prebuild function chains in main process (same as before)
+    if (connections.size > 0) {
+      log.atInfo().log(`Prebuilding function chains for ${connections.size} connections...`);
+      const prebuildStart = Date.now();
+
+      for (const [connectionId, connection] of connections) {
+        await buildFunctionChain(conEntityStore, connection, functions)
+          .then(chain => {
+            log.atInfo().log(`✓ Prebuilt chain for connection: ${connectionId} (${chain.functions.length} functions)`);
+            chains.set(connectionId, Promise.resolve(chain));
+          })
+          .catch(e => {
+            log.atError().log(`✗ Failed to prebuild chain for ${connectionId}: ${e.message}`);
+            chains.set(connectionId, Promise.resolve(undefined));
+          });
+      }
+
+      const prebuildMs = Date.now() - prebuildStart;
+      log.atInfo().log(`Prebuilt ${chains.size} function chains in ${prebuildMs}ms`);
+    }
+  }
+
+  // Functions map is no longer needed after prebuilding (code is compiled into chains)
+  functions.clear();
+  log.atInfo().log(`Cleared functions map`);
+
+  if (isFreeClass) {
+    await clearDirectory(configDir, "CONFIG_DIR");
+    await clearDirectory(UDF_TEMP_DIR, "UDF_TEMP_DIR");
+    connections.clear();
+    log.atInfo().log(`Cleared connections map and config directories (free deployment)`);
+  }
+
+  // Get prebuilt chain for a connection (no lazy loading)
+  function getChain(connectionId: string): Promise<FunctionChain | undefined> | undefined {
+    return chains.get(connectionId);
   }
 
   // HTTP response helpers
@@ -811,6 +1278,7 @@ async function main() {
       configDir,
       connections: Array.from(connections.keys()),
       cachedChains: Array.from(chains.keys()),
+      workers: Array.from(workspaceWorkers.keys()),
     });
   }
 
@@ -834,69 +1302,79 @@ async function main() {
       return "";
     }
 
-    // actorId = streamId of first connection (for metrics)
-    const firstConnection = connections.get(connectionIds[0]);
-    const actorId = firstConnection?.streamId || connectionIds[0] || "";
-
     const message = (await parseBody(req)) as IngestMessage;
-
-    // Extract event from IngestMessage (handle classic format conversion)
     const event = message.httpPayload;
-
-    // Ensure event has context
     if (!event.context) {
       event.context = {};
     }
+
     type StrictFuncChainResult = Required<FuncChainResultWithLogs>;
 
+    // actorId = streamId of first connection (for metrics)
+    let actorId = connectionIds[0] || "";
+    if (!isFreeClass) {
+      const firstChain = await getChain(connectionIds[0]);
+      actorId = firstChain?.connection?.streamId || actorId;
+    }
+
+    const functionsFetchTimeout = req.headers["x-request-timeout-ms"]
+      ? parseNumber(req.headers["x-request-timeout-ms"] as string, 2000)
+      : parseNumber(env.FETCH_TIMEOUT_MS, 2000);
+
     // Process all connections in parallel
-    const promises = connectionIds.map(async connectionId => {
-      const connection = connections.get(connectionId);
-      if (!connection) {
-        log.atError().log(`[multi] Connection '${connectionId}' not found`);
-        return {
-          connectionId,
-          execLog: [
-            {
-              error: { message: `Connection '${connectionId}' not found`, name: NoRetryErrorName },
-              ms: 0,
-              eventIndex: 0,
-              functionId: "",
-            },
-          ],
-          logs: [],
-          events: [],
-        } as StrictFuncChainResult;
-      }
-
-      const chain = await getOrBuildChain(connectionId);
-      if (!chain) {
-        log.atError().log(`[multi] Failed to build chain for connection '${connectionId}'`);
-        return {
-          connectionId,
-          execLog: [
-            {
-              error: { message: "Internal Functions Error: please contact support", name: NoRetryErrorName },
-              ms: 0,
-              eventIndex: 0,
-              functionId: "",
-            },
-          ],
-          events: [],
-          logs: [],
-        } as StrictFuncChainResult;
-      }
-
-      // Create EventContext from IngestMessage (same as message-handler.ts)
-      const eventContext = createEventContextFromMessage(message, connection, 0);
-      const functionsFetchTimeout = req.headers["x-request-timeout-ms"]
-        ? parseNumber(req.headers["x-request-timeout-ms"] as string, 2000)
-        : parseNumber(env.FETCH_TIMEOUT_MS, 2000);
+    const promises = connectionIds.map(async (connectionId): Promise<StrictFuncChainResult> => {
       try {
-        const result = await runChain(chain, event, eventContext, functionsFetchTimeout);
-        const totalMs = result.execLog.reduce((sum, e) => sum + (e.ms || 0), 0);
-        log.atDebug().log(`← ${connectionId} (${chain.functions.length} functions) completed in ${totalMs}ms`);
-        return result;
+        if (isFreeClass) {
+          // Dispatch to workspace worker
+          const wsId = connectionToWorkspace.get(connectionId)!;
+          const ws = wsId ? workspaceWorkers.get(wsId) : undefined;
+          if (!ws) {
+            return {
+              connectionId,
+              events: [],
+              execLog: [
+                {
+                  error: { message: `Connection '${connectionId}' not found`, name: NoRetryErrorName },
+                  ms: 0,
+                  eventIndex: 0,
+                  functionId: "",
+                },
+              ],
+              logs: [],
+            } as StrictFuncChainResult;
+          }
+          const eventContext = createEventContextFromMessage(message, { id: connectionId } as StrippedConnectionConfig);
+          const resultMsg = await execInWorker(ws, connectionId, event, eventContext, functionsFetchTimeout);
+          return {
+            connectionId: resultMsg.connectionId,
+            events: resultMsg.events,
+            execLog: resultMsg.execLog,
+            logs: resultMsg.logs.map((l: any) => ({ ...l, timestamp: new Date(l.timestamp) })),
+          };
+        } else {
+          // Run in main process
+          const chain = await getChain(connectionId);
+          if (!chain) {
+            return {
+              connectionId,
+              events: [],
+              execLog: [
+                {
+                  error: { message: `Connection '${connectionId}' not found`, name: NoRetryErrorName },
+                  ms: 0,
+                  eventIndex: 0,
+                  functionId: "",
+                },
+              ],
+              logs: [],
+            } as StrictFuncChainResult;
+          }
+          const eventContext = createEventContextFromMessage(message, chain.connection, 0);
+          const result = await runChain(chain, event, eventContext, functionsFetchTimeout);
+          const totalMs = result.execLog.reduce((sum, e) => sum + (e.ms || 0), 0);
+          log.atDebug().log(`← ${connectionId} (${chain.functions.length} functions) completed in ${totalMs}ms`);
+          return result;
+        }
       } catch (e: any) {
         const errorMessage = `${e.name}: ${e.message}`;
         log.atError().log(`[multi] Error processing connection ${connectionId}: ${errorMessage}`);
@@ -937,29 +1415,15 @@ async function main() {
     res: http.ServerResponse,
     connectionId: string
   ): Promise<string> {
-    const connection = connections.get(connectionId);
-    if (!connection) {
-      sendError(res, 404, `Connection '${connectionId}' not found`);
-      return connectionId;
-    }
-
-    const chain = await getOrBuildChain(connectionId);
-    if (!chain) {
-      sendError(res, 500, `Failed to build chain for connection '${connectionId}'`);
-      return connectionId;
-    }
-
     if (req.method !== "POST") {
       sendError(res, 405, "Method not allowed. Use POST.");
       return connectionId;
     }
 
     const body = await parseBody(req);
-
     const event = body.event as AnyEvent;
     const eventContext = body.context as EventContext;
 
-    // Parse receivedAt from string if needed (JSON serialization converts Date to string)
     if (eventContext?.receivedAt && typeof eventContext.receivedAt === "string") {
       eventContext.receivedAt = new Date(eventContext.receivedAt);
     }
@@ -971,13 +1435,34 @@ async function main() {
       ? parseNumber(req.headers["x-request-timeout-ms"] as string, 2000)
       : parseNumber(env.FETCH_TIMEOUT_MS, 2000);
 
-    const result = await runChain(chain, event, eventContext, functionsFetchTimeout);
-    recordChainResultMetrics(result);
+    if (isFreeClass) {
+      const wsId = connectionToWorkspace.get(connectionId);
+      const ws = wsId ? workspaceWorkers.get(wsId) : undefined;
+      if (!ws) {
+        sendError(res, 404, `Connection '${connectionId}' not found`);
+        return connectionId;
+      }
+      const resultMsg = await execInWorker(ws, connectionId, event, eventContext, functionsFetchTimeout);
+      const result: FuncChainResultWithLogs = {
+        connectionId: resultMsg.connectionId,
+        events: resultMsg.events,
+        execLog: resultMsg.execLog,
+        logs: resultMsg.logs.map((l: any) => ({ ...l, timestamp: new Date(l.timestamp) })),
+      };
+      sendJson(res, 200, result);
+    } else {
+      const chain = await getChain(connectionId);
+      if (!chain) {
+        sendError(res, 404, `Connection '${connectionId}' not found`);
+        return connectionId;
+      }
+      const result = await runChain(chain, event, eventContext, functionsFetchTimeout);
+      recordChainResultMetrics(result);
+      const totalMs = result.execLog.reduce((sum, e) => sum + (e.ms || 0), 0);
+      log.atDebug().log(`← ${connectionId} (${chain.functions.length} functions) completed in ${totalMs}ms`);
+      sendJson(res, 200, result);
+    }
 
-    const totalMs = result.execLog.reduce((sum, e) => sum + (e.ms || 0), 0);
-    log.atDebug().log(`← ${connectionId} (${chain.functions.length} functions) completed in ${totalMs}ms`);
-
-    sendJson(res, 200, result);
     return connectionId;
   }
 
@@ -988,7 +1473,6 @@ async function main() {
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-    // During shutdown, tell clients to close connections so they reconnect to healthy pods
     if (isShuttingDown) {
       res.setHeader("Connection", "close");
     }
@@ -1009,7 +1493,6 @@ async function main() {
         return;
       }
 
-      // Determine endpoint label for metrics
       const endpoint = pathname === "/multi" ? "multi" : pathname.startsWith("/connection/") ? "connection" : "other";
       const sw = stopwatch();
       promConcurrentRequests.labels(deploymentId, endpoint).inc();
@@ -1065,6 +1548,9 @@ async function main() {
   server.listen(port, () => {
     log.atInfo().log(`Server running at http://localhost:${port}`);
     log.atInfo().log(`Available connections: ${connections.size}`);
+    if (isFreeClass) {
+      log.atInfo().log(`Workspace workers: ${workspaceWorkers.size}`);
+    }
   });
 
   // Metrics HTTP server (separate port, same as rotor)
@@ -1096,12 +1582,17 @@ async function main() {
     setTimeout(() => {
       log.atWarn().log(`Forcing exit after ${forceExitTimeout}ms timeout`);
       process.exit(1);
-    }, forceExitTimeout).unref();
+    }, forceExitTimeout);
 
     // wait some seconds for connections to drain before shutting down metrics server
     const extraDelay = env.SHUTDOWN_EXTRA_DELAY_SEC ? 1000 * parseInt(env.SHUTDOWN_EXTRA_DELAY_SEC) : 5000;
     setTimeout(() => {
-      // Stop accepting new connections
+      // Terminate all workspace workers
+      for (const [wsId, ws] of workspaceWorkers) {
+        ws.worker.terminate();
+        log.atInfo().log(`Terminated worker for workspace ${wsId}`);
+      }
+
       server.close(err => {
         if (err) {
           log.atError().log(`Error during server close:`, err);
@@ -1118,6 +1609,6 @@ async function main() {
 }
 
 main().catch(e => {
-  log.atError().log("Fatal error:", e);
+  log.atError().withCause(e).log("Fatal error");
   process.exit(1);
 });
