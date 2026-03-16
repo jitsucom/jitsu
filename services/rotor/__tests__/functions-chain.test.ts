@@ -345,6 +345,7 @@ const messageId = "message1";
 const testModes: Array<{ name: string; functionsClass: string }> = [
   { name: "legacy", functionsClass: "legacy" },
   { name: "free", functionsClass: "free" },
+  { name: "dedicated", functionsClass: "dedicated" },
 ];
 
 describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName, functionsClass }) => {
@@ -353,6 +354,7 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
   let lastError: any;
   const counters: Record<string, number> = {};
   let originalEnv: string | undefined;
+  const webhookServerPort = 3089 + (functionsClass === "free" ? 100 : functionsClass === "dedicated" ? 200 : 0);
 
   function testName() {
     const currentTestName = expect.getState().currentTestName as string;
@@ -366,7 +368,7 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
     originalEnv = process.env.FUNCTIONS_SERVER_URL_TEMPLATE;
 
     // Set up functions server for "free" mode
-    if (functionsClass === "free") {
+    if (functionsClass === "free" || functionsClass === "dedicated") {
       const configDir = path.join(os.tmpdir(), `rotor-test-${Date.now()}`);
 
       // Write test configs
@@ -375,6 +377,8 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         connections as unknown as Record<string, EnrichedConnectionConfig>,
         functions as unknown as Record<string, FunctionConfig>
       );
+
+      process.env.FUNCTIONS_CLASS = functionsClass;
 
       // Start functions server
       const fsPort = 3457 + Math.floor(Math.random() * 100);
@@ -413,7 +417,7 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
     };
 
     webhookServer = await createServer({
-      port: 3089 + (functionsClass === "free" ? 100 : 0), // Use different port for each mode
+      port: webhookServerPort,
       https: false,
       handlers: {
         "/simple": handlerF("simple"),
@@ -440,6 +444,7 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
     } else {
       delete process.env.FUNCTIONS_SERVER_URL_TEMPLATE;
     }
+    delete process.env.FUNCTIONS_CLASS;
     // Reset cache so original env value is restored
     resetServerEnvCache();
 
@@ -462,7 +467,6 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
 
   // Update connection URLs to use the correct webhook server port and add functionsClasses
   function getConnectionStoreForMode(): EntityStore<EnrichedConnectionConfig> {
-    const portOffset = functionsClass === "free" ? 100 : 0;
     return {
       getObject: (id: string) => {
         const conn = connections[id];
@@ -472,7 +476,7 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
           ...conn,
           credentials: {
             ...conn.credentials,
-            url: conn.credentials.url.replace(":3089", `:${3089 + portOffset}`),
+            url: conn.credentials.url.replace(":3089", `:${webhookServerPort}`),
           },
           options: {
             ...conn.options,
@@ -489,7 +493,7 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
             ...conn,
             credentials: {
               ...conn.credentials,
-              url: conn.credentials.url.replace(":3089", `:${3089 + portOffset}`),
+              url: conn.credentials.url.replace(":3089", `:${webhookServerPort}`),
             },
             options: {
               ...conn.options,

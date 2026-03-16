@@ -1308,7 +1308,6 @@ async function main() {
   server.listen(port, () => {
     log.atInfo().log(`Server running at http://localhost:${port}`);
     log.atInfo().log(`Runtimes: ${runtimes.size} (mode: ${isFreeClass ? "worker" : "in-process"})`);
-    log.atInfo().log(`Available connections: ${connections.size}`);
   });
 
   // Metrics HTTP server (separate port, same as rotor)

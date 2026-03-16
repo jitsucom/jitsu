@@ -3,10 +3,14 @@ FROM node:24-bookworm-slim
 # Install Node.js 24 manually from NodeSource + all runtime dependencies
 # This includes everything needed for building AND running the final images
 RUN apt-get update && \
-    apt-get install -y ca-certificates gnupg git curl telnet python3 g++ make jq nano cron bash netcat-traditional procps && \
+    apt-get install -y ca-certificates gnupg git curl telnet python3 g++ make jq nano cron bash netcat-traditional procps unzip && \
     rm -rf /var/lib/apt/lists/* && \
     npm -g install pnpm@10 && \
-    npm cache clean --force
+    npm cache clean --force && \
+    curl -fsSL https://dl.deno.land/release/latest/deno-$(uname -m | sed 's/aarch64/aarch64/;s/x86_64/x86_64/')-unknown-linux-gnu.zip -o /tmp/deno.zip && \
+    unzip -o /tmp/deno.zip -d /usr/local/bin && \
+    chmod +x /usr/local/bin/deno && \
+    rm /tmp/deno.zip
 
 #print current user
 RUN whoami && echo "Current user is $(whoami)"
