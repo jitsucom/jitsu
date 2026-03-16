@@ -169,8 +169,8 @@ export const TableNameParameter = globalThis.TableNameParameter;
 export const DropRetryErrorName = "Drop & RetryError";
 export const RetryErrorName = "RetryError";
 export const NoRetryErrorName = "NoRetryError";
-export function toJitsuClassic() { throw new Error("toJitsuClassic is not available in sandboxed workers"); }
-export function fromJitsuClassic() { throw new Error("fromJitsuClassic is not available in sandboxed workers"); }
+export const toJitsuClassic = globalThis.toJitsuClassic;
+export const fromJitsuClassic = globalThis.fromJitsuClassic;
 `;
 
 // esbuild plugin that resolves @jitsu/functions-lib to a virtual module
@@ -198,11 +198,7 @@ function functionsLibShimPlugin(): esbuild.Plugin {
 //
 // Unlike compileUdfToFile, this does NOT write to disk – the code string
 // is sent to the worker via postMessage.
-export async function compileUdfToIIFE(
-  code: string,
-  functionId: string,
-  env: any
-): Promise<string> {
+export async function compileUdfToIIFE(code: string, functionId: string, env: any): Promise<string> {
   const envs = `var process = { env: ${JSON.stringify(env || {})} };\n`;
   const fullCode = envs + code;
 

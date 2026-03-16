@@ -51,6 +51,18 @@ import type {
   StrippedConnectionConfig,
 } from "./lib/worker-protocol";
 
+// Configure Deno's HTTP client connection pool for proxied UDF fetch calls
+// @ts-ignore
+if (typeof Deno !== "undefined") {
+  // @ts-ignore
+  const httpClient = (Deno as any).createHttpClient({
+    poolMaxIdlePerHost: 500,
+    poolIdleTimeout: 120_000,
+  });
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (input: any, init?: any) => originalFetch(input, { ...init, client: httpClient });
+}
+
 const env = getServerEnv();
 const deploymentId = env.DEPLOYMENT_ID || os.hostname();
 const jsondiffpatchInstance = jsondiffpatch.create();
@@ -1250,8 +1262,8 @@ async function main() {
   log.atInfo().log(`Cleared functions map`);
 
   if (isFreeClass) {
-    await clearDirectory(configDir, "CONFIG_DIR");
-    await clearDirectory(UDF_TEMP_DIR, "UDF_TEMP_DIR");
+    // await clearDirectory(configDir, "CONFIG_DIR");
+    // await clearDirectory(UDF_TEMP_DIR, "UDF_TEMP_DIR");
     connections.clear();
     log.atInfo().log(`Cleared connections map and config directories (free deployment)`);
   }

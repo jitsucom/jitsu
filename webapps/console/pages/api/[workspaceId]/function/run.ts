@@ -47,8 +47,9 @@ function getUdfRunUrl(
   functionsClasses: string[],
   serverEnv: ReturnType<typeof getServerEnv>
 ): string {
+  const template = serverEnv.FUNCTIONS_SERVER_URL_TEMPLATE;
   const isLegacy = functionsClasses.includes("legacy") || functionsClasses.includes("");
-  if (isLegacy) {
+  if (!template || isLegacy) {
     const rotorURL = requireDefined(
       serverEnv.ROTOR_URL,
       `env ROTOR_URL is not set. Rotor is required to run functions`
@@ -56,7 +57,6 @@ function getUdfRunUrl(
     return rotorURL + "/udfrun";
   }
   const functionsClass = functionsClasses[0];
-  const template = serverEnv.FUNCTIONS_SERVER_URL_TEMPLATE;
   const baseUrl = template.replace("${workspaceId}", functionsClass === "free" ? "free" : workspaceId);
   return baseUrl + "/udfrun";
 }
