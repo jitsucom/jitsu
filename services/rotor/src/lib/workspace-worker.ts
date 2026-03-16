@@ -304,18 +304,6 @@ async function runChainInWorker(
         functionId: id,
         functionType,
       };
-      eventContext.source.id = eventContext.source.id || connection.streamId;
-      eventContext.source.name = eventContext.source.name || connection.streamName;
-      eventContext.destination = {
-        type: connection.type,
-        id: connection.destinationId,
-        updatedAt: connection.updatedAt,
-        hash: connection.optionsHash,
-      };
-      eventContext.connection = {
-        id: connection.id,
-        options: connection.options,
-      };
 
       try {
         const ctx = buildContext(chain, eventContext, id, functionType, logs);

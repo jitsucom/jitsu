@@ -495,7 +495,7 @@ interface FunctionRuntime {
     fetchTimeoutMs: number
   ): Promise<Required<FuncChainResultWithLogs>>;
   /** Returns the stripped connection config (used for actorId/streamId lookup) */
-  getConnection(): StrippedConnectionConfig | undefined;
+  getConnection(): StrippedConnectionConfig;
 }
 
 // Deep copy helper (same as legacy udf-wrapper)
@@ -684,13 +684,13 @@ class InProcessRuntime implements FunctionRuntime {
     return result;
   }
 
-  getConnection(): StrippedConnectionConfig | undefined {
+  getConnection(): StrippedConnectionConfig {
     return this.chain.connection;
   }
 }
 
 class WorkerRuntime implements FunctionRuntime {
-  constructor(private ws: WorkspaceWorker, private connection: StrippedConnectionConfig | undefined) {}
+  constructor(private ws: WorkspaceWorker, private connection: StrippedConnectionConfig) {}
 
   async runChain(
     connectionId: string,
@@ -707,7 +707,7 @@ class WorkerRuntime implements FunctionRuntime {
     };
   }
 
-  getConnection(): StrippedConnectionConfig | undefined {
+  getConnection(): StrippedConnectionConfig {
     return this.connection;
   }
 }
@@ -1037,8 +1037,7 @@ async function main() {
         activeWorkers.push({ id: wsId, worker: ws.worker });
         for (const conn of conns) {
           const connectionConfig = connections.get(conn.connectionId);
-          const stripped = connectionConfig ? stripConnection(connectionConfig) : undefined;
-          runtimes.set(conn.connectionId, new WorkerRuntime(ws, stripped));
+          runtimes.set(conn.connectionId, new WorkerRuntime(ws, stripConnection(connectionConfig!)));
         }
       } catch (e: any) {
         log.atError().log(`Failed to spawn worker for workspace ${wsId}: ${e.message}`);
@@ -1118,6 +1117,10 @@ async function main() {
       return "";
     }
 
+    // actorId = streamId of first connection (for metrics)
+    const firstRuntime = runtimes.get(connectionIds[0]);
+    const actorId = firstRuntime?.getConnection()?.streamId || connectionIds[0] || "";
+
     const message = (await parseBody(req)) as IngestMessage;
     const event = message.httpPayload;
     if (!event.context) {
@@ -1125,13 +1128,6 @@ async function main() {
     }
 
     type StrictFuncChainResult = Required<FuncChainResultWithLogs>;
-
-    // actorId = streamId of first connection (for metrics)
-    let actorId = connectionIds[0] || "";
-    const firstRuntime = runtimes.get(connectionIds[0]);
-    if (firstRuntime) {
-      actorId = firstRuntime.getConnection()?.streamId || actorId;
-    }
 
     const functionsFetchTimeout = req.headers["x-request-timeout-ms"]
       ? parseNumber(req.headers["x-request-timeout-ms"] as string, 2000)
@@ -1156,11 +1152,7 @@ async function main() {
             logs: [],
           } as StrictFuncChainResult;
         }
-        const conn = runtime.getConnection();
-        const eventContext = createEventContextFromMessage(
-          message,
-          conn || ({ id: connectionId } as StrippedConnectionConfig)
-        );
+        const eventContext = createEventContextFromMessage(message, runtime.getConnection());
         return await runtime.runChain(connectionId, event, eventContext, functionsFetchTimeout);
       } catch (e: any) {
         const errorMessage = `${e.name}: ${e.message}`;
