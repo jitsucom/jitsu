@@ -96,15 +96,18 @@ function anonymizeIp(ip: string | undefined) {
   }
 }
 
-export function toJitsuClassic(event: AnalyticsServerEvent, ctx: FullContext): AnyEvent {
-  const keepOriginalNames = !!ctx.props.keepOriginalNames;
-  const fileStorage = ctx.destination.type === "s3" || ctx.destination.type === "gcs";
-  let transferFunc = transferAsSnakeCase;
-  if (keepOriginalNames) {
-    if (fileStorage) {
-      transferFunc = transfer;
-    } else {
-      transferFunc = transferAsClassic;
+export function toJitsuClassic(event: AnalyticsServerEvent, ctx: FullContext, bulker: boolean = false): AnyEvent {
+  let transferFunc = transfer;
+  if (bulker) {
+    const keepOriginalNames = !!ctx?.props?.keepOriginalNames;
+    const fileStorage = ctx?.destination?.type === "s3" || ctx?.destination?.type === "gcs";
+    transferFunc = transferAsSnakeCase;
+    if (keepOriginalNames) {
+      if (fileStorage) {
+        transferFunc = transfer;
+      } else {
+        transferFunc = transferAsClassic;
+      }
     }
   }
   let url: URL | undefined = undefined;

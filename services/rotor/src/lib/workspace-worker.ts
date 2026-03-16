@@ -16,7 +16,7 @@ import type {
   SerializedLogEntry,
   ProxyMethod,
   StrippedConnectionConfig,
-} from "./lib/worker-protocol";
+} from "./worker-protocol";
 import type { AnyEvent, EventContext, FuncReturn, FullContext } from "@jitsu/protocols/functions";
 import { FunctionExecLog, FunctionExecRes } from "@jitsu/core-functions-lib";
 
@@ -174,7 +174,7 @@ function buildContext(
       timestamp: new Date().toISOString(),
     };
     logs.push(entry);
-    self.postMessage({ type: "log", ...entry });
+    //self.postMessage({ type: "log", ...entry });
   };
 
   const log = {
@@ -184,22 +184,69 @@ function buildContext(
     error: (message: string, ...args: any[]) => addLogEntry("error", message, args),
   };
 
-  // Proxied fetch – returns a Response-like object
+  // Proxied fetch – delegates to main process, logs request/response like makeFetch
   const proxiedFetch = async (url: string, init?: any) => {
-    const serialized = await callMain("fetch", [url, init]);
-    return {
-      status: serialized.status,
-      statusText: serialized.statusText,
-      ok: serialized.ok,
-      url: serialized.url,
-      type: serialized.type,
-      redirected: serialized.redirected,
-      headers: serialized.headers,
-      bodyUsed: true,
-      body: serialized.body,
-      text: () => Promise.resolve(serialized.body),
-      json: () => Promise.resolve(JSON.parse(serialized.body)),
+    const startTime = Date.now();
+
+    const baseInfo = {
+      functionId,
+      functionType,
+      type: "http-request" as const,
+      url,
+      method: init?.method || "GET",
+      body: init?.body,
+      event: {},
     };
+
+    try {
+      const serialized = await callMain("fetch", [chain.connection.id, url, init]);
+      const elapsedMs = Date.now() - startTime;
+
+      if (baseInfo) {
+        logs.push({
+          level: "info",
+          functionId,
+          functionType,
+          message: {
+            ...baseInfo,
+            status: serialized.status,
+            statusText: serialized.statusText,
+            elapsedMs,
+          },
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      return {
+        status: serialized.status,
+        statusText: serialized.statusText,
+        ok: serialized.ok,
+        url: serialized.url,
+        type: serialized.type,
+        redirected: serialized.redirected,
+        headers: serialized.headers,
+        bodyUsed: true,
+        body: serialized.body,
+        text: () => Promise.resolve(serialized.body),
+        json: () => Promise.resolve(JSON.parse(serialized.body)),
+      };
+    } catch (err: any) {
+      const elapsedMs = Date.now() - startTime;
+      if (baseInfo) {
+        logs.push({
+          level: "error",
+          functionId,
+          functionType,
+          message: {
+            ...baseInfo,
+            error: err.message || String(err),
+            elapsedMs,
+          },
+          timestamp: new Date().toISOString(),
+        });
+      }
+      throw err;
+    }
   };
 
   // Proxied warehouse
