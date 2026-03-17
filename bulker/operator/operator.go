@@ -1118,76 +1118,72 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 		replicas = o.config.MinReplicasPremium
 	}
 	volumes := make([]corev1.Volume, 0)
+	volumeMounts := make([]corev1.VolumeMount, 0)
 	initVolumeMounts := make([]corev1.VolumeMount, 0)
+	// Free tier: init container copies ConfigMap parts into writable emptyDir (multiple workspaces merged).
+	// Dedicated/premium: ConfigMaps mounted directly into /data (no init container needed).
+	useCopyInit := data.FunctionsClass == FunctionsClassFree
 
-	// ConfigMap volumes are only mounted by the init container
-	// Files are stored with keys like ${workspaceId}__connections.json.gz
-	for i := 0; i < data.ConnectionsConfigMapCount; i++ {
-		volName := fmt.Sprintf("connections-%d", i)
-		cmName := fmt.Sprintf("%s%s-%d", data.DeploymentID, connectionsCMSuffix, i)
+	// Add ConfigMap volumes for connections and functions
+	type cmVolConfig struct {
+		count  int
+		prefix string // volume name prefix ("connections" or "functions")
+		suffix string // ConfigMap name suffix
+		subdir string // subdirectory under mount base ("connections" or "functions")
+	}
+	for _, cfg := range []cmVolConfig{
+		{data.ConnectionsConfigMapCount, "connections", connectionsCMSuffix, "connections"},
+		{data.FunctionsConfigMapCount, "functions", functionsCMSuffix, "functions"},
+	} {
+		for i := 0; i < cfg.count; i++ {
+			volName := fmt.Sprintf("%s-%d", cfg.prefix, i)
+			cmName := fmt.Sprintf("%s%s-%d", data.DeploymentID, cfg.suffix, i)
 
-		volumes = append(volumes, corev1.Volume{
-			Name: volName,
-			VolumeSource: corev1.VolumeSource{
-				ConfigMap: &corev1.ConfigMapVolumeSource{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: cmName,
+			volumes = append(volumes, corev1.Volume{
+				Name: volName,
+				VolumeSource: corev1.VolumeSource{
+					ConfigMap: &corev1.ConfigMapVolumeSource{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: cmName,
+						},
 					},
 				},
-			},
-		})
+			})
 
-		// Init container reads from /config-src/connections/part-{n}
-		initVolumeMounts = append(initVolumeMounts, corev1.VolumeMount{
-			Name:      volName,
-			MountPath: fmt.Sprintf("/config-src/connections/part-%d", i),
-			ReadOnly:  true,
-		})
+			if useCopyInit {
+				// Init container reads from /config-src, copies to writable /data
+				initVolumeMounts = append(initVolumeMounts, corev1.VolumeMount{
+					Name:      volName,
+					MountPath: fmt.Sprintf("/config-src/%s/part-%d", cfg.subdir, i),
+					ReadOnly:  true,
+				})
+			} else {
+				// Mount directly into /data for the main container
+				volumeMounts = append(volumeMounts, corev1.VolumeMount{
+					Name:      volName,
+					MountPath: fmt.Sprintf("/data/%s/part-%d", cfg.subdir, i),
+					ReadOnly:  true,
+				})
+			}
+		}
 	}
 
-	// Add volumes for functions ConfigMaps
-	// Functions are stored with keys like ${workspaceId}__${functionId}.json.gz
-	for i := 0; i < data.FunctionsConfigMapCount; i++ {
-		volName := fmt.Sprintf("functions-%d", i)
-		cmName := fmt.Sprintf("%s%s-%d", data.DeploymentID, functionsCMSuffix, i)
-
+	if useCopyInit {
+		// Writable emptyDir for merged config data
 		volumes = append(volumes, corev1.Volume{
-			Name: volName,
+			Name: "config-data",
 			VolumeSource: corev1.VolumeSource{
-				ConfigMap: &corev1.ConfigMapVolumeSource{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: cmName,
-					},
-				},
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
 			},
 		})
-
-		// Init container reads from /config-src/functions/part-{n}
 		initVolumeMounts = append(initVolumeMounts, corev1.VolumeMount{
-			Name:      volName,
-			MountPath: fmt.Sprintf("/config-src/functions/part-%d", i),
-			ReadOnly:  true,
-		})
-	}
-
-	// Writable emptyDir volume for config data (used by init container and main container)
-	volumes = append(volumes, corev1.Volume{
-		Name: "config-data",
-		VolumeSource: corev1.VolumeSource{
-			EmptyDir: &corev1.EmptyDirVolumeSource{},
-		},
-	})
-	// Init container writes to /data, main container reads from /data
-	initVolumeMounts = append(initVolumeMounts, corev1.VolumeMount{
-		Name:      "config-data",
-		MountPath: "/data",
-	})
-	// Main container only mounts the writable emptyDir - no ConfigMaps
-	volumeMounts := []corev1.VolumeMount{
-		{
 			Name:      "config-data",
 			MountPath: "/data",
-		},
+		})
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      "config-data",
+			MountPath: "/data",
+		})
 	}
 
 	_, fastStoreEnabled := o.fastStoreWorkspaceIDs[data.DeploymentID]
@@ -1236,9 +1232,10 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 		},
 	}
 
-	// Init container: copies config data from ConfigMap volumes to writable emptyDir
-	// This allows the main container to delete config data after prebuilding function chains
-	initCopyScript := `#!/bin/sh
+	// Init container: only needed for free tier to copy/merge ConfigMap parts into writable emptyDir
+	initContainers := []corev1.Container{}
+	if useCopyInit {
+		initCopyScript := `#!/bin/sh
 set -e
 mkdir -p /data/connections /data/functions
 # Copy connections from all parts
@@ -1252,13 +1249,12 @@ done
 echo "Config data copied to /data"
 ls -la /data/connections/ /data/functions/ 2>/dev/null || true
 `
-	initContainers := []corev1.Container{
-		{
+		initContainers = append(initContainers, corev1.Container{
 			Name:         "copy-config",
 			Image:        "busybox:1.37",
 			Command:      []string{"sh", "-c", initCopyScript},
 			VolumeMounts: initVolumeMounts,
-		},
+		})
 	}
 
 	// Build containers list
