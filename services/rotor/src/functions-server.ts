@@ -1217,11 +1217,6 @@ async function main() {
 
   // Create HTTP server using Deno.serve
   let isShuttingDown = false;
-  const corsHeaders: Record<string, string> = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
-  };
 
   // @ts-ignore
   const server = (Deno as any).serve({ port, hostname: "0.0.0.0" }, async (req: Request): Promise<Response> => {

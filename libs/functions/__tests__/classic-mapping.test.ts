@@ -1,7 +1,7 @@
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import type { Event as JitsuLegacyEvent } from "@jitsu/sdk-js";
-import { FullContext, UserAgent } from "@jitsu/protocols/functions";
-import { fromJitsuClassic, removeUndefined, TableNameParameter, toJitsuClassic, toSnakeCase } from "../src";
+import { FullContext } from "@jitsu/protocols/functions";
+import { fromJitsuClassic, toJitsuClassic } from "../src";
 import { classicEvents } from "./data/classic-events";
 
 const identify: AnalyticsServerEvent = {
@@ -264,14 +264,22 @@ const legacyPageExpectedWarehouse = {
 };
 
 test("legacy event s3", () => {
-  const identifyLegacyResult = toJitsuClassic(identify, {
-    props: { keepOriginalNames: true },
-    destination: { type: "s3" },
-  } as unknown as FullContext);
-  const pageLegacyResult = toJitsuClassic(page, {
-    props: { keepOriginalNames: true },
-    destination: { type: "s3" },
-  } as unknown as FullContext);
+  const identifyLegacyResult = toJitsuClassic(
+    identify,
+    {
+      props: { keepOriginalNames: true },
+      destination: { type: "s3" },
+    } as unknown as FullContext,
+    true
+  );
+  const pageLegacyResult = toJitsuClassic(
+    page,
+    {
+      props: { keepOriginalNames: true },
+      destination: { type: "s3" },
+    } as unknown as FullContext,
+    true
+  );
   console.log(JSON.stringify(identifyLegacyResult, null, 2));
   expect(identifyLegacyResult).toStrictEqual(legacyIdentifyExpectedS3);
 
@@ -280,14 +288,22 @@ test("legacy event s3", () => {
 });
 
 test("legacy event warehouse", () => {
-  const identifyLegacyResult = toJitsuClassic(identify, {
-    props: { keepOriginalNames: true },
-    destination: { type: "postgres" },
-  } as unknown as FullContext);
-  const pageLegacyResult = toJitsuClassic(page, {
-    props: { keepOriginalNames: true },
-    destination: { type: "postgres" },
-  } as unknown as FullContext);
+  const identifyLegacyResult = toJitsuClassic(
+    identify,
+    {
+      props: { keepOriginalNames: true },
+      destination: { type: "postgres" },
+    } as unknown as FullContext,
+    true
+  );
+  const pageLegacyResult = toJitsuClassic(
+    page,
+    {
+      props: { keepOriginalNames: true },
+      destination: { type: "postgres" },
+    } as unknown as FullContext,
+    true
+  );
   console.log(JSON.stringify(identifyLegacyResult, null, 2));
   expect(identifyLegacyResult).toStrictEqual(legacyIdentifyExpectedWarehouse);
 
@@ -307,7 +323,8 @@ test("classic events mapping", () => {
     const restored = fromJitsuClassic(event);
     const mapped = toJitsuClassic(
       restored as AnalyticsServerEvent,
-      { props: { keepOriginalNames: true }, destination: { type: "s3" } } as unknown as FullContext
+      { props: { keepOriginalNames: true }, destination: { type: "s3" } } as unknown as FullContext,
+      true
     );
     delete mapped.anon_ip;
     expect(mapped).toStrictEqual(event);
