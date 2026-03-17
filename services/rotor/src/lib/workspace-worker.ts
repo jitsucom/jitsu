@@ -285,7 +285,7 @@ async function runChainInWorker(
   const execLog: FunctionExecLog = [];
   const logs: SerializedLogEntry[] = [];
   let events: AnyEvent[] = [event];
-  const connection = chain.connection;
+
   for (let k = 0; k < chain.functions.length; k++) {
     const func = chain.functions[k];
     const newEvents: AnyEvent[] = [];

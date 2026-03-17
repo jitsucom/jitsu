@@ -223,7 +223,7 @@ EXPOSE 3401
 # Copy Deno-specific build artifacts from builder
 COPY --from=builder /app/services/rotor/dist/functions-server.mjs ./functions-server.mjs
 COPY --from=builder /app/services/rotor/dist/workspace-worker.mjs ./workspace-worker.mjs
-# Copy node_modules with native deps and prom-client (installed by build.mts)
+# Copy node_modules with native deps (installed by build.mts)
 # Workspace packages and pure JS deps are bundled into functions-server.mjs by esbuild
 COPY --from=builder /app/services/rotor/dist/node_modules ./node_modules
 COPY --from=builder /app/services/rotor/dist/package.json ./package.json
@@ -231,6 +231,7 @@ COPY --from=builder /app/services/rotor/dist/package.json ./package.json
 ENV JITSU_VERSION_COMMIT_SHA=${JITSU_BUILD_COMMIT_SHA}
 ENV JITSU_VERSION_DOCKER_TAG=${JITSU_BUILD_DOCKER_TAG}
 ENV JITSU_VERSION_STRING=${JITSU_BUILD_VERSION}
+ENV NODE_ENV=production
 
 HEALTHCHECK CMD curl --fail http://localhost:3401/health || exit 1
 
@@ -243,4 +244,6 @@ ENTRYPOINT ["deno", "run", \
   "--allow-ffi", \
   "--allow-run=/app/node_modules/@esbuild/linux-arm64/bin/esbuild,/app/node_modules/@esbuild/linux-x64/bin/esbuild,/app/node_modules/esbuild/bin/esbuild", \
   "--unstable-worker-options", \
+  "--no-check", \
+  "--v8-flags=--max-old-space-size=2048", \
   "functions-server.mjs"]

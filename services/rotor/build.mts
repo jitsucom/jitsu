@@ -14,19 +14,28 @@ const nativeDeps = {
   "prom-client": "15.1.3",
 };
 
-// Native/external deps for Deno functions-server (subset – no isolated-vm or kafka)
-// prom-client is included because it's CJS with dynamic require() that Deno can't handle when bundled
-const denoNativeDeps = {
-  "@mongodb-js/zstd": "2.0.0",
-  esbuild: "0.27.0",
-  "@jitsu/functions-lib": "2.14.0-beta.19",
-  mongodb: "6.12.0",
-  "prom-client": "15.1.3",
+// External deps for Deno functions-server.
+// Only runtime-compiled code and native binaries stay external.
+// Everything else (mongodb, prom-client, workspace packages, etc.) is bundled by esbuild.
+const denoExternalDeps: Record<string, string> = {
+  esbuild: "0.27.0", // Native binary — used at runtime for UDF compilation
+  "@jitsu/functions-lib": "2.14.0-beta.19", // Needs to match version used by UDF IIFE builds
 };
 
-// External packages for the Deno functions-server build (native + CJS-problematic)
-// Everything else (workspace packages, pure JS/ESM) is bundled by esbuild
-const denoExternalModules = [...Object.keys(denoNativeDeps), "pg-native"];
+// MongoDB's optional peer deps — loaded via try/catch require() in deps.js.
+// Must be external so esbuild doesn't try to resolve them at build time.
+const mongoOptionalPeers = [
+  "@mongodb-js/zstd",
+  "kerberos",
+  "@aws-sdk/credential-providers",
+  "gcp-metadata",
+  "snappy",
+  "socks",
+  "aws4",
+  "mongodb-client-encryption",
+];
+
+const denoExternalModules = [...Object.keys(denoExternalDeps), ...mongoOptionalPeers];
 
 // pg-native is optional for pg package, mark as external but don't install
 const externalModules = [...Object.keys(nativeDeps), "pg-native"];
@@ -110,8 +119,8 @@ esbuild
   })
   .then(() => {
     // Deno functions-server (ESM format).
-    // Only native deps and CJS-problematic packages (prom-client) are externalized.
-    // Everything else (workspace packages, pure JS/ESM) is bundled by esbuild.
+    // Only native deps are externalized.
+    // Everything else (workspace packages, pure JS/ESM, prom-client) is bundled by esbuild.
     // The banner polyfills require() via createRequire so that CJS packages bundled
     // into ESM (which esbuild converts to __require() calls) work under Deno.
     return esbuild.build({

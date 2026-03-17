@@ -1,4 +1,3 @@
-import http from "http";
 import path from "path";
 import fs from "fs";
 import os from "os";
@@ -57,7 +56,7 @@ const gunzip = promisify(zlib.gunzip);
 if (typeof Deno !== "undefined") {
   // @ts-ignore
   const httpClient = (Deno as any).createHttpClient({
-    poolMaxIdlePerHost: 500,
+    poolMaxIdlePerHost: 100,
     poolIdleTimeout: 120_000,
   });
   const originalFetch = globalThis.fetch;
@@ -748,22 +747,16 @@ function mapDiff(originalEvent: AnyEvent, newEvents?: AnyEvent[]) {
   });
 }
 
-// Parse request body
-async function parseBody(req: http.IncomingMessage): Promise<any> {
-  return new Promise((resolve, reject) => {
-    let body = "";
-    req.on("data", chunk => {
-      body += chunk.toString();
-    });
-    req.on("end", () => {
-      try {
-        resolve(body ? JSON.parse(body) : {});
-      } catch (e) {
-        reject(new Error("Invalid JSON body"));
-      }
-    });
-    req.on("error", reject);
-  });
+// Parse request body (supports both gzipped and plain JSON)
+async function parseBody(req: Request): Promise<any> {
+  // const encoding = req.headers.get("content-encoding");
+  // if (encoding === "gzip") {
+  //   const buffer = await req.arrayBuffer();
+  //   const decompressed = await gunzip(Buffer.from(buffer));
+  //   return JSON.parse(decompressed.toString());
+  // }
+  const text = await req.text();
+  return text ? JSON.parse(text) : {};
 }
 
 // Create event context from IngestMessage and connection (compatible with FunctionsHandlerMulti)
@@ -1078,18 +1071,20 @@ async function main() {
   }
 
   // HTTP response helpers
-  function sendJson(res: http.ServerResponse, status: number, data: any): void {
-    res.writeHead(status, { "Content-Type": "application/json" });
-    res.end(JSON.stringify(data));
+  function jsonResponse(status: number, data: any, headers?: Record<string, string>): Response {
+    return new Response(JSON.stringify(data), {
+      status,
+      headers: { "Content-Type": "application/json", ...headers },
+    });
   }
 
-  function sendError(res: http.ServerResponse, status: number, error: string): void {
-    sendJson(res, status, { error });
+  function errorResponse(status: number, error: string, headers?: Record<string, string>): Response {
+    return jsonResponse(status, { error }, headers);
   }
 
   // Health check handler: GET /health or GET /
-  function handleHealth(res: http.ServerResponse): void {
-    sendJson(res, 200, {
+  function handleHealth(): Response {
+    return jsonResponse(200, {
       status: "ok",
       configDir,
       connections: Array.from(connections.keys()),
@@ -1103,18 +1098,16 @@ async function main() {
   // Query params:
   //   - ids: comma-separated connection IDs (required)
   //   - fullEvents: if "true", return full events instead of diffs
-  async function handleMulti(req: http.IncomingMessage, res: http.ServerResponse, url: URL): Promise<string> {
+  async function handleMulti(req: Request, url: URL): Promise<{ response: Response; actorId: string }> {
     if (req.method !== "POST") {
-      sendError(res, 405, "Method not allowed. Use POST.");
-      return "";
+      return { response: errorResponse(405, "Method not allowed. Use POST."), actorId: "" };
     }
 
     const connectionIds = (url.searchParams.get("ids") ?? "").split(",").filter(id => !!id);
     const fullEvents = url.searchParams.get("fullEvents") === "true";
 
     if (connectionIds.length === 0) {
-      sendError(res, 400, "No connection IDs provided. Use ?ids=conn1,conn2,...");
-      return "";
+      return { response: errorResponse(400, "No connection IDs provided. Use ?ids=conn1,conn2,..."), actorId: "" };
     }
 
     // actorId = streamId of first connection (for metrics)
@@ -1129,8 +1122,9 @@ async function main() {
 
     type StrictFuncChainResult = Required<FuncChainResultWithLogs>;
 
-    const functionsFetchTimeout = req.headers["x-request-timeout-ms"]
-      ? parseNumber(req.headers["x-request-timeout-ms"] as string, 2000)
+    const timeoutHeader = req.headers.get("x-request-timeout-ms");
+    const functionsFetchTimeout = timeoutHeader
+      ? parseNumber(timeoutHeader, 2000)
       : parseNumber(env.FETCH_TIMEOUT_MS, 2000);
 
     // Process all connections in parallel
@@ -1170,7 +1164,7 @@ async function main() {
 
     // Build response with events and execLog
     // Map connectionId -> { events, execLog }
-    const response = Object.fromEntries(
+    const responseBody = Object.fromEntries(
       results.map(result => {
         recordChainResultMetrics(result);
         return [
@@ -1184,19 +1178,16 @@ async function main() {
       })
     );
 
-    sendJson(res, 200, response);
-    return actorId;
+    return { response: jsonResponse(200, responseBody), actorId };
   }
 
   // Single connection handler: POST /connection/<connection-id>
   async function handleConnection(
-    req: http.IncomingMessage,
-    res: http.ServerResponse,
+    req: Request,
     connectionId: string
-  ): Promise<string> {
+  ): Promise<{ response: Response; actorId: string }> {
     if (req.method !== "POST") {
-      sendError(res, 405, "Method not allowed. Use POST.");
-      return connectionId;
+      return { response: errorResponse(405, "Method not allowed. Use POST."), actorId: connectionId };
     }
 
     const body = await parseBody(req);
@@ -1210,59 +1201,62 @@ async function main() {
       eventContext.destination.updatedAt = new Date(eventContext.destination.updatedAt);
     }
 
-    const functionsFetchTimeout = req.headers["x-request-timeout-ms"]
-      ? parseNumber(req.headers["x-request-timeout-ms"] as string, 2000)
+    const timeoutHeader = req.headers.get("x-request-timeout-ms");
+    const functionsFetchTimeout = timeoutHeader
+      ? parseNumber(timeoutHeader, 2000)
       : parseNumber(env.FETCH_TIMEOUT_MS, 2000);
 
     const runtime = runtimes.get(connectionId);
     if (!runtime) {
-      sendError(res, 404, `Connection '${connectionId}' not found`);
-      return connectionId;
+      return { response: errorResponse(404, `Connection '${connectionId}' not found`), actorId: connectionId };
     }
     const result = await runtime.runChain(connectionId, event, eventContext, functionsFetchTimeout);
     recordChainResultMetrics(result);
-    sendJson(res, 200, result);
-
-    return connectionId;
+    return { response: jsonResponse(200, result), actorId: connectionId };
   }
 
-  // Create HTTP server
+  // Create HTTP server using Deno.serve
   let isShuttingDown = false;
-  const server = http.createServer(async (req, res) => {
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  const corsHeaders: Record<string, string> = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+  };
+
+  // @ts-ignore
+  const server = (Deno as any).serve({ port, hostname: "0.0.0.0" }, async (req: Request): Promise<Response> => {
+    let extraHeaders: Record<string, string> = {};
 
     if (isShuttingDown) {
-      res.setHeader("Connection", "close");
+      extraHeaders = { Connection: "close" };
     }
 
     if (req.method === "OPTIONS") {
-      res.writeHead(204);
-      res.end();
-      return;
+      return new Response(null, { status: 204, headers: extraHeaders });
     }
 
-    const url = new URL(req.url || "/", `http://localhost:${port}`);
+    const url = new URL(req.url);
     const pathname = url.pathname;
 
     try {
       // Health check
       if (pathname === "/health" || pathname === "/") {
-        handleHealth(res);
-        return;
+        return handleHealth();
       }
 
       const endpoint = pathname === "/multi" ? "multi" : pathname.startsWith("/connection/") ? "connection" : "other";
       const sw = stopwatch();
       promConcurrentRequests.labels(deploymentId, endpoint).inc();
       let actorId = "";
+      let status = 200;
 
       try {
         // Multi connection handler
         if (pathname === "/multi") {
-          actorId = await handleMulti(req, res, url);
-          return;
+          const result = await handleMulti(req, url);
+          actorId = result.actorId;
+          status = result.response.status;
+          return result.response;
         }
 
         // UDF test runner
@@ -1281,49 +1275,52 @@ async function main() {
               );
           }
           result.backend = "functions-server";
-          sendJson(res, 200, result);
-          return;
+          return jsonResponse(200, result);
         }
 
         // Single connection handler
         const match = pathname.match(/^\/connection\/([^\/]+)$/);
         if (match) {
-          actorId = await handleConnection(req, res, match[1]);
-          return;
+          const result = await handleConnection(req, match[1]);
+          actorId = result.actorId;
+          status = result.response.status;
+          return result.response;
         }
 
         // Not found
-        sendError(res, 404, "Not found. Use /connection/<connection-id>, /multi?ids=conn1,conn2,..., or /udfrun");
+        status = 404;
+        return errorResponse(404, "Not found. Use /connection/<connection-id>, /multi?ids=conn1,conn2,..., or /udfrun");
       } finally {
         promConcurrentRequests.labels(deploymentId, endpoint).dec();
         promRequestDuration.labels(deploymentId, endpoint, actorId).observe(sw.elapsedMs());
-        promRequestCount.labels(deploymentId, endpoint, actorId, String(res.statusCode || 200)).inc();
+        promRequestCount.labels(deploymentId, endpoint, actorId, String(status)).inc();
       }
     } catch (e: any) {
       log.atError().log(`Error processing request:`, e);
-      sendError(res, 500, e.message);
+      return errorResponse(500, e.message);
     }
   });
 
-  server.listen(port, () => {
-    log.atInfo().log(`Server running at http://localhost:${port}`);
-    log.atInfo().log(`Runtimes: ${runtimes.size} (mode: ${isFreeClass ? "worker" : "in-process"})`);
-  });
+  log.atInfo().log(`Server running at http://localhost:${port}`);
+  log.atInfo().log(`Runtimes: ${runtimes.size} (mode: ${isFreeClass ? "worker" : "in-process"})`);
 
   // Metrics HTTP server (separate port, same as rotor)
-  const metricsServer = http.createServer(async (req, res) => {
-    if (req.url === "/metrics") {
-      res.writeHead(200, { "Content-Type": Prometheus.register.contentType });
-      const result = await Prometheus.register.metrics();
-      res.end(result);
-    } else {
-      res.writeHead(404);
-      res.end();
+  // @ts-ignore
+  const metricsServer = (Deno as any).serve(
+    { port: metricsPort, hostname: "0.0.0.0" },
+    async (req: Request): Promise<Response> => {
+      if (req.url.endsWith("/metrics")) {
+        const result = await Prometheus.register.metrics();
+        return new Response(result, {
+          status: 200,
+          headers: { "Content-Type": Prometheus.register.contentType },
+        });
+      }
+      return new Response(null, { status: 404 });
     }
-  });
-  metricsServer.listen(metricsPort, () => {
-    log.atInfo().log(`Metrics server running at http://localhost:${metricsPort}/metrics`);
-  });
+  );
+
+  log.atInfo().log(`Metrics server running at http://localhost:${metricsPort}/metrics`);
 
   // Graceful shutdown handler
   const shutdown = (signal: string) => {
@@ -1350,11 +1347,7 @@ async function main() {
         log.atInfo().log(`Terminated worker for workspace ${id}`);
       }
 
-      server.close(err => {
-        if (err) {
-          log.atError().log(`Error during server close:`, err);
-          process.exit(1);
-        }
+      server.shutdown().then(() => {
         log.atInfo().log(`Server closed, all connections drained`);
         process.exit(0);
       });

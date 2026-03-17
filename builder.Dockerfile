@@ -7,7 +7,8 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/* && \
     npm -g install pnpm@10 && \
     npm cache clean --force && \
-    curl -fsSL https://dl.deno.land/release/latest/deno-$(uname -m | sed 's/aarch64/aarch64/;s/x86_64/x86_64/')-unknown-linux-gnu.zip -o /tmp/deno.zip && \
+    ARCH=$(uname -m) && \
+    curl -fsSL "https://github.com/denoland/deno/releases/latest/download/deno-${ARCH}-unknown-linux-gnu.zip" -o /tmp/deno.zip && \
     unzip -o /tmp/deno.zip -d /usr/local/bin && \
     chmod +x /usr/local/bin/deno && \
     rm /tmp/deno.zip
