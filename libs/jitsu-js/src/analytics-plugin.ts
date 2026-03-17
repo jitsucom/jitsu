@@ -473,7 +473,9 @@ export function ensureAnonymousId(opts: JitsuOptions): string | undefined {
     secure: window.location.protocol === "https:",
   });
   if (opts.debug) {
-    console.log(`[JITSU DEBUG] preInitAnonymousId: created anonymous ID cookie '${cookieName}'=${id} on domain '${domain}'`);
+    console.log(
+      `[JITSU DEBUG] preInitAnonymousId: created anonymous ID cookie '${cookieName}'=${id} on domain '${domain}'`
+    );
   }
   return id;
 }
