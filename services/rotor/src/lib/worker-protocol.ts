@@ -50,6 +50,11 @@ export type CancelMessage = {
   requestId: string;
 };
 
+/** Ask the worker to report its heap memory usage */
+export type MemoryQueryMessage = {
+  type: "memoryQuery";
+};
+
 /** Response to a proxy request from the worker */
 export type ProxyResponseMessage = {
   type: "proxyResponse";
@@ -58,7 +63,7 @@ export type ProxyResponseMessage = {
   error?: string;
 };
 
-export type MainToWorkerMessage = InitMessage | ExecMessage | CancelMessage | ProxyResponseMessage;
+export type MainToWorkerMessage = InitMessage | ExecMessage | CancelMessage | MemoryQueryMessage | ProxyResponseMessage;
 
 // ── Messages: Worker → Main ─────────────────────────────────────────
 
@@ -111,7 +116,20 @@ export type LogMessage = {
   timestamp: string;
 };
 
-export type WorkerToMainMessage = ReadyMessage | ResultMessage | ProxyRequestMessage | LogMessage | DebugMessage;
+/** Worker's heap memory usage report */
+export type MemoryResponseMessage = {
+  type: "memoryResponse";
+  heapUsedBytes: number;
+  heapTotalBytes: number;
+};
+
+export type WorkerToMainMessage =
+  | ReadyMessage
+  | ResultMessage
+  | ProxyRequestMessage
+  | LogMessage
+  | DebugMessage
+  | MemoryResponseMessage;
 
 // ── Shared helper types ─────────────────────────────────────────────
 

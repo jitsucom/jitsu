@@ -127,6 +127,18 @@ const promMongoPoolWaitQueue = new Prometheus.Gauge({
   labelNames: ["deploymentId"] as const,
 });
 
+const promWorkerHeapUsed = new Prometheus.Gauge({
+  name: "fs_worker_heap_used_bytes",
+  help: "V8 heap used bytes per workspace worker",
+  labelNames: ["deploymentId", "workspaceId"] as const,
+});
+
+const promWorkerHeapTotal = new Prometheus.Gauge({
+  name: "fs_worker_heap_total_bytes",
+  help: "V8 heap total bytes per workspace worker",
+  labelNames: ["deploymentId", "workspaceId"] as const,
+});
+
 // Overall chain result: success, drop, multiply, error_retry, error_drop, error_drop_retry, error
 const promChainResult = new Prometheus.Counter({
   name: "fs_chain_result2",
@@ -174,7 +186,7 @@ function setupMongoPoolMetrics(client: MongoClient) {
     } catch (_) {
       // ignore - topology may not be ready
     }
-  }, 5000);
+  }, 60000);
 }
 
 const metricsPort = parseInt(env.ROTOR_METRICS_PORT || "9091");
@@ -437,7 +449,7 @@ async function buildFunctionChain(
       funcs.push({
         id: f.functionId,
         exec: async () => {
-          throw new RetryError(`Function ${functionId} not found or has no code`);
+          throw new Error(`Function ${functionId} not found or has no code`);
         },
         config: undefined,
       });
@@ -796,6 +808,7 @@ function createEventContextFromMessage(
 // ── Workspace Worker management (Deno Web Workers with permissions: "none") ──
 
 type WorkspaceWorker = {
+  workspaceId: string;
   worker: Worker;
   pending: Map<string, { resolve: (v: any) => void; reject: (e: Error) => void }>;
   ready: Promise<void>;
@@ -847,6 +860,12 @@ function createWorkspaceWorker(
     if (msg.type === "debug") {
       log.atInfo().log(`[Worker ${workspaceId} DEBUG] ${JSON.stringify(msg.value)}`);
       return; // fire-and-forget
+    }
+
+    if (msg.type === "memoryResponse") {
+      promWorkerHeapUsed.labels(deploymentId, workspaceId).set(msg.heapUsedBytes);
+      promWorkerHeapTotal.labels(deploymentId, workspaceId).set(msg.heapTotalBytes);
+      return;
     }
 
     if (msg.type === "proxyRequest") {
@@ -905,7 +924,7 @@ function createWorkspaceWorker(
   const initMsg: InitMessage = { type: "init", connections };
   worker.postMessage(initMsg);
 
-  return { worker, pending: pendingExec, ready: readyPromise };
+  return { workspaceId, worker, pending: pendingExec, ready: readyPromise };
 }
 
 async function execInWorker(
@@ -1038,6 +1057,17 @@ async function main() {
     }
 
     log.atInfo().log(`Spawned ${activeWorkers.length} workspace workers`);
+
+    // Periodically poll workers for heap memory metrics
+    setInterval(() => {
+      for (const { worker } of activeWorkers) {
+        try {
+          worker.postMessage({ type: "memoryQuery" });
+        } catch (_) {
+          // worker may have been terminated
+        }
+      }
+    }, 60000);
   } else {
     // Non-free: prebuild function chains in main process
     if (connections.size > 0) {

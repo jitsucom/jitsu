@@ -6,11 +6,8 @@
 //   2. Temporary workers for /udfrun endpoint
 
 import type {
-  InitMessage,
-  ExecMessage,
-  ProxyResponseMessage,
   MainToWorkerMessage,
-  WorkerConnectionInit,
+  MemoryResponseMessage,
   WorkerFunctionInit,
   ResultMessage,
   SerializedLogEntry,
@@ -18,7 +15,7 @@ import type {
   StrippedConnectionConfig,
 } from "./worker-protocol";
 import type { AnyEvent, EventContext, FuncReturn, FullContext } from "@jitsu/protocols/functions";
-import { FunctionExecLog, FunctionExecRes } from "@jitsu/core-functions-lib";
+import type { FunctionExecLog, FunctionExecRes } from "@jitsu/core-functions-lib";
 
 import {
   DropRetryErrorName,
@@ -36,30 +33,6 @@ import {
 (globalThis as any).TableNameParameter = TableNameParameter;
 (globalThis as any).toJitsuClassic = toJitsuClassic;
 (globalThis as any).fromJitsuClassic = fromJitsuClassic;
-
-// Pre-imported Node built-in modules for UDF code.
-// UDF IIFE bundles use __require("node:crypto") etc. which needs a sync require().
-// We pre-import them at worker startup and serve them from a map.
-const nodeBuiltinModules: Record<string, any> = {};
-
-async function preloadNodeBuiltins() {
-  const builtins = ["node:crypto"];
-  for (const mod of builtins) {
-    try {
-      nodeBuiltinModules[mod] = await import(mod);
-      // Also register without prefix
-      nodeBuiltinModules[mod.replace("node:", "")] = nodeBuiltinModules[mod];
-    } catch (_) {
-      // Not available in sandbox — UDFs using this module will get a clear error
-    }
-  }
-  // Set up global require for IIFE bundles
-  (globalThis as any).require = (specifier: string) => {
-    const m = nodeBuiltinModules[specifier];
-    if (m) return m;
-    throw new Error(`Module "${specifier}" is not available in the sandboxed worker`);
-  };
-}
 
 // ── Proxy helpers ───────────────────────────────────────────────────
 
@@ -379,10 +352,27 @@ self.onmessage = async (e: MessageEvent<MainToWorkerMessage>) => {
     return;
   }
 
+  // Handle memory query
+  if (msg.type === "memoryQuery") {
+    let heapUsedBytes = 0;
+    let heapTotalBytes = 0;
+    try {
+      // process.memoryUsage() is available via Deno's Node compat layer
+      const mem = process.memoryUsage();
+      heapUsedBytes = mem.heapUsed;
+      heapTotalBytes = mem.heapTotal;
+    } catch (_) {
+      // permissions: "none" may block this — report 0
+    }
+    const resp: MemoryResponseMessage = { type: "memoryResponse", heapUsedBytes, heapTotalBytes };
+    self.postMessage(resp);
+    return;
+  }
+
   // Handle init
   if (msg.type === "init") {
     // Pre-import Node built-ins so UDF require() calls work
-    await preloadNodeBuiltins();
+    // await preloadNodeBuiltins();
 
     for (const conn of msg.connections) {
       const funcs: LoadedFunc[] = [];

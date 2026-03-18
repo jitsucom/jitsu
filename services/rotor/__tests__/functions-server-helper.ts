@@ -96,6 +96,7 @@ export async function startTestFunctionsServer(configDir: string, port: number =
       "--allow-ffi",
       "--allow-run",
       "--unstable-worker-options",
+      "--no-check",
       "dist/functions-server.mjs",
     ],
     {

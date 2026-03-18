@@ -215,7 +215,6 @@ func CalculateWorkspaceData(
 	workspaceID string,
 	connections []*EnrichedConnectionConfig,
 	functions []*FunctionConfig,
-	hasDedicatedFS bool,
 ) *WorkspaceData {
 	var maxUpdatedAt time.Time
 	var usesWarehouseAPI bool
@@ -249,7 +248,6 @@ func CalculateWorkspaceData(
 		Connections:      filteredConnections,
 		Functions:        functions,
 		UsesWarehouseAPI: usesWarehouseAPI,
-		HasDedicatedFS:   hasDedicatedFS,
 		ConfigHash:       configHash,
 	}
 }

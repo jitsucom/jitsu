@@ -245,5 +245,4 @@ ENTRYPOINT ["deno", "run", \
   "--allow-run=/app/node_modules/@esbuild/linux-arm64/bin/esbuild,/app/node_modules/@esbuild/linux-x64/bin/esbuild,/app/node_modules/esbuild/bin/esbuild", \
   "--unstable-worker-options", \
   "--no-check", \
-  "--v8-flags=--max-old-space-size=2048", \
   "functions-server.mjs"]

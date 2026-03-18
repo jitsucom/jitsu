@@ -11,6 +11,7 @@ if [ "$ROTOR_MODE" = "functions" ]; then
       --allow-ffi \
       --allow-run=/app/node_modules/@esbuild/linux-arm64/bin/esbuild,/app/node_modules/@esbuild/linux-x64/bin/esbuild,/app/node_modules/esbuild/bin/esbuild \
       --unstable-worker-options \
+      --no-check \
       functions-server.mjs
 else
     echo "Running in default mode"

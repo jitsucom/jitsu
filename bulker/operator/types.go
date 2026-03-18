@@ -50,7 +50,6 @@ type WorkspaceData struct {
 	Connections             []*EnrichedConnectionConfig
 	Functions               []*FunctionConfig
 	UsesWarehouseAPI        bool
-	HasDedicatedFS          bool
 	FunctionsClass          string // premium, dedicated, free
 	ConfigHash              string // Hash of connections + functions for change detection
 	FunctionsConfigMapCount int    // Number of functions ConfigMaps (for splitting large data)

@@ -199,7 +199,7 @@ func (o *Operator) reconcile() {
 			continue
 		}
 
-		wsWorkspaceData := CalculateWorkspaceData(ws.ID, connections, functions, true)
+		wsWorkspaceData := CalculateWorkspaceData(ws.ID, connections, functions)
 
 		if slices.Contains(functionsClasses, FunctionsClassPremium) || slices.Contains(functionsClasses, FunctionsClassDedicated) {
 			wData := *wsWorkspaceData // Copy

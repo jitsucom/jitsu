@@ -154,7 +154,7 @@ esbuild
       external: [],
       plugins: [denoNodePrefixPlugin()],
       banner: {
-        js: 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url);',
+        js: 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url); var __require = require; globalThis.require = require',
       },
       logLevel: "info",
     });
