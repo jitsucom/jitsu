@@ -57,7 +57,7 @@ if (typeof Deno !== "undefined") {
   // @ts-ignore
   const httpClient = (Deno as any).createHttpClient({
     poolMaxIdlePerHost: 100,
-    poolIdleTimeout: 120_000,
+    poolIdleTimeout: false,
   });
   const originalFetch = globalThis.fetch;
   globalThis.fetch = (input: any, init?: any) => originalFetch(input, { ...init, client: httpClient });

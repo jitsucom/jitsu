@@ -106,7 +106,7 @@ function isDropResult(result: any): boolean {
 
 type LoadedFunc = {
   id: string;
-  exec: (event: AnyEvent, ctx: FullContext) => FuncReturn;
+  exec: (event: AnyEvent, ctx: FullContext) => Promise<FuncReturn>;
   config?: any;
 };
 
