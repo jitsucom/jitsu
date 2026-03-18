@@ -32,26 +32,30 @@ export function useKeyboard(key: KeyboardKey, handler) {
 export const useTitle = _useTitle.default;
 
 export function copyTextToClipboard(text) {
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).catch(err => {
+      console.error("Clipboard API failed, using fallback", err);
+      copyTextToClipboardFallback(text);
+    });
+  } else {
+    copyTextToClipboardFallback(text);
+  }
+}
+
+function copyTextToClipboardFallback(text) {
   const textArea = document.createElement("textarea");
   textArea.value = text;
-
-  // Avoid scrolling to bottom
   textArea.style.top = "0";
   textArea.style.left = "0";
   textArea.style.position = "fixed";
-
   document.body.appendChild(textArea);
   textArea.focus();
   textArea.select();
-
   try {
-    var successful = document.execCommand("copy");
-    var msg = successful ? "successful" : "unsuccessful";
-    console.log("Fallback: Copying text command was " + msg);
+    document.execCommand("copy");
   } catch (err) {
-    console.error("Fallback: Oops, unable to copy", err);
+    console.error("Unable to copy", err);
   }
-
   document.body.removeChild(textArea);
 }
 
