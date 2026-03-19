@@ -139,6 +139,12 @@ const promWorkerHeapTotal = new Prometheus.Gauge({
   labelNames: ["deploymentId", "workspaceId"] as const,
 });
 
+const promActiveWorkers = new Prometheus.Gauge({
+  name: "fs_active_workers",
+  help: "Number of currently active workspace workers",
+  labelNames: ["deploymentId"] as const,
+});
+
 // Overall chain result: success, drop, multiply, error_retry, error_drop, error_drop_retry, error
 const promChainResult = new Prometheus.Counter({
   name: "fs_chain_result2",
@@ -701,7 +707,11 @@ class InProcessRuntime implements FunctionRuntime {
 }
 
 class WorkerRuntime implements FunctionRuntime {
-  constructor(private ws: WorkspaceWorker, private connection: StrippedConnectionConfig) {}
+  constructor(
+    private workerPool: LazyWorkerPool,
+    private workspaceId: string,
+    private connection: StrippedConnectionConfig
+  ) {}
 
   async runChain(
     connectionId: string,
@@ -709,7 +719,8 @@ class WorkerRuntime implements FunctionRuntime {
     eventContext: EventContext,
     fetchTimeoutMs: number
   ): Promise<Required<FuncChainResultWithLogs>> {
-    const resultMsg = await execInWorker(this.ws, connectionId, event, eventContext, fetchTimeoutMs);
+    const ws = await this.workerPool.getOrCreate(this.workspaceId);
+    const resultMsg = await execInWorker(ws, connectionId, event, eventContext, fetchTimeoutMs);
     return {
       connectionId: resultMsg.connectionId,
       events: resultMsg.events,
@@ -720,6 +731,103 @@ class WorkerRuntime implements FunctionRuntime {
 
   getConnection(): StrippedConnectionConfig {
     return this.connection;
+  }
+}
+
+// ── Lazy worker pool with TTL-based eviction ──────────────────────────
+
+const WORKER_TTL_MS = parseNumber(env.WORKER_TTL_MS, 600_000);
+const WORKER_TTL_CHECK_MS = 60000;
+
+type LazyWorkerEntry = {
+  ws: WorkspaceWorker;
+  lastUsedAt: number;
+};
+
+class LazyWorkerPool {
+  private workers = new Map<string, LazyWorkerEntry>();
+  private spawning = new Map<string, Promise<WorkspaceWorker>>();
+  private readonly timer: ReturnType<typeof setInterval>;
+
+  constructor(
+    private workspaceConnections: Map<string, WorkerConnectionInit[]>,
+    private storeFactory: (wsId: string) => TTLStore,
+    private conEntityStore: EntityStore<EnrichedConnectionConfig>
+  ) {
+    // Periodic eviction check
+    this.timer = setInterval(() => this.evict(), WORKER_TTL_CHECK_MS);
+  }
+
+  async getOrCreate(workspaceId: string): Promise<WorkspaceWorker> {
+    const existing = this.workers.get(workspaceId);
+    if (existing) {
+      existing.lastUsedAt = Date.now();
+      return existing.ws;
+    }
+
+    // Deduplicate concurrent spawns for the same workspace
+    let spawning = this.spawning.get(workspaceId);
+    if (spawning) {
+      return await spawning;
+    }
+
+    const spawnPromise = this.spawn(workspaceId);
+    this.spawning.set(workspaceId, spawnPromise);
+    try {
+      return await spawnPromise;
+    } finally {
+      this.spawning.delete(workspaceId);
+    }
+  }
+
+  private async spawn(workspaceId: string): Promise<WorkspaceWorker> {
+    const conns = this.workspaceConnections.get(workspaceId);
+    if (!conns) {
+      throw new Error(`No connections found for workspace ${workspaceId}`);
+    }
+
+    log.atInfo().log(`Spawning worker for workspace ${workspaceId} (${conns.length} connections)`);
+    const store = this.storeFactory(workspaceId);
+    const ws = createWorkspaceWorker(workspaceId, conns, store, this.conEntityStore);
+    await ws.ready;
+
+    this.workers.set(workspaceId, { ws, lastUsedAt: Date.now() });
+    promActiveWorkers.labels(deploymentId).set(this.workers.size);
+    log.atInfo().log(`Worker ready for workspace ${workspaceId} (${this.workers.size} active)`);
+    return ws;
+  }
+
+  private evict() {
+    const now = Date.now();
+    for (const [wsId, entry] of this.workers) {
+      if (now - entry.lastUsedAt > WORKER_TTL_MS) {
+        log
+          .atInfo()
+          .log(`Evicting idle worker for workspace ${wsId} (idle ${Math.round((now - entry.lastUsedAt) / 1000)}s)`);
+        this.workers.delete(wsId);
+        promWorkerHeapUsed.remove(deploymentId, wsId);
+        promWorkerHeapTotal.remove(deploymentId, wsId);
+        try {
+          entry.ws.worker.terminate();
+        } catch (_) {}
+      }
+    }
+    promActiveWorkers.labels(deploymentId).set(this.workers.size);
+  }
+
+  getActiveWorkers(): { id: string; worker: Worker }[] {
+    return Array.from(this.workers.entries()).map(([id, entry]) => ({ id, worker: entry.ws.worker }));
+  }
+
+  terminateAll() {
+    for (const [wsId, entry] of this.workers) {
+      try {
+        entry.ws.worker.terminate();
+        log.atInfo().log(`Terminated worker for workspace ${wsId}`);
+      } catch (_) {}
+    }
+    this.workers.clear();
+    clearInterval(this.timer);
   }
 }
 
@@ -761,12 +869,6 @@ function mapDiff(originalEvent: AnyEvent, newEvents?: AnyEvent[]) {
 
 // Parse request body (supports both gzipped and plain JSON)
 async function parseBody(req: Request): Promise<any> {
-  // const encoding = req.headers.get("content-encoding");
-  // if (encoding === "gzip") {
-  //   const buffer = await req.arrayBuffer();
-  //   const decompressed = await gunzip(Buffer.from(buffer));
-  //   return JSON.parse(decompressed.toString());
-  // }
   const text = await req.text();
   return text ? JSON.parse(text) : {};
 }
@@ -980,12 +1082,12 @@ async function main() {
   }
 
   const runtimes = new Map<string, FunctionRuntime>();
-  const activeWorkers: { id: string; worker: Worker }[] = []; // for graceful shutdown
   const isFreeClass = env.FUNCTIONS_CLASS === "free";
+  let workerPool: LazyWorkerPool | undefined;
 
   if (isFreeClass) {
-    // Free tier: compile UDFs to IIFE strings and spawn one Deno Web Worker per workspace.
-    // Workers run with permissions: "none" — all I/O is proxied back to the main process.
+    // Free tier: pre-compile UDFs to IIFE strings, but spawn workers lazily on first request.
+    // Workers are evicted after WORKER_TTL_MS of inactivity.
     const workspaceConnections = new Map<string, WorkerConnectionInit[]>();
 
     for (const [connectionId, connection] of connections) {
@@ -1032,35 +1134,37 @@ async function main() {
       });
     }
 
-    // Spawn one worker per workspace, register each connection to a WorkerRuntime
-    for (const [wsId, conns] of workspaceConnections) {
-      log.atInfo().log(`Spawning worker for workspace ${wsId} (${conns.length} connections)`);
+    // Build store factory for lazy worker creation
+    const storeFactory = (wsId: string): TTLStore => {
       const storeMetrics: StoreMetrics = {
         storeStatus: (ns, op, st) => promStoreStatuses.labels(deploymentId, ns, op, st).inc(),
         warehouseStatus: (id, tbl, st, ms) =>
           promWarehouseStatuses.labels(deploymentId, id, tbl, st).observe(ms / 1000),
       };
-      const store = env.MONGODB_URL
+      return env.MONGODB_URL
         ? createMongoStore(wsId, mongodb, false, isTruish(env.FAST_STORE), storeMetrics)
         : createMemoryStore({});
+    };
 
-      try {
-        const ws = createWorkspaceWorker(wsId, conns, store, conEntityStore);
-        activeWorkers.push({ id: wsId, worker: ws.worker });
-        for (const conn of conns) {
-          const connectionConfig = connections.get(conn.connectionId);
-          runtimes.set(conn.connectionId, new WorkerRuntime(ws, stripConnection(connectionConfig!)));
-        }
-      } catch (e: any) {
-        log.atError().log(`Failed to spawn worker for workspace ${wsId}: ${e.message}`);
+    workerPool = new LazyWorkerPool(workspaceConnections, storeFactory, conEntityStore);
+
+    // Register runtimes — workers will be spawned lazily on first request
+    for (const [wsId, conns] of workspaceConnections) {
+      for (const conn of conns) {
+        const connectionConfig = connections.get(conn.connectionId);
+        runtimes.set(conn.connectionId, new WorkerRuntime(workerPool, wsId, stripConnection(connectionConfig!)));
       }
     }
 
-    log.atInfo().log(`Spawned ${activeWorkers.length} workspace workers`);
+    log
+      .atInfo()
+      .log(
+        `Registered ${runtimes.size} connections across ${workspaceConnections.size} workspaces (workers spawn lazily, TTL ${WORKER_TTL_MS}ms)`
+      );
 
-    // Periodically poll workers for heap memory metrics
+    // Periodically poll active workers for heap memory metrics
     setInterval(() => {
-      for (const { worker } of activeWorkers) {
+      for (const { worker } of workerPool!.getActiveWorkers()) {
         try {
           worker.postMessage({ type: "memoryQuery" });
         } catch (_) {
@@ -1089,16 +1193,9 @@ async function main() {
     }
   }
 
-  // Functions map is no longer needed after prebuilding (code is compiled into chains/workers)
+  // Functions map is no longer needed after prebuilding (code is compiled into IIFE strings / chains)
   functions.clear();
   log.atInfo().log(`Cleared functions map`);
-
-  if (isFreeClass) {
-    // await clearDirectory(configDir, "CONFIG_DIR");
-    // await clearDirectory(UDF_TEMP_DIR, "UDF_TEMP_DIR");
-    connections.clear();
-    log.atInfo().log(`Cleared connections map (free deployment)`);
-  }
 
   // HTTP response helpers
   function jsonResponse(status: number, data: any, headers?: Record<string, string>): Response {
@@ -1119,6 +1216,7 @@ async function main() {
       configDir,
       connections: Array.from(connections.keys()),
       runtimes: Array.from(runtimes.keys()),
+      activeWorkers: workerPool ? workerPool.getActiveWorkers().map(w => w.id) : undefined,
     });
   }
 
@@ -1367,9 +1465,8 @@ async function main() {
     const extraDelay = env.SHUTDOWN_EXTRA_DELAY_SEC ? 1000 * parseInt(env.SHUTDOWN_EXTRA_DELAY_SEC) : 5000;
     setTimeout(() => {
       // Terminate all workspace workers
-      for (const { id, worker } of activeWorkers) {
-        worker.terminate();
-        log.atInfo().log(`Terminated worker for workspace ${id}`);
+      if (workerPool) {
+        workerPool.terminateAll();
       }
 
       server.shutdown().then(() => {
