@@ -1102,7 +1102,8 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 
 	var resources corev1.ResourceRequirements
 	resourcesConfig := o.config.PodsResources
-	if data.FunctionsClass == FunctionsClassPremium && o.config.PodsResourcesPremium != "" {
+	// free deployment use premium resource because it serve multiple workspaces at once
+	if (data.FunctionsClass == FunctionsClassPremium || data.FunctionsClass == FunctionsClassFree) && o.config.PodsResourcesPremium != "" {
 		resourcesConfig = o.config.PodsResourcesPremium
 	}
 	if resourcesConfig != "" {
