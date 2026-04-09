@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -732,6 +733,9 @@ func (j *JobRunner) createPod(podName string, task TaskDescriptor, configuration
 		"TASK_TIMEOUT_HOURS":     strconv.Itoa(j.config.TaskTimeoutHours),
 		"LOCAL_INGEST_ENDPOINT":  j.config.LocalIngestEndpoint,
 		"GLOBAL_INGEST_ENDPOINT": j.config.GlobalIngestEndpoint,
+		"AWS_ACCESS_KEY_ID":      os.Getenv("AWS_ACCESS_KEY_ID"),
+		"AWS_SECRET_ACCESS_KEY":  os.Getenv("AWS_SECRET_ACCESS_KEY"),
+		"AWS_DEFAULT_REGION":     os.Getenv("AWS_DEFAULT_REGION"),
 	}
 	if task.SyncID != "" {
 		sideCarEnv["SYNC_ID"] = task.SyncID

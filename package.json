@@ -38,7 +38,7 @@
     "release:canary": "monorel --filter ./types/protocols --filter ./cli/jitsu-cli --filter ./libs/functions --filter ./libs/jitsu-js --filter ./libs/jitsu-react --version '1.10.5-canary.{rev}.{time}' --npm-tag canary --git-tag 'jitsu-js-libs-canary-v{version}' --push-tag"
   },
   "devDependencies": {
-    "@playwright/test": "1.57.0",
+    "@playwright/test": "1.58.2",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/exec": "^6.0.3",
     "@semantic-release/git": "^10.0.1",

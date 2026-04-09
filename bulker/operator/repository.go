@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"slices"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -212,28 +211,24 @@ func NewWorkspacesRepository(baseURL, token string, refreshPeriodSec int, cacheD
 
 // Helper functions for aggregating workspace data
 func CalculateWorkspaceData(
-	workspaceID string,
+	ws *WorkspaceConfig,
 	connections []*EnrichedConnectionConfig,
 	functions []*FunctionConfig,
-	hasDedicatedFS bool,
 ) *WorkspaceData {
-	var maxUpdatedAt time.Time
-	var usesWarehouseAPI bool
-
+	maxUpdatedAt := ws.UpdatedAt
+	filteredFunctions := make([]*FunctionConfig, 0, len(functions))
 	for _, fn := range functions {
-		if !usesWarehouseAPI && strings.Contains(fn.Code, "getWarehouse") {
-			usesWarehouseAPI = true
+		if fn.Kind == "profile" {
+			// Skip profile functions for now
+			continue
 		}
+		filteredFunctions = append(filteredFunctions, fn)
 		if fn.UpdatedAt.After(maxUpdatedAt) {
 			maxUpdatedAt = fn.UpdatedAt
 		}
 	}
 	filteredConnections := make([]*EnrichedConnectionConfig, 0, len(connections))
 	for _, conn := range connections {
-		if !usesWarehouseAPI && conn.ID == conn.StreamID && conn.ID == conn.DestinationID {
-			// Skip bulker-internal connections unless warehouse API is used
-			continue
-		}
 		filteredConnections = append(filteredConnections, conn)
 		if conn.UpdatedAt != nil && conn.UpdatedAt.After(maxUpdatedAt) {
 			maxUpdatedAt = *conn.UpdatedAt
@@ -241,21 +236,27 @@ func CalculateWorkspaceData(
 	}
 
 	// Calculate config hash for change detection
-	configHash := CalculateConfigHash(connections, functions)
+	configHash := CalculateConfigHash(filteredConnections, filteredFunctions, []string{ws.ID})
 
 	return &WorkspaceData{
-		WorkspaceID:      workspaceID,
-		MaxUpdatedAt:     maxUpdatedAt,
-		Connections:      filteredConnections,
-		Functions:        functions,
-		UsesWarehouseAPI: usesWarehouseAPI,
-		HasDedicatedFS:   hasDedicatedFS,
-		ConfigHash:       configHash,
+		WorkspaceID:  ws.ID,
+		MaxUpdatedAt: maxUpdatedAt,
+		Connections:  filteredConnections,
+		Functions:    filteredFunctions,
+		ConfigHash:   configHash,
 	}
 }
 
-func CalculateConfigHash(connections []*EnrichedConnectionConfig, functions []*FunctionConfig) string {
+func CalculateConfigHash(connections []*EnrichedConnectionConfig, functions []*FunctionConfig, workspaceIDs []string) string {
 	h := sha256.New()
+
+	// Sort and hash workspace IDs
+	sortedWsIDs := make([]string, len(workspaceIDs))
+	copy(sortedWsIDs, workspaceIDs)
+	slices.Sort(sortedWsIDs)
+	for _, wsID := range sortedWsIDs {
+		h.Write([]byte(wsID))
+	}
 
 	// Sort and hash connections
 	connIDs := make([]string, 0, len(connections))
@@ -271,9 +272,6 @@ func CalculateConfigHash(connections []*EnrichedConnectionConfig, functions []*F
 		h.Write([]byte(conn.ID))
 		h.Write([]byte(conn.OptionsHash))
 		h.Write([]byte(conn.CredentialsHash))
-		//if conn.UpdatedAt != nil {
-		//	h.Write([]byte(conn.UpdatedAt.Format(time.RFC3339)))
-		//}
 	}
 
 	// Sort and hash functions
@@ -289,7 +287,6 @@ func CalculateConfigHash(connections []*EnrichedConnectionConfig, functions []*F
 		fn := fnMap[id]
 		h.Write([]byte(fn.ID))
 		h.Write([]byte(fn.CodeHash))
-		//h.Write([]byte(fn.UpdatedAt.Format(time.RFC3339)))
 	}
 
 	return hex.EncodeToString(h.Sum(nil))[:16]

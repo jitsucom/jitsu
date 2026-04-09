@@ -28,7 +28,7 @@
   "devDependencies": {
     "@jitsu/common-config": "workspace:*",
     "tslib": "catalog:",
-    "@playwright/test": "^1.57.0",
+    "@playwright/test": "1.58.2",
     "esbuild": "catalog:",
     "tsx": "catalog:",
     "@segment/analytics-next": "^1.75.0",

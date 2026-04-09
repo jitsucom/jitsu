@@ -180,6 +180,12 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   // Authentication key for rotor API
   ROTOR_AUTH_KEY: z.string().optional(),
 
+  // Functions server URL template (use ${workspaceId} as placeholder)
+  FUNCTIONS_SERVER_URL_TEMPLATE: z.string().optional(),
+
+  // Default functions class when workspace has no explicit setting
+  DEFAULT_FUNCTIONS_CLASS: z.string().optional().default("legacy"),
+
   // ============================================
   // Email Configuration
   // ============================================

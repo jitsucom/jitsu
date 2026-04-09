@@ -7,7 +7,7 @@ require (
 	cloud.google.com/go/bigquery v1.67.0
 	cloud.google.com/go/cloudsqlconn v1.17.2
 	cloud.google.com/go/storage v1.52.0
-	github.com/ClickHouse/clickhouse-go/v2 v2.37.1
+	github.com/ClickHouse/clickhouse-go/v2 v2.44.0
 	github.com/aws/aws-sdk-go-v2 v1.39.0
 	github.com/aws/aws-sdk-go-v2/config v1.31.8
 	github.com/aws/aws-sdk-go-v2/credentials v1.18.12

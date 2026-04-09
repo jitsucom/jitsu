@@ -264,34 +264,38 @@ const EventsBrowser0 = ({
 
   const entitiesSelectOptions = useMemo(() => {
     if (entitiesMap) {
-      return Object.entries(entitiesMap).map(entity => ({
-        value: entity[0],
-        label:
-          entity[1].type === "stream" ? (
-            <StreamTitle stream={entity[1]} size={"small"} />
-          ) : entity[1].type === "profile-builder" ? (
-            <ProfileBuilderTitle profileBuilder={entity[1]} destination={entity[1].destination} />
-          ) : entity[1].type === "all" ? (
-            <span>{entity[1].name}</span>
-          ) : (
-            <ConnectionTitle
-              connectionId={entity[0]}
-              stream={entity[1].stream}
-              service={entity[1].service}
-              destination={entity[1].destination}
-            />
-          ),
-        search: (entity[1].type === "stream"
-          ? [entity[1].name]
-          : entity[1].type === "profile-builder"
-          ? [entity[1].name, entity[1].destination?.name]
-          : entity[1].type === "all"
-          ? [entity[1].name]
-          : [entity[1].stream?.name, entity[1].service?.name, entity[1].destination?.name]
-        )
-          .filter(s => s !== undefined)
-          .map(s => s.toLowerCase()),
-      }));
+      return Object.entries(entitiesMap).map(entity => {
+        const id = entity[0];
+        const obj = entity[1];
+        return {
+          value: id,
+          label:
+            obj.type === "stream" ? (
+              <StreamTitle stream={obj} size={"small"} />
+            ) : obj.type === "profile-builder" ? (
+              <ProfileBuilderTitle profileBuilder={obj} destination={obj.destination} />
+            ) : obj.type === "all" ? (
+              <span>{obj.name}</span>
+            ) : (
+              <ConnectionTitle
+                connectionId={id}
+                stream={obj.stream}
+                service={obj.service}
+                destination={obj.destination}
+              />
+            ),
+          search: (obj.type === "stream"
+            ? [obj.name, id]
+            : obj.type === "profile-builder"
+            ? [obj.name, obj.destination?.name, id]
+            : obj.type === "all"
+            ? [obj.name, id]
+            : [obj.stream?.name, obj.service?.name, obj.destination?.name, id]
+          )
+            .filter(s => s !== undefined)
+            .map(s => s.toLowerCase()),
+        };
+      });
     } else {
       return [];
     }

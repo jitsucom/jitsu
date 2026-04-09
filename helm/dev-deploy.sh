@@ -34,12 +34,23 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+# Ensure kubectl is using minikube context
+ensure_minikube_context() {
+    local current_context
+    current_context=$(kubectl config current-context 2>/dev/null || echo "")
+    if [ "$current_context" != "minikube" ]; then
+        log_warn "kubectl context is '$current_context', switching to 'minikube'"
+        kubectl config use-context minikube
+    fi
+}
+
 # Check if minikube is running
 check_minikube() {
     if ! minikube status &> /dev/null; then
         log_error "Minikube is not running. Start it with: minikube start"
         exit 1
     fi
+    ensure_minikube_context
 }
 
 # Start minikube mount in background
@@ -480,7 +491,15 @@ show_help() {
     echo "  $0 port-forward ingest 3049          # Port forward ingest"
 }
 
-# Main
+# Main — ensure minikube context for all commands that touch kubectl
+case "${1:-help}" in
+    help|--help|-h)
+        show_help
+        exit 0
+        ;;
+esac
+ensure_minikube_context
+
 case "${1:-help}" in
     secrets)
         configure_secrets
@@ -535,9 +554,6 @@ case "${1:-help}" in
         ;;
     tunnel)
         tunnel
-        ;;
-    help|--help|-h)
-        show_help
         ;;
     *)
         log_error "Unknown command: $1"

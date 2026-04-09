@@ -200,3 +200,49 @@ ENV JITSU_VERSION_STRING=${JITSU_BUILD_VERSION}
 
 
 ENTRYPOINT ["/app/entrypoint.sh"]
+
+# ============================================================================
+# FUNCTIONS-SERVER STAGE - Deno-based UDF execution with Web Worker isolation
+# ============================================================================
+# Sandboxed functions execution for free-tier workspaces
+FROM denoland/deno:debian AS functions-server
+
+ARG JITSU_BUILD_VERSION=dev,
+ARG JITSU_BUILD_DOCKER_TAG=dev,
+ARG JITSU_BUILD_COMMIT_SHA=unknown,
+
+WORKDIR /app
+
+# Install curl for healthchecks
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates curl && \
+    rm -rf /var/lib/apt/lists/*
+
+EXPOSE 3401
+
+# Copy Deno-specific build artifacts from builder
+COPY --from=builder /app/services/rotor/dist/functions-server.mjs ./functions-server.mjs
+COPY --from=builder /app/services/rotor/dist/workspace-worker.mjs ./workspace-worker.mjs
+# Copy node_modules with native deps (installed by build.mts)
+# Workspace packages and pure JS deps are bundled into functions-server.mjs by esbuild
+COPY --from=builder /app/services/rotor/dist/node_modules ./node_modules
+COPY --from=builder /app/services/rotor/dist/package.json ./package.json
+
+ENV JITSU_VERSION_COMMIT_SHA=${JITSU_BUILD_COMMIT_SHA}
+ENV JITSU_VERSION_DOCKER_TAG=${JITSU_BUILD_DOCKER_TAG}
+ENV JITSU_VERSION_STRING=${JITSU_BUILD_VERSION}
+ENV NODE_ENV=production
+
+HEALTHCHECK CMD curl --fail http://localhost:3401/health || exit 1
+
+ENTRYPOINT ["deno", "run", \
+  "--allow-net", \
+  "--allow-read", \
+  "--allow-write=/tmp/jitsu-udf,/data", \
+  "--allow-env", \
+  "--allow-sys", \
+  "--allow-ffi", \
+  "--allow-run=/app/node_modules/@esbuild/linux-arm64/bin/esbuild,/app/node_modules/@esbuild/linux-x64/bin/esbuild,/app/node_modules/esbuild/bin/esbuild", \
+  "--unstable-worker-options", \
+  "--no-check", \
+  "functions-server.mjs"]

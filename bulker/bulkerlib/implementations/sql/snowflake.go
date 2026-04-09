@@ -504,7 +504,11 @@ func (s *Snowflake) CopyTables(ctx context.Context, targetTable *Table, sourceTa
 	if mergeWindow <= 0 {
 		return s.copy(ctx, targetTable, sourceTable)
 	} else {
-		return s.copyOrMerge(ctx, targetTable, sourceTable, sfMergeQueryTemplate, "T", "S", mergeWindow, utils.Ternary(discriminatorColumn != "", " ORDER BY "+s.quotedColumnName(discriminatorColumn)+" ASC", " ORDER BY 1"))
+		hasDiscriminatorColumn := false
+		if discriminatorColumn != "" {
+			_, hasDiscriminatorColumn = sourceTable.Columns.Get(discriminatorColumn)
+		}
+		return s.copyOrMerge(ctx, targetTable, sourceTable, sfMergeQueryTemplate, "T", "S", mergeWindow, utils.Ternary(hasDiscriminatorColumn, " ORDER BY "+s.quotedColumnName(discriminatorColumn)+" ASC", " ORDER BY 1"))
 	}
 }
 

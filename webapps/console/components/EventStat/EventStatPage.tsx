@@ -144,7 +144,7 @@ const ConnectionSelector = (props: { onChange: (val: string) => void; value?: st
           <DestinationTitle destination={destination} />
         </div>
       ),
-      search: `${stream?.name || ""} ${destination?.name || ""}`,
+      search: `${stream?.name || ""} ${destination?.name || ""} ${id}`,
     };
   });
   return (

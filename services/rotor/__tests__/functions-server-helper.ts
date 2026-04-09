@@ -78,16 +78,33 @@ export async function startTestFunctionsServer(configDir: string, port: number =
   const env = {
     ...process.env,
     PORT: String(port),
+    ROTOR_METRICS_PORT: String(port + 1), // Metrics on different port
     CONFIG_DIR: configDir,
     ROTOR_MODE: "functions",
     LOG_FORMAT: "text",
   };
 
-  const serverProcess = spawn("npx", ["tsx", "src/functions-server.ts"], {
-    cwd: rotorDir,
-    env,
-    stdio: ["ignore", "pipe", "pipe"],
-  });
+  const serverProcess = spawn(
+    "deno",
+    [
+      "run",
+      "--allow-net",
+      "--allow-read",
+      "--allow-write",
+      "--allow-env",
+      "--allow-sys",
+      "--allow-ffi",
+      "--allow-run",
+      "--unstable-worker-options",
+      "--no-check",
+      "dist/functions-server.mjs",
+    ],
+    {
+      cwd: rotorDir,
+      env,
+      stdio: ["ignore", "pipe", "pipe"],
+    }
+  );
 
   // Collect output for debugging
   const stderrOutput: string[] = [];

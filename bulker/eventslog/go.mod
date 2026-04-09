@@ -3,7 +3,7 @@ module github.com/jitsucom/bulker/eventslog
 go 1.26
 
 require (
-	github.com/ClickHouse/clickhouse-go/v2 v2.37.1
+	github.com/ClickHouse/clickhouse-go/v2 v2.44.0
 	github.com/gomodule/redigo v1.8.9
 	github.com/prometheus/client_golang v1.23.2
 	github.com/stretchr/testify v1.11.1

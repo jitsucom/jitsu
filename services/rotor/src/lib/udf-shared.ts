@@ -1,7 +1,8 @@
-import path from "path";
-import os from "os";
-import fsp from "fs/promises";
+import path from "node:path";
+import os from "node:os";
+import fsp from "node:fs/promises";
 import * as esbuild from "esbuild";
+import * as functionLib from "@jitsu/functions-lib";
 
 // Whitelist of packages that UDF code is allowed to import (will be bundled)
 export const ALLOWED_PACKAGES = ["@jitsu/functions-lib"];
@@ -26,9 +27,9 @@ export function createWhitelistPlugin(allowedPackages: string[]): esbuild.Plugin
           return null;
         }
 
-        // Node built-ins - mark as external (available at runtime)
+        // Node built-ins - mark as external with node: prefix (required by Deno)
         if (NODE_BUILTINS.includes(packageName)) {
-          return { path: args.path, external: true };
+          return { path: `node:${args.path}`, external: true };
         }
 
         // Everything else - error
@@ -46,23 +47,6 @@ export function createWhitelistPlugin(allowedPackages: string[]): esbuild.Plugin
     },
   };
 }
-
-// Preamble code to set up globals for backward compatibility with web interface UDFs
-// These globals are available without explicit imports
-export const UDF_GLOBALS_PREAMBLE = `
-import {
-  RetryError as _RetryError,
-  NoRetryError as _NoRetryError,
-  TableNameParameter as _TableNameParameter,
-  toJitsuClassic as _toJitsuClassic,
-  fromJitsuClassic as _fromJitsuClassic,
-} from "@jitsu/functions-lib";
-globalThis.RetryError = _RetryError;
-globalThis.NoRetryError = _NoRetryError;
-globalThis.TableNameParameter = _TableNameParameter;
-globalThis.toJitsuClassic = _toJitsuClassic;
-globalThis.fromJitsuClassic = _fromJitsuClassic;
-`;
 
 // Directory for compiled UDF files (for readable stack traces)
 export const UDF_TEMP_DIR = path.join(os.tmpdir(), "jitsu-udf");
@@ -114,6 +98,32 @@ export async function compileUdfFunction(
   }
 }
 
+// Virtual module that provides @jitsu/functions-lib exports from globalThis.
+// Used in IIFE builds where the real package can't be resolved (platform: "neutral").
+// Classes (RetryError, NoRetryError) are set on globalThis by the worker before UDF evaluation.
+// toJitsuClassic/fromJitsuClassic are rarely used by UDFs; stub with clear error.
+const FUNCTIONS_LIB_SHIM = Object.keys(functionLib)
+  .map(exportName => `export const ${exportName} = globalThis.${exportName};`)
+  .join("\n");
+
+// esbuild plugin that resolves @jitsu/functions-lib to a virtual module
+// providing exports from globalThis (set by the worker before UDF evaluation).
+function functionsLibShimPlugin(): esbuild.Plugin {
+  return {
+    name: "functions-lib-shim",
+    setup(build) {
+      build.onResolve({ filter: /^@jitsu\/functions-lib$/ }, () => ({
+        path: "@jitsu/functions-lib",
+        namespace: "functions-lib-shim",
+      }));
+      build.onLoad({ filter: /.*/, namespace: "functions-lib-shim" }, () => ({
+        contents: FUNCTIONS_LIB_SHIM,
+        loader: "js",
+      }));
+    },
+  };
+}
+
 // Compile UDF function from code string using esbuild.
 // Returns the path to the compiled .mjs temp file (does NOT import it).
 export async function compileUdfToFile(
@@ -126,7 +136,7 @@ export async function compileUdfToFile(
   const process = { env: ${JSON.stringify(env || {})}}
   `;
   // Prepend globals preamble to user code so it gets bundled together
-  const fullCode = UDF_GLOBALS_PREAMBLE + envs + code;
+  const fullCode = envs + code;
 
   const result = await esbuild.build({
     stdin: {
@@ -139,7 +149,7 @@ export async function compileUdfToFile(
     format: "esm",
     platform: "node",
     target: "node20",
-    plugins: [createWhitelistPlugin(ALLOWED_PACKAGES)],
+    plugins: [functionsLibShimPlugin(), createWhitelistPlugin(ALLOWED_PACKAGES)],
     logLevel: "silent", // We'll handle errors ourselves
   });
 
@@ -156,4 +166,39 @@ export async function compileUdfToFile(
   await fsp.writeFile(tempFile, bundledCode);
 
   return tempFile;
+}
+
+// Compile UDF to an IIFE code string for use inside Deno Web Workers.
+// The result is a self-contained string that, when evaluated via
+//   `new Function(iifeCode + "\nreturn __udf;")()`,
+// returns an object with { default: <function>, config?: ... }.
+//
+// Unlike compileUdfToFile, this does NOT write to disk – the code string
+// is sent to the worker via postMessage.
+export async function compileUdfToIIFE(code: string, functionId: string, env: any): Promise<string> {
+  const envs = `var process = { env: ${JSON.stringify(env || {})} };\n`;
+  const fullCode = envs + code;
+
+  const result = await esbuild.build({
+    stdin: {
+      contents: fullCode,
+      loader: "js",
+      resolveDir: process.cwd(),
+    },
+    bundle: true,
+    write: false,
+    format: "iife",
+    globalName: "__udf",
+    platform: "node",
+    target: "es2022",
+    plugins: [functionsLibShimPlugin(), createWhitelistPlugin(ALLOWED_PACKAGES)],
+    logLevel: "silent",
+  });
+
+  if (result.errors.length > 0) {
+    const errorMessages = result.errors.map(e => e.text).join("\n");
+    throw new Error(`Failed to compile function ${functionId}:\n${errorMessages}`);
+  }
+
+  return result.outputFiles[0].text;
 }

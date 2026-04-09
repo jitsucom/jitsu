@@ -44,7 +44,7 @@ import { createRedisStore } from "./store";
 import { UDFWrapper } from "./udf_wrapper";
 import { warehouseQuery } from "./warehouse-store";
 import { MongodbDestination } from "./mongodb-destination";
-import { createFunctionsServerWrapper, FunctionsClass, FunctionsClassLegacy } from "./functions-server-client";
+import { createFunctionsServerWrapper } from "./functions-server-client";
 
 const serverEnv = getServerEnv();
 const fastStoreWorkspaceId = (serverEnv.FAST_STORE_WORKSPACE_ID ?? "").split(",").filter(x => x.length > 0);
@@ -99,7 +99,7 @@ export function checkError(chainRes: FuncChainResult) {
 
 export function buildFunctionChain(
   useFunctionsServer: boolean,
-  functionsClasses: FunctionsClass[],
+  skipUdf: boolean,
   connection: EnrichedConnectionConfig,
   connStore: EntityStore<EnrichedConnectionConfig>,
   funcStore: EntityStore<FunctionConfig>,
@@ -196,7 +196,7 @@ export function buildFunctionChain(
 
   // Check if there are any UDF functions configured
   const udfFunctionRefs = (connectionData?.functions || []).filter((f: any) => f.functionId.startsWith("udf."));
-  const hasUdfFunctions = udfFunctionRefs.length > 0;
+  const runUdfFunctions = !skipUdf && udfFunctionRefs.length > 0;
 
   // Variables for local UDF execution (legacy mode)
   let cached: any;
@@ -204,7 +204,7 @@ export function buildFunctionChain(
   let udfFuncs: FunctionConfig[] = [];
 
   // Only load UDF functions locally if NOT using functions server
-  if (hasUdfFunctions && !useFunctionsServer) {
+  if (runUdfFunctions && !useFunctionsServer) {
     udfFuncs = udfFunctionRefs.map((f: any) => {
       const functionId = f.functionId.substring(4);
       const userFunctionObj = funcStore.getObject(functionId);
@@ -245,7 +245,7 @@ export function buildFunctionChain(
 
   const aggregatedFunctions: any[] = [
     ...(connectionData.functions || []).filter((f: any) => f.functionId.startsWith("builtin.transformation.")),
-    ...(hasUdfFunctions ? [{ functionId: "udf.PIPELINE" }] : []),
+    ...(runUdfFunctions ? [{ functionId: "udf.PIPELINE" }] : []),
     mainFunction,
   ];
 
@@ -280,17 +280,15 @@ export function buildFunctionChain(
   };
 
   // Functions server pipeline function (dedicated/free mode)
+  const functionsServerDeploymentId = connectionData.functionsServer?.deploymentId;
   const functionsServerPipelineFunc = (
-    functionsClasses: FunctionsClass[],
     chainCtx: FunctionChainContext,
     funcCtx: FunctionContext,
     eventsLogger: EventsStore
   ): JitsuFunctionWrapper => {
-    const functionsClass = functionsClasses.filter(fc => fc !== FunctionsClassLegacy)[0];
     const wrapper = createFunctionsServerWrapper(
-      conWorkspaceId,
+      functionsServerDeploymentId,
       conId,
-      functionsClass,
       chainCtx,
       funcCtx,
       eventsLogger,
@@ -328,7 +326,7 @@ export function buildFunctionChain(
         id: f.functionId as string,
         context: funcCtx,
         exec: useFunctionsServer
-          ? functionsServerPipelineFunc(functionsClasses, chainCtx, funcCtx, rotorContext.eventsLogger)
+          ? functionsServerPipelineFunc(chainCtx, funcCtx, rotorContext.eventsLogger)
           : udfPipelineFunc(chainCtx),
       };
     } else {

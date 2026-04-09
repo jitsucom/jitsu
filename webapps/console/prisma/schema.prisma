@@ -510,6 +510,18 @@ model reprocessing_workers {
   @@index([job_id, status], map: "reprocessing_workers_status_idx")
 }
 
+model FunctionsServer {
+  workspaceId      String
+  class            String // 'free' | 'dedicated' | 'premium'
+  deploymentId     String
+  connections      String[]
+  emptyConnections String[]
+  createdAt        DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime? @db.Timestamptz(3)
+
+  @@id([workspaceId, class])
+}
+
 //model OauthSecrets {
 //  id        String   @id @default(cuid())
 //  createdAt DateTime @default(now()) /// @zod.custom(z.coerce.date())

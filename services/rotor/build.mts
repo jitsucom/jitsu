@@ -9,12 +9,97 @@ const nativeDeps = {
   "@confluentinc/kafka-javascript": "1.4.1",
   "@mongodb-js/zstd": "2.0.0",
   esbuild: "0.27.0",
-  "@jitsu/functions-lib": "2.14.0-beta.19",
   mongodb: "6.12.0",
+  "prom-client": "15.1.3",
 };
+
+// External deps for Deno functions-server.
+// Only runtime-compiled code and native binaries stay external.
+// Everything else (mongodb, prom-client, workspace packages, etc.) is bundled by esbuild.
+const denoExternalDeps: Record<string, string> = {
+  esbuild: "0.27.0", // Native binary — used at runtime for UDF compilation
+};
+
+// MongoDB's optional peer deps — loaded via try/catch require() in deps.js.
+// Must be external so esbuild doesn't try to resolve them at build time.
+const mongoOptionalPeers = [
+  "@mongodb-js/zstd",
+  "kerberos",
+  "@aws-sdk/credential-providers",
+  "gcp-metadata",
+  "snappy",
+  "socks",
+  "aws4",
+  "mongodb-client-encryption",
+];
+
+const denoExternalModules = [...Object.keys(denoExternalDeps), ...mongoOptionalPeers];
 
 // pg-native is optional for pg package, mark as external but don't install
 const externalModules = [...Object.keys(nativeDeps), "pg-native"];
+
+// Node built-in modules that must use "node:" prefix for Deno compatibility.
+// esbuild's platform: "node" normally bundles these as bare require("fs") etc.,
+// but Deno requires the "node:" prefix. This plugin rewrites them to external "node:*" imports.
+const nodeBuiltins = [
+  "assert",
+  "buffer",
+  "child_process",
+  "cluster",
+  "console",
+  "constants",
+  "crypto",
+  "dgram",
+  "dns",
+  "domain",
+  "events",
+  "fs",
+  "fs/promises",
+  "http",
+  "http2",
+  "https",
+  "inspector",
+  "module",
+  "net",
+  "os",
+  "path",
+  "perf_hooks",
+  "process",
+  "punycode",
+  "querystring",
+  "readline",
+  "repl",
+  "stream",
+  "string_decoder",
+  "sys",
+  "timers",
+  "tls",
+  "tty",
+  "url",
+  "util",
+  "v8",
+  "vm",
+  "wasi",
+  "worker_threads",
+  "zlib",
+];
+
+function denoNodePrefixPlugin(): esbuild.Plugin {
+  return {
+    name: "deno-node-prefix",
+    setup(build) {
+      // Match bare Node built-in imports (without node: prefix)
+      const filter = new RegExp(`^(${nodeBuiltins.map(m => m.replace("/", "\\/")).join("|")})$`);
+      build.onResolve({ filter }, args => {
+        return { path: `node:${args.path}`, external: true };
+      });
+      // Also pass through already-prefixed imports
+      build.onResolve({ filter: /^node:/ }, args => {
+        return { path: args.path, external: true };
+      });
+    },
+  };
+}
 
 // Bundle the app
 esbuild
@@ -31,30 +116,44 @@ esbuild
     logLevel: "info",
   })
   .then(() => {
+    // Deno functions-server (ESM format).
+    // Only native deps are externalized.
+    // Everything else (workspace packages, pure JS/ESM, prom-client) is bundled by esbuild.
+    // The banner polyfills require() via createRequire so that CJS packages bundled
+    // into ESM (which esbuild converts to __require() calls) work under Deno.
     return esbuild.build({
       entryPoints: ["./src/functions-server.ts"],
       bundle: true,
       platform: "node",
-      target: "node20",
-      format: "cjs",
-      outfile: "./dist/functions-server.js",
+      target: "es2022",
+      format: "esm",
+      outfile: "./dist/functions-server.mjs",
       sourcemap: false,
       minify: false,
-      external: externalModules,
+      external: denoExternalModules,
+      plugins: [denoNodePrefixPlugin()],
+      banner: {
+        js: 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url);',
+      },
       logLevel: "info",
     });
   })
   .then(() => {
+    // Deno workspace worker (ESM – runs in Web Worker sandbox with permissions: "none")
     return esbuild.build({
-      entryPoints: ["./src/lib/udf-worker.ts"],
+      entryPoints: ["./src/lib/workspace-worker.ts"],
       bundle: true,
       platform: "node",
-      target: "node20",
-      format: "cjs",
-      outfile: "./dist/udf-worker.js",
+      target: "es2022",
+      format: "esm",
+      outfile: "./dist/workspace-worker.mjs",
       sourcemap: false,
-      minify: true,
-      external: externalModules,
+      minify: false,
+      external: [],
+      plugins: [denoNodePrefixPlugin()],
+      banner: {
+        js: 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url); var __require = require; globalThis.require = require',
+      },
       logLevel: "info",
     });
   })

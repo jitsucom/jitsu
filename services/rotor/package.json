@@ -15,7 +15,7 @@
     "start": "dotenv -e ../../.env.local -- node dist/main.js",
     "rotor:dev": "tsx --env-file-if-exists=../../.env --env-file-if-exists=../../.env.local --watch src/index.ts",
     "rotor:profile": "tsx --env-file-if-exists=../../.env --env-file-if-exists=../../.env.local --watch --inspect src/index.ts",
-    "test": "vitest run",
+    "test": "pnpm build && CI=true vitest run",
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix"
   },
