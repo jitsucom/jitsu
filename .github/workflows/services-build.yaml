@@ -34,6 +34,9 @@ on:
         type: boolean
         default: false
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 concurrency:
   # Use a shared concurrency group for both direct runs and calls from lint.yml
   # This ensures only one build runs per branch at a time

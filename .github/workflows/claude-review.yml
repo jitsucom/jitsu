@@ -10,6 +10,9 @@ on:
       - edited        # PR title/body/base-branch changed
       - ready_for_review   # PR moved from draft → ready
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   claude-review:
     runs-on: ubuntu-latest

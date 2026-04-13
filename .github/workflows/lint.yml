@@ -5,6 +5,7 @@ on:
   workflow_dispatch:
 
 env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   # The jitsu-builder container has Playwright browsers binaries preinstalled on this path:
   PLAYWRIGHT_BROWSERS_PATH: /root/.cache/ms-playwright
   BETA_BRANCH: newjitsu
