@@ -73,36 +73,31 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: 🔍 Validate NPM token
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}
+      - name: 🔍 Validate OIDC token and npm access
         run: |
-          echo "Validating NPM token..."
-          WHOAMI=$(curl -s -H "Authorization: Bearer ${NPM_TOKEN}" https://registry.npmjs.org/-/whoami)
-          echo "Authenticated as: ${WHOAMI}"
-          if [ -z "${WHOAMI}" ] || [ "${WHOAMI}" = "null" ]; then
-            echo "ERROR: Invalid NPM token"
+          OIDC_TOKEN=$(curl -sf -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=npm%3Aregistry.npmjs.org" | jq -r '.value')
+          if [ -z "${OIDC_TOKEN}" ] || [ "${OIDC_TOKEN}" = "null" ]; then
+            echo "ERROR: Could not obtain OIDC token - check that id-token: write permission is set on this job"
             exit 1
           fi
+          echo "OIDC token obtained"
+          FAILED=0
+          for PKG in "@jitsu/protocols" "@jitsu/js" "@jitsu/jitsu-react"; do
+            ENCODED=$(printf '%s' "$PKG" | sed 's/@/%40/g; s|/|%2F|g')
+            HTTP=$(curl -sf -o /dev/null -w "%{http_code}" -X POST -H "Authorization: Bearer ${OIDC_TOKEN}" "https://registry.npmjs.org/-/npm/v1/oidc/token/exchange/package/${ENCODED}")
+            if [ "${HTTP}" != "201" ]; then
+              echo "ERROR: npm OIDC exchange failed (HTTP ${HTTP}) for ${PKG} - check trusted publisher config on npmjs.com"
+              FAILED=1
+            else
+              echo "OK: ${PKG}"
+            fi
+          done
+          [ "${FAILED}" = "0" ] || exit 1
 
       - name: 🐳 Pull and start builder container
         run: |
           docker pull jitsucom/jitsu-builder:latest
           docker run -d --name builder -v ${{ github.workspace }}:/workspace -w /workspace -e CI=true jitsucom/jitsu-builder:latest tail -f /dev/null
-
-      - name: 🔐 Configure npm authentication
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}
-        run: |
-          docker exec -e NPM_TOKEN builder sh -c "echo '//registry.npmjs.org/:_authToken='\${NPM_TOKEN} >> /workspace/.npmrc"
-
-      - name: 🔐 Validate npm authentication
-        run: |
-          docker exec builder npm whoami || {
-            echo "npm whoami failed, dumping debug logs:"
-            docker exec builder sh -c "cat /root/.npm/_logs/*.log"
-            exit 1
-          }
 
       - name: 📦 Fetch dependencies from store
         run: |
@@ -147,15 +142,15 @@ jobs:
 
           # Publish @jitsu/protocols
           echo "Publishing @jitsu/protocols..."
-          docker exec builder sh -c "cd types/protocols && pnpm publish --tag ${NPM_TAG} --access public"
+          docker exec -e ACTIONS_ID_TOKEN_REQUEST_URL -e ACTIONS_ID_TOKEN_REQUEST_TOKEN builder sh -c "cd types/protocols && pnpm publish --provenance --tag ${NPM_TAG} --access public"
 
           # Publish @jitsu/js
           echo "Publishing @jitsu/js..."
-          docker exec builder sh -c "cd libs/jitsu-js && pnpm publish --tag ${NPM_TAG} --access public"
+          docker exec -e ACTIONS_ID_TOKEN_REQUEST_URL -e ACTIONS_ID_TOKEN_REQUEST_TOKEN builder sh -c "cd libs/jitsu-js && pnpm publish --provenance --tag ${NPM_TAG} --access public"
 
           # Publish @jitsu/jitsu-react
           echo "Publishing @jitsu/jitsu-react..."
-          docker exec builder sh -c "cd libs/jitsu-react && pnpm publish --tag ${NPM_TAG} --access public"
+          docker exec -e ACTIONS_ID_TOKEN_REQUEST_URL -e ACTIONS_ID_TOKEN_REQUEST_TOKEN builder sh -c "cd libs/jitsu-react && pnpm publish --provenance --tag ${NPM_TAG} --access public"
 
       - name: 🧹 Cleanup container
         if: always()
