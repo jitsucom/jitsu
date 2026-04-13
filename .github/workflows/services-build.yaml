@@ -449,14 +449,12 @@ jobs:
           CHANNEL: ${{ needs.version.outputs.channel }}
           DONT_PUBLISH: ${{ inputs.dont_publish }}
         run: |
-          # Determine NPM tag based on channel
           if [ "${CHANNEL}" = "stable" ]; then
             NPM_TAG="latest"
           else
             NPM_TAG="${CHANNEL}"
           fi
 
-          # Add --dry-run if dont_publish is true
           DRY_RUN_FLAG=""
           if [ "${DONT_PUBLISH}" = "true" ]; then
             DRY_RUN_FLAG="--dry-run"
@@ -465,17 +463,24 @@ jobs:
             echo "Publishing packages to NPM with tag: ${NPM_TAG}"
           fi
 
+          # Get OIDC token and set up .npmrc to use NODE_AUTH_TOKEN
+          OIDC_TOKEN=$(curl -sf -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=npm%3Aregistry.npmjs.org" | jq -r '.value')
+          echo "//registry.npmjs.org/:_authToken=\${NODE_AUTH_TOKEN}" >> ${{ github.workspace }}/.npmrc
+
           # Publish jitsu-cli
           echo "Publishing jitsu-cli..."
-          docker exec -e ACTIONS_ID_TOKEN_REQUEST_URL -e ACTIONS_ID_TOKEN_REQUEST_TOKEN builder sh -c "cd cli/jitsu-cli && npm publish --provenance --tag ${NPM_TAG} --access public ${DRY_RUN_FLAG}"
+          PKG_TOKEN=$(curl -sf -X POST -H "Authorization: Bearer ${OIDC_TOKEN}" "https://registry.npmjs.org/-/npm/v1/oidc/token/exchange/package/jitsu-cli" | jq -r '.token')
+          docker exec -e NODE_AUTH_TOKEN="${PKG_TOKEN}" builder sh -c "cd cli/jitsu-cli && npm publish --tag ${NPM_TAG} --access public ${DRY_RUN_FLAG}"
 
           # Publish @jitsu/protocols
           echo "Publishing @jitsu/protocols..."
-          docker exec -e ACTIONS_ID_TOKEN_REQUEST_URL -e ACTIONS_ID_TOKEN_REQUEST_TOKEN builder sh -c "cd types/protocols && npm publish --provenance --tag ${NPM_TAG} --access public ${DRY_RUN_FLAG}"
+          PKG_TOKEN=$(curl -sf -X POST -H "Authorization: Bearer ${OIDC_TOKEN}" "https://registry.npmjs.org/-/npm/v1/oidc/token/exchange/package/%40jitsu%2Fprotocols" | jq -r '.token')
+          docker exec -e NODE_AUTH_TOKEN="${PKG_TOKEN}" builder sh -c "cd types/protocols && npm publish --tag ${NPM_TAG} --access public ${DRY_RUN_FLAG}"
 
           # Publish @jitsu/functions-lib
           echo "Publishing @jitsu/functions-lib..."
-          docker exec -e ACTIONS_ID_TOKEN_REQUEST_URL -e ACTIONS_ID_TOKEN_REQUEST_TOKEN builder sh -c "cd libs/functions && npm publish --provenance --tag ${NPM_TAG} --access public ${DRY_RUN_FLAG}"
+          PKG_TOKEN=$(curl -sf -X POST -H "Authorization: Bearer ${OIDC_TOKEN}" "https://registry.npmjs.org/-/npm/v1/oidc/token/exchange/package/%40jitsu%2Ffunctions-lib" | jq -r '.token')
+          docker exec -e NODE_AUTH_TOKEN="${PKG_TOKEN}" builder sh -c "cd libs/functions && npm publish --tag ${NPM_TAG} --access public ${DRY_RUN_FLAG}"
 
       - name: 🧹 Cleanup container
         if: always()
