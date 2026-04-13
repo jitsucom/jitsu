@@ -10,9 +10,6 @@ on:
       - edited        # PR title/body/base-branch changed
       - ready_for_review   # PR moved from draft → ready
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   claude-review:
     runs-on: ubuntu-latest
@@ -23,7 +20,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
 

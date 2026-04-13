@@ -3,16 +3,13 @@ name: Test Slack Notification
 on:
   workflow_dispatch:
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   test:
     name: 🧪 Test All Block Types
     runs-on: ubuntu-latest
     steps:
       - name: 📥 Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: 💬 Send notification with all block types
         uses: ./.github/actions/slack-notify

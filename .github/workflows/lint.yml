@@ -5,7 +5,6 @@ on:
   workflow_dispatch:
 
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   # The jitsu-builder container has Playwright browsers binaries preinstalled on this path:
   PLAYWRIGHT_BROWSERS_PATH: /root/.cache/ms-playwright
   BETA_BRANCH: newjitsu
@@ -27,13 +26,13 @@ jobs:
       packages: write
     steps:
       - name: 📥 Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 2
 
       - name: 🔍 Check changed files
         id: changes
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@v4
         with:
           filters: |
             playwright:
@@ -53,7 +52,7 @@ jobs:
 
       - name: 🚀 Setup Turbo cache
         if: steps.changes.outputs.nodejs == 'true'
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             .turbo
@@ -117,14 +116,14 @@ jobs:
       contents: read
     steps:
       - name: 📥 Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
           submodules: true
 
       - name: 🔍 Check changed files
         id: changes
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@v4
         with:
           filters: |
             bulker:
@@ -168,7 +167,7 @@ jobs:
 
       - name: 📤 Upload test artifacts
         if: always() && steps.changes.outputs.bulker == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: bulker-test-report
           path: |
@@ -187,7 +186,7 @@ jobs:
       packages: write
     steps:
       - name: 📥 Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: 📝 Get short SHA
         id: short-sha

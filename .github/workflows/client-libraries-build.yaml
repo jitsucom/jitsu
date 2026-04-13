@@ -19,9 +19,6 @@ on:
         required: false
         type: string
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 concurrency:
   group: client-libraries-build-${{ github.ref }}
   cancel-in-progress: true
@@ -37,7 +34,7 @@ jobs:
     steps:
       - name: 📥 Checkout code
         if: ${{ !inputs.version }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -71,7 +68,7 @@ jobs:
 
     steps:
       - name: 📥 Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
           fetch-tags: true
