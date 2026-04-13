@@ -142,15 +142,15 @@ jobs:
 
           # Publish @jitsu/protocols
           echo "Publishing @jitsu/protocols..."
-          docker exec -e ACTIONS_ID_TOKEN_REQUEST_URL -e ACTIONS_ID_TOKEN_REQUEST_TOKEN builder sh -c "cd types/protocols && pnpm publish --provenance --tag ${NPM_TAG} --access public"
+          docker exec -e ACTIONS_ID_TOKEN_REQUEST_URL -e ACTIONS_ID_TOKEN_REQUEST_TOKEN builder sh -c "cd types/protocols && npm publish --provenance --tag ${NPM_TAG} --access public"
 
           # Publish @jitsu/js
           echo "Publishing @jitsu/js..."
-          docker exec -e ACTIONS_ID_TOKEN_REQUEST_URL -e ACTIONS_ID_TOKEN_REQUEST_TOKEN builder sh -c "cd libs/jitsu-js && pnpm publish --provenance --tag ${NPM_TAG} --access public"
+          docker exec -e ACTIONS_ID_TOKEN_REQUEST_URL -e ACTIONS_ID_TOKEN_REQUEST_TOKEN builder sh -c "cd libs/jitsu-js && npm publish --provenance --tag ${NPM_TAG} --access public"
 
           # Publish @jitsu/jitsu-react
           echo "Publishing @jitsu/jitsu-react..."
-          docker exec -e ACTIONS_ID_TOKEN_REQUEST_URL -e ACTIONS_ID_TOKEN_REQUEST_TOKEN builder sh -c "cd libs/jitsu-react && pnpm publish --provenance --tag ${NPM_TAG} --access public"
+          docker exec -e ACTIONS_ID_TOKEN_REQUEST_URL -e ACTIONS_ID_TOKEN_REQUEST_TOKEN builder sh -c "cd libs/jitsu-react && npm publish --provenance --tag ${NPM_TAG} --access public"
 
       - name: 🧹 Cleanup container
         if: always()

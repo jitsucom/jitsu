@@ -467,15 +467,15 @@ jobs:
 
           # Publish jitsu-cli
           echo "Publishing jitsu-cli..."
-          docker exec -e ACTIONS_ID_TOKEN_REQUEST_URL -e ACTIONS_ID_TOKEN_REQUEST_TOKEN builder sh -c "cd cli/jitsu-cli && pnpm publish --provenance --tag ${NPM_TAG} --access public ${DRY_RUN_FLAG}"
+          docker exec -e ACTIONS_ID_TOKEN_REQUEST_URL -e ACTIONS_ID_TOKEN_REQUEST_TOKEN builder sh -c "cd cli/jitsu-cli && npm publish --provenance --tag ${NPM_TAG} --access public ${DRY_RUN_FLAG}"
 
           # Publish @jitsu/protocols
           echo "Publishing @jitsu/protocols..."
-          docker exec -e ACTIONS_ID_TOKEN_REQUEST_URL -e ACTIONS_ID_TOKEN_REQUEST_TOKEN builder sh -c "cd types/protocols && pnpm publish --provenance --tag ${NPM_TAG} --access public ${DRY_RUN_FLAG}"
+          docker exec -e ACTIONS_ID_TOKEN_REQUEST_URL -e ACTIONS_ID_TOKEN_REQUEST_TOKEN builder sh -c "cd types/protocols && npm publish --provenance --tag ${NPM_TAG} --access public ${DRY_RUN_FLAG}"
 
           # Publish @jitsu/functions-lib
           echo "Publishing @jitsu/functions-lib..."
-          docker exec -e ACTIONS_ID_TOKEN_REQUEST_URL -e ACTIONS_ID_TOKEN_REQUEST_TOKEN builder sh -c "cd libs/functions && pnpm publish --provenance --tag ${NPM_TAG} --access public ${DRY_RUN_FLAG}"
+          docker exec -e ACTIONS_ID_TOKEN_REQUEST_URL -e ACTIONS_ID_TOKEN_REQUEST_TOKEN builder sh -c "cd libs/functions && npm publish --provenance --tag ${NPM_TAG} --access public ${DRY_RUN_FLAG}"
 
       - name: 🧹 Cleanup container
         if: always()
