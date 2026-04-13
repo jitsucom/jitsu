@@ -396,7 +396,7 @@ jobs:
           FAILED=0
           for PKG in "jitsu-cli" "@jitsu/protocols" "@jitsu/functions-lib"; do
             ENCODED=$(printf '%s' "$PKG" | sed 's/@/%40/g; s|/|%2F|g')
-            HTTP=$(curl -sf -o /dev/null -w "%{http_code}" -X POST -H "Authorization: Bearer ${OIDC_TOKEN}" "https://registry.npmjs.org/-/npm/v1/oidc/token/exchange/package/${ENCODED}")
+            HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST -H "Authorization: Bearer ${OIDC_TOKEN}" "https://registry.npmjs.org/-/npm/v1/oidc/token/exchange/package/${ENCODED}")
             if [ "${HTTP}" != "201" ]; then
               echo "ERROR: npm OIDC exchange failed (HTTP ${HTTP}) for ${PKG} - check trusted publisher config on npmjs.com"
               FAILED=1
