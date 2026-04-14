@@ -17,22 +17,12 @@ import type {
 import type { AnyEvent, EventContext, FuncReturn, FullContext } from "@jitsu/protocols/functions";
 import type { FunctionExecLog, FunctionExecRes } from "@jitsu/core-functions-lib";
 
-import {
-  DropRetryErrorName,
-  NoRetryErrorName,
-  RetryError,
-  NoRetryError,
-  TableNameParameter,
-  toJitsuClassic,
-  fromJitsuClassic,
-} from "@jitsu/functions-lib";
+import * as functionsLib from "@jitsu/functions-lib";
 
-// Set globals so UDF IIFE code (compiled via functionsLibShimPlugin) can access them
-(globalThis as any).RetryError = RetryError;
-(globalThis as any).NoRetryError = NoRetryError;
-(globalThis as any).TableNameParameter = TableNameParameter;
-(globalThis as any).toJitsuClassic = toJitsuClassic;
-(globalThis as any).fromJitsuClassic = fromJitsuClassic;
+// Set globals so UDF code (compiled via functionsLibShimPlugin) can access them
+for (const [name, value] of Object.entries(functionsLib)) {
+  globalThis[name] = value;
+}
 
 // ── Proxy helpers ───────────────────────────────────────────────────
 
@@ -300,11 +290,11 @@ async function runChainInWorker(
               chain.functions.length
             }. Only the last function in a chain is allowed to multiply events.`
           );
-          err.name = NoRetryErrorName;
+          err.name = functionsLib.NoRetryErrorName;
           throw err;
         }
       } catch (err: any) {
-        if (err?.name === DropRetryErrorName || err?.name === NoRetryErrorName) {
+        if (err?.name === functionsLib.DropRetryErrorName || err?.name === functionsLib.NoRetryErrorName) {
           result = "drop";
         }
         if (func?.config?.retryPolicy) {

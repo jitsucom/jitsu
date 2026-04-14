@@ -56,6 +56,12 @@ import {
   closeProfileBuilderConnections,
   type CompiledProfileBuilder,
 } from "./lib/pb-server-runtime";
+import * as functionsLib from "@jitsu/functions-lib";
+
+// Set globals so UDF code (compiled via functionsLibShimPlugin) can access them
+for (const [name, value] of Object.entries(functionsLib)) {
+  globalThis[name] = value;
+}
 
 const gunzip = promisify(zlib.gunzip);
 
@@ -164,9 +170,9 @@ function classifyChainResult(result: FuncChainResultWithLogs): [string, string] 
   for (const entry of result.execLog) {
     if (entry.error) {
       const name = entry.error.name || "Error";
-      if (name === DropRetryErrorName) return ["error_drop_retry", entry.functionId];
-      if (name === NoRetryErrorName) return ["error_drop", entry.functionId];
-      if (name === RetryErrorName) return ["error_retry", entry.functionId];
+      if (name === functionsLib.DropRetryErrorName) return ["error_drop_retry", entry.functionId];
+      if (name === functionsLib.NoRetryErrorName) return ["error_drop", entry.functionId];
+      if (name === functionsLib.RetryErrorName) return ["error_retry", entry.functionId];
       return ["error", entry.functionId];
     }
   }
@@ -451,7 +457,7 @@ async function buildFunctionChain(
         funcs.push({
           id: f.functionId,
           exec: async () => {
-            throw new RetryError(compilationError);
+            throw new functionsLib.RetryError(compilationError);
           },
           config: undefined,
         });
@@ -645,11 +651,11 @@ async function runChain(
               chain.functions.length
             }. Only the last function in a chain is allowed to multiply events.`
           );
-          multiEventError.name = NoRetryErrorName;
+          multiEventError.name = functionsLib.NoRetryErrorName;
           throw multiEventError;
         }
       } catch (err: any) {
-        if (err?.name === DropRetryErrorName || err?.name === NoRetryErrorName) {
+        if (err?.name === functionsLib.DropRetryErrorName || err?.name === functionsLib.NoRetryErrorName) {
           result = "drop";
         }
         // Set retryPolicy from function config (same pattern as legacy udf-wrapper)
@@ -1286,7 +1292,7 @@ async function main() {
             events: [],
             execLog: [
               {
-                error: { message: `Connection '${connectionId}' not found`, name: NoRetryErrorName },
+                error: { message: `Connection '${connectionId}' not found`, name: functionsLib.NoRetryErrorName },
                 ms: 0,
                 eventIndex: 0,
                 functionId: "",
@@ -1302,7 +1308,14 @@ async function main() {
         log.atError().log(`[multi] Error processing connection ${connectionId}: ${errorMessage}`);
         return {
           connectionId,
-          execLog: [{ error: { message: errorMessage, name: NoRetryErrorName }, ms: 0, eventIndex: 0, functionId: "" }],
+          execLog: [
+            {
+              error: { message: errorMessage, name: functionsLib.NoRetryErrorName },
+              ms: 0,
+              eventIndex: 0,
+              functionId: "",
+            },
+          ],
           events: [],
           logs: [],
         } as StrictFuncChainResult;

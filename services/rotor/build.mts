@@ -6,10 +6,9 @@ import { join } from "path";
 // Native modules that need to be external and installed with their versions
 const nativeDeps = {
   "isolated-vm": "6.0.0",
-  "@confluentinc/kafka-javascript": "1.4.1",
+  "@confluentinc/kafka-javascript": "1.9.0",
   "@mongodb-js/zstd": "2.0.0",
   esbuild: "0.27.0",
-  "@jitsu/functions-lib": "2.14.0-beta.19",
   mongodb: "6.12.0",
   "prom-client": "15.1.3",
 };
@@ -19,7 +18,6 @@ const nativeDeps = {
 // Everything else (mongodb, prom-client, workspace packages, etc.) is bundled by esbuild.
 const denoExternalDeps: Record<string, string> = {
   esbuild: "0.27.0", // Native binary — used at runtime for UDF compilation
-  "@jitsu/functions-lib": "2.14.0-beta.19", // Needs to match version used by UDF IIFE builds
 };
 
 // MongoDB's optional peer deps — loaded via try/catch require() in deps.js.

@@ -1,6 +1,11 @@
 {
   "name": "@jitsu/protocols",
   "version": "0.0.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jitsucom/jitsu",
+    "directory": "types/protocols"
+  },
   "description": "",
   "author": "Jitsu Dev Team <dev@jitsu.com>",
   "publishConfig": {

@@ -51,7 +51,7 @@ jobs:
       short_sha: ${{ steps.short-sha.outputs.sha }}
     steps:
       - name: 📥 Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -89,19 +89,19 @@ jobs:
 
     steps:
       - name: 📥 Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
           fetch-tags: true
 
       - name: Log in to Docker Hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
         with:
           driver: cloud
           endpoint: "jitsucom/newjitsu"
@@ -185,20 +185,20 @@ jobs:
 
     steps:
       - name: 📥 Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
           fetch-tags: true
           submodules: true
 
       - name: Log in to Docker Hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
         with:
           driver: cloud
           endpoint: "jitsucom/newjitsu"
@@ -270,7 +270,7 @@ jobs:
 
     steps:
       - name: 📥 Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -380,41 +380,52 @@ jobs:
 
     steps:
       - name: 📥 Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: 🔍 Validate NPM token
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}
+      - name: 🔍 Validate OIDC token and npm access
         run: |
-          echo "Validating NPM token..."
-          WHOAMI=$(curl -s -H "Authorization: Bearer ${NPM_TOKEN}" https://registry.npmjs.org/-/whoami)
-          echo "Authenticated as: ${WHOAMI}"
-          if [ -z "${WHOAMI}" ] || [ "${WHOAMI}" = "null" ]; then
-            echo "ERROR: Invalid NPM token"
+          OIDC_TOKEN=$(curl -sf -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=npm%3Aregistry.npmjs.org" | jq -r '.value')
+          if [ -z "${OIDC_TOKEN}" ] || [ "${OIDC_TOKEN}" = "null" ]; then
+            echo "ERROR: Could not obtain OIDC token - check that id-token: write permission is set on this job"
             exit 1
           fi
+          echo "OIDC token obtained"
+          FAILED=0
+          for PKG in "jitsu-cli" "@jitsu/functions-lib"; do
+            ENCODED=$(printf '%s' "$PKG" | sed 's/@/%40/g; s|/|%2F|g')
+            HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST -H "Authorization: Bearer ${OIDC_TOKEN}" "https://registry.npmjs.org/-/npm/v1/oidc/token/exchange/package/${ENCODED}")
+            if [ "${HTTP}" != "201" ]; then
+              echo "ERROR: npm OIDC exchange failed (HTTP ${HTTP}) for ${PKG} - check trusted publisher config on npmjs.com"
+              FAILED=1
+            else
+              echo "OK: ${PKG}"
+            fi
+          done
+          [ "${FAILED}" = "0" ] || exit 1
 
       - name: 🐳 Pull and start builder container
         run: |
           docker pull jitsucom/jitsu-builder:latest
-          docker run -d --name builder -v ${{ github.workspace }}:/workspace -w /workspace -e CI=true jitsucom/jitsu-builder:latest tail -f /dev/null
-
-      - name: 🔐 Configure npm authentication
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}
-        run: |
-          docker exec -e NPM_TOKEN builder sh -c "echo '//registry.npmjs.org/:_authToken='\${NPM_TOKEN} >> /workspace/.npmrc"
-
-      - name: 🔐 Validate npm authentication
-        run: |
-          docker exec builder npm whoami || {
-            echo "npm whoami failed, dumping debug logs:"
-            docker exec builder sh -c "cat /root/.npm/_logs/*.log"
-            exit 1
-          }
+          docker run -d --name builder -v ${{ github.workspace }}:/workspace -w /workspace \
+            -e CI=true \
+            -e GITHUB_ACTIONS=true \
+            -e ACTIONS_ID_TOKEN_REQUEST_URL \
+            -e ACTIONS_ID_TOKEN_REQUEST_TOKEN \
+            -e GITHUB_REF \
+            -e GITHUB_SHA \
+            -e GITHUB_REPOSITORY \
+            -e GITHUB_REPOSITORY_ID \
+            -e GITHUB_REPOSITORY_OWNER_ID \
+            -e GITHUB_SERVER_URL \
+            -e GITHUB_EVENT_NAME \
+            -e GITHUB_RUN_ID \
+            -e GITHUB_RUN_ATTEMPT \
+            -e GITHUB_WORKFLOW_REF \
+            -e RUNNER_ENVIRONMENT \
+            jitsucom/jitsu-builder:latest tail -f /dev/null
 
       - name: 📦 Fetch dependencies from store
         run: |
@@ -454,14 +465,12 @@ jobs:
           CHANNEL: ${{ needs.version.outputs.channel }}
           DONT_PUBLISH: ${{ inputs.dont_publish }}
         run: |
-          # Determine NPM tag based on channel
           if [ "${CHANNEL}" = "stable" ]; then
             NPM_TAG="latest"
           else
             NPM_TAG="${CHANNEL}"
           fi
 
-          # Add --dry-run if dont_publish is true
           DRY_RUN_FLAG=""
           if [ "${DONT_PUBLISH}" = "true" ]; then
             DRY_RUN_FLAG="--dry-run"
@@ -470,17 +479,8 @@ jobs:
             echo "Publishing packages to NPM with tag: ${NPM_TAG}"
           fi
 
-          # Publish jitsu-cli
-          echo "Publishing jitsu-cli..."
-          docker exec builder sh -c "cd cli/jitsu-cli && pnpm publish --tag ${NPM_TAG} --access public ${DRY_RUN_FLAG}"
-          
-          # Publish @jitsu/protocols
-          echo "Publishing @jitsu/protocols..."
-          docker exec builder sh -c "cd types/protocols && pnpm publish --tag ${NPM_TAG} --access public ${DRY_RUN_FLAG}"
-          
-          # Publish @jitsu/functions-lib
-          echo "Publishing @jitsu/functions-lib..."
-          docker exec builder sh -c "cd libs/functions && pnpm publish --tag ${NPM_TAG} --access public ${DRY_RUN_FLAG}"
+          docker exec builder sh -c "cd cli/jitsu-cli && npm publish --tag ${NPM_TAG} --access public --provenance ${DRY_RUN_FLAG}"
+          docker exec builder sh -c "cd libs/functions && npm publish --tag ${NPM_TAG} --access public --provenance ${DRY_RUN_FLAG}"
 
       - name: 🧹 Cleanup container
         if: always()

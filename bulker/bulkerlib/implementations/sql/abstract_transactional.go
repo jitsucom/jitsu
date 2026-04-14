@@ -305,7 +305,7 @@ func (ps *AbstractTransactionalSQLStream) flushBatchFile(ctx context.Context) (s
 				_ = file.Close()
 			}()
 			scanner := bufio.NewScanner(file)
-			scanner.Buffer(make([]byte, 1024*10), 50*1024*1024)
+			scanner.Buffer(make([]byte, 1024*10), 1024*1024*100)
 			var i uint32
 			for scanner.Scan() {
 				if !ps.batchFileSkipLines.Contains(i) {

@@ -129,16 +129,6 @@ export function createPg(): Pool {
 
 const mutationActions = ["create", "update", "upsert", "delete"];
 
-function blockPrismaMutations() {
-  return async (params, next) => {
-    const action = params.action;
-    if (mutationActions.find(candidate => action.indexOf(candidate) === 0)) {
-      throw new Error(`Prisma operation ${action} is not allowed in read-only mode`);
-    }
-    return await next(params);
-  };
-}
-
 export function getApplicationDatabaseUrl(): string {
   const serverEnv = getServerEnv();
   return requireDefined(
@@ -228,7 +218,18 @@ export function createPrisma(): PrismaClient {
     }
   });
   if (isReadOnly) {
-    prisma.$use(blockPrismaMutations());
+    return prisma.$extends({
+      query: {
+        $allModels: {
+          async $allOperations({ operation, args, query }) {
+            if (mutationActions.find(candidate => operation.indexOf(candidate) === 0)) {
+              throw new Error(`Prisma operation ${operation} is not allowed in read-only mode`);
+            }
+            return query(args);
+          },
+        },
+      },
+    }) as typeof prisma;
   }
 
   return prisma;

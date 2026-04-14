@@ -150,6 +150,11 @@ export async function rotorMessageHandler(
     return undefined;
   }
   if (functionsServer.status === "missing") {
+    log
+      .atError()
+      .log(
+        `[${connection.id}] Connection is missing in functionsServer ${functionsServer.deploymentId} for workspace ${connection.workspaceId}. Dropping event.`
+      );
     // Connection not yet known to the functions server deployment — drop silently
     return undefined;
   }

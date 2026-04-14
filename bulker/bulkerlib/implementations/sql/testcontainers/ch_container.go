@@ -3,11 +3,14 @@ package testcontainers
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/jitsucom/bulker/jitsubase/logging"
 	"github.com/jitsucom/bulker/jitsubase/utils"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/network"
 	"github.com/testcontainers/testcontainers-go"
 	tcWait "github.com/testcontainers/testcontainers-go/wait"
-	"time"
 )
 
 const (
@@ -28,14 +31,18 @@ type ClickHouseContainer struct {
 // This logic is required for running test at CI environment
 func NewClickhouseContainer(ctx context.Context) (*ClickHouseContainer, error) {
 	image := "clickhouse/clickhouse-server:25.4-alpine"
-	//exposedPortHttp := fmt.Sprintf("%d:%d", utils.GetPort(), 8123)
-	exposedPortNative := fmt.Sprintf("%d:%d", utils.GetPort(), 9000)
+	hostPort := fmt.Sprintf("%d", utils.GetPort())
 
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
 			Image:        image,
-			ExposedPorts: []string{exposedPortNative},
-			WaitingFor:   tcWait.ForListeningPort("9000/tcp").WithStartupTimeout(1 * time.Minute),
+			ExposedPorts: []string{"9000/tcp"},
+			HostConfigModifier: func(hc *container.HostConfig) {
+				hc.PortBindings = network.PortMap{
+					network.MustParsePort("9000/tcp"): []network.PortBinding{{HostPort: hostPort}},
+				}
+			},
+			WaitingFor: tcWait.ForListeningPort("9000/tcp").WithStartupTimeout(1 * time.Minute),
 			Env: map[string]string{
 				"CLICKHOUSE_USER":            "default",
 				"CLICKHOUSE_SKIP_USER_SETUP": "1",
@@ -56,7 +63,7 @@ func NewClickhouseContainer(ctx context.Context) (*ClickHouseContainer, error) {
 	return &ClickHouseContainer{
 		Container: container,
 		Context:   ctx,
-		Hosts:     []string{fmt.Sprintf("localhost:%d", port.Int())},
+		Hosts:     []string{fmt.Sprintf("localhost:%d", port.Num())},
 		Database:  chDatabase,
 	}, nil
 }

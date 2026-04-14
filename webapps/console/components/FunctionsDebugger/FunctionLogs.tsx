@@ -4,6 +4,17 @@ import dayjs from "dayjs";
 
 const localDate = (date: string | Date) => dayjs(date).format("YYYY-MM-DD HH:mm:ss");
 
+function formatArg(arg: any): string {
+  if (arg === null) return "null";
+  if (arg === undefined) return "undefined";
+  if (typeof arg === "string") return arg;
+  try {
+    return JSON.stringify(arg);
+  } catch {
+    return String(arg);
+  }
+}
+
 export const FunctionLogs: React.FC<{ logs: logType[]; className?: string; showDate?: boolean }> = ({
   logs,
   className,
@@ -39,7 +50,7 @@ export const FunctionLogs: React.FC<{ logs: logType[]; className?: string; showD
               {log.level.toUpperCase()}
             </div>
             <div style={{ color: colors.text }} className={"flex-auto whitespace-pre-wrap break-all"}>
-              {log.message}
+              {[log.message, ...(log.args || [])].map(formatArg).join(", ")}
             </div>
           </div>
         );

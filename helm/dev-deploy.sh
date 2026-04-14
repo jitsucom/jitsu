@@ -46,9 +46,14 @@ ensure_minikube_context() {
 
 # Check if minikube is running
 check_minikube() {
-    if ! minikube status &> /dev/null; then
+    local host_status
+    host_status=$(minikube status --format='{{.Host}}' 2>/dev/null || echo "")
+    if [ -z "$host_status" ] || [ "$host_status" = "Stopped" ] || [ "$host_status" = "Nonexistent" ]; then
         log_error "Minikube is not running. Start it with: minikube start"
         exit 1
+    fi
+    if [ "$host_status" != "Running" ]; then
+        log_warn "Minikube host status: $host_status"
     fi
     ensure_minikube_context
 }

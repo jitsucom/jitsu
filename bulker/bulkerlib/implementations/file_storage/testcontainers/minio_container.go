@@ -3,11 +3,14 @@ package testcontainers
 import (
 	"context"
 	"fmt"
+
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/jitsucom/bulker/jitsubase/logging"
 	"github.com/jitsucom/bulker/jitsubase/utils"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/network"
 	"github.com/testcontainers/testcontainers-go"
 	tcWait "github.com/testcontainers/testcontainers-go/wait"
 )
@@ -34,15 +37,20 @@ func NewMinioContainer(ctx context.Context, bucketName string) (*MinioContainer,
 	dbSettings["MINIO_ACCESS_KEY"] = minioAccessKey
 	dbSettings["MINIO_SECRET_KEY"] = minioSecretKey
 
-	exposedPort := fmt.Sprintf("%d:%d", utils.GetPort(), 9000)
+	hostPort := fmt.Sprintf("%d", utils.GetPort())
 
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
 			Image:        "minio/minio:latest",
 			Cmd:          []string{"server", "/data"},
-			ExposedPorts: []string{exposedPort},
-			Env:          dbSettings,
-			WaitingFor:   tcWait.ForListeningPort("9000"),
+			ExposedPorts: []string{"9000/tcp"},
+			HostConfigModifier: func(hc *container.HostConfig) {
+				hc.PortBindings = network.PortMap{
+					network.MustParsePort("9000/tcp"): []network.PortBinding{{HostPort: hostPort}},
+				}
+			},
+			Env:        dbSettings,
+			WaitingFor: tcWait.ForListeningPort("9000/tcp"),
 		},
 		Started: true,
 	})
@@ -65,7 +73,7 @@ func NewMinioContainer(ctx context.Context, bucketName string) (*MinioContainer,
 		Container: container,
 		Context:   ctx,
 		Host:      host,
-		Port:      port.Int(),
+		Port:      int(port.Num()),
 		AccessKey: minioAccessKey,
 		SecretKey: minioSecretKey,
 	}

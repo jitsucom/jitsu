@@ -513,19 +513,17 @@ func (r *Router) processSyncDestination(message *IngestMessage, stream *StreamWi
 		if fs == nil {
 			continue // no functionsServer info — skip
 		}
-		status, _ := fs["status"].(string)
-		if status == "missing" || status == "empty" {
-			continue // missing: not yet registered; empty: no functions to run
-		}
-		if status == "legacy" {
+		switch fs["status"] {
+		case "legacy":
 			legacyDestinations = append(legacyDestinations, d)
-			continue
-		}
-		if status == "functions" {
+		case "functions":
 			deploymentID, _ := fs["deploymentId"].(string)
 			if deploymentID != "" {
 				byDeployment[deploymentID] = append(byDeployment[deploymentID], d)
 			}
+		case "empty":
+		default:
+			r.Errorf("functionsServer status for connection %s: %v", d.ConnectionId, fs["status"])
 		}
 	}
 

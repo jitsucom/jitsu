@@ -4,13 +4,16 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/jitsucom/bulker/jitsubase/logging"
-	"github.com/jitsucom/bulker/jitsubase/utils"
-	"github.com/testcontainers/testcontainers-go"
-	tcWait "github.com/testcontainers/testcontainers-go/wait"
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/jitsucom/bulker/jitsubase/logging"
+	"github.com/jitsucom/bulker/jitsubase/utils"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/network"
+	"github.com/testcontainers/testcontainers-go"
+	tcWait "github.com/testcontainers/testcontainers-go/wait"
 )
 
 const (
@@ -68,14 +71,19 @@ func NewMySQLContainer(ctx context.Context) (*MySQLContainer, error) {
 	//dbSettings["MYSQL_PASSWORD"] = mySQLPassword
 	dbSettings["MYSQL_DATABASE"] = mySQLDatabase
 
-	exposedPort := fmt.Sprintf("%d:%d", utils.GetPort(), 3306)
+	hostPort := fmt.Sprintf("%d", utils.GetPort())
 
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
 			Image:        "mysql/mysql-server:8.0",
-			ExposedPorts: []string{exposedPort},
-			Env:          dbSettings,
-			WaitingFor:   tcWait.ForLog("port: 3306  MySQL Community Server - GPL").WithStartupTimeout(time.Second * 180),
+			ExposedPorts: []string{"3306/tcp"},
+			HostConfigModifier: func(hc *container.HostConfig) {
+				hc.PortBindings = network.PortMap{
+					network.MustParsePort("3306/tcp"): []network.PortBinding{{HostPort: hostPort}},
+				}
+			},
+			Env:        dbSettings,
+			WaitingFor: tcWait.ForLog("port: 3306  MySQL Community Server - GPL").WithStartupTimeout(time.Second * 180),
 		},
 		Started: true,
 	})
@@ -98,7 +106,7 @@ func NewMySQLContainer(ctx context.Context) (*MySQLContainer, error) {
 	logging.Infof("Exec result err: %v", err)
 	// [user[:password]@][net[(addr)]]/dbname[?param1=value1&paramN=valueN]
 	connectionString := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s",
-		mySQLUser, mySQLPassword, host, port.Int(), mySQLDatabase)
+		mySQLUser, mySQLPassword, host, port.Num(), mySQLDatabase)
 	dataSource, err := sql.Open("mysql", connectionString)
 	if err != nil {
 		container.Terminate(ctx)
@@ -114,7 +122,7 @@ func NewMySQLContainer(ctx context.Context) (*MySQLContainer, error) {
 		Container:  container,
 		Context:    ctx,
 		Host:       host,
-		Port:       port.Int(),
+		Port:       int(port.Num()),
 		Database:   mySQLDatabase,
 		Username:   mySQLUser,
 		Password:   mySQLPassword,

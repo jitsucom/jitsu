@@ -4,15 +4,17 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/docker/go-connections/nat"
-	"github.com/jitsucom/bulker/jitsubase/logging"
-	"github.com/jitsucom/bulker/jitsubase/utils"
-	"github.com/testcontainers/testcontainers-go"
-	tcWait "github.com/testcontainers/testcontainers-go/wait"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/jitsucom/bulker/jitsubase/logging"
+	"github.com/jitsucom/bulker/jitsubase/utils"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/network"
+	"github.com/testcontainers/testcontainers-go"
+	tcWait "github.com/testcontainers/testcontainers-go/wait"
 )
 
 const (
@@ -72,18 +74,24 @@ func NewPostgresContainer(ctx context.Context) (*PostgresContainer, error) {
 	dbSettings["POSTGRES_USER"] = pgUser
 	dbSettings["POSTGRES_PASSWORD"] = pgPassword
 	dbSettings["POSTGRES_DB"] = pgDatabase
-	dbURL := func(host string, port nat.Port) string {
-		return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", pgUser, pgPassword, host, port.Port(), pgDatabase)
+	dbURL := func(host string, port string) string {
+		port = strings.Split(port, "/")[0]
+		return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", pgUser, pgPassword, host, port, pgDatabase)
 	}
 
-	exposedPort := fmt.Sprintf("%d:%d", utils.GetPort(), 5432)
+	hostPort := fmt.Sprintf("%d", utils.GetPort())
 
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
 			Image:        "postgres:12-alpine",
-			ExposedPorts: []string{exposedPort},
-			Env:          dbSettings,
-			WaitingFor:   tcWait.ForSQL("5432", "pgx", dbURL).WithStartupTimeout(time.Second * 60),
+			ExposedPorts: []string{"5432/tcp"},
+			HostConfigModifier: func(hc *container.HostConfig) {
+				hc.PortBindings = network.PortMap{
+					network.MustParsePort("5432/tcp"): []network.PortBinding{{HostPort: hostPort}},
+				}
+			},
+			Env:        dbSettings,
+			WaitingFor: tcWait.ForSQL("5432", "pgx", dbURL).WithStartupTimeout(time.Second * 60),
 		},
 		Started: true,
 	})
@@ -102,7 +110,7 @@ func NewPostgresContainer(ctx context.Context) (*PostgresContainer, error) {
 		return nil, err
 	}
 	connectionString := fmt.Sprintf("host=%s port=%d dbname=%s user=%s password=%s sslmode=disable",
-		host, port.Int(), pgDatabase, pgUser, pgPassword)
+		host, port.Num(), pgDatabase, pgUser, pgPassword)
 	logging.Infof("testcontainters postgres connection string: %s", connectionString)
 	dataSource, err := sql.Open("pgx", connectionString)
 	if err != nil {
@@ -120,7 +128,7 @@ func NewPostgresContainer(ctx context.Context) (*PostgresContainer, error) {
 		Container:  container,
 		Context:    ctx,
 		Host:       host,
-		Port:       port.Int(),
+		Port:       int(port.Num()),
 		Schema:     pgSchema,
 		Database:   pgDatabase,
 		Username:   pgUser,
@@ -225,6 +233,6 @@ func (pgc *PostgresContainer) Start() error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Postgres container started on port: %d\n", port.Int())
+	fmt.Printf("Postgres container started on port: %d\n", port.Num())
 	return nil
 }
