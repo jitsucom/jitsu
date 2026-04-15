@@ -33,6 +33,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      security-events: read
 
     steps:
       - name: 📥 Checkout code
@@ -58,6 +59,7 @@ jobs:
           cache-dependency-path: "bulker/**/*.sum"
 
       - name: 📦 Install dependencies
+        if: false
         run: pnpm install --frozen-lockfile
         continue-on-error: true
 
@@ -102,7 +104,7 @@ jobs:
               ecosystem: .security_vulnerability.package.ecosystem,
               vulnerable_range: .security_vulnerability.vulnerable_version_range,
               fixed_version: .security_vulnerability.first_patched_version.identifier
-            }]' > /tmp/dependabot-alerts.json 2>/dev/null || echo '[]' > /tmp/dependabot-alerts.json
+            }]' > /tmp/dependabot-alerts.json || echo '[]' > /tmp/dependabot-alerts.json
           echo "Dependabot alerts: $(jq length /tmp/dependabot-alerts.json)"
 
       - name: 🤖 Install Claude Code
