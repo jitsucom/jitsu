@@ -1,0 +1,186 @@
+name: 🔒 Security Vulnerability Fix
+
+on:
+  schedule:
+    - cron: "0 8 * * 1" # Every Monday at 8:00 UTC
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (report only, no PRs)"
+        required: false
+        type: boolean
+        default: false
+      severity:
+        description: "Minimum severity to fix"
+        required: false
+        type: choice
+        options:
+          - low
+          - moderate
+          - high
+          - critical
+        default: moderate
+
+concurrency:
+  group: security-fix
+  cancel-in-progress: false
+
+jobs:
+  scan-and-fix:
+    name: 🔍 Scan & Fix Vulnerabilities
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          ref: newjitsu
+
+      - name: 🔧 Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: 🔧 Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.26"
+          cache-dependency-path: "bulker/**/*.sum"
+
+      - name: 📦 Install dependencies
+        run: pnpm install --frozen-lockfile
+        continue-on-error: true
+
+      - name: 🔍 Run npm audit
+        id: npm-audit
+        run: |
+          pnpm audit --json > /tmp/npm-audit.json 2>/dev/null || true
+          echo "npm audit complete"
+          # Summary for logs
+          jq -r '.advisories // {} | length' /tmp/npm-audit.json 2>/dev/null || echo "0"
+
+      - name: 🔍 Run govulncheck
+        id: go-vuln
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          mkdir -p /tmp/go-vulns
+
+          for moddir in bulker/*/; do
+            if [ -f "${moddir}go.mod" ]; then
+              modname=$(basename "${moddir}")
+              echo "Scanning ${moddir}..."
+              govulncheck -C "${{ github.workspace }}/${moddir}" -json ./... > "/tmp/go-vulns/${modname}.json" 2>/dev/null || true
+            fi
+          done
+          jq -s 'flatten' /tmp/go-vulns/*.json > /tmp/go-vulns.json 2>/dev/null || echo '[]' > /tmp/go-vulns.json
+          echo "govulncheck complete"
+
+      - name: 🔍 Fetch Dependabot alerts
+        id: dependabot
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api repos/${{ github.repository }}/dependabot/alerts \
+            --jq '[.[] | select(.state == "open") | {
+              number: .number,
+              cve: .security_advisory.cve_id,
+              severity: .security_advisory.severity,
+              summary: .security_advisory.summary,
+              package: .security_vulnerability.package.name,
+              ecosystem: .security_vulnerability.package.ecosystem,
+              vulnerable_range: .security_vulnerability.vulnerable_version_range,
+              fixed_version: .security_vulnerability.first_patched_version.identifier
+            }]' > /tmp/dependabot-alerts.json 2>/dev/null || echo '[]' > /tmp/dependabot-alerts.json
+          echo "Dependabot alerts: $(jq length /tmp/dependabot-alerts.json)"
+
+      - name: 🤖 Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: 🔒 Fix vulnerabilities with Claude
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          MIN_SEVERITY: ${{ inputs.severity || 'moderate' }}
+          REPO: ${{ github.repository }}
+        run: |
+          cat << PROMPT | claude --print \
+            --allowedTools "Bash(cat:*),Bash(jq:*),Bash(pnpm:*),Bash(go:*),Bash(git:*),Bash(gh:*),Bash(grep:*),Bash(head:*),Bash(npm:*)" \
+            --model claude-haiku-4-5-20251001
+          You are a security engineer fixing dependency vulnerabilities in a monorepo.
+
+          ## Context
+          - Repository: $REPO
+          - Base branch: newjitsu
+          - Dry run mode: $DRY_RUN
+          - Minimum severity: $MIN_SEVERITY
+          - This is a monorepo with:
+            - Node.js/pnpm workspace (libs/, services/, webapps/, cli/, types/)
+            - Go modules in bulker/ directory
+            - Root package.json has pnpm.overrides for version pinning
+
+          ## Available scan results
+          - Dependabot alerts: /tmp/dependabot-alerts.json (MOST RELIABLE — use this as primary source)
+          - npm audit: /tmp/npm-audit.json
+          - Go vulncheck: /tmp/go-vulns.json
+
+          ## Your task
+          1. Read /tmp/dependabot-alerts.json first. Filter by MIN_SEVERITY (severity order: critical > high > moderate > low).
+          2. For each vulnerability (or group of trivial same-ecosystem patches):
+
+             a. **Analyze the fix**:
+                - Check if the package is a direct dependency (`grep` in package.json files) or transitive.
+                - For transitive deps: use pnpm overrides in root package.json (pattern: `"pkg@<fixed_version": "^fixed_version"`).
+                - For direct deps: bump the version in the relevant package.json.
+                - For Go deps: run `go -C bulker/modulename get pkg@version && go -C bulker/modulename mod tidy`.
+                - Check if the fixed version is a major version bump. If so:
+                  - Check the package's changelog/migration guide.
+                  - Verify the new version's API is compatible.
+                  - If breaking changes exist, note them in the PR description.
+                  - If the major bump is risky, create the PR but mark it as needing manual review.
+
+             b. **Apply the fix**:
+                - Create a branch: `security/fix-{package-name}` (or `security/fix-batch-{date}` for grouped trivial patches).
+                - Make the changes.
+                - For Node.js: run `pnpm install` to update the lockfile.
+                - For Go: run `go mod tidy` in affected modules.
+                - Commit with message: `fix(security): upgrade {package} to {version} ({CVE})`
+
+             c. **Create a PR** (unless DRY_RUN is true):
+                - Title: `fix(security): {package} {CVE} ({severity})`
+                - Body should include:
+                  - CVE ID and severity
+                  - What the vulnerability is (1 sentence)
+                  - What was changed (override vs direct bump vs Go module update)
+                  - Whether this is a major version bump
+                  - Any breaking changes or risks noted
+                - Use: `gh pr create --base newjitsu --title "..." --body "..."`
+
+             d. **Reset** back to newjitsu before the next fix:
+                `git checkout newjitsu && git reset --hard origin/newjitsu`
+
+          3. Group trivial patches together: if multiple vulnerabilities can be fixed by
+             simple pnpm overrides with no major version bumps, batch them into one PR.
+             Keep major version bumps or risky changes as individual PRs.
+
+          4. If DRY_RUN is true, just output a report of what would be done. Do not create branches or PRs.
+
+          ## Important rules
+          - NEVER force push or modify the newjitsu branch directly.
+          - Always create a NEW branch for each PR.
+          - Run `pnpm install` after modifying package.json to verify the fix works.
+          - If `pnpm install` fails after a fix, revert and skip that vulnerability.
+          - For Go modules, use `go -C bulker/modulename` to run in the module directory.
+          - Check existing open PRs with `gh pr list --search "security"` to avoid duplicates.
+          PROMPT

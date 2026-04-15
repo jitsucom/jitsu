@@ -123,7 +123,6 @@
     "autoprefixer": "^10.4.20",
     "dotenv-cli": "^6.0.0",
     "esbuild": "catalog:",
-    "elliptic": "^6.6.1",
     "eslint": "catalog:",
     "eslint-config-next": "^16.2.3",
     "eslint-plugin-unused-imports": "^4.3.0",
