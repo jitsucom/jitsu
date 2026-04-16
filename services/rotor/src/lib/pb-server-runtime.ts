@@ -10,16 +10,21 @@ import { promisify } from "util";
 import { getLog, int32Hash, parseNumber, stopwatch } from "juava";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { ProfileResult } from "@jitsu/protocols/profile";
+import { buildEventsIterable, buildLazyUser } from "./profile-utils";
 import {
   createMemoryStore,
+  EnrichedConnectionConfig,
+  EntityStore,
   FunctionChainContext,
   FunctionConfig,
   makeFetch,
   makeLog,
   StoreMetrics,
 } from "@jitsu/core-functions-lib";
+import type { TTLStore } from "@jitsu/protocols/functions";
 import { createMongoStore, mongodb } from "./mongodb";
 import { compileUdfFunction } from "./udf-shared";
+import { warehouseQuery } from "./warehouse-store";
 import { getServerEnv } from "../serverEnv";
 
 const gunzip = promisify(zlib.gunzip);
@@ -77,6 +82,7 @@ export type CompiledProfileBuilder = {
   config: ProfileBuilderConfig;
   udfFunctions: Array<{ id: string; exec: (events: any, user: any, ctx: any) => Promise<ProfileResult | undefined> }>;
   mongoClient: any; // MongoClient from mongodb driver
+  store: TTLStore;
 };
 
 const profileIdHashColumn = "_profile_id_hash";
@@ -94,7 +100,7 @@ async function getOrCreateMongoClient(mongoUrl: string): Promise<any> {
   if (client) {
     return client;
   }
-  const mongoTimeout = parseNumber(serverEnv.MONGODB_TIMEOUT_MS, 1000);
+  const mongoTimeout = parseNumber(serverEnv.PB_MONGODB_TIMEOUT_MS || serverEnv.MONGODB_TIMEOUT_MS, 1000);
   client = new MongoClient(mongoUrl, {
     compressors: ["zstd"],
     serverSelectionTimeoutMS: 60000,
@@ -197,7 +203,12 @@ export async function initProfileBuilderRuntimes(
         mongoClient = await getOrCreateMongoClient(mongoUrl);
       }
 
-      compiled.set(pbId, { config: pb, udfFunctions, mongoClient });
+      // Initialize the persistent store once — reused across all runs of this profile builder
+      const store: TTLStore = serverEnv.MONGODB_URL
+        ? createMongoStore(pb.workspaceId, mongodb, false, true, storeMetrics)
+        : createMemoryStore({});
+
+      compiled.set(pbId, { config: pb, udfFunctions, mongoClient, store });
       log.atInfo().log(`✓ Initialized profile builder: ${pbId} (${udfFunctions.length} functions)`);
     } catch (e: any) {
       log.atError().log(`✗ Failed to initialize profile builder ${pbId}: ${e.message}`);
@@ -265,7 +276,8 @@ export async function runProfileBuilder(
   compiledPb: CompiledProfileBuilder,
   profileId: string,
   deploymentId: string,
-  storeMetrics: StoreMetrics
+  storeMetrics: StoreMetrics,
+  conEntityStore?: EntityStore<EnrichedConnectionConfig>
 ): Promise<ProfileChainResult> {
   const pb = compiledPb.config;
   const sw = stopwatch();
@@ -286,6 +298,22 @@ export async function runProfileBuilder(
       getProfileUser(compiledPb.mongoClient, eventsDatabase, traitsCollectionName, profileId),
     ]);
 
+    // EventsStore adapter that pushes HTTP request logs (and any other) into the logs array
+    const collectingEventsStore = {
+      log: (connectionId: string, level: any, msg: Record<string, any>) => {
+        logs.push({
+          level,
+          functionId: pb.id,
+          functionType: "profile",
+          message: { ...msg, functionId: pb.id, functionType: "profile" },
+          timestamp: new Date(),
+        });
+      },
+      close: () => {},
+      deadLetter: () => {},
+    };
+    const fetchTimeout = parseNumber(serverEnv.FETCH_TIMEOUT_MS, 2000);
+
     const funcCtx = {
       function: {
         id: pb.id,
@@ -293,26 +321,40 @@ export async function runProfileBuilder(
         debugTill: pb.debugTill ? new Date(pb.debugTill) : undefined,
       },
       props: pb.connectionOptions?.variables || {},
+      log: {
+        info: (message: string, ...args: any[]) => logs.push({ message, level: "info", timestamp: new Date(), functionId: pb.id, functionType: "profile", args: args.length > 0 ? args : undefined }),
+        warn: (message: string, ...args: any[]) => logs.push({ message, level: "warn", timestamp: new Date(), functionId: pb.id, functionType: "profile", args: args.length > 0 ? args : undefined }),
+        debug: (message: string, ...args: any[]) => logs.push({ message, level: "debug", timestamp: new Date(), functionId: pb.id, functionType: "profile", args: args.length > 0 ? args : undefined }),
+        error: (message: string, ...args: any[]) => logs.push({ message, level: "error", timestamp: new Date(), functionId: pb.id, functionType: "profile", args: args.length > 0 ? args : undefined }),
+      },
+      fetch: makeFetch(pb.id, collectingEventsStore, "info", fetchTimeout),
+      store: compiledPb.store,
+      getWarehouse: (destinationId: string) => ({
+        query: async (sql: string, params?: Record<string, any>) => {
+          if (!conEntityStore) {
+            throw new Error("Warehouse queries not available: no connection store configured");
+          }
+          const pbWarehouseTimeout = parseNumber(serverEnv.PB_WAREHOUSE_TIMEOUT_MS || serverEnv.WAREHOUSE_TIMEOUT_MS, 1000);
+          return warehouseQuery(pb.workspaceId, conEntityStore, destinationId, sql, params || {}, storeMetrics, pbWarehouseTimeout);
+        },
+      }),
+      profileBuilder: {
+        id: pb.id,
+        version: pb.version,
+      },
     };
 
-    // Create async providers matching the ProfileFunction interface
-    let eventIndex = 0;
-    const eventsProvider = async (): Promise<AnalyticsServerEvent | undefined> => {
-      if (eventIndex < events.length) {
-        return events[eventIndex++] as unknown as AnalyticsServerEvent;
-      }
-      return undefined;
-    };
+    // Build iterable from events array — UDF uses `for (const event of events)`
+    const eventsIterable = buildEventsIterable(events as unknown as AnalyticsServerEvent[]);
 
-    const userProvider = async (): Promise<ProfileUser> => {
-      return user;
-    };
+    // Build lazy user object — properties are accessed on demand
+    const lazyUser = buildLazyUser(user);
 
     // Run UDF chain - each function in sequence
     let result: ProfileResult | undefined;
     for (const udf of compiledPb.udfFunctions) {
       try {
-        result = await udf.exec(eventsProvider, userProvider, funcCtx);
+        result = await udf.exec(eventsIterable, lazyUser, funcCtx);
       } catch (e: any) {
         return {
           logs,
@@ -352,7 +394,7 @@ export async function runProfileBuilder(
   }
 }
 
-// Profile UDF test request/response types (matches ProfileUDFTestRequest/Response from profiles-udf-wrapper.ts)
+// Profile UDF test request/response types
 export type ProfileUDFTestRequest = {
   id: string;
   name: string;
@@ -383,7 +425,7 @@ export type ProfileUDFTestResponse = {
   backend?: string;
 };
 
-// Merge user traits from identify events (same logic as profiles-udf-wrapper.ts mergeUserTraits)
+// Merge user traits from identify events
 function mergeUserTraits(events: AnalyticsServerEvent[]): ProfileUser {
   const user: ProfileUser = {
     profileId: (events[0] as any)?._profile_id || "",
@@ -405,40 +447,65 @@ function mergeUserTraits(events: AnalyticsServerEvent[]): ProfileUser {
 }
 
 // Run profile UDF test in a one-time Deno Web Worker
-export async function runProfileUDFTest(request: ProfileUDFTestRequest): Promise<ProfileUDFTestResponse> {
+export async function runProfileUDFTest(
+  request: ProfileUDFTestRequest,
+  store: TTLStore,
+  conEntityStore: EntityStore<EnrichedConnectionConfig>
+): Promise<ProfileUDFTestResponse> {
   const { id, name, version, code, events, settings } = request;
   const { variables, tableName, destinationId } = settings;
   const user = mergeUserTraits(events);
-  const udfTimeoutMs = parseNumber(getServerEnv().UDF_TIMEOUT_MS, 5000);
+  const env = getServerEnv();
+  const udfTimeoutMs = parseNumber(env.PB_UDF_TIMEOUT_MS || env.UDF_TIMEOUT_MS, 5000);
+
+  const emptyProfile = (): Profile => ({
+    profile_id: user.profileId || user.userId,
+    destination_id: destinationId,
+    table_name: tableName || "profiles",
+    traits: {},
+    updated_at: new Date(),
+  });
 
   try {
     // Compile to IIFE for worker execution
     const { compileUdfToIIFE } = await import("./udf-shared");
     const iifeCode = await compileUdfToIIFE(code, id, variables);
 
-    const workerUrl = new URL("./profile-worker.ts", import.meta.url).href;
+    const workerUrl = new URL("./profile-worker.mjs", import.meta.url).href;
     const worker = new Worker(workerUrl, {
       type: "module",
       // @ts-ignore Deno-specific
       deno: { permissions: "none" },
     });
 
+    // Logs collected on the main side (e.g. from makeFetch HTTP request entries)
+    const mainSideLogs: any[] = [];
+    const collectingEventsStore = {
+      log: (connectionId: string, level: any, msg: Record<string, any>) => {
+        mainSideLogs.push({
+          level,
+          functionId: id,
+          functionType: "profile",
+          message: { ...msg, functionId: id, functionType: "profile" },
+          timestamp: new Date(),
+        });
+      },
+      close: () => {},
+      deadLetter: () => {},
+    };
+    const fetchTimeout = parseNumber(env.FETCH_TIMEOUT_MS, 2000);
+    const proxiedFetch = makeFetch(id, collectingEventsStore, "info", fetchTimeout);
+
     const result = await new Promise<ProfileUDFTestResponse>((resolve) => {
       const timer = setTimeout(() => {
         worker.terminate();
-        resolve({
-          error: { message: `Profile function execution timed out after ${udfTimeoutMs}ms`, name: "TimeoutError" },
-          result: { profile_id: user.profileId || user.userId, destination_id: destinationId, table_name: tableName, traits: {}, updated_at: new Date() },
-          store: {},
-          logs: [],
-        });
+        resolve({ error: { message: `Profile function execution timed out after ${udfTimeoutMs}ms`, name: "TimeoutError" }, result: emptyProfile(), store: {}, logs: mainSideLogs });
       }, udfTimeoutMs);
 
-      worker.onmessage = (e: MessageEvent) => {
+      worker.onmessage = async (e: MessageEvent) => {
         const msg = e.data;
 
         if (msg.type === "ready") {
-          // Worker initialized, send events for execution
           worker.postMessage({ type: "exec", events, user });
           return;
         }
@@ -447,13 +514,15 @@ export async function runProfileUDFTest(request: ProfileUDFTestRequest): Promise
           clearTimeout(timer);
           worker.terminate();
 
+          // Merge main-side logs (e.g. http-request) with worker logs and sort by timestamp.
+          // Both sides use ISO-string or Date timestamps; sort works on either lexically.
+          const combinedLogs = [...mainSideLogs, ...(msg.logs || [])].sort((a, b) => {
+            const ta = a.timestamp instanceof Date ? a.timestamp.getTime() : new Date(a.timestamp).getTime();
+            const tb = b.timestamp instanceof Date ? b.timestamp.getTime() : new Date(b.timestamp).getTime();
+            return ta - tb;
+          });
           if (msg.error) {
-            resolve({
-              error: msg.error,
-              result: { profile_id: user.profileId || user.userId, destination_id: destinationId, table_name: tableName, traits: {}, updated_at: new Date() },
-              store: {},
-              logs: msg.logs || [],
-            });
+            resolve({ error: msg.error, result: emptyProfile(), store: {}, logs: combinedLogs });
           } else {
             const r = msg.result;
             const profile: Profile = {
@@ -464,7 +533,39 @@ export async function runProfileUDFTest(request: ProfileUDFTestRequest): Promise
               version,
               updated_at: new Date(),
             };
-            resolve({ result: profile, store: {}, logs: msg.logs || [] });
+            resolve({ result: profile, store: {}, logs: combinedLogs });
+          }
+          return;
+        }
+
+        // Handle proxy requests for store/fetch/warehouse
+        if (msg.type === "proxyRequest") {
+          const { callId, method, args } = msg;
+          try {
+            let result: any;
+            if (method.startsWith("store.")) {
+              const op = method.split(".")[1];
+              result = await (store as any)[op](...args);
+            } else if (method === "fetch") {
+              const [url, init] = args;
+              const res = await proxiedFetch(url, init);
+              const headers: Record<string, string> = {};
+              res.headers.forEach((v: string, k: string) => { headers[k] = v; });
+              result = {
+                status: res.status,
+                statusText: res.statusText,
+                ok: res.ok,
+                url: res.url,
+                headers,
+                body: await res.text(),
+              };
+            } else if (method === "warehouse.query") {
+              const [destinationId, sql, params] = args;
+              result = await warehouseQuery(request.workspaceId, conEntityStore, destinationId, sql, params);
+            }
+            worker.postMessage({ type: "proxyResponse", callId, result });
+          } catch (err: any) {
+            worker.postMessage({ type: "proxyResponse", callId, error: err.message });
           }
           return;
         }
@@ -473,35 +574,20 @@ export async function runProfileUDFTest(request: ProfileUDFTestRequest): Promise
       worker.onerror = (err: ErrorEvent) => {
         clearTimeout(timer);
         worker.terminate();
-        resolve({
-          error: { message: err.message, name: "WorkerError" },
-          result: { profile_id: user.profileId || user.userId, destination_id: destinationId, table_name: tableName, traits: {}, updated_at: new Date() },
-          store: {},
-          logs: [],
-        });
+        resolve({ error: { message: err.message, name: "WorkerError" }, result: emptyProfile(), store: {}, logs: mainSideLogs });
       };
 
       // Initialize worker with compiled code
-      worker.postMessage({ type: "init", id, iifeCode, variables });
+      worker.postMessage({ type: "init", id, version, iifeCode, variables });
     });
 
     return result;
   } catch (e: any) {
     if (e.errors && Array.isArray(e.errors)) {
       const errorMessages = e.errors.map((err: any) => err.text).join("\n");
-      return {
-        error: { message: `Failed to compile profile function ${id}:\n${errorMessages}`, name: "CompilationError" },
-        result: { profile_id: user.profileId || user.userId, destination_id: destinationId, table_name: tableName, traits: {}, updated_at: new Date() },
-        store: {},
-        logs: [],
-      };
+      return { error: { message: `Failed to compile profile function ${id}:\n${errorMessages}`, name: "CompilationError" }, result: emptyProfile(), store: {}, logs: [] };
     }
-    return {
-      error: { message: e.message, stack: e.stack, name: e.name || "Error", retryPolicy: e.retryPolicy },
-      result: { profile_id: user.profileId || user.userId, destination_id: destinationId, table_name: tableName, traits: {}, updated_at: new Date() },
-      store: {},
-      logs: [],
-    };
+    return { error: { message: e.message, stack: e.stack, name: e.name || "Error", retryPolicy: e.retryPolicy }, result: emptyProfile(), store: {}, logs: [] };
   }
 }
 

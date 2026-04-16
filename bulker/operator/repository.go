@@ -244,14 +244,14 @@ func CalculateWorkspaceData(
 	maxUpdatedAt := ws.UpdatedAt
 	filteredFunctions := make([]*FunctionConfig, 0, len(functions))
 	for _, fn := range functions {
+		if fn.UpdatedAt.After(maxUpdatedAt) {
+			maxUpdatedAt = fn.UpdatedAt
+		}
 		if fn.Kind == "profile" {
 			// Skip profile functions — they are handled via profileBuilders
 			continue
 		}
 		filteredFunctions = append(filteredFunctions, fn)
-		if fn.UpdatedAt.After(maxUpdatedAt) {
-			maxUpdatedAt = fn.UpdatedAt
-		}
 	}
 	filteredConnections := make([]*EnrichedConnectionConfig, 0, len(connections))
 	for _, conn := range connections {

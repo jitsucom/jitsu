@@ -59,6 +59,11 @@ type Config struct {
 
 	FastStoreWorkspaceIDs string `mapstructure:"FAST_STORE_WORKSPACE_IDS"` // comma-separated list of workspace IDs that should use mongobetween sidecar
 
+	// Profile builder timeout overrides (passed to functions-server as PB_* env vars)
+	PBMongoDBTimeoutMs   int `mapstructure:"PB_MONGODB_TIMEOUT_MS" default:"120000"`
+	PBWarehouseTimeoutMs int `mapstructure:"PB_WAREHOUSE_TIMEOUT_MS" default:"5000"`
+	PBUdfTimeoutMs       int `mapstructure:"PB_UDF_TIMEOUT_MS" default:"300000"`
+
 	// Minimum number of replicas
 	MinReplicas        int32 `mapstructure:"MIN_REPLICAS" default:"2"`
 	MinReplicasPremium int32 `mapstructure:"MIN_REPLICAS_PREMIUM" default:"4"`

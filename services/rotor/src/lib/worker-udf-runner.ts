@@ -175,7 +175,8 @@ export async function runUdfInWorker(
               const op = method.split(".")[1];
               result = await (store as any)[op](...args);
             } else if (method === "fetch") {
-              const [url, init] = args;
+              // Worker sends [connectionId, url, init] — connectionId is unused here (single-connection runner)
+              const [, url, init] = args;
               const res = await fetchImpl(url, init);
               const responseHeaders: Record<string, string> = {};
               res.headers.forEach((v: string, k: string) => {

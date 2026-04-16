@@ -16,6 +16,7 @@ env:
   ingest: {}
   bulker: {}
   rotor: {}
+  profiles: {}
   syncctl: {}
   operator: {}
   console:
@@ -30,6 +31,8 @@ scaling:
   bulker:
     replicas: 1
   rotor:
+    replicas: 1
+  profiles:
     replicas: 1
   syncctl:
     replicas: 1

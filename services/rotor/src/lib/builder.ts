@@ -1,7 +1,7 @@
 import { ProfileBuilder, EventsStore, bulkerDestination } from "@jitsu/destination-functions";
 import { AggregationCursor, MongoClient, Document, ReadPreference } from "mongodb";
 import { db, ProfileBuilderQueueInfo } from "./db";
-import { getLog, getSingleton, hash, LogFactory, parseNumber, requireDefined, stopwatch } from "juava";
+import { getLog, getSingleton, hash, LogFactory, LogLevel, parseNumber, requireDefined, stopwatch } from "juava";
 import { FullContext } from "@jitsu/protocols/functions";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { TableNameParameter, transfer } from "@jitsu/functions-lib";
@@ -10,9 +10,15 @@ import { createPriorityConsumer, TopicsReport } from "./priority-consumer";
 import { kafkaAdmin, kafkaCredentials, topicName } from "./kafka";
 import { promProfileStatuses, promQueueProcessed, promQueueSize } from "./metrics";
 import { getServerEnv } from "../serverEnv";
-import { createClient, pbEnsureMongoCollection, profileIdColumn, ProfilesConfig } from "./profiles-functions";
+import {
+  createClient,
+  pbEnsureMongoCollection,
+  profileIdColumn,
+  profileIdHashColumn,
+  ProfilesConfig,
+} from "./profiles-functions";
 import { mongodb } from "./mongodb";
-import { Profile } from "./profiles-udf-wrapper";
+import { Profile } from "./pb-server-runtime";
 import { undiciAgent } from "./functions-server-client";
 
 const serverEnv = getServerEnv();
@@ -25,7 +31,6 @@ export const metricsInterval = parseNumber(serverEnv.METRICS_INTERVAL_MS, 5000);
 
 const instanceIndex = parseNumber(serverEnv.INSTANCE_INDEX, 0);
 const priorityLevels = parseNumber(serverEnv.PRIORITY_LEVELS, 3);
-
 
 const bulkerSchema = {
   name: "profiles",
@@ -67,12 +72,12 @@ export async function profileBuilder(
 
   // Resolve the functions server deployment for this profile builder
   // The functionsServer info is set in the workspaces-with-profiles export
-  const functionsServerInfo = (profileBuilder as any).functionsServer as
-    | { deploymentId: string }
-    | undefined;
+  const functionsServerInfo = (profileBuilder as any).functionsServer as { deploymentId: string } | undefined;
 
   if (!functionsServerInfo?.deploymentId) {
-    log.atError().log(`No functionsServer info found for profile builder ${profileBuilder.id}. Profile processing will fail.`);
+    log
+      .atError()
+      .log(`No functionsServer info found for profile builder ${profileBuilder.id}. Profile processing will fail.`);
   }
 
   const config = ProfilesConfig.parse({
@@ -106,6 +111,7 @@ export async function profileBuilder(
   const mongo = await mongoSingleton.waitInit();
 
   await pbEnsureMongoCollection(mongo, config.eventsDatabase, config.eventsCollectionName, config.profileWindowDays, [
+    profileIdHashColumn,
     profileIdColumn,
     "type",
   ]);
@@ -123,7 +129,7 @@ export async function profileBuilder(
     profileBuilder,
     priorityLevels,
     (profileId: string, priority: number) => {
-      return () => processProfile(profileBuilder, functionsServerInfo, log, profileId, priority);
+      return () => processProfile(profileBuilder, functionsServerInfo, log, eventsLogger, profileId, priority);
     }
   );
 
@@ -360,6 +366,7 @@ async function processProfile(
   profileBuilder: ProfileBuilder,
   functionsServerInfo: { deploymentId: string } | undefined,
   log: LogFactory,
+  eventsLogger: EventsStore,
   profileId: string,
   priority: number = 0
 ) {
@@ -386,16 +393,47 @@ async function processProfile(
       dispatcher: undiciAgent,
     });
 
-    if (response.statusCode !== 200) {
-      const errorText = await response.body.text();
-      throw new Error(`Functions server returned ${response.statusCode}: ${errorText}`);
-    }
-
-    const fsResult = (await response.body.json()) as {
+    let fsResult: {
       result?: Profile;
       error?: { name: string; message: string };
       logs?: any[];
     };
+
+    const bodyText = await response.body.text();
+    try {
+      fsResult = JSON.parse(bodyText);
+    } catch {
+      throw new Error(`Functions server returned ${response.statusCode}: ${bodyText}`);
+    }
+
+    // Replay function logs to eventsLogger (same pattern as functions-server-client.ts)
+    if (fsResult.logs && fsResult.logs.length > 0) {
+      const connectionId = profileBuilder.id;
+      for (const entry of fsResult.logs) {
+        const functionId = entry.functionId || profileBuilder.id;
+        const functionType = entry.functionType || "profile";
+
+        if (typeof entry.message === "object" && entry.message.type === "http-request") {
+          // HTTP request logs are sent directly to eventsLogger
+          eventsLogger.log(connectionId, entry.level as LogLevel, entry.message);
+        } else {
+          // Regular logs: send to eventsLogger in the standard format
+          eventsLogger.log(connectionId, entry.level as LogLevel, {
+            type: `log-${entry.level}`,
+            functionId,
+            functionType,
+            message: {
+              text: entry.message,
+              args: entry.args,
+            },
+          });
+        }
+      }
+    }
+
+    if (response.statusCode !== 200) {
+      throw new Error(`Functions server returned ${response.statusCode}: ${fsResult.error?.message || bodyText}`);
+    }
 
     if (fsResult.error) {
       throw new Error(`${fsResult.error.name}: ${fsResult.error.message}`);
@@ -404,15 +442,9 @@ async function processProfile(
     const result = fsResult.result;
     if (result) {
       await sendToBulker(profileBuilder, result);
-      log
-        .atInfo()
-        .log(
-          `User ${profileId} processed in ${ms.elapsedMs()}ms. Result: ${JSON.stringify(result)}`
-        );
+      log.atInfo().log(`User ${profileId} processed in ${ms.elapsedMs()}ms. Result: ${JSON.stringify(result)}`);
     } else {
-      log
-        .atWarn()
-        .log(`No profile result for user ${profileId}. processed in ${ms.elapsedMs()}ms`);
+      log.atWarn().log(`No profile result for user ${profileId}. processed in ${ms.elapsedMs()}ms`);
     }
   } catch (e: any) {
     status = "error";

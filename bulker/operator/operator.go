@@ -656,7 +656,7 @@ func (o *Operator) createOrUpdateMongobetweenConfigMap(ctx context.Context, data
 	}
 
 	cmName := fmt.Sprintf("%s-mongobetween", data.DeploymentID)
-	allowedCollections := o.buildAllowedCollectionsFileContent(data.WorkspaceIDs)
+	allowedCollections := o.buildAllowedCollectionsFileContent(data.WorkspaceIDs, data.ProfileBuilders)
 
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1386,11 +1386,15 @@ func (o *Operator) createOrUpdateDedicatedService(ctx context.Context, data *Dep
 }
 
 // buildAllowedCollectionsFileContent builds the allowed collections file content for mongobetween
-// based on workspaces in this deployment. Format: one db.collection per line
-func (o *Operator) buildAllowedCollectionsFileContent(workspaceIDs []string) string {
+// based on workspaces and profile builders in this deployment. Format: one db.collection per line
+func (o *Operator) buildAllowedCollectionsFileContent(workspaceIDs []string, profileBuilders []*ProfileBuilderConfig) string {
 	builder := strings.Builder{}
 	for _, wsID := range workspaceIDs {
 		builder.WriteString(fmt.Sprintf("persistent_store.%s\n", wsID))
+	}
+	for _, pb := range profileBuilders {
+		builder.WriteString(fmt.Sprintf("profiles.profiles-raw-%s-%s\n", pb.WorkspaceID, pb.ID))
+		builder.WriteString(fmt.Sprintf("profiles.profiles-traits-%s-%s\n", pb.WorkspaceID, pb.ID))
 	}
 	return builder.String()
 }
@@ -1567,6 +1571,18 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 		{
 			Name:  "MONGODB_MAX_POOL_SIZE",
 			Value: fmt.Sprint(utils.Ternary(data.FunctionsClass == FunctionsClassPremium, o.config.MongoDBMaxPoolSizePremium, o.config.MongoDBMaxPoolSize)),
+		},
+		{
+			Name:  "PB_MONGODB_TIMEOUT_MS",
+			Value: fmt.Sprint(o.config.PBMongoDBTimeoutMs),
+		},
+		{
+			Name:  "PB_WAREHOUSE_TIMEOUT_MS",
+			Value: fmt.Sprint(o.config.PBWarehouseTimeoutMs),
+		},
+		{
+			Name:  "PB_UDF_TIMEOUT_MS",
+			Value: fmt.Sprint(o.config.PBUdfTimeoutMs),
 		},
 	}
 

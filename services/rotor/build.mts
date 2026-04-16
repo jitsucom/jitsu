@@ -158,6 +158,25 @@ esbuild
     });
   })
   .then(() => {
+    // Deno profile worker (ESM – runs in Web Worker sandbox with permissions: "none")
+    return esbuild.build({
+      entryPoints: ["./src/lib/profile-worker.ts"],
+      bundle: true,
+      platform: "node",
+      target: "es2022",
+      format: "esm",
+      outfile: "./dist/profile-worker.mjs",
+      sourcemap: false,
+      minify: false,
+      external: [],
+      plugins: [denoNodePrefixPlugin()],
+      banner: {
+        js: 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url); var __require = require; globalThis.require = require',
+      },
+      logLevel: "info",
+    });
+  })
+  .then(() => {
     mkdirSync("dist", { recursive: true });
     // Remove old node_modules to force recompilation of native addons for current platform
     rmSync("dist/node_modules", { recursive: true, force: true });

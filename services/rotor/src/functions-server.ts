@@ -1400,7 +1400,7 @@ async function main() {
       return { response: errorResponse(400, "profileId is required"), actorId: profileBuilderId };
     }
 
-    const result = await runProfileBuilder(compiledPb, profileId, deploymentId, pbStoreMetrics);
+    const result = await runProfileBuilder(compiledPb, profileId, deploymentId, pbStoreMetrics, conEntityStore);
     return { response: jsonResponse(result.error ? 500 : 200, result), actorId: profileBuilderId };
   }
 
@@ -1495,7 +1495,10 @@ async function main() {
           if (pathname === "/profileudfrun" && req.method === "POST") {
             const body = await parseBody(req);
             log.atInfo().log(`[profileudfrun] Running profile function: ${body?.id} workspace: ${body?.workspaceId}`);
-            const result = await runProfileUDFTest(body);
+            const pbStore = env.MONGODB_URL
+              ? createMongoStore(body.workspaceId, mongodb, true, false)
+              : createMemoryStore(body.store || {});
+            const result = await runProfileUDFTest(body, pbStore, conEntityStore);
             if (result.error) {
               log
                 .atError()
