@@ -88,6 +88,8 @@ export async function runUdfInWorker(
       functions: [{ id: `udf.${request.functionId}`, iifeCode }],
       functionsClass: env.FUNCTIONS_CLASS,
       warehouseEnabled: true,
+      // /udfrun is a manual debugger invocation — always enable debug logs
+      debugTill: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
       props: request.variables || {},
     };
 
