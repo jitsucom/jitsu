@@ -67,26 +67,26 @@ jobs:
         id: npm-audit
         if: false
         run: |
-          pnpm audit --json > /tmp/npm-audit.json 2>/dev/null || true
+          pnpm audit --json > .npm-audit.json 2>/dev/null || true
           echo "npm audit complete"
           # Summary for logs
-          jq -r '.advisories // {} | length' /tmp/npm-audit.json 2>/dev/null || echo "0"
+          jq -r '.advisories // {} | length' .npm-audit.json 2>/dev/null || echo "0"
 
       - name: 🔍 Run govulncheck
         id: go-vuln
         if: false
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
-          mkdir -p /tmp/go-vulns
+          mkdir -p .go-vulns
 
           for moddir in bulker/*/; do
             if [ -f "${moddir}go.mod" ]; then
               modname=$(basename "${moddir}")
               echo "Scanning ${moddir}..."
-              govulncheck -C "${{ github.workspace }}/${moddir}" -json ./... > "/tmp/go-vulns/${modname}.json" 2>/dev/null || true
+              govulncheck -C "${{ github.workspace }}/${moddir}" -json ./... > ".go-vulns/${modname}.json" 2>/dev/null || true
             fi
           done
-          jq -s 'flatten' /tmp/go-vulns/*.json > /tmp/go-vulns.json 2>/dev/null || echo '[]' > /tmp/go-vulns.json
+          jq -s 'flatten' .go-vulns/*.json > .go-vulns.json 2>/dev/null || echo '[]' > .go-vulns.json
           echo "govulncheck complete"
 
       - name: 🔍 Fetch Dependabot alerts
@@ -104,8 +104,8 @@ jobs:
               ecosystem: .security_vulnerability.package.ecosystem,
               vulnerable_range: .security_vulnerability.vulnerable_version_range,
               fixed_version: .security_vulnerability.first_patched_version.identifier
-            }]' > /tmp/dependabot-alerts.json || echo '[]' > /tmp/dependabot-alerts.json
-          echo "Dependabot alerts: $(jq length /tmp/dependabot-alerts.json)"
+            }]' > .dependabot-alerts.json || echo '[]' > .dependabot-alerts.json
+          echo "Dependabot alerts: $(jq length .dependabot-alerts.json)"
 
       - name: 🤖 Install Claude Code
         run: npm install -g @anthropic-ai/claude-code
@@ -113,7 +113,7 @@ jobs:
       - name: 🔒 Prepare prompt
         id: prompt
         run: |
-          cat > /tmp/claude-prompt.txt << 'EOF'
+          cat > .claude-prompt.txt << 'EOF'
           You are a security engineer fixing dependency vulnerabilities in a monorepo.
 
           ## Context
@@ -122,13 +122,13 @@ jobs:
           - Root package.json has pnpm.overrides for version pinning
 
           ## Available scan results
-          Read /tmp/dependabot-alerts.json — this is the primary source. It is a JSON array of open alerts with fields: number, cve, severity, summary, package, ecosystem, vulnerable_range, fixed_version.
+          Read .dependabot-alerts.json — this is the primary source. It is a JSON array of open alerts with fields: number, cve, severity, summary, package, ecosystem, vulnerable_range, fixed_version.
 
           ## Instructions
 
           IMPORTANT: All examples below use PLACEHOLDER names. You must substitute real values from the scan results. Do NOT run any placeholder literally.
 
-          1. Read the alerts file: cat /tmp/dependabot-alerts.json | jq .
+          1. Read the alerts file: cat .dependabot-alerts.json | jq .
           2. Check existing PRs to avoid duplicates: gh pr list --search "security" --state open
           3. Process each alert (or batch trivial ones together):
 
@@ -165,12 +165,12 @@ jobs:
           EOF
 
           # Append runtime values
-          echo "" >> /tmp/claude-prompt.txt
-          echo "## Runtime values" >> /tmp/claude-prompt.txt
-          echo "- Repository: ${{ github.repository }}" >> /tmp/claude-prompt.txt
-          echo "- Dry run: ${{ inputs.dry_run || 'false' }}" >> /tmp/claude-prompt.txt
-          echo "- Min severity: ${{ inputs.severity || 'moderate' }}" >> /tmp/claude-prompt.txt
-          echo "- If dry run is true, only output a report — do NOT create branches or PRs." >> /tmp/claude-prompt.txt
+          echo "" >> .claude-prompt.txt
+          echo "## Runtime values" >> .claude-prompt.txt
+          echo "- Repository: ${{ github.repository }}" >> .claude-prompt.txt
+          echo "- Dry run: ${{ inputs.dry_run || 'false' }}" >> .claude-prompt.txt
+          echo "- Min severity: ${{ inputs.severity || 'moderate' }}" >> .claude-prompt.txt
+          echo "- If dry run is true, only output a report — do NOT create branches or PRs." >> .claude-prompt.txt
 
       - name: 🔒 Fix vulnerabilities with Claude
         env:
@@ -181,4 +181,4 @@ jobs:
           claude --print \
             --allowedTools "Bash(cat:*),Bash(jq:*),Bash(pnpm:*),Bash(go:*),Bash(git:*),Bash(gh:*),Bash(grep:*),Bash(head:*),Bash(npm:*),Bash(sed:*)" \
             --model claude-haiku-4-5-20251001 \
-            < /tmp/claude-prompt.txt
+            < .claude-prompt.txt
