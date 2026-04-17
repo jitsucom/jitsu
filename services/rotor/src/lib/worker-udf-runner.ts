@@ -88,6 +88,8 @@ export async function runUdfInWorker(
       functions: [{ id: `udf.${request.functionId}`, iifeCode }],
       functionsClass: env.FUNCTIONS_CLASS,
       warehouseEnabled: true,
+      // /udfrun is a manual debugger invocation — always enable debug logs
+      debugTill: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
       props: request.variables || {},
     };
 
@@ -175,7 +177,7 @@ export async function runUdfInWorker(
               const op = method.split(".")[1];
               result = await (store as any)[op](...args);
             } else if (method === "fetch") {
-              const [url, init] = args;
+              const [, url, init] = args;
               const res = await fetchImpl(url, init);
               const responseHeaders: Record<string, string> = {};
               res.headers.forEach((v: string, k: string) => {
