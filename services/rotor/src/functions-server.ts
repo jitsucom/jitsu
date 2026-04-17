@@ -28,7 +28,6 @@ import {
   StoreMetrics,
 } from "@jitsu/core-functions-lib";
 import { getServerEnv } from "./serverEnv";
-import { DropRetryErrorName, NoRetryErrorName, RetryError, RetryErrorName } from "@jitsu/functions-lib";
 import { createMongoStore, mongodb } from "./lib/mongodb";
 import { warehouseQuery } from "./lib/warehouse-store";
 import { parse as semverParse } from "semver";
@@ -54,7 +53,6 @@ import {
   runProfileBuilder,
   runProfileUDFTest,
   closeProfileBuilderConnections,
-  type CompiledProfileBuilder,
 } from "./lib/pb-server-runtime";
 import * as functionsLib from "@jitsu/functions-lib";
 
