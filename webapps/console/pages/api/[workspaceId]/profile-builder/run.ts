@@ -42,7 +42,7 @@ async function getProfileBuilderDeploymentId(workspaceId: string): Promise<strin
   }
   // Select highest priority class that has profile builders assigned
   for (const cls of classPriority) {
-    const record = records.find(r => r.class === cls && r.profileBuilders.length > 0);
+    const record = records.find(r => r.class === cls);
     if (record?.deploymentId) {
       return record.deploymentId;
     }

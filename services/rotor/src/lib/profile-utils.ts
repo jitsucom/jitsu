@@ -17,41 +17,39 @@ export function buildEventsIterable(events: any[]) {
       };
     },
     get length(): never {
-      throw new Error("The 'events' object doesn't have the `length` property, however you can iterate through it with `for (const item of events)` syntax");
+      throw new Error(
+        "The 'events' object doesn't have the `length` property, however you can iterate through it with `for (const item of events)` syntax"
+      );
     },
     filter(): never {
-      throw new Error("The 'events' object doesn't have the `filter` method, however you can iterate through it with `for (const item of events)` syntax");
+      throw new Error(
+        "The 'events' object doesn't have the `filter` method, however you can iterate through it with `for (const item of events)` syntax"
+      );
     },
     map(): never {
-      throw new Error("The 'events' object doesn't have the `map` method, however you can iterate through it with `for (const item of events)` syntax");
+      throw new Error(
+        "The 'events' object doesn't have the `map` method, however you can iterate through it with `for (const item of events)` syntax"
+      );
     },
     find(): never {
-      throw new Error("The 'events' object doesn't have the `find` method, however you can iterate through it with `for (const item of events)` syntax");
+      throw new Error(
+        "The 'events' object doesn't have the `find` method, however you can iterate through it with `for (const item of events)` syntax"
+      );
     },
     some(): never {
-      throw new Error("The 'events' object doesn't have the `some` method, however you can iterate through it with `for (const item of events)` syntax");
+      throw new Error(
+        "The 'events' object doesn't have the `some` method, however you can iterate through it with `for (const item of events)` syntax"
+      );
     },
     reduce(): never {
-      throw new Error("The 'events' object doesn't have the `reduce` method, however you can iterate through it with `for (const item of events)` syntax");
+      throw new Error(
+        "The 'events' object doesn't have the `reduce` method, however you can iterate through it with `for (const item of events)` syntax"
+      );
     },
     sort(): never {
-      throw new Error("The 'events' object doesn't have the `sort` method, however you can iterate through it with `for (const item of events)` syntax");
+      throw new Error(
+        "The 'events' object doesn't have the `sort` method, however you can iterate through it with `for (const item of events)` syntax"
+      );
     },
-  };
-}
-
-// Build a lazy user object — properties are accessed on demand.
-// Mirrors the lazy user pattern from the legacy isolated-vm wrapper
-export function buildLazyUser(rawUser: { profileId: string; userId: string; anonymousId: string; traits: Record<string, any> }) {
-  let cached: typeof rawUser | undefined;
-  function load() {
-    if (!cached) cached = rawUser;
-    return cached;
-  }
-  return {
-    get anonymousId() { return load().anonymousId; },
-    get userId() { return load().userId; },
-    get profileId() { return load().profileId; },
-    get traits() { return load().traits; },
   };
 }

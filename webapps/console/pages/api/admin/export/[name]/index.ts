@@ -772,7 +772,7 @@ async function exportWorkspacesWithProfilesLastModified(): Promise<Date | undefi
   )[0]["last_updated"];
   // force refresh every 5 minute to actualize possible subscription status changes or expirations
   const forceRefreshEveryMs = 5 * 60 * 1000;
-  if (lastUpdated.getTime() < Date.now() - forceRefreshEveryMs) {
+  if (lastUpdated?.getTime() < Date.now() - forceRefreshEveryMs) {
     return new Date(Math.floor(Date.now() / forceRefreshEveryMs) * forceRefreshEveryMs);
   }
   return lastUpdated;
@@ -791,7 +791,9 @@ async function exportWorkspacesWithProfiles(writer: Writer) {
       functionsServers.set(`${fs.workspaceId}_${fs.class}`, fs);
     }
   } catch (e) {
-    getLog().atWarn().log(`Failed to load FunctionsServer table for profile builder routing: ${getErrorMessage(e)}`);
+    getLog()
+      .atWarn()
+      .log(`Failed to load FunctionsServer table for profile builder routing: ${getErrorMessage(e)}`);
   }
 
   writer.write("[");

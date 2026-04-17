@@ -323,21 +323,28 @@ func CalculateConfigHash(connections []*EnrichedConnectionConfig, functions []*F
 
 	// Sort and hash profile builders
 	pbIDs := make([]string, 0, len(profileBuilders))
+	pbMap := make(map[string]*ProfileBuilderConfig, len(profileBuilders))
 	for _, pb := range profileBuilders {
 		pbIDs = append(pbIDs, pb.ID)
+		pbMap[pb.ID] = pb
 	}
 	slices.Sort(pbIDs)
 	for _, id := range pbIDs {
+		pb := pbMap[id]
 		h.Write([]byte(id))
-		for _, pb := range profileBuilders {
-			if pb.ID == id {
-				h.Write([]byte(pb.UpdatedAt.Format(time.RFC3339)))
-				for _, fn := range pb.Functions {
-					h.Write([]byte(fn.ID))
-					h.Write([]byte(fn.CodeHash))
-				}
-				break
-			}
+		h.Write([]byte(pb.UpdatedAt.Format(time.RFC3339)))
+		// Sort profile builder functions by ID for deterministic hashing
+		pbFnIDs := make([]string, 0, len(pb.Functions))
+		pbFnMap := make(map[string]*FunctionConfig, len(pb.Functions))
+		for _, fn := range pb.Functions {
+			pbFnIDs = append(pbFnIDs, fn.ID)
+			pbFnMap[fn.ID] = fn
+		}
+		slices.Sort(pbFnIDs)
+		for _, fnID := range pbFnIDs {
+			fn := pbFnMap[fnID]
+			h.Write([]byte(fn.ID))
+			h.Write([]byte(fn.CodeHash))
 		}
 	}
 

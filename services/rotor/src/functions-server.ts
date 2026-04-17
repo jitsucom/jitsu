@@ -1457,7 +1457,14 @@ async function main() {
           return handleHealth();
         }
 
-        const endpoint = pathname === "/multi" ? "multi" : pathname.startsWith("/connection/") ? "connection" : pathname.startsWith("/profile/") ? "profile" : "other";
+        const endpoint =
+          pathname === "/multi"
+            ? "multi"
+            : pathname.startsWith("/connection/")
+            ? "connection"
+            : pathname.startsWith("/profile/")
+            ? "profile"
+            : "other";
         const sw = stopwatch();
         promConcurrentRequests.labels(deploymentId, endpoint).inc();
         let actorId = "";

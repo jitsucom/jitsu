@@ -10,7 +10,7 @@ import { promisify } from "util";
 import { getLog, int32Hash, parseNumber, stopwatch } from "juava";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { ProfileResult } from "@jitsu/protocols/profile";
-import { buildEventsIterable, buildLazyUser } from "./profile-utils";
+import { buildEventsIterable } from "./profile-utils";
 import {
   createMemoryStore,
   EnrichedConnectionConfig,
@@ -177,12 +177,7 @@ export async function initProfileBuilderRuntimes(
           continue;
         }
         try {
-          const compiledFn = await compileUdfFunction(
-            pbId,
-            fn.code,
-            fn.id,
-            pb.connectionOptions?.variables
-          );
+          const compiledFn = await compileUdfFunction(pbId, fn.code, fn.id, pb.connectionOptions?.variables);
           udfFunctions.push({ id: fn.id, exec: compiledFn.default });
           log.atInfo().log(`  ✓ Compiled profile UDF: ${fn.id} for builder ${pbId}`);
         } catch (e: any) {
@@ -218,15 +213,16 @@ export async function initProfileBuilderRuntimes(
   return compiled;
 }
 
-// Query events from MongoDB for a profile
+// Pre-load all profile events from MongoDB into an array. UDF expects sync iteration
+// (`for (const e of events)`), so we drain the cursor up-front.
 async function getProfileEvents(
   mongoClient: any,
   eventsDatabase: string,
   eventsCollectionName: string,
   profileId: string
-): Promise<any[]> {
+): Promise<AnalyticsServerEvent[]> {
   const { ReadPreference } = await import("mongodb");
-  const cursor = mongoClient
+  const docs = (await mongoClient
     .db(eventsDatabase)
     .collection(eventsCollectionName)
     .find(
@@ -235,16 +231,14 @@ async function getProfileEvents(
         [profileIdColumn]: profileId,
       },
       { readPreference: ReadPreference.NEAREST }
-    );
-
-  const events: any[] = [];
-  for await (const doc of cursor) {
-    if ((doc.timestamp as any) instanceof Date) {
-      doc.timestamp = (doc.timestamp as Date).toISOString();
+    )
+    .toArray()) as AnalyticsServerEvent[];
+  for (const d of docs) {
+    if ((d as any).timestamp instanceof Date) {
+      (d as any).timestamp = (d as any).timestamp.toISOString();
     }
-    events.push(doc);
   }
-  return events;
+  return docs;
 }
 
 // Query user traits from MongoDB
@@ -292,11 +286,12 @@ export async function runProfileBuilder(
       throw new Error(`No MongoDB connection for profile builder ${pb.id}`);
     }
 
-    // Query events and user in parallel
+    // Pre-load events and user in parallel
     const [events, user] = await Promise.all([
       getProfileEvents(compiledPb.mongoClient, eventsDatabase, eventsCollectionName, profileId),
       getProfileUser(compiledPb.mongoClient, eventsDatabase, traitsCollectionName, profileId),
     ]);
+    const eventsIterable = buildEventsIterable(events);
 
     // EventsStore adapter that pushes HTTP request logs (and any other) into the logs array
     const collectingEventsStore = {
@@ -322,10 +317,42 @@ export async function runProfileBuilder(
       },
       props: pb.connectionOptions?.variables || {},
       log: {
-        info: (message: string, ...args: any[]) => logs.push({ message, level: "info", timestamp: new Date(), functionId: pb.id, functionType: "profile", args: args.length > 0 ? args : undefined }),
-        warn: (message: string, ...args: any[]) => logs.push({ message, level: "warn", timestamp: new Date(), functionId: pb.id, functionType: "profile", args: args.length > 0 ? args : undefined }),
-        debug: (message: string, ...args: any[]) => logs.push({ message, level: "debug", timestamp: new Date(), functionId: pb.id, functionType: "profile", args: args.length > 0 ? args : undefined }),
-        error: (message: string, ...args: any[]) => logs.push({ message, level: "error", timestamp: new Date(), functionId: pb.id, functionType: "profile", args: args.length > 0 ? args : undefined }),
+        info: (message: string, ...args: any[]) =>
+          logs.push({
+            message,
+            level: "info",
+            timestamp: new Date(),
+            functionId: pb.id,
+            functionType: "profile",
+            args: args.length > 0 ? args : undefined,
+          }),
+        warn: (message: string, ...args: any[]) =>
+          logs.push({
+            message,
+            level: "warn",
+            timestamp: new Date(),
+            functionId: pb.id,
+            functionType: "profile",
+            args: args.length > 0 ? args : undefined,
+          }),
+        debug: (message: string, ...args: any[]) =>
+          logs.push({
+            message,
+            level: "debug",
+            timestamp: new Date(),
+            functionId: pb.id,
+            functionType: "profile",
+            args: args.length > 0 ? args : undefined,
+          }),
+        error: (message: string, ...args: any[]) =>
+          logs.push({
+            message,
+            level: "error",
+            timestamp: new Date(),
+            functionId: pb.id,
+            functionType: "profile",
+            args: args.length > 0 ? args : undefined,
+          }),
       },
       fetch: makeFetch(pb.id, collectingEventsStore, "info", fetchTimeout),
       store: compiledPb.store,
@@ -334,8 +361,19 @@ export async function runProfileBuilder(
           if (!conEntityStore) {
             throw new Error("Warehouse queries not available: no connection store configured");
           }
-          const pbWarehouseTimeout = parseNumber(serverEnv.PB_WAREHOUSE_TIMEOUT_MS || serverEnv.WAREHOUSE_TIMEOUT_MS, 1000);
-          return warehouseQuery(pb.workspaceId, conEntityStore, destinationId, sql, params || {}, storeMetrics, pbWarehouseTimeout);
+          const pbWarehouseTimeout = parseNumber(
+            serverEnv.PB_WAREHOUSE_TIMEOUT_MS || serverEnv.WAREHOUSE_TIMEOUT_MS,
+            1000
+          );
+          return warehouseQuery(
+            pb.workspaceId,
+            conEntityStore,
+            destinationId,
+            sql,
+            params || {},
+            storeMetrics,
+            pbWarehouseTimeout
+          );
         },
       }),
       profileBuilder: {
@@ -344,39 +382,33 @@ export async function runProfileBuilder(
       },
     };
 
-    // Build iterable from events array — UDF uses `for (const event of events)`
-    const eventsIterable = buildEventsIterable(events as unknown as AnalyticsServerEvent[]);
-
-    // Build lazy user object — properties are accessed on demand
-    const lazyUser = buildLazyUser(user);
-
     // Run UDF chain - each function in sequence
     let result: ProfileResult | undefined;
-    for (const udf of compiledPb.udfFunctions) {
-      try {
-        result = await udf.exec(eventsIterable, lazyUser, funcCtx);
-      } catch (e: any) {
-        return {
-          logs,
-          error: {
-            name: e.name || "Error",
-            message: e.message || "Profile function execution failed",
-            stack: e.stack,
-          },
-        };
-      }
+    const udf = compiledPb.udfFunctions[0];
+    try {
+      result = await udf.exec(eventsIterable, user, funcCtx);
+    } catch (e: any) {
+      return {
+        logs,
+        error: {
+          name: e.name || "Error",
+          message: e.message || "Profile function execution failed",
+          stack: e.stack,
+        },
+      };
     }
 
     if (!result) {
       return { logs };
     }
 
-    // Build final Profile
+    // Build final Profile — accept both camelCase and snake_case keys (matches legacy pb-functions-chain.ts)
+    const r = result as any;
     const profile: Profile = {
-      profile_id: result.profileId || profileId,
-      destination_id: result.destinationId || pb.destinationId,
-      table_name: result.tableName || pb.connectionOptions?.tableName || "profiles",
-      traits: { ...user.traits, ...result.traits },
+      profile_id: r.profileId || r.profile_id || profileId,
+      destination_id: r.destinationId || r.destination_id || pb.destinationId,
+      table_name: r.tableName || r.table_name || pb.connectionOptions?.tableName || "profiles",
+      traits: { ...user.traits, ...r.traits },
       version: pb.version,
       updated_at: new Date(),
     };
@@ -496,10 +528,15 @@ export async function runProfileUDFTest(
     const fetchTimeout = parseNumber(env.FETCH_TIMEOUT_MS, 2000);
     const proxiedFetch = makeFetch(id, collectingEventsStore, "info", fetchTimeout);
 
-    const result = await new Promise<ProfileUDFTestResponse>((resolve) => {
+    const result = await new Promise<ProfileUDFTestResponse>(resolve => {
       const timer = setTimeout(() => {
         worker.terminate();
-        resolve({ error: { message: `Profile function execution timed out after ${udfTimeoutMs}ms`, name: "TimeoutError" }, result: emptyProfile(), store: {}, logs: mainSideLogs });
+        resolve({
+          error: { message: `Profile function execution timed out after ${udfTimeoutMs}ms`, name: "TimeoutError" },
+          result: emptyProfile(),
+          store: {},
+          logs: mainSideLogs,
+        });
       }, udfTimeoutMs);
 
       worker.onmessage = async (e: MessageEvent) => {
@@ -550,7 +587,9 @@ export async function runProfileUDFTest(
               const [url, init] = args;
               const res = await proxiedFetch(url, init);
               const headers: Record<string, string> = {};
-              res.headers.forEach((v: string, k: string) => { headers[k] = v; });
+              res.headers.forEach((v: string, k: string) => {
+                headers[k] = v;
+              });
               result = {
                 status: res.status,
                 statusText: res.statusText,
@@ -574,7 +613,12 @@ export async function runProfileUDFTest(
       worker.onerror = (err: ErrorEvent) => {
         clearTimeout(timer);
         worker.terminate();
-        resolve({ error: { message: err.message, name: "WorkerError" }, result: emptyProfile(), store: {}, logs: mainSideLogs });
+        resolve({
+          error: { message: err.message, name: "WorkerError" },
+          result: emptyProfile(),
+          store: {},
+          logs: mainSideLogs,
+        });
       };
 
       // Initialize worker with compiled code
@@ -585,9 +629,19 @@ export async function runProfileUDFTest(
   } catch (e: any) {
     if (e.errors && Array.isArray(e.errors)) {
       const errorMessages = e.errors.map((err: any) => err.text).join("\n");
-      return { error: { message: `Failed to compile profile function ${id}:\n${errorMessages}`, name: "CompilationError" }, result: emptyProfile(), store: {}, logs: [] };
+      return {
+        error: { message: `Failed to compile profile function ${id}:\n${errorMessages}`, name: "CompilationError" },
+        result: emptyProfile(),
+        store: {},
+        logs: [],
+      };
     }
-    return { error: { message: e.message, stack: e.stack, name: e.name || "Error", retryPolicy: e.retryPolicy }, result: emptyProfile(), store: {}, logs: [] };
+    return {
+      error: { message: e.message, stack: e.stack, name: e.name || "Error", retryPolicy: e.retryPolicy },
+      result: emptyProfile(),
+      store: {},
+      logs: [],
+    };
   }
 }
 

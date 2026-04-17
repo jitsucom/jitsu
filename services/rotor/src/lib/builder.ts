@@ -20,6 +20,7 @@ import {
 import { mongodb } from "./mongodb";
 import { Profile } from "./pb-server-runtime";
 import { undiciAgent } from "./functions-server-client";
+import { workspacesStore } from "./repositories";
 
 const serverEnv = getServerEnv();
 
@@ -70,16 +71,6 @@ export async function profileBuilder(
   let closed = false;
   let closePromise: Promise<void> | undefined = undefined;
 
-  // Resolve the functions server deployment for this profile builder
-  // The functionsServer info is set in the workspaces-with-profiles export
-  const functionsServerInfo = (profileBuilder as any).functionsServer as { deploymentId: string } | undefined;
-
-  if (!functionsServerInfo?.deploymentId) {
-    log
-      .atError()
-      .log(`No functionsServer info found for profile builder ${profileBuilder.id}. Profile processing will fail.`);
-  }
-
   const config = ProfilesConfig.parse({
     ...profileBuilder.intermediateStorageCredentials,
     profileBuilderId: profileBuilder.id,
@@ -129,7 +120,7 @@ export async function profileBuilder(
     profileBuilder,
     priorityLevels,
     (profileId: string, priority: number) => {
-      return () => processProfile(profileBuilder, functionsServerInfo, log, eventsLogger, profileId, priority);
+      return () => processProfile(workspaceId, profileBuilder, log, eventsLogger, profileId, priority);
     }
   );
 
@@ -363,8 +354,8 @@ export async function profileBuilder(
 }
 
 async function processProfile(
+  workspaceId: string,
   profileBuilder: ProfileBuilder,
-  functionsServerInfo: { deploymentId: string } | undefined,
   log: LogFactory,
   eventsLogger: EventsStore,
   profileId: string,
@@ -373,6 +364,12 @@ async function processProfile(
   const ms = stopwatch();
   let status = "success";
   try {
+    // Look up functionsServerInfo fresh from repository on each invocation —
+    // deploymentId may change without a profile builder version bump
+    const ws = workspacesStore.getCurrent();
+    const currentWorkspace = ws?.getObject(workspaceId);
+    const currentPb = currentWorkspace?.profileBuilders?.find((pb: any) => pb.id === profileBuilder.id);
+    const functionsServerInfo = (currentPb as any)?.functionsServer as { deploymentId: string } | undefined;
     if (!functionsServerInfo?.deploymentId) {
       throw new Error(`No functions server deployment configured for profile builder ${profileBuilder.id}`);
     }

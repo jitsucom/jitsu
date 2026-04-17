@@ -7,6 +7,9 @@ import { request } from "undici";
 const log = getLog("profile-udf-run");
 const serverEnv = getServerEnv();
 
+/**
+ * @deprecated Function Server endpoint must be used instead
+ */
 export const ProfileUDFRunHandler = async (req, res) => {
   const body = req.body;
   log.atInfo().log(`Running profile func: ${body?.id} workspace: ${body?.workspaceId}`);
@@ -29,8 +32,7 @@ export const ProfileUDFRunHandler = async (req, res) => {
       res.status(503).json({
         error: {
           name: "FunctionRuntimeNotReady",
-          message:
-            "Function runtime for this workspace is being initialized. Please try again in a few minutes.",
+          message: "Function runtime for this workspace is being initialized. Please try again in a few minutes.",
         },
         result: { profile_id: "", traits: {}, updated_at: new Date() },
         store: {},

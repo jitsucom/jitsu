@@ -5,7 +5,7 @@
 // Proxies:  store/fetch/warehouse calls back to main process via postMessage
 
 import * as functionsLib from "@jitsu/functions-lib";
-import { buildEventsIterable, buildLazyUser } from "./profile-utils";
+import { buildEventsIterable } from "./profile-utils";
 
 // Set globals so UDF code (compiled via functionsLibShimPlugin) can access them
 for (const [name, value] of Object.entries(functionsLib)) {
@@ -70,12 +70,11 @@ self.onmessage = async (e: MessageEvent) => {
   }
 
   if (msg.type === "exec") {
-    const { events, user: rawUser } = msg;
+    const { events, user } = msg;
     const logs: any[] = [];
 
     try {
       const eventsIterable = buildEventsIterable(events);
-      const user = buildLazyUser(rawUser);
 
       const addLogEntry = (level: string, message: string, args: any[]) => {
         logs.push({
@@ -115,8 +114,7 @@ self.onmessage = async (e: MessageEvent) => {
 
       // Proxied warehouse
       const getWarehouse = (destinationId: string) => ({
-        query: (sql: string, params?: Record<string, any>) =>
-          callMain("warehouse.query", [destinationId, sql, params]),
+        query: (sql: string, params?: Record<string, any>) => callMain("warehouse.query", [destinationId, sql, params]),
       });
 
       const ctx = {
@@ -142,7 +140,12 @@ self.onmessage = async (e: MessageEvent) => {
     } catch (err: any) {
       self.postMessage({
         type: "result",
-        error: { message: err.message, name: err.name || "Error", stack: err.stack, retryPolicy: (err as any).retryPolicy },
+        error: {
+          message: err.message,
+          name: err.name || "Error",
+          stack: err.stack,
+          retryPolicy: (err as any).retryPolicy,
+        },
         logs,
       });
     }

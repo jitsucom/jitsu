@@ -121,6 +121,11 @@ func (c *Config) CalculateOperatorConfigHash() string {
 	h.Write([]byte(fmt.Sprintf("%d", c.MongoDBMaxPoolSizePremium)))
 	h.Write([]byte(c.FastStoreWorkspaceIDs))
 
+	// Profile builder timeouts
+	h.Write([]byte(fmt.Sprintf("%d", c.PBMongoDBTimeoutMs)))
+	h.Write([]byte(fmt.Sprintf("%d", c.PBWarehouseTimeoutMs)))
+	h.Write([]byte(fmt.Sprintf("%d", c.PBUdfTimeoutMs)))
+
 	// HPA config
 	h.Write([]byte(fmt.Sprintf("%t", c.HPAEnabled)))
 	h.Write([]byte(fmt.Sprintf("%d", c.MinReplicas)))
