@@ -59,7 +59,7 @@ var clickhouseClusterContainerNoShards *clickhouse_noshards.ClickHouseClusterCon
 
 func init() {
 	// uncomment to run tests locally with just one bulker type
-	//allBulkerConfigs = []string{PostgresBulkerTypeId}
+	// allBulkerConfigs = []string{PostgresBulkerTypeId}
 
 	if utils.ArrayContains(allBulkerConfigs, BigqueryBulkerTypeId) {
 		bigqueryConfig := os.Getenv("BULKER_TEST_BIGQUERY")
