@@ -257,16 +257,14 @@ jobs:
           done
 
 
-  finalize_release:
+  tag_release:
     needs: [version, nodejs_build, build_bulker, npm_publish]
-    if: ${{ !inputs.dont_publish && needs.version.outputs.channel != 'canary' && !cancelled() && (needs.nodejs_build.result == 'success' || needs.nodejs_build.result == 'skipped') && (needs.build_bulker.result == 'success' || needs.build_bulker.result == 'skipped') && (needs.npm_publish.result == 'success' || needs.npm_publish.result == 'skipped') }}
-    name: 🏷️ Finalize Release
-    timeout-minutes: 10
+    if: ${{ !inputs.dont_publish && needs.version.outputs.channel != 'canary' && !cancelled() && (needs.nodejs_build.result == 'success' || needs.build_bulker.result == 'success' || needs.npm_publish.result == 'success') }}
+    name: 🏷️ Tag Release
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      issues: write
-      pull-requests: write
 
     steps:
       - name: 📥 Checkout code
@@ -291,6 +289,24 @@ jobs:
           git push origin "$TAG"
 
           echo "Created and pushed tag: $TAG"
+
+  finalize_release:
+    needs: [version, nodejs_build, build_bulker, npm_publish, tag_release]
+    if: ${{ !inputs.dont_publish && needs.version.outputs.channel != 'canary' && !cancelled() && needs.tag_release.result == 'success' && (needs.nodejs_build.result == 'success' || needs.nodejs_build.result == 'skipped') && (needs.build_bulker.result == 'success' || needs.build_bulker.result == 'skipped') && (needs.npm_publish.result == 'success' || needs.npm_publish.result == 'skipped') }}
+    name: 🏷️ Finalize Release
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: 📝 Create GitHub release
         env:

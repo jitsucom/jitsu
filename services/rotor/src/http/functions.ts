@@ -1,4 +1,4 @@
-import { getLog, requireDefined } from "juava";
+import { getLog, parseNumber, requireDefined } from "juava";
 import { IngestMessage } from "@jitsu/protocols/async-request";
 import { MessageHandlerContext, rotorMessageHandler } from "../lib/message-handler";
 import { CONNECTION_IDS_HEADER } from "../lib/rotor";
@@ -8,9 +8,11 @@ import { parse as semverParse } from "semver";
 import * as jsondiffpatch from "jsondiffpatch";
 import { connectionsStore, functionsStore, streamsStore } from "../lib/repositories";
 import { promHandlerMetric } from "../lib/metrics";
+import { getServerEnv } from "../serverEnv";
 
 const jsondiffpatchInstance = jsondiffpatch.create();
 const log = getLog("functions_handler");
+const fetchTimeoutMs = parseNumber(getServerEnv().FETCH_TIMEOUT_MS, 2000);
 
 export const FunctionsHandler =
   (rotorContext: Omit<MessageHandlerContext, "connectionStore" | "functionsStore" | "streamsStore">) =>
@@ -37,7 +39,7 @@ export const FunctionsHandlerMulti =
     const message = req.body as IngestMessage;
     const functionsFetchTimeout = req.headers["x-request-timeout-ms"]
       ? parseInt(req.headers["x-request-timeout-ms"] as string)
-      : 2000;
+      : fetchTimeoutMs;
     const prom = connectionIds
       .filter(id => !!id)
       .map(id => {

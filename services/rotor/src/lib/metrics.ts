@@ -119,6 +119,10 @@ export const DummyMetrics: RotorMetrics = {
 };
 
 export function createMetrics(producer?: KafkaJS.Producer): RotorMetrics {
+  if (!serverEnv.CLICKHOUSE_HOST && !serverEnv.CLICKHOUSE_URL) {
+    return DummyMetrics;
+  }
+
   const buffer: MetricsEvent[] = [];
   const chConfig = getClickhouseConfig(serverEnv);
 
