@@ -143,8 +143,8 @@ jobs:
 
           ## Context
           - Base branch: newjitsu
-          - This is a monorepo with Node.js/pnpm workspace and Go modules in bulker/
-          - Root package.json has pnpm.overrides for version pinning
+          - Node.js side: pnpm workspace rooted at repo root. Root package.json has pnpm.overrides for version pinning.
+          - Go side: Go workspace rooted at bulker/ (bulker/go.work). All Go modules are members of this workspace — do NOT treat them as independent repos. Workspace members are listed in bulker/go.work.
 
           ## Available scan results
           Read .dependabot-alerts.json — this is the primary source. It is a JSON array of open alerts with fields: number, cve, severity, summary, package, ecosystem, vulnerable_range, fixed_version.
@@ -161,11 +161,18 @@ jobs:
           - Check if the package is a direct dependency: grep -r '"ACTUAL_PKG_NAME"' */package.json libs/*/package.json webapps/*/package.json cli/*/package.json
           - If transitive: add a pnpm override to root package.json. Example pattern for the overrides object: "actual-pkg@<FIXED_VER": "^FIXED_VER"
           - If direct: bump the version in the relevant package.json file
-          - After changes: run pnpm install to update the lockfile
-          - If pnpm install fails, revert the changes and skip that vulnerability
+          - MANDATORY: ANY change to ANY package.json (root or workspace member) MUST be followed by `pnpm install` at the repo root before committing — this updates pnpm-lock.yaml. Commit both the package.json changes and the updated pnpm-lock.yaml together.
+          - If pnpm install fails, revert the changes and skip that vulnerability.
 
-          ### For Go packages:
-          - Use go -C with the actual module path, e.g.: go -C bulker/actual-module-name get actual-pkg@vFIXED && go -C bulker/actual-module-name mod tidy
+          ### For Go packages (Go workspace at bulker/):
+          - Find every workspace member that depends on the vulnerable package: `grep -l 'ACTUAL_PKG' bulker/*/go.mod`
+          - For EACH matching member, update inside that module directory:
+              go -C bulker/ACTUAL_MODULE get ACTUAL_PKG@vFIXED
+              go -C bulker/ACTUAL_MODULE mod tidy
+          - After updating all affected members, sync the workspace: `go -C bulker work sync`
+          - Commit the changed `go.mod`/`go.sum` files of each affected member plus `bulker/go.work.sum` together.
+          - Do NOT edit `bulker/go.work` itself — only the workspace `use (...)` list lives there and it must not change for a security fix.
+          - If any `go mod tidy` or `go work sync` fails, revert and skip.
 
           ### Creating PRs:
           - Create a new branch from newjitsu: git checkout -b security/fix-ACTUAL-PKG-NAME
