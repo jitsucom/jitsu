@@ -235,7 +235,29 @@ jobs:
     permissions:
       actions: write
     steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v6
+
+      - name: 🔍 Check changed files
+        id: changes
+        uses: dorny/paths-filter@v4
+        with:
+          filters: |
+            services:
+              - 'bulker/**'          # bulker/ingest/syncctl/… Go images
+              - 'services/**'        # rotor and functions-server images
+              - 'webapps/**'         # console image
+              - 'libs/**'            # libs/functions (→ @jitsu/functions-lib NPM),
+                                     # libs/juava (→ jitsu-cli), libs/jitsu-js/react (→ console)
+              - 'cli/**'             # jitsu-cli NPM package
+              - 'types/**'           # @jitsu/protocols — imported by services and functions-lib
+              - 'all.Dockerfile'     # multi-stage build file for console/rotor/functions-server
+              - '.services.version.json'  # explicit version bump → always publish
+              - 'pnpm-lock.yaml'     # any dep change can affect build output
+              - '.github/workflows/services-build.yaml'  # re-test if the build workflow itself changes
+
       - name: 🚀 Trigger services-build workflow
+        if: steps.changes.outputs.services == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -251,7 +273,24 @@ jobs:
     permissions:
       actions: write
     steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v6
+
+      - name: 🔍 Check changed files
+        id: changes
+        uses: dorny/paths-filter@v4
+        with:
+          filters: |
+            client-libs:
+              - 'libs/jitsu-js/**'       # @jitsu/js — the main browser SDK
+              - 'libs/jitsu-react/**'    # @jitsu/jitsu-react — depends on @jitsu/js
+              - 'types/**'               # @jitsu/protocols — peer-dep of @jitsu/js
+              - '.jsclient.version.json' # explicit version bump → always publish
+              - 'pnpm-lock.yaml'         # any dep change can affect build output
+              - '.github/workflows/client-libraries-build.yaml'  # re-test if build workflow changes
+
       - name: 🚀 Trigger client-libraries-build workflow
+        if: steps.changes.outputs.client-libs == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
