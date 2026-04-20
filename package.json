@@ -78,7 +78,8 @@
       "glob@>=10.2.0 <10.5.0": "^10.5.0",
       "qs@<6.14.1": "^6.14.1",
       "next@<16.2.3": "^16.2.3",
-      "@tootallnate/once@<3.0.1": "^3.0.1"
+      "@tootallnate/once@<3.0.1": "^3.0.1",
+      "protobufjs@<7.5.5": "^7.5.5"
     },
     "onlyBuiltDependencies": [
       "@confluentinc/kafka-javascript",
