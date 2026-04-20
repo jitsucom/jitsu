@@ -111,7 +111,7 @@ async function getOrCreateMongoClient(mongoUrl: string): Promise<any> {
   await client.connect();
   await client.db().command({ ping: 1 });
   mongoClients.set(key, client);
-  log.atInfo().log(`Connected to MongoDB for profile builders: ${mongoUrl.substring(0, 30)}...`);
+
   return client;
 }
 
