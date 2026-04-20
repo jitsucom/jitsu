@@ -36,11 +36,36 @@ jobs:
       security-events: read
 
     steps:
+      # GitHub App required so commits/PRs created here can trigger downstream workflows
+      # (the default GITHUB_TOKEN does not trigger other workflow runs).
+      # Secrets required in repo/org:
+      # - AI_CODE_REVIEW_APP_ID
+      # - AI_CODE_REVIEW_PRIVATE_KEY
+      - name: 🔑 Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.AI_CODE_REVIEW_APP_ID }}
+          private-key: ${{ secrets.AI_CODE_REVIEW_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+
       - name: 📥 Checkout code
         uses: actions/checkout@v6
         with:
           fetch-depth: 1
           ref: newjitsu
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: 🔧 Configure git for app bot
+        env:
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          BOT_USER_ID=$(gh api "/users/${APP_SLUG}[bot]" --jq .id)
+          git config user.name "${APP_SLUG}[bot]"
+          git config user.email "${BOT_USER_ID}+${APP_SLUG}[bot]@users.noreply.github.com"
 
       - name: 🔧 Setup pnpm
         uses: pnpm/action-setup@v4
@@ -175,10 +200,10 @@ jobs:
       - name: 🔒 Fix vulnerabilities with Claude
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          GH_TOKEN: ${{ github.token }}
-          GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           claude --print \
-            --allowedTools "Bash(cat:*),Bash(jq:*),Bash(pnpm:*),Bash(go:*),Bash(git:*),Bash(gh:*),Bash(grep:*),Bash(head:*),Bash(npm:*),Bash(sed:*)" \
+            --dangerously-skip-permissions \
             --model claude-haiku-4-5-20251001 \
             < .claude-prompt.txt
