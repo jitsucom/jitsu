@@ -1,7 +1,9 @@
 name: 🧪Lint and Test
 on:
-  push:
   pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [newjitsu]
   workflow_dispatch:
 
 env:
