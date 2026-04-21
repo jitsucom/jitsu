@@ -120,6 +120,11 @@ const ServerEnvSchema = z.object({
   // Warehouse Configuration (used by @jitsu/core-functions)
   WAREHOUSE_TIMEOUT_MS: z.string().optional().default("1000"),
 
+  // Profile Builder overrides (longer timeouts for profile builder operations)
+  PB_MONGODB_TIMEOUT_MS: z.string().optional(),
+  PB_WAREHOUSE_TIMEOUT_MS: z.string().optional(),
+  PB_UDF_TIMEOUT_MS: z.string().optional(),
+
   // Fetch Configuration (used by @jitsu/core-functions)
   FETCH_FORBID_LOCAL: z.string().optional().default("false"),
   FETCH_LOCAL_WHITELIST: z.string().optional(),

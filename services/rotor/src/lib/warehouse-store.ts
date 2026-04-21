@@ -13,7 +13,7 @@ const warehouses: Record<string, Singleton<any>> = {};
 const warehouseTimeoutMs = parseNumber(serverEnv.WAREHOUSE_TIMEOUT_MS, 1000);
 
 interface WarehouseStore {
-  query: (query: string, params?: Record<string, any>) => Promise<any[]>;
+  query: (query: string, params?: Record<string, any>, timeoutMs?: number) => Promise<any[]>;
   close?: () => void;
 }
 
@@ -23,7 +23,8 @@ export async function warehouseQuery(
   conId: string,
   query: string,
   params: Record<string, any>,
-  storeMetrics?: StoreMetrics
+  storeMetrics?: StoreMetrics,
+  timeoutMs?: number
 ) {
   const con = connStore.getObject(conId);
   if (!con || con.workspaceId !== workspaceId) {
@@ -54,7 +55,7 @@ export async function warehouseQuery(
     warehouses[`${con.id}-${con.credentialsHash}`] = singleTon;
   }
   const wh = await singleTon.waitInit();
-  return await wh.query(query, params);
+  return await wh.query(query, params, timeoutMs);
 }
 
 const getClickhouseWarehouse = (
@@ -65,7 +66,7 @@ const getClickhouseWarehouse = (
 ): WarehouseStore => {
   const client = getClickhouseClient(cred);
   return {
-    query: async (query: string, query_params?: Record<string, any>) => {
+    query: async (query: string, query_params?: Record<string, any>, timeoutMs?: number) => {
       let status = "success";
       let table = "_unknown_";
       const start = Date.now();
@@ -103,14 +104,14 @@ const getClickhouseWarehouse = (
         const res = await client.query({
           query,
           query_params,
-          abort_signal: AbortSignal.timeout(warehouseTimeoutMs),
+          abort_signal: AbortSignal.timeout(timeoutMs || warehouseTimeoutMs),
           format: "JSONEachRow",
         });
         return res.json();
       } catch (e: any) {
         if (e.message === "The user aborted a request.") {
           status = "timeout";
-          e = new Error(`Query execution exceeded ${warehouseTimeoutMs}ms timeout. Aborted.`);
+          e = new Error(`Query execution exceeded ${timeoutMs || warehouseTimeoutMs}ms timeout. Aborted.`);
         } else {
           status = "error";
         }

@@ -36,36 +36,11 @@ jobs:
       security-events: read
 
     steps:
-      # GitHub App required so commits/PRs created here can trigger downstream workflows
-      # (the default GITHUB_TOKEN does not trigger other workflow runs).
-      # Secrets required in repo/org:
-      # - AI_CODE_REVIEW_APP_ID
-      # - AI_CODE_REVIEW_PRIVATE_KEY
-      - name: 🔑 Generate GitHub App token
-        id: app-token
-        uses: actions/create-github-app-token@v2
-        with:
-          app-id: ${{ secrets.AI_CODE_REVIEW_APP_ID }}
-          private-key: ${{ secrets.AI_CODE_REVIEW_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: ${{ github.event.repository.name }}
-
       - name: 📥 Checkout code
         uses: actions/checkout@v6
         with:
           fetch-depth: 1
           ref: newjitsu
-          token: ${{ steps.app-token.outputs.token }}
-
-      - name: 🔧 Configure git for app bot
-        env:
-          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: |
-          set -euo pipefail
-          BOT_USER_ID=$(gh api "/users/${APP_SLUG}[bot]" --jq .id)
-          git config user.name "${APP_SLUG}[bot]"
-          git config user.email "${BOT_USER_ID}+${APP_SLUG}[bot]@users.noreply.github.com"
 
       - name: 🔧 Setup pnpm
         uses: pnpm/action-setup@v4
@@ -132,22 +107,28 @@ jobs:
             }]' > .dependabot-alerts.json || echo '[]' > .dependabot-alerts.json
           echo "Dependabot alerts: $(jq length .dependabot-alerts.json)"
 
-      - name: 🤖 Install Claude Code
-        run: npm install -g @anthropic-ai/claude-code
-
-      - name: 🔒 Prepare prompt
-        id: prompt
+      - name: 📝 Write Codex prompt
+        env:
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          MIN_SEVERITY: ${{ inputs.severity || 'moderate' }}
+          REPO: ${{ github.repository }}
         run: |
-          cat > .claude-prompt.txt << 'EOF'
+          mkdir -p .github/codex
+          cat > .github/codex/security-fix.prompt.md << PROMPT_EOF
           You are a security engineer fixing dependency vulnerabilities in a monorepo.
 
           ## Context
+          - Repository: $REPO
           - Base branch: newjitsu
-          - Node.js side: pnpm workspace rooted at repo root. Root package.json has pnpm.overrides for version pinning.
-          - Go side: Go workspace rooted at bulker/ (bulker/go.work). All Go modules are members of this workspace — do NOT treat them as independent repos. Workspace members are listed in bulker/go.work.
+          - Dry run mode: $DRY_RUN
+          - Minimum severity: $MIN_SEVERITY
+          - This is a monorepo with:
+            - Node.js/pnpm workspace (libs/, services/, webapps/, cli/, types/)
+            - Go side: Go workspace rooted at bulker/ (bulker/go.work). All Go modules are members of this workspace — do NOT treat them as independent repos. Workspace members are listed in bulker/go.work.
+            - Root package.json has pnpm.overrides for version pinning
 
           ## Available scan results
-          Read .dependabot-alerts.json — this is the primary source. It is a JSON array of open alerts with fields: number, cve, severity, summary, package, ecosystem, vulnerable_range, fixed_version.
+          - Dependabot alerts: .dependabot-alerts.json (MOST RELIABLE — use this as primary source)
 
           ## Instructions
 
@@ -195,22 +176,62 @@ jobs:
           - NEVER run placeholder commands — always substitute real package names and versions
           - If a fix fails, revert and move on
           EOF
+          
+          3. Group trivial patches together: if multiple vulnerabilities can be fixed by
+             simple pnpm overrides with no major version bumps, batch them into one PR.
+             Keep major version bumps or risky changes as individual PRs.
 
-          # Append runtime values
-          echo "" >> .claude-prompt.txt
-          echo "## Runtime values" >> .claude-prompt.txt
-          echo "- Repository: ${{ github.repository }}" >> .claude-prompt.txt
-          echo "- Dry run: ${{ inputs.dry_run || 'false' }}" >> .claude-prompt.txt
-          echo "- Min severity: ${{ inputs.severity || 'moderate' }}" >> .claude-prompt.txt
-          echo "- If dry run is true, only output a report — do NOT create branches or PRs." >> .claude-prompt.txt
+          4. If DRY_RUN is true, just output a report of what would be done. Do not create branches or PRs.
 
-      - name: 🔒 Fix vulnerabilities with Claude
+          ## Important rules
+          - NEVER force push or modify the newjitsu branch directly.
+          - Always create a NEW branch for each PR.
+          - Run pnpm install after modifying package.json to verify the fix works.
+          - If pnpm install fails after a fix, revert and skip that vulnerability.
+          - For Go modules, use go -C bulker/modulename to run in the module directory.
+          - Check existing open PRs with gh pr list --search "security" to avoid duplicates.
+          PROMPT_EOF
+
+      - name: 🔒 Fix vulnerabilities with Codex
+        id: run-codex
+        # openai is a major vendor with a controlled release process; @v1 is a
+        # sufficient pin. SHA-pinning every OpenAI action update would be more
+        # overhead than the risk warrants.
+        uses: openai/codex-action@v1
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt-file: .github/codex/security-fix.prompt.md
+          model: gpt-5.3-codex
+          effort: high
+          sandbox: danger-full-access
+          codex-home: .github/codex/home
+
+  # Separate job so actions: write is not available to the Codex step above.
+  # ai-review.yml skips PRs opened by jitsu-code-review[bot] (codex-action's
+  # write-access check fails for app-bot actors), so we dispatch it manually.
+  # Running over all open security/* PRs is intentional — this workflow is
+  # manual, so a re-review on an older PR is harmless.
+  trigger-review:
+    name: 🔍 Trigger AI Review
+    needs: scan-and-fix
+    if: ${{ inputs.dry_run != true }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      pull-requests: read
+    steps:
+      - name: Dispatch AI review for open security PRs
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          claude --print \
-            --dangerously-skip-permissions \
-            --model claude-haiku-4-5-20251001 \
-            < .claude-prompt.txt
+          gh pr list --repo ${{ github.repository }} --base newjitsu --state open \
+            --json number,headRefName \
+            --jq '[.[] | select(.headRefName | startswith("security/")) | .number | tostring] | .[]' \
+          | while IFS= read -r num; do
+              echo "Dispatching AI review for PR #$num"
+              gh workflow run ai-review.yml --repo ${{ github.repository }} --ref newjitsu -f pr_number="$num"
+            done
+

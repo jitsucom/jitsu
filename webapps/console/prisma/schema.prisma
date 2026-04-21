@@ -516,6 +516,7 @@ model FunctionsServer {
   deploymentId     String
   connections      String[]
   emptyConnections String[]
+  profileBuilders  String[]
   createdAt        DateTime  @default(now()) @db.Timestamptz(3)
   updatedAt        DateTime? @db.Timestamptz(3)
 

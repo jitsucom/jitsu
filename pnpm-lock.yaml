@@ -71,6 +71,13 @@ overrides:
   qs@<6.14.1: ^6.14.1
   next@<16.2.3: ^16.2.3
   '@tootallnate/once@<3.0.1': ^3.0.1
+  protobufjs@<7.5.5: ^7.5.5
+  lodash-es@<4.18.0: ^4.18.0
+  yaml@<2.8.3: ^2.8.3
+  picomatch@<2.3.2: ^2.3.2
+  js-yaml@<3.14.2: ^3.14.2
+  '@babel/runtime@<7.26.10': ^7.26.10
+  '@babel/helpers@<7.26.10': ^7.26.10
 
 importers:
 
@@ -199,7 +206,7 @@ importers:
         version: 4.21.0
       vitest:
         specifier: 'catalog:'
-        version: 4.1.4(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.4)(jsdom@16.7.0)(vite@6.4.2(@types/node@18.19.61)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.6.0))
+        version: 4.1.4(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.4)(jsdom@16.7.0)(vite@6.4.2(@types/node@18.19.61)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
 
   e2e:
     devDependencies:
@@ -247,7 +254,7 @@ importers:
     devDependencies:
       vitest:
         specifier: 'catalog:'
-        version: 4.1.4(@opentelemetry/api@1.9.0)(@types/node@25.6.0)(@vitest/ui@4.1.4)(jsdom@16.7.0)(vite@6.4.2(@types/node@25.6.0)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.6.0))
+        version: 4.1.4(@opentelemetry/api@1.9.0)(@types/node@25.6.0)(@vitest/ui@4.1.4)(jsdom@16.7.0)(vite@6.4.2(@types/node@25.6.0)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
 
   libs/core-functions-lib:
     dependencies:
@@ -305,7 +312,7 @@ importers:
         version: 2.2.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.4(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.4)(jsdom@16.7.0)(vite@6.4.2(@types/node@18.19.61)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.6.0))
+        version: 4.1.4(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.4)(jsdom@16.7.0)(vite@6.4.2(@types/node@18.19.61)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
 
   libs/destination-functions:
     dependencies:
@@ -366,7 +373,7 @@ importers:
         version: 2.2.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.4(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.4)(jsdom@16.7.0)(vite@6.4.2(@types/node@18.19.61)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.6.0))
+        version: 4.1.4(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.4)(jsdom@16.7.0)(vite@6.4.2(@types/node@18.19.61)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
 
   libs/functions:
     devDependencies:
@@ -396,7 +403,7 @@ importers:
         version: 4.21.0
       vitest:
         specifier: 'catalog:'
-        version: 4.1.4(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.4)(jsdom@16.7.0)(vite@6.4.2(@types/node@18.19.61)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.6.0))
+        version: 4.1.4(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.4)(jsdom@16.7.0)(vite@6.4.2(@types/node@18.19.61)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
 
   libs/jitsu-js:
     dependencies:
@@ -460,7 +467,7 @@ importers:
         version: 5.6.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.4(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.4)(jsdom@16.7.0)(vite@6.4.2(@types/node@18.19.61)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.6.0))
+        version: 4.1.4(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.4)(jsdom@16.7.0)(vite@6.4.2(@types/node@18.19.61)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
 
   libs/jitsu-react:
     dependencies:
@@ -567,7 +574,7 @@ importers:
         version: 4.1.4(vitest@4.1.4)
       vitest:
         specifier: 'catalog:'
-        version: 4.1.4(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.4)(jsdom@16.7.0)(vite@6.4.2(@types/node@18.19.61)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.6.0))
+        version: 4.1.4(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.4)(jsdom@16.7.0)(vite@6.4.2(@types/node@18.19.61)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
 
   services/rotor:
     dependencies:
@@ -718,7 +725,7 @@ importers:
         version: 5.6.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.4(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.4)(jsdom@16.7.0)(vite@6.4.2(@types/node@18.19.61)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.6.0))
+        version: 4.1.4(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.4)(jsdom@16.7.0)(vite@6.4.2(@types/node@18.19.61)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
 
   types/protocols:
     devDependencies:
@@ -1052,7 +1059,7 @@ importers:
         version: 5.6.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.4(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.4)(jsdom@16.7.0)(vite@6.4.2(@types/node@18.19.61)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.6.0))
+        version: 4.1.4(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.4)(jsdom@16.7.0)(vite@6.4.2(@types/node@18.19.61)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
       zod-prisma:
         specifier: ^0.5.4
         version: 0.5.4(decimal.js@10.6.0)(prisma@6.19.3(typescript@5.6.3))(zod@3.25.76)
@@ -1585,10 +1592,6 @@ packages:
     resolution: {integrity: sha512-YvjJow9FxbhFFKDSuFnVCe2WxXk1zWc22fFePVNEaWJEu8IrZVlda6N0uHwzZrUM1il7NC9Mlp4MaJYbYd9JSg==}
     engines: {node: '>=6.9.0'}
 
-  '@babel/helpers@7.26.0':
-    resolution: {integrity: sha512-tbhNuIxNcVb21pInl3ZSjksLCvgdZy9KwJ8brv993QtIVKJBBkYXz4q4ZbAv31GdnC+R90np23L5FbEBlthAEw==}
-    engines: {node: '>=6.9.0'}
-
   '@babel/helpers@7.27.6':
     resolution: {integrity: sha512-muE8Tt8M22638HU31A3CgfSUciwz1fhATfoVai05aPXGor//CdWDCbnlY1yvBPo07njuVOCNGCSp/GTt12lIug==}
     engines: {node: '>=6.9.0'}
@@ -1693,10 +1696,6 @@ packages:
     engines: {node: '>=6.9.0'}
     peerDependencies:
       '@babel/core': ^7.0.0-0
-
-  '@babel/runtime@7.26.0':
-    resolution: {integrity: sha512-FDSOghenHTiToteC/QRlv2q3DhPZ/oOXTBoirfWNx1Cx3TMVcGWQtMMmQcSvb/JjpNeGzx8Pq/b4fKEJuWm1sw==}
-    engines: {node: '>=6.9.0'}
 
   '@babel/runtime@7.28.4':
     resolution: {integrity: sha512-Q/N6JNWvIvPnLDvjlE1OUBLPQHH6l3CltCEsHIujp45zQUSSh8K+gHnaEX45yAT1nyngnINhvWtzN+Nb9D8RAQ==}
@@ -7703,8 +7702,8 @@ packages:
   js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
 
-  js-yaml@3.14.1:
-    resolution: {integrity: sha512-okMH7OXXJ7YrN9Ok3/SXrnu4iX9yOk+25nqX4imS2npuvTYDmo/QEZoqwZkYaIDk3jVvBOTOIEgEhaLOynBS9g==}
+  js-yaml@3.14.2:
+    resolution: {integrity: sha512-PMSmkqxr106Xa156c2M265Z+FTrPl+oxd/rgOQy2tijQeK5TxQ43psO1ZCwhVOSdnn+RzkzlRz/eY4BgJBYVpg==}
     hasBin: true
 
   js-yaml@4.1.1:
@@ -7899,8 +7898,8 @@ packages:
     resolution: {integrity: sha512-iPZK6eYjbxRu3uB4/WZ3EsEIMJFMqAoopl3R+zuq0UjcAm/MO6KCweDgPfP3elTztoKP3KtnVHxTn2NHBSDVUw==}
     engines: {node: '>=10'}
 
-  lodash-es@4.17.21:
-    resolution: {integrity: sha512-mKnC+QJ9pWVzv+C4/U3rRsHapFfHvQFoFB92e52xeyGMcX6/OlIl78je1u8vePzYZSkkogMPJ2yjxxsb89cxyw==}
+  lodash-es@4.18.1:
+    resolution: {integrity: sha512-J8xewKD/Gk22OZbhpOVSwcs60zhd95ESDwezOFuA3/099925PdHJ7OFHNTGtajL3AlZkykD32HykiMo+BIBI8A==}
 
   lodash.camelcase@4.3.0:
     resolution: {integrity: sha512-TwuEnCnxbc3rAvhf/LbG7tJUDzhqXyFnv3dtzLOPgCG/hODL7WFnsbwktkD7yUV0RrreP/l1PALq/YSg6VvjlA==}
@@ -9001,8 +9000,8 @@ packages:
   picocolors@1.1.1:
     resolution: {integrity: sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA==}
 
-  picomatch@2.3.1:
-    resolution: {integrity: sha512-JU3teHTNjmE2VCGFzuY8EXzCDVwEqB2a8fsIvwaStHhAWJEeVd1o1QD80CU6+ZdEXXSLbSsuLwJjkCBWqRQUVA==}
+  picomatch@2.3.2:
+    resolution: {integrity: sha512-V7+vQEJ06Z+c5tSye8S+nHUfI51xoXIXjHQ99cQtKUkQqqO1kO/KCJUfZXuB47h/YBlDhah2H3hdUGXn8ie0oA==}
     engines: {node: '>=8.6'}
 
   picomatch@4.0.4:
@@ -9397,12 +9396,8 @@ packages:
     resolution: {integrity: sha512-SAzp/O4Yh02jGdRc+uIrGoe87dkN/XtwxfZ4ZyafJHymd79ozp5VG5nyZ7ygqPM5+cpLDjjGnYFUkngonyDPOQ==}
     engines: {node: '>=14.0.0'}
 
-  protobufjs@7.4.0:
-    resolution: {integrity: sha512-mRUWCc3KUU4w1jU8sGxICXH/gNS94DvI1gxqDvBzhj1JpcsimQkYiOJfwsPUykUI5ZaspFbSgmBLER8IrQ3tqw==}
-    engines: {node: '>=12.0.0'}
-
-  protobufjs@7.5.4:
-    resolution: {integrity: sha512-CvexbZtbov6jW2eXAvLukXjXUW1TzFaivC46BpWc/3BpcCysb5Vffu+B3XHMm8lVEuy2Mm4XGex8hBSg1yapPg==}
+  protobufjs@7.5.5:
+    resolution: {integrity: sha512-3wY1AxV+VBNW8Yypfd1yQY9pXnqTAN+KwQxL8iYm3/BjKYMNg4i0owhEe26PWDOMaIrzeeF98Lqd5NGz4omiIg==}
     engines: {node: '>=12.0.0'}
 
   proxy-addr@2.0.7:
@@ -9667,9 +9662,6 @@ packages:
 
   regenerator-runtime@0.10.5:
     resolution: {integrity: sha512-02YopEIhAgiBHWeoTiA8aitHDt8z6w+rQqNuIftlM+ZtvSl/brTouaU7DW6GO/cHtvxJvS4Hwv2ibKdxIRi24w==}
-
-  regenerator-runtime@0.14.1:
-    resolution: {integrity: sha512-dYnhHh0nJoMfnkZs6GmmhFknAGRrLznOu5nc9ML+EJxGvrx6H7teuevqVqCuPcPK//3eDrrjQhehXVx9cnkGdw==}
 
   regexp.prototype.flags@1.5.3:
     resolution: {integrity: sha512-vqlC04+RQoFalODCbCumG2xIOvapzVMHwsyIGM/SIE8fRhFFsXeH8/QQ+s0T0kDAhKc4k30s73/0ydkHQz6HlQ==}
@@ -10841,7 +10833,7 @@ packages:
       sugarss: '*'
       terser: ^5.16.0
       tsx: ^4.8.1
-      yaml: ^2.4.2
+      yaml: ^2.8.3
     peerDependenciesMeta:
       '@types/node':
         optional: true
@@ -11122,13 +11114,9 @@ packages:
     resolution: {integrity: sha512-YgvUTfwqyc7UXVMrB+SImsVYSmTS8X/tSrtdNZMImM+n7+QTriRXyXim0mBrTXNeqzVF0KWGgHPeiyViFFrNDw==}
     engines: {node: '>=18'}
 
-  yaml@1.10.3:
-    resolution: {integrity: sha512-vIYeF1u3CjlhAFekPPAk2h/Kv4T3mAkMox5OymRiJQB0spDP10LHvt+K7G9Ny6NuuMAb25/6n1qyUjAcGNf/AA==}
-    engines: {node: '>= 6'}
-
-  yaml@2.6.0:
-    resolution: {integrity: sha512-a6ae//JvKDEra2kdi1qzCyrJW/WZCgFi8ydDV+eXExl95t+5R+ijnqHJbz9tmMh8FUjx3iv2fCQ4dclAQlO2UQ==}
-    engines: {node: '>= 14'}
+  yaml@2.8.3:
+    resolution: {integrity: sha512-AvbaCLOO2Otw/lW5bmh9d/WEdcDFdQp2Z2ZUH3pX9U2ihyUY0nvLv7J6TrWowklRGPYbB/IuIMfYgxaCPg5Bpg==}
+    engines: {node: '>= 14.6'}
     hasBin: true
 
   yargs-parser@20.2.9:
@@ -11282,7 +11270,7 @@ snapshots:
 
   '@ant-design/cssinjs@1.24.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
-      '@babel/runtime': 7.26.0
+      '@babel/runtime': 7.29.2
       '@emotion/hash': 0.8.0
       '@emotion/unitless': 0.7.5
       classnames: 2.5.1
@@ -11312,7 +11300,7 @@ snapshots:
     dependencies:
       '@ant-design/colors': 7.1.0
       '@ant-design/icons-svg': 4.4.2
-      '@babel/runtime': 7.26.0
+      '@babel/runtime': 7.29.2
       classnames: 2.5.1
       rc-util: 5.43.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       react: 18.3.1
@@ -11809,7 +11797,7 @@ snapshots:
       '@babel/generator': 7.26.0
       '@babel/helper-compilation-targets': 7.25.9
       '@babel/helper-module-transforms': 7.26.0(@babel/core@7.26.0)
-      '@babel/helpers': 7.26.0
+      '@babel/helpers': 7.27.6
       '@babel/parser': 7.28.0
       '@babel/template': 7.25.9
       '@babel/traverse': 7.28.0
@@ -11916,11 +11904,6 @@ snapshots:
   '@babel/helper-validator-option@7.25.9': {}
 
   '@babel/helper-validator-option@7.27.1': {}
-
-  '@babel/helpers@7.26.0':
-    dependencies:
-      '@babel/template': 7.27.2
-      '@babel/types': 7.28.1
 
   '@babel/helpers@7.27.6':
     dependencies:
@@ -12109,10 +12092,6 @@ snapshots:
     dependencies:
       '@babel/core': 7.26.0
       '@babel/helper-plugin-utils': 7.25.9
-
-  '@babel/runtime@7.26.0':
-    dependencies:
-      regenerator-runtime: 0.14.1
 
   '@babel/runtime@7.28.4': {}
 
@@ -12890,7 +12869,7 @@ snapshots:
       fast-deep-equal: 3.1.3
       functional-red-black-tree: 1.0.1
       google-gax: 4.4.1(encoding@0.1.13)
-      protobufjs: 7.4.0
+      protobufjs: 7.5.5
     transitivePeerDependencies:
       - encoding
       - supports-color
@@ -12951,14 +12930,14 @@ snapshots:
     dependencies:
       lodash.camelcase: 4.3.0
       long: 5.2.3
-      protobufjs: 7.4.0
+      protobufjs: 7.5.5
       yargs: 17.7.2
 
   '@grpc/proto-loader@0.7.15':
     dependencies:
       lodash.camelcase: 4.3.0
       long: 5.3.2
-      protobufjs: 7.5.4
+      protobufjs: 7.5.5
       yargs: 17.7.2
 
   '@hubspot/api-client@11.2.0(encoding@0.1.13)':
@@ -13113,7 +13092,7 @@ snapshots:
       camelcase: 5.3.1
       find-up: 4.1.0
       get-package-type: 0.1.0
-      js-yaml: 3.14.1
+      js-yaml: 3.14.2
       resolve-from: 5.0.0
 
   '@istanbuljs/schema@0.1.3': {}
@@ -13366,7 +13345,7 @@ snapshots:
 
   '@loadable/component@5.16.7(react@18.3.1)':
     dependencies:
-      '@babel/runtime': 7.26.0
+      '@babel/runtime': 7.29.2
       hoist-non-react-statics: 3.3.2
       react: 18.3.1
       react-is: 16.13.1
@@ -13626,7 +13605,7 @@ snapshots:
 
   '@rc-component/async-validator@5.1.0':
     dependencies:
-      '@babel/runtime': 7.28.4
+      '@babel/runtime': 7.29.2
 
   '@rc-component/cascader@1.14.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
@@ -13748,7 +13727,7 @@ snapshots:
 
   '@rc-component/mini-decimal@1.1.0':
     dependencies:
-      '@babel/runtime': 7.28.4
+      '@babel/runtime': 7.29.2
 
   '@rc-component/motion@1.3.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
@@ -13773,7 +13752,7 @@ snapshots:
 
   '@rc-component/overflow@1.0.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
-      '@babel/runtime': 7.28.4
+      '@babel/runtime': 7.29.2
       '@rc-component/resize-observer': 1.1.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@rc-component/util': 1.10.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       clsx: 2.1.1
@@ -13965,7 +13944,7 @@ snapshots:
 
   '@rc-component/virtual-list@1.0.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
-      '@babel/runtime': 7.28.4
+      '@babel/runtime': 7.29.2
       '@rc-component/resize-observer': 1.1.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@rc-component/util': 1.10.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       clsx: 2.1.1
@@ -14127,7 +14106,7 @@ snapshots:
       classnames: 2.5.1
       dayjs: 1.11.20
       lodash: 4.18.1
-      lodash-es: 4.17.21
+      lodash-es: 4.18.1
       rc-picker: 2.7.6(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       react: 18.3.1
     transitivePeerDependencies:
@@ -14137,7 +14116,7 @@ snapshots:
     dependencies:
       '@rjsf/utils': 5.24.13(react@18.3.1)
       lodash: 4.18.1
-      lodash-es: 4.17.21
+      lodash-es: 4.18.1
       markdown-to-jsx: 7.7.17(react@18.3.1)
       prop-types: 15.8.1
       react: 18.3.1
@@ -14147,7 +14126,7 @@ snapshots:
       json-schema-merge-allof: 0.8.1
       jsonpointer: 5.0.1
       lodash: 4.18.1
-      lodash-es: 4.17.21
+      lodash-es: 4.18.1
       react: 18.3.1
       react-is: 18.3.1
 
@@ -14157,7 +14136,7 @@ snapshots:
       ajv: 8.18.0
       ajv-formats: 2.1.1(ajv@8.18.0)
       lodash: 4.18.1
-      lodash-es: 4.17.21
+      lodash-es: 4.18.1
 
   '@rollup/rollup-android-arm-eabi@4.60.1':
     optional: true
@@ -14307,7 +14286,7 @@ snapshots:
       conventional-commits-parser: 6.4.0
       debug: 4.4.3
       import-from-esm: 2.0.0
-      lodash-es: 4.17.21
+      lodash-es: 4.18.1
       micromatch: 4.0.8
       semantic-release: 25.0.3(typescript@5.6.3)
     transitivePeerDependencies:
@@ -14323,7 +14302,7 @@ snapshots:
       aggregate-error: 3.1.0
       debug: 4.4.3
       execa: 9.6.0
-      lodash-es: 4.17.21
+      lodash-es: 4.18.1
       parse-json: 8.3.0
       semantic-release: 25.0.3(typescript@5.6.3)
     transitivePeerDependencies:
@@ -14356,7 +14335,7 @@ snapshots:
       http-proxy-agent: 7.0.2
       https-proxy-agent: 7.0.5
       issue-parser: 7.0.1
-      lodash-es: 4.17.21
+      lodash-es: 4.18.1
       mime: 4.1.0
       p-filter: 4.1.0
       semantic-release: 25.0.3(typescript@5.6.3)
@@ -14374,7 +14353,7 @@ snapshots:
       env-ci: 11.2.0
       execa: 9.6.0
       fs-extra: 11.3.2
-      lodash-es: 4.17.21
+      lodash-es: 4.18.1
       nerf-dart: 1.0.0
       normalize-url: 9.0.0
       npm: 11.12.1
@@ -14395,7 +14374,7 @@ snapshots:
       get-stream: 7.0.1
       import-from-esm: 2.0.0
       into-stream: 7.0.0
-      lodash-es: 4.17.21
+      lodash-es: 4.18.1
       read-package-up: 11.0.0
       semantic-release: 25.0.3(typescript@5.6.3)
     transitivePeerDependencies:
@@ -14842,7 +14821,7 @@ snapshots:
   '@testing-library/dom@8.20.1':
     dependencies:
       '@babel/code-frame': 7.26.0
-      '@babel/runtime': 7.26.0
+      '@babel/runtime': 7.29.2
       '@types/aria-query': 5.0.4
       aria-query: 5.1.3
       chalk: 4.1.2
@@ -14861,7 +14840,7 @@ snapshots:
 
   '@testing-library/react@13.4.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
-      '@babel/runtime': 7.26.0
+      '@babel/runtime': 7.29.2
       '@testing-library/dom': 8.20.1
       '@types/react-dom': 18.3.1
       react: 18.3.1
@@ -15427,21 +15406,21 @@ snapshots:
       chai: 6.2.2
       tinyrainbow: 3.1.0
 
-  '@vitest/mocker@4.1.4(vite@6.4.2(@types/node@18.19.61)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.6.0))':
+  '@vitest/mocker@4.1.4(vite@6.4.2(@types/node@18.19.61)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))':
     dependencies:
       '@vitest/spy': 4.1.4
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
-      vite: 6.4.2(@types/node@18.19.61)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.6.0)
+      vite: 6.4.2(@types/node@18.19.61)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)
 
-  '@vitest/mocker@4.1.4(vite@6.4.2(@types/node@25.6.0)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.6.0))':
+  '@vitest/mocker@4.1.4(vite@6.4.2(@types/node@25.6.0)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))':
     dependencies:
       '@vitest/spy': 4.1.4
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
-      vite: 6.4.2(@types/node@25.6.0)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.6.0)
+      vite: 6.4.2(@types/node@25.6.0)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)
 
   '@vitest/pretty-format@4.1.4':
     dependencies:
@@ -15470,7 +15449,7 @@ snapshots:
       sirv: 3.0.2
       tinyglobby: 0.2.16
       tinyrainbow: 3.1.0
-      vitest: 4.1.4(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.4)(jsdom@16.7.0)(vite@6.4.2(@types/node@18.19.61)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.6.0))
+      vitest: 4.1.4(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.4)(jsdom@16.7.0)(vite@6.4.2(@types/node@18.19.61)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
 
   '@vitest/utils@4.1.4':
     dependencies:
@@ -15771,7 +15750,7 @@ snapshots:
   anymatch@3.1.3:
     dependencies:
       normalize-path: 3.0.0
-      picomatch: 2.3.1
+      picomatch: 2.3.2
 
   archiver-utils@5.0.2:
     dependencies:
@@ -16589,7 +16568,7 @@ snapshots:
       import-fresh: 3.3.1
       parse-json: 5.2.0
       path-type: 4.0.0
-      yaml: 1.10.3
+      yaml: 2.8.3
     optional: true
 
   cosmiconfig@9.0.0(typescript@5.6.3):
@@ -16850,7 +16829,7 @@ snapshots:
 
   date-fns@2.30.0:
     dependencies:
-      '@babel/runtime': 7.28.4
+      '@babel/runtime': 7.29.2
 
   dayjs@1.11.20: {}
 
@@ -16975,7 +16954,7 @@ snapshots:
 
   docker-compose@1.4.2:
     dependencies:
-      yaml: 2.6.0
+      yaml: 2.8.3
 
   docker-modem@5.0.7:
     dependencies:
@@ -16992,7 +16971,7 @@ snapshots:
       '@grpc/grpc-js': 1.12.2
       '@grpc/proto-loader': 0.7.15
       docker-modem: 5.0.7
-      protobufjs: 7.5.4
+      protobufjs: 7.5.5
       tar-fs: 2.1.4
       uuid: 10.0.0
     transitivePeerDependencies:
@@ -18445,7 +18424,7 @@ snapshots:
       node-fetch: 2.7.0(encoding@0.1.13)
       object-hash: 3.0.0
       proto3-json-serializer: 2.0.2
-      protobufjs: 7.4.0
+      protobufjs: 7.5.5
       retry-request: 7.0.2(encoding@0.1.13)
       uuid: 9.0.1
     transitivePeerDependencies:
@@ -19501,7 +19480,7 @@ snapshots:
       chalk: 4.1.2
       ci-info: 3.9.0
       graceful-fs: 4.2.11
-      picomatch: 2.3.1
+      picomatch: 2.3.2
 
   jest-validate@29.7.0:
     dependencies:
@@ -19574,7 +19553,7 @@ snapshots:
 
   js-tokens@4.0.0: {}
 
-  js-yaml@3.14.1:
+  js-yaml@3.14.2:
     dependencies:
       argparse: 1.0.10
       esprima: 4.0.1
@@ -19821,7 +19800,7 @@ snapshots:
     dependencies:
       p-locate: 5.0.0
 
-  lodash-es@4.17.21: {}
+  lodash-es@4.18.1: {}
 
   lodash.camelcase@4.3.0: {}
 
@@ -19988,7 +19967,7 @@ snapshots:
   micromatch@4.0.8:
     dependencies:
       braces: 3.0.3
-      picomatch: 2.3.1
+      picomatch: 2.3.2
 
   mime-db@1.52.0: {}
 
@@ -20049,7 +20028,7 @@ snapshots:
 
   mjml-accordion@5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3):
     dependencies:
-      '@babel/runtime': 7.28.4
+      '@babel/runtime': 7.29.2
       lodash: 4.18.1
       mjml-core: 5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3)
     transitivePeerDependencies:
@@ -20063,7 +20042,7 @@ snapshots:
 
   mjml-body@5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3):
     dependencies:
-      '@babel/runtime': 7.28.4
+      '@babel/runtime': 7.29.2
       lodash: 4.18.1
       mjml-core: 5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3)
     transitivePeerDependencies:
@@ -20077,7 +20056,7 @@ snapshots:
 
   mjml-button@5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3):
     dependencies:
-      '@babel/runtime': 7.28.4
+      '@babel/runtime': 7.29.2
       lodash: 4.18.1
       mjml-core: 5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3)
     transitivePeerDependencies:
@@ -20091,7 +20070,7 @@ snapshots:
 
   mjml-carousel@5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3):
     dependencies:
-      '@babel/runtime': 7.28.4
+      '@babel/runtime': 7.29.2
       lodash: 4.18.1
       mjml-core: 5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3)
     transitivePeerDependencies:
@@ -20126,7 +20105,7 @@ snapshots:
 
   mjml-column@5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3):
     dependencies:
-      '@babel/runtime': 7.28.4
+      '@babel/runtime': 7.29.2
       lodash: 4.18.1
       mjml-core: 5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3)
     transitivePeerDependencies:
@@ -20163,7 +20142,7 @@ snapshots:
 
   mjml-divider@5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3):
     dependencies:
-      '@babel/runtime': 7.28.4
+      '@babel/runtime': 7.29.2
       lodash: 4.18.1
       mjml-core: 5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3)
     transitivePeerDependencies:
@@ -20177,7 +20156,7 @@ snapshots:
 
   mjml-group@5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3):
     dependencies:
-      '@babel/runtime': 7.28.4
+      '@babel/runtime': 7.29.2
       lodash: 4.18.1
       mjml-core: 5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3)
     transitivePeerDependencies:
@@ -20191,7 +20170,7 @@ snapshots:
 
   mjml-head-attributes@5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3):
     dependencies:
-      '@babel/runtime': 7.28.4
+      '@babel/runtime': 7.29.2
       lodash: 4.18.1
       mjml-core: 5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3)
     transitivePeerDependencies:
@@ -20205,7 +20184,7 @@ snapshots:
 
   mjml-head-breakpoint@5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3):
     dependencies:
-      '@babel/runtime': 7.28.4
+      '@babel/runtime': 7.29.2
       lodash: 4.18.1
       mjml-core: 5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3)
     transitivePeerDependencies:
@@ -20219,7 +20198,7 @@ snapshots:
 
   mjml-head-font@5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3):
     dependencies:
-      '@babel/runtime': 7.28.4
+      '@babel/runtime': 7.29.2
       lodash: 4.18.1
       mjml-core: 5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3)
     transitivePeerDependencies:
@@ -20233,7 +20212,7 @@ snapshots:
 
   mjml-head-html-attributes@5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3):
     dependencies:
-      '@babel/runtime': 7.28.4
+      '@babel/runtime': 7.29.2
       lodash: 4.18.1
       mjml-core: 5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3)
     transitivePeerDependencies:
@@ -20247,7 +20226,7 @@ snapshots:
 
   mjml-head-preview@5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3):
     dependencies:
-      '@babel/runtime': 7.28.4
+      '@babel/runtime': 7.29.2
       lodash: 4.18.1
       mjml-core: 5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3)
     transitivePeerDependencies:
@@ -20261,7 +20240,7 @@ snapshots:
 
   mjml-head-style@5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3):
     dependencies:
-      '@babel/runtime': 7.28.4
+      '@babel/runtime': 7.29.2
       lodash: 4.18.1
       mjml-core: 5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3)
     transitivePeerDependencies:
@@ -20275,7 +20254,7 @@ snapshots:
 
   mjml-head-title@5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3):
     dependencies:
-      '@babel/runtime': 7.28.4
+      '@babel/runtime': 7.29.2
       lodash: 4.18.1
       mjml-core: 5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3)
     transitivePeerDependencies:
@@ -20289,7 +20268,7 @@ snapshots:
 
   mjml-head@5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3):
     dependencies:
-      '@babel/runtime': 7.28.4
+      '@babel/runtime': 7.29.2
       lodash: 4.18.1
       mjml-core: 5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3)
     transitivePeerDependencies:
@@ -20303,7 +20282,7 @@ snapshots:
 
   mjml-hero@5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3):
     dependencies:
-      '@babel/runtime': 7.28.4
+      '@babel/runtime': 7.29.2
       lodash: 4.18.1
       mjml-core: 5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3)
     transitivePeerDependencies:
@@ -20317,7 +20296,7 @@ snapshots:
 
   mjml-image@5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3):
     dependencies:
-      '@babel/runtime': 7.28.4
+      '@babel/runtime': 7.29.2
       lodash: 4.18.1
       mjml-core: 5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3)
     transitivePeerDependencies:
@@ -20331,7 +20310,7 @@ snapshots:
 
   mjml-navbar@5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3):
     dependencies:
-      '@babel/runtime': 7.28.4
+      '@babel/runtime': 7.29.2
       lodash: 4.18.1
       mjml-core: 5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3)
     transitivePeerDependencies:
@@ -20345,7 +20324,7 @@ snapshots:
 
   mjml-parser-xml@5.0.0-beta.2:
     dependencies:
-      '@babel/runtime': 7.28.4
+      '@babel/runtime': 7.29.2
       detect-node: 2.1.0
       htmlparser2: 9.1.0
       lodash: 4.18.1
@@ -20389,7 +20368,7 @@ snapshots:
 
   mjml-raw@5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3):
     dependencies:
-      '@babel/runtime': 7.28.4
+      '@babel/runtime': 7.29.2
       lodash: 4.18.1
       mjml-core: 5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3)
     transitivePeerDependencies:
@@ -20403,7 +20382,7 @@ snapshots:
 
   mjml-react@2.0.8(mjml@5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3))(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
     dependencies:
-      '@babel/runtime': 7.26.0
+      '@babel/runtime': 7.29.2
       babel-runtime: 6.25.0
       color: 3.2.1
       mjml: 5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3)
@@ -20413,7 +20392,7 @@ snapshots:
 
   mjml-section@5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3):
     dependencies:
-      '@babel/runtime': 7.28.4
+      '@babel/runtime': 7.29.2
       lodash: 4.18.1
       mjml-core: 5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3)
     transitivePeerDependencies:
@@ -20427,7 +20406,7 @@ snapshots:
 
   mjml-social@5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3):
     dependencies:
-      '@babel/runtime': 7.28.4
+      '@babel/runtime': 7.29.2
       lodash: 4.18.1
       mjml-core: 5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3)
     transitivePeerDependencies:
@@ -20441,7 +20420,7 @@ snapshots:
 
   mjml-spacer@5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3):
     dependencies:
-      '@babel/runtime': 7.28.4
+      '@babel/runtime': 7.29.2
       lodash: 4.18.1
       mjml-core: 5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3)
     transitivePeerDependencies:
@@ -20455,7 +20434,7 @@ snapshots:
 
   mjml-table@5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3):
     dependencies:
-      '@babel/runtime': 7.28.4
+      '@babel/runtime': 7.29.2
       lodash: 4.18.1
       mjml-core: 5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3)
     transitivePeerDependencies:
@@ -20469,7 +20448,7 @@ snapshots:
 
   mjml-text@5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3):
     dependencies:
-      '@babel/runtime': 7.28.4
+      '@babel/runtime': 7.29.2
       lodash: 4.18.1
       mjml-core: 5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3)
     transitivePeerDependencies:
@@ -20487,7 +20466,7 @@ snapshots:
 
   mjml-wrapper@5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3):
     dependencies:
-      '@babel/runtime': 7.28.4
+      '@babel/runtime': 7.29.2
       lodash: 4.18.1
       mjml-core: 5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3)
       mjml-section: 5.0.0-beta.2(relateurl@0.2.7)(svgo@4.0.1)(terser@5.46.1)(typescript@5.6.3)
@@ -20601,7 +20580,7 @@ snapshots:
 
   next-auth@4.24.13(next@16.2.3(@babel/core@7.26.10)(@opentelemetry/api@1.9.0)(@playwright/test@1.58.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(nodemailer@8.0.5)(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
     dependencies:
-      '@babel/runtime': 7.26.0
+      '@babel/runtime': 7.29.2
       '@panva/hkdf': 1.2.1
       cookie: 0.7.2
       jose: 4.15.9
@@ -21128,7 +21107,7 @@ snapshots:
 
   picocolors@1.1.1: {}
 
-  picomatch@2.3.1: {}
+  picomatch@2.3.2: {}
 
   picomatch@4.0.4: {}
 
@@ -21220,7 +21199,7 @@ snapshots:
   postcss-load-config@4.0.2(postcss@8.5.9)(ts-node@10.9.2(@swc/core@1.15.2)(@types/node@18.19.61)(typescript@5.6.3)):
     dependencies:
       lilconfig: 3.1.2
-      yaml: 2.6.0
+      yaml: 2.8.3
     optionalDependencies:
       postcss: 8.5.9
       ts-node: 10.9.2(@swc/core@1.15.2)(@types/node@18.19.61)(typescript@5.6.3)
@@ -21500,24 +21479,9 @@ snapshots:
 
   proto3-json-serializer@2.0.2:
     dependencies:
-      protobufjs: 7.4.0
+      protobufjs: 7.5.5
 
-  protobufjs@7.4.0:
-    dependencies:
-      '@protobufjs/aspromise': 1.1.2
-      '@protobufjs/base64': 1.1.2
-      '@protobufjs/codegen': 2.0.4
-      '@protobufjs/eventemitter': 1.1.0
-      '@protobufjs/fetch': 1.1.0
-      '@protobufjs/float': 1.0.2
-      '@protobufjs/inquire': 1.1.0
-      '@protobufjs/path': 1.1.2
-      '@protobufjs/pool': 1.1.0
-      '@protobufjs/utf8': 1.1.0
-      '@types/node': 25.6.0
-      long: 5.2.3
-
-  protobufjs@7.5.4:
+  protobufjs@7.5.5:
     dependencies:
       '@protobufjs/aspromise': 1.1.2
       '@protobufjs/base64': 1.1.2
@@ -21601,7 +21565,7 @@ snapshots:
 
   rc-align@4.0.15(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
     dependencies:
-      '@babel/runtime': 7.28.4
+      '@babel/runtime': 7.29.2
       classnames: 2.5.1
       dom-align: 1.12.4
       rc-util: 5.43.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -21611,7 +21575,7 @@ snapshots:
 
   rc-motion@2.9.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
     dependencies:
-      '@babel/runtime': 7.28.4
+      '@babel/runtime': 7.29.2
       classnames: 2.5.1
       rc-util: 5.43.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       react: 18.3.1
@@ -21632,7 +21596,7 @@ snapshots:
 
   rc-trigger@5.3.4(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
     dependencies:
-      '@babel/runtime': 7.28.4
+      '@babel/runtime': 7.29.2
       classnames: 2.5.1
       rc-align: 4.0.15(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       rc-motion: 2.9.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -21642,7 +21606,7 @@ snapshots:
 
   rc-util@5.43.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
     dependencies:
-      '@babel/runtime': 7.28.4
+      '@babel/runtime': 7.29.2
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
       react-is: 18.3.1
@@ -21861,7 +21825,7 @@ snapshots:
 
   readdirp@3.6.0:
     dependencies:
-      picomatch: 2.3.1
+      picomatch: 2.3.2
 
   readdirp@4.1.2: {}
 
@@ -21905,8 +21869,6 @@ snapshots:
       which-builtin-type: 1.2.1
 
   regenerator-runtime@0.10.5: {}
-
-  regenerator-runtime@0.14.1: {}
 
   regexp.prototype.flags@1.5.3:
     dependencies:
@@ -22135,7 +22097,7 @@ snapshots:
       hook-std: 4.0.0
       hosted-git-info: 9.0.2
       import-from-esm: 2.0.0
-      lodash-es: 4.17.21
+      lodash-es: 4.18.1
       marked: 15.0.12
       marked-terminal: 7.3.0(marked@15.0.12)
       micromatch: 4.0.8
@@ -23312,7 +23274,7 @@ snapshots:
       d3-time: 3.1.0
       d3-timer: 3.0.1
 
-  vite@6.4.2(@types/node@18.19.61)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.6.0):
+  vite@6.4.2(@types/node@18.19.61)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3):
     dependencies:
       esbuild: 0.25.12
       fdir: 6.5.0(picomatch@4.0.4)
@@ -23327,9 +23289,9 @@ snapshots:
       less: 4.6.4
       terser: 5.46.1
       tsx: 4.21.0
-      yaml: 2.6.0
+      yaml: 2.8.3
 
-  vite@6.4.2(@types/node@25.6.0)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.6.0):
+  vite@6.4.2(@types/node@25.6.0)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3):
     dependencies:
       esbuild: 0.25.12
       fdir: 6.5.0(picomatch@4.0.4)
@@ -23344,12 +23306,12 @@ snapshots:
       less: 4.6.4
       terser: 5.46.1
       tsx: 4.21.0
-      yaml: 2.6.0
+      yaml: 2.8.3
 
-  vitest@4.1.4(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.4)(jsdom@16.7.0)(vite@6.4.2(@types/node@18.19.61)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.6.0)):
+  vitest@4.1.4(@opentelemetry/api@1.9.0)(@types/node@18.19.61)(@vitest/ui@4.1.4)(jsdom@16.7.0)(vite@6.4.2(@types/node@18.19.61)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)):
     dependencies:
       '@vitest/expect': 4.1.4
-      '@vitest/mocker': 4.1.4(vite@6.4.2(@types/node@18.19.61)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.6.0))
+      '@vitest/mocker': 4.1.4(vite@6.4.2(@types/node@18.19.61)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
       '@vitest/pretty-format': 4.1.4
       '@vitest/runner': 4.1.4
       '@vitest/snapshot': 4.1.4
@@ -23366,7 +23328,7 @@ snapshots:
       tinyexec: 1.1.1
       tinyglobby: 0.2.16
       tinyrainbow: 3.1.0
-      vite: 6.4.2(@types/node@18.19.61)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.6.0)
+      vite: 6.4.2(@types/node@18.19.61)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@opentelemetry/api': 1.9.0
@@ -23376,10 +23338,10 @@ snapshots:
     transitivePeerDependencies:
       - msw
 
-  vitest@4.1.4(@opentelemetry/api@1.9.0)(@types/node@25.6.0)(@vitest/ui@4.1.4)(jsdom@16.7.0)(vite@6.4.2(@types/node@25.6.0)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.6.0)):
+  vitest@4.1.4(@opentelemetry/api@1.9.0)(@types/node@25.6.0)(@vitest/ui@4.1.4)(jsdom@16.7.0)(vite@6.4.2(@types/node@25.6.0)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)):
     dependencies:
       '@vitest/expect': 4.1.4
-      '@vitest/mocker': 4.1.4(vite@6.4.2(@types/node@25.6.0)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.6.0))
+      '@vitest/mocker': 4.1.4(vite@6.4.2(@types/node@25.6.0)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
       '@vitest/pretty-format': 4.1.4
       '@vitest/runner': 4.1.4
       '@vitest/snapshot': 4.1.4
@@ -23396,7 +23358,7 @@ snapshots:
       tinyexec: 1.1.1
       tinyglobby: 0.2.16
       tinyrainbow: 3.1.0
-      vite: 6.4.2(@types/node@25.6.0)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.6.0)
+      vite: 6.4.2(@types/node@25.6.0)(jiti@2.6.1)(less@4.6.4)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@opentelemetry/api': 1.9.0
@@ -23732,10 +23694,7 @@ snapshots:
 
   yallist@5.0.0: {}
 
-  yaml@1.10.3:
-    optional: true
-
-  yaml@2.6.0: {}
+  yaml@2.8.3: {}
 
   yargs-parser@20.2.9: {}
 

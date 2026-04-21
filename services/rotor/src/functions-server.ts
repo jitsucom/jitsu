@@ -47,6 +47,13 @@ import type {
   WorkerToMainMessage,
 } from "./lib/worker-protocol";
 import { runUdfInWorker } from "./lib/worker-udf-runner";
+import {
+  loadProfileBuilders,
+  initProfileBuilderRuntimes,
+  runProfileBuilder,
+  runProfileUDFTest,
+  closeProfileBuilderConnections,
+} from "./lib/pb-server-runtime";
 import * as functionsLib from "@jitsu/functions-lib";
 
 // Set globals so UDF code (compiled via functionsLibShimPlugin) can access them
@@ -1203,6 +1210,17 @@ async function main() {
   functions.clear();
   log.atInfo().log(`Cleared functions map`);
 
+  // Load and initialize profile builders
+  const profileBuilderConfigs = await loadProfileBuilders(configDir);
+  const pbStoreMetrics: StoreMetrics = {
+    storeStatus: (namespace, operation, status) =>
+      promStoreStatuses.labels(deploymentId, namespace, operation, status).inc(),
+    warehouseStatus: (id, table, status, timeMs) =>
+      promWarehouseStatuses.labels(deploymentId, id, table, status).observe(timeMs / 1000),
+  };
+  const profileBuilderRuntimes = await initProfileBuilderRuntimes(profileBuilderConfigs, deploymentId, pbStoreMetrics);
+  log.atInfo().log(`Initialized ${profileBuilderRuntimes.size} profile builder runtimes`);
+
   // HTTP response helpers
   function jsonResponse(status: number, data: any, headers?: Record<string, string>): Response {
     return new Response(JSON.stringify(data), {
@@ -1222,6 +1240,7 @@ async function main() {
       configDir,
       connections: Array.from(connections.keys()),
       runtimes: Array.from(runtimes.keys()),
+      profileBuilders: Array.from(profileBuilderRuntimes.keys()),
       activeWorkers: workerPool ? workerPool.getActiveWorkers().map(w => w.id) : undefined,
     });
   }
@@ -1356,6 +1375,33 @@ async function main() {
     return { response: jsonResponse(200, result), actorId: connectionId };
   }
 
+  // Profile builder handler: POST /profile/<profile-builder-id>
+  async function handleProfile(
+    req: Request,
+    profileBuilderId: string
+  ): Promise<{ response: Response; actorId: string }> {
+    if (req.method !== "POST") {
+      return { response: errorResponse(405, "Method not allowed. Use POST."), actorId: profileBuilderId };
+    }
+
+    const compiledPb = profileBuilderRuntimes.get(profileBuilderId);
+    if (!compiledPb) {
+      return {
+        response: errorResponse(404, `Profile builder '${profileBuilderId}' not found`),
+        actorId: profileBuilderId,
+      };
+    }
+
+    const body = await parseBody(req);
+    const profileId = body.profileId as string;
+    if (!profileId) {
+      return { response: errorResponse(400, "profileId is required"), actorId: profileBuilderId };
+    }
+
+    const result = await runProfileBuilder(compiledPb, profileId, deploymentId, pbStoreMetrics, conEntityStore);
+    return { response: jsonResponse(result.error ? 500 : 200, result), actorId: profileBuilderId };
+  }
+
   // Create HTTP server using Deno.serve
   let isShuttingDown = false;
 
@@ -1409,7 +1455,14 @@ async function main() {
           return handleHealth();
         }
 
-        const endpoint = pathname === "/multi" ? "multi" : pathname.startsWith("/connection/") ? "connection" : "other";
+        const endpoint =
+          pathname === "/multi"
+            ? "multi"
+            : pathname.startsWith("/connection/")
+            ? "connection"
+            : pathname.startsWith("/profile/")
+            ? "profile"
+            : "other";
         const sw = stopwatch();
         promConcurrentRequests.labels(deploymentId, endpoint).inc();
         let actorId = "";
@@ -1443,6 +1496,25 @@ async function main() {
             return jsonResponse(200, result);
           }
 
+          // Profile UDF test runner
+          if (pathname === "/profileudfrun" && req.method === "POST") {
+            const body = await parseBody(req);
+            log.atInfo().log(`[profileudfrun] Running profile function: ${body?.id} workspace: ${body?.workspaceId}`);
+            const pbStore = env.MONGODB_URL
+              ? createMongoStore(body.workspaceId, mongodb, true, false)
+              : createMemoryStore(body.store || {});
+            const result = await runProfileUDFTest(body, pbStore, conEntityStore);
+            if (result.error) {
+              log
+                .atError()
+                .log(
+                  `[profileudfrun] Error: ${body?.id} workspace: ${body?.workspaceId}\n${result.error.name}: ${result.error.message}`
+                );
+            }
+            result.backend = "functions-server";
+            return jsonResponse(200, result);
+          }
+
           // Single connection handler
           const match = pathname.match(/^\/connection\/([^\/]+)$/);
           if (match) {
@@ -1452,11 +1524,20 @@ async function main() {
             return result.response;
           }
 
+          // Profile builder handler
+          const pbMatch = pathname.match(/^\/profile\/([^\/]+)$/);
+          if (pbMatch) {
+            const result = await handleProfile(req, pbMatch[1]);
+            actorId = result.actorId;
+            status = result.response.status;
+            return result.response;
+          }
+
           // Not found
           status = 404;
           return errorResponse(
             404,
-            "Not found. Use /connection/<connection-id>, /multi?ids=conn1,conn2,..., or /udfrun"
+            "Not found. Use /connection/<connection-id>, /multi?ids=conn1,conn2,..., /profile/<pb-id>, or /udfrun"
           );
         } finally {
           promConcurrentRequests.labels(deploymentId, endpoint).dec();
@@ -1514,6 +1595,11 @@ async function main() {
       if (workerPool) {
         workerPool.terminateAll();
       }
+
+      // Close profile builder MongoDB connections
+      closeProfileBuilderConnections().catch(e => {
+        log.atWarn().log(`Error closing profile builder connections: ${e.message}`);
+      });
 
       server.shutdown().then(() => {
         log.atInfo().log(`Server closed, all connections drained`);

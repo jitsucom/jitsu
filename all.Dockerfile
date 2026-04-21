@@ -223,6 +223,7 @@ EXPOSE 3401
 # Copy Deno-specific build artifacts from builder
 COPY --from=builder /app/services/rotor/dist/functions-server.mjs ./functions-server.mjs
 COPY --from=builder /app/services/rotor/dist/workspace-worker.mjs ./workspace-worker.mjs
+COPY --from=builder /app/services/rotor/dist/profile-worker.mjs ./profile-worker.mjs
 # Copy node_modules with native deps (installed by build.mts)
 # Workspace packages and pure JS deps are bundled into functions-server.mjs by esbuild
 COPY --from=builder /app/services/rotor/dist/node_modules ./node_modules
