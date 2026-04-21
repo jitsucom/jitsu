@@ -236,6 +236,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       actions: write
+      contents: read
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@v6
@@ -274,6 +275,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       actions: write
+      contents: read
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@v6
@@ -293,7 +295,7 @@ jobs:
               - '.github/workflows/client-libraries-build.yaml'  # re-test if build workflow changes
 
       - name: 🚀 Trigger client-libraries-build workflow
-        if: steps.changes.outputs.client-libs == 'true'
+        if: steps.changes.outputs['client-libs'] == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
