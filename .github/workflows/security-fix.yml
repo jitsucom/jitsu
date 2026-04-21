@@ -103,21 +103,14 @@ jobs:
             }]' > /tmp/dependabot-alerts.json 2>/dev/null || echo '[]' > /tmp/dependabot-alerts.json
           echo "Dependabot alerts: $(jq length /tmp/dependabot-alerts.json)"
 
-      - name: 🤖 Install Claude Code
-        run: npm install -g @anthropic-ai/claude-code
-
-      - name: 🔒 Fix vulnerabilities with Claude
+      - name: 📝 Write Codex prompt
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          GH_TOKEN: ${{ github.token }}
-          GITHUB_TOKEN: ${{ github.token }}
           DRY_RUN: ${{ inputs.dry_run || 'false' }}
           MIN_SEVERITY: ${{ inputs.severity || 'moderate' }}
           REPO: ${{ github.repository }}
         run: |
-          cat << PROMPT | claude --print \
-            --allowedTools "Bash(cat:*),Bash(jq:*),Bash(pnpm:*),Bash(go:*),Bash(git:*),Bash(gh:*),Bash(grep:*),Bash(head:*),Bash(npm:*)" \
-            --model claude-haiku-4-5-20251001
+          mkdir -p .github/codex
+          cat > .github/codex/security-fix.prompt.md << PROMPT_EOF
           You are a security engineer fixing dependency vulnerabilities in a monorepo.
 
           ## Context
@@ -140,10 +133,10 @@ jobs:
           2. For each vulnerability (or group of trivial same-ecosystem patches):
 
              a. **Analyze the fix**:
-                - Check if the package is a direct dependency (`grep` in package.json files) or transitive.
-                - For transitive deps: use pnpm overrides in root package.json (pattern: `"pkg@<fixed_version": "^fixed_version"`).
+                - Check if the package is a direct dependency (grep in package.json files) or transitive.
+                - For transitive deps: use pnpm overrides in root package.json (pattern: "pkg@<fixed_version": "^fixed_version").
                 - For direct deps: bump the version in the relevant package.json.
-                - For Go deps: run `go -C bulker/modulename get pkg@version && go -C bulker/modulename mod tidy`.
+                - For Go deps: run go -C bulker/modulename get pkg@version && go -C bulker/modulename mod tidy.
                 - Check if the fixed version is a major version bump. If so:
                   - Check the package's changelog/migration guide.
                   - Verify the new version's API is compatible.
@@ -151,24 +144,24 @@ jobs:
                   - If the major bump is risky, create the PR but mark it as needing manual review.
 
              b. **Apply the fix**:
-                - Create a branch: `security/fix-{package-name}` (or `security/fix-batch-{date}` for grouped trivial patches).
+                - Create a branch: security/fix-{package-name} (or security/fix-batch-{date} for grouped trivial patches).
                 - Make the changes.
-                - For Node.js: run `pnpm install` to update the lockfile.
-                - For Go: run `go mod tidy` in affected modules.
-                - Commit with message: `fix(security): upgrade {package} to {version} ({CVE})`
+                - For Node.js: run pnpm install to update the lockfile.
+                - For Go: run go mod tidy in affected modules.
+                - Commit with message: fix(security): upgrade {package} to {version} ({CVE})
 
              c. **Create a PR** (unless DRY_RUN is true):
-                - Title: `fix(security): {package} {CVE} ({severity})`
+                - Title: fix(security): {package} {CVE} ({severity})
                 - Body should include:
                   - CVE ID and severity
                   - What the vulnerability is (1 sentence)
                   - What was changed (override vs direct bump vs Go module update)
                   - Whether this is a major version bump
                   - Any breaking changes or risks noted
-                - Use: `gh pr create --base newjitsu --title "..." --body "..."`
+                - Use: gh pr create --base newjitsu --title "..." --body "..."
 
              d. **Reset** back to newjitsu before the next fix:
-                `git checkout newjitsu && git reset --hard origin/newjitsu`
+                git checkout newjitsu && git reset --hard origin/newjitsu
 
           3. Group trivial patches together: if multiple vulnerabilities can be fixed by
              simple pnpm overrides with no major version bumps, batch them into one PR.
@@ -179,8 +172,52 @@ jobs:
           ## Important rules
           - NEVER force push or modify the newjitsu branch directly.
           - Always create a NEW branch for each PR.
-          - Run `pnpm install` after modifying package.json to verify the fix works.
-          - If `pnpm install` fails after a fix, revert and skip that vulnerability.
-          - For Go modules, use `go -C bulker/modulename` to run in the module directory.
-          - Check existing open PRs with `gh pr list --search "security"` to avoid duplicates.
-          PROMPT
+          - Run pnpm install after modifying package.json to verify the fix works.
+          - If pnpm install fails after a fix, revert and skip that vulnerability.
+          - For Go modules, use go -C bulker/modulename to run in the module directory.
+          - Check existing open PRs with gh pr list --search "security" to avoid duplicates.
+          PROMPT_EOF
+
+      - name: 🔒 Fix vulnerabilities with Codex
+        id: run-codex
+        # openai is a major vendor with a controlled release process; @v1 is a
+        # sufficient pin. SHA-pinning every OpenAI action update would be more
+        # overhead than the risk warrants.
+        uses: openai/codex-action@v1
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt-file: .github/codex/security-fix.prompt.md
+          model: gpt-5.3-codex
+          effort: high
+          sandbox: danger-full-access
+          codex-home: .github/codex/home
+
+  # Separate job so actions: write is not available to the Codex step above.
+  # ai-review.yml skips PRs opened by jitsu-code-review[bot] (codex-action's
+  # write-access check fails for app-bot actors), so we dispatch it manually.
+  # Running over all open security/* PRs is intentional — this workflow is
+  # manual, so a re-review on an older PR is harmless.
+  trigger-review:
+    name: 🔍 Trigger AI Review
+    needs: scan-and-fix
+    if: ${{ inputs.dry_run != true }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      pull-requests: read
+    steps:
+      - name: Dispatch AI review for open security PRs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr list --repo ${{ github.repository }} --base newjitsu --state open \
+            --json number,headRefName \
+            --jq '[.[] | select(.headRefName | startswith("security/")) | .number | tostring] | .[]' \
+          | while IFS= read -r num; do
+              echo "Dispatching AI review for PR #$num"
+              gh workflow run ai-review.yml --repo ${{ github.repository }} --ref newjitsu -f pr_number="$num"
+            done
+

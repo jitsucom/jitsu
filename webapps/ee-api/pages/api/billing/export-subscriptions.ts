@@ -17,7 +17,7 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
   }
   assertTrue(claims.type === "admin", "Only admins can export subscriptions");
   const subscriptions = await exportSubscriptions();
-  await store.getTable(extendedStripeData).clear();
+  // await store.getTable(extendedStripeData).clear();
   for (const [sub, data] of Object.entries(subscriptions)) {
     await store.getTable(extendedStripeData).put(data.customer.id, data);
   }

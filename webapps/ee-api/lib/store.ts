@@ -211,8 +211,7 @@ export function getPostgresStore(
           const upsertQuery = `
               INSERT INTO ${table} (id, namespace, obj, expire)
               VALUES ($1, $2, $3, $4) ON CONFLICT (id, namespace) DO
-              UPDATE SET obj = $3,
-                  expire=$4`;
+              UPDATE SET obj = $3, expire=$4, updated_at=now()`;
           try {
             await pgPool.query({
               text: upsertQuery,
