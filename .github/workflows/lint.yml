@@ -257,7 +257,7 @@ jobs:
               - '.github/workflows/services-build.yaml'  # re-test if the build workflow itself changes
 
       - name: 🚀 Trigger services-build workflow
-        if: false && steps.changes.outputs.services == 'true'
+        if: steps.changes.outputs.services == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -290,7 +290,7 @@ jobs:
               - '.github/workflows/client-libraries-build.yaml'  # re-test if build workflow changes
 
       - name: 🚀 Trigger client-libraries-build workflow
-        if: false && steps.changes.outputs.client-libs == 'true'
+        if: steps.changes.outputs.client-libs == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
