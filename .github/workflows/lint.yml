@@ -3,7 +3,7 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
   push:
-    branches: [newjitsu]
+    branches: [newjitsu, stable-services, stable-jsclient]
   workflow_dispatch:
 
 env:
