@@ -7,9 +7,7 @@ import {
   AnyEvent,
   EventContext,
   FullContext,
-  FuncReturn,
   FunctionMetrics,
-  JitsuFunction,
   TTLStore,
 } from "@jitsu/protocols/functions";
 import Prometheus from "prom-client";
@@ -20,9 +18,6 @@ import {
   EntityStore,
   FuncChainResult,
   FunctionConfig,
-  FunctionExecLog,
-  FunctionExecRes,
-  isDropResult,
   makeFetch,
   parseUserAgent,
   StoreMetrics,
@@ -36,6 +31,7 @@ import isEqual from "lodash/isEqual";
 import { IngestMessage } from "@jitsu/protocols/async-request";
 import type { MongoClient } from "mongodb";
 import { compileUdfFunction, compileUdfToIIFE } from "./lib/udf-shared";
+import { runFunctionChain, type ChainFunction } from "./lib/udf-chain";
 import type {
   ExecMessage,
   InitMessage,
@@ -210,11 +206,7 @@ function setupMongoPoolMetrics(client: MongoClient) {
 const metricsPort = parseInt(env.ROTOR_METRICS_PORT || "9091");
 
 // Types
-type LoadedFunction = {
-  id: string;
-  exec: JitsuFunction;
-  config?: any;
-};
+type LoadedFunction = ChainFunction;
 
 type FunctionChainContext = {
   store: TTLStore;
@@ -527,173 +519,70 @@ interface FunctionRuntime {
   getConnection(): StrippedConnectionConfig;
 }
 
-// Deep copy helper (same as legacy udf-wrapper)
-function deepCopy<T>(o: T): T {
-  if (typeof o !== "object") {
-    return o;
-  }
-  if (!o) {
-    return o;
-  }
-
-  if (Array.isArray(o)) {
-    const newO: any[] = [];
-    for (let i = 0; i < o.length; i += 1) {
-      const v = o[i];
-      newO[i] = !v || typeof v !== "object" ? v : deepCopy(v);
-    }
-    return newO as T;
-  }
-
-  const newO: Record<string, any> = {};
-  for (const [k, v] of Object.entries(o)) {
-    newO[k] = !v || typeof v !== "object" ? v : deepCopy(v);
-  }
-  return newO as T;
-}
-
 function recordChainResultMetrics(result: Required<FuncChainResultWithLogs>) {
   // Overall chain result
   promChainResult.labels(deploymentId, result.connectionId, ...classifyChainResult(result)).inc();
 }
 
-// Run function chain
+// Run function chain — delegates to shared runFunctionChain with in-process context
 async function runChain(
   chain: FunctionChain,
   event: AnyEvent,
   eventContext: EventContext,
   fetchTimeoutMs: number = 2000
 ): Promise<Required<FuncChainResultWithLogs>> {
-  const execLog: FunctionExecLog = [];
-  const logs: LogEntry[] = [];
-  let events: AnyEvent[] = [event];
   const chainCtx = chain.context;
+  const retries = (eventContext as EventContext & { retries?: number }).retries ?? 0;
+  const debugTill = chainCtx.connectionOptions?.debugTill
+    ? new Date(chainCtx.connectionOptions?.debugTill)
+    : undefined;
+  const fetchLogEnabled =
+    chainCtx.connectionOptions?.fetchLogLevel !== "debug" || (debugTill && debugTill.getTime() > Date.now());
 
-  for (let k = 0; k < chain.functions.length; k++) {
-    const func = chain.functions[k];
-    const newEvents: AnyEvent[] = [];
-
-    for (let i = 0; i < events.length; i++) {
-      const currentEvent = events[i];
-      const sw = stopwatch();
-      let result: FuncReturn = undefined;
-
-      // Extract function type from function id (e.g., "udf.myFunction" -> "udf")
-      const ar = func.id.split(".");
-      const id = ar.pop() as string;
-      const functionType = ar.join(".");
-      const execLogEntry: Partial<FunctionExecRes> & { functionType?: string } = {
-        eventIndex: i,
-        receivedAt: eventContext.receivedAt,
-        functionId: id,
-        functionType,
-      };
-
-      try {
-        // Get retries from eventContext (passed from rotor)
-        const retries = (eventContext as EventContext & { retries?: number }).retries ?? 0;
-        const debugTill = chainCtx.connectionOptions?.debugTill
-          ? new Date(chainCtx.connectionOptions?.debugTill)
-          : undefined;
-        const fetchLogEnabled =
-          chainCtx.connectionOptions?.fetchLogLevel !== "debug" || (debugTill && debugTill.getTime() > Date.now());
-        const fullContext: FullContext = {
-          ...eventContext,
-          log: createCollectingLogger(id, functionType, logs, debugTill),
-          fetch: makeFetch(
-            chain.connectionId,
-            {
-              log(connectionId: string, level: LogLevel, msg: Record<string, any>) {
-                if (!fetchLogEnabled) {
-                  return;
-                }
-                logs.push({
-                  level,
-                  functionId: id,
-                  functionType,
-                  message: {
-                    ...msg,
-                    functionId: id,
-                    functionType,
-                  },
-                  timestamp: new Date(),
-                });
+  const result = await runFunctionChain<LogEntry>(
+    chain.functions,
+    event,
+    eventContext,
+    (functionId, functionType, logs) => ({
+      ...eventContext,
+      log: createCollectingLogger(functionId, functionType, logs, debugTill),
+      fetch: makeFetch(
+        chain.connectionId,
+        {
+          log(connectionId: string, level: LogLevel, msg: Record<string, any>) {
+            if (!fetchLogEnabled) {
+              return;
+            }
+            logs.push({
+              level,
+              functionId,
+              functionType,
+              message: {
+                ...msg,
+                functionId,
+                functionType,
               },
-              close() {},
-              deadLetter(workspaceId: string, connectionId: string, type: string, payload: any, error: any) {
-                throw new Error("deadLetter method must never be called inside functions server.");
-              },
-            },
-            chainCtx.connectionOptions?.fetchLogLevel || "info",
-            fetchTimeoutMs
-          ),
-          store: chainCtx.store,
-          props: chainCtx.connectionOptions?.functionsEnv || {},
-          retries,
-          getWarehouse: (destinationId: string) => {
-            return {
-              query: (sql: string, params?: Record<string, any>) => chainCtx.query(destinationId, sql, params),
-            };
+              timestamp: new Date(),
+            });
           },
-        };
+          close() {},
+          deadLetter(workspaceId: string, connectionId: string, type: string, payload: any, error: any) {
+            throw new Error("deadLetter method must never be called inside functions server.");
+          },
+        },
+        chainCtx.connectionOptions?.fetchLogLevel || "info",
+        fetchTimeoutMs
+      ),
+      store: chainCtx.store,
+      props: chainCtx.connectionOptions?.functionsEnv || {},
+      retries,
+      getWarehouse: (destinationId: string) => ({
+        query: (sql: string, params?: Record<string, any>) => chainCtx.query(destinationId, sql, params),
+      }),
+    })
+  );
 
-        // Pass a deep copy to the function (same as legacy udf-wrapper)
-        result = await func.exec(deepCopy(currentEvent), fullContext);
-
-        // Check for multiple events in middle of chain (same as legacy udf-wrapper)
-        if (k < chain.functions.length - 1 && Array.isArray(result) && result.length > 1) {
-          const l = result.length;
-          result = undefined;
-          const multiEventError = new Error(
-            `Got ${l} events as result of function #${k + 1} of ${
-              chain.functions.length
-            }. Only the last function in a chain is allowed to multiply events.`
-          );
-          multiEventError.name = functionsLib.NoRetryErrorName;
-          throw multiEventError;
-        }
-      } catch (err: any) {
-        if (err?.name === functionsLib.DropRetryErrorName || err?.name === functionsLib.NoRetryErrorName) {
-          result = "drop";
-        }
-        // Set retryPolicy from function config (same pattern as legacy udf-wrapper)
-        if (func?.config?.retryPolicy) {
-          err.retryPolicy = func.config.retryPolicy;
-        }
-        execLogEntry.error = {
-          name: err.name,
-          message: err.message,
-          stack: err.stack,
-          retryPolicy: err.retryPolicy,
-          functionId: id,
-        };
-        log.atError().withCause(err).log(`Function ${func.id} error.`);
-      }
-
-      execLogEntry.ms = sw.elapsedMs();
-      execLogEntry.dropped = isDropResult(result);
-      execLog.push(execLogEntry as FunctionExecRes);
-
-      if (!isDropResult(result)) {
-        if (result) {
-          if (Array.isArray(result)) {
-            newEvents.push(...result);
-          } else {
-            newEvents.push(result as AnyEvent);
-          }
-        } else {
-          newEvents.push(currentEvent);
-        }
-      }
-    }
-
-    events = newEvents;
-    if (events.length === 0) {
-      break;
-    }
-  }
-
-  return { connectionId: chain.connectionId, events, execLog, logs };
+  return { connectionId: chain.connectionId, ...result };
 }
 
 // ── FunctionRuntime implementations ──────────────────────────────────

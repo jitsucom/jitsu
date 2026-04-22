@@ -138,17 +138,21 @@ const getClickhouseWarehouse = (
 
 const getClickhouseClient = (cred: any) => {
   let [host, port] = cred.hosts[0].split(":");
+  let scheme: "http" | "https";
   switch (cred.protocol) {
     case "http":
+      scheme = "http";
       port = port || "8123";
       break;
     case "https":
+      scheme = "https";
       port = port || "8443";
       break;
     default:
-      port = "8443";
+      scheme = "https";
+      port = port || "8443";
   }
-  const url = `https://${host}:${port}/`;
+  const url = `${scheme}://${host}:${port}/`;
   log.atDebug().log(`Connecting to ${url} with ${cred.username}`);
   return createClient({
     url: url,
