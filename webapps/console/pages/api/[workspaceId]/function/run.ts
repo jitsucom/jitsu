@@ -51,14 +51,10 @@ async function getDeploymentId(workspaceId: string): Promise<string | undefined>
 }
 
 function getUdfRunUrl(deploymentId: string, serverEnv: ReturnType<typeof getServerEnv>): string {
-  const template = serverEnv.FUNCTIONS_SERVER_URL_TEMPLATE;
-  if (!template) {
-    const rotorURL = requireDefined(
-      serverEnv.ROTOR_URL,
-      `env ROTOR_URL is not set. Rotor is required to run functions`
-    );
-    return rotorURL + "/udfrun";
-  }
+  const template = requireDefined(
+    serverEnv.FUNCTIONS_SERVER_URL_TEMPLATE,
+    "env FUNCTIONS_SERVER_URL_TEMPLATE is not set. Functions server is required to run functions"
+  );
   const baseUrl = template.replace("${workspaceId}", deploymentId);
   return baseUrl + "/udfrun";
 }

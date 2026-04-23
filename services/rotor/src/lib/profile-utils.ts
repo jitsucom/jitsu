@@ -2,7 +2,6 @@
 // and profile-worker.ts (Deno Web Worker). No Node.js or esbuild dependencies.
 
 // Build an iterable from events array — UDF uses `for (const event of events)` syntax.
-// Mirrors the iterator pattern from the legacy isolated-vm wrapper
 export function buildEventsIterable(events: any[]) {
   let eventIndex = 0;
   return {

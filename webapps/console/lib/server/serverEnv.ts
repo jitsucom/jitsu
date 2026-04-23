@@ -184,7 +184,7 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   FUNCTIONS_SERVER_URL_TEMPLATE: z.string().optional(),
 
   // Default functions class when workspace has no explicit setting
-  DEFAULT_FUNCTIONS_CLASS: z.string().optional().default("legacy"),
+  DEFAULT_FUNCTIONS_CLASS: z.string().optional().default("free"),
 
   // ============================================
   // Email Configuration

@@ -25,7 +25,6 @@
     "@mongodb-js/zstd": "^7.0.0",
     "mongodb": "^7.0.0",
     "ioredis": "^5.9.2",
-    "isolated-vm": "^6.0.2",
     "@clickhouse/client": "^1.10.1",
     "node-sql-parser": "^5.3.13",
     "@confluentinc/kafka-javascript": "^1.9.0",

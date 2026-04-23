@@ -88,7 +88,6 @@ module.exports = withBundleAnalyzer({
     if (!opts.dev) {
       config.devtool = "source-map";
     }
-    config.externals["isolated-vm"] = "require('isolated-vm')";
     config.module.rules.push({
       test: /\.sql$/,
       use: "raw-loader",

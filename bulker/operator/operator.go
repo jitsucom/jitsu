@@ -53,7 +53,6 @@ const (
 	FunctionsClassDedicated = "dedicated" // One deployment per workspace
 	FunctionsClassFree      = "free"      // All workspaces share one deployment
 	FunctionsClassPremium   = "premium"   // Premium tier with dedicated resources
-	FunctionsClassLegacy    = "legacy"    // Ignored by operator
 
 	// HPA suffix
 	hpaSuffix = "-fs-hpa"
@@ -208,7 +207,7 @@ func (o *Operator) reconcile() {
 	for _, ws := range wsData.workspaces {
 		functionsClasses := o.getFunctionsClasses(ws)
 
-		// Skip legacy and unknown classes
+		// Skip unknown classes
 		if !slices.Contains(functionsClasses, FunctionsClassPremium) && !slices.Contains(functionsClasses, FunctionsClassDedicated) && !slices.Contains(functionsClasses, FunctionsClassFree) {
 			continue
 		}
@@ -635,7 +634,7 @@ func workspaceShardIndex(workspaceID string, numShards int) int {
 }
 
 // getFunctionsClasses returns the functions class for a workspace based on feature flags.
-// Format: ${FunctionsClassFeatureFlag}=<value> where value is dedicated, free, or legacy.
+// Format: ${FunctionsClassFeatureFlag}=<value> where value is dedicated, free, or premium.
 // Returns empty string if no matching feature flag is found (uses default).
 func (o *Operator) getFunctionsClasses(ws *WorkspaceConfig) []string {
 	prefix := "functionsClasses="

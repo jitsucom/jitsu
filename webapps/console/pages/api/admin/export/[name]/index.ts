@@ -82,9 +82,6 @@ function selectProfileBuilderFunctionsServer(
   profileBuilderId: string,
   functionsClass: string
 ) {
-  if (functionsClass === "legacy") {
-    return undefined;
-  }
   for (const pr of functionsClassesPriorities[functionsClass] || []) {
     const fs = functionsServers.get(`${workspaceId}_${pr}`);
     if (fs && fs.profileBuilders?.includes(profileBuilderId)) {
@@ -102,18 +99,13 @@ function selectFunctionsServer(
   conId: string,
   functionsClass: string
 ) {
-  if (functionsClass === "legacy") {
-    return {
-      status: "legacy",
-    };
-  }
   let functionsServer:
     | {
         deploymentId: string;
         status: "functions" | "empty" | "missing";
       }
     | undefined = undefined;
-  for (const pr of functionsClassesPriorities[functionsClass]) {
+  for (const pr of functionsClassesPriorities[functionsClass] || []) {
     const fs = functionsServers.get(`${workspaceId}_${pr}`);
     if (fs) {
       functionsServer = {
@@ -363,8 +355,6 @@ async function exportRotorConnections(writer: Writer) {
               ? { fetchLogLevel: "debug" }
               : {}),
             ...((workspace.featuresEnabled ?? []).includes("fastFunctions") ? { fastFunctions: true } : {}),
-            //TODO: remove after migration
-            functionsClasses: extractFunctionsClasses(workspace.featuresEnabled ?? []),
             functionsServer: selectFunctionsServer(functionsServers, workspace.id, id, functionsClassFunc(workspace)),
             workspaceUpdatedAt: workspace.updatedAt,
           },
@@ -630,7 +620,6 @@ async function exportStreamsWithDestinations(writer: Writer) {
                 credentials: omit(l.to.config, "destinationType", "type", "name"),
                 options: {
                   ...(l.data ?? {}),
-                  functionsClasses: extractFunctionsClasses(obj.workspace.featuresEnabled ?? []),
                   functionsServer: selectFunctionsServer(
                     functionsServers,
                     obj.workspace.id,

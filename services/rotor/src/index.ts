@@ -3,7 +3,6 @@ import { destinationMessagesTopic, getCredentialsFromEnv, rotorConsumerGroupId }
 import { kafkaRotor } from "./lib/rotor";
 import { DummyEventsStore, EventsStore } from "@jitsu/destination-functions";
 import express from "express";
-import { UDFRunHandler } from "./http/udf";
 import Prometheus from "prom-client";
 import { FunctionsHandler, FunctionsHandlerMulti } from "./http/functions";
 import { initMaxMindClient, GeoResolver } from "./lib/maxmind";
@@ -278,7 +277,6 @@ function initHTTP(rotorContext: Omit<MessageHandlerContext, "connectionStore" | 
       },
     });
   });
-  http.post("/udfrun", UDFRunHandler);
   http.post("/profileudfrun", ProfileUDFRunHandler);
   http.post("/profileevents", ProfileEventsHandler);
   http.post("/func", FunctionsHandler(rotorContext));

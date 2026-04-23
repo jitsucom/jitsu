@@ -5,7 +5,6 @@ import { join } from "path";
 
 // Native modules that need to be external and installed with their versions
 const nativeDeps = {
-  "isolated-vm": "6.0.0",
   "@confluentinc/kafka-javascript": "1.9.0",
   "@mongodb-js/zstd": "2.0.0",
   esbuild: "0.27.0",

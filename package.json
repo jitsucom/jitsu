@@ -98,7 +98,6 @@
       "core-js",
       "core-js-pure",
       "esbuild",
-      "isolated-vm",
       "prisma",
       "protobufjs",
       "sharp",

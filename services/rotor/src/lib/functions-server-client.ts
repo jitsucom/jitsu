@@ -180,7 +180,7 @@ export function createFunctionsServerWrapper(
         fetchTimeoutMs
       );
 
-      // Check for errors in execLog - similar to checkError in udf-wrapper-code.txtjs
+      // Check for errors in execLog
       let errObj: any = undefined;
       for (const entry of result.execLog) {
         const error = entry.error;

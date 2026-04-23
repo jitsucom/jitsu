@@ -446,7 +446,6 @@ const messageId = "message1";
 
 // Test modes to run
 const testModes: Array<{ name: string; functionsClass: string }> = [
-  { name: "legacy", functionsClass: "legacy" },
   { name: "free", functionsClass: "free" },
   { name: "dedicated", functionsClass: "dedicated" },
 ];
@@ -602,7 +601,7 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
             ...conn.options,
             functionsServer: {
               deploymentId: functionsClass, // that is used by functions to determine their class in tests
-              status: functionsClass === "legacy" ? "legacy" : "functions",
+              status: "functions",
             },
           },
           // we need to prevent usage of cached functions chain
@@ -618,7 +617,7 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
               ...conn.options,
               functionsServer: {
                 deploymentId: functionsClass, // that is used by functions to determine their class in tests
-                status: functionsClass === "legacy" ? "legacy" : "functions",
+                status: "functions",
               },
             },
             // we need to prevent usage of cached functions chain
@@ -1019,7 +1018,7 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
     }
   });
 
-  // Runs in every mode. In legacy/dedicated the UDF hits the ClickHouse
+  // Runs in every mode. In dedicated the UDF hits the ClickHouse
   // testcontainer and sets `warehouseRow`. In free the functions-server rejects
   // `getWarehouse` and the UDF captures the plan-specific error message into
   // `warehouseError` — the webhook handler picks the per-mode expected event.

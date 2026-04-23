@@ -62,7 +62,6 @@ export async function rotorMessageHandler(
     return;
   }
   const connStore = rotorContext.connectionStore;
-  const funcStore = rotorContext.functionsStore;
   const streamsStore = rotorContext.streamsStore;
 
   const connectionId =
@@ -138,7 +137,7 @@ export async function rotorMessageHandler(
 
   // Use functionsServer info provided by the console export
   const functionsServer = connection.options?.functionsServer as
-    | { deploymentId: string; status: "functions" | "empty" | "missing" | "legacy" }
+    | { deploymentId: string; status: "functions" | "empty" | "missing" }
     | undefined;
 
   if (!functionsServer) {
@@ -158,8 +157,6 @@ export async function rotorMessageHandler(
     // Connection not yet known to the functions server deployment — drop silently
     return undefined;
   }
-  // useFunctionsServer: use functions server (not legacy isolated-vm pipeline)
-  const useFunctionsServer = functionsServer.status !== "legacy";
   // skipUdf: when "empty" — connection has no UDF functions, skip UDF step entirely
   const skipUdf = functionsServer.status === "empty";
 
@@ -172,11 +169,9 @@ export async function rotorMessageHandler(
   if (!funcChain) {
     log.atDebug().log(`[${connection.id}] Refreshing function chain. Dt: ${lastUpdated}`);
     funcChain = buildFunctionChain(
-      useFunctionsServer,
       skipUdf,
       connection,
       connStore,
-      funcStore,
       rotorContext,
       anonymousEventsStore,
       fetchTimeoutMs

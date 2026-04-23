@@ -35,7 +35,6 @@ onlyBuiltDependencies:
   - core-js-pure
   - cpu-features
   - esbuild
-  - isolated-vm
   - prisma
   - protobufjs
   - sharp
