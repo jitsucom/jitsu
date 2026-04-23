@@ -1,0 +1,66 @@
+services:
+  zookeeper:
+    image: zookeeper:3.9
+    container_name: zookeeper_repl
+    hostname: zookeeper
+    healthcheck:
+      test: ["CMD-SHELL", "zkCli.sh -server zookeeper:2181 ls /"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+    networks:
+      clickhouse-replicated-network:
+        ipv4_address: 172.25.0.10
+  clickhouse_repl01:
+    image: clickhouse/clickhouse-server:25.4-alpine
+    container_name: clickhouse_repl01
+    hostname: clickhouse_repl01
+    networks:
+      clickhouse-replicated-network:
+        ipv4_address: 172.25.0.11
+    ports:
+      - "8223:8123"
+      - "9100:9000"
+    volumes:
+      - ./clickhouse_repl01:/etc/clickhouse-server
+    healthcheck:
+      test: [ "CMD-SHELL", "clickhouse-client --host clickhouse_repl01 --query 'SELECT 1'" ]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+    environment:
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_SKIP_USER_SETUP: 1
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+  clickhouse_repl02:
+    image: clickhouse/clickhouse-server:25.4-alpine
+    container_name: clickhouse_repl02
+    hostname: clickhouse_repl02
+    networks:
+      clickhouse-replicated-network:
+        ipv4_address: 172.25.0.12
+    ports:
+      - "8224:8123"
+      - "9101:9000"
+    volumes:
+      - ./clickhouse_repl02:/etc/clickhouse-server
+    healthcheck:
+      test: [ "CMD-SHELL", "clickhouse-client --host clickhouse_repl02 --query 'SELECT 1'" ]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+    environment:
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_SKIP_USER_SETUP: 1
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+
+networks:
+  clickhouse-replicated-network:
+    name: clickhouse-replicated-network
+    ipam:
+      config:
+        - subnet: 172.25.0.0/24

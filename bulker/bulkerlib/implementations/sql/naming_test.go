@@ -21,7 +21,7 @@ func TestNaming(t *testing.T) {
 			expectedTable: ExpectedTable{
 				Columns: justColumns("id", "name", "_timestamp", "column_c16da609b86c01f16a2c609eac4ccb0c", "column_12b241e808ae6c964a5bb9f1c012e63d", "秒速_センチメートル", "Université Français", "Странное Имя", "Test Name_ DROP DATABASE public_ SELECT 1 from DUAL_", "Test Name", "1test_name", "2", "_unnamed", "lorem_ipsum_dolor_sit_amet_consectetur_adipiscing_elit_sed_do_e", "camelCase", "int", "user", "select", "__ROOT__", "hash", "default", "current_time"),
 			},
-			configIds: utils.ArrayExcluding(allBulkerConfigs, RedshiftBulkerTypeId+"_serverless", RedshiftBulkerTypeId+"_iam", RedshiftBulkerTypeId, SnowflakeBulkerTypeId, BigqueryBulkerTypeId, ClickHouseBulkerTypeId, ClickHouseBulkerTypeId+"_cluster", ClickHouseBulkerTypeId+"_cluster_noshards"),
+			configIds: utils.ArrayExcluding(allBulkerConfigs, RedshiftBulkerTypeId+"_serverless", RedshiftBulkerTypeId+"_iam", RedshiftBulkerTypeId, SnowflakeBulkerTypeId, BigqueryBulkerTypeId, ClickHouseBulkerTypeId, ClickHouseBulkerTypeId+"_cluster", ClickHouseBulkerTypeId+"_cluster_noshards", ClickHouseBulkerTypeId+"_replicated_db"),
 		},
 		{
 			name:                      "naming_test1_clickhouse",
@@ -34,7 +34,7 @@ func TestNaming(t *testing.T) {
 			expectedTable: ExpectedTable{
 				Columns: justColumns("id", "name", "_timestamp", "column_c16da609b86c01f16a2c609eac4ccb0c", "column_12b241e808ae6c964a5bb9f1c012e63d", "秒速_センチメートル", "Université Français", "Странное Имя", "Test Name_ DROP DATABASE public_ SELECT 1 from DUAL_", "Test Name", "1test_name", "2", "_unnamed", "lorem_ipsum_dolor_sit_amet_consectetur_adipiscing_elit_sed_do_eiusmod_tempor_incididunt_ut_labore_et_dolore_magna_aliqua_ut_eni", "camelCase", "int", "user", "select", "__ROOT__", "hash", "default", "current_time"),
 			},
-			configIds: []string{ClickHouseBulkerTypeId},
+			configIds: []string{ClickHouseBulkerTypeId, ClickHouseBulkerTypeId + "_replicated_db"},
 		},
 		{
 			name:              "naming_test1_case_redshift",

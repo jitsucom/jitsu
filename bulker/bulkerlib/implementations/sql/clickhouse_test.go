@@ -14,8 +14,8 @@ type fakeChCluster struct {
 
 func (f *fakeChCluster) IsDistributed() bool       { return f.distributed }
 func (f *fakeChCluster) Config() *ClickHouseConfig { return f.config }
-func (f *fakeChCluster) isReplicatedDBMode() bool {
-	return f.config.Cluster != "" && f.config.ClusterMode == ClusterModeReplicatedDB
+func (f *fakeChCluster) isReplicatedDatabase() bool {
+	return f.config.Cluster != "" && f.config.DatabaseEngine == DatabaseEngineReplicated
 }
 
 func TestCreateTableStatement_engineVariants(t *testing.T) {
@@ -33,28 +33,28 @@ func TestCreateTableStatement_engineVariants(t *testing.T) {
 			mustNotHave: []string{"Replicated", "ON CLUSTER"},
 		},
 		{
-			name:        "cluster, default mode, single shard -> path uses 1/",
+			name:        "cluster, default engine, single shard -> path uses 1/",
 			config:      &ClickHouseConfig{Database: "db", Cluster: "c"},
 			distributed: false,
 			mustContain: []string{"ENGINE = ReplicatedMergeTree('/clickhouse/tables/1/db/", "'{replica}')", "ON CLUSTER `c`"},
 			mustNotHave: []string{"ReplicatedMergeTree()"},
 		},
 		{
-			name:        "cluster, default mode, distributed -> path uses {shard}/",
+			name:        "cluster, default engine, distributed -> path uses {shard}/",
 			config:      &ClickHouseConfig{Database: "db", Cluster: "c"},
 			distributed: true,
 			mustContain: []string{"ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/db/", "ON CLUSTER `c`"},
 			mustNotHave: []string{"ReplicatedMergeTree()"},
 		},
 		{
-			name:        "cluster, replicated_db mode -> path-less, no ON CLUSTER",
-			config:      &ClickHouseConfig{Database: "db", Cluster: "c", ClusterMode: ClusterModeReplicatedDB},
+			name:        "cluster, replicated database -> path-less, no ON CLUSTER",
+			config:      &ClickHouseConfig{Database: "db", Cluster: "c", DatabaseEngine: DatabaseEngineReplicated},
 			mustContain: []string{"ENGINE = ReplicatedMergeTree()"},
 			mustNotHave: []string{"/clickhouse/tables/", "{replica}", "ON CLUSTER"},
 		},
 		{
-			name:        "cluster, replicated_db mode, distributed -> still path-less, no ON CLUSTER",
-			config:      &ClickHouseConfig{Database: "db", Cluster: "c", ClusterMode: ClusterModeReplicatedDB},
+			name:        "cluster, replicated database, distributed -> still path-less, no ON CLUSTER",
+			config:      &ClickHouseConfig{Database: "db", Cluster: "c", DatabaseEngine: DatabaseEngineReplicated},
 			distributed: true,
 			mustContain: []string{"ENGINE = ReplicatedMergeTree()"},
 			mustNotHave: []string{"/clickhouse/tables/", "{replica}", "ON CLUSTER"},
@@ -85,16 +85,16 @@ func TestCreateTableStatement_engineVariants(t *testing.T) {
 	}
 }
 
-func TestGetOnClusterClause_replicatedDBMode(t *testing.T) {
+func TestGetOnClusterClause_replicatedDatabase(t *testing.T) {
 	cases := []struct {
 		name   string
 		config ClickHouseConfig
 		want   string
 	}{
 		{name: "no cluster", config: ClickHouseConfig{}, want: ""},
-		{name: "cluster, default mode", config: ClickHouseConfig{Cluster: "c"}, want: " ON CLUSTER `c` "},
-		{name: "cluster, on_cluster mode", config: ClickHouseConfig{Cluster: "c", ClusterMode: ClusterModeOnCluster}, want: " ON CLUSTER `c` "},
-		{name: "cluster, replicated_db mode", config: ClickHouseConfig{Cluster: "c", ClusterMode: ClusterModeReplicatedDB}, want: ""},
+		{name: "cluster, default engine (implicit)", config: ClickHouseConfig{Cluster: "c"}, want: " ON CLUSTER `c` "},
+		{name: "cluster, default engine (explicit)", config: ClickHouseConfig{Cluster: "c", DatabaseEngine: DatabaseEngineDefault}, want: " ON CLUSTER `c` "},
+		{name: "cluster, replicated engine", config: ClickHouseConfig{Cluster: "c", DatabaseEngine: DatabaseEngineReplicated}, want: ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

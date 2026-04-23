@@ -276,11 +276,11 @@ export const ClickhouseCredentials = z.object({
     .string()
     .optional()
     .describe("Name of cluster to use.<br/>For <b>ClickHouse Cloud</b> or single-node setups, leave this field empty."),
-  clusterMode: z
-    .enum(["on_cluster", "replicated_db"])
+  databaseEngine: z
+    .enum(["default", "replicated"])
     .optional()
     .describe(
-      "Cluster mode::How tables are created on the cluster. <code>on_cluster</code> (default) issues <code>ON CLUSTER</code> + <code>ReplicatedMergeTree</code> with explicit ZooKeeper paths. Choose <code>replicated_db</code> when the target database itself uses the <a href='https://clickhouse.com/docs/en/engines/database-engines/replicated' rel='noreferrer noopener' target='_blank'>Replicated</a> database engine — Jitsu will then emit path-less <code>ReplicatedMergeTree</code> and skip <code>ON CLUSTER</code>. Ignored when <b>cluster</b> is empty."
+      "Database engine::ClickHouse database engine used by the destination database. <code>default</code> covers <code>Atomic</code> (self-hosted) and <code>Shared</code> (ClickHouse Cloud); Jitsu creates tables as <code>ReplicatedMergeTree</code> with explicit ZooKeeper paths and <code>ON CLUSTER</code>. Choose <code>replicated</code> when the destination database itself uses the <a href='https://clickhouse.com/docs/en/engines/database-engines/replicated' rel='noreferrer noopener' target='_blank'>Replicated</a> engine — Jitsu then emits path-less <code>ReplicatedMergeTree</code> and skips <code>ON CLUSTER</code> on DDL inside the database (the engine replicates DDL itself). Ignored when <b>cluster</b> is empty."
     ),
   database: z.string().default("default").describe("Name of the database to use"),
   parameters: z
@@ -428,7 +428,7 @@ export const coreDestinations: DestinationType<any>[] = [
       loadAsJson: {
         hidden: true,
       },
-      clusterMode: {
+      databaseEngine: {
         hidden: obj => !obj.cluster,
       },
       password: {
