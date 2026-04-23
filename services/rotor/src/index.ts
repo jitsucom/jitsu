@@ -4,7 +4,6 @@ import { kafkaRotor } from "./lib/rotor";
 import { DummyEventsStore, EventsStore } from "@jitsu/destination-functions";
 import express from "express";
 import Prometheus from "prom-client";
-import { FunctionsHandler, FunctionsHandlerMulti } from "./http/functions";
 import { initMaxMindClient, GeoResolver } from "./lib/maxmind";
 import { MessageHandlerContext, rotorMessageHandler } from "./lib/message-handler";
 import { createMetrics } from "./lib/metrics";
@@ -279,7 +278,6 @@ function initHTTP(rotorContext: Omit<MessageHandlerContext, "connectionStore" | 
   });
   http.post("/profileudfrun", ProfileUDFRunHandler);
   http.post("/profileevents", ProfileEventsHandler);
-  http.post("/func", FunctionsHandler(rotorContext));
   http.get("/wtf", async (req, res) => {
     res.setHeader("Content-Type", "text/plain");
     res.write(util.inspect(process["_getActiveHandles"]()));
@@ -291,7 +289,6 @@ function initHTTP(rotorContext: Omit<MessageHandlerContext, "connectionStore" | 
     snapshot.pipe(res);
     log.atInfo().log("snapshot2");
   });
-  http.post("/func/multi", FunctionsHandlerMulti(rotorContext));
   const httpServer = http.listen(rotorHttpPort, () => {
     log.atInfo().log(`Listening on port ${rotorHttpPort}`);
     started = true;

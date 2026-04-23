@@ -774,7 +774,7 @@ async function parseBody(req: Request): Promise<any> {
   return text ? JSON.parse(text) : {};
 }
 
-// Create event context from IngestMessage and connection (compatible with FunctionsHandlerMulti)
+// Create event context from IngestMessage and connection
 function createEventContextFromMessage(
   message: IngestMessage,
   connection: StrippedConnectionConfig,
@@ -1135,7 +1135,6 @@ async function main() {
   }
 
   // Multi connection handler: POST /multi?ids=conn1,conn2,conn3&fullEvents=true
-  // Compatible with FunctionsHandlerMulti in rotor
   // Expects IngestMessage as body payload
   // Query params:
   //   - ids: comma-separated connection IDs (required)

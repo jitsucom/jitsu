@@ -39,7 +39,7 @@ let clickhouseHost = "localhost";
 let clickhousePort = 0;
 
 beforeAll(async () => {
-  clickhouseContainer = await new GenericContainer("clickhouse/clickhouse-server:24.8-alpine")
+  clickhouseContainer = await new GenericContainer("clickhouse/clickhouse-server:25.4-alpine")
     .withExposedPorts(8123)
     .withEnvironment({
       CLICKHOUSE_DB: "default",
