@@ -510,6 +510,7 @@ func (r *Router) processSyncDestination(message *IngestMessage, stream *StreamWi
 	for _, d := range filteredDestinations {
 		fs, _ := d.Options["functionsServer"].(map[string]any)
 		if fs == nil {
+			r.SystemErrorf("No functionsServer info for connection %s", d.ConnectionId)
 			continue // no functionsServer info — skip
 		}
 		switch fs["status"] {
