@@ -65,9 +65,20 @@ jobs:
 
       - name: 🐳 Pull and start builder container
         if: steps.changes.outputs.nodejs == 'true'
+        # Mount the host Docker socket + share the host network so tests using
+        # testcontainers (rotor) can talk to the runner's Docker daemon and
+        # reach sibling containers on localhost. Ryuk is disabled here for the
+        # same reason the bulker Go test job disables it — the reaper needs
+        # privileged socket access we don't grant, and CI runners are ephemeral.
         run: |
           docker pull jitsucom/jitsu-builder:latest
-          docker run -d --name builder -v ${{ github.workspace }}:/workspace -w /workspace -e CI=true jitsucom/jitsu-builder:latest tail -f /dev/null
+          docker run -d --name builder \
+            -v ${{ github.workspace }}:/workspace -w /workspace \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            --network host \
+            -e CI=true \
+            -e TESTCONTAINERS_RYUK_DISABLED=true \
+            jitsucom/jitsu-builder:latest tail -f /dev/null
 
       - name: 📦 Fetch dependencies from store
         if: steps.changes.outputs.nodejs == 'true'
