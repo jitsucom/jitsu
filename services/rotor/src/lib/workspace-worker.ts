@@ -228,11 +228,8 @@ async function runChainInWorker(
   eventContext: EventContext,
   fetchTimeoutMs: number
 ): Promise<{ events: AnyEvent[]; execLog: FunctionExecLog; logs: SerializedLogEntry[] }> {
-  return runFunctionChain<SerializedLogEntry>(
-    chain.functions,
-    event,
-    eventContext,
-    (functionId, functionType, logs) => buildContext(chain, eventContext, functionId, functionType, logs)
+  return runFunctionChain<SerializedLogEntry>(chain.functions, event, eventContext, (functionId, functionType, logs) =>
+    buildContext(chain, eventContext, functionId, functionType, logs)
   );
 }
 

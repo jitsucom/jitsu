@@ -3,13 +3,7 @@ import fs from "fs";
 import os from "os";
 import zlib from "zlib";
 import { promisify } from "util";
-import {
-  AnyEvent,
-  EventContext,
-  FullContext,
-  FunctionMetrics,
-  TTLStore,
-} from "@jitsu/protocols/functions";
+import { AnyEvent, EventContext, FullContext, FunctionMetrics, TTLStore } from "@jitsu/protocols/functions";
 import Prometheus from "prom-client";
 import { disableService, getLog, isTruish, LogLevel, parseNumber, setServerJsonFormat, stopwatch } from "juava";
 import {
@@ -575,9 +569,7 @@ async function runChain(
 ): Promise<Required<FuncChainResultWithLogs>> {
   const chainCtx = chain.context;
   const retries = (eventContext as EventContext & { retries?: number }).retries ?? 0;
-  const debugTill = chainCtx.connectionOptions?.debugTill
-    ? new Date(chainCtx.connectionOptions?.debugTill)
-    : undefined;
+  const debugTill = chainCtx.connectionOptions?.debugTill ? new Date(chainCtx.connectionOptions?.debugTill) : undefined;
   const fetchLogEnabled =
     chainCtx.connectionOptions?.fetchLogLevel !== "debug" || (debugTill && debugTill.getTime() > Date.now());
 

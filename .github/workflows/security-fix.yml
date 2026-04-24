@@ -150,11 +150,10 @@ jobs:
           - Find every workspace member that depends on the vulnerable package: `grep -l 'ACTUAL_PKG' bulker/*/go.mod`
           - For EACH matching member, update inside that module directory:
               go -C bulker/ACTUAL_MODULE get ACTUAL_PKG@vFIXED
-              go -C bulker/ACTUAL_MODULE mod tidy
           - After updating all affected members, sync the workspace: `go -C bulker work sync`
+          - Manually clean go.sum and go.work.sum of hashes of old vulnerable versions
           - Commit the changed `go.mod`/`go.sum` files of each affected member plus `bulker/go.work.sum` together.
           - Do NOT edit `bulker/go.work` itself — only the workspace `use (...)` list lives there and it must not change for a security fix.
-          - If any `go mod tidy` or `go work sync` fails, revert and skip.
 
           ### Creating PRs:
           - Create a new branch from newjitsu: git checkout -b security/fix-ACTUAL-PKG-NAME

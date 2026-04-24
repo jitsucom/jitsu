@@ -168,14 +168,7 @@ export async function rotorMessageHandler(
   let funcChain: FuncChain | undefined = funcsChainCache.get(cacheKey);
   if (!funcChain) {
     log.atDebug().log(`[${connection.id}] Refreshing function chain. Dt: ${lastUpdated}`);
-    funcChain = buildFunctionChain(
-      skipUdf,
-      connection,
-      connStore,
-      rotorContext,
-      anonymousEventsStore,
-      fetchTimeoutMs
-    );
+    funcChain = buildFunctionChain(skipUdf, connection, connStore, rotorContext, anonymousEventsStore, fetchTimeoutMs);
     funcsChainCache.set(cacheKey, funcChain);
   }
 
