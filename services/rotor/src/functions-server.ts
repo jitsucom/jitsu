@@ -129,6 +129,48 @@ const promMongoPoolTotal = new Prometheus.Gauge({
   labelNames: ["deploymentId"] as const,
 });
 
+const promUncaughtErrors = new Prometheus.Counter({
+  name: "fs_uncaught_errors_total",
+  help: "Uncaught errors and unhandled promise rejections swallowed to keep the process alive",
+  labelNames: ["deploymentId", "kind"] as const,
+});
+
+// Global error trap: keep the process alive on request-scoped failures
+// (e.g. a broken Node-agent keep-alive timer, a buggy UDF fetch handler).
+// Bootstrap errors still fail the process because they throw before these
+// listeners are installed. Every trapped error bumps `fs_uncaught_errors_total`
+// — alert on it, because silent swallowing without observability is how you
+// end up with mystery data loss.
+function installUncaughtErrorHandlers() {
+  globalThis.addEventListener("error", event => {
+    const e: any = (event as any).error;
+    log
+      .atError()
+      .withCause(e)
+      .log(
+        `Uncaught error (swallowed): ${e?.name || "Error"}: ${e?.message || (event as any).message}`,
+        e?.stack ?? ""
+      );
+    promUncaughtErrors.labels(deploymentId, "error").inc();
+    // Prevent Deno from aborting the process.
+    event.preventDefault();
+  });
+
+  globalThis.addEventListener("unhandledrejection", event => {
+    const reason: any = (event as any).reason;
+    log
+      .atError()
+      .withCause(reason)
+      .log(
+        `Unhandled rejection (swallowed): ${reason?.name || "Error"}: ${reason?.message ?? reason}`,
+        reason?.stack ?? ""
+      );
+    promUncaughtErrors.labels(deploymentId, "unhandledrejection").inc();
+    event.preventDefault();
+  });
+}
+installUncaughtErrorHandlers();
+
 const promMongoPoolWaitQueue = new Prometheus.Gauge({
   name: "fs_mongo_pool_wait_queue2",
   help: "Number of operations waiting for a MongoDB connection",

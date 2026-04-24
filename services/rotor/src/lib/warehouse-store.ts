@@ -1,4 +1,7 @@
-import { createClient } from "@clickhouse/client";
+// Uses the web client (fetch-based) so it works inside the Deno functions-server.
+// The node client relies on http.Agent with setTimeout().unref(), which Deno's
+// WHATWG-spec setTimeout (returns a number) does not support.
+import { createClient } from "@clickhouse/client-web";
 import { getLog, getSingleton, newError, parseNumber, Singleton } from "juava";
 import { Parser } from "node-sql-parser";
 import { EnrichedConnectionConfig, EntityStore, StoreMetrics } from "@jitsu/core-functions-lib";
