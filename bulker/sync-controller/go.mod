@@ -5,7 +5,7 @@ go 1.26
 require (
 	github.com/gin-gonic/gin v1.12.0
 	github.com/hjson/hjson-go/v4 v4.6.0
-	github.com/jackc/pgx/v5 v5.9.1
+	github.com/jackc/pgx/v5 v5.9.2
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/spf13/viper v1.21.0
 	k8s.io/api v0.35.2
