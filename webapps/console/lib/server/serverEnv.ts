@@ -181,7 +181,7 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   ROTOR_AUTH_KEY: z.string().optional(),
 
   // Functions server URL template (use ${workspaceId} as placeholder)
-  FUNCTIONS_SERVER_URL_TEMPLATE: z.string().optional(),
+  FUNCTIONS_SERVER_URL_TEMPLATE: z.string().default("http://fs-${workspaceId}:3456"),
 
   // Default functions class when workspace has no explicit setting
   DEFAULT_FUNCTIONS_CLASS: z.string().optional().default("free"),

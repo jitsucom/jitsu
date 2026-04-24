@@ -78,7 +78,7 @@ const ServerEnvSchema = z.object({
   FAST_STORE_WORKSPACE_ID: z.string().optional(),
   // Functions server service URL template (use ${workspaceId} as placeholder)
   // Service name uses prefix to ensure it starts with letter (workspaceId may start with number)
-  FUNCTIONS_SERVER_URL_TEMPLATE: z.string().optional().default("http://fs-${workspaceId}:3456"),
+  FUNCTIONS_SERVER_URL_TEMPLATE: z.string().default("http://fs-${workspaceId}:3456"),
   FUNCTIONS_SERVER_TIMEOUT_MS: z.string().optional().default("30000"),
 
   // Authentication Configuration
