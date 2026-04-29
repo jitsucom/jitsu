@@ -1,0 +1,266 @@
+name: 🚀 Deploy
+
+# Manual deploy: bumps image tags in jitsucom/jitsu-cloud-infra and triggers
+# ArgoCD sync(s) over Tailscale.
+#
+# ----------------------------------------------------------------------------
+# One-time setup before this workflow can run:
+#
+# 1. Repo secret JITSU_CLOUD_INFRA_PUSH_TOKEN
+#    - GitHub PAT with `repo` scope on jitsucom/jitsu-cloud-infra
+#      (Settings → Developer settings → Personal access tokens → Fine-grained,
+#      give it `Contents: Read and write` on jitsucom/jitsu-cloud-infra only)
+#
+# 2. Tailscale OAuth client → secrets TS_OAUTH_CLIENT_ID + TS_OAUTH_SECRET
+#    - https://login.tailscale.com/admin/settings/oauth → "Generate OAuth client"
+#    - Scopes: auth_keys (write)
+#    - Tags:  tag:ci
+#    - Tailscale ACL must allow `tag:ci` to reach the argocd server's port 443
+#
+# 3. ArgoCD endpoint → secret ARGOCD_SERVER
+#    - The Tailscale-routed hostname:port of argocd, e.g. argocd.tail-xxxx.ts.net:443
+#      (or whatever resolves once Tailscale is up on the runner)
+#
+# 4. ArgoCD auth token → secret ARGOCD_AUTH_TOKEN
+#    - argocd account generate-token --account <ci-account>
+#    - The account needs `applications, sync, *, *, allow` and `applications, get, *, *, allow`
+#
+# 5. CI_SLACK_WEBHOOK already exists (used by lint.yml).
+# ----------------------------------------------------------------------------
+
+on:
+  workflow_dispatch:
+    inputs:
+      services:
+        description: "Comma-separated keys from k8s/deploy-targets.yaml, or 'all'"
+        type: string
+        default: "all"
+      tag:
+        description: "Image tag (default: latest stable jitsu-services* git tag)"
+        type: string
+        required: false
+      dry_run:
+        description: "Print the diff and skip commit + sync"
+        type: boolean
+        default: false
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: 🚀 Deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: 📥 Checkout newjitsu (for tag listing + slack-notify action)
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: 📥 Checkout jitsu-cloud-infra
+        uses: actions/checkout@v6
+        with:
+          repository: jitsucom/jitsu-cloud-infra
+          token: ${{ secrets.JITSU_CLOUD_INFRA_PUSH_TOKEN }}
+          path: cloud-infra
+          ref: main
+
+      - name: 🛠 Install kustomize CLI
+        run: |
+          # kubectl is preinstalled on ubuntu-latest with kustomize built in,
+          # but `kustomize edit set image` requires the standalone CLI.
+          curl -sSL https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh | bash
+          sudo install -m 0755 kustomize /usr/local/bin/kustomize
+          rm -f kustomize
+          kustomize version
+
+      - name: 🔎 Resolve tag and services
+        id: resolve
+        env:
+          INPUT_SERVICES: ${{ inputs.services }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -eu
+
+          # Resolve default tag (latest stable jitsu-services* git tag)
+          if [ -z "$INPUT_TAG" ]; then
+            LATEST=$(git tag -l 'jitsu-services*' | grep -vE '\-(beta|canary)\.' | sort -V | tail -1)
+            if [ -z "$LATEST" ]; then
+              echo "::error::No stable jitsu-services* tag found and no tag input provided"
+              exit 1
+            fi
+            # Strip prefix: jitsu-services2.14.0 → 2.14.0; jitsu-services-v2.14.0 → 2.14.0
+            TAG=$(echo "$LATEST" | sed 's/^jitsu-services-\?v\?//')
+            echo "Default tag from latest stable git tag: $LATEST → $TAG"
+          else
+            TAG="$INPUT_TAG"
+            echo "Tag from input: $TAG"
+          fi
+
+          # Resolve services list
+          REGISTRY="cloud-infra/k8s/deploy-targets.yaml"
+          ALL_KEYS=$(yq -r '.targets | keys | .[]' "$REGISTRY")
+          if [ "$INPUT_SERVICES" = "all" ]; then
+            SERVICES=$(echo "$ALL_KEYS" | tr '\n' ',' | sed 's/,$//')
+          else
+            SERVICES=$(echo "$INPUT_SERVICES" | tr -d ' ')
+            for k in $(echo "$SERVICES" | tr ',' ' '); do
+              if ! echo "$ALL_KEYS" | grep -qx "$k"; then
+                VALID=$(echo "$ALL_KEYS" | tr '\n' ',' | sed 's/,$//')
+                echo "::error::Unknown service '$k'. Valid: $VALID"
+                exit 1
+              fi
+            done
+          fi
+
+          echo "tag=$TAG"           >> "$GITHUB_OUTPUT"
+          echo "services=$SERVICES" >> "$GITHUB_OUTPUT"
+          echo ""
+          echo "Plan: bump [$SERVICES] to $TAG"
+
+      - name: 📝 Bump image tags
+        id: bump
+        env:
+          TAG: ${{ steps.resolve.outputs.tag }}
+          SERVICES: ${{ steps.resolve.outputs.services }}
+        run: |
+          set -eu
+          REGISTRY="cloud-infra/k8s/deploy-targets.yaml"
+          APPS=""
+
+          for KEY in $(echo "$SERVICES" | tr ',' ' '); do
+            FOLDER=$(yq -r ".targets.\"$KEY\".folder" "$REGISTRY")
+            ARGOCD_APP=$(yq -r ".targets.\"$KEY\".argocd_app" "$REGISTRY")
+            IMAGE=$(yq -r ".targets.\"$KEY\".image // \"\"" "$REGISTRY")
+            PATCH=$(yq -r ".targets.\"$KEY\".patch // \"\"" "$REGISTRY")
+            HELM_VALUE=$(yq -r ".targets.\"$KEY\".helm_value // \"\"" "$REGISTRY")
+
+            echo "→ $KEY → $TAG  (folder: $FOLDER, argocd app: $ARGOCD_APP)"
+
+            if [ -n "$IMAGE" ]; then
+              ( cd "cloud-infra/$FOLDER" && kustomize edit set image "$IMAGE=$IMAGE:$TAG" )
+            elif [ -n "$PATCH" ]; then
+              ENV_VAR=$(yq -r ".targets.\"$KEY\".env_var" "$REGISTRY")
+              IMAGE_PREFIX=$(yq -r ".targets.\"$KEY\".image_prefix" "$REGISTRY")
+              yq -i "(.spec.template.spec.containers[].env[] | select(.name == \"$ENV_VAR\").value) = \"$IMAGE_PREFIX:$TAG\"" "cloud-infra/$FOLDER/$PATCH"
+            elif [ -n "$HELM_VALUE" ]; then
+              HELM_FILE=$(yq -r ".targets.\"$KEY\".helm_values_file" "$REGISTRY")
+              yq -i ".$HELM_VALUE = \"$TAG\"" "cloud-infra/$FOLDER/$HELM_FILE"
+            else
+              echo "::error::Target $KEY in deploy-targets.yaml has no image / patch / helm_value field"
+              exit 1
+            fi
+
+            APPS="$APPS $ARGOCD_APP"
+          done
+
+          # Dedupe argocd app list
+          APPS_UNIQUE=$(echo "$APPS" | tr ' ' '\n' | grep -v '^$' | sort -u | tr '\n' ' ' | sed 's/ $//')
+          echo "apps=$APPS_UNIQUE" >> "$GITHUB_OUTPUT"
+          echo ""
+          echo "ArgoCD apps to sync: $APPS_UNIQUE"
+
+      - name: 🔍 Verify rendered output
+        env:
+          SERVICES: ${{ steps.resolve.outputs.services }}
+        run: |
+          set -eu
+          REGISTRY="cloud-infra/k8s/deploy-targets.yaml"
+          for KEY in $(echo "$SERVICES" | tr ',' ' '); do
+            FOLDER=$(yq -r ".targets.\"$KEY\".folder" "$REGISTRY")
+            HELM_VALUE=$(yq -r ".targets.\"$KEY\".helm_value // \"\"" "$REGISTRY")
+            # Skip helm-mode folders (jitsu-platform); kustomize doesn't render them.
+            if [ -z "$HELM_VALUE" ]; then
+              echo "→ kubectl kustomize cloud-infra/$FOLDER"
+              kubectl kustomize "cloud-infra/$FOLDER" > /dev/null
+            fi
+          done
+
+      - name: 📊 Show diff
+        run: |
+          cd cloud-infra
+          if git diff --quiet; then
+            echo "No changes — services already on the requested tag."
+          else
+            git --no-pager diff
+          fi
+
+      - name: 💾 Commit and push to jitsu-cloud-infra
+        if: ${{ !inputs.dry_run }}
+        env:
+          TAG: ${{ steps.resolve.outputs.tag }}
+          SERVICES: ${{ steps.resolve.outputs.services }}
+        run: |
+          set -eu
+          cd cloud-infra
+          if git diff --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit \
+            -m "deploy: bump $SERVICES to $TAG" \
+            -m "Triggered by ${{ github.actor }} via ${{ github.workflow }} run ${{ github.run_id }}."
+          git push origin main
+
+      - name: 🌐 Set up Tailscale
+        if: ${{ !inputs.dry_run }}
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: 🛠 Install argocd CLI
+        if: ${{ !inputs.dry_run }}
+        run: |
+          curl -sSL -o /tmp/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          sudo install -m 0555 /tmp/argocd /usr/local/bin/argocd
+          argocd version --client
+
+      - name: 🔐 Login to ArgoCD
+        if: ${{ !inputs.dry_run }}
+        env:
+          ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
+          ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
+        run: |
+          argocd login "$ARGOCD_SERVER" --auth-token "$ARGOCD_AUTH_TOKEN" --grpc-web
+
+      - name: 🔄 Sync apps and wait healthy
+        if: ${{ !inputs.dry_run }}
+        env:
+          APPS: ${{ steps.bump.outputs.apps }}
+        run: |
+          set -e
+          for APP in $APPS; do
+            echo "::group::Sync $APP"
+            argocd app sync "$APP" --grpc-web
+            argocd app wait "$APP" --health --timeout 600 --grpc-web
+            echo "::endgroup::"
+          done
+
+      - name: 💬 Slack notification
+        if: always() && !inputs.dry_run
+        uses: ./.github/actions/slack-notify
+        with:
+          slack_webhook_url: ${{ secrets.CI_SLACK_WEBHOOK }}
+          color: ${{ job.status == 'success' && '#36a64f' || '#ff0000' }}
+          header: "${{ job.status == 'success' && '✅' || '❌' }} 🚀 Deploy `${{ steps.resolve.outputs.services }}` → `${{ steps.resolve.outputs.tag }}` ${{ job.status == 'success' && 'SUCCEEDED' || 'FAILED' }}"
+          blocks: |
+            - title: Services
+              value: ${{ steps.resolve.outputs.services }}
+            - title: Tag
+              value: ${{ steps.resolve.outputs.tag }}
+            - title: ArgoCD apps
+              value: ${{ steps.bump.outputs.apps }}
+            - title: Triggered by
+              value: ${{ github.actor }}
+            - title: Workflow run
+              value: View workflow run
+              url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
