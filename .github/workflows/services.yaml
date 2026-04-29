@@ -1,26 +1,17 @@
 name: 🐳 Build Docker Images and CLI tools
 
 on:
+  # No push trigger: this workflow is invoked by publish.yml (workflow_call) or
+  # manually via the Actions UI (workflow_dispatch). All trigger logic lives in
+  # publish.yml.
   workflow_call:
     inputs:
-      skip_install:
-        description: "Skip dependency installation (already done in calling workflow)"
-        required: false
-        type: boolean
-        default: false
-      scope:
-        description: "Build scope: all, nodejs, bulker, npm"
-        required: false
+      channel:
+        description: "Release channel: canary, beta, stable"
+        required: true
         type: string
-        default: "all"
-  workflow_dispatch:
-    inputs:
       version:
         description: "Manual version override (e.g., 1.2.3-canary.1)"
-        required: false
-        type: string
-      tag:
-        description: "Manual tag/channel override (canary, beta, stable)"
         required: false
         type: string
       scope:
@@ -29,15 +20,40 @@ on:
         type: string
         default: "all"
       dont_publish:
-        description: "Don't Publish - Build only without publishing to registries or creating tags"
+        description: "Build only, no registry pushes or tag creation"
+        required: false
+        type: boolean
+        default: false
+      skip_install:
+        description: "Skip dependency installation (already done in calling workflow)"
+        required: false
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: "Release channel"
+        type: choice
+        options: [canary, beta, stable]
+        default: canary
+      version:
+        description: "Manual version override (e.g., 1.2.3-canary.1)"
+        required: false
+        type: string
+      scope:
+        description: "Build scope"
+        type: choice
+        options: [all, nodejs, bulker, npm]
+        default: all
+      dont_publish:
+        description: "Build only, no registry pushes or tag creation"
         required: false
         type: boolean
         default: false
 
 concurrency:
-  # Use a shared concurrency group for both direct runs and calls from lint.yml
-  # This ensures only one build runs per branch at a time
-  group: services-build-${{ github.ref }}
+  # One services build per ref at a time.
+  group: services-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -46,7 +62,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.manual.outputs.version || steps.generated.outputs.version }}
-      channel: ${{ steps.manual.outputs.channel || steps.generated.outputs.channel }}
+      channel: ${{ inputs.channel }}
       tag: ${{ steps.manual.outputs.tag || steps.generated.outputs.tag }}
       short_sha: ${{ steps.short-sha.outputs.sha }}
     steps:
@@ -62,13 +78,13 @@ jobs:
         uses: ./.github/actions/version
         with:
           version_file: .services.version.json
+          channel: ${{ inputs.channel }}
 
       - name: 📝 Use manual version
         if: ${{ inputs.version }}
         id: manual
         run: |
           echo "version=${{ inputs.version }}" >> $GITHUB_OUTPUT
-          echo "channel=${{ inputs.tag || 'canary' }}" >> $GITHUB_OUTPUT
           echo "tag=${{ inputs.version }}" >> $GITHUB_OUTPUT
 
       - name: 📝 Get short SHA
