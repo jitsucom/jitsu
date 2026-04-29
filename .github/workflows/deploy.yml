@@ -1,7 +1,6 @@
 name: 🚀 Deploy
 
-# Manual deploy: bumps image tags in jitsucom/jitsu-cloud-infra and triggers
-# ArgoCD sync(s) over Tailscale.
+# Manual deploy: bumps image tags in jitsucom/jitsu-cloud-infra
 #
 # ----------------------------------------------------------------------------
 # One-time setup before this workflow can run:
@@ -17,20 +16,6 @@ name: 🚀 Deploy
 #
 # 2. CI_SLACK_WEBHOOK already exists (used by lint.yml).
 #
-# ----------------------------------------------------------------------------
-# Deferred — ArgoCD sync over Tailscale is currently disabled. After the
-# commit lands in jitsu-cloud-infra, ArgoCD picks up the change on its next
-# reconcile cycle (or sync manually). To enable auto-sync from this workflow,
-# uncomment the four steps near the bottom of the file and add:
-#
-#   - TS_OAUTH_CLIENT_ID + TS_OAUTH_SECRET
-#       https://login.tailscale.com/admin/settings/oauth → Generate OAuth client
-#       Scopes: auth_keys (write); Tags: tag:ci
-#       Tailscale ACL must allow tag:ci to reach the argocd server on :443
-#   - ARGOCD_SERVER  (e.g. argocd-prod.tail-xxxx.ts.net:443)
-#   - ARGOCD_AUTH_TOKEN  (`argocd account generate-token --account <ci-account>`,
-#       account needs `applications, sync/get, *, *, allow`)
-# ----------------------------------------------------------------------------
 
 on:
   workflow_dispatch:
@@ -243,53 +228,6 @@ jobs:
             -m "deploy: bump $SERVICES to $TAG" \
             -m "Triggered by ${{ github.actor }} via ${{ github.workflow }} run ${{ github.run_id }}."
           git push origin main
-
-      # ----------------------------------------------------------------------
-      # ArgoCD sync over Tailscale — disabled until secrets are wired up.
-      # When you're ready to enable: uncomment this block, set the secrets
-      # listed at the top of the file, and confirm the Tailscale ACL allows
-      # tag:ci to reach the argocd server.
-      #
-      # Until then, ArgoCD picks up the bump on its next reconcile cycle (or
-      # you can sync manually from the argocd UI / CLI). The bump step still
-      # writes the unique app list to steps.bump.outputs.apps so the Slack
-      # notification shows what to sync.
-      # ----------------------------------------------------------------------
-      # - name: 🌐 Set up Tailscale
-      #   if: ${{ !inputs.dry_run }}
-      #   uses: tailscale/github-action@v3
-      #   with:
-      #     oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-      #     oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-      #     tags: tag:ci
-      #
-      # - name: 🛠 Install argocd CLI
-      #   if: ${{ !inputs.dry_run }}
-      #   run: |
-      #     curl -sSL -o /tmp/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
-      #     sudo install -m 0555 /tmp/argocd /usr/local/bin/argocd
-      #     argocd version --client
-      #
-      # - name: 🔐 Login to ArgoCD
-      #   if: ${{ !inputs.dry_run }}
-      #   env:
-      #     ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
-      #     ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
-      #   run: |
-      #     argocd login "$ARGOCD_SERVER" --auth-token "$ARGOCD_AUTH_TOKEN" --grpc-web
-      #
-      # - name: 🔄 Sync apps and wait healthy
-      #   if: ${{ !inputs.dry_run }}
-      #   env:
-      #     APPS: ${{ steps.bump.outputs.apps }}
-      #   run: |
-      #     set -e
-      #     for APP in $APPS; do
-      #       echo "::group::Sync $APP"
-      #       argocd app sync "$APP" --grpc-web
-      #       argocd app wait "$APP" --health --timeout 600 --grpc-web
-      #       echo "::endgroup::"
-      #     done
 
       - name: 💬 Slack notification
         if: always() && !inputs.dry_run
