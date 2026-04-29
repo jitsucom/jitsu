@@ -157,7 +157,7 @@ if [ "$SKIP_LINT" == "false" ]; then
     log_success "Tests passed"
 fi
 
-# Step 3: Emulate services-build.yaml workflow
+# Step 3: Emulate services.yaml workflow
 log_info "Starting services Docker build..."
 
 REGISTRY="jitsucom"

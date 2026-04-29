@@ -72,12 +72,12 @@ There are two independent release pipelines with separate versioning.
 **Services & CLI tools** — Docker images for backend services (console, rotor,
 functions-server, bulker, ingest, and others) and NPM packages (`jitsu-cli`,
 `@jitsu/functions-lib`). Managed by
-[services-build.yaml](.github/workflows/services-build.yaml).
+[services.yaml](.github/workflows/services.yaml).
 Base version in [.services.version.json](.services.version.json).
 
 **Client libraries** — NPM packages `@jitsu/js`, `@jitsu/jitsu-react`,
 `@jitsu/protocols`. Managed by
-[client-libraries-build.yaml](.github/workflows/client-libraries-build.yaml).
+[client-libraries.yaml](.github/workflows/client-libraries.yaml).
 Base version in [.jsclient.version.json](.jsclient.version.json).
 
 Each pipeline publishes to three channels determined by the branch:

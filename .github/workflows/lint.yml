@@ -1,7 +1,10 @@
 name: 🧪Lint and Test
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    # `closed` is here so dispatch-publish can fire when a PR merges into
+    # newjitsu. The lint/test/notify jobs skip on `closed` since they already
+    # ran while the PR was open.
+    types: [opened, synchronize, reopened, closed]
   push:
     branches: [newjitsu]
   workflow_dispatch:
@@ -17,6 +20,7 @@ concurrency:
 jobs:
   lint-and-format:
     name: ✨ Lint & Test
+    if: github.event.action != 'closed'
     timeout-minutes: 20
     runs-on: ubuntu-latest
     permissions:
@@ -121,6 +125,7 @@ jobs:
 
   bulker-test:
     name: 🧪 Bulker Test
+    if: github.event.action != 'closed'
     timeout-minutes: 60
     runs-on: ubuntu-latest
     permissions:
@@ -240,8 +245,14 @@ jobs:
 
   dispatch-publish:
     name: 🚀 Dispatch Publish
-    needs: [lint-and-format, bulker-test]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/newjitsu'
+    # Fires only when a PR is merged into newjitsu — direct pushes to newjitsu
+    # do not trigger publish. Branch protection on newjitsu is expected to
+    # require lint+test to pass before the PR can merge, so no `needs:` here.
+    if: >-
+      github.event_name == 'pull_request'
+      && github.event.action == 'closed'
+      && github.event.pull_request.merged == true
+      && github.event.pull_request.base.ref == 'newjitsu'
     runs-on: ubuntu-latest
     permissions:
       actions: write
@@ -253,4 +264,4 @@ jobs:
         run: |
           gh workflow run publish.yml \
             --repo ${{ github.repository }} \
-            --ref ${{ github.ref_name }}
+            --ref ${{ github.event.pull_request.base.ref }}

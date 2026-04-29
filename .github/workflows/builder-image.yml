@@ -18,7 +18,7 @@
 # - Publishes to: <owner>/jitsu-builder:latest
 # - Uses GitHub Actions cache backend (type=gha) for fast layer caching (up to 10GB per repo)
 #
-name: 👷🏼‍♂️Create Builder Docker Image
+name: 👷🏼‍Builder Docker Image
 
 on:
   push:
@@ -26,7 +26,7 @@ on:
       - newjitsu
     paths:
       - builder.Dockerfile
-      - .github/workflows/build-builder-image.yml
+      - builder-image.yml
       - pnpm-lock.yaml
   workflow_dispatch:
 
