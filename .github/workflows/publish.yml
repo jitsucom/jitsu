@@ -20,7 +20,7 @@ on:
   workflow_dispatch:
     inputs:
       scope:
-        description: "What to publish (auto = detect from last commit on this ref)"
+        description: "What to publish (auto = detect from the change range)"
         type: choice
         options: [auto, both, services, client-libraries]
         default: auto
@@ -35,6 +35,14 @@ on:
         type: string
       client_libraries_version:
         description: "Optional version override for client libraries (e.g. 1.11.5)"
+        required: false
+        type: string
+      from_sha:
+        description: "Optional: SHA to diff from (auto-detect across this range). Default = HEAD~1."
+        required: false
+        type: string
+      to_sha:
+        description: "Optional: SHA to diff to. Default = HEAD."
         required: false
         type: string
 
@@ -59,19 +67,40 @@ jobs:
       - name: 📥 Checkout code
         uses: actions/checkout@v6
         with:
-          fetch-depth: 2
+          # The dispatcher in lint.yml passes the full push range (`before`
+          # → `after`), which can span many commits because we don't squash.
+          # Need full history so `git diff <from> <to>` resolves both endpoints.
+          fetch-depth: 0
 
       - name: 🎯 Resolve scope and channel
         id: resolve
         env:
           INPUT_SCOPE: ${{ inputs.scope }}
           INPUT_CHANNEL: ${{ inputs.channel }}
+          INPUT_FROM_SHA: ${{ inputs.from_sha }}
+          INPUT_TO_SHA: ${{ inputs.to_sha }}
         run: |
           set -eu
 
-          # Files changed in the most recent commit on this ref.
-          # Auto-mode uses this for both scope and channel detection.
-          CHANGED=$(git diff --name-only HEAD~1 HEAD || true)
+          # Resolve the diff range. When the dispatcher passes from_sha +
+          # to_sha (typical PR-merge case), we look at every file touched
+          # across the entire merged change set — not just the last commit.
+          # We must not squash merges, so a stable-bump commit can be earlier
+          # in the merged range and would otherwise be missed.
+          FROM_SHA="${INPUT_FROM_SHA:-}"
+          TO_SHA="${INPUT_TO_SHA:-HEAD}"
+          # Treat the all-zeros sentinel (first push to a new branch) as "no from".
+          if [ "$FROM_SHA" = "0000000000000000000000000000000000000000" ]; then
+            FROM_SHA=""
+          fi
+          if [ -z "$FROM_SHA" ]; then
+            FROM_SHA="${TO_SHA}~1"
+            echo "No from_sha provided; defaulting to ${FROM_SHA}..${TO_SHA}"
+          else
+            echo "Diff range: ${FROM_SHA}..${TO_SHA}"
+          fi
+
+          CHANGED=$(git diff --name-only "$FROM_SHA" "$TO_SHA" || true)
           echo "Changed files:"
           echo "$CHANGED" | sed 's/^/  /'
 

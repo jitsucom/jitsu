@@ -1,10 +1,7 @@
 name: 🧪Lint and Test
 on:
   pull_request:
-    # `closed` is here so dispatch-publish can fire when a PR merges into
-    # newjitsu. The lint/test/notify jobs skip on `closed` since they already
-    # ran while the PR was open.
-    types: [opened, synchronize, reopened, closed]
+    types: [opened, synchronize, reopened]
   push:
     branches: [newjitsu]
   workflow_dispatch:
@@ -20,7 +17,6 @@ concurrency:
 jobs:
   lint-and-format:
     name: ✨ Lint & Test
-    if: github.event.action != 'closed'
     timeout-minutes: 20
     runs-on: ubuntu-latest
     permissions:
@@ -125,7 +121,6 @@ jobs:
 
   bulker-test:
     name: 🧪 Bulker Test
-    if: github.event.action != 'closed'
     timeout-minutes: 60
     runs-on: ubuntu-latest
     permissions:
@@ -245,23 +240,45 @@ jobs:
 
   dispatch-publish:
     name: 🚀 Dispatch Publish
-    # Fires only when a PR is merged into newjitsu — direct pushes to newjitsu
-    # do not trigger publish. Branch protection on newjitsu is expected to
-    # require lint+test to pass before the PR can merge, so no `needs:` here.
-    if: >-
-      github.event_name == 'pull_request'
-      && github.event.action == 'closed'
-      && github.event.pull_request.merged == true
-      && github.event.pull_request.base.ref == 'newjitsu'
+    # Auto-publish only when an explicit version-bump landed on newjitsu and
+    # lint+test passed. Every other commit goes unpublished — use the manual
+    # publish.yml dispatch for canary/beta off-cycle builds.
+    needs: [lint-and-format, bulker-test]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/newjitsu'
     runs-on: ubuntu-latest
     permissions:
       actions: write
       contents: read
     steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v6
+        with:
+          # Need history covering the entire push range so dorny/paths-filter
+          # (which uses `base: ${{ github.event.before }}` implicitly for push
+          # events) sees every commit in the merge, not just the tip.
+          fetch-depth: 0
+
+      - name: 🔍 Did a version file change anywhere in the push?
+        id: changes
+        uses: dorny/paths-filter@v4
+        with:
+          filters: |
+            version_bump:
+              - .services.version.json
+              - .jsclient.version.json
+
       - name: 🚀 Trigger publish workflow
+        if: steps.changes.outputs.version_bump == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Pass the full push range to publish.yml so its detect job sees
+          # every file touched across all commits in the merge — we don't
+          # squash, so the version-bump commit may be earlier in the range.
+          FROM_SHA: ${{ github.event.before }}
+          TO_SHA: ${{ github.event.after }}
         run: |
           gh workflow run publish.yml \
             --repo ${{ github.repository }} \
-            --ref ${{ github.event.pull_request.base.ref }}
+            --ref ${{ github.ref_name }} \
+            -f from_sha="$FROM_SHA" \
+            -f to_sha="$TO_SHA"

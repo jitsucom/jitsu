@@ -1,4 +1,4 @@
-name: 🐳 Build Docker Images and CLI tools
+name: 🐳 Services and CLI Build
 
 on:
   # No push trigger: this workflow is invoked by publish.yml (workflow_call) or

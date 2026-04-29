@@ -6,26 +6,30 @@ name: 🚀 Deploy
 # ----------------------------------------------------------------------------
 # One-time setup before this workflow can run:
 #
-# 1. Repo secret JITSU_CLOUD_INFRA_PUSH_TOKEN
-#    - GitHub PAT with `repo` scope on jitsucom/jitsu-cloud-infra
-#      (Settings → Developer settings → Personal access tokens → Fine-grained,
-#      give it `Contents: Read and write` on jitsucom/jitsu-cloud-infra only)
+# 1. GitHub App for cross-repo write to jitsucom/jitsu-cloud-infra:
+#    - Create at: org settings → Developer settings → GitHub Apps → New
+#    - Repository permissions: Contents: Read and write (nothing else)
+#    - Install on jitsucom/jitsu-cloud-infra only
+#    - Note the App ID and download the private key (PEM)
+#    - Add as secrets here:
+#      * JITSU_CLOUD_INFRA_APP_ID         — the numeric App ID
+#      * JITSU_CLOUD_INFRA_APP_PRIVATE_KEY — the full PEM private key contents
 #
-# 2. Tailscale OAuth client → secrets TS_OAUTH_CLIENT_ID + TS_OAUTH_SECRET
-#    - https://login.tailscale.com/admin/settings/oauth → "Generate OAuth client"
-#    - Scopes: auth_keys (write)
-#    - Tags:  tag:ci
-#    - Tailscale ACL must allow `tag:ci` to reach the argocd server's port 443
+# 2. CI_SLACK_WEBHOOK already exists (used by lint.yml).
 #
-# 3. ArgoCD endpoint → secret ARGOCD_SERVER
-#    - The Tailscale-routed hostname:port of argocd, e.g. argocd.tail-xxxx.ts.net:443
-#      (or whatever resolves once Tailscale is up on the runner)
+# ----------------------------------------------------------------------------
+# Deferred — ArgoCD sync over Tailscale is currently disabled. After the
+# commit lands in jitsu-cloud-infra, ArgoCD picks up the change on its next
+# reconcile cycle (or sync manually). To enable auto-sync from this workflow,
+# uncomment the four steps near the bottom of the file and add:
 #
-# 4. ArgoCD auth token → secret ARGOCD_AUTH_TOKEN
-#    - argocd account generate-token --account <ci-account>
-#    - The account needs `applications, sync, *, *, allow` and `applications, get, *, *, allow`
-#
-# 5. CI_SLACK_WEBHOOK already exists (used by lint.yml).
+#   - TS_OAUTH_CLIENT_ID + TS_OAUTH_SECRET
+#       https://login.tailscale.com/admin/settings/oauth → Generate OAuth client
+#       Scopes: auth_keys (write); Tags: tag:ci
+#       Tailscale ACL must allow tag:ci to reach the argocd server on :443
+#   - ARGOCD_SERVER  (e.g. argocd-prod.tail-xxxx.ts.net:443)
+#   - ARGOCD_AUTH_TOKEN  (`argocd account generate-token --account <ci-account>`,
+#       account needs `applications, sync/get, *, *, allow`)
 # ----------------------------------------------------------------------------
 
 on:
@@ -61,21 +65,40 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      - name: 🔑 Mint GitHub App token for jitsu-cloud-infra
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.JITSU_CLOUD_INFRA_APP_ID }}
+          private-key: ${{ secrets.JITSU_CLOUD_INFRA_APP_PRIVATE_KEY }}
+          owner: jitsucom
+          repositories: jitsu-cloud-infra
+
       - name: 📥 Checkout jitsu-cloud-infra
         uses: actions/checkout@v6
         with:
           repository: jitsucom/jitsu-cloud-infra
-          token: ${{ secrets.JITSU_CLOUD_INFRA_PUSH_TOKEN }}
+          token: ${{ steps.app-token.outputs.token }}
           path: cloud-infra
           ref: main
 
       - name: 🛠 Install kustomize CLI
+        # kubectl on ubuntu-latest has kustomize built in, but we need the
+        # standalone CLI for `kustomize edit set image`. Pinned to a specific
+        # release + SHA256 so the deploy workflow can't be silently swapped
+        # for a malicious binary by a compromised installer script.
+        env:
+          KUSTOMIZE_VERSION: "5.8.1"
+          # From https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.8.1/checksums.txt
+          KUSTOMIZE_SHA256: "029a7f0f4e1932c52a0476cf02a0fd855c0bb85694b82c338fc648dcb53a819d"
         run: |
-          # kubectl is preinstalled on ubuntu-latest with kustomize built in,
-          # but `kustomize edit set image` requires the standalone CLI.
-          curl -sSL https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh | bash
-          sudo install -m 0755 kustomize /usr/local/bin/kustomize
-          rm -f kustomize
+          set -eu
+          URL="https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}/kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
+          curl -fsSL -o /tmp/kustomize.tgz "$URL"
+          echo "${KUSTOMIZE_SHA256}  /tmp/kustomize.tgz" | sha256sum -c -
+          tar -xzf /tmp/kustomize.tgz -C /tmp kustomize
+          sudo install -m 0755 /tmp/kustomize /usr/local/bin/kustomize
+          rm -f /tmp/kustomize.tgz /tmp/kustomize
           kustomize version
 
       - name: 🔎 Resolve tag and services
@@ -189,11 +212,23 @@ jobs:
             git --no-pager diff
           fi
 
+      - name: 🔎 Resolve GitHub App bot user ID
+        if: ${{ !inputs.dry_run }}
+        id: bot-user
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+        run: |
+          USER_ID=$(gh api "/users/${APP_SLUG}[bot]" --jq .id)
+          echo "user-id=$USER_ID" >> "$GITHUB_OUTPUT"
+
       - name: 💾 Commit and push to jitsu-cloud-infra
         if: ${{ !inputs.dry_run }}
         env:
           TAG: ${{ steps.resolve.outputs.tag }}
           SERVICES: ${{ steps.resolve.outputs.services }}
+          BOT_NAME: ${{ steps.app-token.outputs.app-slug }}[bot]
+          BOT_EMAIL: ${{ steps.bot-user.outputs.user-id }}+${{ steps.app-token.outputs.app-slug }}[bot]@users.noreply.github.com
         run: |
           set -eu
           cd cloud-infra
@@ -201,49 +236,60 @@ jobs:
             echo "No changes to commit."
             exit 0
           fi
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name  "$BOT_NAME"
+          git config user.email "$BOT_EMAIL"
           git add -A
           git commit \
             -m "deploy: bump $SERVICES to $TAG" \
             -m "Triggered by ${{ github.actor }} via ${{ github.workflow }} run ${{ github.run_id }}."
           git push origin main
 
-      - name: 🌐 Set up Tailscale
-        if: ${{ !inputs.dry_run }}
-        uses: tailscale/github-action@v3
-        with:
-          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-          tags: tag:ci
-
-      - name: 🛠 Install argocd CLI
-        if: ${{ !inputs.dry_run }}
-        run: |
-          curl -sSL -o /tmp/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
-          sudo install -m 0555 /tmp/argocd /usr/local/bin/argocd
-          argocd version --client
-
-      - name: 🔐 Login to ArgoCD
-        if: ${{ !inputs.dry_run }}
-        env:
-          ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
-          ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
-        run: |
-          argocd login "$ARGOCD_SERVER" --auth-token "$ARGOCD_AUTH_TOKEN" --grpc-web
-
-      - name: 🔄 Sync apps and wait healthy
-        if: ${{ !inputs.dry_run }}
-        env:
-          APPS: ${{ steps.bump.outputs.apps }}
-        run: |
-          set -e
-          for APP in $APPS; do
-            echo "::group::Sync $APP"
-            argocd app sync "$APP" --grpc-web
-            argocd app wait "$APP" --health --timeout 600 --grpc-web
-            echo "::endgroup::"
-          done
+      # ----------------------------------------------------------------------
+      # ArgoCD sync over Tailscale — disabled until secrets are wired up.
+      # When you're ready to enable: uncomment this block, set the secrets
+      # listed at the top of the file, and confirm the Tailscale ACL allows
+      # tag:ci to reach the argocd server.
+      #
+      # Until then, ArgoCD picks up the bump on its next reconcile cycle (or
+      # you can sync manually from the argocd UI / CLI). The bump step still
+      # writes the unique app list to steps.bump.outputs.apps so the Slack
+      # notification shows what to sync.
+      # ----------------------------------------------------------------------
+      # - name: 🌐 Set up Tailscale
+      #   if: ${{ !inputs.dry_run }}
+      #   uses: tailscale/github-action@v3
+      #   with:
+      #     oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+      #     oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+      #     tags: tag:ci
+      #
+      # - name: 🛠 Install argocd CLI
+      #   if: ${{ !inputs.dry_run }}
+      #   run: |
+      #     curl -sSL -o /tmp/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+      #     sudo install -m 0555 /tmp/argocd /usr/local/bin/argocd
+      #     argocd version --client
+      #
+      # - name: 🔐 Login to ArgoCD
+      #   if: ${{ !inputs.dry_run }}
+      #   env:
+      #     ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
+      #     ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
+      #   run: |
+      #     argocd login "$ARGOCD_SERVER" --auth-token "$ARGOCD_AUTH_TOKEN" --grpc-web
+      #
+      # - name: 🔄 Sync apps and wait healthy
+      #   if: ${{ !inputs.dry_run }}
+      #   env:
+      #     APPS: ${{ steps.bump.outputs.apps }}
+      #   run: |
+      #     set -e
+      #     for APP in $APPS; do
+      #       echo "::group::Sync $APP"
+      #       argocd app sync "$APP" --grpc-web
+      #       argocd app wait "$APP" --health --timeout 600 --grpc-web
+      #       echo "::endgroup::"
+      #     done
 
       - name: 💬 Slack notification
         if: always() && !inputs.dry_run
@@ -257,7 +303,7 @@ jobs:
               value: ${{ steps.resolve.outputs.services }}
             - title: Tag
               value: ${{ steps.resolve.outputs.tag }}
-            - title: ArgoCD apps
+            - title: ArgoCD apps to sync
               value: ${{ steps.bump.outputs.apps }}
             - title: Triggered by
               value: ${{ github.actor }}
