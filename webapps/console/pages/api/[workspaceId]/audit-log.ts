@@ -77,6 +77,21 @@ function fmtValue(v: any): string {
   }
 }
 
+// Identity / metadata fields that shouldn't appear in a user-facing diff.
+// They live on the configurationObject row, not in the JSON config, but legacy
+// audit-log payloads sometimes serialized them inline — which then shows up as
+// "id removed" noise once we strip them on save.
+const DIFF_IGNORED_KEYS = new Set(["id", "workspaceId", "type", "cloneId"]);
+
+function stripDiffNoise(obj: any): any {
+  if (!isPlainObject(obj)) return obj;
+  const out: Record<string, any> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (!DIFF_IGNORED_KEYS.has(k)) out[k] = v;
+  }
+  return out;
+}
+
 /**
  * Flatten a (prev, next) pair into a list of leaf-level changes. Recurses
  * through plain objects only — arrays and primitives are compared as atomic
@@ -290,11 +305,15 @@ export default createRoute()
 
         // Compute the diff on the fly. For redacted rows the values were already
         // masked at write time. For older rows we re-apply the name-based
-        // scrubber on the way out so credentials never reach the client.
+        // scrubber on the way out so credentials never reach the client. In
+        // both cases we strip identity / metadata keys (id, workspaceId, type,
+        // cloneId) so they don't appear as noise in the diff.
         let diff: DiffEntry[] | undefined;
         if (r.type.startsWith("config-object-")) {
-          const prev = isRedacted ? rawChanges.prevVersion : genericScrub(rawChanges.prevVersion);
-          const next = isRedacted ? rawChanges.newVersion : genericScrub(rawChanges.newVersion);
+          const prevRaw = isRedacted ? rawChanges.prevVersion : genericScrub(rawChanges.prevVersion);
+          const nextRaw = isRedacted ? rawChanges.newVersion : genericScrub(rawChanges.newVersion);
+          const prev = prevRaw !== undefined ? stripDiffNoise(prevRaw) : undefined;
+          const next = nextRaw !== undefined ? stripDiffNoise(nextRaw) : undefined;
           if (prev !== undefined || next !== undefined) {
             diff = flattenDiff(prev, next);
           }

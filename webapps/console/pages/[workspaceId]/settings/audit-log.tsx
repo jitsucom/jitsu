@@ -287,27 +287,14 @@ const AuditLogTable: React.FC = () => {
         expandable={{
           rowExpandable: (item: AuditLogItem) => Array.isArray(item.diff) && item.diff.length > 0,
           expandedRowRender: (item: AuditLogItem) => (
-            <Table
-              size="small"
-              rowKey={(d: DiffEntry) => d.field}
-              pagination={false}
-              dataSource={item.diff}
-              columns={[
-                {
-                  title: "Field",
-                  dataIndex: "field",
-                  key: "field",
-                  width: "35%",
-                  render: (f: string) => <span className="font-mono text-xs">{f}</span>,
-                },
-                {
-                  title: "Change",
-                  dataIndex: "description",
-                  key: "description",
-                  render: (d: string) => <span className="text-xs">{d}</span>,
-                },
-              ]}
-            />
+            <div className="grid grid-cols-[minmax(180px,_24%)_1fr] gap-x-6 gap-y-1 text-xs px-2 py-1">
+              {(item.diff || []).map(d => (
+                <React.Fragment key={d.field}>
+                  <div className="font-mono text-text-light truncate">{d.field}</div>
+                  <div className="break-all">{d.description}</div>
+                </React.Fragment>
+              ))}
+            </div>
           ),
         }}
       />
