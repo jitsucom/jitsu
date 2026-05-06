@@ -7,6 +7,32 @@ import { Prisma } from "@prisma/client";
 // Inlined to avoid pulling lib/schema/destinations through this read API path.
 const MASKED_SECRET = "__MASKED_BY_JITSU__";
 
+// Field-name patterns that we always treat as secrets. Mirrors the scrubber
+// in lib/server/audit-log.ts. We re-apply it on read so old rows (written
+// before the write-side scrubber existed) don't leak credentials through the
+// diff column.
+const SENSITIVE_KEY_PATTERN =
+  /^(.*(password|passwd|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|id[_-]?token|private[_-]?key|client[_-]?secret|webhook[_-]?secret|auth(orization)?)|token)$/i;
+
+function genericScrub(input: any, depth = 0): any {
+  if (depth > 8 || input == null) return input;
+  if (Array.isArray(input)) {
+    return input.map(v => genericScrub(v, depth + 1));
+  }
+  if (typeof input !== "object") {
+    return input;
+  }
+  const out: Record<string, any> = {};
+  for (const [k, v] of Object.entries(input)) {
+    if (SENSITIVE_KEY_PATTERN.test(k) && v != null && v !== MASKED_SECRET) {
+      out[k] = MASKED_SECRET;
+    } else {
+      out[k] = genericScrub(v, depth + 1);
+    }
+  }
+  return out;
+}
+
 // Allow-list of fields always safe to return in `changes`.
 const ALWAYS_SAFE_FIELDS = new Set([
   "objectType",
@@ -262,11 +288,16 @@ export default createRoute()
 
         const finalChanges = Object.keys(safeChanges).length > 0 ? safeChanges : null;
 
-        // Compute the diff on the fly only for redacted rows. Pre-fix rows are
-        // not exposed: we never had a guarantee their secrets were masked.
+        // Compute the diff on the fly. For redacted rows the values were already
+        // masked at write time. For older rows we re-apply the name-based
+        // scrubber on the way out so credentials never reach the client.
         let diff: DiffEntry[] | undefined;
-        if (isRedacted && r.type.startsWith("config-object-")) {
-          diff = flattenDiff(rawChanges.prevVersion, rawChanges.newVersion);
+        if (r.type.startsWith("config-object-")) {
+          const prev = isRedacted ? rawChanges.prevVersion : genericScrub(rawChanges.prevVersion);
+          const next = isRedacted ? rawChanges.newVersion : genericScrub(rawChanges.newVersion);
+          if (prev !== undefined || next !== undefined) {
+            diff = flattenDiff(prev, next);
+          }
         }
 
         return {
