@@ -12,7 +12,7 @@ const MASKED_SECRET = "__MASKED_BY_JITSU__";
 // before the write-side scrubber existed) don't leak credentials through the
 // diff column.
 const SENSITIVE_KEY_PATTERN =
-  /^(.*(password|passwd|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|id[_-]?token|private[_-]?key|client[_-]?secret|webhook[_-]?secret|auth(orization)?)|token)$/i;
+  /^(.*(password|passwd|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|id[_-]?token|private[_-]?key|client[_-]?secret|webhook[_-]?secret|ssh[_-]?key|ssl[_-]?key|signing[_-]?key|encryption[_-]?key|auth(orization)?)|token)$/i;
 
 function genericScrub(input: any, depth = 0): any {
   if (depth > 8 || input == null) return input;
@@ -64,17 +64,27 @@ function shallowEqual(a: any, b: any): boolean {
   }
 }
 
+// Hard cap to bound the audit-log API payload. The client middle-truncates
+// for display and shows the full value in a tooltip, so values up to this
+// limit reach the browser intact.
+const MAX_VALUE_CHARS = 2000;
+
 function fmtValue(v: any): string {
   if (v === undefined) return "undefined";
   if (v === null) return "null";
-  if (typeof v === "string") return v.length > 80 ? `"${v.slice(0, 80)}…"` : `"${v}"`;
-  if (typeof v === "number" || typeof v === "boolean") return String(v);
-  try {
-    const s = JSON.stringify(v);
-    return s.length > 80 ? `${s.slice(0, 80)}…` : s;
-  } catch {
-    return String(v);
+  let s: string;
+  if (typeof v === "string") {
+    s = `"${v}"`;
+  } else if (typeof v === "number" || typeof v === "boolean") {
+    s = String(v);
+  } else {
+    try {
+      s = JSON.stringify(v);
+    } catch {
+      s = String(v);
+    }
   }
+  return s.length > MAX_VALUE_CHARS ? `${s.slice(0, MAX_VALUE_CHARS)}…` : s;
 }
 
 // Identity / metadata fields that shouldn't appear in a user-facing diff.
