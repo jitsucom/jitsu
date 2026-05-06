@@ -8,6 +8,7 @@ import relativeTime from "dayjs/plugin/relativeTime";
 import { rpc } from "juava";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
+import { AuditLogDiff } from "../../../components/AuditLogDiff/AuditLogDiff";
 
 dayjs.extend(utc);
 dayjs.extend(relativeTime);
@@ -286,14 +287,12 @@ const AuditLogTable: React.FC = () => {
         pagination={false}
         expandable={{
           rowExpandable: (item: AuditLogItem) => Array.isArray(item.diff) && item.diff.length > 0,
+          // Indent so the diff card lines up with the Time column (which starts
+          // right after Antd's expand-chevron column, ~48px wide). Keep a small
+          // right padding so the card doesn't touch the table edge.
           expandedRowRender: (item: AuditLogItem) => (
-            <div className="grid grid-cols-[minmax(180px,_24%)_1fr] gap-x-6 gap-y-1 text-xs px-2 py-1">
-              {(item.diff || []).map(d => (
-                <React.Fragment key={d.field}>
-                  <div className="font-mono text-text-light truncate">{d.field}</div>
-                  <div className="break-all">{d.description}</div>
-                </React.Fragment>
-              ))}
+            <div className="pl-12 pr-4 py-2 bg-neutral-50">
+              <AuditLogDiff diff={item.diff || []} />
             </div>
           ),
         }}
