@@ -239,18 +239,28 @@ export default createRoute()
       items: page.map(r => {
         const rawChanges = (r.changes as any) || {};
         const isRedacted = rawChanges._redacted === true;
-        const safeChanges = sanitizeChanges(rawChanges);
+        const safeChanges = sanitizeChanges(rawChanges) || ({} as Record<string, any>);
 
-        // For links, replace the stored objectName (which is empty) with the
-        // synthesized "from → to" display name when available.
-        if (
-          safeChanges &&
-          safeChanges.objectType === "link" &&
-          r.objectId &&
-          linkNameById.has(r.objectId)
-        ) {
+        // Fall back to deriving objectName from prev/new versions when the row
+        // (typically a pre-fix row) didn't store it. The raw versions stay
+        // server-side; only the extracted name reaches the client.
+        if (!safeChanges.objectName && r.type.startsWith("config-object-")) {
+          const fromNew = (rawChanges.newVersion as any)?.name;
+          const fromPrev = (rawChanges.prevVersion as any)?.name;
+          if (typeof fromNew === "string" && fromNew) {
+            safeChanges.objectName = fromNew;
+          } else if (typeof fromPrev === "string" && fromPrev) {
+            safeChanges.objectName = fromPrev;
+          }
+        }
+
+        // For links, replace the (empty) objectName with the synthesized
+        // "from → to" display name when available.
+        if (safeChanges.objectType === "link" && r.objectId && linkNameById.has(r.objectId)) {
           safeChanges.objectName = linkNameById.get(r.objectId);
         }
+
+        const finalChanges = Object.keys(safeChanges).length > 0 ? safeChanges : null;
 
         // Compute the diff on the fly only for redacted rows. Pre-fix rows are
         // not exposed: we never had a guarantee their secrets were masked.
@@ -268,7 +278,7 @@ export default createRoute()
           userId: r.userId ?? null,
           objectId: r.objectId ?? null,
           authType: r.authType ?? null,
-          changes: safeChanges,
+          changes: finalChanges,
           diff,
           actor: r.userId ? actorById.get(r.userId) ?? null : null,
         };

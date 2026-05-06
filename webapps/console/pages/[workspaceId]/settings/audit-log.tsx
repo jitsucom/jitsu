@@ -2,6 +2,7 @@ import { WorkspacePageLayout } from "../../../components/PageLayout/WorkspacePag
 import { useWorkspace, useWorkspaceRole } from "../../../lib/context";
 import React, { useMemo, useState } from "react";
 import { Alert, Button, DatePicker, Select, Table, Tag, Tooltip } from "antd";
+import { Minus, Plus } from "lucide-react";
 import dayjs, { Dayjs } from "dayjs";
 import utc from "dayjs/plugin/utc";
 import relativeTime from "dayjs/plugin/relativeTime";
@@ -286,6 +287,25 @@ const AuditLogTable: React.FC = () => {
         pagination={false}
         expandable={{
           rowExpandable: (item: AuditLogItem) => Array.isArray(item.diff) && item.diff.length > 0,
+          expandIcon: ({ expanded, onExpand, record }) => {
+            const item = record as AuditLogItem;
+            if (!Array.isArray(item.diff) || item.diff.length === 0) {
+              // Reserve the same width so rows without a diff stay aligned.
+              return <span style={{ display: "inline-block", width: 18 }} />;
+            }
+            const Icon = expanded ? Minus : Plus;
+            return (
+              <button
+                type="button"
+                aria-label={expanded ? "Collapse" : "Expand"}
+                onClick={e => onExpand(record, e)}
+                className="inline-flex items-center justify-center rounded border border-neutral-300 hover:bg-neutral-100"
+                style={{ width: 18, height: 18, lineHeight: 0 }}
+              >
+                <Icon className="w-3 h-3" />
+              </button>
+            );
+          },
           expandedRowRender: (item: AuditLogItem) => (
             <Table
               size="small"
