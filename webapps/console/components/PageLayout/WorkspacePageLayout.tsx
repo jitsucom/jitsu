@@ -512,6 +512,11 @@ function PageHeader() {
           path: "/settings/notifications",
           icon: <BellIcon className="w-full h-full" />,
         },
+        {
+          title: "Audit Log",
+          path: "/settings/audit-log",
+          icon: <ShieldAlert className="w-full h-full" />,
+        },
         billing.enabled && billing.settings?.dataRetentionEditorEnabled
           ? {
               title: "Data Retention",

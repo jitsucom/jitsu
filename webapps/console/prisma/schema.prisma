@@ -214,6 +214,7 @@ model AuditLog {
   id          String   @id @default(cuid())
   timestamp   DateTime @default(now()) /// @zod.custom(z.coerce.date())
   type        String
+  severity    String?  @default("info")
   userId      String?
   workspaceId String?
   objectId    String?
@@ -222,6 +223,7 @@ model AuditLog {
 
   @@index(timestamp)
   @@index(type)
+  @@index([workspaceId, timestamp])
 }
 
 model GlobalProps {

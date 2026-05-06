@@ -9,6 +9,7 @@ import { ApiError } from "../../../../../lib/shared/errors";
 import pick from "lodash/pick";
 import { branding } from "../../../../../lib/branding";
 import { WorkspaceRolesZodType, WorkspaceRoleType } from "../../../../../lib/workspace-roles";
+import { membershipAuditLog } from "../../../../../lib/server/audit-log";
 
 async function sendInvitationEmail<Req>(
   email: string,
@@ -121,6 +122,7 @@ const api: Api = {
         if (isMailAvailable()) {
           await sendInvitationEmail(body.email, user, workspace.name, whoamiUrl(req), token.token);
         }
+        await membershipAuditLog(user, workspace.id, "invited", { email: body.email }, { newRole: body.role || "owner" });
         return {
           token: token.token,
           invitationLink: `${whoamiUrl(req)}/accept?invite=${token.token}`,
@@ -140,11 +142,15 @@ const api: Api = {
         `Can't find workspace ${workspaceIdOrSlug}`
       );
       await verifyAccessWithRole(user, workspace.id, "manageUsers");
+      let targetEmail = email;
       if (email) {
         await db.prisma().invitationToken.deleteMany({ where: { email, workspaceId: workspace.id } });
       } else if (userId) {
+        const target = await db.prisma().userProfile.findUnique({ where: { id: userId } });
+        targetEmail = target?.email;
         await db.prisma().workspaceAccess.deleteMany({ where: { userId, workspaceId: workspace.id } });
       }
+      await membershipAuditLog(user, workspace.id, "removed", { userId, email: targetEmail });
       return { success: true };
     },
   },
