@@ -12,6 +12,21 @@ const log = getServerLog("audit-log");
 export type AuthOp = "login" | "logout";
 export type MembershipOp = "invited" | "joined" | "removed" | "role-changed";
 
+function pickObjectName(obj: any): string | undefined {
+  if (!obj || typeof obj !== "object") return undefined;
+  const v = obj.name ?? obj.title ?? obj.slug;
+  return typeof v === "string" ? v : undefined;
+}
+
+/**
+ * Audit-log helper for config-object mutations.
+ *
+ * SECURITY: Config objects (destinations, services, links, etc.) routinely contain
+ * secrets — API keys, passwords, OAuth tokens, etc. — that must never be persisted
+ * to the audit log. We therefore intentionally drop `prevVersion` / `newVersion` and
+ * persist only the object's type and human-readable name. The signature still accepts
+ * the versions so callers don't need to change, but the values are not stored.
+ */
 export async function configObjectAuditLog(
   user: SessionUser,
   workspaceId: string,
@@ -21,6 +36,7 @@ export async function configObjectAuditLog(
   changes: { prevVersion?: any; newVersion?: any }
 ) {
   if (enableAuditLog) {
+    const objectName = pickObjectName(changes.newVersion) ?? pickObjectName(changes.prevVersion);
     await db.prisma().auditLog.create({
       data: {
         type: `config-object-${op}`,
@@ -31,8 +47,7 @@ export async function configObjectAuditLog(
         authType: user.authType,
         changes: {
           objectType: type,
-          prevVersion: changes.prevVersion,
-          newVersion: changes.newVersion,
+          objectName,
         },
       },
     });

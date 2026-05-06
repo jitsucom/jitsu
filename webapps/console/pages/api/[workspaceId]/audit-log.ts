@@ -3,6 +3,35 @@ import { z } from "zod";
 import { db } from "../../../lib/server/db";
 import { Prisma } from "@prisma/client";
 
+// Allow-list of fields we ever return in `changes`. Anything else is dropped — in
+// particular `prevVersion` / `newVersion` (raw config objects which can contain
+// API keys, passwords, OAuth tokens, etc.) MUST never reach the API response.
+const SAFE_CHANGE_FIELDS = new Set([
+  "objectType",
+  "objectName",
+  "actorEmail",
+  "targetEmail",
+  "targetUserId",
+  "prevRole",
+  "newRole",
+  "email",
+  "name",
+  "workspaceName",
+]);
+
+function sanitizeChanges(raw: any): Record<string, any> | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return null;
+  }
+  const out: Record<string, any> = {};
+  for (const [k, v] of Object.entries(raw)) {
+    if (SAFE_CHANGE_FIELDS.has(k)) {
+      out[k] = v;
+    }
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
+
 const ItemSchema = z.object({
   id: z.string(),
   timestamp: z.string(),
@@ -117,7 +146,7 @@ export default createRoute()
         userId: r.userId ?? null,
         objectId: r.objectId ?? null,
         authType: r.authType ?? null,
-        changes: r.changes ?? null,
+        changes: sanitizeChanges(r.changes),
         actor: r.userId ? actorById.get(r.userId) ?? null : null,
       })),
       nextCursor,
