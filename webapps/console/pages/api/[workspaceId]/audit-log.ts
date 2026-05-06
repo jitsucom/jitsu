@@ -72,12 +72,32 @@ function genericScrub(input: any, depth = 0): any {
   return out;
 }
 
-// Fields we strip from `changes` before returning to the client. Everything
-// else our audit-log helpers write is summary metadata (objectType, role
-// transitions, emails) and is safe to expose. The two raw-blob fields are
-// rendered server-side via `diff` — they should never reach the wire — and
-// `_redacted` is an internal write-time marker.
-const REDACTED_CHANGES_FIELDS = new Set(["prevVersion", "newVersion", "_redacted"]);
+// Summary metadata that audit-log helpers stash inside the `changes` JSON
+// column. We enumerate the fields the client may receive — the raw config
+// blobs `prevVersion` / `newVersion` are explicitly NOT in this list (they
+// are reduced to a `diff` server-side and never sent), and the internal
+// `_redacted` marker stays server-side.
+const SUMMARY_FIELDS = [
+  "objectType",
+  "objectName",
+  "actorEmail",
+  "targetEmail",
+  "targetUserId",
+  "prevRole",
+  "newRole",
+  "email",
+  "name",
+  "workspaceName",
+] as const;
+
+function pickSummary(raw: any): Record<string, any> | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const out: Record<string, any> = {};
+  for (const k of SUMMARY_FIELDS) {
+    if (raw[k] !== undefined) out[k] = raw[k];
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
 
 type DiffEntry = {
   field: string;
@@ -233,19 +253,6 @@ const ItemSchema = z.object({
     .optional(),
 });
 
-function sanitizeChanges(raw: any): Record<string, any> | null {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-    return null;
-  }
-  const out: Record<string, any> = {};
-  for (const [k, v] of Object.entries(raw)) {
-    if (!REDACTED_CHANGES_FIELDS.has(k)) {
-      out[k] = v;
-    }
-  }
-  return Object.keys(out).length > 0 ? out : null;
-}
-
 export default createRoute()
   .GET({
     auth: true,
@@ -354,28 +361,28 @@ export default createRoute()
       page.map(async r => {
         const rawChanges = (r.changes as any) || {};
         const isRedacted = rawChanges._redacted === true;
-        const safeChanges = sanitizeChanges(rawChanges) || ({} as Record<string, any>);
+        const summary = pickSummary(rawChanges) || ({} as Record<string, any>);
 
         // Fall back to deriving objectName from prev/new versions when the row
         // (typically a pre-fix row) didn't store it. The raw versions stay
         // server-side; only the extracted name reaches the client.
-        if (!safeChanges.objectName && r.type.startsWith("config-object-")) {
+        if (!summary.objectName && r.type.startsWith("config-object-")) {
           const fromNew = (rawChanges.newVersion as any)?.name;
           const fromPrev = (rawChanges.prevVersion as any)?.name;
           if (typeof fromNew === "string" && fromNew) {
-            safeChanges.objectName = fromNew;
+            summary.objectName = fromNew;
           } else if (typeof fromPrev === "string" && fromPrev) {
-            safeChanges.objectName = fromPrev;
+            summary.objectName = fromPrev;
           }
         }
 
         // For links, replace the (empty) objectName with the synthesized
         // "from → to" display name when available.
-        if (safeChanges.objectType === "link" && r.objectId && linkNameById.has(r.objectId)) {
-          safeChanges.objectName = linkNameById.get(r.objectId);
+        if (summary.objectType === "link" && r.objectId && linkNameById.has(r.objectId)) {
+          summary.objectName = linkNameById.get(r.objectId);
         }
 
-        const finalChanges = Object.keys(safeChanges).length > 0 ? safeChanges : null;
+        const finalChanges = Object.keys(summary).length > 0 ? summary : null;
 
         // Compute the diff. For redacted rows the values were already masked
         // at write time. For legacy rows we run the per-type outputFilter
