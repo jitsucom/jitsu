@@ -3,9 +3,16 @@ import { z } from "zod";
 import { db } from "../../../lib/server/db";
 import { Prisma } from "@prisma/client";
 
-// Same MASKED_SECRET sentinel that audit-log.ts and the destination editor use.
-// Inlined to avoid pulling lib/schema/destinations through this read API path.
-const MASKED_SECRET = "__MASKED_BY_JITSU__";
+// Display sentinel used by genericScrub output. The canonical sentinel emitted
+// by lib/schema/secrets#maskSecrets (via per-type outputFilter) is different
+// — see CANONICAL_MASKED_SECRET below — so we recognize both when deciding
+// whether a value is "a masked secret".
+const MASKED_SECRET = "*********";
+const CANONICAL_MASKED_SECRET = "__MASKED_BY_JITSU__";
+
+function isMasked(v: any): boolean {
+  return v === MASKED_SECRET || v === CANONICAL_MASKED_SECRET;
+}
 
 // Field-name patterns that we always treat as secrets. Mirrors the scrubber
 // in lib/server/audit-log.ts. We re-apply it on read so old rows (written
@@ -56,7 +63,7 @@ function genericScrub(input: any, depth = 0): any {
   }
   const out: Record<string, any> = {};
   for (const [k, v] of Object.entries(input)) {
-    if (SENSITIVE_KEY_PATTERN.test(k) && v != null && v !== MASKED_SECRET) {
+    if (SENSITIVE_KEY_PATTERN.test(k) && v != null && !isMasked(v)) {
       out[k] = MASKED_SECRET;
     } else {
       out[k] = genericScrub(v, depth + 1);
@@ -65,19 +72,12 @@ function genericScrub(input: any, depth = 0): any {
   return out;
 }
 
-// Allow-list of fields always safe to return in `changes`.
-const ALWAYS_SAFE_FIELDS = new Set([
-  "objectType",
-  "objectName",
-  "actorEmail",
-  "targetEmail",
-  "targetUserId",
-  "prevRole",
-  "newRole",
-  "email",
-  "name",
-  "workspaceName",
-]);
+// Fields we strip from `changes` before returning to the client. Everything
+// else our audit-log helpers write is summary metadata (objectType, role
+// transitions, emails) and is safe to expose. The two raw-blob fields are
+// rendered server-side via `diff` — they should never reach the wire — and
+// `_redacted` is an internal write-time marker.
+const REDACTED_CHANGES_FIELDS = new Set(["prevVersion", "newVersion", "_redacted"]);
 
 type DiffEntry = {
   field: string;
@@ -89,7 +89,7 @@ type DiffEntry = {
 };
 
 function fmtMaybeSecret(v: any): string {
-  return v === MASKED_SECRET ? "(secret)" : fmtValue(v);
+  return isMasked(v) ? MASKED_SECRET : fmtValue(v);
 }
 
 function isPlainObject(v: any): v is Record<string, any> {
@@ -197,7 +197,7 @@ function flattenDiff(prev: any, next: any, base = ""): DiffEntry[] {
   if (next === undefined) {
     return [{ field, kind: "removed", prev: fmtValue(prev) }];
   }
-  if (prev === MASKED_SECRET && next === MASKED_SECRET) {
+  if (isMasked(prev) && isMasked(next)) {
     return [{ field, kind: "secret-changed" }];
   }
   return [{ field, kind: "changed", prev: fmtMaybeSecret(prev), next: fmtMaybeSecret(next) }];
@@ -239,7 +239,7 @@ function sanitizeChanges(raw: any): Record<string, any> | null {
   }
   const out: Record<string, any> = {};
   for (const [k, v] of Object.entries(raw)) {
-    if (ALWAYS_SAFE_FIELDS.has(k)) {
+    if (!REDACTED_CHANGES_FIELDS.has(k)) {
       out[k] = v;
     }
   }

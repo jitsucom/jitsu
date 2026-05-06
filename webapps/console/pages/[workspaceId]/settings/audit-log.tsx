@@ -303,10 +303,16 @@ const AuditLogTable: React.FC = () => {
         }}
       />
       <div className="flex justify-center">
-        {query.data?.nextCursor ? (
-          <Button onClick={() => setCursor(query.data?.nextCursor)} disabled={query.isFetching}>
-            Load more
+        {query.isFetching ? (
+          // While fetching the next page (or the very first page), show a
+          // disabled loading button. Without this we briefly fall through to
+          // "End of log" because query.data is undefined during the in-flight
+          // request and items.length > 0 from the previous pages.
+          <Button loading disabled>
+            Loading
           </Button>
+        ) : query.data?.nextCursor ? (
+          <Button onClick={() => setCursor(query.data?.nextCursor)}>Load more</Button>
         ) : items.length > 0 ? (
           <span className="text-text-light text-sm">End of log</span>
         ) : null}
