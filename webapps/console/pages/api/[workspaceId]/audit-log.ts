@@ -94,20 +94,18 @@ function stripDiffNoise(obj: any): any {
 
 /**
  * Flatten a (prev, next) pair into a list of leaf-level changes. Recurses
- * through plain objects only — arrays and primitives are compared as atomic
- * values. Masked secrets are surfaced as "changed (secret value)" without
- * leaking the masked sentinel.
+ * through plain objects on both sides (including the case where one side is
+ * `undefined` — i.e. create / delete — so the diff lists each leaf field
+ * individually rather than dumping the whole object as one row). Arrays and
+ * primitives are compared as atomic values.
+ *
+ * Masked secrets are surfaced as "changed (secret value)" without leaking
+ * the masked sentinel.
  */
 function flattenDiff(prev: any, next: any, base = ""): DiffEntry[] {
   if (shallowEqual(prev, next)) return [];
 
-  if (prev === undefined) {
-    return [{ field: base || "(root)", description: `added: ${fmtValue(next)}` }];
-  }
-  if (next === undefined) {
-    return [{ field: base || "(root)", description: `removed (was ${fmtValue(prev)})` }];
-  }
-
+  // Both sides are plain objects — recurse on the union of keys.
   if (isPlainObject(prev) && isPlainObject(next)) {
     const keys = Array.from(new Set([...Object.keys(prev), ...Object.keys(next)]));
     const result: DiffEntry[] = [];
@@ -118,17 +116,44 @@ function flattenDiff(prev: any, next: any, base = ""): DiffEntry[] {
     return result;
   }
 
-  // Both sides are scalars/arrays and not equal — atomic change.
+  // One side is missing and the other is a plain object — recurse so each
+  // leaf appears on its own row (`a.b.c → added: "..."` rather than a single
+  // `(root) → added: {…large blob…}`).
+  if (prev === undefined && isPlainObject(next)) {
+    const result: DiffEntry[] = [];
+    for (const k of Object.keys(next)) {
+      const path = base ? `${base}.${k}` : k;
+      result.push(...flattenDiff(undefined, next[k], path));
+    }
+    return result;
+  }
+  if (next === undefined && isPlainObject(prev)) {
+    const result: DiffEntry[] = [];
+    for (const k of Object.keys(prev)) {
+      const path = base ? `${base}.${k}` : k;
+      result.push(...flattenDiff(prev[k], undefined, path));
+    }
+    return result;
+  }
+
+  // Leaf rows: scalars and arrays.
+  const label = base || "(root)";
+  if (prev === undefined) {
+    return [{ field: label, description: `added: ${fmtValue(next)}` }];
+  }
+  if (next === undefined) {
+    return [{ field: label, description: `removed (was ${fmtValue(prev)})` }];
+  }
   if (prev === MASKED_SECRET && next === MASKED_SECRET) {
-    return [{ field: base || "(root)", description: "changed (secret value)" }];
+    return [{ field: label, description: "changed (secret value)" }];
   }
   if (prev === MASKED_SECRET) {
-    return [{ field: base || "(root)", description: `changed: (secret) → ${fmtValue(next)}` }];
+    return [{ field: label, description: `changed: (secret) → ${fmtValue(next)}` }];
   }
   if (next === MASKED_SECRET) {
-    return [{ field: base || "(root)", description: `changed: ${fmtValue(prev)} → (secret)` }];
+    return [{ field: label, description: `changed: ${fmtValue(prev)} → (secret)` }];
   }
-  return [{ field: base || "(root)", description: `changed: ${fmtValue(prev)} → ${fmtValue(next)}` }];
+  return [{ field: label, description: `changed: ${fmtValue(prev)} → ${fmtValue(next)}` }];
 }
 
 const ItemSchema = z.object({
