@@ -126,59 +126,25 @@ export async function configObjectAuditLog(
   }
 }
 
-export type AuthAuditOpts = {
-  workspaceId?: string;
-  /**
-   * The actual sign-in moment as reported by the auth provider. Firebase
-   * exposes it as the `auth_time` claim on the ID token; OIDC providers
-   * usually have an analogous claim. When provided, the helper checks
-   * whether an `auth-login` row already exists for this user with
-   * `timestamp >= authTime` and skips the write if so.
-   *
-   * The motivation: `/api/fb-auth/create-session` is hit on every
-   * Firebase ID-token rotation, not just on actual sign-in. Without
-   * dedup, that floods the audit log with duplicate "Logged in" rows.
-   * Token refreshes carry the original `auth_time`, so the check
-   * naturally distinguishes "same session" from "user just re-authed".
-   */
-  authTime?: Date;
-};
-
 export async function authAuditLog(
   user: Pick<SessionUser, "internalId" | "email" | "name">,
   op: AuthOp,
   authType: string,
-  opts: AuthAuditOpts = {}
+  workspaceId?: string
 ): Promise<void> {
   if (!enableAuditLog) {
     return;
   }
-  // Replicas-safe dedup: if any auth-login row for this user already
-  // covers the same (or newer) auth event, this call is a duplicate
-  // (most commonly an ID-token refresh on a still-active session).
-  if (op === "login" && opts.authTime) {
-    try {
-      const recent = await db.prisma().auditLog.findFirst({
-        where: {
-          type: "auth-login",
-          userId: user.internalId,
-          timestamp: { gte: opts.authTime },
-        },
-        select: { id: true },
-      });
-      if (recent) return;
-    } catch (err) {
-      // If the dedup query itself fails, fall through and write the row
-      // — duplicate noise is preferable to a missing audit event.
-      log.atWarn().withCause(err as Error).log("auth-login dedup query failed");
-    }
-  }
+  // No dedup here — call sites are expected to fire only on the actual
+  // sign-in / sign-out user action. For Firebase that's the explicit
+  // `signIn` / `signInWith` flow; the periodic ID-token rotation goes
+  // through `create-session` which no longer logs.
   try {
     await db.prisma().auditLog.create({
       data: {
         type: `auth-${op}`,
         severity: "info",
-        workspaceId: opts.workspaceId ?? null,
+        workspaceId: workspaceId ?? null,
         userId: user.internalId,
         authType,
         changes: {

@@ -1,14 +1,12 @@
 import { Api, inferUrl, nextJsApiHandler } from "../../../lib/api";
 import { z } from "zod";
-import { createSessionCookie, firebase, firebaseAuthCookieName } from "../../../lib/server/firebase-server";
+import { createSessionCookie, firebaseAuthCookieName } from "../../../lib/server/firebase-server";
 import { ApiError } from "../../../lib/shared/errors";
 import { SerializeOptions, serialize } from "cookie";
 import { getAppEndpoint } from "../../../lib/domains";
 import { getRequestHost } from "../../../lib/server/origin";
 import { getServerLog } from "../../../lib/server/log";
 import { getLog } from "juava";
-import { authAuditLog } from "../../../lib/server/audit-log";
-import { db } from "../../../lib/server/db";
 
 const log = getServerLog("firebase");
 
@@ -34,29 +32,9 @@ export const api: Api = {
       }
       const { cookie, expiresIn } = await createSessionCookie(idToken);
 
-      // Audit-log a successful login. Decode the idToken to get the user identity;
-      // failure here must never break login.
-      try {
-        const decoded = await firebase().auth().verifyIdToken(idToken);
-        const email = decoded.email || "";
-        let internalId = (decoded as any).internalId as string | undefined;
-        if (!internalId && email) {
-          const profile = await db
-            .prisma()
-            .userProfile.findFirst({ where: { externalId: decoded.uid, loginProvider: "firebase" } });
-          internalId = profile?.id;
-        }
-        if (internalId) {
-          // Pass `auth_time` so the helper can suppress duplicates for the
-          // same sign-in across replicas. Firebase rotates the ID token
-          // periodically and on every reload after idle, but `auth_time`
-          // only changes when the user actually re-authenticates.
-          const authTime = decoded.auth_time ? new Date(decoded.auth_time * 1000) : undefined;
-          await authAuditLog({ internalId, email, name: decoded.name || email }, "login", "firebase", { authTime });
-        }
-      } catch (err) {
-        log.atError().withCause(err as Error).log("Failed to record firebase login audit event");
-      }
+      // Audit logging lives in /api/fb-auth/audit-login which the client
+      // calls only at the actual sign-in moment. This endpoint is hit on
+      // every cookie mint / refresh — too noisy to audit here.
 
       //we need to split() since the domain might contain a port, not good for cookies
       const domain = getRequestHost(req).split(":")[0];

@@ -104,6 +104,24 @@ async function getUserFromFirebase(currentUser: auth.User): Promise<ContextApiRe
   };
 }
 
+/**
+ * Records a Firebase sign-in audit event. Called only from the explicit
+ * sign-in entry points (signIn / signInWith) — the implicit cookie-mint
+ * path on every page load deliberately doesn't, otherwise the audit log
+ * fills up with one "Logged in" row per ID-token refresh.
+ *
+ * Best-effort: a failure here never blocks the sign-in flow.
+ */
+async function recordFirebaseLogin(user: auth.User | null) {
+  if (!user) return;
+  try {
+    const idToken = await user.getIdToken();
+    await rpc(`/api/fb-auth/audit-login`, { body: { idToken } });
+  } catch (e) {
+    log.atWarn().withCause(e).log(`Failed to record firebase login`);
+  }
+}
+
 export async function firebaseSignOut() {
   try {
     await auth.signOut(auth.getAuth());
@@ -147,6 +165,7 @@ export function useFirebaseSession(): FirebaseSession {
         } else {
           user = await a.signInWithPopup(a.getAuth(), new auth.GoogleAuthProvider());
         }
+        await recordFirebaseLogin(a.getAuth().currentUser);
         const firebaseUser = await getUserFromFirebase(a.getAuth().currentUser!);
         await analytics.identify(firebaseUser.internalId, { email: firebaseUser.email, name: firebaseUser.name });
         await analytics.track("login");
@@ -187,6 +206,9 @@ export function useFirebaseSession(): FirebaseSession {
     //user: () => (currentUser ? getUserFromFirebase(currentUser) : undefined),
     async signIn(username: string, password): Promise<boolean> {
       const userCredential = await auth.signInWithEmailAndPassword(a.getAuth(), username, password);
+      if (userCredential?.user) {
+        await recordFirebaseLogin(userCredential.user);
+      }
       return !!userCredential?.user;
     },
     async resetPassword(username: string): Promise<void> {
