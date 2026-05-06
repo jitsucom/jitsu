@@ -3,10 +3,8 @@ import { z } from "zod";
 import { db } from "../../../lib/server/db";
 import { Prisma } from "@prisma/client";
 
-// Allow-list of fields we ever return in `changes`. Anything else is dropped — in
-// particular `prevVersion` / `newVersion` (raw config objects which can contain
-// API keys, passwords, OAuth tokens, etc.) MUST never reach the API response.
-const SAFE_CHANGE_FIELDS = new Set([
+// Allow-list of fields always safe to return in `changes`.
+const ALWAYS_SAFE_FIELDS = new Set([
   "objectType",
   "objectName",
   "actorEmail",
@@ -19,13 +17,22 @@ const SAFE_CHANGE_FIELDS = new Set([
   "workspaceName",
 ]);
 
+// `prevVersion` / `newVersion` carry raw config objects. They are only safe to
+// expose if the row was written by code that masked secrets — indicated by the
+// `_redacted: true` marker. Older rows (pre-fix) lack the marker and are
+// withheld even if they happen to contain non-sensitive data.
+const REDACTED_ONLY_FIELDS = new Set(["prevVersion", "newVersion"]);
+
 function sanitizeChanges(raw: any): Record<string, any> | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     return null;
   }
+  const isRedacted = (raw as any)._redacted === true;
   const out: Record<string, any> = {};
   for (const [k, v] of Object.entries(raw)) {
-    if (SAFE_CHANGE_FIELDS.has(k)) {
+    if (ALWAYS_SAFE_FIELDS.has(k)) {
+      out[k] = v;
+    } else if (isRedacted && REDACTED_ONLY_FIELDS.has(k)) {
       out[k] = v;
     }
   }

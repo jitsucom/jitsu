@@ -273,6 +273,31 @@ const AuditLogTable: React.FC = () => {
         dataSource={items}
         loading={query.isLoading}
         pagination={false}
+        expandable={{
+          rowExpandable: (item: AuditLogItem) =>
+            item.type.startsWith("config-object-") &&
+            !!item.changes &&
+            (item.changes.prevVersion !== undefined || item.changes.newVersion !== undefined),
+          expandedRowRender: (item: AuditLogItem) => {
+            const c = item.changes || {};
+            return (
+              <div className="grid grid-cols-2 gap-4 text-xs">
+                <div>
+                  <div className="font-semibold mb-1">Before</div>
+                  <pre style={{ margin: 0, background: "#f9fafb", padding: 8, overflowX: "auto", maxHeight: 320 }}>
+                    {c.prevVersion ? JSON.stringify(c.prevVersion, null, 2) : "—"}
+                  </pre>
+                </div>
+                <div>
+                  <div className="font-semibold mb-1">After</div>
+                  <pre style={{ margin: 0, background: "#f9fafb", padding: 8, overflowX: "auto", maxHeight: 320 }}>
+                    {c.newVersion ? JSON.stringify(c.newVersion, null, 2) : "—"}
+                  </pre>
+                </div>
+              </div>
+            );
+          },
+        }}
       />
       <div className="flex justify-center">
         {query.data?.nextCursor ? (

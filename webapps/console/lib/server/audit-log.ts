@@ -4,6 +4,8 @@ import { getServerEnv } from "./serverEnv";
 import { getServerLog } from "./log";
 import { dispatchAccountAlert, AccountAlertEvent } from "./account-alerts";
 import { AccountAlertEventType } from "../../emails/account-alert";
+import { getAllConfigObjectTypeNames, getConfigObjectType } from "../schema/config-objects";
+import { MASKED_SECRET } from "../schema/destinations";
 
 const enableAuditLog = getServerEnv().CONSOLE_ENABLE_AUDIT_LOG;
 
@@ -18,14 +20,66 @@ function pickObjectName(obj: any): string | undefined {
   return typeof v === "string" ? v : undefined;
 }
 
+// Field-name patterns that we always mask, regardless of schema. This is a
+// defense-in-depth net for object types that don't have a registered
+// `outputFilter` (notably `link` and `profilebuilder`) and for cases where a
+// user tucked a credential into a free-form field. False positives are fine —
+// the audit log is for "what changed", not "what was the value".
+const SENSITIVE_KEY_PATTERN =
+  /^(.*(password|passwd|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|id[_-]?token|private[_-]?key|client[_-]?secret|webhook[_-]?secret|auth(orization)?)|token)$/i;
+
+function genericScrub(input: any, depth = 0): any {
+  if (depth > 8 || input == null) return input;
+  if (Array.isArray(input)) {
+    return input.map(v => genericScrub(v, depth + 1));
+  }
+  if (typeof input !== "object") {
+    return input;
+  }
+  const out: Record<string, any> = {};
+  for (const [k, v] of Object.entries(input)) {
+    if (SENSITIVE_KEY_PATTERN.test(k) && v != null && v !== MASKED_SECRET) {
+      out[k] = MASKED_SECRET;
+    } else {
+      out[k] = genericScrub(v, depth + 1);
+    }
+  }
+  return out;
+}
+
+const knownTypes = new Set(getAllConfigObjectTypeNames());
+
+async function redactForAudit(type: string, obj: any): Promise<any> {
+  if (obj == null || typeof obj !== "object") return obj;
+  let masked = obj;
+  if (knownTypes.has(type)) {
+    try {
+      // outputFilter is the canonical "safe to expose" view: for destinations and
+      // services it replaces secret-marked fields with MASKED_SECRET; for streams
+      // it strips key plaintext/hash. Reusing it keeps the audit log in sync with
+      // how the same object is rendered in the editor UI.
+      masked = await getConfigObjectType(type).outputFilter(obj);
+    } catch (err) {
+      log.atWarn().withCause(err as Error).log(`outputFilter failed for type=${type}; falling back to generic scrub only`);
+      masked = obj;
+    }
+  }
+  // Belt and suspenders: also run the name-based scrubber. For unregistered types
+  // (link, profilebuilder, etc.) this is the only line of defense.
+  return genericScrub(masked);
+}
+
 /**
  * Audit-log helper for config-object mutations.
  *
- * SECURITY: Config objects (destinations, services, links, etc.) routinely contain
- * secrets — API keys, passwords, OAuth tokens, etc. — that must never be persisted
- * to the audit log. We therefore intentionally drop `prevVersion` / `newVersion` and
- * persist only the object's type and human-readable name. The signature still accepts
- * the versions so callers don't need to change, but the values are not stored.
+ * SECURITY: Config objects (destinations, services, links, etc.) routinely
+ * contain secrets — API keys, passwords, OAuth tokens, etc. We mask sensitive
+ * fields before persisting using the same `outputFilter` the editor UI sees,
+ * plus a generic name-based scrubber for types without a registered filter.
+ *
+ * Rows written by this helper are tagged with `_redacted: true`. The read API
+ * gates exposure of `prevVersion` / `newVersion` on that flag, so any
+ * pre-existing rows (written before this fix) are not exposed.
  */
 export async function configObjectAuditLog(
   user: SessionUser,
@@ -37,6 +91,10 @@ export async function configObjectAuditLog(
 ) {
   if (enableAuditLog) {
     const objectName = pickObjectName(changes.newVersion) ?? pickObjectName(changes.prevVersion);
+    const [prevVersion, newVersion] = await Promise.all([
+      redactForAudit(type, changes.prevVersion),
+      redactForAudit(type, changes.newVersion),
+    ]);
     await db.prisma().auditLog.create({
       data: {
         type: `config-object-${op}`,
@@ -46,8 +104,11 @@ export async function configObjectAuditLog(
         userId: user.internalId,
         authType: user.authType,
         changes: {
+          _redacted: true,
           objectType: type,
           objectName,
+          prevVersion,
+          newVersion,
         },
       },
     });
