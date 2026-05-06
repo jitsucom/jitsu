@@ -4,8 +4,6 @@ import { getServerEnv } from "./serverEnv";
 import { getServerLog } from "./log";
 import { dispatchAccountAlert, AccountAlertEvent } from "./account-alerts";
 import { AccountAlertEventType } from "../../emails/account-alert";
-import { getAllConfigObjectTypeNames, getConfigObjectType } from "../schema/config-objects";
-import { MASKED_SECRET } from "../schema/destinations";
 
 const enableAuditLog = getServerEnv().CONSOLE_ENABLE_AUDIT_LOG;
 
@@ -13,6 +11,10 @@ const log = getServerLog("audit-log");
 
 export type AuthOp = "login" | "logout";
 export type MembershipOp = "invited" | "joined" | "removed" | "role-changed";
+
+// Inlined to avoid pulling lib/schema/destinations (which transitively imports
+// lib/api.ts) at module-load time — that creates a cycle through nextauth.config.
+const MASKED_SECRET = "__MASKED_BY_JITSU__";
 
 function pickObjectName(obj: any): string | undefined {
   if (!obj || typeof obj !== "object") return undefined;
@@ -47,22 +49,31 @@ function genericScrub(input: any, depth = 0): any {
   return out;
 }
 
-const knownTypes = new Set(getAllConfigObjectTypeNames());
+// Lazy — config-objects.ts pulls a chain that loops back to lib/api.ts. We must
+// not require it at module-load time. Cache after first hit.
+let configObjectsModule: typeof import("../schema/config-objects") | null = null;
+function loadConfigObjects(): typeof import("../schema/config-objects") {
+  if (!configObjectsModule) {
+    configObjectsModule = require("../schema/config-objects");
+  }
+  return configObjectsModule!;
+}
 
 async function redactForAudit(type: string, obj: any): Promise<any> {
   if (obj == null || typeof obj !== "object") return obj;
   let masked = obj;
-  if (knownTypes.has(type)) {
-    try {
+  try {
+    const { getAllConfigObjectTypeNames, getConfigObjectType } = loadConfigObjects();
+    if (getAllConfigObjectTypeNames().includes(type)) {
       // outputFilter is the canonical "safe to expose" view: for destinations and
       // services it replaces secret-marked fields with MASKED_SECRET; for streams
       // it strips key plaintext/hash. Reusing it keeps the audit log in sync with
       // how the same object is rendered in the editor UI.
       masked = await getConfigObjectType(type).outputFilter(obj);
-    } catch (err) {
-      log.atWarn().withCause(err as Error).log(`outputFilter failed for type=${type}; falling back to generic scrub only`);
-      masked = obj;
     }
+  } catch (err) {
+    log.atWarn().withCause(err as Error).log(`outputFilter failed for type=${type}; falling back to generic scrub only`);
+    masked = obj;
   }
   // Belt and suspenders: also run the name-based scrubber. For unregistered types
   // (link, profilebuilder, etc.) this is the only line of defense.
