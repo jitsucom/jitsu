@@ -33,7 +33,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       } catch (err) {
         // Bad / expired cookie — nothing to log.
-        log.atDebug().withCause(err as Error).log("Could not decode OIDC session cookie during logout");
+        log
+          .atDebug()
+          .withCause(err as Error)
+          .log("Could not decode OIDC session cookie during logout");
       }
     }
 

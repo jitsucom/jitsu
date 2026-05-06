@@ -6,6 +6,7 @@ export const UserNotificationsPreferences = z.object({
   batches: z.boolean().default(true),
   syncs: z.boolean().default(true),
   dead: z.boolean().default(true),
+  account: z.boolean().default(true),
   recurringAlertsPeriodHours: z.coerce.number().max(720).min(0).default(168),
   subscriptionCode: z.string().optional(),
 });
@@ -16,6 +17,7 @@ export const DefaultUserNotificationsPreferences: UserNotificationsPreferences =
   batches: true,
   syncs: true,
   dead: true,
+  account: true,
   recurringAlertsPeriodHours: 168,
 };
 

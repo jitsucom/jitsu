@@ -51,6 +51,12 @@ const api: Api = {
 
       const prevRole = access.role || "owner";
 
+      // Skip the update + audit row + alert email when the role is unchanged —
+      // otherwise every "Save" click on the role row writes a security event.
+      if (prevRole === body.role) {
+        return { success: true, role: body.role };
+      }
+
       // Update the role
       await db.prisma().workspaceAccess.update({
         where: { userId_workspaceId: { userId, workspaceId: workspace.id } },

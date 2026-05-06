@@ -283,7 +283,27 @@ export default createRoute()
       });
       const workspaceId = ws?.id ?? query.workspaceId;
       await verifyAccessWithRole(user, workspaceId, "manageUsers");
-      where.workspaceId = workspaceId;
+
+      // Auth (login/logout) is workspace-agnostic — those rows are persisted
+      // with `workspaceId = null`. Surface them in the workspace-scoped view
+      // by also matching auth rows whose userId is a current member of this
+      // workspace. Otherwise the UI shows `auth-login` / `auth-logout` filter
+      // chips that can never produce results.
+      const memberIds = (
+        await db.prisma().workspaceAccess.findMany({
+          where: { workspaceId },
+          select: { userId: true },
+        })
+      ).map(m => m.userId);
+      const baseOr: Prisma.AuditLogWhereInput[] = [{ workspaceId }];
+      if (memberIds.length > 0) {
+        baseOr.push({
+          workspaceId: null,
+          type: { in: ["auth-login", "auth-logout"] },
+          userId: { in: memberIds },
+        });
+      }
+      Object.assign(where, { OR: baseOr });
     } else {
       // Cross-workspace view — admin only.
       await verifyAdmin(user);
@@ -412,6 +432,19 @@ export default createRoute()
           const next = nextRaw !== undefined ? stripDiffNoise(genericScrub(nextRaw)) : undefined;
           if (prev !== undefined || next !== undefined) {
             diff = flattenDiff(prev, next);
+          }
+          // Splice in `secret-changed` entries the differ couldn't recover —
+          // these are paths where the underlying secret rotated but the
+          // masked output ended up identical (or stripped) on both sides, so
+          // the masked diff has no signal. The list was computed at write
+          // time when raw was still available.
+          const rotated = Array.isArray(rawChanges._rotatedSecrets) ? (rawChanges._rotatedSecrets as string[]) : [];
+          if (rotated.length > 0) {
+            const seen = new Set((diff || []).map(d => d.field));
+            const synthetic: DiffEntry[] = rotated
+              .filter(p => !seen.has(p))
+              .map(p => ({ field: p, kind: "secret-changed" as const }));
+            diff = [...(diff || []), ...synthetic];
           }
           if (diff && diff.length === 0 && r.type === "config-object-update") {
             diff = [{ field: "(none)", kind: "noop" }];

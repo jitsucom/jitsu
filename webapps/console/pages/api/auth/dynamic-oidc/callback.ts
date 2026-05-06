@@ -264,13 +264,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     try {
       const userEmail = user.email || email;
-      await authAuditLog(
-        { internalId: user.id, email: userEmail, name: user.name || userEmail },
-        "login",
-        "oidc"
-      );
+      await authAuditLog({ internalId: user.id, email: userEmail, name: user.name || userEmail }, "login", "oidc");
     } catch (err) {
-      log.atError().withCause(err as Error).log("Failed to record OIDC login audit event");
+      log
+        .atError()
+        .withCause(err as Error)
+        .log("Failed to record OIDC login audit event");
     }
 
     // Set secure session cookie

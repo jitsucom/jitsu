@@ -6,6 +6,7 @@ import { withProductAnalytics } from "../../../lib/server/telemetry";
 import { WorkspaceDbModel } from "../../../prisma/schema";
 import { validateSlug, validateWorkspaceName } from "./validate";
 import { ApiError } from "../../../lib/shared/errors";
+import { workspaceAuditLog } from "../../../lib/server/audit-log";
 
 const MAX_LIMIT = 1_000_000;
 
@@ -196,6 +197,8 @@ const api: Api = {
         where: { id: workspaceId },
         data: { deleted: true },
       });
+
+      await workspaceAuditLog(user, workspaceId, "deleted", { workspaceName: workspace.name });
 
       return { message: `${workspace.name} deleted successfully`, status: 200 };
     },

@@ -36,7 +36,10 @@ export const api: Api = {
           await authAuditLog({ internalId, email, name: decoded.name || email }, "login", "firebase");
         }
       } catch (err) {
-        log.atError().withCause(err as Error).log("Failed to record firebase login audit event");
+        log
+          .atError()
+          .withCause(err as Error)
+          .log("Failed to record firebase login audit event");
       }
       return { ok: true };
     },

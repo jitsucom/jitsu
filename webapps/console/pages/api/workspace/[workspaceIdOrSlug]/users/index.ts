@@ -122,7 +122,13 @@ const api: Api = {
         if (isMailAvailable()) {
           await sendInvitationEmail(body.email, user, workspace.name, whoamiUrl(req), token.token);
         }
-        await membershipAuditLog(user, workspace.id, "invited", { email: body.email }, { newRole: body.role || "owner" });
+        await membershipAuditLog(
+          user,
+          workspace.id,
+          "invited",
+          { email: body.email },
+          { newRole: body.role || "owner" }
+        );
         return {
           token: token.token,
           invitationLink: `${whoamiUrl(req)}/accept?invite=${token.token}`,
@@ -142,15 +148,29 @@ const api: Api = {
         `Can't find workspace ${workspaceIdOrSlug}`
       );
       await verifyAccessWithRole(user, workspace.id, "manageUsers");
+      // Reject the no-target form. Without this guard, a malformed DELETE would
+      // otherwise emit a `member-removed` audit row (and account-activity
+      // alert email) for an action that touched nothing.
+      if (!email && !userId) {
+        throw new ApiError("Either `email` or `userId` is required", { status: 400 });
+      }
       let targetEmail = email;
+      let removedCount = 0;
       if (email) {
-        await db.prisma().invitationToken.deleteMany({ where: { email, workspaceId: workspace.id } });
+        const result = await db.prisma().invitationToken.deleteMany({ where: { email, workspaceId: workspace.id } });
+        removedCount = result.count;
       } else if (userId) {
         const target = await db.prisma().userProfile.findUnique({ where: { id: userId } });
         targetEmail = target?.email;
-        await db.prisma().workspaceAccess.deleteMany({ where: { userId, workspaceId: workspace.id } });
+        const result = await db.prisma().workspaceAccess.deleteMany({ where: { userId, workspaceId: workspace.id } });
+        removedCount = result.count;
       }
-      await membershipAuditLog(user, workspace.id, "removed", { userId, email: targetEmail });
+      // Only audit when something was actually removed — prevents a flood of
+      // false `member-removed` security events from idempotent retries or
+      // stale invitation cancels.
+      if (removedCount > 0) {
+        await membershipAuditLog(user, workspace.id, "removed", { userId, email: targetEmail });
+      }
       return { success: true };
     },
   },

@@ -13,6 +13,7 @@ import { initTelemetry, withProductAnalytics } from "../../../../lib/server/tele
 import { isEqual } from "juava";
 import { randomUUID } from "crypto";
 import { validateSlug, validateWorkspaceName } from "../validate";
+import { workspaceAuditLog } from "../../../../lib/server/audit-log";
 
 const log = getServerLog();
 
@@ -174,10 +175,20 @@ export const api: Api = {
         throw new ApiError(`Invalid workspace slug: ${slugResult.reason}`, { status: 400 });
       }
 
+      const prev = await db.prisma().workspace.findUnique({ where: { id: workspaceIdOrSlug } });
       const workspace = await db.prisma().workspace.update({
         where: { id: workspaceIdOrSlug },
         data: { name: body.name.trim(), slug: body.slug.trim() },
       });
+      // Skip the audit row when nothing observable changed (no-op save) so
+      // owners aren't spammed with empty workspace-updated entries.
+      if (prev && (prev.name !== workspace.name || prev.slug !== workspace.slug)) {
+        await workspaceAuditLog(user, workspace.id, "updated", {
+          prevVersion: { name: prev.name, slug: prev.slug },
+          newVersion: { name: workspace.name, slug: workspace.slug },
+          workspaceName: workspace.name,
+        });
+      }
       if (onboarding === "true") {
         await withProductAnalytics(callback => callback.track("workspace_onboarded"), { user, workspace, req });
       }

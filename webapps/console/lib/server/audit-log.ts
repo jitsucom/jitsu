@@ -59,6 +59,83 @@ function loadConfigObjects(): typeof import("../schema/config-objects") {
   return configObjectsModule!;
 }
 
+function isPlainObject(v: any): v is Record<string, any> {
+  return v !== null && typeof v === "object" && !Array.isArray(v);
+}
+
+function jsonEqual(a: any, b: any): boolean {
+  if (a === b) return true;
+  if (a == null || b == null) return false;
+  if (typeof a !== "object" || typeof b !== "object") return false;
+  try {
+    return JSON.stringify(a) === JSON.stringify(b);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Walk raw prev/next and the masked counterparts side-by-side. Emit a path for
+ * every leaf where raw values differ but masked values collapse to equal
+ * (either both MASKED or both stripped/undefined). These are secret rotations
+ * that the read-time differ would otherwise hide entirely — the masked-vs-
+ * masked leaf branch is unreachable when the surrounding diff happens after
+ * masking. We persist the list at write time (when raw is still available)
+ * and recover `secret-changed` entries on read.
+ */
+function findSecretRotations(rawPrev: any, rawNext: any, maskedPrev: any, maskedNext: any, base = ""): string[] {
+  if (jsonEqual(rawPrev, rawNext)) return [];
+
+  if (isPlainObject(rawPrev) || isPlainObject(rawNext)) {
+    const keys = new Set<string>([
+      ...(isPlainObject(rawPrev) ? Object.keys(rawPrev) : []),
+      ...(isPlainObject(rawNext) ? Object.keys(rawNext) : []),
+    ]);
+    const out: string[] = [];
+    for (const k of keys) {
+      const path = base ? `${base}.${k}` : k;
+      out.push(
+        ...findSecretRotations(
+          isPlainObject(rawPrev) ? rawPrev[k] : undefined,
+          isPlainObject(rawNext) ? rawNext[k] : undefined,
+          isPlainObject(maskedPrev) ? maskedPrev[k] : undefined,
+          isPlainObject(maskedNext) ? maskedNext[k] : undefined,
+          path
+        )
+      );
+    }
+    return out;
+  }
+
+  if (Array.isArray(rawPrev) || Array.isArray(rawNext)) {
+    const prevArr = Array.isArray(rawPrev) ? rawPrev : [];
+    const nextArr = Array.isArray(rawNext) ? rawNext : [];
+    const len = Math.max(prevArr.length, nextArr.length);
+    const out: string[] = [];
+    for (let i = 0; i < len; i++) {
+      out.push(
+        ...findSecretRotations(
+          prevArr[i],
+          nextArr[i],
+          Array.isArray(maskedPrev) ? maskedPrev[i] : undefined,
+          Array.isArray(maskedNext) ? maskedNext[i] : undefined,
+          `${base}[${i}]`
+        )
+      );
+    }
+    return out;
+  }
+
+  // Leaf: raw differs. If masked sides also differ, the read-time differ will
+  // already render this as `changed` — nothing to do. If they collapsed to
+  // equal (or both undefined because outputFilter stripped the path), we
+  // record the path so the reader can emit `secret-changed`.
+  if (jsonEqual(maskedPrev, maskedNext)) {
+    return [base || "(root)"];
+  }
+  return [];
+}
+
 async function redactForAudit(type: string, obj: any): Promise<any> {
   if (obj == null || typeof obj !== "object") return obj;
   let masked = obj;
@@ -72,7 +149,10 @@ async function redactForAudit(type: string, obj: any): Promise<any> {
       masked = await getConfigObjectType(type).outputFilter(obj);
     }
   } catch (err) {
-    log.atWarn().withCause(err as Error).log(`outputFilter failed for type=${type}; falling back to generic scrub only`);
+    log
+      .atWarn()
+      .withCause(err as Error)
+      .log(`outputFilter failed for type=${type}; falling back to generic scrub only`);
     masked = obj;
   }
   // Belt and suspenders: also run the name-based scrubber. For unregistered types
@@ -106,6 +186,14 @@ export async function configObjectAuditLog(
       redactForAudit(type, changes.prevVersion),
       redactForAudit(type, changes.newVersion),
     ]);
+    // Identify secret rotations BEFORE we drop the raw values. Without this,
+    // a rotation that doesn't change anything else becomes invisible (masked
+    // prev === masked next → empty diff). We only do this for updates where
+    // both sides are present.
+    const rotatedSecrets =
+      op === "update" && changes.prevVersion != null && changes.newVersion != null
+        ? findSecretRotations(changes.prevVersion, changes.newVersion, prevVersion, newVersion)
+        : [];
     await db.prisma().auditLog.create({
       data: {
         type: `config-object-${op}`,
@@ -120,6 +208,7 @@ export async function configObjectAuditLog(
           objectName,
           prevVersion,
           newVersion,
+          ...(rotatedSecrets.length > 0 ? { _rotatedSecrets: rotatedSecrets } : {}),
         },
       },
     });

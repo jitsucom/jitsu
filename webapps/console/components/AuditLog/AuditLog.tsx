@@ -181,12 +181,7 @@ export type AuditLogProps = {
   description?: React.ReactNode;
 };
 
-export const AuditLog: React.FC<AuditLogProps> = ({
-  workspaceId,
-  workspaceSlug,
-  title = "Audit Log",
-  description,
-}) => {
+export const AuditLog: React.FC<AuditLogProps> = ({ workspaceId, workspaceSlug, title = "Audit Log", description }) => {
   const adminView = !workspaceId;
   const [types, setTypes] = useState<string[]>([]);
   const [severities, setSeverities] = useState<string[]>([]);
@@ -329,9 +324,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({
           }}
         />
       </div>
-      {query.isError ? (
-        <Alert type="error" message={`Failed to load audit log: ${query.error?.message}`} />
-      ) : null}
+      {query.isError ? <Alert type="error" message={`Failed to load audit log: ${query.error?.message}`} /> : null}
       <Table
         rowKey="id"
         className="w-full"

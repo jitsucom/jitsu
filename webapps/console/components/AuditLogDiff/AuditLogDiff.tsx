@@ -119,7 +119,8 @@ const ChangeCell: React.FC<{ entry: DiffEntry; truncateAt: number }> = ({ entry,
 export const AuditLogDiff: React.FC<AuditLogDiffProps> = ({ diff, title = "Changes", truncateAt = 100 }) => {
   if (!diff || diff.length === 0) return null;
   const realCount = diff.filter(d => d.kind !== "noop").length;
-  const summary = realCount === 0 ? "no field-level changes" : `${realCount} ${realCount === 1 ? "field" : "fields"} changed`;
+  const summary =
+    realCount === 0 ? "no field-level changes" : `${realCount} ${realCount === 1 ? "field" : "fields"} changed`;
   return (
     <div className="w-full rounded-md border border-neutral-200 bg-white overflow-hidden">
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-neutral-200">
