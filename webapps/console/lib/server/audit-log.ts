@@ -126,6 +126,39 @@ export async function configObjectAuditLog(
   }
 }
 
+// `/api/fb-auth/create-session` is called whenever the Firebase client
+// mints or refreshes a session cookie — every time the short-lived ID
+// token rotates, every reload after a long idle, etc. — not just on
+// actual sign-in. Without throttling that floods the audit log with
+// dozens of "Logged in" rows per user per day. Suppress duplicate
+// auth-login rows for the same (userId, authType) inside this window.
+//
+// Note: this throttle is per-process. With multiple replicas a duplicate
+// can still slip through, but the goal is noise reduction, not exact
+// dedup.
+const LOGIN_DEDUPE_MS = 30 * 60 * 1000;
+const loginThrottle = new Map<string, number>();
+
+function shouldLogLogin(userId: string, authType: string): boolean {
+  const key = `${userId}:${authType}`;
+  const now = Date.now();
+  const last = loginThrottle.get(key);
+  if (last !== undefined && now - last < LOGIN_DEDUPE_MS) {
+    return false;
+  }
+  loginThrottle.set(key, now);
+  // Bounded eviction so the map can't grow without limit on a long-lived
+  // process. Evict entries older than the dedupe window once we exceed a
+  // soft cap.
+  if (loginThrottle.size > 5000) {
+    const cutoff = now - LOGIN_DEDUPE_MS;
+    for (const [k, v] of loginThrottle) {
+      if (v < cutoff) loginThrottle.delete(k);
+    }
+  }
+  return true;
+}
+
 export async function authAuditLog(
   user: Pick<SessionUser, "internalId" | "email" | "name">,
   op: AuthOp,
@@ -133,6 +166,9 @@ export async function authAuditLog(
   workspaceId?: string
 ): Promise<void> {
   if (!enableAuditLog) {
+    return;
+  }
+  if (op === "login" && !shouldLogLogin(user.internalId, authType)) {
     return;
   }
   try {
