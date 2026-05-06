@@ -47,7 +47,12 @@ export const api: Api = {
           internalId = profile?.id;
         }
         if (internalId) {
-          await authAuditLog({ internalId, email, name: decoded.name || email }, "login", "firebase");
+          // Pass `auth_time` so the helper can suppress duplicates for the
+          // same sign-in across replicas. Firebase rotates the ID token
+          // periodically and on every reload after idle, but `auth_time`
+          // only changes when the user actually re-authenticates.
+          const authTime = decoded.auth_time ? new Date(decoded.auth_time * 1000) : undefined;
+          await authAuditLog({ internalId, email, name: decoded.name || email }, "login", "firebase", { authTime });
         }
       } catch (err) {
         log.atError().withCause(err as Error).log("Failed to record firebase login audit event");

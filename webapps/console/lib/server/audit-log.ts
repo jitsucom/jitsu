@@ -126,57 +126,59 @@ export async function configObjectAuditLog(
   }
 }
 
-// `/api/fb-auth/create-session` is called whenever the Firebase client
-// mints or refreshes a session cookie — every time the short-lived ID
-// token rotates, every reload after a long idle, etc. — not just on
-// actual sign-in. Without throttling that floods the audit log with
-// dozens of "Logged in" rows per user per day. Suppress duplicate
-// auth-login rows for the same (userId, authType) inside this window.
-//
-// Note: this throttle is per-process. With multiple replicas a duplicate
-// can still slip through, but the goal is noise reduction, not exact
-// dedup.
-const LOGIN_DEDUPE_MS = 30 * 60 * 1000;
-const loginThrottle = new Map<string, number>();
-
-function shouldLogLogin(userId: string, authType: string): boolean {
-  const key = `${userId}:${authType}`;
-  const now = Date.now();
-  const last = loginThrottle.get(key);
-  if (last !== undefined && now - last < LOGIN_DEDUPE_MS) {
-    return false;
-  }
-  loginThrottle.set(key, now);
-  // Bounded eviction so the map can't grow without limit on a long-lived
-  // process. Evict entries older than the dedupe window once we exceed a
-  // soft cap.
-  if (loginThrottle.size > 5000) {
-    const cutoff = now - LOGIN_DEDUPE_MS;
-    for (const [k, v] of loginThrottle) {
-      if (v < cutoff) loginThrottle.delete(k);
-    }
-  }
-  return true;
-}
+export type AuthAuditOpts = {
+  workspaceId?: string;
+  /**
+   * The actual sign-in moment as reported by the auth provider. Firebase
+   * exposes it as the `auth_time` claim on the ID token; OIDC providers
+   * usually have an analogous claim. When provided, the helper checks
+   * whether an `auth-login` row already exists for this user with
+   * `timestamp >= authTime` and skips the write if so.
+   *
+   * The motivation: `/api/fb-auth/create-session` is hit on every
+   * Firebase ID-token rotation, not just on actual sign-in. Without
+   * dedup, that floods the audit log with duplicate "Logged in" rows.
+   * Token refreshes carry the original `auth_time`, so the check
+   * naturally distinguishes "same session" from "user just re-authed".
+   */
+  authTime?: Date;
+};
 
 export async function authAuditLog(
   user: Pick<SessionUser, "internalId" | "email" | "name">,
   op: AuthOp,
   authType: string,
-  workspaceId?: string
+  opts: AuthAuditOpts = {}
 ): Promise<void> {
   if (!enableAuditLog) {
     return;
   }
-  if (op === "login" && !shouldLogLogin(user.internalId, authType)) {
-    return;
+  // Replicas-safe dedup: if any auth-login row for this user already
+  // covers the same (or newer) auth event, this call is a duplicate
+  // (most commonly an ID-token refresh on a still-active session).
+  if (op === "login" && opts.authTime) {
+    try {
+      const recent = await db.prisma().auditLog.findFirst({
+        where: {
+          type: "auth-login",
+          userId: user.internalId,
+          timestamp: { gte: opts.authTime },
+        },
+        select: { id: true },
+      });
+      if (recent) return;
+    } catch (err) {
+      // If the dedup query itself fails, fall through and write the row
+      // — duplicate noise is preferable to a missing audit event.
+      log.atWarn().withCause(err as Error).log("auth-login dedup query failed");
+    }
   }
   try {
     await db.prisma().auditLog.create({
       data: {
         type: `auth-${op}`,
         severity: "info",
-        workspaceId: workspaceId ?? null,
+        workspaceId: opts.workspaceId ?? null,
         userId: user.internalId,
         authType,
         changes: {
