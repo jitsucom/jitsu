@@ -3,6 +3,10 @@ import { z } from "zod";
 import { db } from "../../../lib/server/db";
 import { Prisma } from "@prisma/client";
 
+// Same MASKED_SECRET sentinel that audit-log.ts and the destination editor use.
+// Inlined to avoid pulling lib/schema/destinations through this read API path.
+const MASKED_SECRET = "__MASKED_BY_JITSU__";
+
 // Allow-list of fields always safe to return in `changes`.
 const ALWAYS_SAFE_FIELDS = new Set([
   "objectType",
@@ -17,26 +21,73 @@ const ALWAYS_SAFE_FIELDS = new Set([
   "workspaceName",
 ]);
 
-// `prevVersion` / `newVersion` carry raw config objects. They are only safe to
-// expose if the row was written by code that masked secrets — indicated by the
-// `_redacted: true` marker. Older rows (pre-fix) lack the marker and are
-// withheld even if they happen to contain non-sensitive data.
-const REDACTED_ONLY_FIELDS = new Set(["prevVersion", "newVersion"]);
+type DiffEntry = { field: string; description: string };
 
-function sanitizeChanges(raw: any): Record<string, any> | null {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-    return null;
+function isPlainObject(v: any): v is Record<string, any> {
+  return v !== null && typeof v === "object" && !Array.isArray(v);
+}
+
+function shallowEqual(a: any, b: any): boolean {
+  if (a === b) return true;
+  if (a == null || b == null) return false;
+  if (typeof a !== "object" || typeof b !== "object") return false;
+  try {
+    return JSON.stringify(a) === JSON.stringify(b);
+  } catch {
+    return false;
   }
-  const isRedacted = (raw as any)._redacted === true;
-  const out: Record<string, any> = {};
-  for (const [k, v] of Object.entries(raw)) {
-    if (ALWAYS_SAFE_FIELDS.has(k)) {
-      out[k] = v;
-    } else if (isRedacted && REDACTED_ONLY_FIELDS.has(k)) {
-      out[k] = v;
+}
+
+function fmtValue(v: any): string {
+  if (v === undefined) return "undefined";
+  if (v === null) return "null";
+  if (typeof v === "string") return v.length > 80 ? `"${v.slice(0, 80)}…"` : `"${v}"`;
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  try {
+    const s = JSON.stringify(v);
+    return s.length > 80 ? `${s.slice(0, 80)}…` : s;
+  } catch {
+    return String(v);
+  }
+}
+
+/**
+ * Flatten a (prev, next) pair into a list of leaf-level changes. Recurses
+ * through plain objects only — arrays and primitives are compared as atomic
+ * values. Masked secrets are surfaced as "changed (secret value)" without
+ * leaking the masked sentinel.
+ */
+function flattenDiff(prev: any, next: any, base = ""): DiffEntry[] {
+  if (shallowEqual(prev, next)) return [];
+
+  if (prev === undefined) {
+    return [{ field: base || "(root)", description: `added: ${fmtValue(next)}` }];
+  }
+  if (next === undefined) {
+    return [{ field: base || "(root)", description: `removed (was ${fmtValue(prev)})` }];
+  }
+
+  if (isPlainObject(prev) && isPlainObject(next)) {
+    const keys = Array.from(new Set([...Object.keys(prev), ...Object.keys(next)]));
+    const result: DiffEntry[] = [];
+    for (const k of keys) {
+      const path = base ? `${base}.${k}` : k;
+      result.push(...flattenDiff(prev[k], next[k], path));
     }
+    return result;
   }
-  return Object.keys(out).length > 0 ? out : null;
+
+  // Both sides are scalars/arrays and not equal — atomic change.
+  if (prev === MASKED_SECRET && next === MASKED_SECRET) {
+    return [{ field: base || "(root)", description: "changed (secret value)" }];
+  }
+  if (prev === MASKED_SECRET) {
+    return [{ field: base || "(root)", description: `changed: (secret) → ${fmtValue(next)}` }];
+  }
+  if (next === MASKED_SECRET) {
+    return [{ field: base || "(root)", description: `changed: ${fmtValue(prev)} → (secret)` }];
+  }
+  return [{ field: base || "(root)", description: `changed: ${fmtValue(prev)} → ${fmtValue(next)}` }];
 }
 
 const ItemSchema = z.object({
@@ -49,6 +100,14 @@ const ItemSchema = z.object({
   objectId: z.string().nullable().optional(),
   authType: z.string().nullable().optional(),
   changes: z.any().nullable().optional(),
+  diff: z
+    .array(
+      z.object({
+        field: z.string(),
+        description: z.string(),
+      })
+    )
+    .optional(),
   actor: z
     .object({
       id: z.string(),
@@ -58,6 +117,19 @@ const ItemSchema = z.object({
     .nullable()
     .optional(),
 });
+
+function sanitizeChanges(raw: any): Record<string, any> | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return null;
+  }
+  const out: Record<string, any> = {};
+  for (const [k, v] of Object.entries(raw)) {
+    if (ALWAYS_SAFE_FIELDS.has(k)) {
+      out[k] = v;
+    }
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
 
 export default createRoute()
   .GET({
@@ -77,7 +149,6 @@ export default createRoute()
     }),
   })
   .handler(async ({ user, query }) => {
-    // Resolve slug -> id, then enforce owner-only access.
     let workspaceId = query.workspaceId;
     const ws = await db.prisma().workspace.findFirst({
       where: { OR: [{ id: workspaceId }, { slug: workspaceId }] },
@@ -105,7 +176,6 @@ export default createRoute()
       }
     }
 
-    // Cursor format: `${timestamp_iso}|${id}`. Items returned are strictly older than the cursor.
     if (query.cursor) {
       const [tsRaw, idRaw] = query.cursor.split("|");
       const ts = new Date(tsRaw);
@@ -143,19 +213,66 @@ export default createRoute()
       : [];
     const actorById = new Map(actors.map(a => [a.id, a]));
 
+    // Enrich link (connection) display names: a link has no `name` of its own,
+    // so we synthesize "<from.name> → <to.name>" from the related entities.
+    const linkIds = Array.from(
+      new Set(
+        page
+          .filter(r => r.type.startsWith("config-object-") && (r.changes as any)?.objectType === "link" && r.objectId)
+          .map(r => r.objectId as string)
+      )
+    );
+    const links = linkIds.length
+      ? await db.prisma().configurationObjectLink.findMany({
+          where: { id: { in: linkIds } },
+          include: { from: true, to: true },
+        })
+      : [];
+    const linkNameById = new Map<string, string>();
+    for (const l of links) {
+      const fromName = ((l.from?.config as any)?.name as string) || l.fromId;
+      const toName = ((l.to?.config as any)?.name as string) || l.toId;
+      linkNameById.set(l.id, `${fromName} → ${toName}`);
+    }
+
     return {
-      items: page.map(r => ({
-        id: r.id,
-        timestamp: r.timestamp.toISOString(),
-        type: r.type,
-        severity: r.severity ?? null,
-        workspaceId: r.workspaceId ?? null,
-        userId: r.userId ?? null,
-        objectId: r.objectId ?? null,
-        authType: r.authType ?? null,
-        changes: sanitizeChanges(r.changes),
-        actor: r.userId ? actorById.get(r.userId) ?? null : null,
-      })),
+      items: page.map(r => {
+        const rawChanges = (r.changes as any) || {};
+        const isRedacted = rawChanges._redacted === true;
+        const safeChanges = sanitizeChanges(rawChanges);
+
+        // For links, replace the stored objectName (which is empty) with the
+        // synthesized "from → to" display name when available.
+        if (
+          safeChanges &&
+          safeChanges.objectType === "link" &&
+          r.objectId &&
+          linkNameById.has(r.objectId)
+        ) {
+          safeChanges.objectName = linkNameById.get(r.objectId);
+        }
+
+        // Compute the diff on the fly only for redacted rows. Pre-fix rows are
+        // not exposed: we never had a guarantee their secrets were masked.
+        let diff: DiffEntry[] | undefined;
+        if (isRedacted && r.type.startsWith("config-object-")) {
+          diff = flattenDiff(rawChanges.prevVersion, rawChanges.newVersion);
+        }
+
+        return {
+          id: r.id,
+          timestamp: r.timestamp.toISOString(),
+          type: r.type,
+          severity: r.severity ?? null,
+          workspaceId: r.workspaceId ?? null,
+          userId: r.userId ?? null,
+          objectId: r.objectId ?? null,
+          authType: r.authType ?? null,
+          changes: safeChanges,
+          diff,
+          actor: r.userId ? actorById.get(r.userId) ?? null : null,
+        };
+      }),
       nextCursor,
     };
   })

@@ -14,6 +14,8 @@ dayjs.extend(relativeTime);
 
 const { RangePicker } = DatePicker;
 
+type DiffEntry = { field: string; description: string };
+
 type AuditLogItem = {
   id: string;
   timestamp: string;
@@ -24,6 +26,7 @@ type AuditLogItem = {
   objectId?: string | null;
   authType?: string | null;
   changes?: any;
+  diff?: DiffEntry[];
   actor?: { id: string; email?: string | null; name?: string | null } | null;
 };
 
@@ -104,9 +107,9 @@ const EventCell: React.FC<{ item: AuditLogItem; workspaceSlug: string }> = ({ it
     const name = (c.objectName as string | undefined) || item.objectId || "";
     const isDelete = item.type === "config-object-delete";
     const href = isDelete ? null : entityHref(objType, item.objectId);
-    return (
-      <span>
-        {verb} {typeLabel}{" "}
+    // Show the entity's display name; ID lives in the tooltip for support / debugging.
+    const nameNode = (
+      <Tooltip title={item.objectId || undefined}>
         {href ? (
           <Link href={`/${workspaceSlug}${href}`} className="text-primary hover:underline">
             {name}
@@ -114,6 +117,11 @@ const EventCell: React.FC<{ item: AuditLogItem; workspaceSlug: string }> = ({ it
         ) : (
           <span className="font-medium">{name}</span>
         )}
+      </Tooltip>
+    );
+    return (
+      <span>
+        {verb} {typeLabel} {nameNode}
       </span>
     );
   }
@@ -197,7 +205,10 @@ const AuditLogTable: React.FC = () => {
       dataIndex: "timestamp",
       key: "timestamp",
       render: (ts: string) => (
-        <Tooltip title={dayjs(ts).utc().format("YYYY-MM-DD HH:mm:ss [UTC]")}>{dayjs(ts).fromNow()}</Tooltip>
+        <div className="flex flex-col">
+          <span className="font-mono text-xs">{dayjs(ts).utc().format("YYYY-MM-DD HH:mm:ss [UTC]")}</span>
+          <span className="text-text-light text-xs">{dayjs(ts).fromNow()}</span>
+        </div>
       ),
     },
     {
@@ -274,29 +285,30 @@ const AuditLogTable: React.FC = () => {
         loading={query.isLoading}
         pagination={false}
         expandable={{
-          rowExpandable: (item: AuditLogItem) =>
-            item.type.startsWith("config-object-") &&
-            !!item.changes &&
-            (item.changes.prevVersion !== undefined || item.changes.newVersion !== undefined),
-          expandedRowRender: (item: AuditLogItem) => {
-            const c = item.changes || {};
-            return (
-              <div className="grid grid-cols-2 gap-4 text-xs">
-                <div>
-                  <div className="font-semibold mb-1">Before</div>
-                  <pre style={{ margin: 0, background: "#f9fafb", padding: 8, overflowX: "auto", maxHeight: 320 }}>
-                    {c.prevVersion ? JSON.stringify(c.prevVersion, null, 2) : "—"}
-                  </pre>
-                </div>
-                <div>
-                  <div className="font-semibold mb-1">After</div>
-                  <pre style={{ margin: 0, background: "#f9fafb", padding: 8, overflowX: "auto", maxHeight: 320 }}>
-                    {c.newVersion ? JSON.stringify(c.newVersion, null, 2) : "—"}
-                  </pre>
-                </div>
-              </div>
-            );
-          },
+          rowExpandable: (item: AuditLogItem) => Array.isArray(item.diff) && item.diff.length > 0,
+          expandedRowRender: (item: AuditLogItem) => (
+            <Table
+              size="small"
+              rowKey={(d: DiffEntry) => d.field}
+              pagination={false}
+              dataSource={item.diff}
+              columns={[
+                {
+                  title: "Field",
+                  dataIndex: "field",
+                  key: "field",
+                  width: "35%",
+                  render: (f: string) => <span className="font-mono text-xs">{f}</span>,
+                },
+                {
+                  title: "Change",
+                  dataIndex: "description",
+                  key: "description",
+                  render: (d: string) => <span className="text-xs">{d}</span>,
+                },
+              ]}
+            />
+          ),
         }}
       />
       <div className="flex justify-center">
