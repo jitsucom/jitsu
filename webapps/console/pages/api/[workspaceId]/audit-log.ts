@@ -12,7 +12,39 @@ const MASKED_SECRET = "__MASKED_BY_JITSU__";
 // before the write-side scrubber existed) don't leak credentials through the
 // diff column.
 const SENSITIVE_KEY_PATTERN =
-  /^(.*(password|passwd|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|id[_-]?token|private[_-]?key|client[_-]?secret|webhook[_-]?secret|ssh[_-]?key|ssl[_-]?key|signing[_-]?key|encryption[_-]?key|auth(orization)?)|token)$/i;
+  /^(.*(password|passwd|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|id[_-]?token|private[_-]?key|client[_-]?secret|webhook[_-]?secret|auth(orization)?)|token)$/i;
+
+// Lazy require so this leaf API route doesn't pull lib/schema/config-objects
+// at module-load time (config-objects → domain-check → lib/api.ts cycles).
+let configObjectsModule: typeof import("../../../lib/schema/config-objects") | null = null;
+function loadConfigObjects(): typeof import("../../../lib/schema/config-objects") {
+  if (!configObjectsModule) {
+    configObjectsModule = require("../../../lib/schema/config-objects");
+  }
+  return configObjectsModule!;
+}
+
+/**
+ * For known object types, run the same `outputFilter` the editor UI sees —
+ * destinations and services strip secrets at schema-marked paths
+ * (credentialsUi[*].password / airbyte_secret), streams strip key
+ * plaintext+hash. This is the canonical mask for legacy audit rows that
+ * weren't redacted at write time.
+ */
+async function applyOutputFilter(type: string, obj: any): Promise<any> {
+  if (obj == null || typeof obj !== "object") return obj;
+  try {
+    const cm = loadConfigObjects();
+    if (cm.getAllConfigObjectTypeNames().includes(type)) {
+      return await cm.getConfigObjectType(type).outputFilter(obj);
+    }
+  } catch {
+    // outputFilter can throw on partial data (e.g. destination without
+    // destinationType). Fall back to the raw object — genericScrub still runs
+    // afterward as a defense-in-depth pass.
+  }
+  return obj;
+}
 
 function genericScrub(input: any, depth = 0): any {
   if (depth > 8 || input == null) return input;
@@ -47,7 +79,18 @@ const ALWAYS_SAFE_FIELDS = new Set([
   "workspaceName",
 ]);
 
-type DiffEntry = { field: string; description: string };
+type DiffEntry = {
+  field: string;
+  // "noop" appears when an audit row was written but prev/next are byte-equal
+  // after stripping identity fields (e.g. user clicked Save without editing).
+  kind: "added" | "removed" | "changed" | "secret-changed" | "noop";
+  prev?: string;
+  next?: string;
+};
+
+function fmtMaybeSecret(v: any): string {
+  return v === MASKED_SECRET ? "(secret)" : fmtValue(v);
+}
 
 function isPlainObject(v: any): v is Record<string, any> {
   return v !== null && typeof v === "object" && !Array.isArray(v);
@@ -147,23 +190,17 @@ function flattenDiff(prev: any, next: any, base = ""): DiffEntry[] {
   }
 
   // Leaf rows: scalars and arrays.
-  const label = base || "(root)";
+  const field = base || "(root)";
   if (prev === undefined) {
-    return [{ field: label, description: `added: ${fmtValue(next)}` }];
+    return [{ field, kind: "added", next: fmtValue(next) }];
   }
   if (next === undefined) {
-    return [{ field: label, description: `removed (was ${fmtValue(prev)})` }];
+    return [{ field, kind: "removed", prev: fmtValue(prev) }];
   }
   if (prev === MASKED_SECRET && next === MASKED_SECRET) {
-    return [{ field: label, description: "changed (secret value)" }];
+    return [{ field, kind: "secret-changed" }];
   }
-  if (prev === MASKED_SECRET) {
-    return [{ field: label, description: `changed: (secret) → ${fmtValue(next)}` }];
-  }
-  if (next === MASKED_SECRET) {
-    return [{ field: label, description: `changed: ${fmtValue(prev)} → (secret)` }];
-  }
-  return [{ field: label, description: `changed: ${fmtValue(prev)} → ${fmtValue(next)}` }];
+  return [{ field, kind: "changed", prev: fmtMaybeSecret(prev), next: fmtMaybeSecret(next) }];
 }
 
 const ItemSchema = z.object({
@@ -180,7 +217,9 @@ const ItemSchema = z.object({
     .array(
       z.object({
         field: z.string(),
-        description: z.string(),
+        kind: z.enum(["added", "removed", "changed", "secret-changed", "noop"]),
+        prev: z.string().optional(),
+        next: z.string().optional(),
       })
     )
     .optional(),
@@ -311,8 +350,8 @@ export default createRoute()
       linkNameById.set(l.id, `${fromName} → ${toName}`);
     }
 
-    return {
-      items: page.map(r => {
+    const items = await Promise.all(
+      page.map(async r => {
         const rawChanges = (r.changes as any) || {};
         const isRedacted = rawChanges._redacted === true;
         const safeChanges = sanitizeChanges(rawChanges) || ({} as Record<string, any>);
@@ -338,19 +377,34 @@ export default createRoute()
 
         const finalChanges = Object.keys(safeChanges).length > 0 ? safeChanges : null;
 
-        // Compute the diff on the fly. For redacted rows the values were already
-        // masked at write time. For older rows we re-apply the name-based
-        // scrubber on the way out so credentials never reach the client. In
-        // both cases we strip identity / metadata keys (id, workspaceId, type,
-        // cloneId) so they don't appear as noise in the diff.
+        // Compute the diff. For redacted rows the values were already masked
+        // at write time. For legacy rows we run the per-type outputFilter
+        // (the same one the editor UI uses — it knows about
+        // credentialsUi[*].password and airbyte_secret), then a generic
+        // name-based scrubber as defense in depth. Identity / metadata keys
+        // (id, workspaceId, …) are stripped on both sides.
         let diff: DiffEntry[] | undefined;
         if (r.type.startsWith("config-object-")) {
-          const prevRaw = isRedacted ? rawChanges.prevVersion : genericScrub(rawChanges.prevVersion);
-          const nextRaw = isRedacted ? rawChanges.newVersion : genericScrub(rawChanges.newVersion);
-          const prev = prevRaw !== undefined ? stripDiffNoise(prevRaw) : undefined;
-          const next = nextRaw !== undefined ? stripDiffNoise(nextRaw) : undefined;
+          const objectType = (rawChanges.objectType as string) || "";
+          let prevRaw = rawChanges.prevVersion;
+          let nextRaw = rawChanges.newVersion;
+          if (!isRedacted && objectType) {
+            [prevRaw, nextRaw] = await Promise.all([
+              applyOutputFilter(objectType, prevRaw),
+              applyOutputFilter(objectType, nextRaw),
+            ]);
+          }
+          const prev = prevRaw !== undefined ? stripDiffNoise(genericScrub(prevRaw)) : undefined;
+          const next = nextRaw !== undefined ? stripDiffNoise(genericScrub(nextRaw)) : undefined;
           if (prev !== undefined || next !== undefined) {
             diff = flattenDiff(prev, next);
+          }
+          // The audit-log helper records every save, even when the user clicked
+          // through without editing anything. Surface that instead of just
+          // hiding the row, so it's still expandable and the user understands
+          // why nothing changed.
+          if (diff && diff.length === 0 && r.type === "config-object-update") {
+            diff = [{ field: "(none)", kind: "noop" }];
           }
         }
 
@@ -367,8 +421,9 @@ export default createRoute()
           diff,
           actor: r.userId ? actorById.get(r.userId) ?? null : null,
         };
-      }),
-      nextCursor,
-    };
+      })
+    );
+
+    return { items, nextCursor };
   })
   .toNextApiHandler();

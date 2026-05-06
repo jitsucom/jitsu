@@ -28,7 +28,7 @@ function pickObjectName(obj: any): string | undefined {
 // user tucked a credential into a free-form field. False positives are fine —
 // the audit log is for "what changed", not "what was the value".
 const SENSITIVE_KEY_PATTERN =
-  /^(.*(password|passwd|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|id[_-]?token|private[_-]?key|client[_-]?secret|webhook[_-]?secret|ssh[_-]?key|ssl[_-]?key|signing[_-]?key|encryption[_-]?key|auth(orization)?)|token)$/i;
+  /^(.*(password|passwd|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|id[_-]?token|private[_-]?key|client[_-]?secret|webhook[_-]?secret|auth(orization)?)|token)$/i;
 
 function genericScrub(input: any, depth = 0): any {
   if (depth > 8 || input == null) return input;

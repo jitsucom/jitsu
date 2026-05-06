@@ -15,7 +15,12 @@ dayjs.extend(relativeTime);
 
 const { RangePicker } = DatePicker;
 
-type DiffEntry = { field: string; description: string };
+type DiffEntry = {
+  field: string;
+  kind: "added" | "removed" | "changed" | "secret-changed" | "noop";
+  prev?: string;
+  next?: string;
+};
 
 type AuditLogItem = {
   id: string;
