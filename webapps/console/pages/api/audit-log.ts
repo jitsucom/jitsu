@@ -1,6 +1,6 @@
-import { createRoute, verifyAccessWithRole } from "../../../lib/api";
+import { createRoute, verifyAccessWithRole, verifyAdmin } from "../../lib/api";
 import { z } from "zod";
-import { db } from "../../../lib/server/db";
+import { db } from "../../lib/server/db";
 import { Prisma } from "@prisma/client";
 
 // Display sentinel used by genericScrub output. The canonical sentinel emitted
@@ -23,10 +23,10 @@ const SENSITIVE_KEY_PATTERN =
 
 // Lazy require so this leaf API route doesn't pull lib/schema/config-objects
 // at module-load time (config-objects → domain-check → lib/api.ts cycles).
-let configObjectsModule: typeof import("../../../lib/schema/config-objects") | null = null;
-function loadConfigObjects(): typeof import("../../../lib/schema/config-objects") {
+let configObjectsModule: typeof import("../../lib/schema/config-objects") | null = null;
+function loadConfigObjects(): typeof import("../../lib/schema/config-objects") {
   if (!configObjectsModule) {
-    configObjectsModule = require("../../../lib/schema/config-objects");
+    configObjectsModule = require("../../lib/schema/config-objects");
   }
   return configObjectsModule!;
 }
@@ -171,14 +171,10 @@ function stripDiffNoise(obj: any): any {
  * `undefined` — i.e. create / delete — so the diff lists each leaf field
  * individually rather than dumping the whole object as one row). Arrays and
  * primitives are compared as atomic values.
- *
- * Masked secrets are surfaced as "changed (secret value)" without leaking
- * the masked sentinel.
  */
 function flattenDiff(prev: any, next: any, base = ""): DiffEntry[] {
   if (shallowEqual(prev, next)) return [];
 
-  // Both sides are plain objects — recurse on the union of keys.
   if (isPlainObject(prev) && isPlainObject(next)) {
     const keys = Array.from(new Set([...Object.keys(prev), ...Object.keys(next)]));
     const result: DiffEntry[] = [];
@@ -189,9 +185,6 @@ function flattenDiff(prev: any, next: any, base = ""): DiffEntry[] {
     return result;
   }
 
-  // One side is missing and the other is a plain object — recurse so each
-  // leaf appears on its own row (`a.b.c → added: "..."` rather than a single
-  // `(root) → added: {…large blob…}`).
   if (prev === undefined && isPlainObject(next)) {
     const result: DiffEntry[] = [];
     for (const k of Object.keys(next)) {
@@ -209,7 +202,6 @@ function flattenDiff(prev: any, next: any, base = ""): DiffEntry[] {
     return result;
   }
 
-  // Leaf rows: scalars and arrays.
   const field = base || "(root)";
   if (prev === undefined) {
     return [{ field, kind: "added", next: fmtValue(next) }];
@@ -223,12 +215,19 @@ function flattenDiff(prev: any, next: any, base = ""): DiffEntry[] {
   return [{ field, kind: "changed", prev: fmtMaybeSecret(prev), next: fmtMaybeSecret(next) }];
 }
 
+const WorkspaceRefSchema = z.object({
+  id: z.string(),
+  name: z.string().nullable().optional(),
+  slug: z.string().nullable().optional(),
+});
+
 const ItemSchema = z.object({
   id: z.string(),
   timestamp: z.string(),
   type: z.string(),
   severity: z.string().nullable().optional(),
   workspaceId: z.string().nullable().optional(),
+  workspace: WorkspaceRefSchema.nullable().optional(),
   userId: z.string().nullable().optional(),
   objectId: z.string().nullable().optional(),
   authType: z.string().nullable().optional(),
@@ -257,7 +256,10 @@ export default createRoute()
   .GET({
     auth: true,
     query: z.object({
-      workspaceId: z.string(),
+      // Optional: when provided, scope to a single workspace and require
+      // `manageUsers` in it. When absent, scope is "all workspaces" and
+      // requires admin.
+      workspaceId: z.string().optional(),
       type: z.string().optional(),
       severity: z.string().optional(),
       from: z.string().optional(),
@@ -271,17 +273,22 @@ export default createRoute()
     }),
   })
   .handler(async ({ user, query }) => {
-    let workspaceId = query.workspaceId;
-    const ws = await db.prisma().workspace.findFirst({
-      where: { OR: [{ id: workspaceId }, { slug: workspaceId }] },
-    });
-    if (ws) {
-      workspaceId = ws.id;
-    }
-    await verifyAccessWithRole(user, workspaceId, "manageUsers");
-
     const limit = query.limit ?? 50;
-    const where: Prisma.AuditLogWhereInput = { workspaceId };
+    const where: Prisma.AuditLogWhereInput = {};
+
+    if (query.workspaceId) {
+      // Resolve slug → id, then enforce owner-only access.
+      const ws = await db.prisma().workspace.findFirst({
+        where: { OR: [{ id: query.workspaceId }, { slug: query.workspaceId }] },
+      });
+      const workspaceId = ws?.id ?? query.workspaceId;
+      await verifyAccessWithRole(user, workspaceId, "manageUsers");
+      where.workspaceId = workspaceId;
+    } else {
+      // Cross-workspace view — admin only.
+      await verifyAdmin(user);
+    }
+
     if (query.type) {
       where.type = { in: query.type.split(",").filter(Boolean) };
     }
@@ -335,6 +342,18 @@ export default createRoute()
       : [];
     const actorById = new Map(actors.map(a => [a.id, a]));
 
+    // Bulk-fetch workspace info for the page (admin view needs name + slug to
+    // render the Workspace column; the workspace-scoped view doesn't need it
+    // but the cost is a single small query).
+    const workspaceIds = Array.from(new Set(page.map(r => r.workspaceId).filter((v): v is string => !!v)));
+    const workspaces = workspaceIds.length
+      ? await db.prisma().workspace.findMany({
+          where: { id: { in: workspaceIds } },
+          select: { id: true, name: true, slug: true },
+        })
+      : [];
+    const workspaceById = new Map(workspaces.map(w => [w.id, w]));
+
     // Enrich link (connection) display names: a link has no `name` of its own,
     // so we synthesize "<from.name> → <to.name>" from the related entities.
     const linkIds = Array.from(
@@ -363,9 +382,6 @@ export default createRoute()
         const isRedacted = rawChanges._redacted === true;
         const summary = pickSummary(rawChanges) || ({} as Record<string, any>);
 
-        // Fall back to deriving objectName from prev/new versions when the row
-        // (typically a pre-fix row) didn't store it. The raw versions stay
-        // server-side; only the extracted name reaches the client.
         if (!summary.objectName && r.type.startsWith("config-object-")) {
           const fromNew = (rawChanges.newVersion as any)?.name;
           const fromPrev = (rawChanges.prevVersion as any)?.name;
@@ -375,21 +391,12 @@ export default createRoute()
             summary.objectName = fromPrev;
           }
         }
-
-        // For links, replace the (empty) objectName with the synthesized
-        // "from → to" display name when available.
         if (summary.objectType === "link" && r.objectId && linkNameById.has(r.objectId)) {
           summary.objectName = linkNameById.get(r.objectId);
         }
 
         const finalChanges = Object.keys(summary).length > 0 ? summary : null;
 
-        // Compute the diff. For redacted rows the values were already masked
-        // at write time. For legacy rows we run the per-type outputFilter
-        // (the same one the editor UI uses — it knows about
-        // credentialsUi[*].password and airbyte_secret), then a generic
-        // name-based scrubber as defense in depth. Identity / metadata keys
-        // (id, workspaceId, …) are stripped on both sides.
         let diff: DiffEntry[] | undefined;
         if (r.type.startsWith("config-object-")) {
           const objectType = (rawChanges.objectType as string) || "";
@@ -406,14 +413,12 @@ export default createRoute()
           if (prev !== undefined || next !== undefined) {
             diff = flattenDiff(prev, next);
           }
-          // The audit-log helper records every save, even when the user clicked
-          // through without editing anything. Surface that instead of just
-          // hiding the row, so it's still expandable and the user understands
-          // why nothing changed.
           if (diff && diff.length === 0 && r.type === "config-object-update") {
             diff = [{ field: "(none)", kind: "noop" }];
           }
         }
+
+        const ws = r.workspaceId ? workspaceById.get(r.workspaceId) : undefined;
 
         return {
           id: r.id,
@@ -421,6 +426,7 @@ export default createRoute()
           type: r.type,
           severity: r.severity ?? null,
           workspaceId: r.workspaceId ?? null,
+          workspace: ws ? { id: ws.id, name: ws.name, slug: ws.slug } : null,
           userId: r.userId ?? null,
           objectId: r.objectId ?? null,
           authType: r.authType ?? null,

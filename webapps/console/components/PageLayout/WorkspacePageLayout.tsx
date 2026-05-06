@@ -102,6 +102,16 @@ function WorkspacesMenu(props: { jitsuClassicAvailable: boolean }) {
 
         key: "admin-workspaces",
       },
+      {
+        label: (
+          <Link href="/admin/audit-log" className="flex items-center">
+            <ButtonLabel iconSize="small" icon={<ScrollText className="h-full w-full" />}>
+              Admin Audit Log
+            </ButtonLabel>
+          </Link>
+        ),
+        key: "admin-audit-log",
+      },
     ];
     if (appConfig.ee.available) {
       additionalMenuItems.push({
