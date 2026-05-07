@@ -20,6 +20,7 @@
     "manage": "tsx scripts/manage.ts",
     "clean": "rm -rf ./.next ./.turbo ./build",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "tool:hash": "tsx scripts/manage.ts password-hash",
     "db:code-gen": "prisma generate",
     "db:update-schema": "prisma db push",
@@ -100,7 +101,9 @@
     "tslib": "catalog:",
     "use-debounce": "^10.0.4",
     "zod": "^3.23.8",
-    "zod-to-json-schema": "^3.23.2"
+    "zod-to-json-schema": "^3.23.2",
+    "@asteasolutions/zod-to-openapi": "^7.3.0",
+    "openapi3-ts": "^4.5.0"
   },
   "devDependencies": {
     "@ant-design/icons": "^5.5.1",

@@ -28,9 +28,11 @@ const metricsAliases: Record<string, MetricsAlias> = {
   },
 };
 
-export default createRoute()
+export const route = createRoute()
   .GET({
     auth: true,
+    summary: "Get Prometheus-formatted workspace metrics",
+    tags: ["metrics"],
     query: z.object({
       workspaceId: z.string(),
     }),
@@ -118,5 +120,6 @@ export default createRoute()
     } finally {
       res.end();
     }
-  })
-  .toNextApiHandler();
+  });
+
+export default route.toNextApiHandler();

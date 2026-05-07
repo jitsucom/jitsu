@@ -1,5 +1,8 @@
+import "./openapi/setup";
 import { ZodType } from "zod";
 import { NextApiHandler, NextApiRequest, NextApiResponse } from "next";
+import { buildRouteFragment } from "./openapi/routeSpec";
+import { ExpandSpec, RouteOpenApiFragment, StoredMethodSpec } from "./openapi/types";
 import { assertDefined, checkHash, checkRawToken, getErrorMessage, requireDefined, tryJson } from "juava";
 import { getServerSession, Session } from "next-auth";
 import { nextAuthConfig } from "./nextauth.config";
@@ -543,20 +546,34 @@ export async function verifyAccessWithRole(
 }
 //new type-safe route builder
 
+export type RouteMethodSpec<
+  QueryZodType extends ZodType = never,
+  BodyZodType extends ZodType = never,
+  ResultZodType extends ZodType = any,
+  RequireAuth extends undefined | boolean = false
+> = {
+  description?: string;
+  summary?: string;
+  tags?: string[];
+  query?: QueryZodType;
+  body?: BodyZodType;
+  result?: ResultZodType;
+  auth?: RequireAuth;
+  streaming?: boolean;
+  bodyExample?: any;
+  resultExample?: any;
+  expand?: ExpandSpec;
+};
+
 export type RouteBuilderBase = {
   [K in HttpMethodType]: <
     QueryZodType extends ZodType = never,
     BodyZodType extends ZodType = never,
     ResultZodType extends ZodType = any,
     RequireAuth extends undefined | boolean = false
-  >(spec: {
-    description?: string;
-    query?: QueryZodType;
-    body?: BodyZodType;
-    result?: ResultZodType;
-    auth?: RequireAuth;
-    streaming?: boolean;
-  }) => {
+  >(
+    spec: RouteMethodSpec<QueryZodType, BodyZodType, ResultZodType, RequireAuth>
+  ) => {
     handler: (
       handler: (params: {
         query: QueryZodType extends ZodType<infer QueryType> ? QueryType : never;
@@ -569,20 +586,38 @@ export type RouteBuilderBase = {
   };
 };
 
-export type RouteBuilder = RouteBuilderBase & { toNextApiHandler(): NextApiHandler };
+export type RouteBuilder = RouteBuilderBase & {
+  toNextApiHandler(): NextApiHandler;
+  toOpenAPISpec(opts: { basePath: string }): RouteOpenApiFragment;
+};
 
 export function createRoute(): RouteBuilder {
   const legacyApiInstance: Api = {};
+  const specByMethod: Partial<Record<HttpMethodType, StoredMethodSpec>> = {};
   const builder: any = {};
   for (const method of httpMethods) {
-    builder[method] = ({ query, body, result, auth, streaming }) => {
+    builder[method] = (spec: RouteMethodSpec<any, any, any, any> & { description?: string }) => {
       return {
         handler: handler => {
           legacyApiInstance[method] = {
-            auth: !!auth,
-            types: { query, body, result },
+            auth: !!spec.auth,
+            types: { query: spec.query, body: spec.body, result: spec.result },
             handle: handler,
-            streaming: streaming,
+            streaming: spec.streaming,
+            description: spec.description,
+          };
+          specByMethod[method] = {
+            query: spec.query,
+            body: spec.body,
+            result: spec.result,
+            auth: !!spec.auth,
+            streaming: spec.streaming,
+            summary: spec.summary,
+            description: spec.description,
+            tags: spec.tags,
+            bodyExample: spec.bodyExample,
+            resultExample: spec.resultExample,
+            expand: spec.expand,
           };
           return builder;
         },
@@ -591,6 +626,9 @@ export function createRoute(): RouteBuilder {
   }
   builder.toNextApiHandler = () => {
     return nextJsApiHandler(legacyApiInstance);
+  };
+  builder.toOpenAPISpec = ({ basePath }: { basePath: string }) => {
+    return buildRouteFragment(basePath, specByMethod);
   };
 
   return builder as RouteBuilder;
