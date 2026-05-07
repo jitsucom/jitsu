@@ -330,16 +330,12 @@ export default createRoute()
       const ts = new Date(tsRaw);
       if (!isNaN(ts.getTime())) {
         const tsClause = (where.timestamp as Prisma.DateTimeFilter | undefined) ?? {};
-        if (idRaw) {
-          const cursorOr: Prisma.AuditLogWhereInput[] = [
-            { timestamp: { ...tsClause, lt: ts } },
-            { timestamp: { ...tsClause, equals: ts }, id: { lt: idRaw } },
-          ];
-          Object.assign(where, { OR: cursorOr });
-          delete (where as any).timestamp;
-        } else {
-          where.timestamp = { ...tsClause, lt: ts };
-        }
+        const cursorOr: Prisma.AuditLogWhereInput[] = [
+          { ...where, timestamp: { ...tsClause, lt: ts } },
+          { ...where, timestamp: { ...tsClause, equals: ts }, id: { lt: idRaw } },
+        ];
+        Object.assign(where, { OR: cursorOr });
+        delete (where as any).timestamp;
       }
     }
 
