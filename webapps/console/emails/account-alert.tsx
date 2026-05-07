@@ -47,8 +47,8 @@ const eventEmoji: Record<AccountAlertEventType, string> = {
 };
 
 function describe(props: AccountAlertEmailProps): string {
-  const { eventType, actorEmail, targetEmail, prevRole, newRole, workspaceName } = props;
-  const actor = actorEmail || "Someone";
+  const { eventType, actorName, actorEmail, targetEmail, prevRole, newRole, workspaceName } = props;
+  const actor = actorName || actorEmail || "Someone";
   switch (eventType) {
     case "member-invited":
       return `${actor} invited ${targetEmail || "a new user"} to ${workspaceName}.`;

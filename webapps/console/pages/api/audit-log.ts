@@ -204,10 +204,10 @@ function flattenDiff(prev: any, next: any, base = ""): DiffEntry[] {
 
   const field = base || "(root)";
   if (prev === undefined) {
-    return [{ field, kind: "added", next: fmtValue(next) }];
+    return [{ field, kind: "added", next: fmtMaybeSecret(next) }];
   }
   if (next === undefined) {
-    return [{ field, kind: "removed", prev: fmtValue(prev) }];
+    return [{ field, kind: "removed", prev: fmtMaybeSecret(prev) }];
   }
   if (isMasked(prev) && isMasked(next)) {
     return [{ field, kind: "secret-changed" }];
@@ -262,8 +262,8 @@ export default createRoute()
       workspaceId: z.string().optional(),
       type: z.string().optional(),
       severity: z.string().optional(),
-      from: z.string().optional(),
-      to: z.string().optional(),
+      from: z.coerce.date().optional(),
+      to: z.coerce.date().optional(),
       cursor: z.string().optional(),
       limit: z.coerce.number().int().min(1).max(200).optional(),
     }),
@@ -318,10 +318,10 @@ export default createRoute()
     if (query.from || query.to) {
       where.timestamp = {};
       if (query.from) {
-        (where.timestamp as Prisma.DateTimeFilter).gte = new Date(query.from);
+        (where.timestamp as Prisma.DateTimeFilter).gte = query.from;
       }
       if (query.to) {
-        (where.timestamp as Prisma.DateTimeFilter).lte = new Date(query.to);
+        (where.timestamp as Prisma.DateTimeFilter).lte = query.to;
       }
     }
 
@@ -330,12 +330,16 @@ export default createRoute()
       const ts = new Date(tsRaw);
       if (!isNaN(ts.getTime())) {
         const tsClause = (where.timestamp as Prisma.DateTimeFilter | undefined) ?? {};
-        const cursorOr: Prisma.AuditLogWhereInput[] = [
-          { ...where, timestamp: { ...tsClause, lt: ts } },
-          { ...where, timestamp: { ...tsClause, equals: ts }, id: { lt: idRaw } },
-        ];
-        Object.assign(where, { OR: cursorOr });
-        delete (where as any).timestamp;
+        if (idRaw) {
+          const cursorOr: Prisma.AuditLogWhereInput[] = [
+            { timestamp: { ...tsClause, lt: ts } },
+            { timestamp: { ...tsClause, equals: ts }, id: { lt: idRaw } },
+          ];
+          Object.assign(where, { OR: cursorOr });
+          delete (where as any).timestamp;
+        } else {
+          where.timestamp = { ...tsClause, lt: ts };
+        }
       }
     }
 

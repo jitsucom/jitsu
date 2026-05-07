@@ -8,7 +8,7 @@ import { prepareZodObjectForDeserialization } from "../../../../../lib/zod";
 import { isReadOnly } from "../../../../../lib/server/read-only-mode";
 import { configObjectAuditLog } from "../../../../../lib/server/audit-log";
 import { trackTelemetryEvent } from "../../../../../lib/server/telemetry";
-import { requireDefined } from "juava";
+import { requireDefined, deepCopy } from "juava";
 
 function defaultMerge(a, b) {
   return { ...a, ...b };
@@ -67,6 +67,7 @@ export const api: Api = {
       if (!object) {
         throw new ApiError(`${type} with id ${id} does not exist`);
       }
+      const prevVersion = deepCopy(object.config);
       const merged = await configObjectType.merge(object.config, { ...body, id, workspaceId });
       const data = parseObject(type, merged);
       const filtered = await configObjectType.inputFilter(data, "update", workspace);
@@ -76,7 +77,7 @@ export const api: Api = {
       await db.prisma().configurationObject.update({ where: { id }, data: { config: filtered } });
       await trackTelemetryEvent("config-object-update", { objectType: type });
       await configObjectAuditLog(user, workspaceId, id, type, "update", {
-        prevVersion: object.config,
+        prevVersion: prevVersion,
         newVersion: filtered,
       });
     },
