@@ -75,11 +75,14 @@ export async function dispatchAccountAlert(event: AccountAlertEvent): Promise<vo
     // notifications.ts#loadNotificationsChannels` synthesizes email channels
     // for sync/batch/dead alerts. We can't reuse that helper directly because
     // it lives behind an admin-only cron route.
+    // No `w.deleted = false` join here. The workspace existence check at the
+    // top of this function already gated dispatch, and for `workspace-deleted`
+    // events the workspace IS marked deleted by the time we run — filtering
+    // it out would silently drop the alert exactly when it matters most.
     const memberRows = await db.pgPool().query(
       `select wa."userId", u.email, u.name, upw.preferences "workspacePref", upg.preferences "globalPref"
          from newjitsu."WorkspaceAccess" wa
          join newjitsu."UserProfile" u on u.id = wa."userId"
-         join newjitsu."Workspace" w on w.id = wa."workspaceId" and w.deleted = false
          left outer join newjitsu."UserPreferences" upw on upw."userId" = wa."userId" and upw."workspaceId" = wa."workspaceId"
          left outer join newjitsu."UserPreferences" upg on upg."userId" = wa."userId" and upg."workspaceId" is null
         where wa."workspaceId" = $1`,
