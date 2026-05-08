@@ -2,25 +2,13 @@ import { Command } from "commander";
 import { red } from "../../lib/chalk-code-highlight";
 import { DEFAULT_OUTPUT, SUPPORTED_OUTPUTS } from "../../lib/renderer";
 import { resources, Resource, Verb, verbsFor } from "./resources";
-import {
-  LeafOpts,
-  runCreate,
-  runDelete,
-  runGet,
-  runList,
-  runTest,
-  runUpdate,
-} from "./handlers";
+import { LeafOpts, runCreate, runDelete, runGet, runList, runTest, runUpdate } from "./handlers";
 
 // Decorate a Command with the common options every leaf shares.
 function withCommonOpts(cmd: Command): Command {
   return cmd
     .option("-w, --workspace <id-or-slug>", "Target workspace id or slug")
-    .option(
-      "-o, --output <format>",
-      `Output format: ${SUPPORTED_OUTPUTS.join(", ")}`,
-      DEFAULT_OUTPUT
-    )
+    .option("-o, --output <format>", `Output format: ${SUPPORTED_OUTPUTS.join(", ")}`, DEFAULT_OUTPUT)
     .option("-h, --host <host>", "Jitsu host (overrides ~/.jitsu/jitsu-cli.json)")
     .option("-k, --apikey <api-key>", "API key in form keyId:secret (overrides ~/.jitsu/jitsu-cli.json)");
 }
@@ -39,8 +27,8 @@ function withBodyOpts(cmd: Command): Command {
         "  --destinationType=postgres",
         "  --credentials.host=db.example.com",
         "  --credentials.password=secret",
-        "  --credentials.keys='[\"a\",\"b\"]'",
-        "Values starting with [, {, \" or matching number/boolean/null are parsed as JSON;",
+        '  --credentials.keys=\'["a","b"]\'',
+        'Values starting with [, {, " or matching number/boolean/null are parsed as JSON;',
         "everything else is a plain string. -f, --json, and --field flags merge in that order.",
       ].join("\n")
     );
@@ -160,7 +148,9 @@ export function buildConfigCommand(): Command {
   // Tree B: verb-first. `config <verb> <noun>`
   const allVerbs: Verb[] = ["list", "get", "create", "update", "delete", "test"];
   for (const verb of allVerbs) {
-    const verbCmd = new Command(verb).description(`${capitalize(verb)} a configuration object (alias for the noun-first form)`);
+    const verbCmd = new Command(verb).description(
+      `${capitalize(verb)} a configuration object (alias for the noun-first form)`
+    );
     for (const resource of resources) {
       const applicable = verbsFor(resource.kind).includes(verb) || (verb === "test" && resource.supportsTest);
       if (!applicable) continue;

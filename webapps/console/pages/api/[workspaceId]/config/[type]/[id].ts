@@ -37,7 +37,10 @@ export const route = createRoute()
       forValue: type => ({
         summary: `Get ${type}`,
         tags: [type],
-        result: type === "destination" ? AnyDestination : getAnnotatedConfigObjectSchema(type) ?? getConfigObjectType(type).schema,
+        result:
+          type === "destination"
+            ? AnyDestination
+            : getAnnotatedConfigObjectSchema(type) ?? getConfigObjectType(type).schema,
       }),
     },
   })
@@ -65,7 +68,10 @@ export const route = createRoute()
       forValue: type => ({
         summary: `Update ${type}`,
         tags: [type],
-        body: type === "destination" ? AnyDestination : getAnnotatedConfigObjectSchema(type) ?? getConfigObjectType(type).schema,
+        body:
+          type === "destination"
+            ? AnyDestination
+            : getAnnotatedConfigObjectSchema(type) ?? getConfigObjectType(type).schema,
       }),
     },
   })

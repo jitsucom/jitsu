@@ -50,9 +50,7 @@ function requireWorkspace(opts: LeafOpts): string {
   if (opts.workspace) return opts.workspace;
   const fallback = readDefaultWorkspace();
   if (fallback) return fallback;
-  throw new Error(
-    "--workspace / -w is required (or set a default via `jitsu set-default-workspace <id-or-slug>`)"
-  );
+  throw new Error("--workspace / -w is required (or set a default via `jitsu set-default-workspace <id-or-slug>`)");
 }
 
 async function requireResolvedWorkspaceId(opts: LeafOpts, client: ApiClient): Promise<string> {

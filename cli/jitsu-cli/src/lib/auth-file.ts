@@ -63,9 +63,7 @@ export function resolveAuth(opts: { host?: string; apikey?: string }): AuthInfo 
   if (!host) host = DEFAULT_HOST;
 
   if (!apikey) {
-    throw new Error(
-      "Not authenticated. Run `jitsu login`, set JITSU_APIKEY, or pass --apikey <key>."
-    );
+    throw new Error("Not authenticated. Run `jitsu login`, set JITSU_APIKEY, or pass --apikey <key>.");
   }
 
   return { host: normalizeHost(host), apikey };

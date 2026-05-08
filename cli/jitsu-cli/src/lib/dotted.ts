@@ -8,8 +8,12 @@ export function parseScalar(raw: string): unknown {
   const trimmed = raw.trim();
   const first = trimmed[0];
   const looksLikeJson =
-    first === "{" || first === "[" || first === '"' ||
-    trimmed === "true" || trimmed === "false" || trimmed === "null" ||
+    first === "{" ||
+    first === "[" ||
+    first === '"' ||
+    trimmed === "true" ||
+    trimmed === "false" ||
+    trimmed === "null" ||
     /^-?\d/.test(trimmed);
   if (looksLikeJson) {
     try {
@@ -37,4 +41,3 @@ export function setDottedPath(target: any, path: string, value: unknown): any {
   node[parts[parts.length - 1]] = value;
   return target;
 }
-

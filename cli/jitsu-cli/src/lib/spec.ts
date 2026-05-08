@@ -25,11 +25,7 @@ export async function fetchSpec(auth: AuthInfo): Promise<OpenApiSpec> {
 
 // Resolves the operation that matches a (templated) path + method, e.g.
 //   ("/api/{workspaceId}/config/{type}", "post") → operation node with summary/description.
-export function findOperation(
-  spec: OpenApiSpec,
-  path: string,
-  method: string
-): OpenApiOperation | undefined {
+export function findOperation(spec: OpenApiSpec, path: string, method: string): OpenApiOperation | undefined {
   const item = spec.paths?.[path];
   if (!item) return undefined;
   return item[method.toLowerCase()];

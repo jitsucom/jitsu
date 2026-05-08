@@ -43,7 +43,9 @@ export const route = createRoute()
         tags: [type],
         result: z.object({
           objects: z.array(
-            type === "destination" ? AnyDestination : getAnnotatedConfigObjectSchema(type) ?? getConfigObjectType(type).schema
+            type === "destination"
+              ? AnyDestination
+              : getAnnotatedConfigObjectSchema(type) ?? getConfigObjectType(type).schema
           ),
         }),
       }),
@@ -83,7 +85,10 @@ export const route = createRoute()
       forValue: type => ({
         summary: `Create ${type}`,
         tags: [type],
-        body: type === "destination" ? AnyDestination : getAnnotatedConfigObjectSchema(type) ?? getConfigObjectType(type).schema,
+        body:
+          type === "destination"
+            ? AnyDestination
+            : getAnnotatedConfigObjectSchema(type) ?? getConfigObjectType(type).schema,
       }),
     },
   })

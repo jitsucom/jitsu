@@ -7,11 +7,7 @@ import { DEFAULT_OUTPUT, SUPPORTED_OUTPUTS, print } from "../lib/renderer";
 export function buildSpecCommand(): Command {
   return new Command("spec")
     .description("Print the live OpenAPI spec served at /api/spec")
-    .option(
-      "-o, --output <format>",
-      `Output format: ${SUPPORTED_OUTPUTS.join(", ")}`,
-      DEFAULT_OUTPUT
-    )
+    .option("-o, --output <format>", `Output format: ${SUPPORTED_OUTPUTS.join(", ")}`, DEFAULT_OUTPUT)
     .option("-h, --host <host>", "Jitsu host (overrides ~/.jitsu/jitsu-cli.json)")
     .option("-k, --apikey <api-key>", "API key (overrides ~/.jitsu/jitsu-cli.json)")
     .action(async (opts: { output?: string; host?: string; apikey?: string }) => {

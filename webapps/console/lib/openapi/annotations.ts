@@ -22,11 +22,13 @@ export const ConfigEntityBaseSchema = ConfigEntityBaseOriginal.openapi("ConfigEn
 });
 export const ApiKeySchema = ApiKeyOriginal.openapi("ApiKey", {
   title: "API key",
-  description: "An API key associated with a stream. Use the `plaintext` field on creation; afterwards only `hash`/`hint` are returned.",
+  description:
+    "An API key associated with a stream. Use the `plaintext` field on creation; afterwards only `hash`/`hint` are returned.",
 });
 export const StreamConfigSchema = StreamConfigOriginal.openapi("StreamConfig", {
   title: "Stream",
-  description: "An incoming-events stream (formerly known as a source). Holds public/private write keys and the domains allowed to send events.",
+  description:
+    "An incoming-events stream (formerly known as a source). Holds public/private write keys and the domains allowed to send events.",
 });
 export const DestinationConfigSchema = DestinationConfigOriginal.openapi("DestinationConfig", {
   title: "Destination (base)",
@@ -39,7 +41,8 @@ export const FunctionConfigSchema = FunctionConfigOriginal.openapi("FunctionConf
 });
 export const ServiceConfigSchema = ServiceConfigOriginal.openapi("ServiceConfig", {
   title: "Service (connector)",
-  description: "An external service polled by a connector (Airbyte protocol). The `package` and `version` reference a connector image.",
+  description:
+    "An external service polled by a connector (Airbyte protocol). The `package` and `version` reference a connector image.",
 });
 export const WorkspaceDomainSchema = WorkspaceDomainOriginal.openapi("WorkspaceDomain", {
   title: "Workspace domain",
@@ -51,11 +54,13 @@ export const MiscEntitySchema = MiscEntityOriginal.openapi("MiscEntity", {
 });
 export const NotificationChannelSchema = NotificationChannelOriginal.openapi("NotificationChannel", {
   title: "Notification channel",
-  description: "Subscription that delivers workspace alerts (sync failures, batch failures, dead-letter events) to email or Slack.",
+  description:
+    "Subscription that delivers workspace alerts (sync failures, batch failures, dead-letter events) to email or Slack.",
 });
 export const WorkspaceSchema = WorkspaceDbModel.openapi("Workspace", {
   title: "Workspace",
-  description: "A Jitsu workspace. Workspaces own all configuration objects (streams, destinations, functions, etc.). The workspace `id` is the value used as the `workspaceId` path parameter on most other endpoints.",
+  description:
+    "A Jitsu workspace. Workspaces own all configuration objects (streams, destinations, functions, etc.). The workspace `id` is the value used as the `workspaceId` path parameter on most other endpoints.",
 });
 // List endpoint applies `omitDeleted`, so the field is never present in list items
 // (the single-get endpoint preserves it intentionally — see [workspaceIdOrSlug]/index.ts).
