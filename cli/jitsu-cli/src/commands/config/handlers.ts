@@ -207,27 +207,52 @@ export async function runUpdate(resource: Resource, id: string | undefined, opts
       return;
     }
     case "link": {
-      // Link upsert — server identifies via fromId+toId in body, or id in body.
+      // Link upsert — server identifies via id (or fromId+toId) in the body.
+      // If the user passed a positional id, fold it into body.id so it actually reaches the API.
       const ws = await requireResolvedWorkspaceId(opts, client);
+      const finalBody = mergePositionalId(body, id, "id");
       const data = await client.request({
         method: "PUT",
         path: `/api/${encodeURIComponent(ws)}/config/link`,
-        body,
+        body: finalBody,
       });
       print(data, opts.output);
       return;
     }
     case "profile-builder": {
+      // Upsert keyed off body.profileBuilder.id; without it the API creates a new builder
+      // even though the CLI signature requires <id>. Inject the positional id.
       const ws = await requireResolvedWorkspaceId(opts, client);
+      if (!id) throw new Error("id is required");
+      const finalBody = mergeNestedPositionalId(body, id, "profileBuilder", "id");
       const data = await client.request({
         method: "PUT",
         path: `/api/${encodeURIComponent(ws)}/config/profile-builder`,
-        body,
+        body: finalBody,
       });
       print(data, opts.output);
       return;
     }
   }
+}
+
+// Set `body[key] = id` when id is given. Throws if body[key] is already set to a different value.
+function mergePositionalId(body: any, id: string | undefined, key: string): any {
+  if (id === undefined) return body;
+  if (body && typeof body === "object" && body[key] !== undefined && body[key] !== id) {
+    throw new Error(`positional id '${id}' conflicts with body.${key} '${body[key]}'`);
+  }
+  return { ...(body && typeof body === "object" ? body : {}), [key]: id };
+}
+
+// Same idea, one level deep: set `body[outer][inner] = id`.
+function mergeNestedPositionalId(body: any, id: string, outer: string, inner: string): any {
+  const base = body && typeof body === "object" ? body : {};
+  const nested = base[outer] && typeof base[outer] === "object" ? base[outer] : {};
+  if (nested[inner] !== undefined && nested[inner] !== id) {
+    throw new Error(`positional id '${id}' conflicts with body.${outer}.${inner} '${nested[inner]}'`);
+  }
+  return { ...base, [outer]: { ...nested, [inner]: id } };
 }
 
 // ----------------- delete -----------------

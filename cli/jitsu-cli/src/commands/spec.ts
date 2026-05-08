@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import { red } from "../lib/chalk-code-highlight";
-import { resolveAuth } from "../lib/auth-file";
+import { normalizeHost, readAuthFile, resolveAuth } from "../lib/auth-file";
 import { fetchSpec } from "../lib/spec";
 import { DEFAULT_OUTPUT, SUPPORTED_OUTPUTS, print } from "../lib/renderer";
 
@@ -18,7 +18,8 @@ export function buildSpecCommand(): Command {
           try {
             return resolveAuth(opts);
           } catch {
-            return { host: opts.host ?? "https://use.jitsu.com", apikey: "anonymous" };
+            const host = opts.host ?? readAuthFile()?.host ?? "https://use.jitsu.com";
+            return { host: normalizeHost(host), apikey: "anonymous" };
           }
         })();
         const spec = await fetchSpec(auth);
