@@ -3,7 +3,6 @@ import { z } from "zod";
 import { db } from "../../../lib/server/db";
 import { requireDefined } from "juava";
 import { withProductAnalytics } from "../../../lib/server/telemetry";
-import { WorkspaceDbModel } from "../../../prisma/schema";
 import { validateSlug, validateWorkspaceName } from "./validate";
 import { ApiError } from "../../../lib/shared/errors";
 import { workspaceAuditLog } from "../../../lib/server/audit-log";
@@ -36,10 +35,12 @@ export const route = createRoute()
       "Use the `id` of a workspace as the `workspaceId` path parameter on other endpoints.",
     tags: ["workspace"],
     query: z.object({
-      // z.coerce.number() infers as `number` (not the `string|number` union that
-      // .transform() yields under the createRoute generic-inference pipeline).
-      page: z.coerce.number().int().min(0).optional(),
-      limit: z.coerce.number().int().min(1).optional(),
+      // Tolerant on bad input: `?page=foo` or out-of-range values fall back to a default
+      // instead of returning 500 (nextJsApiHandler maps query-parse failures to 500).
+      // `z.coerce.number()` keeps the post-validation type as `number` (vs the
+      // `string | number` union .transform() yields under createRoute's inference).
+      page: z.coerce.number().int().min(0).optional().catch(0),
+      limit: z.coerce.number().int().min(1).optional().catch(MAX_LIMIT),
       search: z.string().optional(),
     }),
     result: ListResultSchema,
