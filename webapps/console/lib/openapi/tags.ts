@@ -48,6 +48,15 @@ export const tagInfos: TagInfo[] = [
     externalDocs: { url: `${DOCS_BASE}/core-concepts/services`, description: "Services in Jitsu" },
   },
   {
+    slug: "sync",
+    name: "Syncs",
+    description:
+      `Endpoints that drive **sync runs** — pulling data from a service into a destination on demand. ` +
+      `Use these to fetch a connector's config schema, discover its streams, trigger and monitor runs, and stream task logs.\n\n` +
+      `[Learn more about the Sync API](${DOCS_BASE}/api/sync).`,
+    externalDocs: { url: `${DOCS_BASE}/api/sync`, description: "Sync API in Jitsu docs" },
+  },
+  {
     slug: "link",
     name: "Connections",
     description:

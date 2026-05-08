@@ -47,9 +47,14 @@ const tasksResultType = z.object({
   logs: z.string().optional(),
 });
 
-export default createRoute()
+export const route = createRoute()
   .POST({
     auth: true,
+    summary: "Latest task status for a batch of syncs",
+    description:
+      "Given a list of `syncId`s in the body, returns the most recent non-skipped task per sync as a `{ syncId: task }` map. " +
+      "Useful for rendering status badges next to many syncs at once.",
+    tags: ["sync"],
     query: z.object({
       workspaceId: z.string(),
     }),
@@ -100,6 +105,12 @@ export default createRoute()
   })
   .GET({
     auth: true,
+    summary: "List sync tasks (or fetch one by id)",
+    description:
+      "Returns up to 50 most recent tasks for a sync, ordered by start time descending. " +
+      "Filter with `taskId` (single task — response carries `task` and `logs` URL), `status`, and a `from`/`to` time window. " +
+      "Without `taskId` the response carries the `tasks` array.",
+    tags: ["sync"],
     query: z.object({
       workspaceId: z.string(),
       syncId: z.string().optional(),
@@ -179,8 +190,9 @@ export default createRoute()
     } catch (e: any) {
       return syncError(log, `Error loading tasks`, e, false, `sync ids: ${query.syncId} workspace: ${workspaceId}`);
     }
-  })
-  .toNextApiHandler();
+  });
+
+export default route.toNextApiHandler();
 
 export const config = {
   maxDuration: 180, //3 mins, mostly because of workspace-stat call

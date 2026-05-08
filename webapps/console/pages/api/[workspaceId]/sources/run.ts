@@ -27,9 +27,17 @@ const resultType = z.object({
     .optional(),
 });
 
-export default createRoute()
+export const route = createRoute()
   .GET({
     auth: false,
+    summary: "Trigger a sync run",
+    description:
+      "Schedules a sync (the connection between a service and a destination, identified by `syncId`) to run immediately. " +
+      "Returns the new `taskId` plus `status` and `logs` URLs to poll. " +
+      "If a task is already running, the call fails and returns `runningTask` pointing at the in-flight job. " +
+      "Pass `fullSync=true` to drop the saved cursor and re-sync from scratch.\n\n" +
+      "Auth: bearer token (`<keyId>:<secret>`). Internal scheduler calls authenticate with the sync-controller key instead.",
+    tags: ["sync"],
     query: z.object({
       workspaceId: z.string(),
       syncId: z.string(),
@@ -76,8 +84,9 @@ export default createRoute()
       await cleanupTasksLogs(query.syncId);
       log.atInfo().log(`Cleanup tasks logs took ${sw.elapsedPretty()}`);
     }
-  })
-  .toNextApiHandler();
+  });
+
+export default route.toNextApiHandler();
 
 export const config = {
   maxDuration: 300,

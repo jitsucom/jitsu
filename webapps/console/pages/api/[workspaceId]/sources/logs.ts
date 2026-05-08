@@ -19,9 +19,14 @@ const maxStreamingResponseSize = 100_000_000;
 // Too big responses may cause performance issues in the browser (that is compressed size - actual payload is much bigger)
 const browserResponseSize = 1_000_000;
 
-export default createRoute()
+export const route = createRoute()
   .GET({
     auth: true,
+    summary: "Stream task logs",
+    description:
+      "Streams gzipped plain-text logs for a sync task. " +
+      "Lines are joined by the `#ENDLINE#` sentinel by default; pass `download=true` for newline-separated output and a `Content-Disposition: attachment` header.",
+    tags: ["sync"],
     query: z.object({
       workspaceId: z.string(),
       taskId: z.string(),
@@ -147,5 +152,6 @@ export default createRoute()
     } finally {
       res.end();
     }
-  })
-  .toNextApiHandler();
+  });
+
+export default route.toNextApiHandler();
