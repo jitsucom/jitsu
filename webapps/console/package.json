@@ -29,6 +29,7 @@
   },
   "dependencies": {
     "@ant-design/cssinjs": "^1.21.1",
+    "@asteasolutions/zod-to-openapi": "^7.3.0",
     "@clickhouse/client": "^1.18.3",
     "@dnd-kit/core": "^6.0.8",
     "@dnd-kit/modifiers": "^6.0.1",
@@ -54,6 +55,7 @@
     "@rjsf/core": "^5.22.4",
     "@rjsf/utils": "^5.22.4",
     "@rjsf/validator-ajv8": "^5.22.4",
+    "@scalar/nextjs-api-reference": "^0.10.14",
     "@tanstack/react-query": "^4.36.1",
     "@types/cookie": "^1.0.0",
     "@types/pg-promise": "^5.4.3",
@@ -86,6 +88,7 @@
     "node-sql-parser": "^5.3.13",
     "nodemailer": "^8.0.5",
     "object-hash": "^3.0.0",
+    "openapi3-ts": "^4.5.0",
     "pg": "^8.18.0",
     "pg-cursor": "^2.17.0",
     "prisma": "^6.5.0",
@@ -101,9 +104,7 @@
     "tslib": "catalog:",
     "use-debounce": "^10.0.4",
     "zod": "^3.23.8",
-    "zod-to-json-schema": "^3.23.2",
-    "@asteasolutions/zod-to-openapi": "^7.3.0",
-    "openapi3-ts": "^4.5.0"
+    "zod-to-json-schema": "^3.23.2"
   },
   "devDependencies": {
     "@ant-design/icons": "^5.5.1",

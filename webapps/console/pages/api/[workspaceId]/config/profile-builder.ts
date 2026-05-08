@@ -7,6 +7,7 @@ import { safeParseWithDate } from "../../../../lib/zod";
 import { ApiError } from "../../../../lib/shared/errors";
 import { MASKED_SECRET } from "../../../../lib/schema/destinations";
 import { configObjectAuditLog } from "../../../../lib/server/audit-log";
+import { omitDeletedList } from "../../../../lib/server/omit-deleted";
 
 const defaultProfileBuilderFunction = `export default async function(events, user, context) {
   context.log.info("Profile userId: " + user.id)
@@ -171,11 +172,13 @@ export const route = createRoute()
         },
       });
       return {
-        profileBuilders: await db.prisma().profileBuilder.findMany({
-          include: { functions: { include: { function: true } } },
-          where: { workspaceId: workspaceId, deleted: false },
-          orderBy: { createdAt: "asc" },
-        }),
+        profileBuilders: omitDeletedList(
+          await db.prisma().profileBuilder.findMany({
+            include: { functions: { include: { function: true } } },
+            where: { workspaceId: workspaceId, deleted: false },
+            orderBy: { createdAt: "asc" },
+          })
+        ),
       };
     } else {
       if (!role.editEntities) {
@@ -189,7 +192,7 @@ export const route = createRoute()
         }
       }
       return {
-        profileBuilders: pbs,
+        profileBuilders: omitDeletedList(pbs),
       };
     }
   })

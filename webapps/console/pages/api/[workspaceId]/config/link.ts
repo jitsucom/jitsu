@@ -9,6 +9,7 @@ import { SyncOptionsType } from "../../../../lib/schema";
 import { ApiError } from "../../../../lib/shared/errors";
 import { MASKED_SECRET, getCoreDestinationTypeNonStrict } from "../../../../lib/schema/destinations";
 import { configObjectAuditLog } from "../../../../lib/server/audit-log";
+import { omitDeletedList } from "../../../../lib/server/omit-deleted";
 
 export type SyncDbModel = Omit<z.infer<typeof ConfigurationObjectLinkDbModel>, "data"> & {
   data?: SyncOptionsType;
@@ -180,7 +181,7 @@ export const route = createRoute()
       }
     }
     return {
-      links,
+      links: omitDeletedList(links),
     };
   })
   .POST({ ...upsertOptions, summary: "Create a connection link" })

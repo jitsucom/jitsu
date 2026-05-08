@@ -12,6 +12,7 @@ import {
   WorkspaceDomain as WorkspaceDomainOriginal,
 } from "../schema";
 import { coreDestinations } from "../schema/destinations";
+import { WorkspaceDbModel } from "../../prisma/schema/workspace";
 
 // `.openapi(refId)` returns a NEW schema instance with metadata attached — it does NOT mutate.
 // Capture and re-export so consumers reference the annotated versions and the generator emits $refs.
@@ -52,6 +53,21 @@ export const NotificationChannelSchema = NotificationChannelOriginal.openapi("No
   title: "Notification channel",
   description: "Subscription that delivers workspace alerts (sync failures, batch failures, dead-letter events) to email or Slack.",
 });
+export const WorkspaceSchema = WorkspaceDbModel.openapi("Workspace", {
+  title: "Workspace",
+  description: "A Jitsu workspace. Workspaces own all configuration objects (streams, destinations, functions, etc.). The workspace `id` is the value used as the `workspaceId` path parameter on most other endpoints.",
+});
+// List endpoint applies `omitDeleted`, so the field is never present in list items
+// (the single-get endpoint preserves it intentionally — see [workspaceIdOrSlug]/index.ts).
+export const WorkspaceListItemSchema = WorkspaceDbModel.omit({ deleted: true })
+  .extend({
+    lastUsed: z.string().datetime().optional().describe("Last time the current user accessed this workspace"),
+    entities: z.number().optional().describe("Number of configuration objects in the workspace (admin-only)"),
+  })
+  .openapi("WorkspaceListItem", {
+    title: "Workspace (list item)",
+    description: "A workspace as returned by the list endpoint, with extra per-user metadata.",
+  });
 
 const configObjectSchemas: Record<string, z.ZodTypeAny> = {
   destination: DestinationConfigSchema,

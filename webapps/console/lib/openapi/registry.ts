@@ -7,6 +7,7 @@ import { route as configLink } from "../../pages/api/[workspaceId]/config/link";
 import { route as configProfileBuilder } from "../../pages/api/[workspaceId]/config/profile-builder";
 import { route as metrics } from "../../pages/api/[workspaceId]/metrics";
 import { route as workspace } from "../../pages/api/workspace/[workspaceIdOrSlug]";
+import { route as workspaceList } from "../../pages/api/workspace";
 
 export type PublicRouteEntry = {
   path: string;
@@ -21,6 +22,7 @@ export const publicRoutes: PublicRouteEntry[] = [
   { path: "/api/{workspaceId}/config/profile-builder", route: configProfileBuilder },
   { path: "/api/{workspaceId}/metrics", route: metrics },
   { path: "/api/workspace/{workspaceIdOrSlug}", route: workspace },
+  { path: "/api/workspace", route: workspaceList },
 ];
 
 export function getPublicRoutes(): PublicRouteEntry[] {

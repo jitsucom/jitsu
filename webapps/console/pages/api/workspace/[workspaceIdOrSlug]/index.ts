@@ -144,6 +144,10 @@ export const route = createRoute()
         .log(`Failed to save workspace preferences (${workspace.id}). For user (${user.internalId})`);
     }
 
+    // NOTE: deliberately keeps `deleted: true/false` on this response. The
+    // WorkspacePageLayout redirect guard (components/PageLayout/WorkspacePageLayout.tsx)
+    // reads `workspace.deleted` to bounce users out of soft-deleted workspaces —
+    // stripping the field would silently skip the redirect.
     return workspace;
   })
   .PUT({
