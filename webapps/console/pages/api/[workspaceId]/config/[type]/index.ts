@@ -7,6 +7,7 @@ import {
   getConfigObjectType,
   parseObject,
 } from "../../../../../lib/schema/config-objects";
+import { AnyDestination, getAnnotatedConfigObjectSchema } from "../../../../../lib/openapi/annotations";
 import { ApiError } from "../../../../../lib/shared/errors";
 import { isReadOnly } from "../../../../../lib/server/read-only-mode";
 import { configObjectAuditLog } from "../../../../../lib/server/audit-log";
@@ -39,7 +40,11 @@ export const route = createRoute()
       forValue: type => ({
         summary: `List ${type} objects in a workspace`,
         tags: [type],
-        result: z.object({ objects: z.array(getConfigObjectType(type).schema) }),
+        result: z.object({
+          objects: z.array(
+            type === "destination" ? AnyDestination : getAnnotatedConfigObjectSchema(type) ?? getConfigObjectType(type).schema
+          ),
+        }),
       }),
     },
   })
@@ -77,7 +82,7 @@ export const route = createRoute()
       forValue: type => ({
         summary: `Create a ${type} object in a workspace`,
         tags: [type],
-        body: getConfigObjectType(type).schema,
+        body: type === "destination" ? AnyDestination : getAnnotatedConfigObjectSchema(type) ?? getConfigObjectType(type).schema,
       }),
     },
   })

@@ -7,6 +7,7 @@ import {
   getConfigObjectType,
   parseObject,
 } from "../../../../../lib/schema/config-objects";
+import { AnyDestination, getAnnotatedConfigObjectSchema } from "../../../../../lib/openapi/annotations";
 import { prepareZodObjectForDeserialization } from "../../../../../lib/zod";
 import { isReadOnly } from "../../../../../lib/server/read-only-mode";
 import { configObjectAuditLog } from "../../../../../lib/server/audit-log";
@@ -36,7 +37,7 @@ export const route = createRoute()
       forValue: type => ({
         summary: `Get a ${type} object by id`,
         tags: [type],
-        result: getConfigObjectType(type).schema,
+        result: type === "destination" ? AnyDestination : getAnnotatedConfigObjectSchema(type) ?? getConfigObjectType(type).schema,
       }),
     },
   })
@@ -64,7 +65,7 @@ export const route = createRoute()
       forValue: type => ({
         summary: `Update a ${type} object by id`,
         tags: [type],
-        body: getConfigObjectType(type).schema,
+        body: type === "destination" ? AnyDestination : getAnnotatedConfigObjectSchema(type) ?? getConfigObjectType(type).schema,
       }),
     },
   })
