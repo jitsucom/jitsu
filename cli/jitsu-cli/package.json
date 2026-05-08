@@ -12,7 +12,8 @@
     "access": "public"
   },
   "bin": {
-    "jitsu-cli": "./bin/jitsu-cli"
+    "jitsu-cli": "./bin/jitsu-cli",
+    "jitsu": "./bin/jitsu"
   },
   "license": "MIT",
   "private": false,
@@ -20,6 +21,7 @@
     "clean": "rm -rf ./dist ./compiled",
     "typecheck": "tsc --noEmit",
     "build": "tsc && tsx build.mts",
+    "cli": "tsx src/index.ts",
     "run": "pnpm build && node dist/main.js",
     "login": "pnpm build && node dist/main.js login",
     "init child": "pnpm build && node dist/main.js init",
@@ -53,6 +55,8 @@
     "etag": "^1.8.1",
     "inquirer": "^9.2.11",
     "jest": "^29.7.0",
+    "js-yaml": "^4.1.0",
+    "@types/js-yaml": "^4.0.9",
     "json5": "^2.2.3",
     "juava": "workspace:*",
     "lodash": "catalog:",
