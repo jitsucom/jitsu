@@ -22,7 +22,9 @@ export const config = {
   },
 };
 
-const typeNames = getAllConfigObjectTypeNames();
+// Spec-visible types — runtime still serves every type from getAllConfigObjectTypeNames(),
+// but the `misc` catch-all is omitted from the public OpenAPI document.
+const publicTypeNames = getAllConfigObjectTypeNames().filter(t => t !== "misc");
 
 export const route = createRoute()
   .GET({
@@ -33,7 +35,7 @@ export const route = createRoute()
     tags: ["config"],
     expand: {
       param: "type",
-      values: typeNames,
+      values: publicTypeNames,
       forValue: type => ({
         summary: `Get ${type}`,
         tags: [type],
@@ -64,7 +66,7 @@ export const route = createRoute()
     tags: ["config"],
     expand: {
       param: "type",
-      values: typeNames,
+      values: publicTypeNames,
       forValue: type => ({
         summary: `Update ${type}`,
         tags: [type],
@@ -122,7 +124,7 @@ export const route = createRoute()
     tags: ["config"],
     expand: {
       param: "type",
-      values: typeNames,
+      values: publicTypeNames,
       forValue: type => ({
         summary: `Delete ${type}`,
         tags: [type],

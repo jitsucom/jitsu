@@ -25,8 +25,10 @@ export const config = {
   },
 };
 
-const typeNames = getAllConfigObjectTypeNames();
-const pluralType = (t: string) => (t === "misc" ? "misc" : `${t}s`);
+// Spec-visible types — the runtime still accepts every type from getAllConfigObjectTypeNames(),
+// but `misc` is an internal catch-all that we don't document publicly.
+const publicTypeNames = getAllConfigObjectTypeNames().filter(t => t !== "misc");
+const pluralType = (t: string) => `${t}s`;
 
 export const route = createRoute()
   .GET({
@@ -37,7 +39,7 @@ export const route = createRoute()
     tags: ["config"],
     expand: {
       param: "type",
-      values: typeNames,
+      values: publicTypeNames,
       forValue: type => ({
         summary: `List ${pluralType(type)}`,
         tags: [type],
@@ -81,7 +83,7 @@ export const route = createRoute()
     tags: ["config"],
     expand: {
       param: "type",
-      values: typeNames,
+      values: publicTypeNames,
       forValue: type => ({
         summary: `Create ${type}`,
         tags: [type],

@@ -9,7 +9,6 @@ import {
   ConfigEntityBaseSchema,
   DestinationConfigSchema,
   FunctionConfigSchema,
-  MiscEntitySchema,
   NotificationChannelSchema,
   ServiceConfigSchema,
   StreamConfigSchema,
@@ -42,7 +41,6 @@ export function buildOpenApiSpec(opts?: { servers?: { url: string; description?:
   registry.register("FunctionConfig", FunctionConfigSchema);
   registry.register("ServiceConfig", ServiceConfigSchema);
   registry.register("WorkspaceDomain", WorkspaceDomainSchema);
-  registry.register("MiscEntity", MiscEntitySchema);
   registry.register("NotificationChannel", NotificationChannelSchema);
   registry.register("Workspace", WorkspaceSchema);
   registry.register("WorkspaceListItem", WorkspaceListItemSchema);

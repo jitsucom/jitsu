@@ -83,11 +83,6 @@ export const tagInfos: TagInfo[] = [
     description: `Subscriptions that deliver workspace alerts (sync failures, batch failures, dead-letter events) to email or Slack.`,
   },
   {
-    slug: "misc",
-    name: "Misc entities",
-    description: `Catch-all configuration objects with a free-form value. Used for things like classic event mappings.`,
-  },
-  {
     slug: "custom-image",
     name: "Custom images",
     description: `Custom connector images registered in the workspace.`,
