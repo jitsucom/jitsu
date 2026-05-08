@@ -30,7 +30,7 @@ const resultType = z.object({
 export const route = createRoute()
   .GET({
     auth: false,
-    summary: "Trigger a sync run",
+    summary: "Run sync",
     description:
       "Schedules a sync (the connection between a service and a destination, identified by `syncId`) to run immediately. " +
       "Returns the new `taskId` plus `status` and `logs` URLs to poll. " +

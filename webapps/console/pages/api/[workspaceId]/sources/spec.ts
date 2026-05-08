@@ -20,7 +20,7 @@ const resultType = z.object({
 export const route = createRoute()
   .GET({
     auth: true,
-    summary: "Fetch a connector's configuration schema (specs)",
+    summary: "Get connector specs",
     description:
       "Returns the JSON schema describing a connector package's credentials/config form. " +
       "First call kicks off an async fetch from the sync controller and returns `{ ok: false, pending: true }`; " +

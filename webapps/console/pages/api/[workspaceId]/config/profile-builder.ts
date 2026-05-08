@@ -127,7 +127,7 @@ export const route = createRoute()
   .GET({
     auth: true,
     query: z.object({ workspaceId: z.string(), init: z.string().optional() }),
-    summary: "List profile builders in a workspace",
+    summary: "List profile builders",
     tags: ["profile-builder"],
   })
   .handler(async ({ user, query: { workspaceId, init } }) => {
@@ -196,14 +196,14 @@ export const route = createRoute()
       };
     }
   })
-  .POST({ ...upsertOptions, summary: "Create a profile builder" })
+  .POST({ ...upsertOptions, summary: "Create profile builder" })
   .handler(upsertHandler)
-  .PUT({ ...upsertOptions, summary: "Update a profile builder" })
+  .PUT({ ...upsertOptions, summary: "Update profile builder" })
   .handler(upsertHandler)
   .DELETE({
     auth: true,
     query: z.object({ workspaceId: z.string(), id: z.string() }),
-    summary: "Delete a profile builder",
+    summary: "Delete profile builder",
     tags: ["profile-builder"],
   })
   .handler(async ({ user, query: { workspaceId, id } }) => {

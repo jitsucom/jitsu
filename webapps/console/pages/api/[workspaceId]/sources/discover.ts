@@ -31,7 +31,7 @@ type catalogKeyType = z.infer<typeof queryType>;
 export const route = createRoute()
   .GET({
     auth: true,
-    summary: "Discover the streams catalog for a configured service",
+    summary: "Discover streams",
     description:
       "Asks the connector to list available streams for the given service (source). Returns the cached catalog when available; " +
       "a first call (or `refresh=true`) triggers an async fetch and returns `{ ok: false, pending: true }` — poll until `ok: true` and `catalog` is populated. " +

@@ -25,7 +25,7 @@ export const route = createRoute()
     query: z.object({ type: z.string(), workspaceId: z.string() }),
     body: z.any(),
     result: z.any(),
-    summary: "Test a configuration object connection",
+    summary: "Test connection",
     tags: ["config"],
   })
   .handler(async ({ user, body, query }) => {

@@ -29,13 +29,13 @@ export const route = createRoute()
     auth: true,
     query: z.object({ type: z.string(), workspaceId: z.string(), id: z.string() }),
     result: z.any(),
-    summary: "Get a configuration object by id",
+    summary: "Get a configuration object",
     tags: ["config"],
     expand: {
       param: "type",
       values: typeNames,
       forValue: type => ({
-        summary: `Get a ${type} object by id`,
+        summary: `Get ${type}`,
         tags: [type],
         result: type === "destination" ? AnyDestination : getAnnotatedConfigObjectSchema(type) ?? getConfigObjectType(type).schema,
       }),
@@ -57,13 +57,13 @@ export const route = createRoute()
     auth: true,
     query: z.object({ type: z.string(), workspaceId: z.string(), id: z.string() }),
     body: z.any(),
-    summary: "Update a configuration object by id",
+    summary: "Update a configuration object",
     tags: ["config"],
     expand: {
       param: "type",
       values: typeNames,
       forValue: type => ({
-        summary: `Update a ${type} object by id`,
+        summary: `Update ${type}`,
         tags: [type],
         body: type === "destination" ? AnyDestination : getAnnotatedConfigObjectSchema(type) ?? getConfigObjectType(type).schema,
       }),
@@ -112,13 +112,13 @@ export const route = createRoute()
       strict: z.string().optional(),
       cascade: z.string().optional(),
     }),
-    summary: "Delete a configuration object by id",
+    summary: "Delete a configuration object",
     tags: ["config"],
     expand: {
       param: "type",
       values: typeNames,
       forValue: type => ({
-        summary: `Delete a ${type} object by id`,
+        summary: `Delete ${type}`,
         tags: [type],
       }),
     },

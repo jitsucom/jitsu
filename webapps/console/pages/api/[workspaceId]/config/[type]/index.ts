@@ -26,19 +26,20 @@ export const config = {
 };
 
 const typeNames = getAllConfigObjectTypeNames();
+const pluralType = (t: string) => (t === "misc" ? "misc" : `${t}s`);
 
 export const route = createRoute()
   .GET({
     auth: true,
     query: z.object({ workspaceId: z.string(), type: z.string() }),
     result: z.object({ objects: z.array(z.any()) }),
-    summary: "List configuration objects of a given type",
+    summary: "List configuration objects",
     tags: ["config"],
     expand: {
       param: "type",
       values: typeNames,
       forValue: type => ({
-        summary: `List ${type} objects in a workspace`,
+        summary: `List ${pluralType(type)}`,
         tags: [type],
         result: z.object({
           objects: z.array(
@@ -74,13 +75,13 @@ export const route = createRoute()
     query: z.object({ workspaceId: z.string(), type: z.string() }),
     body: z.any(),
     result: z.object({ id: z.string() }),
-    summary: "Create a configuration object of a given type",
+    summary: "Create a configuration object",
     tags: ["config"],
     expand: {
       param: "type",
       values: typeNames,
       forValue: type => ({
-        summary: `Create a ${type} object in a workspace`,
+        summary: `Create ${type}`,
         tags: [type],
         body: type === "destination" ? AnyDestination : getAnnotatedConfigObjectSchema(type) ?? getConfigObjectType(type).schema,
       }),

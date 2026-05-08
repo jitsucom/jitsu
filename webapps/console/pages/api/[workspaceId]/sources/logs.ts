@@ -22,7 +22,7 @@ const browserResponseSize = 1_000_000;
 export const route = createRoute()
   .GET({
     auth: true,
-    summary: "Stream task logs",
+    summary: "Get task logs",
     description:
       "Streams gzipped plain-text logs for a sync task. " +
       "Lines are joined by the `#ENDLINE#` sentinel by default; pass `download=true` for newline-separated output and a `Content-Disposition: attachment` header.",

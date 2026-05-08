@@ -161,7 +161,7 @@ export const route = createRoute()
   .GET({
     auth: true,
     query: z.object({ workspaceId: z.string() }),
-    summary: "List connection links in a workspace",
+    summary: "List connections",
     tags: ["link"],
   })
   .handler(async ({ user, query: { workspaceId } }) => {
@@ -184,9 +184,9 @@ export const route = createRoute()
       links: omitDeletedList(links),
     };
   })
-  .POST({ ...upsertOptions, summary: "Create a connection link" })
+  .POST({ ...upsertOptions, summary: "Create connection" })
   .handler(upsertHandler)
-  .PUT({ ...upsertOptions, summary: "Update a connection link" })
+  .PUT({ ...upsertOptions, summary: "Update connection" })
   .handler(upsertHandler)
   .DELETE({
     auth: true,
@@ -197,7 +197,7 @@ export const route = createRoute()
       fromId: z.string().optional(),
       toId: z.string().optional(),
     }),
-    summary: "Delete a connection link",
+    summary: "Delete connection",
     tags: ["link"],
   })
   .handler(async ({ user, query: { workspaceId, fromId, toId, id } }) => {

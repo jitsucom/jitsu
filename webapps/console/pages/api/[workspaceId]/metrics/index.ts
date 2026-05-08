@@ -31,7 +31,7 @@ const metricsAliases: Record<string, MetricsAlias> = {
 export const route = createRoute()
   .GET({
     auth: true,
-    summary: "Get Prometheus-formatted workspace metrics",
+    summary: "Get workspace metrics",
     tags: ["metrics"],
     query: z.object({
       workspaceId: z.string(),

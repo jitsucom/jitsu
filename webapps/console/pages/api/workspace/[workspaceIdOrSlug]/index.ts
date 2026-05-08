@@ -152,7 +152,7 @@ export const route = createRoute()
   })
   .PUT({
     auth: true,
-    summary: "Update workspace name and slug",
+    summary: "Update workspace",
     tags: ["workspace"],
     body: z.object({ name: z.string(), slug: z.string() }),
     query: z.object({

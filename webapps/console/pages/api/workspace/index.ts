@@ -29,7 +29,7 @@ const ListResultSchema = z.union([
 export const route = createRoute()
   .GET({
     auth: true,
-    summary: "List workspaces available to the current user",
+    summary: "List workspaces",
     description:
       "Returns workspaces the authenticated user has access to. " +
       "If `page` is provided, the response is wrapped in `{ workspaces, pagination }`; otherwise an array is returned (back-compat). " +

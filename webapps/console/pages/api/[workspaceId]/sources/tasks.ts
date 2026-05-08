@@ -50,7 +50,7 @@ const tasksResultType = z.object({
 export const route = createRoute()
   .POST({
     auth: true,
-    summary: "Latest task status for a batch of syncs",
+    summary: "Get latest tasks for syncs",
     description:
       "Given a list of `syncId`s in the body, returns the most recent non-skipped task per sync as a `{ syncId: task }` map. " +
       "Useful for rendering status badges next to many syncs at once.",
@@ -105,7 +105,7 @@ export const route = createRoute()
   })
   .GET({
     auth: true,
-    summary: "List sync tasks (or fetch one by id)",
+    summary: "List sync tasks",
     description:
       "Returns up to 50 most recent tasks for a sync, ordered by start time descending. " +
       "Filter with `taskId` (single task — response carries `task` and `logs` URL), `status`, and a `from`/`to` time window. " +
