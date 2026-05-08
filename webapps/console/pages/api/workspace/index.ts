@@ -35,18 +35,20 @@ export const route = createRoute()
       "Use the `id` of a workspace as the `workspaceId` path parameter on other endpoints.",
     tags: ["workspace"],
     query: z.object({
-      // Tolerant on bad input: `?page=foo` or out-of-range values fall back to a default
-      // instead of returning 500 (nextJsApiHandler maps query-parse failures to 500).
-      // `z.coerce.number()` keeps the post-validation type as `number` (vs the
-      // `string | number` union .transform() yields under createRoute's inference).
-      page: z.coerce.number().int().min(0).optional().catch(0),
-      limit: z.coerce.number().int().min(1).optional().catch(MAX_LIMIT),
+      // Accept as raw strings and parse in the handler — `?page=foo` then falls back
+      // to defaults instead of returning 500. (`z.coerce.number()` rejects NaN; `.catch()`
+      // breaks zod-to-openapi rendering. Plain `z.string()` keeps both happy. The
+      // `.openapi()` annotation overrides the spec to render these as integers.)
+      page: z.string().optional().openapi({ type: "integer", minimum: 0, description: "Zero-based page index" }),
+      limit: z.string().optional().openapi({ type: "integer", minimum: 1, description: "Items per page" }),
       search: z.string().optional(),
     }),
     result: ListResultSchema,
   })
   .handler(async ({ user, query }) => {
-    const { page, limit = MAX_LIMIT, search } = query;
+    const { search } = query;
+    const page = query.page !== undefined ? parseInt(query.page) || 0 : undefined;
+    const limit = query.limit !== undefined ? parseInt(query.limit) || MAX_LIMIT : MAX_LIMIT;
     const offset = (page ?? 0) * limit;
 
     const userModel = requireDefined(
