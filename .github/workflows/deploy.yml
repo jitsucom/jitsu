@@ -1,5 +1,14 @@
-name: 🚀 Deploy
+name: 🚀 Deploy [DEPRECATED]
 
+# ⚠️  DEPRECATED — use jitsucom/jitsu-cloud-infra/.github/workflows/deploy.yaml
+#                  instead. That workflow accepts comma-separated service lists,
+#                  supports both "build new" and "deploy existing" modes, and
+#                  lives alongside the manifests it mutates.
+#
+#                  This workflow keeps working through the transition. It will
+#                  be removed once the new one has been running for a while
+#                  without surprises.
+#
 # Manual deploy: bumps image tags in jitsucom/jitsu-cloud-infra
 #
 # ----------------------------------------------------------------------------
