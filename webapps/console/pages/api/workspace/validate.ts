@@ -81,6 +81,13 @@ export async function validateSlug(
     return { valid: false, reason: "Slug can't start with a digit or hyphen" };
   }
 
+  // Reject slugs that collide with any existing workspace id. Keeps `idOrSlug` lookups
+  // unambiguous without assuming a specific id format.
+  const idCollision = await db.prisma().workspace.findFirst({ where: { id: slug } });
+  if (idCollision) {
+    return { valid: false, reason: "Slug must not match an existing workspace ID" };
+  }
+
   const existingWorkspace = await db.prisma().workspace.findFirst({
     where: {
       slug,

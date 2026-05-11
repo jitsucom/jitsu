@@ -9,8 +9,9 @@ import { Resource } from "./resources";
 // silently. Resolve via `/api/workspace/{idOrSlug}` first so `-w canalrcn` works and
 // `-w nonexistent-slug` errors out clearly instead of returning [].
 async function resolveWorkspaceId(client: ApiClient, idOrSlug: string): Promise<string> {
-  // Looks like a cuid already? Skip the round-trip. (cuid: starts with `c`, ~25 chars hex.)
-  if (/^c[a-z0-9]{20,30}$/.test(idOrSlug)) return idOrSlug;
+  // Always go through the resolution endpoint. The server-side slug validator rejects
+  // slugs that collide with any existing workspace id, so an id and a slug can never
+  // map to different workspaces here.
   try {
     const ws = await client.request<{ id: string }>({
       method: "GET",
