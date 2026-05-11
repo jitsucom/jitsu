@@ -111,7 +111,11 @@ export const route = createRoute()
           entities: userModel.admin ? workspace["_count"]?.configurationObject : undefined,
         })
       )
-      .sort((a, b) => (b.lastUsed?.getTime() || 0) - (a.lastUsed?.getTime() || 0));
+      .sort((a, b) => (b.lastUsed?.getTime() || 0) - (a.lastUsed?.getTime() || 0))
+      // Result is validated against ListResultSchema *before* JSON serialization, where
+      // `lastUsed` is `z.string().datetime()`. Convert the Date to ISO here so validation
+      // passes on responses where lastUsed is populated.
+      .map(w => ({ ...w, lastUsed: w.lastUsed ? w.lastUsed.toISOString() : undefined }));
 
     if (typeof page !== "undefined") {
       return {
