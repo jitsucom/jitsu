@@ -174,7 +174,11 @@ describe("InMemoryRateLimiter sliding-window", () => {
 describe("setRateLimitHeaders", () => {
   it("writes Limit/Remaining/Reset and never Retry-After", () => {
     const headers: Record<string, string> = {};
-    const res = { setHeader: (k: string, v: string) => { headers[k] = v; } } as any;
+    const res = {
+      setHeader: (k: string, v: string) => {
+        headers[k] = v;
+      },
+    } as any;
     const resetAt = new Date(2_000_000_000_000);
     setRateLimitHeaders(res, {
       allowed: true,

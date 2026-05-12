@@ -13,11 +13,7 @@ const MULTIPLIERS: Record<AuthClass, Partial<Record<HttpMethodType, number>>> = 
 
 export const RATE_LIMIT_WINDOW_MS = 60_000;
 
-export function resolveLimit(
-  authClass: AuthClass,
-  method: HttpMethodType,
-  override?: RouteRateLimitOverride
-): number {
+export function resolveLimit(authClass: AuthClass, method: HttpMethodType, override?: RouteRateLimitOverride): number {
   if (override && override[authClass] !== undefined) {
     return override[authClass]!;
   }

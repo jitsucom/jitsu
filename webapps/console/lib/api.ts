@@ -3,12 +3,7 @@ import { ZodType } from "zod";
 import { NextApiHandler, NextApiRequest, NextApiResponse } from "next";
 import { buildRouteFragment } from "./openapi/routeSpec";
 import { ExpandSpec, RouteOpenApiFragment, StoredMethodSpec } from "./openapi/types";
-import {
-  getRateLimiter,
-  getRateLimitOpts,
-  setRateLimitHeaders,
-  type RouteRateLimitSpec,
-} from "./server/rate-limit";
+import { getRateLimiter, getRateLimitOpts, setRateLimitHeaders, type RouteRateLimitSpec } from "./server/rate-limit";
 import { assertDefined, checkHash, checkRawToken, getErrorMessage, requireDefined, tryJson } from "juava";
 import { getServerSession, Session } from "next-auth";
 import { nextAuthConfig } from "./nextauth.config";
@@ -361,10 +356,7 @@ export function nextJsApiHandler(api: Api): NextApiHandler {
           // Fail closed: the limiter store is unavailable, so we reject rather than
           // silently letting everyone through. A future per-route failOpen flag can
           // carve exceptions when we need them.
-          log
-            .atWarn()
-            .withCause(e)
-            .log(`rate limiter unavailable for ${req.method} ${req.url}`);
+          log.atWarn().withCause(e).log(`rate limiter unavailable for ${req.method} ${req.url}`);
           res.setHeader("Retry-After", "5");
           res.status(503).json({
             error: "rate_limit_unavailable",
