@@ -119,4 +119,14 @@ describe("computeResult sliding window", () => {
     // Same input at the start of the new window: previous weight ≈ 1, effective=14 → denied.
     expect(computeResult(opts, 4, 10, winStart).allowed).toBe(false);
   });
+
+  it("Retry-After waits past the boundary when current would carry over", () => {
+    // Reviewer case: previous=0, current=11 near end of current window. Naive
+    // retry = 1s lands at start of next window where previous becomes 11 and
+    // the retry would still be denied. Math must look further ahead.
+    const denied = computeResult(opts, 11, 0, winStart + W - 1000);
+    expect(denied.allowed).toBe(false);
+    // 1s to window boundary + ~W × (1 - 9/11) ≈ 10.9s decay = ~12s total.
+    expect(denied.retryAfterSec).toBeGreaterThanOrEqual(11);
+  });
 });
