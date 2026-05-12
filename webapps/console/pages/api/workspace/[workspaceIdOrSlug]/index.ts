@@ -156,11 +156,13 @@ export const route = createRoute()
     tags: ["workspace"],
     body: z.object({ name: z.string(), slug: z.string() }),
     query: z.object({
-      onboarding: z.string().optional(),
       workspaceIdOrSlug: z.string(),
     }),
   })
-  .handler(async ({ req, query: { workspaceIdOrSlug, onboarding }, body, user }) => {
+  .handler(async ({ req, query: { workspaceIdOrSlug }, body, user }) => {
+    // `onboarding` is an internal telemetry signal set by the console's signup flow.
+    // Read it from req.query directly so it stays out of the public OpenAPI spec.
+    const onboarding = req.query?.onboarding;
     await verifyAccessWithRole(user, workspaceIdOrSlug, "editEntities");
 
     const nameResult = validateWorkspaceName(body.name || "");

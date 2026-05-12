@@ -139,12 +139,9 @@ export const route = createRoute()
       name: z.string().optional(),
       slug: z.string().optional(),
     }),
-    query: z.object({
-      onboarding: z.string().optional(),
-    }),
     result: z.object({ id: z.string() }),
   })
-  .handler(async ({ req, user, body, query }) => {
+  .handler(async ({ req, user, body }) => {
     const nameResult = validateWorkspaceName(body.name || "");
     if (!nameResult.valid) {
       throw new ApiError(`Invalid workspace name: ${nameResult.reason}`, { status: 400 });
@@ -165,7 +162,9 @@ export const route = createRoute()
     });
     await withProductAnalytics(p => p.track("workspace_created"), { user, workspace: newWorkspace, req });
 
-    if (query?.onboarding === "true") {
+    // `onboarding` is an internal telemetry signal set by the console's signup flow.
+    // Read it from req.query directly so it stays out of the public OpenAPI spec.
+    if (req.query?.onboarding === "true") {
       await withProductAnalytics(p => p.track("workspace_onboarded"), { user, workspace: newWorkspace, req });
     }
 
