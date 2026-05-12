@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { db } from "../db";
 import { getServerLog } from "../log";
+import { computeResult } from "./compute";
 import type { RateLimitOpts, RateLimitResult, RateLimiter } from "./types";
 
 const log = getServerLog("rate-limit");
@@ -14,7 +15,6 @@ export class PgRateLimiter implements RateLimiter {
     const key = `${opts.authClass}:${opts.principal}:${opts.bucket}`;
     const now = Date.now();
     const windowStartMs = Math.floor(now / opts.windowMs) * opts.windowMs;
-    const elapsed = now - windowStartMs;
     const windowStart = new Date(windowStartMs);
     const prevWindowStart = new Date(windowStartMs - opts.windowMs);
     const expiresAt = new Date(windowStartMs + opts.windowMs + 5 * 60_000);
@@ -37,17 +37,12 @@ export class PgRateLimiter implements RateLimiter {
     `);
 
     const { current_count: current, prev_count: previous } = rows[0] ?? { current_count: 1, prev_count: 0 };
-    const effective = previous * (1 - elapsed / opts.windowMs) + current;
-    const allowed = effective <= opts.limit;
-    const resetAt = new Date(windowStartMs + opts.windowMs);
-    const remaining = Math.max(0, Math.floor(opts.limit - effective));
-    const retryAfterSec = allowed ? 0 : Math.max(1, Math.ceil((resetAt.getTime() - now) / 1000));
 
     if (Math.random() < CLEANUP_PROB) {
       this.cleanup().catch(e => log.atWarn().withCause(e).log("rate-limit cleanup failed"));
     }
 
-    return { allowed, bucket: opts.bucket, limit: opts.limit, remaining, resetAt, retryAfterSec };
+    return computeResult(opts, current, previous, now);
   }
 
   private async cleanup(): Promise<void> {
