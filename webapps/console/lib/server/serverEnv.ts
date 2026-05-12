@@ -368,6 +368,32 @@ const ServerEnvSchema = ClientEnvSchema.extend({
 
   // Enable full environment diagnostics (dangerous - exposes all env vars!)
   __DANGEROUS_ENABLE_FULL_DIAGNOSTICS: z.coerce.boolean().default(false),
+
+  // ============================================
+  // API Rate Limiting (per-minute, sliding window)
+  // ============================================
+
+  // Master kill switch. Set to "false" to disable rate limiting entirely.
+  MINUTE_RATE_LIMIT_ENABLED: z.string().default("true").transform(isTruish),
+
+  // Base per-minute budget. All (auth class × HTTP method) limits derive
+  // from this number via fixed multipliers (see MULTIPLIERS in
+  // lib/server/rate-limit/config.ts) unless overridden by a specific
+  // MINUTE_RATE_LIMIT_<AUTH>_<METHOD> var below or by a per-route override.
+  // e.g. base=60 → bearer GET=600 (×10), bearer POST=120 (×2), session GET=1200 (×20).
+  MINUTE_RATE_LIMIT_BASE: z.coerce.number().optional().default(60),
+
+  // Explicit per-cell overrides. Leave unset to use base × multiplier.
+  MINUTE_RATE_LIMIT_BEARER_GET: z.coerce.number().optional(),
+  MINUTE_RATE_LIMIT_BEARER_POST: z.coerce.number().optional(),
+  MINUTE_RATE_LIMIT_BEARER_PUT: z.coerce.number().optional(),
+  MINUTE_RATE_LIMIT_BEARER_PATCH: z.coerce.number().optional(),
+  MINUTE_RATE_LIMIT_BEARER_DELETE: z.coerce.number().optional(),
+  MINUTE_RATE_LIMIT_SESSION_GET: z.coerce.number().optional(),
+  MINUTE_RATE_LIMIT_SESSION_POST: z.coerce.number().optional(),
+  MINUTE_RATE_LIMIT_SESSION_PUT: z.coerce.number().optional(),
+  MINUTE_RATE_LIMIT_SESSION_PATCH: z.coerce.number().optional(),
+  MINUTE_RATE_LIMIT_SESSION_DELETE: z.coerce.number().optional(),
 });
 
 export type ServerEnv = z.infer<typeof ServerEnvSchema>;

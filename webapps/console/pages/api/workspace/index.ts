@@ -140,6 +140,9 @@ export const route = createRoute()
       slug: z.string().optional(),
     }),
     result: z.object({ id: z.string() }),
+    // Tight cap on workspace creation: 2 per 5 min per principal. Isolated from
+    // the global POST budget via a custom bucket.
+    rateLimit: { bucket: "workspace-create", bearer: 2, session: 2, windowMs: 5 * 60_000 },
   })
   .handler(async ({ req, user, body }) => {
     const nameResult = validateWorkspaceName(body.name || "");
