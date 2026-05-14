@@ -1,12 +1,13 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { HttpMethodType } from "../../api";
 import type { SessionUser } from "../../schema";
+import { isAdminServiceAccount } from "../../shared/admin-service-account";
 import { getServerEnv } from "../serverEnv";
 import { resolveLimit, resolveWindowMs } from "./config";
 import type { AuthClass, RateLimitOpts, RateLimitResult, RouteRateLimitSpec } from "./types";
 
 function classifyUser(user: SessionUser): { authClass: AuthClass; principal: string } | null {
-  if (user.loginProvider === "admin/token") {
+  if (isAdminServiceAccount(user)) {
     return null;
   }
   if (user.authType === "bearer") {

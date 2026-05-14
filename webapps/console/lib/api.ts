@@ -32,7 +32,7 @@ import {
   WorkspaceRolePermissions,
 } from "./workspace-roles";
 import { getServerEnv } from "./server/serverEnv";
-const adminServiceAccountEmail = "admin-service-account@jitsu.com";
+import { adminServiceAccountEmail, isAdminServiceAccount } from "./shared/admin-service-account";
 
 type HandlerOpts<Req = void, Query = void, RequireAuth extends boolean = boolean> = {
   body?: Req;
@@ -466,7 +466,7 @@ function stackToArray(stack?: string) {
   return lines.length > 0 ? lines.map(s => s.trim()) : undefined;
 }
 export async function verifyAdmin(user: SessionUser) {
-  if (user.internalId === adminServiceAccountEmail && user.loginProvider === "admin/token") {
+  if (isAdminServiceAccount(user)) {
     return;
   }
   const userId = requireDefined(user.internalId, `internalId is not defined`);
@@ -500,7 +500,7 @@ export async function getWorkspace(workspaceId: string | undefined) {
 }
 
 export async function verifyAccess(user: SessionUser, workspaceId: string) {
-  if (user.internalId === adminServiceAccountEmail && user.loginProvider === "admin/token") {
+  if (isAdminServiceAccount(user)) {
     return;
   }
   if (!looksLikeCuid(workspaceId)) {
@@ -527,7 +527,7 @@ export async function verifyAccessWithRole(
   workspaceId: string,
   requiredPermission: WorkspacePermissionsType
 ): Promise<WorkspaceRoleWithPermissions> {
-  if (user.internalId === adminServiceAccountEmail && user.loginProvider === "admin/token") {
+  if (isAdminServiceAccount(user)) {
     return {
       role: "owner",
       ...WorkspaceRolePermissions["owner"],

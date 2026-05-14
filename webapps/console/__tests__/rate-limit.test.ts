@@ -130,6 +130,20 @@ describe("computeResult sliding window", () => {
     expect(denied.retryAfterSec).toBeGreaterThanOrEqual(11);
   });
 
+  it("retrying exactly at the advertised Retry-After instant is allowed (FP boundary)", () => {
+    // Reviewer repro: limit=2, current=12, previous=0 at window start. The naive
+    // FP form `previous * (1 - elapsed/W) + current` evaluates a valid retry to
+    // 2.0000000000000004 > 2 and re-denies, violating the Retry-After contract.
+    // Integer-scaled math must accept the retry exactly at the advertised instant.
+    const tight = { ...opts, limit: 2 };
+    const denied = computeResult(tight, 12, 0, winStart);
+    expect(denied.allowed).toBe(false);
+    expect(denied.retryAfterSec).toBeGreaterThan(0);
+    // At retry: original `current` (12) becomes `previous`; the retry itself is current=1.
+    const retryAt = winStart + denied.retryAfterSec * 1000;
+    expect(computeResult(tight, 1, 12, retryAt).allowed).toBe(true);
+  });
+
   it("resetAt for denied requests aligns with Retry-After (not the window boundary)", () => {
     // Same near-boundary scenario as above: the current window ends in 1s,
     // but the limiter actually requires waiting ≥11s. resetAt must reflect
