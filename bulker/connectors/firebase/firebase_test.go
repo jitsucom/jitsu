@@ -3,10 +3,11 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/jitsucom/bulker/airbytecdk"
 	"io/ioutil"
 	"os"
 	"testing"
+
+	"github.com/jitsucom/bulker/airbytecdk"
 )
 
 func TestFirebase(t *testing.T) {
