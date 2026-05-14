@@ -1,11 +1,11 @@
-FROM debian:trixie-slim as main
+FROM debian:bullseye-slim as main
 
 RUN apt-get update -y
 RUN apt-get install -y ca-certificates curl
 
 ENV TZ=UTC
 
-FROM golang:1.25-bookworm as build
+FROM golang:1.26-bookworm as build
 
 ARG VERSION
 ENV VERSION $VERSION

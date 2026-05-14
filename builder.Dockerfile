@@ -1,4 +1,4 @@
-FROM node:24-trixie-slim
+FROM node:24-bookworm-slim
 
 # Install Node.js 24 manually from NodeSource + all runtime dependencies
 # This includes everything needed for building AND running the final images
