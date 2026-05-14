@@ -10,9 +10,9 @@ export function computeResult(opts: RateLimitOpts, current: number, previous: nu
   const elapsed = now - windowStartMs;
   const effective = previous * (1 - elapsed / W) + current;
   const allowed = effective <= limit;
-  const resetAt = new Date(windowStartMs + W);
   const remaining = Math.max(0, Math.floor(limit - effective));
   const retryAfterSec = allowed ? 0 : computeRetryAfterSec(opts, current, previous, now);
+  const resetAt = allowed ? new Date(windowStartMs + W) : new Date(now + retryAfterSec * 1000);
   return { allowed, bucket: opts.bucket, limit, remaining, resetAt, retryAfterSec };
 }
 

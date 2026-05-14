@@ -129,4 +129,21 @@ describe("computeResult sliding window", () => {
     // 1s to window boundary + ~W × (1 - 9/11) ≈ 10.9s decay = ~12s total.
     expect(denied.retryAfterSec).toBeGreaterThanOrEqual(11);
   });
+
+  it("resetAt for denied requests aligns with Retry-After (not the window boundary)", () => {
+    // Same near-boundary scenario as above: the current window ends in 1s,
+    // but the limiter actually requires waiting ≥11s. resetAt must reflect
+    // the real retry-allowed instant so X-RateLimit-Reset doesn't tell
+    // clients to retry earlier than Retry-After.
+    const now = winStart + W - 1000;
+    const denied = computeResult(opts, 11, 0, now);
+    expect(denied.allowed).toBe(false);
+    expect(denied.resetAt.getTime() - now).toBe(denied.retryAfterSec * 1000);
+    expect(denied.resetAt.getTime() - now).toBeGreaterThanOrEqual(11_000);
+
+    // Allowed requests still report the window boundary (unchanged behavior).
+    const allowed = computeResult(opts, 3, 0, winStart);
+    expect(allowed.allowed).toBe(true);
+    expect(allowed.resetAt.getTime()).toBe(Math.floor(winStart / W) * W + W);
+  });
 });
