@@ -1,0 +1,177 @@
+name: 📤 Publish
+
+# Single trigger entry point for releases. Two ways in:
+#
+#   1. Automatic — lint.yml dispatches this after lint+test pass on push to
+#      newjitsu, with no inputs. The detect job inspects the latest commit
+#      and decides what to publish (services and/or client-libraries) and
+#      under which channel (stable if the relevant .version.json was bumped,
+#      otherwise beta).
+#
+#   2. Manual — via the Actions UI (workflow_dispatch). Pick scope and channel
+#      explicitly, e.g. canary builds from a feature branch, or force a stable
+#      cut of both stacks at once.
+#
+# services.yaml and client-libraries.yaml have no triggers of their own — they
+# only run via workflow_call from this file (or workflow_dispatch directly,
+# for advanced scope/dont_publish use).
+
+on:
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: "What to publish (auto = detect from the change range)"
+        type: choice
+        options: [auto, both, services, client-libraries]
+        default: auto
+      channel:
+        description: "Release channel (auto = stable if version file bumped, else beta)"
+        type: choice
+        options: [auto, canary, beta, stable]
+        default: auto
+      services_version:
+        description: "Optional version override for services (e.g. 2.14.5)"
+        required: false
+        type: string
+      client_libraries_version:
+        description: "Optional version override for client libraries (e.g. 1.11.5)"
+        required: false
+        type: string
+      from_sha:
+        description: "Optional: SHA to diff from (auto-detect across this range). Default = HEAD~1."
+        required: false
+        type: string
+      to_sha:
+        description: "Optional: SHA to diff to. Default = HEAD."
+        required: false
+        type: string
+
+concurrency:
+  # Queue concurrent publishes rather than cancel — every version bump should
+  # ship. The downstream services.yaml/client-libraries.yaml workflows do
+  # cancel-in-progress within their own group, so an in-flight build of the
+  # same stack will still be superseded.
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  detect:
+    name: 🔍 Detect scope and channel
+    runs-on: ubuntu-latest
+    outputs:
+      services_run: ${{ steps.resolve.outputs.services_run }}
+      client_libs_run: ${{ steps.resolve.outputs.client_libs_run }}
+      services_channel: ${{ steps.resolve.outputs.services_channel }}
+      client_libs_channel: ${{ steps.resolve.outputs.client_libs_channel }}
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v6
+        with:
+          # The dispatcher in lint.yml passes the full push range (`before`
+          # → `after`), which can span many commits because we don't squash.
+          # Need full history so `git diff <from> <to>` resolves both endpoints.
+          fetch-depth: 0
+
+      - name: 🎯 Resolve scope and channel
+        id: resolve
+        env:
+          INPUT_SCOPE: ${{ inputs.scope }}
+          INPUT_CHANNEL: ${{ inputs.channel }}
+          INPUT_FROM_SHA: ${{ inputs.from_sha }}
+          INPUT_TO_SHA: ${{ inputs.to_sha }}
+        run: |
+          set -eu
+
+          # Resolve the diff range. When the dispatcher passes from_sha +
+          # to_sha (typical PR-merge case), we look at every file touched
+          # across the entire merged change set — not just the last commit.
+          # We must not squash merges, so a stable-bump commit can be earlier
+          # in the merged range and would otherwise be missed.
+          FROM_SHA="${INPUT_FROM_SHA:-}"
+          TO_SHA="${INPUT_TO_SHA:-HEAD}"
+          # Treat the all-zeros sentinel (first push to a new branch) as "no from".
+          if [ "$FROM_SHA" = "0000000000000000000000000000000000000000" ]; then
+            FROM_SHA=""
+          fi
+          if [ -z "$FROM_SHA" ]; then
+            FROM_SHA="${TO_SHA}~1"
+            echo "No from_sha provided; defaulting to ${FROM_SHA}..${TO_SHA}"
+          else
+            echo "Diff range: ${FROM_SHA}..${TO_SHA}"
+          fi
+
+          CHANGED=$(git diff --name-only "$FROM_SHA" "$TO_SHA" || true)
+          echo "Changed files:"
+          echo "$CHANGED" | sed 's/^/  /'
+
+          # Path patterns mirror what the previous lint.yml deploy jobs filtered on.
+          SERVICES_PATH_RE='^(bulker|services|webapps|libs|cli|types)/|^all\.Dockerfile$|^\.services\.version\.json$|^pnpm-lock\.yaml$|^\.github/workflows/(services\.yaml|publish\.yml)$'
+          CLIENT_PATH_RE='^libs/(jitsu-js|jitsu-react|common-config)/|^types/|^\.jsclient\.version\.json$|^pnpm-lock\.yaml$|^\.github/workflows/(client-libraries\.yaml|publish\.yml)$'
+
+          case "$INPUT_SCOPE" in
+            auto)
+              SERVICES_RUN=false
+              CLIENT_LIBS_RUN=false
+              if echo "$CHANGED" | grep -qE "$SERVICES_PATH_RE"; then SERVICES_RUN=true;    fi
+              if echo "$CHANGED" | grep -qE "$CLIENT_PATH_RE";   then CLIENT_LIBS_RUN=true; fi
+              ;;
+            both)             SERVICES_RUN=true;  CLIENT_LIBS_RUN=true  ;;
+            services)         SERVICES_RUN=true;  CLIENT_LIBS_RUN=false ;;
+            client-libraries) SERVICES_RUN=false; CLIENT_LIBS_RUN=true  ;;
+          esac
+
+          if [ "$INPUT_CHANNEL" = "auto" ]; then
+            # Auto-channel only resolves to beta/stable on newjitsu. Anywhere
+            # else (feature branches dispatched manually) defaults to canary.
+            if [ "${GITHUB_REF_NAME}" != "newjitsu" ]; then
+              SERVICES_CHANNEL=canary
+              CLIENT_LIBS_CHANNEL=canary
+            else
+              if echo "$CHANGED" | grep -q '^\.services\.version\.json$'; then
+                SERVICES_CHANNEL=stable
+              else
+                SERVICES_CHANNEL=beta
+              fi
+              if echo "$CHANGED" | grep -q '^\.jsclient\.version\.json$'; then
+                CLIENT_LIBS_CHANNEL=stable
+              else
+                CLIENT_LIBS_CHANNEL=beta
+              fi
+            fi
+          else
+            SERVICES_CHANNEL="$INPUT_CHANNEL"
+            CLIENT_LIBS_CHANNEL="$INPUT_CHANNEL"
+          fi
+
+          echo ""
+          echo "Resolved:"
+          echo "  scope input:         $INPUT_SCOPE"
+          echo "  channel input:       $INPUT_CHANNEL"
+          echo "  services_run:        $SERVICES_RUN ($SERVICES_CHANNEL)"
+          echo "  client_libs_run:     $CLIENT_LIBS_RUN ($CLIENT_LIBS_CHANNEL)"
+
+          {
+            echo "services_run=$SERVICES_RUN"
+            echo "client_libs_run=$CLIENT_LIBS_RUN"
+            echo "services_channel=$SERVICES_CHANNEL"
+            echo "client_libs_channel=$CLIENT_LIBS_CHANNEL"
+          } >> "$GITHUB_OUTPUT"
+
+  services:
+    needs: [detect]
+    if: ${{ needs.detect.outputs.services_run == 'true' }}
+    uses: ./.github/workflows/services.yaml
+    secrets: inherit
+    with:
+      channel: ${{ needs.detect.outputs.services_channel }}
+      version: ${{ inputs.services_version }}
+      scope: all
+
+  client-libraries:
+    needs: [detect]
+    if: ${{ needs.detect.outputs.client_libs_run == 'true' }}
+    uses: ./.github/workflows/client-libraries.yaml
+    secrets: inherit
+    with:
+      channel: ${{ needs.detect.outputs.client_libs_channel }}
+      version: ${{ inputs.client_libraries_version }}

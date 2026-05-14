@@ -117,11 +117,16 @@ func (r *Router) FuncsHandler(c *gin.Context) {
 		return
 	}
 	functionsResults := make(map[string]any)
-	// Determine endpoint: check first destination's functionsClasses
-	// All destinations in a stream have the same functionsClasses
-	classes := getFunctionsClasses(connection.Options, r.config.DefaultFunctionsClass)
-	// Use functions server (new format with execLog)
-	fsURL := getFunctionsServerURL(r.config.FunctionsServerURLTemplate, stream.Stream.WorkspaceId, classes)
+	// Get functions server deployment info from connection options
+	fs, _ := connection.Options["functionsServer"].(map[string]any)
+	deploymentID := ""
+	if fs != nil {
+		deploymentID, _ = fs["deploymentId"].(string)
+	}
+	if deploymentID == "" {
+		deploymentID = stream.Stream.WorkspaceId
+	}
+	fsURL := strings.Replace(r.config.FunctionsServerURLTemplate, "${workspaceId}", deploymentID, 1)
 	endpointURL := fsURL + "/multi"
 	result, err := r.callFunctionsEndpoint(stream, []*ShortDestinationConfig{connection}, endpointURL, ingestMessageBytes, functionsResults, true)
 	if err != nil {

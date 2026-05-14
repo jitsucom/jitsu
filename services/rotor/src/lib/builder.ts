@@ -1,19 +1,10 @@
-import {
-  ProfileBuilder,
-  EventsStore,
-  bulkerDestination,
-  FunctionContext,
-  FunctionChainContext,
-} from "@jitsu/destination-functions";
-import { FindCursor, AggregationCursor, MongoClient, WithId, Document, ReadPreference } from "mongodb";
+import { ProfileBuilder, EventsStore, bulkerDestination } from "@jitsu/destination-functions";
+import { AggregationCursor, MongoClient, Document, ReadPreference } from "mongodb";
 import { db, ProfileBuilderQueueInfo } from "./db";
-import { getLog, getSingleton, hash, LogFactory, parseNumber, requireDefined, stopwatch, int32Hash } from "juava";
-import NodeCache from "node-cache";
-import { buildFunctionChain, FuncChain, runChain } from "./pb-functions-chain";
+import { getLog, getSingleton, hash, LogFactory, LogLevel, parseNumber, requireDefined, stopwatch } from "juava";
 import { FullContext } from "@jitsu/protocols/functions";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { TableNameParameter, transfer } from "@jitsu/functions-lib";
-import { connectionsStore } from "./repositories";
 import { HighLevelProducer, OffsetSpec, TopicPartitionOffsetSpec } from "@confluentinc/kafka-javascript";
 import { createPriorityConsumer, TopicsReport } from "./priority-consumer";
 import { kafkaAdmin, kafkaCredentials, topicName } from "./kafka";
@@ -27,7 +18,9 @@ import {
   ProfilesConfig,
 } from "./profiles-functions";
 import { mongodb } from "./mongodb";
-import { Profile, ProfileUser } from "./profiles-udf-wrapper";
+import { Profile } from "./pb-server-runtime";
+import { undiciAgent } from "./functions-server-client";
+import { workspacesStore } from "./repositories";
 
 const serverEnv = getServerEnv();
 
@@ -39,18 +32,6 @@ export const metricsInterval = parseNumber(serverEnv.METRICS_INTERVAL_MS, 5000);
 
 const instanceIndex = parseNumber(serverEnv.INSTANCE_INDEX, 0);
 const priorityLevels = parseNumber(serverEnv.PRIORITY_LEVELS, 3);
-
-//cache function chains for 1m
-const funcsChainTTL = 60;
-const funcsChainCache = new NodeCache({ stdTTL: funcsChainTTL, checkperiod: 60, useClones: false });
-
-const funcCtx: FunctionContext = {
-  function: {
-    id: "profile-builder",
-    type: "profile-builder",
-  },
-  props: {},
-};
 
 const bulkerSchema = {
   name: "profiles",
@@ -90,14 +71,6 @@ export async function profileBuilder(
   let closed = false;
   let closePromise: Promise<void> | undefined = undefined;
 
-  const cacheKey = pbLongId;
-  let funcChain: FuncChain | undefined = funcsChainCache.get(cacheKey);
-  if (!funcChain) {
-    log.atInfo().log(`Refreshing function chain`);
-    funcChain = buildFunctionChain(profileBuilder, connectionsStore.getCurrent()!, eventsLogger, fetchTimeoutMs);
-    funcsChainCache.set(cacheKey, funcChain);
-  }
-
   const config = ProfilesConfig.parse({
     ...profileBuilder.intermediateStorageCredentials,
     profileBuilderId: profileBuilder.id,
@@ -107,6 +80,7 @@ export async function profileBuilder(
     traitsCollectionName: `profiles-traits-${workspaceId}-${profileBuilder.id}`,
   });
 
+  // MongoDB is still needed for full rebuilds (processProfileIds) and collection setup
   const mongoSingleton = config.mongoUrl
     ? getSingleton(
         `profiles-mongodb-${profileBuilder.id}-${hash("md5", config.mongoUrl)}`,
@@ -146,7 +120,7 @@ export async function profileBuilder(
     profileBuilder,
     priorityLevels,
     (profileId: string, priority: number) => {
-      return () => processProfile(profileBuilder, funcChain!, mongo, log, config, profileId, priority);
+      return () => processProfile(workspaceId, profileBuilder, log, eventsLogger, profileId, priority);
     }
   );
 
@@ -211,7 +185,7 @@ export async function profileBuilder(
             profilesCount: processed,
           });
         } catch (e: any) {
-          funcChain?.context.log.error(funcCtx, `Error while running profile builder: ${e.message}`);
+          log.atError().log(`Error while running profile builder: ${e.message}`);
         }
       }
     } finally {
@@ -380,90 +354,114 @@ export async function profileBuilder(
 }
 
 async function processProfile(
+  workspaceId: string,
   profileBuilder: ProfileBuilder,
-  funcChain: FuncChain,
-  mongo: MongoClient,
   log: LogFactory,
-  config: ProfilesConfig,
+  eventsLogger: EventsStore,
   profileId: string,
   priority: number = 0
 ) {
   const ms = stopwatch();
   let status = "success";
-  let cursor: FindCursor<WithId<Document>>;
   try {
-    const metrics = { db_events: 0 } as any;
-    cursor = await getProfileEvents(mongo, config, profileId);
-    metrics.db_find = ms.lapMs();
-    const userPromise = getProfileUser(mongo, config, profileId, metrics);
-    let count = 0;
-    const userProvider = async () => {
-      return await userPromise;
+    // Look up functionsServerInfo fresh from repository on each invocation —
+    // deploymentId may change without a profile builder version bump
+    const ws = workspacesStore.getCurrent();
+    const currentWorkspace = ws?.getObject(workspaceId);
+    const currentPb = currentWorkspace?.profileBuilders?.find((pb: any) => pb.id === profileBuilder.id);
+    const functionsServerInfo = (currentPb as any)?.functionsServer as { deploymentId: string } | undefined;
+    if (!functionsServerInfo?.deploymentId) {
+      throw new Error(`No functions server deployment configured for profile builder ${profileBuilder.id}`);
+    }
+
+    // Call functions server to execute profile builder chain
+    const template = serverEnv.FUNCTIONS_SERVER_URL_TEMPLATE;
+    const baseUrl = template.replace("${workspaceId}", functionsServerInfo.deploymentId);
+    const url = `${baseUrl}/profile/${profileBuilder.id}`;
+    const fsTimeoutMs = parseNumber(serverEnv.FUNCTIONS_SERVER_TIMEOUT_MS, 30000);
+
+    const { request } = await import("undici");
+    const response = await request(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ profileId }),
+      bodyTimeout: fsTimeoutMs,
+      headersTimeout: fsTimeoutMs,
+      dispatcher: undiciAgent,
+    });
+
+    let fsResult: {
+      result?: Profile;
+      error?: { name: string; message: string };
+      logs?: any[];
     };
 
-    const eventsProvider = async () => {
-      const start = Date.now();
-      const next = await cursor.next();
-      metrics.db_events += Date.now() - start;
-      if (next) {
-        count++;
-        if ((next.timestamp as any) instanceof Date) {
-          next.timestamp = (next.timestamp as Date).toISOString();
+    const bodyText = await response.body.text();
+    try {
+      fsResult = JSON.parse(bodyText);
+    } catch {
+      throw new Error(`Functions server returned ${response.statusCode}: ${bodyText}`);
+    }
+
+    // Replay function logs to eventsLogger (same pattern as functions-server-client.ts)
+    if (fsResult.logs && fsResult.logs.length > 0) {
+      const connectionId = profileBuilder.id;
+      for (const entry of fsResult.logs) {
+        const functionId = entry.functionId || profileBuilder.id;
+        const functionType = entry.functionType || "profile";
+
+        if (typeof entry.message === "object" && entry.message.type === "http-request") {
+          // HTTP request logs are sent directly to eventsLogger
+          eventsLogger.log(connectionId, entry.level as LogLevel, entry.message);
+        } else {
+          // Regular logs: send to eventsLogger in the standard format
+          eventsLogger.log(connectionId, entry.level as LogLevel, {
+            type: `log-${entry.level}`,
+            functionId,
+            functionType,
+            message: {
+              text: entry.message,
+              args: entry.args,
+            },
+          });
         }
-        return next as unknown as AnalyticsServerEvent;
-      } else {
-        return undefined;
       }
-    };
+    }
 
-    const result = await runChain(profileBuilder, profileId, funcChain, eventsProvider, userProvider);
-    metrics.udf = ms.lapMs();
-    metrics.db = metrics.db_events + metrics.db_user + metrics.db_find;
+    if (response.statusCode !== 200) {
+      throw new Error(`Functions server returned ${response.statusCode}: ${fsResult.error?.message || bodyText}`);
+    }
+
+    if (fsResult.error) {
+      throw new Error(`${fsResult.error.name}: ${fsResult.error.message}`);
+    }
+
+    const result = fsResult.result;
     if (result) {
-      await sendToBulker(profileBuilder, result, funcChain.context);
-      metrics.bulker = ms.lapMs();
-      funcChain.context.log.info(
-        funcCtx,
-        `User ${profileId} processed in ${ms.elapsedMs()}ms (events: ${count}). Result: ${JSON.stringify(
-          result
-        )} Metrics: ${JSON.stringify(metrics)}`
-      );
+      await sendToBulker(profileBuilder, result);
+      log.atInfo().log(`User ${profileId} processed in ${ms.elapsedMs()}ms. Result: ${JSON.stringify(result)}`);
     } else {
-      funcChain.context.log.warn(
-        funcCtx,
-        `No profile result for user ${profileId}. processed in ${ms.elapsedMs()}ms (events: ${count}).  Metrics: ${JSON.stringify(
-          metrics
-        )}`
-      );
+      log.atWarn().log(`No profile result for user ${profileId}. processed in ${ms.elapsedMs()}ms`);
     }
   } catch (e: any) {
     status = "error";
-    funcChain.context.log.error(funcCtx, `Error while processing user ${profileId}: ${e.message}`);
+    log.atError().log(`Error while processing user ${profileId}: ${e.message}`);
   } finally {
-    // @ts-ignore
-    cursor?.close();
     promProfileStatuses.labels({ builderId: profileBuilder.id, priority, status }).observe(ms.elapsedMs() / 1000);
   }
 }
 
-async function sendToBulker(profileBuilder: ProfileBuilder, profile: Profile, context: FunctionChainContext) {
+async function sendToBulker(profileBuilder: ProfileBuilder, profile: Profile) {
+  const log = getLog(`pb-bulker-${profileBuilder.id}`);
   const ctx: FullContext<bulkerDestination.BulkerDestinationConfig> = {
     log: {
-      error: (message: string, ...args: any[]) => {
-        context.log.error(funcCtx, message, ...args);
-      },
-      info: (message: string, ...args: any[]) => {
-        context.log.info(funcCtx, message, ...args);
-      },
-      warn: (message: string, ...args: any[]) => {
-        context.log.warn(funcCtx, message, ...args);
-      },
-      debug: (message: string, ...args: any[]) => {
-        context.log.debug(funcCtx, message, ...args);
-      },
+      error: (message: string, ...args: any[]) => log.atError().log(message, ...args),
+      info: (message: string, ...args: any[]) => log.atInfo().log(message, ...args),
+      warn: (message: string, ...args: any[]) => log.atWarn().log(message, ...args),
+      debug: (message: string, ...args: any[]) => log.atDebug().log(message, ...args),
     },
-    fetch: context.fetch,
-    store: context.store,
+    fetch: globalThis.fetch,
+    store: { get: async () => undefined, set: async () => {}, del: async () => {}, ttl: async () => {} } as any,
     getWarehouse: () => {
       throw new Error("Warehouse API is not available in builtin functions");
     },
@@ -499,48 +497,6 @@ async function sendToBulker(profileBuilder: ProfileBuilder, profile: Profile, co
   transfer(payload, profile, ["destination_id", "table_name"]);
 
   await bulkerDestination.default(payload as unknown as AnalyticsServerEvent, ctx);
-}
-
-async function getProfileEvents(mongo: MongoClient, config: ProfilesConfig, profileId: string) {
-  return mongo
-    .db(config.eventsDatabase)
-    .collection(config.eventsCollectionName)
-    .find(
-      {
-        [profileIdHashColumn]: int32Hash(profileId),
-        [profileIdColumn]: profileId,
-      },
-      { readPreference: ReadPreference.NEAREST }
-    );
-}
-
-async function getProfileUser(
-  mongo: MongoClient,
-  config: ProfilesConfig,
-  profileId: string,
-  metrics: any
-): Promise<ProfileUser> {
-  const start = Date.now();
-  const u = await mongo
-    .db(config.eventsDatabase)
-    .collection(config.traitsCollectionName)
-    .findOne({ [profileIdColumn]: profileId }, { readPreference: ReadPreference.NEAREST });
-  metrics.db_user = Date.now() - start;
-  if (!u) {
-    return {
-      profileId,
-      userId: "",
-      anonymousId: "",
-      traits: {},
-    };
-  } else {
-    return {
-      profileId,
-      userId: u.userId,
-      anonymousId: u.anonymousId,
-      traits: u.traits,
-    };
-  }
 }
 
 async function processProfileIds(mongo: MongoClient, config: ProfilesConfig, cb: (profileId: string) => void) {

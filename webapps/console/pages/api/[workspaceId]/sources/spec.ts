@@ -17,9 +17,15 @@ const resultType = z.object({
   startedAt: z.number().optional(),
 });
 
-export default createRoute()
+export const route = createRoute()
   .GET({
     auth: true,
+    summary: "Get connector specs",
+    description:
+      "Returns the JSON schema describing a connector package's credentials/config form. " +
+      "First call kicks off an async fetch from the sync controller and returns `{ ok: false, pending: true }`; " +
+      "poll until `ok: true` and `specs` is populated. Pass `force=true` to bypass the cache.",
+    tags: ["sync"],
     query: z.object({
       workspaceId: z.string(),
       package: z.string(),
@@ -104,5 +110,6 @@ export default createRoute()
         `source: ${query.package}:${query.version} workspace: ${workspaceId}`
       );
     }
-  })
-  .toNextApiHandler();
+  });
+
+export default route.toNextApiHandler();

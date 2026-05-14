@@ -30,21 +30,6 @@ export function createPriorityConsumer(
   const rateLimitWindows: Record<ProfileId, RateLimitWindow> = {};
   const queue = new PQueue({ concurrency });
 
-  const onSizeLessThan = async (limit: number) => {
-    if (queue.size < limit) {
-      return;
-    }
-    return new Promise<void>(resolve => {
-      const listener = () => {
-        if (queue.size < limit) {
-          queue.removeListener("next", listener);
-          resolve();
-        }
-      };
-      queue.on("next", listener);
-    });
-  };
-
   const closeQueue = async () => {
     await queue.onIdle();
   };
@@ -135,7 +120,7 @@ export function createPriorityConsumer(
               log.atError().log("Message without key");
               return;
             }
-            await onSizeLessThan(sizeCap);
+            await queue.onSizeLessThan(sizeCap);
             queue
               .add(
                 async () => {

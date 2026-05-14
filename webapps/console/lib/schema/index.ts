@@ -13,6 +13,10 @@ export const SessionUser = z.object({
   externalUsername: z.string().nullish(),
   mustChangePassword: z.boolean().nullish(),
   authType: z.string().nullish().optional(),
+  // Set only when authType === "bearer". Identifies which UserApiToken row was used.
+  tokenId: z.string().nullish().optional(),
+  // Set only when authType === "bearer". Mirrors UserApiToken.type ("api", "cli", ...).
+  tokenType: z.string().nullish().optional(),
 });
 export type SessionUser = z.infer<typeof SessionUser>;
 
@@ -145,8 +149,21 @@ export const ApiKey = z.object({
   createdAt: z.coerce.date().nullish(),
   lastUsed: z.coerce.date().nullish(),
   id: z.string(),
+  type: z.string().nullish(),
+  name: z.string().nullish(),
+  expiresAt: z.coerce.date().nullish(),
 });
 export type ApiKey = z.infer<typeof ApiKey>;
+
+/**
+ * Legacy keys created before UserApiToken.type existed have no stored type.
+ * Recover one from the id prefix used by jitsu-cli (`jitsu-cli-...`); everything
+ * else falls back to "api". Pure function — safe to import from client code.
+ */
+export function inferTokenTypeFromId(id: string): string {
+  if (id.startsWith("jitsu-cli-")) return "cli";
+  return "api";
+}
 
 export const StreamConfig = ConfigEntityBase.merge(
   z.object({
@@ -218,7 +235,7 @@ export type MiscEntity = z.infer<typeof MiscEntity>;
 
 export const NotificationChannel = ConfigEntityBase.merge(
   z.object({
-    events: z.array(z.enum(["all", "sync", "batch", "dead"])).default(["all"]),
+    events: z.array(z.enum(["all", "sync", "batch", "dead", "account"])).default(["all"]),
     channel: z.enum(["email", "slack"]).default("slack"),
     slackWebhookUrl: z.string().optional(),
     // allWorkspaceEmails: z.boolean().default(true).optional(),

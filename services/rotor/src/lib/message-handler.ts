@@ -19,7 +19,6 @@ import { buildFunctionChain, checkError, FuncChain, FuncChainFilter, runChain } 
 import { Redis } from "ioredis";
 import { fromJitsuClassic } from "@jitsu/functions-lib";
 import { mongoAnonymousEventsStore } from "./mongodb";
-import { getFunctionsClassesFromOptions, shouldUseFunctionsServer } from "./functions-server-client";
 const log = getLog("rotor");
 
 const anonymousEventsStore = mongoAnonymousEventsStore();
@@ -63,7 +62,6 @@ export async function rotorMessageHandler(
     return;
   }
   const connStore = rotorContext.connectionStore;
-  const funcStore = rotorContext.functionsStore;
   const streamsStore = rotorContext.streamsStore;
 
   const connectionId =
@@ -137,29 +135,40 @@ export async function rotorMessageHandler(
     retries,
   };
 
-  // Get functionsClasses from connection options (set during export)
-  const functionsClasses = getFunctionsClassesFromOptions(connection.options);
-  const useFunctionsServer = shouldUseFunctionsServer(functionsClasses);
+  // Use functionsServer info provided by the console export
+  const functionsServer = connection.options?.functionsServer as
+    | { deploymentId: string; status: "functions" | "empty" | "missing" }
+    | undefined;
+
+  if (!functionsServer) {
+    log
+      .atError()
+      .log(
+        `[${connection.id}] No functionsServer info in connection options for workspace ${connection.workspaceId}. Dropping event.`
+      );
+    return undefined;
+  }
+  if (functionsServer.status === "missing") {
+    log
+      .atError()
+      .log(
+        `[${connection.id}] Connection is missing in functionsServer ${functionsServer.deploymentId} for workspace ${connection.workspaceId}. Dropping event.`
+      );
+    // Connection not yet known to the functions server deployment — drop silently
+    return undefined;
+  }
+  // skipUdf: when "empty" — connection has no UDF functions, skip UDF step entirely
+  const skipUdf = functionsServer.status === "empty";
 
   let lastUpdated = Math.max(
     new Date(connection.updatedAt || 0).getTime(),
-    new Date(connection.options?.workspaceUpdatedAt || 0).getTime(),
-    useFunctionsServer ? 0 : new Date(funcStore.lastModified || 0).getTime()
+    new Date(connection.options?.workspaceUpdatedAt || 0).getTime()
   );
-  const cacheKey = `${connection.id}_${lastUpdated}`;
+  const cacheKey = `${connection.id}_${lastUpdated}_${functionsServer?.deploymentId}_${functionsServer?.status}`;
   let funcChain: FuncChain | undefined = funcsChainCache.get(cacheKey);
   if (!funcChain) {
     log.atDebug().log(`[${connection.id}] Refreshing function chain. Dt: ${lastUpdated}`);
-    funcChain = buildFunctionChain(
-      useFunctionsServer,
-      functionsClasses,
-      connection,
-      connStore,
-      funcStore,
-      rotorContext,
-      anonymousEventsStore,
-      fetchTimeoutMs
-    );
+    funcChain = buildFunctionChain(skipUdf, connection, connStore, rotorContext, anonymousEventsStore, fetchTimeoutMs);
     funcsChainCache.set(cacheKey, funcChain);
   }
 

@@ -23,7 +23,7 @@
     "json5": "^2.1.0",
     "juava": "workspace:*",
     "node-postgres": "^0.6.2",
-    "testcontainers": "^9.0.0",
+    "testcontainers": "^11.14.0",
     "ts-jest": "29.0.5",
     "tslib": "catalog:"
   }

@@ -64,13 +64,22 @@ export const UserNotificationSettings: React.FC<{
               <Switch id="dead" />
             </Form.Item>{" "}
           </div>
-          <div className="flex flex-row w-full justify-between items-center border-x border-collapse p-4">
+          <div className="flex flex-row w-full justify-between items-center border-x border-t border-collapse p-4">
             <label htmlFor="syncs" className="font-main flex flex-col gap-1">
               {eventTypeLabels["sync"].label}
               <span className="text-xs text-textLight">{eventTypeLabels["sync"].description}</span>
             </label>
             <Form.Item name="syncs" noStyle>
               <Switch id="syncs" />
+            </Form.Item>{" "}
+          </div>
+          <div className="flex flex-row w-full justify-between items-center border-x border-t border-collapse p-4">
+            <label htmlFor="account" className="font-main flex flex-col gap-1">
+              {eventTypeLabels["account"].label}
+              <span className="text-xs text-textLight">{eventTypeLabels["account"].description}</span>
+            </label>
+            <Form.Item name="account" noStyle>
+              <Switch id="account" />
             </Form.Item>{" "}
           </div>
           <div className="flex flex-row w-full justify-between items-center border-x border-t border-collapse p-4">

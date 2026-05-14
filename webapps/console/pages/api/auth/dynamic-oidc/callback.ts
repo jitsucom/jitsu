@@ -10,6 +10,7 @@ import { getOidcProvider } from "../../../../lib/server/oidc-token-service";
 import { isSecure } from "../../../../lib/server/origin";
 import { redirectWithOidcError, OidcErrors } from "../../../../lib/server/oidc-error-handler";
 import { getServerEnv } from "../../../../lib/server/serverEnv";
+import { authAuditLog } from "../../../../lib/server/audit-log";
 
 const log = getServerLog("api/auth/dynamic-oidc/callback");
 
@@ -260,6 +261,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Create session token
     const sessionToken = jwt.sign(sessionData, nextAuthConfig.secret as string);
+
+    try {
+      const userEmail = user.email || email;
+      await authAuditLog({ internalId: user.id, email: userEmail, name: user.name || userEmail }, "login", "oidc");
+    } catch (err) {
+      log
+        .atError()
+        .withCause(err as Error)
+        .log("Failed to record OIDC login audit event");
+    }
 
     // Set secure session cookie
     res.setHeader(

@@ -192,12 +192,15 @@ func (r *AbstractRepository[T]) start() {
 				}
 			}
 		} else {
+			// No refresh period configured — poll with a minimum interval to avoid busy-looping
+			ticker := time.NewTicker(1 * time.Second)
 			for {
 				select {
-				case <-r.closed:
-					return
-				default:
+				case <-ticker.C:
 					r.refresh(true)
+				case <-r.closed:
+					ticker.Stop()
+					return
 				}
 			}
 		}

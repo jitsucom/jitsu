@@ -141,6 +141,49 @@ export default async function(event, { log, fetch, store, retries, props: config
   return event
   }`,
   },
+  functionStore: {
+    id: "functionStore",
+    workspaceId: "workspace1",
+    name: "Function Store",
+    codeHash: "functionStore-hash",
+    code: `export default async function(event, { store }) {
+  await store.set("store-test-key", { marker: "stored-value", n: 42 })
+  const val = await store.get("store-test-key")
+  event.properties.storeMarker = val && val.marker
+  event.properties.storeN = val && val.n
+  event.properties.counter = (event.properties.counter || 0) + 1
+  return event
+}`,
+  },
+  functionFetch: {
+    id: "functionFetch",
+    workspaceId: "workspace1",
+    name: "Function Fetch",
+    codeHash: "functionFetch-hash",
+    code: `export default async function(event, { fetch, props: config }) {
+  const res = await fetch(config.FETCH_URL)
+  const body = await res.json()
+  event.properties.fetched = body.message
+  event.properties.counter = (event.properties.counter || 0) + 1
+  return event
+}`,
+  },
+  functionWarehouseReal: {
+    id: "functionWarehouseReal",
+    workspaceId: "workspace1",
+    name: "Function Warehouse Real",
+    codeHash: "functionWarehouseReal-hash",
+    code: `export default async function(event, { getWarehouse }) {
+  try {
+    const rows = await getWarehouse("clickhouseWarehouse").query("SELECT 1 AS value, 'hello' AS label")
+    event.properties.warehouseRow = rows[0]
+  } catch (e) {
+    event.properties.warehouseError = e.message
+  }
+  event.properties.counter = (event.properties.counter || 0) + 1
+  return event
+}`,
+  },
 };
 
 export const connections = {
@@ -461,6 +504,90 @@ export const connections = {
     },
     credentials: {
       url: "http://localhost:3089/ua_geo",
+      method: "POST",
+      headers: [],
+    },
+  },
+  store: {
+    id: "store",
+    workspaceId: "workspace1",
+    updatedAt: new Date(),
+    destinationId: "destination1",
+    streamId: "stream1",
+    usesBulker: false,
+    type: "webhook",
+    options: {
+      functions: [
+        {
+          functionId: "udf.function1",
+        },
+        {
+          functionId: "udf.functionStore",
+        },
+        {
+          functionId: "udf.function3",
+        },
+      ],
+    },
+    credentials: {
+      url: "http://localhost:3089/store",
+      method: "POST",
+      headers: [],
+    },
+  },
+  fetch: {
+    id: "fetch",
+    workspaceId: "workspace1",
+    updatedAt: new Date(),
+    destinationId: "destination1",
+    streamId: "stream1",
+    usesBulker: false,
+    type: "webhook",
+    options: {
+      functions: [
+        {
+          functionId: "udf.function1",
+        },
+        {
+          functionId: "udf.functionFetch",
+        },
+        {
+          functionId: "udf.function3",
+        },
+      ],
+      functionsEnv: {
+        FETCH_URL: "http://localhost:3089/fetch-source",
+      },
+    },
+    credentials: {
+      url: "http://localhost:3089/fetch",
+      method: "POST",
+      headers: [],
+    },
+  },
+  warehouse_real: {
+    id: "warehouse_real",
+    workspaceId: "workspace1",
+    updatedAt: new Date(),
+    destinationId: "destination1",
+    streamId: "stream1",
+    usesBulker: false,
+    type: "webhook",
+    options: {
+      functions: [
+        {
+          functionId: "udf.function1",
+        },
+        {
+          functionId: "udf.functionWarehouseReal",
+        },
+        {
+          functionId: "udf.function3",
+        },
+      ],
+    },
+    credentials: {
+      url: "http://localhost:3089/warehouse_real",
       method: "POST",
       headers: [],
     },

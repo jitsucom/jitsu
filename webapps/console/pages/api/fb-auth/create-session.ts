@@ -31,6 +31,11 @@ export const api: Api = {
         throw new ApiError("CSRF error", {}, { status: 401 });
       }
       const { cookie, expiresIn } = await createSessionCookie(idToken);
+
+      // Audit logging lives in /api/fb-auth/audit-login which the client
+      // calls only at the actual sign-in moment. This endpoint is hit on
+      // every cookie mint / refresh — too noisy to audit here.
+
       //we need to split() since the domain might contain a port, not good for cookies
       const domain = getRequestHost(req).split(":")[0];
       getLog().atDebug().log(`Setting firebase auth cookie for '${domain}': ${cookie}`);

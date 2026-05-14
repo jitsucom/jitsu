@@ -2,13 +2,22 @@
 
 // In next.config.js (build-time config), we use process.env directly since this runs during build
 // The serverEnv module with validation is for runtime (API routes, server-side rendering)
+const path = require("path");
 const withBundleAnalyzer = require("@next/bundle-analyzer")({
   enabled: process.env.ANALYZE === "true",
 });
 
 module.exports = withBundleAnalyzer({
   transpilePackages: ["juava", "@jitsu/protocols", "@jitsu/core-functions-lib", "@jitsu/destination-functions", "@jitsu-internal/webapps-shared", "@jitsu/js"],
+  // Allow portless dev hosts (https://console[-branch].jitsu.localhost) to
+  // load /_next/* resources. Without this Next 15+ blocks them as cross-origin.
+  allowedDevOrigins: ["*.jitsu.localhost"],
   turbopack: {
+    // Pin the workspace root to this repo (the worktree). Without this Next.js
+    // walks up looking for a lockfile and on a worktree picks up the main
+    // checkout's pnpm-workspace.yaml, which makes Turbopack's module graph
+    // panic ("there must be a path to a root").
+    root: path.resolve(__dirname, "../.."),
     rules: {
       "*.txt": {
         loaders: ["raw-loader"],
@@ -88,7 +97,6 @@ module.exports = withBundleAnalyzer({
     if (!opts.dev) {
       config.devtool = "source-map";
     }
-    config.externals["isolated-vm"] = "require('isolated-vm')";
     config.module.rules.push({
       test: /\.sql$/,
       use: "raw-loader",

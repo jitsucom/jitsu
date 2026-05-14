@@ -1,6 +1,11 @@
 {
   "name": "@jitsu/jitsu-react",
   "version": "0.0.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jitsucom/jitsu",
+    "directory": "libs/jitsu-react"
+  },
   "description": "",
   "license": "MIT",
   "main": "src/index.ts",

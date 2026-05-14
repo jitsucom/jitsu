@@ -1,0 +1,7 @@
+{
+  "name": "env-preload",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Preload module that loads layered .env.local files into process.env. Used via NODE_OPTIONS=--require=env-preload, set from the root .npmrc. See CONTRIBUTING.md.",
+  "main": "./preload-env.cjs"
+}

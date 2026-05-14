@@ -9,13 +9,6 @@ const { dns } = interceptors;
 
 const log = getLog("functions-server-client");
 
-export type FunctionsClass = "premium" | "dedicated" | "free" | "legacy";
-// Functions class constants (must match operator values)
-export const FunctionsClassDedicated = "dedicated";
-export const FunctionsClassPremium = "premium";
-export const FunctionsClassFree = "free";
-export const FunctionsClassLegacy = "legacy";
-
 const serverEnv = getServerEnv();
 
 const concurrency = parseNumber(serverEnv.CONCURRENCY, 10);
@@ -35,46 +28,15 @@ export const undiciAgent = new Agent({
     affinity: 4, // prefer IPv4
   })
 );
-/**
- * Get the functions classes from connection options.
- * functionsClasses is set during connection export from workspace.featuresEnabled.
- */
-export function getFunctionsClassesFromOptions(options: any): FunctionsClass[] {
-  if (options?.functionsClasses && Array.isArray(options.functionsClasses) && options.functionsClasses.length > 0) {
-    const classes = options.functionsClasses.filter(
-      (f: string) =>
-        f === FunctionsClassPremium ||
-        f === FunctionsClassDedicated ||
-        f === FunctionsClassFree ||
-        f === FunctionsClassLegacy
-    ) as FunctionsClass[];
-    if (classes.length > 0) {
-      return classes;
-    }
-  }
-
-  return [serverEnv.DEFAULT_FUNCTIONS_CLASS] as FunctionsClass[];
-}
-
-/**
- * Check if a workspace should use the functions server (not legacy)
- */
-export function shouldUseFunctionsServer(functionsClasses: string[]): boolean {
-  return !functionsClasses.includes(FunctionsClassLegacy) && !functionsClasses.includes("");
-}
 
 /**
  * Get the functions server URL for a workspace
  */
-export function getFunctionsServerUrl(
-  workspaceId: string,
-  connectionId: string,
-  functionsClass: Omit<FunctionsClass, "legacy">
-): string {
+export function getFunctionsServerUrl(deploymentId: string, connectionId: string): string {
   // reload it here for tests. In tests we reset serverEnv cache to dynamically set FS server port
   const serverEnv = getServerEnv();
   const template = serverEnv.FUNCTIONS_SERVER_URL_TEMPLATE;
-  const baseUrl = template.replace("${workspaceId}", functionsClass === "free" ? "free" : workspaceId);
+  const baseUrl = template.replace("${workspaceId}", deploymentId);
   return `${baseUrl}/connection/${connectionId}`;
 }
 
@@ -106,9 +68,8 @@ export type FunctionsServerResult = {
  * Call the functions server to execute UDF pipeline for an event
  */
 export async function callFunctionsServer(
-  workspaceId: string,
+  deploymentId: string,
   connectionId: string,
-  functionsClass: Omit<FunctionsClass, "legacy">,
   event: AnyEvent,
   eventContext: EventContext,
   chainCtx: FunctionChainContext,
@@ -116,7 +77,7 @@ export async function callFunctionsServer(
   eventsLogger: EventsStore,
   fetchTimeoutMs?: number
 ): Promise<FunctionsServerResult> {
-  const url = getFunctionsServerUrl(workspaceId, connectionId, functionsClass);
+  const url = getFunctionsServerUrl(deploymentId, connectionId);
 
   let response: Awaited<ReturnType<typeof request>> | undefined;
   try {
@@ -135,6 +96,14 @@ export async function callFunctionsServer(
       dispatcher: undiciAgent,
     });
 
+    if (response.statusCode === 404) {
+      log.atWarn().log(`Functions server endpoint not found for connection ${connectionId} (404).`);
+      return {
+        events: [],
+        execLog: [],
+        logs: [],
+      };
+    }
     if (response.statusCode !== 200) {
       const errorText = await response.body.text();
       throw new RetryError(`Functions server returned ${response.statusCode}: ${errorText}`);
@@ -191,9 +160,8 @@ export async function callFunctionsServer(
  * Uses FunctionChainContext to properly log function execution results with correct context.
  */
 export function createFunctionsServerWrapper(
-  workspaceId: string,
+  deploymentId: string,
   connectionId: string,
-  functionsClass: Omit<FunctionsClass, "legacy">,
   chainCtx: FunctionChainContext,
   funcCtx: FunctionContext,
   eventsLogger: EventsStore,
@@ -202,9 +170,8 @@ export function createFunctionsServerWrapper(
   return async (event: AnyEvent, ctx: EventContext) => {
     try {
       const result = await callFunctionsServer(
-        workspaceId,
+        deploymentId,
         connectionId,
-        functionsClass,
         event,
         ctx,
         chainCtx,
@@ -213,7 +180,7 @@ export function createFunctionsServerWrapper(
         fetchTimeoutMs
       );
 
-      // Check for errors in execLog - similar to checkError in udf-wrapper-code.txtjs
+      // Check for errors in execLog
       let errObj: any = undefined;
       for (const entry of result.execLog) {
         const error = entry.error;

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { Api, inferUrl, nextJsApiHandler, verifyAccessWithRole } from "../../../../lib/api";
 import { requireDefined, rpc } from "juava";
 import { getServerEnv } from "../../../../lib/server/serverEnv";
+import { db } from "../../../../lib/server/db";
 
 const log = getServerLog("function-run");
 
@@ -23,9 +24,40 @@ const resultType = z.object({
   store: z.record(z.any()),
   logs: z.array(z.any()),
   meta: z.any().nullish(),
+  backend: z.string().optional(),
 });
 
 export type FunctionRunType = z.infer<typeof resultType>;
+
+// Class priority order: premium > dedicated > free
+const classPriority = ["premium", "dedicated", "free"];
+
+async function getDeploymentId(workspaceId: string): Promise<string | undefined> {
+  const records = await db.prisma().functionsServer.findMany({
+    where: { workspaceId },
+    select: { class: true, deploymentId: true },
+  });
+  if (records.length === 0) {
+    return undefined;
+  }
+  // Select highest priority class
+  for (const cls of classPriority) {
+    const record = records.find(r => r.class === cls);
+    if (record?.deploymentId) {
+      return record.deploymentId;
+    }
+  }
+  return undefined;
+}
+
+function getUdfRunUrl(deploymentId: string, serverEnv: ReturnType<typeof getServerEnv>): string {
+  const template = requireDefined(
+    serverEnv.FUNCTIONS_SERVER_URL_TEMPLATE,
+    "env FUNCTIONS_SERVER_URL_TEMPLATE is not set. Functions server is required to run functions"
+  );
+  const baseUrl = template.replace("${workspaceId}", deploymentId);
+  return baseUrl + "/udfrun";
+}
 
 export const api: Api = {
   url: inferUrl(__filename),
@@ -50,10 +82,27 @@ export const api: Api = {
       const { workspaceId } = query;
       await verifyAccessWithRole(user, workspaceId, "editEntities");
       const serverEnv = getServerEnv();
-      const rotorURL = requireDefined(
-        serverEnv.ROTOR_URL,
-        `env ROTOR_URL is not set. Rotor is required to run functions`
-      );
+
+      const deploymentId = await getDeploymentId(workspaceId);
+      if (!deploymentId) {
+        return resultType.parse({
+          error: {
+            name: "FunctionRuntimeNotReady",
+            message:
+              "Function runtime for this workspace is being initialized. Please try again in a few minutes. If this message persists, please contact support.",
+          },
+          store: {},
+          logs: [],
+        });
+      }
+      const url = getUdfRunUrl(deploymentId, serverEnv);
+
+      log
+        .atInfo()
+        .log(
+          `Running function ${body.functionId} for workspace ${workspaceId} via ${url} (deployment: ${deploymentId})`
+        );
+
       const rotorAuthKey = serverEnv.ROTOR_AUTH_KEY;
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
@@ -62,7 +111,7 @@ export const api: Api = {
         headers["Authorization"] = `Bearer ${rotorAuthKey}`;
       }
 
-      const res = await rpc(rotorURL + "/udfrun", {
+      const res = await rpc(url, {
         method: "POST",
         body: {
           ...body,

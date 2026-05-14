@@ -3,10 +3,14 @@ package testcontainers
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/jitsucom/bulker/jitsubase/logging"
+	"github.com/jitsucom/bulker/jitsubase/utils"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/network"
 	"github.com/testcontainers/testcontainers-go"
 	tcWait "github.com/testcontainers/testcontainers-go/wait"
-	"time"
 )
 
 const redisDefaultPort = "6379/tcp"
@@ -19,13 +23,18 @@ type RedisContainer struct {
 }
 
 func NewRedisContainer(ctx context.Context) (*RedisContainer, error) {
-	exposedPort := redisDefaultPort
+	hostPort := fmt.Sprintf("%d", utils.GetPort())
 
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
 			Image:        "redis:7-alpine",
-			ExposedPorts: []string{exposedPort},
-			WaitingFor:   tcWait.ForListeningPort(redisDefaultPort).WithStartupTimeout(60 * time.Second),
+			ExposedPorts: []string{redisDefaultPort},
+			HostConfigModifier: func(hc *container.HostConfig) {
+				hc.PortBindings = network.PortMap{
+					network.MustParsePort(redisDefaultPort): []network.PortBinding{{HostPort: hostPort}},
+				}
+			},
+			WaitingFor: tcWait.ForListeningPort(redisDefaultPort).WithStartupTimeout(60 * time.Second),
 		},
 		Started: true,
 	})
@@ -46,7 +55,7 @@ func NewRedisContainer(ctx context.Context) (*RedisContainer, error) {
 	return &RedisContainer{
 		Container: container,
 		Host:      host,
-		Port:      port.Int(),
+		Port:      int(port.Num()),
 	}, nil
 }
 

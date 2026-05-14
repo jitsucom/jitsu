@@ -102,6 +102,16 @@ function WorkspacesMenu(props: { jitsuClassicAvailable: boolean }) {
 
         key: "admin-workspaces",
       },
+      {
+        label: (
+          <Link href="/admin/audit-log" className="flex items-center">
+            <ButtonLabel iconSize="small" icon={<ScrollText className="h-full w-full" />}>
+              Admin Audit Log
+            </ButtonLabel>
+          </Link>
+        ),
+        key: "admin-audit-log",
+      },
     ];
     if (appConfig.ee.available) {
       additionalMenuItems.push({
@@ -511,6 +521,11 @@ function PageHeader() {
           title: "Notification Settings",
           path: "/settings/notifications",
           icon: <BellIcon className="w-full h-full" />,
+        },
+        {
+          title: "Audit Log",
+          path: "/settings/audit-log",
+          icon: <ShieldAlert className="w-full h-full" />,
         },
         billing.enabled && billing.settings?.dataRetentionEditorEnabled
           ? {

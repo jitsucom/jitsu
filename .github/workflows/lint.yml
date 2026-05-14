@@ -1,14 +1,14 @@
 name: 🧪Lint and Test
 on:
-  push:
   pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [newjitsu]
   workflow_dispatch:
 
 env:
   # The jitsu-builder container has Playwright browsers binaries preinstalled on this path:
   PLAYWRIGHT_BROWSERS_PATH: /root/.cache/ms-playwright
-  BETA_BRANCH: newjitsu
-  STABLE_BRANCH: stable-services
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -26,13 +26,13 @@ jobs:
       packages: write
     steps:
       - name: 📥 Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 2
 
       - name: 🔍 Check changed files
         id: changes
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@v4
         with:
           filters: |
             playwright:
@@ -52,7 +52,7 @@ jobs:
 
       - name: 🚀 Setup Turbo cache
         if: steps.changes.outputs.nodejs == 'true'
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             .turbo
@@ -63,9 +63,20 @@ jobs:
 
       - name: 🐳 Pull and start builder container
         if: steps.changes.outputs.nodejs == 'true'
+        # Mount the host Docker socket + share the host network so tests using
+        # testcontainers (rotor) can talk to the runner's Docker daemon and
+        # reach sibling containers on localhost. Ryuk is disabled here for the
+        # same reason the bulker Go test job disables it — the reaper needs
+        # privileged socket access we don't grant, and CI runners are ephemeral.
         run: |
           docker pull jitsucom/jitsu-builder:latest
-          docker run -d --name builder -v ${{ github.workspace }}:/workspace -w /workspace -e CI=true jitsucom/jitsu-builder:latest tail -f /dev/null
+          docker run -d --name builder \
+            -v ${{ github.workspace }}:/workspace -w /workspace \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            --network host \
+            -e CI=true \
+            -e TESTCONTAINERS_RYUK_DISABLED=true \
+            jitsucom/jitsu-builder:latest tail -f /dev/null
 
       - name: 📦 Fetch dependencies from store
         if: steps.changes.outputs.nodejs == 'true'
@@ -116,14 +127,14 @@ jobs:
       contents: read
     steps:
       - name: 📥 Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
           submodules: true
 
       - name: 🔍 Check changed files
         id: changes
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@v4
         with:
           filters: |
             bulker:
@@ -167,7 +178,7 @@ jobs:
 
       - name: 📤 Upload test artifacts
         if: always() && steps.changes.outputs.bulker == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: bulker-test-report
           path: |
@@ -186,7 +197,7 @@ jobs:
       packages: write
     steps:
       - name: 📥 Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: 📝 Get short SHA
         id: short-sha
@@ -227,30 +238,47 @@ jobs:
             - title: Triggered by
               value: ${{ github.actor }}
 
-  deploy:
-    name: 🐳 Build Docker Images
+  dispatch-publish:
+    name: 🚀 Dispatch Publish
+    # Auto-publish only when an explicit version-bump landed on newjitsu and
+    # lint+test passed. Every other commit goes unpublished — use the manual
+    # publish.yml dispatch for canary/beta off-cycle builds.
     needs: [lint-and-format, bulker-test]
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/newjitsu' || github.ref == 'refs/heads/stable-services')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/newjitsu'
+    runs-on: ubuntu-latest
     permissions:
-      contents: write
-      issues: write
-      pull-requests: write
-      packages: write
-      id-token: write
-    uses: ./.github/workflows/services-build.yaml
-    secrets: inherit
-    # Note: skip_install doesn't work as packages are installed inside docker
+      actions: write
+      contents: read
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v6
+        with:
+          # Need history covering the entire push range so dorny/paths-filter
+          # (which uses `base: ${{ github.event.before }}` implicitly for push
+          # events) sees every commit in the merge, not just the tip.
+          fetch-depth: 0
 
-  deploy-client-libraries:
-    name: 📦 Build Client Libraries
-    needs: [lint-and-format]
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/newjitsu' || github.ref == 'refs/heads/stable-jsclient')
-    permissions:
-      contents: write
-      issues: write
-      pull-requests: write
-      packages: read
-      id-token: write
-    uses: ./.github/workflows/client-libraries-build.yaml
-    secrets: inherit
-    # Note: skip_install doesn't work as packages are installed inside docker
+      - name: 🔍 Did a version file change anywhere in the push?
+        id: changes
+        uses: dorny/paths-filter@v4
+        with:
+          filters: |
+            version_bump:
+              - .services.version.json
+              - .jsclient.version.json
+
+      - name: 🚀 Trigger publish workflow
+        if: steps.changes.outputs.version_bump == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Pass the full push range to publish.yml so its detect job sees
+          # every file touched across all commits in the merge — we don't
+          # squash, so the version-bump commit may be earlier in the range.
+          FROM_SHA: ${{ github.event.before }}
+          TO_SHA: ${{ github.event.after }}
+        run: |
+          gh workflow run publish.yml \
+            --repo ${{ github.repository }} \
+            --ref ${{ github.ref_name }} \
+            -f from_sha="$FROM_SHA" \
+            -f to_sha="$TO_SHA"

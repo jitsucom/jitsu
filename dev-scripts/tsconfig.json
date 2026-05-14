@@ -1,0 +1,10 @@
+{
+  "extends": "@jitsu/common-config/tsconfig.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "noEmit": true,
+    "allowImportingTsExtensions": true
+  },
+  "include": ["src/**/*.ts", "bin/**/*.mjs"]
+}

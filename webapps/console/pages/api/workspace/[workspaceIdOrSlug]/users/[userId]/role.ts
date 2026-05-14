@@ -4,6 +4,7 @@ import { db } from "../../../../../../lib/server/db";
 import { ApiError } from "../../../../../../lib/shared/errors";
 import { requireDefined } from "juava";
 import { WorkspaceRolesZodType } from "../../../../../../lib/workspace-roles";
+import { membershipAuditLog } from "../../../../../../lib/server/audit-log";
 
 async function getWorkspace(workspaceIdOrSlug: string) {
   return await db.prisma().workspace.findFirst({
@@ -48,11 +49,28 @@ const api: Api = {
         }
       }
 
+      const prevRole = access.role || "owner";
+
+      // Skip the update + audit row + alert email when the role is unchanged —
+      // otherwise every "Save" click on the role row writes a security event.
+      if (prevRole === body.role) {
+        return { success: true, role: body.role };
+      }
+
       // Update the role
       await db.prisma().workspaceAccess.update({
         where: { userId_workspaceId: { userId, workspaceId: workspace.id } },
         data: { role: body.role },
       });
+
+      const targetUser = await db.prisma().userProfile.findUnique({ where: { id: userId } });
+      await membershipAuditLog(
+        user,
+        workspace.id,
+        "role-changed",
+        { userId, email: targetUser?.email },
+        { prevRole, newRole: body.role }
+      );
 
       return { success: true, role: body.role };
     },

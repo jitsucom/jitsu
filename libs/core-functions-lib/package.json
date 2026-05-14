@@ -33,12 +33,11 @@
   },
   "dependencies": {
     "@amplitude/ua-parser-js": "^0.7.33",
-    "ip": "^2.0.1",
     "dayjs": "^1.11.10",
     "juava": "workspace:*",
     "lodash": "catalog:",
     "node-cache": "^5.1.2",
-    "parse-duration": "^1.1.2",
+    "parse-duration": "^2.1.6",
     "tslib": "catalog:",
     "zod": "^3.23.8"
   }

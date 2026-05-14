@@ -10,6 +10,7 @@ import { withProductAnalytics } from "./server/telemetry";
 import { NextApiRequest } from "next";
 import { onUserCreated } from "./server/ee";
 import { getServerEnv } from "./server/serverEnv";
+import { authAuditLog } from "./server/audit-log";
 
 const crypto = require("crypto");
 
@@ -134,6 +135,41 @@ function generateSecret(base: (string | undefined)[]) {
   return secretKey;
 }
 
+const authCookieDomain = serverEnv.AUTH_COOKIE_DOMAIN;
+const useSecureCookies = !!serverEnv.NEXTAUTH_URL?.startsWith("https://");
+
+const sharedCookieOptions = authCookieDomain
+  ? {
+      cookies: {
+        sessionToken: {
+          name: useSecureCookies ? "__Secure-next-auth.session-token" : "next-auth.session-token",
+          options: {
+            httpOnly: true,
+            sameSite: "lax" as const,
+            path: "/",
+            secure: useSecureCookies,
+            domain: authCookieDomain,
+          },
+        },
+        callbackUrl: {
+          name: useSecureCookies ? "__Secure-next-auth.callback-url" : "next-auth.callback-url",
+          options: { sameSite: "lax" as const, path: "/", secure: useSecureCookies, domain: authCookieDomain },
+        },
+        csrfToken: {
+          // CSRF cookie cannot use the __Host- prefix because that prefix forbids `domain`.
+          name: useSecureCookies ? "__Secure-next-auth.csrf-token" : "next-auth.csrf-token",
+          options: {
+            httpOnly: true,
+            sameSite: "lax" as const,
+            path: "/",
+            secure: useSecureCookies,
+            domain: authCookieDomain,
+          },
+        },
+      },
+    }
+  : {};
+
 export const nextAuthConfig: NextAuthOptions = {
   // Configure one or more authentication providers
   providers: [githubProvider, oidcProvider, credentialsProvider].filter(provider => !!provider) as any,
@@ -141,11 +177,27 @@ export const nextAuthConfig: NextAuthOptions = {
     error: "/error/auth", // Error code passed in query string as ?error=
     signIn: "/signin", // Displays signin buttons
   },
+  ...sharedCookieOptions,
 
   secret:
     serverEnv.JWT_SECRET ||
     //if there's no explicit JWT_SECRET, we need to generate a secret based on some values that are unique for an installation
     generateSecret(["v2", serverEnv.GITHUB_CLIENT_ID, serverEnv.GOOGLE_CLIENT_ID, serverEnv.DATABASE_URL]),
+  events: {
+    signOut: async ({ token }) => {
+      try {
+        const internalId = token?.internalId as string | undefined;
+        const email = (token?.email as string | undefined) || "";
+        const name = (token?.name as string | undefined) || email;
+        const loginProvider = (token?.loginProvider as string | undefined) || "credentials";
+        if (internalId) {
+          await authAuditLog({ internalId, email, name }, "logout", `nextauth-${loginProvider}`);
+        }
+      } catch (err) {
+        log.atError().withCause(err).log("Failed to record logout audit event");
+      }
+    },
+  },
   callbacks: {
     jwt: async props => {
       const loginProvider = (props.account?.provider || props.token.loginProvider || "credentials") as string;
@@ -157,6 +209,19 @@ export const nextAuthConfig: NextAuthOptions = {
         email,
         name: props.token.name || email,
       });
+      // Log a successful login only on the initial sign-in call, not on every JWT refresh.
+      // NextAuth populates `user` on first call; subsequent calls only carry `token`.
+      if (props.user) {
+        try {
+          await authAuditLog(
+            { internalId: user.id, email: user.email || email, name: user.name || email },
+            "login",
+            `nextauth-${loginProvider}`
+          );
+        } catch (err) {
+          log.atError().withCause(err).log("Failed to record login audit event");
+        }
+      }
       return {
         internalId: user.id,
         externalId: externalId,

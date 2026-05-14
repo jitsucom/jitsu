@@ -22,6 +22,7 @@ import {
   TestFunctionsServer,
 } from "./functions-server-helper";
 import { resetServerEnvCache } from "../src/serverEnv";
+import { GenericContainer, StartedTestContainer, Wait } from "testcontainers";
 // @ts-ignore
 import path from "path";
 // @ts-ignore
@@ -29,6 +30,60 @@ import os from "os";
 import { Geo } from "@jitsu/protocols/analytics";
 
 const log = getLog("functions-chain-test");
+
+// Shared ClickHouse container for the `warehouse_real` test. Started once for
+// the whole test file and reused across all functionsClass modes to avoid
+// paying the ~10s cold-start cost per describe iteration.
+let clickhouseContainer: StartedTestContainer | undefined;
+let clickhouseHost = "localhost";
+let clickhousePort = 0;
+
+beforeAll(async () => {
+  clickhouseContainer = await new GenericContainer("clickhouse/clickhouse-server:25.4-alpine")
+    .withExposedPorts(8123)
+    .withEnvironment({
+      CLICKHOUSE_DB: "default",
+      CLICKHOUSE_USER: "default",
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1",
+      CLICKHOUSE_SKIP_USER_SETUP: "1",
+    })
+    .withWaitStrategy(Wait.forHttp("/ping", 8123).forStatusCode(200))
+    .withStartupTimeout(60000)
+    .start();
+  clickhouseHost = clickhouseContainer.getHost();
+  clickhousePort = clickhouseContainer.getMappedPort(8123);
+  log.atInfo().log(`ClickHouse testcontainer ready at ${clickhouseHost}:${clickhousePort}`);
+}, 90000);
+
+afterAll(async () => {
+  if (clickhouseContainer) {
+    await clickhouseContainer.stop();
+    log.atInfo().log("ClickHouse testcontainer stopped");
+  }
+}, 30000);
+
+// Produce the dynamic clickhouse warehouse connection the `warehouse_real`
+// test function looks up via getWarehouse("clickhouseWarehouse").
+function clickhouseWarehouseConnection(): EnrichedConnectionConfig {
+  return {
+    id: "clickhouseWarehouse",
+    workspaceId: "workspace1",
+    updatedAt: new Date(),
+    destinationId: "clickhouseWarehouse",
+    streamId: "stream1",
+    usesBulker: false,
+    type: "clickhouse",
+    credentialsHash: `ch-${clickhousePort}`,
+    credentials: {
+      hosts: [`${clickhouseHost}:${clickhousePort}`],
+      protocol: "http",
+      database: "default",
+      username: "default",
+      password: "",
+    },
+    options: {},
+  } as unknown as EnrichedConnectionConfig;
+}
 
 const context = {
   userAgent:
@@ -266,6 +321,54 @@ const expectedEvents = {
       geo: staticGeo,
     },
   },
+  store_0: {
+    type: "track",
+    properties: {
+      first: "1st",
+      retries: 0,
+      counter: 3,
+      storeMarker: "stored-value",
+      storeN: 42,
+      third: "3rd",
+    },
+    context,
+  },
+  fetch_0: {
+    type: "track",
+    properties: {
+      first: "1st",
+      retries: 0,
+      counter: 3,
+      fetched: "fetched-value",
+      third: "3rd",
+    },
+    context,
+  },
+  warehouse_real_0: {
+    type: "track",
+    properties: {
+      first: "1st",
+      retries: 0,
+      counter: 3,
+      warehouseRow: { value: 1, label: "hello" },
+      third: "3rd",
+    },
+    context,
+  },
+  // In free mode, functions-server refuses getWarehouse and functionWarehouseReal
+  // swallows the error into `warehouseError`. The handler prefers mode-specific
+  // lookup `${testName}_${functionsClass}_${counter}` when it exists.
+  warehouse_real_free_0: {
+    type: "track",
+    properties: {
+      first: "1st",
+      retries: 0,
+      counter: 3,
+      warehouseError: "Warehouse queries are not available on the free plan. Please upgrade to use this feature.",
+      third: "3rd",
+    },
+    context,
+  },
 };
 
 const funcStore: EntityStore<FunctionConfig> = {
@@ -343,8 +446,8 @@ const messageId = "message1";
 
 // Test modes to run
 const testModes: Array<{ name: string; functionsClass: string }> = [
-  { name: "legacy", functionsClass: "legacy" },
   { name: "free", functionsClass: "free" },
+  { name: "dedicated", functionsClass: "dedicated" },
 ];
 
 describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName, functionsClass }) => {
@@ -353,6 +456,7 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
   let lastError: any;
   const counters: Record<string, number> = {};
   let originalEnv: string | undefined;
+  const webhookServerPort = 3089;
 
   function testName() {
     const currentTestName = expect.getState().currentTestName as string;
@@ -366,18 +470,25 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
     originalEnv = process.env.FUNCTIONS_SERVER_URL_TEMPLATE;
 
     // Set up functions server for "free" mode
-    if (functionsClass === "free") {
+    if (functionsClass === "free" || functionsClass === "dedicated") {
       const configDir = path.join(os.tmpdir(), `rotor-test-${Date.now()}`);
 
-      // Write test configs
-      await writeTestConfigs(
-        configDir,
-        connections as unknown as Record<string, EnrichedConnectionConfig>,
-        functions as unknown as Record<string, FunctionConfig>
-      );
+      // Include the dynamic clickhouse warehouse connection so functions-server
+      // can resolve getWarehouse("clickhouseWarehouse") lookups in its own connStore.
+      const connectionsForServer = {
+        ...(connections as unknown as Record<string, EnrichedConnectionConfig>),
+        clickhouseWarehouse: clickhouseWarehouseConnection(),
+      };
 
-      // Start functions server
-      const fsPort = 3457 + Math.floor(Math.random() * 100);
+      // Write test configs
+      await writeTestConfigs(configDir, connectionsForServer, functions as unknown as Record<string, FunctionConfig>);
+
+      process.env.FUNCTIONS_CLASS = functionsClass;
+
+      // Start functions server on a deterministic, per-mode port so free- and
+      // dedicated-mode servers never collide (SIGTERM + immediate respawn on the
+      // same port lets waitForServer latch onto the old process before it exits).
+      const fsPort = functionsClass === "free" ? 3457 : 3557;
       functionsServer = await startTestFunctionsServer(configDir, fsPort);
 
       // Configure rotor to use the test functions server
@@ -386,7 +497,10 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
       resetServerEnvCache();
     }
 
-    // Set up webhook server for all tests
+    // Set up webhook server for all tests.
+    // Handler prefers a mode-scoped expected event (`${testName}_${functionsClass}_${counter}`)
+    // and falls back to the generic one — lets a single webhook path encode per-mode
+    // payload differences (used by `warehouse_real` where free mode returns an error).
     let handlerF = (testName: string) => (req, res) => {
       lastError = undefined;
       if (!counters[testName]) {
@@ -399,7 +513,9 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         JSON.stringify(req.body, null, 2)
       );
       res.setHeader("Content-Type", "application/json");
-      if (isEqual(req.body, expectedEvents[`${testName}_${counter}`])) {
+      const expected =
+        expectedEvents[`${testName}_${functionsClass}_${counter}`] ?? expectedEvents[`${testName}_${counter}`];
+      if (isEqual(req.body, expected)) {
         res.send({ ok: true });
       } else {
         lastError = new Error(
@@ -412,8 +528,14 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
       counters[testName]++;
     };
 
+    // Endpoint used by the functionFetch test — returns a fixed JSON payload
+    const fetchSourceHandler = (req, res) => {
+      res.setHeader("Content-Type", "application/json");
+      res.send({ message: "fetched-value" });
+    };
+
     webhookServer = await createServer({
-      port: 3089 + (functionsClass === "free" ? 100 : 0), // Use different port for each mode
+      port: webhookServerPort,
       https: false,
       handlers: {
         "/simple": handlerF("simple"),
@@ -428,6 +550,10 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         "/multi_middle": handlerF("multi_middle"),
         "/multi_retry": handlerF("multi_retry"),
         "/ua_geo": handlerF("ua_geo"),
+        "/store": handlerF("store"),
+        "/fetch": handlerF("fetch"),
+        "/warehouse_real": handlerF("warehouse_real"),
+        "/fetch-source": fetchSourceHandler,
       },
     });
     console.log(`[${modeName}] Webhook server running on ${webhookServer.baseUrl}`);
@@ -440,6 +566,7 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
     } else {
       delete process.env.FUNCTIONS_SERVER_URL_TEMPLATE;
     }
+    delete process.env.FUNCTIONS_CLASS;
     // Reset cache so original env value is restored
     resetServerEnvCache();
 
@@ -462,21 +589,20 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
 
   // Update connection URLs to use the correct webhook server port and add functionsClasses
   function getConnectionStoreForMode(): EntityStore<EnrichedConnectionConfig> {
-    const portOffset = functionsClass === "free" ? 100 : 0;
     return {
       getObject: (id: string) => {
+        if (id === "clickhouseWarehouse") return clickhouseWarehouseConnection();
         const conn = connections[id];
         if (!conn) return undefined;
         // Update the URL to use the correct port and add functionsClasses to options
         return {
           ...conn,
-          credentials: {
-            ...conn.credentials,
-            url: conn.credentials.url.replace(":3089", `:${3089 + portOffset}`),
-          },
           options: {
             ...conn.options,
-            functionsClasses: [functionsClass],
+            functionsServer: {
+              deploymentId: functionsClass, // that is used by functions to determine their class in tests
+              status: "functions",
+            },
           },
           // we need to prevent usage of cached functions chain
           updatedAt: new Date(),
@@ -487,18 +613,18 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
         for (const [id, conn] of Object.entries(connections)) {
           result[id] = {
             ...conn,
-            credentials: {
-              ...conn.credentials,
-              url: conn.credentials.url.replace(":3089", `:${3089 + portOffset}`),
-            },
             options: {
               ...conn.options,
-              functionsClasses: [functionsClass],
+              functionsServer: {
+                deploymentId: functionsClass, // that is used by functions to determine their class in tests
+                status: "functions",
+              },
             },
             // we need to prevent usage of cached functions chain
             updatedAt: new Date(),
           } as unknown as EnrichedConnectionConfig;
         }
+        result["clickhouseWarehouse"] = clickhouseWarehouseConnection();
         return result;
       },
       toJSON: () => "",
@@ -847,6 +973,70 @@ describe.each(testModes)("Test Functions Chain ($name mode)", ({ name: modeName,
       expect(res?.events).toHaveLength(2);
       expect(counters[currentTestName]).toEqual(3);
       expect(lastError).toBeUndefined();
+    } catch (e: any) {
+      throw e;
+    }
+  });
+
+  test("store", async () => {
+    const currentTestName = testName();
+    const connStore = getConnectionStoreForMode();
+    try {
+      await rotorMessageHandler(
+        ingestMessage(currentTestName, messageId, incomingEvent),
+        rotorContext(connStore, funcStore, streamsStore),
+        "all",
+        { [CONNECTION_IDS_HEADER]: currentTestName },
+        true,
+        0,
+        5000
+      );
+      expect(lastError).toBeUndefined();
+      expect(counters[currentTestName]).toEqual(1);
+    } catch (e: any) {
+      throw e;
+    }
+  });
+
+  test("fetch", async () => {
+    const currentTestName = testName();
+    const connStore = getConnectionStoreForMode();
+    try {
+      await rotorMessageHandler(
+        ingestMessage(currentTestName, messageId, incomingEvent),
+        rotorContext(connStore, funcStore, streamsStore),
+        "all",
+        { [CONNECTION_IDS_HEADER]: currentTestName },
+        true,
+        0,
+        5000
+      );
+      expect(lastError).toBeUndefined();
+      expect(counters[currentTestName]).toEqual(1);
+    } catch (e: any) {
+      throw e;
+    }
+  });
+
+  // Runs in every mode. In dedicated the UDF hits the ClickHouse
+  // testcontainer and sets `warehouseRow`. In free the functions-server rejects
+  // `getWarehouse` and the UDF captures the plan-specific error message into
+  // `warehouseError` — the webhook handler picks the per-mode expected event.
+  test("warehouse_real", async () => {
+    const currentTestName = testName();
+    const connStore = getConnectionStoreForMode();
+    try {
+      await rotorMessageHandler(
+        ingestMessage(currentTestName, messageId, incomingEvent),
+        rotorContext(connStore, funcStore, streamsStore),
+        "all",
+        { [CONNECTION_IDS_HEADER]: currentTestName },
+        true,
+        0,
+        5000
+      );
+      expect(lastError).toBeUndefined();
+      expect(counters[currentTestName]).toEqual(1);
     } catch (e: any) {
       throw e;
     }

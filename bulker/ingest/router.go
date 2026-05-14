@@ -121,12 +121,9 @@ func NewRouter(appContext *Context, partitionSelector kafkabase.PartitionSelecto
 	})
 
 	transport := http.DefaultTransport.(*http.Transport).Clone()
-	go func() {
-		ticker := time.NewTicker(5 * time.Second)
-		for range ticker.C {
-			transport.CloseIdleConnections()
-		}
-	}()
+	transport.MaxIdleConnsPerHost = 500
+	transport.MaxIdleConns = 1000
+
 	httpClient := &http.Client{
 		Timeout:   time.Duration(int64(float64(appContext.config.DeviceFunctionsTimeoutMs)*1.1)) * time.Millisecond,
 		Transport: transport,
@@ -468,7 +465,7 @@ func getFunctionsClasses(options map[string]any, defaultClass string) []string {
 	}
 	result := make([]string, 0, len(classes))
 	for _, c := range classes {
-		if s, ok := c.(string); ok && (s == "premium" || s == "dedicated" || s == "free" || s == "legacy") {
+		if s, ok := c.(string); ok && (s == "premium" || s == "dedicated" || s == "free") {
 			result = append(result, s)
 		}
 	}
@@ -476,29 +473,6 @@ func getFunctionsClasses(options map[string]any, defaultClass string) []string {
 		return []string{defaultClass}
 	}
 	return result
-}
-
-// shouldUseFunctionsServer checks if destination should use functions server (not legacy)
-func shouldUseFunctionsServer(functionsClasses []string) bool {
-	for _, c := range functionsClasses {
-		if c == "legacy" || c == "" {
-			return false
-		}
-	}
-	return len(functionsClasses) > 0
-}
-
-// getFunctionsServerURL constructs the functions server URL for a workspace
-func getFunctionsServerURL(template, workspaceId string, functionsClasses []string) string {
-	// For "free" class, use "free" as workspace identifier
-	wsId := workspaceId
-	for _, c := range functionsClasses {
-		if c == "free" {
-			wsId = "free"
-			break
-		}
-	}
-	return strings.Replace(template, "${workspaceId}", wsId, 1)
 }
 
 type SyncDestinationsResponse struct {
@@ -523,34 +497,55 @@ func (r *Router) processSyncDestination(message *IngestMessage, stream *StreamWi
 	}
 	var functionsResults map[string]any
 
-	// Filter destinations that have functions defined
-	functionDestinations := utils.ArrayFilter(filteredDestinations, func(d *ShortDestinationConfig) bool {
-		funcs, ok := d.Options["functions"].([]any)
-		if !ok || len(funcs) == 0 {
-			return false
+	// Group destinations by functionsServer status
+	// "functions" → route to functions server using deploymentId
+	// "empty" → skip functions, pass through
+	// "missing" or no functionsServer → drop
+	type fsInfo struct {
+		DeploymentID string `json:"deploymentId"`
+		Status       string `json:"status"`
+	}
+	// Group function destinations by deploymentId for batching
+	byDeployment := make(map[string][]*ShortDestinationConfig)
+	for _, d := range filteredDestinations {
+		fs, _ := d.Options["functionsServer"].(map[string]any)
+		if fs == nil {
+			r.SystemErrorf("No functionsServer info for connection %s", d.ConnectionId)
+			continue // no functionsServer info — skip
 		}
-		return true
-	})
-
-	if len(functionDestinations) > 0 {
-		functionsResults = make(map[string]any)
-
-		// Determine endpoint: check first destination's functionsClasses
-		// All destinations in a stream have the same functionsClasses
-		classes := getFunctionsClasses(functionDestinations[0].Options, r.config.DefaultFunctionsClass)
-		if shouldUseFunctionsServer(classes) {
-			// Use functions server (new format with execLog)
-			fsURL := getFunctionsServerURL(r.config.FunctionsServerURLTemplate, stream.Stream.WorkspaceId, classes)
-			endpointURL := fsURL + "/multi"
-			r.callFunctionsEndpoint(stream, functionDestinations, endpointURL, messageBytes, functionsResults, false)
-		} else {
-			// Use rotor (legacy format)
-			endpointURL := r.config.RotorURL + "/func/multi"
-			r.callRotorEndpoint(functionDestinations, endpointURL, messageBytes, functionsResults)
+		switch fs["status"] {
+		case "functions":
+			deploymentID, _ := fs["deploymentId"].(string)
+			if deploymentID != "" {
+				byDeployment[deploymentID] = append(byDeployment[deploymentID], d)
+			}
+		case "empty":
+		default:
+			r.Errorf("functionsServer status for connection %s: %v", d.ConnectionId, fs["status"])
 		}
 	}
+
+	if len(byDeployment) > 0 {
+		functionsResults = make(map[string]any)
+
+		for deploymentID, destinations := range byDeployment {
+			fsURL := strings.Replace(r.config.FunctionsServerURLTemplate, "${workspaceId}", deploymentID, 1)
+			endpointURL := fsURL + "/multi"
+			r.callFunctionsEndpoint(stream, destinations, endpointURL, messageBytes, functionsResults, false)
+		}
+	}
+
 	data := make([]*SyncDestinationsData, 0, len(filteredDestinations))
 	for _, d := range filteredDestinations {
+		fs, _ := d.Options["functionsServer"].(map[string]any)
+		status := ""
+		if fs != nil {
+			status, _ = fs["status"].(string)
+		}
+		// Skip "missing" destinations
+		if status == "missing" || status == "" {
+			continue
+		}
 		IngestedMessages(d.ConnectionId, "success", "").Inc()
 		dOptions := DeviceOptions[d.DestinationType]
 		newEvents, ok := functionsResults[d.ConnectionId].([]any)
@@ -563,64 +558,6 @@ func (r *Router) processSyncDestination(message *IngestMessage, stream *StreamWi
 		}
 	}
 	return &SyncDestinationsResponse{Destinations: data, OK: true}
-}
-
-func (r *Router) callRotorEndpoint(destinations []*ShortDestinationConfig, baseURL string, messageBytes []byte, functionsResults map[string]any) {
-	if len(destinations) == 0 {
-		return
-	}
-
-	ids := utils.ArrayMap(destinations, func(d *ShortDestinationConfig) string { return d.ConnectionId })
-	var err error
-	defer func() {
-		for _, id := range ids {
-			if err != nil {
-				DeviceFunctions(id, "error").Inc()
-				DeviceFunctions("total", "error").Inc()
-			} else {
-				DeviceFunctions(id, "success").Inc()
-				DeviceFunctions("total", "success").Inc()
-			}
-		}
-	}()
-
-	url := baseURL + "?ids=" + strings.Join(ids, ",")
-	req, err := http.NewRequest("POST", url, bytes.NewReader(messageBytes))
-	if err != nil {
-		r.Errorf("failed to create functions request for connections: %s: %v", ids, err)
-		return
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Request-Timeout-Ms", strconv.Itoa(int(0.9*float64(r.config.DeviceFunctionsTimeoutMs))))
-	if r.config.RotorAuthKey != "" {
-		req.Header.Set("Authorization", "Bearer "+r.config.RotorAuthKey)
-	}
-
-	res, err := r.httpClient.Do(req)
-	if err != nil {
-		r.Errorf("failed to send functions request for connections: %s: %v", ids, err)
-		return
-	}
-	defer res.Body.Close()
-
-	body, err := io.ReadAll(res.Body)
-	if res.StatusCode != 200 || err != nil {
-		r.Errorf("Failed to send functions request for connections: %s: status: %v body: %s", ids, res.StatusCode, string(body))
-		return
-	}
-
-	var result map[string]any
-	err = jsoniter.Unmarshal(body, &result)
-	if err != nil {
-		r.Errorf("Failed to unmarshal functions response for connections: %s: %v", ids, err)
-		return
-	}
-
-	// Merge results
-	for k, v := range result {
-		functionsResults[k] = v
-	}
 }
 
 // FunctionExecLogEntry represents a single function execution log entry

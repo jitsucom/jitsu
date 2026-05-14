@@ -67,6 +67,10 @@ export const eventTypeLabels: Record<string, { label: string; description: React
       </>
     ),
   },
+  account: {
+    label: "Account Activity",
+    description: "Send notifications on member invitations, role changes, and workspace deletion.",
+  },
 };
 
 export const EventTypeEditor: React.FC<{ schema: any } & CustomWidgetProps<string[]>> = props => {

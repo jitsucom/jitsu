@@ -4,6 +4,8 @@ import { db } from "../../../lib/server/db";
 import { hint, randomId } from "juava";
 import { createHash } from "juava";
 
+const CLI_KEY_EXPIRATION_DAYS = 90;
+
 const api: Api = {
   url: inferUrl(__filename),
   GET: {
@@ -11,18 +13,23 @@ const api: Api = {
     types: {
       result: ApiKey,
     },
-    handle: async ({ user, req, res }) => {
+    handle: async ({ user }) => {
       const newKey = randomId(32);
-      const key = { id: `jitsu-cli-${randomId(22)}`, plaintext: newKey };
-      const toCreate = {
-        id: key.id,
-        userId: user.internalId,
-        hint: hint(newKey),
-        hash: createHash(newKey),
-      };
-      await db.prisma().userApiToken.create({ data: toCreate });
-
-      return key;
+      const id = `jitsu-cli-${randomId(22)}`;
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + CLI_KEY_EXPIRATION_DAYS);
+      await db.prisma().userApiToken.create({
+        data: {
+          id,
+          userId: user.internalId,
+          hint: hint(newKey),
+          hash: createHash(newKey),
+          type: "cli",
+          name: "jitsu-cli",
+          expiresAt,
+        },
+      });
+      return { id, plaintext: newKey, expiresAt, type: "cli", name: "jitsu-cli" };
     },
   },
 };

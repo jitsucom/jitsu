@@ -93,3 +93,24 @@ func MinTimePtr(a, b *time.Time) *time.Time {
 	}
 	return b
 }
+
+type Stopwatch struct {
+	startedAt time.Time
+	lastLap   time.Time
+}
+
+func NewStopwatch() *Stopwatch {
+	now := time.Now()
+	return &Stopwatch{startedAt: now, lastLap: now}
+}
+
+func (s *Stopwatch) ElapsedMs() int64 {
+	return time.Since(s.startedAt).Milliseconds()
+}
+
+func (s *Stopwatch) LapMs() int64 {
+	now := time.Now()
+	lap := now.Sub(s.lastLap).Milliseconds()
+	s.lastLap = now
+	return lap
+}

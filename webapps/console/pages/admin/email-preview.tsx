@@ -5,6 +5,7 @@ import { ConnectionStatusRecoveredEmail } from "../../emails/connection-status-r
 import { ConnectionStatusFirstRunEmail } from "../../emails/connection-status-firstrun";
 import { ConnectionStatusPartialEmail } from "../../emails/connection-status-partial";
 import { ConnectionDeadLettered } from "../../emails/connection-dead-lettered";
+import { AccountAlertEmail } from "../../emails/account-alert";
 
 import { Select } from "antd";
 import { useState, useEffect } from "react";
@@ -20,6 +21,7 @@ const templates = {
   "connection-status-firstrun": ConnectionStatusFirstRunEmail,
   "connection-status-partial": ConnectionStatusPartialEmail,
   "connection-dead-lettered": ConnectionDeadLettered,
+  "account-alert": AccountAlertEmail,
 };
 
 const defaultComponent = p => <div>Please select template</div>;

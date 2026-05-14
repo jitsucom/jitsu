@@ -14,6 +14,9 @@ import (
 type Config struct {
 	appbase.Config `mapstructure:",squash"`
 
+	// Database configuration (direct PostgreSQL connection for FunctionsServer table)
+	DatabaseURL string `mapstructure:"DATABASE_URL"`
+
 	// Repository configuration
 	RepositoryBaseURL          string `mapstructure:"REPOSITORY_BASE_URL"`
 	RepositoryAuthToken        string `mapstructure:"REPOSITORY_AUTH_TOKEN"`
@@ -28,8 +31,9 @@ type Config struct {
 	KubernetesNodeSelector        string `mapstructure:"KUBERNETES_NODE_SELECTOR"`
 	PodsServiceAccount            string `mapstructure:"PODS_SERVICE_ACCOUNT"`
 	PodsTolerations               string `mapstructure:"PODS_TOLERATIONS"`                 // tolerations for sync pods in json format
-	PodsResources                 string `mapstructure:"PODS_RESOURCES"`                   // resource requests/limits for sync pods in json format
+	PodsResources                 string `mapstructure:"PODS_RESOURCES"`                   // resource requests/limits for dedicated tier pods in json format
 	PodsResourcesPremium          string `mapstructure:"PODS_RESOURCES_PREMIUM"`           // resource requests/limits for premium tier pods in json format
+	PodsResourcesFree             string `mapstructure:"PODS_RESOURCES_FREE"`              // resource requests/limits for free tier pods in json format
 	PodsTopologySpreadConstraints string `mapstructure:"PODS_TOPOLOGY_SPREAD_CONSTRAINTS"` // topology spread constraints for sync pods in json format
 
 	// Functions server configuration
@@ -55,9 +59,18 @@ type Config struct {
 
 	FastStoreWorkspaceIDs string `mapstructure:"FAST_STORE_WORKSPACE_IDS"` // comma-separated list of workspace IDs that should use mongobetween sidecar
 
+	// Profile builder timeout overrides (passed to functions-server as PB_* env vars)
+	PBMongoDBTimeoutMs   int `mapstructure:"PB_MONGODB_TIMEOUT_MS" default:"120000"`
+	PBWarehouseTimeoutMs int `mapstructure:"PB_WAREHOUSE_TIMEOUT_MS" default:"5000"`
+	PBUdfTimeoutMs       int `mapstructure:"PB_UDF_TIMEOUT_MS" default:"300000"`
+
 	// Minimum number of replicas
 	MinReplicas        int32 `mapstructure:"MIN_REPLICAS" default:"2"`
 	MinReplicasPremium int32 `mapstructure:"MIN_REPLICAS_PREMIUM" default:"4"`
+	MinReplicasFree    int32 `mapstructure:"MIN_REPLICAS_FREE" default:"2"`
+
+	// Number of shards for free tier deployments (workspaces distributed by hash(workspaceId) % shards)
+	FreeShards int `mapstructure:"FREE_SHARDS" default:"1"`
 
 	// HPA configuration
 	// Enable HPA for functions-server deployments
@@ -96,7 +109,9 @@ func (c *Config) CalculateOperatorConfigHash() string {
 	h.Write([]byte(c.PodsTolerations))
 	h.Write([]byte(c.PodsResources))
 	h.Write([]byte(c.PodsResourcesPremium))
+	h.Write([]byte(c.PodsResourcesFree))
 	h.Write([]byte(c.PodsTopologySpreadConstraints))
+	h.Write([]byte(fmt.Sprintf("%d", c.FreeShards)))
 	h.Write([]byte(c.PodsServiceAccount))
 	h.Write([]byte(c.MongoDBURL))
 	h.Write([]byte(c.MongobetweenImage))
@@ -106,9 +121,15 @@ func (c *Config) CalculateOperatorConfigHash() string {
 	h.Write([]byte(fmt.Sprintf("%d", c.MongoDBMaxPoolSizePremium)))
 	h.Write([]byte(c.FastStoreWorkspaceIDs))
 
+	// Profile builder timeouts
+	h.Write([]byte(fmt.Sprintf("%d", c.PBMongoDBTimeoutMs)))
+	h.Write([]byte(fmt.Sprintf("%d", c.PBWarehouseTimeoutMs)))
+	h.Write([]byte(fmt.Sprintf("%d", c.PBUdfTimeoutMs)))
+
 	// HPA config
 	h.Write([]byte(fmt.Sprintf("%t", c.HPAEnabled)))
 	h.Write([]byte(fmt.Sprintf("%d", c.MinReplicas)))
+	h.Write([]byte(fmt.Sprintf("%d", c.MinReplicasFree)))
 	h.Write([]byte(fmt.Sprintf("%d", c.HPAMaxReplicas)))
 	h.Write([]byte(fmt.Sprintf("%d", c.HPATargetCPUUtilization)))
 	h.Write([]byte(fmt.Sprintf("%d", c.HPAScaleDownStabilizationSeconds)))

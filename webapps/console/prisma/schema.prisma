@@ -147,6 +147,9 @@ model UserApiToken {
   hash      String
   userId    String
   user      UserProfile @relation(fields: [userId], references: [id])
+  type      String?
+  name      String?
+  expiresAt DateTime? /// @zod.custom(z.coerce.date())
 }
 
 model InvitationToken {
@@ -214,14 +217,17 @@ model AuditLog {
   id          String   @id @default(cuid())
   timestamp   DateTime @default(now()) /// @zod.custom(z.coerce.date())
   type        String
+  severity    String?  @default("info")
   userId      String?
   workspaceId String?
   objectId    String?
   changes     Json?
   authType    String?
+  tokenId     String?
 
   @@index(timestamp)
   @@index(type)
+  @@index([workspaceId, timestamp])
 }
 
 model GlobalProps {
@@ -508,6 +514,19 @@ model reprocessing_workers {
   @@id([job_id, worker_index])
   @@index([job_id])
   @@index([job_id, status], map: "reprocessing_workers_status_idx")
+}
+
+model FunctionsServer {
+  workspaceId      String
+  class            String // 'free' | 'dedicated' | 'premium'
+  deploymentId     String
+  connections      String[]
+  emptyConnections String[]
+  profileBuilders  String[]
+  createdAt        DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime? @db.Timestamptz(3)
+
+  @@id([workspaceId, class])
 }
 
 //model OauthSecrets {

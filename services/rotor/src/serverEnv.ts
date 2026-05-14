@@ -76,11 +76,9 @@ const ServerEnvSchema = z.object({
 
   // Functions Configuration
   FAST_STORE_WORKSPACE_ID: z.string().optional(),
-  // Functions class configuration (dedicated, free, legacy)
-  DEFAULT_FUNCTIONS_CLASS: z.string().optional().default("legacy"),
   // Functions server service URL template (use ${workspaceId} as placeholder)
   // Service name uses prefix to ensure it starts with letter (workspaceId may start with number)
-  FUNCTIONS_SERVER_URL_TEMPLATE: z.string().optional().default("http://fs-${workspaceId}:3456"),
+  FUNCTIONS_SERVER_URL_TEMPLATE: z.string().default("http://fs-${workspaceId}:3456"),
   FUNCTIONS_SERVER_TIMEOUT_MS: z.string().optional().default("30000"),
 
   // Authentication Configuration
@@ -122,6 +120,11 @@ const ServerEnvSchema = z.object({
   // Warehouse Configuration (used by @jitsu/core-functions)
   WAREHOUSE_TIMEOUT_MS: z.string().optional().default("1000"),
 
+  // Profile Builder overrides (longer timeouts for profile builder operations)
+  PB_MONGODB_TIMEOUT_MS: z.string().optional(),
+  PB_WAREHOUSE_TIMEOUT_MS: z.string().optional(),
+  PB_UDF_TIMEOUT_MS: z.string().optional(),
+
   // Fetch Configuration (used by @jitsu/core-functions)
   FETCH_FORBID_LOCAL: z.string().optional().default("false"),
   FETCH_LOCAL_WHITELIST: z.string().optional(),
@@ -152,6 +155,7 @@ const ServerEnvSchema = z.object({
   FAST_STORE: z.string().optional().default("false"),
   // Deployment ID for prometheus metrics labeling (set by operator)
   DEPLOYMENT_ID: z.string().optional().default(""),
+  WORKER_TTL_MS: z.string().optional().default("600000"),
 });
 
 export type ServerEnv = z.infer<typeof ServerEnvSchema>;

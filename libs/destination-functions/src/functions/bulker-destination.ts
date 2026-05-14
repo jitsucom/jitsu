@@ -63,7 +63,7 @@ export type DataLayoutImpl<T> = (
 ) => MappedEvent[] | MappedEvent;
 
 export function jitsuLegacy(event: AnalyticsServerEvent, ctx: FullContext<BulkerDestinationConfig>): MappedEvent {
-  const flat = toJitsuClassic(event, ctx);
+  const flat = toJitsuClassic(event, ctx, true);
   return { event: omit(flat, JitsuInternalProperties), table: event[TableNameParameter] ?? "events" };
 }
 

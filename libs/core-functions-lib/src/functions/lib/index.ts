@@ -32,10 +32,41 @@ import {
   stopwatch,
 } from "juava";
 import * as dns from "node:dns";
-import ip from "ip";
+import * as net from "node:net";
 import NodeCache from "node-cache";
 
 const log = getLog("functions-context");
+
+export function isPrivateIP(addr: string): boolean {
+  if (net.isIPv4(addr)) {
+    const parts = addr.split(".").map(Number);
+    return (
+      parts[0] === 10 ||
+      (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
+      (parts[0] === 192 && parts[1] === 168) ||
+      parts[0] === 127 ||
+      parts[0] === 0 ||
+      (parts[0] === 169 && parts[1] === 254)
+    );
+  }
+  if (net.isIPv6(addr)) {
+    const normalized = addr.toLowerCase();
+    // IPv4-mapped IPv6 (::ffff:x.x.x.x) — extract the IPv4 part and check it
+    if (normalized.startsWith("::ffff:")) {
+      const v4part = normalized.slice(7);
+      if (net.isIPv4(v4part)) {
+        return isPrivateIP(v4part);
+      }
+    }
+    return (
+      normalized === "::1" ||
+      normalized.startsWith("fc") ||
+      normalized.startsWith("fd") ||
+      normalized.startsWith("fe80")
+    );
+  }
+  return false;
+}
 
 const fetchForbidLocal = isTruish(process.env.FETCH_FORBID_LOCAL);
 const fetchLocalWhitelist = process.env.FETCH_LOCAL_WHITELIST
@@ -113,6 +144,7 @@ export type logType = {
   timestamp: Date;
   type: string;
   data?: any;
+  args?: any[];
 };
 
 export interface StoreMetrics {
@@ -437,7 +469,7 @@ export const makeFetch = (
       return false;
     }
     for (const addr of addresses) {
-      if (ip.isPrivate(addr.address)) {
+      if (isPrivateIP(addr.address)) {
         publicHostnamesCache.set(hostname, false);
         return false;
       }

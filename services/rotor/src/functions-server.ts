@@ -1,53 +1,69 @@
-import http from "http";
 import path from "path";
 import fs from "fs";
 import os from "os";
 import zlib from "zlib";
 import { promisify } from "util";
-import {
-  AnyEvent,
-  EventContext,
-  FuncReturn,
-  FullContext,
-  JitsuFunction,
-  TTLStore,
-  FunctionMetrics,
-} from "@jitsu/protocols/functions";
+import { AnyEvent, EventContext, FullContext, FunctionMetrics, TTLStore } from "@jitsu/protocols/functions";
 import Prometheus from "prom-client";
-
-const gunzip = promisify(zlib.gunzip);
 import { disableService, getLog, isTruish, LogLevel, parseNumber, setServerJsonFormat, stopwatch } from "juava";
 import {
-  EnrichedConnectionConfig,
-  FunctionConfig,
-  isDropResult,
-  FuncChainResult,
-  FunctionExecRes,
-  FunctionExecLog,
-  makeFetch,
-  EntityStore,
   createMemoryStore,
+  EnrichedConnectionConfig,
+  EntityStore,
+  FuncChainResult,
+  FunctionConfig,
+  makeFetch,
+  parseUserAgent,
   StoreMetrics,
 } from "@jitsu/core-functions-lib";
 import { getServerEnv } from "./serverEnv";
-import { DropRetryErrorName, RetryErrorName, NoRetryErrorName, NoRetryError, RetryError } from "@jitsu/functions-lib";
-import { mongodb, createMongoStore } from "./lib/mongodb";
+import { createMongoStore, mongodb } from "./lib/mongodb";
 import { warehouseQuery } from "./lib/warehouse-store";
 import { parse as semverParse } from "semver";
 import * as jsondiffpatch from "jsondiffpatch";
 import isEqual from "lodash/isEqual";
 import { IngestMessage } from "@jitsu/protocols/async-request";
-import { parseUserAgent } from "@jitsu/core-functions-lib";
 import type { MongoClient } from "mongodb";
-import { Agent, setGlobalDispatcher } from "undici";
-import { runUdfInWorker } from "./lib/udf-worker-runner";
-import { compileUdfFunction } from "./lib/udf-shared";
+import { compileUdfFunction, compileUdfToIIFE } from "./lib/udf-shared";
+import { runFunctionChain, type ChainFunction } from "./lib/udf-chain";
+import type {
+  ExecMessage,
+  InitMessage,
+  ProxyResponseMessage,
+  ResultMessage,
+  StrippedConnectionConfig,
+  WorkerConnectionInit,
+  WorkerFunctionInit,
+  WorkerToMainMessage,
+} from "./lib/worker-protocol";
+import { runUdfInWorker } from "./lib/worker-udf-runner";
+import {
+  loadProfileBuilders,
+  initProfileBuilderRuntimes,
+  runProfileBuilder,
+  runProfileUDFTest,
+  closeProfileBuilderConnections,
+} from "./lib/pb-server-runtime";
+import * as functionsLib from "@jitsu/functions-lib";
 
-setGlobalDispatcher(
-  new Agent({
-    connections: 500, // per origin
-  })
-);
+// Set globals so UDF code (compiled via functionsLibShimPlugin) can access them
+for (const [name, value] of Object.entries(functionsLib)) {
+  globalThis[name] = value;
+}
+
+const gunzip = promisify(zlib.gunzip);
+
+// Configure Deno's HTTP client connection pool for proxied UDF fetch calls
+// @ts-ignore
+if (typeof Deno !== "undefined") {
+  // @ts-ignore
+  const httpClient = (Deno as any).createHttpClient({
+    poolMaxIdlePerHost: 100,
+    poolIdleTimeout: false,
+  });
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (input: any, init?: any) => originalFetch(input, { ...init, client: httpClient });
+}
 
 const env = getServerEnv();
 const deploymentId = env.DEPLOYMENT_ID || os.hostname();
@@ -107,9 +123,69 @@ const promMongoPoolTotal = new Prometheus.Gauge({
   labelNames: ["deploymentId"] as const,
 });
 
+const promUncaughtErrors = new Prometheus.Counter({
+  name: "fs_uncaught_errors_total",
+  help: "Uncaught errors and unhandled promise rejections swallowed to keep the process alive",
+  labelNames: ["deploymentId", "kind"] as const,
+});
+
+// Global error trap: keep the process alive on request-scoped failures
+// (e.g. a broken Node-agent keep-alive timer, a buggy UDF fetch handler).
+// Bootstrap errors still fail the process because they throw before these
+// listeners are installed. Every trapped error bumps `fs_uncaught_errors_total`
+// — alert on it, because silent swallowing without observability is how you
+// end up with mystery data loss.
+function installUncaughtErrorHandlers() {
+  globalThis.addEventListener("error", event => {
+    const e: any = (event as any).error;
+    log
+      .atError()
+      .withCause(e)
+      .log(
+        `Uncaught error (swallowed): ${e?.name || "Error"}: ${e?.message || (event as any).message}`,
+        e?.stack ?? ""
+      );
+    promUncaughtErrors.labels(deploymentId, "error").inc();
+    // Prevent Deno from aborting the process.
+    event.preventDefault();
+  });
+
+  globalThis.addEventListener("unhandledrejection", event => {
+    const reason: any = (event as any).reason;
+    log
+      .atError()
+      .withCause(reason)
+      .log(
+        `Unhandled rejection (swallowed): ${reason?.name || "Error"}: ${reason?.message ?? reason}`,
+        reason?.stack ?? ""
+      );
+    promUncaughtErrors.labels(deploymentId, "unhandledrejection").inc();
+    event.preventDefault();
+  });
+}
+installUncaughtErrorHandlers();
+
 const promMongoPoolWaitQueue = new Prometheus.Gauge({
   name: "fs_mongo_pool_wait_queue2",
   help: "Number of operations waiting for a MongoDB connection",
+  labelNames: ["deploymentId"] as const,
+});
+
+const promWorkerHeapUsed = new Prometheus.Gauge({
+  name: "fs_worker_heap_used_bytes",
+  help: "V8 heap used bytes per workspace worker",
+  labelNames: ["deploymentId", "workspaceId"] as const,
+});
+
+const promWorkerHeapTotal = new Prometheus.Gauge({
+  name: "fs_worker_heap_total_bytes",
+  help: "V8 heap total bytes per workspace worker",
+  labelNames: ["deploymentId", "workspaceId"] as const,
+});
+
+const promActiveWorkers = new Prometheus.Gauge({
+  name: "fs_active_workers",
+  help: "Number of currently active workspace workers",
   labelNames: ["deploymentId"] as const,
 });
 
@@ -124,9 +200,9 @@ function classifyChainResult(result: FuncChainResultWithLogs): [string, string] 
   for (const entry of result.execLog) {
     if (entry.error) {
       const name = entry.error.name || "Error";
-      if (name === DropRetryErrorName) return ["error_drop_retry", entry.functionId];
-      if (name === NoRetryErrorName) return ["error_drop", entry.functionId];
-      if (name === RetryErrorName) return ["error_retry", entry.functionId];
+      if (name === functionsLib.DropRetryErrorName) return ["error_drop_retry", entry.functionId];
+      if (name === functionsLib.NoRetryErrorName) return ["error_drop", entry.functionId];
+      if (name === functionsLib.RetryErrorName) return ["error_retry", entry.functionId];
       return ["error", entry.functionId];
     }
   }
@@ -160,25 +236,15 @@ function setupMongoPoolMetrics(client: MongoClient) {
     } catch (_) {
       // ignore - topology may not be ready
     }
-  }, 5000).unref();
+  }, 60000);
 }
 
 const metricsPort = parseInt(env.ROTOR_METRICS_PORT || "9091");
 
 // Types
-type LoadedFunction = {
-  id: string;
-  exec: JitsuFunction;
-  config?: any;
-};
+type LoadedFunction = ChainFunction;
 
 type FunctionChainContext = {
-  // log: {
-  //   info: (ctx: FunctionContext, message: string, ...args: any[]) => void | Promise<void>;
-  //   warn: (ctx: FunctionContext, message: string, ...args: any[]) => void | Promise<void>;
-  //   debug: (ctx: FunctionContext, message: string, ...args: any[]) => void | Promise<void>;
-  //   error: (ctx: FunctionContext, message: string, ...args: any[]) => void | Promise<void>;
-  // };
   store: TTLStore;
   query: (conId: string, query: string, params?: any) => Promise<any>;
   metrics?: FunctionMetrics;
@@ -188,6 +254,7 @@ type FunctionChainContext = {
 type FunctionChain = {
   context: FunctionChainContext;
   connectionId: string;
+  connection: StrippedConnectionConfig;
   functions: LoadedFunction[];
 };
 
@@ -281,7 +348,6 @@ async function loadFunctionsFromDir(dir: string, functions: Map<string, Function
 }
 
 // Load connections from a directory
-// Supports files with format: ${workspaceId}__connections.json.gz
 async function loadConnectionsFromDir(dir: string, connections: Map<string, EnrichedConnectionConfig>): Promise<void> {
   if (!fs.existsSync(dir)) return;
 
@@ -355,7 +421,34 @@ async function loadConfigsFromFiles(configDir: string): Promise<{
   return { connections, functions };
 }
 
-// Build function chain for a connection (UDF functions only)
+// Clear all contents of a directory (files and subdirectories)
+async function clearDirectory(dir: string, label: string): Promise<void> {
+  try {
+    if (!fs.existsSync(dir)) return;
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        fs.rmSync(fullPath, { recursive: true, force: true });
+      } else {
+        fs.unlinkSync(fullPath);
+      }
+    }
+    log.atInfo().log(`Cleared ${label}: ${dir} (${entries.length} entries removed)`);
+  } catch (e: any) {
+    log.atWarn().log(`Failed to clear ${label} (${dir}): ${e.message}`);
+  }
+}
+
+// Strip credentials from connection config (safe to store in chain / send to worker)
+function stripConnection(connection: EnrichedConnectionConfig): StrippedConnectionConfig {
+  const { credentials, credentialsHash, ...connWithoutCreds } = connection;
+  const strippedOptions = { ...connWithoutCreds.options };
+  delete strippedOptions.functionsEnv;
+  return { ...connWithoutCreds, options: strippedOptions };
+}
+
+// Build function chain for a connection (UDF functions only) — runs in main process
 async function buildFunctionChain(
   conEntityStore: EntityStore<EnrichedConnectionConfig>,
   connection: EnrichedConnectionConfig,
@@ -390,7 +483,7 @@ async function buildFunctionChain(
         funcs.push({
           id: f.functionId,
           exec: async () => {
-            throw new RetryError(compilationError);
+            throw new functionsLib.RetryError(compilationError);
           },
           config: undefined,
         });
@@ -402,7 +495,7 @@ async function buildFunctionChain(
       funcs.push({
         id: f.functionId,
         exec: async () => {
-          throw new RetryError(`Function ${functionId} not found or has no code`);
+          throw new Error(`Function ${functionId} not found or has no code`);
         },
         config: undefined,
       });
@@ -424,17 +517,23 @@ async function buildFunctionChain(
     store = createMemoryStore({});
   }
 
+  const isFreeClass = env.FUNCTIONS_CLASS === "free";
   const chainCtx: FunctionChainContext = {
     store,
-    query: async (conId: string, query: string, params: any) => {
-      return warehouseQuery(connection.workspaceId, conEntityStore, conId, query, params, storeMetrics);
-    },
+    query: isFreeClass
+      ? async () => {
+          throw new Error("Warehouse queries are not available on the free plan. Please upgrade to use this feature.");
+        }
+      : async (conId: string, query: string, params: any) => {
+          return warehouseQuery(connection.workspaceId, conEntityStore, conId, query, params, storeMetrics);
+        },
     connectionOptions: connectionData,
   };
 
   return {
     context: chainCtx,
     connectionId: connection.id,
+    connection: stripConnection(connection),
     functions: funcs,
   };
 }
@@ -444,29 +543,16 @@ type FuncChainResultWithLogs = FuncChainResult & {
   logs: LogEntry[];
 };
 
-// Deep copy helper (same as legacy udf-wrapper)
-function deepCopy<T>(o: T): T {
-  if (typeof o !== "object") {
-    return o;
-  }
-  if (!o) {
-    return o;
-  }
-
-  if (Array.isArray(o)) {
-    const newO: any[] = [];
-    for (let i = 0; i < o.length; i += 1) {
-      const v = o[i];
-      newO[i] = !v || typeof v !== "object" ? v : deepCopy(v);
-    }
-    return newO as T;
-  }
-
-  const newO: Record<string, any> = {};
-  for (const [k, v] of Object.entries(o)) {
-    newO[k] = !v || typeof v !== "object" ? v : deepCopy(v);
-  }
-  return newO as T;
+// Unified runtime interface — both in-process chains and worker-backed execution implement this
+interface FunctionRuntime {
+  runChain(
+    connectionId: string,
+    event: AnyEvent,
+    eventContext: EventContext,
+    fetchTimeoutMs: number
+  ): Promise<Required<FuncChainResultWithLogs>>;
+  /** Returns the stripped connection config (used for actorId/streamId lookup) */
+  getConnection(): StrippedConnectionConfig;
 }
 
 function recordChainResultMetrics(result: Required<FuncChainResultWithLogs>) {
@@ -474,152 +560,209 @@ function recordChainResultMetrics(result: Required<FuncChainResultWithLogs>) {
   promChainResult.labels(deploymentId, result.connectionId, ...classifyChainResult(result)).inc();
 }
 
-// Run function chain
+// Run function chain — delegates to shared runFunctionChain with in-process context
 async function runChain(
   chain: FunctionChain,
   event: AnyEvent,
   eventContext: EventContext,
   fetchTimeoutMs: number = 2000
 ): Promise<Required<FuncChainResultWithLogs>> {
-  const execLog: FunctionExecLog = [];
-  const logs: LogEntry[] = [];
-  let events: AnyEvent[] = [event];
   const chainCtx = chain.context;
+  const retries = (eventContext as EventContext & { retries?: number }).retries ?? 0;
+  const debugTill = chainCtx.connectionOptions?.debugTill ? new Date(chainCtx.connectionOptions?.debugTill) : undefined;
+  const fetchLogEnabled =
+    chainCtx.connectionOptions?.fetchLogLevel !== "debug" || (debugTill && debugTill.getTime() > Date.now());
 
-  for (let k = 0; k < chain.functions.length; k++) {
-    const func = chain.functions[k];
-    const newEvents: AnyEvent[] = [];
-
-    for (let i = 0; i < events.length; i++) {
-      const currentEvent = events[i];
-      const sw = stopwatch();
-      let result: FuncReturn = undefined;
-
-      // Extract function type from function id (e.g., "udf.myFunction" -> "udf")
-      const ar = func.id.split(".");
-      const id = ar.pop() as string;
-      const functionType = ar.join(".");
-      const execLogEntry: Partial<FunctionExecRes> & { functionType?: string } = {
-        eventIndex: i,
-        receivedAt: eventContext.receivedAt,
-        functionId: id,
-        functionType,
-      };
-
-      try {
-        // Get retries from eventContext (passed from rotor)
-        const retries = (eventContext as EventContext & { retries?: number }).retries ?? 0;
-        const debugTill = chainCtx.connectionOptions?.debugTill
-          ? new Date(chainCtx.connectionOptions?.debugTill)
-          : undefined;
-        const fetchLogEnabled =
-          chainCtx.connectionOptions?.fetchLogLevel !== "debug" || (debugTill && debugTill.getTime() > Date.now());
-        const fullContext: FullContext = {
-          ...eventContext,
-          log: createCollectingLogger(id, functionType, logs, debugTill),
-          fetch: makeFetch(
-            chain.connectionId,
-            {
-              log(connectionId: string, level: LogLevel, msg: Record<string, any>) {
-                if (!fetchLogEnabled) {
-                  return;
-                }
-                logs.push({
-                  level,
-                  functionId: id,
-                  functionType,
-                  message: {
-                    ...msg,
-                    functionId: id,
-                    functionType,
-                  },
-                  timestamp: new Date(),
-                });
+  const result = await runFunctionChain<LogEntry>(
+    chain.functions,
+    event,
+    eventContext,
+    (functionId, functionType, logs) => ({
+      ...eventContext,
+      log: createCollectingLogger(functionId, functionType, logs, debugTill),
+      fetch: makeFetch(
+        chain.connectionId,
+        {
+          log(connectionId: string, level: LogLevel, msg: Record<string, any>) {
+            if (!fetchLogEnabled) {
+              return;
+            }
+            logs.push({
+              level,
+              functionId,
+              functionType,
+              message: {
+                ...msg,
+                functionId,
+                functionType,
               },
-              close() {},
-              deadLetter(workspaceId: string, connectionId: string, type: string, payload: any, error: any) {
-                throw new Error("deadLetter method must never be called inside functions server.");
-              },
-            },
-            chainCtx.connectionOptions?.fetchLogLevel || "info",
-            fetchTimeoutMs
-          ),
-          store: chainCtx.store,
-          props: chainCtx.connectionOptions?.functionsEnv || {},
-          retries,
-          getWarehouse: (destinationId: string) => {
-            return {
-              query: (sql: string, params?: Record<string, any>) => chainCtx.query(destinationId, sql, params),
-            };
+              timestamp: new Date(),
+            });
           },
-        };
+          close() {},
+          deadLetter(workspaceId: string, connectionId: string, type: string, payload: any, error: any) {
+            throw new Error("deadLetter method must never be called inside functions server.");
+          },
+        },
+        chainCtx.connectionOptions?.fetchLogLevel || "info",
+        fetchTimeoutMs
+      ),
+      store: chainCtx.store,
+      props: chainCtx.connectionOptions?.functionsEnv || {},
+      retries,
+      getWarehouse: (destinationId: string) => ({
+        query: (sql: string, params?: Record<string, any>) => chainCtx.query(destinationId, sql, params),
+      }),
+    })
+  );
 
-        // Pass a deep copy to the function (same as legacy udf-wrapper)
-        result = await func.exec(deepCopy(currentEvent), fullContext);
+  return { connectionId: chain.connectionId, ...result };
+}
 
-        // Check for multiple events in middle of chain (same as legacy udf-wrapper)
-        if (k < chain.functions.length - 1 && Array.isArray(result) && result.length > 1) {
-          const l = result.length;
-          result = undefined;
-          const multiEventError = new Error(
-            `Got ${l} events as result of function #${k + 1} of ${
-              chain.functions.length
-            }. Only the last function in a chain is allowed to multiply events.`
-          );
-          multiEventError.name = NoRetryErrorName;
-          throw multiEventError;
-        }
-      } catch (err: any) {
-        if (err?.name === DropRetryErrorName || err?.name === NoRetryErrorName) {
-          result = "drop";
-        }
-        // Set retryPolicy from function config (same pattern as legacy udf-wrapper)
-        if (func?.config?.retryPolicy) {
-          err.retryPolicy = func.config.retryPolicy;
-        }
-        execLogEntry.error = {
-          name: err.name,
-          message: err.message,
-          stack: err.stack,
-          retryPolicy: err.retryPolicy,
-          functionId: id,
-        };
-        log.atError().withCause(err).log(`Function ${func.id} error.`);
-      }
+// ── FunctionRuntime implementations ──────────────────────────────────
 
-      execLogEntry.ms = sw.elapsedMs();
-      execLogEntry.dropped = isDropResult(result);
-      execLog.push(execLogEntry as FunctionExecRes);
+class InProcessRuntime implements FunctionRuntime {
+  constructor(private chain: FunctionChain) {}
 
-      if (!isDropResult(result)) {
-        if (result) {
-          if (Array.isArray(result)) {
-            newEvents.push(...result);
-          } else {
-            newEvents.push(result as AnyEvent);
-          }
-        } else {
-          newEvents.push(currentEvent);
-        }
-      }
+  async runChain(
+    connectionId: string,
+    event: AnyEvent,
+    eventContext: EventContext,
+    fetchTimeoutMs: number
+  ): Promise<Required<FuncChainResultWithLogs>> {
+    const result = await runChain(this.chain, event, eventContext, fetchTimeoutMs);
+    const totalMs = result.execLog.reduce((sum, e) => sum + (e.ms || 0), 0);
+    log.atDebug().log(`← ${connectionId} (${this.chain.functions.length} functions) completed in ${totalMs}ms`);
+    return result;
+  }
+
+  getConnection(): StrippedConnectionConfig {
+    return this.chain.connection;
+  }
+}
+
+class WorkerRuntime implements FunctionRuntime {
+  constructor(
+    private workerPool: LazyWorkerPool,
+    private workspaceId: string,
+    private connection: StrippedConnectionConfig
+  ) {}
+
+  async runChain(
+    connectionId: string,
+    event: AnyEvent,
+    eventContext: EventContext,
+    fetchTimeoutMs: number
+  ): Promise<Required<FuncChainResultWithLogs>> {
+    const ws = await this.workerPool.getOrCreate(this.workspaceId);
+    const resultMsg = await execInWorker(ws, connectionId, event, eventContext, fetchTimeoutMs);
+    return {
+      connectionId: resultMsg.connectionId,
+      events: resultMsg.events,
+      execLog: resultMsg.execLog,
+      logs: resultMsg.logs.map((l: any) => ({ ...l, timestamp: new Date(l.timestamp) })),
+    };
+  }
+
+  getConnection(): StrippedConnectionConfig {
+    return this.connection;
+  }
+}
+
+// ── Lazy worker pool with TTL-based eviction ──────────────────────────
+
+const WORKER_TTL_MS = parseNumber(env.WORKER_TTL_MS, 600_000);
+const WORKER_TTL_CHECK_MS = 60000;
+
+type LazyWorkerEntry = {
+  ws: WorkspaceWorker;
+  lastUsedAt: number;
+};
+
+class LazyWorkerPool {
+  private workers = new Map<string, LazyWorkerEntry>();
+  private spawning = new Map<string, Promise<WorkspaceWorker>>();
+  private readonly timer: ReturnType<typeof setInterval>;
+
+  constructor(
+    private workspaceConnections: Map<string, WorkerConnectionInit[]>,
+    private storeFactory: (wsId: string) => TTLStore,
+    private conEntityStore: EntityStore<EnrichedConnectionConfig>
+  ) {
+    // Periodic eviction check
+    this.timer = setInterval(() => this.evict(), WORKER_TTL_CHECK_MS);
+  }
+
+  async getOrCreate(workspaceId: string): Promise<WorkspaceWorker> {
+    const existing = this.workers.get(workspaceId);
+    if (existing) {
+      existing.lastUsedAt = Date.now();
+      return existing.ws;
     }
 
-    events = newEvents;
-    if (events.length === 0) {
-      break;
+    // Deduplicate concurrent spawns for the same workspace
+    let spawning = this.spawning.get(workspaceId);
+    if (spawning) {
+      return await spawning;
+    }
+
+    const spawnPromise = this.spawn(workspaceId);
+    this.spawning.set(workspaceId, spawnPromise);
+    try {
+      return await spawnPromise;
+    } finally {
+      this.spawning.delete(workspaceId);
     }
   }
 
-  return { connectionId: chain.connectionId, events, execLog, logs };
-}
-
-function safeCloseResponse(res: Response) {
-  try {
-    if (res?.body && !res.bodyUsed) {
-      res.body.cancel?.();
+  private async spawn(workspaceId: string): Promise<WorkspaceWorker> {
+    const conns = this.workspaceConnections.get(workspaceId);
+    if (!conns) {
+      throw new Error(`No connections found for workspace ${workspaceId}`);
     }
-  } catch (_) {
-    // ignore
+
+    log.atInfo().log(`Spawning worker for workspace ${workspaceId} (${conns.length} connections)`);
+    const store = this.storeFactory(workspaceId);
+    const ws = createWorkspaceWorker(workspaceId, conns, store, this.conEntityStore);
+    await ws.ready;
+
+    this.workers.set(workspaceId, { ws, lastUsedAt: Date.now() });
+    promActiveWorkers.labels(deploymentId).set(this.workers.size);
+    log.atInfo().log(`Worker ready for workspace ${workspaceId} (${this.workers.size} active)`);
+    return ws;
+  }
+
+  private evict() {
+    const now = Date.now();
+    for (const [wsId, entry] of this.workers) {
+      if (now - entry.lastUsedAt > WORKER_TTL_MS) {
+        log
+          .atInfo()
+          .log(`Evicting idle worker for workspace ${wsId} (idle ${Math.round((now - entry.lastUsedAt) / 1000)}s)`);
+        this.workers.delete(wsId);
+        promWorkerHeapUsed.remove(deploymentId, wsId);
+        promWorkerHeapTotal.remove(deploymentId, wsId);
+        try {
+          entry.ws.worker.terminate();
+        } catch (_) {}
+      }
+    }
+    promActiveWorkers.labels(deploymentId).set(this.workers.size);
+  }
+
+  getActiveWorkers(): { id: string; worker: Worker }[] {
+    return Array.from(this.workers.entries()).map(([id, entry]) => ({ id, worker: entry.ws.worker }));
+  }
+
+  terminateAll() {
+    for (const [wsId, entry] of this.workers) {
+      try {
+        entry.ws.worker.terminate();
+        log.atInfo().log(`Terminated worker for workspace ${wsId}`);
+      } catch (_) {}
+    }
+    this.workers.clear();
+    clearInterval(this.timer);
   }
 }
 
@@ -659,28 +802,16 @@ function mapDiff(originalEvent: AnyEvent, newEvents?: AnyEvent[]) {
   });
 }
 
-// Parse request body
-async function parseBody(req: http.IncomingMessage): Promise<any> {
-  return new Promise((resolve, reject) => {
-    let body = "";
-    req.on("data", chunk => {
-      body += chunk.toString();
-    });
-    req.on("end", () => {
-      try {
-        resolve(body ? JSON.parse(body) : {});
-      } catch (e) {
-        reject(new Error("Invalid JSON body"));
-      }
-    });
-    req.on("error", reject);
-  });
+// Parse request body (supports both gzipped and plain JSON)
+async function parseBody(req: Request): Promise<any> {
+  const text = await req.text();
+  return text ? JSON.parse(text) : {};
 }
 
-// Create event context from IngestMessage and connection (compatible with FunctionsHandlerMulti)
+// Create event context from IngestMessage and connection
 function createEventContextFromMessage(
   message: IngestMessage,
-  connection: EnrichedConnectionConfig,
+  connection: StrippedConnectionConfig,
   retries: number = 0
 ): EventContext {
   return {
@@ -709,6 +840,151 @@ function createEventContextFromMessage(
       id: connection.workspaceId,
     },
   };
+}
+
+// ── Workspace Worker management (Deno Web Workers with permissions: "none") ──
+
+type WorkspaceWorker = {
+  workspaceId: string;
+  worker: Worker;
+  pending: Map<string, { resolve: (v: any) => void; reject: (e: Error) => void }>;
+  ready: Promise<void>;
+};
+
+function getWorkerUrl(): string {
+  return new URL("./workspace-worker.mjs", import.meta.url).href;
+}
+
+function createWorkspaceWorker(
+  workspaceId: string,
+  connections: WorkerConnectionInit[],
+  store: TTLStore,
+  conEntityStore: EntityStore<EnrichedConnectionConfig>
+): WorkspaceWorker {
+  const worker = new Worker(getWorkerUrl(), {
+    type: "module",
+    // @ts-ignore Deno-specific option for sandboxing
+    deno: { permissions: "none" },
+  });
+
+  const pendingExec = new Map<string, { resolve: (v: any) => void; reject: (e: Error) => void }>();
+  let readyResolve: () => void;
+  const readyPromise = new Promise<void>(resolve => {
+    readyResolve = resolve;
+  });
+
+  worker.onmessage = async (e: MessageEvent<WorkerToMainMessage>) => {
+    const msg = e.data;
+
+    if (msg.type === "ready") {
+      readyResolve!();
+      return;
+    }
+
+    if (msg.type === "result") {
+      const p = pendingExec.get(msg.requestId);
+      if (p) {
+        pendingExec.delete(msg.requestId);
+        p.resolve(msg);
+      }
+      return;
+    }
+
+    if (msg.type === "log") {
+      return; // fire-and-forget
+    }
+
+    if (msg.type === "debug") {
+      log.atInfo().log(`[Worker ${workspaceId} DEBUG] ${JSON.stringify(msg.value)}`);
+      return; // fire-and-forget
+    }
+
+    if (msg.type === "memoryResponse") {
+      promWorkerHeapUsed.labels(deploymentId, workspaceId).set(msg.heapUsedBytes);
+      promWorkerHeapTotal.labels(deploymentId, workspaceId).set(msg.heapTotalBytes);
+      return;
+    }
+
+    if (msg.type === "proxyRequest") {
+      const { callId, method, args } = msg;
+      try {
+        let result: any;
+        if (method.startsWith("store.")) {
+          const op = method.split(".")[1];
+          result = await (store as any)[op](...args);
+        } else if (method === "fetch") {
+          const [connectionId, url, init] = args;
+          const fetchImpl = makeFetch(
+            connectionId,
+            { log() {}, close() {}, deadLetter() {} },
+            "debug",
+            parseNumber(env.FETCH_TIMEOUT_MS, 2000)
+          );
+          const res = await fetchImpl(url, init);
+          const headers: Record<string, string> = {};
+          res.headers.forEach((v: string, k: string) => {
+            headers[k] = v;
+          });
+          result = {
+            status: res.status,
+            statusText: res.statusText,
+            ok: res.ok,
+            url: res.url,
+            type: res.type,
+            redirected: res.redirected,
+            headers,
+            body: await res.text(),
+          };
+        } else if (method === "warehouse.query") {
+          const [destinationId, sql, params] = args;
+          const storeMetrics: StoreMetrics = {
+            storeStatus: (ns, op, st) => promStoreStatuses.labels(deploymentId, ns, op, st).inc(),
+            warehouseStatus: (id, tbl, st, ms) =>
+              promWarehouseStatuses.labels(deploymentId, id, tbl, st).observe(ms / 1000),
+          };
+          result = await warehouseQuery(workspaceId, conEntityStore, destinationId, sql, params, storeMetrics);
+        }
+        const response: ProxyResponseMessage = { type: "proxyResponse", callId, result };
+        worker.postMessage(response);
+      } catch (err: any) {
+        const response: ProxyResponseMessage = { type: "proxyResponse", callId, error: err.message };
+        worker.postMessage(response);
+      }
+    }
+  };
+
+  worker.onerror = e => {
+    log.atError().log(`Worker error for workspace ${workspaceId}: ${e.message}`);
+  };
+
+  // Send init message
+  const initMsg: InitMessage = { type: "init", connections };
+  worker.postMessage(initMsg);
+
+  return { workspaceId, worker, pending: pendingExec, ready: readyPromise };
+}
+
+async function execInWorker(
+  ws: WorkspaceWorker,
+  connectionId: string,
+  event: AnyEvent,
+  eventContext: EventContext,
+  fetchTimeoutMs: number
+): Promise<ResultMessage> {
+  await ws.ready;
+  const requestId = crypto.randomUUID();
+  return new Promise((resolve, reject) => {
+    ws.pending.set(requestId, { resolve, reject });
+    const execMsg: ExecMessage = {
+      type: "exec",
+      requestId,
+      connectionId,
+      event,
+      eventContext: JSON.parse(JSON.stringify(eventContext)),
+      fetchTimeoutMs,
+    };
+    ws.worker.postMessage(execMsg);
+  });
 }
 
 async function main() {
@@ -740,169 +1016,226 @@ async function main() {
     log.atWarn().log("No connections found");
   }
 
-  // Function chains cache - stores promises to avoid parallel builds for the same connection
-  let chains = new Map<string, Promise<FunctionChain | undefined>>();
+  const runtimes = new Map<string, FunctionRuntime>();
+  const isFreeClass = env.FUNCTIONS_CLASS === "free";
+  let workerPool: LazyWorkerPool | undefined;
 
-  // Prebuild function chains for all connections at startup (for non-free tier servers)
-  // This ensures UDF compilation happens during startup rather than on first request
-  const functionsClass = env.FUNCTIONS_CLASS;
-  if (functionsClass && functionsClass !== "free" && connections.size > 0) {
-    log
-      .atInfo()
-      .log(`Prebuilding function chains for ${connections.size} connections (functions class: ${functionsClass})...`);
-    const prebuildStart = Date.now();
+  if (isFreeClass) {
+    // Free tier: pre-compile UDFs to IIFE strings, but spawn workers lazily on first request.
+    // Workers are evicted after WORKER_TTL_MS of inactivity.
+    const workspaceConnections = new Map<string, WorkerConnectionInit[]>();
 
     for (const [connectionId, connection] of connections) {
-      await buildFunctionChain(conEntityStore, connection, functions)
-        .then(chain => {
-          log.atInfo().log(`✓ Prebuilt chain for connection: ${connectionId} (${chain.functions.length} functions)`);
-          chains.set(connectionId, Promise.resolve(chain));
-        })
-        .catch(e => {
-          log.atError().log(`✗ Failed to prebuild chain for ${connectionId}: ${e.message}`);
-          chains.set(connectionId, Promise.resolve(undefined));
-        });
-    }
+      const wsId = connection.workspaceId;
+      if (!workspaceConnections.has(wsId)) {
+        workspaceConnections.set(wsId, []);
+      }
 
-    const prebuildMs = Date.now() - prebuildStart;
-    log.atInfo().log(`Prebuilt ${chains.size} function chains in ${prebuildMs}ms`);
-  }
+      const connectionData = connection.options as any;
+      const udfs = (connectionData?.functions || []).filter((f: any) => f.functionId.startsWith("udf."));
+      const workerFuncs: WorkerFunctionInit[] = [];
 
-  // Get or build chain for a connection (lazy loading with single-flight pattern)
-  async function getOrBuildChain(connectionId: string): Promise<FunctionChain | undefined> {
-    const connection = connections.get(connectionId);
-    if (!connection) {
-      return undefined;
-    }
+      for (const f of udfs) {
+        const functionId = f.functionId.substring(4);
+        const funcConfig = functions.get(functionId);
+        if (funcConfig && funcConfig.code) {
+          try {
+            const iifeCode = await compileUdfToIIFE(funcConfig.code, functionId, connectionData.functionsEnv);
+            workerFuncs.push({ id: f.functionId, iifeCode });
+            log.atDebug().log(`  ✓ Compiled UDF to IIFE: ${functionId}`);
+          } catch (e: any) {
+            log.atError().log(`  ✗ Failed to compile UDF ${functionId}: ${e.message}`);
+            const errorIife = `var __udf = { default: async function() { throw new Error(${JSON.stringify(
+              e.message
+            )}); } };`;
+            workerFuncs.push({ id: f.functionId, iifeCode: errorIife });
+          }
+        } else {
+          const msg = `Function ${functionId} not found or has no code`;
+          log.atWarn().log(msg);
+          const errorIife = `var __udf = { default: async function() { throw new Error(${JSON.stringify(msg)}); } };`;
+          workerFuncs.push({ id: f.functionId, iifeCode: errorIife });
+        }
+      }
 
-    const cached = chains.get(connectionId);
-    if (cached) {
-      return cached;
-    }
-
-    const buildPromise = buildFunctionChain(conEntityStore, connection, functions)
-      .then(chain => {
-        log.atInfo().log(`✓ Built chain for connection: ${connectionId} (${chain.functions.length} functions)`);
-        return chain;
-      })
-      .catch(e => {
-        log.atError().log(`✗ Failed to build chain for ${connectionId}: ${e.message}`);
-        return undefined;
+      workspaceConnections.get(wsId)!.push({
+        connectionId,
+        connection: stripConnection(connection),
+        functions: workerFuncs,
+        warehouseEnabled: false,
+        functionsClass: "free",
+        debugTill: connectionData?.debugTill,
+        fetchLogLevel: connectionData?.fetchLogLevel,
+        props: connectionData?.functionsEnv || {},
       });
+    }
 
-    chains.set(connectionId, buildPromise);
-    return buildPromise;
+    // Build store factory for lazy worker creation
+    const storeFactory = (wsId: string): TTLStore => {
+      const storeMetrics: StoreMetrics = {
+        storeStatus: (ns, op, st) => promStoreStatuses.labels(deploymentId, ns, op, st).inc(),
+        warehouseStatus: (id, tbl, st, ms) =>
+          promWarehouseStatuses.labels(deploymentId, id, tbl, st).observe(ms / 1000),
+      };
+      return env.MONGODB_URL
+        ? createMongoStore(wsId, mongodb, false, isTruish(env.FAST_STORE), storeMetrics)
+        : createMemoryStore({});
+    };
+
+    workerPool = new LazyWorkerPool(workspaceConnections, storeFactory, conEntityStore);
+
+    // Register runtimes — workers will be spawned lazily on first request
+    for (const [wsId, conns] of workspaceConnections) {
+      for (const conn of conns) {
+        const connectionConfig = connections.get(conn.connectionId);
+        runtimes.set(conn.connectionId, new WorkerRuntime(workerPool, wsId, stripConnection(connectionConfig!)));
+      }
+    }
+
+    log
+      .atInfo()
+      .log(
+        `Registered ${runtimes.size} connections across ${workspaceConnections.size} workspaces (workers spawn lazily, TTL ${WORKER_TTL_MS}ms)`
+      );
+
+    // Periodically poll active workers for heap memory metrics
+    setInterval(() => {
+      for (const { worker } of workerPool!.getActiveWorkers()) {
+        try {
+          worker.postMessage({ type: "memoryQuery" });
+        } catch (_) {
+          // worker may have been terminated
+        }
+      }
+    }, 60000);
+  } else {
+    // Non-free: prebuild function chains in main process
+    if (connections.size > 0) {
+      log.atInfo().log(`Prebuilding function chains for ${connections.size} connections...`);
+      const prebuildStart = Date.now();
+
+      for (const [connectionId, connection] of connections) {
+        try {
+          const chain = await buildFunctionChain(conEntityStore, connection, functions);
+          runtimes.set(connectionId, new InProcessRuntime(chain));
+          log.atInfo().log(`✓ Prebuilt chain for connection: ${connectionId} (${chain.functions.length} functions)`);
+        } catch (e: any) {
+          log.atError().log(`✗ Failed to prebuild chain for ${connectionId}: ${e.message}`);
+        }
+      }
+
+      const prebuildMs = Date.now() - prebuildStart;
+      log.atInfo().log(`Prebuilt ${runtimes.size} function chains in ${prebuildMs}ms`);
+    }
   }
+
+  // Functions map is no longer needed after prebuilding (code is compiled into IIFE strings / chains)
+  functions.clear();
+  log.atInfo().log(`Cleared functions map`);
+
+  // Load and initialize profile builders
+  const profileBuilderConfigs = await loadProfileBuilders(configDir);
+  const pbStoreMetrics: StoreMetrics = {
+    storeStatus: (namespace, operation, status) =>
+      promStoreStatuses.labels(deploymentId, namespace, operation, status).inc(),
+    warehouseStatus: (id, table, status, timeMs) =>
+      promWarehouseStatuses.labels(deploymentId, id, table, status).observe(timeMs / 1000),
+  };
+  const profileBuilderRuntimes = await initProfileBuilderRuntimes(profileBuilderConfigs, deploymentId, pbStoreMetrics);
+  log.atInfo().log(`Initialized ${profileBuilderRuntimes.size} profile builder runtimes`);
 
   // HTTP response helpers
-  function sendJson(res: http.ServerResponse, status: number, data: any): void {
-    res.writeHead(status, { "Content-Type": "application/json" });
-    res.end(JSON.stringify(data));
+  function jsonResponse(status: number, data: any, headers?: Record<string, string>): Response {
+    return new Response(JSON.stringify(data), {
+      status,
+      headers: { "Content-Type": "application/json", ...headers },
+    });
   }
 
-  function sendError(res: http.ServerResponse, status: number, error: string): void {
-    sendJson(res, status, { error });
+  function errorResponse(status: number, error: string, headers?: Record<string, string>): Response {
+    return jsonResponse(status, { error }, headers);
   }
 
   // Health check handler: GET /health or GET /
-  function handleHealth(res: http.ServerResponse): void {
-    sendJson(res, 200, {
+  function handleHealth(): Response {
+    return jsonResponse(200, {
       status: "ok",
       configDir,
       connections: Array.from(connections.keys()),
-      cachedChains: Array.from(chains.keys()),
+      runtimes: Array.from(runtimes.keys()),
+      profileBuilders: Array.from(profileBuilderRuntimes.keys()),
+      activeWorkers: workerPool ? workerPool.getActiveWorkers().map(w => w.id) : undefined,
     });
   }
 
   // Multi connection handler: POST /multi?ids=conn1,conn2,conn3&fullEvents=true
-  // Compatible with FunctionsHandlerMulti in rotor
   // Expects IngestMessage as body payload
   // Query params:
   //   - ids: comma-separated connection IDs (required)
   //   - fullEvents: if "true", return full events instead of diffs
-  async function handleMulti(req: http.IncomingMessage, res: http.ServerResponse, url: URL): Promise<string> {
+  async function handleMulti(req: Request, url: URL): Promise<{ response: Response; actorId: string }> {
     if (req.method !== "POST") {
-      sendError(res, 405, "Method not allowed. Use POST.");
-      return "";
+      return { response: errorResponse(405, "Method not allowed. Use POST."), actorId: "" };
     }
 
     const connectionIds = (url.searchParams.get("ids") ?? "").split(",").filter(id => !!id);
     const fullEvents = url.searchParams.get("fullEvents") === "true";
 
     if (connectionIds.length === 0) {
-      sendError(res, 400, "No connection IDs provided. Use ?ids=conn1,conn2,...");
-      return "";
+      return { response: errorResponse(400, "No connection IDs provided. Use ?ids=conn1,conn2,..."), actorId: "" };
     }
 
     // actorId = streamId of first connection (for metrics)
-    const firstConnection = connections.get(connectionIds[0]);
-    const actorId = firstConnection?.streamId || connectionIds[0] || "";
+    const firstRuntime = runtimes.get(connectionIds[0]);
+    const actorId = firstRuntime?.getConnection()?.streamId || connectionIds[0] || "";
 
     const message = (await parseBody(req)) as IngestMessage;
-
-    // Extract event from IngestMessage (handle classic format conversion)
     const event = message.httpPayload;
-
-    // Ensure event has context
     if (!event.context) {
       event.context = {};
     }
+
     type StrictFuncChainResult = Required<FuncChainResultWithLogs>;
 
+    const timeoutHeader = req.headers.get("x-request-timeout-ms");
+    const functionsFetchTimeout = timeoutHeader
+      ? parseNumber(timeoutHeader, 2000)
+      : parseNumber(env.FETCH_TIMEOUT_MS, 2000);
+
     // Process all connections in parallel
-    const promises = connectionIds.map(async connectionId => {
-      const connection = connections.get(connectionId);
-      if (!connection) {
-        log.atError().log(`[multi] Connection '${connectionId}' not found`);
-        return {
-          connectionId,
-          execLog: [
-            {
-              error: { message: `Connection '${connectionId}' not found`, name: NoRetryErrorName },
-              ms: 0,
-              eventIndex: 0,
-              functionId: "",
-            },
-          ],
-          logs: [],
-          events: [],
-        } as StrictFuncChainResult;
-      }
-
-      const chain = await getOrBuildChain(connectionId);
-      if (!chain) {
-        log.atError().log(`[multi] Failed to build chain for connection '${connectionId}'`);
-        return {
-          connectionId,
-          execLog: [
-            {
-              error: { message: "Internal Functions Error: please contact support", name: NoRetryErrorName },
-              ms: 0,
-              eventIndex: 0,
-              functionId: "",
-            },
-          ],
-          events: [],
-          logs: [],
-        } as StrictFuncChainResult;
-      }
-
-      // Create EventContext from IngestMessage (same as message-handler.ts)
-      const eventContext = createEventContextFromMessage(message, connection, 0);
-      const functionsFetchTimeout = req.headers["x-request-timeout-ms"]
-        ? parseNumber(req.headers["x-request-timeout-ms"] as string, 2000)
-        : parseNumber(env.FETCH_TIMEOUT_MS, 2000);
+    const promises = connectionIds.map(async (connectionId): Promise<StrictFuncChainResult> => {
       try {
-        const result = await runChain(chain, event, eventContext, functionsFetchTimeout);
-        const totalMs = result.execLog.reduce((sum, e) => sum + (e.ms || 0), 0);
-        log.atDebug().log(`← ${connectionId} (${chain.functions.length} functions) completed in ${totalMs}ms`);
-        return result;
+        const runtime = runtimes.get(connectionId);
+        if (!runtime) {
+          return {
+            connectionId,
+            events: [],
+            execLog: [
+              {
+                error: { message: `Connection '${connectionId}' not found`, name: functionsLib.NoRetryErrorName },
+                ms: 0,
+                eventIndex: 0,
+                functionId: "",
+              },
+            ],
+            logs: [],
+          } as StrictFuncChainResult;
+        }
+        const eventContext = createEventContextFromMessage(message, runtime.getConnection());
+        return await runtime.runChain(connectionId, event, eventContext, functionsFetchTimeout);
       } catch (e: any) {
         const errorMessage = `${e.name}: ${e.message}`;
         log.atError().log(`[multi] Error processing connection ${connectionId}: ${errorMessage}`);
         return {
           connectionId,
-          execLog: [{ error: { message: errorMessage, name: NoRetryErrorName }, ms: 0, eventIndex: 0, functionId: "" }],
+          execLog: [
+            {
+              error: { message: errorMessage, name: functionsLib.NoRetryErrorName },
+              ms: 0,
+              eventIndex: 0,
+              functionId: "",
+            },
+          ],
           events: [],
           logs: [],
         } as StrictFuncChainResult;
@@ -913,7 +1246,7 @@ async function main() {
 
     // Build response with events and execLog
     // Map connectionId -> { events, execLog }
-    const response = Object.fromEntries(
+    const responseBody = Object.fromEntries(
       results.map(result => {
         recordChainResultMetrics(result);
         return [
@@ -927,39 +1260,22 @@ async function main() {
       })
     );
 
-    sendJson(res, 200, response);
-    return actorId;
+    return { response: jsonResponse(200, responseBody), actorId };
   }
 
   // Single connection handler: POST /connection/<connection-id>
   async function handleConnection(
-    req: http.IncomingMessage,
-    res: http.ServerResponse,
+    req: Request,
     connectionId: string
-  ): Promise<string> {
-    const connection = connections.get(connectionId);
-    if (!connection) {
-      sendError(res, 404, `Connection '${connectionId}' not found`);
-      return connectionId;
-    }
-
-    const chain = await getOrBuildChain(connectionId);
-    if (!chain) {
-      sendError(res, 500, `Failed to build chain for connection '${connectionId}'`);
-      return connectionId;
-    }
-
+  ): Promise<{ response: Response; actorId: string }> {
     if (req.method !== "POST") {
-      sendError(res, 405, "Method not allowed. Use POST.");
-      return connectionId;
+      return { response: errorResponse(405, "Method not allowed. Use POST."), actorId: connectionId };
     }
 
     const body = await parseBody(req);
-
     const event = body.event as AnyEvent;
     const eventContext = body.context as EventContext;
 
-    // Parse receivedAt from string if needed (JSON serialization converts Date to string)
     if (eventContext?.receivedAt && typeof eventContext.receivedAt === "string") {
       eventContext.receivedAt = new Date(eventContext.receivedAt);
     }
@@ -967,120 +1283,216 @@ async function main() {
       eventContext.destination.updatedAt = new Date(eventContext.destination.updatedAt);
     }
 
-    const functionsFetchTimeout = req.headers["x-request-timeout-ms"]
-      ? parseNumber(req.headers["x-request-timeout-ms"] as string, 2000)
+    const timeoutHeader = req.headers.get("x-request-timeout-ms");
+    const functionsFetchTimeout = timeoutHeader
+      ? parseNumber(timeoutHeader, 2000)
       : parseNumber(env.FETCH_TIMEOUT_MS, 2000);
 
-    const result = await runChain(chain, event, eventContext, functionsFetchTimeout);
+    const runtime = runtimes.get(connectionId);
+    if (!runtime) {
+      return { response: errorResponse(404, `Connection '${connectionId}' not found`), actorId: connectionId };
+    }
+    const result = await runtime.runChain(connectionId, event, eventContext, functionsFetchTimeout);
     recordChainResultMetrics(result);
-
-    const totalMs = result.execLog.reduce((sum, e) => sum + (e.ms || 0), 0);
-    log.atDebug().log(`← ${connectionId} (${chain.functions.length} functions) completed in ${totalMs}ms`);
-
-    sendJson(res, 200, result);
-    return connectionId;
+    return { response: jsonResponse(200, result), actorId: connectionId };
   }
 
-  // Create HTTP server
+  // Profile builder handler: POST /profile/<profile-builder-id>
+  async function handleProfile(
+    req: Request,
+    profileBuilderId: string
+  ): Promise<{ response: Response; actorId: string }> {
+    if (req.method !== "POST") {
+      return { response: errorResponse(405, "Method not allowed. Use POST."), actorId: profileBuilderId };
+    }
+
+    const compiledPb = profileBuilderRuntimes.get(profileBuilderId);
+    if (!compiledPb) {
+      return {
+        response: errorResponse(404, `Profile builder '${profileBuilderId}' not found`),
+        actorId: profileBuilderId,
+      };
+    }
+
+    const body = await parseBody(req);
+    const profileId = body.profileId as string;
+    if (!profileId) {
+      return { response: errorResponse(400, "profileId is required"), actorId: profileBuilderId };
+    }
+
+    const result = await runProfileBuilder(compiledPb, profileId, deploymentId, pbStoreMetrics, conEntityStore);
+    return { response: jsonResponse(result.error ? 500 : 200, result), actorId: profileBuilderId };
+  }
+
+  // Create HTTP server using Deno.serve
   let isShuttingDown = false;
-  const server = http.createServer(async (req, res) => {
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-    // During shutdown, tell clients to close connections so they reconnect to healthy pods
-    if (isShuttingDown) {
-      res.setHeader("Connection", "close");
-    }
+  // // Track connection age by remoteAddr:remotePort key.
+  // // After 20s, send Connection: close to force client to reconnect.
+  // const connectionFirstSeen = new Map<string, number>();
+  // const maxConnectionAgeMs = 20_000;
+  // // Periodically clean up stale entries (connections that closed without hitting the age limit)
+  // setInterval(() => {
+  //   const now = Date.now();
+  //   for (const [key, firstSeen] of connectionFirstSeen) {
+  //     if (now - firstSeen > maxConnectionAgeMs * 2) {
+  //       connectionFirstSeen.delete(key);
+  //     }
+  //   }
+  // }, 60_000);
 
-    if (req.method === "OPTIONS") {
-      res.writeHead(204);
-      res.end();
-      return;
-    }
+  // @ts-ignore
+  const server = (Deno as any).serve(
+    { port, hostname: "0.0.0.0" },
+    async (req: Request, info: any): Promise<Response> => {
+      let extraHeaders: Record<string, string> = {};
 
-    const url = new URL(req.url || "/", `http://localhost:${port}`);
-    const pathname = url.pathname;
+      // // Track connection age and close long-lived connections
+      // if (info?.remoteAddr) {
+      //   const connKey = `${info.remoteAddr.hostname}:${info.remoteAddr.port}`;
+      //   const now = Date.now();
+      //   const firstSeen = connectionFirstSeen.get(connKey);
+      //   if (firstSeen === undefined) {
+      //     connectionFirstSeen.set(connKey, now);
+      //   } else if (now - firstSeen > maxConnectionAgeMs) {
+      //     extraHeaders = { Connection: "close" };
+      //     connectionFirstSeen.delete(connKey);
+      //   }
+      // }
 
-    try {
-      // Health check
-      if (pathname === "/health" || pathname === "/") {
-        handleHealth(res);
-        return;
+      if (isShuttingDown) {
+        extraHeaders = { Connection: "close" };
       }
 
-      // Determine endpoint label for metrics
-      const endpoint = pathname === "/multi" ? "multi" : pathname.startsWith("/connection/") ? "connection" : "other";
-      const sw = stopwatch();
-      promConcurrentRequests.labels(deploymentId, endpoint).inc();
-      let actorId = "";
+      if (req.method === "OPTIONS") {
+        return new Response(null, { status: 204, headers: extraHeaders });
+      }
+
+      const url = new URL(req.url);
+      const pathname = url.pathname;
 
       try {
-        // Multi connection handler
-        if (pathname === "/multi") {
-          actorId = await handleMulti(req, res, url);
-          return;
+        // Health check
+        if (pathname === "/health" || pathname === "/") {
+          return handleHealth();
         }
 
-        // UDF test runner
-        if (pathname === "/udfrun" && req.method === "POST") {
-          const body = await parseBody(req);
-          log.atInfo().log(`[udfrun] Running function: ${body?.functionId} workspace: ${body?.workspaceId}`);
-          const udfStore = env.MONGODB_URL
-            ? createMongoStore(body.workspaceId, mongodb, true, false)
-            : createMemoryStore(body.store || {});
-          const result = await runUdfInWorker(body, udfStore, conEntityStore);
-          if (result.error) {
-            log
-              .atError()
-              .log(
-                `[udfrun] Error running function: ${body?.functionId} workspace: ${body?.workspaceId}\n${result.error.name}: ${result.error.message}`
-              );
+        const endpoint =
+          pathname === "/multi"
+            ? "multi"
+            : pathname.startsWith("/connection/")
+            ? "connection"
+            : pathname.startsWith("/profile/")
+            ? "profile"
+            : "other";
+        const sw = stopwatch();
+        promConcurrentRequests.labels(deploymentId, endpoint).inc();
+        let actorId = "";
+        let status = 200;
+
+        try {
+          // Multi connection handler
+          if (pathname === "/multi") {
+            const result = await handleMulti(req, url);
+            actorId = result.actorId;
+            status = result.response.status;
+            return result.response;
           }
-          result.backend = "functions-server";
-          sendJson(res, 200, result);
-          return;
-        }
 
-        // Single connection handler
-        const match = pathname.match(/^\/connection\/([^\/]+)$/);
-        if (match) {
-          actorId = await handleConnection(req, res, match[1]);
-          return;
-        }
+          // UDF test runner
+          if (pathname === "/udfrun" && req.method === "POST") {
+            const body = await parseBody(req);
+            log.atInfo().log(`[udfrun] Running function: ${body?.functionId} workspace: ${body?.workspaceId}`);
+            const udfStore = env.MONGODB_URL
+              ? createMongoStore(body.workspaceId, mongodb, true, false)
+              : createMemoryStore(body.store || {});
+            const result = await runUdfInWorker(body, udfStore, conEntityStore);
+            if (result.error) {
+              log
+                .atError()
+                .log(
+                  `[udfrun] Error running function: ${body?.functionId} workspace: ${body?.workspaceId}\n${result.error.name}: ${result.error.message}`
+                );
+            }
+            result.backend = "functions-server";
+            return jsonResponse(200, result);
+          }
 
-        // Not found
-        sendError(res, 404, "Not found. Use /connection/<connection-id>, /multi?ids=conn1,conn2,..., or /udfrun");
-      } finally {
-        promConcurrentRequests.labels(deploymentId, endpoint).dec();
-        promRequestDuration.labels(deploymentId, endpoint, actorId).observe(sw.elapsedMs());
-        promRequestCount.labels(deploymentId, endpoint, actorId, String(res.statusCode || 200)).inc();
+          // Profile UDF test runner
+          if (pathname === "/profileudfrun" && req.method === "POST") {
+            const body = await parseBody(req);
+            log.atInfo().log(`[profileudfrun] Running profile function: ${body?.id} workspace: ${body?.workspaceId}`);
+            const pbStore = env.MONGODB_URL
+              ? createMongoStore(body.workspaceId, mongodb, true, false)
+              : createMemoryStore(body.store || {});
+            const result = await runProfileUDFTest(body, pbStore, conEntityStore);
+            if (result.error) {
+              log
+                .atError()
+                .log(
+                  `[profileudfrun] Error: ${body?.id} workspace: ${body?.workspaceId}\n${result.error.name}: ${result.error.message}`
+                );
+            }
+            result.backend = "functions-server";
+            return jsonResponse(200, result);
+          }
+
+          // Single connection handler
+          const match = pathname.match(/^\/connection\/([^\/]+)$/);
+          if (match) {
+            const result = await handleConnection(req, match[1]);
+            actorId = result.actorId;
+            status = result.response.status;
+            return result.response;
+          }
+
+          // Profile builder handler
+          const pbMatch = pathname.match(/^\/profile\/([^\/]+)$/);
+          if (pbMatch) {
+            const result = await handleProfile(req, pbMatch[1]);
+            actorId = result.actorId;
+            status = result.response.status;
+            return result.response;
+          }
+
+          // Not found
+          status = 404;
+          return errorResponse(
+            404,
+            "Not found. Use /connection/<connection-id>, /multi?ids=conn1,conn2,..., /profile/<pb-id>, or /udfrun"
+          );
+        } finally {
+          promConcurrentRequests.labels(deploymentId, endpoint).dec();
+          promRequestDuration.labels(deploymentId, endpoint, actorId).observe(sw.elapsedMs());
+          promRequestCount.labels(deploymentId, endpoint, actorId, String(status)).inc();
+        }
+      } catch (e: any) {
+        log.atError().log(`Error processing request:`, e);
+        return errorResponse(500, e.message);
       }
-    } catch (e: any) {
-      log.atError().log(`Error processing request:`, e);
-      sendError(res, 500, e.message);
     }
-  });
+  );
 
-  server.listen(port, () => {
-    log.atInfo().log(`Server running at http://localhost:${port}`);
-    log.atInfo().log(`Available connections: ${connections.size}`);
-  });
+  log.atInfo().log(`Server running at http://localhost:${port}`);
+  log.atInfo().log(`Runtimes: ${runtimes.size} (mode: ${isFreeClass ? "worker" : "in-process"})`);
 
   // Metrics HTTP server (separate port, same as rotor)
-  const metricsServer = http.createServer(async (req, res) => {
-    if (req.url === "/metrics") {
-      res.writeHead(200, { "Content-Type": Prometheus.register.contentType });
-      const result = await Prometheus.register.metrics();
-      res.end(result);
-    } else {
-      res.writeHead(404);
-      res.end();
+  // @ts-ignore
+  const metricsServer = (Deno as any).serve(
+    { port: metricsPort, hostname: "0.0.0.0" },
+    async (req: Request): Promise<Response> => {
+      if (req.url.endsWith("/metrics")) {
+        const result = await Prometheus.register.metrics();
+        return new Response(result, {
+          status: 200,
+          headers: { "Content-Type": Prometheus.register.contentType },
+        });
+      }
+      return new Response(null, { status: 404 });
     }
-  });
-  metricsServer.listen(metricsPort, () => {
-    log.atInfo().log(`Metrics server running at http://localhost:${metricsPort}/metrics`);
-  });
+  );
+
+  log.atInfo().log(`Metrics server running at http://localhost:${metricsPort}/metrics`);
 
   // Graceful shutdown handler
   const shutdown = (signal: string) => {
@@ -1096,17 +1508,22 @@ async function main() {
     setTimeout(() => {
       log.atWarn().log(`Forcing exit after ${forceExitTimeout}ms timeout`);
       process.exit(1);
-    }, forceExitTimeout).unref();
+    }, forceExitTimeout);
 
     // wait some seconds for connections to drain before shutting down metrics server
     const extraDelay = env.SHUTDOWN_EXTRA_DELAY_SEC ? 1000 * parseInt(env.SHUTDOWN_EXTRA_DELAY_SEC) : 5000;
     setTimeout(() => {
-      // Stop accepting new connections
-      server.close(err => {
-        if (err) {
-          log.atError().log(`Error during server close:`, err);
-          process.exit(1);
-        }
+      // Terminate all workspace workers
+      if (workerPool) {
+        workerPool.terminateAll();
+      }
+
+      // Close profile builder MongoDB connections
+      closeProfileBuilderConnections().catch(e => {
+        log.atWarn().log(`Error closing profile builder connections: ${e.message}`);
+      });
+
+      server.shutdown().then(() => {
         log.atInfo().log(`Server closed, all connections drained`);
         process.exit(0);
       });
@@ -1118,6 +1535,6 @@ async function main() {
 }
 
 main().catch(e => {
-  log.atError().log("Fatal error:", e);
+  log.atError().withCause(e).log("Fatal error");
   process.exit(1);
 });
