@@ -5,9 +5,6 @@
 
 export const adminServiceAccountEmail = "admin-service-account@jitsu.com";
 
-export function isAdminServiceAccount(user: {
-  internalId?: string | null;
-  loginProvider?: string | null;
-}): boolean {
+export function isAdminServiceAccount(user: { internalId?: string | null; loginProvider?: string | null }): boolean {
   return user.internalId === adminServiceAccountEmail && user.loginProvider === "admin/token";
 }
