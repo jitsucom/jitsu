@@ -143,6 +143,11 @@ async function deployFunctions(
     profileBuilders = ((await res.json()) as any).profileBuilders as any[];
   }
 
+  // Fetch the existing function list once for slug/id resolution. Previously
+  // every deployFunction() call refetched the whole list (with code blobs) —
+  // O(N) requests per deploy, each pulling all N rows from the console DB.
+  const existingFunctions = await fetchExistingFunctions({ host, apikey, workspaceId: workspace.id! });
+
   for (const file of selectedFiles) {
     console.log(
       `${b(`𝑓`)} Deploying function ${b(path.basename(file))} to workspace ${workspace.name} (${host}/${
@@ -156,9 +161,36 @@ async function deployFunctions(
       workspace,
       kind,
       path.resolve(functionsDir, file),
-      profileBuilders
+      profileBuilders,
+      existingFunctions
     );
   }
+}
+
+async function fetchExistingFunctions({
+  host,
+  apikey,
+  workspaceId,
+}: {
+  host?: string;
+  apikey?: string;
+  workspaceId?: string;
+}): Promise<{ bySlug: Map<string, string>; byId: Map<string, string> }> {
+  const res = await fetch(`${host}/api/${workspaceId}/config/function`, {
+    headers: { Authorization: `Bearer ${apikey}` },
+  });
+  if (!res.ok) {
+    console.error(red(`Cannot list existing functions:\n${b(await res.text())}`));
+    process.exit(1);
+  }
+  const { objects } = (await res.json()) as { objects: { id: string; slug?: string }[] };
+  const bySlug = new Map<string, string>();
+  const byId = new Map<string, string>();
+  for (const f of objects) {
+    if (f.slug) bySlug.set(f.slug, f.id);
+    if (f.id) byId.set(f.id, f.id);
+  }
+  return { bySlug, byId };
 }
 
 async function deployFunction(
@@ -168,7 +200,11 @@ async function deployFunction(
   workspace: Workspace,
   kind: "function" | "profile",
   file: string,
-  profileBuilders: any[] = []
+  profileBuilders: any[] = [],
+  existingFunctions: { bySlug: Map<string, string>; byId: Map<string, string> } = {
+    bySlug: new Map(),
+    byId: new Map(),
+  }
 ) {
   const code = readFileSync(file, "utf-8");
 
@@ -182,18 +218,8 @@ async function deployFunction(
   }
   let existingFunctionId: string | undefined;
   if (meta.slug) {
-    const res = await fetch(`${host}/api/${workspace.id}/config/function`, {
-      headers: {
-        Authorization: `Bearer ${apikey}`,
-      },
-    });
-    if (!res.ok) {
-      console.error(red(`Cannot add function to workspace:\n${b(await res.text())}`));
-      process.exit(1);
-    } else {
-      const existing = (await res.json()) as any;
-      existingFunctionId = existing.objects.find(f => f.slug === meta.slug || f.id === meta.id)?.id;
-    }
+    existingFunctionId =
+      existingFunctions.bySlug.get(meta.slug) ?? (meta.id ? existingFunctions.byId.get(meta.id) : undefined);
   }
   let functionPayload = {};
   if (kind === "profile") {
