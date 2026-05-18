@@ -13,10 +13,46 @@ import (
 	"github.com/jitsucom/bulker/eventslog"
 	"github.com/jitsucom/bulker/jitsubase/appbase"
 	"github.com/jitsucom/bulker/jitsubase/jsonorder"
+	"github.com/jitsucom/bulker/jitsubase/timestamp"
 	"github.com/jitsucom/bulker/jitsubase/types"
 	"github.com/jitsucom/bulker/jitsubase/utils"
 	"github.com/jitsucom/bulker/jitsubase/uuid"
 )
+
+// applySegmentTimestampCorrection implements Segment-style clock-skew
+// correction for batch payloads: when the request carries a root-level
+// `sentAt` (device time), the offset between the server's receivedAt and
+// the device's sentAt is added to each event's `timestamp`. The original
+// device value is preserved in `originalTimestamp`. `sentAt` is also
+// propagated to each event so downstream consumers see it per-event.
+//
+// See https://www.twilio.com/docs/segment/connections/spec/common#sentat
+func applySegmentTimestampCorrection(batch []types.Json, sentAt string, receivedAt time.Time) {
+	if sentAt == "" {
+		return
+	}
+	sentAtTime, err := time.Parse(time.RFC3339Nano, sentAt)
+	if err != nil {
+		return
+	}
+	offset := receivedAt.Sub(sentAtTime)
+	for _, ev := range batch {
+		if ev == nil {
+			continue
+		}
+		ev.SetIfAbsent("sentAt", sentAt)
+		tsStr := ev.GetS("timestamp")
+		if tsStr == "" {
+			continue
+		}
+		ts, err := time.Parse(time.RFC3339Nano, tsStr)
+		if err != nil {
+			continue
+		}
+		ev.SetIfAbsent("originalTimestamp", tsStr)
+		ev.Set("timestamp", ts.Add(offset).UTC().Format(timestamp.JsonISO))
+	}
+}
 
 // eventKey represents the fields used to identify duplicate events
 type eventKey struct {
@@ -170,8 +206,15 @@ func (r *Router) BatchHandler(c *gin.Context) {
 	//	r.Warnf("[batch] %v", err)
 	//}
 
-	// Apply in-batch deduplication if any destination has deduplication enabled
+	// Segment compatibility: if the request carries a batch-level `sentAt`,
+	// adjust per-event timestamps for client/server clock skew before any
+	// further processing (dedup uses the corrected timestamps).
 	batch := payload.Batch
+	if payload.SentAt != "" {
+		applySegmentTimestampCorrection(batch, payload.SentAt, time.Now().UTC())
+	}
+
+	// Apply in-batch deduplication if any destination has deduplication enabled
 	deduplicated := 0
 	if stream.Stream.DeduplicateWindowMs > 0 {
 		originalSize := len(batch)

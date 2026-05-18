@@ -122,6 +122,72 @@ func TestDeduplicateBatch(t *testing.T) {
 	}
 }
 
+func TestApplySegmentTimestampCorrection(t *testing.T) {
+	// Device clock is 10s behind server.
+	sentAt := "2026-05-15T10:00:00.000Z"
+	receivedAt, err := time.Parse(time.RFC3339Nano, "2026-05-15T10:00:10.000Z")
+	assert.NoError(t, err)
+
+	t.Run("no sentAt is a no-op", func(t *testing.T) {
+		ev := types.NewJson(4)
+		ev.Set("timestamp", "2026-05-15T09:59:50.000Z")
+		applySegmentTimestampCorrection([]types.Json{ev}, "", receivedAt)
+		assert.Equal(t, "2026-05-15T09:59:50.000Z", ev.GetS("timestamp"))
+		assert.Equal(t, "", ev.GetS("sentAt"))
+		assert.Equal(t, "", ev.GetS("originalTimestamp"))
+	})
+
+	t.Run("unparseable sentAt is a no-op", func(t *testing.T) {
+		ev := types.NewJson(4)
+		ev.Set("timestamp", "2026-05-15T09:59:50.000Z")
+		applySegmentTimestampCorrection([]types.Json{ev}, "not-a-date", receivedAt)
+		assert.Equal(t, "2026-05-15T09:59:50.000Z", ev.GetS("timestamp"))
+		assert.Equal(t, "", ev.GetS("sentAt"))
+	})
+
+	t.Run("adjusts timestamp by offset and preserves original", func(t *testing.T) {
+		ev := types.NewJson(4)
+		ev.Set("timestamp", "2026-05-15T09:59:50.000Z")
+		applySegmentTimestampCorrection([]types.Json{ev}, sentAt, receivedAt)
+		// offset = 10s, so timestamp shifts forward 10s.
+		assert.Equal(t, "2026-05-15T10:00:00.000Z", ev.GetS("timestamp"))
+		assert.Equal(t, "2026-05-15T09:59:50.000Z", ev.GetS("originalTimestamp"))
+		assert.Equal(t, sentAt, ev.GetS("sentAt"))
+	})
+
+	t.Run("event without timestamp gets sentAt only", func(t *testing.T) {
+		ev := types.NewJson(4)
+		applySegmentTimestampCorrection([]types.Json{ev}, sentAt, receivedAt)
+		assert.Equal(t, sentAt, ev.GetS("sentAt"))
+		assert.Equal(t, "", ev.GetS("timestamp"))
+		assert.Equal(t, "", ev.GetS("originalTimestamp"))
+	})
+
+	t.Run("preserves event-level sentAt and originalTimestamp when already set", func(t *testing.T) {
+		ev := types.NewJson(4)
+		ev.Set("timestamp", "2026-05-15T09:59:50.000Z")
+		ev.Set("originalTimestamp", "2026-05-15T09:59:00.000Z")
+		ev.Set("sentAt", "2026-05-15T09:59:55.000Z")
+		applySegmentTimestampCorrection([]types.Json{ev}, sentAt, receivedAt)
+		// timestamp still gets shifted by the batch offset.
+		assert.Equal(t, "2026-05-15T10:00:00.000Z", ev.GetS("timestamp"))
+		// pre-existing per-event values win.
+		assert.Equal(t, "2026-05-15T09:59:00.000Z", ev.GetS("originalTimestamp"))
+		assert.Equal(t, "2026-05-15T09:59:55.000Z", ev.GetS("sentAt"))
+	})
+
+	t.Run("server clock behind device produces negative offset", func(t *testing.T) {
+		// Device 10s ahead of server.
+		laterSentAt := "2026-05-15T10:00:20.000Z"
+		ev := types.NewJson(4)
+		ev.Set("timestamp", "2026-05-15T10:00:15.000Z")
+		applySegmentTimestampCorrection([]types.Json{ev}, laterSentAt, receivedAt)
+		// offset = -10s, so timestamp shifts back 10s.
+		assert.Equal(t, "2026-05-15T10:00:05.000Z", ev.GetS("timestamp"))
+		assert.Equal(t, "2026-05-15T10:00:15.000Z", ev.GetS("originalTimestamp"))
+	})
+}
+
 // Helper function to create test events
 func createEvent(anonymousId, userId, eventType, eventName string, ts time.Time, properties types.Json, traits types.Json) types.Json {
 	event := types.NewJson(10)

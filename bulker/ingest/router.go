@@ -284,6 +284,10 @@ type BatchPayload struct {
 	EventsName string       `json:"eventsName"`
 	Context    types.Json   `json:"context"`
 	WriteKey   string       `json:"writeKey"`
+	// SentAt is the device-side timestamp of when the batch was sent (Segment
+	// compatibility). When present it is used to correct per-event timestamps
+	// for clock skew between the client device and the ingest server.
+	SentAt string `json:"sentAt"`
 }
 
 func (r *Router) sendToRotor(c *gin.Context, messageId string, ingestMessageBytes []byte, stream *StreamWithDestinations, sendResponse bool) (asyncDestinations []string, tagsDestinations []string, rError *appbase.RouterError) {
