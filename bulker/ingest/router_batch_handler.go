@@ -22,9 +22,14 @@ import (
 // applySegmentTimestampCorrection implements Segment-style clock-skew
 // correction for batch payloads: when the request carries a root-level
 // `sentAt` (device time), the offset between the server's receivedAt and
-// the device's sentAt is added to each event's `timestamp`. The original
-// device value is preserved in `originalTimestamp`. `sentAt` is also
-// propagated to each event so downstream consumers see it per-event.
+// the device's sentAt is added to each event's `timestamp`. `sentAt` is
+// also propagated to each event so downstream consumers see it per-event.
+//
+// The pre-correction device timestamp is intentionally NOT preserved on
+// the event — downstream warehouses already have to deal with enough
+// timestamp columns, and adding a Segment-only `originalTimestamp` here
+// just leaks a field into every schema. Consumers that need the device
+// clock can recover it as `timestamp - (receivedAt - sentAt)`.
 //
 // See https://www.twilio.com/docs/segment/connections/spec/common#sentat
 func applySegmentTimestampCorrection(batch []types.Json, sentAt string, receivedAt time.Time) {
@@ -49,7 +54,6 @@ func applySegmentTimestampCorrection(batch []types.Json, sentAt string, received
 		if err != nil {
 			continue
 		}
-		ev.SetIfAbsent("originalTimestamp", tsStr)
 		ev.Set("timestamp", ts.Add(offset).UTC().Format(timestamp.JsonISO))
 	}
 }
