@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const path = require("path");
 module.exports =  {
+  poweredByHeader: false,
   transpilePackages: ["juava"],
   turbopack: {
     // See webapps/console/next.config.js for the rationale.
@@ -28,6 +29,10 @@ module.exports =  {
           {
             key: "X-Content-Type-Options",
             value: "nosniff",
+          },
+          {
+            key: "Referrer-Policy",
+            value: "strict-origin-when-cross-origin",
           },
         ],
       },
