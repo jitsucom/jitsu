@@ -222,23 +222,6 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
 
       const queue = new PQueue({ concurrency });
 
-      const onSizeLessThan = async (limit: number) => {
-        // Instantly resolve if the queue is empty.
-        if (queue.size < limit) {
-          return;
-        }
-
-        return new Promise<void>(resolve => {
-          const listener = () => {
-            if (queue.size < limit) {
-              queue.removeListener("next", listener);
-              resolve();
-            }
-          };
-
-          queue.on("next", listener);
-        });
-      };
       closeQueue = async () => {
         log.atInfo().log("Closing queue...");
         await queue.onIdle();
@@ -248,7 +231,7 @@ export function kafkaRotor(cfg: KafkaRotorConfig): KafkaRotor {
         partitionsConsumedConcurrently: 8,
         eachMessage: async ({ message, topic, partition }) => {
           //make sure that queue has no more entities than concurrency limit (running tasks not included)
-          await onSizeLessThan(concurrency);
+          await queue.onSizeLessThan(concurrency);
           queue.add(async () => onMessage(message, topic, partition));
         },
       });

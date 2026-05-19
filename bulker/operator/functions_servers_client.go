@@ -19,6 +19,7 @@ type FunctionsServerRecord struct {
 	DeploymentID     string
 	Connections      []string
 	EmptyConnections []string
+	ProfileBuilders  []string
 }
 
 // FunctionsServerDB handles direct PostgreSQL operations for the FunctionsServer table
@@ -75,18 +76,20 @@ func (db *FunctionsServerDB) ReplaceRecordsForDeployment(deploymentID string, re
 		batch := &pgx.Batch{}
 		for _, r := range records {
 			batch.Queue(
-				`INSERT INTO newjitsu."FunctionsServer" ("workspaceId", "class", "deploymentId", "connections", "emptyConnections", "createdAt", "updatedAt")
-				 VALUES ($1, $2, $3, $4, $5, $6, $7)
+				`INSERT INTO newjitsu."FunctionsServer" ("workspaceId", "class", "deploymentId", "connections", "emptyConnections", "profileBuilders", "createdAt", "updatedAt")
+				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 				 ON CONFLICT ("workspaceId", "class") DO UPDATE SET
 				     "deploymentId" = EXCLUDED."deploymentId",
 				     "connections" = EXCLUDED."connections",
 				     "emptyConnections" = EXCLUDED."emptyConnections",
+				     "profileBuilders" = EXCLUDED."profileBuilders",
 				     "updatedAt" = EXCLUDED."updatedAt"`,
 				r.WorkspaceID,
 				r.Class,
 				r.DeploymentID,
 				r.Connections,
 				r.EmptyConnections,
+				r.ProfileBuilders,
 				createdAt,
 				updatedAt,
 			)
@@ -159,23 +162,32 @@ func groupConnectionsByWorkspace(connections []*EnrichedConnectionConfig) (withF
 type ConnectionsMapEntry struct {
 	Connections      []string `json:"c"`
 	EmptyConnections []string `json:"e"`
+	ProfileBuilders  []string `json:"pb,omitempty"`
 }
 
 // BuildConnectionsMapAnnotation computes the connections map from deployment data and serializes it as JSON.
+// Includes regular connections and profile builder IDs (in separate field).
 func BuildConnectionsMapAnnotation(data *DeploymentData) string {
 	connectionsByWorkspace, emptyConnectionsByWorkspace := groupConnectionsByWorkspace(data.Connections)
+
+	// Group profile builders by workspace
+	pbByWorkspace := make(map[string][]string)
+	for _, pb := range data.ProfileBuilders {
+		pbByWorkspace[pb.WorkspaceID] = append(pbByWorkspace[pb.WorkspaceID], pb.ID)
+	}
 
 	m := make(map[string]ConnectionsMapEntry, len(data.WorkspaceIDs))
 	for _, wsID := range data.WorkspaceIDs {
 		c := connectionsByWorkspace[wsID]
 		e := emptyConnectionsByWorkspace[wsID]
+		pb := pbByWorkspace[wsID]
 		if c == nil {
 			c = []string{}
 		}
 		if e == nil {
 			e = []string{}
 		}
-		m[wsID] = ConnectionsMapEntry{Connections: c, EmptyConnections: e}
+		m[wsID] = ConnectionsMapEntry{Connections: c, EmptyConnections: e, ProfileBuilders: pb}
 	}
 	b, _ := json.Marshal(m)
 	return string(b)
@@ -197,12 +209,17 @@ func ParseConnectionsMapAnnotation(annotation string) map[string]ConnectionsMapE
 func BuildRecordsFromConnectionsMap(connectionsMap map[string]ConnectionsMapEntry, deploymentID string, functionsClass string) []FunctionsServerRecord {
 	records := make([]FunctionsServerRecord, 0, len(connectionsMap))
 	for wsID, entry := range connectionsMap {
+		pb := entry.ProfileBuilders
+		if pb == nil {
+			pb = []string{}
+		}
 		records = append(records, FunctionsServerRecord{
 			WorkspaceID:      wsID,
 			Class:            functionsClass,
 			DeploymentID:     deploymentID,
 			Connections:      entry.Connections,
 			EmptyConnections: entry.EmptyConnections,
+			ProfileBuilders:  pb,
 		})
 	}
 	return records

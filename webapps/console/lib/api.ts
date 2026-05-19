@@ -1,9 +1,13 @@
+import "./openapi/setup";
 import { ZodType } from "zod";
 import { NextApiHandler, NextApiRequest, NextApiResponse } from "next";
+import { buildRouteFragment } from "./openapi/routeSpec";
+import { ExpandSpec, RouteOpenApiFragment, StoredMethodSpec } from "./openapi/types";
+import { getRateLimiter, getRateLimitOpts, setRateLimitHeaders, type RouteRateLimitSpec } from "./server/rate-limit";
 import { assertDefined, checkHash, checkRawToken, getErrorMessage, requireDefined, tryJson } from "juava";
 import { getServerSession, Session } from "next-auth";
 import { nextAuthConfig } from "./nextauth.config";
-import { SessionUser } from "./schema";
+import { inferTokenTypeFromId, SessionUser } from "./schema";
 import { db } from "./server/db";
 import { prepareZodObjectForDeserialization, safeParseWithDate } from "./zod";
 import { ApiError } from "./shared/errors";
@@ -28,7 +32,7 @@ import {
   WorkspaceRolePermissions,
 } from "./workspace-roles";
 import { getServerEnv } from "./server/serverEnv";
-const adminServiceAccountEmail = "admin-service-account@jitsu.com";
+import { adminServiceAccountEmail, isAdminServiceAccount } from "./shared/admin-service-account";
 
 type HandlerOpts<Req = void, Query = void, RequireAuth extends boolean = boolean> = {
   body?: Req;
@@ -65,6 +69,7 @@ export type ApiMethod<RequireAuth extends boolean = boolean, Res = any, Body = a
   };
   // indicates that handler uses write method for outputting response content. This is useful for streaming responses.
   streaming?: boolean;
+  rateLimit?: RouteRateLimitSpec;
   handle: (ctx: HandlerOpts<Body, Query, RequireAuth>) => Promise<Res>;
 };
 
@@ -277,6 +282,9 @@ export async function getUser(
       if (!checkHash(token.hash, secret)) {
         throw new ApiError(`Invalid API key secret for ${keyId}`, { keyId }, { status: 401 });
       }
+      if (token.expiresAt && token.expiresAt.getTime() < Date.now()) {
+        throw new ApiError(`API key ${keyId} has expired`, { keyId }, { status: 401 });
+      }
       const user = requireDefined(
         await db.prisma().userProfile.findUnique({ where: { id: token.userId } }),
         `Can't find user ${token.userId} for API key ${keyId}`
@@ -290,6 +298,8 @@ export async function getUser(
         email: user.email,
         name: user.name,
         authType: "bearer",
+        tokenId: token.id,
+        tokenType: token.type ?? inferTokenTypeFromId(token.id),
       };
     }
   }
@@ -322,6 +332,43 @@ export function nextJsApiHandler(api: Api): NextApiHandler {
         currentUser = await getUser(res, req);
         if (!currentUser) {
           res.status(401).send({ error: "Authorization Required" });
+          return;
+        }
+      }
+      const rlOpts = getRateLimitOpts(req, currentUser, { method, rateLimit: handler.rateLimit });
+      if (rlOpts) {
+        try {
+          const rl = await getRateLimiter().check(rlOpts);
+          setRateLimitHeaders(res, rl);
+          if (!rl.allowed) {
+            log
+              .atWarn()
+              .log(
+                `rate limit exceeded: ${req.method} ${req.url} bucket=${rl.bucket} limit=${rl.limit} retryAfterSec=${
+                  rl.retryAfterSec
+                } user=${currentUser?.internalId ?? "anon"}`
+              );
+            res.setHeader("Retry-After", String(rl.retryAfterSec));
+            res.status(429).json({
+              error: "rate_limit_exceeded",
+              message: `Rate limit exceeded. Retry after ${rl.retryAfterSec} seconds.`,
+              limit: rl.limit,
+              remaining: 0,
+              resetAt: rl.resetAt.toISOString(),
+              bucket: rl.bucket,
+            });
+            return;
+          }
+        } catch (e) {
+          // Fail closed: the limiter store is unavailable, so we reject rather than
+          // silently letting everyone through. A future per-route failOpen flag can
+          // carve exceptions when we need them.
+          log.atWarn().withCause(e).log(`rate limiter unavailable for ${req.method} ${req.url}`);
+          res.setHeader("Retry-After", "5");
+          res.status(503).json({
+            error: "rate_limit_unavailable",
+            message: "Rate limiter store is unavailable; request rejected.",
+          });
           return;
         }
       }
@@ -426,7 +473,7 @@ function stackToArray(stack?: string) {
   return lines.length > 0 ? lines.map(s => s.trim()) : undefined;
 }
 export async function verifyAdmin(user: SessionUser) {
-  if (user.internalId === adminServiceAccountEmail && user.loginProvider === "admin/token") {
+  if (isAdminServiceAccount(user)) {
     return;
   }
   const userId = requireDefined(user.internalId, `internalId is not defined`);
@@ -460,7 +507,7 @@ export async function getWorkspace(workspaceId: string | undefined) {
 }
 
 export async function verifyAccess(user: SessionUser, workspaceId: string) {
-  if (user.internalId === adminServiceAccountEmail && user.loginProvider === "admin/token") {
+  if (isAdminServiceAccount(user)) {
     return;
   }
   if (!looksLikeCuid(workspaceId)) {
@@ -487,7 +534,7 @@ export async function verifyAccessWithRole(
   workspaceId: string,
   requiredPermission: WorkspacePermissionsType
 ): Promise<WorkspaceRoleWithPermissions> {
-  if (user.internalId === adminServiceAccountEmail && user.loginProvider === "admin/token") {
+  if (isAdminServiceAccount(user)) {
     return {
       role: "owner",
       ...WorkspaceRolePermissions["owner"],
@@ -538,20 +585,35 @@ export async function verifyAccessWithRole(
 }
 //new type-safe route builder
 
+export type RouteMethodSpec<
+  QueryZodType extends ZodType = never,
+  BodyZodType extends ZodType = never,
+  ResultZodType extends ZodType = any,
+  RequireAuth extends undefined | boolean = false
+> = {
+  description?: string;
+  summary?: string;
+  tags?: string[];
+  query?: QueryZodType;
+  body?: BodyZodType;
+  result?: ResultZodType;
+  auth?: RequireAuth;
+  streaming?: boolean;
+  bodyExample?: any;
+  resultExample?: any;
+  expand?: ExpandSpec;
+  rateLimit?: RouteRateLimitSpec;
+};
+
 export type RouteBuilderBase = {
   [K in HttpMethodType]: <
     QueryZodType extends ZodType = never,
     BodyZodType extends ZodType = never,
     ResultZodType extends ZodType = any,
     RequireAuth extends undefined | boolean = false
-  >(spec: {
-    description?: string;
-    query?: QueryZodType;
-    body?: BodyZodType;
-    result?: ResultZodType;
-    auth?: RequireAuth;
-    streaming?: boolean;
-  }) => {
+  >(
+    spec: RouteMethodSpec<QueryZodType, BodyZodType, ResultZodType, RequireAuth>
+  ) => {
     handler: (
       handler: (params: {
         query: QueryZodType extends ZodType<infer QueryType> ? QueryType : never;
@@ -564,20 +626,39 @@ export type RouteBuilderBase = {
   };
 };
 
-export type RouteBuilder = RouteBuilderBase & { toNextApiHandler(): NextApiHandler };
+export type RouteBuilder = RouteBuilderBase & {
+  toNextApiHandler(): NextApiHandler;
+  toOpenAPISpec(opts: { basePath: string }): RouteOpenApiFragment;
+};
 
 export function createRoute(): RouteBuilder {
   const legacyApiInstance: Api = {};
+  const specByMethod: Partial<Record<HttpMethodType, StoredMethodSpec>> = {};
   const builder: any = {};
   for (const method of httpMethods) {
-    builder[method] = ({ query, body, result, auth, streaming }) => {
+    builder[method] = (spec: RouteMethodSpec<any, any, any, any> & { description?: string }) => {
       return {
         handler: handler => {
           legacyApiInstance[method] = {
-            auth: !!auth,
-            types: { query, body, result },
+            auth: !!spec.auth,
+            types: { query: spec.query, body: spec.body, result: spec.result },
             handle: handler,
-            streaming: streaming,
+            streaming: spec.streaming,
+            description: spec.description,
+            rateLimit: spec.rateLimit,
+          };
+          specByMethod[method] = {
+            query: spec.query,
+            body: spec.body,
+            result: spec.result,
+            auth: !!spec.auth,
+            streaming: spec.streaming,
+            summary: spec.summary,
+            description: spec.description,
+            tags: spec.tags,
+            bodyExample: spec.bodyExample,
+            resultExample: spec.resultExample,
+            expand: spec.expand,
           };
           return builder;
         },
@@ -586,6 +667,9 @@ export function createRoute(): RouteBuilder {
   }
   builder.toNextApiHandler = () => {
     return nextJsApiHandler(legacyApiInstance);
+  };
+  builder.toOpenAPISpec = ({ basePath }: { basePath: string }) => {
+    return buildRouteFragment(basePath, specByMethod);
   };
 
   return builder as RouteBuilder;

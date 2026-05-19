@@ -1,9 +1,17 @@
 import { Api, inferUrl, nextJsApiHandler } from "../../../lib/api";
+import { ApiError } from "../../../lib/shared/errors";
 import { ApiKey } from "../../../lib/schema";
 import { z } from "zod";
 import { db } from "../../../lib/server/db";
-import { hint } from "juava";
-import { createHash, requireDefined } from "juava";
+import { hint, randomId } from "juava";
+import { createHash } from "juava";
+
+const CreateKeyBody = z.object({
+  name: z.string().optional(),
+  type: z.string().optional(),
+  // ISO date or null. If null/missing → never expires.
+  expiresAt: z.coerce.date().nullish(),
+});
 
 const api: Api = {
   url: inferUrl(__filename),
@@ -15,38 +23,97 @@ const api: Api = {
     handle: async ({ user }) => {
       return await db.prisma().userApiToken.findMany({
         where: { userId: user.internalId },
-        select: { id: true, hint: true, createdAt: true, lastUsed: true },
+        select: {
+          id: true,
+          hint: true,
+          createdAt: true,
+          lastUsed: true,
+          type: true,
+          name: true,
+          expiresAt: true,
+        },
+        orderBy: { createdAt: "desc" },
       });
     },
   },
   POST: {
     auth: true,
     types: {
-      body: z.array(ApiKey),
-      result: z.array(ApiKey),
+      body: CreateKeyBody,
+      result: ApiKey,
     },
     handle: async ({ user, body }) => {
-      const currentKeys = await db.prisma().userApiToken.findMany({
-        where: { userId: user.internalId },
-        select: { id: true },
+      const plaintext = randomId(32);
+      const id = randomId(32);
+      const created = await db.prisma().userApiToken.create({
+        data: {
+          id,
+          userId: user.internalId,
+          hint: hint(plaintext),
+          hash: createHash(plaintext),
+          type: body.type ?? "api",
+          name: body.name ?? null,
+          expiresAt: body.expiresAt ?? null,
+        },
       });
-      const toDelete = currentKeys.filter(k => !body.find(b => b.id === k.id)).map(k => k.id);
-      const toCreate = body
-        .filter(b => !currentKeys.find(k => k.id === b.id))
-        .map(b => {
-          const plaintext = requireDefined(b.plaintext, `key ${JSON.stringify(b)} expected to contain plaintext`);
-          return {
-            id: b.id,
-            userId: user.internalId,
-            hint: hint(plaintext),
-            hash: createHash(plaintext),
-          };
-        });
-
-      await db.prisma().userApiToken.deleteMany({ where: { id: { in: toDelete } } });
-      await db.prisma().userApiToken.createMany({ data: toCreate });
-
-      return currentKeys;
+      return {
+        id: created.id,
+        plaintext,
+        hint: created.hint,
+        createdAt: created.createdAt,
+        lastUsed: created.lastUsed,
+        type: created.type,
+        name: created.name,
+        expiresAt: created.expiresAt,
+      };
+    },
+  },
+  PATCH: {
+    auth: true,
+    types: {
+      query: z.object({ id: z.string() }),
+      body: z.object({
+        name: z.string().nullish(),
+        // ISO date, null, or omitted. Null = clear (never expires); omitted = leave alone.
+        expiresAt: z.coerce.date().nullish(),
+      }),
+      result: ApiKey,
+    },
+    handle: async ({ user, query, body }) => {
+      const existing = await db.prisma().userApiToken.findUnique({ where: { id: query.id } });
+      if (!existing || existing.userId !== user.internalId) {
+        throw new ApiError(`Key not found`, {}, { status: 404 });
+      }
+      // `expiresAt` is tri-state on the wire: present-as-Date sets, present-as-null
+      // clears, missing leaves the column alone. Same for `name`.
+      const data: { name?: string | null; expiresAt?: Date | null } = {};
+      if (Object.prototype.hasOwnProperty.call(body, "name")) data.name = body.name ?? null;
+      if (Object.prototype.hasOwnProperty.call(body, "expiresAt")) data.expiresAt = body.expiresAt ?? null;
+      const updated = await db.prisma().userApiToken.update({ where: { id: query.id }, data });
+      return {
+        id: updated.id,
+        hint: updated.hint,
+        createdAt: updated.createdAt,
+        lastUsed: updated.lastUsed,
+        type: updated.type,
+        name: updated.name,
+        expiresAt: updated.expiresAt,
+      };
+    },
+  },
+  DELETE: {
+    auth: true,
+    types: {
+      query: z.object({ id: z.string() }),
+      result: z.object({ ok: z.boolean() }),
+    },
+    handle: async ({ user, query }) => {
+      const existing = await db.prisma().userApiToken.findUnique({ where: { id: query.id } });
+      if (!existing || existing.userId !== user.internalId) {
+        throw new ApiError(`Key not found`, {}, { status: 404 });
+      }
+      await db.prisma().userApiToken.delete({ where: { id: query.id } });
+      return { ok: true };
     },
   },
 };

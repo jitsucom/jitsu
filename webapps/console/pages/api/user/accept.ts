@@ -2,6 +2,7 @@ import { createRoute } from "../../../lib/api";
 import { z } from "zod";
 import { requireDefined } from "juava";
 import { db } from "../../../lib/server/db";
+import { membershipAuditLog } from "../../../lib/server/audit-log";
 
 export default createRoute()
   .POST({
@@ -54,6 +55,13 @@ export default createRoute()
       data: { userId: user.internalId, workspaceId: token.workspaceId, role: token.role || "owner" },
     });
     await db.prisma().invitationToken.update({ where: { id: token.id }, data: { usedBy: user.internalId } });
+    await membershipAuditLog(
+      user,
+      token.workspaceId,
+      "joined",
+      { userId: user.internalId, email: user.email },
+      { newRole: token.role || "owner" }
+    );
     return { accepted: true, workspaceName: workspace.name, workspaceId: workspace.id };
   })
   .toNextApiHandler();

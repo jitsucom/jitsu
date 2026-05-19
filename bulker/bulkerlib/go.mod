@@ -18,7 +18,7 @@ require (
 	github.com/go-sql-driver/mysql v1.9.3
 	github.com/hamba/avro/v2 v2.31.0
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/jackc/pgx/v5 v5.9.1
+	github.com/jackc/pgx/v5 v5.9.2
 	github.com/joomcode/errorx v1.1.1
 	github.com/moby/moby/api v1.54.1
 	github.com/snowflakedb/gosnowflake v1.19.1

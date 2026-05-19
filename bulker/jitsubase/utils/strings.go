@@ -35,26 +35,40 @@ func DefaultStringFunc(str string, f func() string) string {
 
 // ShortenString returns the first N slice of a string.
 func ShortenString(str string, n int) string {
-	if len([]rune(str)) <= n {
+	runes := []rune(str)
+	if len(runes) <= n {
 		return str
 	}
-	return string([]rune(str)[:n])
+	return string(runes[:n])
 }
 
 // ShortenString returns the first N slice of a string and a flag indicating if the string was shortened.
 func ShortenString2(str string, n int) (string, bool) {
-	if len([]rune(str)) <= n {
+	runes := []rune(str)
+	if len(runes) <= n {
 		return str, false
 	}
-	return string([]rune(str)[:n]), true
+	return string(runes[:n]), true
 }
 
 // ShortenStringWithEllipsis returns the first N slice of a string and ends with ellipsis.
 func ShortenStringWithEllipsis(str string, n int) string {
-	if len([]rune(str)) <= n {
+	runes := []rune(str)
+	if len(runes) <= n {
 		return str
 	}
-	return string([]rune(str)[:n]) + "..."
+	return string(runes[:n]) + "..."
+}
+
+func ShortenStringWithEllipsisMiddle(str string, n int, ellipsis string) string {
+	runes := []rune(str)
+	if len(runes) <= n {
+		return str
+	}
+	if ellipsis == "" {
+		ellipsis = "..."
+	}
+	return string(runes[:n/2]) + ellipsis + string(runes[len(runes)-n/2:])
 }
 
 // IsLetterOrNumber returns true if input symbol is:

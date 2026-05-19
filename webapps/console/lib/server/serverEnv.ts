@@ -110,6 +110,17 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   // NextAuth callback URL (auto-detected in most cases)
   NEXTAUTH_URL: z.string().optional(),
 
+  // Cookie domain for the NextAuth session cookie.
+  //   - When set (e.g. `.jitsu.localhost`), `Set-Cookie` carries `Domain=...` and the
+  //     browser sends the cookie to every host that domain-matches the value — useful
+  //     for sharing the dev session across `console.jitsu.localhost`,
+  //     `ee.jitsu.localhost`, and `console-$BRANCH_NAME.jitsu.localhost`.
+  //   - When unset, `Set-Cookie` omits `Domain=`. Per RFC 6265 the browser then makes
+  //     the cookie host-only, scoped to whatever hostname served the response (taken
+  //     from the request's Host header — no code-side input needed). This is the right
+  //     behaviour in production (e.g. `use.jitsu.com`), so leave it unset there.
+  AUTH_COOKIE_DOMAIN: z.string().optional(),
+
   // Public URL of Jitsu console
   JITSU_PUBLIC_URL: z.string().optional(),
   JITSU_PUBLIC: z.string().optional(), // Alias for JITSU_PUBLIC_URL
@@ -181,10 +192,10 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   ROTOR_AUTH_KEY: z.string().optional(),
 
   // Functions server URL template (use ${workspaceId} as placeholder)
-  FUNCTIONS_SERVER_URL_TEMPLATE: z.string().optional(),
+  FUNCTIONS_SERVER_URL_TEMPLATE: z.string().default("http://fs-${workspaceId}:3456"),
 
   // Default functions class when workspace has no explicit setting
-  DEFAULT_FUNCTIONS_CLASS: z.string().optional().default("legacy"),
+  DEFAULT_FUNCTIONS_CLASS: z.string().optional().default("free"),
 
   // ============================================
   // Email Configuration
@@ -357,6 +368,32 @@ const ServerEnvSchema = ClientEnvSchema.extend({
 
   // Enable full environment diagnostics (dangerous - exposes all env vars!)
   __DANGEROUS_ENABLE_FULL_DIAGNOSTICS: z.coerce.boolean().default(false),
+
+  // ============================================
+  // API Rate Limiting (per-minute, sliding window)
+  // ============================================
+
+  // Master kill switch. Set to "false" to disable rate limiting entirely.
+  MINUTE_RATE_LIMIT_ENABLED: z.string().default("true").transform(isTruish),
+
+  // Base per-minute budget. All (auth class × HTTP method) limits derive
+  // from this number via fixed multipliers (see MULTIPLIERS in
+  // lib/server/rate-limit/config.ts) unless overridden by a specific
+  // MINUTE_RATE_LIMIT_<AUTH>_<METHOD> var below or by a per-route override.
+  // e.g. base=60 → bearer GET=600 (×10), bearer POST=120 (×2), session GET=1200 (×20).
+  MINUTE_RATE_LIMIT_BASE: z.coerce.number().optional().default(60),
+
+  // Explicit per-cell overrides. Leave unset to use base × multiplier.
+  MINUTE_RATE_LIMIT_BEARER_GET: z.coerce.number().optional(),
+  MINUTE_RATE_LIMIT_BEARER_POST: z.coerce.number().optional(),
+  MINUTE_RATE_LIMIT_BEARER_PUT: z.coerce.number().optional(),
+  MINUTE_RATE_LIMIT_BEARER_PATCH: z.coerce.number().optional(),
+  MINUTE_RATE_LIMIT_BEARER_DELETE: z.coerce.number().optional(),
+  MINUTE_RATE_LIMIT_SESSION_GET: z.coerce.number().optional(),
+  MINUTE_RATE_LIMIT_SESSION_POST: z.coerce.number().optional(),
+  MINUTE_RATE_LIMIT_SESSION_PUT: z.coerce.number().optional(),
+  MINUTE_RATE_LIMIT_SESSION_PATCH: z.coerce.number().optional(),
+  MINUTE_RATE_LIMIT_SESSION_DELETE: z.coerce.number().optional(),
 });
 
 export type ServerEnv = z.infer<typeof ServerEnvSchema>;

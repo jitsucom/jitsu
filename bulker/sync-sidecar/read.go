@@ -322,7 +322,7 @@ func (s *ReadSideCar) saveState(stream string, data any) {
 	if err != nil {
 		s.panic("error marshalling state %+v: %v", data, err)
 	}
-	s.log("SAVING STATE for '%s': %s", stream, stateJson)
+	s.log("SAVING STATE for '%s': %s", stream, utils.ShortenStringWithEllipsisMiddle(string(stateJson), 255, "\n...\n"))
 	s.storeState(stream, string(stateJson))
 }
 

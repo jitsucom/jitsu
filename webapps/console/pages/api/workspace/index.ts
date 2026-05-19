@@ -1,205 +1,205 @@
-import { Api, inferUrl, nextJsApiHandler, verifyAccessWithRole } from "../../../lib/api";
+import { createRoute, verifyAccessWithRole } from "../../../lib/api";
 import { z } from "zod";
 import { db } from "../../../lib/server/db";
 import { requireDefined } from "juava";
 import { withProductAnalytics } from "../../../lib/server/telemetry";
-import { WorkspaceDbModel } from "../../../prisma/schema";
 import { validateSlug, validateWorkspaceName } from "./validate";
 import { ApiError } from "../../../lib/shared/errors";
+import { workspaceAuditLog } from "../../../lib/server/audit-log";
+import { WorkspaceListItemSchema } from "../../../lib/openapi/annotations";
+import { omitDeleted } from "../../../lib/server/omit-deleted";
 
 const MAX_LIMIT = 1_000_000;
 
-const api: Api = {
-  url: inferUrl(__filename),
-  GET: {
+// Pagination wrapper or plain array — preserved for back-compat with existing console callers.
+const ListResultSchema = z.union([
+  z.object({
+    workspaces: z.array(WorkspaceListItemSchema),
+    pagination: z.object({
+      page: z.number(),
+      limit: z.number(),
+      totalCount: z.number(),
+      hasMore: z.boolean(),
+    }),
+  }),
+  z.array(WorkspaceListItemSchema),
+]);
+
+export const route = createRoute()
+  .GET({
     auth: true,
-    types: {
-      query: z.object({
-        page: z
-          .string()
-          .transform(val => parseInt(val) || 0)
-          .optional(),
-        limit: z
-          .string()
-          .transform(val => parseInt(val) || MAX_LIMIT)
-          .optional(),
-        search: z.string().optional(),
-      }),
-      result: z.union([
-        z.object({
-          // Array of workspace objects with user-specific properties
-          workspaces: z.array(
-            WorkspaceDbModel.extend({
-              lastUsed: z.date().optional(), // Last time user accessed this workspace
-              entities: z.number().optional(), // Number of configuration objects (admin only)
-            })
-          ),
-          // Pagination metadata for infinite loading
-          pagination: z.object({
-            page: z.number(), // Current page number (starts from 0)
-            limit: z.number(), // Number of items per page
-            totalCount: z.number(), // Total number of workspaces available to user
-            hasMore: z.boolean(), // Whether more pages are available
-          }),
-        }),
-        z.array(
-          WorkspaceDbModel.extend({
-            lastUsed: z.date().optional(), // Last time user accessed this workspace
-            entities: z.number().optional(), // Number of configuration objects (admin only)
-          })
-        ),
-      ]),
-    },
-    handle: async ({ user, query }) => {
-      const { page, limit = MAX_LIMIT, search } = query;
-      const offset = (page ?? 0) * limit;
+    summary: "List workspaces",
+    description:
+      "Returns workspaces the authenticated user has access to. " +
+      "If `page` is provided, the response is wrapped in `{ workspaces, pagination }`; otherwise an array is returned (back-compat). " +
+      "Use the `id` of a workspace as the `workspaceId` path parameter on other endpoints.",
+    tags: ["workspace"],
+    query: z.object({
+      // Accept as raw strings and parse in the handler — `?page=foo` then falls back
+      // to defaults instead of returning 500. (`z.coerce.number()` rejects NaN; `.catch()`
+      // breaks zod-to-openapi rendering. Plain `z.string()` keeps both happy. The
+      // `.openapi()` annotation overrides the spec to render these as integers.)
+      page: z.string().optional().openapi({ type: "integer", minimum: 0, description: "Zero-based page index" }),
+      limit: z.string().optional().openapi({ type: "integer", minimum: 1, description: "Items per page" }),
+      search: z.string().optional(),
+    }),
+    result: ListResultSchema,
+  })
+  .handler(async ({ user, query }) => {
+    const { search } = query;
+    const page = query.page !== undefined ? parseInt(query.page) || 0 : undefined;
+    const limit = query.limit !== undefined ? parseInt(query.limit) || MAX_LIMIT : MAX_LIMIT;
+    const offset = (page ?? 0) * limit;
 
-      const userModel = requireDefined(
-        await db.prisma().userProfile.findUnique({ where: { id: user.internalId } }),
-        `User ${user.internalId} does not exist`
-      );
+    const userModel = requireDefined(
+      await db.prisma().userProfile.findUnique({ where: { id: user.internalId } }),
+      `User ${user.internalId} does not exist`
+    );
 
-      // Build search conditions
-      const searchCondition = search
-        ? {
-            OR: [
-              { id: { contains: search, mode: "insensitive" as const } },
-              { name: { contains: search, mode: "insensitive" as const } },
-              { slug: { contains: search, mode: "insensitive" as const } },
-            ],
-          }
-        : {};
+    const searchCondition = search
+      ? {
+          OR: [
+            { id: { contains: search, mode: "insensitive" as const } },
+            { name: { contains: search, mode: "insensitive" as const } },
+            { slug: { contains: search, mode: "insensitive" as const } },
+          ],
+        }
+      : {};
 
-      // Get total count of all available workspaces (without search filter)
-      const totalCount = userModel.admin
-        ? await db.prisma().workspace.count({
-            where: { deleted: false },
-          })
-        : await db.prisma().workspaceAccess.count({
+    const totalCount = userModel.admin
+      ? await db.prisma().workspace.count({
+          where: { deleted: false },
+        })
+      : await db.prisma().workspaceAccess.count({
+          where: {
+            userId: user.internalId,
+            workspace: { deleted: false },
+          },
+        });
+
+    const baseList = userModel.admin
+      ? await db.prisma().workspace.findMany({
+          where: { deleted: false, ...searchCondition },
+          include: {
+            workspaceUserProperties: { where: { userId: userModel.id } },
+            _count: {
+              select: { configurationObject: { where: { deleted: false } } },
+            },
+          },
+          orderBy: { createdAt: "asc" },
+          skip: offset,
+          take: limit,
+        })
+      : (
+          await db.prisma().workspaceAccess.findMany({
             where: {
               userId: user.internalId,
-              workspace: { deleted: false },
+              workspace: { deleted: false, ...searchCondition },
             },
-          });
-
-      const baseList = userModel.admin
-        ? await db.prisma().workspace.findMany({
-            where: { deleted: false, ...searchCondition },
-            include: {
-              workspaceUserProperties: { where: { userId: userModel.id } },
-              _count: {
-                select: { configurationObject: { where: { deleted: false } } },
-              },
-            },
+            include: { workspace: { include: { workspaceUserProperties: true } } },
             orderBy: { createdAt: "asc" },
             skip: offset,
             take: limit,
           })
-        : (
-            await db.prisma().workspaceAccess.findMany({
-              where: {
-                userId: user.internalId,
-                workspace: { deleted: false, ...searchCondition },
-              },
-              include: { workspace: { include: { workspaceUserProperties: true } } },
-              orderBy: { createdAt: "asc" },
-              skip: offset,
-              take: limit,
-            })
-          ).map(({ workspace }) => workspace);
+        ).map(({ workspace }) => workspace);
 
-      const workspaces = baseList
-        .map(({ workspaceUserProperties, ...workspace }) => ({
+    const workspaces = baseList
+      .map(({ workspaceUserProperties, ...workspace }) =>
+        omitDeleted({
           ...workspace,
           lastUsed: workspaceUserProperties?.[0]?.lastUsed || undefined,
           entities: userModel.admin ? workspace["_count"]?.configurationObject : undefined,
-        }))
-        .sort((a, b) => (b.lastUsed?.getTime() || 0) - (a.lastUsed?.getTime() || 0));
-
-      if (typeof page !== "undefined") {
-        return {
-          workspaces,
-          pagination: {
-            page,
-            limit,
-            totalCount,
-            hasMore: (page + 1) * limit < totalCount,
-          },
-        };
-      } else {
-        return workspaces;
-      }
-    },
-  },
-  POST: {
-    auth: true,
-    types: {
-      body: z.object({
-        name: z.string().optional(),
-        slug: z.string().optional(),
-      }),
-      query: z
-        .object({
-          onboarding: z.string().optional(),
         })
-        .optional(),
-    },
-    handle: async ({ req, user, body, query }) => {
-      // Validate workspace name to prevent HTML injection
-      const nameResult = validateWorkspaceName(body.name || "");
-      if (!nameResult.valid) {
-        throw new ApiError(`Invalid workspace name: ${nameResult.reason}`, { status: 400 });
-      }
-      const slugResult = await validateSlug(body.slug || "", undefined);
-      if (!slugResult.valid) {
-        throw new ApiError(`Invalid workspace slug: ${slugResult.reason}`, { status: 400 });
-      }
+      )
+      .sort((a, b) => (b.lastUsed?.getTime() || 0) - (a.lastUsed?.getTime() || 0))
+      // Result is validated against ListResultSchema *before* JSON serialization, where
+      // `lastUsed` is `z.string().datetime()`. Convert the Date to ISO here so validation
+      // passes on responses where lastUsed is populated.
+      .map(w => ({ ...w, lastUsed: w.lastUsed ? w.lastUsed.toISOString() : undefined }));
 
-      const newWorkspace = await db.prisma().workspace.create({
-        data: {
-          name: body.name.trim(),
-          slug: body.slug.trim(),
+    if (typeof page !== "undefined") {
+      return {
+        workspaces,
+        pagination: {
+          page,
+          limit,
+          totalCount,
+          hasMore: (page + 1) * limit < totalCount,
         },
-      });
-      await db.prisma().workspaceAccess.create({
-        data: { userId: user.internalId, workspaceId: newWorkspace.id, role: "owner" },
-      });
-      await withProductAnalytics(p => p.track("workspace_created"), { user, workspace: newWorkspace, req });
-
-      // Fire workspace_onboarded event if this is part of onboarding flow
-      if (query?.onboarding === "true") {
-        await withProductAnalytics(p => p.track("workspace_onboarded"), { user, workspace: newWorkspace, req });
-      }
-
-      return { id: newWorkspace.id };
-    },
-  },
-  DELETE: {
+      } as any;
+    } else {
+      return workspaces as any;
+    }
+  })
+  .POST({
     auth: true,
-    types: {
-      body: z.object({ workspaceId: z.string() }),
-    },
-    handle: async ({ body, user }) => {
-      const workspaceId = body.workspaceId;
-      // "manageUsers" permission belongs to owners. Owners can delete the workspace.
-      await verifyAccessWithRole(user, workspaceId, "manageUsers");
+    summary: "Create a workspace",
+    tags: ["workspace"],
+    body: z.object({
+      name: z.string().optional(),
+      slug: z.string().optional(),
+    }),
+    result: z.object({ id: z.string() }),
+    // Tight cap on workspace creation: 2 per 5 min per principal. Isolated from
+    // the global POST budget via a custom bucket.
+    rateLimit: { bucket: "workspace-create", bearer: 2, session: 2, windowMs: 5 * 60_000 },
+  })
+  .handler(async ({ req, user, body }) => {
+    const nameResult = validateWorkspaceName(body.name || "");
+    if (!nameResult.valid) {
+      throw new ApiError(`Invalid workspace name: ${nameResult.reason}`, { status: 400 });
+    }
+    const slugResult = await validateSlug(body.slug || "", undefined);
+    if (!slugResult.valid) {
+      throw new ApiError(`Invalid workspace slug: ${slugResult.reason}`, { status: 400 });
+    }
 
-      const workspace = await db.prisma().workspace.findUnique({
-        where: { id: workspaceId, deleted: false },
-      });
+    const newWorkspace = await db.prisma().workspace.create({
+      data: {
+        name: body.name!.trim(),
+        slug: body.slug!.trim(),
+      },
+    });
+    await db.prisma().workspaceAccess.create({
+      data: { userId: user.internalId, workspaceId: newWorkspace.id, role: "owner" },
+    });
+    await withProductAnalytics(p => p.track("workspace_created"), { user, workspace: newWorkspace, req });
 
-      if (!workspace) {
-        return { message: `Error Workspace ${workspaceId} not found`, status: 404 };
-      }
+    // `onboarding` is an internal telemetry signal set by the console's signup flow.
+    // Read it from req.query directly so it stays out of the public OpenAPI spec.
+    if (req.query?.onboarding === "true") {
+      await withProductAnalytics(p => p.track("workspace_onboarded"), { user, workspace: newWorkspace, req });
+    }
 
-      await db.prisma().workspace.update({
-        where: { id: workspaceId },
-        data: { deleted: true },
-      });
+    return { id: newWorkspace.id };
+  })
+  .DELETE({
+    auth: true,
+    summary: "Delete a workspace",
+    tags: ["workspace"],
+    body: z.object({ workspaceId: z.string() }),
+    result: z.object({ message: z.string(), status: z.number() }),
+  })
+  .handler(async ({ body, user }) => {
+    const workspaceId = body.workspaceId;
+    await verifyAccessWithRole(user, workspaceId, "manageUsers");
 
-      return { message: `${workspace.name} deleted successfully`, status: 200 };
-    },
-  },
-};
+    const workspace = await db.prisma().workspace.findUnique({
+      where: { id: workspaceId, deleted: false },
+    });
 
-export default nextJsApiHandler(api);
+    if (!workspace) {
+      return { message: `Error Workspace ${workspaceId} not found`, status: 404 };
+    }
+
+    await db.prisma().workspace.update({
+      where: { id: workspaceId },
+      data: { deleted: true },
+    });
+
+    await workspaceAuditLog(user, workspaceId, "deleted", { workspaceName: workspace.name });
+
+    return { message: `${workspace.name} deleted successfully`, status: 200 };
+  });
+
+export default route.toNextApiHandler();

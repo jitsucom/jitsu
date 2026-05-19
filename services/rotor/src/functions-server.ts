@@ -3,15 +3,7 @@ import fs from "fs";
 import os from "os";
 import zlib from "zlib";
 import { promisify } from "util";
-import {
-  AnyEvent,
-  EventContext,
-  FullContext,
-  FuncReturn,
-  FunctionMetrics,
-  JitsuFunction,
-  TTLStore,
-} from "@jitsu/protocols/functions";
+import { AnyEvent, EventContext, FullContext, FunctionMetrics, TTLStore } from "@jitsu/protocols/functions";
 import Prometheus from "prom-client";
 import { disableService, getLog, isTruish, LogLevel, parseNumber, setServerJsonFormat, stopwatch } from "juava";
 import {
@@ -20,9 +12,6 @@ import {
   EntityStore,
   FuncChainResult,
   FunctionConfig,
-  FunctionExecLog,
-  FunctionExecRes,
-  isDropResult,
   makeFetch,
   parseUserAgent,
   StoreMetrics,
@@ -36,6 +25,7 @@ import isEqual from "lodash/isEqual";
 import { IngestMessage } from "@jitsu/protocols/async-request";
 import type { MongoClient } from "mongodb";
 import { compileUdfFunction, compileUdfToIIFE } from "./lib/udf-shared";
+import { runFunctionChain, type ChainFunction } from "./lib/udf-chain";
 import type {
   ExecMessage,
   InitMessage,
@@ -47,6 +37,13 @@ import type {
   WorkerToMainMessage,
 } from "./lib/worker-protocol";
 import { runUdfInWorker } from "./lib/worker-udf-runner";
+import {
+  loadProfileBuilders,
+  initProfileBuilderRuntimes,
+  runProfileBuilder,
+  runProfileUDFTest,
+  closeProfileBuilderConnections,
+} from "./lib/pb-server-runtime";
 import * as functionsLib from "@jitsu/functions-lib";
 
 // Set globals so UDF code (compiled via functionsLibShimPlugin) can access them
@@ -126,6 +123,48 @@ const promMongoPoolTotal = new Prometheus.Gauge({
   labelNames: ["deploymentId"] as const,
 });
 
+const promUncaughtErrors = new Prometheus.Counter({
+  name: "fs_uncaught_errors_total",
+  help: "Uncaught errors and unhandled promise rejections swallowed to keep the process alive",
+  labelNames: ["deploymentId", "kind"] as const,
+});
+
+// Global error trap: keep the process alive on request-scoped failures
+// (e.g. a broken Node-agent keep-alive timer, a buggy UDF fetch handler).
+// Bootstrap errors still fail the process because they throw before these
+// listeners are installed. Every trapped error bumps `fs_uncaught_errors_total`
+// — alert on it, because silent swallowing without observability is how you
+// end up with mystery data loss.
+function installUncaughtErrorHandlers() {
+  globalThis.addEventListener("error", event => {
+    const e: any = (event as any).error;
+    log
+      .atError()
+      .withCause(e)
+      .log(
+        `Uncaught error (swallowed): ${e?.name || "Error"}: ${e?.message || (event as any).message}`,
+        e?.stack ?? ""
+      );
+    promUncaughtErrors.labels(deploymentId, "error").inc();
+    // Prevent Deno from aborting the process.
+    event.preventDefault();
+  });
+
+  globalThis.addEventListener("unhandledrejection", event => {
+    const reason: any = (event as any).reason;
+    log
+      .atError()
+      .withCause(reason)
+      .log(
+        `Unhandled rejection (swallowed): ${reason?.name || "Error"}: ${reason?.message ?? reason}`,
+        reason?.stack ?? ""
+      );
+    promUncaughtErrors.labels(deploymentId, "unhandledrejection").inc();
+    event.preventDefault();
+  });
+}
+installUncaughtErrorHandlers();
+
 const promMongoPoolWaitQueue = new Prometheus.Gauge({
   name: "fs_mongo_pool_wait_queue2",
   help: "Number of operations waiting for a MongoDB connection",
@@ -203,11 +242,7 @@ function setupMongoPoolMetrics(client: MongoClient) {
 const metricsPort = parseInt(env.ROTOR_METRICS_PORT || "9091");
 
 // Types
-type LoadedFunction = {
-  id: string;
-  exec: JitsuFunction;
-  config?: any;
-};
+type LoadedFunction = ChainFunction;
 
 type FunctionChainContext = {
   store: TTLStore;
@@ -520,173 +555,68 @@ interface FunctionRuntime {
   getConnection(): StrippedConnectionConfig;
 }
 
-// Deep copy helper (same as legacy udf-wrapper)
-function deepCopy<T>(o: T): T {
-  if (typeof o !== "object") {
-    return o;
-  }
-  if (!o) {
-    return o;
-  }
-
-  if (Array.isArray(o)) {
-    const newO: any[] = [];
-    for (let i = 0; i < o.length; i += 1) {
-      const v = o[i];
-      newO[i] = !v || typeof v !== "object" ? v : deepCopy(v);
-    }
-    return newO as T;
-  }
-
-  const newO: Record<string, any> = {};
-  for (const [k, v] of Object.entries(o)) {
-    newO[k] = !v || typeof v !== "object" ? v : deepCopy(v);
-  }
-  return newO as T;
-}
-
 function recordChainResultMetrics(result: Required<FuncChainResultWithLogs>) {
   // Overall chain result
   promChainResult.labels(deploymentId, result.connectionId, ...classifyChainResult(result)).inc();
 }
 
-// Run function chain
+// Run function chain — delegates to shared runFunctionChain with in-process context
 async function runChain(
   chain: FunctionChain,
   event: AnyEvent,
   eventContext: EventContext,
   fetchTimeoutMs: number = 2000
 ): Promise<Required<FuncChainResultWithLogs>> {
-  const execLog: FunctionExecLog = [];
-  const logs: LogEntry[] = [];
-  let events: AnyEvent[] = [event];
   const chainCtx = chain.context;
+  const retries = (eventContext as EventContext & { retries?: number }).retries ?? 0;
+  const debugTill = chainCtx.connectionOptions?.debugTill ? new Date(chainCtx.connectionOptions?.debugTill) : undefined;
+  const fetchLogEnabled =
+    chainCtx.connectionOptions?.fetchLogLevel !== "debug" || (debugTill && debugTill.getTime() > Date.now());
 
-  for (let k = 0; k < chain.functions.length; k++) {
-    const func = chain.functions[k];
-    const newEvents: AnyEvent[] = [];
-
-    for (let i = 0; i < events.length; i++) {
-      const currentEvent = events[i];
-      const sw = stopwatch();
-      let result: FuncReturn = undefined;
-
-      // Extract function type from function id (e.g., "udf.myFunction" -> "udf")
-      const ar = func.id.split(".");
-      const id = ar.pop() as string;
-      const functionType = ar.join(".");
-      const execLogEntry: Partial<FunctionExecRes> & { functionType?: string } = {
-        eventIndex: i,
-        receivedAt: eventContext.receivedAt,
-        functionId: id,
-        functionType,
-      };
-
-      try {
-        // Get retries from eventContext (passed from rotor)
-        const retries = (eventContext as EventContext & { retries?: number }).retries ?? 0;
-        const debugTill = chainCtx.connectionOptions?.debugTill
-          ? new Date(chainCtx.connectionOptions?.debugTill)
-          : undefined;
-        const fetchLogEnabled =
-          chainCtx.connectionOptions?.fetchLogLevel !== "debug" || (debugTill && debugTill.getTime() > Date.now());
-        const fullContext: FullContext = {
-          ...eventContext,
-          log: createCollectingLogger(id, functionType, logs, debugTill),
-          fetch: makeFetch(
-            chain.connectionId,
-            {
-              log(connectionId: string, level: LogLevel, msg: Record<string, any>) {
-                if (!fetchLogEnabled) {
-                  return;
-                }
-                logs.push({
-                  level,
-                  functionId: id,
-                  functionType,
-                  message: {
-                    ...msg,
-                    functionId: id,
-                    functionType,
-                  },
-                  timestamp: new Date(),
-                });
+  const result = await runFunctionChain<LogEntry>(
+    chain.functions,
+    event,
+    eventContext,
+    (functionId, functionType, logs) => ({
+      ...eventContext,
+      log: createCollectingLogger(functionId, functionType, logs, debugTill),
+      fetch: makeFetch(
+        chain.connectionId,
+        {
+          log(connectionId: string, level: LogLevel, msg: Record<string, any>) {
+            if (!fetchLogEnabled) {
+              return;
+            }
+            logs.push({
+              level,
+              functionId,
+              functionType,
+              message: {
+                ...msg,
+                functionId,
+                functionType,
               },
-              close() {},
-              deadLetter(workspaceId: string, connectionId: string, type: string, payload: any, error: any) {
-                throw new Error("deadLetter method must never be called inside functions server.");
-              },
-            },
-            chainCtx.connectionOptions?.fetchLogLevel || "info",
-            fetchTimeoutMs
-          ),
-          store: chainCtx.store,
-          props: chainCtx.connectionOptions?.functionsEnv || {},
-          retries,
-          getWarehouse: (destinationId: string) => {
-            return {
-              query: (sql: string, params?: Record<string, any>) => chainCtx.query(destinationId, sql, params),
-            };
+              timestamp: new Date(),
+            });
           },
-        };
+          close() {},
+          deadLetter(workspaceId: string, connectionId: string, type: string, payload: any, error: any) {
+            throw new Error("deadLetter method must never be called inside functions server.");
+          },
+        },
+        chainCtx.connectionOptions?.fetchLogLevel || "info",
+        fetchTimeoutMs
+      ),
+      store: chainCtx.store,
+      props: chainCtx.connectionOptions?.functionsEnv || {},
+      retries,
+      getWarehouse: (destinationId: string) => ({
+        query: (sql: string, params?: Record<string, any>) => chainCtx.query(destinationId, sql, params),
+      }),
+    })
+  );
 
-        // Pass a deep copy to the function (same as legacy udf-wrapper)
-        result = await func.exec(deepCopy(currentEvent), fullContext);
-
-        // Check for multiple events in middle of chain (same as legacy udf-wrapper)
-        if (k < chain.functions.length - 1 && Array.isArray(result) && result.length > 1) {
-          const l = result.length;
-          result = undefined;
-          const multiEventError = new Error(
-            `Got ${l} events as result of function #${k + 1} of ${
-              chain.functions.length
-            }. Only the last function in a chain is allowed to multiply events.`
-          );
-          multiEventError.name = functionsLib.NoRetryErrorName;
-          throw multiEventError;
-        }
-      } catch (err: any) {
-        if (err?.name === functionsLib.DropRetryErrorName || err?.name === functionsLib.NoRetryErrorName) {
-          result = "drop";
-        }
-        // Set retryPolicy from function config (same pattern as legacy udf-wrapper)
-        if (func?.config?.retryPolicy) {
-          err.retryPolicy = func.config.retryPolicy;
-        }
-        execLogEntry.error = {
-          name: err.name,
-          message: err.message,
-          stack: err.stack,
-          retryPolicy: err.retryPolicy,
-          functionId: id,
-        };
-        log.atError().withCause(err).log(`Function ${func.id} error.`);
-      }
-
-      execLogEntry.ms = sw.elapsedMs();
-      execLogEntry.dropped = isDropResult(result);
-      execLog.push(execLogEntry as FunctionExecRes);
-
-      if (!isDropResult(result)) {
-        if (result) {
-          if (Array.isArray(result)) {
-            newEvents.push(...result);
-          } else {
-            newEvents.push(result as AnyEvent);
-          }
-        } else {
-          newEvents.push(currentEvent);
-        }
-      }
-    }
-
-    events = newEvents;
-    if (events.length === 0) {
-      break;
-    }
-  }
-
-  return { connectionId: chain.connectionId, events, execLog, logs };
+  return { connectionId: chain.connectionId, ...result };
 }
 
 // ── FunctionRuntime implementations ──────────────────────────────────
@@ -878,7 +808,7 @@ async function parseBody(req: Request): Promise<any> {
   return text ? JSON.parse(text) : {};
 }
 
-// Create event context from IngestMessage and connection (compatible with FunctionsHandlerMulti)
+// Create event context from IngestMessage and connection
 function createEventContextFromMessage(
   message: IngestMessage,
   connection: StrippedConnectionConfig,
@@ -1203,6 +1133,17 @@ async function main() {
   functions.clear();
   log.atInfo().log(`Cleared functions map`);
 
+  // Load and initialize profile builders
+  const profileBuilderConfigs = await loadProfileBuilders(configDir);
+  const pbStoreMetrics: StoreMetrics = {
+    storeStatus: (namespace, operation, status) =>
+      promStoreStatuses.labels(deploymentId, namespace, operation, status).inc(),
+    warehouseStatus: (id, table, status, timeMs) =>
+      promWarehouseStatuses.labels(deploymentId, id, table, status).observe(timeMs / 1000),
+  };
+  const profileBuilderRuntimes = await initProfileBuilderRuntimes(profileBuilderConfigs, deploymentId, pbStoreMetrics);
+  log.atInfo().log(`Initialized ${profileBuilderRuntimes.size} profile builder runtimes`);
+
   // HTTP response helpers
   function jsonResponse(status: number, data: any, headers?: Record<string, string>): Response {
     return new Response(JSON.stringify(data), {
@@ -1222,12 +1163,12 @@ async function main() {
       configDir,
       connections: Array.from(connections.keys()),
       runtimes: Array.from(runtimes.keys()),
+      profileBuilders: Array.from(profileBuilderRuntimes.keys()),
       activeWorkers: workerPool ? workerPool.getActiveWorkers().map(w => w.id) : undefined,
     });
   }
 
   // Multi connection handler: POST /multi?ids=conn1,conn2,conn3&fullEvents=true
-  // Compatible with FunctionsHandlerMulti in rotor
   // Expects IngestMessage as body payload
   // Query params:
   //   - ids: comma-separated connection IDs (required)
@@ -1356,6 +1297,33 @@ async function main() {
     return { response: jsonResponse(200, result), actorId: connectionId };
   }
 
+  // Profile builder handler: POST /profile/<profile-builder-id>
+  async function handleProfile(
+    req: Request,
+    profileBuilderId: string
+  ): Promise<{ response: Response; actorId: string }> {
+    if (req.method !== "POST") {
+      return { response: errorResponse(405, "Method not allowed. Use POST."), actorId: profileBuilderId };
+    }
+
+    const compiledPb = profileBuilderRuntimes.get(profileBuilderId);
+    if (!compiledPb) {
+      return {
+        response: errorResponse(404, `Profile builder '${profileBuilderId}' not found`),
+        actorId: profileBuilderId,
+      };
+    }
+
+    const body = await parseBody(req);
+    const profileId = body.profileId as string;
+    if (!profileId) {
+      return { response: errorResponse(400, "profileId is required"), actorId: profileBuilderId };
+    }
+
+    const result = await runProfileBuilder(compiledPb, profileId, deploymentId, pbStoreMetrics, conEntityStore);
+    return { response: jsonResponse(result.error ? 500 : 200, result), actorId: profileBuilderId };
+  }
+
   // Create HTTP server using Deno.serve
   let isShuttingDown = false;
 
@@ -1409,7 +1377,14 @@ async function main() {
           return handleHealth();
         }
 
-        const endpoint = pathname === "/multi" ? "multi" : pathname.startsWith("/connection/") ? "connection" : "other";
+        const endpoint =
+          pathname === "/multi"
+            ? "multi"
+            : pathname.startsWith("/connection/")
+            ? "connection"
+            : pathname.startsWith("/profile/")
+            ? "profile"
+            : "other";
         const sw = stopwatch();
         promConcurrentRequests.labels(deploymentId, endpoint).inc();
         let actorId = "";
@@ -1443,6 +1418,25 @@ async function main() {
             return jsonResponse(200, result);
           }
 
+          // Profile UDF test runner
+          if (pathname === "/profileudfrun" && req.method === "POST") {
+            const body = await parseBody(req);
+            log.atInfo().log(`[profileudfrun] Running profile function: ${body?.id} workspace: ${body?.workspaceId}`);
+            const pbStore = env.MONGODB_URL
+              ? createMongoStore(body.workspaceId, mongodb, true, false)
+              : createMemoryStore(body.store || {});
+            const result = await runProfileUDFTest(body, pbStore, conEntityStore);
+            if (result.error) {
+              log
+                .atError()
+                .log(
+                  `[profileudfrun] Error: ${body?.id} workspace: ${body?.workspaceId}\n${result.error.name}: ${result.error.message}`
+                );
+            }
+            result.backend = "functions-server";
+            return jsonResponse(200, result);
+          }
+
           // Single connection handler
           const match = pathname.match(/^\/connection\/([^\/]+)$/);
           if (match) {
@@ -1452,11 +1446,20 @@ async function main() {
             return result.response;
           }
 
+          // Profile builder handler
+          const pbMatch = pathname.match(/^\/profile\/([^\/]+)$/);
+          if (pbMatch) {
+            const result = await handleProfile(req, pbMatch[1]);
+            actorId = result.actorId;
+            status = result.response.status;
+            return result.response;
+          }
+
           // Not found
           status = 404;
           return errorResponse(
             404,
-            "Not found. Use /connection/<connection-id>, /multi?ids=conn1,conn2,..., or /udfrun"
+            "Not found. Use /connection/<connection-id>, /multi?ids=conn1,conn2,..., /profile/<pb-id>, or /udfrun"
           );
         } finally {
           promConcurrentRequests.labels(deploymentId, endpoint).dec();
@@ -1514,6 +1517,11 @@ async function main() {
       if (workerPool) {
         workerPool.terminateAll();
       }
+
+      // Close profile builder MongoDB connections
+      closeProfileBuilderConnections().catch(e => {
+        log.atWarn().log(`Error closing profile builder connections: ${e.message}`);
+      });
 
       server.shutdown().then(() => {
         log.atInfo().log(`Server closed, all connections drained`);

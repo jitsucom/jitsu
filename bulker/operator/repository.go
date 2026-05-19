@@ -133,15 +133,23 @@ func (f *FunctionsRepositoryData) Store(writer io.Writer) error {
 	return nil
 }
 
-// WorkspacesRepositoryData handles workspaces repository
+// WorkspacesRepositoryData handles workspaces-with-profiles repository.
+// Parses both workspace configs and profile builders from the same endpoint.
 type WorkspacesRepositoryData struct {
 	data atomic.Pointer[WorkspacesData]
 }
 
 type WorkspacesData struct {
-	workspaces   []*WorkspaceConfig
-	byID         map[string]*WorkspaceConfig
-	lastModified time.Time
+	workspaces          []*WorkspaceConfig
+	byID                map[string]*WorkspaceConfig
+	profileBuildersByWs map[string][]*ProfileBuilderConfig
+	lastModified        time.Time
+}
+
+// workspaceWithProfiles is used for JSON unmarshalling of the workspaces-with-profiles export
+type workspaceWithProfiles struct {
+	WorkspaceConfig
+	ProfileBuilders []*ProfileBuilderConfig `json:"profileBuilders"`
 }
 
 func (w *WorkspacesRepositoryData) Init(reader io.Reader, tag any) error {
@@ -153,15 +161,31 @@ func (w *WorkspacesRepositoryData) Init(reader io.Reader, tag any) error {
 
 	workspaces := make([]*WorkspaceConfig, 0)
 	byID := make(map[string]*WorkspaceConfig)
+	profileBuildersByWs := make(map[string][]*ProfileBuilderConfig)
 
 	for dec.More() {
-		ws := &WorkspaceConfig{}
+		ws := &workspaceWithProfiles{}
 		err = dec.Decode(ws)
 		if err != nil {
 			return fmt.Errorf("error unmarshalling workspace config: %v", err)
 		}
-		workspaces = append(workspaces, ws)
-		byID[ws.ID] = ws
+		wsCfg := &ws.WorkspaceConfig
+		workspaces = append(workspaces, wsCfg)
+		byID[wsCfg.ID] = wsCfg
+
+		// Extract active profile builders (version > 0)
+		if len(ws.ProfileBuilders) > 0 {
+			active := make([]*ProfileBuilderConfig, 0, len(ws.ProfileBuilders))
+			for _, pb := range ws.ProfileBuilders {
+				if pb.Version > 0 {
+					pb.WorkspaceID = wsCfg.ID
+					active = append(active, pb)
+				}
+			}
+			if len(active) > 0 {
+				profileBuildersByWs[wsCfg.ID] = active
+			}
+		}
 	}
 
 	_, err = dec.Token() // read closing bracket
@@ -170,8 +194,9 @@ func (w *WorkspacesRepositoryData) Init(reader io.Reader, tag any) error {
 	}
 
 	data := &WorkspacesData{
-		workspaces: workspaces,
-		byID:       byID,
+		workspaces:          workspaces,
+		byID:                byID,
+		profileBuildersByWs: profileBuildersByWs,
 	}
 	if tag != nil {
 		data.lastModified = tag.(time.Time)
@@ -205,8 +230,8 @@ func NewFunctionsRepository(baseURL, token string, refreshPeriodSec int, cacheDi
 }
 
 func NewWorkspacesRepository(baseURL, token string, refreshPeriodSec int, cacheDir string) appbase.Repository[WorkspacesData] {
-	url := fmt.Sprintf("%s/workspaces", baseURL)
-	return appbase.NewHTTPRepository[WorkspacesData]("workspaces", url, token, appbase.HTTPTagLastModified, &WorkspacesRepositoryData{}, 1, refreshPeriodSec, cacheDir)
+	url := fmt.Sprintf("%s/workspaces-with-profiles", baseURL)
+	return appbase.NewHTTPRepository[WorkspacesData]("workspaces-with-profiles", url, token, appbase.HTTPTagLastModified, &WorkspacesRepositoryData{}, 1, refreshPeriodSec, cacheDir)
 }
 
 // Helper functions for aggregating workspace data
@@ -214,18 +239,19 @@ func CalculateWorkspaceData(
 	ws *WorkspaceConfig,
 	connections []*EnrichedConnectionConfig,
 	functions []*FunctionConfig,
+	profileBuilders []*ProfileBuilderConfig,
 ) *WorkspaceData {
 	maxUpdatedAt := ws.UpdatedAt
 	filteredFunctions := make([]*FunctionConfig, 0, len(functions))
 	for _, fn := range functions {
-		if fn.Kind == "profile" {
-			// Skip profile functions for now
-			continue
-		}
-		filteredFunctions = append(filteredFunctions, fn)
 		if fn.UpdatedAt.After(maxUpdatedAt) {
 			maxUpdatedAt = fn.UpdatedAt
 		}
+		if fn.Kind == "profile" {
+			// Skip profile functions — they are handled via profileBuilders
+			continue
+		}
+		filteredFunctions = append(filteredFunctions, fn)
 	}
 	filteredConnections := make([]*EnrichedConnectionConfig, 0, len(connections))
 	for _, conn := range connections {
@@ -234,20 +260,26 @@ func CalculateWorkspaceData(
 			maxUpdatedAt = *conn.UpdatedAt
 		}
 	}
+	for _, pb := range profileBuilders {
+		if pb.UpdatedAt.After(maxUpdatedAt) {
+			maxUpdatedAt = pb.UpdatedAt
+		}
+	}
 
 	// Calculate config hash for change detection
-	configHash := CalculateConfigHash(filteredConnections, filteredFunctions, []string{ws.ID})
+	configHash := CalculateConfigHash(filteredConnections, filteredFunctions, profileBuilders, []string{ws.ID})
 
 	return &WorkspaceData{
-		WorkspaceID:  ws.ID,
-		MaxUpdatedAt: maxUpdatedAt,
-		Connections:  filteredConnections,
-		Functions:    filteredFunctions,
-		ConfigHash:   configHash,
+		WorkspaceID:     ws.ID,
+		MaxUpdatedAt:    maxUpdatedAt,
+		Connections:     filteredConnections,
+		Functions:       filteredFunctions,
+		ProfileBuilders: profileBuilders,
+		ConfigHash:      configHash,
 	}
 }
 
-func CalculateConfigHash(connections []*EnrichedConnectionConfig, functions []*FunctionConfig, workspaceIDs []string) string {
+func CalculateConfigHash(connections []*EnrichedConnectionConfig, functions []*FunctionConfig, profileBuilders []*ProfileBuilderConfig, workspaceIDs []string) string {
 	h := sha256.New()
 
 	// Sort and hash workspace IDs
@@ -287,6 +319,33 @@ func CalculateConfigHash(connections []*EnrichedConnectionConfig, functions []*F
 		fn := fnMap[id]
 		h.Write([]byte(fn.ID))
 		h.Write([]byte(fn.CodeHash))
+	}
+
+	// Sort and hash profile builders
+	pbIDs := make([]string, 0, len(profileBuilders))
+	pbMap := make(map[string]*ProfileBuilderConfig, len(profileBuilders))
+	for _, pb := range profileBuilders {
+		pbIDs = append(pbIDs, pb.ID)
+		pbMap[pb.ID] = pb
+	}
+	slices.Sort(pbIDs)
+	for _, id := range pbIDs {
+		pb := pbMap[id]
+		h.Write([]byte(id))
+		h.Write([]byte(pb.UpdatedAt.Format(time.RFC3339)))
+		// Sort profile builder functions by ID for deterministic hashing
+		pbFnIDs := make([]string, 0, len(pb.Functions))
+		pbFnMap := make(map[string]*FunctionConfig, len(pb.Functions))
+		for _, fn := range pb.Functions {
+			pbFnIDs = append(pbFnIDs, fn.ID)
+			pbFnMap[fn.ID] = fn
+		}
+		slices.Sort(pbFnIDs)
+		for _, fnID := range pbFnIDs {
+			fn := pbFnMap[fnID]
+			h.Write([]byte(fn.ID))
+			h.Write([]byte(fn.CodeHash))
+		}
 	}
 
 	return hex.EncodeToString(h.Sum(nil))[:16]

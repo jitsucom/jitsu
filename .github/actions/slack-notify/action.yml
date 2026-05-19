@@ -40,7 +40,8 @@ runs:
         BLOCKS_JSON: ${{ steps.convert.outputs.blocks_json }}
       with:
         script: |
-          const blocks = JSON.parse(process.env.BLOCKS_JSON);
+          const blocks = JSON.parse(process.env.BLOCKS_JSON)
+            .filter(b => b.value !== '' && b.value != null);
 
           // Build single text with all blocks as bullet points
           const lines = blocks.map(block => {
@@ -59,19 +60,17 @@ runs:
 
           const text = lines.join('\n');
 
-          // Build complete payload
+          // Build complete payload. `text` (top-level) and `fallback` (attachment) drive
+          // Slack's notification preview / link-unfurl summary; without them the unfurl
+          // shows "[no preview available]". Top-level `text` also renders above the
+          // attachment, so we drop the in-attachment header block to avoid duplication.
           const payload = {
+            text: process.env.HEADER,
             attachments: [
               {
                 color: process.env.COLOR,
+                fallback: process.env.HEADER,
                 blocks: [
-                  {
-                    type: "header",
-                    text: {
-                      type: "plain_text",
-                      text: process.env.HEADER
-                    }
-                  },
                   {
                     type: "section",
                     text: {

@@ -24,6 +24,39 @@ Run
  * `docker compose -f ./docker/docker-compose.yml up --profile jitsu-services-dev --force-recreate` - to run dependencies + all Jitsu services
 in a hot reload mode, see `docker/README.md`
 
+# Environment variables
+
+Every node process spawned by a pnpm script auto-loads two layered `.env.local` files
+(later wins; existing `process.env` always wins over both, missing files skipped silently):
+
+1. `~/.jitsu/.env.local` — shared across all worktrees of all branches (Firebase, Stripe,
+   OIDC, GitHub OAuth — anything that doesn't change per branch).
+2. `<repo>/.env.local` — per-worktree (`DATABASE_URL`, `NEXTAUTH_URL`, `AUTH_COOKIE_DOMAIN`,
+   anything that should differ between two worktrees of two PRs).
+
+**No wrapper.** `node --inspect script.js` and your debugger attach to the script's own
+process directly — there's no `dotenv-cli` parent in the tree.
+
+`.env.example` documents the variables the apps expect. Runtime defaults belong in code
+(`process.env.FOO ?? "default"`), not in a tracked `.env`.
+
+## How it works
+
+The root [`.npmrc`](.npmrc) sets `node-options=--require=env-preload`,
+so pnpm exports `NODE_OPTIONS=--require=...` for every node process it spawns from a
+script. The preload ([`env-preload/preload-env.cjs`](env-preload/preload-env.cjs)) loads
+`~/.jitsu/.env.local`, then walks up from `process.cwd()` to find `pnpm-workspace.yaml`
+and load the repo-root `.env.local`. (Why a preload instead of `--env-file-if-exists`:
+Node disallows `--env-file*` in `NODE_OPTIONS` for security; `--require` is allowed.)
+
+## Adding to the shared layer
+
+```bash
+mkdir -p ~/.jitsu && chmod 700 ~/.jitsu
+touch ~/.jitsu/.env.local && chmod 600 ~/.jitsu/.env.local
+echo 'STRIPE_KEY=sk_live_xxx' >> ~/.jitsu/.env.local
+```
+
 # Development Workflow
 
 ## Development Branch
@@ -72,12 +105,12 @@ There are two independent release pipelines with separate versioning.
 **Services & CLI tools** — Docker images for backend services (console, rotor,
 functions-server, bulker, ingest, and others) and NPM packages (`jitsu-cli`,
 `@jitsu/functions-lib`). Managed by
-[services-build.yaml](.github/workflows/services-build.yaml).
+[services.yaml](.github/workflows/services.yaml).
 Base version in [.services.version.json](.services.version.json).
 
 **Client libraries** — NPM packages `@jitsu/js`, `@jitsu/jitsu-react`,
 `@jitsu/protocols`. Managed by
-[client-libraries-build.yaml](.github/workflows/client-libraries-build.yaml).
+[client-libraries.yaml](.github/workflows/client-libraries.yaml).
 Base version in [.jsclient.version.json](.jsclient.version.json).
 
 Each pipeline publishes to three channels determined by the branch:

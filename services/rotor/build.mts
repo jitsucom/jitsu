@@ -5,7 +5,6 @@ import { join } from "path";
 
 // Native modules that need to be external and installed with their versions
 const nativeDeps = {
-  "isolated-vm": "6.0.0",
   "@confluentinc/kafka-javascript": "1.9.0",
   "@mongodb-js/zstd": "2.0.0",
   esbuild: "0.27.0",
@@ -147,6 +146,25 @@ esbuild
       target: "es2022",
       format: "esm",
       outfile: "./dist/workspace-worker.mjs",
+      sourcemap: false,
+      minify: false,
+      external: [],
+      plugins: [denoNodePrefixPlugin()],
+      banner: {
+        js: 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url); var __require = require; globalThis.require = require',
+      },
+      logLevel: "info",
+    });
+  })
+  .then(() => {
+    // Deno profile worker (ESM – runs in Web Worker sandbox with permissions: "none")
+    return esbuild.build({
+      entryPoints: ["./src/lib/profile-worker.ts"],
+      bundle: true,
+      platform: "node",
+      target: "es2022",
+      format: "esm",
+      outfile: "./dist/profile-worker.mjs",
       sourcemap: false,
       minify: false,
       external: [],

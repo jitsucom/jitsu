@@ -14,8 +14,9 @@ import type {
   ProxyMethod,
   StrippedConnectionConfig,
 } from "./worker-protocol";
-import type { AnyEvent, EventContext, FuncReturn, FullContext } from "@jitsu/protocols/functions";
-import type { FunctionExecLog, FunctionExecRes } from "@jitsu/core-functions-lib";
+import type { AnyEvent, EventContext, FullContext } from "@jitsu/protocols/functions";
+import type { FunctionExecLog } from "@jitsu/core-functions-lib";
+import { runFunctionChain, type ChainFunction } from "./udf-chain";
 
 import * as functionsLib from "@jitsu/functions-lib";
 
@@ -41,37 +42,9 @@ function callMain(method: ProxyMethod, args: any[]): Promise<any> {
   });
 }
 
-// ── Deep copy (same as chain-runner, inlined to avoid import issues in sandbox) ──
-
-function deepCopy<T>(o: T): T {
-  if (typeof o !== "object") return o;
-  if (!o) return o;
-  if (Array.isArray(o)) {
-    const newO: any[] = [];
-    for (let i = 0; i < o.length; i++) {
-      const v = o[i];
-      newO[i] = !v || typeof v !== "object" ? v : deepCopy(v);
-    }
-    return newO as T;
-  }
-  const newO: Record<string, any> = {};
-  for (const [k, v] of Object.entries(o)) {
-    newO[k] = !v || typeof v !== "object" ? v : deepCopy(v);
-  }
-  return newO as T;
-}
-
-function isDropResult(result: any): boolean {
-  return result === "drop" || (Array.isArray(result) && result.length === 0) || result === null || result === false;
-}
-
 // ── Loaded function type ────────────────────────────────────────────
 
-type LoadedFunc = {
-  id: string;
-  exec: (event: AnyEvent, ctx: FullContext) => Promise<FuncReturn>;
-  config?: any;
-};
+type LoadedFunc = ChainFunction;
 
 type ConnectionChain = {
   connection: StrippedConnectionConfig;
@@ -247,7 +220,7 @@ function buildContext(
   };
 }
 
-// ── Chain execution (inline – mirrors chain-runner.ts logic) ────────
+// ── Chain execution (delegates to shared runFunctionChain) ──────────
 
 async function runChainInWorker(
   chain: ConnectionChain,
@@ -255,82 +228,9 @@ async function runChainInWorker(
   eventContext: EventContext,
   fetchTimeoutMs: number
 ): Promise<{ events: AnyEvent[]; execLog: FunctionExecLog; logs: SerializedLogEntry[] }> {
-  const execLog: FunctionExecLog = [];
-  const logs: SerializedLogEntry[] = [];
-  let events: AnyEvent[] = [event];
-
-  for (let k = 0; k < chain.functions.length; k++) {
-    const func = chain.functions[k];
-    const newEvents: AnyEvent[] = [];
-
-    for (let i = 0; i < events.length; i++) {
-      const currentEvent = events[i];
-      const startMs = Date.now();
-      let result: FuncReturn = undefined;
-
-      const ar = func.id.split(".");
-      const id = ar.pop() as string;
-      const functionType = ar.join(".");
-      const execLogEntry: Partial<FunctionExecRes> & { functionType?: string } = {
-        eventIndex: i,
-        receivedAt: eventContext.receivedAt,
-        functionId: id,
-        functionType,
-      };
-
-      try {
-        const ctx = buildContext(chain, eventContext, id, functionType, logs);
-        result = await func.exec(deepCopy(currentEvent), ctx);
-
-        if (k < chain.functions.length - 1 && Array.isArray(result) && result.length > 1) {
-          const l = result.length;
-          result = undefined;
-          const err = new Error(
-            `Got ${l} events as result of function #${k + 1} of ${
-              chain.functions.length
-            }. Only the last function in a chain is allowed to multiply events.`
-          );
-          err.name = functionsLib.NoRetryErrorName;
-          throw err;
-        }
-      } catch (err: any) {
-        if (err?.name === functionsLib.DropRetryErrorName || err?.name === functionsLib.NoRetryErrorName) {
-          result = "drop";
-        }
-        if (func?.config?.retryPolicy) {
-          err.retryPolicy = func.config.retryPolicy;
-        }
-        execLogEntry.error = {
-          name: err.name,
-          message: err.message,
-          stack: err.stack,
-          retryPolicy: err.retryPolicy,
-          functionId: id,
-        };
-      }
-
-      execLogEntry.ms = Date.now() - startMs;
-      execLogEntry.dropped = isDropResult(result);
-      execLog.push(execLogEntry as FunctionExecRes);
-
-      if (!isDropResult(result)) {
-        if (result) {
-          if (Array.isArray(result)) {
-            newEvents.push(...result);
-          } else {
-            newEvents.push(result as AnyEvent);
-          }
-        } else {
-          newEvents.push(currentEvent);
-        }
-      }
-    }
-
-    events = newEvents;
-    if (events.length === 0) break;
-  }
-
-  return { events, execLog, logs };
+  return runFunctionChain<SerializedLogEntry>(chain.functions, event, eventContext, (functionId, functionType, logs) =>
+    buildContext(chain, eventContext, functionId, functionType, logs)
+  );
 }
 
 // ── Message handler ─────────────────────────────────────────────────

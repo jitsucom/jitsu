@@ -28,9 +28,15 @@ const queryType = z.object({
 
 type catalogKeyType = z.infer<typeof queryType>;
 
-export default createRoute()
+export const route = createRoute()
   .GET({
     auth: true,
+    summary: "Discover streams",
+    description:
+      "Asks the connector to list available streams for the given service (source). Returns the cached catalog when available; " +
+      "a first call (or `refresh=true`) triggers an async fetch and returns `{ ok: false, pending: true }` — poll until `ok: true` and `catalog` is populated. " +
+      "`force=true` bypasses the cache entirely.",
+    tags: ["sync"],
     query: z.object({
       workspaceId: z.string(),
       serviceId: z.string(),
@@ -109,8 +115,9 @@ export default createRoute()
     } catch (e: any) {
       return syncError(log, `Error running discover`, e, false, `source: ${query.serviceId} workspace: ${workspaceId}`);
     }
-  })
-  .toNextApiHandler();
+  });
+
+export default route.toNextApiHandler();
 
 async function catalogFromDb(
   query: Omit<catalogKeyType, "workspaceId">

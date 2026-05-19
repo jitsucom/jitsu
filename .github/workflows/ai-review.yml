@@ -16,8 +16,16 @@ on:
 
 jobs:
   ai-review:
-    uses: jitsucom/github-workflows/.github/workflows/ai-review.yml@1.4.20260416
-    secrets: inherit
+    # Skip auto-trigger for PRs opened by the bot. codex-action's write-access
+    # check calls the collaborators API which returns 'none' for app-bot actors,
+    # causing the review to fail. security-fix.yml dispatches the review manually
+    # for bot-opened PRs instead.
+    if: github.event_name != 'pull_request' || github.actor != 'jitsu-code-review[bot]'
+    uses: jitsucom/github-workflows/.github/workflows/ai-review.yml@1.10.20260420
+    secrets:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      AI_CODE_REVIEW_APP_ID: ${{ secrets.AI_CODE_REVIEW_APP_ID }}
+      AI_CODE_REVIEW_PRIVATE_KEY: ${{ secrets.AI_CODE_REVIEW_PRIVATE_KEY }}
     with:
       pr_number: ${{ inputs.pr_number }}
       commit_sha: ${{ inputs.commit_sha }}

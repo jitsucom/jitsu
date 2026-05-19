@@ -2,7 +2,6 @@ import {
   AnonymousEventsStore,
   AnyEvent,
   EventContext,
-  FullContext,
   FuncReturn,
   JitsuFunction,
   TTLStore,
@@ -14,7 +13,6 @@ import {
   EntityStore,
   FuncChainResult,
   FunctionChainContext,
-  FunctionConfig,
   FunctionContext,
   FunctionExecLog,
   FunctionExecRes,
@@ -26,22 +24,18 @@ import {
   MetricsMeta,
   UserRecognitionParameter,
   wrapperFunction,
-  WorkspaceWithProfiles,
   EventsStore,
 } from "@jitsu/destination-functions";
 import { NoRetryErrorName, DropRetryErrorName } from "@jitsu/functions-lib";
 
 import { getLog, newError, requireDefined, stopwatch } from "juava";
 import { retryObject } from "./retries";
-import NodeCache from "node-cache";
-import isEqual from "lodash/isEqual";
 import { MessageHandlerContext } from "./message-handler";
 import { promFunctionsChainStatuses, promChainsInFlight, promChainsTime } from "./metrics";
 import { getServerEnv } from "../serverEnv";
 import { ProfilesFunction } from "./profiles-functions";
 import { createMongoStore, mongodb } from "./mongodb";
 import { createRedisStore } from "./store";
-import { UDFWrapper } from "./udf_wrapper";
 import { warehouseQuery } from "./warehouse-store";
 import { MongodbDestination } from "./mongodb-destination";
 import { createFunctionsServerWrapper } from "./functions-server-client";
@@ -77,14 +71,6 @@ const log = getLog("functions-chain");
 const bulkerBase = requireDefined(serverEnv.BULKER_URL, "env BULKER_URL is not defined");
 const bulkerAuthKey = requireDefined(serverEnv.BULKER_AUTH_KEY, "env BULKER_AUTH_KEY is not defined");
 
-//cache compiled udfs for 5min
-const udfTTL = 60 * 10;
-const udfCache = new NodeCache({ stdTTL: udfTTL, checkperiod: 60, useClones: false });
-udfCache.on("del", (key, value) => {
-  log.atDebug().log(`UDF ${key} deleted from cache`);
-  value.wrapper?.close();
-});
-
 export function checkError(chainRes: FuncChainResult) {
   for (const el of chainRes.execLog) {
     if (el.error) {
@@ -98,11 +84,9 @@ export function checkError(chainRes: FuncChainResult) {
 }
 
 export function buildFunctionChain(
-  useFunctionsServer: boolean,
   skipUdf: boolean,
   connection: EnrichedConnectionConfig,
   connStore: EntityStore<EnrichedConnectionConfig>,
-  funcStore: EntityStore<FunctionConfig>,
   rotorContext: MessageHandlerContext,
   anonymousEventsStore: AnonymousEventsStore,
   fetchTimeoutMs: number = 2000
@@ -185,63 +169,10 @@ export function buildFunctionChain(
     },
     connectionOptions: connectionData,
   };
-  const udfFuncCtx = {
-    function: {
-      id: "PIPELINE",
-      type: "udf",
-      debugTill: connectionData.debugTill ? new Date(connectionData.debugTill) : undefined,
-    },
-    props: connectionData.functionsEnv || {},
-  };
 
   // Check if there are any UDF functions configured
   const udfFunctionRefs = (connectionData?.functions || []).filter((f: any) => f.functionId.startsWith("udf."));
   const runUdfFunctions = !skipUdf && udfFunctionRefs.length > 0;
-
-  // Variables for local UDF execution (legacy mode)
-  let cached: any;
-  let hash: any[];
-  let udfFuncs: FunctionConfig[] = [];
-
-  // Only load UDF functions locally if NOT using functions server
-  if (runUdfFunctions && !useFunctionsServer) {
-    udfFuncs = udfFunctionRefs.map((f: any) => {
-      const functionId = f.functionId.substring(4);
-      const userFunctionObj = funcStore.getObject(functionId);
-      if (!userFunctionObj || userFunctionObj.workspaceId !== conWorkspaceId) {
-        return {
-          id: functionId as string,
-          code: `export default async function (event,ctx) {
-            throw newError(\`Function ${functionId} not found in workspace: ${conWorkspaceId}\`);
-          }`,
-          codeHash: "0",
-        };
-      }
-      return userFunctionObj;
-    });
-
-    hash = udfFuncs.map(f => f.codeHash);
-    hash.push(connection.updatedAt);
-    cached = udfCache.get(conId);
-    if (!cached || !isEqual(cached?.hash, hash)) {
-      log.atInfo().log(`UDF for connection ${conId} changed (hash ${hash} != ${cached?.hash}). Reloading`);
-      const wrapper = UDFWrapper(
-        conId,
-        chainCtx,
-        udfFuncCtx,
-        udfFuncs.map(f => ({ id: f.id, name: f.name, code: f.code }))
-      );
-      const oldWrapper = cached?.wrapper;
-      if (oldWrapper) {
-        setTimeout(() => {
-          oldWrapper.close();
-        }, 10000);
-      }
-      cached = { wrapper, hash };
-      udfCache.set(conId, cached);
-    }
-    udfCache.ttl(conId, udfTTL);
-  }
 
   const aggregatedFunctions: any[] = [
     ...(connectionData.functions || []).filter((f: any) => f.functionId.startsWith("builtin.transformation.")),
@@ -249,37 +180,7 @@ export function buildFunctionChain(
     mainFunction,
   ];
 
-  // Local UDF pipeline function (legacy mode)
-  const udfPipelineFunc = (chainCtx: FunctionChainContext): JitsuFunctionWrapper => {
-    return async (event: AnyEvent, ctx: EventContext) => {
-      try {
-        return await cached.wrapper.userFunction(event, ctx);
-      } catch (e: any) {
-        if ((e?.message ?? "").includes("Isolate is disposed")) {
-          // due to async nature other 'thread' could already replace this isolate. So check it
-          if (cached.wrapper.isDisposed()) {
-            log.atError().log(`UDF for con:${conId} VM was disposed. Reloading`);
-            const wrapper = UDFWrapper(
-              conId,
-              chainCtx,
-              udfFuncCtx,
-              udfFuncs.map(f => ({ id: f.id, name: f.name, code: f.code }))
-            );
-            cached = { wrapper, hash };
-            udfCache.set(conId, cached);
-            return wrapper.userFunction(event, ctx);
-          } else {
-            // we have alive isolate now. try again
-            return await cached.wrapper.userFunction(event, ctx);
-          }
-        } else {
-          throw e;
-        }
-      }
-    };
-  };
-
-  // Functions server pipeline function (dedicated/free mode)
+  // All UDF execution is delegated to the Deno-based functions-server.
   const functionsServerDeploymentId = connectionData.functionsServer?.deploymentId;
   const functionsServerPipelineFunc = (
     chainCtx: FunctionChainContext,
@@ -325,9 +226,7 @@ export function buildFunctionChain(
       return {
         id: f.functionId as string,
         context: funcCtx,
-        exec: useFunctionsServer
-          ? functionsServerPipelineFunc(chainCtx, funcCtx, rotorContext.eventsLogger)
-          : udfPipelineFunc(chainCtx),
+        exec: functionsServerPipelineFunc(chainCtx, funcCtx, rotorContext.eventsLogger),
       };
     } else {
       throw newError(`Function of unknown type: ${f.functionId}`);

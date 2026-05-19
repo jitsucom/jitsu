@@ -6,6 +6,8 @@ packages:
   - services/*
   - cli/*
   - libs/*
+  - dev-scripts
+  - env-preload
 
 catalog:
   tsx: ^4.21.0
@@ -35,7 +37,6 @@ onlyBuiltDependencies:
   - core-js-pure
   - cpu-features
   - esbuild
-  - isolated-vm
   - prisma
   - protobufjs
   - sharp

@@ -42,6 +42,7 @@ const (
 	appName                 = "functions-server"
 	connectionsCMSuffix     = "-fs-connections"
 	functionsCMSuffix       = "-fs-functions"
+	profileBuildersCMSuffix = "-fs-profilebuilders"
 	deploymentSuffix        = "-fs"
 	servicePrefix           = "fs-" // Prefix to ensure service name starts with letter (workspaceId may start with number)
 
@@ -52,7 +53,6 @@ const (
 	FunctionsClassDedicated = "dedicated" // One deployment per workspace
 	FunctionsClassFree      = "free"      // All workspaces share one deployment
 	FunctionsClassPremium   = "premium"   // Premium tier with dedicated resources
-	FunctionsClassLegacy    = "legacy"    // Ignored by operator
 
 	// HPA suffix
 	hpaSuffix = "-fs-hpa"
@@ -207,14 +207,14 @@ func (o *Operator) reconcile() {
 	for _, ws := range wsData.workspaces {
 		functionsClasses := o.getFunctionsClasses(ws)
 
-		// Skip legacy and unknown classes
+		// Skip unknown classes
 		if !slices.Contains(functionsClasses, FunctionsClassPremium) && !slices.Contains(functionsClasses, FunctionsClassDedicated) && !slices.Contains(functionsClasses, FunctionsClassFree) {
 			continue
 		}
 
 		isDedicated := slices.Contains(functionsClasses, FunctionsClassPremium) || slices.Contains(functionsClasses, FunctionsClassDedicated)
 
-		wsWorkspaceData := CalculateWorkspaceData(ws, connData.byWorkspace[ws.ID], funcData.byWorkspace[ws.ID])
+		wsWorkspaceData := CalculateWorkspaceData(ws, connData.byWorkspace[ws.ID], funcData.byWorkspace[ws.ID], wsData.profileBuildersByWs[ws.ID])
 
 		freeAdded := false
 		if slices.Contains(functionsClasses, FunctionsClassFree) {
@@ -262,6 +262,7 @@ func (o *Operator) reconcile() {
 			WorkspaceIDs:       []string{workspaceID},
 			Connections:        wsData.Connections,
 			Functions:          wsData.Functions,
+			ProfileBuilders:    wsData.ProfileBuilders,
 			ConfigHash:         wsData.ConfigHash,
 			OperatorConfigHash: operatorConfigHash,
 		}
@@ -327,7 +328,7 @@ func (o *Operator) reconcile() {
 			continue // already marked
 		}
 		if o.allWorkspacesHandled(existing, existingDeployments, wsData) {
-			shutdownAt := time.Now().Add(10 * time.Minute)
+			shutdownAt := time.Now().Add(15 * time.Minute)
 			if err := o.setDeploymentShutdownAt(ctx, existing, shutdownAt); err != nil {
 				logging.Errorf("Failed to mark deployment %s for shutdown: %v", deploymentID, err)
 			} else {
@@ -465,6 +466,7 @@ func (o *Operator) getExistingDeployments(ctx context.Context) (map[string]*Depl
 	// Count ConfigMaps per deployment
 	functionsCMCount := make(map[string]int)
 	connectionsCMCount := make(map[string]int)
+	profileBuildersCMCount := make(map[string]int)
 	for _, cm := range configMaps.Items {
 		configType := cm.Labels[labelConfigType]
 		deploymentID := cm.Labels[labelWorkspaceID]
@@ -474,6 +476,8 @@ func (o *Operator) getExistingDeployments(ctx context.Context) (map[string]*Depl
 				functionsCMCount[deploymentID]++
 			case "connections":
 				connectionsCMCount[deploymentID]++
+			case "profilebuilders":
+				profileBuildersCMCount[deploymentID]++
 			}
 		}
 	}
@@ -514,6 +518,7 @@ func (o *Operator) getExistingDeployments(ctx context.Context) (map[string]*Depl
 		if connsCMCount == 0 {
 			connsCMCount = 1
 		}
+		pbCMCount := profileBuildersCMCount[deploymentID]
 
 		// Parse shutdown annotation
 		var shutdownAt *time.Time
@@ -545,19 +550,20 @@ func (o *Operator) getExistingDeployments(ctx context.Context) (map[string]*Depl
 		}
 
 		result[deploymentID] = &DeploymentData{
-			DeploymentID:              deploymentID,
-			FunctionsClass:            functionsClass,
-			WorkspaceIDs:              workspaceIDs,
-			ConfigHash:                configHash,
-			OperatorConfigHash:        operatorConfigHash,
-			ConnectionsConfigMapCount: connsCMCount,
-			FunctionsConfigMapCount:   funcsCMCount,
-			Replicas:                  deployment.Spec.Replicas,
-			ShutdownAt:                shutdownAt,
-			RolledOut:                 isRolledOut,
-			RolloutCompletedAt:        rolloutCompletedAt,
-			CreatedAt:                 deployment.CreationTimestamp.Time,
-			ConnectionsMap:            connectionsMap,
+			DeploymentID:                 deploymentID,
+			FunctionsClass:               functionsClass,
+			WorkspaceIDs:                 workspaceIDs,
+			ConfigHash:                   configHash,
+			OperatorConfigHash:           operatorConfigHash,
+			ConnectionsConfigMapCount:    connsCMCount,
+			FunctionsConfigMapCount:      funcsCMCount,
+			ProfileBuilderConfigMapCount: pbCMCount,
+			Replicas:                     deployment.Spec.Replicas,
+			ShutdownAt:                   shutdownAt,
+			RolledOut:                    isRolledOut,
+			RolloutCompletedAt:           rolloutCompletedAt,
+			CreatedAt:                    deployment.CreationTimestamp.Time,
+			ConnectionsMap:               connectionsMap,
 		}
 	}
 
@@ -589,19 +595,28 @@ func (o *Operator) buildFreeShardedDeployments(workspaces []*WorkspaceData) map[
 			workspaceIDs = append(workspaceIDs, ws.WorkspaceID)
 			allConnections = append(allConnections, ws.Connections...)
 			allFunctions = append(allFunctions, ws.Functions...)
+			// Profile builders are intentionally NOT aggregated for free
+			// deployments — the free-tier functions-server doesn't run the
+			// profile-builder runtime, so shipping PB ConfigMaps and PB
+			// metadata into the shared shard would just be wasted bytes plus
+			// a redeploy whenever someone on free tweaks a profile builder.
+			// Workspaces that need profile builders run on dedicated/premium.
 		}
 
 		sort.Strings(workspaceIDs)
-		configHash := CalculateConfigHash(allConnections, allFunctions, workspaceIDs)
+		// Pass nil for profile builders so the config hash stays stable
+		// across PB changes on free-tier workspaces (no redeploy needed).
+		configHash := CalculateConfigHash(allConnections, allFunctions, nil, workspaceIDs)
 
 		shardID := freeShardDeploymentID(shardIdx, numShards)
 		result[shardID] = &DeploymentData{
-			DeploymentID:   shardID,
-			FunctionsClass: FunctionsClassFree,
-			WorkspaceIDs:   workspaceIDs,
-			Connections:    allConnections,
-			Functions:      allFunctions,
-			ConfigHash:     configHash,
+			DeploymentID:    shardID,
+			FunctionsClass:  FunctionsClassFree,
+			WorkspaceIDs:    workspaceIDs,
+			Connections:     allConnections,
+			Functions:       allFunctions,
+			ProfileBuilders: nil,
+			ConfigHash:      configHash,
 		}
 	}
 
@@ -625,7 +640,7 @@ func workspaceShardIndex(workspaceID string, numShards int) int {
 }
 
 // getFunctionsClasses returns the functions class for a workspace based on feature flags.
-// Format: ${FunctionsClassFeatureFlag}=<value> where value is dedicated, free, or legacy.
+// Format: ${FunctionsClassFeatureFlag}=<value> where value is dedicated, free, or premium.
 // Returns empty string if no matching feature flag is found (uses default).
 func (o *Operator) getFunctionsClasses(ws *WorkspaceConfig) []string {
 	prefix := "functionsClasses="
@@ -646,7 +661,7 @@ func (o *Operator) createOrUpdateMongobetweenConfigMap(ctx context.Context, data
 	}
 
 	cmName := fmt.Sprintf("%s-mongobetween", data.DeploymentID)
-	allowedCollections := o.buildAllowedCollectionsFileContent(data.WorkspaceIDs)
+	allowedCollections := o.buildAllowedCollectionsFileContent(data.WorkspaceIDs, data.ProfileBuilders)
 
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -711,6 +726,13 @@ func (o *Operator) createDeploymentFromData(data *DeploymentData) error {
 		return fmt.Errorf("failed to create functions configmaps: %v", err)
 	}
 	data.FunctionsConfigMapCount = numFunctionsCMs
+
+	// Create profile builders ConfigMaps
+	numPBCMs, err := o.createOrUpdateProfileBuildersConfigMaps(ctx, data)
+	if err != nil {
+		return fmt.Errorf("failed to create profilebuilders configmaps: %v", err)
+	}
+	data.ProfileBuilderConfigMapCount = numPBCMs
 
 	// Create mongobetween ConfigMap if MongoDB is configured
 	if err := o.createOrUpdateMongobetweenConfigMap(ctx, data); err != nil {
@@ -796,6 +818,23 @@ func (o *Operator) updateDeploymentFromData(data *DeploymentData, existing *Depl
 	}
 	data.FunctionsConfigMapCount = numFunctionsCMs
 
+	// Update profile builders ConfigMaps
+	numPBCMs, err := o.createOrUpdateProfileBuildersConfigMaps(ctx, data)
+	if err != nil {
+		return fmt.Errorf("failed to update profilebuilders configmaps: %v", err)
+	}
+	// Delete old profile builder ConfigMaps if count decreased
+	if existing != nil && existing.ProfileBuilderConfigMapCount > numPBCMs {
+		for i := numPBCMs; i < existing.ProfileBuilderConfigMapCount; i++ {
+			cmName := fmt.Sprintf("%s%s-%d", data.DeploymentID, profileBuildersCMSuffix, i)
+			err := o.clientset.CoreV1().ConfigMaps(o.config.KubernetesNamespace).Delete(ctx, cmName, metav1.DeleteOptions{})
+			if err != nil && !errors.IsNotFound(err) {
+				logging.Warnf("Failed to delete old profilebuilders configmap %s: %v", cmName, err)
+			}
+		}
+	}
+	data.ProfileBuilderConfigMapCount = numPBCMs
+
 	// Update mongobetween ConfigMap if MongoDB is configured
 	if err := o.createOrUpdateMongobetweenConfigMap(ctx, data); err != nil {
 		return fmt.Errorf("failed to update mongobetween configmap: %v", err)
@@ -864,6 +903,15 @@ func (o *Operator) deleteDeploymentByID(deploymentID string, existing *Deploymen
 		err = o.clientset.CoreV1().ConfigMaps(o.config.KubernetesNamespace).Delete(ctx, cmName, metav1.DeleteOptions{})
 		if err != nil && !errors.IsNotFound(err) {
 			logging.Warnf("Failed to delete functions configmap %s: %v", cmName, err)
+		}
+	}
+
+	// Delete all profile builder ConfigMaps
+	for i := 0; i < existing.ProfileBuilderConfigMapCount; i++ {
+		cmName := fmt.Sprintf("%s%s-%d", deploymentID, profileBuildersCMSuffix, i)
+		err = o.clientset.CoreV1().ConfigMaps(o.config.KubernetesNamespace).Delete(ctx, cmName, metav1.DeleteOptions{})
+		if err != nil && !errors.IsNotFound(err) {
+			logging.Warnf("Failed to delete profilebuilders configmap %s: %v", cmName, err)
 		}
 	}
 
@@ -1145,6 +1193,93 @@ func (o *Operator) createOrUpdateFunctionsConfigMapsFromData(ctx context.Context
 	return len(configMaps), nil
 }
 
+// createOrUpdateProfileBuildersConfigMaps creates ConfigMaps for profile builder data.
+// Files are stored with keys like ${workspaceId}__${profileBuilderId}.json.gz
+func (o *Operator) createOrUpdateProfileBuildersConfigMaps(ctx context.Context, data *DeploymentData) (int, error) {
+	if len(data.ProfileBuilders) == 0 {
+		return 0, nil
+	}
+
+	type pbEntry struct {
+		key  string
+		data []byte
+	}
+	entries := make([]pbEntry, 0, len(data.ProfileBuilders))
+
+	for _, pb := range data.ProfileBuilders {
+		jsonData, err := json.Marshal(pb)
+		if err != nil {
+			return 0, fmt.Errorf("failed to marshal profile builder %s: %v", pb.ID, err)
+		}
+		compressed, err := gzipCompress(jsonData)
+		if err != nil {
+			return 0, fmt.Errorf("failed to compress profile builder %s: %v", pb.ID, err)
+		}
+		key := fmt.Sprintf("%s__%s.json.gz", pb.WorkspaceID, pb.ID)
+		entries = append(entries, pbEntry{key: key, data: compressed})
+	}
+
+	// Split into multiple ConfigMaps if needed
+	configMaps := make([]*corev1.ConfigMap, 0)
+	currentData := make(map[string][]byte)
+	currentSize := 0
+	partIdx := 0
+
+	createConfigMap := func() {
+		cmName := fmt.Sprintf("%s%s-%d", data.DeploymentID, profileBuildersCMSuffix, partIdx)
+		configMaps = append(configMaps, &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      cmName,
+				Namespace: o.config.KubernetesNamespace,
+				Labels: map[string]string{
+					labelApp:            appName,
+					labelWorkspaceID:    data.DeploymentID,
+					labelFunctionsClass: data.FunctionsClass,
+					labelConfigType:     "profilebuilders",
+					labelConfigPartIdx:  fmt.Sprintf("%d", partIdx),
+				},
+				Annotations: map[string]string{
+					labelWorkspaceIDs: strings.Join(data.WorkspaceIDs, ","),
+				},
+			},
+			BinaryData: currentData,
+		})
+		currentData = make(map[string][]byte)
+		currentSize = 0
+		partIdx++
+	}
+
+	for _, entry := range entries {
+		entrySize := len(entry.data) + len(entry.key) + 10
+		if currentSize > 0 && currentSize+entrySize > maxConfigMapSize {
+			createConfigMap()
+		}
+		currentData[entry.key] = entry.data
+		currentSize += entrySize
+	}
+
+	if len(currentData) > 0 {
+		createConfigMap()
+	}
+
+	// Create or update each ConfigMap
+	for _, cm := range configMaps {
+		_, err := o.clientset.CoreV1().ConfigMaps(o.config.KubernetesNamespace).Get(ctx, cm.Name, metav1.GetOptions{})
+		if err != nil {
+			if errors.IsNotFound(err) {
+				_, err = o.clientset.CoreV1().ConfigMaps(o.config.KubernetesNamespace).Create(ctx, cm, metav1.CreateOptions{})
+			}
+		} else {
+			_, err = o.clientset.CoreV1().ConfigMaps(o.config.KubernetesNamespace).Update(ctx, cm, metav1.UpdateOptions{})
+		}
+		if err != nil {
+			return 0, fmt.Errorf("failed to create/update profilebuilders configmap %s: %v", cm.Name, err)
+		}
+	}
+
+	return len(configMaps), nil
+}
+
 func (o *Operator) createOrUpdateServiceFromData(ctx context.Context, data *DeploymentData) error {
 	if data.FunctionsClass == FunctionsClassFree {
 		return o.createOrUpdateFreeService(ctx, data)
@@ -1256,11 +1391,15 @@ func (o *Operator) createOrUpdateDedicatedService(ctx context.Context, data *Dep
 }
 
 // buildAllowedCollectionsFileContent builds the allowed collections file content for mongobetween
-// based on workspaces in this deployment. Format: one db.collection per line
-func (o *Operator) buildAllowedCollectionsFileContent(workspaceIDs []string) string {
+// based on workspaces and profile builders in this deployment. Format: one db.collection per line
+func (o *Operator) buildAllowedCollectionsFileContent(workspaceIDs []string, profileBuilders []*ProfileBuilderConfig) string {
 	builder := strings.Builder{}
 	for _, wsID := range workspaceIDs {
 		builder.WriteString(fmt.Sprintf("persistent_store.%s\n", wsID))
+	}
+	for _, pb := range profileBuilders {
+		builder.WriteString(fmt.Sprintf("profiles.profiles-raw-%s-%s\n", pb.WorkspaceID, pb.ID))
+		builder.WriteString(fmt.Sprintf("profiles.profiles-traits-%s-%s\n", pb.WorkspaceID, pb.ID))
 	}
 	return builder.String()
 }
@@ -1371,6 +1510,29 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 		})
 	}
 
+	// Add volumes for profile builder ConfigMaps
+	for i := 0; i < data.ProfileBuilderConfigMapCount; i++ {
+		volName := fmt.Sprintf("profilebuilders-%d", i)
+		cmName := fmt.Sprintf("%s%s-%d", data.DeploymentID, profileBuildersCMSuffix, i)
+
+		volumes = append(volumes, corev1.Volume{
+			Name: volName,
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: cmName,
+					},
+				},
+			},
+		})
+
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      volName,
+			MountPath: fmt.Sprintf("/data/profilebuilders/part-%d", i),
+			ReadOnly:  true,
+		})
+	}
+
 	_, fastStoreEnabled := o.fastStoreWorkspaceIDs[data.DeploymentID]
 
 	// Build environment variables for functions-server
@@ -1414,6 +1576,18 @@ func (o *Operator) buildDeploymentFromData(data *DeploymentData) *appsv1.Deploym
 		{
 			Name:  "MONGODB_MAX_POOL_SIZE",
 			Value: fmt.Sprint(utils.Ternary(data.FunctionsClass == FunctionsClassPremium, o.config.MongoDBMaxPoolSizePremium, o.config.MongoDBMaxPoolSize)),
+		},
+		{
+			Name:  "PB_MONGODB_TIMEOUT_MS",
+			Value: fmt.Sprint(o.config.PBMongoDBTimeoutMs),
+		},
+		{
+			Name:  "PB_WAREHOUSE_TIMEOUT_MS",
+			Value: fmt.Sprint(o.config.PBWarehouseTimeoutMs),
+		},
+		{
+			Name:  "PB_UDF_TIMEOUT_MS",
+			Value: fmt.Sprint(o.config.PBUdfTimeoutMs),
 		},
 	}
 

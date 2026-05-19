@@ -15,6 +15,7 @@ import { getServerEnv } from "../../../../../lib/server/serverEnv";
 
 const serverEnv = getServerEnv();
 const defaultFunctionsClass = serverEnv.DEFAULT_FUNCTIONS_CLASS;
+const defaultClassesPriorities = ["premium", "dedicated", "free"];
 const functionsClassesPriorities: Record<string, string[]> = {
   free: ["free", "dedicated", "premium"],
   dedicated: ["dedicated", "premium", "free"],
@@ -76,24 +77,36 @@ function addFunctionsClass(featuresEnabled: string[], functionsClass: string): s
   return featuresEnabled;
 }
 
+function selectProfileBuilderFunctionsServer(
+  functionsServers: Map<string, FunctionsServerDbModel>,
+  workspaceId: string,
+  profileBuilderId: string,
+  functionsClass: string
+) {
+  for (const pr of functionsClassesPriorities[functionsClass] || defaultClassesPriorities) {
+    const fs = functionsServers.get(`${workspaceId}_${pr}`);
+    if (fs && fs.profileBuilders?.includes(profileBuilderId)) {
+      return {
+        deploymentId: fs.deploymentId,
+      };
+    }
+  }
+  return undefined;
+}
+
 function selectFunctionsServer(
   functionsServers: Map<string, FunctionsServerDbModel>,
   workspaceId: string,
   conId: string,
   functionsClass: string
 ) {
-  if (functionsClass === "legacy") {
-    return {
-      status: "legacy",
-    };
-  }
   let functionsServer:
     | {
         deploymentId: string;
         status: "functions" | "empty" | "missing";
       }
     | undefined = undefined;
-  for (const pr of functionsClassesPriorities[functionsClass]) {
+  for (const pr of functionsClassesPriorities[functionsClass] || defaultClassesPriorities) {
     const fs = functionsServers.get(`${workspaceId}_${pr}`);
     if (fs) {
       functionsServer = {
@@ -343,8 +356,6 @@ async function exportRotorConnections(writer: Writer) {
               ? { fetchLogLevel: "debug" }
               : {}),
             ...((workspace.featuresEnabled ?? []).includes("fastFunctions") ? { fastFunctions: true } : {}),
-            //TODO: remove after migration
-            functionsClasses: extractFunctionsClasses(workspace.featuresEnabled ?? []),
             functionsServer: selectFunctionsServer(functionsServers, workspace.id, id, functionsClassFunc(workspace)),
             workspaceUpdatedAt: workspace.updatedAt,
           },
@@ -610,7 +621,6 @@ async function exportStreamsWithDestinations(writer: Writer) {
                 credentials: omit(l.to.config, "destinationType", "type", "name"),
                 options: {
                   ...(l.data ?? {}),
-                  functionsClasses: extractFunctionsClasses(obj.workspace.featuresEnabled ?? []),
                   functionsServer: selectFunctionsServer(
                     functionsServers,
                     obj.workspace.id,
@@ -682,19 +692,11 @@ async function functionsClassByWorkspace(): Promise<Map<string, { class: string;
                      left join customers c on c.customer_id = s.customer_id
               where status<>''`);
   for (const row of rows.rows) {
-    const oneMonthMs = 30 * 24 * 60 * 60 * 1000;
     const status = row.status;
-    if (status === "active" || status === "trialing") {
+    if (status === "active" || status === "trialing" || status === "past_due" || status === "unpaid") {
       workspacesWithClasses.set(row.id, { class: "dedicated", status: "active" });
     } else if (status === "canceled") {
       if (row.period_end.getTime() > now) {
-        workspacesWithClasses.set(row.id, { class: "dedicated", status: "active" });
-      }
-    } else if (status === "past_due" || status === "unpaid") {
-      if (row.period_end.getTime() + oneMonthMs > now) {
-        // keep dedicated instance for 30 days of past due subscription
-        workspacesWithClasses.set(row.id, { class: "dedicated", status });
-      } else if (row.period_end.getTime() > now) {
         workspacesWithClasses.set(row.id, { class: "dedicated", status: "active" });
       }
     }
@@ -740,7 +742,7 @@ async function exportWorkspaces(writer: Writer) {
 }
 
 async function exportWorkspacesWithProfilesLastModified(): Promise<Date | undefined> {
-  return (
+  const lastUpdated = (
     (await db.prisma().$queryRaw`
             select
               greatest(
@@ -750,9 +752,32 @@ async function exportWorkspacesWithProfilesLastModified(): Promise<Date | undefi
                   (select max("updatedAt") from newjitsu."Workspace")
               ) as "last_updated"`) as any
   )[0]["last_updated"];
+  // force refresh every 5 minute to actualize possible subscription status changes or expirations
+  const forceRefreshEveryMs = 5 * 60 * 1000;
+  if (lastUpdated?.getTime() < Date.now() - forceRefreshEveryMs) {
+    return new Date(Math.floor(Date.now() / forceRefreshEveryMs) * forceRefreshEveryMs);
+  }
+  return lastUpdated;
 }
 
 async function exportWorkspacesWithProfiles(writer: Writer) {
+  const workspacesWithClasses = await functionsClassByWorkspace();
+  const functionsClassFunc = (workspaceId: string) =>
+    workspacesWithClasses.get(workspaceId)?.class || defaultFunctionsClass;
+
+  // Load FunctionsServer records for profile builder routing
+  const functionsServers = new Map<string, FunctionsServerDbModel>();
+  try {
+    const fsRows = await db.prisma().functionsServer.findMany();
+    for (const fs of fsRows) {
+      functionsServers.set(`${fs.workspaceId}_${fs.class}`, fs);
+    }
+  } catch (e) {
+    getLog()
+      .atWarn()
+      .log(`Failed to load FunctionsServer table for profile builder routing: ${getErrorMessage(e)}`);
+  }
+
   writer.write("[");
   let lastId: string | undefined = undefined;
   let needComma = false;
@@ -775,6 +800,7 @@ async function exportWorkspacesWithProfiles(writer: Writer) {
       if (needComma) {
         writer.write(",");
       }
+      row.featuresEnabled = addFunctionsClass(row.featuresEnabled ?? [], functionsClassFunc(row.id));
       row.profileBuilders = row.profileBuilders
         .filter(pb => pb.version > 0)
         .map(pb => {
@@ -784,6 +810,13 @@ async function exportWorkspacesWithProfiles(writer: Writer) {
               ...f.function.config,
             };
           });
+          // Add functionsServer routing info for profile builder
+          (pb as any).functionsServer = selectProfileBuilderFunctionsServer(
+            functionsServers,
+            row.id,
+            pb.id,
+            functionsClassFunc(row.id)
+          );
           return pb;
         });
       writer.write(JSON.stringify(row));

@@ -11,8 +11,12 @@ init() {
     inited="1"
     curl --silent --show-error  http://localhost:3000/api/admin/events-log-init?token=$CONSOLE_INIT_TOKEN
     echo ""
-    echo "Starting cron..."
-    cron
+    if [ "$CRON_ENABLED" != "0" ] && [ "$CRON_ENABLED" != "no" ] && [ "$CRON_ENABLED" != "false" ]; then
+      echo "Starting cron..."
+      cron
+    else
+      echo "CRON_ENABLED=$CRON_ENABLED, skipping cron."
+    fi
   fi
 }
 

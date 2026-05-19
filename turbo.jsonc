@@ -24,8 +24,10 @@
       "outputs": ["coverage/**"],
       "inputs": ["src/**", "lib/**", "__tests__/**", "*.config.js", "*.config.ts"]
     },
-    // Builds packages with 'main: dist/*' (jsondiffpatch, jitsu-js, jitsu-react, functions)
+    // Builds packages with 'main: dist/*' (jsondiffpatch, jitsu-js, jitsu-react, functions).
+    // Needs ^build-deps so that, e.g., jitsu-js waits for jsondiffpatch's dist/ before tsc.
     "build-deps": {
+      "dependsOn": ["^build-deps"],
       "outputs": ["dist/**"],
       "inputs": ["src/**", "tsconfig.json", "package.json"]
     },
@@ -77,9 +79,6 @@
       "dependsOn": ["^build-deps"],
       "cache": false,
       "persistent": true
-    },
-    "tool:hash": {
-      "cache": false
     },
     // Needs ^build-deps for workspace package imports
     "dev": {

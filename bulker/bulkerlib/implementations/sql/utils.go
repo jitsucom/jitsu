@@ -2,11 +2,12 @@ package sql
 
 import (
 	"database/sql"
-	"github.com/ClickHouse/clickhouse-go/v2/lib/chcol"
 	"math/big"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/ClickHouse/clickhouse-go/v2/lib/chcol"
 )
 
 type ColumnScanner struct {
@@ -35,8 +36,20 @@ func (s *ColumnScanner) Scan(src any) error {
 		}
 	case big.Int:
 		s.value = int(v.Int64())
+	case *big.Int:
+		if v == nil {
+			s.value = nil
+		} else {
+			s.value = int(v.Int64())
+		}
 	case big.Float:
 		s.value, _ = v.Float64()
+	case *big.Float:
+		if v == nil {
+			s.value = nil
+		} else {
+			s.value, _ = v.Float64()
+		}
 	case time.Time:
 		s.value = v.UTC()
 	case *chcol.JSON:

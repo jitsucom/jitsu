@@ -1,0 +1,22 @@
+{
+  "name": "@jitsu-internal/dev-scripts",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "exec": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "juava": "workspace:*",
+    "pg": "^8.18.0",
+    "prompts": "^2.4.2"
+  },
+  "devDependencies": {
+    "@jitsu/common-config": "workspace:*",
+    "@types/node": "catalog:",
+    "@types/pg": "^8.16.0",
+    "@types/prompts": "^2.4.9",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
+  }
+}

@@ -14,8 +14,10 @@ BETA_BRANCH=$(jq -r '.beta_branch' "$VERSION_FILE")
 # Get current branch
 CURRENT_BRANCH="${GITHUB_REF_NAME}"
 
-# Determine channel based on branch
-if [ "$CURRENT_BRANCH" = "$STABLE_BRANCH" ]; then
+# Determine channel: explicit override wins, otherwise derive from branch
+if [ -n "${CHANNEL_OVERRIDE}" ]; then
+  CHANNEL="${CHANNEL_OVERRIDE}"
+elif [ "$CURRENT_BRANCH" = "$STABLE_BRANCH" ]; then
   CHANNEL="stable"
 elif [ "$CURRENT_BRANCH" = "$BETA_BRANCH" ]; then
   CHANNEL="beta"

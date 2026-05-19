@@ -6,6 +6,10 @@ inputs:
     description: "Path to version file"
     required: false
     default: ".version.json"
+  channel:
+    description: "Explicit channel override (canary, beta, stable). If unset, channel is derived from the current branch."
+    required: false
+    default: ""
 
 outputs:
   version:
@@ -27,4 +31,6 @@ runs:
     - name: Generate version
       id: generate
       shell: bash
+      env:
+        CHANNEL_OVERRIDE: ${{ inputs.channel }}
       run: ./versions.sh ${{ inputs.version_file }}
