@@ -3,6 +3,7 @@ import { ZodType } from "zod";
 import { NextApiHandler, NextApiRequest, NextApiResponse } from "next";
 import { buildRouteFragment } from "./openapi/routeSpec";
 import { ExpandSpec, RouteOpenApiFragment, StoredMethodSpec } from "./openapi/types";
+import { getRateLimiter, getRateLimitOpts, setRateLimitHeaders, type RouteRateLimitSpec } from "./server/rate-limit";
 import { assertDefined, checkHash, checkRawToken, getErrorMessage, requireDefined, tryJson } from "juava";
 import { getServerSession, Session } from "next-auth";
 import { nextAuthConfig } from "./nextauth.config";
@@ -31,7 +32,7 @@ import {
   WorkspaceRolePermissions,
 } from "./workspace-roles";
 import { getServerEnv } from "./server/serverEnv";
-const adminServiceAccountEmail = "admin-service-account@jitsu.com";
+import { adminServiceAccountEmail, isAdminServiceAccount } from "./shared/admin-service-account";
 
 type HandlerOpts<Req = void, Query = void, RequireAuth extends boolean = boolean> = {
   body?: Req;
@@ -68,6 +69,7 @@ export type ApiMethod<RequireAuth extends boolean = boolean, Res = any, Body = a
   };
   // indicates that handler uses write method for outputting response content. This is useful for streaming responses.
   streaming?: boolean;
+  rateLimit?: RouteRateLimitSpec;
   handle: (ctx: HandlerOpts<Body, Query, RequireAuth>) => Promise<Res>;
 };
 
@@ -333,6 +335,43 @@ export function nextJsApiHandler(api: Api): NextApiHandler {
           return;
         }
       }
+      const rlOpts = getRateLimitOpts(req, currentUser, { method, rateLimit: handler.rateLimit });
+      if (rlOpts) {
+        try {
+          const rl = await getRateLimiter().check(rlOpts);
+          setRateLimitHeaders(res, rl);
+          if (!rl.allowed) {
+            log
+              .atWarn()
+              .log(
+                `rate limit exceeded: ${req.method} ${req.url} bucket=${rl.bucket} limit=${rl.limit} retryAfterSec=${
+                  rl.retryAfterSec
+                } user=${currentUser?.internalId ?? "anon"}`
+              );
+            res.setHeader("Retry-After", String(rl.retryAfterSec));
+            res.status(429).json({
+              error: "rate_limit_exceeded",
+              message: `Rate limit exceeded. Retry after ${rl.retryAfterSec} seconds.`,
+              limit: rl.limit,
+              remaining: 0,
+              resetAt: rl.resetAt.toISOString(),
+              bucket: rl.bucket,
+            });
+            return;
+          }
+        } catch (e) {
+          // Fail closed: the limiter store is unavailable, so we reject rather than
+          // silently letting everyone through. A future per-route failOpen flag can
+          // carve exceptions when we need them.
+          log.atWarn().withCause(e).log(`rate limiter unavailable for ${req.method} ${req.url}`);
+          res.setHeader("Retry-After", "5");
+          res.status(503).json({
+            error: "rate_limit_unavailable",
+            message: "Rate limiter store is unavailable; request rejected.",
+          });
+          return;
+        }
+      }
       let body = undefined;
       if (req.body && handler.types?.body) {
         const parseResult = handler.types?.body.safeParse(
@@ -434,7 +473,7 @@ function stackToArray(stack?: string) {
   return lines.length > 0 ? lines.map(s => s.trim()) : undefined;
 }
 export async function verifyAdmin(user: SessionUser) {
-  if (user.internalId === adminServiceAccountEmail && user.loginProvider === "admin/token") {
+  if (isAdminServiceAccount(user)) {
     return;
   }
   const userId = requireDefined(user.internalId, `internalId is not defined`);
@@ -468,7 +507,7 @@ export async function getWorkspace(workspaceId: string | undefined) {
 }
 
 export async function verifyAccess(user: SessionUser, workspaceId: string) {
-  if (user.internalId === adminServiceAccountEmail && user.loginProvider === "admin/token") {
+  if (isAdminServiceAccount(user)) {
     return;
   }
   if (!looksLikeCuid(workspaceId)) {
@@ -495,7 +534,7 @@ export async function verifyAccessWithRole(
   workspaceId: string,
   requiredPermission: WorkspacePermissionsType
 ): Promise<WorkspaceRoleWithPermissions> {
-  if (user.internalId === adminServiceAccountEmail && user.loginProvider === "admin/token") {
+  if (isAdminServiceAccount(user)) {
     return {
       role: "owner",
       ...WorkspaceRolePermissions["owner"],
@@ -563,6 +602,7 @@ export type RouteMethodSpec<
   bodyExample?: any;
   resultExample?: any;
   expand?: ExpandSpec;
+  rateLimit?: RouteRateLimitSpec;
 };
 
 export type RouteBuilderBase = {
@@ -605,6 +645,7 @@ export function createRoute(): RouteBuilder {
             handle: handler,
             streaming: spec.streaming,
             description: spec.description,
+            rateLimit: spec.rateLimit,
           };
           specByMethod[method] = {
             query: spec.query,

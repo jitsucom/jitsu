@@ -20,7 +20,6 @@ import { getServerLog } from "../server/log";
 import { getWildcardDomains } from "../../pages/api/[workspaceId]/domain-check";
 import { getDestinationSecretPaths, getServiceSecretPaths, maskSecrets, removeMaskedValues } from "./secrets";
 import { db } from "../server/db";
-import { deleteScheduler } from "../server/sync";
 import { ConfigApiDeleteOptions } from "../useApi";
 import pick from "lodash/pick";
 
@@ -67,17 +66,13 @@ export async function handleLinkedConnections(
 
   // Cascade takes precedence over strict
   if (options?.cascade) {
-    // Delete all linked connections before deleting the object
+    // Delete all linked connections before deleting the object.
+    // Sync deletions are picked up by syncctl on its next /api/admin/export/syncs poll.
     for (const link of linkedConnections) {
       await db.prisma().configurationObjectLink.update({
         where: { id: link.id },
         data: { deleted: true },
       });
-
-      // Delete scheduler if it's a sync
-      if (link.type === "sync") {
-        await deleteScheduler(link.id);
-      }
     }
   } else if (options?.strict) {
     throw new ApiError(

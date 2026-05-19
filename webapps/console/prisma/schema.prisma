@@ -536,3 +536,13 @@ model FunctionsServer {
 //  nangoIntegrationId String
 //  secrets      Json?
 //}
+
+model RateLimitCounter {
+  bucketKey   String
+  windowStart DateTime @db.Timestamptz(3)
+  count       Int      @default(0)
+  expiresAt   DateTime @db.Timestamptz(3)
+
+  @@id([bucketKey, windowStart])
+  @@index([expiresAt])
+}

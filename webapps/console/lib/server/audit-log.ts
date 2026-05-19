@@ -49,14 +49,21 @@ function genericScrub(input: any, depth = 0): any {
   return out;
 }
 
-// Lazy — config-objects.ts pulls a chain that loops back to lib/api.ts. We must
-// not require it at module-load time. Cache after first hit.
-let configObjectsModule: typeof import("../schema/config-objects") | null = null;
-function loadConfigObjects(): typeof import("../schema/config-objects") {
-  if (!configObjectsModule) {
-    configObjectsModule = require("../schema/config-objects");
+// Lazy — config-objects.ts pulls a chain that loops back to lib/api.ts
+// (api.ts → nextauth.config.ts → audit-log.ts → config-objects.ts →
+// pages/.../domain-check.ts → api.ts). We must not import it at module-load
+// time. Use dynamic `import()` instead of `require()` because Next 16's
+// Turbopack runtime can return an ESM wrapper from `require()` where the
+// named exports aren't destructurable — calling
+// `getAllConfigObjectTypeNames()` on the undefined destructure produced
+// `TypeError: n is not a function`, which the surrounding try-catch logged
+// as the "outputFilter failed" warning while silently degrading masking.
+let configObjectsModulePromise: Promise<typeof import("../schema/config-objects")> | null = null;
+function loadConfigObjects(): Promise<typeof import("../schema/config-objects")> {
+  if (!configObjectsModulePromise) {
+    configObjectsModulePromise = import("../schema/config-objects");
   }
-  return configObjectsModule!;
+  return configObjectsModulePromise;
 }
 
 function isPlainObject(v: any): v is Record<string, any> {
@@ -140,7 +147,7 @@ async function redactForAudit(type: string, obj: any): Promise<any> {
   if (obj == null || typeof obj !== "object") return obj;
   let masked = obj;
   try {
-    const { getAllConfigObjectTypeNames, getConfigObjectType } = loadConfigObjects();
+    const { getAllConfigObjectTypeNames, getConfigObjectType } = await loadConfigObjects();
     if (getAllConfigObjectTypeNames().includes(type)) {
       // outputFilter is the canonical "safe to expose" view: for destinations and
       // services it replaces secret-marked fields with MASKED_SECRET; for streams

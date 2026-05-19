@@ -1,22 +1,29 @@
 package main
 
 import (
-	"cloud.google.com/go/firestore"
 	"context"
 	"encoding/json"
-	"firebase.google.com/go/v4/auth"
 	"fmt"
+	"time"
+
+	"cloud.google.com/go/firestore"
+	"firebase.google.com/go/v4/auth"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"google.golang.org/genproto/googleapis/type/latlng"
-	"time"
 
 	"firebase.google.com/go/v4"
 	"github.com/jitsucom/bulker/airbytecdk"
 )
 
 const Layout = "2006-01-02T15:04:05.000000Z"
-const batchSize = 10000
+
+// Per-query page size for collection scans. Firestore enforces a server-side
+// gRPC deadline (~60s) on Documents() queries; on large collections, scanning
+// 10k docs per query reliably hit "Query timed out" / Unavailable. 500 is a
+// safer middle ground — still amortizes the per-RPC overhead but completes
+// well within the deadline even for collections with millions of docs.
+const batchSize = 500
 
 type FirebaseSource struct {
 }
@@ -280,12 +287,21 @@ func loadCollection(ctx context.Context, stream airbyte.Stream, firestoreClient 
 		return fmt.Errorf("collection [%s] doesn't exist in Firestore", stream.Name)
 	}
 
-	//firebase doesn't respect big requests
-	iter := collection.Limit(batchSize).Documents(ctx)
-	batchesCount := 0
+	// Paginate by document ID. Order from the first batch on so the cursor is
+	// stable across batches — without OrderBy on batch 1 the result order is
+	// unspecified and StartAfter would skip / re-read documents.
+	var lastDoc *firestore.DocumentSnapshot
 	for {
+		q := collection.OrderBy(firestore.DocumentID, firestore.Asc).Limit(batchSize)
+		if lastDoc != nil {
+			// Pass the snapshot (canonical form for __name__ cursors) rather
+			// than the bare document ID string.
+			q = q.StartAfter(lastDoc)
+		}
+
 		loaded := 0
-		var lastDoc *firestore.DocumentSnapshot
+		var newLastDoc *firestore.DocumentSnapshot
+		iter := q.Documents(ctx)
 		for {
 			doc, err := iter.Next()
 			if err == iterator.Done {
@@ -294,29 +310,9 @@ func loadCollection(ctx context.Context, stream airbyte.Stream, firestoreClient 
 			if err != nil {
 				return err
 			}
-			lastDoc = doc
+			newLastDoc = doc
 			loaded++
 
-			////dive
-			//if len(paths) > 0 {
-			//	subCollectionName := paths[0]
-			//	subCollection := doc.Ref.Collection(subCollectionName)
-			//	if subCollection == nil {
-			//		continue
-			//	}
-			//
-			//	//get parent ID
-			//	parentIDs = maputils.CopyMap(parentIDs)
-			//	parentIDs[idFieldName] = doc.Ref.ID
-			//
-			//	subCollectionIDField := idFieldName + "_" + subCollectionName
-			//
-			//	err := f.diveAndFetch(subCollection, parentIDs, subCollectionIDField, paths[1:], objectsLoader, result, false)
-			//	if err != nil {
-			//		return err
-			//	}
-			//} else {
-			//fetch
 			data := doc.Data()
 			if data == nil {
 				continue
@@ -342,15 +338,11 @@ func loadCollection(ctx context.Context, stream airbyte.Stream, firestoreClient 
 			if err != nil {
 				return err
 			}
-
-			//}
 		}
-		batchesCount++
-		if loaded == batchSize {
-			iter = collection.OrderBy(firestore.DocumentID, firestore.Asc).StartAfter(lastDoc.Ref.ID).Limit(batchSize).Documents(ctx)
-		} else {
+		if loaded < batchSize {
 			break
 		}
+		lastDoc = newLastDoc
 	}
 	return nil
 }

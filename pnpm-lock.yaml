@@ -791,9 +791,6 @@ importers:
       '@fontsource/roboto-mono':
         specifier: ^4.5.8
         version: 4.5.10
-      '@google-cloud/scheduler':
-        specifier: ^4.0.0
-        version: 4.3.0(encoding@0.1.13)
       '@jitsu-internal/webapps-shared':
         specifier: workspace:*
         version: link:../shared
@@ -835,7 +832,7 @@ importers:
         version: 2.0.6(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@rjsf/antd':
         specifier: ^5.22.4
-        version: 5.24.13(@ant-design/icons@5.6.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@rjsf/core@5.24.13(@rjsf/utils@5.24.13(react@18.3.1))(react@18.3.1))(@rjsf/utils@5.24.13(react@18.3.1))(antd@6.3.5(date-fns@2.30.0)(moment@2.30.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(dayjs@1.11.20)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        version: 5.24.13(@ant-design/icons@5.6.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@rjsf/core@5.24.13(@rjsf/utils@5.24.13(react@18.3.1))(react@18.3.1))(@rjsf/utils@5.24.13(react@18.3.1))(antd@6.3.5(date-fns@2.30.0)(luxon@3.7.2)(moment@2.30.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(dayjs@1.11.20)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@rjsf/core':
         specifier: ^5.22.4
         version: 5.24.13(@rjsf/utils@5.24.13(react@18.3.1))(react@18.3.1)
@@ -872,6 +869,9 @@ importers:
       cookie:
         specifier: 1.0.1
         version: 1.0.1
+      cron-parser:
+        specifier: ^5.5.0
+        version: 5.5.0
       cuid:
         specifier: ^2.1.8
         version: 2.1.8
@@ -1046,7 +1046,7 @@ importers:
         version: 0.7.2
       antd:
         specifier: ^6.2.1
-        version: 6.3.5(date-fns@2.30.0)(moment@2.30.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        version: 6.3.5(date-fns@2.30.0)(luxon@3.7.2)(moment@2.30.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       autoprefixer:
         specifier: ^10.4.20
         version: 10.4.27(postcss@8.5.10)
@@ -2439,10 +2439,6 @@ packages:
   '@google-cloud/promisify@4.0.0':
     resolution: {integrity: sha512-Orxzlfb9c67A15cq2JQEyVc7wEsmFBmHjZWZYQMUyJ1qivXyMwdyNOs9odi79hze+2zqdTtu1E19IM/FtqZ10g==}
     engines: {node: '>=14'}
-
-  '@google-cloud/scheduler@4.3.0':
-    resolution: {integrity: sha512-3VeVu/YVkJ0NIC0zDRucmY6o4wm7ii5TGHJLKtJUz4osm8f143uJ/FDSJz1vXMAg6GseZ/yzLvBQ5r/Sb+U2Ow==}
-    engines: {node: '>=14.0.0'}
 
   '@google-cloud/storage@7.19.0':
     resolution: {integrity: sha512-n2FjE7NAOYyshogdc7KQOl/VZb4sneqPjWouSyia9CMDdMhRX5+RIbqalNmC7LOLzuLAN89VlF2HvG8na9G+zQ==}
@@ -5328,6 +5324,10 @@ packages:
   create-require@1.1.1:
     resolution: {integrity: sha512-dcKFX3jn0MpIaXjisoRvexIJVEKzaq7z2rZKxf+MSr9TkdmHmsU4m2lcLojrj/FHl8mk5VxMmYA+ftRkP/3oKQ==}
 
+  cron-parser@5.5.0:
+    resolution: {integrity: sha512-oML4lKUXxizYswqmxuOCpgFS8BNUJpIu6k/2HVHyaL8Ynnf3wdf9tkns0yRdJLSIjkJ+b0DXHMZEHGpMwjnPww==}
+    engines: {node: '>=18'}
+
   cross-fetch@3.2.0:
     resolution: {integrity: sha512-Q+xVJLoGOeIMXZmbUK4HYk+69cQH6LudR0Vu/pRm2YlU/hDV9CiS0gKUMaWY5f2NeUH9C1nV3bsTlCo0FsTV1Q==}
 
@@ -7479,6 +7479,10 @@ packages:
     resolution: {integrity: sha512-SZ//hQmvi+kDKrNepArVkYK7/jfeZ5uFNEnYmd45RKZcbGD78KLnrcNXmgeg6m+xNHFvTG+CblszXCy4n6DN4w==}
     peerDependencies:
       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0-rc
+
+  luxon@3.7.2:
+    resolution: {integrity: sha512-vtEhXh/gNjI9Yg1u4jX/0YVPMvxzHuGgCm6tC5kZyb08yjGWGnqAjGJvcXbqQR2P3MyMEFnRbpcdFS6PBcLqew==}
+    engines: {node: '>=12'}
 
   lz-string@1.5.0:
     resolution: {integrity: sha512-h5bgJWpxJNswbU7qCrV0tIKQCaS3blPDrqKWx+QxzuzL1zGUzij9XCWLrSLsJPu5t+eWA/ycetzYAO5IOMcWAQ==}
@@ -11866,13 +11870,6 @@ snapshots:
   '@google-cloud/promisify@4.0.0':
     optional: true
 
-  '@google-cloud/scheduler@4.3.0(encoding@0.1.13)':
-    dependencies:
-      google-gax: 4.4.1(encoding@0.1.13)
-    transitivePeerDependencies:
-      - encoding
-      - supports-color
-
   '@google-cloud/storage@7.19.0(encoding@0.1.13)':
     dependencies:
       '@google-cloud/paginator': 5.0.2
@@ -12675,7 +12672,7 @@ snapshots:
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
 
-  '@rc-component/picker@1.9.1(date-fns@2.30.0)(dayjs@1.11.20)(moment@2.30.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@rc-component/picker@1.9.1(date-fns@2.30.0)(dayjs@1.11.20)(luxon@3.7.2)(moment@2.30.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
       '@rc-component/overflow': 1.0.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@rc-component/resize-observer': 1.1.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -12687,6 +12684,7 @@ snapshots:
     optionalDependencies:
       date-fns: 2.30.0
       dayjs: 1.11.20
+      luxon: 3.7.2
       moment: 2.30.1
 
   '@rc-component/portal@2.2.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
@@ -13006,12 +13004,12 @@ snapshots:
     dependencies:
       react: 18.3.1
 
-  '@rjsf/antd@5.24.13(@ant-design/icons@5.6.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@rjsf/core@5.24.13(@rjsf/utils@5.24.13(react@18.3.1))(react@18.3.1))(@rjsf/utils@5.24.13(react@18.3.1))(antd@6.3.5(date-fns@2.30.0)(moment@2.30.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(dayjs@1.11.20)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@rjsf/antd@5.24.13(@ant-design/icons@5.6.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@rjsf/core@5.24.13(@rjsf/utils@5.24.13(react@18.3.1))(react@18.3.1))(@rjsf/utils@5.24.13(react@18.3.1))(antd@6.3.5(date-fns@2.30.0)(luxon@3.7.2)(moment@2.30.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(dayjs@1.11.20)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
       '@ant-design/icons': 5.6.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@rjsf/core': 5.24.13(@rjsf/utils@5.24.13(react@18.3.1))(react@18.3.1)
       '@rjsf/utils': 5.24.13(react@18.3.1)
-      antd: 6.3.5(date-fns@2.30.0)(moment@2.30.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      antd: 6.3.5(date-fns@2.30.0)(luxon@3.7.2)(moment@2.30.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       classnames: 2.5.1
       dayjs: 1.11.20
       lodash: 4.18.1
@@ -14481,7 +14479,7 @@ snapshots:
     dependencies:
       entities: 2.2.0
 
-  antd@6.3.5(date-fns@2.30.0)(moment@2.30.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
+  antd@6.3.5(date-fns@2.30.0)(luxon@3.7.2)(moment@2.30.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
     dependencies:
       '@ant-design/colors': 8.0.1
       '@ant-design/cssinjs': 2.1.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -14507,7 +14505,7 @@ snapshots:
       '@rc-component/mutate-observer': 2.0.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@rc-component/notification': 1.2.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@rc-component/pagination': 1.2.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@rc-component/picker': 1.9.1(date-fns@2.30.0)(dayjs@1.11.20)(moment@2.30.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@rc-component/picker': 1.9.1(date-fns@2.30.0)(dayjs@1.11.20)(luxon@3.7.2)(moment@2.30.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@rc-component/progress': 1.0.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@rc-component/qrcode': 1.1.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@rc-component/rate': 1.0.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -15342,6 +15340,10 @@ snapshots:
 
   create-require@1.1.1:
     optional: true
+
+  cron-parser@5.5.0:
+    dependencies:
+      luxon: 3.7.2
 
   cross-fetch@3.2.0(encoding@0.1.13):
     dependencies:
@@ -18327,6 +18329,8 @@ snapshots:
   lucide-react@0.447.0(react@18.3.1):
     dependencies:
       react: 18.3.1
+
+  luxon@3.7.2: {}
 
   lz-string@1.5.0: {}
 

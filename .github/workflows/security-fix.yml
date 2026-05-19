@@ -52,10 +52,10 @@ jobs:
         with:
           node-version: 22
 
+      # No `version:` — pnpm/action-setup reads `packageManager` from
+      # package.json (pnpm@10.22.0). Specifying both conflicts and fails the step.
       - name: 🔧 Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 10
 
       - name: 🔧 Setup Go
         uses: actions/setup-go@v6

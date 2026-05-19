@@ -2,6 +2,7 @@
   "name": "root",
   "version": "0.0.0",
   "private": false,
+  "license": "MIT",
   "packageManager": "pnpm@10.22.0",
   "scripts": {
     "codegen": "pnpm --filter @jitsu-internal/console prisma generate",

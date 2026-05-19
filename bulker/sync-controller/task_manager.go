@@ -2,6 +2,9 @@ package main
 
 import (
 	"fmt"
+	"strings"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jitsucom/bulker/jitsubase/appbase"
@@ -9,8 +12,6 @@ import (
 	"github.com/jitsucom/bulker/jitsubase/safego"
 	"github.com/jitsucom/bulker/jitsubase/utils"
 	"github.com/jitsucom/bulker/sync-sidecar/db"
-	"strings"
-	"time"
 
 	"net/http"
 )
@@ -115,10 +116,35 @@ func (t *TaskManager) CancelHandler(c *gin.Context) {
 }
 
 func (t *TaskManager) ReadHandler(c *gin.Context) {
+	syncID := c.Query("syncId")
+	taskID := c.Query("taskId")
+	pkg := c.Query("package")
+	t.Infof("ReadHandler: syncId=%s taskId=%s package=%s fullSync=%s nodelay=%s startedBy=%s",
+		syncID, taskID, pkg, c.Query("fullSync"), c.Query("nodelay"), c.Query("startedBy"))
+
+	// Admission gate: fail-fast if a Lease is currently held for this sync —
+	// either a cron-spawned Pod is running, or another manual run hasn't
+	// released its lease yet. Avoids spawning a second Pod that would
+	// promptly self-exit at the lease-acquire init container anyway.
+	if held, err := IsSyncLeaseHeld(t.jobRunner.clientset, t.config.KubernetesNamespace, syncID); err != nil {
+		// Fail open: don't block on a transient k8s API error. The Pod's
+		// own lease-acquire init still enforces the invariant.
+		t.Warnf("admission lease check failed for sync %s: %v (allowing run)", syncID, err)
+	} else if held {
+		t.Infof("ReadHandler: rejecting syncId=%s taskId=%s — lease already held", syncID, taskID)
+		c.JSON(http.StatusConflict, gin.H{
+			"ok":     false,
+			"error":  "sync is already running (lease held)",
+			"syncId": syncID,
+		})
+		return
+	}
+
 	taskConfig := TaskConfiguration{}
 	err := jsonorder.NewDecoder(c.Request.Body).Decode(&taskConfig)
 	defer c.Request.Body.Close()
 	if err != nil {
+		t.Warnf("ReadHandler: bad body for syncId=%s taskId=%s: %v", syncID, taskID, err)
 		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": err.Error()})
 		return
 	}
@@ -127,10 +153,10 @@ func (t *TaskManager) ReadHandler(c *gin.Context) {
 	}
 	taskDescriptor := TaskDescriptor{
 		TaskType:        "read",
-		Package:         c.Query("package"),
+		Package:         pkg,
 		PackageVersion:  c.Query("version"),
-		SyncID:          c.Query("syncId"),
-		TaskID:          c.Query("taskId"),
+		SyncID:          syncID,
+		TaskID:          taskID,
 		Namespace:       c.Query("namespace"),
 		TableNamePrefix: c.Query("tableNamePrefix"),
 		ToSameCase:      c.Query("toSameCase"),
@@ -145,9 +171,12 @@ func (t *TaskManager) ReadHandler(c *gin.Context) {
 
 	taskStatus := t.jobRunner.CreateJob(taskDescriptor, &taskConfig)
 	if taskStatus.Status == StatusCreateFailed {
+		t.Errorf("ReadHandler: CreateJob failed for syncId=%s taskId=%s: %s", syncID, taskID, taskStatus.Error)
 		c.JSON(http.StatusOK, gin.H{"ok": false, "error": taskStatus.Error})
 		return
 	}
+	t.Infof("ReadHandler: created pod for syncId=%s taskId=%s status=%s pod=%s",
+		syncID, taskID, taskStatus.Status, taskStatus.PodName)
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
@@ -254,7 +283,7 @@ func (t *TaskManager) listenTaskStatus() {
 					err = db.UpsertRunningTask(t.dbpool, st.SyncID, st.TaskID, st.Package, st.PackageVersion, st.StartedAtTime(), "FAILED", strings.Join([]string{string(st.Status), st.Error}, ": "), st.StartedBy)
 				case StatusCreated:
 					err = db.UpsertRunningTask(t.dbpool, st.SyncID, st.TaskID, st.Package, st.PackageVersion, st.StartedAtTime(), "RUNNING", "", st.StartedBy)
-				case StatusRunning:
+				case StatusRunning, StatusPending:
 					if len(st.Metrics) > 0 {
 						err = db.UpdateRunningTaskMetrics(t.dbpool, st.TaskID, st.Metrics)
 					} else {

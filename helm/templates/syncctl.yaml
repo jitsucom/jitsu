@@ -64,6 +64,16 @@ spec:
           env:
             - name: HTTP_PORT
               value: "3043"
+            # Sync Pods (CronJob + ad-hoc job_runner) run as `sync-pod`, a
+            # least-privilege SA bound only to coordination.k8s.io/leases.
+            # Separating it from syncctl's own SA keeps the pod-side blast
+            # radius tiny (no pod create/delete, no Secret read, no log access).
+            - name: PODS_SERVICE_ACCOUNT
+              value: sync-pod
+            - name: KUBERNETES_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
             {{- include "jitsu-dev.commonEnv" . | nindent 12 }}
             {{- include "jitsu-dev.serviceUrls" . | nindent 12 }}
             {{- range $key, $value := .Values.env.syncctl }}
@@ -138,11 +148,22 @@ rules:
   - apiGroups: [""]
     resources: ["pods", "services", "configmaps", "secrets"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # JobRunner.getPodLogs (bulker/sync-controller/job_runner.go) tails source +
+  # sidecar logs to surface them on sync failure.
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+  # JobRunner.getPodResUsage (bulker/sync-controller/job_runner.go) execs
+  # `cat /sys/fs/cgroup/...` inside the running source container to sample
+  # CPU/memory usage. Requires create on pods/exec.
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create"]
   - apiGroups: ["apps"]
     resources: ["deployments", "statefulsets"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   - apiGroups: ["batch"]
-    resources: ["jobs"]
+    resources: ["jobs", "cronjobs"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -158,5 +179,43 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: syncctl
+    namespace: {{ .Release.Namespace }}
+---
+# `sync-pod` is the dedicated SA used by sync runtime pods (CronJob fires +
+# ad-hoc job_runner pods). It only needs coordination.k8s.io/leases — the
+# sidecar uses one Lease per syncID as a cross-pod mutex (see
+# bulker/sync-sidecar/lease.go). Namespace-scoped Role: the lease lives in
+# syncctl's own namespace.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sync-pod
+  labels:
+    {{- include "jitsu-dev.labels" . | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Release.Name }}-sync-pod
+  labels:
+    {{- include "jitsu-dev.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "create", "update", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .Release.Name }}-sync-pod
+  labels:
+    {{- include "jitsu-dev.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ .Release.Name }}-sync-pod
+subjects:
+  - kind: ServiceAccount
+    name: sync-pod
     namespace: {{ .Release.Namespace }}
 {{- end }}
