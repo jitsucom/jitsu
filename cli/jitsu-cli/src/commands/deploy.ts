@@ -257,8 +257,7 @@ async function deployFunction(
   let existingFunctionId: string | undefined;
   if (meta.slug) {
     existingFunctionId =
-      existingFunctions.bySlug.get(meta.slug)?.id ??
-      (meta.id ? existingFunctions.byId.get(meta.id)?.id : undefined);
+      existingFunctions.bySlug.get(meta.slug)?.id ?? (meta.id ? existingFunctions.byId.get(meta.id)?.id : undefined);
   }
   let functionPayload = {};
   if (kind === "profile") {
