@@ -1,9 +1,7 @@
-import { CloudSchedulerClient } from "@google-cloud/scheduler";
 import { db } from "./db";
 import { ConfigurationObject, ConfigurationObjectLink } from "@prisma/client";
-import { hash as juavaHash, LogFactory, randomId, requireDefined, rpc, stopwatch } from "juava";
-import { google } from "@google-cloud/scheduler/build/protos/protos";
-import { difference } from "lodash";
+import { CronExpressionParser } from "cron-parser";
+import { hash as juavaHash, LogFactory, randomId, requireDefined, rpc } from "juava";
 import { getServerLog } from "./log";
 import { getAppEndpoint } from "../domains";
 import { NextApiRequest } from "next";
@@ -17,17 +15,12 @@ import { FunctionLogger, SetOpts, Store, SyncFunction } from "@jitsu/protocols/f
 import { mixpanelFacebookAdsSync, mixpanelGoogleAdsSync } from "./syncs/mixpanel";
 import hash from "stable-hash";
 import { clickhouse } from "./clickhouse";
-import { SyncDbModel } from "../../pages/api/[workspaceId]/config/link";
-import IJob = google.cloud.scheduler.v1.IJob;
 import { initStream } from "../sources";
 import { getServerEnv } from "./serverEnv";
 
 const serverEnv = getServerEnv();
 
 const log = getServerLog("sync-scheduler");
-
-const googleSchedulerLocation = serverEnv.GOOGLE_SCHEDULER_LOCATION || "us-central1";
-const googleScheduler = createGoogleSchedulerClient();
 
 export type ScheduleSyncError = { ok: false; error: string; [key: string]: any };
 export type ScheduleSyncSuccess = { ok: true; taskId: string; [key: string]: any };
@@ -489,9 +482,17 @@ export async function scheduleSync({
     authHeaders["Authorization"] = `Bearer ${syncAuthKey}`;
   }
   try {
+    log
+      .atInfo()
+      .log(
+        `scheduleSync entry: syncId=${
+          typeof syncIdOrModel === "string" ? syncIdOrModel : (syncIdOrModel as any)?.id
+        } workspaceId=${workspaceId} trigger=${trigger} taskId=${taskId} skipRefresh=${!!skipRefresh} fullSync=${!!fullSync} ignoreRunning=${!!ignoreRunning} nodelay=${!!nodelay}`
+      );
     const appBase = getAppEndpoint(req).baseUrl;
     const sync = typeof syncIdOrModel === "string" ? await getSyncById(syncIdOrModel, workspaceId) : syncIdOrModel;
     if (!sync) {
+      log.atWarn().log(`scheduleSync: sync ${syncIdOrModel} not found (workspace ${workspaceId})`);
       return {
         ok: false,
         error: `Sync ${syncIdOrModel} not found`,
@@ -499,6 +500,7 @@ export async function scheduleSync({
     }
     const service = sync.from;
     if (!service) {
+      log.atWarn().log(`scheduleSync: sync ${sync.id} has no service (from); aborting`);
       return {
         ok: false,
         error: `Service ${sync.from} not found`,
@@ -628,6 +630,11 @@ export async function scheduleSync({
 
     const catalog = await catalogFromDb(serviceConfig.package, serviceConfig.version, versionHash);
     if (!catalog) {
+      log
+        .atWarn()
+        .log(
+          `scheduleSync: source_catalog miss for sync=${sync.id} package=${serviceConfig.package}@${serviceConfig.version} versionHash=${versionHash} — discover did not persist a catalog row matching this key`
+        );
       return {
         ok: false,
         error: `Source catalog not found or outdated. Please run Refresh Catalog in Sync settings`,
@@ -644,6 +651,13 @@ export async function scheduleSync({
     }
     let res: any;
     const schemaChanges = (sync.data as any).schemaChanges;
+    log
+      .atInfo()
+      .log(
+        `scheduleSync dispatch: sync=${sync.id} task=${taskId} branch=${
+          !skipRefresh && (schemaChanges === "fields" || schemaChanges === "streams") ? "discover" : "read"
+        } schemaChanges=${schemaChanges ?? "-"} skipRefresh=${!!skipRefresh}`
+      );
     if (!skipRefresh && (schemaChanges === "fields" || schemaChanges === "streams")) {
       res = await rpc(syncURL + "/discover", {
         method: "POST",
@@ -698,6 +712,13 @@ export async function scheduleSync({
       });
     }
     if (!res.ok) {
+      log
+        .atWarn()
+        .log(
+          `scheduleSync: syncctl RPC returned not-ok for sync=${sync.id} task=${taskId}: ${
+            res.error ?? "unknown error"
+          }`
+        );
       return { ok: false, error: res.error ?? "unknown error", taskId };
     } else {
       if (trigger === "manual") {
@@ -772,293 +793,45 @@ async function loadState(sync: SyncDatabaseModel): Promise<any> {
   return undefined;
 }
 
-export async function updateScheduler(baseUrl: string, sync: SyncDbModel) {
-  if (!googleScheduler) {
-    return;
+/**
+ * Validate sync.data.schedule (5-field cron expression) and sync.data.timezone
+ * (IANA tz name) before persisting a sync. Throws an Error with a user-facing
+ * message on invalid input.
+ *
+ * Used by the link.ts POST/PUT handler. Previously the GCS scheduler API
+ * implicitly rejected invalid schedules at write time; with the move to
+ * syncctl-managed CronJobs, k8s rejects them later (in syncctl reconcile
+ * logs) with no API feedback to the user. This restores the synchronous
+ * write-time check.
+ *
+ * Empty/missing schedule means "manual-only sync" — not an error.
+ */
+export function validateSyncSchedule(data: { schedule?: string; timezone?: string } | undefined | null): void {
+  if (!data) return;
+  const schedule = data.schedule?.trim();
+  if (!schedule) return; // manual-only sync, no schedule to validate
+
+  // Reject the legacy "Disabled" sentinel that older UI code may still emit
+  // as the value "" — already handled above. Also reject obvious junk early
+  // before letting cron-parser produce a less-clear error.
+  if (schedule.startsWith("@")) {
+    // cron-parser supports @yearly/@monthly/@weekly/@daily/@hourly etc.;
+    // pass through to the parser. k8s CronJob spec ALSO accepts these per
+    // batch/v1 cron schedule format.
   }
-  const sw = stopwatch();
-  const parent = googleScheduler.locationPath(await googleScheduler.getProjectId(), googleSchedulerLocation);
-  const job: IJob = {
-    name: googleScheduler.jobPath(await googleScheduler.getProjectId(), googleSchedulerLocation, sync.id),
-    schedule: sync.data?.schedule,
-    timeZone: sync.data?.timezone ?? "Etc/UTC",
-    httpTarget: {
-      uri: `${baseUrl}/api/${sync.workspaceId}/sources/run?syncId=${sync.id}`,
-      headers: {
-        Authorization: `Bearer ${serverEnv.SYNCCTL_AUTH_KEY}`,
-      },
-      httpMethod: "GET",
-    },
-  };
-  log.atInfo().log(`Updating job ${job.name}`);
+
+  const tz = data.timezone?.trim() || "Etc/UTC";
+  // Validate IANA tz name first so the error message is targeted; cron-parser
+  // would otherwise just throw "Invalid timezone" without saying which one.
   try {
-    await googleScheduler.updateJob({ job });
-    log.atInfo().log("Update scheduler took", sw.elapsedPretty());
-  } catch (e: any) {
-    if (e.message.includes("NOT_FOUND") || e.message.includes("INVALID_ARGUMENT:")) {
-      log.atInfo().log(`Creating job ${job.name}`);
-      await googleScheduler.createJob({ job, parent });
-      log.atInfo().log("Create scheduler took", sw.elapsedPretty());
-    } else {
-      log.atError().log(`Error updating job ${job.name}`, e);
-      throw new Error(`Error updating scheduler`, { cause: e });
-    }
+    new Intl.DateTimeFormat("en-US", { timeZone: tz });
+  } catch {
+    throw new Error(`Invalid timezone "${tz}". Use an IANA tz name like "America/New_York" or "Etc/UTC".`);
   }
-}
 
-export async function createScheduler(baseUrl: string, sync: SyncDbModel) {
-  if (!googleScheduler) {
-    return;
-  }
-  const sw = stopwatch();
-  const parent = googleScheduler.locationPath(await googleScheduler.getProjectId(), googleSchedulerLocation);
-  const job: IJob = {
-    name: googleScheduler.jobPath(await googleScheduler.getProjectId(), googleSchedulerLocation, sync.id),
-    schedule: sync.data?.schedule,
-    timeZone: sync.data?.timezone ?? "Etc/UTC",
-    httpTarget: {
-      uri: `${baseUrl}/api/${sync.workspaceId}/sources/run?syncId=${sync.id}`,
-      headers: {
-        Authorization: `Bearer ${serverEnv.SYNCCTL_AUTH_KEY}`,
-      },
-      httpMethod: "GET",
-    },
-  };
-  log.atInfo().log(`Creating job ${job.name}`);
   try {
-    await googleScheduler.createJob({ job, parent });
-    log.atInfo().log("Create scheduler took", sw.elapsedPretty());
+    CronExpressionParser.parse(schedule, { tz });
   } catch (e: any) {
-    if (e.message.includes("ALREADY_EXISTS")) {
-      log.atInfo().log(`Updating job ${job.name}`);
-      await googleScheduler.updateJob({ job });
-      log.atInfo().log("Updating scheduler took", sw.elapsedPretty());
-    } else {
-      log.atError().log(`Error creating job ${job.name}`, e);
-      throw new Error(`Error creating scheduler`, { cause: e });
-    }
+    throw new Error(`Invalid cron schedule "${schedule}": ${e?.message || e}`);
   }
 }
-
-export async function deleteScheduler(syncId: string) {
-  if (!googleScheduler) {
-    return;
-  }
-  const sw = stopwatch();
-
-  const jobName = googleScheduler.jobPath(await googleScheduler.getProjectId(), googleSchedulerLocation, syncId);
-  log.atInfo().log(`Deleting job ${jobName}`);
-  try {
-    await googleScheduler.deleteJob({ name: jobName });
-    log.atInfo().log("Delete scheduler took", sw.elapsedPretty());
-  } catch (e: any) {
-    if (!e.message.includes("NOT_FOUND")) {
-      log.atError().log(`Error deleting job ${jobName}`, e);
-      throw new Error(`Error deleting scheduler`, { cause: e });
-    }
-  }
-}
-
-export async function syncWithScheduler(baseUrl: string) {
-  const sw = stopwatch();
-  if (!googleScheduler) {
-    log.atInfo().log(`GoogleCloudScheduler sync: GOOGLE_SCHEDULER_KEY is not defined, skipping`);
-    return;
-  }
-  const gsParent = googleScheduler.locationPath(await googleScheduler.getProjectId(), googleSchedulerLocation);
-
-  const allSyncs = await db.prisma().configurationObjectLink.findMany({
-    where: {
-      type: "sync",
-      deleted: false,
-      workspace: { deleted: false },
-      from: { deleted: false },
-      to: { deleted: false },
-    },
-  });
-  const syncs = allSyncs.filter(sync => !!(sync.data as any).schedule);
-  const syncsById = syncs.reduce((acc, sync) => {
-    acc[sync.id] = sync;
-    return acc;
-  }, {} as Record<string, any>);
-
-  const iterable = googleScheduler.listJobsAsync({
-    parent: gsParent,
-  });
-  const jobsById: Record<string, IJob> = {};
-  for await (const response of iterable) {
-    jobsById[(response.name ?? "").replace(`${gsParent}/jobs/`, "")] = response;
-  }
-
-  const syncsIds = Object.keys(syncsById);
-  const jobsIds = Object.keys(jobsById);
-  const idsToCreate = difference(syncsIds, jobsIds);
-  const idsToDelete = difference(jobsIds, syncsIds);
-  const idsToUpdate = difference(syncsIds, idsToCreate);
-  log
-    .atInfo()
-    .log(
-      `GoogleCloudScheduler sync: ${idsToCreate.length} to create, ${idsToDelete.length} to delete, ${idsToUpdate.length} to update`
-    );
-  for (const id of idsToCreate) {
-    const sync = syncsById[id];
-    const schedule = (sync.data as any).schedule;
-    const job: IJob = {
-      name: `${gsParent}/jobs/${id}`,
-      schedule: schedule,
-      timeZone: (sync.data as any).timezone ?? "Etc/UTC",
-      httpTarget: {
-        uri: `${baseUrl}/api/${sync.workspaceId}/sources/run?syncId=${sync.id}`,
-        headers: {
-          Authorization: `Bearer ${serverEnv.SYNCCTL_AUTH_KEY}`,
-        },
-        httpMethod: "GET",
-      },
-    };
-    log.atInfo().log(`Creating job ${job.name}`);
-    try {
-      await googleScheduler.createJob({
-        parent: gsParent,
-        job: job,
-      });
-    } catch (e: any) {
-      log.atError().log(`Error creating job ${job.name}`, e);
-      if (e.message.includes("ALREADY_EXISTS")) {
-        await googleScheduler.updateJob({
-          job,
-        });
-      } else {
-        throw e;
-      }
-    }
-  }
-  for (const id of idsToDelete) {
-    const job = jobsById[id];
-    log.atInfo().log(`Deleting job ${job.name}`);
-    try {
-      await googleScheduler.deleteJob({
-        name: job.name ?? "",
-      });
-    } catch (e: any) {
-      log.atError().log(`Error deleting job ${job.name}`, e);
-      if (!e.message.includes("NOT_FOUND")) {
-        throw e;
-      }
-    }
-  }
-  for (const id of idsToUpdate) {
-    const sync = syncsById[id];
-    const schedule = (sync.data as any).schedule;
-    const job = jobsById[id];
-    const syncTimezone = (sync.data as any).timezone ?? "Etc/UTC";
-    if (job.schedule !== schedule || job.timeZone !== syncTimezone) {
-      log.atInfo().log(`Updating job ${job.name}`);
-      await googleScheduler.updateJob({
-        job: {
-          ...job,
-          schedule: schedule,
-          timeZone: syncTimezone,
-        },
-      });
-    }
-  }
-  getServerLog().atInfo().log("Sync with GoogleCloudScheduler took", sw.elapsedPretty());
-}
-
-function createGoogleSchedulerClient(): CloudSchedulerClient | undefined {
-  const googleSchedulerKeyJson = serverEnv.GOOGLE_SCHEDULER_KEY;
-  if (!googleSchedulerKeyJson) {
-    log.atWarn().log(`GoogleCloudScheduler sync: GOOGLE_SCHEDULER_KEY is not defined. Sync scheduler is disabled`);
-    return;
-  }
-  const googleSchedulerKey = JSON.parse(googleSchedulerKeyJson);
-  const googleSchedulerProjectId = googleSchedulerKey.project_id;
-
-  const client = new CloudSchedulerClient({
-    credentials: googleSchedulerKey,
-    projectId: googleSchedulerProjectId,
-  });
-  // client.getProjectId();
-  // client.locationPath();
-  return client;
-}
-
-// export async function syncWithK8SCronJob(baseUrl: string) {
-//   const sw = stopwatch();
-//   const allSyncs = await db.prisma().configurationObjectLink.findMany({
-//     where: { type: "sync", deleted: false },
-//   });
-//   const syncs = allSyncs.filter(sync => !!(sync.data as any).schedule);
-//   const syncsById = syncs.reduce((acc, sync) => {
-//     acc[sync.id] = sync;
-//     return acc;
-//   }, {} as Record<string, any>);
-//
-//   const client = new CloudSchedulerClient({
-//     credentials: googleSchedulerKey,
-//     projectId: googleSchedulerProjectId,
-//   });
-//   const iterable = client.listJobsAsync({
-//     parent: googleSchedulerParent,
-//   });
-//   const jobsById: Record<string, IJob> = {};
-//   for await (const response of iterable) {
-//     jobsById[(response.name ?? "").replace(`${googleSchedulerParent}/jobs/`, "")] = response;
-//   }
-//
-//   const syncsIds = Object.keys(syncsById);
-//   const jobsIds = Object.keys(jobsById);
-//   const idsToCreate = difference(syncsIds, jobsIds);
-//   const idsToDelete = difference(jobsIds, syncsIds);
-//   const idsToUpdate = difference(syncsIds, idsToCreate);
-//   log
-//     .atInfo()
-//     .log(
-//       `GoogleCloudScheduler sync: ${idsToCreate.length} to create, ${idsToDelete.length} to delete, ${idsToUpdate.length} to update`
-//     );
-//   for (const id of idsToCreate) {
-//     const sync = syncsById[id];
-//     const schedule = (sync.data as any).schedule;
-//     const job: IJob = {
-//       name: `${googleSchedulerParent}/jobs/${id}`,
-//       schedule: schedule,
-//       timeZone: (sync.data as any).timezone ?? "Etc/UTC",
-//       httpTarget: {
-//         uri: `${baseUrl}/api/${sync.workspaceId}/sources/run?syncId=${sync.id}`,
-//         headers: {
-//           Authorization: `Bearer ${process.env.SYNCCTL_AUTH_KEY}`,
-//         },
-//         httpMethod: "GET",
-//       },
-//     };
-//     log.atInfo().log(`Creating job ${job.name}`);
-//     await client.createJob({
-//       parent: googleSchedulerParent,
-//       job: job,
-//     });
-//   }
-//   for (const id of idsToDelete) {
-//     const job = jobsById[id];
-//     log.atInfo().log(`Deleting job ${job.name}`);
-//     await client.deleteJob({
-//       name: job.name ?? "",
-//     });
-//   }
-//   for (const id of idsToUpdate) {
-//     const sync = syncsById[id];
-//     const schedule = (sync.data as any).schedule;
-//     const job = jobsById[id];
-//     const syncTimezone = (sync.data as any).timezone ?? "Etc/UTC";
-//     if (job.schedule !== schedule || job.timeZone !== syncTimezone) {
-//       log.atInfo().log(`Updating job ${job.name}`);
-//       await client.updateJob({
-//         job: {
-//           ...job,
-//           schedule: schedule,
-//           timeZone: syncTimezone,
-//         },
-//       });
-//     }
-//   }
-//   getServerLog().atInfo().log("Sync with GoogleCloudScheduler took", sw.elapsedPretty());
-// }

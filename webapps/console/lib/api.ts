@@ -341,6 +341,13 @@ export function nextJsApiHandler(api: Api): NextApiHandler {
           const rl = await getRateLimiter().check(rlOpts);
           setRateLimitHeaders(res, rl);
           if (!rl.allowed) {
+            log
+              .atWarn()
+              .log(
+                `rate limit exceeded: ${req.method} ${req.url} bucket=${rl.bucket} limit=${rl.limit} retryAfterSec=${
+                  rl.retryAfterSec
+                } user=${currentUser?.internalId ?? "anon"}`
+              );
             res.setHeader("Retry-After", String(rl.retryAfterSec));
             res.status(429).json({
               error: "rate_limit_exceeded",

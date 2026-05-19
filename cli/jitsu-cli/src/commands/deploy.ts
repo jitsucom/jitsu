@@ -143,6 +143,11 @@ async function deployFunctions(
     profileBuilders = ((await res.json()) as any).profileBuilders as any[];
   }
 
+  // Fetch the existing function list once for slug/id resolution. Previously
+  // every deployFunction() call refetched the whole list (with code blobs) —
+  // O(N) requests per deploy, each pulling all N rows from the console DB.
+  const existingFunctions = await fetchExistingFunctions({ host, apikey, workspaceId: workspace.id! });
+
   for (const file of selectedFiles) {
     console.log(
       `${b(`𝑓`)} Deploying function ${b(path.basename(file))} to workspace ${workspace.name} (${host}/${
@@ -156,9 +161,74 @@ async function deployFunctions(
       workspace,
       kind,
       path.resolve(functionsDir, file),
-      profileBuilders
+      profileBuilders,
+      existingFunctions
     );
   }
+}
+
+// Cache of functions already present in the workspace. byId and bySlug share
+// object identity so a single mutation visible from both. `slug` is tracked
+// per entry so we can detect (and reflect) renames on PUT.
+type ExistingFunction = { id: string; slug?: string };
+type ExistingFunctionsCache = {
+  bySlug: Map<string, ExistingFunction>;
+  byId: Map<string, ExistingFunction>;
+};
+
+async function fetchExistingFunctions({
+  host,
+  apikey,
+  workspaceId,
+}: {
+  host?: string;
+  apikey?: string;
+  workspaceId?: string;
+}): Promise<ExistingFunctionsCache> {
+  const res = await fetch(`${host}/api/${workspaceId}/config/function`, {
+    headers: { Authorization: `Bearer ${apikey}` },
+  });
+  if (!res.ok) {
+    console.error(red(`Cannot list existing functions:\n${b(await res.text())}`));
+    process.exit(1);
+  }
+  const { objects } = (await res.json()) as { objects: { id: string; slug?: string }[] };
+  const bySlug = new Map<string, ExistingFunction>();
+  const byId = new Map<string, ExistingFunction>();
+  for (const f of objects) {
+    const entry: ExistingFunction = { id: f.id, slug: f.slug };
+    byId.set(f.id, entry);
+    if (f.slug) bySlug.set(f.slug, entry);
+  }
+  return { bySlug, byId };
+}
+
+// Update the cache after a successful POST. Both maps must reflect the new
+// function so a later file with the same slug/id in this same deploy run
+// switches to PUT instead of trying a second POST.
+function cacheAfterCreate(cache: ExistingFunctionsCache, id: string, slug: string | undefined) {
+  const entry: ExistingFunction = { id, slug };
+  cache.byId.set(id, entry);
+  if (slug) cache.bySlug.set(slug, entry);
+}
+
+// Update the cache after a successful PUT. Preserves the previous re-fetch
+// semantics for slug renames: the old slug is no longer pointing at this id
+// on the server, so drop it from the slug index and install the new one.
+function cacheAfterUpdate(cache: ExistingFunctionsCache, id: string, newSlug: string | undefined) {
+  const entry = cache.byId.get(id);
+  if (!entry) {
+    // Function existed only on the server, not in our hoisted cache (shouldn't
+    // normally happen since the PUT branch only runs when we resolved an id).
+    // Insert defensively so later files in this run see it.
+    cacheAfterCreate(cache, id, newSlug);
+    return;
+  }
+  if (entry.slug && entry.slug !== newSlug) {
+    cache.bySlug.delete(entry.slug);
+  }
+  entry.slug = newSlug;
+  if (newSlug) cache.bySlug.set(newSlug, entry);
 }
 
 async function deployFunction(
@@ -168,7 +238,11 @@ async function deployFunction(
   workspace: Workspace,
   kind: "function" | "profile",
   file: string,
-  profileBuilders: any[] = []
+  profileBuilders: any[] = [],
+  existingFunctions: ExistingFunctionsCache = {
+    bySlug: new Map(),
+    byId: new Map(),
+  }
 ) {
   const code = readFileSync(file, "utf-8");
 
@@ -182,18 +256,8 @@ async function deployFunction(
   }
   let existingFunctionId: string | undefined;
   if (meta.slug) {
-    const res = await fetch(`${host}/api/${workspace.id}/config/function`, {
-      headers: {
-        Authorization: `Bearer ${apikey}`,
-      },
-    });
-    if (!res.ok) {
-      console.error(red(`Cannot add function to workspace:\n${b(await res.text())}`));
-      process.exit(1);
-    } else {
-      const existing = (await res.json()) as any;
-      existingFunctionId = existing.objects.find(f => f.slug === meta.slug || f.id === meta.id)?.id;
-    }
+    existingFunctionId =
+      existingFunctions.bySlug.get(meta.slug)?.id ?? (meta.id ? existingFunctions.byId.get(meta.id)?.id : undefined);
   }
   let functionPayload = {};
   if (kind === "profile") {
@@ -231,6 +295,11 @@ async function deployFunction(
       console.error(red(`Cannot add function to workspace:\n${b(await res.text())}`));
       process.exit(1);
     } else {
+      // Reflect the new function in the hoisted cache so a later file in
+      // this same deploy that targets the same slug switches to PUT instead
+      // of POSTing a duplicate. Matches the pre-hoist behavior where each
+      // file re-fetched the list.
+      cacheAfterCreate(existingFunctions, id, meta.slug);
       console.log(`Function ${b(meta.name)} was successfully added to workspace ${workspace.name} with id: ${b(id)}`);
     }
   } else {
@@ -256,6 +325,10 @@ async function deployFunction(
       console.error(red(`⚠ Cannot deploy function ${b(meta.slug)}(${id}):\n${b(await res.text())}`));
       process.exit(1);
     } else {
+      // Slug may have been renamed by this PUT — update the slug index so a
+      // later file deploying under the old slug (if any) creates a new
+      // function instead of clobbering this one.
+      cacheAfterUpdate(existingFunctions, id, meta.slug);
       console.log(`${green(`✓`)} ${b(meta.name)} deployed successfully!`);
     }
   }

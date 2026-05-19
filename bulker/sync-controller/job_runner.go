@@ -98,6 +98,13 @@ func (j *JobRunner) watchPodStatuses() {
 				}
 				taskStatus := TaskStatus{}
 				_ = mapstructure.Decode(pod.Annotations, &taskStatus)
+				// Cron-spawned pods (label app=sync-cron) carry the build-time
+				// known TaskDescriptor fields in annotations, but taskId is
+				// per-fire — derive from pod.Name (same value the cron pod
+				// gets injected as TASK_ID env via metadata.name fieldRef).
+				if taskStatus.TaskID == "" {
+					taskStatus.TaskID = pod.Name
+				}
 				if taskStatus.TaskType == "read" {
 					activeSyncs.Put(taskStatus.SyncID)
 				}
@@ -232,8 +239,6 @@ func accumulatePodStatus(status v1.PodStatus) string {
 		state := s.State
 		if state.Terminated != nil {
 			stb.WriteString(fmt.Sprintf("[%s] exit code %d message: %s. %s\n", s.Name, state.Terminated.ExitCode, state.Terminated.Reason, state.Terminated.Message))
-		} else if state.Waiting != nil {
-			stb.WriteString(fmt.Sprintf("[%s] waiting: %s. %s\n", s.Name, state.Waiting.Reason, state.Waiting.Message))
 		} else if state.Running != nil {
 			stb.WriteString(fmt.Sprintf("[%s] running\n", s.Name))
 		}
@@ -243,25 +248,46 @@ func accumulatePodStatus(status v1.PodStatus) string {
 
 func (j *JobRunner) accumulateErrorLogs(podName string, taskType string, status v1.PodStatus) (logs string, sourceFailed bool) {
 	stb := strings.Builder{}
-	//gather status from all containers
-	c := make([]v1.ContainerStatus, 0, len(status.ContainerStatuses)+len(status.InitContainerStatuses))
-	c = append(c, status.InitContainerStatuses...)
-	c = append(c, status.ContainerStatuses...)
-	for _, s := range c {
+	// Gather statuses from init + regular containers into a map keyed by
+	// container name. Names are unique within a pod, so there are no
+	// collisions.
+	statuses := make(map[string]v1.ContainerStatus, len(status.ContainerStatuses)+len(status.InitContainerStatuses))
+	for _, s := range status.InitContainerStatuses {
+		statuses[s.Name] = s
+	}
+	for _, s := range status.ContainerStatuses {
+		statuses[s.Name] = s
+	}
+	for _, s := range statuses {
 		state := s.State
 		if state.Terminated != nil && state.Terminated.ExitCode != 0 {
-			if s.Name == "source" {
-				if taskType == "read" {
-					// if read command fails for source container we expect that the sidecar will
-					// handle all error status reporting because some streams could be already synced
-					//so we don't mark source as failed here
-					continue
-				}
-			}
 			sourceFailed = true
-			logs := j.getPodLogs(podName, "source", true, 50)
-			if len(logs) > 0 {
-				stb.WriteString(logs)
+			if s.Name == "source" && taskType == "read" {
+				// Read-mode source failures are surfaced by the sidecar
+				// itself (it owns the stdout/stderr pipes and may have
+				// already streamed some streams successfully). Don't
+				// double-report here.
+				continue
+			}
+			// Pull logs from the actually-failing container — historically
+			// this was hardcoded to "source", which silently swallowed init
+			// container stderr (e.g. discover's bad-SSL-PEM crash) and
+			// produced empty source_task.error rows.
+			cl := j.getPodLogs(podName, s, true, 50)
+			if len(cl) > 0 {
+				stb.WriteString(s.Name)
+				stb.WriteString(": ")
+				stb.WriteString(cl)
+				stb.WriteRune('\n')
+			}
+			// State.Terminated.Message is the kubelet-captured tail of the
+			// container's termination output (k8s defaults: 4 KiB).
+			// Surface it when GetLogs returned nothing useful — e.g. for
+			// OOMKilled or runc create failures where no log lines exist.
+			if len(cl) == 0 && state.Terminated.Message != "" {
+				stb.WriteString(s.Name)
+				stb.WriteString(": ")
+				stb.WriteString(state.Terminated.Message)
 				stb.WriteRune('\n')
 			}
 		}
@@ -269,24 +295,34 @@ func (j *JobRunner) accumulateErrorLogs(podName string, taskType string, status 
 	// all source logs get directed to pipe and translated to the sidecar
 	// so if 'source' container fails we need to look for errors in the sidecar
 	if stb.Len() == 0 && sourceFailed {
-		logs := j.getPodLogs(podName, "sidecar", true, 50)
+		sidecarC := statuses["sidecar"]
+		logs := j.getPodLogs(podName, sidecarC, true, 50)
 		if len(logs) > 0 {
 			stb.WriteString(logs)
 			stb.WriteRune('\n')
 		} else {
-			// if we couldn't find lines with errors in the source logs - get last 5 lines
-			logs = j.getPodLogs(podName, "source", false, 5)
+			// if we couldn't find lines with errors in the sidecar logs - get last 5 lines
+			logs = j.getPodLogs(podName, sidecarC, false, 5)
 			if len(logs) > 0 {
 				stb.WriteString(logs)
 				stb.WriteRune('\n')
+			} else {
+				logs = j.getPodLogs(podName, statuses["source"], false, 5)
+				if len(logs) > 0 {
+					stb.WriteString(logs)
+					stb.WriteRune('\n')
+				}
 			}
 		}
 	}
 	return stb.String(), sourceFailed
 }
 
-func (j *JobRunner) getPodLogs(podName, container string, onlyErrors bool, tailLines int64) string {
-	req := j.clientset.CoreV1().Pods(j.namespace).GetLogs(podName, &v1.PodLogOptions{Container: container, TailLines: &tailLines})
+func (j *JobRunner) getPodLogs(podName string, container v1.ContainerStatus, onlyErrors bool, tailLines int64) string {
+	if container.State.Waiting != nil {
+		return ""
+	}
+	req := j.clientset.CoreV1().Pods(j.namespace).GetLogs(podName, &v1.PodLogOptions{Container: container.Name, TailLines: &tailLines})
 	podLogs, err := req.Stream(context.Background())
 	if err != nil {
 		return fmt.Sprintf("ERR_FAILED_TO_READ_POD_LOGS:%s", err.Error())
@@ -315,7 +351,7 @@ func (j *JobRunner) getPodLogs(podName, container string, onlyErrors bool, tailL
 		return fmt.Sprintf("ERR_FAILED_TO_READ_POD_LOGS:%s", err.Error())
 	}
 	if buf.Len() > 0 {
-		return fmt.Sprintf("[%s]: %s", container, buf.String())
+		return fmt.Sprintf("[%s]: %s", container.Name, buf.String())
 	} else {
 		return ""
 	}

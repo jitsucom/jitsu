@@ -8,7 +8,10 @@ import (
 	"regexp"
 )
 
-var schemaRegex = regexp.MustCompile(`(?:search_path|schema)=([^$]+)`)
+// Match `schema=`/`search_path=` up to the next URL-param separator (`&`),
+// fragment (`#`), whitespace, or env-placeholder (`$`). The old `[^$]+` was
+// greedy and swallowed every subsequent query param into the schema name.
+var schemaRegex = regexp.MustCompile(`(?:search_path|schema)=([^&#\s$]+)`)
 
 func extractSchema(url string) string {
 	parts := schemaRegex.FindStringSubmatch(url)

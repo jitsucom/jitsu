@@ -80,12 +80,47 @@ func (s *AbstractSideCar) Close() {
 }
 
 func main() {
+	// Subcommand routing for the autonomous CronJob Pod template. Each
+	// subcommand is its own short-lived program — no SideCar interface
+	// involved. Falls through to the default sidecar behavior when invoked
+	// without a subcommand (legacy reactive flow).
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "lease-acquire":
+			runLeaseAcquire()
+			return
+		case "oauth-refresh":
+			runOAuthRefresh()
+			return
+		case "load-catalog-state":
+			runLoadCatalogState()
+			return
+		}
+	}
+
 	startedAt, err := time.Parse(time.RFC3339, os.Getenv("STARTED_AT"))
 	if err != nil {
 		startedAt = time.Now()
 	}
 
 	command := os.Getenv("COMMAND")
+	// Lease renew/release is only meaningful for `read` runs — the lease is
+	// acquired by the autonomous Pod's `lease-acquire` init container as a
+	// cross-pod mutex for the sync's read phase. spec / check / discover
+	// commands run as standalone short-lived Pods (legacy reactive flow) and
+	// don't participate in the lease protocol, so starting a renewer there
+	// would just try (and fail) to renew a lease that doesn't exist.
+	if command == "read" {
+		// Renew the lease in the background while the main sidecar runs
+		// (no-op when RENEW_LEASE!=true, e.g. legacy reactive mode). Defer a
+		// best-effort Release so the natural-exit path also clears the lease —
+		// the SIGTERM handler in startLeaseRenewer covers kubelet-initiated
+		// shutdown but doesn't fire when the sidecar finishes work and Run()
+		// returns on its own.
+		startLeaseRenewer()
+		defer ReleaseSyncLease()
+	}
+
 	var sidecar SideCar
 	taskTimeoutHours, _ := strconv.Atoi(utils.DefaultString(os.Getenv("TASK_TIMEOUT_HOURS"), "48"))
 	abstract := &AbstractSideCar{

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -64,6 +65,8 @@ func (s *ReadSideCar) Run() {
 	defer s.dbpool.Close()
 
 	s.log("Sidecar. command: read. syncId: %s, taskId: %s, package: %s:%s startedAt: %s", s.syncId, s.taskId, s.packageName, s.packageVersion, s.startedAt.Format(time.RFC3339))
+
+	s.relayInitContainerLogs()
 	s.fullSync = os.Getenv("FULL_SYNC") == "true"
 	if s.fullSync {
 		s.log("Running in Full Sync mode")
@@ -657,9 +660,23 @@ func (s *ReadSideCar) sendGoodStatus(status string, description, error string, l
 	}
 }
 
+// configsPath returns the directory that holds catalog.json, state.json
+// and destinationConfig.json for the current run.
+//
+//   - Default ("/config")   : Secret mount used by the legacy reactive flow.
+//   - CONFIGS_PATH overrides : CronJob-driven runs set it to "/shared",
+//     an emptyDir written by the oauth-refresh + load-catalog-state init
+//     containers (so all run-time inputs sit in one directory regardless
+//     of how they got there).
+func configsPath() string {
+	if p := os.Getenv("CONFIGS_PATH"); p != "" {
+		return strings.TrimRight(p, "/")
+	}
+	return "/config"
+}
+
 func (s *ReadSideCar) loadState() (string, bool) {
-	//load catalog from file /config/catalog.json and parse it
-	statePath := "/config/state.json"
+	statePath := configsPath() + "/state.json"
 	if _, err := os.Stat(statePath); os.IsNotExist(err) {
 		return "", false
 	}
@@ -668,7 +685,10 @@ func (s *ReadSideCar) loadState() (string, bool) {
 		return "", false
 	}
 	st := strings.TrimSpace(string(state))
-	if len(st) == 0 || st == "{}" {
+	// Treat empty / {} / [] as "no state". `[]` matters for the autonomous
+	// CronJob path where the load-catalog-state init writes a JSON document
+	// regardless of whether any source_state rows existed.
+	if len(st) == 0 || st == "{}" || st == "[]" {
 		return "", false
 	}
 	s.initialState = st
@@ -676,8 +696,7 @@ func (s *ReadSideCar) loadState() (string, bool) {
 }
 
 func (s *ReadSideCar) loadCatalog() error {
-	//load catalog from file /config/catalog.json and parse it
-	catalogPath := "/config/catalog.json"
+	catalogPath := configsPath() + "/catalog.json"
 	if _, err := os.Stat(catalogPath); os.IsNotExist(err) {
 		return fmt.Errorf("catalog file %s doesn't exist", catalogPath)
 	}
@@ -700,8 +719,7 @@ func (s *ReadSideCar) loadCatalog() error {
 }
 
 func (s *ReadSideCar) loadDestinationConfig() error {
-	//load catalog from file /config/catalog.json and parse it
-	destinationConfigPath := "/config/destinationConfig.json"
+	destinationConfigPath := configsPath() + "/destinationConfig.json"
 	if _, err := os.Stat(destinationConfigPath); os.IsNotExist(err) {
 		return fmt.Errorf("destination config file %s doesn't exist", destinationConfigPath)
 	}
@@ -858,5 +876,149 @@ func (s *ActiveStream) RegisterError(err error) {
 		s.Error = err.Error()
 		s.bufferedEventsCount = 0
 		s.bufferedBytes = 0
+	}
+}
+
+// relayInitContainerLogs surfaces output produced by the discover init
+// container (and any other init that opts in via `/shared/init-<name>.log`)
+// into task_log via the standard sidecar logging path.
+//
+// Three sources are handled:
+//
+//   - /shared/discover.stderr: discover's bare stderr (only errors / unparsed
+//     output by airbyte convention). Emitted at level STDERR.
+//   - /shared/discover.jsonl: discover's stdout as AirbyteMessage JSONL. LOG
+//     and TRACE messages are dispatched the same way read.go does it. The
+//     CATALOG message is intentionally skipped — load-catalog-state already
+//     persisted it and the payload is large.
+//   - /shared/init-<name>.log: plain text from any other init container,
+//     emitted at INFO under logger=<name>.
+//
+// Best-effort: read errors are logged and don't fail the read task. Note
+// that if discover *failed* this sidecar wouldn't be running (init chain
+// stops on first non-zero exit), so this code only runs on the post-success
+// path.
+func (s *ReadSideCar) relayInitContainerLogs() {
+	s.relayDiscoverStderr("/shared/discover.stderr")
+	s.relayDiscoverJsonl("/shared/discover.jsonl")
+
+	// Convention: any other init can drop `/shared/init-<name>.log` and it
+	// gets relayed under logger=<name>.
+	matches, _ := filepath.Glob("/shared/init-*.log")
+	for _, p := range matches {
+		base := filepath.Base(p)
+		name := strings.TrimSuffix(strings.TrimPrefix(base, "init-"), ".log")
+		if name == "" {
+			name = base
+		}
+		s.relayPlainLines(p, name, "INFO")
+	}
+}
+
+// relayPlainLines emits each non-empty line from `path` as a task_log entry
+// under (logger, level). Used for generic init-<name>.log artifacts.
+func (s *ReadSideCar) relayPlainLines(path, logger, level string) {
+	f, err := os.Open(path)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 1024*1024), 64*1024*1024)
+	for scanner.Scan() {
+		line := strings.TrimRight(scanner.Text(), "\r")
+		if line == "" {
+			continue
+		}
+		s._log(logger, level, line)
+	}
+}
+
+// relayDiscoverStderr re-emits each non-empty line of discover's stderr.
+// Airbyte connectors generally write only errors/unparseable output here, so
+// level STDERR matches the spec_catalog convention for stderr stream content.
+func (s *ReadSideCar) relayDiscoverStderr(path string) {
+	f, err := os.Open(path)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 1024*1024), 64*1024*1024)
+	for scanner.Scan() {
+		line := strings.TrimRight(scanner.Text(), "\r")
+		if line == "" {
+			continue
+		}
+		s._log(s.packageName, "STDERR", line)
+	}
+}
+
+// relayDiscoverJsonl parses discover's stdout (airbyte JSONL) and re-emits
+// LOG / TRACE messages the same way read.go's main loop handles them.
+// Non-message lines (or lines that fail JSON parse) fall back to checkJsonRow
+// so prefix-style "INFO foo" output still gets logged. The CATALOG message
+// is skipped (load-catalog-state persisted it; payload is too large for a
+// single task_log row).
+func (s *ReadSideCar) relayDiscoverJsonl(path string) {
+	f, err := os.Open(path)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 1024*1024), 64*1024*1024)
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		lineStr := strings.TrimSpace(string(line))
+		if lineStr == "" {
+			continue
+		}
+		// Non-JSON / prefix-style lines: routed through the same fallback the
+		// main read loop uses (logs unprefixed text at ERROR, prefixed text
+		// at the prefix's level).
+		if !strings.HasPrefix(lineStr, "{") {
+			s.checkJsonRow(lineStr)
+			continue
+		}
+		row := &Row{}
+		if err := jsonorder.Unmarshal(line, row); err != nil {
+			s._log(s.packageName, "WARN", fmt.Sprintf("error parsing discover.jsonl line: %v: %s", err, lineStr))
+			continue
+		}
+		switch row.Type {
+		case LogType:
+			if row.Log != nil {
+				level := strings.ToUpper(row.Log.Level)
+				if level == "" {
+					level = "INFO"
+				}
+				s._log(s.packageName, level, row.Log.Message)
+			}
+		case TraceType:
+			if row.Trace == nil {
+				continue
+			}
+			if row.Trace.Type == "ERROR" {
+				msg := row.Trace.Error.Message
+				if msg == "" {
+					msg = row.Trace.Error.InternalMessage
+				}
+				s._log(s.packageName, "ERROR", msg)
+				if row.Trace.Error.StackTrace != "" {
+					s._log(s.packageName, "DEBUG", row.Trace.Error.StackTrace)
+				}
+			} else {
+				s._log(s.packageName, "DEBUG", lineStr)
+			}
+		case CatalogType:
+			// Already persisted by load-catalog-state; skip to avoid a huge
+			// task_log row.
+		case ControlType:
+			s._log(s.packageName, "DEBUG", lineStr)
+		default:
+			// Unexpected for discover (RECORD/STATE/SPEC/CONNECTION_STATUS).
+			s._log(s.packageName, "DEBUG", lineStr)
+		}
 	}
 }

@@ -59,8 +59,9 @@ export default createRoute()
       syncs: {
         enabled: serverEnv.SYNCS_ENABLED,
         scheduler: {
-          enabled: !!serverEnv.GOOGLE_SCHEDULER_KEY,
-          provider: serverEnv.GOOGLE_SCHEDULER_KEY ? "google-cloud-scheduler" : undefined,
+          // Scheduling is now handled by syncctl (in-cluster) — gate the
+          // schedule UI on the presence of a syncctl endpoint.
+          enabled: !!serverEnv.SYNCCTL_URL,
         },
       },
       frontendTelemetry: {
