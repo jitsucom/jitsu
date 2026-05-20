@@ -124,7 +124,7 @@ func TestDeduplicateBatch(t *testing.T) {
 
 func TestApplySegmentTimestampCorrection(t *testing.T) {
 	// Device clock is 20min behind server — exceeds significantClockSkew
-	// (15min) so timestamps get rewritten.
+	// (5min) so timestamps get rewritten.
 	sentAt := "2026-05-15T10:00:00.000Z"
 	receivedAt, err := time.Parse(time.RFC3339Nano, "2026-05-15T10:20:00.000Z")
 	assert.NoError(t, err)
@@ -135,7 +135,6 @@ func TestApplySegmentTimestampCorrection(t *testing.T) {
 		applySegmentTimestampCorrection([]types.Json{ev}, "", receivedAt)
 		assert.Equal(t, "2026-05-15T09:59:50.000Z", ev.GetS("timestamp"))
 		assert.Equal(t, "", ev.GetS("sentAt"))
-		assert.Equal(t, "", ev.GetS("originalTimestamp"))
 	})
 
 	t.Run("unparseable sentAt is a no-op", func(t *testing.T) {
@@ -146,17 +145,12 @@ func TestApplySegmentTimestampCorrection(t *testing.T) {
 		assert.Equal(t, "", ev.GetS("sentAt"))
 	})
 
-	t.Run("adjusts timestamp by offset, does not add originalTimestamp", func(t *testing.T) {
+	t.Run("adjusts timestamp by offset", func(t *testing.T) {
 		ev := types.NewJson(4)
 		ev.Set("timestamp", "2026-05-15T09:59:50.000Z")
 		applySegmentTimestampCorrection([]types.Json{ev}, sentAt, receivedAt)
 		// offset = +20min, so timestamp shifts forward 20min.
 		assert.Equal(t, "2026-05-15T10:19:50.000Z", ev.GetS("timestamp"))
-		// originalTimestamp is intentionally NOT set — pre-correction
-		// device timestamp is recoverable as timestamp - (receivedAt -
-		// sentAt) and we don't want to leak a Segment-only field into
-		// downstream warehouse schemas.
-		assert.Equal(t, "", ev.GetS("originalTimestamp"))
 		assert.Equal(t, sentAt, ev.GetS("sentAt"))
 	})
 
@@ -165,21 +159,15 @@ func TestApplySegmentTimestampCorrection(t *testing.T) {
 		applySegmentTimestampCorrection([]types.Json{ev}, sentAt, receivedAt)
 		assert.Equal(t, sentAt, ev.GetS("sentAt"))
 		assert.Equal(t, "", ev.GetS("timestamp"))
-		assert.Equal(t, "", ev.GetS("originalTimestamp"))
 	})
 
-	t.Run("preserves event-level sentAt and any pre-set originalTimestamp", func(t *testing.T) {
-		// If the upstream payload already carried originalTimestamp on
-		// the event (e.g., relayed from another collector), leave it
-		// alone — we just don't add it ourselves.
+	t.Run("preserves event-level sentAt", func(t *testing.T) {
 		ev := types.NewJson(4)
 		ev.Set("timestamp", "2026-05-15T09:59:50.000Z")
-		ev.Set("originalTimestamp", "2026-05-15T09:59:00.000Z")
 		ev.Set("sentAt", "2026-05-15T09:59:55.000Z")
 		applySegmentTimestampCorrection([]types.Json{ev}, sentAt, receivedAt)
 		// timestamp still gets shifted by the batch offset.
 		assert.Equal(t, "2026-05-15T10:19:50.000Z", ev.GetS("timestamp"))
-		assert.Equal(t, "2026-05-15T09:59:00.000Z", ev.GetS("originalTimestamp"))
 		assert.Equal(t, "2026-05-15T09:59:55.000Z", ev.GetS("sentAt"))
 	})
 
@@ -191,7 +179,6 @@ func TestApplySegmentTimestampCorrection(t *testing.T) {
 		applySegmentTimestampCorrection([]types.Json{ev}, laterSentAt, receivedAt)
 		// offset = -20min, so timestamp shifts back 20min.
 		assert.Equal(t, "2026-05-15T10:10:00.000Z", ev.GetS("timestamp"))
-		assert.Equal(t, "", ev.GetS("originalTimestamp"))
 	})
 
 	t.Run("sub-threshold skew leaves timestamp untouched but still propagates sentAt", func(t *testing.T) {
@@ -203,7 +190,6 @@ func TestApplySegmentTimestampCorrection(t *testing.T) {
 		applySegmentTimestampCorrection([]types.Json{ev}, smallSkewSentAt, receivedAt)
 		assert.Equal(t, "2026-05-15T10:14:50.000Z", ev.GetS("timestamp"))
 		assert.Equal(t, smallSkewSentAt, ev.GetS("sentAt"))
-		assert.Equal(t, "", ev.GetS("originalTimestamp"))
 	})
 }
 
