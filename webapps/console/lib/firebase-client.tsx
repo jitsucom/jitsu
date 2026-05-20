@@ -76,6 +76,15 @@ export interface FirebaseSession {
    */
   reloadEmailVerified(): Promise<boolean>;
 
+  /** Applies an email-action code (email verification, or email-change recovery). */
+  applyActionCode(oobCode: string): Promise<void>;
+
+  /** Verifies a password-reset code and returns the account's email address. */
+  verifyPasswordResetCode(oobCode: string): Promise<string>;
+
+  /** Completes a password reset, setting a new password for the code's account. */
+  confirmPasswordReset(oobCode: string, newPassword: string): Promise<void>;
+
   /**
    * Waits until auth state of the user is resolved
    */
@@ -221,6 +230,15 @@ export function useFirebaseSession(): FirebaseSession {
       reloadEmailVerified: async () => {
         throw new Error("Firebase auth is not enabled");
       },
+      applyActionCode: async () => {
+        throw new Error("Firebase auth is not enabled");
+      },
+      verifyPasswordResetCode: async () => {
+        throw new Error("Firebase auth is not enabled");
+      },
+      confirmPasswordReset: async () => {
+        throw new Error("Firebase auth is not enabled");
+      },
       resolveUser: () => {
         throw new Error("Firebase auth is not enabled");
       },
@@ -315,6 +333,15 @@ export function useFirebaseSession(): FirebaseSession {
         await currentUser.getIdToken(true);
       }
       return currentUser.emailVerified;
+    },
+    async applyActionCode(oobCode: string): Promise<void> {
+      await auth.applyActionCode(a.getAuth(), oobCode);
+    },
+    async verifyPasswordResetCode(oobCode: string): Promise<string> {
+      return await auth.verifyPasswordResetCode(a.getAuth(), oobCode);
+    },
+    async confirmPasswordReset(oobCode: string, newPassword: string): Promise<void> {
+      await auth.confirmPasswordReset(a.getAuth(), oobCode, newPassword);
     },
   };
 }
