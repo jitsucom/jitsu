@@ -108,8 +108,19 @@ export const FirebaseSignup: React.FC = () => {
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<ReactNode | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [emailConfirmed, setEmailConfirmed] = useState(false);
 
   const callbackUrl = (router.query.callbackUrl as string) || "/";
+
+  // Step 1 → 2: reveal the password fields only once a plausible email is entered.
+  const handleContinue = () => {
+    if (!email || !email.includes("@")) {
+      setError("Please enter a valid email address");
+      return;
+    }
+    setError(null);
+    setEmailConfirmed(true);
+  };
 
   const validate = (): string | null => {
     if (!email || !email.includes("@")) {
@@ -224,65 +235,83 @@ export const FirebaseSignup: React.FC = () => {
                 onChange={e => {
                   setEmail(e.target.value);
                   setError(null);
+                  setEmailConfirmed(false);
                 }}
                 placeholder="Enter your email address"
-                disabled={submitting}
-              />
-            </div>
-            <div>
-              <FieldLabel icon={<LockOutlined />}>Password</FieldLabel>
-              <Input.Password
-                size="large"
-                autoComplete="new-password"
-                value={password}
-                onChange={e => {
-                  setPassword(e.target.value);
-                  setError(null);
-                }}
-                placeholder="Create a password (min 6 characters)"
-                disabled={submitting}
-              />
-            </div>
-            <div>
-              <FieldLabel icon={<LockOutlined />}>Confirm password</FieldLabel>
-              <Input.Password
-                size="large"
-                autoComplete="new-password"
-                value={confirm}
-                onChange={e => {
-                  setConfirm(e.target.value);
-                  setError(null);
-                }}
-                placeholder="Re-enter your password"
-                onPressEnter={handleSignup}
+                onPressEnter={handleContinue}
                 disabled={submitting}
               />
             </div>
 
-            <Button
-              className="w-full"
-              type="primary"
-              size="large"
-              loading={submitting}
-              onClick={handleSignup}
-              disabled={!email || !password || !confirm}
-            >
-              Create account
-            </Button>
+            {!emailConfirmed && (
+              <Button
+                className="w-full"
+                type="primary"
+                size="large"
+                onClick={handleContinue}
+                disabled={!email || !email.includes("@")}
+              >
+                Continue
+              </Button>
+            )}
+
+            {emailConfirmed && (
+              <>
+                <div>
+                  <FieldLabel icon={<LockOutlined />}>Password</FieldLabel>
+                  <Input.Password
+                    size="large"
+                    autoFocus
+                    autoComplete="new-password"
+                    value={password}
+                    onChange={e => {
+                      setPassword(e.target.value);
+                      setError(null);
+                    }}
+                    placeholder="Create a password (min 6 characters)"
+                    disabled={submitting}
+                  />
+                </div>
+                <div>
+                  <FieldLabel icon={<LockOutlined />}>Confirm password</FieldLabel>
+                  <Input.Password
+                    size="large"
+                    autoComplete="new-password"
+                    value={confirm}
+                    onChange={e => {
+                      setConfirm(e.target.value);
+                      setError(null);
+                    }}
+                    placeholder="Re-enter your password"
+                    onPressEnter={handleSignup}
+                    disabled={submitting}
+                  />
+                </div>
+                <Button
+                  className="w-full"
+                  type="primary"
+                  size="large"
+                  loading={submitting}
+                  onClick={handleSignup}
+                  disabled={!password || !confirm}
+                >
+                  Create account
+                </Button>
+                <div className="text-xs text-textLight text-center">
+                  By creating an account you agree to our{" "}
+                  <a className="hover:text-primary" href="https://jitsu.com/tos" target="_blank" rel="noreferrer">
+                    Terms
+                  </a>{" "}
+                  and{" "}
+                  <a className="hover:text-primary" href="https://jitsu.com/privacy" target="_blank" rel="noreferrer">
+                    Privacy Policy
+                  </a>
+                  .
+                </div>
+              </>
+            )}
 
             {error && <Alert type="error" message={error} closable onClose={() => setError(null)} />}
-
-            <div className="text-xs text-textLight text-center">
-              By creating an account you agree to our{" "}
-              <a className="hover:text-primary" href="https://jitsu.com/tos" target="_blank" rel="noreferrer">
-                Terms
-              </a>{" "}
-              and{" "}
-              <a className="hover:text-primary" href="https://jitsu.com/privacy" target="_blank" rel="noreferrer">
-                Privacy Policy
-              </a>
-              .
-            </div>
           </div>
 
           <div className="text-center mt-8 text-textLight">
