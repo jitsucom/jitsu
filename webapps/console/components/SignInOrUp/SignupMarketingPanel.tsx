@@ -124,7 +124,8 @@ export const SignupMarketingPanel: React.FC = () => (
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="h-7 w-7">{branding.logo}</div>
-          <span className="text-xl font-bold tracking-tight">jitsu</span>
+          {/* fill-white overrides the one hardcoded fill="black" path in the wordmark */}
+          <div className="h-5 w-[84px] [&_path]:fill-white">{branding.wordmark}</div>
         </div>
         <a
           href="https://jitsu.com"
