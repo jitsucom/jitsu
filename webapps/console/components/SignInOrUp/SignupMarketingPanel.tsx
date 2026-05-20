@@ -146,18 +146,9 @@ export const SignupMarketingPanel: React.FC = () => (
             href="https://jitsu.com/customers/investing"
             target="_blank"
             rel="noreferrer"
-            className="flex items-center gap-3 hover:underline"
+            className="font-semibold hover:underline"
           >
-            <div
-              className="h-11 w-11 rounded-full flex items-center justify-center text-sm font-semibold"
-              style={{ background: "linear-gradient(135deg, #a855f7, #7c3aed)" }}
-            >
-              YA
-            </div>
-            <div>
-              <div className="font-semibold">Yonatan Adest</div>
-              <div className="text-sm text-white/55">CTO · Investing.com</div>
-            </div>
+            Investing.com
           </a>
           <div className="text-right">
             <div className="text-3xl font-bold leading-none">5B</div>
