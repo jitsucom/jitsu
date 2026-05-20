@@ -142,7 +142,10 @@ async function getUserFromFirebase(currentUser: auth.User): Promise<ContextApiRe
     await rpc(`/api/fb-auth/create-user`, {
       body: {},
       headers: {
-        Authorization: `Bearer ${await currentUser.getIdToken()}`,
+        // Force-refresh so the token's email_verified claim is current. The
+        // server (JITSU-018) rejects a stale token still carrying
+        // email_verified:false for an account that has since verified.
+        Authorization: `Bearer ${await currentUser.getIdToken(true)}`,
       },
     });
     const newToken = await currentUser.getIdTokenResult(true);
