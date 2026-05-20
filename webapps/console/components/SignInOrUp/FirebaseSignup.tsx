@@ -1,36 +1,14 @@
-import React, { ReactNode, useState } from "react";
+import React, { ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { Alert, Button, Input } from "antd";
-import { GithubOutlined } from "@ant-design/icons";
+import { Alert, Button, Divider, Input } from "antd";
 import { branding } from "../../lib/branding";
 import { useFirebaseSession } from "../../lib/firebase-client";
 import { safeRedirect } from "../../lib/auth-redirect";
 import { useJitsu } from "@jitsu/jitsu-react";
+import { OAuthButtons } from "./OAuthButtons";
 import { AuthType, handleFirebaseError } from "./SignInOrUp";
 import { useQueryStringCopy } from "./use-query-string-copy";
-
-/** Full-colour Google "G" mark for the OAuth button. */
-const GoogleG: React.FC = () => (
-  <svg viewBox="0 0 48 48" width="18" height="18" xmlns="http://www.w3.org/2000/svg">
-    <path
-      fill="#4285F4"
-      d="M45.12 24.5c0-1.56-.14-3.06-.4-4.5H24v8.51h11.84c-.51 2.75-2.06 5.08-4.39 6.64v5.52h7.11c4.16-3.83 6.56-9.47 6.56-16.17z"
-    />
-    <path
-      fill="#34A853"
-      d="M24 46c5.94 0 10.92-1.97 14.56-5.33l-7.11-5.52c-1.97 1.32-4.49 2.1-7.45 2.1-5.73 0-10.58-3.87-12.31-9.07H4.34v5.7C7.96 41.07 15.4 46 24 46z"
-    />
-    <path
-      fill="#FBBC05"
-      d="M11.69 28.18C11.25 26.86 11 25.45 11 24s.25-2.86.69-4.18v-5.7H4.34A21.99 21.99 0 0 0 2 24c0 3.55.85 6.91 2.34 9.88l7.35-5.7z"
-    />
-    <path
-      fill="#EA4335"
-      d="M24 10.75c3.23 0 6.13 1.11 8.41 3.29l6.31-6.31C34.91 4.18 29.93 2 24 2 15.4 2 7.96 6.93 4.34 14.12l7.35 5.7c1.73-5.2 6.58-9.07 12.31-9.07z"
-    />
-  </svg>
-);
 
 const panelFeatures = [
   {
@@ -52,9 +30,90 @@ const panelFeatures = [
 
 const customers = ["Investing.com", "PandaDoc", "Rarible", "Census", "Embeddables"];
 
-/** Syntax-coloured token helpers for the code sample. */
-const Kw: React.FC<{ children: ReactNode }> = ({ children }) => <span className="text-[#c792ea]">{children}</span>;
-const Fn: React.FC<{ children: ReactNode }> = ({ children }) => <span className="text-[#82aaff]">{children}</span>;
+const snippets = [
+  {
+    file: "enrich.ts",
+    badge: "JITSU FUNCTION",
+    code: `export default async function (event, { store }) {
+  const geo = await store.get(event.ip);
+  event.country = geo?.country ?? "unknown";
+  return event;
+}`,
+  },
+  {
+    file: "track.ts",
+    badge: "BROWSER SDK",
+    code: `import { jitsuAnalytics } from "@jitsu/js";
+
+const jitsu = jitsuAnalytics({ writeKey: "KEY" });
+jitsu.identify("user_42", { email });
+jitsu.track("Signup Completed", { plan: "pro" });`,
+  },
+];
+
+// Tiny token highlighter for the (fixed, trusted) code samples — keeps the
+// snippets as plain strings instead of hand-written colored JSX.
+const CODE_TOKEN =
+  /(`[^`]*`|"[^"]*"|'[^']*'|\b(?:import|from|export|default|async|function|const|await|return|new)\b)/g;
+const KEYWORD = /^(?:import|from|export|default|async|function|const|await|return|new)$/;
+
+function highlightLine(line: string): ReactNode {
+  if (line === "") {
+    return " ";
+  }
+  return line.split(CODE_TOKEN).map((part, i) => {
+    if (!part) {
+      return null;
+    }
+    if (part[0] === "`" || part[0] === '"' || part[0] === "'") {
+      return (
+        <span key={i} className="text-[#c3e88d]">
+          {part}
+        </span>
+      );
+    }
+    if (KEYWORD.test(part)) {
+      return (
+        <span key={i} className="text-[#c792ea]">
+          {part}
+        </span>
+      );
+    }
+    return <span key={i}>{part}</span>;
+  });
+}
+
+/** Code card that auto-cycles through the snippets like switching tabs. */
+const CodeShowcase: React.FC = () => {
+  const [active, setActive] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setActive(a => (a + 1) % snippets.length), 4500);
+    return () => clearInterval(t);
+  }, []);
+  const snippet = snippets[active];
+  return (
+    <div className="rounded-xl border border-white/10 overflow-hidden" style={{ background: "#0e0d18" }}>
+      <div className="flex items-center justify-between border-b border-white/10 px-4 py-2.5">
+        <div className="flex items-center gap-3 font-mono text-xs">
+          <span className="h-2 w-2 rounded-full bg-green-400" />
+          {snippets.map((s, i) => (
+            <span key={s.file} className={i === active ? "text-white" : "text-white/30"}>
+              {s.file}
+            </span>
+          ))}
+        </div>
+        <span className="rounded border border-white/15 px-1.5 py-0.5 text-[10px] tracking-[0.15em] text-white/40">
+          {snippet.badge}
+        </span>
+      </div>
+      <div className="whitespace-pre overflow-x-auto p-4 font-mono text-[12px] leading-[1.7] text-slate-200">
+        {snippet.code.split("\n").map((line, i) => (
+          <div key={i}>{highlightLine(line)}</div>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 /** Left-hand testimonial / proof panel. Hidden below `lg`. */
 const MarketingPanel: React.FC = () => (
@@ -62,8 +121,8 @@ const MarketingPanel: React.FC = () => (
     className="hidden lg:flex lg:w-1/2 p-10 xl:p-14 text-white overflow-y-auto"
     style={{ background: "linear-gradient(155deg, #1c1640 0%, #2a1b53 55%, #211a48 100%)" }}
   >
-    {/* one column — every section shares the testimonial's width */}
-    <div className="flex w-full max-w-xl flex-col justify-between gap-9">
+    {/* one column — every section shares the same width */}
+    <div className="flex w-full max-w-2xl flex-col justify-between gap-9">
       {/* header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -102,59 +161,8 @@ const MarketingPanel: React.FC = () => (
         </div>
       </div>
 
-      {/* cards */}
-      <div className="flex gap-4">
-        <div
-          className="flex-[2] min-w-0 rounded-xl border border-white/10 overflow-hidden"
-          style={{ background: "#0e0d18" }}
-        >
-          <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/10">
-            <div className="flex items-center gap-2 font-mono text-xs text-white/60">
-              <span className="h-2 w-2 rounded-full bg-green-400" />
-              enrich.ts
-            </div>
-            <span className="rounded border border-white/15 px-1.5 py-0.5 text-[10px] tracking-[0.15em] text-white/40">
-              JITSU FUNCTION
-            </span>
-          </div>
-          <div className="p-4 font-mono text-[11px] leading-[1.8] whitespace-pre text-slate-200 overflow-x-auto">
-            <div>
-              <Kw>export default async function</Kw>
-              {" (event, { store, fetch }) {"}
-            </div>
-            <div>
-              {"  "}
-              <Kw>const</Kw>
-              {" geo = "}
-              <Kw>await</Kw>
-              {" store."}
-              <Fn>get</Fn>
-              {"(event.ip)"}
-            </div>
-            <div>
-              {"    ?? "}
-              <Kw>await</Kw> <Fn>fetch</Fn>
-              {"("}
-              <span className="text-[#c3e88d]">{"`/geo/${event.ip}`"}</span>
-              {");"}
-            </div>
-            <div>{"  event.properties.country = geo.country;"}</div>
-            <div>
-              {"  "}
-              <Kw>return</Kw>
-              {" event;"}
-            </div>
-            <div>{"}"}</div>
-          </div>
-        </div>
-        <div className="flex-1 min-w-0 rounded-xl border border-white/10 bg-white/5 p-4 flex flex-col">
-          <div className="text-[10px] tracking-[0.18em] text-white/45">TIME TO FIRST EVENT</div>
-          <div className="mt-auto pt-6">
-            <span className="text-4xl font-bold">43</span>
-            <span className="ml-1 text-sm text-white/55">sec</span>
-          </div>
-        </div>
-      </div>
+      {/* code showcase */}
+      <CodeShowcase />
 
       {/* features */}
       <div className="grid grid-cols-3 gap-6 border-t border-white/10 pt-6">
@@ -202,7 +210,6 @@ export const FirebaseSignup: React.FC = () => {
   const [error, setError] = useState<ReactNode | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [emailConfirmed, setEmailConfirmed] = useState(false);
-  const [oauthLoading, setOauthLoading] = useState<AuthType | null>(null);
 
   const callbackUrl = (router.query.callbackUrl as string) || "/";
 
@@ -280,7 +287,6 @@ export const FirebaseSignup: React.FC = () => {
   // OAuth signup is the same popup path as sign-in — Firebase creates the account
   // on first login. signInWith already records the login and fires analytics.
   const handleSSOLogin = async (provider: AuthType) => {
-    setOauthLoading(provider);
     setError(null);
     try {
       await firebaseSession.signInWith(provider === "firebase-google" ? "google.com" : "github.com");
@@ -292,8 +298,6 @@ export const FirebaseSignup: React.FC = () => {
         loginProvider: `firebase/${provider}`,
         message: e?.message || "Unknown error",
       });
-    } finally {
-      setOauthLoading(null);
     }
   };
 
@@ -318,32 +322,17 @@ export const FirebaseSignup: React.FC = () => {
             </h1>
             <p className="mt-3 text-textLight">Free for 200k events/month. No credit card required.</p>
 
-            <div className="mt-7 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Button
-                size="large"
-                icon={<GoogleG />}
-                loading={oauthLoading === "firebase-google"}
-                disabled={!!oauthLoading}
-                onClick={() => handleSSOLogin("firebase-google")}
-              >
-                Continue with Google
-              </Button>
-              <Button
-                size="large"
-                icon={<GithubOutlined />}
-                loading={oauthLoading === "firebase-github"}
-                disabled={!!oauthLoading}
-                onClick={() => handleSSOLogin("firebase-github")}
-              >
-                Continue with GitHub
-              </Button>
+            <div className="mt-4">
+              <OAuthButtons
+                prefix="Continue"
+                providers={["firebase-google", "firebase-github"]}
+                onSSOLogin={handleSSOLogin}
+              />
             </div>
 
-            <div className="my-6 flex items-center gap-3 text-[11px] tracking-[0.18em] text-textLight">
-              <div className="h-px flex-1 bg-backgroundDark" />
-              OR WITH EMAIL
-              <div className="h-px flex-1 bg-backgroundDark" />
-            </div>
+            <Divider plain>
+              <span className="text-xs uppercase tracking-widest text-textLight">or with email</span>
+            </Divider>
 
             <div className="space-y-4">
               <div>
@@ -424,31 +413,32 @@ export const FirebaseSignup: React.FC = () => {
                   >
                     Create account →
                   </Button>
-                  <p className="text-center text-xs text-textLight">
-                    By creating an account, you agree to our{" "}
-                    <a
-                      className="underline hover:text-primary"
-                      href="https://jitsu.com/tos"
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Terms
-                    </a>{" "}
-                    and{" "}
-                    <a
-                      className="underline hover:text-primary"
-                      href="https://jitsu.com/privacy"
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Privacy Policy
-                    </a>
-                    .
-                  </p>
                 </>
               )}
 
               {error && <Alert type="error" message={error} closable onClose={() => setError(null)} />}
+
+              <p className="text-center text-xs text-textLight">
+                By signing up, you agree to our{" "}
+                <a
+                  className="underline hover:text-primary"
+                  href="https://jitsu.com/tos"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Terms of Service
+                </a>{" "}
+                and{" "}
+                <a
+                  className="underline hover:text-primary"
+                  href="https://jitsu.com/privacy"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Privacy Policy
+                </a>
+                .
+              </p>
             </div>
           </div>
         </div>
