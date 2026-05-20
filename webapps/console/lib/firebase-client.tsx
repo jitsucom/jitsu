@@ -50,6 +50,14 @@ export function useFirebaseConfig(): FirebaseClientSettings {
 export interface FirebaseSession {
   signIn(username: string, password): Promise<boolean>;
 
+  /**
+   * Creates a new email+password Firebase account and sends a verification
+   * email. After this resolves the user is signed in but unverified — callers
+   * should redirect to a protected route so FirebaseAuthorizer renders
+   * VerifyEmailGate. See JITSU-018.
+   */
+  signUp(email: string, password: string): Promise<void>;
+
   signInWith(type: string): Promise<void>;
 
   signOut(): Promise<void>;
@@ -93,10 +101,11 @@ async function getUserFromFirebase(currentUser: auth.User): Promise<ContextApiRe
   const email = requireDefined(currentUser.email, "email of firebase user is undefined");
   // JITSU-018: email+password sign-up issues a valid Firebase JWT before the
   // address is verified. Block such accounts here — before any internal user or
-  // session is minted. OAuth providers verify the email themselves, so the gate
-  // only applies to the `password` provider.
-  const providerId = currentUser.providerData[0]?.providerId;
-  if (providerId === "password" && !currentUser.emailVerified) {
+  // session is minted. The gate applies only to single-provider `password`
+  // accounts; if Google/GitHub is also linked the address is already trusted.
+  const providerData = currentUser.providerData;
+  const isPasswordOnly = providerData.length === 1 && providerData[0]?.providerId === "password";
+  if (isPasswordOnly && !currentUser.emailVerified) {
     throw new EmailNotVerifiedError(email);
   }
   let internalId = await getCustomClaim(currentUser, "internalId");
@@ -174,6 +183,9 @@ export function useFirebaseSession(): FirebaseSession {
   if (!config.enabled) {
     return {
       signIn: async () => {
+        throw new Error("Firebase auth is not enabled");
+      },
+      signUp: async () => {
         throw new Error("Firebase auth is not enabled");
       },
       signInWith: async () => {
@@ -260,6 +272,12 @@ export function useFirebaseSession(): FirebaseSession {
         await recordFirebaseLogin(userCredential.user);
       }
       return !!userCredential?.user;
+    },
+    async signUp(email: string, password: string): Promise<void> {
+      const userCredential = await auth.createUserWithEmailAndPassword(a.getAuth(), email, password);
+      if (userCredential?.user) {
+        await auth.sendEmailVerification(userCredential.user);
+      }
     },
     async resetPassword(username: string): Promise<void> {
       await auth.sendPasswordResetEmail(a.getAuth(), username);

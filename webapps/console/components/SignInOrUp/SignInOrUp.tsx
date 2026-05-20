@@ -253,7 +253,7 @@ export const SignInOrUp: React.FC<SigninProps> = ({ signup }) => {
   );
 };
 
-function handleFirebaseError(error: any): string {
+export function handleFirebaseError(error: any): string {
   const code = error?.code;
   if (code === "auth/account-exists-with-different-credential") {
     const email = error?.customData?.email;
