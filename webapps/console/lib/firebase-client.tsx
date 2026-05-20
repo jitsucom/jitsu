@@ -97,6 +97,24 @@ function getCSRFToken(cookieName: string) {
   return token;
 }
 
+/**
+ * Continue URL for Firebase email actions (verification / reset). After the user
+ * completes the action on Firebase's hosted handler, it shows a button back to
+ * this URL. Firebase rejects a continue URL whose domain isn't an authorized
+ * domain, so it is only set for jitsu.com / localhost origins — dev branch hosts
+ * (`*.jitsu.localhost`) fall back to no continue URL.
+ */
+function emailActionSettings(): auth.ActionCodeSettings | undefined {
+  if (typeof window === "undefined") {
+    return undefined;
+  }
+  const { origin, hostname } = window.location;
+  if (hostname === "jitsu.com" || hostname.endsWith(".jitsu.com") || hostname === "localhost") {
+    return { url: `${origin}/` };
+  }
+  return undefined;
+}
+
 async function getUserFromFirebase(currentUser: auth.User): Promise<ContextApiResponse["user"]> {
   const email = requireDefined(currentUser.email, "email of firebase user is undefined");
   // JITSU-018: email+password sign-up issues a valid Firebase JWT before the
@@ -276,7 +294,7 @@ export function useFirebaseSession(): FirebaseSession {
     async signUp(email: string, password: string): Promise<void> {
       const userCredential = await auth.createUserWithEmailAndPassword(a.getAuth(), email, password);
       if (userCredential?.user) {
-        await auth.sendEmailVerification(userCredential.user);
+        await auth.sendEmailVerification(userCredential.user, emailActionSettings());
       }
     },
     async resetPassword(username: string): Promise<void> {
@@ -284,7 +302,7 @@ export function useFirebaseSession(): FirebaseSession {
     },
     async sendVerificationEmail(): Promise<void> {
       const currentUser = requireDefined(a.getAuth().currentUser, "No signed-in firebase user");
-      await auth.sendEmailVerification(currentUser);
+      await auth.sendEmailVerification(currentUser, emailActionSettings());
     },
     async reloadEmailVerified(): Promise<boolean> {
       const currentUser = a.getAuth().currentUser;

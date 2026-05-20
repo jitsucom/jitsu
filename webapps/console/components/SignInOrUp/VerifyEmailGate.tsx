@@ -29,8 +29,12 @@ export const VerifyEmailGate: React.FC<{ email: string }> = ({ email }) => {
         type: "success",
         message: `Verification email sent to ${email}. Check your inbox and spam folder.`,
       });
-    } catch (e) {
-      setFeedback({ type: "error", message: `Failed to send verification email: ${getErrorMessage(e)}` });
+    } catch (e: any) {
+      const message =
+        e?.code === "auth/too-many-requests"
+          ? "Too many requests. Please wait a few minutes before requesting another email."
+          : `Failed to send verification email: ${getErrorMessage(e)}`;
+      setFeedback({ type: "error", message });
     } finally {
       setResending(false);
     }
