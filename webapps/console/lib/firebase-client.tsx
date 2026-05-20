@@ -10,6 +10,22 @@ export type FirebaseProviderInstance =
   | { enabled: false; settings?: never }
   | { enabled: true; settings: FirebaseClientSettings };
 
+/**
+ * Thrown by {@link getUserFromFirebase} when an email+password account signs in
+ * before its email address has been verified. OAuth providers (Google, GitHub)
+ * verify the address themselves, so the check only applies to the `password`
+ * provider. See JITSU-018.
+ */
+export class EmailNotVerifiedError extends Error {
+  readonly email: string;
+
+  constructor(email: string) {
+    super(`Email ${email} is not verified`);
+    this.name = "EmailNotVerifiedError";
+    this.email = email;
+  }
+}
+
 const FirebaseContext = createContext<FirebaseProviderInstance | null>(null);
 
 const log = getLog("firebase");
@@ -41,6 +57,18 @@ export interface FirebaseSession {
   resetPassword(username: string): Promise<void>;
 
   /**
+   * Re-sends the Firebase email-verification message to the signed-in user.
+   */
+  sendVerificationEmail(): Promise<void>;
+
+  /**
+   * Reloads the signed-in user from Firebase and returns whether the email
+   * address is now verified. Also refreshes the ID token so its claims are
+   * up to date once the address is verified.
+   */
+  reloadEmailVerified(): Promise<boolean>;
+
+  /**
    * Waits until auth state of the user is resolved
    */
   resolveUser(token?: string): { user: Promise<ContextApiResponse["user"] | null>; cleanup: () => void };
@@ -63,6 +91,14 @@ function getCSRFToken(cookieName: string) {
 
 async function getUserFromFirebase(currentUser: auth.User): Promise<ContextApiResponse["user"]> {
   const email = requireDefined(currentUser.email, "email of firebase user is undefined");
+  // JITSU-018: email+password sign-up issues a valid Firebase JWT before the
+  // address is verified. Block such accounts here — before any internal user or
+  // session is minted. OAuth providers verify the email themselves, so the gate
+  // only applies to the `password` provider.
+  const providerId = currentUser.providerData[0]?.providerId;
+  if (providerId === "password" && !currentUser.emailVerified) {
+    throw new EmailNotVerifiedError(email);
+  }
   let internalId = await getCustomClaim(currentUser, "internalId");
   let shouldRefreshToken = false;
   if (!internalId) {
@@ -149,6 +185,12 @@ export function useFirebaseSession(): FirebaseSession {
       resetPassword: async () => {
         throw new Error("Firebase auth is not enabled");
       },
+      sendVerificationEmail: async () => {
+        throw new Error("Firebase auth is not enabled");
+      },
+      reloadEmailVerified: async () => {
+        throw new Error("Firebase auth is not enabled");
+      },
       resolveUser: () => {
         throw new Error("Firebase auth is not enabled");
       },
@@ -184,8 +226,16 @@ export function useFirebaseSession(): FirebaseSession {
           auth.getAuth(),
           async user => {
             log.atDebug().log(`Firebase auth result`, user);
-            resolve(user ? await getUserFromFirebase(user) : null);
-            unregister();
+            try {
+              resolve(user ? await getUserFromFirebase(user) : null);
+            } catch (e) {
+              // getUserFromFirebase rejecting (e.g. EmailNotVerifiedError) must
+              // reject the outer promise — without this catch the throw escapes
+              // the async callback as an unhandled rejection and the caller hangs.
+              reject(e);
+            } finally {
+              unregister();
+            }
           },
           error => {
             log.atError().withCause(error).log(`Firebase auth error`);
@@ -213,6 +263,22 @@ export function useFirebaseSession(): FirebaseSession {
     },
     async resetPassword(username: string): Promise<void> {
       await auth.sendPasswordResetEmail(a.getAuth(), username);
+    },
+    async sendVerificationEmail(): Promise<void> {
+      const currentUser = requireDefined(a.getAuth().currentUser, "No signed-in firebase user");
+      await auth.sendEmailVerification(currentUser);
+    },
+    async reloadEmailVerified(): Promise<boolean> {
+      const currentUser = a.getAuth().currentUser;
+      if (!currentUser) {
+        return false;
+      }
+      await currentUser.reload();
+      if (currentUser.emailVerified) {
+        // Force a token refresh so downstream claims (email_verified) are fresh.
+        await currentUser.getIdToken(true);
+      }
+      return currentUser.emailVerified;
     },
   };
 }

@@ -25,7 +25,8 @@ import { AntdTheme } from "../components/AntdTheme/AntdTheme";
 import { AntdModalProvider } from "../lib/modal";
 import Head from "next/head";
 import { JitsuProvider, useJitsu } from "@jitsu/jitsu-react";
-import { FirebaseProvider, useFirebaseSession } from "../lib/firebase-client";
+import { EmailNotVerifiedError, FirebaseProvider, useFirebaseSession } from "../lib/firebase-client";
+import { VerifyEmailGate } from "../components/SignInOrUp/VerifyEmailGate";
 import { JitsuButton } from "../components/JitsuButton/JitsuButton";
 import { BillingProvider } from "../components/Billing/BillingProvider";
 import { useConfigObjectList, useConfigObjectsUpdater, useLoadedWorkspace } from "../lib/store";
@@ -104,6 +105,9 @@ const FirebaseAuthorizer: React.FC<PropsWithChildren<{}>> = ({ children }) => {
   if (loading) {
     return <GlobalLoader title={"Authorizing"} />;
   } else if (authError) {
+    if (authError instanceof EmailNotVerifiedError) {
+      return <VerifyEmailGate email={authError.email} />;
+    }
     return <GlobalError error={authError} title={"Authorization error"} />;
   } else if (user) {
     return (
