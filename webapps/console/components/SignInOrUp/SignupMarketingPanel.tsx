@@ -19,7 +19,13 @@ const panelFeatures = [
   },
 ];
 
-const customers = ["Investing.com", "PandaDoc", "Rarible", "Census", "Embeddables"];
+const customers: { name: string; href?: string }[] = [
+  { name: "Investing.com", href: "https://jitsu.com/customers/investing" },
+  { name: "PandaDoc" },
+  { name: "Rarible" },
+  { name: "Census" },
+  { name: "Embeddables" },
+];
 
 const snippets = [
   {
@@ -120,7 +126,10 @@ export const SignupMarketingPanel: React.FC = () => (
           <div className="h-7 w-7">{branding.logo}</div>
           <span className="text-xl font-bold tracking-tight">jitsu</span>
         </div>
-        <a href="https://jitsu.com" className="text-sm text-white/55 hover:text-white transition-colors">
+        <a
+          href="https://jitsu.com"
+          className="text-sm text-white/55 hover:text-white hover:underline transition-colors"
+        >
           ‹ Back to jitsu.com
         </a>
       </div>
@@ -133,7 +142,12 @@ export const SignupMarketingPanel: React.FC = () => (
           <span className="text-white/45">killing the client-side code duplication across web, iOS, and Android.</span>
         </p>
         <div className="mt-8 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <a
+            href="https://jitsu.com/customers/investing"
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-3 hover:underline"
+          >
             <div
               className="h-11 w-11 rounded-full flex items-center justify-center text-sm font-semibold"
               style={{ background: "linear-gradient(135deg, #a855f7, #7c3aed)" }}
@@ -144,7 +158,7 @@ export const SignupMarketingPanel: React.FC = () => (
               <div className="font-semibold">Yonatan Adest</div>
               <div className="text-sm text-white/55">CTO · Investing.com</div>
             </div>
-          </div>
+          </a>
           <div className="text-right">
             <div className="text-3xl font-bold leading-none">5B</div>
             <div className="mt-1 text-[10px] tracking-[0.2em] text-white/50">EVENTS / MONTH</div>
@@ -175,12 +189,25 @@ export const SignupMarketingPanel: React.FC = () => (
 
       {/* social proof */}
       <div className="border-t border-white/10 pt-6">
-        <div className="text-[10px] tracking-[0.18em] text-white/40">IN PRODUCTION AT</div>
+        <a
+          href="https://jitsu.com/customers"
+          target="_blank"
+          rel="noreferrer"
+          className="text-[10px] tracking-[0.18em] text-white/40 hover:underline"
+        >
+          IN PRODUCTION AT
+        </a>
         <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-medium text-white/80">
           {customers.map((c, i) => (
-            <React.Fragment key={c}>
+            <React.Fragment key={c.name}>
               {i > 0 && <span className="text-white/25">·</span>}
-              <span>{c}</span>
+              {c.href ? (
+                <a href={c.href} target="_blank" rel="noreferrer" className="hover:underline">
+                  {c.name}
+                </a>
+              ) : (
+                <span>{c.name}</span>
+              )}
             </React.Fragment>
           ))}
         </div>
