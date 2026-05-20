@@ -80,13 +80,25 @@ function highlightLine(line: string): ReactNode {
   });
 }
 
-/** Code card that auto-cycles through the snippets like switching tabs. */
+/** Code card that auto-cycles through the snippets; a manual click pins it. */
 const CodeShowcase: React.FC = () => {
   const [active, setActive] = useState(0);
+  const [autoSwitch, setAutoSwitch] = useState(true);
+
   useEffect(() => {
+    if (!autoSwitch) {
+      return;
+    }
     const t = setInterval(() => setActive(a => (a + 1) % snippets.length), 4500);
     return () => clearInterval(t);
-  }, []);
+  }, [autoSwitch]);
+
+  // A manual pick stops the auto-cycle for good.
+  const selectTab = (i: number) => {
+    setActive(i);
+    setAutoSwitch(false);
+  };
+
   const snippet = snippets[active];
   return (
     <div className="rounded-xl border border-white/10 overflow-hidden" style={{ background: "#0e0d18" }}>
@@ -94,9 +106,16 @@ const CodeShowcase: React.FC = () => {
         <div className="flex items-center gap-3 font-mono text-xs">
           <span className="h-2 w-2 rounded-full bg-green-400" />
           {snippets.map((s, i) => (
-            <span key={s.file} className={i === active ? "text-white" : "text-white/30"}>
+            <button
+              key={s.file}
+              type="button"
+              onClick={() => selectTab(i)}
+              className={`cursor-pointer p-0 transition-colors ${
+                i === active ? "text-white" : "text-white/30 hover:text-white/70"
+              }`}
+            >
               {s.file}
-            </span>
+            </button>
           ))}
         </div>
         <span className="rounded border border-white/15 px-1.5 py-0.5 text-[10px] tracking-[0.15em] text-white/40">
