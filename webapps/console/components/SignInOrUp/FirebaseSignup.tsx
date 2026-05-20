@@ -35,14 +35,17 @@ const GoogleG: React.FC = () => (
 const panelFeatures = [
   {
     title: "Jitsu Functions",
+    href: "https://jitsu.com/features/functions",
     description: "Transform, enrich, and route events in-flight with TypeScript — call APIs, persist state.",
   },
   {
     title: "Real-time streaming",
+    href: "https://jitsu.com/features/event-streaming",
     description: "Land events in your warehouse the moment they happen.",
   },
   {
     title: "Drop-in for Segment",
+    href: "https://jitsu.com/features/segment-compatibility",
     description: "Same SDK shape — keep your existing instrumentation.",
   },
 ];
@@ -56,124 +59,132 @@ const Fn: React.FC<{ children: ReactNode }> = ({ children }) => <span className=
 /** Left-hand testimonial / proof panel. Hidden below `lg`. */
 const MarketingPanel: React.FC = () => (
   <div
-    className="hidden lg:flex lg:w-1/2 flex-col justify-between gap-9 p-10 xl:p-14 text-white overflow-y-auto"
+    className="hidden lg:flex lg:w-1/2 p-10 xl:p-14 text-white overflow-y-auto"
     style={{ background: "linear-gradient(155deg, #1c1640 0%, #2a1b53 55%, #211a48 100%)" }}
   >
-    {/* header */}
-    <div className="flex items-center justify-between">
-      <div className="flex items-center gap-2">
-        <div className="h-7 w-7">{branding.logo}</div>
-        <span className="text-xl font-bold tracking-tight">jitsu</span>
+    {/* one column — every section shares the testimonial's width */}
+    <div className="flex w-full max-w-xl flex-col justify-between gap-9">
+      {/* header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="h-7 w-7">{branding.logo}</div>
+          <span className="text-xl font-bold tracking-tight">jitsu</span>
+        </div>
+        <a href="https://jitsu.com" className="text-sm text-white/55 hover:text-white transition-colors">
+          ‹ Back to jitsu.com
+        </a>
       </div>
-      <a href="https://jitsu.com" className="text-sm text-white/55 hover:text-white transition-colors">
-        ‹ Back to jitsu.com
-      </a>
-    </div>
 
-    {/* testimonial */}
-    <div className="max-w-xl">
-      <div className="font-serif text-[80px] leading-[0.6] text-white/25">“</div>
-      <p className="mt-5 text-2xl xl:text-3xl font-medium leading-snug">
-        Jitsu Functions let us enrich events server-side with external APIs and a persistent KV store —{" "}
-        <span className="text-white/45">killing the client-side code duplication across web, iOS, and Android.</span>
-      </p>
-      <div className="mt-8 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div
-            className="h-11 w-11 rounded-full flex items-center justify-center text-sm font-semibold"
-            style={{ background: "linear-gradient(135deg, #a855f7, #7c3aed)" }}
-          >
-            YA
+      {/* testimonial */}
+      <div>
+        <div className="font-serif text-[80px] leading-[0.6] text-white/25">“</div>
+        <p className="mt-5 text-2xl xl:text-3xl font-medium leading-snug">
+          Jitsu Functions let us enrich events server-side with external APIs and a persistent KV store —{" "}
+          <span className="text-white/45">killing the client-side code duplication across web, iOS, and Android.</span>
+        </p>
+        <div className="mt-8 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div
+              className="h-11 w-11 rounded-full flex items-center justify-center text-sm font-semibold"
+              style={{ background: "linear-gradient(135deg, #a855f7, #7c3aed)" }}
+            >
+              YA
+            </div>
+            <div>
+              <div className="font-semibold">Yonatan Adest</div>
+              <div className="text-sm text-white/55">CTO · Investing.com</div>
+            </div>
           </div>
-          <div>
-            <div className="font-semibold">Yonatan Adest</div>
-            <div className="text-sm text-white/55">CTO · Investing.com</div>
+          <div className="text-right">
+            <div className="text-3xl font-bold leading-none">5B</div>
+            <div className="mt-1 text-[10px] tracking-[0.2em] text-white/50">EVENTS / MONTH</div>
           </div>
-        </div>
-        <div className="text-right">
-          <div className="text-3xl font-bold leading-none">5B</div>
-          <div className="mt-1 text-[10px] tracking-[0.2em] text-white/50">EVENTS / MONTH</div>
-        </div>
-      </div>
-    </div>
-
-    {/* cards */}
-    <div className="flex gap-4">
-      <div
-        className="flex-[2] min-w-0 rounded-xl border border-white/10 overflow-hidden"
-        style={{ background: "#0e0d18" }}
-      >
-        <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/10">
-          <div className="flex items-center gap-2 font-mono text-xs text-white/60">
-            <span className="h-2 w-2 rounded-full bg-green-400" />
-            enrich.ts
-          </div>
-          <span className="rounded border border-white/15 px-1.5 py-0.5 text-[10px] tracking-[0.15em] text-white/40">
-            JITSU FUNCTION
-          </span>
-        </div>
-        <div className="p-4 font-mono text-[11px] leading-[1.8] text-slate-200 overflow-x-auto">
-          <div>
-            <Kw>export default async function</Kw>
-            {" (event, { store, fetch }) {"}
-          </div>
-          <div>
-            {"  "}
-            <Kw>const</Kw>
-            {" geo = "}
-            <Kw>await</Kw>
-            {" store."}
-            <Fn>get</Fn>
-            {"(event.ip)"}
-          </div>
-          <div>
-            {"    ?? "}
-            <Kw>await</Kw> <Fn>fetch</Fn>
-            {"("}
-            <span className="text-[#c3e88d]">{"`/geo/${event.ip}`"}</span>
-            {");"}
-          </div>
-          <div>{"  event.properties.country = geo.country;"}</div>
-          <div>
-            {"  "}
-            <Kw>return</Kw>
-            {" event;"}
-          </div>
-          <div>{"}"}</div>
         </div>
       </div>
-      <div className="flex-1 min-w-0 rounded-xl border border-white/10 bg-white/5 p-4 flex flex-col">
-        <div className="text-[10px] tracking-[0.18em] text-white/45">TIME TO FIRST EVENT</div>
-        <div className="mt-auto pt-6">
-          <span className="text-4xl font-bold">43</span>
-          <span className="ml-1 text-sm text-white/55">sec</span>
+
+      {/* cards */}
+      <div className="flex gap-4">
+        <div
+          className="flex-[2] min-w-0 rounded-xl border border-white/10 overflow-hidden"
+          style={{ background: "#0e0d18" }}
+        >
+          <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/10">
+            <div className="flex items-center gap-2 font-mono text-xs text-white/60">
+              <span className="h-2 w-2 rounded-full bg-green-400" />
+              enrich.ts
+            </div>
+            <span className="rounded border border-white/15 px-1.5 py-0.5 text-[10px] tracking-[0.15em] text-white/40">
+              JITSU FUNCTION
+            </span>
+          </div>
+          <div className="p-4 font-mono text-[11px] leading-[1.8] whitespace-pre text-slate-200 overflow-x-auto">
+            <div>
+              <Kw>export default async function</Kw>
+              {" (event, { store, fetch }) {"}
+            </div>
+            <div>
+              {"  "}
+              <Kw>const</Kw>
+              {" geo = "}
+              <Kw>await</Kw>
+              {" store."}
+              <Fn>get</Fn>
+              {"(event.ip)"}
+            </div>
+            <div>
+              {"    ?? "}
+              <Kw>await</Kw> <Fn>fetch</Fn>
+              {"("}
+              <span className="text-[#c3e88d]">{"`/geo/${event.ip}`"}</span>
+              {");"}
+            </div>
+            <div>{"  event.properties.country = geo.country;"}</div>
+            <div>
+              {"  "}
+              <Kw>return</Kw>
+              {" event;"}
+            </div>
+            <div>{"}"}</div>
+          </div>
+        </div>
+        <div className="flex-1 min-w-0 rounded-xl border border-white/10 bg-white/5 p-4 flex flex-col">
+          <div className="text-[10px] tracking-[0.18em] text-white/45">TIME TO FIRST EVENT</div>
+          <div className="mt-auto pt-6">
+            <span className="text-4xl font-bold">43</span>
+            <span className="ml-1 text-sm text-white/55">sec</span>
+          </div>
         </div>
       </div>
-    </div>
 
-    {/* features */}
-    <div className="grid grid-cols-3 gap-6 border-t border-white/10 pt-6">
-      {panelFeatures.map(f => (
-        <div key={f.title}>
-          <div className="flex items-center gap-1.5 font-semibold">
-            <span className="text-[#c3e88d]">✓</span>
-            {f.title}
+      {/* features */}
+      <div className="grid grid-cols-3 gap-6 border-t border-white/10 pt-6">
+        {panelFeatures.map(f => (
+          <div key={f.title}>
+            <a
+              href={f.href}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1.5 font-semibold hover:underline"
+            >
+              <span className="text-[#c3e88d]">✓</span>
+              {f.title}
+            </a>
+            <p className="mt-1.5 text-sm text-white/55">{f.description}</p>
           </div>
-          <p className="mt-1.5 text-sm text-white/55">{f.description}</p>
-        </div>
-      ))}
-    </div>
-
-    {/* social proof */}
-    <div className="border-t border-white/10 pt-6">
-      <div className="text-[10px] tracking-[0.18em] text-white/40">IN PRODUCTION AT</div>
-      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-medium text-white/80">
-        {customers.map((c, i) => (
-          <React.Fragment key={c}>
-            {i > 0 && <span className="text-white/25">·</span>}
-            <span>{c}</span>
-          </React.Fragment>
         ))}
+      </div>
+
+      {/* social proof */}
+      <div className="border-t border-white/10 pt-6">
+        <div className="text-[10px] tracking-[0.18em] text-white/40">IN PRODUCTION AT</div>
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-medium text-white/80">
+          {customers.map((c, i) => (
+            <React.Fragment key={c}>
+              {i > 0 && <span className="text-white/25">·</span>}
+              <span>{c}</span>
+            </React.Fragment>
+          ))}
+        </div>
       </div>
     </div>
   </div>
