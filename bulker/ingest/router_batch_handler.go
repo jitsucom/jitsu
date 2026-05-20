@@ -228,20 +228,52 @@ func (r *Router) BatchHandler(c *gin.Context) {
 	//	r.Warnf("[batch] %v", err)
 	//}
 
-	// Segment compatibility: a batch may carry a root-level `sentAt` that
-	// applies to every event in the payload. Propagate it onto each event
-	// (only when the event doesn't already carry its own) so the per-event
-	// clock-skew correction inside patchEvent has a uniform input. The
-	// correction itself — and the matching `receivedAt` stamp — happens
-	// per-event in patchEvent, which keeps offset and receivedAt computed
-	// from the same time.Now() and avoids drift across the batch loop.
+	// Capture a single request-level receivedAt and reuse it for both the
+	// Segment timestamp correction (offset = receivedAt - sentAt) and each
+	// event's `receivedAt` field. patchEvent normally stamps receivedAt
+	// with its own time.Now() per event; for a batch loop that advances
+	// across iterations (Kafka publishes etc.) it would drift away from
+	// the offset used here, breaking the
+	// `originalTimestamp = timestamp - (receivedAt - sentAt)` invariant.
+	receivedAt := time.Now().UTC()
+	receivedAtStr := receivedAt.Format(timestamp.JsonISO)
+
+	// Segment compatibility: apply clock-skew correction per-event. An
+	// event-level `sentAt` (set by the SDK on each event) wins over the
+	// batch envelope's root `sentAt` — using the event's own sentAt keeps
+	// the event self-consistent (the sentAt it exposes downstream is the
+	// same one used to compute the offset). applyEventTimestampCorrection
+	// validates sentAt internally and no-ops on parse failure, so a
+	// malformed `payload.SentAt` doesn't get propagated onto events.
+	//
+	// Deliberately scoped to BatchHandler (not patchEvent), so the
+	// single-event endpoints (server-side, browser, pixel, funcs) keep
+	// their existing behavior — silently re-timestamping events for
+	// pipelines that put `sentAt` on each event for their own purposes
+	// would be a non-batch-related behavior change.
 	batch := payload.Batch
-	if payload.SentAt != "" {
-		for _, ev := range batch {
-			if ev != nil {
-				ev.SetIfAbsent("sentAt", payload.SentAt)
-			}
+	for _, ev := range batch {
+		if ev == nil {
+			continue
 		}
+		evSentAt := ev.GetS("sentAt")
+		if evSentAt == "" {
+			evSentAt = payload.SentAt
+		}
+		applyEventTimestampCorrection(ev, evSentAt, receivedAt)
+	}
+
+	// Wrap patchEvent so the per-event `receivedAt` it writes matches the
+	// request-level value used above for the offset. Cheaper than
+	// threading the timestamp through patchEvent's signature or changing
+	// its Set→SetIfAbsent semantics (the latter would let a
+	// client-provided receivedAt survive — FilterEvent doesn't strip it).
+	patch := func(c *gin.Context, messageId string, ev types.Json, tp string, it IngestType, ac types.Json, defName string) error {
+		if err := patchEvent(c, messageId, ev, tp, it, ac, defName); err != nil {
+			return err
+		}
+		ev.Set("receivedAt", receivedAtStr)
+		return nil
 	}
 
 	// Apply in-batch deduplication if any destination has deduplication enabled
@@ -262,7 +294,7 @@ func (r *Router) BatchHandler(c *gin.Context) {
 			messageId = utils.ShortenString(messageIdUnsupportedChars.ReplaceAllString(messageId, "_"), 64)
 		}
 		c.Set(appbase.ContextMessageId, messageId)
-		_, ingestMessageBytes, err1 := r.buildIngestMessage(c, messageId, event, payload.Context, "event", loc, stream, patchEvent, payload.EventsName)
+		_, ingestMessageBytes, err1 := r.buildIngestMessage(c, messageId, event, payload.Context, "event", loc, stream, patch, payload.EventsName)
 		var asyncDestinations, tagsDestinations []string
 		if err1 == nil {
 			if len(stream.AsynchronousDestinations) == 0 {
