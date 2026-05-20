@@ -19,42 +19,60 @@ import (
 	"github.com/jitsucom/bulker/jitsubase/uuid"
 )
 
-// applySegmentTimestampCorrection implements Segment-style clock-skew
-// correction for batch payloads: when the request carries a root-level
-// `sentAt` (device time), the offset between the server's receivedAt and
-// the device's sentAt is added to each event's `timestamp`. `sentAt` is
-// also propagated to each event so downstream consumers see it per-event.
+// significantClockSkew is the minimum |receivedAt - sentAt| below which we
+// don't bother rewriting the event's timestamp. Sub-threshold skew is
+// dominated by NTP drift, network jitter, and request handling latency,
+// so any "correction" we'd apply is noise on noise. Above the threshold
+// the device clock is materially wrong (offline queue replay, manually
+// adjusted clock, wrong timezone interpretation) and adjustment is worth
+// doing.
+const significantClockSkew = 5 * time.Minute
+
+// applyEventTimestampCorrection implements Segment-style clock-skew
+// correction for a single event: when `sentAt` (device time) is set and
+// the offset between server's receivedAt and device's sentAt exceeds
+// significantClockSkew, that offset is added to the event's `timestamp`.
+// `sentAt` is always propagated onto the event (regardless of threshold),
+// so downstream consumers see it per-event whether it arrived on a batch
+// envelope or as a per-event field.
 //
-// The pre-correction device timestamp is intentionally NOT preserved on
-// the event — downstream warehouses already have to deal with enough
-// timestamp columns, and adding a Segment-only `originalTimestamp` here
-// just leaks a field into every schema. Consumers that need the device
-// clock can recover it as `timestamp - (receivedAt - sentAt)`.
+// The pre-correction device timestamp is intentionally NOT preserved —
+// downstream warehouses already have to deal with enough timestamp
+// columns, and adding a Segment-only `originalTimestamp` here just leaks
+// a field into every schema. Consumers that need the device clock can
+// recover it as `timestamp - (receivedAt - sentAt)`.
 //
 // See https://www.twilio.com/docs/segment/connections/spec/common#sentat
-func applySegmentTimestampCorrection(batch []types.Json, sentAt string, receivedAt time.Time) {
-	if sentAt == "" {
+func applyEventTimestampCorrection(ev types.Json, sentAt string, receivedAt time.Time) {
+	if ev == nil || sentAt == "" {
 		return
 	}
 	sentAtTime, err := time.Parse(time.RFC3339Nano, sentAt)
 	if err != nil {
 		return
 	}
+	ev.SetIfAbsent("sentAt", sentAt)
+	tsStr := ev.GetS("timestamp")
+	if tsStr == "" {
+		return
+	}
+	ts, err := time.Parse(time.RFC3339Nano, tsStr)
+	if err != nil {
+		return
+	}
 	offset := receivedAt.Sub(sentAtTime)
+	if offset.Abs() < significantClockSkew {
+		return
+	}
+	ev.Set("timestamp", ts.Add(offset).UTC().Format(timestamp.JsonISO))
+}
+
+// applySegmentTimestampCorrection is a thin batch wrapper. Kept for the
+// existing unit tests; production callers propagate the envelope `sentAt`
+// onto each event and let patchEvent invoke the per-event helper.
+func applySegmentTimestampCorrection(batch []types.Json, sentAt string, receivedAt time.Time) {
 	for _, ev := range batch {
-		if ev == nil {
-			continue
-		}
-		ev.SetIfAbsent("sentAt", sentAt)
-		tsStr := ev.GetS("timestamp")
-		if tsStr == "" {
-			continue
-		}
-		ts, err := time.Parse(time.RFC3339Nano, tsStr)
-		if err != nil {
-			continue
-		}
-		ev.Set("timestamp", ts.Add(offset).UTC().Format(timestamp.JsonISO))
+		applyEventTimestampCorrection(ev, sentAt, receivedAt)
 	}
 }
 
@@ -210,12 +228,20 @@ func (r *Router) BatchHandler(c *gin.Context) {
 	//	r.Warnf("[batch] %v", err)
 	//}
 
-	// Segment compatibility: if the request carries a batch-level `sentAt`,
-	// adjust per-event timestamps for client/server clock skew before any
-	// further processing (dedup uses the corrected timestamps).
+	// Segment compatibility: a batch may carry a root-level `sentAt` that
+	// applies to every event in the payload. Propagate it onto each event
+	// (only when the event doesn't already carry its own) so the per-event
+	// clock-skew correction inside patchEvent has a uniform input. The
+	// correction itself — and the matching `receivedAt` stamp — happens
+	// per-event in patchEvent, which keeps offset and receivedAt computed
+	// from the same time.Now() and avoids drift across the batch loop.
 	batch := payload.Batch
 	if payload.SentAt != "" {
-		applySegmentTimestampCorrection(batch, payload.SentAt, time.Now().UTC())
+		for _, ev := range batch {
+			if ev != nil {
+				ev.SetIfAbsent("sentAt", payload.SentAt)
+			}
+		}
 	}
 
 	// Apply in-batch deduplication if any destination has deduplication enabled

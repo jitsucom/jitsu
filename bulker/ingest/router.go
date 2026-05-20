@@ -403,7 +403,16 @@ func patchEvent(c *gin.Context, messageId string, ev types.Json, tp string, inge
 		// it is only allowed to be set via functions
 		types.FilterEvent(ev)
 	}
-	nowIsoDate := time.Now().UTC().Format(timestamp.JsonISO)
+	now := time.Now().UTC()
+	// Segment-style clock-skew correction. Reads `sentAt` from the event
+	// itself — for batch payloads BatchHandler propagates the envelope's
+	// sentAt onto each event before this is called; for single-event
+	// endpoints (server-side, browser, pixel, funcs) the SDK or caller
+	// puts sentAt directly on the event. Must run before the SetIfAbsent
+	// below so events without a timestamp keep the server's now-stamp
+	// (nothing to correct in that case anyway).
+	applyEventTimestampCorrection(ev, ev.GetS("sentAt"), now)
+	nowIsoDate := now.Format(timestamp.JsonISO)
 	ev.Set("receivedAt", nowIsoDate)
 	ev.Set("type", typeFixed)
 	ev.SetIfAbsent("timestamp", nowIsoDate)
