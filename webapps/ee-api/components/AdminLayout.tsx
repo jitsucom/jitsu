@@ -4,6 +4,7 @@ import { useRouter } from "next/router";
 import { Button } from "antd";
 import { LogoutOutlined } from "@ant-design/icons";
 import { useAuth } from "./AuthProvider";
+import { UpdateStatCacheButton } from "./UpdateStatCacheButton";
 
 const navItems: { href: string; label: string }[] = [
   { href: "/", label: "Billing" },
@@ -44,6 +45,7 @@ export const AdminLayout: React.FC<PropsWithChildren> = ({ children }) => {
           })}
         </nav>
         <div className="flex items-center gap-3">
+          <UpdateStatCacheButton />
           <span className="text-sm text-neutral-500">{email}</span>
           <Button size="small" icon={<LogoutOutlined />} onClick={() => auth.signOut()}>
             Logout

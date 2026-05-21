@@ -3,6 +3,10 @@
     {
       "path": "/api/billing/export-subscriptions",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/sync-cache",
+      "schedule": "0 * * * *"
     }
   ]
 }

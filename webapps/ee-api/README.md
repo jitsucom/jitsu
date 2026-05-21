@@ -28,11 +28,12 @@ Auth is fully client-side — there is no session cookie:
 
 ### Env vars
 
-| Var | Purpose |
-| --- | --- |
-| `FIREBASE_AUTH` | JSON5 `{ admin, client }` — Firebase admin credentials + client config. |
-| `FIREBASE_ADMIN` + `FIREBASE_CLIENT_CONFIG` | Alternative to `FIREBASE_AUTH`: the two halves as separate JSON5 vars. |
-| `JITSU_EE_ADMINS` | Comma-separated email patterns that may access the UI. `*` is a wildcard. |
+| Var                                         | Purpose                                                                                                  |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `FIREBASE_AUTH`                             | JSON5 `{ admin, client }` — Firebase admin credentials + client config.                                  |
+| `FIREBASE_ADMIN` + `FIREBASE_CLIENT_CONFIG` | Alternative to `FIREBASE_AUTH`: the two halves as separate JSON5 vars.                                   |
+| `JITSU_EE_ADMINS`                           | Comma-separated email patterns that may access the UI. `*` is a wildcard.                                |
+| `CRON_SECRET`                               | Shared secret for Vercel Cron auth. Sent as `Authorization: Bearer <secret>`; accepted by `lib/auth.ts`. |
 
 `JITSU_EE_ADMINS` example:
 
@@ -61,6 +62,19 @@ pnpm --filter ee-api db:update-schema  # prisma db push — apply the schema to 
 ```
 
 The generated client lives in `lib/generated/` and is git-ignored.
+
+## Cron jobs
+
+Scheduled in `vercel.json`:
+
+- `/api/billing/export-subscriptions` — every 5 minutes.
+- `/api/sync-cache` — hourly; refreshes the current month of `newjitsuee.stat_cache`
+  from ClickHouse so the billing/usage reports can be served without querying it
+  directly. A full 12-month rebuild is available on demand from the admin UI's
+  **Update stat cache** button (`/api/admin/sync-cache`).
+
+Cron requests authenticate with `CRON_SECRET` — Vercel sends it automatically as a
+Bearer token to scheduled endpoints.
 
 ## Dev
 
