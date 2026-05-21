@@ -65,6 +65,9 @@ type AbstractBatchConsumer struct {
 	//consumer can be paused between batches(idle) and also can be paused during loading batch to destination(not idle)
 	paused        atomic.Bool
 	resumeChannel chan struct{}
+	//restarting guards against piling up overlapping restartConsumer calls
+	//from the pause heartbeat loop (see restartConsumerAsync).
+	restarting atomic.Bool
 
 	batchSizeFunc     BatchSizesFunction
 	batchFunc         BatchFunction
@@ -116,7 +119,10 @@ func NewAbstractBatchConsumer(repository *Repository, destinationId string, batc
 		producerConfig:   producerConfig,
 		waitForMessages:  time.Duration(config.BatchRunnerWaitForMessagesSec) * time.Second,
 		closed:           make(chan struct{}),
-		resumeChannel:    make(chan struct{}),
+		//buffered size 1: resume() can deposit the signal even if the
+		//heartbeat goroutine is mid-iteration (e.g. blocked in
+		//restartConsumer); the heartbeat picks it up on the next pass.
+		resumeChannel: make(chan struct{}, 1),
 	}
 	bc.idle.Store(true)
 	return bc, nil
@@ -406,6 +412,12 @@ func (bc *AbstractBatchConsumer) pause(immediatePoll bool) {
 	if !bc.paused.CompareAndSwap(false, true) {
 		return
 	}
+	//drain any stale resume signal left over from a prior cycle so the new
+	//heartbeat goroutine doesn't break out of its loop on the first pass.
+	select {
+	case <-bc.resumeChannel:
+	default:
+	}
 	bc.pauseKafkaConsumer()
 
 	safego.RunWithRestart(func() {
@@ -426,6 +438,15 @@ func (bc *AbstractBatchConsumer) pause(immediatePoll bool) {
 				select {
 				case <-bc.resumeChannel:
 					bc.paused.CompareAndSwap(true, false)
+					//Defensive: resume() may have called consumer.Resume on
+					//a consumer that was since replaced (e.g. by an in-flight
+					//restartConsumer). Re-resume the current one so the kafka
+					//state matches paused=false even after that race.
+					if currentConsumer := bc.consumer.Load(); currentConsumer != nil {
+						if parts, perr := currentConsumer.Assignment(); perr == nil {
+							_ = currentConsumer.Resume(parts)
+						}
+					}
 					bc.Debugf("Consumer resumed.")
 					break loop
 				case <-pauseTicker.C:
@@ -452,7 +473,11 @@ func (bc *AbstractBatchConsumer) pause(immediatePoll bool) {
 				if kafkaErr.IsRetriable() {
 					time.Sleep(10 * time.Second)
 				} else {
-					bc.restartConsumer(nil)
+					//restartConsumer blocks for KafkaSessionTimeoutMs + 15s
+					//baseline per init attempt; running it synchronously
+					//here would starve the resumeChannel select and trip
+					//"Resume timeout" in resume() once 5 min elapses.
+					bc.restartConsumerAsync()
 				}
 			} else if message != nil {
 				bc.Debugf("Unexpected message on paused consumer: %v", message)
@@ -461,7 +486,7 @@ func (bc *AbstractBatchConsumer) pause(immediatePoll bool) {
 				if err != nil {
 					bc.errorMetric("ROLLBACK_ON_PAUSE_ERR")
 					bc.SystemErrorf("Failed to rollback offset on paused consumer: %v", err)
-					bc.restartConsumer(nil)
+					bc.restartConsumerAsync()
 				}
 				bc.pauseKafkaConsumer()
 			}
@@ -492,6 +517,22 @@ func (bc *AbstractBatchConsumer) initConsumer(force bool) (consumer *kafka.Consu
 		bc.consumer.Store(consumer)
 	}
 	return consumer, nil
+}
+
+// restartConsumerAsync schedules restartConsumer to run in a separate
+// goroutine, returning immediately. Re-entry is suppressed: if a restart
+// is already in flight, the call is a no-op. Use from contexts that must
+// not block — notably the pause heartbeat loop, where a synchronous
+// restartConsumer can starve the resumeChannel select for longer than
+// KafkaMaxPollIntervalMs and cause "Resume timeout" in resume().
+func (bc *AbstractBatchConsumer) restartConsumerAsync() {
+	if !bc.restarting.CompareAndSwap(false, true) {
+		return
+	}
+	go func() {
+		defer bc.restarting.Store(false)
+		bc.restartConsumer(nil)
+	}()
 }
 
 func (bc *AbstractBatchConsumer) restartConsumer(beforeInit func()) {
