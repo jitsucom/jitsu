@@ -391,12 +391,12 @@ func (bc *BatchConsumerImpl) processFailed(firstPosition *kafka.TopicPartition, 
 			kafkabase.PutKafkaHeader(&headers, originalTopicHeader, bc.topicId)
 			kafkabase.PutKafkaHeader(&headers, retriesCountHeader, strconv.Itoa(retries))
 			kafkabase.PutKafkaHeader(&headers, retryTimeHeader, timestamp.ToISOFormat(RetryBackOffTime(bc.config, retries+1).UTC()))
-			err = producer.Produce(&kafka.Message{
+			err = kafkabase.ProduceWithBackpressure(producer, &kafka.Message{
 				Key:            message.Key,
 				TopicPartition: kafka.TopicPartition{Topic: &failedTopic, Partition: kafka.PartitionAny},
 				Headers:        headers,
 				Value:          message.Value,
-			}, nil)
+			}, bc.config.ProducerLingerMs/2, 30*time.Second)
 
 			if err != nil {
 				return counters, fmt.Errorf("failed to put message to producer: %v", err)

@@ -2,6 +2,7 @@ package kafkabase
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync/atomic"
 	"time"
@@ -14,6 +15,35 @@ import (
 )
 
 const MessageIdHeader = "message_id"
+
+// ProduceWithBackpressure submits msg via producer.Produce, retrying on
+// kafka.ErrQueueFull until the outbound queue drains or maxWait elapses.
+// ErrQueueFull is a transient back-pressure signal from librdkafka, not a
+// fatal error; Flush blocks (bounded) while in-flight messages get sent to
+// the broker and free queue slots. flushTimeoutMs is the per-iteration Flush
+// wait; maxWait caps total wall-clock time before giving up. Any non-queue-full
+// error is returned verbatim; a deadline-exceeded queue-full is wrapped.
+func ProduceWithBackpressure(producer *kafka.Producer, msg *kafka.Message, flushTimeoutMs int, maxWait time.Duration) error {
+	if flushTimeoutMs < 10 {
+		flushTimeoutMs = 10
+	}
+	deadline := time.Now().Add(maxWait)
+	for {
+		err := producer.Produce(msg, nil)
+		if err == nil {
+			return nil
+		}
+		var kerr kafka.Error
+		if errors.As(err, &kerr) && kerr.Code() == kafka.ErrQueueFull {
+			if time.Now().After(deadline) {
+				return fmt.Errorf("producer queue still full after %s: %w", maxWait, err)
+			}
+			producer.Flush(flushTimeoutMs)
+			continue
+		}
+		return err
+	}
+}
 
 type MetricsLabelsFunc func(topicId string, status, errText string) (topic, destinationId, mode, tableName, st string, err string)
 
@@ -216,17 +246,21 @@ func (p *Producer) ProduceSync(topic string, event kafka.Message) error {
 }
 
 // ProduceAsync TODO: transactional delivery?
-// produces messages to kafka
-func (p *Producer) ProduceAsync(topic string, messageKey string, event []byte, headers map[string]string, partition int32, messageId string, failover bool) error {
+// produces messages to kafka. When backpressureMaxWait > 0 and librdkafka's
+// local queue is full, the call blocks up to backpressureMaxWait while the
+// producer drains rather than returning ErrQueueFull immediately. Callers on
+// latency-sensitive paths (ingest HTTP handlers) should pass 0; bulkerapp HTTP
+// handlers ~5s; backend services / consumers / maintenance tasks ~30s.
+func (p *Producer) ProduceAsync(topic string, messageKey string, event []byte, headers map[string]string, partition int32, messageId string, failover bool, backpressureMaxWait time.Duration) error {
 	if p.isClosed() {
 		return p.NewError("producer is closed")
 	}
-	errors := multierror.Error{}
+	errs := multierror.Error{}
 	var key []byte
 	if messageKey != "" {
 		key = []byte(messageKey)
 	}
-	err := p.producer.Produce(&kafka.Message{
+	msg := &kafka.Message{
 		Key: key,
 		Headers: utils.MapToSlice(headers, func(k string, v string) kafka.Header {
 			return kafka.Header{Key: k, Value: []byte(v)}
@@ -237,10 +271,16 @@ func (p *Producer) ProduceAsync(topic string, messageKey string, event []byte, h
 			MessageIdHeader: messageId,
 			"failover":      failover,
 		},
-	}, nil)
+	}
+	var err error
+	if backpressureMaxWait > 0 {
+		err = ProduceWithBackpressure(p.producer, msg, p.config.ProducerLingerMs/2, backpressureMaxWait)
+	} else {
+		err = p.producer.Produce(msg, nil)
+	}
 	if err != nil {
 		ProducerMessages(p.metricsLabelFunc(topic, "error", KafkaErrorCode(err))).Inc()
-		errors.Errors = append(errors.Errors, err)
+		errs.Errors = append(errs.Errors, err)
 
 		// Log to failover logger for async production errors
 		if failover && p.failoverLogger != nil && p.failoverLogger.ShouldLog(err) {
@@ -251,7 +291,7 @@ func (p *Producer) ProduceAsync(topic string, messageKey string, event []byte, h
 	} else {
 		ProducerMessages(p.metricsLabelFunc(topic, "produced", "")).Inc()
 	}
-	return errors.ErrorOrNil()
+	return errs.ErrorOrNil()
 }
 
 // Close closes producer

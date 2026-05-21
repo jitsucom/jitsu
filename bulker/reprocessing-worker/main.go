@@ -559,7 +559,7 @@ func sendBatch(batch []map[string]interface{}, producer *kafkabase.Producer, top
 			continue
 		}
 
-		err = producer.ProduceAsync(topic, uuid.New(), messageBytes, headers, kafka.PartitionAny, "", false)
+		err = producer.ProduceAsync(topic, uuid.New(), messageBytes, headers, kafka.PartitionAny, "", false, 30*time.Second)
 		if err != nil {
 			return err
 		}

@@ -184,12 +184,6 @@ var (
 		return panics
 	}
 
-	ProducerBackPressureDelayMs = promauto.NewGauge(prometheus.GaugeOpts{
-		Namespace: "bulkerapp",
-		Subsystem: "producer",
-		Name:      "back_pressure_delay_ms",
-		Help:      "Current back pressure delay applied to producer requests in milliseconds",
-	})
 )
 
 func KafkaErrorCode(err error) string {

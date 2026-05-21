@@ -11,7 +11,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/jitsucom/bulker/jitsubase/logging"
@@ -44,8 +43,6 @@ type Router struct {
 	producer         *Producer
 	eventsLogService eventslog.EventsLogService
 	fastStore        *FastStore
-
-	backPressureMs atomic.Int32
 }
 
 func NewRouter(appContext *Context) *Router {
@@ -110,29 +107,13 @@ func (r *Router) Health(c *gin.Context) {
 	}
 	size, err := r.producer.QueueSize()
 	if err != nil {
-		r.backPressureMs.Store(0)
-		metrics.ProducerBackPressureDelayMs.Set(0)
 		logging.Errorf("Health check: FAILED: producer queue size error: %v", err)
 		c.JSON(http.StatusServiceUnavailable, gin.H{"status": "fail", "output": "producer queue size error: " + err.Error()})
 		return
 	}
-	if r.config.ProducerBackPressureMaxDelayMs > 0 {
-		threshold := r.config.ProducerBackPressureThreshold
-		filled := float64(size) / float64(r.config.ProducerQueueSize)
-		if filled > threshold {
-			backPressure := (filled - threshold) / (1 - threshold)
-			backPressureMs := int32(backPressure * float64(r.config.ProducerBackPressureMaxDelayMs))
-			r.backPressureMs.Store(backPressureMs)
-			metrics.ProducerBackPressureDelayMs.Set(float64(backPressureMs))
-		} else {
-			r.backPressureMs.Store(0)
-			metrics.ProducerBackPressureDelayMs.Set(0)
-		}
-	}
-	if float64(size) > r.config.ProducerQueueSizeThreshold*float64(r.config.ProducerQueueSize) {
-		// we need to start worrying about the queue size before it reaches the limit
-		logging.Errorf("Health check: FAILED: producer queue size: %d", size)
-		c.JSON(http.StatusServiceUnavailable, gin.H{"status": "fail", "output": fmt.Sprintf("producer queue size: %d", size)})
+	if size >= r.config.ProducerQueueSize {
+		logging.Errorf("Health check: FAILED: producer queue full: %d/%d", size, r.config.ProducerQueueSize)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"status": "fail", "output": fmt.Sprintf("producer queue full: %d/%d", size, r.config.ProducerQueueSize)})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "pass", "producerQueueSize": size, "topicsUpdatedAt": updatedAt})
@@ -202,14 +183,10 @@ func (r *Router) EventsHandler(c *gin.Context) {
 	if streamOptions != "" {
 		headers[streamOptionsKeyHeader] = streamOptions
 	}
-	err = r.producer.ProduceAsync(topicId, uuid.New(), body, headers, kafka.PartitionAny, "", false)
+	err = r.producer.ProduceAsync(topicId, uuid.New(), body, headers, kafka.PartitionAny, "", false, 5*time.Second)
 	if err != nil {
 		rError = r.ResponseError(c, http.StatusInternalServerError, "producer error", true, err, true, true, false)
 		return
-	}
-	backPressureMs := r.backPressureMs.Load()
-	if backPressureMs > 0 {
-		time.Sleep(time.Duration(backPressureMs) * time.Millisecond)
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "ok"})
 }
@@ -233,7 +210,7 @@ func (r *Router) ProfilesHandler(c *gin.Context) {
 		return
 	}
 
-	err = r.producer.ProduceAsync(topicId, profileId, nil, nil, kafka.PartitionAny, "", false)
+	err = r.producer.ProduceAsync(topicId, profileId, nil, nil, kafka.PartitionAny, "", false, 5*time.Second)
 	if err != nil {
 		rError = r.ResponseError(c, http.StatusInternalServerError, "producer error", true, err, true, true, false)
 		return
