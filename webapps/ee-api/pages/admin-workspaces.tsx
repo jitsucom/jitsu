@@ -74,7 +74,7 @@ const PlanDetails: React.FC<{ row: AdminWorkspaceRow; variant: PeriodVariant }> 
     { label: "Events quota", value: plan.eventsQuota != null ? fmtInt(plan.eventsQuota) : "Unlimited" },
     {
       label: "Event overage",
-      value: plan.overagePricePer100k != null ? `${fmtMoney(plan.overagePricePer100k)} / 100k` : "—",
+      value: plan.overagePricePer100k != null ? `${fmtMoney(plan.overagePricePer100k * 10)} / 1M` : "—",
     },
     { label: "Syncs limit", value: plan.syncsLimit != null ? fmtInt(plan.syncsLimit) : "—" },
     {
