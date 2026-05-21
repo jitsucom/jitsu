@@ -3,6 +3,7 @@ import { useBilling } from "../../../../components/Billing/BillingProvider";
 import { Alert, Skeleton } from "antd";
 import { ChevronLeft } from "lucide-react";
 import React from "react";
+import Link from "next/link";
 import { BillingManager } from "../../../../components/Billing/BillingManager";
 import { WJitsuButton } from "../../../../components/JitsuButton/JitsuButton";
 
@@ -50,6 +51,25 @@ const BillingComponent: React.FC<{}> = () => {
             <>
               You're plan is managed by Jitsu Sales team. Please, contact us at <b>support@jitsu.com</b> to make any
               changes
+            </>
+          }
+        />
+      </div>
+    );
+  } else if (billing.settings.billingParent) {
+    const parent = billing.settings.billingParent;
+    return (
+      <div>
+        <Alert
+          showIcon
+          type="info"
+          message="Billing is managed by a parent workspace"
+          description={
+            <>
+              This workspace bills under <b>{parent.name}</b>. Its plan, invoices and usage are managed there.{" "}
+              <Link className="text-primary" href={`/${parent.slug ?? parent.id}/settings/billing`}>
+                Open {parent.name}'s billing page
+              </Link>
             </>
           }
         />

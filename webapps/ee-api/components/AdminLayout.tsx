@@ -7,6 +7,7 @@ import { useAuth } from "./AuthProvider";
 
 const navItems: { href: string; label: string }[] = [
   { href: "/", label: "Billing" },
+  { href: "/billing-parents", label: "Billing Parents" },
   { href: "/admin-workspaces", label: "Admin Workspaces" },
   { href: "/email", label: "Email" },
 ];

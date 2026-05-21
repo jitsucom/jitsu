@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { assertFalse, assertTrue, rpc } from "juava";
-import { useWorkspace } from "../../lib/context";
+import { useUser, useWorkspace } from "../../lib/context";
 import { useBilling } from "./BillingProvider";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
@@ -90,4 +90,76 @@ export function useEventsUsage(opts?: { skipSubscribed?: boolean; cacheSeconds?:
         }
       : undefined,
   };
+}
+
+export type ConsolidatedUsage = Usage & {
+  /** Active syncs across the billing group over the period. */
+  syncs: number;
+  /** Workspaces summed — 1 for a standalone workspace, >1 for a billing parent. */
+  memberCount: number;
+};
+
+export type UseConsolidatedUsageRes = {
+  isLoading: boolean;
+  error?: any;
+  throttle?: number;
+  usage?: ConsolidatedUsage;
+};
+
+/**
+ * Usage for the billing page. Reads consolidated events + syncs for the whole
+ * billing group from `/ee/billing/settings?withUsage=true` — for a billing
+ * parent that sums the parent and all its children; for a standalone workspace
+ * it is just that workspace.
+ */
+export function useConsolidatedUsage(): UseConsolidatedUsageRes {
+  const workspace = useWorkspace();
+  const user = useUser();
+  const billing = useBilling();
+  assertTrue(billing.enabled, "Billing is not enabled");
+  assertFalse(billing.loading, "Billing must be loaded before using usage hook");
+
+  const throttle = workspace.featuresEnabled
+    ?.filter(f => f.startsWith("throttle"))
+    ?.map(parseThrottle)
+    ?.find(t => t);
+
+  const { isLoading, error, data } = useQuery(
+    ["consolidated usage", workspace.id, billing.settings.planId],
+    async () => {
+      const resp = await rpc(
+        `/api/${workspace.id}/ee/billing/settings?withUsage=true&email=${encodeURIComponent(user.email)}`
+      );
+      return resp.usage as {
+        events: number;
+        syncs: number;
+        periodStart: string;
+        periodEnd: string;
+        memberCount: number;
+      };
+    },
+    { retry: false, cacheTime: 5 * 60 * 1000, staleTime: 5 * 60 * 1000 }
+  );
+
+  let usage: ConsolidatedUsage | undefined;
+  if (data) {
+    const periodStart = new Date(data.periodStart);
+    const periodEnd = new Date(data.periodEnd);
+    const periodDuration = dayjs(new Date()).diff(dayjs(periodStart), "day");
+    const projection =
+      periodDuration > 0
+        ? (data.events / periodDuration) * dayjs(periodEnd).diff(dayjs(periodStart), "day")
+        : undefined;
+    usage = {
+      periodStart,
+      periodEnd,
+      events: data.events,
+      syncs: data.syncs,
+      memberCount: data.memberCount,
+      projectionByTheEndOfPeriod: projection,
+      maxAllowedDestinatonEvents: billing.settings.destinationEvensPerMonth,
+      usagePercentage: data.events / billing.settings.destinationEvensPerMonth,
+    };
+  }
+  return { isLoading, error, throttle, usage };
 }
