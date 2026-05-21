@@ -1,7 +1,7 @@
 import React from "react";
 import { render } from "@react-email/components";
 import { withFirebaseAdminAuth } from "../../../lib/route-helpers";
-import { emailTemplates, getComponent } from "../../../lib/email";
+import { broadcastEmailTemplates, getComponent } from "../../../lib/email";
 
 /**
  * Renders an email template to HTML using its default preview values, for the
@@ -13,7 +13,7 @@ export default withFirebaseAdminAuth(async (req, res) => {
     res.status(400).json({ error: "template query param is required" });
     return;
   }
-  if (!(emailTemplates as readonly string[]).includes(template)) {
+  if (!(broadcastEmailTemplates as readonly string[]).includes(template)) {
     res.status(400).json({ error: `Unknown template: ${template}` });
     return;
   }

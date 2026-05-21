@@ -243,17 +243,23 @@ export async function sendEmail(payload: Omit<SendEmailRequest, "to"> & { to: st
   };
 }
 
-/** Templates that can be sent to a whole workspace — the keys `getComponent` accepts. */
-export const emailTemplates = [
+/**
+ * Templates an admin can broadcast to a whole workspace from the Email page.
+ *
+ * Limited to templates that render correctly from workspace context alone
+ * (recipient name + workspace name/slug). Event-driven templates are excluded:
+ * this flow can't supply their per-event variables, so they would send
+ * placeholder defaults to real users —
+ *   - throttling-reminder / throttling-started  → need the throttle percentage
+ *   - connection-status-failed / -success       → need connection/entity details
+ * Those are still sent by the automated endpoints that have the real values.
+ */
+export const broadcastEmailTemplates = [
   "welcome",
   "churned",
   "quota-exceeded",
   "quota-about-to-exceed",
   "billing-issues",
-  "throttling-reminder",
-  "throttling-started",
-  "connection-status-failed",
-  "connection-status-success",
 ] as const;
 
 export type EmailHistoryEntry = {
