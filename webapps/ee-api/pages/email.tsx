@@ -70,6 +70,8 @@ const ControlsPanel: React.FC<{
   useEffect(() => {
     if (!workspaceId) {
       setThrottle(0);
+      // Clear any spinner left by a request that was superseded mid-flight.
+      setThrottleLoading(false);
       return;
     }
     let cancelled = false;
@@ -219,6 +221,8 @@ const PreviewPanel: React.FC<{ template?: string }> = ({ template }) => {
     if (!template) {
       setPreview(null);
       setError(null);
+      // Clear any spinner left by a request that was superseded mid-flight.
+      setLoading(false);
       return;
     }
     let cancelled = false;
@@ -307,6 +311,8 @@ const EmailHistoryCard: React.FC<{ workspaceId?: string; reloadToken: number }> 
   useEffect(() => {
     if (!workspaceId) {
       setRows([]);
+      // Clear any spinner left by a request that was superseded mid-flight.
+      setLoading(false);
       return;
     }
     let cancelled = false;
