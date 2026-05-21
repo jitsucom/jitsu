@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { serialize } from "cookie";
-import { getOrigin, withErrorHandler } from "../../../lib/route-helpers";
+import { withErrorHandler } from "../../../lib/route-helpers";
 import {
   createSessionCookie,
   firebaseAuthCookieName,
@@ -22,7 +22,10 @@ const csrfCookieName = "fb-csrfToken";
  *  - DELETE — clear the session cookie (logout).
  */
 const handler = async (req: NextApiRequest, res: NextApiResponse) => {
-  const secure = getOrigin(req).startsWith("https");
+  // The auth cookie is always Secure in production. Deriving this from the
+  // request (e.g. X-Forwarded-Proto) would let a client downgrade the cookie
+  // to non-Secure by spoofing that header.
+  const secure = process.env.NODE_ENV === "production";
 
   if (req.method === "DELETE") {
     res.setHeader(
