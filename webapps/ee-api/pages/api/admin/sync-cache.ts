@@ -1,18 +1,21 @@
 import { getErrorMessage } from "juava";
 import { withFirebaseAdminAuth } from "../../../lib/route-helpers";
-import { syncStatCache, SyncCacheGranularity } from "../sync-cache";
+import { syncStatCache } from "../sync-cache";
 
 /**
  * On-demand `newjitsuee.stat_cache` refresh for the admin UI.
  *
- * Streams newline-delimited JSON — one {@link SyncCacheProgress} object per line,
- * plus a final `{ type: "error", message }` line if the refresh fails — so the
- * caller can render live progress. `?full=true` rebuilds the last 12 months;
- * otherwise only the current period is refreshed.
+ * `POST` only — it mutates the cache. Streams newline-delimited JSON: one
+ * {@link SyncCacheProgress} object per line, plus a final `{ type: "error",
+ * message }` line if the refresh fails, so the caller can render live progress.
+ * `?full=true` rebuilds the last 12 months; otherwise only the current month.
  */
 export default withFirebaseAdminAuth(async (req, res) => {
+  if (req.method !== "POST") {
+    res.status(405).json({ error: "Method not allowed" });
+    return;
+  }
   const full = req.query.full === "true" || req.query.full === "1";
-  const granularity: SyncCacheGranularity = req.query.granularity === "day" ? "day" : "month";
 
   res.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
   res.setHeader("Cache-Control", "no-store, no-transform");
@@ -20,7 +23,7 @@ export default withFirebaseAdminAuth(async (req, res) => {
 
   const write = (event: unknown) => res.write(JSON.stringify(event) + "\n");
   try {
-    for await (const event of syncStatCache({ full, granularity })) {
+    for await (const event of syncStatCache({ full })) {
       write(event);
     }
   } catch (e) {

@@ -11,14 +11,11 @@ dayjs.extend(utc);
 
 const log = getLog();
 
-/** Number of periods a `full` rebuild covers, including the current one. */
-const fullRebuildPeriods = 12;
-
-export type SyncCacheGranularity = "month" | "day";
+/** Number of months a `full` rebuild covers, including the current one. */
+const fullRebuildMonths = 12;
 
 export type SyncCacheOptions = {
-  granularity?: SyncCacheGranularity;
-  /** When true, rebuild the last 12 months; otherwise refresh only the current period. */
+  /** When true, rebuild the last 12 months; otherwise refresh only the current month. */
   full?: boolean;
 };
 
@@ -60,35 +57,33 @@ async function upsertStatCache(report: WorkspaceReportRow[]): Promise<void> {
 }
 
 /**
- * Refresh `newjitsuee.stat_cache` from ClickHouse one period at a time, yielding a
+ * Refresh `newjitsuee.stat_cache` from ClickHouse one month at a time, yielding a
  * progress event after each. `full` rebuilds the last 12 months; otherwise only the
- * current period is refreshed (plus the previous one on the 1st of the month, so the
- * just-closed period gets a final pass).
+ * current month is refreshed (plus the previous one on the 1st of the month, so the
+ * just-closed month gets a final pass). Per-day rows are always stored — the monthly
+ * loop is only how the ClickHouse work is chunked.
  */
-export async function* syncStatCache({
-  granularity = "month",
-  full = false,
-}: SyncCacheOptions): AsyncGenerator<SyncCacheProgress> {
+export async function* syncStatCache({ full = false }: SyncCacheOptions): AsyncGenerator<SyncCacheProgress> {
   const now = dayjs().utc();
   // The loop below is inclusive of both bounds, so subtract one less than the
-  // period count to land on exactly `fullRebuildPeriods` periods.
+  // month count to land on exactly `fullRebuildMonths` months.
   const min = full
-    ? now.startOf(granularity).subtract(fullRebuildPeriods - 1, granularity)
+    ? now.startOf("month").subtract(fullRebuildMonths - 1, "month")
     : now.date() > 1
-    ? now.startOf(granularity)
-    : now.startOf(granularity).subtract(1, granularity);
-  // Period starts, newest first.
+    ? now.startOf("month")
+    : now.startOf("month").subtract(1, "month");
+  // Month starts, newest first.
   const periods: dayjs.Dayjs[] = [];
-  for (let cur = now.startOf(granularity); cur.isAfter(min) || cur.isSame(min); ) {
+  for (let cur = now.startOf("month"); cur.isAfter(min) || cur.isSame(min); ) {
     periods.push(cur);
-    cur = cur.subtract(1, granularity).startOf(granularity);
+    cur = cur.subtract(1, "month").startOf("month");
   }
   const overallTimer = Date.now();
   log.atInfo().log(`Starting stat_cache sync from ${min.toISOString()} — ${periods.length} period(s)`);
-  yield { type: "start", total: periods.length, from: min.toISOString(), to: now.startOf(granularity).toISOString() };
+  yield { type: "start", total: periods.length, from: min.toISOString(), to: now.startOf("month").toISOString() };
   for (let index = 0; index < periods.length; index++) {
     const start = periods[index];
-    const end = start.add(1, granularity);
+    const end = start.add(1, "month");
     const timer = Date.now();
     log.atInfo().log(`Building report for [${start.toISOString()}, ${end.toISOString()}]`);
     const report = await getEventsReport({ start: start.toISOString(), end: end.toISOString(), granularity: "day" });
@@ -113,10 +108,9 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
   if (claims?.type !== "admin") {
     throw new Error("Unauthorized");
   }
-  const granularity: SyncCacheGranularity = req.query.granularity === "day" ? "day" : "month";
   const full = req.query.full === "true" || req.query.full === "1";
   const logResult: Record<string, any> = {};
-  for await (const event of syncStatCache({ granularity, full })) {
+  for await (const event of syncStatCache({ full })) {
     if (event.type === "period") {
       logResult[event.start] = { start: event.start, end: event.end, rows: event.rows, ms: event.ms };
     }
