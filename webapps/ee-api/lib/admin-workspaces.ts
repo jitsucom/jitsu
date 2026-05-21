@@ -61,6 +61,8 @@ export type PlanInfo = {
   syncsLimit: number | null;
   /** Price per extra active sync, dollars. */
   syncOveragePrice: number | null;
+  /** Stripe coupon discount applied to the subscription, percent (0 = none). */
+  discountPercent: number;
 };
 
 export type OverageInfo = {
@@ -75,8 +77,12 @@ export type OverageInfo = {
 
 /** Combined overage billed for a completed (previous) period: events + syncs. */
 export type PreviousOverageInfo = {
+  /** Overage events beyond the included quota. */
+  eventsOver: number;
   /** Event overage fee, dollars. */
   eventsFee: number;
+  /** Active syncs over the included limit. */
+  syncsOver: number;
   /** Sync overage fee, dollars. */
   syncsFee: number;
   /** eventsFee + syncsFee. */
@@ -98,6 +104,8 @@ export type AdminWorkspaceRow = {
   status: WorkspaceStatus;
   /** True for revenue-generating statuses. */
   paid: boolean;
+  /** Ingest throttle percent (0 = not throttled), parsed from `featuresEnabled`. */
+  throttle: number;
   periodStart: string;
   periodEnd: string;
   previousPeriodStart: string;
@@ -152,6 +160,16 @@ function parsePlanData(metadata: Stripe.Metadata | null | undefined): RawPlanDat
     log.atWarn().withCause(e).log("Failed to parse stripe product plan_data");
     return {};
   }
+}
+
+/** Ingest throttle percent stored as a `throttle=NN` entry in `featuresEnabled`. */
+function parseThrottle(featuresEnabled: string[] | null | undefined): number {
+  const feature = (featuresEnabled || []).find(f => f.startsWith("throttle"));
+  if (!feature) {
+    return 0;
+  }
+  const value = parseInt(feature.replace("throttle", "").replace("=", ""), 10);
+  return isNaN(value) ? 0 : value;
 }
 
 /** Sum events for the inclusive day range [from, to] from a pre-loaded day → events map. */
@@ -230,6 +248,7 @@ function resolveBilling(
     overagePricePer100k: null,
     syncsLimit: null,
     syncOveragePrice: null,
+    discountPercent: 0,
   };
 
   if (!stripeEntry) {
@@ -251,6 +270,7 @@ function resolveBilling(
         overagePricePer100k: null,
         syncsLimit: null,
         syncOveragePrice: null,
+        discountPercent: 0,
       },
       subscription: null,
       customerId,
@@ -280,7 +300,10 @@ function resolveBilling(
         overagePricePer100k: typeof settings.overagePricePer100k === "number" ? settings.overagePricePer100k : null,
         syncsLimit: typeof settings.dailyActiveSyncs === "number" ? settings.dailyActiveSyncs : null,
         syncOveragePrice:
-          typeof settings.dailyActiveSyncsOverage === "number" ? settings.dailyActiveSyncsOverage : null,
+          typeof settings.dailyActiveSyncsOverage === "number"
+            ? settings.dailyActiveSyncsOverage
+            : DEFAULT_SYNC_OVERAGE_PRICE,
+        discountPercent: 0,
       },
       subscription: null,
       customerId,
@@ -328,6 +351,7 @@ function resolveBilling(
         typeof planData.dailyActiveSyncsOverage === "number"
           ? planData.dailyActiveSyncsOverage
           : DEFAULT_SYNC_OVERAGE_PRICE,
+      discountPercent: subscription.discount?.coupon?.percent_off ?? 0,
     },
     subscription,
     customerId,
@@ -382,8 +406,10 @@ export async function buildAdminWorkspaces(): Promise<AdminWorkspacesResponse> {
 
   const [workspaceRows, statRows, syncRows, stripeEntries, products, subscriptions] = await Promise.all([
     pg
-      .query(`select id, name, slug from newjitsu."Workspace" where deleted = false`)
-      .then(r => r.rows as { id: string; name: string | null; slug: string | null }[]),
+      .query(`select id, name, slug, "featuresEnabled" from newjitsu."Workspace" where deleted = false`)
+      .then(
+        r => r.rows as { id: string; name: string | null; slug: string | null; featuresEnabled: string[] | null }[]
+      ),
     prisma.statCache.findMany({
       where: { period: { gte: rawWindowStart.toDate() } },
       select: { workspaceId: true, period: true, events: true },
@@ -487,7 +513,11 @@ export async function buildAdminWorkspaces(): Promise<AdminWorkspacesResponse> {
     }
     const projectedPeriod = projectPeriod(periodEvents, billing.periodStart, billing.periodEnd, now);
 
-    // Previous (completed) period events — same raw-window / aggregate fallback.
+    // Previous (completed) period events. The period is [start, end); the end
+    // day is the first day of the current period and must be excluded — this
+    // mirrors the legacy overage report, which rounds the window to whole days
+    // and drops the end day.
+    const previousPeriodLastDay = billing.previousPeriodEnd.startOf("day").subtract(1, "day");
     let previousPeriodEvents: number;
     if (billing.previousPeriodStart.isBefore(rawWindowStart)) {
       const agg = await prisma.statCache.aggregate({
@@ -496,22 +526,23 @@ export async function buildAdminWorkspaces(): Promise<AdminWorkspacesResponse> {
           workspaceId: workspace.id,
           period: {
             gte: billing.previousPeriodStart.startOf("day").toDate(),
-            lte: billing.previousPeriodEnd.endOf("day").toDate(),
+            lte: previousPeriodLastDay.endOf("day").toDate(),
           },
         },
       });
       previousPeriodEvents = Number(agg._sum.events ?? 0);
     } else {
-      previousPeriodEvents = sumDays(events, billing.previousPeriodStart, billing.previousPeriodEnd);
+      previousPeriodEvents = sumDays(events, billing.previousPeriodStart, previousPeriodLastDay);
     }
 
-    // Overage — only for plans with an explicit event quota.
+    // Overage — only for plans with an explicit event quota. The subscription's
+    // Stripe coupon (percent_off) is applied so fees match the invoiced amount.
     let overage: OverageInfo | null = null;
     const { eventsQuota, overagePricePer100k } = billing.plan;
     if (eventsQuota != null && billing.status !== "FREE") {
       const currentEvents = Math.max(0, periodEvents - eventsQuota);
       const projectedEvents = Math.max(0, projectedPeriod - eventsQuota);
-      const pricePerEvent = (overagePricePer100k || 0) / 100_000;
+      const pricePerEvent = ((overagePricePer100k || 0) / 100_000) * (1 - billing.plan.discountPercent / 100);
       overage = {
         quota: eventsQuota,
         currentEvents,
@@ -539,7 +570,7 @@ export async function buildAdminWorkspaces(): Promise<AdminWorkspacesResponse> {
       active,
       limit: syncLimit,
       overLimit,
-      overageFee: overLimit * (billing.plan.syncOveragePrice || 0),
+      overageFee: overLimit * (billing.plan.syncOveragePrice || 0) * (1 - billing.plan.discountPercent / 100),
     };
 
     const paid = PAID_STATUSES.has(status);
@@ -558,6 +589,7 @@ export async function buildAdminWorkspaces(): Promise<AdminWorkspacesResponse> {
       workspaceSlug: workspace.slug,
       status,
       paid,
+      throttle: parseThrottle(workspace.featuresEnabled),
       periodStart: billing.periodStart.toISOString(),
       periodEnd: billing.periodEnd.toISOString(),
       previousPeriodStart: billing.previousPeriodStart.toISOString(),
@@ -588,13 +620,14 @@ export async function buildAdminWorkspaces(): Promise<AdminWorkspacesResponse> {
     if (!row.paid) {
       continue;
     }
-    const { eventsQuota, overagePricePer100k, syncsLimit, syncOveragePrice } = row.plan;
+    const { eventsQuota, overagePricePer100k, syncsLimit, syncOveragePrice, discountPercent } = row.plan;
+    const discountFactor = 1 - discountPercent / 100;
     const eventsOver = eventsQuota != null ? Math.max(0, row.events.previousPeriod - eventsQuota) : 0;
-    const eventsFee = (eventsOver / 100_000) * (overagePricePer100k || 0);
+    const eventsFee = (eventsOver / 100_000) * (overagePricePer100k || 0) * discountFactor;
     const syncsOver =
       syncsLimit != null ? Math.max(0, (previousActiveSyncs.get(row.workspaceId) || 0) - syncsLimit) : 0;
-    const syncsFee = syncsOver * (syncOveragePrice || 0);
-    row.previousOverage = { eventsFee, syncsFee, totalFee: eventsFee + syncsFee };
+    const syncsFee = syncsOver * (syncOveragePrice || 0) * discountFactor;
+    row.previousOverage = { eventsOver, eventsFee, syncsOver, syncsFee, totalFee: eventsFee + syncsFee };
   }
 
   log.atInfo().log(`Built admin overview for ${rows.length} workspaces`);

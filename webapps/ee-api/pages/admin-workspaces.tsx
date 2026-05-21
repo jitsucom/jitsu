@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Dropdown, Input, Progress, Segmented, Select, Spin, Table, Tag, Tooltip } from "antd";
 import type { TableColumnsType } from "antd";
-import { MoreOutlined, ReloadOutlined } from "@ant-design/icons";
+import { MoreOutlined, ReloadOutlined, ThunderboltFilled } from "@ant-design/icons";
+import { useRouter } from "next/router";
 import dayjs from "dayjs";
 import { AdminLayout } from "../components/AdminLayout";
 import { RequireAdmin } from "../components/RequireAdmin";
@@ -81,6 +82,7 @@ const PlanDetails: React.FC<{ row: AdminWorkspaceRow; variant: PeriodVariant }> 
       label: "Sync overage",
       value: plan.syncOveragePrice != null ? `${fmtMoney(plan.syncOveragePrice)} / sync` : "—",
     },
+    ...(plan.discountPercent > 0 ? [{ label: "Discount", value: `${plan.discountPercent}% off overage` }] : []),
     {
       label: variant === "active" ? "Current period" : "Previous period",
       value: `${fmtDate(period.start)} → ${fmtDate(period.end)}`,
@@ -182,17 +184,27 @@ function buildColumns(appBaseUrl: string, variant: PeriodVariant): TableColumnsT
       render: (_, row) => {
         const meta = STATUS_META[row.status];
         return (
-          <Tooltip
-            title={<PlanDetails row={row} variant={variant} />}
-            color="#ffffff"
-            trigger={["hover", "click"]}
-            styles={{ root: { maxWidth: "none" }, container: { padding: "12px 16px" } }}
-          >
-            <Tag color={meta.color} bordered={false} className="cursor-help !rounded-full">
-              <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-current align-middle" />
-              <span className="align-middle">{meta.label}</span>
-            </Tag>
-          </Tooltip>
+          <div className="flex flex-col items-start gap-1">
+            <Tooltip
+              title={<PlanDetails row={row} variant={variant} />}
+              color="#ffffff"
+              trigger={["hover", "click"]}
+              styles={{ root: { maxWidth: "none" }, container: { padding: "12px 16px" } }}
+            >
+              <Tag color={meta.color} bordered={false} className="cursor-help !rounded-full">
+                <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-current align-middle" />
+                <span className="align-middle">{meta.label}</span>
+              </Tag>
+            </Tooltip>
+            {variant === "active" && row.throttle > 0 && (
+              <Tooltip title={`Ingest throttled at ${row.throttle}%`}>
+                <Tag color="red" bordered={false} className="!m-0 cursor-help !rounded-full">
+                  <ThunderboltFilled className="mr-1 align-middle" />
+                  <span className="align-middle">Throttled {row.throttle}%</span>
+                </Tag>
+              </Tooltip>
+            )}
+          </div>
         );
       },
     },
@@ -294,7 +306,7 @@ function buildColumns(appBaseUrl: string, variant: PeriodVariant): TableColumnsT
       : {
           title: "Overage",
           key: "overage",
-          width: 170,
+          width: 220,
           sorter: (a, b) => (a.previousOverage?.totalFee || 0) - (b.previousOverage?.totalFee || 0),
           render: (_, row) => {
             const ov = row.previousOverage;
@@ -304,8 +316,15 @@ function buildColumns(appBaseUrl: string, variant: PeriodVariant): TableColumnsT
             return (
               <div className="text-xs tabular-nums">
                 <div className="text-sm font-semibold text-red-600">{fmtMoney(ov.totalFee)}</div>
-                <div className="text-neutral-400">
-                  events {fmtMoney(ov.eventsFee)} · syncs {fmtMoney(ov.syncsFee)}
+                <div className="mt-0.5 flex flex-wrap gap-x-2 text-neutral-400">
+                  <span>
+                    events <span className="font-semibold text-neutral-700">{fmtCompact(ov.eventsOver)}</span> (
+                    {fmtMoney(ov.eventsFee)})
+                  </span>
+                  <span>
+                    syncs <span className="font-semibold text-neutral-700">{fmtInt(ov.syncsOver)}</span> (
+                    {fmtMoney(ov.syncsFee)})
+                  </span>
                 </div>
               </div>
             );
@@ -408,7 +427,17 @@ const AdminWorkspaces: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<WorkspaceStatus[]>([]);
-  const [variant, setVariant] = useState<PeriodVariant>("active");
+  // The active/previous toggle is mirrored in the URL so the view survives reloads and can be linked.
+  const router = useRouter();
+  const variant: PeriodVariant = router.query.period === "previous" ? "previous" : "active";
+  const setVariant = useCallback(
+    (next: PeriodVariant) => {
+      router.replace({ pathname: router.pathname, query: { ...router.query, period: next } }, undefined, {
+        shallow: true,
+      });
+    },
+    [router]
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -559,7 +588,7 @@ const AdminWorkspaces: React.FC = () => {
           size="small"
           columns={columns}
           dataSource={filtered}
-          scroll={{ x: variant === "active" ? 1230 : 950 }}
+          scroll={{ x: variant === "active" ? 1230 : 1000 }}
           sticky
           pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: [50, 100, 200, 500] }}
         />
