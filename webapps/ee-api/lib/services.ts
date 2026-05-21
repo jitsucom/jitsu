@@ -1,13 +1,18 @@
 import { requireDefined, getClickhouseConfig, ClickhouseEnvVars } from "juava";
-import { createPg, getPostgresStore } from "./store";
+import { createPg, getKvStore } from "./store";
 import { createClient } from "@clickhouse/client";
 import { S3Client } from "@aws-sdk/client-s3";
 
+// Prisma client for the `newjitsuee` schema (ee-api's own tables).
+export { prisma, Prisma } from "./db";
+
 const dbUrl = requireDefined(process.env.DATABASE_URL, "DATABASE_URL");
 
-export const pg = createPg(dbUrl, { connectionName: "kvstore" });
+// Raw `pg` pool for the `newjitsu` schema, which is owned by webapps/console's
+// Prisma. Tables in the `newjitsuee` schema are handled by `prisma` above.
+export const pg = createPg(dbUrl, { connectionName: "newjitsu" });
 
-export const store = getPostgresStore(pg, { tableName: "newjitsuee.kvstore" });
+export const store = getKvStore();
 
 export const telemetryDb = createPg(process.env.TELEMETRY_DATABASE_URL || dbUrl, { connectionName: "telemetry" });
 

@@ -5,7 +5,7 @@
   "license": "MIT",
   "packageManager": "pnpm@10.22.0",
   "scripts": {
-    "codegen": "pnpm --filter @jitsu-internal/console prisma generate",
+    "codegen": "pnpm --filter @jitsu-internal/console prisma generate && pnpm --filter ee-api prisma generate",
     "format:check": "prettier --ignore-unknown --check --config ./.prettierrc.json --ignore-path ./.prettierignore $(git diff --name-only --diff-filter d | xargs)",
     "format:check:all": "prettier --check --config ./.prettierrc.json --ignore-path ./.prettierignore .",
     "format": "prettier --ignore-unknown --write --config ./.prettierrc.json --ignore-path ./.prettierignore $(git diff --name-only --diff-filter d | xargs)",

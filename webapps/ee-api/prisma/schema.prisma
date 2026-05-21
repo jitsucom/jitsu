@@ -1,0 +1,62 @@
+// Prisma schema for ee-api's own tables.
+//
+// All models live in the `newjitsuee` Postgres schema and are owned by this
+// service. The `newjitsu` schema is owned by webapps/console's Prisma — it must
+// NOT be added here, or `prisma db push` would try to drop its tables. Read
+// `newjitsu` tables through the raw `pg` pool from lib/services.ts instead.
+//
+// `prisma db push` (run via `pnpm db:update-schema`) manages every table in the
+// `newjitsuee` schema and drops anything not modeled below — keep this file in
+// sync with the schema's full table list.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["newjitsuee"]
+}
+
+/// Key-value store with a hash-map interface, backing lib/store.ts.
+model KvRecord {
+  id        String
+  namespace String
+  obj       Json      @default("{}")
+  expire    DateTime? @db.Timestamptz(6)
+  updatedAt DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@id([id, namespace])
+  @@map("kvstore")
+  @@schema("newjitsuee")
+}
+
+/// Cached per-workspace event and sync counts, refreshed by /api/sync-cache.
+model StatCache {
+  workspaceId String
+  period      DateTime @db.Timestamp(6)
+  events      Decimal  @db.Decimal
+  syncs       Decimal  @default(0) @db.Decimal
+
+  @@id([workspaceId, period])
+  @@map("stat_cache")
+  @@schema("newjitsuee")
+}
+
+/// DEAD TABLE — modeled here only so `prisma db push` does not drop it.
+/// It is a hand-managed table that used to feed the `newjitsu.backup_connections`
+/// view. That view has been removed, and S3 backup connections are now built in
+/// pages/api/s3-connections.ts straight from the S3_REGION / S3_ACCESS_KEY_ID /
+/// S3_SECRET_ACCESS_KEY env vars. Nothing reads this table anymore — it (and
+/// this model) should be dropped once that is confirmed in production.
+model TmpS3Credentials {
+  s3region    String
+  s3accessKey String
+  s3secretKey String
+
+  @@id([s3region, s3accessKey, s3secretKey])
+  @@map("tmp_s3_credentials")
+  @@schema("newjitsuee")
+}

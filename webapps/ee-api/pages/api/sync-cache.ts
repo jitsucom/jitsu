@@ -4,7 +4,7 @@ import dayjs from "dayjs";
 import { auth } from "../../lib/auth";
 import { getLog } from "juava";
 import { getEventsReport } from "./report/workspace-stat";
-import { pg } from "../../lib/services";
+import { prisma, Prisma } from "../../lib/services";
 
 const log = getLog();
 
@@ -39,23 +39,17 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
           report.length
         } Adding data to cache`
       );
-    const query = `
+    if (report.length > 0) {
+      const rows = report.map(
+        ({ workspaceId, period, events, syncs }) => Prisma.sql`(${workspaceId}, ${period}, ${events}, ${syncs || 0})`
+      );
+      log.atDebug().log(`Running batch upsert for ${rows.length} rows`);
+      await prisma.$executeRaw`
         insert into newjitsuee.stat_cache ("workspaceId", "period", "events", "syncs")
-        values
-        ${report.map((_, i) => `($${i * 4 + 1}, $${i * 4 + 2}, $${i * 4 + 3}, $${i * 4 + 4})`).join(", ")}
-          on conflict ("workspaceId", "period")
-        do update set
-        "events" = EXCLUDED."events",
-        "syncs" = EXCLUDED."syncs";
-    `;
-    const values = report.flatMap(({ workspaceId, period, events, syncs }) => [
-      workspaceId,
-      period,
-      events,
-      syncs || 0,
-    ]);
-    log.atDebug().log(`Running batch insert for ${values.length / 4} rows`);
-    await pg.query(query, values);
+        values ${Prisma.join(rows)}
+        on conflict ("workspaceId", "period")
+        do update set "events" = excluded."events", "syncs" = excluded."syncs"`;
+    }
     logResult[start.toISOString()] = {
       start: start.toISOString(),
       end: end.toISOString(),

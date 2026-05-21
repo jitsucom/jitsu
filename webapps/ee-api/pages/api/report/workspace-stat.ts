@@ -12,7 +12,7 @@ import {
 } from "juava";
 import { withErrorHandler } from "../../../lib/route-helpers";
 import { auth } from "../../../lib/auth";
-import { clickhouse, pg, store } from "../../../lib/services";
+import { clickhouse, pg, prisma, store } from "../../../lib/services";
 import * as PG from "pg";
 import { getServerLog } from "../../../lib/log";
 import { listAllSubscriptions, stripe, stripeDataTable } from "../../../lib/stripe";
@@ -79,20 +79,21 @@ export async function getEventsReportFromCache({
   end,
   workspaceId,
 }: ReportParams): Promise<WorkspaceReportRow[]> {
-  const sql = `select 
-      period, "workspaceId", events 
-      from newjitsuee.stat_cache 
-      where period >= :start and period <= :end
-      ${workspaceId ? 'and "workspaceId" = {workspaceId:String}' : ""} 
-      order by period;`;
   log.atInfo().log(`Getting events report from cache for [${start}, ${end}]. Workspace: ${workspaceId || "all"}`);
-  return (
-    (await query(pg, sql, {
-      start,
-      end,
-      workspaceId,
-    })) as any
-  ).map(({ events, ...rest }) => ({ events: Number(events), ...rest }));
+  const rows = await prisma.statCache.findMany({
+    where: {
+      period: { gte: new Date(start), lte: new Date(end) },
+      ...(workspaceId ? { workspaceId } : {}),
+    },
+    select: { period: true, workspaceId: true, events: true },
+    orderBy: { period: "asc" },
+  });
+  return rows.map(row => ({
+    period: row.period.toISOString(),
+    workspaceId: row.workspaceId,
+    events: Number(row.events),
+    syncs: 0,
+  }));
 }
 
 export async function getEventsReport({

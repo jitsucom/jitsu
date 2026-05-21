@@ -3,17 +3,20 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
+    "prisma": "prisma",
     "ee-api:dev": "tsx ../../dev-scripts/src/bin/run-app.ts ee next dev",
     "email:dev": "email dev -p 3901",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "db:update-schema": "tsx ./scripts/sql-exec.ts ./scripts/sql"
+    "db:code-gen": "prisma generate",
+    "db:update-schema": "prisma db push"
   },
   "dependencies": {
     "@ant-design/cssinjs": "^1.21.1",
     "@aws-sdk/client-s3": "^3.418.0",
     "@clickhouse/client": "^1.18.3",
+    "@prisma/client": "^6.5.0",
     "@react-email/components": "^1.0.12",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
@@ -51,6 +54,7 @@
     "eslint": "catalog:",
     "eslint-config-next": "^16.2.6",
     "postcss": "^8.5.10",
+    "prisma": "^6.5.0",
     "raw-loader": "^4.0.2",
     "react-email": "^5.2.10",
     "tailwindcss": "catalog:",

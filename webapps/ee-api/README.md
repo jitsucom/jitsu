@@ -43,6 +43,25 @@ JITSU_EE_ADMINS=alice@gmail.com,*@jitsu.com
 `JITSU_EE_ADMINS=*` allows every authenticated user. When `JITSU_EE_ADMINS` is
 empty, no one is allowed in.
 
+## Database
+
+ee-api shares a Postgres database with the console, but the two own different
+schemas:
+
+- **`newjitsuee`** — ee-api's own tables (`kvstore`, `stat_cache`). Modeled and
+  managed by Prisma (`prisma/schema.prisma`); `prisma db push` owns their DDL.
+  The client is exported as `prisma` from `lib/services.ts`.
+- **`newjitsu`** — owned by the console's Prisma. ee-api only reads it, through
+  the raw `pg` pool also exported from `lib/services.ts`. Do not add `newjitsu`
+  tables to `prisma/schema.prisma` — `prisma db push` would try to drop them.
+
+```bash
+pnpm codegen                           # regenerate the Prisma client (run after a fresh checkout)
+pnpm --filter ee-api db:update-schema  # prisma db push — apply the schema to the database
+```
+
+The generated client lives in `lib/generated/` and is git-ignored.
+
 ## Dev
 
 ```bash

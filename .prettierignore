@@ -24,6 +24,7 @@ pnpm-lock.yaml
 /examples/react-app/build
 /libs/jitsu-react/dist
 /webapps/console/prisma/schema
+/webapps/ee-api/lib/generated
 /libs/jitsu-js/__tests__/playwright/artifacts
 /libs/jitsu-js/compiled/
 libs/jitsu-js/dist/
