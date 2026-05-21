@@ -7,7 +7,8 @@
 //
 // `prisma db push` (run via `pnpm db:update-schema`) manages every table in the
 // `newjitsuee` schema and drops anything not modeled below — keep this file in
-// sync with the schema's full table list.
+// sync with the schema's full table list. The models here are introspected to
+// match production exactly; `db push` against prod is a no-op.
 
 generator client {
   provider = "prisma-client-js"
@@ -24,9 +25,9 @@ datasource db {
 model KvRecord {
   id        String
   namespace String
-  obj       Json      @default("{}")
+  obj       Json?
   expire    DateTime? @db.Timestamptz(6)
-  updatedAt DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedAt DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@id([id, namespace])
   @@map("kvstore")
@@ -40,7 +41,7 @@ model StatCache {
   events      Decimal  @db.Decimal
   syncs       Decimal  @default(0) @db.Decimal
 
-  @@id([workspaceId, period])
+  @@id([workspaceId, period], map: "stat_cache_pk")
   @@map("stat_cache")
   @@schema("newjitsuee")
 }
@@ -51,12 +52,25 @@ model StatCache {
 /// pages/api/s3-connections.ts straight from the S3_REGION / S3_ACCESS_KEY_ID /
 /// S3_SECRET_ACCESS_KEY env vars. Nothing reads this table anymore — it (and
 /// this model) should be dropped once that is confirmed in production.
+/// `@@ignore`d because the table has no unique identifier.
 model TmpS3Credentials {
-  s3region    String
-  s3accessKey String
-  s3secretKey String
+  s3region    String?
+  s3accessKey String?
+  s3secretKey String?
 
-  @@id([s3region, s3accessKey, s3secretKey])
   @@map("tmp_s3_credentials")
+  @@ignore
+  @@schema("newjitsuee")
+}
+
+/// Generic key/value sync-state table. Not referenced anywhere in the codebase;
+/// modeled here only so `prisma db push` does not drop it.
+model SyncState {
+  name        String    @id
+  value       Json?
+  created     DateTime? @default(now()) @db.Timestamp(6)
+  lastUpdated DateTime? @default(now()) @map("last_updated") @db.Timestamp(6)
+
+  @@map("sync_state")
   @@schema("newjitsuee")
 }
