@@ -100,6 +100,13 @@ export const UpdateStatCacheButton: React.FC = () => {
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
+      let sawTerminal = false;
+      const handle = (event: ProgressEvent) => {
+        if (event.type === "done" || event.type === "error") {
+          sawTerminal = true;
+        }
+        handleEvent(event);
+      };
       for (;;) {
         const { value, done } = await reader.read();
         if (done) {
@@ -111,16 +118,21 @@ export const UpdateStatCacheButton: React.FC = () => {
           const line = buffer.slice(0, newline).trim();
           buffer = buffer.slice(newline + 1);
           if (line) {
-            handleEvent(JSON.parse(line) as ProgressEvent);
+            handle(JSON.parse(line) as ProgressEvent);
           }
         }
       }
       const tail = buffer.trim();
       if (tail) {
-        handleEvent(JSON.parse(tail) as ProgressEvent);
+        handle(JSON.parse(tail) as ProgressEvent);
       }
-      // Stream closed without an explicit done/error event.
-      setPhase(current => (current === "running" ? "done" : current));
+      // A finished refresh always ends with a `done` (or `error`) event. A stream
+      // that closes while still running means the server was cut off mid-run
+      // (e.g. a platform timeout) — surface it as a failure, not a false success.
+      if (!sawTerminal) {
+        setError("The update stopped before it finished — the cache may be partially updated.");
+        setPhase("error");
+      }
     } catch (e: any) {
       if (e?.name === "AbortError") {
         return;
