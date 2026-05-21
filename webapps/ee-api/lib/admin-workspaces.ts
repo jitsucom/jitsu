@@ -5,7 +5,9 @@ import { getServerLog } from "./log";
 import { pg, prisma, store } from "./services";
 import {
   getAvailableProducts,
+  getStripeObjectTag,
   listAllSubscriptions,
+  stripe,
   StripeDataTableEntry,
   stripeDataTable,
   stripeLink,
@@ -229,14 +231,14 @@ function resolveBilling(
   now: Dayjs
 ): Billing {
   const calendarMonth = { start: now.startOf("month"), end: now.endOf("month") };
-  const prevMonth = now.subtract(1, "month");
-  const previousCalendarMonth = { start: prevMonth.startOf("month"), end: prevMonth.endOf("month") };
   // Calendar-month period used for free / billing-disabled workspaces.
+  // previousPeriodEnd is exclusive (= current month start) so the window stays
+  // half-open [start, end), consistent with Stripe-billed periods.
   const monthPeriod = {
     periodStart: calendarMonth.start,
     periodEnd: calendarMonth.end,
-    previousPeriodStart: previousCalendarMonth.start,
-    previousPeriodEnd: previousCalendarMonth.end,
+    previousPeriodStart: now.subtract(1, "month").startOf("month"),
+    previousPeriodEnd: calendarMonth.start,
   };
   const freePlan: PlanInfo = {
     planId: "free",
@@ -458,6 +460,27 @@ export async function buildAdminWorkspaces(): Promise<AdminWorkspacesResponse> {
   const activeSyncsByWorkspace = new Map(syncRows.map(r => [r.workspaceId, Number(r.activeSyncs)]));
   const stripeByWorkspace = new Map(stripeEntries.map(e => [e.id, e.obj]));
   const productById = new Map(products.map(p => [p.id, p]));
+  // getAvailableProducts() only lists the current catalog — a subscription on an
+  // archived/retired product would be missing, misclassifying a paid workspace
+  // as free. Fetch any such products and keep the ones tagged for this account.
+  const stripeObjectTag = getStripeObjectTag();
+  const missingProductIds = new Set<string>();
+  for (const sub of subscriptions) {
+    const productId = sub.items.data[0]?.price.product;
+    if (typeof productId === "string" && !productById.has(productId)) {
+      missingProductIds.add(productId);
+    }
+  }
+  for (const productId of missingProductIds) {
+    try {
+      const product = await stripe.products.retrieve(productId);
+      if (product.metadata?.object_tag === stripeObjectTag) {
+        productById.set(productId, product);
+      }
+    } catch (e) {
+      log.atWarn().withCause(e).log(`Failed to retrieve Stripe product ${productId}`);
+    }
+  }
 
   const subsByCustomer = new Map<string, Stripe.Subscription[]>();
   for (const sub of subscriptions) {
