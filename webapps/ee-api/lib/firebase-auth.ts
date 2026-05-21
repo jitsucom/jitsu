@@ -118,6 +118,27 @@ export async function auth(req: NextApiRequest, res: NextApiResponse): Promise<F
   }
 }
 
+/** Verify a Firebase ID token (issued by the client SDK after sign-in). */
+export async function verifyIdToken(idToken: string): Promise<admin.auth.DecodedIdToken> {
+  await firebaseService.waitInit();
+  return firebase().auth().verifyIdToken(idToken);
+}
+
+/** Verify a Firebase session cookie (issued by `createSessionCookie`). */
+export async function verifyFirebaseSessionCookie(cookieToken: string): Promise<admin.auth.DecodedIdToken> {
+  await firebaseService.waitInit();
+  return firebase().auth().verifySessionCookie(cookieToken);
+}
+
+/** Mint a long-lived session cookie from a freshly-issued ID token. */
+export async function createSessionCookie(idToken: string): Promise<{ cookie: string; expiresIn: number }> {
+  // Session cookie lifetime: 5 days.
+  const expiresIn = 60 * 60 * 24 * 5 * 1000;
+  await firebaseService.waitInit();
+  const cookie = await firebase().auth().createSessionCookie(idToken, { expiresIn });
+  return { cookie, expiresIn };
+}
+
 export async function createCustomToken(req: NextApiRequest): Promise<string> {
   const authToken = requireDefined(getFirebaseToken(req), `Not authorized`);
 
