@@ -2,6 +2,7 @@ import type { AppProps } from "next/app";
 import Head from "next/head";
 import { App as AntdApp, ConfigProvider } from "antd";
 import { StyleProvider } from "@ant-design/cssinjs";
+import { AuthProvider } from "../components/AuthProvider";
 import "../styles/globals.css";
 
 export default function App({ Component, pageProps }: AppProps) {
@@ -14,7 +15,9 @@ export default function App({ Component, pageProps }: AppProps) {
       <StyleProvider hashPriority="high">
         <ConfigProvider theme={{ token: { colorPrimary: "#4f46e5" } }}>
           <AntdApp>
-            <Component {...pageProps} />
+            <AuthProvider>
+              <Component {...pageProps} />
+            </AuthProvider>
           </AntdApp>
         </ConfigProvider>
       </StyleProvider>

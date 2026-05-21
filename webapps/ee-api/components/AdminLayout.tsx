@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { Button } from "antd";
 import { LogoutOutlined } from "@ant-design/icons";
+import { useAuth } from "./AuthProvider";
 
 const navItems: { href: string; label: string }[] = [
   { href: "/", label: "Billing" },
@@ -11,18 +12,13 @@ const navItems: { href: string; label: string }[] = [
 
 /**
  * Top-bar shell for the admin UI. Layout is plain Tailwind; AntD is used only
- * for the controls (the logout button).
+ * for the controls. Rendered inside <RequireAdmin>, so the user is always an
+ * authorized admin here.
  */
-export const AdminLayout: React.FC<PropsWithChildren<{ email: string }>> = ({ email, children }) => {
+export const AdminLayout: React.FC<PropsWithChildren> = ({ children }) => {
   const router = useRouter();
-
-  const onLogout = async () => {
-    try {
-      await fetch("/api/admin/session", { method: "DELETE" });
-    } finally {
-      window.location.href = "/login?loggedOut=1";
-    }
-  };
+  const auth = useAuth();
+  const email = auth.status === "admin" ? auth.email : "";
 
   return (
     <div className="min-h-screen flex flex-col bg-neutral-50">
@@ -48,7 +44,7 @@ export const AdminLayout: React.FC<PropsWithChildren<{ email: string }>> = ({ em
         </nav>
         <div className="flex items-center gap-3">
           <span className="text-sm text-neutral-500">{email}</span>
-          <Button size="small" icon={<LogoutOutlined />} onClick={onLogout}>
+          <Button size="small" icon={<LogoutOutlined />} onClick={() => auth.signOut()}>
             Logout
           </Button>
         </div>

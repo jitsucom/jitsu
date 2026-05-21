@@ -1125,9 +1125,6 @@ importers:
       '@types/react-dom':
         specifier: 18.3.1
         version: 18.3.1
-      cookie:
-        specifier: 1.0.1
-        version: 1.0.1
       crypto-js:
         specifier: ^4.1.1
         version: 4.2.0
@@ -1192,9 +1189,6 @@ importers:
       '@react-email/preview-server':
         specifier: ^5.2.10
         version: 5.2.10(@opentelemetry/api@1.9.0)(@playwright/test@1.58.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@types/cookie':
-        specifier: ^1.0.0
-        version: 1.0.0
       '@types/crypto-js':
         specifier: ^4.1.1
         version: 4.2.2
