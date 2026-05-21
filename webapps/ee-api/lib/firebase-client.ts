@@ -29,3 +29,9 @@ export async function firebaseSignOut(config: FirebaseClientConfig): Promise<voi
 export function watchFirebaseAuth(config: FirebaseClientConfig, cb: (user: User | null) => void): () => void {
   return onAuthStateChanged(firebaseAuth(config), cb);
 }
+
+/** The current user's Firebase ID token, or null when signed out. */
+export async function getIdToken(config: FirebaseClientConfig): Promise<string | null> {
+  const user = firebaseAuth(config).currentUser;
+  return user ? user.getIdToken() : null;
+}

@@ -1,4 +1,5 @@
 import { pg, store } from "./services";
+import { sortBy } from "lodash";
 import dayjs from "dayjs";
 import { z } from "zod";
 import utc from "dayjs/plugin/utc";
@@ -240,4 +241,47 @@ export async function sendEmail(payload: Omit<SendEmailRequest, "to"> & { to: st
     subject,
     messageId: result.data?.id || "",
   };
+}
+
+/** Templates that can be sent to a whole workspace — the keys `getComponent` accepts. */
+export const emailTemplates = [
+  "welcome",
+  "churned",
+  "quota-exceeded",
+  "quota-about-to-exceed",
+  "billing-issues",
+  "throttling-reminder",
+  "throttling-started",
+  "connection-status-failed",
+  "connection-status-success",
+] as const;
+
+export type EmailHistoryEntry = {
+  timestamp: string;
+  workspaceId: string;
+  template: string;
+  subject: string | string[];
+  sentTo?: string;
+  errors?: string;
+  url: string;
+};
+
+/** Email-sending history for a workspace, newest first. */
+export async function getWorkspaceEmailHistory(workspaceId: string): Promise<EmailHistoryEntry[]> {
+  const logsEntry = await store.getTable("email-logs").get(workspaceId);
+  if (!logsEntry) {
+    return [];
+  }
+  const appUrl = process.env.JITSU_APPLICATION_URL || "https://use.jitsu.com";
+  return sortBy(logsEntry.logs, "timestamp")
+    .reverse()
+    .map(({ subject, ...rest }) => {
+      const subjectDeduped = [...new Set(subject)];
+      return {
+        ...rest,
+        subject: subjectDeduped.length === 1 ? subjectDeduped[0] : subjectDeduped,
+        workspaceId,
+        url: `${appUrl}/${workspaceId}`,
+      };
+    });
 }

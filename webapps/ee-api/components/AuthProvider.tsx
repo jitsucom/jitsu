@@ -1,6 +1,12 @@
 import React, { createContext, PropsWithChildren, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { User } from "firebase/auth";
-import { FirebaseClientConfig, firebaseSignOut, signInWithGoogle, watchFirebaseAuth } from "../lib/firebase-client";
+import {
+  FirebaseClientConfig,
+  firebaseSignOut,
+  getIdToken,
+  signInWithGoogle,
+  watchFirebaseAuth,
+} from "../lib/firebase-client";
 
 /**
  * Client-side auth for the admin UI.
@@ -23,6 +29,8 @@ type AuthState =
 type AuthContextValue = AuthState & {
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
+  /** `fetch` with the caller's Firebase ID token attached as a Bearer header. */
+  authFetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -113,5 +121,15 @@ export const AuthProvider: React.FC<PropsWithChildren> = ({ children }) => {
     // watchFirebaseAuth fires with null and sets `anon`.
   }, []);
 
-  return <AuthContext.Provider value={{ ...state, signIn, signOut }}>{children}</AuthContext.Provider>;
+  const authFetch = useCallback(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const config = configRef.current;
+    const token = config ? await getIdToken(config) : null;
+    const headers = new Headers(init?.headers);
+    if (token) {
+      headers.set("Authorization", `Bearer ${token}`);
+    }
+    return fetch(input, { ...init, headers });
+  }, []);
+
+  return <AuthContext.Provider value={{ ...state, signIn, signOut, authFetch }}>{children}</AuthContext.Provider>;
 };
