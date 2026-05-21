@@ -11,6 +11,7 @@ export default function App({ Component, pageProps }: AppProps) {
       <Head>
         <title>Jitsu Admin</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
       </Head>
       <StyleProvider hashPriority="high">
         <ConfigProvider theme={{ token: { colorPrimary: "#4f46e5" } }}>
