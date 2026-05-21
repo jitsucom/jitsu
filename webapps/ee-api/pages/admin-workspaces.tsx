@@ -50,7 +50,13 @@ async function readError(resp: Response): Promise<string> {
 function periodOf(row: AdminWorkspaceRow, variant: PeriodVariant) {
   return variant === "active"
     ? { start: row.periodStart, end: row.periodEnd, events: row.events.period }
-    : { start: row.previousPeriodStart, end: row.previousPeriodEnd, events: row.events.previousPeriod };
+    : {
+        start: row.previousPeriodStart,
+        // previousPeriodEnd is an exclusive bound (= current period start); show
+        // the last day actually included so the range matches the summed totals.
+        end: dayjs(row.previousPeriodEnd).subtract(1, "day").toISOString(),
+        events: row.events.previousPeriod,
+      };
 }
 
 /** Full plan breakdown shown on status hover/click — rendered as a white table. */
