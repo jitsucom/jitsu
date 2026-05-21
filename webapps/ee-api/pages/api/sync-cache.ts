@@ -59,8 +59,12 @@ export async function* syncStatCache({
     log.atInfo().log(`Building report for [${start.toISOString()}, ${end.toISOString()}]`);
     const report = await getEventsReport({ start: start.toISOString(), end: end.toISOString(), granularity: "day" });
     if (report.length > 0) {
+      // `period` is an ISO string; cast it so Postgres does not see a text → timestamp
+      // mismatch (the column is `timestamp without time zone`). The cast ignores the
+      // `Z` designator rather than converting, so it stays session-timezone independent.
       const rows = report.map(
-        ({ workspaceId, period, events, syncs }) => Prisma.sql`(${workspaceId}, ${period}, ${events}, ${syncs || 0})`
+        ({ workspaceId, period, events, syncs }) =>
+          Prisma.sql`(${workspaceId}, ${period}::timestamp, ${events}, ${syncs || 0})`
       );
       log.atDebug().log(`Running batch upsert for ${rows.length} rows`);
       await prisma.$executeRaw`
