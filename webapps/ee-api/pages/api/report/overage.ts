@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { assertTrue, getLog } from "juava";
-import { withErrorHandler } from "../../../lib/route-helpers";
-import { auth } from "../../../lib/auth";
+import { withBrowserApi } from "../../../lib/route-helpers";
+import { auth, requireWorkspaceAccess } from "../../../lib/auth";
 import { pg, store } from "../../../lib/services";
 import {
   getAvailableProducts,
@@ -49,23 +49,14 @@ async function getSyncsStat(periodStart: Date, periodEnd: Date, workspaceId: str
 const msPerHour = 1000 * 60 * 60;
 const handler = async function handler(req: NextApiRequest, res: NextApiResponse) {
   const claims = await auth(req, res);
+  if (!claims) {
+    return;
+  }
   const workspaceId: string | undefined = req.query.workspaceId ? (req.query.workspaceId as string) : undefined;
   if (!workspaceId) {
-    assertTrue(claims?.type === "admin", "Should be admin");
+    assertTrue(claims.type === "admin", "Should be admin");
   } else {
-    assertTrue(
-      claims?.type === "admin" || (claims?.type === "user" && claims?.workspaceId === workspaceId),
-      `User doesn't have access to workspace ${workspaceId}`
-    );
-  }
-  res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
-  res.setHeader("Access-Control-Allow-Methods", "*");
-  res.setHeader("Access-Control-Allow-Headers", "authorization, content-type, baggage, sentry-trace");
-  if (req.method === "OPTIONS") {
-    //allowing requests from everywhere since our tokens are short-lived
-    //and can't be hijacked
-    res.status(200).end();
-    return;
+    await requireWorkspaceAccess(claims, workspaceId);
   }
   const timerAllWorkspaces = Date.now();
   const allWorkspaces = workspaceId
@@ -250,4 +241,4 @@ export const config = {
   maxDuration: 180, //3 mins, mostly because of workspace-stat call
 };
 
-export default withErrorHandler(handler);
+export default withBrowserApi(handler);

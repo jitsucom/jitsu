@@ -1,94 +1,172 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { assertDefined, checkRawToken, createAuthorized, newError, requireDefined } from "juava";
+import { assertDefined, checkRawToken, createAuthorized, getErrorMessage, requireDefined } from "juava";
 
-import jwt from "jsonwebtoken";
-import * as process from "process";
 import { getServerLog } from "./log";
-
-const bearerPrefix = "Bearer ";
+import { verifyFirebaseSessionCookie, verifyIdToken } from "./firebase-auth";
+import { isAdminEmail } from "./admins";
+import { prisma } from "./db";
 
 const log = getServerLog("auth");
 
-const adminAuthorizer = createAuthorized(process.env.EE_API_AUTH_TOKENS || "", checkRawToken);
+/**
+ * Trusted system callers authenticate with a static bearer token. Either grants
+ * admin:
+ *  - `EE_API_SERVICE_TOKENS` — a comma-separated allow-list. Console sends one
+ *    of these for its server-to-server calls (the scheduled-sync quota check,
+ *    the bulker connections export) — calls that have no signed-in user.
+ *  - `CRON_SECRET` — kept only for Vercel-managed cron jobs. Vercel injects an
+ *    `Authorization: Bearer $CRON_SECRET` header and the env var must be named
+ *    exactly that, so it can't be folded into the list above.
+ */
+const serviceTokenAuthorizer = createAuthorized(process.env.EE_API_SERVICE_TOKENS || "", checkRawToken);
 
-type UserAuthClaim = {
-  type: "user";
-  workspaceId: string;
-  userId: string;
-};
-type AdminAuthClaim = { type: "admin" };
-export type AuthClaims = UserAuthClaim | AdminAuthClaim;
-
-async function decryptJWT(token: string): Promise<UserAuthClaim | undefined> {
-  const secret = requireDefined(process.env.JWT_SECRET, `env JWT_SECRET is not set`);
-  let decoded: any;
-  try {
-    decoded = jwt.verify(token, secret);
-  } catch (e: any) {
-    throw newError(e, `JWT verification failed`);
-  }
-  assertDefined(decoded.exp, `expiration is not set`);
-  assertDefined(decoded.workspaceId, `workspaceId is a required field`);
-  assertDefined(decoded.userId, `userId is a required field`);
-  log
-    .atInfo()
-    .log(
-      `Authenticated user ${decoded.userId} in workspace ${decoded.workspaceId}. Token expires at: ${new Date(
-        decoded.exp * 1000
-      )}`
-    );
-  return { type: "user", workspaceId: decoded.workspaceId, userId: decoded.userId };
+function isSystemToken(bearer: string): boolean {
+  return serviceTokenAuthorizer(bearer) || (!!process.env.CRON_SECRET && bearer === process.env.CRON_SECRET);
 }
 
-export async function auth(req: NextApiRequest, res: NextApiResponse): Promise<AuthClaims | undefined> {
-  if (
+/**
+ * Header carrying the caller's Firebase token. Console forwards the signed-in
+ * user's token here; the browser sends its own ID token. The value is either a
+ * Firebase ID token or a Firebase session cookie — both are accepted.
+ */
+const firebaseTokenHeader = "x-fb-auth";
+
+/**
+ * Result of authenticating a request.
+ *
+ * `admin` callers may act on any workspace; `user` callers may act only on
+ * workspaces they belong to — enforced per-request via `requireWorkspaceAccess`.
+ * Admin status is decided here, by ee-api, from the `JITSU_EE_ADMINS` allow-list
+ * (see lib/admins.ts) — console never asserts it.
+ */
+export type AuthClaims = {
+  type: "user" | "admin";
+  /** Caller's email. A synthetic address for cron / dev callers. */
+  email: string;
+  /** Internal Jitsu user id (newjitsu."UserProfile".id). Absent for non-user callers. */
+  userId?: string;
+};
+
+function authDisabled(): boolean {
+  return (
     process.env.EE_DISABLE_AUTH === "true" ||
     process.env.EE_DISABLE_AUTH === "yes" ||
     process.env.EE_DISABLE_AUTH === "1"
-  ) {
+  );
+}
+
+/** The `Authorization: Bearer <token>` value, if present. */
+function getBearerToken(req: NextApiRequest): string | undefined {
+  const authVal = req.headers.authorization;
+  const prefix = "bearer ";
+  if (authVal && authVal.toLowerCase().startsWith(prefix)) {
+    return authVal.substring(prefix.length);
+  }
+  return undefined;
+}
+
+/**
+ * Verify a Firebase token that may be either an ID token (sent by the browser)
+ * or a session cookie (forwarded by the console server).
+ */
+async function verifyFirebaseToken(token: string) {
+  try {
+    return await verifyIdToken(token);
+  } catch (e) {
+    // Not an ID token — fall back to a session cookie.
+    return await verifyFirebaseSessionCookie(token);
+  }
+}
+
+/**
+ * Authenticate an incoming request.
+ *
+ * Order of resolution:
+ *  1. A static system token in an `Authorization: Bearer` header —
+ *     `EE_API_SERVICE_TOKENS` (console's server-to-server calls) or
+ *     `CRON_SECRET` (Vercel crons). Granted admin.
+ *  2. A Firebase token in the `x-fb-auth` header — a real user. Admin status is
+ *     derived from `JITSU_EE_ADMINS`.
+ *
+ * Writes a 401 and returns `undefined` when no valid credential is present.
+ */
+export async function auth(req: NextApiRequest, res: NextApiResponse): Promise<AuthClaims | undefined> {
+  if (authDisabled()) {
     log.atInfo().log("=======ATTENTION! AUTHENTICATION IS DISABLED! USE FOR DEVELOPMENT ONLY =======");
-    return { type: "admin" };
+    return { type: "admin", email: "dev@localhost" };
   }
 
-  const authVal = req.headers.authorization;
-  if (!authVal) {
-    if (typeof req.query.__auth === "string" && adminAuthorizer(req.query.__auth)) {
-      return { type: "admin" };
-    }
-    res.status(401).json({ ok: false, error: "No authorization header" });
+  // 1. System caller — a static service token.
+  const bearer = getBearerToken(req);
+  if (bearer && isSystemToken(bearer)) {
+    return { type: "admin", email: "system@jitsu.com" };
+  }
+
+  // 2. End-user Firebase token.
+  const headerVal = req.headers[firebaseTokenHeader];
+  const firebaseToken = Array.isArray(headerVal) ? headerVal[0] : headerVal;
+  if (!firebaseToken) {
+    res.status(401).json({ ok: false, error: "No authorization provided" });
     return undefined;
   }
-  if (authVal.indexOf(bearerPrefix) !== 0) {
-    res.status(401).json({ ok: false, error: `Auth header should start with ${bearerPrefix}` });
+  let decoded: Awaited<ReturnType<typeof verifyIdToken>>;
+  try {
+    decoded = await verifyFirebaseToken(firebaseToken);
+  } catch (e) {
+    log
+      .atWarn()
+      .withCause(e)
+      .log(`Failed to verify Firebase token: ${getErrorMessage(e)}`);
+    res.status(401).json({ ok: false, error: "Invalid or expired authentication" });
     return undefined;
   }
-  const token = authVal.substring(bearerPrefix.length);
-  if (process.env.CRON_SECRET && token === process.env.CRON_SECRET) {
-    return { type: "admin" };
-  }
-  if (adminAuthorizer(token)) {
-    return { type: "admin" };
-  }
-  if (process.env.JWT_SECRET) {
-    try {
-      const decrypted = await decryptJWT(token);
-      if (decrypted) {
-        if (decrypted?.workspaceId == "$all") {
-          //change to admin claim
-          return { type: "admin" };
-        }
-        return decrypted;
-      } else {
-        res.status(401).json({ ok: false, error: `Invalid JWT token. Code: MAYBE_EXPIRED` });
-        return undefined;
-      }
-    } catch (e) {
-      log.atError().withCause(e).log(`Failed to decrypt token: ${e}`);
-      res.status(401).json({ ok: false, error: `Invalid JWT token. Code: DECRYPT_EXCEPTION` });
-      return undefined;
-    }
-  } else {
-    res.status(401).json({ ok: false, error: `Invalid token` });
+  const email = decoded.email;
+  if (!email) {
+    res.status(401).json({ ok: false, error: "Firebase token has no email" });
     return undefined;
+  }
+  // A Firebase email is trustworthy only once verified. Email/password signup
+  // issues a usable ID token immediately with email_verified=false, and the
+  // Firebase project's signup API is public — without this check anyone could
+  // register as `anything@jitsu.com` and, if that domain is on
+  // JITSU_EE_ADMINS, be granted admin. OAuth providers verify the address
+  // themselves, so this only ever rejects unverified email/password accounts.
+  if (decoded.email_verified !== true) {
+    log.atWarn().log(`Rejected request from unverified email: ${email}`);
+    res.status(401).json({ ok: false, error: "Email is not verified" });
+    return undefined;
+  }
+  // `internalId` is a custom claim set by console (linkFirebaseUser).
+  const userId = (decoded as Record<string, any>).internalId as string | undefined;
+  const type = isAdminEmail(email) ? "admin" : "user";
+  log.atInfo().log(`Authenticated ${type} ${email}${userId ? ` (user ${userId})` : ""}`);
+  return { type, email, userId };
+}
+
+/**
+ * Assert that `claims` may act on `workspaceId`. Admins pass unconditionally;
+ * a regular user must be a member of the workspace. Membership is read straight
+ * from the `newjitsu` schema (owned by console) — ee-api no longer trusts a
+ * workspace id asserted inside a token.
+ *
+ * Throws on denial; the caller's `withErrorHandler` turns that into a 500/JSON
+ * error (same behaviour as the previous `assertTrue` checks).
+ */
+export async function requireWorkspaceAccess(claims: AuthClaims, workspaceId: string): Promise<void> {
+  if (claims.type === "admin") {
+    return;
+  }
+  assertDefined(workspaceId, "workspaceId is required");
+  const userId = requireDefined(claims.userId, `Authenticated user ${claims.email} has no internal id`);
+  const rows = await prisma.$queryRaw<{ ok: number }[]>`
+    select 1 as ok
+    from newjitsu."WorkspaceAccess" wa
+    join newjitsu."Workspace" w on w.id = wa."workspaceId"
+    where wa."userId" = ${userId}
+      and (w.id = ${workspaceId} or w.slug = ${workspaceId})
+      and w.deleted = false
+    limit 1`;
+  if (rows.length === 0) {
+    throw new Error(`User ${claims.email} doesn't have access to workspace ${workspaceId}`);
   }
 }

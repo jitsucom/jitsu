@@ -57,7 +57,7 @@ export default createRoute()
           },
         });
         await withProductAnalytics(p => p.track("user_created"), { user: { ...newUser, internalId: newUser.id }, req });
-        await onUserCreated({ email: user.email, name: user.name });
+        await onUserCreated(req, { email: user.email, name: user.name });
       }
 
       // Check if user has pending invitations

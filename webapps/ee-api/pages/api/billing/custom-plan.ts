@@ -1,17 +1,9 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { getAvailableProducts, stripe } from "../../../lib/stripe";
-import { withErrorHandler } from "../../../lib/route-helpers";
+import { withBrowserApi } from "../../../lib/route-helpers";
 import { requireDefined } from "juava";
 
 const handler = async function handler(req: NextApiRequest, res: NextApiResponse) {
-  res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
-  res.setHeader("Access-Control-Allow-Methods", "*");
-  res.setHeader("Access-Control-Allow-Headers", "authorization, content-type, baggage, sentry-trace");
-  res.setHeader("Access-Control-Allow-Credentials", "true");
-  if (req.method === "OPTIONS") {
-    res.status(200).end();
-    return;
-  }
   const token = req.query.token;
   if (!token) {
     throw new Error(`Missing token parameter`);
@@ -35,4 +27,4 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
   };
 };
 
-export default withErrorHandler(handler);
+export default withBrowserApi(handler);

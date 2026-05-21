@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { auth } from "../../../lib/auth";
+import { auth, requireWorkspaceAccess } from "../../../lib/auth";
 import { assertDefined, assertTrue, requireDefined } from "juava";
-import { withErrorHandler } from "../../../lib/route-helpers";
+import { withBrowserApi } from "../../../lib/route-helpers";
 import { store } from "../../../lib/services";
 import { getStripeObjectTag, listAllSubscriptions, stripe, stripeDataTable, stripeLink } from "../../../lib/stripe";
 import Stripe from "stripe";
@@ -9,23 +9,14 @@ import { omit } from "lodash";
 
 const handler = async function handler(req: NextApiRequest, res: NextApiResponse) {
   const claims = await auth(req, res);
+  if (!claims) {
+    return;
+  }
   const workspaceId: string | undefined = req.query.workspaceId ? (req.query.workspaceId as string) : undefined;
   if (!workspaceId) {
-    assertTrue(claims?.type === "admin", "Should be admin");
+    assertTrue(claims.type === "admin", "Should be admin");
   } else {
-    assertTrue(
-      claims?.type === "admin" || (claims?.type === "user" && claims?.workspaceId === workspaceId),
-      `User doesn't have access to workspace ${workspaceId}`
-    );
-  }
-  res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
-  res.setHeader("Access-Control-Allow-Methods", "*");
-  res.setHeader("Access-Control-Allow-Headers", "authorization, content-type, baggage, sentry-trace");
-  if (req.method === "OPTIONS") {
-    //allowing requests from everywhere since our tokens are short-lived
-    //and can't be hijacked
-    res.status(200).end();
-    return;
+    await requireWorkspaceAccess(claims, workspaceId);
   }
 
   const allWorkspaces = workspaceId
@@ -115,4 +106,4 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
   res.status(200).json(result);
 };
 
-export default withErrorHandler(handler);
+export default withBrowserApi(handler);

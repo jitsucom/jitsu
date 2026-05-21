@@ -5,7 +5,7 @@ import { hash as juavaHash, LogFactory, randomId, requireDefined, rpc } from "ju
 import { getServerLog } from "./log";
 import { getAppEndpoint } from "../domains";
 import { NextApiRequest } from "next";
-import { createJwt, getEeConnection, isEEAvailable } from "./ee";
+import { eeAuthHeaders, getEeConnection, isEEAvailable } from "./ee";
 import { DestinationConfig, ServiceConfig, SessionUser } from "../schema";
 import { randomUUID } from "crypto";
 import { tryManageOauthCreds } from "./oauth/services";
@@ -136,6 +136,7 @@ async function createOrUpdateTask({
 
 export async function checkQuota(opts: {
   user?: SessionUser;
+  req: NextApiRequest;
   trigger: "manual" | "scheduled";
   workspaceId: string;
   syncId: string;
@@ -144,20 +145,24 @@ export async function checkQuota(opts: {
   startedBy: any;
 }): Promise<ScheduleSyncError | undefined> {
   try {
-    const quotaCheck = `${getEeConnection().host}api/quotas/sync`;
-    let eeAuthToken: string | undefined;
+    const { host } = getEeConnection();
+    const quotaCheck = `${host}api/quotas/sync`;
+    let authHeaders: Record<string, string>;
     if (opts.user) {
-      eeAuthToken = createJwt(opts.user.internalId, opts.user.email, opts.workspaceId, 60).jwt;
+      //manual run — forward the user's Firebase credential
+      authHeaders = eeAuthHeaders(opts.req);
     } else {
-      //automatic run, authorized via syncctl auth key. Authorize as admin
-      eeAuthToken = createJwt("admin-service-account@jitsu.com", "admin-service-account@jitsu.com", "$all", 60).jwt;
+      //scheduled run (triggered by syncctl) — no signed-in user; authenticate
+      //to ee-api with the static service token
+      const serviceToken = requireDefined(serverEnv.EE_API_SERVICE_TOKEN, `env EE_API_SERVICE_TOKEN is not set`);
+      authHeaders = { Authorization: `Bearer ${serviceToken}` };
     }
     const quotaCheckResult = await rpc(quotaCheck, {
       method: "POST",
       query: { workspaceId: opts.workspaceId, trigger: opts.trigger }, //db is created, so the slug won't be really used
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${eeAuthToken}`,
+        ...authHeaders,
       },
     });
     if (!quotaCheckResult.ok) {
@@ -554,6 +559,7 @@ export async function scheduleSync({
     if (isEEAvailable()) {
       const checkResult = await checkQuota({
         user,
+        req,
         trigger,
         workspaceId,
         syncId: sync.id,

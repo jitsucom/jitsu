@@ -1,5 +1,5 @@
 import { createContext, PropsWithChildren, useContext } from "react";
-import { initializeApp } from "firebase/app";
+import { getApps, initializeApp } from "firebase/app";
 import * as auth from "firebase/auth";
 import { AppConfig, ContextApiResponse } from "./schema";
 import { getLog, randomId, requireDefined, rpc } from "juava";
@@ -204,6 +204,18 @@ export async function firebaseSignOut() {
   } catch (e) {
     log.atWarn().withCause(e).log(`Can't sign out`);
   }
+}
+
+/**
+ * The current user's Firebase ID token, or undefined if nobody is signed in
+ * with Firebase. Used to authenticate direct browser calls to ee-api.
+ */
+export async function getFirebaseIdToken(forceRefresh = false): Promise<string | undefined> {
+  if (getApps().length === 0) {
+    return undefined;
+  }
+  const currentUser = auth.getAuth().currentUser;
+  return currentUser ? await currentUser.getIdToken(forceRefresh) : undefined;
 }
 
 export function useFirebaseSession(): FirebaseSession {

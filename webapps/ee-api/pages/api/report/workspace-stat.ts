@@ -10,8 +10,8 @@ import {
   requireDefined,
   SqlQueryParameters,
 } from "juava";
-import { withErrorHandler } from "../../../lib/route-helpers";
-import { auth } from "../../../lib/auth";
+import { withBrowserApi } from "../../../lib/route-helpers";
+import { auth, requireWorkspaceAccess } from "../../../lib/auth";
 import { clickhouse, pg, prisma, store } from "../../../lib/services";
 import * as PG from "pg";
 import { getServerLog } from "../../../lib/log";
@@ -225,21 +225,15 @@ async function extend(reportResult: WorkspaceReportRow[]): Promise<ExtendedWorks
 }
 
 const handler = async function handler(req: NextApiRequest, res: NextApiResponse) {
-  res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
-  res.setHeader("Access-Control-Allow-Methods", "*");
-  res.setHeader("Access-Control-Allow-Headers", "authorization, content-type, baggage, sentry-trace");
-  if (req.method === "OPTIONS") {
-    //allowing requests from everywhere since our tokens are short-lived
-    //and can't be hijacked
-    res.status(200).end();
-    return;
-  }
   const claims = await auth(req, res);
   if (!claims) {
     res.status(401).end();
     return;
   }
-  const workspaceId = claims.type === "user" ? claims.workspaceId : (req.query.workspaceId as string) || undefined;
+  const workspaceId = (req.query.workspaceId as string) || undefined;
+  if (claims.type !== "admin") {
+    await requireWorkspaceAccess(claims, requireDefined(workspaceId, "workspaceId is required"));
+  }
   const extended = req.query.extended === "true";
   const start = getDate(req.query.start as string, minusDays(new Date(), 32).toISOString()).toISOString();
   const end = getDate(req.query.end as string, new Date().toISOString()).toISOString();
@@ -316,4 +310,4 @@ export const config = {
   maxDuration: 120,
 };
 
-export default withErrorHandler(handler);
+export default withBrowserApi(handler);

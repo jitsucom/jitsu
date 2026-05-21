@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { auth } from "../../../lib/auth";
-import { assertTrue, requireDefined } from "juava";
+import { auth, requireWorkspaceAccess } from "../../../lib/auth";
+import { requireDefined } from "juava";
 import { withErrorHandler } from "../../../lib/route-helpers";
 import { getOrCreateCurrentSubscription } from "../../../lib/stripe";
 import { pg } from "../../../lib/services";
@@ -17,7 +17,7 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
   const claims = requireDefined(await auth(req, res), `Auth is required`);
   const workspaceId = requireDefined(req.query.workspaceId as string, "workspaceId GET param is required");
   const trigger = req.query.trigger as string;
-  assertTrue(claims.type === "admin" || claims.workspaceId === workspaceId, "Invalid auth claims");
+  await requireWorkspaceAccess(claims, workspaceId);
   const subscription = await getOrCreateCurrentSubscription(workspaceId, () => {
     throw new Error(
       `Email factory should not be called. When /quotas/sync is called, the subscription should already exist`

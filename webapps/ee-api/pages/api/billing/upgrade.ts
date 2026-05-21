@@ -1,33 +1,24 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { auth } from "../../../lib/auth";
+import { auth, requireWorkspaceAccess } from "../../../lib/auth";
 import { getActivePlan, getAvailableProducts, getOrCreateCurrentSubscription, stripe } from "../../../lib/stripe";
 import { requireDefined } from "juava";
-import { withErrorHandler } from "../../../lib/route-helpers";
-import { getServerLog } from "../../../lib/log";
-
-const log = getServerLog("/api/billing/create");
+import { withBrowserApi } from "../../../lib/route-helpers";
 
 export type ErrorResponse = {
   ok: false;
   error: string;
 };
-const handler = async function handler(req: NextApiRequest, res: NextApiResponse<ErrorResponse | undefined>) {
-  if (req.method === "OPTIONS") {
-    //allowing requests from everywhere since our tokens are short-lived
-    //and can't be hijacked
-    return res.status(200).end();
-  }
+const handler = async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse<{ ok: true; url: string } | ErrorResponse>
+) {
   const planId = requireDefined(req.query.planId as string, `planId parameter is required`);
   const claims = await auth(req, res);
   if (!claims) {
     return;
   }
   const workspaceId = req.query.workspaceId as string;
-  if (claims.type === "user" && claims.workspaceId !== workspaceId) {
-    const msq = `Claimed workspaceId ${claims.workspaceId} does not match requested workspaceId ${workspaceId}`;
-    log.atError().log(msq);
-    return res.status(400).json({ ok: false, error: msq });
-  }
+  await requireWorkspaceAccess(claims, workspaceId);
 
   const { stripeCustomerId } = await getOrCreateCurrentSubscription(
     workspaceId,
@@ -76,7 +67,8 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
     cancel_url: (req.query.cancelUrl as string | undefined) || returnUrl,
   });
 
-  return res.redirect(303, url as string);
+  //the browser calls this directly (cross-origin) and navigates to `url` itself
+  return { ok: true, url: requireDefined(url, "Stripe did not return a checkout url") };
 };
 
-export default withErrorHandler(handler);
+export default withBrowserApi(handler);

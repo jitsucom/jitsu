@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { auth } from "../../lib/auth";
-import { assertTrue, randomId, requireDefined } from "juava";
+import { auth, requireWorkspaceAccess } from "../../lib/auth";
+import { randomId, requireDefined } from "juava";
 import { withErrorHandler } from "../../lib/route-helpers";
 import { clickhouse, store } from "../../lib/services";
 import { getServerLog } from "../../lib/log";
@@ -105,10 +105,7 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
   const workspaceId = requireDefined(req.query.workspaceId as string, `?workspaceId= is required. Query: ${req.query}`);
   const slug = requireDefined(req.query.slug as string, `?slug= is required`);
 
-  assertTrue(
-    claims.type === "admin" || (claims.type === "user" && claims.workspaceId === workspaceId),
-    `Token can't access workspace ${workspaceId}`
-  );
+  await requireWorkspaceAccess(claims, workspaceId);
   const credentials = await store.getTable("provisioned-db").get(workspaceId);
   if (credentials) {
     return res.status(200).json({

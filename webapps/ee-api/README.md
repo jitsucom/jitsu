@@ -33,7 +33,8 @@ Auth is fully client-side — there is no session cookie:
 | `FIREBASE_AUTH`                             | JSON5 `{ admin, client }` — Firebase admin credentials + client config.                                  |
 | `FIREBASE_ADMIN` + `FIREBASE_CLIENT_CONFIG` | Alternative to `FIREBASE_AUTH`: the two halves as separate JSON5 vars.                                   |
 | `JITSU_EE_ADMINS`                           | Comma-separated email patterns that may access the UI. `*` is a wildcard.                                |
-| `CRON_SECRET`                               | Shared secret for Vercel Cron auth. Sent as `Authorization: Bearer <secret>`; accepted by `lib/auth.ts`. |
+| `EE_API_SERVICE_TOKENS`                     | Comma-separated allow-list of static bearer tokens for trusted server-to-server callers (console's quota check / exports). Accepted by `lib/auth.ts`. |
+| `CRON_SECRET`                               | Bearer token for Vercel-managed cron jobs only — Vercel injects it automatically. Accepted by `lib/auth.ts`. |
 
 `JITSU_EE_ADMINS` example:
 
@@ -74,7 +75,8 @@ Scheduled in `vercel.json`:
   **Update stat cache** button (`/api/admin/sync-cache`).
 
 Cron requests authenticate with `CRON_SECRET` — Vercel sends it automatically as a
-Bearer token to scheduled endpoints.
+Bearer token to scheduled endpoints. Other server-to-server callers (e.g. console)
+use `EE_API_SERVICE_TOKENS` instead — see the env vars table above.
 
 ## Dev
 

@@ -1,8 +1,7 @@
 import { createRoute } from "../../lib/api";
 import { AppConfig } from "../../lib/schema";
 import { getAppEndpoint } from "../../lib/domains";
-import { getEeConnection } from "../../lib/server/ee";
-import { isEEAvailable } from "./ee/jwt";
+import { getEeConnection, isEEAvailable } from "../../lib/server/ee";
 import { isFirebaseEnabled, requireFirebaseOptions } from "../../lib/server/firebase-server";
 import { nangoConfig } from "../../lib/server/oauth/nango-config";
 import { readOnlyUntil } from "../../lib/server/read-only-mode";

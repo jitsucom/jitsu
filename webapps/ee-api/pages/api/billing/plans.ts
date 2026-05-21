@@ -1,12 +1,8 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { auth } from "../../../lib/auth";
+import { auth, requireWorkspaceAccess } from "../../../lib/auth";
 import { getAvailableProducts, getOrCreateCurrentSubscription, stripe } from "../../../lib/stripe";
 import { requireDefined } from "juava";
-import { withErrorHandler } from "../../../lib/route-helpers";
-
-import { getServerLog } from "../../../lib/log";
-
-const log = getServerLog("/api/billing/create");
+import { withBrowserApi } from "../../../lib/route-helpers";
 
 export type ErrorResponse = {
   ok: false;
@@ -26,21 +22,12 @@ type Response = {
   products: Product[];
 };
 const handler = async function handler(req: NextApiRequest, res: NextApiResponse<ErrorResponse | Response>) {
-  if (req.method === "OPTIONS") {
-    //allowing requests from everywhere since our tokens are short-lived
-    //and can't be hijacked
-    return res.status(200).end();
-  }
   const claims = await auth(req, res);
   if (!claims) {
     return;
   }
   const workspaceId = req.query.workspaceId as string;
-  if (claims.type === "user" && claims.workspaceId !== workspaceId) {
-    const msq = `Claimed workspaceId ${claims.workspaceId} does not match requested workspaceId ${workspaceId}`;
-    log.atError().log(msq);
-    return res.status(400).json({ ok: false, error: msq });
-  }
+  await requireWorkspaceAccess(claims, workspaceId);
 
   const { stripeCustomerId } = await getOrCreateCurrentSubscription(workspaceId, () =>
     requireDefined(req.query.email as string, "email parameter is required")
@@ -76,4 +63,4 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
   return { products: result };
 };
 
-export default withErrorHandler(handler);
+export default withBrowserApi(handler);

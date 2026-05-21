@@ -1,8 +1,9 @@
 import { BillingSettings, noRestrictions } from "../../lib/schema";
 import { useAppConfig, useUser, useWorkspace } from "../../lib/context";
 import React, { createContext, PropsWithChildren, useContext, useEffect, useState } from "react";
-import { getLog, rpc } from "juava";
+import { getLog } from "juava";
 import { useJitsu } from "@jitsu/jitsu-react";
+import { useEeApi } from "../../lib/eeApi";
 
 export const BillingContext = createContext<BillingSettings | null | "disabled" | "loading">(null);
 const log = getLog(`BillingProvider`);
@@ -45,18 +46,19 @@ export const BillingProvider: React.FC<PropsWithChildren<{ enabled: boolean; sen
   const workspace = useWorkspace();
   const user = useUser();
   const { analytics } = useJitsu();
+  const { eeRpc } = useEeApi();
   const [refreshDate, setRefreshDate] = useState(new Date());
 
   useEffect(() => {
     if (!enabled) {
       return;
     }
-    rpc(`/api/${workspace.id}/ee/billing/settings`, { query: { email: user.email } })
+    eeRpc("billing/settings", { query: { workspaceId: workspace.id, email: user.email } })
       .then(parseBillingSettings)
       .then(setBillingSettings)
       .catch(setError)
       .finally();
-  }, [enabled, workspace.id, user.email, refreshDate]);
+  }, [enabled, workspace.id, user.email, refreshDate, eeRpc]);
 
   //refresh billing settings every 5 minutes
   useEffect(() => {

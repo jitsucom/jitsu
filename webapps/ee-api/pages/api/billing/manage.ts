@@ -1,11 +1,8 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { auth } from "../../../lib/auth";
+import { auth, requireWorkspaceAccess } from "../../../lib/auth";
 import { requireDefined } from "juava";
-import { withErrorHandler } from "../../../lib/route-helpers";
+import { withBrowserApi } from "../../../lib/route-helpers";
 import { getOrCreatePortalConfiguration, getOrCreateCurrentSubscription, stripe } from "../../../lib/stripe";
-import { getServerLog } from "../../../lib/log";
-
-const log = getServerLog("/api/billing/manager");
 
 export type SuccessfullResponse = {
   ok: true;
@@ -18,21 +15,12 @@ export type ErrorResponse = {
 };
 
 const handler = async function handler(req: NextApiRequest, res: NextApiResponse<SuccessfullResponse | ErrorResponse>) {
-  if (req.method === "OPTIONS") {
-    //allowing requests from everywhere since our tokens are short-lived
-    //and can't be hijacked
-    return res.status(200).end();
-  }
   const claims = await auth(req, res);
   if (!claims) {
     return;
   }
   const workspaceId = req.query.workspaceId as string;
-  if (claims.type === "user" && claims.workspaceId !== workspaceId) {
-    const msq = `Claimed workspaceId ${claims.workspaceId} does not match requested workspaceId ${workspaceId}`;
-    log.atError().log(msq);
-    return res.status(400).json({ ok: false, error: msq });
-  }
+  await requireWorkspaceAccess(claims, workspaceId);
 
   const { stripeCustomerId } = await getOrCreateCurrentSubscription(workspaceId, () =>
     requireDefined(req.query.email as string, "email parameter is required")
@@ -47,7 +35,8 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
     return_url: requireDefined(req.query.returnUrl as string, "returnUrl parameter is required"),
   });
 
-  return res.redirect(303, url);
+  //the browser calls this directly (cross-origin) and navigates to `url` itself
+  return { ok: true, url };
 };
 
-export default withErrorHandler(handler);
+export default withBrowserApi(handler);

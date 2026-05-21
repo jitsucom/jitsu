@@ -82,10 +82,10 @@ export async function getFirebaseUser(req: NextApiRequest): Promise<FirebaseAuth
   await firebaseService.waitInit();
 
   const decodedIdToken = authToken.idToken
-    ? await firebase().auth().verifyIdToken(authToken.idToken)
+    ? await firebase().auth().verifyIdToken(authToken.idToken, true)
     : await firebase()
         .auth()
-        .verifySessionCookie(authToken.cookieToken as string);
+        .verifySessionCookie(authToken.cookieToken as string, true);
   log.atInfo().log(`decodedIdToken: ${JSON.stringify(decodedIdToken)}`);
   const email = requireDefined(
     decodedIdToken.email,
@@ -118,16 +118,22 @@ export async function auth(req: NextApiRequest, res: NextApiResponse): Promise<F
   }
 }
 
+// `checkRevoked: true` makes the Admin SDK additionally reject tokens whose
+// session was revoked (sign-out / password reset) and tokens of a disabled
+// user. It costs one extra lookup of the user record per call — acceptable for
+// ee-api's admin/billing traffic, and it means a signed-out user can't keep
+// hitting ee-api with a still-unexpired session cookie (up to 5 days).
+
 /** Verify a Firebase ID token (issued by the client SDK after sign-in). */
 export async function verifyIdToken(idToken: string): Promise<admin.auth.DecodedIdToken> {
   await firebaseService.waitInit();
-  return firebase().auth().verifyIdToken(idToken);
+  return firebase().auth().verifyIdToken(idToken, true);
 }
 
 /** Verify a Firebase session cookie. */
 export async function verifyFirebaseSessionCookie(cookieToken: string): Promise<admin.auth.DecodedIdToken> {
   await firebaseService.waitInit();
-  return firebase().auth().verifySessionCookie(cookieToken);
+  return firebase().auth().verifySessionCookie(cookieToken, true);
 }
 
 export async function createCustomToken(req: NextApiRequest): Promise<string> {
@@ -137,10 +143,10 @@ export async function createCustomToken(req: NextApiRequest): Promise<string> {
   await firebaseService.waitInit();
 
   const decodedIdToken = authToken.idToken
-    ? await firebase().auth().verifyIdToken(authToken.idToken)
+    ? await firebase().auth().verifyIdToken(authToken.idToken, true)
     : await firebase()
         .auth()
-        .verifySessionCookie(authToken.cookieToken as string);
+        .verifySessionCookie(authToken.cookieToken as string, true);
   const user = await firebase().auth().getUser(decodedIdToken.uid);
 
   return firebase()

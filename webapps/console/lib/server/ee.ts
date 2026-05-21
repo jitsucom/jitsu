@@ -1,67 +1,59 @@
 import { getErrorMessage, getLog, requireDefined, rpc } from "juava";
-import jwt from "jsonwebtoken";
+import { NextApiRequest } from "next";
 import { getServerEnv } from "./serverEnv";
+import { firebaseAuthCookieName } from "./firebase-server";
 
 export function isEEAvailable(): boolean {
-  const serverEnv = getServerEnv();
-  return !!serverEnv.EE_CONNECTION;
+  return !!getServerEnv().EE_CONNECTION;
 }
 
 export type EeConnection = {
   host: string;
-  jwtSecret: string;
 };
 
+/**
+ * Parse `EE_CONNECTION` — the base URL of ee-api, e.g. `https://ee.jitsu.com/`.
+ * Any query params are stripped: older configs carried a `jwtSecret` there to
+ * sign a console-minted token, which is gone — ee-api now authenticates the
+ * caller's forwarded Firebase token directly.
+ */
 export function getEeConnection(): EeConnection {
   if (!isEEAvailable()) {
     throw new Error("EE is not available");
   }
-  const serverEnv = getServerEnv();
-  const url = new URL(requireDefined(serverEnv.EE_CONNECTION, `env EE_CONNECTION is not set. Call isEEAvailable()`));
-  const jwtSecret = url.searchParams.get("jwtSecret");
-  if (!jwtSecret) {
-    throw new Error("EE connection URL must contain jwtSecret param");
-  }
-  url.searchParams.delete("jwtSecret");
-  return {
-    host: url.toString(),
-    jwtSecret,
-  };
+  const url = new URL(
+    requireDefined(getServerEnv().EE_CONNECTION, `env EE_CONNECTION is not set. Call isEEAvailable()`)
+  );
+  url.search = "";
+  return { host: url.toString() };
 }
 
-type JWTResult = {
-  //JWT token,
-  jwt: string;
-  //Token expiration date as ISO UTC
-  expiresAt: string;
-};
-
-export function createSystemJwt(): JWTResult {
-  return createJwt("admin-service-account@jitsu.com", "admin-service-account@jitsu.com", "$all", 60);
+/**
+ * Headers that forward the signed-in user's Firebase credential to ee-api.
+ * `req` is the incoming console request; its `jitsu-auth` Firebase session
+ * cookie is passed on as `x-fb-auth`. ee-api verifies it and resolves the user
+ * (and their admin status) itself.
+ */
+export function eeAuthHeaders(req: NextApiRequest): Record<string, string> {
+  const firebaseToken = requireDefined(
+    req.cookies[firebaseAuthCookieName],
+    `No Firebase session on the request — cannot authenticate to ee-api`
+  );
+  return { "x-fb-auth": firebaseToken };
 }
 
-export function createJwt(userId: string, email: string, workspaceId: string, expireInSecs: number): JWTResult {
-  if (!isEEAvailable()) {
-    throw new Error("EE is not available");
-  }
-  const jwtSecret = getEeConnection().jwtSecret;
-  const expiresSecondsTimestamp = new Date().getTime() / 1000 + expireInSecs;
-  const token = jwt.sign({ userId, email, workspaceId, exp: expiresSecondsTimestamp }, jwtSecret);
-  return { jwt: token, expiresAt: new Date(expiresSecondsTimestamp * 1000).toISOString() };
-}
-
-export async function onUserCreated(opts: { email: string; name?: string }) {
+export async function onUserCreated(req: NextApiRequest | undefined, opts: { email: string; name?: string }) {
   if (!isEEAvailable()) {
     return;
   }
-  const url = `${getEeConnection().host}api/user-created`;
+  const { host } = getEeConnection();
   try {
-    await rpc(url, {
+    await rpc(`${host}api/user-created`, {
       method: "POST",
       body: opts,
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${createSystemJwt().jwt}`,
+        ...eeAuthHeaders(requireDefined(req, `request is required to authenticate to ee-api`)),
       },
     });
   } catch (e: any) {

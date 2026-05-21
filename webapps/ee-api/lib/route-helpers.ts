@@ -27,6 +27,36 @@ export function withErrorHandler(handler: NextApiHandler): NextApiHandler {
   };
 }
 
+/**
+ * CORS for ee-api endpoints the console browser app calls directly. The request
+ * carries a Firebase ID token in the `Authorization` header (not cookies), so
+ * the origin is simply reflected back. Returns `true` if the request was a
+ * preflight that has now been answered — the caller should stop.
+ */
+export function applyCors(req: NextApiRequest, res: NextApiResponse): boolean {
+  res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "authorization, content-type, x-fb-auth, baggage, sentry-trace");
+  if (req.method === "OPTIONS") {
+    res.status(200).end();
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Wrap a browser-facing ee-api handler: applies CORS (and answers preflight
+ * requests) on top of `withErrorHandler`.
+ */
+export function withBrowserApi(handler: NextApiHandler): NextApiHandler {
+  return withErrorHandler(async (req, res) => {
+    if (applyCors(req, res)) {
+      return;
+    }
+    return handler(req, res);
+  });
+}
+
 /** An authenticated admin, resolved from a verified Firebase token. */
 export type AdminClaim = { uid: string; email: string };
 

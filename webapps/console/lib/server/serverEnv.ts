@@ -245,6 +245,12 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   // Connection string for Enterprise Edition features
   EE_CONNECTION: z.string().optional(),
 
+  // Static service token for console's server-to-server calls to ee-api that
+  // have no signed-in user (the scheduled-sync quota check, the bulker
+  // connections export). Sent as an `Authorization: Bearer` token; must be one
+  // of the tokens in ee-api's EE_API_SERVICE_TOKENS allow-list.
+  EE_API_SERVICE_TOKEN: z.string().optional(),
+
   // ============================================
   // Logging & Debugging
   // ============================================
