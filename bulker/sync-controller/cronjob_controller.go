@@ -38,7 +38,7 @@ const (
 	// + `PodsServiceAccount` won't capture (init-container command paths,
 	// volume layout, env scaffolding). Forces a one-shot re-patch of every
 	// reconciled CronJob on the next reconcile after upgrade.
-	cronTemplateRevision = 4
+	cronTemplateRevision = 5
 )
 
 // k8sName converts a sync ID into an RFC 1123 subdomain segment safe for use
@@ -673,14 +673,22 @@ func sidecarResources() v1.ResourceRequirements {
 			v1.ResourceCPU:    *resource.NewMilliQuantity(int64(500), resource.DecimalSI),
 			v1.ResourceMemory: *resource.NewQuantity(int64(math.Pow(2, 32)), resource.BinarySI), // 4Gi
 		},
+		Requests: v1.ResourceList{
+			v1.ResourceCPU:    *resource.NewMilliQuantity(int64(0), resource.DecimalSI),
+			v1.ResourceMemory: *resource.NewQuantity(int64(0), resource.BinarySI),
+		},
 	}
 }
 
 func smallResources() v1.ResourceRequirements {
 	return v1.ResourceRequirements{
 		Limits: v1.ResourceList{
-			v1.ResourceCPU:    *resource.NewMilliQuantity(int64(20), resource.DecimalSI),
-			v1.ResourceMemory: *resource.NewQuantity(int64(math.Pow(2, 28)), resource.BinarySI), // 256Mi
+			v1.ResourceCPU:    *resource.NewMilliQuantity(int64(500), resource.DecimalSI),
+			v1.ResourceMemory: *resource.NewQuantity(int64(math.Pow(2, 29)), resource.BinarySI), // 512Mi
+		},
+		Requests: v1.ResourceList{
+			v1.ResourceCPU:    *resource.NewMilliQuantity(int64(0), resource.DecimalSI),
+			v1.ResourceMemory: *resource.NewQuantity(int64(0), resource.BinarySI),
 		},
 	}
 }

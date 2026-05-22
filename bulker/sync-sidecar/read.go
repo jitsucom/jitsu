@@ -174,6 +174,14 @@ func (s *ReadSideCar) Run() {
 	if ok {
 		s.log("State loaded: %s", state)
 	}
+	// Materialize the source_task row up front so the UI sees the run as
+	// soon as the sidecar boots. Without this the row only appears when
+	// the source connector emits its first STREAM_STATUS=STARTED trace or
+	// hits a commit (updateRunningStatus), which for slow-starting sources
+	// (heavy discovery, large initial API calls) can be 10+ minutes after
+	// the pod started — and syncctl's RUNNING heartbeats are UPDATE-only,
+	// so they silently no-op until something INSERTs.
+	s.updateRunningStatus()
 	var stdOutErrWaitGroup sync.WaitGroup
 
 	s.errPipe, _ = os.Open(s.stdErrPipeFile)
