@@ -64,17 +64,22 @@ async function readError(resp: Response): Promise<string> {
   return `HTTP ${resp.status}`;
 }
 
-/** Period start/end and events for the selected variant. */
+/**
+ * Period start/end and events for the selected variant.
+ *
+ * DATE SEMANTICS — intentional, do not "fix": `start`/`end` are a half-open
+ * interval `[start, end)`. `end` is the *exclusive* upper bound — for the
+ * previous period it equals the current period's start (e.g. a period is
+ * `Apr 22 → May 22`, and `May 22` is the first day of the next period). The UI
+ * renders `start` and `end` verbatim and labels them as a `[start, end)` range,
+ * so showing `May 22` as the end is correct. Earlier code subtracted a day here
+ * to display an "inclusive last day" (`May 21`); that was reverted on purpose —
+ * do not re-introduce it.
+ */
 function periodOf(row: AdminWorkspaceRow, variant: PeriodVariant) {
   return variant === "active"
     ? { start: row.periodStart, end: row.periodEnd, events: row.events.period }
-    : {
-        start: row.previousPeriodStart,
-        // previousPeriodEnd is an exclusive bound (= current period start); show
-        // the last day actually included so the range matches the summed totals.
-        end: dayjs.utc(row.previousPeriodEnd).subtract(1, "day").toISOString(),
-        events: row.events.previousPeriod,
-      };
+    : { start: row.previousPeriodStart, end: row.previousPeriodEnd, events: row.events.previousPeriod };
 }
 
 /** Full plan breakdown shown on status hover/click — rendered as a white table. */
@@ -367,10 +372,17 @@ function buildColumns(
       defaultSortOrder: variant === "previous" ? "descend" : undefined,
       render: (_, row) => {
         const period = periodOf(row, variant);
+        // Headline: the month the period starts in (a billing period spans two
+        // calendar months, e.g. Apr 22 → May 22 → "April 2026"). Sub-line: the
+        // explicit `[start, end)` range — `end` is exclusive, see periodOf.
         return (
           <div className="tabular-nums">
-            <div className="text-[15px] font-semibold leading-tight text-neutral-900">{fmtDate(period.end)}</div>
-            <div className="text-xs text-neutral-400">from {fmtDateShort(period.start)}</div>
+            <div className="text-[15px] font-semibold leading-tight text-neutral-900">
+              {dayjs.utc(period.start).format("MMMM YYYY")}
+            </div>
+            <div className="text-xs text-neutral-400">
+              {fmtDateShort(period.start)} → {fmtDate(period.end)}
+            </div>
           </div>
         );
       },
