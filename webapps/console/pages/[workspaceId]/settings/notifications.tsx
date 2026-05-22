@@ -174,6 +174,15 @@ const NotificationChannelList: React.FC<{}> = () => {
           </>
         ),
       },
+      summarizeBatchNotificationsByTable: {
+        displayName: "Summarize Batch Notifications by Table",
+        documentation: (
+          <>
+            When a batch connection writes to multiple tables, send a single PARTIAL notification summarizing failures
+            across tables instead of one notification per table.
+          </>
+        ),
+      },
     },
     noun: "Slack Notification Channel",
     type: "notification",

@@ -83,6 +83,18 @@ export const UserNotificationSettings: React.FC<{
             </Form.Item>{" "}
           </div>
           <div className="flex flex-row w-full justify-between items-center border-x border-t border-collapse p-4">
+            <label htmlFor="summarizeBatchNotificationsByTable" className="font-main flex flex-col gap-1">
+              Summarize Batch Notifications by Table
+              <span className="text-xs text-textLight">
+                When a batch connection writes to multiple tables, send a single PARTIAL notification summarizing
+                failures across tables instead of one notification per table.
+              </span>
+            </label>
+            <Form.Item name="summarizeBatchNotificationsByTable" noStyle>
+              <Switch id="summarizeBatchNotificationsByTable" />
+            </Form.Item>
+          </div>
+          <div className="flex flex-row w-full justify-between items-center border-x border-t border-collapse p-4">
             <label htmlFor="recurringAlertsPeriodHours" className="font-main flex flex-col gap-1">
               Recurring Alerts Period (hours)
               <span className="text-xs text-textLight">

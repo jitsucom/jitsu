@@ -241,6 +241,7 @@ export const NotificationChannel = ConfigEntityBase.merge(
     // allWorkspaceEmails: z.boolean().default(true).optional(),
     emails: z.array(z.string()).optional(),
     recurringAlertsPeriodHours: z.number().max(720).min(0).default(168),
+    summarizeBatchNotificationsByTable: z.boolean().default(true),
   })
 );
 export type NotificationChannel = z.infer<typeof NotificationChannel>;
