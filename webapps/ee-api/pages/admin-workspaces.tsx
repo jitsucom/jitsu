@@ -10,7 +10,7 @@ dayjs.extend(utc);
 import { AdminLayout } from "../components/AdminLayout";
 import { RequireAdmin } from "../components/RequireAdmin";
 import { useAuth } from "../components/AuthProvider";
-import type { AdminWorkspaceRow, AdminWorkspacesResponse, WorkspaceStatus } from "../lib/admin-workspaces";
+import type { AdminWorkspaceRow, AdminWorkspacesResponse, ChartPoint, WorkspaceStatus } from "../lib/admin-workspaces";
 
 /** Which billing period the table is showing. */
 type PeriodVariant = "active" | "previous";
@@ -24,6 +24,7 @@ const fmtMoney = (n: number) => moneyFmt.format(n);
 // Period boundaries are UTC instants — format in UTC so US timezones don't shift the date.
 const fmtDate = (iso: string) => dayjs.utc(iso).format("MMM D, YYYY");
 const fmtDateShort = (iso: string) => dayjs.utc(iso).format("MMM D");
+const fmtDateTime = (iso: string) => dayjs.utc(iso).format("MMM D, HH:mm [UTC]");
 
 const STATUS_META: Record<WorkspaceStatus, { label: string; color: string }> = {
   PAYING: { label: "Paying", color: "green" },
@@ -113,39 +114,88 @@ const PlanDetails: React.FC<{ row: AdminWorkspaceRow; variant: PeriodVariant }> 
   );
 };
 
-/** Inline SVG sparkline that scales to its container width, with a faint area fill. */
-const Sparkline: React.FC<{ data: number[]; color: string; height?: number }> = ({ data, color, height = 30 }) => {
-  if (data.length < 2) {
+const CHART_GREEN = "#16a34a";
+const CHART_GREEN_HOVER = "#15803d";
+
+/** Tooltip shown over a hovered bar in {@link MiniBarChart}. */
+const ChartTooltip: React.FC<{
+  point: ChartPoint;
+  align: "left" | "center" | "right";
+  placement: "top" | "bottom";
+}> = ({ point, align, placement }) => {
+  const projected = point.projected != null && point.projected > point.events;
+  // Anchor near the chart edges so the tooltip cannot spill out of the cell.
+  const position: React.CSSProperties =
+    align === "left" ? { left: 0 } : align === "right" ? { right: 0 } : { left: "50%", transform: "translateX(-50%)" };
+  return (
+    <div
+      className={`pointer-events-none absolute z-20 whitespace-nowrap rounded-md bg-neutral-900 px-2 py-1 text-xs leading-tight text-white shadow-lg ${
+        placement === "bottom" ? "top-full mt-1.5" : "bottom-full mb-1.5"
+      }`}
+      style={position}
+    >
+      <div className="font-semibold">{dayjs.utc(point.date).format("ddd, MMM D")}</div>
+      <div className="tabular-nums text-neutral-300">
+        {fmtInt(point.events)} events
+        {projected && <span className="text-neutral-400"> · ~{fmtCompact(point.projected!)} projected</span>}
+      </div>
+    </div>
+  );
+};
+
+/**
+ * Interactive daily-events bar chart. Hovering a bar reveals the date, weekday
+ * and value. Today's bar is drawn solid for the volume so far, capped with a
+ * dashed outline extrapolated to the projected full-day total.
+ */
+const MiniBarChart: React.FC<{ data: ChartPoint[]; height?: number; tooltipPlacement?: "top" | "bottom" }> = ({
+  data,
+  height = 40,
+  tooltipPlacement = "top",
+}) => {
+  const [hover, setHover] = useState<number | null>(null);
+  if (data.length === 0) {
     return <div style={{ height }} />;
   }
-  const vbWidth = 100;
-  const pad = 3;
-  const max = Math.max(...data);
-  const min = Math.min(...data);
-  const range = max - min || 1;
-  const stepX = vbWidth / (data.length - 1);
-  const yOf = (v: number) => height - pad - ((v - min) / range) * (height - 2 * pad);
-  const line = data.map((v, i) => `${i ? "L" : "M"}${(i * stepX).toFixed(2)},${yOf(v).toFixed(2)}`).join(" ");
+  const max = Math.max(1, ...data.map(d => Math.max(d.events, d.projected ?? 0)));
   return (
-    <svg
-      width="100%"
-      height={height}
-      viewBox={`0 0 ${vbWidth} ${height}`}
-      preserveAspectRatio="none"
-      className="block"
-      aria-hidden
-    >
-      <path d={`${line} L${vbWidth},${height} L0,${height} Z`} fill={color} fillOpacity={0.1} />
-      <path
-        d={line}
-        fill="none"
-        stroke={color}
-        strokeWidth={1.5}
-        strokeLinejoin="round"
-        strokeLinecap="round"
-        vectorEffect="non-scaling-stroke"
-      />
-    </svg>
+    <div className="relative px-2" onMouseLeave={() => setHover(null)}>
+      <div className="flex items-end gap-px border-b border-neutral-200" style={{ height }}>
+        {data.map((d, i) => {
+          // Drawn height — floored so non-zero days keep a visible sliver.
+          const actualPct = d.events > 0 ? Math.max((d.events / max) * 100, 3) : 0;
+          const projectedPct = d.projected != null ? (d.projected / max) * 100 : 0;
+          const active = hover === i;
+          return (
+            <div key={d.date} className="relative h-full flex-1" onMouseEnter={() => setHover(i)}>
+              {projectedPct > actualPct && (
+                <div
+                  className="absolute inset-x-0"
+                  style={{
+                    bottom: `${actualPct}%`,
+                    height: `${projectedPct - actualPct}%`,
+                    border: `1px dashed ${CHART_GREEN}`,
+                    borderBottom: "none",
+                    background: "rgba(22,163,74,0.1)",
+                  }}
+                />
+              )}
+              <div
+                className="absolute inset-x-0 bottom-0 rounded-t-[1px]"
+                style={{ height: `${actualPct}%`, background: active ? CHART_GREEN_HOVER : CHART_GREEN }}
+              />
+              {active && (
+                <ChartTooltip
+                  point={d}
+                  align={i < data.length * 0.25 ? "left" : i > data.length * 0.75 ? "right" : "center"}
+                  placement={tooltipPlacement}
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 };
 
@@ -254,9 +304,10 @@ function buildColumns(appBaseUrl: string, variant: PeriodVariant): TableColumnsT
             defaultSortOrder: "descend",
             // Sparkline spans the full cell — drop the cell's horizontal padding.
             onCell: () => ({ style: { paddingLeft: 0, paddingRight: 0 } }),
-            render: (_, row) => (
+            render: (_, row, index) => (
               <div>
-                <Sparkline data={row.events.daily} color="#16a34a" height={30} />
+                {/* Row 0 sits flush under the sticky header — flip its tooltip below so it isn't clipped. */}
+                <MiniBarChart data={row.events.chart} tooltipPlacement={index === 0 ? "bottom" : "top"} />
                 <div className="mt-1 flex flex-wrap items-baseline gap-x-1.5 px-2 text-xs tabular-nums text-neutral-400">
                   <span>
                     <span className="font-semibold text-neutral-900">{fmtCompact(row.events.yesterday)}</span> yest
@@ -496,9 +547,11 @@ const AdminWorkspaces: React.FC = () => {
   const summary = useMemo(() => {
     return filtered.reduce(
       (acc, row) => {
-        acc.total += 1;
         if (row.paid) {
           acc.paying += 1;
+        }
+        if (row.activeYesterday) {
+          acc.active += 1;
         }
         acc.eventsToday += row.events.today;
         acc.eventsYesterday += row.events.yesterday;
@@ -506,7 +559,7 @@ const AdminWorkspaces: React.FC = () => {
         acc.events30 += row.events.avg30 * 30;
         return acc;
       },
-      { total: 0, paying: 0, eventsToday: 0, eventsYesterday: 0, events30: 0 }
+      { paying: 0, active: 0, eventsToday: 0, eventsYesterday: 0, events30: 0 }
     );
   }, [filtered]);
 
@@ -531,7 +584,7 @@ const AdminWorkspaces: React.FC = () => {
   }
 
   const summaryStats = [
-    { label: "Workspaces", value: fmtInt(summary.total) },
+    { label: "Active workspaces", value: fmtInt(summary.active) },
     { label: "Paying", value: fmtInt(summary.paying) },
     { label: "Events today", value: fmtCompact(summary.eventsToday) },
     { label: "Events yesterday", value: fmtCompact(summary.eventsYesterday) },
@@ -549,7 +602,7 @@ const AdminWorkspaces: React.FC = () => {
         </div>
         <div className="flex shrink-0 items-center gap-3">
           {data?.statCacheUpdatedAt && (
-            <span className="text-xs text-neutral-400">Event stats through {fmtDate(data.statCacheUpdatedAt)}</span>
+            <span className="text-xs text-neutral-400">Event stats through {fmtDateTime(data.statCacheUpdatedAt)}</span>
           )}
           <Button icon={<ReloadOutlined />} onClick={load}>
             Refresh
@@ -600,7 +653,7 @@ const AdminWorkspaces: React.FC = () => {
           dataSource={filtered}
           scroll={{ x: variant === "active" ? 1230 : 1000 }}
           sticky
-          pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: [50, 100, 200, 500] }}
+          pagination={{ pageSize: 500, showSizeChanger: false }}
         />
       </div>
     </div>

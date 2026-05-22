@@ -29,6 +29,8 @@ export type SyncCacheProgress =
 const upsertChunkSize = 1000;
 
 async function upsertStatCache(report: WorkspaceReportRow[]): Promise<void> {
+  const now = dayjs().utc();
+  const todayStart = now.startOf("day");
   for (let i = 0; i < report.length; i += upsertChunkSize) {
     const batch = report.slice(i, i + upsertChunkSize);
     // Positional placeholders via $executeRawUnsafe. `Prisma.sql` / `Prisma.join`
@@ -36,21 +38,27 @@ async function upsertStatCache(report: WorkspaceReportRow[]): Promise<void> {
     // stop being recognized across reloads and the query collapses to `values $1`.
     // The SQL here is fully static (only the row count varies), so it is not unsafe.
     //
-    // `period` is an ISO string cast to timestamp — the column is `timestamp without
-    // time zone`, and the cast drops the `Z` rather than converting, so it stays
-    // session-timezone independent.
+    // `period` / `cutoff` are ISO strings cast to timestamp — the columns are
+    // `timestamp without time zone`, and the cast drops the `Z` rather than
+    // converting, so values stay session-timezone independent.
     const tuples = batch
       .map((_, j) => {
-        const p = j * 4;
-        return `($${p + 1}, $${p + 2}::timestamp, $${p + 3}, $${p + 4})`;
+        const p = j * 5;
+        return `($${p + 1}, $${p + 2}::timestamp, $${p + 3}, $${p + 4}, $${p + 5}::timestamp)`;
       })
       .join(", ");
-    const values = batch.flatMap(({ workspaceId, period, events, syncs }) => [workspaceId, period, events, syncs || 0]);
+    const values = batch.flatMap(({ workspaceId, period, events, syncs }) => {
+      // Completed days are final at end-of-day; the in-progress day is only
+      // accurate up to this sync run — store that as the freshness watermark.
+      const periodDay = dayjs(period).utc().startOf("day");
+      const cutoff = periodDay.isSame(todayStart, "day") ? now : periodDay.add(1, "day");
+      return [workspaceId, period, events, syncs || 0, cutoff.toISOString()];
+    });
     await prisma.$executeRawUnsafe(
-      `insert into newjitsuee.stat_cache ("workspaceId", "period", "events", "syncs")
+      `insert into newjitsuee.stat_cache ("workspaceId", "period", "events", "syncs", "cutoff")
        values ${tuples}
        on conflict ("workspaceId", "period")
-       do update set "events" = excluded."events", "syncs" = excluded."syncs"`,
+       do update set "events" = excluded."events", "syncs" = excluded."syncs", "cutoff" = excluded."cutoff"`,
       ...values
     );
   }

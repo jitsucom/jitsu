@@ -37,9 +37,14 @@ model KvRecord {
 /// Cached per-workspace event and sync counts, refreshed by /api/sync-cache.
 model StatCache {
   workspaceId String
-  period      DateTime @db.Timestamp(6)
-  events      Decimal  @db.Decimal
-  syncs       Decimal  @default(0) @db.Decimal
+  period      DateTime  @db.Timestamp(6)
+  events      Decimal   @db.Decimal
+  syncs       Decimal   @default(0) @db.Decimal
+  /// Data-freshness watermark: how much of `period` the counts cover. End of
+  /// day for completed days, the sync run time for the in-progress day. Lets
+  /// the UI extrapolate today's partial total. Null on rows cached before this
+  /// column was added.
+  cutoff      DateTime? @db.Timestamp(6)
 
   @@id([workspaceId, period], map: "stat_cache_pk")
   @@map("stat_cache")

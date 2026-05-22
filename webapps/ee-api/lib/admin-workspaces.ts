@@ -99,6 +99,15 @@ export type SyncsInfo = {
   overageFee: number;
 };
 
+/** One day of the per-workspace event chart. */
+export type ChartPoint = {
+  /** UTC calendar day, `YYYY-MM-DD`. */
+  date: string;
+  events: number;
+  /** Projected full-day total — set only for the in-progress day (today). */
+  projected?: number;
+};
+
 export type AdminWorkspaceRow = {
   workspaceId: string;
   workspaceName: string;
@@ -106,6 +115,8 @@ export type AdminWorkspaceRow = {
   status: WorkspaceStatus;
   /** True for revenue-generating statuses. */
   paid: boolean;
+  /** Had events or a sync run yesterday (UTC) — drives the active-workspace count. */
+  activeYesterday: boolean;
   /** Ingest throttle percent (0 = not throttled), parsed from `featuresEnabled`. */
   throttle: number;
   periodStart: string;
@@ -116,8 +127,10 @@ export type AdminWorkspaceRow = {
     today: number;
     yesterday: number;
     avg30: number;
-    /** Last 30 full days of event counts, oldest first, ending yesterday — for the sparkline. */
-    daily: number[];
+    /** Projected full-day total for today, extrapolated from the partial day. */
+    todayProjected: number;
+    /** Daily event series for the chart, oldest first: last 30 full days + today. */
+    chart: ChartPoint[];
     /** Events consumed so far this period. */
     period: number;
     /** Projected events for the full period. */
@@ -404,42 +417,58 @@ async function activeSyncsInWindows(
  */
 export async function buildAdminWorkspaces(): Promise<AdminWorkspacesResponse> {
   const now = dayjs().utc();
+  const todayStart = now.startOf("day");
+  const yesterdayStart = todayStart.subtract(1, "day");
   const rawWindowStart = now.subtract(RAW_WINDOW_DAYS, "day").startOf("day");
 
-  const [workspaceRows, statRows, syncRows, stripeEntries, products, subscriptions] = await Promise.all([
-    pg
-      .query(`select id, name, slug, "featuresEnabled" from newjitsu."Workspace" where deleted = false`)
-      .then(
-        r => r.rows as { id: string; name: string | null; slug: string | null; featuresEnabled: string[] | null }[]
-      ),
-    prisma.statCache.findMany({
-      where: { period: { gte: rawWindowStart.toDate() } },
-      select: { workspaceId: true, period: true, events: true },
-    }),
-    pg
-      .query(
-        `select sync."workspaceId" as "workspaceId",
-                count(distinct sync."fromId" || sync."toId") as "activeSyncs"
-         from newjitsu."ConfigurationObjectLink" sync
-         where sync.type = 'sync'
-           and exists (select 1
-                       from newjitsu.source_task task
-                       where task.sync_id = sync.id
-                         and (task.status = 'SUCCESS' or task.status = 'PARTIAL')
-                         and task.started_at > now() - interval '31 days')
-         group by sync."workspaceId"`
-      )
-      .then(r => r.rows as { workspaceId: string; activeSyncs: string }[]),
-    store.getTable(stripeDataTable).list() as Promise<{ id: string; obj: StripeDataTableEntry }[]>,
-    // getAvailableProducts throws when the Stripe catalog is empty/mis-tagged.
-    // Degrade gracefully: an empty list still renders free/custom workspaces,
-    // and subscription products are resolved individually below.
-    getAvailableProducts({ custom: true }).catch(e => {
-      log.atWarn().withCause(e).log("Failed to load Stripe product catalog — continuing without it");
-      return [] as Stripe.Product[];
-    }),
-    listAllSubscriptions(),
-  ]);
+  const [workspaceRows, statRows, syncRows, syncYesterdayRows, stripeEntries, products, subscriptions] =
+    await Promise.all([
+      pg
+        .query(`select id, name, slug, "featuresEnabled" from newjitsu."Workspace" where deleted = false`)
+        .then(
+          r => r.rows as { id: string; name: string | null; slug: string | null; featuresEnabled: string[] | null }[]
+        ),
+      prisma.statCache.findMany({
+        where: { period: { gte: rawWindowStart.toDate() } },
+        select: { workspaceId: true, period: true, events: true, cutoff: true },
+      }),
+      pg
+        .query(
+          `select sync."workspaceId" as "workspaceId",
+                  count(distinct sync."fromId" || sync."toId") as "activeSyncs"
+           from newjitsu."ConfigurationObjectLink" sync
+           where sync.type = 'sync'
+             and exists (select 1
+                         from newjitsu.source_task task
+                         where task.sync_id = sync.id
+                           and (task.status = 'SUCCESS' or task.status = 'PARTIAL')
+                           and task.started_at > now() - interval '31 days')
+           group by sync."workspaceId"`
+        )
+        .then(r => r.rows as { workspaceId: string; activeSyncs: string }[]),
+      // Workspaces that ran at least one sync yesterday (UTC) — feeds the
+      // "active workspaces" count alongside workspaces with events yesterday.
+      pg
+        .query(
+          `select distinct sync."workspaceId" as "workspaceId"
+           from newjitsu.source_task task
+                join newjitsu."ConfigurationObjectLink" sync on task.sync_id = sync.id
+           where sync.type = 'sync'
+             and (task.status = 'SUCCESS' or task.status = 'PARTIAL')
+             and task.started_at >= $1 and task.started_at < $2`,
+          [yesterdayStart.toDate(), todayStart.toDate()]
+        )
+        .then(r => r.rows as { workspaceId: string }[]),
+      store.getTable(stripeDataTable).list() as Promise<{ id: string; obj: StripeDataTableEntry }[]>,
+      // getAvailableProducts throws when the Stripe catalog is empty/mis-tagged.
+      // Degrade gracefully: an empty list still renders free/custom workspaces,
+      // and subscription products are resolved individually below.
+      getAvailableProducts({ custom: true }).catch(e => {
+        log.atWarn().withCause(e).log("Failed to load Stripe product catalog — continuing without it");
+        return [] as Stripe.Product[];
+      }),
+      listAllSubscriptions(),
+    ]);
 
   log
     .atInfo()
@@ -448,22 +477,35 @@ export async function buildAdminWorkspaces(): Promise<AdminWorkspacesResponse> {
         `${products.length} products, ${subscriptions.length} subscriptions`
     );
 
-  // Events per workspace per day, plus the latest cached day.
+  // Events per workspace per day, plus today's freshness cutoff per workspace.
   const eventsByWorkspace = new Map<string, Map<string, number>>();
-  let statCacheUpdatedAt: Date | null = null;
+  const todayCutoffByWorkspace = new Map<string, Date>();
+  // Freshness marker: newest cutoff watermark, falling back to the newest cached
+  // day for rows written before the `cutoff` column existed.
+  let statCacheCutoff: Date | null = null;
+  let statCacheMaxPeriod: Date | null = null;
   for (const row of statRows) {
-    const day = dayjs(row.period).utc().format("YYYY-MM-DD");
+    const period = dayjs(row.period).utc();
+    const day = period.format("YYYY-MM-DD");
     let dayMap = eventsByWorkspace.get(row.workspaceId);
     if (!dayMap) {
       eventsByWorkspace.set(row.workspaceId, (dayMap = new Map()));
     }
     dayMap.set(day, (dayMap.get(day) || 0) + Number(row.events));
-    if (!statCacheUpdatedAt || row.period > statCacheUpdatedAt) {
-      statCacheUpdatedAt = row.period;
+    if (row.cutoff && period.isSame(todayStart, "day")) {
+      todayCutoffByWorkspace.set(row.workspaceId, row.cutoff);
+    }
+    if (row.cutoff && (!statCacheCutoff || row.cutoff > statCacheCutoff)) {
+      statCacheCutoff = row.cutoff;
+    }
+    if (!statCacheMaxPeriod || row.period > statCacheMaxPeriod) {
+      statCacheMaxPeriod = row.period;
     }
   }
+  const statCacheUpdatedAt = statCacheCutoff ?? statCacheMaxPeriod;
 
   const activeSyncsByWorkspace = new Map(syncRows.map(r => [r.workspaceId, Number(r.activeSyncs)]));
+  const syncedYesterday = new Set(syncYesterdayRows.map(r => r.workspaceId));
   const stripeByWorkspace = new Map(stripeEntries.map(e => [e.id, e.obj]));
   const productById = new Map(products.map(p => [p.id, p]));
   // getAvailableProducts() only lists the current catalog — a subscription on an
@@ -517,12 +559,24 @@ export async function buildAdminWorkspaces(): Promise<AdminWorkspacesResponse> {
 
     const today = events.get(todayKey) || 0;
     const yesterday = events.get(yesterdayKey) || 0;
-    // Last 30 full days, oldest first, ending yesterday — drives the sparkline.
-    const daily: number[] = [];
+    // Chart series: last 30 full days, oldest first, ending yesterday.
+    const chart: ChartPoint[] = [];
     for (let d = 30; d >= 1; d--) {
-      daily.push(events.get(now.subtract(d, "day").format("YYYY-MM-DD")) || 0);
+      const key = now.subtract(d, "day").format("YYYY-MM-DD");
+      chart.push({ date: key, events: events.get(key) || 0 });
     }
-    const avg30 = daily.reduce((sum, v) => sum + v, 0) / 30;
+    const avg30 = chart.reduce((sum, p) => sum + p.events, 0) / 30;
+    // Today is a partial day — extrapolate to a full-day total from the
+    // stat_cache cutoff watermark (how much of today the count actually covers).
+    // Pre-migration rows have no cutoff; assume the count is current (cutoff =
+    // now). The elapsed window is floored at 1h to tame post-midnight spikes.
+    const todayCutoff = todayCutoffByWorkspace.get(workspace.id);
+    const elapsedMs = Math.min(
+      Math.max((todayCutoff ? dayjs(todayCutoff).utc() : now).valueOf() - todayStart.valueOf(), DAY_MS / 24),
+      DAY_MS
+    );
+    const todayProjected = today > 0 ? today * (DAY_MS / elapsedMs) : 0;
+    chart.push({ date: todayKey, events: today, projected: todayProjected });
 
     // Period-to-date events. Monthly periods fit the raw window; longer (annual)
     // periods fall back to a targeted aggregate over stat_cache.
@@ -618,6 +672,7 @@ export async function buildAdminWorkspaces(): Promise<AdminWorkspacesResponse> {
       workspaceSlug: workspace.slug,
       status,
       paid,
+      activeYesterday: yesterday > 0 || syncedYesterday.has(workspace.id),
       throttle: parseThrottle(workspace.featuresEnabled),
       periodStart: billing.periodStart.toISOString(),
       periodEnd: billing.periodEnd.toISOString(),
@@ -627,7 +682,8 @@ export async function buildAdminWorkspaces(): Promise<AdminWorkspacesResponse> {
         today,
         yesterday,
         avg30,
-        daily,
+        todayProjected,
+        chart,
         period: periodEvents,
         projectedPeriod,
         previousPeriod: previousPeriodEvents,
