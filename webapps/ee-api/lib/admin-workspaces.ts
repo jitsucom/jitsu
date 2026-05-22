@@ -431,7 +431,13 @@ export async function buildAdminWorkspaces(): Promise<AdminWorkspacesResponse> {
       )
       .then(r => r.rows as { workspaceId: string; activeSyncs: string }[]),
     store.getTable(stripeDataTable).list() as Promise<{ id: string; obj: StripeDataTableEntry }[]>,
-    getAvailableProducts({ custom: true }),
+    // getAvailableProducts throws when the Stripe catalog is empty/mis-tagged.
+    // Degrade gracefully: an empty list still renders free/custom workspaces,
+    // and subscription products are resolved individually below.
+    getAvailableProducts({ custom: true }).catch(e => {
+      log.atWarn().withCause(e).log("Failed to load Stripe product catalog — continuing without it");
+      return [] as Stripe.Product[];
+    }),
     listAllSubscriptions(),
   ]);
 
