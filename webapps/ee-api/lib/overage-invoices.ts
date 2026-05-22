@@ -115,7 +115,18 @@ export function matchOverageInvoice(
   return best?.row ?? null;
 }
 
-/** Retrieve invoices by id, tolerating ones deleted in Stripe. Bounded concurrency. */
+/** True for a Stripe "object does not exist" error — a deleted (or never-existing) invoice. */
+function isMissingInvoiceError(e: unknown): boolean {
+  return e instanceof Stripe.errors.StripeError && (e.statusCode === 404 || e.code === "resource_missing");
+}
+
+/**
+ * Retrieve invoices by id. An invoice that no longer exists in Stripe (404) is
+ * omitted from the result. Any other failure (network, rate limit, 5xx) is
+ * rethrown, never swallowed — a transient lookup failure must not be mistaken
+ * for "invoice deleted", which would drop a valid `overage_invoices` row and
+ * spawn a duplicate draft. Bounded concurrency.
+ */
 async function retrieveInvoices(ids: string[]): Promise<Map<string, Stripe.Invoice>> {
   const result = new Map<string, Stripe.Invoice>();
   const concurrency = 10;
@@ -124,8 +135,11 @@ async function retrieveInvoices(ids: string[]): Promise<Map<string, Stripe.Invoi
     const invoices = await Promise.all(
       chunk.map(id =>
         stripe.invoices.retrieve(id).catch(e => {
-          log.atWarn().withCause(e).log(`Failed to retrieve overage invoice ${id}`);
-          return null;
+          if (isMissingInvoiceError(e)) {
+            log.atWarn().log(`Overage invoice ${id} no longer exists in Stripe`);
+            return null;
+          }
+          throw e;
         })
       )
     );
@@ -140,8 +154,10 @@ async function retrieveInvoices(ids: string[]): Promise<Map<string, Stripe.Invoi
 
 /**
  * Resolve the current Stripe state of stored overage invoices, keyed by invoice
- * id. Invoices that were deleted or voided in Stripe are omitted — the admin
- * page treats them as "no invoice" and offers a Create button again.
+ * id. Invoices that were deleted (404) or voided in Stripe are omitted — the
+ * admin page treats them as "no invoice" and offers a Create button again. A
+ * transient Stripe failure is rethrown, not swallowed, so callers never mistake
+ * it for a deleted invoice.
  */
 export async function fetchOverageInvoiceInfos(rows: OverageInvoiceRow[]): Promise<Map<string, OverageInvoiceInfo>> {
   const result = new Map<string, OverageInvoiceInfo>();
