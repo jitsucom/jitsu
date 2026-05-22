@@ -6,6 +6,8 @@ import { pg, prisma, store } from "./services";
 import {
   getAvailableProducts,
   getStripeObjectTag,
+  getSubscriptionInvoiceLine,
+  listAllInvoices,
   listAllSubscriptions,
   stripe,
   StripeDataTableEntry,
@@ -346,12 +348,15 @@ function resolveBilling(
   const periodStart = dayjs.unix(subscription.current_period_start).utc();
   const periodEnd = dayjs.unix(subscription.current_period_end).utc();
   const interval = price.recurring?.interval || "month";
+  // Honour interval_count — a quarterly plan is interval=month, interval_count=3,
+  // so its previous period is three months back, not one.
+  const intervalCount = price.recurring?.interval_count || 1;
 
   return {
     status,
     periodStart,
     periodEnd,
-    previousPeriodStart: periodStart.subtract(1, interval),
+    previousPeriodStart: periodStart.subtract(intervalCount, interval),
     previousPeriodEnd: periodStart,
     plan: {
       planId: product.metadata?.jitsu_plan_id || null,
@@ -421,7 +426,7 @@ export async function buildAdminWorkspaces(): Promise<AdminWorkspacesResponse> {
   const yesterdayStart = todayStart.subtract(1, "day");
   const rawWindowStart = now.subtract(RAW_WINDOW_DAYS, "day").startOf("day");
 
-  const [workspaceRows, statRows, syncRows, syncYesterdayRows, stripeEntries, products, subscriptions] =
+  const [workspaceRows, statRows, syncRows, syncYesterdayRows, stripeEntries, products, subscriptions, invoices] =
     await Promise.all([
       pg
         .query(`select id, name, slug, "featuresEnabled" from newjitsu."Workspace" where deleted = false`)
@@ -468,6 +473,12 @@ export async function buildAdminWorkspaces(): Promise<AdminWorkspacesResponse> {
         return [] as Stripe.Product[];
       }),
       listAllSubscriptions(),
+      // Recent invoices — used to read each completed period's plan and coupon
+      // as they were billed, instead of the current subscription snapshot.
+      listAllInvoices().catch(e => {
+        log.atWarn().withCause(e).log("Failed to load Stripe invoices — previous-period plan falls back to current");
+        return [] as Stripe.Invoice[];
+      }),
     ]);
 
   log
@@ -508,14 +519,40 @@ export async function buildAdminWorkspaces(): Promise<AdminWorkspacesResponse> {
   const syncedYesterday = new Set(syncYesterdayRows.map(r => r.workspaceId));
   const stripeByWorkspace = new Map(stripeEntries.map(e => [e.id, e.obj]));
   const productById = new Map(products.map(p => [p.id, p]));
-  // getAvailableProducts() only lists the current catalog — a subscription on an
-  // archived/retired product would be missing, misclassifying a paid workspace
-  // as free. Fetch any such products and keep the ones tagged for this account.
   const stripeObjectTag = getStripeObjectTag();
+
+  // Index recent subscription invoices by subscription id — the previous-period
+  // overage reads each completed period's plan and coupon from its own invoice.
+  const invoicesBySubscription = new Map<string, { invoice: Stripe.Invoice; line: Stripe.InvoiceLineItem }[]>();
+  for (const invoice of invoices) {
+    const line = getSubscriptionInvoiceLine(invoice);
+    const subId = line?.subscription;
+    if (!line || !subId) {
+      continue;
+    }
+    const list = invoicesBySubscription.get(subId);
+    if (list) {
+      list.push({ invoice, line });
+    } else {
+      invoicesBySubscription.set(subId, [{ invoice, line }]);
+    }
+  }
+
+  // getAvailableProducts() only lists the current catalog — a subscription or an
+  // invoice on an archived/retired product would be missing, misclassifying a
+  // paid workspace or skewing previous-period billing. Fetch any such products
+  // and keep the ones tagged for this account.
   const missingProductIds = new Set<string>();
   for (const sub of subscriptions) {
     const productId = sub.items.data[0]?.price.product;
     if (typeof productId === "string" && !productById.has(productId)) {
+      missingProductIds.add(productId);
+    }
+  }
+  for (const { line } of [...invoicesBySubscription.values()].flat()) {
+    const productRef = line.plan?.product;
+    const productId = typeof productRef === "string" ? productRef : productRef?.id;
+    if (productId && !productById.has(productId)) {
       missingProductIds.add(productId);
     }
   }
@@ -701,11 +738,61 @@ export async function buildAdminWorkspaces(): Promise<AdminWorkspacesResponse> {
 
   // Previous-period overage = event overage + sync overage, for paid workspaces.
   const previousActiveSyncs = await activeSyncsInWindows(previousSyncWindows);
+
+  type PeriodPlan = Pick<
+    PlanInfo,
+    "eventsQuota" | "overagePricePer100k" | "syncsLimit" | "syncOveragePrice" | "discountPercent"
+  >;
+
+  /**
+   * Plan quota/pricing and coupon for a workspace's previous (completed) period,
+   * read from that period's Stripe invoice — the one whose line period ends when
+   * the current period begins. This keeps the numbers right when the plan or
+   * coupon changed since then. Falls back to the current plan snapshot when no
+   * invoice matches (none in the 90-day window, custom billing, a new sub).
+   */
+  const previousPeriodPlan = (row: AdminWorkspaceRow): PeriodPlan => {
+    const candidates = row.stripeSubscriptionId ? invoicesBySubscription.get(row.stripeSubscriptionId) : undefined;
+    if (candidates && candidates.length > 0) {
+      const targetMs = dayjs.utc(row.previousPeriodEnd).valueOf();
+      let best: { invoice: Stripe.Invoice; line: Stripe.InvoiceLineItem } | undefined;
+      let bestDelta = Infinity;
+      for (const candidate of candidates) {
+        const delta = Math.abs(candidate.line.period.end * 1000 - targetMs);
+        if (delta < bestDelta) {
+          bestDelta = delta;
+          best = candidate;
+        }
+      }
+      if (best && bestDelta <= 2 * DAY_MS) {
+        const productRef = best.line.plan?.product;
+        const productId = typeof productRef === "string" ? productRef : productRef?.id;
+        const product = productId ? productById.get(productId) : undefined;
+        if (product) {
+          const planData = parsePlanData(product.metadata);
+          return {
+            eventsQuota:
+              typeof planData.destinationEvensPerMonth === "number" ? planData.destinationEvensPerMonth : null,
+            overagePricePer100k: typeof planData.overagePricePer100k === "number" ? planData.overagePricePer100k : null,
+            syncsLimit: typeof planData.dailyActiveSyncs === "number" ? planData.dailyActiveSyncs : null,
+            syncOveragePrice:
+              typeof planData.dailyActiveSyncsOverage === "number"
+                ? planData.dailyActiveSyncsOverage
+                : DEFAULT_SYNC_OVERAGE_PRICE,
+            discountPercent: best.invoice.discount?.coupon?.percent_off ?? 0,
+          };
+        }
+      }
+    }
+    const { eventsQuota, overagePricePer100k, syncsLimit, syncOveragePrice, discountPercent } = row.plan;
+    return { eventsQuota, overagePricePer100k, syncsLimit, syncOveragePrice, discountPercent };
+  };
+
   for (const row of rows) {
     if (!row.paid) {
       continue;
     }
-    const { eventsQuota, overagePricePer100k, syncsLimit, syncOveragePrice, discountPercent } = row.plan;
+    const { eventsQuota, overagePricePer100k, syncsLimit, syncOveragePrice, discountPercent } = previousPeriodPlan(row);
     const discountFactor = 1 - discountPercent / 100;
     const eventsOver = eventsQuota != null ? Math.max(0, row.events.previousPeriod - eventsQuota) : 0;
     const eventsFee = (eventsOver / 100_000) * (overagePricePer100k || 0) * discountFactor;
