@@ -10,7 +10,7 @@ import { Check, ChevronRight, Edit2, ExternalLink, Info, XCircle } from "lucide-
 import styles from "./BillingManager.module.css";
 import { useQuery } from "@tanstack/react-query";
 import { ErrorCard } from "../GlobalError/GlobalError";
-import { useEventsUsage } from "./use-events-usage";
+import { useConsolidatedUsage } from "./use-events-usage";
 import { upgradeRequired } from "./copy";
 import { JitsuButton } from "../JitsuButton/JitsuButton";
 import dayjs from "dayjs";
@@ -64,7 +64,7 @@ const EventsUsageSection: React.FC<{}> = () => {
   assertTrue(billing.enabled);
   assertFalse(billing.loading, "Billing must be loaded before using UsageSection component");
 
-  const { isLoading, error, usage, throttle } = useEventsUsage();
+  const { isLoading, error, usage, throttle } = useConsolidatedUsage();
 
   if (isLoading) {
     return <Skeleton active paragraph={{ rows: 1, width: "100%" }} title={false} />;
@@ -219,29 +219,8 @@ const ConnectorUsageSection: React.FC<{}> = () => {
   const billing = useBilling();
   assertTrue(billing.enabled, "Billing is not enabled");
   assertFalse(billing.loading, "Billing must be loaded before using CurrentSubscription component");
-  const workspace = useWorkspace();
-  const user = useUser();
-  let periodStart: Date;
-  let periodEnd: Date;
-  if (billing.settings?.currentPeriod) {
-    periodEnd = new Date(billing.settings?.currentPeriod.end);
-    periodStart = new Date(billing.settings?.currentPeriod.start);
-  } else {
-    periodStart = dayjs().utc().startOf("month").toDate();
-    periodEnd = dayjs().utc().endOf("month").add(-1, "millisecond").toDate();
-  }
-  const { isLoading, error, data } = useQuery(
-    ["connector usage", workspace.id],
-    async () => {
-      const report = await rpc(
-        `/api/${workspace.id}/reports/sync-stat?start=${periodStart.toISOString()}&end=${dayjs(periodEnd)
-          .subtract(1, "millisecond")
-          .toISOString()}`
-      );
-      return report;
-    },
-    { retry: false, cacheTime: 0, staleTime: 0 }
-  );
+
+  const { isLoading, error, usage } = useConsolidatedUsage();
 
   if (isLoading) {
     return <Skeleton active paragraph={{ rows: 1, width: "100%" }} title={false} />;
@@ -249,7 +228,11 @@ const ConnectorUsageSection: React.FC<{}> = () => {
     return <ErrorCard error={error} />;
   }
 
-  const activeSyncs = data.activeSyncs;
+  assertDefined(usage, "Data should be defined");
+
+  const periodStart = usage.periodStart;
+  const periodEnd = usage.periodEnd;
+  const activeSyncs = usage.syncs;
   const maxActiveSyncs = billing.settings.dailyActiveSyncs || 1;
   const percentage = activeSyncs / maxActiveSyncs;
 

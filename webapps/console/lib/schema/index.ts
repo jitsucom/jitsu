@@ -62,6 +62,10 @@ export const BillingSettings = z.object({
   futureSubscriptionDate: z.string().optional(),
   profileBuilderEnabled: z.boolean().default(false).optional(),
   isLegacyPlan: z.boolean().default(false).optional(),
+  //set when this workspace bills under a parent workspace. The plan above is the
+  //parent's plan; the /settings/billing page links to the parent instead of
+  //showing its own billing UI.
+  billingParent: z.object({ id: z.string(), name: z.string(), slug: z.string().nullish() }).optional(),
 });
 
 export type BillingSettings = z.infer<typeof BillingSettings>;

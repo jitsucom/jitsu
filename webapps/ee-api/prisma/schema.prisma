@@ -46,6 +46,19 @@ model StatCache {
   @@schema("newjitsuee")
 }
 
+/// Billing hierarchy: a child workspace bills under parentWorkspaceId. Only one
+/// level of nesting is allowed (a parent cannot itself have a parent) — that is
+/// enforced in lib/billing-hierarchy.ts, not by the schema.
+model WorkspaceBillingParent {
+  workspaceId       String   @id
+  parentWorkspaceId String
+  createdAt         DateTime @default(now())
+
+  @@index([parentWorkspaceId])
+  @@map("workspace_billing_parent")
+  @@schema("newjitsuee")
+}
+
 /// DEAD TABLE — modeled here only so `prisma db push` does not drop it.
 /// It is a hand-managed table that used to feed the `newjitsu.backup_connections`
 /// view. That view has been removed, and S3 backup connections are now built in

@@ -1,5 +1,6 @@
 import Stripe from "stripe";
 import { store } from "./services";
+import { getBillingParent } from "./billing-hierarchy";
 import { assertDefined, assertTrue, getLog, requireDefined } from "juava";
 import { omit } from "lodash";
 import assert from "assert";
@@ -95,6 +96,25 @@ export async function getOrCreateCurrentSubscription(
   isLegacyPlan?: boolean;
   subscriptionStatus: SubscriptionStatus;
 }> {
+  // If the workspace bills under a parent, return the parent's subscription so
+  // the child inherits the parent's plan. Only one level of nesting is allowed
+  // (see lib/billing-hierarchy.ts), so the recursion resolves in one step.
+  const billingParent = await getBillingParent(workspaceId);
+  if (billingParent) {
+    const parent = await getOrCreateCurrentSubscription(billingParent.id, () => {
+      throw new Error(
+        `Billing parent ${billingParent.id} has no Stripe customer while resolving child workspace ${workspaceId}`
+      );
+    });
+    return {
+      ...parent,
+      subscriptionStatus: {
+        ...parent.subscriptionStatus,
+        billingParent: { id: billingParent.id, name: billingParent.name, slug: billingParent.slug },
+      },
+    };
+  }
+
   let stripeOptions: StripeDataTableEntry = await store.getTable(stripeDataTable).get(workspaceId);
   if (!stripeOptions) {
     const email = userEmail();
@@ -293,6 +313,22 @@ export async function getActivePlan(customerId: string): Promise<null | Subscrip
 
 export function getStripeObjectTag() {
   return (process.env.STRIPE_OBJECT_TAG as string) || "jitsu2.0";
+}
+
+/**
+ * Read-only check of whether a workspace is on the free plan. Used to keep free
+ * workspaces out of billing groups. Does not create a Stripe customer.
+ */
+export async function isWorkspaceOnFreePlan(workspaceId: string): Promise<boolean> {
+  const opts: StripeDataTableEntry = await store.getTable(stripeDataTable).get(workspaceId);
+  if (!opts) {
+    return true;
+  }
+  if (opts.customBilling || opts.noRestrictions) {
+    return false;
+  }
+  const plan = await getActivePlan(opts.stripeCustomerId);
+  return !plan || plan.planId === "free";
 }
 
 export async function getAvailableProducts(opts: { custom?: boolean } = {}): Promise<Stripe.Product[]> {
