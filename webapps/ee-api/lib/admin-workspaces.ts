@@ -836,7 +836,11 @@ export async function buildAdminWorkspaces(
         if (!row.paid) {
           continue;
         }
-        const stored = matchOverageInvoice(overageRowsByWorkspace.get(row.workspaceId), row.previousPeriodStart);
+        const stored = matchOverageInvoice(
+          overageRowsByWorkspace.get(row.workspaceId),
+          row.previousPeriodStart,
+          row.previousPeriodEnd
+        );
         if (stored) {
           matched.push({ row, stored });
         }

@@ -2,7 +2,7 @@ import dayjs, { Dayjs } from "dayjs";
 import utc from "dayjs/plugin/utc";
 import Stripe from "stripe";
 import { getServerLog } from "./log";
-import { prisma, store } from "./services";
+import { Prisma, prisma, store } from "./services";
 import { stripe, stripeDataTable, stripeLink, StripeDataTableEntry } from "./stripe";
 
 dayjs.extend(utc);
@@ -71,18 +71,36 @@ export async function loadOverageInvoiceRows(): Promise<Map<string, OverageInvoi
 }
 
 /**
- * Find the stored overage invoice for a workspace's billing period. The match
- * is tolerant (see PERIOD_MATCH_TOLERANCE_DAYS) so backfilled invoices line up
- * with the Stripe-derived billing cycle even when the dates are slightly off.
+ * Find the stored overage invoice for a workspace's billing period.
+ *
+ * An exact period-key match always wins. Failing that, the match falls back to
+ * a tolerant comparison — a backfilled invoice carries the line period entered
+ * by hand on Stripe, which can drift a day or two from the Stripe-derived
+ * cycle. The tolerance is capped strictly below half the period length, so it
+ * can never reach an adjacent period: weekly periods sit only 7 days apart, and
+ * a flat ±7-day window would otherwise let the previous week's invoice match.
  */
 export function matchOverageInvoice(
   rows: OverageInvoiceRow[] | undefined,
-  periodStartIso: string
+  periodStartIso: string,
+  periodEndIso: string
 ): OverageInvoiceRow | null {
   if (!rows || rows.length === 0) {
     return null;
   }
+  const exactKey = periodKey(periodStartIso, periodEndIso);
+  const exact = rows.find(r => r.period === exactKey);
+  if (exact) {
+    return exact;
+  }
   const target = dayjs.utc(periodStartIso);
+  // Cap tolerance below half the period length so adjacent periods cannot
+  // collide (their starts are a full period length apart).
+  const periodDays = Math.max(1, dayjs.utc(periodEndIso).diff(target, "day"));
+  const tolerance = Math.min(PERIOD_MATCH_TOLERANCE_DAYS, Math.floor(periodDays / 2) - 1);
+  if (tolerance < 1) {
+    return null;
+  }
   let best: { row: OverageInvoiceRow; diff: number } | null = null;
   for (const row of rows) {
     const parsed = parsePeriodKey(row.period);
@@ -90,7 +108,7 @@ export function matchOverageInvoice(
       continue;
     }
     const diff = Math.abs(parsed.start.diff(target, "day"));
-    if (diff <= PERIOD_MATCH_TOLERANCE_DAYS && (!best || diff < best.diff)) {
+    if (diff <= tolerance && (!best || diff < best.diff)) {
       best = { row, diff };
     }
   }
@@ -178,32 +196,44 @@ export type CreateOverageInvoiceResult = {
   reused: boolean;
 };
 
+/** Build a "reused" result for an already-stored invoice; null if it is gone or voided in Stripe. */
+async function reuseStoredInvoice(row: OverageInvoiceRow): Promise<CreateOverageInvoiceResult | null> {
+  const info = (await fetchOverageInvoiceInfos([row])).get(row.invoiceId);
+  return info
+    ? { invoiceId: info.invoiceId, period: row.period, link: info.link, total: info.total, reused: true }
+    : null;
+}
+
 /**
  * Create a draft Stripe overage invoice for a workspace's completed billing
- * period and record it in `overage_invoices`. Idempotent: a non-voided invoice
- * already stored for the period is returned unchanged.
+ * period and record it in `overage_invoices`.
+ *
+ * Idempotent and concurrency-safe:
+ *  - A non-voided invoice already stored for the exact period is returned as-is.
+ *  - The `(workspaceId, period)` primary key is the atomic guard. The row is
+ *    written with a plain `create`, so two concurrent requests cannot both
+ *    persist: the loser hits `P2002`, deletes its now-duplicate draft and
+ *    returns the winner's invoice.
+ *  - Any other persistence failure also deletes the draft, so a failed run
+ *    never leaves an orphan invoice that a retry would then duplicate.
  *
  * The invoice is left as a draft (`auto_advance: false`) — an admin reviews it
  * in Stripe and finalizes it there, which is what charges the customer.
  */
 export async function createOverageInvoice(input: CreateOverageInvoiceInput): Promise<CreateOverageInvoiceResult> {
   const period = periodKey(input.periodStartIso, input.periodEndIso);
+  const key = { workspaceId_period: { workspaceId: input.workspaceId, period } };
+  const rowSelect = { workspaceId: true, period: true, invoiceId: true } as const;
 
-  // Idempotency — reuse any non-voided invoice already stored for this period.
-  const existingRows = await prisma.overageInvoice.findMany({
-    where: { workspaceId: input.workspaceId },
-    select: { workspaceId: true, period: true, invoiceId: true },
-  });
-  const existing = matchOverageInvoice(existingRows, input.periodStartIso);
+  // Fast path — reuse a non-voided invoice already stored for this exact period.
+  const existing = await prisma.overageInvoice.findUnique({ where: key, select: rowSelect });
   if (existing) {
-    const info = (await fetchOverageInvoiceInfos([existing])).get(existing.invoiceId);
-    if (info) {
-      return { invoiceId: info.invoiceId, period: existing.period, link: info.link, total: info.total, reused: true };
+    const reused = await reuseStoredInvoice(existing);
+    if (reused) {
+      return reused;
     }
-    // Stored invoice was deleted/voided in Stripe — drop the stale row, create fresh.
-    await prisma.overageInvoice
-      .delete({ where: { workspaceId_period: { workspaceId: existing.workspaceId, period: existing.period } } })
-      .catch(() => undefined);
+    // Stored invoice was deleted/voided in Stripe — drop the stale row, recreate.
+    await prisma.overageInvoice.delete({ where: key }).catch(() => undefined);
   }
 
   if (input.eventsOver <= 0 && input.syncsOver <= 0) {
@@ -253,17 +283,25 @@ export async function createOverageInvoice(input: CreateOverageInvoiceInput): Pr
         period: linePeriod,
       });
     }
+    // Persist. A plain `create` makes the (workspaceId, period) primary key the
+    // atomic guard against concurrent duplicate creation — see the catch below.
+    await prisma.overageInvoice.create({ data: { workspaceId: input.workspaceId, period, invoiceId: invoice.id } });
   } catch (e) {
-    // Roll back the empty draft so a failed run leaves nothing behind.
+    // Roll back our draft so a failed (or lost-the-race) run leaves nothing
+    // behind for a retry to duplicate.
     await stripe.invoices.del(invoice.id).catch(() => undefined);
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      // A concurrent request persisted first — return its invoice, not ours.
+      const winner = await prisma.overageInvoice.findUnique({ where: key, select: rowSelect });
+      if (winner) {
+        const reused = await reuseStoredInvoice(winner);
+        if (reused) {
+          return reused;
+        }
+      }
+    }
     throw e;
   }
-
-  await prisma.overageInvoice.upsert({
-    where: { workspaceId_period: { workspaceId: input.workspaceId, period } },
-    create: { workspaceId: input.workspaceId, period, invoiceId: invoice.id },
-    update: { invoiceId: invoice.id },
-  });
   log.atInfo().log(`Created overage invoice ${invoice.id} for workspace ${input.workspaceId}, period ${period}`);
 
   const finalized = await stripe.invoices.retrieve(invoice.id);
