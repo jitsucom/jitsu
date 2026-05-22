@@ -51,6 +51,21 @@ model StatCache {
   @@schema("newjitsuee")
 }
 
+/// Stripe overage invoices created for completed billing periods. One row per
+/// workspace per period; `period` is `YYYY-MM-DD_YYYY-MM-DD` (start inclusive,
+/// end exclusive). Populated from the admin workspaces page (manual create) and
+/// backfilled from Stripe — see lib/overage-invoices.ts.
+model OverageInvoice {
+  workspaceId String   @map("workspace_id")
+  period      String
+  invoiceId   String   @map("invoice_id")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@id([workspaceId, period], map: "overage_invoices_pk")
+  @@map("overage_invoices")
+  @@schema("newjitsuee")
+}
+
 /// DEAD TABLE — modeled here only so `prisma db push` does not drop it.
 /// It is a hand-managed table that used to feed the `newjitsu.backup_connections`
 /// view. That view has been removed, and S3 backup connections are now built in

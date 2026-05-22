@@ -14,6 +14,13 @@ import {
   stripeDataTable,
   stripeLink,
 } from "./stripe";
+import {
+  fetchOverageInvoiceInfos,
+  loadOverageInvoiceRows,
+  matchOverageInvoice,
+  OverageInvoiceInfo,
+  periodKey,
+} from "./overage-invoices";
 
 dayjs.extend(utc);
 
@@ -144,6 +151,10 @@ export type AdminWorkspaceRow = {
   overage: OverageInfo | null;
   /** Combined overage for the previous period — null for non-paid workspaces. */
   previousOverage: PreviousOverageInfo | null;
+  /** Canonical period key for the previous billing period — `YYYY-MM-DD_YYYY-MM-DD`. */
+  previousPeriodKey: string;
+  /** Overage invoice recorded for the previous period; null when none exists (or it was voided). */
+  overageInvoice: OverageInvoiceInfo | null;
   syncs: SyncsInfo;
   stripeCustomerId: string | null;
   stripeSubscriptionId: string | null;
@@ -419,8 +430,14 @@ async function activeSyncsInWindows(
  * Build the admin workspace overview: billing status, usage, overage and sync
  * stats for every active workspace. All event stats come from the `stat_cache`
  * table — ClickHouse is never queried.
+ *
+ * When `withOverageInvoices` is left on (default), each paid row is also
+ * annotated with the overage invoice recorded for its previous billing period —
+ * this fans out to Stripe to read invoice statuses. Pass `false` to skip it.
  */
-export async function buildAdminWorkspaces(): Promise<AdminWorkspacesResponse> {
+export async function buildAdminWorkspaces(
+  opts: { withOverageInvoices?: boolean } = {}
+): Promise<AdminWorkspacesResponse> {
   const now = dayjs().utc();
   const todayStart = now.startOf("day");
   const yesterdayStart = todayStart.subtract(1, "day");
@@ -728,6 +745,8 @@ export async function buildAdminWorkspaces(): Promise<AdminWorkspacesResponse> {
       plan: billing.plan,
       overage,
       previousOverage: null,
+      previousPeriodKey: periodKey(billing.previousPeriodStart.toISOString(), billing.previousPeriodEnd.toISOString()),
+      overageInvoice: null,
       syncs,
       stripeCustomerId: billing.customerId,
       stripeSubscriptionId: subscriptionId,
@@ -800,6 +819,36 @@ export async function buildAdminWorkspaces(): Promise<AdminWorkspacesResponse> {
       syncsLimit != null ? Math.max(0, (previousActiveSyncs.get(row.workspaceId) || 0) - syncsLimit) : 0;
     const syncsFee = syncsOver * (syncOveragePrice || 0) * discountFactor;
     row.previousOverage = { eventsOver, eventsFee, syncsOver, syncsFee, totalFee: eventsFee + syncsFee };
+  }
+
+  // Attach the overage invoice recorded for each paid workspace's previous
+  // period. The stored row holds only the invoice id — its current status is
+  // read live from Stripe so voided invoices drop out of the view.
+  //
+  // Wrapped so the whole page survives any failure here — a missing
+  // `overage_invoices` table (schema not yet pushed) or a Stripe error just
+  // leaves every row's `overageInvoice` null and the Create button showing.
+  if (opts.withOverageInvoices !== false) {
+    try {
+      const overageRowsByWorkspace = await loadOverageInvoiceRows();
+      const matched: { row: AdminWorkspaceRow; stored: ReturnType<typeof matchOverageInvoice> }[] = [];
+      for (const row of rows) {
+        if (!row.paid) {
+          continue;
+        }
+        const stored = matchOverageInvoice(overageRowsByWorkspace.get(row.workspaceId), row.previousPeriodStart);
+        if (stored) {
+          matched.push({ row, stored });
+        }
+      }
+      const infos = await fetchOverageInvoiceInfos(matched.map(m => m.stored!));
+      for (const { row, stored } of matched) {
+        row.overageInvoice = infos.get(stored!.invoiceId) || null;
+      }
+      log.atInfo().log(`Resolved ${infos.size} overage invoices for ${matched.length} matched workspaces`);
+    } catch (e) {
+      log.atWarn().withCause(e).log("Failed to resolve overage invoices — continuing without them");
+    }
   }
 
   log.atInfo().log(`Built admin overview for ${rows.length} workspaces`);

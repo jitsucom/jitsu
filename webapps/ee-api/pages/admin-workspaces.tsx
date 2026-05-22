@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Button, Dropdown, Input, Progress, Segmented, Select, Spin, Table, Tag, Tooltip } from "antd";
+import { Button, Dropdown, Input, Modal, Progress, Segmented, Select, Spin, Table, Tag, Tooltip } from "antd";
 import type { TableColumnsType } from "antd";
-import { MoreOutlined, ReloadOutlined, ThunderboltFilled } from "@ant-design/icons";
+import { CloudDownloadOutlined, MoreOutlined, ReloadOutlined, ThunderboltFilled } from "@ant-design/icons";
 import { useRouter } from "next/router";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
@@ -11,6 +11,10 @@ import { AdminLayout } from "../components/AdminLayout";
 import { RequireAdmin } from "../components/RequireAdmin";
 import { useAuth } from "../components/AuthProvider";
 import type { AdminWorkspaceRow, AdminWorkspacesResponse, ChartPoint, WorkspaceStatus } from "../lib/admin-workspaces";
+import type { OverageInvoiceStatus } from "../lib/overage-invoices";
+
+/** `fetch` with the caller's Firebase ID token attached. */
+type AuthFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
 /** Which billing period the table is showing. */
 type PeriodVariant = "active" | "previous";
@@ -37,6 +41,15 @@ const STATUS_META: Record<WorkspaceStatus, { label: string; color: string }> = {
   QUOTA_ABOUT_TO_EXCEED: { label: "Quota Warning", color: "orange" },
 };
 const STATUS_ORDER = Object.keys(STATUS_META) as WorkspaceStatus[];
+
+/** Pill styling for an overage invoice's Stripe status. */
+const INVOICE_STATUS_META: Record<OverageInvoiceStatus, { label: string; color: string }> = {
+  draft: { label: "Draft", color: "default" },
+  open: { label: "Open", color: "gold" },
+  paid: { label: "Paid", color: "green" },
+  uncollectible: { label: "Uncollectible", color: "red" },
+  void: { label: "Void", color: "default" },
+};
 
 /** A best-effort error message from a non-OK API response. */
 async function readError(resp: Response): Promise<string> {
@@ -209,7 +222,77 @@ const SummaryStat: React.FC<{ label: string; value: string; accent?: boolean }> 
   </div>
 );
 
-function buildColumns(appBaseUrl: string, variant: PeriodVariant): TableColumnsType<AdminWorkspaceRow> {
+/**
+ * Previous-period overage invoice cell: a status pill linking to the invoice
+ * when one exists, otherwise a Create button that opens a draft Stripe invoice.
+ */
+const OverageInvoiceCell: React.FC<{ row: AdminWorkspaceRow; authFetch: AuthFetch; reload: () => void }> = ({
+  row,
+  authFetch,
+  reload,
+}) => {
+  const [creating, setCreating] = useState(false);
+  const inv = row.overageInvoice;
+  if (inv) {
+    const meta = INVOICE_STATUS_META[inv.status] || { label: inv.status, color: "default" };
+    return (
+      <a href={inv.link} target="_blank" rel="noreferrer" className="inline-flex">
+        <Tooltip title="Open invoice in Stripe">
+          <Tag color={meta.color} bordered={false} className="!m-0 cursor-pointer !rounded-full">
+            <span className="align-middle">{meta.label}</span>
+            <span className="ml-1 align-middle tabular-nums text-neutral-500">{fmtMoney(inv.total)}</span>
+          </Tag>
+        </Tooltip>
+      </a>
+    );
+  }
+  const overage = row.previousOverage;
+  if (!overage || overage.totalFee <= 0 || !row.stripeCustomerId) {
+    return <span className="text-neutral-300">—</span>;
+  }
+  const confirmCreate = () => {
+    Modal.confirm({
+      title: "Create overage invoice?",
+      content: (
+        <span>
+          A draft Stripe invoice for <strong>{fmtMoney(overage.totalFee)}</strong> will be created for{" "}
+          <strong>{row.workspaceName}</strong>, covering {row.previousPeriodKey.replace("_", " → ")}. It is left as a
+          draft — review and finalize it in Stripe to charge the customer.
+        </span>
+      ),
+      okText: "Create draft invoice",
+      onOk: async () => {
+        setCreating(true);
+        try {
+          const resp = await authFetch("/api/admin/create-overage-invoice", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ workspaceId: row.workspaceId, period: row.previousPeriodKey }),
+          });
+          if (!resp.ok) {
+            throw new Error(await readError(resp));
+          }
+          reload();
+        } catch (e: any) {
+          Modal.error({ title: "Failed to create invoice", content: e?.message || "Unknown error" });
+        } finally {
+          setCreating(false);
+        }
+      },
+    });
+  };
+  return (
+    <Button size="small" loading={creating} onClick={confirmCreate}>
+      Create
+    </Button>
+  );
+};
+
+function buildColumns(
+  appBaseUrl: string,
+  variant: PeriodVariant,
+  ctx: { authFetch: AuthFetch; reload: () => void }
+): TableColumnsType<AdminWorkspaceRow> {
   return [
     {
       title: "Workspace",
@@ -391,6 +474,17 @@ function buildColumns(appBaseUrl: string, variant: PeriodVariant): TableColumnsT
             );
           },
         },
+    // Overage invoice for the completed period — status pill or a Create button.
+    ...(variant === "previous"
+      ? ([
+          {
+            title: "Overage Invoice",
+            key: "overageInvoice",
+            width: 160,
+            render: (_, row) => <OverageInvoiceCell row={row} authFetch={ctx.authFetch} reload={ctx.reload} />,
+          },
+        ] as TableColumnsType<AdminWorkspaceRow>)
+      : []),
     {
       title: "Syncs",
       key: "syncs",
@@ -488,6 +582,7 @@ const AdminWorkspaces: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<WorkspaceStatus[]>([]);
+  const [backfilling, setBackfilling] = useState(false);
   // The active/previous toggle is mirrored in the URL so the view survives reloads and can be linked.
   const router = useRouter();
   const variant: PeriodVariant = router.query.period === "previous" ? "previous" : "active";
@@ -520,7 +615,41 @@ const AdminWorkspaces: React.FC = () => {
     load();
   }, [load]);
 
-  const columns = useMemo(() => buildColumns(data?.appBaseUrl || "", variant), [data?.appBaseUrl, variant]);
+  // Backfill `overage_invoices` from Stripe — needed once so existing invoices
+  // show up before any are created from this page.
+  const backfill = useCallback(() => {
+    Modal.confirm({
+      title: "Backfill overage invoices from Stripe?",
+      content:
+        "Scans Stripe invoices from the last 6 months and records every overage invoice in the database. " +
+        "Existing entries are refreshed.",
+      okText: "Backfill",
+      onOk: async () => {
+        setBackfilling(true);
+        try {
+          const resp = await authFetch("/api/admin/backfill-overage-invoices?months=6", { method: "POST" });
+          if (!resp.ok) {
+            throw new Error(await readError(resp));
+          }
+          const result = await resp.json();
+          await load();
+          Modal.success({
+            title: "Backfill complete",
+            content: `Scanned ${result.scanned} invoices, recorded ${result.upserted} overage invoices.`,
+          });
+        } catch (e: any) {
+          Modal.error({ title: "Backfill failed", content: e?.message || "Unknown error" });
+        } finally {
+          setBackfilling(false);
+        }
+      },
+    });
+  }, [authFetch, load]);
+
+  const columns = useMemo(
+    () => buildColumns(data?.appBaseUrl || "", variant, { authFetch, reload: load }),
+    [data?.appBaseUrl, variant, authFetch, load]
+  );
 
   const filtered = useMemo(() => {
     const rows = data?.rows || [];
@@ -604,6 +733,9 @@ const AdminWorkspaces: React.FC = () => {
           {data?.statCacheUpdatedAt && (
             <span className="text-xs text-neutral-400">Event stats through {fmtDateTime(data.statCacheUpdatedAt)}</span>
           )}
+          <Button icon={<CloudDownloadOutlined />} loading={backfilling} onClick={backfill}>
+            Backfill invoices
+          </Button>
           <Button icon={<ReloadOutlined />} onClick={load}>
             Refresh
           </Button>
@@ -651,7 +783,7 @@ const AdminWorkspaces: React.FC = () => {
           size="small"
           columns={columns}
           dataSource={filtered}
-          scroll={{ x: variant === "active" ? 1230 : 1000 }}
+          scroll={{ x: variant === "active" ? 1230 : 1160 }}
           sticky
           pagination={{ pageSize: 500, showSizeChanger: false }}
         />
