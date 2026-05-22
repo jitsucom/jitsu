@@ -4,6 +4,9 @@ import type { TableColumnsType } from "antd";
 import { MoreOutlined, ReloadOutlined, ThunderboltFilled } from "@ant-design/icons";
 import { useRouter } from "next/router";
 import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+
+dayjs.extend(utc);
 import { AdminLayout } from "../components/AdminLayout";
 import { RequireAdmin } from "../components/RequireAdmin";
 import { useAuth } from "../components/AuthProvider";
@@ -18,8 +21,9 @@ const moneyFmt = new Intl.NumberFormat("en-US", { style: "currency", currency: "
 const fmtInt = (n: number) => intFmt.format(Math.round(n));
 const fmtCompact = (n: number) => compactFmt.format(n);
 const fmtMoney = (n: number) => moneyFmt.format(n);
-const fmtDate = (iso: string) => dayjs(iso).format("MMM D, YYYY");
-const fmtDateShort = (iso: string) => dayjs(iso).format("MMM D");
+// Period boundaries are UTC instants — format in UTC so US timezones don't shift the date.
+const fmtDate = (iso: string) => dayjs.utc(iso).format("MMM D, YYYY");
+const fmtDateShort = (iso: string) => dayjs.utc(iso).format("MMM D");
 
 const STATUS_META: Record<WorkspaceStatus, { label: string; color: string }> = {
   PAYING: { label: "Paying", color: "green" },
@@ -54,7 +58,7 @@ function periodOf(row: AdminWorkspaceRow, variant: PeriodVariant) {
         start: row.previousPeriodStart,
         // previousPeriodEnd is an exclusive bound (= current period start); show
         // the last day actually included so the range matches the summed totals.
-        end: dayjs(row.previousPeriodEnd).subtract(1, "day").toISOString(),
+        end: dayjs.utc(row.previousPeriodEnd).subtract(1, "day").toISOString(),
         events: row.events.previousPeriod,
       };
 }
