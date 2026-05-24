@@ -2,7 +2,7 @@ import { createRoute, verifyAccess } from "../../../../../lib/api";
 import { z } from "zod";
 import { ClickhouseConnectionCredentials } from "../../../../../lib/schema/clickhouse-connection-credentials";
 import { assertTrue, rpc } from "juava";
-import { eeAuthHeaders, getEeConnection, isEEAvailable } from "../../../../../lib/server/ee";
+import { eeAuthHeadersOrServiceToken, getEeConnection, isEEAvailable } from "../../../../../lib/server/ee";
 
 export default createRoute()
   .GET({
@@ -20,8 +20,9 @@ export default createRoute()
       query: { workspaceId, slug: workspaceId }, //db is created, so the slug won't be really used
       headers: {
         "Content-Type": "application/json",
-        //forward the caller's Firebase credential so ee-api authenticates them
-        ...eeAuthHeaders(req),
+        // Forward the caller's Firebase cookie when present; for NextAuth /
+        // OIDC / API-key callers (no cookie) fall back to the service token.
+        ...eeAuthHeadersOrServiceToken(req),
       },
     });
 

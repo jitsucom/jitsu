@@ -2,7 +2,7 @@ import { Api, inferUrl, nextJsApiHandler, verifyAccess, verifyAccessWithRole } f
 import { z } from "zod";
 import { getServerLog } from "../../../../../lib/server/log";
 import { assertTrue, requireDefined, rpc } from "juava";
-import { eeAuthHeaders, getEeConnection, isEEAvailable } from "../../../../../lib/server/ee";
+import { eeAuthHeadersOrServiceToken, getEeConnection, isEEAvailable } from "../../../../../lib/server/ee";
 import { db } from "../../../../../lib/server/db";
 import { DestinationConfig } from "../../../../../lib/schema";
 
@@ -75,8 +75,9 @@ export const api: Api = {
         query: { workspaceId, slug: workspace.slug || workspace.id },
         headers: {
           "Content-Type": "application/json",
-          //forward the caller's Firebase credential so ee-api authenticates them
-          ...eeAuthHeaders(req),
+          // Forward the caller's Firebase cookie when present; for NextAuth /
+          // OIDC / API-key callers (no cookie) fall back to the service token.
+          ...eeAuthHeadersOrServiceToken(req),
         },
       });
       const provisionedDb = await db.prisma().configurationObject.create({

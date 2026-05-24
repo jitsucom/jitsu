@@ -87,7 +87,7 @@ export function eeAuthHeadersOrServiceToken(req: NextApiRequest): Record<string,
   return req.cookies[firebaseAuthCookieName] ? eeAuthHeaders(req) : serviceTokenHeaders();
 }
 
-export async function onUserCreated(req: NextApiRequest | undefined, opts: { email: string; name?: string }) {
+export async function onUserCreated(opts: { email: string; name?: string }) {
   if (!isEEAvailable()) {
     return;
   }
@@ -98,7 +98,10 @@ export async function onUserCreated(req: NextApiRequest | undefined, opts: { ema
       body: opts,
       headers: {
         "Content-Type": "application/json",
-        ...eeAuthHeaders(requireDefined(req, `request is required to authenticate to ee-api`)),
+        // System-to-system event: ee-api just needs to know a new user exists.
+        // Some callers (the NextAuth `jwt` callback) have no request object at
+        // all, so a Firebase-cookie forward isn't even an option.
+        ...serviceTokenHeaders(),
       },
     });
   } catch (e: any) {

@@ -4,7 +4,7 @@ import { FaCaretDown, FaCaretRight, FaClone, FaPlus } from "react-icons/fa";
 import { ZodType } from "zod";
 import { ConfigApiDeleteOptions, getConfigApi } from "../../lib/useApi";
 import { useRouter } from "next/router";
-import { asFunction, FunctionLike, getErrorMessage, getLog, requireDefined, rpc } from "juava";
+import { asFunction, FunctionLike, getErrorMessage, getLog, requireDefined } from "juava";
 
 import zodToJsonSchema from "zod-to-json-schema";
 
@@ -28,6 +28,7 @@ import {
 
 import { ConfigEntityBase } from "../../lib/schema";
 import { useAppConfig, useWorkspace, useWorkspaceRole } from "../../lib/context";
+import { useEeApi } from "../../lib/eeApi";
 import { LoadingAnimation } from "../GlobalLoader/GlobalLoader";
 import { WLink } from "../Workspace/WLink";
 import { CheckCircleTwoTone, DeleteOutlined, InfoCircleTwoTone } from "@ant-design/icons";
@@ -621,16 +622,14 @@ const SingleObjectEditor: React.FC<SingleObjectEditorProps> = props => {
   const appConfig = useAppConfig();
   const router = useRouter();
   const reloadStore = useStoreReload();
+  const { eeRpc } = useEeApi();
 
   const onSaveMutation = useConfigObjectMutation(type as any, async (newObject: any) => {
     if (isNew) {
       await getConfigApi(workspace.id, type).create(newObject);
       if (type === "stream" && appConfig.ee.available) {
         try {
-          await rpc(`/api/${workspace.id}/ee/s3-init`, {
-            method: "POST",
-            query: { workspaceId: workspace.id },
-          });
+          await eeRpc("s3-init", { method: "POST", query: { workspaceId: workspace.id } });
         } catch (e: any) {
           console.error("Failed to init S3 bucket", e.message);
         }

@@ -109,7 +109,7 @@ export async function getOrCreateUser(opts: {
       user: { email, name, internalId: user.id, externalId, loginProvider },
       req: opts.req,
     });
-    await onUserCreated(opts.req, { email, name });
+    await onUserCreated({ email, name });
   } else if (user.name !== name || user.email !== email) {
     await db.prisma().userProfile.update({ where: { id: user.id }, data: { name, email } });
     // Re-fetch to get updated data with password relation

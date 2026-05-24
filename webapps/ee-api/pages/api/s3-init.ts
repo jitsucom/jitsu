@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { auth, requireWorkspaceAccess } from "../../lib/auth";
 import { requireDefined } from "juava";
-import { withErrorHandler } from "../../lib/route-helpers";
+import { withBrowserApi } from "../../lib/route-helpers";
 import { s3client, store } from "../../lib/services";
 import { CreateBucketCommand, CreateBucketCommandInput } from "@aws-sdk/client-s3";
 import { getServerLog } from "../../lib/log";
@@ -57,4 +57,4 @@ const handler = async function handler(req: NextApiRequest, res: NextApiResponse
     ...credentials,
   };
 };
-export default withErrorHandler(handler);
+export default withBrowserApi(handler);
