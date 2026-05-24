@@ -91,7 +91,10 @@ export const BillingProvider: React.FC<PropsWithChildren<{ enabled: boolean; sen
   if (!enabled) {
     return <BillingContext.Provider value={"disabled"}>{children}</BillingContext.Provider>;
   } else if (error) {
-    log.atDebug().withCause(error).log("Can't connect to billing server. Billing is disabled");
+    // The UI falls back to "Billing is disabled" because that's what the user
+    // can act on, but log loudly so an operator can tell a real outage apart
+    // from an intentionally-disabled workspace.
+    log.atError().withCause(error).log(`Can't reach ee-api billing/settings — falling back to disabled UI`);
     return <BillingContext.Provider value={"disabled"}>{children}</BillingContext.Provider>;
   } else if (billingSettings) {
     return <BillingContext.Provider value={billingSettings}>{children}</BillingContext.Provider>;

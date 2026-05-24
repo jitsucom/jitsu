@@ -2,7 +2,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { assertDefined, checkRawToken, createAuthorized, getErrorMessage, requireDefined } from "juava";
 
 import { getServerLog } from "./log";
-import { verifyFirebaseSessionCookie, verifyIdToken } from "./firebase-auth";
+import { getFirebaseToken, verifyFirebaseToken } from "./firebase-auth";
 import { isAdminEmail } from "./admins";
 import { prisma } from "./db";
 
@@ -25,13 +25,6 @@ function isSystemToken(bearer: string): boolean {
 }
 
 /**
- * Header carrying the caller's Firebase token. Console forwards the signed-in
- * user's token here; the browser sends its own ID token. The value is either a
- * Firebase ID token or a Firebase session cookie — both are accepted.
- */
-const firebaseTokenHeader = "x-fb-auth";
-
-/**
  * Result of authenticating a request.
  *
  * `admin` callers may act on any workspace; `user` callers may act only on
@@ -47,14 +40,6 @@ export type AuthClaims = {
   userId?: string;
 };
 
-function authDisabled(): boolean {
-  return (
-    process.env.EE_DISABLE_AUTH === "true" ||
-    process.env.EE_DISABLE_AUTH === "yes" ||
-    process.env.EE_DISABLE_AUTH === "1"
-  );
-}
-
 /** The `Authorization: Bearer <token>` value, if present. */
 function getBearerToken(req: NextApiRequest): string | undefined {
   const authVal = req.headers.authorization;
@@ -66,36 +51,19 @@ function getBearerToken(req: NextApiRequest): string | undefined {
 }
 
 /**
- * Verify a Firebase token that may be either an ID token (sent by the browser)
- * or a session cookie (forwarded by the console server).
- */
-async function verifyFirebaseToken(token: string) {
-  try {
-    return await verifyIdToken(token);
-  } catch (e) {
-    // Not an ID token — fall back to a session cookie.
-    return await verifyFirebaseSessionCookie(token);
-  }
-}
-
-/**
  * Authenticate an incoming request.
  *
  * Order of resolution:
  *  1. A static system token in an `Authorization: Bearer` header —
  *     `EE_API_SERVICE_TOKENS` (console's server-to-server calls) or
  *     `CRON_SECRET` (Vercel crons). Granted admin.
- *  2. A Firebase token in the `x-fb-auth` header — a real user. Admin status is
- *     derived from `JITSU_EE_ADMINS`.
+ *  2. A Firebase token (via `x-fb-auth` header or `fb-auth2` cookie — see
+ *     `firebase-auth.ts::getFirebaseToken`). Admin status is derived from
+ *     `JITSU_EE_ADMINS`.
  *
  * Writes a 401 and returns `undefined` when no valid credential is present.
  */
 export async function auth(req: NextApiRequest, res: NextApiResponse): Promise<AuthClaims | undefined> {
-  if (authDisabled()) {
-    log.atInfo().log("=======ATTENTION! AUTHENTICATION IS DISABLED! USE FOR DEVELOPMENT ONLY =======");
-    return { type: "admin", email: "dev@localhost" };
-  }
-
   // 1. System caller — a static service token.
   const bearer = getBearerToken(req);
   if (bearer && isSystemToken(bearer)) {
@@ -103,13 +71,12 @@ export async function auth(req: NextApiRequest, res: NextApiResponse): Promise<A
   }
 
   // 2. End-user Firebase token.
-  const headerVal = req.headers[firebaseTokenHeader];
-  const firebaseToken = Array.isArray(headerVal) ? headerVal[0] : headerVal;
+  const firebaseToken = getFirebaseToken(req);
   if (!firebaseToken) {
     res.status(401).json({ ok: false, error: "No authorization provided" });
     return undefined;
   }
-  let decoded: Awaited<ReturnType<typeof verifyIdToken>>;
+  let decoded: Awaited<ReturnType<typeof verifyFirebaseToken>>;
   try {
     decoded = await verifyFirebaseToken(firebaseToken);
   } catch (e) {
@@ -149,8 +116,9 @@ export async function auth(req: NextApiRequest, res: NextApiResponse): Promise<A
  * from the `newjitsu` schema (owned by console) — ee-api no longer trusts a
  * workspace id asserted inside a token.
  *
- * Throws on denial; the caller's `withErrorHandler` turns that into a 500/JSON
- * error (same behaviour as the previous `assertTrue` checks).
+ * Throws `WorkspaceNotFoundError` (→ 404) when the workspace doesn't exist, or
+ * `AccessDeniedError` (→ 403) when it does but the user can't act on it.
+ * `withErrorHandler` translates both to the right HTTP status.
  */
 export async function requireWorkspaceAccess(claims: AuthClaims, workspaceId: string): Promise<void> {
   if (claims.type === "admin") {
@@ -158,15 +126,37 @@ export async function requireWorkspaceAccess(claims: AuthClaims, workspaceId: st
   }
   assertDefined(workspaceId, "workspaceId is required");
   const userId = requireDefined(claims.userId, `Authenticated user ${claims.email} has no internal id`);
-  const rows = await prisma.$queryRaw<{ ok: number }[]>`
-    select 1 as ok
-    from newjitsu."WorkspaceAccess" wa
-    join newjitsu."Workspace" w on w.id = wa."workspaceId"
-    where wa."userId" = ${userId}
-      and (w.id = ${workspaceId} or w.slug = ${workspaceId})
-      and w.deleted = false
+  // One round-trip that disambiguates "no workspace" (404) from "no access" (403):
+  // workspace-row presence + an EXISTS for the access link. No rows → not found;
+  // row with has_access=false → forbidden; row with has_access=true → pass.
+  const rows = await prisma.$queryRaw<{ has_access: boolean }[]>`
+    select exists(
+      select 1 from newjitsu."WorkspaceAccess"
+      where "userId" = ${userId} and "workspaceId" = w.id
+    ) as has_access
+    from newjitsu."Workspace" w
+    where (w.id = ${workspaceId} or w.slug = ${workspaceId}) and w.deleted = false
     limit 1`;
   if (rows.length === 0) {
-    throw new Error(`User ${claims.email} doesn't have access to workspace ${workspaceId}`);
+    throw new WorkspaceNotFoundError(workspaceId);
+  }
+  if (!rows[0].has_access) {
+    throw new AccessDeniedError(`User ${claims.email} doesn't have access to workspace ${workspaceId}`);
+  }
+}
+
+/** Typed errors that `withErrorHandler` maps to specific HTTP statuses. */
+export class AccessDeniedError extends Error {
+  readonly httpStatus = 403;
+  constructor(message: string) {
+    super(message);
+    this.name = "AccessDeniedError";
+  }
+}
+export class WorkspaceNotFoundError extends Error {
+  readonly httpStatus = 404;
+  constructor(workspaceId: string) {
+    super(`Workspace ${workspaceId} not found`);
+    this.name = "WorkspaceNotFoundError";
   }
 }

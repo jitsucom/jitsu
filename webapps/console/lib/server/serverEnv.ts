@@ -242,7 +242,10 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   // Enable MIT-compliant mode (disables proprietary features)
   MIT_COMPLIANT: z.string().default("false").transform(isTruish),
 
-  // Connection string for Enterprise Edition features
+  // Base URL of ee-api (Enterprise Edition). Supports `${VAR}` placeholders
+  // expanded against process.env at read time — local dev uses
+  // `https://ee${JITSU_BRANCH_SUFFIX}.jitsu.localhost/` to follow the current
+  // branch (see lib/server/ee.ts).
   EE_CONNECTION: z.string().optional(),
 
   // Static service token for console's server-to-server calls to ee-api that

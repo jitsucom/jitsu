@@ -5,7 +5,7 @@ import { hash as juavaHash, LogFactory, randomId, requireDefined, rpc } from "ju
 import { getServerLog } from "./log";
 import { getAppEndpoint } from "../domains";
 import { NextApiRequest } from "next";
-import { eeAuthHeaders, getEeConnection, isEEAvailable } from "./ee";
+import { eeAuthHeadersOrServiceToken, getEeConnection, isEEAvailable } from "./ee";
 import { DestinationConfig, ServiceConfig, SessionUser } from "../schema";
 import { randomUUID } from "crypto";
 import { tryManageOauthCreds } from "./oauth/services";
@@ -147,16 +147,9 @@ export async function checkQuota(opts: {
   try {
     const { host } = getEeConnection();
     const quotaCheck = `${host}api/quotas/sync`;
-    let authHeaders: Record<string, string>;
-    if (opts.user) {
-      //manual run — forward the user's Firebase credential
-      authHeaders = eeAuthHeaders(opts.req);
-    } else {
-      //scheduled run (triggered by syncctl) — no signed-in user; authenticate
-      //to ee-api with the static service token
-      const serviceToken = requireDefined(serverEnv.EE_API_SERVICE_TOKEN, `env EE_API_SERVICE_TOKEN is not set`);
-      authHeaders = { Authorization: `Bearer ${serviceToken}` };
-    }
+    // Forwards the Firebase cookie when present (browser-user manual run),
+    // otherwise uses the service token (scheduler, API-key manual run).
+    const authHeaders = eeAuthHeadersOrServiceToken(opts.req);
     const quotaCheckResult = await rpc(quotaCheck, {
       method: "POST",
       query: { workspaceId: opts.workspaceId, trigger: opts.trigger }, //db is created, so the slug won't be really used

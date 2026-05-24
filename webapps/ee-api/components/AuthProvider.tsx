@@ -79,7 +79,9 @@ export const AuthProvider: React.FC<PropsWithChildren> = ({ children }) => {
         }
         try {
           const idToken = await user.getIdToken();
-          const resp = await fetch("/api/admin/whoami", { headers: { Authorization: `Bearer ${idToken}` } });
+          // `Authorization: Bearer` is reserved for system tokens on the API
+          // side; Firebase credentials always travel as `x-fb-auth`.
+          const resp = await fetch("/api/admin/whoami", { headers: { "x-fb-auth": idToken } });
           if (cancelled) {
             return;
           }
@@ -126,7 +128,8 @@ export const AuthProvider: React.FC<PropsWithChildren> = ({ children }) => {
     const token = config ? await getIdToken(config) : null;
     const headers = new Headers(init?.headers);
     if (token) {
-      headers.set("Authorization", `Bearer ${token}`);
+      // See whoami fetch above — Firebase ID token goes in `x-fb-auth`.
+      headers.set("x-fb-auth", token);
     }
     return fetch(input, { ...init, headers });
   }, []);

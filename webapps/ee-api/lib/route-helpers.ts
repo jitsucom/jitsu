@@ -1,7 +1,8 @@
 import { getErrorMessage } from "juava";
 import { NextApiHandler, NextApiRequest, NextApiResponse } from "next";
 import { getServerLog } from "./log";
-import { getFirebaseToken, verifyFirebaseSessionCookie, verifyIdToken } from "./firebase-auth";
+import { getFirebaseToken, verifyFirebaseToken } from "./firebase-auth";
+import type admin from "firebase-admin";
 import { isAdminEmail } from "./admins";
 
 const log = getServerLog("api-error");
@@ -19,7 +20,10 @@ export function withErrorHandler(handler: NextApiHandler): NextApiHandler {
     } catch (err) {
       log.atError().withCause(err).log(`Error handling API request: ${req.method} ${req.url}`, err);
       if (!res.headersSent) {
-        res.status(500).json({ error: getErrorMessage(err) });
+        // Honor a declared `httpStatus` on typed errors (e.g. `AccessDeniedError`,
+        // `WorkspaceNotFoundError`) so they surface as 403/404 instead of 500.
+        const status = typeof (err as any)?.httpStatus === "number" ? (err as any).httpStatus : 500;
+        res.status(status).json({ error: getErrorMessage(err) });
       } else {
         log.atWarn().log(`Response already sent, not sending error message`);
       }
@@ -28,14 +32,50 @@ export function withErrorHandler(handler: NextApiHandler): NextApiHandler {
 }
 
 /**
+ * Allow-list for `withBrowserApi` endpoints: in production, only the configured
+ * console origin (`JITSU_APPLICATION_URL`, the same var emails and admin
+ * workspaces use to link back to console); in non-production, any
+ * `*.jitsu.localhost` host (the portless dev convention — branches vary at
+ * runtime so we don't know the exact origin ahead of time).
+ *
+ * Credentials aren't sent (auth is via `x-fb-auth` header, not cookies), but
+ * reflecting any Origin still lets attacker-controlled pages READ responses
+ * for someone who holds a Firebase ID token — so the check is real.
+ */
+function isAllowedOrigin(origin: string | undefined): boolean {
+  if (!origin) return false;
+  const configured = process.env.JITSU_APPLICATION_URL;
+  if (configured) {
+    try {
+      if (new URL(origin).origin === new URL(configured).origin) return true;
+    } catch {
+      // ignore malformed origin
+    }
+  }
+  if (process.env.NODE_ENV !== "production") {
+    try {
+      const host = new URL(origin).hostname;
+      if (host === "jitsu.localhost" || host.endsWith(".jitsu.localhost")) return true;
+    } catch {
+      // ignore malformed origin
+    }
+  }
+  return false;
+}
+
+/**
  * CORS for ee-api endpoints the console browser app calls directly. The request
- * carries a Firebase ID token in the `Authorization` header (not cookies), so
- * the origin is simply reflected back. Returns `true` if the request was a
- * preflight that has now been answered — the caller should stop.
+ * carries a Firebase ID token in `x-fb-auth` (not cookies). Returns `true` if
+ * the request was a preflight that has now been answered — the caller should
+ * stop.
  */
 export function applyCors(req: NextApiRequest, res: NextApiResponse): boolean {
-  res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  const origin = Array.isArray(req.headers.origin) ? req.headers.origin[0] : req.headers.origin;
+  if (isAllowedOrigin(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin as string);
+    res.setHeader("Vary", "Origin");
+  }
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "authorization, content-type, x-fb-auth, baggage, sentry-trace");
   if (req.method === "OPTIONS") {
     res.status(200).end();
@@ -70,11 +110,18 @@ export type AdminApiHandler = (
 /**
  * Wrap an API handler so it runs only for an authenticated admin.
  *
- * The caller's Firebase credential is read from the `fb-auth2` session cookie
- * or an `Authorization: Bearer <idToken>` header. The request is admitted only
- * for a verified Google sign-in whose email is on the `JITSU_EE_ADMINS`
- * allow-list — the same bar enforced when the session cookie is minted (see
- * `pages/api/admin/session.ts`). Error handling is included.
+ * The caller's Firebase credential is read the same way `lib/auth.ts` reads it
+ * — `x-fb-auth` header (browser ID token) or `fb-auth2` session cookie. There
+ * is no path through `Authorization: Bearer` here; that header is reserved
+ * for system tokens (which the admin UI doesn't issue).
+ *
+ * The request is admitted only for a verified Google sign-in whose email is on
+ * the `JITSU_EE_ADMINS` allow-list. The Google-only gate (vs `auth()`, which
+ * accepts any verified Firebase email) is the extra hardening for the admin
+ * UI: an internal admin email on an `@jitsu.com` address must come from our
+ * Google Workspace, not an email/password account someone registered with the
+ * same address. Same bar enforced when the session cookie is minted (see
+ * `pages/api/admin/session.ts`).
  *
  *   export default withFirebaseAdminAuth(async (req, res, admin) => {
  *     return { hello: admin.email };
@@ -87,11 +134,9 @@ export function withFirebaseAdminAuth(handler: AdminApiHandler): NextApiHandler 
       res.status(401).json({ ok: false, error: "Not authenticated" });
       return;
     }
-    let decoded: Awaited<ReturnType<typeof verifyIdToken>>;
+    let decoded: admin.auth.DecodedIdToken;
     try {
-      decoded = token.idToken
-        ? await verifyIdToken(token.idToken)
-        : await verifyFirebaseSessionCookie(token.cookieToken as string);
+      decoded = await verifyFirebaseToken(token);
     } catch (e) {
       authLog
         .atWarn()

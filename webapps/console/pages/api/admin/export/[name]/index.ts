@@ -3,7 +3,7 @@ import { db } from "../../../../../lib/server/db";
 import { getErrorMessage, getLog, hash as juavaHash, isTruish, requireDefined, rpc } from "juava";
 import { z } from "zod";
 import { getCoreDestinationTypeNonStrict } from "../../../../../lib/schema/destinations";
-import { getEeConnection, isEEAvailable } from "../../../../../lib/server/ee";
+import { getEeConnection, isEEAvailable, serviceTokenHeaders } from "../../../../../lib/server/ee";
 import omit from "lodash/omit";
 import { NextApiRequest } from "next";
 import hash from "object-hash";
@@ -259,14 +259,13 @@ async function exportBulkerConnections(writer: Writer) {
     //pull S3 backup connections from ee-api. This export is consumed by the
     //bulker service — there is no signed-in user — so it authenticates with
     //the static service token.
-    const serviceToken = requireDefined(serverEnv.EE_API_SERVICE_TOKEN, `env EE_API_SERVICE_TOKEN is not set`);
     const url = `${getEeConnection().host}api/s3-connections`;
     try {
       const backupConnections = await rpc(url, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${serviceToken}`,
+          ...serviceTokenHeaders(),
         },
       });
       for (const conn of backupConnections) {

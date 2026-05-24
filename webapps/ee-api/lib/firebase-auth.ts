@@ -5,9 +5,15 @@ import admin from "firebase-admin";
 import * as JSON5 from "json5";
 import { getServerLog } from "./log";
 
-const bearerPrefix = "bearer ";
-
 export const firebaseAuthCookieName = "fb-auth2";
+
+/**
+ * Header used by both the console server (forwarding the signed-in user's
+ * Firebase credential) and the browser (sending its own ID token directly).
+ * Reserved for Firebase; `Authorization: Bearer` is for system tokens —
+ * see `lib/auth.ts`.
+ */
+export const firebaseTokenHeader = "x-fb-auth";
 
 export type FirebaseToken = { idToken: string; cookieToken?: never } | { idToken?: never; cookieToken: string };
 
@@ -63,13 +69,40 @@ export function firebase(): admin.app.App {
   return requireDefined(firebaseService(), `Something went wrong, firebaseService is not initialized`);
 }
 
+/**
+ * Pick the Firebase credential off a request. The `x-fb-auth` header is the
+ * one channel both the browser (ID token) and the console SSR layer (session
+ * cookie value forwarded as a string) write to — we can't tell which without
+ * trying. The `fb-auth2` cookie is the alternative when the admin UI hits its
+ * own ee-api endpoints. `Authorization: Bearer` is intentionally NOT read
+ * here — that header is reserved for system tokens (`lib/auth.ts`).
+ */
 export function getFirebaseToken(req: NextApiRequest): FirebaseToken | undefined {
-  if (req.headers.authorization && req.headers.authorization.toLowerCase().indexOf(bearerPrefix) === 0) {
-    return { idToken: req.headers.authorization.substring(bearerPrefix.length) };
+  const headerVal = req.headers[firebaseTokenHeader];
+  const headerToken = Array.isArray(headerVal) ? headerVal[0] : headerVal;
+  if (headerToken) {
+    // Could be either shape — `verifyFirebaseToken` tries both.
+    return { idToken: headerToken };
   } else if (req.cookies[firebaseAuthCookieName]) {
     return { cookieToken: req.cookies[firebaseAuthCookieName] };
   } else {
     return undefined;
+  }
+}
+
+/**
+ * Verify whatever `getFirebaseToken` produced. Header values may be either an
+ * ID token or a session cookie value (console SSR forwards the cookie as a
+ * string), so on the header path we try ID first and fall back to cookie.
+ */
+export async function verifyFirebaseToken(token: FirebaseToken): Promise<admin.auth.DecodedIdToken> {
+  if (token.cookieToken) {
+    return verifyFirebaseSessionCookie(token.cookieToken);
+  }
+  try {
+    return await verifyIdToken(token.idToken as string);
+  } catch (e) {
+    return verifyFirebaseSessionCookie(token.idToken as string);
   }
 }
 
@@ -78,14 +111,7 @@ export async function getFirebaseUser(req: NextApiRequest): Promise<FirebaseAuth
   if (!authToken) {
     return undefined;
   }
-  //make sure service is initialized
-  await firebaseService.waitInit();
-
-  const decodedIdToken = authToken.idToken
-    ? await firebase().auth().verifyIdToken(authToken.idToken, true)
-    : await firebase()
-        .auth()
-        .verifySessionCookie(authToken.cookieToken as string, true);
+  const decodedIdToken = await verifyFirebaseToken(authToken);
   log.atInfo().log(`decodedIdToken: ${JSON.stringify(decodedIdToken)}`);
   const email = requireDefined(
     decodedIdToken.email,
@@ -138,15 +164,7 @@ export async function verifyFirebaseSessionCookie(cookieToken: string): Promise<
 
 export async function createCustomToken(req: NextApiRequest): Promise<string> {
   const authToken = requireDefined(getFirebaseToken(req), `Not authorized`);
-
-  //make sure service is initialized
-  await firebaseService.waitInit();
-
-  const decodedIdToken = authToken.idToken
-    ? await firebase().auth().verifyIdToken(authToken.idToken, true)
-    : await firebase()
-        .auth()
-        .verifySessionCookie(authToken.cookieToken as string, true);
+  const decodedIdToken = await verifyFirebaseToken(authToken);
   const user = await firebase().auth().getUser(decodedIdToken.uid);
 
   return firebase()

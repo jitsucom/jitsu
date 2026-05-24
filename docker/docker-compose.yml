@@ -48,7 +48,6 @@ x-console-env: &console-env
   BULKER_AUTH_KEY: ${BULKER_TOKEN:-dev-auth-key}
   ROTOR_URL: http://rotor:3401
   ROTOR_AUTH_KEY: ${ROTOR_TOKEN:-dev-auth-key}
-  EE_DISABLE_AUTH: yes
   DISABLE_SIGNUP: false
   ENABLE_CREDENTIALS_LOGIN: true
   SEED_USER_EMAIL: admin@jitsu.com
