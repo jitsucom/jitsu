@@ -51,14 +51,15 @@ export type EeApi = {
  * through Firebase (Google sign-in / Firebase email-password). The browser
  * sends its Firebase ID token in `x-fb-auth`; ee-api verifies it server-side.
  *
- * Self-hosted deployments using NextAuth, OIDC, or credentials login do not
- * configure ee-api at all (`EE_CONNECTION` is unset → `appConfig.ee.available`
- * is false). Code that might run there must guard with
- * `useEeApi().available` and skip the call when false. Calling `eeRpc()` on a
- * Cloud deployment where the user happens to lack a Firebase session is a
- * programming error (e.g. forgot to render a Firebase login gate) and throws
- * `EeApiNotAuthenticatedError` with a clear message so it surfaces in logs
- * instead of as a generic 500 from a stripped-token request.
+ * Self-hosted deployments that use NextAuth/OIDC/credentials login are kept
+ * out of this path at the source: `pages/api/app-config.ts` returns
+ * `ee.available = false` whenever Firebase isn't enabled, even if
+ * `EE_CONNECTION` is set. Callers that check `appConfig.ee.available` (S3
+ * init, billing UI, EE-flavored UI hints) therefore skip cleanly in those
+ * deployments. Reaching `eeRpc()` without a Firebase session on a Cloud
+ * deployment is a programming error (e.g. forgot to render a Firebase login
+ * gate) and throws `EeApiNotAuthenticatedError` so the failure surfaces in
+ * logs instead of as a generic 500 from a stripped-token request.
  *
  * If a future use case needs ee-api access from a non-Firebase deployment,
  * the right move is a server-side proxy on console that authenticates with

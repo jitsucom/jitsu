@@ -44,16 +44,25 @@ export default createRoute()
         : {}),
       dynamicOidc: serverEnv.DYNAMIC_OIDC_ENABLED,
     };
+    // `appConfig.ee.available` advertises ee-api to the browser. Browser→ee-api
+    // calls authenticate with a Firebase ID token (`x-fb-auth`) — see
+    // `lib/eeApi.ts`. A deployment that has `EE_CONNECTION` set but Firebase
+    // disabled (self-hosted EE with NextAuth/OIDC) cannot serve those calls,
+    // so we advertise `available = false` there. Callers that check this flag
+    // (S3 init, billing UI, EE-flavored UI hints) skip cleanly. Server-side
+    // code keeps using `isEEAvailable()` directly + the service token for
+    // its own console→ee-api calls; that path doesn't go through app-config.
+    const eeBrowserAvailable = isEEAvailable() && isFirebaseEnabled();
     return {
       docsUrl: serverEnv.JITSU_DOCUMENTATION_URL || "https://docs.jitsu.com/",
       readOnlyUntil: readOnlyUntil?.toISOString(),
       ee: {
-        available: isEEAvailable(),
-        host: isEEAvailable() ? getEeConnection().host : undefined,
+        available: eeBrowserAvailable,
+        host: eeBrowserAvailable ? getEeConnection().host : undefined,
       },
       disableSignup: isSignupDisabled(),
       auth,
-      billingEnabled: isEEAvailable(),
+      billingEnabled: eeBrowserAvailable,
       customDomainsEnabled: customDomainCnames && customDomainCnames.length > 0,
       syncs: {
         enabled: serverEnv.SYNCS_ENABLED,
