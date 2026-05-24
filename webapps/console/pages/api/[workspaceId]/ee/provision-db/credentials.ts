@@ -20,9 +20,10 @@ export default createRoute()
       query: { workspaceId, slug: workspaceId }, //db is created, so the slug won't be really used
       headers: {
         "Content-Type": "application/json",
-        // Forward the caller's Firebase cookie when present; for NextAuth /
-        // OIDC / API-key callers (no cookie) fall back to the service token.
-        ...eeAuthHeadersOrServiceToken(req),
+        // Forward the caller's Firebase cookie only when they were
+        // authenticated by Firebase; bearer/OIDC/NextAuth go via the service
+        // token regardless of any cookie they may have attached.
+        ...eeAuthHeadersOrServiceToken(req, user),
       },
     });
 

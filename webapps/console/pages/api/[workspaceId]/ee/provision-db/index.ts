@@ -75,9 +75,10 @@ export const api: Api = {
         query: { workspaceId, slug: workspace.slug || workspace.id },
         headers: {
           "Content-Type": "application/json",
-          // Forward the caller's Firebase cookie when present; for NextAuth /
-          // OIDC / API-key callers (no cookie) fall back to the service token.
-          ...eeAuthHeadersOrServiceToken(req),
+          // Forward the caller's Firebase cookie only when they were
+          // authenticated by Firebase; bearer/OIDC/NextAuth go via the
+          // service token regardless of any cookie they may have attached.
+          ...eeAuthHeadersOrServiceToken(req, user),
         },
       });
       const provisionedDb = await db.prisma().configurationObject.create({

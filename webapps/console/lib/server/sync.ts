@@ -147,9 +147,11 @@ export async function checkQuota(opts: {
   try {
     const { host } = getEeConnection();
     const quotaCheck = `${host}api/quotas/sync`;
-    // Forwards the Firebase cookie when present (browser-user manual run),
-    // otherwise uses the service token (scheduler, API-key manual run).
-    const authHeaders = eeAuthHeadersOrServiceToken(opts.req);
+    // Forward the Firebase cookie only when the inbound caller was actually
+    // authenticated by Firebase (`user.authType === "firebase"`). API-key
+    // / OIDC / scheduler callers go through the service token regardless of
+    // any cookie they might have attached — see eeAuthHeadersOrServiceToken.
+    const authHeaders = eeAuthHeadersOrServiceToken(opts.req, opts.user);
     const quotaCheckResult = await rpc(quotaCheck, {
       method: "POST",
       query: { workspaceId: opts.workspaceId, trigger: opts.trigger }, //db is created, so the slug won't be really used

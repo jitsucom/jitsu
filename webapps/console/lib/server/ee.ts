@@ -2,6 +2,7 @@ import { getErrorMessage, getLog, requireDefined, rpc } from "juava";
 import { NextApiRequest } from "next";
 import { getServerEnv } from "./serverEnv";
 import { firebaseAuthCookieName } from "./firebase-server";
+import type { SessionUser } from "../schema";
 
 export function isEEAvailable(): boolean {
   return !!getServerEnv().EE_CONNECTION;
@@ -78,13 +79,27 @@ export function eeAuthHeaders(req: NextApiRequest): Record<string, string> {
 }
 
 /**
- * Authenticate a console→ee-api call by whichever credential is on the inbound
- * request: forward the Firebase session cookie if there is one (browser-user
- * path), otherwise fall back to the static service token (scheduler, API key,
- * or anything else without a browser session).
+ * Pick auth headers for a console→ee-api call based on *how the inbound caller
+ * was actually authenticated*, not what cookies they sent.
+ *
+ * Cookie presence alone is attacker-controlled — an API-key-authenticated
+ * caller can attach a junk `jitsu-auth` cookie, forcing the Firebase path and
+ * sending garbage to ee-api. The downstream 401 then gets swallowed by
+ * `checkQuota`'s catch (and similar fail-open paths), bypassing the check.
+ *
+ * Only forward the cookie when the inbound `SessionUser` was tagged
+ * `authType === "firebase"` by `getFirebaseUser` — meaning we already verified
+ * the cookie ourselves on the inbound side. Every other auth type (bearer
+ * API key, OIDC, NextAuth) gets the service token.
  */
-export function eeAuthHeadersOrServiceToken(req: NextApiRequest): Record<string, string> {
-  return req.cookies[firebaseAuthCookieName] ? eeAuthHeaders(req) : serviceTokenHeaders();
+export function eeAuthHeadersOrServiceToken(
+  req: NextApiRequest,
+  user?: Pick<SessionUser, "authType"> | null
+): Record<string, string> {
+  if (user?.authType === "firebase" && req.cookies[firebaseAuthCookieName]) {
+    return eeAuthHeaders(req);
+  }
+  return serviceTokenHeaders();
 }
 
 export async function onUserCreated(opts: { email: string; name?: string }) {
