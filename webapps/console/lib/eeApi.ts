@@ -1,13 +1,31 @@
 import { useCallback } from "react";
-import { rpc } from "juava";
+import { getLog, rpc } from "juava";
 import { useAppConfig } from "./context";
 import { getFirebaseIdToken } from "./firebase-client";
+
+const log = getLog("eeApi");
 
 export type EeApiOptions = {
   method?: string;
   query?: Record<string, any>;
   body?: any;
 };
+
+/**
+ * Thrown when a browser-side call to ee-api can't be authenticated because the
+ * user has no Firebase session. Distinct from a network/HTTP error so callers
+ * can render an actionable message (sign in / contact admin) instead of a
+ * generic 500.
+ */
+export class EeApiNotAuthenticatedError extends Error {
+  constructor() {
+    super(
+      "Not authenticated against ee-api: no Firebase ID token. " +
+        "Browser→ee-api calls (billing pages, S3 init, etc.) require a Firebase session."
+    );
+    this.name = "EeApiNotAuthenticatedError";
+  }
+}
 
 export type EeApi = {
   /** True when an ee-api host is configured (i.e. this is an EE deployment). */
@@ -18,21 +36,53 @@ export type EeApi = {
    * verifies it and decides admin status and workspace access on its own —
    * there is no console-side proxy or minted token. `path` is relative to
    * ee-api's `/api/`, e.g. `eeRpc("billing/settings", { query: { workspaceId } })`.
+   *
+   * Throws `EeApiNotAuthenticatedError` if no Firebase ID token is available —
+   * see the module-level note about the Cloud-only scope.
    */
   eeRpc: <T = any>(path: string, opts?: EeApiOptions) => Promise<T>;
 };
 
+/**
+ * Browser client for ee-api.
+ *
+ * **Scope: Jitsu Cloud only.** ee-api hosts enterprise/billing features that
+ * only run in our hosted product, and Cloud authenticates users exclusively
+ * through Firebase (Google sign-in / Firebase email-password). The browser
+ * sends its Firebase ID token in `x-fb-auth`; ee-api verifies it server-side.
+ *
+ * Self-hosted deployments using NextAuth, OIDC, or credentials login do not
+ * configure ee-api at all (`EE_CONNECTION` is unset → `appConfig.ee.available`
+ * is false). Code that might run there must guard with
+ * `useEeApi().available` and skip the call when false. Calling `eeRpc()` on a
+ * Cloud deployment where the user happens to lack a Firebase session is a
+ * programming error (e.g. forgot to render a Firebase login gate) and throws
+ * `EeApiNotAuthenticatedError` with a clear message so it surfaces in logs
+ * instead of as a generic 500 from a stripped-token request.
+ *
+ * If a future use case needs ee-api access from a non-Firebase deployment,
+ * the right move is a server-side proxy on console that authenticates with
+ * `EE_API_SERVICE_TOKEN` — never client-side direct calls.
+ */
 export function useEeApi(): EeApi {
   const appConfig = useAppConfig();
   const host = appConfig.ee?.host;
   const eeRpc = useCallback(
     async <T = any>(path: string, opts?: EeApiOptions): Promise<T> => {
       if (!host) {
-        throw new Error("EE API is not available");
+        // Self-hosted / non-EE deployment. Callers should check `available`
+        // first; reaching here means they didn't.
+        throw new Error(`ee-api is not configured (EE_CONNECTION unset). Path: ${path}`);
       }
       const idToken = await getFirebaseIdToken();
       if (!idToken) {
-        throw new Error("Not authenticated");
+        log
+          .atWarn()
+          .log(
+            `eeRpc(${path}) called without a Firebase session — this only works on Jitsu Cloud ` +
+              `where Firebase login is mandatory. See lib/eeApi.ts.`
+          );
+        throw new EeApiNotAuthenticatedError();
       }
       return rpc(`${host}api/${path.replace(/^\/+/, "")}`, {
         method: opts?.method,
