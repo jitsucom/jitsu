@@ -391,10 +391,20 @@ func buildSyncPodTemplate(c *Config, pc PodCtx, secretName string) v1.PodTemplat
 		v1.EnvVar{Name: "LOCAL_INGEST_ENDPOINT", Value: c.LocalIngestEndpoint},
 		v1.EnvVar{Name: "GLOBAL_INGEST_ENDPOINT", Value: c.GlobalIngestEndpoint},
 		v1.EnvVar{Name: "CONFIGS_PATH", Value: "/shared"},
-		v1.EnvVar{Name: "STARTED_AT", Value: pc.startedAtOrNow()},
 		v1.EnvVar{Name: "STARTED_BY", Value: startedBy},
 		taskIDEnv,
 	)
+	// STARTED_AT is intentionally only baked for one-shot manual runs. The
+	// cron Pod template is reused across every future fire — a baked
+	// time.Now() would go stale immediately and downstream consumers
+	// (watchPodStatuses' INIT_TIMEOUT/TIME_EXCEEDED checks, sidecar's
+	// source_task started_at column) would see a wrong timestamp. When
+	// STARTED_AT is unset the sidecar falls back to its own boot time
+	// (sync-sidecar/main.go:113), which equals pod start — exactly the
+	// value we want for cron-fired runs.
+	if !pc.Cron {
+		sidecarEnv = append(sidecarEnv, v1.EnvVar{Name: "STARTED_AT", Value: pc.startedAtOrNow()})
+	}
 	if pc.needsLeaseRenewal() {
 		sidecarEnv = append(sidecarEnv, v1.EnvVar{Name: "RENEW_LEASE", Value: "true"})
 	}
@@ -537,7 +547,15 @@ func (c *PodCtx) taskDescriptor() TaskDescriptor {
 		FullSync:        c.FullSync,
 		Debug:           c.Debug,
 		StartedBy:       c.startedByOrDefault(),
-		StartedAt:       c.startedAtOrNow(),
+	}
+	// Same rationale as the sidecar STARTED_AT env: only bake StartedAt for
+	// one-shot manual runs. Cron pods leave it empty so watchPodStatuses'
+	// StartedAtTime() falls back to time.Now() per observation (matching the
+	// pre-consolidation cron behavior — the template is reused across all
+	// future fires, so a baked timestamp would falsely trip INIT_TIMEOUT /
+	// TIME_EXCEEDED on fresh pods once the template ages out).
+	if !c.Cron {
+		td.StartedAt = c.startedAtOrNow()
 	}
 	if c.Entry != nil && td.WorkspaceId == "" {
 		td.WorkspaceId = c.Entry.WorkspaceID
