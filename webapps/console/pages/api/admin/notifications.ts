@@ -563,7 +563,11 @@ function computeBatchConnectionAggregate(
 ): BatchConnectionAggregate | undefined {
   let template: StatusChangeEntity | undefined;
   let maxId: bigint = 0n;
-  let maxIdEntity: StatusChangeEntity | undefined;
+  // Track the latest activity timestamp (and its row) separately from max id — id is only a proxy
+  // for the latest *transition*, while in-place updates in updateStatusChange refresh the row's
+  // timestamp without changing the id, so id-order does not track real activity across tables.
+  let latestActivityTimestamp: Date | undefined;
+  let latestActivityEntity: StatusChangeEntity | undefined;
   let earliestIncidentStart: Date | undefined;
   let totalChangesPerHours = 0;
   let totalChangesPerDay = 0;
@@ -584,10 +588,11 @@ function computeBatchConnectionAggregate(
     template = template ?? ent;
     if (ent.id) {
       const idBig = BigInt(ent.id);
-      if (idBig > maxId) {
-        maxId = idBig;
-        maxIdEntity = ent;
-      }
+      if (idBig > maxId) maxId = idBig;
+    }
+    if (ent.timestamp && (!latestActivityTimestamp || ent.timestamp > latestActivityTimestamp)) {
+      latestActivityTimestamp = ent.timestamp;
+      latestActivityEntity = ent;
     }
     totalChangesPerHours += ent.changesPerHours || 0;
     totalChangesPerDay += ent.changesPerDay || 0;
@@ -605,7 +610,7 @@ function computeBatchConnectionAggregate(
     }
     aggQueueSize += ent.queueSize || 0;
   }
-  if (!template || !maxIdEntity || perTableCount === 0) return undefined;
+  if (!template || !latestActivityEntity || perTableCount === 0) return undefined;
   const failedCount = failedTableNames.length;
   const succeededCount = perTableCount - failedCount;
   let aggStatus: "SUCCESS" | "FAILED" | "PARTIAL";
@@ -656,8 +661,8 @@ function computeBatchConnectionAggregate(
     aggStreamsFailed,
     aggIncidentDetails,
     aggMaxId: maxId,
-    aggTimestamp: maxIdEntity.timestamp!,
-    aggStartedAt: earliestIncidentStart ?? maxIdEntity.startedAt!,
+    aggTimestamp: latestActivityEntity.timestamp!,
+    aggStartedAt: earliestIncidentStart ?? latestActivityEntity.startedAt!,
     aggQueueSize,
     changesPerHours: totalChangesPerHours,
     changesPerDay: totalChangesPerDay,
