@@ -703,9 +703,22 @@ async function processBatchAggregateNotification(
 
   if (!doNotify) return;
 
-  // Incident start: if we're recovering, the incident began when the previous aggregate row was
-  // written (the transition into PARTIAL/FAILED). Otherwise use the current aggregate's start.
-  const incidentStartedAt = renderStatus === "RECOVERED" && prevRow?.startedAt ? prevRow.startedAt : view.aggStartedAt;
+  // The aggregate row's startedAt represents when the current aggregate status began. On a transition
+  // into a failure, that's the earliest per-table failure timestamp. On a transition into SUCCESS,
+  // it's now. Without a transition, preserve the previous row's startedAt so an ongoing incident keeps
+  // its original start time even when individual failing tables churn (one recovers, another fails).
+  const aggRowStartedAt =
+    !state || transitioned
+      ? view.aggStatus === "SUCCESS"
+        ? view.aggTimestamp
+        : view.aggStartedAt
+      : prevRow?.startedAt ?? view.aggStartedAt;
+
+  // Incident start for the rendered notification. For RECOVERED, show when the incident began
+  // (prev row's startedAt — before the recovery transition). For all other render statuses, use
+  // aggRowStartedAt, which preserves the original incident start across non-transition recurring
+  // alerts.
+  const incidentStartedAt = renderStatus === "RECOVERED" && prevRow?.startedAt ? prevRow.startedAt : aggRowStartedAt;
 
   let description: string;
   if (renderStatus === "FIRST_RUN") {
@@ -733,17 +746,6 @@ async function processBatchAggregateNotification(
   } else {
     description = view.aggDescription;
   }
-
-  // The aggregate row's startedAt represents when the current aggregate status began. On a transition
-  // into a failure, that's the earliest per-table failure timestamp. On a transition into SUCCESS,
-  // it's now. Without a transition, preserve the previous row's startedAt so an ongoing incident keeps
-  // its original start time.
-  const aggRowStartedAt =
-    !state || transitioned
-      ? view.aggStatus === "SUCCESS"
-        ? view.aggTimestamp
-        : view.aggStartedAt
-      : prevRow?.startedAt ?? view.aggStartedAt;
 
   // Persist a connection-level StatusChange row on transitions so future runs can read the prior
   // aggregate accurately. On non-transition recurring notifications, reuse the prev row's id.
