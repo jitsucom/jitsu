@@ -1,19 +1,15 @@
 import { db } from "./db";
 import { ConfigurationObject, ConfigurationObjectLink } from "@prisma/client";
 import { CronExpressionParser } from "cron-parser";
-import { hash as juavaHash, LogFactory, randomId, requireDefined, rpc } from "juava";
+import { LogFactory, randomId, requireDefined, rpc } from "juava";
 import { getServerLog } from "./log";
 import { getAppEndpoint } from "../domains";
 import { NextApiRequest } from "next";
 import { eeAuthHeadersOrServiceToken, getEeConnection, isEEAvailable } from "./ee";
-import { DestinationConfig, SessionUser } from "../schema";
+import { SessionUser } from "../schema";
 import { randomUUID } from "crypto";
-import { tryManageOauthCreds } from "./oauth/services";
-import { getCoreDestinationType } from "../schema/destinations";
 import omit from "lodash/omit";
-import hash from "stable-hash";
 import { clickhouse } from "./clickhouse";
-import { initStream } from "../sources";
 import { getServerEnv } from "./serverEnv";
 
 const serverEnv = getServerEnv();
@@ -173,51 +169,6 @@ export async function checkQuota(opts: {
   }
 }
 
-export async function catalogFromDb(packageName: string, version: string, storageKey: string) {
-  const res = await db.pgPool().query(
-    `select catalog
-            from newjitsu.source_catalog
-            where key = $1
-              and package = $2
-              and version = $3`,
-    [storageKey, packageName, version]
-  );
-  if (res.rowCount === 1) {
-    return res.rows[0].catalog;
-  } else {
-    return null;
-  }
-}
-
-export function selectStreamsFromCatalog(catalog: any, syncOptions: any): any {
-  const selectedStreams: Record<string, any> = syncOptions?.streams || {};
-  const disabledStreams: Record<string, any> = syncOptions?.disabledStreams || {};
-  const schemaChanges = syncOptions?.schemaChanges;
-  const hasIncremental = Object.values(selectedStreams).some((s: any) => s.sync_mode === "incremental");
-
-  const streams = catalog.streams
-    .filter((s: any) => {
-      const name = s.namespace ? s.namespace + "." + s.name : s.name;
-      return !!selectedStreams[name] || (schemaChanges === "streams" && !disabledStreams[name]);
-    })
-    .map((s: any) => {
-      const name = s.namespace ? s.namespace + "." + s.name : s.name;
-      let stream = selectedStreams[name];
-      if (!stream) {
-        stream = initStream(s, hasIncremental ? "incremental" : "full_refresh");
-      }
-      return {
-        ...omit(stream, "table_name"),
-        destination_sync_mode: "overwrite",
-        stream: {
-          ...s,
-          table_name: stream.table_name,
-        },
-      };
-    });
-  return { streams };
-}
-
 export type SyncDatabaseModel = ConfigurationObjectLink & { from: ConfigurationObject; to: ConfigurationObject };
 
 export async function getSyncById(syncId: string, workspaceId: string): Promise<SyncDatabaseModel | undefined> {
@@ -249,7 +200,6 @@ export async function scheduleSync({
   fullSync,
   ignoreRunning,
   skipRefresh,
-  nodelay,
   taskId,
 }: {
   workspaceId: string;
@@ -260,7 +210,6 @@ export async function scheduleSync({
   fullSync?: boolean;
   ignoreRunning?: boolean;
   skipRefresh?: boolean;
-  nodelay?: boolean;
   taskId?: string;
 }): Promise<ScheduleSyncResult> {
   const syncAuthKey = serverEnv.SYNCCTL_AUTH_KEY ?? "";
@@ -281,7 +230,7 @@ export async function scheduleSync({
       .log(
         `scheduleSync entry: syncId=${
           typeof syncIdOrModel === "string" ? syncIdOrModel : (syncIdOrModel as any)?.id
-        } workspaceId=${workspaceId} trigger=${trigger} taskId=${taskId} skipRefresh=${!!skipRefresh} fullSync=${!!fullSync} ignoreRunning=${!!ignoreRunning} nodelay=${!!nodelay}`
+        } workspaceId=${workspaceId} trigger=${trigger} taskId=${taskId} skipRefresh=${!!skipRefresh} fullSync=${!!fullSync} ignoreRunning=${!!ignoreRunning}`
       );
     const appBase = getAppEndpoint(req).baseUrl;
     const sync = typeof syncIdOrModel === "string" ? await getSyncById(syncIdOrModel, workspaceId) : syncIdOrModel;
@@ -300,9 +249,7 @@ export async function scheduleSync({
         error: `Service ${sync.from} not found`,
       };
     }
-    const destinationConfig = sync.to.config as DestinationConfig;
-    const destinationType = getCoreDestinationType(destinationConfig.destinationType);
-    const serviceConfig = { ...(service.config as any), ...service };
+    const serviceConfig = service.config as any;
     // Manual triggers still admission-gate on a pre-existing RUNNING row to
     // avoid double-starting a sync (the scheduled bearer path skips this
     // because syncctl handles the already-running case itself).
@@ -345,114 +292,44 @@ export async function scheduleSync({
         trigger,
         workspaceId,
         syncId: sync.id,
-        package: (service.config as any).package,
-        version: (service.config as any).version,
+        package: serviceConfig.package,
+        version: serviceConfig.version,
         startedBy,
       });
       if (checkResult) {
         return checkResult;
       }
     }
-    let stateObj: any = undefined;
+    // fullSync: console still purges saved state directly. Syncctl's
+    // load-catalog-state init reads source_state from the DB; deleting here
+    // makes the next read start fresh without needing a new syncctl param.
     if (fullSync) {
       await db.prisma().source_state.deleteMany({
-        where: {
-          sync_id: sync.id,
-        },
+        where: { sync_id: sync.id },
       });
-    } else {
-      stateObj = await loadState(sync);
-    }
-    if (destinationType.id === "clickhouse" && !destinationConfig.provisioned) {
-      destinationConfig.loadAsJson = false;
     }
 
-    const h = juavaHash("md5", hash(serviceConfig.credentials));
-    const versionHash = `${workspaceId}_${serviceConfig.id}_${h}`;
+    // Thin proxy: post to syncctl /read with just enough query params for it
+    // to look up the SyncEntry from its repository (syncId + updatedAt for
+    // parity wait). syncctl runs oauth-refresh + load-catalog-state + the
+    // optional discover init container as part of the Pod itself — console
+    // no longer touches OAuth creds, catalog DB, or stream selection.
+    const res = await rpc(syncURL + "/read", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...authHeaders,
+      },
+      query: {
+        syncId: sync.id,
+        updatedAt: sync.updatedAt.toISOString(),
+        taskId,
+        fullSync: fullSync ? "true" : "false",
+        startedBy: JSON.stringify(startedBy),
+        ...(serverEnv.DEBUG_SYNCS ? { debug: "true" } : {}),
+      },
+    });
 
-    const catalog = await catalogFromDb(serviceConfig.package, serviceConfig.version, versionHash);
-    if (!catalog) {
-      log
-        .atWarn()
-        .log(
-          `scheduleSync: source_catalog miss for sync=${sync.id} package=${serviceConfig.package}@${serviceConfig.version} versionHash=${versionHash} — discover did not persist a catalog row matching this key`
-        );
-      return {
-        ok: false,
-        error: `Source catalog not found or outdated. Please run Refresh Catalog in Sync settings`,
-      };
-    }
-    const configuredCatalog = selectStreamsFromCatalog(catalog, sync.data);
-    if (
-      serviceConfig.package === "airbyte/source-postgres" ||
-      serviceConfig.package === "airbyte/source-mssql" ||
-      serviceConfig.package === "airbyte/source-singlestore"
-    ) {
-      // default value 10000 is too low for big tables - leading to very slow syncs
-      serviceConfig.credentials.sync_checkpoint_records = 200000;
-    }
-    let res: any;
-    const schemaChanges = (sync.data as any).schemaChanges;
-    log
-      .atInfo()
-      .log(
-        `scheduleSync dispatch: sync=${sync.id} task=${taskId} branch=${
-          !skipRefresh && (schemaChanges === "fields" || schemaChanges === "streams") ? "discover" : "read"
-        } schemaChanges=${schemaChanges ?? "-"} skipRefresh=${!!skipRefresh}`
-      );
-    if (!skipRefresh && (schemaChanges === "fields" || schemaChanges === "streams")) {
-      res = await rpc(syncURL + "/discover", {
-        method: "POST",
-        body: {
-          config: await tryManageOauthCreds({ ...serviceConfig, id: sync.fromId }),
-        },
-        headers: {
-          "Content-Type": "application/json",
-          ...authHeaders,
-        },
-        query: {
-          package: serviceConfig.package,
-          version: serviceConfig.version,
-          storageKey: versionHash,
-          thenRun: "true",
-          taskId,
-          syncId: sync.id,
-          workspaceId: workspaceId,
-          fullSync: fullSync ? "true" : "false",
-          startedBy: JSON.stringify(startedBy),
-        },
-      });
-    } else {
-      res = await rpc(syncURL + "/read", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...authHeaders,
-        },
-        query: {
-          package: serviceConfig.package,
-          version: serviceConfig.version,
-          taskId,
-          syncId: sync.id,
-          fullSync: fullSync ? "true" : "false",
-          startedBy: JSON.stringify(startedBy),
-          namespace: typeof sync.data?.["namespace"] !== "undefined" ? sync.data?.["namespace"] : "${LEGACY}",
-          toSameCase: sync.data?.["toSameCase"] ? "true" : "false",
-          addMeta: sync.data?.["addMeta"] ? "true" : "false",
-          deduplicate: sync.data?.["deduplicate"] ?? true ? "true" : "false",
-          nodelay: nodelay ? "true" : "false",
-          tableNamePrefix: sync.data?.["tableNamePrefix"] ?? "",
-          ...(serverEnv.DEBUG_SYNCS ? { debug: "true" } : {}),
-        },
-        body: {
-          config: await tryManageOauthCreds({ ...serviceConfig, id: sync.fromId }),
-          catalog: configuredCatalog,
-          ...(stateObj ? { state: stateObj } : {}),
-          destinationConfig,
-          functionsEnv: sync.data?.["functionsEnv"],
-        },
-      });
-    }
     if (!res.ok) {
       log
         .atWarn()
@@ -462,77 +339,27 @@ export async function scheduleSync({
           }`
         );
       return { ok: false, error: res.error ?? "unknown error", taskId };
-    } else {
-      if (trigger === "manual") {
-        await createOrUpdateTask({
-          taskId,
-          syncId: sync.id,
-          startedBy,
-          status: "RUNNING",
-          description: "Started",
-          pkg: serviceConfig.package,
-          version: serviceConfig.version,
-        });
-      }
-      return {
-        ok: true,
-        taskId,
-        status: `${appBase}/api/${workspaceId}/sources/tasks?taskId=${taskId}&syncId=${syncIdOrModel}`,
-        logs: `${appBase}/api/${workspaceId}/sources/logs?taskId=${taskId}&syncId=${syncIdOrModel}`,
-      };
     }
+    if (trigger === "manual") {
+      await createOrUpdateTask({
+        taskId,
+        syncId: sync.id,
+        startedBy,
+        status: "RUNNING",
+        description: "Started",
+        pkg: serviceConfig.package,
+        version: serviceConfig.version,
+      });
+    }
+    return {
+      ok: true,
+      taskId,
+      status: `${appBase}/api/${workspaceId}/sources/tasks?taskId=${taskId}&syncId=${syncIdOrModel}`,
+      logs: `${appBase}/api/${workspaceId}/sources/logs?taskId=${taskId}&syncId=${syncIdOrModel}`,
+    };
   } catch (e: any) {
     return syncError(log, `Error running sync`, e, false, `sync: ${syncIdOrModel} workspace: ${workspaceId}`);
   }
-}
-
-async function loadState(sync: SyncDatabaseModel): Promise<any> {
-  //load state from db
-  const stateRows = await db.prisma().source_state.findMany({
-    where: {
-      sync_id: sync.id,
-    },
-  });
-  if (stateRows.length > 0) {
-    if (stateRows.length === 1 && stateRows[0].stream === "_LEGACY_STATE") {
-      //legacy state
-      return stateRows[0].state;
-    } else if (stateRows.length === 1 && stateRows[0].stream === "_GLOBAL_STATE") {
-      //v2 global state
-      return [
-        {
-          type: "GLOBAL",
-          global: stateRows[0].state,
-        },
-      ];
-    } else {
-      //v2 multi-stream states
-      return stateRows
-        .filter(r => r.stream !== "_LEGACY_STATE" && r.stream != "_GLOBAL_STATE")
-        .filter(r => ((sync.data as any).streams || {})[r.stream]?.sync_mode !== "full_refresh")
-        .map(r => {
-          const descr = r.stream.split(".");
-          let namespace: string | undefined = undefined;
-          let name: string | undefined = undefined;
-          if (descr.length === 1) {
-            name = descr[0];
-          } else if (descr.length === 2) {
-            namespace = descr[0];
-            name = descr[1];
-          } else {
-            throw new Error(`Invalid stream name ${r.stream}`);
-          }
-          return {
-            type: "STREAM",
-            stream: {
-              stream_descriptor: { name: name, namespace: namespace },
-              stream_state: r.state,
-            },
-          };
-        });
-    }
-  }
-  return undefined;
 }
 
 /**

@@ -46,7 +46,6 @@ export const route = createRoute()
       fullSync: z.string().optional(),
       ignoreRunning: z.string().transform(isTruish).optional(),
       skipRefresh: z.string().transform(isTruish).optional(),
-      nodelay: z.string().transform(isTruish).optional(),
       taskId: z.string().optional(),
     }),
     result: resultType,
@@ -73,7 +72,7 @@ export const route = createRoute()
       .log(
         `sources/run entry: workspaceId=${workspaceId} syncId=${query.syncId} taskId=${
           query.taskId ?? "-"
-        } trigger=${trigger} skipRefresh=${!!query.skipRefresh} fullSync=${!!query.fullSync} nodelay=${!!query.nodelay} ignoreRunning=${!!query.ignoreRunning}`
+        } trigger=${trigger} skipRefresh=${!!query.skipRefresh} fullSync=${!!query.fullSync} ignoreRunning=${!!query.ignoreRunning}`
       );
     // Scheduled triggers (Cloud Scheduler → SYNCCTL_AUTH_KEY bearer) are
     // ignored for workspaces/syncs opted into the autonomous K8s CronJob
@@ -115,7 +114,6 @@ export const route = createRoute()
       syncIdOrModel: query.syncId as string,
       ignoreRunning: !!query.ignoreRunning,
       skipRefresh: !!query.skipRefresh,
-      nodelay: !!query.nodelay,
       taskId: query.taskId,
     });
     if (!result.ok) {

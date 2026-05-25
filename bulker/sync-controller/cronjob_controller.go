@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"strconv"
 	"strings"
 	"time"
 
@@ -389,261 +388,21 @@ func (c *CronJobController) buildCronJob(entry *SyncEntry) *batchv1.CronJob {
 }
 
 // buildCronPodTemplate builds the autonomous Pod template embedded in each
-// CronJob's jobTemplate. Init container chain:
-//
-//	lease-acquire           — exits non-zero if Lease "<syncId>" is held
-//	oauth-refresh           — always; for OAuth services calls Nango to refresh
-//	                          tokens; writes /shared/config.json
-//	discover (conditional)  — airbyte source `discover` against
-//	                          /shared/config.json; output to /shared/discover.jsonl
-//	load-catalog-state      — parses /shared/discover.jsonl (if present) into source_catalog,
-//	                          then reads source_catalog + source_state from DB,
-//	                          applies selectStreamsFromCatalog using OPTIONS_JSON,
-//	                          writes /shared/catalog.json + /shared/state.json
-//	pipes-init              — creates fifos for source ↔ sidecar streaming
-//
-// Main containers: source (airbyte read against /shared/config.json) + sidecar
-// (existing default mode + lease-renewal goroutine; SIGTERMs source via
-// shareProcessNamespace if it loses the lease).
+// CronJob's jobTemplate by delegating to the shared buildSyncPodTemplate.
+// Cron-specific bits: Cron=true (enables admission jitter) and the cron
+// Secret name (one stable Secret per CronJob, keyed by syncID).
 func (c *CronJobController) buildCronPodTemplate(entry *SyncEntry) v1.PodTemplateSpec {
-	// Run-time options pulled from sync.data — must match what
-	// ReadSideCar consumes via env in bulker/sync-sidecar/main.go.
-	var opts struct {
-		SchemaChanges   string          `json:"schemaChanges"`
-		VersionHash     string          `json:"versionHash"`
-		Namespace       string          `json:"namespace"`
-		TableNamePrefix string          `json:"tableNamePrefix"`
-		ToSameCase      bool            `json:"toSameCase"`
-		AddMeta         bool            `json:"addMeta"`
-		Deduplicate     *bool           `json:"deduplicate"`
-		FunctionsEnv    json.RawMessage `json:"functionsEnv"`
+	pc := PodCtx{
+		TaskType:    "read",
+		WorkspaceID: entry.WorkspaceID,
+		SyncID:      entry.ID,
+		// TaskID empty → buildSyncPodTemplate sets TASK_ID via fieldRef to
+		// metadata.name, which is unique per cron fire.
+		Entry:     entry,
+		Cron:      true,
+		StartedBy: `{"trigger":"scheduled"}`,
 	}
-	_ = json.Unmarshal(entry.Options, &opts)
-	needsDiscover := opts.SchemaChanges == "fields" || opts.SchemaChanges == "streams"
-	// scheduleSync defaults deduplicate=true when missing.
-	deduplicate := true
-	if opts.Deduplicate != nil {
-		deduplicate = *opts.Deduplicate
-	}
-
-	sourceImage := fmt.Sprintf("%s:%s", entry.Source.Package, entry.Source.Version)
-	configSecretName := cronSecretName(entry.ID)
-	databaseURL := utils.NvlString(c.config.SidecarDatabaseURL, c.config.DatabaseURL)
-
-	configMount := v1.VolumeMount{Name: "config", MountPath: "/config"}
-	sharedMount := v1.VolumeMount{Name: "shared", MountPath: "/shared"}
-	pipesMount := v1.VolumeMount{Name: "pipes", MountPath: "/pipes"}
-
-	// Env shared by every sync-sidecar invocation in the Pod (init + main).
-	baseEnv := []v1.EnvVar{
-		{Name: "SYNC_ID", Value: entry.ID},
-		{Name: "WORKSPACE_ID", Value: entry.WorkspaceID},
-		{Name: "FROM_ID", Value: entry.FromID},
-		{Name: "PACKAGE", Value: entry.Source.Package},
-		{Name: "PACKAGE_VERSION", Value: entry.Source.Version},
-		{Name: "STORAGE_KEY", Value: opts.VersionHash},
-		{Name: "DATABASE_URL", Value: databaseURL},
-		{Name: "KUBE_NAMESPACE", Value: c.config.KubernetesNamespace},
-		{Name: "POD_NAME", ValueFrom: &v1.EnvVarSource{FieldRef: &v1.ObjectFieldSelector{FieldPath: "metadata.name"}}},
-		{Name: "LOG_LEVEL", Value: c.config.LogLevel},
-		{Name: "DB_LOG_LEVEL", Value: c.config.DBLogLevel},
-	}
-
-	// admission: combined gate that runs jitter → quota-check → lease-acquire
-	// in a single init container (sidecar subcommand `admission`). Saves
-	// container starts vs. running them separately, and we want them
-	// adjacent anyway — failing either should abort the pod before any
-	// heavier init runs (oauth-refresh / discover). Jitter intentionally
-	// goes first so the sub-minute spread also benefits the downstream
-	// (console quota endpoint, k8s leases API) — not just the source.
-	//
-	// quota-check is skipped at runtime when CONSOLE_URL/CONSOLE_TOKEN are
-	// unset (see runQuotaCheck in sidecar/quota_check.go), so it's safe to
-	// always wire the env even if the deployment hasn't been configured
-	// for it yet. JITTER_MAX_SECONDS likewise has a sane in-process default
-	// (60s) when unset.
-	admissionEnv := append([]v1.EnvVar{}, baseEnv...)
-	admissionEnv = append(admissionEnv,
-		v1.EnvVar{Name: "CONSOLE_URL", Value: c.config.ConsoleURL},
-		v1.EnvVar{Name: "CONSOLE_TOKEN", Value: c.config.ConsoleToken},
-		v1.EnvVar{Name: "JITTER_MAX_SECONDS", Value: strconv.Itoa(int(c.config.JitterMaxSeconds))},
-		v1.EnvVar{Name: "TASK_ID", ValueFrom: &v1.EnvVarSource{FieldRef: &v1.ObjectFieldSelector{FieldPath: "metadata.name"}}},
-		v1.EnvVar{Name: "STARTED_BY", Value: `{"trigger":"scheduled"}`},
-	)
-	initContainers := []v1.Container{
-		{
-			Name:      "admission",
-			Image:     c.config.SidecarImage,
-			Command:   []string{"/app/sidecar", "admission"},
-			Env:       admissionEnv,
-			Resources: smallResources(),
-		},
-	}
-
-	// oauth-refresh: always runs. Reads /config/serviceConfig.json (the
-	// Jitsu wrapper), unwraps `credentials` and writes the airbyte config to
-	// /shared/config.json. For OAuth-authorized services it first calls
-	// Nango to refresh access tokens so the source connector doesn't fail
-	// with stale tokens.
-	oauthEnv := append([]v1.EnvVar{}, baseEnv...)
-	oauthEnv = append(oauthEnv,
-		v1.EnvVar{Name: "NANGO_API_HOST", Value: c.config.NangoAPIHost},
-		v1.EnvVar{Name: "NANGO_SECRET_KEY", Value: c.config.NangoSecretKey},
-		v1.EnvVar{Name: "GOOGLE_ADS_DEVELOPER_TOKEN", Value: c.config.GoogleAdsDeveloperToken},
-	)
-	initContainers = append(initContainers, v1.Container{
-		Name:         "oauth-refresh",
-		Image:        c.config.SidecarImage,
-		Command:      []string{"/app/sidecar", "oauth-refresh"},
-		Env:          oauthEnv,
-		VolumeMounts: []v1.VolumeMount{configMount, sharedMount},
-		Resources:    smallResources(),
-	})
-
-	if needsDiscover {
-		// Run airbyte source `discover` against the OAuth-refreshed config in
-		// /shared. Capture mixed JSONL output to /shared/discover.jsonl for
-		// the load-catalog-state init to parse.
-		initContainers = append(initContainers, v1.Container{
-			Name:  "discover",
-			Image: sourceImage,
-			Command: []string{"sh", "-c",
-				`eval "$AIRBYTE_ENTRYPOINT discover --config /shared/config.json" > /shared/discover.jsonl 2> /shared/discover.stderr`},
-			Env: []v1.EnvVar{
-				{Name: "USE_STREAM_CAPABLE_STATE", Value: "true"},
-				{Name: "AUTO_DETECT_SCHEMA", Value: "true"},
-			},
-			VolumeMounts: []v1.VolumeMount{sharedMount},
-			Resources:    sourceResources(),
-		})
-	}
-
-	loadEnv := append([]v1.EnvVar{}, baseEnv...)
-	loadEnv = append(loadEnv,
-		v1.EnvVar{Name: "OPTIONS_JSON", Value: string(entry.Options)},
-	)
-	initContainers = append(initContainers, v1.Container{
-		Name:         "load-catalog-state",
-		Image:        c.config.SidecarImage,
-		Command:      []string{"/app/sidecar", "load-catalog-state"},
-		Env:          loadEnv,
-		VolumeMounts: []v1.VolumeMount{configMount, sharedMount},
-		Resources:    smallResources(),
-	})
-
-	initContainers = append(initContainers, v1.Container{
-		Name:         "pipes-init",
-		Image:        "alpine",
-		Command:      []string{"sh", "-c", "mkfifo /pipes/stdout; mkfifo /pipes/stderr; chmod 777 /pipes/*"},
-		VolumeMounts: []v1.VolumeMount{pipesMount},
-		Resources:    smallResources(),
-	})
-
-	sidecarEnv := append([]v1.EnvVar{}, baseEnv...)
-	sidecarEnv = append(sidecarEnv,
-		v1.EnvVar{Name: "STDOUT_PIPE_FILE", Value: "/pipes/stdout"},
-		v1.EnvVar{Name: "STDERR_PIPE_FILE", Value: "/pipes/stderr"},
-		v1.EnvVar{Name: "COMMAND", Value: "read"},
-		v1.EnvVar{Name: "TASK_TIMEOUT_HOURS", Value: strconv.Itoa(c.config.TaskTimeoutHours)},
-		v1.EnvVar{Name: "LOCAL_INGEST_ENDPOINT", Value: c.config.LocalIngestEndpoint},
-		v1.EnvVar{Name: "GLOBAL_INGEST_ENDPOINT", Value: c.config.GlobalIngestEndpoint},
-		v1.EnvVar{Name: "RENEW_LEASE", Value: "true"},
-		// All sidecar inputs (catalog.json, state.json, destinationConfig.json)
-		// live in /shared in the autonomous flow:
-		//   - destinationConfig.json — copied from /config by oauth-refresh init
-		//   - catalog.json + state.json — written by load-catalog-state init
-		// Source connector reads /shared/config.json directly via --config.
-		// ReadSideCar.configsPath() resolves all three paths from this env.
-		v1.EnvVar{Name: "CONFIGS_PATH", Value: "/shared"},
-		// Sync behavior options consumed by ReadSideCar from env (mirroring
-		// the legacy /read path which gets these via query string from
-		// scheduleSync). Without them, scheduled runs would silently fall
-		// back to defaults — different namespacing, dedupe, etc.
-		v1.EnvVar{Name: "NAMESPACE", Value: opts.Namespace},
-		v1.EnvVar{Name: "TABLE_NAME_PREFIX", Value: opts.TableNamePrefix},
-		v1.EnvVar{Name: "TO_SAME_CASE", Value: strconv.FormatBool(opts.ToSameCase)},
-		v1.EnvVar{Name: "ADD_META", Value: strconv.FormatBool(opts.AddMeta)},
-		v1.EnvVar{Name: "DEDUPLICATE", Value: strconv.FormatBool(deduplicate)},
-		v1.EnvVar{Name: "FUNCTIONS_ENV", Value: string(opts.FunctionsEnv)},
-		// One TASK_ID per Job run. Pod name is unique-per-run since k8s
-		// embeds the Job name + a random suffix; reusing it here gives the
-		// sidecar a stable correlation ID for logs / source_task / clickhouse.
-		v1.EnvVar{Name: "TASK_ID", ValueFrom: &v1.EnvVarSource{FieldRef: &v1.ObjectFieldSelector{FieldPath: "metadata.name"}}},
-	)
-
-	// TaskDescriptor annotations let job_runner.watchPodStatuses observe cron
-	// pod failures the same way it observes ad-hoc Job pods. taskId/startedAt
-	// are intentionally empty here — they're per-fire, derived from pod name
-	// / pod.Status.StartTime by the watcher. The `creator` label is what the
-	// watcher's selector matches; without it, an init container failure
-	// (e.g. discover blowing up on a bad config) would be invisible to
-	// task_manager and no source_task FAILED row would be written.
-	cronTaskDescriptor := TaskDescriptor{
-		TaskType:        "read",
-		WorkspaceId:     entry.WorkspaceID,
-		SyncID:          entry.ID,
-		StorageKey:      opts.VersionHash,
-		Package:         entry.Source.Package,
-		PackageVersion:  entry.Source.Version,
-		Namespace:       opts.Namespace,
-		TableNamePrefix: opts.TableNamePrefix,
-		ToSameCase:      strconv.FormatBool(opts.ToSameCase),
-		AddMeta:         strconv.FormatBool(opts.AddMeta),
-		Deduplicate:     strconv.FormatBool(deduplicate),
-		StartedBy:       `{"type":"scheduled"}`,
-	}
-
-	pod := v1.PodTemplateSpec{
-		ObjectMeta: metav1.ObjectMeta{
-			Labels: map[string]string{
-				k8sCreatorLabel:  k8sCreatorLabelValue,
-				labelManagedBy:   managedByValue,
-				labelAppName:     cronJobAppValue,
-				labelSyncID:      entry.ID,
-				labelWorkspaceID: entry.WorkspaceID,
-			},
-			Annotations: cronTaskDescriptor.ExtractAnnotations(),
-		},
-		Spec: v1.PodSpec{
-			RestartPolicy:                 v1.RestartPolicyNever,
-			ShareProcessNamespace:         ptr.To(true),
-			TerminationGracePeriodSeconds: ptr.To(int64(c.config.ContainerGraceShutdownSeconds)),
-			ServiceAccountName:            c.config.PodsServiceAccount,
-			NodeSelector:                  parseNodeSelector(c.config.KubernetesNodeSelector),
-			InitContainers:                initContainers,
-			Containers: []v1.Container{
-				{
-					Name:    "source",
-					Image:   sourceImage,
-					Command: []string{"sh", "-c", `eval "$AIRBYTE_ENTRYPOINT read --config /shared/config.json --catalog /shared/catalog.json --state /shared/state.json" 2> /pipes/stderr > /pipes/stdout`},
-					Env: []v1.EnvVar{
-						{Name: "USE_STREAM_CAPABLE_STATE", Value: "true"},
-						{Name: "AUTO_DETECT_SCHEMA", Value: "true"},
-						{Name: "JAVA_OPTS", Value: "-Xmx7000m"},
-					},
-					VolumeMounts: []v1.VolumeMount{sharedMount, pipesMount},
-					Resources:    sourceResources(),
-				},
-				{
-					Name:            "sidecar",
-					Image:           c.config.SidecarImage,
-					ImagePullPolicy: v1.PullAlways,
-					Env:             sidecarEnv,
-					// Sidecar reads everything (catalog, state, destinationConfig)
-					// from /shared via CONFIGS_PATH — no need for the /config
-					// Secret mount in autonomous mode.
-					VolumeMounts: []v1.VolumeMount{sharedMount, pipesMount},
-					Resources:    sidecarResources(),
-				},
-			},
-			Volumes: []v1.Volume{
-				{Name: "config", VolumeSource: v1.VolumeSource{Secret: &v1.SecretVolumeSource{SecretName: configSecretName}}},
-				{Name: "shared", VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{}}},
-				{Name: "pipes", VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{}}},
-			},
-		},
-	}
-	return pod
+	return buildSyncPodTemplate(c.config, pc, cronSecretName(entry.ID))
 }
 
 func parseNodeSelector(raw string) map[string]string {

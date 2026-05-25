@@ -8,18 +8,18 @@ import { isEEAvailable } from "../../../lib/server/ee";
 const log = getServerLog("sync-quota-check");
 const serverEnv = getServerEnv();
 
-// Admission gate for the autonomous CronJob path: called by the sidecar's
-// `quota-check` init container *before* a sync pod does any real work, so
-// we don't spend pod minutes on a sync the workspace can't afford. Mirrors
-// the in-process `checkQuota` that the legacy /sources/run path runs inside
-// `scheduleSync`.
+// Admission gate for syncctl-spawned read Pods: called by the sidecar's
+// `quota-check` init container *before* the Pod does any real work, so we
+// don't spend pod minutes on a sync the workspace can't afford. The same
+// `checkQuota` helper is invoked from `scheduleSync` for manual /sources/run
+// triggers, so both entry points enforce identical quota semantics.
 //
-// Auth: SYNCCTL_AUTH_KEY bearer (same as /sources/run for scheduler-mode
-// calls). EE JWT signing stays in the console process — sidecar pods don't
-// need the EE private key.
+// Auth: SYNCCTL_AUTH_KEY bearer. EE JWT signing stays in the console process
+// — sidecar pods don't need the EE private key.
 //
-// 200 on pass, 403 on quota exceeded, 503 on EE unreachable (fail-open like
-// the original — billing server outage shouldn't paralyze syncs).
+// 200 on pass, 403 on quota exceeded. EE-unreachable / billing-server-down
+// falls through to admission (fail-open inside `checkQuota`) so a billing
+// blip doesn't paralyze every scheduled sync.
 export default createRoute()
   .GET({
     auth: false,

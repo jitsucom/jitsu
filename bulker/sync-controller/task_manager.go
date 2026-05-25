@@ -1,34 +1,38 @@
 package main
 
 import (
-	"fmt"
+	"context"
+	"encoding/json"
+	"net/http"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jitsucom/bulker/jitsubase/appbase"
-	"github.com/jitsucom/bulker/jitsubase/jsonorder"
 	"github.com/jitsucom/bulker/jitsubase/safego"
-	"github.com/jitsucom/bulker/jitsubase/utils"
 	"github.com/jitsucom/bulker/sync-sidecar/db"
-
-	"net/http"
 )
 
 type TaskManager struct {
 	appbase.Service
 	config    *Config
 	jobRunner *JobRunner
+	syncsRepo appbase.Repository[SyncsData]
 	dbpool    *pgxpool.Pool
 	closeCh   chan struct{}
 }
 
 func NewTaskManager(appContext *Context) (*TaskManager, error) {
 	base := appbase.NewServiceBase("task-manager")
-
-	t := &TaskManager{Service: base, config: appContext.config, jobRunner: appContext.jobRunner, dbpool: appContext.dbpool,
-		closeCh: make(chan struct{})}
+	t := &TaskManager{
+		Service:   base,
+		config:    appContext.config,
+		jobRunner: appContext.jobRunner,
+		syncsRepo: appContext.syncsRepo,
+		dbpool:    appContext.dbpool,
+		closeCh:   make(chan struct{}),
+	}
 	safego.RunWithRestart(t.listenTaskStatus)
 	// Retention sweep runs on its own goroutine so it can't back-pressure
 	// status consumption when a global windowed delete takes a while —
@@ -37,75 +41,201 @@ func NewTaskManager(appContext *Context) (*TaskManager, error) {
 	return t, nil
 }
 
+// inlineRequestBody is the schema accepted by SpecHandler / CheckHandler /
+// DiscoverHandler (inline variant). Mirrors SyncEntry's shape so the same
+// init-container chain consumes both.
+type inlineRequestBody struct {
+	// Source is the wrapper {package, version, authorized, credentials}.
+	// Same shape as SyncEntry.Source — oauth-refresh reads it from
+	// /config/serviceConfig.json. Required for check/discover. Optional
+	// for spec.
+	Source            json.RawMessage `json:"source"`
+	DestinationConfig json.RawMessage `json:"destinationConfig"`
+}
+
+// parseUpdatedAtQuery reads the optional ?updatedAt= query parameter that
+// console attaches to /run + /discover so syncctl can wait for repository
+// parity. Returns zero time on absent/invalid input — WaitForSyncEntry treats
+// that as "any entry is fine".
+func parseUpdatedAtQuery(c *gin.Context) time.Time {
+	raw := c.Query("updatedAt")
+	if raw == "" {
+		return time.Time{}
+	}
+	if t, err := time.Parse(time.RFC3339Nano, raw); err == nil {
+		return t
+	}
+	if t, err := time.Parse(time.RFC3339, raw); err == nil {
+		return t
+	}
+	return time.Time{}
+}
+
+// resolveSyncEntry waits for the repository to contain a SyncEntry with
+// UpdatedAt >= minUpdatedAt. The 30s ceiling matches the longest poll cycle
+// we'd reasonably tolerate before deciding the console-side updatedAt is wrong.
+func (t *TaskManager) resolveSyncEntry(c *gin.Context, syncID string) (*SyncEntry, error) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
+	defer cancel()
+	return WaitForSyncEntry(ctx, t.syncsRepo, syncID, parseUpdatedAtQuery(c))
+}
+
+// SpecHandler handles GET /spec?package=X&version=Y. No body.
 func (t *TaskManager) SpecHandler(c *gin.Context) {
-	image := c.Query("package")
-	version := c.Query("version")
-	startedAt := time.Now().Round(time.Second)
-	taskDescriptor := TaskDescriptor{
-		TaskType:       "spec",
-		Package:        image,
-		PackageVersion: version,
-		StartedAt:      startedAt.Format(time.RFC3339),
+	pc := PodCtx{
+		TaskType: "spec",
+		Inline: &InlinePayload{
+			Package: c.Query("package"),
+			Version: c.Query("version"),
+		},
 	}
-
-	taskStatus := t.jobRunner.CreateJob(taskDescriptor, nil)
-	if taskStatus.Status == StatusCreateFailed {
-		c.JSON(http.StatusOK, gin.H{"ok": false, "error": taskStatus.Error})
+	ts := t.jobRunner.CreatePod(pc)
+	if ts.Status == StatusCreateFailed {
+		c.JSON(http.StatusOK, gin.H{"ok": false, "error": ts.Error})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"ok": true, "startedAt": startedAt.Unix()})
+	c.JSON(http.StatusOK, gin.H{"ok": true, "taskId": ts.PodName})
 }
 
+// CheckHandler handles POST /check?package=X&version=Y&storageKey=Z body
+// {source, destinationConfig?}. Source is the {package,version,authorized,credentials}
+// wrapper.
 func (t *TaskManager) CheckHandler(c *gin.Context) {
-	taskConfig := TaskConfiguration{}
-	err := c.BindJSON(&taskConfig)
-	if err != nil {
+	body := inlineRequestBody{}
+	if err := c.BindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": err.Error()})
 		return
 	}
-	taskDescriptor := TaskDescriptor{
-		TaskType:       "check",
-		Package:        c.Query("package"),
-		PackageVersion: c.Query("version"),
-		StorageKey:     c.Query("storageKey"),
-		StartedAt:      time.Now().Format(time.RFC3339),
-	}
-
-	taskStatus := t.jobRunner.CreateJob(taskDescriptor, &taskConfig)
-	if taskStatus.Status == StatusCreateFailed {
-		c.JSON(http.StatusOK, gin.H{"ok": false, "error": taskStatus.Error})
+	if len(body.Source) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "missing 'source' in body"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"ok": true})
+	pc := PodCtx{
+		TaskType:   "check",
+		StorageKey: c.Query("storageKey"),
+		Inline: &InlinePayload{
+			Package:           c.Query("package"),
+			Version:           c.Query("version"),
+			StorageKey:        c.Query("storageKey"),
+			Source:            body.Source,
+			DestinationConfig: body.DestinationConfig,
+		},
+	}
+	ts := t.jobRunner.CreatePod(pc)
+	if ts.Status == StatusCreateFailed {
+		c.JSON(http.StatusOK, gin.H{"ok": false, "error": ts.Error})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "taskId": ts.PodName})
 }
 
+// DiscoverHandler handles POST /discover. Two modes:
+//   - sync-bound: ?syncId=X&updatedAt=T — syncctl looks up the SyncEntry.
+//   - inline:    ?package=X&version=Y body {source}
+//
+// thenRun is intentionally not honored: when a sync needs schema refresh
+// before a run, the read Pod includes the discover step as an init container
+// (driven by SyncEntry.Options.schemaChanges) — there's no separate
+// discover-then-read handoff anymore.
 func (t *TaskManager) DiscoverHandler(c *gin.Context) {
-	taskConfig := TaskConfiguration{}
-	err := c.BindJSON(&taskConfig)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": err.Error()})
+	syncID := c.Query("syncId")
+	pc := PodCtx{
+		TaskType:    "discover",
+		WorkspaceID: c.Query("workspaceId"),
+		SyncID:      syncID,
+		TaskID:      c.Query("taskId"),
+		StorageKey:  c.Query("storageKey"),
+		StartedBy:   c.Query("startedBy"),
+		FullSync:    c.Query("fullSync"),
+	}
+	if syncID != "" {
+		entry, err := t.resolveSyncEntry(c, syncID)
+		if err != nil {
+			t.Warnf("DiscoverHandler: resolveSyncEntry %s: %v", syncID, err)
+			if entry == nil {
+				c.JSON(http.StatusServiceUnavailable, gin.H{"ok": false, "error": err.Error()})
+				return
+			}
+			// timed-out-but-have-stale-entry — proceed with what we have.
+		}
+		pc.Entry = entry
+	} else {
+		body := inlineRequestBody{}
+		if err := c.BindJSON(&body); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": err.Error()})
+			return
+		}
+		if len(body.Source) == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "missing 'source' in body (inline discover requires it)"})
+			return
+		}
+		pc.Inline = &InlinePayload{
+			Package:    c.Query("package"),
+			Version:    c.Query("version"),
+			StorageKey: c.Query("storageKey"),
+			Source:     body.Source,
+		}
+	}
+	ts := t.jobRunner.CreatePod(pc)
+	if ts.Status == StatusCreateFailed {
+		c.JSON(http.StatusOK, gin.H{"ok": false, "error": ts.Error})
 		return
 	}
-	taskDescriptor := TaskDescriptor{
-		TaskType:       "discover",
-		WorkspaceId:    c.Query("workspaceId"),
-		SyncID:         c.Query("syncId"),
-		TaskID:         c.Query("taskId"),
-		Package:        c.Query("package"),
-		PackageVersion: c.Query("version"),
-		StorageKey:     c.Query("storageKey"),
-		StartedAt:      time.Now().Format(time.RFC3339),
-		ThenRun:        c.Query("thenRun"),
-		FullSync:       c.Query("fullSync"),
-		StartedBy:      c.Query("startedBy"),
+	c.JSON(http.StatusOK, gin.H{"ok": true, "taskId": ts.PodName})
+}
+
+// ReadHandler handles POST /read?syncId=X&updatedAt=T&taskId=Y&fullSync=...&debug=...
+// No body — all config is sourced from the SyncEntry. Console must pass its
+// known updatedAt so syncctl waits for repo parity before reading config.
+func (t *TaskManager) ReadHandler(c *gin.Context) {
+	syncID := c.Query("syncId")
+	if syncID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": "missing syncId"})
+		return
+	}
+	t.Infof("ReadHandler: syncId=%s taskId=%s fullSync=%s startedBy=%s",
+		syncID, c.Query("taskId"), c.Query("fullSync"), c.Query("startedBy"))
+
+	// Admission gate: fail-fast if a Lease is currently held for this sync —
+	// either a cron-spawned Pod is running, or another manual run hasn't
+	// released its lease yet. Avoids spawning a second Pod that would
+	// promptly self-exit at the lease-acquire init container anyway.
+	if held, err := IsSyncLeaseHeld(t.jobRunner.clientset, t.config.KubernetesNamespace, syncID); err != nil {
+		t.Warnf("admission lease check failed for sync %s: %v (allowing run)", syncID, err)
+	} else if held {
+		t.Infof("ReadHandler: rejecting syncId=%s — lease already held", syncID)
+		c.JSON(http.StatusConflict, gin.H{"ok": false, "error": "sync is already running (lease held)", "syncId": syncID})
+		return
 	}
 
-	taskStatus := t.jobRunner.CreateJob(taskDescriptor, &taskConfig)
-	if taskStatus.Status == StatusCreateFailed {
-		c.JSON(http.StatusOK, gin.H{"ok": false, "error": taskStatus.Error})
+	entry, err := t.resolveSyncEntry(c, syncID)
+	if err != nil {
+		t.Warnf("ReadHandler: resolveSyncEntry %s: %v", syncID, err)
+		if entry == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"ok": false, "error": err.Error()})
+			return
+		}
+	}
+
+	pc := PodCtx{
+		TaskType:    "read",
+		WorkspaceID: entry.WorkspaceID,
+		SyncID:      entry.ID,
+		TaskID:      c.Query("taskId"),
+		StartedBy:   c.Query("startedBy"),
+		FullSync:    c.Query("fullSync"),
+		Debug:       c.Query("debug"),
+		Entry:       entry,
+	}
+	ts := t.jobRunner.CreatePod(pc)
+	if ts.Status == StatusCreateFailed {
+		t.Errorf("ReadHandler: CreatePod failed for syncId=%s: %s", syncID, ts.Error)
+		c.JSON(http.StatusOK, gin.H{"ok": false, "error": ts.Error})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"ok": true})
+	t.Infof("ReadHandler: created pod for syncId=%s status=%s pod=%s",
+		syncID, ts.Status, ts.PodName)
+	c.JSON(http.StatusOK, gin.H{"ok": true, "taskId": ts.PodName})
 }
 
 func (t *TaskManager) CancelHandler(c *gin.Context) {
@@ -119,132 +249,6 @@ func (t *TaskManager) CancelHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
-func (t *TaskManager) ReadHandler(c *gin.Context) {
-	syncID := c.Query("syncId")
-	taskID := c.Query("taskId")
-	pkg := c.Query("package")
-	t.Infof("ReadHandler: syncId=%s taskId=%s package=%s fullSync=%s nodelay=%s startedBy=%s",
-		syncID, taskID, pkg, c.Query("fullSync"), c.Query("nodelay"), c.Query("startedBy"))
-
-	// Admission gate: fail-fast if a Lease is currently held for this sync —
-	// either a cron-spawned Pod is running, or another manual run hasn't
-	// released its lease yet. Avoids spawning a second Pod that would
-	// promptly self-exit at the lease-acquire init container anyway.
-	if held, err := IsSyncLeaseHeld(t.jobRunner.clientset, t.config.KubernetesNamespace, syncID); err != nil {
-		// Fail open: don't block on a transient k8s API error. The Pod's
-		// own lease-acquire init still enforces the invariant.
-		t.Warnf("admission lease check failed for sync %s: %v (allowing run)", syncID, err)
-	} else if held {
-		t.Infof("ReadHandler: rejecting syncId=%s taskId=%s — lease already held", syncID, taskID)
-		c.JSON(http.StatusConflict, gin.H{
-			"ok":     false,
-			"error":  "sync is already running (lease held)",
-			"syncId": syncID,
-		})
-		return
-	}
-
-	taskConfig := TaskConfiguration{}
-	err := jsonorder.NewDecoder(c.Request.Body).Decode(&taskConfig)
-	defer c.Request.Body.Close()
-	if err != nil {
-		t.Warnf("ReadHandler: bad body for syncId=%s taskId=%s: %v", syncID, taskID, err)
-		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": err.Error()})
-		return
-	}
-	if taskConfig.State == nil {
-		taskConfig.State = map[string]any{}
-	}
-	taskDescriptor := TaskDescriptor{
-		TaskType:        "read",
-		Package:         pkg,
-		PackageVersion:  c.Query("version"),
-		SyncID:          syncID,
-		TaskID:          taskID,
-		Namespace:       c.Query("namespace"),
-		TableNamePrefix: c.Query("tableNamePrefix"),
-		ToSameCase:      c.Query("toSameCase"),
-		AddMeta:         c.Query("addMeta"),
-		Deduplicate:     c.Query("deduplicate"),
-		FullSync:        c.Query("fullSync"),
-		Debug:           c.Query("debug"),
-		Nodelay:         c.Query("nodelay"),
-		StartedBy:       c.Query("startedBy"),
-		StartedAt:       time.Now().Format(time.RFC3339),
-	}
-
-	taskStatus := t.jobRunner.CreateJob(taskDescriptor, &taskConfig)
-	if taskStatus.Status == StatusCreateFailed {
-		t.Errorf("ReadHandler: CreateJob failed for syncId=%s taskId=%s: %s", syncID, taskID, taskStatus.Error)
-		c.JSON(http.StatusOK, gin.H{"ok": false, "error": taskStatus.Error})
-		return
-	}
-	t.Infof("ReadHandler: created pod for syncId=%s taskId=%s status=%s pod=%s",
-		syncID, taskID, taskStatus.Status, taskStatus.PodName)
-	c.JSON(http.StatusOK, gin.H{"ok": true})
-}
-
-//
-//func (t *TaskManager) ScheduleHandler(c *gin.Context) {
-//	taskConfig := TaskConfiguration{}
-//	err := jsonorder.NewDecoder(c.Request.Body).Decode(&taskConfig)
-//	defer c.Request.Body.Close()
-//	if err != nil {
-//		c.JSON(http.StatusBadRequest, gin.H{"ok": false, "error": err.Error()})
-//		return
-//	}
-//	if taskConfig.State == nil {
-//		taskConfig.State = map[string]any{}
-//	}
-//	taskDescriptor := TaskDescriptor{
-//		TaskType:        "read",
-//		Package:         c.Query("package"),
-//		PackageVersion:  c.Query("version"),
-//		SyncID:          c.Query("syncId"),
-//		TaskID:          c.Query("taskId"),
-//		TableNamePrefix: c.Query("tableNamePrefix"),
-//		StartedBy:       c.Query("startedBy"),
-//		StartedAt:       time.Now().Format(time.RFC3339),
-//	}
-//
-//	taskStatus := t.jobRunner.CreateCronJob(taskDescriptor, &taskConfig)
-//	if taskStatus.Status == StatusCreateFailed {
-//		c.JSON(http.StatusOK, gin.H{"ok": false, "error": taskStatus.Description})
-//		return
-//	}
-//	c.JSON(http.StatusOK, gin.H{"ok": true})
-//}
-
-func (t *TaskManager) runReadTask(st *TaskStatus) {
-	if t.config.ConsoleURL == "" || t.config.ConsoleToken == "" {
-		t.Errorf("ConsoleURL and ConsoleToken are required to initiate read task after ed")
-		t.jobRunner.runningSyncs.Delete(st.SyncID)
-		return
-	}
-	url := t.config.ConsoleURL + "/api/" + st.WorkspaceId + "/sources/run?syncId=" + st.SyncID + "&taskId=" + st.TaskID + "&skipRefresh=true&nodelay=true"
-	t.Infof("Initiating read task %s for syncId %s: %s", st.TaskID, st.SyncID, url)
-	req, _ := http.NewRequest("GET", url, nil)
-	req.Header.Add("Authorization", "Bearer "+t.config.ConsoleToken)
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.jobRunner.runningSyncs.Delete(st.SyncID)
-		err = db.UpsertRunningTask(t.dbpool, st.SyncID, st.TaskID, st.Package, st.PackageVersion, st.StartedAtTime(), "FAILED", fmt.Sprintf("FAILED: Unable to initiate read task: %v", err), st.StartedBy)
-		if err != nil {
-			t.Errorf("Unable to update '%s' status: %v\n", st.TaskType, err)
-		}
-		return
-	} else if res.StatusCode != http.StatusOK {
-		t.jobRunner.runningSyncs.Delete(st.SyncID)
-		err = db.UpsertRunningTask(t.dbpool, st.SyncID, st.TaskID, st.Package, st.PackageVersion, st.StartedAtTime(), "FAILED", fmt.Sprintf("FAILED: Unable to initiate read task: %s", res.Status), st.StartedBy)
-		if err != nil {
-			t.Errorf("Unable to update '%s' status: %v\n", st.TaskType, err)
-		}
-		return
-	} else {
-		t.Infof("Sync %s Read task %s initiated successfully", st.SyncID, st.TaskID)
-	}
-}
-
 func (t *TaskManager) listenTaskStatus() {
 	staleTicker := time.NewTicker(15 * time.Minute)
 	defer staleTicker.Stop()
@@ -253,8 +257,7 @@ func (t *TaskManager) listenTaskStatus() {
 		case <-t.closeCh:
 			return
 		case <-staleTicker.C:
-			err := db.CloseStaleTasks(t.dbpool, time.Now().Add(-time.Hour))
-			if err != nil {
+			if err := db.CloseStaleTasks(t.dbpool, time.Now().Add(-time.Hour)); err != nil {
 				t.Errorf("Unable to close stale tasks: %v", err)
 			}
 		case st := <-t.jobRunner.TaskStatusChannel():
@@ -267,15 +270,8 @@ func (t *TaskManager) listenTaskStatus() {
 			case "discover":
 				if st.Status == StatusCreateFailed || st.Status == StatusFailed || st.Status == StatusInitTimeout {
 					err = db.UpsertRunningCatalogStatus(t.dbpool, st.Package, st.PackageVersion, st.StorageKey, st.StartedAtTime(), "FAILED", st.Error)
-					if utils.IsTruish(st.ThenRun) {
-						t.runReadTask(st)
-					}
 				} else if st.Status == StatusCreated {
 					err = db.UpsertCatalogStatus(t.dbpool, st.Package, st.PackageVersion, st.StorageKey, st.StartedAtTime(), "RUNNING", "")
-				} else if st.Status == StatusSuccess {
-					if utils.IsTruish(st.ThenRun) {
-						t.runReadTask(st)
-					}
 				}
 			case "check":
 				if st.Status == StatusCreateFailed || st.Status == StatusFailed || st.Status == StatusInitTimeout {
@@ -339,3 +335,4 @@ func (t *TaskManager) Close() {
 		close(t.closeCh)
 	}
 }
+

@@ -4,7 +4,6 @@ import { createRoute, verifyAccess } from "../../../../lib/api";
 import { hash as juavaHash, isTruish, requireDefined, rpc } from "juava";
 import { getServerLog } from "../../../../lib/server/log";
 
-import { tryManageOauthCreds } from "../../../../lib/server/oauth/services";
 import { syncError } from "../../../../lib/server/sync";
 import hash from "stable-hash";
 import { getServerEnv } from "../../../../lib/server/serverEnv";
@@ -86,8 +85,11 @@ export const route = createRoute()
       }
       const discoverQueryRes = await rpc(syncURL + "/discover", {
         method: "POST",
+        // Pass the source-config wrapper through unchanged. syncctl's
+        // oauth-refresh init container handles Nango refresh inside the Pod —
+        // console no longer touches OAuth credentials.
         body: {
-          config: await tryManageOauthCreds(existingService),
+          source: existingService,
         },
         headers: {
           "Content-Type": "application/json",

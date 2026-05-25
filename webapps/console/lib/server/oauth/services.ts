@@ -261,28 +261,8 @@ export const oauthDecorators = [
 
 // If service supports Jitsu OAuth - returns decorated credentials part of service config
 // otherwise returns original credentials part of config
-export const tryManageOauthCreds = async (service: ServiceConfig): Promise<ServiceConfig["credentials"]> => {
-  if (service.authorized && nangoConfig.enabled) {
-    const oauthDecorator = requireDefined(
-      oauthDecorators.find(d => d.packageId === service.package),
-      `Package ${service.package} for service ${service.id} not found in catalog`
-    );
-    const credentials = service.credentials;
-    const integrationId = oauthDecorator.nangoIntegrationId;
-
-    const integrationSettings = await rpc(`${nangoConfig.nangoApiHost}/config/${integrationId}?include_creds=true`, {
-      headers: { Authorization: `Bearer ${nangoConfig.secretKey}` },
-    });
-    const nangoConnectionObject = await rpc(
-      `${nangoConfig.nangoApiHost}/connection/sync-source.${service.id}?provider_config_key=${integrationId}&refresh_token=true`,
-      { headers: { Authorization: `Bearer ${nangoConfig.secretKey}` } }
-    );
-
-    // getLog().atInfo().log("Integration settings", JSON.stringify(integrationSettings, null, 2));
-    // getLog().atInfo().log("Configuration object", JSON.stringify(nangoConnectionObject, null, 2));
-
-    return oauthDecorator.merge(credentials, integrationSettings.config, nangoConnectionObject.credentials);
-  } else {
-    return service.credentials;
-  }
-};
+// tryManageOauthCreds was deleted alongside the consolidation of sync paths
+// onto the autonomous syncctl Pod template: oauth-refresh is now an init
+// container in the syncctl-spawned Pod, so console never touches Nango on the
+// sync path. The oauthDecorators table above stays — it's also used by the
+// service-config UI to render OAuth-aware forms.
