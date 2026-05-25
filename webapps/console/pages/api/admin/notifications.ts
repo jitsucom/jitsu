@@ -700,8 +700,16 @@ async function processBatchAggregateNotification(
   let doNotify = false;
   let renderStatus: string = view.aggStatus;
   if (!state) {
-    doNotify = true;
-    if (view.aggStatus === "SUCCESS") renderStatus = "FIRST_RUN";
+    // No prior aggregate state for this channel + connection. We can't tell from this alone
+    // whether it's a brand-new connection or an existing healthy one we're seeing for the first
+    // time under summarize-by-table — and channels default to summarize=true, so on rollout every
+    // long-running healthy batch connection would otherwise emit a one-off FIRST_RUN success
+    // alert. Suppress that case and notify only when current state is actually a failure;
+    // subsequent transitions (failure → recovery) will still notify normally because the failure
+    // notification writes state.
+    if (view.aggStatus !== "SUCCESS") {
+      doNotify = true;
+    }
   } else if (transitioned) {
     doNotify = true;
     if (view.aggStatus === "SUCCESS") {
