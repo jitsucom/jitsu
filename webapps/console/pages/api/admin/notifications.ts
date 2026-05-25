@@ -39,10 +39,13 @@ const flappingThreshold = 4;
 
 export const _J_PREF = "_j:";
 
-// Sentinel tableName for the connection-level aggregate StatusChange / NotificationState rows we persist
-// when `summarizeBatchNotificationsByTable` is enabled. Distinct from real table names and from the
-// empty-string fallback used when bulker_batch events omit a parseable tableName.
-const BATCH_AGGREGATE_TABLE = "__connection__";
+// Discriminator type for the connection-level aggregate StatusChange / NotificationState rows we
+// persist when `summarizeBatchNotificationsByTable` is enabled. Using a dedicated `type` (rather
+// than a sentinel tableName) avoids any possible collision with a real user table named e.g.
+// `__connection__`. The actors CTE in the loader SQL only enumerates "batch"/"sync"/"dead", so
+// "batch_aggregate" rows never enter the per-table `entities` map; they're handled solely by the
+// dedicated aggregate path below.
+const BATCH_AGGREGATE_TYPE = "batch_aggregate";
 
 export type ConnectionStatusNotificationProps = {
   entityId: string;
@@ -82,7 +85,7 @@ const adminChannel: NotificationChannel = {
 
 export type StatusChangeEntity = Omit<StatusChange, "type"> & {
   id: number | bigint;
-  type: "batch" | "sync" | "dead";
+  type: "batch" | "sync" | "dead" | typeof BATCH_AGGREGATE_TYPE;
   workspaceName: string;
   slug: string;
   fromName: string;
@@ -374,6 +377,15 @@ async function processStatusChanges(
 
   const aggrStatues: Record<string, StatusChange[]> = {};
   for (const change of statusChanges) {
+    // batch_aggregate rows are this cron's own connection-level output — they're persisted so
+    // future runs can read the previous aggregate status accurately, but they should not be
+    // re-delivered through the per-table channel loop (and they wouldn't have a matching entity
+    // entry anyway, since the actors CTE only enumerates batch/sync/dead types). Still advance
+    // processedTimestamp so we don't reprocess them next run.
+    if (change.type === BATCH_AGGREGATE_TYPE) {
+      processedTimestamp = change.timestamp;
+      continue;
+    }
     const k = key(change.actorId, change.type, change.tableName);
     const statuses = aggrStatues[k] || [];
     if (statuses.length == 0) {
@@ -390,17 +402,16 @@ async function processStatusChanges(
     const lastStatus = statuses[statuses.length - 1];
     const entity = entities[k];
     for (const channel of [...(channels[entity.workspaceId] || []), ...(channels["admin"] || [])]) {
-      if (!channel.events.includes(entity.type) && !channel.events.includes("all")) {
+      // entity.type is one of "batch" | "sync" | "dead" here — aggregate rows (BATCH_AGGREGATE_TYPE)
+      // are filtered out at the aggrStatues stage so they never reach this loop.
+      if (!channel.events.includes(entity.type as "batch" | "sync" | "dead") && !channel.events.includes("all")) {
         continue;
       }
-      if (lastStatus.type === "batch") {
-        // Gate on lastStatus.tableName (the actual status-change bucket), not entity.tableName —
-        // the SQL loader overwrites entities[`${actorId}::batch`] with the last-iterated row, so
-        // entity.tableName can carry a real table name even when this bucket is the no-table
-        // (tableName === "") fallback. Skipping on entity here would drop legitimate no-table
-        // notifications for summarize-enabled channels.
-        if (lastStatus.tableName === BATCH_AGGREGATE_TABLE) continue;
-        if (lastStatus.tableName && channel.summarizeBatchNotificationsByTable) continue;
+      // For channels that summarize batch notifications by table, skip per-table changes —
+      // those are handled below as one connection-level aggregate. Gate on lastStatus.tableName
+      // (the actual aggrStatues bucket) so no-table batch notifications still flow through.
+      if (lastStatus.type === "batch" && lastStatus.tableName && channel.summarizeBatchNotificationsByTable) {
+        continue;
       }
       const cStatuses = [...statuses];
       const chkey = chKey(channel.id, lastStatus.actorId, lastStatus.type, lastStatus.tableName);
@@ -567,7 +578,6 @@ function computeBatchConnectionAggregate(
   const seenTableNames = new Set<string>();
   for (const ent of Object.values(entities)) {
     if (ent.actorId !== actorId || ent.type !== "batch" || !ent.tableName) continue;
-    if (ent.tableName === BATCH_AGGREGATE_TABLE) continue;
     if (seenTableNames.has(ent.tableName)) continue;
     seenTableNames.add(ent.tableName);
     perTableCount++;
@@ -661,15 +671,15 @@ async function processBatchAggregateNotification(
   publicEndpoints: PublicEndpoint,
   dryRun: boolean
 ): Promise<SendStatus | undefined> {
-  const chkey = chKey(channel.id, view.actorId, "batch", BATCH_AGGREGATE_TABLE);
+  const chkey = chKey(channel.id, view.actorId, BATCH_AGGREGATE_TYPE, "");
   const state = channelStates[chkey];
   const sendRecurringTime =
     (state?.lastNotification?.getTime() || 0) + channel.recurringAlertsPeriodHours * 60 * 60 * 1000;
 
   // Look up the previous aggregate row that this channel last notified on. Because we persist a
-  // connection-level row (tableName = BATCH_AGGREGATE_TABLE) on every aggregate transition,
-  // prevRow.status is the previous aggregate status and prevRow.startedAt is when that aggregate
-  // state began — exactly what RECOVERED needs for incidentStartedAt.
+  // connection-level row (type = BATCH_AGGREGATE_TYPE) on every aggregate transition, prevRow.status
+  // is the previous aggregate status and prevRow.startedAt is when that aggregate state began —
+  // exactly what RECOVERED needs for incidentStartedAt.
   let prevRow: { id: bigint; status: string; startedAt: Date } | null = null;
   if (state) {
     try {
@@ -757,8 +767,8 @@ async function processBatchAggregateNotification(
       data: {
         workspaceId: view.workspaceId,
         actorId: view.actorId,
-        type: "batch",
-        tableName: BATCH_AGGREGATE_TABLE,
+        type: BATCH_AGGREGATE_TYPE,
+        tableName: "",
         timestamp: view.aggTimestamp,
         startedAt: aggRowStartedAt,
         status: view.aggStatus,
@@ -780,8 +790,8 @@ async function processBatchAggregateNotification(
     id: rowId as bigint,
     workspaceId: view.workspaceId,
     actorId: view.actorId,
-    type: "batch",
-    tableName: BATCH_AGGREGATE_TABLE,
+    type: BATCH_AGGREGATE_TYPE,
+    tableName: "",
     timestamp: view.aggTimestamp,
     startedAt: aggRowStartedAt,
     status: view.aggStatus,
@@ -794,8 +804,8 @@ async function processBatchAggregateNotification(
     id: rowId,
     workspaceId: view.workspaceId,
     actorId: view.actorId,
-    type: "batch",
-    tableName: BATCH_AGGREGATE_TABLE,
+    type: BATCH_AGGREGATE_TYPE,
+    tableName: "",
     workspaceName: view.workspaceName,
     slug: view.slug,
     fromName: view.fromName,
@@ -1664,19 +1674,20 @@ function fillNotificationProps(
       detailsUrl = `${baseUrl}/${entity.slug}/syncs/tasks?query={syncId:'${entity.actorId}'}`;
       break;
   }
+  // For the connection-level aggregate, render as a "batch" notification (and omit tableName) —
+  // the failed-streams summary already conveys per-table context.
+  const isAggregate = entity.type === BATCH_AGGREGATE_TYPE;
   return {
     name: channel.name,
     workspaceName: entity.workspaceName,
     workspaceSlug: entity.slug,
     entityId: entity.actorId,
-    entityType: entity.type,
+    entityType: isAggregate ? "batch" : entity.type,
     entityName: name,
     entityFrom: entity.fromName,
     entityTo: entity.toName,
     timestamp: lastStatus.timestamp.toISOString(),
-    // Hide the connection-level aggregate sentinel from the rendered template — the failed-streams
-    // summary already conveys per-table context for aggregate notifications.
-    tableName: entity.tableName === BATCH_AGGREGATE_TABLE ? undefined : entity.tableName,
+    tableName: isAggregate ? undefined : entity.tableName,
     status: lastStatus.status,
     incidentStatus: lastStatus.status,
     incidentStartedAt: lastStatus.startedAt.toISOString(),
