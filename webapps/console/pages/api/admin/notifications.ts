@@ -39,6 +39,11 @@ const flappingThreshold = 4;
 
 export const _J_PREF = "_j:";
 
+// Sentinel tableName for the connection-level aggregate StatusChange / NotificationState rows we persist
+// when `summarizeBatchNotificationsByTable` is enabled. Distinct from real table names and from the
+// empty-string fallback used when bulker_batch events omit a parseable tableName.
+const BATCH_AGGREGATE_TABLE = "__connection__";
+
 export type ConnectionStatusNotificationProps = {
   entityId: string;
   entityType: "batch" | "sync" | "dead";
@@ -388,10 +393,12 @@ async function processStatusChanges(
       if (!channel.events.includes(entity.type) && !channel.events.includes("all")) {
         continue;
       }
-      // For channels that summarize batch notifications by table, skip per-table changes —
-      // those are handled below as one connection-level aggregate.
-      if (entity.type === "batch" && entity.tableName && channel.summarizeBatchNotificationsByTable) {
-        continue;
+      if (entity.type === "batch") {
+        // Aggregate rows are never delivered through the per-table loop — they're handled below.
+        if (entity.tableName === BATCH_AGGREGATE_TABLE) continue;
+        // For channels that summarize batch notifications by table, skip per-table changes —
+        // those are handled below as one connection-level aggregate.
+        if (entity.tableName && channel.summarizeBatchNotificationsByTable) continue;
       }
       const cStatuses = [...statuses];
       const chkey = chKey(channel.id, lastStatus.actorId, lastStatus.type, lastStatus.tableName);
@@ -553,6 +560,7 @@ function computeBatchConnectionAggregate(
   let aggQueueSize = 0;
   for (const ent of Object.values(entities)) {
     if (ent.actorId !== actorId || ent.type !== "batch" || !ent.tableName) continue;
+    if (ent.tableName === BATCH_AGGREGATE_TABLE) continue;
     perTableCount++;
     template = template ?? ent;
     if (ent.id) {
@@ -641,49 +649,53 @@ async function processBatchAggregateNotification(
   publicEndpoints: PublicEndpoint,
   dryRun: boolean
 ): Promise<SendStatus | undefined> {
-  const chkey = chKey(channel.id, view.actorId, "batch", "");
+  const chkey = chKey(channel.id, view.actorId, "batch", BATCH_AGGREGATE_TABLE);
   const state = channelStates[chkey];
   const sendRecurringTime =
     (state?.lastNotification?.getTime() || 0) + channel.recurringAlertsPeriodHours * 60 * 60 * 1000;
+
+  // Look up the previous aggregate row that this channel last notified on. Because we persist a
+  // connection-level row (tableName = BATCH_AGGREGATE_TABLE) on every aggregate transition,
+  // prevRow.status is the previous aggregate status and prevRow.startedAt is when that aggregate
+  // state began — exactly what RECOVERED needs for incidentStartedAt.
+  let prevRow: { id: bigint; status: string; startedAt: Date } | null = null;
+  if (state) {
+    try {
+      const row = await db.prisma().statusChange.findUnique({ where: { id: state.statusChangeId } });
+      if (row) prevRow = { id: row.id, status: row.status, startedAt: row.startedAt };
+    } catch (e: any) {
+      log.atWarn().log(`Failed to load previous statusChange ${state.statusChangeId}: ${e?.message}`);
+    }
+  }
+  const prevStatus = prevRow?.status;
+  const transitioned = !state || (prevStatus !== undefined && prevStatus !== view.aggStatus);
+
   let doNotify = false;
   let renderStatus: string = view.aggStatus;
-  let prevStatus: string | undefined;
-
   if (!state) {
-    // First notification on this channel for this connection aggregate.
+    doNotify = true;
+    if (view.aggStatus === "SUCCESS") renderStatus = "FIRST_RUN";
+  } else if (transitioned) {
+    doNotify = true;
     if (view.aggStatus === "SUCCESS") {
-      // Only emit a FIRST_RUN-style notification if some per-table activity has been observed.
-      renderStatus = "FIRST_RUN";
-      doNotify = true;
-    } else {
-      doNotify = true;
-    }
-  } else {
-    const prevId = BigInt(state.statusChangeId);
-    if (view.aggMaxId > prevId) {
-      doNotify = true;
-      if (view.aggStatus === "SUCCESS") {
-        // Only notify on SUCCESS if it represents a recovery from a prior failure.
-        try {
-          const prevRow = await db.prisma().statusChange.findUnique({ where: { id: state.statusChangeId } });
-          prevStatus = prevRow?.status;
-          if (prevRow && prevRow.status !== "SUCCESS") {
-            renderStatus = "RECOVERED";
-          } else {
-            doNotify = false;
-          }
-        } catch (e: any) {
-          log.atWarn().log(`Failed to load previous statusChange ${state.statusChangeId}: ${e?.message}`);
-          doNotify = false;
-        }
+      if (prevStatus && prevStatus !== "SUCCESS") {
+        renderStatus = "RECOVERED";
+      } else {
+        // Current is SUCCESS but we can't confirm the previous aggregate was a failure (e.g. prev
+        // row missing). Don't emit a confusing SUCCESS notification with no incident context.
+        doNotify = false;
       }
-    } else if (view.aggStatus !== "SUCCESS" && view.aggTimestamp.getTime() > sendRecurringTime) {
-      doNotify = true;
-      renderStatus = "ONGOING";
     }
+  } else if (view.aggStatus !== "SUCCESS" && view.aggTimestamp.getTime() > sendRecurringTime) {
+    doNotify = true;
+    renderStatus = "ONGOING";
   }
 
   if (!doNotify) return;
+
+  // Incident start: if we're recovering, the incident began when the previous aggregate row was
+  // written (the transition into PARTIAL/FAILED). Otherwise use the current aggregate's start.
+  const incidentStartedAt = renderStatus === "RECOVERED" && prevRow?.startedAt ? prevRow.startedAt : view.aggStartedAt;
 
   let description: string;
   if (renderStatus === "FIRST_RUN") {
@@ -694,7 +706,7 @@ async function processBatchAggregateNotification(
       JSON.stringify({
         status: "RECOVERED",
         incidentStatus: prevStatus ?? "FAILED",
-        incidentStartedAt: view.aggStartedAt?.toISOString(),
+        incidentStartedAt: incidentStartedAt.toISOString(),
         incidentDetails: view.aggIncidentDetails,
       });
   } else if (renderStatus === "ONGOING") {
@@ -706,21 +718,58 @@ async function processBatchAggregateNotification(
         streamsFailed: view.aggStreamsFailed,
         incidentDetails: view.aggIncidentDetails,
         incidentStatus: view.aggStatus,
+        incidentStartedAt: incidentStartedAt.toISOString(),
       });
-  } else if (view.aggStatus === "PARTIAL") {
-    description = view.aggDescription;
   } else {
     description = view.aggDescription;
   }
 
+  // The aggregate row's startedAt represents when the current aggregate status began. On a transition
+  // into a failure, that's the earliest per-table failure timestamp. On a transition into SUCCESS,
+  // it's now. Without a transition, preserve the previous row's startedAt so an ongoing incident keeps
+  // its original start time.
+  const aggRowStartedAt =
+    !state || transitioned
+      ? view.aggStatus === "SUCCESS"
+        ? view.aggTimestamp
+        : view.aggStartedAt
+      : prevRow?.startedAt ?? view.aggStartedAt;
+
+  // Persist a connection-level StatusChange row on transitions so future runs can read the prior
+  // aggregate accurately. On non-transition recurring notifications, reuse the prev row's id.
+  let rowId: bigint | number;
+  if (!dryRun && transitioned) {
+    const row = await db.prisma().statusChange.create({
+      data: {
+        workspaceId: view.workspaceId,
+        actorId: view.actorId,
+        type: "batch",
+        tableName: BATCH_AGGREGATE_TABLE,
+        timestamp: view.aggTimestamp,
+        startedAt: aggRowStartedAt,
+        status: view.aggStatus,
+        description,
+        counts: state ? 1 : 0,
+        queueSize: view.aggQueueSize,
+      },
+    });
+    rowId = row.id;
+  } else if (state && !transitioned) {
+    rowId = state.statusChangeId;
+  } else {
+    // dryRun + transition: do not persist; placeholder id is fine because notification.create /
+    // notificationState.upsert are skipped under dryRun.
+    rowId = view.aggMaxId;
+  }
+
   const syntheticStatus: StatusChange = {
-    id: view.aggMaxId,
+    id: rowId as bigint,
     workspaceId: view.workspaceId,
     actorId: view.actorId,
     type: "batch",
-    tableName: "",
+    tableName: BATCH_AGGREGATE_TABLE,
     timestamp: view.aggTimestamp,
-    startedAt: view.aggStartedAt,
+    startedAt: aggRowStartedAt,
     status: view.aggStatus,
     description,
     counts: 1,
@@ -728,17 +777,17 @@ async function processBatchAggregateNotification(
   };
 
   const aggEntity: StatusChangeEntity = {
-    id: view.aggMaxId,
+    id: rowId,
     workspaceId: view.workspaceId,
     actorId: view.actorId,
     type: "batch",
-    tableName: "",
+    tableName: BATCH_AGGREGATE_TABLE,
     workspaceName: view.workspaceName,
     slug: view.slug,
     fromName: view.fromName,
     toName: view.toName,
     timestamp: view.aggTimestamp,
-    startedAt: view.aggStartedAt,
+    startedAt: aggRowStartedAt,
     status: view.aggStatus,
     description,
     counts: 1,
