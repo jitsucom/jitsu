@@ -6,13 +6,11 @@ import { getServerLog } from "./log";
 import { getAppEndpoint } from "../domains";
 import { NextApiRequest } from "next";
 import { eeAuthHeadersOrServiceToken, getEeConnection, isEEAvailable } from "./ee";
-import { DestinationConfig, ServiceConfig, SessionUser } from "../schema";
+import { DestinationConfig, SessionUser } from "../schema";
 import { randomUUID } from "crypto";
 import { tryManageOauthCreds } from "./oauth/services";
-import { DestinationType, getCoreDestinationType } from "../schema/destinations";
+import { getCoreDestinationType } from "../schema/destinations";
 import omit from "lodash/omit";
-import { FunctionLogger, SetOpts, Store, SyncFunction } from "@jitsu/protocols/functions";
-import { mixpanelFacebookAdsSync, mixpanelGoogleAdsSync } from "./syncs/mixpanel";
 import hash from "stable-hash";
 import { clickhouse } from "./clickhouse";
 import { initStream } from "../sources";
@@ -78,27 +76,6 @@ async function dbLog({
   });
 }
 
-export async function cleanupTasksLogs(syncId: string) {
-  const syncTaskLogAge = serverEnv.SYNC_TASK_LOG_AGE ?? 60;
-  const syncTaskLogSize = serverEnv.SYNC_TASK_LOG_SIZE ?? 3000;
-
-  await db.pgPool().query(
-    `DELETE FROM newjitsu.source_task t
-                           WHERE sync_id = $1 AND
-                             started_at < (SELECT
-                                             GREATEST(min(started_at), now() - interval '${syncTaskLogAge} days') AS cutoff_date
-                                           FROM (
-                                                  SELECT started_at
-                                                  FROM newjitsu.source_task
-                                                  WHERE sync_id = $1
-                                                  ORDER BY started_at DESC
-                                                  OFFSET ${syncTaskLogSize}
-                                                    LIMIT 1
-                                                ) sub)`,
-    [syncId]
-  );
-}
-
 async function createOrUpdateTask({
   taskId,
   syncId,
@@ -143,6 +120,10 @@ export async function checkQuota(opts: {
   package: string;
   version: string;
   startedBy: any;
+  // Optional caller-supplied taskId. Used by the autonomous CronJob path's
+  // quota-check init container so the SKIPPED row in source_task uses the
+  // pod's actual task id instead of a freshly-generated UUID.
+  taskId?: string;
 }): Promise<ScheduleSyncError | undefined> {
   try {
     const { host } = getEeConnection();
@@ -162,7 +143,7 @@ export async function checkQuota(opts: {
     });
     if (!quotaCheckResult.ok) {
       if (!opts.user) {
-        const taskId = randomUUID();
+        const taskId = opts.taskId ?? randomUUID();
         //scheduled run. We need to create a failed task so user can see the error
         await createOrUpdateTask({
           taskId,
@@ -259,193 +240,6 @@ export async function getSyncById(syncId: string, workspaceId: string): Promise<
   );
 }
 
-function createDatabaseLogger(taskId: string, syncId: string): FunctionLogger {
-  return {
-    debug: async (message: string) => {
-      await dbLog({
-        taskId,
-        syncId,
-        message,
-        level: "DEBUG",
-      });
-    },
-    info: async (message: string) => {
-      await dbLog({
-        taskId,
-        syncId,
-        message,
-        level: "INFO",
-      });
-    },
-    error: async (message: string) => {
-      await dbLog({
-        taskId,
-        syncId,
-        message,
-        level: "ERROR",
-      });
-    },
-    warn: async (message: string) => {
-      await dbLog({
-        taskId,
-        syncId,
-        message,
-        level: "WARN",
-      });
-    },
-  };
-}
-
-type SaasSyncState = {
-  dict: Record<
-    string,
-    {
-      value: any;
-      //ISO date
-      expireAt?: string;
-    }
-  >;
-};
-
-function createDatabaseStore(taskId: string, syncId: string): Store {
-  const stream = "cloud-sync";
-
-  async function getSaasSyncState(): Promise<SaasSyncState> {
-    return ((await db.prisma().source_state.findFirst({ where: { sync_id: syncId, stream } }))?.state || {
-      dict: {},
-    }) as SaasSyncState;
-  }
-
-  async function saveSaasSyncState(state: SaasSyncState) {
-    await db.prisma().source_state.upsert({
-      where: { sync_id_stream: { sync_id: syncId, stream } },
-      create: {
-        sync_id: syncId,
-        stream,
-        state,
-      },
-      update: {
-        state,
-      },
-    });
-  }
-
-  return {
-    del: async (key: string): Promise<void> => {
-      const state = await getSaasSyncState();
-      delete state.dict[key];
-      await saveSaasSyncState(state);
-    },
-    get: async (key: string): Promise<any> => {
-      return (await getSaasSyncState()).dict[key]?.value;
-    },
-    set: async (key: string, value: any, opts?: SetOpts): Promise<void> => {
-      if (opts) {
-        throw new Error("Custom TTLs are not supported for Cloud Syncs sync");
-      }
-      const state = await getSaasSyncState();
-      state.dict[key] = { value };
-      await saveSaasSyncState(state);
-    },
-    ttl: (key: string): Promise<number> => Promise.reject(new Error("Not implemented")),
-  };
-}
-
-function getImplemetingFunction(pkg: string, destinationType: DestinationType): SyncFunction {
-  if (destinationType.id === "mixpanel" && pkg === "airbyte/source-google-ads") {
-    return mixpanelGoogleAdsSync as any;
-  } else if (destinationType.id === "mixpanel" && pkg === "airbyte/source-facebook-marketing") {
-    return mixpanelFacebookAdsSync as any;
-  }
-
-  throw new Error(`${pkg} -> ${destinationType.id} sync doesn't exist`);
-}
-
-async function runSyncSynchronously({
-  syncId,
-  taskId,
-  destinationConfig,
-  destinationType,
-  sourceConfig,
-  startedBy,
-}: {
-  syncId: string;
-  taskId: string;
-  destinationType: DestinationType;
-  destinationConfig: DestinationConfig;
-  sourceConfig: ServiceConfig;
-  startedBy: any;
-}) {
-  await createOrUpdateTask({
-    taskId,
-    syncId,
-    startedBy,
-    status: "RUNNING",
-    description: "Started",
-    pkg: sourceConfig.package,
-    version: sourceConfig.version,
-  });
-  const syncConfig = destinationType?.syncs?.[sourceConfig.package];
-  if (!syncConfig) {
-    await createOrUpdateTask({
-      taskId,
-      syncId,
-      startedBy,
-      status: "FAILED",
-      description: `Sync function not found for package ${sourceConfig.package}`,
-      pkg: sourceConfig.package,
-      version: sourceConfig.version,
-    });
-    return;
-  }
-  await dbLog({
-    taskId,
-    syncId,
-    message: `Running sync from ${sourceConfig.package} -> ${destinationType.title} (#${destinationType.id})`,
-    level: "INFO",
-  });
-  const credentials = await tryManageOauthCreds(sourceConfig);
-
-  const implementingFunction = getImplemetingFunction(sourceConfig.package, destinationType);
-  await dbLog({
-    taskId,
-    syncId,
-    level: "INFO",
-    message: `Successfully connected to to ${sourceConfig.package}. Running sync`,
-  });
-
-  await implementingFunction({
-    source: {
-      package: sourceConfig.package,
-      credentials,
-      syncProps: sourceConfig,
-    },
-    destination: destinationConfig,
-    ctx: {
-      log: createDatabaseLogger(taskId, syncId),
-      store: createDatabaseStore(taskId, syncId),
-    },
-  });
-
-  await createOrUpdateTask({
-    taskId,
-    syncId,
-    startedBy,
-    status: "SUCCESS",
-    description: "Successfully finished",
-    pkg: sourceConfig.package,
-    version: sourceConfig.version,
-  });
-}
-
-function safeStringify(e: any) {
-  try {
-    return JSON.stringify(e, null, 2);
-  } catch (e) {
-    return e?.toString();
-  }
-}
-
 export async function scheduleSync({
   workspaceId,
   syncIdOrModel,
@@ -509,9 +303,10 @@ export async function scheduleSync({
     const destinationConfig = sync.to.config as DestinationConfig;
     const destinationType = getCoreDestinationType(destinationConfig.destinationType);
     const serviceConfig = { ...(service.config as any), ...service };
-    const runSynchronously = !(destinationType.usesBulker || destinationType.id === "webhook") && destinationType.syncs;
-    // for normal scheduled syncs syncctl handles 'already running' case
-    if (trigger === "manual" || runSynchronously) {
+    // Manual triggers still admission-gate on a pre-existing RUNNING row to
+    // avoid double-starting a sync (the scheduled bearer path skips this
+    // because syncctl handles the already-running case itself).
+    if (trigger === "manual") {
       const running = await db.prisma().source_task.findFirst({
         where: {
           sync_id: syncIdOrModel as string,
@@ -520,22 +315,14 @@ export async function scheduleSync({
       });
 
       if (running) {
-        const msInMin = 1000 * 60;
-        if (ignoreRunning || (runSynchronously && Date.now() - running.updated_at.getTime() >= 2 * msInMin)) {
-          await dbLog({
-            taskId: running.task_id,
-            syncId: sync.id,
-            message: `Synchronous task ${running.task_id} was running due to timeout`,
-            level: "ERROR",
-          });
+        if (ignoreRunning) {
+          // Cancel the stale/in-flight task row before proceeding — otherwise
+          // the next manual run without ignoreRunning sees the same RUNNING
+          // row and rejects with "Sync is already running" until the 1h
+          // stale-task sweep eventually closes it.
           await db.prisma().source_task.update({
-            where: {
-              task_id: running.task_id,
-            },
-            data: {
-              status: "FAILED",
-              updated_at: new Date(),
-            },
+            where: { task_id: running.task_id },
+            data: { status: "CANCELLED", updated_at: new Date() },
           });
         } else {
           return {
@@ -575,52 +362,6 @@ export async function scheduleSync({
       });
     } else {
       stateObj = await loadState(sync);
-    }
-    if (runSynchronously) {
-      const started = Date.now();
-      try {
-        await runSyncSynchronously({
-          taskId,
-          syncId: sync.id,
-          destinationConfig,
-          destinationType,
-          sourceConfig: serviceConfig,
-          startedBy,
-        });
-        const time = Date.now() - started;
-        await dbLog({
-          taskId,
-          syncId: sync.id,
-          message: `Sync finished in ${time}ms`,
-          level: "INFO",
-        });
-      } catch (e: any) {
-        log
-          .atError()
-          .log(`Error running task ${taskId}, sync ${sync.id}. Message : ${e?.message}`, JSON.stringify(e, null, 2));
-        const syncError = `${e?.message || safeStringify(e)}`;
-        await createOrUpdateTask({
-          taskId,
-          syncId: sync.id,
-          status: "FAILED",
-          startedBy,
-          description: `Error running sync: ${syncError}`,
-          pkg: serviceConfig.package,
-          version: serviceConfig.version,
-        });
-        await dbLog({
-          taskId,
-          syncId: sync.id,
-          message: `Error running sync: ${syncError}${e?.stack ? `\n${e.stack}` : ""}`,
-          level: "ERROR",
-        });
-      }
-      return {
-        ok: true,
-        taskId,
-        status: `${appBase}/api/${workspaceId}/sources/tasks?taskId=${taskId}&syncId=${syncIdOrModel}`,
-        logs: `${appBase}/api/${workspaceId}/sources/logs?taskId=${taskId}&syncId=${syncIdOrModel}`,
-      };
     }
     if (destinationType.id === "clickhouse" && !destinationConfig.provisioned) {
       destinationConfig.loadAsJson = false;

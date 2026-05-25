@@ -86,8 +86,18 @@ func main() {
 	// without a subcommand (legacy reactive flow).
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
+		case "admission":
+			// Combined gate: quota-check then lease-acquire. Run as the
+			// CronJob Pod's first init container.
+			runAdmission()
+			return
 		case "lease-acquire":
+			// Kept for debugging / parity with the legacy job_runner Pod
+			// template, which doesn't combine them.
 			runLeaseAcquire()
+			return
+		case "quota-check":
+			runQuotaCheck()
 			return
 		case "oauth-refresh":
 			runOAuthRefresh()

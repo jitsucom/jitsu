@@ -30,6 +30,10 @@ func NewTaskManager(appContext *Context) (*TaskManager, error) {
 	t := &TaskManager{Service: base, config: appContext.config, jobRunner: appContext.jobRunner, dbpool: appContext.dbpool,
 		closeCh: make(chan struct{})}
 	safego.RunWithRestart(t.listenTaskStatus)
+	// Retention sweep runs on its own goroutine so it can't back-pressure
+	// status consumption when a global windowed delete takes a while —
+	// jobRunner.sendStatus drops events after a 5s blocked send.
+	safego.RunWithRestart(t.runRetentionSweeper)
 	return t, nil
 }
 
@@ -242,13 +246,13 @@ func (t *TaskManager) runReadTask(st *TaskStatus) {
 }
 
 func (t *TaskManager) listenTaskStatus() {
-	ticker := time.NewTicker(15 * time.Minute)
-	defer ticker.Stop()
+	staleTicker := time.NewTicker(15 * time.Minute)
+	defer staleTicker.Stop()
 	for {
 		select {
 		case <-t.closeCh:
 			return
-		case <-ticker.C:
+		case <-staleTicker.C:
 			err := db.CloseStaleTasks(t.dbpool, time.Now().Add(-time.Hour))
 			if err != nil {
 				t.Errorf("Unable to close stale tasks: %v", err)
@@ -300,6 +304,29 @@ func (t *TaskManager) listenTaskStatus() {
 				t.Infof("taskStatus: %+v\n", *st)
 			} else {
 				t.Debugf("taskStatus: %+v\n", *st)
+			}
+		}
+	}
+}
+
+// runRetentionSweeper performs the hourly source_task retention sweep on its
+// own goroutine. The global windowed DELETE can take a while; keeping it off
+// listenTaskStatus's select loop ensures status updates from the watcher
+// continue to drain even mid-sweep. Replaces the per-request cleanup that
+// used to fire on every /sources/run hit in console.
+func (t *TaskManager) runRetentionSweeper() {
+	cleanupTicker := time.NewTicker(time.Hour)
+	defer cleanupTicker.Stop()
+	for {
+		select {
+		case <-t.closeCh:
+			return
+		case <-cleanupTicker.C:
+			deleted, err := db.CleanupTaskLogs(t.dbpool, t.config.TaskLogKeepPerSync, time.Duration(t.config.TaskLogMaxAgeDays)*24*time.Hour)
+			if err != nil {
+				t.Errorf("source_task retention sweep failed: %v", err)
+			} else if deleted > 0 {
+				t.Infof("source_task retention sweep: deleted %d row(s)", deleted)
 			}
 		}
 	}

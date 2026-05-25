@@ -38,7 +38,7 @@ const (
 	// + `PodsServiceAccount` won't capture (init-container command paths,
 	// volume layout, env scaffolding). Forces a one-shot re-patch of every
 	// reconciled CronJob on the next reconcile after upgrade.
-	cronTemplateRevision = 5
+	cronTemplateRevision = 6
 )
 
 // k8sName converts a sync ID into an RFC 1123 subdomain segment safe for use
@@ -342,7 +342,7 @@ func (c *CronJobController) upsertSecret(entry *SyncEntry) error {
 // buildCronPodTemplate so reconcile + tests can construct one declaratively.
 func (c *CronJobController) buildCronJob(entry *SyncEntry) *batchv1.CronJob {
 	startingDeadlineSeconds := int64(60) // skip a missed schedule rather than back-stack it
-	successHistory := int32(1)
+	successHistory := int32(2)           // keep last + previous so operators can compare runs in the GKE UI
 	failureHistory := int32(3)
 
 	jobSpec := batchv1.JobSpec{
@@ -449,32 +449,36 @@ func (c *CronJobController) buildCronPodTemplate(entry *SyncEntry) v1.PodTemplat
 		{Name: "DB_LOG_LEVEL", Value: c.config.DBLogLevel},
 	}
 
-	// Sub-minute jitter: CronJob schedules are minute-resolution, so syncs
-	// sharing the same schedule all fire at the same instant. Spread them
-	// deterministically over a 60s window using a hash of syncID — mirrors
-	// the legacy job_runner.CreateJob delay (see job_runner.go ~L471), just
-	// pushed into a pod init step. Runs before lease-acquire so the lease
-	// is held for the shortest possible window and so the thundering-herd
-	// targets downstream (DB, console, Nango) see staggered traffic.
-	// When the `admission` consolidation lands, this folds into the start
-	// of runAdmission and the dedicated init can be dropped.
-	jitterSec := int(utils.HashStringInt(entry.ID) % 60)
-	initContainers := []v1.Container{}
-	if jitterSec > 0 {
-		initContainers = append(initContainers, v1.Container{
-			Name:      "jitter",
+	// admission: combined gate that runs jitter → quota-check → lease-acquire
+	// in a single init container (sidecar subcommand `admission`). Saves
+	// container starts vs. running them separately, and we want them
+	// adjacent anyway — failing either should abort the pod before any
+	// heavier init runs (oauth-refresh / discover). Jitter intentionally
+	// goes first so the sub-minute spread also benefits the downstream
+	// (console quota endpoint, k8s leases API) — not just the source.
+	//
+	// quota-check is skipped at runtime when CONSOLE_URL/CONSOLE_TOKEN are
+	// unset (see runQuotaCheck in sidecar/quota_check.go), so it's safe to
+	// always wire the env even if the deployment hasn't been configured
+	// for it yet. JITTER_MAX_SECONDS likewise has a sane in-process default
+	// (60s) when unset.
+	admissionEnv := append([]v1.EnvVar{}, baseEnv...)
+	admissionEnv = append(admissionEnv,
+		v1.EnvVar{Name: "CONSOLE_URL", Value: c.config.ConsoleURL},
+		v1.EnvVar{Name: "CONSOLE_TOKEN", Value: c.config.ConsoleToken},
+		v1.EnvVar{Name: "JITTER_MAX_SECONDS", Value: strconv.Itoa(int(c.config.JitterMaxSeconds))},
+		v1.EnvVar{Name: "TASK_ID", ValueFrom: &v1.EnvVarSource{FieldRef: &v1.ObjectFieldSelector{FieldPath: "metadata.name"}}},
+		v1.EnvVar{Name: "STARTED_BY", Value: `{"trigger":"scheduled"}`},
+	)
+	initContainers := []v1.Container{
+		{
+			Name:      "admission",
 			Image:     c.config.SidecarImage,
-			Command:   []string{"sleep", strconv.Itoa(jitterSec)},
+			Command:   []string{"/app/sidecar", "admission"},
+			Env:       admissionEnv,
 			Resources: smallResources(),
-		})
+		},
 	}
-	initContainers = append(initContainers, v1.Container{
-		Name:      "lease-acquire",
-		Image:     c.config.SidecarImage,
-		Command:   []string{"/app/sidecar", "lease-acquire"},
-		Env:       baseEnv,
-		Resources: smallResources(),
-	})
 
 	// oauth-refresh: always runs. Reads /config/serviceConfig.json (the
 	// Jitsu wrapper), unwraps `credentials` and writes the airbyte config to
