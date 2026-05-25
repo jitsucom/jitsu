@@ -1,6 +1,4 @@
-import { ServiceConfig } from "../../schema";
-import { requireDefined, rpc } from "juava";
-import { nangoConfig } from "./nango-config";
+import { requireDefined } from "juava";
 import { getServerEnv } from "../serverEnv";
 
 export type PackageId = `airbyte/${string}`;

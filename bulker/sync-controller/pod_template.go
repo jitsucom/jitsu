@@ -245,6 +245,18 @@ func buildSyncPodTemplate(c *Config, pc PodCtx, secretName string) v1.PodTemplat
 	fromID := ""
 	if pc.Entry != nil {
 		fromID = pc.Entry.FromID
+	} else if pc.Inline != nil && len(pc.Inline.Source) > 0 {
+		// Inline check/discover: pull `id` out of the source-config wrapper so
+		// oauth-refresh can fetch the Nango connection (`sync-source.${FROM_ID}`).
+		// Console ships ServiceConfig with the service id, but only for
+		// inline payloads — spec runs (no Source) leave FROM_ID empty, which
+		// is fine because oauth-refresh isn't part of the spec init chain.
+		var src struct {
+			ID string `json:"id"`
+		}
+		if err := json.Unmarshal(pc.Inline.Source, &src); err == nil {
+			fromID = src.ID
+		}
 	}
 	startedBy := pc.startedByOrDefault()
 
