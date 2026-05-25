@@ -559,9 +559,15 @@ function computeBatchConnectionAggregate(
   let latestFailureTimestamp: Date | undefined;
   let latestFailureDescription: string | undefined;
   let aggQueueSize = 0;
+  // `entities` indexes each per-table row under TWO keys (the connection-level `${actorId}::batch`
+  // overwrite and the table-specific `${actorId}::batch:${tableName}`), so iterating its values
+  // double-counts one row per actor. Dedupe by tableName to keep counts accurate.
+  const seenTableNames = new Set<string>();
   for (const ent of Object.values(entities)) {
     if (ent.actorId !== actorId || ent.type !== "batch" || !ent.tableName) continue;
     if (ent.tableName === BATCH_AGGREGATE_TABLE) continue;
+    if (seenTableNames.has(ent.tableName)) continue;
+    seenTableNames.add(ent.tableName);
     perTableCount++;
     template = template ?? ent;
     if (ent.id) {
