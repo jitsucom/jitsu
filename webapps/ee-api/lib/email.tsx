@@ -16,6 +16,7 @@ import ThrottlingStarted from "../emails/throttling-started";
 import BillingIssueEmail from "../emails/billing-issues";
 import ConnectionStatusFailedEmail from "../emails/connection-status-failed";
 import ConnectionStatusSuccessEmail from "../emails/connection-status-success";
+import { getAppBaseUrl } from "./app-urls";
 
 dayjs.extend(utc);
 export const UnsubscribeCodes = z.object({
@@ -278,7 +279,7 @@ export async function getWorkspaceEmailHistory(workspaceId: string): Promise<Ema
   if (!logsEntry) {
     return [];
   }
-  const appUrl = process.env.JITSU_APPLICATION_URL || "https://use.jitsu.com";
+  const appUrl = getAppBaseUrl();
   return sortBy(logsEntry.logs, "timestamp")
     .reverse()
     .map(({ subject, ...rest }) => {

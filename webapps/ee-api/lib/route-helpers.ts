@@ -4,6 +4,7 @@ import { getServerLog } from "./log";
 import { getFirebaseToken, verifyFirebaseToken } from "./firebase-auth";
 import type admin from "firebase-admin";
 import { isAdminEmail } from "./admins";
+import { isOriginAllowed, parseAllowedOrigins } from "./app-urls";
 
 const log = getServerLog("api-error");
 const authLog = getServerLog("admin-auth");
@@ -32,46 +33,21 @@ export function withErrorHandler(handler: NextApiHandler): NextApiHandler {
 }
 
 /**
- * Allow-list for `withBrowserApi` endpoints: in production, only the configured
- * console origin (`JITSU_APPLICATION_URL`, the same var emails and admin
- * workspaces use to link back to console); in non-production, any
- * `*.jitsu.localhost` host (the portless dev convention — branches vary at
- * runtime so we don't know the exact origin ahead of time).
- *
- * Credentials aren't sent (auth is via `x-fb-auth` header, not cookies), but
- * reflecting any Origin still lets attacker-controlled pages READ responses
- * for someone who holds a Firebase ID token — so the check is real.
- */
-function isAllowedOrigin(origin: string | undefined): boolean {
-  if (!origin) return false;
-  const configured = process.env.JITSU_APPLICATION_URL;
-  if (configured) {
-    try {
-      if (new URL(origin).origin === new URL(configured).origin) return true;
-    } catch {
-      // ignore malformed origin
-    }
-  }
-  if (process.env.NODE_ENV !== "production") {
-    try {
-      const host = new URL(origin).hostname;
-      if (host === "jitsu.localhost" || host.endsWith(".jitsu.localhost")) return true;
-    } catch {
-      // ignore malformed origin
-    }
-  }
-  return false;
-}
-
-/**
  * CORS for ee-api endpoints the console browser app calls directly. The request
  * carries a Firebase ID token in `x-fb-auth` (not cookies). Returns `true` if
  * the request was a preflight that has now been answered — the caller should
  * stop.
+ *
+ * Allowed origins come from `JITSU_APPLICATION_URL` (comma-separated list,
+ * `*.host` wildcards supported). Credentials aren't sent (auth is via header,
+ * not cookies), but reflecting any Origin would still let attacker-controlled
+ * pages READ responses for someone holding a Firebase ID token — so the check
+ * is real.
  */
 export function applyCors(req: NextApiRequest, res: NextApiResponse): boolean {
   const origin = Array.isArray(req.headers.origin) ? req.headers.origin[0] : req.headers.origin;
-  if (isAllowedOrigin(origin)) {
+  const allowed = parseAllowedOrigins(process.env.JITSU_APPLICATION_URL);
+  if (isOriginAllowed(origin, allowed)) {
     res.setHeader("Access-Control-Allow-Origin", origin as string);
     res.setHeader("Vary", "Origin");
   }

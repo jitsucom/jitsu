@@ -35,6 +35,7 @@ Auth is fully client-side — there is no session cookie:
 | `JITSU_EE_ADMINS`                           | Comma-separated email patterns that may access the UI. `*` is a wildcard.                                |
 | `EE_API_SERVICE_TOKENS`                     | Comma-separated allow-list of static bearer tokens for trusted server-to-server callers (console's quota check / exports). Accepted by `lib/auth.ts`. |
 | `CRON_SECRET`                               | Bearer token for Vercel-managed cron jobs only — Vercel injects it automatically. Accepted by `lib/auth.ts`. |
+| `JITSU_APPLICATION_URL`                     | Comma-separated origin allow-list. Source for CORS on browser→ee-api calls, and for the canonical app URL used in emails / admin pages (first non-wildcard entry). Scheme defaults to `https`. Wildcards: `*.host.tld` matches any subdomain. Example: `use.jitsu.com,*.jitsu.localhost`. |
 
 `JITSU_EE_ADMINS` example:
 
