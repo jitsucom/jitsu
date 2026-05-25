@@ -393,12 +393,14 @@ async function processStatusChanges(
       if (!channel.events.includes(entity.type) && !channel.events.includes("all")) {
         continue;
       }
-      if (entity.type === "batch") {
-        // Aggregate rows are never delivered through the per-table loop — they're handled below.
-        if (entity.tableName === BATCH_AGGREGATE_TABLE) continue;
-        // For channels that summarize batch notifications by table, skip per-table changes —
-        // those are handled below as one connection-level aggregate.
-        if (entity.tableName && channel.summarizeBatchNotificationsByTable) continue;
+      if (lastStatus.type === "batch") {
+        // Gate on lastStatus.tableName (the actual status-change bucket), not entity.tableName —
+        // the SQL loader overwrites entities[`${actorId}::batch`] with the last-iterated row, so
+        // entity.tableName can carry a real table name even when this bucket is the no-table
+        // (tableName === "") fallback. Skipping on entity here would drop legitimate no-table
+        // notifications for summarize-enabled channels.
+        if (lastStatus.tableName === BATCH_AGGREGATE_TABLE) continue;
+        if (lastStatus.tableName && channel.summarizeBatchNotificationsByTable) continue;
       }
       const cStatuses = [...statuses];
       const chkey = chKey(channel.id, lastStatus.actorId, lastStatus.type, lastStatus.tableName);
