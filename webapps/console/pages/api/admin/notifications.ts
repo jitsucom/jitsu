@@ -556,7 +556,8 @@ function computeBatchConnectionAggregate(
   let totalChangesPerDay = 0;
   const failedTableNames: string[] = [];
   let perTableCount = 0;
-  let firstFailureDescription: string | undefined;
+  let latestFailureTimestamp: Date | undefined;
+  let latestFailureDescription: string | undefined;
   let aggQueueSize = 0;
   for (const ent of Object.values(entities)) {
     if (ent.actorId !== actorId || ent.type !== "batch" || !ent.tableName) continue;
@@ -577,8 +578,11 @@ function computeBatchConnectionAggregate(
       if (ent.startedAt && (!earliestIncidentStart || ent.startedAt < earliestIncidentStart)) {
         earliestIncidentStart = ent.startedAt;
       }
-      if (!firstFailureDescription) {
-        firstFailureDescription = extractDescription(ent as unknown as StatusChange) ?? ent.description ?? undefined;
+      // Pick the latest failure's description so the "Latest error" line in the notification is
+      // genuinely the most recent error, not whichever failed table happens to iterate first.
+      if (ent.timestamp && (!latestFailureTimestamp || ent.timestamp > latestFailureTimestamp)) {
+        latestFailureTimestamp = ent.timestamp;
+        latestFailureDescription = extractDescription(ent as unknown as StatusChange) ?? ent.description ?? undefined;
       }
     }
     aggQueueSize += ent.queueSize || 0;
@@ -597,19 +601,19 @@ function computeBatchConnectionAggregate(
   } else if (succeededCount === 0) {
     aggStatus = "FAILED";
     aggIncidentDetails = `All ${perTableCount} table(s) failed: ${failedTableNames.join(", ")}.\n\nLatest error:\n${
-      firstFailureDescription ?? ""
+      latestFailureDescription ?? ""
     }`;
     aggDescription =
       _J_PREF +
       JSON.stringify({
-        description: firstFailureDescription ?? "",
+        description: latestFailureDescription ?? "",
         incidentDetails: aggIncidentDetails,
       });
   } else {
     aggStatus = "PARTIAL";
     aggStreamsFailed = `${failedCount} of ${perTableCount}`;
     aggIncidentDetails = `${aggStreamsFailed} tables failed: ${failedTableNames.join(", ")}.\n\nLatest error:\n${
-      firstFailureDescription ?? ""
+      latestFailureDescription ?? ""
     }`;
     aggDescription =
       _J_PREF +
@@ -1660,7 +1664,9 @@ function fillNotificationProps(
     entityFrom: entity.fromName,
     entityTo: entity.toName,
     timestamp: lastStatus.timestamp.toISOString(),
-    tableName: entity.tableName,
+    // Hide the connection-level aggregate sentinel from the rendered template — the failed-streams
+    // summary already conveys per-table context for aggregate notifications.
+    tableName: entity.tableName === BATCH_AGGREGATE_TABLE ? undefined : entity.tableName,
     status: lastStatus.status,
     incidentStatus: lastStatus.status,
     incidentStartedAt: lastStatus.startedAt.toISOString(),
