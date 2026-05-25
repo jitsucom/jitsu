@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-	"time"
 
 	"github.com/jitsucom/bulker/jitsubase/utils"
 	v1 "k8s.io/api/core/v1"
