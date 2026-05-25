@@ -394,17 +394,12 @@ func buildSyncPodTemplate(c *Config, pc PodCtx, secretName string) v1.PodTemplat
 		v1.EnvVar{Name: "STARTED_BY", Value: startedBy},
 		taskIDEnv,
 	)
-	// STARTED_AT is intentionally only baked for one-shot manual runs. The
-	// cron Pod template is reused across every future fire — a baked
-	// time.Now() would go stale immediately and downstream consumers
-	// (watchPodStatuses' INIT_TIMEOUT/TIME_EXCEEDED checks, sidecar's
-	// source_task started_at column) would see a wrong timestamp. When
-	// STARTED_AT is unset the sidecar falls back to its own boot time
-	// (sync-sidecar/main.go:113), which equals pod start — exactly the
-	// value we want for cron-fired runs.
-	if !pc.Cron {
-		sidecarEnv = append(sidecarEnv, v1.EnvVar{Name: "STARTED_AT", Value: pc.startedAtOrNow()})
-	}
+	// STARTED_AT is intentionally not set: the env fieldRef API can't reach
+	// pod.status.startTime, and any baked timestamp would either go stale
+	// (cron template is reused) or differ from k8s's own notion of pod start.
+	// The sidecar falls back to its own boot time (sync-sidecar/main.go:113),
+	// which equals pod start. watchPodStatuses derives the same value from
+	// pod.Status.StartTime so INIT_TIMEOUT/TIME_EXCEEDED math is k8s-sourced.
 	if pc.needsLeaseRenewal() {
 		sidecarEnv = append(sidecarEnv, v1.EnvVar{Name: "RENEW_LEASE", Value: "true"})
 	}
@@ -547,15 +542,9 @@ func (c *PodCtx) taskDescriptor() TaskDescriptor {
 		FullSync:        c.FullSync,
 		Debug:           c.Debug,
 		StartedBy:       c.startedByOrDefault(),
-	}
-	// Same rationale as the sidecar STARTED_AT env: only bake StartedAt for
-	// one-shot manual runs. Cron pods leave it empty so watchPodStatuses'
-	// StartedAtTime() falls back to time.Now() per observation (matching the
-	// pre-consolidation cron behavior — the template is reused across all
-	// future fires, so a baked timestamp would falsely trip INIT_TIMEOUT /
-	// TIME_EXCEEDED on fresh pods once the template ages out).
-	if !c.Cron {
-		td.StartedAt = c.startedAtOrNow()
+		// StartedAt intentionally omitted — watchPodStatuses populates it
+		// from pod.Status.StartTime at observation time so the math doesn't
+		// depend on a baked template timestamp.
 	}
 	if c.Entry != nil && td.WorkspaceId == "" {
 		td.WorkspaceId = c.Entry.WorkspaceID
@@ -564,14 +553,6 @@ func (c *PodCtx) taskDescriptor() TaskDescriptor {
 		td.SyncID = c.Entry.ID
 	}
 	return td
-}
-
-// startedAtOrNow returns the StartedAt to stamp into TaskDescriptor
-// annotations and the sidecar's STARTED_AT env. Resolution to seconds is
-// enough — the watcher reads this back to populate source_task.started_at
-// on FAILED rows when nothing else wrote one.
-func (c *PodCtx) startedAtOrNow() string {
-	return time.Now().UTC().Format(time.RFC3339)
 }
 
 // envOrEmpty mirrors job_runner's old createPod which forwarded a few

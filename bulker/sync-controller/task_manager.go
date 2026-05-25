@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -16,22 +17,22 @@ import (
 
 type TaskManager struct {
 	appbase.Service
-	config    *Config
-	jobRunner *JobRunner
-	syncsRepo appbase.Repository[SyncsData]
-	dbpool    *pgxpool.Pool
-	closeCh   chan struct{}
+	config     *Config
+	jobRunner  *JobRunner
+	appContext *Context // syncsRepo is read lazily — it's initialized after NewTaskManager.
+	dbpool     *pgxpool.Pool
+	closeCh    chan struct{}
 }
 
 func NewTaskManager(appContext *Context) (*TaskManager, error) {
 	base := appbase.NewServiceBase("task-manager")
 	t := &TaskManager{
-		Service:   base,
-		config:    appContext.config,
-		jobRunner: appContext.jobRunner,
-		syncsRepo: appContext.syncsRepo,
-		dbpool:    appContext.dbpool,
-		closeCh:   make(chan struct{}),
+		Service:    base,
+		config:     appContext.config,
+		jobRunner:  appContext.jobRunner,
+		appContext: appContext,
+		dbpool:     appContext.dbpool,
+		closeCh:    make(chan struct{}),
 	}
 	safego.RunWithRestart(t.listenTaskStatus)
 	// Retention sweep runs on its own goroutine so it can't back-pressure
@@ -74,10 +75,17 @@ func parseUpdatedAtQuery(c *gin.Context) time.Time {
 // resolveSyncEntry waits for the repository to contain a SyncEntry with
 // UpdatedAt >= minUpdatedAt. The 30s ceiling matches the longest poll cycle
 // we'd reasonably tolerate before deciding the console-side updatedAt is wrong.
+//
+// syncsRepo is read lazily via the captured *Context — InitContext creates
+// the TaskManager before wiring the repository up.
 func (t *TaskManager) resolveSyncEntry(c *gin.Context, syncID string) (*SyncEntry, error) {
+	repo := t.appContext.syncsRepo
+	if repo == nil {
+		return nil, fmt.Errorf("syncs repository not configured (REPOSITORY_BASE_URL unset); sync-bound /read and /discover require it")
+	}
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
 	defer cancel()
-	return WaitForSyncEntry(ctx, t.syncsRepo, syncID, parseUpdatedAtQuery(c))
+	return WaitForSyncEntry(ctx, repo, syncID, parseUpdatedAtQuery(c))
 }
 
 // SpecHandler handles GET /spec?package=X&version=Y. No body.

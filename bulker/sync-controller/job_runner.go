@@ -100,6 +100,13 @@ func (j *JobRunner) watchPodStatuses() {
 				if taskStatus.TaskID == "" {
 					taskStatus.TaskID = pod.Name
 				}
+				// Source-of-truth StartedAt: k8s's pod.Status.StartTime is the
+				// kubelet-observed pod-start moment. Always prefer it over any
+				// annotation (which is either unset or stale for cron templates
+				// reused across many fires).
+				if pod.Status.StartTime != nil {
+					taskStatus.StartedAt = pod.Status.StartTime.UTC().Format(time.RFC3339)
+				}
 				if taskStatus.TaskType == "read" {
 					activeSyncs.Put(taskStatus.SyncID)
 				}
