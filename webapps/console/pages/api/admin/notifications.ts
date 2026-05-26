@@ -530,12 +530,13 @@ async function processStatusChanges(
     // the actors CTE. A null timestamp on that entry means no prior aggregate row exists.
     const latestAggEnt = entities[key(actorId, BATCH_AGGREGATE_TYPE)];
     const hadPriorAggRow = !!latestAggEnt?.timestamp;
-    let currentAggRow: { id: bigint; status: string; startedAt: Date } | null =
+    let currentAggRow: { id: bigint; status: string; startedAt: Date; description: string | null } | null =
       hadPriorAggRow && latestAggEnt
         ? {
             id: BigInt(latestAggEnt.id),
             status: latestAggEnt.status,
             startedAt: latestAggEnt.startedAt,
+            description: latestAggEnt.description ?? null,
           }
         : null;
     let aggChangesPerHours = latestAggEnt?.changesPerHours || 0;
@@ -545,7 +546,25 @@ async function processStatusChanges(
     // notification state is upserted separately by processNotification.
     const aggregateTransitionedGlobally = !hadPriorAggRow || currentAggRow!.status !== view.aggStatus;
     if (!dryRun && aggregateTransitionedGlobally) {
-      const aggRowStartedAt = view.aggStatus === "SUCCESS" ? view.aggTimestamp : view.aggStartedAt;
+      // startedAt MUST be the transition time so the loader SQL's status_changes CTE (which sums
+      // by startedAt within the flapping window) correctly counts aggregate transitions. Carrying
+      // the earlier "incident started at" through startedAt would break the flapping count for
+      // long-running incidents that keep switching PARTIAL ↔ FAILED.
+      const aggRowStartedAt = view.aggTimestamp;
+      // For non-SUCCESS rows, carry the original incident-start timestamp inside the description
+      // JSON: inherit from prev row if it was also non-SUCCESS (incident is ongoing), otherwise
+      // this row marks the start of a fresh incident.
+      let incidentStartedAt: string | undefined;
+      if (view.aggStatus !== "SUCCESS") {
+        const prevWasNonSuccess = hadPriorAggRow && latestAggEnt!.status !== "SUCCESS";
+        if (prevWasNonSuccess) {
+          const prevPayload = parseJsonDescription(latestAggEnt!.description);
+          incidentStartedAt = prevPayload?.incidentStartedAt ?? latestAggEnt!.startedAt?.toISOString();
+        } else {
+          incidentStartedAt = view.aggStartedAt.toISOString();
+        }
+      }
+      const persistedDescription = withIncidentStartedAt(view.aggDescription || "", incidentStartedAt);
       const row = await db.prisma().statusChange.create({
         data: {
           workspaceId: view.workspaceId,
@@ -555,12 +574,17 @@ async function processStatusChanges(
           timestamp: view.aggTimestamp,
           startedAt: aggRowStartedAt,
           status: view.aggStatus,
-          description: view.aggDescription || "",
+          description: persistedDescription,
           counts: hadPriorAggRow ? 1 : 0,
           queueSize: view.aggQueueSize,
         },
       });
-      currentAggRow = { id: row.id, status: row.status, startedAt: row.startedAt };
+      currentAggRow = {
+        id: row.id,
+        status: row.status,
+        startedAt: row.startedAt,
+        description: persistedDescription,
+      };
       aggChangesPerHours += 1;
     }
 
@@ -730,7 +754,7 @@ async function processBatchAggregateNotification(
   channel: NotificationChannel,
   channelStates: Record<string, NotificationState>,
   view: BatchConnectionAggregate,
-  currentAggRow: { id: bigint; status: string; startedAt: Date } | null,
+  currentAggRow: { id: bigint; status: string; startedAt: Date; description: string | null } | null,
   aggChangesPerHours: number,
   publicEndpoints: PublicEndpoint,
   dryRun: boolean
@@ -742,18 +766,26 @@ async function processBatchAggregateNotification(
 
   // Look up the aggregate row that this channel last notified on. Each channel's state may point
   // to a row older than currentAggRow (other channels see transitions independently). prevRow.status
-  // tells us the previous aggregate status this channel was told about; prevRow.startedAt is the
-  // start of that previous aggregate state — what RECOVERED uses for incidentStartedAt.
-  let prevRow: { id: bigint; status: string; startedAt: Date } | null = null;
+  // tells us the previous aggregate status this channel was told about. The original incident
+  // start is carried inside prevRow.description (set when the row was persisted) — see
+  // withIncidentStartedAt — so RECOVERED's incidentStartedAt remains the start of the original
+  // incident even after mid-incident PARTIAL ↔ FAILED transitions changed prevRow.startedAt.
+  let prevRow: { id: bigint; status: string; startedAt: Date; description: string | null } | null = null;
   if (state) {
     try {
       const row = await db.prisma().statusChange.findUnique({ where: { id: state.statusChangeId } });
-      if (row) prevRow = { id: row.id, status: row.status, startedAt: row.startedAt };
+      if (row)
+        prevRow = { id: row.id, status: row.status, startedAt: row.startedAt, description: row.description ?? null };
     } catch (e: any) {
       log.atWarn().log(`Failed to load previous statusChange ${state.statusChangeId}: ${e?.message}`);
     }
   }
   const prevStatus = prevRow?.status;
+  const prevIncidentStartedAt = (() => {
+    const payload = parseJsonDescription(prevRow?.description);
+    if (payload?.incidentStartedAt) return new Date(payload.incidentStartedAt);
+    return prevRow?.startedAt;
+  })();
   const transitioned = !state || (prevStatus !== undefined && prevStatus !== view.aggStatus);
 
   let doNotify = false;
@@ -816,22 +848,20 @@ async function processBatchAggregateNotification(
 
   if (!doNotify) return;
 
-  // The aggregate row's startedAt represents when the current aggregate status began. On a transition
-  // into a failure, that's the earliest per-table failure timestamp. On a transition into SUCCESS,
-  // it's now. Without a transition, preserve the previous row's startedAt so an ongoing incident keeps
-  // its original start time even when individual failing tables churn (one recovers, another fails).
-  const aggRowStartedAt =
-    !state || transitioned
-      ? view.aggStatus === "SUCCESS"
-        ? view.aggTimestamp
-        : view.aggStartedAt
-      : prevRow?.startedAt ?? view.aggStartedAt;
-
-  // Incident start for the rendered notification. For RECOVERED, show when the incident began
-  // (prev row's startedAt — before the recovery transition). For all other render statuses, use
-  // aggRowStartedAt, which preserves the original incident start across non-transition recurring
-  // alerts.
-  const incidentStartedAt = renderStatus === "RECOVERED" && prevRow?.startedAt ? prevRow.startedAt : aggRowStartedAt;
+  // Incident start for the rendered notification. RECOVERED reports when the original incident
+  // began (from prevRow's description payload, which we set via withIncidentStartedAt). All other
+  // render statuses use the incident-start carried in this row's description, falling back to
+  // view.aggStartedAt for the first non-success notification of an incident.
+  const currentIncidentStartedAt = (() => {
+    const payload = parseJsonDescription(currentAggRow?.description);
+    if (payload?.incidentStartedAt) return new Date(payload.incidentStartedAt);
+    return view.aggStartedAt;
+  })();
+  const incidentStartedAt =
+    renderStatus === "RECOVERED" && prevIncidentStartedAt ? prevIncidentStartedAt : currentIncidentStartedAt;
+  // For the synthetic StatusChange we hand to processNotification, mirror the persisted row's
+  // startedAt (= transition time) since processNotification doesn't actually consume it.
+  const aggRowStartedAt = currentAggRow?.startedAt ?? view.aggTimestamp;
 
   let description: string;
   if (renderStatus === "FIRST_RUN") {
@@ -1808,6 +1838,26 @@ function extractDescription(statusChange: StatusChange): string | null | undefin
     } catch (e) {}
   }
   return statusChange.description;
+}
+
+// Parse the _J_PREF-prefixed JSON payload from a description, if any. Returns the parsed object
+// or undefined if the description is not prefixed or fails to parse.
+function parseJsonDescription(description: string | null | undefined): any | undefined {
+  if (!description || !description.startsWith(_J_PREF)) return undefined;
+  try {
+    return JSON.parse(description.substring(_J_PREF.length));
+  } catch (e) {
+    return undefined;
+  }
+}
+
+// Insert/overwrite incidentStartedAt inside a _J_PREF-prefixed description JSON payload. Used to
+// carry the original incident-start timestamp on persisted aggregate rows so RECOVERED can report
+// the true incident start even across mid-incident PARTIAL ↔ FAILED transitions.
+function withIncidentStartedAt(description: string, incidentStartedAt: string | undefined): string {
+  if (!incidentStartedAt) return description;
+  const payload = parseJsonDescription(description) ?? {};
+  return _J_PREF + JSON.stringify({ ...payload, incidentStartedAt });
 }
 
 export const config = {
