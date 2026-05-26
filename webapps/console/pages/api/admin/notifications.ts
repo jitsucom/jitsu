@@ -181,7 +181,7 @@ export default createRoute()
                       from (select id,
                                    case
                                      when type = 'sync' then array ['sync']
-                                     when (type = 'push' and data ->> 'mode' = 'batch') then array ['batch','dead']
+                                     when (type = 'push' and data ->> 'mode' = 'batch') then array ['batch','dead','batch_aggregate']
                                      else array ['dead']
                                      end type,
                                    "workspaceId",
@@ -521,35 +521,29 @@ async function processStatusChanges(
       batchActorIdsWithChanges.add(change.actorId);
     }
   }
-  const flappingWindowStart = new Date(Date.now() - flappingWindowHours * 60 * 60 * 1000);
   for (const actorId of batchActorIdsWithChanges) {
     const view = computeBatchConnectionAggregate(entities, actorId);
     if (!view) continue;
 
-    // Look up the most recent connection-level aggregate row for this actor (these rows are
-    // shared across all channels — they reflect the global aggregate state at a point in time).
-    const latestAggRow = await db.prisma().statusChange.findFirst({
-      where: { actorId, type: BATCH_AGGREGATE_TYPE },
-      orderBy: { id: "desc" },
-      select: { id: true, status: true, startedAt: true },
-    });
-
-    // Count aggregate transitions in the flapping window — the signal used to detect aggregate
-    // FLAPPING (mirrors the per-table changesPerHours semantic, but for the connection's aggregate
-    // status). One count() per actor with new changes; we then maybe write a new aggregate row.
-    let aggChangesPerHours = await db.prisma().statusChange.count({
-      where: {
-        actorId,
-        type: BATCH_AGGREGATE_TYPE,
-        startedAt: { gt: flappingWindowStart },
-      },
-    });
+    // The loader SQL surfaces the previous aggregate row (and its changesPerHours in the flapping
+    // window) under entities[key(actorId, BATCH_AGGREGATE_TYPE)] via the 'batch_aggregate' arm of
+    // the actors CTE. A null timestamp on that entry means no prior aggregate row exists.
+    const latestAggEnt = entities[key(actorId, BATCH_AGGREGATE_TYPE)];
+    const hadPriorAggRow = !!latestAggEnt?.timestamp;
+    let currentAggRow: { id: bigint; status: string; startedAt: Date } | null =
+      hadPriorAggRow && latestAggEnt
+        ? {
+            id: BigInt(latestAggEnt.id),
+            status: latestAggEnt.status,
+            startedAt: latestAggEnt.startedAt,
+          }
+        : null;
+    let aggChangesPerHours = latestAggEnt?.changesPerHours || 0;
 
     // If the aggregate transitioned globally (vs the latest aggregate row, not per-channel state),
     // persist a single new row so future runs read the prev aggregate accurately. Channel-level
     // notification state is upserted separately by processNotification.
-    const aggregateTransitionedGlobally = !latestAggRow || latestAggRow.status !== view.aggStatus;
-    let currentAggRow: { id: bigint; status: string; startedAt: Date } | null = latestAggRow;
+    const aggregateTransitionedGlobally = !hadPriorAggRow || currentAggRow!.status !== view.aggStatus;
     if (!dryRun && aggregateTransitionedGlobally) {
       const aggRowStartedAt = view.aggStatus === "SUCCESS" ? view.aggTimestamp : view.aggStartedAt;
       const row = await db.prisma().statusChange.create({
@@ -562,7 +556,7 @@ async function processStatusChanges(
           startedAt: aggRowStartedAt,
           status: view.aggStatus,
           description: view.aggDescription || "",
-          counts: latestAggRow ? 1 : 0,
+          counts: hadPriorAggRow ? 1 : 0,
           queueSize: view.aggQueueSize,
         },
       });
