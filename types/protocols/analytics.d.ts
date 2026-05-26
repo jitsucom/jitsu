@@ -341,6 +341,10 @@ export type JitsuOptions = {
    */
   writeKey?: string;
   /**
+   * Initial User ID to automatically identify the user on SDK initialization.
+   */
+  userId?: string;
+  /**
    * API Host. Default value: same host as script origin
    */
   host?: string;

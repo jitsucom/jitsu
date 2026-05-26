@@ -106,6 +106,9 @@ function createUnderlyingAnalyticsInstance(
     },
   });
   const storage = cachingStorageWrapper(rt.store?.() || createInMemoryStorage(opts.debug));
+  if (opts.userId && !opts.privacy?.disableUserIds && !opts.privacy?.dontSend) {
+    storage.setItem("__user_id", opts.userId);
+  }
 
   const analytics = Analytics({
     debug: !!opts.debug,
@@ -168,6 +171,13 @@ function createUnderlyingAnalyticsInstance(
       }
       return opts.defaultPayloadContext?.[name];
     },
+    user() {
+      const u = analytics.user();
+      if (u && !u.id && opts.userId) {
+        u.id = opts.userId;
+      }
+      return u;
+    },
     setAnonymousId: (id: string) => {
       if (opts.debug) {
         console.log("[JITSU DEBUG] Setting anonymous id to " + id);
@@ -227,6 +237,8 @@ function createUnderlyingAnalyticsInstance(
   } as AnalyticsInterface;
   if (opts.privacy?.disableUserIds || opts.privacy?.dontSend) {
     storage.reset();
+  } else if (opts.userId) {
+    a.identify(opts.userId);
   }
   return a;
 }

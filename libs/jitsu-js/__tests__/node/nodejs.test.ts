@@ -339,6 +339,33 @@ describe("Test Jitsu NodeJS client", () => {
     expect(emailOpenPayload.userId).toBe("myUserId");
   });
 
+  test("test auto-identification on init", async () => {
+    const config = {
+      host: server.baseUrl,
+      writeKey: "key:secret",
+      debug: true,
+      userId: "autoIdentifiedUser123",
+    };
+    console.log("[JITSU TEST] Initializing Jitsu with auto-userId");
+    const client = jitsuAnalytics(config);
+
+    // 1. Should be returned by getConfiguration()
+    expect(client.getConfiguration().userId).toBe("autoIdentifiedUser123");
+
+    // 2. Should automatically be populated in user state
+    expect(client.user().id).toBe("autoIdentifiedUser123");
+
+    // 3. Track events should automatically include this userId
+    await client.track("autoIdentifiedEvent");
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    expect(requestLog.length).toBe(2);
+    expect(requestLog[0].type).toBe("identify");
+    expect(requestLog[0].body.userId).toBe("autoIdentifiedUser123");
+    expect(requestLog[1].type).toBe("track");
+    expect(requestLog[1].body.userId).toBe("autoIdentifiedUser123");
+  });
+
   test("tld", async () => {
     expect(getTopLevelDomain("www.google.com")).toBe("google.com");
     expect(getTopLevelDomain("www.trendstyle.com.au")).toBe("trendstyle.com.au");
