@@ -1321,6 +1321,7 @@ const metaBlock = (props: {
   incidentStatus?: string;
   recoveredFrom?: string;
   queueSize?: number;
+  entityType?: string;
 }) => {
   const textArray: string[] = [];
   if (props.tableName) {
@@ -1333,7 +1334,7 @@ const metaBlock = (props: {
     textArray.push(`Incident status: ${props.incidentStatus}`);
   }
   if (props.streamsFailed) {
-    textArray.push(`Streams Failed: ${props.streamsFailed}`);
+    textArray.push(`${props.entityType === "batch" ? "Tables" : "Streams"} Failed: ${props.streamsFailed}`);
   }
   if (
     props.incidentStartedAt &&
@@ -1409,7 +1410,9 @@ const ConnectionStatusOngoingSlack: SlackTemplate = {
     `The job was triggered in *<${props.baseUrl}/${props.workspaceSlug}|${props.workspaceName}>* workspace from *${props.entityFrom}* to *${props.entityTo}*`,
   ],
   metaBlock: props =>
-    metaBlock(pick(props, "tableName", "incidentStatus", "incidentStartedAt", "queueSize", "streamsFailed")),
+    metaBlock(
+      pick(props, "tableName", "incidentStatus", "incidentStartedAt", "queueSize", "streamsFailed", "entityType")
+    ),
   footer: props =>
     props.recurringAlertsPeriodHours
       ? `No additional reports will be sent for this connection in ${props.recurringAlertsPeriodHours} hours unless the status changes.`
@@ -1437,13 +1440,13 @@ const ConnectionStatusRecoveredSlack: SlackTemplate = {
 
 const ConnectionStatusPartialSlack: SlackTemplate = {
   text: props => `:large_yellow_circle: ${jobName(props)} *PARTIAL* ${props.entityName} [${props.workspaceName}]`,
-  header: props => `:large_yellow_circle: ${jobName(props)} partial success`,
+  header: props => `:large_yellow_circle: ${jobName(props)} partial failure`,
   description: props => [
-    `Jitsu ${jobName(props)} had *partial* success :persevere:.`,
+    `Jitsu ${jobName(props)} *partially failed* :persevere:.`,
     ``,
     `The job was triggered in *<${props.baseUrl}/${props.workspaceSlug}|${props.workspaceName}>* workspace from *${props.entityFrom}* to *${props.entityTo}*`,
   ],
-  metaBlock: props => metaBlock(pick(props, "streamsFailed", "incidentStatus", "incidentStartedAt")),
+  metaBlock: props => metaBlock(pick(props, "streamsFailed", "incidentStatus", "incidentStartedAt", "entityType")),
   footer: props =>
     props.recurringAlertsPeriodHours
       ? `No additional reports will be sent for this connection in ${props.recurringAlertsPeriodHours} hours unless the status changes.`

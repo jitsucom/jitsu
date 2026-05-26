@@ -52,6 +52,7 @@ export const ConnectionStatusOngoingEmail: EmailTemplate<ConnectionStatusNotific
             <b>{entityTo}</b> in the <b>{workspaceName}</b>
           </Text>
           <MetaList
+            entityType={entityType}
             tableName={tableName}
             streamsFailed={streamsFailed}
             incidentStatus={incidentStatus}
