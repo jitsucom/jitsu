@@ -293,6 +293,10 @@ model source_task {
 
   @@index(sync_id)
   @@index(started_at)
+  // Backs syncctl's CleanupTaskLogs retention sweep
+  // (bulker/sync-sidecar/db/db.go). Lets the per-sync window function be
+  // index-only — without this the hourly DELETE scans the whole table.
+  @@index([sync_id, started_at(sort: Desc)])
 }
 
 model task_log {

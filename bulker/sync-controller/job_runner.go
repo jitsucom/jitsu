@@ -261,7 +261,6 @@ func (j *JobRunner) accumulateErrorLogs(podName string, taskType string, status 
 	for _, s := range statuses {
 		state := s.State
 		if state.Terminated != nil && state.Terminated.ExitCode != 0 {
-			sourceFailed = true
 			if s.Name == "source" && taskType == "read" {
 				// Read-mode source failures are surfaced by the sidecar
 				// itself (it owns the stdout/stderr pipes and may have
@@ -269,6 +268,7 @@ func (j *JobRunner) accumulateErrorLogs(podName string, taskType string, status 
 				// double-report here.
 				continue
 			}
+			sourceFailed = true
 			// Pull logs from the actually-failing container — historically
 			// this was hardcoded to "source", which silently swallowed init
 			// container stderr (e.g. discover's bad-SSL-PEM crash) and

@@ -62,6 +62,21 @@ type Config struct {
 	JobActiveDeadlineSeconds int32 `mapstructure:"JOB_ACTIVE_DEADLINE_SECONDS" default:"180000"`
 	JobBackoffLimit          int32 `mapstructure:"JOB_BACKOFF_LIMIT" default:"0"`
 
+	// JitterMaxSeconds caps the deterministic sub-minute sleep at the start
+	// of the autonomous sync admission init. Set to 0 to disable jitter
+	// (all syncs sharing the same schedule fire at the same instant).
+	// Value is passed through to the admission init via JITTER_MAX_SECONDS
+	// env so it's visible in the rendered Pod spec.
+	JitterMaxSeconds int32 `mapstructure:"JITTER_MAX_SECONDS" default:"60"`
+
+	// # source_task retention (hourly sweep in task_manager)
+	// Replace the previous console-side env knobs (SYNC_TASK_LOG_SIZE /
+	// SYNC_TASK_LOG_AGE in webapps/console/lib/server/serverEnv.ts) since
+	// the autonomous CronJob path no longer routes through the console
+	// endpoint that used to drive retention.
+	TaskLogKeepPerSync int   `mapstructure:"SYNC_TASK_LOG_SIZE" default:"3000"`
+	TaskLogMaxAgeDays  int32 `mapstructure:"SYNC_TASK_LOG_AGE" default:"60"`
+
 	// # Nango (OAuth refresh in autonomous sync Pods)
 	// The oauth-refresh init container needs these to fetch fresh tokens
 	// from Nango at run time. When unset, OAuth-using syncs proceed with

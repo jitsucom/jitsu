@@ -49,6 +49,48 @@ ON CONFLICT ON CONSTRAINT source_check_pkey DO NOTHING`
 	insertIntoTaskLog = `INSERT INTO task_log (id, level, logger, message, sync_id, task_id, timestamp) VALUES ($1, $2, $3, $4, $5, $6, $7)`
 
 	closeStaleTasksSQL = `UPDATE source_task SET status = 'FAILED', error = 'The sync task was interrupted unexpectedly. Please contact support@jitsu.com' WHERE status = 'RUNNING' AND updated_at < $1`
+
+	// cleanupTaskLogsSQL deletes rows from source_task per sync_id retention.
+	// Semantics match the per-sync logic that used to live in
+	// webapps/console/lib/server/sync.ts cleanupTasksLogs (run on every
+	// /sources/run hit): keep at least the newest $1 rows per sync, AND keep
+	// anything younger than now() - $2 seconds; delete only rows that fail
+	// BOTH conditions.
+	//   $1 - number of rows to keep per sync (e.g. 3000)
+	//   $2 - retention age in seconds   (e.g. 60 * 86400 = 60 days)
+	//
+	// Uses ROW_NUMBER() in a CTE so we only rank up to $1+1 rows per sync.
+	// Requires index (sync_id, started_at DESC) on source_task for the
+	// window function to be index-only; otherwise this scans the whole
+	// table every tick.
+	cleanupTaskLogsSQL = `
+WITH ranked AS (
+    SELECT
+        task_id, sync_id, started_at,
+        ROW_NUMBER() OVER (PARTITION BY sync_id ORDER BY started_at DESC) AS rn
+    FROM source_task
+),
+cutoffs AS (
+    SELECT
+        sync_id,
+        MAX(CASE WHEN rn = $1 + 1 THEN started_at END) AS nth_started_at
+    FROM ranked
+    WHERE rn <= $1 + 1
+    GROUP BY sync_id
+)
+DELETE FROM source_task t
+USING cutoffs c
+WHERE t.sync_id    = c.sync_id
+  -- Skip syncs that have <= keepPerSync rows total. The (rn = $1 + 1)
+  -- row doesn't exist for them, so MAX returns NULL. Legacy semantics
+  -- (OFFSET keepPerSync LIMIT 1 returning no row → NULL cutoff →
+  -- comparison evaluates FALSE) kept all their rows regardless of age;
+  -- preserve that here by short-circuiting before GREATEST sees NULL.
+  AND c.nth_started_at IS NOT NULL
+  AND t.started_at < GREATEST(
+      c.nth_started_at,
+      now() - make_interval(secs => $2)
+  )`
 )
 
 func UpsertSpec(dbpool *pgxpool.Pool, packageName, packageVersion, specs any, timestamp time.Time, error string) error {
@@ -129,4 +171,19 @@ func InsertTaskLog(dbpool *pgxpool.Pool, id, level, logger, message, syncId, tas
 func CloseStaleTasks(dbpool *pgxpool.Pool, timestamp time.Time) error {
 	_, err := dbpool.Exec(context.Background(), closeStaleTasksSQL, timestamp)
 	return err
+}
+
+// CleanupTaskLogs prunes source_task per-sync retention. See cleanupTaskLogsSQL.
+//
+//	keepPerSync - newest N rows per sync that are always kept (e.g. 3000)
+//	maxAge      - rows older than now() - maxAge are deleted, except as
+//	              preserved by the keepPerSync floor
+//
+// Returns rows deleted.
+func CleanupTaskLogs(dbpool *pgxpool.Pool, keepPerSync int, maxAge time.Duration) (int64, error) {
+	tag, err := dbpool.Exec(context.Background(), cleanupTaskLogsSQL, keepPerSync, int64(maxAge.Seconds()))
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
 }

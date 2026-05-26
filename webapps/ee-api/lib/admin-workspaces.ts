@@ -14,6 +14,7 @@ import {
   stripeDataTable,
   stripeLink,
 } from "./stripe";
+import { getAppBaseUrl } from "./app-urls";
 import {
   fetchOverageInvoiceInfos,
   loadOverageInvoiceRows,
@@ -861,7 +862,7 @@ export async function buildAdminWorkspaces(
     rows,
     statCacheUpdatedAt: statCacheUpdatedAt ? statCacheUpdatedAt.toISOString() : null,
     generatedAt: now.toISOString(),
-    appBaseUrl: (process.env.JITSU_APPLICATION_URL || "https://use.jitsu.com").replace(/\/$/, ""),
+    appBaseUrl: getAppBaseUrl(),
     freePlanEventsQuota: FREE_PLAN_EVENTS_QUOTA,
   };
 }
