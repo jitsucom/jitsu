@@ -555,6 +555,10 @@ type BatchConnectionAggregate = {
   aggQueueSize: number;
   changesPerHours: number;
   changesPerDay: number;
+  // True iff this connection has ever had a per-table StatusChange row before this run.
+  // Distinguishes a genuinely brand-new connection (worth a FIRST_RUN aggregate notification)
+  // from an existing healthy connection being seen on a new aggregate channel for the first time.
+  hasPriorHistory: boolean;
 };
 
 function computeBatchConnectionAggregate(
@@ -666,6 +670,11 @@ function computeBatchConnectionAggregate(
     aggQueueSize,
     changesPerHours: totalChangesPerHours,
     changesPerDay: totalChangesPerDay,
+    // The no-tableName entity is written only by the initial SQL loader (loadBatchStatusesChanges
+    // only mutates per-tableName keys for events with a parseable table name, which is the only
+    // case that reaches this aggregate path). A non-null timestamp there means the loader's left
+    // join to last_statuses matched at least one prior row — i.e. this connection has history.
+    hasPriorHistory: !!entities[key(actorId, "batch")]?.timestamp,
   };
 }
 
@@ -700,15 +709,14 @@ async function processBatchAggregateNotification(
   let doNotify = false;
   let renderStatus: string = view.aggStatus;
   if (!state) {
-    // No prior aggregate state for this channel + connection. We can't tell from this alone
-    // whether it's a brand-new connection or an existing healthy one we're seeing for the first
-    // time under summarize-by-table — and channels default to summarize=true, so on rollout every
-    // long-running healthy batch connection would otherwise emit a one-off FIRST_RUN success
-    // alert. Suppress that case and notify only when current state is actually a failure;
-    // subsequent transitions (failure → recovery) will still notify normally because the failure
-    // notification writes state.
     if (view.aggStatus !== "SUCCESS") {
       doNotify = true;
+    } else if (!view.hasPriorHistory) {
+      // Genuinely brand-new connection — emit FIRST_RUN. (For existing healthy connections being
+      // seen for the first time on this aggregate channel, view.hasPriorHistory is true and we
+      // stay silent to avoid a one-off rollout noise spike.)
+      doNotify = true;
+      renderStatus = "FIRST_RUN";
     }
   } else if (transitioned) {
     doNotify = true;
