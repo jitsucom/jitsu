@@ -555,6 +555,13 @@ type BatchConnectionAggregate = {
   aggQueueSize: number;
   changesPerHours: number;
   changesPerDay: number;
+  // MAX per-table changesPerHours across all tables of this connection. Used as the aggregate
+  // flapping signal: if any single table flaps above the threshold, the connection-level aggregate
+  // status oscillates too, so we mirror the per-table FLAPPING throttle. (We use MAX rather than
+  // SUM so a stable connection with many tables doesn't trip the threshold from steady transitions
+  // across different tables; the trade-off is that "collective" flap — many tables each below the
+  // threshold but together oscillating — is not detected.)
+  maxTableChangesPerHours: number;
   // True iff this connection has ever had a per-table StatusChange row before this run.
   // Distinguishes a genuinely brand-new connection (worth a FIRST_RUN aggregate notification)
   // from an existing healthy connection being seen on a new aggregate channel for the first time.
@@ -575,6 +582,7 @@ function computeBatchConnectionAggregate(
   let earliestIncidentStart: Date | undefined;
   let totalChangesPerHours = 0;
   let totalChangesPerDay = 0;
+  let maxTableChangesPerHours = 0;
   const failedTableNames: string[] = [];
   let perTableCount = 0;
   let latestFailureTimestamp: Date | undefined;
@@ -600,6 +608,9 @@ function computeBatchConnectionAggregate(
     }
     totalChangesPerHours += ent.changesPerHours || 0;
     totalChangesPerDay += ent.changesPerDay || 0;
+    if ((ent.changesPerHours || 0) > maxTableChangesPerHours) {
+      maxTableChangesPerHours = ent.changesPerHours || 0;
+    }
     if (ent.status !== "SUCCESS") {
       failedTableNames.push(ent.tableName!);
       if (ent.startedAt && (!earliestIncidentStart || ent.startedAt < earliestIncidentStart)) {
@@ -670,6 +681,7 @@ function computeBatchConnectionAggregate(
     aggQueueSize,
     changesPerHours: totalChangesPerHours,
     changesPerDay: totalChangesPerDay,
+    maxTableChangesPerHours,
     // The no-tableName entity is written only by the initial SQL loader (loadBatchStatusesChanges
     // only mutates per-tableName keys for events with a parseable table name, which is the only
     // case that reaches this aggregate path). A non-null timestamp there means the loader's left
@@ -708,30 +720,66 @@ async function processBatchAggregateNotification(
 
   let doNotify = false;
   let renderStatus: string = view.aggStatus;
-  if (!state) {
-    if (view.aggStatus !== "SUCCESS") {
+  // Mirror the per-table FLAPPING throttle at the aggregate level using MAX(per-table changesPerHours)
+  // as the signal: if any single table is flapping above the threshold, the aggregate is too.
+  if (!state?.flappingSince) {
+    if (view.maxTableChangesPerHours > flappingThreshold) {
+      log
+        .atInfo()
+        .log(`[${chkey}] Aggregate flapping started — max per-table changes/h: ${view.maxTableChangesPerHours}`);
+      renderStatus = "FLAPPING";
       doNotify = true;
-    } else if (!view.hasPriorHistory) {
-      // Genuinely brand-new connection — emit FIRST_RUN. (For existing healthy connections being
-      // seen for the first time on this aggregate channel, view.hasPriorHistory is true and we
-      // stay silent to avoid a one-off rollout noise spike.)
+    } else if (!state) {
+      if (view.aggStatus !== "SUCCESS") {
+        doNotify = true;
+      } else if (!view.hasPriorHistory) {
+        // Genuinely brand-new connection — emit FIRST_RUN. (For existing healthy connections being
+        // seen for the first time on this aggregate channel, view.hasPriorHistory is true and we
+        // stay silent to avoid a one-off rollout noise spike.)
+        doNotify = true;
+        renderStatus = "FIRST_RUN";
+      }
+    } else if (transitioned) {
       doNotify = true;
-      renderStatus = "FIRST_RUN";
+      if (view.aggStatus === "SUCCESS") {
+        if (prevStatus && prevStatus !== "SUCCESS") {
+          renderStatus = "RECOVERED";
+        } else {
+          // Current is SUCCESS but we can't confirm the previous aggregate was a failure (e.g. prev
+          // row missing). Don't emit a confusing SUCCESS notification with no incident context.
+          doNotify = false;
+        }
+      }
+    } else if (view.aggStatus !== "SUCCESS" && view.aggTimestamp.getTime() > sendRecurringTime) {
+      doNotify = true;
+      renderStatus = "ONGOING";
     }
-  } else if (transitioned) {
+  } else if (!view.maxTableChangesPerHours) {
+    // Aggregate flapping ended — no per-table transitions in the window. Notify so users know the
+    // throttle is over; render as RECOVERED iff we're back to SUCCESS, otherwise as current status.
+    log.atInfo().log(`[${chkey}] Aggregate flapping ended since ${state.flappingSince?.toISOString()}`);
     doNotify = true;
     if (view.aggStatus === "SUCCESS") {
-      if (prevStatus && prevStatus !== "SUCCESS") {
-        renderStatus = "RECOVERED";
-      } else {
-        // Current is SUCCESS but we can't confirm the previous aggregate was a failure (e.g. prev
-        // row missing). Don't emit a confusing SUCCESS notification with no incident context.
-        doNotify = false;
-      }
+      renderStatus = "RECOVERED";
     }
-  } else if (view.aggStatus !== "SUCCESS" && view.aggTimestamp.getTime() > sendRecurringTime) {
+  } else if (view.aggTimestamp.getTime() > sendRecurringTime) {
+    log
+      .atInfo()
+      .log(
+        `[${chkey}] Aggregate flapping recurring since ${state.flappingSince?.toISOString()} — max per-table changes/h: ${
+          view.maxTableChangesPerHours
+        }`
+      );
+    renderStatus = "FLAPPING";
     doNotify = true;
-    renderStatus = "ONGOING";
+  } else {
+    log
+      .atInfo()
+      .log(
+        `[${chkey}] Aggregate flapping ongoing since ${state.flappingSince?.toISOString()} — max per-table changes/h: ${
+          view.maxTableChangesPerHours
+        }`
+      );
   }
 
   if (!doNotify) return;
@@ -776,6 +824,19 @@ async function processBatchAggregateNotification(
         incidentStatus: view.aggStatus,
         incidentStartedAt: incidentStartedAt.toISOString(),
       });
+  } else if (renderStatus === "FLAPPING") {
+    description =
+      _J_PREF +
+      JSON.stringify({
+        status: "FLAPPING",
+        description: `${view.maxTableChangesPerHours} transitions on a single table within a ${flappingWindowHours}-hours window`,
+        changesPerHours: view.maxTableChangesPerHours,
+        flappingWindowHours,
+        flappingSince: state?.flappingSince ?? undefined,
+        streamsFailed: view.aggStreamsFailed,
+        incidentDetails: view.aggIncidentDetails,
+        incidentStatus: view.aggStatus,
+      });
   } else {
     description = view.aggDescription;
   }
@@ -815,7 +876,11 @@ async function processBatchAggregateNotification(
     tableName: "",
     timestamp: view.aggTimestamp,
     startedAt: aggRowStartedAt,
-    status: view.aggStatus,
+    // Override status to "FLAPPING" for the rendered notification so processNotification picks the
+    // FLAPPING template and writes state.flappingSince (its own logic keys on lastStatus.status).
+    // The persisted aggregate row still uses view.aggStatus (the real underlying state) — see
+    // the prisma.statusChange.create above.
+    status: renderStatus === "FLAPPING" ? "FLAPPING" : view.aggStatus,
     description,
     counts: 1,
     queueSize: view.aggQueueSize,
