@@ -521,14 +521,68 @@ async function processStatusChanges(
       batchActorIdsWithChanges.add(change.actorId);
     }
   }
+  const flappingWindowStart = new Date(Date.now() - flappingWindowHours * 60 * 60 * 1000);
   for (const actorId of batchActorIdsWithChanges) {
     const view = computeBatchConnectionAggregate(entities, actorId);
     if (!view) continue;
+
+    // Look up the most recent connection-level aggregate row for this actor (these rows are
+    // shared across all channels — they reflect the global aggregate state at a point in time).
+    const latestAggRow = await db.prisma().statusChange.findFirst({
+      where: { actorId, type: BATCH_AGGREGATE_TYPE },
+      orderBy: { id: "desc" },
+      select: { id: true, status: true, startedAt: true },
+    });
+
+    // Count aggregate transitions in the flapping window — the signal used to detect aggregate
+    // FLAPPING (mirrors the per-table changesPerHours semantic, but for the connection's aggregate
+    // status). One count() per actor with new changes; we then maybe write a new aggregate row.
+    let aggChangesPerHours = await db.prisma().statusChange.count({
+      where: {
+        actorId,
+        type: BATCH_AGGREGATE_TYPE,
+        startedAt: { gt: flappingWindowStart },
+      },
+    });
+
+    // If the aggregate transitioned globally (vs the latest aggregate row, not per-channel state),
+    // persist a single new row so future runs read the prev aggregate accurately. Channel-level
+    // notification state is upserted separately by processNotification.
+    const aggregateTransitionedGlobally = !latestAggRow || latestAggRow.status !== view.aggStatus;
+    let currentAggRow: { id: bigint; status: string; startedAt: Date } | null = latestAggRow;
+    if (!dryRun && aggregateTransitionedGlobally) {
+      const aggRowStartedAt = view.aggStatus === "SUCCESS" ? view.aggTimestamp : view.aggStartedAt;
+      const row = await db.prisma().statusChange.create({
+        data: {
+          workspaceId: view.workspaceId,
+          actorId,
+          type: BATCH_AGGREGATE_TYPE,
+          tableName: "",
+          timestamp: view.aggTimestamp,
+          startedAt: aggRowStartedAt,
+          status: view.aggStatus,
+          description: view.aggDescription || "",
+          counts: latestAggRow ? 1 : 0,
+          queueSize: view.aggQueueSize,
+        },
+      });
+      currentAggRow = { id: row.id, status: row.status, startedAt: row.startedAt };
+      aggChangesPerHours += 1;
+    }
+
     const channelList = [...(channels[view.workspaceId] || []), ...(channels["admin"] || [])];
     for (const channel of channelList) {
       if (!channel.events.includes("batch") && !channel.events.includes("all")) continue;
       if (!channel.summarizeBatchNotificationsByTable) continue;
-      const st = await processBatchAggregateNotification(channel, channelStates, view, publicEndpoints, dryRun);
+      const st = await processBatchAggregateNotification(
+        channel,
+        channelStates,
+        view,
+        currentAggRow,
+        aggChangesPerHours,
+        publicEndpoints,
+        dryRun
+      );
       if (st) sendStatuses.push(st);
     }
   }
@@ -555,13 +609,6 @@ type BatchConnectionAggregate = {
   aggQueueSize: number;
   changesPerHours: number;
   changesPerDay: number;
-  // MAX per-table changesPerHours across all tables of this connection. Used as the aggregate
-  // flapping signal: if any single table flaps above the threshold, the connection-level aggregate
-  // status oscillates too, so we mirror the per-table FLAPPING throttle. (We use MAX rather than
-  // SUM so a stable connection with many tables doesn't trip the threshold from steady transitions
-  // across different tables; the trade-off is that "collective" flap — many tables each below the
-  // threshold but together oscillating — is not detected.)
-  maxTableChangesPerHours: number;
   // True iff this connection has ever had a per-table StatusChange row before this run.
   // Distinguishes a genuinely brand-new connection (worth a FIRST_RUN aggregate notification)
   // from an existing healthy connection being seen on a new aggregate channel for the first time.
@@ -582,7 +629,6 @@ function computeBatchConnectionAggregate(
   let earliestIncidentStart: Date | undefined;
   let totalChangesPerHours = 0;
   let totalChangesPerDay = 0;
-  let maxTableChangesPerHours = 0;
   const failedTableNames: string[] = [];
   let perTableCount = 0;
   let latestFailureTimestamp: Date | undefined;
@@ -608,9 +654,6 @@ function computeBatchConnectionAggregate(
     }
     totalChangesPerHours += ent.changesPerHours || 0;
     totalChangesPerDay += ent.changesPerDay || 0;
-    if ((ent.changesPerHours || 0) > maxTableChangesPerHours) {
-      maxTableChangesPerHours = ent.changesPerHours || 0;
-    }
     if (ent.status !== "SUCCESS") {
       failedTableNames.push(ent.tableName!);
       if (ent.startedAt && (!earliestIncidentStart || ent.startedAt < earliestIncidentStart)) {
@@ -681,7 +724,6 @@ function computeBatchConnectionAggregate(
     aggQueueSize,
     changesPerHours: totalChangesPerHours,
     changesPerDay: totalChangesPerDay,
-    maxTableChangesPerHours,
     // The no-tableName entity is written only by the initial SQL loader (loadBatchStatusesChanges
     // only mutates per-tableName keys for events with a parseable table name, which is the only
     // case that reaches this aggregate path). A non-null timestamp there means the loader's left
@@ -694,6 +736,8 @@ async function processBatchAggregateNotification(
   channel: NotificationChannel,
   channelStates: Record<string, NotificationState>,
   view: BatchConnectionAggregate,
+  currentAggRow: { id: bigint; status: string; startedAt: Date } | null,
+  aggChangesPerHours: number,
   publicEndpoints: PublicEndpoint,
   dryRun: boolean
 ): Promise<SendStatus | undefined> {
@@ -702,10 +746,10 @@ async function processBatchAggregateNotification(
   const sendRecurringTime =
     (state?.lastNotification?.getTime() || 0) + channel.recurringAlertsPeriodHours * 60 * 60 * 1000;
 
-  // Look up the previous aggregate row that this channel last notified on. Because we persist a
-  // connection-level row (type = BATCH_AGGREGATE_TYPE) on every aggregate transition, prevRow.status
-  // is the previous aggregate status and prevRow.startedAt is when that aggregate state began —
-  // exactly what RECOVERED needs for incidentStartedAt.
+  // Look up the aggregate row that this channel last notified on. Each channel's state may point
+  // to a row older than currentAggRow (other channels see transitions independently). prevRow.status
+  // tells us the previous aggregate status this channel was told about; prevRow.startedAt is the
+  // start of that previous aggregate state — what RECOVERED uses for incidentStartedAt.
   let prevRow: { id: bigint; status: string; startedAt: Date } | null = null;
   if (state) {
     try {
@@ -720,13 +764,11 @@ async function processBatchAggregateNotification(
 
   let doNotify = false;
   let renderStatus: string = view.aggStatus;
-  // Mirror the per-table FLAPPING throttle at the aggregate level using MAX(per-table changesPerHours)
-  // as the signal: if any single table is flapping above the threshold, the aggregate is too.
+  // Mirror the per-table FLAPPING throttle at the aggregate level using a literal count of
+  // aggregate transitions (BATCH_AGGREGATE_TYPE rows for this actor) in the flapping window.
   if (!state?.flappingSince) {
-    if (view.maxTableChangesPerHours > flappingThreshold) {
-      log
-        .atInfo()
-        .log(`[${chkey}] Aggregate flapping started — max per-table changes/h: ${view.maxTableChangesPerHours}`);
+    if (aggChangesPerHours > flappingThreshold) {
+      log.atInfo().log(`[${chkey}] Aggregate flapping started — aggregate transitions/window: ${aggChangesPerHours}`);
       renderStatus = "FLAPPING";
       doNotify = true;
     } else if (!state) {
@@ -754,8 +796,8 @@ async function processBatchAggregateNotification(
       doNotify = true;
       renderStatus = "ONGOING";
     }
-  } else if (!view.maxTableChangesPerHours) {
-    // Aggregate flapping ended — no per-table transitions in the window. Notify so users know the
+  } else if (!aggChangesPerHours) {
+    // Aggregate flapping ended — no aggregate transitions in the window. Notify so users know the
     // throttle is over; render as RECOVERED iff we're back to SUCCESS, otherwise as current status.
     log.atInfo().log(`[${chkey}] Aggregate flapping ended since ${state.flappingSince?.toISOString()}`);
     doNotify = true;
@@ -766,9 +808,7 @@ async function processBatchAggregateNotification(
     log
       .atInfo()
       .log(
-        `[${chkey}] Aggregate flapping recurring since ${state.flappingSince?.toISOString()} — max per-table changes/h: ${
-          view.maxTableChangesPerHours
-        }`
+        `[${chkey}] Aggregate flapping recurring since ${state.flappingSince?.toISOString()} — aggregate transitions/window: ${aggChangesPerHours}`
       );
     renderStatus = "FLAPPING";
     doNotify = true;
@@ -776,9 +816,7 @@ async function processBatchAggregateNotification(
     log
       .atInfo()
       .log(
-        `[${chkey}] Aggregate flapping ongoing since ${state.flappingSince?.toISOString()} — max per-table changes/h: ${
-          view.maxTableChangesPerHours
-        }`
+        `[${chkey}] Aggregate flapping ongoing since ${state.flappingSince?.toISOString()} — aggregate transitions/window: ${aggChangesPerHours}`
       );
   }
 
@@ -829,8 +867,8 @@ async function processBatchAggregateNotification(
       _J_PREF +
       JSON.stringify({
         status: "FLAPPING",
-        description: `${view.maxTableChangesPerHours} transitions on a single table within a ${flappingWindowHours}-hours window`,
-        changesPerHours: view.maxTableChangesPerHours,
+        description: `${aggChangesPerHours} aggregate transitions within a ${flappingWindowHours}-hours window`,
+        changesPerHours: aggChangesPerHours,
         flappingWindowHours,
         flappingSince: state?.flappingSince ?? undefined,
         streamsFailed: view.aggStreamsFailed,
@@ -841,32 +879,10 @@ async function processBatchAggregateNotification(
     description = view.aggDescription;
   }
 
-  // Persist a connection-level StatusChange row on transitions so future runs can read the prior
-  // aggregate accurately. On non-transition recurring notifications, reuse the prev row's id.
-  let rowId: bigint | number;
-  if (!dryRun && transitioned) {
-    const row = await db.prisma().statusChange.create({
-      data: {
-        workspaceId: view.workspaceId,
-        actorId: view.actorId,
-        type: BATCH_AGGREGATE_TYPE,
-        tableName: "",
-        timestamp: view.aggTimestamp,
-        startedAt: aggRowStartedAt,
-        status: view.aggStatus,
-        description,
-        counts: state ? 1 : 0,
-        queueSize: view.aggQueueSize,
-      },
-    });
-    rowId = row.id;
-  } else if (state && !transitioned) {
-    rowId = state.statusChangeId;
-  } else {
-    // dryRun + transition: do not persist; placeholder id is fine because notification.create /
-    // notificationState.upsert are skipped under dryRun.
-    rowId = view.aggMaxId;
-  }
+  // The aggregate row was already written (or not) in the outer loop, once per actor per cron run.
+  // Use its id here so each channel's NotificationState ends up pointing to the shared row.
+  // Falls back to view.aggMaxId in dryRun when no row was created.
+  const rowId: bigint | number = currentAggRow?.id ?? view.aggMaxId;
 
   const syntheticStatus: StatusChange = {
     id: rowId as bigint,
