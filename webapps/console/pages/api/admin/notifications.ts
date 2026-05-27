@@ -47,6 +47,14 @@ export const _J_PREF = "_j:";
 // dedicated aggregate path below.
 const BATCH_AGGREGATE_TYPE = "batch_aggregate";
 
+// Per-table rows whose last `timestamp` is older than this are treated as inactive and excluded
+// from the connection-level aggregate. The loader's `last_statuses` CTE has no time window, so
+// without this cutoff a long-stale FAILED row for a table that hasn't been written to in months
+// would keep flipping the aggregate into PARTIAL whenever any other table transitions. 7 days
+// matches the user-default `recurringAlertsPeriodHours`, so any actively-alerted table is well
+// within the window.
+const aggregateStaleTableCutoffDays = 7;
+
 export type ConnectionStatusNotificationProps = {
   entityId: string;
   entityType: "batch" | "sync" | "dead";
@@ -562,9 +570,14 @@ function computeBatchConnectionAggregate(
   // overwrite and the table-specific `${actorId}::batch:${tableName}`), so iterating its values
   // double-counts one row per actor. Dedupe by tableName to keep counts accurate.
   const seenTableNames = new Set<string>();
+  const staleTableCutoff = new Date(Date.now() - aggregateStaleTableCutoffDays * 24 * 60 * 60 * 1000);
   for (const ent of Object.values(entities)) {
     if (ent.actorId !== actorId || ent.type !== "batch" || !ent.tableName) continue;
     if (seenTableNames.has(ent.tableName)) continue;
+    // Exclude tables with no recent activity. Without this, a long-stale FAILED row drags the
+    // aggregate to PARTIAL whenever any other table transitions, producing spurious alerts about
+    // tables that haven't been written to in months.
+    if (ent.timestamp && ent.timestamp < staleTableCutoff) continue;
     seenTableNames.add(ent.tableName);
     perTableCount++;
     template = template ?? ent;
