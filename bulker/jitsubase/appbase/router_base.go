@@ -133,7 +133,7 @@ func (r *Router) authMiddleware(c *gin.Context) {
 			return
 		}
 	}
-	c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token: " + token})
+	c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
 	return
 }
 

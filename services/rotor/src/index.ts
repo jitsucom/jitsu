@@ -217,7 +217,7 @@ function initHTTP(rotorContext: Omit<MessageHandlerContext, "connectionStore" | 
     }
     if (!checkAuth(token)) {
       if (token) {
-        res.status(401).json({ error: `Invalid token: ${token}` });
+        res.status(401).json({ error: `Invalid token` });
       } else {
         res.status(401).json({ error: "Authorization header with Bearer token is required" });
       }
