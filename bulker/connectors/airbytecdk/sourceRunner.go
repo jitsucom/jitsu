@@ -17,9 +17,10 @@ type SourceRunner struct {
 func NewSourceRunner(src Source, w io.Writer) SourceRunner {
 	w = newSafeWriter(w)
 	msgTracker := MessageTracker{
-		Record: newRecordWriter(w),
-		State:  newStateWriter(w),
-		Log:    newLogWriter(w),
+		Record:       newRecordWriter(w),
+		State:        newStateWriter(w),
+		Log:          newLogWriter(w),
+		StreamStatus: newStreamStatusWriter(w),
 	}
 
 	return SourceRunner{

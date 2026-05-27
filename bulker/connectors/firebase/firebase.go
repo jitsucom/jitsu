@@ -224,16 +224,20 @@ func (f FirebaseSource) Read(sourceCfgPath string, prevStatePath string, configu
 	}
 
 	for _, stream := range configuredCat.Streams {
+		if err := tracker.StreamStatus(stream.Stream.Name, stream.Stream.Namespace, airbyte.StreamStatusStarted); err != nil {
+			return err
+		}
 		if stream.Stream.Namespace == "auth" && stream.Stream.Name == "users" {
 			err = loadUsers(ctx, stream.Stream, authClient, tracker)
-			if err != nil {
-				return err
-			}
 		} else {
 			err = loadCollection(ctx, stream.Stream, firestoreClient, tracker)
-			if err != nil {
-				return err
-			}
+		}
+		if err != nil {
+			_ = tracker.StreamStatus(stream.Stream.Name, stream.Stream.Namespace, airbyte.StreamStatusIncomplete)
+			return err
+		}
+		if err := tracker.StreamStatus(stream.Stream.Name, stream.Stream.Namespace, airbyte.StreamStatusComplete); err != nil {
+			return err
 		}
 	}
 

@@ -9,6 +9,8 @@ type MessageTracker struct {
 	Record RecordWriter
 	// Log logs out to airbyte
 	Log LogWriter
+	// StreamStatus emits TRACE STREAM_STATUS messages (STARTED, COMPLETE, INCOMPLETE)
+	StreamStatus StreamStatusWriter
 }
 
 // LogTracker is a single struct which holds a tracker which can be used for logs
