@@ -168,7 +168,7 @@ func runQuotaCheck() {
 		return
 	}
 	if !result.Ok {
-		logging.Errorf("[quota-check] quota exceeded (%s): %s", result.ErrorType, result.Error)
+		logging.Errorf("[quota-check] %s: %s", result.ErrorType, result.Error)
 		os.Exit(1)
 	}
 	logging.Infof("[quota-check] passed for workspace=%s sync=%s", workspaceID, syncID)
