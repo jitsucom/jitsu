@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/url"
@@ -146,21 +147,29 @@ func runQuotaCheck() {
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 
-	switch {
-	case resp.StatusCode == http.StatusOK:
-		logging.Infof("[quota-check] passed for workspace=%s sync=%s", workspaceID, syncID)
-		return
-	case resp.StatusCode == http.StatusForbidden:
-		logging.Errorf("[quota-check] quota exceeded: %s", strings.TrimSpace(string(body)))
-		os.Exit(1)
-	case resp.StatusCode == http.StatusUnauthorized:
-		// Config bug — bearer mismatch between syncctl and console. Fail
-		// loudly rather than fail-open, otherwise we'd silently skip every
-		// quota check forever.
-		logging.Errorf("[quota-check] console rejected our bearer (401): %s", strings.TrimSpace(string(body)))
-		os.Exit(2)
-	default:
-		logging.Warnf("[quota-check] unexpected status %d from console: %s — proceeding (fail-open)",
+	// Contract: console always answers 200 with {ok, error, errorType} for a
+	// real verdict; anything else (401 auth failure, 5xx, etc.) is treated as
+	// fail-open. Only a parsed ok=false blocks the pod — every other case
+	// (non-200, unparseable body, ok=true) proceeds. Billing quota is advisory;
+	// an outage or misconfig must not paralyze syncs.
+	if resp.StatusCode != http.StatusOK {
+		logging.Warnf("[quota-check] non-200 status %d from console: %s — proceeding (fail-open)",
 			resp.StatusCode, strings.TrimSpace(string(body)))
+		return
 	}
+	var result struct {
+		Ok        bool   `json:"ok"`
+		Error     string `json:"error"`
+		ErrorType string `json:"errorType"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		logging.Warnf("[quota-check] couldn't parse console response %q: %v — proceeding (fail-open)",
+			strings.TrimSpace(string(body)), err)
+		return
+	}
+	if !result.Ok {
+		logging.Errorf("[quota-check] quota exceeded (%s): %s", result.ErrorType, result.Error)
+		os.Exit(1)
+	}
+	logging.Infof("[quota-check] passed for workspace=%s sync=%s", workspaceID, syncID)
 }

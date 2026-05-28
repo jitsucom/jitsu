@@ -70,7 +70,10 @@ export default createRoute()
             result.error
           }`
         );
-      res.status(403).send(result);
+      // 200 with ok=false — this is the verdict, not an HTTP error. The sidecar
+      // blocks only on a parsed ok=false; any non-200 it reads as fail-open and
+      // lets the run through. 401 (auth) stays the sole non-200 outcome.
+      res.status(200).send({ ok: false, error: result.error, errorType: result.errorType });
       return;
     }
     res.status(200).send({ ok: true });
