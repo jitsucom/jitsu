@@ -11,6 +11,9 @@ type MessageTracker struct {
 	Log LogWriter
 	// StreamStatus emits TRACE STREAM_STATUS messages (STARTED, COMPLETE, INCOMPLETE)
 	StreamStatus StreamStatusWriter
+	// StreamError emits a TRACE ERROR message scoped to a single stream, so a
+	// per-stream failure can be reported without aborting the whole sync.
+	StreamError StreamErrorWriter
 }
 
 // LogTracker is a single struct which holds a tracker which can be used for logs

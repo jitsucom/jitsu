@@ -355,22 +355,27 @@ func (f FirebaseSource) Read(sourceCfgPath string, prevStatePath string, configu
 		if err := tracker.StreamStatus(stream.Stream.Name, stream.Stream.Namespace, airbyte.StreamStatusStarted); err != nil {
 			return err
 		}
+		var streamErr error
 		if stream.Stream.Namespace == "auth" && stream.Stream.Name == "users" {
-			err = loadUsers(ctx, stream.Stream, authClient, tracker)
+			streamErr = loadUsers(ctx, stream.Stream, authClient, tracker)
 		} else if tokens, ok := subcollections[stream.Stream.Name]; ok {
-			err = loadCollectionGroup(ctx, stream.Stream, tokens, firestoreClient, tracker)
+			streamErr = loadCollectionGroup(ctx, stream.Stream, tokens, firestoreClient, tracker)
 		} else if strings.Contains(stream.Stream.Name, "/") {
 			// A "/" in the name marks a subcollection stream. If it isn't in the
 			// current subcollectionPaths config, the catalog and source config
-			// have drifted — fail fast rather than mistreat it as a top-level
-			// collection (which would create a "/"-named collection ref).
-			err = fmt.Errorf("subcollection stream %q is selected but not present in the current source config (subcollectionPaths) — refresh the catalog", stream.Stream.Name)
+			// have drifted — treat it as a stream error rather than mistreat it
+			// as a top-level collection (which would create a "/"-named ref).
+			streamErr = fmt.Errorf("subcollection stream %q is selected but not present in the current source config (subcollectionPaths) — refresh the catalog", stream.Stream.Name)
 		} else {
-			err = loadCollection(ctx, stream.Stream, firestoreClient, tracker)
+			streamErr = loadCollection(ctx, stream.Stream, firestoreClient, tracker)
 		}
-		if err != nil {
+		if streamErr != nil {
+			// Report the failure for this stream and keep syncing the rest: emit
+			// a TRACE ERROR (which the sidecar attributes to this stream) and
+			// mark the stream INCOMPLETE, instead of aborting the whole sync.
+			_ = tracker.StreamError(stream.Stream.Name, stream.Stream.Namespace, streamErr.Error())
 			_ = tracker.StreamStatus(stream.Stream.Name, stream.Stream.Namespace, airbyte.StreamStatusIncomplete)
-			return err
+			continue
 		}
 		if err := tracker.StreamStatus(stream.Stream.Name, stream.Stream.Namespace, airbyte.StreamStatusComplete); err != nil {
 			return err

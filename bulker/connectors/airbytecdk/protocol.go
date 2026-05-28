@@ -48,9 +48,18 @@ type streamStatus struct {
 	Status           StreamStatusType `json:"status"`
 }
 
+type errorTrace struct {
+	StreamDescriptor streamDescriptor `json:"stream_descriptor"`
+	Message          string           `json:"message"`
+	InternalMessage  string           `json:"internal_message,omitempty"`
+	StackTrace       string           `json:"stack_trace,omitempty"`
+	FailureType      string           `json:"failure_type,omitempty"`
+}
+
 type traceMessage struct {
 	Type         string        `json:"type"`
 	StreamStatus *streamStatus `json:"stream_status,omitempty"`
+	Error        *errorTrace   `json:"error,omitempty"`
 }
 
 var errInvalidTypePayload = errors.New("message type and payload are invalid")
@@ -287,6 +296,11 @@ type RecordWriter func(v interface{}, streamName string, namespace string) error
 // StreamStatusWriter emits a TRACE message with STREAM_STATUS type
 type StreamStatusWriter func(streamName string, namespace string, status StreamStatusType) error
 
+// StreamErrorWriter emits a TRACE message with ERROR type scoped to a single
+// stream. It lets a source report a per-stream failure and keep going instead
+// of aborting the whole sync.
+type StreamErrorWriter func(streamName string, namespace string, message string) error
+
 func newLogWriter(w io.Writer) LogWriter {
 	return func(lvl LogLevel, s string) error {
 		return write(w, &message{
@@ -336,6 +350,24 @@ func newStreamStatusWriter(w io.Writer) StreamStatusWriter {
 						Namespace: namespace,
 					},
 					Status: status,
+				},
+			},
+		})
+	}
+}
+
+func newStreamErrorWriter(w io.Writer) StreamErrorWriter {
+	return func(streamName string, namespace string, msg string) error {
+		return write(w, &message{
+			Type: msgTypeTrace,
+			traceMessage: &traceMessage{
+				Type: "ERROR",
+				Error: &errorTrace{
+					StreamDescriptor: streamDescriptor{
+						Name:      streamName,
+						Namespace: namespace,
+					},
+					Message: msg,
 				},
 			},
 		})
