@@ -7,8 +7,6 @@ import { getServerLog } from "../../../../lib/server/log";
 import { scheduleSync } from "../../../../lib/server/sync";
 import { isTruish } from "juava";
 import { getServerEnv } from "../../../../lib/server/serverEnv";
-import { db } from "../../../../lib/server/db";
-import { cronjobsEnabledForSync } from "../../../../lib/server/sync-cronjobs";
 
 const log = getServerLog("sync-run");
 const serverEnv = getServerEnv();
@@ -73,30 +71,16 @@ export const route = createRoute()
           query.taskId ?? "-"
         } trigger=${trigger} fullSync=${!!query.fullSync} ignoreRunning=${!!query.ignoreRunning}`
       );
-    // Scheduled triggers (Cloud Scheduler → SYNCCTL_AUTH_KEY bearer) are
-    // ignored for workspaces/syncs opted into the autonomous K8s CronJob
-    // path — those runs are driven by syncctl-managed CronJobs instead, and
-    // letting both fire would double-schedule (the per-sync Lease blocks
-    // concurrent runs but not back-to-back ones).
+    // Every sync is scheduled by a syncctl-managed CronJob now, so any
+    // external scheduled trigger (legacy Cloud Scheduler → SYNCCTL_AUTH_KEY
+    // bearer) is a no-op — letting it through would double-schedule.
     if (trigger === "scheduled") {
-      const [ws, syncLink] = await Promise.all([
-        db.prisma().workspace.findUnique({
-          where: { id: workspaceId },
-          select: { featuresEnabled: true },
-        }),
-        db.prisma().configurationObjectLink.findFirst({
-          where: { id: query.syncId, workspaceId, type: "sync", deleted: false },
-          select: { createdAt: true, updatedAt: true },
-        }),
-      ]);
-      if (ws && syncLink && cronjobsEnabledForSync(ws, syncLink)) {
-        log
-          .atInfo()
-          .log(
-            `Ignoring scheduled run for sync ${query.syncId} in workspace ${workspaceId}: cronjobs feature is enabled, autonomous CronJob handles scheduling.`
-          );
-        return { ok: true };
-      }
+      log
+        .atInfo()
+        .log(
+          `Ignoring scheduled run for sync ${query.syncId} in workspace ${workspaceId}: syncctl CronJob handles scheduling.`
+        );
+      return { ok: true };
     }
     const result = await scheduleSync({
       req,

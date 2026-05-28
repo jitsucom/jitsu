@@ -307,6 +307,15 @@ export async function scheduleSync({
       });
     }
 
+    // The repo export keys each entry's updatedAt off max(link, source,
+    // destination) (see exportSyncs in admin/export). Match that here so the
+    // parity wait in syncctl doesn't pass against a stale snapshot when only
+    // the source or destination config was edited (the link row's own
+    // updatedAt wouldn't have moved).
+    const repoUpdatedAt = new Date(
+      Math.max(sync.updatedAt.getTime(), sync.from.updatedAt.getTime(), sync.to.updatedAt.getTime())
+    ).toISOString();
+
     // Thin proxy: post to syncctl /read with just enough query params for it
     // to look up the SyncEntry from its repository (syncId + updatedAt for
     // parity wait). syncctl runs oauth-refresh + load-catalog-state + the
@@ -320,7 +329,7 @@ export async function scheduleSync({
       },
       query: {
         syncId: sync.id,
-        updatedAt: sync.updatedAt.toISOString(),
+        updatedAt: repoUpdatedAt,
         taskId,
         fullSync: fullSync ? "true" : "false",
         startedBy: JSON.stringify(startedBy),

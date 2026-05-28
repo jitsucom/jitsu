@@ -69,13 +69,6 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   // Enable/disable syncs feature globally
   SYNCS_ENABLED: z.string().default("false").transform(isTruish),
 
-  // Enable autonomous K8s CronJob scheduling for syncs (syncctl reconciles
-  // CronJobs from the admin /export/syncs endpoint). When true (or a workspace
-  // overrides with featuresEnabled "cronjobs=true"), the legacy reactive
-  // scheduler path (Cloud Scheduler → /sources/run) is ignored for that
-  // workspace's syncs to prevent double-execution.
-  SYNCS_CRONJOB_ENABLED: z.string().default("false").transform(isTruish),
-
   // Sync task log retention age in days
   SYNC_TASK_LOG_AGE: z.coerce.number().optional().default(60),
 

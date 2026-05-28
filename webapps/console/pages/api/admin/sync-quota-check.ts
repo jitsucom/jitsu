@@ -52,9 +52,14 @@ export default createRoute()
         // ignore malformed startedBy — fall back to default
       }
     }
+    // Derive the trigger from startedBy rather than hardcoding "scheduled":
+    // manual /sources/run pods also run this admission init now, and labeling
+    // their quota check as "scheduled" would misattribute usage (console's
+    // scheduleSync already checked manual quota before dispatching /read).
+    const trigger = startedBy?.trigger === "manual" ? "manual" : "scheduled";
     const result = await checkQuota({
       req,
-      trigger: "scheduled",
+      trigger,
       workspaceId: query.workspaceId,
       syncId: query.syncId,
       package: query.package,

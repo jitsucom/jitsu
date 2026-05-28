@@ -11,7 +11,6 @@ import { default as stableHash } from "stable-hash";
 import { WorkspaceDbModel, FunctionsServerDbModel } from "../../../../../prisma/schema";
 import { ProfileBuilder } from "@jitsu/destination-functions";
 import { getServerEnv } from "../../../../../lib/server/serverEnv";
-import { cronjobsEnabledForSync } from "../../../../../lib/server/sync-cronjobs";
 
 const serverEnv = getServerEnv();
 const defaultFunctionsClass = serverEnv.DEFAULT_FUNCTIONS_CLASS;
@@ -879,15 +878,10 @@ async function exportSyncs(writer: Writer) {
     getLog().atDebug().log(`Got batch of ${objects.length} syncs for export`);
     lastId = objects[objects.length - 1].id;
 
-    const enriched = objects.flatMap(({ data, from, id, to, createdAt, updatedAt, workspace }) => {
-      // Only emit syncs opted into the autonomous CronJob path. Per-sync gate
-      // (createdAt/updatedAt vs cutoff) lets new/recently-touched syncs onto
-      // the new path without disturbing legacy syncs whose Cloud Scheduler
-      // jobs are still firing. Workspace-level featuresEnabled overrides
-      // either direction.
-      if (!cronjobsEnabledForSync(workspace, { createdAt, updatedAt })) {
-        return [];
-      }
+    const enriched = objects.flatMap(({ data, from, id, to, updatedAt, workspace }) => {
+      // Every sync is scheduled by syncctl CronJobs — emit all of them.
+      // (Destination-type filters below still skip syncs whose pod template
+      // can't run them, e.g. non-bulker mixpanel-with-syncs.)
       let destinationConfig: any = { ...(to.config as any) };
       const destinationType = destinationConfig.destinationType;
       const coreDestinationType = getCoreDestinationTypeNonStrict(destinationType);
