@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -174,6 +175,7 @@ func (f FirebaseSource) Discover(srcCfgPath string, logTracker airbyte.LogTracke
 		return name
 	}
 
+	var topLevelIDs []string
 	iter := firestoreClient.Collections(ctx)
 	for {
 		collection, err := iter.Next()
@@ -183,13 +185,19 @@ func (f FirebaseSource) Discover(srcCfgPath string, logTracker airbyte.LogTracke
 		if err != nil {
 			return nil, err
 		}
-
+		topLevelIDs = append(topLevelIDs, collection.ID)
+	}
+	// Sort so table-name reservation (and any collision suffix) is deterministic
+	// regardless of the order Collections() returns — avoids table-name drift
+	// across rediscovers.
+	sort.Strings(topLevelIDs)
+	for _, id := range topLevelIDs {
 		// Reserve top-level collections first (by their own ID) so any colliding
 		// subcollection table names get the numeric suffix, not these.
 		streams = append(streams, airbyte.Stream{
-			Name:                    collection.ID,
+			Name:                    id,
 			Namespace:               "firestore",
-			TableNameTemplate:       reserveTableName(collection.ID),
+			TableNameTemplate:       reserveTableName(id),
 			SourceDefinedPrimaryKey: [][]string{{"id"}},
 			JSONSchema:              airbyte.Properties{},
 			SupportedSyncModes: []airbyte.SyncMode{
@@ -351,6 +359,12 @@ func (f FirebaseSource) Read(sourceCfgPath string, prevStatePath string, configu
 			err = loadUsers(ctx, stream.Stream, authClient, tracker)
 		} else if tokens, ok := subcollections[stream.Stream.Name]; ok {
 			err = loadCollectionGroup(ctx, stream.Stream, tokens, firestoreClient, tracker)
+		} else if strings.Contains(stream.Stream.Name, "/") {
+			// A "/" in the name marks a subcollection stream. If it isn't in the
+			// current subcollectionPaths config, the catalog and source config
+			// have drifted — fail fast rather than mistreat it as a top-level
+			// collection (which would create a "/"-named collection ref).
+			err = fmt.Errorf("subcollection stream %q is selected but not present in the current source config (subcollectionPaths) — refresh the catalog", stream.Stream.Name)
 		} else {
 			err = loadCollection(ctx, stream.Stream, firestoreClient, tracker)
 		}
@@ -515,10 +529,18 @@ func loadCollectionGroup(ctx context.Context, stream airbyte.Stream, tokens []st
 			data["id"] = doc.Ref.ID
 			// Always set "_path" to the full Firestore document path so it is a
 			// deterministic component of the stream's primary key. If the source
-			// document already has a "_path" field, preserve its original value
-			// under "__path" rather than dropping it.
+			// document already has a "_path" field, relocate its original value
+			// to the first free "_"-prefixed key ("__path", "___path", ...) so no
+			// source field — including a pre-existing "__path" — is overwritten.
 			if orig, ok := data["_path"]; ok {
-				data["__path"] = orig
+				key := "__path"
+				for {
+					if _, exists := data[key]; !exists {
+						break
+					}
+					key = "_" + key
+				}
+				data[key] = orig
 			}
 			data["_path"] = doc.Ref.Path
 

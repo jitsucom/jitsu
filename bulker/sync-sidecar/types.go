@@ -125,7 +125,11 @@ type StreamMeta struct {
 	Name      string `json:"name"`
 	Namespace string `json:"namespace"`
 	//CustomNamespace    string           `json:"custom_namespace"`
-	TableName          string           `json:"table_name,omitempty"`
+	TableName string `json:"table_name,omitempty"`
+	// TableNameTemplate is the source-provided default table name, used when the
+	// user hasn't set an explicit TableName. Useful when Name contains
+	// characters (e.g. "/") that aren't valid in a table name.
+	TableNameTemplate  string           `json:"table_name_template,omitempty"`
 	JSONSchema         StreamJsonSchema `json:"json_schema"`
 	PrimaryKeys        [][]string       `json:"source_defined_primary_key"`
 	DefaultCursorField []string         `json:"default_cursor_field"`

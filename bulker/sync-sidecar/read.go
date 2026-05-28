@@ -480,10 +480,13 @@ func (s *ReadSideCar) openStream(streamName string) (*ActiveStream, error) {
 	s.lastStream = stream
 	var namespace string
 	tableNamePrefix := strings.ReplaceAll(s.tableNamePrefix, "${SOURCE_NAMESPACE}", str.Namespace)
-	tableName := utils.NvlString(str.TableName, tableNamePrefix+str.Name)
+	// Prefer the source-provided table-name template over the raw stream name:
+	// stream names may contain characters (e.g. "/") that aren't valid table names.
+	defaultTableName := utils.NvlString(str.TableNameTemplate, str.Name)
+	tableName := utils.NvlString(str.TableName, tableNamePrefix+defaultTableName)
 	if s.namespace == "${LEGACY}" {
 		namespace = ""
-		tableName = utils.NvlString(str.TableName, tableNamePrefix+streamName)
+		tableName = utils.NvlString(str.TableName, tableNamePrefix+utils.NvlString(str.TableNameTemplate, streamName))
 	} else {
 		namespace = strings.TrimSpace(strings.ReplaceAll(s.namespace, "${SOURCE_NAMESPACE}", str.Namespace))
 	}
