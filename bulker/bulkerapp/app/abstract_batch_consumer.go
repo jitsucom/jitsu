@@ -65,6 +65,11 @@ type AbstractBatchConsumer struct {
 	//consumer can be paused between batches(idle) and also can be paused during loading batch to destination(not idle)
 	paused        atomic.Bool
 	resumeChannel chan struct{}
+	//stopChannel signals the pause heartbeat loop to exit for suspend (vs.
+	//resume). It is unbuffered on purpose: _unpause() must block until the
+	//heartbeat has actually left its loop, so pauseOrSuspend can close the
+	//consumer without racing an in-flight ReadMessage (see _unpause).
+	stopChannel chan struct{}
 	//restarting guards against piling up overlapping restartConsumer calls
 	//from the pause heartbeat loop (see restartConsumerAsync).
 	restarting atomic.Bool
@@ -123,6 +128,8 @@ func NewAbstractBatchConsumer(repository *Repository, destinationId string, batc
 		//heartbeat goroutine is mid-iteration (e.g. blocked in
 		//restartConsumer); the heartbeat picks it up on the next pass.
 		resumeChannel: make(chan struct{}, 1),
+		//unbuffered: suspend must rendezvous with the heartbeat (see field doc).
+		stopChannel: make(chan struct{}),
 	}
 	bc.idle.Store(true)
 	return bc, nil
@@ -449,6 +456,15 @@ func (bc *AbstractBatchConsumer) pause(immediatePoll bool) {
 					}
 					bc.Debugf("Consumer resumed.")
 					break loop
+				case <-bc.stopChannel:
+					//Suspend path: the caller (pauseOrSuspend) is about to close
+					//the consumer, so we only stop heartbeating — no Resume.
+					//Because stopChannel is unbuffered, _unpause is still blocked
+					//on the send here, guaranteeing the consumer is no longer in
+					//ReadMessage when Close runs.
+					bc.paused.CompareAndSwap(true, false)
+					bc.Debugf("Consumer heartbeat stopped for suspend.")
+					break loop
 				case <-pauseTicker.C:
 				}
 			}
@@ -605,12 +621,19 @@ func (bc *AbstractBatchConsumer) rebalanceCallback(consumer *kafka.Consumer, eve
 	return nil
 }
 
+// _unpause stops the pause heartbeat for the suspend path. It sends on the
+// unbuffered stopChannel so the send only completes once the heartbeat has
+// received it and is leaving its loop — i.e. it is no longer inside
+// ReadMessage. That rendezvous lets pauseOrSuspend close the consumer right
+// after without racing the heartbeat into a non-retriable ReadMessage error
+// (which would spuriously trigger restartConsumerAsync and recreate the
+// consumer we intended to suspend).
 func (bc *AbstractBatchConsumer) _unpause() {
 	if !bc.paused.Load() {
 		return
 	}
 	select {
-	case bc.resumeChannel <- struct{}{}:
+	case bc.stopChannel <- struct{}{}:
 		return
 	case <-time.After(time.Duration(bc.config.KafkaMaxPollIntervalMs) * time.Millisecond):
 		bc.errorMetric("resume_error")
