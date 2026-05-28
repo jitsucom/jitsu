@@ -542,6 +542,32 @@ func (j *JobRunner) TerminatePod(podName string) {
 	_ = j.clientset.CoreV1().ConfigMaps(j.namespace).Delete(context.Background(), podName+"-config", metav1.DeleteOptions{})
 }
 
+// TerminateSyncPods deletes every sync Pod belonging to syncID, regardless of
+// how it was named. Manual one-shot pods are named via PodName(), but
+// cron-fired pods get K8s-generated names (CronJob → Job → random suffix), so
+// a reconstructed-name delete can't reach them. Selecting by the creator +
+// sync-id labels (set in buildSyncPodTemplate) covers both. The per-sync Lease
+// guarantees at most one running read pod per sync, so this won't race a
+// freshly-started run. cleanupPod marks the pod in cleanedUpPods so the
+// watcher won't re-emit status for it after cancel.
+func (j *JobRunner) TerminateSyncPods(syncID string) {
+	selector := fmt.Sprintf("%s=%s,%s=%s", k8sCreatorLabel, k8sCreatorLabelValue, labelSyncID, syncID)
+	list, err := j.clientset.CoreV1().Pods(j.namespace).List(context.Background(), metav1.ListOptions{LabelSelector: selector})
+	if err != nil {
+		j.Errorf("cancel: failed to list pods for sync %s: %v", syncID, err)
+		return
+	}
+	if len(list.Items) == 0 {
+		j.Infof("cancel: no running pods found for sync %s", syncID)
+		return
+	}
+	for i := range list.Items {
+		name := list.Items[i].Name
+		j.Infof("cancel: terminating pod %s (sync %s)", name, syncID)
+		j.cleanupPod(name)
+	}
+}
+
 func (j *JobRunner) TaskStatusChannel() <-chan *TaskStatus {
 	return j.taskStatusCh
 }
