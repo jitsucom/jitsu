@@ -160,6 +160,10 @@ type Stream struct {
 	DefaultCursorField      []string   `json:"default_cursor_field,omitempty"`
 	SourceDefinedPrimaryKey [][]string `json:"source_defined_primary_key,omitempty"`
 	Namespace               string     `json:"namespace"`
+	// TableNameTemplate, when set, is the preferred default destination table
+	// name for this stream. Useful when the stream Name contains characters
+	// (e.g. "/") that don't translate cleanly to a table name.
+	TableNameTemplate string `json:"table_name_template,omitempty"`
 }
 
 // ConfiguredCatalog is the "selected" schema you want to sync
