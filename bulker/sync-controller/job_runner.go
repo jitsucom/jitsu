@@ -103,9 +103,15 @@ func (j *JobRunner) watchPodStatuses() {
 				// Source-of-truth StartedAt: k8s's pod.Status.StartTime is the
 				// kubelet-observed pod-start moment. Always prefer it over any
 				// annotation (which is either unset or stale for cron templates
-				// reused across many fires).
+				// reused across many fires). StartTime is nil while the pod is
+				// unscheduled (Pending), so fall back to CreationTimestamp —
+				// otherwise StartedAtTime() returns time.Now() and the Pending
+				// INIT_TIMEOUT check never accrues, leaving unschedulable pods
+				// stuck Pending forever.
 				if pod.Status.StartTime != nil {
 					taskStatus.StartedAt = pod.Status.StartTime.UTC().Format(time.RFC3339)
+				} else if !pod.CreationTimestamp.IsZero() {
+					taskStatus.StartedAt = pod.CreationTimestamp.UTC().Format(time.RFC3339)
 				}
 				if taskStatus.TaskType == "read" {
 					activeSyncs.Put(taskStatus.SyncID)
