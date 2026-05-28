@@ -199,7 +199,6 @@ export async function scheduleSync({
   req,
   fullSync,
   ignoreRunning,
-  skipRefresh,
   taskId,
 }: {
   workspaceId: string;
@@ -209,7 +208,6 @@ export async function scheduleSync({
   req: NextApiRequest;
   fullSync?: boolean;
   ignoreRunning?: boolean;
-  skipRefresh?: boolean;
   taskId?: string;
 }): Promise<ScheduleSyncResult> {
   const syncAuthKey = serverEnv.SYNCCTL_AUTH_KEY ?? "";
@@ -230,7 +228,7 @@ export async function scheduleSync({
       .log(
         `scheduleSync entry: syncId=${
           typeof syncIdOrModel === "string" ? syncIdOrModel : (syncIdOrModel as any)?.id
-        } workspaceId=${workspaceId} trigger=${trigger} taskId=${taskId} skipRefresh=${!!skipRefresh} fullSync=${!!fullSync} ignoreRunning=${!!ignoreRunning}`
+        } workspaceId=${workspaceId} trigger=${trigger} taskId=${taskId} fullSync=${!!fullSync} ignoreRunning=${!!ignoreRunning}`
       );
     const appBase = getAppEndpoint(req).baseUrl;
     const sync = typeof syncIdOrModel === "string" ? await getSyncById(syncIdOrModel, workspaceId) : syncIdOrModel;
