@@ -254,9 +254,9 @@ func (t *TaskManager) CancelHandler(c *gin.Context) {
 	_ = db.UpdateRunningTaskStatus(t.dbpool, taskId, "CANCELLED")
 	// Terminate by sync-id label rather than reconstructed pod name: cron-fired
 	// pods have K8s-generated names that PodName() can't reproduce, so a
-	// name-based delete only ever reached manual pods. The per-sync Lease keeps
-	// this to the single running pod for the sync.
-	t.jobRunner.TerminateSyncPods(syncId)
+	// name-based delete only ever reached manual pods. taskId keeps it
+	// task-scoped so a stale cancel can't kill a newer run.
+	t.jobRunner.TerminateSyncPods(syncId, taskId)
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 

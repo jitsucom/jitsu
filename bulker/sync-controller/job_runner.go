@@ -542,30 +542,52 @@ func (j *JobRunner) TerminatePod(podName string) {
 	_ = j.clientset.CoreV1().ConfigMaps(j.namespace).Delete(context.Background(), podName+"-config", metav1.DeleteOptions{})
 }
 
-// TerminateSyncPods deletes every sync Pod belonging to syncID, regardless of
+// TerminateSyncPods deletes the running Pod for syncID/taskID, regardless of
 // how it was named. Manual one-shot pods are named via PodName(), but
 // cron-fired pods get K8s-generated names (CronJob → Job → random suffix), so
-// a reconstructed-name delete can't reach them. Selecting by the creator +
-// sync-id labels (set in buildSyncPodTemplate) covers both. The per-sync Lease
-// guarantees at most one running read pod per sync, so this won't race a
-// freshly-started run. cleanupPod marks the pod in cleanedUpPods so the
-// watcher won't re-emit status for it after cancel.
-func (j *JobRunner) TerminateSyncPods(syncID string) {
+// a reconstructed-name delete can't reach them — we list by the creator +
+// sync-id labels (set in buildSyncPodTemplate) which cover both.
+//
+// Cancellation is task-scoped: only the pod matching taskID is terminated, so
+// a stale cancel (an old taskId arriving after a newer run started) can't kill
+// the newer run. taskID maps to a pod two ways: manual pods carry it in the
+// `TaskID` annotation; cron pods carry it as the pod name (the annotation is
+// empty at build time, taskId is injected at runtime via the metadata.name
+// field-ref). An empty taskID falls back to terminating every pod for the sync.
+// cleanupPod marks the pod in cleanedUpPods so the watcher won't re-emit status
+// for it after cancel.
+func (j *JobRunner) TerminateSyncPods(syncID, taskID string) {
 	selector := fmt.Sprintf("%s=%s,%s=%s", k8sCreatorLabel, k8sCreatorLabelValue, labelSyncID, syncID)
 	list, err := j.clientset.CoreV1().Pods(j.namespace).List(context.Background(), metav1.ListOptions{LabelSelector: selector})
 	if err != nil {
 		j.Errorf("cancel: failed to list pods for sync %s: %v", syncID, err)
 		return
 	}
-	if len(list.Items) == 0 {
-		j.Infof("cancel: no running pods found for sync %s", syncID)
-		return
-	}
+	matched := 0
 	for i := range list.Items {
-		name := list.Items[i].Name
-		j.Infof("cancel: terminating pod %s (sync %s)", name, syncID)
-		j.cleanupPod(name)
+		pod := &list.Items[i]
+		if taskID != "" && !podMatchesTask(pod, taskID) {
+			continue
+		}
+		j.Infof("cancel: terminating pod %s (sync %s, task %s)", pod.Name, syncID, taskID)
+		j.cleanupPod(pod.Name)
+		matched++
 	}
+	if matched == 0 {
+		j.Infof("cancel: no running pod found for sync %s task %s", syncID, taskID)
+	}
+}
+
+// podMatchesTask reports whether pod belongs to taskID. Cron pods carry the
+// taskId as their name (runtime field-ref); manual pods carry it in the
+// TaskID annotation (decoded the same way watchPodStatuses reads it).
+func podMatchesTask(pod *v1.Pod, taskID string) bool {
+	if pod.Name == taskID {
+		return true
+	}
+	var td TaskDescriptor
+	_ = mapstructure.Decode(pod.Annotations, &td)
+	return td.TaskID == taskID
 }
 
 func (j *JobRunner) TaskStatusChannel() <-chan *TaskStatus {
