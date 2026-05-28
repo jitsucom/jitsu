@@ -209,11 +209,8 @@ func (f FirebaseSource) Discover(srcCfgPath string, logTracker airbyte.LogTracke
 	}
 
 	streams = append(streams, airbyte.Stream{
-		Name:      "users",
-		Namespace: "auth",
-		// The auth "users" stream would otherwise default to table "users" and
-		// clash with a top-level "users" collection; pin it to "auth_users".
-		TableNameTemplate:       reserveTableName("auth_users"),
+		Name:                    "users",
+		Namespace:               "auth",
 		SourceDefinedPrimaryKey: [][]string{{"uid"}},
 		JSONSchema:              airbyte.Properties{},
 		SupportedSyncModes: []airbyte.SyncMode{
