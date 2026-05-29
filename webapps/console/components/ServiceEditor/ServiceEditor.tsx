@@ -81,14 +81,22 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
   );
 
   useEffect(() => {
-    if (specs) {
+    // Wait for meta so we can decide whether the cached spec is stale before
+    // loading. Force a fresh fetch only when the selected version's image tag
+    // was pushed after this service was last saved (rebuilt in place);
+    // otherwise serve the cached spec for an immediate load.
+    if (specs || !meta) {
       return;
     }
+    const entityUpdatedAt = (props.object as any)?.updatedAt;
+    const tagUpdatedAt = (meta as any).versionUpdatedAt?.[obj.version ?? ""];
+    const force =
+      !!entityUpdatedAt && !!tagUpdatedAt && new Date(tagUpdatedAt).getTime() > new Date(entityUpdatedAt).getTime();
     (async () => {
       setLoadingSpecs(true);
       try {
         const firstRes = await rpc(
-          `/api/${workspace.id}/sources/spec?package=${obj.package}&version=${obj.version}&force=true`
+          `/api/${workspace.id}/sources/spec?package=${obj.package}&version=${obj.version}${force ? "&force=true" : ""}`
         );
         if (firstRes.ok) {
           getLog().atDebug().log("Loaded cached specs", firstRes);
@@ -124,24 +132,7 @@ export const ServiceEditor: React.FC<ServiceEditorProps> = props => {
         setLoadingSpecs(false);
       }
     })();
-  }, [workspace.id, obj.package, obj.version, change, specs]);
-
-  // If the connector image tag was pushed after this service was last saved,
-  // its specs may have changed since the service was configured — drop cached
-  // specs so they reload. Only applies to existing entities (new ones load
-  // fresh specs anyway).
-  useEffect(() => {
-    if (!meta) {
-      return;
-    }
-    const entityUpdatedAt = (props.object as any)?.updatedAt;
-    const tagUpdatedAt = (meta as any).versionUpdatedAt?.[obj.version ?? ""];
-    if (entityUpdatedAt && tagUpdatedAt && new Date(tagUpdatedAt).getTime() > new Date(entityUpdatedAt).getTime()) {
-      setSpecs(undefined);
-    }
-    // run when meta becomes available
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [meta]);
+  }, [workspace.id, obj.package, obj.version, change, specs, meta]);
 
   const validate = useCallback(() => {
     const errors: string[] = [];
