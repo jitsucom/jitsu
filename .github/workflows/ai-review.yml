@@ -21,7 +21,7 @@ jobs:
     # causing the review to fail. security-fix.yml dispatches the review manually
     # for bot-opened PRs instead.
     if: github.event_name != 'pull_request' || github.actor != 'jitsu-code-review[bot]'
-    uses: jitsucom/github-workflows/.github/workflows/ai-review.yml@1.26.20260527
+    uses: jitsucom/github-workflows/.github/workflows/ai-review.yml@1.28.20260529
     secrets:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       AI_CODE_REVIEW_APP_ID: ${{ secrets.AI_CODE_REVIEW_APP_ID }}
