@@ -55,7 +55,7 @@ export const route = createRoute()
     if (!object) {
       throw new ApiError(`${type} with id ${id} does not exist`, {}, { status: 400 });
     }
-    const preFilter = { ...((object.config as any) || {}), workspaceId, id, type };
+    const preFilter = { ...((object.config as any) || {}), workspaceId, id, type, updatedAt: object.updatedAt };
     return await configObjectType.outputFilter(preFilter);
   })
   .PUT({

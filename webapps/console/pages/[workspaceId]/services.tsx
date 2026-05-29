@@ -162,18 +162,23 @@ const ServicesList: React.FC<{}> = () => {
           `Couldn't load package versions from docker repository. Probably ${packageId} is not a docker repository package.`
         );
       }
-      const versions = rawVersions
-        .filter(
-          (v: any) =>
-            v.isRelease &&
-            (v.isMit || !appconfig.mitCompliant || workspace.featuresEnabled.includes("ignore_sources_licenses"))
-        )
-        .map((v: any) => v.name);
+      const filteredVersions = rawVersions.filter(
+        (v: any) =>
+          v.isRelease &&
+          (v.isMit || !appconfig.mitCompliant || workspace.featuresEnabled.includes("ignore_sources_licenses"))
+      );
+      const versions = filteredVersions.map((v: any) => v.name);
+      // version name -> last image push time, used to detect that the image was
+      // rebuilt after a service was last saved (so specs should be reloaded).
+      const versionUpdatedAt: Record<string, string> = Object.fromEntries(
+        filteredVersions.filter((v: any) => v.updatedAt).map((v: any) => [v.name, v.updatedAt])
+      );
       const sourceType = await rpc(`/api/sources/${packageType}/${encodeURIComponent(packageId)}`);
 
       return {
         ...sourceType,
         versions,
+        versionUpdatedAt,
       };
     },
     newObject: meta => {

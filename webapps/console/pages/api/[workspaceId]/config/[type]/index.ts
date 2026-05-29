@@ -61,11 +61,12 @@ export const route = createRoute()
       where: { workspaceId: workspaceId, type, deleted: false },
       orderBy: { createdAt: "asc" },
     });
-    const mappedObjects = objects.map(({ id, workspaceId, config }) => ({
+    const mappedObjects = objects.map(({ id, workspaceId, config, updatedAt }) => ({
       ...(config as any),
       id,
       workspaceId,
       type,
+      updatedAt,
     }));
 
     const filteredObjects = await Promise.all(mappedObjects.map(obj => configObjectType.outputFilter(obj)));
