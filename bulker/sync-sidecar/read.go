@@ -51,17 +51,13 @@ type ReadSideCar struct {
 	// destination during Consume, or a slow Postgres during state save,
 	// can starve lastMessageTime and trip the 2h watchdog falsely.
 	downstreamBusy atomic.Int64
-	// processRecordStart / storeStateStart hold the unix-time when the
-	// stdout reader entered that call (0 when not in one). The watchdog
-	// uses them to detect a genuinely stuck downstream — a frozen
-	// destination or a frozen Postgres connection that would otherwise
-	// hide behind the downstreamBusy gate. pgxpool has no statement_timeout
-	// and Exec uses context.Background, so a stuck conn for UpsertState
-	// would block forever without a separate bound. Same 2h threshold
-	// as the source-silence watchdog; the per-call atomic write is
-	// negligible cost.
+	// processRecordStart records the unix-time when the stdout reader
+	// entered bulker Consume (0 when not in one). The watchdog uses it to
+	// catch a wedged Consume against a slow destination — a hazard that
+	// would otherwise hide behind the downstreamBusy gate. State DB writes
+	// don't need an equivalent: the dbpool is configured with a 2-minute
+	// statement_timeout, so a stuck UpsertState fails fast with an error.
 	processRecordStart atomic.Int64
-	storeStateStart    atomic.Int64
 	lastStateMessage  string
 	blk               bulker.Bulker
 	lastStream        *ActiveStream
@@ -77,7 +73,11 @@ type ReadSideCar struct {
 func (s *ReadSideCar) Run() {
 	var err error
 
-	s.dbpool, err = pg.NewPGPool(s.databaseURL)
+	// Bound every query at 2 minutes — the sidecar only does small metadata
+	// writes (task_log, source_task, source_state). Any stuck Postgres call
+	// fails fast with a cancellation error instead of blocking the stdout
+	// reader indefinitely on a wedged connection.
+	s.dbpool, err = pg.NewPGPool(s.databaseURL, pg.WithStatementTimeout(2*time.Minute))
 	if err != nil {
 		s.panic("Unable to create postgres connection pool: %v", err)
 	}
@@ -170,9 +170,6 @@ func (s *ReadSideCar) Run() {
 			// at the actual blocked syscall (vs. a generic "no messages").
 			if start := s.processRecordStart.Load(); start != 0 && now-start > 8000 {
 				s.panic("processRecord (bulker Consume) stuck for more than 2 hours. Exiting")
-			}
-			if start := s.storeStateStart.Load(); start != 0 && now-start > 8000 {
-				s.panic("storeState (UpsertState) stuck for more than 2 hours. Exiting")
 			}
 			// Gate the source-silence panic on three signals: no commit in
 			// flight (bulkerStartTime), no per-record/state downstream work
@@ -691,16 +688,11 @@ func (s *ReadSideCar) storeState(stream, state string) {
 	// Same gate as processRecord: a slow Postgres write here can otherwise
 	// freeze lastMessageTime while the stdout reader is parked on the DB,
 	// the source backs up on its FIFO, and the watchdog misreads the
-	// silence as a dead source.
-	// storeStateStart bounds an actual stall: the watchdog panics with a
-	// specific message if UpsertState holds for >2h. pgxpool has no
-	// statement_timeout and Exec uses context.Background, so a stuck conn
-	// would otherwise block forever.
-	s.storeStateStart.Store(time.Now().Unix())
+	// silence as a dead source. No separate stuck-call watchdog needed
+	// here — the dbpool's 2-minute statement_timeout bounds the call.
 	s.downstreamBusy.Add(1)
 	defer func() {
 		s.lastMessageTime.Store(time.Now().Unix())
-		s.storeStateStart.Store(0)
 		s.downstreamBusy.Add(-1)
 	}()
 	err := db.UpsertState(s.dbpool, s.syncId, stream, state, time.Now())
