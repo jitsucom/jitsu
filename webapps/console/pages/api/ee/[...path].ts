@@ -42,7 +42,17 @@ async function forward({ user, req, body, query }: any) {
 
   const { host } = getEeConnection();
   const { path: _drop, ...forwardQuery } = query as Record<string, unknown>;
-  const targetUrl = new URL(`${host}api/${(query.path as string[]).join("/")}`);
+  // Reject dot-segments and embedded slashes before constructing the URL —
+  // otherwise `..` (or its URL-encoded form `%2e%2e`, which Next.js has already
+  // decoded into the catch-all segments) could let the request escape the
+  // `/api/` prefix and hit unrelated billing-server paths.
+  const segments = query.path as string[];
+  for (const seg of segments) {
+    if (!seg || seg === "." || seg === ".." || seg.includes("/") || seg.includes("\\")) {
+      throw new ApiError("Invalid path segment", { segment: seg }, { status: 400 });
+    }
+  }
+  const targetUrl = new URL(`${host}api/${segments.join("/")}`);
   for (const [k, v] of Object.entries(forwardQuery)) {
     if (v === undefined || v === null) {
       continue;
