@@ -1,7 +1,7 @@
 import { createRoute } from "../../lib/api";
 import { AppConfig } from "../../lib/schema";
 import { getAppEndpoint } from "../../lib/domains";
-import { getEeConnection, isEEAvailable } from "../../lib/server/ee";
+import { isEEAvailable } from "../../lib/server/ee";
 import { isFirebaseEnabled, requireFirebaseOptions } from "../../lib/server/firebase-server";
 import { nangoConfig } from "../../lib/server/oauth/nango-config";
 import { readOnlyUntil } from "../../lib/server/read-only-mode";
@@ -45,20 +45,22 @@ export default createRoute()
       dynamicOidc: serverEnv.DYNAMIC_OIDC_ENABLED,
     };
     // `appConfig.ee.available` advertises ee-api to the browser. Browser→ee-api
-    // calls authenticate with a Firebase ID token (`x-fb-auth`) — see
-    // `lib/eeApi.ts`. A deployment that has `EE_CONNECTION` set but Firebase
-    // disabled (self-hosted EE with NextAuth/OIDC) cannot serve those calls,
-    // so we advertise `available = false` there. Callers that check this flag
-    // (S3 init, billing UI, EE-flavored UI hints) skip cleanly. Server-side
-    // code keeps using `isEEAvailable()` directly + the service token for
-    // its own console→ee-api calls; that path doesn't go through app-config.
+    // calls now go through the console-side proxy at `/api/ee/<path>` (see
+    // `lib/eeApi.ts` and `pages/api/ee/[...path].ts`) — the browser never talks
+    // to billing-server directly and no billing-server URL is exposed in
+    // app-config. The proxy authenticates by forwarding the user's Firebase
+    // session, so a deployment that has `EE_CONNECTION` set but Firebase
+    // disabled (self-hosted EE with NextAuth/OIDC) still gets `available = false`
+    // — callers (S3 init, billing UI, EE-flavored UI hints) skip cleanly.
+    // Server-side code keeps using `isEEAvailable()` directly + the service
+    // token for its own console→ee-api calls; that path doesn't go through
+    // this app-config.
     const eeBrowserAvailable = isEEAvailable() && isFirebaseEnabled();
     return {
       docsUrl: serverEnv.JITSU_DOCUMENTATION_URL || "https://docs.jitsu.com/",
       readOnlyUntil: readOnlyUntil?.toISOString(),
       ee: {
         available: eeBrowserAvailable,
-        host: eeBrowserAvailable ? getEeConnection().host : undefined,
       },
       disableSignup: isSignupDisabled(),
       auth,

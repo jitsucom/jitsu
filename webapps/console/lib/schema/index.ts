@@ -86,7 +86,6 @@ export const AppConfig = z.object({
   customDomainsEnabled: z.boolean().optional(),
   ee: z.object({
     available: z.boolean(),
-    host: z.string().optional(),
   }),
   billingEnabled: z.boolean(),
   publicEndpoints: z.object({
