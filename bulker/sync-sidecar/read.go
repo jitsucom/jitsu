@@ -50,7 +50,18 @@ type ReadSideCar struct {
 	// write is blocked — not because it's dead. Without this gate a slow
 	// destination during Consume, or a slow Postgres during state save,
 	// can starve lastMessageTime and trip the 2h watchdog falsely.
-	downstreamBusy    atomic.Int64
+	downstreamBusy atomic.Int64
+	// processRecordStart / storeStateStart hold the unix-time when the
+	// stdout reader entered that call (0 when not in one). The watchdog
+	// uses them to detect a genuinely stuck downstream — a frozen
+	// destination or a frozen Postgres connection that would otherwise
+	// hide behind the downstreamBusy gate. pgxpool has no statement_timeout
+	// and Exec uses context.Background, so a stuck conn for UpsertState
+	// would block forever without a separate bound. Same 2h threshold
+	// as the source-silence watchdog; the per-call atomic write is
+	// negligible cost.
+	processRecordStart atomic.Int64
+	storeStateStart    atomic.Int64
 	lastStateMessage  string
 	blk               bulker.Bulker
 	lastStream        *ActiveStream
@@ -154,13 +165,22 @@ func (s *ReadSideCar) Run() {
 	defer ticker.Stop()
 	go func() {
 		for range ticker.C {
-			// Gate the panic on three signals: no commit in flight
-			// (bulkerStartTime), no per-record/state downstream work in
-			// flight (downstreamBusy), and >2h since the last sign of life
-			// (lastMessageTime — stdout, stderr, or commit completion).
-			// If any downstream path is active the source is likely blocked
+			now := time.Now().Unix()
+			// Specific stuck-call checks first so the panic message points
+			// at the actual blocked syscall (vs. a generic "no messages").
+			if start := s.processRecordStart.Load(); start != 0 && now-start > 8000 {
+				s.panic("processRecord (bulker Consume) stuck for more than 2 hours. Exiting")
+			}
+			if start := s.storeStateStart.Load(); start != 0 && now-start > 8000 {
+				s.panic("storeState (UpsertState) stuck for more than 2 hours. Exiting")
+			}
+			// Gate the source-silence panic on three signals: no commit in
+			// flight (bulkerStartTime), no per-record/state downstream work
+			// in flight (downstreamBusy), and >2h since the last sign of life
+			// (lastMessageTime — stdout, stderr, or commit completion). If
+			// any downstream path is active the source is likely blocked
 			// writing into a full FIFO, not stuck — don't kill the pod.
-			if s.bulkerStartTime.Load() == 0 && s.downstreamBusy.Load() == 0 && time.Now().Unix()-s.lastMessageTime.Load() > 8000 {
+			if s.bulkerStartTime.Load() == 0 && s.downstreamBusy.Load() == 0 && now-s.lastMessageTime.Load() > 8000 {
 				s.panic("No messages from %s for 2 hours. Exiting", s.packageName)
 			}
 		}
@@ -631,9 +651,13 @@ func (s *ReadSideCar) processRecord(rec *RecordRow, size int) {
 	// when a slow destination causes the bulker buffer to back up: scanner.Scan
 	// stops iterating, lastMessageTime freezes, and the source ends up blocked
 	// in write(2) — yet the container appears "running" externally.
+	// processRecordStart bounds a genuine stall: the watchdog panics with a
+	// specific message if Consume holds for >2h.
+	s.processRecordStart.Store(time.Now().Unix())
 	s.downstreamBusy.Add(1)
 	defer func() {
 		s.lastMessageTime.Store(time.Now().Unix())
+		s.processRecordStart.Store(0)
 		s.downstreamBusy.Add(-1)
 	}()
 	err = stream.Consume(rec.Data, size)
@@ -668,9 +692,15 @@ func (s *ReadSideCar) storeState(stream, state string) {
 	// freeze lastMessageTime while the stdout reader is parked on the DB,
 	// the source backs up on its FIFO, and the watchdog misreads the
 	// silence as a dead source.
+	// storeStateStart bounds an actual stall: the watchdog panics with a
+	// specific message if UpsertState holds for >2h. pgxpool has no
+	// statement_timeout and Exec uses context.Background, so a stuck conn
+	// would otherwise block forever.
+	s.storeStateStart.Store(time.Now().Unix())
 	s.downstreamBusy.Add(1)
 	defer func() {
 		s.lastMessageTime.Store(time.Now().Unix())
+		s.storeStateStart.Store(0)
 		s.downstreamBusy.Add(-1)
 	}()
 	err := db.UpsertState(s.dbpool, s.syncId, stream, state, time.Now())
