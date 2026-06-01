@@ -2,9 +2,29 @@ package db
 
 import (
 	"context"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+// defaultExecTimeout caps every short metadata write end-to-end (pool wait +
+// connect + write + ack + server execution). The pool's statement_timeout
+// bounds only server-side execution; this complements it so a wedged TCP
+// socket, a stuck pool acquire, or a never-returning ack can't block the
+// caller indefinitely. CleanupTaskLogs (a windowed DELETE that can run
+// minutes on busy installations) is intentionally not wrapped — it keeps
+// using context.Background.
+const defaultExecTimeout = 2 * time.Minute
+
+// execTimeout is the shared wrapper for the short writes below. Centralising
+// it keeps the 17 call sites identical and makes the timeout policy
+// adjustable in one place.
+func execTimeout(dbpool *pgxpool.Pool, sql string, args ...any) error {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultExecTimeout)
+	defer cancel()
+	_, err := dbpool.Exec(ctx, sql, args...)
+	return err
+}
 
 const (
 	upsertSpecSQL = `INSERT INTO source_spec as s (package, version, specs, timestamp, error ) VALUES ($1, $2, $3, $4, $5)
@@ -94,83 +114,67 @@ WHERE t.sync_id    = c.sync_id
 )
 
 func UpsertSpec(dbpool *pgxpool.Pool, packageName, packageVersion, specs any, timestamp time.Time, error string) error {
-	_, err := dbpool.Exec(context.Background(), upsertSpecSQL, packageName, packageVersion, specs, timestamp, error)
-	return err
+	return execTimeout(dbpool, upsertSpecSQL, packageName, packageVersion, specs, timestamp, error)
 }
 
 func InsertSpecError(dbpool *pgxpool.Pool, packageName, packageVersion string, timestamp time.Time, error string) error {
-	_, err := dbpool.Exec(context.Background(), insertSpecErrorSQL, packageName, packageVersion, timestamp, error)
-	return err
+	return execTimeout(dbpool, insertSpecErrorSQL, packageName, packageVersion, timestamp, error)
 }
 
 func UpsertCatalogStatus(dbpool *pgxpool.Pool, packageName, packageVersion, storageKey string, timestamp time.Time, status, description string) error {
-	_, err := dbpool.Exec(context.Background(), upsertCatalogStatusSQL, packageName, packageVersion, storageKey, timestamp, status, description)
-	return err
+	return execTimeout(dbpool, upsertCatalogStatusSQL, packageName, packageVersion, storageKey, timestamp, status, description)
 }
 
 func UpsertRunningCatalogStatus(dbpool *pgxpool.Pool, packageName, packageVersion, storageKey string, timestamp time.Time, status, description string) error {
-	_, err := dbpool.Exec(context.Background(), upsertRunningCatalogStatusSQL, packageName, packageVersion, storageKey, timestamp, status, description)
-	return err
+	return execTimeout(dbpool, upsertRunningCatalogStatusSQL, packageName, packageVersion, storageKey, timestamp, status, description)
 }
 
 func UpsertCatalogSuccess(dbpool *pgxpool.Pool, packageName, packageVersion, storageKey string, catalog any, timestamp time.Time, status, description string) error {
-	_, err := dbpool.Exec(context.Background(), upsertCatalogSuccessSQL, packageName, packageVersion, storageKey, catalog, timestamp, status, description)
-	return err
+	return execTimeout(dbpool, upsertCatalogSuccessSQL, packageName, packageVersion, storageKey, catalog, timestamp, status, description)
 }
 
 func UpsertState(dbpool *pgxpool.Pool, syncId, stream string, state any, timestamp time.Time) error {
-	_, err := dbpool.Exec(context.Background(), upsertStateSQL, syncId, stream, state, timestamp)
-	return err
+	return execTimeout(dbpool, upsertStateSQL, syncId, stream, state, timestamp)
 }
 
 func UpsertTaskDescriptionAndError(dbpool *pgxpool.Pool, syncId, taskId, packageName, packageVersion string, startedAt time.Time, status, description, error string) error {
-	_, err := dbpool.Exec(context.Background(), upsertTaskDescriptionAndErrorSQL, syncId, taskId, packageName, packageVersion, startedAt, time.Now(), status, description, error)
-	return err
+	return execTimeout(dbpool, upsertTaskDescriptionAndErrorSQL, syncId, taskId, packageName, packageVersion, startedAt, time.Now(), status, description, error)
 }
 
 func UpsertTaskError(dbpool *pgxpool.Pool, syncId, taskId, packageName, packageVersion string, startedAt time.Time, status, error string) error {
-	_, err := dbpool.Exec(context.Background(), upsertTaskErrorSQL, syncId, taskId, packageName, packageVersion, startedAt, time.Now(), status, error)
-	return err
+	return execTimeout(dbpool, upsertTaskErrorSQL, syncId, taskId, packageName, packageVersion, startedAt, time.Now(), status, error)
 }
 
 func UpsertRunningTask(dbpool *pgxpool.Pool, syncId, taskId, packageName, packageVersion string, startedAt time.Time, status, error, startedBy string) error {
-	_, err := dbpool.Exec(context.Background(), upsertRunningTaskSQL, syncId, taskId, packageName, packageVersion, startedAt, time.Now(), status, error, startedBy)
-	return err
+	return execTimeout(dbpool, upsertRunningTaskSQL, syncId, taskId, packageName, packageVersion, startedAt, time.Now(), status, error, startedBy)
 }
 
 func UpdateRunningTaskDate(dbpool *pgxpool.Pool, taskId string) error {
-	_, err := dbpool.Exec(context.Background(), updateRunningTaskDateSQL, taskId, time.Now())
-	return err
+	return execTimeout(dbpool, updateRunningTaskDateSQL, taskId, time.Now())
 }
 
 func UpdateRunningTaskMetrics(dbpool *pgxpool.Pool, taskId string, metrics map[string]any) error {
-	_, err := dbpool.Exec(context.Background(), updateRunningTaskMetricsSQL, taskId, time.Now(), metrics)
-	return err
+	return execTimeout(dbpool, updateRunningTaskMetricsSQL, taskId, time.Now(), metrics)
 }
 
 func UpdateRunningTaskStatus(dbpool *pgxpool.Pool, taskId, status string) error {
-	_, err := dbpool.Exec(context.Background(), updateRunningTaskStatusSQL, taskId, status)
-	return err
+	return execTimeout(dbpool, updateRunningTaskStatusSQL, taskId, status)
 }
 
 func UpsertCheck(dbpool *pgxpool.Pool, packageName, packageVersion, storageKey, status, description string, timestamp time.Time) error {
-	_, err := dbpool.Exec(context.Background(), upsertCheckSQL, packageName, packageVersion, storageKey, status, description, timestamp)
-	return err
+	return execTimeout(dbpool, upsertCheckSQL, packageName, packageVersion, storageKey, status, description, timestamp)
 }
 
 func InsertCheckError(dbpool *pgxpool.Pool, packageName, packageVersion, storageKey, status, description string, timestamp time.Time) error {
-	_, err := dbpool.Exec(context.Background(), insertCheckErrorSQL, packageName, packageVersion, storageKey, status, description, timestamp)
-	return err
+	return execTimeout(dbpool, insertCheckErrorSQL, packageName, packageVersion, storageKey, status, description, timestamp)
 }
 
 func InsertTaskLog(dbpool *pgxpool.Pool, id, level, logger, message, syncId, taskId string, timestamp time.Time) error {
-	_, err := dbpool.Exec(context.Background(), insertIntoTaskLog, id, level, logger, message, syncId, taskId, timestamp)
-	return err
+	return execTimeout(dbpool, insertIntoTaskLog, id, level, logger, message, syncId, taskId, timestamp)
 }
 
 func CloseStaleTasks(dbpool *pgxpool.Pool, timestamp time.Time) error {
-	_, err := dbpool.Exec(context.Background(), closeStaleTasksSQL, timestamp)
-	return err
+	return execTimeout(dbpool, closeStaleTasksSQL, timestamp)
 }
 
 // CleanupTaskLogs prunes source_task per-sync retention. See cleanupTaskLogsSQL.
