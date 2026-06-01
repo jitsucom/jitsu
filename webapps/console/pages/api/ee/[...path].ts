@@ -1,8 +1,6 @@
-import type { NextApiRequest } from "next";
 import { createRoute } from "../../../lib/api";
 import { z } from "zod";
-import { firebaseAuthCookieName } from "../../../lib/server/firebase-server";
-import { getEeConnection, isEEAvailable } from "../../../lib/server/ee";
+import { eeAuthHeaders, getEeConnection, isEEAvailable } from "../../../lib/server/ee";
 import { ApiError } from "../../../lib/shared/errors";
 
 // Catch-all server-side proxy: browser → /api/ee/<path> → billing-server.
@@ -10,28 +8,20 @@ import { ApiError } from "../../../lib/shared/errors";
 // credential as `x-fb-auth` so billing-server authenticates the call.
 // The browser no longer needs to know the billing-server URL or carry a
 // billing-server token.
+//
+// Auth note: `getUser()` (lib/api.ts) routes `Authorization: Bearer …` to the
+// API-key path (`keyId:secret`) and would reject a raw Firebase ID token before
+// it ever reaches this handler. So in the current console, `authType === "firebase"`
+// implies the `jitsu-auth` cookie is set. The try/catch around `eeAuthHeaders`
+// is defensive — if the cookie ever ends up missing we want a clean 401 instead
+// of a 500 from `requireDefined`. Supporting Bearer Firebase ID tokens is a
+// separate change to `getUser` and is out of scope here.
 
 const querySchema = z
   .object({
     path: z.array(z.string()),
   })
   .passthrough();
-
-// getFirebaseUser accepts the credential from either the `jitsu-auth` cookie or
-// an `Authorization: Bearer <idToken>` header (lib/server/firebase-server.ts);
-// both yield `authType === "firebase"`. Look in both places so the proxy works
-// for browser-cookie callers AND programmatic Bearer callers.
-function extractFirebaseToken(req: NextApiRequest): string | undefined {
-  const cookieToken = req.cookies[firebaseAuthCookieName];
-  if (cookieToken) {
-    return cookieToken;
-  }
-  const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.toLowerCase().startsWith("bearer ")) {
-    return authHeader.substring("bearer ".length);
-  }
-  return undefined;
-}
 
 async function forward({ user, req, body, query }: any) {
   if (!isEEAvailable()) {
@@ -43,10 +33,10 @@ async function forward({ user, req, body, query }: any) {
     // billing-server with the admin service token in place of a real user.
     throw new ApiError("ee-api proxy is only available for Firebase-authenticated users", {}, { status: 401 });
   }
-  const firebaseToken = extractFirebaseToken(req);
-  if (!firebaseToken) {
-    // 401 (not 500) when the Firebase user was authenticated via a header that
-    // isn't reachable here — keeps clients honest about retrying with credentials.
+  let fbHeaders: Record<string, string>;
+  try {
+    fbHeaders = eeAuthHeaders(req);
+  } catch {
     throw new ApiError("Missing Firebase credentials for ee-api proxy", {}, { status: 401 });
   }
 
@@ -69,7 +59,7 @@ async function forward({ user, req, body, query }: any) {
     method,
     headers: {
       "Content-Type": "application/json",
-      "x-fb-auth": firebaseToken,
+      ...fbHeaders,
     },
   };
   if (method !== "GET" && method !== "HEAD" && body !== undefined) {
