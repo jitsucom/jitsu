@@ -55,6 +55,18 @@ export const UserNotificationSettings: React.FC<{
               <Switch id="batches" />
             </Form.Item>{" "}
           </div>
+          <div className="flex flex-row w-full justify-between items-center border-x border-t border-collapse p-4">
+            <label htmlFor="summarizeBatchNotificationsByTable" className="font-main flex flex-col gap-1">
+              Summarize Batch Notifications by Table
+              <span className="text-xs text-textLight">
+                When a batch connection writes to multiple tables, send a single notification summarizing statuses
+                across tables instead of one notification per table.
+              </span>
+            </label>
+            <Form.Item name="summarizeBatchNotificationsByTable" noStyle>
+              <Switch id="summarizeBatchNotificationsByTable" />
+            </Form.Item>
+          </div>
           <div className="flex flex-row w-full justify-between items-center border rounded-t-lg p-4">
             <label htmlFor="dead" className="font-main flex flex-col gap-1">
               {eventTypeLabels["dead"].label}

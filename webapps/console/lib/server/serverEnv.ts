@@ -79,16 +79,6 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   DEBUG_SYNCS: z.string().default("false").transform(isTruish),
 
   // ============================================
-  // Google Cloud Services
-  // ============================================
-
-  // Google Cloud Scheduler service account key (JSON)
-  GOOGLE_SCHEDULER_KEY: z.string().optional(),
-
-  // Google Cloud region for scheduler
-  GOOGLE_SCHEDULER_LOCATION: z.string().optional().default("us-central1"),
-
-  // ============================================
   // Authentication & OAuth
   // ============================================
 
@@ -245,8 +235,17 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   // Enable MIT-compliant mode (disables proprietary features)
   MIT_COMPLIANT: z.string().default("false").transform(isTruish),
 
-  // Connection string for Enterprise Edition features
+  // Base URL of ee-api (Enterprise Edition). Supports `${VAR}` placeholders
+  // expanded against process.env at read time — local dev uses
+  // `https://ee${JITSU_BRANCH_SUFFIX}.jitsu.localhost/` to follow the current
+  // branch (see lib/server/ee.ts).
   EE_CONNECTION: z.string().optional(),
+
+  // Static service token for console's server-to-server calls to ee-api that
+  // have no signed-in user (the scheduled-sync quota check, the bulker
+  // connections export). Sent as an `Authorization: Bearer` token; must be one
+  // of the tokens in ee-api's EE_API_SERVICE_TOKENS allow-list.
+  EE_API_SERVICE_TOKEN: z.string().optional(),
 
   // ============================================
   // Logging & Debugging

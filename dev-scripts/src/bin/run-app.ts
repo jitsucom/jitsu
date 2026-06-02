@@ -166,10 +166,20 @@ function main(): void {
   // dies in `loadPreloadModules` before bash ever runs the inner command.
   const resolvedNodeOptions = absolutizeRequires(process.env.NODE_OPTIONS, requireFromHere);
 
+  // Expose the host suffix to the spawned app via JITSU_BRANCH_SUFFIX —
+  // either `-<sanitized-branch>` or empty (default branch / --no-branch).
+  // Branches change between worktrees, so any dev env var that has to address
+  // a sibling portless host (e.g. console's `EE_CONNECTION` → ee-api) would
+  // otherwise need a manual edit per branch. Instead the env file holds a
+  // template (e.g. `EE_CONNECTION=https://ee${JITSU_BRANCH_SUFFIX}.jitsu.localhost/`)
+  // and the consumer expands `${JITSU_BRANCH_SUFFIX}` against this value at
+  // startup — see `webapps/console/lib/server/ee.ts`. The suffix shape (with
+  // leading dash or empty) keeps the template a plain `${VAR}` substitution.
+  const branchSuffix = branch ? `-${branch}` : "";
   const child = spawn("portless", ["--name", slug, "bash", "-c", innerCmd], {
     cwd: SHIM_DIR,
     stdio: "inherit",
-    env: { ...process.env, NODE_OPTIONS: resolvedNodeOptions },
+    env: { ...process.env, NODE_OPTIONS: resolvedNodeOptions, JITSU_BRANCH_SUFFIX: branchSuffix },
   });
   child.on("error", err => {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") {

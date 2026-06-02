@@ -195,6 +195,7 @@ func (r *DeadLetterReprocessor) Reprocess(ctx context.Context, cfg DeadLetterRep
 			kafka.PartitionAny,
 			fmt.Sprintf("dl-%s-%d", record.ActorId, record.Timestamp.UnixNano()),
 			false,
+			30*time.Second,
 		)
 		if err != nil {
 			result.ErrorCount++

@@ -1,4 +1,4 @@
-import { getLog, isTruish, LogLevel, rpc, setGlobalLogLevel } from "juava";
+import { getLog, isTruish, LogLevel, setGlobalLogLevel } from "juava";
 import { AppProps } from "next/app";
 import "../styles/globals.css";
 import { useRouter } from "next/router";
@@ -25,9 +25,11 @@ import { AntdTheme } from "../components/AntdTheme/AntdTheme";
 import { AntdModalProvider } from "../lib/modal";
 import Head from "next/head";
 import { JitsuProvider, useJitsu } from "@jitsu/jitsu-react";
-import { FirebaseProvider, useFirebaseSession } from "../lib/firebase-client";
+import { EmailNotVerifiedError, FirebaseProvider, useFirebaseSession } from "../lib/firebase-client";
+import { VerifyEmailGate } from "../components/SignInOrUp/VerifyEmailGate";
 import { JitsuButton } from "../components/JitsuButton/JitsuButton";
 import { BillingProvider } from "../components/Billing/BillingProvider";
+import { useEeApi } from "../lib/eeApi";
 import { useConfigObjectList, useConfigObjectsUpdater, useLoadedWorkspace } from "../lib/store";
 import { useQuery } from "@tanstack/react-query";
 import { get } from "../lib/useApi";
@@ -104,6 +106,9 @@ const FirebaseAuthorizer: React.FC<PropsWithChildren<{}>> = ({ children }) => {
   if (loading) {
     return <GlobalLoader title={"Authorizing"} />;
   } else if (authError) {
+    if (authError instanceof EmailNotVerifiedError) {
+      return <VerifyEmailGate email={authError.email} />;
+    }
     return <GlobalError error={authError} title={"Authorization error"} />;
   } else if (user) {
     return (
@@ -403,20 +408,18 @@ export const S3BucketInitializer: React.FC<{}> = () => {
   const appConfig = useAppConfig();
   const workspace = useWorkspace();
   const streams = useConfigObjectList("stream");
+  const { eeRpc } = useEeApi();
   useEffect(() => {
     (async () => {
       if (appConfig.ee.available && workspace?.id && streams.length > 0) {
         try {
-          await rpc(`/api/${workspace.id}/ee/s3-init`, {
-            method: "POST",
-            query: { workspaceId: workspace.id },
-          });
+          await eeRpc("s3-init", { method: "POST", query: { workspaceId: workspace.id } });
         } catch (e: any) {
           console.error("Failed to init S3 bucket", e.message);
         }
       }
     })();
-  }, [workspace?.id, streams, appConfig]);
+  }, [workspace?.id, streams, appConfig, eeRpc]);
   return <></>;
 };
 

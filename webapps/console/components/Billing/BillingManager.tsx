@@ -1,6 +1,7 @@
 import React, { ReactNode } from "react";
 import { useBilling } from "./BillingProvider";
 import { useAppConfig, useUser, useWorkspace } from "../../lib/context";
+import { useEeApi, useEeRedirect } from "../../lib/eeApi";
 import { assertDefined, assertFalse, assertTrue, requireDefined, rpc } from "juava";
 import { BillingSettings } from "../../lib/schema";
 import { Alert, Button, Progress, Skeleton, Tooltip } from "antd";
@@ -61,6 +62,7 @@ const ComparisonSection: React.FC<{
 const EventsUsageSection: React.FC<{}> = () => {
   const billing = useBilling();
   const workspace = useWorkspace();
+  const eeRedirect = useEeRedirect();
   assertTrue(billing.enabled);
   assertFalse(billing.loading, "Billing must be loaded before using UsageSection component");
 
@@ -117,16 +119,17 @@ const EventsUsageSection: React.FC<{}> = () => {
             description={
               <div>
                 Please{" "}
-                <Link
-                  prefetch={false}
-                  className=""
-                  href={`/api/${workspace.id}/ee/billing/manage?returnUrl=${encodeURIComponent(window.location.href)}`}
+                <a
+                  className="cursor-pointer"
+                  onClick={() =>
+                    eeRedirect("billing/manage", { workspaceId: workspace.id, returnUrl: window.location.href })
+                  }
                 >
                   <span className="inline-flex items-center space-x-1">
                     <span>update your payment method and pay outstanding invoices</span>
                     <ExternalLink className="w-5 h-5" />
                   </span>
-                </Link>{" "}
+                </a>{" "}
                 to avoid service interruption
               </div>
             }
@@ -293,6 +296,7 @@ const CurrentSubscription: React.FC<{}> = () => {
   assertFalse(billing.loading, "Billing must be loaded before using CurrentSubscription component");
 
   const workspace = useWorkspace();
+  const eeRedirect = useEeRedirect();
   return (
     <div className="border border-textDisabled rounded-lg px-6 py-12">
       <div className="flex flex-row justify-between">
@@ -304,14 +308,15 @@ const CurrentSubscription: React.FC<{}> = () => {
           </div>
           <div className="text-primary">
             {billing.settings.planId !== "free" && !billing.settings?.customBilling && (
-              <Link
-                prefetch={false}
-                className="flex items-center"
-                href={`/api/${workspace.id}/ee/billing/manage?returnUrl=${encodeURIComponent(window.location.href)}`}
+              <a
+                className="flex items-center cursor-pointer"
+                onClick={() =>
+                  eeRedirect("billing/manage", { workspaceId: workspace.id, returnUrl: window.location.href })
+                }
               >
                 <span>Manage subscription / download invoices</span>
                 <Edit2 className="ml-1 h-3 w-3" />
-              </Link>
+              </a>
             )}
             {billing.settings?.futureSubscriptionDate && (
               <div className="text-textLight">
@@ -360,6 +365,8 @@ const AvailablePlans: React.FC<{}> = () => {
 
   const workspace = useWorkspace();
   const user = useUser();
+  const { eeRpc } = useEeApi();
+  const eeRedirect = useEeRedirect();
 
   const { isLoading, error, data } = useQuery(
     ["availablePlans", workspace.id],
@@ -369,7 +376,7 @@ const AvailablePlans: React.FC<{}> = () => {
           plans: {},
         };
       }
-      const plans = await rpc(`/api/${workspace.id}/ee/billing/plans`);
+      const plans = await eeRpc("billing/plans", { query: { workspaceId: workspace.id } });
       assertDefined(billing.settings.planId, `planId is not defined in ${JSON.stringify(billing.settings)}`);
 
       return {
@@ -475,7 +482,9 @@ const AvailablePlans: React.FC<{}> = () => {
               </JitsuButton>
             ) : planId === "free" ? (
               <Button
-                href={`/api/${workspace.id}/ee/billing/manage?returnUrl=${encodeURIComponent(window.location.href)}`}
+                onClick={() =>
+                  eeRedirect("billing/manage", { workspaceId: workspace.id, returnUrl: window.location.href })
+                }
                 className="w-full"
                 size="large"
               >
@@ -483,12 +492,15 @@ const AvailablePlans: React.FC<{}> = () => {
               </Button>
             ) : plan.monthlyPrice >= 0 ? (
               <Button
-                href={
+                onClick={() =>
                   billing.settings.planId === "free"
-                    ? `/api/${workspace.id}/ee/billing/upgrade?planId=${planId}&returnUrl=${encodeURIComponent(
-                        window.location.href
-                      )}&email=${encodeURIComponent(user.email)}`
-                    : `/api/${workspace.id}/ee/billing/manage?returnUrl=${encodeURIComponent(window.location.href)}`
+                    ? eeRedirect("billing/upgrade", {
+                        workspaceId: workspace.id,
+                        planId,
+                        returnUrl: window.location.href,
+                        email: user.email,
+                      })
+                    : eeRedirect("billing/manage", { workspaceId: workspace.id, returnUrl: window.location.href })
                 }
                 className="w-full"
                 size="large"

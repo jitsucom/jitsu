@@ -13,10 +13,8 @@ import {
   BellIcon,
   ChevronDown,
   ChevronUp,
-  CircleDollarSign,
   CreditCard,
   FilePlus,
-  FolderKanban,
   Folders,
   FunctionSquare,
   Globe,
@@ -93,17 +91,6 @@ function WorkspacesMenu(props: { jitsuClassicAvailable: boolean }) {
       },
       {
         label: (
-          <Link href="/admin/workspaces" className="flex items-center">
-            <ButtonLabel iconSize="small" icon={<FolderKanban className="h-full w-full" />}>
-              Admin Workspaces
-            </ButtonLabel>
-          </Link>
-        ),
-
-        key: "admin-workspaces",
-      },
-      {
-        label: (
           <Link href="/admin/audit-log" className="flex items-center">
             <ButtonLabel iconSize="small" icon={<ScrollText className="h-full w-full" />}>
               Admin Audit Log
@@ -113,18 +100,6 @@ function WorkspacesMenu(props: { jitsuClassicAvailable: boolean }) {
         key: "admin-audit-log",
       },
     ];
-    if (appConfig.ee.available) {
-      additionalMenuItems.push({
-        key: "billing-workspaces",
-        label: (
-          <Link href="/admin/overage-billing" className="flex items-center">
-            <ButtonLabel iconSize="small" icon={<CircleDollarSign className="h-full w-full" />}>
-              Billing Administration
-            </ButtonLabel>
-          </Link>
-        ),
-      });
-    }
   }
 
   return (

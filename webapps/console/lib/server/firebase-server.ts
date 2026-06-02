@@ -95,6 +95,16 @@ export async function signOut(firebaseUserId: string): Promise<void> {
   await firebase().auth().revokeRefreshTokens(firebaseUserId);
 }
 
+/**
+ * JITSU-018: an email+password account whose address is not verified must not
+ * receive server-side access. OAuth providers (Google / GitHub) verify the
+ * address themselves, so the check is scoped to the `password` sign-in provider.
+ * Server-side counterpart of the client gate in firebase-client.tsx.
+ */
+export function isUnverifiedPasswordAccount(decoded: admin.auth.DecodedIdToken): boolean {
+  return decoded.firebase?.sign_in_provider === "password" && decoded.email_verified === false;
+}
+
 export async function getFirebaseUser(req: NextApiRequest, checkRevoked?: boolean): Promise<SessionUser | undefined> {
   const authToken = getFirebaseToken(req);
   if (!authToken) {
@@ -116,6 +126,13 @@ export async function getFirebaseUser(req: NextApiRequest, checkRevoked?: boolea
       .withCause(e)
       .log(`Failed to verify firebase token: ${getErrorMessage(e)}`);
     return;
+  }
+
+  // JITSU-018: reject an unverified email+password account even if the
+  // client-side gate was bypassed — no session, no internal user.
+  if (isUnverifiedPasswordAccount(decodedIdToken)) {
+    getServerLog().atWarn().log(`Rejecting unverified email+password account: ${decodedIdToken.email}`);
+    return undefined;
   }
 
   const user = await firebase().auth().getUser(decodedIdToken.uid);

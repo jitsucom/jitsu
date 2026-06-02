@@ -68,10 +68,17 @@ export function createAuthorized(
   tokens: string,
   checkFunc: (hashOrPlain: string, secret: string) => boolean
 ): Authorizer {
-  const authorizers = tokens
+  // An empty / whitespace-only token list authorizes nobody. Without this guard
+  // `"".split(",")` is `[""]`, which would match a caller-supplied empty secret
+  // — a foot-gun for `if (bearer && authorize(bearer))` patterns.
+  const items = tokens
     .split(",")
     .map(tok => tok.trim())
-    .map(hashOrPlain => (secret: string) => checkFunc(hashOrPlain, secret));
+    .filter(tok => tok.length > 0);
+  if (items.length === 0) {
+    return () => false;
+  }
+  const authorizers = items.map(hashOrPlain => (secret: string) => checkFunc(hashOrPlain, secret));
   return (secret: string) => authorizers.find(auth => auth(secret)) !== undefined;
 }
 

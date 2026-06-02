@@ -28,7 +28,10 @@ Data ingestion engine for streaming events to warehouses.
 
 **Web apps (`/webapps`)**
 - `console/` — admin UI (Next.js)
-- `ee-api/` — enterprise edition API (Next.js)
+
+> The enterprise-edition billing/admin API now lives in
+> [`jitsucom/jitsu-cloud-billing`](https://github.com/jitsucom/jitsu-cloud-billing)
+> (deployed at `billing.jitsu.com`).
 
 **Libraries (`/libs`)**
 - `jitsu-js/` — browser JS SDK (`@jitsu/js`)
@@ -84,19 +87,18 @@ pnpm console:dev
 
 ## Running the app for the user
 
-If the user asks you to run the app (console / ee-api / dev stack), use:
+If the user asks you to run the app (console / dev stack), use:
 
 - `pnpm console:dev` — only console
-- `pnpm ee-api:dev` — only ee-api
-- `pnpm ui:dev` — both, in parallel (turbo)
+- `pnpm ui:dev` — equivalent (turbo)
 
-These go through [portless](https://portless.sh) and serve the apps at
-`https://console.jitsu.localhost` and `https://ee.jitsu.localhost`.
+These go through [portless](https://portless.sh) and serve the app at
+`https://console.jitsu.localhost`.
 
 **Branch hosting.** The dev wrapper auto-detects the current git branch and
-suffixes the dev host with it: `https://console-$BRANCH.jitsu.localhost` /
-`https://ee-$BRANCH.jitsu.localhost`. This avoids cookie / port collisions with
-whatever the user has running from another branch.
+suffixes the dev host with it: `https://console-$BRANCH.jitsu.localhost`. This
+avoids cookie / port collisions with whatever the user has running from another
+branch.
 
 - The repo's default branch (resolved via `git rev-parse origin/HEAD`) gets no
   suffix.

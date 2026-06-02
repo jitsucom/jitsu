@@ -182,12 +182,12 @@ func (rc *RetryConsumer) processBatchImpl(_ *Destination, _, _, _, retryBatchSiz
 		originalError := kafkabase.GetKafkaHeader(message, errorHeader)
 		kafkabase.PutKafkaHeader(&headers, errorHeader, utils.ShortenStringWithEllipsis(originalError, 256))
 		kafkabase.PutKafkaHeader(&headers, retriesCountHeader, strconv.Itoa(retries))
-		err = producer.Produce(&kafka.Message{
+		err = kafkabase.ProduceWithBackpressure(producer, &kafka.Message{
 			Key:            message.Key,
 			TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
 			Headers:        headers,
 			Value:          message.Value,
-		}, nil)
+		}, rc.config.ProducerLingerMs/2, 30*time.Second)
 		if err != nil {
 			if strings.Contains(err.Error(), "Message size too large") {
 				rc.Errorf("Message size too large: %d. Headers: %+v Skipping message", len(message.Value), headers)

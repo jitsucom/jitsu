@@ -284,13 +284,17 @@ type BatchPayload struct {
 	EventsName string       `json:"eventsName"`
 	Context    types.Json   `json:"context"`
 	WriteKey   string       `json:"writeKey"`
+	// SentAt is the device-side timestamp of when the batch was sent (Segment
+	// compatibility). When present it is used to correct per-event timestamps
+	// for clock skew between the client device and the ingest server.
+	SentAt string `json:"sentAt"`
 }
 
 func (r *Router) sendToRotor(c *gin.Context, messageId string, ingestMessageBytes []byte, stream *StreamWithDestinations, sendResponse bool) (asyncDestinations []string, tagsDestinations []string, rError *appbase.RouterError) {
 	var err error
 	if stream.BackupEnabled {
 		backupTopic := fmt.Sprintf("%sin.id.%s_backup.m.batch.t.backup", r.config.KafkaTopicPrefix, stream.Stream.WorkspaceId)
-		err2 := r.producer.ProduceAsync(backupTopic, uuid.New(), ingestMessageBytes, nil, kafka.PartitionAny, messageId, false)
+		err2 := r.producer.ProduceAsync(backupTopic, uuid.New(), ingestMessageBytes, nil, kafka.PartitionAny, messageId, false, 0)
 		if err2 != nil {
 			r.Errorf("Error producing to backup topic %s: %v", backupTopic, err2)
 		}
@@ -315,7 +319,7 @@ func (r *Router) sendToRotor(c *gin.Context, messageId string, ingestMessageByte
 			partition = r.partitionSelector.SelectPartition()
 		}
 		messageKey := uuid.New()
-		err = r.producer.ProduceAsync(topic, messageKey, ingestMessageBytes, map[string]string{ConnectionIdsHeader: strings.Join(asyncDestinations, ",")}, partition, messageId, true)
+		err = r.producer.ProduceAsync(topic, messageKey, ingestMessageBytes, map[string]string{ConnectionIdsHeader: strings.Join(asyncDestinations, ",")}, partition, messageId, true, 0)
 		if err != nil {
 			for _, id := range asyncDestinations {
 				IngestedMessages(id, "error", "producer error").Inc()

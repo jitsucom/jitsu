@@ -176,7 +176,6 @@ export const EmailFirstLogin: React.FC<EmailFirstLoginProps> = ({ onPasswordLogi
             onPressEnter={checkAuthMethod}
             disabled={checkingEmail || loading}
           />
-          <div className="mt-2 text-sm text-textLight">Use this for SSO and password based logins</div>
         </div>
 
         {!authMethod && (

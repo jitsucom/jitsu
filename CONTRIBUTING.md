@@ -67,10 +67,11 @@ The default development branch is `newjitsu`.
 
 **Branch naming:** Use a type prefix — `feat/`, `fix/`, `chore/`. Example: `feat/workspace-oidc`.
 
-**Merging policy:** We avoid merge commits. Always rebase onto the default branch —
-never merge the default branch into a branch. For PRs, merge with full history preserved
-— no squash merge. It's fine to squash overly granular commits within a branch locally
-before opening a PR.
+**Merging policy:** When working on a feature branch, never merge the default branch into
+it — always rebase your branch onto the latest default branch. When merging a PR into the
+default branch, either "Create a merge commit" (the default) or "Rebase and merge" is fine.
+Squash merge stays off; if you want to squash overly granular commits, do it locally before
+opening the PR.
 
 **Commit style:** [Conventional commits](https://www.conventionalcommits.org/) —
 `type(scope): description`. Common types: `fix`, `feat`, `chore`, `refactor`, `ci`.
@@ -130,9 +131,3 @@ Builds are triggered automatically by [lint.yml](.github/workflows/lint.yml) aft
 pass on `newjitsu` or the stable branches. On a successful beta or stable release, a
 GitHub release is created and the infra repo is notified via webhook to update deployment
 configs.
-
-
-
-
-
-  

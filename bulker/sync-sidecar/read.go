@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -40,8 +41,23 @@ type ReadSideCar struct {
 	addMeta         bool
 	deduplicate     bool
 
-	lastMessageTime   atomic.Int64
-	bulkerStartTime   atomic.Int64
+	lastMessageTime atomic.Int64
+	bulkerStartTime atomic.Int64
+	// downstreamBusy counts in-flight non-commit downstream calls (bulker
+	// Consume per record and state DB writes). The watchdog ORs this with
+	// bulkerStartTime: while either is non-zero, the sidecar is actively
+	// pushing data and the source has likely gone silent because its FIFO
+	// write is blocked — not because it's dead. Without this gate a slow
+	// destination during Consume, or a slow Postgres during state save,
+	// can starve lastMessageTime and trip the 2h watchdog falsely.
+	downstreamBusy atomic.Int64
+	// processRecordStart records the unix-time when the stdout reader
+	// entered bulker Consume (0 when not in one). The watchdog uses it to
+	// catch a wedged Consume against a slow destination — a hazard that
+	// would otherwise hide behind the downstreamBusy gate. State DB writes
+	// don't need an equivalent: the dbpool is configured with a 2-minute
+	// statement_timeout, so a stuck UpsertState fails fast with an error.
+	processRecordStart atomic.Int64
 	lastStateMessage  string
 	blk               bulker.Bulker
 	lastStream        *ActiveStream
@@ -57,13 +73,19 @@ type ReadSideCar struct {
 func (s *ReadSideCar) Run() {
 	var err error
 
-	s.dbpool, err = pg.NewPGPool(s.databaseURL)
+	// Bound every query at 2 minutes — the sidecar only does small metadata
+	// writes (task_log, source_task, source_state). Any stuck Postgres call
+	// fails fast with a cancellation error instead of blocking the stdout
+	// reader indefinitely on a wedged connection.
+	s.dbpool, err = pg.NewPGPool(s.databaseURL, pg.WithStatementTimeout(2*time.Minute))
 	if err != nil {
 		s.panic("Unable to create postgres connection pool: %v", err)
 	}
 	defer s.dbpool.Close()
 
 	s.log("Sidecar. command: read. syncId: %s, taskId: %s, package: %s:%s startedAt: %s", s.syncId, s.taskId, s.packageName, s.packageVersion, s.startedAt.Format(time.RFC3339))
+
+	s.relayInitContainerLogs()
 	s.fullSync = os.Getenv("FULL_SYNC") == "true"
 	if s.fullSync {
 		s.log("Running in Full Sync mode")
@@ -143,7 +165,19 @@ func (s *ReadSideCar) Run() {
 	defer ticker.Stop()
 	go func() {
 		for range ticker.C {
-			if s.bulkerStartTime.Load() == 0 && time.Now().Unix()-s.lastMessageTime.Load() > 8000 {
+			now := time.Now().Unix()
+			// Specific stuck-call checks first so the panic message points
+			// at the actual blocked syscall (vs. a generic "no messages").
+			if start := s.processRecordStart.Load(); start != 0 && now-start > 8000 {
+				s.panic("processRecord (bulker Consume) stuck for more than 2 hours. Exiting")
+			}
+			// Gate the source-silence panic on three signals: no commit in
+			// flight (bulkerStartTime), no per-record/state downstream work
+			// in flight (downstreamBusy), and >2h since the last sign of life
+			// (lastMessageTime — stdout, stderr, or commit completion). If
+			// any downstream path is active the source is likely blocked
+			// writing into a full FIFO, not stuck — don't kill the pod.
+			if s.bulkerStartTime.Load() == 0 && s.downstreamBusy.Load() == 0 && now-s.lastMessageTime.Load() > 8000 {
 				s.panic("No messages from %s for 2 hours. Exiting", s.packageName)
 			}
 		}
@@ -171,6 +205,14 @@ func (s *ReadSideCar) Run() {
 	if ok {
 		s.log("State loaded: %s", state)
 	}
+	// Materialize the source_task row up front so the UI sees the run as
+	// soon as the sidecar boots. Without this the row only appears when
+	// the source connector emits its first STREAM_STATUS=STARTED trace or
+	// hits a commit (updateRunningStatus), which for slow-starting sources
+	// (heavy discovery, large initial API calls) can be 10+ minutes after
+	// the pod started — and syncctl's RUNNING heartbeats are UPDATE-only,
+	// so they silently no-op until something INSERTs.
+	s.updateRunningStatus()
 	var stdOutErrWaitGroup sync.WaitGroup
 
 	s.errPipe, _ = os.Open(s.stdErrPipeFile)
@@ -182,6 +224,13 @@ func (s *ReadSideCar) Run() {
 		scanner := bufio.NewScanner(s.errPipe)
 		scanner.Buffer(make([]byte, 1024*10), 1024*1024*10)
 		for scanner.Scan() {
+			// Source stderr counts as liveness: Python/Java connectors emit
+			// their normal logging (progress, rate-limit waits, retries) on
+			// stderr while RECORD/STATE/TRACE go to stdout. Without this the
+			// watchdog could falsely trip when the sidecar's stdout reader
+			// is busy (Consume/state save) and the source is fully chatty
+			// on stderr.
+			s.lastMessageTime.Store(time.Now().Unix())
 			line := scanner.Text()
 			s.sourceLog("ERRSTD", line)
 		}
@@ -469,10 +518,13 @@ func (s *ReadSideCar) openStream(streamName string) (*ActiveStream, error) {
 	s.lastStream = stream
 	var namespace string
 	tableNamePrefix := strings.ReplaceAll(s.tableNamePrefix, "${SOURCE_NAMESPACE}", str.Namespace)
-	tableName := utils.NvlString(str.TableName, tableNamePrefix+str.Name)
+	// Prefer the source-provided table-name template over the raw stream name:
+	// stream names may contain characters (e.g. "/") that aren't valid table names.
+	defaultTableName := utils.NvlString(str.TableNameTemplate, str.Name)
+	tableName := utils.NvlString(str.TableName, tableNamePrefix+defaultTableName)
 	if s.namespace == "${LEGACY}" {
 		namespace = ""
-		tableName = utils.NvlString(str.TableName, tableNamePrefix+streamName)
+		tableName = utils.NvlString(str.TableName, tableNamePrefix+utils.NvlString(str.TableNameTemplate, streamName))
 	} else {
 		namespace = strings.TrimSpace(strings.ReplaceAll(s.namespace, "${SOURCE_NAMESPACE}", str.Namespace))
 	}
@@ -592,6 +644,19 @@ func (s *ReadSideCar) processRecord(rec *RecordRow, size int) {
 	if s.addMeta {
 		row.Set("_jitsu_timestamp", time.Now().UTC().Format(timestamp.JsonISO))
 	}
+	// Mark downstream as busy around Consume so the watchdog doesn't false-fire
+	// when a slow destination causes the bulker buffer to back up: scanner.Scan
+	// stops iterating, lastMessageTime freezes, and the source ends up blocked
+	// in write(2) — yet the container appears "running" externally.
+	// processRecordStart bounds a genuine stall: the watchdog panics with a
+	// specific message if Consume holds for >2h.
+	s.processRecordStart.Store(time.Now().Unix())
+	s.downstreamBusy.Add(1)
+	defer func() {
+		s.lastMessageTime.Store(time.Now().Unix())
+		s.processRecordStart.Store(0)
+		s.downstreamBusy.Add(-1)
+	}()
 	err = stream.Consume(rec.Data, size)
 	if err != nil {
 		s.streamErr(stream, "error producing to bulker stream: %v", err)
@@ -620,6 +685,16 @@ func (s *ReadSideCar) panic(message string, args ...any) {
 }
 
 func (s *ReadSideCar) storeState(stream, state string) {
+	// Same gate as processRecord: a slow Postgres write here can otherwise
+	// freeze lastMessageTime while the stdout reader is parked on the DB,
+	// the source backs up on its FIFO, and the watchdog misreads the
+	// silence as a dead source. No separate stuck-call watchdog needed
+	// here — the dbpool's 2-minute statement_timeout bounds the call.
+	s.downstreamBusy.Add(1)
+	defer func() {
+		s.lastMessageTime.Store(time.Now().Unix())
+		s.downstreamBusy.Add(-1)
+	}()
 	err := db.UpsertState(s.dbpool, s.syncId, stream, state, time.Now())
 	if err != nil {
 		s.panic("error updating state: %v", err)
@@ -657,9 +732,23 @@ func (s *ReadSideCar) sendGoodStatus(status string, description, error string, l
 	}
 }
 
+// configsPath returns the directory that holds catalog.json, state.json
+// and destinationConfig.json for the current run.
+//
+//   - Default ("/config")   : Secret mount used by the legacy reactive flow.
+//   - CONFIGS_PATH overrides : CronJob-driven runs set it to "/shared",
+//     an emptyDir written by the oauth-refresh + load-catalog-state init
+//     containers (so all run-time inputs sit in one directory regardless
+//     of how they got there).
+func configsPath() string {
+	if p := os.Getenv("CONFIGS_PATH"); p != "" {
+		return strings.TrimRight(p, "/")
+	}
+	return "/config"
+}
+
 func (s *ReadSideCar) loadState() (string, bool) {
-	//load catalog from file /config/catalog.json and parse it
-	statePath := "/config/state.json"
+	statePath := configsPath() + "/state.json"
 	if _, err := os.Stat(statePath); os.IsNotExist(err) {
 		return "", false
 	}
@@ -668,7 +757,10 @@ func (s *ReadSideCar) loadState() (string, bool) {
 		return "", false
 	}
 	st := strings.TrimSpace(string(state))
-	if len(st) == 0 || st == "{}" {
+	// Treat empty / {} / [] as "no state". `[]` matters for the autonomous
+	// CronJob path where the load-catalog-state init writes a JSON document
+	// regardless of whether any source_state rows existed.
+	if len(st) == 0 || st == "{}" || st == "[]" {
 		return "", false
 	}
 	s.initialState = st
@@ -676,8 +768,7 @@ func (s *ReadSideCar) loadState() (string, bool) {
 }
 
 func (s *ReadSideCar) loadCatalog() error {
-	//load catalog from file /config/catalog.json and parse it
-	catalogPath := "/config/catalog.json"
+	catalogPath := configsPath() + "/catalog.json"
 	if _, err := os.Stat(catalogPath); os.IsNotExist(err) {
 		return fmt.Errorf("catalog file %s doesn't exist", catalogPath)
 	}
@@ -700,8 +791,7 @@ func (s *ReadSideCar) loadCatalog() error {
 }
 
 func (s *ReadSideCar) loadDestinationConfig() error {
-	//load catalog from file /config/catalog.json and parse it
-	destinationConfigPath := "/config/destinationConfig.json"
+	destinationConfigPath := configsPath() + "/destinationConfig.json"
 	if _, err := os.Stat(destinationConfigPath); os.IsNotExist(err) {
 		return fmt.Errorf("destination config file %s doesn't exist", destinationConfigPath)
 	}
@@ -858,5 +948,149 @@ func (s *ActiveStream) RegisterError(err error) {
 		s.Error = err.Error()
 		s.bufferedEventsCount = 0
 		s.bufferedBytes = 0
+	}
+}
+
+// relayInitContainerLogs surfaces output produced by the discover init
+// container (and any other init that opts in via `/shared/init-<name>.log`)
+// into task_log via the standard sidecar logging path.
+//
+// Three sources are handled:
+//
+//   - /shared/discover.stderr: discover's bare stderr (only errors / unparsed
+//     output by airbyte convention). Emitted at level STDERR.
+//   - /shared/discover.jsonl: discover's stdout as AirbyteMessage JSONL. LOG
+//     and TRACE messages are dispatched the same way read.go does it. The
+//     CATALOG message is intentionally skipped — load-catalog-state already
+//     persisted it and the payload is large.
+//   - /shared/init-<name>.log: plain text from any other init container,
+//     emitted at INFO under logger=<name>.
+//
+// Best-effort: read errors are logged and don't fail the read task. Note
+// that if discover *failed* this sidecar wouldn't be running (init chain
+// stops on first non-zero exit), so this code only runs on the post-success
+// path.
+func (s *ReadSideCar) relayInitContainerLogs() {
+	s.relayDiscoverStderr("/shared/discover.stderr")
+	s.relayDiscoverJsonl("/shared/discover.jsonl")
+
+	// Convention: any other init can drop `/shared/init-<name>.log` and it
+	// gets relayed under logger=<name>.
+	matches, _ := filepath.Glob("/shared/init-*.log")
+	for _, p := range matches {
+		base := filepath.Base(p)
+		name := strings.TrimSuffix(strings.TrimPrefix(base, "init-"), ".log")
+		if name == "" {
+			name = base
+		}
+		s.relayPlainLines(p, name, "INFO")
+	}
+}
+
+// relayPlainLines emits each non-empty line from `path` as a task_log entry
+// under (logger, level). Used for generic init-<name>.log artifacts.
+func (s *ReadSideCar) relayPlainLines(path, logger, level string) {
+	f, err := os.Open(path)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 1024*1024), 64*1024*1024)
+	for scanner.Scan() {
+		line := strings.TrimRight(scanner.Text(), "\r")
+		if line == "" {
+			continue
+		}
+		s._log(logger, level, line)
+	}
+}
+
+// relayDiscoverStderr re-emits each non-empty line of discover's stderr.
+// Airbyte connectors generally write only errors/unparseable output here, so
+// level STDERR matches the spec_catalog convention for stderr stream content.
+func (s *ReadSideCar) relayDiscoverStderr(path string) {
+	f, err := os.Open(path)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 1024*1024), 64*1024*1024)
+	for scanner.Scan() {
+		line := strings.TrimRight(scanner.Text(), "\r")
+		if line == "" {
+			continue
+		}
+		s._log(s.packageName, "STDERR", line)
+	}
+}
+
+// relayDiscoverJsonl parses discover's stdout (airbyte JSONL) and re-emits
+// LOG / TRACE messages the same way read.go's main loop handles them.
+// Non-message lines (or lines that fail JSON parse) fall back to checkJsonRow
+// so prefix-style "INFO foo" output still gets logged. The CATALOG message
+// is skipped (load-catalog-state persisted it; payload is too large for a
+// single task_log row).
+func (s *ReadSideCar) relayDiscoverJsonl(path string) {
+	f, err := os.Open(path)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 1024*1024), 64*1024*1024)
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		lineStr := strings.TrimSpace(string(line))
+		if lineStr == "" {
+			continue
+		}
+		// Non-JSON / prefix-style lines: routed through the same fallback the
+		// main read loop uses (logs unprefixed text at ERROR, prefixed text
+		// at the prefix's level).
+		if !strings.HasPrefix(lineStr, "{") {
+			s.checkJsonRow(lineStr)
+			continue
+		}
+		row := &Row{}
+		if err := jsonorder.Unmarshal(line, row); err != nil {
+			s._log(s.packageName, "WARN", fmt.Sprintf("error parsing discover.jsonl line: %v: %s", err, lineStr))
+			continue
+		}
+		switch row.Type {
+		case LogType:
+			if row.Log != nil {
+				level := strings.ToUpper(row.Log.Level)
+				if level == "" {
+					level = "INFO"
+				}
+				s._log(s.packageName, level, row.Log.Message)
+			}
+		case TraceType:
+			if row.Trace == nil {
+				continue
+			}
+			if row.Trace.Type == "ERROR" {
+				msg := row.Trace.Error.Message
+				if msg == "" {
+					msg = row.Trace.Error.InternalMessage
+				}
+				s._log(s.packageName, "ERROR", msg)
+				if row.Trace.Error.StackTrace != "" {
+					s._log(s.packageName, "DEBUG", row.Trace.Error.StackTrace)
+				}
+			} else {
+				s._log(s.packageName, "DEBUG", lineStr)
+			}
+		case CatalogType:
+			// Already persisted by load-catalog-state; skip to avoid a huge
+			// task_log row.
+		case ControlType:
+			s._log(s.packageName, "DEBUG", lineStr)
+		default:
+			// Unexpected for discover (RECORD/STATE/SPEC/CONNECTION_STATUS).
+			s._log(s.packageName, "DEBUG", lineStr)
+		}
 	}
 }

@@ -138,7 +138,12 @@ jobs:
         with:
           filters: |
             bulker:
-              - 'bulker/**'
+              - 'bulker/jitsubase/**'
+              - 'bulker/ingest/**'
+              - 'bulker/kafkabase/**'
+              - 'bulker/eventslog/**'
+              - 'bulker/bulkerlib/**'
+              - 'bulker/bulkerapp/**'
 
       - name: Set up Go
         if: steps.changes.outputs.bulker == 'true'
@@ -166,7 +171,7 @@ jobs:
           BULKER_TEST_MILLION_ROWS_BATCHED: postgres
           TESTCONTAINERS_RYUK_DISABLED: true
         run: |
-           go test -parallel=10 -timeout 60m -json ./jitsubase/... ./kafkabase/... ./eventslog/... ./bulkerlib/... ./bulkerapp/... > test_report.json
+          go test -parallel=10 -timeout 60m -json ./jitsubase/... ./ingest/... ./kafkabase/... ./eventslog/... ./bulkerlib/... ./bulkerapp/... > test_report.json
 
 
       - name: 📊 Generate test report

@@ -55,7 +55,9 @@ export const route = createRoute()
         [query.package, query.version]
       );
       let error;
-      if (res.rowCount === 1) {
+      // force=true must re-fetch from the controller even when a cached spec
+      // row exists — otherwise a tag rebuilt in place keeps serving stale specs.
+      if (res.rowCount === 1 && !isTruish(query.force)) {
         const specs = res.rows[0].specs;
         if (specs) {
           return {

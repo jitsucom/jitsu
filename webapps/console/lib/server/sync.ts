@@ -1,33 +1,20 @@
-import { CloudSchedulerClient } from "@google-cloud/scheduler";
 import { db } from "./db";
 import { ConfigurationObject, ConfigurationObjectLink } from "@prisma/client";
-import { hash as juavaHash, LogFactory, randomId, requireDefined, rpc, stopwatch } from "juava";
-import { google } from "@google-cloud/scheduler/build/protos/protos";
-import { difference } from "lodash";
+import { CronExpressionParser } from "cron-parser";
+import { LogFactory, randomId, requireDefined, rpc } from "juava";
 import { getServerLog } from "./log";
 import { getAppEndpoint } from "../domains";
 import { NextApiRequest } from "next";
-import { createJwt, getEeConnection, isEEAvailable } from "./ee";
-import { DestinationConfig, ServiceConfig, SessionUser } from "../schema";
+import { eeAuthHeadersOrServiceToken, getEeConnection, isEEAvailable } from "./ee";
+import { SessionUser } from "../schema";
 import { randomUUID } from "crypto";
-import { tryManageOauthCreds } from "./oauth/services";
-import { DestinationType, getCoreDestinationType } from "../schema/destinations";
 import omit from "lodash/omit";
-import { FunctionLogger, SetOpts, Store, SyncFunction } from "@jitsu/protocols/functions";
-import { mixpanelFacebookAdsSync, mixpanelGoogleAdsSync } from "./syncs/mixpanel";
-import hash from "stable-hash";
 import { clickhouse } from "./clickhouse";
-import { SyncDbModel } from "../../pages/api/[workspaceId]/config/link";
-import IJob = google.cloud.scheduler.v1.IJob;
-import { initStream } from "../sources";
 import { getServerEnv } from "./serverEnv";
 
 const serverEnv = getServerEnv();
 
 const log = getServerLog("sync-scheduler");
-
-const googleSchedulerLocation = serverEnv.GOOGLE_SCHEDULER_LOCATION || "us-central1";
-const googleScheduler = createGoogleSchedulerClient();
 
 export type ScheduleSyncError = { ok: false; error: string; [key: string]: any };
 export type ScheduleSyncSuccess = { ok: true; taskId: string; [key: string]: any };
@@ -85,27 +72,6 @@ async function dbLog({
   });
 }
 
-export async function cleanupTasksLogs(syncId: string) {
-  const syncTaskLogAge = serverEnv.SYNC_TASK_LOG_AGE ?? 60;
-  const syncTaskLogSize = serverEnv.SYNC_TASK_LOG_SIZE ?? 3000;
-
-  await db.pgPool().query(
-    `DELETE FROM newjitsu.source_task t
-                           WHERE sync_id = $1 AND
-                             started_at < (SELECT
-                                             GREATEST(min(started_at), now() - interval '${syncTaskLogAge} days') AS cutoff_date
-                                           FROM (
-                                                  SELECT started_at
-                                                  FROM newjitsu.source_task
-                                                  WHERE sync_id = $1
-                                                  ORDER BY started_at DESC
-                                                  OFFSET ${syncTaskLogSize}
-                                                    LIMIT 1
-                                                ) sub)`,
-    [syncId]
-  );
-}
-
 async function createOrUpdateTask({
   taskId,
   syncId,
@@ -143,33 +109,37 @@ async function createOrUpdateTask({
 
 export async function checkQuota(opts: {
   user?: SessionUser;
+  req: NextApiRequest;
   trigger: "manual" | "scheduled";
   workspaceId: string;
   syncId: string;
   package: string;
   version: string;
   startedBy: any;
+  // Optional caller-supplied taskId. Used by the autonomous CronJob path's
+  // quota-check init container so the SKIPPED row in source_task uses the
+  // pod's actual task id instead of a freshly-generated UUID.
+  taskId?: string;
 }): Promise<ScheduleSyncError | undefined> {
   try {
-    const quotaCheck = `${getEeConnection().host}api/quotas/sync`;
-    let eeAuthToken: string | undefined;
-    if (opts.user) {
-      eeAuthToken = createJwt(opts.user.internalId, opts.user.email, opts.workspaceId, 60).jwt;
-    } else {
-      //automatic run, authorized via syncctl auth key. Authorize as admin
-      eeAuthToken = createJwt("admin-service-account@jitsu.com", "admin-service-account@jitsu.com", "$all", 60).jwt;
-    }
+    const { host } = getEeConnection();
+    const quotaCheck = `${host}api/quotas/sync`;
+    // Forward the Firebase cookie only when the inbound caller was actually
+    // authenticated by Firebase (`user.authType === "firebase"`). API-key
+    // / OIDC / scheduler callers go through the service token regardless of
+    // any cookie they might have attached — see eeAuthHeadersOrServiceToken.
+    const authHeaders = eeAuthHeadersOrServiceToken(opts.req, opts.user);
     const quotaCheckResult = await rpc(quotaCheck, {
-      method: "POST",
+      method: "GET",
       query: { workspaceId: opts.workspaceId, trigger: opts.trigger }, //db is created, so the slug won't be really used
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${eeAuthToken}`,
+        ...authHeaders,
       },
     });
     if (!quotaCheckResult.ok) {
       if (!opts.user) {
-        const taskId = randomUUID();
+        const taskId = opts.taskId ?? randomUUID();
         //scheduled run. We need to create a failed task so user can see the error
         await createOrUpdateTask({
           taskId,
@@ -194,54 +164,9 @@ export async function checkQuota(opts: {
       };
     }
   } catch (e) {
-    log.atError().log("Error checking quota", e);
+    log.atError().withCause(e).log("Error checking quota");
     //ignore this error and proceed with the run. If billing server is down, we don't want to spoil the user experience
   }
-}
-
-export async function catalogFromDb(packageName: string, version: string, storageKey: string) {
-  const res = await db.pgPool().query(
-    `select catalog
-            from newjitsu.source_catalog
-            where key = $1
-              and package = $2
-              and version = $3`,
-    [storageKey, packageName, version]
-  );
-  if (res.rowCount === 1) {
-    return res.rows[0].catalog;
-  } else {
-    return null;
-  }
-}
-
-export function selectStreamsFromCatalog(catalog: any, syncOptions: any): any {
-  const selectedStreams: Record<string, any> = syncOptions?.streams || {};
-  const disabledStreams: Record<string, any> = syncOptions?.disabledStreams || {};
-  const schemaChanges = syncOptions?.schemaChanges;
-  const hasIncremental = Object.values(selectedStreams).some((s: any) => s.sync_mode === "incremental");
-
-  const streams = catalog.streams
-    .filter((s: any) => {
-      const name = s.namespace ? s.namespace + "." + s.name : s.name;
-      return !!selectedStreams[name] || (schemaChanges === "streams" && !disabledStreams[name]);
-    })
-    .map((s: any) => {
-      const name = s.namespace ? s.namespace + "." + s.name : s.name;
-      let stream = selectedStreams[name];
-      if (!stream) {
-        stream = initStream(s, hasIncremental ? "incremental" : "full_refresh");
-      }
-      return {
-        ...omit(stream, "table_name"),
-        destination_sync_mode: "overwrite",
-        stream: {
-          ...s,
-          table_name: stream.table_name,
-        },
-      };
-    });
-  return { streams };
 }
 
 export type SyncDatabaseModel = ConfigurationObjectLink & { from: ConfigurationObject; to: ConfigurationObject };
@@ -266,193 +191,6 @@ export async function getSyncById(syncId: string, workspaceId: string): Promise<
   );
 }
 
-function createDatabaseLogger(taskId: string, syncId: string): FunctionLogger {
-  return {
-    debug: async (message: string) => {
-      await dbLog({
-        taskId,
-        syncId,
-        message,
-        level: "DEBUG",
-      });
-    },
-    info: async (message: string) => {
-      await dbLog({
-        taskId,
-        syncId,
-        message,
-        level: "INFO",
-      });
-    },
-    error: async (message: string) => {
-      await dbLog({
-        taskId,
-        syncId,
-        message,
-        level: "ERROR",
-      });
-    },
-    warn: async (message: string) => {
-      await dbLog({
-        taskId,
-        syncId,
-        message,
-        level: "WARN",
-      });
-    },
-  };
-}
-
-type SaasSyncState = {
-  dict: Record<
-    string,
-    {
-      value: any;
-      //ISO date
-      expireAt?: string;
-    }
-  >;
-};
-
-function createDatabaseStore(taskId: string, syncId: string): Store {
-  const stream = "cloud-sync";
-
-  async function getSaasSyncState(): Promise<SaasSyncState> {
-    return ((await db.prisma().source_state.findFirst({ where: { sync_id: syncId, stream } }))?.state || {
-      dict: {},
-    }) as SaasSyncState;
-  }
-
-  async function saveSaasSyncState(state: SaasSyncState) {
-    await db.prisma().source_state.upsert({
-      where: { sync_id_stream: { sync_id: syncId, stream } },
-      create: {
-        sync_id: syncId,
-        stream,
-        state,
-      },
-      update: {
-        state,
-      },
-    });
-  }
-
-  return {
-    del: async (key: string): Promise<void> => {
-      const state = await getSaasSyncState();
-      delete state.dict[key];
-      await saveSaasSyncState(state);
-    },
-    get: async (key: string): Promise<any> => {
-      return (await getSaasSyncState()).dict[key]?.value;
-    },
-    set: async (key: string, value: any, opts?: SetOpts): Promise<void> => {
-      if (opts) {
-        throw new Error("Custom TTLs are not supported for Cloud Syncs sync");
-      }
-      const state = await getSaasSyncState();
-      state.dict[key] = { value };
-      await saveSaasSyncState(state);
-    },
-    ttl: (key: string): Promise<number> => Promise.reject(new Error("Not implemented")),
-  };
-}
-
-function getImplemetingFunction(pkg: string, destinationType: DestinationType): SyncFunction {
-  if (destinationType.id === "mixpanel" && pkg === "airbyte/source-google-ads") {
-    return mixpanelGoogleAdsSync as any;
-  } else if (destinationType.id === "mixpanel" && pkg === "airbyte/source-facebook-marketing") {
-    return mixpanelFacebookAdsSync as any;
-  }
-
-  throw new Error(`${pkg} -> ${destinationType.id} sync doesn't exist`);
-}
-
-async function runSyncSynchronously({
-  syncId,
-  taskId,
-  destinationConfig,
-  destinationType,
-  sourceConfig,
-  startedBy,
-}: {
-  syncId: string;
-  taskId: string;
-  destinationType: DestinationType;
-  destinationConfig: DestinationConfig;
-  sourceConfig: ServiceConfig;
-  startedBy: any;
-}) {
-  await createOrUpdateTask({
-    taskId,
-    syncId,
-    startedBy,
-    status: "RUNNING",
-    description: "Started",
-    pkg: sourceConfig.package,
-    version: sourceConfig.version,
-  });
-  const syncConfig = destinationType?.syncs?.[sourceConfig.package];
-  if (!syncConfig) {
-    await createOrUpdateTask({
-      taskId,
-      syncId,
-      startedBy,
-      status: "FAILED",
-      description: `Sync function not found for package ${sourceConfig.package}`,
-      pkg: sourceConfig.package,
-      version: sourceConfig.version,
-    });
-    return;
-  }
-  await dbLog({
-    taskId,
-    syncId,
-    message: `Running sync from ${sourceConfig.package} -> ${destinationType.title} (#${destinationType.id})`,
-    level: "INFO",
-  });
-  const credentials = await tryManageOauthCreds(sourceConfig);
-
-  const implementingFunction = getImplemetingFunction(sourceConfig.package, destinationType);
-  await dbLog({
-    taskId,
-    syncId,
-    level: "INFO",
-    message: `Successfully connected to to ${sourceConfig.package}. Running sync`,
-  });
-
-  await implementingFunction({
-    source: {
-      package: sourceConfig.package,
-      credentials,
-      syncProps: sourceConfig,
-    },
-    destination: destinationConfig,
-    ctx: {
-      log: createDatabaseLogger(taskId, syncId),
-      store: createDatabaseStore(taskId, syncId),
-    },
-  });
-
-  await createOrUpdateTask({
-    taskId,
-    syncId,
-    startedBy,
-    status: "SUCCESS",
-    description: "Successfully finished",
-    pkg: sourceConfig.package,
-    version: sourceConfig.version,
-  });
-}
-
-function safeStringify(e: any) {
-  try {
-    return JSON.stringify(e, null, 2);
-  } catch (e) {
-    return e?.toString();
-  }
-}
-
 export async function scheduleSync({
   workspaceId,
   syncIdOrModel,
@@ -461,8 +199,6 @@ export async function scheduleSync({
   req,
   fullSync,
   ignoreRunning,
-  skipRefresh,
-  nodelay,
   taskId,
 }: {
   workspaceId: string;
@@ -472,8 +208,6 @@ export async function scheduleSync({
   req: NextApiRequest;
   fullSync?: boolean;
   ignoreRunning?: boolean;
-  skipRefresh?: boolean;
-  nodelay?: boolean;
   taskId?: string;
 }): Promise<ScheduleSyncResult> {
   const syncAuthKey = serverEnv.SYNCCTL_AUTH_KEY ?? "";
@@ -489,9 +223,17 @@ export async function scheduleSync({
     authHeaders["Authorization"] = `Bearer ${syncAuthKey}`;
   }
   try {
+    log
+      .atInfo()
+      .log(
+        `scheduleSync entry: syncId=${
+          typeof syncIdOrModel === "string" ? syncIdOrModel : (syncIdOrModel as any)?.id
+        } workspaceId=${workspaceId} trigger=${trigger} taskId=${taskId} fullSync=${!!fullSync} ignoreRunning=${!!ignoreRunning}`
+      );
     const appBase = getAppEndpoint(req).baseUrl;
     const sync = typeof syncIdOrModel === "string" ? await getSyncById(syncIdOrModel, workspaceId) : syncIdOrModel;
     if (!sync) {
+      log.atWarn().log(`scheduleSync: sync ${syncIdOrModel} not found (workspace ${workspaceId})`);
       return {
         ok: false,
         error: `Sync ${syncIdOrModel} not found`,
@@ -499,17 +241,17 @@ export async function scheduleSync({
     }
     const service = sync.from;
     if (!service) {
+      log.atWarn().log(`scheduleSync: sync ${sync.id} has no service (from); aborting`);
       return {
         ok: false,
         error: `Service ${sync.from} not found`,
       };
     }
-    const destinationConfig = sync.to.config as DestinationConfig;
-    const destinationType = getCoreDestinationType(destinationConfig.destinationType);
-    const serviceConfig = { ...(service.config as any), ...service };
-    const runSynchronously = !(destinationType.usesBulker || destinationType.id === "webhook") && destinationType.syncs;
-    // for normal scheduled syncs syncctl handles 'already running' case
-    if (trigger === "manual" || runSynchronously) {
+    const serviceConfig = service.config as any;
+    // Manual triggers still admission-gate on a pre-existing RUNNING row to
+    // avoid double-starting a sync (the scheduled bearer path skips this
+    // because syncctl handles the already-running case itself).
+    if (trigger === "manual") {
       const running = await db.prisma().source_task.findFirst({
         where: {
           sync_id: syncIdOrModel as string,
@@ -518,22 +260,14 @@ export async function scheduleSync({
       });
 
       if (running) {
-        const msInMin = 1000 * 60;
-        if (ignoreRunning || (runSynchronously && Date.now() - running.updated_at.getTime() >= 2 * msInMin)) {
-          await dbLog({
-            taskId: running.task_id,
-            syncId: sync.id,
-            message: `Synchronous task ${running.task_id} was running due to timeout`,
-            level: "ERROR",
-          });
+        if (ignoreRunning) {
+          // Cancel the stale/in-flight task row before proceeding — otherwise
+          // the next manual run without ignoreRunning sees the same RUNNING
+          // row and rejects with "Sync is already running" until the 1h
+          // stale-task sweep eventually closes it.
           await db.prisma().source_task.update({
-            where: {
-              task_id: running.task_id,
-            },
-            data: {
-              status: "FAILED",
-              updated_at: new Date(),
-            },
+            where: { task_id: running.task_id },
+            data: { status: "CANCELLED", updated_at: new Date() },
           });
         } else {
           return {
@@ -552,513 +286,128 @@ export async function scheduleSync({
     if (isEEAvailable()) {
       const checkResult = await checkQuota({
         user,
+        req,
         trigger,
         workspaceId,
         syncId: sync.id,
-        package: (service.config as any).package,
-        version: (service.config as any).version,
+        package: serviceConfig.package,
+        version: serviceConfig.version,
         startedBy,
       });
       if (checkResult) {
         return checkResult;
       }
     }
-    let stateObj: any = undefined;
+    // fullSync: console still purges saved state directly. Syncctl's
+    // load-catalog-state init reads source_state from the DB; deleting here
+    // makes the next read start fresh without needing a new syncctl param.
     if (fullSync) {
       await db.prisma().source_state.deleteMany({
-        where: {
-          sync_id: sync.id,
-        },
+        where: { sync_id: sync.id },
       });
-    } else {
-      stateObj = await loadState(sync);
     }
-    if (runSynchronously) {
-      const started = Date.now();
-      try {
-        await runSyncSynchronously({
-          taskId,
-          syncId: sync.id,
-          destinationConfig,
-          destinationType,
-          sourceConfig: serviceConfig,
-          startedBy,
-        });
-        const time = Date.now() - started;
-        await dbLog({
-          taskId,
-          syncId: sync.id,
-          message: `Sync finished in ${time}ms`,
-          level: "INFO",
-        });
-      } catch (e: any) {
-        log
-          .atError()
-          .log(`Error running task ${taskId}, sync ${sync.id}. Message : ${e?.message}`, JSON.stringify(e, null, 2));
-        const syncError = `${e?.message || safeStringify(e)}`;
-        await createOrUpdateTask({
-          taskId,
-          syncId: sync.id,
-          status: "FAILED",
-          startedBy,
-          description: `Error running sync: ${syncError}`,
-          pkg: serviceConfig.package,
-          version: serviceConfig.version,
-        });
-        await dbLog({
-          taskId,
-          syncId: sync.id,
-          message: `Error running sync: ${syncError}${e?.stack ? `\n${e.stack}` : ""}`,
-          level: "ERROR",
-        });
-      }
-      return {
-        ok: true,
+
+    // The repo export keys each entry's updatedAt off max(link, source,
+    // destination) (see exportSyncs in admin/export). Match that here so the
+    // parity wait in syncctl doesn't pass against a stale snapshot when only
+    // the source or destination config was edited (the link row's own
+    // updatedAt wouldn't have moved).
+    const repoUpdatedAt = new Date(
+      Math.max(sync.updatedAt.getTime(), sync.from.updatedAt.getTime(), sync.to.updatedAt.getTime())
+    ).toISOString();
+
+    // Thin proxy: post to syncctl /read with just enough query params for it
+    // to look up the SyncEntry from its repository (syncId + updatedAt for
+    // parity wait). syncctl runs oauth-refresh + load-catalog-state + the
+    // optional discover init container as part of the Pod itself — console
+    // no longer touches OAuth creds, catalog DB, or stream selection.
+    const res = await rpc(syncURL + "/read", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...authHeaders,
+      },
+      query: {
+        syncId: sync.id,
+        updatedAt: repoUpdatedAt,
         taskId,
-        status: `${appBase}/api/${workspaceId}/sources/tasks?taskId=${taskId}&syncId=${syncIdOrModel}`,
-        logs: `${appBase}/api/${workspaceId}/sources/logs?taskId=${taskId}&syncId=${syncIdOrModel}`,
-      };
-    }
-    if (destinationType.id === "clickhouse" && !destinationConfig.provisioned) {
-      destinationConfig.loadAsJson = false;
-    }
+        fullSync: fullSync ? "true" : "false",
+        startedBy: JSON.stringify(startedBy),
+        ...(serverEnv.DEBUG_SYNCS ? { debug: "true" } : {}),
+      },
+    });
 
-    const h = juavaHash("md5", hash(serviceConfig.credentials));
-    const versionHash = `${workspaceId}_${serviceConfig.id}_${h}`;
-
-    const catalog = await catalogFromDb(serviceConfig.package, serviceConfig.version, versionHash);
-    if (!catalog) {
-      return {
-        ok: false,
-        error: `Source catalog not found or outdated. Please run Refresh Catalog in Sync settings`,
-      };
-    }
-    const configuredCatalog = selectStreamsFromCatalog(catalog, sync.data);
-    if (
-      serviceConfig.package === "airbyte/source-postgres" ||
-      serviceConfig.package === "airbyte/source-mssql" ||
-      serviceConfig.package === "airbyte/source-singlestore"
-    ) {
-      // default value 10000 is too low for big tables - leading to very slow syncs
-      serviceConfig.credentials.sync_checkpoint_records = 200000;
-    }
-    let res: any;
-    const schemaChanges = (sync.data as any).schemaChanges;
-    if (!skipRefresh && (schemaChanges === "fields" || schemaChanges === "streams")) {
-      res = await rpc(syncURL + "/discover", {
-        method: "POST",
-        body: {
-          config: await tryManageOauthCreds({ ...serviceConfig, id: sync.fromId }),
-        },
-        headers: {
-          "Content-Type": "application/json",
-          ...authHeaders,
-        },
-        query: {
-          package: serviceConfig.package,
-          version: serviceConfig.version,
-          storageKey: versionHash,
-          thenRun: "true",
-          taskId,
-          syncId: sync.id,
-          workspaceId: workspaceId,
-          fullSync: fullSync ? "true" : "false",
-          startedBy: JSON.stringify(startedBy),
-        },
-      });
-    } else {
-      res = await rpc(syncURL + "/read", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...authHeaders,
-        },
-        query: {
-          package: serviceConfig.package,
-          version: serviceConfig.version,
-          taskId,
-          syncId: sync.id,
-          fullSync: fullSync ? "true" : "false",
-          startedBy: JSON.stringify(startedBy),
-          namespace: typeof sync.data?.["namespace"] !== "undefined" ? sync.data?.["namespace"] : "${LEGACY}",
-          toSameCase: sync.data?.["toSameCase"] ? "true" : "false",
-          addMeta: sync.data?.["addMeta"] ? "true" : "false",
-          deduplicate: sync.data?.["deduplicate"] ?? true ? "true" : "false",
-          nodelay: nodelay ? "true" : "false",
-          tableNamePrefix: sync.data?.["tableNamePrefix"] ?? "",
-          ...(serverEnv.DEBUG_SYNCS ? { debug: "true" } : {}),
-        },
-        body: {
-          config: await tryManageOauthCreds({ ...serviceConfig, id: sync.fromId }),
-          catalog: configuredCatalog,
-          ...(stateObj ? { state: stateObj } : {}),
-          destinationConfig,
-          functionsEnv: sync.data?.["functionsEnv"],
-        },
-      });
-    }
     if (!res.ok) {
+      log
+        .atWarn()
+        .log(
+          `scheduleSync: syncctl RPC returned not-ok for sync=${sync.id} task=${taskId}: ${
+            res.error ?? "unknown error"
+          }`
+        );
       return { ok: false, error: res.error ?? "unknown error", taskId };
-    } else {
-      if (trigger === "manual") {
-        await createOrUpdateTask({
-          taskId,
-          syncId: sync.id,
-          startedBy,
-          status: "RUNNING",
-          description: "Started",
-          pkg: serviceConfig.package,
-          version: serviceConfig.version,
-        });
-      }
-      return {
-        ok: true,
-        taskId,
-        status: `${appBase}/api/${workspaceId}/sources/tasks?taskId=${taskId}&syncId=${syncIdOrModel}`,
-        logs: `${appBase}/api/${workspaceId}/sources/logs?taskId=${taskId}&syncId=${syncIdOrModel}`,
-      };
     }
+    if (trigger === "manual") {
+      await createOrUpdateTask({
+        taskId,
+        syncId: sync.id,
+        startedBy,
+        status: "RUNNING",
+        description: "Started",
+        pkg: serviceConfig.package,
+        version: serviceConfig.version,
+      });
+    }
+    return {
+      ok: true,
+      taskId,
+      status: `${appBase}/api/${workspaceId}/sources/tasks?taskId=${taskId}&syncId=${syncIdOrModel}`,
+      logs: `${appBase}/api/${workspaceId}/sources/logs?taskId=${taskId}&syncId=${syncIdOrModel}`,
+    };
   } catch (e: any) {
     return syncError(log, `Error running sync`, e, false, `sync: ${syncIdOrModel} workspace: ${workspaceId}`);
   }
 }
 
-async function loadState(sync: SyncDatabaseModel): Promise<any> {
-  //load state from db
-  const stateRows = await db.prisma().source_state.findMany({
-    where: {
-      sync_id: sync.id,
-    },
-  });
-  if (stateRows.length > 0) {
-    if (stateRows.length === 1 && stateRows[0].stream === "_LEGACY_STATE") {
-      //legacy state
-      return stateRows[0].state;
-    } else if (stateRows.length === 1 && stateRows[0].stream === "_GLOBAL_STATE") {
-      //v2 global state
-      return [
-        {
-          type: "GLOBAL",
-          global: stateRows[0].state,
-        },
-      ];
-    } else {
-      //v2 multi-stream states
-      return stateRows
-        .filter(r => r.stream !== "_LEGACY_STATE" && r.stream != "_GLOBAL_STATE")
-        .filter(r => ((sync.data as any).streams || {})[r.stream]?.sync_mode !== "full_refresh")
-        .map(r => {
-          const descr = r.stream.split(".");
-          let namespace: string | undefined = undefined;
-          let name: string | undefined = undefined;
-          if (descr.length === 1) {
-            name = descr[0];
-          } else if (descr.length === 2) {
-            namespace = descr[0];
-            name = descr[1];
-          } else {
-            throw new Error(`Invalid stream name ${r.stream}`);
-          }
-          return {
-            type: "STREAM",
-            stream: {
-              stream_descriptor: { name: name, namespace: namespace },
-              stream_state: r.state,
-            },
-          };
-        });
-    }
-  }
-  return undefined;
-}
+/**
+ * Validate sync.data.schedule (5-field cron expression) and sync.data.timezone
+ * (IANA tz name) before persisting a sync. Throws an Error with a user-facing
+ * message on invalid input.
+ *
+ * Used by the link.ts POST/PUT handler. Previously the GCS scheduler API
+ * implicitly rejected invalid schedules at write time; with the move to
+ * syncctl-managed CronJobs, k8s rejects them later (in syncctl reconcile
+ * logs) with no API feedback to the user. This restores the synchronous
+ * write-time check.
+ *
+ * Empty/missing schedule means "manual-only sync" — not an error.
+ */
+export function validateSyncSchedule(data: { schedule?: string; timezone?: string } | undefined | null): void {
+  if (!data) return;
+  const schedule = data.schedule?.trim();
+  if (!schedule) return; // manual-only sync, no schedule to validate
 
-export async function updateScheduler(baseUrl: string, sync: SyncDbModel) {
-  if (!googleScheduler) {
-    return;
+  // Reject the legacy "Disabled" sentinel that older UI code may still emit
+  // as the value "" — already handled above. Also reject obvious junk early
+  // before letting cron-parser produce a less-clear error.
+  if (schedule.startsWith("@")) {
+    // cron-parser supports @yearly/@monthly/@weekly/@daily/@hourly etc.;
+    // pass through to the parser. k8s CronJob spec ALSO accepts these per
+    // batch/v1 cron schedule format.
   }
-  const sw = stopwatch();
-  const parent = googleScheduler.locationPath(await googleScheduler.getProjectId(), googleSchedulerLocation);
-  const job: IJob = {
-    name: googleScheduler.jobPath(await googleScheduler.getProjectId(), googleSchedulerLocation, sync.id),
-    schedule: sync.data?.schedule,
-    timeZone: sync.data?.timezone ?? "Etc/UTC",
-    httpTarget: {
-      uri: `${baseUrl}/api/${sync.workspaceId}/sources/run?syncId=${sync.id}`,
-      headers: {
-        Authorization: `Bearer ${serverEnv.SYNCCTL_AUTH_KEY}`,
-      },
-      httpMethod: "GET",
-    },
-  };
-  log.atInfo().log(`Updating job ${job.name}`);
+
+  const tz = data.timezone?.trim() || "Etc/UTC";
+  // Validate IANA tz name first so the error message is targeted; cron-parser
+  // would otherwise just throw "Invalid timezone" without saying which one.
   try {
-    await googleScheduler.updateJob({ job });
-    log.atInfo().log("Update scheduler took", sw.elapsedPretty());
-  } catch (e: any) {
-    if (e.message.includes("NOT_FOUND") || e.message.includes("INVALID_ARGUMENT:")) {
-      log.atInfo().log(`Creating job ${job.name}`);
-      await googleScheduler.createJob({ job, parent });
-      log.atInfo().log("Create scheduler took", sw.elapsedPretty());
-    } else {
-      log.atError().log(`Error updating job ${job.name}`, e);
-      throw new Error(`Error updating scheduler`, { cause: e });
-    }
+    new Intl.DateTimeFormat("en-US", { timeZone: tz });
+  } catch {
+    throw new Error(`Invalid timezone "${tz}". Use an IANA tz name like "America/New_York" or "Etc/UTC".`);
   }
-}
 
-export async function createScheduler(baseUrl: string, sync: SyncDbModel) {
-  if (!googleScheduler) {
-    return;
-  }
-  const sw = stopwatch();
-  const parent = googleScheduler.locationPath(await googleScheduler.getProjectId(), googleSchedulerLocation);
-  const job: IJob = {
-    name: googleScheduler.jobPath(await googleScheduler.getProjectId(), googleSchedulerLocation, sync.id),
-    schedule: sync.data?.schedule,
-    timeZone: sync.data?.timezone ?? "Etc/UTC",
-    httpTarget: {
-      uri: `${baseUrl}/api/${sync.workspaceId}/sources/run?syncId=${sync.id}`,
-      headers: {
-        Authorization: `Bearer ${serverEnv.SYNCCTL_AUTH_KEY}`,
-      },
-      httpMethod: "GET",
-    },
-  };
-  log.atInfo().log(`Creating job ${job.name}`);
   try {
-    await googleScheduler.createJob({ job, parent });
-    log.atInfo().log("Create scheduler took", sw.elapsedPretty());
+    CronExpressionParser.parse(schedule, { tz });
   } catch (e: any) {
-    if (e.message.includes("ALREADY_EXISTS")) {
-      log.atInfo().log(`Updating job ${job.name}`);
-      await googleScheduler.updateJob({ job });
-      log.atInfo().log("Updating scheduler took", sw.elapsedPretty());
-    } else {
-      log.atError().log(`Error creating job ${job.name}`, e);
-      throw new Error(`Error creating scheduler`, { cause: e });
-    }
+    throw new Error(`Invalid cron schedule "${schedule}": ${e?.message || e}`);
   }
 }
-
-export async function deleteScheduler(syncId: string) {
-  if (!googleScheduler) {
-    return;
-  }
-  const sw = stopwatch();
-
-  const jobName = googleScheduler.jobPath(await googleScheduler.getProjectId(), googleSchedulerLocation, syncId);
-  log.atInfo().log(`Deleting job ${jobName}`);
-  try {
-    await googleScheduler.deleteJob({ name: jobName });
-    log.atInfo().log("Delete scheduler took", sw.elapsedPretty());
-  } catch (e: any) {
-    if (!e.message.includes("NOT_FOUND")) {
-      log.atError().log(`Error deleting job ${jobName}`, e);
-      throw new Error(`Error deleting scheduler`, { cause: e });
-    }
-  }
-}
-
-export async function syncWithScheduler(baseUrl: string) {
-  const sw = stopwatch();
-  if (!googleScheduler) {
-    log.atInfo().log(`GoogleCloudScheduler sync: GOOGLE_SCHEDULER_KEY is not defined, skipping`);
-    return;
-  }
-  const gsParent = googleScheduler.locationPath(await googleScheduler.getProjectId(), googleSchedulerLocation);
-
-  const allSyncs = await db.prisma().configurationObjectLink.findMany({
-    where: {
-      type: "sync",
-      deleted: false,
-      workspace: { deleted: false },
-      from: { deleted: false },
-      to: { deleted: false },
-    },
-  });
-  const syncs = allSyncs.filter(sync => !!(sync.data as any).schedule);
-  const syncsById = syncs.reduce((acc, sync) => {
-    acc[sync.id] = sync;
-    return acc;
-  }, {} as Record<string, any>);
-
-  const iterable = googleScheduler.listJobsAsync({
-    parent: gsParent,
-  });
-  const jobsById: Record<string, IJob> = {};
-  for await (const response of iterable) {
-    jobsById[(response.name ?? "").replace(`${gsParent}/jobs/`, "")] = response;
-  }
-
-  const syncsIds = Object.keys(syncsById);
-  const jobsIds = Object.keys(jobsById);
-  const idsToCreate = difference(syncsIds, jobsIds);
-  const idsToDelete = difference(jobsIds, syncsIds);
-  const idsToUpdate = difference(syncsIds, idsToCreate);
-  log
-    .atInfo()
-    .log(
-      `GoogleCloudScheduler sync: ${idsToCreate.length} to create, ${idsToDelete.length} to delete, ${idsToUpdate.length} to update`
-    );
-  for (const id of idsToCreate) {
-    const sync = syncsById[id];
-    const schedule = (sync.data as any).schedule;
-    const job: IJob = {
-      name: `${gsParent}/jobs/${id}`,
-      schedule: schedule,
-      timeZone: (sync.data as any).timezone ?? "Etc/UTC",
-      httpTarget: {
-        uri: `${baseUrl}/api/${sync.workspaceId}/sources/run?syncId=${sync.id}`,
-        headers: {
-          Authorization: `Bearer ${serverEnv.SYNCCTL_AUTH_KEY}`,
-        },
-        httpMethod: "GET",
-      },
-    };
-    log.atInfo().log(`Creating job ${job.name}`);
-    try {
-      await googleScheduler.createJob({
-        parent: gsParent,
-        job: job,
-      });
-    } catch (e: any) {
-      log.atError().log(`Error creating job ${job.name}`, e);
-      if (e.message.includes("ALREADY_EXISTS")) {
-        await googleScheduler.updateJob({
-          job,
-        });
-      } else {
-        throw e;
-      }
-    }
-  }
-  for (const id of idsToDelete) {
-    const job = jobsById[id];
-    log.atInfo().log(`Deleting job ${job.name}`);
-    try {
-      await googleScheduler.deleteJob({
-        name: job.name ?? "",
-      });
-    } catch (e: any) {
-      log.atError().log(`Error deleting job ${job.name}`, e);
-      if (!e.message.includes("NOT_FOUND")) {
-        throw e;
-      }
-    }
-  }
-  for (const id of idsToUpdate) {
-    const sync = syncsById[id];
-    const schedule = (sync.data as any).schedule;
-    const job = jobsById[id];
-    const syncTimezone = (sync.data as any).timezone ?? "Etc/UTC";
-    if (job.schedule !== schedule || job.timeZone !== syncTimezone) {
-      log.atInfo().log(`Updating job ${job.name}`);
-      await googleScheduler.updateJob({
-        job: {
-          ...job,
-          schedule: schedule,
-          timeZone: syncTimezone,
-        },
-      });
-    }
-  }
-  getServerLog().atInfo().log("Sync with GoogleCloudScheduler took", sw.elapsedPretty());
-}
-
-function createGoogleSchedulerClient(): CloudSchedulerClient | undefined {
-  const googleSchedulerKeyJson = serverEnv.GOOGLE_SCHEDULER_KEY;
-  if (!googleSchedulerKeyJson) {
-    log.atWarn().log(`GoogleCloudScheduler sync: GOOGLE_SCHEDULER_KEY is not defined. Sync scheduler is disabled`);
-    return;
-  }
-  const googleSchedulerKey = JSON.parse(googleSchedulerKeyJson);
-  const googleSchedulerProjectId = googleSchedulerKey.project_id;
-
-  const client = new CloudSchedulerClient({
-    credentials: googleSchedulerKey,
-    projectId: googleSchedulerProjectId,
-  });
-  // client.getProjectId();
-  // client.locationPath();
-  return client;
-}
-
-// export async function syncWithK8SCronJob(baseUrl: string) {
-//   const sw = stopwatch();
-//   const allSyncs = await db.prisma().configurationObjectLink.findMany({
-//     where: { type: "sync", deleted: false },
-//   });
-//   const syncs = allSyncs.filter(sync => !!(sync.data as any).schedule);
-//   const syncsById = syncs.reduce((acc, sync) => {
-//     acc[sync.id] = sync;
-//     return acc;
-//   }, {} as Record<string, any>);
-//
-//   const client = new CloudSchedulerClient({
-//     credentials: googleSchedulerKey,
-//     projectId: googleSchedulerProjectId,
-//   });
-//   const iterable = client.listJobsAsync({
-//     parent: googleSchedulerParent,
-//   });
-//   const jobsById: Record<string, IJob> = {};
-//   for await (const response of iterable) {
-//     jobsById[(response.name ?? "").replace(`${googleSchedulerParent}/jobs/`, "")] = response;
-//   }
-//
-//   const syncsIds = Object.keys(syncsById);
-//   const jobsIds = Object.keys(jobsById);
-//   const idsToCreate = difference(syncsIds, jobsIds);
-//   const idsToDelete = difference(jobsIds, syncsIds);
-//   const idsToUpdate = difference(syncsIds, idsToCreate);
-//   log
-//     .atInfo()
-//     .log(
-//       `GoogleCloudScheduler sync: ${idsToCreate.length} to create, ${idsToDelete.length} to delete, ${idsToUpdate.length} to update`
-//     );
-//   for (const id of idsToCreate) {
-//     const sync = syncsById[id];
-//     const schedule = (sync.data as any).schedule;
-//     const job: IJob = {
-//       name: `${googleSchedulerParent}/jobs/${id}`,
-//       schedule: schedule,
-//       timeZone: (sync.data as any).timezone ?? "Etc/UTC",
-//       httpTarget: {
-//         uri: `${baseUrl}/api/${sync.workspaceId}/sources/run?syncId=${sync.id}`,
-//         headers: {
-//           Authorization: `Bearer ${process.env.SYNCCTL_AUTH_KEY}`,
-//         },
-//         httpMethod: "GET",
-//       },
-//     };
-//     log.atInfo().log(`Creating job ${job.name}`);
-//     await client.createJob({
-//       parent: googleSchedulerParent,
-//       job: job,
-//     });
-//   }
-//   for (const id of idsToDelete) {
-//     const job = jobsById[id];
-//     log.atInfo().log(`Deleting job ${job.name}`);
-//     await client.deleteJob({
-//       name: job.name ?? "",
-//     });
-//   }
-//   for (const id of idsToUpdate) {
-//     const sync = syncsById[id];
-//     const schedule = (sync.data as any).schedule;
-//     const job = jobsById[id];
-//     const syncTimezone = (sync.data as any).timezone ?? "Etc/UTC";
-//     if (job.schedule !== schedule || job.timeZone !== syncTimezone) {
-//       log.atInfo().log(`Updating job ${job.name}`);
-//       await client.updateJob({
-//         job: {
-//           ...job,
-//           schedule: schedule,
-//           timeZone: syncTimezone,
-//         },
-//       });
-//     }
-//   }
-//   getServerLog().atInfo().log("Sync with GoogleCloudScheduler took", sw.elapsedPretty());
-// }

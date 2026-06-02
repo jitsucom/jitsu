@@ -2,7 +2,7 @@ import { Api, inferUrl, nextJsApiHandler, verifyAccess, verifyAccessWithRole } f
 import { z } from "zod";
 import { getServerLog } from "../../../../../lib/server/log";
 import { assertTrue, requireDefined, rpc } from "juava";
-import { createJwt, getEeConnection, isEEAvailable } from "../../../../../lib/server/ee";
+import { eeAuthHeadersOrServiceToken, getEeConnection, isEEAvailable } from "../../../../../lib/server/ee";
 import { db } from "../../../../../lib/server/db";
 import { DestinationConfig } from "../../../../../lib/schema";
 
@@ -55,7 +55,7 @@ export const api: Api = {
         config: DestinationConfig.optional(),
       }),
     },
-    handle: async ({ user, query }) => {
+    handle: async ({ user, query, req }) => {
       assertTrue(isEEAvailable(), `EE server URL is not set, DB can't be provisioned`);
       const { workspaceId } = query;
       await verifyAccessWithRole(user, workspaceId, "editEntities");
@@ -69,13 +69,16 @@ export const api: Api = {
         `Workspace ${workspaceId} not found`
       );
 
-      const url = `${getEeConnection().host}api/provision-db`;
-      const provisionedDbCredentials = await rpc(url, {
+      const { host } = getEeConnection();
+      const provisionedDbCredentials = await rpc(`${host}api/provision-db`, {
         method: "POST",
         query: { workspaceId, slug: workspace.slug || workspace.id },
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${createJwt(user.internalId, user.email, workspaceId, 60).jwt}`,
+          // Forward the caller's Firebase cookie only when they were
+          // authenticated by Firebase; bearer/OIDC/NextAuth go via the
+          // service token regardless of any cookie they may have attached.
+          ...eeAuthHeadersOrServiceToken(req, user),
         },
       });
       const provisionedDb = await db.prisma().configurationObject.create({

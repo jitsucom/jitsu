@@ -63,6 +63,7 @@ const FunctionsList: React.FC<{}> = () => {
       type: { constant: "function" },
       workspaceId: { constant: workspace.id },
       cloneId: { hidden: true },
+      updatedAt: { hidden: true },
       code: { textarea: true },
     },
     noun: "function",

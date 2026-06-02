@@ -35,21 +35,22 @@ export const ConnectionStatusPartialEmail: EmailTemplate<ConnectionStatusNotific
   return (
     <Html>
       <Preview>
-        ⚠️ {capitalize(entityType)} job "{entityName}" has run with PARTIAL success in the {workspaceName}
+        ⚠️ {capitalize(entityType)} job "{entityName}" has PARTIALLY failed in the {workspaceName}
       </Preview>
       <Body style={main}>
         <Container>
           <Section style={{ textAlign: "center", margin: "20px 0" }}>
             <Text style={{ fontSize: "20px", color: "#333" }}>
-              ⚠️ {capitalize(entityType)} job of the connection <b>{entityName}</b> has run with <b>PARTIAL</b> success
+              ⚠️ {capitalize(entityType)} job of the connection <b>{entityName}</b> has <b>PARTIALLY</b> failed
             </Text>
           </Section>
           <Text>Hi {name || "there"}!</Text>
           <Text>
-            The last job of the connection from <b>{entityFrom}</b> to <b>{entityTo}</b> has run with <b>PARTIAL</b>{" "}
-            success in the <b>{workspaceName}</b>
+            The last job of the connection from <b>{entityFrom}</b> to <b>{entityTo}</b> has <b>PARTIALLY</b> failed in
+            the <b>{workspaceName}</b>
           </Text>
           <MetaList
+            entityType={entityType}
             streamsFailed={streamsFailed}
             incidentStatus={incidentStatus}
             incidentStartedAt={incidentStartedAt}
@@ -77,7 +78,7 @@ ConnectionStatusPartialEmail.subject = ({ workspaceName, entityType, entityName 
   if (!workspaceName?.toLowerCase().endsWith(" workspace")) {
     workspaceName += " workspace";
   }
-  return `[${workspaceName || "Your Jitsu Workspace"}] ⚠️ ${capitalize(entityType)} had partial success: ${entityName}`;
+  return `[${workspaceName || "Your Jitsu Workspace"}] ⚠️ ${capitalize(entityType)} partially failed: ${entityName}`;
 };
 
 ConnectionStatusPartialEmail.isMarketingEmail = false;

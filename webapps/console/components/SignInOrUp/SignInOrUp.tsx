@@ -6,7 +6,7 @@ import { useRouter } from "next/router";
 import { EmailFirstLogin } from "./EmailFirstLogin";
 import { OAuthButtons } from "./OAuthButtons";
 import { signIn } from "next-auth/react";
-import { useFirebaseSession } from "../../lib/firebase-client";
+import { EmailNotVerifiedError, useFirebaseSession } from "../../lib/firebase-client";
 import { useJitsu } from "@jitsu/jitsu-react";
 import { useAppConfig } from "../../lib/context";
 import { safeRedirect } from "../../lib/auth-redirect";
@@ -125,6 +125,12 @@ export const SignInOrUp: React.FC<SigninProps> = ({ signup }) => {
         setError("Unsupported authentication method");
       }
     } catch (e: any) {
+      if (e instanceof EmailNotVerifiedError) {
+        // Sign-in succeeded but the email is unverified — hand off to the route
+        // gate (FirebaseAuthorizer), which renders the verification screen.
+        safeRedirect(router, callbackUrl);
+        return;
+      }
       if (type === "firebase-password") {
         setError(handleFirebaseError(e));
         await analytics.track("login_error", {
@@ -247,7 +253,7 @@ export const SignInOrUp: React.FC<SigninProps> = ({ signup }) => {
   );
 };
 
-function handleFirebaseError(error: any): string {
+export function handleFirebaseError(error: any): string {
   const code = error?.code;
   if (code === "auth/account-exists-with-different-credential") {
     const email = error?.customData?.email;
@@ -261,6 +267,11 @@ function handleFirebaseError(error: any): string {
   } else if (code === "auth/wrong-password") {
     return "Invalid email or password";
   } else if (code === "auth/user-not-found") {
+    return "Invalid email or password";
+  } else if (code === "auth/invalid-credential" || code === "auth/invalid-login-credentials") {
+    // JITSU-019: with Firebase email-enumeration protection enabled, a failed
+    // email/password sign-in returns this generic code instead of
+    // auth/wrong-password or auth/user-not-found.
     return "Invalid email or password";
   } else if (code === "auth/too-many-requests") {
     return "Too many signin attempts. Try later, or reset password now";

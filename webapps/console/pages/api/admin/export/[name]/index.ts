@@ -3,13 +3,12 @@ import { db } from "../../../../../lib/server/db";
 import { getErrorMessage, getLog, hash as juavaHash, isTruish, requireDefined, rpc } from "juava";
 import { z } from "zod";
 import { getCoreDestinationTypeNonStrict } from "../../../../../lib/schema/destinations";
-import { createJwt, getEeConnection, isEEAvailable } from "../../../../../lib/server/ee";
+import { getEeConnection, isEEAvailable, serviceTokenHeaders } from "../../../../../lib/server/ee";
 import omit from "lodash/omit";
 import { NextApiRequest } from "next";
 import hash from "object-hash";
 import { default as stableHash } from "stable-hash";
 import { WorkspaceDbModel, FunctionsServerDbModel } from "../../../../../prisma/schema";
-import pick from "lodash/pick";
 import { ProfileBuilder } from "@jitsu/destination-functions";
 import { getServerEnv } from "../../../../../lib/server/serverEnv";
 
@@ -256,15 +255,16 @@ async function exportBulkerConnections(writer: Writer) {
     }
   }
   if (isEEAvailable()) {
-    //stream additional connections from ee
-    const eeAuthToken = createJwt("admin-service-account@jitsu.com", "admin-service-account@jitsu.com", "$all", 60).jwt;
+    //pull S3 backup connections from ee-api. This export is consumed by the
+    //bulker service — there is no signed-in user — so it authenticates with
+    //the static service token.
     const url = `${getEeConnection().host}api/s3-connections`;
     try {
       const backupConnections = await rpc(url, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${eeAuthToken}`,
+          ...serviceTokenHeaders(),
         },
       });
       for (const conn of backupConnections) {
@@ -829,7 +829,31 @@ async function exportWorkspacesWithProfiles(writer: Writer) {
   writer.write("]");
 }
 
-async function exportSyncsDebug(writer: Writer) {
+// Consumed by syncctl, which polls this to know what CronJobs to manage and
+// how to construct each Pod's run config. Each entry is a self-sufficient
+// snapshot of everything needed to schedule a sync:
+//
+//   - identity (id, workspaceId, fromId, toId)
+//   - schedule + timezone (drives CronJob spec)
+//   - source.config (full service config with raw stored credentials, plus
+//     source.authorized flag for OAuth-using services). The Pod's
+//     oauth-refresh init container calls Nango at run time to swap stale
+//     access tokens for fresh ones — so this export ships the *stored*
+//     credentials, not refreshed ones. Refreshing here would just waste
+//     Nango calls per poll and the tokens might still be stale by the time
+//     the CronJob fires.
+//   - destination.config (full destination config)
+//   - sync.data (streams, disabledStreams, schemaChanges, namespace,
+//     deduplicate, …) — sidecar reads streams/disabledStreams/schemaChanges
+//     from here and applies selectStreamsFromCatalog logic itself
+//
+// Three things deliberately NOT in the export:
+//   - refreshed OAuth tokens: handled at run time by the oauth-refresh init
+//     container in the sync Pod (sync-sidecar's `oauth-refresh` subcommand).
+//   - catalog: too large to ship per poll. Sidecar reads it from
+//     newjitsu.source_catalog directly using (package, version, versionHash).
+//   - source_state: changes per run. Sidecar reads/writes it directly.
+async function exportSyncs(writer: Writer) {
   writer.write("[");
 
   let lastId: string | undefined = undefined;
@@ -851,36 +875,95 @@ async function exportSyncsDebug(writer: Writer) {
     if (objects.length == 0) {
       break;
     }
-    getLog().atDebug().log(`Got batch of ${objects.length} objects for bulker export`);
+    getLog().atDebug().log(`Got batch of ${objects.length} syncs for export`);
     lastId = objects[objects.length - 1].id;
-    for (const { data, from, id, to, updatedAt, workspace } of objects) {
-      const destinationType = to.config.destinationType;
+
+    const enriched = objects.flatMap(({ data, from, id, to, updatedAt, workspace }) => {
+      // Every sync is scheduled by syncctl CronJobs — emit all of them.
+      // (Destination-type filters below still skip syncs whose pod template
+      // can't run them, e.g. non-bulker mixpanel-with-syncs.)
+      let destinationConfig: any = { ...(to.config as any) };
+      const destinationType = destinationConfig.destinationType;
       const coreDestinationType = getCoreDestinationTypeNonStrict(destinationType);
       if (!coreDestinationType) {
-        getLog().atError().log(`Unknown destination type: ${destinationType} for connection ${id}`);
+        getLog()
+          .atError()
+          .log(`Unknown destination type: ${destinationType} for sync ${id} - skipping export of this sync`);
+        return [];
       }
+      if (!coreDestinationType.usesBulker && coreDestinationType.id !== "webhook") {
+        // Non-bulker destinations (e.g. mixpanel-with-syncs) used to run
+        // synchronously inside the console process via scheduleSync's
+        // runSynchronously branch — they were never scheduled by GCS, and
+        // the autonomous CronJob path doesn't support them either. Skip
+        // them out of the export so syncctl doesn't try to reconcile a
+        // CronJob whose Pod template can't actually run them.
+        getLog()
+          .atError()
+          .log(
+            `Sync ${id} has destination type ${destinationType} which does not use bulker - skipping export of this sync`
+          );
+        return [];
+      }
+      const syncData = (data ?? {}) as Record<string, any>;
+      let serviceConfig: any = { ...(from.config as any) };
+
+      // versionHash MUST be derived from the raw persisted credentials —
+      // matches the formula used by scheduleSync and sources/discover when
+      // they store catalog rows in source_catalog. Hashing post-mutation or
+      // post-OAuth-refresh creds would make sidecar's catalog lookup miss
+      // the rows that scheduleSync wrote.
+      const versionHash = `${workspace.id}_${from.id}_${juavaHash("md5", stableHash(serviceConfig.credentials))}`;
+
+      // scheduleSync applies this default for these packages — apply it to
+      // a separate `credentials` value used only in the runtime source.config
+      // (so it doesn't leak into versionHash above).
+      if (
+        serviceConfig.package === "airbyte/source-postgres" ||
+        serviceConfig.package === "airbyte/source-mssql" ||
+        serviceConfig.package === "airbyte/source-singlestore"
+      ) {
+        serviceConfig = {
+          ...serviceConfig,
+          credentials: { ...serviceConfig.credentials, sync_checkpoint_records: 200000 },
+        };
+      }
+
+      // ClickHouse-without-provisioning override (mirrors scheduleSync).
+      if (destinationType === "clickhouse" && !destinationConfig.provisioned) {
+        destinationConfig = { ...destinationConfig, loadAsJson: false };
+      }
+
+      return [
+        {
+          id,
+          workspaceId: workspace.id,
+          workspaceSlug: workspace.slug,
+          fromId: from.id,
+          toId: to.id,
+          source: serviceConfig,
+          destination: destinationConfig,
+          schedule: syncData.schedule,
+          timezone: syncData.timezone ?? "Etc/UTC",
+          // Everything from sync.data minus the fields already promoted to
+          // top-level (schedule, timezone), plus the computed versionHash.
+          options: {
+            ...omit(syncData, "schedule", "timezone"),
+            versionHash,
+          },
+          updatedAt: dateMax(updatedAt, from.updatedAt, to.updatedAt),
+        },
+      ];
+    });
+
+    for (const item of enriched) {
       if (needComma) {
         writer.write(",");
       }
-      const h = juavaHash("md5", stableHash(from.config.credentials));
-      const storageKey = `${workspace.id}_${from.id}_${h}`;
-      writer.write(
-        JSON.stringify({
-          id: id,
-          type: destinationType,
-          workspaceId: workspace.id,
-          streamId: from.id,
-          destinationId: to.id,
-          usesBulker: !!coreDestinationType?.usesBulker,
-          options: {
-            ...pick(data, "storageKey"),
-            versionHash: storageKey,
-          },
-          updatedAt: dateMax(updatedAt, to.updatedAt),
-        })
-      );
+      writer.write(JSON.stringify(item));
       needComma = true;
     }
+
     if (objects.length < batchSize) {
       break;
     }
@@ -966,9 +1049,9 @@ const exports: Export[] = [
   //   },
   // },
   {
-    name: "syncs-debug",
+    name: "syncs",
     lastModified: getLastUpdated,
-    data: exportSyncsDebug,
+    data: exportSyncs,
   },
 ];
 

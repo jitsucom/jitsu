@@ -8,6 +8,7 @@ const withBundleAnalyzer = require("@next/bundle-analyzer")({
 });
 
 module.exports = withBundleAnalyzer({
+  poweredByHeader: false,
   transpilePackages: ["juava", "@jitsu/protocols", "@jitsu/core-functions-lib", "@jitsu/destination-functions", "@jitsu-internal/webapps-shared", "@jitsu/js"],
   // Allow portless dev hosts (https://console[-branch].jitsu.localhost) to
   // load /_next/* resources. Without this Next 15+ blocks them as cross-origin.
@@ -49,7 +50,6 @@ module.exports = withBundleAnalyzer({
   //   },
   // },
   async headers() {
-    //set cors headers
     return [
       {
         source: "/:path*{/}?",
@@ -61,6 +61,14 @@ module.exports = withBundleAnalyzer({
           {
             key: "X-Content-Type-Options",
             value: "nosniff",
+          },
+          {
+            key: "Referrer-Policy",
+            value: "strict-origin-when-cross-origin",
+          },
+          {
+            key: "Permissions-Policy",
+            value: "camera=(), microphone=(), geolocation=(), browsing-topics=()",
           },
         ],
       },

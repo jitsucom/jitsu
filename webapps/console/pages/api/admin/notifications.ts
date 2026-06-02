@@ -39,6 +39,22 @@ const flappingThreshold = 4;
 
 export const _J_PREF = "_j:";
 
+// Discriminator type for the connection-level aggregate StatusChange / NotificationState rows we
+// persist when `summarizeBatchNotificationsByTable` is enabled. Using a dedicated `type` (rather
+// than a sentinel tableName) avoids any possible collision with a real user table named e.g.
+// `__connection__`. The actors CTE in the loader SQL only enumerates "batch"/"sync"/"dead", so
+// "batch_aggregate" rows never enter the per-table `entities` map; they're handled solely by the
+// dedicated aggregate path below.
+const BATCH_AGGREGATE_TYPE = "batch_aggregate";
+
+// Per-table rows whose last `timestamp` is older than this are treated as inactive and excluded
+// from the connection-level aggregate. The loader's `last_statuses` CTE has no time window, so
+// without this cutoff a long-stale FAILED row for a table that hasn't been written to in months
+// would keep flipping the aggregate into PARTIAL whenever any other table transitions. 7 days
+// matches the user-default `recurringAlertsPeriodHours`, so any actively-alerted table is well
+// within the window.
+const aggregateStaleTableCutoffDays = 7;
+
 export type ConnectionStatusNotificationProps = {
   entityId: string;
   entityType: "batch" | "sync" | "dead";
@@ -72,11 +88,12 @@ const adminChannel: NotificationChannel = {
   slackWebhookUrl: SLACK_WEBHOOK_URL,
   events: ["all"],
   recurringAlertsPeriodHours: 24,
+  summarizeBatchNotificationsByTable: true,
 };
 
 export type StatusChangeEntity = Omit<StatusChange, "type"> & {
   id: number | bigint;
-  type: "batch" | "sync" | "dead";
+  type: "batch" | "sync" | "dead" | typeof BATCH_AGGREGATE_TYPE;
   workspaceName: string;
   slug: string;
   fromName: string;
@@ -172,7 +189,7 @@ export default createRoute()
                       from (select id,
                                    case
                                      when type = 'sync' then array ['sync']
-                                     when (type = 'push' and data ->> 'mode' = 'batch') then array ['batch','dead']
+                                     when (type = 'push' and data ->> 'mode' = 'batch') then array ['batch','dead','batch_aggregate']
                                      else array ['dead']
                                      end type,
                                    "workspaceId",
@@ -216,8 +233,9 @@ export default createRoute()
         entities[key(row.actorId, row.type, row.tableName)] = row;
       }
     }
+    const batchActorIdsWithActivity = new Set<string>();
     const incrms = await Promise.all([
-      loadBatchStatusesChanges(previousRunTime, entities),
+      loadBatchStatusesChanges(previousRunTime, entities, batchActorIdsWithActivity),
       loadSyncStatusesChanges(previousRunTime, entities),
       loadDeadStatusesChanges(currentRunTime, entities),
     ]);
@@ -242,6 +260,10 @@ export default createRoute()
       const res = await db.pgPool().query(query);
       log.atInfo().log(`Status counts updated for ${res.rowCount} rows.`);
     }
+
+    // Connection-level aggregate rows are derivative of per-table state. Persist them BEFORE the
+    // findMany inside processStatusChanges so they flow through aggrStatues like any other row.
+    await prepareBatchAggregateRows(entities, batchActorIdsWithActivity, dryRun);
 
     const res = await processStatusChanges(processedTimestamp, entities, publicEndpoints, dryRun);
     processedTimestamp = res.date;
@@ -282,7 +304,12 @@ async function loadNotificationsChannels() {
           channelsByWorkspace = [];
           channels[row.workspaceId] = channelsByWorkspace;
         }
-        channelsByWorkspace.push({ ...omit(row, "config"), ...(row.config as any) } as unknown as NotificationChannel);
+        const merged = { ...omit(row, "config"), ...(row.config as any) } as unknown as NotificationChannel;
+        // Channels saved before this field existed have it undefined — default to true.
+        if (merged.summarizeBatchNotificationsByTable === undefined) {
+          merged.summarizeBatchNotificationsByTable = true;
+        }
+        channelsByWorkspace.push(merged);
       }
     });
 
@@ -325,6 +352,7 @@ async function loadNotificationsChannels() {
           : 168,
         type: "notification",
         workspaceId: row.workspaceId,
+        summarizeBatchNotificationsByTable: settings.summarizeBatchNotificationsByTable !== false,
       });
     }
   }
@@ -377,8 +405,24 @@ async function processStatusChanges(
   for (const [k, statuses] of Object.entries(aggrStatues)) {
     const lastStatus = statuses[statuses.length - 1];
     const entity = entities[k];
+    if (!entity) {
+      log.atWarn().log(`No entity for key ${k} — skipping notification dispatch`);
+      continue;
+    }
+    // Aggregate rows are stored under a dedicated type for state-tracking, but for channel
+    // subscription and template selection we treat them as "batch".
+    const isAggregateRow = lastStatus.type === BATCH_AGGREGATE_TYPE;
+    const channelEventType: "batch" | "sync" | "dead" = isAggregateRow ? "batch" : (lastStatus.type as any);
     for (const channel of [...(channels[entity.workspaceId] || []), ...(channels["admin"] || [])]) {
-      if (!channel.events.includes(entity.type) && !channel.events.includes("all")) {
+      if (!channel.events.includes(channelEventType) && !channel.events.includes("all")) {
+        continue;
+      }
+      // Per-table batch rows go through the per-table path only when the channel doesn't summarize
+      // by table; aggregate rows go through only when it does.
+      if (lastStatus.type === "batch" && lastStatus.tableName && channel.summarizeBatchNotificationsByTable) {
+        continue;
+      }
+      if (isAggregateRow && !channel.summarizeBatchNotificationsByTable) {
         continue;
       }
       const cStatuses = [...statuses];
@@ -482,6 +526,280 @@ async function processStatusChanges(
   }
 
   return { date: processedTimestamp, statuses: sendStatuses };
+}
+
+type BatchConnectionAggregate = {
+  workspaceId: string;
+  actorId: string;
+  workspaceName: string;
+  slug: string;
+  fromName: string;
+  toName: string;
+  perTableCount: number;
+  failedTableNames: string[];
+  aggStatus: "SUCCESS" | "FAILED" | "PARTIAL";
+  aggStreamsFailed?: string;
+  aggIncidentDetails: string;
+  latestFailureDescription?: string;
+  aggTimestamp: Date;
+  aggStartedAt: Date;
+  aggQueueSize: number;
+  // True iff this connection has ever had a per-table StatusChange row before this run.
+  // Distinguishes a genuinely brand-new connection (worth a FIRST_RUN aggregate notification)
+  // from an existing healthy connection being seen on a new aggregate channel for the first time.
+  hasPriorHistory: boolean;
+};
+
+function computeBatchConnectionAggregate(
+  entities: Record<string, StatusChangeEntity>,
+  actorId: string
+): BatchConnectionAggregate | undefined {
+  let template: StatusChangeEntity | undefined;
+  // Track the latest activity timestamp separately. In-place updates in updateStatusChange
+  // refresh the row's timestamp without changing the id, so id-order does not reliably track
+  // real activity across tables.
+  let latestActivityTimestamp: Date | undefined;
+  let latestActivityEntity: StatusChangeEntity | undefined;
+  let earliestIncidentStart: Date | undefined;
+  const failedTableNames: string[] = [];
+  let perTableCount = 0;
+  let latestFailureTimestamp: Date | undefined;
+  let latestFailureDescription: string | undefined;
+  let aggQueueSize = 0;
+  // `entities` indexes each per-table row under TWO keys (the connection-level `${actorId}::batch`
+  // overwrite and the table-specific `${actorId}::batch:${tableName}`), so iterating its values
+  // double-counts one row per actor. Dedupe by tableName to keep counts accurate.
+  const seenTableNames = new Set<string>();
+  const staleTableCutoff = new Date(Date.now() - aggregateStaleTableCutoffDays * 24 * 60 * 60 * 1000);
+  for (const ent of Object.values(entities)) {
+    if (ent.actorId !== actorId || ent.type !== "batch" || !ent.tableName) continue;
+    if (seenTableNames.has(ent.tableName)) continue;
+    // Exclude tables with no recent activity. Without this, a long-stale FAILED row drags the
+    // aggregate to PARTIAL whenever any other table transitions, producing spurious alerts about
+    // tables that haven't been written to in months.
+    if (ent.timestamp && ent.timestamp < staleTableCutoff) continue;
+    seenTableNames.add(ent.tableName);
+    perTableCount++;
+    template = template ?? ent;
+    if (ent.timestamp && (!latestActivityTimestamp || ent.timestamp > latestActivityTimestamp)) {
+      latestActivityTimestamp = ent.timestamp;
+      latestActivityEntity = ent;
+    }
+    if (ent.status !== "SUCCESS") {
+      failedTableNames.push(ent.tableName!);
+      if (ent.startedAt && (!earliestIncidentStart || ent.startedAt < earliestIncidentStart)) {
+        earliestIncidentStart = ent.startedAt;
+      }
+      // Pick the latest failure's description so the "Latest error" line in the notification is
+      // genuinely the most recent error, not whichever failed table happens to iterate first.
+      if (ent.timestamp && (!latestFailureTimestamp || ent.timestamp > latestFailureTimestamp)) {
+        latestFailureTimestamp = ent.timestamp;
+        latestFailureDescription = extractDescription(ent as unknown as StatusChange) ?? ent.description ?? undefined;
+      }
+    }
+    aggQueueSize += ent.queueSize || 0;
+  }
+  if (!template || !latestActivityEntity || perTableCount === 0) return undefined;
+  const failedCount = failedTableNames.length;
+  const succeededCount = perTableCount - failedCount;
+  let aggStatus: "SUCCESS" | "FAILED" | "PARTIAL";
+  let aggStreamsFailed: string | undefined;
+  let aggIncidentDetails: string;
+  if (failedCount === 0) {
+    aggStatus = "SUCCESS";
+    aggIncidentDetails = `All ${perTableCount} table(s) succeeded.`;
+  } else if (succeededCount === 0) {
+    aggStatus = "FAILED";
+    aggIncidentDetails = `All ${perTableCount} table(s) failed: ${failedTableNames.join(", ")}.\n\nLatest error:\n${
+      latestFailureDescription ?? ""
+    }`;
+  } else {
+    aggStatus = "PARTIAL";
+    aggStreamsFailed = `${failedCount} of ${perTableCount}`;
+    aggIncidentDetails = `${aggStreamsFailed} tables failed: ${failedTableNames.join(", ")}.\n\nLatest error:\n${
+      latestFailureDescription ?? ""
+    }`;
+  }
+  return {
+    workspaceId: template.workspaceId!,
+    actorId,
+    workspaceName: template.workspaceName,
+    slug: template.slug,
+    fromName: template.fromName,
+    toName: template.toName,
+    perTableCount,
+    failedTableNames,
+    aggStatus,
+    aggStreamsFailed,
+    aggIncidentDetails,
+    latestFailureDescription,
+    aggTimestamp: latestActivityEntity.timestamp!,
+    aggStartedAt: earliestIncidentStart ?? latestActivityEntity.startedAt!,
+    aggQueueSize,
+    // The no-tableName entity is written only by the initial SQL loader (loadBatchStatusesChanges
+    // only mutates per-tableName keys for events with a parseable table name, which is the only
+    // case that reaches this aggregate path). A non-null timestamp there means the loader's left
+    // join to last_statuses matched at least one prior row — i.e. this connection has history.
+    hasPriorHistory: !!entities[key(actorId, "batch")]?.timestamp,
+  };
+}
+
+// Persist connection-level aggregate rows (type = BATCH_AGGREGATE_TYPE) BEFORE
+// processStatusChanges' findMany, so they flow through aggrStatues and get dispatched by the
+// per-channel loop exactly like per-table rows. This mirrors how updateStatusChange handles
+// per-table rows in loadBatchStatusesChanges.
+//
+// For each actor with new batch activity this cron run:
+//   - On status transition vs the latest aggregate row (and not a suppress case): create a new
+//     aggregate row. Bake the full notification payload — including the original incidentStartedAt —
+//     into the description JSON, so fillNotificationProps can read it back via extraPayload at
+//     render time.
+//   - Without a transition: update the existing aggregate row's timestamp so the findMany picks
+//     it up (mirrors how per-table rows get their timestamps bumped via the increments map).
+async function prepareBatchAggregateRows(
+  entities: Record<string, StatusChangeEntity>,
+  actorIdsWithActivity: Set<string>,
+  dryRun: boolean
+): Promise<void> {
+  if (dryRun) return;
+  for (const actorId of actorIdsWithActivity) {
+    const view = computeBatchConnectionAggregate(entities, actorId);
+    if (!view) continue;
+
+    const latestAggEnt = entities[key(actorId, BATCH_AGGREGATE_TYPE)];
+    const hadPriorAggRow = !!latestAggEnt?.timestamp;
+    const prevStatus = hadPriorAggRow ? latestAggEnt!.status : undefined;
+    const aggregateTransitioned = !hadPriorAggRow || prevStatus !== view.aggStatus;
+
+    // Suppress: existing healthy connection seen for the first time on the aggregate path. Don't
+    // write a row — future failures will create one and resume normal transition tracking.
+    if (!hadPriorAggRow && view.aggStatus === "SUCCESS" && view.hasPriorHistory) {
+      continue;
+    }
+
+    if (aggregateTransitioned) {
+      // Bake the full notification payload into the new row's description, mirroring how
+      // updateStatusChange does it for per-table RECOVERED/FIRST_RUN rows. Templates pick the
+      // render variant via the description's `status` field (spread by fillNotificationProps).
+      const persistedDescription = buildAggregateRowDescription(view, latestAggEnt);
+      const row = await db.prisma().statusChange.create({
+        data: {
+          workspaceId: view.workspaceId,
+          actorId,
+          type: BATCH_AGGREGATE_TYPE,
+          tableName: "",
+          timestamp: view.aggTimestamp,
+          // startedAt is transition time — the loader SQL's status_changes CTE sums by startedAt
+          // within the flapping window. The original incident-start is carried inside the
+          // description JSON for templates to use.
+          startedAt: view.aggTimestamp,
+          status: view.aggStatus,
+          description: persistedDescription,
+          // counts === 0 marks "first ever aggregate row for this actor" — the per-channel loop's
+          // !state branch uses this as the FIRST_RUN signal (same idiom as per-table).
+          counts: hadPriorAggRow ? 1 : 0,
+          queueSize: view.aggQueueSize,
+        },
+      });
+      // Update the in-memory entity so the per-channel loop sees the just-written row's data
+      // (including the bumped changesPerHours, used by the FLAPPING signal).
+      entities[key(actorId, BATCH_AGGREGATE_TYPE)] = {
+        ...(latestAggEnt as StatusChangeEntity),
+        id: row.id,
+        actorId,
+        type: BATCH_AGGREGATE_TYPE,
+        tableName: "",
+        timestamp: view.aggTimestamp,
+        startedAt: view.aggTimestamp,
+        status: view.aggStatus,
+        description: persistedDescription,
+        counts: hadPriorAggRow ? 1 : 0,
+        queueSize: view.aggQueueSize,
+        changesPerHours: (latestAggEnt?.changesPerHours || 0) + 1,
+        changesPerDay: (latestAggEnt?.changesPerDay || 0) + 1,
+      };
+    } else {
+      // No transition. Bump the existing aggregate row's timestamp (and queueSize) so the
+      // findMany picks it up — without this, recurring/ONGOING checks would never see it.
+      // Preserve the row's description (it carries incidentStartedAt for the ongoing incident).
+      await db.prisma().statusChange.update({
+        where: { id: BigInt(latestAggEnt!.id) },
+        data: {
+          timestamp: view.aggTimestamp,
+          counts: { increment: 1 },
+          queueSize: view.aggQueueSize,
+        },
+      });
+      // Reflect the bumped timestamp in the in-memory entity.
+      entities[key(actorId, BATCH_AGGREGATE_TYPE)] = {
+        ...latestAggEnt!,
+        timestamp: view.aggTimestamp,
+        queueSize: view.aggQueueSize,
+      };
+    }
+  }
+}
+
+// Build the description JSON we persist on a new aggregate row. The shape mirrors how
+// updateStatusChange + the per-channel loop produce description payloads for per-table rows:
+// the JSON's `status` field selects the email/slack template via fillNotificationProps'
+// extraPayload spread, and `incidentStartedAt`/`incidentDetails`/etc. populate the meta block.
+function buildAggregateRowDescription(
+  view: BatchConnectionAggregate,
+  latestAggEnt: StatusChangeEntity | undefined
+): string {
+  const hadPriorAggRow = !!latestAggEnt?.timestamp;
+  const prevStatus = hadPriorAggRow ? latestAggEnt!.status : undefined;
+  const prevPayload = parseJsonDescription(latestAggEnt?.description);
+
+  if (view.aggStatus === "SUCCESS") {
+    if (hadPriorAggRow && prevStatus !== "SUCCESS") {
+      // RECOVERED — use the original incident start from the previous non-success row's payload
+      // (it was inherited row-by-row across mid-incident transitions).
+      const incidentStartedAt = prevPayload?.incidentStartedAt ?? latestAggEnt!.startedAt?.toISOString();
+      return (
+        _J_PREF +
+        JSON.stringify({
+          status: "RECOVERED",
+          incidentStatus: prevStatus,
+          incidentStartedAt,
+          incidentDetails: view.aggIncidentDetails,
+        })
+      );
+    }
+    // Brand-new connection's first observed run — emit FIRST_RUN. (The suppress case for existing
+    // healthy connections was filtered out by the caller.)
+    return _J_PREF + JSON.stringify({ status: "FIRST_RUN", incidentDetails: view.aggIncidentDetails });
+  }
+
+  // Non-SUCCESS row (PARTIAL or FAILED). The row's status column drives template selection; we
+  // include `description`/`streamsFailed`/`incidentDetails` for the meta block, and carry
+  // `incidentStartedAt` so future RECOVERED can use the original start time.
+  const prevWasNonSuccess = hadPriorAggRow && prevStatus !== "SUCCESS";
+  const incidentStartedAt = prevWasNonSuccess
+    ? prevPayload?.incidentStartedAt ?? latestAggEnt!.startedAt?.toISOString()
+    : view.aggStartedAt.toISOString();
+
+  if (view.aggStatus === "PARTIAL") {
+    return (
+      _J_PREF +
+      JSON.stringify({
+        description: view.aggIncidentDetails,
+        streamsFailed: view.aggStreamsFailed,
+        incidentDetails: view.aggIncidentDetails,
+        incidentStartedAt,
+      })
+    );
+  }
+  // FAILED
+  return (
+    _J_PREF +
+    JSON.stringify({
+      description: view.latestFailureDescription ?? "",
+      incidentDetails: view.aggIncidentDetails,
+      incidentStartedAt,
+    })
+  );
 }
 
 function makeNotificationState(
@@ -654,7 +972,8 @@ type StatusRepeats = { counts: number; timestamp: Date; description: string; que
 
 async function loadBatchStatusesChanges(
   fromTimestamp: Date,
-  entities: Record<string, StatusChangeEntity>
+  entities: Record<string, StatusChangeEntity>,
+  actorIdsWithActivity: Set<string>
 ): Promise<Map<bigint, StatusRepeats>> {
   const increments: Map<bigint, StatusRepeats> = new Map();
   const sw = stopwatch();
@@ -718,6 +1037,9 @@ async function loadBatchStatusesChanges(
           continue;
         }
         const rowTimestamp = dayjs(row.timestamp, { utc: true }).toDate();
+        // Any batch event reaching this point counts as activity for the connection-level
+        // aggregate (whether or not it triggered a per-table transition).
+        actorIdsWithActivity.add(row.actorId);
 
         const chId = await updateStatusChange(
           entities,
@@ -961,6 +1283,7 @@ const metaBlock = (props: {
   incidentStatus?: string;
   recoveredFrom?: string;
   queueSize?: number;
+  entityType?: string;
 }) => {
   const textArray: string[] = [];
   if (props.tableName) {
@@ -973,7 +1296,7 @@ const metaBlock = (props: {
     textArray.push(`Incident status: ${props.incidentStatus}`);
   }
   if (props.streamsFailed) {
-    textArray.push(`Streams Failed: ${props.streamsFailed}`);
+    textArray.push(`${props.entityType === "batch" ? "Tables" : "Streams"} Failed: ${props.streamsFailed}`);
   }
   if (
     props.incidentStartedAt &&
@@ -1049,7 +1372,9 @@ const ConnectionStatusOngoingSlack: SlackTemplate = {
     `The job was triggered in *<${props.baseUrl}/${props.workspaceSlug}|${props.workspaceName}>* workspace from *${props.entityFrom}* to *${props.entityTo}*`,
   ],
   metaBlock: props =>
-    metaBlock(pick(props, "tableName", "incidentStatus", "incidentStartedAt", "queueSize", "streamsFailed")),
+    metaBlock(
+      pick(props, "tableName", "incidentStatus", "incidentStartedAt", "queueSize", "streamsFailed", "entityType")
+    ),
   footer: props =>
     props.recurringAlertsPeriodHours
       ? `No additional reports will be sent for this connection in ${props.recurringAlertsPeriodHours} hours unless the status changes.`
@@ -1077,13 +1402,13 @@ const ConnectionStatusRecoveredSlack: SlackTemplate = {
 
 const ConnectionStatusPartialSlack: SlackTemplate = {
   text: props => `:large_yellow_circle: ${jobName(props)} *PARTIAL* ${props.entityName} [${props.workspaceName}]`,
-  header: props => `:large_yellow_circle: ${jobName(props)} partial success`,
+  header: props => `:large_yellow_circle: ${jobName(props)} partial failure`,
   description: props => [
-    `Jitsu ${jobName(props)} had *partial* success :persevere:.`,
+    `Jitsu ${jobName(props)} *partially failed* :persevere:.`,
     ``,
     `The job was triggered in *<${props.baseUrl}/${props.workspaceSlug}|${props.workspaceName}>* workspace from *${props.entityFrom}* to *${props.entityTo}*`,
   ],
-  metaBlock: props => metaBlock(pick(props, "streamsFailed", "incidentStatus", "incidentStartedAt")),
+  metaBlock: props => metaBlock(pick(props, "streamsFailed", "incidentStatus", "incidentStartedAt", "entityType")),
   footer: props =>
     props.recurringAlertsPeriodHours
       ? `No additional reports will be sent for this connection in ${props.recurringAlertsPeriodHours} hours unless the status changes.`
@@ -1335,17 +1660,20 @@ function fillNotificationProps(
       detailsUrl = `${baseUrl}/${entity.slug}/syncs/tasks?query={syncId:'${entity.actorId}'}`;
       break;
   }
+  // For the connection-level aggregate, render as a "batch" notification (and omit tableName) —
+  // the failed-streams summary already conveys per-table context.
+  const isAggregate = entity.type === BATCH_AGGREGATE_TYPE;
   return {
     name: channel.name,
     workspaceName: entity.workspaceName,
     workspaceSlug: entity.slug,
     entityId: entity.actorId,
-    entityType: entity.type,
+    entityType: isAggregate ? "batch" : entity.type,
     entityName: name,
     entityFrom: entity.fromName,
     entityTo: entity.toName,
     timestamp: lastStatus.timestamp.toISOString(),
-    tableName: entity.tableName,
+    tableName: isAggregate ? undefined : entity.tableName,
     status: lastStatus.status,
     incidentStatus: lastStatus.status,
     incidentStartedAt: lastStatus.startedAt.toISOString(),
@@ -1367,6 +1695,17 @@ function extractDescription(statusChange: StatusChange): string | null | undefin
     } catch (e) {}
   }
   return statusChange.description;
+}
+
+// Parse the _J_PREF-prefixed JSON payload from a description, if any. Returns the parsed object
+// or undefined if the description is not prefixed or fails to parse.
+function parseJsonDescription(description: string | null | undefined): any | undefined {
+  if (!description || !description.startsWith(_J_PREF)) return undefined;
+  try {
+    return JSON.parse(description.substring(_J_PREF.length));
+  } catch (e) {
+    return undefined;
+  }
 }
 
 export const config = {

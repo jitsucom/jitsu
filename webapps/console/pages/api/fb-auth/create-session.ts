@@ -1,6 +1,11 @@
 import { Api, inferUrl, nextJsApiHandler } from "../../../lib/api";
 import { z } from "zod";
-import { createSessionCookie, firebaseAuthCookieName } from "../../../lib/server/firebase-server";
+import {
+  createSessionCookie,
+  firebase,
+  firebaseAuthCookieName,
+  isUnverifiedPasswordAccount,
+} from "../../../lib/server/firebase-server";
 import { ApiError } from "../../../lib/shared/errors";
 import { SerializeOptions, serialize } from "cookie";
 import { getAppEndpoint } from "../../../lib/domains";
@@ -29,6 +34,12 @@ export const api: Api = {
           .atError()
           .log(`CSRF cookie (${csrfCookie}) doesn't match provided token ${csrfToken}`, JSON.stringify(req.cookies));
         throw new ApiError("CSRF error", {}, { status: 401 });
+      }
+      // JITSU-018: never mint a session cookie for an unverified email+password
+      // account, even if the client-side gate was bypassed.
+      const decodedIdToken = await firebase().auth().verifyIdToken(idToken);
+      if (isUnverifiedPasswordAccount(decodedIdToken)) {
+        throw new ApiError("Email address is not verified", {}, { status: 403 });
       }
       const { cookie, expiresIn } = await createSessionCookie(idToken);
 

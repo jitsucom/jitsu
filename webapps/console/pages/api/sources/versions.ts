@@ -37,8 +37,9 @@ export default createRoute()
       // endpoint prone to 500 errors
       try {
         const tags = (await rpc(`https://hub.docker.com/v2/repositories/${packageId}/tags?page_size=200`)).results.map(
-          ({ name }) => ({
+          ({ name, last_updated, tag_last_pushed }) => ({
             name,
+            updatedAt: last_updated || tag_last_pushed,
             isRelease: name.match(/^[0-9.]+$|^latest$/) !== null,
             isMit,
           })

@@ -1,4 +1,5 @@
 import { useAppConfig, useUser } from "../lib/context";
+import { useEeApi, useEeRedirect } from "../lib/eeApi";
 import { ErrorCard } from "../components/GlobalError/GlobalError";
 import { Button, Select } from "antd";
 import Link from "next/link";
@@ -83,10 +84,12 @@ const Countdown: React.FC<{ deadline: Date }> = p => {
 };
 
 const CustomPlanView: React.FC<{ token: string }> = ({ token }) => {
+  const { eeRpc } = useEeApi();
+  const eeRedirect = useEeRedirect();
   const { isLoading, error, data } = useQuery(
     ["customPlan", token],
     async () => {
-      const plan = await rpc(`/api/$none/ee/billing/custom-plan?token=${token}`);
+      const plan = await eeRpc("billing/custom-plan", { query: { token } });
       const workspaces = await rpc(`/api/workspace`);
 
       return { plan, workspaces };
@@ -164,11 +167,15 @@ const CustomPlanView: React.FC<{ token: string }> = ({ token }) => {
                 type="primary"
                 size="large"
                 disabled={!selectedWorkspace}
-                href={`/api/${selectedWorkspace}/ee/billing/upgrade?planId=${data.plan.id}&email=${encodeURIComponent(
-                  user.email
-                )}&returnUrl=${encodeURIComponent(
-                  `${window.location.origin}/${selectedWorkspace}/settings/billing`
-                )}&cancelUrl=${encodeURIComponent(window.location.href)}`}
+                onClick={() =>
+                  eeRedirect("billing/upgrade", {
+                    workspaceId: selectedWorkspace,
+                    planId: data.plan.id,
+                    email: user.email,
+                    returnUrl: `${window.location.origin}/${selectedWorkspace}/settings/billing`,
+                    cancelUrl: window.location.href,
+                  })
+                }
               >
                 Accept Plan
               </Button>

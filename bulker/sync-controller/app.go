@@ -11,11 +11,13 @@ import (
 )
 
 type Context struct {
-	config      *Config
-	dbpool      *pgxpool.Pool
-	jobRunner   *JobRunner
-	taskManager *TaskManager
-	server      *http.Server
+	config        *Config
+	dbpool        *pgxpool.Pool
+	jobRunner     *JobRunner
+	taskManager   *TaskManager
+	syncsRepo     appbase.Repository[SyncsData]
+	cronController *CronJobController
+	server        *http.Server
 }
 
 func (a *Context) InitContext(settings *appbase.AppSettings) error {
@@ -38,6 +40,22 @@ func (a *Context) InitContext(settings *appbase.AppSettings) error {
 		return err
 	}
 	a.taskManager, err = NewTaskManager(a)
+	if err != nil {
+		return err
+	}
+
+	// Optional: poll the console syncs export. When unset, syncctl runs in
+	// the legacy reactive-only mode (no CronJob management).
+	if a.config.RepositoryBaseURL != "" {
+		a.syncsRepo = NewSyncsRepository(
+			a.config.RepositoryBaseURL,
+			a.config.RepositoryAuthToken,
+			a.config.RepositoryRefreshPeriodSec,
+			a.config.RepositoryCacheDir,
+		)
+		a.cronController = NewCronJobController(a)
+		a.cronController.Start()
+	}
 
 	router := NewRouter(a)
 	a.server = &http.Server{
@@ -51,8 +69,14 @@ func (a *Context) InitContext(settings *appbase.AppSettings) error {
 }
 
 func (a *Context) Cleanup() error {
+	if a.cronController != nil {
+		_ = a.cronController.Close()
+	}
 	a.taskManager.Close()
 	a.jobRunner.Close()
+	if a.syncsRepo != nil {
+		_ = a.syncsRepo.Close()
+	}
 	a.dbpool.Close()
 	return nil
 }

@@ -55,6 +55,7 @@ const CustomImagesList: React.FC<{}> = () => {
       type: { constant: "custom-image" },
       workspaceId: { constant: workspace.id },
       cloneId: { hidden: true },
+      updatedAt: { hidden: true },
       package: {
         documentation: (
           <Htmlizer>

@@ -741,6 +741,7 @@ const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
       destinationType: { hidden: true },
       workspaceId: { constant: workspace.id },
       cloneId: { hidden: true },
+      updatedAt: { hidden: true },
       provisioned: { hidden: true },
       testConnectionError: { hidden: true },
       ...extraFields,

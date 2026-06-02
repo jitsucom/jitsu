@@ -220,6 +220,7 @@ const StreamsList: React.FC<{}> = () => {
       type: { constant: "stream" },
       workspaceId: { constant: workspace.id },
       cloneId: { hidden: true },
+      updatedAt: { hidden: true },
       deduplicateWindowMs: { hidden: true },
       strict: {
         editor: CustomCheckbox,
