@@ -399,9 +399,18 @@ func patchEvent(c *gin.Context, messageId string, ev types.Json, tp string, inge
 		ctx.SetIfAbsentFunc("locale", func() any {
 			return strings.TrimSpace(strings.Split(c.GetHeader("Accept-Language"), ",")[0])
 		})
+		// browser clients cannot read their own request headers and must not be able to
+		// spoof them: always derive context.headers from the actual request, ignoring
+		// whatever the body provided.
+		ctx.Set("headers", buildContextHeaders(c, nil))
 		// remove any jitsu special properties from ingested events
 		// it is only allowed to be set via functions
 		types.FilterEvent(ev)
+	} else if ingestType == IngestTypeS2S {
+		// server-to-server: capture the (forwarding) request headers, but let the caller
+		// override allow-listed headers via the event body to forward the original
+		// device's headers.
+		ctx.Set("headers", buildContextHeaders(c, ctx.GetN("headers")))
 	}
 	nowIsoDate := time.Now().UTC().Format(timestamp.JsonISO)
 	ev.Set("receivedAt", nowIsoDate)
@@ -448,6 +457,58 @@ func (r *Router) getDataLocator(c *gin.Context, ingestType IngestType, writeKeyE
 func isInternalHeader(headerName string) bool {
 	l := strings.ToLower(headerName)
 	return strings.HasPrefix(l, "x-jitsu-") || strings.HasPrefix(l, "x-vercel")
+}
+
+// sensitiveHeaders are never copied into event.context.headers, which is forwarded to
+// destinations. Secrets must not leak into the warehouse.
+var sensitiveHeaders = types.NewSet("cookie", "authorization")
+
+// contextHeadersAllowlist are the client-meaningful headers that, when present in the
+// event body's context.headers, take priority over the actual HTTP request headers. A
+// server-side SDK may forward the original device's headers in the body; for these keys
+// we trust the body over the (forwarding) request.
+var contextHeadersAllowlist = types.NewSet(
+	"accept", "accept-language", "accept-encoding", "content-type",
+	"user-agent", "referer", "dnt",
+	"sec-fetch-site", "sec-fetch-mode", "sec-fetch-dest", "sec-fetch-user",
+	"sec-ch-ua", "sec-ch-ua-mobile", "sec-ch-ua-platform",
+)
+
+// buildContextHeaders captures all incoming HTTP request headers (lower-cased keys) for
+// event.context.headers. Internal (x-jitsu-*, x-vercel*) and sensitive (cookie,
+// authorization) headers are dropped, and the write key is masked. Allow-listed headers
+// already present in the event body (bodyHeaders) win over the request headers.
+func buildContextHeaders(c *gin.Context, bodyHeaders any) map[string]string {
+	headers := make(map[string]string, len(c.Request.Header))
+	for k, v := range c.Request.Header {
+		if len(v) == 0 || isInternalHeader(k) || sensitiveHeaders.Contains(strings.ToLower(k)) {
+			continue
+		}
+		lk := strings.ToLower(k)
+		if lk == "x-write-key" {
+			headers[lk] = maskWriteKey(v[0])
+		} else {
+			headers[lk] = strings.Join(v, ",")
+		}
+	}
+	overlay := func(k string, val any) {
+		lk := strings.ToLower(k)
+		if !contextHeadersAllowlist.Contains(lk) {
+			return
+		}
+		if s, ok := val.(string); ok {
+			headers[lk] = s
+		}
+	}
+	switch bh := bodyHeaders.(type) {
+	case types.Json:
+		bh.ForEach(overlay)
+	case map[string]any:
+		for k, val := range bh {
+			overlay(k, val)
+		}
+	}
+	return headers
 }
 
 func ipStripLastOctet(ip string) string {

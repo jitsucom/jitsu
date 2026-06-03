@@ -202,6 +202,16 @@ interface AnalyticsContext {
 
   userAgentVendor?: string;
 
+  /**
+   * Raw HTTP request headers (lower-cased keys), e.g. `accept`, `accept-language`,
+   * `sec-fetch-*`, `sec-ch-ua*`. Useful for distinguishing real browser traffic from
+   * bots/agents. Server-populated only — a browser cannot read its own request headers,
+   * so `@jitsu/js` in browser mode never sets this. Sensitive headers (`cookie`,
+   * `authorization`) are stripped and the write key is masked before the value reaches
+   * destinations.
+   */
+  headers?: Record<string, string>;
+
   locale?: string;
 
   library?: {
@@ -311,6 +321,13 @@ type PersistentStorage = {
 export type RuntimeFacade = {
   store?(): PersistentStorage;
   userAgent(): string | undefined;
+  /**
+   * Raw HTTP request headers to attach to `context.headers`. Browser runtimes cannot
+   * read their own request headers, so this is only implemented by server-side runtimes
+   * that have access to the incoming request (e.g. a Node.js integration forwarding the
+   * original device's headers).
+   */
+  headers?(): Record<string, string> | undefined;
   language(): string | undefined;
   pageUrl(): string | undefined;
   documentEncoding(): string | undefined;
