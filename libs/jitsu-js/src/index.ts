@@ -66,6 +66,7 @@ function createUnderlyingAnalyticsInstance(
   plugins: any[] = []
 ): AnalyticsInterface {
   const storageCache: any = {};
+  let resetCalled = false;
 
   // AnalyticsInstance's storage is async somewhere inside. So if we make 'page' call right after 'identify' call
   // 'page' call will load traits from storage before 'identify' call had a change to save them.
@@ -173,8 +174,18 @@ function createUnderlyingAnalyticsInstance(
     },
     user() {
       const u = analytics.user();
-      if (u && !u.id && opts.userId) {
-        u.id = opts.userId;
+      const idsDisabled = opts.privacy?.disableUserIds || opts.privacy?.dontSend;
+      if (idsDisabled) {
+        return {
+          ...u,
+          id: undefined,
+        };
+      }
+      if (u && !u.id && opts.userId && !resetCalled) {
+        return {
+          ...u,
+          id: opts.userId,
+        };
       }
       return u;
     },
@@ -192,6 +203,7 @@ function createUnderlyingAnalyticsInstance(
       (analytics as any).setAnonymousId(id);
     },
     async reset() {
+      resetCalled = true;
       if (opts.debug) {
         console.log("[JITSU DEBUG] Called reset(). Storage state", JSON.stringify(analytics.user()));
       }
@@ -238,7 +250,11 @@ function createUnderlyingAnalyticsInstance(
   if (opts.privacy?.disableUserIds || opts.privacy?.dontSend) {
     storage.reset();
   } else if (opts.userId) {
-    a.identify(opts.userId);
+    a.identify(opts.userId, {}, { autoIdentify: true }).catch(err => {
+      if (opts.debug) {
+        console.warn("[JITSU WARNING] Auto-identification failed on initialization:", err);
+      }
+    });
   }
   return a;
 }

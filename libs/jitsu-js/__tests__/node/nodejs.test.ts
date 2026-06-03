@@ -366,6 +366,66 @@ describe("Test Jitsu NodeJS client", () => {
     expect(requestLog[1].body.userId).toBe("autoIdentifiedUser123");
   });
 
+  test("test auto-identification does not leak after reset", async () => {
+    const config = {
+      host: server.baseUrl,
+      writeKey: "key:secret",
+      debug: true,
+      userId: "autoIdentifiedUser123",
+    };
+    const client = jitsuAnalytics(config);
+    expect(client.user().id).toBe("autoIdentifiedUser123");
+
+    await client.reset();
+    expect(client.user().id).toBeUndefined();
+  });
+
+  test("test auto-identification is disabled when privacy is active", async () => {
+    const config1 = {
+      host: server.baseUrl,
+      writeKey: "key:secret",
+      debug: true,
+      userId: "autoIdentifiedUser123",
+      privacy: {
+        disableUserIds: true,
+      },
+    };
+    const client1 = jitsuAnalytics(config1);
+    expect(client1.user().id).toBeUndefined();
+
+    const config2 = {
+      host: server.baseUrl,
+      writeKey: "key:secret",
+      debug: true,
+      userId: "autoIdentifiedUser123",
+      privacy: {
+        dontSend: true,
+      },
+    };
+    const client2 = jitsuAnalytics(config2);
+    expect(client2.user().id).toBeUndefined();
+  });
+
+  test("test initialization does not crash on rejected identify call", async () => {
+    const config = {
+      host: "http://non-existent-domain-foo-bar.com", // Will fail network request
+      writeKey: "key:secret",
+      debug: true,
+      userId: "autoIdentifiedUser123",
+      errorPolicy: "rethrow" as const,
+    };
+    
+    // This should initialize without throwing an unhandled exception or rejection
+    let client;
+    expect(() => {
+      client = jitsuAnalytics(config);
+    }).not.toThrow();
+    
+    expect(client).toBeDefined();
+    // Wait a brief moment to allow any unhandled rejection to fire
+    await new Promise(resolve => setTimeout(resolve, 100));
+  });
+
   test("tld", async () => {
     expect(getTopLevelDomain("www.google.com")).toBe("google.com");
     expect(getTopLevelDomain("www.trendstyle.com.au")).toBe("trendstyle.com.au");
