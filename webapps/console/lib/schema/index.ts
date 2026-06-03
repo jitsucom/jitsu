@@ -166,15 +166,20 @@ export function inferTokenTypeFromId(id: string): string {
 }
 
 export const StreamConfig = ConfigEntityBase.merge(
-  z.object({
-    domains: z.array(z.string()).optional(),
-    authorizedJavaScriptDomains: z.string().optional(),
-    publicKeys: z.array(ApiKey).optional(),
-    privateKeys: z.array(ApiKey).optional(),
-    strict: z.boolean().optional(),
-    shard: z.number().optional(),
-    deduplicateWindowMs: z.number().optional(),
-  })
+  z
+    .object({
+      domains: z.array(z.string()).optional(),
+      authorizedJavaScriptDomains: z.string().optional(),
+      publicKeys: z.array(ApiKey).optional(),
+      privateKeys: z.array(ApiKey).optional(),
+      strict: z.boolean().optional(),
+      shard: z.number().optional(),
+      deduplicateWindowMs: z.number().optional(),
+    })
+    // Tolerate legacy/unknown fields on older stream records (matches DestinationConfig).
+    // Without this, zodToJsonSchema emits `additionalProperties: false` and the editor's
+    // live validation rejects old streams with "must NOT have additional properties".
+    .passthrough()
 );
 export type StreamConfig = z.infer<typeof StreamConfig>;
 
