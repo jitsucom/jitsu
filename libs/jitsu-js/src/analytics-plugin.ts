@@ -569,6 +569,7 @@ function adjustPayload(
           }
         : undefined,
     userAgent: runtime.userAgent?.(),
+    headers: runtime.headers?.(),
     locale: runtime.language?.(),
     screen: runtime.screen?.(),
     ip: runtime?.ip?.(),
