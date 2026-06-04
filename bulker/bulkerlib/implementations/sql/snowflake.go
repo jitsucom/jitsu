@@ -50,6 +50,15 @@ const (
 	sfMergeInsertStatement = `INSERT INTO {{.Namespace}}{{.TableTo}} ({{.Columns}}) SELECT {{.SourceColumns}} FROM {{.NamespaceFrom}}{{.DedupTable}} S WHERE NOT EXISTS (SELECT 1 FROM {{.Namespace}}{{.TableTo}} T WHERE {{.JoinConditions}})`
 	sfDropDedupStatement   = `DROP TABLE IF EXISTS {{.NamespaceFrom}}{{.DedupTable}}`
 
+	// Cap on the number of distinct dates listed in the IN-predicate that
+	// scopes UPDATE/INSERT to a precise set of target micro-partitions.
+	// One year of daily syncs is 366 days, so 366 is the realistic upper
+	// bound for a single merge call after the caller has already capped
+	// mergeWindowDays. If the batch somehow touches more distinct dates,
+	// the caller falls back to the range bound — the IN-list would not
+	// prune better than the range at that point anyway.
+	sfMergeDateBoundsCap = 366
+
 	sfCreateSchemaIfNotExistsTemplate = `CREATE SCHEMA IF NOT EXISTS %s`
 
 	sfPrimaryKeyFieldsQuery = `show primary keys in %s%s`
@@ -564,17 +573,12 @@ func (s *Snowflake) copyOrMergeSplit(ctx context.Context, targetTable *Table, so
 		changeFilter = fmt.Sprintf("HASH(%s) IS DISTINCT FROM HASH(%s)", strings.Join(hashT, ", "), strings.Join(hashS, ", "))
 	}
 
-	var joinConditions []string
+	var pkJoinConditions []string
 	targetTable.PKFields.ForEach(func(pkField string) {
 		pkName := s.quotedColumnName(pkField)
-		joinConditions = append(joinConditions, fmt.Sprintf("T.%s = S.%s", pkName, pkName))
+		pkJoinConditions = append(pkJoinConditions, fmt.Sprintf("T.%s = S.%s", pkName, pkName))
 	})
 	pkColumns := utils.ArrayMap(targetTable.GetPKFields(), s.quotedColumnName)
-	if mergeWindow > 0 && targetTable.TimestampColumn != "" {
-		startDate := timestamp.Now().AddDate(0, 0, -mergeWindow).UTC()
-		timestampColName := s.quotedColumnName(targetTable.TimestampColumn)
-		joinConditions = append(joinConditions, fmt.Sprintf("T.%s >= TO_TIMESTAMP_TZ('%s')", timestampColName, startDate.Format(time.RFC3339)))
-	}
 
 	payload := QueryPayload{
 		Namespace:         s.namespacePrefix(targetTable.Namespace),
@@ -586,7 +590,7 @@ func (s *Snowflake) copyOrMergeSplit(ctx context.Context, targetTable *Table, so
 		PrimaryKeyName:    targetTable.PrimaryKeyName,
 		PrimaryKeyColumns: strings.Join(pkColumns, ","),
 		Discriminator:     discriminator,
-		JoinConditions:    strings.Join(joinConditions, " AND "),
+		JoinConditions:    strings.Join(pkJoinConditions, " AND "),
 		SourceColumns:     strings.Join(insertColumns, ", "),
 		UpdateSet:         strings.Join(updateColumns, ","),
 		ChangeFilter:      changeFilter,
@@ -629,6 +633,32 @@ func (s *Snowflake) copyOrMergeSplit(ctx context.Context, targetTable *Table, so
 		}
 	}()
 
+	// Pin the target-side scan to the actual dates present in the dedup batch.
+	// The target table is clustered by TO_DATE(timestamp), so an IN-list over
+	// the distinct dates in dedup prunes target micro-partitions exactly —
+	// critical when mergeWindow expands to a year because of a late-arriving
+	// event but the bulk of the batch is concentrated on a few days. If the
+	// batch is genuinely dense across many days (or the lookup fails / there
+	// is no timestamp column), fall back to the original mergeWindow-derived
+	// range bound, which is at least as good as before.
+	if targetTable.TimestampColumn != "" {
+		timestampColName := s.quotedColumnName(targetTable.TimestampColumn)
+		var timeFilter string
+		dateList, dlErr := s.collectDedupDates(ctx, timestampColName, payload.NamespaceFrom, payload.DedupTable)
+		if dlErr != nil {
+			logging.Warnf("[snowflake] dedup date-list lookup failed, falling back to range bound: %v", dlErr)
+		}
+		if dateList != "" {
+			timeFilter = fmt.Sprintf("TO_DATE(T.%s) IN (%s)", timestampColName, dateList)
+		} else if mergeWindow > 0 {
+			startDate := timestamp.Now().AddDate(0, 0, -mergeWindow).UTC()
+			timeFilter = fmt.Sprintf("T.%s >= TO_TIMESTAMP_TZ('%s')", timestampColName, startDate.Format(time.RFC3339))
+		}
+		if timeFilter != "" {
+			payload.JoinConditions = strings.Join(append(pkJoinConditions, timeFilter), " AND ")
+		}
+	}
+
 	if err = runStage("update", sfMergeUpdateQueryTemplate, "failed to update matched rows"); err != nil {
 		return state, err
 	}
@@ -636,6 +666,38 @@ func (s *Snowflake) copyOrMergeSplit(ctx context.Context, targetTable *Table, so
 		return state, err
 	}
 	return state, nil
+}
+
+// collectDedupDates returns the comma-separated list of quoted SQL date
+// literals present in the dedup table, capped so the IN-list stays bounded.
+// Returns an empty string (no error) when there is nothing to filter on
+// (empty dedup), too many distinct dates (caller falls back to the range
+// bound), or every row has NULL in the timestamp column.
+func (s *Snowflake) collectDedupDates(ctx context.Context, quotedTsCol, namespacePrefix, quotedDedupTable string) (string, error) {
+	query := fmt.Sprintf(
+		`SELECT TO_DATE(%s) FROM %s%s WHERE %s IS NOT NULL GROUP BY 1 ORDER BY 1 LIMIT %d`,
+		quotedTsCol, namespacePrefix, quotedDedupTable, quotedTsCol, sfMergeDateBoundsCap+1,
+	)
+	rows, err := s.txOrDb(ctx).QueryContext(ctx, query)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+	parts := make([]string, 0, sfMergeDateBoundsCap)
+	for rows.Next() {
+		var d time.Time
+		if err := rows.Scan(&d); err != nil {
+			return "", err
+		}
+		parts = append(parts, "'"+d.Format("2006-01-02")+"'")
+	}
+	if err := rows.Err(); err != nil {
+		return "", err
+	}
+	if len(parts) == 0 || len(parts) > sfMergeDateBoundsCap {
+		return "", nil
+	}
+	return strings.Join(parts, ","), nil
 }
 
 func (b *SQLAdapterBase[T]) replaceTable(ctx context.Context, namespace, targetTable, sourceTable string) error {
