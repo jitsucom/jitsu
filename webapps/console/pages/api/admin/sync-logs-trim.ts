@@ -35,6 +35,9 @@ const maxEntries = 5_000_000;
 export default createRoute()
   .GET({
     auth: true,
+    // GET but deletes (task_log.deleteMany). The k8s CronJob will get 503
+    // during maintenance and skip; resumes when maintenance ends.
+    mutates: true,
     query: z.object({
       token: z.string().optional(),
     }),

@@ -66,6 +66,11 @@ spec:
               value: ""
             - name: INGMGR_PORT
               value: ""
+            # Maintenance descriptor mounted from `jitsu-console-maintenance`
+            # (optional ConfigMap, key `maintenance.json`). Manage via
+            # webapps/console/scripts/maintenance-mode.sh.
+            - name: MAINTENANCE_CONFIG_FILE
+              value: /etc/jitsu/maintenance/maintenance.json
             {{- range $key, $value := .Values.env.console }}
             - name: {{ $key }}
               value: {{ $value | quote }}
@@ -76,6 +81,9 @@ spec:
               readOnly: true
             - name: node-cache
               mountPath: /cache
+            - name: maintenance
+              mountPath: /etc/jitsu/maintenance
+              readOnly: true
           livenessProbe:
             httpGet:
               path: /api/healthcheck
@@ -106,6 +114,16 @@ spec:
         - name: node-cache
           persistentVolumeClaim:
             claimName: node-cache
+        # `optional: true` so the pod boots cleanly when no maintenance window
+        # is configured (the volume mounts as an empty dir; missing config
+        # file → load() returns "no maintenance"). Create the CM via
+        # `webapps/console/scripts/maintenance-mode.sh start` to enable
+        # maintenance — propagates to running pods within ~1min via kubelet
+        # sync; no restart needed.
+        - name: maintenance
+          configMap:
+            name: jitsu-console-maintenance
+            optional: true
 ---
 apiVersion: v1
 kind: Service

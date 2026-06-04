@@ -19,6 +19,10 @@ export const api: Api = {
   url: inferUrl(__filename),
   POST: {
     auth: false,
+    // Minting a session cookie from a Firebase ID token does not touch the
+    // console DB — keep sign-in working during maintenance so operators
+    // aren't locked out while toggling things.
+    allowDuringMaintenance: true,
     types: {
       body: z.object({
         csrfToken: z.string(),

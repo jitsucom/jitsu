@@ -22,6 +22,9 @@ type DeleteRequest = {
 export default createRoute()
   .GET({
     streaming: true,
+    // GET but issues ClickHouse ALTER/DELETE statements. CronJob target;
+    // skips during maintenance and retries on next tick.
+    mutates: true,
   })
   .handler(async ({ req, res }) => {
     //check if coming from localhost

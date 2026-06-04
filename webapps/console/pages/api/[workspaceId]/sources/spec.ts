@@ -20,6 +20,10 @@ const resultType = z.object({
 export const route = createRoute()
   .GET({
     auth: true,
+    // Side-effecting on cache miss: dispatches /spec to syncctl and writes a
+    // placeholder row to `newjitsu.source_spec` via pgPool (bypassing the
+    // Prisma backstop). Block during maintenance.
+    mutates: true,
     summary: "Get connector specs",
     description:
       "Returns the JSON schema describing a connector package's credentials/config form. " +

@@ -185,6 +185,7 @@ export function createPg(): Pool {
   const pool = new Pool({
     max: 20,
     idleTimeoutMillis: 600000,
+    keepAlive: true,
     connectionString: requireDefined(serverEnv.DATABASE_URL, "env.DATABASE_URL is not defined"),
     ssl: sslMode === "no-verify" ? { rejectUnauthorized: false } : undefined,
     application_name: (parsedUrl.searchParams.get("application_name") || "console") + "-raw-pg",

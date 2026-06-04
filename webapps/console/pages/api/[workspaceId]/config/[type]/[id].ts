@@ -9,7 +9,6 @@ import {
 } from "../../../../../lib/schema/config-objects";
 import { AnyDestination, getAnnotatedConfigObjectSchema } from "../../../../../lib/openapi/annotations";
 import { prepareZodObjectForDeserialization } from "../../../../../lib/zod";
-import { isReadOnly } from "../../../../../lib/server/read-only-mode";
 import { configObjectAuditLog } from "../../../../../lib/server/audit-log";
 import { trackTelemetryEvent } from "../../../../../lib/server/telemetry";
 import { requireDefined, deepCopy } from "juava";
@@ -80,9 +79,10 @@ export const route = createRoute()
   .handler(async ({ user, body, query }) => {
     body = prepareZodObjectForDeserialization(body);
     const { id, workspaceId, type } = query;
-    if (isReadOnly) {
-      throw new ApiError("Console is in read-only mode. Modifications of objects are not allowed");
-    }
+    // Read-only enforcement is centralized: the API-layer maintenance gate
+    // (lib/api.ts) returns 503 before this handler runs, and the Prisma
+    // backstop in lib/server/db.ts rejects writes per-operation. No need
+    // for an in-handler check.
     await verifyAccessWithRole(user, workspaceId, "editEntities");
     const workspace = requireDefined(
       await db.prisma().workspace.findFirst({ where: { id: workspaceId } }),
@@ -134,9 +134,6 @@ export const route = createRoute()
   .handler(async ({ user, query }) => {
     const { id, workspaceId, type, strict, cascade } = query;
     await verifyAccessWithRole(user, workspaceId, "deleteEntities");
-    if (isReadOnly) {
-      throw new ApiError("Console is in read-only mode. Modifications of objects are not allowed");
-    }
     const object = await db.prisma().configurationObject.findFirst({
       where: { workspaceId: workspaceId, id, deleted: false },
     });

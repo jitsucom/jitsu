@@ -4,7 +4,7 @@ import { getAppEndpoint } from "../../lib/domains";
 import { getEeConnection, isEEAvailable } from "../../lib/server/ee";
 import { isFirebaseEnabled, requireFirebaseOptions } from "../../lib/server/firebase-server";
 import { nangoConfig } from "../../lib/server/oauth/nango-config";
-import { readOnlyUntil } from "../../lib/server/read-only-mode";
+import { getPublicMaintenanceState } from "../../lib/server/maintenance";
 import { productTelemetryEnabled, productTelemetryHost } from "../../lib/server/telemetry";
 import { mainDataDomain } from "../../lib/server/data-domains";
 import { customDomainCnames } from "../../lib/server/custom-domains";
@@ -55,7 +55,7 @@ export default createRoute()
     const eeBrowserAvailable = isEEAvailable() && isFirebaseEnabled();
     return {
       docsUrl: serverEnv.JITSU_DOCUMENTATION_URL || "https://docs.jitsu.com/",
-      readOnlyUntil: readOnlyUntil?.toISOString(),
+      maintenance: getPublicMaintenanceState(),
       ee: {
         available: eeBrowserAvailable,
         host: eeBrowserAvailable ? getEeConnection().host : undefined,

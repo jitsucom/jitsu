@@ -50,6 +50,9 @@ const tasksResultType = z.object({
 export const route = createRoute()
   .POST({
     auth: true,
+    // Semantic read — POST is used so the syncId list can be passed in the body
+    // instead of a long query string. No writes. Keep accessible during maintenance.
+    allowDuringMaintenance: true,
     summary: "Get latest tasks for syncs",
     description:
       "Given a list of `syncId`s in the body, returns the most recent non-skipped task per sync as a `{ syncId: task }` map. " +

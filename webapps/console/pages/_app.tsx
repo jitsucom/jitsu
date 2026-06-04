@@ -19,6 +19,7 @@ import {
 } from "../lib/context";
 import { AppConfig, ContextApiResponse, SessionUser } from "../lib/schema";
 import { ErrorBoundary, GlobalError, GlobalOverlay } from "../components/GlobalError/GlobalError";
+import { ErrorOrMaintenance, formatUtc, MaintenancePage } from "../components/Maintenance/Maintenance";
 import { feedbackSuccess, useTitle } from "../lib/ui";
 import { useApi } from "../lib/useApi";
 import { AntdTheme } from "../components/AntdTheme/AntdTheme";
@@ -268,7 +269,10 @@ if (typeof window !== "undefined") {
 }
 
 function AppLoader({ children, pageProps }: PropsWithChildren<any>) {
-  const { data, isLoading, error } = useApi<AppConfig>(`/api/app-config`);
+  // Poll every 60s so an operator flipping the maintenance ConfigMap
+  // propagates to all open sessions without a page reload (the file-read
+  // cache on the server is 10s, so 60s is the visible upper bound).
+  const { data, isLoading, error } = useApi<AppConfig>(`/api/app-config`, { refetchInterval: 60_000 });
   const [origin, setOrigin] = useState<string | undefined>();
 
   useEffect(() => {
@@ -278,7 +282,13 @@ function AppLoader({ children, pageProps }: PropsWithChildren<any>) {
   if (isLoading || !origin) {
     return <GlobalLoader title={"Loading application..."} />;
   } else if (error) {
-    return <GlobalError error={error} title="Application failed to initialize"></GlobalError>;
+    return <ErrorOrMaintenance error={error} title="Application failed to initialize" />;
+  }
+  // When maintenance declares the DB unavailable, the rest of the app can't function
+  // (it issues DB-backed queries on mount). Short-circuit to the maintenance page instead
+  // of letting downstream components render and crash.
+  if (data!.maintenance?.active && data!.maintenance?.database_access === "off") {
+    return <MaintenancePage maintenance={data!.maintenance} />;
   }
   let originUrl;
   try {
@@ -511,12 +521,33 @@ const WorkspaceLoader: React.FC<
 
 export const ReadOnlyBanner: React.FC<{}> = () => {
   const appConfig = useAppConfig();
-  if (appConfig.readOnlyUntil) {
+  const maintenance = appConfig.maintenance;
+  // Active maintenance (or an upcoming one with show_in_advance) takes priority.
+  if (maintenance && (maintenance.active || maintenance.show_in_advance)) {
+    // formatUtc guards against malformed ConfigMap values (returns undefined on
+    // unparseable input) so a typo doesn't crash the app shell.
+    const start = formatUtc(maintenance.planned_start);
+    const until = formatUtc(maintenance.planned_end);
     return (
       <div className="px-4 py-2 text-center bg-warning/20 border-b border-warning">
-        Jitsu is in a read-only maintenance mode until{" "}
-        <b>{new Date(appConfig.readOnlyUntil).toISOString().split(".")[0].replace("T", " ")} UTC</b>. Your data is being
-        processed as usual, but you can't change the configuration.
+        {maintenance.active
+          ? "Jitsu is in maintenance mode. Modifications are temporarily disabled."
+          : "Jitsu maintenance is scheduled"}
+        {!maintenance.active && start ? (
+          <>
+            {" "}
+            at <b>{start}</b>
+          </>
+        ) : null}
+        {until ? (
+          <>
+            {" "}
+            until <b>{until}</b>
+          </>
+        ) : null}
+        .<br />
+        {maintenance.description ||
+          (maintenance.active ? "Your data is being processed as usual, but you can't change the configuration." : "")}
       </div>
     );
   }
@@ -555,16 +586,21 @@ export const App = ({ Component, pageProps }: AppProps) => {
       <AntdModalProvider>
         {/*{loading && <LoadingBlur />}*/}
         <div className={`global-wrapper`}>
-          <ErrorBoundary renderError={props => <GlobalError error={props.error} title="System error" />}>
-            <QueryClientProvider client={queryClient}>
+          {/* QueryClientProvider must wrap ErrorBoundary: the fallback uses
+              `ErrorOrMaintenance` which calls `useApi` (React Query). If a render
+              error bubbles up to ErrorBoundary while RQ context is below it, the
+              fallback itself throws "No QueryClient set" and the user sees a
+              white screen. */}
+          <QueryClientProvider client={queryClient}>
+            <ErrorBoundary renderError={props => <ErrorOrMaintenance error={props.error} title="System error" />}>
               <AppLoader pageProps={pageProps}>
                 <ReadOnlyBanner />
                 <WorkspaceWrapper>
                   <Component {...pageProps} />
                 </WorkspaceWrapper>
               </AppLoader>
-            </QueryClientProvider>
-          </ErrorBoundary>
+            </ErrorBoundary>
+          </QueryClientProvider>
         </div>
       </AntdModalProvider>
     </AntdTheme>

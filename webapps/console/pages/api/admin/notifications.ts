@@ -113,6 +113,10 @@ function chKey(channelId: string, actorId: string, type: string, tableName?: str
 export default createRoute()
   .GET({
     auth: true,
+    // GET but writes heavily (StatusChange / NotificationState / Notification rows).
+    // The k8s CronJob will receive 503 during maintenance and skip; resumes when
+    // maintenance ends.
+    mutates: true,
     query: z.object({
       dryRun: z.string().optional(),
     }),

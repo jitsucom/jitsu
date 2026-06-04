@@ -9,6 +9,9 @@ const log = getServerLog("events-log-init");
 
 export default createRoute()
   .GET({
+    // GET but creates ClickHouse tables. The maintenance gate blocks it;
+    // operator re-runs after maintenance ends.
+    mutates: true,
     query: z.object({
       token: z.string().optional(),
     }),

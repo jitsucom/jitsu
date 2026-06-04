@@ -9,6 +9,7 @@ import { getServerSession, Session } from "next-auth";
 import { nextAuthConfig } from "./nextauth.config";
 import { inferTokenTypeFromId, SessionUser } from "./schema";
 import { db } from "./server/db";
+import { isMaintenanceActive } from "./server/maintenance";
 import { prepareZodObjectForDeserialization, safeParseWithDate } from "./zod";
 import { ApiError } from "./shared/errors";
 import { getServerLog } from "./server/log";
@@ -70,6 +71,16 @@ export type ApiMethod<RequireAuth extends boolean = boolean, Res = any, Body = a
   // indicates that handler uses write method for outputting response content. This is useful for streaming responses.
   streaming?: boolean;
   rateLimit?: RouteRateLimitSpec;
+  // when true, the route is exempt from the maintenance-mode write block (e.g.
+  // auth, app-config, maintenance, healthcheck, and the admin maintenance endpoint)
+  allowDuringMaintenance?: boolean;
+  // Force the route to be treated as mutating for the maintenance-mode block,
+  // regardless of HTTP method. Use on GET routes that perform real DB writes
+  // (admin cron endpoints, etc.) so they're blocked just like POST/PUT/PATCH/DELETE.
+  // Don't use for handlers that do *incidental* writes during reads (e.g. updating
+  // a `lastUsed` timestamp) — those should remain non-mutating from the gate's
+  // perspective, with the write itself wrapped in try/catch by the caller.
+  mutates?: boolean;
   handle: (ctx: HandlerOpts<Body, Query, RequireAuth>) => Promise<Res>;
 };
 
@@ -289,7 +300,15 @@ export async function getUser(
         await db.prisma().userProfile.findUnique({ where: { id: token.userId } }),
         `Can't find user ${token.userId} for API key ${keyId}`
       );
-      await db.prisma().userApiToken.update({ where: { id: keyId }, data: { lastUsed: new Date() } });
+      // Best-effort lastUsed bookkeeping — must never break auth. Read-only
+      // backstops (Prisma read-only extension or future DB-side restrictions)
+      // would reject this write; swallow the error so the read-path call still
+      // authenticates the user.
+      try {
+        await db.prisma().userApiToken.update({ where: { id: keyId }, data: { lastUsed: new Date() } });
+      } catch (e: any) {
+        getServerLog().atWarn().withCause(e).log(`Failed to bump lastUsed for API key ${keyId}`);
+      }
       return {
         internalId: user.id,
         externalUsername: user.externalUsername,
@@ -324,6 +343,28 @@ export function nextJsApiHandler(api: Api): NextApiHandler {
       res.status(405).json({ error: `${method} method not supported` });
       return;
     }
+    // Real read-only during maintenance: reject mutating requests at the API
+    // layer (the Prisma read-only extension is a further backstop). The gate
+    // treats a request as mutating if its HTTP method is POST/PUT/PATCH/DELETE
+    // OR the route explicitly opts in via `mutates: true` (for GET routes that
+    // actually write — admin cron endpoints, etc.). Routes that must keep
+    // working (auth, app-config, maintenance, healthcheck, admin maintenance
+    // toggle, read-only POSTs) opt out via `allowDuringMaintenance`.
+    //
+    // For `auth: true` routes, the gate runs *after* getUser so anonymous
+    // callers still see 401/403 with their original semantics and we don't
+    // leak maintenance state to unauthenticated probes (relevant when the
+    // descriptor sets `visible: false`).
+    const isMutatingMethod = method === "POST" || method === "PUT" || method === "PATCH" || method === "DELETE";
+    const isMutating = isMutatingMethod || !!handler.mutates;
+    const maintenanceBlocks = isMutating && !handler.allowDuringMaintenance && isMaintenanceActive();
+    if (maintenanceBlocks && !handler.auth) {
+      res.status(503).json({
+        error: "maintenance",
+        message: "Jitsu is in maintenance mode; modifications are temporarily disabled.",
+      });
+      return;
+    }
     let currentUser: SessionUser | undefined = undefined;
 
     try {
@@ -332,6 +373,15 @@ export function nextJsApiHandler(api: Api): NextApiHandler {
         currentUser = await getUser(res, req);
         if (!currentUser) {
           res.status(401).send({ error: "Authorization Required" });
+          return;
+        }
+        // Auth-required routes only learn about maintenance *after* successful
+        // auth — see the rationale above.
+        if (maintenanceBlocks) {
+          res.status(503).json({
+            error: "maintenance",
+            message: "Jitsu is in maintenance mode; modifications are temporarily disabled.",
+          });
           return;
         }
       }
@@ -603,6 +653,8 @@ export type RouteMethodSpec<
   resultExample?: any;
   expand?: ExpandSpec;
   rateLimit?: RouteRateLimitSpec;
+  allowDuringMaintenance?: boolean;
+  mutates?: boolean;
 };
 
 export type RouteBuilderBase = {
@@ -646,6 +698,8 @@ export function createRoute(): RouteBuilder {
             streaming: spec.streaming,
             description: spec.description,
             rateLimit: spec.rateLimit,
+            allowDuringMaintenance: spec.allowDuringMaintenance,
+            mutates: spec.mutates,
           };
           specByMethod[method] = {
             query: spec.query,

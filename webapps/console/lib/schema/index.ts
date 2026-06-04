@@ -80,8 +80,19 @@ export const noRestrictions: BillingSettings = {
 export const AppConfig = z.object({
   docsUrl: z.string().optional(),
   websiteUrl: z.string().optional(),
-  //iso date
-  readOnlyUntil: z.string().optional(),
+  maintenance: z
+    .object({
+      active: z.boolean().optional(),
+      description: z.string().optional(),
+      planned_start: z.string().optional(),
+      planned_end: z.string().optional(),
+      show_in_advance: z.boolean().optional(),
+      // Mirrors lib/server/maintenance.ts MaintenanceState.database_access.
+      // The browser uses this to decide whether to render the maintenance page
+      // unconditionally (DB unavailable) vs. just show the read-only banner.
+      database_access: z.enum(["read_only", "off"]).optional(),
+    })
+    .optional(),
   disableSignup: z.boolean().optional(),
   customDomainsEnabled: z.boolean().optional(),
   ee: z.object({
