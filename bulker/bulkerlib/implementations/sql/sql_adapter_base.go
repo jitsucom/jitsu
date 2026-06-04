@@ -427,8 +427,10 @@ type QueryPayload struct {
 
 	TableTo        string
 	TableFrom      string
+	DedupTable     string
 	JoinConditions string
 	SourceColumns  string
+	ChangeFilter   string
 }
 
 func (b *SQLAdapterBase[T]) insert(ctx context.Context, table *Table, objects []types2.Object) error {
