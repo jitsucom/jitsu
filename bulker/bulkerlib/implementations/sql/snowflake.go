@@ -626,13 +626,15 @@ func (s *Snowflake) copyOrMergeSplit(ctx context.Context, targetTable *Table, so
 		timestampColName := s.quotedColumnName(targetTable.TimestampColumn)
 		startDate := timestamp.Now().AddDate(0, 0, -mergeWindow).UTC()
 		var timeFilter string
-		dateList, dlErr := s.collectDedupDates(ctx, timestampColName, payload.NamespaceFrom, payload.DedupTable, startDate)
+		dates, dlErr := s.collectDedupDates(ctx, timestampColName, payload.NamespaceFrom, payload.DedupTable, startDate)
 		if dlErr != nil {
 			logging.Warnf("[snowflake] dedup date-list lookup failed, falling back to range bound: %v", dlErr)
 		}
-		if dateList != "" {
-			timeFilter = fmt.Sprintf("TO_DATE(T.%s) IN (%s)", timestampColName, dateList)
+		if len(dates) > 0 {
+			logging.Infof("[snowflake] merge date scope for %s%s: %d distinct date(s) in dedup batch", payload.Namespace, payload.TableTo, len(dates))
+			timeFilter = fmt.Sprintf("TO_DATE(T.%s) IN (%s)", timestampColName, strings.Join(dates, ","))
 		} else {
+			logging.Infof("[snowflake] merge date scope for %s%s: range bound (T.%s >= %s)", payload.Namespace, payload.TableTo, timestampColName, startDate.Format(time.RFC3339))
 			timeFilter = fmt.Sprintf("T.%s >= TO_TIMESTAMP_TZ('%s')", timestampColName, startDate.Format(time.RFC3339))
 		}
 		payload.JoinConditions = strings.Join(append(pkJoinConditions, timeFilter), " AND ")
@@ -647,39 +649,36 @@ func (s *Snowflake) copyOrMergeSplit(ctx context.Context, targetTable *Table, so
 	return state, nil
 }
 
-// collectDedupDates returns the comma-separated list of quoted SQL date
-// literals present in the dedup table, scoped to the [startDate, ∞)
-// window the range bound would have allowed. There is no upper bound
-// on the date set — future-dated events (clock skew, deliberately
-// future-stamped messages) need to be in the IN-list so the UPDATE
-// finds their T match and the INSERT's NOT EXISTS sees them; silently
-// dropping those dates would create duplicates. Returns "" (no error)
+// collectDedupDates returns the quoted SQL date literals present in the
+// dedup table, scoped to the [startDate, ∞) window the range bound
+// would have allowed. There is no upper bound on the date set —
+// future-dated events (clock skew, deliberately future-stamped
+// messages) need to be in the IN-list so the UPDATE finds their T
+// match and the INSERT's NOT EXISTS sees them; silently dropping those
+// dates would create duplicates. Returns an empty slice (no error)
 // when nothing matches and the caller should use the range bound.
-func (s *Snowflake) collectDedupDates(ctx context.Context, quotedTsCol, namespacePrefix, quotedDedupTable string, startDate time.Time) (string, error) {
+func (s *Snowflake) collectDedupDates(ctx context.Context, quotedTsCol, namespacePrefix, quotedDedupTable string, startDate time.Time) ([]string, error) {
 	query := fmt.Sprintf(
 		`SELECT TO_DATE(%s) FROM %s%s WHERE %s IS NOT NULL AND TO_DATE(%s) >= TO_DATE('%s') GROUP BY 1 ORDER BY 1`,
 		quotedTsCol, namespacePrefix, quotedDedupTable, quotedTsCol, quotedTsCol, startDate.Format("2006-01-02"),
 	)
 	rows, err := s.txOrDb(ctx).QueryContext(ctx, query)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	defer rows.Close()
 	var parts []string
 	for rows.Next() {
 		var d time.Time
 		if err := rows.Scan(&d); err != nil {
-			return "", err
+			return nil, err
 		}
 		parts = append(parts, "'"+d.Format("2006-01-02")+"'")
 	}
 	if err := rows.Err(); err != nil {
-		return "", err
+		return nil, err
 	}
-	if len(parts) == 0 {
-		return "", nil
-	}
-	return strings.Join(parts, ","), nil
+	return parts, nil
 }
 
 func (b *SQLAdapterBase[T]) replaceTable(ctx context.Context, namespace, targetTable, sourceTable string) error {
