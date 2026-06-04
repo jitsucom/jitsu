@@ -46,7 +46,7 @@ const (
 	// emits its own WarehouseState so timing for dedup/update/insert is
 	// visible in the run report.
 	sfDedupStatement       = `CREATE OR REPLACE TEMPORARY TABLE {{.NamespaceFrom}}{{.DedupTable}} AS SELECT {{.Columns}} FROM (SELECT {{.Columns}}, ROW_NUMBER() OVER (PARTITION BY {{.PrimaryKeyColumns}}{{.Discriminator}}) rn FROM {{.NamespaceFrom}}{{.TableFrom}}) QUALIFY rn = MAX(rn) OVER (PARTITION BY {{.PrimaryKeyColumns}})`
-	sfMergeUpdateStatement = `UPDATE {{.Namespace}}{{.TableTo}} T SET {{.UpdateSet}} FROM {{.NamespaceFrom}}{{.DedupTable}} S WHERE {{.JoinConditions}}{{if .ChangeFilter}} AND ({{.ChangeFilter}}){{end}}`
+	sfMergeUpdateStatement = `UPDATE {{.Namespace}}{{.TableTo}} T SET {{.UpdateSet}} FROM {{.NamespaceFrom}}{{.DedupTable}} S WHERE {{.JoinConditions}}`
 	sfMergeInsertStatement = `INSERT INTO {{.Namespace}}{{.TableTo}} ({{.Columns}}) SELECT {{.SourceColumns}} FROM {{.NamespaceFrom}}{{.DedupTable}} S WHERE NOT EXISTS (SELECT 1 FROM {{.Namespace}}{{.TableTo}} T WHERE {{.JoinConditions}})`
 	sfDropDedupStatement   = `DROP TABLE IF EXISTS {{.NamespaceFrom}}{{.DedupTable}}`
 
@@ -526,17 +526,22 @@ func (s *Snowflake) CopyTables(ctx context.Context, targetTable *Table, sourceTa
 
 // copyOrMergeSplit replaces the single MERGE INTO with three sequential
 // statements: pre-materialize a deduplicated view of the source into
-// {sourceTable}_dedup, UPDATE matched rows in the target, then INSERT the
+// {sourceTable}_DEDUP, UPDATE matched rows in the target, then INSERT the
 // rest. Each stage's duration is reported as a separate WarehouseState so
 // callers see where the time actually goes.
 //
-// Why split: a single MERGE forces Snowflake to rewrite every micro-partition
-// containing a matched row before it knows whether the matched row's content
-// changed. Splitting also lets the optimizer plan dedup independently — the
-// dedup table is much smaller than the raw source for at-least-once batches
-// where the same PK arrives many times.
+// Why split:
+//   - Dedup-once: stages 2 and 3 both read from a small pre-deduped relation
+//     instead of re-running the QUALIFY subquery against the full tmp table
+//     for each pass.
+//   - Date-list scoping: after dedup is materialized we can query its actual
+//     TO_DATE(timestamp) values and pin the target scan in UPDATE/INSERT to
+//     those exact dates (sfMergeUpdateStatement/sfMergeInsertStatement),
+//     which lines up with the target's TO_DATE(timestamp) clustering key and
+//     prunes target micro-partitions precisely — the dominant win when
+//     mergeWindow expands to a year because of one late event.
 //
-// Order matters: UPDATE first, then INSERT. If we INSERT first, freshly
+// Order matters: UPDATE first, then INSERT. If INSERT ran first, freshly
 // inserted rows would match in the subsequent UPDATE and re-write themselves
 // with identical values, wasting micro-partition rewrites.
 func (s *Snowflake) copyOrMergeSplit(ctx context.Context, targetTable *Table, sourceTable *Table, mergeWindow int, discriminator string) (state bulker.WarehouseState, err error) {
@@ -544,25 +549,11 @@ func (s *Snowflake) copyOrMergeSplit(ctx context.Context, targetTable *Table, so
 	count := sourceTable.ColumnsCount()
 	updateColumns := make([]string, count)
 	insertColumns := make([]string, count)
-	// Hash both sides over the non-PK columns so the UPDATE stage can skip
-	// matched rows whose content is identical to what's already in the
-	// target. Micro-partition rewrites are the dominant cost of MERGE on a
-	// large Snowflake table; for at-least-once re-loads this is usually the
-	// biggest speedup. PKs are excluded — they're equal by the join.
-	var hashT, hashS []string
-	sourceTable.Columns.ForEachIndexed(func(i int, name string, col types2.SQLColumn) {
+	sourceTable.Columns.ForEachIndexed(func(i int, _ string, col types2.SQLColumn) {
 		colName := columnNames[i]
 		updateColumns[i] = fmt.Sprintf(`%s=S.%s`, colName, colName)
 		insertColumns[i] = s.typecastFunc(fmt.Sprintf(`S.%s`, colName), col)
-		if !targetTable.PKFields.Contains(name) {
-			hashT = append(hashT, "T."+colName)
-			hashS = append(hashS, "S."+colName)
-		}
 	})
-	var changeFilter string
-	if len(hashT) > 0 {
-		changeFilter = fmt.Sprintf("HASH(%s) IS DISTINCT FROM HASH(%s)", strings.Join(hashT, ", "), strings.Join(hashS, ", "))
-	}
 
 	var pkJoinConditions []string
 	targetTable.PKFields.ForEach(func(pkField string) {
@@ -584,7 +575,6 @@ func (s *Snowflake) copyOrMergeSplit(ctx context.Context, targetTable *Table, so
 		JoinConditions:    strings.Join(pkJoinConditions, " AND "),
 		SourceColumns:     strings.Join(insertColumns, ", "),
 		UpdateSet:         strings.Join(updateColumns, ","),
-		ChangeFilter:      changeFilter,
 	}
 
 	runStage := func(stageName string, tmpl *template.Template, errMsg string) error {
