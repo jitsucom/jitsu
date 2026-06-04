@@ -20,6 +20,7 @@ import (
 	"github.com/jitsucom/bulker/jitsubase/errorj"
 	"github.com/jitsucom/bulker/jitsubase/jsonorder"
 	"github.com/jitsucom/bulker/jitsubase/logging"
+	"github.com/jitsucom/bulker/jitsubase/timestamp"
 	"github.com/jitsucom/bulker/jitsubase/types"
 	"github.com/jitsucom/bulker/jitsubase/utils"
 
@@ -39,7 +40,15 @@ const (
 
 	sfCopyStatement = `COPY INTO %s%s (%s) from @~/%s FILE_FORMAT=(TYPE= 'CSV', FIELD_OPTIONALLY_ENCLOSED_BY = '"' ESCAPE_UNENCLOSED_FIELD = NONE SKIP_HEADER = 1) `
 
-	sfMergeStatement = `MERGE INTO {{.Namespace}}{{.TableTo}} T USING (SELECT {{.Columns}} FROM (SELECT {{.Columns}}, ROW_NUMBER() OVER (PARTITION BY {{.PrimaryKeyColumns}}{{.Discriminator}}) rn FROM {{.NamespaceFrom}}{{.TableFrom}}) QUALIFY rn = MAX(rn) OVER (PARTITION BY {{.PrimaryKeyColumns}}) ) S ON {{.JoinConditions}} WHEN MATCHED THEN UPDATE SET {{.UpdateSet}} WHEN NOT MATCHED THEN INSERT ({{.Columns}}) VALUES ({{.SourceColumns}})`
+	// Three-statement split that replaces a single MERGE INTO for Snowflake.
+	// Stage 1 materializes the deduplicated source into a TEMPORARY table so
+	// stages 2 and 3 read a much smaller, pre-deduped relation. Each stage
+	// emits its own WarehouseState so timing for dedup/update/insert is
+	// visible in the run report.
+	sfDedupStatement       = `CREATE OR REPLACE TEMPORARY TABLE {{.NamespaceFrom}}{{.DedupTable}} AS SELECT {{.Columns}} FROM (SELECT {{.Columns}}, ROW_NUMBER() OVER (PARTITION BY {{.PrimaryKeyColumns}}{{.Discriminator}}) rn FROM {{.NamespaceFrom}}{{.TableFrom}}) QUALIFY rn = MAX(rn) OVER (PARTITION BY {{.PrimaryKeyColumns}})`
+	sfMergeUpdateStatement = `UPDATE {{.Namespace}}{{.TableTo}} T SET {{.UpdateSet}} FROM {{.NamespaceFrom}}{{.DedupTable}} S WHERE {{.JoinConditions}}{{if .ChangeFilter}} AND ({{.ChangeFilter}}){{end}}`
+	sfMergeInsertStatement = `INSERT INTO {{.Namespace}}{{.TableTo}} ({{.Columns}}) SELECT {{.SourceColumns}} FROM {{.NamespaceFrom}}{{.DedupTable}} S WHERE NOT EXISTS (SELECT 1 FROM {{.Namespace}}{{.TableTo}} T WHERE {{.JoinConditions}})`
+	sfDropDedupStatement   = `DROP TABLE IF EXISTS {{.NamespaceFrom}}{{.DedupTable}}`
 
 	sfCreateSchemaIfNotExistsTemplate = `CREATE SCHEMA IF NOT EXISTS %s`
 
@@ -56,7 +65,10 @@ var (
 	sfReservedColumnNamesSet    = types.NewSet(sfReservedColumnNames...)
 	sfUnquotedIdentifierPattern = regexp.MustCompile(`^[a-z_][0-9a-z_]*$|^[A-Z_][0-9A-Z_]*$`)
 
-	sfMergeQueryTemplate, _ = template.New("snowflakeMergeQuery").Parse(sfMergeStatement)
+	sfDedupQueryTemplate, _       = template.New("snowflakeDedupQuery").Parse(sfDedupStatement)
+	sfMergeUpdateQueryTemplate, _ = template.New("snowflakeMergeUpdateQuery").Parse(sfMergeUpdateStatement)
+	sfMergeInsertQueryTemplate, _ = template.New("snowflakeMergeInsertQuery").Parse(sfMergeInsertStatement)
+	sfDropDedupQueryTemplate, _   = template.New("snowflakeDropDedupQuery").Parse(sfDropDedupStatement)
 
 	snowflakeTypes = map[types2.DataType][]string{
 		types2.STRING:    {"text", "VARCHAR(16777216)", "VARCHAR"},
@@ -503,13 +515,127 @@ func (s *Snowflake) Insert(ctx context.Context, table *Table, merge bool, object
 func (s *Snowflake) CopyTables(ctx context.Context, targetTable *Table, sourceTable *Table, mergeWindow int, discriminatorColumn string) (bulker.WarehouseState, error) {
 	if mergeWindow <= 0 {
 		return s.copy(ctx, targetTable, sourceTable)
-	} else {
-		hasDiscriminatorColumn := false
-		if discriminatorColumn != "" {
-			_, hasDiscriminatorColumn = sourceTable.Columns.Get(discriminatorColumn)
-		}
-		return s.copyOrMerge(ctx, targetTable, sourceTable, sfMergeQueryTemplate, "T", "S", mergeWindow, utils.Ternary(hasDiscriminatorColumn, " ORDER BY "+s.quotedColumnName(discriminatorColumn)+" ASC", " ORDER BY 1"))
 	}
+	hasDiscriminatorColumn := false
+	if discriminatorColumn != "" {
+		_, hasDiscriminatorColumn = sourceTable.Columns.Get(discriminatorColumn)
+	}
+	discriminator := utils.Ternary(hasDiscriminatorColumn, " ORDER BY "+s.quotedColumnName(discriminatorColumn)+" ASC", " ORDER BY 1")
+	return s.copyOrMergeSplit(ctx, targetTable, sourceTable, mergeWindow, discriminator)
+}
+
+// copyOrMergeSplit replaces the single MERGE INTO with three sequential
+// statements: pre-materialize a deduplicated view of the source into
+// {sourceTable}_dedup, UPDATE matched rows in the target, then INSERT the
+// rest. Each stage's duration is reported as a separate WarehouseState so
+// callers see where the time actually goes.
+//
+// Why split: a single MERGE forces Snowflake to rewrite every micro-partition
+// containing a matched row before it knows whether the matched row's content
+// changed. Splitting also lets the optimizer plan dedup independently — the
+// dedup table is much smaller than the raw source for at-least-once batches
+// where the same PK arrives many times.
+//
+// Order matters: UPDATE first, then INSERT. If we INSERT first, freshly
+// inserted rows would match in the subsequent UPDATE and re-write themselves
+// with identical values, wasting micro-partition rewrites.
+func (s *Snowflake) copyOrMergeSplit(ctx context.Context, targetTable *Table, sourceTable *Table, mergeWindow int, discriminator string) (state bulker.WarehouseState, err error) {
+	columnNames := sourceTable.MappedColumnNames(s.quotedColumnName)
+	count := sourceTable.ColumnsCount()
+	updateColumns := make([]string, count)
+	insertColumns := make([]string, count)
+	// Hash both sides over the non-PK columns so the UPDATE stage can skip
+	// matched rows whose content is identical to what's already in the
+	// target. Micro-partition rewrites are the dominant cost of MERGE on a
+	// large Snowflake table; for at-least-once re-loads this is usually the
+	// biggest speedup. PKs are excluded — they're equal by the join.
+	var hashT, hashS []string
+	sourceTable.Columns.ForEachIndexed(func(i int, name string, col types2.SQLColumn) {
+		colName := columnNames[i]
+		updateColumns[i] = fmt.Sprintf(`%s=S.%s`, colName, colName)
+		insertColumns[i] = s.typecastFunc(fmt.Sprintf(`S.%s`, colName), col)
+		if !targetTable.PKFields.Contains(name) {
+			hashT = append(hashT, "T."+colName)
+			hashS = append(hashS, "S."+colName)
+		}
+	})
+	var changeFilter string
+	if len(hashT) > 0 {
+		changeFilter = fmt.Sprintf("HASH(%s) IS DISTINCT FROM HASH(%s)", strings.Join(hashT, ", "), strings.Join(hashS, ", "))
+	}
+
+	var joinConditions []string
+	targetTable.PKFields.ForEach(func(pkField string) {
+		pkName := s.quotedColumnName(pkField)
+		joinConditions = append(joinConditions, fmt.Sprintf("T.%s = S.%s", pkName, pkName))
+	})
+	pkColumns := utils.ArrayMap(targetTable.GetPKFields(), s.quotedColumnName)
+	if mergeWindow > 0 && targetTable.TimestampColumn != "" {
+		startDate := timestamp.Now().AddDate(0, 0, -mergeWindow).UTC()
+		timestampColName := s.quotedColumnName(targetTable.TimestampColumn)
+		joinConditions = append(joinConditions, fmt.Sprintf("T.%s >= TO_TIMESTAMP_TZ('%s')", timestampColName, startDate.Format(time.RFC3339)))
+	}
+
+	payload := QueryPayload{
+		Namespace:         s.namespacePrefix(targetTable.Namespace),
+		NamespaceFrom:     s.namespacePrefix(sourceTable.Namespace),
+		TableTo:           s.quotedTableName(targetTable.Name),
+		TableFrom:         s.quotedTableName(sourceTable.Name),
+		DedupTable:        s.quotedTableName(sourceTable.Name + "_DEDUP"),
+		Columns:           strings.Join(columnNames, ","),
+		PrimaryKeyName:    targetTable.PrimaryKeyName,
+		PrimaryKeyColumns: strings.Join(pkColumns, ","),
+		Discriminator:     discriminator,
+		JoinConditions:    strings.Join(joinConditions, " AND "),
+		SourceColumns:     strings.Join(insertColumns, ", "),
+		UpdateSet:         strings.Join(updateColumns, ","),
+		ChangeFilter:      changeFilter,
+	}
+
+	runStage := func(stageName string, tmpl *template.Template, errMsg string) error {
+		startTime := time.Now()
+		buf := strings.Builder{}
+		if err := tmpl.Execute(&buf, payload); err != nil {
+			return errorj.BulkMergeError.Wrap(err, "failed to build %s query from template", stageName)
+		}
+		statement := buf.String()
+		if _, err := s.txOrDb(ctx).ExecContext(ctx, statement); err != nil {
+			return errorj.BulkMergeError.Wrap(err, "%s", errMsg).
+				WithProperty(errorj.DBInfo, &types2.ErrorPayload{
+					Table:       payload.TableTo,
+					PrimaryKeys: targetTable.GetPKFields(),
+					Statement:   statement,
+				})
+		}
+		state.Merge(bulker.WarehouseState{Name: stageName, TimeProcessedMs: time.Since(startTime).Milliseconds()})
+		return nil
+	}
+
+	if err = runStage("dedup", sfDedupQueryTemplate, "failed to materialize dedup table"); err != nil {
+		return state, err
+	}
+
+	// Best-effort cleanup. TEMPORARY tables drop at session end, but the
+	// sidecar pool can reuse the same connection across many CopyTables
+	// calls — dropping explicitly avoids name collisions on retry.
+	defer func() {
+		buf := strings.Builder{}
+		if execErr := sfDropDedupQueryTemplate.Execute(&buf, payload); execErr != nil {
+			logging.Warnf("failed to build drop dedup query: %v", execErr)
+			return
+		}
+		if _, dropErr := s.txOrDb(ctx).ExecContext(ctx, buf.String()); dropErr != nil {
+			logging.Warnf("failed to drop dedup table %s%s: %v", payload.NamespaceFrom, payload.DedupTable, dropErr)
+		}
+	}()
+
+	if err = runStage("update", sfMergeUpdateQueryTemplate, "failed to update matched rows"); err != nil {
+		return state, err
+	}
+	if err = runStage("insert", sfMergeInsertQueryTemplate, "failed to insert unmatched rows"); err != nil {
+		return state, err
+	}
+	return state, nil
 }
 
 func (b *SQLAdapterBase[T]) replaceTable(ctx context.Context, namespace, targetTable, sourceTable string) error {
