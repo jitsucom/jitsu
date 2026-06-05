@@ -11,7 +11,6 @@ import { ApiError } from "../../../lib/shared/errors";
 import { SerializeOptions, serialize } from "cookie";
 import { getAppEndpoint } from "../../../lib/domains";
 import { getServerLog } from "../../../lib/server/log";
-import { getLog } from "juava";
 
 const log = getServerLog("firebase");
 
@@ -50,9 +49,8 @@ export const api: Api = {
       // Host-only by default (no Domain attribute); AUTH_COOKIE_DOMAIN widens it to
       // a parent domain so sibling subdomains share the session.
       const domain = getAuthCookieDomain();
-      getLog()
-        .atDebug()
-        .log(`Setting firebase auth cookie (domain: ${domain ?? "host-only"}): ${cookie}`);
+      // Never log the cookie value itself — it's a bearer session credential.
+      log.atDebug().log(`Setting firebase auth cookie (domain: ${domain ?? "host-only"}, maxAge: ${expiresIn}ms)`);
       const options: SerializeOptions = {
         maxAge: expiresIn,
         httpOnly: true,
