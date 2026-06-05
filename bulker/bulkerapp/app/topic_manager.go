@@ -216,8 +216,21 @@ func (tm *TopicManager) processMetadata(metadata *kafka.Metadata, nonEmptyTopics
 		}
 		if !dstTopics.Contains(topic) {
 			hash := utils.HashStringInt(topic)
-			topicShardNum := hash % uint32(tm.config.ShardsCount)
-			startConsumer := tm.enableConsumers && int(topicShardNum) == tm.shardNumber
+			shardsCount := uint64(tm.config.ShardsCount)
+			consumersCount := uint64(1)
+			if mode == retryTopicMode {
+				// retry consumers support multi-partition topics: start a consumer on a separate shard for each partition
+				consumersCount = min(uint64(max(len(topicMetadata.Partitions), 1)), shardsCount)
+			}
+			startConsumer := false
+			if tm.enableConsumers {
+				for i := uint64(0); i < consumersCount; i++ {
+					if (uint64(hash)+i)%shardsCount == uint64(tm.shardNumber) {
+						startConsumer = true
+						break
+					}
+				}
+			}
 			if startConsumer {
 				tm.Debugf("Found topic %s for destination %s and table %s", topic, destinationId, tableName)
 				destination := tm.repository.GetDestination(destinationId)
@@ -266,15 +279,7 @@ func (tm *TopicManager) processMetadata(metadata *kafka.Metadata, nonEmptyTopics
 					}
 				case retryTopicMode:
 					retryPeriodSec := utils.Nvl(int(bulker.RetryFrequencyOption.Get(destination.streamOptions)*60), tm.config.BatchRunnerRetryPeriodSec)
-					var err error
-					if len(topicMetadata.Partitions) > 1 {
-						metrics.ConsumerErrors(topic, mode, destinationId, tableName, "invalid_partitions_count").Inc()
-						err = fmt.Errorf("Topic has more than 1 partition. Retry Consumer supports only topics with a single partition")
-					}
-					var retryConsumer *RetryConsumer
-					if err == nil {
-						retryConsumer, err = NewRetryConsumer(tm.repository, destinationId, retryPeriodSec, topic, tm.config, tm.kafkaConfig, tm.batchProducer, tm)
-					}
+					retryConsumer, err := NewRetryConsumer(tm.repository, destinationId, retryPeriodSec, topic, tm.config, tm.kafkaConfig, tm.batchProducer, tm)
 					if err != nil {
 						topicsErrorsByMode[mode]++
 						tm.Errorf("Failed to create retry consumer for destination topic: %s: %v", topic, err)

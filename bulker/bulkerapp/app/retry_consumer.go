@@ -140,6 +140,19 @@ func (rc *RetryConsumer) processBatchImpl(_ *Destination, _, _, _, retryBatchSiz
 			}
 			return counters, state, false, rc.NewError("Failed to consume event from topic. Retryable: %t: %v", kafkaErr.IsRetriable(), kafkaErr)
 		}
+		if firstPosition != nil && message.TopicPartition.Partition != firstPosition.Partition {
+			// partition assignment may change in the middle of consumption (rebalance)
+			// all messages in the batch must belong to a single partition to commit their offsets atomically.
+			// seek the foreign message back so it is re-read later and commit what was already consumed
+			rc.Infof("Got message from partition %d while consuming partition %d. Stopping batch", message.TopicPartition.Partition, firstPosition.Partition)
+			_, seekErr := rc.consumer.Load().SeekPartitions([]kafka.TopicPartition{message.TopicPartition})
+			if seekErr != nil {
+				rc.SystemErrorf("Failed to seek back message from partition %d: %v", message.TopicPartition.Partition, seekErr)
+			}
+			// end the run: highOffset of the current run belongs to another partition. next run will query correct offsets
+			nextBatch = false
+			break
+		}
 		counters.consumed++
 		lastPosition = &message.TopicPartition
 		if counters.consumed == 1 {

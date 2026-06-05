@@ -267,7 +267,7 @@ func (bc *AbstractBatchConsumer) ConsumeAll() (counters BatchCounters, err error
 		return BatchCounters{}, bc.NewError("Failed to resume kafka consumer: %v", err)
 	}
 	var partition int32 = 0
-	if bc.mode == "retry" && bc.topicId == bc.config.KafkaDestinationsRetryTopicName {
+	if bc.mode == "retry" {
 		var ass []kafka.TopicPartition
 		var err error
 		for i := 0; i < 10; i++ {
@@ -485,9 +485,9 @@ func (bc *AbstractBatchConsumer) initConsumer(force bool) (consumer *kafka.Consu
 			bc.Errorf("Failed to subscribe to topic: %v", err)
 			return nil, err
 		}
-		if bc.mode == "retry" && bc.topicId == bc.config.KafkaDestinationsRetryTopicName {
-			consumer.Assign([]kafka.TopicPartition{kafka.TopicPartition{Topic: &bc.topicId, Offset: kafka.OffsetStored, Partition: int32(bc.config.InstanceIndex)}})
-		}
+		//if bc.mode == "retry" && bc.topicId == bc.config.KafkaDestinationsRetryTopicName {
+		//	consumer.Assign([]kafka.TopicPartition{kafka.TopicPartition{Topic: &bc.topicId, Offset: kafka.OffsetStored, Partition: int32(bc.config.InstanceIndex)}})
+		//}
 		bc.Infof("Consumer created: %s", consumer.String())
 		bc.consumer.Store(consumer)
 	}
