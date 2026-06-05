@@ -273,10 +273,18 @@ func (bc *AbstractBatchConsumer) ConsumeAll() (counters BatchCounters, err error
 		var err error
 		for i := 0; i < 10; i++ {
 			ass, err = consumer.Assignment()
-			if err != nil || len(ass) != 1 {
-				time.Sleep(time.Second * time.Duration(i+1))
-			} else {
+			if err == nil && len(ass) == 1 {
 				break
+			}
+			// rebalance events are served only during poll calls:
+			// poll the consumer so it can join the group and obtain its assignment
+			message, _ := consumer.ReadMessage(time.Second * time.Duration(i+1))
+			if message != nil {
+				// a message slipped through before batch processing started - rollback the position
+				_, seekErr := consumer.SeekPartitions([]kafka.TopicPartition{message.TopicPartition})
+				if seekErr != nil {
+					bc.SystemErrorf("Failed to seek back a message received while waiting for assignment: %v", seekErr)
+				}
 			}
 		}
 		if err != nil || len(ass) != 1 {
