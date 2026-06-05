@@ -219,8 +219,13 @@ func (tm *TopicManager) processMetadata(metadata *kafka.Metadata, nonEmptyTopics
 			shardsCount := uint64(tm.config.ShardsCount)
 			consumersCount := uint64(1)
 			if mode == retryTopicMode {
+				partitionsCount := uint64(max(len(topicMetadata.Partitions), 1))
+				if partitionsCount > shardsCount {
+					metrics.ConsumerErrors(topic, mode, destinationId, tableName, "invalid_partitions_count").Inc()
+					tm.SystemErrorf("Topic %s has %d partitions - more than shards count: %d. Some partitions may not be consumed", topic, partitionsCount, shardsCount)
+				}
 				// retry consumers support multi-partition topics: start a consumer on a separate shard for each partition
-				consumersCount = min(uint64(max(len(topicMetadata.Partitions), 1)), shardsCount)
+				consumersCount = min(partitionsCount, shardsCount)
 			}
 			startConsumer := false
 			if tm.enableConsumers {
