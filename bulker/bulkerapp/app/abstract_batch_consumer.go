@@ -275,6 +275,8 @@ func (bc *AbstractBatchConsumer) ConsumeAll() (counters BatchCounters, err error
 			ass, err = consumer.Assignment()
 			if err != nil || len(ass) != 1 {
 				time.Sleep(time.Second * time.Duration(i+1))
+			} else {
+				break
 			}
 		}
 		if err != nil || len(ass) != 1 {
