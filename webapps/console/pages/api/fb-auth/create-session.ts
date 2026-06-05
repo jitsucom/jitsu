@@ -47,17 +47,20 @@ export const api: Api = {
       // calls only at the actual sign-in moment. This endpoint is hit on
       // every cookie mint / refresh — too noisy to audit here.
 
-      // Host-only by default; AUTH_COOKIE_DOMAIN can widen it to a parent domain
-      // so sibling subdomains share the session.
-      const domain = getAuthCookieDomain(req);
-      getLog().atDebug().log(`Setting firebase auth cookie for '${domain}': ${cookie}`);
+      // Host-only by default (no Domain attribute); AUTH_COOKIE_DOMAIN widens it to
+      // a parent domain so sibling subdomains share the session.
+      const domain = getAuthCookieDomain();
+      getLog()
+        .atDebug()
+        .log(`Setting firebase auth cookie (domain: ${domain ?? "host-only"}): ${cookie}`);
       const options: SerializeOptions = {
         maxAge: expiresIn,
         httpOnly: true,
         secure,
         path: "/",
         sameSite: "lax",
-        domain,
+        // Omit Domain entirely for a true host-only cookie; only set it when configured.
+        ...(domain ? { domain } : {}),
       };
       res.setHeader("Set-Cookie", serialize(firebaseAuthCookieName, cookie, options));
 

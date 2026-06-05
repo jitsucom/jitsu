@@ -20,14 +20,17 @@ export default createRoute()
         .log("Failed to record firebase logout audit event");
     }
     const secure = getAppEndpoint(req).protocol === "https";
+    // Name, path and domain must all match create-session, or the real cookie
+    // won't be cleared.
+    const domain = getAuthCookieDomain();
     res.setHeader(
       "Set-Cookie",
       serialize(firebaseAuthCookieName, "", {
         maxAge: 0,
         httpOnly: true,
         secure,
-        // Must match the domain used when the cookie was set, or it won't clear.
-        domain: getAuthCookieDomain(req),
+        path: "/",
+        ...(domain ? { domain } : {}),
       })
     );
   })
