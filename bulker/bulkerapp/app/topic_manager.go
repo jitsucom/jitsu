@@ -215,27 +215,9 @@ func (tm *TopicManager) processMetadata(metadata *kafka.Metadata, nonEmptyTopics
 			tm.destinationTopics[destinationId] = dstTopics
 		}
 		if !dstTopics.Contains(topic) {
-			hash := utils.HashStringInt(topic)
-			shardsCount := uint64(tm.config.ShardsCount)
-			consumersCount := uint64(1)
-			if mode == retryTopicMode {
-				partitionsCount := uint64(max(len(topicMetadata.Partitions), 1))
-				if partitionsCount > shardsCount {
-					metrics.ConsumerErrors(topic, mode, destinationId, tableName, "invalid_partitions_count").Inc()
-					tm.SystemErrorf("Topic %s has %d partitions - more than shards count: %d. Some partitions may not be consumed", topic, partitionsCount, shardsCount)
-					continue
-				}
-				// retry consumers support multi-partition topics: start a consumer on a separate shard for each partition
-				consumersCount = min(partitionsCount, shardsCount)
-			}
-			startConsumer := false
-			if tm.enableConsumers {
-				for i := uint64(0); i < consumersCount; i++ {
-					if (uint64(hash)+i)%shardsCount == uint64(tm.shardNumber) {
-						startConsumer = true
-						break
-					}
-				}
+			startConsumer, invalidPartitionsCount := tm.startConsumerOnThisShard(topic, mode, destinationId, tableName, len(topicMetadata.Partitions))
+			if invalidPartitionsCount {
+				continue
 			}
 			if startConsumer {
 				tm.Debugf("Found topic %s for destination %s and table %s", topic, destinationId, tableName)
@@ -393,7 +375,8 @@ func (tm *TopicManager) processMetadata(metadata *kafka.Metadata, nonEmptyTopics
 		tm.SystemErrorf("Failed to create destination retry topic [%s]: %v", destinationsRetryTopicName, err)
 	}
 	if tm.enableConsumers {
-		if _, dstRetryCnsmrStarted := tm.retryConsumers[destinationsRetryTopicName]; !dstRetryCnsmrStarted {
+		startRetryConsumer, _ := tm.startConsumerOnThisShard(destinationsRetryTopicName, retryTopicMode, "", "", len(metadata.Topics[destinationsRetryTopicName].Partitions))
+		if _, dstRetryCnsmrStarted := tm.retryConsumers[destinationsRetryTopicName]; !dstRetryCnsmrStarted && startRetryConsumer {
 			retryPeriodSec := tm.config.BatchRunnerRetryPeriodSec
 			retryConsumer, err := NewRetryConsumer(nil, "", retryPeriodSec, destinationsRetryTopicName, tm.config, tm.kafkaConfig, tm.batchProducer, tm)
 			if err != nil {
@@ -423,6 +406,33 @@ func (tm *TopicManager) processMetadata(metadata *kafka.Metadata, nonEmptyTopics
 	tm.Debugf("[topic-manager] Refreshed metadata in %v", time.Since(start))
 	tm.ready = true
 	tm.updatedAt = time.Now()
+}
+
+// startConsumerOnThisShard checks that the topic partitions count is compatible with the shards count
+// and returns true when a consumer for the topic must be started on the current instance's shard.
+// retry consumers support multi-partition topics: a consumer is started on a separate shard for each partition.
+// for other modes a single consumer is started on the shard selected by the topic name hash
+func (tm *TopicManager) startConsumerOnThisShard(topic, mode, destinationId, tableName string, partitions int) (startConsumer, invalidPartitionsCount bool) {
+	partitionsCount := uint64(1)
+	shardsCount := uint64(tm.config.ShardsCount)
+	if mode == retryTopicMode {
+		partitionsCount = uint64(max(partitions, 1))
+		if partitionsCount > shardsCount {
+			metrics.ConsumerErrors(topic, mode, destinationId, tableName, "invalid_partitions_count").Inc()
+			tm.SystemErrorf("Topic %s has %d partitions - more than shards count: %d. Some partitions may not be consumed", topic, partitionsCount, shardsCount)
+			return false, true
+		}
+	}
+	if !tm.enableConsumers {
+		return false, false
+	}
+	hash := uint64(utils.HashStringInt(topic))
+	for i := uint64(0); i < partitionsCount; i++ {
+		if (hash+i)%shardsCount == uint64(tm.shardNumber) {
+			return true, false
+		}
+	}
+	return false, false
 }
 
 func ExcludeConsumerForTopic[T Consumer](consumers []T, topicId string, cron *Cron) []T {
