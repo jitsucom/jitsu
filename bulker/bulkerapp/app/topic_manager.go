@@ -223,6 +223,7 @@ func (tm *TopicManager) processMetadata(metadata *kafka.Metadata, nonEmptyTopics
 				if partitionsCount > shardsCount {
 					metrics.ConsumerErrors(topic, mode, destinationId, tableName, "invalid_partitions_count").Inc()
 					tm.SystemErrorf("Topic %s has %d partitions - more than shards count: %d. Some partitions may not be consumed", topic, partitionsCount, shardsCount)
+					continue
 				}
 				// retry consumers support multi-partition topics: start a consumer on a separate shard for each partition
 				consumersCount = min(partitionsCount, shardsCount)
