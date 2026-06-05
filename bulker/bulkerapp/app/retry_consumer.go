@@ -3,13 +3,14 @@ package app
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	bulker "github.com/jitsucom/bulker/bulkerlib"
 	"github.com/jitsucom/bulker/jitsubase/utils"
 	"github.com/jitsucom/bulker/kafkabase"
-	"strconv"
-	"strings"
-	"time"
 )
 
 type RetryConsumer struct {

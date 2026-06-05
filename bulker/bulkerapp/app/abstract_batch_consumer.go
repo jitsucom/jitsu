@@ -37,6 +37,7 @@ type BatchConsumer interface {
 	BatchPeriodSec() int
 	UpdateBatchPeriod(batchPeriodSec int)
 	Options() *bulker.StreamOptions
+	Mode() string
 }
 
 type AbstractBatchConsumer struct {
@@ -272,13 +273,20 @@ func (bc *AbstractBatchConsumer) ConsumeAll() (counters BatchCounters, err error
 		var err error
 		for i := 0; i < 10; i++ {
 			ass, err = consumer.Assignment()
-			if err != nil || len(ass) != 1 {
-				time.Sleep(time.Second * time.Duration(i+1))
+			if err == nil && len(ass) > 0 {
+				break
 			}
+			time.Sleep(time.Second * time.Duration(i+1))
 		}
-		if err != nil || len(ass) != 1 {
+		if err != nil || len(ass) == 0 {
 			bc.errorMetric("assignment_error")
 			return BatchCounters{}, bc.NewError("Failed to get consumer assignment (%d): %v", len(ass), err)
+		}
+		if len(ass) > 1 {
+			// topic may have more partitions than shards count or rebalancing may be in progress.
+			// report error and continue: it is safe because batch commits offsets of a single partition only - see RetryConsumer.processBatchImpl
+			bc.errorMetric("assignment_error")
+			bc.SystemErrorf("Consumer assignment has %d partitions. Expected exactly 1. Continuing with partition: %d", len(ass), ass[0].Partition)
 		}
 		partition = ass[0].Partition
 		bc.Infof("Assigned partition: %d", partition)
@@ -610,6 +618,10 @@ func (bc *AbstractBatchConsumer) Retire() {
 }
 func (bc *AbstractBatchConsumer) errorMetric(errorType string) {
 	metrics.ConsumerErrors(bc.topicId, bc.mode, bc.destinationId, bc.tableName, errorType).Inc()
+}
+
+func (bc *AbstractBatchConsumer) Mode() string {
+	return bc.mode
 }
 
 func (bc *AbstractBatchConsumer) Options() *bulker.StreamOptions {
