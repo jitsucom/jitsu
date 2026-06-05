@@ -350,6 +350,12 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   // CORS allowed origins pattern
   ALLOWED_API_ORIGINS: z.string().optional(),
 
+  // Domain set on the Firebase auth cookie. By default the cookie is scoped to the
+  // request host (e.g. "use.jitsu.com"). Set this to a parent domain (e.g.
+  // "jitsu.com") to share the session across sibling subdomains — for example so a
+  // marketing site can read the logged-in user. Leave unset for host-only scope.
+  AUTH_COOKIE_DOMAIN: z.string().optional(),
+
   // Comma-separated list of data domains
   DATA_DOMAIN: z.string().optional(),
 

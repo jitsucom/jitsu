@@ -6,6 +6,7 @@ import * as JSON5 from "json5";
 import { getErrorMessage, getSingleton, requireDefined, Singleton } from "juava";
 import { getServerLog } from "./log";
 import { getServerEnv } from "./serverEnv";
+import { getRequestHost } from "./origin";
 
 export type FirebaseOptions = {
   admin: any;
@@ -67,6 +68,16 @@ export function firebase(): admin.app.App {
 }
 
 export const firebaseAuthCookieName = "jitsu-auth";
+
+/**
+ * Domain for the Firebase auth cookie. Defaults to the request host (host-only
+ * scope). When AUTH_COOKIE_DOMAIN is set (e.g. "jitsu.com"), the cookie is shared
+ * across that domain's subdomains so sibling apps (e.g. a marketing site) can read
+ * the logged-in session. The set and clear paths must use the same value.
+ */
+export function getAuthCookieDomain(req: NextApiRequest): string {
+  return getServerEnv().AUTH_COOKIE_DOMAIN || getRequestHost(req).split(":")[0];
+}
 
 export type FirebaseToken = { idToken: string; cookieToken?: never } | { idToken?: never; cookieToken: string };
 

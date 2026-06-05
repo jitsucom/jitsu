@@ -1,5 +1,5 @@
 import { createRoute } from "../../../lib/api";
-import { firebaseAuthCookieName, signOut } from "../../../lib/server/firebase-server";
+import { firebaseAuthCookieName, getAuthCookieDomain, signOut } from "../../../lib/server/firebase-server";
 import { serialize } from "cookie";
 import { getAppEndpoint } from "../../../lib/domains";
 import { getServerLog } from "../../../lib/server/log";
@@ -26,6 +26,8 @@ export default createRoute()
         maxAge: 0,
         httpOnly: true,
         secure,
+        // Must match the domain used when the cookie was set, or it won't clear.
+        domain: getAuthCookieDomain(req),
       })
     );
   })
