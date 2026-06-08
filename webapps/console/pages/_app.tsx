@@ -423,7 +423,7 @@ export const S3BucketInitializer: React.FC<{}> = () => {
     (async () => {
       if (appConfig.ee.available && workspace?.id && streams.length > 0) {
         try {
-          await eeRpc("s3-init", { method: "POST", query: { workspaceId: workspace.id } });
+          await eeRpc("s3-init", { method: "GET", query: { workspaceId: workspace.id } });
         } catch (e: any) {
           console.error("Failed to init S3 bucket", e.message);
         }

@@ -71,7 +71,7 @@ export const api: Api = {
 
       const { host } = getEeConnection();
       const provisionedDbCredentials = await rpc(`${host}api/provision-db`, {
-        method: "POST",
+        method: "GET",
         query: { workspaceId, slug: workspace.slug || workspace.id },
         headers: {
           "Content-Type": "application/json",

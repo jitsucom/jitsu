@@ -7,7 +7,7 @@ import { eeAuthHeadersOrServiceToken, getEeConnection, isEEAvailable } from "../
 export default createRoute()
   .GET({
     auth: true,
-    // Provisions a ClickHouse DB on the EE side — POSTs to `${ee}/api/provision-db`,
+    // Provisions a ClickHouse DB on the EE side — GETs `${ee}/api/provision-db`,
     // creating real infra. Side-effect outside the Prisma backstop, so opt
     // into the maintenance gate explicitly.
     mutates: true,
@@ -20,7 +20,7 @@ export default createRoute()
     await verifyAccess(user, workspaceId);
     const { host } = getEeConnection();
     const provisionedDbCredentials = await rpc(`${host}api/provision-db`, {
-      method: "POST",
+      method: "GET",
       query: { workspaceId, slug: workspaceId }, //db is created, so the slug won't be really used
       headers: {
         "Content-Type": "application/json",
