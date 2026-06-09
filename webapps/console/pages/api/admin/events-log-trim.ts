@@ -61,6 +61,10 @@ export default createRoute()
       log.atDebug().withCause(e).log(`Failed to drop partition ${oldPartition}`);
     }
 
+    // Collect failures of the retention-critical steps so the cron can retry.
+    // (Dropping the floor partition is best-effort and not counted.)
+    const errors: string[] = [];
+
     // 2. Recompute the per-entity retention cutoffs into events_log_cutoff_src:
     //    the timestamp of the EVENTS_LOG_SIZE-th newest row per entity, only for
     //    entities over the cap. Full replace (truncate + insert) so entities that
@@ -79,6 +83,7 @@ export default createRoute()
       log.atInfo().log(`Recomputed events_log_cutoff_src`);
     } catch (e: any) {
       log.atError().withCause(e).log(`Failed to recompute events_log_cutoff_src`);
+      errors.push(`recompute cutoffs: ${e.message}`);
     }
 
     // 3. Reload the cutoff dictionary from the freshly computed source table.
@@ -87,6 +92,7 @@ export default createRoute()
       log.atInfo().log(`Reloaded events_log_cutoff dictionary`);
     } catch (e: any) {
       log.atError().withCause(e).log(`Failed to reload events_log_cutoff dictionary`);
+      errors.push(`reload dictionary: ${e.message}`);
     }
 
     // 4. Enforce the cap by re-materializing the TTL on the live partitions.
@@ -108,9 +114,15 @@ export default createRoute()
         log.atInfo().log(`Materialized TTL on partition ${partition}`);
       } catch (e: any) {
         log.atError().withCause(e).log(`Failed to materialize TTL on partition ${partition}`);
+        errors.push(`materialize TTL ${partition}: ${e.message}`);
       }
     }
 
+    if (errors.length > 0) {
+      log.atError().log(`Events log trim finished with ${errors.length} error(s) in ${sw.elapsedPretty()}`);
+      res.status(500).json({ status: "error", errors });
+      return;
+    }
     log.atInfo().log(`Events log trim issued in ${sw.elapsedPretty()}`);
     res.json({ status: "ok" });
     return;

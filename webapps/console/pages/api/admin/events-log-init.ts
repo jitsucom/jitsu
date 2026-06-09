@@ -136,7 +136,7 @@ export default createRoute()
     // native protocol (default 9000): on a cluster every replica has its own
     // copy of the replicated source table, so 'localhost' avoids a single-host
     // dependency. Override the port with CLICKHOUSE_METRICS_NATIVE_PORT if needed.
-    const chNativePort = process.env.CLICKHOUSE_METRICS_NATIVE_PORT || "9000";
+    const chNativePort = serverEnv.CLICKHOUSE_METRICS_NATIVE_PORT;
 
     // The cutoffs live in their own small table rather than being computed by
     // the dictionary directly from events_log: a dictionary that sourced from
