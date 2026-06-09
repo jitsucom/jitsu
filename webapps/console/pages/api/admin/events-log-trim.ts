@@ -65,14 +65,22 @@ export default createRoute()
     // (Dropping the floor partition is best-effort and not counted.)
     const errors: string[] = [];
 
-    // 2. Recompute the per-entity retention cutoffs into events_log_cutoff_src:
-    //    the timestamp of the EVENTS_LOG_SIZE-th newest row per entity, only for
-    //    entities over the cap. Full replace (truncate + insert) so entities that
-    //    dropped below the cap stop being trimmed. Produces ~hundreds of rows.
+    // 2. Recompute the per-entity retention cutoffs: the timestamp of the
+    //    EVENTS_LOG_SIZE-th newest row per entity, only for entities over the
+    //    cap. Build into the staging table and EXCHANGE it into place so the
+    //    live events_log_cutoff_src is replaced atomically — a transient failure
+    //    here never leaves it empty (which the dictionary's LIFETIME reload
+    //    would otherwise pick up, pausing retention). Reload/materialize below
+    //    run only if this succeeds, so the dictionary keeps the last-good
+    //    cutoffs on failure.
+    //    NOTE: single-shard assumption — the INSERT..SELECT reads events_log on
+    //    the node it runs on; a sharded events_log would need a per-shard
+    //    recompute (e.g. via a Distributed/cluster read).
+    let cutoffsRecomputed = false;
     try {
-      await clickhouse.command({ query: `truncate table events_log_cutoff_src${onCluster}` });
+      await clickhouse.command({ query: `truncate table events_log_cutoff_staging${onCluster}` });
       await clickhouse.command({
-        query: `insert into events_log_cutoff_src
+        query: `insert into events_log_cutoff_staging
                   select actorId, type, toUInt8(level = 'error') as is_error,
                          arrayElement(arrayReverseSort(groupArray(timestamp)), ${eventsLogSize}) as cutoff
                   from events_log
@@ -80,42 +88,50 @@ export default createRoute()
                   having count() > ${eventsLogSize}`,
         clickhouse_settings: { wait_end_of_query: 1 },
       });
+      await clickhouse.command({
+        query: `exchange tables events_log_cutoff_src and events_log_cutoff_staging${onCluster}`,
+      });
+      cutoffsRecomputed = true;
       log.atInfo().log(`Recomputed events_log_cutoff_src`);
     } catch (e: any) {
-      log.atError().withCause(e).log(`Failed to recompute events_log_cutoff_src`);
+      log.atError().withCause(e).log(`Failed to recompute cutoffs; keeping last-good values`);
       errors.push(`recompute cutoffs: ${e.message}`);
     }
 
-    // 3. Reload the cutoff dictionary from the freshly computed source table.
-    try {
-      await clickhouse.command({ query: `system reload dictionary${onCluster} events_log_cutoff` });
-      log.atInfo().log(`Reloaded events_log_cutoff dictionary`);
-    } catch (e: any) {
-      log.atError().withCause(e).log(`Failed to reload events_log_cutoff dictionary`);
-      errors.push(`reload dictionary: ${e.message}`);
-    }
-
-    // 4. Enforce the cap by re-materializing the TTL on the live partitions.
-    //    Async (mutations_sync=0); allow_suspicious_ttl_expressions and
-    //    allow_nondeterministic_mutations are required because the TTL uses dictGet.
-    const materializeQuery: string = `alter table events_log ${onCluster} materialize TTL in partition {partition:String}`;
-    const partitions = [dayjs().format("YYYYMM"), dayjs().subtract(1, "month").format("YYYYMM")];
-    for (const partition of partitions) {
+    if (cutoffsRecomputed) {
+      // 3. Reload the cutoff dictionary from the freshly computed source table.
       try {
-        await clickhouse.command({
-          query: materializeQuery,
-          query_params: { partition },
-          clickhouse_settings: {
-            allow_suspicious_ttl_expressions: 1,
-            allow_nondeterministic_mutations: 1,
-            mutations_sync: "0",
-          },
-        });
-        log.atInfo().log(`Materialized TTL on partition ${partition}`);
+        await clickhouse.command({ query: `system reload dictionary${onCluster} events_log_cutoff` });
+        log.atInfo().log(`Reloaded events_log_cutoff dictionary`);
       } catch (e: any) {
-        log.atError().withCause(e).log(`Failed to materialize TTL on partition ${partition}`);
-        errors.push(`materialize TTL ${partition}: ${e.message}`);
+        log.atError().withCause(e).log(`Failed to reload events_log_cutoff dictionary`);
+        errors.push(`reload dictionary: ${e.message}`);
       }
+
+      // 4. Enforce the cap by re-materializing the TTL on the live partitions.
+      //    Async (mutations_sync=0); allow_suspicious_ttl_expressions and
+      //    allow_nondeterministic_mutations are required because the TTL uses dictGet.
+      const materializeQuery: string = `alter table events_log ${onCluster} materialize TTL in partition {partition:String}`;
+      const partitions = [dayjs().format("YYYYMM"), dayjs().subtract(1, "month").format("YYYYMM")];
+      for (const partition of partitions) {
+        try {
+          await clickhouse.command({
+            query: materializeQuery,
+            query_params: { partition },
+            clickhouse_settings: {
+              allow_suspicious_ttl_expressions: 1,
+              allow_nondeterministic_mutations: 1,
+              mutations_sync: "0",
+            },
+          });
+          log.atInfo().log(`Materialized TTL on partition ${partition}`);
+        } catch (e: any) {
+          log.atError().withCause(e).log(`Failed to materialize TTL on partition ${partition}`);
+          errors.push(`materialize TTL ${partition}: ${e.message}`);
+        }
+      }
+    } else {
+      log.atError().log(`Skipping dictionary reload and TTL materialize because cutoff recompute failed`);
     }
 
     if (errors.length > 0) {

@@ -138,7 +138,10 @@ export default createRoute()
     // events_log while events_log's TTL references that dictionary would be a
     // cyclic dependency (ClickHouse rejects it). events-log-trim recomputes the
     // contents of this table (one row per over-cap entity).
-    const createCutoffSrcQuery: string = `create table IF NOT EXISTS ${metricsSchema}.events_log_cutoff_src ${onCluster}
+    // The `_staging` twin lets the trim job rebuild cutoffs and swap them in
+    // atomically (EXCHANGE TABLES), so a transient recompute failure never
+    // leaves the live table empty (which would pause retention).
+    const cutoffTable = (name: string): string => `create table IF NOT EXISTS ${metricsSchema}.${name} ${onCluster}
          (
            actorId String,
            type String,
@@ -147,20 +150,25 @@ export default createRoute()
          )
          engine = ${
            metricsCluster
-             ? "ReplicatedMergeTree('/clickhouse/tables/{shard}/" +
-               metricsSchema +
-               "/events_log_cutoff_src', '{replica}')"
+             ? "ReplicatedMergeTree('/clickhouse/tables/{shard}/" + metricsSchema + "/" + name + "', '{replica}')"
              : "MergeTree()"
          }
         ORDER BY (actorId, type, is_error)`;
-    try {
-      await clickhouse.command({ query: createCutoffSrcQuery });
-      log.atInfo().log(`Table ${metricsSchema}.events_log_cutoff_src created or already exists`);
-    } catch (e: any) {
-      log.atError().withCause(e).log(`Failed to create ${metricsSchema}.events_log_cutoff_src table.`);
-      errors.push(new Error(`Failed to create ${metricsSchema}.events_log_cutoff_src table.`));
+    for (const name of ["events_log_cutoff_src", "events_log_cutoff_staging"]) {
+      try {
+        await clickhouse.command({ query: cutoffTable(name) });
+        log.atInfo().log(`Table ${metricsSchema}.${name} created or already exists`);
+      } catch (e: any) {
+        log.atError().withCause(e).log(`Failed to create ${metricsSchema}.${name} table.`);
+        errors.push(new Error(`Failed to create ${metricsSchema}.${name} table.`));
+      }
     }
 
+    // Credentials are interpolated into the DDL, so escape single quotes (the
+    // values come from trusted config, not user input). Note the rendered DDL
+    // — including these creds — is visible in ClickHouse query logs and
+    // SHOW CREATE; a named collection is the follow-up to remove that exposure.
+    const sqlLit = (s: string): string => s.replace(/'/g, "''");
     const createCutoffDictQuery: string = `create dictionary IF NOT EXISTS ${metricsSchema}.events_log_cutoff ${onCluster}
          (
            actorId String,
@@ -170,9 +178,7 @@ export default createRoute()
          )
          PRIMARY KEY actorId, type, is_error
          SOURCE(CLICKHOUSE(
-           -- no host/port: read the local server in-process (no network hop).
-           -- Auth is still required, so pass the configured metrics user.
-           user '${chConfig.username}' password '${chConfig.password}' db '${metricsSchema}' table 'events_log_cutoff_src'
+           user '${sqlLit(chConfig.username)}' password '${sqlLit(chConfig.password)}' db '${metricsSchema}' table 'events_log_cutoff_src'
          ))
          LAYOUT(COMPLEX_KEY_HASHED())
          LIFETIME(MIN 1800 MAX 3600)`;

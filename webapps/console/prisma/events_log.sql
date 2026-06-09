@@ -25,13 +25,15 @@ create table IF NOT EXISTS newjitsu_metrics.events_log
 -- Cutoffs live in their own table (NOT computed by the dictionary directly
 -- from events_log): a dictionary sourcing from events_log while events_log's
 -- TTL references that dictionary is a cyclic dependency that ClickHouse
--- rejects. events-log-trim.ts recomputes this table each run:
---   truncate table newjitsu_metrics.events_log_cutoff_src;
---   insert into newjitsu_metrics.events_log_cutoff_src
+-- rejects. events-log-trim.ts rebuilds cutoffs in the _staging twin and swaps
+-- them in atomically, so a transient failure never leaves the live table empty:
+--   truncate table newjitsu_metrics.events_log_cutoff_staging;
+--   insert into newjitsu_metrics.events_log_cutoff_staging
 --     select actorId, type, toUInt8(level = 'error') as is_error,
 --            arrayElement(arrayReverseSort(groupArray(timestamp)), 200000) as cutoff
 --     from newjitsu_metrics.events_log group by actorId, type, is_error
 --     having count() > 200000;
+--   exchange tables newjitsu_metrics.events_log_cutoff_src and newjitsu_metrics.events_log_cutoff_staging;
 create table IF NOT EXISTS newjitsu_metrics.events_log_cutoff_src
 --ON CLUSTER jitsu_cluster
 (
@@ -42,6 +44,19 @@ create table IF NOT EXISTS newjitsu_metrics.events_log_cutoff_src
 )
     engine = MergeTree()
     --engine = ReplicatedMergeTree('/clickhouse/tables/{shard}/newjitsu_metrics/events_log_cutoff_src', '{replica}')
+        ORDER BY (actorId, type, is_error);
+
+-- staging twin for atomic cutoff swaps (same schema)
+create table IF NOT EXISTS newjitsu_metrics.events_log_cutoff_staging
+--ON CLUSTER jitsu_cluster
+(
+    actorId String,
+    type String,
+    is_error UInt8,
+    cutoff DateTime64(3)
+)
+    engine = MergeTree()
+    --engine = ReplicatedMergeTree('/clickhouse/tables/{shard}/newjitsu_metrics/events_log_cutoff_staging', '{replica}')
         ORDER BY (actorId, type, is_error);
 
 create dictionary IF NOT EXISTS newjitsu_metrics.events_log_cutoff
