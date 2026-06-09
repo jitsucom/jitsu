@@ -29,10 +29,11 @@ create table IF NOT EXISTS newjitsu_metrics.events_log
 -- them in atomically, so a transient failure never leaves the live table empty:
 --   truncate table newjitsu_metrics.events_log_cutoff_staging;
 --   insert into newjitsu_metrics.events_log_cutoff_staging
---     select actorId, type, toUInt8(level = 'error') as is_error,
---            arrayElement(arrayReverseSort(groupArray(timestamp)), 200000) as cutoff
---     from newjitsu_metrics.events_log group by actorId, type, is_error
---     having count() > 200000;
+--     select actorId, type, is_error, cutoff from (
+--       select actorId, type, toUInt8(level = 'error') as is_error, timestamp as cutoff,
+--              row_number() over (partition by actorId, type, level = 'error' order by timestamp desc) as rn
+--       from newjitsu_metrics.events_log)
+--     where rn = 200000;  -- row_number streams; avoids groupArray materializing every group
 --   exchange tables newjitsu_metrics.events_log_cutoff_src and newjitsu_metrics.events_log_cutoff_staging;
 create table IF NOT EXISTS newjitsu_metrics.events_log_cutoff_src
 --ON CLUSTER jitsu_cluster

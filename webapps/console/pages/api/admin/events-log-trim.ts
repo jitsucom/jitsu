@@ -79,13 +79,25 @@ export default createRoute()
     let cutoffsRecomputed = false;
     try {
       await clickhouse.command({ query: `truncate table events_log_cutoff_staging${onCluster}` });
+      // Use a window row_number to find the EVENTS_LOG_SIZE-th newest timestamp
+      // per entity rather than groupArray()+sort: groupArray materializes every
+      // group's full timestamp array before HAVING filters (≈all live rows in
+      // memory — measured ~5 GiB on the prod table), whereas row_number streams
+      // and only emits the boundary row (≈7x less memory). Entities with fewer
+      // than EVENTS_LOG_SIZE rows never reach that rank, so they get no cutoff.
       await clickhouse.command({
         query: `insert into events_log_cutoff_staging
-                  select actorId, type, toUInt8(level = 'error') as is_error,
-                         arrayElement(arrayReverseSort(groupArray(timestamp)), ${eventsLogSize}) as cutoff
-                  from events_log
-                  group by actorId, type, is_error
-                  having count() > ${eventsLogSize}`,
+                  select actorId, type, is_error, cutoff
+                  from (
+                    select actorId,
+                           type,
+                           toUInt8(level = 'error') as is_error,
+                           timestamp as cutoff,
+                           row_number() over (partition by actorId, type, level = 'error'
+                                              order by timestamp desc) as rn
+                    from events_log
+                  )
+                  where rn = ${eventsLogSize}`,
         clickhouse_settings: { wait_end_of_query: 1 },
       });
       await clickhouse.command({
