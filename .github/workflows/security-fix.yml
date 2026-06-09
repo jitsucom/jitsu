@@ -172,7 +172,23 @@ jobs:
              gh pr list --search "security" --state open
              Skip any alert whose fix is already covered by an open PR.
           2. Filter alerts by MIN_SEVERITY (severity order: critical > high > moderate > low).
-          3. Group the remaining alerts into AT MOST TWO PRs — one per stack:
+          3. For EACH remaining alert, determine the version actually resolved in
+             this repo (the lockfile / go.sum / go.mod entry that is really in
+             use), then SKIP the alert if it is already fixed:
+             - If the resolved version is >= the alert's fixed_version, the repo
+               already ships a patched version — skip it. Do NOT touch the
+               manifest just to match fixed_version exactly; that is a no-op at
+               best and a downgrade at worst.
+             - Go major versions are distinct modules. An alert for
+               `github.com/foo/bar` (the v0/v1 module path) does NOT apply to a
+               repo that imports `github.com/foo/bar/v2` (or higher) — that is a
+               different, newer module. Skip such alerts; never pin the older
+               major-version path.
+             - NEVER downgrade. Compare versions semantically: if applying the
+               fix would move any package to a LOWER version than it currently
+               resolves to (directly or transitively), skip the alert and note it
+               in the PR body under "Skipped (already satisfied / would downgrade)".
+          4. Group the remaining alerts into AT MOST TWO PRs — one per stack:
              - All npm / Node.js fixes → a single PR on branch security/fix-npm-YYYY-MM-DD
              - All Go fixes → a single PR on branch security/fix-go-YYYY-MM-DD
              This is mandatory: pnpm-lock.yaml, go.sum, and bulker/go.work.sum
@@ -180,10 +196,19 @@ jobs:
              If a fix is risky (major version bump, breaking change), still include
              it in the per-stack PR but flag it prominently in the PR body so a
              reviewer can split it out manually.
-          4. Apply every ecosystem-specific step below for all alerts in that
+          5. Apply every ecosystem-specific step below for all alerts in that
              stack BEFORE creating the PR. Do NOT push incremental commits per
              alert — one branch, one commit per stack, one PR per stack.
-          5. If DRY_RUN is true, output a report of what would be done and do NOT
+          6. After applying fixes, verify nothing regressed before opening the PR:
+             - npm: `pnpm install --no-frozen-lockfile` must succeed.
+             - Go: `go -C bulker work sync` and `go -C bulker/MODULE build ./...`
+               for each touched module must succeed.
+             If verification fails for an alert, revert that alert's change and
+             move it to the "Skipped" list. Never open a PR that does not build.
+          7. If after all of the above NO alerts remain to fix, do NOT create a
+             branch or PR — just print a summary saying everything is already
+             satisfied.
+          8. If DRY_RUN is true, output a report of what would be done and do NOT
              create branches, commits, or PRs.
 
           ### npm / Node.js packages
@@ -192,7 +217,12 @@ jobs:
               grep -r '"ACTUAL_PKG_NAME"' package.json */package.json libs/*/package.json webapps/*/package.json cli/*/package.json services/*/package.json types/*/package.json
           - Transitive-only: add an entry to the pnpm.overrides block in root package.json.
             Pattern: "ACTUAL_PKG_NAME@<FIXED_VER": "^FIXED_VER"
-          - Direct dependency: bump the version in the package.json that declares it.
+            The override floor (^FIXED_VER) must never be lower than the version
+            already resolved in pnpm-lock.yaml — an override that caps a package
+            below its current version is a downgrade; skip it instead.
+          - Direct dependency: bump the version in the package.json that declares
+            it — only ever UP. If the declared/resolved version is already >=
+            FIXED_VER, leave it untouched (already satisfied).
           - MANDATORY after any change to package.json OR pnpm-workspace.yaml
             (root or any workspace member): run `pnpm install --no-frozen-lockfile`
             at the repo root. Omitting --no-frozen-lockfile breaks in CI because pnpm
@@ -206,7 +236,14 @@ jobs:
 
           - Find every workspace member that depends on the package:
               grep -l 'ACTUAL_PKG' bulker/*/go.mod
-          - For EACH matching member, run inside its module directory:
+          - Confirm the EXACT module path in go.mod matches the alert's package,
+            including the major-version suffix (e.g. `/v2`). If the repo uses a
+            higher major version than the alert references, the alert does not
+            apply — skip it; never add or pin the older major-version path.
+          - Check the current version in go.mod/go.sum. If it is already >= vFIXED,
+            skip — `go get ACTUAL_PKG@vFIXED` would DOWNGRADE it, which is forbidden.
+          - For EACH matching member whose version is below vFIXED, run inside its
+            module directory:
               go -C bulker/ACTUAL_MODULE get ACTUAL_PKG@vFIXED
           - After updating all affected members, sync the workspace:
               go -C bulker work sync
@@ -242,6 +279,13 @@ jobs:
           - NEVER modify the newjitsu branch directly — always use a new branch.
           - NEVER run a command that still contains an ALL_CAPS placeholder.
           - NEVER force-push.
+          - NEVER downgrade a dependency. Every change must move a version up or
+            leave it unchanged — directly and transitively. If a "fix" would lower
+            any resolved version, it is wrong: skip it.
+          - A fixed_version from an alert is a FLOOR, not a target. If the repo is
+            already at or above it, there is nothing to do — skip the alert.
+          - Prefer opening NO PR over opening one that downgrades, is a no-op, or
+            does not build.
           - If any command fails, revert the working tree to clean state and skip that vulnerability.
           - When in doubt between overriding vs. bumping a direct dependency, prefer the smaller change (override).
           - When in doubt between one PR or many, prefer many small PRs.
