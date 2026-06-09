@@ -169,6 +169,8 @@ export default createRoute()
     // — including these creds — is visible in ClickHouse query logs and
     // SHOW CREATE; a named collection is the follow-up to remove that exposure.
     const sqlLit = (s: string): string => s.replace(/'/g, "''");
+    const chUser = sqlLit(chConfig.username);
+    const chPass = sqlLit(chConfig.password);
     const createCutoffDictQuery: string = `create dictionary IF NOT EXISTS ${metricsSchema}.events_log_cutoff ${onCluster}
          (
            actorId String,
@@ -178,7 +180,7 @@ export default createRoute()
          )
          PRIMARY KEY actorId, type, is_error
          SOURCE(CLICKHOUSE(
-           user '${sqlLit(chConfig.username)}' password '${sqlLit(chConfig.password)}' db '${metricsSchema}' table 'events_log_cutoff_src'
+           user '${chUser}' password '${chPass}' db '${metricsSchema}' table 'events_log_cutoff_src'
          ))
          LAYOUT(COMPLEX_KEY_HASHED())
          LIFETIME(MIN 1800 MAX 3600)`;
