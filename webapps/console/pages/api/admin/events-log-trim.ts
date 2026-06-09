@@ -9,16 +9,6 @@ const log = getServerLog("events-log-trim");
 
 const localIps = ["127.0.0.1", "0:0:0:0:0:0:0:1", "::1", "::ffff:127.0.0.1"];
 
-const largeLogSizeIds: string[] = []; //["cm3fnw0m50003bnco4pfy8p74", "cm3fnymo10003bjn24ejeygf3"];
-
-type DeleteRequest = {
-  actorId: string;
-  type: string;
-  withoutErrors: boolean;
-  timestamp?: string;
-  error?: string;
-};
-
 export default createRoute()
   .GET({
     streaming: true,
@@ -43,140 +33,87 @@ export default createRoute()
     const metricsCluster = serverEnv.CLICKHOUSE_METRICS_CLUSTER || serverEnv.CLICKHOUSE_CLUSTER;
     const onCluster = metricsCluster ? ` ON CLUSTER ${metricsCluster}` : "";
     const eventsLogSize = serverEnv.EVENTS_LOG_SIZE ?? 200000;
-    const eventsLogSizeLarge = 20_000_000;
+    const sw = stopwatch();
 
-    // trim logs to eventsLogSize only after exceeding threshold
-    const thresholdSize = Math.floor(eventsLogSize * 1.5);
-    const actorsQuery: string = `select actorId, type, count(*) from events_log
-                                 group by actorId, type
-                                 having count(*) > ${thresholdSize}`;
-    const statQuery: string = `select timestamp
-                               from events_log
-                               where actorId = {actorId:String} and type = {type:String} and xor(level = 'error', {withoutErrors:UInt8})
-                               order by timestamp desc LIMIT 1 OFFSET ${eventsLogSize}`;
-    const statQueryLarge: string = `select timestamp
-                               from events_log
-                               where actorId = {actorId:String} and type = {type:String} and xor(level = 'error', {withoutErrors:UInt8})
-                               order by timestamp desc LIMIT 1 OFFSET ${eventsLogSizeLarge}`;
+    // Retention is enforced by a dictGet-driven TTL on events_log (see
+    // events-log-init): the `events_log_cutoff` dictionary holds the newest
+    // EVENTS_LOG_SIZE-th timestamp per (actorId, type, is_error), and the TTL
+    // deletes anything older on merge. This cron only has to: drop the old
+    // partition (hard floor), refresh the cutoffs, and re-materialize the TTL
+    // on the live partitions so a moved cutoff is applied to already-merged
+    // parts (background merges don't re-evaluate a part whose stored TTL says
+    // "keep"). No more full-table scans or lightweight deletes.
+
+    // 1. Hard floor: drop partitions older than the retention window.
     const dropPartitionQuery: string = `alter table events_log ${onCluster} drop partition {partition:String}`;
     const oldPartition = dayjs().subtract(2, "month").format("YYYYMM");
     try {
       await clickhouse.command({
         query: dropPartitionQuery,
-        query_params: {
-          partition: oldPartition,
-        },
+        query_params: { partition: oldPartition },
         clickhouse_settings: {
           // allow to drop partitions up to 500gb in size
           max_partition_size_to_drop: 536870912000,
         },
       });
-      log.atInfo().log(`Deleted partition ${oldPartition}`);
+      log.atInfo().log(`Dropped partition ${oldPartition}`);
     } catch (e: any) {
-      log.atDebug().withCause(e).log(`Failed to delete partition ${oldPartition}`);
+      log.atDebug().withCause(e).log(`Failed to drop partition ${oldPartition}`);
     }
-    const sw = stopwatch();
-    let actorsResult: any = {};
+
+    // 2. Recompute the per-entity retention cutoffs into events_log_cutoff_src:
+    //    the timestamp of the EVENTS_LOG_SIZE-th newest row per entity, only for
+    //    entities over the cap. Full replace (truncate + insert) so entities that
+    //    dropped below the cap stop being trimmed. Produces ~hundreds of rows.
     try {
-      actorsResult = (await (
-        await clickhouse.query({
-          query: actorsQuery,
-          clickhouse_settings: {
-            wait_end_of_query: 1,
-          },
-        })
-      ).json()) as any;
-    } catch (e) {
-      log.atError().withCause(e).log(`Failed to load events log actors.`);
-      throw e;
-    }
-    const len = actorsResult.data.length;
-    if (len === 0) {
-      log.atInfo().log(`No actors to trim.`);
-      res.json({ status: "ok" });
-      return;
-    }
-    const deleteRequests: DeleteRequest[] = [];
-    const failedRequests: DeleteRequest[] = [];
-    let i = 0;
-    for (const row of actorsResult.data) {
-      i++;
-      for (const trimErrors of [false, true]) {
-        const actorId = row.actorId;
-        const type = row.type;
-        let timestamp: any = undefined;
-        try {
-          const q = largeLogSizeIds.includes(actorId) ? statQueryLarge : statQuery;
-          const tsResult = (await (
-            await clickhouse.query({
-              query: q,
-              query_params: {
-                actorId: actorId,
-                type: type,
-                withoutErrors: !trimErrors,
-              },
-              clickhouse_settings: {
-                wait_end_of_query: 1,
-              },
-            })
-          ).json()) as any;
-          if (tsResult.data && tsResult.data.length > 0) {
-            timestamp = tsResult.data[0].timestamp;
-          }
-        } catch (e: any) {
-          log
-            .atError()
-            .withCause(e)
-            .log(`${i} of ${len}. Failed to trim timestamp for ${actorId} ${type}. (trim errors: ${trimErrors})`);
-          failedRequests.push({ actorId, type, withoutErrors: !trimErrors, error: e.message });
-        }
-        if (timestamp) {
-          log
-            .atInfo()
-            .log(
-              `${i} of ${len}. Trimming ${
-                trimErrors ? "error level" : "non-error levels"
-              } for ${actorId} ${type} ${timestamp}`
-            );
-          deleteRequests.push({ actorId, type, withoutErrors: !trimErrors, timestamp });
-        }
-      }
-    }
-    if (deleteRequests.length === 0) {
-      if (failedRequests.length > 0) {
-        res.json({ status: "error", failed: failedRequests });
-        return;
-      }
-      log.atInfo().log(`No logs to trim.`);
-      res.json({ status: "ok" });
-      return;
-    }
-    const deleteQuery =
-      `delete from events_log where\n` +
-      deleteRequests
-        .map((req, i) => {
-          return `(actorId = '${req.actorId}' and type ='${req.type}' and xor(level = 'error', ${req.withoutErrors}) and timestamp < '${req.timestamp}')`;
-        })
-        .join(" or\n");
-    log.atInfo().log(`Delete query:\n${deleteQuery}`);
-    try {
+      await clickhouse.command({ query: `truncate table events_log_cutoff_src${onCluster}` });
       await clickhouse.command({
-        query: deleteQuery,
-        clickhouse_settings: {
-          wait_end_of_query: 0,
-          http_wait_end_of_query: 0,
-          lightweight_deletes_sync: "0",
-          enable_lightweight_delete: 1,
-        },
+        query: `insert into events_log_cutoff_src
+                  select actorId, type, toUInt8(level = 'error') as is_error,
+                         arrayElement(arrayReverseSort(groupArray(timestamp)), ${eventsLogSize}) as cutoff
+                  from events_log
+                  group by actorId, type, is_error
+                  having count() > ${eventsLogSize}`,
+        clickhouse_settings: { wait_end_of_query: 1 },
       });
-      log.atInfo().log(`Trimmed ${deleteRequests.length} logs in ${sw.elapsedPretty()}`);
-      res.json({ status: "ok", deleted: deleteRequests, errors: failedRequests });
-      return;
+      log.atInfo().log(`Recomputed events_log_cutoff_src`);
     } catch (e: any) {
-      log.atError().withCause(e).log(`Failed to trim events log.`);
-      res.json({ error: e.message, request: deleteRequests, errors: failedRequests });
-      return;
+      log.atError().withCause(e).log(`Failed to recompute events_log_cutoff_src`);
     }
+
+    // 3. Reload the cutoff dictionary from the freshly computed source table.
+    try {
+      await clickhouse.command({ query: `system reload dictionary${onCluster} events_log_cutoff` });
+      log.atInfo().log(`Reloaded events_log_cutoff dictionary`);
+    } catch (e: any) {
+      log.atError().withCause(e).log(`Failed to reload events_log_cutoff dictionary`);
+    }
+
+    // 4. Enforce the cap by re-materializing the TTL on the live partitions.
+    //    Async (mutations_sync=0); allow_suspicious_ttl_expressions and
+    //    allow_nondeterministic_mutations are required because the TTL uses dictGet.
+    const materializeQuery: string = `alter table events_log ${onCluster} materialize TTL in partition {partition:String}`;
+    const partitions = [dayjs().format("YYYYMM"), dayjs().subtract(1, "month").format("YYYYMM")];
+    for (const partition of partitions) {
+      try {
+        await clickhouse.command({
+          query: materializeQuery,
+          query_params: { partition },
+          clickhouse_settings: {
+            allow_suspicious_ttl_expressions: 1,
+            allow_nondeterministic_mutations: 1,
+            mutations_sync: "0",
+          },
+        });
+        log.atInfo().log(`Materialized TTL on partition ${partition}`);
+      } catch (e: any) {
+        log.atError().withCause(e).log(`Failed to materialize TTL on partition ${partition}`);
+      }
+    }
+
+    log.atInfo().log(`Events log trim issued in ${sw.elapsedPretty()}`);
+    res.json({ status: "ok" });
+    return;
   })
   .toNextApiHandler();
 export const config = {
