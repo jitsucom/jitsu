@@ -132,11 +132,6 @@ export default createRoute()
     // (its retention cutoff); events_log's TTL deletes anything older on merge.
     // This replaces the old full-table scan + lightweight-delete trim and,
     // unlike lightweight deletes, TTL DELETE physically reclaims disk on merge.
-    // The dictionary reads the cutoff table from the local server over the
-    // native protocol (default 9000): on a cluster every replica has its own
-    // copy of the replicated source table, so 'localhost' avoids a single-host
-    // dependency. Override the port with CLICKHOUSE_METRICS_NATIVE_PORT if needed.
-    const chNativePort = serverEnv.CLICKHOUSE_METRICS_NATIVE_PORT;
 
     // The cutoffs live in their own small table rather than being computed by
     // the dictionary directly from events_log: a dictionary that sourced from
@@ -175,7 +170,9 @@ export default createRoute()
          )
          PRIMARY KEY actorId, type, is_error
          SOURCE(CLICKHOUSE(
-           host 'localhost' port ${chNativePort} user '${chConfig.username}' password '${chConfig.password}' db '${metricsSchema}' table 'events_log_cutoff_src'
+           -- no host/port: read the local server in-process (no network hop).
+           -- Auth is still required, so pass the configured metrics user.
+           user '${chConfig.username}' password '${chConfig.password}' db '${metricsSchema}' table 'events_log_cutoff_src'
          ))
          LAYOUT(COMPLEX_KEY_HASHED())
          LIFETIME(MIN 1800 MAX 3600)`;

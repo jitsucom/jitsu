@@ -54,7 +54,8 @@ create dictionary IF NOT EXISTS newjitsu_metrics.events_log_cutoff
 )
 PRIMARY KEY actorId, type, is_error
 SOURCE(CLICKHOUSE(
-    host 'localhost' port 9000 user 'default' password '' db 'newjitsu_metrics' table 'events_log_cutoff_src'
+    -- no host/port: reads the local server in-process; auth still required
+    user 'default' password '' db 'newjitsu_metrics' table 'events_log_cutoff_src'
 ))
 LAYOUT(COMPLEX_KEY_HASHED())
 LIFETIME(MIN 1800 MAX 3600);

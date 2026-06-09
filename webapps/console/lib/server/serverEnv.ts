@@ -52,11 +52,6 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   // Metrics cluster identifier (falls back to CLICKHOUSE_CLUSTER)
   CLICKHOUSE_METRICS_CLUSTER: z.string().optional(),
 
-  // Native-protocol port used by the events_log_cutoff dictionary to read its
-  // source table from the local ClickHouse server (the HTTP CLICKHOUSE_URL port
-  // is not the native port).
-  CLICKHOUSE_METRICS_NATIVE_PORT: z.string().optional().default("9000"),
-
   // ============================================
   // Sync Engine (Syncctl)
   // ============================================
