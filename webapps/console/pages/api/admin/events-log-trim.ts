@@ -1,5 +1,5 @@
 import { createRoute, getUser, verifyAdmin } from "../../../lib/api";
-import { stopwatch } from "juava";
+import { stopwatch, getClickhouseConfig } from "juava";
 import { clickhouse } from "../../../lib/server/clickhouse";
 import dayjs from "dayjs";
 import { getServerLog } from "../../../lib/server/log";
@@ -32,6 +32,7 @@ export default createRoute()
     const serverEnv = getServerEnv();
     const metricsCluster = serverEnv.CLICKHOUSE_METRICS_CLUSTER || serverEnv.CLICKHOUSE_CLUSTER;
     const onCluster = metricsCluster ? ` ON CLUSTER ${metricsCluster}` : "";
+    const metricsSchema = getClickhouseConfig(serverEnv).database;
     const eventsLogSize = serverEnv.EVENTS_LOG_SIZE ?? 200000;
     const sw = stopwatch();
 
@@ -112,8 +113,13 @@ export default createRoute()
 
     if (cutoffsRecomputed) {
       // 3. Reload the cutoff dictionary from the freshly computed source table.
+      //    Qualify the dictionary name: SYSTEM RELOAD DICTIONARY ON CLUSTER does
+      //    not propagate the session's default database (unlike ALTER ... ON
+      //    CLUSTER), so an unqualified name resolves to `default` on each node.
       try {
-        await clickhouse.command({ query: `system reload dictionary${onCluster} events_log_cutoff` });
+        await clickhouse.command({
+          query: `system reload dictionary${onCluster} ${metricsSchema}.events_log_cutoff`,
+        });
         log.atInfo().log(`Reloaded events_log_cutoff dictionary`);
       } catch (e: any) {
         log.atError().withCause(e).log(`Failed to reload events_log_cutoff dictionary`);
