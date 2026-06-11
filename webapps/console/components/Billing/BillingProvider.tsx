@@ -41,20 +41,22 @@ export const BillingProvider: React.FC<PropsWithChildren<{ enabled: boolean; sen
   sendAnalytics,
   children,
 }) => {
-  const [billingSettings, setBillingSettings] = useState<BillingSettings | null>(null);
-  const [error, setError] = useState();
+  //the fetched result is keyed by the workspace it was requested for, and validity is
+  //derived at render time — settings from workspace A are never visible in workspace B,
+  //not even for the render frame before an effect could reset state
+  const [fetchResult, setFetchResult] = useState<{
+    workspaceId: string;
+    settings?: BillingSettings;
+    error?: unknown;
+  } | null>(null);
   const workspace = useWorkspace();
   const user = useUser();
   const { analytics } = useJitsu();
   const { eeRpc } = useEeApi();
   const [refreshDate, setRefreshDate] = useState(new Date());
 
-  //settings belong to a workspace — drop them on switch so the previous
-  //workspace's entitlements can't leak into the new one while (or if) its fetch fails
-  useEffect(() => {
-    setBillingSettings(null);
-    setError(undefined);
-  }, [workspace.id]);
+  const billingSettings = fetchResult?.workspaceId === workspace.id ? fetchResult.settings : undefined;
+  const error = fetchResult?.workspaceId === workspace.id ? fetchResult.error : undefined;
 
   useEffect(() => {
     if (!enabled) {
@@ -63,20 +65,22 @@ export const BillingProvider: React.FC<PropsWithChildren<{ enabled: boolean; sen
     //if the workspace changes while this request is in flight, its late result must not
     //be committed against the new workspace
     let stale = false;
-    eeRpc("billing/settings", { query: { workspaceId: workspace.id, email: user.email } })
+    const workspaceId = workspace.id;
+    eeRpc("billing/settings", { query: { workspaceId, email: user.email } })
       .then(parseBillingSettings)
       .then(settings => {
-        if (stale) {
-          return;
+        if (!stale) {
+          //a successful fetch also clears any stale error from a failed refresh
+          //(e.g. while the tab was asleep) that would otherwise keep masking it
+          setFetchResult({ workspaceId, settings });
         }
-        setBillingSettings(settings);
-        //a stale error from a failed refresh (e.g. while the tab was asleep) must not
-        //keep masking a successful one
-        setError(undefined);
       })
       .catch(e => {
         if (!stale) {
-          setError(e);
+          //last known good settings of the same workspace win over a transient refresh error
+          setFetchResult(prev =>
+            prev?.workspaceId === workspaceId && prev.settings ? prev : { workspaceId, error: e }
+          );
         }
       });
     return () => {
