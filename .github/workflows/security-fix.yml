@@ -201,7 +201,7 @@ jobs:
              alert — one branch, one commit per stack, one PR per stack.
           6. After applying fixes, verify nothing regressed before opening the PR:
              - npm: `pnpm install --no-frozen-lockfile` must succeed.
-             - Go: `go -C bulker work sync` and `go -C bulker/MODULE build ./...`
+             - Go: `go -C bulker work sync` and `go -C bulker/ACTUAL_MODULE build ./...`
                for each touched module must succeed.
              If verification fails for an alert, revert that alert's change and
              move it to the "Skipped" list. Never open a PR that does not build.
