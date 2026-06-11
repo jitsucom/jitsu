@@ -49,6 +49,13 @@ export const BillingProvider: React.FC<PropsWithChildren<{ enabled: boolean; sen
   const { eeRpc } = useEeApi();
   const [refreshDate, setRefreshDate] = useState(new Date());
 
+  //settings belong to a workspace — drop them on switch so the previous
+  //workspace's entitlements can't leak into the new one while (or if) its fetch fails
+  useEffect(() => {
+    setBillingSettings(null);
+    setError(undefined);
+  }, [workspace.id]);
+
   useEffect(() => {
     if (!enabled) {
       return;
