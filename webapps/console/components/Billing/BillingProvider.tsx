@@ -55,7 +55,12 @@ export const BillingProvider: React.FC<PropsWithChildren<{ enabled: boolean; sen
     }
     eeRpc("billing/settings", { query: { workspaceId: workspace.id, email: user.email } })
       .then(parseBillingSettings)
-      .then(setBillingSettings)
+      .then(settings => {
+        setBillingSettings(settings);
+        //a stale error from a failed refresh (e.g. while the tab was asleep) must not
+        //keep masking a successful one
+        setError(undefined);
+      })
       .catch(setError)
       .finally();
   }, [enabled, workspace.id, user.email, refreshDate, eeRpc]);
@@ -69,6 +74,24 @@ export const BillingProvider: React.FC<PropsWithChildren<{ enabled: boolean; sen
       setRefreshDate(new Date());
     }, 1000 * 60 * 5);
     return () => clearInterval(interval);
+  }, [enabled]);
+
+  //interval timers are throttled in background tabs — refresh as soon as the tab is back in focus
+  useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+    const refresh = () => {
+      if (document.visibilityState === "visible") {
+        setRefreshDate(new Date());
+      }
+    };
+    document.addEventListener("visibilitychange", refresh);
+    window.addEventListener("focus", refresh);
+    return () => {
+      document.removeEventListener("visibilitychange", refresh);
+      window.removeEventListener("focus", refresh);
+    };
   }, [enabled]);
 
   /* eslint-disable react-hooks/exhaustive-deps  */
@@ -90,14 +113,15 @@ export const BillingProvider: React.FC<PropsWithChildren<{ enabled: boolean; sen
 
   if (!enabled) {
     return <BillingContext.Provider value={"disabled"}>{children}</BillingContext.Provider>;
+  } else if (billingSettings) {
+    //last known good settings win over a transient refresh error
+    return <BillingContext.Provider value={billingSettings}>{children}</BillingContext.Provider>;
   } else if (error) {
     // The UI falls back to "Billing is disabled" because that's what the user
     // can act on, but log loudly so an operator can tell a real outage apart
     // from an intentionally-disabled workspace.
     log.atError().withCause(error).log(`Can't reach ee-api billing/settings — falling back to disabled UI`);
     return <BillingContext.Provider value={"disabled"}>{children}</BillingContext.Provider>;
-  } else if (billingSettings) {
-    return <BillingContext.Provider value={billingSettings}>{children}</BillingContext.Provider>;
   } else {
     return <BillingContext.Provider value={"loading"}>{children}</BillingContext.Provider>;
   }
