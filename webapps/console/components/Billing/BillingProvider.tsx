@@ -60,16 +60,28 @@ export const BillingProvider: React.FC<PropsWithChildren<{ enabled: boolean; sen
     if (!enabled) {
       return;
     }
+    //if the workspace changes while this request is in flight, its late result must not
+    //be committed against the new workspace
+    let stale = false;
     eeRpc("billing/settings", { query: { workspaceId: workspace.id, email: user.email } })
       .then(parseBillingSettings)
       .then(settings => {
+        if (stale) {
+          return;
+        }
         setBillingSettings(settings);
         //a stale error from a failed refresh (e.g. while the tab was asleep) must not
         //keep masking a successful one
         setError(undefined);
       })
-      .catch(setError)
-      .finally();
+      .catch(e => {
+        if (!stale) {
+          setError(e);
+        }
+      });
+    return () => {
+      stale = true;
+    };
   }, [enabled, workspace.id, user.email, refreshDate, eeRpc]);
 
   //refresh billing settings every 5 minutes
