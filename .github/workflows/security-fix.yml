@@ -172,18 +172,31 @@ jobs:
              gh pr list --search "security" --state open
              Skip any alert whose fix is already covered by an open PR.
           2. Filter alerts by MIN_SEVERITY (severity order: critical > high > moderate > low).
-          3. For EACH remaining alert, determine the version actually resolved in
-             this repo (the lockfile / go.sum / go.mod entry that is really in
-             use), then SKIP the alert if it is already fixed:
-             - If the resolved version is >= the alert's fixed_version, the repo
-               already ships a patched version — skip it. Do NOT touch the
-               manifest just to match fixed_version exactly; that is a no-op at
-               best and a downgrade at worst.
+          3. For EACH remaining alert, determine ALL versions of the package
+             actually resolved in this repo, then SKIP the alert only if every
+             one of them is already fixed:
+             - A package can be resolved at MULTIPLE versions at once: a pnpm
+               lockfile routinely contains several copies of the same package,
+               and each Go workspace member (bulker/*/go.mod) resolves the
+               module independently. Collect every resolved version — e.g.
+               `pnpm why -r ACTUAL_PKG_NAME` / grep pnpm-lock.yaml for npm, and
+               `go -C bulker/ACTUAL_MODULE list -m ACTUAL_PKG` for each
+               workspace member for Go.
+             - Only if EVERY resolved version is >= the alert's fixed_version
+               (or outside the vulnerable_range) is the repo already patched —
+               skip it. If even one resolved copy is still vulnerable, the
+               alert applies; fix that copy (without downgrading the others).
+               Do NOT touch the manifest just to match fixed_version exactly;
+               that is a no-op at best and a downgrade at worst.
              - Go major versions are distinct modules. An alert for
-               `github.com/foo/bar` (the v0/v1 module path) does NOT apply to a
-               repo that imports `github.com/foo/bar/v2` (or higher) — that is a
-               different, newer module. Skip such alerts; never pin the older
-               major-version path.
+               `github.com/foo/bar` (the v0/v1 module path) does NOT apply to
+               imports of `github.com/foo/bar/v2` (or higher) — that is a
+               different, newer module. But both majors can be in use at once:
+               check `grep -r 'github.com/foo/bar ' bulker/*/go.mod` (note the
+               trailing space — it excludes /v2+ paths) before skipping. Skip
+               the alert only when NO workspace member still requires the
+               v0/v1 path; never "fix" a v0/v1 alert by pinning the older
+               major-version path in a module that only uses v2+.
              - NEVER downgrade. Compare versions semantically: if applying the
                fix would move any package to a LOWER version than it currently
                resolves to (directly or transitively), skip the alert and note it
