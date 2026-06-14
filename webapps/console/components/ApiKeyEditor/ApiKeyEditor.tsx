@@ -152,7 +152,7 @@ export const ApiKeysEditor: React.FC<CustomWidgetProps<ApiKey[]> & { compact?: b
         <Button
           type="text"
           onClick={() => {
-            const newKey = randomId(32);
+            const newKey = randomId({ digits: 32, strongRandom: true });
             const newVal = [...keys, { id: randomId(32), plaintext: newKey, hint: hint(newKey) }];
             setKeys(newVal);
             props.onChange(newVal);
@@ -273,7 +273,7 @@ export const StreamKeysEditor: React.FC<WidgetProps<ApiKey[]>> = props => {
           type="text"
           onClick={async () => {
             try {
-              const newKey = randomId(32);
+              const newKey = randomId({ digits: 32, strongRandom: true });
               const newVal = [...keys, { id: randomId(32), plaintext: newKey, hint: hint(newKey) }];
               if (type === "stream" && !context.isNew) {
                 setLoading(true);

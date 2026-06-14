@@ -43,7 +43,7 @@ const api: Api = {
       result: ApiKey,
     },
     handle: async ({ user, body }) => {
-      const plaintext = randomId(32);
+      const plaintext = randomId({ digits: 32, strongRandom: true });
       const id = randomId(32);
       const created = await db.prisma().userApiToken.create({
         data: {

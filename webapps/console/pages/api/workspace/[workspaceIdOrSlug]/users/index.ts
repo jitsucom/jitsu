@@ -115,7 +115,7 @@ const api: Api = {
           data: {
             email: body.email,
             workspaceId: workspace.id,
-            token: randomId(12),
+            token: randomId({ digits: 12, strongRandom: true }),
             role: body.role || "owner",
           },
         });
