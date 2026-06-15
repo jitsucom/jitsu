@@ -108,7 +108,7 @@ function trackPurchase(event: AnalyticsServerEvent, ctx: FullContext<BrazeCreden
     purchases: products.map(product => ({
       ...base,
       product_id: product.product_id,
-      currency: product.currency ?? "USD",
+      currency: event.properties.currency ?? product.currency ?? "USD",
       price: product.price,
       quantity: product.quantity,
       properties: {
