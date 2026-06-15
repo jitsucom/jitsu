@@ -192,8 +192,9 @@ jobs:
                `github.com/foo/bar` (the v0/v1 module path) does NOT apply to
                imports of `github.com/foo/bar/v2` (or higher) — that is a
                different, newer module. But both majors can be in use at once:
-               check `grep -r 'github.com/foo/bar ' bulker/*/go.mod` (note the
-               trailing space — it excludes /v2+ paths) before skipping. Skip
+               check `grep -rE 'github.com/foo/bar[[:space:]]' bulker/*/go.mod`
+               (the trailing whitespace class matches the space or tab `go mod
+               tidy` uses, while still excluding /v2+ paths) before skipping. Skip
                the alert only when NO workspace member still requires the
                v0/v1 path; never "fix" a v0/v1 alert by pinning the older
                major-version path in a module that only uses v2+.
