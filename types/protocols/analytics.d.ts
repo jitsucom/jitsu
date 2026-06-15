@@ -477,7 +477,12 @@ export interface AnalyticsInterface {
     callback?: Callback
   ): Promise<DispatchedEvent>;
 
-  identify(id?: ID | Traits, traits?: Traits | Callback | null, callback?: Callback): Promise<DispatchedEvent>;
+  identify(
+    id?: ID | Traits,
+    traits?: Traits | Callback | null,
+    options?: Options | Callback,
+    callback?: Callback
+  ): Promise<DispatchedEvent>;
 
   reset(callback?: (...params: any[]) => any): Promise<any>;
 
