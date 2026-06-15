@@ -80,8 +80,19 @@ export const noRestrictions: BillingSettings = {
 export const AppConfig = z.object({
   docsUrl: z.string().optional(),
   websiteUrl: z.string().optional(),
-  //iso date
-  readOnlyUntil: z.string().optional(),
+  maintenance: z
+    .object({
+      active: z.boolean().optional(),
+      description: z.string().optional(),
+      planned_start: z.string().optional(),
+      planned_end: z.string().optional(),
+      show_in_advance: z.boolean().optional(),
+      // Mirrors lib/server/maintenance.ts MaintenanceState.database_access.
+      // The browser uses this to decide whether to render the maintenance page
+      // unconditionally (DB unavailable) vs. just show the read-only banner.
+      database_access: z.enum(["read_only", "off"]).optional(),
+    })
+    .optional(),
   disableSignup: z.boolean().optional(),
   customDomainsEnabled: z.boolean().optional(),
   ee: z.object({
@@ -138,6 +149,7 @@ export const ConfigEntityBase = z.object({
   type: z.string(),
   workspaceId: z.string(),
   name: z.string(),
+  updatedAt: z.coerce.date().nullish(),
   cloneId: z.string().optional(),
 });
 export type ConfigEntityBase = z.infer<typeof ConfigEntityBase>;
@@ -166,15 +178,20 @@ export function inferTokenTypeFromId(id: string): string {
 }
 
 export const StreamConfig = ConfigEntityBase.merge(
-  z.object({
-    domains: z.array(z.string()).optional(),
-    authorizedJavaScriptDomains: z.string().optional(),
-    publicKeys: z.array(ApiKey).optional(),
-    privateKeys: z.array(ApiKey).optional(),
-    strict: z.boolean().optional(),
-    shard: z.number().optional(),
-    deduplicateWindowMs: z.number().optional(),
-  })
+  z
+    .object({
+      domains: z.array(z.string()).optional(),
+      authorizedJavaScriptDomains: z.string().optional(),
+      publicKeys: z.array(ApiKey).optional(),
+      privateKeys: z.array(ApiKey).optional(),
+      strict: z.boolean().optional(),
+      shard: z.number().optional(),
+      deduplicateWindowMs: z.number().optional(),
+    })
+    // Tolerate legacy/unknown fields on older stream records (matches DestinationConfig).
+    // Without this, zodToJsonSchema emits `additionalProperties: false` and the editor's
+    // live validation rejects old streams with "must NOT have additional properties".
+    .passthrough()
 );
 export type StreamConfig = z.infer<typeof StreamConfig>;
 
@@ -241,6 +258,7 @@ export const NotificationChannel = ConfigEntityBase.merge(
     // allWorkspaceEmails: z.boolean().default(true).optional(),
     emails: z.array(z.string()).optional(),
     recurringAlertsPeriodHours: z.number().max(720).min(0).default(168),
+    summarizeBatchNotificationsByTable: z.boolean().default(true),
   })
 );
 export type NotificationChannel = z.infer<typeof NotificationChannel>;

@@ -24,10 +24,43 @@ const (
 	msgTypeRecord         msgType = "RECORD"
 	msgTypeState          msgType = "STATE"
 	msgTypeLog            msgType = "LOG"
+	msgTypeTrace          msgType = "TRACE"
 	msgTypeConnectionStat msgType = "CONNECTION_STATUS"
 	msgTypeCatalog        msgType = "CATALOG"
 	msgTypeSpec           msgType = "SPEC"
 )
+
+type StreamStatusType string
+
+const (
+	StreamStatusStarted    StreamStatusType = "STARTED"
+	StreamStatusComplete   StreamStatusType = "COMPLETE"
+	StreamStatusIncomplete StreamStatusType = "INCOMPLETE"
+)
+
+type streamDescriptor struct {
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
+}
+
+type streamStatus struct {
+	StreamDescriptor streamDescriptor `json:"stream_descriptor"`
+	Status           StreamStatusType `json:"status"`
+}
+
+type errorTrace struct {
+	StreamDescriptor streamDescriptor `json:"stream_descriptor"`
+	Message          string           `json:"message"`
+	InternalMessage  string           `json:"internal_message,omitempty"`
+	StackTrace       string           `json:"stack_trace,omitempty"`
+	FailureType      string           `json:"failure_type,omitempty"`
+}
+
+type traceMessage struct {
+	Type         string        `json:"type"`
+	StreamStatus *streamStatus `json:"stream_status,omitempty"`
+	Error        *errorTrace   `json:"error,omitempty"`
+}
 
 var errInvalidTypePayload = errors.New("message type and payload are invalid")
 
@@ -36,6 +69,7 @@ type message struct {
 	*record                 `json:"record,omitempty"`
 	*state                  `json:"state,omitempty"`
 	*logMessage             `json:"log,omitempty"`
+	*traceMessage           `json:"trace,omitempty"`
 	*ConnectorSpecification `json:"spec,omitempty"`
 	*connectionStatus       `json:"connectionStatus,omitempty"`
 	*Catalog                `json:"catalog,omitempty"`
@@ -135,6 +169,10 @@ type Stream struct {
 	DefaultCursorField      []string   `json:"default_cursor_field,omitempty"`
 	SourceDefinedPrimaryKey [][]string `json:"source_defined_primary_key,omitempty"`
 	Namespace               string     `json:"namespace"`
+	// TableNameTemplate, when set, is the preferred default destination table
+	// name for this stream. Useful when the stream Name contains characters
+	// (e.g. "/") that don't translate cleanly to a table name.
+	TableNameTemplate string `json:"table_name_template,omitempty"`
 }
 
 // ConfiguredCatalog is the "selected" schema you want to sync
@@ -255,6 +293,14 @@ type StateWriter func(v interface{}) error
 // RecordWriter is exported for documentation purposes - only use this through MessageTracker
 type RecordWriter func(v interface{}, streamName string, namespace string) error
 
+// StreamStatusWriter emits a TRACE message with STREAM_STATUS type
+type StreamStatusWriter func(streamName string, namespace string, status StreamStatusType) error
+
+// StreamErrorWriter emits a TRACE message with ERROR type scoped to a single
+// stream. It lets a source report a per-stream failure and keep going instead
+// of aborting the whole sync.
+type StreamErrorWriter func(streamName string, namespace string, message string) error
+
 func newLogWriter(w io.Writer) LogWriter {
 	return func(lvl LogLevel, s string) error {
 		return write(w, &message{
@@ -287,6 +333,42 @@ func newRecordWriter(w io.Writer) RecordWriter {
 				Data:      s,
 				Namespace: namespace,
 				Stream:    stream,
+			},
+		})
+	}
+}
+
+func newStreamStatusWriter(w io.Writer) StreamStatusWriter {
+	return func(streamName string, namespace string, status StreamStatusType) error {
+		return write(w, &message{
+			Type: msgTypeTrace,
+			traceMessage: &traceMessage{
+				Type: "STREAM_STATUS",
+				StreamStatus: &streamStatus{
+					StreamDescriptor: streamDescriptor{
+						Name:      streamName,
+						Namespace: namespace,
+					},
+					Status: status,
+				},
+			},
+		})
+	}
+}
+
+func newStreamErrorWriter(w io.Writer) StreamErrorWriter {
+	return func(streamName string, namespace string, msg string) error {
+		return write(w, &message{
+			Type: msgTypeTrace,
+			traceMessage: &traceMessage{
+				Type: "ERROR",
+				Error: &errorTrace{
+					StreamDescriptor: streamDescriptor{
+						Name:      streamName,
+						Namespace: namespace,
+					},
+					Message: msg,
+				},
 			},
 		})
 	}

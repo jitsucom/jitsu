@@ -9,6 +9,7 @@ type MetaListProps = {
   incidentStatus?: string;
   recoveredFrom?: string;
   queueSize?: number;
+  entityType?: string;
 };
 
 export const MetaList: React.FC<MetaListProps> = ({
@@ -18,6 +19,7 @@ export const MetaList: React.FC<MetaListProps> = ({
   recoveredFrom,
   streamsFailed,
   queueSize,
+  entityType,
 }) => {
   const date = useMemo(() => new Date(), []);
 
@@ -49,7 +51,7 @@ export const MetaList: React.FC<MetaListProps> = ({
       )}
       {streamsFailed ? (
         <span>
-          <b>Streams Failed: </b> {streamsFailed}
+          <b>{entityType === "batch" ? "Tables" : "Streams"} Failed: </b> {streamsFailed}
           <br />
         </span>
       ) : (

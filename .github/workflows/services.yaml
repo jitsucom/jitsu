@@ -577,8 +577,8 @@ jobs:
             echo "Publishing packages to NPM with tag: ${NPM_TAG}"
           fi
 
-          docker exec builder sh -c "cd cli/jitsu-cli && npm publish --tag ${NPM_TAG} --access public --provenance ${DRY_RUN_FLAG}"
-          docker exec builder sh -c "cd libs/functions && npm publish --tag ${NPM_TAG} --access public --provenance ${DRY_RUN_FLAG}"
+          docker exec builder sh -c "cd cli/jitsu-cli && pnpm publish --tag ${NPM_TAG} --access public --provenance --no-git-checks ${DRY_RUN_FLAG}"
+          docker exec builder sh -c "cd libs/functions && pnpm publish --tag ${NPM_TAG} --access public --provenance --no-git-checks ${DRY_RUN_FLAG}"
 
       - name: 🧹 Cleanup container
         if: always()

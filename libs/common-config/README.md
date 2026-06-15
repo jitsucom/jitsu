@@ -271,7 +271,6 @@ No module override needed:
 | | `jitsu-build-scripts` | `cli/build-scripts` | webpack | Build scripts CLI |
 | **Unbundled Node.js** | `@jitsu/core-functions` | `libs/core-functions` | tsc | Node.js library with `declaration: true` |
 | **Next.js Apps** | `@jitsu-internal/console` | `webapps/console` | next | SSR + API routes, uses `lib: ["dom"]` |
-| | `@jitsu-ee/ee-api` | `webapps/ee-api` | next | API routes app, uses `lib: ["dom"]` |
 | **Browser/React Libraries** | `@jitsu/js` | `libs/jitsu-js` | rollup | Universal lib, uses `lib: ["dom"]`, outputs CJS + ESM |
 | | `@jitsu/jitsu-react` | `libs/jitsu-react` | microbundle | React components, uses `lib: ["dom"]`, `jsx: react` |
 | | `@jitsu/functions-lib` | `libs/functions` | rollup | Universal lib, uses `lib: ["dom"]`, outputs CJS + ESM |

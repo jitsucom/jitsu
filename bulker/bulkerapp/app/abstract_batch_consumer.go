@@ -37,6 +37,7 @@ type BatchConsumer interface {
 	BatchPeriodSec() int
 	UpdateBatchPeriod(batchPeriodSec int)
 	Options() *bulker.StreamOptions
+	Mode() string
 }
 
 type AbstractBatchConsumer struct {
@@ -267,13 +268,23 @@ func (bc *AbstractBatchConsumer) ConsumeAll() (counters BatchCounters, err error
 		return BatchCounters{}, bc.NewError("Failed to resume kafka consumer: %v", err)
 	}
 	var partition int32 = 0
-	if bc.mode == "retry" && bc.topicId == bc.config.KafkaDestinationsRetryTopicName {
+	if bc.mode == "retry" {
 		var ass []kafka.TopicPartition
 		var err error
 		for i := 0; i < 10; i++ {
 			ass, err = consumer.Assignment()
-			if err != nil || len(ass) != 1 {
-				time.Sleep(time.Second * time.Duration(i+1))
+			if err == nil && len(ass) == 1 {
+				break
+			}
+			// rebalance events are served only during poll calls:
+			// poll the consumer so it can join the group and obtain its assignment
+			message, _ := consumer.ReadMessage(time.Second * time.Duration(i+1))
+			if message != nil {
+				// a message slipped through before batch processing started - rollback the position
+				_, seekErr := consumer.SeekPartitions([]kafka.TopicPartition{message.TopicPartition})
+				if seekErr != nil {
+					bc.SystemErrorf("Failed to seek back a message received while waiting for assignment: %v", seekErr)
+				}
 			}
 		}
 		if err != nil || len(ass) != 1 {
@@ -485,9 +496,9 @@ func (bc *AbstractBatchConsumer) initConsumer(force bool) (consumer *kafka.Consu
 			bc.Errorf("Failed to subscribe to topic: %v", err)
 			return nil, err
 		}
-		if bc.mode == "retry" && bc.topicId == bc.config.KafkaDestinationsRetryTopicName {
-			consumer.Assign([]kafka.TopicPartition{kafka.TopicPartition{Topic: &bc.topicId, Offset: kafka.OffsetStored, Partition: int32(bc.config.InstanceIndex)}})
-		}
+		//if bc.mode == "retry" && bc.topicId == bc.config.KafkaDestinationsRetryTopicName {
+		//	consumer.Assign([]kafka.TopicPartition{kafka.TopicPartition{Topic: &bc.topicId, Offset: kafka.OffsetStored, Partition: int32(bc.config.InstanceIndex)}})
+		//}
 		bc.Infof("Consumer created: %s", consumer.String())
 		bc.consumer.Store(consumer)
 	}
@@ -610,6 +621,10 @@ func (bc *AbstractBatchConsumer) Retire() {
 }
 func (bc *AbstractBatchConsumer) errorMetric(errorType string) {
 	metrics.ConsumerErrors(bc.topicId, bc.mode, bc.destinationId, bc.tableName, errorType).Inc()
+}
+
+func (bc *AbstractBatchConsumer) Mode() string {
+	return bc.mode
 }
 
 func (bc *AbstractBatchConsumer) Options() *bulker.StreamOptions {

@@ -69,13 +69,6 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   // Enable/disable syncs feature globally
   SYNCS_ENABLED: z.string().default("false").transform(isTruish),
 
-  // Enable autonomous K8s CronJob scheduling for syncs (syncctl reconciles
-  // CronJobs from the admin /export/syncs endpoint). When true (or a workspace
-  // overrides with featuresEnabled "cronjobs=true"), the legacy reactive
-  // scheduler path (Cloud Scheduler → /sources/run) is ignored for that
-  // workspace's syncs to prevent double-execution.
-  SYNCS_CRONJOB_ENABLED: z.string().default("false").transform(isTruish),
-
   // Sync task log retention age in days
   SYNC_TASK_LOG_AGE: z.coerce.number().optional().default(60),
 
@@ -360,8 +353,13 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   // Comma-separated list of data domains
   DATA_DOMAIN: z.string().optional(),
 
-  // ISO date string for read-only mode expiration
-  JITSU_CONSOLE_READ_ONLY_UNTIL: z.string().optional(),
+  // Maintenance descriptor as a JSON object (fallback when no ConfigMap file is mounted).
+  // Read-only enforcement is driven entirely by this descriptor — there is no separate
+  // JITSU_CONSOLE_READ_ONLY_UNTIL env var anymore.
+  MAINTENANCE: z.string().optional(),
+  // Path to a mounted ConfigMap JSON file holding the maintenance descriptor. Takes
+  // precedence over MAINTENANCE so maintenance can be toggled at runtime without redeploy.
+  MAINTENANCE_CONFIG_FILE: z.string().optional(),
 
   // Documentation website URL
   JITSU_DOCUMENTATION_URL: z.string().optional().default("https://docs.jitsu.com/"),

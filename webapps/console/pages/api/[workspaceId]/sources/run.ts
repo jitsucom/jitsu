@@ -7,8 +7,6 @@ import { getServerLog } from "../../../../lib/server/log";
 import { scheduleSync } from "../../../../lib/server/sync";
 import { isTruish } from "juava";
 import { getServerEnv } from "../../../../lib/server/serverEnv";
-import { db } from "../../../../lib/server/db";
-import { cronjobsEnabledForSync } from "../../../../lib/server/sync-cronjobs";
 
 const log = getServerLog("sync-run");
 const serverEnv = getServerEnv();
@@ -32,6 +30,11 @@ const resultType = z.object({
 export const route = createRoute()
   .GET({
     auth: false,
+    // GET is side-effecting: `scheduleSync` dispatches /read to syncctl. The
+    // sidecar's quota-check init container also blocks via `isMaintenanceActive`,
+    // but blocking the dispatch up front avoids spending pod minutes on a job
+    // that would just be rejected at admission.
+    mutates: true,
     summary: "Run sync",
     description:
       "Schedules a sync (the connection between a service and a destination, identified by `syncId`) to run immediately. " +
@@ -45,8 +48,6 @@ export const route = createRoute()
       syncId: z.string(),
       fullSync: z.string().optional(),
       ignoreRunning: z.string().transform(isTruish).optional(),
-      skipRefresh: z.string().transform(isTruish).optional(),
-      nodelay: z.string().transform(isTruish).optional(),
       taskId: z.string().optional(),
     }),
     result: resultType,
@@ -73,38 +74,18 @@ export const route = createRoute()
       .log(
         `sources/run entry: workspaceId=${workspaceId} syncId=${query.syncId} taskId=${
           query.taskId ?? "-"
-        } trigger=${trigger} skipRefresh=${!!query.skipRefresh} fullSync=${!!query.fullSync} nodelay=${!!query.nodelay} ignoreRunning=${!!query.ignoreRunning}`
+        } trigger=${trigger} fullSync=${!!query.fullSync} ignoreRunning=${!!query.ignoreRunning}`
       );
-    // Scheduled triggers (Cloud Scheduler → SYNCCTL_AUTH_KEY bearer) are
-    // ignored for workspaces/syncs opted into the autonomous K8s CronJob
-    // path — those runs are driven by syncctl-managed CronJobs instead, and
-    // letting both fire would double-schedule (the per-sync Lease blocks
-    // concurrent runs but not back-to-back ones).
-    //
-    // `skipRefresh=true` carves out syncctl's internal discover→read chain
-    // (task_manager.runReadTask) which authenticates with the same bearer
-    // but is NOT an external scheduler firing — it's the second half of an
-    // already-admitted sync. Blocking it would orphan the source_task row
-    // in RUNNING with no pod ever created.
-    if (trigger === "scheduled" && !query.skipRefresh) {
-      const [ws, syncLink] = await Promise.all([
-        db.prisma().workspace.findUnique({
-          where: { id: workspaceId },
-          select: { featuresEnabled: true },
-        }),
-        db.prisma().configurationObjectLink.findFirst({
-          where: { id: query.syncId, workspaceId, type: "sync", deleted: false },
-          select: { createdAt: true, updatedAt: true },
-        }),
-      ]);
-      if (ws && syncLink && cronjobsEnabledForSync(ws, syncLink)) {
-        log
-          .atInfo()
-          .log(
-            `Ignoring scheduled run for sync ${query.syncId} in workspace ${workspaceId}: cronjobs feature is enabled, autonomous CronJob handles scheduling.`
-          );
-        return { ok: true };
-      }
+    // Every sync is scheduled by a syncctl-managed CronJob now, so any
+    // external scheduled trigger (legacy Cloud Scheduler → SYNCCTL_AUTH_KEY
+    // bearer) is a no-op — letting it through would double-schedule.
+    if (trigger === "scheduled") {
+      log
+        .atInfo()
+        .log(
+          `Ignoring scheduled run for sync ${query.syncId} in workspace ${workspaceId}: syncctl CronJob handles scheduling.`
+        );
+      return { ok: true };
     }
     const result = await scheduleSync({
       req,
@@ -114,8 +95,6 @@ export const route = createRoute()
       fullSync: isTruish(query.fullSync),
       syncIdOrModel: query.syncId as string,
       ignoreRunning: !!query.ignoreRunning,
-      skipRefresh: !!query.skipRefresh,
-      nodelay: !!query.nodelay,
       taskId: query.taskId,
     });
     if (!result.ok) {

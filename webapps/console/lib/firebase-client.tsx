@@ -101,7 +101,7 @@ async function getCustomClaim(user: auth.User, claimName: string): Promise<strin
 }
 
 function getCSRFToken(cookieName: string) {
-  const token = randomId(100);
+  const token = randomId({ digits: 100, strongRandom: true });
   document.cookie = `${cookieName}=${token}; expires=0; path=/`;
   return token;
 }

@@ -63,12 +63,6 @@
       "persistent": true
     },
     // Needs ^build-deps for workspace package imports
-    "ee-api:dev": {
-      "dependsOn": ["^build-deps"],
-      "cache": false,
-      "persistent": true
-    },
-    // Needs ^build-deps for workspace package imports
     "rotor:dev": {
       "dependsOn": ["^build-deps"],
       "cache": false,

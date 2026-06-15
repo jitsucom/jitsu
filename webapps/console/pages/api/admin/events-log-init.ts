@@ -9,6 +9,9 @@ const log = getServerLog("events-log-init");
 
 export default createRoute()
   .GET({
+    // GET but creates ClickHouse tables. The maintenance gate blocks it;
+    // operator re-runs after maintenance ends.
+    mutates: true,
     query: z.object({
       token: z.string().optional(),
     }),
@@ -30,7 +33,8 @@ export default createRoute()
       await verifyAdmin(user);
     }
     log.atInfo().log(`Init events log`);
-    const metricsSchema = getClickhouseConfig(serverEnv).database;
+    const chConfig = getClickhouseConfig(serverEnv);
+    const metricsSchema = chConfig.database;
     const metricsCluster = serverEnv.CLICKHOUSE_METRICS_CLUSTER || serverEnv.CLICKHOUSE_CLUSTER;
     const onCluster = metricsCluster ? ` ON CLUSTER ${metricsCluster}` : "";
     const createDbQuery: string = `create database IF NOT EXISTS ${metricsSchema}${onCluster}`;
@@ -122,6 +126,94 @@ export default createRoute()
       log.atError().withCause(e).log(`Failed to create ${metricsSchema}.dead_letter table.`);
       errors.push(new Error(`Failed to create ${metricsSchema}.dead_letter table.`));
     }
+    // --- events_log retention: cutoff dictionary + dictGet-driven TTL ---
+    // Goal: keep the newest EVENTS_LOG_SIZE rows per (actorId, type, is_error).
+    // The dictionary holds, per entity, the timestamp of the N-th newest row
+    // (its retention cutoff); events_log's TTL deletes anything older on merge.
+    // This replaces the old full-table scan + lightweight-delete trim and,
+    // unlike lightweight deletes, TTL DELETE physically reclaims disk on merge.
+
+    // The cutoffs live in their own small table rather than being computed by
+    // the dictionary directly from events_log: a dictionary that sourced from
+    // events_log while events_log's TTL references that dictionary would be a
+    // cyclic dependency (ClickHouse rejects it). events-log-trim recomputes the
+    // contents of this table (one row per over-cap entity).
+    // The `_staging` twin lets the trim job rebuild cutoffs and swap them in
+    // atomically (EXCHANGE TABLES), so a transient recompute failure never
+    // leaves the live table empty (which would pause retention).
+    const cutoffTable = (name: string): string => `create table IF NOT EXISTS ${metricsSchema}.${name} ${onCluster}
+         (
+           actorId String,
+           type String,
+           is_error UInt8,
+           cutoff DateTime64(3)
+         )
+         engine = ${
+           metricsCluster
+             ? "ReplicatedMergeTree('/clickhouse/tables/{shard}/" + metricsSchema + "/" + name + "', '{replica}')"
+             : "MergeTree()"
+         }
+        ORDER BY (actorId, type, is_error)`;
+    for (const name of ["events_log_cutoff_src", "events_log_cutoff_staging"]) {
+      try {
+        await clickhouse.command({ query: cutoffTable(name) });
+        log.atInfo().log(`Table ${metricsSchema}.${name} created or already exists`);
+      } catch (e: any) {
+        log.atError().withCause(e).log(`Failed to create ${metricsSchema}.${name} table.`);
+        errors.push(new Error(`Failed to create ${metricsSchema}.${name} table.`));
+      }
+    }
+
+    // Credentials are interpolated into the DDL, so escape single quotes (the
+    // values come from trusted config, not user input). Note the rendered DDL
+    // — including these creds — is visible in ClickHouse query logs and
+    // SHOW CREATE; a named collection is the follow-up to remove that exposure.
+    const sqlLit = (s: string): string => s.replace(/'/g, "''");
+    const chUser = sqlLit(chConfig.username);
+    const chPass = sqlLit(chConfig.password);
+    const createCutoffDictQuery: string = `create dictionary IF NOT EXISTS ${metricsSchema}.events_log_cutoff ${onCluster}
+         (
+           actorId String,
+           type String,
+           is_error UInt8,
+           cutoff DateTime64(3)
+         )
+         PRIMARY KEY actorId, type, is_error
+         SOURCE(CLICKHOUSE(
+           user '${chUser}' password '${chPass}' db '${metricsSchema}' table 'events_log_cutoff_src'
+         ))
+         LAYOUT(COMPLEX_KEY_HASHED())
+         LIFETIME(MIN 1800 MAX 3600)`;
+    try {
+      await clickhouse.command({ query: createCutoffDictQuery });
+      log.atInfo().log(`Dictionary ${metricsSchema}.events_log_cutoff created or already exists`);
+    } catch (e: any) {
+      log.atError().withCause(e).log(`Failed to create ${metricsSchema}.events_log_cutoff dictionary.`);
+      errors.push(new Error(`Failed to create ${metricsSchema}.events_log_cutoff dictionary.`));
+    }
+
+    // Attach the retention TTL. allow_suspicious_ttl_expressions is required
+    // because dictGet is non-deterministic; materialize_ttl_after_modify=0
+    // avoids an immediate full-table mutation on deploy — enforcement happens
+    // on background merges and via the events-log-trim cron's MATERIALIZE TTL.
+    const modifyTtlQuery: string = `alter table ${metricsSchema}.events_log ${onCluster} modify TTL toDateTime(
+           if(timestamp < dictGetOrDefault('${metricsSchema}.events_log_cutoff', 'cutoff', (actorId, type, toUInt8(level = 'error')), toDateTime64('1970-01-01 00:00:00', 3)),
+              toDateTime('2000-01-01 00:00:00'),
+              toDateTime('2099-01-01 00:00:00'))) DELETE`;
+    try {
+      await clickhouse.command({
+        query: modifyTtlQuery,
+        clickhouse_settings: {
+          allow_suspicious_ttl_expressions: 1,
+          materialize_ttl_after_modify: 0,
+        },
+      });
+      log.atInfo().log(`Retention TTL set on ${metricsSchema}.events_log`);
+    } catch (e: any) {
+      log.atError().withCause(e).log(`Failed to set retention TTL on ${metricsSchema}.events_log.`);
+      errors.push(new Error(`Failed to set retention TTL on ${metricsSchema}.events_log.`));
+    }
+
     if (errors.length > 0) {
       throw new Error("Failed to initialize tables: " + errors.map(e => e.message).join(", "));
     }

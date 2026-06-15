@@ -167,9 +167,9 @@ jobs:
 
           echo "Publishing client libraries to NPM with tag: ${NPM_TAG}"
 
-          docker exec builder sh -c "cd types/protocols && npm publish --tag ${NPM_TAG} --access public --provenance"
-          docker exec builder sh -c "cd libs/jitsu-js && npm publish --tag ${NPM_TAG} --access public --provenance"
-          docker exec builder sh -c "cd libs/jitsu-react && npm publish --tag ${NPM_TAG} --access public --provenance"
+          docker exec builder sh -c "cd types/protocols && pnpm publish --tag ${NPM_TAG} --access public --provenance --no-git-checks"
+          docker exec builder sh -c "cd libs/jitsu-js && pnpm publish --tag ${NPM_TAG} --access public --provenance --no-git-checks"
+          docker exec builder sh -c "cd libs/jitsu-react && pnpm publish --tag ${NPM_TAG} --access public --provenance --no-git-checks"
 
       - name: 🧹 Cleanup container
         if: always()

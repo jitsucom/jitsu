@@ -1,5 +1,5 @@
 import { createRoute } from "../../../lib/api";
-import { firebaseAuthCookieName, signOut } from "../../../lib/server/firebase-server";
+import { firebaseAuthCookieName, getAuthCookieDomain, signOut } from "../../../lib/server/firebase-server";
 import { serialize } from "cookie";
 import { getAppEndpoint } from "../../../lib/domains";
 import { getServerLog } from "../../../lib/server/log";
@@ -20,12 +20,17 @@ export default createRoute()
         .log("Failed to record firebase logout audit event");
     }
     const secure = getAppEndpoint(req).protocol === "https";
+    // Name, path and domain must all match create-session, or the real cookie
+    // won't be cleared.
+    const domain = getAuthCookieDomain();
     res.setHeader(
       "Set-Cookie",
       serialize(firebaseAuthCookieName, "", {
         maxAge: 0,
         httpOnly: true,
         secure,
+        path: "/",
+        ...(domain ? { domain } : {}),
       })
     );
   })

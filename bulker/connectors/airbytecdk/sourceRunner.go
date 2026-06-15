@@ -17,9 +17,11 @@ type SourceRunner struct {
 func NewSourceRunner(src Source, w io.Writer) SourceRunner {
 	w = newSafeWriter(w)
 	msgTracker := MessageTracker{
-		Record: newRecordWriter(w),
-		State:  newStateWriter(w),
-		Log:    newLogWriter(w),
+		Record:       newRecordWriter(w),
+		State:        newStateWriter(w),
+		Log:          newLogWriter(w),
+		StreamStatus: newStreamStatusWriter(w),
+		StreamError:  newStreamErrorWriter(w),
 	}
 
 	return SourceRunner{
@@ -31,14 +33,16 @@ func NewSourceRunner(src Source, w io.Writer) SourceRunner {
 
 // Start starts your source
 // Example usage would look like this in your main.go
-//  func() main {
-// 	src := newCoolSource()
-// 	runner := airbyte.NewSourceRunner(src)
-// 	err := runner.Start()
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	 }
-//  }
+//
+//	 func() main {
+//		src := newCoolSource()
+//		runner := airbyte.NewSourceRunner(src)
+//		err := runner.Start()
+//		if err != nil {
+//			log.Fatal(err)
+//		 }
+//	 }
+//
 // Yes, it really is that easy!
 func (sr SourceRunner) Start() error {
 	switch cmd(os.Args[1]) {

@@ -31,6 +31,9 @@ function shuffle<T>(arr: T[]) {
 export default createRoute()
   .GET({
     auth: true,
+    // GET but writes (connectorPackage create/update). The k8s CronJob will get
+    // 503 during maintenance and skip; resumes when maintenance ends.
+    mutates: true,
     query: z.object({ limit: z.string().optional(), source: z.string().optional(), initial: z.string().optional() }),
   })
   .handler(async ({ user, req, query }) => {

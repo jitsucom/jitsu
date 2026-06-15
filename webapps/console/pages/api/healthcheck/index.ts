@@ -5,9 +5,7 @@ import { getServerLog } from "../../../lib/server/log";
 const healthChecks: Record<string, () => Promise<any>> = {
   prisma: async () => {
     await db.prisma.waitInit();
-    await db.prisma().configurationObject.count();
-    await db.prisma().configurationObjectLink.count();
-    await db.prisma().userProfile.count();
+    await db.prisma().workspace.findFirst();
   },
   postgres: async () => {
     await db.pgPool.waitInit();

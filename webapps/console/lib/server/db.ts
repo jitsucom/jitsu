@@ -3,7 +3,7 @@ import { Pool, PoolClient } from "pg";
 import Cursor from "pg-cursor";
 import { getSingleton, namedParameters, newError, requireDefined, stopwatch, hideSensitiveInfo } from "juava";
 import { getServerLog } from "./log";
-import { isReadOnly } from "./read-only-mode";
+import { isMaintenanceActive } from "./maintenance";
 import { isTruish } from "../shared/chores";
 import { getServerEnv } from "./serverEnv";
 
@@ -217,20 +217,23 @@ export function createPrisma(): PrismaClient {
         );
     }
   });
-  if (isReadOnly) {
-    return prisma.$extends({
-      query: {
-        $allModels: {
-          async $allOperations({ operation, args, query }) {
-            if (mutationActions.find(candidate => operation.indexOf(candidate) === 0)) {
-              throw new Error(`Prisma operation ${operation} is not allowed in read-only mode`);
-            }
-            return query(args);
-          },
+  // Read-only backstop is *always* attached but checked per-operation against the
+  // current maintenance state (cached with a short TTL in lib/server/maintenance.ts),
+  // so toggling MAINTENANCE / MAINTENANCE_CONFIG_FILE takes effect within ~10s
+  // without restarting the process. Routes that handle this layer's rejection
+  // (incidental writes during reads) must wrap their write call in try/catch
+  // — see `userApiToken.update({lastUsed:...})` in lib/api.ts and
+  // `savePreferences` in pages/api/workspace/[workspaceIdOrSlug]/index.ts.
+  return prisma.$extends({
+    query: {
+      $allModels: {
+        async $allOperations({ operation, args, query }) {
+          if (isMaintenanceActive() && mutationActions.find(candidate => operation.indexOf(candidate) === 0)) {
+            throw new Error(`Prisma operation ${operation} is not allowed in read-only mode`);
+          }
+          return query(args);
         },
       },
-    }) as typeof prisma;
-  }
-
-  return prisma;
+    },
+  }) as typeof prisma;
 }

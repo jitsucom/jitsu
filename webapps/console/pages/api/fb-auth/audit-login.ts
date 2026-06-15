@@ -18,6 +18,11 @@ export const api: Api = {
   url: inferUrl(__filename),
   POST: {
     auth: false,
+    // Called from the client's sign-in flow; failures are swallowed below so
+    // a DB write that fails during maintenance won't block login. Allowing
+    // the request through means we get a 200 + best-effort audit instead of
+    // a confusing 503 on the sign-in path.
+    allowDuringMaintenance: true,
     types: {
       body: z.object({ idToken: z.string() }),
     },

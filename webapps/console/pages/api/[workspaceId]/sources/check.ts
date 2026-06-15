@@ -3,7 +3,6 @@ import { z } from "zod";
 import { createRoute, verifyAccess } from "../../../../lib/api";
 import { ServiceConfig } from "../../../../lib/schema";
 import { requireDefined, rpc } from "juava";
-import { tryManageOauthCreds } from "../../../../lib/server/oauth/services";
 import { getServerLog } from "../../../../lib/server/log";
 import { syncError } from "../../../../lib/server/sync";
 import { unmaskSecretsFromOriginal, containsMaskedSecrets } from "../../../../lib/schema/secrets";
@@ -59,13 +58,14 @@ export default createRoute()
       configForTesting = unmaskSecretsFromOriginal(serviceConfig, dbServiceConfig);
     }
 
-    const config = await tryManageOauthCreds(configForTesting);
-
+    // Pass the ServiceConfig wrapper through to syncctl unchanged. The oauth-refresh
+    // init container inside the syncctl Pod handles Nango refresh — console no
+    // longer touches OAuth credentials.
     try {
       const checkRes = await rpc(syncURL + "/check", {
         method: "POST",
         body: {
-          config: config,
+          source: configForTesting,
         },
         headers: {
           "Content-Type": "application/json",

@@ -4,22 +4,23 @@ import { getServerEnv } from "../../../lib/server/serverEnv";
 import { getServerLog } from "../../../lib/server/log";
 import { checkQuota } from "../../../lib/server/sync";
 import { isEEAvailable } from "../../../lib/server/ee";
+import { isMaintenanceActive } from "../../../lib/server/maintenance";
 
 const log = getServerLog("sync-quota-check");
 const serverEnv = getServerEnv();
 
-// Admission gate for the autonomous CronJob path: called by the sidecar's
-// `quota-check` init container *before* a sync pod does any real work, so
-// we don't spend pod minutes on a sync the workspace can't afford. Mirrors
-// the in-process `checkQuota` that the legacy /sources/run path runs inside
-// `scheduleSync`.
+// Admission gate for syncctl-spawned read Pods: called by the sidecar's
+// `quota-check` init container *before* the Pod does any real work, so we
+// don't spend pod minutes on a sync the workspace can't afford. The same
+// `checkQuota` helper is invoked from `scheduleSync` for manual /sources/run
+// triggers, so both entry points enforce identical quota semantics.
 //
-// Auth: SYNCCTL_AUTH_KEY bearer (same as /sources/run for scheduler-mode
-// calls). EE JWT signing stays in the console process — sidecar pods don't
-// need the EE private key.
+// Auth: SYNCCTL_AUTH_KEY bearer. EE JWT signing stays in the console process
+// — sidecar pods don't need the EE private key.
 //
-// 200 on pass, 403 on quota exceeded, 503 on EE unreachable (fail-open like
-// the original — billing server outage shouldn't paralyze syncs).
+// 200 on pass, 403 on quota exceeded. EE-unreachable / billing-server-down
+// falls through to admission (fail-open inside `checkQuota`) so a billing
+// blip doesn't paralyze every scheduled sync.
 export default createRoute()
   .GET({
     auth: false,
@@ -39,6 +40,19 @@ export default createRoute()
       res.status(401).send({ ok: false, error: "Authorization Required" });
       return;
     }
+    // Block syncs from starting while maintenance is active. The sidecar's
+    // quota-check init container reads ok=false and exits 1; the k8s CronJob
+    // retries on its next tick, so this naturally turns into a "wait until
+    // maintenance ends" loop without any extra coordination.
+    if (isMaintenanceActive()) {
+      log.atInfo().log(`Sync ${query.syncId} (workspace ${query.workspaceId}) blocked: maintenance is active`);
+      res.status(200).send({
+        ok: false,
+        error: "Jitsu is in maintenance mode; sync is blocked until the maintenance window ends.",
+        errorType: "maintenance",
+      });
+      return;
+    }
     if (!isEEAvailable()) {
       // No EE → no quotas → admit.
       res.status(200).send({ ok: true, ee: false });
@@ -52,9 +66,14 @@ export default createRoute()
         // ignore malformed startedBy — fall back to default
       }
     }
+    // Derive the trigger from startedBy rather than hardcoding "scheduled":
+    // manual /sources/run pods also run this admission init now, and labeling
+    // their quota check as "scheduled" would misattribute usage (console's
+    // scheduleSync already checked manual quota before dispatching /read).
+    const trigger = startedBy?.trigger === "manual" ? "manual" : "scheduled";
     const result = await checkQuota({
       req,
-      trigger: "scheduled",
+      trigger,
       workspaceId: query.workspaceId,
       syncId: query.syncId,
       package: query.package,
@@ -70,7 +89,10 @@ export default createRoute()
             result.error
           }`
         );
-      res.status(403).send(result);
+      // 200 with ok=false — this is the verdict, not an HTTP error. The sidecar
+      // blocks only on a parsed ok=false; any non-200 it reads as fail-open and
+      // lets the run through. 401 (auth) stays the sole non-200 outcome.
+      res.status(200).send({ ok: false, error: result.error, errorType: result.errorType });
       return;
     }
     res.status(200).send({ ok: true });

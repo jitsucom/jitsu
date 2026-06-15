@@ -58,6 +58,7 @@ export default createRoute()
         events: ["all"],
         recurringAlertsPeriodHours: recurringAlertsPeriodHours || 168,
         name: "Test Slack Channel",
+        summarizeBatchNotificationsByTable: true,
       };
       const statusChange: StatusChange = {
         type: con?.type === "sync" ? "sync" : "batch",

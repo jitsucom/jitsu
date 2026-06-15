@@ -29,6 +29,7 @@ const MiscList: React.FC<{}> = () => {
       type: { constant: "misc" },
       workspaceId: { constant: workspace.id },
       cloneId: { hidden: true },
+      updatedAt: { hidden: true },
       value: {
         editor: TextareaEditor,
       },

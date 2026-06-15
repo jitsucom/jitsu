@@ -8,8 +8,6 @@ import {
   parseObject,
 } from "../../../../../lib/schema/config-objects";
 import { AnyDestination, getAnnotatedConfigObjectSchema } from "../../../../../lib/openapi/annotations";
-import { ApiError } from "../../../../../lib/shared/errors";
-import { isReadOnly } from "../../../../../lib/server/read-only-mode";
 import { configObjectAuditLog } from "../../../../../lib/server/audit-log";
 import { trackTelemetryEvent, withProductAnalytics } from "../../../../../lib/server/telemetry";
 import { containsMaskedSecrets, unmaskSecretsFromOriginal } from "../../../../../lib/schema/secrets";
@@ -61,11 +59,12 @@ export const route = createRoute()
       where: { workspaceId: workspaceId, type, deleted: false },
       orderBy: { createdAt: "asc" },
     });
-    const mappedObjects = objects.map(({ id, workspaceId, config }) => ({
+    const mappedObjects = objects.map(({ id, workspaceId, config, updatedAt }) => ({
       ...(config as any),
       id,
       workspaceId,
       type,
+      updatedAt,
     }));
 
     const filteredObjects = await Promise.all(mappedObjects.map(obj => configObjectType.outputFilter(obj)));
@@ -96,9 +95,6 @@ export const route = createRoute()
   })
   .handler(async ({ req, body, user, query: { workspaceId, type } }) => {
     await verifyAccessWithRole(user, workspaceId, "editEntities");
-    if (isReadOnly) {
-      throw new ApiError("Console is in read-only mode. Modifications of objects are not allowed");
-    }
     const workspace = requireDefined(
       await db.prisma().workspace.findFirst({ where: { id: workspaceId } }),
       `Workspace ${workspaceId} not found`

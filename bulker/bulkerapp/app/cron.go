@@ -1,6 +1,7 @@
 package app
 
 import (
+	"math/rand/v2"
 	"time"
 
 	"github.com/go-co-op/gocron/v2"
@@ -29,7 +30,10 @@ func (c *Cron) AddBatchConsumer(destinationId string, batchConsumer BatchConsume
 		var delay uint32
 		spreadTablesSchedule := bulker.SpreadTablesSchedule.Get(batchConsumer.Options())
 		// spread start time to avoid all batch run at the same time
-		if spreadTablesSchedule {
+		if batchConsumer.Mode() == "retry" {
+			// random delay
+			delay = rand.Uint32N(uint32(batchPeriodSec))
+		} else if spreadTablesSchedule {
 			// all topics(topics) for the same destination will spread across the batch period
 			delay = utils.HashStringInt(batchConsumer.TopicId()) % uint32(batchPeriodSec)
 		} else {

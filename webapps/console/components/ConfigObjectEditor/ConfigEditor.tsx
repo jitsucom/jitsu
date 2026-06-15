@@ -629,7 +629,7 @@ const SingleObjectEditor: React.FC<SingleObjectEditorProps> = props => {
       await getConfigApi(workspace.id, type).create(newObject);
       if (type === "stream" && appConfig.ee.available) {
         try {
-          await eeRpc("s3-init", { method: "POST", query: { workspaceId: workspace.id } });
+          await eeRpc("s3-init", { method: "GET", query: { workspaceId: workspace.id } });
         } catch (e: any) {
           console.error("Failed to init S3 bucket", e.message);
         }

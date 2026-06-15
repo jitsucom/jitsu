@@ -41,8 +41,23 @@ type ReadSideCar struct {
 	addMeta         bool
 	deduplicate     bool
 
-	lastMessageTime   atomic.Int64
-	bulkerStartTime   atomic.Int64
+	lastMessageTime atomic.Int64
+	bulkerStartTime atomic.Int64
+	// downstreamBusy counts in-flight non-commit downstream calls (bulker
+	// Consume per record and state DB writes). The watchdog ORs this with
+	// bulkerStartTime: while either is non-zero, the sidecar is actively
+	// pushing data and the source has likely gone silent because its FIFO
+	// write is blocked — not because it's dead. Without this gate a slow
+	// destination during Consume, or a slow Postgres during state save,
+	// can starve lastMessageTime and trip the 2h watchdog falsely.
+	downstreamBusy atomic.Int64
+	// processRecordStart records the unix-time when the stdout reader
+	// entered bulker Consume (0 when not in one). The watchdog uses it to
+	// catch a wedged Consume against a slow destination — a hazard that
+	// would otherwise hide behind the downstreamBusy gate. State DB writes
+	// don't need an equivalent: the dbpool is configured with a 2-minute
+	// statement_timeout, so a stuck UpsertState fails fast with an error.
+	processRecordStart atomic.Int64
 	lastStateMessage  string
 	blk               bulker.Bulker
 	lastStream        *ActiveStream
@@ -58,7 +73,11 @@ type ReadSideCar struct {
 func (s *ReadSideCar) Run() {
 	var err error
 
-	s.dbpool, err = pg.NewPGPool(s.databaseURL)
+	// Bound every query at 2 minutes — the sidecar only does small metadata
+	// writes (task_log, source_task, source_state). Any stuck Postgres call
+	// fails fast with a cancellation error instead of blocking the stdout
+	// reader indefinitely on a wedged connection.
+	s.dbpool, err = pg.NewPGPool(s.databaseURL, pg.WithStatementTimeout(2*time.Minute))
 	if err != nil {
 		s.panic("Unable to create postgres connection pool: %v", err)
 	}
@@ -146,7 +165,19 @@ func (s *ReadSideCar) Run() {
 	defer ticker.Stop()
 	go func() {
 		for range ticker.C {
-			if s.bulkerStartTime.Load() == 0 && time.Now().Unix()-s.lastMessageTime.Load() > 8000 {
+			now := time.Now().Unix()
+			// Specific stuck-call checks first so the panic message points
+			// at the actual blocked syscall (vs. a generic "no messages").
+			if start := s.processRecordStart.Load(); start != 0 && now-start > 8000 {
+				s.panic("processRecord (bulker Consume) stuck for more than 2 hours. Exiting")
+			}
+			// Gate the source-silence panic on three signals: no commit in
+			// flight (bulkerStartTime), no per-record/state downstream work
+			// in flight (downstreamBusy), and >2h since the last sign of life
+			// (lastMessageTime — stdout, stderr, or commit completion). If
+			// any downstream path is active the source is likely blocked
+			// writing into a full FIFO, not stuck — don't kill the pod.
+			if s.bulkerStartTime.Load() == 0 && s.downstreamBusy.Load() == 0 && now-s.lastMessageTime.Load() > 8000 {
 				s.panic("No messages from %s for 2 hours. Exiting", s.packageName)
 			}
 		}
@@ -193,6 +224,13 @@ func (s *ReadSideCar) Run() {
 		scanner := bufio.NewScanner(s.errPipe)
 		scanner.Buffer(make([]byte, 1024*10), 1024*1024*10)
 		for scanner.Scan() {
+			// Source stderr counts as liveness: Python/Java connectors emit
+			// their normal logging (progress, rate-limit waits, retries) on
+			// stderr while RECORD/STATE/TRACE go to stdout. Without this the
+			// watchdog could falsely trip when the sidecar's stdout reader
+			// is busy (Consume/state save) and the source is fully chatty
+			// on stderr.
+			s.lastMessageTime.Store(time.Now().Unix())
 			line := scanner.Text()
 			s.sourceLog("ERRSTD", line)
 		}
@@ -480,10 +518,13 @@ func (s *ReadSideCar) openStream(streamName string) (*ActiveStream, error) {
 	s.lastStream = stream
 	var namespace string
 	tableNamePrefix := strings.ReplaceAll(s.tableNamePrefix, "${SOURCE_NAMESPACE}", str.Namespace)
-	tableName := utils.NvlString(str.TableName, tableNamePrefix+str.Name)
+	// Prefer the source-provided table-name template over the raw stream name:
+	// stream names may contain characters (e.g. "/") that aren't valid table names.
+	defaultTableName := utils.NvlString(str.TableNameTemplate, str.Name)
+	tableName := utils.NvlString(str.TableName, tableNamePrefix+defaultTableName)
 	if s.namespace == "${LEGACY}" {
 		namespace = ""
-		tableName = utils.NvlString(str.TableName, tableNamePrefix+streamName)
+		tableName = utils.NvlString(str.TableName, tableNamePrefix+utils.NvlString(str.TableNameTemplate, streamName))
 	} else {
 		namespace = strings.TrimSpace(strings.ReplaceAll(s.namespace, "${SOURCE_NAMESPACE}", str.Namespace))
 	}
@@ -603,6 +644,19 @@ func (s *ReadSideCar) processRecord(rec *RecordRow, size int) {
 	if s.addMeta {
 		row.Set("_jitsu_timestamp", time.Now().UTC().Format(timestamp.JsonISO))
 	}
+	// Mark downstream as busy around Consume so the watchdog doesn't false-fire
+	// when a slow destination causes the bulker buffer to back up: scanner.Scan
+	// stops iterating, lastMessageTime freezes, and the source ends up blocked
+	// in write(2) — yet the container appears "running" externally.
+	// processRecordStart bounds a genuine stall: the watchdog panics with a
+	// specific message if Consume holds for >2h.
+	s.processRecordStart.Store(time.Now().Unix())
+	s.downstreamBusy.Add(1)
+	defer func() {
+		s.lastMessageTime.Store(time.Now().Unix())
+		s.processRecordStart.Store(0)
+		s.downstreamBusy.Add(-1)
+	}()
 	err = stream.Consume(rec.Data, size)
 	if err != nil {
 		s.streamErr(stream, "error producing to bulker stream: %v", err)
@@ -631,6 +685,16 @@ func (s *ReadSideCar) panic(message string, args ...any) {
 }
 
 func (s *ReadSideCar) storeState(stream, state string) {
+	// Same gate as processRecord: a slow Postgres write here can otherwise
+	// freeze lastMessageTime while the stdout reader is parked on the DB,
+	// the source backs up on its FIFO, and the watchdog misreads the
+	// silence as a dead source. No separate stuck-call watchdog needed
+	// here — the dbpool's 2-minute statement_timeout bounds the call.
+	s.downstreamBusy.Add(1)
+	defer func() {
+		s.lastMessageTime.Store(time.Now().Unix())
+		s.downstreamBusy.Add(-1)
+	}()
 	err := db.UpsertState(s.dbpool, s.syncId, stream, state, time.Now())
 	if err != nil {
 		s.panic("error updating state: %v", err)

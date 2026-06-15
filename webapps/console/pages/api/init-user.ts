@@ -7,6 +7,7 @@ import { ApiError } from "../../lib/shared/errors";
 import { initTelemetry, withProductAnalytics } from "../../lib/server/telemetry";
 import { onUserCreated } from "../../lib/server/ee";
 import { getServerEnv } from "../../lib/server/serverEnv";
+import { isMaintenanceActive } from "../../lib/server/maintenance";
 
 const serverEnv = getServerEnv();
 
@@ -30,6 +31,18 @@ export default createRoute()
 
         //we'll try to remedy a situation, but it's not going to work for all cases
         getServerLog().atInfo().log(`User ${user.internalId} has no profile in db. Creating a new one`);
+        // The route's GET is a read for existing users (workspaceAccess found
+        // above), so we can't flip it to `mutates: true` globally — that would
+        // 503 every login during maintenance. Gate just the create-profile
+        // branch so brand-new signups get a clean maintenance error instead of
+        // a generic 500 from the Prisma read-only backstop.
+        if (isMaintenanceActive()) {
+          throw new ApiError(
+            "Jitsu is in maintenance mode; account creation is temporarily disabled. Please try again later.",
+            { code: "maintenance" },
+            { status: 503 }
+          );
+        }
         if (serverEnv.DISABLE_SIGNUP) {
           throw new ApiError("Sign up is disabled", { code: "signup-disabled" });
         }

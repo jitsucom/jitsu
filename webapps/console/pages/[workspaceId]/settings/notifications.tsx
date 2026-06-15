@@ -140,6 +140,7 @@ const NotificationChannelList: React.FC<{}> = () => {
       type: { constant: "notification" },
       workspaceId: { constant: workspace.id },
       cloneId: { hidden: true },
+      updatedAt: { hidden: true },
       events: {
         editor: EventTypeEditor,
       },
@@ -171,6 +172,15 @@ const NotificationChannelList: React.FC<{}> = () => {
         documentation: (
           <>
             How often to send recurring alerts in hours. <code>0</code> means send every status.
+          </>
+        ),
+      },
+      summarizeBatchNotificationsByTable: {
+        displayName: "Summarize Batch Notifications by Table",
+        documentation: (
+          <>
+            When a batch connection writes to multiple tables, send a single notification summarizing statuses across
+            tables instead of one notification per table.
           </>
         ),
       },

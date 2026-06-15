@@ -806,7 +806,10 @@ function SyncEditor({
     } else if (catalog) {
       for (let stream of catalog.streams ?? []) {
         const name = stream.namespace ? `${stream.namespace}.${stream.name}` : stream.name;
-        const tableName = stream.namespace && legacyMode ? `${stream.namespace}_${stream.name}` : stream.name;
+        const tableName =
+          stream.namespace && legacyMode
+            ? `${stream.namespace}_${stream.table_name_template || stream.name}`
+            : stream.table_name_template || stream.name;
         const syncModeOptions = stream.supported_sync_modes.map(m => ({
           value: m,
           label: createDisplayName(m),

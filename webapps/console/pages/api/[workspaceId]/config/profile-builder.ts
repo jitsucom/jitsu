@@ -1,22 +1,12 @@
 import { z } from "zod";
 import { createRoute, verifyAccessWithRole } from "../../../../lib/api";
 import { db } from "../../../../lib/server/db";
-import { isTruish } from "juava";
 import { ProfileBuilderDbModel } from "../../../../prisma/schema";
 import { safeParseWithDate } from "../../../../lib/zod";
 import { ApiError } from "../../../../lib/shared/errors";
 import { MASKED_SECRET } from "../../../../lib/schema/destinations";
 import { configObjectAuditLog } from "../../../../lib/server/audit-log";
 import { omitDeletedList } from "../../../../lib/server/omit-deleted";
-
-const defaultProfileBuilderFunction = `export default async function(events, user, context) {
-  context.log.info("Profile userId: " + user.id)
-  const profile = {}
-  profile.anonId = user.anonymousId
-  return {
-    traits: profile
-  }
-};`;
 
 async function updateFunctionCode(user: any, workspaceId: string, pbId: string, code: string) {
   const withFunc = await db.prisma().profileBuilder.findFirst({
@@ -126,75 +116,34 @@ const upsertOptions = {
 export const route = createRoute()
   .GET({
     auth: true,
-    query: z.object({ workspaceId: z.string(), init: z.string().optional() }),
+    query: z.object({ workspaceId: z.string() }),
     summary: "List profile builders",
     tags: ["profile-builder"],
   })
-  .handler(async ({ user, query: { workspaceId, init } }) => {
+  .handler(async ({ user, query: { workspaceId } }) => {
+    // Pure read. Bootstrap-on-empty moved to POST ./profile-builder/init so
+    // the maintenance gate can keep the read path open (lib/store/index.tsx
+    // prefetches this on every workspace load) without letting writes slip
+    // through.
     const role = await verifyAccessWithRole(user, workspaceId, "readEntities");
     const pbs = await db.prisma().profileBuilder.findMany({
       include: { functions: { include: { function: true } } },
       where: { workspaceId: workspaceId, deleted: false },
       orderBy: { createdAt: "asc" },
     });
-    if (pbs.length === 0 && isTruish(init) && role.editEntities) {
-      const func = await db.prisma().configurationObject.create({
-        data: {
-          workspaceId,
-          type: "function",
-          config: {
-            kind: "profile",
-            name: "Profile Builder function",
-            draft: defaultProfileBuilderFunction,
-            code: defaultProfileBuilderFunction,
-          },
-        },
-      });
-      await configObjectAuditLog(user, workspaceId, func.id, "function", "create", {
-        newVersion: func.config,
-      });
-      const pb = await db.prisma().profileBuilder.create({
-        data: {
-          workspaceId,
-          version: 0,
-          name: "Profile Builder",
-          intermediateStorageCredentials: {},
-          connectionOptions: {},
-        },
-      });
-      await configObjectAuditLog(user, workspaceId, pb.id, "profilebuilder", "create", {
-        newVersion: pb,
-      });
-      await db.prisma().profileBuilderFunction.create({
-        data: {
-          profileBuilderId: pb.id,
-          functionId: func.id,
-        },
-      });
-      return {
-        profileBuilders: omitDeletedList(
-          await db.prisma().profileBuilder.findMany({
-            include: { functions: { include: { function: true } } },
-            where: { workspaceId: workspaceId, deleted: false },
-            orderBy: { createdAt: "asc" },
-          })
-        ),
-      };
-    } else {
-      if (!role.editEntities) {
-        for (const pb of pbs) {
-          const functionsEnv = pb.connectionOptions?.["variables"];
-          if (typeof functionsEnv === "object" && functionsEnv !== null) {
-            for (const key in functionsEnv) {
-              functionsEnv[key] = MASKED_SECRET;
-            }
+    if (!role.editEntities) {
+      for (const pb of pbs) {
+        const functionsEnv = pb.connectionOptions?.["variables"];
+        if (typeof functionsEnv === "object" && functionsEnv !== null) {
+          for (const key in functionsEnv) {
+            functionsEnv[key] = MASKED_SECRET;
           }
         }
       }
-      return {
-        profileBuilders: omitDeletedList(pbs),
-      };
     }
+    return {
+      profileBuilders: omitDeletedList(pbs),
+    };
   })
   .POST({ ...upsertOptions, summary: "Create profile builder" })
   .handler(upsertHandler)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -110,4 +111,44 @@ func (s *SyncsRepositoryData) Store(writer io.Writer) error {
 func NewSyncsRepository(baseURL, token string, refreshPeriodSec int, cacheDir string) appbase.Repository[SyncsData] {
 	url := fmt.Sprintf("%s/syncs", baseURL)
 	return appbase.NewHTTPRepository[SyncsData]("syncs", url, token, appbase.HTTPTagLastModified, &SyncsRepositoryData{}, 1, refreshPeriodSec, cacheDir)
+}
+
+// WaitForSyncEntry blocks until the repository contains a SyncEntry for syncID
+// whose UpdatedAt is >= minUpdatedAt (or any entry at all if minUpdatedAt is
+// zero), or until the context expires. Returns the entry on success.
+//
+// Used by manual ReadHandler / DiscoverHandler to handle the race where the
+// user edits a sync in console and immediately triggers a manual run — the
+// poller might not have re-fetched yet, so syncctl would either miss the sync
+// or read a stale revision. Console passes its own `updatedAt` along; we wait
+// for parity. AbstractRepository's ChangesChannel is already consumed by the
+// cron reconciler, so we poll the in-memory snapshot instead (cheap; the data
+// is already loaded).
+func WaitForSyncEntry(ctx context.Context, repo appbase.Repository[SyncsData], syncID string, minUpdatedAt time.Time) (*SyncEntry, error) {
+	if syncID == "" {
+		return nil, fmt.Errorf("syncID required")
+	}
+	const pollInterval = 200 * time.Millisecond
+	for {
+		if data := repo.GetData(); data != nil {
+			if entry, ok := data.BySyncID[syncID]; ok {
+				if minUpdatedAt.IsZero() || !entry.UpdatedAt.Before(minUpdatedAt) {
+					return entry, nil
+				}
+			}
+		}
+		select {
+		case <-ctx.Done():
+			// On timeout, return whatever we have even if stale — the caller
+			// can decide whether to proceed with the older revision rather
+			// than failing the run outright.
+			if data := repo.GetData(); data != nil {
+				if entry, ok := data.BySyncID[syncID]; ok {
+					return entry, fmt.Errorf("timed out waiting for sync %s updatedAt >= %s (have %s)", syncID, minUpdatedAt.Format(time.RFC3339), entry.UpdatedAt.Format(time.RFC3339))
+				}
+			}
+			return nil, fmt.Errorf("timed out waiting for sync %s in repository", syncID)
+		case <-time.After(pollInterval):
+		}
+	}
 }

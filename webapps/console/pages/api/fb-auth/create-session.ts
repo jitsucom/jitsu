@@ -4,14 +4,13 @@ import {
   createSessionCookie,
   firebase,
   firebaseAuthCookieName,
+  getAuthCookieDomain,
   isUnverifiedPasswordAccount,
 } from "../../../lib/server/firebase-server";
 import { ApiError } from "../../../lib/shared/errors";
 import { SerializeOptions, serialize } from "cookie";
 import { getAppEndpoint } from "../../../lib/domains";
-import { getRequestHost } from "../../../lib/server/origin";
 import { getServerLog } from "../../../lib/server/log";
-import { getLog } from "juava";
 
 const log = getServerLog("firebase");
 
@@ -19,6 +18,10 @@ export const api: Api = {
   url: inferUrl(__filename),
   POST: {
     auth: false,
+    // Minting a session cookie from a Firebase ID token does not touch the
+    // console DB — keep sign-in working during maintenance so operators
+    // aren't locked out while toggling things.
+    allowDuringMaintenance: true,
     types: {
       body: z.object({
         csrfToken: z.string(),
@@ -47,16 +50,19 @@ export const api: Api = {
       // calls only at the actual sign-in moment. This endpoint is hit on
       // every cookie mint / refresh — too noisy to audit here.
 
-      //we need to split() since the domain might contain a port, not good for cookies
-      const domain = getRequestHost(req).split(":")[0];
-      getLog().atDebug().log(`Setting firebase auth cookie for '${domain}': ${cookie}`);
+      // Host-only by default (no Domain attribute); AUTH_COOKIE_DOMAIN widens it to
+      // a parent domain so sibling subdomains share the session.
+      const domain = getAuthCookieDomain();
+      // Never log the cookie value itself — it's a bearer session credential.
+      log.atDebug().log(`Setting firebase auth cookie (domain: ${domain ?? "host-only"}, maxAge: ${expiresIn}ms)`);
       const options: SerializeOptions = {
         maxAge: expiresIn,
         httpOnly: true,
         secure,
         path: "/",
         sameSite: "lax",
-        domain,
+        // Omit Domain entirely for a true host-only cookie; only set it when configured.
+        ...(domain ? { domain } : {}),
       };
       res.setHeader("Set-Cookie", serialize(firebaseAuthCookieName, cookie, options));
 

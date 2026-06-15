@@ -14,7 +14,7 @@ const api: Api = {
       result: ApiKey,
     },
     handle: async ({ user }) => {
-      const newKey = randomId(32);
+      const newKey = randomId({ digits: 32, strongRandom: true });
       const id = `jitsu-cli-${randomId(22)}`;
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + CLI_KEY_EXPIRATION_DAYS);

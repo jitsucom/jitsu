@@ -4,7 +4,6 @@ import { createRoute, verifyAccess } from "../../../../lib/api";
 import { hash as juavaHash, isTruish, requireDefined, rpc } from "juava";
 import { getServerLog } from "../../../../lib/server/log";
 
-import { tryManageOauthCreds } from "../../../../lib/server/oauth/services";
 import { syncError } from "../../../../lib/server/sync";
 import hash from "stable-hash";
 import { getServerEnv } from "../../../../lib/server/serverEnv";
@@ -31,6 +30,10 @@ type catalogKeyType = z.infer<typeof queryType>;
 export const route = createRoute()
   .GET({
     auth: true,
+    // Side-effecting: on cache miss, dispatches /discover to syncctl and
+    // writes a placeholder row to `newjitsu.source_catalog` via pgPool
+    // (bypassing the Prisma backstop). Block during maintenance.
+    mutates: true,
     summary: "Discover streams",
     description:
       "Asks the connector to list available streams for the given service (source). Returns the cached catalog when available; " +
@@ -86,8 +89,11 @@ export const route = createRoute()
       }
       const discoverQueryRes = await rpc(syncURL + "/discover", {
         method: "POST",
+        // Pass the source-config wrapper through unchanged. syncctl's
+        // oauth-refresh init container handles Nango refresh inside the Pod —
+        // console no longer touches OAuth credentials.
         body: {
-          config: await tryManageOauthCreds(existingService),
+          source: existingService,
         },
         headers: {
           "Content-Type": "application/json",

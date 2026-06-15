@@ -100,12 +100,14 @@ async function deployFunctions(
   const dir = `dist/${kind}s`;
   const functionsDir = path.resolve(projectDir, dir);
 
+  if (!existsSync(functionsDir)) {
+    console.warn(`No ${b(dir)} directory found, skipping ${kind}s. Please make sure that you have built the project.`);
+    return;
+  }
   const functionsFiles = readdirSync(functionsDir);
   if (functionsFiles.length === 0) {
-    console.warn(
-      red(`Can't find function files in ${b(dir)} directory. Please make sure that you have built the project.`)
-    );
-    process.exit(1);
+    console.warn(`No ${kind} files found in ${b(dir)}, skipping. Please make sure that you have built the project.`);
+    return;
   }
   const selectedFiles: string[] = [];
   if (selected) {
