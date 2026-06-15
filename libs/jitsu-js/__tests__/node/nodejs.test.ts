@@ -414,13 +414,13 @@ describe("Test Jitsu NodeJS client", () => {
       userId: "autoIdentifiedUser123",
       errorPolicy: "rethrow" as const,
     };
-    
+
     // This should initialize without throwing an unhandled exception or rejection
     let client;
     expect(() => {
       client = jitsuAnalytics(config);
     }).not.toThrow();
-    
+
     expect(client).toBeDefined();
     // Wait a brief moment to allow any unhandled rejection to fire
     await new Promise(resolve => setTimeout(resolve, 100));

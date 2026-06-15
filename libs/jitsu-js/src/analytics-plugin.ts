@@ -834,7 +834,7 @@ async function send(
       clearTimeout(abortTimeout);
     }
   } catch (e: any) {
-    const errorHandler = isAutoIdentify ? (msg) => console.warn(msg) : getErrorHandler(jitsuConfig);
+    const errorHandler = isAutoIdentify ? msg => console.warn(msg) : getErrorHandler(jitsuConfig);
     errorHandler(`Call to ${url} failed with error ${e.message}`);
     return Promise.resolve();
   }
@@ -856,7 +856,7 @@ async function send(
     );
   }
   if (!fetchResult.ok) {
-    const errorHandler = isAutoIdentify ? (msg) => console.warn(msg) : getErrorHandler(jitsuConfig);
+    const errorHandler = isAutoIdentify ? msg => console.warn(msg) : getErrorHandler(jitsuConfig);
     errorHandler(
       `Call to ${url} failed with error: ${fetchResult.status} - ${fetchResult.statusText}: ${responseText}`
     );
@@ -867,7 +867,7 @@ async function send(
   try {
     responseJson = JSON.parse(responseText);
   } catch (e) {
-    const errorHandler = isAutoIdentify ? (msg) => console.warn(msg) : getErrorHandler(jitsuConfig);
+    const errorHandler = isAutoIdentify ? msg => console.warn(msg) : getErrorHandler(jitsuConfig);
     errorHandler(`Can't parse JSON: ${responseText}: ${e?.message}`);
     return Promise.resolve();
   }
