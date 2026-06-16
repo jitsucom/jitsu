@@ -101,18 +101,31 @@ export function clearLegacyHostAuthCookie(
   req: NextApiRequest,
   opts: { secure: boolean; canonicalDomain?: string }
 ): string | undefined {
-  // Mirror the pre-AUTH_COOKIE_DOMAIN logic: host without any port suffix.
-  const legacyDomain = getRequestHost(req)?.split(":")[0];
-  if (!legacyDomain || legacyDomain === opts.canonicalDomain) {
+  // X-Forwarded-Host can be a comma-separated proxy chain — take the first hop —
+  // then drop any :port. Bracketed IPv6 / other non-domain hosts are never valid
+  // cookie domains; serialize() below rejects them and we skip the clear.
+  const legacyDomain = getRequestHost(req)?.split(",")[0]?.trim().split(":")[0];
+  // Compare scopes with leading dot stripped + lowercased: browsers treat
+  // Domain=.example.com and Domain=example.com as the same cookie (RFC 6265
+  // ignores the leading dot), so raw equality could miss the clobber and delete
+  // the fresh cookie we just set.
+  const normalize = (d?: string) => d?.replace(/^\./, "").toLowerCase();
+  if (!legacyDomain || normalize(legacyDomain) === normalize(opts.canonicalDomain)) {
     return undefined;
   }
-  return serialize(firebaseAuthCookieName, "", {
-    maxAge: 0,
-    httpOnly: true,
-    secure: opts.secure,
-    path: "/",
-    domain: legacyDomain,
-  });
+  try {
+    return serialize(firebaseAuthCookieName, "", {
+      maxAge: 0,
+      httpOnly: true,
+      secure: opts.secure,
+      path: "/",
+      domain: legacyDomain,
+    });
+  } catch {
+    // serialize() rejects malformed domains (odd Host/X-Forwarded-Host formats).
+    // This is a best-effort cleanup — never turn login/logout into a 500 over it.
+    return undefined;
+  }
 }
 
 export type FirebaseToken = { idToken: string; cookieToken?: never } | { idToken?: never; cookieToken: string };
