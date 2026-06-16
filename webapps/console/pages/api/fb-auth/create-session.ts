@@ -51,9 +51,10 @@ export const api: Api = {
       // calls only at the actual sign-in moment. This endpoint is hit on
       // every cookie mint / refresh — too noisy to audit here.
 
-      // Host-only by default (no Domain attribute); AUTH_COOKIE_DOMAIN widens it to
-      // a parent domain so sibling subdomains share the session.
-      const domain = getAuthCookieDomain();
+      // Default: Domain=<request host> (shared with that host's subdomains).
+      // AUTH_COOKIE_DOMAIN widens it to a parent domain so sibling subdomains
+      // share the session. Falls back to host-only only for unparseable hosts.
+      const domain = getAuthCookieDomain(req);
       // Never log the cookie value itself — it's a bearer session credential.
       log.atDebug().log(`Setting firebase auth cookie (domain: ${domain ?? "host-only"}, maxAge: ${expiresIn}ms)`);
       const options: SerializeOptions = {
@@ -62,14 +63,15 @@ export const api: Api = {
         secure,
         path: "/",
         sameSite: "lax",
-        // Omit Domain entirely for a true host-only cookie; only set it when configured.
+        // Omit Domain entirely only when the host can't be parsed (host-only).
         ...(domain ? { domain } : {}),
       };
-      // Also evict any legacy host-scoped (Domain=<request host>) copy left by
-      // pre-AUTH_COOKIE_DOMAIN builds; otherwise it lingers and gets sent ahead
-      // of this fresh cookie, so the user stays stuck on the stale 401.
+      // When AUTH_COOKIE_DOMAIN is set, also evict any legacy host-scoped
+      // (Domain=<request host>) copy left by pre-AUTH_COOKIE_DOMAIN builds;
+      // otherwise it lingers and is sent ahead of this fresh parent-domain
+      // cookie, keeping the user stuck on the stale 401. No-op when unset.
       const setCookies = [serialize(firebaseAuthCookieName, cookie, options)];
-      const legacyClear = clearLegacyHostAuthCookie(req, { secure, canonicalDomain: domain });
+      const legacyClear = clearLegacyHostAuthCookie(req, { secure });
       if (legacyClear) {
         setCookies.push(legacyClear);
       }

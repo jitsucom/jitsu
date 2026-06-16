@@ -27,7 +27,7 @@ export default createRoute()
     const secure = getAppEndpoint(req).protocol === "https";
     // Name, path and domain must all match create-session, or the real cookie
     // won't be cleared.
-    const domain = getAuthCookieDomain();
+    const domain = getAuthCookieDomain(req);
     const clearCookies = [
       serialize(firebaseAuthCookieName, "", {
         maxAge: 0,
@@ -37,9 +37,10 @@ export default createRoute()
         ...(domain ? { domain } : {}),
       }),
     ];
-    // Also clear any legacy host-scoped (Domain=<request host>) copy from
-    // pre-AUTH_COOKIE_DOMAIN builds, which the domain-scoped clear above misses.
-    const legacyClear = clearLegacyHostAuthCookie(req, { secure, canonicalDomain: domain });
+    // When AUTH_COOKIE_DOMAIN is set, also clear any legacy host-scoped
+    // (Domain=<request host>) copy from pre-AUTH_COOKIE_DOMAIN builds, which the
+    // parent-domain clear above misses. No-op when AUTH_COOKIE_DOMAIN is unset.
+    const legacyClear = clearLegacyHostAuthCookie(req, { secure });
     if (legacyClear) {
       clearCookies.push(legacyClear);
     }

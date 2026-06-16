@@ -70,62 +70,79 @@ export function firebase(): admin.app.App {
 
 export const firebaseAuthCookieName = "jitsu-auth";
 
-/**
- * Domain for the Firebase auth cookie, or undefined for a host-only cookie.
- * Host-only is the default — to get it the `Domain` attribute must be omitted
- * entirely, so callers should only set `domain` when this returns a value. When
- * AUTH_COOKIE_DOMAIN is set (e.g. "jitsu.com"), the cookie is shared across that
- * domain's subdomains so sibling apps (e.g. a marketing site) can read the
- * logged-in session. The set and clear paths must use the same value.
- */
-export function getAuthCookieDomain(): string | undefined {
-  return getServerEnv().AUTH_COOKIE_DOMAIN || undefined;
-}
+const normalizeDomain = (d?: string) => d?.replace(/^\./, "").toLowerCase();
 
 /**
- * Evict the legacy host-scoped auth cookie.
- *
- * Builds before AUTH_COOKIE_DOMAIN set the cookie with an explicit
- * `Domain=<request host>` attribute (e.g. `Domain=use.jitsu.com`). The browser
- * keys that as a different jar entry from today's host-only / parent-domain
- * cookie, so both can coexist and get sent together on the console host — and
- * the stale copy is ordered first, producing a 401 that neither re-login nor
- * the (domain-scoped) logout can clear. This returns a Max-Age=0 Set-Cookie
- * that deletes that legacy entry, so it's evicted on the next login or logout.
- *
- * Returns undefined when the legacy scope coincides with the current canonical
- * scope (e.g. console served directly at AUTH_COOKIE_DOMAIN) — there the legacy
- * delete would clobber the cookie we are setting, so it must be skipped.
+ * The request host as a cookie `Domain` value: first X-Forwarded-Host hop, port
+ * stripped. Returns undefined when the host is not a valid cookie domain
+ * (bracketed IPv6, malformed proxy headers) so callers fall back to a host-only
+ * cookie rather than 500-ing — validated via the same serialize() that would
+ * otherwise throw.
  */
-export function clearLegacyHostAuthCookie(
-  req: NextApiRequest,
-  opts: { secure: boolean; canonicalDomain?: string }
-): string | undefined {
-  // X-Forwarded-Host can be a comma-separated proxy chain — take the first hop —
-  // then drop any :port. Bracketed IPv6 / other non-domain hosts are never valid
-  // cookie domains; serialize() below rejects them and we skip the clear.
-  const legacyDomain = getRequestHost(req)?.split(",")[0]?.trim().split(":")[0];
-  // Compare scopes with leading dot stripped + lowercased: browsers treat
-  // Domain=.example.com and Domain=example.com as the same cookie (RFC 6265
-  // ignores the leading dot), so raw equality could miss the clobber and delete
-  // the fresh cookie we just set.
-  const normalize = (d?: string) => d?.replace(/^\./, "").toLowerCase();
-  if (!legacyDomain || normalize(legacyDomain) === normalize(opts.canonicalDomain)) {
+function getRequestCookieHost(req: NextApiRequest): string | undefined {
+  const host = getRequestHost(req)?.split(",")[0]?.trim().split(":")[0];
+  if (!host) {
     return undefined;
   }
   try {
-    return serialize(firebaseAuthCookieName, "", {
-      maxAge: 0,
-      httpOnly: true,
-      secure: opts.secure,
-      path: "/",
-      domain: legacyDomain,
-    });
+    serialize(firebaseAuthCookieName, "", { domain: host });
+    return host;
   } catch {
-    // serialize() rejects malformed domains (odd Host/X-Forwarded-Host formats).
-    // This is a best-effort cleanup — never turn login/logout into a 500 over it.
     return undefined;
   }
+}
+
+/**
+ * Domain for the Firebase auth cookie.
+ *
+ * - AUTH_COOKIE_DOMAIN set (e.g. "jitsu.com") → scope the cookie to that parent
+ *   domain so sibling apps (e.g. a marketing site) share the logged-in session.
+ * - Unset (default) → the request host, giving a `Domain=<host>` cookie that —
+ *   like the original behaviour — is shared with that host's subdomains.
+ *
+ * Returns undefined only when the host can't be parsed into a valid cookie
+ * domain; callers then omit `Domain` entirely (host-only) instead of failing.
+ * The set and clear paths must use the same value.
+ */
+export function getAuthCookieDomain(req: NextApiRequest): string | undefined {
+  return getServerEnv().AUTH_COOKIE_DOMAIN || getRequestCookieHost(req);
+}
+
+/**
+ * Evict the legacy host-scoped auth cookie — only when AUTH_COOKIE_DOMAIN is set.
+ *
+ * Builds before AUTH_COOKIE_DOMAIN set the cookie with an explicit
+ * `Domain=<request host>` attribute (e.g. `Domain=use.jitsu.com`). Once
+ * AUTH_COOKIE_DOMAIN widens the canonical cookie to a parent domain
+ * (`Domain=jitsu.com`), that host-scoped copy becomes a different, orphaned jar
+ * entry: both are sent on the console host, the stale one is ordered first, and
+ * the resulting 401 can't be cleared by re-login or the (parent-domain) logout.
+ * This returns a Max-Age=0 Set-Cookie that deletes it on the next login/logout.
+ *
+ * Returns undefined when AUTH_COOKIE_DOMAIN is unset (the canonical cookie is
+ * already `Domain=<host>`, so it overwrites the legacy entry in place — nothing
+ * to clear), or when the legacy scope coincides with AUTH_COOKIE_DOMAIN (console
+ * served at the parent domain — clearing it would clobber the cookie just set).
+ */
+export function clearLegacyHostAuthCookie(req: NextApiRequest, opts: { secure: boolean }): string | undefined {
+  const canonicalDomain = getServerEnv().AUTH_COOKIE_DOMAIN || undefined;
+  if (!canonicalDomain) {
+    return undefined;
+  }
+  const legacyDomain = getRequestCookieHost(req);
+  // Compare with leading dot stripped + lowercased: browsers treat
+  // Domain=.example.com and Domain=example.com as the same cookie (RFC 6265
+  // ignores the leading dot), so raw equality could miss the clobber.
+  if (!legacyDomain || normalizeDomain(legacyDomain) === normalizeDomain(canonicalDomain)) {
+    return undefined;
+  }
+  return serialize(firebaseAuthCookieName, "", {
+    maxAge: 0,
+    httpOnly: true,
+    secure: opts.secure,
+    path: "/",
+    domain: legacyDomain,
+  });
 }
 
 export type FirebaseToken = { idToken: string; cookieToken?: never } | { idToken?: never; cookieToken: string };
