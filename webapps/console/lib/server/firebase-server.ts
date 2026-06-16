@@ -181,10 +181,12 @@ export function isUnverifiedPasswordAccount(decoded: admin.auth.DecodedIdToken):
 export async function getFirebaseUser(req: NextApiRequest, checkRevoked?: boolean): Promise<SessionUser | undefined> {
   const authToken = getFirebaseToken(req);
   if (!authToken) {
-    // No bearer token and no auth cookie — the request reaches the 401 with no
-    // other app-side trace, so log it here with request context.
+    // No bearer token and no auth cookie. This is routine for any anonymous hit
+    // on an auth:true route (logged-out browsing, pre-sign-in load, bots), so
+    // keep it at debug to avoid log spam — a *failed* cookie below is the real
+    // anomaly and is logged at warn.
     getServerLog()
-      .atWarn()
+      .atDebug()
       .log(`Firebase auth missing — no token or session cookie (${authLogContext(req)})`);
     return undefined;
   }
