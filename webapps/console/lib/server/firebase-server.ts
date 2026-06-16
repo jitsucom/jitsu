@@ -6,6 +6,8 @@ import * as JSON5 from "json5";
 import { getErrorMessage, getSingleton, requireDefined, Singleton } from "juava";
 import { getServerLog } from "./log";
 import { getServerEnv } from "./serverEnv";
+import { getRequestHost } from "./origin";
+import { serialize } from "cookie";
 
 export type FirebaseOptions = {
   admin: any;
@@ -78,6 +80,39 @@ export const firebaseAuthCookieName = "jitsu-auth";
  */
 export function getAuthCookieDomain(): string | undefined {
   return getServerEnv().AUTH_COOKIE_DOMAIN || undefined;
+}
+
+/**
+ * Evict the legacy host-scoped auth cookie.
+ *
+ * Builds before AUTH_COOKIE_DOMAIN set the cookie with an explicit
+ * `Domain=<request host>` attribute (e.g. `Domain=use.jitsu.com`). The browser
+ * keys that as a different jar entry from today's host-only / parent-domain
+ * cookie, so both can coexist and get sent together on the console host — and
+ * the stale copy is ordered first, producing a 401 that neither re-login nor
+ * the (domain-scoped) logout can clear. This returns a Max-Age=0 Set-Cookie
+ * that deletes that legacy entry, so it's evicted on the next login or logout.
+ *
+ * Returns undefined when the legacy scope coincides with the current canonical
+ * scope (e.g. console served directly at AUTH_COOKIE_DOMAIN) — there the legacy
+ * delete would clobber the cookie we are setting, so it must be skipped.
+ */
+export function clearLegacyHostAuthCookie(
+  req: NextApiRequest,
+  opts: { secure: boolean; canonicalDomain?: string }
+): string | undefined {
+  // Mirror the pre-AUTH_COOKIE_DOMAIN logic: host without any port suffix.
+  const legacyDomain = getRequestHost(req)?.split(":")[0];
+  if (!legacyDomain || legacyDomain === opts.canonicalDomain) {
+    return undefined;
+  }
+  return serialize(firebaseAuthCookieName, "", {
+    maxAge: 0,
+    httpOnly: true,
+    secure: opts.secure,
+    path: "/",
+    domain: legacyDomain,
+  });
 }
 
 export type FirebaseToken = { idToken: string; cookieToken?: never } | { idToken?: never; cookieToken: string };

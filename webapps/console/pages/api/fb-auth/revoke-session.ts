@@ -1,5 +1,10 @@
 import { createRoute } from "../../../lib/api";
-import { firebaseAuthCookieName, getAuthCookieDomain, signOut } from "../../../lib/server/firebase-server";
+import {
+  clearLegacyHostAuthCookie,
+  firebaseAuthCookieName,
+  getAuthCookieDomain,
+  signOut,
+} from "../../../lib/server/firebase-server";
 import { serialize } from "cookie";
 import { getAppEndpoint } from "../../../lib/domains";
 import { getServerLog } from "../../../lib/server/log";
@@ -23,15 +28,21 @@ export default createRoute()
     // Name, path and domain must all match create-session, or the real cookie
     // won't be cleared.
     const domain = getAuthCookieDomain();
-    res.setHeader(
-      "Set-Cookie",
+    const clearCookies = [
       serialize(firebaseAuthCookieName, "", {
         maxAge: 0,
         httpOnly: true,
         secure,
         path: "/",
         ...(domain ? { domain } : {}),
-      })
-    );
+      }),
+    ];
+    // Also clear any legacy host-scoped (Domain=<request host>) copy from
+    // pre-AUTH_COOKIE_DOMAIN builds, which the domain-scoped clear above misses.
+    const legacyClear = clearLegacyHostAuthCookie(req, { secure, canonicalDomain: domain });
+    if (legacyClear) {
+      clearCookies.push(legacyClear);
+    }
+    res.setHeader("Set-Cookie", clearCookies);
   })
   .toNextApiHandler();

@@ -1,6 +1,7 @@
 import { Api, inferUrl, nextJsApiHandler } from "../../../lib/api";
 import { z } from "zod";
 import {
+  clearLegacyHostAuthCookie,
   createSessionCookie,
   firebase,
   firebaseAuthCookieName,
@@ -64,7 +65,15 @@ export const api: Api = {
         // Omit Domain entirely for a true host-only cookie; only set it when configured.
         ...(domain ? { domain } : {}),
       };
-      res.setHeader("Set-Cookie", serialize(firebaseAuthCookieName, cookie, options));
+      // Also evict any legacy host-scoped (Domain=<request host>) copy left by
+      // pre-AUTH_COOKIE_DOMAIN builds; otherwise it lingers and gets sent ahead
+      // of this fresh cookie, so the user stays stuck on the stale 401.
+      const setCookies = [serialize(firebaseAuthCookieName, cookie, options)];
+      const legacyClear = clearLegacyHostAuthCookie(req, { secure, canonicalDomain: domain });
+      if (legacyClear) {
+        setCookies.push(legacyClear);
+      }
+      res.setHeader("Set-Cookie", setCookies);
 
       return { ok: true };
     },
