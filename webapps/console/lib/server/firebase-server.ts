@@ -127,6 +127,32 @@ export function getFirebaseToken(req: NextApiRequest): FirebaseToken | undefined
   }
 }
 
+/**
+ * Count how many `jitsu-auth` cookies the request actually carries. `req.cookies`
+ * collapses duplicate names to the first occurrence, so it can't reveal the
+ * duplicate-cookie condition that causes a stale copy to win — only the raw
+ * Cookie header can. A count > 1 means two scoped copies coexist (e.g. a legacy
+ * Domain=<host> cookie alongside a Domain=<AUTH_COOKIE_DOMAIN> one), which makes
+ * the browser send the stale one first. Counts only — never the values, which
+ * are bearer session credentials.
+ */
+export function countAuthCookies(req: NextApiRequest): number {
+  const raw = req.headers.cookie;
+  if (!raw) {
+    return 0;
+  }
+  return raw.split(";").filter(pair => pair.trim().startsWith(`${firebaseAuthCookieName}=`)).length;
+}
+
+/**
+ * Request context for auth-failure logs — enough to correlate a 401 with the
+ * request without cross-referencing the gateway access logs, plus the
+ * duplicate-cookie signal. Contains no secrets.
+ */
+function authLogContext(req: NextApiRequest): string {
+  return `method=${req.method} path=${req.url} host=${getRequestHost(req)} jitsuAuthCookies=${countAuthCookies(req)}`;
+}
+
 export async function linkFirebaseUser(firebaseId: string, internalId: string) {
   await firebase().auth().setCustomUserClaims(firebaseId, { internalId });
 }
@@ -155,6 +181,11 @@ export function isUnverifiedPasswordAccount(decoded: admin.auth.DecodedIdToken):
 export async function getFirebaseUser(req: NextApiRequest, checkRevoked?: boolean): Promise<SessionUser | undefined> {
   const authToken = getFirebaseToken(req);
   if (!authToken) {
+    // No bearer token and no auth cookie — the request reaches the 401 with no
+    // other app-side trace, so log it here with request context.
+    getServerLog()
+      .atWarn()
+      .log(`Firebase auth missing — no token or session cookie (${authLogContext(req)})`);
     return undefined;
   }
   //make sure service is initialized
@@ -168,10 +199,12 @@ export async function getFirebaseUser(req: NextApiRequest, checkRevoked?: boolea
           .auth()
           .verifySessionCookie(authToken.cookieToken as string, checkRevoked);
   } catch (e) {
+    // Context lets a single line explain the 401 (which route, host) and flags
+    // the duplicate-cookie case (jitsuAuthCookies>1) that makes a stale copy win.
     getServerLog()
       .atWarn()
       .withCause(e)
-      .log(`Failed to verify firebase token: ${getErrorMessage(e)}`);
+      .log(`Failed to verify firebase token: ${getErrorMessage(e)} (${authLogContext(req)})`);
     return;
   }
 
