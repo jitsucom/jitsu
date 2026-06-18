@@ -380,6 +380,12 @@ const gtmDeviceDestination = {
   credentials: z.object({
     containerId: z.string().describe("The Container ID uniquely identifies the GTM Container."),
     dataLayerName: z.string().default("dataLayer").describe("The name of the data layer variable."),
+    loadGtm: z
+      .boolean()
+      .default(true)
+      .describe(
+        "Load GTM::Whether Jitsu should load the Google Tag Manager script. Disable this if you load GTM yourself (e.g. on page load) so tags are ready before navigation — Jitsu will only push events to the data layer."
+      ),
   }),
   deviceOptions: {
     type: "internal-plugin",

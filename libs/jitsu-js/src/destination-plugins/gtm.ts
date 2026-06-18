@@ -5,6 +5,9 @@ import { applyFilters, CommonDestinationCredentials, InternalPlugin } from "./in
 export type GtmDestinationCredentials = {
   containerId?: string;
   dataLayerName?: string;
+  // When false, Jitsu does not inject the GTM script — the client is expected to load
+  // GTM itself (e.g. on page load). Jitsu still pushes events to the data layer.
+  loadGtm?: boolean;
 } & CommonDestinationCredentials;
 
 function omit(obj: any, ...keys: string[]) {
@@ -111,12 +114,20 @@ function setGtmState(s: GtmState) {
 }
 
 async function initGtmIfNeeded(config: GtmDestinationCredentials, payload: AnalyticsClientEvent) {
+  const dlName = config.dataLayerName || "dataLayer";
+
+  // The client loads GTM itself: don't inject the GTM script. We only make sure the data
+  // layer exists so events can be pushed; the client-loaded GTM container will process them.
+  if (config.loadGtm === false) {
+    window[dlName] = window[dlName] || [];
+    return;
+  }
+
   if (getGtmState() !== "fresh") {
     return;
   }
   setGtmState("loading");
 
-  const dlName = config.dataLayerName || "dataLayer";
   const tagId = config.containerId;
 
   (function (w, l, i) {
