@@ -107,15 +107,15 @@ export const gtmPlugin: InternalPlugin<GtmDestinationCredentials> = {
     // entirely when resetDataLayer is disabled (the integrator wants values to persist).
     if (config.resetDataLayer !== false) {
       if (config.loadGtm === false) {
-        // The client loads GTM itself and may keep its own data-layer values. Clear only the
-        // keys Jitsu set this event and leave everything set outside Jitsu untouched. `event` is
-        // omitted: it's already consumed by the trigger, and omitting it keeps this a data-only
-        // push that won't fire event-based triggers.
-        const cleared: Record<string, null> = {};
+        // The client loads GTM itself and may keep its own data-layer values. Clear only the keys
+        // Jitsu set this event (mirroring reset() for those keys) and leave everything set outside
+        // Jitsu untouched. Values are set to `undefined` rather than `null` so data-layer variables
+        // read them as "missing" — same as the reset() path. `event` is cleared too (so a stale
+        // event name doesn't linger); since its value becomes undefined, this stays a data-only
+        // push that won't re-fire event-based triggers.
+        const cleared: Record<string, undefined> = {};
         pushedKeys.forEach(k => {
-          if (k !== "event") {
-            cleared[k] = null;
-          }
+          cleared[k] = undefined;
         });
         if (Object.keys(cleared).length > 0) {
           dataLayer.push(cleared);
