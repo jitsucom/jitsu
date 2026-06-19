@@ -8,6 +8,9 @@ export type GtmDestinationCredentials = {
   // When false, Jitsu does not inject the GTM script — the client is expected to load
   // GTM itself (e.g. on page load). Jitsu still pushes events to the data layer.
   loadGtm?: boolean;
+  // When true (default), Jitsu clears the data it pushed after each event so values from one
+  // event don't leak into the next. Set to false to let values persist across events.
+  resetDataLayer?: boolean;
 } & CommonDestinationCredentials;
 
 function omit(obj: any, ...keys: string[]) {
@@ -100,25 +103,29 @@ export const gtmPlugin: InternalPlugin<GtmDestinationCredentials> = {
         pushToDataLayer(identifyEvent);
         break;
     }
-    if (config.loadGtm === false) {
-      // The client loads GTM itself and may keep its own data-layer values. Clear only the
-      // keys Jitsu set this event (so they don't accumulate across events) and leave everything
-      // set outside Jitsu untouched. `event` is omitted: it's already consumed by the trigger,
-      // and omitting it keeps this a data-only push that won't fire event-based triggers.
-      const cleared: Record<string, null> = {};
-      pushedKeys.forEach(k => {
-        if (k !== "event") {
-          cleared[k] = null;
+    // By default, clear the data Jitsu pushed so it doesn't accumulate across events. Skip this
+    // entirely when resetDataLayer is disabled (the integrator wants values to persist).
+    if (config.resetDataLayer !== false) {
+      if (config.loadGtm === false) {
+        // The client loads GTM itself and may keep its own data-layer values. Clear only the
+        // keys Jitsu set this event and leave everything set outside Jitsu untouched. `event` is
+        // omitted: it's already consumed by the trigger, and omitting it keeps this a data-only
+        // push that won't fire event-based triggers.
+        const cleared: Record<string, null> = {};
+        pushedKeys.forEach(k => {
+          if (k !== "event") {
+            cleared[k] = null;
+          }
+        });
+        if (Object.keys(cleared).length > 0) {
+          dataLayer.push(cleared);
         }
-      });
-      if (Object.keys(cleared).length > 0) {
-        dataLayer.push(cleared);
+      } else {
+        // Jitsu loaded GTM itself, so it owns the data layer: reset the whole model between events.
+        dataLayer.push(function (this: { reset: () => void }) {
+          this.reset();
+        });
       }
-    } else {
-      // Jitsu loaded GTM itself, so it owns the data layer: reset the whole model between events.
-      dataLayer.push(function (this: { reset: () => void }) {
-        this.reset();
-      });
     }
   },
 };

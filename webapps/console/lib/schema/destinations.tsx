@@ -386,6 +386,12 @@ const gtmDeviceDestination = {
       .describe(
         "Load GTM::Whether Jitsu should load the Google Tag Manager script. Disable this if you load GTM yourself (e.g. on page load) so tags are ready before navigation — Jitsu will only push events to the data layer."
       ),
+    resetDataLayer: z
+      .boolean()
+      .default(true)
+      .describe(
+        "Reset Data Layer::Clear the data Jitsu pushed after each event so values don't leak between events. GTM merges every push into a single persistent data model, so without resetting, properties from one event (event properties, traits, user data, etc.) stay set and can be picked up by tags firing on later, unrelated events. Recommended. Disable only if you intentionally rely on values persisting across events, or if another system already manages clearing the data layer."
+      ),
   }),
   deviceOptions: {
     type: "internal-plugin",
