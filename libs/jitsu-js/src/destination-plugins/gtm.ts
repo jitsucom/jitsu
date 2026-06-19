@@ -60,7 +60,10 @@ export const gtmPlugin: InternalPlugin<GtmDestinationCredentials> = {
     if (debug) {
       console.debug("GTM plugin will set following context (page) related data layer vars", ids);
     }
+    // Keys Jitsu pushes for this event, so we can clear exactly them later.
+    const pushedKeys = new Set<string>();
     const pushToDataLayer = (data: any) => {
+      Object.keys(data).forEach(k => pushedKeys.add(k));
       dataLayer.push(data);
       if (debug) {
         console.debug("GTM plugin will push following data to dataLayer", data);
@@ -97,9 +100,26 @@ export const gtmPlugin: InternalPlugin<GtmDestinationCredentials> = {
         pushToDataLayer(identifyEvent);
         break;
     }
-    dataLayer.push(function (this: { reset: () => void }) {
-      this.reset();
-    });
+    if (config.loadGtm === false) {
+      // The client loads GTM itself and may keep its own data-layer values. Clear only the
+      // keys Jitsu set this event (so they don't accumulate across events) and leave everything
+      // set outside Jitsu untouched. `event` is omitted: it's already consumed by the trigger,
+      // and omitting it keeps this a data-only push that won't fire event-based triggers.
+      const cleared: Record<string, null> = {};
+      pushedKeys.forEach(k => {
+        if (k !== "event") {
+          cleared[k] = null;
+        }
+      });
+      if (Object.keys(cleared).length > 0) {
+        dataLayer.push(cleared);
+      }
+    } else {
+      // Jitsu loaded GTM itself, so it owns the data layer: reset the whole model between events.
+      dataLayer.push(function (this: { reset: () => void }) {
+        this.reset();
+      });
+    }
   },
 };
 
