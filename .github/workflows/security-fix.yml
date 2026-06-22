@@ -342,29 +342,9 @@ jobs:
           sandbox: danger-full-access
           codex-home: .github/codex/home
 
-  # Separate job so actions: write is not available to the Codex step above.
-  # ai-review.yml skips PRs opened by jitsu-code-review[bot] (codex-action's
-  # write-access check fails for app-bot actors), so we dispatch it manually.
-  # Running over all open security/* PRs is intentional — this workflow is
-  # manual, so a re-review on an older PR is harmless.
-  trigger-review:
-    name: 🔍 Trigger AI Review
-    needs: scan-and-fix
-    if: ${{ inputs.dry_run != true }}
-    runs-on: ubuntu-latest
-    permissions:
-      actions: write
-      pull-requests: read
-    steps:
-      - name: Dispatch AI review for open security PRs
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh pr list --repo ${{ github.repository }} --base newjitsu --state open \
-            --json number,headRefName \
-            --jq '[.[] | select(.headRefName | startswith("security/")) | .number | tostring] | .[]' \
-          | while IFS= read -r num; do
-              echo "Dispatching AI review for PR #$num"
-              gh workflow run ai-review.yml --repo ${{ github.repository }} --ref newjitsu -f pr_number="$num"
-            done
+  # Note: AI review for the security PRs opened by this workflow is no longer
+  # dispatched manually. The PRs are opened by github-actions[bot], and
+  # ai-review.yml now auto-reviews bot-opened PRs (the reusable workflow passes
+  # allow-bots: true to codex-action, so its write-access check no longer aborts
+  # on the bot actor). A manual dispatch here would produce a duplicate review.
 
