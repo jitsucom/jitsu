@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "dayjs": "^1.11.10",
-    "nodemailer": "^8.0.5",
+    "nodemailer": "^9.0.1",
     "@react-email/components": "^1.0.12",
     "@react-email/render": "^2.0.0",
     "@types/node": "catalog:",
