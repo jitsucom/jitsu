@@ -31,7 +31,10 @@ export default createRoute()
     log.atInfo().log(`Trimming events log`);
     const serverEnv = getServerEnv();
     const metricsCluster = serverEnv.CLICKHOUSE_METRICS_CLUSTER || serverEnv.CLICKHOUSE_CLUSTER;
-    const onCluster = metricsCluster ? ` ON CLUSTER ${metricsCluster}` : "";
+    // Backtick-quote the cluster name: the k8s metrics cluster is `jitsu-cluster`
+    // (the Altinity CRD forbids underscores), and an unquoted hyphen breaks the
+    // ON CLUSTER DDL ("syntax error at -cluster").
+    const onCluster = metricsCluster ? ` ON CLUSTER \`${metricsCluster}\`` : "";
     const metricsSchema = getClickhouseConfig(serverEnv).database;
     const eventsLogSize = serverEnv.EVENTS_LOG_SIZE ?? 200000;
     const sw = stopwatch();

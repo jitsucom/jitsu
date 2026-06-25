@@ -36,7 +36,10 @@ export default createRoute()
     const chConfig = getClickhouseConfig(serverEnv);
     const metricsSchema = chConfig.database;
     const metricsCluster = serverEnv.CLICKHOUSE_METRICS_CLUSTER || serverEnv.CLICKHOUSE_CLUSTER;
-    const onCluster = metricsCluster ? ` ON CLUSTER ${metricsCluster}` : "";
+    // Backtick-quote the cluster name: the k8s metrics cluster is `jitsu-cluster`
+    // (the Altinity CRD forbids underscores), and an unquoted hyphen breaks the
+    // ON CLUSTER DDL ("syntax error at -cluster").
+    const onCluster = metricsCluster ? ` ON CLUSTER \`${metricsCluster}\`` : "";
     const createDbQuery: string = `create database IF NOT EXISTS ${metricsSchema}${onCluster}`;
     try {
       await clickhouse.command({
