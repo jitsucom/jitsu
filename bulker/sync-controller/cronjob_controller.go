@@ -33,11 +33,14 @@ const (
 	managedByValue   = "syncctl"
 	cronJobAppValue  = "sync-cron"
 
-	// Bump when the pod-template structure changes in a way `SidecarImage`
-	// + `PodsServiceAccount` won't capture (init-container command paths,
-	// volume layout, env scaffolding). Forces a one-shot re-patch of every
-	// reconciled CronJob on the next reconcile after upgrade.
-	cronTemplateRevision = 6
+	// cronTemplateRevision is a manual force-lever: bumping it changes every
+	// CronJob's config hash and forces a one-shot re-patch on the next
+	// reconcile. configHash now hashes the fully-rendered Pod template, so
+	// genuine structural/config changes propagate on their own — this lever is
+	// only for cases the rendered template can't express, or to force a
+	// re-patch deliberately. It can also be overridden at runtime without a
+	// rebuild via SYNCCTL_CRON_TEMPLATE_REVISION (Config.CronTemplateRevision).
+	cronTemplateRevision = 7
 )
 
 // k8sName converts a sync ID into an RFC 1123 subdomain segment safe for use
@@ -191,46 +194,66 @@ func (c *CronJobController) reconcile() {
 
 // configHash is recorded in an annotation on each CronJob so we can detect
 // drift without diffing the whole spec. A change in either the polled
-// SyncEntry OR syncctl's own pod-template inputs (sidecar image, pods SA,
-// template revision) produces a different hash → reconciler patches the
-// CronJob + Secret. The runtime-config bits matter because a chart upgrade
-// (new image / new SA / new init-container layout) otherwise leaves existing
-// CronJobs pointing at the pre-upgrade template until the next SyncEntry
-// edit happens to flip the hash.
+// SyncEntry OR anything syncctl bakes into the rendered Pod produces a
+// different hash → reconciler patches the CronJob + Secret.
 //
-// UpdatedAt is included as the authoritative drift marker — any edit on the
-// console side (including ones that don't touch the fields below, e.g.
-// stream selection inside Options) bumps it, and that alone is enough to
-// trigger a re-patch. The other fields stay in the hash so changes from
-// syncctl-internal upgrades (image / SA / template) still propagate even
-// when UpdatedAt hasn't changed.
+// The hash covers the fully-rendered Pod template (see buildCronPodTemplate),
+// so EVERY syncctl-runtime-config input that lands in the CronJob — sidecar
+// image, service account, the ClickHouse connection (host/url/db/user/pass/ssl),
+// ingest endpoints, node selector, jitter, timeouts, … — is part of the drift
+// signal automatically. This is the fix for a whole bug class: previously only
+// a hand-picked subset (image, SA) was hashed, so changing e.g. the ClickHouse
+// host on syncctl left existing CronJobs silently pointing at the old endpoint
+// until each SyncEntry's UpdatedAt happened to bump. Hashing the rendered
+// template needs no per-field enumeration to keep in sync.
+//
+// The SyncEntry fields below are kept explicitly because the source/destination
+// config travels in the per-CronJob Secret (not the Pod template), and
+// UpdatedAt is the authoritative console-side drift marker — any edit (even
+// ones not reflected in the Pod template, e.g. stream selection in Options)
+// bumps it and triggers a re-patch.
+//
+// TmplRev is a manual force-lever (the cronTemplateRevision constant, or the
+// SYNCCTL_CRON_TEMPLATE_REVISION runtime override) — bumping either re-patches
+// every CronJob on the next reconcile without relying on any other change.
 func (c *CronJobController) configHash(entry *SyncEntry) string {
+	podTmpl, _ := json.Marshal(c.buildCronPodTemplate(entry))
 	b, _ := json.Marshal(struct {
-		UpdatedAt string          `json:"u"`
-		Schedule  string          `json:"s"`
-		Timezone  string          `json:"tz"`
-		SrcPkg    string          `json:"sp"`
-		SrcVer    string          `json:"sv"`
-		SrcCfg    json.RawMessage `json:"sc"`
-		DestCfg   json.RawMessage `json:"dc"`
-		Options   json.RawMessage `json:"o"`
-		Image     string          `json:"img"`
-		PodSA     string          `json:"sa"`
-		TmplRev   int             `json:"tr"`
+		UpdatedAt   string          `json:"u"`
+		Schedule    string          `json:"s"`
+		Timezone    string          `json:"tz"`
+		SrcPkg      string          `json:"sp"`
+		SrcVer      string          `json:"sv"`
+		SrcCfg      json.RawMessage `json:"sc"`
+		DestCfg     json.RawMessage `json:"dc"`
+		Options     json.RawMessage `json:"o"`
+		PodTemplate json.RawMessage `json:"pt"`
+		TmplRev     int             `json:"tr"`
 	}{
-		UpdatedAt: entry.UpdatedAt.UTC().Format(time.RFC3339Nano),
-		Schedule:  entry.Schedule,
-		Timezone:  entry.Timezone,
-		SrcPkg:    entry.Source.Package,
-		SrcVer:    entry.Source.Version,
-		SrcCfg:    entry.Source.Credentials,
-		DestCfg:   entry.Destination,
-		Options:   entry.Options,
-		Image:     c.config.SidecarImage,
-		PodSA:     c.config.PodsServiceAccount,
-		TmplRev:   cronTemplateRevision,
+		UpdatedAt:   entry.UpdatedAt.UTC().Format(time.RFC3339Nano),
+		Schedule:    entry.Schedule,
+		Timezone:    entry.Timezone,
+		SrcPkg:      entry.Source.Package,
+		SrcVer:      entry.Source.Version,
+		SrcCfg:      entry.Source.Credentials,
+		DestCfg:     entry.Destination,
+		Options:     entry.Options,
+		PodTemplate: podTmpl,
+		TmplRev:     c.effectiveCronTemplateRevision(),
 	})
 	return utils.HashStringS(string(b))
+}
+
+// effectiveCronTemplateRevision returns the SYNCCTL_CRON_TEMPLATE_REVISION
+// runtime override when set to a non-zero value, otherwise the compiled-in
+// cronTemplateRevision constant. Changing either flips every CronJob's config
+// hash, forcing a one-shot re-patch on the next reconcile — the env path does
+// it without a code change + image rebuild.
+func (c *CronJobController) effectiveCronTemplateRevision() int {
+	if c.config.CronTemplateRevision != 0 {
+		return c.config.CronTemplateRevision
+	}
+	return cronTemplateRevision
 }
 
 const annotationConfigHash = "jitsu.com/config-hash"
