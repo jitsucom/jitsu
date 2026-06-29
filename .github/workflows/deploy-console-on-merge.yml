@@ -25,6 +25,20 @@ name: 🚀 Deploy console on merge
 #   DEPLOY_GITHUB_TOKEN — org-level token with actions:write on
 #   jitsucom/jitsu-cloud-infra. Already used by services.yaml to dispatch
 #   new-release-notify.yaml in that repo.
+#
+# Security / fork PRs:
+#   This uses pull_request_target (see the trigger comment below) so that secrets
+#   are available even when the merged PR came from a fork — under plain
+#   pull_request, fork PRs run with no secrets and a read-only GITHUB_TOKEN, so
+#   both the dispatch and the PR comment would fail. pull_request_target is safe
+#   here ONLY because the job runs the workflow definition from the base branch
+#   (newjitsu), never checks out the PR head, and never executes any
+#   contributor-supplied code — it reads event metadata (merged flag, labels) and
+#   dispatches. Do NOT add `actions/checkout` of the PR ref or run PR code in this
+#   workflow: that would expose the secrets above to untrusted forks.
+#   In practice a deploy still can't be self-triggered by an outside contributor:
+#   both gates — adding the `deploy:console` label and merging into newjitsu —
+#   require write/triage access, so a maintainer is always in the loop.
 
 on:
   # pull_request_target, not pull_request: a PR opened from a fork runs the
