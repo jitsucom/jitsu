@@ -1,0 +1,84 @@
+name: 🚀 Deploy console on merge
+
+# Auto-deploy the console to the beta environment when a PR labeled
+# `deploy:console` is merged into newjitsu. Removes the easily-forgotten manual
+# step of triggering jitsu-cloud-infra's deploy workflow after a merge — by the
+# time someone remembers, the momentum (and the context for catching post-deploy
+# bugs) is gone. See JITSU-68.
+#
+# Scope is intentionally limited to `console`: its error tolerance is high (a
+# brief outage doesn't drop data). `bulker` / `rotor` deploy manually and more
+# carefully — do NOT extend this workflow to them without a deliberate decision.
+#
+# How it works:
+#   - Fires on a PR closed against `newjitsu`, but only acts when the PR was
+#     actually merged AND carries the `deploy:console` label.
+#   - Dispatches jitsu-cloud-infra's deploy.yaml with version=beta, which builds
+#     a fresh beta image from newjitsu HEAD (now including the merged change) and
+#     deploys + syncs it. A fresh build is what's needed here: lint.yml only
+#     auto-publishes a beta when a *.version.json file is bumped, so an ordinary
+#     console fix produces no beta image on its own. version=beta also keeps this
+#     race-free — the deployed image is guaranteed to contain exactly the merged
+#     code, rather than whatever beta tag happened to exist before.
+#
+# Secret:
+#   DEPLOY_GITHUB_TOKEN — org-level token with actions:write on
+#   jitsucom/jitsu-cloud-infra. Already used by services.yaml to dispatch
+#   new-release-notify.yaml in that repo.
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [newjitsu]
+
+jobs:
+  deploy-console:
+    name: 🚀 Trigger console beta deploy
+    # Only on a real merge with the opt-in label. PRs closed without merging,
+    # or merged without the label, are no-ops.
+    if: >-
+      github.event.pull_request.merged == true &&
+      contains(github.event.pull_request.labels.*.name, 'deploy:console')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: 🚀 Dispatch jitsu-cloud-infra deploy.yaml
+        id: dispatch
+        env:
+          GH_TOKEN: ${{ secrets.DEPLOY_GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -eu
+          gh workflow run deploy.yaml \
+            --repo jitsucom/jitsu-cloud-infra \
+            --ref main \
+            -f services=console \
+            -f version=beta \
+            -f dry_run=false \
+            -f sync_argocd=true
+
+          echo "Dispatched console beta deploy for PR #${PR_NUMBER}"
+
+          # Give GitHub a moment to register the run, then grab its URL so we can
+          # link it from the PR (mirrors services.yaml's notify step).
+          sleep 5
+          RUN_URL=$(gh run list \
+            --repo jitsucom/jitsu-cloud-infra \
+            --workflow deploy.yaml \
+            --limit 1 \
+            --json url \
+            --jq '.[0].url' || true)
+          echo "run_url=${RUN_URL}" >> "$GITHUB_OUTPUT"
+
+      - name: 💬 Link the deploy run on the PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ steps.dispatch.outputs.run_url }}
+        run: |
+          set -eu
+          gh pr comment "$PR_NUMBER" --repo "$REPO" \
+            --body "🚀 \`deploy:console\` label detected — triggered a **beta** console deployment to jitsu-cloud-infra.${RUN_URL:+ Track it here: ${RUN_URL}}"

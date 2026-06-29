@@ -141,3 +141,20 @@ go test ./...
 When you need to create branches, make commits, or open pull requests, read
 [CONTRIBUTING.md](CONTRIBUTING.md) first. No need to read it for code exploration —
 only when interacting with git.
+
+## Deployments
+
+The console can be auto-deployed to **beta** on PR merge via the
+[`deploy-console-on-merge`](.github/workflows/deploy-console-on-merge.yml)
+workflow: any PR carrying the **`deploy:console`** label triggers a beta console
+deployment in `jitsu-cloud-infra` the moment it merges into `newjitsu`. This
+exists because the post-merge deploy step is easy to forget, so fixes sit
+undeployed for weeks (see JITSU-68). It's scoped to `console` only — its error
+tolerance is high (a brief outage doesn't drop data); `bulker` and `rotor` still
+deploy manually and deliberately.
+
+**When you open a PR (including a draft), explicitly ask the user whether they
+want the console to auto-deploy on merge.** If yes, add the `deploy:console`
+label to the PR (e.g. `gh pr edit <pr> --add-label deploy:console`). Only offer
+this for PRs that actually touch the console; never add the label to `bulker` /
+`rotor` changes.
