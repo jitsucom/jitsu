@@ -72,11 +72,6 @@ jobs:
         run: |
           set -eu
 
-          # Stamp the time just before dispatching so we can later pick out *our*
-          # run rather than whatever happens to be newest repo-wide (another
-          # deploy could be dispatched around the same time).
-          SINCE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-
           gh workflow run deploy.yaml \
             --repo jitsucom/jitsu-cloud-infra \
             --ref main \
@@ -87,40 +82,18 @@ jobs:
 
           echo "Dispatched console beta deploy for PR #${PR_NUMBER}"
 
-          # workflow_dispatch doesn't return a run id, and deploy.yaml is a shared
-          # workflow we don't want to alter just to thread a correlation nonce —
-          # so we resolve the run *conservatively*: poll for deploy.yaml
-          # workflow_dispatch runs created at/after SINCE, and only link a
-          # specific run when there's exactly one candidate (unambiguously ours).
-          # If a concurrent deploy was dispatched around the same time (>1
-          # candidate) we refuse to guess, and if none is indexed yet we keep
-          # polling — either way the fallback is the filtered runs page. We never
-          # attach a wrong, empty, or literal `null` URL.
-          RUNS_PAGE="${GITHUB_SERVER_URL}/jitsucom/jitsu-cloud-infra/actions/workflows/deploy.yaml?query=event%3Aworkflow_dispatch"
-          RUN_URL=""
-          for _ in 1 2 3 4 5 6; do
-            sleep 5
-            CANDIDATES=$(gh run list \
-              --repo jitsucom/jitsu-cloud-infra \
-              --workflow deploy.yaml \
-              --event workflow_dispatch \
-              --limit 30 \
-              --json url,createdAt \
-              --jq "[.[] | select(.createdAt >= \"$SINCE\") | .url]" 2>/dev/null || echo "[]")
-            COUNT=$(printf '%s' "$CANDIDATES" | jq 'length')
-            if [ "$COUNT" = "1" ]; then
-              RUN_URL=$(printf '%s' "$CANDIDATES" | jq -r '.[0]')
-              break
-            elif [ "$COUNT" -gt 1 ]; then
-              # Ambiguous — a concurrent dispatch exists; don't risk the wrong run.
-              break
-            fi
-            # COUNT == 0: not indexed yet, keep polling.
-          done
-          [ -n "$RUN_URL" ] || RUN_URL="$RUNS_PAGE"
+          # Link the deploy.yaml runs page (filtered to manual dispatches) rather
+          # than a specific run. workflow_dispatch returns no run id, and without
+          # a correlation nonce threaded through the shared deploy.yaml there is
+          # no way to *positively* identify our run — any heuristic
+          # (newest-after-timestamp, single-candidate-after-timestamp, etc.) can
+          # mis-attribute under concurrency or API indexing lag and link someone
+          # else's deploy. The run we just dispatched sorts to the top of this
+          # list, so the page is both always-correct and good enough to find it.
+          RUN_URL="${GITHUB_SERVER_URL}/jitsucom/jitsu-cloud-infra/actions/workflows/deploy.yaml?query=event%3Aworkflow_dispatch"
           echo "run_url=${RUN_URL}" >> "$GITHUB_OUTPUT"
 
-      - name: 💬 Link the deploy run on the PR
+      - name: 💬 Link the deploy runs on the PR
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -129,4 +102,4 @@ jobs:
         run: |
           set -eu
           gh pr comment "$PR_NUMBER" --repo "$REPO" \
-            --body "🚀 \`deploy:console\` label detected — triggered a **beta** console deployment to jitsu-cloud-infra. Track it here: ${RUN_URL}"
+            --body "🚀 \`deploy:console\` label detected — triggered a **beta** console deployment to jitsu-cloud-infra. Track it in the deploy runs (newest at top): ${RUN_URL}"
