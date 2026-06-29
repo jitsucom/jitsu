@@ -63,6 +63,12 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+      # `gh pr comment` posts via the GraphQL addComment mutation (governed by
+      # pull-requests: write), but the REST issue-comments path it can fall back
+      # to is governed by issues: write. Grant both so the comment step can't
+      # fail at runtime on a permissions edge — the token is ephemeral and
+      # repo-scoped, so the extra scope is cheap.
+      issues: write
     steps:
       - name: 🚀 Dispatch jitsu-cloud-infra deploy.yaml
         id: dispatch
