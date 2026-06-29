@@ -73,26 +73,37 @@ jobs:
 
           echo "Dispatched console beta deploy for PR #${PR_NUMBER}"
 
-          # workflow_dispatch doesn't return a run id, so resolve it best-effort:
-          # poll for the newest workflow_dispatch run of deploy.yaml created at or
-          # after SINCE. If indexing lags and we can't find it, fall back to the
-          # workflow's runs page — never emit an empty or literal `null` URL.
-          WORKFLOW_PAGE="${GITHUB_SERVER_URL}/jitsucom/jitsu-cloud-infra/actions/workflows/deploy.yaml"
+          # workflow_dispatch doesn't return a run id, and deploy.yaml is a shared
+          # workflow we don't want to alter just to thread a correlation nonce —
+          # so we resolve the run *conservatively*: poll for deploy.yaml
+          # workflow_dispatch runs created at/after SINCE, and only link a
+          # specific run when there's exactly one candidate (unambiguously ours).
+          # If a concurrent deploy was dispatched around the same time (>1
+          # candidate) we refuse to guess, and if none is indexed yet we keep
+          # polling — either way the fallback is the filtered runs page. We never
+          # attach a wrong, empty, or literal `null` URL.
+          RUNS_PAGE="${GITHUB_SERVER_URL}/jitsucom/jitsu-cloud-infra/actions/workflows/deploy.yaml?query=event%3Aworkflow_dispatch"
           RUN_URL=""
           for _ in 1 2 3 4 5 6; do
             sleep 5
-            RUN_URL=$(gh run list \
+            CANDIDATES=$(gh run list \
               --repo jitsucom/jitsu-cloud-infra \
               --workflow deploy.yaml \
               --event workflow_dispatch \
-              --limit 20 \
+              --limit 30 \
               --json url,createdAt \
-              --jq "[.[] | select(.createdAt >= \"$SINCE\")] | sort_by(.createdAt) | last | .url // empty" 2>/dev/null || echo "")
-            if [ -n "$RUN_URL" ]; then
+              --jq "[.[] | select(.createdAt >= \"$SINCE\") | .url]" 2>/dev/null || echo "[]")
+            COUNT=$(printf '%s' "$CANDIDATES" | jq 'length')
+            if [ "$COUNT" = "1" ]; then
+              RUN_URL=$(printf '%s' "$CANDIDATES" | jq -r '.[0]')
+              break
+            elif [ "$COUNT" -gt 1 ]; then
+              # Ambiguous — a concurrent dispatch exists; don't risk the wrong run.
               break
             fi
+            # COUNT == 0: not indexed yet, keep polling.
           done
-          [ -n "$RUN_URL" ] || RUN_URL="$WORKFLOW_PAGE"
+          [ -n "$RUN_URL" ] || RUN_URL="$RUNS_PAGE"
           echo "run_url=${RUN_URL}" >> "$GITHUB_OUTPUT"
 
       - name: 💬 Link the deploy run on the PR
