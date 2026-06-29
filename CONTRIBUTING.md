@@ -127,7 +127,11 @@ Each pipeline publishes to three channels determined by the branch:
 - The base version `X.Y` is defined in `.services.version.json` or `.jsclient.version.json`;
   `Z` is the patch number, incremented per release
 
-Builds are triggered automatically by [lint.yml](.github/workflows/lint.yml) after tests
-pass on `newjitsu` or the stable branches. On a successful beta or stable release, a
-GitHub release is created and the infra repo is notified via webhook to update deployment
-configs.
+Builds are **not** produced on every merge. A push to `newjitsu` publishes only when a
+version file (`.services.version.json` or `.jsclient.version.json`) is bumped in that
+push: [lint.yml](.github/workflows/lint.yml) waits for tests to pass, then dispatches
+[publish.yml](.github/workflows/publish.yml), which builds the affected stack(s) — stable
+if the matching version file changed, otherwise beta. Commits that don't bump a version
+file publish nothing; trigger off-cycle canary/beta builds with a manual `publish.yml`
+dispatch. On a successful beta or stable release, a GitHub release is created and the infra
+repo is notified via webhook to update deployment configs.

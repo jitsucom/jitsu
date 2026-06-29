@@ -2,11 +2,14 @@ name: 📤 Publish
 
 # Single trigger entry point for releases. Two ways in:
 #
-#   1. Automatic — lint.yml dispatches this after lint+test pass on push to
-#      newjitsu, with no inputs. The detect job inspects the latest commit
-#      and decides what to publish (services and/or client-libraries) and
-#      under which channel (stable if the relevant .version.json was bumped,
-#      otherwise beta).
+#   1. Automatic — on a push to newjitsu, lint.yml dispatches this only when a
+#      version file (.services.version.json / .jsclient.version.json) was bumped
+#      in that push, after lint+test pass. It forwards the push range
+#      (from_sha/to_sha); the detect job diffs that range and decides what to
+#      publish (services and/or client-libraries) and under which channel
+#      (stable if the matching .version.json was bumped, otherwise beta).
+#      Commits that don't bump a version file publish nothing — use a manual
+#      dispatch (below) for off-cycle canary/beta builds.
 #
 #   2. Manual — via the Actions UI (workflow_dispatch). Pick scope and channel
 #      explicitly, e.g. canary builds from a feature branch, or force a stable
