@@ -11,7 +11,7 @@ name: 🚀 Deploy console on merge
 # carefully — do NOT extend this workflow to them without a deliberate decision.
 #
 # How it works:
-#   - Fires on a PR closed against `newjitsu`, but only acts when the PR was
+#   - Fires when a PR against `newjitsu` is closed, but only acts when the PR was
 #     actually merged AND carries the `deploy:console` label.
 #   - Dispatches jitsu-cloud-infra's deploy.yaml with version=beta, which builds
 #     a fresh beta image from newjitsu HEAD (now including the merged change) and
@@ -27,7 +27,13 @@ name: 🚀 Deploy console on merge
 #   new-release-notify.yaml in that repo.
 
 on:
-  pull_request:
+  # pull_request_target, not pull_request: a PR opened from a fork runs the
+  # `pull_request` event WITHOUT repository secrets, which would leave
+  # DEPLOY_GITHUB_TOKEN empty and the dispatch step failing. pull_request_target
+  # runs in the base-repo context with secrets available. It's safe here because
+  # this job never checks out or executes any PR-supplied code — it only reads
+  # event metadata (the merged flag and labels) and dispatches a workflow.
+  pull_request_target:
     types: [closed]
     branches: [newjitsu]
 
@@ -51,6 +57,12 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -eu
+
+          # Stamp the time just before dispatching so we can later pick out *our*
+          # run rather than whatever happens to be newest repo-wide (another
+          # deploy could be dispatched around the same time).
+          SINCE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
           gh workflow run deploy.yaml \
             --repo jitsucom/jitsu-cloud-infra \
             --ref main \
@@ -61,15 +73,26 @@ jobs:
 
           echo "Dispatched console beta deploy for PR #${PR_NUMBER}"
 
-          # Give GitHub a moment to register the run, then grab its URL so we can
-          # link it from the PR (mirrors services.yaml's notify step).
-          sleep 5
-          RUN_URL=$(gh run list \
-            --repo jitsucom/jitsu-cloud-infra \
-            --workflow deploy.yaml \
-            --limit 1 \
-            --json url \
-            --jq '.[0].url' || true)
+          # workflow_dispatch doesn't return a run id, so resolve it best-effort:
+          # poll for the newest workflow_dispatch run of deploy.yaml created at or
+          # after SINCE. If indexing lags and we can't find it, fall back to the
+          # workflow's runs page — never emit an empty or literal `null` URL.
+          WORKFLOW_PAGE="${GITHUB_SERVER_URL}/jitsucom/jitsu-cloud-infra/actions/workflows/deploy.yaml"
+          RUN_URL=""
+          for _ in 1 2 3 4 5 6; do
+            sleep 5
+            RUN_URL=$(gh run list \
+              --repo jitsucom/jitsu-cloud-infra \
+              --workflow deploy.yaml \
+              --event workflow_dispatch \
+              --limit 20 \
+              --json url,createdAt \
+              --jq "[.[] | select(.createdAt >= \"$SINCE\")] | sort_by(.createdAt) | last | .url // empty" 2>/dev/null || echo "")
+            if [ -n "$RUN_URL" ]; then
+              break
+            fi
+          done
+          [ -n "$RUN_URL" ] || RUN_URL="$WORKFLOW_PAGE"
           echo "run_url=${RUN_URL}" >> "$GITHUB_OUTPUT"
 
       - name: 💬 Link the deploy run on the PR
@@ -81,4 +104,4 @@ jobs:
         run: |
           set -eu
           gh pr comment "$PR_NUMBER" --repo "$REPO" \
-            --body "🚀 \`deploy:console\` label detected — triggered a **beta** console deployment to jitsu-cloud-infra.${RUN_URL:+ Track it here: ${RUN_URL}}"
+            --body "🚀 \`deploy:console\` label detected — triggered a **beta** console deployment to jitsu-cloud-infra. Track it here: ${RUN_URL}"
