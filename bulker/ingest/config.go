@@ -56,6 +56,12 @@ type Config struct {
 
 	MetricsPort int `mapstructure:"METRICS_PORT" default:"9091"`
 
+	// Destination id of the special "metrics" bulker destination that owns the
+	// `metrics` and `active_incoming` Kafka batch topics. The synchronous
+	// function-server paths (/api/funcs/:conId and processSyncDestination) produce
+	// billing + connection metrics to those topics. Empty disables the emission.
+	MetricsDestinationId string `mapstructure:"METRICS_DESTINATION_ID" default:"metrics"`
+
 	MaxIngestPayloadSize int `mapstructure:"MAX_INGEST_PAYLOAD_SIZE" default:"1000000"`
 
 	WeightedPartitionSelectorLagThreshold int64 `mapstructure:"WEIGHTED_PARTITION_SELECTOR_LAG_THRESHOLD" default:"0"`

@@ -535,7 +535,7 @@ func (r *Router) processSyncDestination(message *IngestMessage, stream *StreamWi
 		for deploymentID, destinations := range byDeployment {
 			fsURL := strings.Replace(r.config.FunctionsServerURLTemplate, "${workspaceId}", deploymentID, 1)
 			endpointURL := fsURL + "/multi"
-			r.callFunctionsEndpoint(stream, destinations, endpointURL, messageBytes, functionsResults, false)
+			r.callFunctionsEndpoint(stream, destinations, endpointURL, messageBytes, functionsResults, false, message.MessageId, parseReceivedAt(message.MessageCreated))
 		}
 	}
 
@@ -595,7 +595,7 @@ type ConnectionChainResult struct {
 
 // callFunctionsEndpoint sends a request to functions endpoint and expects new format with execLog
 // Response format: map[connectionId]{ events: [], execLog: [] }
-func (r *Router) callFunctionsEndpoint(stream *StreamWithDestinations, destinations []*ShortDestinationConfig, baseURL string, messageBytes []byte, functionsResults map[string]any, fullEvents bool) (result map[string]ConnectionChainResult, err error) {
+func (r *Router) callFunctionsEndpoint(stream *StreamWithDestinations, destinations []*ShortDestinationConfig, baseURL string, messageBytes []byte, functionsResults map[string]any, fullEvents bool, messageId string, receivedAt time.Time) (result map[string]ConnectionChainResult, err error) {
 	if len(destinations) == 0 {
 		return
 	}
@@ -670,6 +670,7 @@ func (r *Router) callFunctionsEndpoint(stream *StreamWithDestinations, destinati
 		functionsResults[connectionId] = chainResult.Events
 		r.processExecLog(connectionId, chainResult.ExecLog, chainResult.Logs)
 	}
+	r.emitSyncMetrics(stream, destinations, result, messageId, receivedAt)
 	return result, nil
 }
 
@@ -737,6 +738,164 @@ func (r *Router) processExecLog(connectionId string, execLog []FunctionExecLogEn
 			Event:     logEvent,
 		})
 	}
+}
+
+// connMetricMessage is one row of the `metrics` table (connection metrics →
+// mv_metrics → console reports). Field names map directly to the ClickHouse columns.
+type connMetricMessage struct {
+	Timestamp     string `json:"timestamp"`
+	MessageId     string `json:"messageId"`
+	WorkspaceId   string `json:"workspaceId"`
+	StreamId      string `json:"streamId"`
+	ConnectionId  string `json:"connectionId"`
+	FunctionId    string `json:"functionId"`
+	DestinationId string `json:"destinationId"`
+	Status        string `json:"status"`
+	Events        int64  `json:"events"`
+	EventIndex    int    `json:"eventIndex"`
+}
+
+// activeIncomingMessage is one row of the `active_incoming` table (billing). The
+// MessageId carries the composed key `messageId_eventIndex_secondOfHour`, deduplicated
+// downstream via uniqState(messageId).
+type activeIncomingMessage struct {
+	Timestamp   string `json:"timestamp"`
+	WorkspaceId string `json:"workspaceId"`
+	MessageId   string `json:"messageId"`
+}
+
+// parseReceivedAt parses an event receivedAt/MessageCreated ISO string, falling back to
+// the current time when it is missing or unparseable.
+func parseReceivedAt(s string) time.Time {
+	if s != "" {
+		if t, err := timestamp.ParseISOFormat(s); err == nil {
+			return t.UTC()
+		}
+	}
+	return timestamp.Now().UTC()
+}
+
+// emitSyncMetrics produces billing (active_incoming) and connection (metrics) metrics for
+// events processed by the synchronous function-server paths (/api/funcs/:conId and
+// processSyncDestination). In the async pipeline these are emitted downstream — bulkerapp
+// consumers call SendMetrics after warehouse delivery (connection metrics) and rotor writes
+// billing — but the sync paths have no such post-delivery hook, so without this the events
+// are invisible to both billing and the console connection reports.
+//
+// Produced to the same Kafka batch topics as SendMetrics, owned by the special "metrics"
+// bulker destination and consumed into ClickHouse by bulkerapp. The ingest service has no
+// Destination repository, so the topic ids are built directly; "metrics"/"active_incoming"
+// are valid topic names, so this matches MakeTopicId's plain ".t." form (see
+// bulkerapp/app/topic_manager.go). Same single-JSON-object-per-row shape and plain status
+// vocabulary (success/error/dropped) as SendMetrics.
+//
+//   - metrics:         one row per (connection, event); status rolled up from the chain
+//     result (error > dropped > success).
+//   - active_incoming: one row per (workspace, messageId, eventIndex) for non-dropped
+//     events, keyed identically to the async path so uniqState(messageId) de-duplicates —
+//     no double counting when processSyncDestination's parent already billed the incoming
+//     event via sendToRotor for an async destination.
+func (r *Router) emitSyncMetrics(stream *StreamWithDestinations, destinations []*ShortDestinationConfig, result map[string]ConnectionChainResult, messageId string, receivedAt time.Time) {
+	if r.config.MetricsDestinationId == "" || len(result) == 0 {
+		return
+	}
+	metricsTopic := fmt.Sprintf("%sin.id.%s.m.batch.t.metrics", r.config.KafkaTopicPrefix, r.config.MetricsDestinationId)
+	billingTopic := fmt.Sprintf("%sin.id.%s.m.batch.t.active_incoming", r.config.KafkaTopicPrefix, r.config.MetricsDestinationId)
+
+	connMsgs, billingMsgs := buildSyncMetrics(stream.Stream.WorkspaceId, stream.Stream.Id, destinations, result, messageId, receivedAt)
+	for i := range connMsgs {
+		if cm, err := jsoniter.Marshal(&connMsgs[i]); err == nil {
+			if perr := r.producer.ProduceAsync(metricsTopic, uuid.New(), cm, nil, kafka.PartitionAny, messageId, false, 0); perr != nil {
+				r.Errorf("Error producing connection metrics to %s: %v", metricsTopic, perr)
+			}
+		}
+	}
+	for i := range billingMsgs {
+		if bm, err := jsoniter.Marshal(&billingMsgs[i]); err == nil {
+			if perr := r.producer.ProduceAsync(billingTopic, billingMsgs[i].MessageId, bm, nil, kafka.PartitionAny, messageId, false, 0); perr != nil {
+				r.Errorf("Error producing billing metrics to %s: %v", billingTopic, perr)
+			}
+		}
+	}
+}
+
+// buildSyncMetrics turns the per-connection chain results into the `metrics` and
+// `active_incoming` rows to emit. It is a pure function (no I/O) so it can be unit tested.
+//
+//   - One connMetricMessage per (connection, eventIndex); status is rolled up from the
+//     per-function exec log with precedence error > dropped > success.
+//   - One activeIncomingMessage per non-dropped (connection, eventIndex). The composed key
+//     `messageId_eventIndex_secondOfHour` matches the async path exactly, so
+//     uniqState(messageId) downstream de-duplicates across paths and destinations.
+func buildSyncMetrics(workspaceId, streamId string, destinations []*ShortDestinationConfig, result map[string]ConnectionChainResult, messageId string, receivedAt time.Time) ([]connMetricMessage, []activeIncomingMessage) {
+	destById := make(map[string]*ShortDestinationConfig, len(destinations))
+	for _, d := range destinations {
+		destById[d.ConnectionId] = d
+	}
+	epoch := receivedAt.Unix()
+	hourTrunc := epoch - epoch%3600
+	tsISO := timestamp.ToISOFormat(receivedAt.UTC())
+	hourISO := timestamp.ToISOFormat(time.Unix(hourTrunc, 0).UTC())
+
+	var connMsgs []connMetricMessage
+	var billingMsgs []activeIncomingMessage
+	for connectionId, chainResult := range result {
+		destinationId := connectionId
+		functionId := "builtin.destination.tag"
+		if d := destById[connectionId]; d != nil {
+			destinationId = d.Id
+			functionId = "builtin.destination." + d.DestinationType
+		}
+
+		// Roll the per-function exec log up to a single status per event index.
+		statuses := make(map[int]string)
+		order := make([]int, 0)
+		for _, el := range chainResult.ExecLog {
+			cur, seen := statuses[el.EventIndex]
+			if !seen {
+				order = append(order, el.EventIndex)
+				cur = "success"
+			}
+			switch {
+			case el.Error != nil:
+				cur = "error"
+			case el.Dropped && cur != "error":
+				cur = "dropped"
+			}
+			statuses[el.EventIndex] = cur
+		}
+		// Empty exec log (e.g. no functions ran) — still count the incoming event once.
+		if len(order) == 0 {
+			order = append(order, 0)
+			statuses[0] = "success"
+		}
+
+		for _, eventIndex := range order {
+			status := statuses[eventIndex]
+			connMsgs = append(connMsgs, connMetricMessage{
+				Timestamp:     tsISO,
+				MessageId:     messageId,
+				WorkspaceId:   workspaceId,
+				StreamId:      streamId,
+				ConnectionId:  connectionId,
+				FunctionId:    functionId,
+				DestinationId: destinationId,
+				Status:        status,
+				Events:        1,
+				EventIndex:    eventIndex,
+			})
+			// Billing counts active incoming events; dropped events are not billed.
+			if status == "dropped" {
+				continue
+			}
+			billingMsgs = append(billingMsgs, activeIncomingMessage{
+				Timestamp:   hourISO,
+				WorkspaceId: workspaceId,
+				MessageId:   fmt.Sprintf("%s_%d_%d", messageId, eventIndex, epoch-hourTrunc),
+			})
+		}
+	}
+	return connMsgs, billingMsgs
 }
 
 func (r *Router) buildIngestMessage(c *gin.Context, messageId string, event types.Json, analyticContext types.Json, tp string, loc StreamCredentials, stream *StreamWithDestinations, patchFunc eventPatchFunc, defaultEventName string) (ingestMessage *IngestMessage, ingestMessageBytes []byte, err error) {

@@ -24,6 +24,7 @@ func (r *Router) FuncsHandler(c *gin.Context) {
 	var rError *appbase.RouterError
 	var body []byte
 	var ingestMessageBytes []byte
+	var ingestMessage *IngestMessage
 	ingestType := IngestTypeS2S
 	var messageId string
 
@@ -111,7 +112,7 @@ func (r *Router) FuncsHandler(c *gin.Context) {
 		c.Status(http.StatusNoContent)
 		return
 	}
-	_, ingestMessageBytes, err = r.buildIngestMessage(c, messageId, message, nil, tp, loc, stream, patchEvent, "")
+	ingestMessage, ingestMessageBytes, err = r.buildIngestMessage(c, messageId, message, nil, tp, loc, stream, patchEvent, "")
 	if err != nil {
 		rError = r.ResponseError(c, utils.Ternary(s2sEndpoint, http.StatusBadRequest, http.StatusOK), "event error", false, err, true, true, false)
 		return
@@ -128,7 +129,7 @@ func (r *Router) FuncsHandler(c *gin.Context) {
 	}
 	fsURL := strings.Replace(r.config.FunctionsServerURLTemplate, "${workspaceId}", deploymentID, 1)
 	endpointURL := fsURL + "/multi"
-	result, err := r.callFunctionsEndpoint(stream, []*ShortDestinationConfig{connection}, endpointURL, ingestMessageBytes, functionsResults, true)
+	result, err := r.callFunctionsEndpoint(stream, []*ShortDestinationConfig{connection}, endpointURL, ingestMessageBytes, functionsResults, true, messageId, parseReceivedAt(ingestMessage.MessageCreated))
 	if err != nil {
 		if strings.Contains(err.Error(), "timeout") {
 			IngestedMessages(connection.ConnectionId, "error", "timeout").Inc()
