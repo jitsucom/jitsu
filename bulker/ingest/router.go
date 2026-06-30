@@ -884,15 +884,14 @@ func buildSyncMetrics(workspaceId, streamId string, destinations []*ShortDestina
 				Events:        1,
 				EventIndex:    eventIndex,
 			})
-			// Billing counts only events the chain processed successfully (i.e. that
-			// reached would-be delivery). This mirrors the async rule, which bills
-			// builtin.destination.* entries that are non-dropped — an event whose
-			// UDF/transformation errors or drops before the destination produces no such
-			// entry and is not billed. The /multi chain is UDF-only (no builtin.destination
-			// entry exists here), so "reached delivery" maps to a non-error, non-dropped
-			// chain result. Errored and dropped events still get a connection-metrics row
-			// (with their real status) above, but are not billed.
-			if status != "success" {
+			// Billing counts active incoming events: everything except explicitly
+			// dropped (filtered) events. An error is a failure processing a real event,
+			// so it is billed — mirroring the async rule, which bills builtin.destination.*
+			// entries that are non-dropped (a destination that errors keeps status "error",
+			// != "dropped", and is billed; only drops are excluded). The /multi chain is
+			// UDF-only and is itself the terminal processing here, so a chain error is the
+			// analog of an async destination error.
+			if status == "dropped" {
 				continue
 			}
 			billingMsgs = append(billingMsgs, activeIncomingMessage{

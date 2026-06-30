@@ -59,11 +59,17 @@ func TestBuildSyncMetrics(t *testing.T) {
 	require.Equal(t, "dst_error", byConn["con_error"].DestinationId)
 	require.Equal(t, "builtin.destination.facebook", byConn["con_error"].FunctionId)
 
-	// Billing: only the successful event is billed; errored and dropped are not.
-	require.Len(t, billingMsgs, 1)
-	require.Equal(t, "ws1", billingMsgs[0].WorkspaceId)
-	require.Equal(t, "2024-01-15T10:00:00.000000Z", billingMsgs[0].Timestamp) // hour-truncated
-	require.Equal(t, "msg123_0_"+strconv.Itoa(wantOffset), billingMsgs[0].MessageId)
+	// Billing: success and error are billed (active events whose processing
+	// succeeded/failed); only explicitly dropped events are not billed.
+	require.Len(t, billingMsgs, 2)
+	keys := map[string]activeIncomingMessage{}
+	for _, m := range billingMsgs {
+		keys[m.MessageId] = m
+		require.Equal(t, "ws1", m.WorkspaceId)
+		require.Equal(t, "2024-01-15T10:00:00.000000Z", m.Timestamp) // hour-truncated
+	}
+	require.Contains(t, keys, "msg123_0_"+strconv.Itoa(wantOffset))
+	require.Len(t, keys, 1) // both billed rows share the composed key (same event) → dedupes downstream
 }
 
 func TestBuildSyncMetrics_EmptyExecLogStillCounts(t *testing.T) {
