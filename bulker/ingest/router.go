@@ -856,11 +856,14 @@ func buildSyncMetrics(workspaceId, streamId string, destinations []*ShortDestina
 				order = append(order, el.EventIndex)
 				cur = "success"
 			}
+			// "dropped" is the terminal disposition — the event did not reach delivery —
+			// so it overrides "error" (an event that errored *and* was dropped never
+			// delivered and must not be billed). "error" overrides "success".
 			switch {
-			case el.Error != nil:
-				cur = "error"
-			case el.Dropped && cur != "error":
+			case el.Dropped:
 				cur = "dropped"
+			case el.Error != nil && cur != "dropped":
+				cur = "error"
 			}
 			statuses[el.EventIndex] = cur
 		}
@@ -884,13 +887,12 @@ func buildSyncMetrics(workspaceId, streamId string, destinations []*ShortDestina
 				Events:        1,
 				EventIndex:    eventIndex,
 			})
-			// Billing counts active incoming events: everything except explicitly
-			// dropped (filtered) events. An error is a failure processing a real event,
-			// so it is billed — mirroring the async rule, which bills builtin.destination.*
-			// entries that are non-dropped (a destination that errors keeps status "error",
-			// != "dropped", and is billed; only drops are excluded). The /multi chain is
-			// UDF-only and is itself the terminal processing here, so a chain error is the
-			// analog of an async destination error.
+			// Billing counts active incoming events: everything whose terminal
+			// disposition is not "dropped". A pure error (delivered but failed) is billed,
+			// mirroring the async rule, which bills builtin.destination.* entries that are
+			// non-dropped (a destination that errors keeps status "error" and is billed).
+			// An event that was dropped — including one dropped as the result of an error —
+			// never reached delivery and is not billed.
 			if status == "dropped" {
 				continue
 			}

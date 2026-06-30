@@ -30,20 +30,23 @@ func TestBuildSyncMetrics(t *testing.T) {
 		{Id: "dst_success", ConnectionId: "con_success", DestinationType: "ga4-tag"},
 		{Id: "dst_error", ConnectionId: "con_error", DestinationType: "facebook"},
 		{Id: "dst_dropped", ConnectionId: "con_dropped", DestinationType: "webhook"},
+		{Id: "dst_errdrop", ConnectionId: "con_errdrop", DestinationType: "webhook"},
 	}
 	result := map[string]ConnectionChainResult{
 		// plain success
 		"con_success": {ExecLog: []FunctionExecLogEntry{execEntry(0, false, "")}},
-		// error wins over a later dropped on the same event
-		"con_error": {ExecLog: []FunctionExecLogEntry{execEntry(0, false, "boom"), execEntry(0, true, "")}},
-		// dropped (no error)
+		// errored but not dropped → delivered-with-error → billed
+		"con_error": {ExecLog: []FunctionExecLogEntry{execEntry(0, false, "boom")}},
+		// explicitly dropped (no error)
 		"con_dropped": {ExecLog: []FunctionExecLogEntry{execEntry(0, true, "")}},
+		// errored AND dropped → dropped wins (never delivered) → not billed
+		"con_errdrop": {ExecLog: []FunctionExecLogEntry{execEntry(0, false, "boom"), execEntry(0, true, "")}},
 	}
 
 	connMsgs, billingMsgs := buildSyncMetrics("ws1", "stream1", destinations, result, "msg123", receivedAt)
 
 	// One connection-metrics row per connection (single event each).
-	require.Len(t, connMsgs, 3)
+	require.Len(t, connMsgs, 4)
 	byConn := map[string]connMetricMessage{}
 	for _, m := range connMsgs {
 		byConn[m.ConnectionId] = m
@@ -56,11 +59,12 @@ func TestBuildSyncMetrics(t *testing.T) {
 	require.Equal(t, "success", byConn["con_success"].Status)
 	require.Equal(t, "error", byConn["con_error"].Status)
 	require.Equal(t, "dropped", byConn["con_dropped"].Status)
+	require.Equal(t, "dropped", byConn["con_errdrop"].Status) // dropped overrides error
 	require.Equal(t, "dst_error", byConn["con_error"].DestinationId)
 	require.Equal(t, "builtin.destination.facebook", byConn["con_error"].FunctionId)
 
-	// Billing: success and error are billed (active events whose processing
-	// succeeded/failed); only explicitly dropped events are not billed.
+	// Billing: success and pure-error are billed; explicitly dropped and error-induced
+	// dropped are not.
 	require.Len(t, billingMsgs, 2)
 	keys := map[string]activeIncomingMessage{}
 	for _, m := range billingMsgs {
