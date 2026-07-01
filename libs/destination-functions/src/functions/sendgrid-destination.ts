@@ -98,15 +98,27 @@ async function ensureCustomField(
     // its id; if still not found, skip this one key rather than fail the whole write. 429/5xx fall
     // through to retry, so a transient failure never silently drops a field (incl. jitsu_managed_lists).
     if (e instanceof JsonFetchError && e.responseStatus < 500 && e.responseStatus !== 429) {
-      const fresh = await ctx.jsonFetch(`${apiBase(ctx.props)}/v3/marketing/field_definitions`, {
-        method: "GET",
-        headers: authHeaders(ctx.props),
-      });
+      // The refetch can itself hit a transient 429/5xx — route it through classifyError so it becomes
+      // a RetryError rather than escaping as a raw JsonFetchError (which Rotor would drop, not retry).
+      let fresh: any;
+      try {
+        fresh = await ctx.jsonFetch(`${apiBase(ctx.props)}/v3/marketing/field_definitions`, {
+          method: "GET",
+          headers: authHeaders(ctx.props),
+        });
+      } catch (refetchErr) {
+        throw classifyError(`SendGrid: failed to refetch field definitions for "${name}"`, refetchErr);
+      }
       const found = (fresh?.custom_fields || []).find((f: any) => f.name === name);
       if (found?.id) {
         map.custom[name] = found.id;
         await ctx.store.set(FIELD_MAP_KEY, map, "1h");
         return found.id;
+      }
+      // The internal jitsu_managed_lists marker must never be skipped: proceeding without it lets list
+      // membership mutate while reconciliation bookkeeping is lost. A user-supplied field can be skipped.
+      if (name === MANAGED_LISTS_FIELD) {
+        throw classifyError(`SendGrid: failed to define internal field "${name}"`, e);
       }
       ctx.log.warn(`SendGrid: could not define custom field "${name}", skipping it: ${e.message}`);
       return undefined;
@@ -347,47 +359,18 @@ async function upsertContact(event: AnalyticsServerEvent, ctx: ExtendedCtx): Pro
   }
 }
 
-// track/page/screen/group: update an existing contact only. Never creates (SendGrid PUT would upsert,
-// so we search first and skip if the contact isn't there) and never touches list membership (managed
-// by identify). Driven by fields explicitly set on the event.
-async function updateContactFromEvent(event: AnalyticsServerEvent, ctx: ExtendedCtx): Promise<void> {
-  const { log, props } = ctx;
-  // For group events, event.traits are company attributes (which may include a company email), so the
-  // contact must be resolved from the user's email (context.traits) or the userId cache — never from the
-  // group's own traits.
-  let email = event.type === "group" ? (event.context?.traits?.email as string | undefined) : resolveEmail(event);
-  if (!email && props.resolveEmailFromUserId && event.userId) {
-    email = await ctx.store.get(userEmailCacheKey("sendgrid", String(event.userId)));
-  }
-  if (!email) {
-    log.debug(`SendGrid: ${event.type} event can't be linked to a contact (no email, no cached userId), skipping`);
-    return;
-  }
-
-  // For group events fold the group id + traits into namespaced fields; otherwise use explicit event traits.
-  const traits =
-    event.type === "group"
-      ? {
-          ...(event.groupId ? { group_id: String(event.groupId) } : {}),
-          ...Object.fromEntries(Object.entries(event.traits || {}).map(([k, v]) => [`group_${k}`, v])),
-        }
-      : event.traits || {};
-
-  // Only fields explicitly set on the event drive an update — the ambient context.traits are ignored so
-  // we don't re-write the contact on every event. Bail before any API call if there's nothing to update.
-  const hasUsableField =
-    !!(traits.name || traits.firstName || traits.lastName) ||
-    Object.keys(traits).some(k => !reservedTraitKeys.has(k.toLowerCase()));
-  if (!hasUsableField) {
-    log.debug(`SendGrid: ${event.type} event for ${email} has no contact fields to update, skipping`);
-    return;
-  }
-
+// Update an existing contact only: search first and skip if it isn't there (a raw PUT would upsert),
+// never touching list membership (managed by identify). Shared by the track/page/screen and group paths.
+async function applyContactUpdate(
+  email: string,
+  traits: Record<string, any>,
+  event: AnalyticsServerEvent,
+  ctx: ExtendedCtx
+): Promise<void> {
   if (!(await searchContact(email, ctx))) {
-    log.debug(`SendGrid: contact ${email} not found; ${event.type} events don't create contacts, skipping`);
+    ctx.log.debug(`SendGrid: contact ${email} not found; ${event.type} events don't create contacts, skipping`);
     return;
   }
-
   const map = await loadFieldMap(ctx);
   const { contact, createdNewField } = await buildContact(
     { ...event, traits: {} } as AnalyticsServerEvent,
@@ -400,7 +383,60 @@ async function updateContactFromEvent(event: AnalyticsServerEvent, ctx: Extended
   }
   contact.email = email;
   await putContact(contact, [], ctx);
-  log.debug(`SendGrid: updated contact ${email} from ${event.type} event`);
+  ctx.log.debug(`SendGrid: updated contact ${email} from ${event.type} event`);
+}
+
+// track/page/screen: update an existing contact's fields only. Never creates and never touches list
+// membership (managed by identify). Driven by fields explicitly set on the event.
+async function updateContactFromEvent(event: AnalyticsServerEvent, ctx: ExtendedCtx): Promise<void> {
+  const { log, props } = ctx;
+  let email = resolveEmail(event);
+  if (!email && props.resolveEmailFromUserId && event.userId) {
+    email = await ctx.store.get(userEmailCacheKey("sendgrid", String(event.userId)));
+  }
+  if (!email) {
+    log.debug(`SendGrid: ${event.type} event can't be linked to a contact (no email, no cached userId), skipping`);
+    return;
+  }
+
+  // Only fields explicitly set on the event drive an update — the ambient context.traits are ignored so
+  // we don't re-write the contact on every event. Bail before any API call if there's nothing to update.
+  const traits = event.traits || {};
+  const hasUsableField =
+    !!(traits.name || traits.firstName || traits.lastName) ||
+    Object.keys(traits).some(k => !reservedTraitKeys.has(k.toLowerCase()));
+  if (!hasUsableField) {
+    log.debug(`SendGrid: ${event.type} event for ${email} has no contact fields to update, skipping`);
+    return;
+  }
+
+  await applyContactUpdate(email, traits, event, ctx);
+}
+
+// group: fold the group id + traits into the contact's namespaced (group_*) fields so a user's company
+// attributes are queryable in SendGrid. The contact is resolved from the user's email (context.traits or
+// the userId cache) — never from the group's own traits, which are company attributes and may carry a
+// company email. Like track/page, never creates a contact.
+async function updateContactFromGroup(event: AnalyticsServerEvent, ctx: ExtendedCtx): Promise<void> {
+  const { log, props } = ctx;
+  if (!event.groupId) {
+    log.debug(`SendGrid: group event without groupId, skipping`);
+    return;
+  }
+  let email = event.context?.traits?.email as string | undefined;
+  if (!email && props.resolveEmailFromUserId && event.userId) {
+    email = await ctx.store.get(userEmailCacheKey("sendgrid", String(event.userId)));
+  }
+  if (!email) {
+    log.debug(`SendGrid: group event can't be linked to a contact (no email, no cached userId), skipping`);
+    return;
+  }
+
+  const traits: Record<string, any> = {
+    group_id: String(event.groupId),
+    ...Object.fromEntries(Object.entries(event.traits || {}).map(([k, v]) => [`group_${k}`, v])),
+  };
+  await applyContactUpdate(email, traits, event, ctx);
 }
 
 const SendgridDestination: JitsuFunction<AnalyticsServerEvent, SendgridCredentials> = async (event, ctx) => {
@@ -409,7 +445,9 @@ const SendgridDestination: JitsuFunction<AnalyticsServerEvent, SendgridCredentia
 
   if (event.type === "identify") {
     await upsertContact(event, extendedCtx);
-  } else if (event.type === "track" || event.type === "page" || event.type === "screen" || event.type === "group") {
+  } else if (event.type === "group") {
+    await updateContactFromGroup(event, extendedCtx);
+  } else if (event.type === "track" || event.type === "page" || event.type === "screen") {
     await updateContactFromEvent(event, extendedCtx);
   }
 };

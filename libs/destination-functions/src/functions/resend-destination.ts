@@ -102,9 +102,16 @@ async function ensureProperties(properties: Record<string, string>, ctx: Extende
         known.add(key);
         result[key] = properties[key];
         changed = true;
-      } else if (e instanceof JsonFetchError && e.responseStatus < 500 && e.responseStatus !== 429) {
-        // permanent client error (e.g. an invalid key name) — skip this one key rather than fail the
-        // whole write; a single bad user-supplied key shouldn't drop the event.
+      } else if (
+        e instanceof JsonFetchError &&
+        e.responseStatus < 500 &&
+        e.responseStatus !== 429 &&
+        key !== MANAGED_AUDIENCES_PROP
+      ) {
+        // permanent client error (e.g. an invalid key name) on a user-supplied key — skip this one key
+        // rather than fail the whole write; a single bad user-supplied key shouldn't drop the event.
+        // The internal jitsu_managed_audiences marker is never skipped (falls through to throw below):
+        // proceeding without it lets audience membership mutate while reconciliation bookkeeping is lost.
         ctx.log.warn(`Resend: could not define contact property "${key}", skipping it: ${e.message}`);
       } else {
         // transient (429/5xx/network) — retry the event so we don't lose data or leave the
