@@ -10,6 +10,8 @@ import hubspotIcon from "./icons/hubspot";
 import mixpanelIcon from "./icons/mixpanel";
 import facebookIcon from "./icons/facebook";
 import juneIcon from "./icons/june";
+import resendIcon from "./icons/resend";
+import sendgridIcon from "./icons/sendgrid";
 import blazeIcon from "./icons/blaze";
 import salesforceIcon from "./icons/salesforce";
 import mongodbIcon from "./icons/mongodb";
@@ -932,6 +934,36 @@ export const coreDestinations: DestinationType<any>[] = [
     connectionOptions: CloudDestinationsConnectionOptions,
     credentials: meta.JuneCredentials,
     description: "June.so is a product analytics platform that provides insights into user behavior.",
+  },
+  {
+    id: "resend",
+    icon: resendIcon,
+    title: "Resend",
+    tags: "Email",
+    connectionOptions: CloudDestinationsConnectionOptions,
+    credentials: meta.ResendCredentials,
+    credentialsUi: meta.ResendCredentialsUi,
+    description: (
+      <>
+        Jitsu syncs users to Resend as contacts. Each <code>.identify()</code> creates or updates a contact and adds it
+        to a segment. Other events update the contact&apos;s properties. Contacts are matched by email.
+      </>
+    ),
+  },
+  {
+    id: "sendgrid",
+    icon: sendgridIcon,
+    title: "SendGrid",
+    tags: "Email",
+    connectionOptions: CloudDestinationsConnectionOptions,
+    credentials: meta.SendgridCredentials,
+    credentialsUi: meta.SendgridCredentialsUi,
+    description: (
+      <>
+        Jitsu syncs users to SendGrid as marketing contacts. Each <code>.identify()</code> upserts a contact and adds it
+        to a list. Other events update the contact&apos;s fields. Contacts are matched by email.
+      </>
+    ),
   },
   {
     id: "braze",

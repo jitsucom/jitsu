@@ -147,6 +147,91 @@ export const JuneCredentials = z.object({
 });
 export type JuneCredentials = z.infer<typeof JuneCredentials>;
 
+export const ResendCredentials = z.object({
+  apiKey: z
+    .string()
+    .describe(
+      `API Key::Create an API key in the Resend dashboard under "API Keys". It needs write access to Contacts. The key starts with "re_".`
+    ),
+  audiences: z
+    .string()
+    .optional()
+    .describe(
+      `Audiences::Comma-separated list of Resend audience names to add identified contacts to (e.g. <code>Customers, Beta</code>). Names are resolved automatically — any that don't exist yet are created. Leave empty to add contacts without an audience. Can be overridden per event with a <code>resendAudiences</code> trait. Membership is reconciled to match the list: audiences the connector previously added that are no longer listed get removed.`
+    ),
+  resolveEmailFromUserId: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe(
+      `Resolve email from userId::Resend identifies contacts by email only — it has no notion of a userId. When enabled, every <code>identify()</code> caches a userId → email mapping so later <code>track</code>/<code>page</code>/<code>group</code> events that carry only a userId can still update the matching contact. When disabled (default), only events that carry an email directly are matched; events with just a userId are skipped.`
+    ),
+  apiBase: z
+    .string()
+    .optional()
+    .describe(
+      `API Base URL::Override the Resend API base URL (defaults to https://api.resend.com). For testing or proxying.`
+    ),
+});
+export type ResendCredentials = z.infer<typeof ResendCredentials>;
+
+export const ResendCredentialsUi: Partial<
+  Record<keyof ResendCredentials, { documentation?: string; password?: boolean; hidden?: boolean }>
+> = {
+  apiKey: {
+    password: true,
+  },
+  apiBase: {
+    hidden: true,
+  },
+};
+
+export const SendgridCredentials = z.object({
+  apiKey: z
+    .string()
+    .describe(
+      `API Key::Create an API key in the SendGrid dashboard under Settings > API Keys. It needs "Marketing" permissions (Read/Write access to Marketing Contacts).`
+    ),
+  lists: z
+    .string()
+    .optional()
+    .describe(
+      `Lists::Comma-separated list of SendGrid marketing list names to add identified contacts to (e.g. <code>Customers, Beta</code>). Names are resolved automatically — any that don't exist yet are created. Leave empty to add contacts without a list. Can be overridden per event with a <code>sendgridLists</code> trait. Membership is reconciled to match the list: lists the connector previously added that are no longer listed get removed.`
+    ),
+  region: z
+    .enum(["Global", "EU"])
+    .optional()
+    .default("Global")
+    .describe(
+      `Data Residency::Select "EU" if your SendGrid account uses EU data residency (requests go to api.eu.sendgrid.com). Otherwise leave as "Global" (api.sendgrid.com).`
+    ),
+  resolveEmailFromUserId: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe(
+      `Resolve email from userId::SendGrid identifies contacts by email. When enabled, every <code>identify()</code> caches a userId → email mapping so later <code>track</code>/<code>page</code>/<code>group</code> events that carry only a userId can still update the matching contact. When disabled (default), only events that carry an email directly are matched.`
+    ),
+  apiBase: z
+    .string()
+    .optional()
+    .describe(
+      `API Base URL::Override the SendGrid API base URL (defaults to the Global/EU host from Data Residency). For testing or proxying.`
+    ),
+});
+export type SendgridCredentials = z.infer<typeof SendgridCredentials>;
+
+export const SendgridCredentialsUi: Partial<
+  Record<keyof SendgridCredentials, { documentation?: string; password?: boolean; hidden?: boolean }>
+> = {
+  apiKey: {
+    password: true,
+  },
+  apiBase: {
+    hidden: true,
+  },
+};
+
 export const SalesforceCredentials = z.object({
   authorized: z.boolean().optional().default(false),
   oauthIntegrationId: z.string().optional().default("jitsu-cloud-dst-salesforce"),
