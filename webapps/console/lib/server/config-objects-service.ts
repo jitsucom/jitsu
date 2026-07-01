@@ -157,7 +157,7 @@ export class ConfigObjectsService {
     workspaceId: string,
     type: string,
     data: any,
-    opts: { req?: NextApiRequest } = {}
+    opts: { req?: NextApiRequest; generateId?: boolean } = {}
   ): Promise<{ id: string }> {
     await verifyAccessWithRole(user, workspaceId, "editEntities");
     this.assertKnownType(type);
@@ -166,11 +166,12 @@ export class ConfigObjectsService {
       `Workspace ${workspaceId} not found`
     );
     const configObjectType = getConfigObjectType(type);
-    // The HTTP route relies on the client sending id/type/workspaceId in the body
-    // (the base schema requires all three). An MCP caller passes `data` plus the
-    // type/workspaceId as separate args, so inject them here and mint an id when
-    // absent — otherwise parseObject would reject the payload.
-    const incoming = { ...data, type, workspaceId, id: data?.id ?? randomId() };
+    // Inject type/workspaceId so parseObject sees a complete object. `id` is
+    // caller-dependent: the HTTP route requires the client to send it (the base
+    // schema mandates it, and a missing id must stay a validation error so client
+    // payload bugs surface). An MCP caller passes `data` without an id, so it opts
+    // into `generateId` to have one minted here.
+    const incoming = { ...data, type, workspaceId, id: data?.id ?? (opts.generateId ? randomId() : undefined) };
     let object = parseObject(type, incoming);
     if (incoming.cloneId) {
       log.atInfo().log(`Unmasking secrets for ${type} clone: ${incoming.id}`);

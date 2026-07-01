@@ -1,17 +1,9 @@
-import { createRoute, verifyAccess, verifyAccessWithRole } from "../../../../../lib/api";
+import { createRoute } from "../../../../../lib/api";
 import { z } from "zod";
 import { db } from "../../../../../lib/server/db";
-import { ApiError } from "../../../../../lib/shared/errors";
-import {
-  getAllConfigObjectTypeNames,
-  getConfigObjectType,
-  parseObject,
-} from "../../../../../lib/schema/config-objects";
+import { getAllConfigObjectTypeNames, getConfigObjectType } from "../../../../../lib/schema/config-objects";
 import { AnyDestination, getAnnotatedConfigObjectSchema } from "../../../../../lib/openapi/annotations";
-import { prepareZodObjectForDeserialization } from "../../../../../lib/zod";
-import { configObjectAuditLog } from "../../../../../lib/server/audit-log";
-import { trackTelemetryEvent } from "../../../../../lib/server/telemetry";
-import { requireDefined, deepCopy } from "juava";
+import { ConfigObjectsService } from "../../../../../lib/server/config-objects-service";
 
 export const config = {
   api: {
@@ -24,6 +16,9 @@ export const config = {
 // Spec-visible types — runtime still serves every type from getAllConfigObjectTypeNames(),
 // but the `misc` catch-all is omitted from the public OpenAPI document.
 const publicTypeNames = getAllConfigObjectTypeNames().filter(t => t !== "misc");
+
+let service: ConfigObjectsService | undefined;
+const configObjects = () => (service ??= new ConfigObjectsService({ prisma: db.prisma() }));
 
 export const route = createRoute()
   .GET({
@@ -46,16 +41,7 @@ export const route = createRoute()
     },
   })
   .handler(async ({ user, query: { id, workspaceId, type } }) => {
-    await verifyAccess(user, workspaceId);
-    const configObjectType = getConfigObjectType(type);
-    const object = await db.prisma().configurationObject.findFirst({
-      where: { workspaceId, id, deleted: false },
-    });
-    if (!object) {
-      throw new ApiError(`${type} with id ${id} does not exist`, {}, { status: 400 });
-    }
-    const preFilter = { ...((object.config as any) || {}), workspaceId, id, type, updatedAt: object.updatedAt };
-    return await configObjectType.outputFilter(preFilter);
+    return await configObjects().get(user, workspaceId, type, id);
   })
   .PUT({
     auth: true,
@@ -76,40 +62,9 @@ export const route = createRoute()
       }),
     },
   })
-  .handler(async ({ user, body, query }) => {
-    body = prepareZodObjectForDeserialization(body);
-    const { id, workspaceId, type } = query;
-    // Read-only enforcement is centralized: the API-layer maintenance gate
-    // (lib/api.ts) returns 503 before this handler runs, and the Prisma
-    // backstop in lib/server/db.ts rejects writes per-operation. No need
-    // for an in-handler check.
-    await verifyAccessWithRole(user, workspaceId, "editEntities");
-    const workspace = requireDefined(
-      await db.prisma().workspace.findFirst({ where: { id: workspaceId } }),
-      `Workspace ${workspaceId} not found`
-    );
-    const configObjectType = getConfigObjectType(type);
-    const object = await db.prisma().configurationObject.findFirst({
-      where: { workspaceId: workspaceId, id, deleted: false },
-    });
-    if (!object) {
-      throw new ApiError(`${type} with id ${id} does not exist`);
-    }
-    // Snapshot before merge — `merge` may mutate `object.config` in place, so capture
-    // for the audit log up front (introduced in SOC2 audit-log work, PR #1288).
-    const prevVersion = deepCopy(object.config);
-    const merged = await configObjectType.merge(object.config, { ...body, id, workspaceId });
-    const data = parseObject(type, merged);
-    const filtered = await configObjectType.inputFilter(data, "update", workspace);
-
-    delete filtered.id;
-    delete filtered.workspaceId;
-    await db.prisma().configurationObject.update({ where: { id }, data: { config: filtered } });
-    await trackTelemetryEvent("config-object-update", { objectType: type });
-    await configObjectAuditLog(user, workspaceId, id, type, "update", {
-      prevVersion,
-      newVersion: filtered,
-    });
+  .handler(async ({ user, body, query: { id, workspaceId, type } }) => {
+    // The service applies `prepareZodObjectForDeserialization` internally.
+    await configObjects().update(user, workspaceId, type, id, body);
   })
   .DELETE({
     auth: true,
@@ -131,31 +86,11 @@ export const route = createRoute()
       }),
     },
   })
-  .handler(async ({ user, query }) => {
-    const { id, workspaceId, type, strict, cascade } = query;
-    await verifyAccessWithRole(user, workspaceId, "deleteEntities");
-    const object = await db.prisma().configurationObject.findFirst({
-      where: { workspaceId: workspaceId, id, deleted: false },
+  .handler(async ({ user, query: { id, workspaceId, type, strict, cascade } }) => {
+    return await configObjects().delete(user, workspaceId, type, id, {
+      strict: strict === "true",
+      cascade: cascade === "true",
     });
-    if (!object) {
-      return null;
-    }
-
-    const configObjectType = getConfigObjectType(type);
-    if (configObjectType.onDelete) {
-      await configObjectType.onDelete(object, {
-        strict: strict === "true",
-        cascade: cascade === "true",
-      });
-    }
-
-    await db.prisma().configurationObject.update({
-      where: { id: object.id },
-      data: { deleted: true },
-    });
-    await trackTelemetryEvent("config-object-delete", { objectType: type });
-    await configObjectAuditLog(user, workspaceId, id, type, "delete", { prevVersion: object.config });
-    return { ...((object.config as any) || {}), workspaceId, id, type };
   });
 
 export default route.toNextApiHandler();

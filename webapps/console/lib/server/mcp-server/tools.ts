@@ -155,7 +155,8 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
         if (type === CONNECTION) {
           return service.upsertLink(user, workspaceId, data as any, { strict: true });
         }
-        return service.create(user, workspaceId, type, data);
+        // MCP callers pass `data` without an id; mint one server-side.
+        return service.create(user, workspaceId, type, data, { generateId: true });
       })
   );
 
