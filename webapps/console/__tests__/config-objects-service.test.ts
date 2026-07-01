@@ -82,10 +82,10 @@ describe("ConfigObjectsService", () => {
     await expect(svc.list(user, "ws1", "bogus")).rejects.toThrow(/Unknown resource type/);
   });
 
-  it("create mints an id and strips id/workspaceId from stored config", async () => {
+  it("create mints an id (generateId) and strips id/workspaceId from stored config", async () => {
     const prisma = makePrisma();
     const svc = new ConfigObjectsService({ prisma });
-    const res = await svc.create(user, "ws1", "domain", { name: "example.com" });
+    const res = await svc.create(user, "ws1", "domain", { name: "example.com" }, { generateId: true });
 
     expect(prisma.configurationObject.create).toHaveBeenCalledOnce();
     const arg = prisma.configurationObject.create.mock.calls[0][0];
@@ -96,6 +96,15 @@ describe("ConfigObjectsService", () => {
     expect(arg.data.config.id).toBeUndefined();
     expect(arg.data.config.workspaceId).toBeUndefined();
     expect(arg.data.config.name).toBe("example.com");
+  });
+
+  it("create without an id and no generateId fails validation (HTTP contract)", async () => {
+    const prisma = makePrisma();
+    const svc = new ConfigObjectsService({ prisma });
+    // The HTTP route requires the client to send an id; a missing one must stay a
+    // validation error rather than get an implicitly minted id.
+    await expect(svc.create(user, "ws1", "domain", { name: "example.com" })).rejects.toThrow(/validate schema/);
+    expect(prisma.configurationObject.create).not.toHaveBeenCalled();
   });
 
   it("delete returns null when the object is missing (idempotent)", async () => {
