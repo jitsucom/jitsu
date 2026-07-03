@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jitsucom/bulker/jitsubase/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,7 +33,7 @@ func TestBuildContextHeaders(t *testing.T) {
 		"__sql_type_foo":  "varchar(4)",
 	})
 
-	headers := buildContextHeaders(c, nil)
+	headers := buildContextHeaders(c, nil, nil)
 
 	// allow-listed values are kept as-is
 	require.Equal(t, "Mozilla/5.0", headers["user-agent"])
@@ -63,11 +64,49 @@ func TestBuildContextHeadersBodyOverlay(t *testing.T) {
 		"__sql_type_bar": "jsonb",                // not allow-listed: ignored
 		"sec-fetch-mode": "navigate",             // allow-listed: added
 		"accept":         map[string]any{"a": 1}, // non-string values are ignored
-	})
+	}, nil)
 
 	require.Equal(t, "Mozilla/5.0 (device)", headers["user-agent"])
 	require.Equal(t, "navigate", headers["sec-fetch-mode"])
 	require.NotContains(t, headers, "x-api-key")
 	require.NotContains(t, headers, "__sql_type_bar")
 	require.NotContains(t, headers, "accept")
+}
+
+func TestBuildContextHeadersRedundantWithContext(t *testing.T) {
+	c := ginContextWithHeaders(map[string]string{
+		"User-Agent": "Mozilla/5.0",
+		"Referer":    "https://example.com/page",
+		"Accept":     "*/*",
+	})
+	eventContext := types.JsonFromMap(map[string]any{
+		"userAgent": "Mozilla/5.0",
+		"page": map[string]any{
+			"url":      "https://example.com/other",
+			"referrer": "https://example.com/page",
+			"host":     "data.example.com",
+		},
+	})
+
+	headers := buildContextHeaders(c, nil, eventContext)
+
+	require.NotContains(t, headers, "user-agent") // duplicates context.userAgent
+	require.NotContains(t, headers, "referer")    // duplicates context.page.referrer
+	require.NotContains(t, headers, "host")       // duplicates context.page.host
+	require.Equal(t, "*/*", headers["accept"])    // unrelated headers stay
+
+	// differing values are kept - the mismatch is a bot signal; referer matching only
+	// page.url (not page.referrer) is kept too
+	eventContext2 := types.JsonFromMap(map[string]any{
+		"userAgent": "Mozilla/5.0 (different)",
+		"page": map[string]any{
+			"url":      "https://example.com/page",
+			"referrer": "https://google.com/",
+			"host":     "example.com",
+		},
+	})
+	headers2 := buildContextHeaders(c, nil, eventContext2)
+	require.Equal(t, "Mozilla/5.0", headers2["user-agent"])
+	require.Equal(t, "https://example.com/page", headers2["referer"])
+	require.Equal(t, "data.example.com", headers2["host"])
 }
