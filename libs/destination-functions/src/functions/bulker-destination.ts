@@ -219,9 +219,18 @@ export const BULKER_JSON_DATA_TYPE = 6;
 // context.headers object as a single column of the warehouse-native JSON type (jsonb /
 // SUPER / JSON / string) instead of flattening it into one column per header name -
 // header names are client-controlled, so flattening would create unbounded columns.
-// Applied to every data layout except jitsu-legacy, which never carries context.headers.
-export function withContextHeadersSchema(streamOptions: any, dataLayout: DataLayoutType): any {
-  if (dataLayout === "jitsu-legacy") {
+// Applied only when the event actually carries a context.headers object, so connections
+// that never see headers don't get an eagerly created column (in batch mode schema
+// columns are added to the table even without data). Never applied for jitsu-legacy,
+// which doesn't carry context.headers.
+export function withContextHeadersSchema(streamOptions: any, dataLayout: DataLayoutType, event: any): any {
+  const contextHeaders = event?.context?.headers;
+  if (
+    dataLayout === "jitsu-legacy" ||
+    typeof contextHeaders !== "object" ||
+    contextHeaders === null ||
+    Array.isArray(contextHeaders)
+  ) {
     return streamOptions;
   }
   const fields = streamOptions?.schema?.fields ?? [];
@@ -277,7 +286,7 @@ const BulkerDestination: JitsuFunction<AnalyticsServerEvent, BulkerDestinationCo
         }
       }
     }
-    const effectiveStreamOptions = withContextHeadersSchema(streamOptions, dataLayout);
+    const effectiveStreamOptions = withContextHeadersSchema(streamOptions, dataLayout, adjustedEvent);
     const events = dataLayouts[dataLayout](adjustedEvent, ctx);
     for (const { event, table } of Array.isArray(events) ? events : [events]) {
       const payload = JSON.stringify(event);
