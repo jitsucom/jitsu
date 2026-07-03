@@ -159,6 +159,18 @@ var (
 					return types.Schema{}, fmt.Errorf("failed to parse schema: %v", err)
 				}
 				return schema, nil
+			case map[string]any:
+				// nested object inside a JSON streamOptions header arrives already unmarshalled
+				b, err := jsoniter.Marshal(v)
+				if err != nil {
+					return types.Schema{}, fmt.Errorf("failed to parse schema: %v", err)
+				}
+				schema := types.Schema{}
+				err = jsoniter.Unmarshal(b, &schema)
+				if err != nil {
+					return types.Schema{}, fmt.Errorf("failed to parse schema: %v", err)
+				}
+				return schema, nil
 			default:
 				return types.Schema{}, fmt.Errorf("invalid value type of schema option: %T", v)
 			}
