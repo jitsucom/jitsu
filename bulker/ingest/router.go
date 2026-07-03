@@ -402,7 +402,7 @@ func patchEvent(c *gin.Context, messageId string, ev types.Json, tp string, inge
 		// browser clients cannot read their own request headers and must not be able to
 		// spoof them: always derive context.headers from the actual request, ignoring
 		// whatever the body provided.
-		ctx.Set("headers", buildContextHeaders(c, nil))
+		ctx.Set("headers", buildContextHeaders(c, nil, ctx))
 		// remove any jitsu special properties from ingested events
 		// it is only allowed to be set via functions
 		types.FilterEvent(ev)
@@ -410,7 +410,7 @@ func patchEvent(c *gin.Context, messageId string, ev types.Json, tp string, inge
 		// server-to-server: capture the (forwarding) request headers, but let the caller
 		// override allow-listed headers via the event body to forward the original
 		// device's headers.
-		ctx.Set("headers", buildContextHeaders(c, ctx.GetN("headers")))
+		ctx.Set("headers", buildContextHeaders(c, ctx.GetN("headers"), ctx))
 	}
 	nowIsoDate := time.Now().UTC().Format(timestamp.JsonISO)
 	ev.Set("receivedAt", nowIsoDate)
@@ -493,7 +493,10 @@ var contextHeadersAllowlist = types.NewSet(
 // dropped entirely; allow-listed headers keep their values, the write key is masked with
 // maskWriteKey, and every other header keeps its name but gets a masked value. Allow-listed
 // headers already present in the event body (bodyHeaders) win over the request headers.
-func buildContextHeaders(c *gin.Context, bodyHeaders any) map[string]string {
+// Headers whose exact values the event already carries in their canonical context places
+// (context.userAgent, context.page.referrer, context.page.host) are removed as
+// redundant; a differing value is kept - the mismatch itself is a bot signal.
+func buildContextHeaders(c *gin.Context, bodyHeaders any, eventContext types.Json) map[string]string {
 	headers := make(map[string]string, len(c.Request.Header))
 	for k, v := range c.Request.Header {
 		lk := strings.ToLower(k)
@@ -530,6 +533,19 @@ func buildContextHeaders(c *gin.Context, bodyHeaders any) map[string]string {
 	case map[string]any:
 		for k, val := range bh {
 			overlay(k, val)
+		}
+	}
+	if eventContext != nil {
+		if ua, ok := headers["user-agent"]; ok && ua == eventContext.GetS("userAgent") {
+			delete(headers, "user-agent")
+		}
+		if page, ok := eventContext.GetN("page").(types.Json); ok {
+			if ref, ok := headers["referer"]; ok && ref == page.GetS("referrer") {
+				delete(headers, "referer")
+			}
+			if host, ok := headers["host"]; ok && host == page.GetS("host") {
+				delete(headers, "host")
+			}
 		}
 	}
 	return headers
