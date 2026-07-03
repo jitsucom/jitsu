@@ -459,37 +459,61 @@ func isInternalHeader(headerName string) bool {
 	return strings.HasPrefix(l, "x-jitsu-") || strings.HasPrefix(l, "x-vercel")
 }
 
-// sensitiveHeaders are never copied into event.context.headers, which is forwarded to
-// destinations. Secrets must not leak into the warehouse.
-var sensitiveHeaders = types.NewSet("cookie", "authorization")
+// maskedHeaderValue replaces values of headers that are not allow-listed: the header's
+// presence is still a useful signal (e.g. for bot detection), but its value may carry
+// credentials (cookie, authorization, x-api-key, vendor JWTs, ...) and must not reach
+// destinations.
+const maskedHeaderValue = "***"
 
-// contextHeadersAllowlist are the client-meaningful headers that, when present in the
-// event body's context.headers, take priority over the actual HTTP request headers. A
-// server-side SDK may forward the original device's headers in the body; for these keys
-// we trust the body over the (forwarding) request.
+// contextHeadersAllowlist are the client-meaningful headers whose values are copied into
+// event.context.headers as-is; any other header keeps only its name, with the value
+// masked. The same list gates which headers the event body may override on the s2s
+// endpoint (a server-side SDK forwarding the original device's headers).
+// The list is intentionally limited to standard content-negotiation, navigation and
+// client-hint headers that cannot carry credentials.
 var contextHeadersAllowlist = types.NewSet(
+	// content negotiation / request metadata
 	"accept", "accept-language", "accept-encoding", "content-type",
-	"user-agent", "referer", "dnt",
+	"user-agent", "referer", "origin", "host",
+	"cache-control", "pragma", "priority", "upgrade-insecure-requests", "x-requested-with",
+	// privacy signals
+	"dnt", "sec-gpc",
+	// fetch metadata (the strongest browser-vs-bot tell)
 	"sec-fetch-site", "sec-fetch-mode", "sec-fetch-dest", "sec-fetch-user",
-	"sec-ch-ua", "sec-ch-ua-mobile", "sec-ch-ua-platform",
+	// user-agent client hints
+	"sec-ch-ua", "sec-ch-ua-mobile", "sec-ch-ua-platform", "sec-ch-ua-platform-version",
+	"sec-ch-ua-arch", "sec-ch-ua-bitness", "sec-ch-ua-model", "sec-ch-ua-wow64",
+	"sec-ch-ua-full-version", "sec-ch-ua-full-version-list", "sec-ch-ua-form-factors",
+	// device / network client hints
+	"save-data", "device-memory", "dpr", "viewport-width", "width", "downlink", "ect", "rtt",
 )
 
 // buildContextHeaders captures all incoming HTTP request headers (lower-cased keys) for
-// event.context.headers. Internal (x-jitsu-*, x-vercel*) and sensitive (cookie,
-// authorization) headers are dropped, and the write key is masked. Allow-listed headers
-// already present in the event body (bodyHeaders) win over the request headers.
+// event.context.headers. Internal (x-jitsu-*, x-vercel*) and __sql_type* headers are
+// dropped entirely; allow-listed headers keep their values, the write key is masked with
+// maskWriteKey, and every other header keeps its name but gets a masked value. Allow-listed
+// headers already present in the event body (bodyHeaders) win over the request headers.
 func buildContextHeaders(c *gin.Context, bodyHeaders any) map[string]string {
 	headers := make(map[string]string, len(c.Request.Header))
 	for k, v := range c.Request.Header {
-		if len(v) == 0 || isInternalHeader(k) || sensitiveHeaders.Contains(strings.ToLower(k)) {
+		lk := strings.ToLower(k)
+		// __sql_type* keys are dropped: headers bypass types.FilterEvent (plain map, not
+		// types.Json), and such a key would otherwise become a raw SQL type hint downstream.
+		if len(v) == 0 || isInternalHeader(k) || strings.HasPrefix(lk, types.SqlTypePrefix) {
 			continue
 		}
-		lk := strings.ToLower(k)
-		if lk == "x-write-key" {
+		switch {
+		case lk == "x-write-key":
 			headers[lk] = maskWriteKey(v[0])
-		} else {
+		case contextHeadersAllowlist.Contains(lk):
 			headers[lk] = strings.Join(v, ",")
+		default:
+			headers[lk] = maskedHeaderValue
 		}
+	}
+	// net/http promotes the Host header into Request.Host - it never appears in the header map
+	if c.Request.Host != "" {
+		headers["host"] = c.Request.Host
 	}
 	overlay := func(k string, val any) {
 		lk := strings.ToLower(k)
