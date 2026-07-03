@@ -233,8 +233,14 @@ export function withContextHeadersSchema(streamOptions: any, dataLayout: DataLay
   ) {
     return streamOptions;
   }
-  // streamOptions is untyped user config - don't touch a malformed schema.fields
-  const rawFields = streamOptions?.schema?.fields;
+  // streamOptions is untyped user config. bulker also accepts `schema` as a JSON string -
+  // don't merge into anything that isn't a plain object (spreading a string would explode
+  // it into character keys), and don't touch a malformed schema.fields
+  const schema = streamOptions?.schema;
+  if (typeof schema !== "undefined" && (typeof schema !== "object" || schema === null || Array.isArray(schema))) {
+    return streamOptions;
+  }
+  const rawFields = schema?.fields;
   if (typeof rawFields !== "undefined" && !Array.isArray(rawFields)) {
     return streamOptions;
   }
@@ -245,7 +251,7 @@ export function withContextHeadersSchema(streamOptions: any, dataLayout: DataLay
   return {
     ...streamOptions,
     schema: {
-      ...streamOptions?.schema,
+      ...schema,
       fields: [...fields, { name: "context_headers", type: BULKER_JSON_DATA_TYPE }],
     },
   };

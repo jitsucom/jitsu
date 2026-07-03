@@ -51,6 +51,13 @@ test("leaves malformed schema.fields untouched instead of throwing", () => {
   }
 });
 
+test("leaves non-object schema untouched (bulker accepts schema as a JSON string)", () => {
+  for (const schema of ['{"fields": [{"name": "custom", "type": 4}]}', 42, [], null]) {
+    const streamOptions = { schema };
+    expect(withContextHeadersSchema(streamOptions, "segment", eventWithHeaders)).toBe(streamOptions);
+  }
+});
+
 test("does not duplicate an existing context_headers field", () => {
   const streamOptions = { schema: { fields: [{ name: "context_headers", type: 4 }] } };
   expect(withContextHeadersSchema(streamOptions, "segment", eventWithHeaders)).toBe(streamOptions);
