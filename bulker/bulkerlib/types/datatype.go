@@ -229,6 +229,10 @@ func TypeFromValue(v any) (DataType, error) {
 		return INT64, nil
 	case map[string]any, []any, []map[string]any:
 		return JSON, nil
+	case Object:
+		// ordered JSON object (*jsonorder.OrderedMap) - reflect sees a Ptr, not a Map,
+		// so it must be matched explicitly
+		return JSON, nil
 	case nil:
 		return UNKNOWN, fmt.Errorf("Unknown DataType for value: %v type: %t", v, v)
 	default:
