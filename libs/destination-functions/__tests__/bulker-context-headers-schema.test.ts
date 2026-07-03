@@ -44,6 +44,13 @@ test("preserves existing streamOptions and schema fields", () => {
   expect(streamOptions.schema.fields).toHaveLength(1);
 });
 
+test("leaves malformed schema.fields untouched instead of throwing", () => {
+  for (const fields of ["not-an-array", { name: "x" }, 42, null]) {
+    const streamOptions = { schema: { fields } };
+    expect(withContextHeadersSchema(streamOptions, "segment", eventWithHeaders)).toBe(streamOptions);
+  }
+});
+
 test("does not duplicate an existing context_headers field", () => {
   const streamOptions = { schema: { fields: [{ name: "context_headers", type: 4 }] } };
   expect(withContextHeadersSchema(streamOptions, "segment", eventWithHeaders)).toBe(streamOptions);
