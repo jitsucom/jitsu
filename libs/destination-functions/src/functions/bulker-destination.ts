@@ -233,7 +233,12 @@ export function withContextHeadersSchema(streamOptions: any, dataLayout: DataLay
   ) {
     return streamOptions;
   }
-  const fields = streamOptions?.schema?.fields ?? [];
+  // streamOptions is untyped user config - don't touch a malformed schema.fields
+  const rawFields = streamOptions?.schema?.fields;
+  if (typeof rawFields !== "undefined" && !Array.isArray(rawFields)) {
+    return streamOptions;
+  }
+  const fields = rawFields ?? [];
   if (fields.some(f => f?.name === "context_headers")) {
     return streamOptions;
   }
