@@ -48,6 +48,24 @@ func TestSchemaOptionNestedObject(t *testing.T) {
 			configIds:         utils.ArrayIntersection(allBulkerConfigs, []string{PostgresBulkerTypeId, MySQLBulkerTypeId}),
 			streamOptions:     []bulker.StreamOption{bulker.WithSchema(schema)},
 		},
+		{
+			// with toSameCase the flattened key paths are name-transformed, so schema-derived
+			// notFlatteningKeys must be transformed the same way to match (sync-sidecar combines
+			// WithSchema with WithToSameCase; on Snowflake every path is transformed to upper case)
+			name:      "nested_object_schema_with_to_same_case",
+			tableName: "schema_option_nested_test",
+			modes:     []bulker.BulkMode{bulker.Stream},
+			dataFile:  "test_data/context_headers_mixed_case.ndjson",
+			expectedTable: ExpectedTable{
+				Columns: justColumns("_timestamp", "id", "name", "context_ip", "context_headers"),
+			},
+			expectedRowsCount: 2,
+			configIds:         utils.ArrayIntersection(allBulkerConfigs, []string{PostgresBulkerTypeId, MySQLBulkerTypeId}),
+			streamOptions: []bulker.StreamOption{
+				bulker.WithSchema(types.Schema{Fields: []types.SchemaField{{Name: "context_Headers", Type: types.JSON}}}),
+				bulker.WithToSameCase(),
+			},
+		},
 	}
 	sequentialGroup := sync.WaitGroup{}
 	sequentialGroup.Add(1)
