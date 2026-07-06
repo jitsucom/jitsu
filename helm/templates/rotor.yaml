@@ -34,12 +34,7 @@ spec:
             - secretRef:
                 name: jitsu-secrets
           env:
-            {{- include "jitsu-dev.commonEnv" . | nindent 12 }}
-            {{- include "jitsu-dev.serviceUrls" . | nindent 12 }}
-            {{- range $key, $value := .Values.env.rotor }}
-            - name: {{ $key }}
-              value: {{ $value | quote }}
-            {{- end }}
+            {{- include "jitsu-dev.env" (dict "ctx" . "service" "rotor") | nindent 12 }}
           volumeMounts:
             - name: node-cache
               mountPath: /cache

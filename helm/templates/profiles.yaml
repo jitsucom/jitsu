@@ -34,20 +34,12 @@ spec:
             - secretRef:
                 name: jitsu-secrets
           env:
-            {{- include "jitsu-dev.commonEnv" . | nindent 12 }}
-            {{- include "jitsu-dev.serviceUrls" . | nindent 12 }}
-            - name: ROTOR_MODE
-              value: "profiles"
-            - name: MONGODB_TIMEOUT_MS
-              value: "120000"
-            - name: WAREHOUSE_TIMEOUT_MS
-              value: "5000"
-            - name: UDF_TIMEOUT_MS
-              value: "300000"
-            {{- range $key, $value := .Values.env.profiles }}
-            - name: {{ $key }}
-              value: {{ $value | quote }}
-            {{- end }}
+            {{- include "jitsu-dev.env" (dict "ctx" . "service" "profiles"
+                  "extra" (dict
+                    "ROTOR_MODE" "profiles"
+                    "MONGODB_TIMEOUT_MS" "120000"
+                    "WAREHOUSE_TIMEOUT_MS" "5000"
+                    "UDF_TIMEOUT_MS" "300000")) | nindent 12 }}
           volumeMounts:
             - name: node-cache
               mountPath: /cache

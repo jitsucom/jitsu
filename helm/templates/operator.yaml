@@ -62,14 +62,8 @@ spec:
             - secretRef:
                 name: jitsu-secrets
           env:
-            - name: HTTP_PORT
-              value: "3052"
-            {{- include "jitsu-dev.commonEnv" . | nindent 12 }}
-            {{- include "jitsu-dev.serviceUrls" . | nindent 12 }}
-            {{- range $key, $value := .Values.env.operator }}
-            - name: {{ $key }}
-              value: {{ $value | quote }}
-            {{- end }}
+            {{- include "jitsu-dev.env" (dict "ctx" . "service" "operator"
+                  "extra" (dict "HTTP_PORT" "3052")) | nindent 12 }}
           volumeMounts:
             - name: build
               mountPath: /build

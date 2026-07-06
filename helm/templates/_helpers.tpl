@@ -66,40 +66,42 @@ http://console:3000
 {{- end }}
 
 {{/*
-Common environment variables
+Container env, merged into a single map so every name is emitted exactly
+once — Helm 4 applies manifests with server-side apply, which rejects
+duplicate env names (helm/helm#31529); Helm 3 silently used the last entry.
+Precedence, later wins:
+  env.common < computed console/service URLs < template defaults ("extra") < env.<service>
+Args (dict):
+  ctx      — root template context (required)
+  service  — key into .Values.env for per-service overrides (required)
+  extra    — dict of service-specific defaults the template used to hardcode
+  exclude  — list of names the template emits manually (valueFrom entries),
+             so a per-service override can't duplicate them
 */}}
-{{- define "jitsu-dev.commonEnv" -}}
-{{- $consoleUrl := include "jitsu-dev.consoleUrl" . -}}
-{{- range $key, $value := .Values.env.common }}
-{{- if ne $key "CONSOLE_URL" }}
+{{- define "jitsu-dev.env" -}}
+{{- $ctx := .ctx -}}
+{{- $consoleUrl := include "jitsu-dev.consoleUrl" $ctx -}}
+{{- $vars := deepCopy ($ctx.Values.env.common | default dict) -}}
+{{- $_ := set $vars "CONSOLE_URL" $consoleUrl -}}
+{{- $_ := set $vars "REPOSITORY_URL" (printf "%s/api/admin/export/streams-with-destinations" $consoleUrl) -}}
+{{- $_ := set $vars "REPOSITORY_BASE_URL" (printf "%s/api/admin/export" $consoleUrl) -}}
+{{- $_ := set $vars "SCRIPT_ORIGIN" (printf "%s/api/s/javascript-library" $consoleUrl) -}}
+{{- $_ := set $vars "CONFIG_SOURCE" (printf "%s/api/admin/export/bulker-connections" $consoleUrl) -}}
+{{- $_ := set $vars "ROTOR_URL" "http://rotor:3401" -}}
+{{- $_ := set $vars "BULKER_URL" "http://bulker:3042" -}}
+{{- $_ := set $vars "INGEST_URL" "http://ingest:3049" -}}
+{{- $_ := set $vars "SYNCCTL_URL" "http://syncctl:3043" -}}
+{{- range $key, $value := (.extra | default dict) }}
+{{- $_ := set $vars $key $value }}
+{{- end }}
+{{- range $key, $value := (index $ctx.Values.env .service | default dict) }}
+{{- $_ := set $vars $key $value }}
+{{- end }}
+{{- $exclude := .exclude | default list -}}
+{{- range $key, $value := $vars }}
+{{- if not (has $key $exclude) }}
 - name: {{ $key }}
   value: {{ $value | quote }}
 {{- end }}
 {{- end }}
-- name: CONSOLE_URL
-  value: {{ $consoleUrl | quote }}
-- name: REPOSITORY_URL
-  value: "{{ $consoleUrl }}/api/admin/export/streams-with-destinations"
-- name: REPOSITORY_BASE_URL
-  value: "{{ $consoleUrl }}/api/admin/export"
-- name: SCRIPT_ORIGIN
-  value: "{{ $consoleUrl }}/api/s/javascript-library"
-- name: CONFIG_SOURCE
-  value: "{{ $consoleUrl }}/api/admin/export/bulker-connections"
-{{- end }}
-
-{{/*
-Inter-service URLs (k8s service discovery).
-CONSOLE_URL is emitted by commonEnv — don't add it here, duplicate env
-names fail strict server-side validation on newer Kubernetes.
-*/}}
-{{- define "jitsu-dev.serviceUrls" -}}
-- name: ROTOR_URL
-  value: "http://rotor:3401"
-- name: BULKER_URL
-  value: "http://bulker:3042"
-- name: INGEST_URL
-  value: "http://ingest:3049"
-- name: SYNCCTL_URL
-  value: "http://syncctl:3043"
 {{- end }}

@@ -13,7 +13,8 @@ env:
     LOG_FORMAT: "text"
     CONSOLE_URL: http://host.minikube.internal:3000
     KAFKA_BOOTSTRAP_SERVERS: host.minikube.internal:9094
-  # Per-service overrides
+  # Per-service overrides — a key set here wins over env.common, computed
+  # URLs (CONSOLE_URL, REPOSITORY_URL, ...) and chart defaults for that service
   ingest: {}
   bulker: {}
   rotor: {}
