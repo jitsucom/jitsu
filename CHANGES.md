@@ -66,11 +66,17 @@ cluster.
 - **The enterprise billing API (`webapps/ee-api`) was removed** from the repository;
   it is no longer part of the open-source distribution.
 
-#### docker-compose setup rewritten
+#### docker-compose is deprecated in favor of the development Helm chart
 
-The `docker/` compose file was rebuilt around profiles (`jitsu-services`,
-`jitsu-dependencies`, `jitsu-services-dev` with hot reload) and now builds from source or
-pulls images. Notable operator-facing changes:
+**The Docker Compose setup (`docker/`) is deprecated and will be removed in a future
+release.** It predates the function-server architecture: it runs neither the operator nor
+function servers, so functions, profile builders and connector syncs are not available
+there. The recommended way to run development builds of the full Jitsu architecture is
+the **development Helm chart** (`helm/`, deploys to Minikube — see `helm/README.md`).
+
+For now the compose file remains in the repository. It was rebuilt around profiles
+(`jitsu-services`, `jitsu-dependencies`, `jitsu-services-dev` with hot reload) and builds
+from source or pulls images. Notable operator-facing changes:
 
 - **Redis is no longer part of the default stack** — functions state lives in MongoDB
   and the events log in ClickHouse. Redis is still supported as an alternative functions
@@ -138,10 +144,11 @@ pulls images. Notable operator-facing changes:
   verification, plus OIDC (`AUTH_OIDC_PROVIDER`) improvements.
 - **Segment-style `sentAt` clock-skew correction** for batch ingestion.
 - **events_log retention via ClickHouse TTL** instead of periodic scan-and-delete.
-- **Dev Helm chart** (`helm/`) — deploy development builds of all Jitsu services
-  (including the operator) to Minikube, building each service in init containers from
-  local sources (#1240). This is the recommended way to run development builds of the
-  full Kubernetes architecture; see `helm/README.md`.
+- **Development Helm chart** (`helm/`) — deploy development builds of all Jitsu services
+  (including the operator and function servers) to Minikube, building each service in
+  init containers from local sources (#1240). It **replaces the deprecated Docker Compose
+  setup** as the recommended way to run development builds of the full Kubernetes
+  architecture; see `helm/README.md`.
 - **Dev experience**: layered `.env.local` loading, `dev-scripts` package (`pnpm dev`),
   hot-reload docker-compose profile, `copy-db` tool.
 
