@@ -63,8 +63,7 @@ cluster.
   into the `jitsucom/jitsu` monorepo.** Docker images keep their names
   (`jitsucom/bulker`, `jitsucom/ingest`, `jitsucom/syncctl`, `jitsucom/sidecar`) but are
   now built and versioned together with the rest of Jitsu.
-- **The enterprise billing API (`webapps/ee-api`) was extracted** to a separate
-  repository ([jitsucom/jitsu-cloud-billing](https://github.com/jitsucom/jitsu-cloud-billing));
+- **The enterprise billing API (`webapps/ee-api`) was removed** from the repository;
   it is no longer part of the open-source distribution.
 
 #### docker-compose setup rewritten
