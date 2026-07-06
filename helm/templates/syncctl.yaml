@@ -99,7 +99,7 @@ spec:
       volumes:
         - name: project
           hostPath:
-            path: {{ .Values.projectRoot }}
+            path: {{ include "jitsu-dev.projectRoot" . }}
             type: Directory
         - name: build
           emptyDir: {}

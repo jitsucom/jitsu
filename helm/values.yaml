@@ -1,9 +1,10 @@
 # Jitsu Dev Helm Chart Values
 # This chart deploys services using local binaries mounted via hostPath
 
-# Path to the project root on the host machine
-# This will be mounted into containers
-projectRoot: /Users/ildarnurislamov/Projects/newjitsu
+# Path to the project root on the host machine, mounted into containers.
+# Required — no default. dev-deploy.sh sets it automatically; for direct
+# helm invocations pass --set projectRoot=<absolute path to your checkout>.
+projectRoot: ""
 
 # Environment variables
 env:
