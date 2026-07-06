@@ -55,26 +55,19 @@ spec:
             - secretRef:
                 name: jitsu-secrets
           env:
-            {{- include "jitsu-dev.commonEnv" . | nindent 12 }}
-            {{- include "jitsu-dev.serviceUrls" . | nindent 12 }}
-            # Override K8s-injected *_PORT vars (tcp://...) that break zod number coercion
-            - name: BULKER_PORT
-              value: ""
-            - name: ROTOR_PORT
-              value: ""
-            - name: SYNCCTL_PORT
-              value: ""
-            - name: INGMGR_PORT
-              value: ""
-            # Maintenance descriptor mounted from `jitsu-console-maintenance`
-            # (optional ConfigMap, key `maintenance.json`). Manage via
+            # Empty *_PORT entries override K8s-injected service-link vars
+            # (tcp://...) that break zod number coercion.
+            # MAINTENANCE_CONFIG_FILE: maintenance descriptor mounted from
+            # `jitsu-console-maintenance` (optional ConfigMap, key
+            # `maintenance.json`). Manage via
             # webapps/console/scripts/maintenance-mode.sh.
-            - name: MAINTENANCE_CONFIG_FILE
-              value: /etc/jitsu/maintenance/maintenance.json
-            {{- range $key, $value := .Values.env.console }}
-            - name: {{ $key }}
-              value: {{ $value | quote }}
-            {{- end }}
+            {{- include "jitsu-dev.env" (dict "ctx" . "service" "console"
+                  "extra" (dict
+                    "BULKER_PORT" ""
+                    "ROTOR_PORT" ""
+                    "SYNCCTL_PORT" ""
+                    "INGMGR_PORT" ""
+                    "MAINTENANCE_CONFIG_FILE" "/etc/jitsu/maintenance/maintenance.json")) | nindent 12 }}
           volumeMounts:
             - name: project
               mountPath: /project

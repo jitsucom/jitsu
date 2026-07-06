@@ -62,24 +62,19 @@ spec:
             - secretRef:
                 name: jitsu-secrets
           env:
-            - name: HTTP_PORT
-              value: "3043"
-            # Sync Pods (CronJob + ad-hoc job_runner) run as `sync-pod`, a
-            # least-privilege SA bound only to coordination.k8s.io/leases.
-            # Separating it from syncctl's own SA keeps the pod-side blast
-            # radius tiny (no pod create/delete, no Secret read, no log access).
-            - name: PODS_SERVICE_ACCOUNT
-              value: sync-pod
             - name: KUBERNETES_NAMESPACE
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
-            {{- include "jitsu-dev.commonEnv" . | nindent 12 }}
-            {{- include "jitsu-dev.serviceUrls" . | nindent 12 }}
-            {{- range $key, $value := .Values.env.syncctl }}
-            - name: {{ $key }}
-              value: {{ $value | quote }}
-            {{- end }}
+            # Sync Pods (CronJob + ad-hoc job_runner) run as `sync-pod`, a
+            # least-privilege SA bound only to coordination.k8s.io/leases.
+            # Separating it from syncctl's own SA keeps the pod-side blast
+            # radius tiny (no pod create/delete, no Secret read, no log access).
+            {{- include "jitsu-dev.env" (dict "ctx" . "service" "syncctl"
+                  "extra" (dict
+                    "HTTP_PORT" "3043"
+                    "PODS_SERVICE_ACCOUNT" "sync-pod")
+                  "exclude" (list "KUBERNETES_NAMESPACE")) | nindent 12 }}
           volumeMounts:
             - name: build
               mountPath: /build
