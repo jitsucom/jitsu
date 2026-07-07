@@ -18,7 +18,8 @@ env:
     CONSOLE_URL: http://host.minikube.internal:3000
     # Only used when the in-cluster Kafka is disabled (scaling.kafka.replicas: 0)
     KAFKA_BOOTSTRAP_SERVERS: host.minikube.internal:9092
-    SEED_USER_EMAIL: changeme@example.com
+  console:
+    SEED_USER_EMAIL: admin@example.com
     SEED_USER_PASSWORD: changeme
   ingest:
     DEVICE_FUNCTIONS_TIMEOUT_MS: "2000"
