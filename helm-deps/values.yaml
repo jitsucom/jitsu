@@ -1,0 +1,40 @@
+# Jitsu Dev Dependencies Helm Chart Values
+#
+# Single-node in-cluster dependencies for the Jitsu dev chart (../helm).
+# dev-deploy.sh deploys this chart first with --wait, so the main services
+# only start once every dependency is healthy.
+#
+# Images are pinned to tested tags rather than :latest so a floating image
+# can't change behavior between deploys or force an Always pull that fails
+# when the registry is unreachable. Override to upgrade.
+#
+# The dev credentials below are published to the main chart through the
+# `jitsu-deps-urls` Secret (see templates/urls-secret.yaml); they only
+# protect in-cluster dev instances, so simple values are fine.
+#
+# To use an external instance of a dependency: set `enabled: false` here and
+# point the matching env.common.KAFKA_BOOTSTRAP_SERVERS / DATABASE_URL /
+# CLICKHOUSE_URL / MONGODB_URL of the main chart at it.
+
+kafka:
+  enabled: true
+  image: docker.redpanda.com/redpandadata/redpanda:v26.1.12
+  imagePullPolicy: IfNotPresent
+
+postgres:
+  enabled: true
+  image: postgres:14
+  imagePullPolicy: IfNotPresent
+  password: jitsu-dev
+
+clickhouse:
+  enabled: true
+  image: clickhouse/clickhouse-server:25.4-alpine
+  imagePullPolicy: IfNotPresent
+  password: jitsu-dev
+
+mongodb:
+  enabled: true
+  image: mongo:7
+  imagePullPolicy: IfNotPresent
+  password: jitsu-dev

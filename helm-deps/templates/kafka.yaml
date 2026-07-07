@@ -1,15 +1,15 @@
-{{- if gt (int .Values.scaling.kafka.replicas) 0 }}
+{{- if .Values.kafka.enabled }}
 # Single-node Redpanda (Kafka API-compatible) — mirrors dep-redpanda in
 # docker/docker-compose.yml. Deliberately not scalable: the broker has a
-# fixed identity and an RWO data volume, so scaling.kafka.replicas is an
-# on/off switch (0 = use external Kafka via env.common.KAFKA_BOOTSTRAP_SERVERS)
+# fixed identity and an RWO data volume, so kafka.enabled is an
+# on/off switch (false = use external Kafka via the main chart's env.common.KAFKA_BOOTSTRAP_SERVERS)
 # and the Deployment always runs exactly one replica.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: kafka
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu-deps.labels" . | nindent 4 }}
     app.kubernetes.io/name: kafka
 spec:
   replicas: 1
@@ -75,7 +75,7 @@ kind: Service
 metadata:
   name: kafka
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu-deps.labels" . | nindent 4 }}
     app.kubernetes.io/name: kafka
 spec:
   type: LoadBalancer
@@ -101,7 +101,7 @@ kind: PersistentVolumeClaim
 metadata:
   name: kafka-data
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu-deps.labels" . | nindent 4 }}
 spec:
   accessModes:
     - ReadWriteOnce

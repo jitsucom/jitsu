@@ -66,54 +66,12 @@ http://console:3000
 {{- end }}
 
 {{/*
-Computed Kafka bootstrap servers: use the in-cluster single-node Redpanda
-when deployed, otherwise fall back to env.common.KAFKA_BOOTSTRAP_SERVERS
+Dependency connection URLs (KAFKA_BOOTSTRAP_SERVERS, DATABASE_URL,
+CLICKHOUSE_URL, MONGODB_URL) are not computed here: they come from the
+`jitsu-deps-urls` Secret published by the ../helm-deps chart, consumed via
+envFrom in each service template. env.common overrides still win because
+explicit env entries take precedence over envFrom.
 */}}
-{{- define "jitsu-dev.kafkaBootstrapServers" -}}
-{{- if gt (int .Values.scaling.kafka.replicas) 0 -}}
-kafka:9092
-{{- else -}}
-{{ required "in-cluster Kafka is disabled (scaling.kafka.replicas: 0) but env.common.KAFKA_BOOTSTRAP_SERVERS is not set — services have no broker to reach" .Values.env.common.KAFKA_BOOTSTRAP_SERVERS }}
-{{- end -}}
-{{- end }}
-
-{{/*
-Computed Postgres URL: use the in-cluster single-node Postgres when deployed,
-otherwise fall back to env.common.DATABASE_URL. The prisma-style ?schema=
-parameter is understood by the console (Prisma) and stripped by the Go
-services' pg pool config, so one URL serves every service.
-*/}}
-{{- define "jitsu-dev.databaseUrl" -}}
-{{- if gt (int .Values.scaling.postgres.replicas) 0 -}}
-postgresql://postgres:{{ .Values.postgres.password }}@postgres:5432/postgres?schema=newjitsu
-{{- else -}}
-{{ required "in-cluster Postgres is disabled (scaling.postgres.replicas: 0) but env.common.DATABASE_URL is not set — services have no database to reach" .Values.env.common.DATABASE_URL }}
-{{- end -}}
-{{- end }}
-
-{{/*
-Computed ClickHouse URL: use the in-cluster single-node ClickHouse when
-deployed, otherwise fall back to env.common.CLICKHOUSE_URL
-*/}}
-{{- define "jitsu-dev.clickhouseUrl" -}}
-{{- if gt (int .Values.scaling.clickhouse.replicas) 0 -}}
-http://default:{{ .Values.clickhouse.password }}@clickhouse:8123/default
-{{- else -}}
-{{ required "in-cluster ClickHouse is disabled (scaling.clickhouse.replicas: 0) but env.common.CLICKHOUSE_URL is not set — services have no ClickHouse to reach" .Values.env.common.CLICKHOUSE_URL }}
-{{- end -}}
-{{- end }}
-
-{{/*
-Computed MongoDB URL: use the in-cluster single-node MongoDB when deployed,
-otherwise fall back to env.common.MONGODB_URL
-*/}}
-{{- define "jitsu-dev.mongodbUrl" -}}
-{{- if gt (int .Values.scaling.mongodb.replicas) 0 -}}
-mongodb://admin:{{ .Values.mongodb.password }}@mongodb:27017/admin
-{{- else -}}
-{{ required "in-cluster MongoDB is disabled (scaling.mongodb.replicas: 0) but env.common.MONGODB_URL is not set — services have no MongoDB to reach" .Values.env.common.MONGODB_URL }}
-{{- end -}}
-{{- end }}
 
 {{/*
 Container env, merged so every name is emitted exactly once — Helm 4 applies
@@ -151,10 +109,6 @@ Args (dict):
       "REPOSITORY_BASE_URL" (printf "%s/api/admin/export" $consoleUrl)
       "SCRIPT_ORIGIN" (printf "%s/api/s/javascript-library" $consoleUrl)
       "CONFIG_SOURCE" (printf "%s/api/admin/export/bulker-connections" $consoleUrl)
-      "KAFKA_BOOTSTRAP_SERVERS" (include "jitsu-dev.kafkaBootstrapServers" $ctx)
-      "DATABASE_URL" (include "jitsu-dev.databaseUrl" $ctx)
-      "CLICKHOUSE_URL" (include "jitsu-dev.clickhouseUrl" $ctx)
-      "MONGODB_URL" (include "jitsu-dev.mongodbUrl" $ctx)
       "ROTOR_URL" "http://rotor:3401"
       "BULKER_URL" "http://bulker:3042"
       "INGEST_URL" "http://ingest:3049"
