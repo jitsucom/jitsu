@@ -133,8 +133,8 @@ from source or pulls images. Notable operator-facing changes:
   described by a generated OpenAPI spec with a built-in Scalar API viewer.
 - **User API tokens** with names, types and expiration dates, managed on a redesigned
   account page.
-- **Audit log** (SOC2-oriented) with account-activity alerts and UI/API/CLI origin tags
-  (#1288).
+- **Audit log** (SOC2-oriented) with account-activity alerts, UI/API/CLI origin tags
+  (#1288) and a workspace filter in the admin view (#1386).
 - **Maintenance mode** — read-only API mode and a friendly "database down" page.
 - **Dead-letter queue and reprocessing** — failed events are dead-lettered (#1227) and
   can be replayed by the new reprocessing worker; oversized messages are trimmed before
@@ -146,9 +146,11 @@ from source or pulls images. Notable operator-facing changes:
 - **events_log retention via ClickHouse TTL** instead of periodic scan-and-delete.
 - **Development Helm chart** (`helm/`) — deploy development builds of all Jitsu services
   (including the operator and function servers) to Minikube, building each service in
-  init containers from local sources (#1240). It **replaces the deprecated Docker Compose
-  setup** as the recommended way to run development builds of the full Kubernetes
-  architecture; see `helm/README.md`.
+  init containers from local sources (#1240). It ships an in-cluster single-node Kafka
+  (Redpanda), enabled by default — set `scaling.kafka.replicas: 0` to use an external
+  broker instead (#1384). It **replaces the deprecated Docker Compose setup** as the
+  recommended way to run development builds of the full Kubernetes architecture; see
+  `helm/README.md`.
 - **Dev experience**: layered `.env.local` loading, `dev-scripts` package (`pnpm dev`),
   hot-reload docker-compose profile, `copy-db` tool.
 
