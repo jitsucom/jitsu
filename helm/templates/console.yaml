@@ -46,6 +46,7 @@ spec:
               done) &
 
               cd /cache/workspace/webapps/console
+              npx tsx scripts/manage.ts seed
               exec npx next dev -H 0.0.0.0 -p 3000
           ports:
             - name: http

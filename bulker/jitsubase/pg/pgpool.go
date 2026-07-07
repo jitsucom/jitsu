@@ -44,11 +44,15 @@ func extractSchema(url string) string {
 	}
 }
 
-func NewPGPool(url string, opts ...PoolOption) (*pgxpool.Pool, error) {
+func poolConfig(url string, opts ...PoolOption) (*pgxpool.Config, error) {
 	pgCfg, err := pgxpool.ParseConfig(url)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to create postgres connection pool: %v\n", err)
 	}
+	// pgx forwards unknown URL query params to the server in the startup
+	// packet. Prisma-style `?schema=` is not a real server setting, so
+	// Postgres aborts the connection with SQLSTATE 42704 unless it's dropped.
+	delete(pgCfg.ConnConfig.RuntimeParams, "schema")
 	schema := extractSchema(url)
 	if schema != "" {
 		pgCfg.ConnConfig.RuntimeParams["search_path"] = schema
@@ -59,6 +63,14 @@ func NewPGPool(url string, opts ...PoolOption) (*pgxpool.Pool, error) {
 	}
 	for _, opt := range opts {
 		opt(pgCfg)
+	}
+	return pgCfg, nil
+}
+
+func NewPGPool(url string, opts ...PoolOption) (*pgxpool.Pool, error) {
+	pgCfg, err := poolConfig(url, opts...)
+	if err != nil {
+		return nil, err
 	}
 	dbpool, err := pgxpool.NewWithConfig(context.Background(), pgCfg)
 	if err != nil {

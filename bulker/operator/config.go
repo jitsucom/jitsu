@@ -37,7 +37,7 @@ type Config struct {
 	PodsTopologySpreadConstraints string `mapstructure:"PODS_TOPOLOGY_SPREAD_CONSTRAINTS"` // topology spread constraints for sync pods in json format
 
 	// Functions server configuration
-	FunctionsServerImage string `mapstructure:"FUNCTIONS_SERVER_IMAGE" default:"jitsucom/rotor:latest"`
+	FunctionsServerImage string `mapstructure:"FUNCTIONS_SERVER_IMAGE" default:"jitsucom/functions-server:latest"`
 	FunctionsServerPort  int    `mapstructure:"FUNCTIONS_SERVER_PORT" default:"3456"`
 
 	// Service configuration
