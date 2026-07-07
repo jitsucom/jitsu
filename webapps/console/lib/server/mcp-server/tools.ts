@@ -1,6 +1,7 @@
 import type { McpServer as SdkMcpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import type { NextApiRequest } from "next";
 import { z } from "zod";
 import { SessionUser } from "../../schema";
 import { getResourceJsonSchema } from "../../schema/json-schema";
@@ -8,12 +9,20 @@ import { ApiError } from "../../shared/errors";
 import { getServerLog } from "../log";
 import { type ConfigObjectsService, WORKSPACES_PAGE_MAX } from "../config-objects-service";
 import { type EventsLogService, QUERYABLE_TYPES } from "../events-log-service";
+import { type SyncService } from "../sync-service";
+import { type DebugService } from "../debug-service";
+import { type ReportsService } from "../reports-service";
 
 const log = getServerLog("mcp-tools");
 
 export interface ToolDeps {
   service: ConfigObjectsService;
   eventsLog: EventsLogService;
+  syncs: SyncService;
+  debug: DebugService;
+  reports: ReportsService;
+  /** The inbound HTTP request — scheduleSync derives the app base URL and EE auth from it. */
+  req: NextApiRequest;
 }
 
 // Connections (links) are surfaced through the same generic tools as config objects,
@@ -55,7 +64,7 @@ async function run(label: string, fn: () => Promise<any>): Promise<CallToolResul
 }
 
 export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
-  const { service, eventsLog } = deps;
+  const { service, eventsLog, syncs, debug, reports, req } = deps;
   const types = [...service.resourceTypes().filter(t => t !== "misc"), CONNECTION];
   const typeList = types.join(", ");
   const eventTypeList = QUERYABLE_TYPES.join(", ");
@@ -254,5 +263,334 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
         }
         return eventsLog.queryEventsLog(user, workspaceId, type, { source, limit, levels, start, end, search });
       })
+  );
+
+  // ─── Syncs: source → destination lifecycle ─────────────────────────────────
+
+  sdkServer.registerTool(
+    "run_sync",
+    {
+      title: "Run sync",
+      description:
+        'Schedule a sync (a connection of type "sync") to run immediately. Returns the new `taskId`; ' +
+        "poll list_sync_tasks with it for status and get_sync_logs for output. If a task is already running " +
+        "the call fails and returns `runningTask` — pass ignoreRunning=true to cancel it and start anyway. " +
+        "fullSync=true drops the saved cursor and re-syncs from scratch.",
+      inputSchema: {
+        workspaceId: z.string(),
+        syncId: z.string().describe('Connection id of type "sync" (see list_resources with type "connection")'),
+        fullSync: z.boolean().optional().describe("Drop saved state and re-sync from scratch"),
+        ignoreRunning: z.boolean().optional().describe("Cancel an in-flight task and start a new one"),
+      },
+    },
+    async ({ workspaceId, syncId, fullSync, ignoreRunning }, ctx) =>
+      run("run_sync", () =>
+        syncs.runSync(principalFromAuth(ctx.authInfo), workspaceId, { syncId, fullSync, ignoreRunning }, req)
+      )
+  );
+
+  sdkServer.registerTool(
+    "cancel_sync",
+    {
+      title: "Cancel sync",
+      description:
+        "Cancel a running sync task. Cancellation is asynchronous — poll list_sync_tasks until the task " +
+        "status becomes CANCELLED.",
+      inputSchema: {
+        workspaceId: z.string(),
+        syncId: z.string(),
+        taskId: z.string().describe("The running task id (from run_sync or list_sync_tasks)"),
+      },
+    },
+    async ({ workspaceId, syncId, taskId }, ctx) =>
+      run("cancel_sync", () => syncs.cancelSync(principalFromAuth(ctx.authInfo), workspaceId, { syncId, taskId }))
+  );
+
+  sdkServer.registerTool(
+    "list_sync_tasks",
+    {
+      title: "List sync tasks",
+      description:
+        "Up to 50 most recent sync tasks in a workspace, newest first. Filter by `syncId`, a single `taskId` " +
+        "(returns `task`), `status` (RUNNING, SUCCESS, PARTIAL, FAILED, CANCELLED, SKIPPED), and a `from`/`to` " +
+        "time window.",
+      inputSchema: {
+        workspaceId: z.string(),
+        syncId: z.string().optional(),
+        taskId: z.string().optional(),
+        status: z.string().optional(),
+        from: z.string().datetime({ offset: true }).optional().describe("ISO timestamp — tasks started at/after"),
+        to: z.string().datetime({ offset: true }).optional().describe("ISO timestamp — tasks started before"),
+      },
+    },
+    async ({ workspaceId, syncId, taskId, status, from, to }, ctx) =>
+      run("list_sync_tasks", () =>
+        syncs.listSyncTasks(principalFromAuth(ctx.authInfo), workspaceId, { syncId, taskId, status, from, to })
+      )
+  );
+
+  sdkServer.registerTool(
+    "get_sync_logs",
+    {
+      title: "Get sync task logs",
+      description: "Log records of a sync task, newest first (default 200 records, max 5000).",
+      inputSchema: {
+        workspaceId: z.string(),
+        syncId: z.string(),
+        taskId: z.string(),
+        limit: z.number().optional().describe("Max records (default 200, max 5000)"),
+      },
+    },
+    async ({ workspaceId, syncId, taskId, limit }, ctx) =>
+      run("get_sync_logs", () =>
+        syncs.getSyncLogs(principalFromAuth(ctx.authInfo), workspaceId, { syncId, taskId, limit })
+      )
+  );
+
+  sdkServer.registerTool(
+    "get_connector_spec",
+    {
+      title: "Get connector spec",
+      description:
+        "JSON schema of a connector package's credentials (the `credentials` field of a service). " +
+        "ASYNC: the first call starts a fetch on the sync controller and returns `{ ok: false, pending: true }` — " +
+        "call again (every few seconds) until `ok: true` and `specs` is set, or `error` is returned. " +
+        "force=true bypasses the cache.",
+      inputSchema: {
+        workspaceId: z.string(),
+        package: z.string().describe('Connector package, e.g. "airbyte/source-github"'),
+        version: z.string().describe('Package version, e.g. "latest" or a specific tag'),
+        force: z.boolean().optional(),
+      },
+    },
+    async ({ workspaceId, package: pkg, version, force }, ctx) =>
+      run("get_connector_spec", () =>
+        syncs.getConnectorSpec(principalFromAuth(ctx.authInfo), workspaceId, { package: pkg, version, force })
+      )
+  );
+
+  sdkServer.registerTool(
+    "discover_streams",
+    {
+      title: "Discover source streams",
+      description:
+        "Ask the connector of an existing service to list its available streams (the catalog used to configure " +
+        "a sync). ASYNC: returns `{ ok: false, pending: true }` while running — call again (every few seconds) " +
+        "until `ok: true` and `catalog` is set. refresh=true re-fetches an already-cached catalog; force=true " +
+        "ignores the cache entirely.",
+      inputSchema: {
+        workspaceId: z.string(),
+        serviceId: z.string().describe("Service (source) id"),
+        refresh: z.boolean().optional(),
+        force: z.boolean().optional(),
+      },
+    },
+    async ({ workspaceId, serviceId, refresh, force }, ctx) =>
+      run("discover_streams", () =>
+        syncs.discoverStreams(principalFromAuth(ctx.authInfo), workspaceId, { serviceId, refresh, force })
+      )
+  );
+
+  sdkServer.registerTool(
+    "check_source_credentials",
+    {
+      title: "Check source credentials",
+      description:
+        "Start an async credentials check for an existing service (source) using its stored config. " +
+        "Returns `{ pending: true, storageKey }` — poll get_source_check_result with the storageKey " +
+        "until it resolves. For destinations use test_connection instead (synchronous).",
+      inputSchema: {
+        workspaceId: z.string(),
+        serviceId: z.string().describe("Service (source) id"),
+      },
+    },
+    async ({ workspaceId, serviceId }, ctx) =>
+      run("check_source_credentials", () =>
+        syncs.triggerSourceCheck(principalFromAuth(ctx.authInfo), workspaceId, serviceId)
+      )
+  );
+
+  sdkServer.registerTool(
+    "get_source_check_result",
+    {
+      title: "Get source check result",
+      description:
+        "Poll the result of check_source_credentials: `{ ok: true }` on success, `{ ok: false, error }` on " +
+        "failure, `{ ok: false, pending: true }` while still running.",
+      inputSchema: {
+        workspaceId: z.string(),
+        storageKey: z.string().describe("The storageKey returned by check_source_credentials"),
+      },
+    },
+    async ({ workspaceId, storageKey }, ctx) =>
+      run("get_source_check_result", () =>
+        syncs.getSourceCheckResult(principalFromAuth(ctx.authInfo), workspaceId, storageKey)
+      )
+  );
+
+  sdkServer.registerTool(
+    "get_sync_state",
+    {
+      title: "Get sync state",
+      description: "The saved incremental cursor of a sync, keyed by stream (empty object if none saved).",
+      inputSchema: {
+        workspaceId: z.string(),
+        syncId: z.string(),
+      },
+    },
+    async ({ workspaceId, syncId }, ctx) =>
+      run("get_sync_state", () => syncs.getSyncState(principalFromAuth(ctx.authInfo), workspaceId, syncId))
+  );
+
+  sdkServer.registerTool(
+    "reset_sync_state",
+    {
+      title: "Reset sync state",
+      description:
+        "Delete the saved cursor of a sync so the next run re-syncs from scratch. Pass `stream` to reset a " +
+        "single stream, omit it to reset all. Fails while the sync is running. Returns the remaining state.",
+      inputSchema: {
+        workspaceId: z.string(),
+        syncId: z.string(),
+        stream: z.string().optional().describe("Stream name to reset; omit to reset every stream"),
+      },
+    },
+    async ({ workspaceId, syncId, stream }, ctx) =>
+      run("reset_sync_state", () =>
+        syncs.resetSyncState(principalFromAuth(ctx.authInfo), workspaceId, { syncId, stream })
+      )
+  );
+
+  // ─── Testing & debugging ───────────────────────────────────────────────────
+
+  sdkServer.registerTool(
+    "test_connection",
+    {
+      title: "Test connection",
+      description:
+        "Synchronously test destination credentials via bulker. Pass `id` to test an existing destination as " +
+        "stored, or `config` (see get_resource_schema) to test an unsaved config — masked secrets in `config` " +
+        "are resolved from the object referenced by `config.id`. For services (sources) use " +
+        "check_source_credentials instead.",
+      inputSchema: {
+        workspaceId: z.string(),
+        type: z.string().optional().describe('Resource type, default "destination"'),
+        id: z.string().optional().describe("Existing object id (used when `config` is omitted)"),
+        config: z.record(z.any()).optional().describe("Full config to test (alternative to `id`)"),
+      },
+    },
+    async ({ workspaceId, type, id, config }, ctx) =>
+      run("test_connection", () =>
+        debug.testConnection(principalFromAuth(ctx.authInfo), workspaceId, type ?? "destination", { id, config })
+      )
+  );
+
+  sdkServer.registerTool(
+    "run_function",
+    {
+      title: "Run function",
+      description:
+        "Run a transformation function against a sample event on the workspace's functions server and return " +
+        "the result, logs, and store mutations. `code` omitted → the stored function's draft/code is used. " +
+        "Nothing is persisted; events are not sent anywhere.",
+      inputSchema: {
+        workspaceId: z.string(),
+        functionId: z.string().describe('Function id (see list_resources with type "function")'),
+        event: z.record(z.any()).describe("Sample event to run the function against"),
+        code: z.string().optional().describe("Override the function code; omit to run the stored draft/code"),
+        variables: z.record(z.any()).optional().describe("Environment variables visible to the function"),
+        store: z.record(z.any()).optional().describe("Initial persistent-store contents"),
+      },
+    },
+    async ({ workspaceId, functionId, event, code, variables, store }, ctx) =>
+      run("run_function", () =>
+        debug.runFunction(principalFromAuth(ctx.authInfo), workspaceId, { functionId, event, code, variables, store })
+      )
+  );
+
+  sdkServer.registerTool(
+    "run_profile_builder",
+    {
+      title: "Run profile builder",
+      description:
+        "Run a profile-builder function against sample events and return the computed profile, logs, and store " +
+        "mutations. `code`/`settings` omitted → loaded from the stored profile builder. Nothing is persisted.",
+      inputSchema: {
+        workspaceId: z.string(),
+        profileBuilderId: z.string(),
+        events: z.array(z.record(z.any())).describe("Sample events of one user to aggregate"),
+        code: z.string().optional().describe("Override the profile function code"),
+        settings: z.record(z.any()).optional().describe("Override the profile-builder settings"),
+        store: z.record(z.any()).optional().describe("Initial persistent-store contents"),
+      },
+    },
+    async ({ workspaceId, profileBuilderId, events, code, settings, store }, ctx) =>
+      run("run_profile_builder", () =>
+        debug.runProfileBuilder(principalFromAuth(ctx.authInfo), workspaceId, {
+          profileBuilderId,
+          events,
+          code,
+          settings,
+          store,
+        })
+      )
+  );
+
+  // ─── Reports & stats ───────────────────────────────────────────────────────
+
+  sdkServer.registerTool(
+    "get_event_stat",
+    {
+      title: "Get event statistics",
+      description:
+        "Event counts per period, connection, stream, destination, and status (success/dropped/error) for a " +
+        "workspace. Defaults to the last month with day granularity.",
+      inputSchema: {
+        workspaceId: z.string(),
+        start: z.string().datetime({ offset: true }).optional(),
+        end: z.string().datetime({ offset: true }).optional(),
+        granularity: z.enum(["day", "hour"]).optional(),
+      },
+    },
+    async ({ workspaceId, start, end, granularity }, ctx) =>
+      run("get_event_stat", () =>
+        reports.eventStat(principalFromAuth(ctx.authInfo), workspaceId, { start, end, granularity })
+      )
+  );
+
+  sdkServer.registerTool(
+    "get_sync_stat",
+    {
+      title: "Get sync statistics",
+      description:
+        "Number of distinct source→destination pairs with at least one successful sync task in the period " +
+        "(defaults to the last month).",
+      inputSchema: {
+        workspaceId: z.string(),
+        start: z.string().datetime({ offset: true }).optional(),
+        end: z.string().datetime({ offset: true }).optional(),
+      },
+    },
+    async ({ workspaceId, start, end }, ctx) =>
+      run("get_sync_stat", () => reports.syncStat(principalFromAuth(ctx.authInfo), workspaceId, { start, end }))
+  );
+
+  sdkServer.registerTool(
+    "get_profile_builder_stats",
+    {
+      title: "Get profile builder stats",
+      description:
+        "Build progress of a profile-builder version: status (ready/building/unknown), processed/total users, " +
+        "and speed. `version` omitted → the current version.",
+      inputSchema: {
+        workspaceId: z.string(),
+        profileBuilderId: z.string(),
+        version: z.number().optional(),
+      },
+    },
+    async ({ workspaceId, profileBuilderId, version }, ctx) =>
+      run("get_profile_builder_stats", () =>
+        reports.profileBuilderStats(principalFromAuth(ctx.authInfo), workspaceId, { profileBuilderId, version })
+      )
   );
 }
