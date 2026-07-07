@@ -29,20 +29,43 @@ env:
     JWT_SECRET: "dev-jwt-secret-change-in-production"
     SYNCS_ENABLED: true
 
-# In-cluster Kafka (Redpanda) — toggle with scaling.kafka.replicas below.
-# Pinned to a tested tag rather than :latest so a floating image can't change
-# behavior between deploys or force an Always pull that fails when the registry
-# is unreachable. Override to upgrade.
+# In-cluster dependencies — toggle each with scaling.<name>.replicas below.
+# Images are pinned to tested tags rather than :latest so a floating image
+# can't change behavior between deploys or force an Always pull that fails
+# when the registry is unreachable. Override to upgrade.
+#
+# The dev credentials below are baked into the computed connection URLs
+# (see jitsu-dev.databaseUrl / clickhouseUrl / mongodbUrl in _helpers.tpl);
+# they only protect an in-cluster dev instance, so simple values are fine.
 kafka:
   image: docker.redpanda.com/redpandadata/redpanda:v26.1.12
   imagePullPolicy: IfNotPresent
+postgres:
+  image: postgres:14
+  imagePullPolicy: IfNotPresent
+  password: jitsu-dev
+clickhouse:
+  image: clickhouse/clickhouse-server:25.4-alpine
+  imagePullPolicy: IfNotPresent
+  password: jitsu-dev
+mongodb:
+  image: mongo:7
+  imagePullPolicy: IfNotPresent
+  password: jitsu-dev
 
 # Service scaling (set replicas to 0 to disable)
 scaling:
-  # In-cluster single-node Kafka (Redpanda). On/off only — the Deployment
-  # always runs one replica. Set 0 to use an external broker via
-  # env.common.KAFKA_BOOTSTRAP_SERVERS instead.
+  # In-cluster single-node dependencies. On/off only — each Deployment always
+  # runs one replica (fixed identity + RWO data volume). Set 0 to use an
+  # external instance via env.common.KAFKA_BOOTSTRAP_SERVERS / DATABASE_URL /
+  # CLICKHOUSE_URL / MONGODB_URL instead.
   kafka:
+    replicas: 1
+  postgres:
+    replicas: 1
+  clickhouse:
+    replicas: 1
+  mongodb:
     replicas: 1
   ingest:
     replicas: 1

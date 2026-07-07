@@ -6,13 +6,13 @@ Development Helm chart for deploying Jitsu services to Minikube. Services are bu
 
 - [Minikube](https://minikube.sigs.k8s.io/docs/start/) installed and running
 - [Helm](https://helm.sh/docs/intro/install/) v3+
-- Host services running locally:
-  - PostgreSQL (port 5432)
-  - Console (port 3000)
 
-Kafka runs in-cluster by default (single-node Redpanda). To use an external
-broker instead, set `scaling.kafka.replicas: 0` and point
-`env.common.KAFKA_BOOTSTRAP_SERVERS` at it.
+No host services are required: all dependencies — Kafka (single-node Redpanda),
+PostgreSQL, ClickHouse and MongoDB — run in-cluster by default. To use an
+external instance of any of them, set the corresponding
+`scaling.<dependency>.replicas: 0` and point the matching
+`env.common.KAFKA_BOOTSTRAP_SERVERS` / `DATABASE_URL` / `CLICKHOUSE_URL` /
+`MONGODB_URL` at it (see `values-custom.example.yaml`).
 
 ## Quick Start
 
@@ -20,13 +20,10 @@ broker instead, set `scaling.kafka.replicas: 0` and point
 # 1. Start minikube
 minikube start
 
-# 2. Configure secrets (interactive prompt)
-./dev-deploy.sh secrets
-
-# 3. Deploy
+# 2. Deploy (generates secrets and starts the project mount automatically)
 ./dev-deploy.sh deploy
 
-# 4. Start tunnel for localhost access (in separate terminal)
+# 3. Start tunnel for localhost access (in separate terminal)
 ./dev-deploy.sh tunnel
 ```
 
@@ -34,21 +31,15 @@ minikube start
 
 ### Secrets
 
-Secrets are stored in a Kubernetes Secret (not in files). Configure them interactively:
+Secrets are generated automatically during `./dev-deploy.sh deploy`: an
+`AUTH_TOKEN` for inter-service communication is created with
+`openssl rand -hex 16` on first deploy and stored (with its derived keys) in
+the `jitsu-secrets` Kubernetes Secret. Subsequent deploys reuse the existing
+token.
 
-```bash
-./dev-deploy.sh secrets
-```
-
-This prompts for all required credentials and creates/updates the `jitsu-secrets` K8s Secret.
-
-| Secret | Description |
-|--------|-------------|
-| `AUTH_TOKEN` | Inter-service auth token. Generate with: `openssl rand -hex 16` |
-| `CONSOLE_AUTH_TOKEN` | Console API token (format: `username:token`) |
-| `DATABASE_URL` | PostgreSQL connection URL (e.g., `postgresql://user:pass@host:5432/db`) |
-| `CLICKHOUSE_URL` | ClickHouse connection URL (e.g., `https://user:pass@host:8443/database`) |
-| `MONGODB_URL` | MongoDB connection URL (includes credentials) |
+Connection URLs of the in-cluster dependencies are computed by the chart —
+dev credentials are set in `values.yaml` (`postgres.password`,
+`clickhouse.password`, `mongodb.password`).
 
 Check secrets status:
 ```bash
@@ -77,9 +68,9 @@ env:
 
 | Command | Description |
 |---------|-------------|
-| `secrets` | Configure secrets interactively (creates K8s Secret) |
+| `deploy` | Deploy/upgrade Helm chart (auto-starts mount, ensures secrets) |
+| `secrets` | (Re)apply auto-generated secrets (also done by `deploy`) |
 | `secrets-status` | Show secrets configuration status |
-| `deploy` | Deploy/upgrade Helm chart (auto-starts mount) |
 | `mount` | Start minikube mount (project -> /project) |
 | `mount-stop` | Stop minikube mount |
 | `restart` | Restart all pods (triggers rebuild) |
@@ -105,6 +96,9 @@ env:
 | syncctl | 3043 | Sync controller |
 | operator | 3052 | Functions server operator |
 | kafka | 9092 (in-cluster), 19092 (host via tunnel) | Single-node Redpanda (Kafka API) |
+| postgres | 5432 | Single-node PostgreSQL |
+| clickhouse | 8123 (HTTP), 9000 (native) | Single-node ClickHouse |
+| mongodb | 27017 | Single-node MongoDB |
 
 ## Accessing Services
 
@@ -119,35 +113,28 @@ Then access:
 - Bulker: http://localhost:3042
 - Rotor: http://localhost:3401
 - Kafka: localhost:19092 (external listener of the in-cluster Redpanda)
+- Postgres: localhost:5432 (`postgres` / `values.yaml postgres.password`)
+- ClickHouse: http://localhost:8123 (`default` / `values.yaml clickhouse.password`)
+- MongoDB: localhost:27017 (`admin` / `values.yaml mongodb.password`)
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ Minikube                                                    │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐         │
-│  │   ingest    │  │   bulker    │  │    rotor    │         │
-│  │  (Go/init)  │  │  (Go/init)  │  │ (Node/init) │         │
-│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘         │
-│         │                │                │                 │
-│         ├────────────────┼────────────────┤                 │
-│         │                │                │                 │
-│  ┌──────┴──────┐   jitsu-secrets          │                 │
-│  │    kafka    │   (K8s Secret)           │                 │
-│  │ (Redpanda)  │                          │                 │
-│  │    :9092    │                          │                 │
-│  └─────────────┘                          │                 │
-└───────────────────────────────────────────┼─────────────────┘
-                                            │
-                               host.minikube.internal
-                                            │
-┌───────────────────────────────────────────┼─────────────────┐
-│ Host Machine                              │                 │
-│  ┌──────────┐  ┌──────────┐               │                 │
-│  │ PostgreSQL│  │  Console │──────────────┘                 │
-│  │  :5432   │  │  :3000   │                                │
-│  └──────────┘  └──────────┘                                │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│ Minikube                                                         │
+│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌────────────┐ │
+│  │   console   │ │   ingest    │ │   bulker    │ │   rotor    │ │
+│  │ (Node/init) │ │  (Go/init)  │ │  (Go/init)  │ │(Node/init) │ │
+│  └──────┬──────┘ └──────┬──────┘ └──────┬──────┘ └─────┬──────┘ │
+│         ├───────────────┼───────────────┼──────────────┤        │
+│  ┌──────┴──────┐ ┌──────┴──────┐ ┌──────┴──────┐ ┌─────┴──────┐ │
+│  │    kafka    │ │  postgres   │ │ clickhouse  │ │  mongodb   │ │
+│  │ (Redpanda)  │ │    :5432    │ │ :8123/:9000 │ │   :27017   │ │
+│  │    :9092    │ │             │ │             │ │            │ │
+│  └─────────────┘ └─────────────┘ └─────────────┘ └────────────┘ │
+│                                                                  │
+│  jitsu-secrets (K8s Secret, AUTH_TOKEN auto-generated on deploy) │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
 ## Build Caching
@@ -188,7 +175,7 @@ Ensure tunnel is running:
 
 ### Missing secrets
 
-Configure secrets before deploying:
+Secrets are generated automatically by `deploy`. To (re)apply them manually:
 ```bash
 ./dev-deploy.sh secrets
 ```

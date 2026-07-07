@@ -1,0 +1,91 @@
+{{- if gt (int .Values.scaling.mongodb.replicas) 0 }}
+# Single-node MongoDB — mirrors dep-mongodb in docker/docker-compose.yml.
+# Deliberately not scalable: fixed identity + RWO data volume, so
+# scaling.mongodb.replicas is an on/off switch (0 = use an external instance
+# via env.common.MONGODB_URL) and the Deployment always runs exactly one
+# replica.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongodb
+  labels:
+    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    app.kubernetes.io/name: mongodb
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mongodb
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: mongodb
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: mongodb
+          image: {{ .Values.mongodb.image }}
+          imagePullPolicy: {{ .Values.mongodb.imagePullPolicy }}
+          env:
+            - name: MONGO_INITDB_ROOT_USERNAME
+              value: admin
+            - name: MONGO_INITDB_ROOT_PASSWORD
+              value: {{ .Values.mongodb.password | quote }}
+          ports:
+            - name: mongodb
+              containerPort: 27017
+              protocol: TCP
+          volumeMounts:
+            - name: data
+              mountPath: /data/db
+          readinessProbe:
+            tcpSocket:
+              port: mongodb
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: mongodb
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: mongodb-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb
+  labels:
+    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    app.kubernetes.io/name: mongodb
+spec:
+  # LoadBalancer so host-side tools can reach MongoDB on localhost:27017
+  # through `dev-deploy.sh tunnel`
+  type: LoadBalancer
+  ports:
+    - port: 27017
+      targetPort: mongodb
+      protocol: TCP
+      name: mongodb
+  selector:
+    app.kubernetes.io/name: mongodb
+    app.kubernetes.io/instance: {{ .Release.Name }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mongodb-data
+  labels:
+    {{- include "jitsu-dev.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+{{- end }}

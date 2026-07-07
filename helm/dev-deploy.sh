@@ -150,12 +150,7 @@ deploy() {
 
     log_info "Deploying to Kubernetes..."
     ensure_namespace
-
-    # Check if secrets exist
-    if ! kubectl get secret jitsu-secrets -n "$NAMESPACE" &>/dev/null; then
-        log_error "Secret 'jitsu-secrets' not found. Run '$0 secrets' first to configure credentials."
-        exit 1
-    fi
+    ensure_secrets
 
     # Build helm args
     local helm_args=()
@@ -287,10 +282,14 @@ tunnel() {
     log_info "Starting minikube tunnel (requires sudo)..."
     log_info "Services will be accessible at:"
     echo ""
-    echo "  Console: http://localhost:3000"
-    echo "  Ingest:  http://localhost:3049"
-    echo "  Bulker:  http://localhost:3042"
-    echo "  Rotor:   http://localhost:3401"
+    echo "  Console:    http://localhost:3000"
+    echo "  Ingest:     http://localhost:3049"
+    echo "  Bulker:     http://localhost:3042"
+    echo "  Rotor:      http://localhost:3401"
+    echo "  Postgres:   localhost:5432 (postgres / see values.yaml postgres.password)"
+    echo "  ClickHouse: http://localhost:8123 (default / see values.yaml clickhouse.password)"
+    echo "  MongoDB:    localhost:27017 (admin / see values.yaml mongodb.password)"
+    echo "  Kafka:      localhost:19092"
     echo ""
     log_info "Press Ctrl+C to stop the tunnel"
     minikube tunnel
@@ -300,10 +299,14 @@ tunnel() {
 expose() {
     log_info "LoadBalancer services (requires 'minikube tunnel' running):"
     echo ""
-    echo "  Console: http://localhost:3000"
-    echo "  Ingest:  http://localhost:3049"
-    echo "  Bulker:  http://localhost:3042"
-    echo "  Rotor:   http://localhost:3401"
+    echo "  Console:    http://localhost:3000"
+    echo "  Ingest:     http://localhost:3049"
+    echo "  Bulker:     http://localhost:3042"
+    echo "  Rotor:      http://localhost:3401"
+    echo "  Postgres:   localhost:5432"
+    echo "  ClickHouse: http://localhost:8123"
+    echo "  MongoDB:    localhost:27017"
+    echo "  Kafka:      localhost:19092"
     echo ""
 
     # Check if tunnel might be needed
@@ -315,70 +318,51 @@ expose() {
     fi
 }
 
-# Configure secrets interactively
-configure_secrets() {
-    check_minikube
-    ensure_namespace
-
-    log_info "Configuring Jitsu secrets..."
-    echo ""
-    echo "This will create/update the 'jitsu-secrets' Kubernetes Secret."
-    echo "All values are required."
-    echo ""
-
-    # Prompt for each secret
-    local auth_token database_url clickhouse_url mongodb_url
-
-    echo "Auth token for inter-service communication"
-    echo "  Generate with: openssl rand -hex 16"
-    read -p "  AUTH_TOKEN: " auth_token
-
-    echo ""
-    echo "PostgreSQL connection URL"
-    echo "  Example: postgresql://user:pass@host:5432/database"
-    read -p "  DATABASE_URL: " database_url
-
-    echo ""
-    echo "ClickHouse connection URL (includes credentials)"
-    echo "  Example: https://user:password@host:8443/database"
-    read -p "  CLICKHOUSE_URL: " clickhouse_url
-
-    echo ""
-    echo "MongoDB connection URL (includes credentials)"
-    echo "  Example: mongodb+srv://user:password@cluster.mongodb.net/database"
-    read -p "  MONGODB_URL: " mongodb_url
-
-    # Validate required fields
-    local missing=""
-    [ -z "$auth_token" ] && missing="$missing AUTH_TOKEN"
-    [ -z "$database_url" ] && missing="$missing DATABASE_URL"
-    [ -z "$clickhouse_url" ] && missing="$missing CLICKHOUSE_URL"
-    [ -z "$mongodb_url" ] && missing="$missing MONGODB_URL"
-
-    if [ -n "$missing" ]; then
-        log_error "Missing required secrets:$missing"
-        exit 1
+# Ensure the jitsu-secrets Secret exists with an AUTH_TOKEN and its derived
+# keys. Idempotent: reuses the existing token when present so a redeploy
+# doesn't invalidate running services; generates a fresh one otherwise.
+# Connection URLs (DATABASE_URL, CLICKHOUSE_URL, MONGODB_URL) are no longer
+# stored here — the chart computes them for the in-cluster dependencies, and
+# explicit `env` entries take precedence over this secret's envFrom values.
+ensure_secrets() {
+    local auth_token=""
+    if kubectl get secret jitsu-secrets -n "$NAMESPACE" &>/dev/null; then
+        auth_token=$(kubectl get secret jitsu-secrets -n "$NAMESPACE" \
+            -o jsonpath='{.data.RAW_AUTH_TOKENS}' 2>/dev/null | base64 -d || true)
     fi
 
-    # Create the secret
-    log_info "Creating/updating Kubernetes secret..."
+    if [ -z "$auth_token" ]; then
+        auth_token=$(openssl rand -hex 16)
+        log_info "Generated new AUTH_TOKEN for inter-service communication"
+    else
+        log_info "Reusing existing AUTH_TOKEN from secret 'jitsu-secrets'"
+    fi
 
-    kubectl create secret generic jitsu-secrets \
-        --namespace "$NAMESPACE" \
-        --from-literal="RAW_AUTH_TOKENS=$auth_token" \
-        --from-literal="BULKER_AUTH_KEY=$auth_token" \
-        --from-literal="ROTOR_AUTH_KEY=$auth_token" \
-        --from-literal="SYNCCTL_AUTH_KEY=$auth_token" \
-        --from-literal="CONSOLE_RAW_AUTH_TOKENS=$auth_token" \
-        --from-literal="REPOSITORY_AUTH_TOKEN=service-admin-account:$auth_token" \
-        --from-literal="CONSOLE_TOKEN=service-admin-account:$auth_token" \
-        --from-literal="CONFIG_SOURCE_HTTP_AUTH_TOKEN=service-admin-account:$auth_token" \
-        --from-literal="DATABASE_URL=$database_url" \
-        --from-literal="CLICKHOUSE_URL=$clickhouse_url" \
-        --from-literal="MONGODB_URL=$mongodb_url" \
-        --dry-run=client -o yaml | kubectl apply -f -
+    local patch
+    patch=$(cat <<EOF
+{"stringData": {
+  "RAW_AUTH_TOKENS": "$auth_token",
+  "BULKER_AUTH_KEY": "$auth_token",
+  "ROTOR_AUTH_KEY": "$auth_token",
+  "SYNCCTL_AUTH_KEY": "$auth_token",
+  "CONSOLE_RAW_AUTH_TOKENS": "$auth_token",
+  "REPOSITORY_AUTH_TOKEN": "service-admin-account:$auth_token",
+  "CONSOLE_TOKEN": "service-admin-account:$auth_token",
+  "CONFIG_SOURCE_HTTP_AUTH_TOKEN": "service-admin-account:$auth_token"
+}}
+EOF
+)
 
-    log_success "Secret 'jitsu-secrets' configured in namespace $NAMESPACE"
+    if kubectl get secret jitsu-secrets -n "$NAMESPACE" &>/dev/null; then
+        # merge-patch so any extra keys a user added to the secret
+        # (e.g. legacy connection URLs) are preserved
+        kubectl patch secret jitsu-secrets -n "$NAMESPACE" --type=merge -p "$patch" > /dev/null
+    else
+        kubectl create secret generic jitsu-secrets --namespace "$NAMESPACE" > /dev/null
+        kubectl patch secret jitsu-secrets -n "$NAMESPACE" --type=merge -p "$patch" > /dev/null
+    fi
+
+    log_success "Secret 'jitsu-secrets' is configured"
 }
 
 # Show secrets status
@@ -393,7 +377,7 @@ secrets_status() {
             grep -o '"[^"]*":' | tr -d '":' | sed 's/^/  - /'
     else
         log_warn "Secret 'jitsu-secrets' not found in namespace $NAMESPACE"
-        log_info "Run '$0 secrets' to configure secrets"
+        log_info "It is generated automatically by '$0 deploy'"
     fi
 }
 
@@ -458,14 +442,16 @@ show_help() {
     echo "Prerequisites:"
     echo "  - minikube installed and running (minikube start)"
     echo "  - helm installed"
-    echo "  - Host services (postgres, kafka, console) running on host"
+    echo ""
+    echo "Dependencies (Postgres, ClickHouse, MongoDB, Kafka) run in-cluster by"
+    echo "default; secrets (AUTH_TOKEN) are generated automatically on deploy."
     echo ""
     echo "Usage: $0 <command> [options]"
     echo ""
     echo "Commands:"
-    echo "  secrets            Configure secrets interactively (creates K8s Secret)"
+    echo "  deploy             Deploy/upgrade Helm chart (auto-starts mount, ensures secrets)"
+    echo "  secrets            (Re)apply auto-generated secrets (also done by deploy)"
     echo "  secrets-status     Show secrets configuration status"
-    echo "  deploy             Deploy/upgrade Helm chart (auto-starts mount)"
     echo "  mount              Start minikube mount (project -> /project)"
     echo "  mount-stop         Stop minikube mount"
     echo "  restart            Restart all pods (triggers rebuild)"
@@ -508,7 +494,10 @@ ensure_minikube_context
 
 case "${1:-help}" in
     secrets)
-        configure_secrets
+        log_info "Note: secrets are configured automatically during 'deploy' — this command just (re)applies them."
+        check_minikube
+        ensure_namespace
+        ensure_secrets
         ;;
     secrets-status)
         secrets_status

@@ -1,0 +1,58 @@
+{{- if .Release.IsInstall }}
+# Applies the console Prisma schema to Postgres on a fresh install.
+#
+# This is a regular resource (not a hook) rendered only when
+# .Release.IsInstall: unlike the pre-install install-job it must run *after*
+# the in-cluster Postgres Deployment exists, so it retries `prisma db push`
+# until the database is reachable. On upgrades the template renders nothing —
+# same install-only semantics as before (a destructive schema change can't
+# fail an upgrade); apply schema changes manually when needed:
+#   kubectl exec deploy/console -- npx prisma db push
+#
+# Uses the node-cache workspace prepared by the pre-install install-job
+# (Prisma client already generated). RWO PVC sharing with the console pod is
+# fine on single-node Minikube.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-push
+  labels:
+    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    app.kubernetes.io/name: db-push
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 900
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: db-push
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: db-push
+          image: node:24-bookworm
+          workingDir: /cache/workspace/webapps/console
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              until npx prisma db push; do
+                echo "prisma db push failed (database not ready yet?), retrying in 5s..."
+                sleep 5
+              done
+              echo "Schema applied"
+          env:
+            - name: npm_config_cache
+              value: /cache/npm
+            - name: DATABASE_URL
+              value: {{ include "jitsu-dev.databaseUrl" . | quote }}
+          volumeMounts:
+            - name: node-cache
+              mountPath: /cache
+      volumes:
+        - name: node-cache
+          persistentVolumeClaim:
+            claimName: node-cache
+{{- end }}

@@ -7,17 +7,29 @@
 #   # Edit values-custom.yaml
 #   # Then deploy - it will be picked up automatically
 
-# To use an external Kafka instead of the in-cluster single-node Redpanda:
+# To use external dependencies instead of the in-cluster single-node ones:
 # scaling:
 #   kafka:
+#     replicas: 0
+#   postgres:
+#     replicas: 0
+#   clickhouse:
+#     replicas: 0
+#   mongodb:
 #     replicas: 0
 
 env:
   common:
     # Only used when the in-cluster console is disabled (scaling.console.replicas: 0)
-    CONSOLE_URL: http://host.minikube.internal:3000
+    # CONSOLE_URL: http://host.minikube.internal:3000
+    #
     # Only used when the in-cluster Kafka is disabled (scaling.kafka.replicas: 0)
-    KAFKA_BOOTSTRAP_SERVERS: host.minikube.internal:9092
+    # KAFKA_BOOTSTRAP_SERVERS: host.minikube.internal:9092
+    #
+    # Only used when the corresponding in-cluster dependency is disabled
+    # DATABASE_URL: postgresql://user:pass@host.minikube.internal:5432/postgres?schema=newjitsu
+    # CLICKHOUSE_URL: http://user:pass@host.minikube.internal:8123/default
+    # MONGODB_URL: mongodb://user:pass@host.minikube.internal:27017/admin
   console:
     SEED_USER_EMAIL: admin@example.com
     SEED_USER_PASSWORD: changeme
