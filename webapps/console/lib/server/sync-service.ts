@@ -364,7 +364,9 @@ export class SyncService {
   /** Mirrors `sources/check.ts` GET: SUCCESS → ok, row with error → error, no row yet → pending. */
   async getSourceCheckResult(user: SessionUser, workspaceId: string, storageKey: string): Promise<SyncOpResult> {
     await verifyAccess(user, workspaceId);
-    if (!storageKey.startsWith(workspaceId)) {
+    // Exact-segment prefix: a bare startsWith(workspaceId) would let workspace "ws1"
+    // poll keys of "ws10". Keys are always `${workspaceId}_${serviceId}_${hash}`.
+    if (!storageKey.startsWith(`${workspaceId}_`)) {
       return { ok: false, error: "storageKey doesn't belong to the current workspace" };
     }
     try {
