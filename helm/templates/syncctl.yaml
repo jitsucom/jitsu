@@ -29,8 +29,9 @@ spec:
             - |
               echo "Copying source..."
               cp -r /project/bulker/* /src/
-              echo "Building syncctl..."
-              go build -buildvcs=false -o /build/syncctl .
+              echo "Waiting for build lock (Go builds are serialized to avoid overloading the node)..."
+              flock /go-cache/build.lock \
+                go build -buildvcs=false -o /build/syncctl .
               echo "Build complete"
           volumeMounts:
             - name: project
@@ -47,6 +48,18 @@ spec:
               value: /go-cache/build
             - name: GOMODCACHE
               value: /go-cache/mod
+          # Cap the build so a compile can't starve the kubelet or running
+          # pods. Builds are additionally serialized via the flock above, so
+          # at most one build is active — and it reuses the shared GOCACHE
+          # warmed by whichever build ran first. Go 1.26 is container-aware:
+          # GOMAXPROCS follows the cgroup CPU limit automatically.
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: "3"
+              memory: 3Gi
       containers:
         - name: syncctl
           image: debian:bookworm-slim

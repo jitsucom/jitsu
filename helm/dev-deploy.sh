@@ -389,7 +389,7 @@ ensure_secrets() {
     local auth_token=""
     if kubectl get secret jitsu-secrets -n "$NAMESPACE" &>/dev/null; then
         auth_token=$(kubectl get secret jitsu-secrets -n "$NAMESPACE" \
-            -o jsonpath='{.data.RAW_AUTH_TOKENS}' 2>/dev/null | base64 -d || true)
+            -o jsonpath='{.data.RAW_AUTH_TOKENS}' 2>/dev/null | base64 --decode || true)
     fi
 
     if [ -z "$auth_token" ]; then
@@ -447,6 +447,11 @@ secrets_status() {
 # applies schema changes on demand without a full deploy.
 db_push() {
     log_info "Applying console Prisma schema (prisma db push)..."
+    if ! kubectl get deployment console -n "$NAMESPACE" &>/dev/null; then
+        log_error "No in-cluster console deployment (scaling.console.replicas: 0?)."
+        log_error "Run '$0 deploy' instead — the db-push hook applies the schema on every deploy."
+        exit 1
+    fi
     if ! kubectl exec -n "$NAMESPACE" deploy/console -- npx prisma db push; then
         log_error "db push failed. Is the console pod running? (kubectl get pods -n $NAMESPACE)"
         exit 1
