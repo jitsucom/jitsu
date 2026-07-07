@@ -40,7 +40,7 @@ spec:
                 cd /project && tar --exclude='node_modules' --exclude='.[^/]*' --exclude='*/node_modules' --exclude='docker/data' --exclude='*.log' -cf - . | tar -xf - -C /cache/workspace
                 cd /cache/workspace
                 echo "Generating Prisma client..."
-                cd webapps/console && npx prisma generate && npx prisma db push && cd /cache/workspace
+                cd webapps/console && npx prisma generate{{ if .Release.IsInstall }} && npx prisma db push{{ end }} && cd /cache/workspace
               else
                 echo "Cache miss or lockfile changed. Full rebuild..."
 
@@ -56,7 +56,7 @@ spec:
                 pnpm install
 
                 echo "Generating Prisma client..."
-                cd webapps/console && npx prisma generate && npx prisma db push && cd /cache/workspace
+                cd webapps/console && npx prisma generate{{ if .Release.IsInstall }} && npx prisma db push{{ end }} && cd /cache/workspace
 
                 # Save lock hash for next time
                 echo "$LOCK_HASH" > /cache/lock-hash
@@ -74,7 +74,10 @@ spec:
               value: /cache/npm
             - name: PNPM_HOME
               value: /cache/pnpm
-            # prisma db push applies the console schema to Postgres
+            # prisma db push applies the console schema to Postgres. Gated to
+            # install only (.Release.IsInstall) so a destructive schema change
+            # can't fail an upgrade; DATABASE_URL is still injected so a fresh
+            # install can reach the DB.
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
