@@ -7,6 +7,7 @@ import { SessionUser } from "../../schema";
 import { getResourceJsonSchema } from "../../schema/json-schema";
 import { ApiError } from "../../shared/errors";
 import { getServerLog } from "../log";
+import { isMaintenanceActive } from "../maintenance";
 import { type ConfigObjectsService, WORKSPACES_PAGE_MAX } from "../config-objects-service";
 import { type EventsLogService, QUERYABLE_TYPES } from "../events-log-service";
 import { type SyncService } from "../sync-service";
@@ -118,7 +119,27 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
   const typeList = types.join(", ");
   const eventTypeList = QUERYABLE_TYPES.join(", ");
 
-  sdkServer.registerTool(
+  // Mutating HTTP routes are blocked while maintenance mode is active (see createRoute
+  // in lib/api.ts). MCP tools don't go through createRoute, so enforce the same
+  // read-only window here: any tool not annotated read-only is rejected during
+  // maintenance before its handler runs.
+  const register: SdkMcpServer["registerTool"] = (name, config, cb) =>
+    sdkServer.registerTool(name, config, (async (args: any, extra: any) => {
+      if (!config.annotations?.readOnlyHint && isMaintenanceActive()) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "Error (503): Jitsu is in maintenance mode; modifications are temporarily disabled.",
+            },
+          ],
+          isError: true,
+        };
+      }
+      return (cb as any)(args, extra);
+    }) as any);
+
+  register(
     "list_workspaces",
     {
       title: "List workspaces",
@@ -136,7 +157,7 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
       run("list_workspaces", () => service.listWorkspaces(principalFromAuth(ctx.authInfo), { limit, offset }))
   );
 
-  sdkServer.registerTool(
+  register(
     "list_resources",
     {
       title: "List resources",
@@ -154,7 +175,7 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
       })
   );
 
-  sdkServer.registerTool(
+  register(
     "get_resource",
     {
       title: "Get resource",
@@ -181,7 +202,7 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
       })
   );
 
-  sdkServer.registerTool(
+  register(
     "get_resource_schema",
     {
       title: "Get resource schema",
@@ -198,7 +219,7 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
       run("get_resource_schema", async () => getResourceJsonSchema(type === CONNECTION ? "link" : type, subtype))
   );
 
-  sdkServer.registerTool(
+  register(
     "create_resource",
     {
       title: "Create resource",
@@ -223,7 +244,7 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
       })
   );
 
-  sdkServer.registerTool(
+  register(
     "update_resource",
     {
       title: "Update resource",
@@ -249,7 +270,7 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
       })
   );
 
-  sdkServer.registerTool(
+  register(
     "delete_resource",
     {
       title: "Delete resource",
@@ -274,7 +295,7 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
 
   // ─── Observability: events log ────────────────────────────────────────────
 
-  sdkServer.registerTool(
+  register(
     "list_event_sources",
     {
       title: "List event sources",
@@ -292,7 +313,7 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
       run("list_event_sources", () => eventsLog.listEventSources(principalFromAuth(ctx.authInfo), workspaceId, type))
   );
 
-  sdkServer.registerTool(
+  register(
     "query_events",
     {
       title: "Query events",
@@ -325,7 +346,7 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
 
   // ─── Syncs: source → destination lifecycle ─────────────────────────────────
 
-  sdkServer.registerTool(
+  register(
     "run_sync",
     {
       title: "Run sync",
@@ -348,7 +369,7 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
       )
   );
 
-  sdkServer.registerTool(
+  register(
     "cancel_sync",
     {
       title: "Cancel sync",
@@ -366,7 +387,7 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
       run("cancel_sync", () => syncs.cancelSync(principalFromAuth(ctx.authInfo), workspaceId, { syncId, taskId }))
   );
 
-  sdkServer.registerTool(
+  register(
     "list_sync_tasks",
     {
       title: "List sync tasks",
@@ -390,7 +411,7 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
       )
   );
 
-  sdkServer.registerTool(
+  register(
     "get_sync_logs",
     {
       title: "Get sync task logs",
@@ -409,7 +430,7 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
       )
   );
 
-  sdkServer.registerTool(
+  register(
     "get_connector_spec",
     {
       title: "Get connector spec",
@@ -432,7 +453,7 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
       )
   );
 
-  sdkServer.registerTool(
+  register(
     "discover_streams",
     {
       title: "Discover source streams",
@@ -455,7 +476,7 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
       )
   );
 
-  sdkServer.registerTool(
+  register(
     "check_source_credentials",
     {
       title: "Check source credentials",
@@ -475,7 +496,7 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
       )
   );
 
-  sdkServer.registerTool(
+  register(
     "get_source_check_result",
     {
       title: "Get source check result",
@@ -494,7 +515,7 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
       )
   );
 
-  sdkServer.registerTool(
+  register(
     "get_sync_state",
     {
       title: "Get sync state",
@@ -509,7 +530,7 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
       run("get_sync_state", () => syncs.getSyncState(principalFromAuth(ctx.authInfo), workspaceId, syncId))
   );
 
-  sdkServer.registerTool(
+  register(
     "reset_sync_state",
     {
       title: "Reset sync state",
@@ -531,7 +552,7 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
 
   // ─── Testing & debugging ───────────────────────────────────────────────────
 
-  sdkServer.registerTool(
+  register(
     "test_connection",
     {
       title: "Test connection",
@@ -554,7 +575,7 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
       )
   );
 
-  sdkServer.registerTool(
+  register(
     "run_function",
     {
       title: "Run function",
@@ -578,7 +599,7 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
       )
   );
 
-  sdkServer.registerTool(
+  register(
     "run_profile_builder",
     {
       title: "Run profile builder",
@@ -611,7 +632,7 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
 
   // ─── Reports & stats ───────────────────────────────────────────────────────
 
-  sdkServer.registerTool(
+  register(
     "get_event_stat",
     {
       title: "Get event statistics",
@@ -632,7 +653,7 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
       )
   );
 
-  sdkServer.registerTool(
+  register(
     "get_sync_stat",
     {
       title: "Get sync statistics",
@@ -650,7 +671,7 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
       run("get_sync_stat", () => reports.syncStat(principalFromAuth(ctx.authInfo), workspaceId, { start, end }))
   );
 
-  sdkServer.registerTool(
+  register(
     "get_profile_builder_stats",
     {
       title: "Get profile builder stats",

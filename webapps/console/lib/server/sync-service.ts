@@ -217,7 +217,11 @@ export class SyncService {
       logs = pgRes.rows;
     }
     if (logs.length === 0) {
-      const task = await this.prisma.source_task.findFirst({ where: { task_id: opts.taskId } });
+      // Scope by sync_id (validated above to belong to the workspace) so probing foreign
+      // task ids can't reveal their existence via the note below.
+      const task = await this.prisma.source_task.findFirst({
+        where: { task_id: opts.taskId, sync_id: opts.syncId },
+      });
       const note = !task || task.status === "RUNNING" ? "The task is starting..." : "No logs found for this task";
       return { ok: true, logs: [], note };
     }
