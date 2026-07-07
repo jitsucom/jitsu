@@ -7,9 +7,15 @@
 #   # Edit values-custom.yaml
 #   # Then deploy - it will be picked up automatically
 
+# To use an external Kafka instead of the in-cluster single-node Redpanda:
+# scaling:
+#   kafka:
+#     replicas: 0
+
 env:
   common:
     CONSOLE_URL: http://host.minikube.internal:3000
+    # Only used when the in-cluster Kafka is disabled (scaling.kafka.replicas: 0)
     KAFKA_BOOTSTRAP_SERVERS: host.minikube.internal:9094
   ingest:
     DEVICE_FUNCTIONS_TIMEOUT_MS: "2000"
