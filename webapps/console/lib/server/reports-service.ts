@@ -106,7 +106,7 @@ export class ReportsService {
     const { start, end } = this.resolvePeriod(opts);
     const res = await this.pgPool.query(
       `select
-              count(distinct sync."fromId" || sync."toId") as "activeSyncs"
+              count(distinct (sync."fromId", sync."toId")) as "activeSyncs"
           from newjitsu.source_task task
                join newjitsu."ConfigurationObjectLink" sync on task.sync_id = sync."id"
           where (task.status = 'SUCCESS' OR task.status = 'PARTIAL')

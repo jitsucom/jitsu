@@ -174,6 +174,7 @@ export class DebugService {
       events: any[];
       code?: string;
       settings?: any;
+      version?: number;
       store?: any;
       userAgent?: string;
     }
@@ -205,7 +206,7 @@ export class DebugService {
       body: {
         id: pb.id,
         name: pb.name,
-        version: pb.version,
+        version: opts.version ?? pb.version,
         code,
         events: opts.events,
         settings: opts.settings ?? pb.connectionOptions ?? {},

@@ -393,7 +393,7 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
         workspaceId: z.string(),
         syncId: z.string(),
         taskId: z.string(),
-        limit: z.number().optional().describe("Max records (default 200, max 5000)"),
+        limit: z.number().int().optional().describe("Max records (default 200, max 5000)"),
       },
     },
     async ({ workspaceId, syncId, taskId, limit }, ctx) =>
@@ -585,16 +585,18 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
         events: z.array(z.record(z.any())).describe("Sample events of one user to aggregate"),
         code: z.string().optional().describe("Override the profile function code"),
         settings: z.record(z.any()).optional().describe("Override the profile-builder settings"),
+        version: z.number().int().optional().describe("Profile-builder version to run; omit for the current one"),
         store: z.record(z.any()).optional().describe("Initial persistent-store contents"),
       },
     },
-    async ({ workspaceId, profileBuilderId, events, code, settings, store }, ctx) =>
+    async ({ workspaceId, profileBuilderId, events, code, settings, version, store }, ctx) =>
       run("run_profile_builder", () =>
         debug.runProfileBuilder(principalFromAuth(ctx.authInfo), workspaceId, {
           profileBuilderId,
           events,
           code,
           settings,
+          version,
           store,
         })
       )

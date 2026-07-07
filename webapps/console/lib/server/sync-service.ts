@@ -196,7 +196,7 @@ export class SyncService {
     if (!sync) {
       return { ok: false, error: `sync with id ${opts.syncId} not found in the workspace` };
     }
-    const limit = Math.min(Math.max(opts.limit ?? LOGS_DEFAULT_LIMIT, 1), LOGS_MAX_LIMIT);
+    const limit = Math.min(Math.max(Math.floor(opts.limit ?? LOGS_DEFAULT_LIMIT), 1), LOGS_MAX_LIMIT);
     const rs = await this.clickhouse.query({
       query: `select timestamp, level, logger, message from task_log
          where task_id = {taskId:String} and sync_id = {syncId:String}
