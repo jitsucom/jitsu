@@ -46,7 +46,13 @@ spec:
               done) &
 
               cd /cache/workspace/webapps/console
-              npx tsx scripts/manage.ts seed
+              # On a fresh install the db-push job may still be applying the
+              # schema — retry seed until it succeeds instead of silently
+              # starting without a seeded admin user.
+              until npx tsx scripts/manage.ts seed; do
+                echo "seed failed (database schema not ready yet?), retrying in 5s..."
+                sleep 5
+              done
               exec npx next dev -H 0.0.0.0 -p 3000
           ports:
             - name: http
