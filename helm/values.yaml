@@ -23,7 +23,7 @@ env:
   console:
     NEXTAUTH_URL: "http://localhost:3000"
     ENABLE_CREDENTIALS_LOGIN: true
-    SEED_USER_EMAIL: changeme@example.com
+    SEED_USER_EMAIL: admin@example.com
     SEED_USER_PASSWORD: changeme
     JITSU_PUBLIC_URL: "http://localhost:3000"
     JWT_SECRET: "dev-jwt-secret-change-in-production"
