@@ -5,6 +5,7 @@ import utc from "dayjs/plugin/utc";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { rpc } from "juava";
 import { useQuery } from "@tanstack/react-query";
+import { useDebounce } from "use-debounce";
 import Link from "next/link";
 import { AuditLogDiff } from "../AuditLogDiff/AuditLogDiff";
 import { inferTokenTypeFromId } from "../../lib/schema";
@@ -236,16 +237,43 @@ export const AuditLog: React.FC<AuditLogProps> = ({ workspaceId, workspaceSlug, 
   const [cursor, setCursor] = useState<string | undefined>(undefined);
   const [pages, setPages] = useState<AuditLogItem[][]>([]);
 
+  // Admin-only workspace filter. Admins can have thousands of workspaces, so
+  // options are searched server-side instead of loaded upfront. Stored as
+  // {value, label} (labelInValue) so the selection keeps its label after the
+  // search results change.
+  const [wsFilter, setWsFilter] = useState<{ value: string; label: string } | undefined>(undefined);
+  const [wsSearch, setWsSearch] = useState("");
+  const [debouncedWsSearch] = useDebounce(wsSearch, 300);
+  const wsQuery = useQuery(
+    ["audit-log-workspace-options", debouncedWsSearch],
+    async () => {
+      const res = await rpc(`/api/workspace`, {
+        query: { page: "0", limit: "50", ...(debouncedWsSearch ? { search: debouncedWsSearch } : {}) },
+      });
+      return (res.workspaces ?? res) as { id: string; name?: string; slug?: string }[];
+    },
+    { enabled: adminView, keepPreviousData: true, refetchOnWindowFocus: false }
+  );
+
+  const effectiveWorkspaceId = workspaceId || wsFilter?.value;
+
   const filterKey = useMemo(
-    () => JSON.stringify({ types, severities, from: range?.[0]?.toISOString(), to: range?.[1]?.toISOString() }),
-    [types, severities, range]
+    () =>
+      JSON.stringify({
+        types,
+        severities,
+        ws: wsFilter?.value,
+        from: range?.[0]?.toISOString(),
+        to: range?.[1]?.toISOString(),
+      }),
+    [types, severities, wsFilter, range]
   );
 
   const query = useQuery<AuditLogPage, Error>(
     ["audit-log", workspaceId || "$all", filterKey, cursor],
     async () => {
       const params: Record<string, string> = {};
-      if (workspaceId) params.workspaceId = workspaceId;
+      if (effectiveWorkspaceId) params.workspaceId = effectiveWorkspaceId;
       if (types.length) params.type = types.join(",");
       if (severities.length) params.severity = severities.join(",");
       if (range?.[0]) params.from = range[0].toISOString();
@@ -343,6 +371,30 @@ export const AuditLog: React.FC<AuditLogProps> = ({ workspaceId, workspaceSlug, 
         </p>
       )}
       <div className="flex flex-row gap-3 flex-wrap">
+        {adminView && (
+          <Select
+            allowClear
+            showSearch
+            labelInValue
+            placeholder="Workspace"
+            style={{ minWidth: 260 }}
+            filterOption={false}
+            searchValue={wsSearch}
+            onSearch={setWsSearch}
+            loading={wsQuery.isFetching}
+            notFoundContent={wsQuery.isFetching ? "Searching..." : "No workspaces found"}
+            value={wsFilter}
+            options={(wsQuery.data || []).map(w => ({
+              value: w.id,
+              label: w.name || w.slug || w.id,
+            }))}
+            onChange={v => {
+              setWsFilter(v as any);
+              setWsSearch("");
+              reset();
+            }}
+          />
+        )}
         <Select
           mode="multiple"
           allowClear
