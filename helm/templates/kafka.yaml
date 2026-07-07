@@ -27,7 +27,8 @@ spec:
     spec:
       containers:
         - name: redpanda
-          image: docker.redpanda.com/redpandadata/redpanda:latest
+          image: {{ .Values.kafka.image }}
+          imagePullPolicy: {{ .Values.kafka.imagePullPolicy }}
           args:
             - redpanda
             - start

@@ -29,6 +29,14 @@ env:
     JWT_SECRET: "dev-jwt-secret-change-in-production"
     SYNCS_ENABLED: true
 
+# In-cluster Kafka (Redpanda) — toggle with scaling.kafka.replicas below.
+# Pinned to a tested tag rather than :latest so a floating image can't change
+# behavior between deploys or force an Always pull that fails when the registry
+# is unreachable. Override to upgrade.
+kafka:
+  image: docker.redpanda.com/redpandadata/redpanda:v26.1.12
+  imagePullPolicy: IfNotPresent
+
 # Service scaling (set replicas to 0 to disable)
 scaling:
   # In-cluster single-node Kafka (Redpanda). On/off only — the Deployment
