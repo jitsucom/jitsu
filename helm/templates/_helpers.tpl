@@ -61,7 +61,7 @@ Computed console URL: use in-cluster service when console is deployed, otherwise
 {{- if gt (int .Values.scaling.console.replicas) 0 -}}
 http://console:3000
 {{- else -}}
-{{ .Values.env.common.CONSOLE_URL }}
+{{ required "console is disabled (scaling.console.replicas: 0) but env.common.CONSOLE_URL is not set — services have no console to reach" .Values.env.common.CONSOLE_URL }}
 {{- end -}}
 {{- end }}
 
@@ -73,7 +73,7 @@ when deployed, otherwise fall back to env.common.KAFKA_BOOTSTRAP_SERVERS
 {{- if gt (int .Values.scaling.kafka.replicas) 0 -}}
 kafka:9092
 {{- else -}}
-{{ .Values.env.common.KAFKA_BOOTSTRAP_SERVERS }}
+{{ required "in-cluster Kafka is disabled (scaling.kafka.replicas: 0) but env.common.KAFKA_BOOTSTRAP_SERVERS is not set — services have no broker to reach" .Values.env.common.KAFKA_BOOTSTRAP_SERVERS }}
 {{- end -}}
 {{- end }}
 
