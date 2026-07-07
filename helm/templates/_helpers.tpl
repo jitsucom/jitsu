@@ -81,27 +81,39 @@ Args (dict):
 {{- define "jitsu-dev.env" -}}
 {{- $ctx := .ctx -}}
 {{- $consoleUrl := include "jitsu-dev.consoleUrl" $ctx -}}
-{{- $vars := deepCopy ($ctx.Values.env.common | default dict) -}}
-{{- $_ := set $vars "CONSOLE_URL" $consoleUrl -}}
-{{- $_ := set $vars "REPOSITORY_URL" (printf "%s/api/admin/export/streams-with-destinations" $consoleUrl) -}}
-{{- $_ := set $vars "REPOSITORY_BASE_URL" (printf "%s/api/admin/export" $consoleUrl) -}}
-{{- $_ := set $vars "SCRIPT_ORIGIN" (printf "%s/api/s/javascript-library" $consoleUrl) -}}
-{{- $_ := set $vars "CONFIG_SOURCE" (printf "%s/api/admin/export/bulker-connections" $consoleUrl) -}}
-{{- $_ := set $vars "ROTOR_URL" "http://rotor:3401" -}}
-{{- $_ := set $vars "BULKER_URL" "http://bulker:3042" -}}
-{{- $_ := set $vars "INGEST_URL" "http://ingest:3049" -}}
-{{- $_ := set $vars "SYNCCTL_URL" "http://syncctl:3043" -}}
-{{- range $key, $value := (.extra | default dict) }}
-{{- $_ := set $vars $key $value }}
-{{- end }}
-{{- range $key, $value := (index $ctx.Values.env .service | default dict) }}
-{{- $_ := set $vars $key $value }}
-{{- end }}
+{{- $computed := dict
+      "CONSOLE_URL" $consoleUrl
+      "REPOSITORY_URL" (printf "%s/api/admin/export/streams-with-destinations" $consoleUrl)
+      "REPOSITORY_BASE_URL" (printf "%s/api/admin/export" $consoleUrl)
+      "SCRIPT_ORIGIN" (printf "%s/api/s/javascript-library" $consoleUrl)
+      "CONFIG_SOURCE" (printf "%s/api/admin/export/bulker-connections" $consoleUrl)
+      "ROTOR_URL" "http://rotor:3401"
+      "BULKER_URL" "http://bulker:3042"
+      "INGEST_URL" "http://ingest:3049"
+      "SYNCCTL_URL" "http://syncctl:3043"
+-}}
+{{- $phases := list
+      ($ctx.Values.env.common | default dict)
+      $computed
+      (.extra | default dict)
+      (index $ctx.Values.env .service | default dict)
+-}}
 {{- $exclude := .exclude | default list -}}
-{{- range $key, $value := $vars }}
-{{- if not (has $key $exclude) }}
+{{- /* Emit each key once, at the phase of its winning (last) definition,
+       alphabetical within a phase. Position matters beyond aesthetics:
+       Kubernetes $(VAR) expansion only sees vars defined earlier in the
+       list, so an override referencing a chart-provided var must render
+       after it. */ -}}
+{{- range $i, $phase := $phases }}
+{{- range $key, $value := $phase }}
+{{- $winner := true }}
+{{- range $j, $later := $phases }}
+{{- if and (gt $j $i) (hasKey $later $key) }}{{- $winner = false }}{{- end }}
+{{- end }}
+{{- if and $winner (not (has $key $exclude)) }}
 - name: {{ $key }}
   value: {{ $value | quote }}
+{{- end }}
 {{- end }}
 {{- end }}
 {{- end }}
