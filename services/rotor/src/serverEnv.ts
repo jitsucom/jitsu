@@ -51,7 +51,7 @@ const ServerEnvSchema = z.object({
   KAFKA_DESTINATIONS_RETRY_TOPIC_NAME: z.string().optional().default("destination-messages-retry"),
   KAFKA_DESTINATIONS_MT_TOPIC_NAME: z.string().optional().default("destination-messages-mt"),
   KAFKA_CONSUMER_GROUP_ID: z.string().optional(),
-  KAFKA_TOPIC_COMPRESSION: z.string().optional().default("snappy"),
+  KAFKA_TOPIC_COMPRESSION: z.string().optional().default("gzip"),
   CONSUMER_PROTOCOL: z.string().optional(),
 
   // Bulker Configuration

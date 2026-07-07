@@ -11,8 +11,6 @@ env:
   # Common to all services
   common:
     LOG_FORMAT: "text"
-    CONSOLE_URL: http://host.minikube.internal:3000
-    KAFKA_BOOTSTRAP_SERVERS: host.minikube.internal:9094
   # Per-service overrides — a key set here wins over env.common, computed
   # URLs (CONSOLE_URL, REPOSITORY_URL, ...) and chart defaults for that service
   ingest: {}
@@ -20,11 +18,16 @@ env:
   rotor: {}
   profiles: {}
   syncctl: {}
-  operator: {}
+  operator:
+    FUNCTIONS_SERVER_IMAGE: jitsucom/functions-server:beta
   console:
     NEXTAUTH_URL: "http://localhost:3000"
+    ENABLE_CREDENTIALS_LOGIN: true
+    SEED_USER_EMAIL: changeme@example.com
+    SEED_USER_PASSWORD: changeme
     JITSU_PUBLIC_URL: "http://localhost:3000"
     JWT_SECRET: "dev-jwt-secret-change-in-production"
+    SYNCS_ENABLED: true
 
 # Service scaling (set replicas to 0 to disable)
 scaling:

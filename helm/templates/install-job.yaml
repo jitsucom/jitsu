@@ -40,7 +40,7 @@ spec:
                 cd /project && tar --exclude='node_modules' --exclude='.[^/]*' --exclude='*/node_modules' --exclude='docker/data' --exclude='*.log' -cf - . | tar -xf - -C /cache/workspace
                 cd /cache/workspace
                 echo "Generating Prisma client..."
-                cd webapps/console && npx prisma generate && cd /cache/workspace
+                cd webapps/console && npx prisma generate && npx prisma db push && cd /cache/workspace
               else
                 echo "Cache miss or lockfile changed. Full rebuild..."
 
@@ -56,7 +56,7 @@ spec:
                 pnpm install
 
                 echo "Generating Prisma client..."
-                cd webapps/console && npx prisma generate && cd /cache/workspace
+                cd webapps/console && npx prisma generate && npx prisma db push && cd /cache/workspace
 
                 # Save lock hash for next time
                 echo "$LOCK_HASH" > /cache/lock-hash
@@ -74,6 +74,12 @@ spec:
               value: /cache/npm
             - name: PNPM_HOME
               value: /cache/pnpm
+            # prisma db push applies the console schema to Postgres
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: jitsu-secrets
+                  key: DATABASE_URL
       volumes:
         - name: project
           hostPath:
