@@ -34,7 +34,14 @@ const CONNECTION = "connection";
 // (destructiveHint: true, openWorldHint: true), so every tool sets them explicitly.
 // openWorldHint marks tools whose execution reaches beyond Jitsu itself
 // (connector probes against the user's source/destination, user function code).
-const READ_ONLY: ToolAnnotations = { readOnlyHint: true, openWorldHint: false };
+// destructive/idempotent hints are spec-meaningless when readOnlyHint is true, but set them
+// anyway for clients that apply the pessimistic defaults without checking readOnlyHint first.
+const READ_ONLY: ToolAnnotations = {
+  readOnlyHint: true,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: false,
+};
 // Triggers work but writes only internal caches; safe to repeat; the connector contacts the external system.
 const PROBE: ToolAnnotations = {
   readOnlyHint: false,
