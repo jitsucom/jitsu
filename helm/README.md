@@ -81,6 +81,7 @@ env:
 | `logs <service> -f` | Follow logs for a service |
 | `build-logs <service>` | Show build/init container logs |
 | `delete <service>` | Delete pod (forces full recreation) |
+| `db-push` | Apply console Prisma schema (runs automatically on fresh install only) |
 | `clear-cache [type]` | Clear build caches (go\|node\|all) |
 | `tunnel` | Start minikube tunnel (localhost access) |
 | `expose` | Show URLs for exposed services |

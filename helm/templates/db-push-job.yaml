@@ -7,7 +7,7 @@
 # until the database is reachable. On upgrades the template renders nothing —
 # same install-only semantics as before (a destructive schema change can't
 # fail an upgrade); apply schema changes manually when needed:
-#   kubectl exec deploy/console -- npx prisma db push
+#   ./dev-deploy.sh db-push
 #
 # Uses the node-cache workspace prepared by the pre-install install-job
 # (Prisma client already generated). RWO PVC sharing with the console pod is
