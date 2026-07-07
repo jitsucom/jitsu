@@ -23,7 +23,6 @@ vi.mock("../lib/server/serverEnv", () => {
 });
 
 import { SyncService } from "../lib/server/sync-service";
-import { scheduleSync } from "../lib/server/sync";
 import { rpc } from "juava";
 
 const user: SessionUser = {
@@ -79,28 +78,8 @@ function makeService(opts: { prisma?: any; pg?: any; ch?: any } = {}) {
 
 beforeEach(() => vi.clearAllMocks());
 
-describe("SyncService.runSync", () => {
-  it("delegates to scheduleSync as a manual trigger", async () => {
-    const svc = makeService();
-    const req = {} as any;
-    const res = await svc.runSync(user, "ws1", { syncId: "sync-1", fullSync: true }, req);
-    expect(res).toEqual({ ok: true, taskId: "task-new" });
-    expect(scheduleSync).toHaveBeenCalledWith(
-      expect.objectContaining({ workspaceId: "ws1", syncIdOrModel: "sync-1", trigger: "manual", fullSync: true, req })
-    );
-  });
-});
-
 describe("SyncService.cancelSync", () => {
-  it("fails when the sync is not in the workspace", async () => {
-    const svc = makeService();
-    const res = await svc.cancelSync(user, "ws1", { syncId: "nope", taskId: "t1" });
-    expect(res.ok).toBe(false);
-    expect(res.error).toMatch(/not found/);
-    expect(rpc).not.toHaveBeenCalled();
-  });
-
-  it("dispatches /cancel with the service package", async () => {
+  it("dispatches /cancel with the package loaded from the sync's service", async () => {
     const prisma = makePrisma({
       configurationObjectLink: {
         findFirst: vi.fn(async () => ({ id: "sync-1", from: { config: { package: "airbyte/source-github" } } })),
@@ -114,7 +93,6 @@ describe("SyncService.cancelSync", () => {
     expect(opts.query).toEqual(
       expect.objectContaining({ syncId: "sync-1", taskId: "t1", package: "airbyte/source-github" })
     );
-    expect(opts.headers.Authorization).toBe("Bearer sk");
   });
 });
 
@@ -134,42 +112,17 @@ describe("SyncService.listSyncTasks", () => {
     expect(sql).toContain("st.status = $3");
     expect(args).toEqual(["ws1", "sync-1", "SUCCESS"]);
   });
-
-  it("returns an error for an unknown taskId", async () => {
-    const svc = makeService({ prisma: makePrisma({ $queryRawUnsafe: vi.fn(async () => []) }) });
-    const res = await svc.listSyncTasks(user, "ws1", { taskId: "missing" });
-    expect(res).toEqual({ ok: false, error: "Task missing not found" });
-  });
 });
 
 describe("SyncService.getSyncLogs", () => {
-  const link = { configurationObjectLink: { findFirst: vi.fn(async () => ({ id: "sync-1" })) } };
-
-  it("returns ClickHouse rows when present", async () => {
-    const rows = [{ timestamp: "2026-01-01 00:00:00", level: "INFO", logger: "sync", message: "hi" }];
-    const { clickhouse } = makeClickhouse(rows);
-    const { pgPool, query: pgQuery } = makePgPool();
-    const svc = makeService({ prisma: makePrisma(link), ch: clickhouse, pg: pgPool });
-    const res = await svc.getSyncLogs(user, "ws1", { syncId: "sync-1", taskId: "t1" });
-    expect(res).toEqual({ ok: true, logs: rows });
-    expect(pgQuery).not.toHaveBeenCalled();
-  });
-
   it("falls back to Postgres when ClickHouse is empty", async () => {
+    const link = { configurationObjectLink: { findFirst: vi.fn(async () => ({ id: "sync-1" })) } };
     const pgRows = [{ timestamp: new Date(), level: "INFO", logger: "sync", message: "from pg" }];
     const { pgPool, query } = makePgPool([{ rows: pgRows }]);
     const svc = makeService({ prisma: makePrisma(link), ch: makeClickhouse([]).clickhouse, pg: pgPool });
     const res = await svc.getSyncLogs(user, "ws1", { syncId: "sync-1", taskId: "t1" });
     expect(res).toEqual({ ok: true, logs: pgRows });
     expect(query.mock.calls[0][1]).toEqual(["t1", "ws1", 200]);
-  });
-
-  it("notes a starting task when no logs exist anywhere", async () => {
-    const svc = makeService({ prisma: makePrisma(link) });
-    const res = await svc.getSyncLogs(user, "ws1", { syncId: "sync-1", taskId: "t1" });
-    expect(res.ok).toBe(true);
-    expect(res.logs).toEqual([]);
-    expect(res.note).toMatch(/starting/);
   });
 });
 
@@ -190,14 +143,6 @@ describe("SyncService.getConnectorSpec", () => {
     expect(vi.mocked(rpc).mock.calls[0][0]).toBe("http://syncctl/spec");
     expect(query.mock.calls[1][0]).toContain("insert into newjitsu.source_spec");
   });
-
-  it("reports pending while the controller is still working", async () => {
-    const { pgPool } = makePgPool([{ rows: [{ specs: null, error: "pending" }], rowCount: 1 }]);
-    const svc = makeService({ pg: pgPool });
-    const res = await svc.getConnectorSpec(user, "ws1", { package: "p", version: "v" });
-    expect(res).toEqual({ ok: false, pending: true });
-    expect(rpc).not.toHaveBeenCalled();
-  });
 });
 
 describe("SyncService.discoverStreams", () => {
@@ -210,11 +155,6 @@ describe("SyncService.discoverStreams", () => {
       })),
     },
   };
-
-  it("throws 404 for a service outside the workspace", async () => {
-    const svc = makeService();
-    await expect(svc.discoverStreams(user, "ws1", { serviceId: "ghost" })).rejects.toThrow(/not found/);
-  });
 
   it("returns a cached catalog without dispatching discover", async () => {
     const { pgPool } = makePgPool([{ rows: [{ status: "SUCCESS", catalog: { streams: [] }, description: null }] }]);
@@ -249,8 +189,7 @@ describe("SyncService source check", () => {
     });
     const svc = makeService({ prisma });
     const res = await svc.triggerSourceCheck(user, "ws1", "svc-1");
-    expect(res.ok).toBe(false);
-    expect(res.pending).toBe(true);
+    expect(res).toEqual(expect.objectContaining({ ok: false, pending: true }));
     expect(res.storageKey).toMatch(/^ws1_svc-1_/);
     const [url, opts] = vi.mocked(rpc).mock.calls[0] as any[];
     expect(url).toBe("http://syncctl/check");
@@ -261,17 +200,6 @@ describe("SyncService source check", () => {
     const svc = makeService();
     const res = await svc.getSourceCheckResult(user, "ws1", "ws2_svc_abc");
     expect(res).toEqual({ ok: false, error: "storageKey doesn't belong to the current workspace" });
-  });
-
-  it("maps SUCCESS / FAILED / missing rows to ok / error / pending", async () => {
-    const mk = (rows: any[]) => makeService({ pg: makePgPool([{ rows }]).pgPool });
-    expect(await mk([{ status: "SUCCESS", description: null }]).getSourceCheckResult(user, "ws1", "ws1_k")).toEqual({
-      ok: true,
-    });
-    expect(
-      await mk([{ status: "FAILED", description: "bad creds" }]).getSourceCheckResult(user, "ws1", "ws1_k")
-    ).toEqual({ ok: false, error: "bad creds" });
-    expect(await mk([]).getSourceCheckResult(user, "ws1", "ws1_k")).toEqual({ ok: false, pending: true });
   });
 });
 

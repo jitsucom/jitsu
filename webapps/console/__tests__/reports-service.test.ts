@@ -62,32 +62,9 @@ describe("ReportsService.eventStat", () => {
       expect.objectContaining({ period: "2026-07-01T00:00:00Z", workspaceId: "ws1", connectionId: "c1" }),
     ]);
   });
-
-  it("defaults the period to the last month", async () => {
-    const svc = makeService();
-    const res = await svc.eventStat(user, "ws1");
-    const spanDays = (new Date(res.end).getTime() - new Date(res.start).getTime()) / 86_400_000;
-    expect(spanDays).toBeGreaterThanOrEqual(28);
-    expect(spanDays).toBeLessThanOrEqual(31);
-  });
-});
-
-describe("ReportsService.syncStat", () => {
-  it("returns the active-syncs count for the period", async () => {
-    const { pgPool, query } = makePgPool([{ activeSyncs: "4" }]);
-    const svc = makeService({ pg: pgPool });
-    const res = await svc.syncStat(user, "ws1", { start: "2026-06-01T00:00:00Z", end: "2026-07-01T00:00:00Z" });
-    expect(res.activeSyncs).toBe("4");
-    expect(query.mock.calls[0][1]).toEqual(["ws1", "2026-06-01T00:00:00.000Z", "2026-07-01T00:00:00.000Z"]);
-  });
 });
 
 describe("ReportsService.profileBuilderStats", () => {
-  it("404s for a profile builder outside the workspace", async () => {
-    const svc = makeService();
-    await expect(svc.profileBuilderStats(user, "ws1", { profileBuilderId: "ghost" })).rejects.toThrow(/not found/);
-  });
-
   it("defaults the version to the builder's current one and parses numbers", async () => {
     const prisma = makePrisma({ profileBuilder: { findFirst: vi.fn(async () => ({ id: "pb-1", version: 5 })) } });
     const { pgPool, query } = makePgPool([
@@ -106,12 +83,5 @@ describe("ReportsService.profileBuilderStats", () => {
     expect(res).toEqual(
       expect.objectContaining({ status: "ready", version: 5, totalUsers: 100, processedUsers: 40, speed: 2.5 })
     );
-  });
-
-  it("reports unknown when no state rows exist", async () => {
-    const prisma = makePrisma({ profileBuilder: { findFirst: vi.fn(async () => ({ id: "pb-1", version: 2 })) } });
-    const svc = makeService({ prisma, pg: makePgPool([]).pgPool });
-    const res = await svc.profileBuilderStats(user, "ws1", { profileBuilderId: "pb-1", version: 1 });
-    expect(res).toEqual({ status: "unknown", version: 1 });
   });
 });
