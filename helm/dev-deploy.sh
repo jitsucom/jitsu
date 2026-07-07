@@ -381,6 +381,19 @@ secrets_status() {
     fi
 }
 
+# Apply the console Prisma schema to Postgres.
+# On a fresh install this happens automatically (db-push Job); on upgrades it
+# is deliberately not run (a destructive schema change must not break a
+# running deploy) — use this command to apply schema changes on demand.
+db_push() {
+    log_info "Applying console Prisma schema (prisma db push)..."
+    if ! kubectl exec -n "$NAMESPACE" deploy/console -- npx prisma db push; then
+        log_error "db push failed. Is the console pod running? (kubectl get pods -n $NAMESPACE)"
+        exit 1
+    fi
+    log_success "Schema applied"
+}
+
 # Clear build caches
 clear_cache() {
     local cache_type="${1:-all}"
@@ -463,6 +476,7 @@ show_help() {
     echo "  build-logs <svc>   Show build/init container logs"
     echo "  port-forward       Port forward a service"
     echo "  delete <service>   Delete pod (forces full recreation with rebuild)"
+    echo "  db-push            Apply console Prisma schema (auto on fresh install only)"
     echo "  clear-cache [type] Clear build caches (go|node|all, default: all)"
     echo "  expose             Show URLs for externally accessible services"
     echo "  tunnel             Start minikube tunnel (makes services accessible on localhost)"
@@ -540,6 +554,9 @@ case "${1:-help}" in
         ;;
     delete)
         delete_pod "$2"
+        ;;
+    db-push)
+        db_push
         ;;
     clear-cache)
         clear_cache "$2"
