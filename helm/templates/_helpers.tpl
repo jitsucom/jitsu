@@ -76,10 +76,14 @@ Value precedence (which definition wins on a name clash), lowest first:
 in env.common.CONSOLE_URL as its own fallback via jitsu-dev.consoleUrl.)
 
 Emission order (independent of precedence) is chart-provided bases first, user
-config last: computed, extra, env.common, env.<service>. Kubernetes $(VAR)
-expansion only sees vars defined earlier in the list, so a user override like
-env.common.A="$(HTTP_PORT)" must render after the chart's HTTP_PORT. Each name
-is emitted at its first appearance in that order, carrying its winning value.
+config last — by the phase that produced each name's *winning* value, ordered:
+computed, extra, env.common, env.<service>. Kubernetes $(VAR) expansion only
+sees vars defined earlier in the list, so a name whose value references another
+must render after it: a user override like env.common.A="$(HTTP_PORT)" emits
+after the chart's HTTP_PORT, and even env.<service>.CONSOLE_URL="$(HTTP_PORT)"
+(overriding a computed key) emits at the service phase, after HTTP_PORT.
+Limitation: two overrides in the *same* phase referencing each other still
+order alphabetically — expansion between them is not guaranteed.
 
 Args (dict):
   ctx      — root template context (required)
@@ -106,20 +110,28 @@ Args (dict):
 {{- $extra := .extra | default dict -}}
 {{- $service := index $ctx.Values.env .service | default dict -}}
 {{- $exclude := .exclude | default list -}}
-{{- /* Winning value per name: overlay low→high precedence so the last write wins. */ -}}
+{{- /* Winning value and its source phase per name. Overlay in low→high
+       precedence order (env.common < computed < extra < service) so the last
+       write wins; record which phase that was for emission ordering. */ -}}
 {{- $winner := dict -}}
-{{- range $k, $v := $common }}{{- $_ := set $winner $k $v }}{{- end }}
-{{- range $k, $v := $computed }}{{- $_ := set $winner $k $v }}{{- end }}
-{{- range $k, $v := $extra }}{{- $_ := set $winner $k $v }}{{- end }}
-{{- range $k, $v := $service }}{{- $_ := set $winner $k $v }}{{- end }}
-{{- /* Emit in bases-first order, each name once at its first appearance. */ -}}
-{{- $emitted := dict -}}
-{{- range $group := (list $computed $extra $common $service) }}
-{{- range $k, $_v := $group }}
-{{- if and (not (hasKey $emitted $k)) (not (has $k $exclude)) }}
-{{- $_ := set $emitted $k true }}
+{{- $source := dict -}}
+{{- range $phase := (list
+      (dict "name" "common" "vars" $common)
+      (dict "name" "computed" "vars" $computed)
+      (dict "name" "extra" "vars" $extra)
+      (dict "name" "service" "vars" $service)) }}
+{{- range $k, $v := $phase.vars }}
+{{- $_ := set $winner $k $v }}
+{{- $_ := set $source $k $phase.name }}
+{{- end }}
+{{- end }}
+{{- /* Emit each name once, grouped by the phase of its winning value, in
+       bases-first order so referenced vars precede the vars that use them. */ -}}
+{{- range $phase := (list "computed" "extra" "common" "service") }}
+{{- range $k, $v := $winner }}
+{{- if and (eq (get $source $k) $phase) (not (has $k $exclude)) }}
 - name: {{ $k }}
-  value: {{ get $winner $k | quote }}
+  value: {{ $v | quote }}
 {{- end }}
 {{- end }}
 {{- end }}
