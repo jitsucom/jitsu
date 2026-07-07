@@ -1,0 +1,110 @@
+{{- if gt (int .Values.scaling.kafka.replicas) 0 }}
+# Single-node Redpanda (Kafka API-compatible) — mirrors dep-redpanda in
+# docker/docker-compose.yml. Deliberately not scalable: the broker has a
+# fixed identity and an RWO data volume, so scaling.kafka.replicas is an
+# on/off switch (0 = use external Kafka via env.common.KAFKA_BOOTSTRAP_SERVERS)
+# and the Deployment always runs exactly one replica.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka
+  labels:
+    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    app.kubernetes.io/name: kafka
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kafka
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kafka
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: redpanda
+          image: docker.redpanda.com/redpandadata/redpanda:latest
+          args:
+            - redpanda
+            - start
+            - --kafka-addr=internal://0.0.0.0:9092,external://0.0.0.0:19092
+            # external listener advertises localhost:19092 so host-side
+            # processes can reach the broker through `dev-deploy.sh tunnel`
+            - --advertise-kafka-addr=internal://kafka:9092,external://localhost:19092
+            - --rpc-addr=0.0.0.0:33145
+            - --advertise-rpc-addr=kafka:33145
+            - --mode=dev-container
+            - --smp=1
+            - --memory=1G
+          ports:
+            - name: kafka
+              containerPort: 9092
+              protocol: TCP
+            - name: kafka-external
+              containerPort: 19092
+              protocol: TCP
+            - name: admin
+              containerPort: 9644
+              protocol: TCP
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/redpanda/data
+          readinessProbe:
+            httpGet:
+              path: /v1/status/ready
+              port: admin
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: kafka
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: kafka-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka
+  labels:
+    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    app.kubernetes.io/name: kafka
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 9092
+      targetPort: kafka
+      protocol: TCP
+      name: kafka
+    - port: 19092
+      targetPort: kafka-external
+      protocol: TCP
+      name: kafka-external
+    - port: 9644
+      targetPort: admin
+      protocol: TCP
+      name: admin
+  selector:
+    app.kubernetes.io/name: kafka
+    app.kubernetes.io/instance: {{ .Release.Name }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kafka-data
+  labels:
+    {{- include "jitsu-dev.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+{{- end }}

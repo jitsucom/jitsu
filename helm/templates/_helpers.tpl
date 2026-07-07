@@ -66,6 +66,18 @@ http://console:3000
 {{- end }}
 
 {{/*
+Computed Kafka bootstrap servers: use the in-cluster single-node Redpanda
+when deployed, otherwise fall back to env.common.KAFKA_BOOTSTRAP_SERVERS
+*/}}
+{{- define "jitsu-dev.kafkaBootstrapServers" -}}
+{{- if gt (int .Values.scaling.kafka.replicas) 0 -}}
+kafka:9092
+{{- else -}}
+{{ .Values.env.common.KAFKA_BOOTSTRAP_SERVERS }}
+{{- end -}}
+{{- end }}
+
+{{/*
 Container env, merged so every name is emitted exactly once — Helm 4 applies
 manifests with server-side apply, which rejects duplicate env names
 (helm/helm#31529); Helm 3 silently used the last entry.
@@ -101,6 +113,7 @@ Args (dict):
       "REPOSITORY_BASE_URL" (printf "%s/api/admin/export" $consoleUrl)
       "SCRIPT_ORIGIN" (printf "%s/api/s/javascript-library" $consoleUrl)
       "CONFIG_SOURCE" (printf "%s/api/admin/export/bulker-connections" $consoleUrl)
+      "KAFKA_BOOTSTRAP_SERVERS" (include "jitsu-dev.kafkaBootstrapServers" $ctx)
       "ROTOR_URL" "http://rotor:3401"
       "BULKER_URL" "http://bulker:3042"
       "INGEST_URL" "http://ingest:3049"

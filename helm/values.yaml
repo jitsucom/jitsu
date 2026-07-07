@@ -28,6 +28,11 @@ env:
 
 # Service scaling (set replicas to 0 to disable)
 scaling:
+  # In-cluster single-node Kafka (Redpanda). On/off only — the Deployment
+  # always runs one replica. Set 0 to use an external broker via
+  # env.common.KAFKA_BOOTSTRAP_SERVERS instead.
+  kafka:
+    replicas: 1
   ingest:
     replicas: 1
   bulker:

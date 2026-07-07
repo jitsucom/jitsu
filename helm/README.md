@@ -8,8 +8,11 @@ Development Helm chart for deploying Jitsu services to Minikube. Services are bu
 - [Helm](https://helm.sh/docs/intro/install/) v3+
 - Host services running locally:
   - PostgreSQL (port 5432)
-  - Kafka (port 9094)
   - Console (port 3000)
+
+Kafka runs in-cluster by default (single-node Redpanda). To use an external
+broker instead, set `scaling.kafka.replicas: 0` and point
+`env.common.KAFKA_BOOTSTRAP_SERVERS` at it.
 
 ## Quick Start
 
@@ -101,6 +104,7 @@ env:
 | rotor | 3401 | Event routing service |
 | syncctl | 3043 | Sync controller |
 | operator | 3052 | Functions server operator |
+| kafka | 9092 (in-cluster), 19092 (host via tunnel) | Single-node Redpanda (Kafka API) |
 
 ## Accessing Services
 
@@ -114,6 +118,7 @@ Then access:
 - Ingest: http://localhost:3049
 - Bulker: http://localhost:3042
 - Rotor: http://localhost:3401
+- Kafka: localhost:19092 (external listener of the in-cluster Redpanda)
 
 ## Architecture
 
@@ -125,20 +130,23 @@ Then access:
 │  │  (Go/init)  │  │  (Go/init)  │  │ (Node/init) │         │
 │  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘         │
 │         │                │                │                 │
-│         └────────────────┼────────────────┘                 │
-│                          │                                  │
-│                    jitsu-secrets                            │
-│                    (K8s Secret)                             │
-└──────────────────────────┼──────────────────────────────────┘
-                           │
-              host.minikube.internal
-                           │
-┌──────────────────────────┼──────────────────────────────────┐
-│ Host Machine             │                                  │
-│  ┌──────────┐  ┌─────────┴───┐  ┌──────────┐               │
-│  │ PostgreSQL│  │    Kafka    │  │  Console │               │
-│  │  :5432   │  │    :9094    │  │  :3000   │               │
-│  └──────────┘  └─────────────┘  └──────────┘               │
+│         ├────────────────┼────────────────┤                 │
+│         │                │                │                 │
+│  ┌──────┴──────┐   jitsu-secrets          │                 │
+│  │    kafka    │   (K8s Secret)           │                 │
+│  │ (Redpanda)  │                          │                 │
+│  │    :9092    │                          │                 │
+│  └─────────────┘                          │                 │
+└───────────────────────────────────────────┼─────────────────┘
+                                            │
+                               host.minikube.internal
+                                            │
+┌───────────────────────────────────────────┼─────────────────┐
+│ Host Machine                              │                 │
+│  ┌──────────┐  ┌──────────┐               │                 │
+│  │ PostgreSQL│  │  Console │──────────────┘                 │
+│  │  :5432   │  │  :3000   │                                │
+│  └──────────┘  └──────────┘                                │
 └─────────────────────────────────────────────────────────────┘
 ```
 
