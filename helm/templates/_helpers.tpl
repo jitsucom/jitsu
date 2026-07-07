@@ -66,11 +66,21 @@ http://console:3000
 {{- end }}
 
 {{/*
-Container env, merged into a single map so every name is emitted exactly
-once — Helm 4 applies manifests with server-side apply, which rejects
-duplicate env names (helm/helm#31529); Helm 3 silently used the last entry.
-Precedence, later wins:
+Container env, merged so every name is emitted exactly once — Helm 4 applies
+manifests with server-side apply, which rejects duplicate env names
+(helm/helm#31529); Helm 3 silently used the last entry.
+
+Value precedence (which definition wins on a name clash), lowest first:
   env.common < computed console/service URLs < template defaults ("extra") < env.<service>
+(computed URLs must beat env.common: the in-cluster CONSOLE_URL already folds
+in env.common.CONSOLE_URL as its own fallback via jitsu-dev.consoleUrl.)
+
+Emission order (independent of precedence) is chart-provided bases first, user
+config last: computed, extra, env.common, env.<service>. Kubernetes $(VAR)
+expansion only sees vars defined earlier in the list, so a user override like
+env.common.A="$(HTTP_PORT)" must render after the chart's HTTP_PORT. Each name
+is emitted at its first appearance in that order, carrying its winning value.
+
 Args (dict):
   ctx      — root template context (required)
   service  — key into .Values.env for per-service overrides (required)
@@ -92,27 +102,24 @@ Args (dict):
       "INGEST_URL" "http://ingest:3049"
       "SYNCCTL_URL" "http://syncctl:3043"
 -}}
-{{- $phases := list
-      ($ctx.Values.env.common | default dict)
-      $computed
-      (.extra | default dict)
-      (index $ctx.Values.env .service | default dict)
--}}
+{{- $common := $ctx.Values.env.common | default dict -}}
+{{- $extra := .extra | default dict -}}
+{{- $service := index $ctx.Values.env .service | default dict -}}
 {{- $exclude := .exclude | default list -}}
-{{- /* Emit each key once, at the phase of its winning (last) definition,
-       alphabetical within a phase. Position matters beyond aesthetics:
-       Kubernetes $(VAR) expansion only sees vars defined earlier in the
-       list, so an override referencing a chart-provided var must render
-       after it. */ -}}
-{{- range $i, $phase := $phases }}
-{{- range $key, $value := $phase }}
-{{- $winner := true }}
-{{- range $j, $later := $phases }}
-{{- if and (gt $j $i) (hasKey $later $key) }}{{- $winner = false }}{{- end }}
-{{- end }}
-{{- if and $winner (not (has $key $exclude)) }}
-- name: {{ $key }}
-  value: {{ $value | quote }}
+{{- /* Winning value per name: overlay low→high precedence so the last write wins. */ -}}
+{{- $winner := dict -}}
+{{- range $k, $v := $common }}{{- $_ := set $winner $k $v }}{{- end }}
+{{- range $k, $v := $computed }}{{- $_ := set $winner $k $v }}{{- end }}
+{{- range $k, $v := $extra }}{{- $_ := set $winner $k $v }}{{- end }}
+{{- range $k, $v := $service }}{{- $_ := set $winner $k $v }}{{- end }}
+{{- /* Emit in bases-first order, each name once at its first appearance. */ -}}
+{{- $emitted := dict -}}
+{{- range $group := (list $computed $extra $common $service) }}
+{{- range $k, $_v := $group }}
+{{- if and (not (hasKey $emitted $k)) (not (has $k $exclude)) }}
+{{- $_ := set $emitted $k true }}
+- name: {{ $k }}
+  value: {{ get $winner $k | quote }}
 {{- end }}
 {{- end }}
 {{- end }}
