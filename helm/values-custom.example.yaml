@@ -18,10 +18,9 @@ env:
     # Only used when the in-cluster console is disabled (scaling.console.replicas: 0)
     # CONSOLE_URL: http://host.minikube.internal:3000
     #
-    # Only used when the in-cluster Kafka is disabled (scaling.kafka.replicas: 0)
+    # Only used when the corresponding in-cluster dependency is disabled in
+    # helm-deps values (e.g. kafka.enabled: false)
     # KAFKA_BOOTSTRAP_SERVERS: host.minikube.internal:9092
-    #
-    # Only used when the corresponding in-cluster dependency is disabled
     # DATABASE_URL: postgresql://user:pass@host.minikube.internal:5432/postgres?schema=newjitsu
     # CLICKHOUSE_URL: http://user:pass@host.minikube.internal:8123/default
     # MONGODB_URL: mongodb://user:pass@host.minikube.internal:27017/admin
