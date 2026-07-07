@@ -1,15 +1,15 @@
-{{- if gt (int .Values.scaling.clickhouse.replicas) 0 }}
+{{- if .Values.clickhouse.enabled }}
 # Single-node ClickHouse — mirrors dep-clickhouse in docker/docker-compose.yml.
 # Deliberately not scalable: fixed identity + RWO data volume, so
-# scaling.clickhouse.replicas is an on/off switch (0 = use an external
-# instance via env.common.CLICKHOUSE_URL) and the Deployment always runs
+# clickhouse.enabled is an on/off switch (false = use an external
+# instance via the main chart's env.common.CLICKHOUSE_URL) and the Deployment always runs
 # exactly one replica.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: clickhouse
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu-deps.labels" . | nindent 4 }}
     app.kubernetes.io/name: clickhouse
 spec:
   replicas: 1
@@ -70,7 +70,7 @@ kind: Service
 metadata:
   name: clickhouse
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu-deps.labels" . | nindent 4 }}
     app.kubernetes.io/name: clickhouse
 spec:
   # LoadBalancer so host-side tools can reach ClickHouse on localhost through
@@ -94,7 +94,7 @@ kind: PersistentVolumeClaim
 metadata:
   name: clickhouse-data
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu-deps.labels" . | nindent 4 }}
 spec:
   accessModes:
     - ReadWriteOnce

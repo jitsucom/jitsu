@@ -1,0 +1,6 @@
+apiVersion: v2
+name: jitsu-deps
+description: Development dependencies for Jitsu (Kafka/Redpanda, PostgreSQL, ClickHouse, MongoDB) — single-node in-cluster instances
+type: application
+version: 0.1.0
+appVersion: "dev"

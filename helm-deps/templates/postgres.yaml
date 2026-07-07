@@ -1,15 +1,15 @@
-{{- if gt (int .Values.scaling.postgres.replicas) 0 }}
+{{- if .Values.postgres.enabled }}
 # Single-node PostgreSQL — mirrors dep-postgres in docker/docker-compose.yml.
 # Deliberately not scalable: fixed identity + RWO data volume, so
-# scaling.postgres.replicas is an on/off switch (0 = use an external database
-# via env.common.DATABASE_URL) and the Deployment always runs exactly one
+# postgres.enabled is an on/off switch (false = use an external database
+# via the main chart's env.common.DATABASE_URL) and the Deployment always runs exactly one
 # replica.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: postgres
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu-deps.labels" . | nindent 4 }}
     app.kubernetes.io/name: postgres
 spec:
   replicas: 1
@@ -65,7 +65,7 @@ kind: Service
 metadata:
   name: postgres
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu-deps.labels" . | nindent 4 }}
     app.kubernetes.io/name: postgres
 spec:
   # LoadBalancer so host-side tools (psql, IDE) can reach the database on
@@ -85,7 +85,7 @@ kind: PersistentVolumeClaim
 metadata:
   name: postgres-data
   labels:
-    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    {{- include "jitsu-deps.labels" . | nindent 4 }}
 spec:
   accessModes:
     - ReadWriteOnce

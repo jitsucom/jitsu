@@ -8,11 +8,18 @@ Development Helm chart for deploying Jitsu services to Minikube. Services are bu
 - [Helm](https://helm.sh/docs/intro/install/) v3+
 
 No host services are required: all dependencies — Kafka (single-node Redpanda),
-PostgreSQL, ClickHouse and MongoDB — run in-cluster by default. To use an
-external instance of any of them, set the corresponding
-`scaling.<dependency>.replicas: 0` and point the matching
-`env.common.KAFKA_BOOTSTRAP_SERVERS` / `DATABASE_URL` / `CLICKHOUSE_URL` /
-`MONGODB_URL` at it (see `values-custom.example.yaml`).
+PostgreSQL, ClickHouse and MongoDB — run in-cluster, deployed from the separate
+[`../helm-deps`](../helm-deps) chart. `dev-deploy.sh deploy` is staged: it
+installs `helm-deps` first and **waits for every dependency to be healthy**
+before deploying the Jitsu services, so services never start against missing
+dependencies. Dependency connection URLs reach the services through the
+`jitsu-deps-urls` Secret published by the deps chart.
+
+To use an external instance of a dependency, set `enabled: false` for it in
+`helm-deps/values.yaml` (or a `helm-deps/values-custom.yaml`) and point the
+matching `env.common.KAFKA_BOOTSTRAP_SERVERS` / `DATABASE_URL` /
+`CLICKHOUSE_URL` / `MONGODB_URL` of this chart at it (see
+`values-custom.example.yaml`) — explicit env wins over the published URLs.
 
 ## Quick Start
 
@@ -37,9 +44,10 @@ Secrets are generated automatically during `./dev-deploy.sh deploy`: an
 the `jitsu-secrets` Kubernetes Secret. Subsequent deploys reuse the existing
 token.
 
-Connection URLs of the in-cluster dependencies are computed by the chart —
-dev credentials are set in `values.yaml` (`postgres.password`,
-`clickhouse.password`, `mongodb.password`).
+Connection URLs of the in-cluster dependencies are published by the
+`helm-deps` chart through the `jitsu-deps-urls` Secret — dev credentials are
+set in `helm-deps/values.yaml` (`postgres.password`, `clickhouse.password`,
+`mongodb.password`).
 
 Check secrets status:
 ```bash
@@ -81,11 +89,11 @@ env:
 | `logs <service> -f` | Follow logs for a service |
 | `build-logs <service>` | Show build/init container logs |
 | `delete <service>` | Delete pod (forces full recreation) |
-| `db-push` | Apply console Prisma schema (runs automatically on fresh install only) |
+| `db-push` | Apply console Prisma schema on demand (also runs automatically on every deploy) |
 | `clear-cache [type]` | Clear build caches (go\|node\|all) |
 | `tunnel` | Start minikube tunnel (localhost access) |
 | `expose` | Show URLs for exposed services |
-| `uninstall` | Uninstall the Helm release |
+| `uninstall` | Uninstall both Helm releases (services and dependencies) |
 
 ## Services
 
@@ -114,9 +122,9 @@ Then access:
 - Bulker: http://localhost:3042
 - Rotor: http://localhost:3401
 - Kafka: localhost:19092 (external listener of the in-cluster Redpanda)
-- Postgres: localhost:5432 (`postgres` / `values.yaml postgres.password`)
-- ClickHouse: http://localhost:8123 (`default` / `values.yaml clickhouse.password`)
-- MongoDB: localhost:27017 (`admin` / `values.yaml mongodb.password`)
+- Postgres: localhost:5432 (`postgres` / `helm-deps/values.yaml postgres.password`)
+- ClickHouse: http://localhost:8123 (`default` / `helm-deps/values.yaml clickhouse.password`)
+- MongoDB: localhost:27017 (`admin` / `helm-deps/values.yaml mongodb.password`)
 
 ## Architecture
 
@@ -136,6 +144,10 @@ Then access:
 │                                                                  │
 │  jitsu-secrets (K8s Secret, AUTH_TOKEN auto-generated on deploy) │
 └──────────────────────────────────────────────────────────────────┘
+
+Two Helm releases in one namespace: `jitsu-deps` (bottom row — deployed
+first, waited on for health) and `jitsu` (services). Dependency URLs flow
+to the services via the `jitsu-deps-urls` Secret.
 ```
 
 ## Build Caching

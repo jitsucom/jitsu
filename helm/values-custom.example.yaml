@@ -7,16 +7,11 @@
 #   # Edit values-custom.yaml
 #   # Then deploy - it will be picked up automatically
 
-# To use external dependencies instead of the in-cluster single-node ones:
-# scaling:
-#   kafka:
-#     replicas: 0
-#   postgres:
-#     replicas: 0
-#   clickhouse:
-#     replicas: 0
-#   mongodb:
-#     replicas: 0
+# Dependencies (Kafka, Postgres, ClickHouse, MongoDB) live in the separate
+# ../helm-deps chart. To use an external instance, set `enabled: false` for it
+# in helm-deps/values.yaml (or helm-deps/values-custom.yaml) and provide the
+# matching env.common.<VAR> below — explicit env wins over the URLs published
+# by the deps chart.
 
 env:
   common:

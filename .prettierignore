@@ -10,6 +10,7 @@
 jitsu
 # configs -- will keep multi-line json arrays
 helm/*
+helm-deps/*
 .eslintrc.json
 package.json
 tsconfig.json

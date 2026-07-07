@@ -60,6 +60,12 @@ spec:
           envFrom:
             - secretRef:
                 name: jitsu-secrets
+            # Connection URLs of the in-cluster dependencies (helm-deps chart).
+            # Listed after jitsu-secrets so its keys win over any legacy URL
+            # keys there; explicit env entries below still take precedence.
+            - secretRef:
+                name: jitsu-deps-urls
+                optional: true
           env:
             {{- include "jitsu-dev.env" (dict "ctx" . "service" "ingest"
                   "extra" (dict "HTTP_PORT" "3049")) | nindent 12 }}

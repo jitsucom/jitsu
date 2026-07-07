@@ -7,6 +7,8 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 CHART_DIR="$SCRIPT_DIR"
+DEPS_CHART_DIR="$PROJECT_ROOT/helm-deps"
+DEPS_RELEASE_NAME="${DEPS_RELEASE_NAME:-jitsu-deps}"
 NAMESPACE="${NAMESPACE:-default}"
 RELEASE_NAME="${RELEASE_NAME:-jitsu}"
 MOUNT_PATH="/project"
@@ -151,6 +153,8 @@ deploy() {
     log_info "Deploying to Kubernetes..."
     ensure_namespace
     ensure_secrets
+    ensure_cache_pvcs
+    deploy_deps
 
     # Build helm args
     local helm_args=()
@@ -169,6 +173,61 @@ deploy() {
 
     log_success "Deployed to namespace $NAMESPACE"
     log_info "Services will build inside containers (this may take a few minutes on first deploy)"
+}
+
+# Build-cache PVCs, applied outside Helm on purpose: the pre-install
+# install-job hook needs them to exist already, and Helm-4 hook lifecycle
+# (delete-before-create, pre-install-only) proved unreliable for resources
+# that must simply always be there. kubectl apply is idempotent; the PVCs
+# survive uninstall so caches persist across reinstalls. Delete them with
+# './dev-deploy.sh clear-cache'.
+ensure_cache_pvcs() {
+    kubectl apply -n "$NAMESPACE" -f - > /dev/null <<'EOF'
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: go-cache
+  labels:
+    app.kubernetes.io/part-of: jitsu
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: node-cache
+  labels:
+    app.kubernetes.io/part-of: jitsu
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 10Gi
+EOF
+    log_success "Build-cache PVCs are in place"
+}
+
+# Deploy the dependencies chart (Kafka, Postgres, ClickHouse, MongoDB) and
+# wait until everything is healthy, so the main services never start against
+# missing dependencies.
+deploy_deps() {
+    log_info "Deploying dependencies (helm-deps) and waiting for them to become healthy..."
+
+    local helm_args=()
+    if [ -f "$DEPS_CHART_DIR/values-custom.yaml" ]; then
+        log_info "Using custom deps config from helm-deps/values-custom.yaml"
+        helm_args+=("-f" "$DEPS_CHART_DIR/values-custom.yaml")
+    fi
+
+    helm upgrade --install "$DEPS_RELEASE_NAME" "$DEPS_CHART_DIR" \
+        --namespace "$NAMESPACE" \
+        --wait --timeout 10m \
+        "${helm_args[@]}"
+
+    log_success "Dependencies are healthy"
 }
 
 # Restart all pods (triggers rebuild via init containers)
@@ -256,10 +315,12 @@ build_logs() {
     kubectl logs -n "$NAMESPACE" "$pod" -c build 2>/dev/null || kubectl logs -n "$NAMESPACE" "$pod" -c install 2>/dev/null
 }
 
-# Uninstall the release
+# Uninstall the releases (services first, then dependencies)
 uninstall() {
     log_info "Uninstalling $RELEASE_NAME from namespace $NAMESPACE..."
     helm uninstall "$RELEASE_NAME" --namespace "$NAMESPACE" 2>/dev/null || true
+    log_info "Uninstalling $DEPS_RELEASE_NAME from namespace $NAMESPACE..."
+    helm uninstall "$DEPS_RELEASE_NAME" --namespace "$NAMESPACE" 2>/dev/null || true
     log_success "Uninstalled"
 }
 
@@ -286,9 +347,9 @@ tunnel() {
     echo "  Ingest:     http://localhost:3049"
     echo "  Bulker:     http://localhost:3042"
     echo "  Rotor:      http://localhost:3401"
-    echo "  Postgres:   localhost:5432 (postgres / see values.yaml postgres.password)"
-    echo "  ClickHouse: http://localhost:8123 (default / see values.yaml clickhouse.password)"
-    echo "  MongoDB:    localhost:27017 (admin / see values.yaml mongodb.password)"
+    echo "  Postgres:   localhost:5432 (postgres / see helm-deps/values.yaml postgres.password)"
+    echo "  ClickHouse: http://localhost:8123 (default / see helm-deps/values.yaml clickhouse.password)"
+    echo "  MongoDB:    localhost:27017 (admin / see helm-deps/values.yaml mongodb.password)"
     echo "  Kafka:      localhost:19092"
     echo ""
     log_info "Press Ctrl+C to stop the tunnel"
@@ -382,9 +443,8 @@ secrets_status() {
 }
 
 # Apply the console Prisma schema to Postgres.
-# On a fresh install this happens automatically (db-push Job); on upgrades it
-# is deliberately not run (a destructive schema change must not break a
-# running deploy) — use this command to apply schema changes on demand.
+# Every deploy runs this automatically (db-push hook Job); this command
+# applies schema changes on demand without a full deploy.
 db_push() {
     log_info "Applying console Prisma schema (prisma db push)..."
     if ! kubectl exec -n "$NAMESPACE" deploy/console -- npx prisma db push; then
@@ -456,13 +516,15 @@ show_help() {
     echo "  - minikube installed and running (minikube start)"
     echo "  - helm installed"
     echo ""
-    echo "Dependencies (Postgres, ClickHouse, MongoDB, Kafka) run in-cluster by"
-    echo "default; secrets (AUTH_TOKEN) are generated automatically on deploy."
+    echo "Dependencies (Postgres, ClickHouse, MongoDB, Kafka) run in-cluster via"
+    echo "the separate ../helm-deps chart: 'deploy' installs it first and waits"
+    echo "for it to be healthy before deploying the services. Secrets (AUTH_TOKEN)"
+    echo "are generated automatically on deploy."
     echo ""
     echo "Usage: $0 <command> [options]"
     echo ""
     echo "Commands:"
-    echo "  deploy             Deploy/upgrade Helm chart (auto-starts mount, ensures secrets)"
+    echo "  deploy             Deploy deps chart (waits for healthy), then services chart"
     echo "  secrets            (Re)apply auto-generated secrets (also done by deploy)"
     echo "  secrets-status     Show secrets configuration status"
     echo "  mount              Start minikube mount (project -> /project)"
@@ -476,7 +538,7 @@ show_help() {
     echo "  build-logs <svc>   Show build/init container logs"
     echo "  port-forward       Port forward a service"
     echo "  delete <service>   Delete pod (forces full recreation with rebuild)"
-    echo "  db-push            Apply console Prisma schema (auto on fresh install only)"
+    echo "  db-push            Apply console Prisma schema (also runs on every deploy)"
     echo "  clear-cache [type] Clear build caches (go|node|all, default: all)"
     echo "  expose             Show URLs for externally accessible services"
     echo "  tunnel             Start minikube tunnel (makes services accessible on localhost)"
