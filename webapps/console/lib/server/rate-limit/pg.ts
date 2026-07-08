@@ -1,5 +1,4 @@
-import { Prisma } from "@prisma/client";
-import { db } from "../db";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { getServerLog } from "../log";
 import { computeResult } from "./compute";
 import type { RateLimitOpts, RateLimitResult, RateLimiter } from "./types";
@@ -10,7 +9,17 @@ const CLEANUP_PROB = 1 / 500;
 
 type Row = { current_count: number; prev_count: number };
 
+export interface PgRateLimiterDeps {
+  prisma: PrismaClient;
+}
+
 export class PgRateLimiter implements RateLimiter {
+  private readonly prisma: PrismaClient;
+
+  constructor(deps: PgRateLimiterDeps) {
+    this.prisma = deps.prisma;
+  }
+
   async check(opts: RateLimitOpts): Promise<RateLimitResult> {
     const key = `${opts.authClass}:${opts.principal}:${opts.bucket}`;
     const now = Date.now();
@@ -19,7 +28,7 @@ export class PgRateLimiter implements RateLimiter {
     const prevWindowStart = new Date(windowStartMs - opts.windowMs);
     const expiresAt = new Date(windowStartMs + opts.windowMs + 5 * 60_000);
 
-    const rows = await db.prisma().$queryRaw<Row[]>(Prisma.sql`
+    const rows = await this.prisma.$queryRaw<Row[]>(Prisma.sql`
       WITH upserted AS (
         INSERT INTO newjitsu."RateLimitCounter" ("bucketKey", "windowStart", "count", "expiresAt")
         VALUES (${key}, ${windowStart}, 1, ${expiresAt})
@@ -46,6 +55,6 @@ export class PgRateLimiter implements RateLimiter {
   }
 
   private async cleanup(): Promise<void> {
-    await db.prisma().$executeRaw`DELETE FROM newjitsu."RateLimitCounter" WHERE "expiresAt" < now()`;
+    await this.prisma.$executeRaw`DELETE FROM newjitsu."RateLimitCounter" WHERE "expiresAt" < now()`;
   }
 }
