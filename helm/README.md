@@ -156,6 +156,12 @@ Build artifacts are cached in PersistentVolumeClaims:
 - `go-cache` - Go modules and build cache
 - `node-cache` - Node modules and build cache
 
+These PVCs are created by `dev-deploy.sh deploy` (not by the chart — they must
+exist before the pre-install hook runs, and they survive `uninstall`). If you
+invoke `helm install` directly instead of using the script, create them first
+(see `ensure_cache_pvcs` in `dev-deploy.sh`), otherwise the install job stays
+`Pending` on a missing PVC.
+
 Clear caches if you encounter build issues:
 
 ```bash

@@ -201,6 +201,10 @@ deploy() {
 # Args: the same helm args the main-chart upgrade will use — the check renders
 # the chart with them, so values files and --set overrides are both honored
 # (and commented-out placeholders are not, since comments never render).
+# Best-effort: a single rendered occurrence counts, so a service-scoped
+# override (env.<service>.<KEY>) satisfies it even though other services
+# still lack the var — use env.common.<KEY> for external deps. A miss isn't
+# silent either way: the readiness wait below surfaces the failing service.
 check_dep_urls() {
     local rendered
     rendered=$(helm template "$RELEASE_NAME" "$CHART_DIR" \
