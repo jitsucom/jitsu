@@ -206,6 +206,13 @@ deploy() {
 # still lack the var — use env.common.<KEY> for external deps. A miss isn't
 # silent either way: the readiness wait below surfaces the failing service.
 check_dep_urls() {
+    # Intentionally partial stack (dependency disabled AND every service that
+    # uses it scaled to 0)? The check can't know which services need which
+    # dependency, so skip it explicitly:
+    if [ -n "${SKIP_DEP_URL_CHECK:-}" ]; then
+        log_warn "SKIP_DEP_URL_CHECK is set — skipping dependency URL validation"
+        return 0
+    fi
     local rendered
     rendered=$(helm template "$RELEASE_NAME" "$CHART_DIR" \
         --namespace "$NAMESPACE" --set projectRoot="$MOUNT_PATH" "$@" 2>/dev/null || true)
@@ -230,6 +237,7 @@ check_dep_urls() {
         log_error "Missing dependency configuration:$missing"
         log_error "The corresponding dependency is disabled in helm-deps values, but no replacement is set."
         log_error "Set env.common.<VAR> in $CHART_DIR/values-custom.yaml (see values-custom.example.yaml)."
+        log_error "Running an intentionally partial stack? Bypass with: SKIP_DEP_URL_CHECK=1 $0 deploy"
         exit 1
     fi
 }
