@@ -214,9 +214,32 @@ export class ConfigObjectsService {
     delete object.id;
     delete object.workspaceId;
     delete object.cloneId;
+
     const created = await this.prisma.configurationObject.create({
       data: { id, workspaceId, config: object, type },
     });
+
+    if (["destination", "service"].includes(type)) {
+      const count = await this.prisma.configurationObject.count({
+        where: { workspaceId, type: type, deleted: false },
+      });
+
+      if (count === 1) {
+        withProductAnalytics(
+          p =>
+            p.track("workspace_activated", {
+              ...objectAnalyticsProps(type, id, object),
+              ...(incoming.cloneId ? { cloned: true } : {}),
+            }),
+          {
+            user,
+            workspace,
+            req: opts.req,
+          }
+        );
+      }
+    }
+
     await trackTelemetryEvent("config-object-create", { objectType: type });
     if (opts.req) {
       await withProductAnalytics(

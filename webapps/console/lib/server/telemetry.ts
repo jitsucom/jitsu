@@ -54,6 +54,7 @@ type TrackEvents =
   | "user_created"
   | "workspace_created"
   | "workspace_onboarded"
+  | "workspace_activated"
   | "workspace_ping"
   | "workspace_access"
   | "workspace_deleted"
