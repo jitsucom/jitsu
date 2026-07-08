@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { PrismaClient } from "@prisma/client";
 import type { ClickHouseClient } from "@clickhouse/client";
+import type { Pool } from "pg";
 import { McpServer as SdkMcpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { db } from "../db";
@@ -12,6 +13,9 @@ import { OAuthHandlers } from "./oauth";
 import { registerTools } from "./tools";
 import { ConfigObjectsService } from "../config-objects-service";
 import { EventsLogService } from "../events-log-service";
+import { SyncService } from "../sync-service";
+import { DebugService } from "../debug-service";
+import { ReportsService } from "../reports-service";
 
 const log = getServerLog("mcp-server");
 
@@ -22,8 +26,10 @@ const log = getServerLog("mcp-server");
 export interface McpServerDeps {
   prisma: PrismaClient;
   kv: KvStore;
-  /** ClickHouse client for the events-log tools. Defaults to the shared singleton. */
+  /** ClickHouse client for the events-log/sync/report tools. Defaults to the shared singleton. */
   clickhouse?: ClickHouseClient;
+  /** Postgres pool for the raw-SQL sync/report queries. Defaults to the shared singleton. */
+  pgPool?: Pool;
   accessTokenTtlSec?: number;
   refreshTokenTtlDays?: number;
   /** Override the fire-and-forget scheduler (e.g. pass `after` from next/server
@@ -41,6 +47,9 @@ export class McpServer {
   private readonly auth: AuthChecker;
   private readonly configObjects: ConfigObjectsService;
   private readonly eventsLog: EventsLogService;
+  private readonly syncs: SyncService;
+  private readonly debug: DebugService;
+  private readonly reports: ReportsService;
 
   constructor(private readonly deps: McpServerDeps) {
     this.oauth = new OAuthHandlers({
@@ -51,7 +60,12 @@ export class McpServer {
     });
     this.auth = new AuthChecker(deps.prisma, deps.fireAndForget);
     this.configObjects = new ConfigObjectsService({ prisma: deps.prisma });
-    this.eventsLog = new EventsLogService({ clickhouse: deps.clickhouse ?? clickhouse, prisma: deps.prisma });
+    const ch = deps.clickhouse ?? clickhouse;
+    const pgPool = deps.pgPool ?? db.pgPool();
+    this.eventsLog = new EventsLogService({ clickhouse: ch, prisma: deps.prisma });
+    this.syncs = new SyncService({ prisma: deps.prisma, pgPool, clickhouse: ch });
+    this.debug = new DebugService({ prisma: deps.prisma });
+    this.reports = new ReportsService({ prisma: deps.prisma, pgPool, clickhouse: ch });
   }
 
   // ─── OAuth endpoints ────────────────────────────────────────────────────
@@ -75,7 +89,14 @@ export class McpServer {
     if (!authInfo) return; // 401 already sent
 
     const sdkServer = new SdkMcpServer({ name: "jitsu", version: "0.1.0" });
-    registerTools(sdkServer, { service: this.configObjects, eventsLog: this.eventsLog });
+    registerTools(sdkServer, {
+      service: this.configObjects,
+      eventsLog: this.eventsLog,
+      syncs: this.syncs,
+      debug: this.debug,
+      reports: this.reports,
+      req,
+    });
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
     // The SDK reads auth from req.auth — do not pass authInfo as the third arg
     // (parsedBody), which would make the transport treat it as the request body.
