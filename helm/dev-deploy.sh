@@ -154,7 +154,16 @@ deploy() {
     ensure_namespace
     ensure_secrets
     ensure_cache_pvcs
+
+    # Detect dependency URL changes so we can restart services that consumed
+    # the old values via envFrom (read once at pod start).
+    local dep_urls_before dep_urls_after
+    dep_urls_before=$(kubectl get secret jitsu-deps-urls -n "$NAMESPACE" -o jsonpath='{.data}' 2>/dev/null || true)
+
     deploy_deps
+    check_dep_urls
+
+    dep_urls_after=$(kubectl get secret jitsu-deps-urls -n "$NAMESPACE" -o jsonpath='{.data}' 2>/dev/null || true)
 
     # Build helm args
     local helm_args=()
@@ -172,7 +181,88 @@ deploy() {
         "$@"
 
     log_success "Deployed to namespace $NAMESPACE"
-    log_info "Services will build inside containers (this may take a few minutes on first deploy)"
+
+    # Services read the deps URLs via envFrom at pod start — if they changed,
+    # a plain helm upgrade won't roll pods whose spec is unchanged.
+    if [ -n "$dep_urls_before" ] && [ "$dep_urls_before" != "$dep_urls_after" ]; then
+        log_warn "Dependency URLs changed — restarting services to pick them up"
+        for svc in console ingest bulker rotor profiles syncctl operator; do
+            kubectl get deployment "$svc" -n "$NAMESPACE" &>/dev/null && \
+                kubectl rollout restart deployment/"$svc" -n "$NAMESPACE" > /dev/null
+        done
+    fi
+
+    wait_for_ready
+}
+
+# Fail fast when a dependency is disabled in helm-deps but no replacement URL
+# is configured — otherwise services boot with an empty KAFKA_BOOTSTRAP_SERVERS
+# / DATABASE_URL / ... and crash-loop at runtime instead.
+check_dep_urls() {
+    local key missing=""
+    for key in KAFKA_BOOTSTRAP_SERVERS DATABASE_URL CLICKHOUSE_URL MONGODB_URL; do
+        # provided by the deps chart?
+        if [ -n "$(kubectl get secret jitsu-deps-urls -n "$NAMESPACE" -o jsonpath="{.data.$key}" 2>/dev/null)" ]; then
+            continue
+        fi
+        # or explicitly configured / carried in the legacy secret?
+        if grep -q "$key" "$CHART_DIR/values-custom.yaml" 2>/dev/null; then
+            continue
+        fi
+        if [ -n "$(kubectl get secret jitsu-secrets -n "$NAMESPACE" -o jsonpath="{.data.$key}" 2>/dev/null)" ]; then
+            continue
+        fi
+        missing="$missing $key"
+    done
+    if [ -n "$missing" ]; then
+        log_error "Missing dependency configuration:$missing"
+        log_error "The corresponding dependency is disabled in helm-deps values, but no replacement is set."
+        log_error "Set env.common.<VAR> in $CHART_DIR/values-custom.yaml (see values-custom.example.yaml)."
+        exit 1
+    fi
+}
+
+# Interactively wait for every deployed component to become ready, printing a
+# checkmark as each one goes green. Overall timeout: 5 minutes (a first-ever
+# build can take longer — a timeout here is a warning, not a failure).
+wait_for_ready() {
+    log_info "Waiting for components to become ready (timeout 5m)..."
+
+    local components="postgres clickhouse mongodb kafka console ingest bulker rotor profiles syncctl operator"
+    local pending="" c
+    for c in $components; do
+        if kubectl get deployment "$c" -n "$NAMESPACE" &>/dev/null; then
+            pending="$pending $c"
+        fi
+    done
+
+    local deadline=$(( $(date +%s) + 300 ))
+    while :; do
+        local still="" desired ready
+        for c in $pending; do
+            desired=$(kubectl get deployment "$c" -n "$NAMESPACE" -o jsonpath='{.spec.replicas}' 2>/dev/null || echo 1)
+            ready=$(kubectl get deployment "$c" -n "$NAMESPACE" -o jsonpath='{.status.readyReplicas}' 2>/dev/null)
+            if [ -n "$ready" ] && [ "$ready" -ge "${desired:-1}" ]; then
+                echo -e "  ${GREEN}✓${NC} $c"
+            else
+                still="$still $c"
+            fi
+        done
+        pending="$still"
+        if [ -z "${pending// /}" ]; then
+            log_success "All components are ready"
+            log_info "Run '$0 tunnel' in a separate terminal to expose the endpoints on localhost"
+            return 0
+        fi
+        if [ "$(date +%s)" -ge "$deadline" ]; then
+            log_warn "Timed out waiting for:$pending"
+            log_warn "First-time builds can take longer — they continue in the background."
+            log_warn "Watch with '$0 watch', inspect with '$0 build-logs <service>' or '$0 logs <service>'."
+            log_info "Once everything is ready, run '$0 tunnel' to expose the endpoints on localhost"
+            return 0
+        fi
+        sleep 5
+    done
 }
 
 # Build-cache PVCs, applied outside Helm on purpose: the pre-install
