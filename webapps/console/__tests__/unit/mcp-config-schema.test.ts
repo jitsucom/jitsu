@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getResourceJsonSchema } from "../lib/schema/json-schema";
+import { getResourceJsonSchema } from "../../lib/schema/json-schema";
 
 // The MCP `get_resource_schema` tool and the public `/api/schema/[...type]` route both
 // call getResourceJsonSchema, so this guards the shape both surfaces depend on.

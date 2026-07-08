@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { OpenAPIRegistry, OpenApiGeneratorV3 } from "@asteasolutions/zod-to-openapi";
-import "../lib/openapi/setup";
-import { buildRouteFragment, extractPathParams } from "../lib/openapi/routeSpec";
-import { StoredMethodSpec } from "../lib/openapi/types";
+import "../../lib/openapi/setup";
+import { buildRouteFragment, extractPathParams } from "../../lib/openapi/routeSpec";
+import { StoredMethodSpec } from "../../lib/openapi/types";
 
 describe("extractPathParams", () => {
   it("extracts {name} placeholders", () => {

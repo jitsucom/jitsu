@@ -133,15 +133,17 @@
     "less": "^4.1.2",
     "less-loader": "^10.2.0",
     "minimist": "^1.2.7",
+    "msw": "^2.15.0",
     "postcss": "^8.5.10",
     "raw-loader": "^4.0.2",
     "react-email": "^5.2.10",
     "tailwindcss": "catalog:",
+    "testcontainers": "^11.14.0",
     "tsx": "catalog:",
     "type-fest": "^3.5.7",
     "typescript": "catalog:",
-    "vitest": "catalog:",
     "vite": "^6.4.3",
+    "vitest": "catalog:",
     "zod-prisma": "^0.5.4"
   }
 }
