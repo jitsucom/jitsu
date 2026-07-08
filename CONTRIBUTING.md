@@ -109,8 +109,9 @@ Notes:
   (re-runs re-clone databases in new forks, containers stay up for the session).
 - Per-test env overrides use `vi.stubEnv` (auto-restored). Baseline env lives in
   `__tests__/integration/support/setup.ts`.
-- Seeding helpers (workspace/user, config objects, links, ClickHouse fixtures) are in
-  `__tests__/integration/support/harness.ts`.
+- `__tests__/integration/support/harness.ts` exposes `deps()` (the real singletons) and
+  `seedWorkspace()`; other fixtures are plain `prisma.create` / `clickhouse.insert` calls
+  inline in the tests.
 
 # Development Workflow
 

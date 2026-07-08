@@ -1,8 +1,22 @@
 import { describe, expect, it } from "vitest";
 import { randomId } from "juava";
-import { deps, seedWorkspace, seedConfigObject, seedLink } from "./support/harness";
+import { deps, seedWorkspace } from "./support/harness";
 import { ConfigObjectsService } from "../../lib/server/config-objects-service";
 import { MASKED_SECRET } from "../../lib/schema/destinations";
+
+async function seedStreamDestLink(workspaceId: string) {
+  const prisma = deps().prisma;
+  const stream = await prisma.configurationObject.create({
+    data: { workspaceId, type: "stream", config: { name: "site" } },
+  });
+  const dest = await prisma.configurationObject.create({
+    data: { workspaceId, type: "destination", config: { name: "wh", destinationType: "webhook" } },
+  });
+  const link = await prisma.configurationObjectLink.create({
+    data: { workspaceId, fromId: stream.id, toId: dest.id, data: {} },
+  });
+  return { stream, dest, link };
+}
 
 // Real Postgres via the harness: the service runs against a per-file database,
 // and the shared helpers it delegates to (verifyAccess, configObjectAuditLog)
@@ -93,10 +107,19 @@ describe("ConfigObjectsService", () => {
 
   it("list maps stored rows to objects with id/type/workspaceId", async () => {
     const { user, workspace } = await seedWorkspace();
-    await seedConfigObject(workspace.id, "destination", { name: "dest", destinationType: "postgres" }, { id: "d1" });
+    await deps().prisma.configurationObject.create({
+      data: {
+        id: "d1",
+        workspaceId: workspace.id,
+        type: "destination",
+        config: { name: "dest", destinationType: "postgres" },
+      },
+    });
     // another workspace's destination must not appear
     const { workspace: foreign } = await seedWorkspace();
-    await seedConfigObject(foreign.id, "destination", { name: "foreign", destinationType: "postgres" });
+    await deps().prisma.configurationObject.create({
+      data: { workspaceId: foreign.id, type: "destination", config: { name: "foreign", destinationType: "postgres" } },
+    });
 
     const objects = await svc().list(user, workspace.id, "destination");
     expect(objects).toHaveLength(1);
@@ -144,7 +167,9 @@ describe("ConfigObjectsService", () => {
 
   it("get constrains the lookup by type (so a wrong-type id can't run the wrong filter)", async () => {
     const { user, workspace } = await seedWorkspace();
-    const stream = await seedConfigObject(workspace.id, "stream", { name: "site" });
+    const stream = await deps().prisma.configurationObject.create({
+      data: { workspaceId: workspace.id, type: "stream", config: { name: "site" } },
+    });
     await expect(svc().get(user, workspace.id, "destination", stream.id)).rejects.toThrow(/does not exist/);
     // the same id resolves fine under its true type
     const viaRightType = await svc().get(user, workspace.id, "stream", stream.id);
@@ -153,9 +178,7 @@ describe("ConfigObjectsService", () => {
 
   it("updateLink targets the link by id and rejects a from/to that doesn't match", async () => {
     const { user, workspace } = await seedWorkspace();
-    const stream = await seedConfigObject(workspace.id, "stream", { name: "site" });
-    const dest = await seedConfigObject(workspace.id, "destination", { name: "wh", destinationType: "webhook" });
-    const link = await seedLink(workspace.id, stream.id, dest.id, { data: {} });
+    const { link } = await seedStreamDestLink(workspace.id);
 
     await expect(svc().updateLink(user, workspace.id, link.id, { fromId: "x", data: {} })).rejects.toThrow(
       /does not match/
@@ -173,9 +196,7 @@ describe("ConfigObjectsService", () => {
 
   it("updateLink rejects changing a connection's type", async () => {
     const { user, workspace } = await seedWorkspace();
-    const stream = await seedConfigObject(workspace.id, "stream", { name: "site" });
-    const dest = await seedConfigObject(workspace.id, "destination", { name: "wh", destinationType: "webhook" });
-    const link = await seedLink(workspace.id, stream.id, dest.id, { data: {} });
+    const { link } = await seedStreamDestLink(workspace.id);
     await expect(svc().updateLink(user, workspace.id, link.id, { type: "sync", data: {} })).rejects.toThrow(
       /type can't be changed/
     );

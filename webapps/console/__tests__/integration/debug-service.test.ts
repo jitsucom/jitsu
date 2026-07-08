@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { http, HttpResponse } from "msw";
 import { server } from "./support/msw";
-import { deps, seedWorkspace, seedConfigObject } from "./support/harness";
+import { deps, seedWorkspace } from "./support/harness";
 import { DebugService } from "../../lib/server/debug-service";
 
 // Happy paths: the stored function's draft code is loaded from real Postgres
@@ -13,10 +13,16 @@ const svc = () => new DebugService({ prisma: deps().prisma });
 describe("DebugService", () => {
   it("runFunction posts the stored draft to the workspace's functions server", async () => {
     const { user, workspace } = await seedWorkspace();
-    const fn = await seedConfigObject(workspace.id, "function", {
-      name: "enrich",
-      code: "export default async () => 'deployed'",
-      draft: "export default async () => 'draft'",
+    const fn = await deps().prisma.configurationObject.create({
+      data: {
+        workspaceId: workspace.id,
+        type: "function",
+        config: {
+          name: "enrich",
+          code: "export default async () => 'deployed'",
+          draft: "export default async () => 'draft'",
+        },
+      },
     });
     await deps().prisma.functionsServer.create({
       data: {
@@ -52,9 +58,12 @@ describe("DebugService", () => {
 
   it("runFunction reports FunctionRuntimeNotReady when the workspace has no functions server", async () => {
     const { user, workspace } = await seedWorkspace();
-    const fn = await seedConfigObject(workspace.id, "function", {
-      name: "enrich",
-      code: "export default async () => 1",
+    const fn = await deps().prisma.configurationObject.create({
+      data: {
+        workspaceId: workspace.id,
+        type: "function",
+        config: { name: "enrich", code: "export default async () => 1" },
+      },
     });
     const res = await svc().runFunction(user, workspace.id, { functionId: fn.id, event: {} });
     expect(res.error?.name).toBe("FunctionRuntimeNotReady");

@@ -1,13 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  deps,
-  seedWorkspace,
-  seedConfigObject,
-  seedLink,
-  seedProfileBuilder,
-  insertEventsLog,
-  insertDeadLetter,
-} from "./support/harness";
+import { deps, seedWorkspace } from "./support/harness";
 import { EventsLogService } from "../../lib/server/events-log-service";
 
 // Real ClickHouse via the harness: rows are inserted into the per-file
@@ -16,6 +8,12 @@ import { EventsLogService } from "../../lib/server/events-log-service";
 // against SQL substrings.
 
 const svc = () => new EventsLogService({ clickhouse: deps().clickhouse, prisma: deps().prisma });
+
+const seedStream = (workspaceId: string, name: string) =>
+  deps().prisma.configurationObject.create({ data: { workspaceId, type: "stream", config: { name } } });
+
+const chInsert = (table: "events_log" | "dead_letter", values: any[]) =>
+  deps().clickhouse.insert({ table, values, format: "JSONEachRow", clickhouse_settings: { wait_end_of_query: 1 } });
 
 describe("EventsLogService", () => {
   it("rejects an unknown events-log type", async () => {
@@ -26,7 +24,7 @@ describe("EventsLogService", () => {
   it("rejects a source that doesn't belong to the workspace", async () => {
     const { user, workspace } = await seedWorkspace();
     const { workspace: foreign } = await seedWorkspace();
-    const foreignStream = await seedConfigObject(foreign.id, "stream", { name: "foreign site" });
+    const foreignStream = await seedStream(foreign.id, "foreign site");
     await expect(svc().queryEventsLog(user, workspace.id, "incoming", { source: foreignStream.id })).rejects.toThrow(
       /doesn't belong to the current workspace/
     );
@@ -34,11 +32,11 @@ describe("EventsLogService", () => {
 
   it("incoming scopes to the workspace's streams; results come back newest first with parsed content", async () => {
     const { user, workspace } = await seedWorkspace();
-    const stream = await seedConfigObject(workspace.id, "stream", { name: "site" });
+    const stream = await seedStream(workspace.id, "site");
     const { workspace: foreign } = await seedWorkspace();
-    const foreignStream = await seedConfigObject(foreign.id, "stream", { name: "other site" });
+    const foreignStream = await seedStream(foreign.id, "other site");
 
-    await insertEventsLog([
+    await chInsert("events_log", [
       {
         timestamp: "2026-07-01 10:00:00.000",
         actorId: stream.id,
@@ -102,12 +100,19 @@ describe("EventsLogService", () => {
 
   it("function type scopes to connections + destinations + profile builders, not streams", async () => {
     const { user, workspace } = await seedWorkspace();
-    const stream = await seedConfigObject(workspace.id, "stream", { name: "site" });
-    const dest = await seedConfigObject(workspace.id, "destination", { name: "wh", destinationType: "webhook" });
-    const link = await seedLink(workspace.id, stream.id, dest.id);
-    const pb = await seedProfileBuilder(workspace.id);
+    const prisma = deps().prisma;
+    const stream = await seedStream(workspace.id, "site");
+    const dest = await prisma.configurationObject.create({
+      data: { workspaceId: workspace.id, type: "destination", config: { name: "wh", destinationType: "webhook" } },
+    });
+    const link = await prisma.configurationObjectLink.create({
+      data: { workspaceId: workspace.id, fromId: stream.id, toId: dest.id },
+    });
+    const pb = await prisma.profileBuilder.create({
+      data: { workspaceId: workspace.id, name: "pb", intermediateStorageCredentials: {} },
+    });
 
-    await insertEventsLog([
+    await chInsert("events_log", [
       { timestamp: "2026-07-01 10:00:00.000", actorId: link.id, type: "function", level: "info", message: "{}" },
       { timestamp: "2026-07-01 10:01:00.000", actorId: dest.id, type: "function", level: "info", message: "{}" },
       { timestamp: "2026-07-01 10:02:00.000", actorId: pb.id, type: "function", level: "info", message: "{}" },
@@ -133,7 +138,7 @@ describe("EventsLogService", () => {
     const { user, workspace } = await seedWorkspace();
     const { workspace: foreign } = await seedWorkspace();
 
-    await insertDeadLetter([
+    await chInsert("dead_letter", [
       {
         timestamp: "2026-07-01 10:00:00.000",
         workspaceId: workspace.id,
@@ -171,8 +176,8 @@ describe("EventsLogService", () => {
 
   it("dead-letter accepts a stream id as a specific source (any config object, not just destinations)", async () => {
     const { user, workspace } = await seedWorkspace();
-    const stream = await seedConfigObject(workspace.id, "stream", { name: "site" });
-    await insertDeadLetter([
+    const stream = await seedStream(workspace.id, "site");
+    await chInsert("dead_letter", [
       {
         timestamp: "2026-07-01 10:00:00.000",
         workspaceId: workspace.id,
@@ -197,7 +202,7 @@ describe("EventsLogService", () => {
 
   it("listEventSources('incoming') returns streams", async () => {
     const { user, workspace } = await seedWorkspace();
-    const stream = await seedConfigObject(workspace.id, "stream", { name: "My Site" });
+    const stream = await seedStream(workspace.id, "My Site");
     const sources = await svc().listEventSources(user, workspace.id, "incoming");
     expect(sources).toEqual([{ id: stream.id, name: "My Site", kind: "stream" }]);
   });

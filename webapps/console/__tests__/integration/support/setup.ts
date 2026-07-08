@@ -5,7 +5,6 @@ import { afterAll, afterEach, inject } from "vitest";
 import { Client } from "pg";
 import { createClient } from "@clickhouse/client";
 import { randomBytes } from "node:crypto";
-import { chDdl } from "./ch-ddl";
 import { server, passthroughPrefixes, startMsw } from "./msw";
 
 // Per-test-file setup. Runs in the worker fork BEFORE the test file's module
@@ -15,7 +14,8 @@ import { server, passthroughPrefixes, startMsw } from "./msw";
 // builds its client from serverEnv), so everything below must be in place
 // before any test file import of lib/** evaluates.
 //
-// IMPORTANT: this file must never import lib/** itself.
+// IMPORTANT: no static lib/** imports in this file (the dynamic import below
+// runs after the env baseline is set, which is safe).
 //
 // Isolation model: vitest's forks pool with isolate:true gives every test file
 // its own process. This file claims a fresh Postgres database (cloned from the
@@ -52,19 +52,6 @@ for (const key of Object.keys(global).filter(k => k.startsWith("singletons_"))) 
   }
 }
 
-// Claim ClickHouse: own database + the tables the services query.
-{
-  const chAdmin = createClient({ url: chUrl });
-  try {
-    await chAdmin.command({ query: `create database "${chDb}"` });
-    for (const statement of chDdl(chDb)) {
-      await chAdmin.command({ query: statement });
-    }
-  } finally {
-    await chAdmin.close();
-  }
-}
-
 // Baseline env. Everything a module-level getServerEnv() snapshot may read must
 // be correct here; call-time readers can additionally be overridden per test
 // with vi.stubEnv (getServerEnv re-parses per call under vitest — see the
@@ -87,6 +74,50 @@ process.env.SYNCCTL_URL = "http://syncctl.test.local";
 process.env.BULKER_URL = "http://bulker.test.local";
 process.env.FUNCTIONS_SERVER_URL_TEMPLATE = "http://fs-${workspaceId}.test.local";
 process.env.JITSU_PUBLIC_URL = "http://console.test.local";
+
+// Claim ClickHouse: the same DDL the admin/events-log-init route runs in prod
+// (database + events_log/task_log/dead_letter + retention machinery), pointed
+// at this file's database. Imported dynamically — env above is already final.
+{
+  const { initEventsLogTables } = await import("../../../lib/server/clickhouse-init");
+  const chAdmin = createClient({ url: chUrl });
+  try {
+    await initEventsLogTables({ clickhouse: chAdmin, database: chDb, username: "default", password: "" });
+    // The metrics pipeline has no code counterpart (prisma/metrics.sql is
+    // cluster-only DDL applied manually in prod) — recreate it here with
+    // ON CLUSTER dropped and the replicated engine de-replicated.
+    for (const statement of [
+      `create table ${chDb}.metrics
+         (
+           timestamp DateTime, messageId String,
+           workspaceId LowCardinality(String), streamId LowCardinality(String),
+           connectionId LowCardinality(String), functionId LowCardinality(String),
+           destinationId LowCardinality(String), status LowCardinality(String),
+           events Int64, eventIndex UInt32
+         ) ENGINE = Null`,
+      `create table ${chDb}.mv_metrics
+         (
+           timestamp DateTime,
+           workspaceId LowCardinality(String), streamId LowCardinality(String),
+           connectionId LowCardinality(String), functionId LowCardinality(String),
+           destinationId LowCardinality(String), status LowCardinality(String),
+           events AggregateFunction(sum, Int64)
+         ) engine = AggregatingMergeTree()
+         ORDER BY (timestamp, workspaceId, streamId, connectionId, functionId, destinationId, status)`,
+      `CREATE MATERIALIZED VIEW ${chDb}.to_mv_metrics TO ${chDb}.mv_metrics
+         AS SELECT
+           date_trunc('minute', timestamp) as timestamp,
+           workspaceId, streamId, connectionId, functionId, destinationId, status,
+           sumState(events) AS events
+         FROM ${chDb}.metrics
+         GROUP BY timestamp, workspaceId, streamId, connectionId, functionId, destinationId, status`,
+    ]) {
+      await chAdmin.command({ query: statement });
+    }
+  } finally {
+    await chAdmin.close();
+  }
+}
 
 passthroughPrefixes.push(chUrl);
 startMsw();

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deps, seedWorkspace, seedConfigObject, seedLink, insertMetrics } from "./support/harness";
+import { deps, seedWorkspace } from "./support/harness";
 import { ReportsService } from "../../lib/server/reports-service";
 
 // Happy paths: syncStat's source_task ⋈ ConfigurationObjectLink join on real
@@ -9,12 +9,16 @@ import { ReportsService } from "../../lib/server/reports-service";
 const svc = () => new ReportsService({ prisma: deps().prisma, pgPool: deps().pgPool, clickhouse: deps().clickhouse });
 
 async function seedSync(workspaceId: string) {
-  const service = await seedConfigObject(workspaceId, "service", { name: "src", package: "p", version: "1" });
-  const destination = await seedConfigObject(workspaceId, "destination", {
-    name: "wh",
-    destinationType: "webhook",
+  const prisma = deps().prisma;
+  const service = await prisma.configurationObject.create({
+    data: { workspaceId, type: "service", config: { name: "src", package: "p", version: "1" } },
   });
-  return seedLink(workspaceId, service.id, destination.id, { type: "sync" });
+  const destination = await prisma.configurationObject.create({
+    data: { workspaceId, type: "destination", config: { name: "wh", destinationType: "webhook" } },
+  });
+  return prisma.configurationObjectLink.create({
+    data: { workspaceId, fromId: service.id, toId: destination.id, type: "sync" },
+  });
 }
 
 describe("ReportsService", () => {
@@ -53,49 +57,38 @@ describe("ReportsService", () => {
     const { user, workspace } = await seedWorkspace();
     const { workspace: foreign } = await seedWorkspace();
 
-    await insertMetrics([
-      // two rows, same connection/status/minute → one aggregated row with the summed count
-      {
-        timestamp: "2026-06-10 10:00:05",
-        messageId: "m1",
-        workspaceId: workspace.id,
-        streamId: "s1",
-        connectionId: "c1",
-        destinationId: "d1",
-        status: "success",
-        events: 5,
-      },
-      {
-        timestamp: "2026-06-10 10:00:30",
-        messageId: "m2",
-        workspaceId: workspace.id,
-        streamId: "s1",
-        connectionId: "c1",
-        destinationId: "d1",
-        status: "success",
-        events: 7,
-      },
-      {
-        timestamp: "2026-06-10 11:00:00",
-        messageId: "m3",
-        workspaceId: workspace.id,
-        streamId: "s1",
-        connectionId: "c1",
-        destinationId: "d1",
-        status: "error",
-        events: 1,
-      },
-      {
-        timestamp: "2026-06-10 10:00:00",
-        messageId: "m4",
-        workspaceId: foreign.id,
-        streamId: "s9",
-        connectionId: "c9",
-        destinationId: "d9",
-        status: "success",
-        events: 100,
-      },
-    ]);
+    // Insert into the Null `metrics` table — rows materialize into mv_metrics
+    // through the to_mv_metrics MV, the same path prod uses.
+    const row = (messageId: string, over: Partial<Record<string, any>>) => ({
+      messageId,
+      workspaceId: workspace.id,
+      streamId: "s1",
+      connectionId: "c1",
+      functionId: "",
+      destinationId: "d1",
+      status: "success",
+      eventIndex: 0,
+      ...over,
+    });
+    await deps().clickhouse.insert({
+      table: "metrics",
+      format: "JSONEachRow",
+      clickhouse_settings: { wait_end_of_query: 1 },
+      values: [
+        // two rows, same connection/status/minute → one aggregated row with the summed count
+        row("m1", { timestamp: "2026-06-10 10:00:05", events: 5 }),
+        row("m2", { timestamp: "2026-06-10 10:00:30", events: 7 }),
+        row("m3", { timestamp: "2026-06-10 11:00:00", status: "error", events: 1 }),
+        row("m4", {
+          timestamp: "2026-06-10 10:00:00",
+          workspaceId: foreign.id,
+          streamId: "s9",
+          connectionId: "c9",
+          destinationId: "d9",
+          events: 100,
+        }),
+      ],
+    });
 
     const res = await svc().eventStat(user, workspace.id, {
       start: "2026-06-10T00:00:00Z",

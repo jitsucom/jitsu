@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { http, HttpResponse } from "msw";
 import { server } from "./support/msw";
-import { deps, seedWorkspace, seedConfigObject, seedLink, insertTaskLog } from "./support/harness";
+import { deps, seedWorkspace } from "./support/harness";
 import { SyncService } from "../../lib/server/sync-service";
 
 // Happy paths against real Postgres (source_task join, source_state, task_log
@@ -10,17 +10,25 @@ import { SyncService } from "../../lib/server/sync-service";
 const svc = () => new SyncService({ prisma: deps().prisma, pgPool: deps().pgPool, clickhouse: deps().clickhouse });
 
 async function seedSync(workspaceId: string) {
-  const service = await seedConfigObject(workspaceId, "service", {
-    name: "github source",
-    package: "airbyte/source-github",
-    version: "1.0.0",
-    credentials: { token: "secret" },
+  const prisma = deps().prisma;
+  const service = await prisma.configurationObject.create({
+    data: {
+      workspaceId,
+      type: "service",
+      config: {
+        name: "github source",
+        package: "airbyte/source-github",
+        version: "1.0.0",
+        credentials: { token: "secret" },
+      },
+    },
   });
-  const destination = await seedConfigObject(workspaceId, "destination", {
-    name: "wh",
-    destinationType: "webhook",
+  const destination = await prisma.configurationObject.create({
+    data: { workspaceId, type: "destination", config: { name: "wh", destinationType: "webhook" } },
   });
-  return seedLink(workspaceId, service.id, destination.id, { type: "sync", data: {} });
+  return prisma.configurationObjectLink.create({
+    data: { workspaceId, fromId: service.id, toId: destination.id, type: "sync", data: {} },
+  });
 }
 
 describe("SyncService", () => {
@@ -137,24 +145,29 @@ describe("SyncService", () => {
     const sync = await seedSync(workspace.id);
 
     // ClickHouse path
-    await insertTaskLog([
-      {
-        task_id: "task-ch",
-        sync_id: sync.id,
-        timestamp: "2026-07-01 10:00:00.000",
-        level: "INFO",
-        logger: "sync",
-        message: "started",
-      },
-      {
-        task_id: "task-ch",
-        sync_id: sync.id,
-        timestamp: "2026-07-01 10:01:00.000",
-        level: "INFO",
-        logger: "sync",
-        message: "finished",
-      },
-    ]);
+    await deps().clickhouse.insert({
+      table: "task_log",
+      format: "JSONEachRow",
+      clickhouse_settings: { wait_end_of_query: 1 },
+      values: [
+        {
+          task_id: "task-ch",
+          sync_id: sync.id,
+          timestamp: "2026-07-01 10:00:00.000",
+          level: "INFO",
+          logger: "sync",
+          message: "started",
+        },
+        {
+          task_id: "task-ch",
+          sync_id: sync.id,
+          timestamp: "2026-07-01 10:01:00.000",
+          level: "INFO",
+          logger: "sync",
+          message: "finished",
+        },
+      ],
+    });
     const chLogs = await svc().getSyncLogs(user, workspace.id, { syncId: sync.id, taskId: "task-ch" });
     expect(chLogs.ok).toBe(true);
     expect(chLogs.logs.map((l: any) => l.message)).toEqual(["finished", "started"]); // newest first
