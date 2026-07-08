@@ -158,7 +158,7 @@ deploy() {
     # Detect dependency URL changes so we can restart services that consumed
     # the old values via envFrom (read once at pod start).
     local dep_urls_before dep_urls_after
-    dep_urls_before=$(kubectl get secret jitsu-deps-urls -n "$NAMESPACE" -o jsonpath='{.data}' 2>/dev/null || true)
+    dep_urls_before=$(snapshot_dep_urls)
 
     # Build helm args
     local helm_args=()
@@ -172,7 +172,7 @@ deploy() {
     deploy_deps
     check_dep_urls "${helm_args[@]}" "$@"
 
-    dep_urls_after=$(kubectl get secret jitsu-deps-urls -n "$NAMESPACE" -o jsonpath='{.data}' 2>/dev/null || true)
+    dep_urls_after=$(snapshot_dep_urls)
 
     helm upgrade --install "$RELEASE_NAME" "$CHART_DIR" \
         --namespace "$NAMESPACE" \
@@ -193,6 +193,18 @@ deploy() {
     fi
 
     wait_for_ready
+}
+
+# Deterministic snapshot of the dependency URLs published by helm-deps —
+# per-key, in fixed order, so string comparison can't produce false diffs
+# from map-ordering differences. Empty when the secret doesn't exist.
+snapshot_dep_urls() {
+    kubectl get secret jitsu-deps-urls -n "$NAMESPACE" &>/dev/null || return 0
+    local key out=""
+    for key in KAFKA_BOOTSTRAP_SERVERS DATABASE_URL CLICKHOUSE_URL MONGODB_URL; do
+        out="$out$key=$(kubectl get secret jitsu-deps-urls -n "$NAMESPACE" -o jsonpath="{.data.$key}" 2>/dev/null);"
+    done
+    printf '%s' "$out"
 }
 
 # Fail fast when a dependency is disabled in helm-deps but no replacement URL
@@ -509,28 +521,27 @@ ensure_secrets() {
         log_info "Reusing existing AUTH_TOKEN from secret 'jitsu-secrets'"
     fi
 
-    local patch
-    patch=$(cat <<EOF
-{"stringData": {
-  "RAW_AUTH_TOKENS": "$auth_token",
-  "BULKER_AUTH_KEY": "$auth_token",
-  "ROTOR_AUTH_KEY": "$auth_token",
-  "SYNCCTL_AUTH_KEY": "$auth_token",
-  "CONSOLE_RAW_AUTH_TOKENS": "$auth_token",
-  "REPOSITORY_AUTH_TOKEN": "service-admin-account:$auth_token",
-  "CONSOLE_TOKEN": "service-admin-account:$auth_token",
-  "CONFIG_SOURCE_HTTP_AUTH_TOKEN": "service-admin-account:$auth_token"
-}}
-EOF
-)
+    # Build the payload with --from-literal so arbitrary token characters are
+    # escaped by kubectl instead of being interpolated into hand-built JSON.
+    local literals=(
+        --from-literal="RAW_AUTH_TOKENS=$auth_token"
+        --from-literal="BULKER_AUTH_KEY=$auth_token"
+        --from-literal="ROTOR_AUTH_KEY=$auth_token"
+        --from-literal="SYNCCTL_AUTH_KEY=$auth_token"
+        --from-literal="CONSOLE_RAW_AUTH_TOKENS=$auth_token"
+        --from-literal="REPOSITORY_AUTH_TOKEN=service-admin-account:$auth_token"
+        --from-literal="CONSOLE_TOKEN=service-admin-account:$auth_token"
+        --from-literal="CONFIG_SOURCE_HTTP_AUTH_TOKEN=service-admin-account:$auth_token"
+    )
 
     if kubectl get secret jitsu-secrets -n "$NAMESPACE" &>/dev/null; then
         # merge-patch so any extra keys a user added to the secret
         # (e.g. legacy connection URLs) are preserved
-        kubectl patch secret jitsu-secrets -n "$NAMESPACE" --type=merge -p "$patch" > /dev/null
+        kubectl create secret generic jitsu-secrets --namespace "$NAMESPACE" \
+            "${literals[@]}" --dry-run=client -o json \
+            | kubectl patch secret jitsu-secrets -n "$NAMESPACE" --type=merge --patch-file=/dev/stdin > /dev/null
     else
-        kubectl create secret generic jitsu-secrets --namespace "$NAMESPACE" > /dev/null
-        kubectl patch secret jitsu-secrets -n "$NAMESPACE" --type=merge -p "$patch" > /dev/null
+        kubectl create secret generic jitsu-secrets --namespace "$NAMESPACE" "${literals[@]}" > /dev/null
     fi
 
     log_success "Secret 'jitsu-secrets' is configured"
