@@ -160,11 +160,6 @@ deploy() {
     local dep_urls_before dep_urls_after
     dep_urls_before=$(kubectl get secret jitsu-deps-urls -n "$NAMESPACE" -o jsonpath='{.data}' 2>/dev/null || true)
 
-    deploy_deps
-    check_dep_urls
-
-    dep_urls_after=$(kubectl get secret jitsu-deps-urls -n "$NAMESPACE" -o jsonpath='{.data}' 2>/dev/null || true)
-
     # Build helm args
     local helm_args=()
 
@@ -173,6 +168,11 @@ deploy() {
         log_info "Using custom config from values-custom.yaml"
         helm_args+=("-f" "$CHART_DIR/values-custom.yaml")
     fi
+
+    deploy_deps
+    check_dep_urls "${helm_args[@]}" "$@"
+
+    dep_urls_after=$(kubectl get secret jitsu-deps-urls -n "$NAMESPACE" -o jsonpath='{.data}' 2>/dev/null || true)
 
     helm upgrade --install "$RELEASE_NAME" "$CHART_DIR" \
         --namespace "$NAMESPACE" \
@@ -198,17 +198,25 @@ deploy() {
 # Fail fast when a dependency is disabled in helm-deps but no replacement URL
 # is configured — otherwise services boot with an empty KAFKA_BOOTSTRAP_SERVERS
 # / DATABASE_URL / ... and crash-loop at runtime instead.
+# Args: the same helm args the main-chart upgrade will use — the check renders
+# the chart with them, so values files and --set overrides are both honored
+# (and commented-out placeholders are not, since comments never render).
 check_dep_urls() {
+    local rendered
+    rendered=$(helm template "$RELEASE_NAME" "$CHART_DIR" \
+        --namespace "$NAMESPACE" --set projectRoot="$MOUNT_PATH" "$@" 2>/dev/null || true)
+
     local key missing=""
     for key in KAFKA_BOOTSTRAP_SERVERS DATABASE_URL CLICKHOUSE_URL MONGODB_URL; do
         # provided by the deps chart?
         if [ -n "$(kubectl get secret jitsu-deps-urls -n "$NAMESPACE" -o jsonpath="{.data.$key}" 2>/dev/null)" ]; then
             continue
         fi
-        # or explicitly configured / carried in the legacy secret?
-        if grep -q "$key" "$CHART_DIR/values-custom.yaml" 2>/dev/null; then
+        # or configured as an explicit env entry with a non-empty value?
+        if printf '%s\n' "$rendered" | grep -A1 -E "^[[:space:]]*- name: $key\$" | grep -E "value:" | grep -qv 'value: ""'; then
             continue
         fi
+        # or carried in the legacy secret?
         if [ -n "$(kubectl get secret jitsu-secrets -n "$NAMESPACE" -o jsonpath="{.data.$key}" 2>/dev/null)" ]; then
             continue
         fi
