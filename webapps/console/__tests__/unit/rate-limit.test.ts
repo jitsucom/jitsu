@@ -1,15 +1,13 @@
-import { describe, expect, it, vi } from "vitest";
-import { resolveLimit } from "../lib/server/rate-limit/config";
-import { computeResult } from "../lib/server/rate-limit/compute";
-import { getRateLimitOpts } from "../lib/server/rate-limit/extractor";
-import type { SessionUser } from "../lib/schema";
+import { describe, expect, it } from "vitest";
+import { resolveLimit } from "../../lib/server/rate-limit/config";
+import { computeResult } from "../../lib/server/rate-limit/compute";
+import { getRateLimitOpts } from "../../lib/server/rate-limit/extractor";
+import type { SessionUser } from "../../lib/schema";
 
-vi.mock("../lib/server/serverEnv", () => ({
-  getServerEnv: () => ({
-    MINUTE_RATE_LIMIT_ENABLED: true,
-    MINUTE_RATE_LIMIT_BASE: 60,
-  }),
-}));
+// No serverEnv mock: the schema defaults (MINUTE_RATE_LIMIT_ENABLED=true,
+// MINUTE_RATE_LIMIT_BASE=60) are exactly what these tests assume, and under
+// vitest getServerEnv() re-parses env per call, so a test that needs other
+// values can vi.stubEnv them.
 
 const bearerUser: SessionUser = {
   internalId: "user-1",

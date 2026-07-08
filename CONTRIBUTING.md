@@ -57,6 +57,61 @@ touch ~/.jitsu/.env.local && chmod 600 ~/.jitsu/.env.local
 echo 'STRIPE_KEY=sk_live_xxx' >> ~/.jitsu/.env.local
 ```
 
+# Testing
+
+`pnpm test` runs every package's tests. Most are plain vitest/jest suites; the console
+has a two-project setup worth knowing about.
+
+## Console tests (`webapps/console`)
+
+Two vitest projects, split by what they need:
+
+- **unit** (`__tests__/unit/`) — pure tests, no external dependencies. Instant, run anywhere.
+- **integration** (`__tests__/integration/`) — service tests against **real Postgres and
+  ClickHouse** started via testcontainers (Docker required), with MSW intercepting all
+  outbound HTTP. No `vi.mock` anywhere: SQL runs against real databases, access checks and
+  audit logging hit the same database the service writes to.
+
+```bash
+cd webapps/console
+pnpm test                          # both projects (starts containers)
+pnpm exec vitest run --project unit           # pure tests only, no Docker
+pnpm exec vitest run __tests__/integration/sync-service.test.ts   # one file
+```
+
+How the harness works (`__tests__/integration/support/`): a global setup boots one
+Postgres (`postgres:18-alpine`, matching prod) and one ClickHouse
+(`clickhouse/clickhouse-server:25.4-alpine`) container per run and pushes the prisma
+schema into a sealed template database. Each test file runs in its own process (vitest
+forks + isolate) and clones the template into a private database (~150ms), so files are
+fully isolated and can run in parallel. Baseline env is set before the test file's imports,
+which is what binds the `db.prisma()` / `pgPool` / `clickhouse` singletons to the per-file
+databases. Every outbound HTTP request must have an MSW handler (`server.use(...)`) or the
+test fails loudly; requests to the ClickHouse container pass through.
+
+### Container reuse (optional, local only)
+
+A cold run pays for container boot + `prisma db push` (~10–30s depending on the machine,
+more if images need pulling). To keep the containers running between runs:
+
+```bash
+CONSOLE_TEST_CONTAINERS_REUSE=1 pnpm test
+```
+
+Subsequent runs connect in about a second. The template database is keyed by a hash of
+`schema.prisma`, so schema changes rebuild it automatically, and leftover per-file
+databases from previous runs are swept at startup. **Trade-off: the two containers keep
+running until you remove them** (`docker ps` → `docker rm -f <id>`). Don't set this in CI.
+
+Notes:
+
+- `vitest --watch` is supported for the unit project; for integration prefer `vitest run`
+  (re-runs re-clone databases in new forks, containers stay up for the session).
+- Per-test env overrides use `vi.stubEnv` (auto-restored). Baseline env lives in
+  `__tests__/integration/support/setup.ts`.
+- Seeding helpers (workspace/user, config objects, links, ClickHouse fixtures) are in
+  `__tests__/integration/support/harness.ts`.
+
 # Development Workflow
 
 ## Development Branch

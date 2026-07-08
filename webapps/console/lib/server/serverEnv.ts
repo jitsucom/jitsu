@@ -423,7 +423,10 @@ export function getServerEnv(): ServerEnv {
   if (typeof window !== "undefined" && typeof window.document !== "undefined") {
     return getClientEnv() as unknown as ServerEnv;
   }
-  if (serverEnvCache) {
+  // Skip the cache under vitest (VITEST is set in every vitest worker) so
+  // vi.stubEnv takes effect for call-time readers. Module-level snapshots are
+  // still frozen at import — the test setup provides baseline env for those.
+  if (serverEnvCache && !process.env.VITEST) {
     return serverEnvCache;
   }
 

@@ -71,7 +71,10 @@ pnpm build:turbo
 # Type-check
 pnpm typecheck:turbo
 
-# Run unit tests
+# Run tests. Console tests include an integration project that needs Docker
+# (testcontainers: Postgres + ClickHouse); run only the pure tests with
+# `pnpm exec vitest run --project unit` from webapps/console.
+# Details: CONTRIBUTING.md "Testing".
 pnpm test
 
 # Lint / format
