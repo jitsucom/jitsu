@@ -144,13 +144,17 @@ from source or pulls images. Notable operator-facing changes:
   verification, plus OIDC (`AUTH_OIDC_PROVIDER`) improvements.
 - **Segment-style `sentAt` clock-skew correction** for batch ingestion.
 - **events_log retention via ClickHouse TTL** instead of periodic scan-and-delete.
-- **Development Helm chart** (`helm/`) — deploy development builds of all Jitsu services
-  (including the operator and function servers) to Minikube, building each service in
-  init containers from local sources (#1240). It ships an in-cluster single-node Kafka
-  (Redpanda), enabled by default — set `scaling.kafka.replicas: 0` to use an external
-  broker instead (#1384). It **replaces the deprecated Docker Compose setup** as the
-  recommended way to run development builds of the full Kubernetes architecture; see
-  `helm/README.md`.
+- **Development Helm charts** (`helm/` + `helm-deps/`) — deploy development builds of
+  all Jitsu services (including the operator and function servers) to Minikube with
+  **zero configuration**, building each service in init containers from local sources
+  (#1240, #1384, #1387). All dependencies — single-node PostgreSQL, ClickHouse, MongoDB
+  and Kafka (Redpanda) — run in-cluster via the separate `helm-deps` chart;
+  `dev-deploy.sh deploy` installs it first, waits for every dependency to be healthy,
+  auto-generates the inter-service secrets, applies the console DB schema on every
+  deploy, and reports per-component readiness. Go builds are serialized and
+  resource-capped so they can't overload the node. It **replaces the deprecated Docker
+  Compose setup** as the recommended way to run development builds of the full
+  Kubernetes architecture; see `helm/README.md`.
 - **Dev experience**: layered `.env.local` loading, `dev-scripts` package (`pnpm dev`),
   hot-reload docker-compose profile, `copy-db` tool.
 
