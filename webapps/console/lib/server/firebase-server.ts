@@ -205,9 +205,13 @@ export async function signOut(firebaseUserId: string): Promise<void> {
  * receive server-side access. OAuth providers (Google / GitHub) verify the
  * address themselves, so the check is scoped to the `password` sign-in provider.
  * Server-side counterpart of the client gate in firebase-client.tsx.
+ *
+ * Fail closed: for a `password` account we require `email_verified === true`, so a
+ * token that omits the claim is treated as unverified rather than admitted (kept in
+ * lockstep with jitsu-cloud-billing's `isUnverifiedPasswordAccount`).
  */
 export function isUnverifiedPasswordAccount(decoded: admin.auth.DecodedIdToken): boolean {
-  return decoded.firebase?.sign_in_provider === "password" && decoded.email_verified === false;
+  return decoded.firebase?.sign_in_provider === "password" && decoded.email_verified !== true;
 }
 
 export async function getFirebaseUser(req: NextApiRequest, checkRevoked?: boolean): Promise<SessionUser | undefined> {
