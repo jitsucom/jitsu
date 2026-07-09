@@ -279,11 +279,16 @@ export function useFirebaseSession(): FirebaseSession {
         } else {
           await a.signInWithPopup(a.getAuth(), new auth.GoogleAuthProvider());
         }
-        await recordFirebaseLogin(a.getAuth().currentUser);
         const result = await getUserFromFirebase(a.getAuth().currentUser!);
         if (result.status === "authenticated") {
+          // Record the login only after getUserFromFirebase has minted/linked the internalId.
+          // For a brand-new account the first sign-in reaches /api/fb-auth/audit-login before the
+          // profile exists, so it can't resolve internalId and skips both the audit row and the
+          // server-side `login` event; ordering it here fixes that (and avoids recording a login
+          // for a personal-email signup that getUserFromFirebase rejects). `login` is tracked
+          // server-side — see telemetry.trackAuthEvent.
+          await recordFirebaseLogin(a.getAuth().currentUser);
           await analytics.identify(result.user.internalId, { email: result.user.email, name: result.user.name });
-          // `login` is tracked server-side (fb-auth/audit-login) — see telemetry.trackAuthEvent.
         }
         return result;
       } catch (e) {
