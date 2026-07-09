@@ -25,7 +25,7 @@ cluster.
 
 - User functions (UDFs) and profile builders no longer run inside the `rotor` event
   consumer. They run in dedicated **function-server** deployments (the same
-  `jitsucom/rotor` image started with `ROTOR_MODE=functions`), one per workspace for
+  `jitsucom/functions-server` image started with `ROTOR_MODE=functions`), one per workspace for
   `dedicated` class or shared sharded deployments for `free` class.
 - A new **operator** service (`jitsucom/operator`) reconciles these deployments in
   Kubernetes: it polls the console export, creates/updates per-deployment `Deployment`,
@@ -111,8 +111,7 @@ from source or pulls images. Notable operator-facing changes:
 - `MAX_INGEST_PAYLOAD_SIZE` default lowered to 1,000,000 bytes.
 - Functions `fetch()` timeout is now controlled by `FETCH_TIMEOUT_MS` (default 2000 ms)
   instead of being hardcoded (#1254).
-- Ingest no longer restricts `track` event names and strips all Jitsu special
-  properties (`JITSU_TABLE_NAME`, `__sql_type_*`, …) from ingested events.
+- Ingest no longer restricts `track` event names
 - Toolchain: Node.js ≥ 22, pnpm ≥ 10, Go 1.26, Next.js 16; rotor migrated to the
   Confluent Kafka client (#1222); npm packages published via OIDC trusted publishing
   (#1255).
