@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Alert, Button, DatePicker, Select, Table, Tag, Tooltip } from "antd";
 import dayjs, { Dayjs } from "dayjs";
 import utc from "dayjs/plugin/utc";
@@ -275,9 +275,17 @@ export const AuditLog: React.FC<AuditLogProps> = ({ workspaceId, workspaceSlug, 
     if (t.length) setTypes(t);
     if (s.length) setSeverities(s);
     if (o.length) setOrigins(o);
-    const from = typeof q.from === "string" ? q.from : undefined;
-    const to = typeof q.to === "string" ? q.to : undefined;
-    if (from || to) setRange([from ? dayjs(from) : null, to ? dayjs(to) : null]);
+    // Guard against malformed URL params: dayjs() happily builds an invalid
+    // object from garbage, which would later serialize back as "Invalid Date"
+    // and poison both state and the RPC request. Drop anything that isn't valid.
+    const parseDate = (v: string | string[] | undefined) => {
+      if (typeof v !== "string" || !v) return null;
+      const d = dayjs(v);
+      return d.isValid() ? d : null;
+    };
+    const from = parseDate(q.from);
+    const to = parseDate(q.to);
+    if (from || to) setRange([from, to]);
     if (adminView && typeof q.ws === "string" && q.ws) {
       // Carry the label in the URL too so the chip renders a name without an
       // extra lookup (the workspace search is keyed by name, not id).
