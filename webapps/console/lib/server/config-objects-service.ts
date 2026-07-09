@@ -220,11 +220,15 @@ export class ConfigObjectsService {
     });
 
     if (["destination", "service"].includes(type)) {
-      const count = await this.prisma.configurationObject.count({
-        where: { workspaceId, type: type, deleted: false },
+      const destinations = await this.prisma.configurationObject.count({
+        where: { workspaceId, type: "destination", deleted: false },
       });
 
-      if (count === 1) {
+      const services = await this.prisma.configurationObject.count({
+        where: { workspaceId, type: "service", deleted: false },
+      });
+
+      if (destinations + services === 1) {
         withProductAnalytics(
           p =>
             p.track("workspace_activated", {
