@@ -271,6 +271,10 @@ export default createRoute()
       workspaceId: z.string().optional(),
       type: z.string().optional(),
       severity: z.string().optional(),
+      // Comma-separated subset of "ui" | "api" | "cli" | "mcp". Origin is not a
+      // stored column — it's derived from authType (+ the jitsu-cli- tokenId
+      // prefix), mirroring resolveOrigin() in components/AuditLog/AuditLog.tsx.
+      origin: z.string().optional(),
       from: z.coerce.date().optional(),
       to: z.coerce.date().optional(),
       cursor: z.string().optional(),
@@ -323,6 +327,44 @@ export default createRoute()
     }
     if (query.severity) {
       where.severity = { in: query.severity.split(",").filter(Boolean) };
+    }
+    if (query.origin) {
+      // Translate each requested origin into a DB predicate that mirrors
+      // resolveOrigin() on the client. There is no `origin` column: UI is any
+      // non-bearer/non-mcp authType, CLI/API split on the jitsu-cli- tokenId
+      // prefix (reliable — the CLI is the only minter of that prefix, and it's
+      // stored on AuditLog.tokenId verbatim). We attach the OR of the selected
+      // origins via `where.AND` so it composes with the workspace/cursor `OR`.
+      const CLI_PREFIX = "jitsu-cli-";
+      const originClauses: Prisma.AuditLogWhereInput[] = [];
+      for (const o of query.origin.split(",").filter(Boolean)) {
+        switch (o) {
+          case "mcp":
+            originClauses.push({ authType: "mcp" });
+            break;
+          case "ui":
+            // notIn also excludes NULL authType (SQL IN semantics), which is
+            // correct: those rows render with no origin, not "UI".
+            originClauses.push({ authType: { notIn: ["bearer", "mcp"] } });
+            break;
+          case "cli":
+            originClauses.push({ authType: "bearer", tokenId: { startsWith: CLI_PREFIX } });
+            break;
+          case "api":
+            // Bearer, minus CLI. A bearer row with no tokenId (service-account
+            // token) resolves to "API" on the client, so include tokenId=null.
+            originClauses.push({
+              authType: "bearer",
+              OR: [{ tokenId: null }, { tokenId: { not: { startsWith: CLI_PREFIX } } }],
+            });
+            break;
+        }
+      }
+      if (originClauses.length > 0) {
+        const and = (where.AND as Prisma.AuditLogWhereInput[] | undefined) ?? [];
+        and.push({ OR: originClauses });
+        where.AND = and;
+      }
     }
     if (query.from || query.to) {
       where.timestamp = {};
