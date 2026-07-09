@@ -492,7 +492,7 @@ jobs:
           fi
           echo "OIDC token obtained"
           FAILED=0
-          for PKG in "jitsu-cli" "@jitsu/functions-lib"; do
+          for PKG in "@jitsu/functions-lib"; do
             ENCODED=$(printf '%s' "$PKG" | sed 's/@/%40/g; s|/|%2F|g')
             HTTP=$(curl -s -o /dev/null -w "%{http_code}" -X POST -H "Authorization: Bearer ${OIDC_TOKEN}" "https://registry.npmjs.org/-/npm/v1/oidc/token/exchange/package/${ENCODED}")
             if [ "${HTTP}" != "201" ]; then
@@ -540,9 +540,6 @@ jobs:
         run: |
           echo "Updating package.json files to version ${VERSION}"
 
-          # Update CLI
-          docker exec builder sh -c "cd cli/jitsu-cli && jq --arg version \"${VERSION}\" '.version = \$version' package.json > package.json.tmp && mv package.json.tmp package.json"
-          
           # Update Types
           docker exec builder sh -c "cd types/protocols && jq --arg version \"${VERSION}\" '.version = \$version' package.json > package.json.tmp && mv package.json.tmp package.json"
 
@@ -550,12 +547,13 @@ jobs:
           docker exec builder sh -c "cd libs/functions && jq --arg version \"${VERSION}\" '.version = \$version' package.json > package.json.tmp && mv package.json.tmp package.json"
 
           echo "Updated versions:"
-          docker exec builder sh -c "cd cli/jitsu-cli && cat package.json | grep version"
           docker exec builder sh -c "cd types/protocols && cat package.json | grep version"
           docker exec builder sh -c "cd libs/functions && cat package.json | grep version"
 
       - name: 🏗️ Build packages
-        run: docker exec builder pnpm --filter jitsu-cli --filter @jitsu/functions-lib build
+        # jitsu-cli is published by cli.yaml (its own .cli.version.json train),
+        # not here — this stream only ships the server-side @jitsu/functions-lib.
+        run: docker exec builder pnpm --filter @jitsu/functions-lib build
 
 
       - name: 📤 Publish to NPM
@@ -577,7 +575,6 @@ jobs:
             echo "Publishing packages to NPM with tag: ${NPM_TAG}"
           fi
 
-          docker exec builder sh -c "cd cli/jitsu-cli && pnpm publish --tag ${NPM_TAG} --access public --provenance --no-git-checks ${DRY_RUN_FLAG}"
           docker exec builder sh -c "cd libs/functions && pnpm publish --tag ${NPM_TAG} --access public --provenance --no-git-checks ${DRY_RUN_FLAG}"
 
       - name: 🧹 Cleanup container
