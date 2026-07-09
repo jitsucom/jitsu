@@ -6,10 +6,6 @@ First stable release since `jitsu2-v2.11.0` (August 2025). It aggregates ~1,600 
 of work, including two architectural changes that affect every self-hosted deployment.
 Read the **Breaking changes** section before upgrading.
 
-> Versioning note: starting with this release, service images and GitHub releases are
-> tagged `jitsu-services<version>` (e.g. `jitsu-services2.14.0`) instead of the previous
-> `jitsu2-v<version>` scheme.
-
 ---
 
 ### ⚠️ Breaking changes
@@ -25,8 +21,7 @@ cluster.
 
 - User functions (UDFs) and profile builders no longer run inside the `rotor` event
   consumer. They run in dedicated **function-server** deployments (the same
-  `jitsucom/functions-server` image started with `ROTOR_MODE=functions`), one per workspace for
-  `dedicated` class or shared sharded deployments for `free` class.
+  `jitsucom/functions-server` image started with `ROTOR_MODE=functions`)
 - A new **operator** service (`jitsucom/operator`) reconciles these deployments in
   Kubernetes: it polls the console export, creates/updates per-deployment `Deployment`,
   `Service` (`fs-<deploymentId>:3456`), `ConfigMap`, `HorizontalPodAutoscaler` and
@@ -51,7 +46,6 @@ cluster.
   syncctl env vars: `SYNCCTL_REPOSITORY_BASE_URL`, `SYNCCTL_REPOSITORY_AUTH_TOKEN`,
   `SYNCCTL_CRON_TEMPLATE_REVISION`, `SYNCCTL_JOB_ACTIVE_DEADLINE_SECONDS`,
   `SYNCCTL_JOB_BACKOFF_LIMIT`, `SYNCCTL_JITTER_MAX_SECONDS`.
-- Synchronous (inline) syncs were removed.
 - Task-log retention settings `SYNC_TASK_LOG_SIZE` / `SYNC_TASK_LOG_AGE` moved from
   console to syncctl.
 - OAuth token refresh for sources now runs as an init container; syncctl gained
@@ -63,8 +57,6 @@ cluster.
   into the `jitsucom/jitsu` monorepo.** Docker images keep their names
   (`jitsucom/bulker`, `jitsucom/ingest`, `jitsucom/syncctl`, `jitsucom/sidecar`) but are
   now built and versioned together with the rest of Jitsu.
-- **The enterprise billing API (`webapps/ee-api`) was removed** from the repository;
-  it is no longer part of the open-source distribution.
 
 #### docker-compose is deprecated in favor of the development Helm chart
 
