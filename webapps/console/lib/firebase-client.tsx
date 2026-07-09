@@ -283,7 +283,7 @@ export function useFirebaseSession(): FirebaseSession {
         const result = await getUserFromFirebase(a.getAuth().currentUser!);
         if (result.status === "authenticated") {
           await analytics.identify(result.user.internalId, { email: result.user.email, name: result.user.name });
-          await analytics.track("login");
+          // `login` is tracked server-side (fb-auth/audit-login) — see telemetry.trackAuthEvent.
         }
         return result;
       } catch (e) {

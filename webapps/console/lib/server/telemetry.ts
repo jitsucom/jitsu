@@ -56,7 +56,14 @@ type TrackEvents =
   | "workspace_onboarded"
   | "workspace_ping"
   | "workspace_access"
-  | "create_object";
+  | "workspace_deleted"
+  | "create_object"
+  | "update_object"
+  | "delete_object"
+  | "connection_created"
+  | "connection_deleted"
+  | "login"
+  | "logout";
 
 export interface ProductAnalytics extends AnalyticsInterface {
   identifyUser(sessionUser: TrackedUser): Promise<any>;
@@ -85,11 +92,13 @@ function createProductAnalytics(
     : undefined;
   return {
     ...analytics,
-    identifyUser(sessionUser: SessionUser): Promise<void> {
+    identifyUser(sessionUser: TrackedUser): Promise<void> {
       return analytics.identify(sessionUser.internalId, {
         email: sessionUser.email,
         name: sessionUser.name,
-        externalId: sessionUser.externalId,
+        // externalId isn't available at every call site (e.g. auth events), so only
+        // send it when known — otherwise we'd blank out the trait set elsewhere.
+        ...(sessionUser.externalId ? { externalId: sessionUser.externalId } : {}),
       });
     },
     workspace(idOrObject: string | Workspace, opts?: WorkspaceProps) {
@@ -116,7 +125,24 @@ function createProductAnalytics(
   };
 }
 
-export type TrackedUser = Pick<SessionUser, "internalId" | "email" | "name" | "externalId" | "loginProvider">;
+export type TrackedUser = Pick<SessionUser, "internalId" | "email" | "name"> &
+  Partial<Pick<SessionUser, "externalId" | "loginProvider">>;
+
+/**
+ * Server-side login/logout product event. Account-level: fires an identify + the event,
+ * with no workspace group and no IP context. Best-effort — never throws into the auth flow.
+ */
+export async function trackAuthEvent(
+  user: Pick<SessionUser, "internalId" | "email" | "name"> & { externalId?: string },
+  event: "login" | "logout",
+  authType: string
+): Promise<void> {
+  try {
+    await withProductAnalytics(p => p.track(event, { authType }), { user: { ...user, loginProvider: authType } });
+  } catch (e) {
+    log.atWarn().withCause(e).log(`Failed to send ${event} product-analytics event`);
+  }
+}
 
 /**
  * Entry point for all analytics events. The method makes sure that all identify events

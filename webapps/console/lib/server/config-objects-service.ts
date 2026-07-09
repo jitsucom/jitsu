@@ -9,7 +9,7 @@ import { verifyAccess, verifyAccessWithRole } from "../api";
 import { prepareZodObjectForDeserialization } from "../zod";
 import { ApiError } from "../shared/errors";
 import { configObjectAuditLog } from "./audit-log";
-import { trackTelemetryEvent, withProductAnalytics } from "./telemetry";
+import { productTelemetryEnabled, trackTelemetryEvent, withProductAnalytics } from "./telemetry";
 import { scheduleSync, validateSyncSchedule } from "./sync";
 import { omitDeletedList } from "./omit-deleted";
 import { getServerLog } from "./log";
@@ -44,6 +44,31 @@ export type LinkSelector = { id?: string; fromId?: string; toId?: string };
  * is no split-brain. The existing HTTP routes are intentionally left untouched in this PR; they
  * can be migrated onto this service in a follow-up.
  */
+
+/**
+ * Non-secret descriptor props attached to create/update/delete_object product-analytics
+ * events. `objectSubtype` is the type-specific discriminator (destination kind, connector
+ * package, function kind); `connectorVersion` is the connector image version for services
+ * (i.e. the version of the `objectSubtype` package). All values are labels/enums — no secrets.
+ */
+function objectAnalyticsProps(type: string, id: string, config: any): Record<string, any> {
+  const objectSubtype =
+    type === "destination"
+      ? config?.destinationType
+      : type === "service"
+      ? config?.package
+      : type === "function"
+      ? config?.kind
+      : undefined;
+  return {
+    objectType: type,
+    objectId: id,
+    objectName: config?.name,
+    ...(objectSubtype ? { objectSubtype } : {}),
+    ...(type === "service" && config?.version ? { connectorVersion: config.version } : {}),
+  };
+}
+
 export class ConfigObjectsService {
   private readonly prisma: PrismaClient;
 
@@ -194,18 +219,28 @@ export class ConfigObjectsService {
     });
     await trackTelemetryEvent("config-object-create", { objectType: type });
     if (opts.req) {
-      await withProductAnalytics(p => p.track("create_object", { objectType: type }), {
-        user,
-        workspace,
-        req: opts.req,
-      });
+      await withProductAnalytics(
+        p =>
+          p.track("create_object", {
+            ...objectAnalyticsProps(type, id, object),
+            ...(incoming.cloneId ? { cloned: true } : {}),
+          }),
+        { user, workspace, req: opts.req }
+      );
     }
     await configObjectAuditLog(user, workspaceId, created.id, type, "create", { newVersion: object });
     return { id: created.id };
   }
 
   /** Mirrors `config/[type]/[id].ts` PUT. */
-  async update(user: SessionUser, workspaceId: string, type: string, id: string, patch: any): Promise<void> {
+  async update(
+    user: SessionUser,
+    workspaceId: string,
+    type: string,
+    id: string,
+    patch: any,
+    opts: { req?: NextApiRequest } = {}
+  ): Promise<void> {
     const body = prepareZodObjectForDeserialization(patch);
     await verifyAccessWithRole(user, workspaceId, "editEntities");
     this.assertKnownType(type);
@@ -230,6 +265,13 @@ export class ConfigObjectsService {
     delete filtered.workspaceId;
     await this.prisma.configurationObject.update({ where: { id }, data: { config: filtered } });
     await trackTelemetryEvent("config-object-update", { objectType: type });
+    if (opts.req) {
+      await withProductAnalytics(p => p.track("update_object", objectAnalyticsProps(type, id, filtered)), {
+        user,
+        workspace,
+        req: opts.req,
+      });
+    }
     await configObjectAuditLog(user, workspaceId, id, type, "update", { prevVersion, newVersion: filtered });
   }
 
@@ -239,7 +281,7 @@ export class ConfigObjectsService {
     workspaceId: string,
     type: string,
     id: string,
-    opts: { strict?: boolean; cascade?: boolean } = {}
+    opts: { strict?: boolean; cascade?: boolean; req?: NextApiRequest } = {}
   ): Promise<any | null> {
     await verifyAccessWithRole(user, workspaceId, "deleteEntities");
     this.assertKnownType(type);
@@ -256,6 +298,18 @@ export class ConfigObjectsService {
     }
     await this.prisma.configurationObject.update({ where: { id: object.id }, data: { deleted: true } });
     await trackTelemetryEvent("config-object-delete", { objectType: type });
+    if (opts.req) {
+      // delete() doesn't otherwise load the workspace — fetch it only when we're
+      // actually going to emit the event, so name/slug reach the group traits.
+      const workspace = await this.prisma.workspace.findFirst({ where: { id: workspaceId } });
+      if (workspace) {
+        await withProductAnalytics(p => p.track("delete_object", objectAnalyticsProps(type, id, object.config)), {
+          user,
+          workspace,
+          req: opts.req,
+        });
+      }
+    }
     await configObjectAuditLog(user, workspaceId, id, type, "delete", { prevVersion: object.config });
     return { ...((object.config as any) || {}), workspaceId, id, type };
   }
@@ -280,6 +334,45 @@ export class ConfigObjectsService {
       }
     }
     return omitDeletedList(links);
+  }
+
+  /**
+   * Emit a connection_created / connection_deleted product event. Loads the workspace and both
+   * endpoints only when product telemetry is on (Cloud), so self-hosted pays nothing. The `from`
+   * endpoint is a stream (push) or a connector service (sync); `to` is always a destination.
+   */
+  private async emitConnectionEvent(
+    user: SessionUser,
+    workspaceId: string,
+    req: NextApiRequest | undefined,
+    event: "connection_created" | "connection_deleted",
+    link: { id: string; fromId: string; toId: string; type?: string | null }
+  ): Promise<void> {
+    if (!req || !productTelemetryEnabled) {
+      return;
+    }
+    const [workspace, from, to] = await Promise.all([
+      this.prisma.workspace.findFirst({ where: { id: workspaceId } }),
+      this.prisma.configurationObject.findFirst({ where: { workspaceId, id: link.fromId } }),
+      this.prisma.configurationObject.findFirst({ where: { workspaceId, id: link.toId } }),
+    ]);
+    if (!workspace) {
+      return;
+    }
+    const fromConfig = from?.config as any;
+    const toConfig = to?.config as any;
+    await withProductAnalytics(
+      p =>
+        p.track(event, {
+          connectionId: link.id,
+          connectionType: link.type ?? "push",
+          fromId: link.fromId,
+          toId: link.toId,
+          ...(toConfig?.destinationType ? { destinationType: toConfig.destinationType } : {}),
+          ...(from?.type === "service" && fromConfig?.package ? { connectorPackage: fromConfig.package } : {}),
+        }),
+      { user, workspace, req }
+    );
   }
 
   /** Mirrors `config/link.ts` POST/PUT upsert. */
@@ -356,6 +449,7 @@ export class ConfigObjectsService {
       await configObjectAuditLog(user, workspaceId, createdOrUpdated.id, "link", "create", {
         newVersion: createdOrUpdated,
       });
+      await this.emitConnectionEvent(user, workspaceId, opts.req, "connection_created", createdOrUpdated);
     }
     if (type === "sync" && opts.runSync && opts.req) {
       await scheduleSync({ req: opts.req, user, trigger: "manual", workspaceId, syncIdOrModel: createdOrUpdated.id });
@@ -451,7 +545,12 @@ export class ConfigObjectsService {
   }
 
   /** Mirrors `config/link.ts` DELETE. Delete by `id`, or by `fromId`+`toId`. */
-  async deleteLink(user: SessionUser, workspaceId: string, sel: LinkSelector): Promise<{ deleted: boolean }> {
+  async deleteLink(
+    user: SessionUser,
+    workspaceId: string,
+    sel: LinkSelector,
+    opts: { req?: NextApiRequest } = {}
+  ): Promise<{ deleted: boolean }> {
     const { id, fromId, toId } = sel;
     await verifyAccessWithRole(user, workspaceId, "deleteEntities");
     if (id) {
@@ -468,6 +567,7 @@ export class ConfigObjectsService {
       }
       await this.prisma.configurationObjectLink.update({ where: { id: existing.id }, data: { deleted: true } });
       await configObjectAuditLog(user, workspaceId, existing.id, "link", "delete", { prevVersion: existing });
+      await this.emitConnectionEvent(user, workspaceId, opts.req, "connection_deleted", existing);
       return { deleted: true };
     } else if (fromId && toId) {
       const updatedLinks = await this.prisma.configurationObjectLink.updateManyAndReturn({
@@ -476,6 +576,7 @@ export class ConfigObjectsService {
       });
       for (const updatedLink of updatedLinks) {
         await configObjectAuditLog(user, workspaceId, updatedLink.id, "link", "delete", { prevVersion: updatedLink });
+        await this.emitConnectionEvent(user, workspaceId, opts.req, "connection_deleted", updatedLink);
       }
       return { deleted: updatedLinks.length > 0 };
     }

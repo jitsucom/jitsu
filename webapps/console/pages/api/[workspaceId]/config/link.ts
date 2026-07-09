@@ -69,8 +69,8 @@ export const route = createRoute()
     summary: "Delete connection",
     tags: ["link"],
   })
-  .handler(async ({ user, query: { workspaceId, fromId, toId, id } }) => {
-    return await configObjects().deleteLink(user, workspaceId, { id, fromId, toId });
+  .handler(async ({ req, user, query: { workspaceId, fromId, toId, id } }) => {
+    return await configObjects().deleteLink(user, workspaceId, { id, fromId, toId }, { req });
   });
 
 export default route.toNextApiHandler();

@@ -114,9 +114,7 @@ export const SignInOrUp: React.FC<SigninProps> = ({ signup }) => {
           safeRedirect(router, callbackUrl);
           return;
         }
-        await analytics.track("login", {
-          traits: { ...result.user, type: "password", loginProvider: "firebase/email" },
-        });
+        // `login` is tracked server-side (fb-auth/audit-login) — see telemetry.trackAuthEvent.
         safeRedirect(router, callbackUrl);
       } else if (type === "nextauth-credentials") {
         const result = await signIn("credentials", {
@@ -168,11 +166,7 @@ export const SignInOrUp: React.FC<SigninProps> = ({ signup }) => {
             await firebaseSession!.signOut();
             return;
           }
-          if (result.status === "authenticated") {
-            await analytics.track("login", {
-              traits: { ...result.user, type: "social", loginProvider: `firebase/${provider}` },
-            });
-          }
+          // `login` is tracked server-side (fb-auth/audit-login) — see telemetry.trackAuthEvent.
           // authenticated, or email-not-verified (the route gate handles that)
           safeRedirect(router, callbackUrl);
           break;
