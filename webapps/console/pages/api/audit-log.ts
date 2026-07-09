@@ -331,14 +331,39 @@ export default createRoute()
     }
     if (query.origin) {
       // Translate each requested origin into a DB predicate that mirrors
-      // resolveOrigin() on the client. There is no `origin` column: UI is any
-      // non-bearer/non-mcp authType, CLI/API split on the jitsu-cli- tokenId
-      // prefix (reliable — the CLI is the only minter of that prefix, and it's
-      // stored on AuditLog.tokenId verbatim). We attach the OR of the selected
-      // origins via `where.AND` so it composes with the workspace/cursor `OR`.
+      // originFromAuth() (lib/schema). There is no `origin` column: UI is any
+      // non-bearer/non-mcp authType; the CLI/API split follows originFromAuth,
+      // which treats a bearer token as CLI when its UserApiToken.type is "cli"
+      // OR its id has the jitsu-cli- prefix. The prefix is stored on
+      // AuditLog.tokenId, but `type` lives on UserApiToken with no relation to
+      // join — so for cli/api we additionally resolve the (normally empty) set
+      // of type="cli" tokens whose id lacks the prefix, keeping the filter
+      // consistent with how the table classifies/renders those rows. We attach
+      // the OR of the selected origins via `where.AND` so it composes with the
+      // workspace/cursor `OR`.
       const CLI_PREFIX = "jitsu-cli-";
+      const requested = query.origin.split(",").filter(Boolean);
+      // Tokens the console never mints this way (its CLI endpoint sets both the
+      // prefix and type), but /api/user/keys allows type:"cli" with a random id.
+      let unprefixedCliTokenIds: string[] = [];
+      if (requested.includes("cli") || requested.includes("api")) {
+        const rows = await db.prisma().userApiToken.findMany({
+          where: { type: "cli", NOT: { id: { startsWith: CLI_PREFIX } } },
+          select: { id: true },
+        });
+        unprefixedCliTokenIds = rows.map(r => r.id);
+      }
+      // A bearer row is CLI iff its tokenId is prefixed or in the resolved set.
+      const cliTokenMatch: Prisma.AuditLogWhereInput[] = [
+        { tokenId: { startsWith: CLI_PREFIX } },
+        ...(unprefixedCliTokenIds.length ? [{ tokenId: { in: unprefixedCliTokenIds } }] : []),
+      ];
+      const notCliToken: Prisma.AuditLogWhereInput[] = [
+        { tokenId: { not: { startsWith: CLI_PREFIX } } },
+        ...(unprefixedCliTokenIds.length ? [{ tokenId: { notIn: unprefixedCliTokenIds } }] : []),
+      ];
       const originClauses: Prisma.AuditLogWhereInput[] = [];
-      for (const o of query.origin.split(",").filter(Boolean)) {
+      for (const o of requested) {
         switch (o) {
           case "mcp":
             originClauses.push({ authType: "mcp" });
@@ -349,14 +374,14 @@ export default createRoute()
             originClauses.push({ authType: { notIn: ["bearer", "mcp"] } });
             break;
           case "cli":
-            originClauses.push({ authType: "bearer", tokenId: { startsWith: CLI_PREFIX } });
+            originClauses.push({ authType: "bearer", OR: cliTokenMatch });
             break;
           case "api":
             // Bearer, minus CLI. A bearer row with no tokenId (service-account
             // token) resolves to "API" on the client, so include tokenId=null.
             originClauses.push({
               authType: "bearer",
-              OR: [{ tokenId: null }, { tokenId: { not: { startsWith: CLI_PREFIX } } }],
+              OR: [{ tokenId: null }, { AND: notCliToken }],
             });
             break;
         }
