@@ -271,6 +271,7 @@ jobs:
             version_bump:
               - .services.version.json
               - .jsclient.version.json
+              - .cli.version.json
 
       - name: 🚀 Trigger publish workflow
         if: steps.changes.outputs.version_bump == 'true'
