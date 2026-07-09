@@ -87,9 +87,14 @@ export interface FirebaseSession {
   confirmPasswordReset(oobCode: string, newPassword: string): Promise<void>;
 
   /**
-   * Waits until auth state of the user is resolved
+   * Waits until auth state of the user is resolved. Pass `recordLogin` from an explicit
+   * sign-in entry point so the `login` audit/telemetry event fires once internalId is
+   * minted; the implicit page-load callers omit it (they must not record a login).
    */
-  resolveUser(token?: string): { user: Promise<FirebaseAuthResult | null>; cleanup: () => void };
+  resolveUser(
+    token?: string,
+    opts?: { recordLogin?: boolean }
+  ): { user: Promise<FirebaseAuthResult | null>; cleanup: () => void };
 }
 
 export function getFirebaseAuth(config: FirebaseClientSettings): typeof auth {
@@ -296,7 +301,7 @@ export function useFirebaseSession(): FirebaseSession {
         throw e;
       }
     },
-    resolveUser(token?: string) {
+    resolveUser(token?: string, opts?: { recordLogin?: boolean }) {
       log.atDebug().log("Authorizing through firebase...");
       const userPromise: Promise<FirebaseAuthResult | null> = new Promise(async (resolve, reject) => {
         if (token) {
@@ -307,7 +312,15 @@ export function useFirebaseSession(): FirebaseSession {
           async user => {
             log.atDebug().log(`Firebase auth result`, user);
             try {
-              resolve(user ? await getUserFromFirebase(user) : null);
+              const result = user ? await getUserFromFirebase(user) : null;
+              // Record the login only for an explicit sign-in (recordLogin) and only after
+              // getUserFromFirebase has minted/linked internalId — otherwise a first-time
+              // verified password user's login hits /api/fb-auth/audit-login before the
+              // profile exists and is dropped. Implicit page-load resolveUser omits recordLogin.
+              if (opts?.recordLogin && user && result?.status === "authenticated") {
+                await recordFirebaseLogin(user);
+              }
+              resolve(result);
             } catch (e) {
               // Genuine errors (token mint, network) must reject the outer
               // promise — without this catch the throw escapes the async callback
@@ -335,10 +348,9 @@ export function useFirebaseSession(): FirebaseSession {
     },
     //user: () => (currentUser ? getUserFromFirebase(currentUser) : undefined),
     async signIn(username: string, password): Promise<boolean> {
+      // Note: the `login` event is recorded later, in resolveUser({ recordLogin: true }),
+      // once internalId is minted — not here, where a first-time user has no profile yet.
       const userCredential = await auth.signInWithEmailAndPassword(a.getAuth(), username, password);
-      if (userCredential?.user) {
-        await recordFirebaseLogin(userCredential.user);
-      }
       return !!userCredential?.user;
     },
     async signUp(email: string, password: string): Promise<void> {

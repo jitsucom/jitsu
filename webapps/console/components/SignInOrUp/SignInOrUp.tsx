@@ -96,7 +96,7 @@ export const SignInOrUp: React.FC<SigninProps> = ({ signup }) => {
           setError("Invalid email or password");
           return;
         }
-        const result = await firebaseSession!.resolveUser().user;
+        const result = await firebaseSession!.resolveUser(undefined, { recordLogin: true }).user;
         if (!result) {
           setError("Sign in failed");
           return;
