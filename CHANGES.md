@@ -46,10 +46,6 @@ cluster.
   syncctl env vars: `SYNCCTL_REPOSITORY_BASE_URL`, `SYNCCTL_REPOSITORY_AUTH_TOKEN`,
   `SYNCCTL_CRON_TEMPLATE_REVISION`, `SYNCCTL_JOB_ACTIVE_DEADLINE_SECONDS`,
   `SYNCCTL_JOB_BACKOFF_LIMIT`, `SYNCCTL_JITTER_MAX_SECONDS`.
-- Task-log retention settings `SYNC_TASK_LOG_SIZE` / `SYNC_TASK_LOG_AGE` moved from
-  console to syncctl.
-- OAuth token refresh for sources now runs as an init container; syncctl gained
-  `NANGO_API_HOST`, `NANGO_SECRET_KEY` and `GOOGLE_ADS_DEVELOPER_TOKEN` settings.
 
 #### Repository and image changes
 
@@ -66,33 +62,16 @@ function servers, so functions, profile builders and connector syncs are not ava
 there. The recommended way to run development builds of the full Jitsu architecture is
 the **development Helm chart** (`helm/`, deploys to Minikube — see `helm/README.md`).
 
-For now the compose file remains in the repository. It was rebuilt around profiles
-(`jitsu-services`, `jitsu-dependencies`, `jitsu-services-dev` with hot reload) and builds
-from source or pulls images. Notable operator-facing changes:
-
-- **Redis is no longer part of the default stack** — functions state lives in MongoDB
-  and the events log in ClickHouse. Redis is still supported as an alternative functions
-  state store via `REDIS_URL`.
-- Kafka (bitnami image) replaced with **Redpanda**; new admin UIs included (Redpanda
-  Console, PgWeb, Mongo Express, Keycloak).
-- `docker/.env.example` removed — configuration is done via environment or `.env.local`;
-  defaults work out of the box (seeded login `admin@jitsu.com` / `admin123`, customizable
-  via `SEED_USER_EMAIL` / `SEED_USER_PASSWORD`).
-- Renamed variables: `DOCKER_TAG` → `RELEASE_TAG`, `JITSU_UI_PORT` → `CONSOLE_PORT`,
-  `JITSU_INGEST_PORT` → `INGEST_PORT` (default changed 8080 → 3049);
-  `EXTERNAL_POSTGRES_HOST` removed; Postgres is exposed on `PG_PORT` (default 5438).
-- Default passwords are no longer `default` (see `docker/README.md`).
+For now the compose file remains in the repository (rebuilt around profiles, with
+Redpanda instead of Kafka and zero-config defaults — details in the *Improvements and
+fixes* section and `docker/README.md`).
 
 #### Console behavior changes
 
 - **Auth session cookie is host-only by default.** Set the new `AUTH_COOKIE_DOMAIN` env
   var to share the session across subdomains.
-- **Signups can be restricted to work emails**: new `LIMIT_PERSONAL_EMAILS` env var
-  (default `false`) rejects personal-email domains (JITSU-70).
 - `JITSU_CONSOLE_READ_ONLY_UNTIL` removed — replaced by the new maintenance mode
   (`MAINTENANCE` / `MAINTENANCE_CONFIG_FILE`).
-- API tokens and internal secrets are now generated with a cryptographically secure RNG
-  (#1356).
 - Console API is rate-limited by default with a sliding-window per-minute limiter
   (`MINUTE_RATE_LIMIT_ENABLED`, default on; tune with `MINUTE_RATE_LIMIT_BASE`).
 - Invalid or missing environment configuration now fails console startup with an
@@ -101,12 +80,6 @@ from source or pulls images. Notable operator-facing changes:
 #### Other breaking / behavior changes
 
 - `MAX_INGEST_PAYLOAD_SIZE` default lowered to 1,000,000 bytes.
-- Functions `fetch()` timeout is now controlled by `FETCH_TIMEOUT_MS` (default 2000 ms)
-  instead of being hardcoded (#1254).
-- Ingest no longer restricts `track` event names
-- Toolchain: Node.js ≥ 22, pnpm ≥ 10, Go 1.26, Next.js 16; rotor migrated to the
-  Confluent Kafka client (#1222); npm packages published via OIDC trusted publishing
-  (#1255).
 
 ---
 
@@ -132,7 +105,8 @@ from source or pulls images. Notable operator-facing changes:
   dead-lettering. Email notifications for unrecoverable events.
 - **Batched sync/connection notifications** summarized by table, with flapping detection.
 - **Redesigned signup flow** — real email/password auth with server-side email
-  verification, plus OIDC (`AUTH_OIDC_PROVIDER`) improvements.
+  verification, plus OIDC (`AUTH_OIDC_PROVIDER`) improvements. Signups can be restricted
+  to work emails with the new `LIMIT_PERSONAL_EMAILS` env var (JITSU-70).
 - **Segment-style `sentAt` clock-skew correction** for batch ingestion.
 - **events_log retention via ClickHouse TTL** instead of periodic scan-and-delete.
 - **Development Helm charts** (`helm/` + `helm-deps/`) — deploy development builds of
@@ -167,14 +141,19 @@ from source or pulls images. Notable operator-facing changes:
 - Sources: connector specs auto-reload when the image is newer than the cached spec;
   per-stream error isolation for Firebase; sidecar watchdogs and bounded state writes.
 - Sync jobs: cancellation scoped to task (not whole sync); accurate started-at times
-  from pod status; sync quota initialization.
+  from pod status; sync quota initialization; OAuth token refresh runs as an init
+  container (`NANGO_API_HOST`, `NANGO_SECRET_KEY`, `GOOGLE_ADS_DEVELOPER_TOKEN`);
+  task-log retention settings `SYNC_TASK_LOG_SIZE` / `SYNC_TASK_LOG_AGE` moved from
+  console to syncctl.
 - Bulker / warehouses: Snowflake MERGE split into dedup + UPDATE + INSERT with large
   performance gains; ClickHouse batch inserts, partial JSON type support and `ON CLUSTER`
   quoting; multi-partition retry topics; batch deduplication; consumer backpressure;
   `spreadTablesSchedule` option; memory and allocation optimizations.
 - Ingest: pixel endpoint click tracking (`destination_url`), event throttling, weighted
   partition selection (optional), batch endpoint deduplication, failover logger with S3
-  offload.
+  offload; `track` event-name restrictions removed.
+- Functions: `fetch()` timeout is configurable via `FETCH_TIMEOUT_MS` (default 2000 ms)
+  instead of being hardcoded (#1254).
 - Console: search filters on all entity lists; linked-entity checks on deletion;
   provisioned destination credentials masked; billing/subscription-status fixes;
   hardened HTTP security headers; numerous UI fixes.
@@ -182,8 +161,18 @@ from source or pulls images. Notable operator-facing changes:
   `preInitAnonymousId` option, GA4 new session-cookie format support (#1219).
 - `jitsu-cli`: config command tree, OpenAPI spec dump, default workspace support,
   function cache consistency fixes.
-- Security: continuous dependency CVE patching across Go and npm stacks; tokens no
+- Security: continuous dependency CVE patching across Go and npm stacks; API tokens and
+  internal secrets generated with a cryptographically secure RNG (#1356); tokens no
   longer exposed in error messages; DNS caching for outbound HTTP pools.
+- docker-compose (deprecated): rebuilt around profiles (`jitsu-services`,
+  `jitsu-dependencies`, hot-reload `jitsu-services-dev`); Redpanda replaces the bitnami
+  Kafka; Redis dropped from the default stack (functions state in MongoDB, events log in
+  ClickHouse; `REDIS_URL` still supported); zero-config defaults with a seeded admin
+  login; renamed vars (`DOCKER_TAG` → `RELEASE_TAG`, `JITSU_UI_PORT` → `CONSOLE_PORT`,
+  `JITSU_INGEST_PORT` → `INGEST_PORT`, default 8080 → 3049) — see `docker/README.md`.
+- Toolchain: Node.js ≥ 22, pnpm ≥ 10, Go 1.26, Next.js 16; rotor migrated to the
+  Confluent Kafka client (#1222); npm packages published via OIDC trusted publishing
+  (#1255).
 - CI/CD: multi-arch (amd64 + arm64) images, AI code review on every PR, automated beta
   releases from `newjitsu`, MIT license declaration with third-party notices.
 
