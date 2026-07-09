@@ -80,6 +80,10 @@ export type PropertyUI = {
    */
   password?: boolean;
   /**
+   * Placeholder shown in the input when the field is empty
+   */
+  placeholder?: string;
+  /**
    * If the field should not be displayed. That field must have a default value
    */
   hidden?: boolean | ((obj: any) => boolean);
@@ -1128,9 +1132,26 @@ export const coreDestinations: DestinationType<any>[] = [
         editorProps: { languages: ["json", "text"], height: "300", syntaxCheck: { json: false } },
         hidden: obj => !obj.customPayload,
       },
+      signatureSecret: {
+        password: true,
+        placeholder: "Enter secret for this destination",
+        hidden: obj => obj.signatureMethod !== "hmac",
+      },
+      signaturePrivateKey: {
+        password: true,
+        textarea: true,
+        placeholder: "-----BEGIN PRIVATE KEY-----",
+        hidden: obj => obj.signatureMethod !== "ed25519",
+      },
+      signatureHeader: {
+        hidden: obj => !obj.signatureMethod || obj.signatureMethod === "none",
+      },
+      signatureIncludeTimestamp: {
+        hidden: obj => !obj.signatureMethod || obj.signatureMethod === "none",
+      },
     },
     description:
-      "Send data to any HTTP endpoint. You can use this destination to send data to Slack, Discord, or any other service that accepts HTTP requests. ",
+      "Send data to any HTTP endpoint. You can use this destination to send data to Slack, Discord, or any other service that accepts HTTP requests. Requests can optionally be signed (HMAC-SHA256 or Ed25519) so your endpoint can verify their authenticity.",
   },
 ];
 

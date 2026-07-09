@@ -47,6 +47,41 @@ export const WebhookDestinationConfig = z.object({
     .describe(
       "Payload Template::Template for the webhook payload. The following macros are supported:<ul><li><code>{{ EVENT }}</code> - event json object for stream mode or batches with size=1</li><li><code>{{ EVENTS }}</code> - for batch mode - json array of events</li><li><code>{{ EVENTS_COUNT }}</code> - count of events in batch</li><li><code>{{ NAME }}</code> - event name</li><li><code>{{ env.VAR_NAME }}</code> - value of VAR_NAME environment variable</li></ul>"
     ),
+  signatureMethod: z
+    .enum(["none", "hmac", "ed25519"])
+    .optional()
+    .default("none")
+    .describe(
+      "Signature Method::How outgoing requests are signed so your endpoint can verify them.<ul><li><code>none</code> — requests are not signed.</li><li><code>hmac</code> — symmetric HMAC-SHA256 with a shared secret (like Stripe/GitHub). Simple, but anyone who can verify can also forge, so only use it for endpoints you fully trust.</li><li><code>ed25519</code> — asymmetric signature. Jitsu signs with a private key; your endpoint verifies with the public key and cannot forge messages. Prefer this when many or untrusted endpoints receive the webhook.</li></ul><b>Note:</b> signing applies to <b>stream</b>-mode delivery only. In <b>batch</b> mode events are delivered by Bulker and are <b>not</b> signed — use stream mode if you need signed webhooks."
+    ),
+  signatureSecret: z
+    .string()
+    .optional()
+    .describe(
+      "Signing Secret::Shared secret for <code>HMAC-SHA256</code> signing (symmetric — there is no key pair). Put the <b>same</b> value here and in your receiving endpoint. Generate a random one with <code>openssl rand -hex 32</code> (any high-entropy string of 32+ bytes works). To verify a request, your endpoint recomputes the HMAC over the signed payload with this secret and compares the hex digest to the <code>Jitsu-Signature</code> header using a constant-time comparison. Keep it secret."
+    ),
+  signaturePrivateKey: z
+    .string()
+    .optional()
+    .describe(
+      "Private Key (PEM)::Ed25519 private key used to sign requests. Generate a key pair:<br/><code>openssl genpkey -algorithm ed25519 -out jitsu_private.pem</code><br/><code>openssl pkey -in jitsu_private.pem -pubout -out jitsu_public.pem</code><br/>Paste the contents of <code>jitsu_private.pem</code> here and install <code>jitsu_public.pem</code> on your endpoint. To verify a request, your endpoint checks the <code>Jitsu-Signature</code> header (a hex Ed25519 signature) against the signed payload using the public key. Jitsu holds only the private key — keep it secret; the public key is safe to distribute."
+    ),
+  signatureHeader: z
+    .string()
+    .regex(
+      /^[A-Za-z0-9!#$%&'*+.^_`|~-]+$/,
+      "Must be a valid HTTP header name (letters, digits, and !#$%&'*+-.^_`|~ only)"
+    )
+    .optional()
+    .default("Jitsu-Signature")
+    .describe("Signature Header::Name of the header carrying the signature. Only used when signing is enabled."),
+  signatureIncludeTimestamp: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe(
+      "Replay Protection::When enabled (recommended), the request timestamp (unix seconds) is folded into the signed payload — the signature covers <code>&lt;timestamp&gt;.&lt;body&gt;</code> — and sent in a companion <code>&lt;Signature Header&gt;-Timestamp</code> header. Your endpoint can then reject requests with an old timestamp to block replays of a captured, still-valid request. When disabled, only the raw body is signed and no timestamp header is sent: simpler to verify, but a captured request stays valid forever. Only used when signing is enabled."
+    ),
 });
 
 export type WebhookDestinationConfig = z.infer<typeof WebhookDestinationConfig>;
