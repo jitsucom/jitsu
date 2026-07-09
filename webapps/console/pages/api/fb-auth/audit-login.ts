@@ -3,6 +3,7 @@ import { z } from "zod";
 import { firebase } from "../../../lib/server/firebase-server";
 import { db } from "../../../lib/server/db";
 import { authAuditLog } from "../../../lib/server/audit-log";
+import { trackAuthEvent } from "../../../lib/server/telemetry";
 import { getServerLog } from "../../../lib/server/log";
 
 const log = getServerLog("firebase-audit-login");
@@ -39,6 +40,11 @@ export const api: Api = {
         }
         if (internalId) {
           await authAuditLog({ internalId, email, name: decoded.name || email }, "login", "firebase");
+          await trackAuthEvent(
+            { internalId, email, name: decoded.name || email, externalId: decoded.uid },
+            "login",
+            "firebase"
+          );
         }
       } catch (err) {
         log

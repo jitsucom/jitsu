@@ -180,7 +180,7 @@ export const route = createRoute()
     body: z.object({ workspaceId: z.string() }),
     result: z.object({ message: z.string(), status: z.number() }),
   })
-  .handler(async ({ body, user }) => {
+  .handler(async ({ req, body, user }) => {
     const workspaceId = body.workspaceId;
     await verifyAccessWithRole(user, workspaceId, "manageUsers");
 
@@ -198,6 +198,7 @@ export const route = createRoute()
     });
 
     await workspaceAuditLog(user, workspaceId, "deleted", { workspaceName: workspace.name });
+    await withProductAnalytics(p => p.track("workspace_deleted"), { user, workspace, req });
 
     return { message: `${workspace.name} deleted successfully`, status: 200 };
   });

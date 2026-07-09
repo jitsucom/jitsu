@@ -6,7 +6,7 @@ import { OIDCProvider, ParseJSONConfigFromEnv } from "./oidc";
 import { checkHash, requireDefined } from "juava";
 import { ApiError } from "./shared/errors";
 import { getServerLog } from "./server/log";
-import { withProductAnalytics } from "./server/telemetry";
+import { trackAuthEvent, withProductAnalytics } from "./server/telemetry";
 import { NextApiRequest } from "next";
 import { onUserCreated } from "./server/ee";
 import { getServerEnv } from "./server/serverEnv";
@@ -192,6 +192,14 @@ export const nextAuthConfig: NextAuthOptions = {
         const loginProvider = (token?.loginProvider as string | undefined) || "credentials";
         if (internalId) {
           await authAuditLog({ internalId, email, name }, "logout", `nextauth-${loginProvider}`);
+          await trackAuthEvent(
+            // Read the persisted externalId (what the jwt/session callbacks treat as
+            // canonical), not token.sub — for some providers sub diverges from the
+            // stored external id, which would overwrite the identify trait with the wrong value.
+            { internalId, email, name, externalId: token?.externalId as string | undefined },
+            "logout",
+            `nextauth-${loginProvider}`
+          );
         }
       } catch (err) {
         log.atError().withCause(err).log("Failed to record logout audit event");
@@ -215,6 +223,11 @@ export const nextAuthConfig: NextAuthOptions = {
         try {
           await authAuditLog(
             { internalId: user.id, email: user.email || email, name: user.name || email },
+            "login",
+            `nextauth-${loginProvider}`
+          );
+          await trackAuthEvent(
+            { internalId: user.id, email: user.email || email, name: user.name || email, externalId },
             "login",
             `nextauth-${loginProvider}`
           );
