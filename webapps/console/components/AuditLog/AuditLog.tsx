@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Button, DatePicker, Select, Table, Tag, Tooltip } from "antd";
 import dayjs, { Dayjs } from "dayjs";
 import utc from "dayjs/plugin/utc";
@@ -7,6 +7,7 @@ import { rpc } from "juava";
 import { useQuery } from "@tanstack/react-query";
 import { useDebounce } from "use-debounce";
 import Link from "next/link";
+import { useRouter } from "next/router";
 import { AuditLogDiff } from "../AuditLogDiff/AuditLogDiff";
 import { originFromAuth } from "../../lib/schema";
 import { FaTerminal } from "react-icons/fa";
@@ -251,6 +252,58 @@ export const AuditLog: React.FC<AuditLogProps> = ({ workspaceId, workspaceSlug, 
   const [wsFilter, setWsFilter] = useState<{ value: string; label: string } | undefined>(undefined);
   const [wsSearch, setWsSearch] = useState("");
   const [debouncedWsSearch] = useDebounce(wsSearch, 300);
+
+  // ── URL ⇄ filter sync ──────────────────────────────────────────────────
+  // Persist every filter in the query string so a filtered view is shareable
+  // and survives reload. We hydrate state once `router.query` is ready, then
+  // mirror state back to the URL on every change via a shallow `replace` (no
+  // history spam). The `hydrated` gate is state, not a ref: the write-back
+  // effect must not fire until the restored values are committed, otherwise its
+  // first run would serialize the still-empty state and wipe the incoming
+  // params. Non-filter params (e.g. the `[workspaceId]` route segment) are left
+  // untouched. Pagination (`cursor`) is intentionally not persisted.
+  const router = useRouter();
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    if (!router.isReady || hydrated) return;
+    const q = router.query;
+    const csv = (v: string | string[] | undefined) => (typeof v === "string" && v ? v.split(",").filter(Boolean) : []);
+    const t = csv(q.type);
+    const s = csv(q.severity);
+    const o = csv(q.origin);
+    if (t.length) setTypes(t);
+    if (s.length) setSeverities(s);
+    if (o.length) setOrigins(o);
+    const from = typeof q.from === "string" ? q.from : undefined;
+    const to = typeof q.to === "string" ? q.to : undefined;
+    if (from || to) setRange([from ? dayjs(from) : null, to ? dayjs(to) : null]);
+    if (adminView && typeof q.ws === "string" && q.ws) {
+      // Carry the label in the URL too so the chip renders a name without an
+      // extra lookup (the workspace search is keyed by name, not id).
+      setWsFilter({ value: q.ws, label: typeof q.wsName === "string" && q.wsName ? q.wsName : q.ws });
+    }
+    setHydrated(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router.isReady, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    const managed = ["type", "severity", "origin", "from", "to", "ws", "wsName"];
+    const query: Record<string, any> = { ...router.query };
+    for (const k of managed) delete query[k];
+    if (types.length) query.type = types.join(",");
+    if (severities.length) query.severity = severities.join(",");
+    if (origins.length) query.origin = origins.join(",");
+    if (range?.[0]) query.from = range[0].toISOString();
+    if (range?.[1]) query.to = range[1].toISOString();
+    if (adminView && wsFilter) {
+      query.ws = wsFilter.value;
+      query.wsName = wsFilter.label;
+    }
+    router.replace({ pathname: router.pathname, query }, undefined, { shallow: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated, types, severities, origins, range, wsFilter]);
   const wsQuery = useQuery(
     ["audit-log-workspace-options", debouncedWsSearch],
     async () => {
