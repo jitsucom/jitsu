@@ -61,40 +61,53 @@ export async function deploy({ dir, workspace, name: names, ...params }: Args) {
   //   -w/--workspace flag  →  project config (jitsu.json / package.json "jitsu")
   //   →  default workspace in ~/.jitsu/jitsu-cli.json  →  interactive prompt.
   // The reference may be an id or a slug — both are matched against the list.
+  const findWorkspace = (ref?: string) => (ref ? workspaces.find(w => w.id === ref || w.slug === ref) : undefined);
   const projectConfig = loadProjectConfig(projectDir, packageJson);
-  const workspaceRef = workspace ?? projectConfig.workspace ?? readDefaultWorkspace();
 
   let workspaceObj: Workspace | undefined;
-  if (workspaceRef) {
-    workspaceObj = workspaces.find(w => w.id === workspaceRef || w.slug === workspaceRef);
+  if (workspace) {
+    // Explicit -w/--workspace expresses clear intent: fail hard if it doesn't resolve.
+    workspaceObj = findWorkspace(workspace);
     if (!workspaceObj) {
-      console.error(red(`Workspace '${b(workspaceRef)}' not found (or you don't have access)`));
+      console.error(red(`Workspace '${b(workspace)}' not found (or you don't have access)`));
       process.exit(1);
     }
-  } else if (workspaces.length === 0) {
-    console.error(`${red("No workspaces found")}`);
-    process.exit(1);
-  } else if (workspaces.length === 1) {
-    workspaceObj = workspaces[0];
   } else {
-    const workspaceId = (
-      await inquirer.prompt([
-        {
-          type: "list",
-          name: "workspaceId",
-          message: `Select workspace:`,
-          choices: workspaces.map(w => ({
-            name: `${w.name} (${w.id})`,
-            value: w.id,
-          })),
-        },
-      ])
-    ).workspaceId;
-    workspaceObj = workspaces.find(w => w.id === workspaceId);
+    // "Soft" default from project config or ~/.jitsu. If it doesn't resolve (stale,
+    // deleted, wrong account), fall back to auto-select / interactive prompt instead
+    // of hard-failing — preserving the pre-config behavior of `deploy` with no -w.
+    const softRef = projectConfig.workspace ?? readDefaultWorkspace();
+    workspaceObj = findWorkspace(softRef);
+    if (!workspaceObj) {
+      if (softRef) {
+        console.warn(`Configured workspace ${b(softRef)} not found or not accessible. Selecting manually.`);
+      }
+      if (workspaces.length === 0) {
+        console.error(`${red("No workspaces found")}`);
+        process.exit(1);
+      } else if (workspaces.length === 1) {
+        workspaceObj = workspaces[0];
+      } else {
+        const workspaceId = (
+          await inquirer.prompt([
+            {
+              type: "list",
+              name: "workspaceId",
+              message: `Select workspace:`,
+              choices: workspaces.map(w => ({
+                name: `${w.name} (${w.id})`,
+                value: w.id,
+              })),
+            },
+          ])
+        ).workspaceId;
+        workspaceObj = findWorkspace(workspaceId);
+      }
+    }
   }
 
   if (!workspaceObj?.id || !workspaceObj?.name) {
-    console.error(red(`Workspace '${b(String(workspaceRef))}' not found`));
+    console.error(red(`Workspace not found`));
     process.exit(1);
   }
   await deployFunctions({ ...params, host, apikey, name: names }, projectDir, packageJson, workspaceObj, "function");
