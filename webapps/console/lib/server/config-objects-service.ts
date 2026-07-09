@@ -196,7 +196,7 @@ export class ConfigObjectsService {
     if (opts.req) {
       await withProductAnalytics(p => p.track("create_object", { objectType: type }), {
         user,
-        workspace: { id: workspaceId },
+        workspace,
         req: opts.req,
       });
     }

@@ -71,7 +71,18 @@ export interface ProductAnalytics extends AnalyticsInterface {
   track(event: TrackEvents, props?: any): Promise<any>;
 }
 
-function createProductAnalytics(analytics: AnalyticsInterface, req?: NextApiRequest): ProductAnalytics {
+function createProductAnalytics(
+  analytics: AnalyticsInterface,
+  opts?: { req?: NextApiRequest; workspace?: Workspace | WorkspaceIdAndProps }
+): ProductAnalytics {
+  const req = opts?.req;
+  const ws = opts?.workspace;
+  // Injected into every track event so all workspace-scoped events carry the same
+  // workspace identity in their properties (in addition to the `groupId`). Omitted
+  // when the event isn't tied to a workspace (e.g. `user_created`).
+  const workspaceProps = ws
+    ? { workspaceId: ws.id, workspaceName: ws.name ?? undefined, workspaceSlug: ws.slug ?? undefined }
+    : undefined;
   return {
     ...analytics,
     identifyUser(sessionUser: SessionUser): Promise<void> {
@@ -100,7 +111,7 @@ function createProductAnalytics(analytics: AnalyticsInterface, req?: NextApiRequ
         ip: (req?.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req?.socket?.remoteAddress,
         //userAgent: req?.headers["user-agent"] as string,
       };
-      return analytics.track(event, { ...(props || {}), context });
+      return analytics.track(event, { ...(workspaceProps || {}), ...(props || {}), context });
     },
   };
 }
@@ -121,7 +132,7 @@ export function withProductAnalytics(
 ): Promise<any[]> {
   //we create new instance every time since analytics.js saves state in props and not thread safe
   //creating of an instance is cheap operation
-  const instance = createProductAnalytics(createAnalytics(), opts?.req);
+  const instance = createProductAnalytics(createAnalytics(), { req: opts?.req, workspace: opts.workspace });
   const allPromises: Promise<any>[] = [];
   if (opts.user) {
     allPromises.push(instance.identifyUser(opts.user));
