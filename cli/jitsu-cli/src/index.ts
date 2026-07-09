@@ -71,8 +71,8 @@ p.command("deploy")
   )
   .option("-k, --apikey <api-key>", "(Optional) Jitsu user's Api Key.")
   .option(
-    "-w, --workspace <workspace-id>",
-    "Id of workspace where to deploy function (Optional). By default, interactive prompt is shown to select workspace"
+    "-w, --workspace <id-or-slug>",
+    "Workspace id or slug to deploy to (Optional). Falls back to jitsu.json / package.json \"jitsu\" config, then the default workspace, then an interactive prompt"
   )
   .option("-t, --type <type>", "entity type to deploy", "function")
   .option("-n, --name <name...>", "limit deploy to provided entities only. (Optional)")
