@@ -1,5 +1,6 @@
+import { createHmac, createPrivateKey, sign } from "crypto";
 import { JitsuFunction } from "@jitsu/protocols/functions";
-import { HTTPError, RetryError } from "@jitsu/functions-lib";
+import { HTTPError, NoRetryError, NoRetryErrorName, RetryError } from "@jitsu/functions-lib";
 import type { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 import { WebhookDestinationConfig } from "../meta";
 import { MetricsMeta } from "@jitsu/core-functions-lib";
@@ -9,6 +10,21 @@ const bulkerBase = process.env.BULKER_URL;
 const bulkerAuthKey = process.env.BULKER_AUTH_KEY;
 
 const macrosPattern = /\{\{\s*([\w.-]+)\s*}}/g;
+
+// Accepts an Ed25519 private key as full PEM or as the bare base64 PKCS#8 body
+// (with any surrounding whitespace), returning a PEM string createPrivateKey parses.
+function toPrivateKeyPem(input: string): string {
+  const trimmed = input.trim();
+  if (trimmed.includes("-----BEGIN")) {
+    return trimmed;
+  }
+  const body =
+    trimmed
+      .replace(/\s+/g, "")
+      .match(/.{1,64}/g)
+      ?.join("\n") ?? trimmed;
+  return `-----BEGIN PRIVATE KEY-----\n${body}\n-----END PRIVATE KEY-----`;
+}
 
 const WebhookDestination: JitsuFunction<AnalyticsServerEvent, WebhookDestinationConfig> = async (event, ctx) => {
   if (ctx["connectionOptions"]?.mode === "batch" && bulkerBase) {
@@ -79,6 +95,38 @@ const WebhookDestination: JitsuFunction<AnalyticsServerEvent, WebhookDestination
         payload = JSON.stringify(event);
       }
       const headers = ctx.props.headers || [];
+      const signatureHeaders: Record<string, string> = {};
+      const method = ctx.props.signatureMethod || "none";
+      if (method !== "none") {
+        const secret = method === "hmac" ? ctx.props.signatureSecret : undefined;
+        const privateKey = method === "ed25519" ? ctx.props.signaturePrivateKey : undefined;
+        if (!secret && !privateKey) {
+          // Method selected but no key — fail loudly instead of silently sending unsigned.
+          throw new NoRetryError(
+            `Webhook signing method "${method}" is enabled but no ${
+              method === "hmac" ? "secret" : "private key"
+            } is configured`
+          );
+        }
+        const headerName = ctx.props.signatureHeader || "Jitsu-Signature";
+        let signedData = payload;
+        let timestamp: string | undefined;
+        if (ctx.props.signatureIncludeTimestamp ?? true) {
+          timestamp = String(Math.floor(Date.now() / 1000));
+          signedData = `${timestamp}.${payload}`;
+        }
+        try {
+          signatureHeaders[headerName] = secret
+            ? createHmac("sha256", secret).update(signedData).digest("hex")
+            : sign(null, Buffer.from(signedData), createPrivateKey(toPrivateKeyPem(privateKey!))).toString("hex");
+        } catch (e: any) {
+          // A malformed key/secret can never succeed on retry — drop instead of retrying forever.
+          throw new NoRetryError(`Webhook signing failed, check the signing key/secret: ${e.message}`);
+        }
+        if (timestamp) {
+          signatureHeaders[`${headerName}-Timestamp`] = timestamp;
+        }
+      }
       const res = await ctx.fetch(ctx.props.url, {
         method: ctx.props.method || "POST",
         body: payload,
@@ -88,6 +136,7 @@ const WebhookDestination: JitsuFunction<AnalyticsServerEvent, WebhookDestination
             const [key, value] = header.split(":");
             return { ...res, [key]: value };
           }, {}),
+          ...signatureHeaders,
         },
       });
       if (!res.ok) {
@@ -103,6 +152,9 @@ const WebhookDestination: JitsuFunction<AnalyticsServerEvent, WebhookDestination
       }
       return event;
     } catch (e: any) {
+      if (e.name === NoRetryErrorName) {
+        throw e;
+      }
       throw new RetryError(e.message);
     }
   }

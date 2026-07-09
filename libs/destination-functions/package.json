@@ -28,6 +28,7 @@
     "@types/node": "catalog:",
     "@vitest/ui": "catalog:",
     "json5": "^2.1.0",
+    "msw": "^2.15.0",
     "vitest": "catalog:",
     "vite": "^6.4.3"
   },
