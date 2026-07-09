@@ -193,7 +193,10 @@ export const nextAuthConfig: NextAuthOptions = {
         if (internalId) {
           await authAuditLog({ internalId, email, name }, "logout", `nextauth-${loginProvider}`);
           await trackAuthEvent(
-            { internalId, email, name, externalId: token?.sub as string | undefined },
+            // Read the persisted externalId (what the jwt/session callbacks treat as
+            // canonical), not token.sub — for some providers sub diverges from the
+            // stored external id, which would overwrite the identify trait with the wrong value.
+            { internalId, email, name, externalId: token?.externalId as string | undefined },
             "logout",
             `nextauth-${loginProvider}`
           );
