@@ -273,7 +273,8 @@ export default createRoute()
       severity: z.string().optional(),
       // Comma-separated subset of "ui" | "api" | "cli" | "mcp". Origin is not a
       // stored column — it's derived from authType (+ the jitsu-cli- tokenId
-      // prefix), mirroring resolveOrigin() in components/AuditLog/AuditLog.tsx.
+      // prefix). These predicates are the inverse of originFromAuth() in
+      // lib/schema; keep them in sync.
       origin: z.string().optional(),
       from: z.coerce.date().optional(),
       to: z.coerce.date().optional(),

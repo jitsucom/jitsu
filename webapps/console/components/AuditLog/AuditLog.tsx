@@ -8,7 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useDebounce } from "use-debounce";
 import Link from "next/link";
 import { AuditLogDiff } from "../AuditLogDiff/AuditLogDiff";
-import { inferTokenTypeFromId } from "../../lib/schema";
+import { originFromAuth } from "../../lib/schema";
 import { FaTerminal } from "react-icons/fa";
 import { FaCloudArrowUp, FaRobot, FaWindowMaximize } from "react-icons/fa6";
 
@@ -77,12 +77,10 @@ function severityTag(s?: string | null) {
 }
 
 /**
- * authType values written by the auth/audit code:
- *   "next-auth", "oidc", "firebase", "credentials" → UI session
- *   "mcp" → MCP tool call (see mcp-server/tools.ts principalFromAuth)
- *   "bearer" → API token; the row also carries a tokenType ("api" | "cli" | …)
- * Origin renders as one of four flat labels: UI / API / CLI / MCP. Other token
- * types fall through to their raw label so we don't quietly silo them.
+ * Origin renders as one of four flat labels: UI / API / CLI / MCP. The mapping
+ * from authType/token to origin lives in `originFromAuth` (lib/schema) so the
+ * audit-log display, the origin filter, and product analytics stay in sync.
+ * A row with no authType has no known origin and renders as "—".
  */
 type Origin = { label: string; color: string; icon: React.ReactNode };
 
@@ -91,15 +89,13 @@ const ORIGIN_API: Origin = { label: "API", color: "purple", icon: <FaCloudArrowU
 const ORIGIN_CLI: Origin = { label: "CLI", color: "blue", icon: <FaTerminal /> };
 const ORIGIN_MCP: Origin = { label: "MCP", color: "magenta", icon: <FaRobot /> };
 
+const ORIGIN_BY_KIND = { ui: ORIGIN_UI, api: ORIGIN_API, cli: ORIGIN_CLI, mcp: ORIGIN_MCP } as const;
+
 function resolveOrigin(item: AuditLogItem): Origin | null {
   if (!item.authType) return null;
-  if (item.authType === "mcp") return ORIGIN_MCP;
-  if (item.authType !== "bearer") return ORIGIN_UI;
-  const tokenType = item.token?.type || (item.tokenId ? inferTokenTypeFromId(item.tokenId) : "api");
-  if (tokenType === "cli") return ORIGIN_CLI;
-  if (tokenType === "api") return ORIGIN_API;
-  // Unknown bearer subtype — surface it verbatim rather than collapsing to API.
-  return { label: tokenType.toUpperCase(), color: "default", icon: <FaCloudArrowUp /> };
+  return ORIGIN_BY_KIND[
+    originFromAuth({ authType: item.authType, tokenId: item.tokenId, tokenType: item.token?.type })
+  ];
 }
 
 function originTag(item: AuditLogItem) {

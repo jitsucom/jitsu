@@ -196,6 +196,35 @@ export function inferTokenTypeFromId(id: string): string {
   return "api";
 }
 
+/** Where an authenticated request originated. */
+export type RequestOrigin = "ui" | "api" | "cli" | "mcp";
+
+/**
+ * Classify the origin of an authenticated request from its auth fields (as carried on
+ * SessionUser, or on an audit-log row). Pure — safe to import from client code.
+ *
+ *   authType "mcp"                        → "mcp"
+ *   authType "bearer" + CLI token         → "cli"  (tokenType "cli", or jitsu-cli- id)
+ *   authType "bearer" + anything else     → "api"
+ *   anything else (session / no authType) → "ui"
+ *
+ * Single source of truth for origin: `resolveOrigin` in
+ * components/AuditLog/AuditLog.tsx and the origin filter predicates in
+ * pages/api/audit-log.ts mirror this mapping — keep them in sync.
+ */
+export function originFromAuth(auth: {
+  authType?: string | null;
+  tokenId?: string | null;
+  tokenType?: string | null;
+}): RequestOrigin {
+  if (auth.authType === "mcp") return "mcp";
+  if (auth.authType === "bearer") {
+    const tokenType = auth.tokenType || (auth.tokenId ? inferTokenTypeFromId(auth.tokenId) : "api");
+    return tokenType === "cli" ? "cli" : "api";
+  }
+  return "ui";
+}
+
 export const StreamConfig = ConfigEntityBase.merge(
   z
     .object({

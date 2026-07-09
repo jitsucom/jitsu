@@ -1,7 +1,7 @@
 import { db } from "./db";
 import { getLog, randomId } from "juava";
 import { AnalyticsInterface, emptyAnalytics, jitsuAnalytics } from "@jitsu/js";
-import { SessionUser } from "../schema";
+import { originFromAuth, RequestOrigin, SessionUser } from "../schema";
 import { Workspace } from "@prisma/client";
 import { NextApiRequest } from "next";
 import { AnalyticsContext } from "@jitsu/protocols/analytics";
@@ -81,10 +81,13 @@ export interface ProductAnalytics extends AnalyticsInterface {
 
 function createProductAnalytics(
   analytics: AnalyticsInterface,
-  opts?: { req?: NextApiRequest; workspace?: Workspace | WorkspaceIdAndProps }
+  opts?: { req?: NextApiRequest; workspace?: Workspace | WorkspaceIdAndProps; origin?: RequestOrigin }
 ): ProductAnalytics {
   const req = opts?.req;
   const ws = opts?.workspace;
+  // Where the request came from (ui / api / cli / mcp). Stamped onto every track
+  // event below so all product-analytics events carry their origin.
+  const origin = opts?.origin;
   // Injected into every track event so all workspace-scoped events carry the same
   // workspace identity in their properties (in addition to the `groupId`). Omitted
   // when the event isn't tied to a workspace (e.g. `user_created`).
@@ -121,13 +124,18 @@ function createProductAnalytics(
         ip: (req?.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req?.socket?.remoteAddress,
         //userAgent: req?.headers["user-agent"] as string,
       };
-      return analytics.track(event, { ...(workspaceProps || {}), ...(props || {}), context });
+      return analytics.track(event, {
+        ...(origin ? { origin } : {}),
+        ...(workspaceProps || {}),
+        ...(props || {}),
+        context,
+      });
     },
   };
 }
 
 export type TrackedUser = Pick<SessionUser, "internalId" | "email" | "name"> &
-  Partial<Pick<SessionUser, "externalId" | "loginProvider">>;
+  Partial<Pick<SessionUser, "externalId" | "loginProvider" | "authType" | "tokenId" | "tokenType">>;
 
 /**
  * Server-side login/logout product event. Account-level: fires an identify + the event,
@@ -159,7 +167,12 @@ export function withProductAnalytics(
 ): Promise<any[]> {
   //we create new instance every time since analytics.js saves state in props and not thread safe
   //creating of an instance is cheap operation
-  const instance = createProductAnalytics(createAnalytics(), { req: opts?.req, workspace: opts.workspace });
+  const instance = createProductAnalytics(createAnalytics(), {
+    req: opts?.req,
+    workspace: opts.workspace,
+    // Derived from the acting user's auth fields; guarantees every event carries an origin.
+    origin: originFromAuth(opts.user),
+  });
   const allPromises: Promise<any>[] = [];
   if (opts.user) {
     allPromises.push(instance.identifyUser(opts.user));

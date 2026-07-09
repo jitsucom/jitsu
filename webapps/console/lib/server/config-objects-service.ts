@@ -241,16 +241,16 @@ export class ConfigObjectsService {
     }
 
     await trackTelemetryEvent("config-object-create", { objectType: type });
-    if (opts.req) {
-      await withProductAnalytics(
-        p =>
-          p.track("create_object", {
-            ...objectAnalyticsProps(type, id, object),
-            ...(incoming.cloneId ? { cloned: true } : {}),
-          }),
-        { user, workspace, req: opts.req }
-      );
-    }
+    // Emit regardless of caller (HTTP or MCP) so MCP-authored changes are tracked too.
+    // The event carries the request origin (ui/api/cli/mcp) via withProductAnalytics.
+    await withProductAnalytics(
+      p =>
+        p.track("create_object", {
+          ...objectAnalyticsProps(type, id, object),
+          ...(incoming.cloneId ? { cloned: true } : {}),
+        }),
+      { user, workspace, req: opts.req }
+    );
     await configObjectAuditLog(user, workspaceId, created.id, type, "create", { newVersion: object });
     return { id: created.id };
   }
@@ -288,13 +288,12 @@ export class ConfigObjectsService {
     delete filtered.workspaceId;
     await this.prisma.configurationObject.update({ where: { id }, data: { config: filtered } });
     await trackTelemetryEvent("config-object-update", { objectType: type });
-    if (opts.req) {
-      await withProductAnalytics(p => p.track("update_object", objectAnalyticsProps(type, id, filtered)), {
-        user,
-        workspace,
-        req: opts.req,
-      });
-    }
+    // Emit for HTTP and MCP callers alike; origin (ui/api/cli/mcp) is stamped by withProductAnalytics.
+    await withProductAnalytics(p => p.track("update_object", objectAnalyticsProps(type, id, filtered)), {
+      user,
+      workspace,
+      req: opts.req,
+    });
     await configObjectAuditLog(user, workspaceId, id, type, "update", { prevVersion, newVersion: filtered });
   }
 
@@ -321,9 +320,10 @@ export class ConfigObjectsService {
     }
     await this.prisma.configurationObject.update({ where: { id: object.id }, data: { deleted: true } });
     await trackTelemetryEvent("config-object-delete", { objectType: type });
-    if (opts.req) {
-      // delete() doesn't otherwise load the workspace — fetch it only when we're
-      // actually going to emit the event, so name/slug reach the group traits.
+    // Emit for HTTP and MCP callers alike (origin is stamped by withProductAnalytics).
+    // delete() doesn't otherwise load the workspace — fetch it only when telemetry is on
+    // and we're going to emit, so name/slug reach the group traits.
+    if (productTelemetryEnabled) {
       const workspace = await this.prisma.workspace.findFirst({ where: { id: workspaceId } });
       if (workspace) {
         await withProductAnalytics(p => p.track("delete_object", objectAnalyticsProps(type, id, object.config)), {
@@ -371,7 +371,9 @@ export class ConfigObjectsService {
     event: "connection_created" | "connection_deleted",
     link: { id: string; fromId: string; toId: string; type?: string | null }
   ): Promise<void> {
-    if (!req || !productTelemetryEnabled) {
+    // Emit for HTTP and MCP callers alike; `req` (when present) only adds IP context.
+    // Origin (ui/api/cli/mcp) is stamped by withProductAnalytics.
+    if (!productTelemetryEnabled) {
       return;
     }
     const [workspace, from, to] = await Promise.all([
