@@ -9,6 +9,7 @@ import { serialize } from "cookie";
 import { getAppEndpoint } from "../../../lib/domains";
 import { getServerLog } from "../../../lib/server/log";
 import { authAuditLog } from "../../../lib/server/audit-log";
+import { trackAuthEvent } from "../../../lib/server/telemetry";
 
 const log = getServerLog("firebase");
 
@@ -18,6 +19,11 @@ export default createRoute()
     await signOut(user.externalId);
     try {
       await authAuditLog({ internalId: user.internalId, email: user.email, name: user.name }, "logout", "firebase");
+      await trackAuthEvent(
+        { internalId: user.internalId, email: user.email, name: user.name, externalId: user.externalId },
+        "logout",
+        "firebase"
+      );
     } catch (err) {
       log
         .atError()

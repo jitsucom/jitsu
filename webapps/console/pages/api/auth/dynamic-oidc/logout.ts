@@ -6,6 +6,7 @@ import jwt from "jsonwebtoken";
 import { nextAuthConfig } from "../../../../lib/nextauth.config";
 import { OidcSessionData } from "../../../../lib/server/oidc-types";
 import { authAuditLog } from "../../../../lib/server/audit-log";
+import { trackAuthEvent } from "../../../../lib/server/telemetry";
 
 const log = getServerLog("api/auth/oidc-logout");
 
@@ -26,6 +27,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               internalId: sessionData.userId,
               email: sessionData.email || "",
               name: sessionData.name || sessionData.email || "",
+            },
+            "logout",
+            "oidc"
+          );
+          await trackAuthEvent(
+            {
+              internalId: sessionData.userId,
+              email: sessionData.email || "",
+              name: sessionData.name || sessionData.email || "",
+              externalId: sessionData.externalId,
             },
             "logout",
             "oidc"

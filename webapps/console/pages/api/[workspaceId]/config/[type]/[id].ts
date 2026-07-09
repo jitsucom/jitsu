@@ -62,9 +62,9 @@ export const route = createRoute()
       }),
     },
   })
-  .handler(async ({ user, body, query: { id, workspaceId, type } }) => {
+  .handler(async ({ req, user, body, query: { id, workspaceId, type } }) => {
     // The service applies `prepareZodObjectForDeserialization` internally.
-    await configObjects().update(user, workspaceId, type, id, body);
+    await configObjects().update(user, workspaceId, type, id, body, { req });
   })
   .DELETE({
     auth: true,
@@ -86,10 +86,11 @@ export const route = createRoute()
       }),
     },
   })
-  .handler(async ({ user, query: { id, workspaceId, type, strict, cascade } }) => {
+  .handler(async ({ req, user, query: { id, workspaceId, type, strict, cascade } }) => {
     return await configObjects().delete(user, workspaceId, type, id, {
       strict: strict === "true",
       cascade: cascade === "true",
+      req,
     });
   });
 

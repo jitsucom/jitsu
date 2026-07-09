@@ -124,15 +124,9 @@ export const route = createRoute()
       );
     }
     if (workspace.slug) {
-      withProductAnalytics(
-        callback =>
-          callback.track("workspace_access", {
-            workspaceId: workspace.id,
-            workspaceName: workspace.name,
-            workspaceSlug: workspace.slug,
-          }),
-        { user, workspace, req }
-      );
+      // workspaceId/workspaceName/workspaceSlug are injected for every event by
+      // withProductAnalytics, so we only need to name the event here.
+      withProductAnalytics(callback => callback.track("workspace_access"), { user, workspace, req });
     }
 
     try {
