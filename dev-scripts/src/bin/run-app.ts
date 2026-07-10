@@ -183,6 +183,7 @@ function main(): void {
       ...process.env,
       NODE_OPTIONS: resolvedNodeOptions,
       JITSU_BRANCH_SUFFIX: branchSuffix,
+      NEXTAUTH_URL: `https://${slug}.localhost`,
       // Expose the portless host as JITSU_PUBLIC_URL so OAuth discovery,
       // email links, and MCP metadata resolve to the right branch URL.
       // Only set it when the caller hasn't already configured it explicitly.
