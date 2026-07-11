@@ -83,7 +83,7 @@ export default createRoute()
     });
     if (result && !result.ok) {
       log
-        .atWarn()
+        .atDebug()
         .log(
           `quota check failed for sync=${query.syncId} workspace=${query.workspaceId} task=${query.taskId ?? "-"}: ${
             result.error

@@ -52,7 +52,7 @@ async function dbLog({
   syncId: string;
   level: string;
 }) {
-  log.at(level).log(`Task ${taskId} sync ${syncId}: ${message}`);
+  //log.at(level).log(`Task ${taskId} sync ${syncId}: ${message}`);
   await clickhouse.insert({
     table: "task_log",
     format: "JSON",
