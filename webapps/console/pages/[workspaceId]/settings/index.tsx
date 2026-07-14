@@ -520,11 +520,13 @@ const DataCollectionSettings: React.FC<any> = () => {
       </div>
       <div className="flex items-start justify-between px-6 py-5">
         <div className="flex-1 pr-8">
-          <h4 className="text-base font-semibold text-textDark mb-1">Capture HTTP headers</h4>
+          <h4 className="text-base font-semibold text-textDark mb-1">
+            Capture HTTP headers (AI agents and bots detection)
+          </h4>
           <p className="text-sm font-normal text-text">
             Store HTTP request headers of incoming events in <code>context.headers</code>. Useful for identifying
-            traffic coming from AI agents and bots. Only the names of sensitive headers (e.g. <code>cookie</code>,{" "}
-            <code>authorization</code>) are kept — their values are masked.
+            traffic coming from <b>AI agents and bots</b>. Only the names of sensitive headers (e.g. <code>cookie</code>
+            , <code>authorization</code>) are kept — their values are masked.
           </p>
         </div>
         <Tooltip title={!userRole.editEntities ? "You don't have permission to change this setting" : undefined}>
