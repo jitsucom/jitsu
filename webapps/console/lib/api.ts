@@ -525,7 +525,10 @@ export function nextJsApiHandler(api: Api): NextApiHandler {
     // context so every log line for this request carries request_id → @request_id
     // in Datadog, enabling an exact edge-5xx ↔ app-stack join (JITSU-104).
     const rawRequestId = req.headers["x-request-id"];
-    const requestId = (Array.isArray(rawRequestId) ? rawRequestId[0] : rawRequestId) || randomUUID();
+    const headerRequestId = Array.isArray(rawRequestId) ? rawRequestId[0] : rawRequestId;
+    // trim() so a blank/whitespace header falls back to a real id instead of
+    // collapsing distinct requests under an empty-ish @request_id.
+    const requestId = headerRequestId?.trim() || randomUUID();
     return runWithRequestContext({ request_id: requestId }, () => handleRequest(req, res));
   };
 }

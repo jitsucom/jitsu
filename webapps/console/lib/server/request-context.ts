@@ -23,7 +23,10 @@ const storage = new AsyncLocalStorage<RequestContext>();
  */
 export function runWithRequestContext<T>(context: RequestContext, fn: () => T): T {
   const parent = storage.getStore();
-  return storage.run({ ...parent, ...context }, fn);
+  // Freeze the stored context so a stray `getRequestContext().x = …` can't alter
+  // it mid-request. Fields are primitives (request_id), so a shallow freeze is
+  // enough; extend a scope via a nested runWithRequestContext, not by mutation.
+  return storage.run(Object.freeze({ ...parent, ...context }), fn);
 }
 
 export function getRequestContext(): RequestContext | undefined {
