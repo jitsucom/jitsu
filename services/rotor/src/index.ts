@@ -101,6 +101,7 @@ async function main() {
       licenseKey: serverEnv.MAXMIND_LICENSE_KEY,
       url: serverEnv.MAXMIND_URL,
       s3Bucket: serverEnv.MAXMIND_S3_BUCKET,
+      path: serverEnv.MAXMIND_PATH,
     });
     metricsServer = initMetricsServer();
   } catch (e) {
