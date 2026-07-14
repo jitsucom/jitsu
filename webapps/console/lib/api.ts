@@ -13,7 +13,9 @@ import { isMaintenanceActive } from "./server/maintenance";
 import { prepareZodObjectForDeserialization, safeParseWithDate } from "./zod";
 import { ApiError } from "./shared/errors";
 import { getServerLog } from "./server/log";
+import { runWithRequestContext } from "./server/request-context";
 import { getFirebaseUser, isFirebaseEnabled } from "./server/firebase-server";
+import { randomUUID } from "crypto";
 import jwt from "jsonwebtoken";
 import { serialize } from "cookie";
 import {
@@ -341,7 +343,7 @@ export async function getUser(
 }
 
 export function nextJsApiHandler(api: Api): NextApiHandler {
-  return async (req: NextApiRequest, res: NextApiResponse) => {
+  const handleRequest = async (req: NextApiRequest, res: NextApiResponse) => {
     const method = req.method as HttpMethodType;
     const handler = api[method];
     if (!handler) {
@@ -517,6 +519,14 @@ export function nextJsApiHandler(api: Api): NextApiHandler {
           .send({ error: tryJson(getErrorMessage(e)), details: e?.stack, stackArray: stackToArray(e?.stack) });
       }
     }
+  };
+  return async (req: NextApiRequest, res: NextApiResponse) => {
+    // Bind the inbound nginx X-Request-ID (or a generated fallback) to the async
+    // context so every log line for this request carries request_id → @request_id
+    // in Datadog, enabling an exact edge-5xx ↔ app-stack join (JITSU-104).
+    const rawRequestId = req.headers["x-request-id"];
+    const requestId = (Array.isArray(rawRequestId) ? rawRequestId[0] : rawRequestId) || randomUUID();
+    return runWithRequestContext({ request_id: requestId }, () => handleRequest(req, res));
   };
 }
 

@@ -21,6 +21,17 @@ let globalLogLevel: LogLevel = (process.env.JUAVA_LOG_LEVEL || "info") as LogLev
 let enableServerLogsColoring: boolean = !(process.env.CI === "1" || process.env.CI === "true");
 let enableJsonFormat: boolean = false;
 
+// Optional provider of ambient structured fields merged into every JSON log
+// line — e.g. a per-request `request_id` sourced from AsyncLocalStorage. Kept
+// as a pluggable hook (not a direct async_hooks import) so juava stays free of
+// Node-only APIs and safe to bundle for the browser/edge; the request-scoped
+// storage lives in the consumer (see webapps/console/lib/server/request-context.ts).
+let logContextProvider: (() => Record<string, any> | undefined) | undefined = undefined;
+
+export function setLogContextProvider(provider: (() => Record<string, any> | undefined) | undefined) {
+  logContextProvider = provider;
+}
+
 export function setGlobalLogLevel(level: LogLevel) {
   globalLogLevel = level;
 }
@@ -155,7 +166,10 @@ function dispatch(msg: LogMessage) {
       }
     }
     if (enableJsonFormat) {
-      writeln(JSON.stringify({ time: msg.date, level: msg.level, msg: lines.join("\n") }));
+      // Ambient fields (e.g. request_id) go top-level so Datadog parses them as
+      // attributes (@request_id, …). The reserved keys always win over context.
+      const context = logContextProvider ? logContextProvider() : undefined;
+      writeln(JSON.stringify({ ...context, time: msg.date, level: msg.level, msg: lines.join("\n") }));
     } else {
       const border = ""; // = "｜";
       const messageFormatted = lines.join(`\n${border} `);
