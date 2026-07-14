@@ -110,3 +110,77 @@ func TestBuildContextHeadersRedundantWithContext(t *testing.T) {
 	require.Equal(t, "https://example.com/page", headers2["referer"])
 	require.Equal(t, "data.example.com", headers2["host"])
 }
+
+func TestPatchEventHeadersGating(t *testing.T) {
+	// capture disabled (the default): browser events must not carry context.headers,
+	// even if the body smuggled one in.
+	c := ginContextWithHeaders(map[string]string{"User-Agent": "Mozilla/5.0", "Sec-Fetch-Mode": "cors"})
+	ev := types.JsonFromMap(map[string]any{
+		"event": "test",
+		"context": map[string]any{"headers": map[string]any{"user-agent": "spoofed"}},
+	})
+	require.NoError(t, patchEvent(c, "msg1", ev, "track", IngestTypeBrowser, nil, "", &StreamWithDestinations{}))
+	ctx, _ := ev.GetN("context").(types.Json)
+	require.NotNil(t, ctx)
+	require.Nil(t, ctx.GetN("headers"))
+
+	// nil stream behaves like disabled and does not panic
+	c = ginContextWithHeaders(map[string]string{"User-Agent": "Mozilla/5.0"})
+	ev = types.JsonFromMap(map[string]any{"event": "test"})
+	require.NoError(t, patchEvent(c, "msg2", ev, "track", IngestTypeBrowser, nil, "", nil))
+	ctx, _ = ev.GetN("context").(types.Json)
+	require.NotNil(t, ctx)
+	require.Nil(t, ctx.GetN("headers"))
+
+	// capture enabled: browser events get context.headers derived from the request
+	c = ginContextWithHeaders(map[string]string{"User-Agent": "Mozilla/5.0", "Sec-Fetch-Mode": "cors"})
+	ev = types.JsonFromMap(map[string]any{"event": "test"})
+	require.NoError(t, patchEvent(c, "msg3", ev, "track", IngestTypeBrowser, nil, "", &StreamWithDestinations{CaptureHeaders: true}))
+	ctx, _ = ev.GetN("context").(types.Json)
+	require.NotNil(t, ctx)
+	headers, ok := ctx.GetN("headers").(map[string]string)
+	require.True(t, ok, "context.headers must be set when capture is enabled")
+	require.Equal(t, "cors", headers["sec-fetch-mode"])
+
+	// s2s with capture disabled: a body-provided context.headers is left untouched
+	c = ginContextWithHeaders(map[string]string{"User-Agent": "server-sdk/1.0"})
+	ev = types.JsonFromMap(map[string]any{
+		"event": "test",
+		"context": map[string]any{"headers": map[string]any{"user-agent": "Mozilla/5.0 (device)"}},
+	})
+	require.NoError(t, patchEvent(c, "msg4", ev, "track", IngestTypeS2S, nil, "", &StreamWithDestinations{}))
+	ctx, _ = ev.GetN("context").(types.Json)
+	require.NotNil(t, ctx)
+	bodyHeaders, ok := ctx.GetN("headers").(types.Json)
+	require.True(t, ok)
+	require.Equal(t, "Mozilla/5.0 (device)", bodyHeaders.GetS("user-agent"))
+
+	// s2s with capture enabled: request headers captured, body overlay applied
+	c = ginContextWithHeaders(map[string]string{"User-Agent": "server-sdk/1.0", "Sec-Fetch-Mode": "cors"})
+	ev = types.JsonFromMap(map[string]any{
+		"event": "test",
+		"context": map[string]any{"headers": map[string]any{"user-agent": "Mozilla/5.0 (device)"}},
+	})
+	require.NoError(t, patchEvent(c, "msg5", ev, "track", IngestTypeS2S, nil, "", &StreamWithDestinations{CaptureHeaders: true}))
+	ctx, _ = ev.GetN("context").(types.Json)
+	require.NotNil(t, ctx)
+	headers, ok = ctx.GetN("headers").(map[string]string)
+	require.True(t, ok)
+	require.Equal(t, "Mozilla/5.0 (device)", headers["user-agent"])
+	require.Equal(t, "cors", headers["sec-fetch-mode"])
+}
+
+func TestContextHeadersSignatureAgent(t *testing.T) {
+	// Web Bot Auth headers: signature-agent's value identifies the agent operator and
+	// is kept; signature/signature-input are crypto material - presence only.
+	c := ginContextWithHeaders(map[string]string{
+		"User-Agent":      "Mozilla/5.0",
+		"Signature-Agent": `"https://chatgpt.com"`,
+		"Signature":       "sig1=:MEUCIQDX...:",
+		"Signature-Input": `sig1=("@authority" "signature-agent")`,
+	})
+	headers := buildContextHeaders(c, nil, nil)
+	require.Equal(t, `"https://chatgpt.com"`, headers["signature-agent"])
+	require.Equal(t, maskedHeaderValue, headers["signature"])
+	require.Equal(t, maskedHeaderValue, headers["signature-input"])
+}

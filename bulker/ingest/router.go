@@ -45,7 +45,7 @@ var eventTypesSet = types.NewSet("page", "identify", "track", "group", "alias", 
 
 var messageIdUnsupportedChars = regexp.MustCompile(`[^a-zA-Z0-9._-]`)
 
-type eventPatchFunc func(c *gin.Context, messageId string, event types.Json, tp string, ingestType IngestType, analyticContext types.Json, defaultEventName string) error
+type eventPatchFunc func(c *gin.Context, messageId string, event types.Json, tp string, ingestType IngestType, analyticContext types.Json, defaultEventName string, stream *StreamWithDestinations) error
 
 type Router struct {
 	*appbase.Router
@@ -333,7 +333,7 @@ func (r *Router) sendToRotor(c *gin.Context, messageId string, ingestMessageByte
 	return
 }
 
-func patchEvent(c *gin.Context, messageId string, ev types.Json, tp string, ingestType IngestType, analyticContext types.Json, defaultEventName string) error {
+func patchEvent(c *gin.Context, messageId string, ev types.Json, tp string, ingestType IngestType, analyticContext types.Json, defaultEventName string, stream *StreamWithDestinations) error {
 	typeFixed := utils.MapNVL(eventTypesDict, tp, tp)
 	if typeFixed == "event" {
 		if defaultEventName != "" {
@@ -400,17 +400,25 @@ func patchEvent(c *gin.Context, messageId string, ev types.Json, tp string, inge
 			return strings.TrimSpace(strings.Split(c.GetHeader("Accept-Language"), ",")[0])
 		})
 		// browser clients cannot read their own request headers and must not be able to
-		// spoof them: always derive context.headers from the actual request, ignoring
-		// whatever the body provided.
-		ctx.Set("headers", buildContextHeaders(c, nil, ctx))
+		// spoof them: when header capture is enabled, always derive context.headers from
+		// the actual request, ignoring whatever the body provided; when disabled, drop a
+		// body-provided value for the same anti-spoofing reason.
+		if stream != nil && stream.CaptureHeaders {
+			ctx.Set("headers", buildContextHeaders(c, nil, ctx))
+		} else {
+			ctx.Delete("headers")
+		}
 		// remove any jitsu special properties from ingested events
 		// it is only allowed to be set via functions
 		types.FilterEvent(ev)
 	} else if ingestType == IngestTypeS2S {
 		// server-to-server: capture the (forwarding) request headers, but let the caller
 		// override allow-listed headers via the event body to forward the original
-		// device's headers.
-		ctx.Set("headers", buildContextHeaders(c, ctx.GetN("headers"), ctx))
+		// device's headers. When capture is disabled, a body-provided context.headers is
+		// left as-is — s2s callers hold the write key and control the event anyway.
+		if stream != nil && stream.CaptureHeaders {
+			ctx.Set("headers", buildContextHeaders(c, ctx.GetN("headers"), ctx))
+		}
 	}
 	nowIsoDate := time.Now().UTC().Format(timestamp.JsonISO)
 	ev.Set("receivedAt", nowIsoDate)
@@ -478,6 +486,12 @@ var contextHeadersAllowlist = types.NewSet(
 	"cache-control", "pragma", "priority", "upgrade-insecure-requests", "x-requested-with",
 	// privacy signals
 	"dnt", "sec-gpc",
+	// Web Bot Auth (HTTP Message Signatures for bots/agents, draft-meunier-web-bot-auth):
+	// the value is the URL identifying the agent operator (e.g. "https://chatgpt.com") —
+	// the primary self-identification signal of AI agents. The companion "signature" /
+	// "signature-input" headers carry cryptographic material, not identity, and stay
+	// masked (their presence alone is the signal).
+	"signature-agent",
 	// fetch metadata (the strongest browser-vs-bot tell)
 	"sec-fetch-site", "sec-fetch-mode", "sec-fetch-dest", "sec-fetch-user",
 	// user-agent client hints
@@ -1008,7 +1022,7 @@ func buildSyncMetrics(workspaceId, streamId string, destinations []*ShortDestina
 }
 
 func (r *Router) buildIngestMessage(c *gin.Context, messageId string, event types.Json, analyticContext types.Json, tp string, loc StreamCredentials, stream *StreamWithDestinations, patchFunc eventPatchFunc, defaultEventName string) (ingestMessage *IngestMessage, ingestMessageBytes []byte, err error) {
-	err = patchFunc(c, messageId, event, tp, loc.IngestType, analyticContext, defaultEventName)
+	err = patchFunc(c, messageId, event, tp, loc.IngestType, analyticContext, defaultEventName, stream)
 	headers := utils.MapMap(utils.MapFilter(c.Request.Header, func(k string, v []string) bool {
 		return len(v) > 0 && !isInternalHeader(k)
 	}), func(k string, v []string) string {
