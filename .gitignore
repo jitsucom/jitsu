@@ -37,3 +37,4 @@ libs/jsondiffpatch/lib/
 **/tsconfig.tsbuildinfo
 /services/functions-server/data/
 /services/functions-server/dist/
+/helm-deps/values-custom.yaml
