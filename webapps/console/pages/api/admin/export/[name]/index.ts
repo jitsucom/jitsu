@@ -610,6 +610,9 @@ async function exportStreamsWithDestinations(writer: Writer) {
           backupEnabled: isEEAvailable() && !(obj.workspace.featuresEnabled || []).includes("nobackup"),
           throttle: throttlePercent,
           shard: shardNumber,
+          // opt-in per workspace (Settings → Capture HTTP headers): ingest stores
+          // request headers in event context.headers (AI agent / bot detection)
+          captureHeaders: (obj.workspace.featuresEnabled || []).includes("captureHeaders"),
           destinations: [
             ...obj.toLinks
               .filter(l => !l.deleted && l.type === "push" && !l.data?.disabled && !l.to.deleted)

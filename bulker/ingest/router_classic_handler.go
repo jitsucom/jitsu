@@ -204,7 +204,7 @@ func (r *Router) ClassicHandler(c *gin.Context) {
 	return
 }
 
-func patchClassicEvent(c *gin.Context, messageId string, ev types.Json, _ string, ingestType IngestType, _ types.Json, _ string) error {
+func patchClassicEvent(c *gin.Context, messageId string, ev types.Json, _ string, ingestType IngestType, _ types.Json, _ string, _ *StreamWithDestinations) error {
 	ip := strings.TrimSpace(strings.Split(utils.NvlString(c.GetHeader("X-Real-Ip"), c.GetHeader("X-Forwarded-For"), c.ClientIP()), ",")[0])
 	ipPolicy := c.Query(IPPolicyParameter)
 	switch ipPolicy {
