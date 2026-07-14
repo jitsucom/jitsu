@@ -788,7 +788,8 @@ async function send(
   payload,
   jitsuConfig: JitsuOptions,
   instance: AnalyticsInstance,
-  store: PersistentStorage
+  store: PersistentStorage,
+  isAutoIdentify?: boolean
 ): Promise<any> {
   const s2s = !!jitsuConfig.s2s;
   const debugHeader = jitsuConfig.debug ? { "X-Enable-Debug": "true" } : {};
@@ -834,7 +835,8 @@ async function send(
       clearTimeout(abortTimeout);
     }
   } catch (e: any) {
-    getErrorHandler(jitsuConfig)(`Call to ${url} failed with error ${e.message}`);
+    const errorHandler = isAutoIdentify ? msg => console.warn(msg) : getErrorHandler(jitsuConfig);
+    errorHandler(`Call to ${url} failed with error ${e.message}`);
     return Promise.resolve();
   }
   let responseText;
@@ -855,7 +857,8 @@ async function send(
     );
   }
   if (!fetchResult.ok) {
-    getErrorHandler(jitsuConfig)(
+    const errorHandler = isAutoIdentify ? msg => console.warn(msg) : getErrorHandler(jitsuConfig);
+    errorHandler(
       `Call to ${url} failed with error: ${fetchResult.status} - ${fetchResult.statusText}: ${responseText}`
     );
     return Promise.resolve();
@@ -865,7 +868,8 @@ async function send(
   try {
     responseJson = JSON.parse(responseText);
   } catch (e) {
-    getErrorHandler(jitsuConfig)(`Can't parse JSON: ${responseText}: ${e?.message}`);
+    const errorHandler = isAutoIdentify ? msg => console.warn(msg) : getErrorHandler(jitsuConfig);
+    errorHandler(`Can't parse JSON: ${responseText}: ${e?.message}`);
     return Promise.resolve();
   }
 
@@ -952,14 +956,22 @@ export const jitsuAnalyticsPlugin = (jitsuOptions: JitsuOptions = {}, storage: P
       if (config.privacy?.dontSend) {
         return;
       }
-      return send("page", payload, config, instance, storage);
+      const promise = send("page", payload, config, instance, storage);
+      if (promise && typeof promise.catch === "function") {
+        promise.catch(() => {});
+      }
+      return promise;
     },
     track: args => {
       const { payload, config, instance } = args;
       if (config.privacy?.dontSend) {
         return;
       }
-      return send("track", payload, config, instance, storage);
+      const promise = send("track", payload, config, instance, storage);
+      if (promise && typeof promise.catch === "function") {
+        promise.catch(() => {});
+      }
+      return promise;
     },
     identify: args => {
       const { payload, config, instance } = args;
@@ -976,7 +988,12 @@ export const jitsuAnalyticsPlugin = (jitsuOptions: JitsuOptions = {}, storage: P
       if (doNotSend) {
         return Promise.resolve();
       }
-      return send("identify", payload, config, instance, storage);
+      const isAutoIdentify = payload.options?.autoIdentify === true;
+      const promise = send("identify", payload, config, instance, storage, isAutoIdentify);
+      if (promise && typeof promise.catch === "function") {
+        promise.catch(() => {});
+      }
+      return promise;
     },
     reset: args => {
       const { config, instance } = args;

@@ -6,7 +6,7 @@ import { useRouter } from "next/router";
 import { EmailFirstLogin } from "./EmailFirstLogin";
 import { OAuthButtons } from "./OAuthButtons";
 import { signIn } from "next-auth/react";
-import { EmailNotVerifiedError, useFirebaseSession } from "../../lib/firebase-client";
+import { useFirebaseSession } from "../../lib/firebase-client";
 import { useJitsu } from "@jitsu/jitsu-react";
 import { useAppConfig } from "../../lib/context";
 import { safeRedirect } from "../../lib/auth-redirect";
@@ -96,13 +96,25 @@ export const SignInOrUp: React.FC<SigninProps> = ({ signup }) => {
           setError("Invalid email or password");
           return;
         }
-        const user = await firebaseSession!.resolveUser().user;
-        if (!user) {
+        const result = await firebaseSession!.resolveUser(undefined, { recordLogin: true }).user;
+        if (!result) {
           setError("Sign in failed");
+          return;
         }
-        await analytics.track("login", {
-          traits: { ...user, type: "password", loginProvider: "firebase/email" },
-        });
+        if (result.status === "personal-email-rejected") {
+          // JITSU-70: the server refused the personal-email account and deleted
+          // it server-side. Clear the stale client session.
+          setError(result.message);
+          await firebaseSession!.signOut();
+          return;
+        }
+        if (result.status === "email-not-verified") {
+          // Hand off to the route gate (FirebaseAuthorizer), which renders the
+          // verification screen.
+          safeRedirect(router, callbackUrl);
+          return;
+        }
+        // `login` is tracked server-side (fb-auth/audit-login) — see telemetry.trackAuthEvent.
         safeRedirect(router, callbackUrl);
       } else if (type === "nextauth-credentials") {
         const result = await signIn("credentials", {
@@ -125,12 +137,6 @@ export const SignInOrUp: React.FC<SigninProps> = ({ signup }) => {
         setError("Unsupported authentication method");
       }
     } catch (e: any) {
-      if (e instanceof EmailNotVerifiedError) {
-        // Sign-in succeeded but the email is unverified — hand off to the route
-        // gate (FirebaseAuthorizer), which renders the verification screen.
-        safeRedirect(router, callbackUrl);
-        return;
-      }
       if (type === "firebase-password") {
         setError(handleFirebaseError(e));
         await analytics.track("login_error", {
@@ -149,18 +155,22 @@ export const SignInOrUp: React.FC<SigninProps> = ({ signup }) => {
     try {
       switch (provider) {
         case "firebase-google":
-        case "firebase-github":
-          await firebaseSession!.signInWith(provider === "firebase-google" ? "google.com" : "github.com");
-          const user = await firebaseSession!.resolveUser().user;
-          if (!user) {
-            setError("Sign in failed");
+        case "firebase-github": {
+          const result = await firebaseSession!.signInWith(
+            provider === "firebase-google" ? "google.com" : "github.com"
+          );
+          if (result.status === "personal-email-rejected") {
+            // Server refused a personal-email signup and deleted the account —
+            // clear the stale client session.
+            setError(result.message);
+            await firebaseSession!.signOut();
             return;
           }
-          await analytics.track("login", {
-            traits: { ...user, type: "social", loginProvider: `firebase/${provider}` },
-          });
+          // `login` is tracked server-side (fb-auth/audit-login) — see telemetry.trackAuthEvent.
+          // authenticated, or email-not-verified (the route gate handles that)
           safeRedirect(router, callbackUrl);
           break;
+        }
         case "nextauth-github":
           await signIn("github", { callbackUrl }, { ...(loginHint ? { login_hint: loginHint } : {}), prompt: "login" });
           break;

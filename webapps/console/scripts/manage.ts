@@ -44,7 +44,7 @@ const commands: Record<string, Command> = {
     usage: "pnpm manage password-hash [secret]",
     handler: async args => {
       // Get the secret from remaining positional args (after the command name)
-      const secret = args._.length > 1 ? args._[1] : randomId(32);
+      const secret = args._.length > 1 ? args._[1] : randomId({ digits: 32, strongRandom: true });
 
       if (args._.length <= 1) {
         log.atInfo().log("No secret provided, generating a random one");

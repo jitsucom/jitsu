@@ -14,3 +14,73 @@ create table IF NOT EXISTS newjitsu_metrics.events_log
         ORDER BY (actorId, type, timestamp)
         SETTINGS index_granularity = 8192;
 
+-- Retention: keep the newest EVENTS_LOG_SIZE (default 200000) rows per
+-- (actorId, type, is_error). A cutoff dictionary holds, per entity, the
+-- timestamp of the N-th newest row; the TTL below deletes anything older on
+-- merge. Unlike the old lightweight-delete trim, TTL DELETE physically
+-- reclaims disk. Created/maintained by pages/api/admin/events-log-init.ts and
+-- enforced by pages/api/admin/events-log-trim.ts (drop floor + reload dict +
+-- MATERIALIZE TTL). dictGet in a TTL requires allow_suspicious_ttl_expressions=1.
+
+-- Cutoffs live in their own table (NOT computed by the dictionary directly
+-- from events_log): a dictionary sourcing from events_log while events_log's
+-- TTL references that dictionary is a cyclic dependency that ClickHouse
+-- rejects. events-log-trim.ts rebuilds cutoffs in the _staging twin and swaps
+-- them in atomically, so a transient failure never leaves the live table empty:
+--   truncate table newjitsu_metrics.events_log_cutoff_staging;
+--   insert into newjitsu_metrics.events_log_cutoff_staging
+--     select actorId, type, is_error, cutoff from (
+--       select actorId, type, toUInt8(level = 'error') as is_error, timestamp as cutoff,
+--              row_number() over (partition by actorId, type, level = 'error' order by timestamp desc) as rn
+--       from newjitsu_metrics.events_log)
+--     where rn = 200000;  -- row_number streams; avoids groupArray materializing every group
+--   exchange tables newjitsu_metrics.events_log_cutoff_src and newjitsu_metrics.events_log_cutoff_staging;
+create table IF NOT EXISTS newjitsu_metrics.events_log_cutoff_src
+--ON CLUSTER jitsu_cluster
+(
+    actorId String,
+    type String,
+    is_error UInt8,
+    cutoff DateTime64(3)
+)
+    engine = MergeTree()
+    --engine = ReplicatedMergeTree('/clickhouse/tables/{shard}/newjitsu_metrics/events_log_cutoff_src', '{replica}')
+        ORDER BY (actorId, type, is_error);
+
+-- staging twin for atomic cutoff swaps (same schema)
+create table IF NOT EXISTS newjitsu_metrics.events_log_cutoff_staging
+--ON CLUSTER jitsu_cluster
+(
+    actorId String,
+    type String,
+    is_error UInt8,
+    cutoff DateTime64(3)
+)
+    engine = MergeTree()
+    --engine = ReplicatedMergeTree('/clickhouse/tables/{shard}/newjitsu_metrics/events_log_cutoff_staging', '{replica}')
+        ORDER BY (actorId, type, is_error);
+
+create dictionary IF NOT EXISTS newjitsu_metrics.events_log_cutoff
+--ON CLUSTER jitsu_cluster
+(
+    actorId String,
+    type String,
+    is_error UInt8,
+    cutoff DateTime64(3)
+)
+PRIMARY KEY actorId, type, is_error
+SOURCE(CLICKHOUSE(
+    -- no host/port: reads the local server in-process; auth still required
+    user 'default' password '' db 'newjitsu_metrics' table 'events_log_cutoff_src'
+))
+LAYOUT(COMPLEX_KEY_HASHED())
+LIFETIME(MIN 1800 MAX 3600);
+
+-- SET allow_suspicious_ttl_expressions = 1, materialize_ttl_after_modify = 0;
+alter table newjitsu_metrics.events_log
+--ON CLUSTER jitsu_cluster
+    modify TTL toDateTime(
+        if(timestamp < dictGetOrDefault('newjitsu_metrics.events_log_cutoff', 'cutoff', (actorId, type, toUInt8(level = 'error')), toDateTime64('1970-01-01 00:00:00', 3)),
+           toDateTime('2000-01-01 00:00:00'),
+           toDateTime('2099-01-01 00:00:00'))) DELETE;
+

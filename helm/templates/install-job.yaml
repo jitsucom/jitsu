@@ -74,10 +74,13 @@ spec:
               value: /cache/npm
             - name: PNPM_HOME
               value: /cache/pnpm
+            # prisma db push moved to db-push-job.yaml: this job is a
+            # pre-install hook, so it runs before the in-cluster Postgres
+            # even exists. prisma generate needs no database.
       volumes:
         - name: project
           hostPath:
-            path: {{ .Values.projectRoot }}
+            path: {{ include "jitsu-dev.projectRoot" . }}
             type: Directory
         - name: node-cache
           persistentVolumeClaim:

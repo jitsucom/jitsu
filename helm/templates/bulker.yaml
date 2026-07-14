@@ -28,8 +28,9 @@ spec:
             - |
               echo "Copying source..."
               cp -r /project/bulker/* /src/
-              echo "Building bulker..."
-              go build -buildvcs=false -o /build/bulker .
+              echo "Waiting for build lock (Go builds are serialized to avoid overloading the node)..."
+              flock /go-cache/build.lock \
+                go build -buildvcs=false -o /build/bulker .
               echo "Build complete"
           volumeMounts:
             - name: project
@@ -46,6 +47,18 @@ spec:
               value: /go-cache/build
             - name: GOMODCACHE
               value: /go-cache/mod
+          # Cap the build so a compile can't starve the kubelet or running
+          # pods. Builds are additionally serialized via the flock above, so
+          # at most one build is active — and it reuses the shared GOCACHE
+          # warmed by whichever build ran first. Go 1.26 is container-aware:
+          # GOMAXPROCS follows the cgroup CPU limit automatically.
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: "3"
+              memory: 3Gi
       containers:
         - name: bulker
           image: debian:bookworm-slim
@@ -65,15 +78,15 @@ spec:
           envFrom:
             - secretRef:
                 name: jitsu-secrets
+            # Connection URLs of the in-cluster dependencies (helm-deps chart).
+            # Listed after jitsu-secrets so its keys win over any legacy URL
+            # keys there; explicit env entries below still take precedence.
+            - secretRef:
+                name: jitsu-deps-urls
+                optional: true
           env:
-            - name: HTTP_PORT
-              value: "3042"
-            {{- include "jitsu-dev.commonEnv" . | nindent 12 }}
-            {{- include "jitsu-dev.serviceUrls" . | nindent 12 }}
-            {{- range $key, $value := .Values.env.bulker }}
-            - name: {{ $key }}
-              value: {{ $value | quote }}
-            {{- end }}
+            {{- include "jitsu-dev.env" (dict "ctx" . "service" "bulker"
+                  "extra" (dict "HTTP_PORT" "3042")) | nindent 12 }}
           volumeMounts:
             - name: build
               mountPath: /build
@@ -93,7 +106,7 @@ spec:
       volumes:
         - name: project
           hostPath:
-            path: {{ .Values.projectRoot }}
+            path: {{ include "jitsu-dev.projectRoot" . }}
             type: Directory
         - name: build
           emptyDir: {}

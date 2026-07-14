@@ -8,6 +8,8 @@ import { renderToString } from "react-dom/server";
 
 export const api: Api = {
   POST: {
+    // Semantic read — renders MJML to HTML, no DB writes. Safe during maintenance.
+    allowDuringMaintenance: true,
     types: {
       body: z.object({
         props: z.any(),

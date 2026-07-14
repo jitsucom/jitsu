@@ -154,6 +154,10 @@ type UseApiOpts<Req, Res, Query> = {
   queryType?: ZodType<Query>;
   method?: string;
   mockResponse?: Res;
+  // Re-fetch the resource on this interval (ms). Useful for endpoints whose
+  // value can change underneath the app without user interaction — e.g.
+  // `/api/app-config` (maintenance descriptor mounted via ConfigMap).
+  refetchInterval?: number;
 };
 
 export function useApi<Res = any, Req = any, Query extends Record<string, any> = Record<string, any>>(
@@ -187,7 +191,14 @@ export function useApi<Res = any, Req = any, Query extends Record<string, any> =
       }
       return zodParsed.data;
     },
-    { retry: false, cacheTime: 0, staleTime: 0, refetchOnWindowFocus: false, refetchOnMount: false }
+    {
+      retry: false,
+      cacheTime: 0,
+      staleTime: 0,
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
+      refetchInterval: opts?.refetchInterval,
+    }
   );
   return { ...queryResult, reload: () => setVersion(version + 1) };
 }

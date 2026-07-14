@@ -9,6 +9,8 @@ import type { AuthClass, RouteRateLimitOverride } from "./types";
 const MULTIPLIERS: Record<AuthClass, Partial<Record<HttpMethodType, number>>> = {
   bearer: { GET: 10, POST: 2, PUT: 2, PATCH: 2, DELETE: 1, OPTIONS: 20 },
   session: { GET: 20, POST: 5, PUT: 5, PATCH: 5, DELETE: 2, OPTIONS: 40 },
+  // IP-keyed limits use a fixed limit passed directly to check(); multipliers unused.
+  ip: {},
 };
 
 export const RATE_LIMIT_WINDOW_MS = 60_000;

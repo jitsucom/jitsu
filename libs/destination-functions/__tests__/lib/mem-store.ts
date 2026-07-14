@@ -24,6 +24,35 @@ export function createStore(): TTLStore {
   };
 }
 
+// A working in-memory TTLStore (TTL is ignored) for functions that actually read/write the store —
+// e.g. the contact destinations, which cache field/property definitions and userId→email mappings.
+export function createMemoryStore(): TTLStore {
+  const data = new Map<string, any>();
+  return {
+    async get(key: string) {
+      return data.get(key);
+    },
+    async set(key: string, value: any) {
+      data.set(key, value);
+    },
+    async del(key: string) {
+      data.delete(key);
+    },
+    async ttl() {
+      return -1;
+    },
+    async getWithTTL(key: string) {
+      return data.has(key) ? { value: data.get(key), ttl: -1 } : undefined;
+    },
+    async getOrSet(key: string, value: any) {
+      if (!data.has(key)) {
+        data.set(key, value);
+      }
+      return data.get(key);
+    },
+  };
+}
+
 export type EventsByAnonId = Record<string, AnalyticsServerEvent[]>;
 
 export function createAnonymousEventsStore(eventsStore: Record<string, EventsByAnonId>): AnonymousEventsStore {

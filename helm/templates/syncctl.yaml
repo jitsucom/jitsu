@@ -29,8 +29,9 @@ spec:
             - |
               echo "Copying source..."
               cp -r /project/bulker/* /src/
-              echo "Building syncctl..."
-              go build -buildvcs=false -o /build/syncctl .
+              echo "Waiting for build lock (Go builds are serialized to avoid overloading the node)..."
+              flock /go-cache/build.lock \
+                go build -buildvcs=false -o /build/syncctl .
               echo "Build complete"
           volumeMounts:
             - name: project
@@ -47,6 +48,18 @@ spec:
               value: /go-cache/build
             - name: GOMODCACHE
               value: /go-cache/mod
+          # Cap the build so a compile can't starve the kubelet or running
+          # pods. Builds are additionally serialized via the flock above, so
+          # at most one build is active — and it reuses the shared GOCACHE
+          # warmed by whichever build ran first. Go 1.26 is container-aware:
+          # GOMAXPROCS follows the cgroup CPU limit automatically.
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: "3"
+              memory: 3Gi
       containers:
         - name: syncctl
           image: debian:bookworm-slim
@@ -61,25 +74,26 @@ spec:
           envFrom:
             - secretRef:
                 name: jitsu-secrets
+            # Connection URLs of the in-cluster dependencies (helm-deps chart).
+            # Listed after jitsu-secrets so its keys win over any legacy URL
+            # keys there; explicit env entries below still take precedence.
+            - secretRef:
+                name: jitsu-deps-urls
+                optional: true
           env:
-            - name: HTTP_PORT
-              value: "3043"
-            # Sync Pods (CronJob + ad-hoc job_runner) run as `sync-pod`, a
-            # least-privilege SA bound only to coordination.k8s.io/leases.
-            # Separating it from syncctl's own SA keeps the pod-side blast
-            # radius tiny (no pod create/delete, no Secret read, no log access).
-            - name: PODS_SERVICE_ACCOUNT
-              value: sync-pod
             - name: KUBERNETES_NAMESPACE
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
-            {{- include "jitsu-dev.commonEnv" . | nindent 12 }}
-            {{- include "jitsu-dev.serviceUrls" . | nindent 12 }}
-            {{- range $key, $value := .Values.env.syncctl }}
-            - name: {{ $key }}
-              value: {{ $value | quote }}
-            {{- end }}
+            # Sync Pods (CronJob + ad-hoc job_runner) run as `sync-pod`, a
+            # least-privilege SA bound only to coordination.k8s.io/leases.
+            # Separating it from syncctl's own SA keeps the pod-side blast
+            # radius tiny (no pod create/delete, no Secret read, no log access).
+            {{- include "jitsu-dev.env" (dict "ctx" . "service" "syncctl"
+                  "extra" (dict
+                    "HTTP_PORT" "3043"
+                    "PODS_SERVICE_ACCOUNT" "sync-pod")
+                  "exclude" (list "KUBERNETES_NAMESPACE")) | nindent 12 }}
           volumeMounts:
             - name: build
               mountPath: /build
@@ -99,7 +113,7 @@ spec:
       volumes:
         - name: project
           hostPath:
-            path: {{ .Values.projectRoot }}
+            path: {{ include "jitsu-dev.projectRoot" . }}
             type: Directory
         - name: build
           emptyDir: {}

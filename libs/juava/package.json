@@ -19,7 +19,8 @@
     "@jitsu/common-config": "workspace:*",
     "@types/node": "catalog:",
     "@vitest/ui": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "vite": "^6.4.3"
   },
   "dependencies": {
     "lodash": "catalog:",

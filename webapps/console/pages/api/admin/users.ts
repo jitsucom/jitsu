@@ -7,6 +7,8 @@ import { SessionUser } from "../../../lib/schema";
 import { NextApiRequest, NextApiResponse } from "next";
 import { getServerLog } from "../../../lib/server/log";
 
+const log = getServerLog("api/admin/users");
+
 const ResultUser = z.object({
   internalId: z.string().optional(),
   externalId: z.string().optional(),
@@ -77,6 +79,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.status(200).send({ users });
   } catch (e) {
     res.status(500).send(getErrorMessage(e));
-    getServerLog().atError().withCause(e).log("Error obtaining list of platform users");
+    log.atError().withCause(e).log("Error obtaining list of platform users");
   }
 }

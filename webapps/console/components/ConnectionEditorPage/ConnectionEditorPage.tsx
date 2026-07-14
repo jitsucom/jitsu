@@ -6,7 +6,7 @@ import { SomeZodObject, z } from "zod";
 import { ConfigurationObjectLinkDbModel } from "../../prisma/schema";
 import { useRouter } from "next/router";
 import { assertTrue, getLog, requireDefined } from "juava";
-import { Button, Input, InputNumber, Radio, Switch, Tooltip } from "antd";
+import { Alert, Button, Input, InputNumber, Radio, Switch, Tooltip } from "antd";
 import { BaseBulkerConnectionOptions, getCoreDestinationType } from "../../lib/schema/destinations";
 import { confirmOp, copyTextToClipboard, feedbackError, feedbackSuccess } from "../../lib/ui";
 import FieldListEditorLayout, { EditorItem } from "../FieldListEditorLayout/FieldListEditorLayout";
@@ -342,12 +342,25 @@ function ConnectionEditor({
         </>
       ),
       component: (
-        <BatchOrStreamEditor
-          value={connectionOptions.mode}
-          disabled={!canEdit}
-          limitations={limitations}
-          onChange={mode => updateOptions({ mode })}
-        />
+        <>
+          <BatchOrStreamEditor
+            value={connectionOptions.mode}
+            disabled={!canEdit}
+            limitations={limitations}
+            onChange={mode => updateOptions({ mode })}
+          />
+          {destinationType.id === "webhook" &&
+            destination.signatureMethod &&
+            destination.signatureMethod !== "none" &&
+            connectionOptions.mode === "batch" && (
+              <Alert
+                className="mt-2"
+                type="warning"
+                showIcon
+                message="Request signing is not applied in batch mode. Switch to stream mode if you need signed webhooks."
+              />
+            )}
+        </>
       ),
     });
   }

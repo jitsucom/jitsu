@@ -71,7 +71,10 @@ pnpm build:turbo
 # Type-check
 pnpm typecheck:turbo
 
-# Run unit tests
+# Run tests. Console tests include an integration project that needs Docker
+# (testcontainers: Postgres + ClickHouse); run only the pure tests with
+# `pnpm exec vitest run --project unit` from webapps/console.
+# Details: CONTRIBUTING.md "Testing".
 pnpm test
 
 # Lint / format
@@ -141,3 +144,32 @@ go test ./...
 When you need to create branches, make commits, or open pull requests, read
 [CONTRIBUTING.md](CONTRIBUTING.md) first. No need to read it for code exploration —
 only when interacting with git.
+
+### Referencing Linear issues
+
+When referencing a Linear issue in GitHub (PR descriptions, commit messages,
+comments), use the bare issue id — `` `JITSU-67` `` — not a Linear URL or a
+markdown link to one.
+
+Before opening a PR, try to work out which Linear issue the work relates to —
+check the branch name, search via the Linear MCP if it's available, or ask the
+user with the question tool. If the PR clearly relates to an issue, prefix the
+PR title with the issue id and put the id in the body. It's fine if there's no
+issue — but offer to create one (when the Linear MCP is available).
+
+## Deployments
+
+The console can be auto-deployed to **beta** on PR merge via the
+[`deploy-console-on-merge`](.github/workflows/deploy-console-on-merge.yml)
+workflow: any PR carrying the **`deploy:console`** label triggers a beta console
+deployment in `jitsu-cloud-infra` the moment it merges into `newjitsu`. This
+exists because the post-merge deploy step is easy to forget, so fixes sit
+undeployed for weeks (see JITSU-68). It's scoped to `console` only — its error
+tolerance is high (a brief outage doesn't drop data); `bulker` and `rotor` still
+deploy manually and deliberately.
+
+**When you open a PR (including a draft), explicitly ask the user whether they
+want the console to auto-deploy on merge.** If yes, add the `deploy:console`
+label to the PR (e.g. `gh pr edit <pr> --add-label deploy:console`). Only offer
+this for PRs that actually touch the console; never add the label to `bulker` /
+`rotor` changes.

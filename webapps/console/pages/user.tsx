@@ -10,7 +10,7 @@ import { copyTextToClipboard, feedbackError, feedbackSuccess, confirmOp } from "
 import { QueryResponse } from "../components/QueryResponse/QueryResponse";
 import { JitsuButton } from "../components/JitsuButton/JitsuButton";
 import { ChangePassword } from "../components/ChangePassword/ChangePassword";
-import { FaCopy, FaPlus, FaTrash, FaTerminal, FaPencilAlt } from "react-icons/fa";
+import { FaCopy, FaPlus, FaTrash, FaTerminal, FaPencilAlt, FaPlug } from "react-icons/fa";
 import { FaCloudArrowUp } from "react-icons/fa6";
 
 /**
@@ -60,6 +60,9 @@ function dateValue(value: Date | string | null | undefined): number {
 }
 
 function effectiveType(key: ApiKey): string {
+  // MCP-ness is inferred from the presence of mcpClientName (set when the
+  // row is linked to an OAuthClient). We don't store type="mcp" on the row.
+  if (key.mcpClientName) return "mcp";
   if (key.type) return key.type;
   return inferTokenTypeFromId(key.id);
 }
@@ -67,6 +70,7 @@ function effectiveType(key: ApiKey): string {
 const typeStyles: Record<string, { color: string; icon: React.ReactNode; label: string }> = {
   cli: { color: "blue", icon: <FaTerminal />, label: "cli" },
   api: { color: "purple", icon: <FaCloudArrowUp />, label: "api" },
+  mcp: { color: "geekblue", icon: <FaPlug />, label: "mcp" },
 };
 
 function TypeTag({ type }: { type: string }) {

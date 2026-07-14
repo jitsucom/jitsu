@@ -30,6 +30,10 @@ type catalogKeyType = z.infer<typeof queryType>;
 export const route = createRoute()
   .GET({
     auth: true,
+    // Side-effecting: on cache miss, dispatches /discover to syncctl and
+    // writes a placeholder row to `newjitsu.source_catalog` via pgPool
+    // (bypassing the Prisma backstop). Block during maintenance.
+    mutates: true,
     summary: "Discover streams",
     description:
       "Asks the connector to list available streams for the given service (source). Returns the cached catalog when available; " +

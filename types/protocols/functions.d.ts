@@ -64,7 +64,9 @@ export type FetchType = (url: string, opts?: FetchOpts, extras?: any) => Promise
 export type FetchOpts = {
   method?: string;
   headers?: Record<string, string>;
-  body?: string | Buffer;
+  // Uint8Array instead of Buffer so the type is usable without @types/node.
+  // Buffer extends Uint8Array, so passing a Buffer remains valid.
+  body?: string | Uint8Array;
 };
 export type FunctionLogger<Sync extends boolean = false> = {
   info: (message: string, ...args: any[]) => void | Promise<void>;

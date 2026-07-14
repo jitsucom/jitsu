@@ -1,5 +1,5 @@
 -- not managed by prisma
-create table newjitsu_metrics.active_incoming on cluster jitsu_cluster
+create table newjitsu_metrics.active_incoming on cluster `jitsu-cluster`
 (
     timestamp DateTime,
     workspaceId LowCardinality(String),
@@ -7,7 +7,7 @@ create table newjitsu_metrics.active_incoming on cluster jitsu_cluster
 )
     engine = Null;
 
-CREATE TABLE newjitsu_metrics.active_incoming_agg on cluster jitsu_cluster
+CREATE TABLE newjitsu_metrics.active_incoming_agg on cluster `jitsu-cluster`
     (
      `workspaceId` LowCardinality(String),
      `timestamp` DateTime,
@@ -18,7 +18,7 @@ CREATE TABLE newjitsu_metrics.active_incoming_agg on cluster jitsu_cluster
     PARTITION BY toYYYYMM(timestamp)
 ;
 
-CREATE MATERIALIZED VIEW newjitsu_metrics.mv_active_incoming_agg on cluster jitsu_cluster
+CREATE MATERIALIZED VIEW newjitsu_metrics.mv_active_incoming_agg on cluster `jitsu-cluster`
     REFRESH EVERY 5 MINUTE APPEND TO newjitsu_metrics.active_incoming_agg AS
 select
     workspaceId,
@@ -30,7 +30,7 @@ where
     timestamp >= date_trunc('day', now() - interval 3 day)
 group by workspaceId, timestamp order by workspaceId, timestamp;
 
-CREATE VIEW newjitsu_metrics.active_incoming_agg_view ON CLUSTER jitsu_cluster as select
+CREATE VIEW newjitsu_metrics.active_incoming_agg_view ON CLUSTER `jitsu-cluster` as select
     timestamp,
     workspaceId,
     count
@@ -38,7 +38,7 @@ from newjitsu_metrics.active_incoming_agg
 ORDER BY workspaceId, timestamp DESC, insertedAt DESC
 LIMIT 1 BY workspaceId, timestamp;
 
-CREATE MATERIALIZED VIEW newjitsu_metrics.mv_active_incoming2 on cluster jitsu_cluster
+CREATE MATERIALIZED VIEW newjitsu_metrics.mv_active_incoming2 on cluster `jitsu-cluster`
         (
          `workspaceId` LowCardinality(String),
          `timestamp` DateTime,
@@ -61,7 +61,7 @@ GROUP BY
 
 
 
-create table newjitsu_metrics.mv_active_incoming3 on cluster jitsu_cluster
+create table newjitsu_metrics.mv_active_incoming3 on cluster `jitsu-cluster`
 (
     `workspaceId` LowCardinality(String),
     `timestamp` DateTime,
@@ -73,10 +73,10 @@ create table newjitsu_metrics.mv_active_incoming3 on cluster jitsu_cluster
         PARTITION BY toYYYYMM(timestamp)
 ;
 
---drop  table newjitsu_metrics.mv_active_incoming3 on cluster jitsu_cluster;
---drop  view newjitsu_metrics.to_mv_active_incoming3 on cluster jitsu_cluster;
+--drop  table newjitsu_metrics.mv_active_incoming3 on cluster `jitsu-cluster`;
+--drop  view newjitsu_metrics.to_mv_active_incoming3 on cluster `jitsu-cluster`;
 
-CREATE MATERIALIZED VIEW newjitsu_metrics.to_mv_active_incoming3 on cluster jitsu_cluster
+CREATE MATERIALIZED VIEW newjitsu_metrics.to_mv_active_incoming3 on cluster `jitsu-cluster`
         TO newjitsu_metrics.mv_active_incoming3
         (
          `workspaceId` LowCardinality(String),
@@ -91,7 +91,7 @@ SELECT
 FROM newjitsu_metrics.active_incoming;
 
 
-CREATE TABLE IF NOT EXISTS newjitsu_metrics.metrics  on cluster jitsu_cluster
+CREATE TABLE IF NOT EXISTS newjitsu_metrics.metrics  on cluster `jitsu-cluster`
 (
     timestamp DateTime,
     messageId String,
@@ -106,7 +106,7 @@ CREATE TABLE IF NOT EXISTS newjitsu_metrics.metrics  on cluster jitsu_cluster
     )
     ENGINE = Null;
 
-create table newjitsu_metrics.mv_metrics on cluster jitsu_cluster
+create table newjitsu_metrics.mv_metrics on cluster `jitsu-cluster`
 (
     timestamp     DateTime,
     workspaceId   LowCardinality(String),
@@ -122,7 +122,7 @@ create table newjitsu_metrics.mv_metrics on cluster jitsu_cluster
         SETTINGS index_granularity = 8192;
 
 
-CREATE MATERIALIZED VIEW newjitsu_metrics.to_mv_metrics on cluster jitsu_cluster
+CREATE MATERIALIZED VIEW newjitsu_metrics.to_mv_metrics on cluster `jitsu-cluster`
             TO newjitsu_metrics.mv_metrics
             (
              `timestamp` DateTime,

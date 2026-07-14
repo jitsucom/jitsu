@@ -177,6 +177,7 @@ export type FieldDisplay = {
   correction?: any | ((a: any, isNew?: boolean) => any);
   textarea?: boolean;
   password?: boolean;
+  placeholder?: string;
 };
 
 export type EditorComponentFactory = (props: EditorComponentProps) => React.FC<EditorComponentProps> | undefined;
@@ -247,7 +248,7 @@ function getUiSchema(schema: JsonSchema, fields: Record<string, FieldDisplay>, o
         const fieldProps = {
           "ui:widget": getUiWidget(field, object, isNew),
           "ui:disabled": field?.constant ? true : undefined,
-          "ui:placeholder": field?.constant,
+          "ui:placeholder": field?.placeholder ?? field?.constant,
           "ui:title": field?.displayName || createDisplayName(name),
           "ui:FieldTemplate": FieldTemplate,
           "ui:ObjectFieldTemplate": NestedObjectTemplate,
@@ -629,7 +630,7 @@ const SingleObjectEditor: React.FC<SingleObjectEditorProps> = props => {
       await getConfigApi(workspace.id, type).create(newObject);
       if (type === "stream" && appConfig.ee.available) {
         try {
-          await eeRpc("s3-init", { method: "POST", query: { workspaceId: workspace.id } });
+          await eeRpc("s3-init", { method: "GET", query: { workspaceId: workspace.id } });
         } catch (e: any) {
           console.error("Failed to init S3 bucket", e.message);
         }

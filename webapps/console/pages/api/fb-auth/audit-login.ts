@@ -3,6 +3,7 @@ import { z } from "zod";
 import { firebase } from "../../../lib/server/firebase-server";
 import { db } from "../../../lib/server/db";
 import { authAuditLog } from "../../../lib/server/audit-log";
+import { trackAuthEvent } from "../../../lib/server/telemetry";
 import { getServerLog } from "../../../lib/server/log";
 
 const log = getServerLog("firebase-audit-login");
@@ -18,6 +19,11 @@ export const api: Api = {
   url: inferUrl(__filename),
   POST: {
     auth: false,
+    // Called from the client's sign-in flow; failures are swallowed below so
+    // a DB write that fails during maintenance won't block login. Allowing
+    // the request through means we get a 200 + best-effort audit instead of
+    // a confusing 503 on the sign-in path.
+    allowDuringMaintenance: true,
     types: {
       body: z.object({ idToken: z.string() }),
     },
@@ -34,6 +40,11 @@ export const api: Api = {
         }
         if (internalId) {
           await authAuditLog({ internalId, email, name: decoded.name || email }, "login", "firebase");
+          await trackAuthEvent(
+            { internalId, email, name: decoded.name || email, externalId: decoded.uid },
+            "login",
+            "firebase"
+          );
         }
       } catch (err) {
         log

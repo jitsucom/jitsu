@@ -1,7 +1,7 @@
 import { createContext, PropsWithChildren, useContext } from "react";
 import { getApps, initializeApp } from "firebase/app";
 import * as auth from "firebase/auth";
-import { AppConfig, ContextApiResponse } from "./schema";
+import { AppConfig, ContextApiResponse, CreateUserResult } from "./schema";
 import { getLog, randomId, requireDefined, rpc } from "juava";
 import { useJitsu } from "@jitsu/jitsu-react";
 
@@ -11,20 +11,21 @@ export type FirebaseProviderInstance =
   | { enabled: true; settings: FirebaseClientSettings };
 
 /**
- * Thrown by {@link getUserFromFirebase} when an email+password account signs in
- * before its email address has been verified. OAuth providers (Google, GitHub)
- * verify the address themselves, so the check only applies to the `password`
- * provider. See JITSU-018.
+ * Outcome of resolving the current Firebase user into a Jitsu session. Returned
+ * (not thrown) so callers branch on `status` instead of catching control-flow
+ * exceptions. Genuine failures (popup closed, network, etc.) still reject.
+ *
+ * - `authenticated` — a Jitsu user is ready.
+ * - `email-not-verified` — a single-provider password account hasn't verified
+ *   its email yet (JITSU-018); the caller should show the verification gate.
+ * - `personal-email-rejected` — the server refused a personal-email signup and
+ *   already deleted the orphaned Firebase account (JITSU-70); the caller should
+ *   surface `message` and sign the stale client session out.
  */
-export class EmailNotVerifiedError extends Error {
-  readonly email: string;
-
-  constructor(email: string) {
-    super(`Email ${email} is not verified`);
-    this.name = "EmailNotVerifiedError";
-    this.email = email;
-  }
-}
+export type FirebaseAuthResult =
+  | { status: "authenticated"; user: ContextApiResponse["user"] }
+  | { status: "email-not-verified"; email: string }
+  | { status: "personal-email-rejected"; message: string };
 
 const FirebaseContext = createContext<FirebaseProviderInstance | null>(null);
 
@@ -58,7 +59,7 @@ export interface FirebaseSession {
    */
   signUp(email: string, password: string): Promise<void>;
 
-  signInWith(type: string): Promise<void>;
+  signInWith(type: string): Promise<FirebaseAuthResult>;
 
   signOut(): Promise<void>;
 
@@ -86,9 +87,14 @@ export interface FirebaseSession {
   confirmPasswordReset(oobCode: string, newPassword: string): Promise<void>;
 
   /**
-   * Waits until auth state of the user is resolved
+   * Waits until auth state of the user is resolved. Pass `recordLogin` from an explicit
+   * sign-in entry point so the `login` audit/telemetry event fires once internalId is
+   * minted; the implicit page-load callers omit it (they must not record a login).
    */
-  resolveUser(token?: string): { user: Promise<ContextApiResponse["user"] | null>; cleanup: () => void };
+  resolveUser(
+    token?: string,
+    opts?: { recordLogin?: boolean }
+  ): { user: Promise<FirebaseAuthResult | null>; cleanup: () => void };
 }
 
 export function getFirebaseAuth(config: FirebaseClientSettings): typeof auth {
@@ -101,7 +107,7 @@ async function getCustomClaim(user: auth.User, claimName: string): Promise<strin
 }
 
 function getCSRFToken(cookieName: string) {
-  const token = randomId(100);
+  const token = randomId({ digits: 100, strongRandom: true });
   document.cookie = `${cookieName}=${token}; expires=0; path=/`;
   return token;
 }
@@ -124,7 +130,7 @@ function emailActionSettings(): auth.ActionCodeSettings | undefined {
   return undefined;
 }
 
-async function getUserFromFirebase(currentUser: auth.User): Promise<ContextApiResponse["user"]> {
+async function getUserFromFirebase(currentUser: auth.User): Promise<FirebaseAuthResult> {
   const email = requireDefined(currentUser.email, "email of firebase user is undefined");
   // JITSU-018: email+password sign-up issues a valid Firebase JWT before the
   // address is verified. Block such accounts here — before any internal user or
@@ -133,13 +139,13 @@ async function getUserFromFirebase(currentUser: auth.User): Promise<ContextApiRe
   const providerData = currentUser.providerData;
   const isPasswordOnly = providerData.length === 1 && providerData[0]?.providerId === "password";
   if (isPasswordOnly && !currentUser.emailVerified) {
-    throw new EmailNotVerifiedError(email);
+    return { status: "email-not-verified", email };
   }
   let internalId = await getCustomClaim(currentUser, "internalId");
   let shouldRefreshToken = false;
   if (!internalId) {
     log.atInfo().log(`Firebase user ${currentUser.uid} / ${email} doesn't have internalId, requesting...`);
-    await rpc(`/api/fb-auth/create-user`, {
+    const createResult: CreateUserResult = await rpc(`/api/fb-auth/create-user`, {
       body: {},
       headers: {
         // Force-refresh so the token's email_verified claim is current. The
@@ -148,6 +154,12 @@ async function getUserFromFirebase(currentUser: auth.User): Promise<ContextApiRe
         Authorization: `Bearer ${await currentUser.getIdToken(true)}`,
       },
     });
+    // JITSU-70: the server refused a personal-email signup and already deleted
+    // the Firebase account. Report it as a result the authorizer / signup
+    // handlers branch on.
+    if (!createResult.ok && createResult.rejected === "personal-email") {
+      return { status: "personal-email-rejected", message: createResult.message };
+    }
     const newToken = await currentUser.getIdTokenResult(true);
     internalId = newToken.claims.internalId as string;
     log.atDebug().log(`Refreshed firebase token`, newToken);
@@ -169,13 +181,16 @@ async function getUserFromFirebase(currentUser: auth.User): Promise<ContextApiRe
   log.atDebug().log(`Firebase token expires in ${expirationMs / (1000 * 60)}min, at ${expirationTime.toISOString()}`);
 
   return {
-    email,
-    externalId: currentUser.uid,
-    externalUsername: email,
-    image: currentUser.photoURL,
-    internalId,
-    loginProvider: "firebase/" + currentUser.providerData[0]?.providerId,
-    name: currentUser.displayName || email,
+    status: "authenticated",
+    user: {
+      email,
+      externalId: currentUser.uid,
+      externalUsername: email,
+      image: currentUser.photoURL,
+      internalId,
+      loginProvider: "firebase/" + currentUser.providerData[0]?.providerId,
+      name: currentUser.displayName || email,
+    },
   };
 }
 
@@ -262,26 +277,33 @@ export function useFirebaseSession(): FirebaseSession {
   const a = getFirebaseAuth(config);
 
   return {
-    async signInWith(type: string): Promise<void> {
+    async signInWith(type: string): Promise<FirebaseAuthResult> {
       try {
-        let user;
         if (type === "github.com") {
-          user = await a.signInWithPopup(a.getAuth(), new auth.GithubAuthProvider());
+          await a.signInWithPopup(a.getAuth(), new auth.GithubAuthProvider());
         } else {
-          user = await a.signInWithPopup(a.getAuth(), new auth.GoogleAuthProvider());
+          await a.signInWithPopup(a.getAuth(), new auth.GoogleAuthProvider());
         }
-        await recordFirebaseLogin(a.getAuth().currentUser);
-        const firebaseUser = await getUserFromFirebase(a.getAuth().currentUser!);
-        await analytics.identify(firebaseUser.internalId, { email: firebaseUser.email, name: firebaseUser.name });
-        await analytics.track("login");
+        const result = await getUserFromFirebase(a.getAuth().currentUser!);
+        if (result.status === "authenticated") {
+          // Record the login only after getUserFromFirebase has minted/linked the internalId.
+          // For a brand-new account the first sign-in reaches /api/fb-auth/audit-login before the
+          // profile exists, so it can't resolve internalId and skips both the audit row and the
+          // server-side `login` event; ordering it here fixes that (and avoids recording a login
+          // for a personal-email signup that getUserFromFirebase rejects). `login` is tracked
+          // server-side — see telemetry.trackAuthEvent.
+          await recordFirebaseLogin(a.getAuth().currentUser);
+          await analytics.identify(result.user.internalId, { email: result.user.email, name: result.user.name });
+        }
+        return result;
       } catch (e) {
         log.atError().withCause(e).log(`Can't sign in with ${type}`);
         throw e;
       }
     },
-    resolveUser(token?: string) {
+    resolveUser(token?: string, opts?: { recordLogin?: boolean }) {
       log.atDebug().log("Authorizing through firebase...");
-      const userPromise: Promise<ContextApiResponse["user"] | null> = new Promise(async (resolve, reject) => {
+      const userPromise: Promise<FirebaseAuthResult | null> = new Promise(async (resolve, reject) => {
         if (token) {
           await auth.signInWithCustomToken(auth.getAuth(), token);
         }
@@ -290,11 +312,19 @@ export function useFirebaseSession(): FirebaseSession {
           async user => {
             log.atDebug().log(`Firebase auth result`, user);
             try {
-              resolve(user ? await getUserFromFirebase(user) : null);
+              const result = user ? await getUserFromFirebase(user) : null;
+              // Record the login only for an explicit sign-in (recordLogin) and only after
+              // getUserFromFirebase has minted/linked internalId — otherwise a first-time
+              // verified password user's login hits /api/fb-auth/audit-login before the
+              // profile exists and is dropped. Implicit page-load resolveUser omits recordLogin.
+              if (opts?.recordLogin && user && result?.status === "authenticated") {
+                await recordFirebaseLogin(user);
+              }
+              resolve(result);
             } catch (e) {
-              // getUserFromFirebase rejecting (e.g. EmailNotVerifiedError) must
-              // reject the outer promise — without this catch the throw escapes
-              // the async callback as an unhandled rejection and the caller hangs.
+              // Genuine errors (token mint, network) must reject the outer
+              // promise — without this catch the throw escapes the async callback
+              // as an unhandled rejection and the caller hangs.
               reject(e);
             } finally {
               unregister();
@@ -318,10 +348,9 @@ export function useFirebaseSession(): FirebaseSession {
     },
     //user: () => (currentUser ? getUserFromFirebase(currentUser) : undefined),
     async signIn(username: string, password): Promise<boolean> {
+      // Note: the `login` event is recorded later, in resolveUser({ recordLogin: true }),
+      // once internalId is minted — not here, where a first-time user has no profile yet.
       const userCredential = await auth.signInWithEmailAndPassword(a.getAuth(), username, password);
-      if (userCredential?.user) {
-        await recordFirebaseLogin(userCredential.user);
-      }
       return !!userCredential?.user;
     },
     async signUp(email: string, password: string): Promise<void> {

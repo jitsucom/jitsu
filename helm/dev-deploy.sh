@@ -7,6 +7,8 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 CHART_DIR="$SCRIPT_DIR"
+DEPS_CHART_DIR="$PROJECT_ROOT/helm-deps"
+DEPS_RELEASE_NAME="${DEPS_RELEASE_NAME:-jitsu-deps}"
 NAMESPACE="${NAMESPACE:-default}"
 RELEASE_NAME="${RELEASE_NAME:-jitsu}"
 MOUNT_PATH="/project"
@@ -150,12 +152,13 @@ deploy() {
 
     log_info "Deploying to Kubernetes..."
     ensure_namespace
+    ensure_secrets
+    ensure_cache_pvcs
 
-    # Check if secrets exist
-    if ! kubectl get secret jitsu-secrets -n "$NAMESPACE" &>/dev/null; then
-        log_error "Secret 'jitsu-secrets' not found. Run '$0 secrets' first to configure credentials."
-        exit 1
-    fi
+    # Detect dependency URL changes so we can restart services that consumed
+    # the old values via envFrom (read once at pod start).
+    local dep_urls_before dep_urls_after
+    dep_urls_before=$(snapshot_dep_urls)
 
     # Build helm args
     local helm_args=()
@@ -166,6 +169,11 @@ deploy() {
         helm_args+=("-f" "$CHART_DIR/values-custom.yaml")
     fi
 
+    deploy_deps
+    check_dep_urls "${helm_args[@]}" "$@"
+
+    dep_urls_after=$(snapshot_dep_urls)
+
     helm upgrade --install "$RELEASE_NAME" "$CHART_DIR" \
         --namespace "$NAMESPACE" \
         --set projectRoot="$MOUNT_PATH" \
@@ -173,7 +181,175 @@ deploy() {
         "$@"
 
     log_success "Deployed to namespace $NAMESPACE"
-    log_info "Services will build inside containers (this may take a few minutes on first deploy)"
+
+    # Services read the deps URLs via envFrom at pod start — if they changed,
+    # a plain helm upgrade won't roll pods whose spec is unchanged.
+    if [ -n "$dep_urls_before" ] && [ "$dep_urls_before" != "$dep_urls_after" ]; then
+        log_warn "Dependency URLs changed — restarting services to pick them up"
+        for svc in console ingest bulker rotor profiles syncctl operator; do
+            kubectl get deployment "$svc" -n "$NAMESPACE" &>/dev/null && \
+                kubectl rollout restart deployment/"$svc" -n "$NAMESPACE" > /dev/null
+        done
+    fi
+
+    wait_for_ready
+}
+
+# Deterministic snapshot of the dependency URLs published by helm-deps —
+# per-key, in fixed order, so string comparison can't produce false diffs
+# from map-ordering differences. Empty when the secret doesn't exist.
+snapshot_dep_urls() {
+    kubectl get secret jitsu-deps-urls -n "$NAMESPACE" &>/dev/null || return 0
+    local key out=""
+    for key in KAFKA_BOOTSTRAP_SERVERS DATABASE_URL CLICKHOUSE_URL MONGODB_URL; do
+        out="$out$key=$(kubectl get secret jitsu-deps-urls -n "$NAMESPACE" -o jsonpath="{.data.$key}" 2>/dev/null);"
+    done
+    printf '%s' "$out"
+}
+
+# Fail fast when a dependency is disabled in helm-deps but no replacement URL
+# is configured — otherwise services boot with an empty KAFKA_BOOTSTRAP_SERVERS
+# / DATABASE_URL / ... and crash-loop at runtime instead.
+# Args: the same helm args the main-chart upgrade will use — the check renders
+# the chart with them, so values files and --set overrides are both honored
+# (and commented-out placeholders are not, since comments never render).
+# Best-effort: a single rendered occurrence counts, so a service-scoped
+# override (env.<service>.<KEY>) satisfies it even though other services
+# still lack the var — use env.common.<KEY> for external deps. A miss isn't
+# silent either way: the readiness wait below surfaces the failing service.
+check_dep_urls() {
+    # Intentionally partial stack (dependency disabled AND every service that
+    # uses it scaled to 0)? The check can't know which services need which
+    # dependency, so skip it explicitly:
+    if [ -n "${SKIP_DEP_URL_CHECK:-}" ]; then
+        log_warn "SKIP_DEP_URL_CHECK is set — skipping dependency URL validation"
+        return 0
+    fi
+    local rendered
+    rendered=$(helm template "$RELEASE_NAME" "$CHART_DIR" \
+        --namespace "$NAMESPACE" --set projectRoot="$MOUNT_PATH" "$@" 2>/dev/null || true)
+
+    local key missing=""
+    for key in KAFKA_BOOTSTRAP_SERVERS DATABASE_URL CLICKHOUSE_URL MONGODB_URL; do
+        # provided by the deps chart?
+        if [ -n "$(kubectl get secret jitsu-deps-urls -n "$NAMESPACE" -o jsonpath="{.data.$key}" 2>/dev/null)" ]; then
+            continue
+        fi
+        # or configured as an explicit env entry with a non-empty value?
+        if printf '%s\n' "$rendered" | grep -A1 -E "^[[:space:]]*- name: $key\$" | grep -E "value:" | grep -qv 'value: ""'; then
+            continue
+        fi
+        # or carried in the legacy secret?
+        if [ -n "$(kubectl get secret jitsu-secrets -n "$NAMESPACE" -o jsonpath="{.data.$key}" 2>/dev/null)" ]; then
+            continue
+        fi
+        missing="$missing $key"
+    done
+    if [ -n "$missing" ]; then
+        log_error "Missing dependency configuration:$missing"
+        log_error "The corresponding dependency is disabled in helm-deps values, but no replacement is set."
+        log_error "Set env.common.<VAR> in $CHART_DIR/values-custom.yaml (see values-custom.example.yaml)."
+        log_error "Running an intentionally partial stack? Bypass with: SKIP_DEP_URL_CHECK=1 $0 deploy"
+        exit 1
+    fi
+}
+
+# Interactively wait for every deployed component to become ready, printing a
+# checkmark as each one goes green. Overall timeout: 5 minutes (a first-ever
+# build can take longer — a timeout here is a warning, not a failure).
+wait_for_ready() {
+    log_info "Waiting for components to become ready (timeout 5m)..."
+
+    local components="postgres clickhouse mongodb kafka console ingest bulker rotor profiles syncctl operator"
+    local pending="" c
+    for c in $components; do
+        if kubectl get deployment "$c" -n "$NAMESPACE" &>/dev/null; then
+            pending="$pending $c"
+        fi
+    done
+
+    local deadline=$(( $(date +%s) + 300 ))
+    while :; do
+        local still="" desired ready
+        for c in $pending; do
+            desired=$(kubectl get deployment "$c" -n "$NAMESPACE" -o jsonpath='{.spec.replicas}' 2>/dev/null || echo 1)
+            ready=$(kubectl get deployment "$c" -n "$NAMESPACE" -o jsonpath='{.status.readyReplicas}' 2>/dev/null)
+            if [ -n "$ready" ] && [ "$ready" -ge "${desired:-1}" ]; then
+                echo -e "  ${GREEN}✓${NC} $c"
+            else
+                still="$still $c"
+            fi
+        done
+        pending="$still"
+        if [ -z "${pending// /}" ]; then
+            log_success "All components are ready"
+            log_info "Run '$0 tunnel' in a separate terminal to expose the endpoints on localhost"
+            return 0
+        fi
+        if [ "$(date +%s)" -ge "$deadline" ]; then
+            log_warn "Timed out waiting for:$pending"
+            log_warn "First-time builds can take longer — they continue in the background."
+            log_warn "Watch with '$0 watch', inspect with '$0 build-logs <service>' or '$0 logs <service>'."
+            log_info "Once everything is ready, run '$0 tunnel' to expose the endpoints on localhost"
+            return 0
+        fi
+        sleep 5
+    done
+}
+
+# Build-cache PVCs, applied outside Helm on purpose: the pre-install
+# install-job hook needs them to exist already, and Helm-4 hook lifecycle
+# (delete-before-create, pre-install-only) proved unreliable for resources
+# that must simply always be there. kubectl apply is idempotent; the PVCs
+# survive uninstall so caches persist across reinstalls. Delete them with
+# './dev-deploy.sh clear-cache'.
+ensure_cache_pvcs() {
+    kubectl apply -n "$NAMESPACE" -f - > /dev/null <<'EOF'
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: go-cache
+  labels:
+    app.kubernetes.io/part-of: jitsu
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: node-cache
+  labels:
+    app.kubernetes.io/part-of: jitsu
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 10Gi
+EOF
+    log_success "Build-cache PVCs are in place"
+}
+
+# Deploy the dependencies chart (Kafka, Postgres, ClickHouse, MongoDB) and
+# wait until everything is healthy, so the main services never start against
+# missing dependencies.
+deploy_deps() {
+    log_info "Deploying dependencies (helm-deps) and waiting for them to become healthy..."
+
+    local helm_args=()
+    if [ -f "$DEPS_CHART_DIR/values-custom.yaml" ]; then
+        log_info "Using custom deps config from helm-deps/values-custom.yaml"
+        helm_args+=("-f" "$DEPS_CHART_DIR/values-custom.yaml")
+    fi
+
+    helm upgrade --install "$DEPS_RELEASE_NAME" "$DEPS_CHART_DIR" \
+        --namespace "$NAMESPACE" \
+        --wait --timeout 10m \
+        "${helm_args[@]}"
+
+    log_success "Dependencies are healthy"
 }
 
 # Restart all pods (triggers rebuild via init containers)
@@ -261,10 +437,12 @@ build_logs() {
     kubectl logs -n "$NAMESPACE" "$pod" -c build 2>/dev/null || kubectl logs -n "$NAMESPACE" "$pod" -c install 2>/dev/null
 }
 
-# Uninstall the release
+# Uninstall the releases (services first, then dependencies)
 uninstall() {
     log_info "Uninstalling $RELEASE_NAME from namespace $NAMESPACE..."
     helm uninstall "$RELEASE_NAME" --namespace "$NAMESPACE" 2>/dev/null || true
+    log_info "Uninstalling $DEPS_RELEASE_NAME from namespace $NAMESPACE..."
+    helm uninstall "$DEPS_RELEASE_NAME" --namespace "$NAMESPACE" 2>/dev/null || true
     log_success "Uninstalled"
 }
 
@@ -287,10 +465,14 @@ tunnel() {
     log_info "Starting minikube tunnel (requires sudo)..."
     log_info "Services will be accessible at:"
     echo ""
-    echo "  Console: http://localhost:3000"
-    echo "  Ingest:  http://localhost:3049"
-    echo "  Bulker:  http://localhost:3042"
-    echo "  Rotor:   http://localhost:3401"
+    echo "  Console:    http://localhost:3000"
+    echo "  Ingest:     http://localhost:3049"
+    echo "  Bulker:     http://localhost:3042"
+    echo "  Rotor:      http://localhost:3401"
+    echo "  Postgres:   localhost:5432 (postgres / see helm-deps/values.yaml postgres.password)"
+    echo "  ClickHouse: http://localhost:8123 (default / see helm-deps/values.yaml clickhouse.password)"
+    echo "  MongoDB:    localhost:27017 (admin / see helm-deps/values.yaml mongodb.password)"
+    echo "  Kafka:      localhost:19092"
     echo ""
     log_info "Press Ctrl+C to stop the tunnel"
     minikube tunnel
@@ -300,10 +482,14 @@ tunnel() {
 expose() {
     log_info "LoadBalancer services (requires 'minikube tunnel' running):"
     echo ""
-    echo "  Console: http://localhost:3000"
-    echo "  Ingest:  http://localhost:3049"
-    echo "  Bulker:  http://localhost:3042"
-    echo "  Rotor:   http://localhost:3401"
+    echo "  Console:    http://localhost:3000"
+    echo "  Ingest:     http://localhost:3049"
+    echo "  Bulker:     http://localhost:3042"
+    echo "  Rotor:      http://localhost:3401"
+    echo "  Postgres:   localhost:5432"
+    echo "  ClickHouse: http://localhost:8123"
+    echo "  MongoDB:    localhost:27017"
+    echo "  Kafka:      localhost:19092"
     echo ""
 
     # Check if tunnel might be needed
@@ -315,70 +501,50 @@ expose() {
     fi
 }
 
-# Configure secrets interactively
-configure_secrets() {
-    check_minikube
-    ensure_namespace
-
-    log_info "Configuring Jitsu secrets..."
-    echo ""
-    echo "This will create/update the 'jitsu-secrets' Kubernetes Secret."
-    echo "All values are required."
-    echo ""
-
-    # Prompt for each secret
-    local auth_token database_url clickhouse_url mongodb_url
-
-    echo "Auth token for inter-service communication"
-    echo "  Generate with: openssl rand -hex 16"
-    read -p "  AUTH_TOKEN: " auth_token
-
-    echo ""
-    echo "PostgreSQL connection URL"
-    echo "  Example: postgresql://user:pass@host:5432/database"
-    read -p "  DATABASE_URL: " database_url
-
-    echo ""
-    echo "ClickHouse connection URL (includes credentials)"
-    echo "  Example: https://user:password@host:8443/database"
-    read -p "  CLICKHOUSE_URL: " clickhouse_url
-
-    echo ""
-    echo "MongoDB connection URL (includes credentials)"
-    echo "  Example: mongodb+srv://user:password@cluster.mongodb.net/database"
-    read -p "  MONGODB_URL: " mongodb_url
-
-    # Validate required fields
-    local missing=""
-    [ -z "$auth_token" ] && missing="$missing AUTH_TOKEN"
-    [ -z "$database_url" ] && missing="$missing DATABASE_URL"
-    [ -z "$clickhouse_url" ] && missing="$missing CLICKHOUSE_URL"
-    [ -z "$mongodb_url" ] && missing="$missing MONGODB_URL"
-
-    if [ -n "$missing" ]; then
-        log_error "Missing required secrets:$missing"
-        exit 1
+# Ensure the jitsu-secrets Secret exists with an AUTH_TOKEN and its derived
+# keys. Idempotent: reuses the existing token when present so a redeploy
+# doesn't invalidate running services; generates a fresh one otherwise.
+# Connection URLs (DATABASE_URL, CLICKHOUSE_URL, MONGODB_URL) are no longer
+# stored here — the chart computes them for the in-cluster dependencies, and
+# explicit `env` entries take precedence over this secret's envFrom values.
+ensure_secrets() {
+    local auth_token=""
+    if kubectl get secret jitsu-secrets -n "$NAMESPACE" &>/dev/null; then
+        auth_token=$(kubectl get secret jitsu-secrets -n "$NAMESPACE" \
+            -o jsonpath='{.data.RAW_AUTH_TOKENS}' 2>/dev/null | base64 --decode || true)
     fi
 
-    # Create the secret
-    log_info "Creating/updating Kubernetes secret..."
+    if [ -z "$auth_token" ]; then
+        auth_token=$(openssl rand -hex 16)
+        log_info "Generated new AUTH_TOKEN for inter-service communication"
+    else
+        log_info "Reusing existing AUTH_TOKEN from secret 'jitsu-secrets'"
+    fi
 
-    kubectl create secret generic jitsu-secrets \
-        --namespace "$NAMESPACE" \
-        --from-literal="RAW_AUTH_TOKENS=$auth_token" \
-        --from-literal="BULKER_AUTH_KEY=$auth_token" \
-        --from-literal="ROTOR_AUTH_KEY=$auth_token" \
-        --from-literal="SYNCCTL_AUTH_KEY=$auth_token" \
-        --from-literal="CONSOLE_RAW_AUTH_TOKENS=$auth_token" \
-        --from-literal="REPOSITORY_AUTH_TOKEN=service-admin-account:$auth_token" \
-        --from-literal="CONSOLE_TOKEN=service-admin-account:$auth_token" \
-        --from-literal="CONFIG_SOURCE_HTTP_AUTH_TOKEN=service-admin-account:$auth_token" \
-        --from-literal="DATABASE_URL=$database_url" \
-        --from-literal="CLICKHOUSE_URL=$clickhouse_url" \
-        --from-literal="MONGODB_URL=$mongodb_url" \
-        --dry-run=client -o yaml | kubectl apply -f -
+    # Build the payload with --from-literal so arbitrary token characters are
+    # escaped by kubectl instead of being interpolated into hand-built JSON.
+    local literals=(
+        --from-literal="RAW_AUTH_TOKENS=$auth_token"
+        --from-literal="BULKER_AUTH_KEY=$auth_token"
+        --from-literal="ROTOR_AUTH_KEY=$auth_token"
+        --from-literal="SYNCCTL_AUTH_KEY=$auth_token"
+        --from-literal="CONSOLE_RAW_AUTH_TOKENS=$auth_token"
+        --from-literal="REPOSITORY_AUTH_TOKEN=service-admin-account:$auth_token"
+        --from-literal="CONSOLE_TOKEN=service-admin-account:$auth_token"
+        --from-literal="CONFIG_SOURCE_HTTP_AUTH_TOKEN=service-admin-account:$auth_token"
+    )
 
-    log_success "Secret 'jitsu-secrets' configured in namespace $NAMESPACE"
+    if kubectl get secret jitsu-secrets -n "$NAMESPACE" &>/dev/null; then
+        # merge-patch so any extra keys a user added to the secret
+        # (e.g. legacy connection URLs) are preserved
+        kubectl create secret generic jitsu-secrets --namespace "$NAMESPACE" \
+            "${literals[@]}" --dry-run=client -o json \
+            | kubectl patch secret jitsu-secrets -n "$NAMESPACE" --type=merge --patch-file=/dev/stdin > /dev/null
+    else
+        kubectl create secret generic jitsu-secrets --namespace "$NAMESPACE" "${literals[@]}" > /dev/null
+    fi
+
+    log_success "Secret 'jitsu-secrets' is configured"
 }
 
 # Show secrets status
@@ -393,8 +559,25 @@ secrets_status() {
             grep -o '"[^"]*":' | tr -d '":' | sed 's/^/  - /'
     else
         log_warn "Secret 'jitsu-secrets' not found in namespace $NAMESPACE"
-        log_info "Run '$0 secrets' to configure secrets"
+        log_info "It is generated automatically by '$0 deploy'"
     fi
+}
+
+# Apply the console Prisma schema to Postgres.
+# Every deploy runs this automatically (db-push hook Job); this command
+# applies schema changes on demand without a full deploy.
+db_push() {
+    log_info "Applying console Prisma schema (prisma db push)..."
+    if ! kubectl get deployment console -n "$NAMESPACE" &>/dev/null; then
+        log_error "No in-cluster console deployment (scaling.console.replicas: 0?)."
+        log_error "Run '$0 deploy' instead — the db-push hook applies the schema on every deploy."
+        exit 1
+    fi
+    if ! kubectl exec -n "$NAMESPACE" deploy/console -- npx prisma db push; then
+        log_error "db push failed. Is the console pod running? (kubectl get pods -n $NAMESPACE)"
+        exit 1
+    fi
+    log_success "Schema applied"
 }
 
 # Clear build caches
@@ -458,14 +641,18 @@ show_help() {
     echo "Prerequisites:"
     echo "  - minikube installed and running (minikube start)"
     echo "  - helm installed"
-    echo "  - Host services (postgres, kafka, console) running on host"
+    echo ""
+    echo "Dependencies (Postgres, ClickHouse, MongoDB, Kafka) run in-cluster via"
+    echo "the separate ../helm-deps chart: 'deploy' installs it first and waits"
+    echo "for it to be healthy before deploying the services. Secrets (AUTH_TOKEN)"
+    echo "are generated automatically on deploy."
     echo ""
     echo "Usage: $0 <command> [options]"
     echo ""
     echo "Commands:"
-    echo "  secrets            Configure secrets interactively (creates K8s Secret)"
+    echo "  deploy             Deploy deps chart (waits for healthy), then services chart"
+    echo "  secrets            (Re)apply auto-generated secrets (also done by deploy)"
     echo "  secrets-status     Show secrets configuration status"
-    echo "  deploy             Deploy/upgrade Helm chart (auto-starts mount)"
     echo "  mount              Start minikube mount (project -> /project)"
     echo "  mount-stop         Stop minikube mount"
     echo "  restart            Restart all pods (triggers rebuild)"
@@ -477,6 +664,7 @@ show_help() {
     echo "  build-logs <svc>   Show build/init container logs"
     echo "  port-forward       Port forward a service"
     echo "  delete <service>   Delete pod (forces full recreation with rebuild)"
+    echo "  db-push            Apply console Prisma schema (also runs on every deploy)"
     echo "  clear-cache [type] Clear build caches (go|node|all, default: all)"
     echo "  expose             Show URLs for externally accessible services"
     echo "  tunnel             Start minikube tunnel (makes services accessible on localhost)"
@@ -508,7 +696,10 @@ ensure_minikube_context
 
 case "${1:-help}" in
     secrets)
-        configure_secrets
+        log_info "Note: secrets are configured automatically during 'deploy' — this command just (re)applies them."
+        check_minikube
+        ensure_namespace
+        ensure_secrets
         ;;
     secrets-status)
         secrets_status
@@ -551,6 +742,9 @@ case "${1:-help}" in
         ;;
     delete)
         delete_pod "$2"
+        ;;
+    db-push)
+        db_push
         ;;
     clear-cache)
         clear_cache "$2"

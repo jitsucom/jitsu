@@ -6,10 +6,20 @@ Development Helm chart for deploying Jitsu services to Minikube. Services are bu
 
 - [Minikube](https://minikube.sigs.k8s.io/docs/start/) installed and running
 - [Helm](https://helm.sh/docs/intro/install/) v3+
-- Host services running locally:
-  - PostgreSQL (port 5432)
-  - Kafka (port 9094)
-  - Console (port 3000)
+
+No host services are required: all dependencies — Kafka (single-node Redpanda),
+PostgreSQL, ClickHouse and MongoDB — run in-cluster, deployed from the separate
+[`../helm-deps`](../helm-deps) chart. `dev-deploy.sh deploy` is staged: it
+installs `helm-deps` first and **waits for every dependency to be healthy**
+before deploying the Jitsu services, so services never start against missing
+dependencies. Dependency connection URLs reach the services through the
+`jitsu-deps-urls` Secret published by the deps chart.
+
+To use an external instance of a dependency, set `enabled: false` for it in
+`helm-deps/values.yaml` (or a `helm-deps/values-custom.yaml`) and point the
+matching `env.common.KAFKA_BOOTSTRAP_SERVERS` / `DATABASE_URL` /
+`CLICKHOUSE_URL` / `MONGODB_URL` of this chart at it (see
+`values-custom.example.yaml`) — explicit env wins over the published URLs.
 
 ## Quick Start
 
@@ -17,13 +27,10 @@ Development Helm chart for deploying Jitsu services to Minikube. Services are bu
 # 1. Start minikube
 minikube start
 
-# 2. Configure secrets (interactive prompt)
-./dev-deploy.sh secrets
-
-# 3. Deploy
+# 2. Deploy (generates secrets and starts the project mount automatically)
 ./dev-deploy.sh deploy
 
-# 4. Start tunnel for localhost access (in separate terminal)
+# 3. Start tunnel for localhost access (in separate terminal)
 ./dev-deploy.sh tunnel
 ```
 
@@ -31,21 +38,16 @@ minikube start
 
 ### Secrets
 
-Secrets are stored in a Kubernetes Secret (not in files). Configure them interactively:
+Secrets are generated automatically during `./dev-deploy.sh deploy`: an
+`AUTH_TOKEN` for inter-service communication is created with
+`openssl rand -hex 16` on first deploy and stored (with its derived keys) in
+the `jitsu-secrets` Kubernetes Secret. Subsequent deploys reuse the existing
+token.
 
-```bash
-./dev-deploy.sh secrets
-```
-
-This prompts for all required credentials and creates/updates the `jitsu-secrets` K8s Secret.
-
-| Secret | Description |
-|--------|-------------|
-| `AUTH_TOKEN` | Inter-service auth token. Generate with: `openssl rand -hex 16` |
-| `CONSOLE_AUTH_TOKEN` | Console API token (format: `username:token`) |
-| `DATABASE_URL` | PostgreSQL connection URL (e.g., `postgresql://user:pass@host:5432/db`) |
-| `CLICKHOUSE_URL` | ClickHouse connection URL (e.g., `https://user:pass@host:8443/database`) |
-| `MONGODB_URL` | MongoDB connection URL (includes credentials) |
+Connection URLs of the in-cluster dependencies are published by the
+`helm-deps` chart through the `jitsu-deps-urls` Secret — dev credentials are
+set in `helm-deps/values.yaml` (`postgres.password`, `clickhouse.password`,
+`mongodb.password`).
 
 Check secrets status:
 ```bash
@@ -74,9 +76,9 @@ env:
 
 | Command | Description |
 |---------|-------------|
-| `secrets` | Configure secrets interactively (creates K8s Secret) |
+| `deploy` | Deploy/upgrade Helm chart (auto-starts mount, ensures secrets) |
+| `secrets` | (Re)apply auto-generated secrets (also done by `deploy`) |
 | `secrets-status` | Show secrets configuration status |
-| `deploy` | Deploy/upgrade Helm chart (auto-starts mount) |
 | `mount` | Start minikube mount (project -> /project) |
 | `mount-stop` | Stop minikube mount |
 | `restart` | Restart all pods (triggers rebuild) |
@@ -87,10 +89,11 @@ env:
 | `logs <service> -f` | Follow logs for a service |
 | `build-logs <service>` | Show build/init container logs |
 | `delete <service>` | Delete pod (forces full recreation) |
+| `db-push` | Apply console Prisma schema on demand (also runs automatically on every deploy) |
 | `clear-cache [type]` | Clear build caches (go\|node\|all) |
 | `tunnel` | Start minikube tunnel (localhost access) |
 | `expose` | Show URLs for exposed services |
-| `uninstall` | Uninstall the Helm release |
+| `uninstall` | Uninstall both Helm releases (services and dependencies) |
 
 ## Services
 
@@ -101,6 +104,10 @@ env:
 | rotor | 3401 | Event routing service |
 | syncctl | 3043 | Sync controller |
 | operator | 3052 | Functions server operator |
+| kafka | 9092 (in-cluster), 19092 (host via tunnel) | Single-node Redpanda (Kafka API) |
+| postgres | 5432 | Single-node PostgreSQL |
+| clickhouse | 8123 (HTTP), 9000 (native) | Single-node ClickHouse |
+| mongodb | 27017 | Single-node MongoDB |
 
 ## Accessing Services
 
@@ -114,32 +121,33 @@ Then access:
 - Ingest: http://localhost:3049
 - Bulker: http://localhost:3042
 - Rotor: http://localhost:3401
+- Kafka: localhost:19092 (external listener of the in-cluster Redpanda)
+- Postgres: localhost:5432 (`postgres` / `helm-deps/values.yaml postgres.password`)
+- ClickHouse: http://localhost:8123 (`default` / `helm-deps/values.yaml clickhouse.password`)
+- MongoDB: localhost:27017 (`admin` / `helm-deps/values.yaml mongodb.password`)
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ Minikube                                                    │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐         │
-│  │   ingest    │  │   bulker    │  │    rotor    │         │
-│  │  (Go/init)  │  │  (Go/init)  │  │ (Node/init) │         │
-│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘         │
-│         │                │                │                 │
-│         └────────────────┼────────────────┘                 │
-│                          │                                  │
-│                    jitsu-secrets                            │
-│                    (K8s Secret)                             │
-└──────────────────────────┼──────────────────────────────────┘
-                           │
-              host.minikube.internal
-                           │
-┌──────────────────────────┼──────────────────────────────────┐
-│ Host Machine             │                                  │
-│  ┌──────────┐  ┌─────────┴───┐  ┌──────────┐               │
-│  │ PostgreSQL│  │    Kafka    │  │  Console │               │
-│  │  :5432   │  │    :9094    │  │  :3000   │               │
-│  └──────────┘  └─────────────┘  └──────────┘               │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│ Minikube                                                         │
+│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌────────────┐ │
+│  │   console   │ │   ingest    │ │   bulker    │ │   rotor    │ │
+│  │ (Node/init) │ │  (Go/init)  │ │  (Go/init)  │ │(Node/init) │ │
+│  └──────┬──────┘ └──────┬──────┘ └──────┬──────┘ └─────┬──────┘ │
+│         ├───────────────┼───────────────┼──────────────┤        │
+│  ┌──────┴──────┐ ┌──────┴──────┐ ┌──────┴──────┐ ┌─────┴──────┐ │
+│  │    kafka    │ │  postgres   │ │ clickhouse  │ │  mongodb   │ │
+│  │ (Redpanda)  │ │    :5432    │ │ :8123/:9000 │ │   :27017   │ │
+│  │    :9092    │ │             │ │             │ │            │ │
+│  └─────────────┘ └─────────────┘ └─────────────┘ └────────────┘ │
+│                                                                  │
+│  jitsu-secrets (K8s Secret, AUTH_TOKEN auto-generated on deploy) │
+└──────────────────────────────────────────────────────────────────┘
+
+Two Helm releases in one namespace: `jitsu-deps` (bottom row — deployed
+first, waited on for health) and `jitsu` (services). Dependency URLs flow
+to the services via the `jitsu-deps-urls` Secret.
 ```
 
 ## Build Caching
@@ -147,6 +155,12 @@ Then access:
 Build artifacts are cached in PersistentVolumeClaims:
 - `go-cache` - Go modules and build cache
 - `node-cache` - Node modules and build cache
+
+These PVCs are created by `dev-deploy.sh deploy` (not by the chart — they must
+exist before the pre-install hook runs, and they survive `uninstall`). If you
+invoke `helm install` directly instead of using the script, create them first
+(see `ensure_cache_pvcs` in `dev-deploy.sh`), otherwise the install job stays
+`Pending` on a missing PVC.
 
 Clear caches if you encounter build issues:
 
@@ -180,7 +194,7 @@ Ensure tunnel is running:
 
 ### Missing secrets
 
-Configure secrets before deploying:
+Secrets are generated automatically by `deploy`. To (re)apply them manually:
 ```bash
 ./dev-deploy.sh secrets
 ```

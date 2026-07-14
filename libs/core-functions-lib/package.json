@@ -29,7 +29,8 @@
     "@vitest/ui": "catalog:",
     "express": "^4.21.2",
     "json5": "^2.1.0",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "vite": "^6.4.3"
   },
   "dependencies": {
     "@amplitude/ua-parser-js": "^0.7.33",

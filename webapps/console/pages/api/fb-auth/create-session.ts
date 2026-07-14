@@ -1,17 +1,17 @@
 import { Api, inferUrl, nextJsApiHandler } from "../../../lib/api";
 import { z } from "zod";
 import {
+  clearLegacyHostAuthCookie,
   createSessionCookie,
   firebase,
   firebaseAuthCookieName,
+  getAuthCookieDomain,
   isUnverifiedPasswordAccount,
 } from "../../../lib/server/firebase-server";
 import { ApiError } from "../../../lib/shared/errors";
 import { SerializeOptions, serialize } from "cookie";
 import { getAppEndpoint } from "../../../lib/domains";
-import { getRequestHost } from "../../../lib/server/origin";
 import { getServerLog } from "../../../lib/server/log";
-import { getLog } from "juava";
 
 const log = getServerLog("firebase");
 
@@ -19,6 +19,10 @@ export const api: Api = {
   url: inferUrl(__filename),
   POST: {
     auth: false,
+    // Minting a session cookie from a Firebase ID token does not touch the
+    // console DB — keep sign-in working during maintenance so operators
+    // aren't locked out while toggling things.
+    allowDuringMaintenance: true,
     types: {
       body: z.object({
         csrfToken: z.string(),
@@ -47,18 +51,31 @@ export const api: Api = {
       // calls only at the actual sign-in moment. This endpoint is hit on
       // every cookie mint / refresh — too noisy to audit here.
 
-      //we need to split() since the domain might contain a port, not good for cookies
-      const domain = getRequestHost(req).split(":")[0];
-      getLog().atDebug().log(`Setting firebase auth cookie for '${domain}': ${cookie}`);
+      // Default: Domain=<request host> (shared with that host's subdomains).
+      // AUTH_COOKIE_DOMAIN widens it to a parent domain so sibling subdomains
+      // share the session. Falls back to host-only only for unparseable hosts.
+      const domain = getAuthCookieDomain(req);
+      // Never log the cookie value itself — it's a bearer session credential.
+      log.atDebug().log(`Setting firebase auth cookie (domain: ${domain ?? "host-only"}, maxAge: ${expiresIn}ms)`);
       const options: SerializeOptions = {
         maxAge: expiresIn,
         httpOnly: true,
         secure,
         path: "/",
         sameSite: "lax",
-        domain,
+        // Omit Domain entirely only when the host can't be parsed (host-only).
+        ...(domain ? { domain } : {}),
       };
-      res.setHeader("Set-Cookie", serialize(firebaseAuthCookieName, cookie, options));
+      // When AUTH_COOKIE_DOMAIN is set, also evict any legacy host-scoped
+      // (Domain=<request host>) copy left by pre-AUTH_COOKIE_DOMAIN builds;
+      // otherwise it lingers and is sent ahead of this fresh parent-domain
+      // cookie, keeping the user stuck on the stale 401. No-op when unset.
+      const setCookies = [serialize(firebaseAuthCookieName, cookie, options)];
+      const legacyClear = clearLegacyHostAuthCookie(req, { secure });
+      if (legacyClear) {
+        setCookies.push(legacyClear);
+      }
+      res.setHeader("Set-Cookie", setCookies);
 
       return { ok: true };
     },

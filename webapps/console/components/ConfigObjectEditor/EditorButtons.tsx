@@ -37,7 +37,9 @@ export const EditorButtons: React.FC<EditorButtonProps> = ({
 }) => {
   const buttonDivRef = useRef<HTMLDivElement>(null);
   const appConfig = useAppConfig();
-  const readOnly = !!appConfig.readOnlyUntil;
+  // Disable Save/Delete during maintenance — the API gate rejects writes, so
+  // surfacing them as enabled would just produce 503s after submit.
+  const readOnly = !!appConfig.maintenance?.active;
 
   const [testStatus, setTestStatus] = useState<string>("");
 

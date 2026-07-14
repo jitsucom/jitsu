@@ -98,6 +98,21 @@ const JitsuXeroSource: SourceType = {
   updatedAt: new Date(),
 };
 
+const JitsuHubspotSource: SourceType = {
+  id: "jitsu-hubspot-source",
+  logoSvg: `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 250 250" fill="none"><path fill="#FF7A59" d="M178.194 90.764V65.867a19.172 19.172 0 0 0 11.054-17.281v-.571c0-10.59-8.584-19.173-19.172-19.173h-.572c-10.588 0-19.172 8.584-19.172 19.173v.57a19.166 19.166 0 0 0 11.054 17.282v24.897a54.29 54.29 0 0 0-25.815 11.366L67.29 48.945a21.41 21.41 0 0 0 .77-5.379 21.602 21.602 0 1 0-21.63 21.56 21.368 21.368 0 0 0 10.638-2.895l67.238 52.321c-12.362 18.674-12.031 43.011.833 61.343l-20.451 20.456a17.56 17.56 0 0 0-5.11-.832c-9.794.008-17.728 7.951-17.726 17.745.003 9.793 7.942 17.731 17.735 17.734 9.794.002 17.736-7.932 17.745-17.726a17.495 17.495 0 0 0-.834-5.11l20.231-20.238c18.076 13.915 42.903 15.114 62.237 3.005 19.333-12.11 29.09-34.972 24.457-57.308-4.632-22.338-22.675-39.434-45.229-42.858Zm-8.386 81.884a27.998 27.998 0 0 1-20.276-7.923 27.995 27.995 0 0 1-6.262-30.94 27.985 27.985 0 0 1 26.538-17.094c15.062.527 27.001 12.886 27.01 27.958.006 15.07-11.921 27.442-26.982 27.984"/></svg>`,
+  versions: `/api/sources/versions?type=airbyte&package=jitsucom%2Fsource-hubspot`,
+  packageId: "jitsucom/source-hubspot",
+  packageType: "airbyte",
+  meta: {
+    name: "HubSpot (Jitsu version)",
+    license: "ELv2",
+    connectorSubtype: "api",
+  },
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
+
 const ExternalLinearSource: SourceType = {
   id: "external-linear-source",
   logoSvg: `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 100 100" fill="black" color="black"><path d="M1.22541 61.5228c-.2225-.9485.90748-1.5459 1.59638-.857L39.3342 97.1782c.6889.6889.0915 1.8189-.857 1.5964C20.0515 94.4522 5.54779 79.9485 1.22541 61.5228ZM.00189135 46.8891c-.01764375.2833.08887215.5599.28957165.7606L52.3503 99.7085c.2007.2007.4773.3075.7606.2896 2.3692-.1476 4.6938-.46 6.9624-.9259.7645-.157 1.0301-1.0963.4782-1.6481L2.57595 39.4485c-.55186-.5519-1.49117-.2863-1.648174.4782-.465915 2.2686-.77832 4.5932-.92588465 6.9624ZM4.21093 29.7054c-.16649.3738-.08169.8106.20765 1.1l64.77602 64.776c.2894.2894.7262.3742 1.1.2077 1.7861-.7956 3.5171-1.6927 5.1855-2.684.5521-.328.6373-1.0867.1832-1.5407L8.43566 24.3367c-.45409-.4541-1.21271-.3689-1.54074.1832-.99132 1.6684-1.88843 3.3994-2.68399 5.1855ZM12.6587 18.074c-.3701-.3701-.393-.9637-.0443-1.3541C21.7795 6.45931 35.1114 0 49.9519 0 77.5927 0 100 22.4073 100 50.0481c0 14.8405-6.4593 28.1724-16.7199 37.3375-.3903.3487-.984.3258-1.3542-.0443L12.6587 18.074Z"></path></svg>`,
@@ -118,6 +133,7 @@ export const jitsuSources: Record<string, SourceType> = {
   "jitsucom/source-mongodb": JitsuMongoDBSource,
   "jitsucom/source-attio": JitsuAttioSource,
   "jitsucom/source-xero": JitsuXeroSource,
+  "jitsucom/source-hubspot": JitsuHubspotSource,
 };
 
 export const externalSources: Record<string, SourceType> = {
@@ -156,7 +172,7 @@ export default createRoute()
     res.setHeader("Access-Control-Allow-Credentials", "true");
     const includeMeta = query.mode === "full" || query.mode == "meta";
     const includeIcons = query.mode === "full" || query.mode == "icons-only";
-    console.log(JSON.stringify(sortIndexes, null, 2));
+
     const sources: Partial<SourceType>[] = (await db.prisma().connectorPackage.findMany())
       .filter(
         c =>

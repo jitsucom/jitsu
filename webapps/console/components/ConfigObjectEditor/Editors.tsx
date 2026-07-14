@@ -107,7 +107,9 @@ export const NumberEditor: React.FC<CustomWidgetProps<number | undefined> & { ma
   );
 };
 
-export const PasswordEditor: React.FC<CustomWidgetProps<string> & { rows?: number; options?: any }> = props => {
+export const PasswordEditor: React.FC<
+  CustomWidgetProps<string> & { rows?: number; options?: any; placeholder?: string }
+> = props => {
   const userRole = useWorkspaceRole();
   const canEdit = !props.disabled && userRole.editEntities;
 
@@ -153,9 +155,7 @@ export const PasswordEditor: React.FC<CustomWidgetProps<string> & { rows?: numbe
           className={!isEditMode || !isPasswordVisible ? styles.passwordTextareaMasked : styles.passwordTextareaVisible}
           placeholder={
             canEdit && isEditMode
-              ? isMasked
-                ? "Enter new password or secret..."
-                : "Enter password or secret..."
+              ? props.placeholder || (isMasked ? "Enter new password or secret..." : "Enter password or secret...")
               : undefined
           }
           disabled={props.disabled || !canEdit || !isEditMode}
@@ -199,7 +199,11 @@ export const PasswordEditor: React.FC<CustomWidgetProps<string> & { rows?: numbe
         onChange={e => handleChange(e.target.value)}
         visibilityToggle={canEdit && isEditMode}
         disabled={props.disabled || !canEdit || !isEditMode}
-        placeholder={canEdit && isEditMode ? (isMasked ? "Enter new password..." : "Enter password...") : undefined}
+        placeholder={
+          canEdit && isEditMode
+            ? props.placeholder || (isMasked ? "Enter new password..." : "Enter password...")
+            : undefined
+        }
         className={styles.passwordInput}
       />
       {canEdit && isMasked && !isEditMode && (

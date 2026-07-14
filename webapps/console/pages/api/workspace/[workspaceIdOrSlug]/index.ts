@@ -15,7 +15,7 @@ import { randomUUID } from "crypto";
 import { validateSlug, validateWorkspaceName } from "../validate";
 import { workspaceAuditLog } from "../../../../lib/server/audit-log";
 
-const log = getServerLog();
+const log = getServerLog("api/workspace");
 
 async function savePreferences(user: SessionUser, workspace): Promise<void> {
   await Promise.all([
@@ -124,15 +124,9 @@ export const route = createRoute()
       );
     }
     if (workspace.slug) {
-      withProductAnalytics(
-        callback =>
-          callback.track("workspace_access", {
-            workspaceId: workspace.id,
-            workspaceName: workspace.name,
-            workspaceSlug: workspace.slug,
-          }),
-        { user, workspace, req }
-      );
+      // workspaceId/workspaceName/workspaceSlug are injected for every event by
+      // withProductAnalytics, so we only need to name the event here.
+      withProductAnalytics(callback => callback.track("workspace_access"), { user, workspace, req });
     }
 
     try {

@@ -30,6 +30,11 @@ const resultType = z.object({
 export const route = createRoute()
   .GET({
     auth: false,
+    // GET is side-effecting: `scheduleSync` dispatches /read to syncctl. The
+    // sidecar's quota-check init container also blocks via `isMaintenanceActive`,
+    // but blocking the dispatch up front avoids spending pod minutes on a job
+    // that would just be rejected at admission.
+    mutates: true,
     summary: "Run sync",
     description:
       "Schedules a sync (the connection between a service and a destination, identified by `syncId`) to run immediately. " +

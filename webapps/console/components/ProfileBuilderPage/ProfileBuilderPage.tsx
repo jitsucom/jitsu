@@ -40,7 +40,7 @@ import styles from "./ProfileBuilderPage.module.css";
 import FieldListEditorLayout from "../FieldListEditorLayout/FieldListEditorLayout";
 import Link from "next/link";
 import { useBilling } from "../Billing/BillingProvider";
-import { useWorkspace, useWorkspaceRole } from "../../lib/context";
+import { useAppConfig, useWorkspace, useWorkspaceRole } from "../../lib/context";
 import { ErrorCard } from "../GlobalError/GlobalError";
 import type { PresetColorType, PresetStatusColorType } from "antd/es/_util/colors";
 import { get, getConfigApi } from "../../lib/useApi";
@@ -548,6 +548,10 @@ function useProfileBuilderData(
   | { isLoading: false; error: Error; data?: never; enabled: boolean }
   | { isLoading: false; error?: never; data: ProfileBuilderData; enabled: boolean } {
   const workspace = useWorkspace();
+  const role = useWorkspaceRole();
+  const canEdit = role.editEntities;
+  const appConfig = useAppConfig();
+  const maintenanceActive = !!appConfig.maintenance?.active;
   const [enabled, setEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | undefined>();
@@ -558,7 +562,18 @@ function useProfileBuilderData(
       setLoading(true);
       return;
     }
-    get(`/api/${workspace.id}/config/profile-builder?init=true`)
+    // GET is a pure read now. POST to /init to bootstrap a default profile
+    // builder only when:
+    //   - the list is empty,
+    //   - the current user can edit (read-only roles get an empty state),
+    //   - maintenance is not active (the POST would 503 and drop the page
+    //     into the global error overlay — show the empty state instead).
+    get(`/api/${workspace.id}/config/profile-builder`)
+      .then(res =>
+        res.profileBuilders?.length || !canEdit || maintenanceActive
+          ? res
+          : rpc(`/api/${workspace.id}/config/profile-builder/init`, { method: "POST" })
+      )
       .then(res => res.profileBuilders)
       .then(profileBuilders => {
         let status: ProfileBuilderStatus = "incomplete";
@@ -603,7 +618,15 @@ function useProfileBuilderData(
       })
       .catch(e => setError(e))
       .finally(() => setLoading(false));
-  }, [billing.enabled, billing.loading, workspace, billing.settings, refreshDate.getTime()]);
+  }, [
+    billing.enabled,
+    billing.loading,
+    workspace,
+    billing.settings,
+    refreshDate.getTime(),
+    canEdit,
+    maintenanceActive,
+  ]);
   return { isLoading: loading, error, data, enabled } as any;
 }
 

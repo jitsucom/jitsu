@@ -4,6 +4,7 @@ import { getServerEnv } from "../../../lib/server/serverEnv";
 import { getServerLog } from "../../../lib/server/log";
 import { checkQuota } from "../../../lib/server/sync";
 import { isEEAvailable } from "../../../lib/server/ee";
+import { isMaintenanceActive } from "../../../lib/server/maintenance";
 
 const log = getServerLog("sync-quota-check");
 const serverEnv = getServerEnv();
@@ -39,6 +40,19 @@ export default createRoute()
       res.status(401).send({ ok: false, error: "Authorization Required" });
       return;
     }
+    // Block syncs from starting while maintenance is active. The sidecar's
+    // quota-check init container reads ok=false and exits 1; the k8s CronJob
+    // retries on its next tick, so this naturally turns into a "wait until
+    // maintenance ends" loop without any extra coordination.
+    if (isMaintenanceActive()) {
+      log.atInfo().log(`Sync ${query.syncId} (workspace ${query.workspaceId}) blocked: maintenance is active`);
+      res.status(200).send({
+        ok: false,
+        error: "Jitsu is in maintenance mode; sync is blocked until the maintenance window ends.",
+        errorType: "maintenance",
+      });
+      return;
+    }
     if (!isEEAvailable()) {
       // No EE → no quotas → admit.
       res.status(200).send({ ok: true, ee: false });
@@ -69,7 +83,7 @@ export default createRoute()
     });
     if (result && !result.ok) {
       log
-        .atWarn()
+        .atDebug()
         .log(
           `quota check failed for sync=${query.syncId} workspace=${query.workspaceId} task=${query.taskId ?? "-"}: ${
             result.error

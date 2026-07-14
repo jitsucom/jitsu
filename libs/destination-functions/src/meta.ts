@@ -47,6 +47,41 @@ export const WebhookDestinationConfig = z.object({
     .describe(
       "Payload Template::Template for the webhook payload. The following macros are supported:<ul><li><code>{{ EVENT }}</code> - event json object for stream mode or batches with size=1</li><li><code>{{ EVENTS }}</code> - for batch mode - json array of events</li><li><code>{{ EVENTS_COUNT }}</code> - count of events in batch</li><li><code>{{ NAME }}</code> - event name</li><li><code>{{ env.VAR_NAME }}</code> - value of VAR_NAME environment variable</li></ul>"
     ),
+  signatureMethod: z
+    .enum(["none", "hmac", "ed25519"])
+    .optional()
+    .default("none")
+    .describe(
+      "Signature Method::How outgoing requests are signed so your endpoint can verify them.<ul><li><code>none</code> — requests are not signed.</li><li><code>hmac</code> — symmetric HMAC-SHA256 with a shared secret (like Stripe/GitHub). Simple, but anyone who can verify can also forge, so only use it for endpoints you fully trust.</li><li><code>ed25519</code> — asymmetric signature. Jitsu signs with a private key; your endpoint verifies with the public key and cannot forge messages. Prefer this when many or untrusted endpoints receive the webhook.</li></ul><b>Note:</b> signing applies to <b>stream</b>-mode delivery only. In <b>batch</b> mode events are delivered by Bulker and are <b>not</b> signed — use stream mode if you need signed webhooks."
+    ),
+  signatureSecret: z
+    .string()
+    .optional()
+    .describe(
+      "Signing Secret::Shared secret for <code>HMAC-SHA256</code> signing (symmetric — there is no key pair). Put the <b>same</b> value here and in your receiving endpoint. Generate a random one with <code>openssl rand -hex 32</code> (any high-entropy string of 32+ bytes works). To verify a request, your endpoint recomputes the HMAC over the signed payload with this secret and compares the hex digest to the <code>Jitsu-Signature</code> header using a constant-time comparison. Keep it secret."
+    ),
+  signaturePrivateKey: z
+    .string()
+    .optional()
+    .describe(
+      "Private Key (PEM)::Ed25519 private key used to sign requests. Generate a key pair:<br/><code>openssl genpkey -algorithm ed25519 -out jitsu_private.pem</code><br/><code>openssl pkey -in jitsu_private.pem -pubout -out jitsu_public.pem</code><br/>Paste the contents of <code>jitsu_private.pem</code> here and install <code>jitsu_public.pem</code> on your endpoint. To verify a request, your endpoint checks the <code>Jitsu-Signature</code> header (a hex Ed25519 signature) against the signed payload using the public key. Jitsu holds only the private key — keep it secret; the public key is safe to distribute."
+    ),
+  signatureHeader: z
+    .string()
+    .regex(
+      /^[A-Za-z0-9!#$%&'*+.^_`|~-]+$/,
+      "Must be a valid HTTP header name (letters, digits, and !#$%&'*+-.^_`|~ only)"
+    )
+    .optional()
+    .default("Jitsu-Signature")
+    .describe("Signature Header::Name of the header carrying the signature. Only used when signing is enabled."),
+  signatureIncludeTimestamp: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe(
+      "Replay Protection::When enabled (recommended), the request timestamp (unix seconds) is folded into the signed payload — the signature covers <code>&lt;timestamp&gt;.&lt;body&gt;</code> — and sent in a companion <code>&lt;Signature Header&gt;-Timestamp</code> header. Your endpoint can then reject requests with an old timestamp to block replays of a captured, still-valid request. When disabled, only the raw body is signed and no timestamp header is sent: simpler to verify, but a captured request stays valid forever. Only used when signing is enabled."
+    ),
 });
 
 export type WebhookDestinationConfig = z.infer<typeof WebhookDestinationConfig>;
@@ -146,6 +181,91 @@ export const JuneCredentials = z.object({
     .describe("If enabled, anonymous users will be tracked in June"),
 });
 export type JuneCredentials = z.infer<typeof JuneCredentials>;
+
+export const ResendCredentials = z.object({
+  apiKey: z
+    .string()
+    .describe(
+      `API Key::Create an API key in the Resend dashboard under "API Keys". It needs write access to Contacts. The key starts with "re_".`
+    ),
+  audiences: z
+    .string()
+    .optional()
+    .describe(
+      `Audiences::Comma-separated list of Resend audience names to add identified contacts to (e.g. <code>Customers, Beta</code>). Names are resolved automatically — any that don't exist yet are created. Leave empty to add contacts without an audience. Can be overridden per event with a <code>resendAudiences</code> trait. Membership is reconciled to match the list: audiences the connector previously added that are no longer listed get removed.`
+    ),
+  resolveEmailFromUserId: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe(
+      `Resolve email from userId::Resend identifies contacts by email only — it has no notion of a userId. When enabled, every <code>identify()</code> caches a userId → email mapping so later <code>track</code>/<code>page</code>/<code>group</code> events that carry only a userId can still update the matching contact. When disabled (default), only events that carry an email directly are matched; events with just a userId are skipped.`
+    ),
+  apiBase: z
+    .string()
+    .optional()
+    .describe(
+      `API Base URL::Override the Resend API base URL (defaults to https://api.resend.com). For testing or proxying.`
+    ),
+});
+export type ResendCredentials = z.infer<typeof ResendCredentials>;
+
+export const ResendCredentialsUi: Partial<
+  Record<keyof ResendCredentials, { documentation?: string; password?: boolean; hidden?: boolean }>
+> = {
+  apiKey: {
+    password: true,
+  },
+  apiBase: {
+    hidden: true,
+  },
+};
+
+export const SendgridCredentials = z.object({
+  apiKey: z
+    .string()
+    .describe(
+      `API Key::Create an API key in the SendGrid dashboard under Settings > API Keys. It needs "Marketing" permissions (Read/Write access to Marketing Contacts).`
+    ),
+  lists: z
+    .string()
+    .optional()
+    .describe(
+      `Lists::Comma-separated list of SendGrid marketing list names to add identified contacts to (e.g. <code>Customers, Beta</code>). Names are resolved automatically — any that don't exist yet are created. Leave empty to add contacts without a list. Can be overridden per event with a <code>sendgridLists</code> trait. Membership is reconciled to match the list: lists the connector previously added that are no longer listed get removed.`
+    ),
+  region: z
+    .enum(["Global", "EU"])
+    .optional()
+    .default("Global")
+    .describe(
+      `Data Residency::Select "EU" if your SendGrid account uses EU data residency (requests go to api.eu.sendgrid.com). Otherwise leave as "Global" (api.sendgrid.com).`
+    ),
+  resolveEmailFromUserId: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe(
+      `Resolve email from userId::SendGrid identifies contacts by email. When enabled, every <code>identify()</code> caches a userId → email mapping so later <code>track</code>/<code>page</code>/<code>group</code> events that carry only a userId can still update the matching contact. When disabled (default), only events that carry an email directly are matched.`
+    ),
+  apiBase: z
+    .string()
+    .optional()
+    .describe(
+      `API Base URL::Override the SendGrid API base URL (defaults to the Global/EU host from Data Residency). For testing or proxying.`
+    ),
+});
+export type SendgridCredentials = z.infer<typeof SendgridCredentials>;
+
+export const SendgridCredentialsUi: Partial<
+  Record<keyof SendgridCredentials, { documentation?: string; password?: boolean; hidden?: boolean }>
+> = {
+  apiKey: {
+    password: true,
+  },
+  apiBase: {
+    hidden: true,
+  },
+};
 
 export const SalesforceCredentials = z.object({
   authorized: z.boolean().optional().default(false),

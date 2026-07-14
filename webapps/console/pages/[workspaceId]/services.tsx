@@ -198,7 +198,6 @@ const ServicesList: React.FC<{}> = () => {
       return true;
     },
     onTest: async obj => {
-      console.log("Testing service", obj, typeof obj);
       try {
         //hash object to avoid sending credentials to the server
         const queryId = randomId();

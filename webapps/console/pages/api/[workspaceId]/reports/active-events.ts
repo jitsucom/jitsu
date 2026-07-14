@@ -65,7 +65,6 @@ export default createRoute()
       })
     ).json()) as any;
 
-    console.log(chResult);
     const rows = chResult.data.map(({ period, ...rest }) =>
       ActiveEventsReportRow.parse({ period: toISOString(period), ...rest })
     );

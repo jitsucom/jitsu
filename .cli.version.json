@@ -1,0 +1,6 @@
+{
+  "version": "1.11",
+  "tag_prefix": "jitsu-cli",
+  "stable_branch": "stable-cli",
+  "beta_branch": "newjitsu"
+}

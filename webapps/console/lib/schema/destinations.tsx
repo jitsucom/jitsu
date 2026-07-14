@@ -10,6 +10,8 @@ import hubspotIcon from "./icons/hubspot";
 import mixpanelIcon from "./icons/mixpanel";
 import facebookIcon from "./icons/facebook";
 import juneIcon from "./icons/june";
+import resendIcon from "./icons/resend";
+import sendgridIcon from "./icons/sendgrid";
 import blazeIcon from "./icons/blaze";
 import salesforceIcon from "./icons/salesforce";
 import mongodbIcon from "./icons/mongodb";
@@ -77,6 +79,10 @@ export type PropertyUI = {
    * If string field should be treated as password
    */
   password?: boolean;
+  /**
+   * Placeholder shown in the input when the field is empty
+   */
+  placeholder?: string;
   /**
    * If the field should not be displayed. That field must have a default value
    */
@@ -380,6 +386,18 @@ const gtmDeviceDestination = {
   credentials: z.object({
     containerId: z.string().describe("The Container ID uniquely identifies the GTM Container."),
     dataLayerName: z.string().default("dataLayer").describe("The name of the data layer variable."),
+    loadGtm: z
+      .boolean()
+      .default(true)
+      .describe(
+        "Load GTM::Whether Jitsu should load the Google Tag Manager script. Disable this if you load GTM yourself (e.g. on page load) so tags are ready before navigation — Jitsu will only push events to the data layer."
+      ),
+    resetDataLayer: z
+      .boolean()
+      .default(true)
+      .describe(
+        "Reset Data Layer::Clear the data Jitsu pushed after each event so values don't leak between events. GTM merges every push into a single persistent data model, so without resetting, properties from one event (event properties, traits, user data, etc.) stay set and can be picked up by tags firing on later, unrelated events. Recommended. Disable only if you intentionally rely on values persisting across events, or if another system already manages clearing the data layer."
+      ),
   }),
   deviceOptions: {
     type: "internal-plugin",
@@ -922,6 +940,36 @@ export const coreDestinations: DestinationType<any>[] = [
     description: "June.so is a product analytics platform that provides insights into user behavior.",
   },
   {
+    id: "resend",
+    icon: resendIcon,
+    title: "Resend",
+    tags: "Email",
+    connectionOptions: CloudDestinationsConnectionOptions,
+    credentials: meta.ResendCredentials,
+    credentialsUi: meta.ResendCredentialsUi,
+    description: (
+      <>
+        Jitsu syncs users to Resend as contacts. Each <code>.identify()</code> creates or updates a contact and adds it
+        to a segment. Other events update the contact&apos;s properties. Contacts are matched by email.
+      </>
+    ),
+  },
+  {
+    id: "sendgrid",
+    icon: sendgridIcon,
+    title: "SendGrid",
+    tags: "Email",
+    connectionOptions: CloudDestinationsConnectionOptions,
+    credentials: meta.SendgridCredentials,
+    credentialsUi: meta.SendgridCredentialsUi,
+    description: (
+      <>
+        Jitsu syncs users to SendGrid as marketing contacts. Each <code>.identify()</code> upserts a contact and adds it
+        to a list. Other events update the contact&apos;s fields. Contacts are matched by email.
+      </>
+    ),
+  },
+  {
     id: "braze",
     icon: blazeIcon,
     title: "Braze",
@@ -1084,9 +1132,26 @@ export const coreDestinations: DestinationType<any>[] = [
         editorProps: { languages: ["json", "text"], height: "300", syntaxCheck: { json: false } },
         hidden: obj => !obj.customPayload,
       },
+      signatureSecret: {
+        password: true,
+        placeholder: "Enter secret for this destination",
+        hidden: obj => obj.signatureMethod !== "hmac",
+      },
+      signaturePrivateKey: {
+        password: true,
+        textarea: true,
+        placeholder: "-----BEGIN PRIVATE KEY-----",
+        hidden: obj => obj.signatureMethod !== "ed25519",
+      },
+      signatureHeader: {
+        hidden: obj => !obj.signatureMethod || obj.signatureMethod === "none",
+      },
+      signatureIncludeTimestamp: {
+        hidden: obj => !obj.signatureMethod || obj.signatureMethod === "none",
+      },
     },
     description:
-      "Send data to any HTTP endpoint. You can use this destination to send data to Slack, Discord, or any other service that accepts HTTP requests. ",
+      "Send data to any HTTP endpoint. You can use this destination to send data to Slack, Discord, or any other service that accepts HTTP requests. Requests can optionally be signed (HMAC-SHA256 or Ed25519) so your endpoint can verify their authenticity.",
   },
 ];
 

@@ -1,6 +1,8 @@
 import type { HttpMethodType } from "../../api";
 
-export type AuthClass = "bearer" | "session";
+// "bearer" — API token; "session" — browser session cookie;
+// "ip"      — unauthenticated endpoints rate-limited by client IP (e.g. DCR).
+export type AuthClass = "bearer" | "session" | "ip";
 
 export type RateLimitOpts = {
   authClass: AuthClass;

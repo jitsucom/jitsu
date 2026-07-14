@@ -50,6 +50,9 @@ export type SQLResultType = z.infer<typeof successfulResult>;
 export default createRoute()
   .POST({
     auth: true,
+    // Semantic read — POST because the SQL query goes in the body; only SELECT
+    // is permitted (enforced below). Keep accessible during maintenance.
+    allowDuringMaintenance: true,
     query: z.object({
       workspaceId: z.string(),
       destinationId: z.string(),

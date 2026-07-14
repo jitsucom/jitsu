@@ -1,7 +1,7 @@
 import React, { ReactNode, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { Alert, Button, Divider, Input } from "antd";
+import { Alert, Button, Divider, Input, Tooltip } from "antd";
 import { branding } from "../../lib/branding";
 import { useFirebaseSession } from "../../lib/firebase-client";
 import { safeRedirect } from "../../lib/auth-redirect";
@@ -10,30 +10,51 @@ import { OAuthButtons } from "./OAuthButtons";
 import { SignupMarketingPanel } from "./SignupMarketingPanel";
 import { AuthType, handleFirebaseError } from "./SignInOrUp";
 import { useQueryStringCopy } from "./use-query-string-copy";
+import { getErrorMessage, rpc } from "juava";
+import { CreateUserResult } from "../../lib/schema";
+import { useAppConfig } from "../../lib/context";
+import { Briefcase } from "lucide-react";
 
-export const FirebaseSignup: React.FC = () => {
+export const FirebaseSignup: React.FC<{ initialError?: ReactNode }> = ({ initialError }) => {
   const router = useRouter();
   const firebaseSession = useFirebaseSession();
   const { analytics } = useJitsu();
   const queryStringCopy = useQueryStringCopy();
+  const appConfig = useAppConfig();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [error, setError] = useState<ReactNode | null>(null);
+  const [error, setError] = useState<ReactNode | null>(initialError ?? null);
   const [submitting, setSubmitting] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [emailConfirmed, setEmailConfirmed] = useState(false);
 
   const callbackUrl = (router.query.callbackUrl as string) || "/";
 
-  // Step 1 → 2: reveal the password fields only once a plausible email is entered.
-  const handleContinue = () => {
+  // Step 1 → 2: reveal the password fields only once a plausible email is
+  // entered. JITSU-70: ask the server whether this email may sign up before
+  // creating any Firebase account, so a personal-email signup is refused here
+  // rather than after a wasted verification email.
+  const handleContinue = async () => {
     if (!email || !email.includes("@")) {
       setError("Please enter a valid email address");
       return;
     }
     setError(null);
-    setEmailConfirmed(true);
+    setChecking(true);
+    try {
+      const result: CreateUserResult = await rpc("/api/auth/signup-email-check", { body: { email } });
+      if (!result.ok && result.rejected === "personal-email") {
+        setError(result.message);
+        return;
+      }
+      setEmailConfirmed(true);
+    } catch (e: any) {
+      setError(getErrorMessage(e) || "Something went wrong, please try again");
+    } finally {
+      setChecking(false);
+    }
   };
 
   const validate = (): string | null => {
@@ -102,7 +123,15 @@ export const FirebaseSignup: React.FC = () => {
   const handleSSOLogin = async (provider: AuthType) => {
     setError(null);
     try {
-      await firebaseSession.signInWith(provider === "firebase-google" ? "google.com" : "github.com");
+      const result = await firebaseSession.signInWith(provider === "firebase-google" ? "google.com" : "github.com");
+      // JITSU-70: the server refused a personal-email Google signup and already
+      // deleted the Firebase account. Show the message and clear the now-stale
+      // client session so a retry with a work email starts clean.
+      if (result.status === "personal-email-rejected") {
+        setError(result.message);
+        await firebaseSession.signOut();
+        return;
+      }
       safeRedirect(router, callbackUrl);
     } catch (e: any) {
       setError(handleFirebaseError(e));
@@ -127,27 +156,44 @@ export const FirebaseSignup: React.FC = () => {
         </div>
 
         <div className="flex flex-1 justify-center px-6">
-          <div className="my-auto w-full max-w-[420px] py-8">
-            <div className="mb-6 h-12 w-12 drop-shadow-sm">{branding.logo}</div>
+          <div className="w-full max-w-[420px] py-6">
+            <div className="mb-4 h-10 w-10 drop-shadow-sm">{branding.logo}</div>
 
-            <h1 className="font-header text-3xl xl:text-4xl font-bold leading-tight text-textDark">
+            <h1 className="font-header text-2xl xl:text-3xl font-bold leading-tight text-textDark">
               Join 8,000+ teams shipping data with Jitsu.
             </h1>
-            <p className="mt-3 text-textLight">Free for 200k events/month. No credit card required.</p>
+            <p className="mt-2 text-textLight">Free for 200k events/month. No credit card required.</p>
+
+            {error && (
+              <Alert className="mt-4" type="error" showIcon message={error} closable onClose={() => setError(null)} />
+            )}
 
             <div className="mt-4">
               <OAuthButtons
                 prefix="Continue"
                 providers={["firebase-google", "firebase-github"]}
                 onSSOLogin={handleSSOLogin}
+                notes={
+                  appConfig.limitPersonalEmails
+                    ? {
+                        "firebase-google": (
+                          <Tooltip title="Work email required">
+                            <span className="flex h-5 w-5 cursor-help items-center justify-center rounded-full bg-primary text-white shadow-sm ring-2 ring-white">
+                              <Briefcase className="h-3 w-3" />
+                            </span>
+                          </Tooltip>
+                        ),
+                      }
+                    : undefined
+                }
               />
             </div>
 
-            <Divider plain>
+            <Divider plain className="!my-4">
               <span className="text-xs uppercase tracking-widest text-textLight">or with email</span>
             </Divider>
 
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div>
                 <label className="mb-1.5 block text-sm font-semibold text-textDark">Work email</label>
                 <Input
@@ -172,8 +218,9 @@ export const FirebaseSignup: React.FC = () => {
                   block
                   type="primary"
                   size="large"
+                  loading={checking}
                   onClick={handleContinue}
-                  disabled={!email || !email.includes("@")}
+                  disabled={!email || !email.includes("@") || checking}
                 >
                   Continue →
                 </Button>
@@ -228,8 +275,6 @@ export const FirebaseSignup: React.FC = () => {
                   </Button>
                 </>
               )}
-
-              {error && <Alert type="error" message={error} closable onClose={() => setError(null)} />}
 
               <p className="text-center text-xs text-textLight">
                 By signing up, you agree to our{" "}

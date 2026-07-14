@@ -4,6 +4,8 @@ import { EmbeddedErrorMessage, GlobalError } from "../components/GlobalError/Glo
 import React from "react";
 import { useApi } from "../lib/useApi";
 import { ContextApiResponse } from "../lib/schema";
+import { FirebaseSignup } from "../components/SignInOrUp/FirebaseSignup";
+import { WORK_EMAIL_REQUIRED_MESSAGE } from "../lib/shared/email-domains";
 import { Button, Modal } from "antd";
 import { encrypt, getLog, randomId, rpc } from "juava";
 import { useUserSessionControls } from "../lib/context";
@@ -36,6 +38,12 @@ function WorkspaceRedirect() {
           </EmbeddedErrorMessage>
         </div>
       );
+    }
+    if ((error as any).response?.code === "personal-email-rejected") {
+      // No special page — render the signup form with the note. The user's
+      // Firebase account was already deleted server-side, so a retry with a work
+      // email starts clean.
+      return <FirebaseSignup initialError={WORK_EMAIL_REQUIRED_MESSAGE} />;
     }
     return <GlobalError error={error} />;
   } else if (data) {

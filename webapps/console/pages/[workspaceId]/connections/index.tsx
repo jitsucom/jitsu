@@ -178,7 +178,6 @@ function ConnectionsTable({ links, streams, destinations, functions, reloadCallb
       columns: columns as any,
     };
     setSorting(newVal);
-    console.log("sorter", newVal);
   };
   const columns: ColumnType<any>[] = [
     {

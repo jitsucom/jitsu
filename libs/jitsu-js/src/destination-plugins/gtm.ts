@@ -5,6 +5,12 @@ import { applyFilters, CommonDestinationCredentials, InternalPlugin } from "./in
 export type GtmDestinationCredentials = {
   containerId?: string;
   dataLayerName?: string;
+  // When false, Jitsu does not inject the GTM script — the client is expected to load
+  // GTM itself (e.g. on page load). Jitsu still pushes events to the data layer.
+  loadGtm?: boolean;
+  // When true (default), Jitsu clears the data it pushed after each event so values from one
+  // event don't leak into the next. Set to false to let values persist across events.
+  resetDataLayer?: boolean;
 } & CommonDestinationCredentials;
 
 function omit(obj: any, ...keys: string[]) {
@@ -57,7 +63,10 @@ export const gtmPlugin: InternalPlugin<GtmDestinationCredentials> = {
     if (debug) {
       console.debug("GTM plugin will set following context (page) related data layer vars", ids);
     }
+    // Keys Jitsu pushes for this event, so we can clear exactly them later.
+    const pushedKeys = new Set<string>();
     const pushToDataLayer = (data: any) => {
+      Object.keys(data).forEach(k => pushedKeys.add(k));
       dataLayer.push(data);
       if (debug) {
         console.debug("GTM plugin will push following data to dataLayer", data);
@@ -94,9 +103,30 @@ export const gtmPlugin: InternalPlugin<GtmDestinationCredentials> = {
         pushToDataLayer(identifyEvent);
         break;
     }
-    dataLayer.push(function (this: { reset: () => void }) {
-      this.reset();
-    });
+    // By default, clear the data Jitsu pushed so it doesn't accumulate across events. Skip this
+    // entirely when resetDataLayer is disabled (the integrator wants values to persist).
+    if (config.resetDataLayer !== false) {
+      if (config.loadGtm === false) {
+        // The client loads GTM itself and may keep its own data-layer values. Clear only the keys
+        // Jitsu set this event (mirroring reset() for those keys) and leave everything set outside
+        // Jitsu untouched. Values are set to `undefined` rather than `null` so data-layer variables
+        // read them as "missing" — same as the reset() path. `event` is cleared too (so a stale
+        // event name doesn't linger); since its value becomes undefined, this stays a data-only
+        // push that won't re-fire event-based triggers.
+        const cleared: Record<string, undefined> = {};
+        pushedKeys.forEach(k => {
+          cleared[k] = undefined;
+        });
+        if (Object.keys(cleared).length > 0) {
+          dataLayer.push(cleared);
+        }
+      } else {
+        // Jitsu loaded GTM itself, so it owns the data layer: reset the whole model between events.
+        dataLayer.push(function (this: { reset: () => void }) {
+          this.reset();
+        });
+      }
+    }
   },
 };
 
@@ -111,12 +141,20 @@ function setGtmState(s: GtmState) {
 }
 
 async function initGtmIfNeeded(config: GtmDestinationCredentials, payload: AnalyticsClientEvent) {
+  const dlName = config.dataLayerName || "dataLayer";
+
+  // The client loads GTM itself: don't inject the GTM script. We only make sure the data
+  // layer exists so events can be pushed; the client-loaded GTM container will process them.
+  if (config.loadGtm === false) {
+    window[dlName] = window[dlName] || [];
+    return;
+  }
+
   if (getGtmState() !== "fresh") {
     return;
   }
   setGtmState("loading");
 
-  const dlName = config.dataLayerName || "dataLayer";
   const tagId = config.containerId;
 
   (function (w, l, i) {

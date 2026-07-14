@@ -232,6 +232,11 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   // Disable new user registration
   DISABLE_SIGNUP: z.string().default("false").transform(isTruish),
 
+  // Reject signups from personal email domains (require a work email). Applies to
+  // Google and email/password signups; GitHub is exempt (devs often have a
+  // personal email on their GitHub account). See JITSU-70.
+  LIMIT_PERSONAL_EMAILS: z.string().default("false").transform(isTruish),
+
   // Enable MIT-compliant mode (disables proprietary features)
   MIT_COMPLIANT: z.string().default("false").transform(isTruish),
 
@@ -353,8 +358,13 @@ const ServerEnvSchema = ClientEnvSchema.extend({
   // Comma-separated list of data domains
   DATA_DOMAIN: z.string().optional(),
 
-  // ISO date string for read-only mode expiration
-  JITSU_CONSOLE_READ_ONLY_UNTIL: z.string().optional(),
+  // Maintenance descriptor as a JSON object (fallback when no ConfigMap file is mounted).
+  // Read-only enforcement is driven entirely by this descriptor — there is no separate
+  // JITSU_CONSOLE_READ_ONLY_UNTIL env var anymore.
+  MAINTENANCE: z.string().optional(),
+  // Path to a mounted ConfigMap JSON file holding the maintenance descriptor. Takes
+  // precedence over MAINTENANCE so maintenance can be toggled at runtime without redeploy.
+  MAINTENANCE_CONFIG_FILE: z.string().optional(),
 
   // Documentation website URL
   JITSU_DOCUMENTATION_URL: z.string().optional().default("https://docs.jitsu.com/"),
@@ -413,7 +423,10 @@ export function getServerEnv(): ServerEnv {
   if (typeof window !== "undefined" && typeof window.document !== "undefined") {
     return getClientEnv() as unknown as ServerEnv;
   }
-  if (serverEnvCache) {
+  // Skip the cache under vitest (VITEST is set in every vitest worker) so
+  // vi.stubEnv takes effect for call-time readers. Module-level snapshots are
+  // still frozen at import — the test setup provides baseline env for those.
+  if (serverEnvCache && !process.env.VITEST) {
     return serverEnvCache;
   }
 

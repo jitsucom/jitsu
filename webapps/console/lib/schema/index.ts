@@ -77,12 +77,38 @@ export const noRestrictions: BillingSettings = {
   profileBuilderEnabled: true,
 };
 
+/**
+ * Result of POST /api/fb-auth/create-user. A discriminated union rather than an
+ * HTTP error: `ok: false` is a normal 200 response carrying the reason a signup
+ * was refused (JITSU-70 — personal email rejected), so the client can show a
+ * friendly message instead of treating it as a request failure.
+ */
+export const CreateUserResult = z.discriminatedUnion("ok", [
+  z.object({ ok: z.literal(true) }),
+  z.object({ ok: z.literal(false), rejected: z.literal("personal-email"), message: z.string() }),
+]);
+export type CreateUserResult = z.infer<typeof CreateUserResult>;
+
 export const AppConfig = z.object({
   docsUrl: z.string().optional(),
   websiteUrl: z.string().optional(),
-  //iso date
-  readOnlyUntil: z.string().optional(),
+  maintenance: z
+    .object({
+      active: z.boolean().optional(),
+      description: z.string().optional(),
+      planned_start: z.string().optional(),
+      planned_end: z.string().optional(),
+      show_in_advance: z.boolean().optional(),
+      // Mirrors lib/server/maintenance.ts MaintenanceState.database_access.
+      // The browser uses this to decide whether to render the maintenance page
+      // unconditionally (DB unavailable) vs. just show the read-only banner.
+      database_access: z.enum(["read_only", "off"]).optional(),
+    })
+    .optional(),
   disableSignup: z.boolean().optional(),
+  // Display-only hint: signup requires a work email (JITSU-70). Enforcement is
+  // server-side; this only drives the badge on the signup form.
+  limitPersonalEmails: z.boolean().optional(),
   customDomainsEnabled: z.boolean().optional(),
   ee: z.object({
     available: z.boolean(),
@@ -138,6 +164,7 @@ export const ConfigEntityBase = z.object({
   type: z.string(),
   workspaceId: z.string(),
   name: z.string(),
+  updatedAt: z.coerce.date().nullish(),
   cloneId: z.string().optional(),
 });
 export type ConfigEntityBase = z.infer<typeof ConfigEntityBase>;
@@ -152,6 +179,10 @@ export const ApiKey = z.object({
   type: z.string().nullish(),
   name: z.string().nullish(),
   expiresAt: z.coerce.date().nullish(),
+  // When set, this row is an MCP-issued refresh token. Its presence is the
+  // single source of truth for "MCP-ness" (we don't set type="mcp").
+  // mcpClientName carries the registered client_name for display on /user.
+  mcpClientName: z.string().nullish(),
 });
 export type ApiKey = z.infer<typeof ApiKey>;
 
@@ -165,16 +196,50 @@ export function inferTokenTypeFromId(id: string): string {
   return "api";
 }
 
+/** Where an authenticated request originated. */
+export type RequestOrigin = "ui" | "api" | "cli" | "mcp";
+
+/**
+ * Classify the origin of an authenticated request from its auth fields (as carried on
+ * SessionUser, or on an audit-log row). Pure — safe to import from client code.
+ *
+ *   authType "mcp"                        → "mcp"
+ *   authType "bearer" + CLI token         → "cli"  (tokenType "cli", or jitsu-cli- id)
+ *   authType "bearer" + anything else     → "api"
+ *   anything else (session / no authType) → "ui"
+ *
+ * Single source of truth for origin: `resolveOrigin` in
+ * components/AuditLog/AuditLog.tsx and the origin filter predicates in
+ * pages/api/audit-log.ts mirror this mapping — keep them in sync.
+ */
+export function originFromAuth(auth: {
+  authType?: string | null;
+  tokenId?: string | null;
+  tokenType?: string | null;
+}): RequestOrigin {
+  if (auth.authType === "mcp") return "mcp";
+  if (auth.authType === "bearer") {
+    const tokenType = auth.tokenType || (auth.tokenId ? inferTokenTypeFromId(auth.tokenId) : "api");
+    return tokenType === "cli" ? "cli" : "api";
+  }
+  return "ui";
+}
+
 export const StreamConfig = ConfigEntityBase.merge(
-  z.object({
-    domains: z.array(z.string()).optional(),
-    authorizedJavaScriptDomains: z.string().optional(),
-    publicKeys: z.array(ApiKey).optional(),
-    privateKeys: z.array(ApiKey).optional(),
-    strict: z.boolean().optional(),
-    shard: z.number().optional(),
-    deduplicateWindowMs: z.number().optional(),
-  })
+  z
+    .object({
+      domains: z.array(z.string()).optional(),
+      authorizedJavaScriptDomains: z.string().optional(),
+      publicKeys: z.array(ApiKey).optional(),
+      privateKeys: z.array(ApiKey).optional(),
+      strict: z.boolean().optional(),
+      shard: z.number().optional(),
+      deduplicateWindowMs: z.number().optional(),
+    })
+    // Tolerate legacy/unknown fields on older stream records (matches DestinationConfig).
+    // Without this, zodToJsonSchema emits `additionalProperties: false` and the editor's
+    // live validation rejects old streams with "must NOT have additional properties".
+    .passthrough()
 );
 export type StreamConfig = z.infer<typeof StreamConfig>;
 

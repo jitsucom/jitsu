@@ -179,7 +179,16 @@ function main(): void {
   const child = spawn("portless", ["--name", slug, "bash", "-c", innerCmd], {
     cwd: SHIM_DIR,
     stdio: "inherit",
-    env: { ...process.env, NODE_OPTIONS: resolvedNodeOptions, JITSU_BRANCH_SUFFIX: branchSuffix },
+    env: {
+      ...process.env,
+      NODE_OPTIONS: resolvedNodeOptions,
+      JITSU_BRANCH_SUFFIX: branchSuffix,
+      NEXTAUTH_URL: `https://${slug}.localhost`,
+      // Expose the portless host as JITSU_PUBLIC_URL so OAuth discovery,
+      // email links, and MCP metadata resolve to the right branch URL.
+      // Only set it when the caller hasn't already configured it explicitly.
+      ...(process.env.JITSU_PUBLIC_URL ? {} : { JITSU_PUBLIC_URL: `https://${slug}.localhost` }),
+    },
   });
   child.on("error", err => {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") {

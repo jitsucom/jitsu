@@ -33,13 +33,14 @@ spec:
           envFrom:
             - secretRef:
                 name: jitsu-secrets
+            # Connection URLs of the in-cluster dependencies (helm-deps chart).
+            # Listed after jitsu-secrets so its keys win over any legacy URL
+            # keys there; explicit env entries below still take precedence.
+            - secretRef:
+                name: jitsu-deps-urls
+                optional: true
           env:
-            {{- include "jitsu-dev.commonEnv" . | nindent 12 }}
-            {{- include "jitsu-dev.serviceUrls" . | nindent 12 }}
-            {{- range $key, $value := .Values.env.rotor }}
-            - name: {{ $key }}
-              value: {{ $value | quote }}
-            {{- end }}
+            {{- include "jitsu-dev.env" (dict "ctx" . "service" "rotor") | nindent 12 }}
           volumeMounts:
             - name: node-cache
               mountPath: /cache

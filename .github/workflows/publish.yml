@@ -2,11 +2,14 @@ name: 📤 Publish
 
 # Single trigger entry point for releases. Two ways in:
 #
-#   1. Automatic — lint.yml dispatches this after lint+test pass on push to
-#      newjitsu, with no inputs. The detect job inspects the latest commit
-#      and decides what to publish (services and/or client-libraries) and
-#      under which channel (stable if the relevant .version.json was bumped,
-#      otherwise beta).
+#   1. Automatic — on a push to newjitsu, lint.yml dispatches this only when a
+#      version file (.services.version.json / .jsclient.version.json) was bumped
+#      in that push, after lint+test pass. It forwards the push range
+#      (from_sha/to_sha); the detect job diffs that range and decides what to
+#      publish (services and/or client-libraries) and under which channel
+#      (stable if the matching .version.json was bumped, otherwise beta).
+#      Commits that don't bump a version file publish nothing — use a manual
+#      dispatch (below) for off-cycle canary/beta builds.
 #
 #   2. Manual — via the Actions UI (workflow_dispatch). Pick scope and channel
 #      explicitly, e.g. canary builds from a feature branch, or force a stable
@@ -22,7 +25,7 @@ on:
       scope:
         description: "What to publish (auto = detect from the change range)"
         type: choice
-        options: [auto, both, services, client-libraries]
+        options: [auto, both, services, client-libraries, cli]
         default: auto
       channel:
         description: "Release channel (auto = stable if version file bumped, else beta)"
@@ -35,6 +38,10 @@ on:
         type: string
       client_libraries_version:
         description: "Optional version override for client libraries (e.g. 1.11.5)"
+        required: false
+        type: string
+      cli_version:
+        description: "Optional version override for jitsu-cli (e.g. 2.15.5)"
         required: false
         type: string
       from_sha:
@@ -61,8 +68,10 @@ jobs:
     outputs:
       services_run: ${{ steps.resolve.outputs.services_run }}
       client_libs_run: ${{ steps.resolve.outputs.client_libs_run }}
+      cli_run: ${{ steps.resolve.outputs.cli_run }}
       services_channel: ${{ steps.resolve.outputs.services_channel }}
       client_libs_channel: ${{ steps.resolve.outputs.client_libs_channel }}
+      cli_channel: ${{ steps.resolve.outputs.cli_channel }}
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@v6
@@ -105,19 +114,26 @@ jobs:
           echo "$CHANGED" | sed 's/^/  /'
 
           # Path patterns mirror what the previous lint.yml deploy jobs filtered on.
-          SERVICES_PATH_RE='^(bulker|services|webapps|libs|cli|types)/|^all\.Dockerfile$|^\.services\.version\.json$|^pnpm-lock\.yaml$|^\.github/workflows/(services\.yaml|publish\.yml)$'
+          # cli/ is deliberately NOT in SERVICES_PATH_RE: jitsu-cli has its own
+          # release train (.cli.version.json / cli.yaml) so a CLI change no
+          # longer drags a stable rebuild of every microservice with it.
+          SERVICES_PATH_RE='^(bulker|services|webapps|libs|types)/|^all\.Dockerfile$|^\.services\.version\.json$|^pnpm-lock\.yaml$|^\.github/workflows/(services\.yaml|publish\.yml)$'
           CLIENT_PATH_RE='^libs/(jitsu-js|jitsu-react|common-config)/|^types/|^\.jsclient\.version\.json$|^pnpm-lock\.yaml$|^\.github/workflows/(client-libraries\.yaml|publish\.yml)$'
+          CLI_PATH_RE='^cli/|^\.cli\.version\.json$|^pnpm-lock\.yaml$|^\.github/workflows/(cli\.yaml|publish\.yml)$'
 
           case "$INPUT_SCOPE" in
             auto)
               SERVICES_RUN=false
               CLIENT_LIBS_RUN=false
+              CLI_RUN=false
               if echo "$CHANGED" | grep -qE "$SERVICES_PATH_RE"; then SERVICES_RUN=true;    fi
               if echo "$CHANGED" | grep -qE "$CLIENT_PATH_RE";   then CLIENT_LIBS_RUN=true; fi
+              if echo "$CHANGED" | grep -qE "$CLI_PATH_RE";      then CLI_RUN=true;         fi
               ;;
-            both)             SERVICES_RUN=true;  CLIENT_LIBS_RUN=true  ;;
-            services)         SERVICES_RUN=true;  CLIENT_LIBS_RUN=false ;;
-            client-libraries) SERVICES_RUN=false; CLIENT_LIBS_RUN=true  ;;
+            both)             SERVICES_RUN=true;  CLIENT_LIBS_RUN=true;  CLI_RUN=false ;;
+            services)         SERVICES_RUN=true;  CLIENT_LIBS_RUN=false; CLI_RUN=false ;;
+            client-libraries) SERVICES_RUN=false; CLIENT_LIBS_RUN=true;  CLI_RUN=false ;;
+            cli)              SERVICES_RUN=false; CLIENT_LIBS_RUN=false; CLI_RUN=true  ;;
           esac
 
           if [ "$INPUT_CHANNEL" = "auto" ]; then
@@ -126,6 +142,7 @@ jobs:
             if [ "${GITHUB_REF_NAME}" != "newjitsu" ]; then
               SERVICES_CHANNEL=canary
               CLIENT_LIBS_CHANNEL=canary
+              CLI_CHANNEL=canary
             else
               if echo "$CHANGED" | grep -q '^\.services\.version\.json$'; then
                 SERVICES_CHANNEL=stable
@@ -137,10 +154,16 @@ jobs:
               else
                 CLIENT_LIBS_CHANNEL=beta
               fi
+              if echo "$CHANGED" | grep -q '^\.cli\.version\.json$'; then
+                CLI_CHANNEL=stable
+              else
+                CLI_CHANNEL=beta
+              fi
             fi
           else
             SERVICES_CHANNEL="$INPUT_CHANNEL"
             CLIENT_LIBS_CHANNEL="$INPUT_CHANNEL"
+            CLI_CHANNEL="$INPUT_CHANNEL"
           fi
 
           echo ""
@@ -149,12 +172,15 @@ jobs:
           echo "  channel input:       $INPUT_CHANNEL"
           echo "  services_run:        $SERVICES_RUN ($SERVICES_CHANNEL)"
           echo "  client_libs_run:     $CLIENT_LIBS_RUN ($CLIENT_LIBS_CHANNEL)"
+          echo "  cli_run:             $CLI_RUN ($CLI_CHANNEL)"
 
           {
             echo "services_run=$SERVICES_RUN"
             echo "client_libs_run=$CLIENT_LIBS_RUN"
+            echo "cli_run=$CLI_RUN"
             echo "services_channel=$SERVICES_CHANNEL"
             echo "client_libs_channel=$CLIENT_LIBS_CHANNEL"
+            echo "cli_channel=$CLI_CHANNEL"
           } >> "$GITHUB_OUTPUT"
 
   services:
@@ -175,3 +201,12 @@ jobs:
     with:
       channel: ${{ needs.detect.outputs.client_libs_channel }}
       version: ${{ inputs.client_libraries_version }}
+
+  cli:
+    needs: [detect]
+    if: ${{ needs.detect.outputs.cli_run == 'true' }}
+    uses: ./.github/workflows/cli.yaml
+    secrets: inherit
+    with:
+      channel: ${{ needs.detect.outputs.cli_channel }}
+      version: ${{ inputs.cli_version }}

@@ -1,0 +1,77 @@
+# Applies the console Prisma schema to Postgres on every deploy.
+#
+# Runs as a pre-install/pre-upgrade hook after the install-job (weight -5)
+# has prepared the node-cache workspace (Prisma client generated). Since
+# dev-deploy.sh deploys the helm-deps chart first and waits for it to be
+# healthy, Postgres is reachable by the time this hook runs; the retry loop
+# covers external databases that may be slower to come up.
+#
+# `prisma db push` refuses destructive changes without --accept-data-loss,
+# so a deploy fails loudly instead of silently dropping data — resolve those
+# manually (kubectl exec deploy/console -- npx prisma db push --accept-data-loss)
+# or reset the dev database.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-push-{{ .Release.Revision }}
+  labels:
+    {{- include "jitsu-dev.labels" . | nindent 4 }}
+    app.kubernetes.io/name: db-push
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-4"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: db-push
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: db-push
+          image: node:24-bookworm
+          workingDir: /cache/workspace/webapps/console
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              tries=0
+              until npx prisma db push; do
+                tries=$((tries+1))
+                if [ "$tries" -ge 20 ]; then
+                  echo "prisma db push still failing after $tries attempts, giving up"
+                  exit 1
+                fi
+                echo "prisma db push failed (database not ready yet?), retrying in 5s..."
+                sleep 5
+              done
+              echo "Schema applied"
+          envFrom:
+            # DATABASE_URL from the helm-deps chart's published URLs; a legacy
+            # value in jitsu-secrets is overridden by it, and an explicit
+            # env.common.DATABASE_URL (external database) wins over both.
+            - secretRef:
+                name: jitsu-secrets
+                optional: true
+            - secretRef:
+                name: jitsu-deps-urls
+                optional: true
+          env:
+            - name: npm_config_cache
+              value: /cache/npm
+            {{- with (get (.Values.env.common | default dict) "DATABASE_URL") }}
+            - name: DATABASE_URL
+              value: {{ . | quote }}
+            {{- end }}
+          volumeMounts:
+            - name: node-cache
+              mountPath: /cache
+      volumes:
+        - name: node-cache
+          persistentVolumeClaim:
+            claimName: node-cache

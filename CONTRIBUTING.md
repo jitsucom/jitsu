@@ -57,6 +57,62 @@ touch ~/.jitsu/.env.local && chmod 600 ~/.jitsu/.env.local
 echo 'STRIPE_KEY=sk_live_xxx' >> ~/.jitsu/.env.local
 ```
 
+# Testing
+
+`pnpm test` runs every package's tests. Most are plain vitest/jest suites; the console
+has a two-project setup worth knowing about.
+
+## Console tests (`webapps/console`)
+
+Two vitest projects, split by what they need:
+
+- **unit** (`__tests__/unit/`) — pure tests, no external dependencies. Instant, run anywhere.
+- **integration** (`__tests__/integration/`) — service tests against **real Postgres and
+  ClickHouse** started via testcontainers (Docker required), with MSW intercepting all
+  outbound HTTP. No `vi.mock` anywhere: SQL runs against real databases, access checks and
+  audit logging hit the same database the service writes to.
+
+```bash
+cd webapps/console
+pnpm test                          # both projects (starts containers)
+pnpm exec vitest run --project unit           # pure tests only, no Docker
+pnpm exec vitest run __tests__/integration/sync-service.test.ts   # one file
+```
+
+How the harness works (`__tests__/integration/support/`): a global setup boots one
+Postgres (`postgres:18-alpine`, matching prod) and one ClickHouse
+(`clickhouse/clickhouse-server:25.4-alpine`) container per run and pushes the prisma
+schema into a sealed template database. Each test file runs in its own process (vitest
+forks + isolate) and clones the template into a private database (~150ms), so files are
+fully isolated and can run in parallel. Baseline env is set before the test file's imports,
+which is what binds the `db.prisma()` / `pgPool` / `clickhouse` singletons to the per-file
+databases. Every outbound HTTP request must have an MSW handler (`server.use(...)`) or the
+test fails loudly; requests to the ClickHouse container pass through.
+
+### Container reuse (optional, local only)
+
+A cold run pays for container boot + `prisma db push` (~10–30s depending on the machine,
+more if images need pulling). To keep the containers running between runs:
+
+```bash
+CONSOLE_TEST_CONTAINERS_REUSE=1 pnpm test
+```
+
+Subsequent runs connect in about a second. The template database is keyed by a hash of
+`schema.prisma`, so schema changes rebuild it automatically, and leftover per-file
+databases from previous runs are swept at startup. **Trade-off: the two containers keep
+running until you remove them** (`docker ps` → `docker rm -f <id>`). Don't set this in CI.
+
+Notes:
+
+- `vitest --watch` is supported for the unit project; for integration prefer `vitest run`
+  (re-runs re-clone databases in new forks, containers stay up for the session).
+- Per-test env overrides use `vi.stubEnv` (auto-restored). Baseline env lives in
+  `__tests__/integration/support/setup.ts`.
+- `__tests__/integration/support/harness.ts` exposes `deps()` (the real singletons) and
+  `seedWorkspace()`; other fixtures are plain `prisma.create` / `clickhouse.insert` calls
+  inline in the tests.
+
 # Development Workflow
 
 ## Development Branch
@@ -127,7 +183,11 @@ Each pipeline publishes to three channels determined by the branch:
 - The base version `X.Y` is defined in `.services.version.json` or `.jsclient.version.json`;
   `Z` is the patch number, incremented per release
 
-Builds are triggered automatically by [lint.yml](.github/workflows/lint.yml) after tests
-pass on `newjitsu` or the stable branches. On a successful beta or stable release, a
-GitHub release is created and the infra repo is notified via webhook to update deployment
-configs.
+Builds are **not** produced on every merge. A push to `newjitsu` publishes only when a
+version file (`.services.version.json` or `.jsclient.version.json`) is bumped in that
+push: [lint.yml](.github/workflows/lint.yml) waits for tests to pass, then dispatches
+[publish.yml](.github/workflows/publish.yml), which builds the affected stack(s) — stable
+if the matching version file changed, otherwise beta. Commits that don't bump a version
+file publish nothing; trigger off-cycle canary/beta builds with a manual `publish.yml`
+dispatch. On a successful beta or stable release, a GitHub release is created and the infra
+repo is notified via webhook to update deployment configs.

@@ -30,7 +30,6 @@ export default createRoute()
       }),
       `Destination ${destinationId} not found`
     );
-    console.log(destination.config);
 
     const cred = ClickhouseCredentials.parse(destination.config);
     const clickhouse = getClickhouseClient(workspaceId, cred);

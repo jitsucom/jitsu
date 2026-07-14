@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { ReactNode, useState } from "react";
 import { Button } from "antd";
 import { GithubOutlined, GoogleOutlined, KeyOutlined } from "@ant-design/icons";
 import { getLog } from "juava";
@@ -6,16 +6,22 @@ import { AuthType } from "./SignInOrUp";
 
 const log = getLog("oauth-buttons");
 
+type OAuthProvider = "firebase-google" | "firebase-github" | "nextauth-github" | "nextauth-oidc";
+
 interface OAuthButtonsProps {
-  providers?: Array<"firebase-google" | "firebase-github" | "nextauth-github" | "nextauth-oidc">;
+  providers?: Array<OAuthProvider>;
   prefix?: string;
   onSSOLogin: (type: AuthType, providerId: string) => Promise<void>;
+  // Optional badge floated over the top of a specific provider's button (e.g.
+  // the work-email hint on "Continue with Google" — JITSU-70).
+  notes?: Partial<Record<OAuthProvider, ReactNode>>;
 }
 
 export const OAuthButtons: React.FC<OAuthButtonsProps> = ({
   providers = ["firebase-google", "firebase-github", "nextauth-github", "nextauth-oidc"],
   prefix = "Sign in",
   onSSOLogin,
+  notes,
 }) => {
   const [loading, setLoading] = useState<string | undefined>();
 
@@ -28,10 +34,27 @@ export const OAuthButtons: React.FC<OAuthButtonsProps> = ({
     }
   };
 
+  // Float the note as a small badge over the button's top-right corner. It's a
+  // sibling of the button (not a child), so it doesn't intercept the button's
+  // click — and it stays interactive so a tooltip on it works.
+  const withBadge = (provider: OAuthProvider, button: ReactNode) => {
+    const note = notes?.[provider];
+    if (!note) {
+      return button;
+    }
+    return (
+      <div key={provider} className="relative flex">
+        {button}
+        <div className="absolute -right-1.5 -top-1.5 z-10">{note}</div>
+      </div>
+    );
+  };
+
   const renderButton = (provider: string) => {
     switch (provider) {
       case "firebase-google":
-        return (
+        return withBadge(
+          "firebase-google",
           <Button
             key={provider}
             loading={loading === "firebase-google"}
@@ -44,7 +67,8 @@ export const OAuthButtons: React.FC<OAuthButtonsProps> = ({
           </Button>
         );
       case "firebase-github":
-        return (
+        return withBadge(
+          "firebase-github",
           <Button
             key={provider}
             size="large"
@@ -57,7 +81,8 @@ export const OAuthButtons: React.FC<OAuthButtonsProps> = ({
           </Button>
         );
       case "nextauth-github":
-        return (
+        return withBadge(
+          "nextauth-github",
           <Button
             key={provider}
             size="large"
@@ -70,7 +95,8 @@ export const OAuthButtons: React.FC<OAuthButtonsProps> = ({
           </Button>
         );
       case "nextauth-oidc":
-        return (
+        return withBadge(
+          "nextauth-oidc",
           <Button
             key={provider}
             size="large"

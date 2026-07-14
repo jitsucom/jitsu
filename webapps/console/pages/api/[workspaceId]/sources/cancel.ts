@@ -12,6 +12,9 @@ const serverEnv = getServerEnv();
 export default createRoute()
   .GET({
     auth: true,
+    // Dispatches /cancel to syncctl — side-effect outside the Prisma backstop,
+    // so explicitly opt into the maintenance gate.
+    mutates: true,
     query: z.object({
       workspaceId: z.string(),
       syncId: z.string(),

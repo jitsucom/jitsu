@@ -49,6 +49,27 @@ module.exports = withBundleAnalyzer({
   //     skipDefaultConversion: true,
   //   },
   // },
+  async rewrites() {
+    // Expose the MCP server and OAuth endpoints at top-level paths (not under
+    // /api/) so MCP clients see natural URLs. Next.js Pages Router only treats
+    // pages/api/* as API handlers, so the public paths are rewritten to
+    // internal /api/mcp/* routes. /oauth/authorize is a regular Next page
+    // (pages/oauth/authorize.tsx) so it doesn't need a rewrite.
+    return [
+      { source: "/mcp", destination: "/api/mcp/mcp" },
+      { source: "/mcp/:path*", destination: "/api/mcp/:path*" },
+      { source: "/oauth/register", destination: "/api/mcp/oauth/register" },
+      { source: "/oauth/token", destination: "/api/mcp/oauth/token" },
+      {
+        source: "/.well-known/oauth-authorization-server",
+        destination: "/api/mcp/well-known/oauth-authorization-server",
+      },
+      {
+        source: "/.well-known/oauth-protected-resource",
+        destination: "/api/mcp/well-known/oauth-protected-resource",
+      },
+    ];
+  },
   async headers() {
     return [
       {

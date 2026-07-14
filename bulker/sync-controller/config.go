@@ -37,6 +37,13 @@ type Config struct {
 	SidecarImage       string `mapstructure:"SIDECAR_IMAGE" default:"jitsucom/sidecar:latest"`
 	PodsServiceAccount string `mapstructure:"PODS_SERVICE_ACCOUNT"`
 
+	// CronTemplateRevision, when non-zero, overrides the built-in
+	// cronTemplateRevision constant used in the CronJob drift hash. Lets ops
+	// force a one-shot re-patch of every managed CronJob at runtime — without a
+	// code change + image rebuild — by setting/bumping
+	// SYNCCTL_CRON_TEMPLATE_REVISION. 0 (unset) keeps the compiled-in constant.
+	CronTemplateRevision int `mapstructure:"CRON_TEMPLATE_REVISION" default:"0"`
+
 	LocalIngestEndpoint  string `mapstructure:"LOCAL_INGEST_ENDPOINT"`
 	GlobalIngestEndpoint string `mapstructure:"GLOBAL_INGEST_ENDPOINT"`
 

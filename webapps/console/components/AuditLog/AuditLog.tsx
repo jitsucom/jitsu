@@ -1,15 +1,17 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Alert, Button, DatePicker, Select, Table, Tag, Tooltip } from "antd";
 import dayjs, { Dayjs } from "dayjs";
 import utc from "dayjs/plugin/utc";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { rpc } from "juava";
 import { useQuery } from "@tanstack/react-query";
+import { useDebounce } from "use-debounce";
 import Link from "next/link";
+import { useRouter } from "next/router";
 import { AuditLogDiff } from "../AuditLogDiff/AuditLogDiff";
-import { inferTokenTypeFromId } from "../../lib/schema";
+import { originFromAuth } from "../../lib/schema";
 import { FaTerminal } from "react-icons/fa";
-import { FaCloudArrowUp, FaWindowMaximize } from "react-icons/fa6";
+import { FaCloudArrowUp, FaRobot, FaWindowMaximize } from "react-icons/fa6";
 
 dayjs.extend(utc);
 dayjs.extend(relativeTime);
@@ -62,6 +64,13 @@ const severityOptions = [
   { value: "security", label: "Security" },
 ];
 
+const originOptions = [
+  { value: "ui", label: "UI" },
+  { value: "api", label: "API" },
+  { value: "cli", label: "CLI" },
+  { value: "mcp", label: "MCP" },
+];
+
 function severityTag(s?: string | null) {
   if (!s) return null;
   const color = s === "security" ? "red" : s === "warning" ? "orange" : "default";
@@ -69,26 +78,25 @@ function severityTag(s?: string | null) {
 }
 
 /**
- * authType values written by the auth/audit code:
- *   "next-auth", "oidc", "firebase", "credentials" → UI session
- *   "bearer" → API token; the row also carries a tokenType ("api" | "cli" | …)
- * Origin renders as one of three flat labels: UI / API / CLI. Other token
- * types fall through to their raw label so we don't quietly silo them.
+ * Origin renders as one of four flat labels: UI / API / CLI / MCP. The mapping
+ * from authType/token to origin lives in `originFromAuth` (lib/schema) so the
+ * audit-log display, the origin filter, and product analytics stay in sync.
+ * A row with no authType has no known origin and renders as "—".
  */
 type Origin = { label: string; color: string; icon: React.ReactNode };
 
 const ORIGIN_UI: Origin = { label: "UI", color: "geekblue", icon: <FaWindowMaximize /> };
 const ORIGIN_API: Origin = { label: "API", color: "purple", icon: <FaCloudArrowUp /> };
 const ORIGIN_CLI: Origin = { label: "CLI", color: "blue", icon: <FaTerminal /> };
+const ORIGIN_MCP: Origin = { label: "MCP", color: "magenta", icon: <FaRobot /> };
+
+const ORIGIN_BY_KIND = { ui: ORIGIN_UI, api: ORIGIN_API, cli: ORIGIN_CLI, mcp: ORIGIN_MCP } as const;
 
 function resolveOrigin(item: AuditLogItem): Origin | null {
   if (!item.authType) return null;
-  if (item.authType !== "bearer") return ORIGIN_UI;
-  const tokenType = item.token?.type || (item.tokenId ? inferTokenTypeFromId(item.tokenId) : "api");
-  if (tokenType === "cli") return ORIGIN_CLI;
-  if (tokenType === "api") return ORIGIN_API;
-  // Unknown bearer subtype — surface it verbatim rather than collapsing to API.
-  return { label: tokenType.toUpperCase(), color: "default", icon: <FaCloudArrowUp /> };
+  return ORIGIN_BY_KIND[
+    originFromAuth({ authType: item.authType, tokenId: item.tokenId, tokenType: item.token?.type })
+  ];
 }
 
 function originTag(item: AuditLogItem) {
@@ -232,22 +240,112 @@ export const AuditLog: React.FC<AuditLogProps> = ({ workspaceId, workspaceSlug, 
   const adminView = !workspaceId;
   const [types, setTypes] = useState<string[]>([]);
   const [severities, setSeverities] = useState<string[]>([]);
+  const [origins, setOrigins] = useState<string[]>([]);
   const [range, setRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const [cursor, setCursor] = useState<string | undefined>(undefined);
   const [pages, setPages] = useState<AuditLogItem[][]>([]);
 
+  // Admin-only workspace filter. Admins can have thousands of workspaces, so
+  // options are searched server-side instead of loaded upfront. Stored as
+  // {value, label} (labelInValue) so the selection keeps its label after the
+  // search results change.
+  const [wsFilter, setWsFilter] = useState<{ value: string; label: string } | undefined>(undefined);
+  const [wsSearch, setWsSearch] = useState("");
+  const [debouncedWsSearch] = useDebounce(wsSearch, 300);
+
+  // ── URL ⇄ filter sync ──────────────────────────────────────────────────
+  // Persist every filter in the query string so a filtered view is shareable
+  // and survives reload. We hydrate state once `router.query` is ready, then
+  // mirror state back to the URL on every change via a shallow `replace` (no
+  // history spam). The `hydrated` gate is state, not a ref: the write-back
+  // effect must not fire until the restored values are committed, otherwise its
+  // first run would serialize the still-empty state and wipe the incoming
+  // params. Non-filter params (e.g. the `[workspaceId]` route segment) are left
+  // untouched. Pagination (`cursor`) is intentionally not persisted.
+  const router = useRouter();
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    if (!router.isReady || hydrated) return;
+    const q = router.query;
+    const csv = (v: string | string[] | undefined) => (typeof v === "string" && v ? v.split(",").filter(Boolean) : []);
+    const t = csv(q.type);
+    const s = csv(q.severity);
+    const o = csv(q.origin);
+    if (t.length) setTypes(t);
+    if (s.length) setSeverities(s);
+    if (o.length) setOrigins(o);
+    // Guard against malformed URL params: dayjs() happily builds an invalid
+    // object from garbage, which would later serialize back as "Invalid Date"
+    // and poison both state and the RPC request. Drop anything that isn't valid.
+    const parseDate = (v: string | string[] | undefined) => {
+      if (typeof v !== "string" || !v) return null;
+      const d = dayjs(v);
+      return d.isValid() ? d : null;
+    };
+    const from = parseDate(q.from);
+    const to = parseDate(q.to);
+    if (from || to) setRange([from, to]);
+    if (adminView && typeof q.ws === "string" && q.ws) {
+      // Carry the label in the URL too so the chip renders a name without an
+      // extra lookup (the workspace search is keyed by name, not id).
+      setWsFilter({ value: q.ws, label: typeof q.wsName === "string" && q.wsName ? q.wsName : q.ws });
+    }
+    setHydrated(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router.isReady, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    const managed = ["type", "severity", "origin", "from", "to", "ws", "wsName"];
+    const query: Record<string, any> = { ...router.query };
+    for (const k of managed) delete query[k];
+    if (types.length) query.type = types.join(",");
+    if (severities.length) query.severity = severities.join(",");
+    if (origins.length) query.origin = origins.join(",");
+    if (range?.[0]) query.from = range[0].toISOString();
+    if (range?.[1]) query.to = range[1].toISOString();
+    if (adminView && wsFilter) {
+      query.ws = wsFilter.value;
+      query.wsName = wsFilter.label;
+    }
+    router.replace({ pathname: router.pathname, query }, undefined, { shallow: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated, types, severities, origins, range, wsFilter]);
+  const wsQuery = useQuery(
+    ["audit-log-workspace-options", debouncedWsSearch],
+    async () => {
+      const res = await rpc(`/api/workspace`, {
+        query: { page: "0", limit: "50", ...(debouncedWsSearch ? { search: debouncedWsSearch } : {}) },
+      });
+      return (res.workspaces ?? res) as { id: string; name?: string; slug?: string }[];
+    },
+    { enabled: adminView, keepPreviousData: true, refetchOnWindowFocus: false }
+  );
+
+  const effectiveWorkspaceId = workspaceId || wsFilter?.value;
+
   const filterKey = useMemo(
-    () => JSON.stringify({ types, severities, from: range?.[0]?.toISOString(), to: range?.[1]?.toISOString() }),
-    [types, severities, range]
+    () =>
+      JSON.stringify({
+        types,
+        severities,
+        origins,
+        ws: wsFilter?.value,
+        from: range?.[0]?.toISOString(),
+        to: range?.[1]?.toISOString(),
+      }),
+    [types, severities, origins, wsFilter, range]
   );
 
   const query = useQuery<AuditLogPage, Error>(
     ["audit-log", workspaceId || "$all", filterKey, cursor],
     async () => {
       const params: Record<string, string> = {};
-      if (workspaceId) params.workspaceId = workspaceId;
+      if (effectiveWorkspaceId) params.workspaceId = effectiveWorkspaceId;
       if (types.length) params.type = types.join(",");
       if (severities.length) params.severity = severities.join(",");
+      if (origins.length) params.origin = origins.join(",");
       if (range?.[0]) params.from = range[0].toISOString();
       if (range?.[1]) params.to = range[1].toISOString();
       if (cursor) params.cursor = cursor;
@@ -343,6 +441,30 @@ export const AuditLog: React.FC<AuditLogProps> = ({ workspaceId, workspaceSlug, 
         </p>
       )}
       <div className="flex flex-row gap-3 flex-wrap">
+        {adminView && (
+          <Select
+            allowClear
+            showSearch
+            labelInValue
+            placeholder="Workspace"
+            style={{ minWidth: 260 }}
+            filterOption={false}
+            searchValue={wsSearch}
+            onSearch={setWsSearch}
+            loading={wsQuery.isFetching}
+            notFoundContent={wsQuery.isFetching ? "Searching..." : "No workspaces found"}
+            value={wsFilter}
+            options={(wsQuery.data || []).map(w => ({
+              value: w.id,
+              label: w.name || w.slug || w.id,
+            }))}
+            onChange={v => {
+              setWsFilter(v as any);
+              setWsSearch("");
+              reset();
+            }}
+          />
+        )}
         <Select
           mode="multiple"
           allowClear
@@ -364,6 +486,18 @@ export const AuditLog: React.FC<AuditLogProps> = ({ workspaceId, workspaceSlug, 
           options={severityOptions}
           onChange={v => {
             setSeverities(v);
+            reset();
+          }}
+        />
+        <Select
+          mode="multiple"
+          allowClear
+          placeholder="Origin"
+          style={{ minWidth: 160 }}
+          value={origins}
+          options={originOptions}
+          onChange={v => {
+            setOrigins(v);
             reset();
           }}
         />

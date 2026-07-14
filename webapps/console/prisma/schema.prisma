@@ -150,6 +150,64 @@ model UserApiToken {
   type      String?
   name      String?
   expiresAt DateTime? /// @zod.custom(z.coerce.date())
+
+  // For MCP-issued tokens: oauthClientId is set and this row IS the refresh
+  // token. MCP-ness is inferred from oauthClientId IS NOT NULL (we don't set
+  // type="mcp"). For non-MCP keys (UI/CLI/api) oauthClientId is null.
+  oauthClientId String?
+  oauthClient   OAuthClient?       @relation(fields: [oauthClientId], references: [id])
+  accessTokens  OAuthAccessToken[]
+}
+
+model OAuthClient {
+  id               String   @id @default(cuid()) // == OAuth client_id
+  createdAt        DateTime @default(now()) /// @zod.custom(z.coerce.date())
+  updatedAt        DateTime @default(now()) @updatedAt /// @zod.custom(z.coerce.date())
+  clientSecretHash String // hashed via juava.createHash
+  name             String // from DCR client_name; shown on /user
+  redirectUris     String[] // whitelisted at DCR time
+
+  // Schema is 1:N (a client could in principle hold many refresh tokens).
+  // We enforce 1:1 in code:
+  //   1. At /oauth/token (authorize success): delete any existing
+  //      UserApiToken rows for this client (cascading to their access
+  //      tokens) before creating the new one.
+  //   2. At DELETE /api/user/keys: when a token with oauthClientId is
+  //      deleted, also delete the OAuthClient row and its access tokens
+  //      in the same transaction.
+  // To migrate to 1:N later: drop step (1) and replace step (2) with a
+  // separate "revoke connection" action. No schema change required.
+  tokens UserApiToken[]
+}
+
+// Generic key-value store used by the MCP server (and any future feature
+// that wants ephemeral or atomic key/value semantics). Single flat
+// namespace; callers separate concerns via key prefix conventions
+// (`oauth:code:...`, `mcp:event:...`). See lib/server/kv/.
+model KvStoreEntry {
+  key       String    @id
+  value     Json
+  expiresAt DateTime? @map("expires_at") /// @zod.custom(z.coerce.date())
+
+  @@index([expiresAt])
+  // Prefix scans (`segment1:segment2:*`) need text_pattern_ops to use the
+  // index — the default text ops only help equality and ordering. With this
+  // ops class, `WHERE key LIKE 'prefix%'` becomes an index range scan.
+  @@index([key(ops: raw("text_pattern_ops"))], map: "kv_key_pattern_idx")
+  @@map("kv")
+}
+
+model OAuthAccessToken {
+  id             String       @id @default(cuid()) // bearer keyId
+  createdAt      DateTime     @default(now()) /// @zod.custom(z.coerce.date())
+  lastUsed       DateTime? /// @zod.custom(z.coerce.date())
+  hash           String // juava.createHash(plaintext); no hint (never shown)
+  expiresAt      DateTime /// @zod.custom(z.coerce.date())
+  refreshTokenId String // user is inferred via refreshToken.userId
+  refreshToken   UserApiToken @relation(fields: [refreshTokenId], references: [id])
+
+  @@index([expiresAt])
+  @@index([refreshTokenId])
 }
 
 model InvitationToken {

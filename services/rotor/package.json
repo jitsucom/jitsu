@@ -46,9 +46,9 @@
     "pg-cursor": "^2.17.0",
     "prom-client": "^15.1.3",
     "semver": "^7.6.3",
-    "tar": "^7.5.13",
+    "tar": "^7.5.16",
     "tslib": "catalog:",
-    "undici": "^7.24.8",
+    "undici": "^7.28.0",
     "zod": "^3.23.8",
     "esbuild": "catalog:"
   },
@@ -71,6 +71,7 @@
     "testcontainers": "^11.14.0",
     "tsx": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "vite": "^6.4.3"
   }
 }

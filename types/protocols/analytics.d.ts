@@ -358,6 +358,10 @@ export type JitsuOptions = {
    */
   writeKey?: string;
   /**
+   * Initial User ID to automatically identify the user on SDK initialization.
+   */
+  userId?: string;
+  /**
    * API Host. Default value: same host as script origin
    */
   host?: string;
@@ -490,7 +494,12 @@ export interface AnalyticsInterface {
     callback?: Callback
   ): Promise<DispatchedEvent>;
 
-  identify(id?: ID | Traits, traits?: Traits | Callback | null, callback?: Callback): Promise<DispatchedEvent>;
+  identify(
+    id?: ID | Traits,
+    traits?: Traits | Callback | null,
+    options?: Options | Callback,
+    callback?: Callback
+  ): Promise<DispatchedEvent>;
 
   reset(callback?: (...params: any[]) => any): Promise<any>;
 

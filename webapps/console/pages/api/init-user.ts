@@ -7,7 +7,11 @@ import { ApiError } from "../../lib/shared/errors";
 import { initTelemetry, withProductAnalytics } from "../../lib/server/telemetry";
 import { onUserCreated } from "../../lib/server/ee";
 import { getServerEnv } from "../../lib/server/serverEnv";
+import { isMaintenanceActive } from "../../lib/server/maintenance";
+import { shouldRejectPersonalEmailSignup } from "../../lib/server/signup-restrictions";
+import { WORK_EMAIL_REQUIRED_MESSAGE } from "../../lib/shared/email-domains";
 
+const log = getServerLog("api/init-user");
 const serverEnv = getServerEnv();
 
 export default createRoute()
@@ -20,7 +24,7 @@ export default createRoute()
       where: { userId: requireDefined(user.internalId, `internal id is not defined`) },
     });
     if (!workspaceAccess) {
-      getServerLog().atInfo().log(`User ${user.internalId} has no access to any workspace. Checking for invitations`);
+      log.atInfo().log(`User ${user.internalId} has no access to any workspace. Checking for invitations`);
       let dbUser = await db.prisma().userProfile.findFirst({ where: { id: user.internalId } });
       if (!dbUser) {
         //This could happen by two reasons
@@ -29,7 +33,19 @@ export default createRoute()
         //Self-hosted: seems like the situation is the same as with firebase
 
         //we'll try to remedy a situation, but it's not going to work for all cases
-        getServerLog().atInfo().log(`User ${user.internalId} has no profile in db. Creating a new one`);
+        log.atInfo().log(`User ${user.internalId} has no profile in db. Creating a new one`);
+        // The route's GET is a read for existing users (workspaceAccess found
+        // above), so we can't flip it to `mutates: true` globally — that would
+        // 503 every login during maintenance. Gate just the create-profile
+        // branch so brand-new signups get a clean maintenance error instead of
+        // a generic 500 from the Prisma read-only backstop.
+        if (isMaintenanceActive()) {
+          throw new ApiError(
+            "Jitsu is in maintenance mode; account creation is temporarily disabled. Please try again later.",
+            { code: "maintenance" },
+            { status: 503 }
+          );
+        }
         if (serverEnv.DISABLE_SIGNUP) {
           throw new ApiError("Sign up is disabled", { code: "signup-disabled" });
         }
@@ -45,6 +61,16 @@ export default createRoute()
           throw new ApiError(
             `There's another user with given external id (${user.loginProvider}/${user.externalId}, but different internal id - ${dbUser.id}. Please, delete this user. Passed user id: ${user.internalId}`
           );
+        }
+
+        // JITSU-70: a Firebase account can already carry an internalId claim while
+        // its Jitsu profile is missing, which skips create-user and lands here.
+        // Enforce the work-email requirement only once we've confirmed no existing
+        // profile (above) — so we never reject/delete a recovering user — i.e. a
+        // genuinely new account is about to be created. The helper deletes the
+        // orphaned Firebase account.
+        if (await shouldRejectPersonalEmailSignup(user)) {
+          throw new ApiError(WORK_EMAIL_REQUIRED_MESSAGE, { code: "personal-email-rejected" }, { status: 403 });
         }
 
         const newUser = await db.prisma().userProfile.create({
@@ -69,7 +95,7 @@ export default createRoute()
       });
 
       if (pendingInvitations.length > 0) {
-        getServerLog()
+        log
           .atInfo()
           .log(
             `User ${user.internalId} has ${pendingInvitations.length} pending invitations. Redirecting to workspaces page`
