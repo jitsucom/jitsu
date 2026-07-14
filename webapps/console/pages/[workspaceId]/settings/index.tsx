@@ -1,7 +1,7 @@
 import { WorkspacePageLayout } from "../../../components/PageLayout/WorkspacePageLayout";
 import { Alert, Button, Input, Popover, Select, Spin, Switch, Tooltip } from "antd";
 import { useAppConfig, useUser, useWorkspace, useWorkspaceRole } from "../../../lib/context";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { confirmOp, confirmOpWithInput, feedbackError, feedbackSuccess } from "../../../lib/ui";
 import { get } from "../../../lib/useApi";
 import { SafeUserProfile, UserWorkspaceRelation } from "../../../lib/schema";
@@ -490,8 +490,17 @@ const OidcProviders: React.FC<any> = () => {
 const DataCollectionSettings: React.FC<any> = () => {
   const workspace = useWorkspace();
   const userRole = useWorkspaceRole();
-  const [captureHeaders, setCaptureHeaders] = useState((workspace.featuresEnabled ?? []).includes("captureHeaders"));
+  const serverCaptureHeaders = (workspace.featuresEnabled ?? []).includes("captureHeaders");
+  const [captureHeaders, setCaptureHeaders] = useState(serverCaptureHeaders);
   const [saving, setSaving] = useState(false);
+  // Re-sync if the underlying workspace changes (workspace switch or a context
+  // refetch). Keyed by the derived boolean, not the array (new identity every
+  // render) and not derived directly: the workspace context is not refetched
+  // after our own PUT, so deriving would snap the switch back to the stale
+  // pre-toggle value.
+  useEffect(() => {
+    setCaptureHeaders(serverCaptureHeaders);
+  }, [workspace.id, serverCaptureHeaders]);
 
   const onToggle = async (checked: boolean) => {
     setSaving(true);
