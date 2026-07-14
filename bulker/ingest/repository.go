@@ -214,6 +214,10 @@ type StreamWithDestinations struct {
 	BackupEnabled            bool                     `json:"backupEnabled"`
 	Throttle                 int                      `json:"throttle"`
 	Shard                    int                      `json:"shard"`
+	// CaptureHeaders enables capturing HTTP request headers into event
+	// context.headers. Off by default; the console export sets it per stream from
+	// the workspace-level `captureHeaders` feature flag.
+	CaptureHeaders           bool                     `json:"captureHeaders"`
 	Destinations             []ShortDestinationConfig `json:"destinations"`
 	SynchronousDestinations  []*ShortDestinationConfig
 	AsynchronousDestinations []*ShortDestinationConfig

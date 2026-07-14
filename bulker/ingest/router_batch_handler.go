@@ -268,8 +268,8 @@ func (r *Router) BatchHandler(c *gin.Context) {
 	// threading the timestamp through patchEvent's signature or changing
 	// its Set→SetIfAbsent semantics (the latter would let a
 	// client-provided receivedAt survive — FilterEvent doesn't strip it).
-	patch := func(c *gin.Context, messageId string, ev types.Json, tp string, it IngestType, ac types.Json, defName string) error {
-		if err := patchEvent(c, messageId, ev, tp, it, ac, defName); err != nil {
+	patch := func(c *gin.Context, messageId string, ev types.Json, tp string, it IngestType, ac types.Json, defName string, stream *StreamWithDestinations) error {
+		if err := patchEvent(c, messageId, ev, tp, it, ac, defName, stream); err != nil {
 			return err
 		}
 		ev.Set("receivedAt", receivedAtStr)

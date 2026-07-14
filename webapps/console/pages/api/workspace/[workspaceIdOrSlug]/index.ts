@@ -154,7 +154,14 @@ export const route = createRoute()
     auth: true,
     summary: "Update workspace",
     tags: ["workspace"],
-    body: z.object({ name: z.string(), slug: z.string() }),
+    body: z.object({
+      name: z.string(),
+      slug: z.string(),
+      // Deliberately a dedicated boolean rather than raw `featuresEnabled`: that array
+      // also carries admin-managed flags (throttle=, shard=, nobackup, ...) that
+      // workspace members must not be able to set.
+      captureHeaders: z.boolean().optional(),
+    }),
     query: z.object({
       workspaceIdOrSlug: z.string(),
     }),
@@ -175,16 +182,30 @@ export const route = createRoute()
     }
 
     const prev = await db.prisma().workspace.findUnique({ where: { id: workspaceIdOrSlug } });
+    let featuresEnabled: string[] | undefined = undefined;
+    if (body.captureHeaders !== undefined && prev) {
+      const withoutFlag = (prev.featuresEnabled ?? []).filter(f => f !== "captureHeaders");
+      featuresEnabled = body.captureHeaders ? [...withoutFlag, "captureHeaders"] : withoutFlag;
+    }
     const workspace = await db.prisma().workspace.update({
       where: { id: workspaceIdOrSlug },
-      data: { name: body.name.trim(), slug: body.slug.trim() },
+      data: {
+        name: body.name.trim(),
+        slug: body.slug.trim(),
+        ...(featuresEnabled !== undefined ? { featuresEnabled } : {}),
+      },
     });
     // Skip the audit row when nothing observable changed (no-op save) so owners
     // aren't spammed with empty workspace-updated entries. (PR #1288)
-    if (prev && (prev.name !== workspace.name || prev.slug !== workspace.slug)) {
+    if (
+      prev &&
+      (prev.name !== workspace.name ||
+        prev.slug !== workspace.slug ||
+        !isEqual(prev.featuresEnabled, workspace.featuresEnabled))
+    ) {
       await workspaceAuditLog(user, workspace.id, "updated", {
-        prevVersion: { name: prev.name, slug: prev.slug },
-        newVersion: { name: workspace.name, slug: workspace.slug },
+        prevVersion: { name: prev.name, slug: prev.slug, featuresEnabled: prev.featuresEnabled },
+        newVersion: { name: workspace.name, slug: workspace.slug, featuresEnabled: workspace.featuresEnabled },
         workspaceName: workspace.name,
       });
     }

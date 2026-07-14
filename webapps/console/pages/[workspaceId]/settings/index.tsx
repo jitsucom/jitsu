@@ -1,5 +1,5 @@
 import { WorkspacePageLayout } from "../../../components/PageLayout/WorkspacePageLayout";
-import { Alert, Button, Input, Popover, Select, Spin, Tooltip } from "antd";
+import { Alert, Button, Input, Popover, Select, Spin, Switch, Tooltip } from "antd";
 import { useAppConfig, useUser, useWorkspace, useWorkspaceRole } from "../../../lib/context";
 import React, { useState } from "react";
 import { confirmOp, confirmOpWithInput, feedbackError, feedbackSuccess } from "../../../lib/ui";
@@ -487,6 +487,54 @@ const OidcProviders: React.FC<any> = () => {
   );
 };
 
+const DataCollectionSettings: React.FC<any> = () => {
+  const workspace = useWorkspace();
+  const userRole = useWorkspaceRole();
+  const [captureHeaders, setCaptureHeaders] = useState((workspace.featuresEnabled ?? []).includes("captureHeaders"));
+  const [saving, setSaving] = useState(false);
+
+  const onToggle = async (checked: boolean) => {
+    setSaving(true);
+    try {
+      await get(`/api/workspace/${workspace.id}`, {
+        method: "PUT",
+        body: { name: workspace.name, slug: workspace.slug, captureHeaders: checked },
+      });
+      setCaptureHeaders(checked);
+      feedbackSuccess(
+        `HTTP headers capture ${
+          checked ? "enabled" : "disabled"
+        }. The change applies to new incoming events within a few minutes.`
+      );
+    } catch (e) {
+      feedbackError("Failed to update the setting", { error: e });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="bg-backgroundLight border border-textDisabled rounded-lg overflow-hidden">
+      <div className="px-6 py-4 bg-background border-b border-textDisabled">
+        <h3 className="text-lg font-semibold text-textDark">Data Collection</h3>
+      </div>
+      <div className="flex items-start justify-between px-6 py-5">
+        <div className="flex-1 pr-8">
+          <h4 className="text-base font-semibold text-textDark mb-1">Capture HTTP headers</h4>
+          <p className="text-sm font-normal text-text">
+            Store HTTP request headers of incoming events in <code>context.headers</code>. Useful for identifying
+            traffic coming from AI agents and bots. Only the names of sensitive headers (e.g. <code>cookie</code>,{" "}
+            <code>authorization</code>) are kept — their values are masked.
+          </p>
+        </div>
+        <Tooltip title={!userRole.editEntities ? "You don't have permission to change this setting" : undefined}>
+          <Switch checked={captureHeaders} loading={saving} disabled={!userRole.editEntities} onChange={onToggle} />
+        </Tooltip>
+      </div>
+    </div>
+  );
+};
+
 const WorkspaceSettingsComponent: React.FC<any> = () => {
   const config = useAppConfig();
   const workspace = useWorkspace();
@@ -571,6 +619,9 @@ const WorkspaceSettingsComponent: React.FC<any> = () => {
             onSuccess={({ slug }) => (window.location.href = `/${slug}/settings`)}
           />
         </div>
+
+        {/* Data Collection Section */}
+        <DataCollectionSettings />
 
         {/* OIDC Providers Section */}
         <OidcProviders />
