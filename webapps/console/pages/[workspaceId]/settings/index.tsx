@@ -4,8 +4,9 @@ import { useAppConfig, useUser, useWorkspace, useWorkspaceRole } from "../../../
 import React, { useEffect, useState } from "react";
 import { confirmOp, confirmOpWithInput, feedbackError, feedbackSuccess } from "../../../lib/ui";
 import { get } from "../../../lib/useApi";
+import { getWorkspaceCacheKey } from "../../../lib/store";
 import { SafeUserProfile, UserWorkspaceRelation } from "../../../lib/schema";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AsyncButton } from "../../../components/AsyncButton/AsyncButton";
 import { CopyButton } from "../../../components/CopyButton/CopyButton";
 import { WorkspaceNameAndSlugEditor } from "../../../components/WorkspaceNameAndSlugEditor/WorkspaceNameAndSlugEditor";
@@ -490,14 +491,15 @@ const OidcProviders: React.FC<any> = () => {
 const DataCollectionSettings: React.FC<any> = () => {
   const workspace = useWorkspace();
   const userRole = useWorkspaceRole();
+  const queryClient = useQueryClient();
   const serverCaptureHeaders = (workspace.featuresEnabled ?? []).includes("captureHeaders");
   const [captureHeaders, setCaptureHeaders] = useState(serverCaptureHeaders);
   const [saving, setSaving] = useState(false);
-  // Re-sync if the underlying workspace changes (workspace switch or a context
-  // refetch). Keyed by the derived boolean, not the array (new identity every
-  // render) and not derived directly: the workspace context is not refetched
-  // after our own PUT, so deriving would snap the switch back to the stale
-  // pre-toggle value.
+
+  // Re-sync if the underlying workspace changes (workspace switch, or the cache
+  // patch below propagating through the context). Keyed by the derived boolean,
+  // not the array — the provider spreads the workspace object on every render,
+  // so the array has a fresh identity each time.
   useEffect(() => {
     setCaptureHeaders(serverCaptureHeaders);
   }, [workspace.id, serverCaptureHeaders]);
@@ -505,10 +507,23 @@ const DataCollectionSettings: React.FC<any> = () => {
   const onToggle = async (checked: boolean) => {
     setSaving(true);
     try {
-      await get(`/api/workspace/${workspace.id}`, {
+      const updated = await get(`/api/workspace/${workspace.id}`, {
         method: "PUT",
         body: { name: workspace.name, slug: workspace.slug, captureHeaders: checked },
       });
+      // The workspace object lives in a staleTime:Infinity react-query cache
+      // (StoreLoader.initialDataLoad) that nothing refetches on navigation —
+      // without patching it, leaving and re-opening this page resurrects the
+      // pre-toggle value. The cache is keyed by whatever id/slug was in the URL
+      // at load time, so patch both.
+      for (const key of [workspace.id, workspace.slug]) {
+        if (key && queryClient.getQueryData(getWorkspaceCacheKey(key))) {
+          queryClient.setQueryData(getWorkspaceCacheKey(key), (old: any) => ({
+            ...old,
+            featuresEnabled: updated.featuresEnabled,
+          }));
+        }
+      }
       setCaptureHeaders(checked);
       feedbackSuccess(
         `HTTP headers capture ${
