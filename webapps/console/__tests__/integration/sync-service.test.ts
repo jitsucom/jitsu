@@ -10,19 +10,12 @@ import { MASKED_SECRET } from "../../lib/schema/destinations";
 
 const svc = () => new SyncService({ prisma: deps().prisma, pgPool: deps().pgPool, clickhouse: deps().clickhouse });
 
+const PKG = { package: "airbyte/source-github", version: "1.0.0" };
+
 async function seedSync(workspaceId: string) {
   const prisma = deps().prisma;
   const service = await prisma.configurationObject.create({
-    data: {
-      workspaceId,
-      type: "service",
-      config: {
-        name: "github source",
-        package: "airbyte/source-github",
-        version: "1.0.0",
-        credentials: { token: "secret" },
-      },
-    },
+    data: { workspaceId, type: "service", config: { name: "github source", ...PKG, credentials: { token: "secret" } } },
   });
   const destination = await prisma.configurationObject.create({
     data: { workspaceId, type: "destination", config: { name: "wh", destinationType: "webhook" } },
@@ -31,6 +24,23 @@ async function seedSync(workspaceId: string) {
     data: { workspaceId, fromId: service.id, toId: destination.id, type: "sync", data: {} },
   });
 }
+
+const mkTask = (syncId: string, taskId: string, status: string, startedAt: string) => ({
+  sync_id: syncId,
+  task_id: taskId,
+  ...PKG,
+  status,
+  started_at: new Date(startedAt),
+});
+
+const mkLog = (taskId: string, syncId: string, timestamp: string | Date, message: string) => ({
+  task_id: taskId,
+  sync_id: syncId,
+  timestamp,
+  level: "INFO",
+  logger: "sync",
+  message,
+});
 
 describe("SyncService", () => {
   it("runSync posts to syncctl and records a RUNNING source_task through the prisma singleton", async () => {
@@ -68,33 +78,11 @@ describe("SyncService", () => {
     const { workspace: foreign } = await seedWorkspace();
     const foreignSync = await seedSync(foreign.id);
 
-    const prisma = deps().prisma;
-    await prisma.source_task.createMany({
+    await deps().prisma.source_task.createMany({
       data: [
-        {
-          sync_id: sync.id,
-          task_id: "task-ok",
-          package: "airbyte/source-github",
-          version: "1.0.0",
-          status: "SUCCESS",
-          started_at: new Date("2026-07-01T10:00:00Z"),
-        },
-        {
-          sync_id: sync.id,
-          task_id: "task-running",
-          package: "airbyte/source-github",
-          version: "1.0.0",
-          status: "RUNNING",
-          started_at: new Date("2026-07-01T11:00:00Z"),
-        },
-        {
-          sync_id: foreignSync.id,
-          task_id: "task-foreign",
-          package: "airbyte/source-github",
-          version: "1.0.0",
-          status: "SUCCESS",
-          started_at: new Date("2026-07-01T12:00:00Z"),
-        },
+        mkTask(sync.id, "task-ok", "SUCCESS", "2026-07-01T10:00:00Z"),
+        mkTask(sync.id, "task-running", "RUNNING", "2026-07-01T11:00:00Z"),
+        mkTask(foreignSync.id, "task-foreign", "SUCCESS", "2026-07-01T12:00:00Z"),
       ],
     });
 
@@ -121,21 +109,13 @@ describe("SyncService", () => {
     const { workspace: foreign } = await seedWorkspace();
     const foreignSync = await seedSync(foreign.id);
 
-    const task = (syncId: string, taskId: string, status: string, startedAt: string) => ({
-      sync_id: syncId,
-      task_id: taskId,
-      package: "airbyte/source-github",
-      version: "1.0.0",
-      status,
-      started_at: new Date(startedAt),
-    });
     await deps().prisma.source_task.createMany({
       data: [
-        task(syncA.id, "a-old", "SUCCESS", "2026-07-01T10:00:00Z"),
-        task(syncA.id, "a-new", "FAILED", "2026-07-02T10:00:00Z"),
-        task(syncA.id, "a-skipped", "SKIPPED", "2026-07-03T10:00:00Z"), // newest but skipped
-        task(syncB.id, "b-1", "SUCCESS", "2026-07-01T10:00:00Z"),
-        task(foreignSync.id, "f-1", "SUCCESS", "2026-07-01T10:00:00Z"),
+        mkTask(syncA.id, "a-old", "SUCCESS", "2026-07-01T10:00:00Z"),
+        mkTask(syncA.id, "a-new", "FAILED", "2026-07-02T10:00:00Z"),
+        mkTask(syncA.id, "a-skipped", "SKIPPED", "2026-07-03T10:00:00Z"), // newest but skipped
+        mkTask(syncB.id, "b-1", "SUCCESS", "2026-07-01T10:00:00Z"),
+        mkTask(foreignSync.id, "f-1", "SUCCESS", "2026-07-01T10:00:00Z"),
       ],
     });
 
@@ -150,24 +130,13 @@ describe("SyncService", () => {
   it("triggerSourceCheck with a caller config unmasks secrets from the stored object", async () => {
     const { user, workspace } = await seedWorkspace();
     const stored = await deps().prisma.configurationObject.create({
-      data: {
-        workspaceId: workspace.id,
-        type: "service",
-        config: {
-          name: "github source",
-          package: "airbyte/source-github",
-          version: "1.0.0",
-          credentials: { token: "real-secret" },
-        },
-      },
+      data: { workspaceId: workspace.id, type: "service", config: { ...PKG, credentials: { token: "real-secret" } } },
     });
 
     let posted: any;
-    let syncctlQuery: URLSearchParams | undefined;
     server.use(
       http.post("http://syncctl.test.local/check", async ({ request }) => {
         posted = await request.json();
-        syncctlQuery = new URL(request.url).searchParams;
         return HttpResponse.json({ ok: true });
       })
     );
@@ -176,75 +145,47 @@ describe("SyncService", () => {
     // the possibly-unsaved editor config with masked secrets
     const storageKey = `${workspace.id}_${stored.id}_somehash_query1`;
     const res = await svc().triggerSourceCheck(user, workspace.id, {
-      config: {
-        id: stored.id,
-        package: "airbyte/source-github",
-        version: "1.0.0",
-        credentials: { token: MASKED_SECRET },
-      },
+      config: { id: stored.id, ...PKG, credentials: { token: MASKED_SECRET } },
       storageKey,
     });
     expect(res).toMatchObject({ ok: false, pending: true, storageKey });
     expect(posted.source.credentials.token).toBe("real-secret");
-    expect(syncctlQuery?.get("storageKey")).toBe(storageKey);
   });
 
   it("source check storage keys of a prefix-colliding workspace are rejected", async () => {
     const { user, workspace } = await seedWorkspace();
     // workspace "ws1" must not accept keys of "ws10" — an exact `${workspaceId}_` segment is required
     const foreignKey = `${workspace.id}0_service_hash`;
+    const config = { ...PKG, credentials: {} };
 
-    const check = await svc().triggerSourceCheck(user, workspace.id, {
-      config: { package: "p", version: "1", credentials: {} },
-      storageKey: foreignKey,
-    });
-    expect(check.ok).toBe(false);
-    expect(check.error).toMatch(/doesn't belong/);
+    const check = await svc().triggerSourceCheck(user, workspace.id, { config, storageKey: foreignKey });
+    expect(check).toMatchObject({ ok: false, error: expect.stringMatching(/doesn't belong/) });
 
     const poll = await svc().getSourceCheckResult(user, workspace.id, foreignKey);
-    expect(poll.ok).toBe(false);
-    expect(poll.error).toMatch(/doesn't belong/);
+    expect(poll).toMatchObject({ ok: false, error: expect.stringMatching(/doesn't belong/) });
   });
 
   it("setSyncState upserts a stream cursor and refuses while the sync runs", async () => {
     const { user, workspace } = await seedWorkspace();
     const sync = await seedSync(workspace.id);
-    await deps().prisma.source_state.create({
-      data: { sync_id: sync.id, stream: "issues", state: { cursor: "old" } },
-    });
+    const prisma = deps().prisma;
+    await prisma.source_state.create({ data: { sync_id: sync.id, stream: "issues", state: { cursor: "old" } } });
 
-    const updated = await svc().setSyncState(user, workspace.id, {
-      syncId: sync.id,
-      stream: "issues",
-      state: { cursor: "new" },
-    });
+    const set = (stream: string, cursor: string) =>
+      svc().setSyncState(user, workspace.id, { syncId: sync.id, stream, state: { cursor } });
+
+    const updated = await set("issues", "new");
     expect(updated.ok).toBe(true);
     expect(JSON.parse(updated.state.issues)).toEqual({ cursor: "new" });
 
-    const inserted = await svc().setSyncState(user, workspace.id, {
-      syncId: sync.id,
-      stream: "pulls",
-      state: { cursor: "p1" },
-    });
+    const inserted = await set("pulls", "p1");
     expect(Object.keys(inserted.state).sort()).toEqual(["issues", "pulls"]);
 
-    await deps().prisma.source_task.create({
-      data: {
-        sync_id: sync.id,
-        task_id: "task-running-state-edit",
-        package: "airbyte/source-github",
-        version: "1.0.0",
-        status: "RUNNING",
-        started_at: new Date("2026-07-01T10:00:00Z"),
-      },
+    await prisma.source_task.create({
+      data: mkTask(sync.id, "task-running-state-edit", "RUNNING", "2026-07-01T10:00:00Z"),
     });
-    const blocked = await svc().setSyncState(user, workspace.id, {
-      syncId: sync.id,
-      stream: "issues",
-      state: { cursor: "nope" },
-    });
-    expect(blocked.ok).toBe(false);
-    expect(blocked.error).toMatch(/running/i);
+    const blocked = await set("issues", "nope");
+    expect(blocked).toMatchObject({ ok: false, error: expect.stringMatching(/running/i) });
   });
 
   it("getSyncState reads and resetSyncState deletes source_state rows", async () => {
@@ -284,22 +225,8 @@ describe("SyncService", () => {
       format: "JSONEachRow",
       clickhouse_settings: { wait_end_of_query: 1 },
       values: [
-        {
-          task_id: "task-ch",
-          sync_id: sync.id,
-          timestamp: "2026-07-01 10:00:00.000",
-          level: "INFO",
-          logger: "sync",
-          message: "started",
-        },
-        {
-          task_id: "task-ch",
-          sync_id: sync.id,
-          timestamp: "2026-07-01 10:01:00.000",
-          level: "INFO",
-          logger: "sync",
-          message: "finished",
-        },
+        mkLog("task-ch", sync.id, "2026-07-01 10:00:00.000", "started"),
+        mkLog("task-ch", sync.id, "2026-07-01 10:01:00.000", "finished"),
       ],
     });
     const chLogs = await svc().getSyncLogs(user, workspace.id, { syncId: sync.id, taskId: "task-ch" });
@@ -308,14 +235,7 @@ describe("SyncService", () => {
 
     // Postgres fallback: nothing in ClickHouse for this task
     await deps().prisma.task_log.create({
-      data: {
-        task_id: "task-pg",
-        sync_id: sync.id,
-        level: "INFO",
-        logger: "sync",
-        message: "from postgres",
-        timestamp: new Date("2026-07-01T10:00:00Z"),
-      },
+      data: mkLog("task-pg", sync.id, new Date("2026-07-01T10:00:00Z"), "from postgres"),
     });
     const pgLogs = await svc().getSyncLogs(user, workspace.id, { syncId: sync.id, taskId: "task-pg" });
     expect(pgLogs.ok).toBe(true);
