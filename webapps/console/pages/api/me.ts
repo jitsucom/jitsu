@@ -17,12 +17,12 @@ function getMatcher(mask: string): (test: string) => boolean {
   if (mask.startsWith("*")) {
     const suffix = mask.substring(1);
     return (test: string) => {
-      log.atInfo().log(`Matching ${mask} (suffix: ${suffix}) with ${test} - wildcard`);
+      log.atDebug().log(`Matching ${mask} (suffix: ${suffix}) with ${test} - wildcard`);
       return test.toLowerCase().trim().endsWith(suffix.toLowerCase().trim());
     };
   } else {
     return (test: string) => {
-      log.atInfo().log(`Matching ${mask} with ${test}`);
+      log.atDebug().log(`Matching ${mask} with ${test}`);
       return test.toLowerCase().trim() === mask.toLowerCase().trim();
     };
   }
@@ -39,8 +39,12 @@ function handleCors(requestDomain: string, origin: string | undefined, res: Next
     .split(",")
     .map(mask => mask.replaceAll("[originTopLevelDomain]", topLevelDomain));
   if (!compiledMasks.map(getMatcher).find(matcher => matcher(originHost))) {
+    // Rejecting a disallowed origin is this endpoint working, not a fault: /api/me
+    // answers with credentials, so the allow-list is what stops an arbitrary page
+    // reading a signed-in user's identity. Logged at warn so it stays greppable
+    // without counting towards console's error rate.
     log
-      .atError()
+      .atWarn()
       .log(
         `CORS error - origin ${origin} is not allowed. Masks: ${allowedOrigins} (compiled: ${compiledMasks}), request domain: ${requestDomain}, top level domain: ${topLevelDomain}`
       );
