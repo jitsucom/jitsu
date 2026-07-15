@@ -9,6 +9,7 @@ import stableHash from "stable-hash";
 import { SessionUser } from "../schema";
 import { verifyAccess } from "../api";
 import { ApiError } from "../shared/errors";
+import { containsMaskedSecrets, unmaskSecretsFromOriginal } from "../schema/secrets";
 import { scheduleSync, ScheduleSyncResult, syncError } from "./sync";
 import { getServerEnv } from "./serverEnv";
 import { getServerLog } from "./log";
@@ -88,7 +89,7 @@ export class SyncService {
   async runSync(
     user: SessionUser,
     workspaceId: string,
-    opts: { syncId: string; fullSync?: boolean; ignoreRunning?: boolean },
+    opts: { syncId: string; fullSync?: boolean; ignoreRunning?: boolean; taskId?: string },
     req: NextApiRequest
   ): Promise<ScheduleSyncResult> {
     await verifyAccess(user, workspaceId);
@@ -100,7 +101,14 @@ export class SyncService {
       syncIdOrModel: opts.syncId,
       fullSync: !!opts.fullSync,
       ignoreRunning: !!opts.ignoreRunning,
+      taskId: opts.taskId,
     });
+  }
+
+  /** Workspace-scoped sync lookup for routes that keep their own transport (e.g. the gzip log streamer). */
+  async findSync(user: SessionUser, workspaceId: string, syncId: string) {
+    await verifyAccess(user, workspaceId);
+    return this.getSync(workspaceId, syncId);
   }
 
   /** Mirrors `sources/cancel.ts`. Cancellation is async — poll `listSyncTasks` for CANCELLED. */
@@ -176,6 +184,25 @@ export class SyncService {
       return { ok: true, tasks };
     } catch (e: any) {
       return syncError(log, `Error loading tasks`, e, false, `sync: ${opts.syncId} workspace: ${workspaceId}`);
+    }
+  }
+
+  /** Mirrors `sources/tasks.ts` POST — the latest non-skipped task per sync, keyed by sync id. */
+  async latestSyncTasks(user: SessionUser, workspaceId: string, syncIds: string[]): Promise<SyncOpResult> {
+    await verifyAccess(user, workspaceId);
+    const syncs = await this.prisma.configurationObjectLink.findMany({
+      where: { id: { in: syncIds }, workspaceId, deleted: false, type: "sync" },
+    });
+    try {
+      const rows = await this.pgPool.query(
+        `select DISTINCT ON (sync_id) sync_id, task_id, status, error, description, started_at, updated_at
+         from newjitsu.source_task where sync_id = ANY($1::text[]) and status != 'SKIPPED'
+         order by sync_id, started_at desc`,
+        [syncs.map(s => s.id)]
+      );
+      return { ok: true, tasks: Object.fromEntries(rows.rows.map(r => [r.sync_id, r])) };
+    } catch (e: any) {
+      return syncError(log, `Error loading tasks`, e, false, `sync ids: ${syncIds} workspace: ${workspaceId}`);
     }
   }
 
@@ -341,27 +368,56 @@ export class SyncService {
   }
 
   /**
-   * Trigger the async credentials check for an existing service (mirrors `sources/check.ts`
-   * POST, but reads the stored — unmasked — config instead of taking one from the caller).
-   * Returns the `storageKey` to poll via `getSourceCheckResult`.
+   * Trigger the async credentials check (mirrors `sources/check.ts` POST). Two modes:
+   * `serviceId` reads the stored — unmasked — config; `config` checks a caller-supplied
+   * (possibly unsaved) config under a caller-generated `storageKey` — masked secrets are
+   * unmasked from the stored object referenced by `config.id`/`config.cloneId`. Returns the
+   * `storageKey` to poll via `getSourceCheckResult`.
    */
-  async triggerSourceCheck(user: SessionUser, workspaceId: string, serviceId: string): Promise<SyncOpResult> {
+  async triggerSourceCheck(
+    user: SessionUser,
+    workspaceId: string,
+    opts: { serviceId?: string; config?: any; storageKey?: string }
+  ): Promise<SyncOpResult> {
     await verifyAccess(user, workspaceId);
     const { url, authHeaders } = this.syncctl();
-    const { service, storageKey } = await this.getServiceWithStorageKey(workspaceId, serviceId);
+    let source: any;
+    let storageKey: string;
+    if (opts.config) {
+      storageKey = requireDefined(opts.storageKey, "`storageKey` is required when `config` is provided");
+      // Exact-segment prefix — see getSourceCheckResult.
+      if (!storageKey.startsWith(`${workspaceId}_`)) {
+        return { ok: false, error: "storageKey doesn't belong to the current workspace" };
+      }
+      source = opts.config;
+      const existingId = source.cloneId || source.id;
+      const existing = existingId
+        ? await this.prisma.configurationObject.findFirst({ where: { id: existingId } })
+        : null;
+      if (existing && existing.workspaceId !== workspaceId) {
+        return { ok: false, error: "invalid service id" };
+      }
+      if (existing && containsMaskedSecrets(source)) {
+        log.atInfo().log(`Unmasking secrets for service check: ${source.id}`);
+        source = unmaskSecretsFromOriginal(source, existing.config as any);
+      }
+    } else {
+      const serviceId = requireDefined(opts.serviceId, "either `config` or `serviceId` must be provided");
+      ({ service: source, storageKey } = await this.getServiceWithStorageKey(workspaceId, serviceId));
+    }
     try {
       const checkRes = await rpc(url + "/check", {
         method: "POST",
-        body: { source: service },
+        body: { source },
         headers: { "Content-Type": "application/json", ...authHeaders },
-        query: { package: service.package, version: service.version, storageKey },
+        query: { package: source.package, version: source.version, storageKey },
       });
       if (!checkRes.ok) {
         return { ok: false, error: checkRes.error ?? "unknown error" };
       }
       return { ok: false, pending: true, storageKey };
     } catch (e: any) {
-      return syncError(log, `Error running connection check`, e, false, `source: ${serviceId}`);
+      return syncError(log, `Error running connection check`, e, false, `source: ${storageKey}`);
     }
   }
 
@@ -427,6 +483,36 @@ export class SyncService {
       } else {
         await this.pgPool.query(`delete from newjitsu.source_state where sync_id = $1`, [opts.syncId]);
       }
+      return { ok: true, state: await this.loadState(opts.syncId) };
+    } catch (e: any) {
+      return { ok: false, error: e.message };
+    }
+  }
+
+  /**
+   * Overwrite the saved cursor of a single stream (mirrors `sources/state.ts` POST with a
+   * non-empty body). Fails while the sync is running, same as `resetSyncState`.
+   */
+  async setSyncState(
+    user: SessionUser,
+    workspaceId: string,
+    opts: { syncId: string; stream: string; state: any }
+  ): Promise<SyncOpResult> {
+    await verifyAccess(user, workspaceId);
+    const sync = await this.getSync(workspaceId, opts.syncId);
+    if (!sync) {
+      return { ok: false, error: "sync not found" };
+    }
+    const running = await this.prisma.source_task.findFirst({ where: { sync_id: opts.syncId, status: "RUNNING" } });
+    if (running) {
+      return { ok: false, error: "Sync is running. Please make sure that sync is stopped before editing state." };
+    }
+    try {
+      await this.pgPool.query(
+        `insert into newjitsu.source_state(sync_id, state, timestamp, stream) values($2, $1, now(), $3)
+         on conflict (sync_id, stream) do update set state = $1, timestamp = now()`,
+        [JSON.stringify(opts.state), opts.syncId, opts.stream]
+      );
       return { ok: true, state: await this.loadState(opts.syncId) };
     } catch (e: any) {
       return { ok: false, error: e.message };

@@ -492,7 +492,7 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
     },
     async ({ workspaceId, serviceId }, ctx) =>
       run("check_source_credentials", () =>
-        syncs.triggerSourceCheck(principalFromAuth(ctx.authInfo), workspaceId, serviceId)
+        syncs.triggerSourceCheck(principalFromAuth(ctx.authInfo), workspaceId, { serviceId })
       )
   );
 

@@ -67,7 +67,8 @@ export class ReportsService {
             streamId,
             destinationId,
             status,
-            sumMerge(events) as events
+            sumMerge(events) as events,
+            count(*) as "srcSize"
         from mv_metrics
         where
             timestamp >= toDateTime({start:String}, 'UTC') and

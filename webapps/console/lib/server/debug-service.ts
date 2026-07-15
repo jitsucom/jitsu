@@ -119,6 +119,7 @@ export class DebugService {
     workspaceId: string,
     opts: {
       functionId: string;
+      functionName?: string;
       code?: string;
       event: any;
       variables?: any;
@@ -128,7 +129,7 @@ export class DebugService {
   ): Promise<FunctionRunResult> {
     await verifyAccessWithRole(user, workspaceId, "editEntities");
     let code = opts.code;
-    let functionName: string | undefined;
+    let functionName = opts.functionName;
     if (code === undefined) {
       const func = await this.prisma.configurationObject.findFirst({
         where: { id: opts.functionId, workspaceId, type: "function", deleted: false },

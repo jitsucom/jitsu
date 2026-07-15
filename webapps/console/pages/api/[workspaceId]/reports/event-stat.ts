@@ -1,21 +1,7 @@
 import { z } from "zod";
-import { createRoute, verifyAccess, getWorkspace } from "../../../../lib/api";
-import { clickhouse } from "../../../../lib/server/clickhouse";
-import dayjs from "dayjs";
-import utc from "dayjs/plugin/utc";
-import { getServerLog } from "../../../../lib/server/log";
+import { createRoute, getWorkspace } from "../../../../lib/api";
 import { Report } from "../../../../lib/shared/reporting";
-import { getServerEnv } from "../../../../lib/server/serverEnv";
-
-dayjs.extend(utc);
-
-const log = getServerLog("report-query");
-const serverEnv = getServerEnv();
-
-function toISOString(period: string) {
-  const [date, time] = period.split(" ");
-  return `${date}T${time}Z`;
-}
+import { reportsService } from "../../../../lib/server/route-services";
 
 export default createRoute()
   .GET({
@@ -26,59 +12,15 @@ export default createRoute()
       end: z.any().optional(),
       granularity: z.enum(["day", "hour"]).optional().default("day"),
     }),
-    //result: z.any()
     result: Report.and(z.object({ queryMeta: z.any() })),
   })
   .handler(async ({ user, query }) => {
-    const { workspaceId } = query;
-    const workspace = await getWorkspace(workspaceId);
-    await verifyAccess(user, workspace.id);
-    const start = query.start
-      ? new Date(query.start).toISOString()
-      : dayjs().subtract(1, "month").toDate().toISOString();
-    const end = query.end ? new Date(query.end).toISOString() : new Date().toISOString();
-    const sql = `
-        select
-            date_trunc({granularity:String}, timestamp) as period,
-            connectionId,
-            streamId,
-            destinationId,
-            status,
-            sumMerge(events) as events,
-            count(*) as "srcSize"
-        from mv_metrics
-        where 
-            timestamp >= toDateTime({start:String}, 'UTC') and
-            timestamp < toDateTime({end:String}, 'UTC') and 
-            workspaceId = {workspace:String}
-        group by period, connectionId, status, streamId, destinationId
-        order by period desc, events desc;
-    `;
-
-    const chResult = (await (
-      await clickhouse.query({
-        query: sql,
-        query_params: {
-          start: isoDateTOClickhouse(start),
-          end: isoDateTOClickhouse(end),
-          workspace: workspace.id,
-          granularity: query.granularity,
-        },
-        clickhouse_settings: {
-          wait_end_of_query: 1,
-        },
-      })
-    ).json()) as any;
-    return {
-      rows: chResult.data.map(({ period, ...rest }) => ({
-        ...rest,
-        period: toISOString(period),
-        workspaceId: workspace.id,
-      })),
-    };
+    // getWorkspace resolves slugs too — the UI calls this route by workspace slug.
+    const workspace = await getWorkspace(query.workspaceId);
+    return reportsService().eventStat(user, workspace.id, {
+      start: query.start,
+      end: query.end,
+      granularity: query.granularity,
+    });
   })
   .toNextApiHandler();
-
-function isoDateTOClickhouse(date: string): string {
-  return date.replace("T", " ").replace("Z", "").split(".")[0];
-}

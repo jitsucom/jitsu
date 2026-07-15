@@ -3,6 +3,7 @@ import { http, HttpResponse } from "msw";
 import { server } from "./support/msw";
 import { deps, seedWorkspace } from "./support/harness";
 import { SyncService } from "../../lib/server/sync-service";
+import { MASKED_SECRET } from "../../lib/schema/destinations";
 
 // Happy paths against real Postgres (source_task join, source_state, task_log
 // fallback), real ClickHouse (task_log), and MSW-faked syncctl.
@@ -111,6 +112,139 @@ describe("SyncService", () => {
     // a foreign task id doesn't resolve through this workspace's join
     const foreignById = await svc().listSyncTasks(user, workspace.id, { taskId: "task-foreign" });
     expect(foreignById.ok).toBe(false);
+  });
+
+  it("latestSyncTasks returns the newest non-skipped task per sync, workspace-scoped", async () => {
+    const { user, workspace } = await seedWorkspace();
+    const syncA = await seedSync(workspace.id);
+    const syncB = await seedSync(workspace.id);
+    const { workspace: foreign } = await seedWorkspace();
+    const foreignSync = await seedSync(foreign.id);
+
+    const task = (syncId: string, taskId: string, status: string, startedAt: string) => ({
+      sync_id: syncId,
+      task_id: taskId,
+      package: "airbyte/source-github",
+      version: "1.0.0",
+      status,
+      started_at: new Date(startedAt),
+    });
+    await deps().prisma.source_task.createMany({
+      data: [
+        task(syncA.id, "a-old", "SUCCESS", "2026-07-01T10:00:00Z"),
+        task(syncA.id, "a-new", "FAILED", "2026-07-02T10:00:00Z"),
+        task(syncA.id, "a-skipped", "SKIPPED", "2026-07-03T10:00:00Z"), // newest but skipped
+        task(syncB.id, "b-1", "SUCCESS", "2026-07-01T10:00:00Z"),
+        task(foreignSync.id, "f-1", "SUCCESS", "2026-07-01T10:00:00Z"),
+      ],
+    });
+
+    // the foreign sync id is silently dropped by the workspace scoping
+    const res = await svc().latestSyncTasks(user, workspace.id, [syncA.id, syncB.id, foreignSync.id]);
+    expect(res.ok).toBe(true);
+    expect(Object.keys(res.tasks).sort()).toEqual([syncA.id, syncB.id].sort());
+    expect(res.tasks[syncA.id].task_id).toBe("a-new");
+    expect(res.tasks[syncB.id].task_id).toBe("b-1");
+  });
+
+  it("triggerSourceCheck with a caller config unmasks secrets from the stored object", async () => {
+    const { user, workspace } = await seedWorkspace();
+    const stored = await deps().prisma.configurationObject.create({
+      data: {
+        workspaceId: workspace.id,
+        type: "service",
+        config: {
+          name: "github source",
+          package: "airbyte/source-github",
+          version: "1.0.0",
+          credentials: { token: "real-secret" },
+        },
+      },
+    });
+
+    let posted: any;
+    let syncctlQuery: URLSearchParams | undefined;
+    server.use(
+      http.post("http://syncctl.test.local/check", async ({ request }) => {
+        posted = await request.json();
+        syncctlQuery = new URL(request.url).searchParams;
+        return HttpResponse.json({ ok: true });
+      })
+    );
+
+    // the UI generates its own storage key (with a per-query suffix) and sends
+    // the possibly-unsaved editor config with masked secrets
+    const storageKey = `${workspace.id}_${stored.id}_somehash_query1`;
+    const res = await svc().triggerSourceCheck(user, workspace.id, {
+      config: {
+        id: stored.id,
+        package: "airbyte/source-github",
+        version: "1.0.0",
+        credentials: { token: MASKED_SECRET },
+      },
+      storageKey,
+    });
+    expect(res).toMatchObject({ ok: false, pending: true, storageKey });
+    expect(posted.source.credentials.token).toBe("real-secret");
+    expect(syncctlQuery?.get("storageKey")).toBe(storageKey);
+  });
+
+  it("source check storage keys of a prefix-colliding workspace are rejected", async () => {
+    const { user, workspace } = await seedWorkspace();
+    // workspace "ws1" must not accept keys of "ws10" — an exact `${workspaceId}_` segment is required
+    const foreignKey = `${workspace.id}0_service_hash`;
+
+    const check = await svc().triggerSourceCheck(user, workspace.id, {
+      config: { package: "p", version: "1", credentials: {} },
+      storageKey: foreignKey,
+    });
+    expect(check.ok).toBe(false);
+    expect(check.error).toMatch(/doesn't belong/);
+
+    const poll = await svc().getSourceCheckResult(user, workspace.id, foreignKey);
+    expect(poll.ok).toBe(false);
+    expect(poll.error).toMatch(/doesn't belong/);
+  });
+
+  it("setSyncState upserts a stream cursor and refuses while the sync runs", async () => {
+    const { user, workspace } = await seedWorkspace();
+    const sync = await seedSync(workspace.id);
+    await deps().prisma.source_state.create({
+      data: { sync_id: sync.id, stream: "issues", state: { cursor: "old" } },
+    });
+
+    const updated = await svc().setSyncState(user, workspace.id, {
+      syncId: sync.id,
+      stream: "issues",
+      state: { cursor: "new" },
+    });
+    expect(updated.ok).toBe(true);
+    expect(JSON.parse(updated.state.issues)).toEqual({ cursor: "new" });
+
+    const inserted = await svc().setSyncState(user, workspace.id, {
+      syncId: sync.id,
+      stream: "pulls",
+      state: { cursor: "p1" },
+    });
+    expect(Object.keys(inserted.state).sort()).toEqual(["issues", "pulls"]);
+
+    await deps().prisma.source_task.create({
+      data: {
+        sync_id: sync.id,
+        task_id: "task-running-state-edit",
+        package: "airbyte/source-github",
+        version: "1.0.0",
+        status: "RUNNING",
+        started_at: new Date("2026-07-01T10:00:00Z"),
+      },
+    });
+    const blocked = await svc().setSyncState(user, workspace.id, {
+      syncId: sync.id,
+      stream: "issues",
+      state: { cursor: "nope" },
+    });
+    expect(blocked.ok).toBe(false);
+    expect(blocked.error).toMatch(/running/i);
   });
 
   it("getSyncState reads and resetSyncState deletes source_state rows", async () => {
