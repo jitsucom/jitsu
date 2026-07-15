@@ -65,7 +65,7 @@ export const route = createRoute()
       trigger = "manual";
       user = await getUser(res, req);
       if (!user) {
-        throw new ApiError("Authorization Required", {}, { status: 401 });
+        throw new ApiError("Authorization Required", { status: 401 });
       }
       await verifyAccess(user, workspaceId);
     }

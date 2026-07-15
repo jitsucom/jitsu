@@ -78,7 +78,7 @@ export class DebugService {
         where: { id, workspaceId, type, deleted: false },
       });
       if (!existing) {
-        throw new ApiError(`${type} with id ${id} does not exist`, {}, { status: 404 });
+        throw new ApiError(`${type} with id ${id} does not exist`, { status: 404 });
       }
       body = { ...(existing.config as any), id };
     }
@@ -109,7 +109,7 @@ export class DebugService {
       const response = await fetch(bulkerURLEnv + "/test", options);
       return await response.json();
     } catch (e) {
-      throw new ApiError(`failed to fetch bulker API: ${getErrorMessage(e)}`, {}, { status: 500 });
+      throw new ApiError(`failed to fetch bulker API: ${getErrorMessage(e)}`, { status: 500 });
     }
   }
 
@@ -134,7 +134,7 @@ export class DebugService {
         where: { id: opts.functionId, workspaceId, type: "function", deleted: false },
       });
       if (!func) {
-        throw new ApiError(`function with id ${opts.functionId} does not exist`, {}, { status: 404 });
+        throw new ApiError(`function with id ${opts.functionId} does not exist`, { status: 404 });
       }
       const cfg = func.config as any;
       code = requireDefined(cfg.draft ?? cfg.code, `function ${opts.functionId} has no code`);
@@ -185,7 +185,7 @@ export class DebugService {
       include: { functions: { include: { function: true } } },
     });
     if (!pb) {
-      throw new ApiError(`profile builder with id ${opts.profileBuilderId} does not exist`, {}, { status: 404 });
+      throw new ApiError(`profile builder with id ${opts.profileBuilderId} does not exist`, { status: 404 });
     }
     let code = opts.code;
     if (code === undefined) {

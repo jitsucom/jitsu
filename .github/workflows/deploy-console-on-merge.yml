@@ -82,7 +82,7 @@ jobs:
             --repo jitsucom/jitsu-cloud-infra \
             --ref main \
             -f services=console \
-            -f version=beta \
+            -f channel=beta \
             -f dry_run=false \
             -f sync_argocd=true
 

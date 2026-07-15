@@ -84,7 +84,7 @@ function principalFromAuth(authInfo: AuthInfo | undefined): SessionUser {
   const extra = (authInfo?.extra ?? {}) as Record<string, any>;
   const userId = extra.userId;
   if (!userId) {
-    throw new ApiError("No authenticated user on this MCP session", {}, { status: 401 });
+    throw new ApiError("No authenticated user on this MCP session", { status: 401 });
   }
   return {
     internalId: userId,
@@ -194,7 +194,7 @@ export function registerTools(sdkServer: SdkMcpServer, deps: ToolDeps) {
           const links = await service.listLinks(user, workspaceId);
           const found = links.find((l: any) => l.id === id);
           if (!found) {
-            throw new ApiError(`connection with id ${id} does not exist`, {}, { status: 404 });
+            throw new ApiError(`connection with id ${id} does not exist`, { status: 404 });
           }
           return found;
         }

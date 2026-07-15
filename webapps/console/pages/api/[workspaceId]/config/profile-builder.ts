@@ -71,7 +71,9 @@ const upsertHandler = async (ctx: any) => {
   await verifyAccessWithRole(user, workspaceId, "editEntities");
   const parseResult = safeParseWithDate(ProfileBuilderDbModel, body.profileBuilder);
   if (!parseResult.success) {
-    throw new ApiError(`Failed to validate schema of profile-builder`, { object: body, error: parseResult.error });
+    throw new ApiError(`Failed to validate schema of profile-builder`, {
+      responseObject: { object: body, error: parseResult.error },
+    });
   }
   const pb = parseResult.data;
 

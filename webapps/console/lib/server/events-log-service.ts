@@ -106,8 +106,7 @@ export class EventsLogService {
         `Unknown events-log type '${type}'. Known: ${EVENTS_LOG_TYPES.join(
           ", "
         )} (use the dead-letter tooling for '${DEAD_LETTER}')`,
-        { type },
-        { status: 400 }
+        { status: 400, responseObject: { type } }
       );
     }
     await verifyAccess(user, workspaceId);
@@ -316,7 +315,7 @@ export class EventsLogService {
     mode: "incoming" | "actor" | "deadletter"
   ) {
     const reject = () => {
-      throw new ApiError(`source '${actorId}' doesn't belong to the current workspace`, {}, { status: 403 });
+      throw new ApiError(`source '${actorId}' doesn't belong to the current workspace`, { status: 403 });
     };
     if (mode === "incoming") {
       if (!(await this.prisma.configurationObject.findFirst({ where: { id: actorId, workspaceId } }))) reject();

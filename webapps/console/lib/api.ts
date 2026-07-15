@@ -13,7 +13,9 @@ import { isMaintenanceActive } from "./server/maintenance";
 import { prepareZodObjectForDeserialization, safeParseWithDate } from "./zod";
 import { ApiError } from "./shared/errors";
 import { getServerLog } from "./server/log";
+import { runWithRequestContext } from "./server/request-context";
 import { getFirebaseUser, isFirebaseEnabled } from "./server/firebase-server";
+import { randomUUID } from "crypto";
 import jwt from "jsonwebtoken";
 import { serialize } from "cookie";
 import {
@@ -278,7 +280,7 @@ export async function getUser(
   if (bearerToken) {
     const [keyId, secret] = bearerToken.split(":");
     if (!secret) {
-      throw new ApiError("Bearer token should have a format of keyId:secret");
+      throw new ApiError("Bearer token should have a format of keyId:secret", { status: 401 });
     }
     const serviceAccount = findServiceAccount({ keyId, secret });
     if (serviceAccount) {
@@ -288,18 +290,21 @@ export async function getUser(
       //auth based on an API key
       const token = await db.prisma().userApiToken.findUnique({ where: { id: keyId } });
       if (!token) {
-        throw new ApiError(`Invalid API key id ${keyId}`, { keyId }, { status: 401 });
+        throw new ApiError(`Invalid API key id ${keyId}`, { status: 401, responseObject: { keyId } });
       }
       if (!checkHash(token.hash, secret)) {
-        throw new ApiError(`Invalid API key secret for ${keyId}`, { keyId }, { status: 401 });
+        throw new ApiError(`Invalid API key secret for ${keyId}`, { status: 401, responseObject: { keyId } });
       }
       // MCP refresh tokens are stored in UserApiToken but must not be usable
       // as general Console API bearer keys — they are scoped to MCP only.
       if (token.oauthClientId) {
-        throw new ApiError(`MCP refresh tokens cannot be used as Console API bearer keys`, { keyId }, { status: 401 });
+        throw new ApiError(`MCP refresh tokens cannot be used as Console API bearer keys`, {
+          status: 401,
+          responseObject: { keyId },
+        });
       }
       if (token.expiresAt && token.expiresAt.getTime() < Date.now()) {
-        throw new ApiError(`API key ${keyId} has expired`, { keyId }, { status: 401 });
+        throw new ApiError(`API key ${keyId} has expired`, { status: 401, responseObject: { keyId } });
       }
       const user = requireDefined(
         await db.prisma().userProfile.findUnique({ where: { id: token.userId } }),
@@ -341,7 +346,7 @@ export async function getUser(
 }
 
 export function nextJsApiHandler(api: Api): NextApiHandler {
-  return async (req: NextApiRequest, res: NextApiResponse) => {
+  const handleRequest = async (req: NextApiRequest, res: NextApiResponse) => {
     const method = req.method as HttpMethodType;
     const handler = api[method];
     if (!handler) {
@@ -435,8 +440,10 @@ export function nextJsApiHandler(api: Api): NextApiHandler {
 
         if (!parseResult.success) {
           throw new ApiError(`Can't parse request body for ${req.method} ${req.url}`, {
-            zodError: parseResult.error,
-            body: tryJson(req.body),
+            responseObject: {
+              zodError: parseResult.error,
+              body: tryJson(req.body),
+            },
           });
         }
         body = parseResult.data;
@@ -445,7 +452,9 @@ export function nextJsApiHandler(api: Api): NextApiHandler {
           body = parseIfNeeded(req.body);
         } catch (e) {
           throw new ApiError(`Body ${req.method} ${req.url} is not a JSON object: ${getErrorMessage(e)}`, {
-            body: req.body,
+            responseObject: {
+              body: req.body,
+            },
           });
         }
       }
@@ -454,7 +463,9 @@ export function nextJsApiHandler(api: Api): NextApiHandler {
         const parseResult = safeParseWithDate(handler.types?.query, req.query);
         if (!parseResult.success) {
           throw new ApiError(`Can't parse request query for ${req.method} ${req.url}`, {
-            zodError: parseResult.error,
+            responseObject: {
+              zodError: parseResult.error,
+            },
           });
         }
         query = parseResult.data;
@@ -480,7 +491,9 @@ export function nextJsApiHandler(api: Api): NextApiHandler {
               )}. Zod error: ${JSON.stringify(parseResult.error)}`
             );
           throw new ApiError(`Response for ${req.method} ${req.url} doesn't match required schema`, {
-            zodError: parseResult.error,
+            responseObject: {
+              zodError: parseResult.error,
+            },
           });
         }
         //do not set explicit 200 status here. If the status has been set by the handler, we should respect it. There's
@@ -517,6 +530,17 @@ export function nextJsApiHandler(api: Api): NextApiHandler {
           .send({ error: tryJson(getErrorMessage(e)), details: e?.stack, stackArray: stackToArray(e?.stack) });
       }
     }
+  };
+  return async (req: NextApiRequest, res: NextApiResponse) => {
+    // Bind the inbound nginx X-Request-ID (or a generated fallback) to the async
+    // context so every log line for this request carries request_id → @request_id
+    // in Datadog, enabling an exact edge-5xx ↔ app-stack join (JITSU-104).
+    const rawRequestId = req.headers["x-request-id"];
+    const headerRequestId = Array.isArray(rawRequestId) ? rawRequestId[0] : rawRequestId;
+    // trim() so a blank/whitespace header falls back to a real id instead of
+    // collapsing distinct requests under an empty-ish @request_id.
+    const requestId = headerRequestId?.trim() || randomUUID();
+    return runWithRequestContext({ request_id: requestId }, () => handleRequest(req, res));
   };
 }
 
@@ -576,11 +600,10 @@ export async function verifyAccess(user: SessionUser, workspaceId: string) {
     if ((await db.prisma().userProfile.findFirst({ where: { id: user.internalId } }))?.admin) {
       return;
     }
-    throw new ApiError(
-      `User ${userId} doesn't have access to workspace ${workspaceId}`,
-      { workspaceId, userId },
-      { status: 403 }
-    );
+    throw new ApiError(`User ${userId} doesn't have access to workspace ${workspaceId}`, {
+      status: 403,
+      responseObject: { workspaceId, userId },
+    });
   }
 }
 
@@ -616,11 +639,10 @@ export async function verifyAccessWithRole(
         ...WorkspaceRolePermissions["owner"],
       };
     }
-    throw new ApiError(
-      `User ${userId} doesn't have access to workspace ${workspaceId}`,
-      { workspaceId, userId },
-      { status: 403 }
-    );
+    throw new ApiError(`User ${userId} doesn't have access to workspace ${workspaceId}`, {
+      status: 403,
+      responseObject: { workspaceId, userId },
+    });
   }
 
   const role = (access.role || "owner") as WorkspaceRoleType;
@@ -628,8 +650,7 @@ export async function verifyAccessWithRole(
   if (!hasPermission(role, requiredPermission)) {
     throw new ApiError(
       `User ${userId} doesn't have permission '${requiredPermission}' in workspace ${workspaceId}. Required role: owner or editor`,
-      { workspaceId, userId, role, requiredPermission },
-      { status: 403 }
+      { status: 403, responseObject: { workspaceId, userId, role, requiredPermission } }
     );
   }
 

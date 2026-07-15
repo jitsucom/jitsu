@@ -75,9 +75,9 @@ export async function handleLinkedConnections(
       });
     }
   } else if (options?.strict) {
-    throw new ApiError(
-      `Cannot delete ${objectType} because it has ${linkedConnections.length} linked connections`,
-      {
+    throw new ApiError(`Cannot delete ${objectType} because it has ${linkedConnections.length} linked connections`, {
+      status: 409,
+      responseObject: {
         code: "LINKED_CONNECTIONS_EXIST",
         linkedConnectionsCount: linkedConnections.length,
         linkedConnections: linkedConnections.map(link => ({
@@ -87,8 +87,7 @@ export async function handleLinkedConnections(
           toId: link.toId,
         })),
       },
-      { status: 409 }
-    );
+    });
   }
 }
 
@@ -97,13 +96,17 @@ export function parseObject(type: string, obj: any): any {
   assertDefined(configType, `Unknown config object type ${type}`);
   const parseResult = safeParseWithDate(configType.schema, obj);
   if (!parseResult.success) {
-    throw new ApiError(`Failed to validate schema of ${type}`, { object: obj, error: parseResult.error });
+    throw new ApiError(`Failed to validate schema of ${type}`, {
+      responseObject: { object: obj, error: parseResult.error },
+    });
   }
   const topLevelObject = parseResult.data;
   //we're parsing same object twice here, but it's not a big deal
   const narrowParseResult = configType.narrowSchema(topLevelObject, configType.schema).safeParse(obj);
   if (!narrowParseResult.success) {
-    throw new ApiError(`Failed to validate schema of ${type}`, { object: obj, error: narrowParseResult.error });
+    throw new ApiError(`Failed to validate schema of ${type}`, {
+      responseObject: { object: obj, error: narrowParseResult.error },
+    });
   }
   return narrowParseResult.data;
 }
@@ -293,21 +296,23 @@ const configObjectTypes: Record<string, ConfigObjectType> = {
         throw new ApiError(
           `Cannot delete function because it is being used by ${connectionsUsingFunction.length} connection(s) and ${profileBuildersUsingFunction.length} profile builder(s)`,
           {
-            code: "FUNCTION_IN_USE",
-            connectionsCount: connectionsUsingFunction.length,
-            profileBuildersCount: profileBuildersUsingFunction.length,
-            connections: connectionsUsingFunction.map(link => ({
-              id: link.id,
-              type: link.type || "push",
-              fromId: link.fromId,
-              toId: link.toId,
-            })),
-            profileBuilders: profileBuildersUsingFunction.map(pb => ({
-              id: pb.id,
-              name: pb.name,
-            })),
-          },
-          { status: 409 }
+            status: 409,
+            responseObject: {
+              code: "FUNCTION_IN_USE",
+              connectionsCount: connectionsUsingFunction.length,
+              profileBuildersCount: profileBuildersUsingFunction.length,
+              connections: connectionsUsingFunction.map(link => ({
+                id: link.id,
+                type: link.type || "push",
+                fromId: link.fromId,
+                toId: link.toId,
+              })),
+              profileBuilders: profileBuildersUsingFunction.map(pb => ({
+                id: pb.id,
+                name: pb.name,
+              })),
+            },
+          }
         );
       }
     },
