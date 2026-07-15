@@ -131,7 +131,7 @@ export class ReportsService {
       where: { id: opts.profileBuilderId, workspaceId },
     });
     if (!pb) {
-      throw new ApiError(`Profile Builder ${opts.profileBuilderId} not found`, {}, { status: 404 });
+      throw new ApiError(`Profile Builder ${opts.profileBuilderId} not found`, { status: 404 });
     }
     const version = opts.version ?? pb.version;
     try {

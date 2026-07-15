@@ -1,11 +1,15 @@
 import { db } from "../../../lib/server/db";
-import { getErrorMessage, getLog, requireDefined } from "juava";
+import { getErrorMessage, getLog } from "juava";
 import { jitsuSources, externalSources } from "./index";
 
 export default async function handler(req, res) {
   try {
     const packageType = (req.query.type as string) || "airbyte";
-    const packageId = requireDefined(req.query.package as string, `GET param package is required`);
+    const packageId = req.query.package as string;
+    if (!packageId) {
+      res.status(400).json({ status: 400, message: `GET param package is required` });
+      return;
+    }
 
     const jitsuSource = jitsuSources[packageId];
     if (jitsuSource) {

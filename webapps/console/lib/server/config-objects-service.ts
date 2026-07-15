@@ -129,11 +129,10 @@ export class ConfigObjectsService {
 
   private assertKnownType(type: string) {
     if (!getAllConfigObjectTypeNames().includes(type)) {
-      throw new ApiError(
-        `Unknown resource type '${type}'. Known types: ${getAllConfigObjectTypeNames().join(", ")}`,
-        { type },
-        { status: 400 }
-      );
+      throw new ApiError(`Unknown resource type '${type}'. Known types: ${getAllConfigObjectTypeNames().join(", ")}`, {
+        status: 400,
+        responseObject: { type },
+      });
     }
   }
 
@@ -170,7 +169,7 @@ export class ConfigObjectsService {
       where: { workspaceId, id, type, deleted: false },
     });
     if (!object) {
-      throw new ApiError(`${type} with id ${id} does not exist`, {}, { status: 404 });
+      throw new ApiError(`${type} with id ${id} does not exist`, { status: 404 });
     }
     const preFilter = { ...((object.config as any) || {}), workspaceId, id, type, updatedAt: object.updatedAt };
     return await configObjectType.outputFilter(preFilter);
@@ -277,7 +276,7 @@ export class ConfigObjectsService {
       where: { workspaceId, id, type, deleted: false },
     });
     if (!object) {
-      throw new ApiError(`${type} with id ${id} does not exist`, {}, { status: 404 });
+      throw new ApiError(`${type} with id ${id} does not exist`, { status: 404 });
     }
     // Snapshot before merge — `merge` may mutate `object.config` in place.
     const prevVersion = deepCopy(object.config);
@@ -414,7 +413,7 @@ export class ConfigObjectsService {
       try {
         validateSyncSchedule(data);
       } catch (e: any) {
-        throw new ApiError(e.message, {}, { status: 400 });
+        throw new ApiError(e.message, { status: 400 });
       }
     }
 
@@ -431,23 +430,19 @@ export class ConfigObjectsService {
         : undefined;
 
     if (!id && existingLink) {
-      throw new ApiError(`Link from '${fromId}' to '${toId}' already exists`, {}, { status: 400 });
+      throw new ApiError(`Link from '${fromId}' to '${toId}' already exists`, { status: 400 });
     }
 
     const co = this.prisma.configurationObject;
     if (!(await co.findFirst({ where: { workspaceId, type: fromType, id: fromId, deleted: false } }))) {
-      throw new ApiError(
-        `${fromType} object with id '${fromId}' not found in the workspace '${workspaceId}'`,
-        {},
-        { status: 400 }
-      );
+      throw new ApiError(`${fromType} object with id '${fromId}' not found in the workspace '${workspaceId}'`, {
+        status: 400,
+      });
     }
     if (!(await co.findFirst({ where: { workspaceId, type: "destination", id: toId, deleted: false } }))) {
-      throw new ApiError(
-        `Destination object with id '${toId}' not found in the workspace '${workspaceId}'`,
-        {},
-        { status: 400 }
-      );
+      throw new ApiError(`Destination object with id '${toId}' not found in the workspace '${workspaceId}'`, {
+        status: 400,
+      });
     }
 
     let createdOrUpdated: any;
@@ -499,31 +494,29 @@ export class ConfigObjectsService {
       where: { workspaceId, id, deleted: false },
     });
     if (!existing) {
-      throw new ApiError(`connection with id ${id} does not exist`, {}, { status: 404 });
+      throw new ApiError(`connection with id ${id} does not exist`, { status: 404 });
     }
     if (patch.fromId && patch.fromId !== existing.fromId) {
-      throw new ApiError(`fromId '${patch.fromId}' does not match connection ${id}`, {}, { status: 400 });
+      throw new ApiError(`fromId '${patch.fromId}' does not match connection ${id}`, { status: 400 });
     }
     if (patch.toId && patch.toId !== existing.toId) {
-      throw new ApiError(`toId '${patch.toId}' does not match connection ${id}`, {}, { status: 400 });
+      throw new ApiError(`toId '${patch.toId}' does not match connection ${id}`, { status: 400 });
     }
     // A link's type is immutable (push↔sync changes the from/to semantics — that's a
     // delete + create). Reject a mismatched patch.type rather than validate against one
     // type and persist another.
     const type = existing.type ?? "push";
     if (patch.type && patch.type !== type) {
-      throw new ApiError(
-        `connection ${id} is '${type}'; its type can't be changed to '${patch.type}'`,
-        {},
-        { status: 400 }
-      );
+      throw new ApiError(`connection ${id} is '${type}'; its type can't be changed to '${patch.type}'`, {
+        status: 400,
+      });
     }
     const data = patch.data !== undefined ? patch.data : existing.data;
     if (type === "sync" && data) {
       try {
         validateSyncSchedule(data);
       } catch (e: any) {
-        throw new ApiError(e.message, {}, { status: 400 });
+        throw new ApiError(e.message, { status: 400 });
       }
     }
     await this.validateLinkData(workspaceId, type, existing.toId, data);
@@ -541,11 +534,10 @@ export class ConfigObjectsService {
     if (type === "sync") {
       const parseResult = SyncOptionsType.safeParse(data);
       if (!parseResult.success) {
-        throw new ApiError(
-          `Invalid sync options: ${parseResult.error.message}`,
-          { zodError: parseResult.error },
-          { status: 400 }
-        );
+        throw new ApiError(`Invalid sync options: ${parseResult.error.message}`, {
+          status: 400,
+          responseObject: { zodError: parseResult.error },
+        });
       }
       return;
     }
@@ -561,8 +553,7 @@ export class ConfigObjectsService {
             `Invalid connection options for ${(destination.config as any)?.["destinationType"]}: ${
               parseResult.error.message
             }`,
-            { zodError: parseResult.error },
-            { status: 400 }
+            { status: 400, responseObject: { zodError: parseResult.error } }
           );
         }
       }
@@ -580,7 +571,7 @@ export class ConfigObjectsService {
     await verifyAccessWithRole(user, workspaceId, "deleteEntities");
     if (id) {
       if (fromId || toId) {
-        throw new ApiError("You can't specify 'fromId' or 'toId' with 'id'", {}, { status: 400 });
+        throw new ApiError("You can't specify 'fromId' or 'toId' with 'id'", { status: 400 });
       }
       // Read-then-update: prisma `update` throws when no row matches, so a missing id would
       // error instead of reporting deleted:false. Look it up first.

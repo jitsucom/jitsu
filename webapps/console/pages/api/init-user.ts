@@ -42,12 +42,11 @@ export default createRoute()
         if (isMaintenanceActive()) {
           throw new ApiError(
             "Jitsu is in maintenance mode; account creation is temporarily disabled. Please try again later.",
-            { code: "maintenance" },
-            { status: 503 }
+            { status: 503, responseObject: { code: "maintenance" } }
           );
         }
         if (serverEnv.DISABLE_SIGNUP) {
-          throw new ApiError("Sign up is disabled", { code: "signup-disabled" });
+          throw new ApiError("Sign up is disabled", { responseObject: { code: "signup-disabled" } });
         }
         if (!user.loginProvider && !user.externalId) {
           //double check so we won't pull first of all users from DB
@@ -70,7 +69,10 @@ export default createRoute()
         // genuinely new account is about to be created. The helper deletes the
         // orphaned Firebase account.
         if (await shouldRejectPersonalEmailSignup(user)) {
-          throw new ApiError(WORK_EMAIL_REQUIRED_MESSAGE, { code: "personal-email-rejected" }, { status: 403 });
+          throw new ApiError(WORK_EMAIL_REQUIRED_MESSAGE, {
+            status: 403,
+            responseObject: { code: "personal-email-rejected" },
+          });
         }
 
         const newUser = await db.prisma().userProfile.create({

@@ -51,7 +51,7 @@ export const api: Api = {
           .profileBuilder.findFirst({ where: { id: query.actorId, workspaceId: query.workspaceId } });
 
         if (!source && !link && !pb) {
-          throw new ApiError(`actor doesn't belong to the current workspace`, {}, { status: 403 });
+          throw new ApiError(`actor doesn't belong to the current workspace`, { status: 403 });
         }
       }
 

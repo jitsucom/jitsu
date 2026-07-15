@@ -77,7 +77,7 @@ export class SyncService {
       where: { id: serviceId, workspaceId, type: "service", deleted: false },
     });
     if (!row) {
-      throw new ApiError(`service with id ${serviceId} not found in the workspace`, {}, { status: 404 });
+      throw new ApiError(`service with id ${serviceId} not found in the workspace`, { status: 404 });
     }
     const service = { ...(row.config as any), ...row } as any;
     const h = juavaHash("md5", stableHash(service.credentials));
