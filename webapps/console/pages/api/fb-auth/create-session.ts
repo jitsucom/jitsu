@@ -37,13 +37,13 @@ export const api: Api = {
         log
           .atError()
           .log(`CSRF cookie (${csrfCookie}) doesn't match provided token ${csrfToken}`, JSON.stringify(req.cookies));
-        throw new ApiError("CSRF error", {}, { status: 401 });
+        throw new ApiError("CSRF error", { status: 401 });
       }
       // JITSU-018: never mint a session cookie for an unverified email+password
       // account, even if the client-side gate was bypassed.
       const decodedIdToken = await firebase().auth().verifyIdToken(idToken);
       if (isUnverifiedPasswordAccount(decodedIdToken)) {
-        throw new ApiError("Email address is not verified", {}, { status: 403 });
+        throw new ApiError("Email address is not verified", { status: 403 });
       }
       const { cookie, expiresIn } = await createSessionCookie(idToken);
 

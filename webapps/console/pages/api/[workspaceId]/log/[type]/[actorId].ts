@@ -44,7 +44,7 @@ export const api: Api = {
           .prisma()
           .configurationObject.findFirst({ where: { id: query.actorId, workspaceId: query.workspaceId } });
         if (!source) {
-          throw new ApiError(`site doesn't belong to the current workspace`, {}, { status: 403 });
+          throw new ApiError(`site doesn't belong to the current workspace`, { status: 403 });
         }
       } else {
         const link = await db
@@ -57,7 +57,7 @@ export const api: Api = {
           where: { id: query.actorId, workspaceId: query.workspaceId, type: "destination" },
         });
         if (!link && !pb && !dst) {
-          throw new ApiError(`connection doesn't belong to the current workspace`, {}, { status: 403 });
+          throw new ApiError(`connection doesn't belong to the current workspace`, { status: 403 });
         }
       }
       res.writeHead(200, {

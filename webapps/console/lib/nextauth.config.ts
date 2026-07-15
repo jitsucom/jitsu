@@ -87,7 +87,7 @@ export async function getOrCreateUser(opts: {
   });
   if (!user) {
     if (serverEnv.DISABLE_SIGNUP) {
-      throw new ApiError("Sign up is disabled", { code: "signup-disabled" });
+      throw new ApiError("Sign up is disabled", { responseObject: { code: "signup-disabled" } });
     }
     //first user is admin
     const admin = !(await db.prisma().userProfile.count());

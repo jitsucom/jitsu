@@ -115,13 +115,12 @@ export const route = createRoute()
     try {
       await verifyAccess(user, workspace.id);
     } catch (e) {
-      throw new ApiError(
-        `Current user doesn't have an access to workspace`,
-        {
+      throw new ApiError(`Current user doesn't have an access to workspace`, {
+        status: 403,
+        responseObject: {
           noAccessToWorkspace: true,
         },
-        { status: 403 }
-      );
+      });
     }
     if (workspace.slug) {
       // workspaceId/workspaceName/workspaceSlug are injected for every event by

@@ -18,10 +18,10 @@ export default createRoute()
   })
   .handler(async ({ query: { token, domain }, res }) => {
     if (!dataDomains) {
-      throw new ApiError(`Domain ${domain} not found. Data domains configuration is absent`, {}, { status: 404 });
+      throw new ApiError(`Domain ${domain} not found. Data domains configuration is absent`, { status: 404 });
     }
     if (!token) {
-      throw new ApiError("Unauthorized", {}, { status: 401 });
+      throw new ApiError("Unauthorized", { status: 401 });
     }
     if (domain.match(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/)) {
       res.status(404);
@@ -52,7 +52,7 @@ export default createRoute()
         return { ok: true, details: `Stream ${streamId} found` };
       } else {
         log.atWarn().log(`Stream ${streamId} extracted from ${domain} not found`);
-        throw new ApiError(`Slug ${streamId} for ${domain} not found`, {}, { status: 404 });
+        throw new ApiError(`Slug ${streamId} for ${domain} not found`, { status: 404 });
       }
     } else {
       log.atInfo().log(`Stream not found for ${domain}. Searching by custom domain`);
@@ -68,7 +68,7 @@ export default createRoute()
       });
       if (!streams || streams.length === 0) {
         log.atWarn().log(`Custom domain ${domain} not found`);
-        throw new ApiError(`Domain ${domain} not found`, {}, { status: 404 });
+        throw new ApiError(`Domain ${domain} not found`, { status: 404 });
       } else {
         log
           .atWarn()

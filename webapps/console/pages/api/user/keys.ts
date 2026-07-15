@@ -89,7 +89,7 @@ const api: Api = {
     handle: async ({ user, query, body }) => {
       const existing = await db.prisma().userApiToken.findUnique({ where: { id: query.id } });
       if (!existing || existing.userId !== user.internalId) {
-        throw new ApiError(`Key not found`, {}, { status: 404 });
+        throw new ApiError(`Key not found`, { status: 404 });
       }
       // `expiresAt` is tri-state on the wire: present-as-Date sets, present-as-null
       // clears, missing leaves the column alone. Same for `name`.
@@ -122,7 +122,7 @@ const api: Api = {
     handle: async ({ user, query }) => {
       const existing = await db.prisma().userApiToken.findUnique({ where: { id: query.id } });
       if (!existing || existing.userId !== user.internalId) {
-        throw new ApiError(`Key not found`, {}, { status: 404 });
+        throw new ApiError(`Key not found`, { status: 404 });
       }
       // MCP-aware delete: if the row has oauthClientId set, also nukes its
       // OAuthAccessToken rows and the OAuthClient itself. For non-MCP keys
