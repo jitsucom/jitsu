@@ -86,84 +86,97 @@ const PosthogDestination: JitsuFunction<AnalyticsServerEvent, PosthogDestination
     typeof props.sendAnonymousEvents !== "undefined" ? props.sendAnonymousEvents : props.enableAnonymousUserProfiles;
   const groupType = props.groupType || "group";
   const client = new PostHog(props.key, { host: props.host || POSTHOG_DEFAULT_HOST, fetch: fetch });
+  // capture()/identify()/alias()/groupIdentify() only enqueue - the actual HTTP
+  // delivery happens inside shutdown(), and posthog-node swallows fetch errors
+  // there (they are emitted on the "error" event instead of rejecting the
+  // shutdown promise). Without listening for them, a failed delivery would be
+  // reported as success and the events silently dropped.
+  let deliveryError: any = undefined;
+  client.on("error", e => (deliveryError = deliveryError ?? e));
   try {
-    if (event.type === "identify") {
-      client.identify({
-        distinctId: event.userId as string,
-        properties: { $anon_distinct_id: event.anonymousId || undefined, ...event.traits },
-      });
-
-      /**
-       * If we've been tracking anonymous events under user/"Person" profiles
-       * in Posthog, we should merge the anonymous person with the identified
-       * one, so that the entire user event history is consolidated.
-       */
-      const alias: string | undefined = event.anonymousId || (event.traits?.email as string);
-      if (sendAnonymousEvents && alias) {
-        client.alias({
+    try {
+      if (event.type === "identify") {
+        client.identify({
           distinctId: event.userId as string,
-          alias: alias,
+          properties: { $anon_distinct_id: event.anonymousId || undefined, ...event.traits },
         });
-      }
-    } else if (event.type === "group" && props.enableGroupAnalytics) {
-      client.groupIdentify({
-        groupType: groupType,
-        groupKey: event.groupId as string,
-        properties: event.traits,
-      });
-    } else if (event.type === "track") {
-      let groups = {};
-      if (event.context?.groupId && props.enableGroupAnalytics) {
-        groups = { groups: { [groupType]: event.context?.groupId } };
-      }
-      const distinctId = event.userId || event.anonymousId || (event.traits?.email as string);
-      if (!distinctId) {
-        log.info(`No distinct id found for event ${JSON.stringify(event)}`);
-      } else {
-        if (event.userId || sendAnonymousEvents) {
-          client.capture({
-            distinctId: distinctId as string,
-            event: event.event || event.name || "Unknown Event",
-            timestamp: new Date(eventTimeSafeMs(event)),
-            properties: {
-              ...getEventProperties(event),
-              // https://posthog.com/docs/getting-started/person-properties
-              $process_person_profile: props.enableAnonymousUserProfiles || !!event.userId,
-            },
-            ...groups,
+
+        /**
+         * If we've been tracking anonymous events under user/"Person" profiles
+         * in Posthog, we should merge the anonymous person with the identified
+         * one, so that the entire user event history is consolidated.
+         */
+        const alias: string | undefined = event.anonymousId || (event.traits?.email as string);
+        if (sendAnonymousEvents && alias) {
+          client.alias({
+            distinctId: event.userId as string,
+            alias: alias,
           });
         }
-      }
-    } else if (event.type === "page" || event.type === "screen") {
-      let groups = {};
-      if (event.context?.groupId && props.enableGroupAnalytics) {
-        groups = { groups: { [groupType]: event.context?.groupId } };
-      }
-      const distinctId = event.userId || event.anonymousId || (event.traits?.email as string);
-      if (!distinctId) {
-        log.info(
-          `No distinct id found for ${event.type === "page" ? "Page View" : "Screen"} event ${JSON.stringify(event)}`
-        );
-      } else {
-        if (event.userId || sendAnonymousEvents) {
-          client.capture({
-            distinctId: distinctId as string,
-            event: event.type === "page" ? "$pageview" : "$screen",
-            timestamp: new Date(eventTimeSafeMs(event)),
-            properties: {
-              ...getEventProperties(event),
-              // https://posthog.com/docs/getting-started/person-properties
-              $process_person_profile: props.enableAnonymousUserProfiles || !!event.userId,
-            },
-            ...groups,
-          });
+      } else if (event.type === "group" && props.enableGroupAnalytics) {
+        client.groupIdentify({
+          groupType: groupType,
+          groupKey: event.groupId as string,
+          properties: event.traits,
+        });
+      } else if (event.type === "track") {
+        let groups = {};
+        if (event.context?.groupId && props.enableGroupAnalytics) {
+          groups = { groups: { [groupType]: event.context?.groupId } };
+        }
+        const distinctId = event.userId || event.anonymousId || (event.traits?.email as string);
+        if (!distinctId) {
+          log.info(`No distinct id found for event ${JSON.stringify(event)}`);
+        } else {
+          if (event.userId || sendAnonymousEvents) {
+            client.capture({
+              distinctId: distinctId as string,
+              event: event.event || event.name || "Unknown Event",
+              timestamp: new Date(eventTimeSafeMs(event)),
+              properties: {
+                ...getEventProperties(event),
+                // https://posthog.com/docs/getting-started/person-properties
+                $process_person_profile: props.enableAnonymousUserProfiles || !!event.userId,
+              },
+              ...groups,
+            });
+          }
+        }
+      } else if (event.type === "page" || event.type === "screen") {
+        let groups = {};
+        if (event.context?.groupId && props.enableGroupAnalytics) {
+          groups = { groups: { [groupType]: event.context?.groupId } };
+        }
+        const distinctId = event.userId || event.anonymousId || (event.traits?.email as string);
+        if (!distinctId) {
+          log.info(
+            `No distinct id found for ${event.type === "page" ? "Page View" : "Screen"} event ${JSON.stringify(event)}`
+          );
+        } else {
+          if (event.userId || sendAnonymousEvents) {
+            client.capture({
+              distinctId: distinctId as string,
+              event: event.type === "page" ? "$pageview" : "$screen",
+              timestamp: new Date(eventTimeSafeMs(event)),
+              properties: {
+                ...getEventProperties(event),
+                // https://posthog.com/docs/getting-started/person-properties
+                $process_person_profile: props.enableAnonymousUserProfiles || !!event.userId,
+              },
+              ...groups,
+            });
+          }
         }
       }
+    } finally {
+      // this is where the queued events are actually sent
+      await client.shutdown().catch(e => (deliveryError = deliveryError ?? e));
+    }
+    if (deliveryError) {
+      throw deliveryError;
     }
   } catch (e: any) {
-    throw new RetryError(e.message);
-  } finally {
-    await client.shutdown();
+    throw new RetryError(e?.message || String(e));
   }
 };
 
