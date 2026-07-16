@@ -53,6 +53,16 @@ spec:
                 echo "seed failed (database schema not ready yet?), retrying in 5s..."
                 sleep 5
               done
+              # Create the events-log ClickHouse tables (powers Live Events).
+              # Nothing else runs this in the dev chart — in prod the
+              # admin/events-log-init route does. Best-effort: retry a few times
+              # for a not-yet-ready ClickHouse, then continue so a disabled or
+              # broken ClickHouse can't wedge console startup.
+              for i in $(seq 1 12); do
+                npx tsx scripts/manage.ts events-log-init && break
+                echo "events-log-init failed (clickhouse not ready yet?), retry $i/12 in 5s..."
+                sleep 5
+              done
               exec npx next dev -H 0.0.0.0 -p 3000
           ports:
             - name: http
