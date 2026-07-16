@@ -5,7 +5,6 @@ import PosthogDestination from "../src/functions/posthog-destination";
 import { RetryError } from "@jitsu/functions-lib";
 import { AnalyticsServerEvent } from "@jitsu/protocols/analytics";
 
-//TEST_POSTHOG_DESTINATION={key: 'phc_tnUHCp3pRSnx9hR2mL1i1O9luW2ktkHvg4tyOOc15B1', enableAnonymousUserProfiles: true, sendIdentifyEvents: true}
 test("posthog-destination-integration", async () => {
   if (!process.env.TEST_POSTHOG_DESTINATION) {
     console.log("Skipping mixpanel destination integration test - TEST_MIXPANEL_DESTINATION is not set");
