@@ -1,3 +1,4 @@
+import { vi } from "vitest";
 import { eventsSequence } from "./lib/test-data";
 import { testJitsuFunction, TestOptions } from "./lib/testing-lib";
 import PosthogDestination from "../src/functions/posthog-destination";
@@ -36,6 +37,10 @@ const trackEvent: AnalyticsServerEvent = {
 const nodeStyleBody = { destroy: () => {} } as any;
 
 test("posthog-destination-delivery-error", async () => {
+  // posthog's logFlushError console.error's failures (with the full response
+  // body) from shutdown()'s internal flush; the destination flushes explicitly
+  // beforehand precisely so that path stays silent.
+  const consoleError = vi.spyOn(console, "error");
   // posthog-node only enqueues events in capture(); delivery happens on
   // shutdown(), which swallows fetch errors and emits them on the "error"
   // event. The destination must surface them as RetryError. 413 is used
@@ -54,6 +59,9 @@ test("posthog-destination-delivery-error", async () => {
       chainCtx: { fetch: failingFetch } as any,
     })
   ).rejects.toThrow(RetryError);
+  const flushSpam = consoleError.mock.calls.filter(args => String(args[0]).includes("Error while flushing PostHog"));
+  expect(flushSpam).toEqual([]);
+  consoleError.mockRestore();
 });
 
 test("posthog-destination-delivery-success", async () => {

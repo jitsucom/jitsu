@@ -192,7 +192,15 @@ const PosthogDestination: JitsuFunction<AnalyticsServerEvent, PosthogDestination
     // synchronous enqueue-time errors; the finally below still flushes the queue
     throw new RetryError(e?.message || String(e));
   } finally {
-    // this is where the queued events are actually sent
+    // This is where the queued events are actually sent. Flush explicitly first:
+    // flush() rejects with the delivery error without logging anything, while
+    // shutdown()'s internal flush console.error's every failure with the full
+    // response body ("Error while flushing PostHog: ...") - and that call is
+    // hardwired to console, so no client option can silence it. After flush()
+    // the queue is empty (posthog drops the batch on HTTP errors), leaving
+    // shutdown() nothing to re-send; it still runs to release timers and
+    // pending work.
+    await client.flush().catch(e => (deliveryError = deliveryError ?? e));
     await client.shutdown().catch(e => (deliveryError = deliveryError ?? e));
   }
   if (deliveryError) {
