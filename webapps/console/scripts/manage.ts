@@ -16,9 +16,10 @@
 
 import minimist from "minimist";
 import { seedDemoConnections, seedUserAndWorkspace } from "../lib/server/seed";
-import { createHash, randomId } from "juava";
+import { createHash, getClickhouseConfig, randomId, requireDefined } from "juava";
 import { getServerLog } from "../lib/server/log";
 import { getServerEnv } from "../lib/server/serverEnv";
+import { initEventsLogTables } from "../lib/server/clickhouse-init";
 
 const log = getServerLog("manage");
 
@@ -37,6 +38,29 @@ const commands: Record<string, Command> = {
       await seedUserAndWorkspace();
       await seedDemoConnections();
       // Note: seedDemoConnections() logs its own status messages
+    },
+  },
+  "events-log-init": {
+    description:
+      "Create the events-log ClickHouse objects (database, events_log/task_log/dead_letter, retention machinery)",
+    usage: "pnpm manage events-log-init",
+    handler: async () => {
+      // Same DDL the admin/events-log-init route runs in prod — idempotent
+      // (CREATE ... IF NOT EXISTS), so it's safe to run on every startup.
+      // Import the ClickHouse client lazily so unrelated commands (e.g. seed)
+      // don't construct it when CLICKHOUSE_URL isn't configured.
+      const { clickhouse } = await import("../lib/server/clickhouse");
+      const serverEnv = getServerEnv();
+      const chConfig = getClickhouseConfig(serverEnv);
+      log.atInfo().log("Initializing events-log ClickHouse tables...");
+      await initEventsLogTables({
+        clickhouse,
+        database: requireDefined(chConfig.database, "ClickHouse database is not configured"),
+        cluster: serverEnv.CLICKHOUSE_METRICS_CLUSTER || serverEnv.CLICKHOUSE_CLUSTER,
+        username: chConfig.username,
+        password: chConfig.password,
+      });
+      log.atInfo().log("events-log ClickHouse tables ready");
     },
   },
   "password-hash": {
