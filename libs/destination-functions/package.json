@@ -40,7 +40,7 @@
     "juava": "workspace:*",
     "node-cache": "^5.1.2",
     "lodash": "catalog:",
-    "posthog-node": "^4.2.1",
+    "posthog-node": "^5.44.0",
     "tslib": "catalog:",
     "zod": "^3.23.8"
   }

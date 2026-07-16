@@ -85,7 +85,15 @@ const PosthogDestination: JitsuFunction<AnalyticsServerEvent, PosthogDestination
   const sendAnonymousEvents =
     typeof props.sendAnonymousEvents !== "undefined" ? props.sendAnonymousEvents : props.enableAnonymousUserProfiles;
   const groupType = props.groupType || "group";
-  const client = new PostHog(props.key, { host: props.host || POSTHOG_DEFAULT_HOST, fetch: fetch });
+  const client = new PostHog(props.key, {
+    host: props.host || POSTHOG_DEFAULT_HOST,
+    // structurally compatible for posthog's usage (POST, string body - compression
+    // is disabled below), but the nominal PostHogFetchOptions/Response types differ
+    fetch: fetch as any,
+    // posthog-node 5.x gzips request bodies by default; these per-event batches
+    // are tiny, and uncompressed bodies keep the functions fetch-debug log readable
+    disableCompression: true,
+  });
   // capture()/identify()/alias()/groupIdentify() only enqueue - the actual HTTP
   // delivery happens inside shutdown(), and posthog-node swallows fetch errors
   // there (they are emitted on the "error" event instead of rejecting the
