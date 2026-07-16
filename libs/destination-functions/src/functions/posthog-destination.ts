@@ -85,11 +85,24 @@ const PosthogDestination: JitsuFunction<AnalyticsServerEvent, PosthogDestination
   const sendAnonymousEvents =
     typeof props.sendAnonymousEvents !== "undefined" ? props.sendAnonymousEvents : props.enableAnonymousUserProfiles;
   const groupType = props.groupType || "group";
+  // posthog-node 5.x treats responses as WHATWG fetch Responses - notably it calls
+  // response.body?.cancel() to discard unread bodies. The functions fetch returns a
+  // node-fetch-style response whose body is a Node Readable (destroy(), no cancel()),
+  // which fails every delivery with "response.body?.cancel is not a function". Adapt
+  // to the surface posthog actually consumes (PostHogFetchResponse: status, headers.get,
+  // text, json) and expose no body, so the optional-chained cancel() no-ops.
+  const posthogFetch = async (url: string, options: any) => {
+    const res = await fetch(url, options);
+    return {
+      status: res.status,
+      headers: { get: (name: string) => res.headers?.get?.(name) ?? null },
+      text: () => res.text(),
+      json: () => res.json(),
+    };
+  };
   const client = new PostHog(props.key, {
     host: props.host || POSTHOG_DEFAULT_HOST,
-    // structurally compatible for posthog's usage (POST, string body - compression
-    // is disabled below), but the nominal PostHogFetchOptions/Response types differ
-    fetch: fetch as any,
+    fetch: posthogFetch,
     // posthog-node 5.x gzips request bodies by default; these per-event batches
     // are tiny, and uncompressed bodies keep the functions fetch-debug log readable
     disableCompression: true,

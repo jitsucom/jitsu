@@ -28,6 +28,13 @@ const trackEvent: AnalyticsServerEvent = {
   properties: {},
 };
 
+// The functions fetch returns node-fetch-style responses: body is a Node
+// Readable (destroy(), no cancel()). posthog-node 5.x calls
+// response.body?.cancel() on it, so passing the response through unadapted
+// fails every delivery ("response.body?.cancel is not a function") - the
+// stubs carry such a body to keep that regression covered.
+const nodeStyleBody = { destroy: () => {} } as any;
+
 test("posthog-destination-delivery-error", async () => {
   // posthog-node only enqueues events in capture(); delivery happens on
   // shutdown(), which swallows fetch errors and emits them on the "error"
@@ -37,6 +44,7 @@ test("posthog-destination-delivery-error", async () => {
     status: 413,
     text: async () => "payload too large",
     json: async () => ({}),
+    body: nodeStyleBody,
   });
   await expect(
     testJitsuFunction({
@@ -53,6 +61,7 @@ test("posthog-destination-delivery-success", async () => {
     status: 200,
     text: async () => "ok",
     json: async () => ({ status: 1 }),
+    body: nodeStyleBody,
   });
   await expect(
     testJitsuFunction({
