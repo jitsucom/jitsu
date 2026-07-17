@@ -11,23 +11,9 @@ export function deepMerge(target: any, source: any) {
   }, target);
 }
 
-export function deepCopy<T>(o: T): T {
-  if (typeof o !== "object") return o;
-  if (!o) return o;
-  if (Array.isArray(o)) {
-    const newO: any[] = [];
-    for (let i = 0; i < o.length; i++) {
-      const v = o[i];
-      newO[i] = !v || typeof v !== "object" ? v : deepCopy(v);
-    }
-    return newO as T;
-  }
-  const newO: Record<string, any> = {};
-  for (const [k, v] of Object.entries(o)) {
-    newO[k] = !v || typeof v !== "object" ? v : deepCopy(v);
-  }
-  return newO as T;
-}
+// ponytail: structuredClone is native; unlike the old hand-rolled copy it throws on
+// functions in the tree — callers pass JSON-safe data only
+export const deepCopy = <T>(o: T): T => structuredClone(o);
 
 export function isEqual(x: any, y: any) {
   const ok = Object.keys,

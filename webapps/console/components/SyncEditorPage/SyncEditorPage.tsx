@@ -19,7 +19,6 @@ import { SimpleErrorCard } from "../GlobalError/GlobalError";
 import { LabelEllipsis } from "../LabelEllipsis/LabelEllipsis";
 import { createDisplayName } from "../../lib/zod";
 import xor from "lodash/xor";
-import timezones from "timezones-list";
 import { useBilling } from "../Billing/BillingProvider";
 import { WLink } from "../Workspace/WLink";
 import { useStoreReload } from "../../lib/store";
@@ -35,6 +34,14 @@ import { FaExternalLinkAlt } from "react-icons/fa";
 import { initStream } from "../../lib/sources";
 
 const log = getLog("SyncEditorPage");
+
+// ponytail: replaces the timezones-list dep; Intl is native and always current
+const timezones = Intl.supportedValuesOf("timeZone").map(tz => {
+  const offset = new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "longOffset" })
+    .formatToParts(new Date())
+    .find(p => p.type === "timeZoneName")!.value;
+  return { value: tz, label: `${tz} (${offset})` };
+});
 
 const scheduleOptions = [
   {
@@ -747,10 +754,7 @@ function SyncEditor({
             showSearch={true}
             popupMatchSelectWidth={false}
             className="w-80"
-            options={[
-              { value: "Etc/UTC", label: "UTC" },
-              ...timezones.map(tz => ({ value: tz.tzCode, label: tz.label })),
-            ]}
+            options={[{ value: "Etc/UTC", label: "UTC" }, ...timezones]}
             value={syncOptions.timezone || "Etc/UTC"}
             onSelect={tz => {
               updateOptions({ timezone: tz });

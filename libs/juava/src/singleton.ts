@@ -1,6 +1,5 @@
 import { getErrorMessage, getLog, newError, requireDefined } from "./index";
 import * as process from "process";
-import { debounce } from "./debounce";
 const log = getLog("singleton");
 
 export type CachedValue<T> = (
@@ -74,14 +73,19 @@ export function getSingleton<T>(
     return singleton as Singleton<T>;
   }
 
+  // ponytail: resettable timeout replaces a vendored 130-line lodash debounce —
+  // each call postpones cleanup to ttlSec after the last access
+  let cleanupTimer: ReturnType<typeof setTimeout> | undefined;
+  const scheduleCleanup = () => {
+    clearTimeout(cleanupTimer);
+    cleanupTimer = setTimeout(() => clearSingleton(globalName, opts.cleanupFunc), 1000 * opts.ttlSec!);
+  };
+
   const handleSuccess = (value: T, startedAtTs: number): T => {
     global[`singletons_${globalName}`] = {
       success: true,
       value,
-      debounceCleanup:
-        opts.ttlSec && opts.ttlSec > 0
-          ? debounce(() => clearSingleton(globalName, opts.cleanupFunc), 1000 * opts.ttlSec)
-          : () => {},
+      debounceCleanup: opts.ttlSec && opts.ttlSec > 0 ? scheduleCleanup : () => {},
     };
     if (!opts.silent) {
       log.atInfo().log(`️⚡️⚡️⚡️ ${globalName} connected in ${Date.now() - startedAtTs}ms!`);

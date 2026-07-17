@@ -4,7 +4,7 @@ import { FaCaretDown, FaCaretRight, FaClone, FaPlus } from "react-icons/fa";
 import { ZodType } from "zod";
 import { ConfigApiDeleteOptions, getConfigApi } from "../../lib/useApi";
 import { useRouter } from "next/router";
-import { asFunction, FunctionLike, getErrorMessage, getLog, requireDefined } from "juava";
+import { asFunction, FunctionLike, getErrorMessage, getLog, randomId, requireDefined } from "juava";
 
 import zodToJsonSchema from "zod-to-json-schema";
 
@@ -52,7 +52,6 @@ import { EditorBase } from "./EditorBase";
 import { EditorField } from "./EditorField";
 import { EditorButtons } from "./EditorButtons";
 import { ButtonGroup, ButtonProps } from "../ButtonGroup/ButtonGroup";
-import cuid from "cuid";
 import { ObjectTitle } from "../ObjectTitle/ObjectTitle";
 import omitBy from "lodash/omitBy";
 import {
@@ -662,7 +661,7 @@ const SingleObjectEditor: React.FC<SingleObjectEditorProps> = props => {
     return <LoadingAnimation />;
   }
   const preObject = otherProps.object || {
-    id: cuid(),
+    id: randomId(),
     workspaceId: workspace.id,
     type: type,
     ...newObject(meta),
@@ -888,7 +887,7 @@ const SingleObjectEditorLoader: React.FC<ConfigEditorProps & { id: string; clone
         clone
           ? {
               ...data,
-              id: cuid(),
+              id: randomId(),
               cloneId: clone,
               name: `${data.name} (copy)`,
             }
