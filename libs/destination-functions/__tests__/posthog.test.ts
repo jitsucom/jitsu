@@ -63,6 +63,38 @@ test("posthog-destination-delivery-error", async () => {
   consoleError.mockRestore();
 });
 
+test("posthog-destination-schemeless-host", async () => {
+  // A host configured without a scheme ("us.posthog.com") must be normalized to
+  // https:// - otherwise posthog-node builds a schemeless request URL, fetch throws,
+  // and the resulting network error is both retried (slow) and re-logged by
+  // shutdown()'s drain (spam). The stub mimics real fetch by rejecting schemeless URLs.
+  const consoleError = vi.spyOn(console, "error");
+  const seenUrls: string[] = [];
+  const urlValidatingFetch = async (url: string) => {
+    new URL(url); // real fetch throws on a schemeless URL; reproduce that here
+    seenUrls.push(url);
+    return {
+      status: 200,
+      text: async () => "ok",
+      json: async () => ({ status: 1 }),
+      body: nodeStyleBody,
+    };
+  };
+  await expect(
+    testJitsuFunction({
+      func: PosthogDestination,
+      config: { key: "phc_test", host: "us.posthog.com", enableAnonymousUserProfiles: true },
+      events: [trackEvent],
+      chainCtx: { fetch: urlValidatingFetch } as any,
+    })
+  ).resolves.toEqual([]);
+  expect(seenUrls.length).toBeGreaterThan(0);
+  expect(seenUrls.every(u => u.startsWith("https://us.posthog.com/"))).toBe(true);
+  const flushSpam = consoleError.mock.calls.filter(args => String(args[0]).includes("Error while flushing PostHog"));
+  expect(flushSpam).toEqual([]);
+  consoleError.mockRestore();
+});
+
 test("posthog-destination-delivery-success", async () => {
   const okFetch = async () => ({
     status: 200,
