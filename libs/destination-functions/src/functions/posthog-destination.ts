@@ -226,8 +226,21 @@ const PosthogDestination: JitsuFunction<AnalyticsServerEvent, PosthogDestination
     // the queue is empty (posthog drops the batch on HTTP errors), leaving
     // shutdown() nothing to re-send; it still runs to release timers and
     // pending work.
-    await client.flush().catch(e => (deliveryError = deliveryError ?? e));
-    await client.shutdown().catch(e => (deliveryError = deliveryError ?? e));
+    let flushed = false;
+    try {
+      await client.flush();
+      flushed = true;
+    } catch (e) {
+      deliveryError = deliveryError ?? e;
+    }
+    // shutdown()'s internal drain re-flushes any batch still queued and console.error-spams
+    // it - posthog keeps network-errored batches (unlike HTTP errors, which it drops). flush()
+    // above already attempted delivery and never logs, so only shut down when it succeeded;
+    // on failure there is nothing left worth re-draining, and the flush timer is unref'd so
+    // skipping shutdown() leaks nothing.
+    if (flushed) {
+      await client.shutdown().catch(e => (deliveryError = deliveryError ?? e));
+    }
   }
   if (deliveryError) {
     throw new RetryError(deliveryError?.message || String(deliveryError));
