@@ -27,6 +27,27 @@ function getPathFromUrl(url: string | undefined): string | undefined {
   }
 }
 
+// A host configured without a scheme (e.g. "us.posthog.com" instead of
+// "https://us.posthog.com") is left untouched by posthog-node, which then builds a
+// schemeless request URL ("us.posthog.com/batch/"). fetch throws on it, posthog wraps
+// that as a PostHogFetchNetworkError - which, unlike an HTTP error, is retried
+// (fetchRetryCount x fetchRetryDelay, ~9s) AND left in the queue, so shutdown()'s drain
+// re-runs it and console.error-spams it. Normalize the host so it always carries a
+// scheme. Any path prefix is preserved (self-hosted posthog can live behind a proxy path).
+function sanitizeHost(host: string | undefined): string {
+  const trimmed = (host ?? "").trim();
+  if (!trimmed) {
+    return POSTHOG_DEFAULT_HOST;
+  }
+  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  try {
+    new URL(withScheme);
+  } catch (e) {
+    return POSTHOG_DEFAULT_HOST;
+  }
+  return withScheme.replace(/\/+$/, "");
+}
+
 function getEventProperties(event: AnalyticsServerEvent) {
   //see https://github.com/PostHog/posthog-js-lite/blob/master/posthog-web/src/context.ts
   const analyticsContext = event.context || {};
@@ -101,11 +122,16 @@ const PosthogDestination: JitsuFunction<AnalyticsServerEvent, PosthogDestination
     };
   };
   const client = new PostHog(props.key, {
-    host: props.host || POSTHOG_DEFAULT_HOST,
+    host: sanitizeHost(props.host),
     fetch: posthogFetch,
     // posthog-node 5.x gzips request bodies by default; these per-event batches
     // are tiny, and uncompressed bodies keep the functions fetch-debug log readable
     disableCompression: true,
+    // posthog-node retries failed deliveries 3x with a 3s backoff by default,
+    // blocking the function ~9s per failure (and again on shutdown()'s re-flush).
+    // Jitsu already retries at the rotor level via RetryError, so fail fast here
+    // and defer the retry to that layer instead of blocking in-process.
+    fetchRetryCount: 0,
   });
   // capture()/identify()/alias()/groupIdentify() only enqueue - the actual HTTP
   // delivery happens inside shutdown(), and posthog-node swallows fetch errors
