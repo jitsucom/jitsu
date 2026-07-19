@@ -95,6 +95,29 @@ test("posthog-destination-schemeless-host", async () => {
   consoleError.mockRestore();
 });
 
+test("posthog-destination-network-error-no-spam", async () => {
+  // A genuine network failure (valid host, but the transport itself throws: DNS,
+  // connection refused, TLS, timeout) must still surface as RetryError WITHOUT
+  // console spam. posthog keeps network-errored batches queued (unlike HTTP errors),
+  // so shutdown()'s drain would re-flush and console.error them - the destination
+  // must not let that happen.
+  const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+  const throwingFetch = async () => {
+    throw new Error("connect ECONNREFUSED 127.0.0.1:443");
+  };
+  await expect(
+    testJitsuFunction({
+      func: PosthogDestination,
+      config: { key: "phc_test", host: "https://us.i.posthog.com", enableAnonymousUserProfiles: true },
+      events: [trackEvent],
+      chainCtx: { fetch: throwingFetch } as any,
+    })
+  ).rejects.toThrow(RetryError);
+  const flushSpam = consoleError.mock.calls.filter(args => String(args[0]).includes("Error while flushing PostHog"));
+  expect(flushSpam).toEqual([]);
+  consoleError.mockRestore();
+});
+
 test("posthog-destination-delivery-success", async () => {
   const okFetch = async () => ({
     status: 200,
