@@ -53,3 +53,40 @@ scaling:
     replicas: 1
   console:
     replicas: 1
+
+# Bulker configuration
+bulker:
+  # Internal "metrics" ClickHouse destination preinitialized in bulker
+  # (special: "metrics"). Bulker writes pipeline metrics + active-user pings
+  # here and auto-creates the predefined tables (metrics, active_incoming). It
+  # is rendered into the bulker Deployment as the BULKER_INTERNAL_METRICS_DESTINATION
+  # env var (bulker loads every BULKER_INTERNAL* var as a destination config).
+  #
+  # Connection resolution, per field (highest precedence first):
+  #   1. an explicit value set below;
+  #   2. derived from env.common.CLICKHOUSE_URL when set — hostname, the
+  #      user:password userinfo, and the /database path; scheme https -> the
+  #      `clickhouse-secure` protocol, otherwise `clickhouse`;
+  #   3. the in-cluster helm-deps ClickHouse fallback
+  #      (clickhouse / default / default / jitsu-dev / clickhouse).
+  # So pointing the stack at an external ClickHouse via env.common.CLICKHOUSE_URL
+  # moves the metrics destination with it — no split-brain where bulker writes
+  # metrics to one ClickHouse while the console reads them from another. Override
+  # a field only when the URL can't express it: a native port/protocol the HTTP
+  # URL doesn't imply, a URL-encoded password, or a differing metrics database
+  # (prod: newjitsu_metrics). `cluster` empty = single-node (no ON CLUSTER);
+  # prod uses `jitsu-cluster`. Set enabled: false to omit the env var entirely.
+  internalMetricsDestination:
+    enabled: true
+    hosts: []
+    protocol: ""
+    database: ""
+    username: ""
+    password: ""
+    cluster: ""
+    loadAsJson: true
+    options:
+      mode: batch
+      frequency: 1
+      deduplicate: false
+      batchSize: 100000

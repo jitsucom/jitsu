@@ -79,41 +79,15 @@ process.env.JITSU_PUBLIC_URL = "http://console.test.local";
 // (database + events_log/task_log/dead_letter + retention machinery), pointed
 // at this file's database. Imported dynamically — env above is already final.
 {
-  const { initEventsLogTables } = await import("../../../lib/server/clickhouse-init");
+  const { initEventsLogTables, initMetricsTables } = await import("../../../lib/server/clickhouse-init");
   const chAdmin = createClient({ url: chUrl });
   try {
-    await initEventsLogTables({ clickhouse: chAdmin, database: chDb, username: "default", password: "" });
-    // The metrics pipeline has no code counterpart (prisma/metrics.sql is
-    // cluster-only DDL applied manually in prod) — recreate it here with
-    // ON CLUSTER dropped and the replicated engine de-replicated.
-    for (const statement of [
-      `create table ${chDb}.metrics
-         (
-           timestamp DateTime, messageId String,
-           workspaceId LowCardinality(String), streamId LowCardinality(String),
-           connectionId LowCardinality(String), functionId LowCardinality(String),
-           destinationId LowCardinality(String), status LowCardinality(String),
-           events Int64, eventIndex UInt32
-         ) ENGINE = Null`,
-      `create table ${chDb}.mv_metrics
-         (
-           timestamp DateTime,
-           workspaceId LowCardinality(String), streamId LowCardinality(String),
-           connectionId LowCardinality(String), functionId LowCardinality(String),
-           destinationId LowCardinality(String), status LowCardinality(String),
-           events AggregateFunction(sum, Int64)
-         ) engine = AggregatingMergeTree()
-         ORDER BY (timestamp, workspaceId, streamId, connectionId, functionId, destinationId, status)`,
-      `CREATE MATERIALIZED VIEW ${chDb}.to_mv_metrics TO ${chDb}.mv_metrics
-         AS SELECT
-           date_trunc('minute', timestamp) as timestamp,
-           workspaceId, streamId, connectionId, functionId, destinationId, status,
-           sumState(events) AS events
-         FROM ${chDb}.metrics
-         GROUP BY timestamp, workspaceId, streamId, connectionId, functionId, destinationId, status`,
-    ]) {
-      await chAdmin.command({ query: statement });
-    }
+    // Same DDL (and single source) the admin/events-log-init route runs in
+    // prod, pointed at this file's database. No cluster → ON CLUSTER dropped
+    // and replicated engines de-replicated by the templates' single-node path.
+    const initOpts = { clickhouse: chAdmin, database: chDb, username: "default", password: "" };
+    await initEventsLogTables(initOpts);
+    await initMetricsTables(initOpts);
   } finally {
     await chAdmin.close();
   }
