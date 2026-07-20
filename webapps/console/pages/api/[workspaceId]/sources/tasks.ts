@@ -72,8 +72,10 @@ export const route = createRoute()
       to: query.to,
     });
     if (result.ok && result.task) {
+      // Use the task's own sync_id, not query.syncId — a taskId-only lookup omits syncId,
+      // and the logs endpoint requires a real one.
       result.logs = `${getAppEndpoint(req).baseUrl}/api/${workspaceId}/sources/logs?taskId=${query.taskId}&syncId=${
-        query.syncId
+        result.task.sync_id
       }`;
     }
     return result;
