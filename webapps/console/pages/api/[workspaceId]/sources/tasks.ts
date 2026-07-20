@@ -2,26 +2,13 @@ import { z } from "zod";
 import { createRoute } from "../../../../lib/api";
 import { source_taskDbModel } from "../../../../prisma/schema";
 import { getAppEndpoint } from "../../../../lib/domains";
-import { syncService } from "../../../../lib/server/route-services";
+import { syncService, latestSyncTaskSchema } from "../../../../lib/server/route-services";
 
 const aggregatedResultType = z.object({
   ok: z.boolean(),
   error: z.string().optional(),
-  tasks: z
-    .record(
-      z.object({
-        sync_id: z.string(),
-        task_id: z.string(),
-        status: z.string(),
-        description: z.string().nullish(),
-        error: z.string().nullish(),
-        started_by: z.any().optional(),
-        started_at: z.date(),
-        updated_at: z.date(),
-        metrics: z.any().optional(),
-      })
-    )
-    .optional(),
+  // value shape is owned by the service (latestSyncTaskSchema) so it can't drift from the query
+  tasks: z.record(latestSyncTaskSchema).optional(),
 });
 
 //fix the type of started_by and metrics from weird prism type to any

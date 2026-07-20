@@ -7,6 +7,7 @@ import utc from "dayjs/plugin/utc";
 import { hash as juavaHash, requireDefined, rpc } from "juava";
 import stableHash from "stable-hash";
 import { SessionUser } from "../schema";
+import { source_taskDbModel } from "../../prisma/schema";
 import { verifyAccess } from "../api";
 import { ApiError } from "../shared/errors";
 import { containsMaskedSecrets, unmaskSecretsFromOriginal } from "../schema/secrets";
@@ -29,6 +30,19 @@ const LOGS_DEFAULT_LIMIT = 200;
 const LOGS_MAX_LIMIT = 5000;
 
 export type SyncOpResult = { ok: boolean; error?: string; pending?: boolean; [key: string]: any };
+
+// Shape of the per-sync "latest task" returned by latestSyncTasks and exposed by
+// POST /sources/tasks. Derived from the canonical task model and used to shape the
+// query result here AND as the route's response schema, so the two can't drift.
+export const latestSyncTaskSchema = source_taskDbModel.pick({
+  sync_id: true,
+  task_id: true,
+  status: true,
+  description: true,
+  error: true,
+  started_at: true,
+  updated_at: true,
+});
 
 /**
  * Source-sync lifecycle operations (run/cancel/tasks/logs), connector introspection
@@ -194,13 +208,15 @@ export class SyncService {
       where: { id: { in: syncIds }, workspaceId, deleted: false, type: "sync" },
     });
     try {
+      // select * and let latestSyncTaskSchema trim to the exposed fields — keeps the
+      // column list out of this string so it can't drift from the schema.
       const rows = await this.pgPool.query(
-        `select DISTINCT ON (sync_id) sync_id, task_id, status, error, description, started_at, updated_at
+        `select DISTINCT ON (sync_id) *
          from newjitsu.source_task where sync_id = ANY($1::text[]) and status != 'SKIPPED'
          order by sync_id, started_at desc`,
         [syncs.map(s => s.id)]
       );
-      return { ok: true, tasks: Object.fromEntries(rows.rows.map(r => [r.sync_id, r])) };
+      return { ok: true, tasks: Object.fromEntries(rows.rows.map(r => [r.sync_id, latestSyncTaskSchema.parse(r)])) };
     } catch (e: any) {
       return syncError(log, `Error loading tasks`, e, false, `sync ids: ${syncIds} workspace: ${workspaceId}`);
     }
