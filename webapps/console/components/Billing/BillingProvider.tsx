@@ -30,10 +30,13 @@ export function useBilling(): UseBillingResult {
 }
 
 export const parseBillingSettings = (settings: any): BillingSettings => {
+  // quotaStatus is a sibling of subscriptionStatus in the billing/settings
+  // response (JITSU-88) — attach it after parsing the subscription.
+  const quotaStatus = settings.quotaStatus ?? null;
   if (settings.noRestrictions) {
-    return noRestrictions;
+    return { ...noRestrictions, quotaStatus };
   }
-  return BillingSettings.parse(settings.subscriptionStatus);
+  return { ...BillingSettings.parse(settings.subscriptionStatus), quotaStatus };
 };
 
 export const BillingProvider: React.FC<PropsWithChildren<{ enabled: boolean; sendAnalytics: boolean }>> = ({

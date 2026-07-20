@@ -28,6 +28,23 @@ export const ContextApiResponse = z.object({
 });
 export type ContextApiResponse = z.infer<typeof ContextApiResponse>;
 
+/**
+ * Quota banner status for a workspace (JITSU-88), computed by ee-api from live
+ * usage + the quota-alerts state. Rendered as an in-app banner. `null`/absent
+ * for workspaces that never get a quota banner (paying / billing-disabled).
+ */
+export const QuotaStatus = z.object({
+  level: z.enum(["none", "warning80", "warning90", "warning95", "blocked"]),
+  percent: z.number(),
+  usage: z.number(),
+  quota: z.number(),
+  periodEnd: z.string(),
+  blocked: z.boolean(),
+  blockedCount: z.number(),
+});
+
+export type QuotaStatus = z.infer<typeof QuotaStatus>;
+
 //Default values are for "free" (default) plan
 export const BillingSettings = z.object({
   planId: z.string().default("free"),
@@ -62,6 +79,8 @@ export const BillingSettings = z.object({
   futureSubscriptionDate: z.string().optional(),
   profileBuilderEnabled: z.boolean().default(false).optional(),
   isLegacyPlan: z.boolean().default(false).optional(),
+  //quota banner status (JITSU-88); attached from the billing/settings response, not part of subscriptionStatus
+  quotaStatus: QuotaStatus.nullable().optional(),
 });
 
 export type BillingSettings = z.infer<typeof BillingSettings>;
