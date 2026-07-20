@@ -302,11 +302,18 @@ func (r *Router) sendToRotor(c *gin.Context, messageId string, ingestMessageByte
 
 	if stream.Throttle > 0 {
 		if stream.Throttle >= 100 || rand.Int31n(100) < int32(stream.Throttle) {
-			// Quota block (JITSU-88): the event is accepted at ingest and already
-			// preserved in backup above, but is not delivered to destinations.
-			// V1 blocking is silent — respond success so the client sees no
-			// ingestion error. The returned throttle marker still drives the
-			// SKIPPED events-log status, the `throttled` metric and the
+			if r.config.ErrorOnThrottle {
+				// Opt-in: surface the quota block as an HTTP 402 so the client
+				// sees the rejection (and it shows up in the client's own
+				// monitoring). ResponseError writes the error body itself.
+				rError = r.ResponseError(c, http.StatusPaymentRequired, ErrThrottledType, false, fmt.Errorf(ErrThrottledDescription), sendResponse, false, true)
+				return
+			}
+			// Quota block (JITSU-88), default: the event is accepted at ingest and
+			// already preserved in backup above, but is not delivered to
+			// destinations. Blocking is silent — respond success so the client
+			// sees no ingestion error. The returned throttle marker still drives
+			// the SKIPPED events-log status, the `throttled` metric and the
 			// dead-letter copy in the caller (constructed with sendResponse=false
 			// so it doesn't write the error body).
 			rError = r.ResponseError(c, http.StatusOK, ErrThrottledType, false, fmt.Errorf(ErrThrottledDescription), false, false, true)
