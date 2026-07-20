@@ -48,6 +48,7 @@ import { WorkspaceNameAndSlugEditor } from "../WorkspaceNameAndSlugEditor/Worksp
 import { assertDefined, assertTrue, getLog } from "juava";
 import classNames from "classnames";
 import { BillingBlockingDialog } from "../Billing/BillingBlockingDialog";
+import { QuotaBanner } from "../Billing/QuotaBanner";
 import { useJitsu } from "@jitsu/jitsu-react";
 import { useSearchParams } from "next/navigation";
 import omit from "lodash/omit";
@@ -706,6 +707,7 @@ export const WorkspacePageLayout: React.FC<PropsWithChildren<PageLayoutProps>> =
         ) : (
           pHeader
         )}
+        {!fullscreen && <QuotaBanner />}
         <VerticalSection className={`flex-auto overflow-auto ${fullscreen ? "py-2" : "py-12"} ${contentClassName}`}>
           {fullscreen && (
             <button
