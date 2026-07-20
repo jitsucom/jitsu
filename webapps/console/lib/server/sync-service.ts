@@ -85,7 +85,7 @@ export class SyncService {
     return { service, storageKey: `${workspaceId}_${service.id}_${h}` };
   }
 
-  /** Mirrors `sources/run.ts` (manual trigger). Delegates to the shared `scheduleSync`. */
+  /** Backs `sources/run.ts` (manual trigger). Delegates to the shared `scheduleSync`. */
   async runSync(
     user: SessionUser,
     workspaceId: string,
@@ -111,7 +111,7 @@ export class SyncService {
     return this.getSync(workspaceId, syncId);
   }
 
-  /** Mirrors `sources/cancel.ts`. Cancellation is async — poll `listSyncTasks` for CANCELLED. */
+  /** Backs `sources/cancel.ts`. Cancellation is async — poll `listSyncTasks` for CANCELLED. */
   async cancelSync(
     user: SessionUser,
     workspaceId: string,
@@ -146,7 +146,7 @@ export class SyncService {
     }
   }
 
-  /** Mirrors `sources/tasks.ts` GET (without the per-task logs URL — use `getSyncLogs`). */
+  /** Backs `sources/tasks.ts` GET (without the per-task logs URL — use `getSyncLogs`). */
   async listSyncTasks(
     user: SessionUser,
     workspaceId: string,
@@ -187,7 +187,7 @@ export class SyncService {
     }
   }
 
-  /** Mirrors `sources/tasks.ts` POST — the latest non-skipped task per sync, keyed by sync id. */
+  /** Backs `sources/tasks.ts` POST — the latest non-skipped task per sync, keyed by sync id. */
   async latestSyncTasks(user: SessionUser, workspaceId: string, syncIds: string[]): Promise<SyncOpResult> {
     await verifyAccess(user, workspaceId);
     const syncs = await this.prisma.configurationObjectLink.findMany({
@@ -255,7 +255,7 @@ export class SyncService {
     return { ok: true, logs };
   }
 
-  /** Mirrors `sources/spec.ts`. Async: poll until `ok: true` and `specs` is set. */
+  /** Backs `sources/spec.ts`. Async: poll until `ok: true` and `specs` is set. */
   async getConnectorSpec(
     user: SessionUser,
     workspaceId: string,
@@ -304,7 +304,7 @@ export class SyncService {
     }
   }
 
-  /** Mirrors `sources/discover.ts`. Async: poll until `ok: true` and `catalog` is set. */
+  /** Backs `sources/discover.ts`. Async: poll until `ok: true` and `catalog` is set. */
   async discoverStreams(
     user: SessionUser,
     workspaceId: string,
@@ -421,7 +421,7 @@ export class SyncService {
     }
   }
 
-  /** Mirrors `sources/check.ts` GET: SUCCESS → ok, row with error → error, no row yet → pending. */
+  /** Backs `sources/check.ts` GET: SUCCESS → ok, row with error → error, no row yet → pending. */
   async getSourceCheckResult(user: SessionUser, workspaceId: string, storageKey: string): Promise<SyncOpResult> {
     await verifyAccess(user, workspaceId);
     // Exact-segment prefix: a bare startsWith(workspaceId) would let workspace "ws1"
@@ -442,7 +442,7 @@ export class SyncService {
     }
   }
 
-  /** Mirrors `sources/state.ts` GET — saved cursor per stream. */
+  /** Backs `sources/state.ts` GET — saved cursor per stream. */
   async getSyncState(user: SessionUser, workspaceId: string, syncId: string): Promise<SyncOpResult> {
     await verifyAccess(user, workspaceId);
     const sync = await this.getSync(workspaceId, syncId);

@@ -113,7 +113,7 @@ export class DebugService {
     }
   }
 
-  /** Mirrors `function/run.ts`. `code` omitted → the stored function's draft (falls back to code). */
+  /** Backs `function/run.ts`. `code` omitted → the stored function's draft (falls back to code). */
   async runFunction(
     user: SessionUser,
     workspaceId: string,
@@ -164,7 +164,7 @@ export class DebugService {
   }
 
   /**
-   * Mirrors `profile-builder/run.ts`. `code`/`settings`/`version` omitted → loaded from the
+   * Backs `profile-builder/run.ts`. `code`/`settings`/`version` omitted → loaded from the
    * stored profile builder (its function's draft/code and `connectionOptions`).
    */
   async runProfileBuilder(
