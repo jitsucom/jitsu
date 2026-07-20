@@ -302,7 +302,21 @@ func (r *Router) sendToRotor(c *gin.Context, messageId string, ingestMessageByte
 
 	if stream.Throttle > 0 {
 		if stream.Throttle >= 100 || rand.Int31n(100) < int32(stream.Throttle) {
-			rError = r.ResponseError(c, http.StatusPaymentRequired, ErrThrottledType, false, fmt.Errorf(ErrThrottledDescription), sendResponse, false, true)
+			// Quota block (JITSU-88): the event is accepted at ingest and already
+			// preserved in backup above, but is not delivered to destinations.
+			// V1 blocking is silent — respond success so the client sees no
+			// ingestion error. The returned throttle marker still drives the
+			// SKIPPED events-log status, the `throttled` metric and the
+			// dead-letter copy in the caller (constructed with sendResponse=false
+			// so it doesn't write the error body).
+			rError = r.ResponseError(c, http.StatusOK, ErrThrottledType, false, fmt.Errorf(ErrThrottledDescription), false, false, true)
+			if sendResponse {
+				if c.FullPath() == "/api/px/:tp" {
+					c.Data(http.StatusOK, "image/gif", appbase.EmptyGif)
+				} else {
+					c.JSON(http.StatusOK, gin.H{"ok": true})
+				}
+			}
 			return
 		}
 	}

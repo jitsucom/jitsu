@@ -175,7 +175,7 @@ func (r *Router) BatchHandler(c *gin.Context) {
 	defer func() {
 		IngestedMessagesReceived(metricsId, "received").Add(float64(metricsBatchSize))
 		if rError != nil {
-			IngestHandlerRequests(domain, "error", rError.ErrorType).Inc()
+			IngestHandlerRequests(metricsId, "error", rError.ErrorType).Inc()
 			IngestedMessagesReceived(metricsId, "errors").Add(float64(metricsBatchSize))
 		}
 	}()
@@ -311,9 +311,17 @@ func (r *Router) BatchHandler(c *gin.Context) {
 		if rError != nil && rError.ErrorType != ErrNoDst {
 			obj := map[string]any{"body": string(ingestMessageBytes), "error": rError.PublicError.Error(), "status": utils.Ternary(rError.ErrorType == ErrThrottledType, "SKIPPED", "FAILED")}
 			r.eventsLogService.PostAsync(&eventslog.ActorEvent{EventType: eventslog.EventTypeIncoming, Level: eventslog.LevelError, ActorId: metricsId, Event: obj})
-			IngestHandlerRequests(domain, utils.Ternary(rError.ErrorType == ErrThrottledType, "throttled", "error"), rError.ErrorType).Inc()
+			IngestHandlerRequests(metricsId, utils.Ternary(rError.ErrorType == ErrThrottledType, "throttled", "error"), rError.ErrorType).Inc()
 			_ = r.producer.ProduceAsync(r.config.KafkaDestinationsDeadLetterTopicName, uuid.New(), utils.TruncateBytes(ingestMessageBytes, r.config.MaxIngestPayloadSize), map[string]string{"error": rError.Error.Error()}, kafka2.PartitionAny, messageId, false, 0)
-			errors = append(errors, fmt.Sprintf("Message ID: %s: %v", messageId, rError.PublicError))
+			if rError.ErrorType == ErrThrottledType {
+				// Quota block (JITSU-88) is a silent success for the client: the
+				// event is tracked as SKIPPED/throttled above but must not fail
+				// the batch. Count it toward okEvents so the batch response stays
+				// ok=true.
+				okEvents++
+			} else {
+				errors = append(errors, fmt.Sprintf("Message ID: %s: %v", messageId, rError.PublicError))
+			}
 		} else {
 			obj := map[string]any{"body": string(ingestMessageBytes), "asyncDestinations": asyncDestinations, "tags": tagsDestinations}
 			if len(asyncDestinations) > 0 || len(tagsDestinations) > 0 {
@@ -325,7 +333,7 @@ func (r *Router) BatchHandler(c *gin.Context) {
 				errors = append(errors, fmt.Sprintf("Message ID: %s: %v", messageId, rError.PublicError))
 			}
 			r.eventsLogService.PostAsync(&eventslog.ActorEvent{EventType: eventslog.EventTypeIncoming, Level: eventslog.LevelInfo, ActorId: metricsId, Event: obj})
-			IngestHandlerRequests(domain, "success", "").Inc()
+			IngestHandlerRequests(metricsId, "success", "").Inc()
 		}
 	}
 	processedEvents := len(batch)
