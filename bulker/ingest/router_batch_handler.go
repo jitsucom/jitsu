@@ -313,11 +313,12 @@ func (r *Router) BatchHandler(c *gin.Context) {
 			r.eventsLogService.PostAsync(&eventslog.ActorEvent{EventType: eventslog.EventTypeIncoming, Level: eventslog.LevelError, ActorId: metricsId, Event: obj})
 			IngestHandlerRequests(metricsId, utils.Ternary(rError.ErrorType == ErrThrottledType, "throttled", "error"), rError.ErrorType).Inc()
 			_ = r.producer.ProduceAsync(r.config.KafkaDestinationsDeadLetterTopicName, uuid.New(), utils.TruncateBytes(ingestMessageBytes, r.config.MaxIngestPayloadSize), map[string]string{"error": rError.Error.Error()}, kafka2.PartitionAny, messageId, false, 0)
-			if rError.ErrorType == ErrThrottledType {
+			if rError.ErrorType == ErrThrottledType && !r.config.ErrorOnThrottle {
 				// Quota block (JITSU-88) is a silent success for the client: the
 				// event is tracked as SKIPPED/throttled above but must not fail
 				// the batch. Count it toward okEvents so the batch response stays
-				// ok=true.
+				// ok=true. With ERROR_ON_THROTTLE the block is a client-visible
+				// error, so it falls through to the errors list below.
 				okEvents++
 			} else {
 				errors = append(errors, fmt.Sprintf("Message ID: %s: %v", messageId, rError.PublicError))
