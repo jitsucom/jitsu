@@ -1,5 +1,6 @@
 import React, { useReducer } from "react";
 import { Alert } from "antd";
+import DOMPurify from "dompurify";
 import { useBilling } from "./BillingProvider";
 import { useWorkspace } from "../../lib/context";
 import { WJitsuButton } from "../JitsuButton/JitsuButton";
@@ -9,7 +10,9 @@ import { WJitsuButton } from "../JitsuButton/JitsuButton";
  * copy or policy — the billing/settings response describes each banner in full
  * (severity, dismissibility, HTML body, optional action button) and this
  * component renders them verbatim. The HTML comes from our own billing server,
- * so it is trusted.
+ * but is still sanitized to a small inline-formatting allowlist before
+ * rendering — a compromised or misbehaving billing response must not be able to
+ * run script in the console origin.
  *
  * Dismissals are client-side, keyed by workspace + the banner's server-provided
  * stable `id` — the server changes the id (e.g. new severity level or billing
@@ -17,6 +20,13 @@ import { WJitsuButton } from "../JitsuButton/JitsuButton";
  */
 
 const dismissKey = (workspaceId: string, bannerId: string) => `billing-banner-dismissed:${workspaceId}:${bannerId}`;
+
+// Banner bodies are one-line messages: inline formatting and links only.
+const sanitize = (html: string) =>
+  DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: ["b", "i", "em", "strong", "u", "s", "code", "a", "br", "span"],
+    ALLOWED_ATTR: ["href", "target", "rel"],
+  });
 
 export const BillingBanners: React.FC = () => {
   const billing = useBilling();
@@ -48,7 +58,7 @@ export const BillingBanners: React.FC = () => {
               }
               forceRerender();
             }}
-            message={<span dangerouslySetInnerHTML={{ __html: banner.html }} />}
+            message={<span dangerouslySetInnerHTML={{ __html: sanitize(banner.html) }} />}
             action={
               banner.action ? (
                 <WJitsuButton href={banner.action.href} type="primary" size="small">
