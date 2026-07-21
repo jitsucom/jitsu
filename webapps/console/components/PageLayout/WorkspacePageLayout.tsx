@@ -8,8 +8,6 @@ import { ButtonLabel } from "../ButtonLabel/ButtonLabel";
 import styles from "./WorkspacePageLayout.module.css";
 import {
   Activity,
-  AlertCircle,
-  ArrowRight,
   BellIcon,
   ChevronDown,
   ChevronUp,
@@ -45,15 +43,14 @@ import { useApi } from "../../lib/useApi";
 
 import { Overlay } from "../Overlay/Overlay";
 import { WorkspaceNameAndSlugEditor } from "../WorkspaceNameAndSlugEditor/WorkspaceNameAndSlugEditor";
-import { assertDefined, assertTrue, getLog } from "juava";
+import { getLog } from "juava";
 import classNames from "classnames";
 import { BillingBlockingDialog } from "../Billing/BillingBlockingDialog";
 import { BillingBanners } from "../Billing/BillingBanners";
 import { useJitsu } from "@jitsu/jitsu-react";
 import { useSearchParams } from "next/navigation";
 import omit from "lodash/omit";
-import { useBilling, UseBillingResult } from "../Billing/BillingProvider";
-import { useEventsUsage, UseUsageRes } from "../Billing/use-events-usage";
+import { useBilling } from "../Billing/BillingProvider";
 import { MenuItemType } from "antd/lib/menu/interface";
 import { FaGear } from "react-icons/fa6";
 
@@ -335,107 +332,6 @@ const UserProfileButton: React.FC<{}> = () => {
   );
 };
 
-const AlertView: React.FC<PropsWithChildren<{}>> = ({ children }) => {
-  const [show, setShow] = useState(false);
-  const workspaceAlertHiddenAt = "workspaceAlertHiddenAt";
-  useEffect(() => {
-    const hiddenAt = localStorage.getItem(workspaceAlertHiddenAt);
-    const hideAlertSeconds = 60 * 60; // 1 hour
-    if (!hiddenAt || new Date().getTime() - new Date(hiddenAt).getTime() > 1000 * hideAlertSeconds) {
-      setTimeout(() => setShow(true), 1); // show after 1ms to avoid SSR issues and enable animation
-    }
-  }, []);
-
-  return (
-    <div
-      className="absolute top-0 z-40 rounded-b bg-white transition-all duration-500 ease-in-out"
-      style={{ transform: `translateX(-50%) ` + (show ? "" : "translateY(-100%)"), left: "50%", maxWidth: "40vw" }}
-    >
-      <div
-        className={`rounded-b border-warning border-l border-r border-b flex items-start space-x-4 py-2 px-4 text-xs bg-warning/5 `}
-      >
-        <AlertCircle className="text-warning" />
-        <div>{children}</div>
-        <div>
-          <button
-            onClick={() => {
-              setShow(false);
-              localStorage.setItem(workspaceAlertHiddenAt, new Date().toISOString());
-            }}
-          >
-            <X className="h-3" />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-function usageIsAboutToExceed(billing: UseBillingResult, usage: UseUsageRes) {
-  return (
-    billing.enabled &&
-    billing.settings &&
-    !usage.isLoading &&
-    !usage.error &&
-    usage.usage?.usagePercentage &&
-    usage.usage?.usagePercentage < 1 &&
-    billing.settings.planId === "free" &&
-    usage.usage?.projectionByTheEndOfPeriod &&
-    usage.usage?.projectionByTheEndOfPeriod > usage.usage.maxAllowedDestinatonEvents
-  );
-}
-
-const FreePlanQuotaAlert: React.FC<{}> = () => {
-  const workspace = useWorkspace();
-  const usage = useEventsUsage({ skipSubscribed: true });
-  const billing = useBilling();
-  const router = useRouter();
-  assertTrue(billing.enabled, "Billing should be enabled and loaded");
-  assertDefined(billing.settings, "Billing settings should be loaded");
-
-  if (router.pathname.endsWith("/settings/billing")) {
-    //don't display second alert on billing page
-    return <></>;
-  }
-
-  if (usage.throttle) {
-    return (
-      <AlertView>
-        Your workspace is throttled due to exceeding the free plan quota at rate of <b>{usage.throttle}%</b>
-        <Link
-          className="group inline-flex items-center border-b border-neutral-600"
-          href={`/${workspace.slugOrId}/settings/billing`}
-        >
-          Go to billing to see more details{" "}
-          <ArrowRight className="h-4 group-hover:rotate-45 transition-all duration-500" />
-        </Link>
-      </AlertView>
-    );
-  } else if (usageIsAboutToExceed(billing, usage)) {
-    return (
-      <AlertView>
-        You are projected to exceed your monthly events. Please upgrade your plan to avoid service disruption.{" "}
-        <Link
-          className="group inline-flex items-center border-b border-neutral-600"
-          href={`/${workspace.slugOrId}/settings/billing`}
-        >
-          Go to billing <ArrowRight className="h-4 group-hover:rotate-45 transition-all duration-500" />
-        </Link>
-      </AlertView>
-    );
-  }
-
-  return <></>;
-};
-
-const WorkspaceAlert: React.FC<{}> = () => {
-  const billing = useBilling();
-  if (billing.loading || !billing.enabled) {
-    return <></>;
-  }
-  return <FreePlanQuotaAlert />;
-};
-
 function PageHeader() {
   const appConfig = useAppConfig();
   const workspace = useWorkspace();
@@ -528,7 +424,6 @@ function PageHeader() {
   return (
     <div>
       <div className="w-full relative">
-        <WorkspaceAlert />
         <div className="flex justify-between items-center px-4">
           <Breadcrumbs />
           <UserProfileButton />
