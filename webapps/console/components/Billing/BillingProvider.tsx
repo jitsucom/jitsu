@@ -30,13 +30,13 @@ export function useBilling(): UseBillingResult {
 }
 
 export const parseBillingSettings = (settings: any): BillingSettings => {
-  // quotaStatus is a sibling of subscriptionStatus in the billing/settings
+  // banners is a sibling of subscriptionStatus in the billing/settings
   // response (JITSU-88) — attach it after parsing the subscription.
-  const quotaStatus = settings.quotaStatus ?? null;
+  const banners = settings.banners ?? [];
   if (settings.noRestrictions) {
-    return { ...noRestrictions, quotaStatus };
+    return { ...noRestrictions, banners };
   }
-  return { ...BillingSettings.parse(settings.subscriptionStatus), quotaStatus };
+  return { ...BillingSettings.parse(settings.subscriptionStatus), banners };
 };
 
 export const BillingProvider: React.FC<PropsWithChildren<{ enabled: boolean; sendAnalytics: boolean }>> = ({
