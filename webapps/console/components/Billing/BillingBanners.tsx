@@ -121,7 +121,7 @@ const BillingBannersInner: React.FC = () => {
         return (
           <Alert
             key={banner.id}
-            className="rounded-none"
+            className="mt-4"
             type={banner.severity}
             showIcon
             closable={banner.dismissible}
