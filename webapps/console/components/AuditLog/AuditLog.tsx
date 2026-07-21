@@ -36,6 +36,8 @@ export type AuditLogItem = {
   objectId?: string | null;
   authType?: string | null;
   tokenId?: string | null;
+  ip?: string | null;
+  requestHeaders?: Record<string, string> | null;
   token?: { id: string; type?: string | null; name?: string | null } | null;
   changes?: any;
   diff?: DiffEntry[];
@@ -93,9 +95,15 @@ const ORIGIN_MCP: Origin = { label: "MCP", color: "magenta", icon: <FaRobot /> }
 const ORIGIN_BY_KIND = { ui: ORIGIN_UI, api: ORIGIN_API, cli: ORIGIN_CLI, mcp: ORIGIN_MCP } as const;
 
 function resolveOrigin(item: AuditLogItem): Origin | null {
-  if (!item.authType) return null;
+  // No authType and no explicit client header → unknown origin (legacy rows).
+  if (!item.authType && !item.requestHeaders?.["x-jitsu-client"]) return null;
   return ORIGIN_BY_KIND[
-    originFromAuth({ authType: item.authType, tokenId: item.tokenId, tokenType: item.token?.type })
+    originFromAuth({
+      authType: item.authType,
+      tokenId: item.tokenId,
+      tokenType: item.token?.type,
+      headers: item.requestHeaders,
+    })
   ];
 }
 
@@ -117,6 +125,40 @@ function originTag(item: AuditLogItem) {
     </Tooltip>
   );
 }
+
+/**
+ * Renders the request provenance captured on a row — client IP and the
+ * allowlisted request headers (user-agent, x-jitsu-client, …). Both are
+ * best-effort/nullable; renders nothing when neither is present.
+ */
+const RequestProvenanceView: React.FC<{
+  ip?: string | null;
+  headers?: Record<string, string> | null;
+}> = ({ ip, headers }) => {
+  const headerEntries = headers ? Object.entries(headers) : [];
+  if (!ip && headerEntries.length === 0) return null;
+  return (
+    <div className="text-xs">
+      <div className="font-semibold text-text-light mb-1">Request</div>
+      <table className="font-mono">
+        <tbody>
+          {ip && (
+            <tr>
+              <td className="pr-3 align-top text-text-light whitespace-nowrap">ip</td>
+              <td className="break-all">{ip}</td>
+            </tr>
+          )}
+          {headerEntries.map(([k, v]) => (
+            <tr key={k}>
+              <td className="pr-3 align-top text-text-light whitespace-nowrap">{k}</td>
+              <td className="break-all">{v}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
 
 function entityHref(objectType: string | undefined, objectId?: string | null): string | null {
   if (!objectType || !objectId) return null;
@@ -519,10 +561,12 @@ export const AuditLog: React.FC<AuditLogProps> = ({ workspaceId, workspaceSlug, 
         loading={query.isLoading}
         pagination={false}
         expandable={{
-          rowExpandable: (item: AuditLogItem) => Array.isArray(item.diff) && item.diff.length > 0,
+          rowExpandable: (item: AuditLogItem) =>
+            (Array.isArray(item.diff) && item.diff.length > 0) || !!item.ip || !!item.requestHeaders,
           expandedRowRender: (item: AuditLogItem) => (
-            <div className="pl-12 pr-4 py-2 bg-neutral-50">
-              <AuditLogDiff diff={item.diff || []} />
+            <div className="pl-12 pr-4 py-2 bg-neutral-50 flex flex-col gap-3">
+              {Array.isArray(item.diff) && item.diff.length > 0 && <AuditLogDiff diff={item.diff} />}
+              <RequestProvenanceView ip={item.ip} headers={item.requestHeaders} />
             </div>
           ),
         }}

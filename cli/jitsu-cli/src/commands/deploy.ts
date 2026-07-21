@@ -8,6 +8,7 @@ import { b, green, red } from "../lib/chalk-code-highlight";
 import { getFunctionFromFilePath } from "../lib/compiled-function";
 import { loadProjectConfig } from "../lib/project-config";
 import { readDefaultWorkspace } from "../lib/auth-file";
+import { jitsuClientId } from "../lib/version";
 
 function readLoginFile() {
   const configFile = `${homedir()}/.jitsu/jitsu-cli.json`;
@@ -49,6 +50,7 @@ export async function deploy({ dir, workspace, name: names, ...params }: Args) {
     method: "GET",
     headers: {
       Authorization: `Bearer ${apikey}`,
+      "X-Jitsu-Client": jitsuClientId,
     },
   });
   if (!res.ok) {
@@ -161,6 +163,7 @@ async function deployFunctions(
       method: "GET",
       headers: {
         Authorization: `Bearer ${apikey}`,
+        "X-Jitsu-Client": jitsuClientId,
       },
     });
     if (!res.ok) {
@@ -213,7 +216,7 @@ async function fetchExistingFunctions({
   workspaceId?: string;
 }): Promise<ExistingFunctionsCache> {
   const res = await fetch(`${host}/api/${workspaceId}/config/function`, {
-    headers: { Authorization: `Bearer ${apikey}` },
+    headers: { Authorization: `Bearer ${apikey}`, "X-Jitsu-Client": jitsuClientId },
   });
   if (!res.ok) {
     console.error(red(`Cannot list existing functions:\n${b(await res.text())}`));
@@ -303,6 +306,7 @@ async function deployFunction(
       method: "POST",
       headers: {
         Authorization: `Bearer ${apikey}`,
+        "X-Jitsu-Client": jitsuClientId,
       },
       body: JSON.stringify({
         id,
@@ -335,6 +339,7 @@ async function deployFunction(
       method: "PUT",
       headers: {
         Authorization: `Bearer ${apikey}`,
+        "X-Jitsu-Client": jitsuClientId,
       },
       body: JSON.stringify({
         id: id,

@@ -203,10 +203,16 @@ export type RequestOrigin = "ui" | "api" | "cli" | "mcp";
  * Classify the origin of an authenticated request from its auth fields (as carried on
  * SessionUser, or on an audit-log row). Pure — safe to import from client code.
  *
+ *   X-Jitsu-Client "jitsu-cli/…" header   → "cli"  (explicit client signal, wins over token)
  *   authType "mcp"                        → "mcp"
  *   authType "bearer" + CLI token         → "cli"  (tokenType "cli", or jitsu-cli- id)
  *   authType "bearer" + anything else     → "api"
  *   anything else (session / no authType) → "ui"
+ *
+ * The `headers` are the allowlisted request headers stored on the audit row
+ * (see extractRequestProvenance). They let us recover CLI/SDK provenance even
+ * when the request authenticated with a plain API key — the token carries no
+ * CLI marker, but the client announces itself via X-Jitsu-Client.
  *
  * Single source of truth for origin: `resolveOrigin` in
  * components/AuditLog/AuditLog.tsx and the origin filter predicates in
@@ -216,7 +222,10 @@ export function originFromAuth(auth: {
   authType?: string | null;
   tokenId?: string | null;
   tokenType?: string | null;
+  headers?: Record<string, string> | null;
 }): RequestOrigin {
+  const client = auth.headers?.["x-jitsu-client"];
+  if (client && /^jitsu-cli\b/i.test(client)) return "cli";
   if (auth.authType === "mcp") return "mcp";
   if (auth.authType === "bearer") {
     const tokenType = auth.tokenType || (auth.tokenId ? inferTokenTypeFromId(auth.tokenId) : "api");
