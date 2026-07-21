@@ -67,6 +67,7 @@
     "cron-parser": "^5.5.0",
     "cuid": "^2.1.8",
     "dayjs": "^1.11.10",
+    "dompurify": "^3.4.12",
     "firebase": "^11.4.0",
     "firebase-admin": "^13.2.0",
     "google-ads-api": "^17.1.0-rest-beta",
