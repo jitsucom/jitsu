@@ -99,17 +99,25 @@ const BillingBannersInner: React.FC = () => {
     banners = [];
   }
 
-  if (banners.length === 0) {
+  const isDismissed = (banner: BillingBanner) =>
+    banner.dismissible &&
+    typeof window !== "undefined" &&
+    !!window.localStorage.getItem(dismissKey(workspace.id, banner.id));
+  const visibleBanners = banners.filter(banner => !isDismissed(banner));
+  if (visibleBanners.length === 0) {
     return null;
   }
 
   return (
     <>
-      {banners.map(banner => {
+      {visibleBanners.map(banner => {
         const key = dismissKey(workspace.id, banner.id);
-        if (banner.dismissible && typeof window !== "undefined" && window.localStorage.getItem(key)) {
-          return null;
-        }
+        // Only workspace-relative console paths — a server bug/compromise must
+        // not be able to send users off-origin (or to a javascript: URL).
+        const action =
+          banner.action && banner.action.href.startsWith("/") && !banner.action.href.startsWith("//")
+            ? banner.action
+            : undefined;
         return (
           <Alert
             key={banner.id}
@@ -125,9 +133,9 @@ const BillingBannersInner: React.FC = () => {
             }}
             message={<span dangerouslySetInnerHTML={{ __html: sanitize(banner.html) }} />}
             action={
-              banner.action ? (
-                <WJitsuButton href={banner.action.href} type="primary" size="small">
-                  {banner.action.label}
+              action ? (
+                <WJitsuButton href={action.href} type="primary" size="small">
+                  {action.label}
                 </WJitsuButton>
               ) : undefined
             }
