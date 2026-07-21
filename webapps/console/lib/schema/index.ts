@@ -29,21 +29,22 @@ export const ContextApiResponse = z.object({
 export type ContextApiResponse = z.infer<typeof ContextApiResponse>;
 
 /**
- * Quota banner status for a workspace (JITSU-88), computed by ee-api from live
- * usage + the quota-alerts state. Rendered as an in-app banner. `null`/absent
- * for workspaces that never get a quota banner (paying / billing-disabled).
+ * Ready-to-render in-app banner provided by the billing API (JITSU-88). All
+ * copy, severity and dismissal policy are decided server-side (billing repo);
+ * the console renders these verbatim.
  */
-export const QuotaStatus = z.object({
-  level: z.enum(["none", "warning80", "warning90", "warning95", "blocked"]),
-  percent: z.number(),
-  usage: z.number(),
-  quota: z.number(),
-  periodEnd: z.string(),
-  blocked: z.boolean(),
-  blockedCount: z.number(),
+export const BillingBanner = z.object({
+  /** Stable identity for client-side dismissal (a dismissed id stays hidden). */
+  id: z.string(),
+  severity: z.enum(["info", "warning", "error"]),
+  dismissible: z.boolean(),
+  /** Banner body, HTML. Comes from our own billing server — trusted. */
+  html: z.string(),
+  /** Optional action button; `href` is a workspace-relative console path. */
+  action: z.object({ label: z.string(), href: z.string() }).optional(),
 });
 
-export type QuotaStatus = z.infer<typeof QuotaStatus>;
+export type BillingBanner = z.infer<typeof BillingBanner>;
 
 //Default values are for "free" (default) plan
 export const BillingSettings = z.object({
@@ -79,8 +80,8 @@ export const BillingSettings = z.object({
   futureSubscriptionDate: z.string().optional(),
   profileBuilderEnabled: z.boolean().default(false).optional(),
   isLegacyPlan: z.boolean().default(false).optional(),
-  //quota banner status (JITSU-88); attached from the billing/settings response, not part of subscriptionStatus
-  quotaStatus: QuotaStatus.nullable().optional(),
+  //in-app banners (JITSU-88); attached from the billing/settings response, not part of subscriptionStatus
+  banners: z.array(BillingBanner).optional(),
 });
 
 export type BillingSettings = z.infer<typeof BillingSettings>;
