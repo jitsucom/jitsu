@@ -1,6 +1,7 @@
 import { db } from "../../../../lib/server/db";
 import { z } from "zod";
-import { createRoute, verifyAccess } from "../../../../lib/api";
+import { createRoute } from "../../../../lib/api";
+import { syncService } from "../../../../lib/server/route-services";
 import { randomId } from "juava";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
@@ -37,10 +38,9 @@ export const route = createRoute()
   })
   .handler(async ({ user, query, res }) => {
     const { workspaceId } = query;
-    await verifyAccess(user, workspaceId);
-    const existingLink = await db
-      .prisma()
-      .configurationObjectLink.findFirst({ where: { workspaceId: workspaceId, id: query.syncId, deleted: false } });
+    // Workspace scoping lives in the service; the gzip streaming below is transport
+    // and stays in the route.
+    const existingLink = await syncService().findSync(user, workspaceId, query.syncId);
     if (!existingLink) {
       res.writeHead(404, {
         "Content-Type": "application/json",

@@ -1,15 +1,7 @@
-import { db } from "../../../../lib/server/db";
 import { z } from "zod";
-import { createRoute, verifyAccess } from "../../../../lib/api";
+import { createRoute } from "../../../../lib/api";
 import { ServiceConfig } from "../../../../lib/schema";
-import { requireDefined, rpc } from "juava";
-import { getServerLog } from "../../../../lib/server/log";
-import { syncError } from "../../../../lib/server/sync";
-import { unmaskSecretsFromOriginal, containsMaskedSecrets } from "../../../../lib/schema/secrets";
-import { getServerEnv } from "../../../../lib/server/serverEnv";
-
-const log = getServerLog("sync-check");
-const serverEnv = getServerEnv();
+import { syncService } from "../../../../lib/server/route-services";
 
 const resultType = z.object({
   ok: z.boolean(),
@@ -27,70 +19,11 @@ export default createRoute()
     body: ServiceConfig,
     result: resultType,
   })
-  .handler(async ({ user, query, body, req }) => {
-    const { workspaceId } = query;
-    await verifyAccess(user, workspaceId);
-    const syncURL = requireDefined(
-      serverEnv.SYNCCTL_URL,
-      `env SYNCCTL_URL is not set. Sync Controller is required to run sources`
-    );
-    if (!query.storageKey.startsWith(workspaceId)) {
-      return { ok: false, error: "storageKey doesn't belong to the current workspace" };
-    }
-    const syncAuthKey = serverEnv.SYNCCTL_AUTH_KEY ?? "";
-    const authHeaders: any = {};
-    if (syncAuthKey) {
-      authHeaders["Authorization"] = `Bearer ${syncAuthKey}`;
-    }
-    const serviceConfig = body as ServiceConfig;
-    const existingService = await db.prisma().configurationObject.findFirst({
-      where: { id: serviceConfig.cloneId || serviceConfig.id },
+  .handler(async ({ user, query, body }) => {
+    return syncService().triggerSourceCheck(user, query.workspaceId, {
+      config: body,
+      storageKey: query.storageKey,
     });
-    if (existingService && existingService.workspaceId !== workspaceId) {
-      return { ok: false, error: "invalid service id" };
-    }
-
-    // Unmask secrets for testing if this is an existing service with masked values
-    let configForTesting = serviceConfig;
-    if (existingService && containsMaskedSecrets(serviceConfig)) {
-      log.atInfo().log(`Unmasking secrets for service test: ${serviceConfig.id}`);
-      const dbServiceConfig = existingService.config as ServiceConfig;
-      configForTesting = unmaskSecretsFromOriginal(serviceConfig, dbServiceConfig);
-    }
-
-    // Pass the ServiceConfig wrapper through to syncctl unchanged. The oauth-refresh
-    // init container inside the syncctl Pod handles Nango refresh — console no
-    // longer touches OAuth credentials.
-    try {
-      const checkRes = await rpc(syncURL + "/check", {
-        method: "POST",
-        body: {
-          source: configForTesting,
-        },
-        headers: {
-          "Content-Type": "application/json",
-          ...authHeaders,
-        },
-        query: {
-          package: body.package,
-          version: body.version,
-          storageKey: query.storageKey,
-        },
-      });
-      if (!checkRes.ok) {
-        return { ok: false, error: checkRes.error ?? "unknown error" };
-      } else {
-        return { ok: false, pending: true };
-      }
-    } catch (e: any) {
-      return syncError(
-        log,
-        `Error running connection check`,
-        e,
-        false,
-        `source: ${query.storageKey} workspace: ${workspaceId}`
-      );
-    }
   })
   .GET({
     auth: true,
@@ -100,43 +33,7 @@ export default createRoute()
     }),
     result: resultType,
   })
-  .handler(async ({ user, query, body }) => {
-    const { workspaceId } = query;
-    await verifyAccess(user, workspaceId);
-    if (!query.storageKey.startsWith(workspaceId)) {
-      return { ok: false, error: "storageKey doesn't belong to the current workspace" };
-    }
-    try {
-      const res = await db
-        .pgPool()
-        .query(`select status, description from newjitsu.source_check where key = $1`, [query.storageKey]);
-      if (res.rowCount === 1) {
-        const status = res.rows[0].status;
-        const description = res.rows[0].description;
-        if (status === "SUCCESS") {
-          return {
-            ok: true,
-          };
-        } else {
-          return {
-            ok: false,
-            error: description,
-          };
-        }
-      } else {
-        return {
-          ok: false,
-          pending: true,
-        };
-      }
-    } catch (e: any) {
-      return syncError(
-        log,
-        `Error running connection check`,
-        e,
-        false,
-        `source: ${query.storageKey} workspace: ${workspaceId}`
-      );
-    }
+  .handler(async ({ user, query }) => {
+    return syncService().getSourceCheckResult(user, query.workspaceId, query.storageKey);
   })
   .toNextApiHandler();

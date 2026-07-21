@@ -1,13 +1,7 @@
-import { db } from "../../../../lib/server/db";
 import { z } from "zod";
-import { createRoute, verifyAccess } from "../../../../lib/api";
-import { isTruish, requireDefined, rpc } from "juava";
-import { getServerLog } from "../../../../lib/server/log";
-import { syncError } from "../../../../lib/server/sync";
-import { getServerEnv } from "../../../../lib/server/serverEnv";
-
-const log = getServerLog("sync-spec");
-const serverEnv = getServerEnv();
+import { createRoute } from "../../../../lib/api";
+import { isTruish } from "juava";
+import { syncService } from "../../../../lib/server/route-services";
 
 const resultType = z.object({
   ok: z.boolean(),
@@ -39,83 +33,11 @@ export const route = createRoute()
     result: resultType,
   })
   .handler(async ({ user, query }) => {
-    const { workspaceId } = query;
-    await verifyAccess(user, workspaceId);
-    const syncURL = requireDefined(
-      serverEnv.SYNCCTL_URL,
-      `env SYNCCTL_URL is not set. Sync Controller is required to run sources`
-    );
-    const syncAuthKey = serverEnv.SYNCCTL_AUTH_KEY ?? "";
-    const authHeaders: any = {};
-    if (syncAuthKey) {
-      authHeaders["Authorization"] = `Bearer ${syncAuthKey}`;
-    }
-    try {
-      const res = await db.pgPool().query(
-        `select specs, error
-                        from newjitsu.source_spec
-                        where package = $1
-                          and version = $2`,
-        [query.package, query.version]
-      );
-      let error;
-      // force=true must re-fetch from the controller even when a cached spec
-      // row exists — otherwise a tag rebuilt in place keeps serving stale specs.
-      if (res.rowCount === 1 && !isTruish(query.force)) {
-        const specs = res.rows[0].specs;
-        if (specs) {
-          return {
-            ok: true,
-            specs,
-          };
-        } else {
-          error = res.rows[0].error ?? "unknown error";
-          if (error === "pending") {
-            return { ok: false, pending: true };
-          }
-        }
-      }
-      if (!res.rowCount || isTruish(query.force)) {
-        const checkRes = await rpc(syncURL + "/spec", {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            ...authHeaders,
-          },
-          query: {
-            package: query.package,
-            version: query.version,
-          },
-        });
-        if (!checkRes.ok) {
-          return { ok: false, error: checkRes.error ?? "unknown error" };
-        } else {
-          await db.pgPool().query(
-            `insert into newjitsu.source_spec as s (package, version, specs, timestamp, error)
-                     values ($1, $2, null, $3, $4)
-                     ON CONFLICT ON CONSTRAINT source_spec_pkey DO UPDATE SET specs = null,
-                                                                              timestamp = $3,
-                                                                              error = $4`,
-            [query.package, query.version, new Date(), "pending"]
-          );
-          return { ok: false, pending: true };
-        }
-      } else {
-        if (error) {
-          return { ok: false, error };
-        } else {
-          return { ok: false, pending: true };
-        }
-      }
-    } catch (e: any) {
-      return syncError(
-        log,
-        `Error loading specs`,
-        e,
-        false,
-        `source: ${query.package}:${query.version} workspace: ${workspaceId}`
-      );
-    }
+    return syncService().getConnectorSpec(user, query.workspaceId, {
+      package: query.package,
+      version: query.version,
+      force: isTruish(query.force),
+    });
   });
 
 export default route.toNextApiHandler();

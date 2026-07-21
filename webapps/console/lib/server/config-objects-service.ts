@@ -138,7 +138,7 @@ export class ConfigObjectsService {
 
   // ─── Config objects ───────────────────────────────────────────────────────
 
-  /** Mirrors `config/[type]/index.ts` GET. */
+  /** Backs `config/[type]/index.ts` GET. */
   async list(user: SessionUser, workspaceId: string, type: string): Promise<any[]> {
     await verifyAccess(user, workspaceId);
     this.assertKnownType(type);
@@ -157,7 +157,7 @@ export class ConfigObjectsService {
     return await Promise.all(mapped.map(obj => configObjectType.outputFilter(obj)));
   }
 
-  /** Mirrors `config/[type]/[id].ts` GET. */
+  /** Backs `config/[type]/[id].ts` GET. */
   async get(user: SessionUser, workspaceId: string, type: string, id: string): Promise<any> {
     await verifyAccess(user, workspaceId);
     this.assertKnownType(type);
@@ -175,7 +175,7 @@ export class ConfigObjectsService {
     return await configObjectType.outputFilter(preFilter);
   }
 
-  /** Mirrors `config/[type]/index.ts` POST. Returns the created id. */
+  /** Backs `config/[type]/index.ts` POST. Returns the created id. */
   async create(
     user: SessionUser,
     workspaceId: string,
@@ -254,7 +254,7 @@ export class ConfigObjectsService {
     return { id: created.id };
   }
 
-  /** Mirrors `config/[type]/[id].ts` PUT. */
+  /** Backs `config/[type]/[id].ts` PUT. */
   async update(
     user: SessionUser,
     workspaceId: string,
@@ -296,7 +296,7 @@ export class ConfigObjectsService {
     await configObjectAuditLog(user, workspaceId, id, type, "update", { prevVersion, newVersion: filtered });
   }
 
-  /** Mirrors `config/[type]/[id].ts` DELETE (soft delete). Returns the deleted object, or null. */
+  /** Backs `config/[type]/[id].ts` DELETE (soft delete). Returns the deleted object, or null. */
   async delete(
     user: SessionUser,
     workspaceId: string,
@@ -338,7 +338,7 @@ export class ConfigObjectsService {
 
   // ─── Connections (links) ──────────────────────────────────────────────────
 
-  /** Mirrors `config/link.ts` GET. Masks `functionsEnv` secrets for non-editors. */
+  /** Backs `config/link.ts` GET. Masks `functionsEnv` secrets for non-editors. */
   async listLinks(user: SessionUser, workspaceId: string): Promise<any[]> {
     const role = await verifyAccessWithRole(user, workspaceId, "readEntities");
     const links = await this.prisma.configurationObjectLink.findMany({
@@ -399,7 +399,7 @@ export class ConfigObjectsService {
     );
   }
 
-  /** Mirrors `config/link.ts` POST/PUT upsert. */
+  /** Backs `config/link.ts` POST/PUT upsert. */
   async upsertLink(
     user: SessionUser,
     workspaceId: string,
@@ -560,7 +560,7 @@ export class ConfigObjectsService {
     }
   }
 
-  /** Mirrors `config/link.ts` DELETE. Delete by `id`, or by `fromId`+`toId`. */
+  /** Backs `config/link.ts` DELETE. Delete by `id`, or by `fromId`+`toId`. */
   async deleteLink(
     user: SessionUser,
     workspaceId: string,

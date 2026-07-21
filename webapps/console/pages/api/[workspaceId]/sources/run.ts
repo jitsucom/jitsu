@@ -1,10 +1,10 @@
 import { z } from "zod";
-import { createRoute, getUser, verifyAccess } from "../../../../lib/api";
+import { createRoute, getUser } from "../../../../lib/api";
 import { SessionUser } from "../../../../lib/schema";
 import { ApiError } from "../../../../lib/shared/errors";
 import { getServerLog } from "../../../../lib/server/log";
 
-import { scheduleSync } from "../../../../lib/server/sync";
+import { syncService } from "../../../../lib/server/route-services";
 import { isTruish } from "juava";
 import { getServerEnv } from "../../../../lib/server/serverEnv";
 
@@ -67,7 +67,6 @@ export const route = createRoute()
       if (!user) {
         throw new ApiError("Authorization Required", { status: 401 });
       }
-      await verifyAccess(user, workspaceId);
     }
     log
       .atInfo()
@@ -87,16 +86,17 @@ export const route = createRoute()
         );
       return { ok: true };
     }
-    const result = await scheduleSync({
-      req,
-      user,
-      trigger,
+    const result = await syncService().runSync(
+      user!,
       workspaceId,
-      fullSync: isTruish(query.fullSync),
-      syncIdOrModel: query.syncId as string,
-      ignoreRunning: !!query.ignoreRunning,
-      taskId: query.taskId,
-    });
+      {
+        syncId: query.syncId,
+        fullSync: isTruish(query.fullSync),
+        ignoreRunning: !!query.ignoreRunning,
+        taskId: query.taskId,
+      },
+      req
+    );
     if (!result.ok) {
       log
         .atWarn()

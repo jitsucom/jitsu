@@ -113,12 +113,13 @@ export class DebugService {
     }
   }
 
-  /** Mirrors `function/run.ts`. `code` omitted → the stored function's draft (falls back to code). */
+  /** Backs `function/run.ts`. `code` omitted → the stored function's draft (falls back to code). */
   async runFunction(
     user: SessionUser,
     workspaceId: string,
     opts: {
       functionId: string;
+      functionName?: string;
       code?: string;
       event: any;
       variables?: any;
@@ -128,7 +129,7 @@ export class DebugService {
   ): Promise<FunctionRunResult> {
     await verifyAccessWithRole(user, workspaceId, "editEntities");
     let code = opts.code;
-    let functionName: string | undefined;
+    let functionName = opts.functionName;
     if (code === undefined) {
       const func = await this.prisma.configurationObject.findFirst({
         where: { id: opts.functionId, workspaceId, type: "function", deleted: false },
@@ -163,7 +164,7 @@ export class DebugService {
   }
 
   /**
-   * Mirrors `profile-builder/run.ts`. `code`/`settings`/`version` omitted → loaded from the
+   * Backs `profile-builder/run.ts`. `code`/`settings`/`version` omitted → loaded from the
    * stored profile builder (its function's draft/code and `connectionOptions`).
    */
   async runProfileBuilder(

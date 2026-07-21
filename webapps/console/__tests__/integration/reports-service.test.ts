@@ -100,6 +100,8 @@ describe("ReportsService", () => {
     const byStatus = Object.fromEntries(res.rows.map((r: any) => [r.status, r]));
     expect(Number(byStatus.success.events)).toBe(12); // 5 + 7 via sumMerge
     expect(Number(byStatus.error.events)).toBe(1);
+    // srcSize (underlying chunk count) is part of the wire shape the UI's Report schema requires
+    expect(Number(byStatus.success.srcSize)).toBeGreaterThan(0);
     expect(byStatus.success.period).toBe("2026-06-10T00:00:00Z");
     expect(byStatus.success.workspaceId).toBe(workspace.id);
   });
