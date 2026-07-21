@@ -105,7 +105,7 @@ const JitsuHubspotSource: SourceType = {
   packageId: "jitsucom/source-hubspot",
   packageType: "airbyte",
   meta: {
-    name: "HubSpot (Jitsu version)",
+    name: "HubSpot",
     license: "ELv2",
     connectorSubtype: "api",
   },
