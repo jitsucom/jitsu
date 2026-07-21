@@ -20,9 +20,11 @@ import { BillingBanner } from "../../lib/schema";
  *
  * Two banners are still computed client-side (they replaced the old floating
  * workspace alerts) with explicit priority rules:
- *   - active throttle (`throttle=N` in featuresEnabled): shown INSTEAD of any
- *     server banners — the applied throttle is ground truth, server state may
- *     lag it;
+ *   - active partial throttle (`throttle=N` in featuresEnabled, N < 100): shown
+ *     INSTEAD of any server banners — the applied throttle is ground truth,
+ *     server state may lag it. At throttle=100 with server banners present, the
+ *     server wins: a full block is exactly what the server's blocked banner
+ *     describes, with better copy (blocked-count);
  *   - usage projected to exceed the free plan: shown only when there is nothing
  *     else to show.
  * TODO(JITSU-88 follow-up): move both to the billing server
@@ -71,7 +73,7 @@ const BillingBannersInner: React.FC = () => {
   const onBillingPage = router.pathname.endsWith("/settings/billing");
 
   let banners: BillingBanner[];
-  if (usage.throttle && !onBillingPage) {
+  if (usage.throttle && !onBillingPage && !(usage.throttle >= 100 && serverBanners.length > 0)) {
     banners = [
       {
         id: "client-throttle",
