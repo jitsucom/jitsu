@@ -3,6 +3,7 @@ import styles from "./ServicesCatalog.module.css";
 import { FaDatabase, FaDocker } from "react-icons/fa";
 import { useApi } from "../../lib/useApi";
 import { SourceType } from "../../pages/api/sources";
+import { hiddenConnectors } from "../../lib/sources";
 import capitalize from "lodash/capitalize";
 import { LoadingAnimation } from "../GlobalLoader/GlobalLoader";
 import React from "react";
@@ -16,8 +17,13 @@ function groupByType(sources: SourceType[]): Record<string, SourceType[]> {
   const otherGroup = "other";
   const sortOrder = ["api", "database", "file", "custom image"];
 
+  const hidden = new Set(hiddenConnectors);
+
   sources.forEach(s => {
     if (s.packageId.endsWith("strict-encrypt") || s.packageId === "airbyte/source-file-secure") {
+      return;
+    }
+    if (hidden.has(s.packageId)) {
       return;
     }
     const groupName = s.meta.connectorSubtype || otherGroup;
