@@ -602,7 +602,13 @@ export const WorkspacePageLayout: React.FC<PropsWithChildren<PageLayoutProps>> =
         ) : (
           pHeader
         )}
-        {!fullscreen && <BillingBanners />}
+        {!fullscreen && (
+          <VerticalSection>
+            <WidthControl className={"px-8"}>
+              <BillingBanners />
+            </WidthControl>
+          </VerticalSection>
+        )}
         <VerticalSection className={`flex-auto overflow-auto ${fullscreen ? "py-2" : "py-12"} ${contentClassName}`}>
           {fullscreen && (
             <button
