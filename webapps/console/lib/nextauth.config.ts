@@ -170,6 +170,15 @@ const sharedCookieOptions = authCookieDomain
     }
   : {};
 
+// Computed once at module load. Must NOT live inside buildNextAuthConfig:
+// generateSecret logs the generated key, and the config is now rebuilt per
+// auth request, so computing it there would re-log the signing secret on every
+// /api/auth/* hit (and re-hash needlessly). If JWT_SECRET is unset we derive a
+// stable secret from installation-unique values.
+const nextAuthSecret =
+  serverEnv.JWT_SECRET ||
+  generateSecret(["v2", serverEnv.GITHUB_CLIENT_ID, serverEnv.GOOGLE_CLIENT_ID, serverEnv.DATABASE_URL]);
+
 // Built as a factory so the NextAuth handler can pass the current request in
 // (via NextAuth(req, res, options)); the signOut/jwt events then attribute
 // their login/logout audit rows to the request's ip + headers. `req` is
@@ -186,10 +195,7 @@ function buildNextAuthConfig(req?: NextApiRequest): NextAuthOptions {
     },
     ...sharedCookieOptions,
 
-    secret:
-      serverEnv.JWT_SECRET ||
-      //if there's no explicit JWT_SECRET, we need to generate a secret based on some values that are unique for an installation
-      generateSecret(["v2", serverEnv.GITHUB_CLIENT_ID, serverEnv.GOOGLE_CLIENT_ID, serverEnv.DATABASE_URL]),
+    secret: nextAuthSecret,
     events: {
       signOut: async ({ token }) => {
         try {
