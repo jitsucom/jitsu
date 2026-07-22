@@ -1,26 +1,25 @@
-import React, { ReactNode, useReducer } from "react";
+import React, { useReducer } from "react";
 import DOMPurify from "dompurify";
 import { X } from "lucide-react";
-import Link from "next/link";
 import { useRouter } from "next/router";
 import { useBilling, UseBillingResult } from "./BillingProvider";
 import { useEventsUsage, UseUsageRes } from "./use-events-usage";
 import { useWorkspace } from "../../lib/context";
+import { WJitsuButton } from "../JitsuButton/JitsuButton";
+import { BillingBanner } from "../../lib/schema";
 
 /**
  * In-app billing banners (JITSU-88).
  *
- * Server-provided banners come from the billing/settings response as complete
- * banner-card HTML (layout, icon, progress bar, action button — inline styles,
- * see billing repo's renderBannerCard). The console sanitizes and renders them
- * verbatim and only owns the dismiss control. Sanitization allows structural
- * markup + inline styles but still strips script vectors, and drops any link
- * that is not a workspace-relative console path — a compromised or misbehaving
- * billing response must not run script or send users off-origin.
+ * The billing/settings response provides parametrized banner payloads
+ * (severity, title, badge, body HTML with the quota progress bar, action,
+ * closeable); this component owns the card template and renders them. HTML
+ * fragments (`body`, `icon`, `action.subtitle`) are sanitized — a compromised
+ * or misbehaving billing response must not run script — and action locations
+ * are restricted to workspace-relative console paths.
  *
  * Two banners are still computed client-side (they replaced the old floating
- * workspace alerts), rendered via a local card component matching the same
- * design, with explicit priority rules:
+ * workspace alerts) and share the same template, with explicit priority rules:
  *   - active partial throttle (`throttle=N` in featuresEnabled, N < 100): shown
  *     INSTEAD of any server banners — the applied throttle is ground truth,
  *     server state may lag it. At throttle=100 with server banners present, the
@@ -29,7 +28,7 @@ import { useWorkspace } from "../../lib/context";
  *   - usage projected to exceed the free plan: shown only when there is nothing
  *     else to show.
  * TODO(JITSU-123): move both to the billing server (getWorkspaceBanners) and
- * delete useEventsUsage + the local card component from here.
+ * delete useEventsUsage from here.
  *
  * Dismissals are client-side, keyed by workspace + the banner's stable `id` —
  * the id changes (e.g. new severity level or billing period) to re-show a
@@ -56,29 +55,17 @@ const safeStorageSet = (key: string, value: string): void => {
   } catch {}
 };
 
-// The server sends a full card: structural tags + inline styles are required.
-// DOMPurify still strips all script vectors (tags, event handlers, javascript:
-// URLs); the hook below additionally restricts links to console paths.
-let dompurifyHookInstalled = false;
-const sanitize = (html: string) => {
-  if (!dompurifyHookInstalled && typeof window !== "undefined") {
-    DOMPurify.addHook("afterSanitizeAttributes", node => {
-      if (node.tagName === "A") {
-        const href = node.getAttribute("href") || "";
-        if (!href.startsWith("/") || href.startsWith("//")) {
-          node.removeAttribute("href");
-        }
-      }
-    });
-    dompurifyHookInstalled = true;
-  }
-  return DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: ["div", "span", "p", "a", "b", "i", "em", "strong", "u", "s", "code", "br", "button"],
-    ALLOWED_ATTR: ["href", "style", "type", "aria-label"],
-    // keeps data-banner-dismiss — the delegation target for the dismiss ✕
-    ALLOW_DATA_ATTR: true,
+// Banner HTML fragments are copy + the progress-bar widget: structural markup
+// and inline styles, no script vectors.
+const sanitize = (html: string) =>
+  DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: ["div", "span", "p", "a", "b", "i", "em", "strong", "u", "s", "code", "br"],
+    ALLOWED_ATTR: ["href", "style"],
   });
-};
+
+const Html: React.FC<{ html: string; className?: string }> = ({ html, className }) => (
+  <span className={className} dangerouslySetInnerHTML={{ __html: sanitize(html) }} />
+);
 
 function usageIsAboutToExceed(billing: UseBillingResult, usage: UseUsageRes): boolean {
   return !!(
@@ -94,58 +81,60 @@ function usageIsAboutToExceed(billing: UseBillingResult, usage: UseUsageRes): bo
   );
 }
 
-const cardThemes = {
-  warning: { card: "bg-amber-50 border-amber-200 border-l-amber-600", iconBox: "bg-amber-100 text-amber-600" },
-  error: { card: "bg-red-50 border-red-200 border-l-red-600", iconBox: "bg-red-100 text-red-600" },
-} as const;
+const themes: Record<BillingBanner["severity"], { card: string; iconBox: string; badge: string }> = {
+  info: {
+    card: "bg-blue-50 border-blue-200 border-l-blue-600",
+    iconBox: "bg-blue-100 text-blue-600",
+    badge: "text-blue-700 bg-blue-100 border-blue-200",
+  },
+  warning: {
+    card: "bg-amber-50 border-amber-200 border-l-amber-600",
+    iconBox: "bg-amber-100 text-amber-600",
+    badge: "text-amber-700 bg-amber-100 border-amber-200",
+  },
+  error: {
+    card: "bg-red-50 border-red-200 border-l-red-600",
+    iconBox: "bg-red-100 text-red-600",
+    badge: "text-red-700 bg-red-100 border-red-200",
+  },
+};
 
-/**
- * Local card matching the server-side renderBannerCard design, used only for
- * the client-computed banners until they move server-side (JITSU-123).
- */
-const ClientBannerCard: React.FC<{
-  theme: keyof typeof cardThemes;
-  title: string;
-  badge: string;
-  body: ReactNode;
-  actionLabel: string;
-  actionHref: string;
-  onDismiss?: () => void;
-}> = ({ theme, title, badge, body, actionLabel, actionHref, onDismiss }) => {
-  const t = cardThemes[theme];
+/** The banner card template (design: JITSU-88 mock) filled from a BillingBanner payload. */
+const BannerCard: React.FC<{ banner: BillingBanner; onClose?: () => void }> = ({ banner, onClose }) => {
+  const t = themes[banner.severity];
+  // Only workspace-relative console paths — a server bug/compromise must not
+  // be able to send users off-origin (WJitsuButton prefixes the workspace).
+  const action =
+    banner.action && banner.action.location.startsWith("/") && !banner.action.location.startsWith("//")
+      ? banner.action
+      : undefined;
   return (
     <div className={`flex items-start gap-4 rounded-xl border border-l-4 py-5 px-6 ${t.card}`}>
       <div className={`flex-shrink-0 w-11 h-11 rounded-lg flex items-center justify-center ${t.iconBox}`}>
-        <span className="text-xl font-extrabold">!</span>
+        {banner.icon ? <Html html={banner.icon} /> : <span className="text-xl font-extrabold">!</span>}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2.5 flex-wrap">
-          <span className="text-lg font-bold text-neutral-900">{title}</span>
-          <span
-            className={`text-xs font-bold tracking-wide rounded-full border px-2.5 py-0.5 ${
-              theme === "error"
-                ? "text-red-700 bg-red-100 border-red-200"
-                : "text-amber-700 bg-amber-100 border-amber-200"
-            }`}
-          >
-            {badge}
+          <span className="text-lg font-bold text-neutral-900">{banner.title}</span>
+          <span className={`text-xs font-bold tracking-wide rounded-full border px-2.5 py-0.5 ${t.badge}`}>
+            {banner.badge}
           </span>
         </div>
-        <div className="mt-1.5 text-sm text-neutral-600 leading-relaxed">{body}</div>
+        <Html className="block mt-1.5 text-sm text-neutral-600 leading-relaxed" html={banner.body} />
       </div>
-      <div className="flex-shrink-0 ml-2">
-        <Link
-          href={actionHref}
-          className="inline-block bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-5 py-2.5 rounded-lg whitespace-nowrap"
-        >
-          {actionLabel}
-        </Link>
-      </div>
-      {onDismiss && (
+      {action && (
+        <div className="flex-shrink-0 ml-2 flex flex-col items-end gap-2">
+          <WJitsuButton href={action.location} type="primary" size="middle">
+            {action.text}
+          </WJitsuButton>
+          {action.subtitle && <Html className="text-xs text-neutral-500" html={action.subtitle} />}
+        </div>
+      )}
+      {banner.closeable && onClose && (
         <button
           className="flex-shrink-0 self-start -mt-2 -mr-3 ml-1 p-1 rounded text-neutral-400 hover:text-neutral-600 hover:bg-black/5"
           aria-label="Dismiss"
-          onClick={onDismiss}
+          onClick={onClose}
         >
           <X className="w-4 h-4" />
         </button>
@@ -153,8 +142,6 @@ const ClientBannerCard: React.FC<{
     </div>
   );
 };
-
-type DisplayBanner = { id: string; dismissible: boolean; node: ReactNode };
 
 const BillingBannersInner: React.FC = () => {
   const billing = useBilling();
@@ -168,79 +155,40 @@ const BillingBannersInner: React.FC = () => {
   // client-computed banners would duplicate them there. Server banners render
   // everywhere.
   const onBillingPage = router.pathname.endsWith("/settings/billing");
-  const billingHref = `/${workspace.slugOrId}/settings/billing`;
 
-  const dismiss = (bannerId: string) => {
-    safeStorageSet(dismissKey(workspace.id, bannerId), "1");
-    forceRerender();
-  };
-
-  let banners: DisplayBanner[];
+  let banners: BillingBanner[];
   if (usage.throttle && !onBillingPage && !(usage.throttle >= 100 && serverBanners.length > 0)) {
     banners = [
       {
         id: "client-throttle",
-        dismissible: false,
-        node: (
-          <ClientBannerCard
-            theme="error"
-            title="Workspace throttled"
-            badge={`${usage.throttle}% THROTTLED`}
-            body={
-              <>
-                Part of your events are not being delivered — your workspace is throttled at <b>{usage.throttle}%</b>{" "}
-                due to exceeding the free plan quota.
-              </>
-            }
-            actionLabel="See details"
-            actionHref={billingHref}
-          />
-        ),
+        severity: "error",
+        title: "Workspace throttled",
+        badge: `${usage.throttle}% THROTTLED`,
+        body: `Part of your events are not being delivered — your workspace is throttled at <b>${usage.throttle}%</b> due to exceeding the free plan quota.`,
+        action: { text: "See details", location: "/settings/billing" },
+        closeable: false,
       },
     ];
   } else if (serverBanners.length > 0) {
-    banners = serverBanners.map(banner => ({
-      id: banner.id,
-      dismissible: banner.dismissible,
-      node: (
-        // Dismissible server cards contain a `data-banner-dismiss` ✕ rendered
-        // by billing as part of the card layout; it carries no behavior of its
-        // own — this delegated click handler supplies it.
-        <div
-          onClick={e => {
-            if ((e.target as Element).closest?.("[data-banner-dismiss]")) {
-              dismiss(banner.id);
-            }
-          }}
-          dangerouslySetInnerHTML={{ __html: sanitize(banner.html) }}
-        />
-      ),
-    }));
+    banners = serverBanners;
   } else if (usageIsAboutToExceed(billing, usage) && !onBillingPage) {
-    const projectionId = `client-projection:${usage.usage?.periodEnd?.toISOString() ?? "period"}`;
     banners = [
       {
-        id: projectionId,
-        dismissible: true,
-        node: (
-          <ClientBannerCard
-            theme="warning"
-            title="Projected to exceed your quota"
-            badge="PROJECTION"
-            body="At the current pace you'll exceed your monthly events quota before the period ends. Upgrade your plan to avoid service disruption."
-            actionLabel="Upgrade"
-            actionHref={billingHref}
-            onDismiss={() => dismiss(projectionId)}
-          />
-        ),
+        id: `client-projection:${usage.usage?.periodEnd?.toISOString() ?? "period"}`,
+        severity: "warning",
+        title: "Projected to exceed your quota",
+        badge: "PROJECTION",
+        body: "At the current pace you'll exceed your monthly events quota before the period ends. Upgrade your plan to avoid service disruption.",
+        action: { text: "Upgrade", location: "/settings/billing" },
+        closeable: true,
       },
     ];
   } else {
     banners = [];
   }
 
-  const isDismissed = (banner: DisplayBanner) =>
-    banner.dismissible && !!safeStorageGet(dismissKey(workspace.id, banner.id));
+  const isDismissed = (banner: BillingBanner) =>
+    banner.closeable && !!safeStorageGet(dismissKey(workspace.id, banner.id));
   const visibleBanners = banners.filter(banner => !isDismissed(banner));
   if (visibleBanners.length === 0) {
     return null;
@@ -250,7 +198,17 @@ const BillingBannersInner: React.FC = () => {
     <>
       {visibleBanners.map(banner => (
         <div key={banner.id} className="mt-4">
-          {banner.node}
+          <BannerCard
+            banner={banner}
+            onClose={
+              banner.closeable
+                ? () => {
+                    safeStorageSet(dismissKey(workspace.id, banner.id), "1");
+                    forceRerender();
+                  }
+                : undefined
+            }
+          />
         </div>
       ))}
     </>

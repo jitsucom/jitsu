@@ -29,18 +29,34 @@ export const ContextApiResponse = z.object({
 export type ContextApiResponse = z.infer<typeof ContextApiResponse>;
 
 /**
- * Ready-to-render in-app banner provided by the billing API (JITSU-88).
- * `html` is the entire banner card (layout, icon, progress bar, action button)
- * with self-contained inline styles; all copy, styling and dismissal policy
- * are decided server-side (billing repo). The console sanitizes + renders it
- * verbatim and only owns the dismiss control.
+ * Parametrized in-app banner provided by the billing API (JITSU-88). The
+ * console owns the card template (themed card, icon tile, title + badge pill,
+ * action button) and fills it with these fields; copy and dismissal policy are
+ * decided server-side. `body`, `icon` and `action.subtitle` are HTML fragments
+ * (sanitized before rendering) — `body` carries the quota progress-bar markup.
  */
 export const BillingBanner = z.object({
   /** Stable identity for client-side dismissal (a dismissed id stays hidden). */
   id: z.string(),
-  dismissible: z.boolean(),
-  /** Complete banner card HTML from our own billing server. */
-  html: z.string(),
+  /** Drives the template theme and the default icon. */
+  severity: z.enum(["info", "warning", "error"]),
+  /** Optional icon HTML overriding the default severity icon. */
+  icon: z.string().optional(),
+  title: z.string(),
+  /** Status pill next to the title, e.g. "82% USED". */
+  badge: z.string(),
+  /** Body HTML (usage copy + inline progress bar). */
+  body: z.string(),
+  action: z
+    .object({
+      text: z.string(),
+      /** Workspace-relative console path; the console prefixes the workspace. */
+      location: z.string(),
+      /** Small HTML line under the button. */
+      subtitle: z.string().optional(),
+    })
+    .optional(),
+  closeable: z.boolean(),
 });
 
 export type BillingBanner = z.infer<typeof BillingBanner>;
