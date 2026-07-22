@@ -29,19 +29,18 @@ export const ContextApiResponse = z.object({
 export type ContextApiResponse = z.infer<typeof ContextApiResponse>;
 
 /**
- * Ready-to-render in-app banner provided by the billing API (JITSU-88). All
- * copy, severity and dismissal policy are decided server-side (billing repo);
- * the console renders these verbatim.
+ * Ready-to-render in-app banner provided by the billing API (JITSU-88).
+ * `html` is the entire banner card (layout, icon, progress bar, action button)
+ * with self-contained inline styles; all copy, styling and dismissal policy
+ * are decided server-side (billing repo). The console sanitizes + renders it
+ * verbatim and only owns the dismiss control.
  */
 export const BillingBanner = z.object({
   /** Stable identity for client-side dismissal (a dismissed id stays hidden). */
   id: z.string(),
-  severity: z.enum(["info", "warning", "error"]),
   dismissible: z.boolean(),
-  /** Banner body, HTML. Comes from our own billing server — trusted. */
+  /** Complete banner card HTML from our own billing server. */
   html: z.string(),
-  /** Optional action button; `href` is a workspace-relative console path. */
-  action: z.object({ label: z.string(), href: z.string() }).optional(),
 });
 
 export type BillingBanner = z.infer<typeof BillingBanner>;
