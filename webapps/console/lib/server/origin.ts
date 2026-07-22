@@ -53,6 +53,54 @@ export function getClientIp(req: NextApiRequest): string {
   return req.socket.remoteAddress ?? "unknown";
 }
 
+export type RequestProvenance = { ip: string | null; headers: Record<string, string> | null };
+
+// Request headers we persist on audit-log rows to help identify the client
+// (SDK/CLI vs browser vs a raw API call) and, secondarily, for humans to
+// inspect. Deliberately excludes anything credential-bearing (authorization,
+// cookie). `x-jitsu-client` is the explicit signal jitsu-cli sends and the one
+// originFromAuth keys on; the rest are for manual inspection.
+const AUDIT_HEADER_ALLOWLIST = [
+  "user-agent",
+  "accept",
+  "content-type",
+  "x-jitsu-client",
+  "referer",
+  "origin",
+  "accept-language",
+] as const;
+
+// `referer` can carry secrets in its query string / fragment — invitation
+// tokens (`/accept?invite=…`), `__unsafe_token=…` URLs, etc. Keep only the
+// scheme+host+path so it stays useful as provenance without persisting those.
+// (`origin` is scheme+host only per spec, so it needs no stripping.)
+function sanitizeHeaderValue(key: string, value: string): string {
+  if (key !== "referer") return value;
+  const cut = value.search(/[?#]/);
+  return cut === -1 ? value : value.slice(0, cut);
+}
+
+/**
+ * Best-effort request provenance for an audit-log row: client IP (via
+ * {@link getClientIp}) plus an allowlisted subset of request headers. Everything
+ * is nullable — a missing `req` (internal callers) or absent headers yield
+ * `null`, which the audit column stores as-is. Never throws.
+ */
+export function extractRequestProvenance(req?: NextApiRequest): RequestProvenance {
+  if (!req) return { ip: null, headers: null };
+  const rawIp = getClientIp(req);
+  const ip = rawIp && rawIp !== "unknown" ? rawIp : null;
+
+  const headers: Record<string, string> = {};
+  for (const key of AUDIT_HEADER_ALLOWLIST) {
+    const v = req.headers[key];
+    if (v == null) continue;
+    const value = Array.isArray(v) ? v.join(", ") : v;
+    if (value) headers[key] = sanitizeHeaderValue(key, value);
+  }
+  return { ip, headers: Object.keys(headers).length > 0 ? headers : null };
+}
+
 export function getTopLevelDomain(requestDomain: string): string {
   const parts = requestDomain.split(".");
   if (parts.length < 2) {

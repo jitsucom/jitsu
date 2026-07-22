@@ -250,7 +250,7 @@ export class ConfigObjectsService {
         }),
       { user, workspace, req: opts.req }
     );
-    await configObjectAuditLog(user, workspaceId, created.id, type, "create", { newVersion: object });
+    await configObjectAuditLog(user, workspaceId, created.id, type, "create", { newVersion: object }, opts.req);
     return { id: created.id };
   }
 
@@ -293,7 +293,7 @@ export class ConfigObjectsService {
       workspace,
       req: opts.req,
     });
-    await configObjectAuditLog(user, workspaceId, id, type, "update", { prevVersion, newVersion: filtered });
+    await configObjectAuditLog(user, workspaceId, id, type, "update", { prevVersion, newVersion: filtered }, opts.req);
   }
 
   /** Backs `config/[type]/[id].ts` DELETE (soft delete). Returns the deleted object, or null. */
@@ -332,7 +332,7 @@ export class ConfigObjectsService {
         });
       }
     }
-    await configObjectAuditLog(user, workspaceId, id, type, "delete", { prevVersion: object.config });
+    await configObjectAuditLog(user, workspaceId, id, type, "delete", { prevVersion: object.config }, opts.req);
     return { ...((object.config as any) || {}), workspaceId, id, type };
   }
 
@@ -451,10 +451,15 @@ export class ConfigObjectsService {
         where: { id: existingLink.id },
         data: { data, deleted: false, workspaceId },
       });
-      await configObjectAuditLog(user, workspaceId, createdOrUpdated.id, "link", "update", {
-        prevVersion: existingLink,
-        newVersion: createdOrUpdated,
-      });
+      await configObjectAuditLog(
+        user,
+        workspaceId,
+        createdOrUpdated.id,
+        "link",
+        "update",
+        { prevVersion: existingLink, newVersion: createdOrUpdated },
+        opts.req
+      );
     } else {
       createdOrUpdated = await this.prisma.configurationObjectLink.create({
         data: {
@@ -466,9 +471,15 @@ export class ConfigObjectsService {
           type,
         },
       });
-      await configObjectAuditLog(user, workspaceId, createdOrUpdated.id, "link", "create", {
-        newVersion: createdOrUpdated,
-      });
+      await configObjectAuditLog(
+        user,
+        workspaceId,
+        createdOrUpdated.id,
+        "link",
+        "create",
+        { newVersion: createdOrUpdated },
+        opts.req
+      );
       await this.emitConnectionEvent(user, workspaceId, opts.req, "connection_created", createdOrUpdated);
     }
     if (type === "sync" && opts.runSync && opts.req) {
@@ -487,7 +498,8 @@ export class ConfigObjectsService {
     user: SessionUser,
     workspaceId: string,
     id: string,
-    patch: { fromId?: string; toId?: string; type?: string; data?: any }
+    patch: { fromId?: string; toId?: string; type?: string; data?: any },
+    opts: { req?: NextApiRequest } = {}
   ): Promise<{ id: string; updated: boolean }> {
     await verifyAccessWithRole(user, workspaceId, "editEntities");
     const existing = await this.prisma.configurationObjectLink.findFirst({
@@ -521,10 +533,15 @@ export class ConfigObjectsService {
     }
     await this.validateLinkData(workspaceId, type, existing.toId, data);
     const updated = await this.prisma.configurationObjectLink.update({ where: { id: existing.id }, data: { data } });
-    await configObjectAuditLog(user, workspaceId, updated.id, "link", "update", {
-      prevVersion: existing,
-      newVersion: updated,
-    });
+    await configObjectAuditLog(
+      user,
+      workspaceId,
+      updated.id,
+      "link",
+      "update",
+      { prevVersion: existing, newVersion: updated },
+      opts.req
+    );
     return { id: updated.id, updated: true };
   }
 
@@ -582,7 +599,7 @@ export class ConfigObjectsService {
         return { deleted: false };
       }
       await this.prisma.configurationObjectLink.update({ where: { id: existing.id }, data: { deleted: true } });
-      await configObjectAuditLog(user, workspaceId, existing.id, "link", "delete", { prevVersion: existing });
+      await configObjectAuditLog(user, workspaceId, existing.id, "link", "delete", { prevVersion: existing }, opts.req);
       await this.emitConnectionEvent(user, workspaceId, opts.req, "connection_deleted", existing);
       return { deleted: true };
     } else if (fromId && toId) {
@@ -591,7 +608,15 @@ export class ConfigObjectsService {
         data: { deleted: true },
       });
       for (const updatedLink of updatedLinks) {
-        await configObjectAuditLog(user, workspaceId, updatedLink.id, "link", "delete", { prevVersion: updatedLink });
+        await configObjectAuditLog(
+          user,
+          workspaceId,
+          updatedLink.id,
+          "link",
+          "delete",
+          { prevVersion: updatedLink },
+          opts.req
+        );
         await this.emitConnectionEvent(user, workspaceId, opts.req, "connection_deleted", updatedLink);
       }
       return { deleted: updatedLinks.length > 0 };

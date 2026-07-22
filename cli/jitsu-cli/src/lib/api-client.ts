@@ -1,4 +1,5 @@
 import { AuthInfo } from "./auth-file";
+import { jitsuClientId } from "./version";
 
 export type ApiRequest = {
   method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
@@ -36,6 +37,7 @@ export class ApiClient {
     const headers: Record<string, string> = {
       Accept: "application/json",
       Authorization: `Bearer ${this.auth.apikey}`,
+      "X-Jitsu-Client": jitsuClientId,
     };
     let body: string | undefined;
     if (req.body !== undefined) {

@@ -1,6 +1,8 @@
+import type { NextApiRequest } from "next";
 import { db } from "./db";
 import { SessionUser } from "../schema";
 import { getServerEnv } from "./serverEnv";
+import { extractRequestProvenance } from "./origin";
 import { getServerLog } from "./log";
 import { dispatchAccountAlert, AccountAlertEvent } from "./account-alerts";
 import { AccountAlertEventType } from "../../emails/account-alert";
@@ -185,10 +187,12 @@ export async function configObjectAuditLog(
   id: string,
   type: string,
   op: "create" | "update" | "delete",
-  changes: { prevVersion?: any; newVersion?: any }
+  changes: { prevVersion?: any; newVersion?: any },
+  req?: NextApiRequest
 ) {
   if (enableAuditLog) {
     const objectName = pickObjectName(changes.newVersion) ?? pickObjectName(changes.prevVersion);
+    const { ip, headers } = extractRequestProvenance(req);
     const [prevVersion, newVersion] = await Promise.all([
       redactForAudit(type, changes.prevVersion),
       redactForAudit(type, changes.newVersion),
@@ -210,6 +214,8 @@ export async function configObjectAuditLog(
         userId: user.internalId,
         authType: user.authType,
         tokenId: user.tokenId ?? null,
+        ip,
+        requestHeaders: headers ?? undefined,
         changes: {
           _redacted: true,
           objectType: type,
@@ -227,11 +233,13 @@ export async function authAuditLog(
   user: Pick<SessionUser, "internalId" | "email" | "name">,
   op: AuthOp,
   authType: string,
-  workspaceId?: string
+  workspaceId?: string,
+  req?: NextApiRequest
 ): Promise<void> {
   if (!enableAuditLog) {
     return;
   }
+  const { ip, headers } = extractRequestProvenance(req);
   // No dedup here — call sites are expected to fire only on the actual
   // sign-in / sign-out user action. For Firebase that's the explicit
   // `signIn` / `signInWith` flow; the periodic ID-token rotation goes
@@ -244,6 +252,8 @@ export async function authAuditLog(
         workspaceId: workspaceId ?? null,
         userId: user.internalId,
         authType,
+        ip,
+        requestHeaders: headers ?? undefined,
         changes: {
           email: user.email,
           name: user.name,
@@ -268,13 +278,15 @@ export async function membershipAuditLog(
   workspaceId: string,
   op: MembershipOp,
   target: { userId?: string; email?: string },
-  changes?: { prevRole?: string; newRole?: string }
+  changes?: { prevRole?: string; newRole?: string },
+  req?: NextApiRequest
 ): Promise<void> {
   if (!enableAuditLog) {
     return;
   }
   const type = `member-${op}`;
   const occurredAt = new Date();
+  const { ip, headers } = extractRequestProvenance(req);
   try {
     await db.prisma().auditLog.create({
       data: {
@@ -285,6 +297,8 @@ export async function membershipAuditLog(
         objectId: target.userId ?? null,
         authType: actor?.authType ?? null,
         tokenId: actor?.tokenId ?? null,
+        ip,
+        requestHeaders: headers ?? undefined,
         timestamp: occurredAt,
         changes: {
           actorEmail: actor?.email,
@@ -320,7 +334,8 @@ export async function workspaceAuditLog(
   actor: Pick<SessionUser, "internalId" | "email" | "name" | "authType" | "tokenId">,
   workspaceId: string,
   op: "updated" | "deleted",
-  changes?: { prevVersion?: any; newVersion?: any; workspaceName?: string }
+  changes?: { prevVersion?: any; newVersion?: any; workspaceName?: string },
+  req?: NextApiRequest
 ): Promise<void> {
   if (!enableAuditLog) {
     return;
@@ -328,6 +343,7 @@ export async function workspaceAuditLog(
   const type = `workspace-${op}`;
   const severity = op === "deleted" ? "security" : "info";
   const occurredAt = new Date();
+  const { ip, headers } = extractRequestProvenance(req);
   try {
     await db.prisma().auditLog.create({
       data: {
@@ -337,6 +353,8 @@ export async function workspaceAuditLog(
         userId: actor.internalId,
         authType: actor.authType,
         tokenId: actor.tokenId ?? null,
+        ip,
+        requestHeaders: headers ?? undefined,
         timestamp: occurredAt,
         changes: {
           actorEmail: actor.email,

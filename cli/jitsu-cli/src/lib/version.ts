@@ -6,6 +6,15 @@ const fetch = require("cross-fetch");
 
 export const jitsuCliVersion = pkg.version;
 export const jitsuCliPackageName = pkg.name;
+
+/**
+ * Value sent in the `X-Jitsu-Client` header on every request the CLI makes.
+ * The console records it on audit-log rows and uses it to attribute changes to
+ * the CLI/SDK even when the request authenticated with a plain API key (which
+ * carries no CLI marker of its own).
+ */
+export const jitsuClientId = `jitsu-cli/${jitsuCliVersion}`;
+
 let newVersion = undefined;
 
 export function getUpgradeMessage(newVersion: string, oldVersion: string) {

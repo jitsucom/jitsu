@@ -33,7 +33,7 @@ export default createRoute()
     summary: "Initialize a default profile builder if none exists",
     tags: ["profile-builder"],
   })
-  .handler(async ({ user, query: { workspaceId } }) => {
+  .handler(async ({ user, req, query: { workspaceId } }) => {
     await verifyAccessWithRole(user, workspaceId, "editEntities");
 
     // Serialize concurrent /init calls for the same workspace via a
@@ -93,12 +93,24 @@ export default createRoute()
     // failure here doesn't roll back the user-visible bootstrap. Same
     // trade-off as the original code path.
     if (created.created && created.func && created.pb) {
-      await configObjectAuditLog(user, workspaceId, created.func.id, "function", "create", {
-        newVersion: created.func.config,
-      });
-      await configObjectAuditLog(user, workspaceId, created.pb.id, "profilebuilder", "create", {
-        newVersion: created.pb,
-      });
+      await configObjectAuditLog(
+        user,
+        workspaceId,
+        created.func.id,
+        "function",
+        "create",
+        { newVersion: created.func.config },
+        req
+      );
+      await configObjectAuditLog(
+        user,
+        workspaceId,
+        created.pb.id,
+        "profilebuilder",
+        "create",
+        { newVersion: created.pb },
+        req
+      );
     }
     return {
       profileBuilders: omitDeletedList(created.profileBuilders),

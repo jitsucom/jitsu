@@ -242,10 +242,16 @@ export type RequestOrigin = "ui" | "api" | "cli" | "mcp";
  * Classify the origin of an authenticated request from its auth fields (as carried on
  * SessionUser, or on an audit-log row). Pure — safe to import from client code.
  *
+ *   X-Jitsu-Client "jitsu-cli/…" header   → "cli"  (explicit client signal, wins over token)
  *   authType "mcp"                        → "mcp"
  *   authType "bearer" + CLI token         → "cli"  (tokenType "cli", or jitsu-cli- id)
  *   authType "bearer" + anything else     → "api"
  *   anything else (session / no authType) → "ui"
+ *
+ * The `headers` are the allowlisted request headers stored on the audit row
+ * (see extractRequestProvenance). They let us recover CLI/SDK provenance even
+ * when the request authenticated with a plain API key — the token carries no
+ * CLI marker, but the client announces itself via X-Jitsu-Client.
  *
  * Single source of truth for origin: `resolveOrigin` in
  * components/AuditLog/AuditLog.tsx and the origin filter predicates in
@@ -255,7 +261,16 @@ export function originFromAuth(auth: {
   authType?: string | null;
   tokenId?: string | null;
   tokenType?: string | null;
+  headers?: Record<string, string> | null;
 }): RequestOrigin {
+  // Match the "jitsu-cli/" prefix (with the trailing slash) case-insensitively.
+  // The slash is a deliberate delimiter so we don't false-attribute a client
+  // like "jitsu-client/1.0"; the CLI always sends `jitsu-cli/<version>`. Kept a
+  // plain prefix check so the read-API origin filter (a Prisma
+  // `string_starts_with` with mode:"insensitive") mirrors it exactly — both
+  // sides must agree or `origin=cli` filtering drifts from what the row renders.
+  const client = auth.headers?.["x-jitsu-client"];
+  if (client && client.toLowerCase().startsWith("jitsu-cli/")) return "cli";
   if (auth.authType === "mcp") return "mcp";
   if (auth.authType === "bearer") {
     const tokenType = auth.tokenType || (auth.tokenId ? inferTokenTypeFromId(auth.tokenId) : "api");

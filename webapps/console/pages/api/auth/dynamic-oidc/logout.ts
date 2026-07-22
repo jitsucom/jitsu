@@ -29,7 +29,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               name: sessionData.name || sessionData.email || "",
             },
             "logout",
-            "oidc"
+            "oidc",
+            undefined,
+            req
           );
           await trackAuthEvent(
             {

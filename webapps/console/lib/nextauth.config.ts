@@ -170,89 +170,117 @@ const sharedCookieOptions = authCookieDomain
     }
   : {};
 
-export const nextAuthConfig: NextAuthOptions = {
-  // Configure one or more authentication providers
-  providers: [githubProvider, oidcProvider, credentialsProvider].filter(provider => !!provider) as any,
-  pages: {
-    error: "/error/auth", // Error code passed in query string as ?error=
-    signIn: "/signin", // Displays signin buttons
-  },
-  ...sharedCookieOptions,
+// Computed once at module load. Must NOT live inside buildNextAuthConfig:
+// generateSecret logs the generated key, and the config is now rebuilt per
+// auth request, so computing it there would re-log the signing secret on every
+// /api/auth/* hit (and re-hash needlessly). If JWT_SECRET is unset we derive a
+// stable secret from installation-unique values.
+const nextAuthSecret =
+  serverEnv.JWT_SECRET ||
+  generateSecret(["v2", serverEnv.GITHUB_CLIENT_ID, serverEnv.GOOGLE_CLIENT_ID, serverEnv.DATABASE_URL]);
 
-  secret:
-    serverEnv.JWT_SECRET ||
-    //if there's no explicit JWT_SECRET, we need to generate a secret based on some values that are unique for an installation
-    generateSecret(["v2", serverEnv.GITHUB_CLIENT_ID, serverEnv.GOOGLE_CLIENT_ID, serverEnv.DATABASE_URL]),
-  events: {
-    signOut: async ({ token }) => {
-      try {
-        const internalId = token?.internalId as string | undefined;
-        const email = (token?.email as string | undefined) || "";
-        const name = (token?.name as string | undefined) || email;
-        const loginProvider = (token?.loginProvider as string | undefined) || "credentials";
-        if (internalId) {
-          await authAuditLog({ internalId, email, name }, "logout", `nextauth-${loginProvider}`);
-          await trackAuthEvent(
-            // Read the persisted externalId (what the jwt/session callbacks treat as
-            // canonical), not token.sub — for some providers sub diverges from the
-            // stored external id, which would overwrite the identify trait with the wrong value.
-            { internalId, email, name, externalId: token?.externalId as string | undefined },
-            "logout",
-            `nextauth-${loginProvider}`
-          );
-        }
-      } catch (err) {
-        log.atError().withCause(err).log("Failed to record logout audit event");
-      }
+// Built as a factory so the NextAuth handler can pass the current request in
+// (via NextAuth(req, res, options)); the signOut/jwt events then attribute
+// their login/logout audit rows to the request's ip + headers. `req` is
+// optional: the static export below (used by getServerSession and `.secret`
+// consumers) builds it without one, which is fine since those paths never fire
+// the login/logout events.
+function buildNextAuthConfig(req?: NextApiRequest): NextAuthOptions {
+  return {
+    // Configure one or more authentication providers
+    providers: [githubProvider, oidcProvider, credentialsProvider].filter(provider => !!provider) as any,
+    pages: {
+      error: "/error/auth", // Error code passed in query string as ?error=
+      signIn: "/signin", // Displays signin buttons
     },
-  },
-  callbacks: {
-    jwt: async props => {
-      const loginProvider = (props.account?.provider || props.token.loginProvider || "credentials") as string;
-      const externalId = requireDefined(props.token.sub, `JWT token .sub is not defined`);
-      const email = requireDefined(props.token.email, `JWT token .email is not defined`);
-      const user = await getOrCreateUser({
-        externalId,
-        loginProvider,
-        email,
-        name: props.token.name || email,
-      });
-      // Log a successful login only on the initial sign-in call, not on every JWT refresh.
-      // NextAuth populates `user` on first call; subsequent calls only carry `token`.
-      if (props.user) {
+    ...sharedCookieOptions,
+
+    secret: nextAuthSecret,
+    events: {
+      signOut: async ({ token }) => {
         try {
-          await authAuditLog(
-            { internalId: user.id, email: user.email || email, name: user.name || email },
-            "login",
-            `nextauth-${loginProvider}`
-          );
-          await trackAuthEvent(
-            { internalId: user.id, email: user.email || email, name: user.name || email, externalId },
-            "login",
-            `nextauth-${loginProvider}`
-          );
+          const internalId = token?.internalId as string | undefined;
+          const email = (token?.email as string | undefined) || "";
+          const name = (token?.name as string | undefined) || email;
+          const loginProvider = (token?.loginProvider as string | undefined) || "credentials";
+          if (internalId) {
+            await authAuditLog({ internalId, email, name }, "logout", `nextauth-${loginProvider}`, undefined, req);
+            await trackAuthEvent(
+              // Read the persisted externalId (what the jwt/session callbacks treat as
+              // canonical), not token.sub — for some providers sub diverges from the
+              // stored external id, which would overwrite the identify trait with the wrong value.
+              { internalId, email, name, externalId: token?.externalId as string | undefined },
+              "logout",
+              `nextauth-${loginProvider}`
+            );
+          }
         } catch (err) {
-          log.atError().withCause(err).log("Failed to record login audit event");
+          log.atError().withCause(err).log("Failed to record logout audit event");
         }
-      }
-      return {
-        internalId: user.id,
-        externalId: externalId,
-        mustChangePassword: user.mustChangePassword,
-        externalUsername: props.profile?.["login"],
-        loginProvider: loginProvider,
-        ...props.token,
-      };
+      },
     },
-    async session({ session, token }) {
-      return {
-        ...session,
-        mustChangePassword: token.mustChangePassword,
-        internalId: token.internalId,
-        loginProvider: token.loginProvider,
-        externalId: token.externalId,
-        externalUsername: token.externalUsername,
-      };
+    callbacks: {
+      jwt: async props => {
+        const loginProvider = (props.account?.provider || props.token.loginProvider || "credentials") as string;
+        const externalId = requireDefined(props.token.sub, `JWT token .sub is not defined`);
+        const email = requireDefined(props.token.email, `JWT token .email is not defined`);
+        const user = await getOrCreateUser({
+          externalId,
+          loginProvider,
+          email,
+          name: props.token.name || email,
+        });
+        // Log a successful login only on the initial sign-in call, not on every JWT refresh.
+        // NextAuth populates `user` on first call; subsequent calls only carry `token`.
+        if (props.user) {
+          try {
+            await authAuditLog(
+              { internalId: user.id, email: user.email || email, name: user.name || email },
+              "login",
+              `nextauth-${loginProvider}`,
+              undefined,
+              req
+            );
+            await trackAuthEvent(
+              { internalId: user.id, email: user.email || email, name: user.name || email, externalId },
+              "login",
+              `nextauth-${loginProvider}`
+            );
+          } catch (err) {
+            log.atError().withCause(err).log("Failed to record login audit event");
+          }
+        }
+        return {
+          internalId: user.id,
+          externalId: externalId,
+          mustChangePassword: user.mustChangePassword,
+          externalUsername: props.profile?.["login"],
+          loginProvider: loginProvider,
+          ...props.token,
+        };
+      },
+      async session({ session, token }) {
+        return {
+          ...session,
+          mustChangePassword: token.mustChangePassword,
+          internalId: token.internalId,
+          loginProvider: token.loginProvider,
+          externalId: token.externalId,
+          externalUsername: token.externalUsername,
+        };
+      },
     },
-  },
-};
+  };
+}
+
+// Static config for consumers that only need `.secret` or read an existing
+// session via getServerSession — neither fires the login/logout events, so
+// there's no request to carry.
+export const nextAuthConfig: NextAuthOptions = buildNextAuthConfig();
+
+// Per-request config for the NextAuth handler (pages/api/auth/[...nextauth].ts).
+// Carries `req` into the signOut/jwt events so login & logout audit rows get
+// ip + headers instead of NULL.
+export function nextAuthConfigForRequest(req: NextApiRequest): NextAuthOptions {
+  return buildNextAuthConfig(req);
+}

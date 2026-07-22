@@ -20,7 +20,7 @@ const api: Api = {
       query: z.object({ workspaceIdOrSlug: z.string(), userId: z.string() }),
       body: z.object({ role: WorkspaceRolesZodType }),
     },
-    handle: async ({ user, body, query: { workspaceIdOrSlug, userId } }) => {
+    handle: async ({ user, req, body, query: { workspaceIdOrSlug, userId } }) => {
       const workspace = requireDefined(
         await getWorkspace(workspaceIdOrSlug),
         `Can't find workspace ${workspaceIdOrSlug}`
@@ -69,7 +69,8 @@ const api: Api = {
         workspace.id,
         "role-changed",
         { userId, email: targetUser?.email },
-        { prevRole, newRole: body.role }
+        { prevRole, newRole: body.role },
+        req
       );
 
       return { success: true, role: body.role };

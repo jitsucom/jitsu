@@ -232,6 +232,8 @@ const ItemSchema = z.object({
   objectId: z.string().nullable().optional(),
   authType: z.string().nullable().optional(),
   tokenId: z.string().nullable().optional(),
+  ip: z.string().nullable().optional(),
+  requestHeaders: z.record(z.string()).nullable().optional(),
   token: z
     .object({
       id: z.string(),
@@ -362,26 +364,50 @@ export default createRoute()
         { tokenId: { not: { startsWith: CLI_PREFIX } } },
         ...(unprefixedCliTokenIds.length ? [{ tokenId: { notIn: unprefixedCliTokenIds } }] : []),
       ];
+      // An explicit X-Jitsu-Client: jitsu-cli/… header stored on the row makes
+      // it CLI regardless of token type — mirrors originFromAuth, which checks
+      // this header first. Legacy rows (requestHeaders NULL) simply don't match,
+      // so they keep classifying by token identity.
+      // Mirror originFromAuth exactly: case-insensitive "jitsu-cli/" prefix (the
+      // trailing slash is the delimiter that keeps "jitsu-client/…" from being
+      // mis-attributed to CLI).
+      const cliHeaderMatch: Prisma.AuditLogWhereInput = {
+        requestHeaders: { path: ["x-jitsu-client"], string_starts_with: "jitsu-cli/", mode: "insensitive" },
+      };
+      // NULL-safe negation of cliHeaderMatch. A plain `NOT cliHeaderMatch` is
+      // wrong here: for rows where requestHeaders is SQL NULL, or the
+      // x-jitsu-client key is absent, the JSON-path predicate is SQL NULL, and
+      // `NOT NULL` is NULL (not TRUE) — so those rows would be dropped from the
+      // api/ui/mcp filters. That's every legacy row and every non-CLI request.
+      // Enumerate the "not a CLI-header row" cases explicitly instead:
+      const notCliHeader: Prisma.AuditLogWhereInput = {
+        OR: [
+          { requestHeaders: { equals: Prisma.DbNull } }, // no headers stored (legacy rows)
+          { requestHeaders: { path: ["x-jitsu-client"], equals: Prisma.AnyNull } }, // key absent
+          { NOT: cliHeaderMatch }, // present, but not a jitsu-cli/ value
+        ],
+      };
       const originClauses: Prisma.AuditLogWhereInput[] = [];
       for (const o of requested) {
         switch (o) {
           case "mcp":
-            originClauses.push({ authType: "mcp" });
+            originClauses.push({ AND: [{ authType: "mcp" }, notCliHeader] });
             break;
           case "ui":
             // notIn also excludes NULL authType (SQL IN semantics), which is
             // correct: those rows render with no origin, not "UI".
-            originClauses.push({ authType: { notIn: ["bearer", "mcp"] } });
+            originClauses.push({ AND: [{ authType: { notIn: ["bearer", "mcp"] } }, notCliHeader] });
             break;
           case "cli":
-            originClauses.push({ authType: "bearer", OR: cliTokenMatch });
+            // Either the explicit client header, or a bearer request with a CLI token.
+            originClauses.push({ OR: [cliHeaderMatch, { authType: "bearer", OR: cliTokenMatch }] });
             break;
           case "api":
-            // Bearer, minus CLI. A bearer row with no tokenId (service-account
-            // token) resolves to "API" on the client, so include tokenId=null.
+            // Bearer, minus CLI (neither the header nor a CLI token). A bearer
+            // row with no tokenId (service-account token) resolves to "API" on
+            // the client, so include tokenId=null.
             originClauses.push({
-              authType: "bearer",
-              OR: [{ tokenId: null }, { AND: notCliToken }],
+              AND: [{ authType: "bearer" }, notCliHeader, { OR: [{ tokenId: null }, { AND: notCliToken }] }],
             });
             break;
         }
@@ -553,6 +579,8 @@ export default createRoute()
           objectId: r.objectId ?? null,
           authType: r.authType ?? null,
           tokenId: r.tokenId ?? null,
+          ip: r.ip ?? null,
+          requestHeaders: (r.requestHeaders as Record<string, string> | null) ?? null,
           token,
           changes: finalChanges,
           diff,

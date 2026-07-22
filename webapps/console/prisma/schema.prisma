@@ -272,16 +272,18 @@ model ConnectorPackage {
 }
 
 model AuditLog {
-  id          String   @id @default(cuid())
-  timestamp   DateTime @default(now()) /// @zod.custom(z.coerce.date())
-  type        String
-  severity    String?  @default("info")
-  userId      String?
-  workspaceId String?
-  objectId    String?
-  changes     Json?
-  authType    String?
-  tokenId     String?
+  id             String   @id @default(cuid())
+  timestamp      DateTime @default(now()) /// @zod.custom(z.coerce.date())
+  type           String
+  severity       String?  @default("info")
+  userId         String?
+  workspaceId    String?
+  objectId       String?
+  changes        Json?
+  authType       String?
+  tokenId        String?
+  ip             String?
+  requestHeaders Json?
 
   @@index(timestamp)
   @@index(type)
