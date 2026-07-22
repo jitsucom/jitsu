@@ -187,6 +187,13 @@ const BillingBannersInner: React.FC = () => {
     banners = [];
   }
 
+  // On the billing page the action button would navigate to the page the user
+  // is already on (a visual no-op) — the page itself is the call to action, so
+  // drop the action column there.
+  if (onBillingPage) {
+    banners = banners.map(banner => (banner.action ? { ...banner, action: undefined } : banner));
+  }
+
   const isDismissed = (banner: BillingBanner) =>
     banner.closeable && !!safeStorageGet(dismissKey(workspace.id, banner.id));
   const visibleBanners = banners.filter(banner => !isDismissed(banner));
