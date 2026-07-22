@@ -70,6 +70,16 @@ const AUDIT_HEADER_ALLOWLIST = [
   "accept-language",
 ] as const;
 
+// `referer` can carry secrets in its query string / fragment — invitation
+// tokens (`/accept?invite=…`), `__unsafe_token=…` URLs, etc. Keep only the
+// scheme+host+path so it stays useful as provenance without persisting those.
+// (`origin` is scheme+host only per spec, so it needs no stripping.)
+function sanitizeHeaderValue(key: string, value: string): string {
+  if (key !== "referer") return value;
+  const cut = value.search(/[?#]/);
+  return cut === -1 ? value : value.slice(0, cut);
+}
+
 /**
  * Best-effort request provenance for an audit-log row: client IP (via
  * {@link getClientIp}) plus an allowlisted subset of request headers. Everything
@@ -86,7 +96,7 @@ export function extractRequestProvenance(req?: NextApiRequest): RequestProvenanc
     const v = req.headers[key];
     if (v == null) continue;
     const value = Array.isArray(v) ? v.join(", ") : v;
-    if (value) headers[key] = value;
+    if (value) headers[key] = sanitizeHeaderValue(key, value);
   }
   return { ip, headers: Object.keys(headers).length > 0 ? headers : null };
 }

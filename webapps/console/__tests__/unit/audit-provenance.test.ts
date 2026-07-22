@@ -33,4 +33,12 @@ describe("extractRequestProvenance", () => {
     expect(ip).toBe("192.0.2.9");
     expect(headers).toEqual({ "x-jitsu-client": "jitsu-cli/9" });
   });
+
+  it("strips query/fragment from referer so URL secrets aren't persisted", () => {
+    const { headers } = extractRequestProvenance({
+      headers: { referer: "https://use.jitsu.com/accept?invite=SECRET#frag", origin: "https://use.jitsu.com" },
+      socket: {},
+    } as unknown as NextApiRequest);
+    expect(headers).toEqual({ referer: "https://use.jitsu.com/accept", origin: "https://use.jitsu.com" });
+  });
 });
