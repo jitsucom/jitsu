@@ -38,6 +38,24 @@ import { useWorkspace } from "../../lib/context";
 
 const dismissKey = (workspaceId: string, bannerId: string) => `billing-banner-dismissed:${workspaceId}:${bannerId}`;
 
+// localStorage can throw in restricted contexts (privacy mode, blocked
+// third-party storage) — a failed read/write must degrade to "not dismissed",
+// never take down layout rendering.
+const safeStorageGet = (key: string): string | null => {
+  try {
+    return typeof window !== "undefined" ? window.localStorage.getItem(key) : null;
+  } catch {
+    return null;
+  }
+};
+const safeStorageSet = (key: string, value: string): void => {
+  try {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(key, value);
+    }
+  } catch {}
+};
+
 // The server sends a full card: structural tags + inline styles are required.
 // DOMPurify still strips all script vectors (tags, event handlers, javascript:
 // URLs); the hook below additionally restricts links to console paths.
@@ -153,9 +171,7 @@ const BillingBannersInner: React.FC = () => {
   const billingHref = `/${workspace.slugOrId}/settings/billing`;
 
   const dismiss = (bannerId: string) => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(dismissKey(workspace.id, bannerId), "1");
-    }
+    safeStorageSet(dismissKey(workspace.id, bannerId), "1");
     forceRerender();
   };
 
@@ -224,9 +240,7 @@ const BillingBannersInner: React.FC = () => {
   }
 
   const isDismissed = (banner: DisplayBanner) =>
-    banner.dismissible &&
-    typeof window !== "undefined" &&
-    !!window.localStorage.getItem(dismissKey(workspace.id, banner.id));
+    banner.dismissible && !!safeStorageGet(dismissKey(workspace.id, banner.id));
   const visibleBanners = banners.filter(banner => !isDismissed(banner));
   if (visibleBanners.length === 0) {
     return null;
