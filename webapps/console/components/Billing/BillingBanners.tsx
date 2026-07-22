@@ -124,7 +124,7 @@ const BannerCard: React.FC<{ banner: BillingBanner; onClose?: () => void }> = ({
       </div>
       {action && (
         <div className="flex-shrink-0 ml-2 flex flex-col items-end gap-2">
-          <WJitsuButton href={action.location} type="primary" size="middle">
+          <WJitsuButton href={action.location} type="primary" size="large">
             {action.text}
           </WJitsuButton>
           {action.subtitle && <Html className="text-xs text-neutral-500" html={action.subtitle} />}
