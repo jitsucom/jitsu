@@ -54,9 +54,13 @@ export const BillingBanner = z.object({
       location: z.string(),
       /** Small HTML line under the button. */
       subtitle: z.string().optional(),
+      /** Show the action on the billing settings page. Missing = true. */
+      onBillingPage: z.boolean().optional(),
     })
     .optional(),
   closeable: z.boolean(),
+  /** Show this banner on the billing settings page. Missing = true. */
+  onBillingPage: z.boolean().optional(),
 });
 
 export type BillingBanner = z.infer<typeof BillingBanner>;
