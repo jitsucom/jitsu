@@ -187,11 +187,14 @@ const BillingBannersInner: React.FC = () => {
     banners = [];
   }
 
-  // On the billing page the action button would navigate to the page the user
-  // is already on (a visual no-op) — the page itself is the call to action, so
-  // drop the action column there.
+  // Server-controlled visibility on the billing settings page: banners and
+  // actions carry an `onBillingPage` flag (missing = show). Warnings hide
+  // there entirely; the blocked banner shows but drops its action (which
+  // would navigate to the very page the user is on).
   if (onBillingPage) {
-    banners = banners.map(banner => (banner.action ? { ...banner, action: undefined } : banner));
+    banners = banners
+      .filter(banner => banner.onBillingPage !== false)
+      .map(banner => (banner.action?.onBillingPage === false ? { ...banner, action: undefined } : banner));
   }
 
   const isDismissed = (banner: BillingBanner) =>
