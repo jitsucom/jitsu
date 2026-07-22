@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { NextApiRequest } from "next";
 import { createRoute, verifyAccessWithRole } from "../../../../lib/api";
 import { db } from "../../../../lib/server/db";
 import { ProfileBuilderDbModel } from "../../../../prisma/schema";
@@ -8,7 +9,7 @@ import { MASKED_SECRET } from "../../../../lib/schema/destinations";
 import { configObjectAuditLog } from "../../../../lib/server/audit-log";
 import { omitDeletedList } from "../../../../lib/server/omit-deleted";
 
-async function updateFunctionCode(user: any, workspaceId: string, pbId: string, code: string) {
+async function updateFunctionCode(user: any, workspaceId: string, pbId: string, code: string, req?: NextApiRequest) {
   const withFunc = await db.prisma().profileBuilder.findFirst({
     include: { functions: { include: { function: true } } },
     where: { id: pbId, workspaceId: workspaceId, deleted: false },
@@ -26,10 +27,15 @@ async function updateFunctionCode(user: any, workspaceId: string, pbId: string, 
         config: newConfig,
       },
     });
-    await configObjectAuditLog(user, workspaceId, func.functionId, "function", "update", {
-      prevVersion: func.function.config,
-      newVersion: newConfig,
-    });
+    await configObjectAuditLog(
+      user,
+      workspaceId,
+      func.functionId,
+      "function",
+      "update",
+      { prevVersion: func.function.config, newVersion: newConfig },
+      req
+    );
   } else {
     const func = await db.prisma().configurationObject.create({
       data: {
@@ -49,9 +55,7 @@ async function updateFunctionCode(user: any, workspaceId: string, pbId: string, 
         functionId: func.id,
       },
     });
-    await configObjectAuditLog(user, workspaceId, func.id, "function", "create", {
-      newVersion: func.config,
-    });
+    await configObjectAuditLog(user, workspaceId, func.id, "function", "create", { newVersion: func.config }, req);
   }
 }
 
@@ -66,6 +70,7 @@ const upsertHandler = async (ctx: any) => {
   const {
     body,
     user,
+    req,
     query: { workspaceId },
   } = ctx;
   await verifyAccessWithRole(user, workspaceId, "editEntities");
@@ -82,15 +87,20 @@ const upsertHandler = async (ctx: any) => {
 
   let createdOrUpdated;
   if (existingPb) {
-    await updateFunctionCode(user, workspaceId, existingPb.id, body.code);
+    await updateFunctionCode(user, workspaceId, existingPb.id, body.code, req);
     createdOrUpdated = await db.prisma().profileBuilder.update({
       where: { id: existingPb.id },
       data: { ...pb, deleted: false, workspaceId },
     });
-    await configObjectAuditLog(user, workspaceId, createdOrUpdated.id, "profilebuilder", "update", {
-      prevVersion: existingPb,
-      newVersion: createdOrUpdated,
-    });
+    await configObjectAuditLog(
+      user,
+      workspaceId,
+      createdOrUpdated.id,
+      "profilebuilder",
+      "update",
+      { prevVersion: existingPb, newVersion: createdOrUpdated },
+      req
+    );
   } else {
     createdOrUpdated = await db.prisma().profileBuilder.create({
       data: {
@@ -98,10 +108,16 @@ const upsertHandler = async (ctx: any) => {
         workspaceId,
       },
     });
-    await updateFunctionCode(user, workspaceId, createdOrUpdated.id, body.code);
-    await configObjectAuditLog(user, workspaceId, createdOrUpdated.id, "profilebuilder", "create", {
-      newVersion: createdOrUpdated,
-    });
+    await updateFunctionCode(user, workspaceId, createdOrUpdated.id, body.code, req);
+    await configObjectAuditLog(
+      user,
+      workspaceId,
+      createdOrUpdated.id,
+      "profilebuilder",
+      "create",
+      { newVersion: createdOrUpdated },
+      req
+    );
   }
 
   return { id: createdOrUpdated.id, created: !existingPb };
@@ -157,7 +173,7 @@ export const route = createRoute()
     summary: "Delete profile builder",
     tags: ["profile-builder"],
   })
-  .handler(async ({ user, query: { workspaceId, id } }) => {
+  .handler(async ({ user, req, query: { workspaceId, id } }) => {
     await verifyAccessWithRole(user, workspaceId, "deleteEntities");
     const existingPB = await db.prisma().profileBuilder.findFirst({
       where: { workspaceId: workspaceId, id, deleted: false },
@@ -178,15 +194,19 @@ export const route = createRoute()
           where: { id: func.id },
           data: { deleted: true },
         });
-        await configObjectAuditLog(user, workspaceId, func.id, "function", "delete", {
-          prevVersion: func,
-        });
+        await configObjectAuditLog(user, workspaceId, func.id, "function", "delete", { prevVersion: func }, req);
       }
     }
     await db.prisma().profileBuilder.update({ where: { id: existingPB.id }, data: { deleted: true } });
-    await configObjectAuditLog(user, workspaceId, existingPB.id, "profilebuilder", "delete", {
-      prevVersion: existingPB,
-    });
+    await configObjectAuditLog(
+      user,
+      workspaceId,
+      existingPB.id,
+      "profilebuilder",
+      "delete",
+      { prevVersion: existingPB },
+      req
+    );
     return { deleted: true };
   });
 
