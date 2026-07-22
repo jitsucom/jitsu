@@ -114,8 +114,8 @@ const BannerCard: React.FC<{ banner: BillingBanner; onClose?: () => void }> = ({
         {banner.icon ? <Html html={banner.icon} /> : <span className="text-xl font-extrabold">!</span>}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <span className="text-lg font-bold text-neutral-900">{banner.title}</span>
+        <div className="flex items-center gap-2.5 flex-wrap -mt-0.5">
+          <span className="text-lg font-bold text-neutral-900 leading-6">{banner.title}</span>
           <span className={`text-xs font-bold tracking-wide rounded-full border px-2.5 py-0.5 ${t.badge}`}>
             {banner.badge}
           </span>
