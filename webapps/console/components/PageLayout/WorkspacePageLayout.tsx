@@ -324,7 +324,7 @@ const UserProfileButton: React.FC<{}> = () => {
       trigger={["click"]}
     >
       <div className="h-8 w-8 cursor-pointer">
-        {user.image && user.image.indexOf("googleusercontent.com/") < 0 ? (
+        {user.image ? (
           <img className="rounded-full w-8 h-8" src={user.image} about="userpic" alt="" width="100" height="100" />
         ) : (
           <FaUserCircle className="text-primary w-full h-full" />
