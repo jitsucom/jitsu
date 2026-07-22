@@ -15,7 +15,7 @@ export default createRoute()
       workspaceId: z.string().optional(),
     }),
   })
-  .handler(async ({ user, body }) => {
+  .handler(async ({ user, req, body }) => {
     const token = await db.prisma().invitationToken.findFirst({ where: { token: body.invitationToken } });
     if (!token) {
       return { accepted: false, details: `Token ${body.invitationToken} was not found` };
@@ -60,7 +60,8 @@ export default createRoute()
       token.workspaceId,
       "joined",
       { userId: user.internalId, email: user.email },
-      { newRole: token.role || "owner" }
+      { newRole: token.role || "owner" },
+      req
     );
     return { accepted: true, workspaceName: workspace.name, workspaceId: workspace.id };
   })

@@ -18,7 +18,13 @@ export default createRoute()
   .handler(async ({ req, body, res, user }) => {
     await signOut(user.externalId);
     try {
-      await authAuditLog({ internalId: user.internalId, email: user.email, name: user.name }, "logout", "firebase");
+      await authAuditLog(
+        { internalId: user.internalId, email: user.email, name: user.name },
+        "logout",
+        "firebase",
+        undefined,
+        req
+      );
       await trackAuthEvent(
         { internalId: user.internalId, email: user.email, name: user.name, externalId: user.externalId },
         "logout",

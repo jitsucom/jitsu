@@ -196,11 +196,17 @@ export const route = createRoute()
         prev.slug !== workspace.slug ||
         !isEqual(prev.featuresEnabled, workspace.featuresEnabled))
     ) {
-      await workspaceAuditLog(user, workspace.id, "updated", {
-        prevVersion: { name: prev.name, slug: prev.slug, featuresEnabled: prev.featuresEnabled },
-        newVersion: { name: workspace.name, slug: workspace.slug, featuresEnabled: workspace.featuresEnabled },
-        workspaceName: workspace.name,
-      });
+      await workspaceAuditLog(
+        user,
+        workspace.id,
+        "updated",
+        {
+          prevVersion: { name: prev.name, slug: prev.slug, featuresEnabled: prev.featuresEnabled },
+          newVersion: { name: workspace.name, slug: workspace.slug, featuresEnabled: workspace.featuresEnabled },
+          workspaceName: workspace.name,
+        },
+        req
+      );
     }
     if (onboarding === "true") {
       await withProductAnalytics(callback => callback.track("workspace_onboarded"), { user, workspace, req });

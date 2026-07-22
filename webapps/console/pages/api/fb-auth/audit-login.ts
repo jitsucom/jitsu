@@ -27,7 +27,7 @@ export const api: Api = {
     types: {
       body: z.object({ idToken: z.string() }),
     },
-    handle: async ({ body }) => {
+    handle: async ({ body, req }) => {
       try {
         const decoded = await firebase().auth().verifyIdToken(body.idToken);
         const email = decoded.email || "";
@@ -39,7 +39,7 @@ export const api: Api = {
           internalId = profile?.id;
         }
         if (internalId) {
-          await authAuditLog({ internalId, email, name: decoded.name || email }, "login", "firebase");
+          await authAuditLog({ internalId, email, name: decoded.name || email }, "login", "firebase", undefined, req);
           await trackAuthEvent(
             { internalId, email, name: decoded.name || email, externalId: decoded.uid },
             "login",

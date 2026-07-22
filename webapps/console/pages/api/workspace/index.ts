@@ -197,7 +197,7 @@ export const route = createRoute()
       data: { deleted: true },
     });
 
-    await workspaceAuditLog(user, workspaceId, "deleted", { workspaceName: workspace.name });
+    await workspaceAuditLog(user, workspaceId, "deleted", { workspaceName: workspace.name }, req);
     await withProductAnalytics(p => p.track("workspace_deleted"), { user, workspace, req });
 
     return { message: `${workspace.name} deleted successfully`, status: 200 };

@@ -127,7 +127,8 @@ const api: Api = {
           workspace.id,
           "invited",
           { email: body.email },
-          { newRole: body.role || "owner" }
+          { newRole: body.role || "owner" },
+          req
         );
         return {
           token: token.token,
@@ -142,7 +143,7 @@ const api: Api = {
     types: {
       query: z.object({ email: z.string().optional(), userId: z.string().optional(), workspaceIdOrSlug: z.string() }),
     },
-    handle: async ({ user, query: { workspaceIdOrSlug, email, userId } }) => {
+    handle: async ({ user, req, query: { workspaceIdOrSlug, email, userId } }) => {
       const workspace = requireDefined(
         await getWorkspace(workspaceIdOrSlug),
         `Can't find workspace ${workspaceIdOrSlug}`
@@ -169,7 +170,7 @@ const api: Api = {
       // false `member-removed` security events from idempotent retries or
       // stale invitation cancels.
       if (removedCount > 0) {
-        await membershipAuditLog(user, workspace.id, "removed", { userId, email: targetEmail });
+        await membershipAuditLog(user, workspace.id, "removed", { userId, email: targetEmail }, undefined, req);
       }
       return { success: true };
     },
