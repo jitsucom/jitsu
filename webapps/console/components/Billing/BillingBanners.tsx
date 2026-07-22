@@ -55,16 +55,60 @@ const safeStorageSet = (key: string, value: string): void => {
   } catch {}
 };
 
-// Banner HTML fragments are copy + the progress-bar widget: structural markup
-// and inline styles, no script vectors.
-const sanitize = (html: string) =>
-  DOMPurify.sanitize(html, {
+/**
+ * A safe navigation target: workspace-relative console path — starts with a
+ * single "/", and no dot segments (decoded), so it cannot escape the
+ * `/${workspace}` prefix WJitsuButton prepends or go off-origin.
+ */
+const isSafeLocation = (location: string): boolean => {
+  if (!location.startsWith("/") || location.startsWith("//")) {
+    return false;
+  }
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(location);
+  } catch {
+    return false;
+  }
+  return !decoded.split("/").some(segment => segment === ".." || segment === ".");
+};
+
+// Any <a href> surviving sanitization must satisfy the same rules as
+// action.location — inline links must not become an off-origin escape hatch.
+let dompurifyHookInstalled = false;
+const installHook = () => {
+  if (!dompurifyHookInstalled && typeof window !== "undefined") {
+    DOMPurify.addHook("afterSanitizeAttributes", node => {
+      if (node.tagName === "A" && !isSafeLocation(node.getAttribute("href") || "")) {
+        node.removeAttribute("href");
+      }
+    });
+    dompurifyHookInstalled = true;
+  }
+};
+
+// Banner body/icon fragments are copy + widgets (progress bar, icon glyph):
+// structural markup and inline styles, no script vectors.
+const sanitize = (html: string) => {
+  installHook();
+  return DOMPurify.sanitize(html, {
     ALLOWED_TAGS: ["div", "span", "p", "a", "b", "i", "em", "strong", "u", "s", "code", "br"],
     ALLOWED_ATTR: ["href", "style"],
   });
+};
 
-const Html: React.FC<{ html: string; className?: string }> = ({ html, className }) => (
-  <span className={className} dangerouslySetInnerHTML={{ __html: sanitize(html) }} />
+// Subtitles are one-line captions: inline formatting only — no styles, no
+// structure, no links.
+const sanitizeInline = (html: string) => {
+  installHook();
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: ["b", "i", "em", "strong", "u", "s", "code", "br"],
+    ALLOWED_ATTR: [],
+  });
+};
+
+const Html: React.FC<{ html: string; className?: string; inline?: boolean }> = ({ html, className, inline }) => (
+  <span className={className} dangerouslySetInnerHTML={{ __html: inline ? sanitizeInline(html) : sanitize(html) }} />
 );
 
 function usageIsAboutToExceed(billing: UseBillingResult, usage: UseUsageRes): boolean {
@@ -104,14 +148,18 @@ const BannerCard: React.FC<{ banner: BillingBanner; onClose?: () => void }> = ({
   const t = themes[banner.severity];
   // Only workspace-relative console paths — a server bug/compromise must not
   // be able to send users off-origin (WJitsuButton prefixes the workspace).
-  const action =
-    banner.action && banner.action.location.startsWith("/") && !banner.action.location.startsWith("//")
-      ? banner.action
-      : undefined;
+  const action = banner.action && isSafeLocation(banner.action.location) ? banner.action : undefined;
+  // Fall back to the default severity icon when the override sanitizes to
+  // nothing (e.g. markup outside the allowlist) — never render a blank tile.
+  const iconHtml = banner.icon ? sanitize(banner.icon) : "";
   return (
     <div className={`flex items-start gap-4 rounded-xl border border-l-4 py-5 px-6 ${t.card}`}>
       <div className={`flex-shrink-0 w-11 h-11 rounded-lg flex items-center justify-center ${t.iconBox}`}>
-        {banner.icon ? <Html html={banner.icon} /> : <span className="text-xl font-extrabold">!</span>}
+        {iconHtml.trim() ? (
+          <span dangerouslySetInnerHTML={{ __html: iconHtml }} />
+        ) : (
+          <span className="text-xl font-extrabold">!</span>
+        )}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2.5 flex-wrap -mt-0.5">
@@ -127,7 +175,7 @@ const BannerCard: React.FC<{ banner: BillingBanner; onClose?: () => void }> = ({
           <WJitsuButton href={action.location} type="primary" size="large">
             {action.text}
           </WJitsuButton>
-          {action.subtitle && <Html className="text-[12.5px] text-gray-500" html={action.subtitle} />}
+          {action.subtitle && <Html inline className="text-[12.5px] text-gray-500" html={action.subtitle} />}
         </div>
       )}
       {banner.closeable && onClose && (
@@ -165,8 +213,9 @@ const BillingBannersInner: React.FC = () => {
         title: "Workspace throttled",
         badge: `${usage.throttle}% THROTTLED`,
         body: `Part of your events are not being delivered — your workspace is throttled at <b>${usage.throttle}%</b> due to exceeding the free plan quota.`,
-        action: { text: "See details", location: "/settings/billing" },
+        action: { text: "See details", location: "/settings/billing", onBillingPage: false },
         closeable: false,
+        onBillingPage: false,
       },
     ];
   } else if (serverBanners.length > 0) {
@@ -179,8 +228,9 @@ const BillingBannersInner: React.FC = () => {
         title: "Projected to exceed your quota",
         badge: "PROJECTION",
         body: "At the current pace you'll exceed your monthly events quota before the period ends. Upgrade your plan to avoid service disruption.",
-        action: { text: "Upgrade", location: "/settings/billing" },
+        action: { text: "Upgrade", location: "/settings/billing", onBillingPage: false },
         closeable: true,
+        onBillingPage: false,
       },
     ];
   } else {
