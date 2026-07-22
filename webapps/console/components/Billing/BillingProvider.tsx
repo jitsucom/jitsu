@@ -1,4 +1,5 @@
-import { BillingSettings, noRestrictions } from "../../lib/schema";
+import { z } from "zod";
+import { BillingBanner, BillingSettings, noRestrictions } from "../../lib/schema";
 import { useAppConfig, useUser, useWorkspace } from "../../lib/context";
 import React, { createContext, PropsWithChildren, useContext, useEffect, useState } from "react";
 import { getLog } from "juava";
@@ -31,8 +32,14 @@ export function useBilling(): UseBillingResult {
 
 export const parseBillingSettings = (settings: any): BillingSettings => {
   // banners is a sibling of subscriptionStatus in the billing/settings
-  // response (JITSU-88) — attach it after parsing the subscription.
-  const banners = settings.banners ?? [];
+  // response (JITSU-88) — attach it after parsing the subscription. Banners
+  // are decorative: a malformed payload drops to [] instead of failing the
+  // whole billing context.
+  const bannersParsed = z.array(BillingBanner).safeParse(settings.banners ?? []);
+  if (!bannersParsed.success) {
+    log.atWarn().log(`Ignoring malformed billing banners payload`, bannersParsed.error);
+  }
+  const banners = bannersParsed.success ? bannersParsed.data : [];
   if (settings.noRestrictions) {
     return { ...noRestrictions, banners };
   }
