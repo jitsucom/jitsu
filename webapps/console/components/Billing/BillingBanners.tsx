@@ -55,8 +55,10 @@ const sanitize = (html: string) => {
     dompurifyHookInstalled = true;
   }
   return DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: ["div", "span", "p", "a", "b", "i", "em", "strong", "u", "s", "code", "br"],
-    ALLOWED_ATTR: ["href", "style"],
+    ALLOWED_TAGS: ["div", "span", "p", "a", "b", "i", "em", "strong", "u", "s", "code", "br", "button"],
+    ALLOWED_ATTR: ["href", "style", "type", "aria-label"],
+    // keeps data-banner-dismiss — the delegation target for the dismiss ✕
+    ALLOW_DATA_ATTR: true,
   });
 };
 
@@ -90,7 +92,8 @@ const ClientBannerCard: React.FC<{
   body: ReactNode;
   actionLabel: string;
   actionHref: string;
-}> = ({ theme, title, badge, body, actionLabel, actionHref }) => {
+  onDismiss?: () => void;
+}> = ({ theme, title, badge, body, actionLabel, actionHref, onDismiss }) => {
   const t = cardThemes[theme];
   return (
     <div className={`flex items-start gap-4 rounded-xl border border-l-4 py-5 px-6 ${t.card}`}>
@@ -120,6 +123,15 @@ const ClientBannerCard: React.FC<{
           {actionLabel}
         </Link>
       </div>
+      {onDismiss && (
+        <button
+          className="flex-shrink-0 self-start -mt-2 -mr-3 ml-1 p-1 rounded text-neutral-400 hover:text-neutral-600 hover:bg-black/5"
+          aria-label="Dismiss"
+          onClick={onDismiss}
+        >
+          <X className="w-4 h-4" />
+        </button>
+      )}
     </div>
   );
 };
@@ -139,6 +151,13 @@ const BillingBannersInner: React.FC = () => {
   // everywhere.
   const onBillingPage = router.pathname.endsWith("/settings/billing");
   const billingHref = `/${workspace.slugOrId}/settings/billing`;
+
+  const dismiss = (bannerId: string) => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(dismissKey(workspace.id, bannerId), "1");
+    }
+    forceRerender();
+  };
 
   let banners: DisplayBanner[];
   if (usage.throttle && !onBillingPage && !(usage.throttle >= 100 && serverBanners.length > 0)) {
@@ -167,12 +186,25 @@ const BillingBannersInner: React.FC = () => {
     banners = serverBanners.map(banner => ({
       id: banner.id,
       dismissible: banner.dismissible,
-      node: <div dangerouslySetInnerHTML={{ __html: sanitize(banner.html) }} />,
+      node: (
+        // Dismissible server cards contain a `data-banner-dismiss` ✕ rendered
+        // by billing as part of the card layout; it carries no behavior of its
+        // own — this delegated click handler supplies it.
+        <div
+          onClick={e => {
+            if ((e.target as Element).closest?.("[data-banner-dismiss]")) {
+              dismiss(banner.id);
+            }
+          }}
+          dangerouslySetInnerHTML={{ __html: sanitize(banner.html) }}
+        />
+      ),
     }));
   } else if (usageIsAboutToExceed(billing, usage) && !onBillingPage) {
+    const projectionId = `client-projection:${usage.usage?.periodEnd?.toISOString() ?? "period"}`;
     banners = [
       {
-        id: `client-projection:${usage.usage?.periodEnd?.toISOString() ?? "period"}`,
+        id: projectionId,
         dismissible: true,
         node: (
           <ClientBannerCard
@@ -182,6 +214,7 @@ const BillingBannersInner: React.FC = () => {
             body="At the current pace you'll exceed your monthly events quota before the period ends. Upgrade your plan to avoid service disruption."
             actionLabel="Upgrade"
             actionHref={billingHref}
+            onDismiss={() => dismiss(projectionId)}
           />
         ),
       },
@@ -202,22 +235,8 @@ const BillingBannersInner: React.FC = () => {
   return (
     <>
       {visibleBanners.map(banner => (
-        <div key={banner.id} className="relative mt-4">
+        <div key={banner.id} className="mt-4">
           {banner.node}
-          {banner.dismissible && (
-            <button
-              className="absolute top-2 right-2 p-1 rounded text-neutral-400 hover:text-neutral-600 hover:bg-black/5"
-              aria-label="Dismiss"
-              onClick={() => {
-                if (typeof window !== "undefined") {
-                  window.localStorage.setItem(dismissKey(workspace.id, banner.id), "1");
-                }
-                forceRerender();
-              }}
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
         </div>
       ))}
     </>
