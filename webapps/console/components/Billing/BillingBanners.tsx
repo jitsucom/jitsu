@@ -120,7 +120,7 @@ const BannerCard: React.FC<{ banner: BillingBanner; onClose?: () => void }> = ({
             {banner.badge}
           </span>
         </div>
-        <Html className="block mt-1.5 text-sm text-neutral-600 leading-relaxed" html={banner.body} />
+        <Html className="block mt-0.5 text-sm text-neutral-600 leading-normal" html={banner.body} />
       </div>
       {action && (
         <div className="flex-shrink-0 ml-2 flex flex-col items-end gap-2">
