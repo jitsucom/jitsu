@@ -15,6 +15,7 @@ describe("originFromAuth — X-Jitsu-Client precedence", () => {
     ["API key + jitsu-cli header → cli", apiKey, "jitsu-cli/0.9.1", "cli"],
     ["header match is case-insensitive", apiKey, "JITSU-CLI/1.0.0", "cli"],
     ["unrelated client falls through to token → api", apiKey, "some-tool/1.0", "api"],
+    ["jitsu-client is not jitsu-cli (delimiter guards) → api", apiKey, "jitsu-client/1.0", "api"],
     ["header wins over authType (mcp) → cli", { authType: "mcp" }, "jitsu-cli/1.0.0", "cli"],
   ] as const)("%s", (_label, auth, client, expected) => {
     expect(originFromAuth({ ...auth, headers: client ? { "x-jitsu-client": client } : null })).toBe(expected);

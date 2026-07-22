@@ -224,12 +224,14 @@ export function originFromAuth(auth: {
   tokenType?: string | null;
   headers?: Record<string, string> | null;
 }): RequestOrigin {
-  // Case-insensitive prefix match, kept deliberately simple so the read-API
-  // origin filter (a Prisma `string_starts_with` with mode:"insensitive") can
-  // mirror it exactly. Both sides must agree or `origin=cli` filtering drifts
-  // from what the row renders as.
+  // Match the "jitsu-cli/" prefix (with the trailing slash) case-insensitively.
+  // The slash is a deliberate delimiter so we don't false-attribute a client
+  // like "jitsu-client/1.0"; the CLI always sends `jitsu-cli/<version>`. Kept a
+  // plain prefix check so the read-API origin filter (a Prisma
+  // `string_starts_with` with mode:"insensitive") mirrors it exactly — both
+  // sides must agree or `origin=cli` filtering drifts from what the row renders.
   const client = auth.headers?.["x-jitsu-client"];
-  if (client && client.toLowerCase().startsWith("jitsu-cli")) return "cli";
+  if (client && client.toLowerCase().startsWith("jitsu-cli/")) return "cli";
   if (auth.authType === "mcp") return "mcp";
   if (auth.authType === "bearer") {
     const tokenType = auth.tokenType || (auth.tokenId ? inferTokenTypeFromId(auth.tokenId) : "api");

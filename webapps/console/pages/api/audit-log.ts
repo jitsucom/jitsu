@@ -368,11 +368,11 @@ export default createRoute()
       // it CLI regardless of token type — mirrors originFromAuth, which checks
       // this header first. Legacy rows (requestHeaders NULL) simply don't match,
       // so they keep classifying by token identity.
-      // Case-insensitive to mirror originFromAuth exactly (it lowercases the
-      // header before comparing) — otherwise a `JITSU-CLI/…` row renders as CLI
-      // but this filter would miss it.
+      // Mirror originFromAuth exactly: case-insensitive "jitsu-cli/" prefix (the
+      // trailing slash is the delimiter that keeps "jitsu-client/…" from being
+      // mis-attributed to CLI).
       const cliHeaderMatch: Prisma.AuditLogWhereInput = {
-        requestHeaders: { path: ["x-jitsu-client"], string_starts_with: "jitsu-cli", mode: "insensitive" },
+        requestHeaders: { path: ["x-jitsu-client"], string_starts_with: "jitsu-cli/", mode: "insensitive" },
       };
       const notCliHeader: Prisma.AuditLogWhereInput = { NOT: cliHeaderMatch };
       const originClauses: Prisma.AuditLogWhereInput[] = [];
