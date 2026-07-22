@@ -374,7 +374,19 @@ export default createRoute()
       const cliHeaderMatch: Prisma.AuditLogWhereInput = {
         requestHeaders: { path: ["x-jitsu-client"], string_starts_with: "jitsu-cli/", mode: "insensitive" },
       };
-      const notCliHeader: Prisma.AuditLogWhereInput = { NOT: cliHeaderMatch };
+      // NULL-safe negation of cliHeaderMatch. A plain `NOT cliHeaderMatch` is
+      // wrong here: for rows where requestHeaders is SQL NULL, or the
+      // x-jitsu-client key is absent, the JSON-path predicate is SQL NULL, and
+      // `NOT NULL` is NULL (not TRUE) — so those rows would be dropped from the
+      // api/ui/mcp filters. That's every legacy row and every non-CLI request.
+      // Enumerate the "not a CLI-header row" cases explicitly instead:
+      const notCliHeader: Prisma.AuditLogWhereInput = {
+        OR: [
+          { requestHeaders: { equals: Prisma.DbNull } }, // no headers stored (legacy rows)
+          { requestHeaders: { path: ["x-jitsu-client"], equals: Prisma.AnyNull } }, // key absent
+          { NOT: cliHeaderMatch }, // present, but not a jitsu-cli/ value
+        ],
+      };
       const originClauses: Prisma.AuditLogWhereInput[] = [];
       for (const o of requested) {
         switch (o) {
