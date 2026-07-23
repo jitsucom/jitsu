@@ -605,6 +605,7 @@ export const WorkspacePageLayout: React.FC<PropsWithChildren<PageLayoutProps>> =
             </WidthControl>
           </VerticalSection>
         )}
+        {fullscreen && <BillingBanners modalsOnly />}
         <VerticalSection className={`flex-auto overflow-auto ${fullscreen ? "py-2" : "py-12"} ${contentClassName}`}>
           {fullscreen && (
             <button

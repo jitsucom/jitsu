@@ -666,10 +666,16 @@ export async function verifyAccessWithRole(
       select: { featuresEnabled: true },
     });
     if (workspace?.featuresEnabled?.includes("readonly")) {
-      throw new ApiError(
-        `Workspace is in read-only mode due to billing issues. Please resolve them on the billing page to restore access.`,
-        { status: 403, responseObject: { workspaceId, userId, role, requiredPermission, readonly: true } }
-      );
+      // Jitsu admins bypass readonly even when they hold an explicit
+      // workspaceAccess row (the earlier short-circuit only covers admins
+      // without one).
+      const isAdmin = (await db.prisma().userProfile.findFirst({ where: { id: user.internalId } }))?.admin;
+      if (!isAdmin) {
+        throw new ApiError(
+          `Workspace is in read-only mode due to billing issues. Please resolve them on the billing page to restore access.`,
+          { status: 403, responseObject: { workspaceId, userId, role, requiredPermission, readonly: true } }
+        );
+      }
     }
   }
 

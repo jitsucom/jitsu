@@ -196,13 +196,20 @@ const modalAccents: Record<BillingBanner["severity"], string> = {
 const BannerModal: React.FC<{ banner: BillingBanner; adminCanClose: boolean }> = ({ banner, adminCanClose }) => {
   const [open, setOpen] = useState(true);
   const t = themes[banner.severity];
-  const action = banner.action && isSafeLocation(banner.action.location) ? banner.action : undefined;
+  // A blocking modal must always offer a way forward: fall back to the billing
+  // page when the payload has no (safe) action.
+  const action =
+    banner.action && isSafeLocation(banner.action.location)
+      ? banner.action
+      : { text: "Go to billing", location: "/settings/billing", subtitle: undefined };
+  const canClose = adminCanClose || banner.closeable;
   const iconHtml = banner.icon ? sanitize(banner.icon) : "";
   return (
     <Modal
       width={600}
       open={open}
-      closable={adminCanClose || banner.closeable}
+      closable={canClose}
+      keyboard={canClose}
       onCancel={() => setOpen(false)}
       maskClosable={false}
       footer={null}
@@ -228,18 +235,16 @@ const BannerModal: React.FC<{ banner: BillingBanner; adminCanClose: boolean }> =
       <div className="pl-[58px]">
         <Html className="block mt-2 text-sm text-neutral-600 leading-relaxed" html={banner.body} />
         {banner.extra && <Html className="block" html={banner.extra} />}
-        {action && (
-          <div className="mt-5">
-            <WJitsuButton href={action.location} className="w-full" size="large" type="primary">
-              {action.text}
-            </WJitsuButton>
-            {action.subtitle && (
-              <div className="text-center mt-2.5">
-                <Html inline className="text-[12.5px] text-gray-500" html={action.subtitle} />
-              </div>
-            )}
-          </div>
-        )}
+        <div className="mt-5">
+          <WJitsuButton href={action.location} className="w-full" size="large" type="primary">
+            {action.text}
+          </WJitsuButton>
+          {action.subtitle && (
+            <div className="text-center mt-2.5">
+              <Html inline className="text-[12.5px] text-gray-500" html={action.subtitle} />
+            </div>
+          )}
+        </div>
       </div>
     </Modal>
   );
@@ -252,7 +257,7 @@ const BannerModal: React.FC<{ banner: BillingBanner; adminCanClose: boolean }> =
  */
 const MODAL_EXEMPT_PAGES = ["/settings", "/settings/domains", "/settings/billing", "/settings/billing/details"];
 
-const BillingBannersInner: React.FC = () => {
+const BillingBannersInner: React.FC<{ modalsOnly?: boolean }> = ({ modalsOnly }) => {
   const billing = useBilling();
   const workspace = useWorkspace();
   const router = useRouter();
@@ -280,7 +285,9 @@ const BillingBannersInner: React.FC = () => {
 
   const isDismissed = (banner: BillingBanner) =>
     banner.closeable && !!safeStorageGet(dismissKey(workspace.id, banner.id));
-  const visibleBanners = banners.filter(banner => !isDismissed(banner));
+  // modalsOnly: fullscreen pages mount a second instance that renders only the
+  // blocking modals — cards have no place in fullscreen chrome.
+  const visibleBanners = modalsOnly ? [] : banners.filter(banner => !isDismissed(banner));
 
   // Blocking modals render independently of the card-priority chain, but never
   // on the pages the user needs to fix billing.
@@ -315,11 +322,11 @@ const BillingBannersInner: React.FC = () => {
   );
 };
 
-export const BillingBanners: React.FC = () => {
+export const BillingBanners: React.FC<{ modalsOnly?: boolean }> = ({ modalsOnly }) => {
   const billing = useBilling();
   // Banners exist only for enabled, loaded billing.
   if (!billing.enabled || billing.loading) {
     return null;
   }
-  return <BillingBannersInner />;
+  return <BillingBannersInner modalsOnly={modalsOnly} />;
 };
