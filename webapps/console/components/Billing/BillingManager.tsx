@@ -1,5 +1,6 @@
 import React, { ReactNode } from "react";
 import { useBilling } from "./BillingProvider";
+import { BannerCard } from "./BillingBanners";
 import { useAppConfig, useUser, useWorkspace } from "../../lib/context";
 import { useEeApi, useEeRedirect } from "../../lib/eeApi";
 import { assertDefined, assertFalse, assertTrue, requireDefined, rpc } from "juava";
@@ -347,6 +348,16 @@ const CurrentSubscription: React.FC<{}> = () => {
       </div>
       <h3 className="text-lg text-textLight mt-6 mb-2">Events Usage</h3>
       <EventsUsageSection />
+      {/* Quota banners from billing/settings, nested compact: no extra widget
+          zone (the section's own chart covers usage) and no action (it would
+          navigate to this very page). */}
+      {(billing.settings?.banners ?? [])
+        .filter(banner => banner.kind !== "modal")
+        .map(banner => (
+          <div key={banner.id} className="mt-3">
+            <BannerCard banner={banner} compact />
+          </div>
+        ))}
       {billing.settings?.planId !== "free" && (
         <>
           <h3 className="text-lg text-textLight mt-6 mb-2">Connectors Usage</h3>
