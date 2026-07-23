@@ -97,8 +97,10 @@ function WorkspacesMenu(props: {
   const recentWorkspaces = [...(workspacesData?.workspaces ?? [])].sort((a, b) =>
     a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
   );
-  const hasMore = !!workspacesData?.pagination?.hasMore;
-  const moreCount = workspacesData ? Math.max(workspacesData.pagination.totalCount - recentWorkspaces.length, 0) : 0;
+  // Total workspaces the user can reach — shown on the single "All Workspaces" link below when it
+  // exceeds what we list inline, so we don't duplicate that link with a separate "More" entry.
+  const totalCount = workspacesData?.pagination?.totalCount ?? 0;
+  const hasMore = totalCount > recentWorkspaces.length;
 
   const workspaceItems: MenuProps["items"] = [];
   if (workspacesLoading) {
@@ -118,18 +120,6 @@ function WorkspacesMenu(props: {
               {w.name}
             </ButtonLabel>
             {isCurrent && <Check className="h-4 w-4 text-primary shrink-0" />}
-          </Link>
-        ),
-      });
-    }
-    if (hasMore) {
-      workspaceItems.push({
-        key: "more-workspaces",
-        label: (
-          <Link href="/workspaces" className="flex items-center">
-            <ButtonLabel iconSize="small" icon={<Folders className="h-full w-full" />}>
-              More ({moreCount})
-            </ButtonLabel>
           </Link>
         ),
       });
@@ -177,7 +167,7 @@ function WorkspacesMenu(props: {
           label: (
             <Link href="/workspaces" className="flex items-center">
               <ButtonLabel iconSize="small" icon={<Folders className="w-full h-full" />}>
-                All Workspaces
+                All Workspaces{hasMore ? ` (${totalCount.toLocaleString("en-US")})` : ""}
               </ButtonLabel>
             </Link>
           ),
