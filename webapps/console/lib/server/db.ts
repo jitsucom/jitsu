@@ -1,4 +1,4 @@
-import { Prisma, PrismaClient } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 import { Pool, PoolClient } from "pg";
 import Cursor from "pg-cursor";
 import { getSingleton, namedParameters, newError, requireDefined, stopwatch, hideSensitiveInfo } from "juava";
@@ -71,41 +71,41 @@ const pgHelper: PgHelper = {
   },
 };
 
-// Prisma error codes that indicate the database itself is unreachable or the
-// connection dropped, as opposed to a query/logic error.
-// P1001: can't reach database server, P1002: connection timed out,
-// P1008: operation timed out, P1017: server closed the connection.
-const DB_CONNECTIVITY_CODES = new Set(["P1001", "P1002", "P1008", "P1017"]);
-
-/**
- * Returns true when the error signals that the database is down/unreachable
- * (connection could not be established or was lost) rather than a query error.
- */
-export function isDatabaseConnectivityError(e: unknown): boolean {
-  if (e instanceof Prisma.PrismaClientInitializationError) {
-    return true;
-  }
-  if (e instanceof Prisma.PrismaClientKnownRequestError) {
-    return DB_CONNECTIVITY_CODES.has(e.code);
-  }
-  return false;
-}
-
-export function getDatabaseErrorCode(e: unknown): string | undefined {
-  if (e instanceof Prisma.PrismaClientInitializationError) {
-    return e.errorCode;
-  }
-  if (e instanceof Prisma.PrismaClientKnownRequestError) {
-    return e.code;
-  }
-  return undefined;
-}
-
 export const db = {
   prisma: getSingleton<PrismaClient>("prisma", createPrisma),
   pgPool: getSingleton<Pool>("pg", createPg),
   pgHelper: () => pgHelper,
 } as const;
+
+/**
+ * Actively probes the database with a trivial `SELECT 1`. Prisma exposes no
+ * "am I connected?" flag — connections are lazy and pooled — so the only
+ * reliable signal is to run a cheap query and see whether it succeeds. Used on
+ * the request error path to tell a genuine outage apart from an ordinary query
+ * failure, without having to pattern-match on Prisma error codes.
+ *
+ * Bounded by `timeoutMs` so an unreachable server can't stall the response
+ * while the driver waits out its own (much longer) connect timeout.
+ */
+export async function isDatabaseReachable(timeoutMs = 1500): Promise<boolean> {
+  const ping = db.prisma().$queryRaw`SELECT 1`;
+  // If the timeout wins the race the query promise still settles later; swallow
+  // its rejection so it can't surface as an unhandled rejection.
+  Promise.resolve(ping).catch(() => {});
+  try {
+    await Promise.race([
+      ping,
+      new Promise((_, reject) => {
+        const t = setTimeout(() => reject(new Error("db ping timed out")), timeoutMs);
+        // Don't let the probe timer keep the event loop alive on its own.
+        (t as { unref?: () => void }).unref?.();
+      }),
+    ]);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export type DatabaseConnection = typeof db;
 
