@@ -45,8 +45,10 @@ export const BillingBanner = z.object({
   title: z.string(),
   /** Status pill next to the title, e.g. "82% USED". */
   badge: z.string(),
-  /** Body HTML (usage copy + inline progress bar). */
+  /** Body HTML (the message copy). */
   body: z.string(),
+  /** Widget zone HTML under the body (quota progress bar); omitted in compact contexts. */
+  extra: z.string().optional(),
   action: z
     .object({
       text: z.string(),

@@ -21,12 +21,12 @@ import { BillingBanner } from "../../lib/schema";
  * are restricted to workspace-relative console paths.
  *
  * Two banners are still computed client-side (they replaced the old floating
- * workspace alerts) and share the same template, with explicit priority rules:
- *   - active partial throttle (`throttle=N` in featuresEnabled, N < 100): shown
- *     INSTEAD of any server banners — the applied throttle is ground truth,
- *     server state may lag it. At throttle=100 with server banners present, the
- *     server wins: a full block is exactly what the server's blocked banner
- *     describes, with better copy (blocked-count);
+ * workspace alerts) and share the same template, with explicit rules:
+ *   - active throttle (`throttle=N` in featuresEnabled): a standalone banner
+ *     when there are no server banners; with server banners present, a partial
+ *     throttle (N < 100) appends its one important fact to the first banner's
+ *     body instead of adding a second banner (N = 100 needs nothing — that's
+ *     the blocked banner's own story);
  *   - usage projected to exceed the free plan: shown only when there is nothing
  *     else to show.
  * TODO(JITSU-123): move both to the billing server (getWorkspaceBanners) and
@@ -145,8 +145,17 @@ const themes: Record<BillingBanner["severity"], { card: string; iconBox: string;
   },
 };
 
-/** The banner card template (design: JITSU-88 mock) filled from a BillingBanner payload. */
-const BannerCard: React.FC<{ banner: BillingBanner; onClose?: () => void }> = ({ banner, onClose }) => {
+/**
+ * The banner card template (design: JITSU-88 mock) filled from a BillingBanner
+ * payload. `compact` omits the extra widget zone, the action column and the ✕ —
+ * used when the banner is nested in a context that already provides them (the
+ * billing page's Event usage section).
+ */
+export const BannerCard: React.FC<{ banner: BillingBanner; onClose?: () => void; compact?: boolean }> = ({
+  banner,
+  onClose,
+  compact,
+}) => {
   const t = themes[banner.severity];
   // Only workspace-relative console paths — a server bug/compromise must not
   // be able to send users off-origin (WJitsuButton prefixes the workspace).
@@ -171,8 +180,9 @@ const BannerCard: React.FC<{ banner: BillingBanner; onClose?: () => void }> = ({
           </span>
         </div>
         <Html className="block mt-1.5 text-sm text-neutral-600 leading-relaxed" html={banner.body} />
+        {!compact && banner.extra && <Html className="block" html={banner.extra} />}
       </div>
-      {action && (
+      {!compact && action && (
         <div className="flex-shrink-0 ml-2 flex flex-col items-end gap-2.5">
           <WJitsuButton href={action.location} type="primary" size="large">
             {action.text}
@@ -180,7 +190,7 @@ const BannerCard: React.FC<{ banner: BillingBanner; onClose?: () => void }> = ({
           {action.subtitle && <Html inline className="text-[12.5px] text-gray-500" html={action.subtitle} />}
         </div>
       )}
-      {banner.closeable && onClose && (
+      {!compact && banner.closeable && onClose && (
         <button
           className="flex-shrink-0 self-start -mt-2 -mr-3 ml-1 p-1 rounded text-neutral-400 hover:text-neutral-600 hover:bg-black/5"
           aria-label="Dismiss"
@@ -199,6 +209,12 @@ const BannerCard: React.FC<{ banner: BillingBanner; onClose?: () => void }> = ({
  * admins (user-properties `admin` flag) can dismiss regardless of `closeable`.
  * Dismissal is session-only — the modal returns on the next mount.
  */
+const modalAccents: Record<BillingBanner["severity"], string> = {
+  info: "bg-blue-600",
+  warning: "bg-amber-600",
+  error: "bg-red-600",
+};
+
 const BannerModal: React.FC<{ banner: BillingBanner; adminCanClose: boolean }> = ({ banner, adminCanClose }) => {
   const [open, setOpen] = useState(true);
   const t = themes[banner.severity];
@@ -206,37 +222,47 @@ const BannerModal: React.FC<{ banner: BillingBanner; adminCanClose: boolean }> =
   const iconHtml = banner.icon ? sanitize(banner.icon) : "";
   return (
     <Modal
-      style={{ minWidth: 1000 }}
+      width={600}
       open={open}
-      title={
-        <div className="flex items-center gap-4">
-          <div className={`flex-shrink-0 w-11 h-11 rounded-lg flex items-center justify-center ${t.iconBox}`}>
-            {iconHtml.trim() ? (
-              <span dangerouslySetInnerHTML={{ __html: iconHtml }} />
-            ) : (
-              <AlertTriangle className="w-7 h-7" />
-            )}
-          </div>
-          <h2 className="text-4xl">{banner.title}</h2>
+      closable={adminCanClose || banner.closeable}
+      onCancel={() => setOpen(false)}
+      maskClosable={false}
+      footer={null}
+    >
+      {/* Top accent bar — the modal's counterpart of the card's accent edge;
+          negative margins span it across the modal's built-in padding. */}
+      <div className={`h-1 -mx-6 -mt-5 mb-5 rounded-t-lg ${modalAccents[banner.severity]}`} />
+      <div className="flex items-center gap-3.5">
+        <div className={`flex-shrink-0 w-11 h-11 rounded-lg flex items-center justify-center ${t.iconBox}`}>
+          {iconHtml.trim() ? (
+            <span dangerouslySetInnerHTML={{ __html: iconHtml }} />
+          ) : (
+            <AlertTriangle className="w-6 h-6" />
+          )}
+        </div>
+        <div className="flex-1 flex items-center gap-2.5 flex-wrap">
+          <span className="text-lg font-bold text-neutral-900 leading-6">{banner.title}</span>
           <span className={`text-xs font-bold tracking-wide rounded-full border px-2.5 py-0.5 ${t.badge}`}>
             {banner.badge}
           </span>
         </div>
-      }
-      closable={adminCanClose || banner.closeable}
-      onCancel={() => setOpen(false)}
-      maskClosable={false}
-      footer={
-        action ? (
-          <div className="w-full">
+      </div>
+      <div className="pl-[58px]">
+        <Html className="block mt-2 text-sm text-neutral-600 leading-relaxed" html={banner.body} />
+        {banner.extra && <Html className="block" html={banner.extra} />}
+        {action && (
+          <div className="mt-5">
             <WJitsuButton href={action.location} className="w-full" size="large" type="primary">
               {action.text}
             </WJitsuButton>
+            {action.subtitle && (
+              <div className="text-center mt-2.5">
+                <Html inline className="text-[12.5px] text-gray-500" html={action.subtitle} />
+              </div>
+            )}
           </div>
-        ) : null
-      }
-    >
-      <Html className="block text-lg my-12" html={banner.body} />
+        )}
+      </div>
     </Modal>
   );
 };
@@ -265,7 +291,8 @@ const BillingBannersInner: React.FC = () => {
   const onBillingPage = router.pathname.endsWith("/settings/billing");
 
   let banners: BillingBanner[];
-  if (usage.throttle && !onBillingPage && !(usage.throttle >= 100 && serverBanners.length > 0)) {
+  if (usage.throttle && serverBanners.length === 0 && !onBillingPage) {
+    // A throttle with no server banner to attach to gets its own banner.
     banners = [
       {
         id: "client-throttle",
@@ -279,7 +306,20 @@ const BillingBannersInner: React.FC = () => {
       },
     ];
   } else if (serverBanners.length > 0) {
-    banners = serverBanners;
+    // A partial throttle alongside server banners doesn't warrant a second
+    // banner — its one important fact is appended to the first banner's body.
+    // (throttle=100 needs no line: that's the blocked banner's own story.)
+    const partialThrottle = usage.throttle && usage.throttle < 100 ? usage.throttle : 0;
+    banners = partialThrottle
+      ? serverBanners.map((banner, i) =>
+          i === 0
+            ? {
+                ...banner,
+                body: `${banner.body}<br/>Part of your events are not being delivered — your workspace is throttled at <b>${partialThrottle}%</b>.`,
+              }
+            : banner
+        )
+      : serverBanners;
   } else if (usageIsAboutToExceed(billing, usage) && !onBillingPage) {
     banners = [
       {
