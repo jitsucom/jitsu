@@ -1,11 +1,10 @@
-import { PropsWithChildren, ReactNode, useCallback, useEffect } from "react";
+import { PropsWithChildren, ReactNode, useCallback, useEffect, useState } from "react";
 import { notification } from "antd";
 import { NextRouter, useRouter } from "next/router";
 import { ErrorDetails } from "../components/GlobalError/GlobalError";
 import { getAntdModal } from "./modal";
 import { Input } from "antd";
 
-import * as _useTitle from "react-use/lib/useTitle";
 import { NotificationPlacement } from "antd/es/notification/interface";
 
 export type KeyboardKey = "Escape" | "Enter";
@@ -29,7 +28,20 @@ export function useKeyboard(key: KeyboardKey, handler) {
   }, [onKeyPress]);
 }
 
-export const useTitle = _useTitle.default;
+export function useTitle(title: string) {
+  useEffect(() => {
+    document.title = title;
+  }, [title]);
+}
+
+export function useDebouncedValue<T>(value: T, ms: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), ms);
+    return () => clearTimeout(timer);
+  }, [value, ms]);
+  return debounced;
+}
 
 export function copyTextToClipboard(text) {
   if (navigator.clipboard?.writeText) {

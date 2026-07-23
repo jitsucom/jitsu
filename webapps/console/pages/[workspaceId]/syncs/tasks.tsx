@@ -32,7 +32,7 @@ import { displayTaskRunError, formatDate, SyncTitle } from "./index";
 import { ButtonGroup, ButtonProps } from "../../../components/ButtonGroup/ButtonGroup";
 import { rpc } from "juava";
 import { feedbackError, feedbackSuccess, useKeyboard } from "../../../lib/ui";
-import hash from "object-hash";
+import { default as hash } from "stable-hash";
 import { useConfigObjectLinks, useConfigObjectList } from "../../../lib/store";
 import { Spinner } from "../../../components/GlobalLoader/GlobalLoader";
 import { MdOutlineCancel } from "react-icons/md";

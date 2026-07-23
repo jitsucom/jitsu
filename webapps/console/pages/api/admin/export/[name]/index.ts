@@ -6,8 +6,10 @@ import { getCoreDestinationTypeNonStrict } from "../../../../../lib/schema/desti
 import { getEeConnection, isEEAvailable, serviceTokenHeaders } from "../../../../../lib/server/ee";
 import omit from "lodash/omit";
 import { NextApiRequest } from "next";
-import hash from "object-hash";
 import { default as stableHash } from "stable-hash";
+
+// ponytail: replaces object-hash; hash values change once on deploy, downstream only uses them as cache keys
+const hash = (o: any) => juavaHash("md5", stableHash(o));
 import { WorkspaceDbModel, FunctionsServerDbModel } from "../../../../../prisma/schema";
 import { ProfileBuilder } from "@jitsu/destination-functions";
 import { getServerEnv } from "../../../../../lib/server/serverEnv";

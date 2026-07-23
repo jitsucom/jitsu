@@ -7,7 +7,7 @@ import { UpgradeDialog } from "../../../components/Billing/UpgradeDialog";
 import { DomainsEditor } from "../../../components/DomainsEditor/DomainsEditor";
 import { useConfigApi } from "../../../lib/useApi";
 import { WorkspaceDomain } from "../../../lib/schema";
-import cuid from "cuid";
+import { randomId } from "juava";
 import { useConfigObjectList, useConfigObjectMutation } from "../../../lib/store";
 
 const WorkspaceDomainsComponent: React.FC<any> = () => {
@@ -31,7 +31,7 @@ const WorkspaceDomainsComponent: React.FC<any> = () => {
       const toAdd = newDomains.filter(d => !domains.includes(d));
       const toDelete = domainsRaw.filter(d => !newDomains.includes(d.name));
       for (const domain of toAdd) {
-        await onSaveMutation.mutateAsync({ id: cuid(), type: "domain", workspaceId: workspace.id, name: domain });
+        await onSaveMutation.mutateAsync({ id: randomId(), type: "domain", workspaceId: workspace.id, name: domain });
       }
       for (const domain of toDelete) {
         await onDeleteMutation.mutateAsync(domain);

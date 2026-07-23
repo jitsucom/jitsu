@@ -18,6 +18,8 @@ export type ChainFunction = {
 
 export type BuildContextFn<TLog> = (functionId: string, functionType: string, logs: TLog[]) => FullContext;
 
+// ponytail: duplicates juava's deepCopy on purpose — this module is bundled into the
+// permission-less Deno worker and must not import juava (see header comment)
 export function deepCopy<T>(o: T): T {
   if (typeof o !== "object") return o;
   if (!o) return o;

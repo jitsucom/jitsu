@@ -5,7 +5,7 @@ import utc from "dayjs/plugin/utc";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { rpc } from "juava";
 import { useQuery } from "@tanstack/react-query";
-import { useDebounce } from "use-debounce";
+import { useDebouncedValue } from "../../lib/ui";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { AuditLogDiff } from "../AuditLogDiff/AuditLogDiff";
@@ -293,7 +293,7 @@ export const AuditLog: React.FC<AuditLogProps> = ({ workspaceId, workspaceSlug, 
   // search results change.
   const [wsFilter, setWsFilter] = useState<{ value: string; label: string } | undefined>(undefined);
   const [wsSearch, setWsSearch] = useState("");
-  const [debouncedWsSearch] = useDebounce(wsSearch, 300);
+  const debouncedWsSearch = useDebouncedValue(wsSearch, 300);
 
   // ── URL ⇄ filter sync ──────────────────────────────────────────────────
   // Persist every filter in the query string so a filtered view is shareable

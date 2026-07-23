@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 import { Button } from "antd";
 import { CopyOutlined, FileTextOutlined } from "@ant-design/icons";
-import loadable from "@loadable/component";
+import dynamic from "next/dynamic";
 import { CodeBlockLight } from "../CodeBlock/CodeBlockLight";
 
-const ReactJson = loadable(() => new Promise((r, c) => import("react-json-view").then(result => r(result.default), c)));
+const ReactJson = dynamic(() => import("react-json-view"), { ssr: false });
 
 export const JSONView = (props: { data: any; rawData?: string }) => {
   const [raw, setRaw] = useState(false);

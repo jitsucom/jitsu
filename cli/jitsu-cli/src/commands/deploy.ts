@@ -3,7 +3,7 @@ import { homedir } from "os";
 import inquirer from "inquirer";
 import { existsSync, readdirSync, readFileSync } from "fs";
 import { loadPackageJson } from "./shared";
-import cuid from "cuid";
+import { randomId } from "juava";
 import { b, green, red } from "../lib/chalk-code-highlight";
 import { getFunctionFromFilePath } from "../lib/compiled-function";
 import { loadProjectConfig } from "../lib/project-config";
@@ -301,7 +301,7 @@ async function deployFunction(
     };
   }
   if (!existingFunctionId) {
-    const id = cuid();
+    const id = randomId();
     const res = await fetch(`${host}/api/${workspace.id}/config/function`, {
       method: "POST",
       headers: {

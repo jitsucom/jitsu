@@ -8,13 +8,12 @@ import { EmbeddedErrorMessage } from "../components/GlobalError/GlobalError";
 import { getLog } from "juava";
 import Link from "next/link";
 import React, { useState, useMemo, useRef, useEffect } from "react";
-import { feedbackError, feedbackSuccess } from "../lib/ui";
+import { feedbackError, feedbackSuccess, useDebouncedValue } from "../lib/ui";
 import { JitsuButton } from "../components/JitsuButton/JitsuButton";
 import { Input, Tag, Button, Skeleton } from "antd";
 import { useQueryStringState } from "../lib/useQueryStringState";
 import { branding } from "../lib/branding";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useDebounce } from "use-debounce";
 import { useUserSessionControls } from "../lib/context";
 
 const log = getLog("worspaces");
@@ -89,7 +88,7 @@ const WorkspacesList = () => {
     defaultValue: "",
     skipHistory: true,
   });
-  const [debouncedSearch] = useDebounce(searchQuery, 500);
+  const debouncedSearch = useDebouncedValue(searchQuery, 500);
   const searchInputRef = useRef<any>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
