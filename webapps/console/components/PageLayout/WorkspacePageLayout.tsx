@@ -49,7 +49,6 @@ import { Overlay } from "../Overlay/Overlay";
 import { WorkspaceNameAndSlugEditor } from "../WorkspaceNameAndSlugEditor/WorkspaceNameAndSlugEditor";
 import { getLog } from "juava";
 import classNames from "classnames";
-import { BillingBlockingDialog } from "../Billing/BillingBlockingDialog";
 import { BillingBanners } from "../Billing/BillingBanners";
 import { useJitsu } from "@jitsu/jitsu-react";
 import { useSearchParams } from "next/navigation";
@@ -64,7 +63,6 @@ export type PageLayoutProps = {
   onClose?: () => void;
   contentClassName?: string;
   className?: string;
-  doNotBlockIfUsageExceeded?: boolean;
 };
 
 export type WorkspaceSelectorProps = {
@@ -611,7 +609,6 @@ export const WorkspacePageLayout: React.FC<PropsWithChildren<PageLayoutProps>> =
   contentClassName,
   onClose,
   children,
-  doNotBlockIfUsageExceeded,
 }) => {
   const [showDrawer, setShowDrawer] = useState(false);
   const workspace = useWorkspace();
@@ -657,7 +654,6 @@ export const WorkspacePageLayout: React.FC<PropsWithChildren<PageLayoutProps>> =
 
   return (
     <div className={`flex flex-col ${screen ? "h-screen" : ""} ${className}`}>
-      {!doNotBlockIfUsageExceeded && <BillingBlockingDialog />}
       <div className={`flex-auto ${fullscreen || screen ? "overflow-hidden" : ""} flex flex-col`}>
         {!workspace.slug && (
           <WorkspaceSettingsModal

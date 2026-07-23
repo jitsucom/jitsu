@@ -1,10 +1,12 @@
-import React, { useReducer } from "react";
+import React, { useReducer, useState } from "react";
+import { Modal } from "antd";
 import DOMPurify from "dompurify";
-import { X } from "lucide-react";
+import { AlertTriangle, X } from "lucide-react";
 import { useRouter } from "next/router";
 import { useBilling, UseBillingResult } from "./BillingProvider";
 import { useEventsUsage, UseUsageRes } from "./use-events-usage";
 import { useWorkspace } from "../../lib/context";
+import { useApi } from "../../lib/useApi";
 import { WJitsuButton } from "../JitsuButton/JitsuButton";
 import { BillingBanner } from "../../lib/schema";
 
@@ -191,14 +193,72 @@ const BannerCard: React.FC<{ banner: BillingBanner; onClose?: () => void }> = ({
   );
 };
 
+/**
+ * Blocking-modal presentation of a banner payload (kind: "modal") — replaces
+ * the old hardcoded BillingBlockingDialog. The mask is not closable; Jitsu
+ * admins (user-properties `admin` flag) can dismiss regardless of `closeable`.
+ * Dismissal is session-only — the modal returns on the next mount.
+ */
+const BannerModal: React.FC<{ banner: BillingBanner; adminCanClose: boolean }> = ({ banner, adminCanClose }) => {
+  const [open, setOpen] = useState(true);
+  const t = themes[banner.severity];
+  const action = banner.action && isSafeLocation(banner.action.location) ? banner.action : undefined;
+  const iconHtml = banner.icon ? sanitize(banner.icon) : "";
+  return (
+    <Modal
+      style={{ minWidth: 1000 }}
+      open={open}
+      title={
+        <div className="flex items-center gap-4">
+          <div className={`flex-shrink-0 w-11 h-11 rounded-lg flex items-center justify-center ${t.iconBox}`}>
+            {iconHtml.trim() ? (
+              <span dangerouslySetInnerHTML={{ __html: iconHtml }} />
+            ) : (
+              <AlertTriangle className="w-7 h-7" />
+            )}
+          </div>
+          <h2 className="text-4xl">{banner.title}</h2>
+          <span className={`text-xs font-bold tracking-wide rounded-full border px-2.5 py-0.5 ${t.badge}`}>
+            {banner.badge}
+          </span>
+        </div>
+      }
+      closable={adminCanClose || banner.closeable}
+      onCancel={() => setOpen(false)}
+      maskClosable={false}
+      footer={
+        action ? (
+          <div className="w-full">
+            <WJitsuButton href={action.location} className="w-full" size="large" type="primary">
+              {action.text}
+            </WJitsuButton>
+          </div>
+        ) : null
+      }
+    >
+      <Html className="block text-lg my-12" html={banner.body} />
+    </Modal>
+  );
+};
+
+/**
+ * Pages a blocking modal must never cover: everything the user needs to fix
+ * billing (matches the pages the old dialog excluded via
+ * doNotBlockIfUsageExceeded).
+ */
+const MODAL_EXEMPT_PAGES = ["/settings", "/settings/domains", "/settings/billing", "/settings/billing/details"];
+
 const BillingBannersInner: React.FC = () => {
   const billing = useBilling();
   const workspace = useWorkspace();
   const router = useRouter();
   const usage = useEventsUsage({ skipSubscribed: true });
+  const { data: userProps } = useApi(`/api/user/properties`);
   const [, forceRerender] = useReducer(x => x + 1, 0);
 
-  const serverBanners = (billing.enabled && billing.settings?.banners) || [];
+  const serverAll = (billing.enabled && billing.settings?.banners) || [];
+  const serverModals = serverAll.filter(banner => banner.kind === "modal");
+  const serverBanners = serverAll.filter(banner => banner.kind !== "modal");
   // The billing page shows its own detailed alerts (BillingManager) — the
   // client-computed banners would duplicate them there. Server banners render
   // everywhere.
@@ -250,12 +310,21 @@ const BillingBannersInner: React.FC = () => {
   const isDismissed = (banner: BillingBanner) =>
     banner.closeable && !!safeStorageGet(dismissKey(workspace.id, banner.id));
   const visibleBanners = banners.filter(banner => !isDismissed(banner));
-  if (visibleBanners.length === 0) {
+
+  // Blocking modals render independently of the card-priority chain, but never
+  // on the pages the user needs to fix billing.
+  const onModalExemptPage = MODAL_EXEMPT_PAGES.some(page => router.pathname.endsWith(page));
+  const visibleModals = onModalExemptPage ? [] : serverModals;
+
+  if (visibleBanners.length === 0 && visibleModals.length === 0) {
     return null;
   }
 
   return (
     <>
+      {visibleModals.map(banner => (
+        <BannerModal key={banner.id} banner={banner} adminCanClose={!!userProps?.admin} />
+      ))}
       {visibleBanners.map(banner => (
         <div key={banner.id} className="mt-4">
           <BannerCard
