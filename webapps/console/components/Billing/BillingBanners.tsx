@@ -252,10 +252,9 @@ const BannerModal: React.FC<{ banner: BillingBanner; adminCanClose: boolean }> =
 
 /**
  * Pages a blocking modal must never cover: everything the user needs to fix
- * billing (matches the pages the old dialog excluded via
- * doNotBlockIfUsageExceeded).
+ * billing (workspace settings + the billing pages).
  */
-const MODAL_EXEMPT_PAGES = ["/settings", "/settings/domains", "/settings/billing", "/settings/billing/details"];
+const MODAL_EXEMPT_PAGES = ["/settings", "/settings/billing", "/settings/billing/details"];
 
 const BillingBannersInner: React.FC<{ modalsOnly?: boolean }> = ({ modalsOnly }) => {
   const billing = useBilling();
