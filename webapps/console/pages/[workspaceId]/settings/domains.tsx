@@ -86,7 +86,7 @@ const WorkspaceDomainsComponent: React.FC<any> = () => {
 
 const WorkspaceDomains: React.FC<any> = () => {
   return (
-    <WorkspacePageLayout doNotBlockIfUsageExceeded={true}>
+    <WorkspacePageLayout>
       <WorkspaceDomainsComponent />
     </WorkspacePageLayout>
   );

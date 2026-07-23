@@ -61,6 +61,11 @@ export const BillingBanner = z.object({
   closeable: z.boolean(),
   /** Show this banner on the billing settings page. Missing = true. */
   onBillingPage: z.boolean().optional(),
+  /**
+   * Presentation: inline card ("banner", default) or blocking modal ("modal" —
+   * non-closable mask; Jitsu admins can dismiss regardless of closeable).
+   */
+  kind: z.enum(["banner", "modal"]).optional(),
 });
 
 export type BillingBanner = z.infer<typeof BillingBanner>;
