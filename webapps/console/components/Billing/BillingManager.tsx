@@ -300,11 +300,16 @@ const CurrentSubscription: React.FC<{}> = () => {
       </div>
       <h3 className="text-lg text-textLight mt-6 mb-2">Events Usage</h3>
       <EventsUsageSection />
-      {/* Quota banners from billing/settings, nested compact: no extra widget
+      {/* Usage banners from billing/settings, nested compact: no extra widget
           zone (the section's own chart covers usage) and no action (it would
-          navigate to this very page). */}
+          navigate to this very page). Only banners the server moved off the
+          top strip (onBillingPage: false) — default-visible ones already show
+          there. Past-due surfaces are excluded: the dedicated unpaid-invoices
+          alert below carries the payment link. */}
       {(billing.settings?.banners ?? [])
-        .filter(banner => banner.kind !== "modal")
+        .filter(
+          banner => banner.kind !== "modal" && banner.onBillingPage === false && !banner.id.startsWith("past-due")
+        )
         .map(banner => (
           <div key={banner.id} className="mt-3">
             <BannerCard banner={banner} compact />
