@@ -10,11 +10,15 @@ import {
   getCoreDestinationType,
   PropertyUI,
 } from "../../lib/schema/destinations";
-import { DestinationCatalog, getDestinationIcon } from "../../components/DestinationsCatalog/DestinationsCatalog";
+import {
+  DestinationCatalog,
+  DestinationCatalogHandle,
+  getDestinationIcon,
+} from "../../components/DestinationsCatalog/DestinationsCatalog";
 import { useAppConfig, useWorkspace } from "../../lib/context";
 import { useRouter } from "next/router";
 import { assertDefined, getLog, requireDefined, rpc } from "juava";
-import React, { PropsWithChildren, useState } from "react";
+import React, { PropsWithChildren, useRef, useState } from "react";
 import TextArea from "antd/lib/input/TextArea";
 import { get, getConfigApi, useApi } from "../../lib/useApi";
 import { EmbeddedErrorMessage, ErrorCard } from "../../components/GlobalError/GlobalError";
@@ -622,6 +626,7 @@ const ConnectionsList: React.FC<{ streams: any[]; service: any[]; destinationId:
 };
 
 const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
+  const destinationCatalogRef = useRef<DestinationCatalogHandle>(null);
   const [showCatalog, setShowCatalog] = useQueryStringState<boolean>("showCatalog", {
     defaultValue: false,
     ...serialization.bool,
@@ -814,10 +819,12 @@ const DestinationsList: React.FC<{ type?: string }> = ({ type }) => {
         width="90vw"
         style={{ minWidth: 1000 }}
         destroyOnClose={true}
+        afterOpenChange={open => open && destinationCatalogRef.current?.focusSearch()}
         onCancel={() => setShowCatalog(false)}
         footer={null}
       >
         <DestinationCatalog
+          ref={destinationCatalogRef}
           onClick={async destination => {
             const url = `/${
               workspace.slugOrId
